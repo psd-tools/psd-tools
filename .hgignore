@@ -1,0 +1,18 @@
+#projects
+\.idea
+
+#temp files
+\.pyc
+\.orig
+
+#os files
+\.DS_Store
+Thumbs.db
+
+#project-specific files
+\.tox
+stuff
+MANIFEST$
+^build
+\.ipynb$
+^dist
