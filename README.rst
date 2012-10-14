@@ -11,7 +11,7 @@ Why yet another PSD reader?
 
 There are existing PSD readers for Python:
 
-* `psdparse <https://github.com/jerem/psdparse>`;
+* `psdparse <https://github.com/jerem/psdparse>`_;
 * `pypsd <https://code.google.com/p/pypsd>`_;
 * there is a PSD reader in PIL library.
 
