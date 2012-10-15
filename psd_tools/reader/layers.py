@@ -19,6 +19,7 @@ LayerRecord = collections.namedtuple('LayerRecord', [
 
 ChannelInfo = collections.namedtuple('ChannelInfo', 'id length')
 LayerMaskData = collections.namedtuple('LayerMaskData', 'top left bottom right default_color flags real_flags real_background')
+LayerBlendingRanges = collections.namedtuple('LayerBlendingRanges', 'composite_ranges channel_ranges')
 
 class ChannelData(collections.namedtuple('ChannelData', 'compression data')):
     def __repr__(self):
@@ -163,8 +164,21 @@ def _read_layer_mask_data(fp):
 
 def _read_layer_blending_ranges(fp):
     """ Reads layer blending data. """
+
+    def read_channel_range():
+        src_start, src_end, dest_start, dest_end = read_fmt("4H", fp)
+        return (src_start, src_end), (dest_start, dest_end)
+
+    composite_ranges = None
+    channel_ranges = []
     length = read_fmt("I", fp)[0]
-    fp.read(length) # skip; this is not implemented
+
+    if length:
+        composite_ranges = read_channel_range()
+        for x in range(length//8 - 1):
+            channel_ranges.append(read_channel_range())
+
+    return LayerBlendingRanges(composite_ranges, channel_ranges)
 
 def _read_channel_image_data(fp, layer):
     """

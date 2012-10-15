@@ -51,7 +51,7 @@ The process of handling a PSD file is splitted into 3 stages:
 
 .. note::
 
-    Currently only (1) is partially implemented.
+    Currently only (1) is implemented.
 
 Contributing
 ------------
