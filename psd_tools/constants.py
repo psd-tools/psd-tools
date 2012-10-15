@@ -78,7 +78,7 @@ class ImageResourceID(Enum):
     ALPHA_NAMES_UNICODE = 1045
     INDEXED_COLOR_TABLE_COUNT = 1046
     TRANSPARENCY_INDEX = 1047
-    GLOBAL_ALTITUD = 1049
+    GLOBAL_ALTITUDE = 1049
     SLICES = 1050
     WORKFLOW_URL = 1051
     JUMP_TO_XPEP = 1052
@@ -171,3 +171,8 @@ class Compression(Enum):
     PACK_BITS = 1
     ZIP = 2
     ZIP_WITH_PREDICTION = 3
+
+class PrintScaleStyle(Enum):
+    CENTERED = 0
+    SIZE_TO_FIT = 1
+    USER_DEFINED = 2

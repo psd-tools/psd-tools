@@ -5,6 +5,7 @@ import docopt
 import pprint
 
 import psd_tools.reader
+import psd_tools.decoder
 
 logger = logging.getLogger('psd_tools')
 logger.addHandler(logging.StreamHandler())
@@ -32,5 +33,7 @@ def main():
 
     with open(args['<filename>'], 'rb') as f:
         res = psd_tools.reader.parse(f, args['--encoding'])
-        pprint.pprint(res)
+        decoded = psd_tools.decoder.decode(res)
+        for it in decoded:
+            pprint.pprint(it)
 

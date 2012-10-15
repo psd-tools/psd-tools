@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class ImageResource(collections.namedtuple("ImageResource", "resource_id, name, data")):
     def __repr__(self):
         return "ImageResource(%r, %r, %s)" % (
-            self.resource_id, self.name, trimmed_repr(self.data, 20))
+            self.resource_id, self.name, trimmed_repr(self.data))
 
 
 def read(fp, encoding):
@@ -40,7 +40,7 @@ def _read_block(fp, encoding):
     name = read_pascal_string(fp, encoding, 2)
     fp.seek(1, 1) # XXX: why is this needed??
 
-    data_size = read_fmt("I", fp)[0]
-    data = fp.read(pad(data_size, 2))
+    data_size = pad(read_fmt("I", fp)[0], 2)
+    data = fp.read(data_size)
 
     return ImageResource(resource_id, name, data)

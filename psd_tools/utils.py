@@ -5,6 +5,15 @@ import sys
 import struct
 import array
 
+try:
+    unichr = unichr
+except NameError:
+    unichr = chr
+
+def unpack(fmt, data):
+    fmt = str(">" + fmt)
+    return struct.unpack(fmt, data)
+
 def read_fmt(fmt, fp):
     """
     Reads data from ``fp`` according to ``fmt``.
@@ -24,7 +33,13 @@ def read_pascal_string(fp, encoding, padding=1):
     length = pad(read_fmt("B", fp)[0], padding)
     return fp.read(length).decode(encoding, errors='replace')
 
-def read_be_array(fp, fmt, count):
+def read_unicode_string(fp):
+    num_chars = read_fmt("I", fp)[0]
+    data = fp.read(num_chars*2)
+    chars = be_array_from_bytes("H", data)
+    return "".join(unichr(num) for num in chars)
+
+def read_be_array(fmt, count, fp):
     """
     Reads an array from a file with big-endian data.
     """
@@ -34,9 +49,18 @@ def read_be_array(fp, fmt, count):
         arr.byteswap()
     return arr
 
-def trimmed_repr(data, trim_length):
-    if data is not None and len(data) > trim_length:
-        return repr(data[:trim_length] + b' ...')
-    else:
-        return repr(data)
+def be_array_from_bytes(fmt, data):
+    """
+    Reads an array from bytestring with big-endian data.
+    """
+    arr = array.array(str(fmt), data)
+    if sys.byteorder == 'little':
+        arr.byteswap()
+    return arr
 
+
+def trimmed_repr(data, trim_length=30):
+    if isinstance(data, bytes):
+        if len(data) > trim_length:
+            return repr(data[:trim_length] + b' ... =' + str(len(data)).encode('ascii'))
+    return repr(data)

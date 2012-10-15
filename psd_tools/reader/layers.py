@@ -200,7 +200,7 @@ def _read_channel_image_data(fp, layer):
             channel_data.append(ChannelData(compression, data))
 
         elif compression == Compression.PACK_BITS:
-            byte_counts = read_be_array(fp, "H", h)
+            byte_counts = read_be_array("H", h, fp)
             data = fp.read(sum(byte_counts))
             channel_data.append(ChannelData(compression, data))
 
@@ -239,7 +239,7 @@ def read_image_data(fp, header):
     channel_byte_counts = []
     if compression == Compression.PACK_BITS:
         for ch in range(header.number_of_channels):
-            channel_byte_counts.append(read_be_array(fp, "H", h))
+            channel_byte_counts.append(read_be_array("H", h, fp))
 
     channel_data = []
     for channel_id in range(header.number_of_channels):
