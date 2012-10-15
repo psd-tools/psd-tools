@@ -2,6 +2,7 @@
 from __future__ import absolute_import, unicode_literals, division
 import collections
 import logging
+import warnings
 
 from psd_tools.utils import read_fmt, read_pascal_string, read_be_array
 from psd_tools.exceptions import Error
@@ -88,12 +89,12 @@ def _read_layer_record(fp, encoding):
 
     blend_mode = fp.read(4).decode('ascii')
     if not BlendMode.is_known(blend_mode):
-        raise Error("Unknown blend mode (%s)" % blend_mode)
+        warnings.warn("Unknown blend mode (%s)" % blend_mode)
 
     opacity, clipping, flags, extra_length = read_fmt("BBBxI", fp)
 
     if not Clipping.is_known(clipping):
-        raise Error("Unknown clipping: %s" % clipping)
+        warnings.warn("Unknown clipping: %s" % clipping)
 
     start = fp.tell()
     mask_data = _read_layer_mask_data(fp)
@@ -147,7 +148,9 @@ def _read_layer_mask_data(fp):
     """ Reads layer mask or adjustment layer data. """
     size = read_fmt("I", fp)[0]
     if size not in [0, 20, 36]:
-        raise Error("Invalid layer data size: %d" % size)
+        warnings.warn("Invalid layer data size: %d" % size)
+        fp.seek(size, 1)
+        return
 
     if not size:
         return
@@ -202,9 +205,9 @@ def _read_channel_image_data(fp, layer):
             channel_data.append(ChannelData(compression, data))
 
         elif Compression.is_known(compression):
-            raise Error("This compression type is not implemented (%d)" % compression)
+            warnings.warn("This compression type (%d) is not yet supported." % compression)
         else:
-            raise Error("Unknown compression type: %d" % compression)
+            warnings.warn("Unknown compression type: %d" % compression)
 
         remaining_bytes = channel.length - (fp.tell() - start_pos) - 2
         if remaining_bytes > 0:
@@ -251,8 +254,8 @@ def read_image_data(fp, header):
             channel_data.append(ChannelData(compression, data))
 
         elif Compression.is_known(compression):
-            raise Error("This compression type is not implemented (%d)" % compression)
+            warnings.warn("This compression type (%d) is not yet supported." % compression)
         else:
-            raise Error("Unknown compression type: %d" % compression)
+            warnings.warn("Unknown compression type: %d" % compression)
 
     return channel_data

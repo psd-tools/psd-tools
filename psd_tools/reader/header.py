@@ -2,6 +2,7 @@
 from __future__ import absolute_import, unicode_literals
 import logging
 import collections
+import warnings
 
 from psd_tools.exceptions import Error
 from psd_tools.utils import read_fmt
@@ -27,7 +28,7 @@ def read(fp):
     header = Header(*read_fmt("6x HIIHH", fp))
 
     if not ColorMode.is_known(header.color_mode):
-        raise Error("Unknown color mode: %s" % header.color_mode)
+        warnings.warn("Unknown color mode: %s" % header.color_mode)
 
     logger.debug(header)
     return header
