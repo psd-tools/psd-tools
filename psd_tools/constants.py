@@ -32,6 +32,16 @@ class ChannelID(Enum):
     USER_LAYER_MASK = -2
     REAL_USER_LAYER_MASK = -3
 
+    @classmethod
+    def to_PIL(cls, channel_id):
+        BANDS_MAP = {
+            cls.RED: 'R',
+            cls.GREEN: 'G',
+            cls.BLUE: 'B',
+            cls.TRANSPARENCY_MASK: 'A'
+        }
+        return BANDS_MAP.get(channel_id, None)
+
 class ImageResourceID(Enum):
     OBSOLETE1 = 1000
     MAC_PRINT_MANAGER_INFO = 1001

@@ -16,3 +16,4 @@ MANIFEST$
 ^build
 \.ipynb$
 ^dist
+^psd_tools.egg-info

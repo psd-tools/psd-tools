@@ -3,9 +3,8 @@ from __future__ import absolute_import, unicode_literals
 import io
 import warnings
 import collections
-import array
 
-from psd_tools.utils import read_pascal_string, unpack, read_be_array, read_fmt, read_unicode_string, be_array_from_bytes
+from psd_tools.utils import read_pascal_string, unpack, read_fmt, read_unicode_string, be_array_from_bytes
 from psd_tools.constants import ImageResourceID, PrintScaleStyle
 
 PrintScale = collections.namedtuple('PrintScale', 'style, x, y, scale')
@@ -100,8 +99,10 @@ def decode_print_flags_ingo(data):
 @register(ImageResourceID.PRINT_SCALE)
 def _decode_print_scale(data):
     style, x, y, scale = unpack("H3f", data)
+
     if not PrintScaleStyle.is_known(style):
         warnings.warn("Unknown print scale style (%s)" % style)
+
     return PrintScale(style, x, y, scale)
 
 

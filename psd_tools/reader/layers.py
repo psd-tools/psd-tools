@@ -10,7 +10,7 @@ from psd_tools.constants import Compression, Clipping, BlendMode
 
 logger = logging.getLogger(__name__)
 
-LayerRecord = collections.namedtuple('LayerRecord', [
+_LayerRecord = collections.namedtuple('_LayerRecord', [
     'top', 'left', 'bottom', 'right',
     'num_channels', 'channels',
     'blend_mode', 'opacity', 'cilpping', 'flags',
@@ -18,13 +18,24 @@ LayerRecord = collections.namedtuple('LayerRecord', [
     'tagged_blocks'
 ])
 
+class LayerRecord(_LayerRecord):
+
+    def width(self):
+        return self.right - self.left
+
+    def height(self):
+        return self.bottom - self.top
+
+
+Layers = collections.namedtuple('Layers', 'length, layer_count, layer_records, channel_image_data')
+LayerAndMaskInfo = collections.namedtuple('LayerAndMaskData', 'layers global_mask_info tagged_blocks')
 ChannelInfo = collections.namedtuple('ChannelInfo', 'id length')
-LayerMaskData = collections.namedtuple('LayerMaskData', 'top left bottom right default_color flags real_flags real_background')
+MaskData = collections.namedtuple('MaskData', 'top left bottom right default_color flags real_flags real_background')
 LayerBlendingRanges = collections.namedtuple('LayerBlendingRanges', 'composite_ranges channel_ranges')
 
 class ChannelData(collections.namedtuple('ChannelData', 'compression data')):
     def __repr__(self):
-        return "ChannelData(compression=%r, size(data)=%r" % (
+        return "ChannelData(compression=%r, len(data)=%r" % (
             self.compression, len(self.data) if self.data is not None else None
         )
 
@@ -37,7 +48,7 @@ def read(fp, encoding):
     length = read_fmt("I", fp)[0]
     start_position = fp.tell()
 
-    layer_info = _read_layer(fp, encoding)
+    layers = _read_layers(fp, encoding)
 
     # XXX: are tagged blocks really after the layers?
     # XXX: does global mask reading really work?
@@ -49,27 +60,27 @@ def read(fp, encoding):
     consumed_bytes = fp.tell() - start_position
     fp.seek(length-consumed_bytes, 1)
 
-    return layer_info, global_mask_info, tagged_blocks
+    return LayerAndMaskInfo(layers, global_mask_info, tagged_blocks)
 
-def _read_layer(fp, encoding):
+def _read_layers(fp, encoding):
     """
     Reads info about layers.
     """
     length = read_fmt("I", fp)[0]
     layer_count = read_fmt("h", fp)[0]
 
-    layers = []
+    layer_records = []
     for idx in range(abs(layer_count)):
         layer = _read_layer_record(fp, encoding)
-        layers.append(layer)
+        layer_records.append(layer)
 
     channel_image_data = []
-    for layer in layers:
+    for layer in layer_records:
 
         data = _read_channel_image_data(fp, layer)
         channel_image_data.append(data)
 
-    return length, layer_count, layers, channel_image_data
+    return Layers(length, layer_count, layer_records, channel_image_data)
 
 def _read_layer_record(fp, encoding):
     """
@@ -187,7 +198,7 @@ def _read_channel_image_data(fp, layer):
     """
     Reads image data for all channels in a layer.
     """
-    w, h = (layer.right - layer.left), (layer.bottom - layer.top)
+    w, h = layer.width(), layer.height()
 
     channel_data = []
 
