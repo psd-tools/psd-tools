@@ -20,7 +20,7 @@ complicated because of the slow release process.
 
 I also considered contributing to pypsd or psdparse, but they are
 GPL and I was not totally satisfied with the interface and the code
-(they are really fine, it's me having specific style requirements).
+(they are really fine, that's me having specific style requirements).
 
 So I finally decided to roll out yet another implementation
 that should be MIT-licensed, systematically based on the specification_

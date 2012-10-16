@@ -18,6 +18,10 @@ def decode(image_resource_blocks):
     return [parse_image_resource(res) for res in image_resource_blocks]
 
 def parse_image_resource(resource):
+
+    if not ImageResourceID.is_known(resource.resource_id):
+        warnings.warn("Unknown resource_id (%s)" % resource.resource_id)
+
     decoder = _image_resource_decoders.get(resource.resource_id, lambda data: data)
     return resource._replace(data = decoder(resource.data))
 
@@ -41,7 +45,6 @@ _image_resource_decoders = {
 
     ImageResourceID.ALPHA_NAMES_UNICODE: _unicode_decoder,
     ImageResourceID.WORKFLOW_URL: _unicode_decoder,
-
 }
 
 def register(resource_id):

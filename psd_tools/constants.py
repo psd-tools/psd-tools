@@ -126,6 +126,13 @@ class ImageResourceID(Enum):
     LIGHTROOM_WORKFLOW = 8000
     PRINT_FLAGS_INFO = 10000
 
+    @classmethod
+    def is_known(cls, value):
+        path_info = cls.PATH_INFO_FIRST <= value <= cls.PATH_INFO_LAST
+        plugin_resource = cls.PLUGIN_RESOURCES_FIRST <= value <= cls.PLUGIN_RESOURCES_LAST
+        return super(ImageResourceID, cls).is_known(value) or path_info or plugin_resource
+
+
 class BlendMode(Enum):
     PASS_THROUGH = 'pass'
     NORMAL = 'norm'
