@@ -7,7 +7,7 @@ import pprint
 import psd_tools.reader
 import psd_tools.decoder
 
-from psd_tools.decoder.layers import channels_to_PIL
+from psd_tools.decoder.layers import layer_to_PIL, image_to_PIL
 
 logger = logging.getLogger('psd_tools')
 logger.addHandler(logging.StreamHandler())
@@ -39,9 +39,10 @@ def main():
         for it in decoded:
             pprint.pprint(it)
 
-#        layers = decoded.layer_and_mask_data.layers
-#        layer = layers.layer_records[4]
-#        channel_data = layers.channel_image_data[4]
+#        im = layer_to_PIL(decoded, 1)
+#        if im is not None:
+#            im.save('res.png')
 #
-#        im = channels_to_PIL(layer, channel_data)
-#        im.save('res.png')
+#        full = image_to_PIL(decoded)
+#        if full:
+#            full.save('full.png')

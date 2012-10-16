@@ -244,7 +244,7 @@ def read_image_data(fp, header):
     """
     Reads merged image pixel data which is stored at the end of PSD file.
     """
-    w, h = header.height, header.width
+    w, h = header.width, header.height
     compression = read_fmt("H", fp)[0]
 
     channel_byte_counts = []

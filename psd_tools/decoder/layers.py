@@ -1,23 +1,22 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, unicode_literals
 import warnings
-from psd_tools.constants import Compression, ChannelID
+from psd_tools.constants import Compression, ChannelID, ColorMode
 
-def channels_to_PIL(layer, channels_data):
+
+def _channels_data_to_PIL(channels_data, channel_types, size):
     from PIL import Image
-    size = layer.width(), layer.height()
     if size == (0, 0):
         return
 
     bands = {}
 
-    for channel, info in zip(channels_data, layer.channels):
+    for channel, channel_type in zip(channels_data, channel_types):
 
-        pil_band = ChannelID.to_PIL(info.id)
+        pil_band = ChannelID.to_PIL(channel_type)
         if pil_band is None:
-            warnings.warn("Unsupported channel type (%d)" % info.id)
+            warnings.warn("Unsupported channel type (%d)" % channel_type)
             continue
-
         if channel.compression == Compression.RAW:
             bands[pil_band] = Image.fromstring("L", size, channel.data, "raw", 'L')
         elif channel.compression == Compression.PACK_BITS:
@@ -27,13 +26,35 @@ def channels_to_PIL(layer, channels_data):
         else:
             warnings.warn("Unknown compression method (%s)" % channel.compression)
 
-    def as_bands(mode):
-        mode_list = list(mode)
-        if set(bands.keys()) == set(mode_list):
-            return [bands[band] for band in mode_list]
-
-
     for mode in ['RGBA', 'RGB']:
-        image_bands = as_bands(mode)
-        if image_bands:
-            return Image.merge(mode, image_bands)
+        if set(bands.keys()) == set(list(mode)):
+            return Image.merge(mode, [bands[band] for band in mode])
+
+
+def layer_to_PIL(parsed_data, layer_num):
+    layers = parsed_data.layer_and_mask_data.layers
+    layer = layers.layer_records[layer_num]
+
+    channels_data = layers.channel_image_data[layer_num]
+    size = layer.width(), layer.height()
+    channel_types = [info.id for info in layer.channels]
+
+    return _channels_data_to_PIL(channels_data, channel_types, size)
+
+def image_to_PIL(parsed_data):
+    header = parsed_data.header
+    size = header.width, header.height
+
+    if header.color_mode == ColorMode.RGB:
+        assert header.number_of_channels == 3
+        channel_types = [0, 1, 2]
+    else:
+        warnings.warn("Unsupported color mode (%s)" % header.color_mode)
+        return
+
+
+    return _channels_data_to_PIL(
+        parsed_data.image_data,
+        channel_types,
+        size,
+    )
