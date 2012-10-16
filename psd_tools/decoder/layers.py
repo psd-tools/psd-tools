@@ -6,6 +6,8 @@ from psd_tools.constants import Compression, ChannelID
 def channels_to_PIL(layer, channels_data):
     from PIL import Image
     size = layer.width(), layer.height()
+    if size == (0, 0):
+        return
 
     bands = {}
 
@@ -17,7 +19,7 @@ def channels_to_PIL(layer, channels_data):
             continue
 
         if channel.compression == Compression.RAW:
-            bands[pil_band] = Image.fromstring("L", size, channel.data, 'L')
+            bands[pil_band] = Image.fromstring("L", size, channel.data, "raw", 'L')
         elif channel.compression == Compression.PACK_BITS:
             bands[pil_band] = Image.fromstring("L", size, channel.data, "packbits", 'L')
         elif Compression.is_known(channel.compression):
@@ -26,8 +28,9 @@ def channels_to_PIL(layer, channels_data):
             warnings.warn("Unknown compression method (%s)" % channel.compression)
 
     def as_bands(mode):
-        if set(bands.keys()) == set(list(mode)):
-            return [bands[band] for band in ['R', 'G', 'B', 'A']]
+        mode_list = list(mode)
+        if set(bands.keys()) == set(mode_list):
+            return [bands[band] for band in mode_list]
 
 
     for mode in ['RGBA', 'RGB']:
