@@ -52,7 +52,6 @@ def image_to_PIL(parsed_data):
         warnings.warn("Unsupported color mode (%s)" % header.color_mode)
         return
 
-
     return _channels_data_to_PIL(
         parsed_data.image_data,
         channel_types,

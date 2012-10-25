@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, unicode_literals, division
+from __future__ import absolute_import, unicode_literals, division, print_function
 import collections
 import logging
 import warnings
 
 from psd_tools.utils import read_fmt, read_pascal_string, read_be_array
 from psd_tools.exceptions import Error
-from psd_tools.constants import Compression, Clipping, BlendMode
+from psd_tools.constants import Compression, Clipping, BlendMode, ChannelID
 
 logger = logging.getLogger(__name__)
 
@@ -28,12 +28,21 @@ class LayerRecord(_LayerRecord):
 
 
 Layers = collections.namedtuple('Layers', 'length, layer_count, layer_records, channel_image_data')
-LayerAndMaskInfo = collections.namedtuple('LayerAndMaskData', 'layers global_mask_info tagged_blocks')
+LayerAndMaskData = collections.namedtuple('LayerAndMaskData', 'layers global_mask_info tagged_blocks')
 ChannelInfo = collections.namedtuple('ChannelInfo', 'id length')
-MaskData = collections.namedtuple('MaskData', 'top left bottom right default_color flags real_flags real_background')
+_MaskData = collections.namedtuple('MaskData', 'top left bottom right default_color flags real_flags real_background')
 LayerBlendingRanges = collections.namedtuple('LayerBlendingRanges', 'composite_ranges channel_ranges')
+_ChannelData = collections.namedtuple('ChannelData', 'compression data')
 
-class ChannelData(collections.namedtuple('ChannelData', 'compression data')):
+class MaskData(_MaskData):
+
+    def width(self):
+        return self.right - self.left
+
+    def height(self):
+        return self.bottom - self.top
+
+class ChannelData(_ChannelData):
     def __repr__(self):
         return "ChannelData(compression=%r, len(data)=%r" % (
             self.compression, len(self.data) if self.data is not None else None
@@ -60,7 +69,7 @@ def read(fp, encoding):
     consumed_bytes = fp.tell() - start_position
     fp.seek(length-consumed_bytes, 1)
 
-    return LayerAndMaskInfo(layers, global_mask_info, tagged_blocks)
+    return LayerAndMaskData(layers, global_mask_info, tagged_blocks)
 
 def _read_layers(fp, encoding):
     """
@@ -76,7 +85,6 @@ def _read_layers(fp, encoding):
 
     channel_image_data = []
     for layer in layer_records:
-
         data = _read_channel_image_data(fp, layer)
         channel_image_data.append(data)
 
@@ -174,7 +182,7 @@ def _read_layer_mask_data(fp):
         real_flags, real_background = read_fmt("2B", fp)
         fp.seek(16, 1)
 
-    return LayerMaskData(top, left, bottom, right, default_color, flags, real_flags, real_background)
+    return MaskData(top, left, bottom, right, default_color, flags, real_flags, real_background)
 
 def _read_layer_blending_ranges(fp):
     """ Reads layer blending data. """
@@ -198,11 +206,15 @@ def _read_channel_image_data(fp, layer):
     """
     Reads image data for all channels in a layer.
     """
-    w, h = layer.width(), layer.height()
-
     channel_data = []
 
     for channel in layer.channels:
+
+        if channel.id == ChannelID.USER_LAYER_MASK:
+            w, h = layer.mask_data.width(), layer.mask_data.height()
+        else:
+            w, h = layer.width(), layer.height()
+
         start_pos = fp.tell()
         compression = read_fmt("H", fp)[0]
 

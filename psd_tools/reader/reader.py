@@ -10,7 +10,10 @@ import psd_tools.reader.layers
 
 logger = logging.getLogger(__name__)
 
-ParseResult = collections.namedtuple('ParseResult', 'header, color_data, image_resource_blocks, layer_and_mask_data, image_data')
+ParseResult = collections.namedtuple(
+    'ParseResult',
+    'header, color_data, image_resource_blocks, layer_and_mask_data, image_data'
+)
 
 def parse(fp, encoding='latin1'):
 
