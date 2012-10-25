@@ -18,6 +18,7 @@ def main():
 
     Usage:
         psd-tools.py <filename> [--encoding <encoding>] [--verbose]
+        psd-tools.py convert <psd_filename> <out_filename> [--verbose]
         psd-tools.py -h | --help
         psd-tools.py --version
 
@@ -33,11 +34,19 @@ def main():
     else:
         logger.setLevel(logging.INFO)
 
-    with open(args['<filename>'], 'rb') as f:
-        res = psd_tools.reader.parse(f, args['--encoding'])
-        decoded = psd_tools.decoder.decode(res)
-        for it in decoded:
-            pprint.pprint(it)
+    if args['convert']:
+        with open(args['<psd_filename>'], 'rb') as f:
+            res = psd_tools.reader.parse(f)
+            decoded = psd_tools.decoder.decode(res)
+            im = image_to_PIL(decoded)
+            im.save(args['<out_filename>'])
+
+    else:
+        with open(args['<filename>'], 'rb') as f:
+            res = psd_tools.reader.parse(f, args['--encoding'])
+            decoded = psd_tools.decoder.decode(res)
+            for it in decoded:
+                pprint.pprint(it)
 
 #        im = layer_to_PIL(decoded, 1)
 #        if im is not None:
