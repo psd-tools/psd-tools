@@ -31,7 +31,7 @@ def pad(number, divisor):
 
 def read_pascal_string(fp, encoding, padding=1):
     length = pad(read_fmt("B", fp)[0], padding)
-    return fp.read(length).decode(encoding, errors='replace')
+    return fp.read(length).decode(encoding, 'replace')
 
 def read_unicode_string(fp):
     num_chars = read_fmt("I", fp)[0]
