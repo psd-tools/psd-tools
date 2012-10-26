@@ -30,8 +30,16 @@ def pad(number, divisor):
     return number
 
 def read_pascal_string(fp, encoding, padding=1):
-    length = pad(read_fmt("B", fp)[0], padding)
-    return fp.read(length).decode(encoding, 'replace')
+    length = read_fmt("B", fp)[0]
+
+    if length == 0:
+        fp.seek(padding-1, 1)
+        return ''
+
+    res = fp.read(length)
+
+    fp.seek(pad(length, padding) - length, 1)
+    return res.decode(encoding, 'replace')
 
 def read_unicode_string(fp):
     num_chars = read_fmt("I", fp)[0]

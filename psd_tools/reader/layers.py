@@ -94,8 +94,7 @@ def _read_layer_record(fp, encoding):
     """
     Reads single layer record.
     """
-    top, left, bottom, right = read_fmt("4i", fp)
-    num_channels = read_fmt("H", fp)[0]
+    top, left, bottom, right, num_channels = read_fmt("4i H", fp)
 
     channel_info = []
     for channel_num in range(num_channels):
@@ -118,7 +117,7 @@ def _read_layer_record(fp, encoding):
     start = fp.tell()
     mask_data = _read_layer_mask_data(fp)
     blending_ranges = _read_layer_blending_ranges(fp)
-    name = read_pascal_string(fp, encoding, 1) # XXX: spec says padding should be 4?
+    name = read_pascal_string(fp, encoding, 4)
 
     remaining_length = extra_length - (fp.tell()-start)
     tagged_blocks = _read_layer_tagged_blocks(fp, remaining_length)
@@ -147,6 +146,7 @@ def _read_layer_tagged_blocks(fp, remaining_length):
             break
         blocks.append(block)
         read_bytes = fp.tell() - start_pos
+
     return blocks
 
 def _read_additional_layer_info_block(fp):

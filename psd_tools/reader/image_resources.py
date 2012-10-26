@@ -20,8 +20,10 @@ def read(fp, encoding):
 
     resource_section_length = read_fmt("I", fp)[0]
     position = fp.tell()
+    end_position = position + resource_section_length
+
     blocks = []
-    while fp.tell() < position + resource_section_length:
+    while fp.tell() < end_position:
         block = _read_block(fp, encoding)
         logger.debug("%r", block)
         blocks.append(block)
@@ -38,7 +40,6 @@ def _read_block(fp, encoding):
 
     resource_id = read_fmt("H", fp)[0]
     name = read_pascal_string(fp, encoding, 2)
-    fp.seek(1, 1) # XXX: why is this needed??
 
     data_size = pad(read_fmt("I", fp)[0], 2)
     data = fp.read(data_size)
