@@ -191,7 +191,9 @@ def _read_layer_mask_data(fp):
         real_flags, real_background = None, None
     else:
         real_flags, real_background = read_fmt("2B", fp)
-        fp.seek(16, 1)
+
+        # XXX: is it correct to prefer data at the end?
+        top, left, bottom, right = read_fmt("4i", fp)
 
     return MaskData(top, left, bottom, right, default_color, flags, real_flags, real_background)
 
