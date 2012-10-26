@@ -3,6 +3,10 @@ from __future__ import absolute_import, unicode_literals
 import warnings
 from psd_tools.constants import Compression, ChannelID, ColorMode
 
+def _get_mode(band_keys):
+    for mode in ['RGBA', 'RGB']:
+        if set(band_keys) == set(list(mode)):
+            return mode
 
 def _channels_data_to_PIL(channels_data, channel_types, size):
     from PIL import Image
@@ -26,9 +30,8 @@ def _channels_data_to_PIL(channels_data, channel_types, size):
         else:
             warnings.warn("Unknown compression method (%s)" % channel.compression)
 
-    for mode in ['RGBA', 'RGB']:
-        if set(bands.keys()) == set(list(mode)):
-            return Image.merge(mode, [bands[band] for band in mode])
+    mode = _get_mode(bands.keys())
+    return Image.merge(mode, [bands[band] for band in mode])
 
 
 def layer_to_PIL(parsed_data, layer_num):

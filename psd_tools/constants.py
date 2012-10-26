@@ -5,7 +5,8 @@ class Enum(object):
 
     @classmethod
     def _attributes(cls):
-        return [name for name in dir(cls) if name.isupper()]
+        return [name for name in dir(cls)
+                if name.isupper() and not name.startswith('_')]
 
     @classmethod
     def is_known(cls, value):
@@ -13,6 +14,14 @@ class Enum(object):
             if getattr(cls, name) == value:
                 return True
         return False
+
+    @classmethod
+    def name_of(cls, value):
+        for name in cls._attributes():
+            if getattr(cls, name) == value:
+                return name
+        return "<unknown>"
+
 
 class ColorMode(Enum):
     BITMAP = 0
@@ -123,12 +132,12 @@ class ImageResourceID(Enum):
     AUTO_SAVE_FORMAT = 1087
 
     # PATH_INFO = 2000...2997
-    PATH_INFO_FIRST = 2000
+    PATH_INFO_0 = 2000
     PATH_INFO_LAST = 2997
     CLIPPING_PATH_NAME = 2999
 
     # PLUGIN_RESOURCES = 4000..4999
-    PLUGIN_RESOURCES_FIRST = 4000
+    PLUGIN_RESOURCES_0 = 4000
     PLUGIN_RESOURCES_LAST = 4999
 
     IMAGE_READY_VARIABLES = 7000
@@ -138,9 +147,18 @@ class ImageResourceID(Enum):
 
     @classmethod
     def is_known(cls, value):
-        path_info = cls.PATH_INFO_FIRST <= value <= cls.PATH_INFO_LAST
-        plugin_resource = cls.PLUGIN_RESOURCES_FIRST <= value <= cls.PLUGIN_RESOURCES_LAST
+        path_info = cls.PATH_INFO_0 <= value <= cls.PATH_INFO_LAST
+        plugin_resource = cls.PLUGIN_RESOURCES_0 <= value <= cls.PLUGIN_RESOURCES_LAST
         return super(ImageResourceID, cls).is_known(value) or path_info or plugin_resource
+
+    @classmethod
+    def name_of(cls, value):
+        if cls.PATH_INFO_0 < value < cls.PATH_INFO_LAST:
+            return "PATH_INFO_%d" % (value - cls.PATH_INFO_0)
+        if cls.PLUGIN_RESOURCES_0 < value < cls.PLUGIN_RESOURCES_LAST:
+            return "PLUGIN_RESOURCES_%d" % (value - cls.PLUGIN_RESOURCES_0)
+        return super(ImageResourceID, cls).name_of(value)
+
 
 
 class BlendMode(Enum):
@@ -193,3 +211,128 @@ class PrintScaleStyle(Enum):
     CENTERED = 0
     SIZE_TO_FIT = 1
     USER_DEFINED = 2
+
+
+class TaggedBlock(Enum):
+
+    _ADJUSTMENT_KEYS = set([
+        'SoCo', 'GdFl', 'PtFl', 'brit', 'levl', 'curv', 'expA',
+        'vibA', 'hue ', 'hue2', 'blnc', 'blwh', 'phfl', 'mixr',
+        'clrL', 'nvrt', 'post', 'thrs', 'grdm', 'selc',
+    ])
+
+    SOLID_COLOR = 'SoCo'
+    GRADIENT = 'GdFl'
+    PATTERN = 'PtFl'
+    BRIGHTNESS_CONTRAST = 'brit'
+    LEVELS = 'levl'
+    CURVES = 'curv'
+    EXPOSURE = 'expA'
+    VIBRANCE = 'vibA'
+    HUE_SATURATION_4 = 'hue '
+    HUE_SATURATION_5 = 'hue2'
+    COLOR_BALANCE = 'blnc'
+    BLACK_AND_WHITE = 'blwh'
+    PHOTO_FILTER = 'phfl'
+    CHANNEL_MIXER = 'mixr'
+    COLOR_LOOKUP = 'clrL'
+    INVERT = 'nvrt'
+    POSTERIZE = 'post'
+    THRESHOLD = 'thrs'
+    GRADIENT_MAP = 'grdm'
+    SELECTIVE_COLOR = 'selc'
+
+    @classmethod
+    def is_adjustment_key(cls, key):
+        return key in cls._ADJUSTMENT_KEYS
+
+    EFFECTS_LAYER = 'lrFX'
+    TYPE_TOOL_INFO = 'tySh'
+    UNICODE_LAYER_NAME = 'luni'
+    LAYER_ID = 'lyid'
+    OBJECT_BASED_EFFECTS_LAYER_INFO = 'lfx2'
+
+    PATTERNS1 = 'Patt'
+    PATTERNS2 = 'Pat2'
+    PATTERNS3 = 'Pat3'
+
+    ANNOTATIONS = 'Anno'
+    BLEND_CLIPPING_ELEMENTS = 'clbl'
+    BLEND_INTERIOR_ELEMENTS = 'infx'
+
+    KNOCKOUT_SETTING = 'knko'
+    PROTECTED_SETTING = 'lspf'
+    SHEET_COLOR_SETTING = 'lclr'
+    REFERENCE_POINT = 'fxrp'
+    GRADIENT_SETTINGS = 'grdm'
+    SECTION_DIVIDER_SETTING = 'lsct'
+    CHANNEL_BLENDING_RESTRICTIONS_SETTING = 'brst'
+    SOLID_COLOR_SHEET_SETTING = 'SoCo'
+    PATTERN_FILL_SETTING = 'PtFl'
+    GRADIENT_FILL_SETTING = 'GdFl'
+    VECTOR_MASK_SETTING1 = 'vmsk'
+    VECTOR_MASK_SETTING2 = 'vsms'
+    TYPE_TOOL_OBJECT_SETTING = 'TySh'
+    FOREIGN_EFFECT_ID = 'ffxi'
+    LAYER_NAME_SOURCE_SETTING = 'lnsr'
+    PATTERN_DATA = 'shpa'
+    METADATA_SETTING = 'shmd'
+    LAYER_VERSION = 'lyvr'
+    TRANSPARENCY_SHAPES_LAYER = 'tsly'
+    LAYER_MASK_AS_GLOBAL_MASK = 'lmgm'
+    VECTOR_MASK_AS_GLOBAL_MASK = 'vmgm'
+
+    # XXX: these are duplicated
+    BRIGHTNESS_AND_CONTRAST = 'brit'
+    CHANNEL_MIXER = 'mixr'
+    COLOR_LOOKUP = 'clrL'
+
+    PLACED_LAYER = 'plLd'
+    LINKED_LAYER1 = 'lnkD'
+    LINKED_LAYER2 = 'lnk2'
+    LINKED_LAYER3 = 'lnk3'
+    PHOTO_FILTER = 'phfl'
+    BLACK_WHITE = 'blwh'
+    CONTENT_GENERATOR_EXTRA_DATA = 'CgEd'
+    TEXT_ENGINE_DATA = 'Txt2'
+    VIBRANCE = 'vibA'
+    UNICODE_PATH_NAME = 'pths'
+    ANIMATION_EFFECTS = 'anFX'
+    FILTER_MASK = 'FMsk'
+    PLACED_LAYER_DATA = 'SoLd'
+    VECTOR_STROKE_DATA = 'vscg'
+    USING_ALIGNED_RENDERING = 'sn2P'
+    SAVING_MERGED_TRANSPARENCY = 'Mtrn'
+    SAVING_MERGED_TRANSPARENCY16 = 'Mt16'
+    SAVING_MERGED_TRANSPARENCY32 = 'Mt32'
+    USER_MASK = 'LMsk'
+    EXPOSURE = 'expA'
+    FILTER_EFFECTS1 = 'FXid'
+    FILTER_EFFECTS2 = 'FEid'
+
+
+class OSType(Enum):
+    """
+    Action descriptor type
+    """
+    REFERENCE = 'obj '
+    DESCRIPTOR = 'Objc'
+    LIST = 'VlLs'
+    DOUBLE = 'doub'
+    UNIT_FLOAT = 'UntF'
+    STRING = 'TEXT'
+    ENUMERATED = 'enum'
+    INTEGER = 'long'
+    BOOLEAN = 'bool'
+    GLOBAL_OBJECT = 'GlbO'
+    CLASS1 = 'type'
+    CLASS2 = 'GlbC'
+    ALIAS = 'alis'
+    RAW_DATA = 'tdta'
+
+class SectionDivider(Enum):
+    OTHER = 0
+    OPEN_FOLDER = 1
+    CLOSED_FOLDER = 2
+    BOUNDING_SECTION_DIVIDER = 3
+

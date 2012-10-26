@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, unicode_literals
+from __future__ import absolute_import, unicode_literals, print_function
 import logging
 import docopt
 import pprint
 
 import psd_tools.reader
 import psd_tools.decoder
-
 from psd_tools.decoder.layers import layer_to_PIL, image_to_PIL
 
 logger = logging.getLogger('psd_tools')

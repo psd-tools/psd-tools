@@ -5,13 +5,18 @@ import logging
 
 from psd_tools.utils import read_fmt, trimmed_repr, read_pascal_string, pad
 from psd_tools.exceptions import Error
+from psd_tools.constants import ImageResourceID
 
 logger = logging.getLogger(__name__)
 
-class ImageResource(collections.namedtuple("ImageResource", "resource_id, name, data")):
+_ImageResource = collections.namedtuple("ImageResource", "resource_id, name, data")
+class ImageResource(_ImageResource):
     def __repr__(self):
-        return "ImageResource(%r, %r, %s)" % (
-            self.resource_id, self.name, trimmed_repr(self.data))
+        return "ImageResource(%r %s, %r, %s)" % (
+            self.resource_id, self._description(), self.name, trimmed_repr(self.data))
+
+    def _description(self):
+        return ImageResourceID.name_of(self.resource_id)
 
 
 def read(fp, encoding):

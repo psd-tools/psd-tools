@@ -4,13 +4,14 @@ import collections
 import logging
 import warnings
 
-from psd_tools.utils import read_fmt, read_pascal_string, read_be_array
+from psd_tools.utils import read_fmt, read_pascal_string, read_be_array, trimmed_repr
 from psd_tools.exceptions import Error
-from psd_tools.constants import Compression, Clipping, BlendMode, ChannelID
+from psd_tools.constants import (Compression, Clipping, BlendMode,
+                                 ChannelID, TaggedBlock)
 
 logger = logging.getLogger(__name__)
 
-_LayerRecord = collections.namedtuple('_LayerRecord', [
+_LayerRecord = collections.namedtuple('LayerRecord', [
     'top', 'left', 'bottom', 'right',
     'num_channels', 'channels',
     'blend_mode', 'opacity', 'cilpping', 'flags',
@@ -27,12 +28,15 @@ class LayerRecord(_LayerRecord):
         return self.bottom - self.top
 
 
+
 Layers = collections.namedtuple('Layers', 'length, layer_count, layer_records, channel_image_data')
 LayerAndMaskData = collections.namedtuple('LayerAndMaskData', 'layers global_mask_info tagged_blocks')
 ChannelInfo = collections.namedtuple('ChannelInfo', 'id length')
 _MaskData = collections.namedtuple('MaskData', 'top left bottom right default_color flags real_flags real_background')
 LayerBlendingRanges = collections.namedtuple('LayerBlendingRanges', 'composite_ranges channel_ranges')
 _ChannelData = collections.namedtuple('ChannelData', 'compression data')
+_Block = collections.namedtuple('Block', 'key data')
+GlobalMaskInfo = collections.namedtuple('GlobalMaskInfo', 'overlay color_components opacity kind')
 
 class MaskData(_MaskData):
 
@@ -48,7 +52,14 @@ class ChannelData(_ChannelData):
             self.compression, len(self.data) if self.data is not None else None
         )
 
-GlobalMaskInfo = collections.namedtuple('GlobalMaskInfo', 'overlay color_components opacity kind')
+class Block(_Block):
+    """
+    Layer tagged block with extra info.
+    """
+    def __repr__(self):
+        return "Block(%s %s, %s)" % (self.key, TaggedBlock.name_of(self.key),
+                                     trimmed_repr(self.data))
+
 
 def read(fp, encoding):
     """
@@ -161,7 +172,7 @@ def _read_additional_layer_info_block(fp):
     key = fp.read(4)
     length = read_fmt("I", fp)[0]
     data = fp.read(length)
-    return key, data
+    return Block(key, data)
 
 def _read_layer_mask_data(fp):
     """ Reads layer mask or adjustment layer data. """
