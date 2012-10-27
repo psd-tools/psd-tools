@@ -13,10 +13,16 @@ There are existing PSD readers for Python:
 
 * `psdparse <https://github.com/jerem/psdparse>`_;
 * `pypsd <https://code.google.com/p/pypsd>`_;
-* there is a PSD reader in PIL library.
+* there is a PSD reader in PIL_ library;
+* it is possible to write Python plugins for GIMP_.
 
-PSD reader in PIL is incomplete, and contributing to PIL is somehow
-complicated because of the slow release process.
+PSD reader in PIL is incomplete, PIL doesn't have an API for layer groups
+and contributing to PIL is somehow complicated because of the
+slow release process.
+
+GIMP is cool, but it is a huge dependency, its PSD parser
+is not perfect and it is not easy to use GIMP Python plugin
+from *your* code.
 
 I also considered contributing to pypsd or psdparse, but they are
 GPL and I was not totally satisfied with the interface and the code
@@ -24,34 +30,45 @@ GPL and I was not totally satisfied with the interface and the code
 
 So I finally decided to roll out yet another implementation
 that should be MIT-licensed, systematically based on the specification_
-and implemented as a set of functions; it should also support both
-Python 2.x and Python 3.x.
+and implemented as a set of functions; it should also have tests and
+support both Python 2.x and Python 3.x.
+
+.. _PIL: http://www.pythonware.com/products/pil/
+.. _GIMP: http://www.gimp.org/
 
 Design overview
 ---------------
 
 The process of handling a PSD file is splitted into 3 stages:
 
-1) "PSD reading": the file is read and parsed to low-level data
+1) "Reading": the file is read and parsed to low-level data
    structures that closely match the specification. No PIL images
    are constructed; image resources blocks and additional layer
    information are extracted but not parsed (they remain just keys
    with a binary data). The goal is to extract all necessary
    information from a PSD file.
 
-2) "Detailed parsing": image resource blocks and additional layer
+2) "Decoding": image resource blocks and additional layer
    information blocks are parsed to a more detailed data structures
    (that are still based on a specification). There are a lot of PSD
    data types and the library currently doesn't handle them all, but
    it should be easy to add the parsing code for the missing PSD data
    structures if needed.
 
+After (1) and (2) we have an in-memory data structure that closely
+resembles PSD file; it should be fairly complete but very low-level
+and not easy to use. So there is a third stage:
+
 3) "User-facing API": PIL images of the PSD layers are created and
    combined to a user-friendly data structure.
 
+Stage separation also means user-facing API may be opinionated:
+if somebody doesn't like it then it should possible to build an
+another API (e.g. without PIL) based on low-level decoded PSD file.
+
 .. note::
 
-    Currently only (1) is implemented.
+    Currently (3) is not implemented.
 
 Contributing
 ------------
@@ -64,5 +81,16 @@ Development happens at github and bitbucket:
 The main issue tracker is at github: https://github.com/kmike/psd-tools/issues
 
 Feel free to submit ideas, bugs, pull requests (git or hg) or regular patches.
+
+In case of bugs it would be helpful to provide a small PSD file
+demonstrating the issue; this file may be added to a test suite.
+
+In order to run tests, install `tox <http://tox.testrun.org>`_ and type
+
+::
+
+    tox
+
+from the source checkout.
 
 The license is MIT.
