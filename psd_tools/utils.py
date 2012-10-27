@@ -31,14 +31,13 @@ def pad(number, divisor):
 
 def read_pascal_string(fp, encoding, padding=1):
     length = read_fmt("B", fp)[0]
-
     if length == 0:
         fp.seek(padding-1, 1)
         return ''
 
     res = fp.read(length)
 
-    padded_length = pad(length, padding) - 1 # -1 accounts for the length byte
+    padded_length = pad(length+1, padding) - 1 # -1 accounts for the length byte
     fp.seek(padded_length - length, 1)
     return res.decode(encoding, 'replace')
 
