@@ -8,6 +8,7 @@ from psd_tools.constants import TaggedBlock, SectionDivider
 from psd_tools.decoder.actions import decode_descriptor
 from psd_tools.utils import read_fmt, read_unicode_string
 from psd_tools.decoder import decoders
+from psd_tools.reader.layers import Block
 
 _tagged_block_decoders, register = decoders.new_registry()
 
@@ -39,11 +40,12 @@ def parse_tagged_block(block):
     Replaces "data" attribute of a block with parsed data structure
     if it is known how to parse it.
     """
-    if not TaggedBlock.is_known(block.key):
+    key = block.key.decode('ascii')
+    if not TaggedBlock.is_known(key):
         warnings.warn("Unknown tagged block (%s)" % block.key)
 
-    decoder = _tagged_block_decoders.get(block.key, lambda data: data)
-    return block._replace(data = decoder(block.data))
+    decoder = _tagged_block_decoders.get(key, lambda data: data)
+    return Block(key, decoder(block.data))
 
 
 @register(TaggedBlock.SOLID_COLOR)
