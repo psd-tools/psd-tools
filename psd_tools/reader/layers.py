@@ -30,7 +30,7 @@ class LayerRecord(_LayerRecord):
 
 
 Layers = collections.namedtuple('Layers', 'length, layer_count, layer_records, channel_image_data')
-LayerAndMaskData = collections.namedtuple('LayerAndMaskData', 'layers global_mask_info tagged_blocks')
+LayerAndMaskData = collections.namedtuple('LayerAndMaskData', 'layers global_mask_info')
 ChannelInfo = collections.namedtuple('ChannelInfo', 'id length')
 _MaskData = collections.namedtuple('MaskData', 'top left bottom right default_color flags real_flags real_background')
 LayerBlendingRanges = collections.namedtuple('LayerBlendingRanges', 'composite_ranges channel_ranges')
@@ -75,12 +75,9 @@ def read(fp, encoding):
     global_mask_info = _read_global_mask_info(fp)
 
     consumed_bytes = fp.tell() - start_position
-    tagged_blocks = _read_layer_tagged_blocks(fp, length - consumed_bytes)
-
-    consumed_bytes = fp.tell() - start_position
     fp.seek(length-consumed_bytes, 1)
 
-    return LayerAndMaskData(layers, global_mask_info, tagged_blocks)
+    return LayerAndMaskData(layers, global_mask_info)
 
 def _read_layers(fp, encoding):
     """
@@ -154,10 +151,10 @@ def _read_layer_tagged_blocks(fp, remaining_length):
     read_bytes = 0
     while read_bytes < remaining_length:
         block = _read_additional_layer_info_block(fp)
+        read_bytes = fp.tell() - start_pos
         if block is None:
             break
         blocks.append(block)
-        read_bytes = fp.tell() - start_pos
 
     return blocks
 

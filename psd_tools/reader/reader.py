@@ -15,7 +15,7 @@ ParseResult = collections.namedtuple(
     'header, color_data, image_resource_blocks, layer_and_mask_data, image_data'
 )
 
-def parse(fp, encoding='latin1'):
+def parse(fp, encoding='utf8'):
 
     header = psd_tools.reader.header.read(fp)
     return ParseResult(

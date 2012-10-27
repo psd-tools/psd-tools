@@ -21,5 +21,4 @@ def decode(parse_result):
         layer_and_mask_data = new_layer_and_mask_data,
     )
 
-
     return parse_result
