@@ -10,13 +10,13 @@ from psd_tools.constants import ImageResourceID
 logger = logging.getLogger(__name__)
 
 _ImageResource = collections.namedtuple("ImageResource", "resource_id, name, data")
+
 class ImageResource(_ImageResource):
     def __repr__(self):
         return "ImageResource(%r %s, %r, %s)" % (
-            self.resource_id, self._description(), self.name, trimmed_repr(self.data))
-
-    def _description(self):
-        return ImageResourceID.name_of(self.resource_id)
+            self.resource_id, ImageResourceID.name_of(self.resource_id),
+            self.name, trimmed_repr(self.data)
+        )
 
 
 def read(fp, encoding):

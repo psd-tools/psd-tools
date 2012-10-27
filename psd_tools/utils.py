@@ -38,7 +38,8 @@ def read_pascal_string(fp, encoding, padding=1):
 
     res = fp.read(length)
 
-    fp.seek(pad(length, padding) - length, 1)
+    padded_length = pad(length, padding) - 1 # -1 accounts for the length byte
+    fp.seek(padded_length - length, 1)
     return res.decode(encoding, 'replace')
 
 def read_unicode_string(fp):

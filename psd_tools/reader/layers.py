@@ -128,6 +128,7 @@ def _read_layer_record(fp, encoding):
     start = fp.tell()
     mask_data = _read_layer_mask_data(fp)
     blending_ranges = _read_layer_blending_ranges(fp)
+
     name = read_pascal_string(fp, encoding, 4)
 
     remaining_length = extra_length - (fp.tell()-start)
@@ -167,6 +168,7 @@ def _read_additional_layer_info_block(fp):
     sig = fp.read(4)
     if sig not in [b'8BIM', b'8B64']:
         fp.seek(-4, 1)
+        warnings.warn("not a block: %r" % sig)
         return
 
     key = fp.read(4)
