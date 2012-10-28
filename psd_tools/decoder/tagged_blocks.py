@@ -6,7 +6,7 @@ import io
 
 from psd_tools.constants import TaggedBlock, SectionDivider
 from psd_tools.decoder.actions import decode_descriptor
-from psd_tools.utils import read_fmt, read_unicode_string
+from psd_tools.utils import read_fmt, read_unicode_string, unpack
 from psd_tools.decoder import decoders
 from psd_tools.reader.layers import Block
 
@@ -23,6 +23,7 @@ _tagged_block_decoders.update({
 
 SolidColorSettings = collections.namedtuple('SolidColorSettings', 'version data')
 MetadataItem = collections.namedtuple('MetadataItem', 'sig key copy_on_sheet_duplication data')
+ProtectedSetting = collections.namedtuple('ProtectedSetting', 'transparency, composite, position')
 
 class Divider(collections.namedtuple('Divider', 'type key')):
     def __repr__(self):
@@ -89,3 +90,12 @@ def _decode_metadata(data):
         data = fp.read(data_length)
         items.append(MetadataItem(sig, key, copy_on_sheet, data))
     return items
+
+@register(TaggedBlock.PROTECTED_SETTING)
+def _decode_protected(data):
+    flag = unpack("I", data)[0]
+    return ProtectedSetting(
+        bool(flag & 1),
+        bool(flag & 2),
+        bool(flag & 4),
+    )

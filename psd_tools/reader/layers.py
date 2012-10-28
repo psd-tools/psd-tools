@@ -30,6 +30,7 @@ class LayerRecord(_LayerRecord):
 
 
 Layers = collections.namedtuple('Layers', 'length, layer_count, layer_records, channel_image_data')
+LayerFlags = collections.namedtuple('LayerFlags', 'transparency_protected visible')
 LayerAndMaskData = collections.namedtuple('LayerAndMaskData', 'layers global_mask_info')
 ChannelInfo = collections.namedtuple('ChannelInfo', 'id length')
 _MaskData = collections.namedtuple('MaskData', 'top left bottom right default_color flags real_flags real_background')
@@ -118,6 +119,8 @@ def _read_layer_record(fp, encoding):
         warnings.warn("Unknown blend mode (%s)" % blend_mode)
 
     opacity, clipping, flags, extra_length = read_fmt("BBBxI", fp)
+
+    flags = LayerFlags(bool(flags & 1), bool(flags & 2))
 
     if not Clipping.is_known(clipping):
         warnings.warn("Unknown clipping: %s" % clipping)
