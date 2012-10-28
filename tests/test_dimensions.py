@@ -2,7 +2,9 @@
 from __future__ import absolute_import, unicode_literals
 import pytest
 
-from .utils import load_psd
+from .utils import load_psd, decode_psd
+from psd_tools.decoder.image_resources import ResolutionInfo
+from psd_tools.constants import DisplayResolutionUnit, DimensionUnit, ImageResourceID
 
 DIMENSIONS = (
     ('1layer.psd',              (101, 55)),
@@ -23,9 +25,29 @@ DIMENSIONS = (
     ('vector mask.psd',         (100, 150)),
 )
 
+RESOLUTIONS = (
+    ('1layer.psd', ResolutionInfo(
+        h_res=72.0, h_res_unit=DisplayResolutionUnit.PIXELS_PER_INCH,
+        v_res=72.0, v_res_unit=DisplayResolutionUnit.PIXELS_PER_INCH,
+        width_unit=DimensionUnit.INCH, height_unit=DimensionUnit.INCH)),
+    ('group.psd', ResolutionInfo(
+        h_res=72.0, h_res_unit=DisplayResolutionUnit.PIXELS_PER_INCH,
+        v_res=72.0, v_res_unit=DisplayResolutionUnit.PIXELS_PER_INCH,
+        width_unit=DimensionUnit.CM, height_unit=DimensionUnit.CM)),
+)
+
+
 @pytest.mark.parametrize(("filename", "size"), DIMENSIONS)
 def test_dimensions(filename, size):
     w, h = size
     psd = load_psd(filename)
     assert psd.header.width == w
     assert psd.header.height == h
+
+
+@pytest.mark.parametrize(("filename", "resolution"), RESOLUTIONS)
+def test_resolution(filename, resolution):
+    psd = decode_psd(filename)
+    psd_res = dict((block.resource_id, block.data) for block in psd.image_resource_blocks)
+    assert psd_res[ImageResourceID.RESOLUTION_INFO] == resolution
+

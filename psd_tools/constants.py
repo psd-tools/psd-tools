@@ -336,3 +336,13 @@ class SectionDivider(Enum):
     CLOSED_FOLDER = 2
     BOUNDING_SECTION_DIVIDER = 3
 
+class DisplayResolutionUnit(Enum):
+    PIXELS_PER_INCH = 1
+    PIXELS_PER_CM = 2
+
+class DimensionUnit(Enum):
+    INCH = 1
+    CM = 2
+    POINT = 3  # 72 points == 1 inch
+    PICA = 4   # 6 pica == 1 inch
+    COLUMN = 5

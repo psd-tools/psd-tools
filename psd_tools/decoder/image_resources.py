@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, unicode_literals
+from __future__ import absolute_import, unicode_literals, division
 import io
 import warnings
 import collections
 
 from psd_tools.utils import read_pascal_string, unpack, read_fmt, read_unicode_string, be_array_from_bytes
-from psd_tools.constants import ImageResourceID, PrintScaleStyle
+from psd_tools.constants import ImageResourceID, PrintScaleStyle, DisplayResolutionUnit, DimensionUnit
 from psd_tools.decoder import decoders
 
 _image_resource_decoders, register = decoders.new_registry()
@@ -31,6 +31,20 @@ PrintFlags = collections.namedtuple('PrintFlags', 'labels, crop_marks, color_bar
 PrintFlagsInfo = collections.namedtuple('PrintFlagsInfo', 'version, center_crop_marks, bleed_width_value, bleed_width_scale')
 VersionInfo = collections.namedtuple('VersionInfo', 'version, has_real_merged_data, writer_name, reader_name, file_version')
 PixelAspectRation = collections.namedtuple('PixelAspectRatio', 'version aspect')
+_ResolutionInfo = collections.namedtuple('ResolutionInfo', 'h_res, h_res_unit, width_unit, v_res, v_res_unit, height_unit')
+
+class ResolutionInfo(_ResolutionInfo):
+    def __repr__(self):
+
+        return "ResolutionInfo(h_res=%s, h_res_unit=%s, v_res=%s, v_res_unit=%s, width_unit=%s, height_unit=%s)" % (
+            self.h_res,
+            DisplayResolutionUnit.name_of(self.h_res_unit),
+            self.v_res,
+            DisplayResolutionUnit.name_of(self.v_res_unit),
+            DimensionUnit.name_of(self.width_unit),
+            DimensionUnit.name_of(self.height_unit),
+        )
+
 
 def decode(image_resource_blocks):
     """
@@ -105,3 +119,14 @@ def _decode_print_scale(data):
 def _decode_caption_pascal(data):
     fp = io.BytesIO(data)
     return read_pascal_string(fp, 'ascii')
+
+@register(ImageResourceID.RESOLUTION_INFO)
+def _decode_resolution(data):
+    (h_res_lo, h_res_hi, h_res_unit, width_unit,
+     v_res_lo, v_res_hi, v_res_unit, height_unit) = unpack("2H HH 2H HH", data)
+
+    # XXX: shouldn't denominator be 2**16 ?
+    h_res = h_res_lo + h_res_hi / (2**16 - 1)
+    v_res = v_res_lo + v_res_hi / (2**16 - 1)
+
+    return ResolutionInfo(h_res, h_res_unit, width_unit, v_res, v_res_unit, height_unit)
