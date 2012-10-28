@@ -6,7 +6,8 @@ import pprint
 
 import psd_tools.reader
 import psd_tools.decoder
-from psd_tools.decoder.layers import layer_to_PIL, image_to_PIL
+from psd_tools import user_api
+from psd_tools.user_api.layers import make_layers, image_to_PIL
 
 logger = logging.getLogger('psd_tools')
 logger.addHandler(logging.StreamHandler())
@@ -34,23 +35,16 @@ def main():
         logger.setLevel(logging.INFO)
 
     if args['convert']:
+
         with open(args['<psd_filename>'], 'rb') as f:
             res = psd_tools.reader.parse(f)
-            decoded = psd_tools.decoder.decode(res)
+            decoded = psd_tools.decoder.parse(res)
             im = image_to_PIL(decoded)
             im.save(args['<out_filename>'])
 
     else:
-        with open(args['<filename>'], 'rb') as f:
-            res = psd_tools.reader.parse(f, args['--encoding'])
-            decoded = psd_tools.decoder.decode(res)
-            for it in decoded:
-                pprint.pprint(it)
+        decoded = user_api.parse(args['<filename>'])
 
-#        im = layer_to_PIL(decoded, 1)
-#        if im is not None:
-#            im.save('res.png')
-#
-#        full = image_to_PIL(decoded)
-#        if full:
-#            full.save('full.png')
+        print(decoded.header)
+        pprint.pprint(decoded.image_resource_blocks)
+        pprint.pprint(make_layers(decoded))

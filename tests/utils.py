@@ -12,4 +12,4 @@ def load_psd(filename):
         return psd_tools.reader.parse(f)
 
 def decode_psd(filename):
-    return psd_tools.decoder.decode(load_psd(filename))
+    return psd_tools.decoder.parse(load_psd(filename))
