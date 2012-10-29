@@ -120,7 +120,7 @@ def _read_layer_record(fp, encoding):
 
     opacity, clipping, flags, extra_length = read_fmt("BBBxI", fp)
 
-    flags = LayerFlags(bool(flags & 1), bool(flags & 2))
+    flags = LayerFlags(bool(flags & 1), not bool(flags & 2)) # why not?
 
     if not Clipping.is_known(clipping):
         warnings.warn("Unknown clipping: %s" % clipping)
