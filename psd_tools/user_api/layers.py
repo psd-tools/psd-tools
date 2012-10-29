@@ -33,7 +33,7 @@ def group_layers(decoded_data):
                 # group begins
                 group = dict(
                     id = layer_id,
-                    _index = index,
+                    index = index,
                     name = name,
                     layers = [],
                     closed = divider.type == SectionDivider.CLOSED_FOLDER,
@@ -53,13 +53,11 @@ def group_layers(decoded_data):
                 warnings.warn("invalid state")
         else:
             # layer with image
-            image = layer_to_PIL(decoded_data, index)
 
             current_group['layers'].append(dict(
                 id = layer_id,
-                _index = index,
+                index = index,
                 name = name,
-                image = image,
 
                 top = layer.top,
                 left = layer.left,
@@ -80,6 +78,11 @@ def _get_mode(band_keys):
 
 def _channels_data_to_PIL(channels_data, channel_types, size):
     from PIL import Image
+    if hasattr(Image, 'frombytes'):
+        frombytes = Image.frombytes
+    else:
+        frombytes = Image.fromstring
+
     if size == (0, 0):
         return
 
@@ -92,9 +95,9 @@ def _channels_data_to_PIL(channels_data, channel_types, size):
             warnings.warn("Unsupported channel type (%d)" % channel_type)
             continue
         if channel.compression == Compression.RAW:
-            bands[pil_band] = Image.fromstring("L", size, channel.data, "raw", 'L')
+            bands[pil_band] = frombytes("L", size, channel.data, "raw", 'L')
         elif channel.compression == Compression.PACK_BITS:
-            bands[pil_band] = Image.fromstring("L", size, channel.data, "packbits", 'L')
+            bands[pil_band] = frombytes("L", size, channel.data, "packbits", 'L')
         elif Compression.is_known(channel.compression):
             warnings.warn("Compression method is not implemented (%s)" % channel.compression)
         else:
@@ -104,17 +107,17 @@ def _channels_data_to_PIL(channels_data, channel_types, size):
     return Image.merge(mode, [bands[band] for band in mode])
 
 
-def layer_to_PIL(decoded_data, layer_num):
+def layer_to_PIL(decoded_data, layer_index):
     layers = decoded_data.layer_and_mask_data.layers
-    layer = layers.layer_records[layer_num]
+    layer = layers.layer_records[layer_index]
 
-    channels_data = layers.channel_image_data[layer_num]
+    channels_data = layers.channel_image_data[layer_index]
     size = layer.width(), layer.height()
     channel_types = [info.id for info in layer.channels]
 
     return _channels_data_to_PIL(channels_data, channel_types, size)
 
-def image_to_PIL(decoded_data):
+def composite_image_to_PIL(decoded_data):
     header = decoded_data.header
     size = header.width, header.height
 

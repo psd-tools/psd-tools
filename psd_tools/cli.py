@@ -7,7 +7,7 @@ import pprint
 import psd_tools.reader
 import psd_tools.decoder
 from psd_tools import user_api
-from psd_tools.user_api.layers import group_layers, image_to_PIL
+from psd_tools.user_api.layers import group_layers, composite_image_to_PIL
 
 logger = logging.getLogger('psd_tools')
 logger.addHandler(logging.StreamHandler())
@@ -39,7 +39,7 @@ def main():
         with open(args['<psd_filename>'], 'rb') as f:
             res = psd_tools.reader.parse(f)
             decoded = psd_tools.decoder.parse(res)
-            im = image_to_PIL(decoded)
+            im = composite_image_to_PIL(decoded)
             im.save(args['<out_filename>'])
 
     else:
