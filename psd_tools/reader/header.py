@@ -10,7 +10,14 @@ from psd_tools.constants import ColorMode
 
 logger = logging.getLogger(__name__)
 
-Header = collections.namedtuple("PsdHeader", "number_of_channels, height, width, depth, color_mode")
+_PsdHeader = collections.namedtuple("PsdHeader", "number_of_channels, height, width, depth, color_mode")
+
+class PsdHeader(_PsdHeader):
+    def __repr__(self):
+        return "PsdHeader(number_of_channels=%s, height=%s, width=%s, depth=%s, color_mode=%s)" % (
+            self.number_of_channels, self.height, self.width, self.depth,
+            ColorMode.name_of(self.color_mode)
+        )
 
 def read(fp):
     """
@@ -25,7 +32,7 @@ def read(fp):
     if version != 1:
         raise Error("Unsupported PSD version (%s)" % version)
 
-    header = Header(*read_fmt("6x HIIHH", fp))
+    header = PsdHeader(*read_fmt("6x HIIHH", fp))
 
     if not ColorMode.is_known(header.color_mode):
         warnings.warn("Unknown color mode: %s" % header.color_mode)
