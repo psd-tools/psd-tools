@@ -5,8 +5,12 @@ import warnings
 from psd_tools.constants import (Compression, ChannelID, ColorMode,
                                  TaggedBlock, SectionDivider)
 
-def make_layers(raw_data):
-    layer_records = raw_data.layer_and_mask_data.layers.layer_records
+
+def group_layers(decoded_data):
+    """
+    Returns a nested dict with PSD layer group information.
+    """
+    layer_records = decoded_data.layer_and_mask_data.layers.layer_records
 
     root = dict(layers = [])
     group_stack = [root]
@@ -21,6 +25,7 @@ def make_layers(raw_data):
         divider = blocks.get(TaggedBlock.SECTION_DIVIDER_SETTING, None)
         visible = layer.flags.visible
         opacity = layer.opacity
+        blend_mode = layer.blend_mode
 
         if divider is not None:
             # group information
@@ -28,10 +33,12 @@ def make_layers(raw_data):
                 # group begins
                 group = dict(
                     id = layer_id,
+                    _index = index,
                     name = name,
                     layers = [],
                     closed = divider.type == SectionDivider.CLOSED_FOLDER,
-                    blend_mode = layer.blend_mode,
+
+                    blend_mode = blend_mode,
                     visible = visible,
                     opacity = opacity,
                 )
@@ -46,9 +53,11 @@ def make_layers(raw_data):
                 warnings.warn("invalid state")
         else:
             # layer with image
-            image = layer_to_PIL(raw_data, index)
+            image = layer_to_PIL(decoded_data, index)
+
             current_group['layers'].append(dict(
                 id = layer_id,
+                _index = index,
                 name = name,
                 image = image,
 
@@ -57,13 +66,12 @@ def make_layers(raw_data):
                 bottom = layer.bottom,
                 right = layer.right,
 
-                blend_mode = layer.blend_mode,
+                blend_mode = blend_mode,
                 visible = visible,
                 opacity = opacity,
             ))
 
     return root['layers']
-
 
 def _get_mode(band_keys):
     for mode in ['RGBA', 'RGB']:
@@ -96,8 +104,8 @@ def _channels_data_to_PIL(channels_data, channel_types, size):
     return Image.merge(mode, [bands[band] for band in mode])
 
 
-def layer_to_PIL(parsed_data, layer_num):
-    layers = parsed_data.layer_and_mask_data.layers
+def layer_to_PIL(decoded_data, layer_num):
+    layers = decoded_data.layer_and_mask_data.layers
     layer = layers.layer_records[layer_num]
 
     channels_data = layers.channel_image_data[layer_num]
@@ -106,8 +114,8 @@ def layer_to_PIL(parsed_data, layer_num):
 
     return _channels_data_to_PIL(channels_data, channel_types, size)
 
-def image_to_PIL(parsed_data):
-    header = parsed_data.header
+def image_to_PIL(decoded_data):
+    header = decoded_data.header
     size = header.width, header.height
 
     if header.color_mode == ColorMode.RGB:
@@ -118,7 +126,7 @@ def image_to_PIL(parsed_data):
         return
 
     return _channels_data_to_PIL(
-        parsed_data.image_data,
+        decoded_data.image_data,
         channel_types,
         size,
     )

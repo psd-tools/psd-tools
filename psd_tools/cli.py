@@ -7,7 +7,7 @@ import pprint
 import psd_tools.reader
 import psd_tools.decoder
 from psd_tools import user_api
-from psd_tools.user_api.layers import make_layers, image_to_PIL
+from psd_tools.user_api.layers import group_layers, image_to_PIL
 
 logger = logging.getLogger('psd_tools')
 logger.addHandler(logging.StreamHandler())
@@ -47,4 +47,4 @@ def main():
 
         print(decoded.header)
         pprint.pprint(decoded.image_resource_blocks)
-        pprint.pprint(make_layers(decoded))
+        pprint.pprint(group_layers(decoded))
