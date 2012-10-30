@@ -287,7 +287,9 @@ class TaggedBlock(Enum):
     CHANNEL_MIXER = 'mixr'
     COLOR_LOOKUP = 'clrL'
 
-    PLACED_LAYER = 'plLd'
+    PLACED_LAYER_OBSOLETE1 = 'plLd'
+    PLACED_LAYER_OBSOLETE2 = 'PlLd'
+
     LINKED_LAYER1 = 'lnkD'
     LINKED_LAYER2 = 'lnk2'
     LINKED_LAYER3 = 'lnk3'
@@ -300,6 +302,7 @@ class TaggedBlock(Enum):
     ANIMATION_EFFECTS = 'anFX'
     FILTER_MASK = 'FMsk'
     PLACED_LAYER_DATA = 'SoLd'
+
     VECTOR_STROKE_DATA = 'vscg'
     USING_ALIGNED_RENDERING = 'sn2P'
     SAVING_MERGED_TRANSPARENCY = 'Mtrn'
