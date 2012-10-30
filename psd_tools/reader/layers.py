@@ -4,7 +4,8 @@ import collections
 import logging
 import warnings
 
-from psd_tools.utils import read_fmt, read_pascal_string, read_be_array, trimmed_repr
+from psd_tools.utils import (read_fmt, read_pascal_string, read_be_array,
+                             trimmed_repr, debug_view, pad, syncronize)
 from psd_tools.exceptions import Error
 from psd_tools.constants import (Compression, Clipping, BlendMode,
                                  ChannelID, TaggedBlock)
@@ -31,7 +32,7 @@ class LayerRecord(_LayerRecord):
 
 Layers = collections.namedtuple('Layers', 'length, layer_count, layer_records, channel_image_data')
 LayerFlags = collections.namedtuple('LayerFlags', 'transparency_protected visible')
-LayerAndMaskData = collections.namedtuple('LayerAndMaskData', 'layers global_mask_info')
+LayerAndMaskData = collections.namedtuple('LayerAndMaskData', 'layers global_mask_info tagged_blocks')
 ChannelInfo = collections.namedtuple('ChannelInfo', 'id length')
 _MaskData = collections.namedtuple('MaskData', 'top left bottom right default_color flags real_flags real_background')
 LayerBlendingRanges = collections.namedtuple('LayerBlendingRanges', 'composite_ranges channel_ranges')
@@ -76,9 +77,13 @@ def read(fp, encoding, header):
     global_mask_info = _read_global_mask_info(fp)
 
     consumed_bytes = fp.tell() - start_position
+    syncronize(fp) # hack hack hack
+    tagged_blocks = _read_layer_tagged_blocks(fp, length - consumed_bytes)
+
+    consumed_bytes = fp.tell() - start_position
     fp.seek(length-consumed_bytes, 1)
 
-    return LayerAndMaskData(layers, global_mask_info)
+    return LayerAndMaskData(layers, global_mask_info, tagged_blocks)
 
 def _read_layers(fp, encoding, depth):
     """
@@ -172,7 +177,8 @@ def _read_additional_layer_info_block(fp):
         return
 
     key = fp.read(4)
-    length = read_fmt("I", fp)[0]
+    length = pad(read_fmt("I", fp)[0], 4)
+
     data = fp.read(length)
     return Block(key, data)
 
@@ -263,12 +269,16 @@ def _read_global_mask_info(fp):
     """
     # XXX: Does it really work properly? What is it for?
     start_pos = fp.tell()
-    length, overlay_color_space, c1, c2, c3, c4, opacity, kind = read_fmt("IH 4H HB", fp)
-    filler_length = length - (fp.tell()-start_pos)
-    if filler_length > 0:
-        fp.seek(filler_length, 1)
+    length = read_fmt("H", fp)[0]
 
-    return GlobalMaskInfo(overlay_color_space, (c1, c2, c3, c4), opacity, kind)
+    if length:
+        overlay_color_space, c1, c2, c3, c4, opacity, kind = read_fmt("H 4H HB", fp)
+        filler_length = length - (fp.tell()-start_pos)
+        if filler_length > 0:
+            fp.seek(filler_length, 1)
+        return GlobalMaskInfo(overlay_color_space, (c1, c2, c3, c4), opacity, kind)
+    else:
+        return None
 
 def read_image_data(fp, header):
     """
@@ -276,6 +286,8 @@ def read_image_data(fp, header):
     """
     w, h = header.width, header.height
     compression = read_fmt("H", fp)[0]
+
+    bytes_per_pixel = header.depth // 8
 
     channel_byte_counts = []
     if compression == Compression.PACK_BITS:
@@ -286,12 +298,12 @@ def read_image_data(fp, header):
     for channel_id in range(header.number_of_channels):
 
         if compression == Compression.RAW:
-            data = fp.read(w*h)
+            data = fp.read(w*h*bytes_per_pixel)
             channel_data.append(ChannelData(compression, data))
 
         elif compression == Compression.PACK_BITS:
             byte_counts = channel_byte_counts[channel_id]
-            data = fp.read(sum(byte_counts))
+            data = fp.read(sum(byte_counts)*bytes_per_pixel)
             channel_data.append(ChannelData(compression, data))
 
         elif Compression.is_known(compression):

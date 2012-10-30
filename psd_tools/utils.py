@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, unicode_literals
+from __future__ import absolute_import, division, unicode_literals, print_function
 
 import sys
 import struct
@@ -72,3 +72,22 @@ def trimmed_repr(data, trim_length=30):
         if len(data) > trim_length:
             return repr(data[:trim_length] + b' ... =' + str(len(data)).encode('ascii'))
     return repr(data)
+
+def syncronize(fp, signature=b'8BIM', limit=8):
+    # This is a hack for the cases where I gave up understanding PSD format.
+    start = fp.tell()
+    data = fp.read(limit)
+    pos = data.find(signature)
+    if pos != -1:
+        fp.seek(start+pos)
+        return True
+    else:
+        fp.seek(start)
+        return False
+
+def debug_view(fp, txt=""):
+    fp.seek(-20, 1)
+    pre = fp.read(20)
+    post = fp.read(100)
+    fp.seek(-100, 1)
+    print(txt, repr(pre), "--->.<---", repr(post))

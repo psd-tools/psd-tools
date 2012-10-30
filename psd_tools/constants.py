@@ -313,6 +313,10 @@ class TaggedBlock(Enum):
     FILTER_EFFECTS1 = 'FXid'
     FILTER_EFFECTS2 = 'FEid'
 
+    LAYER_16 = "Lr16"
+    LAYER_32 = "Lr32"
+    LAYER = "Layr"
+
 
 class OSType(Enum):
     """

@@ -88,9 +88,9 @@ def _channels_data_to_PIL(channels_data, channel_types, size, depth):
 
     bands = {}
     if depth == 8:
-        pil_depth = 'L'
+        mode, raw_mode = 'L', 'L'
     elif depth == 32:
-        pil_depth = 'I'
+        mode, raw_mode = 'I', 'I;32B'
     else:
         warnings.warn("Unsupported depth (%s)" % depth)
         return
@@ -101,14 +101,21 @@ def _channels_data_to_PIL(channels_data, channel_types, size, depth):
         if pil_band is None:
             warnings.warn("Unsupported channel type (%d)" % channel_type)
             continue
+
         if channel.compression == Compression.RAW:
-            bands[pil_band] = frombytes(pil_depth, size, channel.data, "raw", pil_depth)
+            im = frombytes(mode, size, channel.data, "raw", raw_mode)
         elif channel.compression == Compression.PACK_BITS:
-            bands[pil_band] = frombytes(pil_depth, size, channel.data, "packbits", pil_depth)
-        elif Compression.is_known(channel.compression):
-            warnings.warn("Compression method is not implemented (%s)" % channel.compression)
+            im = frombytes(mode, size, channel.data, "packbits", raw_mode)
         else:
-            warnings.warn("Unknown compression method (%s)" % channel.compression)
+            if Compression.is_known(channel.compression):
+                warnings.warn("Compression method is not implemented (%s)" % channel.compression)
+            else:
+                warnings.warn("Unknown compression method (%s)" % channel.compression)
+            continue
+
+        bands[pil_band] = im.convert('L')
+
+
 
     mode = _get_mode(bands.keys())
     return Image.merge(mode, [bands[band] for band in mode])
@@ -130,6 +137,7 @@ def composite_image_to_PIL(decoded_data):
     size = header.width, header.height
 
     if header.color_mode == ColorMode.RGB:
+
         if header.number_of_channels == 3:
             channel_types = [0, 1, 2]
         elif header.number_of_channels == 4:

@@ -47,5 +47,8 @@ def main():
             )
 
         print(decoded.header)
-        pprint.pprint(decoded.image_resource_blocks)
+        pprint.pprint(len(decoded.image_resource_blocks))
+        pprint.pprint(decoded.layer_and_mask_data)
+        pprint.pprint(decoded.image_data)
         pprint.pprint(group_layers(decoded))
+
