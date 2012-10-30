@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, unicode_literals
 
-from psd_tools.user_api.layers import (group_layers, composite_image_to_PIL,
-                                       layer_to_PIL)
+from psd_tools.user_api.layers import composite_image_to_PIL, layer_to_PIL
 from .utils import decode_psd
 
 def _tobytes(pil_image):
