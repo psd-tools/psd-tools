@@ -9,7 +9,7 @@ for cmd in ('egg_info', 'develop'):
 
 setup(
     name = 'psd-tools',
-    version = '0.0.1',
+    version = '0.1',
     author = 'Mikhail Korobov',
     author_email = 'kmike84@gmail.com',
     url = 'https://github.com/kmike/psd-tools',
@@ -23,7 +23,7 @@ setup(
     requires=['docopt'],
 
     classifiers=[
-        'Development Status :: 2 - Pre-Alpha',
+        'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python',
@@ -33,6 +33,8 @@ setup(
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.2',
         'Programming Language :: Python :: 3.3',
+        'Programming Language :: Python :: Implementation :: CPython',
+        'Programming Language :: Python :: Implementation :: PyPy',
         'Topic :: Multimedia :: Graphics',
         'Topic :: Multimedia :: Graphics :: Viewers',
         'Topic :: Multimedia :: Graphics :: Graphics Conversion',
