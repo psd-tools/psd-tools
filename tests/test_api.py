@@ -19,7 +19,6 @@ PIXEL_VALUES = (
     ('mask.psd',                (87, 7),      (0xFF, 0xFF, 0xFF)), # mask truncates the layer here
 #    ('note.psd',                (30, 30),     (0, 0, 0)), # what is it?
     ('smart-object-slice.psd',  (70, 80),     (0xAC, 0x19, 0x19)), # XXX: what is this test about?
-    ('transparentbg.psd',       (10, 15),     (0, 0, 0)),
 )
 
 PIXEL_VALUES_32BIT = (
@@ -28,6 +27,7 @@ PIXEL_VALUES_32BIT = (
     ('gradient fill.psd',       (10, 15),     (0, 0, 0)),
     ('pen-text.psd',            (30, 30),     (0, 0, 0)),
     ('vector mask.psd',         (10, 15),     (0, 0, 0)),
+    ('transparentbg.psd',       (10, 15),     (0, 0, 0)),
 )
 
 
@@ -43,8 +43,17 @@ def test_simple():
     assert layer.blend_mode == BlendMode.NORMAL
 
 
-@pytest.mark.parametrize(["filename", "probe_point", "pixel_value"], PIXEL_VALUES + PIXEL_VALUES_32BIT)
-def test_composite_image_pixels(filename, probe_point, pixel_value):
+def _assert_image_pixel(filename, probe_point, pixel_value):
     psd = PSDImage(decode_psd(filename))
     image = psd.composite_image()
     assert image.getpixel(probe_point) == pixel_value
+
+@pytest.mark.parametrize(["filename", "probe_point", "pixel_value"], PIXEL_VALUES)
+def test_composite_image_pixels(filename, probe_point, pixel_value):
+    _assert_image_pixel(filename, probe_point, pixel_value)
+
+@pytest.mark.xfail
+@pytest.mark.parametrize(["filename", "probe_point", "pixel_value"], PIXEL_VALUES_32BIT)
+def test_composite_image_pixels_32bit(filename, probe_point, pixel_value):
+    _assert_image_pixel(filename, probe_point, pixel_value)
+

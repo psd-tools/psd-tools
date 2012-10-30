@@ -22,6 +22,6 @@ def parse(fp, encoding='utf8'):
         header,
         psd_tools.reader.color_mode_data.read(fp),
         psd_tools.reader.image_resources.read(fp, encoding),
-        psd_tools.reader.layers.read(fp, encoding),
+        psd_tools.reader.layers.read(fp, encoding, header),
         psd_tools.reader.layers.read_image_data(fp, header)
     )

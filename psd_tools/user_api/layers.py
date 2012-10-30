@@ -76,7 +76,7 @@ def _get_mode(band_keys):
         if set(band_keys) == set(list(mode)):
             return mode
 
-def _channels_data_to_PIL(channels_data, channel_types, size):
+def _channels_data_to_PIL(channels_data, channel_types, size, depth):
     from PIL import Image
     if hasattr(Image, 'frombytes'):
         frombytes = Image.frombytes
@@ -87,6 +87,13 @@ def _channels_data_to_PIL(channels_data, channel_types, size):
         return
 
     bands = {}
+    if depth == 8:
+        pil_depth = 'L'
+    elif depth == 32:
+        pil_depth = 'I'
+    else:
+        warnings.warn("Unsupported depth (%s)" % depth)
+        return
 
     for channel, channel_type in zip(channels_data, channel_types):
 
@@ -95,9 +102,9 @@ def _channels_data_to_PIL(channels_data, channel_types, size):
             warnings.warn("Unsupported channel type (%d)" % channel_type)
             continue
         if channel.compression == Compression.RAW:
-            bands[pil_band] = frombytes("L", size, channel.data, "raw", 'L')
+            bands[pil_band] = frombytes(pil_depth, size, channel.data, "raw", pil_depth)
         elif channel.compression == Compression.PACK_BITS:
-            bands[pil_band] = frombytes("L", size, channel.data, "packbits", 'L')
+            bands[pil_band] = frombytes(pil_depth, size, channel.data, "packbits", pil_depth)
         elif Compression.is_known(channel.compression):
             warnings.warn("Compression method is not implemented (%s)" % channel.compression)
         else:
@@ -114,8 +121,9 @@ def layer_to_PIL(decoded_data, layer_index):
     channels_data = layers.channel_image_data[layer_index]
     size = layer.width(), layer.height()
     channel_types = [info.id for info in layer.channels]
+    depth = decoded_data.header.depth
 
-    return _channels_data_to_PIL(channels_data, channel_types, size)
+    return _channels_data_to_PIL(channels_data, channel_types, size, depth)
 
 def composite_image_to_PIL(decoded_data):
     header = decoded_data.header
@@ -132,4 +140,5 @@ def composite_image_to_PIL(decoded_data):
         decoded_data.image_data,
         channel_types,
         size,
+        header.depth
     )

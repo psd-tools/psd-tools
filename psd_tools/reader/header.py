@@ -37,5 +37,8 @@ def read(fp):
     if not ColorMode.is_known(header.color_mode):
         warnings.warn("Unknown color mode: %s" % header.color_mode)
 
+    if header.depth != 8:
+        warnings.warn("Bit depth is unsupported (%s)" % header.depth)
+
     logger.debug(header)
     return header

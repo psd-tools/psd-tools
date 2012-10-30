@@ -62,14 +62,14 @@ class Block(_Block):
                                      trimmed_repr(self.data))
 
 
-def read(fp, encoding):
+def read(fp, encoding, header):
     """
     Reads layers and masks information.
     """
     length = read_fmt("I", fp)[0]
     start_position = fp.tell()
 
-    layers = _read_layers(fp, encoding)
+    layers = _read_layers(fp, encoding, header.depth)
 
     # XXX: are tagged blocks really after the layers?
     # XXX: does global mask reading really work?
@@ -80,7 +80,7 @@ def read(fp, encoding):
 
     return LayerAndMaskData(layers, global_mask_info)
 
-def _read_layers(fp, encoding):
+def _read_layers(fp, encoding, depth):
     """
     Reads info about layers.
     """
@@ -94,7 +94,7 @@ def _read_layers(fp, encoding):
 
     channel_image_data = []
     for layer in layer_records:
-        data = _read_channel_image_data(fp, layer)
+        data = _read_channel_image_data(fp, layer, depth)
         channel_image_data.append(data)
 
     return Layers(length, layer_count, layer_records, channel_image_data)
@@ -217,11 +217,13 @@ def _read_layer_blending_ranges(fp):
 
     return LayerBlendingRanges(composite_ranges, channel_ranges)
 
-def _read_channel_image_data(fp, layer):
+def _read_channel_image_data(fp, layer, depth):
     """
     Reads image data for all channels in a layer.
     """
     channel_data = []
+
+    bytes_per_pixel = depth // 8
 
     for channel in layer.channels:
 
@@ -234,12 +236,13 @@ def _read_channel_image_data(fp, layer):
         compression = read_fmt("H", fp)[0]
 
         if compression == Compression.RAW:
-            data = fp.read(w*h)
+            data_size = w * h * bytes_per_pixel
+            data = fp.read(data_size)
             channel_data.append(ChannelData(compression, data))
 
         elif compression == Compression.PACK_BITS:
             byte_counts = read_be_array("H", h, fp)
-            data = fp.read(sum(byte_counts))
+            data = fp.read(sum(byte_counts) * bytes_per_pixel)
             channel_data.append(ChannelData(compression, data))
 
         elif Compression.is_known(compression):

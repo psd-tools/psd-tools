@@ -32,6 +32,7 @@ def read(fp, encoding):
         block = _read_block(fp, encoding)
         logger.debug("%r", block)
         blocks.append(block)
+
     return blocks
 
 def _read_block(fp, encoding):
