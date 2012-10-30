@@ -14,7 +14,7 @@ setup(
     author_email = 'kmike84@gmail.com',
     url = 'https://github.com/kmike/psd-tools',
 
-    description = 'PSD tools',
+    description = 'Python package for working with Adobe Photoshop PSD files',
     long_description = open('README.rst').read() + open('CHANGES.rst').read(),
 
     license = 'MIT License',
