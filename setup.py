@@ -9,7 +9,7 @@ for cmd in ('egg_info', 'develop'):
 
 setup(
     name = 'psd-tools',
-    version = '0.1',
+    version = '0.1.1',
     author = 'Mikhail Korobov',
     author_email = 'kmike84@gmail.com',
     url = 'https://github.com/kmike/psd-tools',
@@ -18,7 +18,7 @@ setup(
     long_description = open('README.rst').read() + open('CHANGES.rst').read(),
 
     license = 'MIT License',
-    packages = ['psd_tools', 'psd_tools.reader'],
+    packages = ['psd_tools', 'psd_tools.reader', 'psd_tools.user_api'],
     scripts=['bin/psd-tools.py'],
     requires=['docopt'],
 
