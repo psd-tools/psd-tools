@@ -130,8 +130,15 @@ def composite_image_to_PIL(decoded_data):
     size = header.width, header.height
 
     if header.color_mode == ColorMode.RGB:
-        assert header.number_of_channels == 3
-        channel_types = [0, 1, 2]
+        if header.number_of_channels == 3:
+            channel_types = [0, 1, 2]
+        elif header.number_of_channels == 4:
+            channel_types = [0, 1, 2, -1]
+        else:
+            warnings.warn("This number of channels (%d) is unsupported for this color mode (%s)" % (
+                         header.number_of_channels, header.color_mode))
+            return
+
     else:
         warnings.warn("Unsupported color mode (%s)" % header.color_mode)
         return

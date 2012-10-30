@@ -24,6 +24,7 @@ DIMENSIONS = (
     ('pen-text.psd',            (300, 300)),
     ('smart-object-slice.psd',  (100, 100)),
     ('transparentbg.psd',       (100, 150)),
+    ('transparentbg-gimp.psd',  (40, 40)),
     ('vector mask.psd',         (100, 150)),
 )
 

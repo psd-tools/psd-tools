@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, unicode_literals
+import pytest
 
 from psd_tools.user_api.layers import composite_image_to_PIL, layer_to_PIL
 from .utils import decode_psd
@@ -10,9 +11,12 @@ def _tobytes(pil_image):
     except AttributeError:
         return pil_image.tostring()
 
+SINGLE_LAYER_FILES = [['1layer.psd'], ['transparentbg-gimp.psd']]
 
-def test_single_layer():
-    psd = decode_psd('1layer.psd')
+
+@pytest.mark.parametrize(["filename"], SINGLE_LAYER_FILES)
+def test_single_layer(filename):
+    psd = decode_psd(filename)
     composite_image = composite_image_to_PIL(psd)
     layer_image = layer_to_PIL(psd, 0)
 

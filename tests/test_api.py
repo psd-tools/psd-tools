@@ -19,6 +19,8 @@ PIXEL_VALUES = (
     ('mask.psd',                (87, 7),      (0xFF, 0xFF, 0xFF)), # mask truncates the layer here
 #    ('note.psd',                (30, 30),     (0, 0, 0)), # what is it?
     ('smart-object-slice.psd',  (70, 80),     (0xAC, 0x19, 0x19)), # XXX: what is this test about?
+    ('transparentbg-gimp.psd',  (14, 14),     (0xFF, 0xFF, 0xFF, 0x13)),
+
 )
 
 PIXEL_VALUES_32BIT = (
