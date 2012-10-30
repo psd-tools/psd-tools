@@ -6,7 +6,7 @@ import pprint
 
 import psd_tools.reader
 import psd_tools.decoder
-from psd_tools import user_api
+from psd_tools import PSDImage
 from psd_tools.user_api.layers import group_layers, composite_image_to_PIL
 
 logger = logging.getLogger('psd_tools')
@@ -35,15 +35,16 @@ def main():
         logger.setLevel(logging.INFO)
 
     if args['convert']:
-
-        with open(args['<psd_filename>'], 'rb') as f:
-            res = psd_tools.reader.parse(f)
-            decoded = psd_tools.decoder.parse(res)
-            im = composite_image_to_PIL(decoded)
-            im.save(args['<out_filename>'])
+        psd = PSDImage.load(args['<psd_filename>'])
+        im = psd.composite_image()
+        im.save(args['<out_filename>'])
 
     else:
-        decoded = user_api.parse(args['<filename>'])
+        encoding = args['--encoding']
+        with open(args['<filename>'], "rb") as f:
+            decoded = psd_tools.decoder.parse(
+                psd_tools.reader.parse(f, encoding)
+            )
 
         print(decoded.header)
         pprint.pprint(decoded.image_resource_blocks)

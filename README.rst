@@ -6,6 +6,91 @@ psd-tools
 
 .. _specification: https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/PhotoshopFileFormats.htm
 
+Installation
+------------
+
+::
+
+    pip install psd-tools
+
+There are also optional dependencies: docopt_ for command-line interface
+and PIL_ (or Pillow_) for accessing PSD layer data as PIL images::
+
+    pip install Pillow
+    pip install docopt
+
+
+.. _docopt: https://github.com/docopt/docopt
+.. _PIL: http://www.pythonware.com/products/pil/
+.. _Pillow: https://github.com/python-imaging/Pillow
+
+
+Usage
+-----
+
+Load an image::
+
+    >>> from psd_tools import PSDImage
+    >>> psd = PSDImage.load('my_image.psd')
+
+Access its layers::
+
+    >>> psd.layers
+    [<psd_tools.Group: 'Group 2', layer_count=1>,
+     <psd_tools.Group: 'Group 1', layer_count=1>,
+     <psd_tools.Layer: 'Background', size=100x200>]
+
+Work with a layer group::
+
+    >>> group2 = psd.layers[0]
+    >>> group2.name
+    Group 2
+
+    >>> group2.visible
+    True
+
+    >>> group2.closed
+    False
+
+    >>> group2.opacity
+    255
+
+    >>> from psd_tools.constants import BlendMode
+    >>> group2.blend_mode == BlendMode.NORMAL
+    True
+
+    >>> group2.layers
+    [<psd_tools.Layer: 'Shape 2', size=43x62>]
+
+Work with a layer::
+
+    >>> layer = group2.layers[0]
+    >>> layer.name
+    Shape 2
+
+    >>> layer.bbox
+    (40, 72, 83, 134)
+
+    >>> layer.width, layer.height
+    (43, 62)
+
+    >>> layer.visible, layer.opacity, layer.blend_mode
+    (True, 255, u'norm')
+
+    >>> layer.as_PIL()
+    <PIL.Image.Image image mode=RGBA size=43x62 at ...>
+
+Export a single layer::
+
+    >>> layer_image = layer.as_PIL()
+    >>> layer_image.save('layer.png')
+
+Export the merged image::
+
+    >>> merged_image = psd.composite_image()
+    >>> merged_image.save('my_image.png')
+
+
 Why yet another PSD reader?
 ---------------------------
 
@@ -16,7 +101,7 @@ There are existing PSD readers for Python:
 * there is a PSD reader in PIL_ library;
 * it is possible to write Python plugins for GIMP_.
 
-PSD reader in PIL is incomplete, PIL doesn't have an API for layer groups
+PIL doesn't have an API for layer groups, PSD reader in PIL is incomplete
 and contributing to PIL is somehow complicated because of the
 slow release process.
 
@@ -29,11 +114,10 @@ GPL and I was not totally satisfied with the interface and the code
 (they are really fine, that's me having specific style requirements).
 
 So I finally decided to roll out yet another implementation
-that should be MIT-licensed, systematically based on the specification_
-and implemented as a set of functions; it should also have tests and
-support both Python 2.x and Python 3.x.
+that should be MIT-licensed, systematically based on the specification_;
+parser should be implemented as a set of functions; the package should
+also have tests and support both Python 2.x and Python 3.x.
 
-.. _PIL: http://www.pythonware.com/products/pil/
 .. _GIMP: http://www.gimp.org/
 
 Design overview
@@ -64,11 +148,8 @@ and not easy to use. So there is a third stage:
 
 Stage separation also means user-facing API may be opinionated:
 if somebody doesn't like it then it should possible to build an
-another API (e.g. without PIL) based on low-level decoded PSD file.
+another API (e.g. without PIL) based on lower-level decoded PSD file.
 
-.. note::
-
-    Currently (3) is not implemented.
 
 Contributing
 ------------

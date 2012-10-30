@@ -3,6 +3,8 @@ from __future__ import absolute_import, unicode_literals
 import pytest
 
 from .utils import load_psd, decode_psd
+
+from psd_tools import PSDImage
 from psd_tools.decoder.image_resources import ResolutionInfo
 from psd_tools.constants import DisplayResolutionUnit, DimensionUnit, ImageResourceID
 
@@ -51,3 +53,8 @@ def test_resolution(filename, resolution):
     psd_res = dict((block.resource_id, block.data) for block in psd.image_resource_blocks)
     assert psd_res[ImageResourceID.RESOLUTION_INFO] == resolution
 
+@pytest.mark.parametrize(("filename", "size"), DIMENSIONS)
+def test_dimensions_api(filename, size):
+    psd = PSDImage(decode_psd(filename))
+    assert psd.header.width == size[0]
+    assert psd.header.height == size[1]
