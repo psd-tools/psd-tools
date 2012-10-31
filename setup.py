@@ -9,16 +9,16 @@ for cmd in ('egg_info', 'develop'):
 
 setup(
     name = 'psd-tools',
-    version = '0.1.3',
+    version = '0.1.4',
     author = 'Mikhail Korobov',
     author_email = 'kmike84@gmail.com',
     url = 'https://github.com/kmike/psd-tools',
 
     description = 'Python package for working with Adobe Photoshop PSD files',
-    long_description = open('README.rst').read() + open('CHANGES.rst').read(),
+    long_description = open('README.rst').read() + "\n\n" + open('CHANGES.rst').read(),
 
     license = 'MIT License',
-    packages = ['psd_tools', 'psd_tools.reader', 'psd_tools.user_api'],
+    packages = ['psd_tools', 'psd_tools.reader', 'psd_tools.decoder', 'psd_tools.user_api'],
     scripts=['bin/psd-tools.py'],
     requires=['docopt'],
 
