@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, unicode_literals
 
+import collections
 import weakref
 import psd_tools.reader
 import psd_tools.decoder
@@ -8,8 +9,13 @@ from psd_tools.constants import TaggedBlock, SectionDivider
 from psd_tools.user_api.layers import (group_layers, composite_image_to_PIL,
                                        layer_to_PIL)
 
+BBox = collections.namedtuple('BBox', 'x1, y1, x2, y2')
 
 class _RawLayer(object):
+    """
+    Layer groups and layers are internally both 'layers' in PSD;
+    they share some common properties.
+    """
 
     parent = None
     _psd = None
@@ -49,7 +55,6 @@ class _RawLayer(object):
         return dict(self._info.tagged_blocks)
 
 
-
 class Layer(_RawLayer):
     """ PSD layer wrapper """
 
@@ -64,9 +69,9 @@ class Layer(_RawLayer):
 
     @property
     def bbox(self):
-        """ (top, left, bottom, right) tuple with layer bounding box. """
+        """ BBox(x1, y1, x2, y2) namedtuple with layer bounding box. """
         info = self._info
-        return info.left, info.top, info.right, info.bottom
+        return BBox(info.left, info.top, info.right, info.bottom)
 
     @property
     def width(self):
@@ -79,7 +84,6 @@ class Layer(_RawLayer):
     def __repr__(self):
         return "<psd_tools.Layer: %r, size=%dx%d, pos=(%d,%d)>" % (
             self.name, self.width, self.height, self._info.left, self._info.top)
-
 
 
 class Group(_RawLayer):
@@ -97,6 +101,14 @@ class Group(_RawLayer):
         if divider is None:
             return
         return divider.type == SectionDivider.CLOSED_FOLDER
+
+    @property
+    def bbox(self):
+        """
+        BBox(x1, y1, x2, y2) namedtuple with a bounding box for
+        all layers in this group; None if a group has no children.
+        """
+        return _combined_bbox(self.layers)
 
     def _add_layer(self, child):
         self.layers.append(child)
@@ -166,7 +178,33 @@ class PSDImage(object):
         return layer_to_PIL(self.decoded_data, index)
 
     def composite_image(self):
+        """
+        Returns a pre-rendered image for this PSD file.
+        """
         return composite_image_to_PIL(self.decoded_data)
+
+    @property
+    def bbox(self):
+        """
+        BBox(x1, y1, x2, y2) namedtuple with a bounding box for
+        all layers in this image; None if there are no image layers.
+
+        This may differ from the image dimensions
+        (img.header.width and img.header.heigth).
+        """
+        return _combined_bbox(self.layers)
+
+
+def _combined_bbox(layers):
+    """
+    Returns a bounding box for ``layers`` or None if this is not possible.
+    """
+    bboxes = [layer.bbox for layer in layers if layer.bbox is not None]
+    if not bboxes:
+        return None
+
+    lefts, tops, rights, bottoms = zip(*bboxes)
+    return BBox(min(lefts), min(tops), max(rights), max(bottoms))
 
 
 class _RootGroup(Group):

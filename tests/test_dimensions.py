@@ -4,7 +4,7 @@ import pytest
 
 from .utils import load_psd, decode_psd
 
-from psd_tools import PSDImage
+from psd_tools import PSDImage, BBox
 from psd_tools.decoder.image_resources import ResolutionInfo
 from psd_tools.constants import DisplayResolutionUnit, DimensionUnit, ImageResourceID
 
@@ -26,6 +26,13 @@ DIMENSIONS = (
     ('transparentbg.psd',       (100, 150)),
     ('transparentbg-gimp.psd',  (40, 40)),
     ('vector mask.psd',         (100, 150)),
+)
+
+BBOXES = (
+    ('1layer.psd', 0, BBox(0, 0, 101, 55)),
+    ('2layers.psd', 0, BBox(8, 4, 93, 50)),
+    ('2layers.psd', 1, BBox(0, 0, 101, 55)),
+    ('group.psd', 0, BBox(25, 24, 66, 98))
 )
 
 RESOLUTIONS = (
@@ -59,3 +66,10 @@ def test_dimensions_api(filename, size):
     psd = PSDImage(decode_psd(filename))
     assert psd.header.width == size[0]
     assert psd.header.height == size[1]
+
+
+@pytest.mark.parametrize(("filename", "layer_index", "bbox"), BBOXES)
+def test_bbox(filename, layer_index, bbox):
+    psd = PSDImage(decode_psd(filename))
+    layer = psd.layers[layer_index]
+    assert layer.bbox == bbox
