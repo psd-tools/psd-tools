@@ -3,7 +3,6 @@ from __future__ import absolute_import, unicode_literals
 import pytest
 
 from psd_tools import PSDImage, Layer, Group
-from psd_tools.constants import BlendMode
 
 from .utils import decode_psd
 
@@ -20,7 +19,6 @@ PIXEL_VALUES = (
 #    ('note.psd',                (30, 30),     (0, 0, 0)), # what is it?
     ('smart-object-slice.psd',  (70, 80),     (0xAC, 0x19, 0x19)), # XXX: what is this test about?
     ('transparentbg-gimp.psd',  (14, 14),     (0xFF, 0xFF, 0xFF, 0x13)),
-
 )
 
 PIXEL_VALUES_32BIT = (
@@ -32,17 +30,6 @@ PIXEL_VALUES_32BIT = (
     ('transparentbg.psd',       (10, 15),     (0, 0, 0)),
 )
 
-
-def test_simple():
-    image = PSDImage(decode_psd('1layer.psd'))
-    assert len(image.layers) == 1
-
-    layer = image.layers[0]
-    assert layer.name == 'Фон'
-    assert layer.bbox == (0, 0, 101, 55)
-    assert layer.visible
-    assert layer.opacity == 255
-    assert layer.blend_mode == BlendMode.NORMAL
 
 
 def _assert_image_pixel(filename, probe_point, pixel_value):
