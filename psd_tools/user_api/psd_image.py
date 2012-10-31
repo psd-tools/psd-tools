@@ -77,8 +77,8 @@ class Layer(_RawLayer):
         return self._info.height()
 
     def __repr__(self):
-        return "<psd_tools.Layer: %r, size=%dx%d>" % (
-            self.name, self.width, self.height)
+        return "<psd_tools.Layer: %r, size=%dx%d, pos=(%d,%d)>" % (
+            self.name, self.width, self.height, self._info.left, self._info.top)
 
 
 
