@@ -173,7 +173,7 @@ def _read_additional_layer_info_block(fp):
     sig = fp.read(4)
     if sig not in [b'8BIM', b'8B64']:
         fp.seek(-4, 1)
-        warnings.warn("not a block: %r" % sig)
+        #warnings.warn("not a block: %r" % sig)
         return
 
     key = fp.read(4)
