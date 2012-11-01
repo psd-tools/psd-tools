@@ -33,12 +33,17 @@ Load an image::
     >>> from psd_tools import PSDImage
     >>> psd = PSDImage.load('my_image.psd')
 
+Read image header::
+
+    >>> psd.header
+    PsdHeader(number_of_channels=3, height=200, width=100, depth=8, color_mode=RGB)
+
 Access its layers::
 
     >>> psd.layers
     [<psd_tools.Group: 'Group 2', layer_count=1>,
      <psd_tools.Group: 'Group 1', layer_count=1>,
-     <psd_tools.Layer: 'Background', size=100x200>]
+     <psd_tools.Layer: 'Background', size=100x200, x=0, y=0>]
 
 Work with a layer group::
 
@@ -60,7 +65,7 @@ Work with a layer group::
     True
 
     >>> group2.layers
-    [<psd_tools.Layer: 'Shape 2', size=43x62>]
+    [<psd_tools.Layer: 'Shape 2', size=43x62, x=40, y=72)>]
 
 Work with a layer::
 
@@ -69,7 +74,7 @@ Work with a layer::
     Shape 2
 
     >>> layer.bbox
-    (40, 72, 83, 134)
+    BBox(x1=40, y1=72, x2=83, y2=134)
 
     >>> layer.width, layer.height
     (43, 62)
@@ -101,9 +106,9 @@ There are existing PSD readers for Python:
 * there is a PSD reader in PIL_ library;
 * it is possible to write Python plugins for GIMP_.
 
-PIL doesn't have an API for layer groups, PSD reader in PIL is incomplete
-and contributing to PIL is somehow complicated because of the
-slow release process.
+PSD reader in PIL is incomplete and contributing to PIL
+is complicated because of the slow release process, but the main issue
+with PIL for me is that PIL doesn't have an API for layer groups.
 
 GIMP is cool, but it is a huge dependency, its PSD parser
 is not perfect and it is not easy to use GIMP Python plugin
@@ -114,9 +119,10 @@ GPL and I was not totally satisfied with the interface and the code
 (they are really fine, that's me having specific style requirements).
 
 So I finally decided to roll out yet another implementation
-that should be MIT-licensed, systematically based on the specification_;
+that should be MIT-licensed, systematically based on the specification_
+(it turns out the specs are incomplete and sometimes incorrect though);
 parser should be implemented as a set of functions; the package should
-also have tests and support both Python 2.x and Python 3.x.
+have tests and support both Python 2.x and Python 3.x.
 
 .. _GIMP: http://www.gimp.org/
 
@@ -129,8 +135,8 @@ The process of handling a PSD file is splitted into 3 stages:
    structures that closely match the specification. No PIL images
    are constructed; image resources blocks and additional layer
    information are extracted but not parsed (they remain just keys
-   with a binary data). The goal is to extract all necessary
-   information from a PSD file.
+   with a binary data). The goal is to extract all information
+   from a PSD file.
 
 2) "Decoding": image resource blocks and additional layer
    information blocks are parsed to a more detailed data structures
@@ -150,6 +156,11 @@ Stage separation also means user-facing API may be opinionated:
 if somebody doesn't like it then it should possible to build an
 another API (e.g. without PIL) based on lower-level decoded PSD file.
 
+``psd-tools`` tries not to throw away information from the original
+PSD file; even if the library can't parse some info, this info
+will be likely available somewhere as raw bytes (open a bug if this is
+not the case). This should make it possible to modify and write PSD
+files (currently not implemented; contributions are welcome).
 
 Contributing
 ------------
@@ -165,6 +176,13 @@ Feel free to submit ideas, bugs, pull requests (git or hg) or regular patches.
 
 In case of bugs it would be helpful to provide a small PSD file
 demonstrating the issue; this file may be added to a test suite.
+
+.. note::
+
+    Unfortunately I don't have a license for Adobe Photoshop and use GIMP for
+    testing; PNG screenshots may be necessary in cases where GIMP fails.
+    You may consider sponsoring the development of psd-tools by donating
+    me a Photoshop License - this would be extremely helpful :)
 
 In order to run tests, install `tox <http://tox.testrun.org>`_ and type
 
