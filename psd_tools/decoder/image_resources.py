@@ -95,11 +95,7 @@ def _decode_pixel_aspect_ration(data):
 
 @register(ImageResourceID.PRINT_FLAGS)
 def _decode_print_flags(data):
-    # FIXME: the following assertion fails so there is
-    # something wrong with this function:
-    #
-    # assert len(data) == 9, (data, len(data))
-    return PrintFlags(*(unpack("9?", data[:9])))
+    return PrintFlags(*(unpack("9?x", data)))
 
 @register(ImageResourceID.PRINT_FLAGS_INFO)
 def _decode_print_flags_info(data):
