@@ -46,3 +46,7 @@ def test_composite_image_pixels(filename, probe_point, pixel_value):
 def test_composite_image_pixels_32bit(filename, probe_point, pixel_value):
     _assert_image_pixel(filename, probe_point, pixel_value)
 
+def test_composite_16bit():
+    _assert_image_pixel('16bit5x5.psd', (0, 0), (236, 242, 251))
+    _assert_image_pixel('16bit5x5.psd', (4, 0), (0, 0, 0))
+    _assert_image_pixel('16bit5x5.psd', (1, 3), (46, 196, 104))

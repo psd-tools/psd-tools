@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, unicode_literals, print_function
+from __future__ import absolute_import, unicode_literals, print_function, division
 import warnings
 
 from psd_tools.constants import (Compression, ChannelID, ColorMode,
                                  TaggedBlock, SectionDivider)
-
 
 def group_layers(decoded_data):
     """
@@ -89,6 +88,8 @@ def _channels_data_to_PIL(channels_data, channel_types, size, depth):
     bands = {}
     if depth == 8:
         mode, raw_mode = 'L', 'L'
+    elif depth == 16:
+        mode, raw_mode = 'I', 'I;16B'
     elif depth == 32:
         mode, raw_mode = 'I', 'I;32B'
     else:
@@ -104,6 +105,9 @@ def _channels_data_to_PIL(channels_data, channel_types, size, depth):
 
         if channel.compression == Compression.RAW:
             im = frombytes(mode, size, channel.data, "raw", raw_mode)
+            if depth == 16:
+                im = im.point(lambda i: i * (1/(256.0)))
+
         elif channel.compression == Compression.PACK_BITS:
             im = frombytes(mode, size, channel.data, "packbits", raw_mode)
         else:
