@@ -6,7 +6,7 @@ from psd_tools import PSDImage, Layer, Group
 
 from .utils import decode_psd
 
-PIXEL_VALUES = (
+PIXEL_COLORS = (
     # filename                  probe point    pixel value
     ('1layer.psd',              (5, 5),       (0x27, 0xBA, 0x0F)),
     ('2layers.psd',             (70, 30),     (0xF1, 0xF3, 0xC1)), # why gimp shows it as F2F4C2 ?
@@ -21,7 +21,7 @@ PIXEL_VALUES = (
     ('transparentbg-gimp.psd',  (14, 14),     (0xFF, 0xFF, 0xFF, 0x13)),
 )
 
-PIXEL_VALUES_32BIT = (
+PIXEL_COLORS_32BIT = (
     ('32bit.psd',               (75, 15),     (136, 139, 145)),
     ('32bit.psd',               (95, 15),     (0, 0, 0)),
     ('300dpi.psd',              (70, 30),     (0, 0, 0)),
@@ -40,21 +40,26 @@ PIXEL_VALUES_32BIT = (
     ('32bit5x5.psd',            (1, 3),       (46, 196, 104)),
 )
 
+PIXEL_COLORS_16BIT = (
+    ('16bit5x5.psd', (0, 0), (236, 242, 251)),
+    ('16bit5x5.psd', (4, 0), (0, 0, 0)),
+    ('16bit5x5.psd', (1, 3), (46, 196, 104)),
+)
 
-def _assert_image_pixel(filename, probe_point, pixel_value):
+
+def _assert_image_pixel(filename, point, color):
     psd = PSDImage(decode_psd(filename))
     image = psd.composite_image()
-    assert image.getpixel(probe_point) == pixel_value
+    assert image.getpixel(point) == color
 
-@pytest.mark.parametrize(["filename", "probe_point", "pixel_value"], PIXEL_VALUES)
-def test_composite_image_pixels(filename, probe_point, pixel_value):
-    _assert_image_pixel(filename, probe_point, pixel_value)
+@pytest.mark.parametrize(["filename", "point", "color"], PIXEL_COLORS)
+def test_composite_image_pixels(filename, point, color):
+    _assert_image_pixel(filename, point, color)
 
-@pytest.mark.parametrize(["filename", "probe_point", "pixel_value"], PIXEL_VALUES_32BIT)
-def test_composite_image_pixels_32bit(filename, probe_point, pixel_value):
-    _assert_image_pixel(filename, probe_point, pixel_value)
+@pytest.mark.parametrize(["filename", "point", "color"], PIXEL_COLORS_32BIT)
+def test_composite_image_pixels_32bit(filename, point, color):
+    _assert_image_pixel(filename, point, color)
 
-def test_composite_16bit():
-    _assert_image_pixel('16bit5x5.psd', (0, 0), (236, 242, 251))
-    _assert_image_pixel('16bit5x5.psd', (4, 0), (0, 0, 0))
-    _assert_image_pixel('16bit5x5.psd', (1, 3), (46, 196, 104))
+@pytest.mark.parametrize(["filename", "point", "color"], PIXEL_COLORS_16BIT)
+def test_composite_16bit(filename, point, color):
+    _assert_image_pixel(filename, point, color)
