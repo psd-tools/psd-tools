@@ -22,14 +22,23 @@ PIXEL_VALUES = (
 )
 
 PIXEL_VALUES_32BIT = (
-    ('32bit.psd',               (10, 15),     (0, 0, 0)),
-    ('300dpi.psd',              (10, 15),     (0, 0, 0)),
-    ('gradient fill.psd',       (10, 15),     (0, 0, 0)),
-    ('pen-text.psd',            (30, 30),     (0, 0, 0)),
-    ('vector mask.psd',         (10, 15),     (0, 0, 0)),
-    ('transparentbg.psd',       (10, 15),     (0, 0, 0)),
+    ('32bit.psd',               (75, 15),     (136, 139, 145)),
+    ('32bit.psd',               (95, 15),     (0, 0, 0)),
+    ('300dpi.psd',              (70, 30),     (0, 0, 0)),
+    ('300dpi.psd',              (50, 60),     (214, 59, 59)),
+    ('gradient fill.psd',       (10, 15),     (235, 241, 250)), # background
+    ('gradient fill.psd',       (70, 50),     (0, 0, 0)), # black circle
+    ('gradient fill.psd',       (50, 50),     (205, 144, 110)), # filled ellipse
+    ('pen-text.psd',            (50, 50),     (229, 93, 93)),
+    ('pen-text.psd',            (170, 40),    (0, 0, 0)),
+    ('vector mask.psd',         (10, 15),     (255, 255, 255)),
+    ('vector mask.psd',         (50, 90),     (221, 227, 236)),
+    ('transparentbg.psd',       (0, 0),       (255, 255, 255, 0)),
+    ('transparentbg.psd',       (50, 50),     (0, 0, 0, 255)),
+    ('32bit5x5.psd',            (0, 0),       (235, 241, 250)),
+    ('32bit5x5.psd',            (4, 0),       (0, 0, 0)),
+    ('32bit5x5.psd',            (1, 3),       (46, 196, 104)),
 )
-
 
 
 def _assert_image_pixel(filename, probe_point, pixel_value):
@@ -41,7 +50,6 @@ def _assert_image_pixel(filename, probe_point, pixel_value):
 def test_composite_image_pixels(filename, probe_point, pixel_value):
     _assert_image_pixel(filename, probe_point, pixel_value)
 
-@pytest.mark.xfail
 @pytest.mark.parametrize(["filename", "probe_point", "pixel_value"], PIXEL_VALUES_32BIT)
 def test_composite_image_pixels_32bit(filename, probe_point, pixel_value):
     _assert_image_pixel(filename, probe_point, pixel_value)

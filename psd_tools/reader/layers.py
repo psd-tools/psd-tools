@@ -5,7 +5,7 @@ import logging
 import warnings
 
 from psd_tools.utils import (read_fmt, read_pascal_string, read_be_array,
-                             trimmed_repr, debug_view, pad, syncronize)
+                             trimmed_repr, pad, synchronize)
 from psd_tools.exceptions import Error
 from psd_tools.constants import (Compression, Clipping, BlendMode,
                                  ChannelID, TaggedBlock)
@@ -77,7 +77,7 @@ def read(fp, encoding, header):
     global_mask_info = _read_global_mask_info(fp)
 
     consumed_bytes = fp.tell() - start_position
-    syncronize(fp) # hack hack hack
+    synchronize(fp) # hack hack hack
     tagged_blocks = _read_layer_tagged_blocks(fp, length - consumed_bytes)
 
     consumed_bytes = fp.tell() - start_position

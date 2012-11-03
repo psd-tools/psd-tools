@@ -4,7 +4,9 @@ import io
 import warnings
 import collections
 
-from psd_tools.utils import read_pascal_string, unpack, read_fmt, read_unicode_string, be_array_from_bytes
+from psd_tools.utils import (read_pascal_string, unpack, read_fmt,
+                             read_unicode_string, be_array_from_bytes,
+                             decode_fixed_point_32bit)
 from psd_tools.constants import ImageResourceID, PrintScaleStyle, DisplayResolutionUnit, DimensionUnit
 from psd_tools.decoder import decoders
 
@@ -118,11 +120,18 @@ def _decode_caption_pascal(data):
 
 @register(ImageResourceID.RESOLUTION_INFO)
 def _decode_resolution(data):
-    (h_res_lo, h_res_hi, h_res_unit, width_unit,
-     v_res_lo, v_res_hi, v_res_unit, height_unit) = unpack("2H HH 2H HH", data)
+    h_res, h_res_unit, width_unit, v_res, v_res_unit, height_unit = unpack("4s HH 4s HH", data)
 
-    # XXX: shouldn't denominator be 2**16 ?
-    h_res = h_res_lo + h_res_hi / (2**16 - 1)
-    v_res = v_res_lo + v_res_hi / (2**16 - 1)
+    h_res = decode_fixed_point_32bit(h_res)
+    v_res = decode_fixed_point_32bit(v_res)
 
     return ResolutionInfo(h_res, h_res_unit, width_unit, v_res, v_res_unit, height_unit)
+
+@register(ImageResourceID.ICC_PROFILE)
+def _decode_icc(data):
+    try:
+        from PIL import ImageCms
+    except ImportError:
+        return data
+
+    return ImageCms.ImageCmsProfile(io.BytesIO(data))

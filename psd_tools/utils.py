@@ -53,6 +53,13 @@ def read_be_array(fmt, count, fp):
     """
     arr = array.array(str(fmt))
     arr.fromfile(fp, count)
+    return fix_byteorder(arr)
+
+def fix_byteorder(arr):
+    """
+    Fixes the byte order of the array (assuming it was read
+    from a Big Endian data).
+    """
     if sys.byteorder == 'little':
         arr.byteswap()
     return arr
@@ -73,7 +80,7 @@ def trimmed_repr(data, trim_length=30):
             return repr(data[:trim_length] + b' ... =' + str(len(data)).encode('ascii'))
     return repr(data)
 
-def syncronize(fp, signature=b'8BIM', limit=8):
+def synchronize(fp, signature=b'8BIM', limit=8):
     # This is a hack for the cases where I gave up understanding PSD format.
     start = fp.tell()
     data = fp.read(limit)
@@ -84,6 +91,15 @@ def syncronize(fp, signature=b'8BIM', limit=8):
     else:
         fp.seek(start)
         return False
+
+def decode_fixed_point_32bit(data):
+    """
+    Decodes ``data`` as an unsigned 4-byte fixed-point number.
+    """
+    lo, hi = unpack("2H", data)
+    # XXX: shouldn't denominator be 2**16 ?
+    return lo + hi / (2**16 - 1)
+
 
 def debug_view(fp, txt=""):
     fp.seek(-20, 1)
