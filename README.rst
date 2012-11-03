@@ -13,12 +13,20 @@ Installation
 
     pip install psd-tools
 
-There are also optional dependencies: docopt_ for command-line interface
-and PIL_ (or Pillow_) for accessing PSD layer data as PIL images::
+There are also optional dependencies:
 
-    pip install Pillow
-    pip install docopt
+* docopt_ for command-line interface::
 
+      pip install docopt
+
+* and PIL_ (or Pillow_) for accessing PSD layer data as PIL images::
+
+      pip install Pillow
+
+.. note::
+
+    In order to extract images from 32bit PSD files PIL/Pillow must be built
+    with LITTLECMS support.
 
 .. _docopt: https://github.com/docopt/docopt
 .. _PIL: http://www.pythonware.com/products/pil/
@@ -181,8 +189,6 @@ demonstrating the issue; this file may be added to a test suite.
 
     Unfortunately I don't have a license for Adobe Photoshop and use GIMP for
     testing; PNG screenshots may be necessary in cases where GIMP fails.
-    You may consider sponsoring the development of psd-tools by donating
-    me a Photoshop License - this would be extremely helpful :)
 
 In order to run tests, install `tox <http://tox.testrun.org>`_ and type
 
