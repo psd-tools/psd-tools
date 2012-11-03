@@ -49,3 +49,8 @@ def test_layer_visibility():
     assert visible['Shape 1']
     assert not visible['Shape 2']
     assert visible['Background']
+
+def test_groups_32bit():
+    layers = group_layers(decode_psd('32bit5x5.psd'))
+    assert len(layers) == 3
+    assert layers[0]['name'] == 'Background copy 2'

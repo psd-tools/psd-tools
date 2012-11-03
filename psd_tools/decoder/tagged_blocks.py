@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, unicode_literals
+from __future__ import absolute_import, unicode_literals, print_function
 import warnings
 import collections
 import io
 
 from psd_tools.constants import TaggedBlock, SectionDivider
 from psd_tools.decoder.actions import decode_descriptor
-from psd_tools.utils import read_fmt, read_unicode_string, unpack
+from psd_tools.utils import read_fmt, read_unicode_string, unpack, debug_view
 from psd_tools.decoder import decoders
 from psd_tools.reader.layers import Block
 
@@ -99,3 +99,23 @@ def _decode_protected(data):
         bool(flag & 2),
         bool(flag & 4),
     )
+
+@register(TaggedBlock.LAYER_32)
+def _decode_layer32(data):
+    from psd_tools.reader import layers
+    from psd_tools.decoder.decoder import decode_layers
+    fp = io.BytesIO(data)
+    layers = layers._read_layers(fp, 'latin1', 32, length=len(data))
+    return decode_layers(layers)
+
+@register(TaggedBlock.LAYER_16)
+def _decode_layer16(data):
+    from psd_tools.reader import layers
+    from psd_tools.decoder.decoder import decode_layers
+    fp = io.BytesIO(data)
+    layers = layers._read_layers(fp, 'latin1', 16, length=len(data))
+    return decode_layers(layers)
+
+def get_tagged_block(tagged_blocks, block_type, default=None):
+    blocks_dict = dict(tagged_blocks)
+    return blocks_dict.get(block_type, default)

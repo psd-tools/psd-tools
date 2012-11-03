@@ -5,7 +5,7 @@ import logging
 import warnings
 
 from psd_tools.utils import (read_fmt, read_pascal_string, read_be_array,
-                             trimmed_repr, pad, synchronize)
+                             trimmed_repr, pad, synchronize, debug_view)
 from psd_tools.exceptions import Error
 from psd_tools.constants import (Compression, Clipping, BlendMode,
                                  ChannelID, TaggedBlock)
@@ -63,14 +63,14 @@ class Block(_Block):
                                      trimmed_repr(self.data))
 
 
-def read(fp, encoding, header):
+def read(fp, encoding, depth):
     """
     Reads layers and masks information.
     """
     length = read_fmt("I", fp)[0]
     start_position = fp.tell()
 
-    layers = _read_layers(fp, encoding, header.depth)
+    layers = _read_layers(fp, encoding, depth)
 
     # XXX: are tagged blocks really after the layers?
     # XXX: does global mask reading really work?
@@ -85,11 +85,12 @@ def read(fp, encoding, header):
 
     return LayerAndMaskData(layers, global_mask_info, tagged_blocks)
 
-def _read_layers(fp, encoding, depth):
+def _read_layers(fp, encoding, depth, length=None):
     """
     Reads info about layers.
     """
-    length = read_fmt("I", fp)[0]
+    if length is None:
+        length = read_fmt("I", fp)[0]
     layer_count = read_fmt("h", fp)[0]
 
     layer_records = []
@@ -252,9 +253,12 @@ def _read_channel_image_data(fp, layer, depth):
             channel_data.append(ChannelData(compression, data))
 
         elif Compression.is_known(compression):
-            warnings.warn("This compression type (%d) is not yet supported." % compression)
+            warnings.warn("This compression type (%d %s) is not supported." % (
+                            compression, Compression.name_of(compression)))
+            return []
         else:
             warnings.warn("Unknown compression type: %d" % compression)
+            return []
 
         remaining_bytes = channel.length - (fp.tell() - start_pos) - 2
         if remaining_bytes > 0:
