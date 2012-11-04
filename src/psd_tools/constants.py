@@ -3,10 +3,15 @@ from __future__ import absolute_import, unicode_literals
 
 class Enum(object):
 
+    _attributes_cache = None
+
     @classmethod
     def _attributes(cls):
-        return [name for name in dir(cls)
-                if name.isupper() and not name.startswith('_')]
+        if cls._attributes_cache is None:
+            attrs = [name for name in dir(cls)
+                    if name.isupper() and not name.startswith('_')]
+            cls._attributes_cache = attrs
+        return cls._attributes_cache
 
     @classmethod
     def is_known(cls, value):
