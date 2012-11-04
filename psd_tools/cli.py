@@ -19,12 +19,13 @@ def main():
     Usage:
         psd-tools.py <filename> [--encoding <encoding>] [--verbose]
         psd-tools.py convert <psd_filename> <out_filename> [--verbose]
+        psd-tools.py export_layer <psd_filename> <layer_index> <out_filename> [--verbose]
         psd-tools.py -h | --help
         psd-tools.py --version
 
     Options:
         -v --verbose                Be more verbose.
-        --encoding <encoding>       Text encoding [default: ascii].
+        --encoding <encoding>       Text encoding [default: utf8].
 
     """
     args = docopt.docopt(main.__doc__)
@@ -38,6 +39,15 @@ def main():
         psd = PSDImage.load(args['<psd_filename>'])
         im = psd.composite_image()
         im.save(args['<out_filename>'])
+
+    elif args['export_layer']:
+        psd = PSDImage.load(args['<psd_filename>'])
+        index = int(args['<layer_index>'])
+        im = psd.layers[index].as_PIL()
+        im.save(args['<out_filename>'])
+        print(psd.layers)
+
+        psd.composite_image()
 
     else:
         encoding = args['--encoding']

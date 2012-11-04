@@ -3,7 +3,7 @@ from __future__ import absolute_import, unicode_literals, print_function, divisi
 import warnings
 
 import array
-from psd_tools.utils import fix_byteorder
+from psd_tools.utils import be_array_from_bytes
 from psd_tools.constants import (Compression, ChannelID, ColorMode,
                                  TaggedBlock, SectionDivider, ImageResourceID)
 
@@ -111,7 +111,7 @@ def _from_16bit_raw(data, size):
     return im.point(lambda i: i * (1/(256.0)))
 
 def _from_32bit_raw(data, size):
-    pixels = fix_byteorder(array.array(str("f"), data))
+    pixels = be_array_from_bytes("f", data)
     im = Image.new("F", size)
     im.putdata(pixels, 255, 0)
     return im
@@ -132,7 +132,7 @@ def _channels_data_to_PIL(channels_data, channel_types, size, depth, icc_profile
             warnings.warn("Unsupported channel type (%d)" % channel_type)
             continue
 
-        if channel.compression == Compression.RAW:
+        if channel.compression in [Compression.RAW, Compression.ZIP, Compression.ZIP_WITH_PREDICTION]:
             if depth == 8:
                 im = _from_8bit_raw(channel.data, size)
             elif depth == 16:

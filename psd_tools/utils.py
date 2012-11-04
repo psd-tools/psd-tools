@@ -69,9 +69,7 @@ def be_array_from_bytes(fmt, data):
     Reads an array from bytestring with big-endian data.
     """
     arr = array.array(str(fmt), data)
-    if sys.byteorder == 'little':
-        arr.byteswap()
-    return arr
+    return fix_byteorder(arr)
 
 
 def trimmed_repr(data, trim_length=30):

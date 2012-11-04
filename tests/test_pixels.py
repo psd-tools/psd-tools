@@ -35,7 +35,7 @@ PIXEL_COLORS_32BIT = (
     ('vector mask.psd',         (50, 90),     (221, 227, 236)),
     ('transparentbg.psd',       (0, 0),       (255, 255, 255, 0)),
     ('transparentbg.psd',       (50, 50),     (0, 0, 0, 255)),
-    ('32bit5x5.psd',            (0, 0),       (235, 241, 250)),
+    ('32bit5x5.psd',            (0, 0),       (235, 241, 250)), # why not equal to 16bit5x5.psd?
     ('32bit5x5.psd',            (4, 0),       (0, 0, 0)),
     ('32bit5x5.psd',            (1, 3),       (46, 196, 104)),
 )
@@ -44,6 +44,13 @@ PIXEL_COLORS_16BIT = (
     ('16bit5x5.psd', (0, 0), (236, 242, 251)),
     ('16bit5x5.psd', (4, 0), (0, 0, 0)),
     ('16bit5x5.psd', (1, 3), (46, 196, 104)),
+)
+
+LAYER_COLORS = (
+    ('16bit5x5.psd', 1, (0, 0), (236, 242, 251, 255)),
+    ('16bit5x5.psd', 1, (1, 3), (46, 196, 104, 255)),
+    ('32bit5x5.psd', 1, (0, 0), (235, 241, 250, 255)), # why not equal to 16bit5x5.psd?
+    ('32bit5x5.psd', 1, (1, 3), (46, 196, 104, 255)),
 )
 
 
@@ -63,3 +70,10 @@ def test_composite_image_pixels_32bit(filename, point, color):
 @pytest.mark.parametrize(["filename", "point", "color"], PIXEL_COLORS_16BIT)
 def test_composite_16bit(filename, point, color):
     _assert_image_pixel(filename, point, color)
+
+@pytest.mark.parametrize(["filename", "layer_num", "point", "color"], LAYER_COLORS)
+def test_layer_colors(filename, layer_num, point, color):
+    psd = PSDImage(decode_psd(filename))
+    layer = psd.layers[layer_num]
+    image = layer.as_PIL()
+    assert image.getpixel(point) == color

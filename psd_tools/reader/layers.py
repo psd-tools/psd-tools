@@ -3,8 +3,11 @@ from __future__ import absolute_import, unicode_literals, division, print_functi
 import collections
 import logging
 import warnings
+import zlib
+import array
 
-from psd_tools.utils import (read_fmt, read_pascal_string, read_be_array,
+from psd_tools.utils import (read_fmt, read_pascal_string,
+                             read_be_array, be_array_from_bytes,
                              trimmed_repr, pad, synchronize, debug_view)
 from psd_tools.exceptions import Error
 from psd_tools.constants import (Compression, Clipping, BlendMode,
@@ -50,8 +53,9 @@ class MaskData(_MaskData):
 
 class ChannelData(_ChannelData):
     def __repr__(self):
-        return "ChannelData(compression=%r, len(data)=%r" % (
-            self.compression, len(self.data) if self.data is not None else None
+        return "ChannelData(compression=%r %s, len(data)=%r)" % (
+            self.compression, Compression.name_of(self.compression),
+            len(self.data) if self.data is not None else None
         )
 
 class Block(_Block):
@@ -224,6 +228,75 @@ def _read_layer_blending_ranges(fp):
 
     return LayerBlendingRanges(composite_ranges, channel_ranges)
 
+
+def _decompress_raw(fp, w, h, bytes_per_pixel):
+    data_size = w * h * bytes_per_pixel
+    data = fp.read(data_size)
+    return ChannelData(Compression.RAW, data)
+
+def _decompress_packbits(fp, byte_counts, h, bytes_per_pixel):
+    data = fp.read(sum(byte_counts) * bytes_per_pixel)
+    return ChannelData(Compression.PACK_BITS, data)
+
+def _decompress_zip(fp, channel_length):
+    compressed_data = fp.read(channel_length)
+    decompressed = zlib.decompress(compressed_data)
+    return ChannelData(Compression.ZIP, decompressed)
+
+def _decompress_zip_with_prediction(fp, w, h, bytes_per_pixel, channel_length):
+    compressed_data = fp.read(channel_length)
+    decompressed = zlib.decompress(compressed_data)
+
+    def delta_decode(fmt, mod, data, w, h):
+        arr = be_array_from_bytes(fmt, data)
+        for y in range(h):
+            offset = y*w
+            for x in range(w-1):
+                pos = offset + x
+                next_value = (arr[pos+1] + arr[pos]) % mod
+                arr[pos+1] = next_value
+        arr.byteswap()
+        return arr
+
+    if bytes_per_pixel == 1:
+        arr = delta_decode("B", 2**8, decompressed, w, h)
+
+    elif bytes_per_pixel == 2:
+        arr = delta_decode("H", 2**16, decompressed, w, h)
+
+    elif bytes_per_pixel == 4:
+
+        # 32bit channels are also encoded using delta encoding,
+        # but it make no sense to apply delta compression to bytes.
+        # It is possible to apply delta compression to 2-byte or 4-byte
+        # words, but it seems it is not the best way either.
+        # In PSD, each 4-byte item is split into 4 bytes and these
+        # bytes are packed together: "123412341234" becomes "111222333444";
+        # delta compression is applied to the packed data.
+        #
+        # So we have to (a) decompress data from the delta compression
+        # and (b) recombine data back to 4-byte values.
+
+        bytes_array = delta_decode("B", 2**8, decompressed, w*4, h)
+
+        # restore 4-byte items.
+        # XXX: this is very slow written in Python.
+        arr = array.array(str("B"))
+        for y in range(h):
+            row_start = y*w*4
+            offsets = row_start, row_start+w, row_start+w*2, row_start+w*3
+            for x in range(w):
+                for bt in range(4):
+                    arr.append(bytes_array[offsets[bt] + x])
+
+        arr = array.array(str("f"), arr.tostring())
+    else:
+        return None
+
+
+    return ChannelData(Compression.ZIP_WITH_PREDICTION, arr.tostring())
+
+
 def _read_channel_image_data(fp, layer, depth):
     """
     Reads image data for all channels in a layer.
@@ -233,7 +306,6 @@ def _read_channel_image_data(fp, layer, depth):
     bytes_per_pixel = depth // 8
 
     for channel in layer.channels:
-
         if channel.id == ChannelID.USER_LAYER_MASK:
             w, h = layer.mask_data.width(), layer.mask_data.height()
         else:
@@ -242,23 +314,24 @@ def _read_channel_image_data(fp, layer, depth):
         start_pos = fp.tell()
         compression = read_fmt("H", fp)[0]
 
+        data = None
+
         if compression == Compression.RAW:
-            data_size = w * h * bytes_per_pixel
-            data = fp.read(data_size)
-            channel_data.append(ChannelData(compression, data))
+            data = _decompress_raw(fp, w, h, bytes_per_pixel)
 
         elif compression == Compression.PACK_BITS:
             byte_counts = read_be_array("H", h, fp)
-            data = fp.read(sum(byte_counts) * bytes_per_pixel)
-            channel_data.append(ChannelData(compression, data))
+            data = _decompress_packbits(fp, byte_counts, h, bytes_per_pixel)
 
-        elif Compression.is_known(compression):
-            warnings.warn("This compression type (%d %s) is not supported." % (
-                            compression, Compression.name_of(compression)))
+        elif compression == Compression.ZIP:
+            data = _decompress_zip(fp, channel.length-2)
+
+        elif compression == Compression.ZIP_WITH_PREDICTION:
+            data = _decompress_zip_with_prediction(fp, w, h, bytes_per_pixel, channel.length-2)
+
+        if data is None:
             return []
-        else:
-            warnings.warn("Unknown compression type: %d" % compression)
-            return []
+        channel_data.append(data)
 
         remaining_bytes = channel.length - (fp.tell() - start_pos) - 2
         if remaining_bytes > 0:
@@ -301,18 +374,23 @@ def read_image_data(fp, header):
     channel_data = []
     for channel_id in range(header.number_of_channels):
 
+        data = None
+
         if compression == Compression.RAW:
-            data = fp.read(w*h*bytes_per_pixel)
-            channel_data.append(ChannelData(compression, data))
+            data = _decompress_raw(fp, w, h, bytes_per_pixel)
 
         elif compression == Compression.PACK_BITS:
             byte_counts = channel_byte_counts[channel_id]
-            data = fp.read(sum(byte_counts)*bytes_per_pixel)
-            channel_data.append(ChannelData(compression, data))
+            data = _decompress_packbits(fp, byte_counts, h, bytes_per_pixel)
 
-        elif Compression.is_known(compression):
-            warnings.warn("This compression type (%d) is not yet supported." % compression)
-        else:
-            warnings.warn("Unknown compression type: %d" % compression)
+        elif compression == Compression.ZIP:
+            warnings.warn("ZIP compression of composite image is not supported.")
+
+        elif compression == Compression.ZIP_WITH_PREDICTION:
+            warnings.warn("ZIP_WITH_PREDICTION compression of composite image is not supported.")
+
+        if data is None:
+            return []
+        channel_data.append(data)
 
     return channel_data
