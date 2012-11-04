@@ -109,8 +109,8 @@ Why yet another PSD reader?
 
 There are existing PSD readers for Python:
 
-* `psdparse <https://github.com/jerem/psdparse>`_;
-* `pypsd <https://code.google.com/p/pypsd>`_;
+* psdparse_;
+* pypsd_;
 * there is a PSD reader in PIL_ library;
 * it is possible to write Python plugins for GIMP_.
 
@@ -133,6 +133,8 @@ parser should be implemented as a set of functions; the package should
 have tests and support both Python 2.x and Python 3.x.
 
 .. _GIMP: http://www.gimp.org/
+.. _psdparse: https://github.com/jerem/psdparse
+.. _pypsd: https://code.google.com/p/pypsd
 
 Design overview
 ---------------
@@ -199,3 +201,15 @@ In order to run tests, install `tox <http://tox.testrun.org>`_ and type
 from the source checkout.
 
 The license is MIT.
+
+Acknowledgments
+---------------
+
+Thanks to all guys who write PSD parsers: I learned a lot about PSD
+file structure from the source code of psdparse_, GIMP_, libpsd_
+and `psdparse C library`_; special thanks to `Paint.NET PSD Plugin`_ authors
+for deciphering the "32bit layer + zip-with-prediction compression" case.
+
+.. _libpsd: http://sourceforge.net/projects/libpsd/
+.. _psdparse C library: http://telegraphics.com.au/svn/psdparse/trunk/
+.. _Paint.NET PSD Plugin: http://psdplugin.codeplex.com/

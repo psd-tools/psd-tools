@@ -1,4 +1,12 @@
 
+0.5 (2012-11-05)
+----------------
+
+- Support for zip and zip-with-prediction compression methods is added;
+- support for 16/32bit layers is added;
+- optional Cython extension for faster zip-with-prediction decompression;
+- other speed improvements.
+
 0.2 (2012-11-04)
 ----------------
 

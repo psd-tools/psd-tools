@@ -10,7 +10,7 @@ for cmd in ('egg_info', 'develop'):
 
 setup_args = dict(
     name = 'psd-tools',
-    version = '0.2',
+    version = '0.5',
     author = 'Mikhail Korobov',
     author_email = 'kmike84@gmail.com',
     url = 'https://github.com/kmike/psd-tools',
@@ -25,7 +25,7 @@ setup_args = dict(
     scripts=['bin/psd-tools.py'],
 
     classifiers=[
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python',
