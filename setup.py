@@ -16,8 +16,10 @@ setup(
 
     description = 'Python package for working with Adobe Photoshop PSD files',
     long_description = open('README.rst').read() + "\n\n" + open('CHANGES.rst').read(),
-
     license = 'MIT License',
+    requires=['docopt', 'Pillow'],
+
+    package_dir = {'': 'src'},
     packages = ['psd_tools', 'psd_tools.reader', 'psd_tools.decoder', 'psd_tools.user_api'],
     scripts=['bin/psd-tools.py'],
     requires=['docopt', 'Pillow'],
