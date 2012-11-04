@@ -1,3 +1,5 @@
 include AUTHORS.rst
 include README.rst
 include CHANGES.rst
+
+recursive-include src *.c *.pxd *.pyx

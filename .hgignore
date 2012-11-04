@@ -18,3 +18,4 @@ MANIFEST$
 ^dist
 ^psd_tools.egg-info
 ^\.coverage$
+\.html$

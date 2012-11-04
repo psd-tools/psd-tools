@@ -28,7 +28,7 @@ def decode_prediction(data, w, h, bytes_per_pixel):
         arr = array.array(str("B"), data)
         arr = _delta_decode(arr, 2**8, w*4, h)
         arr = _restore_byte_order(arr, w, h)
-        arr = array.array(str("f"), arr.tostring())
+        arr = array.array(str("f"), arr)
     else:
         return None
 
@@ -55,4 +55,11 @@ def _restore_byte_order(bytes_array, w, h):
             for bt in rng4:
                 arr[i] = bytes_array[offsets[bt] + x]
                 i += 1
-    return arr
+    return arr.tostring()
+
+# Replace _delta_decode and _restore_byte_order with faster versions (from
+# a compiled extension) if this is possible:
+try:
+    from ._compression import _delta_decode, _restore_byte_order
+except ImportError:
+    pass

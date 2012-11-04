@@ -7,12 +7,12 @@ import zlib
 import array
 
 from psd_tools.utils import (read_fmt, read_pascal_string,
-                             read_be_array, be_array_from_bytes,
-                             trimmed_repr, pad, synchronize, debug_view)
+                             read_be_array, trimmed_repr, pad, synchronize,
+                             debug_view)
 from psd_tools.exceptions import Error
 from psd_tools.constants import (Compression, Clipping, BlendMode,
                                  ChannelID, TaggedBlock)
-from psd_tools import encoding
+from psd_tools import compression
 
 logger = logging.getLogger(__name__)
 
@@ -245,30 +245,30 @@ def _read_channel_image_data(fp, layer, depth):
             w, h = layer.width(), layer.height()
 
         start_pos = fp.tell()
-        compression = read_fmt("H", fp)[0]
+        compress_type = read_fmt("H", fp)[0]
 
         data = None
 
-        if compression == Compression.RAW:
+        if compress_type == Compression.RAW:
             data_size = w * h * bytes_per_pixel
             data = fp.read(data_size)
 
-        elif compression == Compression.PACK_BITS:
+        elif compress_type == Compression.PACK_BITS:
             byte_counts = read_be_array("H", h, fp)
             data_size = sum(byte_counts) * bytes_per_pixel
             data = fp.read(data_size)
 
-        elif compression == Compression.ZIP:
+        elif compress_type == Compression.ZIP:
             data = zlib.decompress(fp.read(channel.length - 2))
 
-        elif compression == Compression.ZIP_WITH_PREDICTION:
+        elif compress_type == Compression.ZIP_WITH_PREDICTION:
             decompressed = zlib.decompress(fp.read(channel.length - 2))
-            data = encoding.decode_prediction(decompressed, w, h, bytes_per_pixel)
+            data = compression.decode_prediction(decompressed, w, h, bytes_per_pixel)
 
         if data is None:
             return []
 
-        channel_data.append(ChannelData(compression, data))
+        channel_data.append(ChannelData(compress_type, data))
 
         remaining_bytes = channel.length - (fp.tell() - start_pos) - 2
         if remaining_bytes > 0:
@@ -299,12 +299,12 @@ def read_image_data(fp, header):
     Reads merged image pixel data which is stored at the end of PSD file.
     """
     w, h = header.width, header.height
-    compression = read_fmt("H", fp)[0]
+    compress_type = read_fmt("H", fp)[0]
 
     bytes_per_pixel = header.depth // 8
 
     channel_byte_counts = []
-    if compression == Compression.PACK_BITS:
+    if compress_type == Compression.PACK_BITS:
         for ch in range(header.number_of_channels):
             channel_byte_counts.append(read_be_array("H", h, fp))
 
@@ -313,23 +313,23 @@ def read_image_data(fp, header):
 
         data = None
 
-        if compression == Compression.RAW:
+        if compress_type == Compression.RAW:
             data_size = w * h * bytes_per_pixel
             data = fp.read(data_size)
 
-        elif compression == Compression.PACK_BITS:
+        elif compress_type == Compression.PACK_BITS:
             byte_counts = channel_byte_counts[channel_id]
             data_size = sum(byte_counts) * bytes_per_pixel
             data = fp.read(data_size)
 
-        elif compression == Compression.ZIP:
+        elif compress_type == Compression.ZIP:
             warnings.warn("ZIP compression of composite image is not supported.")
 
-        elif compression == Compression.ZIP_WITH_PREDICTION:
+        elif compress_type == Compression.ZIP_WITH_PREDICTION:
             warnings.warn("ZIP_WITH_PREDICTION compression of composite image is not supported.")
 
         if data is None:
             return []
-        channel_data.append(ChannelData(compression, data))
+        channel_data.append(ChannelData(compress_type, data))
 
     return channel_data
