@@ -1,25 +1,16 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, unicode_literals
-import zlib
 import array
-from psd_tools.utils import be_array_from_bytes, read_be_array
+from psd_tools.utils import be_array_from_bytes
 
-def decompress_packbits(fp, byte_counts, bytes_per_pixel):
-    data_size = sum(byte_counts) * bytes_per_pixel
-    return fp.read(data_size)
-
-def decompress_zip(fp, data_length):
-    compressed_data = fp.read(data_length)
-    return zlib.decompress(compressed_data)
-
-def decompress_zip_with_prediction(fp, w, h, bytes_per_pixel, data_length):
-    decompressed = decompress_zip(fp, data_length)
-
+def decode_prediction(data, w, h, bytes_per_pixel):
     if bytes_per_pixel == 1:
-        arr = _delta_decode("B", 2**8, decompressed, w, h)
+        arr = be_array_from_bytes("B", data)
+        arr = _delta_decode(arr, 2**8, w, h)
 
     elif bytes_per_pixel == 2:
-        arr = _delta_decode("H", 2**16, decompressed, w, h)
+        arr = be_array_from_bytes("H", data)
+        arr = _delta_decode(arr, 2**16, w, h)
 
     elif bytes_per_pixel == 4:
 
@@ -34,26 +25,16 @@ def decompress_zip_with_prediction(fp, w, h, bytes_per_pixel, data_length):
         # So we have to (a) decompress data from the delta compression
         # and (b) recombine data back to 4-byte values.
 
-        bytes_array = _delta_decode("B", 2**8, decompressed, w*4, h)
-
-        # restore 4-byte items.
-        # XXX: this is very slow written in Python.
-        arr = array.array(str("B"))
-        for y in range(h):
-            row_start = y*w*4
-            offsets = row_start, row_start+w, row_start+w*2, row_start+w*3
-            for x in range(w):
-                for bt in range(4):
-                    arr.append(bytes_array[offsets[bt] + x])
-
+        arr = array.array(str("B"), data)
+        arr = _delta_decode(arr, 2**8, w*4, h)
+        arr = _restore_byte_order(arr, w, h)
         arr = array.array(str("f"), arr.tostring())
     else:
         return None
 
     return arr.tostring()
 
-def _delta_decode(fmt, mod, data, w, h):
-    arr = be_array_from_bytes(fmt, data)
+def _delta_decode(arr, mod, w, h):
     for y in range(h):
         offset = y*w
         for x in range(w-1):
@@ -63,3 +44,15 @@ def _delta_decode(fmt, mod, data, w, h):
     arr.byteswap()
     return arr
 
+def _restore_byte_order(bytes_array, w, h):
+    arr = bytes_array[:]
+    i = 0
+    rng4 = range(4)
+    for y in range(h):
+        row_start = y*w*4
+        offsets = row_start, row_start+w, row_start+w*2, row_start+w*3
+        for x in range(w):
+            for bt in rng4:
+                arr[i] = bytes_array[offsets[bt] + x]
+                i += 1
+    return arr

@@ -255,13 +255,15 @@ def _read_channel_image_data(fp, layer, depth):
 
         elif compression == Compression.PACK_BITS:
             byte_counts = read_be_array("H", h, fp)
-            data = encoding.decompress_packbits(fp, byte_counts, bytes_per_pixel)
+            data_size = sum(byte_counts) * bytes_per_pixel
+            data = fp.read(data_size)
 
         elif compression == Compression.ZIP:
-            data = encoding.decompress_zip(fp, channel.length - 2)
+            data = zlib.decompress(fp.read(channel.length - 2))
 
         elif compression == Compression.ZIP_WITH_PREDICTION:
-            data = encoding.decompress_zip_with_prediction(fp, w, h, bytes_per_pixel, channel.length-2)
+            decompressed = zlib.decompress(fp.read(channel.length - 2))
+            data = encoding.decode_prediction(decompressed, w, h, bytes_per_pixel)
 
         if data is None:
             return []
@@ -317,7 +319,8 @@ def read_image_data(fp, header):
 
         elif compression == Compression.PACK_BITS:
             byte_counts = channel_byte_counts[channel_id]
-            data = encoding.decompress_packbits(fp, byte_counts, bytes_per_pixel)
+            data_size = sum(byte_counts) * bytes_per_pixel
+            data = fp.read(data_size)
 
         elif compression == Compression.ZIP:
             warnings.warn("ZIP compression of composite image is not supported.")
