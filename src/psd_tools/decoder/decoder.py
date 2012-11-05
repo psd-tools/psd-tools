@@ -5,12 +5,14 @@ from . import image_resources, tagged_blocks
 from psd_tools.constants import TaggedBlock
 
 def parse(reader_parse_result):
+
     layer_and_mask_data = reader_parse_result.layer_and_mask_data
     layers = layer_and_mask_data.layers
 
     new_layers = decode_layers(layers)
     new_tagged_blocks = tagged_blocks.decode(layer_and_mask_data.tagged_blocks)
 
+    # 16 and 32 bit layers are stored in Lr16 and Lr32 tagged blocks
     if new_layers.layer_count == 0:
         blocks_dict = dict(new_tagged_blocks)
         if reader_parse_result.header.depth == 16:
@@ -18,7 +20,7 @@ def parse(reader_parse_result):
         elif reader_parse_result.header.depth == 32:
             new_layers = blocks_dict.get(TaggedBlock.LAYER_32, new_layers)
 
-
+    # XXX: this code is complicated because of the namedtuple abuse
     new_layer_and_mask_data = layer_and_mask_data._replace(
         layers = new_layers,
         tagged_blocks = new_tagged_blocks

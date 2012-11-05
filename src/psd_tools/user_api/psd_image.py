@@ -2,12 +2,12 @@
 from __future__ import absolute_import, unicode_literals
 
 import collections
-import weakref
+import weakref              # FIXME: there should be weakrefs in this module
 import psd_tools.reader
 import psd_tools.decoder
 from psd_tools.constants import TaggedBlock, SectionDivider
-from psd_tools.user_api.layers import (group_layers, composite_image_to_PIL,
-                                       layer_to_PIL)
+from psd_tools.user_api.layers import group_layers
+from psd_tools.user_api.pil_support import composite_image_to_PIL, layer_to_PIL
 
 BBox = collections.namedtuple('BBox', 'x1, y1, x2, y2')
 
@@ -48,7 +48,7 @@ class _RawLayer(object):
 
     @property
     def _info(self):
-        return self._psd.layer_info(self._index)
+        return self._psd._layer_info(self._index)
 
     @property
     def _tagged_blocks(self):
@@ -65,7 +65,7 @@ class Layer(_RawLayer):
 
     def as_PIL(self):
         """ Returns a PIL image for this layer. """
-        return self._psd.layer_as_PIL(self._index)
+        return self._psd._layer_as_PIL(self._index)
 
     @property
     def bbox(self):
@@ -141,7 +141,6 @@ class PSDImage(object):
                     # regular layer
                     group._add_layer(Layer(group, index))
 
-
         self._psd = self
         fake_root_data = {'layers': group_layers(decoded_data), 'index': None}
         root = _RootGroup(self, None, [])
@@ -170,14 +169,7 @@ class PSDImage(object):
         return cls(decoded_data)
 
 
-    def layer_info(self, index):
-        layers = self.decoded_data.layer_and_mask_data.layers.layer_records
-        return layers[index]
-
-    def layer_as_PIL(self, index):
-        return layer_to_PIL(self.decoded_data, index)
-
-    def composite_image(self):
+    def as_PIL(self):
         """
         Returns a pre-rendered image for this PSD file.
         """
@@ -193,6 +185,13 @@ class PSDImage(object):
         (img.header.width and img.header.heigth).
         """
         return _combined_bbox(self.layers)
+
+    def _layer_info(self, index):
+        layers = self.decoded_data.layer_and_mask_data.layers.layer_records
+        return layers[index]
+
+    def _layer_as_PIL(self, index):
+        return layer_to_PIL(self.decoded_data, index)
 
 
 def _combined_bbox(layers):

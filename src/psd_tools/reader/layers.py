@@ -4,7 +4,6 @@ import collections
 import logging
 import warnings
 import zlib
-import array
 
 from psd_tools.utils import (read_fmt, read_pascal_string,
                              read_be_array, trimmed_repr, pad, synchronize,
@@ -33,7 +32,6 @@ class LayerRecord(_LayerRecord):
         return self.bottom - self.top
 
 
-
 Layers = collections.namedtuple('Layers', 'length, layer_count, layer_records, channel_image_data')
 LayerFlags = collections.namedtuple('LayerFlags', 'transparency_protected visible')
 LayerAndMaskData = collections.namedtuple('LayerAndMaskData', 'layers global_mask_info tagged_blocks')
@@ -51,6 +49,7 @@ class MaskData(_MaskData):
 
     def height(self):
         return self.bottom - self.top
+
 
 class ChannelData(_ChannelData):
     def __repr__(self):
@@ -322,6 +321,7 @@ def read_image_data(fp, header):
             data_size = sum(byte_counts) * bytes_per_pixel
             data = fp.read(data_size)
 
+        # are there any ZIP-encoded composite images in a wild?
         elif compress_type == Compression.ZIP:
             warnings.warn("ZIP compression of composite image is not supported.")
 

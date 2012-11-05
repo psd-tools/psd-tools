@@ -100,7 +100,7 @@ Export a single layer::
 
 Export the merged image::
 
-    >>> merged_image = psd.composite_image()
+    >>> merged_image = psd.as_PIL()
     >>> merged_image.save('my_image.png')
 
 

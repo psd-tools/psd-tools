@@ -3,7 +3,7 @@ from __future__ import absolute_import, unicode_literals
 import pytest
 
 from psd_tools import PSDImage
-from psd_tools.user_api.layers import composite_image_to_PIL, layer_to_PIL
+from psd_tools.user_api.pil_support import composite_image_to_PIL, layer_to_PIL
 from psd_tools.constants import BlendMode
 
 from .utils import decode_psd

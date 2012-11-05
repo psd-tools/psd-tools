@@ -56,7 +56,7 @@ LAYER_COLORS = (
 
 def _assert_image_pixel(filename, point, color):
     psd = PSDImage(decode_psd(filename))
-    image = psd.composite_image()
+    image = psd.as_PIL()
     assert image.getpixel(point) == color
 
 @pytest.mark.parametrize(["filename", "point", "color"], PIXEL_COLORS)

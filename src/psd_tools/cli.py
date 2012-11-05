@@ -37,7 +37,7 @@ def main():
 
     if args['convert']:
         psd = PSDImage.load(args['<psd_filename>'])
-        im = psd.composite_image()
+        im = psd.as_PIL()
         im.save(args['<out_filename>'])
 
     elif args['export_layer']:
@@ -47,7 +47,7 @@ def main():
         im.save(args['<out_filename>'])
         print(psd.layers)
 
-        psd.composite_image()
+        psd.as_PIL()
 
     else:
         encoding = args['--encoding']
