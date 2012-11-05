@@ -33,7 +33,7 @@ def layer_to_PIL(decoded_data, layer_index):
 
 def composite_image_to_PIL(decoded_data):
     """
-    Converts a composite (merged) images from the ``decoded_data``
+    Converts a composite (merged) image from the ``decoded_data``
     to a PIL image.
     """
     header = decoded_data.header
@@ -74,7 +74,7 @@ def _channels_data_to_PIL(channels_data, channel_types, size, depth, icc_profile
 
     for channel, channel_type in zip(channels_data, channel_types):
 
-        pil_band = ChannelID.to_PIL(channel_type)
+        pil_band = channel_id_to_PIL(channel_type)
         if pil_band is None:
             warnings.warn("Unsupported channel type (%d)" % channel_type)
             continue
@@ -112,6 +112,17 @@ def _channels_data_to_PIL(channels_data, channel_types, size, depth, icc_profile
         ImageCms.profileToProfile(merged_image, icc_profile, display_profile, inPlace=True)
 
     return merged_image
+
+
+def channel_id_to_PIL(channel_id):
+    BANDS_MAP = {
+        ChannelID.RED: 'R',
+        ChannelID.GREEN: 'G',
+        ChannelID.BLUE: 'B',
+        ChannelID.TRANSPARENCY_MASK: 'A'
+    }
+    return BANDS_MAP.get(channel_id, None)
+
 
 def _get_mode(band_keys):
     for mode in ['RGBA', 'RGB']:

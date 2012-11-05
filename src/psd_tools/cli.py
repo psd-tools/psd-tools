@@ -7,7 +7,7 @@ import pprint
 import psd_tools.reader
 import psd_tools.decoder
 from psd_tools import PSDImage
-from psd_tools.user_api.layers import group_layers, composite_image_to_PIL
+from psd_tools.user_api.layers import group_layers
 
 logger = logging.getLogger('psd_tools')
 logger.addHandler(logging.StreamHandler())

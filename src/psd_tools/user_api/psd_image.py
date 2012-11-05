@@ -8,6 +8,7 @@ import psd_tools.decoder
 from psd_tools.constants import TaggedBlock, SectionDivider
 from psd_tools.user_api.layers import group_layers
 from psd_tools.user_api.pil_support import composite_image_to_PIL, layer_to_PIL
+from psd_tools.user_api import pymaging_support
 
 BBox = collections.namedtuple('BBox', 'x1, y1, x2, y2')
 
@@ -171,9 +172,15 @@ class PSDImage(object):
 
     def as_PIL(self):
         """
-        Returns a pre-rendered image for this PSD file.
+        Returns a PIL image for this PSD file.
         """
         return composite_image_to_PIL(self.decoded_data)
+
+    def as_pymaging(self):
+        """
+        Retirns a pymaging.Image for this PSD file.
+        """
+        return pymaging_support.extract_composite_image(self.decoded_data)
 
     @property
     def bbox(self):
