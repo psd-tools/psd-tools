@@ -4,6 +4,7 @@ from __future__ import absolute_import, unicode_literals
 class Enum(object):
 
     _attributes_cache = None
+    _values_dict_cache = None
 
     @classmethod
     def _attributes(cls):
@@ -14,18 +15,21 @@ class Enum(object):
         return cls._attributes_cache
 
     @classmethod
+    def _values_dict(cls):
+        if cls._values_dict_cache is None:
+            cls._values_dict_cache = dict([
+                (getattr(cls, name), name)
+                for name in cls._attributes()
+            ])
+        return cls._values_dict_cache
+
+    @classmethod
     def is_known(cls, value):
-        for name in cls._attributes():
-            if getattr(cls, name) == value:
-                return True
-        return False
+        return value in cls._values_dict()
 
     @classmethod
     def name_of(cls, value):
-        for name in cls._attributes():
-            if getattr(cls, name) == value:
-                return name
-        return "<unknown>"
+        return cls._values_dict().get(value, "<unknown>")
 
 
 class ColorMode(Enum):
