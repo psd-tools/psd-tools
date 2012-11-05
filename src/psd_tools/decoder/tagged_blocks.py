@@ -115,7 +115,3 @@ def _decode_layer16(data):
     fp = io.BytesIO(data)
     layers = layers._read_layers(fp, 'latin1', 16, length=len(data))
     return decode_layers(layers)
-
-def get_tagged_block(tagged_blocks, block_type, default=None):
-    blocks_dict = dict(tagged_blocks)
-    return blocks_dict.get(block_type, default)
