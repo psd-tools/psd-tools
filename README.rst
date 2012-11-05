@@ -136,6 +136,7 @@ have tests and support both Python 2.x and Python 3.x.
 .. _psdparse: https://github.com/jerem/psdparse
 .. _pypsd: https://code.google.com/p/pypsd
 
+
 Design overview
 ---------------
 
@@ -171,6 +172,35 @@ PSD file; even if the library can't parse some info, this info
 will be likely available somewhere as raw bytes (open a bug if this is
 not the case). This should make it possible to modify and write PSD
 files (currently not implemented; contributions are welcome).
+
+Features
+--------
+
+Supported:
+
+* reading of RGB and RGBA images;
+* 8bit, 16bit and 32bit channels;
+* all PSD compression methods are supported (not only the most
+  common RAW and RLE);
+* image ICC profile is taken into account;
+* most important (imho) 23 image resource types and 12 tagged block
+  types are decoded;
+* there is an optional Cython extension to make the parsing fast.
+
+Not implemented:
+
+* reading of CMYK, Duotone, LAB, etc. images;
+* many image resource types and tagged blocks are not decoded
+  (they are attached to the result as raw bytes);
+* this library can't blend layers together: it is possible to export
+  a single layer and to export a final image, but it is not possible to
+  render e.g. layer group;
+* the decoding of Descriptor structures is very basic;
+* the writing of PSD images.
+
+If you need some of unimplemented features then please fire an issue
+or implement it yourself (pull requests are welcome in this case).
+
 
 Contributing
 ------------
