@@ -66,6 +66,6 @@ def _channels_data_to_image(channels_data, mode, size, depth):
 
         image_bytes[index::num_channels] = array.array(str("B"), channel.data)
 
-    pixels = get_pixel_array(image_bytes, size[0], size[1], RGB.length)
+    pixels = get_pixel_array(image_bytes, size[0], size[1], mode.length)
 
     return Image(pixels, mode)
