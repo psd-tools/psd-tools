@@ -140,7 +140,7 @@ have tests and support both Python 2.x and Python 3.x.
 Design overview
 ---------------
 
-The process of handling a PSD file is splitted into 3 stages:
+The process of handling a PSD file is split into 3 stages:
 
 1) "Reading": the file is read and parsed to low-level data
    structures that closely match the specification. No PIL images
