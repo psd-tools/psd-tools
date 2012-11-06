@@ -23,12 +23,12 @@ There are also optional dependencies:
 
       pip install Pillow
 
-* pymaging_ and packbits_ for accessing PSD image and layer
+* Pymaging_ and packbits_ for accessing PSD image and layer
   data as ``pymaging.Image``::
 
       pip install packbits
 
-  (`pymaging installation instructions`_ are available in pymaging docs).
+  (`Pymaging installation instructions`_ are available in pymaging docs).
 
 .. note::
 
@@ -39,8 +39,8 @@ There are also optional dependencies:
 .. _PIL: http://www.pythonware.com/products/pil/
 .. _Pillow: https://github.com/python-imaging/Pillow
 .. _packbits: http://pypi.python.org/pypi/packbits/
-.. _pymaging: https://github.com/ojii/pymaging
-.. _pymaging installation instructions: http://pymaging.readthedocs.org/en/latest/usr/installation.html
+.. _Pymaging: https://github.com/ojii/pymaging
+.. _Pymaging installation instructions: http://pymaging.readthedocs.org/en/latest/usr/installation.html
 
 Usage
 -----
@@ -113,7 +113,7 @@ Export the merged image::
     >>> merged_image = psd.as_PIL()
     >>> merged_image.save('my_image.png')
 
-The same using pymaging_::
+The same using Pymaging_::
 
     >>> merged_image = psd.as_pymaging()
     >>> merged_image.save_to_path('my_image.png')
