@@ -1,4 +1,11 @@
 
+0.6 (2012-11-06)
+----------------
+
+- ``psd.composite_image()`` is renamed to ``psd.as_PIL()``;
+- Pymaging support: ``psd.as_pymaging()`` and ``layer.as_pymaging()`` methods.
+
+
 0.5 (2012-11-05)
 ----------------
 
