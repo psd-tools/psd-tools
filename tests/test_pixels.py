@@ -4,7 +4,7 @@ import pytest
 
 from psd_tools import PSDImage, Layer, Group
 
-from .utils import decode_psd
+from .utils import full_name
 
 PIXEL_COLORS = (
     # filename                  probe point    pixel value
@@ -47,41 +47,57 @@ PIXEL_COLORS_16BIT = (
 )
 
 LAYER_COLORS = (
+    ('1layer.psd',  0,  (5, 5),       (0x27, 0xBA, 0x0F)),
+    ('2layers.psd', 1,  (5, 5),       (0x27, 0xBA, 0x0F)),
+    ('2layers.psd', 1,  (70, 30),     (0x27, 0xBA, 0x0F)),
+    ('2layers.psd', 0,  (0, 0),       (0, 0, 0, 0)),
+    ('2layers.psd', 0,  (62, 26),     (0xF2, 0xF4, 0xC2, 0xFE)),
+)
+
+LAYER_COLORS_MULTIBYTE = (
     ('16bit5x5.psd', 1, (0, 0), (236, 242, 251, 255)),
     ('16bit5x5.psd', 1, (1, 3), (46, 196, 104, 255)),
     ('32bit5x5.psd', 1, (0, 0), (235, 241, 250, 255)), # why not equal to 16bit5x5.psd?
     ('32bit5x5.psd', 1, (1, 3), (46, 196, 104, 255)),
 )
 
-def _assert_PIL_image_pixel(filename, point, color):
-    psd = PSDImage(decode_psd(filename))
-    image = psd.as_PIL()
-    assert image.getpixel(point) == color
+def color_PIL(psd, point):
+    im = psd.as_PIL()
+    return im.getpixel(point)
 
-def _assert_pymaging_image_pixel(filename, point, color):
-    psd = PSDImage(decode_psd(filename))
-    image = psd.as_pymaging()
-    assert list(image.get_pixel(*point)) == list(color)
+def color_pymaging(psd, point):
+    im = psd.as_pymaging()
+    return tuple(im.get_pixel(*point))
 
-BACKENDS = [[_assert_PIL_image_pixel], [_assert_pymaging_image_pixel]]
+BACKENDS = [[color_PIL], [color_pymaging]]
 
 
-@pytest.mark.parametrize(["assert_function"], BACKENDS)
+@pytest.mark.parametrize(["get_color"], BACKENDS)
 @pytest.mark.parametrize(["filename", "point", "color"], PIXEL_COLORS)
-def test_composite(filename, point, color, assert_function):
-    assert_function(filename, point, color)
+def test_composite(filename, point, color, get_color):
+    psd = PSDImage.load(full_name(filename))
+    assert color == get_color(psd, point)
 
 @pytest.mark.parametrize(["filename", "point", "color"], PIXEL_COLORS_32BIT)
 def test_composite_32bit(filename, point, color):
-    _assert_PIL_image_pixel(filename, point, color)
+    psd = PSDImage.load(full_name(filename))
+    assert color == color_PIL(psd, point)
 
 @pytest.mark.parametrize(["filename", "point", "color"], PIXEL_COLORS_16BIT)
 def test_composite_16bit(filename, point, color):
-    _assert_PIL_image_pixel(filename, point, color)
+    psd = PSDImage.load(full_name(filename))
+    assert color == color_PIL(psd, point)
 
-@pytest.mark.parametrize(["filename", "layer_num", "point", "color"], LAYER_COLORS)
-def test_layer_colors(filename, layer_num, point, color):
-    psd = PSDImage(decode_psd(filename))
+@pytest.mark.parametrize(["filename", "layer_num", "point", "color"], LAYER_COLORS_MULTIBYTE)
+def test_layer_colors_multibyte(filename, layer_num, point, color):
+    psd = PSDImage.load(full_name(filename))
     layer = psd.layers[layer_num]
-    image = layer.as_PIL()
-    assert image.getpixel(point) == color
+    assert color == color_PIL(layer, point)
+
+
+@pytest.mark.parametrize(["get_color"], BACKENDS)
+@pytest.mark.parametrize(["filename", "layer_num", "point", "color"], LAYER_COLORS)
+def test_layer_colors(filename, layer_num, point, color, get_color):
+    psd = PSDImage.load(full_name(filename))
+    layer = psd.layers[layer_num]
+    assert color == get_color(layer, point)

@@ -68,6 +68,10 @@ class Layer(_RawLayer):
         """ Returns a PIL image for this layer. """
         return self._psd._layer_as_PIL(self._index)
 
+    def as_pymaging(self):
+        """ Returns a pymaging.Image for this PSD file. """
+        return self._psd._layer_as_pymaging(self._index)
+
     @property
     def bbox(self):
         """ BBox(x1, y1, x2, y2) namedtuple with layer bounding box. """
@@ -178,7 +182,7 @@ class PSDImage(object):
 
     def as_pymaging(self):
         """
-        Retirns a pymaging.Image for this PSD file.
+        Returns a pymaging.Image for this PSD file.
         """
         return pymaging_support.extract_composite_image(self.decoded_data)
 
@@ -199,6 +203,9 @@ class PSDImage(object):
 
     def _layer_as_PIL(self, index):
         return layer_to_PIL(self.decoded_data, index)
+
+    def _layer_as_pymaging(self, index):
+        return pymaging_support.extract_layer_image(self.decoded_data, index)
 
 
 def _combined_bbox(layers):
