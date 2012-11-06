@@ -5,11 +5,13 @@ import warnings
 import array
 
 try:
+    import packbits
     from pymaging import Image
     from pymaging.colors import RGB, RGBA
     from pymaging.pixelarray import get_pixel_array
 except ImportError:
     Image = None
+    packbits = None
 
 from psd_tools.constants import ColorMode, Compression
 
@@ -18,8 +20,8 @@ def extract_composite_image(decoded_data):
     Converts a composite (merged) image from the ``decoded_data``
     to a pymaging.Image.
     """
-    if Image is None:
-        raise Exception("This module requires `pymaging` library installed.")
+    if Image is None or packbits is None:
+        raise Exception("This module requires `pymaging` and `packbits` packages.")
 
     header = decoded_data.header
     size = header.width, header.height
@@ -57,15 +59,17 @@ def _channels_data_to_image(channels_data, mode, size, depth):
     assert len(channels_data) == num_channels
 
     total_size = size[0]*size[1]*num_channels
-
     image_bytes = array.array(str("B"), [0]*total_size)
 
     for index, channel in enumerate(channels_data):
-        if channel.compression == Compression.PACK_BITS:
-            raise NotImplementedError("PackBits decompression is not implemented for pymaging")
 
-        image_bytes[index::num_channels] = array.array(str("B"), channel.data)
+        data = channel.data # zip and zip-with-prediction data is already decoded
+        if channel.compression == Compression.PACK_BITS:
+            data = packbits.decode(data)
+
+        image_bytes[index::num_channels] = array.array(str("B"), data)
 
     pixels = get_pixel_array(image_bytes, size[0], size[1], mode.length)
 
     return Image(pixels, mode)
+

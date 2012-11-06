@@ -14,7 +14,10 @@ def _tobytes(pil_image):
     except AttributeError:
         return pil_image.tostring()
 
-SINGLE_LAYER_FILES = [['1layer.psd'], ['transparentbg-gimp.psd']]
+SINGLE_LAYER_FILES = [
+    ['1layer.psd'],
+    ['transparentbg-gimp.psd']
+]
 
 
 @pytest.mark.parametrize(["filename"], SINGLE_LAYER_FILES)

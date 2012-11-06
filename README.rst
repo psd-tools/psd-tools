@@ -19,9 +19,16 @@ There are also optional dependencies:
 
       pip install docopt
 
-* and PIL_ (or Pillow_) for accessing PSD layer data as PIL images::
+* PIL_ (or Pillow_) for accessing PSD image and layer data as PIL images::
 
       pip install Pillow
+
+* pymaging_ and packbits_ for accessing PSD image and layer
+  data as ``pymaging.Image``::
+
+      pip install packbits
+
+  (`pymaging installation instructions`_ are available in pymaging docs).
 
 .. note::
 
@@ -31,7 +38,9 @@ There are also optional dependencies:
 .. _docopt: https://github.com/docopt/docopt
 .. _PIL: http://www.pythonware.com/products/pil/
 .. _Pillow: https://github.com/python-imaging/Pillow
-
+.. _packbits: http://pypi.python.org/pypi/packbits/
+.. _pymaging: https://github.com/ojii/pymaging
+.. _pymaging installation instructions: http://pymaging.readthedocs.org/en/latest/usr/installation.html
 
 Usage
 -----
@@ -93,6 +102,7 @@ Work with a layer::
     >>> layer.as_PIL()
     <PIL.Image.Image image mode=RGBA size=43x62 at ...>
 
+
 Export a single layer::
 
     >>> layer_image = layer.as_PIL()
@@ -102,6 +112,13 @@ Export the merged image::
 
     >>> merged_image = psd.as_PIL()
     >>> merged_image.save('my_image.png')
+
+The same using pymaging_::
+
+    >>> merged_image = psd.as_pymaging()
+    >>> merged_image.save_to_path('my_image.png')
+    >>> layer_image = layer.as_pymaging()
+    >>> layer_image.save_to_path('layer.png')
 
 
 Why yet another PSD reader?
@@ -143,8 +160,8 @@ Design overview
 The process of handling a PSD file is split into 3 stages:
 
 1) "Reading": the file is read and parsed to low-level data
-   structures that closely match the specification. No PIL images
-   are constructed; image resources blocks and additional layer
+   structures that closely match the specification. No user-accessible
+   images are constructed; image resources blocks and additional layer
    information are extracted but not parsed (they remain just keys
    with a binary data). The goal is to extract all information
    from a PSD file.
@@ -160,12 +177,13 @@ After (1) and (2) we have an in-memory data structure that closely
 resembles PSD file; it should be fairly complete but very low-level
 and not easy to use. So there is a third stage:
 
-3) "User-facing API": PIL images of the PSD layers are created and
-   combined to a user-friendly data structure.
+3) "User-facing API": PSD image is converted to an user-friendly object
+   that supports layer groups, exporting data as ``PIL.Image`` or
+   ``pymaging.Image``, etc.
 
 Stage separation also means user-facing API may be opinionated:
 if somebody doesn't like it then it should possible to build an
-another API (e.g. without PIL) based on lower-level decoded PSD file.
+another API based on lower-level decoded PSD file.
 
 ``psd-tools`` tries not to throw away information from the original
 PSD file; even if the library can't parse some info, this info
@@ -196,7 +214,8 @@ Not implemented:
   a single layer and to export a final image, but it is not possible to
   render e.g. layer group;
 * the decoding of Descriptor structures is very basic;
-* the writing of PSD images.
+* the writing of PSD images is not implemented;
+* only 8bit images can be converted to ``pymaging.Image``.
 
 If you need some of unimplemented features then please fire an issue
 or implement it yourself (pull requests are welcome in this case).
