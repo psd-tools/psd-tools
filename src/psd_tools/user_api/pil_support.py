@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
+from __future__ import absolute_import, unicode_literals, division
 
 import warnings
 from psd_tools.utils import be_array_from_bytes
@@ -16,7 +16,7 @@ except ImportError:
     Image = None
 
 
-def layer_to_PIL(decoded_data, layer_index):
+def extract_layer_image(decoded_data, layer_index):
     """
     Converts a layer from the ``decoded_data`` to a PIL image.
     """
@@ -31,7 +31,7 @@ def layer_to_PIL(decoded_data, layer_index):
         channels_data, channel_types, size,
         decoded_data.header.depth, get_icc_profile(decoded_data))
 
-def composite_image_to_PIL(decoded_data):
+def extract_composite_image(decoded_data):
     """
     Converts a composite (merged) image from the ``decoded_data``
     to a PIL image.

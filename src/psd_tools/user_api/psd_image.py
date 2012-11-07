@@ -1,14 +1,17 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, unicode_literals
+from __future__ import absolute_import, unicode_literals, division
 
+import logging
 import collections
 import weakref              # FIXME: there should be weakrefs in this module
 import psd_tools.reader
 import psd_tools.decoder
 from psd_tools.constants import TaggedBlock, SectionDivider
 from psd_tools.user_api.layers import group_layers
-from psd_tools.user_api.pil_support import composite_image_to_PIL, layer_to_PIL
 from psd_tools.user_api import pymaging_support
+from psd_tools.user_api import pil_support
+
+logger = logging.getLogger(__name__)
 
 class BBox(collections.namedtuple('BBox', 'x1, y1, x2, y2')):
     @property
@@ -184,7 +187,7 @@ class PSDImage(object):
         """
         Returns a PIL image for this PSD file.
         """
-        return composite_image_to_PIL(self.decoded_data)
+        return pil_support.extract_composite_image(self.decoded_data)
 
     def as_pymaging(self):
         """
@@ -208,7 +211,7 @@ class PSDImage(object):
         return layers[index]
 
     def _layer_as_PIL(self, index):
-        return layer_to_PIL(self.decoded_data, index)
+        return pil_support.extract_layer_image(self.decoded_data, index)
 
     def _layer_as_pymaging(self, index):
         return pymaging_support.extract_layer_image(self.decoded_data, index)
