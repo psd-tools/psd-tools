@@ -10,7 +10,7 @@ for cmd in ('egg_info', 'develop'):
 
 setup_args = dict(
     name = 'psd-tools',
-    version = '0.6',
+    version = '0.7',
     author = 'Mikhail Korobov',
     author_email = 'kmike84@gmail.com',
     url = 'https://github.com/kmike/psd-tools',
@@ -19,6 +19,7 @@ setup_args = dict(
     long_description = open('README.rst').read() + "\n\n" + open('CHANGES.rst').read(),
     license = 'MIT License',
     requires=['docopt', 'Pillow'],
+    keywords = "pymaging psd imaging pil pillow",
 
     package_dir = {'': 'src'},
     packages = ['psd_tools', 'psd_tools.reader', 'psd_tools.decoder', 'psd_tools.user_api'],

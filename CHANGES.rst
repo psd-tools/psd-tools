@@ -1,4 +1,18 @@
 
+0.7 (2012-11-08)
+----------------
+
+- Highly experimental: basic layer merging is implemented
+  (e.g. it is now possible to export layer group to a PIL image);
+- ``Layer.visible`` no longer takes group visibility in account;
+- ``Layer.visible_global`` is the old ``Layer.visible``;
+- ``psd_tools.user_api.combined_bbox`` made public;
+- ``Layer.width`` and ``Layer.height`` are removed (use ``layer.bbox.width``
+  and ``layer.bbox.height`` instead);
+- ``pil_support.composite_image_to_PIL`` is renamed to ``pil_support.extract_composite_image`` and
+  ``pil_support.layer_to_PIL`` is renamed to ``pil_support.extract_layer_image``
+  in order to have the same API for ``pil_support`` and ``pymaging_support``.
+
 0.6 (2012-11-06)
 ----------------
 
