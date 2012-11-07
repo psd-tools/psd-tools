@@ -120,6 +120,11 @@ The same using Pymaging_::
     >>> layer_image = layer.as_pymaging()
     >>> layer_image.save_to_path('layer.png')
 
+Export layer group (experimental)::
+
+    >>> group_image = group2.as_PIL()
+    >>> group_image.save('group.png')
+
 
 Why yet another PSD reader?
 ---------------------------
@@ -203,19 +208,21 @@ Supported:
 * image ICC profile is taken into account;
 * most important (imho) 23 image resource types and 12 tagged block
   types are decoded;
-* there is an optional Cython extension to make the parsing fast.
+* there is an optional Cython extension to make the parsing fast;
+* very basic & experimental layer merging.
 
 Not implemented:
 
 * reading of CMYK, Duotone, LAB, etc. images;
 * many image resource types and tagged blocks are not decoded
   (they are attached to the result as raw bytes);
-* this library can't blend layers together: it is possible to export
-  a single layer and to export a final image, but it is not possible to
-  render e.g. layer group;
+* this library can't reliably blend layers together: it is possible to export
+  a single layer and to export a final image, but rendering of
+  e.g. layer group may produce incorrect results;
 * the decoding of Descriptor structures is very basic;
 * the writing of PSD images is not implemented;
-* only 8bit images can be converted to ``pymaging.Image``.
+* only 8bit images can be converted to ``pymaging.Image``;
+* layer merging currently doesn't work with Pymaging_.
 
 If you need some of unimplemented features then please fire an issue
 or implement it yourself (pull requests are welcome in this case).

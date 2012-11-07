@@ -9,17 +9,30 @@ from .utils import full_name
 PIXEL_COLORS = (
     # filename                  probe point    pixel value
     ('1layer.psd',              (5, 5),       (0x27, 0xBA, 0x0F)),
-    ('2layers.psd',             (70, 30),     (0xF1, 0xF3, 0xC1)), # why gimp shows it as F2F4C2 ?
-    ('clipping-mask.psd',       (182, 68),    (0xDA, 0xE6, 0xF7)), # this is a clipped point
     ('group.psd',               (10, 20),     (0xFF, 0xFF, 0xFF)),
     ('hidden-groups.psd',       (60, 100),    (0xE1, 0x0B, 0x0B)),
     ('hidden-layer.psd',        (0, 0),       (0xFF, 0xFF, 0xFF)),
-    ('history.psd',             (70, 85),     (0x24, 0x26, 0x29)),
-    ('mask.psd',                (87, 7),      (0xFF, 0xFF, 0xFF)), # mask truncates the layer here
 #    ('note.psd',                (30, 30),     (0, 0, 0)), # what is it?
     ('smart-object-slice.psd',  (70, 80),     (0xAC, 0x19, 0x19)), # XXX: what is this test about?
-    ('transparentbg-gimp.psd',  (14, 14),     (0xFF, 0xFF, 0xFF, 0x13)),
 )
+
+TRANSPARENCY_PIXEL_COLORS = (
+    ('transparentbg-gimp.psd',  (14, 14),     (0xFF, 0xFF, 0xFF, 0x13)),
+    ('2layers.psd',             (70, 30),     (0xF1, 0xF3, 0xC1)), # why gimp shows it as F2F4C2 ?
+)
+
+MASK_PIXEL_COLORS = (
+    ('clipping-mask.psd',       (182, 68),    (0xDA, 0xE6, 0xF7)), # this is a clipped point
+    ('mask.psd',                (87, 7),      (0xFF, 0xFF, 0xFF)), # mask truncates the layer here
+)
+
+NO_LAYERS_PIXEL_COLORS = (
+    ('history.psd',             (70, 85),     (0x24, 0x26, 0x29)),
+)
+
+
+PIXEL_COLORS_8BIT = (PIXEL_COLORS + NO_LAYERS_PIXEL_COLORS +
+                     MASK_PIXEL_COLORS + TRANSPARENCY_PIXEL_COLORS)
 
 PIXEL_COLORS_32BIT = (
     ('32bit.psd',               (75, 15),     (136, 139, 145)),
@@ -73,7 +86,7 @@ BACKENDS = [[color_PIL], [color_pymaging]]
 
 
 @pytest.mark.parametrize(["get_color"], BACKENDS)
-@pytest.mark.parametrize(["filename", "point", "color"], PIXEL_COLORS)
+@pytest.mark.parametrize(["filename", "point", "color"], PIXEL_COLORS_8BIT)
 def test_composite(filename, point, color, get_color):
     psd = PSDImage.load(full_name(filename))
     assert color == get_color(psd, point)
@@ -101,3 +114,24 @@ def test_layer_colors(filename, layer_num, point, color, get_color):
     psd = PSDImage.load(full_name(filename))
     layer = psd.layers[layer_num]
     assert color == get_color(layer, point)
+
+
+@pytest.mark.parametrize(["filename", "point", "color"], PIXEL_COLORS + MASK_PIXEL_COLORS + TRANSPARENCY_PIXEL_COLORS)
+def test_layer_merging_size(filename, point, color):
+    psd = PSDImage.load(full_name(filename))
+    merged_image = psd.as_PIL_merged()
+    assert merged_image.size == psd.as_PIL().size
+
+@pytest.mark.parametrize(["filename", "point", "color"], PIXEL_COLORS)
+def test_layer_merging_pixels(filename, point, color):
+    psd = PSDImage.load(full_name(filename))
+    merged_image = psd.as_PIL_merged()
+    assert color[:3] == merged_image.getpixel(point)[:3]
+    assert merged_image.getpixel(point)[3] == 255 # alpha channel
+
+@pytest.mark.xfail
+@pytest.mark.parametrize(["filename", "point", "color"], TRANSPARENCY_PIXEL_COLORS)
+def test_layer_merging_pixels_transparency(filename, point, color):
+    psd = PSDImage.load(full_name(filename))
+    merged_image = psd.as_PIL_merged()
+    assert color == merged_image.getpixel(point)

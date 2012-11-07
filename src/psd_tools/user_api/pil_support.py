@@ -159,3 +159,18 @@ def get_icc_profile(decoded_data):
         return None
 
     return icc_profile
+
+def apply_opacity(im, opacity):
+    """
+    Applies opacity to an image.
+    """
+    if im.mode == 'RGB':
+        im.putalpha(opacity)
+        return im
+    elif im.mode == 'RGBA':
+        r, g, b, a = im.split()
+        opacity_scale = opacity / 255
+        a = a.point(lambda i: i*opacity_scale)
+        return Image.merge('RGBA', [r, g, b, a])
+    else:
+        raise NotImplementedError()
