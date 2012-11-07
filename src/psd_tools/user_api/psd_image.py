@@ -32,8 +32,13 @@ class _RawLayer(object):
 
     @property
     def visible(self):
+        """ Layer visibility. Doesn't take group visibility in account. """
+        return self._info.flags.visible
+
+    @property
+    def visible_global(self):
         """ Layer visibility. Takes group visibility in account. """
-        return self._info.flags.visible and self.parent.visible
+        return self.visible and self.parent.visible
 
     @property
     def layer_id(self):
@@ -225,4 +230,8 @@ class _RootGroup(Group):
 
     @property
     def visible(self):
+        return True
+
+    @property
+    def visible_global(self):
         return True
