@@ -118,7 +118,7 @@ class Group(_RawLayer):
         BBox(x1, y1, x2, y2) namedtuple with a bounding box for
         all layers in this group; None if a group has no children.
         """
-        return _combined_bbox(self.layers)
+        return combined_bbox(self.layers)
 
     def _add_layer(self, child):
         self.layers.append(child)
@@ -200,7 +200,7 @@ class PSDImage(object):
         This may differ from the image dimensions
         (img.header.width and img.header.heigth).
         """
-        return _combined_bbox(self.layers)
+        return combined_bbox(self.layers)
 
     def _layer_info(self, index):
         layers = self.decoded_data.layer_and_mask_data.layers.layer_records
@@ -213,7 +213,7 @@ class PSDImage(object):
         return pymaging_support.extract_layer_image(self.decoded_data, index)
 
 
-def _combined_bbox(layers):
+def combined_bbox(layers):
     """
     Returns a bounding box for ``layers`` or None if this is not possible.
     """
