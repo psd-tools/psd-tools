@@ -93,7 +93,7 @@ Work with a layer::
     >>> layer.bbox
     BBox(x1=40, y1=72, x2=83, y2=134)
 
-    >>> layer.width, layer.height
+    >>> layer.bbox.width, layer.bbox.height
     (43, 62)
 
     >>> layer.visible, layer.opacity, layer.blend_mode

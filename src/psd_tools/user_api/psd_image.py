@@ -10,7 +10,15 @@ from psd_tools.user_api.layers import group_layers
 from psd_tools.user_api.pil_support import composite_image_to_PIL, layer_to_PIL
 from psd_tools.user_api import pymaging_support
 
-BBox = collections.namedtuple('BBox', 'x1, y1, x2, y2')
+class BBox(collections.namedtuple('BBox', 'x1, y1, x2, y2')):
+    @property
+    def width(self):
+        return self.x2-self.x1
+
+    @property
+    def height(self):
+        return self.y2-self.y1
+
 
 class _RawLayer(object):
     """
@@ -83,17 +91,10 @@ class Layer(_RawLayer):
         info = self._info
         return BBox(info.left, info.top, info.right, info.bottom)
 
-    @property
-    def width(self):
-        return self._info.width()
-
-    @property
-    def height(self):
-        return self._info.height()
-
     def __repr__(self):
+        bbox = self.bbox
         return "<psd_tools.Layer: %r, size=%dx%d, x=%d, y=%d>" % (
-            self.name, self.width, self.height, self._info.left, self._info.top)
+            self.name, bbox.width, bbox.height, bbox.x1, bbox.y1)
 
 
 class Group(_RawLayer):
