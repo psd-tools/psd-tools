@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 _LayerRecord = collections.namedtuple('LayerRecord', [
     'top', 'left', 'bottom', 'right',
     'num_channels', 'channels',
-    'blend_mode', 'opacity', 'cilpping', 'flags',
+    'blend_mode', 'opacity', 'clipping', 'flags',
     'mask_data', 'blending_ranges', 'name',
     'tagged_blocks'
 ])
