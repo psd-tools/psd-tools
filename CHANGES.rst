@@ -1,4 +1,10 @@
 
+0.7.1 (2012-12-27)
+------------------
+
+- Typo is fixed: ``LayerRecord.cilpping`` should be ``LayerRecord.clipping``.
+  Thanks Oliver Zheng.
+
 0.7 (2012-11-08)
 ----------------
 
