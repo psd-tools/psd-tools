@@ -23,6 +23,9 @@ class BBox(collections.namedtuple('BBox', 'x1, y1, x2, y2')):
         return self.y2-self.y1
 
 
+class Text(object):
+	pass
+
 class _RawLayer(object):
     """
     Layer groups and layers are internally both 'layers' in PSD;
@@ -93,6 +96,11 @@ class Layer(_RawLayer):
         """ BBox(x1, y1, x2, y2) namedtuple with layer bounding box. """
         info = self._info
         return BBox(info.left, info.top, info.right, info.bottom)
+
+    @property
+    def text(self):
+        if self._tagged_blocks.get(TaggedBlock.TYPE_TOOL_OBJECT_SETTING):
+            return Text()
 
     def __repr__(self):
         bbox = self.bbox
