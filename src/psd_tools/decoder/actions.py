@@ -52,7 +52,7 @@ def decode_descriptor(fp):
 
     items = []
     item_count = read_fmt("I", fp)[0]
-    for n in xrange(item_count):
+    for n in range(item_count):
         item_length = read_fmt("I", fp)[0]
         key = fp.read(item_length or 4)
         ostype = fp.read(4)
@@ -68,7 +68,7 @@ def decode_descriptor(fp):
 def decode_ref(key, fp):
     item_count = read_fmt("I", fp)[0]
     items = []
-    for _ in xrange(item_count):
+    for _ in range(item_count):
         ostype = read_fmt("I", fp)
 
         decode_ostype = {
@@ -97,12 +97,12 @@ def decode_prop(key, fp):
 def decode_unit_float(key, fp):
     unit_key = read_fmt("I", fp)
     unit = {
-        '#Ang', 'angle',
-        '#Rsl', 'density',
-        '#Rlt', 'distance',
-        '#Nne', 'none',
-        '#Prc', 'percent',
-        '#Pxl', 'pixels',
+        '#Ang': 'angle',
+        '#Rsl': 'density',
+        '#Rlt': 'distance',
+        '#Nne': 'none',
+        '#Prc': 'percent',
+        '#Pxl': 'pixels',
     }.get(unit_key, None)
     if unit:
         value = read_fmt("d", fp)
@@ -149,7 +149,7 @@ def decode_alias(key, fp):
 def decode_list(key, fp):
     items_count = read_fmt("I", fp)[0]
     items = []
-    for _ in xrange(items_count):
+    for _ in range(items_count):
         ostype = read_fmt("I", fp)
 
         decode_ostype = get_ostype(ostype)
