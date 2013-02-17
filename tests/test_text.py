@@ -6,10 +6,17 @@ import pytest
 from psd_tools import PSDImage
 from .utils import decode_psd
 
-def test_text():
-    psd = PSDImage(decode_psd('text.psd'))
+TEXTS = [
+    # filename, layer #, text
+    ('text.psd', 0, 'Line 1\rLine 2\rLine 3 and text'),
+    ('pen-text.psd', 2, 'Борис ельцин')
+]
 
-    eltsin = psd.layers[0]
-    text_data = eltsin._tagged_blocks['TySh'].text_data
+@pytest.mark.parametrize(('filename', 'layer_num', 'text'), TEXTS)
+def test_text(filename, layer_num, text):
+    psd = PSDImage(decode_psd(filename))
 
-    assert text_data.items[0][1].value == 'Line 1\rLine 2\rLine 3 and text'
+    layer = psd.layers[layer_num]
+    text_data = layer._tagged_blocks['TySh'].text_data
+
+    assert text_data.items[0][1].value == text
