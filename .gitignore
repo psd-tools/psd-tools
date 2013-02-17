@@ -1,1 +1,4 @@
+.tox
+build
 *.pyc
+MANIFEST
