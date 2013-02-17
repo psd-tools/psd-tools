@@ -28,20 +28,20 @@ EngineData = collections.namedtuple('EngineData', 'value')
 
 def get_ostype(ostype):
     return {
-        'obj ': decode_ref,
-        'ObjC': decode_descriptor,
-        'VlLs': decode_list,
-        'doub': decode_double,
-        'UntF': decode_unit_float,
-        'TEXT': decode_string,
-        'enum': decode_enum,
-        'long': decode_integer,
-        'bool': decode_bool,
-        'GlbO': decode_descriptor,
-        'type': decode_class,
-        'GlbC': decode_class,
-        'alis': decode_alias,
-        'tdta': decode_raw,
+        b'obj ': decode_ref,
+        b'ObjC': decode_descriptor,
+        b'VlLs': decode_list,
+        b'doub': decode_double,
+        b'UntF': decode_unit_float,
+        b'TEXT': decode_string,
+        b'enum': decode_enum,
+        b'long': decode_integer,
+        b'bool': decode_bool,
+        b'GlbO': decode_descriptor,
+        b'type': decode_class,
+        b'GlbC': decode_class,
+        b'alis': decode_alias,
+        b'tdta': decode_raw,
     }.get(ostype, None)
 
 
@@ -72,13 +72,13 @@ def decode_ref(key, fp):
         ostype = read_fmt("I", fp)
 
         decode_ostype = {
-            'prop': decode_prop,
-            'Clss': decode_class,
-            'Enmr': decode_enum_ref,
-            'rele': decode_offset,
-            'Idnt': decode_identifier,
-            'indx': decode_index,
-            'name': decode_name,
+            b'prop': decode_prop,
+            b'Clss': decode_class,
+            b'Enmr': decode_enum_ref,
+            b'rele': decode_offset,
+            b'Idnt': decode_identifier,
+            b'indx': decode_index,
+            b'name': decode_name,
         }.get(ostype, None)
         if decode_ostype:
             value = decode_ostype(key, fp)
@@ -97,12 +97,12 @@ def decode_prop(key, fp):
 def decode_unit_float(key, fp):
     unit_key = read_fmt("I", fp)
     unit = {
-        '#Ang': 'angle',
-        '#Rsl': 'density',
-        '#Rlt': 'distance',
-        '#Nne': 'none',
-        '#Prc': 'percent',
-        '#Pxl': 'pixels',
+        b'#Ang': 'angle',
+        b'#Rsl': 'density',
+        b'#Rlt': 'distance',
+        b'#Nne': 'none',
+        b'#Prc': 'percent',
+        b'#Pxl': 'pixels',
     }.get(unit_key, None)
     if unit:
         value = read_fmt("d", fp)
@@ -118,7 +118,7 @@ def decode_class(key, fp):
     return Class(name, classID)
 
 def decode_string(key, fp):
-    value = read_unicode_string(fp)
+    value = read_unicode_string(fp)[:-1]
     return String(value)
 
 def decode_enum_ref(key, fp):
@@ -181,7 +181,7 @@ class UnknownOSType(ValueError):
 
 def decode_raw(key, fp):
     # This is the only thing we know about.
-    if key == 'EngineData':
+    if key == b'EngineData':
         raw = fp.read()
         return decode_enginedata(raw)
 
