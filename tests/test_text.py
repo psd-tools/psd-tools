@@ -6,13 +6,10 @@ import pytest
 from psd_tools import PSDImage
 from .utils import decode_psd
 
-@pytest.mark.xfail
 def test_text():
-    psd = PSDImage(decode_psd('pen-text.psd'))
+    psd = PSDImage(decode_psd('text.psd'))
 
-    eltsin = psd.layers[2]
+    eltsin = psd.layers[0]
     text_data = eltsin._tagged_blocks['TySh'].text_data
 
-    # Extra \x00 is added to string?
-    #assert text_data.items[0][1].value == 'Борис ельцин\x00'
-    assert text_data.items[0][1].value == 'Борис ельцин'
+    assert text_data.items[0][1].value == 'Line 1\rLine 2\rLine 3 and text'
