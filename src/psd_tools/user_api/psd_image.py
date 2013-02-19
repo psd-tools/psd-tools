@@ -6,7 +6,7 @@ import collections
 import weakref              # FIXME: there should be weakrefs in this module
 import psd_tools.reader
 import psd_tools.decoder
-from psd_tools.constants import TaggedBlock, SectionDivider, BlendMode
+from psd_tools.constants import TaggedBlock, SectionDivider, BlendMode, TextProperty
 from psd_tools.user_api.layers import group_layers
 from psd_tools.user_api import pymaging_support
 from psd_tools.user_api import pil_support
@@ -23,8 +23,11 @@ class BBox(collections.namedtuple('BBox', 'x1, y1, x2, y2')):
         return self.y2-self.y1
 
 
-class Text(object):
-	pass
+class TextData(object):
+    def __init__(self, tagged_blocks):
+        text_data = dict(tagged_blocks.text_data.items)
+        self.text = text_data[TextProperty.TXT].value
+
 
 class _RawLayer(object):
     """
@@ -98,9 +101,10 @@ class Layer(_RawLayer):
         return BBox(info.left, info.top, info.right, info.bottom)
 
     @property
-    def text(self):
-        if self._tagged_blocks.get(TaggedBlock.TYPE_TOOL_OBJECT_SETTING):
-            return Text()
+    def text_data(self):
+        tagged_blocks = self._tagged_blocks.get(TaggedBlock.TYPE_TOOL_OBJECT_SETTING)
+        if tagged_blocks:
+            return TextData(tagged_blocks)
 
     def __repr__(self):
         bbox = self.bbox
