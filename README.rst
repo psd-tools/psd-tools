@@ -99,6 +99,9 @@ Work with a layer::
     >>> layer.visible, layer.opacity, layer.blend_mode
     (True, 255, u'norm')
 
+    >>> layer.text_data.text
+    'Text inside a text box'
+
     >>> layer.as_PIL()
     <PIL.Image.Image image mode=RGBA size=43x62 at ...>
 
