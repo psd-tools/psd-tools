@@ -321,20 +321,43 @@ class OSType(Enum):
     """
     Action descriptor type
     """
-    REFERENCE = 'obj '
-    DESCRIPTOR = 'Objc'
-    LIST = 'VlLs'
-    DOUBLE = 'doub'
-    UNIT_FLOAT = 'UntF'
-    STRING = 'TEXT'
-    ENUMERATED = 'enum'
-    INTEGER = 'long'
-    BOOLEAN = 'bool'
-    GLOBAL_OBJECT = 'GlbO'
-    CLASS1 = 'type'
-    CLASS2 = 'GlbC'
-    ALIAS = 'alis'
-    RAW_DATA = 'tdta'
+    REFERENCE = b'obj '
+    DESCRIPTOR = b'ObjC'
+    LIST = b'VlLs'
+    DOUBLE = b'doub'
+    UNIT_FLOAT = b'UntF'
+    STRING = b'TEXT'
+    ENUMERATED = b'enum'
+    INTEGER = b'long'
+    BOOLEAN = b'bool'
+    GLOBAL_OBJECT = b'GlbO'
+    CLASS1 = b'type'
+    CLASS2 = b'GlbC'
+    ALIAS = b'alis'
+    RAW_DATA = b'tdta'
+
+class ReferenceOSType(Enum):
+    """
+    OS Type keys for Reference Structure
+    """
+    PROPERTY = b'prop'
+    CLASS = b'Clss'
+    ENUMERATED_REFERENCE = b'Enmr'
+    OFFSET = b'rele'
+    IDENTIFIER = b'Idnt'
+    INDEX = b'indx'
+    NAME = b'name'
+
+class UnitFloatType(Enum):
+    """
+    Units the value is in (used in Unit float structure)
+    """
+    ANGLE = b'#Ang'  # base degrees
+    DENSITY = b'#Rsl' # base per inch
+    DISTANCE = b'#Rlt' # base 72ppi
+    NONE = b'#Nne' # coerced
+    PERCENT = b'#Prc' # unit value
+    PIXELS = b'#Pxl' # tagged unit value
 
 class SectionDivider(Enum):
     OTHER = 0

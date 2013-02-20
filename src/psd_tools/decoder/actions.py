@@ -4,10 +4,10 @@ A module for decoding "Actions" additional PSD data format.
 """
 from __future__ import absolute_import, unicode_literals
 
-import io
 import collections
 
 from psd_tools.utils import read_unicode_string, read_fmt
+from psd_tools.constants import OSType, ReferenceOSType, UnitFloatType
 
 Descriptor = collections.namedtuple('Descriptor', 'name classID items')
 Reference = collections.namedtuple('Descriptor', 'items')
@@ -28,20 +28,20 @@ EngineData = collections.namedtuple('EngineData', 'value')
 
 def get_ostype(ostype):
     return {
-        b'obj ': decode_ref,
-        b'ObjC': decode_descriptor,
-        b'VlLs': decode_list,
-        b'doub': decode_double,
-        b'UntF': decode_unit_float,
-        b'TEXT': decode_string,
-        b'enum': decode_enum,
-        b'long': decode_integer,
-        b'bool': decode_bool,
-        b'GlbO': decode_descriptor,
-        b'type': decode_class,
-        b'GlbC': decode_class,
-        b'alis': decode_alias,
-        b'tdta': decode_raw,
+        OSType.REFERENCE:   decode_ref,
+        OSType.DESCRIPTOR:  decode_descriptor,
+        OSType.LIST:        decode_list,
+        OSType.DOUBLE:      decode_double,
+        OSType.UNIT_FLOAT:  decode_unit_float,
+        OSType.STRING:      decode_string,
+        OSType.ENUMERATED:  decode_enum,
+        OSType.INTEGER:     decode_integer,
+        OSType.BOOLEAN:     decode_bool,
+        OSType.GLOBAL_OBJECT: decode_descriptor,
+        OSType.CLASS1:      decode_class,
+        OSType.CLASS2:      decode_class,
+        OSType.ALIAS:       decode_alias,
+        OSType.RAW_DATA:    decode_raw,
     }.get(ostype, None)
 
 
@@ -72,14 +72,15 @@ def decode_ref(key, fp):
         ostype = read_fmt("I", fp)
 
         decode_ostype = {
-            b'prop': decode_prop,
-            b'Clss': decode_class,
-            b'Enmr': decode_enum_ref,
-            b'rele': decode_offset,
-            b'Idnt': decode_identifier,
-            b'indx': decode_index,
-            b'name': decode_name,
+            ReferenceOSType.PROPERTY:   decode_prop,
+            ReferenceOSType.CLASS:      decode_class,
+            ReferenceOSType.OFFSET:     decode_offset,
+            ReferenceOSType.IDENTIFIER: decode_identifier,
+            ReferenceOSType.INDEX:      decode_index,
+            ReferenceOSType.NAME:       decode_name,
+            ReferenceOSType.ENUMERATED_REFERENCE: decode_enum_ref,
         }.get(ostype, None)
+
         if decode_ostype:
             value = decode_ostype(key, fp)
             if value is not None:
@@ -96,17 +97,10 @@ def decode_prop(key, fp):
 
 def decode_unit_float(key, fp):
     unit_key = read_fmt("I", fp)
-    unit = {
-        b'#Ang': 'angle',
-        b'#Rsl': 'density',
-        b'#Rlt': 'distance',
-        b'#Nne': 'none',
-        b'#Prc': 'percent',
-        b'#Pxl': 'pixels',
-    }.get(unit_key, None)
-    if unit:
+
+    if UnitFloatType.is_known(unit_key):
         value = read_fmt("d", fp)
-        return UnitFloat(unit, value)
+        return UnitFloat(UnitFloatType.name_of(unit_key), value)
 
 def decode_double(key, fp):
     return Double(read_fmt("d", fp))
