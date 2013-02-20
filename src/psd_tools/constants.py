@@ -352,3 +352,10 @@ class DimensionUnit(Enum):
     POINT = 3  # 72 points == 1 inch
     PICA = 4   # 6 pica == 1 inch
     COLUMN = 5
+
+class TextProperty(Enum):
+    TXT = 'Txt '
+    ORIENTATION = 'Ornt'
+
+class TextOrientation(Enum):
+    HORIZONTAL = 'Hrzn'

@@ -61,7 +61,7 @@ def decode_descriptor(fp):
         if decode_ostype:
             value = decode_ostype(key, fp)
             if value is not None:
-                items.append((key, value))
+                items.append((key.decode(), value))
 
     return Descriptor(name, classID, items)
 

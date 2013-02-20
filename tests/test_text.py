@@ -17,6 +17,4 @@ def test_text(filename, layer_num, text):
     psd = PSDImage(decode_psd(filename))
 
     layer = psd.layers[layer_num]
-    text_data = layer._tagged_blocks['TySh'].text_data
-
-    assert text_data.items[0][1].value == text
+    assert layer.text_data.text == text
