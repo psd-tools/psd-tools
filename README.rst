@@ -209,8 +209,8 @@ Supported:
 * all PSD compression methods are supported (not only the most
   common RAW and RLE);
 * image ICC profile is taken into account;
-* most important (imho) 23 image resource types and 12 tagged block
-  types are decoded;
+* many image resource types and tagged block types are decoded;
+* Descriptor structures are decoded;
 * there is an optional Cython extension to make the parsing fast;
 * very basic & experimental layer merging.
 
@@ -219,10 +219,10 @@ Not implemented:
 * reading of CMYK, Duotone, LAB, etc. images;
 * many image resource types and tagged blocks are not decoded
   (they are attached to the result as raw bytes);
+* raw Descriptor values (like EngineData) are not decoded;
 * this library can't reliably blend layers together: it is possible to export
   a single layer and to export a final image, but rendering of
   e.g. layer group may produce incorrect results;
-* the decoding of Descriptor structures is very basic;
 * the writing of PSD images is not implemented;
 * only 8bit images can be converted to ``pymaging.Image``;
 * layer merging currently doesn't work with Pymaging_.

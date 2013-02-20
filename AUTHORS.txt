@@ -1,0 +1,6 @@
+Contributors
+============
+
+* Mikhail Korobov;
+* Ivan Ivanov;
+* Oliver Zheng.
