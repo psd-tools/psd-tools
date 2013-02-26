@@ -1,4 +1,11 @@
 
+0.8 (2013-02-26)
+----------------
+
+- Descriptor parsing (thanks Oliver Zheng);
+- text (as string) is extracted from text layers (thanks Oliver Zheng);
+- improved support for optional building of Cython extension.
+
 0.7.1 (2012-12-27)
 ------------------
 
