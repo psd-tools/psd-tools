@@ -220,6 +220,7 @@ Not implemented:
 * many image resource types and tagged blocks are not decoded
   (they are attached to the result as raw bytes);
 * raw Descriptor values (like EngineData) are not decoded;
+* some Descriptor data may be unavailable after loading (even in binary form);
 * this library can't reliably blend layers together: it is possible to export
   a single layer and to export a final image, but rendering of
   e.g. layer group may produce incorrect results;
@@ -263,6 +264,9 @@ The license is MIT.
 
 Acknowledgments
 ---------------
+
+A full list of contributors can be found here:
+https://github.com/kmike/psd-tools/blob/master/AUTHORS.txt
 
 Thanks to all guys who write PSD parsers: I learned a lot about PSD
 file structure from the source code of psdparse_, GIMP_, libpsd_
