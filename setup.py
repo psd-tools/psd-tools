@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 from distutils.core import setup
 from distutils.extension import Extension
+from distutils.command.build_ext import build_ext
+from distutils import errors
 
 import sys
 
@@ -47,6 +49,52 @@ setup_args = dict(
 
 # ========== make extension optional (copied from coverage.py) =========
 
+# A replacement for the build_ext command which raises a single exception
+# if the build fails, so we can fallback nicely.
+
+ext_errors = (
+    errors.CCompilerError,
+    errors.DistutilsExecError,
+    errors.DistutilsPlatformError,
+)
+if sys.platform == 'win32' and sys.version_info > (2, 6):
+    # 2.6's distutils.msvc9compiler can raise an IOError when failing to
+    # find the compiler
+    ext_errors += (IOError,)
+
+class BuildFailed(Exception):
+    """Raise this to indicate the C extension wouldn't build."""
+    def __init__(self):
+        Exception.__init__(self)
+        self.cause = sys.exc_info()[1] # work around py 2/3 different syntax
+
+class ve_build_ext(build_ext):
+    """Build C extensions, but fail with a straightforward exception."""
+
+    def run(self):
+        """Wrap `run` with `BuildFailed`."""
+        try:
+            build_ext.run(self)
+        except errors.DistutilsPlatformError:
+            raise BuildFailed()
+
+    def build_extension(self, ext):
+        """Wrap `build_extension` with `BuildFailed`."""
+        try:
+            # Uncomment to test compile failures:
+            #   raise errors.CCompilerError("OOPS")
+            build_ext.build_extension(self, ext)
+        except ext_errors:
+            raise BuildFailed()
+        except ValueError:
+            # this can happen on Windows 64 bit, see Python issue 7511
+            if "'path'" in str(sys.exc_info()[1]): # works with both py 2/3
+                raise BuildFailed()
+            raise
+
+# There are a few reasons we might not be able to compile the C extension.
+# Figure out if we should attempt the C extension or not.
+
 compile_extension = True
 
 if sys.platform.startswith('java'):
@@ -62,22 +110,23 @@ if compile_extension:
         ext_modules = [
             Extension("psd_tools._compression", sources=["src/psd_tools/_compression.c"])
         ],
+        cmdclass = {'build_ext': ve_build_ext},
     ))
 
-# For a variety of reasons, it might not be possible to install the C
-# extension.  Try it with, and if it fails, try it without.
-try:
-    setup(**setup_args)
-except:     # pylint: disable=W0702
-    # When setup() can't compile, it tries to exit.  We'll catch SystemExit
-    # here :-(, and try again.
-    if 'install' not in sys.argv or 'ext_modules' not in setup_args:
-        # We weren't trying to install an extension, so forget it.
-        raise
-    msg = "Couldn't install with extension module, trying without it..."
-    exc = sys.exc_info()[1]
-    exc_msg = "%s: %s" % (exc.__class__.__name__, exc)
-    print("**\n** %s\n** %s\n**" % (msg, exc_msg))
+def main():
+    """Actually invoke setup() with the arguments we built above."""
+    # For a variety of reasons, it might not be possible to install the C
+    # extension.  Try it with, and if it fails, try it without.
+    try:
+        setup(**setup_args)
+    except BuildFailed:
+        msg = "Couldn't install with extension module, trying without it..."
+        exc = sys.exc_info()[1]
+        exc_msg = "%s: %s" % (exc.__class__.__name__, exc.cause)
+        print("**\n** %s\n** %s\n**" % (msg, exc_msg))
 
-    del setup_args['ext_modules']
-    setup(**setup_args)
+        del setup_args['ext_modules']
+        setup(**setup_args)
+
+if __name__ == '__main__':
+    main()
