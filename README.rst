@@ -6,6 +6,10 @@ psd-tools
 
 .. _specification: https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/PhotoshopFileFormats.htm
 
+.. image:: https://travis-ci.org/kmike/psd-tools.png?branch=master
+    :target: https://travis-ci.org/kmike/psd-tools
+
+
 Installation
 ------------
 
