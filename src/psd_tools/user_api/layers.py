@@ -45,7 +45,31 @@ def group_layers(decoded_data):
 
             elif divider.type == SectionDivider.BOUNDING_SECTION_DIVIDER:
                 # group ends
-                group_stack.pop()
+
+                if len(group_stack) == 1:
+                    # This means that there is a BOUNDING_SECTION_DIVIDER
+                    # without an OPEN_FOLDER before it. Create a new group
+                    # and move layers to this new group in this case.
+
+                    # Assume the first layer is a group
+                    # and convert it to a group:
+                    layers = group_stack[0]['layers']
+                    group = layers[0]
+
+                    # group doesn't have coords:
+                    for key in 'top', 'left', 'bottom', 'right':
+                        if key in group:
+                            del group[key]
+
+                    group['layers'] = layers[1:]
+                    group['closed'] = False
+
+                    # replace moved layers with newly created group:
+                    group_stack[0]['layers'] = [group]
+
+                else:
+                    finished_group = group_stack.pop()
+                    assert finished_group is not root
 
             else:
                 warnings.warn("invalid state")
