@@ -19,3 +19,4 @@ MANIFEST$
 ^psd_tools.egg-info
 ^\.coverage$
 \.html$
+^src/psd_tools.egg-info
