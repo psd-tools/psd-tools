@@ -21,6 +21,18 @@ def test_groups_simple():
     group_element = group['layers'][0]
     assert group_element['name'] == 'Shape 1'
 
+def test_groups_without_opening():
+    layers = group_layers(decode_psd('broken-groups.psd'))
+    group1, group2 = layers
+    assert group1['name'] == 'bebek'
+    assert group2['name'] == 'anne'
+
+    assert len(group1['layers']) == 1
+    assert len(group2['layers']) == 1
+
+    assert group1['layers'][0]['name'] == 'el sol'
+    assert group2['layers'][0]['name'] == 'kas'
+
 
 def test_group_visibility():
     layers = group_layers(decode_psd('hidden-groups.psd'))
