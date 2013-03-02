@@ -1,4 +1,10 @@
 
+0.8.1 (2013-03-02)
+------------------
+
+- Fixed parsing of layer groups without explicit OPEN_FOLDER mark;
+- Cython extension is rebuilt with Cython 0.18.
+
 0.8 (2013-02-26)
 ----------------
 
