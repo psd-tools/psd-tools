@@ -1,4 +1,5 @@
 .tox
 build
 *.pyc
+*.so
 MANIFEST
