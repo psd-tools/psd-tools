@@ -10,7 +10,7 @@ python:
 install:
   - pip install 'docopt >= 0.5' --use-mirrors
   - pip install git+git://github.com/ojii/pymaging.git@0b79cf0b33ca81bdc79ac62d1377eebc3b7469bc#egg=pymaging
-  - pip install git+git://github.com/python-imaging/Pillow.git@e09ff61b81ff23baf635eeb98b788ad0a51cc86f#egg=Pillow
+  - pip install 'Pillow >= 2.0' --use-mirrors
   - pip install packbits --use-mirrors
   - python setup.py install
 
