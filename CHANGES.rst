@@ -1,4 +1,10 @@
 
+0.8.2 (2013-04-12)
+------------------
+
+- Python 2.x: reading data from file-like objects is fixed
+  (thanks Pavel Zinovkin).
+
 0.8.1 (2013-03-02)
 ------------------
 

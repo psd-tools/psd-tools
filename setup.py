@@ -12,7 +12,7 @@ for cmd in ('egg_info', 'develop'):
 
 setup_args = dict(
     name = 'psd-tools',
-    version = '0.8.1',
+    version = '0.8.2',
     author = 'Mikhail Korobov',
     author_email = 'kmike84@gmail.com',
     url = 'https://github.com/kmike/psd-tools',
