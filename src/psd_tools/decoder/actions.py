@@ -45,7 +45,7 @@ def get_ostype(ostype):
     }.get(ostype, None)
 
 
-def decode_descriptor(fp):
+def decode_descriptor(_, fp):
     name = read_unicode_string(fp)
     classID_length = read_fmt("I", fp)[0]
     classID = fp.read(classID_length or 4)
@@ -96,7 +96,7 @@ def decode_prop(key, fp):
     return Property(name, classID, keyID)
 
 def decode_unit_float(key, fp):
-    unit_key = read_fmt("I", fp)
+    unit_key = fp.read(4)
 
     if UnitFloatType.is_known(unit_key):
         value = read_fmt("d", fp)

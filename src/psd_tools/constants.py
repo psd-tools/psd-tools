@@ -322,7 +322,7 @@ class OSType(Enum):
     Action descriptor type
     """
     REFERENCE = b'obj '
-    DESCRIPTOR = b'ObjC'
+    DESCRIPTOR = b'Objc'
     LIST = b'VlLs'
     DOUBLE = b'doub'
     UNIT_FLOAT = b'UntF'
