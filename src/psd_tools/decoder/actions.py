@@ -45,7 +45,7 @@ def get_ostype(ostype):
     }.get(ostype, None)
 
 
-def decode_descriptor(fp):
+def decode_descriptor(_, fp):
     name = read_unicode_string(fp)
     classID_length = read_fmt("I", fp)[0]
     classID = fp.read(classID_length or 4)
