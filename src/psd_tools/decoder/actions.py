@@ -96,7 +96,7 @@ def decode_prop(key, fp):
     return Property(name, classID, keyID)
 
 def decode_unit_float(key, fp):
-    unit_key = read_fmt("I", fp)
+    unit_key = fp.read(4)
 
     if UnitFloatType.is_known(unit_key):
         value = read_fmt("d", fp)
