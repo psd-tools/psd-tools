@@ -1,4 +1,9 @@
 
+0.8.3 (2013-06-01)
+------------------
+
+- Some issues with descriptor parsing are fixed (thanks Luke Petre).
+
 0.8.2 (2013-04-12)
 ------------------
 
