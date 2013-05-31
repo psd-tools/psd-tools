@@ -59,7 +59,7 @@ def _decode_soco(data):
     fp = io.BytesIO(data)
     version = read_fmt("I", fp)
     try:
-        data = decode_descriptor(fp)
+        data = decode_descriptor(None, fp)
         return SolidColorSettings(version, data)
     except UnknownOSType as e:
         warnings.warn("Ignoring solid color tagged block (%s)" % e)
@@ -136,7 +136,7 @@ def _decode_type_tool_object_setting(data):
         return
 
     try:
-        text_data = decode_descriptor(fp)
+        text_data = decode_descriptor(None, fp)
     except UnknownOSType as e:
         warnings.warn("Ignoring type setting tagged block (%s)" % e)
         return
@@ -151,7 +151,7 @@ def _decode_type_tool_object_setting(data):
         return
 
     try:
-        warp_data = decode_descriptor(fp)
+        warp_data = decode_descriptor(None, fp)
     except UnknownOSType as e:
         warnings.warn("Ignoring type setting tagged block (%s)" % e)
         return
