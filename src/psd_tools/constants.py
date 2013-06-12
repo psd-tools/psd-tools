@@ -358,6 +358,8 @@ class UnitFloatType(Enum):
     NONE = b'#Nne' # coerced
     PERCENT = b'#Prc' # unit value
     PIXELS = b'#Pxl' # tagged unit value
+    POINTS = b'#Pnt' # points
+    MILLIMETERS = b'#Mlm' # millimeters
 
 class SectionDivider(Enum):
     OTHER = 0
