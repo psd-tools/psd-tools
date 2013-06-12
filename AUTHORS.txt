@@ -5,4 +5,5 @@ Contributors
 * Ivan Ivanov;
 * Oliver Zheng;
 * Pavel Zinovkin;
-* Luke Petre.
+* Luke Petre;
+* Doug Ellwanger.

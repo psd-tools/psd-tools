@@ -1,4 +1,9 @@
 
+0.8.4 (2013-06-12)
+------------------
+
+- Point and Millimeter types are added to UnitFloatType (thanks Doug Ellwanger).
+
 0.8.3 (2013-06-01)
 ------------------
 
