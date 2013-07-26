@@ -119,10 +119,8 @@ def _channels_data_to_PIL(channels_data, channel_types, size, depth, icc_profile
         merged_image = merged_image.convert('RGB')
 
     elif icc_profile is not None:
-        display_profile = ImageCms.createProfile('sRGB')
-        merged_image = ImageCms.profileToProfile(merged_image, icc_profile,
-                                                 display_profile,
-                                                 outputMode='RGB')
+        display_profile = ImageCms.createProfile('sRGB') # XXX: ImageCms.get_display_profile()?
+        ImageCms.profileToProfile(merged_image, icc_profile, display_profile, inPlace=True)
 
     return merged_image
 
