@@ -28,7 +28,7 @@ There are also optional dependencies:
       pip install Pillow
 
 * Pymaging_ and packbits_ for accessing PSD image and layer
-  data as ``pymaging.Image``::
+  data as ``pymaging.LoadedImage``::
 
       pip install packbits
 
@@ -229,7 +229,7 @@ Not implemented:
   a single layer and to export a final image, but rendering of
   e.g. layer group may produce incorrect results;
 * the writing of PSD images is not implemented;
-* only 8bit images can be converted to ``pymaging.Image``;
+* only 8bit images can be converted to ``pymaging.LoadedImage``;
 * layer merging currently doesn't work with Pymaging_.
 
 If you need some of unimplemented features then please fire an issue

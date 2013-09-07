@@ -1,16 +1,15 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, unicode_literals
 
-import warnings
 import array
 
 try:
     import packbits
-    from pymaging import Image
+    from pymaging.image import LoadedImage
     from pymaging.colors import RGB, RGBA
     from pymaging.pixelarray import get_pixel_array
 except ImportError:
-    Image = None
+    LoadedImage = None
     packbits = None
 
 from psd_tools.constants import ColorMode, Compression, ChannelID
@@ -45,9 +44,7 @@ def extract_layer_image(decoded_data, layer_index):
         # move alpha channel to the end
         channels_data = [channels_data[i] for i in [1, 2, 3, 0]]
 
-    print(layer.channels)
     mode = _get_mode(len(channels_data))
-
     return _channels_data_to_image(channels_data, mode, size, depth)
 
 
@@ -56,11 +53,12 @@ def _channels_data_to_image(channels_data, mode, size, depth):
     if size == (0, 0):
         return
 
+    w, h = size
     num_channels = mode.length
     assert depth == 8
     assert len(channels_data) == num_channels
 
-    total_size = size[0]*size[1]*num_channels
+    total_size = w*h*num_channels
     image_bytes = array.array(str("B"), [0]*total_size)
 
     for index, channel in enumerate(channels_data):
@@ -71,9 +69,9 @@ def _channels_data_to_image(channels_data, mode, size, depth):
 
         image_bytes[index::num_channels] = array.array(str("B"), data)
 
-    pixels = get_pixel_array(image_bytes, size[0], size[1], mode.length)
+    pixels = get_pixel_array(image_bytes, w, h, mode.length)
 
-    return Image(pixels, mode)
+    return LoadedImage(mode, w, h, pixels)
 
 
 def _get_mode(number_of_channels):
@@ -89,7 +87,7 @@ def _validate_header(header):
     """
     Validates header and returns (depth, mode) tuple.
     """
-    if Image is None or packbits is None:
+    if LoadedImage is None or packbits is None:
         raise Exception("This module requires `pymaging` and `packbits` packages.")
 
     if header.color_mode != ColorMode.RGB:
@@ -104,8 +102,6 @@ def _validate_header(header):
 
     if header.depth != 8:
         raise NotImplementedError("Only 8bit images are currently supported with pymaging.")
-
-
 
     return 8, mode
 

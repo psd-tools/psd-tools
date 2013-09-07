@@ -1,4 +1,9 @@
 
+dev (TBA)
+---------
+
+- pymaging support is fixed
+
 0.8.4 (2013-06-12)
 ------------------
 
