@@ -38,7 +38,6 @@ def extract_composite_image(decoded_data):
     """
     header = decoded_data.header
     size = header.width, header.height
-
     if header.color_mode == ColorMode.RGB:
 
         if header.number_of_channels == 3:

@@ -4,26 +4,42 @@ A module for decoding "Actions" additional PSD data format.
 """
 from __future__ import absolute_import, unicode_literals
 
-import collections
-
 from psd_tools.utils import read_unicode_string, read_fmt
 from psd_tools.constants import OSType, ReferenceOSType, UnitFloatType
+from psd_tools.debug import pretty_namedtuple
+from psd_tools.utils import trimmed_repr
 
-Descriptor = collections.namedtuple('Descriptor', 'name classID items')
-Reference = collections.namedtuple('Descriptor', 'items')
-Property = collections.namedtuple('Property', 'name classID keyID')
-UnitFloat = collections.namedtuple('UnitFloat', 'unit value')
-Double = collections.namedtuple('Double', 'value')
-Class = collections.namedtuple('Class', 'name classID')
-String = collections.namedtuple('String', 'value')
-EnumReference = collections.namedtuple('String', 'name classID typeID enum')
-Boolean = collections.namedtuple('Boolean', 'value')
-Offset = collections.namedtuple('Offset', 'name classID value')
-Alias = collections.namedtuple('Alias', 'value')
-List = collections.namedtuple('List', 'items')
-Integer = collections.namedtuple('Integer', 'value')
-Enum = collections.namedtuple('Enum', 'type enum')
-EngineData = collections.namedtuple('EngineData', 'value')
+Descriptor = pretty_namedtuple('Descriptor', 'name classID items')
+Reference = pretty_namedtuple('Descriptor', 'items')
+Property = pretty_namedtuple('Property', 'name classID keyID')
+UnitFloat = pretty_namedtuple('UnitFloat', 'unit value')
+Double = pretty_namedtuple('Double', 'value')
+Class = pretty_namedtuple('Class', 'name classID')
+String = pretty_namedtuple('String', 'value')
+EnumReference = pretty_namedtuple('String', 'name classID typeID enum')
+Boolean = pretty_namedtuple('Boolean', 'value')
+Offset = pretty_namedtuple('Offset', 'name classID value')
+Alias = pretty_namedtuple('Alias', 'value')
+List = pretty_namedtuple('List', 'items')
+Integer = pretty_namedtuple('Integer', 'value')
+Enum = pretty_namedtuple('Enum', 'type enum')
+_EngineData = pretty_namedtuple('EngineData', 'value')
+
+class EngineData(_EngineData):
+    def __repr__(self):
+        return "EngineData(value=%s)" % trimmed_repr(self.value)
+
+    def _repr_pretty_(self, p, cycle):
+        if cycle:
+            p.text("EngineData(...)")
+        else:
+            with p.group(1, "EngineData(", ")"):
+                p.breakable()
+                p.text("value=")
+                if isinstance(self.value, bytes):
+                    p.text(trimmed_repr(self.value))
+                else:
+                    p.pretty(self.value)
 
 
 def get_ostype(ostype):

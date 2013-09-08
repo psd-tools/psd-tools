@@ -9,6 +9,7 @@ from psd_tools.decoder.actions import decode_descriptor, UnknownOSType
 from psd_tools.utils import read_fmt, read_unicode_string, unpack
 from psd_tools.decoder import decoders
 from psd_tools.reader.layers import Block
+from psd_tools.debug import pretty_namedtuple
 
 _tagged_block_decoders, register = decoders.new_registry()
 
@@ -21,10 +22,10 @@ _tagged_block_decoders.update({
 })
 
 
-SolidColorSettings = collections.namedtuple('SolidColorSettings', 'version data')
-MetadataItem = collections.namedtuple('MetadataItem', 'sig key copy_on_sheet_duplication data')
-ProtectedSetting = collections.namedtuple('ProtectedSetting', 'transparency, composite, position')
-TypeToolObjectSetting = collections.namedtuple('TypeToolObjectSetting',
+SolidColorSettings = pretty_namedtuple('SolidColorSettings', 'version data')
+MetadataItem = pretty_namedtuple('MetadataItem', 'sig key copy_on_sheet_duplication data')
+ProtectedSetting = pretty_namedtuple('ProtectedSetting', 'transparency, composite, position')
+TypeToolObjectSetting = pretty_namedtuple('TypeToolObjectSetting',
                         'version xx xy yx yy tx ty text_version descriptor_version1 text_data')
                         #'warp_version descriptor_version2 warp_data'
                         #'left top right bottom')
@@ -33,6 +34,7 @@ TypeToolObjectSetting = collections.namedtuple('TypeToolObjectSetting',
 class Divider(collections.namedtuple('Divider', 'type key')):
     def __repr__(self):
         return "Divider(%r %s, %s)" % (self.type, SectionDivider.name_of(self.type), self.key)
+
 
 def decode(tagged_blocks):
     """

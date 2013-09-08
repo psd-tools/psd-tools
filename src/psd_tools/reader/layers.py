@@ -41,6 +41,7 @@ _ChannelData = pretty_namedtuple('ChannelData', 'compression data')
 _Block = pretty_namedtuple('Block', 'key data')
 GlobalMaskInfo = pretty_namedtuple('GlobalMaskInfo', 'overlay color_components opacity kind')
 
+
 class MaskData(_MaskData):
 
     def width(self):
@@ -76,7 +77,14 @@ class Block(_Block):
         if cycle:
             p.text('Block(...)')
         else:
-            p.text(repr(self))
+            with p.group(1, 'Block(', ')'):
+                p.breakable()
+                p.text("%s %s," % (self.key, TaggedBlock.name_of(self.key)))
+                p.breakable()
+                if isinstance(self.data, bytes):
+                    p.text(trimmed_repr(self.data))
+                else:
+                    p.pretty(self.data)
 
 
 def read(fp, encoding, depth):
