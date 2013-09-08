@@ -97,12 +97,3 @@ def decode_fixed_point_32bit(data):
     lo, hi = unpack("2H", data)
     # XXX: shouldn't denominator be 2**16 ?
     return lo + hi / (2**16 - 1)
-
-
-def debug_view(fp, txt="", max_back=20):
-    max_back = min(max_back, fp.tell())
-    fp.seek(-max_back, 1)
-    pre = fp.read(max_back)
-    post = fp.read(100)
-    fp.seek(-100, 1)
-    print(txt, repr(pre), "--->.<---", repr(post))

@@ -6,7 +6,7 @@ import io
 
 from psd_tools.constants import TaggedBlock, SectionDivider
 from psd_tools.decoder.actions import decode_descriptor, UnknownOSType
-from psd_tools.utils import read_fmt, read_unicode_string, unpack, debug_view
+from psd_tools.utils import read_fmt, read_unicode_string, unpack
 from psd_tools.decoder import decoders
 from psd_tools.reader.layers import Block
 

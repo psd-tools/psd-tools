@@ -1,21 +1,20 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, unicode_literals, division, print_function
-import collections
 import logging
 import warnings
 import zlib
 
 from psd_tools.utils import (read_fmt, read_pascal_string,
-                             read_be_array, trimmed_repr, pad, synchronize,
-                             debug_view)
+                             read_be_array, trimmed_repr, pad, synchronize)
 from psd_tools.exceptions import Error
 from psd_tools.constants import (Compression, Clipping, BlendMode,
                                  ChannelID, TaggedBlock)
 from psd_tools import compression
+from psd_tools.debug import pretty_namedtuple
 
 logger = logging.getLogger(__name__)
 
-_LayerRecord = collections.namedtuple('LayerRecord', [
+_LayerRecord = pretty_namedtuple('LayerRecord', [
     'top', 'left', 'bottom', 'right',
     'num_channels', 'channels',
     'blend_mode', 'opacity', 'clipping', 'flags',
@@ -32,15 +31,15 @@ class LayerRecord(_LayerRecord):
         return self.bottom - self.top
 
 
-Layers = collections.namedtuple('Layers', 'length, layer_count, layer_records, channel_image_data')
-LayerFlags = collections.namedtuple('LayerFlags', 'transparency_protected visible')
-LayerAndMaskData = collections.namedtuple('LayerAndMaskData', 'layers global_mask_info tagged_blocks')
-ChannelInfo = collections.namedtuple('ChannelInfo', 'id length')
-_MaskData = collections.namedtuple('MaskData', 'top left bottom right default_color flags real_flags real_background')
-LayerBlendingRanges = collections.namedtuple('LayerBlendingRanges', 'composite_ranges channel_ranges')
-_ChannelData = collections.namedtuple('ChannelData', 'compression data')
-_Block = collections.namedtuple('Block', 'key data')
-GlobalMaskInfo = collections.namedtuple('GlobalMaskInfo', 'overlay color_components opacity kind')
+Layers = pretty_namedtuple('Layers', 'length, layer_count, layer_records, channel_image_data')
+LayerFlags = pretty_namedtuple('LayerFlags', 'transparency_protected visible')
+LayerAndMaskData = pretty_namedtuple('LayerAndMaskData', 'layers global_mask_info tagged_blocks')
+ChannelInfo = pretty_namedtuple('ChannelInfo', 'id length')
+_MaskData = pretty_namedtuple('MaskData', 'top left bottom right default_color flags real_flags real_background')
+LayerBlendingRanges = pretty_namedtuple('LayerBlendingRanges', 'composite_ranges channel_ranges')
+_ChannelData = pretty_namedtuple('ChannelData', 'compression data')
+_Block = pretty_namedtuple('Block', 'key data')
+GlobalMaskInfo = pretty_namedtuple('GlobalMaskInfo', 'overlay color_components opacity kind')
 
 class MaskData(_MaskData):
 
@@ -58,6 +57,13 @@ class ChannelData(_ChannelData):
             len(self.data) if self.data is not None else None
         )
 
+    def _repr_pretty_(self, p, cycle):
+        if cycle:
+            p.text('ChannelData(...)')
+        else:
+            p.text(repr(self))
+
+
 class Block(_Block):
     """
     Layer tagged block with extra info.
@@ -65,6 +71,12 @@ class Block(_Block):
     def __repr__(self):
         return "Block(%s %s, %s)" % (self.key, TaggedBlock.name_of(self.key),
                                      trimmed_repr(self.data))
+
+    def _repr_pretty_(self, p, cycle):
+        if cycle:
+            p.text('Block(...)')
+        else:
+            p.text(repr(self))
 
 
 def read(fp, encoding, depth):
