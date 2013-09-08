@@ -46,6 +46,11 @@ class ChannelID(Enum):
     RED = 0
     GREEN = 1
     BLUE = 2
+    CYAN = 3
+    MAGENTA = 4
+    YELLOW = 5
+    KEY = 6
+
     TRANSPARENCY_MASK = -1
     USER_LAYER_MASK = -2
     REAL_USER_LAYER_MASK = -3

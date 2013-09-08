@@ -26,7 +26,6 @@ def extract_layer_image(decoded_data, layer_index):
     channels_data = layers.channel_image_data[layer_index]
     size = layer.width(), layer.height()
     channel_types = [info.id for info in layer.channels]
-
     return _channels_data_to_PIL(
         channels_data, channel_types, size,
         decoded_data.header.depth, get_icc_profile(decoded_data))
@@ -38,20 +37,25 @@ def extract_composite_image(decoded_data):
     """
     header = decoded_data.header
     size = header.width, header.height
-
+    channel_types = None
     if header.color_mode == ColorMode.RGB:
 
         if header.number_of_channels == 3:
-            channel_types = [0, 1, 2]
+            channel_types = [ChannelID.RED, ChannelID.GREEN, ChannelID.BLUE]
         elif header.number_of_channels == 4:
-            channel_types = [0, 1, 2, -1]
-        else:
-            warnings.warn("This number of channels (%d) is unsupported for this color mode (%s)" % (
-                         header.number_of_channels, header.color_mode))
-            return
+            channel_types = [ChannelID.RED, ChannelID.GREEN, ChannelID.BLUE,
+                             ChannelID.TRANSPARENCY_MASK]
 
+    elif header.color_mode == ColorMode.CMYK:
+        if header.number_of_channels >= 4:
+            channel_types = [ChannelID.CYAN, ChannelID.MAGENTA, ChannelID.YELLOW, ChannelID.KEY]
     else:
         warnings.warn("Unsupported color mode (%s)" % header.color_mode)
+        return
+
+    if channel_types is None:
+        warnings.warn("This number of channels (%d) is unsupported for this color mode (%s)" % (
+                     header.number_of_channels, header.color_mode))
         return
 
     return _channels_data_to_PIL(
@@ -73,7 +77,6 @@ def _channels_data_to_PIL(channels_data, channel_types, size, depth, icc_profile
     bands = {}
 
     for channel, channel_type in zip(channels_data, channel_types):
-
         pil_band = channel_id_to_PIL(channel_type)
         if pil_band is None:
             warnings.warn("Unsupported channel type (%d)" % channel_type)
@@ -95,6 +98,7 @@ def _channels_data_to_PIL(channels_data, channel_types, size, depth, icc_profile
                 warnings.warn("Depth %s is unsupported for PackBits compression" % depth)
                 continue
             im = frombytes('L', size, channel.data, "packbits", 'L')
+
         else:
             if Compression.is_known(channel.compression):
                 warnings.warn("Compression method is not implemented (%s)" % channel.compression)
@@ -107,7 +111,14 @@ def _channels_data_to_PIL(channels_data, channel_types, size, depth, icc_profile
     mode = _get_mode(bands.keys())
     merged_image = Image.merge(mode, [bands[band] for band in mode])
 
-    if icc_profile is not None:
+    if mode == 'CMYK':
+        # invert CMYK data
+        merged_image = frombytes('CMYK', size, merged_image.tobytes(), 'raw',
+                                 'CMYK;I')
+        # convert with inner profile, better brightness
+        merged_image = merged_image.convert('RGB')
+
+    elif icc_profile is not None:
         display_profile = ImageCms.createProfile('sRGB') # XXX: ImageCms.get_display_profile()?
         ImageCms.profileToProfile(merged_image, icc_profile, display_profile, inPlace=True)
 
@@ -119,13 +130,17 @@ def channel_id_to_PIL(channel_id):
         ChannelID.RED: 'R',
         ChannelID.GREEN: 'G',
         ChannelID.BLUE: 'B',
-        ChannelID.TRANSPARENCY_MASK: 'A'
+        ChannelID.TRANSPARENCY_MASK: 'A',
+        ChannelID.CYAN: 'C',
+        ChannelID.MAGENTA: 'M',
+        ChannelID.YELLOW: 'Y',
+        ChannelID.KEY: 'K',
     }
     return BANDS_MAP.get(channel_id, None)
 
 
 def _get_mode(band_keys):
-    for mode in ['RGBA', 'RGB']:
+    for mode in ['RGBA', 'RGB', 'CMYK']:
         if set(band_keys) == set(list(mode)):
             return mode
 
