@@ -41,7 +41,7 @@ def _read_block(fp, encoding):
     for the images (e.g. pen tool paths).
     """
     sig = fp.read(4)
-    if sig != b'8BIM':
+    if not sig in [b'8BIM', b'MeSa']:
         raise Error("Invalid resource signature (%r)" % sig)
 
     resource_id = read_fmt("H", fp)[0]
