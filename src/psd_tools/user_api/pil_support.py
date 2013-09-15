@@ -38,7 +38,7 @@ def extract_composite_image(decoded_data):
     """
     header = decoded_data.header
     size = header.width, header.height
-
+    
     if header.color_mode == ColorMode.RGB:
 
         if header.number_of_channels == 3:
@@ -49,14 +49,14 @@ def extract_composite_image(decoded_data):
             warnings.warn("This number of channels (%d) is unsupported for this color mode (%s)" % (
                          header.number_of_channels, ColorMode.name_of(header.color_mode)))
             return
-
+        
     elif header.color_mode == ColorMode.GRAYSCALE:
 
         if header.number_of_channels == 1:
             channel_types = [3]
         elif header.number_of_channels == 2:
             channel_types = [3, -1]
-
+            
     else:
         warnings.warn("Unsupported color mode (%s)" % ColorMode.name_of(header.color_mode))
         return
@@ -163,7 +163,7 @@ def get_icc_profile(decoded_data):
 
     icc_profile = icc_profiles[0]
 
-    if isinstance(icc_profile.profile, bytes): # profile was not decoded
+    if isinstance(icc_profile, bytes): # profile was not decoded
         return None
 
     return icc_profile
