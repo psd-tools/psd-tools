@@ -38,6 +38,7 @@ def extract_composite_image(decoded_data):
     """
     header = decoded_data.header
     size = header.width, header.height
+
     if header.color_mode == ColorMode.RGB:
 
         if header.number_of_channels == 3:
@@ -46,11 +47,18 @@ def extract_composite_image(decoded_data):
             channel_types = [0, 1, 2, -1]
         else:
             warnings.warn("This number of channels (%d) is unsupported for this color mode (%s)" % (
-                         header.number_of_channels, header.color_mode))
+                         header.number_of_channels, ColorMode.name_of(header.color_mode)))
             return
 
+    elif header.color_mode == ColorMode.GRAYSCALE:
+
+        if header.number_of_channels == 1:
+            channel_types = [3]
+        elif header.number_of_channels == 2:
+            channel_types = [3, -1]
+
     else:
-        warnings.warn("Unsupported color mode (%s)" % header.color_mode)
+        warnings.warn("Unsupported color mode (%s)" % ColorMode.name_of(header.color_mode))
         return
 
     return _channels_data_to_PIL(
@@ -106,7 +114,7 @@ def _channels_data_to_PIL(channels_data, channel_types, size, depth, icc_profile
     mode = _get_mode(bands.keys())
     merged_image = Image.merge(mode, [bands[band] for band in mode])
 
-    if icc_profile is not None:
+    if icc_profile is not None and not 'L' in mode: # ICC profiles don't work with grayscale right now
         display_profile = ImageCms.createProfile('sRGB') # XXX: ImageCms.get_display_profile()?
         ImageCms.profileToProfile(merged_image, icc_profile, display_profile, inPlace=True)
 
@@ -118,14 +126,15 @@ def channel_id_to_PIL(channel_id):
         ChannelID.RED: 'R',
         ChannelID.GREEN: 'G',
         ChannelID.BLUE: 'B',
+        ChannelID.GRAYSCALE: 'L',
         ChannelID.TRANSPARENCY_MASK: 'A'
     }
     return BANDS_MAP.get(channel_id, None)
 
 
 def _get_mode(band_keys):
-    for mode in ['RGBA', 'RGB']:
-        if set(band_keys) == set(list(mode)):
+    for mode in ['RGBA', 'RGB', 'L', 'LA']:
+        if set(band_keys) == set(mode):
             return mode
 
 def _from_8bit_raw(data, size):
@@ -154,7 +163,7 @@ def get_icc_profile(decoded_data):
 
     icc_profile = icc_profiles[0]
 
-    if isinstance(icc_profile, bytes): # profile was not decoded
+    if isinstance(icc_profile.profile, bytes): # profile was not decoded
         return None
 
     return icc_profile
@@ -163,13 +172,16 @@ def apply_opacity(im, opacity):
     """
     Applies opacity to an image.
     """
-    if im.mode == 'RGB':
+    if im.mode in ('RGB', 'L'):
         im.putalpha(opacity)
         return im
-    elif im.mode == 'RGBA':
-        r, g, b, a = im.split()
+    elif im.mode in ('RGBA', 'LA'):
+        bands = im.split()
+        bands, a = bands[:-1], bands[-1]
         opacity_scale = opacity / 255
         a = a.point(lambda i: i*opacity_scale)
-        return Image.merge('RGBA', [r, g, b, a])
+        result_im = Image.merge(im.mode, bands + (a,))
+        im.paste(result_im) # Modify image passed in, to be consistent
+        return im
     else:
         raise NotImplementedError()
