@@ -159,8 +159,6 @@ def _channel_data_to_PIL(channel_data, channel_ids, color_mode, size, depth, icc
     else:
         raise NotImplementedError()
 
-    mode_string = _get_mode(bands)
-
     if icc_profile is not None:
         try:
             if color_mode == ColorMode.CMYK:
@@ -193,12 +191,6 @@ def channel_id_to_PIL(channel_id, color_mode):
         # spot channel
         warnings.warn("Spot channel %s is not handled" % channel_id)
         return None
-
-
-def _get_mode(band_keys):
-    for mode in ['RGBA', 'RGB', 'L', 'LA', 'CMYK', 'CMYKA']:
-        if set(band_keys) == set(mode):
-            return mode
 
 
 def _from_8bit_raw(data, size):
