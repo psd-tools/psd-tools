@@ -129,11 +129,13 @@ class ImageResourceID(Enum):
     WINDOWS_DEVMODE = 1085
     AUTO_SAVE_FILE_PATH = 1086
     AUTO_SAVE_FORMAT = 1087
+    PATH_SELECTION_STATE = 1088
 
     # PATH_INFO = 2000...2997
     PATH_INFO_0 = 2000
     PATH_INFO_LAST = 2997
     CLIPPING_PATH_NAME = 2999
+    ORIGIN_PATH_INFO = 3000
 
     # PLUGIN_RESOURCES = 4000..4999
     PLUGIN_RESOURCES_0 = 4000
@@ -190,9 +192,11 @@ class BlendMode(Enum):
     COLOR = 'colr'
     LUMINOSITY = 'lum '
 
+
 class Clipping(Enum):
     BASE = 0
     NON_BASE = 1
+
 
 class GlobalLayerMaskKind(Enum):
     COLOR_SELECTED = 0
@@ -200,11 +204,13 @@ class GlobalLayerMaskKind(Enum):
     PER_LAYER = 128
     # others options are possible in beta versions.
 
+
 class Compression(Enum):
     RAW = 0
     PACK_BITS = 1
     ZIP = 2
     ZIP_WITH_PREDICTION = 3
+
 
 class PrintScaleStyle(Enum):
     CENTERED = 0
@@ -280,6 +286,7 @@ class TaggedBlock(Enum):
     TRANSPARENCY_SHAPES_LAYER = 'tsly'
     LAYER_MASK_AS_GLOBAL_MASK = 'lmgm'
     VECTOR_MASK_AS_GLOBAL_MASK = 'vmgm'
+    VECTOR_ORIGINATION_DATA = 'vogk'
 
     # XXX: these are duplicated
     BRIGHTNESS_AND_CONTRAST = 'brit'

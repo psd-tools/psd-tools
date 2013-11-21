@@ -29,6 +29,7 @@ TypeToolObjectSetting = pretty_namedtuple('TypeToolObjectSetting',
                         'version xx xy yx yy tx ty text_version descriptor_version1 text_data')
                         #'warp_version descriptor_version2 warp_data'
                         #'left top right bottom')
+VectorOriginationData = pretty_namedtuple('VectorOriginationData', 'version1 version2 data')
 
 
 class Divider(collections.namedtuple('Divider', 'type key')):
@@ -162,3 +163,23 @@ def _decode_type_tool_object_setting(data):
     return TypeToolObjectSetting(ver, xx, xy, yx, yy, tx, ty, txt_ver, desc_ver1,
                                  text_data, warp_ver, desc_ver2, warp_data,
                                  left, top, right, bottom)
+
+
+@register(TaggedBlock.VECTOR_ORIGINATION_DATA)
+def _decode_vector_origination_data(data):
+    fp = io.BytesIO(data)
+    ver1, ver2 = read_fmt("II", fp)
+
+    # This decoder needs to be updated if we have new formats.
+    if ver1 != 1 and ver2 != 16:
+        warnings.warn("Ignoring vector origination tagged block due to unsupported versions %s %s" % (ver1, ver2))
+        return data
+
+    try:
+        vector_origination_data = decode_descriptor(None, fp)
+    except UnknownOSType as e:
+        warnings.warn("Ignoring vector origination tagged block (%s)" % e)
+        return data
+
+    return VectorOriginationData(ver1, ver2, vector_origination_data)
+

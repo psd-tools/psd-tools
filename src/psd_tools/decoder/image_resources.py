@@ -9,6 +9,7 @@ from psd_tools.utils import (read_pascal_string, unpack, read_fmt,
                              decode_fixed_point_32bit)
 from psd_tools.constants import ImageResourceID, PrintScaleStyle, DisplayResolutionUnit, DimensionUnit
 from psd_tools.decoder import decoders
+from psd_tools.decoder.actions import decode_descriptor, UnknownOSType
 
 _image_resource_decoders, register = decoders.new_registry()
 
@@ -34,6 +35,7 @@ PrintFlagsInfo = collections.namedtuple('PrintFlagsInfo', 'version, center_crop_
 VersionInfo = collections.namedtuple('VersionInfo', 'version, has_real_merged_data, writer_name, reader_name, file_version')
 PixelAspectRation = collections.namedtuple('PixelAspectRatio', 'version aspect')
 _ResolutionInfo = collections.namedtuple('ResolutionInfo', 'h_res, h_res_unit, width_unit, v_res, v_res_unit, height_unit')
+
 
 class ResolutionInfo(_ResolutionInfo):
     def __repr__(self):
@@ -135,3 +137,12 @@ def _decode_icc(data):
         return data
 
     return ImageCms.ImageCmsProfile(io.BytesIO(data))
+
+
+#@register(ImageResourceID.PATH_SELECTION_STATE)
+#def _decode_path_selection_state(data):
+#    try:
+#        return decode_descriptor(None, io.BytesIO(data))
+#    except UnknownOSType as e:
+#        warnings.warn("Ignoring image resource %s" % e)
+#        return data
