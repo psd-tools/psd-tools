@@ -34,12 +34,19 @@ class LayerRecord(_LayerRecord):
 Layers = pretty_namedtuple('Layers', 'length, layer_count, layer_records, channel_image_data')
 LayerFlags = pretty_namedtuple('LayerFlags', 'transparency_protected visible')
 LayerAndMaskData = pretty_namedtuple('LayerAndMaskData', 'layers global_mask_info tagged_blocks')
-ChannelInfo = pretty_namedtuple('ChannelInfo', 'id length')
+_ChannelInfo = pretty_namedtuple('ChannelInfo', 'id length')
 _MaskData = pretty_namedtuple('MaskData', 'top left bottom right default_color flags real_flags real_background')
 LayerBlendingRanges = pretty_namedtuple('LayerBlendingRanges', 'composite_ranges channel_ranges')
 _ChannelData = pretty_namedtuple('ChannelData', 'compression data')
 _Block = pretty_namedtuple('Block', 'key data')
 GlobalMaskInfo = pretty_namedtuple('GlobalMaskInfo', 'overlay color_components opacity kind')
+
+
+class ChannelInfo(_ChannelInfo):
+    def __repr__(self):
+        return "ChannelInfo(id=%s %s, length=%s)" % (
+            self.id, ChannelID.name_of(self.id), self.length
+        )
 
 
 class MaskData(_MaskData):
@@ -91,8 +98,11 @@ def read(fp, encoding, depth):
     """
     Reads layers and masks information.
     """
+    logger.debug('reading layers and masks information...')
     length = read_fmt("I", fp)[0]
     start_position = fp.tell()
+
+    logger.debug('length=%d, start_position=%d', length, start_position)
 
     layers = _read_layers(fp, encoding, depth)
 
@@ -109,31 +119,41 @@ def read(fp, encoding, depth):
 
     return LayerAndMaskData(layers, global_mask_info, tagged_blocks)
 
+
 def _read_layers(fp, encoding, depth, length=None):
     """
     Reads info about layers.
     """
+    logger.debug('reading layers...')
+
     if length is None:
         length = read_fmt("I", fp)[0]
     layer_count = read_fmt("h", fp)[0]
 
+    logger.debug('layer_count=%d, length=%d', layer_count, length)
+
     layer_records = []
     for idx in range(abs(layer_count)):
+        logger.debug('reading layer record %d, pos=%d', idx, fp.tell())
         layer = _read_layer_record(fp, encoding)
         layer_records.append(layer)
 
     channel_image_data = []
-    for layer in layer_records:
+    for idx, layer in enumerate(layer_records):
+        logger.debug('reading layer channel data %d, pos=%d', idx, fp.tell())
         data = _read_channel_image_data(fp, layer, depth)
         channel_image_data.append(data)
 
     return Layers(length, layer_count, layer_records, channel_image_data)
+
 
 def _read_layer_record(fp, encoding):
     """
     Reads single layer record.
     """
     top, left, bottom, right, num_channels = read_fmt("4i H", fp)
+    logger.debug('  top=%d, left=%d, bottom=%d, right=%d, num_channels=%d',
+                 top, left, bottom, right, num_channels)
 
     channel_info = []
     for channel_num in range(num_channels):
@@ -149,6 +169,7 @@ def _read_layer_record(fp, encoding):
         warnings.warn("Unknown blend mode (%s)" % blend_mode)
 
     opacity, clipping, flags, extra_length = read_fmt("BBBxI", fp)
+    logger.debug('  extra_length=%s', extra_length)
 
     flags = LayerFlags(bool(flags & 1), not bool(flags & 2)) # why not?
 
@@ -165,7 +186,9 @@ def _read_layer_record(fp, encoding):
     tagged_blocks = _read_layer_tagged_blocks(fp, remaining_length)
 
     remaining_length = extra_length - (fp.tell()-start)
-    fp.seek(remaining_length, 1) # skip the reminder
+    if remaining_length:
+        logger.debug('  skipping %s bytes', remaining_length)
+        fp.seek(remaining_length, 1) # skip the reminder
 
     return LayerRecord(
         top, left, bottom, right,
@@ -174,6 +197,7 @@ def _read_layer_record(fp, encoding):
         mask_data, blending_ranges, name,
         tagged_blocks
     )
+
 
 def _read_layer_tagged_blocks(fp, remaining_length):
     """
@@ -191,6 +215,7 @@ def _read_layer_tagged_blocks(fp, remaining_length):
 
     return blocks
 
+
 def _read_additional_layer_info_block(fp):
     """
     Reads a tagged block with additional layer information.
@@ -206,6 +231,7 @@ def _read_additional_layer_info_block(fp):
 
     data = fp.read(length)
     return Block(key, data)
+
 
 def _read_layer_mask_data(fp):
     """ Reads layer mask or adjustment layer data. """
@@ -229,6 +255,7 @@ def _read_layer_mask_data(fp):
         top, left, bottom, right = read_fmt("4i", fp)
 
     return MaskData(top, left, bottom, right, default_color, flags, real_flags, real_background)
+
 
 def _read_layer_blending_ranges(fp):
     """ Reads layer blending data. """
@@ -257,7 +284,8 @@ def _read_channel_image_data(fp, layer, depth):
 
     bytes_per_pixel = depth // 8
 
-    for channel in layer.channels:
+    for idx, channel in enumerate(layer.channels):
+        logger.debug("  reading %s", channel)
         if channel.id == ChannelID.USER_LAYER_MASK:
             w, h = layer.mask_data.width(), layer.mask_data.height()
         else:
@@ -266,32 +294,56 @@ def _read_channel_image_data(fp, layer, depth):
         start_pos = fp.tell()
         compress_type = read_fmt("H", fp)[0]
 
+        logger.debug("    start_pos=%s, compress_type=%s",
+                     start_pos, Compression.name_of(compress_type))
+
         data = None
 
+        # read data size
         if compress_type == Compression.RAW:
             data_size = w * h * bytes_per_pixel
-            data = fp.read(data_size)
+            logger.debug('    data size = %sx%sx%s=%s bytes', w, h, bytes_per_pixel, data_size)
 
         elif compress_type == Compression.PACK_BITS:
             byte_counts = read_be_array("H", h, fp)
-            data_size = sum(byte_counts) * bytes_per_pixel
-            data = fp.read(data_size)
+            sum_counts = sum(byte_counts)
+            data_size = sum_counts * bytes_per_pixel
+            logger.debug('    data size = %sx%s=%s bytes', sum_counts, bytes_per_pixel, data_size)
 
         elif compress_type == Compression.ZIP:
-            data = zlib.decompress(fp.read(channel.length - 2))
+            data_size = channel.length - 2
+            logger.debug('    data size = %s-2=%s bytes', channel.length, data_size)
 
         elif compress_type == Compression.ZIP_WITH_PREDICTION:
-            decompressed = zlib.decompress(fp.read(channel.length - 2))
-            data = compression.decode_prediction(decompressed, w, h, bytes_per_pixel)
+            data_size = channel.length - 2
+            logger.debug('    data size = %s-2=%s bytes', channel.length, data_size)
 
-        if data is None:
+        else:
+            warnings.warn("Bad compression type %s" % compress_type)
             return []
 
-        channel_data.append(ChannelData(compress_type, data))
+        # read the data itself
+        if data_size > channel.length:
+            warnings.warn("Incorrect data size: %s > %s" % (data_size, channel.length))
+        else:
+            raw_data = fp.read(data_size)
+            if compress_type in (Compression.RAW, Compression.PACK_BITS):
+                data = raw_data
+            elif compress_type == Compression.ZIP:
+                data = zlib.decompress(raw_data)
+            elif compress_type == Compression.ZIP_WITH_PREDICTION:
+                decompressed = zlib.decompress(raw_data)
+                data = compression.decode_prediction(decompressed, w, h, bytes_per_pixel)
+
+            if data is None:
+                return []
+
+            channel_data.append(ChannelData(compress_type, data))
 
         remaining_bytes = channel.length - (fp.tell() - start_pos) - 2
         if remaining_bytes > 0:
             fp.seek(remaining_bytes, 1)
+            logger.debug('    skipping %s bytes', remaining_bytes)
 
     return channel_data
 
