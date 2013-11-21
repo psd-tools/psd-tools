@@ -224,7 +224,6 @@ Not implemented:
 * many image resource types and tagged blocks are not decoded
   (they are attached to the result as raw bytes);
 * raw Descriptor values (like EngineData) are not decoded;
-* some Descriptor data may be unavailable after loading (even in binary form);
 * this library can't reliably blend layers together: it is possible to export
   a single layer and to export a final image, but rendering of
   e.g. layer group may produce incorrect results;

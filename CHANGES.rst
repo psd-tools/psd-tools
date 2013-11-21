@@ -2,7 +2,18 @@
 dev (TBA)
 ---------
 
-- pymaging support is fixed
+- `psd-tools.py` command-line interface is changed, 'debug' command is added;
+- pretty-printing of internal structures;
+- pymaging support is fixed;
+- allow 'MeSa' to be a signature for image resource blocks
+  (thanks Alexey Buzanov);
+- `psd_tools.debug.debug_view` utility function is fixed;
+- Photoshop CC constants are added;
+- Photoshop CC vector origination data is decoded;
+- binary data is preserved if descriptor parsing fails;
+- more verbose logging for PSD reader;
+- channel data reader became more robust - now it doesn't read past
+  declared channel length.
 
 0.8.4 (2013-06-12)
 ------------------

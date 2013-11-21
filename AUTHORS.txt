@@ -6,4 +6,5 @@ Contributors
 * Oliver Zheng;
 * Pavel Zinovkin;
 * Luke Petre;
-* Doug Ellwanger.
+* Doug Ellwanger;
+* Alexey Buzanov.
