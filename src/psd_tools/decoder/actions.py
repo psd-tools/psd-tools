@@ -25,6 +25,7 @@ Integer = pretty_namedtuple('Integer', 'value')
 Enum = pretty_namedtuple('Enum', 'type enum')
 _EngineData = pretty_namedtuple('EngineData', 'value')
 
+
 class EngineData(_EngineData):
     def __repr__(self):
         return "EngineData(value=%s)" % trimmed_repr(self.value)
