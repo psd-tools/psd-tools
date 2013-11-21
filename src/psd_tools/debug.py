@@ -2,7 +2,7 @@
 """
 Assorted debug utilities
 """
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 import sys
 from collections import namedtuple
 try:
