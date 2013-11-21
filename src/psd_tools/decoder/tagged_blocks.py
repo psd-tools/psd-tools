@@ -136,13 +136,13 @@ def _decode_type_tool_object_setting(data):
     # This decoder needs to be updated if we have new formats.
     if ver != 1 or txt_ver != 50 or desc_ver1 != 16:
         warnings.warn("Ignoring type setting tagged block due to old versions")
-        return
+        return data
 
     try:
         text_data = decode_descriptor(None, fp)
     except UnknownOSType as e:
         warnings.warn("Ignoring type setting tagged block (%s)" % e)
-        return
+        return data
 
     # XXX: Until Engine Data is parsed properly, the following cannot be parsed.
     # The end of the engine data dictates where this starts.
