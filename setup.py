@@ -4,15 +4,22 @@ from distutils.extension import Extension
 from distutils.command.build_ext import build_ext
 from distutils import errors
 
+import os
 import sys
 
 for cmd in ('egg_info', 'develop'):
     if cmd in sys.argv:
         from setuptools import setup
 
+def get_version():
+    curdir = os.path.dirname(__file__)
+    filename = os.path.join(curdir, 'src', 'psd_tools', 'version.py')
+    with open(filename, 'rb') as fp:
+        return fp.read().decode('utf8').split('=')[1].strip(" \n'")
+
 setup_args = dict(
     name = 'psd-tools',
-    version = '0.8.4',
+    version = get_version(),
     author = 'Mikhail Korobov',
     author_email = 'kmike84@gmail.com',
     url = 'https://github.com/kmike/psd-tools',

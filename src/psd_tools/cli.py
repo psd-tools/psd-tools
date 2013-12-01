@@ -8,6 +8,7 @@ import psd_tools.decoder
 from psd_tools import PSDImage
 from psd_tools.user_api.layers import group_layers
 from psd_tools.debug import pprint
+from psd_tools.version import __version__
 
 logger = logging.getLogger('psd_tools')
 logger.addHandler(logging.StreamHandler())
@@ -28,7 +29,7 @@ def main():
         --encoding <encoding>       Text encoding [default: utf8].
 
     """
-    args = docopt.docopt(main.__doc__)
+    args = docopt.docopt(main.__doc__, version=__version__)
 
     if args['--verbose']:
         logger.setLevel(logging.DEBUG)

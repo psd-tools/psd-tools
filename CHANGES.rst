@@ -13,7 +13,8 @@ dev (TBA)
 - binary data is preserved if descriptor parsing fails;
 - more verbose logging for PSD reader;
 - channel data reader became more robust - now it doesn't read past
-  declared channel length.
+  declared channel length;
+- `psd-tools.py --version` command is fixed.
 
 0.8.4 (2013-06-12)
 ------------------
