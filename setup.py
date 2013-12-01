@@ -7,10 +7,6 @@ from distutils import errors
 import os
 import sys
 
-for cmd in ('egg_info', 'develop'):
-    if cmd in sys.argv:
-        from setuptools import setup
-
 def get_version():
     curdir = os.path.dirname(__file__)
     filename = os.path.join(curdir, 'src', 'psd_tools', 'version.py')
