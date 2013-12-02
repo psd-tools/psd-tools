@@ -32,9 +32,10 @@ TypeToolObjectSetting = pretty_namedtuple('TypeToolObjectSetting',
 VectorOriginationData = pretty_namedtuple('VectorOriginationData', 'version1 version2 data')
 
 
-class Divider(collections.namedtuple('Divider', 'type key')):
+class Divider(collections.namedtuple('Divider', 'block type key')):
     def __repr__(self):
-        return "Divider(%r %s, %s)" % (self.type, SectionDivider.name_of(self.type), self.key)
+        return "Divider(%s %r %s, %s)" % (
+            self.block, self.type, SectionDivider.name_of(self.type), self.key)
 
 
 def decode(tagged_blocks):
@@ -43,6 +44,7 @@ def decode(tagged_blocks):
     with parsed data structure if it is known how to parse it.
     """
     return [parse_tagged_block(block) for block in tagged_blocks]
+
 
 def parse_tagged_block(block):
     """
@@ -72,12 +74,25 @@ def _decode_soco(data):
 def _decode_reference_point(data):
     return read_fmt("2d", io.BytesIO(data))
 
+
 @register(TaggedBlock.SHEET_COLOR_SETTING)
 def _decode_color_setting(data):
     return read_fmt("4H", io.BytesIO(data))
 
+
 @register(TaggedBlock.SECTION_DIVIDER_SETTING)
 def _decode_section_divider(data):
+    tp, key = _decode_divider(data)
+    return Divider(TaggedBlock.SECTION_DIVIDER_SETTING, tp, key)
+
+
+@register(TaggedBlock.NESTED_SECTION_DIVIDER_SETTING)
+def _decode_section_divider(data):
+    tp, key = _decode_divider(data)
+    return Divider(TaggedBlock.NESTED_SECTION_DIVIDER_SETTING, tp, key)
+
+
+def _decode_divider(data):
     fp = io.BytesIO(data)
     key = None
     tp = read_fmt("I", fp)[0]
@@ -90,7 +105,8 @@ def _decode_section_divider(data):
             warnings.warn("Invalid signature in section divider block")
         key = fp.read(4).decode('ascii')
 
-    return Divider(tp, key)
+    return tp, key
+
 
 @register(TaggedBlock.METADATA_SETTING)
 def _decode_metadata(data):
@@ -103,6 +119,7 @@ def _decode_metadata(data):
         items.append(MetadataItem(sig, key, copy_on_sheet, data))
     return items
 
+
 @register(TaggedBlock.PROTECTED_SETTING)
 def _decode_protected(data):
     flag = unpack("I", data)[0]
@@ -112,6 +129,7 @@ def _decode_protected(data):
         bool(flag & 4),
     )
 
+
 @register(TaggedBlock.LAYER_32)
 def _decode_layer32(data):
     from psd_tools.reader import layers
@@ -120,6 +138,7 @@ def _decode_layer32(data):
     layers = layers._read_layers(fp, 'latin1', 32, length=len(data))
     return decode_layers(layers)
 
+
 @register(TaggedBlock.LAYER_16)
 def _decode_layer16(data):
     from psd_tools.reader import layers
@@ -127,6 +146,7 @@ def _decode_layer16(data):
     fp = io.BytesIO(data)
     layers = layers._read_layers(fp, 'latin1', 16, length=len(data))
     return decode_layers(layers)
+
 
 @register(TaggedBlock.TYPE_TOOL_OBJECT_SETTING)
 def _decode_type_tool_object_setting(data):

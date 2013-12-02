@@ -14,7 +14,9 @@ dev (TBA)
 - more verbose logging for PSD reader;
 - channel data reader became more robust - now it doesn't read past
   declared channel length;
-- `psd-tools.py --version` command is fixed.
+- `psd-tools.py --version` command is fixed;
+- `lsdk` tagged blocks parsing: this fixes some issues with layer grouping
+  (thanks Ivan Maradzhyiski for the bug report and the patch).
 
 0.8.4 (2013-06-12)
 ------------------

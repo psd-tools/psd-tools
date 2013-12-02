@@ -4,6 +4,7 @@ import warnings
 
 from psd_tools.constants import TaggedBlock, SectionDivider
 
+
 def group_layers(decoded_data):
     """
     Returns a nested dict with PSD layer group information.
@@ -20,7 +21,10 @@ def group_layers(decoded_data):
 
         name = blocks.get(TaggedBlock.UNICODE_LAYER_NAME, layer.name)
         layer_id = blocks.get(TaggedBlock.LAYER_ID)
-        divider = blocks.get(TaggedBlock.SECTION_DIVIDER_SETTING, None)
+        divider = blocks.get(
+            TaggedBlock.SECTION_DIVIDER_SETTING,
+            blocks.get(TaggedBlock.NESTED_SECTION_DIVIDER_SETTING),
+        )
         visible = layer.flags.visible
         opacity = layer.opacity
         blend_mode = layer.blend_mode
