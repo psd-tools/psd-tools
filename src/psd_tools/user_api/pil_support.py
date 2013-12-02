@@ -220,7 +220,7 @@ def _get_header_channel_ids(header):
         elif header.number_of_channels == 5:
             # XXX: how to distinguish
             # "4 CMYK + 1 alpha" and "4 CMYK + 1 spot"?
-            channel_ids = [-1, 0, 1, 2, 3]  # XXX: unchecked!
+            channel_ids = [0, 1, 2, 3, -1]
 
     else:
         warnings.warn("Unsupported color mode (%s)" % header.color_mode)
