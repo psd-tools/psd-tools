@@ -4,6 +4,7 @@ from __future__ import absolute_import, unicode_literals, division
 import warnings
 from psd_tools.utils import be_array_from_bytes
 from psd_tools.constants import Compression, ChannelID, ColorMode, ImageResourceID
+from psd_tools import icc_profiles
 
 try:
     from PIL import Image, ImageCms
@@ -113,13 +114,18 @@ def _merge_bands(bands, color_mode, size, icc_profile):
         merged_image = Image.merge('CMYK', [bands[key] for key in 'CMYK'])
         # colors are inverted in Photoshop CMYK images; invert them back
         merged_image = frombytes('CMYK', size, merged_image.tobytes(), 'raw', 'CMYK;I')
+    elif color_mode == ColorMode.GRAYSCALE:
+        merged_image = bands['L']
     else:
         raise NotImplementedError()
 
     if icc_profile is not None:
         try:
-            sRGB_profile = ImageCms.createProfile('sRGB')
-            merged_image = ImageCms.profileToProfile(merged_image, icc_profile, sRGB_profile, outputMode='RGB')
+            if color_mode in [ColorMode.RGB, ColorMode.CMYK]:
+                merged_image = ImageCms.profileToProfile(merged_image, icc_profile, icc_profiles.sRGB, outputMode='RGB')
+            elif color_mode == ColorMode.GRAYSCALE:
+                ImageCms.profileToProfile(merged_image, icc_profile, icc_profiles.gray, inPlace=True, outputMode='L')
+
         except ImageCms.PyCMSError as e:
             # PIL/Pillow/(old littlecms?) can't convert some ICC profiles
             warnings.warn(repr(e))
@@ -199,6 +205,8 @@ def _channel_id_to_PIL(channel_id, color_mode):
             return 'RGB'[channel_id]
         elif color_mode == ColorMode.CMYK:
             return 'CMYK'[channel_id]
+        elif color_mode == ColorMode.GRAYSCALE:
+            return 'L'[channel_id]
 
     except IndexError:
         # spot channel
@@ -207,24 +215,29 @@ def _channel_id_to_PIL(channel_id, color_mode):
 
 
 def _get_header_channel_ids(header):
-    channel_ids = None
+
     if header.color_mode == ColorMode.RGB:
         if header.number_of_channels == 3:
-            channel_ids = [0, 1, 2]
+            return [0, 1, 2]
         elif header.number_of_channels == 4:
-            channel_ids = [0, 1, 2, -1]
+            return [0, 1, 2, ChannelID.TRANSPARENCY_MASK]
 
     elif header.color_mode == ColorMode.CMYK:
         if header.number_of_channels == 4:
-            channel_ids = [0, 1, 2, 3]
+            return [0, 1, 2, 3]
         elif header.number_of_channels == 5:
             # XXX: how to distinguish
             # "4 CMYK + 1 alpha" and "4 CMYK + 1 spot"?
-            channel_ids = [0, 1, 2, 3, -1]
+            return [0, 1, 2, 3, ChannelID.TRANSPARENCY_MASK]
+
+    elif header.color_mode == ColorMode.GRAYSCALE:
+        if header.number_of_channels == 1:
+            return [0]
+        elif header.number_of_channels == 2:
+            return [0, ChannelID.TRANSPARENCY_MASK]
 
     else:
         warnings.warn("Unsupported color mode (%s)" % header.color_mode)
-    return channel_ids
 
 
 def _get_layer_channel_ids(layer):

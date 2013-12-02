@@ -4,7 +4,7 @@ import pytest
 
 from psd_tools import PSDImage, Layer, Group
 
-from .utils import full_name
+from .utils import full_name, FuzzyInt
 
 PIXEL_COLORS = (
     # filename                  probe point    pixel value
@@ -59,6 +59,19 @@ PIXEL_COLORS_16BIT = (
     ('16bit5x5.psd', (1, 3), (46, 196, 104)),
 )
 
+PIXEL_COLORS_GRAYSCALE = (
+    # exact colors depend on Gray ICC profile chosen,
+    # so allow a wide range for some of the values
+    ('gray0.psd', (0, 0), (255, 0)),
+    ('gray0.psd', (70, 57), (FuzzyInt(5, 250), 255)),
+    ('gray0.psd', (322, 65), (FuzzyInt(5, 250), 190)),
+
+    ('gray1.psd', (0, 0), 255),
+    ('gray1.psd', (900, 500), 0),
+    ('gray1.psd', (400, 600), FuzzyInt(5, 250)),
+)
+
+
 LAYER_COLORS = (
     ('1layer.psd',  0,  (5, 5),       (0x27, 0xBA, 0x0F)),
     ('2layers.psd', 1,  (5, 5),       (0x27, 0xBA, 0x0F)),
@@ -74,9 +87,31 @@ LAYER_COLORS_MULTIBYTE = (
     ('32bit5x5.psd', 1, (1, 3), (46, 196, 104, 255)),
 )
 
+LAYER_COLORS_GRAYSCALE = (
+    # gray0: layer 0 is shifted 35px to the right
+    ('gray0.psd', 0, (0, 0), (255, 0)),
+    ('gray0.psd', 0, (70-35, 57), (FuzzyInt(5, 250), 255)),
+    ('gray0.psd', 0, (322-35, 65), (FuzzyInt(5, 250), 190)),
+
+    # gray1: black ellipse
+    ('gray1.psd', 0, (0, 0), (0, 0)),
+    ('gray1.psd', 0, (500, 250), (0, 255)),
+
+    # gray1: grey ellipse
+    ('gray1.psd', 1, (0, 0), (FuzzyInt(5, 250), 0)),
+    ('gray1.psd', 1, (700, 500), (FuzzyInt(5, 250), 255)),
+
+    # gray1: background
+    ('gray1.psd', 2, (0, 0), 255),
+    ('gray1.psd', 2, (900, 500), 255),
+    ('gray1.psd', 2, (400, 600), 255),
+)
+
+
 def color_PIL(psd, point):
     im = psd.as_PIL()
     return im.getpixel(point)
+
 
 def color_pymaging(psd, point):
     im = psd.as_pymaging()
@@ -91,21 +126,23 @@ def test_composite(filename, point, color, get_color):
     psd = PSDImage.load(full_name(filename))
     assert color == get_color(psd, point)
 
+
 @pytest.mark.parametrize(["filename", "point", "color"], PIXEL_COLORS_32BIT)
 def test_composite_32bit(filename, point, color):
     psd = PSDImage.load(full_name(filename))
     assert color == color_PIL(psd, point)
+
 
 @pytest.mark.parametrize(["filename", "point", "color"], PIXEL_COLORS_16BIT)
 def test_composite_16bit(filename, point, color):
     psd = PSDImage.load(full_name(filename))
     assert color == color_PIL(psd, point)
 
-@pytest.mark.parametrize(["filename", "layer_num", "point", "color"], LAYER_COLORS_MULTIBYTE)
-def test_layer_colors_multibyte(filename, layer_num, point, color):
+
+@pytest.mark.parametrize(["filename", "point", "color"], PIXEL_COLORS_GRAYSCALE)
+def test_composite_grayscale(filename, point, color):
     psd = PSDImage.load(full_name(filename))
-    layer = psd.layers[layer_num]
-    assert color == color_PIL(layer, point)
+    assert color == color_PIL(psd, point)
 
 
 @pytest.mark.parametrize(["get_color"], BACKENDS)
@@ -116,11 +153,26 @@ def test_layer_colors(filename, layer_num, point, color, get_color):
     assert color == get_color(layer, point)
 
 
+@pytest.mark.parametrize(["filename", "layer_num", "point", "color"], LAYER_COLORS_MULTIBYTE)
+def test_layer_colors_multibyte(filename, layer_num, point, color):
+    psd = PSDImage.load(full_name(filename))
+    layer = psd.layers[layer_num]
+    assert color == color_PIL(layer, point)
+
+
+@pytest.mark.parametrize(["filename", "layer_num", "point", "color"], LAYER_COLORS_GRAYSCALE)
+def test_layer_colors_grayscale(filename, layer_num, point, color):
+    psd = PSDImage.load(full_name(filename))
+    layer = psd.layers[layer_num]
+    assert color == color_PIL(layer, point)
+
+
 @pytest.mark.parametrize(["filename", "point", "color"], PIXEL_COLORS + MASK_PIXEL_COLORS + TRANSPARENCY_PIXEL_COLORS)
 def test_layer_merging_size(filename, point, color):
     psd = PSDImage.load(full_name(filename))
     merged_image = psd.as_PIL_merged()
     assert merged_image.size == psd.as_PIL().size
+
 
 @pytest.mark.parametrize(["filename", "point", "color"], PIXEL_COLORS)
 def test_layer_merging_pixels(filename, point, color):
@@ -128,6 +180,7 @@ def test_layer_merging_pixels(filename, point, color):
     merged_image = psd.as_PIL_merged()
     assert color[:3] == merged_image.getpixel(point)[:3]
     assert merged_image.getpixel(point)[3] == 255 # alpha channel
+
 
 @pytest.mark.xfail
 @pytest.mark.parametrize(["filename", "point", "color"], TRANSPARENCY_PIXEL_COLORS)

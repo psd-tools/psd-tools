@@ -28,6 +28,7 @@ setup_args = dict(
 
     package_dir = {'': 'src'},
     packages = ['psd_tools', 'psd_tools.reader', 'psd_tools.decoder', 'psd_tools.user_api'],
+    package_data = {'psd_tools': ['icc_profiles/*.icc']},
     scripts=['bin/psd-tools.py'],
 
     classifiers=[

@@ -26,6 +26,8 @@ DIMENSIONS = (
     ('transparentbg.psd',       (100, 150)),
     ('transparentbg-gimp.psd',  (40, 40)),
     ('vector mask.psd',         (100, 150)),
+    ('gray0.psd',               (400, 359)),
+    ('gray1.psd',               (1800, 1200)),
 )
 
 BBOXES = (
@@ -60,6 +62,7 @@ def test_resolution(filename, resolution):
     psd = decode_psd(filename)
     psd_res = dict((block.resource_id, block.data) for block in psd.image_resource_blocks)
     assert psd_res[ImageResourceID.RESOLUTION_INFO] == resolution
+
 
 @pytest.mark.parametrize(("filename", "size"), DIMENSIONS)
 def test_dimensions_api(filename, size):
