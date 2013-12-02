@@ -1,6 +1,6 @@
 
-dev (TBA)
----------
+0.9 (2013-12-03)
+----------------
 
 - `psd-tools.py` command-line interface is changed, 'debug' command is added;
 - pretty-printing of internal structures;
@@ -16,7 +16,11 @@ dev (TBA)
   declared channel length;
 - `psd-tools.py --version` command is fixed;
 - `lsdk` tagged blocks parsing: this fixes some issues with layer grouping
-  (thanks Ivan Maradzhyiski for the bug report and the patch).
+  (thanks Ivan Maradzhyiski for the bug report and the patch);
+- CMYK images support is added (thanks Alexey Buzanov, Guillermo Rauch and
+  https://github.com/a-e-m for the help);
+- Grayscale images support is added (thanks https://github.com/a-e-m);
+- LittleCMS is now optional (but it is still required to get proper colors).
 
 0.8.4 (2013-06-12)
 ------------------
