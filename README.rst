@@ -258,7 +258,8 @@ demonstrating the issue; this file may be added to a test suite.
     Unfortunately I don't have a license for Adobe Photoshop and use GIMP for
     testing; PNG screenshots may be necessary in cases where GIMP fails.
 
-In order to run tests, install `tox <http://tox.testrun.org>`_ and type
+In order to run tests, make sure PIL/Pillow is built with LittleCMS support,
+install `tox <http://tox.testrun.org>`_ and type
 
 ::
 

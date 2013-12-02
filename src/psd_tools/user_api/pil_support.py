@@ -7,14 +7,18 @@ from psd_tools.constants import Compression, ChannelID, ColorMode, ImageResource
 from psd_tools import icc_profiles
 
 try:
-    from PIL import Image, ImageCms
+    from PIL import Image
     if hasattr(Image, 'frombytes'):
         frombytes = Image.frombytes
     else:
-        frombytes = Image.fromstring
-
+        frombytes = Image.fromstring  # PIL and older Pillow versions
 except ImportError:
     Image = None
+
+try:
+    from PIL import ImageCms
+except ImportError:
+    ImageCms = None
 
 
 def extract_layer_image(decoded_data, layer_index):
@@ -120,12 +124,12 @@ def _merge_bands(bands, color_mode, size, icc_profile):
         raise NotImplementedError()
 
     if icc_profile is not None:
+        assert ImageCms is not None
         try:
             if color_mode in [ColorMode.RGB, ColorMode.CMYK]:
                 merged_image = ImageCms.profileToProfile(merged_image, icc_profile, icc_profiles.sRGB, outputMode='RGB')
             elif color_mode == ColorMode.GRAYSCALE:
                 ImageCms.profileToProfile(merged_image, icc_profile, icc_profiles.gray, inPlace=True, outputMode='L')
-
         except ImageCms.PyCMSError as e:
             # PIL/Pillow/(old littlecms?) can't convert some ICC profiles
             warnings.warn(repr(e))
