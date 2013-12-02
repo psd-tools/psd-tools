@@ -19,13 +19,16 @@ Installation
 
 There are also optional dependencies:
 
+* (recommended) Pillow_ for accessing PSD image and layer data
+  as PIL images::
+
+      pip install Pillow
+
+  PIL_ library should also work.
+
 * docopt_ for command-line interface::
 
       pip install docopt
-
-* PIL_ (or Pillow_) for accessing PSD image and layer data as PIL images::
-
-      pip install Pillow
 
 * Pymaging_ and packbits_ for accessing PSD image and layer
   data as ``pymaging.LoadedImage``::
@@ -208,7 +211,7 @@ Features
 
 Supported:
 
-* reading of RGB and RGBA images;
+* reading of RGB, RGBA, CMYK, CMYKA and Grayscale images;
 * 8bit, 16bit and 32bit channels;
 * all PSD compression methods are supported (not only the most
   common RAW and RLE);
@@ -220,7 +223,7 @@ Supported:
 
 Not implemented:
 
-* reading of CMYK, Duotone, LAB, etc. images;
+* reading of Duotone, LAB, etc. images;
 * many image resource types and tagged blocks are not decoded
   (they are attached to the result as raw bytes);
 * raw Descriptor values (like EngineData) are not decoded;
@@ -228,8 +231,8 @@ Not implemented:
   a single layer and to export a final image, but rendering of
   e.g. layer group may produce incorrect results;
 * the writing of PSD images is not implemented;
-* only 8bit images can be converted to ``pymaging.LoadedImage``;
-* layer merging currently doesn't work with Pymaging_.
+* Pymaging_ support is limited: it only supports 8bit RGB/RGBA
+  images, ICC profiles are not applied, layer merging doesn't work, etc.
 
 If you need some of unimplemented features then please fire an issue
 or implement it yourself (pull requests are welcome in this case).
