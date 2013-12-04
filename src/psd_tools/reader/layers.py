@@ -281,8 +281,8 @@ def _read_channel_image_data(fp, layer, depth):
     Reads image data for all channels in a layer.
     """
     channel_data = []
-
-    bytes_per_pixel = depth // 8
+    # if header.depth is 1 we got 1 byte per pixel
+    bytes_per_pixel = depth // 8 or 1
 
     for idx, channel in enumerate(layer.channels):
         logger.debug("  reading %s", channel)
@@ -372,7 +372,8 @@ def read_image_data(fp, header):
     w, h = header.width, header.height
     compress_type = read_fmt("H", fp)[0]
 
-    bytes_per_pixel = header.depth // 8
+    # if header.depth is 1 we got 1 byte per pixel
+    bytes_per_pixel = header.depth // 8 or 1
 
     channel_byte_counts = []
     if compress_type == Compression.PACK_BITS:

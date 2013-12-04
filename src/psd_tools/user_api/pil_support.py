@@ -120,6 +120,8 @@ def _merge_bands(bands, color_mode, size, icc_profile):
         merged_image = frombytes('CMYK', size, merged_image.tobytes(), 'raw', 'CMYK;I')
     elif color_mode == ColorMode.GRAYSCALE:
         merged_image = bands['L']
+    elif color_mode == ColorMode.BITMAP:
+        merged_image = bands['1']
     else:
         raise NotImplementedError()
 
@@ -165,10 +167,14 @@ def _get_band_images(channel_data, channel_ids, color_mode, size, depth):
                 continue
 
         elif channel.compression == Compression.PACK_BITS:
-            if depth != 8:
+            if depth == 8:
+                im = frombytes('L', size, channel.data, "packbits", 'L')
+            elif depth == 1:
+                im = frombytes('1', size, channel.data, "packbits", '1;I')
+            else:
                 warnings.warn("Depth %s is unsupported for PackBits compression" % depth)
                 continue
-            im = frombytes('L', size, channel.data, "packbits", 'L')
+
         else:
             if Compression.is_known(channel.compression):
                 warnings.warn("Compression method is not implemented (%s)" % channel.compression)
@@ -211,6 +217,8 @@ def _channel_id_to_PIL(channel_id, color_mode):
             return 'CMYK'[channel_id]
         elif color_mode == ColorMode.GRAYSCALE:
             return 'L'[channel_id]
+        elif color_mode == ColorMode.BITMAP:
+            return '1'[channel_id]
 
     except IndexError:
         # spot channel
@@ -239,7 +247,9 @@ def _get_header_channel_ids(header):
             return [0]
         elif header.number_of_channels == 2:
             return [0, ChannelID.TRANSPARENCY_MASK]
-
+    elif header.color_mode == ColorMode.BITMAP:
+        if header.number_of_channels == 1:
+            return [0]
     else:
         warnings.warn("Unsupported color mode (%s)" % header.color_mode)
 
