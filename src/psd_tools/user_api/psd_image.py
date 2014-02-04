@@ -262,7 +262,8 @@ def combined_bbox(layers):
     """
     Returns a bounding box for ``layers`` or None if this is not possible.
     """
-    bboxes = [layer.bbox for layer in layers if layer.bbox is not None]
+    bboxes = [layer.bbox for layer in layers
+              if layer.bbox is not None and layer.bbox.width > 0 and layer.bbox.height > 0]
     if not bboxes:
         return None
 
@@ -304,6 +305,9 @@ def merge_layers(layers, respect_visibility=True, skip_layer=lambda layer: False
     for layer in reversed(layers):
 
         if layer is None:
+            continue
+
+        if layer.bbox.width == 0 and layer.bbox.height == 0:
             continue
 
         if skip_layer(layer):

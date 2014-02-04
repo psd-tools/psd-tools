@@ -66,3 +66,9 @@ def test_groups_32bit():
     layers = group_layers(decode_psd('32bit5x5.psd'))
     assert len(layers) == 3
     assert layers[0]['name'] == 'Background copy 2'
+
+def test_group_with_empty_layer():
+    layers = group_layers(decode_psd('empty-layer.psd'))
+    group1, bg = layers
+    assert group1['name'] == 'group'
+    assert bg['name'] == 'Background'
