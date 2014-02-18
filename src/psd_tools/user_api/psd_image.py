@@ -336,7 +336,9 @@ def merge_layers(layers, respect_visibility=True, skip_layer=lambda layer: False
 
         if layer.blend_mode == BlendMode.NORMAL:
             if layer_image.mode == 'RGBA':
-                result.paste(layer_image, (x,y), layer_image)
+                tmp = Image.new("RGBA", result.size, color=(255, 255, 255, 0))
+                tmp.paste(layer_image, (x, y))
+                result = Image.alpha_composite(result, tmp)
             elif layer_image.mode == 'RGB':
                 result.paste(layer_image, (x,y))
             else:
