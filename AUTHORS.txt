@@ -8,4 +8,5 @@ Contributors
 * Luke Petre;
 * Doug Ellwanger;
 * Alexey Buzanov;
-* Alex Martyn.
+* Alex Martyn;
+* Vladimir Timofeev.
