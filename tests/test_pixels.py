@@ -87,6 +87,7 @@ LAYER_COLORS_MULTIBYTE = (
     ('32bit5x5.psd',    1,  (0, 0),     (235, 241, 250, 255)), # why not equal to 16bit5x5.psd?
     ('32bit5x5.psd',    1,  (1, 3),     (46, 196, 104, 255)),
     ('empty-layer.psd', 0,  (0, 0),     (255, 255, 255, 0)),
+    ('semi-transparent-layers.psd', 0, (56, 44), (201, 54, 0, 0xFF)),
 )
 
 LAYER_COLORS_GRAYSCALE = (

@@ -13,6 +13,7 @@ from psd_tools.user_api import pil_support
 
 logger = logging.getLogger(__name__)
 
+
 class BBox(collections.namedtuple('BBox', 'x1, y1, x2, y2')):
     @property
     def width(self):
@@ -136,7 +137,6 @@ class Group(_RawLayer):
         """
         return combined_bbox(self.layers)
 
-
     def as_PIL(self):
         """
         Returns a PIL image for this group.
@@ -183,7 +183,6 @@ class PSDImage(object):
         self._fake_root_group = root
         self.layers = root.layers
 
-
     @classmethod
     def load(cls, path, encoding='utf8'):
         """
@@ -201,7 +200,6 @@ class PSDImage(object):
             psd_tools.reader.parse(fp, encoding)
         )
         return cls(decoded_data)
-
 
     def as_PIL(self):
         """
@@ -281,7 +279,7 @@ def merge_layers(layers, respect_visibility=True, skip_layer=lambda layer: False
     In order to skip some layers pass ``skip_layer`` function which
     should take ``layer` as an argument and return True or False.
 
-    If ``crop_bbox`` is not None, it should be a 4-tuple with coordinates;
+    If ``bbox`` is not None, it should be a 4-tuple with coordinates;
     returned image will be restricted to this rectangle.
 
     This is highly experimental.
@@ -326,7 +324,7 @@ def merge_layers(layers, respect_visibility=True, skip_layer=lambda layer: False
         x, y = layer.bbox.x1 - bbox.x1, layer.bbox.y1 - bbox.y1
         w, h = layer_image.size
 
-        if x < 0 or y < 0: # image doesn't fit the bbox
+        if x < 0 or y < 0:  # image doesn't fit the bbox
             x_overflow = - min(x, 0)
             y_overflow = - min(y, 0)
             logger.debug("cropping.. (%s, %s)", x_overflow, y_overflow)
@@ -340,7 +338,9 @@ def merge_layers(layers, respect_visibility=True, skip_layer=lambda layer: False
 
         if layer.blend_mode == BlendMode.NORMAL:
             if layer_image.mode == 'RGBA':
-                result.paste(layer_image, (x,y), layer_image)
+                tmp = Image.new("RGBA", result.size, color=(255, 255, 255, 0))
+                tmp.paste(layer_image, (x, y))
+                result = Image.alpha_composite(result, tmp)
             elif layer_image.mode == 'RGB':
                 result.paste(layer_image, (x,y))
             else:
