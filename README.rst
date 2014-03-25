@@ -40,7 +40,7 @@ There are also optional dependencies:
 .. note::
 
     In order to extract images from 32bit PSD files PIL/Pillow must be built
-    with LITTLECMS support.
+    with LITTLECMS or LITTLECMS2 support.
 
 .. _docopt: https://github.com/docopt/docopt
 .. _PIL: http://www.pythonware.com/products/pil/
@@ -258,8 +258,8 @@ demonstrating the issue; this file may be added to a test suite.
     Unfortunately I don't have a license for Adobe Photoshop and use GIMP for
     testing; PNG screenshots may be necessary in cases where GIMP fails.
 
-In order to run tests, make sure PIL/Pillow is built with LittleCMS support,
-install `tox <http://tox.testrun.org>`_ and type
+In order to run tests, make sure PIL/Pillow is built with LittleCMS
+or LittleCMS2 support, install `tox <http://tox.testrun.org>`_ and type
 
 ::
 

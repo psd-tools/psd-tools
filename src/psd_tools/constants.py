@@ -42,10 +42,12 @@ class ColorMode(Enum):
     DUOTONE = 8
     LAB = 9
 
+
 class ChannelID(Enum):
     TRANSPARENCY_MASK = -1
     USER_LAYER_MASK = -2
     REAL_USER_LAYER_MASK = -3
+
 
 class ImageResourceID(Enum):
     OBSOLETE1 = 1000
@@ -156,7 +158,6 @@ class ImageResourceID(Enum):
         if cls.PLUGIN_RESOURCES_0 < value < cls.PLUGIN_RESOURCES_LAST:
             return "PLUGIN_RESOURCES_%d" % (value - cls.PLUGIN_RESOURCES_0)
         return super(ImageResourceID, cls).name_of(value)
-
 
 
 class BlendMode(Enum):
