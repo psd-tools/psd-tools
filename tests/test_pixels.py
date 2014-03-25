@@ -51,6 +51,7 @@ PIXEL_COLORS_32BIT = (
     ('32bit5x5.psd',            (0, 0),       (235, 241, 250)), # why not equal to 16bit5x5.psd?
     ('32bit5x5.psd',            (4, 0),       (0, 0, 0)),
     ('32bit5x5.psd',            (1, 3),       (46, 196, 104)),
+    ('empty-layer.psd',         (0, 0),       (255, 255, 255)),
 )
 
 PIXEL_COLORS_16BIT = (
@@ -73,18 +74,19 @@ PIXEL_COLORS_GRAYSCALE = (
 
 
 LAYER_COLORS = (
-    ('1layer.psd',  0,  (5, 5),       (0x27, 0xBA, 0x0F)),
-    ('2layers.psd', 1,  (5, 5),       (0x27, 0xBA, 0x0F)),
-    ('2layers.psd', 1,  (70, 30),     (0x27, 0xBA, 0x0F)),
-    ('2layers.psd', 0,  (0, 0),       (0, 0, 0, 0)),
-    ('2layers.psd', 0,  (62, 26),     (0xF2, 0xF4, 0xC2, 0xFE)),
+    ('1layer.psd',      0,  (5, 5),       (0x27, 0xBA, 0x0F)),
+    ('2layers.psd',     1,  (5, 5),       (0x27, 0xBA, 0x0F)),
+    ('2layers.psd',     1,  (70, 30),     (0x27, 0xBA, 0x0F)),
+    ('2layers.psd',     0,  (0, 0),       (0, 0, 0, 0)),
+    ('2layers.psd',     0,  (62, 26),     (0xF2, 0xF4, 0xC2, 0xFE)),
 )
 
 LAYER_COLORS_MULTIBYTE = (
-    ('16bit5x5.psd', 1, (0, 0), (236, 242, 251, 255)),
-    ('16bit5x5.psd', 1, (1, 3), (46, 196, 104, 255)),
-    ('32bit5x5.psd', 1, (0, 0), (235, 241, 250, 255)), # why not equal to 16bit5x5.psd?
-    ('32bit5x5.psd', 1, (1, 3), (46, 196, 104, 255)),
+    ('16bit5x5.psd',    1,  (0, 0),     (236, 242, 251, 255)),
+    ('16bit5x5.psd',    1,  (1, 3),     (46, 196, 104, 255)),
+    ('32bit5x5.psd',    1,  (0, 0),     (235, 241, 250, 255)), # why not equal to 16bit5x5.psd?
+    ('32bit5x5.psd',    1,  (1, 3),     (46, 196, 104, 255)),
+    ('empty-layer.psd', 0,  (0, 0),     (255, 255, 255, 0)),
     ('semi-transparent-layers.psd', 0, (56, 44), (201, 54, 0, 0xFF)),
 )
 

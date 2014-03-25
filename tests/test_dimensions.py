@@ -28,13 +28,16 @@ DIMENSIONS = (
     ('vector mask.psd',         (100, 150)),
     ('gray0.psd',               (400, 359)),
     ('gray1.psd',               (1800, 1200)),
+    ('empty-layer.psd',         (100, 150)),
 )
 
 BBOXES = (
     ('1layer.psd', 0, BBox(0, 0, 101, 55)),
     ('2layers.psd', 0, BBox(8, 4, 93, 50)),
     ('2layers.psd', 1, BBox(0, 0, 101, 55)),
-    ('group.psd', 0, BBox(25, 24, 66, 98))
+    ('group.psd', 0, BBox(25, 24, 66, 98)),
+    ('empty-layer.psd', 0, BBox(36, 57, 52, 73)),
+    ('empty-layer.psd', 1, BBox(0, 0, 100, 150)),
 )
 
 RESOLUTIONS = (
