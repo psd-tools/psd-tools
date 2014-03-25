@@ -1,4 +1,12 @@
 
+0.9.1 (2014-03-26)
+------------------
+
+- Improved merging of transparent layers (thanks Vladimir Timofeev);
+- fixed layer merging and bounding box calculations for empty layers
+  (thanks Vladimir Timofeev);
+- C extension is rebuilt with Cython 0.20.1.
+
 0.9 (2013-12-03)
 ----------------
 
