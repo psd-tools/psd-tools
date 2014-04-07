@@ -39,14 +39,19 @@ _ResolutionInfo = collections.namedtuple('ResolutionInfo', 'h_res, h_res_unit, w
 
 class ResolutionInfo(_ResolutionInfo):
     def __repr__(self):
+        from psd_tools.debug import depth
 
-        return "ResolutionInfo(h_res=%s, h_res_unit=%s, v_res=%s, v_res_unit=%s, width_unit=%s, height_unit=%s)" % (
+        offset = '\t' * (depth + 1)
+        return "ResolutionInfo(\n{offset}h_res = {},\n{offset}h_res_unit = {},\n{offset}v_res = {},\n{offset}v_res_unit = {}," \
+               "\n{offset}width_unit = {},\n{offset}height_unit = {}\n{endoffset})".format(
             self.h_res,
             DisplayResolutionUnit.name_of(self.h_res_unit),
             self.v_res,
             DisplayResolutionUnit.name_of(self.v_res_unit),
             DimensionUnit.name_of(self.width_unit),
             DimensionUnit.name_of(self.height_unit),
+            offset=offset,
+            endoffset=offset[:-1]
         )
 
 

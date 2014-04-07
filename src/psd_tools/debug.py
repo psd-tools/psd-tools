@@ -11,6 +11,7 @@ try:
 except ImportError:
     from pprint import pprint
     _PRETTY_ENABLED = False
+    depth = 0
 
 
 def debug_view(fp, txt="", max_back=20):
@@ -36,6 +37,8 @@ def pretty_namedtuple(typename, field_names, verbose=False):
     if _PRETTY_ENABLED:
         PrettyMixin = _get_pretty_mixin(typename)
         cls = type(str(typename), (PrettyMixin, cls), {})
+    else:
+        cls.__repr__ = get_pretty_repr
 
     # For pickling to work, the __module__ variable needs to be set to the frame
     # where the named tuple is created.  Bypass this step in enviroments where
@@ -47,6 +50,53 @@ def pretty_namedtuple(typename, field_names, verbose=False):
         pass
 
     return cls
+
+
+def get_pretty_repr(self):
+    global depth
+
+    def _is_class_with_std_repr(cls):
+        if not '__module__' in dir(cls):
+            return False
+
+        if not cls.__module__.startswith('psd_tools'):
+            return False
+
+        own_repr = (
+            'PsdHeader', 'ImageResource', 'ChannelInfo', 'ChannelData', 'Block', 'Color',
+            'ResolutionInfo', 'PrintScale', 'PixelAspectRatio', 'Divider', 'LayerEffect'
+        )
+        if cls.__class__.__name__ in own_repr:
+            return False
+
+        return True
+
+
+    if isinstance(self, list):
+        depth += 1
+        offset = '\t' * depth
+        repr_str = "["
+
+        for item in self:
+            item = get_pretty_repr(item)
+            repr_str += "\n{offset}{item},".format(offset=offset, item=item)
+
+        depth -= 1
+        return "{repr}\n{offset}]".format(repr=repr_str[:-1], offset=offset[:-1])
+    elif _is_class_with_std_repr(self):
+        depth += 1
+        offset = '\t' * depth
+        repr_str = self.__class__.__name__ + "("
+        fields = self._fields
+
+        for idx in range(len(fields)):
+            data = get_pretty_repr(self[idx])
+            repr_str += "\n{offset}{field} = {data},".format(offset=offset, field=fields[idx], data=data)
+
+        depth -= 1
+        return "{repr}\n{offset})".format(repr=repr_str[:-1], offset=offset[:-1])
+
+    return repr(self)
 
 
 def _get_pretty_mixin(typename):
