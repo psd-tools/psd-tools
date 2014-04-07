@@ -160,6 +160,21 @@ class ImageResourceID(Enum):
         return super(ImageResourceID, cls).name_of(value)
 
 
+class ColorSpaceID(Enum):
+    RGB = 0
+    HSB = 1
+    CMYK = 2
+    Lab = 7
+    Grayscale = 8
+
+    # custom color spaces
+    Pantone_matching_system = 3
+    Focoltone_colour_system = 4
+    Trumatch_color = 5
+    Toyo_88_colorfinder_1050 = 6
+    HKS_colors = 10
+
+
 class BlendMode(Enum):
     PASS_THROUGH = 'pass'
     NORMAL = 'norm'
@@ -353,6 +368,18 @@ class ReferenceOSType(Enum):
     IDENTIFIER = b'Idnt'
     INDEX = b'indx'
     NAME = b'name'
+
+class EffectOSType(Enum):
+    """
+    OS Type keys for Layer Effects
+    """
+    COMMON_STATE = 'cmnS'
+    DROP_SHADOW = 'dsdw'
+    INNER_SHADOW = 'isdw'
+    OUTER_GLOW = 'oglw'
+    INNER_GLOW = 'iglw'
+    BEVEL = 'bevl'
+    SOLID_FILL = 'sofi'
 
 class UnitFloatType(Enum):
     """

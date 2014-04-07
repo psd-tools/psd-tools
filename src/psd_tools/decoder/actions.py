@@ -5,10 +5,11 @@ A module for decoding "Actions" additional PSD data format.
 from __future__ import absolute_import, unicode_literals
 
 from psd_tools.utils import read_unicode_string, read_fmt
-from psd_tools.constants import OSType, ReferenceOSType, UnitFloatType
+from psd_tools.constants import OSType, ReferenceOSType, UnitFloatType, ColorSpaceID
 from psd_tools.debug import pretty_namedtuple
 from psd_tools.utils import trimmed_repr
 
+_Color = pretty_namedtuple('Color', 'colorSpaceID colorData')
 Descriptor = pretty_namedtuple('Descriptor', 'name classID items')
 Reference = pretty_namedtuple('Descriptor', 'items')
 Property = pretty_namedtuple('Property', 'name classID keyID')
@@ -42,6 +43,23 @@ class EngineData(_EngineData):
                 else:
                     p.pretty(self.value)
 
+class Color(_Color):
+    def __repr__(self):
+        return "Color(id=%s %s, %s)" % (self.colorSpaceID, ColorSpaceID.name_of(self.colorSpaceID), self.colorData)
+
+    def _repr_pretty_(self, p, cycle):
+        """
+        IS NOT TESTED!!
+        """
+        if cycle:
+            p.text('Color(...)')
+        else:
+            with p.group(1, 'Color(', ')'):
+                p.breakable()
+                p.text("id=%s %s," % (self.colorSpaceID, ColorSpaceID.name_of(self.colorSpaceID)))
+                p.breakable()
+                p.pretty(self.colorData)
+
 
 def get_ostype(ostype):
     return {
@@ -61,6 +79,14 @@ def get_ostype(ostype):
         OSType.RAW_DATA:    decode_raw,
     }.get(ostype, None)
 
+
+def decode_color(fp):
+    colorSpaceID = read_fmt("H", fp)[0]
+    if colorSpaceID == ColorSpaceID.Lab:
+        colorData = read_fmt("4h", fp)
+    else:
+        colorData =read_fmt("4H", fp)
+    return Color(colorSpaceID, colorData)
 
 def decode_descriptor(_, fp):
     name = read_unicode_string(fp)
