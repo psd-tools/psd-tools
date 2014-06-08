@@ -10,7 +10,6 @@ from psd_tools.exceptions import Error
 from psd_tools.utils import read_fmt
 from psd_tools.constants import EffectOSType, BlendMode
 from psd_tools.debug import pretty_namedtuple
-from psd_tools.utils import trimmed_repr
 
 _effect_info_decoders, register = decoders.new_registry()
 
@@ -49,7 +48,7 @@ class LayerEffect(_LayerEffect):
 
     def __repr__(self):
         return "LayerEffect(%s %s, %s)" % (self.effect_type, EffectOSType.name_of(self.effect_type),
-                                           trimmed_repr(self.effect_info))
+                                           self.effect_info)
 
     def _repr_pretty_(self, p, cycle):
         # IS NOT TESTED!!

@@ -5,8 +5,6 @@ import sys
 import struct
 import array
 
-from psd_tools.debug import _PRETTY_ENABLED, get_pretty_repr
-
 try:
     unichr = unichr
 except NameError:
@@ -78,10 +76,7 @@ def trimmed_repr(data, trim_length=30):
     if isinstance(data, bytes):
         if len(data) > trim_length:
             return repr(data[:trim_length] + b' ... =' + str(len(data)).encode('ascii'))
-
-    if _PRETTY_ENABLED:
-        return repr(data)
-    return get_pretty_repr(data)
+    return repr(data)
 
 def synchronize(fp, signature=b'8BIM', limit=8):
     # This is a hack for the cases where I gave up understanding PSD format.
