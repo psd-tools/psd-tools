@@ -83,6 +83,17 @@ def get_pretty_repr(self):
 
         depth -= 1
         return "{repr}\n{offset}]".format(repr=repr_str[:-1], offset=offset[:-1])
+    elif isinstance(self, dict):
+        depth += 1
+        offset = '\t' * depth
+        repr_str = "{"
+
+        for key in self:
+            value = get_pretty_repr(self[key])
+            repr_str += "\n{offset}{key}: {value},".format(offset=offset, key=key, value=value)
+
+        depth -= 1
+        return "{repr}\n{offset}}}".format(repr=repr_str[:-1], offset=offset[:-1])
     elif _is_class_with_std_repr(self):
         depth += 1
         offset = '\t' * depth

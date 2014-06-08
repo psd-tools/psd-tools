@@ -10,6 +10,7 @@ from psd_tools.utils import (read_pascal_string, unpack, read_fmt,
 from psd_tools.constants import ImageResourceID, PrintScaleStyle, DisplayResolutionUnit, DimensionUnit
 from psd_tools.decoder import decoders
 from psd_tools.decoder.actions import decode_descriptor, UnknownOSType
+from psd_tools.decoder.color import decode_color
 
 _image_resource_decoders, register = decoders.new_registry()
 
@@ -26,7 +27,7 @@ _image_resource_decoders.update({
     ImageResourceID.COPYRIGHT_FLAG:             decoders.boolean("H"),
 
     ImageResourceID.ALPHA_NAMES_UNICODE:        decoders.unicode_string,
-    ImageResourceID.WORKFLOW_URL:               decoders.unicode_string,
+    ImageResourceID.WORKFLOW_URL:               decoders.unicode_string
 })
 
 PrintScale = collections.namedtuple('PrintScale', 'style, x, y, scale')
@@ -39,6 +40,18 @@ _ResolutionInfo = collections.namedtuple('ResolutionInfo', 'h_res, h_res_unit, w
 
 class ResolutionInfo(_ResolutionInfo):
     def __repr__(self):
+        from psd_tools.debug import _PRETTY_ENABLED
+
+        if _PRETTY_ENABLED:
+            return "ResolutionInfo(h_res=%s, h_res_unit=%s, v_res=%s, v_res_unit=%s, width_unit=%s, height_unit=%s)" % (
+                self.h_res,
+                DisplayResolutionUnit.name_of(self.h_res_unit),
+                self.v_res,
+                DisplayResolutionUnit.name_of(self.v_res_unit),
+                DimensionUnit.name_of(self.width_unit),
+                DimensionUnit.name_of(self.height_unit),
+            )
+
         from psd_tools.debug import depth
 
         offset = '\t' * (depth + 1)
@@ -83,7 +96,6 @@ def _decode_layer_selection(data):
 def _decode_layer_groups_enabled_id(data):
     return be_array_from_bytes("B", data)
 
-
 @register(ImageResourceID.VERSION_INFO)
 def _decode_version_info(data):
     fp = io.BytesIO(data)
@@ -119,7 +131,6 @@ def _decode_print_scale(data):
 
     return PrintScale(style, x, y, scale)
 
-
 @register(ImageResourceID.CAPTION_PASCAL)
 def _decode_caption_pascal(data):
     fp = io.BytesIO(data)
@@ -146,6 +157,10 @@ def _decode_icc(data):
 
     return ImageCms.ImageCmsProfile(io.BytesIO(data))
 
+@register(ImageResourceID.BACKGROUND_COLOR)
+def _decode_background_color(data):
+    fp = io.BytesIO(data)
+    return decode_color(fp)
 
 #@register(ImageResourceID.PATH_SELECTION_STATE)
 #def _decode_path_selection_state(data):

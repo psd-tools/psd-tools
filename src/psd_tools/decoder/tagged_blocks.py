@@ -14,12 +14,13 @@ from psd_tools.debug import pretty_namedtuple
 _tagged_block_decoders, register = decoders.new_registry()
 
 _tagged_block_decoders.update({
-    TaggedBlock.BLEND_CLIPPING_ELEMENTS:    decoders.boolean("I"),
-    TaggedBlock.BLEND_INTERIOR_ELEMENTS:    decoders.boolean("I"),
-    TaggedBlock.KNOCKOUT_SETTING:           decoders.boolean("I"),
-    TaggedBlock.UNICODE_LAYER_NAME:         decoders.unicode_string,
-    TaggedBlock.LAYER_ID:                   decoders.single_value("I"), # XXX: there are more fields in docs, but they seem to be incorrect
-    TaggedBlock.EFFECTS_LAYER:              layer_effects.decode
+    TaggedBlock.BLEND_CLIPPING_ELEMENTS:            decoders.boolean("I"),
+    TaggedBlock.BLEND_INTERIOR_ELEMENTS:            decoders.boolean("I"),
+    TaggedBlock.KNOCKOUT_SETTING:                   decoders.boolean("I"),
+    TaggedBlock.UNICODE_LAYER_NAME:                 decoders.unicode_string,
+    TaggedBlock.LAYER_ID:                           decoders.single_value("I"), # XXX: there are more fields in docs, but they seem to be incorrect
+    TaggedBlock.EFFECTS_LAYER:                      layer_effects.decode,
+    TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO:    layer_effects.decode_object_based
 })
 
 
@@ -52,12 +53,11 @@ def parse_tagged_block(block):
     Replaces "data" attribute of a block with parsed data structure
     if it is known how to parse it.
     """
-    key = block.key.decode('ascii')
-    if not TaggedBlock.is_known(key):
+    if not TaggedBlock.is_known(block.key):
         warnings.warn("Unknown tagged block (%s)" % block.key)
 
-    decoder = _tagged_block_decoders.get(key, lambda data: data)
-    return Block(key, decoder(block.data))
+    decoder = _tagged_block_decoders.get(block.key, lambda data: data)
+    return Block(block.key, decoder(block.data))
 
 
 @register(TaggedBlock.SOLID_COLOR)
@@ -104,7 +104,7 @@ def _decode_divider(data):
         sig = fp.read(4)
         if sig != b'8BIM':
             warnings.warn("Invalid signature in section divider block")
-        key = fp.read(4).decode('ascii')
+        key = fp.read(4)
 
     return tp, key
 

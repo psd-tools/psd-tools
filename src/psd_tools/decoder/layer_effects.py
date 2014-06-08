@@ -4,17 +4,20 @@ import warnings
 import io
 
 from psd_tools.decoder import decoders
-from psd_tools.decoder.actions import decode_color
+from psd_tools.decoder.actions import decode_descriptor
+from psd_tools.decoder.color import decode_color
 from psd_tools.exceptions import Error
 from psd_tools.utils import read_fmt
 from psd_tools.constants import EffectOSType, BlendMode
-from psd_tools.debug import pretty_namedtuple, get_pretty_repr
+from psd_tools.debug import pretty_namedtuple
+from psd_tools.utils import trimmed_repr
 
 _effect_info_decoders, register = decoders.new_registry()
 
 
 Effects = pretty_namedtuple('Effects', 'version effects_count effects_list')
 _LayerEffect = pretty_namedtuple('LayerEffect', 'effect_type effect_info')
+ObjectBasedEffects = pretty_namedtuple('ObjectBasedEffects', 'version descriptor_version descriptor')
 
 CommonStateInfo = pretty_namedtuple('CommonStateInfo', 'version visible unused')
 ShadowInfo = pretty_namedtuple('ShadowInfo', 'version enabled '
@@ -46,12 +49,10 @@ class LayerEffect(_LayerEffect):
 
     def __repr__(self):
         return "LayerEffect(%s %s, %s)" % (self.effect_type, EffectOSType.name_of(self.effect_type),
-                                           get_pretty_repr(self.effect_info))
+                                           trimmed_repr(self.effect_info))
 
     def _repr_pretty_(self, p, cycle):
-        """
-        IS NOT TESTED!!
-        """
+        # IS NOT TESTED!!
         if cycle:
             p.text('LayerEffect(...)')
         else:
@@ -76,7 +77,7 @@ def decode(effects):
         if sig != b'8BIM':
             raise Error("Error parsing layer effect: invalid signature (%r)" % sig)
 
-        effect_type = fp.read(4).decode('ascii')
+        effect_type = fp.read(4)
         if not EffectOSType.is_known(effect_type):
             warnings.warn("Unknown effect type (%s)" % effect_type)
 
@@ -88,12 +89,23 @@ def decode(effects):
 
     return Effects(version, effects_count, effects_list)
 
+def decode_object_based(effects):
+    """
+    Reads and decodes info about object-based layer effects.
+    """
+    fp = io.BytesIO(effects)
+
+    version, descriptor_version = read_fmt("II", fp)
+    descriptor = decode_descriptor(None, fp)
+
+    return ObjectBasedEffects(version, descriptor_version, descriptor)
+
 def _read_blend_mode(fp):
     sig = fp.read(4)
     if sig != b'8BIM':
         raise Error("Error parsing layer effect: invalid signature (%r)" % sig)
 
-    blend_mode = fp.read(4).decode('ascii')
+    blend_mode = fp.read(4)
     if not BlendMode.is_known(blend_mode):
         warnings.warn("Unknown blend mode (%s)" % blend_mode)
 

@@ -5,7 +5,7 @@ import sys
 import struct
 import array
 
-from psd_tools.debug import get_pretty_repr
+from psd_tools.debug import _PRETTY_ENABLED, get_pretty_repr
 
 try:
     unichr = unichr
@@ -78,6 +78,8 @@ def trimmed_repr(data, trim_length=30):
     if isinstance(data, bytes):
         if len(data) > trim_length:
             return repr(data[:trim_length] + b' ... =' + str(len(data)).encode('ascii'))
+
+    if _PRETTY_ENABLED:
         return repr(data)
     return get_pretty_repr(data)
 

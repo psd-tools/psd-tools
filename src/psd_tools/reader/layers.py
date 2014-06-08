@@ -164,7 +164,7 @@ def _read_layer_record(fp, encoding):
     if sig != b'8BIM':
         raise Error("Error parsing layer: invalid signature (%r)" % sig)
 
-    blend_mode = fp.read(4).decode('ascii')
+    blend_mode = fp.read(4)
     if not BlendMode.is_known(blend_mode):
         warnings.warn("Unknown blend mode (%s)" % blend_mode)
 
