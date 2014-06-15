@@ -160,35 +160,43 @@ class ImageResourceID(Enum):
         return super(ImageResourceID, cls).name_of(value)
 
 
+class ColorSpaceID(Enum):
+    RGB = 0
+    HSB = 1
+    CMYK = 2
+    LAB = 7
+    GRAYSCALE = 8
+
+
 class BlendMode(Enum):
-    PASS_THROUGH = 'pass'
-    NORMAL = 'norm'
-    DISSOLVE = 'diss'
-    DARKEN = 'dark'
-    MULTIPLY = 'mul '
-    COLOR_BURN = 'idiv'
-    LINEAR_BURN = 'lbrn'
-    DARKER_COLOR = 'dkCl'
-    LIGHTEN = 'lite'
-    SCREEN = 'scrn'
-    COLOR_DODGE = 'div '
-    LINEAR_DODGE = 'lddg'
-    LIGHTER_COLOR = 'lgCl'
-    OVERLAY = 'over'
-    SOFT_LIGHT = 'sLit'
-    HARD_LIGHT = 'hLit'
-    VIVID_LIGHT = 'vLit'
-    LINEAR_LIGHT = 'lLit'
-    PIN_LIGHT = 'pLit'
-    HARD_MIX = 'hMix'
-    DIFFERENCE = 'diff'
-    EXCLUSION = 'smud'
-    SUBTRACT = 'fsub'
-    DIVIDE = 'fdiv'
-    HUE = 'hue '
-    SATURATION = 'sat '
-    COLOR = 'colr'
-    LUMINOSITY = 'lum '
+    PASS_THROUGH = b'pass'
+    NORMAL = b'norm'
+    DISSOLVE = b'diss'
+    DARKEN = b'dark'
+    MULTIPLY = b'mul '
+    COLOR_BURN = b'idiv'
+    LINEAR_BURN = b'lbrn'
+    DARKER_COLOR = b'dkCl'
+    LIGHTEN = b'lite'
+    SCREEN = b'scrn'
+    COLOR_DODGE = b'div '
+    LINEAR_DODGE = b'lddg'
+    LIGHTER_COLOR = b'lgCl'
+    OVERLAY = b'over'
+    SOFT_LIGHT = b'sLit'
+    HARD_LIGHT = b'hLit'
+    VIVID_LIGHT = b'vLit'
+    LINEAR_LIGHT = b'lLit'
+    PIN_LIGHT = b'pLit'
+    HARD_MIX = b'hMix'
+    DIFFERENCE = b'diff'
+    EXCLUSION = b'smud'
+    SUBTRACT = b'fsub'
+    DIVIDE = b'fdiv'
+    HUE = b'hue '
+    SATURATION = b'sat '
+    COLOR = b'colr'
+    LUMINOSITY = b'lum '
 
 
 class Clipping(Enum):
@@ -219,108 +227,108 @@ class PrintScaleStyle(Enum):
 class TaggedBlock(Enum):
 
     _ADJUSTMENT_KEYS = set([
-        'SoCo', 'GdFl', 'PtFl', 'brit', 'levl', 'curv', 'expA',
-        'vibA', 'hue ', 'hue2', 'blnc', 'blwh', 'phfl', 'mixr',
-        'clrL', 'nvrt', 'post', 'thrs', 'grdm', 'selc',
+        b'SoCo', b'GdFl', b'PtFl', b'brit', b'levl', b'curv', b'expA',
+        b'vibA', b'hue ', b'hue2', b'blnc', b'blwh', b'phfl', b'mixr',
+        b'clrL', b'nvrt', b'post', b'thrs', b'grdm', b'selc'
     ])
 
-    SOLID_COLOR = 'SoCo'
-    GRADIENT = 'GdFl'
-    PATTERN = 'PtFl'
-    BRIGHTNESS_CONTRAST = 'brit'
-    LEVELS = 'levl'
-    CURVES = 'curv'
-    EXPOSURE = 'expA'
-    VIBRANCE = 'vibA'
-    HUE_SATURATION_4 = 'hue '
-    HUE_SATURATION_5 = 'hue2'
-    COLOR_BALANCE = 'blnc'
-    BLACK_AND_WHITE = 'blwh'
-    PHOTO_FILTER = 'phfl'
-    CHANNEL_MIXER = 'mixr'
-    COLOR_LOOKUP = 'clrL'
-    INVERT = 'nvrt'
-    POSTERIZE = 'post'
-    THRESHOLD = 'thrs'
-    GRADIENT_MAP = 'grdm'
-    SELECTIVE_COLOR = 'selc'
+    SOLID_COLOR = b'SoCo'
+    GRADIENT = b'GdFl'
+    PATTERN = b'PtFl'
+    BRIGHTNESS_CONTRAST = b'brit'
+    LEVELS = b'levl'
+    CURVES = b'curv'
+    EXPOSURE = b'expA'
+    VIBRANCE = b'vibA'
+    HUE_SATURATION_4 = b'hue '
+    HUE_SATURATION_5 = b'hue2'
+    COLOR_BALANCE = b'blnc'
+    BLACK_AND_WHITE = b'blwh'
+    PHOTO_FILTER = b'phfl'
+    CHANNEL_MIXER = b'mixr'
+    COLOR_LOOKUP = b'clrL'
+    INVERT = b'nvrt'
+    POSTERIZE = b'post'
+    THRESHOLD = b'thrs'
+    GRADIENT_MAP = b'grdm'
+    SELECTIVE_COLOR = b'selc'
 
     @classmethod
     def is_adjustment_key(cls, key):
         return key in cls._ADJUSTMENT_KEYS
 
-    EFFECTS_LAYER = 'lrFX'
-    TYPE_TOOL_INFO = 'tySh'
-    UNICODE_LAYER_NAME = 'luni'
-    LAYER_ID = 'lyid'
-    OBJECT_BASED_EFFECTS_LAYER_INFO = 'lfx2'
+    EFFECTS_LAYER = b'lrFX'
+    TYPE_TOOL_INFO = b'tySh'
+    UNICODE_LAYER_NAME = b'luni'
+    LAYER_ID = b'lyid'
+    OBJECT_BASED_EFFECTS_LAYER_INFO = b'lfx2'
 
-    PATTERNS1 = 'Patt'
-    PATTERNS2 = 'Pat2'
-    PATTERNS3 = 'Pat3'
+    PATTERNS1 = b'Patt'
+    PATTERNS2 = b'Pat2'
+    PATTERNS3 = b'Pat3'
 
-    ANNOTATIONS = 'Anno'
-    BLEND_CLIPPING_ELEMENTS = 'clbl'
-    BLEND_INTERIOR_ELEMENTS = 'infx'
+    ANNOTATIONS = b'Anno'
+    BLEND_CLIPPING_ELEMENTS = b'clbl'
+    BLEND_INTERIOR_ELEMENTS = b'infx'
 
-    KNOCKOUT_SETTING = 'knko'
-    PROTECTED_SETTING = 'lspf'
-    SHEET_COLOR_SETTING = 'lclr'
-    REFERENCE_POINT = 'fxrp'
-    GRADIENT_SETTINGS = 'grdm'
-    SECTION_DIVIDER_SETTING = 'lsct'
-    NESTED_SECTION_DIVIDER_SETTING = 'lsdk'
-    CHANNEL_BLENDING_RESTRICTIONS_SETTING = 'brst'
-    SOLID_COLOR_SHEET_SETTING = 'SoCo'
-    PATTERN_FILL_SETTING = 'PtFl'
-    GRADIENT_FILL_SETTING = 'GdFl'
-    VECTOR_MASK_SETTING1 = 'vmsk'
-    VECTOR_MASK_SETTING2 = 'vsms'
-    TYPE_TOOL_OBJECT_SETTING = 'TySh'
-    FOREIGN_EFFECT_ID = 'ffxi'
-    LAYER_NAME_SOURCE_SETTING = 'lnsr'
-    PATTERN_DATA = 'shpa'
-    METADATA_SETTING = 'shmd'
-    LAYER_VERSION = 'lyvr'
-    TRANSPARENCY_SHAPES_LAYER = 'tsly'
-    LAYER_MASK_AS_GLOBAL_MASK = 'lmgm'
-    VECTOR_MASK_AS_GLOBAL_MASK = 'vmgm'
-    VECTOR_ORIGINATION_DATA = 'vogk'
+    KNOCKOUT_SETTING = b'knko'
+    PROTECTED_SETTING = b'lspf'
+    SHEET_COLOR_SETTING = b'lclr'
+    REFERENCE_POINT = b'fxrp'
+    GRADIENT_SETTINGS = b'grdm'
+    SECTION_DIVIDER_SETTING = b'lsct'
+    NESTED_SECTION_DIVIDER_SETTING = b'lsdk'
+    CHANNEL_BLENDING_RESTRICTIONS_SETTING = b'brst'
+    SOLID_COLOR_SHEET_SETTING = b'SoCo'
+    PATTERN_FILL_SETTING = b'PtFl'
+    GRADIENT_FILL_SETTING = b'GdFl'
+    VECTOR_MASK_SETTING1 = b'vmsk'
+    VECTOR_MASK_SETTING2 = b'vsms'
+    TYPE_TOOL_OBJECT_SETTING = b'TySh'
+    FOREIGN_EFFECT_ID = b'ffxi'
+    LAYER_NAME_SOURCE_SETTING = b'lnsr'
+    PATTERN_DATA = b'shpa'
+    METADATA_SETTING = b'shmd'
+    LAYER_VERSION = b'lyvr'
+    TRANSPARENCY_SHAPES_LAYER = b'tsly'
+    LAYER_MASK_AS_GLOBAL_MASK = b'lmgm'
+    VECTOR_MASK_AS_GLOBAL_MASK = b'vmgm'
+    VECTOR_ORIGINATION_DATA = b'vogk'
 
     # XXX: these are duplicated
-    BRIGHTNESS_AND_CONTRAST = 'brit'
-    CHANNEL_MIXER = 'mixr'
-    COLOR_LOOKUP = 'clrL'
+    BRIGHTNESS_AND_CONTRAST = b'brit'
+    CHANNEL_MIXER = b'mixr'
+    COLOR_LOOKUP = b'clrL'
 
-    PLACED_LAYER_OBSOLETE1 = 'plLd'
-    PLACED_LAYER_OBSOLETE2 = 'PlLd'
+    PLACED_LAYER_OBSOLETE1 = b'plLd'
+    PLACED_LAYER_OBSOLETE2 = b'PlLd'
 
-    LINKED_LAYER1 = 'lnkD'
-    LINKED_LAYER2 = 'lnk2'
-    LINKED_LAYER3 = 'lnk3'
-    PHOTO_FILTER = 'phfl'
-    BLACK_WHITE = 'blwh'
-    CONTENT_GENERATOR_EXTRA_DATA = 'CgEd'
-    TEXT_ENGINE_DATA = 'Txt2'
-    VIBRANCE = 'vibA'
-    UNICODE_PATH_NAME = 'pths'
-    ANIMATION_EFFECTS = 'anFX'
-    FILTER_MASK = 'FMsk'
-    PLACED_LAYER_DATA = 'SoLd'
+    LINKED_LAYER1 = b'lnkD'
+    LINKED_LAYER2 = b'lnk2'
+    LINKED_LAYER3 = b'lnk3'
+    PHOTO_FILTER = b'phfl'
+    BLACK_WHITE = b'blwh'
+    CONTENT_GENERATOR_EXTRA_DATA = b'CgEd'
+    TEXT_ENGINE_DATA = b'Txt2'
+    VIBRANCE = b'vibA'
+    UNICODE_PATH_NAME = b'pths'
+    ANIMATION_EFFECTS = b'anFX'
+    FILTER_MASK = b'FMsk'
+    PLACED_LAYER_DATA = b'SoLd'
 
-    VECTOR_STROKE_DATA = 'vscg'
-    USING_ALIGNED_RENDERING = 'sn2P'
-    SAVING_MERGED_TRANSPARENCY = 'Mtrn'
-    SAVING_MERGED_TRANSPARENCY16 = 'Mt16'
-    SAVING_MERGED_TRANSPARENCY32 = 'Mt32'
-    USER_MASK = 'LMsk'
-    EXPOSURE = 'expA'
-    FILTER_EFFECTS1 = 'FXid'
-    FILTER_EFFECTS2 = 'FEid'
+    VECTOR_STROKE_DATA = b'vscg'
+    USING_ALIGNED_RENDERING = b'sn2P'
+    SAVING_MERGED_TRANSPARENCY = b'Mtrn'
+    SAVING_MERGED_TRANSPARENCY16 = b'Mt16'
+    SAVING_MERGED_TRANSPARENCY32 = b'Mt32'
+    USER_MASK = b'LMsk'
+    EXPOSURE = b'expA'
+    FILTER_EFFECTS1 = b'FXid'
+    FILTER_EFFECTS2 = b'FEid'
 
-    LAYER_16 = "Lr16"
-    LAYER_32 = "Lr32"
-    LAYER = "Layr"
+    LAYER_16 = b'Lr16'
+    LAYER_32 = b'Lr32'
+    LAYER = b'Layr'
 
 
 class OSType(Enum):
@@ -354,6 +362,18 @@ class ReferenceOSType(Enum):
     INDEX = b'indx'
     NAME = b'name'
 
+class EffectOSType(Enum):
+    """
+    OS Type keys for Layer Effects
+    """
+    COMMON_STATE = b'cmnS'
+    DROP_SHADOW = b'dsdw'
+    INNER_SHADOW = b'isdw'
+    OUTER_GLOW = b'oglw'
+    INNER_GLOW = b'iglw'
+    BEVEL = b'bevl'
+    SOLID_FILL = b'sofi'
+
 class UnitFloatType(Enum):
     """
     Units the value is in (used in Unit float structure)
@@ -385,8 +405,8 @@ class DimensionUnit(Enum):
     COLUMN = 5
 
 class TextProperty(Enum):
-    TXT = 'Txt '
-    ORIENTATION = 'Ornt'
+    TXT = b'Txt '
+    ORIENTATION = b'Ornt'
 
 class TextOrientation(Enum):
-    HORIZONTAL = 'Hrzn'
+    HORIZONTAL = b'Hrzn'

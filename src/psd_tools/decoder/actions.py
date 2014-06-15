@@ -22,7 +22,7 @@ Offset = pretty_namedtuple('Offset', 'name classID value')
 Alias = pretty_namedtuple('Alias', 'value')
 List = pretty_namedtuple('List', 'items')
 Integer = pretty_namedtuple('Integer', 'value')
-Enum = pretty_namedtuple('Enum', 'type enum')
+Enum = pretty_namedtuple('Enum', 'type value')
 _EngineData = pretty_namedtuple('EngineData', 'value')
 
 
@@ -63,7 +63,7 @@ def get_ostype(ostype):
 
 
 def decode_descriptor(_, fp):
-    name = read_unicode_string(fp)
+    name = read_unicode_string(fp)[:-1]
     classID_length = read_fmt("I", fp)[0]
     classID = fp.read(classID_length or 4)
 
@@ -78,7 +78,7 @@ def decode_descriptor(_, fp):
         if decode_ostype:
             value = decode_ostype(key, fp)
             if value is not None:
-                items.append((key.decode(), value))
+                items.append((key, value))
 
     return Descriptor(name, classID, items)
 
@@ -86,7 +86,7 @@ def decode_ref(key, fp):
     item_count = read_fmt("I", fp)[0]
     items = []
     for _ in range(item_count):
-        ostype = read_fmt("I", fp)
+        ostype = fp.read(4)
 
         decode_ostype = {
             ReferenceOSType.PROPERTY:   decode_prop,
@@ -105,7 +105,7 @@ def decode_ref(key, fp):
     return Reference(items)
 
 def decode_prop(key, fp):
-    name = read_unicode_string(fp)
+    name = read_unicode_string(fp)[:-1]
     classID_length = read_fmt("I", fp)[0]
     classID = fp.read(classID_length or 4)
     keyID_length = read_fmt("I", fp)[0]
@@ -116,14 +116,14 @@ def decode_unit_float(key, fp):
     unit_key = fp.read(4)
 
     if UnitFloatType.is_known(unit_key):
-        value = read_fmt("d", fp)
+        value = read_fmt("d", fp)[0]
         return UnitFloat(UnitFloatType.name_of(unit_key), value)
 
 def decode_double(key, fp):
-    return Double(read_fmt("d", fp))
+    return Double(read_fmt("d", fp)[0])
 
 def decode_class(key, fp):
-    name = read_unicode_string(fp)
+    name = read_unicode_string(fp)[:-1]
     classID_length = read_fmt("I", fp)[0]
     classID = fp.read(classID_length or 4)
     return Class(name, classID)
@@ -133,7 +133,7 @@ def decode_string(key, fp):
     return String(value)
 
 def decode_enum_ref(key, fp):
-    name = read_unicode_string(fp)
+    name = read_unicode_string(fp)[:-1]
     classID_length = read_fmt("I", fp)[0]
     classID = fp.read(classID_length or 4)
     typeID_length = read_fmt("I", fp)[0]
@@ -143,14 +143,14 @@ def decode_enum_ref(key, fp):
     return EnumReference(name, classID, typeID, enum)
 
 def decode_offset(key, fp):
-    name = read_unicode_string(fp)
+    name = read_unicode_string(fp)[:-1]
     classID_length = read_fmt("I", fp)[0]
     classID = fp.read(classID_length or 4)
     offset = read_fmt("I", fp)[0]
     return Offset(name, classID, offset)
 
 def decode_bool(key, fp):
-    return Boolean(read_fmt("?", fp))
+    return Boolean(read_fmt("?", fp)[0])
 
 def decode_alias(key, fp):
     length = read_fmt("I", fp)[0]
@@ -161,11 +161,11 @@ def decode_list(key, fp):
     items_count = read_fmt("I", fp)[0]
     items = []
     for _ in range(items_count):
-        ostype = read_fmt("I", fp)
+        ostype = fp.read(4)
 
         decode_ostype = get_ostype(ostype)
         if decode_ostype:
-            value = decode_ostype(fp)
+            value = decode_ostype(key, fp)
             if value is not None:
                 items.append(value)
 
@@ -177,9 +177,9 @@ def decode_integer(key, fp):
 def decode_enum(key, fp):
     type_length = read_fmt("I", fp)[0]
     type_ = fp.read(type_length or 4)
-    enum_length = read_fmt("I", fp)[0]
-    enum = fp.read(enum_length or 4)
-    return Enum(type_, enum)
+    value_length = read_fmt("I", fp)[0]
+    value = fp.read(value_length or 4)
+    return Enum(type_, value)
 
 
 class UnknownOSType(ValueError):
@@ -193,7 +193,9 @@ class UnknownOSType(ValueError):
 def decode_raw(key, fp):
     # This is the only thing we know about.
     if key == b'EngineData':
-        raw = fp.read()
+        # The first unsigned int determines the size of the enginedata
+        size = read_fmt("I", fp)[0]
+        raw = fp.read(size)
         return decode_enginedata(raw)
 
     # XXX: The spec says variable data without a length ._.
