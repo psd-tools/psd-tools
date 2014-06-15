@@ -10,7 +10,7 @@
 - scalar descriptor values (doubles, floats, booleans) are now returned
   as scalars, not as lists of size 1 (thanks Evgeny Kopylov);
 - fixed reading of EngineData past declared length
-  (thanks Evgeny Kopylov);
+  (thanks Carlton P. Taylor);
 - "background color" Image Resource parsing (thanks Evgeny Kopylov);
 - `psd_tools.decoder.actions.Enum.enum` field is renamed to
   `psd_tools.decoder.actions.Enum.value` (thanks Evgeny Kopylov);

@@ -11,4 +11,5 @@ Contributors
 * Alexey Buzanov;
 * Alex Martyn;
 * Vladimir Timofeev;
-* Evgeny Kopylov.
+* Evgeny Kopylov;
+* Carlton P. Taylor.
