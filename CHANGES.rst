@@ -1,4 +1,23 @@
 
+0.10 (2014-06-15)
+-----------------
+
+- Layer effects parsing (thanks Evgeny Kopylov);
+- trailing null bytes are stripped from descriptor strings
+  (thanks Evgeny Kopylov);
+- "Refernce" and "List" descriptor parsing is fixed
+  (thanks Evgeny Kopylov);
+- scalar descriptor values (doubles, floats, booleans) are now returned
+  as scalars, not as lists of size 1 (thanks Evgeny Kopylov);
+- fixed reading of EngineData past declared length
+  (thanks Evgeny Kopylov);
+- "background color" Image Resource parsing (thanks Evgeny Kopylov);
+- `psd_tools.decoder.actions.Enum.enum` field is renamed to
+  `psd_tools.decoder.actions.Enum.value` (thanks Evgeny Kopylov);
+- code simplification - constants are now bytestrings as they should be
+  (thanks Evgeny Kopylov);
+- Python 3.4 is supported.
+
 0.9.1 (2014-03-26)
 ------------------
 
