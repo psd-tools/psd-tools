@@ -5,7 +5,7 @@
 - Layer effects parsing (thanks Evgeny Kopylov);
 - trailing null bytes are stripped from descriptor strings
   (thanks Evgeny Kopylov);
-- "Refernce" and "List" descriptor parsing is fixed
+- "Reference" and "List" descriptor parsing is fixed
   (thanks Evgeny Kopylov);
 - scalar descriptor values (doubles, floats, booleans) are now returned
   as scalars, not as lists of size 1 (thanks Evgeny Kopylov);
