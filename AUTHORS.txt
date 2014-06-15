@@ -10,4 +10,5 @@ Contributors
 * Ivan Maradzhyiski;
 * Alexey Buzanov;
 * Alex Martyn;
-* Vladimir Timofeev.
+* Vladimir Timofeev;
+* Evgeny Kopylov.
