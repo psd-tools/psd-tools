@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
 
-from . import image_resources, tagged_blocks
+from . import image_resources, tagged_blocks, color
+import io
 from psd_tools.constants import TaggedBlock
 
 def parse(reader_parse_result):
 
     layer_and_mask_data = reader_parse_result.layer_and_mask_data
-    layers = layer_and_mask_data.layers
 
-    new_layers = decode_layers(layers)
+    new_layers = decode_layers(layer_and_mask_data.layers)
+    new_global_mask_info = decode_global_mask_info(layer_and_mask_data.global_mask_info)
     new_tagged_blocks = tagged_blocks.decode(layer_and_mask_data.tagged_blocks)
 
     # 16 and 32 bit layers are stored in Lr16 and Lr32 tagged blocks
@@ -23,12 +24,13 @@ def parse(reader_parse_result):
     # XXX: this code is complicated because of the namedtuple abuse
     new_layer_and_mask_data = layer_and_mask_data._replace(
         layers = new_layers,
+        global_mask_info = new_global_mask_info,
         tagged_blocks = new_tagged_blocks
     )
 
     reader_parse_result = reader_parse_result._replace(
         image_resource_blocks = image_resources.decode(reader_parse_result.image_resource_blocks),
-        layer_and_mask_data = new_layer_and_mask_data,
+        layer_and_mask_data = new_layer_and_mask_data
     )
 
     return reader_parse_result
@@ -40,3 +42,12 @@ def decode_layers(layers):
         ) for rec in layers.layer_records
     ]
     return layers._replace(layer_records = new_layer_records)
+
+def decode_global_mask_info(global_mask_info):
+    if not global_mask_info:
+        return None
+
+    fp = io.BytesIO(global_mask_info.overlay_color)
+    return global_mask_info._replace(
+        overlay_color = color.decode_color(fp)
+    )

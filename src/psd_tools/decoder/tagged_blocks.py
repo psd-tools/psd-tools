@@ -63,7 +63,7 @@ def parse_tagged_block(block):
 @register(TaggedBlock.SOLID_COLOR)
 def _decode_soco(data):
     fp = io.BytesIO(data)
-    version = read_fmt("I", fp)
+    version = read_fmt("I", fp)[0]
     try:
         data = decode_descriptor(None, fp)
         return SolidColorSettings(version, data)

@@ -32,14 +32,16 @@ class LayerRecord(_LayerRecord):
 
 
 Layers = pretty_namedtuple('Layers', 'length, layer_count, layer_records, channel_image_data')
-LayerFlags = pretty_namedtuple('LayerFlags', 'transparency_protected visible')
+LayerFlags = pretty_namedtuple('LayerFlags', 'transparency_protected visible pixel_data_irrelevant')
 LayerAndMaskData = pretty_namedtuple('LayerAndMaskData', 'layers global_mask_info tagged_blocks')
 _ChannelInfo = pretty_namedtuple('ChannelInfo', 'id length')
-_MaskData = pretty_namedtuple('MaskData', 'top left bottom right default_color flags real_flags real_background')
+_MaskData = pretty_namedtuple('MaskData', 'top left bottom right default_color flags parameters real_flags real_background')
+MaskFlags = pretty_namedtuple('MaskFlags', 'pos_relative_to_layer mask_disabled invert_mask user_mask_from_render parameters_applied')
+MaskParameters = pretty_namedtuple('MaskParameters', 'user_mask_density user_mask_feather vector_mask_density vector_mask_feather')
 LayerBlendingRanges = pretty_namedtuple('LayerBlendingRanges', 'composite_ranges channel_ranges')
 _ChannelData = pretty_namedtuple('ChannelData', 'compression data')
 _Block = pretty_namedtuple('Block', 'key data')
-GlobalMaskInfo = pretty_namedtuple('GlobalMaskInfo', 'overlay color_components opacity kind')
+GlobalMaskInfo = pretty_namedtuple('GlobalMaskInfo', 'overlay_color opacity kind')
 
 
 class ChannelInfo(_ChannelInfo):
@@ -106,16 +108,15 @@ def read(fp, encoding, depth):
 
     layers = _read_layers(fp, encoding, depth)
 
-    # XXX: are tagged blocks really after the layers?
-    # XXX: does global mask reading really work?
     global_mask_info = _read_global_mask_info(fp)
 
-    consumed_bytes = fp.tell() - start_position
     synchronize(fp) # hack hack hack
-    tagged_blocks = _read_layer_tagged_blocks(fp, length - consumed_bytes)
+    remaining_length = length - (fp.tell() - start_position)
+    tagged_blocks = _read_layer_tagged_blocks(fp, remaining_length)
 
-    consumed_bytes = fp.tell() - start_position
-    fp.seek(length-consumed_bytes, 1)
+    remaining_length = length - (fp.tell() - start_position)
+    if remaining_length:
+        fp.seek(remaining_length, 1)
 
     return LayerAndMaskData(layers, global_mask_info, tagged_blocks)
 
@@ -171,7 +172,10 @@ def _read_layer_record(fp, encoding):
     opacity, clipping, flags, extra_length = read_fmt("BBBxI", fp)
     logger.debug('  extra_length=%s', extra_length)
 
-    flags = LayerFlags(bool(flags & 1), not bool(flags & 2)) # why not?
+    flags = LayerFlags(
+        bool(flags & 1), not bool(flags & 2),           # why "not"?
+        bool(flags & 16) if bool(flags & 8) else None
+    )
 
     if not Clipping.is_known(clipping):
         warnings.warn("Unknown clipping: %s" % clipping)
@@ -188,7 +192,7 @@ def _read_layer_record(fp, encoding):
     remaining_length = extra_length - (fp.tell()-start)
     if remaining_length:
         logger.debug('  skipping %s bytes', remaining_length)
-        fp.seek(remaining_length, 1) # skip the reminder
+        fp.seek(remaining_length, 1) # skip the remainder
 
     return LayerRecord(
         top, left, bottom, right,
@@ -236,25 +240,36 @@ def _read_additional_layer_info_block(fp):
 def _read_layer_mask_data(fp):
     """ Reads layer mask or adjustment layer data. """
     size = read_fmt("I", fp)[0]
-    if size not in [0, 20, 36]:
-        warnings.warn("Invalid layer data size: %d" % size)
-        fp.seek(size, 1)
-        return
-
     if not size:
         return
 
     top, left, bottom, right, default_color, flags = read_fmt("4i 2B", fp)
+    flags = MaskFlags(
+        bool(flags & 1), bool(flags & 2), bool(flags & 4),
+        bool(flags & 8), bool(flags & 16)
+    )
+
+    parameters = None
+
     if size == 20:
         fp.seek(2, 1)
         real_flags, real_background = None, None
     else:
+        if flags.parameters_applied:
+            parameters = read_fmt("B", fp)[0]
+            parameters = MaskParameters(
+                read_fmt("B", fp)[0] if bool(parameters & 1) else None,
+                read_fmt("d", fp)[0] if bool(parameters & 2) else None,
+                read_fmt("B", fp)[0] if bool(parameters & 4) else None,
+                read_fmt("d", fp)[0] if bool(parameters & 8) else None
+            )
+
         real_flags, real_background = read_fmt("2B", fp)
 
         # XXX: is it correct to prefer data at the end?
         top, left, bottom, right = read_fmt("4i", fp)
 
-    return MaskData(top, left, bottom, right, default_color, flags, real_flags, real_background)
+    return MaskData(top, left, bottom, right, default_color, flags, parameters, real_flags, real_background)
 
 
 def _read_layer_blending_ranges(fp):
@@ -310,11 +325,7 @@ def _read_channel_image_data(fp, layer, depth):
             data_size = sum_counts * bytes_per_pixel
             logger.debug('    data size = %sx%s=%s bytes', sum_counts, bytes_per_pixel, data_size)
 
-        elif compress_type == Compression.ZIP:
-            data_size = channel.length - 2
-            logger.debug('    data size = %s-2=%s bytes', channel.length, data_size)
-
-        elif compress_type == Compression.ZIP_WITH_PREDICTION:
+        elif compress_type in (Compression.ZIP, Compression.ZIP_WITH_PREDICTION):
             data_size = channel.length - 2
             logger.debug('    data size = %s-2=%s bytes', channel.length, data_size)
 
@@ -352,18 +363,21 @@ def _read_global_mask_info(fp):
     """
     Reads global layer mask info.
     """
-    # XXX: Does it really work properly? What is it for?
+    # XXX: What is it for?
     start_pos = fp.tell()
-    length = read_fmt("H", fp)[0]
+    length = read_fmt("I", fp)[0]
 
     if length:
-        overlay_color_space, c1, c2, c3, c4, opacity, kind = read_fmt("H 4H HB", fp)
+        overlay_color = fp.read(10)
+        opacity, kind = read_fmt("HB", fp)
+
         filler_length = length - (fp.tell()-start_pos)
         if filler_length > 0:
             fp.seek(filler_length, 1)
-        return GlobalMaskInfo(overlay_color_space, (c1, c2, c3, c4), opacity, kind)
-    else:
-        return None
+
+        return GlobalMaskInfo(overlay_color, opacity, kind)
+
+    return None
 
 def read_image_data(fp, header):
     """
