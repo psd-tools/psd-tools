@@ -102,21 +102,27 @@ def read(fp, encoding, depth):
     """
     logger.debug('reading layers and masks information...')
     length = read_fmt("I", fp)[0]
-    start_position = fp.tell()
+    start_pos = fp.tell()
 
-    logger.debug('length=%d, start_position=%d', length, start_position)
+    logger.debug('length=%d, start_pos=%d', length, start_pos)
 
     layers = _read_layers(fp, encoding, depth)
 
-    global_mask_info = _read_global_mask_info(fp)
+    global_mask_info = None
+    tagged_blocks = []
 
-    synchronize(fp) # hack hack hack
-    remaining_length = length - (fp.tell() - start_position)
-    tagged_blocks = _read_layer_tagged_blocks(fp, remaining_length)
+    remaining_length = length - (fp.tell() - start_pos)
+    if remaining_length > 0:
+        global_mask_info = _read_global_mask_info(fp)
 
-    remaining_length = length - (fp.tell() - start_position)
-    if remaining_length:
-        fp.seek(remaining_length, 1)
+        synchronize(fp) # hack hack hack
+        remaining_length = length - (fp.tell() - start_pos)
+        tagged_blocks = _read_layer_tagged_blocks(fp, remaining_length, 4)
+
+        remaining_length = length - (fp.tell() - start_pos)
+        if remaining_length > 0:
+            fp.seek(remaining_length, 1)
+            logger.debug('  skipping %s bytes', remaining_length)
 
     return LayerAndMaskData(layers, global_mask_info, tagged_blocks)
 
@@ -127,9 +133,11 @@ def _read_layers(fp, encoding, depth, length=None):
     """
     logger.debug('reading layers...')
 
+    layer_count = 0
     if length is None:
         length = read_fmt("I", fp)[0]
-    layer_count = read_fmt("h", fp)[0]
+    if length > 0:
+        layer_count = read_fmt("h", fp)[0]
 
     logger.debug('layer_count=%d, length=%d', layer_count, length)
 
@@ -180,19 +188,19 @@ def _read_layer_record(fp, encoding):
     if not Clipping.is_known(clipping):
         warnings.warn("Unknown clipping: %s" % clipping)
 
-    start = fp.tell()
+    start_pos = fp.tell()
     mask_data = _read_layer_mask_data(fp)
     blending_ranges = _read_layer_blending_ranges(fp)
 
     name = read_pascal_string(fp, encoding, 4)
 
-    remaining_length = extra_length - (fp.tell()-start)
+    remaining_length = extra_length - (fp.tell() - start_pos)
     tagged_blocks = _read_layer_tagged_blocks(fp, remaining_length)
 
-    remaining_length = extra_length - (fp.tell()-start)
-    if remaining_length:
-        logger.debug('  skipping %s bytes', remaining_length)
+    remaining_length = extra_length - (fp.tell() - start_pos)
+    if remaining_length > 0:
         fp.seek(remaining_length, 1) # skip the remainder
+        logger.debug('  skipping %s bytes', remaining_length)
 
     return LayerRecord(
         top, left, bottom, right,
@@ -203,7 +211,7 @@ def _read_layer_record(fp, encoding):
     )
 
 
-def _read_layer_tagged_blocks(fp, remaining_length):
+def _read_layer_tagged_blocks(fp, remaining_length, padding=0):
     """
     Reads a section of tagged blocks with additional layer information.
     """
@@ -211,7 +219,7 @@ def _read_layer_tagged_blocks(fp, remaining_length):
     start_pos = fp.tell()
     read_bytes = 0
     while read_bytes < remaining_length:
-        block = _read_additional_layer_info_block(fp)
+        block = _read_additional_layer_info_block(fp, padding)
         read_bytes = fp.tell() - start_pos
         if block is None:
             break
@@ -220,7 +228,7 @@ def _read_layer_tagged_blocks(fp, remaining_length):
     return blocks
 
 
-def _read_additional_layer_info_block(fp):
+def _read_additional_layer_info_block(fp, padding):
     """
     Reads a tagged block with additional layer information.
     """
@@ -231,7 +239,9 @@ def _read_additional_layer_info_block(fp):
         return
 
     key = fp.read(4)
-    length = pad(read_fmt("I", fp)[0], 4)
+    length = read_fmt("I", fp)[0]
+    if padding > 0:
+        length = pad(length, padding)
 
     data = fp.read(length)
     return Block(key, data)
@@ -241,7 +251,7 @@ def _read_layer_mask_data(fp):
     """ Reads layer mask or adjustment layer data. """
     size = read_fmt("I", fp)[0]
     if not size:
-        return
+        return None
 
     top, left, bottom, right, default_color, flags = read_fmt("4i 2B", fp)
     flags = MaskFlags(
@@ -321,9 +331,8 @@ def _read_channel_image_data(fp, layer, depth):
 
         elif compress_type == Compression.PACK_BITS:
             byte_counts = read_be_array("H", h, fp)
-            sum_counts = sum(byte_counts)
-            data_size = sum_counts * bytes_per_pixel
-            logger.debug('    data size = %sx%s=%s bytes', sum_counts, bytes_per_pixel, data_size)
+            data_size = sum(byte_counts)
+            logger.debug('    data size = %s bytes', data_size)
 
         elif compress_type in (Compression.ZIP, Compression.ZIP_WITH_PREDICTION):
             data_size = channel.length - 2
@@ -351,10 +360,10 @@ def _read_channel_image_data(fp, layer, depth):
 
             channel_data.append(ChannelData(compress_type, data))
 
-        remaining_bytes = channel.length - (fp.tell() - start_pos) - 2
-        if remaining_bytes > 0:
-            fp.seek(remaining_bytes, 1)
-            logger.debug('    skipping %s bytes', remaining_bytes)
+        remaining_length = channel.length - (fp.tell() - start_pos)
+        if remaining_length > 0:
+            fp.seek(remaining_length, 1)
+            logger.debug('    skipping %s bytes', remaining_length)
 
     return channel_data
 
@@ -364,20 +373,20 @@ def _read_global_mask_info(fp):
     Reads global layer mask info.
     """
     # XXX: What is it for?
-    start_pos = fp.tell()
     length = read_fmt("I", fp)[0]
+    if length == 0:
+        return None
 
-    if length:
-        overlay_color = fp.read(10)
-        opacity, kind = read_fmt("HB", fp)
+    start_pos = fp.tell()
 
-        filler_length = length - (fp.tell()-start_pos)
-        if filler_length > 0:
-            fp.seek(filler_length, 1)
+    overlay_color = fp.read(10)
+    opacity, kind = read_fmt("HB", fp)
 
-        return GlobalMaskInfo(overlay_color, opacity, kind)
+    filler_length = length - (fp.tell() - start_pos)
+    if filler_length > 0:
+        fp.seek(filler_length, 1)
 
-    return None
+    return GlobalMaskInfo(overlay_color, opacity, kind)
 
 def read_image_data(fp, header):
     """
