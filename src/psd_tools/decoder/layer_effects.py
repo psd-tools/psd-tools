@@ -4,7 +4,7 @@ import warnings
 import io
 
 from psd_tools.decoder import decoders
-from psd_tools.decoder.actions import decode_descriptor
+from psd_tools.decoder.actions import decode_descriptor, UnknownOSType
 from psd_tools.decoder.color import decode_color
 from psd_tools.exceptions import Error
 from psd_tools.utils import read_fmt
@@ -95,7 +95,11 @@ def decode_object_based(effects):
     fp = io.BytesIO(effects)
 
     version, descriptor_version = read_fmt("II", fp)
-    descriptor = decode_descriptor(None, fp)
+    try:
+        descriptor = decode_descriptor(None, fp)
+    except UnknownOSType as e:
+        warnings.warn("Ignoring object-based layer effects tagged block (%s)" % e)
+        return effects
 
     return ObjectBasedEffects(version, descriptor_version, descriptor)
 

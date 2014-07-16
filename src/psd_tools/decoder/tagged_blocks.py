@@ -28,10 +28,9 @@ SolidColorSettings = pretty_namedtuple('SolidColorSettings', 'version data')
 MetadataItem = pretty_namedtuple('MetadataItem', 'sig key copy_on_sheet_duplication data')
 ProtectedSetting = pretty_namedtuple('ProtectedSetting', 'transparency, composite, position')
 TypeToolObjectSetting = pretty_namedtuple('TypeToolObjectSetting',
-                        'version xx xy yx yy tx ty text_version descriptor_version1 text_data')
-                        #'warp_version descriptor_version2 warp_data'
-                        #'left top right bottom')
-VectorOriginationData = pretty_namedtuple('VectorOriginationData', 'version1 version2 data')
+                        'version xx xy yx yy tx ty text_version descriptor1_version text_data '
+                        'warp_version descriptor2_version warp_data left top right bottom')
+VectorOriginationData = pretty_namedtuple('VectorOriginationData', 'version descriptor_version data')
 
 
 class Divider(collections.namedtuple('Divider', 'block type key')):
@@ -60,7 +59,7 @@ def parse_tagged_block(block):
     return Block(block.key, decoder(block.data))
 
 
-@register(TaggedBlock.SOLID_COLOR)
+@register(TaggedBlock.SOLID_COLOR_SHEET_SETTING)
 def _decode_soco(data):
     fp = io.BytesIO(data)
     version = read_fmt("I", fp)[0]
@@ -69,6 +68,7 @@ def _decode_soco(data):
         return SolidColorSettings(version, data)
     except UnknownOSType as e:
         warnings.warn("Ignoring solid color tagged block (%s)" % e)
+        return data
 
 
 @register(TaggedBlock.REFERENCE_POINT)
@@ -152,10 +152,10 @@ def _decode_layer16(data):
 @register(TaggedBlock.TYPE_TOOL_OBJECT_SETTING)
 def _decode_type_tool_object_setting(data):
     fp = io.BytesIO(data)
-    ver, xx, xy, yx, yy, tx, ty, txt_ver, desc_ver1 = read_fmt("H 6Q H I", fp)
+    ver, xx, xy, yx, yy, tx, ty, txt_ver, descr1_ver = read_fmt("H 6d H I", fp)
 
     # This decoder needs to be updated if we have new formats.
-    if ver != 1 or txt_ver != 50 or desc_ver1 != 16:
+    if ver != 1 or txt_ver != 50 or descr1_ver != 16:
         warnings.warn("Ignoring type setting tagged block due to old versions")
         return data
 
@@ -165,35 +165,32 @@ def _decode_type_tool_object_setting(data):
         warnings.warn("Ignoring type setting tagged block (%s)" % e)
         return data
 
-    # XXX: Until Engine Data is parsed properly, the following cannot be parsed.
-    # The end of the engine data dictates where this starts.
-    return TypeToolObjectSetting(ver, xx, xy, yx, yy, tx, ty, txt_ver, desc_ver1, text_data)
-
-    warp_ver, desc_ver2 = read_fmt("H I", fp)
-    if warp_ver != 1 or desc_ver2 != 16:
+    warp_ver, descr2_ver = read_fmt("H I", fp)
+    if warp_ver != 1 or descr2_ver != 16:
         warnings.warn("Ignoring type setting tagged block due to old versions")
-        return
+        return data
 
     try:
         warp_data = decode_descriptor(None, fp)
     except UnknownOSType as e:
         warnings.warn("Ignoring type setting tagged block (%s)" % e)
-        return
+        return data
 
-    left, top, right, bottom = read_fmt("4Q", fp)
-    return TypeToolObjectSetting(ver, xx, xy, yx, yy, tx, ty, txt_ver, desc_ver1,
-                                 text_data, warp_ver, desc_ver2, warp_data,
-                                 left, top, right, bottom)
+    left, top, right, bottom = read_fmt("4i", fp)   # wrong info in specs...
+    return TypeToolObjectSetting(
+        ver, xx, xy, yx, yy, tx, ty, txt_ver, descr1_ver, text_data,
+        warp_ver, descr2_ver, warp_data, left, top, right, bottom
+    )
 
 
 @register(TaggedBlock.VECTOR_ORIGINATION_DATA)
 def _decode_vector_origination_data(data):
     fp = io.BytesIO(data)
-    ver1, ver2 = read_fmt("II", fp)
+    ver, descr_ver = read_fmt("II", fp)
 
     # This decoder needs to be updated if we have new formats.
-    if ver1 != 1 and ver2 != 16:
-        warnings.warn("Ignoring vector origination tagged block due to unsupported versions %s %s" % (ver1, ver2))
+    if ver != 1 and descr_ver != 16:
+        warnings.warn("Ignoring vector origination tagged block due to unsupported versions %s %s" % (ver, descr_ver))
         return data
 
     try:
@@ -202,5 +199,4 @@ def _decode_vector_origination_data(data):
         warnings.warn("Ignoring vector origination tagged block (%s)" % e)
         return data
 
-    return VectorOriginationData(ver1, ver2, vector_origination_data)
-
+    return VectorOriginationData(ver, descr_ver, vector_origination_data)
