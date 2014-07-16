@@ -35,9 +35,12 @@ Layers = pretty_namedtuple('Layers', 'length, layer_count, layer_records, channe
 LayerFlags = pretty_namedtuple('LayerFlags', 'transparency_protected visible pixel_data_irrelevant')
 LayerAndMaskData = pretty_namedtuple('LayerAndMaskData', 'layers global_mask_info tagged_blocks')
 _ChannelInfo = pretty_namedtuple('ChannelInfo', 'id length')
-_MaskData = pretty_namedtuple('MaskData', 'top left bottom right default_color flags parameters real_flags real_background')
-MaskFlags = pretty_namedtuple('MaskFlags', 'pos_relative_to_layer mask_disabled invert_mask user_mask_from_render parameters_applied')
-MaskParameters = pretty_namedtuple('MaskParameters', 'user_mask_density user_mask_feather vector_mask_density vector_mask_feather')
+_MaskData = pretty_namedtuple('MaskData', 'top left bottom right default_color flags parameters '
+                                          'real_flags real_background real_top real_left real_bottom real_right')
+MaskFlags = pretty_namedtuple('MaskFlags', 'pos_relative_to_layer mask_disabled invert_mask '
+                                           'user_mask_from_render parameters_applied')
+MaskParameters = pretty_namedtuple('MaskParameters', 'user_mask_density user_mask_feather '
+                                                     'vector_mask_density vector_mask_feather')
 LayerBlendingRanges = pretty_namedtuple('LayerBlendingRanges', 'composite_ranges channel_ranges')
 _ChannelData = pretty_namedtuple('ChannelData', 'compression data')
 _Block = pretty_namedtuple('Block', 'key data')
@@ -58,6 +61,12 @@ class MaskData(_MaskData):
 
     def height(self):
         return self.bottom - self.top
+
+    def real_width(self):
+        return self.real_right - self.real_left
+
+    def real_height(self):
+        return self.real_bottom - self.real_top
 
 
 class ChannelData(_ChannelData):
@@ -113,6 +122,8 @@ def read(fp, encoding, depth):
 
     remaining_length = length - (fp.tell() - start_pos)
     if remaining_length > 0:
+        logger.debug('reading global mask info...')
+
         global_mask_info = _read_global_mask_info(fp)
 
         synchronize(fp) # hack hack hack
@@ -122,7 +133,7 @@ def read(fp, encoding, depth):
         remaining_length = length - (fp.tell() - start_pos)
         if remaining_length > 0:
             fp.seek(remaining_length, 1)
-            logger.debug('  skipping %s bytes', remaining_length)
+            logger.debug('skipping %s bytes', remaining_length)
 
     return LayerAndMaskData(layers, global_mask_info, tagged_blocks)
 
@@ -134,24 +145,33 @@ def _read_layers(fp, encoding, depth, length=None):
     logger.debug('reading layers...')
 
     layer_count = 0
+    layer_records = []
+    channel_image_data = []
     if length is None:
         length = read_fmt("I", fp)[0]
+
     if length > 0:
+        start_pos = fp.tell()
         layer_count = read_fmt("h", fp)[0]
 
-    logger.debug('layer_count=%d, length=%d', layer_count, length)
+        logger.debug('layer_count=%d, length=%d', layer_count, length)
 
-    layer_records = []
-    for idx in range(abs(layer_count)):
-        logger.debug('reading layer record %d, pos=%d', idx, fp.tell())
-        layer = _read_layer_record(fp, encoding)
-        layer_records.append(layer)
+        for idx in range(abs(layer_count)):
+            logger.debug('reading layer record %d, pos=%d', idx, fp.tell())
+            layer = _read_layer_record(fp, encoding)
+            layer_records.append(layer)
 
-    channel_image_data = []
-    for idx, layer in enumerate(layer_records):
-        logger.debug('reading layer channel data %d, pos=%d', idx, fp.tell())
-        data = _read_channel_image_data(fp, layer, depth)
-        channel_image_data.append(data)
+        for idx, layer in enumerate(layer_records):
+            logger.debug('reading layer channel data %d, pos=%d', idx, fp.tell())
+            data = _read_channel_image_data(fp, layer, depth)
+            channel_image_data.append(data)
+
+        remaining_length = length - (fp.tell() - start_pos)
+        if remaining_length > 0:
+            fp.seek(remaining_length, 1)
+            logger.debug('skipping %s bytes', remaining_length)
+    else:
+        logger.debug('layer_count=%d, length=%d', layer_count, length)
 
     return Layers(length, layer_count, layer_records, channel_image_data)
 
@@ -264,6 +284,7 @@ def _read_layer_mask_data(fp):
     if size == 20:
         fp.seek(2, 1)
         real_flags, real_background = None, None
+        real_top, real_left, real_bottom, real_right = None, None, None, None
     else:
         if flags.parameters_applied:
             parameters = read_fmt("B", fp)[0]
@@ -275,11 +296,12 @@ def _read_layer_mask_data(fp):
             )
 
         real_flags, real_background = read_fmt("2B", fp)
+        real_top, real_left, real_bottom, real_right = read_fmt("4i", fp)
 
-        # XXX: is it correct to prefer data at the end?
-        top, left, bottom, right = read_fmt("4i", fp)
-
-    return MaskData(top, left, bottom, right, default_color, flags, parameters, real_flags, real_background)
+    return MaskData(
+        top, left, bottom, right, default_color, flags, parameters,
+        real_flags, real_background, real_top, real_left, real_bottom, real_right
+    )
 
 
 def _read_layer_blending_ranges(fp):
@@ -313,6 +335,8 @@ def _read_channel_image_data(fp, layer, depth):
         logger.debug("  reading %s", channel)
         if channel.id == ChannelID.USER_LAYER_MASK:
             w, h = layer.mask_data.width(), layer.mask_data.height()
+        elif channel.id == ChannelID.REAL_USER_LAYER_MASK:
+            w, h = layer.mask_data.real_width(), layer.mask_data.real_height()
         else:
             w, h = layer.width(), layer.height()
 
@@ -388,6 +412,7 @@ def _read_global_mask_info(fp):
 
     return GlobalMaskInfo(overlay_color, opacity, kind)
 
+
 def read_image_data(fp, header):
     """
     Reads merged image pixel data which is stored at the end of PSD file.
@@ -413,7 +438,7 @@ def read_image_data(fp, header):
 
         elif compress_type == Compression.PACK_BITS:
             byte_counts = channel_byte_counts[channel_id]
-            data_size = sum(byte_counts) * bytes_per_pixel
+            data_size = sum(byte_counts)
             data = fp.read(data_size)
 
         # are there any ZIP-encoded composite images in a wild?
