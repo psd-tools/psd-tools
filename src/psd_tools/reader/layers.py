@@ -35,8 +35,8 @@ Layers = pretty_namedtuple('Layers', 'length, layer_count, layer_records, channe
 LayerFlags = pretty_namedtuple('LayerFlags', 'transparency_protected visible pixel_data_irrelevant')
 LayerAndMaskData = pretty_namedtuple('LayerAndMaskData', 'layers global_mask_info tagged_blocks')
 _ChannelInfo = pretty_namedtuple('ChannelInfo', 'id length')
-_MaskData = pretty_namedtuple('MaskData', 'top left bottom right default_color flags parameters '
-                                          'real_flags real_background real_top real_left real_bottom real_right')
+_MaskData = pretty_namedtuple('MaskData', 'top left bottom right background_color flags parameters '
+                                          'real_flags real_background_color real_top real_left real_bottom real_right')
 MaskFlags = pretty_namedtuple('MaskFlags', 'pos_relative_to_layer mask_disabled invert_mask '
                                            'user_mask_from_render parameters_applied')
 MaskParameters = pretty_namedtuple('MaskParameters', 'user_mask_density user_mask_feather '
@@ -273,7 +273,7 @@ def _read_layer_mask_data(fp):
     if not size:
         return None
 
-    top, left, bottom, right, default_color, flags = read_fmt("4i 2B", fp)
+    top, left, bottom, right, background_color, flags = read_fmt("4i 2B", fp)
     flags = MaskFlags(
         bool(flags & 1), bool(flags & 2), bool(flags & 4),
         bool(flags & 8), bool(flags & 16)
@@ -283,7 +283,7 @@ def _read_layer_mask_data(fp):
 
     if size == 20:
         fp.seek(2, 1)
-        real_flags, real_background = None, None
+        real_flags, real_background_color = None, None
         real_top, real_left, real_bottom, real_right = None, None, None, None
     else:
         if flags.parameters_applied:
@@ -295,12 +295,17 @@ def _read_layer_mask_data(fp):
                 read_fmt("d", fp)[0] if bool(parameters & 8) else None
             )
 
-        real_flags, real_background = read_fmt("2B", fp)
+        real_flags, real_background_color = read_fmt("2B", fp)
+        real_flags = MaskFlags(
+            bool(real_flags & 1), bool(real_flags & 2), bool(real_flags & 4),
+            bool(real_flags & 8), bool(real_flags & 16)
+        )
+
         real_top, real_left, real_bottom, real_right = read_fmt("4i", fp)
 
     return MaskData(
-        top, left, bottom, right, default_color, flags, parameters,
-        real_flags, real_background, real_top, real_left, real_bottom, real_right
+        top, left, bottom, right, background_color, flags, parameters,
+        real_flags, real_background_color, real_top, real_left, real_bottom, real_right
     )
 
 
