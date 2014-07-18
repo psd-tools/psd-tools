@@ -92,7 +92,7 @@ def test_object_based_layer_effect(layer_num, effect_key, param_name, subparam_n
     effects_dict = dict(layer_records[layer_num].tagged_blocks[0].data.descriptor.items)
     effect_info = dict(effects_dict[effect_key].items)
 
-    if subparam_name == None:
+    if subparam_name is None:
         assert effect_info[param_name].value == param_value
     else:
         effect_info = dict(effect_info[param_name].items)
