@@ -78,17 +78,21 @@ def trimmed_repr(data, trim_length=30):
             return repr(data[:trim_length] + b' ... =' + str(len(data)).encode('ascii'))
     return repr(data)
 
-def synchronize(fp, signature=b'8BIM', limit=8):
+def synchronize(fp, limit=8):
     # This is a hack for the cases where I gave up understanding PSD format.
+    signature_list = (b'8BIM', b'8B64')
+
     start = fp.tell()
     data = fp.read(limit)
-    pos = data.find(signature)
-    if pos != -1:
-        fp.seek(start+pos)
-        return True
-    else:
-        fp.seek(start)
-        return False
+
+    for signature in signature_list:
+        pos = data.find(signature)
+        if pos != -1:
+            fp.seek(start+pos)
+            return True
+
+    fp.seek(start)
+    return False
 
 def decode_fixed_point_32bit(data):
     """

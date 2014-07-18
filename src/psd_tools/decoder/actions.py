@@ -8,33 +8,37 @@ from psd_tools.utils import read_unicode_string, read_fmt
 from psd_tools.constants import OSType, ReferenceOSType, UnitFloatType
 from psd_tools.debug import pretty_namedtuple
 from psd_tools.utils import trimmed_repr
+import warnings
 
 Descriptor = pretty_namedtuple('Descriptor', 'name classID items')
-Reference = pretty_namedtuple('Descriptor', 'items')
+Reference = pretty_namedtuple('Reference', 'items')
 Property = pretty_namedtuple('Property', 'name classID keyID')
 UnitFloat = pretty_namedtuple('UnitFloat', 'unit value')
 Double = pretty_namedtuple('Double', 'value')
 Class = pretty_namedtuple('Class', 'name classID')
 String = pretty_namedtuple('String', 'value')
-EnumReference = pretty_namedtuple('String', 'name classID typeID enum')
+EnumReference = pretty_namedtuple('EnumReference', 'name classID typeID enum')
 Boolean = pretty_namedtuple('Boolean', 'value')
 Offset = pretty_namedtuple('Offset', 'name classID value')
 Alias = pretty_namedtuple('Alias', 'value')
 List = pretty_namedtuple('List', 'items')
 Integer = pretty_namedtuple('Integer', 'value')
 Enum = pretty_namedtuple('Enum', 'type value')
-_EngineData = pretty_namedtuple('EngineData', 'value')
+Identifier = pretty_namedtuple('Identifier', 'value')
+Index = pretty_namedtuple('Index', 'value')
+Name = pretty_namedtuple('Name', 'value')
+_RawData = pretty_namedtuple('RawData', 'value')
 
 
-class EngineData(_EngineData):
+class RawData(_RawData):
     def __repr__(self):
-        return "EngineData(value=%s)" % trimmed_repr(self.value)
+        return "RawData(value=%s)" % trimmed_repr(self.value)
 
     def _repr_pretty_(self, p, cycle):
         if cycle:
-            p.text("EngineData(...)")
+            p.text("RawData(...)")
         else:
-            with p.group(1, "EngineData(", ")"):
+            with p.group(1, "RawData(", ")"):
                 p.breakable()
                 p.text("value=")
                 if isinstance(self.value, bytes):
@@ -61,6 +65,17 @@ def get_ostype(ostype):
         OSType.RAW_DATA:    decode_raw,
     }.get(ostype, None)
 
+def get_reference_ostype(ostype):
+    return {
+        ReferenceOSType.PROPERTY:   decode_prop,
+        ReferenceOSType.CLASS:      decode_class,
+        ReferenceOSType.OFFSET:     decode_offset,
+        ReferenceOSType.IDENTIFIER: decode_identifier,
+        ReferenceOSType.INDEX:      decode_index,
+        ReferenceOSType.NAME:       decode_name,
+        ReferenceOSType.ENUMERATED_REFERENCE: decode_enum_ref,
+    }.get(ostype, None)
+
 
 def decode_descriptor(_, fp):
     name = read_unicode_string(fp)[:-1]
@@ -75,10 +90,12 @@ def decode_descriptor(_, fp):
         ostype = fp.read(4)
 
         decode_ostype = get_ostype(ostype)
-        if decode_ostype:
-            value = decode_ostype(key, fp)
-            if value is not None:
-                items.append((key, value))
+        if not decode_ostype:
+            raise UnknownOSType('Unknown descriptor item of type "%s"' % ostype.decode())
+
+        value = decode_ostype(key, fp)
+        if value is not None:
+            items.append((key, value))
 
     return Descriptor(name, classID, items)
 
@@ -88,20 +105,14 @@ def decode_ref(key, fp):
     for _ in range(item_count):
         ostype = fp.read(4)
 
-        decode_ostype = {
-            ReferenceOSType.PROPERTY:   decode_prop,
-            ReferenceOSType.CLASS:      decode_class,
-            ReferenceOSType.OFFSET:     decode_offset,
-            ReferenceOSType.IDENTIFIER: decode_identifier,
-            ReferenceOSType.INDEX:      decode_index,
-            ReferenceOSType.NAME:       decode_name,
-            ReferenceOSType.ENUMERATED_REFERENCE: decode_enum_ref,
-        }.get(ostype, None)
-
+        decode_ostype = get_reference_ostype(ostype)
         if decode_ostype:
-            value = decode_ostype(key, fp)
-            if value is not None:
-                items.append(value)
+            raise UnknownOSType('Unknown reference item of type "%s"' % ostype.decode())
+
+        value = decode_ostype(key, fp)
+        if value is not None:
+            items.append(value)
+
     return Reference(items)
 
 def decode_prop(key, fp):
@@ -114,10 +125,11 @@ def decode_prop(key, fp):
 
 def decode_unit_float(key, fp):
     unit_key = fp.read(4)
+    if not UnitFloatType.is_known(unit_key):
+        warnings.warn('Unknown UnitFloatType: "%s"' % unit_key.decode())
 
-    if UnitFloatType.is_known(unit_key):
-        value = read_fmt("d", fp)[0]
-        return UnitFloat(UnitFloatType.name_of(unit_key), value)
+    value = read_fmt("d", fp)[0]
+    return UnitFloat(UnitFloatType.name_of(unit_key), value)
 
 def decode_double(key, fp):
     return Double(read_fmt("d", fp)[0])
@@ -164,10 +176,12 @@ def decode_list(key, fp):
         ostype = fp.read(4)
 
         decode_ostype = get_ostype(ostype)
-        if decode_ostype:
-            value = decode_ostype(key, fp)
-            if value is not None:
-                items.append(value)
+        if not decode_ostype:
+            raise UnknownOSType('Unknown list item of type "%s"' % ostype.decode())
+
+        value = decode_ostype(key, fp)
+        if value is not None:
+            items.append(value)
 
     return List(items)
 
@@ -181,41 +195,24 @@ def decode_enum(key, fp):
     value = fp.read(value_length or 4)
     return Enum(type_, value)
 
+def decode_identifier(key, fp):
+    return Identifier(read_fmt("I", fp)[0])
+
+def decode_index(key, fp):
+    return Index(read_fmt("I", fp)[0])
+
+def decode_name(key, fp):
+    value = read_unicode_string(fp)[:-1]
+    return Name(value)
+
+
+def decode_raw(key, fp):
+    # This is the only thing we know about:
+    # The first unsigned int determines the size of the raw data.
+    size = read_fmt("I", fp)[0]
+    data = fp.read(size)
+    return RawData(data)
+
 
 class UnknownOSType(ValueError):
     pass
-
-# These need to raise exceptions - they are actually show stoppers. Without
-# knowing how much to read, the rest of the descriptor cannot be parsed. It's
-# probably better to not know any known descriptors unless all are present.
-# Tagged blocks can eat the exception since they know their total length.
-
-def decode_raw(key, fp):
-    # This is the only thing we know about.
-    if key == b'EngineData':
-        # The first unsigned int determines the size of the enginedata
-        size = read_fmt("I", fp)[0]
-        raw = fp.read(size)
-        return decode_enginedata(raw)
-
-    # XXX: The spec says variable data without a length ._.
-    raise UnknownOSType('Cannot decode raw descriptor data')
-
-def decode_identifier(key, fp):
-    # XXX: The spec says nothing about this.
-    raise UnknownOSType('Cannot decode identifier descriptor')
-
-def decode_index(key, fp):
-    # XXX: The spec says nothing about this.
-    raise UnknownOSType('Cannot decode index descriptor')
-
-def decode_name(key, fp):
-    # XXX: The spec says nothing about this.
-    raise UnknownOSType('Cannot decode name descriptor')
-
-
-def decode_enginedata(data):
-    # XXX: This is some kind of dictionary that have magical values.
-    # See java-psd-library for parsing info; the meaning of parsed data is still
-    # unknown.
-    return EngineData(data)
