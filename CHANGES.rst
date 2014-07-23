@@ -1,4 +1,16 @@
 
+1.0 (2014-07-24)
+----------------
+
+- Fixed reading of images with layer masks (thanks Evgeny Kopylov);
+- improved mask data decoding (thanks Evgeny Kopylov);
+- fixed syncronization in case of ``8B64`` signatures (thanks Evgeny Kopylov);
+- fixed reading of layers with zero length (thanks Evgeny Kopylov);
+- fixed Descriptor parsing (thanks Evgeny Kopylov);
+- some of the descriptor structures and tagged block constants are renamed (thanks Evgeny Kopylov);
+- PATH_SELECTION_STATE decoding (thanks Evgeny Kopylov);
+- the library is switched to setuptools; docopt is now installed automatically.
+
 0.10 (2014-06-15)
 -----------------
 
