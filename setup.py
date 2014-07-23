@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-from distutils.core import setup
-from distutils.extension import Extension
-from distutils.command.build_ext import build_ext
+from setuptools import setup
+from setuptools.extension import Extension
+from setuptools.command.build_ext import build_ext
 from distutils import errors
 
 import os
@@ -23,8 +23,10 @@ setup_args = dict(
     description = 'Python package for working with Adobe Photoshop PSD files',
     long_description = open('README.rst').read() + "\n\n" + open('CHANGES.rst').read(),
     license = 'MIT License',
-    requires=['docopt', 'Pillow'],
+    requires=['docopt (>= 0.5)', 'Pillow'],
+    install_requires=['docopt >= 0.5'],
     keywords = "pymaging psd imaging pil pillow",
+    zip_safe=False,
 
     package_dir = {'': 'src'},
     packages = ['psd_tools', 'psd_tools.reader', 'psd_tools.decoder', 'psd_tools.user_api'],

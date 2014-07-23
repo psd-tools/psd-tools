@@ -9,7 +9,6 @@ python:
 
 install:
   - sudo apt-get -qq install libfreetype6-dev liblcms2-dev libwebp-dev libffi-dev
-  - pip install 'docopt >= 0.5'
   - pip install git+git://github.com/ojii/pymaging.git#egg=pymaging
   - pip install 'Pillow >= 2.0'
   - pip install packbits

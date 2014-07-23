@@ -17,32 +17,25 @@ Installation
 
     pip install psd-tools
 
-There are also optional dependencies:
+Pillow_ should be installed if you want work with PSD image and layer data:
+export images to PNG, process them. PIL_ library should also work.
 
-* (recommended) Pillow_ for accessing PSD image and layer data
-  as PIL images::
+::
 
-      pip install Pillow
-
-  PIL_ library should also work.
-
-* docopt_ for command-line interface::
-
-      pip install docopt
-
-* Pymaging_ and packbits_ for accessing PSD image and layer
-  data as ``pymaging.LoadedImage``::
-
-      pip install packbits
-
-  (`Pymaging installation instructions`_ are available in pymaging docs).
+   pip install Pillow
 
 .. note::
 
     In order to extract images from 32bit PSD files PIL/Pillow must be built
     with LITTLECMS or LITTLECMS2 support.
 
-.. _docopt: https://github.com/docopt/docopt
+psd-tools also has a rudimentary support for Pymaging_.
+`Pymaging installation instructions`_ are available in pymaging docs.
+If you want to use Pymaging instead of Pillow you'll also need packbits_
+library::
+
+      pip install packbits
+
 .. _PIL: http://www.pythonware.com/products/pil/
 .. _Pillow: https://github.com/python-imaging/Pillow
 .. _packbits: http://pypi.python.org/pypi/packbits/
@@ -217,6 +210,7 @@ Supported:
   common RAW and RLE);
 * image ICC profile is taken into account;
 * many image resource types and tagged block types are decoded;
+* layer effects information is decoded;
 * Descriptor structures are decoded;
 * there is an optional Cython extension to make the parsing fast;
 * very basic & experimental layer merging.
