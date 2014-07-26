@@ -20,6 +20,15 @@ try:
 except ImportError:
     ImageCms = None
 
+orig_frombytes = frombytes
+def frombytes(mode, size, *args, **kwargs):
+    # PIL chokes if we ask for a (0,0) image, which are valid layers in PSDs.  Convert them
+    # to 1,1 layers with a value of 0.  That's not quite the same, but if the layer has an alpha
+    # mask it'll come out the same.
+    if size == (0, 0):
+        return Image.new(mode, (1,1), 0)
+
+    return orig_frombytes(mode, size, *args, **kwargs)
 
 def extract_layer_image(decoded_data, layer_index):
     """
