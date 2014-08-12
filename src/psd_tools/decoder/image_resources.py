@@ -37,6 +37,7 @@ VersionInfo = collections.namedtuple('VersionInfo', 'version, has_real_merged_da
 PixelAspectRatio = collections.namedtuple('PixelAspectRatio', 'version aspect')
 _ResolutionInfo = collections.namedtuple('ResolutionInfo', 'h_res, h_res_unit, width_unit, v_res, v_res_unit, height_unit')
 PathSelectionState = collections.namedtuple('PathSelectionState', 'descriptor_version descriptor')
+LayerComps = collections.namedtuple('LayerComps', 'descriptor_version descriptor')
 
 
 class ResolutionInfo(_ResolutionInfo):
@@ -152,7 +153,18 @@ def _decode_path_selection_state(data):
     version = read_fmt("I", fp)[0]
 
     try:
-       return PathSelectionState(version, decode_descriptor(None, fp))
+        return PathSelectionState(version, decode_descriptor(None, fp))
     except UnknownOSType as e:
-       warnings.warn("Ignoring image resource %s" % e)
-       return data
+        warnings.warn("Ignoring image resource %s" % e)
+        return data
+
+@register(ImageResourceID.LAYER_COMPS)
+def _decode_layer_comps(data):
+    fp = io.BytesIO(data)
+    version = read_fmt("I", fp)[0]
+
+    try:
+        return LayerComps(version, decode_descriptor(None, fp))
+    except UnknownOSType as e:
+        warnings.warn("Ignoring image resource %s" % e)
+        return data
