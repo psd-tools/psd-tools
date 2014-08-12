@@ -25,7 +25,7 @@ _tagged_block_decoders.update({
 
 
 SolidColorSettings = pretty_namedtuple('SolidColorSettings', 'version data')
-MetadataItem = pretty_namedtuple('MetadataItem', 'sig key copy_on_sheet_duplication data')
+MetadataItem = pretty_namedtuple('MetadataItem', 'key copy_on_sheet_duplication descriptor_version data')
 ProtectedSetting = pretty_namedtuple('ProtectedSetting', 'transparency, composite, position')
 TypeToolObjectSetting = pretty_namedtuple('TypeToolObjectSetting',
                         'version xx xy yx yy tx ty text_version descriptor1_version text_data '
@@ -115,9 +115,23 @@ def _decode_metadata(data):
     items_count = read_fmt("I", fp)[0]
     items = []
     for x in range(items_count):
-        sig, key, copy_on_sheet, data_length = read_fmt("4s 4s ? 3x I", fp)
+        sig = fp.read(4)
+        if sig != b'8BIM':
+            warnings.warn("Invalid signature in metadata item (%s)" % sig)
+
+        key, copy_on_sheet, data_length = read_fmt("4s ? 3x I", fp)
+
         data = fp.read(data_length)
-        items.append(MetadataItem(sig, key, copy_on_sheet, data))
+        try:
+            fp2 = io.BytesIO(data)
+            descr_ver = read_fmt("I", fp2)[0]
+            data = decode_descriptor(None, fp2)
+        except UnknownOSType as e:
+            descr_ver = None
+            warnings.warn("Can't decode metadata item (%s)" % e)
+
+        items.append(MetadataItem(key, copy_on_sheet, descr_ver, data))
+
     return items
 
 
