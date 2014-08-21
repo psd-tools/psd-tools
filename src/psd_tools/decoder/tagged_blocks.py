@@ -6,7 +6,7 @@ import io
 
 from psd_tools.constants import TaggedBlock, SectionDivider
 from psd_tools.decoder.actions import decode_descriptor, UnknownOSType
-from psd_tools.utils import read_fmt, read_unicode_string, unpack
+from psd_tools.utils import read_fmt, unpack
 from psd_tools.decoder import decoders, layer_effects
 from psd_tools.reader.layers import Block
 from psd_tools.debug import pretty_namedtuple
@@ -114,6 +114,7 @@ def _decode_metadata(data):
     fp = io.BytesIO(data)
     items_count = read_fmt("I", fp)[0]
     items = []
+
     for x in range(items_count):
         sig = fp.read(4)
         if sig != b'8BIM':
@@ -122,13 +123,20 @@ def _decode_metadata(data):
         key, copy_on_sheet, data_length = read_fmt("4s ? 3x I", fp)
 
         data = fp.read(data_length)
-        try:
+        if data_length < 4+12:
+            # descr_version is 4 bytes, descriptor is at least 12 bytes,
+            # so data can't be a descriptor.
+            descr_ver = None
+        else:
+            # try load data as a descriptor
             fp2 = io.BytesIO(data)
             descr_ver = read_fmt("I", fp2)[0]
-            data = decode_descriptor(None, fp2)
-        except UnknownOSType as e:
-            descr_ver = None
-            warnings.warn("Can't decode metadata item (%s)" % e)
+            try:
+                data = decode_descriptor(None, fp2)
+            except UnknownOSType as e:
+                # FIXME: can it fail with other exceptions?
+                descr_ver = None
+                warnings.warn("Can't decode metadata item (%s)" % e)
 
         items.append(MetadataItem(key, copy_on_sheet, descr_ver, data))
 
