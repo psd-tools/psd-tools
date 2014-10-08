@@ -2,6 +2,7 @@
 from __future__ import absolute_import, unicode_literals, division
 
 import logging
+import StringIO
 import collections
 import weakref              # FIXME: there should be weakrefs in this module
 import psd_tools.reader
@@ -28,6 +29,48 @@ class TextData(object):
     def __init__(self, tagged_blocks):
         text_data = dict(tagged_blocks.text_data.items)
         self.text = text_data[TextProperty.TXT].value
+
+        self.font_size = self._readData(text_data, "FontSize", self._readProp)
+        self.font_color = self._readData(text_data, "Values", self._readARGB)
+
+    def _readData(self, text_data, key, decoder):
+        rawData = text_data['EngineData'].value
+        stream = StringIO.StringIO(rawData)
+    
+        while True:
+            if stream.pos == len(rawData):
+                break
+
+            c = stream.read(1)
+            if c == '/'.encode('ascii','ignore'):
+                prop = self._readProp(stream)
+                if prop == key:
+                    return decoder(stream)
+                    
+
+    def _readProp(self, stream):
+        prop = ''
+        while True:
+            c = stream.read(1)
+            if c == ' ' or c =='\n' or c=='\r' or c=='\t':
+                break
+            prop += c
+        return prop
+
+    def _readARGB(self, stream):
+        argb = ''
+        
+        c = stream.read(1)
+        #skip to start of string
+        while c !='[':
+           c = stream.read(1)
+           
+        while True:
+            c = stream.read(1)
+            if c ==']':
+                break
+            argb += c
+        return argb
 
 
 class _RawLayer(object):
