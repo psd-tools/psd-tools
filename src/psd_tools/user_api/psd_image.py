@@ -124,7 +124,7 @@ class Layer(_RawLayer):
 
         transform = placed_layer_data.transform
         if transform:
-            return BBox(transform[0], transform[1], transform[4], transform[5])
+            return BBox(transform[0].value, transform[1].value, transform[4].value, transform[5].value)
         else:
             return None
 
@@ -140,7 +140,7 @@ class Layer(_RawLayer):
 
         size = placed_layer_data.size
         if size:
-            return Size(size[SzProperty.WIDTH], size[SzProperty.HEIGHT])
+            return Size(size[SzProperty.WIDTH].value, size[SzProperty.HEIGHT].value)
         else:
             return None
 
