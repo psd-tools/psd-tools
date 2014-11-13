@@ -119,6 +119,8 @@ class Layer(_RawLayer):
 
         if placed_layer_block:
             placed_layer_data = PlacedLayerData(placed_layer_block)
+        else:
+            return None
 
         transform = placed_layer_data.transform
         if transform:
@@ -133,6 +135,8 @@ class Layer(_RawLayer):
 
         if placed_layer_block:
             placed_layer_data = PlacedLayerData(placed_layer_block)
+        else:
+            return None
 
         size = placed_layer_data.size
         if size:
