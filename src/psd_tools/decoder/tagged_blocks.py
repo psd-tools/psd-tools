@@ -108,6 +108,13 @@ def _decode_divider(data):
 
     return tp, key
 
+@register(TaggedBlock.PLACED_LAYER_DATA)
+@register(TaggedBlock.SMART_OBJECT_PLACED_LAYER_DATA)
+def _decode_placed_layer(data):
+    fp = io.BytesIO(data)
+    type, version, descriptorVersion = read_fmt("4s I I", fp)
+    descriptor = decode_descriptor(None, fp)
+    return descriptor.items
 
 @register(TaggedBlock.METADATA_SETTING)
 def _decode_metadata(data):

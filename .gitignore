@@ -3,3 +3,4 @@ build
 *.pyc
 *.so
 MANIFEST
+*.DS_Store

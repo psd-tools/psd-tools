@@ -6,13 +6,15 @@ import collections
 import weakref              # FIXME: there should be weakrefs in this module
 import psd_tools.reader
 import psd_tools.decoder
-from psd_tools.constants import TaggedBlock, SectionDivider, BlendMode, TextProperty
+from psd_tools.constants import TaggedBlock, SectionDivider, BlendMode, TextProperty, PlacedLayerProperty, SzProperty
 from psd_tools.user_api.layers import group_layers
 from psd_tools.user_api import pymaging_support
 from psd_tools.user_api import pil_support
 
 logger = logging.getLogger(__name__)
 
+
+Size = collections.namedtuple('Size', 'width, height')
 
 class BBox(collections.namedtuple('BBox', 'x1, y1, x2, y2')):
     @property
@@ -23,12 +25,17 @@ class BBox(collections.namedtuple('BBox', 'x1, y1, x2, y2')):
     def height(self):
         return self.y2-self.y1
 
-
 class TextData(object):
     def __init__(self, tagged_blocks):
         text_data = dict(tagged_blocks.text_data.items)
         self.text = text_data[TextProperty.TXT].value
 
+
+class PlacedLayerData(object):
+    def __init__(self, placed_layer_block):
+        placed_layer_data = dict(placed_layer_block)
+        self.transform = placed_layer_data[PlacedLayerProperty.TRANSFORM].items
+        self.size = dict(placed_layer_data[PlacedLayerProperty.SIZE].items)
 
 class _RawLayer(object):
     """
@@ -100,6 +107,34 @@ class Layer(_RawLayer):
         """ BBox(x1, y1, x2, y2) namedtuple with layer bounding box. """
         info = self._info
         return BBox(info.left, info.top, info.right, info.bottom)
+
+    @property
+    def transform_bbox(self):
+        """ BBox(x1, y1, x2, y2) namedtuple with layer bounding box. """
+        placed_layer_block = self._tagged_blocks.get(TaggedBlock.PLACED_LAYER_DATA, self._tagged_blocks.get(TaggedBlock.SMART_OBJECT_PLACED_LAYER_DATA))
+
+        if placed_layer_block:
+            placed_layer_data = PlacedLayerData(placed_layer_block)
+
+        transform = placed_layer_data.transform
+        if transform:
+            return BBox(transform[0], transform[1], transform[4], transform[5])
+        else:
+            raise RuntimeError("Transform does not exist on layer '%s'" % self)
+
+    @property
+    def placed_layer_size(self):
+        """ BBox(x1, y1, x2, y2) namedtuple with layer bounding box. """
+        placed_layer_block = self._tagged_blocks.get(TaggedBlock.PLACED_LAYER_DATA, self._tagged_blocks.get(TaggedBlock.SMART_OBJECT_PLACED_LAYER_DATA))
+
+        if placed_layer_block:
+            placed_layer_data = PlacedLayerData(placed_layer_block)
+
+        size = placed_layer_data.size
+        if size:
+            return Size(size[SzProperty.WIDTH], size[SzProperty.HEIGHT])
+        else:
+            raise RuntimeError("Transform does not exist on layer '%s'" % self)
 
     @property
     def text_data(self):
