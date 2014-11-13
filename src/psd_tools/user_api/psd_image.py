@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 Size = collections.namedtuple('Size', 'width, height')
 
+
 class BBox(collections.namedtuple('BBox', 'x1, y1, x2, y2')):
     @property
     def width(self):
@@ -24,6 +25,7 @@ class BBox(collections.namedtuple('BBox', 'x1, y1, x2, y2')):
     @property
     def height(self):
         return self.y2-self.y1
+
 
 class TextData(object):
     def __init__(self, tagged_blocks):
@@ -36,6 +38,7 @@ class PlacedLayerData(object):
         placed_layer_data = dict(placed_layer_block)
         self.transform = placed_layer_data[PlacedLayerProperty.TRANSFORM].items
         self.size = dict(placed_layer_data[PlacedLayerProperty.SIZE].items)
+
 
 class _RawLayer(object):
     """
@@ -110,7 +113,8 @@ class Layer(_RawLayer):
 
     @property
     def transform_bbox(self):
-        """ BBox(x1, y1, x2, y2) namedtuple with layer bounding box. """
+        """ BBox(x1, y1, x2, y2) namedtuple with layer transform box (Top Left and Bottom Right corners).
+         The tranform of a layer the points for all 4 corners. """
         placed_layer_block = self._tagged_blocks.get(TaggedBlock.PLACED_LAYER_DATA, self._tagged_blocks.get(TaggedBlock.SMART_OBJECT_PLACED_LAYER_DATA))
 
         if placed_layer_block:
@@ -120,11 +124,11 @@ class Layer(_RawLayer):
         if transform:
             return BBox(transform[0], transform[1], transform[4], transform[5])
         else:
-            raise RuntimeError("Transform does not exist on layer '%s'" % self)
+            return None
 
     @property
     def placed_layer_size(self):
-        """ BBox(x1, y1, x2, y2) namedtuple with layer bounding box. """
+        """ BBox(x1, y1, x2, y2) namedtuple with original smart object content size. """
         placed_layer_block = self._tagged_blocks.get(TaggedBlock.PLACED_LAYER_DATA, self._tagged_blocks.get(TaggedBlock.SMART_OBJECT_PLACED_LAYER_DATA))
 
         if placed_layer_block:
@@ -134,7 +138,7 @@ class Layer(_RawLayer):
         if size:
             return Size(size[SzProperty.WIDTH], size[SzProperty.HEIGHT])
         else:
-            raise RuntimeError("Transform does not exist on layer '%s'" % self)
+            return None
 
     @property
     def text_data(self):

@@ -130,7 +130,7 @@ def decode_prop(key, fp):
 def decode_unit_float(key, fp):
     unit_key = fp.read(4)
     if not UnitFloatType.is_known(unit_key):
-        warnings.warn('Unknown UnitFloatType: "%s"' % unit_key.decode())
+        warnings.warn('Unknown UnitFloatType: "%r"' % unit_key)
 
     value = read_fmt("d", fp)[0]
     return UnitFloat(UnitFloatType.name_of(unit_key), value)
@@ -138,7 +138,7 @@ def decode_unit_float(key, fp):
 def decode_unit_floats(key, fp):
     unit_key = fp.read(4)
     if not UnitFloatType.is_known(unit_key):
-        warnings.warn('Unknown UnitFloatType: "%s"' % unit_key.decode())
+        warnings.warn('Unknown UnitFloatType: "%r"' % unit_key)
 
     floats_count = read_fmt("I", fp)[0]
     floats = []
@@ -253,7 +253,7 @@ def decode_object_array_item(key, fp):
 
     decode_ostype = get_ostype(ostype)
     if not decode_ostype:
-            raise UnknownOSType('Unknown list item of type "%s"' % ostype.decode())
+        raise UnknownOSType('Unknown list item of type "%r"' % ostype)
 
     value = decode_ostype(key, fp)
 
