@@ -3,3 +3,5 @@ build
 *.pyc
 *.so
 MANIFEST
+*.DS_Store
+psd_tools.egg-info

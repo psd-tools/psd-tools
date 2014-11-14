@@ -27,6 +27,8 @@ Enum = pretty_namedtuple('Enum', 'type value')
 Identifier = pretty_namedtuple('Identifier', 'value')
 Index = pretty_namedtuple('Index', 'value')
 Name = pretty_namedtuple('Name', 'value')
+ObjectArray = pretty_namedtuple('ObjectArray', 'classObj items')
+ObjectArrayItem = pretty_namedtuple('ObjectArrayItem', 'keyID value')
 _RawData = pretty_namedtuple('RawData', 'value')
 
 
@@ -54,6 +56,7 @@ def get_ostype(ostype):
         OSType.LIST:        decode_list,
         OSType.DOUBLE:      decode_double,
         OSType.UNIT_FLOAT:  decode_unit_float,
+        OSType.UNIT_FLOATS: decode_unit_floats,
         OSType.STRING:      decode_string,
         OSType.ENUMERATED:  decode_enum,
         OSType.INTEGER:     decode_integer,
@@ -63,6 +66,7 @@ def get_ostype(ostype):
         OSType.CLASS2:      decode_class,
         OSType.ALIAS:       decode_alias,
         OSType.RAW_DATA:    decode_raw,
+        OSType.OBJECT_ARRAY: decode_object_array,
     }.get(ostype, None)
 
 def get_reference_ostype(ostype):
@@ -126,10 +130,24 @@ def decode_prop(key, fp):
 def decode_unit_float(key, fp):
     unit_key = fp.read(4)
     if not UnitFloatType.is_known(unit_key):
-        warnings.warn('Unknown UnitFloatType: "%s"' % unit_key.decode())
+        warnings.warn('Unknown UnitFloatType: "%r"' % unit_key)
 
     value = read_fmt("d", fp)[0]
     return UnitFloat(UnitFloatType.name_of(unit_key), value)
+
+def decode_unit_floats(key, fp):
+    unit_key = fp.read(4)
+    if not UnitFloatType.is_known(unit_key):
+        warnings.warn('Unknown UnitFloatType: "%r"' % unit_key)
+
+    floats_count = read_fmt("I", fp)[0]
+    floats = []
+
+    for n in range(floats_count):
+        value = read_fmt("d", fp)[0]
+        floats.append(UnitFloat(UnitFloatType.name_of(unit_key), value))
+
+    return floats
 
 def decode_double(key, fp):
     return Double(read_fmt("d", fp)[0])
@@ -213,6 +231,33 @@ def decode_raw(key, fp):
     data = fp.read(size)
     return RawData(data)
 
+def decode_object_array(key, fp):
+    items_per_object_count = read_fmt("I", fp)[0]
+    classObj = decode_class(None, fp)
+    items_count = read_fmt("I", fp)[0]
+    items = []
+
+    for n in range(items_count):
+        object_array_item = decode_object_array_item(None, fp)
+
+        if object_array_item is not None:
+            items.append(object_array_item)
+
+    return ObjectArray(classObj, items)
+
+def decode_object_array_item(key, fp):
+    keyID_length = read_fmt("I", fp)[0]
+    keyID = fp.read(keyID_length or 4)
+
+    ostype = fp.read(4)
+
+    decode_ostype = get_ostype(ostype)
+    if not decode_ostype:
+        raise UnknownOSType('Unknown list item of type "%r"' % ostype)
+
+    value = decode_ostype(key, fp)
+
+    return ObjectArrayItem(keyID, value)
 
 class UnknownOSType(ValueError):
     pass

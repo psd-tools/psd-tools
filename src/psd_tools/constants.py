@@ -303,6 +303,7 @@ class TaggedBlock(Enum):
     ANIMATION_EFFECTS = b'anFX'
     FILTER_MASK = b'FMsk'
     PLACED_LAYER_DATA = b'SoLd'
+    SMART_OBJECT_PLACED_LAYER_DATA = b'SoLE'
 
     VECTOR_STROKE_DATA = b'vstk'
     VECTOR_STROKE_CONTENT_DATA = b'vscg'
@@ -328,6 +329,7 @@ class OSType(Enum):
     LIST = b'VlLs'
     DOUBLE = b'doub'
     UNIT_FLOAT = b'UntF'
+    UNIT_FLOATS = b'UnFl'
     STRING = b'TEXT'
     ENUMERATED = b'enum'
     INTEGER = b'long'
@@ -337,6 +339,7 @@ class OSType(Enum):
     CLASS2 = b'GlbC'
     ALIAS = b'alis'
     RAW_DATA = b'tdta'
+    OBJECT_ARRAY = b'ObAr'
 
 class ReferenceOSType(Enum):
     """
@@ -391,6 +394,14 @@ class DimensionUnit(Enum):
     POINT = 3  # 72 points == 1 inch
     PICA = 4   # 6 pica == 1 inch
     COLUMN = 5
+
+class PlacedLayerProperty(Enum):
+    TRANSFORM = b'Trnf'
+    SIZE = b'Sz  '
+
+class SzProperty(Enum):
+    WIDTH = b'Wdth'
+    HEIGHT = b'Hght'
 
 class TextProperty(Enum):
     TXT = b'Txt '
