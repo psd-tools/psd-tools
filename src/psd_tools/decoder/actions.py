@@ -49,7 +49,7 @@ class RawData(_RawData):
                     p.pretty(self.value)
 
 
-def get_ostype(ostype):
+def get_ostype_decode_func(ostype):
     return {
         OSType.REFERENCE:   decode_ref,
         OSType.DESCRIPTOR:  decode_descriptor,
@@ -69,7 +69,7 @@ def get_ostype(ostype):
         OSType.OBJECT_ARRAY: decode_object_array,
     }.get(ostype, None)
 
-def get_reference_ostype(ostype):
+def get_reference_ostype_decode_func(ostype):
     return {
         ReferenceOSType.PROPERTY:   decode_prop,
         ReferenceOSType.CLASS:      decode_class,
@@ -93,7 +93,7 @@ def decode_descriptor(_, fp):
         key = fp.read(item_length or 4)
         ostype = fp.read(4)
 
-        decode_ostype = get_ostype(ostype)
+        decode_ostype = get_ostype_decode_func(ostype)
         if not decode_ostype:
             raise UnknownOSType('Unknown descriptor item of type "%s"' % ostype.decode())
 
@@ -109,7 +109,7 @@ def decode_ref(key, fp):
     for _ in range(item_count):
         ostype = fp.read(4)
 
-        decode_ostype = get_reference_ostype(ostype)
+        decode_ostype = get_reference_ostype_decode_func(ostype)
         if decode_ostype:
             raise UnknownOSType('Unknown reference item of type "%s"' % ostype.decode())
 
@@ -193,7 +193,7 @@ def decode_list(key, fp):
     for _ in range(items_count):
         ostype = fp.read(4)
 
-        decode_ostype = get_ostype(ostype)
+        decode_ostype = get_ostype_decode_func(ostype)
         if not decode_ostype:
             raise UnknownOSType('Unknown list item of type "%s"' % ostype.decode())
 
@@ -251,7 +251,7 @@ def decode_object_array_item(key, fp):
 
     ostype = fp.read(4)
 
-    decode_ostype = get_ostype(ostype)
+    decode_ostype = get_ostype_decode_func(ostype)
     if not decode_ostype:
         raise UnknownOSType('Unknown list item of type %r' % ostype)
 
