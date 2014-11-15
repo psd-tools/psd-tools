@@ -113,36 +113,38 @@ class Layer(_RawLayer):
 
     @property
     def transform_bbox(self):
-        """ BBox(x1, y1, x2, y2) namedtuple with layer transform box (Top Left and Bottom Right corners).
-         The tranform of a layer the points for all 4 corners. """
-        placed_layer_block = self._tagged_blocks.get(TaggedBlock.PLACED_LAYER_DATA, self._tagged_blocks.get(TaggedBlock.SMART_OBJECT_PLACED_LAYER_DATA))
-
-        if placed_layer_block:
-            placed_layer_data = PlacedLayerData(placed_layer_block)
-        else:
+        """ BBox(x1, y1, x2, y2) namedtuple with layer transform box
+        (Top Left and Bottom Right corners). The tranform of a layer the
+        points for all 4 corners.
+        """
+        placed_layer_block = self._placed_layer_block()
+        if not placed_layer_block:
             return None
+        placed_layer_data = PlacedLayerData(placed_layer_block)
 
         transform = placed_layer_data.transform
-        if transform:
-            return BBox(transform[0].value, transform[1].value, transform[4].value, transform[5].value)
-        else:
+        if not transform:
             return None
+        return BBox(transform[0].value, transform[1].value, transform[4].value, transform[5].value)
 
     @property
     def placed_layer_size(self):
-        """ BBox(x1, y1, x2, y2) namedtuple with original smart object content size. """
-        placed_layer_block = self._tagged_blocks.get(TaggedBlock.PLACED_LAYER_DATA, self._tagged_blocks.get(TaggedBlock.SMART_OBJECT_PLACED_LAYER_DATA))
-
-        if placed_layer_block:
-            placed_layer_data = PlacedLayerData(placed_layer_block)
-        else:
+        """ BBox(x1, y1, x2, y2) namedtuple with original
+        smart object content size.
+        """
+        placed_layer_block = self._placed_layer_block()
+        if not placed_layer_block:
             return None
+        placed_layer_data = PlacedLayerData(placed_layer_block)
 
         size = placed_layer_data.size
-        if size:
-            return Size(size[SzProperty.WIDTH].value, size[SzProperty.HEIGHT].value)
-        else:
+        if not size:
             return None
+        return Size(size[SzProperty.WIDTH].value, size[SzProperty.HEIGHT].value)
+
+    def _placed_layer_block(self):
+        so_layer_block = self._tagged_blocks.get(TaggedBlock.SMART_OBJECT_PLACED_LAYER_DATA)
+        return self._tagged_blocks.get(TaggedBlock.PLACED_LAYER_DATA, so_layer_block)
 
     @property
     def text_data(self):
