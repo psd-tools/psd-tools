@@ -72,5 +72,3 @@ def _get_pretty_mixin(typename):
                     p.pretty(getattr(self, field))
 
     return _PrettyNamedtupleMixin
-
-

@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, unicode_literals
 
+import re
 from psd_tools import PSDImage
 from psd_tools.constants import TaggedBlock, SectionDivider, BlendMode
 from .utils import decode_psd
+
 
 def test_1layer_name():
     psd = decode_psd('1layer.psd')
@@ -17,6 +19,7 @@ def test_1layer_name():
     assert block.key == TaggedBlock.UNICODE_LAYER_NAME
     assert block.data == 'Фон'
 
+
 def test_groups():
     psd = decode_psd('group.psd')
     layers = psd.layer_and_mask_data.layers.layer_records
@@ -24,6 +27,7 @@ def test_groups():
 
     assert layers[1].tagged_blocks[3].key == TaggedBlock.SECTION_DIVIDER_SETTING
     assert layers[1].tagged_blocks[3].data.type == SectionDivider.BOUNDING_SECTION_DIVIDER
+
 
 def test_api():
     image = PSDImage(decode_psd('1layer.psd'))
@@ -36,3 +40,8 @@ def test_api():
     assert layer.opacity == 255
     assert layer.blend_mode == BlendMode.NORMAL
 
+
+def test_fakeroot_layer_repr():
+    img = PSDImage(decode_psd('1layer.psd'))
+    fakeroot = img.layers[0].parent
+    assert re.match(r"<psd_tools.Group: u?'_RootGroup', layer_count=1>", repr(fakeroot)), repr(fakeroot)

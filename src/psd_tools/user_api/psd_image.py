@@ -298,6 +298,10 @@ class _RootGroup(Group):
     def visible_global(self):
         return True
 
+    @property
+    def name(self):
+        return "_RootGroup"
+
 
 def combined_bbox(layers):
     """
