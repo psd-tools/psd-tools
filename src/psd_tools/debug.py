@@ -5,12 +5,18 @@ Assorted debug utilities
 from __future__ import absolute_import, print_function
 import sys
 from collections import namedtuple
-try:
-    from IPython.lib.pretty import pprint
-    _PRETTY_ENABLED = True
-except ImportError:
-    from pprint import pprint
-    _PRETTY_ENABLED = False
+
+
+def pprint(*args, **kwargs):
+    """
+    Pretty-print a Python object using ``IPython.lib.pretty.pprint``.
+    Fallback to ``pprint.pprint`` if IPython is not available.
+    """
+    try:
+        from IPython.lib.pretty import pprint
+    except ImportError:
+        from pprint import pprint
+    pprint(*args, **kwargs)
 
 
 def debug_view(fp, txt="", max_back=20):
@@ -28,14 +34,11 @@ def debug_view(fp, txt="", max_back=20):
 def pretty_namedtuple(typename, field_names, verbose=False):
     """
     Return a namedtuple class that knows how to pretty-print itself
-    using IPython.lib.pretty library; if IPython is not installed
-    then this function is the same as collections.namedtuple
-    (with one exception: 'rename' argument is unsupported).
+    using IPython.lib.pretty library.
     """
     cls = namedtuple(typename, field_names, verbose)
-    if _PRETTY_ENABLED:
-        PrettyMixin = _get_pretty_mixin(typename)
-        cls = type(str(typename), (PrettyMixin, cls), {})
+    PrettyMixin = _get_pretty_mixin(typename)
+    cls = type(str(typename), (PrettyMixin, cls), {})
 
     # For pickling to work, the __module__ variable needs to be set to the frame
     # where the named tuple is created.  Bypass this step in enviroments where
