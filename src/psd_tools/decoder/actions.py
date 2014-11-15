@@ -95,7 +95,7 @@ def decode_descriptor(_, fp):
 
         decode_ostype = get_ostype_decode_func(ostype)
         if not decode_ostype:
-            raise UnknownOSType('Unknown descriptor item of type "%s"' % ostype.decode())
+            raise UnknownOSType('Unknown descriptor item of type %r' % ostype)
 
         value = decode_ostype(key, fp)
         if value is not None:
@@ -111,7 +111,7 @@ def decode_ref(key, fp):
 
         decode_ostype = get_reference_ostype_decode_func(ostype)
         if decode_ostype:
-            raise UnknownOSType('Unknown reference item of type "%s"' % ostype.decode())
+            raise UnknownOSType('Unknown reference item of type %r' % ostype)
 
         value = decode_ostype(key, fp)
         if value is not None:
@@ -195,7 +195,7 @@ def decode_list(key, fp):
 
         decode_ostype = get_ostype_decode_func(ostype)
         if not decode_ostype:
-            raise UnknownOSType('Unknown list item of type "%s"' % ostype.decode())
+            raise UnknownOSType('Unknown list item of type %r' % ostype)
 
         value = decode_ostype(key, fp)
         if value is not None:
