@@ -1,4 +1,17 @@
 
+1.1 (2014-11-17)
+----------------
+
+- improved METADATA_SETTING decoding (thanks Evgeny Kopylov);
+- layer comps decoding (thanks Evgeny Kopylov);
+- improved smart objects decoding (thanks Joey Gentry);
+- user API for getting layer transforms and placed layer size
+  (thanks Joey Gentry);
+- IPython import is deferred to speedup ``psd-tools.py`` command-line utility;
+- ``_RootGroup.__repr__`` is fixed;
+- warning message building is more robust;
+- optional C extension is rebuilt with Cython 0.21.1.
+
 1.0 (2014-07-24)
 ----------------
 
