@@ -12,4 +12,5 @@ Contributors
 * Alex Martyn;
 * Vladimir Timofeev;
 * Evgeny Kopylov;
-* Carlton P. Taylor.
+* Carlton P. Taylor;
+* Joey Gentry.

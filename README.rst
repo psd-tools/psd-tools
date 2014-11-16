@@ -274,6 +274,11 @@ file structure from the source code of psdparse_, GIMP_, libpsd_
 and `psdparse C library`_; special thanks to `Paint.NET PSD Plugin`_ authors
 for deciphering the "32bit layer + zip-with-prediction compression" case.
 
+Sponsors:
+
+* Leonid Gluzman;
+* https://marvelapp.com/.
+
 .. _libpsd: http://sourceforge.net/projects/libpsd/
 .. _psdparse C library: http://telegraphics.com.au/svn/psdparse/trunk/
 .. _Paint.NET PSD Plugin: http://psdplugin.codeplex.com/
