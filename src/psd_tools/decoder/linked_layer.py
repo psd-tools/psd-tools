@@ -6,6 +6,7 @@ import struct
 
 from psd_tools.utils import read_fmt, read_pascal_string, read_unicode_string
 from psd_tools.debug import pretty_namedtuple
+from psd_tools.decoder.actions import decode_descriptor
 
 LinkedLayerCollection = pretty_namedtuple('LinkedLayerCollection', 'linked_list ')
 _LinkedLayer = pretty_namedtuple('LinkedLayer',
@@ -56,13 +57,12 @@ def decode(data):
             break
         unique_id = read_pascal_string(fp, 'ascii')
         filename = read_unicode_string(fp)
-        filetype, creator, filelength, file_open_descriptor = read_fmt('4s 4s Q B', fp)
+        filetype, creator, filelength, have_file_open_descriptor = read_fmt('4s 4s Q B', fp)
         filetype = str(filetype)
-        if file_open_descriptor:
-            # WTF is this, Adobe: "variable length: Descriptor of open parameters"
-            warnings.warn('decoding of file open descriptor is likely wrong')
-            size = length - filelength - 198 + 4   # undocumented guess
-            fp.read(size)
+        if have_file_open_descriptor:
+            # Does not seem to contain any useful information
+            undocumented_integer = read_fmt("I", fp)
+            file_open_descriptor = decode_descriptor(None, fp)
         decoded = fp.read(filelength)
         layers.append(
             LinkedLayer(version, unique_id, filename, filetype, creator, decoded)
