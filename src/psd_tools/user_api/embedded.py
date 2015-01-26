@@ -60,7 +60,7 @@ class Embedded(object):
 
     def save_as_png(self, filename=None):
         """
-        Save embedded file as SVG
+        Save embedded file as PNG
 
         Requires inkscape to convert the file.
         """
