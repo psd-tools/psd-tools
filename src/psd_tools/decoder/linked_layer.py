@@ -10,7 +10,8 @@ from psd_tools.decoder.actions import decode_descriptor
 
 LinkedLayerCollection = pretty_namedtuple('LinkedLayerCollection', 'linked_list ')
 _LinkedLayer = pretty_namedtuple('LinkedLayer',
-                                 'version unique_id filename filetype file_open_descriptor creator decoded')
+                                 'version unique_id filename filetype file_open_descriptor '
+                                 'creator decoded uuid')
 
 
 class LinkedLayer(_LinkedLayer):
@@ -66,12 +67,15 @@ def decode(data):
         else:
             file_open_descriptor = None
         decoded = fp.read(filelength)
-        layers.append(
-            LinkedLayer(version, unique_id, filename, filetype, file_open_descriptor, creator, decoded)
-        )
         # Undocumented extra field
         if version == 5:
             uuid = read_unicode_string(fp)
+        else:
+            uuid = None
+        layers.append(
+            LinkedLayer(version, unique_id, filename, filetype, file_open_descriptor,
+                        creator, decoded, uuid)
+        )
         # Gobble up anything that we don't know how to decode
         expected_position = start + 8 + length      # first 8 bytes contained the length
         if expected_position != fp.tell():
