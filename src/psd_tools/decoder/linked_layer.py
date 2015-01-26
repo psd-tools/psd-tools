@@ -9,7 +9,7 @@ from psd_tools.debug import pretty_namedtuple
 
 LinkedLayerCollection = pretty_namedtuple('LinkedLayerCollection', 'linked_list ')
 _LinkedLayer = pretty_namedtuple('LinkedLayer',
-                               'version unique_id filename filetype creator decoded uuid')
+                               'version unique_id filename filetype creator decoded')
 
 
 class LinkedLayer(_LinkedLayer):
@@ -43,9 +43,9 @@ def decode(data):
     non-embedded smart objects are not included here.
     """
     fp = io.BytesIO(data)
-    position = 0
     layers = []
     while True:
+        start = fp.tell()
         length_buf = fp.read(8)
         if not length_buf:
             break   # end of file
@@ -56,25 +56,27 @@ def decode(data):
             break
         unique_id = read_pascal_string(fp, 'ascii')
         filename = read_unicode_string(fp)
-        filetype, creator, remaining_length, file_open_descriptor = read_fmt('4s 4s Q B', fp)
+        filetype, creator, filelength, file_open_descriptor = read_fmt('4s 4s Q B', fp)
         filetype = str(filetype)
-        if not file_open_descriptor:
-            if remaining_length + 198 != length:
-                warnings.warn('record length mismatch')
-        else:
+        if file_open_descriptor:
             # WTF is this, Adobe: "variable length: Descriptor of open parameters"
-            warnings.warn('decoding of file open descriptor not implemented')
-            size = length - remaining_length - 198 + 4   # undocumented guess
+            warnings.warn('decoding of file open descriptor is likely wrong')
+            size = length - filelength - 198 + 4   # undocumented guess
             fp.read(size)
-        decoded = fp.read(remaining_length)
-        uuid = read_unicode_string(fp)
+        decoded = fp.read(filelength)
         layers.append(
-            LinkedLayer(version, unique_id, filename, filetype, creator, decoded, uuid)
+            LinkedLayer(version, unique_id, filename, filetype, creator, decoded)
         )
-        # Each layer is padded to start at 4-byte boundary
-        position += length
-        pad = -position % 4
+        # Undocumented extra field
+        if version == 5:
+            uuid = read_unicode_string(fp)
+        # Gobble up anything that we don't know how to decode
+        expected_position = start + 8 + length      # first 8 bytes contained the length
+        if expected_position != fp.tell():
+            warnings.warn('skipping over undocumented additional fields')
+            fp.read(expected_position - fp.tell())
+        # Each layer is padded to start and end at 4-byte boundary
+        pad = -fp.tell() % 4
         fp.read(pad)
-        position += pad
     return LinkedLayerCollection(layers)
 
