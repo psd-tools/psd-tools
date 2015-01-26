@@ -52,4 +52,4 @@ def test_embedded():
     embedded = psd.embedded[0]
     assert embedded.filename == 'linked-layer.png'
     with open(os.path.join(DATA_PATH, 'linked-layer.png'), 'rb') as f:
-        assert embedded.get() == f.read()
+        assert embedded.data == f.read()

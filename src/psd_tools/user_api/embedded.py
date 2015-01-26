@@ -12,7 +12,7 @@ class Embedded(object):
     def __repr__(self):
         return "<psd_tools.Embedded: %s, %s bytes>" % (
             self.filename,
-            len(self.get())
+            len(self.data)
         )
 
     def __init__(self, linked_layer):
@@ -24,9 +24,10 @@ class Embedded(object):
         filetype = self._layer.filetype   # 4 chars: 'png ', 'PDF ', ...
         return filetype.lower().strip()
 
-    def get(self):
+    @property
+    def data(self):
         """
-        Get the embedded file content
+        The embedded file content
         """
         return self._layer.decoded
 
@@ -37,7 +38,7 @@ class Embedded(object):
         if filename is None:
             filename = self.filename
         with open(filename, 'wb') as f:
-            f.write(self.get())
+            f.write(self.data)
 
     def _inkscape(self, *args):
         """Convert using inkscape"""
