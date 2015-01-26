@@ -229,3 +229,11 @@ def _decode_vector_origination_data(data):
         return data
 
     return VectorOriginationData(ver, descr_ver, vector_origination_data)
+
+
+@register(TaggedBlock.LINKED_LAYER1)
+@register(TaggedBlock.LINKED_LAYER2)
+@register(TaggedBlock.LINKED_LAYER3)
+def _decode_linked_layer(data):
+    from psd_tools.decoder.linked_layer import decode
+    return decode(data)

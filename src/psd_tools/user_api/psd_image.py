@@ -10,6 +10,7 @@ from psd_tools.constants import TaggedBlock, SectionDivider, BlendMode, TextProp
 from psd_tools.user_api.layers import group_layers
 from psd_tools.user_api import pymaging_support
 from psd_tools.user_api import pil_support
+from psd_tools.user_api.embedded import Embedded
 
 logger = logging.getLogger(__name__)
 
@@ -227,6 +228,7 @@ class PSDImage(object):
 
         self._fake_root_group = root
         self.layers = root.layers
+        self.embedded = [Embedded(linked) for linked in self._linked_layer_iter()]
 
     @classmethod
     def load(cls, path, encoding='utf8'):
@@ -287,6 +289,16 @@ class PSDImage(object):
 
     def _layer_as_pymaging(self, index):
         return pymaging_support.extract_layer_image(self.decoded_data, index)
+
+    def _linked_layer_iter(self):
+        """
+        Iterate over linked layers (smart objects / embedded files)
+        """
+        from psd_tools.decoder.linked_layer import LinkedLayerCollection
+        for block in self.decoded_data.layer_and_mask_data.tagged_blocks:
+            if isinstance(block.data, LinkedLayerCollection):
+                for layer in block.data.linked_list:
+                    yield layer
 
 
 class _RootGroup(Group):

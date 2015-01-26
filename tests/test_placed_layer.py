@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
 
+import os
+
 from psd_tools import PSDImage, BBox
 from psd_tools.constants import TaggedBlock
-from .utils import decode_psd
+from .utils import decode_psd, DATA_PATH
 
 
 def test_placed_layer():
@@ -42,3 +44,12 @@ def test_userapi_placed_layers():
     layer2 = img.layers[2]
     assert layer2.placed_layer_size == (64, 64)
     assert layer2.transform_bbox == BBox(x1=96.0, y1=96.0, x2=160.0, y2=160.0)
+
+
+def test_embedded():
+    # This file contains both an embedded and linked png
+    psd = PSDImage.load(os.path.join(DATA_PATH, 'placedLayer.psd'))
+    embedded = psd.embedded[0]
+    assert embedded.filename == 'linked-layer.png'
+    with open(os.path.join(DATA_PATH, 'linked-layer.png'), 'rb') as f:
+        assert embedded.data == f.read()

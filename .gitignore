@@ -5,3 +5,6 @@ build
 MANIFEST
 *.DS_Store
 psd_tools.egg-info
+*~
+\#*
+\.\#*
