@@ -49,7 +49,7 @@ def decode(data):
         length_buf = fp.read(8)
         if not length_buf:
             break   # end of file
-        length = struct.unpack('>Q', length_buf)[0]
+        length = struct.unpack(str('>Q'), length_buf)[0]
         liFD, version = read_fmt('4s I', fp)
         if liFD != b'liFD':
             warnings.warn('unknown layer type')
