@@ -10,7 +10,7 @@ from psd_tools.decoder.actions import decode_descriptor
 
 LinkedLayerCollection = pretty_namedtuple('LinkedLayerCollection', 'linked_list ')
 _LinkedLayer = pretty_namedtuple('LinkedLayer',
-                               'version unique_id filename filetype creator decoded')
+                                 'version unique_id filename filetype file_open_descriptor creator decoded')
 
 
 class LinkedLayer(_LinkedLayer):
@@ -63,9 +63,11 @@ def decode(data):
             # Does not seem to contain any useful information
             undocumented_integer = read_fmt("I", fp)
             file_open_descriptor = decode_descriptor(None, fp)
+        else:
+            file_open_descriptor = None
         decoded = fp.read(filelength)
         layers.append(
-            LinkedLayer(version, unique_id, filename, filetype, creator, decoded)
+            LinkedLayer(version, unique_id, filename, filetype, file_open_descriptor, creator, decoded)
         )
         # Undocumented extra field
         if version == 5:
