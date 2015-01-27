@@ -8,3 +8,5 @@ psd_tools.egg-info
 *~
 \#*
 \.\#*
+*.html
+dist
