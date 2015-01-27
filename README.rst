@@ -235,14 +235,9 @@ or implement it yourself (pull requests are welcome in this case).
 Contributing
 ------------
 
-Development happens at github and bitbucket:
-
-* https://github.com/kmike/psd-tools
-* https://bitbucket.org/kmike/psd-tools
-
-The main issue tracker is at github: https://github.com/kmike/psd-tools/issues
-
-Feel free to submit ideas, bugs, pull requests (git or hg) or regular patches.
+Development happens at github: `source code <https://github.com/kmike/psd-tools>`__,
+`bug tracker <https://github.com/kmike/psd-tools/issues>`__.
+Feel free to submit ideas, bugs or pull requests.
 
 In case of bugs it would be helpful to provide a small PSD file
 demonstrating the issue; this file may be added to a test suite.
