@@ -1,4 +1,12 @@
 
+1.2 (2015-01-27)
+----------------
+
+- implemented extraction of embedded files (embedded smart objects) -
+  thanks Volker Braun;
+- optional C extension is rebuilt with Cython 0.21.2.
+- hg mirror on bitbucket is dropped, sorry!
+
 1.1 (2014-11-17)
 ----------------
 
