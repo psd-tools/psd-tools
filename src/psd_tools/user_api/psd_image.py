@@ -154,7 +154,7 @@ class Layer(_RawLayer):
         if tagged_blocks:
             return TextData(tagged_blocks)
 
-    def replace_image(self, pil_image):
+    def image_data(self, pil_image):
         """
         Replaces the image on this layer.
         :param pil_image: the replacement image. Must be the same size. Use 'None' to revert back to the original image.
@@ -386,10 +386,10 @@ def merge_layers(layers, respect_visibility=True, skip_layer=lambda layer: False
         if isinstance(layer, psd_tools.Group):
             layer_image = merge_layers(layer.layers, respect_visibility, skip_layer)
         else:
-            if layer.replacement_image is None:
+            if layer._replacement_image is None:
                 layer_image = layer.as_PIL()
             else:
-                layer_image = layer.replacement_image
+                layer_image = layer._replacement_image
 
         layer_image = pil_support.apply_opacity(layer_image, layer.opacity)
 
