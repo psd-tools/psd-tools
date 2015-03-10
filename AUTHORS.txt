@@ -14,4 +14,5 @@ Contributors
 * Evgeny Kopylov;
 * Carlton P. Taylor;
 * Joey Gentry;
-* Volker Braun.
+* Volker Braun;
+* Michael Wu.
