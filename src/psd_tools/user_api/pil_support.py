@@ -21,6 +21,14 @@ except ImportError:
     ImageCms = None
 
 
+def tobytes(image):
+    # Some versions of PIL are missing the tobytes alias for tostring
+    if hasattr(image, 'tobytes'):
+        return image.tobytes()
+    else:
+        return image.tostring()
+
+
 def extract_layer_image(decoded_data, layer_index):
     """
     Converts a layer from the ``decoded_data`` to a PIL image.
@@ -116,8 +124,9 @@ def _merge_bands(bands, color_mode, size, icc_profile):
         merged_image = Image.merge('RGB', [bands[key] for key in 'RGB'])
     elif color_mode == ColorMode.CMYK:
         merged_image = Image.merge('CMYK', [bands[key] for key in 'CMYK'])
+        merged_bytes = tobytes(merged_image)
         # colors are inverted in Photoshop CMYK images; invert them back
-        merged_image = frombytes('CMYK', size, merged_image.tobytes(), 'raw', 'CMYK;I')
+        merged_image = frombytes('CMYK', size, merged_bytes, 'raw', 'CMYK;I')
     elif color_mode == ColorMode.GRAYSCALE:
         merged_image = bands['L']
     else:
