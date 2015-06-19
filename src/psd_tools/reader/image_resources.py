@@ -1,22 +1,37 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, unicode_literals, division
-import collections
 import logging
 
 from psd_tools.utils import read_fmt, trimmed_repr, read_pascal_string, pad
 from psd_tools.exceptions import Error
 from psd_tools.constants import ImageResourceID
+from psd_tools.debug import pretty_namedtuple
 
 logger = logging.getLogger(__name__)
 
-_ImageResource = collections.namedtuple("ImageResource", "resource_id, name, data")
+_ImageResource = pretty_namedtuple("ImageResource", "resource_id, name, data")
 
 class ImageResource(_ImageResource):
+
     def __repr__(self):
         return "ImageResource(%r %s, %r, %s)" % (
             self.resource_id, ImageResourceID.name_of(self.resource_id),
             self.name, trimmed_repr(self.data)
         )
+
+    def _repr_pretty_(self, p, cycle):
+        if cycle:
+            p.text(repr(self))
+        else:
+            with p.group(0, 'ImageResource(', ')'):
+                p.text("%r %s, %r, " % (
+                    self.resource_id, ImageResourceID.name_of(self.resource_id),
+                    self.name
+                ))
+                if isinstance(self.data, bytes):
+                    p.text(trimmed_repr(self.data))
+                else:
+                    p.pretty(self.data)
 
 
 def read(fp, encoding):

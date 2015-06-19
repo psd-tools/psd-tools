@@ -2,6 +2,7 @@
 from __future__ import absolute_import, unicode_literals, division, print_function
 import logging
 import warnings
+from collections import namedtuple
 import zlib
 
 from psd_tools.utils import (read_fmt, read_pascal_string,
@@ -34,7 +35,6 @@ class LayerRecord(_LayerRecord):
 Layers = pretty_namedtuple('Layers', 'length, layer_count, layer_records, channel_image_data')
 LayerFlags = pretty_namedtuple('LayerFlags', 'transparency_protected visible pixel_data_irrelevant')
 LayerAndMaskData = pretty_namedtuple('LayerAndMaskData', 'layers global_mask_info tagged_blocks')
-_ChannelInfo = pretty_namedtuple('ChannelInfo', 'id length')
 _MaskData = pretty_namedtuple('MaskData', 'top left bottom right background_color flags parameters '
                                           'real_flags real_background_color real_top real_left real_bottom real_right')
 MaskFlags = pretty_namedtuple('MaskFlags', 'pos_relative_to_layer mask_disabled invert_mask '
@@ -42,12 +42,12 @@ MaskFlags = pretty_namedtuple('MaskFlags', 'pos_relative_to_layer mask_disabled 
 MaskParameters = pretty_namedtuple('MaskParameters', 'user_mask_density user_mask_feather '
                                                      'vector_mask_density vector_mask_feather')
 LayerBlendingRanges = pretty_namedtuple('LayerBlendingRanges', 'composite_ranges channel_ranges')
-_ChannelData = pretty_namedtuple('ChannelData', 'compression data')
 _Block = pretty_namedtuple('Block', 'key data')
 GlobalMaskInfo = pretty_namedtuple('GlobalMaskInfo', 'overlay_color opacity kind')
 
 
-class ChannelInfo(_ChannelInfo):
+class ChannelInfo(namedtuple('ChannelInfo', 'id length')):
+
     def __repr__(self):
         return "ChannelInfo(id=%s %s, length=%s)" % (
             self.id, ChannelID.name_of(self.id), self.length
@@ -69,18 +69,13 @@ class MaskData(_MaskData):
         return self.real_bottom - self.real_top
 
 
-class ChannelData(_ChannelData):
+class ChannelData(namedtuple('ChannelData', 'compression data')):
+
     def __repr__(self):
         return "ChannelData(compression=%r %s, len(data)=%r)" % (
             self.compression, Compression.name_of(self.compression),
             len(self.data) if self.data is not None else None
         )
-
-    def _repr_pretty_(self, p, cycle):
-        if cycle:
-            p.text('ChannelData(...)')
-        else:
-            p.text(repr(self))
 
 
 class Block(_Block):
@@ -93,12 +88,10 @@ class Block(_Block):
 
     def _repr_pretty_(self, p, cycle):
         if cycle:
-            p.text('Block(...)')
+            p.text(repr(self))
         else:
-            with p.group(1, 'Block(', ')'):
-                p.breakable()
-                p.text("%s %s," % (self.key, TaggedBlock.name_of(self.key)))
-                p.breakable()
+            with p.group(0, 'Block(', ')'):
+                p.text("%s %s, " % (self.key, TaggedBlock.name_of(self.key)))
                 if isinstance(self.data, bytes):
                     p.text(trimmed_repr(self.data))
                 else:

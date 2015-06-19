@@ -384,6 +384,10 @@ class SectionDivider(Enum):
     CLOSED_FOLDER = 2
     BOUNDING_SECTION_DIVIDER = 3
 
+class SectionDividerSub(Enum):
+    NORMAL = 0
+    SCENE_GROUP = 1
+
 class DisplayResolutionUnit(Enum):
     PIXELS_PER_INCH = 1
     PIXELS_PER_CM = 2

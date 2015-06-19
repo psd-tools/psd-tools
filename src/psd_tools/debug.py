@@ -7,15 +7,87 @@ import sys
 from collections import namedtuple
 
 
+def register_formatters():
+
+    def _repr_pretty_tuple(self, p, cycle):
+        # checking for a subclass...
+        if type(self) != tuple:
+            _repr_tuple_old(self, p, cycle)
+        else:
+            if cycle:
+                p.text(repr(self))
+            else:
+                with p.group(0, '(', ')'):
+                    for idx, item in enumerate(self):
+                        if idx:
+                            p.text(', ')
+                        p.pretty(item)
+
+    def _repr_pretty_list(self, p, cycle):
+        # checking for a subclass...
+        if type(self) != list:
+            _repr_list_old(self, p, cycle)
+        else:
+            if cycle:
+                p.text(repr(self))
+            else:
+                p.begin_group(2, '[')
+                p.begin_group(0)
+
+                for idx, item in enumerate(self):
+                    if idx:
+                        p.text(',')
+                    p.break_()
+                    p.pretty(item)
+
+                p.end_group(2)
+                p.break_()
+                p.end_group(0, ']')
+
+    def _repr_pretty_dict(self, p, cycle):
+        # checking for a subclass...
+        if type(self) != dict:
+            _repr_dict_old(self, p, cycle)
+        else:
+            if cycle:
+                p.text(repr(self))
+            else:
+                p.begin_group(2, '{')
+                p.begin_group(0)
+
+                for idx, key in enumerate(sorted(self)):
+                    if idx:
+                        p.text(',')
+                    p.break_()
+                    p.text("'%s': " % key)
+                    p.pretty(self[key])
+
+                p.end_group(2)
+                p.break_()
+                p.end_group(0, '}')
+
+    try:
+        from IPython.lib import pretty as text_formatter
+
+        _repr_tuple_old = text_formatter.for_type(tuple, _repr_pretty_tuple)
+        _repr_list_old = text_formatter.for_type(list, _repr_pretty_list)
+        _repr_dict_old = text_formatter.for_type(dict, _repr_pretty_dict)
+    except ImportError:
+        pass
+
+
 def pprint(*args, **kwargs):
     """
     Pretty-print a Python object using ``IPython.lib.pretty.pprint``.
     Fallback to ``pprint.pprint`` if IPython is not available.
     """
+    global pprint
+
     try:
         from IPython.lib.pretty import pprint
     except ImportError:
         from pprint import pprint
+
     pprint(*args, **kwargs)
 
 
@@ -58,17 +130,23 @@ def _get_pretty_mixin(typename):
     of namedtuple objects.
     """
     class _PrettyNamedtupleMixin(object):
+
         def _repr_pretty_(self, p, cycle):
             if cycle:
-                return "{typename}(...)".format(name=typename)
+                p.text(repr(self))
+            else:
+                p.begin_group(2, "%s(" % typename)
+                p.begin_group(0)
 
-            with p.group(1, '{name}('.format(name=typename), ')'):
-                p.breakable()
                 for idx, field in enumerate(self._fields):
                     if idx:
                         p.text(',')
-                        p.breakable()
-                    p.text('{field}='.format(field=field))
+                    p.break_()
+                    p.text("%s = " % field)
                     p.pretty(getattr(self, field))
+
+                p.end_group(2)
+                p.break_()
+                p.end_group(0, ')')
 
     return _PrettyNamedtupleMixin

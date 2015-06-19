@@ -2,7 +2,7 @@
 from __future__ import absolute_import, unicode_literals, division
 import io
 import warnings
-import collections
+from collections import namedtuple
 
 from psd_tools.utils import (read_pascal_string, unpack, read_fmt,
                              read_unicode_string, be_array_from_bytes,
@@ -11,6 +11,7 @@ from psd_tools.constants import ImageResourceID, PrintScaleStyle, DisplayResolut
 from psd_tools.decoder import decoders
 from psd_tools.decoder.actions import decode_descriptor, UnknownOSType
 from psd_tools.decoder.color import decode_color
+from psd_tools.debug import pretty_namedtuple
 
 _image_resource_decoders, register = decoders.new_registry()
 
@@ -30,27 +31,51 @@ _image_resource_decoders.update({
     ImageResourceID.WORKFLOW_URL:               decoders.unicode_string
 })
 
-PrintScale = collections.namedtuple('PrintScale', 'style, x, y, scale')
-PrintFlags = collections.namedtuple('PrintFlags', 'labels, crop_marks, color_bars, registration_marks, negative, flip, interpolate, caption, print_flags')
-PrintFlagsInfo = collections.namedtuple('PrintFlagsInfo', 'version, center_crop_marks, bleed_width_value, bleed_width_scale')
-VersionInfo = collections.namedtuple('VersionInfo', 'version, has_real_merged_data, writer_name, reader_name, file_version')
-PixelAspectRatio = collections.namedtuple('PixelAspectRatio', 'version aspect')
-_ResolutionInfo = collections.namedtuple('ResolutionInfo', 'h_res, h_res_unit, width_unit, v_res, v_res_unit, height_unit')
-PathSelectionState = collections.namedtuple('PathSelectionState', 'descriptor_version descriptor')
-LayerComps = collections.namedtuple('LayerComps', 'descriptor_version descriptor')
+PrintScale = namedtuple('PrintScale', 'style, x, y, scale')
+PrintFlags = pretty_namedtuple('PrintFlags', 'labels, crop_marks, color_bars, registration_marks, negative, flip, interpolate, caption, print_flags')
+PrintFlagsInfo = pretty_namedtuple('PrintFlagsInfo', 'version, center_crop_marks, bleed_width_value, bleed_width_scale')
+VersionInfo = pretty_namedtuple('VersionInfo', 'version, has_real_merged_data, writer_name, reader_name, file_version')
+PixelAspectRatio = namedtuple('PixelAspectRatio', 'version aspect')
+_ResolutionInfo = pretty_namedtuple('ResolutionInfo', 'h_res, h_res_unit, width_unit, v_res, v_res_unit, height_unit')
+PathSelectionState = pretty_namedtuple('PathSelectionState', 'descriptor_version descriptor')
+LayerComps = pretty_namedtuple('LayerComps', 'descriptor_version descriptor')
 
 
 class ResolutionInfo(_ResolutionInfo):
-    def __repr__(self):
 
+    def __repr__(self):
         return "ResolutionInfo(h_res=%s, h_res_unit=%s, v_res=%s, v_res_unit=%s, width_unit=%s, height_unit=%s)" % (
             self.h_res,
             DisplayResolutionUnit.name_of(self.h_res_unit),
             self.v_res,
             DisplayResolutionUnit.name_of(self.v_res_unit),
             DimensionUnit.name_of(self.width_unit),
-            DimensionUnit.name_of(self.height_unit),
+            DimensionUnit.name_of(self.height_unit)
         )
+
+    def _repr_pretty_(self, p, cycle):
+        if cycle:
+            p.text(repr(self))
+        else:
+            p.begin_group(2, 'ResolutionInfo(')
+            p.begin_group(0)
+
+            p.break_()
+            p.text("h_res = %s," % self.h_res)
+            p.break_()
+            p.text("h_res_unit = %s," % DisplayResolutionUnit.name_of(self.h_res_unit))
+            p.break_()
+            p.text("v_res = %s," % self.v_res)
+            p.break_()
+            p.text("v_res_unit = %s," % DisplayResolutionUnit.name_of(self.v_res_unit))
+            p.break_()
+            p.text("width_unit = %s," % DimensionUnit.name_of(self.width_unit))
+            p.break_()
+            p.text("height_unit = %s" % DimensionUnit.name_of(self.height_unit))
+
+            p.end_group(2)
+            p.break_()
+            p.end_group(0, ')')
 
 
 def decode(image_resource_blocks):

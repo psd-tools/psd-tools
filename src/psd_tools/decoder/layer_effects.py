@@ -51,14 +51,11 @@ class LayerEffect(_LayerEffect):
                                            self.effect_info)
 
     def _repr_pretty_(self, p, cycle):
-        # IS NOT TESTED!!
         if cycle:
-            p.text('LayerEffect(...)')
+            p.text(repr(self))
         else:
-            with p.group(1, 'LayerEffect(', ')'):
-                p.breakable()
-                p.text("%s %s," % (self.effect_type, EffectOSType.name_of(self.effect_type)))
-                p.breakable()
+            with p.group(0, 'LayerEffect(', ')'):
+                p.text("%s %s, " % (self.effect_type, EffectOSType.name_of(self.effect_type)))
                 p.pretty(self.effect_info)
 
 

@@ -3,50 +3,57 @@
 A module for decoding "Actions" additional PSD data format.
 """
 from __future__ import absolute_import, unicode_literals
+import warnings
+from collections import namedtuple
 
 from psd_tools.utils import read_unicode_string, read_fmt
 from psd_tools.constants import OSType, ReferenceOSType, UnitFloatType
 from psd_tools.debug import pretty_namedtuple
 from psd_tools.utils import trimmed_repr
-import warnings
 
 Descriptor = pretty_namedtuple('Descriptor', 'name classID items')
 Reference = pretty_namedtuple('Reference', 'items')
 Property = pretty_namedtuple('Property', 'name classID keyID')
-UnitFloat = pretty_namedtuple('UnitFloat', 'unit value')
-Double = pretty_namedtuple('Double', 'value')
+UnitFloat = namedtuple('UnitFloat', 'unit value')
+Double = namedtuple('Double', 'value')
 Class = pretty_namedtuple('Class', 'name classID')
 String = pretty_namedtuple('String', 'value')
 EnumReference = pretty_namedtuple('EnumReference', 'name classID typeID enum')
-Boolean = pretty_namedtuple('Boolean', 'value')
+Boolean = namedtuple('Boolean', 'value')
 Offset = pretty_namedtuple('Offset', 'name classID value')
 Alias = pretty_namedtuple('Alias', 'value')
 List = pretty_namedtuple('List', 'items')
-Integer = pretty_namedtuple('Integer', 'value')
+Integer = namedtuple('Integer', 'value')
 Enum = pretty_namedtuple('Enum', 'type value')
-Identifier = pretty_namedtuple('Identifier', 'value')
-Index = pretty_namedtuple('Index', 'value')
+Identifier = namedtuple('Identifier', 'value')
+Index = namedtuple('Index', 'value')
 Name = pretty_namedtuple('Name', 'value')
 ObjectArray = pretty_namedtuple('ObjectArray', 'classObj items')
 ObjectArrayItem = pretty_namedtuple('ObjectArrayItem', 'keyID value')
-_RawData = pretty_namedtuple('RawData', 'value')
 
 
-class RawData(_RawData):
+class RawData(pretty_namedtuple('RawData', 'value')):
+
     def __repr__(self):
         return "RawData(value=%s)" % trimmed_repr(self.value)
 
     def _repr_pretty_(self, p, cycle):
         if cycle:
-            p.text("RawData(...)")
+            p.text(repr(self))
         else:
-            with p.group(1, "RawData(", ")"):
-                p.breakable()
-                p.text("value=")
-                if isinstance(self.value, bytes):
-                    p.text(trimmed_repr(self.value))
-                else:
-                    p.pretty(self.value)
+            p.begin_group(2, 'RawData(')
+            p.begin_group(0)
+
+            p.break_()
+            p.text('value = ')
+            if isinstance(self.value, bytes):
+                p.text(trimmed_repr(self.value))
+            else:
+                p.pretty(self.value)
+
+            p.end_group(2)
+            p.break_()
+            p.end_group(0, ')')
 
 
 def get_ostype_decode_func(ostype):

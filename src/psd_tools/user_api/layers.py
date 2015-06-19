@@ -31,7 +31,7 @@ def group_layers(decoded_data):
 
         if divider is not None:
             # group information
-            if divider.type in [SectionDivider.CLOSED_FOLDER, SectionDivider.OPEN_FOLDER]:
+            if divider.type in (SectionDivider.CLOSED_FOLDER, SectionDivider.OPEN_FOLDER):
                 # group begins
                 group = dict(
                     id = layer_id,

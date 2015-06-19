@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, unicode_literals, print_function
 import warnings
-import collections
 import io
 
-from psd_tools.constants import TaggedBlock, SectionDivider
+from psd_tools.constants import TaggedBlock, SectionDivider, BlendMode, SectionDividerSub
 from psd_tools.decoder.actions import decode_descriptor, UnknownOSType
 from psd_tools.utils import read_fmt, unpack
-from psd_tools.decoder import decoders, layer_effects
+from psd_tools.decoder import decoders, layer_effects, linked_layer
 from psd_tools.reader.layers import Block
 from psd_tools.debug import pretty_namedtuple
 
@@ -20,7 +19,10 @@ _tagged_block_decoders.update({
     TaggedBlock.UNICODE_LAYER_NAME:                 decoders.unicode_string,
     TaggedBlock.LAYER_ID:                           decoders.single_value("I"), # XXX: there are more fields in docs, but they seem to be incorrect
     TaggedBlock.EFFECTS_LAYER:                      layer_effects.decode,
-    TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO:    layer_effects.decode_object_based
+    TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO:    layer_effects.decode_object_based,
+    TaggedBlock.LINKED_LAYER1:                      linked_layer.decode,
+    TaggedBlock.LINKED_LAYER2:                      linked_layer.decode,
+    TaggedBlock.LINKED_LAYER3:                      linked_layer.decode
 })
 
 
@@ -33,10 +35,47 @@ TypeToolObjectSetting = pretty_namedtuple('TypeToolObjectSetting',
 VectorOriginationData = pretty_namedtuple('VectorOriginationData', 'version descriptor_version data')
 
 
-class Divider(collections.namedtuple('Divider', 'block type key')):
+class Divider(pretty_namedtuple('Divider', 'type blend_mode sub_type')):
+
     def __repr__(self):
-        return "Divider(%s %r %s, %s)" % (
-            self.block, self.type, SectionDivider.name_of(self.type), self.key)
+        blend_mode = self.blend_mode
+        if blend_mode is not None:
+            blend_mode = BlendMode.name_of(blend_mode)
+
+        sub_type = self.sub_type
+        if sub_type is not None:
+            sub_type = SectionDividerSub.name_of(sub_type)
+
+        return "Divider(type=%s, blend_mode=%s, sub_type=%s)" % (
+            SectionDivider.name_of(self.type),
+            blend_mode, sub_type
+        )
+
+    def _repr_pretty_(self, p, cycle):
+        if cycle:
+            p.text(repr(self))
+        else:
+            blend_mode = self.blend_mode
+            if blend_mode is not None:
+                blend_mode = BlendMode.name_of(blend_mode)
+
+            sub_type = self.sub_type
+            if sub_type is not None:
+                sub_type = SectionDividerSub.name_of(sub_type)
+
+            p.begin_group(2, 'Divider(')
+            p.begin_group(0)
+
+            p.break_()
+            p.text("type = %s," % SectionDivider.name_of(self.type))
+            p.break_()
+            p.text("blend_mode = %s," % blend_mode)
+            p.break_()
+            p.text("sub_type = %s" % sub_type)
+
+            p.end_group(2)
+            p.break_()
+            p.end_group(0, ')')
 
 
 def decode(tagged_blocks):
@@ -82,31 +121,33 @@ def _decode_color_setting(data):
 
 
 @register(TaggedBlock.SECTION_DIVIDER_SETTING)
-def _decode_section_divider(data):
-    tp, key = _decode_divider(data)
-    return Divider(TaggedBlock.SECTION_DIVIDER_SETTING, tp, key)
-
-
 @register(TaggedBlock.NESTED_SECTION_DIVIDER_SETTING)
 def _decode_section_divider(data):
-    tp, key = _decode_divider(data)
-    return Divider(TaggedBlock.NESTED_SECTION_DIVIDER_SETTING, tp, key)
+    data_length = len(data)
+    blend_mode = None
+    sub_type = None
 
-
-def _decode_divider(data):
     fp = io.BytesIO(data)
-    key = None
     tp = read_fmt("I", fp)[0]
     if not SectionDivider.is_known(tp):
         warnings.warn("Unknown section divider type (%s)" % tp)
 
-    if len(data) == 12:
+    if data_length >= 12:
         sig = fp.read(4)
         if sig != b'8BIM':
             warnings.warn("Invalid signature in section divider block")
-        key = fp.read(4)
 
-    return tp, key
+        blend_mode = fp.read(4)
+        if not BlendMode.is_known(blend_mode):
+            warnings.warn("Unknown section divider blend mode (%s)" % blend_mode)
+
+        if data_length >= 16:
+            sub_type = read_fmt("I", fp)[0]
+            if not SectionDividerSub.is_known(sub_type):
+                warnings.warn("Unknown section divider sub-type (%s)" % sub_type)
+
+    return Divider(tp, blend_mode, sub_type)
+
 
 @register(TaggedBlock.PLACED_LAYER_DATA)
 @register(TaggedBlock.SMART_OBJECT_PLACED_LAYER_DATA)
@@ -115,6 +156,7 @@ def _decode_placed_layer(data):
     type, version, descriptorVersion = read_fmt("4s I I", fp)
     descriptor = decode_descriptor(None, fp)
     return descriptor.items
+
 
 @register(TaggedBlock.METADATA_SETTING)
 def _decode_metadata(data):
@@ -229,11 +271,3 @@ def _decode_vector_origination_data(data):
         return data
 
     return VectorOriginationData(ver, descr_ver, vector_origination_data)
-
-
-@register(TaggedBlock.LINKED_LAYER1)
-@register(TaggedBlock.LINKED_LAYER2)
-@register(TaggedBlock.LINKED_LAYER3)
-def _decode_linked_layer(data):
-    from psd_tools.decoder.linked_layer import decode
-    return decode(data)

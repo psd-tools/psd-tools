@@ -8,7 +8,7 @@ from psd_tools.utils import read_fmt, read_pascal_string, read_unicode_string
 from psd_tools.debug import pretty_namedtuple
 from psd_tools.decoder.actions import decode_descriptor
 
-LinkedLayerCollection = pretty_namedtuple('LinkedLayerCollection', 'linked_list ')
+LinkedLayerCollection = pretty_namedtuple('LinkedLayerCollection', 'linked_list')
 _LinkedLayer = pretty_namedtuple('LinkedLayer',
                                  'version unique_id filename filetype file_open_descriptor '
                                  'creator decoded uuid')
@@ -21,19 +21,19 @@ class LinkedLayer(_LinkedLayer):
 
     def _repr_pretty_(self, p, cycle):
         if cycle:
-            p.text("LinkedLayer(...)")
+            p.text(repr(self))
         else:
-            with p.group(1, "LinkedLayer(", ")"):
+            with p.group(2, "LinkedLayer(", ")"):
                 p.breakable()
-                p.text("filename='%s', ", self.filename)
+                p.text("filename='%s', " % self.filename)
                 p.breakable()
-                p.text("size=%s, ", len(self.decoded))
+                p.text("size=%s, " % len(self.decoded))
                 p.breakable()
-                p.text("unique_id=%s, ", self.unique_id)
+                p.text("unique_id=%s, " % self.unique_id)
                 p.breakable()
-                p.text("type='%s', ", self.filetype)
+                p.text("type='%s', " % self.filetype)
                 p.breakable()
-                p.text("creator='%s', ", self.creator)
+                p.text("creator='%s', " % self.creator)
 
 
 def decode(data):
