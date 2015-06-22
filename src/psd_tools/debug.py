@@ -7,7 +7,12 @@ import sys
 from collections import namedtuple
 
 
-def register_formatters():
+def patch_formatters(text_formatter):
+    """
+    Replaces IPython's text formatters for basic types with ours
+    to improve the debug's output readability.
+    Should only be called once at startup.
+    """
 
     def _repr_pretty_tuple(self, p, cycle):
         # checking for a subclass...
@@ -66,14 +71,18 @@ def register_formatters():
                 p.break_()
                 p.end_group(0, '}')
 
-    try:
-        from IPython.lib import pretty as text_formatter
+    _repr_tuple_old = text_formatter.for_type(tuple, _repr_pretty_tuple)
+    _repr_list_old = text_formatter.for_type(list, _repr_pretty_list)
+    _repr_dict_old = text_formatter.for_type(dict, _repr_pretty_dict)
 
-        _repr_tuple_old = text_formatter.for_type(tuple, _repr_pretty_tuple)
-        _repr_list_old = text_formatter.for_type(list, _repr_pretty_list)
-        _repr_dict_old = text_formatter.for_type(dict, _repr_pretty_dict)
-    except ImportError:
-        pass
+
+def try_patch_formatters():
+    """
+    Updates IPython's text formatters for basic types if IPython is used.
+    """
+    if 'get_ipython' in __builtins__:
+        text_formatter = get_ipython().display_formatter.formatters['text/plain']
+        patch_formatters(text_formatter)
 
 
 def pprint(*args, **kwargs):
@@ -84,7 +93,10 @@ def pprint(*args, **kwargs):
     global pprint
 
     try:
-        from IPython.lib.pretty import pprint
+        from IPython.lib import pretty
+
+        patch_formatters(pretty)
+        pprint = pretty.pprint
     except ImportError:
         from pprint import pprint
 
