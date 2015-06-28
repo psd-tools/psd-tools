@@ -2,22 +2,20 @@
 from __future__ import absolute_import
 import io
 import struct
-import warnings
-from psd_tools.utils import unpack, read_fmt, read_unicode_string
+from psd_tools.utils import unpack, read_unicode_string
 
 def single_value(fmt):
+    fmt_size = struct.calcsize(fmt)
     def decoder(data):
-        return unpack(fmt, data)[0]
+        # truncating data if it's bigger...
+        return unpack(fmt, data[:fmt_size])[0]
     return decoder
 
 def unicode_string(data):
     return read_unicode_string(io.BytesIO(data))
 
-def boolean(fmt="?"):
-    fmt_size = struct.calcsize(str(fmt))
-    def decoder(data):
-        return bool(single_value(fmt)(data[:fmt_size]))
-    return decoder
+def boolean(data):
+    return bool(unpack("?", data[:1])[0])
 
 
 def new_registry():

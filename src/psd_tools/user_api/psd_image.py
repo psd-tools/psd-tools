@@ -2,8 +2,9 @@
 from __future__ import absolute_import, unicode_literals, division
 
 import logging
-import collections
 import weakref              # FIXME: there should be weakrefs in this module
+from collections import namedtuple
+
 import psd_tools.reader
 import psd_tools.decoder
 from psd_tools.constants import TaggedBlock, SectionDivider, BlendMode, TextProperty, PlacedLayerProperty, SzProperty
@@ -15,26 +16,29 @@ from psd_tools.user_api.embedded import Embedded
 logger = logging.getLogger(__name__)
 
 
-Size = collections.namedtuple('Size', 'width, height')
+Size = namedtuple('Size', 'width, height')
 
 
-class BBox(collections.namedtuple('BBox', 'x1, y1, x2, y2')):
+class BBox(namedtuple('BBox', 'x1, y1, x2, y2')):
+
     @property
     def width(self):
-        return self.x2-self.x1
+        return self.x2 - self.x1
 
     @property
     def height(self):
-        return self.y2-self.y1
+        return self.y2 - self.y1
 
 
 class TextData(object):
+
     def __init__(self, tagged_blocks):
         text_data = dict(tagged_blocks.text_data.items)
         self.text = text_data[TextProperty.TXT].value
 
 
 class PlacedLayerData(object):
+
     def __init__(self, placed_layer_block):
         placed_layer_data = dict(placed_layer_block)
         self.transform = placed_layer_data[PlacedLayerProperty.TRANSFORM].items
@@ -126,7 +130,10 @@ class Layer(_RawLayer):
         transform = placed_layer_data.transform
         if not transform:
             return None
-        return BBox(transform[0].value, transform[1].value, transform[4].value, transform[5].value)
+        return BBox(
+            transform[0].value, transform[1].value,
+            transform[4].value, transform[5].value
+        )
 
     @property
     def placed_layer_size(self):
@@ -156,7 +163,8 @@ class Layer(_RawLayer):
     def __repr__(self):
         bbox = self.bbox
         return "<psd_tools.Layer: %r, size=%dx%d, x=%d, y=%d>" % (
-            self.name, bbox.width, bbox.height, bbox.x1, bbox.y1)
+            self.name, bbox.width, bbox.height, bbox.x1, bbox.y1
+        )
 
 
 class Group(_RawLayer):
@@ -195,8 +203,24 @@ class Group(_RawLayer):
 
     def __repr__(self):
         return "<psd_tools.Group: %r, layer_count=%d>" % (
-            self.name, len(self.layers))
+            self.name, len(self.layers)
+        )
 
+
+class _RootGroup(Group):
+    """ A fake group for holding all layers """
+
+    @property
+    def visible(self):
+        return True
+
+    @property
+    def visible_global(self):
+        return True
+
+    @property
+    def name(self):
+        return "_RootGroup"
 
 
 class PSDImage(object):
@@ -208,7 +232,6 @@ class PSDImage(object):
 
         # wrap decoded data to Layer and Group structures
         def fill_group(group, data):
-
             for layer in data['layers']:
                 index = layer['index']
 
@@ -231,7 +254,7 @@ class PSDImage(object):
         self.embedded = [Embedded(linked) for linked in self._linked_layer_iter()]
 
     @classmethod
-    def load(cls, path, encoding='utf8'):
+    def load(cls, path, encoding='latin1'):
         """
         Returns a new :class:`PSDImage` loaded from ``path``.
         """
@@ -239,7 +262,7 @@ class PSDImage(object):
             return cls.from_stream(fp, encoding)
 
     @classmethod
-    def from_stream(cls, fp, encoding='utf8'):
+    def from_stream(cls, fp, encoding='latin1'):
         """
         Returns a new :class:`PSDImage` loaded from stream ``fp``.
         """
@@ -301,28 +324,12 @@ class PSDImage(object):
                     yield layer
 
 
-class _RootGroup(Group):
-    """ A fake group for holding all layers """
-
-    @property
-    def visible(self):
-        return True
-
-    @property
-    def visible_global(self):
-        return True
-
-    @property
-    def name(self):
-        return "_RootGroup"
-
-
 def combined_bbox(layers):
     """
     Returns a bounding box for ``layers`` or None if this is not possible.
     """
-    bboxes = [layer.bbox for layer in layers
-              if layer.bbox is not None and layer.bbox.width > 0 and layer.bbox.height > 0]
+    bboxes = [layer.bbox for layer in layers if layer.bbox is not None
+              and layer.bbox.width > 0 and layer.bbox.height > 0]
     if not bboxes:
         return None
 
@@ -346,33 +353,32 @@ def merge_layers(layers, respect_visibility=True, skip_layer=lambda layer: False
     This is highly experimental.
     """
 
-    # FIXME: this currently assumes PIL
-    from PIL import Image
-
     if bbox is None:
         bbox = combined_bbox(layers)
+        if bbox is None:
+            return None
 
-    if bbox is None:
-        return None
+    # FIXME: this currently assumes PIL
+    from PIL import Image
 
     result = Image.new(
         "RGBA",
         (bbox.width, bbox.height),
-        color=(255, 255, 255, 0)  # fixme: transparency calculation is incorrect
+        color = (255, 255, 255, 0)  # fixme: transparency calculation is incorrect
     )
 
     for layer in reversed(layers):
-
         if layer is None:
             continue
-
-        if layer.bbox.width == 0 and layer.bbox.height == 0:
+        if respect_visibility and not layer.visible:
             continue
-
+        if layer.bbox.width == 0 or layer.bbox.height == 0:
+            continue
+        if layer.bbox.x2 < bbox.x1 or layer.bbox.y2 < bbox.y1 \
+        or layer.bbox.x1 > bbox.x2 or layer.bbox.y1 > bbox.y2:
+            logger.debug("Layer outside of bbox. Skipping...")
+            continue
         if skip_layer(layer):
-            continue
-
-        if not layer.visible and respect_visibility:
             continue
 
         if isinstance(layer, psd_tools.Group):
@@ -380,22 +386,22 @@ def merge_layers(layers, respect_visibility=True, skip_layer=lambda layer: False
         else:
             layer_image = layer.as_PIL()
 
-        layer_image = pil_support.apply_opacity(layer_image, layer.opacity)
-
         x, y = layer.bbox.x1 - bbox.x1, layer.bbox.y1 - bbox.y1
         w, h = layer_image.size
+        if x < 0 or y < 0 or x + w > bbox.width or y + h > bbox.height:
+            # layer doesn't fit the bbox
+            crop_bbox = (
+                max(-x, 0),             max(-y, 0),
+                min(w, bbox.width - x), min(h, bbox.height - y)
+            )
 
-        if x < 0 or y < 0:  # image doesn't fit the bbox
-            x_overflow = - min(x, 0)
-            y_overflow = - min(y, 0)
-            logger.debug("cropping.. (%s, %s)", x_overflow, y_overflow)
-            layer_image = layer_image.crop((x_overflow, y_overflow, w, h))
-            x += x_overflow
-            y += y_overflow
+            logger.debug("Cropping layer to (%s, %s, %s, %s)", *crop_bbox)
 
-        if w+x > bbox.width or h+y > bbox.height:
-            # FIXME
-            logger.debug("cropping..")
+            layer_image = layer_image.crop(crop_bbox)
+            x += crop_bbox[0]
+            y += crop_bbox[1]
+
+        layer_image = pil_support.apply_opacity(layer_image, layer.opacity)
 
         if layer.blend_mode == BlendMode.NORMAL:
             if layer_image.mode == 'RGBA':
@@ -403,9 +409,9 @@ def merge_layers(layers, respect_visibility=True, skip_layer=lambda layer: False
                 tmp.paste(layer_image, (x, y))
                 result = Image.alpha_composite(result, tmp)
             elif layer_image.mode == 'RGB':
-                result.paste(layer_image, (x,y))
+                result.paste(layer_image, (x, y))
             else:
-                logger.warning("layer image mode is unsupported for merging: %s", layer_image.mode)
+                logger.warning("Layer image mode is unsupported for merging: %s", layer_image.mode)
                 continue
         else:
             logger.warning("Blend mode is not implemented: %s", BlendMode.name_of(layer.blend_mode))

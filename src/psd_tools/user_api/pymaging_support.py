@@ -42,7 +42,7 @@ def extract_layer_image(decoded_data, layer_index):
     # FIXME: support for layers with mask (there would be 5 channels in this case)
     if channel_types[0] == ChannelID.TRANSPARENCY_MASK:
         # move alpha channel to the end
-        channels_data = [channels_data[i] for i in [1, 2, 3, 0]]
+        channels_data = [channels_data[i] for i in (1, 2, 3, 0)]
 
     mode = _get_mode(len(channels_data))
     return _channels_data_to_image(channels_data, mode, size, depth)

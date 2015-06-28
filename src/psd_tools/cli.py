@@ -26,7 +26,7 @@ def main():
 
     Options:
         -v --verbose                Be more verbose.
-        --encoding <encoding>       Text encoding [default: utf8].
+        --encoding <encoding>       Text encoding [default: latin1].
 
     """
     args = docopt.docopt(main.__doc__, version=__version__)

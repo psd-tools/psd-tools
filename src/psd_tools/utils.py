@@ -29,7 +29,7 @@ def pad(number, divisor):
         number = (number // divisor + 1) * divisor
     return number
 
-def read_pascal_string(fp, encoding, padding=1):
+def read_pascal_string(fp, encoding='latin1', padding=1):
     length = read_fmt("B", fp)[0]
     if length == 0:
         fp.seek(padding-1, 1)
@@ -37,9 +37,19 @@ def read_pascal_string(fp, encoding, padding=1):
 
     res = fp.read(length)
 
-    padded_length = pad(length+1, padding) - 1 # -1 accounts for the length byte
-    fp.seek(padded_length - length, 1)
-    return res.decode(encoding, 'replace')
+    padded_length = pad(length+1, padding)
+    fp.seek(padded_length - (length+1), 1)
+
+    try:
+        # GIMP uses UTF-8 encoding for this field...
+        # (which is incorrect for Pascal strings)
+        return res.decode('utf8')
+    except UnicodeError:
+        try:
+            # ... but Photoshop uses something like ISO-8859-1 here
+            return res.decode(encoding)
+        except UnicodeError:
+            return res
 
 def read_unicode_string(fp):
     num_chars = read_fmt("I", fp)[0]

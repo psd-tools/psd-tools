@@ -121,12 +121,13 @@ def read(fp, encoding, depth):
 
         synchronize(fp) # hack hack hack
         remaining_length = length - (fp.tell() - start_pos)
-        tagged_blocks = _read_layer_tagged_blocks(fp, remaining_length, 4)
-
-        remaining_length = length - (fp.tell() - start_pos)
         if remaining_length > 0:
-            fp.seek(remaining_length, 1)
-            logger.debug('skipping %s bytes', remaining_length)
+            tagged_blocks = _read_layer_tagged_blocks(fp, remaining_length, 4)
+
+            # remaining_length = length - (fp.tell() - start_pos)
+            # if remaining_length > 0:
+            #     fp.seek(remaining_length, 1)
+            #     logger.debug('skipping %s bytes', remaining_length)
 
     return LayerAndMaskData(layers, global_mask_info, tagged_blocks)
 
@@ -208,12 +209,13 @@ def _read_layer_record(fp, encoding):
     name = read_pascal_string(fp, encoding, 4)
 
     remaining_length = extra_length - (fp.tell() - start_pos)
-    tagged_blocks = _read_layer_tagged_blocks(fp, remaining_length)
-
-    remaining_length = extra_length - (fp.tell() - start_pos)
     if remaining_length > 0:
-        fp.seek(remaining_length, 1) # skip the remainder
-        logger.debug('  skipping %s bytes', remaining_length)
+        tagged_blocks = _read_layer_tagged_blocks(fp, remaining_length)
+
+        # remaining_length = extra_length - (fp.tell() - start_pos)
+        # if remaining_length > 0:
+        #     fp.seek(remaining_length, 1) # skip the remainder
+        #     logger.debug('  skipping %s bytes', remaining_length)
 
     return LayerRecord(
         top, left, bottom, right,
@@ -229,14 +231,12 @@ def _read_layer_tagged_blocks(fp, remaining_length, padding=0):
     Reads a section of tagged blocks with additional layer information.
     """
     blocks = []
-    start_pos = fp.tell()
-    read_bytes = 0
-    while read_bytes < remaining_length:
+    end_position = fp.tell() + remaining_length
+
+    while fp.tell() < end_position:
         block = _read_additional_layer_info_block(fp, padding)
-        read_bytes = fp.tell() - start_pos
-        if block is None:
-            break
-        blocks.append(block)
+        if block is not None:
+            blocks.append(block)
 
     return blocks
 
@@ -246,13 +246,18 @@ def _read_additional_layer_info_block(fp, padding):
     Reads a tagged block with additional layer information.
     """
     sig = fp.read(4)
-    if sig not in [b'8BIM', b'8B64']:
-        fp.seek(-4, 1)
-        #warnings.warn("not a block: %r" % sig)
-        return
+    if sig not in (b'8BIM', b'8B64'):
+        raise Error("Invalid signature of tagged block (%r)" % sig)
 
     key = fp.read(4)
     length = read_fmt("I", fp)[0]
+    if not length:
+        logger.debug(
+            "Found tagged block with no data (%s %s). Dropping..." % (
+            key, TaggedBlock.name_of(key)
+        ))
+        return None
+
     if padding > 0:
         length = pad(length, padding)
 
@@ -310,13 +315,17 @@ def _read_layer_blending_ranges(fp):
         return (src_start, src_end), (dest_start, dest_end)
 
     composite_ranges = None
-    channel_ranges = []
+    channel_ranges = None
     length = read_fmt("I", fp)[0]
 
     if length:
         composite_ranges = read_channel_range()
-        for x in range(length//8 - 1):
-            channel_ranges.append(read_channel_range())
+
+        channel_ranges_count = length // 8 - 1
+        if channel_ranges_count:
+            channel_ranges = []
+            for _ in range(channel_ranges_count):
+                channel_ranges.append(read_channel_range())
 
     return LayerBlendingRanges(composite_ranges, channel_ranges)
 
@@ -394,9 +403,8 @@ def _read_global_mask_info(fp):
     """
     Reads global layer mask info.
     """
-    # XXX: What is it for?
     length = read_fmt("I", fp)[0]
-    if length == 0:
+    if not length:
         return None
 
     start_pos = fp.tell()

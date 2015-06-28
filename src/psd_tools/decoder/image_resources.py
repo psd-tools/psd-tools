@@ -18,14 +18,14 @@ _image_resource_decoders, register = decoders.new_registry()
 _image_resource_decoders.update({
     ImageResourceID.LAYER_STATE_INFO:           decoders.single_value("H"),
     ImageResourceID.WATERMARK:                  decoders.single_value("B"),
-    ImageResourceID.ICC_UNTAGGED_PROFILE:       decoders.boolean(),
-    ImageResourceID.EFFECTS_VISIBLE:            decoders.boolean(),
+    ImageResourceID.ICC_UNTAGGED_PROFILE:       decoders.boolean,
+    ImageResourceID.EFFECTS_VISIBLE:            decoders.boolean,
     ImageResourceID.IDS_SEED_NUMBER:            decoders.single_value("I"),
     ImageResourceID.INDEXED_COLOR_TABLE_COUNT:  decoders.single_value("H"),
     ImageResourceID.TRANSPARENCY_INDEX:         decoders.single_value("H"),
     ImageResourceID.GLOBAL_ALTITUDE:            decoders.single_value("I"),
-    ImageResourceID.GLOBAL_ANGLE_OBSOLETE:      decoders.single_value("I"),
-    ImageResourceID.COPYRIGHT_FLAG:             decoders.boolean("H"),
+    ImageResourceID.GLOBAL_ANGLE:               decoders.single_value("I"),
+    ImageResourceID.COPYRIGHT_FLAG:             decoders.boolean,
 
     ImageResourceID.ALPHA_NAMES_UNICODE:        decoders.unicode_string,
     ImageResourceID.WORKFLOW_URL:               decoders.unicode_string
@@ -144,7 +144,7 @@ def _decode_print_scale(data):
 @register(ImageResourceID.CAPTION_PASCAL)
 def _decode_caption_pascal(data):
     fp = io.BytesIO(data)
-    return read_pascal_string(fp, 'ascii')
+    return read_pascal_string(fp)
 
 @register(ImageResourceID.RESOLUTION_INFO)
 def _decode_resolution(data):

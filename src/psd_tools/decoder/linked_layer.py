@@ -56,7 +56,7 @@ def decode(data):
         if liFD != b'liFD':
             warnings.warn('unknown layer type')
             break
-        unique_id = read_pascal_string(fp, 'ascii')
+        unique_id = read_pascal_string(fp)
         filename = read_unicode_string(fp)
         filetype, creator, filelength, have_file_open_descriptor = read_fmt('4s 4s Q B', fp)
         filetype = str(filetype)

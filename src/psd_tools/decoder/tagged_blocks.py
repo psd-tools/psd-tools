@@ -9,15 +9,17 @@ from psd_tools.utils import read_fmt, unpack
 from psd_tools.decoder import decoders, layer_effects, linked_layer
 from psd_tools.reader.layers import Block
 from psd_tools.debug import pretty_namedtuple
+from psd_tools.exceptions import Error
 
 _tagged_block_decoders, register = decoders.new_registry()
 
 _tagged_block_decoders.update({
-    TaggedBlock.BLEND_CLIPPING_ELEMENTS:            decoders.boolean("I"),
-    TaggedBlock.BLEND_INTERIOR_ELEMENTS:            decoders.boolean("I"),
-    TaggedBlock.KNOCKOUT_SETTING:                   decoders.boolean("I"),
+    TaggedBlock.BLEND_CLIPPING_ELEMENTS:            decoders.boolean,
+    TaggedBlock.BLEND_INTERIOR_ELEMENTS:            decoders.boolean,
+    TaggedBlock.KNOCKOUT_SETTING:                   decoders.boolean,
     TaggedBlock.UNICODE_LAYER_NAME:                 decoders.unicode_string,
-    TaggedBlock.LAYER_ID:                           decoders.single_value("I"), # XXX: there are more fields in docs, but they seem to be incorrect
+    TaggedBlock.LAYER_ID:                           decoders.single_value("I"),
+    TaggedBlock.FILL_OPACITY:                       decoders.single_value("B"),
     TaggedBlock.EFFECTS_LAYER:                      layer_effects.decode,
     TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO:    layer_effects.decode_object_based,
     TaggedBlock.LINKED_LAYER1:                      linked_layer.decode,
@@ -135,7 +137,7 @@ def _decode_section_divider(data):
     if data_length >= 12:
         sig = fp.read(4)
         if sig != b'8BIM':
-            warnings.warn("Invalid signature in section divider block")
+            raise Error("Invalid signature in section divider block (%r)" % sig)
 
         blend_mode = fp.read(4)
         if not BlendMode.is_known(blend_mode):
@@ -167,7 +169,7 @@ def _decode_metadata(data):
     for x in range(items_count):
         sig = fp.read(4)
         if sig != b'8BIM':
-            warnings.warn("Invalid signature in metadata item (%s)" % sig)
+            raise Error("Invalid signature in metadata item (%r)" % sig)
 
         key, copy_on_sheet, data_length = read_fmt("4s ? 3x I", fp)
 

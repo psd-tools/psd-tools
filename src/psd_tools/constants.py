@@ -84,7 +84,7 @@ class ImageResourceID(Enum):
     COPYRIGHT_FLAG = 1034
     URL = 1035
     THUMBNAIL_RESOURCE = 1036
-    GLOBAL_ANGLE_OBSOLETE = 1037
+    GLOBAL_ANGLE = 1037
     COLOR_SAMPLERS_RESOURCE_OBSOLETE = 1038
     ICC_PROFILE = 1039
     WATERMARK = 1040
@@ -226,11 +226,11 @@ class PrintScaleStyle(Enum):
 
 class TaggedBlock(Enum):
 
-    _ADJUSTMENT_KEYS = set([
+    _ADJUSTMENT_KEYS = set((
         b'SoCo', b'GdFl', b'PtFl', b'brit', b'levl', b'curv', b'expA',
         b'vibA', b'hue ', b'hue2', b'blnc', b'blwh', b'phfl', b'mixr',
         b'clrL', b'nvrt', b'post', b'thrs', b'grdm', b'selc'
-    ])
+    ))
 
     SOLID_COLOR_SHEET_SETTING = b'SoCo'
     GRADIENT_FILL_SETTING = b'GdFl'
@@ -275,6 +275,7 @@ class TaggedBlock(Enum):
     PROTECTED_SETTING = b'lspf'
     SHEET_COLOR_SETTING = b'lclr'
     REFERENCE_POINT = b'fxrp'
+    FILL_OPACITY = b'iOpa'
     SECTION_DIVIDER_SETTING = b'lsct'
     NESTED_SECTION_DIVIDER_SETTING = b'lsdk'
     CHANNEL_BLENDING_RESTRICTIONS_SETTING = b'brst'
