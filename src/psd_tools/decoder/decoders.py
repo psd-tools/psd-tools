@@ -2,7 +2,7 @@
 from __future__ import absolute_import
 import io
 import struct
-from psd_tools.utils import unpack, read_unicode_string
+from psd_tools.utils import unpack, read_unicode_string, read_pascal_string
 
 def single_value(fmt):
     fmt_size = struct.calcsize(fmt)
@@ -13,6 +13,9 @@ def single_value(fmt):
 
 def unicode_string(data):
     return read_unicode_string(io.BytesIO(data))
+
+def pascal_string(data):
+    return read_pascal_string(io.BytesIO(data))
 
 def boolean(data):
     return bool(unpack("?", data[:1])[0])

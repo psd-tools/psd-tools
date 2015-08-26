@@ -33,6 +33,9 @@ def extract_layer_image(decoded_data, layer_index):
     """
     Converts a layer from the ``decoded_data`` to a PIL image.
     """
+    if Image is None:
+        raise Exception("This module requires PIL (or Pillow) installed.")
+
     layers = decoded_data.layer_and_mask_data.layers
     layer = layers.layer_records[layer_index]
 
@@ -51,6 +54,9 @@ def extract_composite_image(decoded_data):
     Converts a composite (merged) image from the ``decoded_data``
     to a PIL image.
     """
+    if Image is None:
+        raise Exception("This module requires PIL (or Pillow) installed.")
+
     header = decoded_data.header
     size = header.width, header.height
     if size == (0, 0):
@@ -76,7 +82,7 @@ def extract_composite_image(decoded_data):
 
 def get_icc_profile(decoded_data):
     """
-    Return ICC image profile if it exists and was correctly decoded
+    Return ICC image profile if it exists and was correctly decoded.
     """
     # fixme: move this function somewhere?
     icc_profiles = [res.data for res in decoded_data.image_resource_blocks
@@ -102,13 +108,30 @@ def apply_opacity(im, opacity):
     if im.mode == 'RGB':
         im.putalpha(opacity)
         return im
-    elif im.mode == 'RGBA':
-        r, g, b, a = im.split()
+    elif im.mode in ('RGBA', 'LA'):
+        alpha_index = len(im.mode) - 1
+        a = im.split()[alpha_index]
         opacity_scale = opacity / 255
         a = a.point(lambda i: i * opacity_scale)
-        return Image.merge('RGBA', (r, g, b, a))
+        im.putalpha(a)
+        return im
     else:
         raise NotImplementedError()
+
+
+def try_remove_alpha(im):
+    """ Removes an alpha channel if the image is fully opaque. """
+    if im.mode == 'RGBA':
+        alpha_channel_data = im.getdata(3)
+    elif im.mode == 'LA':
+        alpha_channel_data = im.getdata(1)
+    else:
+        raise NotImplementedError()
+
+    for value in alpha_channel_data:
+        if value < 255:
+            return im
+    return im.convert(im.mode[:-1])
 
 
 def _channel_data_to_PIL(channel_data, channel_ids, color_mode, size, depth, icc_profile):
@@ -123,9 +146,6 @@ def _channel_data_to_PIL(channel_data, channel_ids, color_mode, size, depth, icc
 
 
 def _merge_bands(bands, color_mode, size, icc_profile):
-    if Image is None:
-        raise Exception("This module requires PIL (or Pillow) installed.")
-
     if color_mode == ColorMode.RGB:
         merged_image = Image.merge('RGB', [bands[key] for key in 'RGB'])
     elif color_mode == ColorMode.CMYK:
@@ -191,7 +211,7 @@ def _get_band_images(channel_data, channel_ids, color_mode, size, depth):
                 warnings.warn("Unknown compression method (%s)" % channel.compression)
             continue
 
-        bands[pil_band] = im.convert('L')
+        bands[pil_band] = im
     return bands
 
 
@@ -201,14 +221,14 @@ def _from_8bit_raw(data, size):
 
 def _from_16bit_raw(data, size):
     im = frombytes('I', size, data, "raw", 'I;16B')
-    return im.point(lambda i: i * (1/(256.0)))
+    return im.point(lambda i: i * (1/(256.0))).convert('L')
 
 
 def _from_32bit_raw(data, size):
     pixels = be_array_from_bytes("f", data)
     im = Image.new("F", size)
     im.putdata(pixels, 255, 0)
-    return im
+    return im.convert('L')
 
 
 def _channel_id_to_PIL(channel_id, color_mode):

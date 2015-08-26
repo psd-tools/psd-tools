@@ -5,6 +5,7 @@ import io
 
 from psd_tools.constants import TaggedBlock, SectionDivider, BlendMode, SectionDividerSub
 from psd_tools.decoder.actions import decode_descriptor, UnknownOSType
+from psd_tools.decoder.color import decode_color
 from psd_tools.utils import read_fmt, unpack
 from psd_tools.decoder import decoders, layer_effects, linked_layer
 from psd_tools.reader.layers import Block
@@ -35,6 +36,7 @@ TypeToolObjectSetting = pretty_namedtuple('TypeToolObjectSetting',
                         'version xx xy yx yy tx ty text_version descriptor1_version text_data '
                         'warp_version descriptor2_version warp_data left top right bottom')
 VectorOriginationData = pretty_namedtuple('VectorOriginationData', 'version descriptor_version data')
+FilterMask = pretty_namedtuple('FilterMask', 'color opacity')
 
 
 class Divider(pretty_namedtuple('Divider', 'type blend_mode sub_type')):
@@ -273,3 +275,13 @@ def _decode_vector_origination_data(data):
         return data
 
     return VectorOriginationData(ver, descr_ver, vector_origination_data)
+
+
+@register(TaggedBlock.FILTER_MASK)
+def _decode_filter_mask(data):
+    fp = io.BytesIO(data)
+
+    return FilterMask(
+        decode_color(fp),
+        read_fmt("H", fp)[0]
+    )

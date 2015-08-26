@@ -204,10 +204,10 @@ class Clipping(Enum):
     NON_BASE = 1
 
 
-class GlobalLayerMaskKind(Enum):
+class ColorKind(Enum):
     COLOR_SELECTED = 0
     COLOR_PROTECTED = 1
-    PER_LAYER = 128
+    STORED_PER_LAYER = 128
     # others options are possible in beta versions.
 
 

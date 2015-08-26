@@ -63,8 +63,8 @@ def group_layers(decoded_data):
                     layers = group_stack[0]['layers']
                     group = layers[0]
 
-                    # group doesn't have coords:
-                    for key in ('top', 'left', 'bottom', 'right'):
+                    # group doesn't have coords and fill:
+                    for key in ('top', 'left', 'bottom', 'right', 'fill'):
                         if key in group:
                             del group[key]
 
@@ -82,6 +82,8 @@ def group_layers(decoded_data):
                 warnings.warn("invalid state")
         else:
             # layer with image
+            fill = blocks.get(TaggedBlock.FILL_OPACITY, 255)
+
             current_group['layers'].append(dict(
                 index = index,
                 id = layer_id,
@@ -89,6 +91,7 @@ def group_layers(decoded_data):
 
                 blend_mode = blend_mode,
                 opacity = opacity,
+                fill = fill,
                 visible = visible,
 
                 left = layer.left,

@@ -99,35 +99,36 @@ class ve_build_ext(build_ext):
                 raise BuildFailed()
             raise
 
-# There are a few reasons we might not be able to compile the C extension.
-# Figure out if we should attempt the C extension or not.
+# There are a few reasons we might not be able to compile the C extensions.
+# Figure out if we should attempt to build extensions or not.
 
-compile_extension = True
+compile_extensions = True
 
 if sys.platform.startswith('java'):
     # Jython can't compile C extensions
-    compile_extension = False
+    compile_extensions = False
 
 if '__pypy__' in sys.builtin_module_names:
     # Cython extensions are slow under PyPy
-    compile_extension = False
+    compile_extensions = False
 
-if compile_extension:
+if compile_extensions:
     setup_args.update(dict(
         ext_modules = [
-            Extension("psd_tools._compression", sources=["src/psd_tools/_compression.c"])
+            Extension("psd_tools._compression",          sources=["src/psd_tools/_compression.c"]),
+            Extension("psd_tools.user_api._blend_modes", sources=["src/psd_tools/user_api/_blend_modes.c"])
         ],
         cmdclass = {'build_ext': ve_build_ext},
     ))
 
 def main():
     """Actually invoke setup() with the arguments we built above."""
-    # For a variety of reasons, it might not be possible to install the C
-    # extension.  Try it with, and if it fails, try it without.
+    # For a variety of reasons, it might not be possible to install the
+    # C extensions. Try it with, and if it fails, try it without.
     try:
         setup(**setup_args)
     except BuildFailed:
-        msg = "Couldn't install with extension module, trying without it..."
+        msg = "Couldn't install with extension modules, trying without them..."
         exc = sys.exc_info()[1]
         exc_msg = "%s: %s" % (exc.__class__.__name__, exc.cause)
         print("**\n** %s\n** %s\n**" % (msg, exc_msg))
