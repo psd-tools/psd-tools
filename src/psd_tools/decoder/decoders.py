@@ -5,7 +5,7 @@ import struct
 from psd_tools.utils import unpack, read_unicode_string, read_pascal_string
 
 def single_value(fmt):
-    fmt_size = struct.calcsize(fmt)
+    fmt_size = struct.calcsize(str(fmt))
     def decoder(data):
         # truncating data if it's bigger...
         return unpack(fmt, data[:fmt_size])[0]
