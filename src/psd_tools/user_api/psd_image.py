@@ -6,7 +6,7 @@ import collections
 import weakref              # FIXME: there should be weakrefs in this module
 import psd_tools.reader
 import psd_tools.decoder
-from psd_tools.constants import TaggedBlock, SectionDivider, BlendMode, TextProperty, PlacedLayerProperty, SzProperty
+from psd_tools.constants import TaggedBlock, SectionDivider, BlendMode, TextProperty, PlacedLayerProperty, SzProperty, ImageResourceID
 from psd_tools.user_api.layers import group_layers
 from psd_tools.user_api import pymaging_support
 from psd_tools.user_api import pil_support
@@ -230,6 +230,8 @@ class PSDImage(object):
         self.layers = root.layers
         self.embedded = [Embedded(linked) for linked in self._linked_layer_iter()]
 
+        self.layer_comps = _parse_layer_comps(decoded_data.image_resource_blocks)
+
     @classmethod
     def load(cls, path, encoding='utf8'):
         """
@@ -412,3 +414,30 @@ def merge_layers(layers, respect_visibility=True, skip_layer=lambda layer: False
             continue
 
     return result
+
+
+def _parse_layer_comps(image_resource_blocks):
+    layer_comps = []
+
+    comp_block = None
+    for resource_block in image_resource_blocks:
+        if resource_block.resource_id == ImageResourceID.LAYER_COMPS:
+            comp_block = resource_block
+            break
+    if comp_block is None:
+        return layer_comps
+
+
+    list = None
+    for item in comp_block.data.descriptor.items:
+        if item[0] == 'list':
+            list = item[1]
+            break
+    if list is None:
+        return layer_comps
+
+    for descriptor in list.items:
+        attribute_map = dict(descriptor.items)
+        layer_comps.append(attribute_map['Nm  '].value)
+
+    return layer_comps
