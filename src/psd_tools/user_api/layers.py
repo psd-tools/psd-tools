@@ -3,7 +3,7 @@ from __future__ import absolute_import, unicode_literals, print_function, divisi
 import warnings
 
 from psd_tools.constants import TaggedBlock, SectionDivider
-
+from psd_tools.engineData import getFontAndColorDic
 
 def group_layers(decoded_data):
     """
@@ -13,6 +13,9 @@ def group_layers(decoded_data):
 
     root = dict(layers = [])
     group_stack = [root]
+    font_sizeTuple = None
+    text_data = {}
+     propDict = {'FontSet':'', 'Text':'', 'FontType':'', 'FontTypeA':'', 'FontSize':'', 'A':'', 'R':'', 'G':'', 'B':''}
 
     for index, layer in reversed(list(enumerate(layer_records))):
         current_group = group_stack[-1]
@@ -43,6 +46,30 @@ def group_layers(decoded_data):
                     blend_mode = blend_mode,
                     visible = visible,
                     opacity = opacity,
+                            type_tool_object_setting = blocks.get(TaggedBlock.TYPE_TOOL_OBJECT_SETTING)
+        
+        
+            
+        
+                    if (type_tool_object_setting != None):
+                        textDataList = type_tool_object_setting.text_data.items
+                        textDataTuple = [tup[1] for tup in textDataList]
+                        
+                        # text key
+                        textKey = textDataTuple[0].value
+                        
+                        # to get the dict with font name and size
+                        textDataTuplekey = [tup[1] for tup in textDataList]
+                        textDataTuple.reverse()
+                        TextDataTupleValue = textDataTuple[0].value
+                        fontDetails = getFontAndColorDict(propDict, TextDataTupleValue)
+                        propDict = {'FontSet':'', 'Text':'', 'FontType':'', 'FontTypeA':'', 'FontSize':'', 'A':'', 'R':'', 'G':'', 'B':''}
+                        
+                        textData = {'TextKey' : textKey,
+                        			'textStyle' : fontDetails,
+                        			}
+                    else:
+                        textData = None
                 )
                 group_stack.append(group)
                 current_group['layers'].append(group)
@@ -93,6 +120,7 @@ def group_layers(decoded_data):
                 blend_mode = blend_mode,
                 visible = visible,
                 opacity = opacity,
+                textData = textData,
             ))
 
     return root['layers']
