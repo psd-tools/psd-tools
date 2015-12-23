@@ -110,7 +110,7 @@ def decode_ref(key, fp):
         ostype = fp.read(4)
 
         decode_ostype = get_reference_ostype_decode_func(ostype)
-        if decode_ostype:
+        if not decode_ostype:
             raise UnknownOSType('Unknown reference item of type %r' % ostype)
 
         value = decode_ostype(key, fp)
