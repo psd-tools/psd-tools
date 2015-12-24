@@ -1,18 +1,35 @@
 language: python
-python:
-  - "3.4"
-  - "3.3"
-  - "3.2"
-  - "2.7"
-  - "2.6"
-#  - "pypy"
+python: 3.5
+sudo: false
+branches:
+    only:
+        - master
+        - /^\d\.\d+$/
+
+env:
+    - TOXENV=py26
+    - TOXENV=py27
+    - TOXENV=py32
+    - TOXENV=py33
+    - TOXENV=py34
+    - TOXENV=py35
+    - TOXENV=pypy
+
+addons:
+    apt:
+        packages:
+            - libfreetype6-dev
+            - liblcms2-dev
+            - libffi-dev
 
 install:
-  - sudo apt-get -qq install libfreetype6-dev liblcms2-dev libwebp-dev libffi-dev
-  - pip install git+git://github.com/ojii/pymaging.git#egg=pymaging
-  - pip install 'Pillow>=2.0,!=2.6.0,!=2.6.1'
-  - pip install packbits
-  - python setup.py install
+    - pip install -U pip wheel tox codecov
 
-# command to run tests, e.g. python setup.py test
-script: py.test
+script: tox
+
+after_success:
+    - codecov
+
+cache:
+    directories:
+        - $HOME/.cache/pip
