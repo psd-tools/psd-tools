@@ -6,10 +6,17 @@ psd-tools
 
 .. _specification: https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/PhotoshopFileFormats.htm
 
+.. image:: https://img.shields.io/pypi/v/psd-tools.svg
+   :target: https://pypi.python.org/pypi/psd-tools
+   :alt: PyPI Version
+
 .. image:: https://img.shields.io/travis/psd-tools/psd-tools/master.svg
    :alt: Build Status
    :target: https://travis-ci.org/psd-tools/psd-tools
 
+.. image:: https://img.shields.io/codecov/c/github/psd-tools/psd-tools/master.svg
+   :alt: Coverage report
+   :target: http://codecov.io/github/psd-tools/psd-tools?branch=master
 
 Installation
 ------------

@@ -10,3 +10,5 @@ psd_tools.egg-info
 \.\#*
 *.html
 dist
+.cache
+.coverage
