@@ -6,8 +6,9 @@ psd-tools
 
 .. _specification: https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/PhotoshopFileFormats.htm
 
-.. image:: https://travis-ci.org/kmike/psd-tools.png?branch=master
-    :target: https://travis-ci.org/kmike/psd-tools
+.. image:: https://img.shields.io/travis/psd-tools/psd-tools/master.svg
+   :alt: Build Status
+   :target: https://travis-ci.org/psd-tools/psd-tools
 
 
 Installation
@@ -235,8 +236,8 @@ or implement it yourself (pull requests are welcome in this case).
 Contributing
 ------------
 
-Development happens at github: `source code <https://github.com/kmike/psd-tools>`__,
-`bug tracker <https://github.com/kmike/psd-tools/issues>`__.
+Development happens at github: `source code <https://github.com/psd-tools/psd-tools>`__,
+`bug tracker <https://github.com/psd-tools/psd-tools/issues>`__.
 Feel free to submit ideas, bugs or pull requests.
 
 In case of bugs it would be helpful to provide a small PSD file
@@ -262,7 +263,7 @@ Acknowledgments
 ---------------
 
 A full list of contributors can be found here:
-https://github.com/kmike/psd-tools/blob/master/AUTHORS.txt
+https://github.com/psd-tools/psd-tools/blob/master/AUTHORS.txt
 
 Thanks to all guys who write PSD parsers: I learned a lot about PSD
 file structure from the source code of psdparse_, GIMP_, libpsd_
