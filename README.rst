@@ -14,10 +14,6 @@ psd-tools
    :alt: Build Status
    :target: https://travis-ci.org/psd-tools/psd-tools
 
-.. image:: https://img.shields.io/codecov/c/github/psd-tools/psd-tools/master.svg
-   :alt: Coverage report
-   :target: http://codecov.io/github/psd-tools/psd-tools?branch=master
-
 Installation
 ------------
 

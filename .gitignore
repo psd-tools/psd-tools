@@ -12,3 +12,4 @@ psd_tools.egg-info
 dist
 .cache
 .coverage
+htmlcov/
