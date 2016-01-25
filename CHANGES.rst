@@ -1,4 +1,15 @@
 
+1.3 (2016-01-25)
+----------------
+
+- fixed references decoding (thanks Josh Drake);
+- fixed PIL support for CMYK files (thanks Michael Wu);
+- optional C extension is rebuilt with Cython 0.23.4;
+- Python 3.2 support is dropped; the package still works in Python 3.2,
+  but the compatibility is no longer checked by tests, and so it can break
+  in future.
+- declare Python 3.5 as supported.
+
 1.2 (2015-01-27)
 ----------------
 
