@@ -2,13 +2,14 @@
 from __future__ import absolute_import, unicode_literals, division, print_function
 import logging
 import warnings
+from collections import namedtuple
 import zlib
 
 from psd_tools.utils import (read_fmt, read_pascal_string,
                              read_be_array, trimmed_repr, pad, synchronize)
 from psd_tools.exceptions import Error
 from psd_tools.constants import (Compression, Clipping, BlendMode,
-                                 ChannelID, TaggedBlock)
+                                 ChannelID, TaggedBlock, ColorKind)
 from psd_tools import compression
 from psd_tools.debug import pretty_namedtuple
 
@@ -34,7 +35,6 @@ class LayerRecord(_LayerRecord):
 Layers = pretty_namedtuple('Layers', 'length, layer_count, layer_records, channel_image_data')
 LayerFlags = pretty_namedtuple('LayerFlags', 'transparency_protected visible pixel_data_irrelevant')
 LayerAndMaskData = pretty_namedtuple('LayerAndMaskData', 'layers global_mask_info tagged_blocks')
-_ChannelInfo = pretty_namedtuple('ChannelInfo', 'id length')
 _MaskData = pretty_namedtuple('MaskData', 'top left bottom right background_color flags parameters '
                                           'real_flags real_background_color real_top real_left real_bottom real_right')
 MaskFlags = pretty_namedtuple('MaskFlags', 'pos_relative_to_layer mask_disabled invert_mask '
@@ -42,12 +42,12 @@ MaskFlags = pretty_namedtuple('MaskFlags', 'pos_relative_to_layer mask_disabled 
 MaskParameters = pretty_namedtuple('MaskParameters', 'user_mask_density user_mask_feather '
                                                      'vector_mask_density vector_mask_feather')
 LayerBlendingRanges = pretty_namedtuple('LayerBlendingRanges', 'composite_ranges channel_ranges')
-_ChannelData = pretty_namedtuple('ChannelData', 'compression data')
 _Block = pretty_namedtuple('Block', 'key data')
-GlobalMaskInfo = pretty_namedtuple('GlobalMaskInfo', 'overlay_color opacity kind')
+_GlobalMaskInfo = pretty_namedtuple('GlobalMaskInfo', 'overlay_color opacity color_kind')
 
 
-class ChannelInfo(_ChannelInfo):
+class ChannelInfo(namedtuple('ChannelInfo', 'id length')):
+
     def __repr__(self):
         return "ChannelInfo(id=%s %s, length=%s)" % (
             self.id, ChannelID.name_of(self.id), self.length
@@ -69,18 +69,13 @@ class MaskData(_MaskData):
         return self.real_bottom - self.real_top
 
 
-class ChannelData(_ChannelData):
+class ChannelData(namedtuple('ChannelData', 'compression data')):
+
     def __repr__(self):
         return "ChannelData(compression=%r %s, len(data)=%r)" % (
             self.compression, Compression.name_of(self.compression),
             len(self.data) if self.data is not None else None
         )
-
-    def _repr_pretty_(self, p, cycle):
-        if cycle:
-            p.text('ChannelData(...)')
-        else:
-            p.text(repr(self))
 
 
 class Block(_Block):
@@ -93,16 +88,41 @@ class Block(_Block):
 
     def _repr_pretty_(self, p, cycle):
         if cycle:
-            p.text('Block(...)')
+            p.text(repr(self))
         else:
-            with p.group(1, 'Block(', ')'):
-                p.breakable()
-                p.text("%s %s," % (self.key, TaggedBlock.name_of(self.key)))
-                p.breakable()
+            with p.group(0, 'Block(', ')'):
+                p.text("%s %s, " % (self.key, TaggedBlock.name_of(self.key)))
                 if isinstance(self.data, bytes):
                     p.text(trimmed_repr(self.data))
                 else:
                     p.pretty(self.data)
+
+
+class GlobalMaskInfo(_GlobalMaskInfo):
+
+    def __repr__(self):
+        return "GlobalMaskInfo(overlay_color=%s, opacity=%s, color_kind=%r %s)" % (
+            repr(self.overlay_color), self.opacity,
+            self.color_kind, ColorKind.name_of(self.color_kind)
+        )
+
+    def _repr_pretty_(self, p, cycle):
+        if cycle:
+            p.text(repr(self))
+        else:
+            p.begin_group(2, 'GlobalMaskInfo(')
+            p.begin_group(0)
+
+            p.break_()
+            p.text("overlay_color = %s," % repr(self.overlay_color))
+            p.break_()
+            p.text("opacity = %s," % self.opacity)
+            p.break_()
+            p.text("color_kind = %s" % ColorKind.name_of(self.color_kind))
+
+            p.end_group(2)
+            p.break_()
+            p.end_group(0, ')')
 
 
 def read(fp, encoding, depth):
@@ -128,12 +148,13 @@ def read(fp, encoding, depth):
 
         synchronize(fp) # hack hack hack
         remaining_length = length - (fp.tell() - start_pos)
-        tagged_blocks = _read_layer_tagged_blocks(fp, remaining_length, 4)
-
-        remaining_length = length - (fp.tell() - start_pos)
         if remaining_length > 0:
-            fp.seek(remaining_length, 1)
-            logger.debug('skipping %s bytes', remaining_length)
+            tagged_blocks = _read_layer_tagged_blocks(fp, remaining_length, 4)
+
+            # remaining_length = length - (fp.tell() - start_pos)
+            # if remaining_length > 0:
+            #     fp.seek(remaining_length, 1)
+            #     logger.debug('skipping %s bytes', remaining_length)
 
     return LayerAndMaskData(layers, global_mask_info, tagged_blocks)
 
@@ -185,7 +206,7 @@ def _read_layer_record(fp, encoding):
                  top, left, bottom, right, num_channels)
 
     channel_info = []
-    for channel_num in range(num_channels):
+    for _ in range(num_channels):
         info = ChannelInfo(*read_fmt("hI", fp))
         channel_info.append(info)
 
@@ -215,12 +236,13 @@ def _read_layer_record(fp, encoding):
     name = read_pascal_string(fp, encoding, 4)
 
     remaining_length = extra_length - (fp.tell() - start_pos)
-    tagged_blocks = _read_layer_tagged_blocks(fp, remaining_length)
-
-    remaining_length = extra_length - (fp.tell() - start_pos)
     if remaining_length > 0:
-        fp.seek(remaining_length, 1) # skip the remainder
-        logger.debug('  skipping %s bytes', remaining_length)
+        tagged_blocks = _read_layer_tagged_blocks(fp, remaining_length)
+
+        # remaining_length = extra_length - (fp.tell() - start_pos)
+        # if remaining_length > 0:
+        #     fp.seek(remaining_length, 1) # skip the remainder
+        #     logger.debug('  skipping %s bytes', remaining_length)
 
     return LayerRecord(
         top, left, bottom, right,
@@ -236,14 +258,12 @@ def _read_layer_tagged_blocks(fp, remaining_length, padding=0):
     Reads a section of tagged blocks with additional layer information.
     """
     blocks = []
-    start_pos = fp.tell()
-    read_bytes = 0
-    while read_bytes < remaining_length:
+    end_position = fp.tell() + remaining_length
+
+    while fp.tell() < end_position:
         block = _read_additional_layer_info_block(fp, padding)
-        read_bytes = fp.tell() - start_pos
-        if block is None:
-            break
-        blocks.append(block)
+        if block is not None:
+            blocks.append(block)
 
     return blocks
 
@@ -253,13 +273,18 @@ def _read_additional_layer_info_block(fp, padding):
     Reads a tagged block with additional layer information.
     """
     sig = fp.read(4)
-    if sig not in [b'8BIM', b'8B64']:
-        fp.seek(-4, 1)
-        #warnings.warn("not a block: %r" % sig)
-        return
+    if sig not in (b'8BIM', b'8B64'):
+        raise Error("Invalid signature of tagged block (%r)" % sig)
 
     key = fp.read(4)
     length = read_fmt("I", fp)[0]
+    if not length:
+        logger.debug(
+            "Found tagged block with no data (%s %s). Dropping..." % (
+            key, TaggedBlock.name_of(key)
+        ))
+        return None
+
     if padding > 0:
         length = pad(length, padding)
 
@@ -317,13 +342,17 @@ def _read_layer_blending_ranges(fp):
         return (src_start, src_end), (dest_start, dest_end)
 
     composite_ranges = None
-    channel_ranges = []
+    channel_ranges = None
     length = read_fmt("I", fp)[0]
 
     if length:
         composite_ranges = read_channel_range()
-        for x in range(length//8 - 1):
-            channel_ranges.append(read_channel_range())
+
+        channel_ranges_count = length // 8 - 1
+        if channel_ranges_count:
+            channel_ranges = []
+            for _ in range(channel_ranges_count):
+                channel_ranges.append(read_channel_range())
 
     return LayerBlendingRanges(composite_ranges, channel_ranges)
 
@@ -332,12 +361,12 @@ def _read_channel_image_data(fp, layer, depth):
     """
     Reads image data for all channels in a layer.
     """
+    bytes_per_pixel = depth // 8
     channel_data = []
 
-    bytes_per_pixel = depth // 8
-
-    for idx, channel in enumerate(layer.channels):
+    for channel in layer.channels:
         logger.debug("  reading %s", channel)
+
         if channel.id == ChannelID.USER_LAYER_MASK:
             w, h = layer.mask_data.width(), layer.mask_data.height()
         elif channel.id == ChannelID.REAL_USER_LAYER_MASK:
@@ -351,9 +380,7 @@ def _read_channel_image_data(fp, layer, depth):
         logger.debug("    start_pos=%s, compress_type=%s",
                      start_pos, Compression.name_of(compress_type))
 
-        data = None
-
-        # read data size
+        # read or calculate data size
         if compress_type == Compression.RAW:
             data_size = w * h * bytes_per_pixel
             logger.debug('    data size = %sx%sx%s=%s bytes', w, h, bytes_per_pixel, data_size)
@@ -375,17 +402,15 @@ def _read_channel_image_data(fp, layer, depth):
         if data_size > channel.length:
             warnings.warn("Incorrect data size: %s > %s" % (data_size, channel.length))
         else:
-            raw_data = fp.read(data_size)
-            if compress_type in (Compression.RAW, Compression.PACK_BITS):
-                data = raw_data
-            elif compress_type == Compression.ZIP:
-                data = zlib.decompress(raw_data)
+            data = fp.read(data_size)
+            if compress_type == Compression.ZIP:
+                data = zlib.decompress(data)
             elif compress_type == Compression.ZIP_WITH_PREDICTION:
-                decompressed = zlib.decompress(raw_data)
-                data = compression.decode_prediction(decompressed, w, h, bytes_per_pixel)
-
-            if data is None:
-                return []
+                data = zlib.decompress(data)
+                data = compression.decode_prediction(data, w, h, bytes_per_pixel)
+                if data is None:
+                    warnings.warn("Prediction decode failed!")
+                    return []
 
             channel_data.append(ChannelData(compress_type, data))
 
@@ -401,9 +426,8 @@ def _read_global_mask_info(fp):
     """
     Reads global layer mask info.
     """
-    # XXX: What is it for?
     length = read_fmt("I", fp)[0]
-    if length == 0:
+    if not length:
         return None
 
     start_pos = fp.tell()
@@ -423,38 +447,42 @@ def read_image_data(fp, header):
     Reads merged image pixel data which is stored at the end of PSD file.
     """
     w, h = header.width, header.height
+    bytes_per_pixel = header.depth // 8
     compress_type = read_fmt("H", fp)[0]
 
-    bytes_per_pixel = header.depth // 8
+    logger.debug('reading composite image data...')
+    logger.debug('  start_pos=%s, compress_type=%s',
+                 fp.tell() - 2, Compression.name_of(compress_type))
 
-    channel_byte_counts = []
-    if compress_type == Compression.PACK_BITS:
-        for ch in range(header.number_of_channels):
+    if compress_type == Compression.RAW:
+        data_size = w * h * bytes_per_pixel
+        logger.debug('  data size = %sx%sx%s=%s bytes', w, h, bytes_per_pixel, data_size)
+
+    elif compress_type == Compression.PACK_BITS:
+        channel_byte_counts = []
+        for _ in range(header.number_of_channels):
             channel_byte_counts.append(read_be_array("H", h, fp))
+
+    # are there any ZIP-encoded composite images in a wild?
+    elif compress_type in (Compression.ZIP, Compression.ZIP_WITH_PREDICTION):
+        warnings.warn(
+            "%s compression of composite image is not supported." %
+            Compression.name_of(compress_type)
+        )
+        return []
+
+    else:
+        warnings.warn("Bad compression type %s" % compress_type)
+        return []
 
     channel_data = []
     for channel_id in range(header.number_of_channels):
-
-        data = None
-
-        if compress_type == Compression.RAW:
-            data_size = w * h * bytes_per_pixel
-            data = fp.read(data_size)
-
-        elif compress_type == Compression.PACK_BITS:
+        if compress_type == Compression.PACK_BITS:
             byte_counts = channel_byte_counts[channel_id]
             data_size = sum(byte_counts)
-            data = fp.read(data_size)
+            logger.debug('  data size = %s bytes', data_size)
 
-        # are there any ZIP-encoded composite images in a wild?
-        elif compress_type == Compression.ZIP:
-            warnings.warn("ZIP compression of composite image is not supported.")
-
-        elif compress_type == Compression.ZIP_WITH_PREDICTION:
-            warnings.warn("ZIP_WITH_PREDICTION compression of composite image is not supported.")
-
-        if data is None:
-            return []
+        data = fp.read(data_size)
         channel_data.append(ChannelData(compress_type, data))
 
     return channel_data

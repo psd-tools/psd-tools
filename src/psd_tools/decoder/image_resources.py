@@ -2,55 +2,119 @@
 from __future__ import absolute_import, unicode_literals, division
 import io
 import warnings
-import collections
+from collections import namedtuple
 
-from psd_tools.utils import (read_pascal_string, unpack, read_fmt,
-                             read_unicode_string, be_array_from_bytes,
-                             decode_fixed_point_32bit)
-from psd_tools.constants import ImageResourceID, PrintScaleStyle, DisplayResolutionUnit, DimensionUnit
+from psd_tools.utils import (unpack, read_fmt, read_unicode_string,
+                             be_array_from_bytes, decode_fixed_point_32bit)
+from psd_tools.constants import (ImageResourceID, PrintScaleStyle,
+                                 DisplayResolutionUnit, DimensionUnit,
+                                 PrintScaleStyle, ColorKind)
 from psd_tools.decoder import decoders
 from psd_tools.decoder.actions import decode_descriptor, UnknownOSType
 from psd_tools.decoder.color import decode_color
+from psd_tools.debug import pretty_namedtuple
 
 _image_resource_decoders, register = decoders.new_registry()
 
 _image_resource_decoders.update({
     ImageResourceID.LAYER_STATE_INFO:           decoders.single_value("H"),
     ImageResourceID.WATERMARK:                  decoders.single_value("B"),
-    ImageResourceID.ICC_UNTAGGED_PROFILE:       decoders.boolean(),
-    ImageResourceID.EFFECTS_VISIBLE:            decoders.boolean(),
+    ImageResourceID.ICC_UNTAGGED_PROFILE:       decoders.boolean,
+    ImageResourceID.EFFECTS_VISIBLE:            decoders.boolean,
     ImageResourceID.IDS_SEED_NUMBER:            decoders.single_value("I"),
     ImageResourceID.INDEXED_COLOR_TABLE_COUNT:  decoders.single_value("H"),
     ImageResourceID.TRANSPARENCY_INDEX:         decoders.single_value("H"),
     ImageResourceID.GLOBAL_ALTITUDE:            decoders.single_value("I"),
-    ImageResourceID.GLOBAL_ANGLE_OBSOLETE:      decoders.single_value("I"),
-    ImageResourceID.COPYRIGHT_FLAG:             decoders.boolean("H"),
+    ImageResourceID.GLOBAL_ANGLE:               decoders.single_value("I"),
+    ImageResourceID.COPYRIGHT_FLAG:             decoders.boolean,
 
-    ImageResourceID.ALPHA_NAMES_UNICODE:        decoders.unicode_string,
+    ImageResourceID.ALPHA_NAMES_PASCAL:         decoders.pascal_string,
+    ImageResourceID.CAPTION_PASCAL:             decoders.pascal_string,
     ImageResourceID.WORKFLOW_URL:               decoders.unicode_string
 })
 
-PrintScale = collections.namedtuple('PrintScale', 'style, x, y, scale')
-PrintFlags = collections.namedtuple('PrintFlags', 'labels, crop_marks, color_bars, registration_marks, negative, flip, interpolate, caption, print_flags')
-PrintFlagsInfo = collections.namedtuple('PrintFlagsInfo', 'version, center_crop_marks, bleed_width_value, bleed_width_scale')
-VersionInfo = collections.namedtuple('VersionInfo', 'version, has_real_merged_data, writer_name, reader_name, file_version')
-PixelAspectRatio = collections.namedtuple('PixelAspectRatio', 'version aspect')
-_ResolutionInfo = collections.namedtuple('ResolutionInfo', 'h_res, h_res_unit, width_unit, v_res, v_res_unit, height_unit')
-PathSelectionState = collections.namedtuple('PathSelectionState', 'descriptor_version descriptor')
-LayerComps = collections.namedtuple('LayerComps', 'descriptor_version descriptor')
+_PrintScale = namedtuple('PrintScale', 'style, x, y, scale')
+PrintFlags = pretty_namedtuple('PrintFlags', 'labels, crop_marks, color_bars, registration_marks, negative, flip, interpolate, caption, print_flags')
+PrintFlagsInfo = pretty_namedtuple('PrintFlagsInfo', 'version, center_crop_marks, bleed_width_value, bleed_width_scale')
+VersionInfo = pretty_namedtuple('VersionInfo', 'version, has_real_merged_data, writer_name, reader_name, file_version')
+PixelAspectRatio = namedtuple('PixelAspectRatio', 'version aspect')
+_ResolutionInfo = pretty_namedtuple('ResolutionInfo', 'h_res, h_res_unit, width_unit, v_res, v_res_unit, height_unit')
+PathSelectionState = pretty_namedtuple('PathSelectionState', 'descriptor_version descriptor')
+LayerComps = pretty_namedtuple('LayerComps', 'descriptor_version descriptor')
+_DisplayInfo = pretty_namedtuple('DisplayInfo', 'color opacity color_kind')
 
 
 class ResolutionInfo(_ResolutionInfo):
-    def __repr__(self):
 
+    def __repr__(self):
         return "ResolutionInfo(h_res=%s, h_res_unit=%s, v_res=%s, v_res_unit=%s, width_unit=%s, height_unit=%s)" % (
             self.h_res,
             DisplayResolutionUnit.name_of(self.h_res_unit),
             self.v_res,
             DisplayResolutionUnit.name_of(self.v_res_unit),
             DimensionUnit.name_of(self.width_unit),
-            DimensionUnit.name_of(self.height_unit),
+            DimensionUnit.name_of(self.height_unit)
         )
+
+    def _repr_pretty_(self, p, cycle):
+        if cycle:
+            p.text(repr(self))
+        else:
+            p.begin_group(2, 'ResolutionInfo(')
+            p.begin_group(0)
+
+            p.break_()
+            p.text("h_res = %s," % self.h_res)
+            p.break_()
+            p.text("h_res_unit = %s," % DisplayResolutionUnit.name_of(self.h_res_unit))
+            p.break_()
+            p.text("v_res = %s," % self.v_res)
+            p.break_()
+            p.text("v_res_unit = %s," % DisplayResolutionUnit.name_of(self.v_res_unit))
+            p.break_()
+            p.text("width_unit = %s," % DimensionUnit.name_of(self.width_unit))
+            p.break_()
+            p.text("height_unit = %s" % DimensionUnit.name_of(self.height_unit))
+
+            p.end_group(2)
+            p.break_()
+            p.end_group(0, ')')
+
+
+class PrintScale(_PrintScale):
+
+    def __repr__(self):
+        return "PrintScale(style=%r %s, x=%s, y=%s, scale=%s)" % (
+            self.style, PrintScaleStyle.name_of(self.style),
+            self.x, self.y, self.scale
+        )
+
+
+class DisplayInfo(_DisplayInfo):
+
+    def __repr__(self):
+        return "DisplayInfo(color=%s, opacity=%s, color_kind=%r %s)" % (
+            repr(self.color), self.opacity,
+            self.color_kind, ColorKind.name_of(self.color_kind)
+        )
+
+    def _repr_pretty_(self, p, cycle):
+        if cycle:
+            p.text(repr(self))
+        else:
+            p.begin_group(2, 'DisplayInfo(')
+            p.begin_group(0)
+
+            p.break_()
+            p.text("color = %s," % repr(self.color))
+            p.break_()
+            p.text("opacity = %s," % self.opacity)
+            p.break_()
+            p.text("color_kind = %s" % ColorKind.name_of(self.color_kind))
+
+            p.end_group(2)
+            p.break_()
+            p.end_group(0, ')')
 
 
 def decode(image_resource_blocks):
@@ -90,7 +154,7 @@ def _decode_version_info(data):
         read_fmt("?", fp)[0],
         read_unicode_string(fp),
         read_unicode_string(fp),
-        read_fmt("I", fp)[0],
+        read_fmt("I", fp)[0]
     )
 
 @register(ImageResourceID.PIXEL_ASPECT_RATIO)
@@ -116,10 +180,10 @@ def _decode_print_scale(data):
 
     return PrintScale(style, x, y, scale)
 
-@register(ImageResourceID.CAPTION_PASCAL)
-def _decode_caption_pascal(data):
+@register(ImageResourceID.ALPHA_NAMES_UNICODE)
+def _decode_alpha_names_unicode(data):
     fp = io.BytesIO(data)
-    return read_pascal_string(fp, 'ascii')
+    return read_unicode_string(fp)[:-1]
 
 @register(ImageResourceID.RESOLUTION_INFO)
 def _decode_resolution(data):
@@ -168,3 +232,12 @@ def _decode_layer_comps(data):
     except UnknownOSType as e:
         warnings.warn("Ignoring image resource %s" % e)
         return data
+
+@register(ImageResourceID.DISPLAY_INFO_OBSOLETE)
+def _decode_old_display_info(data):
+    fp = io.BytesIO(data)
+
+    return DisplayInfo(
+        decode_color(fp),
+        *(read_fmt("HB", fp))
+    )

@@ -33,6 +33,9 @@ def extract_layer_image(decoded_data, layer_index):
     """
     Converts a layer from the ``decoded_data`` to a PIL image.
     """
+    if Image is None:
+        raise Exception("This module requires PIL (or Pillow) installed.")
+
     layers = decoded_data.layer_and_mask_data.layers
     layer = layers.layer_records[layer_index]
 
@@ -51,6 +54,9 @@ def extract_composite_image(decoded_data):
     Converts a composite (merged) image from the ``decoded_data``
     to a PIL image.
     """
+    if Image is None:
+        raise Exception("This module requires PIL (or Pillow) installed.")
+
     header = decoded_data.header
     size = header.width, header.height
     if size == (0, 0):
@@ -58,23 +64,25 @@ def extract_composite_image(decoded_data):
 
     channel_ids = _get_header_channel_ids(header)
     if channel_ids is None:
-        warnings.warn("This number of channels (%d) is unsupported for this color mode (%s)" % (
-                     header.number_of_channels, header.color_mode))
+        warnings.warn(
+            "This number of channels (%d) is unsupported for this color mode (%s)" % (
+            header.number_of_channels, header.color_mode
+        ))
         return
 
     return _channel_data_to_PIL(
-        channel_data=decoded_data.image_data,
-        channel_ids=channel_ids,
-        color_mode=header.color_mode,
-        size=size,
-        depth=header.depth,
-        icc_profile=get_icc_profile(decoded_data)
+        channel_data = decoded_data.image_data,
+        channel_ids = channel_ids,
+        color_mode = header.color_mode,
+        size = size,
+        depth = header.depth,
+        icc_profile = get_icc_profile(decoded_data)
     )
 
 
 def get_icc_profile(decoded_data):
     """
-    Return ICC image profile if it exists and was correctly decoded
+    Return ICC image profile if it exists and was correctly decoded.
     """
     # fixme: move this function somewhere?
     icc_profiles = [res.data for res in decoded_data.image_resource_blocks
@@ -85,7 +93,8 @@ def get_icc_profile(decoded_data):
 
     icc_profile = icc_profiles[0]
 
-    if isinstance(icc_profile, bytes): # profile was not decoded
+    if isinstance(icc_profile, bytes):
+        # profile was not decoded
         return None
 
     return icc_profile
@@ -93,33 +102,50 @@ def get_icc_profile(decoded_data):
 
 def apply_opacity(im, opacity):
     """ Apply opacity to an image. """
+    if opacity == 255:
+        return im
+
     if im.mode == 'RGB':
         im.putalpha(opacity)
         return im
-    elif im.mode == 'RGBA':
-        r, g, b, a = im.split()
+    elif im.mode in ('RGBA', 'LA'):
+        alpha_index = len(im.mode) - 1
+        a = im.split()[alpha_index]
         opacity_scale = opacity / 255
-        a = a.point(lambda i: i*opacity_scale)
-        return Image.merge('RGBA', [r, g, b, a])
+        a = a.point(lambda i: i * opacity_scale)
+        im.putalpha(a)
+        return im
     else:
         raise NotImplementedError()
 
 
+def try_remove_alpha(im):
+    """ Removes an alpha channel if the image is fully opaque. """
+    if im.mode == 'RGBA':
+        alpha_channel_data = im.getdata(3)
+    elif im.mode == 'LA':
+        alpha_channel_data = im.getdata(1)
+    else:
+        raise NotImplementedError()
+
+    for value in alpha_channel_data:
+        if value < 255:
+            return im
+    return im.convert(im.mode[:-1])
+
+
 def _channel_data_to_PIL(channel_data, channel_ids, color_mode, size, depth, icc_profile):
     bands = _get_band_images(
-        channel_data=channel_data,
-        channel_ids=channel_ids,
-        color_mode=color_mode,
-        size=size,
-        depth=depth
+        channel_data = channel_data,
+        channel_ids = channel_ids,
+        color_mode = color_mode,
+        size = size,
+        depth = depth
     )
     return _merge_bands(bands, color_mode, size, icc_profile)
 
 
 def _merge_bands(bands, color_mode, size, icc_profile):
-    if Image is None:
-        raise Exception("This module requires PIL (or Pillow) installed.")
-
     if color_mode == ColorMode.RGB:
         merged_image = Image.merge('RGB', [bands[key] for key in 'RGB'])
     elif color_mode == ColorMode.CMYK:
@@ -135,7 +161,7 @@ def _merge_bands(bands, color_mode, size, icc_profile):
     if icc_profile is not None:
         assert ImageCms is not None
         try:
-            if color_mode in [ColorMode.RGB, ColorMode.CMYK]:
+            if color_mode in (ColorMode.RGB, ColorMode.CMYK):
                 merged_image = ImageCms.profileToProfile(merged_image, icc_profile, icc_profiles.sRGB, outputMode='RGB')
             elif color_mode == ColorMode.GRAYSCALE:
                 ImageCms.profileToProfile(merged_image, icc_profile, icc_profiles.gray, inPlace=True, outputMode='L')
@@ -156,13 +182,12 @@ def _merge_bands(bands, color_mode, size, icc_profile):
 def _get_band_images(channel_data, channel_ids, color_mode, size, depth):
     bands = {}
     for channel, channel_id in zip(channel_data, channel_ids):
-
         pil_band = _channel_id_to_PIL(channel_id, color_mode)
         if pil_band is None:
             warnings.warn("Unsupported channel type (%d)" % channel_id)
             continue
 
-        if channel.compression in [Compression.RAW, Compression.ZIP, Compression.ZIP_WITH_PREDICTION]:
+        if channel.compression in (Compression.RAW, Compression.ZIP, Compression.ZIP_WITH_PREDICTION):
             if depth == 8:
                 im = _from_8bit_raw(channel.data, size)
             elif depth == 16:
@@ -178,6 +203,7 @@ def _get_band_images(channel_data, channel_ids, color_mode, size, depth):
                 warnings.warn("Depth %s is unsupported for PackBits compression" % depth)
                 continue
             im = frombytes('L', size, channel.data, "packbits", 'L')
+
         else:
             if Compression.is_known(channel.compression):
                 warnings.warn("Compression method is not implemented (%s)" % channel.compression)
@@ -185,7 +211,7 @@ def _get_band_images(channel_data, channel_ids, color_mode, size, depth):
                 warnings.warn("Unknown compression method (%s)" % channel.compression)
             continue
 
-        bands[pil_band] = im.convert('L')
+        bands[pil_band] = im
     return bands
 
 
@@ -195,14 +221,14 @@ def _from_8bit_raw(data, size):
 
 def _from_16bit_raw(data, size):
     im = frombytes('I', size, data, "raw", 'I;16B')
-    return im.point(lambda i: i * (1/(256.0)))
+    return im.point(lambda i: i * (1/(256.0))).convert('L')
 
 
 def _from_32bit_raw(data, size):
     pixels = be_array_from_bytes("f", data)
     im = Image.new("F", size)
     im.putdata(pixels, 255, 0)
-    return im
+    return im.convert('L')
 
 
 def _channel_id_to_PIL(channel_id, color_mode):
@@ -228,26 +254,25 @@ def _channel_id_to_PIL(channel_id, color_mode):
 
 
 def _get_header_channel_ids(header):
-
     if header.color_mode == ColorMode.RGB:
         if header.number_of_channels == 3:
-            return [0, 1, 2]
+            return (0, 1, 2)
         elif header.number_of_channels == 4:
-            return [0, 1, 2, ChannelID.TRANSPARENCY_MASK]
+            return (0, 1, 2, ChannelID.TRANSPARENCY_MASK)
 
     elif header.color_mode == ColorMode.CMYK:
         if header.number_of_channels == 4:
-            return [0, 1, 2, 3]
+            return (0, 1, 2, 3)
         elif header.number_of_channels == 5:
             # XXX: how to distinguish
             # "4 CMYK + 1 alpha" and "4 CMYK + 1 spot"?
-            return [0, 1, 2, 3, ChannelID.TRANSPARENCY_MASK]
+            return (0, 1, 2, 3, ChannelID.TRANSPARENCY_MASK)
 
     elif header.color_mode == ColorMode.GRAYSCALE:
         if header.number_of_channels == 1:
-            return [0]
+            return (0,)
         elif header.number_of_channels == 2:
-            return [0, ChannelID.TRANSPARENCY_MASK]
+            return (0, ChannelID.TRANSPARENCY_MASK)
 
     else:
         warnings.warn("Unsupported color mode (%s)" % header.color_mode)

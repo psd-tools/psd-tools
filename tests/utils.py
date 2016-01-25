@@ -20,6 +20,16 @@ def decode_psd(filename):
     return psd_tools.decoder.parse(load_psd(filename))
 
 
+def tobytes(image):
+    try:
+        return image.tobytes() # Pillow at Python 3
+    except AttributeError:
+        try:
+            return image.tostring() # PIL
+        except AttributeError:
+            return image.pixels.data.tostring() # pymaging
+
+
 # see http://lukeplant.me.uk/blog/posts/fuzzy-testing-with-assertnumqueries/
 class FuzzyInt(int):
     def __new__(cls, lowest, highest):

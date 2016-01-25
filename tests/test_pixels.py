@@ -181,8 +181,9 @@ def test_layer_merging_size(filename, point, color):
 def test_layer_merging_pixels(filename, point, color):
     psd = PSDImage.load(full_name(filename))
     merged_image = psd.as_PIL_merged()
-    assert color[:3] == merged_image.getpixel(point)[:3]
-    assert merged_image.getpixel(point)[3] == 255 # alpha channel
+    merged_image_pixel = merged_image.getpixel(point)
+    assert len(merged_image_pixel) == 3
+    assert color == merged_image_pixel
 
 
 @pytest.mark.xfail
