@@ -273,28 +273,20 @@ def _read_layer_mask_data(fp):
     if not size:
         return None
 
+    start_pos = fp.tell()
+
     top, left, bottom, right, background_color, flags = read_fmt("4i 2B", fp)
     flags = MaskFlags(
         bool(flags & 1), bool(flags & 2), bool(flags & 4),
         bool(flags & 8), bool(flags & 16)
     )
 
-    parameters = None
+    # Order is based on tests. The specification is messed up here...
 
-    if size == 20:
-        fp.seek(2, 1)
+    if size < 36:
         real_flags, real_background_color = None, None
         real_top, real_left, real_bottom, real_right = None, None, None, None
     else:
-        if flags.parameters_applied:
-            parameters = read_fmt("B", fp)[0]
-            parameters = MaskParameters(
-                read_fmt("B", fp)[0] if bool(parameters & 1) else None,
-                read_fmt("d", fp)[0] if bool(parameters & 2) else None,
-                read_fmt("B", fp)[0] if bool(parameters & 4) else None,
-                read_fmt("d", fp)[0] if bool(parameters & 8) else None
-            )
-
         real_flags, real_background_color = read_fmt("2B", fp)
         real_flags = MaskFlags(
             bool(real_flags & 1), bool(real_flags & 2), bool(real_flags & 4),
@@ -302,6 +294,21 @@ def _read_layer_mask_data(fp):
         )
 
         real_top, real_left, real_bottom, real_right = read_fmt("4i", fp)
+
+    if flags.parameters_applied:
+        parameters = read_fmt("B", fp)[0]
+        parameters = MaskParameters(
+            read_fmt("B", fp)[0] if bool(parameters & 1) else None,
+            read_fmt("d", fp)[0] if bool(parameters & 2) else None,
+            read_fmt("B", fp)[0] if bool(parameters & 4) else None,
+            read_fmt("d", fp)[0] if bool(parameters & 8) else None
+        )
+    else:
+        parameters = None
+
+    padding_size = size - (fp.tell() - start_pos)
+    if padding_size > 0:
+        fp.seek(padding_size, 1)
 
     return MaskData(
         top, left, bottom, right, background_color, flags, parameters,
