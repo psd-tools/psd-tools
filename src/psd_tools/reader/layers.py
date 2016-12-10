@@ -109,31 +109,34 @@ def read(fp, encoding, depth):
     """
     Reads layers and masks information.
     """
-    logger.debug('reading layers and masks information...')
     length = read_fmt("I", fp)[0]
     start_pos = fp.tell()
 
+    logger.debug('reading layers and masks information...')
     logger.debug('length=%d, start_pos=%d', length, start_pos)
-
-    layers = _read_layers(fp, encoding, depth)
 
     global_mask_info = None
     tagged_blocks = []
 
-    remaining_length = length - (fp.tell() - start_pos)
-    if remaining_length > 0:
-        logger.debug('reading global mask info...')
-
-        global_mask_info = _read_global_mask_info(fp)
-
-        synchronize(fp) # hack hack hack
-        remaining_length = length - (fp.tell() - start_pos)
-        tagged_blocks = _read_layer_tagged_blocks(fp, remaining_length, 4)
+    if length > 0:
+        layers = _read_layers(fp, encoding, depth)
 
         remaining_length = length - (fp.tell() - start_pos)
         if remaining_length > 0:
-            fp.seek(remaining_length, 1)
-            logger.debug('skipping %s bytes', remaining_length)
+            logger.debug('reading global mask info...')
+
+            global_mask_info = _read_global_mask_info(fp)
+
+            synchronize(fp) # hack hack hack
+            remaining_length = length - (fp.tell() - start_pos)
+            tagged_blocks = _read_layer_tagged_blocks(fp, remaining_length, 4)
+
+            remaining_length = length - (fp.tell() - start_pos)
+            if remaining_length > 0:
+                fp.seek(remaining_length, 1)
+                logger.debug('skipping %s bytes', remaining_length)
+    else:
+        layers = _read_layers(fp, encoding, depth, 0)
 
     return LayerAndMaskData(layers, global_mask_info, tagged_blocks)
 
