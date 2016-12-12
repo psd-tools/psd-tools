@@ -12,6 +12,22 @@ FILE_NAMES = (
 )
 
 MASK_DATA_BY_LAYERS = (
+# Each block correspond to file in FILE_NAMES at the same index:
+#   (
+#       (<layer id>, <some of mask_data>),
+#       ...
+#   )
+#
+#   <some of mask_data>     = (background_color, <some of flags>, parameters,
+#                              <some of real_flags>, real_background_color)
+#                             OR
+#                             None
+#
+#   <some of flags>         = (mask_disabled, user_mask_from_render, parameters_applied)
+#   parameters              = parameters            OR None
+#   <some of real_flags>    = <some of flags>       OR None
+#   real_background_color   = real_background_color OR None
+#
     (
         (0, None                                                                               ),
         (1, (  0, (False, True , True ), (None, None,  204, None), None                 , None)),
