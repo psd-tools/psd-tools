@@ -14,13 +14,26 @@ from psd_tools.debug import pretty_namedtuple
 
 logger = logging.getLogger(__name__)
 
-_LayerRecord = pretty_namedtuple('LayerRecord', [
-    'top', 'left', 'bottom', 'right',
-    'num_channels', 'channels',
-    'blend_mode', 'opacity', 'clipping', 'flags',
-    'mask_data', 'blending_ranges', 'name',
-    'tagged_blocks'
-])
+LayerAndMaskData = pretty_namedtuple('LayerAndMaskData', 'layers global_mask_info tagged_blocks')
+Layers = pretty_namedtuple('Layers', 'layer_count layer_records channel_image_data')
+_LayerRecord = pretty_namedtuple('LayerRecord', 'top left bottom right '
+                                                'num_channels channels '
+                                                'blend_mode opacity clipping flags '
+                                                'mask_data blending_ranges name '
+                                                'tagged_blocks')
+_ChannelInfo = pretty_namedtuple('ChannelInfo', 'id length')
+LayerFlags = pretty_namedtuple('LayerFlags', 'transparency_protected visible pixel_data_irrelevant')
+_MaskData = pretty_namedtuple('MaskData', 'top left bottom right background_color flags parameters '
+                                          'real_flags real_background_color real_top real_left real_bottom real_right')
+MaskFlags = pretty_namedtuple('MaskFlags', 'pos_relative_to_layer mask_disabled invert_mask '
+                                           'user_mask_from_render parameters_applied')
+MaskParameters = pretty_namedtuple('MaskParameters', 'user_mask_density user_mask_feather '
+                                                     'vector_mask_density vector_mask_feather')
+LayerBlendingRanges = pretty_namedtuple('LayerBlendingRanges', 'composite_ranges channel_ranges')
+_Block = pretty_namedtuple('Block', 'key data')
+_ChannelData = pretty_namedtuple('ChannelData', 'compression data')
+GlobalMaskInfo = pretty_namedtuple('GlobalMaskInfo', 'overlay_color opacity kind')
+
 
 class LayerRecord(_LayerRecord):
 
@@ -29,22 +42,6 @@ class LayerRecord(_LayerRecord):
 
     def height(self):
         return self.bottom - self.top
-
-
-Layers = pretty_namedtuple('Layers', 'length, layer_count, layer_records, channel_image_data')
-LayerFlags = pretty_namedtuple('LayerFlags', 'transparency_protected visible pixel_data_irrelevant')
-LayerAndMaskData = pretty_namedtuple('LayerAndMaskData', 'layers global_mask_info tagged_blocks')
-_ChannelInfo = pretty_namedtuple('ChannelInfo', 'id length')
-_MaskData = pretty_namedtuple('MaskData', 'top left bottom right background_color flags parameters '
-                                          'real_flags real_background_color real_top real_left real_bottom real_right')
-MaskFlags = pretty_namedtuple('MaskFlags', 'pos_relative_to_layer mask_disabled invert_mask '
-                                           'user_mask_from_render parameters_applied')
-MaskParameters = pretty_namedtuple('MaskParameters', 'user_mask_density user_mask_feather '
-                                                     'vector_mask_density vector_mask_feather')
-LayerBlendingRanges = pretty_namedtuple('LayerBlendingRanges', 'composite_ranges channel_ranges')
-_ChannelData = pretty_namedtuple('ChannelData', 'compression data')
-_Block = pretty_namedtuple('Block', 'key data')
-GlobalMaskInfo = pretty_namedtuple('GlobalMaskInfo', 'overlay_color opacity kind')
 
 
 class ChannelInfo(_ChannelInfo):
@@ -69,20 +66,6 @@ class MaskData(_MaskData):
         return self.real_bottom - self.real_top
 
 
-class ChannelData(_ChannelData):
-    def __repr__(self):
-        return "ChannelData(compression=%r %s, len(data)=%r)" % (
-            self.compression, Compression.name_of(self.compression),
-            len(self.data) if self.data is not None else None
-        )
-
-    def _repr_pretty_(self, p, cycle):
-        if cycle:
-            p.text('ChannelData(...)')
-        else:
-            p.text(repr(self))
-
-
 class Block(_Block):
     """
     Layer tagged block with extra info.
@@ -105,35 +88,54 @@ class Block(_Block):
                     p.pretty(self.data)
 
 
+class ChannelData(_ChannelData):
+    def __repr__(self):
+        return "ChannelData(compression=%r %s, len(data)=%r)" % (
+            self.compression, Compression.name_of(self.compression),
+            len(self.data) if self.data is not None else None
+        )
+
+    def _repr_pretty_(self, p, cycle):
+        if cycle:
+            p.text('ChannelData(...)')
+        else:
+            p.text(repr(self))
+
+
 def read(fp, encoding, depth):
     """
     Reads layers and masks information.
     """
-    logger.debug('reading layers and masks information...')
     length = read_fmt("I", fp)[0]
     start_pos = fp.tell()
 
-    logger.debug('length=%d, start_pos=%d', length, start_pos)
-
-    layers = _read_layers(fp, encoding, depth)
+    logger.debug('reading layers and masks information...')
+    logger.debug('  length=%d, start_pos=%d', length, start_pos)
 
     global_mask_info = None
     tagged_blocks = []
 
-    remaining_length = length - (fp.tell() - start_pos)
-    if remaining_length > 0:
-        logger.debug('reading global mask info...')
-
-        global_mask_info = _read_global_mask_info(fp)
-
-        synchronize(fp) # hack hack hack
-        remaining_length = length - (fp.tell() - start_pos)
-        tagged_blocks = _read_layer_tagged_blocks(fp, remaining_length, 4)
+    if length > 0:
+        layers = _read_layers(fp, encoding, depth)
 
         remaining_length = length - (fp.tell() - start_pos)
         if remaining_length > 0:
-            fp.seek(remaining_length, 1)
-            logger.debug('skipping %s bytes', remaining_length)
+            global_mask_info = _read_global_mask_info(fp)
+
+            synchronize(fp) # hack hack hack
+            remaining_length = length - (fp.tell() - start_pos)
+
+            logger.debug('reading tagged blocks...')
+            logger.debug('  length=%d, start_pos=%d', remaining_length, fp.tell())
+
+            tagged_blocks = _read_layer_tagged_blocks(fp, remaining_length, 4)
+
+            remaining_length = length - (fp.tell() - start_pos)
+            if remaining_length > 0:
+                fp.seek(remaining_length, 1)
+                logger.debug('skipping %s bytes', remaining_length)
+    else:
+        layers = _read_layers(fp, encoding, depth, 0)
 
     return LayerAndMaskData(layers, global_mask_info, tagged_blocks)
 
@@ -144,7 +146,6 @@ def _read_layers(fp, encoding, depth, length=None):
     """
     logger.debug('reading layers...')
 
-    layer_count = 0
     layer_records = []
     channel_image_data = []
     if length is None:
@@ -154,7 +155,7 @@ def _read_layers(fp, encoding, depth, length=None):
         start_pos = fp.tell()
         layer_count = read_fmt("h", fp)[0]
 
-        logger.debug('layer_count=%d, length=%d', layer_count, length)
+        logger.debug('  length=%d, layer_count=%d', length, layer_count)
 
         for idx in range(abs(layer_count)):
             logger.debug('reading layer record %d, pos=%d', idx, fp.tell())
@@ -171,9 +172,10 @@ def _read_layers(fp, encoding, depth, length=None):
             fp.seek(remaining_length, 1)
             logger.debug('skipping %s bytes', remaining_length)
     else:
-        logger.debug('layer_count=%d, length=%d', layer_count, length)
+        layer_count = 0
+        logger.debug('  length=0, layer_count=0')
 
-    return Layers(length, layer_count, layer_records, channel_image_data)
+    return Layers(layer_count, layer_records, channel_image_data)
 
 
 def _read_layer_record(fp, encoding):
@@ -198,15 +200,15 @@ def _read_layer_record(fp, encoding):
         warnings.warn("Unknown blend mode (%s)" % blend_mode)
 
     opacity, clipping, flags, extra_length = read_fmt("BBBxI", fp)
+
+    if not Clipping.is_known(clipping):
+        warnings.warn("Unknown clipping (%s)" % clipping)
     logger.debug('  extra_length=%s', extra_length)
 
     flags = LayerFlags(
         bool(flags & 1), not bool(flags & 2),           # why "not"?
         bool(flags & 16) if bool(flags & 8) else None
     )
-
-    if not Clipping.is_known(clipping):
-        warnings.warn("Unknown clipping: %s" % clipping)
 
     start_pos = fp.tell()
     mask_data = _read_layer_mask_data(fp)
@@ -215,6 +217,10 @@ def _read_layer_record(fp, encoding):
     name = read_pascal_string(fp, encoding, 4)
 
     remaining_length = extra_length - (fp.tell() - start_pos)
+
+    logger.debug('  reading layer tagged blocks...')
+    logger.debug('    length=%d, start_pos=%d', remaining_length, fp.tell())
+
     tagged_blocks = _read_layer_tagged_blocks(fp, remaining_length)
 
     remaining_length = extra_length - (fp.tell() - start_pos)
@@ -229,6 +235,80 @@ def _read_layer_record(fp, encoding):
         mask_data, blending_ranges, name,
         tagged_blocks
     )
+
+
+def _read_layer_mask_data(fp):
+    """ Reads layer mask or adjustment layer data. """
+    length = read_fmt("I", fp)[0]
+    start_pos = fp.tell()
+
+    logger.debug('  reading layer mask data...')
+    logger.debug('    length=%d, start_pos=%d', length, start_pos)
+
+    if not length:
+        return None
+
+    top, left, bottom, right, background_color, flags = read_fmt("4i 2B", fp)
+    flags = MaskFlags(
+        bool(flags & 1), bool(flags & 2), bool(flags & 4),
+        bool(flags & 8), bool(flags & 16)
+    )
+
+    # Order is based on tests. The specification is messed up here...
+
+    if length < 36:
+        real_flags, real_background_color = None, None
+        real_top, real_left, real_bottom, real_right = None, None, None, None
+    else:
+        real_flags, real_background_color = read_fmt("2B", fp)
+        real_flags = MaskFlags(
+            bool(real_flags & 1), bool(real_flags & 2), bool(real_flags & 4),
+            bool(real_flags & 8), bool(real_flags & 16)
+        )
+
+        real_top, real_left, real_bottom, real_right = read_fmt("4i", fp)
+
+    if flags.parameters_applied:
+        parameters = read_fmt("B", fp)[0]
+        parameters = MaskParameters(
+            read_fmt("B", fp)[0] if bool(parameters & 1) else None,
+            read_fmt("d", fp)[0] if bool(parameters & 2) else None,
+            read_fmt("B", fp)[0] if bool(parameters & 4) else None,
+            read_fmt("d", fp)[0] if bool(parameters & 8) else None
+        )
+    else:
+        parameters = None
+
+    padding_size = length - (fp.tell() - start_pos)
+    if padding_size > 0:
+        fp.seek(padding_size, 1)
+
+    return MaskData(
+        top, left, bottom, right, background_color, flags, parameters,
+        real_flags, real_background_color, real_top, real_left, real_bottom, real_right
+    )
+
+
+def _read_layer_blending_ranges(fp):
+    """ Reads layer blending data. """
+
+    def read_channel_range():
+        src_start, src_end, dest_start, dest_end = read_fmt("4H", fp)
+        return (src_start, src_end), (dest_start, dest_end)
+
+    composite_ranges = None
+    channel_ranges = []
+    length = read_fmt("I", fp)[0]
+
+    logger.debug('  reading layer blending ranges...')
+    logger.debug('    length=%d, start_pos=%d', length, fp.tell())
+
+    if length:
+        composite_ranges = read_channel_range()
+        for x in range(length//8 - 1):
+            channel_ranges.append(read_channel_range())
+
+    return LayerBlendingRanges(composite_ranges, channel_ranges)
 
 
 def _read_layer_tagged_blocks(fp, remaining_length, padding=0):
@@ -265,67 +345,6 @@ def _read_additional_layer_info_block(fp, padding):
 
     data = fp.read(length)
     return Block(key, data)
-
-
-def _read_layer_mask_data(fp):
-    """ Reads layer mask or adjustment layer data. """
-    size = read_fmt("I", fp)[0]
-    if not size:
-        return None
-
-    top, left, bottom, right, background_color, flags = read_fmt("4i 2B", fp)
-    flags = MaskFlags(
-        bool(flags & 1), bool(flags & 2), bool(flags & 4),
-        bool(flags & 8), bool(flags & 16)
-    )
-
-    parameters = None
-
-    if size == 20:
-        fp.seek(2, 1)
-        real_flags, real_background_color = None, None
-        real_top, real_left, real_bottom, real_right = None, None, None, None
-    else:
-        if flags.parameters_applied:
-            parameters = read_fmt("B", fp)[0]
-            parameters = MaskParameters(
-                read_fmt("B", fp)[0] if bool(parameters & 1) else None,
-                read_fmt("d", fp)[0] if bool(parameters & 2) else None,
-                read_fmt("B", fp)[0] if bool(parameters & 4) else None,
-                read_fmt("d", fp)[0] if bool(parameters & 8) else None
-            )
-
-        real_flags, real_background_color = read_fmt("2B", fp)
-        real_flags = MaskFlags(
-            bool(real_flags & 1), bool(real_flags & 2), bool(real_flags & 4),
-            bool(real_flags & 8), bool(real_flags & 16)
-        )
-
-        real_top, real_left, real_bottom, real_right = read_fmt("4i", fp)
-
-    return MaskData(
-        top, left, bottom, right, background_color, flags, parameters,
-        real_flags, real_background_color, real_top, real_left, real_bottom, real_right
-    )
-
-
-def _read_layer_blending_ranges(fp):
-    """ Reads layer blending data. """
-
-    def read_channel_range():
-        src_start, src_end, dest_start, dest_end = read_fmt("4H", fp)
-        return (src_start, src_end), (dest_start, dest_end)
-
-    composite_ranges = None
-    channel_ranges = []
-    length = read_fmt("I", fp)[0]
-
-    if length:
-        composite_ranges = read_channel_range()
-        for x in range(length//8 - 1):
-            channel_ranges.append(read_channel_range())
-
-    return LayerBlendingRanges(composite_ranges, channel_ranges)
 
 
 def _read_channel_image_data(fp, layer, depth):
@@ -403,10 +422,13 @@ def _read_global_mask_info(fp):
     """
     # XXX: What is it for?
     length = read_fmt("I", fp)[0]
-    if length == 0:
-        return None
-
     start_pos = fp.tell()
+
+    logger.debug('reading global mask info...')
+    logger.debug('  length=%d, start_pos=%d', length, start_pos)
+
+    if not length:
+        return None
 
     overlay_color = fp.read(10)
     opacity, kind = read_fmt("HB", fp)
