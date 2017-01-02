@@ -7,7 +7,6 @@ branches:
         - /^\d\.\d+$/
 
 env:
-    - TOXENV=py26
     - TOXENV=py27
     - TOXENV=py33
     - TOXENV=py34
