@@ -14,23 +14,24 @@ def get_version():
         return fp.read().decode('utf8').split('=')[1].strip(" \n'")
 
 setup_args = dict(
-    name = 'psd-tools',
-    version = get_version(),
-    author = 'Mikhail Korobov',
-    author_email = 'kmike84@gmail.com',
-    url = 'https://github.com/kmike/psd-tools',
+    name='psd-tools',
+    version=get_version(),
+    author='Mikhail Korobov',
+    author_email='kmike84@gmail.com',
+    url='https://github.com/kmike/psd-tools',
 
-    description = 'Python package for working with Adobe Photoshop PSD files',
-    long_description = open('README.rst').read() + "\n\n" + open('CHANGES.rst').read(),
-    license = 'MIT License',
+    description='Python package for working with Adobe Photoshop PSD files',
+    long_description=open('README.rst').read() + "\n\n" + open('CHANGES.rst').read(),
+    license='MIT License',
     requires=['docopt (>= 0.5)', 'Pillow'],
     install_requires=['docopt >= 0.5'],
-    keywords = "pymaging psd imaging pil pillow",
+    keywords="pymaging psd imaging pil pillow",
     zip_safe=False,
 
-    package_dir = {'': 'src'},
-    packages = ['psd_tools', 'psd_tools.reader', 'psd_tools.decoder', 'psd_tools.user_api'],
-    package_data = {'psd_tools': ['icc_profiles/*.icc']},
+    package_dir={'': 'src'},
+    packages=['psd_tools', 'psd_tools.reader', 'psd_tools.decoder',
+              'psd_tools.user_api'],
+    package_data={'psd_tools': ['icc_profiles/*.icc']},
     scripts=['bin/psd-tools.py'],
 
     classifiers=[
