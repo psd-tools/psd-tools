@@ -1,4 +1,12 @@
 
+1.4 (2017-01-02)
+----------------
+
+- Fixed reading of layer mask data (thanks Evgeny Kopylov);
+- Python 2.6 support is dropped;
+- Python 3.6 support is added (thanks Leendert Brouwer);
+- extension is rebuilt with Cython 0.25.2.
+
 1.3 (2016-01-25)
 ----------------
 
