@@ -36,7 +36,7 @@ def pretty_namedtuple(typename, field_names, verbose=False):
     Return a namedtuple class that knows how to pretty-print itself
     using IPython.lib.pretty library.
     """
-    cls = namedtuple(typename, field_names, verbose)
+    cls = namedtuple(typename, field_names, verbose=verbose)
     PrettyMixin = _get_pretty_mixin(typename)
     cls = type(str(typename), (PrettyMixin, cls), {})
 
