@@ -97,6 +97,7 @@ class Layer(_RawLayer):
         self.parent = parent
         self._psd = parent._psd
         self._index = index
+        self._replacement_image = None
 
     def as_PIL(self):
         """ Returns a PIL image for this layer. """
@@ -152,6 +153,13 @@ class Layer(_RawLayer):
         tagged_blocks = self._tagged_blocks.get(TaggedBlock.TYPE_TOOL_OBJECT_SETTING)
         if tagged_blocks:
             return TextData(tagged_blocks)
+
+    def replace_image(self, pil_image):
+        """
+        Replaces the image on this layer.
+        :param pil_image: the replacement image. Must be the same size. Use 'None' to revert back to the original image.
+        """
+        self._replacement_image = pil_image
 
     def __repr__(self):
         bbox = self.bbox
@@ -378,7 +386,10 @@ def merge_layers(layers, respect_visibility=True, skip_layer=lambda layer: False
         if isinstance(layer, psd_tools.Group):
             layer_image = merge_layers(layer.layers, respect_visibility, skip_layer)
         else:
-            layer_image = layer.as_PIL()
+            if layer.replacement_image is None:
+                layer_image = layer.as_PIL()
+            else:
+                layer_image = layer.replacement_image
 
         layer_image = pil_support.apply_opacity(layer_image, layer.opacity)
 
