@@ -319,6 +319,10 @@ class TaggedBlock(Enum):
     LAYER_32 = b'Lr32'
     LAYER = b'Layr'
 
+    ARTBOARD1 = b'artb'
+    ARTBOARD2 = b'artd'
+    ARTBOARD3 = b'abdd'
+
 
 class OSType(Enum):
     """

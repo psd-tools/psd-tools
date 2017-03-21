@@ -25,6 +25,7 @@ _tagged_block_decoders.update({
 
 
 SolidColorSettings = pretty_namedtuple('SolidColorSettings', 'version data')
+Artboard = pretty_namedtuple('Artboard', 'version data')
 MetadataItem = pretty_namedtuple('MetadataItem', 'key copy_on_sheet_duplication descriptor_version data')
 ProtectedSetting = pretty_namedtuple('ProtectedSetting', 'transparency, composite, position')
 TypeToolObjectSetting = pretty_namedtuple('TypeToolObjectSetting',
@@ -237,3 +238,17 @@ def _decode_vector_origination_data(data):
 def _decode_linked_layer(data):
     from psd_tools.decoder.linked_layer import decode
     return decode(data)
+
+
+@register(TaggedBlock.ARTBOARD1)
+@register(TaggedBlock.ARTBOARD2)
+@register(TaggedBlock.ARTBOARD3)
+def _decode_artboard(data):
+    fp = io.BytesIO(data)
+    version = read_fmt("I", fp)[0]
+    try:
+        data = decode_descriptor(None, fp)
+        return Artboard(version, data)
+    except UnknownOSType as e:
+        warnings.warn("Ignoring artboard tagged block (%s)" % e)
+        return data
