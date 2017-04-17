@@ -31,6 +31,7 @@ TypeToolObjectSetting = pretty_namedtuple('TypeToolObjectSetting',
                         'version xx xy yx yy tx ty text_version descriptor1_version text_data '
                         'warp_version descriptor2_version warp_data left top right bottom')
 VectorOriginationData = pretty_namedtuple('VectorOriginationData', 'version descriptor_version data')
+VectorMaskSetting1 = pretty_namedtuple('VectorMaskSetting1', 'version invert not_link disable paths')
 
 
 class Divider(collections.namedtuple('Divider', 'block type key')):
@@ -229,6 +230,25 @@ def _decode_vector_origination_data(data):
         return data
 
     return VectorOriginationData(ver, descr_ver, vector_origination_data)
+
+
+@register(TaggedBlock.VECTOR_MASK_SETTING1)
+def _decode_vector_mask_setting1(data):
+    fp = io.BytesIO(data)
+    ver, flags = read_fmt("II", fp)
+
+    # This decoder needs to be updated if we have new formats.
+    if ver != 3:
+        warnings.warn("Ignoring vector mask setting1 tagged block due to unsupported version %s" % (ver))
+        return data
+
+    for index in range(int((len(data) - 8) / 8)):
+        y, x = read_fmt("II", fp)
+        # TODO: convert fixed-point numbers to float?
+        paths.append((y, x))
+
+    return VectorMaskSetting1(ver, (0x01 & flags) > 0, (0x02 & flags) > 0,
+        (0x04 & flags) > 0, paths)
 
 
 @register(TaggedBlock.LINKED_LAYER1)
