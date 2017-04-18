@@ -30,8 +30,7 @@ ProtectedSetting = pretty_namedtuple('ProtectedSetting', 'transparency, composit
 TypeToolObjectSetting = pretty_namedtuple('TypeToolObjectSetting',
                         'version xx xy yx yy tx ty text_version descriptor1_version text_data '
                         'warp_version descriptor2_version warp_data left top right bottom')
-VectorOriginationData = pretty_namedtuple(
-    'VectorOriginationData', 'version descriptor_version data')
+VectorOriginationData = pretty_namedtuple('VectorOriginationData', 'version descriptor_version data')
 VectorMaskSetting1 = pretty_namedtuple(
     'VectorMaskSetting1','version invert not_link disable path')
 
