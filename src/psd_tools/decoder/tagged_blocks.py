@@ -4,7 +4,7 @@ import warnings
 import collections
 import io
 
-from psd_tools.constants import TaggedBlock, SectionDivider
+from psd_tools.constants import TaggedBlock, SectionDivider, PathResource
 from psd_tools.decoder.actions import decode_descriptor, UnknownOSType
 from psd_tools.utils import read_fmt, unpack
 from psd_tools.decoder import decoders, layer_effects
@@ -31,6 +31,8 @@ TypeToolObjectSetting = pretty_namedtuple('TypeToolObjectSetting',
                         'version xx xy yx yy tx ty text_version descriptor1_version text_data '
                         'warp_version descriptor2_version warp_data left top right bottom')
 VectorOriginationData = pretty_namedtuple('VectorOriginationData', 'version descriptor_version data')
+VectorMaskSetting = pretty_namedtuple(
+    'VectorMaskSetting','version invert not_link disable path')
 
 
 class Divider(collections.namedtuple('Divider', 'block type key')):
@@ -229,6 +231,59 @@ def _decode_vector_origination_data(data):
         return data
 
     return VectorOriginationData(ver, descr_ver, vector_origination_data)
+
+
+@register(TaggedBlock.VECTOR_MASK_SETTING1)
+@register(TaggedBlock.VECTOR_MASK_SETTING2)
+def _decode_vector_mask_setting1(data):
+    fp = io.BytesIO(data)
+    ver, flags = read_fmt("II", fp)
+
+    # This decoder needs to be updated if we have new formats.
+    if ver != 3:
+        warnings.warn("Ignoring vector mask setting1 tagged block due to "
+                      "unsupported version %s" % (ver))
+        return data
+
+    # Path points are 8 bits + 24 bits fixed points. Convert to float here.
+    def _decode_fixed_point(fixed_point):
+        return tuple(x / 0x01000000 for x in fixed_point)
+
+    path = []
+    path_rec = (len(data) - 8) // 26
+    while path_rec > 0:
+        selector, = read_fmt("H", fp)
+        record = {"selector": selector}
+        if selector in (PathResource.CLOSED_SUBPATH_LENGTH_RECORD,
+                PathResource.OPEN_SUBPATH_LENGTH_RECORD):
+            record["num_knot_records"], = read_fmt("H", fp)
+            fp.seek(22, io.SEEK_CUR)
+        elif selector in (
+                PathResource.CLOSED_SUBPATH_BEZIER_KNOT_LINKED,
+                PathResource.CLOSED_SUBPATH_BEZIER_KNOT_UNLINKED,
+                PathResource.OPEN_SUBPATH_BEZIER_KNOT_LINKED,
+                PathResource.OPEN_SUBPATH_BEZIER_KNOT_UNLINKED):
+            record["control_preceding_knot"] = _decode_fixed_point(
+                read_fmt("2i", fp))
+            record["anchor"] = _decode_fixed_point(read_fmt("2i", fp))
+            record["control_leaving_knot"] = _decode_fixed_point(
+                read_fmt("2i", fp))
+        elif selector == PathResource.PATH_FILL_RULE_RECORD:
+            fp.seek(24, io.SEEK_CUR)
+        elif selector == PathResource.CLIPBOARD_RECORD:
+            record["top"], record["left"], record["bottom"], record["right"],
+            record["resolution"] = _decode_fixed_point(read_fmt("5i", fp))
+            fp.seek(4, io.SEEK_CUR)
+        elif selector == PathResource.INITIAL_FILL_RULE_RECORD:
+            record["initial_fill_rule"], = read_fmt("H", fp)
+            fp.seek(22, io.SEEK_CUR)
+        else:
+            warnings.warn("Unknown path record found %s" % (selector))
+        path.append(record)
+        path_rec -= 1
+
+    return VectorMaskSetting(
+        ver, (0x01 & flags) > 0, (0x02 & flags) > 0, (0x04 & flags) > 0, path)
 
 
 @register(TaggedBlock.LINKED_LAYER1)
