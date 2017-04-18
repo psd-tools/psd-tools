@@ -31,8 +31,8 @@ TypeToolObjectSetting = pretty_namedtuple('TypeToolObjectSetting',
                         'version xx xy yx yy tx ty text_version descriptor1_version text_data '
                         'warp_version descriptor2_version warp_data left top right bottom')
 VectorOriginationData = pretty_namedtuple('VectorOriginationData', 'version descriptor_version data')
-VectorMaskSetting1 = pretty_namedtuple(
-    'VectorMaskSetting1','version invert not_link disable path')
+VectorMaskSetting = pretty_namedtuple(
+    'VectorMaskSetting','version invert not_link disable path')
 
 
 class Divider(collections.namedtuple('Divider', 'block type key')):
@@ -234,6 +234,7 @@ def _decode_vector_origination_data(data):
 
 
 @register(TaggedBlock.VECTOR_MASK_SETTING1)
+@register(TaggedBlock.VECTOR_MASK_SETTING2)
 def _decode_vector_mask_setting1(data):
     fp = io.BytesIO(data)
     ver, flags = read_fmt("II", fp)
@@ -281,7 +282,7 @@ def _decode_vector_mask_setting1(data):
         path.append(record)
         path_rec -= 1
 
-    return VectorMaskSetting1(
+    return VectorMaskSetting(
         ver, (0x01 & flags) > 0, (0x02 & flags) > 0, (0x04 & flags) > 0, path)
 
 
