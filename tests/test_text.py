@@ -4,7 +4,7 @@ from __future__ import absolute_import, unicode_literals
 import pytest
 
 from psd_tools import PSDImage
-from .utils import decode_psd
+from .utils import decode_psd, with_psb
 
 TEXTS = with_psb([
     # filename, layer #, text
