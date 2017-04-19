@@ -235,7 +235,7 @@ def _decode_vector_origination_data(data, **kwargs):
 
 @register(TaggedBlock.VECTOR_MASK_SETTING1)
 @register(TaggedBlock.VECTOR_MASK_SETTING2)
-def _decode_vector_mask_setting1(data):
+def _decode_vector_mask_setting1(data, **kwargs):
     fp = io.BytesIO(data)
     ver, flags = read_fmt("II", fp)
 
