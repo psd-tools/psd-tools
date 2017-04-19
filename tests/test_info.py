@@ -5,7 +5,7 @@ import pytest
 
 from psd_tools import PSDImage
 from psd_tools.constants import TaggedBlock, SectionDivider, BlendMode
-from .utils import load_psd, decode_psd
+from .utils import load_psd, decode_psd, with_psb
 
 
 FILES_WITH_NO_LAYERS = (
@@ -19,7 +19,18 @@ FILES_WITH_NO_LAYERS = (
     ('history.psd',         True),
     ('pen-text.psd',        True),
     ('transparentbg.psd',   True),
-    ('vector mask.psd',     True)
+    ('vector mask.psd',     True),
+    ('0layers.psb',         True),
+    ('0layers_tblocks.psb', True),
+    ('16bit5x5.psb',        True),
+    ('32bit.psb',           True),
+    ('32bit5x5.psb',        True),
+    ('300dpi.psb',          True),
+    ('gradient fill.psb',   True),
+    ('history.psb',         True),
+    ('pen-text.psb',        True),
+    ('transparentbg.psb',   True),
+    ('vector mask.psb',     True)
 )
 
 

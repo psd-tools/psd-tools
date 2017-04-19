@@ -3,7 +3,7 @@ from __future__ import absolute_import, unicode_literals
 
 import pytest
 from psd_tools.user_api import pil_support, pymaging_support
-from .utils import decode_psd
+from .utils import decode_psd, with_psb
 
 def _tobytes(image):
     try:
@@ -14,10 +14,10 @@ def _tobytes(image):
         except AttributeError:
             return image.pixels.data.tostring() # pymaging
 
-SINGLE_LAYER_FILES = [
+SINGLE_LAYER_FILES = with_psb([
     ['1layer.psd'],
     ['transparentbg-gimp.psd']
-]
+])
 
 BACKENDS = [[pil_support], [pymaging_support]]
 
