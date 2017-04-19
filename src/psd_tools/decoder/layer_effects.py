@@ -62,7 +62,7 @@ class LayerEffect(_LayerEffect):
                 p.pretty(self.effect_info)
 
 
-def decode(effects):
+def decode(effects, **kwargs):
     """
     Reads and decodes info about layer effects.
     """
@@ -88,7 +88,7 @@ def decode(effects):
 
     return Effects(version, effects_count, effects_list)
 
-def decode_object_based(effects):
+def decode_object_based(effects, **kwargs):
     """
     Reads and decodes info about object-based layer effects.
     """

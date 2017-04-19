@@ -102,11 +102,14 @@ class ChannelData(_ChannelData):
             p.text(repr(self))
 
 
-def read(fp, encoding, depth):
+def read(fp, encoding, depth, version):
     """
     Reads layers and masks information.
     """
-    length = read_fmt("I", fp)[0]
+    if version == 1:
+        length = read_fmt("I", fp)[0]
+    elif version == 2:
+        length = read_fmt("Q", fp)[0]
     start_pos = fp.tell()
 
     logger.debug('reading layers and masks information...')
@@ -116,7 +119,7 @@ def read(fp, encoding, depth):
     tagged_blocks = []
 
     if length > 0:
-        layers = _read_layers(fp, encoding, depth)
+        layers = _read_layers(fp, encoding, depth, version)
 
         remaining_length = length - (fp.tell() - start_pos)
         if remaining_length > 0:
@@ -128,19 +131,19 @@ def read(fp, encoding, depth):
             logger.debug('reading tagged blocks...')
             logger.debug('  length=%d, start_pos=%d', remaining_length, fp.tell())
 
-            tagged_blocks = _read_layer_tagged_blocks(fp, remaining_length, 4)
+            tagged_blocks = _read_layer_tagged_blocks(fp, remaining_length, version, 4)
 
             remaining_length = length - (fp.tell() - start_pos)
             if remaining_length > 0:
                 fp.seek(remaining_length, 1)
                 logger.debug('skipping %s bytes', remaining_length)
     else:
-        layers = _read_layers(fp, encoding, depth, 0)
+        layers = _read_layers(fp, encoding, depth, version, 0)
 
     return LayerAndMaskData(layers, global_mask_info, tagged_blocks)
 
 
-def _read_layers(fp, encoding, depth, length=None):
+def _read_layers(fp, encoding, depth, version, length=None):
     """
     Reads info about layers.
     """
@@ -149,7 +152,10 @@ def _read_layers(fp, encoding, depth, length=None):
     layer_records = []
     channel_image_data = []
     if length is None:
-        length = read_fmt("I", fp)[0]
+        if version == 1:
+            length = read_fmt("I", fp)[0]
+        elif version == 2:
+            length = read_fmt("Q", fp)[0]
 
     if length > 0:
         start_pos = fp.tell()
@@ -159,12 +165,12 @@ def _read_layers(fp, encoding, depth, length=None):
 
         for idx in range(abs(layer_count)):
             logger.debug('reading layer record %d, pos=%d', idx, fp.tell())
-            layer = _read_layer_record(fp, encoding)
+            layer = _read_layer_record(fp, encoding, version)
             layer_records.append(layer)
 
         for idx, layer in enumerate(layer_records):
             logger.debug('reading layer channel data %d, pos=%d', idx, fp.tell())
-            data = _read_channel_image_data(fp, layer, depth)
+            data = _read_channel_image_data(fp, layer, depth, version)
             channel_image_data.append(data)
 
         remaining_length = length - (fp.tell() - start_pos)
@@ -178,7 +184,7 @@ def _read_layers(fp, encoding, depth, length=None):
     return Layers(layer_count, layer_records, channel_image_data)
 
 
-def _read_layer_record(fp, encoding):
+def _read_layer_record(fp, encoding, version):
     """
     Reads single layer record.
     """
@@ -188,7 +194,10 @@ def _read_layer_record(fp, encoding):
 
     channel_info = []
     for channel_num in range(num_channels):
-        info = ChannelInfo(*read_fmt("hI", fp))
+        if version == 1:
+            info = ChannelInfo(*read_fmt("hI", fp))
+        elif version == 2:
+            info = ChannelInfo(*read_fmt("hQ", fp))
         channel_info.append(info)
 
     sig = fp.read(4)
@@ -221,7 +230,7 @@ def _read_layer_record(fp, encoding):
     logger.debug('  reading layer tagged blocks...')
     logger.debug('    length=%d, start_pos=%d', remaining_length, fp.tell())
 
-    tagged_blocks = _read_layer_tagged_blocks(fp, remaining_length)
+    tagged_blocks = _read_layer_tagged_blocks(fp, remaining_length, version)
 
     remaining_length = extra_length - (fp.tell() - start_pos)
     if remaining_length > 0:
@@ -311,7 +320,7 @@ def _read_layer_blending_ranges(fp):
     return LayerBlendingRanges(composite_ranges, channel_ranges)
 
 
-def _read_layer_tagged_blocks(fp, remaining_length, padding=0):
+def _read_layer_tagged_blocks(fp, remaining_length, version, padding=0):
     """
     Reads a section of tagged blocks with additional layer information.
     """
@@ -319,7 +328,7 @@ def _read_layer_tagged_blocks(fp, remaining_length, padding=0):
     start_pos = fp.tell()
     read_bytes = 0
     while read_bytes < remaining_length:
-        block = _read_additional_layer_info_block(fp, padding)
+        block = _read_additional_layer_info_block(fp, padding, version)
         read_bytes = fp.tell() - start_pos
         if block is None:
             break
@@ -328,7 +337,7 @@ def _read_layer_tagged_blocks(fp, remaining_length, padding=0):
     return blocks
 
 
-def _read_additional_layer_info_block(fp, padding):
+def _read_additional_layer_info_block(fp, padding, version):
     """
     Reads a tagged block with additional layer information.
     """
@@ -339,7 +348,11 @@ def _read_additional_layer_info_block(fp, padding):
         return
 
     key = fp.read(4)
-    length = read_fmt("I", fp)[0]
+    if version == 2 and key in (b'LMsk', b'Lr16', b'Lr32', b'Layr', b'Mt16',
+        b'Mt32', b'Mtrn', b'Alph', b'FMsk', b'lnk2', b'FEid', b'FXid', b'PxSD'):
+        length = read_fmt("Q", fp)[0]
+    else:
+        length = read_fmt("I", fp)[0]
     if padding > 0:
         length = pad(length, padding)
 
@@ -347,7 +360,7 @@ def _read_additional_layer_info_block(fp, padding):
     return Block(key, data)
 
 
-def _read_channel_image_data(fp, layer, depth):
+def _read_channel_image_data(fp, layer, depth, version):
     """
     Reads image data for all channels in a layer.
     """
@@ -378,7 +391,10 @@ def _read_channel_image_data(fp, layer, depth):
             logger.debug('    data size = %sx%sx%s=%s bytes', w, h, bytes_per_pixel, data_size)
 
         elif compress_type == Compression.PACK_BITS:
-            byte_counts = read_be_array("H", h, fp)
+            if version == 1:
+                byte_counts = read_be_array("H", h, fp)
+            elif version == 2:
+                byte_counts = read_be_array("I", h, fp)
             data_size = sum(byte_counts)
             logger.debug('    data size = %s bytes', data_size)
 
@@ -452,7 +468,10 @@ def read_image_data(fp, header):
     channel_byte_counts = []
     if compress_type == Compression.PACK_BITS:
         for ch in range(header.number_of_channels):
-            channel_byte_counts.append(read_be_array("H", h, fp))
+            if header.version == 1:
+                channel_byte_counts.append(read_be_array("H", h, fp))
+            elif header.version == 2:
+                channel_byte_counts.append(read_be_array("I", h, fp))  # Undocumented...
 
     channel_data = []
     for channel_id in range(header.number_of_channels):

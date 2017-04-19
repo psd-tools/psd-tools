@@ -8,7 +8,10 @@ from .utils import load_psd, decode_psd
 FILE_NAMES = (
     'layer_mask_data.psd',
     'masks.psd',
-    'masks2.psd'
+    'masks2.psd',
+    'layer_mask_data.psb',
+    'masks.psb',
+    'masks2.psb'
 )
 
 MASK_DATA_BY_LAYERS = (

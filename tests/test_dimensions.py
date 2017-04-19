@@ -2,13 +2,13 @@
 from __future__ import absolute_import, unicode_literals
 import pytest
 
-from .utils import load_psd, decode_psd
+from .utils import load_psd, decode_psd, with_psb
 
 from psd_tools import PSDImage, BBox
 from psd_tools.decoder.image_resources import ResolutionInfo
 from psd_tools.constants import DisplayResolutionUnit, DimensionUnit, ImageResourceID
 
-DIMENSIONS = (
+DIMENSIONS = with_psb((
     ('1layer.psd',              (101, 55)),
     ('2layers.psd',             (101, 55)),
     ('32bit.psd',               (100, 150)),
@@ -29,7 +29,7 @@ DIMENSIONS = (
     ('gray0.psd',               (400, 359)),
     ('gray1.psd',               (1800, 1200)),
     ('empty-layer.psd',         (100, 150)),
-)
+))
 
 BBOXES = (
     ('1layer.psd', 0, BBox(0, 0, 101, 55)),
@@ -46,6 +46,14 @@ RESOLUTIONS = (
         v_res=72.0, v_res_unit=DisplayResolutionUnit.PIXELS_PER_INCH,
         width_unit=DimensionUnit.INCH, height_unit=DimensionUnit.INCH)),
     ('group.psd', ResolutionInfo(
+        h_res=72.0, h_res_unit=DisplayResolutionUnit.PIXELS_PER_INCH,
+        v_res=72.0, v_res_unit=DisplayResolutionUnit.PIXELS_PER_INCH,
+        width_unit=DimensionUnit.CM, height_unit=DimensionUnit.CM)),
+    ('1layer.psb', ResolutionInfo(
+        h_res=72.0, h_res_unit=DisplayResolutionUnit.PIXELS_PER_INCH,
+        v_res=72.0, v_res_unit=DisplayResolutionUnit.PIXELS_PER_INCH,
+        width_unit=DimensionUnit.CM, height_unit=DimensionUnit.CM)),
+    ('group.psb', ResolutionInfo(
         h_res=72.0, h_res_unit=DisplayResolutionUnit.PIXELS_PER_INCH,
         v_res=72.0, v_res_unit=DisplayResolutionUnit.PIXELS_PER_INCH,
         width_unit=DimensionUnit.CM, height_unit=DimensionUnit.CM)),
