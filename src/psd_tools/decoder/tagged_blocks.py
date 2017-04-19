@@ -39,15 +39,15 @@ class Divider(collections.namedtuple('Divider', 'block type key')):
             self.block, self.type, SectionDivider.name_of(self.type), self.key)
 
 
-def decode(tagged_blocks):
+def decode(tagged_blocks, version):
     """
     Replaces "data" attribute of a blocks from ``tagged_blocks`` list
     with parsed data structure if it is known how to parse it.
     """
-    return [parse_tagged_block(block) for block in tagged_blocks]
+    return [parse_tagged_block(block, version) for block in tagged_blocks]
 
 
-def parse_tagged_block(block):
+def parse_tagged_block(block, version=1, **kwargs):
     """
     Replaces "data" attribute of a block with parsed data structure
     if it is known how to parse it.
@@ -55,12 +55,12 @@ def parse_tagged_block(block):
     if not TaggedBlock.is_known(block.key):
         warnings.warn("Unknown tagged block (%s)" % block.key)
 
-    decoder = _tagged_block_decoders.get(block.key, lambda data: data)
-    return Block(block.key, decoder(block.data))
+    decoder = _tagged_block_decoders.get(block.key, lambda data, **kwargs: data)
+    return Block(block.key, decoder(block.data, version=version))
 
 
 @register(TaggedBlock.SOLID_COLOR_SHEET_SETTING)
-def _decode_soco(data):
+def _decode_soco(data, **kwargs):
     fp = io.BytesIO(data)
     version = read_fmt("I", fp)[0]
     try:
@@ -72,23 +72,23 @@ def _decode_soco(data):
 
 
 @register(TaggedBlock.REFERENCE_POINT)
-def _decode_reference_point(data):
+def _decode_reference_point(data, **kwargs):
     return read_fmt("2d", io.BytesIO(data))
 
 
 @register(TaggedBlock.SHEET_COLOR_SETTING)
-def _decode_color_setting(data):
+def _decode_color_setting(data, **kwargs):
     return read_fmt("4H", io.BytesIO(data))
 
 
 @register(TaggedBlock.SECTION_DIVIDER_SETTING)
-def _decode_section_divider(data):
+def _decode_section_divider(data, **kwargs):
     tp, key = _decode_divider(data)
     return Divider(TaggedBlock.SECTION_DIVIDER_SETTING, tp, key)
 
 
 @register(TaggedBlock.NESTED_SECTION_DIVIDER_SETTING)
-def _decode_section_divider(data):
+def _decode_section_divider(data, **kwargs):
     tp, key = _decode_divider(data)
     return Divider(TaggedBlock.NESTED_SECTION_DIVIDER_SETTING, tp, key)
 
@@ -110,14 +110,14 @@ def _decode_divider(data):
 
 @register(TaggedBlock.PLACED_LAYER_DATA)
 @register(TaggedBlock.SMART_OBJECT_PLACED_LAYER_DATA)
-def _decode_placed_layer(data):
+def _decode_placed_layer(data, **kwargs):
     fp = io.BytesIO(data)
     type, version, descriptorVersion = read_fmt("4s I I", fp)
     descriptor = decode_descriptor(None, fp)
     return descriptor.items
 
 @register(TaggedBlock.METADATA_SETTING)
-def _decode_metadata(data):
+def _decode_metadata(data, **kwargs):
     fp = io.BytesIO(data)
     items_count = read_fmt("I", fp)[0]
     items = []
@@ -151,7 +151,7 @@ def _decode_metadata(data):
 
 
 @register(TaggedBlock.PROTECTED_SETTING)
-def _decode_protected(data):
+def _decode_protected(data, **kwargs):
     flag = unpack("I", data)[0]
     return ProtectedSetting(
         bool(flag & 1),
@@ -161,25 +161,25 @@ def _decode_protected(data):
 
 
 @register(TaggedBlock.LAYER_32)
-def _decode_layer32(data):
+def _decode_layer32(data, version=1, **kwargs):
     from psd_tools.reader import layers
     from psd_tools.decoder.decoder import decode_layers
     fp = io.BytesIO(data)
-    layers = layers._read_layers(fp, 'latin1', 32, length=len(data))
-    return decode_layers(layers)
+    layers = layers._read_layers(fp, 'latin1', 32, length=len(data), version=version)
+    return decode_layers(layers, version)
 
 
 @register(TaggedBlock.LAYER_16)
-def _decode_layer16(data):
+def _decode_layer16(data, version=1, **kwargs):
     from psd_tools.reader import layers
     from psd_tools.decoder.decoder import decode_layers
     fp = io.BytesIO(data)
-    layers = layers._read_layers(fp, 'latin1', 16, length=len(data))
-    return decode_layers(layers)
+    layers = layers._read_layers(fp, 'latin1', 16, length=len(data), version=version)
+    return decode_layers(layers, version)
 
 
 @register(TaggedBlock.TYPE_TOOL_OBJECT_SETTING)
-def _decode_type_tool_object_setting(data):
+def _decode_type_tool_object_setting(data, **kwargs):
     fp = io.BytesIO(data)
     ver, xx, xy, yx, yy, tx, ty, txt_ver, descr1_ver = read_fmt("H 6d H I", fp)
 
@@ -213,7 +213,7 @@ def _decode_type_tool_object_setting(data):
 
 
 @register(TaggedBlock.VECTOR_ORIGINATION_DATA)
-def _decode_vector_origination_data(data):
+def _decode_vector_origination_data(data, **kwargs):
     fp = io.BytesIO(data)
     ver, descr_ver = read_fmt("II", fp)
 
@@ -234,6 +234,6 @@ def _decode_vector_origination_data(data):
 @register(TaggedBlock.LINKED_LAYER1)
 @register(TaggedBlock.LINKED_LAYER2)
 @register(TaggedBlock.LINKED_LAYER3)
-def _decode_linked_layer(data):
+def _decode_linked_layer(data, **kwargs):
     from psd_tools.decoder.linked_layer import decode
     return decode(data)
