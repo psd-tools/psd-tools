@@ -38,6 +38,8 @@ PixelAspectRatio = collections.namedtuple('PixelAspectRatio', 'version aspect')
 _ResolutionInfo = collections.namedtuple('ResolutionInfo', 'h_res, h_res_unit, width_unit, v_res, v_res_unit, height_unit')
 PathSelectionState = collections.namedtuple('PathSelectionState', 'descriptor_version descriptor')
 LayerComps = collections.namedtuple('LayerComps', 'descriptor_version descriptor')
+GridGuideResource = collections.namedtuple('GridGuideResource', 'version grid_horizontal grid_vertical guides')
+GuideResourceBlock = collections.namedtuple('GuideResourceBlock', 'location direction')
 
 
 class ResolutionInfo(_ResolutionInfo):
@@ -165,6 +167,22 @@ def _decode_layer_comps(data):
 
     try:
         return LayerComps(version, decode_descriptor(None, fp))
+    except UnknownOSType as e:
+        warnings.warn("Ignoring image resource %s" % e)
+        return data
+
+
+@register(ImageResourceID.GRID_AND_GUIDES_INFO)
+def _decode_grid_and_guides_info(data):
+    fp = io.BytesIO(data)
+    version, grid_h, grid_v, guide_count = read_fmt("4I", fp)
+    print(version, grid_h, grid_v, guide_count)
+
+    try:
+        guides = []
+        for i in range(guide_count):
+            guides.append(GuideResourceBlock(*read_fmt("IB", fp)))
+        return GridGuideResource(version, grid_h, grid_v, guides)
     except UnknownOSType as e:
         warnings.warn("Ignoring image resource %s" % e)
         return data
