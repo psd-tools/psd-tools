@@ -67,7 +67,6 @@ class EngineDataDecoder(object):
         self.node_stack = [{}]
         self.prop_stack = [b'Root']
         self.data = data
-        self.prev_token = None
 
     def parse(self):
         # Actually split() is not perfect for non-ascii tokenization.
@@ -90,7 +89,7 @@ class EngineDataDecoder(object):
             match = pattern.match(token)
             if match:
                 return self._decoders[pattern](self, match)
-        raise InvalidTokenError("Unknown token: {}".format(token))
+        raise err("Unknown token: {}".format(token))
 
     @register(EngineToken.BOOLEAN)
     def _decode_boolean(self, match):
@@ -147,9 +146,9 @@ class EngineDataDecoder(object):
     @register(EngineToken.SINGLE_LINE_ARRAY)
     def _decode_single_line_array(self, match):
         items = []
-        for token in match.group(1).split(b' '):
+        for token in match.group(1).strip().split(b' '):
             items.append(self._parse_token(token))
-        self.node_stack[-1][self.prop_stack[-1]] = items
+        return items
 
     @register(EngineToken.STRING)
     def _decode_string(self, match):
