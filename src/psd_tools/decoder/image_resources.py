@@ -176,7 +176,6 @@ def _decode_layer_comps(data):
 def _decode_grid_and_guides_info(data):
     fp = io.BytesIO(data)
     version, grid_h, grid_v, guide_count = read_fmt("4I", fp)
-    print(version, grid_h, grid_v, guide_count)
 
     try:
         guides = []

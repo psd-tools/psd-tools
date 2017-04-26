@@ -10,6 +10,7 @@ from psd_tools.utils import read_fmt, unpack
 from psd_tools.decoder import decoders, layer_effects
 from psd_tools.reader.layers import Block
 from psd_tools.debug import pretty_namedtuple
+from psd_tools.decoder import engine_data
 
 _tagged_block_decoders, register = decoders.new_registry()
 
@@ -195,6 +196,12 @@ def _decode_type_tool_object_setting(data, **kwargs):
     except UnknownOSType as e:
         warnings.warn("Ignoring type setting tagged block (%s)" % e)
         return data
+
+    # Decode EngineData here.
+    for index in range(len(text_data.items)):
+        item = text_data.items[index]
+        if item[0] == b'EngineData':
+            text_data.items[index] = (b'EngineData', engine_data.decode(item[1].value))
 
     warp_ver, descr2_ver = read_fmt("H I", fp)
     if warp_ver != 1 or descr2_ver != 16:
