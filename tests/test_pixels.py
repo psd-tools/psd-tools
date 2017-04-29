@@ -81,7 +81,7 @@ LAYER_COLORS = (
     ('2layers.psd',     1,  (5, 5),       (0x27, 0xBA, 0x0F)),
     ('2layers.psd',     1,  (70, 30),     (0x27, 0xBA, 0x0F)),
     ('2layers.psd',     0,  (0, 0),       (0, 0, 0, 0)),
-    ('2layers.psd',     0,  (62, 26),     (0xF2, 0xF4, 0xC2, 0xFE))
+    ('2layers.psd',     0,  (62, 26),     (0xF2, 0xF4, 0xC2, 0xFE)),
 )
 
 LAYER_COLORS_MULTIBYTE = (
