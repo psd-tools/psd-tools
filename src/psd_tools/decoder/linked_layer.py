@@ -25,15 +25,15 @@ class LinkedLayer(_LinkedLayer):
         else:
             with p.group(1, "LinkedLayer(", ")"):
                 p.breakable()
-                p.text("filename='%s', ", self.filename)
+                p.text("filename='%s', " % self.filename)
                 p.breakable()
-                p.text("size=%s, ", len(self.decoded))
+                p.text("size=%s, " % len(self.decoded))
                 p.breakable()
-                p.text("unique_id=%s, ", self.unique_id)
+                p.text("unique_id=%s, " % self.unique_id)
                 p.breakable()
-                p.text("type='%s', ", self.filetype)
+                p.text("type='%s', " % self.filetype)
                 p.breakable()
-                p.text("creator='%s', ", self.creator)
+                p.text("creator='%s', " % self.creator)
 
 
 def decode(data):
