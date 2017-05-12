@@ -210,7 +210,10 @@ def _decode_exif_data(data):
             if field_type[1] in ('A', 'B'):
                 exif[key] = str(ifd)
             else:
-                exif[key] = int(str(ifd))
+                try:
+                    exif[key] = int(str(ifd))
+                except ValueError:
+                    exif[key] = str(ifd)
         else:
             # Seems sometimes EXIF data is corrupt.
             pass
