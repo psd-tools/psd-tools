@@ -80,8 +80,8 @@ GuideResourceBlock = namedtuple(
 class ResolutionInfo(_ResolutionInfo):
     def __repr__(self):
 
-        return "ResolutionInfo(h_res=%s, h_res_unit=%s, v_res=%s, "
-        "v_res_unit=%s, width_unit=%s, height_unit=%s)" % (
+        return ("ResolutionInfo(h_res=%s, h_res_unit=%s, v_res=%s, "
+                "v_res_unit=%s, width_unit=%s, height_unit=%s)") % (
             self.h_res,
             DisplayResolutionUnit.name_of(self.h_res_unit),
             self.v_res,
