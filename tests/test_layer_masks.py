@@ -2,14 +2,14 @@
 from __future__ import absolute_import
 import pytest
 
-from .utils import load_psd, decode_psd
+from .utils import load_psd, decode_psd, full_name
+from psd_tools import PSDImage, Group
 
 
 FILE_NAMES = (
     'layer_mask_data.psd',
     'masks.psd',
     'masks2.psd',
-    'layer_mask_data.psb',
     'masks.psb',
     'masks2.psb'
 )
@@ -37,6 +37,14 @@ MASK_DATA_BY_LAYERS = (
         (2, (  0, (False, False, True ), ( 230,    6, None, None), None                 , None)),
         (3, (255, (False, False, False), None                    , None                 , None)),
         (4, (  0, (False, True , True ), ( 191,    3, None,    2), (False, False, False),  255))
+    ),
+
+    (
+        (20, (0, (False, True, False), None, (True, False, False), 255)),
+    ),
+
+    (
+        (1, (0, (False, True, False), None, (False, False, False), 255)),
     ),
 
     (
@@ -92,3 +100,24 @@ def test_layer_mask_data(filename, mask_data_by_layers):
                 assert mask_data.real_flags.parameters_applied    == ethalon_real_flags[2]
 
             assert mask_data.real_background_color == ethalon_mask_data[4]
+
+
+@pytest.mark.parametrize('filename', FILE_NAMES)
+def test_mask_data_as_pil(filename):
+
+    def traverse_tree(layers):
+        if isinstance(layers, PSDImage):
+            layers = layers.layers
+        for l in layers:
+            mask_data = l.mask_data
+            if mask_data:
+                if mask_data.is_valid:
+                    assert mask_data.as_PIL() is not None
+                else:
+                    bbox = mask_data.bbox
+                    assert bbox.width == 0 or bbox.height == 0
+            if isinstance(l, Group):
+                traverse_tree(l.layers)
+
+    psd = PSDImage.load(full_name(filename))
+    traverse_tree(psd)

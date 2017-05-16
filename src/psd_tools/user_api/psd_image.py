@@ -6,7 +6,8 @@ import collections
 import weakref              # FIXME: there should be weakrefs in this module
 import psd_tools.reader
 import psd_tools.decoder
-from psd_tools.constants import TaggedBlock, SectionDivider, BlendMode, TextProperty, PlacedLayerProperty, SzProperty
+from psd_tools.constants import (TaggedBlock, SectionDivider, BlendMode,
+    TextProperty, PlacedLayerProperty, SzProperty, ChannelID)
 from psd_tools.user_api.layers import group_layers
 from psd_tools.user_api import pymaging_support
 from psd_tools.user_api import pil_support
@@ -39,6 +40,52 @@ class PlacedLayerData(object):
         placed_layer_data = dict(placed_layer_block)
         self.transform = placed_layer_data[PlacedLayerProperty.TRANSFORM].items
         self.size = dict(placed_layer_data[PlacedLayerProperty.SIZE].items)
+
+
+class MaskData(object):
+    def __init__(self, layer):
+        self.mask_data = layer._info.mask_data
+        self._decoded_data = layer._psd.decoded_data
+        self._layer_index = layer._index
+
+    @property
+    def bbox(self, real_mask=True):
+        """ BBox(x1, y1, x2, y2) namedtuple with mask bounding box. """
+        if real_mask and self.mask_data.real_flags:
+            return BBox(self.mask_data.real_left, self.mask_data.real_top,
+                        self.mask_data.real_right, self.mask_data.real_bottom)
+        else:
+            return BBox(self.mask_data.left, self.mask_data.top,
+                        self.mask_data.right, self.mask_data.bottom)
+
+    @property
+    def background_color(self):
+        return self.mask_data.background_color
+
+    @property
+    def is_valid(self):
+        bbox = self.bbox
+        return bbox.width > 0 and bbox.height > 0
+
+    def as_PIL(self, real_mask=True):
+        """
+        Returns a PIL image for the mask.
+
+        If ``real_mask`` is True, extract real mask consisting of both bitmap
+        and vector mask.
+
+        Returns ``None`` if the mask has zero size.
+        """
+        if not self.is_valid:
+            return None
+        return pil_support.extract_layer_mask(self._decoded_data,
+                                              self._layer_index,
+                                              real_mask)
+
+    def __repr__(self):
+        bbox = self.bbox
+        return "<psd_tools.Mask: size=%dx%d, x=%d, y=%d>" % (
+            bbox.width, bbox.height, bbox.x1, bbox.y1)
 
 
 class _RawLayer(object):
@@ -153,6 +200,11 @@ class Layer(_RawLayer):
         if tagged_blocks:
             return TextData(tagged_blocks)
 
+    @property
+    def mask_data(self):
+        return MaskData(self) if self._info.mask_data else None
+
+
     def __repr__(self):
         bbox = self.bbox
         return "<psd_tools.Layer: %r, size=%dx%d, x=%d, y=%d>" % (
@@ -182,6 +234,10 @@ class Group(_RawLayer):
         all layers in this group; None if a group has no children.
         """
         return combined_bbox(self.layers)
+
+    @property
+    def mask_data(self):
+        return MaskData(self) if self._info.mask_data else None
 
     def as_PIL(self):
         """
