@@ -109,6 +109,12 @@ Work with a layer::
     >>> layer.as_PIL()
     <PIL.Image.Image image mode=RGBA size=43x62 at ...>
 
+    >>> layer.mask_data.bbox
+    BBox(x1=40, y1=72, x2=83, y2=134)
+
+    >>> layer.mask_data.as_PIL()
+    <PIL.Image.Image image mode=L size=43x62 at ...>
+
 
 Export a single layer::
 
