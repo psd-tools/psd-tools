@@ -298,6 +298,7 @@ class TaggedBlock(Enum):
     LINKED_LAYER1 = b'lnkD'
     LINKED_LAYER2 = b'lnk2'
     LINKED_LAYER3 = b'lnk3'
+    LINKED_LAYER4 = b'lnkE'
     CONTENT_GENERATOR_EXTRA_DATA = b'CgEd'
     TEXT_ENGINE_DATA = b'Txt2'
     UNICODE_PATH_NAME = b'pths'
