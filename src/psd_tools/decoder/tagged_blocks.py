@@ -21,7 +21,8 @@ _tagged_block_decoders.update({
     TaggedBlock.UNICODE_LAYER_NAME:                 decoders.unicode_string,
     TaggedBlock.LAYER_ID:                           decoders.single_value("I"), # XXX: there are more fields in docs, but they seem to be incorrect
     TaggedBlock.EFFECTS_LAYER:                      layer_effects.decode,
-    TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO:    layer_effects.decode_object_based
+    TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO:    layer_effects.decode_object_based,
+    TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO_V1: layer_effects.decode_object_based
 })
 
 
