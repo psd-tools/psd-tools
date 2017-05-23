@@ -222,6 +222,11 @@ def _decode_type_tool_object_setting(data, **kwargs):
     )
 
 
+@register(TaggedBlock.TEXT_ENGINE_DATA)
+def _decode_text_engine_data(data, **kwargs):
+    return engine_data.decode(data)
+
+
 @register(TaggedBlock.VECTOR_ORIGINATION_DATA)
 def _decode_vector_origination_data(data, **kwargs):
     fp = io.BytesIO(data)
