@@ -32,7 +32,10 @@ def decode_prediction(data, w, h, bytes_per_pixel):
     else:
         return None
 
-    return arr.tostring()
+    if hasattr(arr, 'tobytes'):
+        return arr.tobytes()
+    else:
+        return arr.tostring()
 
 def _delta_decode(arr, mod, w, h):
     for y in range(h):
@@ -55,7 +58,10 @@ def _restore_byte_order(bytes_array, w, h):
             for bt in rng4:
                 arr[i] = bytes_array[offsets[bt] + x]
                 i += 1
-    return arr.tostring()
+    if hasattr(arr, 'tobytes'):
+        return arr.tobytes()
+    else:
+        return arr.tostring()
 
 # Replace _delta_decode and _restore_byte_order with faster versions (from
 # a compiled extension) if this is possible:

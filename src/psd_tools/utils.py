@@ -52,7 +52,10 @@ def read_be_array(fmt, count, fp):
     Reads an array from a file with big-endian data.
     """
     arr = array.array(str(fmt))
-    arr.fromstring(fp.read(count * arr.itemsize))
+    if hasattr(arr, 'frombytes'):
+        arr.frombytes(fp.read(count * arr.itemsize))
+    else:
+        arr.fromstring(fp.read(count * arr.itemsize))
     return fix_byteorder(arr)
 
 def fix_byteorder(arr):
