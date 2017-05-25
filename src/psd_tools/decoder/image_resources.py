@@ -43,8 +43,13 @@ ThumbnailResource = namedtuple(
     'ThumbnailResource',
     'format, width, height, widthbytes, total_size, size, bits, planes, '
     'data')
-SlicesResource = namedtuple(
-    'SlicesResource', 'descriptor_version, descriptor')
+SlicesHeader = namedtuple('SlicesHeader', 'descriptor_version, descriptor')
+SlicesHeaderV6 = namedtuple(
+    'SlicesHeaderV6', 'top left bottom right name count items')
+SlicesResourceBlock = namedtuple(
+    'SlicesResourceBlock', 'id group_id origin associated_id name type '
+    'left top right bottom url target message alt_tag cell_is_html cell_text '
+    'horizontal_alignment vertical_alignment alpha red green blue descriptor')
 VersionInfo = namedtuple(
     'VersionInfo', 'version, has_real_merged_data, writer_name, '
     'reader_name, file_version')
@@ -111,7 +116,8 @@ def parse_image_resource(resource):
 
 
 def _decode_descriptor_resource(data, kls):
-    fp = io.BytesIO(data)
+    if isinstance(data, bytes):
+        fp = io.BytesIO(data)
     version = read_fmt("I", fp)[0]
 
     try:
@@ -151,14 +157,47 @@ def _decode_thumbnail_resource(data):
 def _decode_slices(data):
     fp = io.BytesIO(data)
     version = read_fmt('I', fp)[0]
-    if version not in [7, 8]:
+    if version == 6:
+        return _decode_slices_v6(fp)
+    elif version in (7, 8):
+        return _decode_descriptor_resource(fp.read(-1), SlicesHeader)
+    else:
         warnings.warn("Unsupported slices version %s. "
                       "Only version 7 or 8 slices supported." % version)
         return data
 
-    # TODO: Support version 6.
 
-    return _decode_descriptor_resource(fp.read(-1), SlicesResource)
+def _decode_slices_v6(fp):
+    bbox = read_fmt('4I', fp)
+    name = read_unicode_string(fp)
+    count = read_fmt('I', fp)[0]
+    items = []
+    for index in range(count):
+        items.append(_decode_slices_v6_block(fp))
+    return SlicesHeaderV6(bbox[0], bbox[1], bbox[2], bbox[3], name, count,
+                          items)
+
+
+def _decode_slices_v6_block(fp):
+    slice_id, group_id, origin = read_fmt('3I', fp)
+    associated_id = read_fmt('I', fp)[0] if origin == 1 else None
+    name = read_unicode_string(fp)
+    slice_type, left, top, right, bottom = read_fmt('5I', fp)
+    url = read_unicode_string(fp)
+    target = read_unicode_string(fp)
+    message = read_unicode_string(fp)
+    alt_tag = read_unicode_string(fp)
+    cell_is_html = read_fmt('?', fp)[0]
+    cell_text = read_unicode_string(fp)
+    horizontal_alignment, vertical_alignment = read_fmt('2I', fp)
+    alpha, red, green, blue = read_fmt('4B', fp)
+    # Some version stores descriptor here, but the documentation unclear...
+    descriptor = None
+    return SlicesResourceBlock(
+        slice_id, group_id, origin, associated_id, name, slice_type, left,
+        top, right, bottom, url, target, message, alt_tag, cell_is_html,
+        cell_text, horizontal_alignment, vertical_alignment, alpha, red,
+        green, blue, descriptor)
 
 
 @register(ImageResourceID.URL_LIST)
