@@ -283,4 +283,6 @@ class PSDJSONEncoder(_CustomJSONEncoder):
             return list(o)
         elif isinstance(o, tuple) and hasattr(o, '_asdict'):
             return {f: getattr(o, f, None) for f in o._fields}
+        elif hasattr(o, 'tobytes'):
+            return base64.b64encode(o.tobytes()).decode('utf8')
         return JSONEncoder.default(self, o)
