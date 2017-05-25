@@ -4,12 +4,13 @@ import warnings
 import collections
 import io
 
-from psd_tools.constants import TaggedBlock, SectionDivider
+from psd_tools.constants import TaggedBlock, SectionDivider, PathResource
 from psd_tools.decoder.actions import decode_descriptor, UnknownOSType
 from psd_tools.utils import read_fmt, unpack
 from psd_tools.decoder import decoders, layer_effects
 from psd_tools.reader.layers import Block
 from psd_tools.debug import pretty_namedtuple
+from psd_tools.decoder import engine_data
 
 _tagged_block_decoders, register = decoders.new_registry()
 
@@ -20,7 +21,8 @@ _tagged_block_decoders.update({
     TaggedBlock.UNICODE_LAYER_NAME:                 decoders.unicode_string,
     TaggedBlock.LAYER_ID:                           decoders.single_value("I"), # XXX: there are more fields in docs, but they seem to be incorrect
     TaggedBlock.EFFECTS_LAYER:                      layer_effects.decode,
-    TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO:    layer_effects.decode_object_based
+    TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO:    layer_effects.decode_object_based,
+    TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO_V1: layer_effects.decode_object_based
 })
 
 
@@ -31,6 +33,8 @@ TypeToolObjectSetting = pretty_namedtuple('TypeToolObjectSetting',
                         'version xx xy yx yy tx ty text_version descriptor1_version text_data '
                         'warp_version descriptor2_version warp_data left top right bottom')
 VectorOriginationData = pretty_namedtuple('VectorOriginationData', 'version descriptor_version data')
+VectorMaskSetting = pretty_namedtuple(
+    'VectorMaskSetting','version invert not_link disable path')
 
 
 class Divider(collections.namedtuple('Divider', 'block type key')):
@@ -39,15 +43,15 @@ class Divider(collections.namedtuple('Divider', 'block type key')):
             self.block, self.type, SectionDivider.name_of(self.type), self.key)
 
 
-def decode(tagged_blocks):
+def decode(tagged_blocks, version):
     """
     Replaces "data" attribute of a blocks from ``tagged_blocks`` list
     with parsed data structure if it is known how to parse it.
     """
-    return [parse_tagged_block(block) for block in tagged_blocks]
+    return [parse_tagged_block(block, version) for block in tagged_blocks]
 
 
-def parse_tagged_block(block):
+def parse_tagged_block(block, version=1, **kwargs):
     """
     Replaces "data" attribute of a block with parsed data structure
     if it is known how to parse it.
@@ -55,12 +59,12 @@ def parse_tagged_block(block):
     if not TaggedBlock.is_known(block.key):
         warnings.warn("Unknown tagged block (%s)" % block.key)
 
-    decoder = _tagged_block_decoders.get(block.key, lambda data: data)
-    return Block(block.key, decoder(block.data))
+    decoder = _tagged_block_decoders.get(block.key, lambda data, **kwargs: data)
+    return Block(block.key, decoder(block.data, version=version))
 
 
 @register(TaggedBlock.SOLID_COLOR_SHEET_SETTING)
-def _decode_soco(data):
+def _decode_soco(data, **kwargs):
     fp = io.BytesIO(data)
     version = read_fmt("I", fp)[0]
     try:
@@ -72,23 +76,23 @@ def _decode_soco(data):
 
 
 @register(TaggedBlock.REFERENCE_POINT)
-def _decode_reference_point(data):
+def _decode_reference_point(data, **kwargs):
     return read_fmt("2d", io.BytesIO(data))
 
 
 @register(TaggedBlock.SHEET_COLOR_SETTING)
-def _decode_color_setting(data):
+def _decode_color_setting(data, **kwargs):
     return read_fmt("4H", io.BytesIO(data))
 
 
 @register(TaggedBlock.SECTION_DIVIDER_SETTING)
-def _decode_section_divider(data):
+def _decode_section_divider(data, **kwargs):
     tp, key = _decode_divider(data)
     return Divider(TaggedBlock.SECTION_DIVIDER_SETTING, tp, key)
 
 
 @register(TaggedBlock.NESTED_SECTION_DIVIDER_SETTING)
-def _decode_section_divider(data):
+def _decode_section_divider(data, **kwargs):
     tp, key = _decode_divider(data)
     return Divider(TaggedBlock.NESTED_SECTION_DIVIDER_SETTING, tp, key)
 
@@ -110,14 +114,14 @@ def _decode_divider(data):
 
 @register(TaggedBlock.PLACED_LAYER_DATA)
 @register(TaggedBlock.SMART_OBJECT_PLACED_LAYER_DATA)
-def _decode_placed_layer(data):
+def _decode_placed_layer(data, **kwargs):
     fp = io.BytesIO(data)
     type, version, descriptorVersion = read_fmt("4s I I", fp)
     descriptor = decode_descriptor(None, fp)
     return descriptor.items
 
 @register(TaggedBlock.METADATA_SETTING)
-def _decode_metadata(data):
+def _decode_metadata(data, **kwargs):
     fp = io.BytesIO(data)
     items_count = read_fmt("I", fp)[0]
     items = []
@@ -151,7 +155,7 @@ def _decode_metadata(data):
 
 
 @register(TaggedBlock.PROTECTED_SETTING)
-def _decode_protected(data):
+def _decode_protected(data, **kwargs):
     flag = unpack("I", data)[0]
     return ProtectedSetting(
         bool(flag & 1),
@@ -161,25 +165,25 @@ def _decode_protected(data):
 
 
 @register(TaggedBlock.LAYER_32)
-def _decode_layer32(data):
+def _decode_layer32(data, version=1, **kwargs):
     from psd_tools.reader import layers
     from psd_tools.decoder.decoder import decode_layers
     fp = io.BytesIO(data)
-    layers = layers._read_layers(fp, 'latin1', 32, length=len(data))
-    return decode_layers(layers)
+    layers = layers._read_layers(fp, 'latin1', 32, length=len(data), version=version)
+    return decode_layers(layers, version)
 
 
 @register(TaggedBlock.LAYER_16)
-def _decode_layer16(data):
+def _decode_layer16(data, version=1, **kwargs):
     from psd_tools.reader import layers
     from psd_tools.decoder.decoder import decode_layers
     fp = io.BytesIO(data)
-    layers = layers._read_layers(fp, 'latin1', 16, length=len(data))
-    return decode_layers(layers)
+    layers = layers._read_layers(fp, 'latin1', 16, length=len(data), version=version)
+    return decode_layers(layers, version)
 
 
 @register(TaggedBlock.TYPE_TOOL_OBJECT_SETTING)
-def _decode_type_tool_object_setting(data):
+def _decode_type_tool_object_setting(data, **kwargs):
     fp = io.BytesIO(data)
     ver, xx, xy, yx, yy, tx, ty, txt_ver, descr1_ver = read_fmt("H 6d H I", fp)
 
@@ -193,6 +197,12 @@ def _decode_type_tool_object_setting(data):
     except UnknownOSType as e:
         warnings.warn("Ignoring type setting tagged block (%s)" % e)
         return data
+
+    # Decode EngineData here.
+    for index in range(len(text_data.items)):
+        item = text_data.items[index]
+        if item[0] == b'EngineData':
+            text_data.items[index] = (b'EngineData', engine_data.decode(item[1].value))
 
     warp_ver, descr2_ver = read_fmt("H I", fp)
     if warp_ver != 1 or descr2_ver != 16:
@@ -212,8 +222,13 @@ def _decode_type_tool_object_setting(data):
     )
 
 
+@register(TaggedBlock.TEXT_ENGINE_DATA)
+def _decode_text_engine_data(data, **kwargs):
+    return engine_data.decode(data)
+
+
 @register(TaggedBlock.VECTOR_ORIGINATION_DATA)
-def _decode_vector_origination_data(data):
+def _decode_vector_origination_data(data, **kwargs):
     fp = io.BytesIO(data)
     ver, descr_ver = read_fmt("II", fp)
 
@@ -231,9 +246,63 @@ def _decode_vector_origination_data(data):
     return VectorOriginationData(ver, descr_ver, vector_origination_data)
 
 
+@register(TaggedBlock.VECTOR_MASK_SETTING1)
+@register(TaggedBlock.VECTOR_MASK_SETTING2)
+def _decode_vector_mask_setting1(data, **kwargs):
+    fp = io.BytesIO(data)
+    ver, flags = read_fmt("II", fp)
+
+    # This decoder needs to be updated if we have new formats.
+    if ver != 3:
+        warnings.warn("Ignoring vector mask setting1 tagged block due to "
+                      "unsupported version %s" % (ver))
+        return data
+
+    # Path points are 8 bits + 24 bits fixed points. Convert to float here.
+    def _decode_fixed_point(fixed_point):
+        return tuple(x / 0x01000000 for x in fixed_point)
+
+    path = []
+    path_rec = (len(data) - 8) // 26
+    while path_rec > 0:
+        selector, = read_fmt("H", fp)
+        record = {"selector": selector}
+        if selector in (PathResource.CLOSED_SUBPATH_LENGTH_RECORD,
+                PathResource.OPEN_SUBPATH_LENGTH_RECORD):
+            record["num_knot_records"], = read_fmt("H", fp)
+            fp.seek(22, io.SEEK_CUR)
+        elif selector in (
+                PathResource.CLOSED_SUBPATH_BEZIER_KNOT_LINKED,
+                PathResource.CLOSED_SUBPATH_BEZIER_KNOT_UNLINKED,
+                PathResource.OPEN_SUBPATH_BEZIER_KNOT_LINKED,
+                PathResource.OPEN_SUBPATH_BEZIER_KNOT_UNLINKED):
+            record["control_preceding_knot"] = _decode_fixed_point(
+                read_fmt("2i", fp))
+            record["anchor"] = _decode_fixed_point(read_fmt("2i", fp))
+            record["control_leaving_knot"] = _decode_fixed_point(
+                read_fmt("2i", fp))
+        elif selector == PathResource.PATH_FILL_RULE_RECORD:
+            fp.seek(24, io.SEEK_CUR)
+        elif selector == PathResource.CLIPBOARD_RECORD:
+            record["top"], record["left"], record["bottom"], record["right"],
+            record["resolution"] = _decode_fixed_point(read_fmt("5i", fp))
+            fp.seek(4, io.SEEK_CUR)
+        elif selector == PathResource.INITIAL_FILL_RULE_RECORD:
+            record["initial_fill_rule"], = read_fmt("H", fp)
+            fp.seek(22, io.SEEK_CUR)
+        else:
+            warnings.warn("Unknown path record found %s" % (selector))
+        path.append(record)
+        path_rec -= 1
+
+    return VectorMaskSetting(
+        ver, (0x01 & flags) > 0, (0x02 & flags) > 0, (0x04 & flags) > 0, path)
+
+
 @register(TaggedBlock.LINKED_LAYER1)
 @register(TaggedBlock.LINKED_LAYER2)
 @register(TaggedBlock.LINKED_LAYER3)
-def _decode_linked_layer(data):
+@register(TaggedBlock.LINKED_LAYER_EXTERNAL)
+def _decode_linked_layer(data, **kwargs):
     from psd_tools.decoder.linked_layer import decode
     return decode(data)

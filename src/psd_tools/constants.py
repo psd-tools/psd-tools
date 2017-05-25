@@ -116,7 +116,7 @@ class ImageResourceID(Enum):
     PRINT_INFO_CS2 = 1071
     LAYER_GROUPS_ENABLED_ID = 1072
     COLOR_SAMPLERS_RESOURCE = 1073
-    MEASURMENT_SCALE = 1074
+    MEASUREMENT_SCALE = 1074
     TIMELINE_INFO = 1075
     SHEET_DISCLOSURE = 1076
     DISPLAY_INFO = 1077
@@ -261,6 +261,7 @@ class TaggedBlock(Enum):
     TYPE_TOOL_INFO = b'tySh'
     UNICODE_LAYER_NAME = b'luni'
     LAYER_ID = b'lyid'
+    OBJECT_BASED_EFFECTS_LAYER_INFO_V1 = b'lfxs'  # Undocumented.
     OBJECT_BASED_EFFECTS_LAYER_INFO = b'lfx2'
 
     PATTERNS1 = b'Patt'
@@ -297,6 +298,7 @@ class TaggedBlock(Enum):
     LINKED_LAYER1 = b'lnkD'
     LINKED_LAYER2 = b'lnk2'
     LINKED_LAYER3 = b'lnk3'
+    LINKED_LAYER_EXTERNAL = b'lnkE'
     CONTENT_GENERATOR_EXTRA_DATA = b'CgEd'
     TEXT_ENGINE_DATA = b'Txt2'
     UNICODE_PATH_NAME = b'pths'
@@ -409,3 +411,21 @@ class TextProperty(Enum):
 
 class TextOrientation(Enum):
     HORIZONTAL = b'Hrzn'
+
+
+class PathResource(Enum):
+    CLOSED_SUBPATH_LENGTH_RECORD = 0
+    CLOSED_SUBPATH_BEZIER_KNOT_LINKED = 1
+    CLOSED_SUBPATH_BEZIER_KNOT_UNLINKED = 2
+    OPEN_SUBPATH_LENGTH_RECORD = 3
+    OPEN_SUBPATH_BEZIER_KNOT_LINKED = 4
+    OPEN_SUBPATH_BEZIER_KNOT_UNLINKED = 5
+    PATH_FILL_RULE_RECORD = 6
+    CLIPBOARD_RECORD = 7
+    INITIAL_FILL_RULE_RECORD = 8
+
+
+class LinkedLayerType(Enum):
+    DATA = b'liFD'
+    EXTERNAL = b'liFE'
+    UNKNOWN = b'liFA'

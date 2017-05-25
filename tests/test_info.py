@@ -5,7 +5,8 @@ import pytest
 
 from psd_tools import PSDImage
 from psd_tools.constants import TaggedBlock, SectionDivider, BlendMode
-from .utils import load_psd, decode_psd
+from .utils import load_psd, decode_psd, with_psb
+from psd_tools.decoder.tagged_blocks import VectorMaskSetting
 
 
 FILES_WITH_NO_LAYERS = (
@@ -19,7 +20,18 @@ FILES_WITH_NO_LAYERS = (
     ('history.psd',         True),
     ('pen-text.psd',        True),
     ('transparentbg.psd',   True),
-    ('vector mask.psd',     True)
+    ('vector mask.psd',     True),
+    ('0layers.psb',         True),
+    ('0layers_tblocks.psb', True),
+    ('16bit5x5.psb',        True),
+    ('32bit.psb',           True),
+    ('32bit5x5.psb',        True),
+    ('300dpi.psb',          True),
+    ('gradient fill.psb',   True),
+    ('history.psb',         True),
+    ('pen-text.psb',        True),
+    ('transparentbg.psb',   True),
+    ('vector mask.psb',     True)
 )
 
 
@@ -76,3 +88,10 @@ def test_no_layers_has_tagged_blocks(filename, has_layer_and_mask_data):
 
     tagged_blocks = psd.layer_and_mask_data.tagged_blocks
     assert (len(tagged_blocks) != 0) == has_layer_and_mask_data
+
+
+def test_vector_mask():
+    psd = decode_psd('vector mask.psd')
+    layers = psd.layer_and_mask_data.layers.layer_records
+    assert layers[1].tagged_blocks[1].key == b'vmsk'
+    assert isinstance(layers[1].tagged_blocks[1].data, VectorMaskSetting)
