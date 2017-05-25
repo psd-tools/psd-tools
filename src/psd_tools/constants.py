@@ -298,7 +298,7 @@ class TaggedBlock(Enum):
     LINKED_LAYER1 = b'lnkD'
     LINKED_LAYER2 = b'lnk2'
     LINKED_LAYER3 = b'lnk3'
-    LINKED_LAYER4 = b'lnkE'
+    LINKED_LAYER_EXTERNAL = b'lnkE'
     CONTENT_GENERATOR_EXTRA_DATA = b'CgEd'
     TEXT_ENGINE_DATA = b'Txt2'
     UNICODE_PATH_NAME = b'pths'
@@ -423,3 +423,9 @@ class PathResource(Enum):
     PATH_FILL_RULE_RECORD = 6
     CLIPBOARD_RECORD = 7
     INITIAL_FILL_RULE_RECORD = 8
+
+
+class LinkedLayerType(Enum):
+    DATA = b'liFD'
+    EXTERNAL = b'liFE'
+    UNKNOWN = b'liFA'

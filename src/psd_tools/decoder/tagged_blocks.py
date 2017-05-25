@@ -302,7 +302,7 @@ def _decode_vector_mask_setting1(data, **kwargs):
 @register(TaggedBlock.LINKED_LAYER1)
 @register(TaggedBlock.LINKED_LAYER2)
 @register(TaggedBlock.LINKED_LAYER3)
-@register(TaggedBlock.LINKED_LAYER4)
+@register(TaggedBlock.LINKED_LAYER_EXTERNAL)
 def _decode_linked_layer(data, **kwargs):
     from psd_tools.decoder.linked_layer import decode
     return decode(data)
