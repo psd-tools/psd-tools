@@ -141,7 +141,8 @@ def _custom_make_iterencode(
                     chunks = _iterencode_dict(value, _current_indent_level)
                 else:
                     chunks = _iterencode(value, _current_indent_level)
-                yield from chunks
+                for chunk in chunks:
+                    yield chunk
         if newline_indent is not None:
             _current_indent_level -= 1
             yield '\n' + _indent * _current_indent_level
@@ -222,7 +223,8 @@ def _custom_make_iterencode(
                     chunks = _iterencode_dict(value, _current_indent_level)
                 else:
                     chunks = _iterencode(value, _current_indent_level)
-                yield from chunks
+                for chunk in chunks:
+                    yield chunk
         if newline_indent is not None:
             _current_indent_level -= 1
             yield '\n' + _indent * _current_indent_level
@@ -246,9 +248,11 @@ def _custom_make_iterencode(
             # see comment for int/float in _make_iterencode
             yield _floatstr(o)
         elif isinstance(o, (list, tuple)):
-            yield from _iterencode_list(o, _current_indent_level)
+            for item in _iterencode_list(o, _current_indent_level):
+                yield item
         elif isinstance(o, dict):
-            yield from _iterencode_dict(o, _current_indent_level)
+            for item in _iterencode_dict(o, _current_indent_level):
+                yield item
         else:
             if markers is not None:
                 markerid = id(o)
@@ -256,7 +260,8 @@ def _custom_make_iterencode(
                     raise ValueError("Circular reference detected")
                 markers[markerid] = o
             o = _default(o)
-            yield from _iterencode(o, _current_indent_level)
+            for item in _iterencode(o, _current_indent_level):
+                yield item
             if markers is not None:
                 del markers[markerid]
     return _iterencode

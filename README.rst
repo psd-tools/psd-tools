@@ -233,7 +233,7 @@ Supported:
 * support both PSD and PSB file formats;
 * EngineData structure is decoded;
 * EXIF data is taken into account;
-* experimental JSON export is available.
+* experimental JSON export (only Python 3).
 
 Not implemented:
 
