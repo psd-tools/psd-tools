@@ -49,6 +49,7 @@ library::
 Optional exif decoding is available with exifread_ library.
 
 ::
+
     pip install exifread
 
 
