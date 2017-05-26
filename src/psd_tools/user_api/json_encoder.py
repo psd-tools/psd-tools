@@ -16,9 +16,8 @@ Usage:
 from __future__ import absolute_import
 import base64
 import array
-from json.encoder import (JSONEncoder,
-                          encode_basestring_ascii, INFINITY,
-                          c_make_encoder, encode_basestring)
+from json.encoder import (JSONEncoder, encode_basestring_ascii, INFINITY,
+                          encode_basestring)
 
 
 class _CustomJSONEncoder(JSONEncoder):
