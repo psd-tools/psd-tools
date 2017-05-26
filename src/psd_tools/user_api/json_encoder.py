@@ -6,9 +6,10 @@ JSON Encoder for PSD decoded data.
 Usage:
 
     import psd_tools
+    from psd_tools.user_api import PSDJSONEncoder
 
     psd = psd_tools.PSDImage.load('/path/to/image.psd')
-    json_data = json.dumps(psd.decoded_data, cls=psd_tools.PSDJSONEncoder)
+    json_data = json.dumps(psd.decoded_data, cls=PSDJSONEncoder)
 
 """
 
