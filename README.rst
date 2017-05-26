@@ -46,6 +46,12 @@ library::
 .. _Pymaging: https://github.com/ojii/pymaging
 .. _Pymaging installation instructions: http://pymaging.readthedocs.org/en/latest/usr/installation.html
 
+Optional exif decoding is available with exifread_ library.
+
+::
+    pip install exifread
+
+
 Usage
 -----
 
@@ -223,14 +229,18 @@ Supported:
 * layer effects information is decoded;
 * Descriptor structures are decoded;
 * there is an optional Cython extension to make the parsing fast;
-* very basic & experimental layer merging.
+* very basic & experimental layer merging;
+* support both PSD and PSB file formats;
+* EngineData structure is decoded;
+* EXIF data is taken into account;
+* experimental JSON export is available.
 
 Not implemented:
 
 * reading of Duotone, LAB, etc. images;
-* many image resource types and tagged blocks are not decoded
+* some image resource types and tagged blocks are not decoded
   (they are attached to the result as raw bytes);
-* some of the raw Descriptor values (like EngineData) are not decoded;
+* some of the raw Descriptor values are not decoded;
 * this library can't reliably blend layers together: it is possible to export
   a single layer and to export a final image, but rendering of
   e.g. layer group may produce incorrect results;
@@ -238,7 +248,7 @@ Not implemented:
 * Pymaging_ support is limited: it only supports 8bit RGB/RGBA
   images, ICC profiles are not applied, layer merging doesn't work, etc.
 
-If you need some of unimplemented features then please fire an issue
+If you need some of unimplemented features then please file an issue
 or implement it yourself (pull requests are welcome in this case).
 
 
