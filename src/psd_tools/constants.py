@@ -271,6 +271,7 @@ class TaggedBlock(Enum):
     ANNOTATIONS = b'Anno'
     BLEND_CLIPPING_ELEMENTS = b'clbl'
     BLEND_INTERIOR_ELEMENTS = b'infx'
+    BLEND_FILL_OPACITY = b'iOpa'  # Undocumented.
 
     KNOCKOUT_SETTING = b'knko'
     PROTECTED_SETTING = b'lspf'

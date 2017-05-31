@@ -17,6 +17,7 @@ _tagged_block_decoders, register = decoders.new_registry()
 _tagged_block_decoders.update({
     TaggedBlock.BLEND_CLIPPING_ELEMENTS:            decoders.boolean("I"),
     TaggedBlock.BLEND_INTERIOR_ELEMENTS:            decoders.boolean("I"),
+    TaggedBlock.BLEND_FILL_OPACITY:                 decoders.single_value("4B"),
     TaggedBlock.KNOCKOUT_SETTING:                   decoders.boolean("I"),
     TaggedBlock.UNICODE_LAYER_NAME:                 decoders.unicode_string,
     TaggedBlock.LAYER_ID:                           decoders.single_value("I"), # XXX: there are more fields in docs, but they seem to be incorrect
@@ -306,3 +307,14 @@ def _decode_vector_mask_setting1(data, **kwargs):
 def _decode_linked_layer(data, **kwargs):
     from psd_tools.decoder.linked_layer import decode
     return decode(data)
+
+
+@register(TaggedBlock.CHANNEL_BLENDING_RESTRICTIONS_SETTING)
+def _decode_channel_blending_restrictions_setting(data, **kwargs):
+    # Data contains color channels to restrict.
+    restrictions = [False, False, False]
+    fp = io.BytesIO(data)
+    while fp.tell() < len(data):
+        channel = read_fmt("I", fp)[0]
+        restrictions[channel] = True
+    return restrictions

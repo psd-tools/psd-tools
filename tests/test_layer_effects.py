@@ -97,3 +97,13 @@ def test_object_based_layer_effect(layer_num, effect_key, param_name, subparam_n
     else:
         effect_info = dict(effect_info[param_name].items)
         assert effect_info[subparam_name].value == param_value
+
+
+def test_iopa_brst_block():
+    _psd = decode_psd('layer_effects.psd')
+    _layer_records = _psd.layer_and_mask_data.layers.layer_records
+    tagged_blocks = dict(_layer_records[4].tagged_blocks)
+    assert tagged_blocks[b'iOpa'] == 252
+    assert tagged_blocks[b'brst'][0] == False
+    assert tagged_blocks[b'brst'][1] == False
+    assert tagged_blocks[b'brst'][2] == True
