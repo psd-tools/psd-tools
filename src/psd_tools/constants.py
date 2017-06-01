@@ -261,6 +261,7 @@ class TaggedBlock(Enum):
     TYPE_TOOL_INFO = b'tySh'
     UNICODE_LAYER_NAME = b'luni'
     LAYER_ID = b'lyid'
+    OBJECT_BASED_EFFECTS_LAYER_INFO_V0 = b'lmfx'  # Undocumented.
     OBJECT_BASED_EFFECTS_LAYER_INFO_V1 = b'lfxs'  # Undocumented.
     OBJECT_BASED_EFFECTS_LAYER_INFO = b'lfx2'
 
