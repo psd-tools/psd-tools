@@ -308,6 +308,7 @@ class TaggedBlock(Enum):
     FILTER_MASK = b'FMsk'
     PLACED_LAYER_DATA = b'SoLd'
     SMART_OBJECT_PLACED_LAYER_DATA = b'SoLE'
+    EXPORT_DATA = b'extd'  # Undocumented.
 
     VECTOR_STROKE_DATA = b'vstk'
     VECTOR_STROKE_CONTENT_DATA = b'vscg'
