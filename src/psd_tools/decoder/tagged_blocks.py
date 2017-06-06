@@ -29,6 +29,8 @@ _tagged_block_decoders.update({
 
 
 SolidColorSettings = pretty_namedtuple('SolidColorSettings', 'version data')
+BrightnessContrast = pretty_namedtuple('BrightnessContrast',
+                                       'brightness contrast mean lab')
 LevelsSettings = pretty_namedtuple('LevelsSettings', 'version data')
 LevelRecord = pretty_namedtuple('LevelRecord', 'input_floor input_ceiling '
     'output_floor output_ceiling gamma')
@@ -80,6 +82,11 @@ def _decode_soco(data, **kwargs):
     except UnknownOSType as e:
         warnings.warn("Ignoring solid color tagged block (%s)" % e)
         return data
+
+
+@register(TaggedBlock.BRIGHTNESS_AND_CONTRAST)
+def _decode_brightness_and_contrast(data, **kwargs):
+    return BrightnessContrast(*read_fmt("3H B", io.BytesIO(data)))
 
 
 @register(TaggedBlock.LEVELS)
