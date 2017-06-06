@@ -29,6 +29,9 @@ _tagged_block_decoders.update({
 
 
 SolidColorSettings = pretty_namedtuple('SolidColorSettings', 'version data')
+LevelsSettings = pretty_namedtuple('LevelsSettings', 'version data')
+LevelRecord = pretty_namedtuple('LevelRecord', 'input_floor input_ceiling '
+    'output_floor output_ceiling gamma')
 Exposure = pretty_namedtuple('Exposure', 'version exposure offset gamma')
 ExportData = pretty_namedtuple('ExportData', 'version data')
 MetadataItem = pretty_namedtuple('MetadataItem', 'key copy_on_sheet_duplication descriptor_version data')
@@ -77,6 +80,18 @@ def _decode_soco(data, **kwargs):
     except UnknownOSType as e:
         warnings.warn("Ignoring solid color tagged block (%s)" % e)
         return data
+
+
+@register(TaggedBlock.LEVELS)
+def _decode_levels(data, **kwargs):
+    fp = io.BytesIO(data)
+    version = read_fmt("H", fp)[0]
+    level_records = []
+    for i in range(29):
+        input_f, input_c, output_f, output_c, gamma = read_fmt("5H", fp)
+        level_records.append(LevelRecord(
+            input_f, input_c, output_f, output_c, gamma / 100.0))
+    return LevelsSettings(version, level_records)
 
 
 @register(TaggedBlock.EXPOSURE)
