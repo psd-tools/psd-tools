@@ -29,6 +29,7 @@ _tagged_block_decoders.update({
 
 
 SolidColorSettings = pretty_namedtuple('SolidColorSettings', 'version data')
+Exposure = pretty_namedtuple('Exposure', 'version exposure offset gamma')
 ExportData = pretty_namedtuple('ExportData', 'version data')
 MetadataItem = pretty_namedtuple('MetadataItem', 'key copy_on_sheet_duplication descriptor_version data')
 ProtectedSetting = pretty_namedtuple('ProtectedSetting', 'transparency, composite, position')
@@ -76,6 +77,11 @@ def _decode_soco(data, **kwargs):
     except UnknownOSType as e:
         warnings.warn("Ignoring solid color tagged block (%s)" % e)
         return data
+
+
+@register(TaggedBlock.EXPOSURE)
+def _decode_exposure(data, **kwargs):
+    return Exposure(*read_fmt("H 3f", io.BytesIO(data)))
 
 
 @register(TaggedBlock.EXPORT_DATA)
