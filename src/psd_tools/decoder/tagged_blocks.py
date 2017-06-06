@@ -34,6 +34,11 @@ BrightnessContrast = pretty_namedtuple('BrightnessContrast',
 LevelsSettings = pretty_namedtuple('LevelsSettings', 'version data')
 LevelRecord = pretty_namedtuple('LevelRecord', 'input_floor input_ceiling '
     'output_floor output_ceiling gamma')
+CurvesSettings = pretty_namedtuple(
+    'CurvesSettings', 'version count data extra')
+CurvesExtraMarker = pretty_namedtuple(
+    'CurvesExtraMarker', 'tag version count data')
+CurveData = pretty_namedtuple('CurveData', 'channel points')
 Exposure = pretty_namedtuple('Exposure', 'version exposure offset gamma')
 ExportData = pretty_namedtuple('ExportData', 'version data')
 MetadataItem = pretty_namedtuple('MetadataItem', 'key copy_on_sheet_duplication descriptor_version data')
@@ -99,6 +104,30 @@ def _decode_levels(data, **kwargs):
         level_records.append(LevelRecord(
             input_f, input_c, output_f, output_c, gamma / 100.0))
     return LevelsSettings(version, level_records)
+
+
+@register(TaggedBlock.CURVES)
+def _decode_curves(data, **kwargs):
+    fp = io.BytesIO(data)
+    padding, version, count = read_fmt("B H I", fp)  # Documentation wrong.
+    if version not in (1, 4):
+        warnings.warn("Invalid curves version {}".format(version))
+        return data
+    items = []
+    for i in range(count):
+        point_count = read_fmt("H", fp)[0]
+        points = [read_fmt("2H", fp) for c in range(point_count)]
+        items.append(CurveData(None, points))
+    extra = None
+    if version == 1:
+        tag, version_, count_ = read_fmt("4s H I", fp)
+        extra_items = []
+        for i in range(count_):
+            channel_index, point_count = read_fmt("2H", fp)
+            points = [read_fmt("2H", fp) for c in range(point_count)]
+            extra_items.append(CurveData(channel_index, points))
+        extra = CurvesExtraMarker(tag, version_, count_, extra_items)
+    return CurvesSettings(version, count, items, extra)
 
 
 @register(TaggedBlock.EXPOSURE)
