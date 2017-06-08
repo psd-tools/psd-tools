@@ -40,6 +40,7 @@ CurvesExtraMarker = pretty_namedtuple(
     'CurvesExtraMarker', 'tag version count data')
 CurveData = pretty_namedtuple('CurveData', 'channel points')
 Exposure = pretty_namedtuple('Exposure', 'version exposure offset gamma')
+Vibrance = pretty_namedtuple('Vibrance', 'descriptor_version descriptor')
 HueSaturation = pretty_namedtuple(
     'HueSaturation', 'version enable_colorization colorization master items')
 HueSaturationData = pretty_namedtuple('HueSaturationData', 'range settings')
@@ -78,6 +79,18 @@ def parse_tagged_block(block, version=1, **kwargs):
 
     decoder = _tagged_block_decoders.get(block.key, lambda data, **kwargs: data)
     return Block(block.key, decoder(block.data, version=version))
+
+
+def _decode_descriptor_block(data, kls):
+    if isinstance(data, bytes):
+        fp = io.BytesIO(data)
+    version = read_fmt("I", fp)[0]
+
+    try:
+        return kls(version, decode_descriptor(None, fp))
+    except UnknownOSType as e:
+        warnings.warn("Ignoring tagged block %s" % e)
+        return data
 
 
 @register(TaggedBlock.SOLID_COLOR_SHEET_SETTING)
@@ -139,6 +152,11 @@ def _decode_curves(data, **kwargs):
 @register(TaggedBlock.EXPOSURE)
 def _decode_exposure(data, **kwargs):
     return Exposure(*read_fmt("H 3f", io.BytesIO(data)))
+
+
+@register(TaggedBlock.VIBRANCE)
+def _decode_vibrance(data, **kwargs):
+    return _decode_descriptor_block(data, Vibrance)
 
 
 @register(TaggedBlock.HUE_SATURATION_4)
