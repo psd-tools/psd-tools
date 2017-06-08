@@ -113,25 +113,24 @@ def _decode_curves(data, **kwargs):
     if version not in (1, 4):
         warnings.warn("Invalid curves version {}".format(version))
         return data
-    try:
-        items = []
-        for i in range(count):
-            point_count = read_fmt("H", fp)[0]
+    if version == 1:
+        count = bin(count).count('1')  # Bitmap = channel index?
+
+    items = []
+    for i in range(count):
+        point_count = read_fmt("H", fp)[0]
+        points = [read_fmt("2H", fp) for c in range(point_count)]
+        items.append(CurveData(None, points))
+    extra = None
+    if version == 1:
+        tag, version_, count_ = read_fmt("4s H I", fp)
+        extra_items = []
+        for i in range(count_):
+            channel_index, point_count = read_fmt("2H", fp)
             points = [read_fmt("2H", fp) for c in range(point_count)]
-            items.append(CurveData(None, points))
-        extra = None
-        if version == 1:
-            tag, version_, count_ = read_fmt("4s H I", fp)
-            extra_items = []
-            for i in range(count_):
-                channel_index, point_count = read_fmt("2H", fp)
-                points = [read_fmt("2H", fp) for c in range(point_count)]
-                extra_items.append(CurveData(channel_index, points))
-            extra = CurvesExtraMarker(tag, version_, count_, extra_items)
-        return CurvesSettings(version, count, items, extra)
-    except AssertionError as e:
-        warnings.warn("Failed to decode 'curv': %s" % e)
-        return data
+            extra_items.append(CurveData(channel_index, points))
+        extra = CurvesExtraMarker(tag, version_, count_, extra_items)
+    return CurvesSettings(version, count, items, extra)
 
 
 @register(TaggedBlock.EXPOSURE)
