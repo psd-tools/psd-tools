@@ -44,6 +44,16 @@ Vibrance = pretty_namedtuple('Vibrance', 'descriptor_version descriptor')
 HueSaturation = pretty_namedtuple(
     'HueSaturation', 'version enable_colorization colorization master items')
 HueSaturationData = pretty_namedtuple('HueSaturationData', 'range settings')
+ColorBalance = pretty_namedtuple(
+    'ColorBalance', 'shadows midtones highlights preserve_luminosity')
+BlackWhite = pretty_namedtuple('BlackWhite', 'descriptor_version descriptor')
+PhotoFilter = pretty_namedtuple(
+    'PhotoFilter',
+    'version xyz color_space color_components density preserve_luminosity')
+ChannelMixer = pretty_namedtuple(
+    'ChannelMixer', 'version monochrome mixer_settings')
+ColorLookup = pretty_namedtuple(
+    'ColorLookup', 'version, descriptor_version descriptor')
 ExportData = pretty_namedtuple('ExportData', 'version data')
 MetadataItem = pretty_namedtuple('MetadataItem', 'key copy_on_sheet_duplication descriptor_version data')
 ProtectedSetting = pretty_namedtuple('ProtectedSetting', 'transparency, composite, position')
@@ -136,7 +146,7 @@ def _decode_curves(data, **kwargs):
         warnings.warn("Invalid curves version {}".format(version))
         return data
     if version == 1:
-        count = bin(count).count('1')  # Bitmap = channel index?
+        count = bin(count).count("1")  # Bitmap = channel index?
 
     items = []
     for i in range(count):
@@ -173,15 +183,72 @@ def _decode_hue_saturation(data, **kwargs):
     if version != 2:
         warnings.warn("Invalid Hue/saturation version {}".format(version))
         return data
-    colorization = read_fmt('3h', fp)
-    master = read_fmt('3h', fp)
+    colorization = read_fmt("3h", fp)
+    master = read_fmt("3h", fp)
     items = []
     for i in range(6):
-        range_values = read_fmt('4h', fp)
-        settings_values = read_fmt('3h', fp)
+        range_values = read_fmt("4h", fp)
+        settings_values = read_fmt("3h", fp)
         items.append(HueSaturationData(range_values, settings_values))
     return HueSaturation(version, enable_colorization, colorization, master,
                          items)
+
+
+@register(TaggedBlock.COLOR_BALANCE)
+def _decode_color_balance(data, **kwargs):
+    # Undocumented, following PhotoFilter format.
+    fp = io.BytesIO(data)
+    shadows = read_fmt("3h", fp)
+    midtones = read_fmt("3h", fp)
+    highlights = read_fmt("3h", fp)
+    preserve_luminosity = read_fmt("B", fp)[0]
+    return ColorBalance(shadows, midtones, highlights, preserve_luminosity)
+
+
+@register(TaggedBlock.BLACK_AND_WHITE)
+def _decode_black_white(data, **kwargs):
+    return _decode_descriptor_block(data, BlackWhite)
+
+
+@register(TaggedBlock.PHOTO_FILTER)
+def _decode_photo_filter(data, **kwargs):
+    fp = io.BytesIO(data)
+    version = read_fmt("H", fp)[0]
+    if version not in (2, 3):
+        warnings.warn("Invalid Photo Filter version {}".format(version))
+        return data
+    if version == 3:
+        xyz = read_fmt("3I", fp)
+        color_space = None
+        color_components = None
+    else:
+        xyz = None
+        color_space = read_fmt("H", fp)[0]
+        color_components = read_fmt("4H", fp)
+    density, preserve_luminosity = read_fmt("I B", fp)
+    return PhotoFilter(version, xyz, color_space, color_components,
+                       density, preserve_luminosity)
+
+
+@register(TaggedBlock.CHANNEL_MIXER)
+def _decode_channel_mixer(data, **kwargs):
+    fp = io.BytesIO(data)
+    version, monochrome = read_fmt("2H", fp)
+    settings = read_fmt("5H", fp)
+    return ChannelMixer(version, monochrome, settings)
+
+
+@register(TaggedBlock.COLOR_LOOKUP)
+def _decode_color_lookup(data, **kwargs):
+    fp = io.BytesIO(data)
+    version, descriptor_version = read_fmt("H I", fp)
+
+    try:
+        return ColorLookup(version, descriptor_version,
+                           decode_descriptor(None, fp))
+    except UnknownOSType as e:
+        warnings.warn("Ignoring tagged block %s" % e)
+        return data
 
 
 @register(TaggedBlock.EXPORT_DATA)
@@ -373,9 +440,8 @@ def _decode_vector_origination_data(data, **kwargs):
     fp = io.BytesIO(data)
     ver, descr_ver = read_fmt("II", fp)
 
-    # This decoder needs to be updated if we have new formats.
     if ver != 1 and descr_ver != 16:
-        warnings.warn("Ignoring vector origination tagged block due to unsupported versions %s %s" % (ver, descr_ver))
+        warnings.warn("Invalid vmsk version %s %s" % (ver, descr_ver))
         return data
 
     try:
