@@ -40,6 +40,9 @@ CurvesExtraMarker = pretty_namedtuple(
     'CurvesExtraMarker', 'tag version count data')
 CurveData = pretty_namedtuple('CurveData', 'channel points')
 Exposure = pretty_namedtuple('Exposure', 'version exposure offset gamma')
+HueSaturation = pretty_namedtuple(
+    'HueSaturation', 'version enable_colorization colorization master items')
+HueSaturationData = pretty_namedtuple('HueSaturationData', 'range settings')
 ExportData = pretty_namedtuple('ExportData', 'version data')
 MetadataItem = pretty_namedtuple('MetadataItem', 'key copy_on_sheet_duplication descriptor_version data')
 ProtectedSetting = pretty_namedtuple('ProtectedSetting', 'transparency, composite, position')
@@ -136,6 +139,25 @@ def _decode_curves(data, **kwargs):
 @register(TaggedBlock.EXPOSURE)
 def _decode_exposure(data, **kwargs):
     return Exposure(*read_fmt("H 3f", io.BytesIO(data)))
+
+
+@register(TaggedBlock.HUE_SATURATION_4)
+@register(TaggedBlock.HUE_SATURATION_5)
+def _decode_hue_saturation(data, **kwargs):
+    fp = io.BytesIO(data)
+    version, enable_colorization, _ = read_fmt('H 2B', fp)
+    if version != 2:
+        warnings.warn("Invalid Hue/saturation version {}".format(version))
+        return data
+    colorization = read_fmt('3h', fp)
+    master = read_fmt('3h', fp)
+    items = []
+    for i in range(6):
+        range_values = read_fmt('4h', fp)
+        settings_values = read_fmt('3h', fp)
+        items.append(HueSaturationData(range_values, settings_values))
+    return HueSaturation(version, enable_colorization, colorization, master,
+                         items)
 
 
 @register(TaggedBlock.EXPORT_DATA)
