@@ -6,7 +6,7 @@ import io
 
 from psd_tools.constants import TaggedBlock, SectionDivider, PathResource
 from psd_tools.decoder.actions import decode_descriptor, UnknownOSType
-from psd_tools.utils import read_fmt, unpack
+from psd_tools.utils import read_fmt, unpack, read_unicode_string
 from psd_tools.decoder import decoders, layer_effects
 from psd_tools.reader.layers import Block
 from psd_tools.debug import pretty_namedtuple
@@ -15,6 +15,8 @@ from psd_tools.decoder import engine_data
 _tagged_block_decoders, register = decoders.new_registry()
 
 _tagged_block_decoders.update({
+    TaggedBlock.POSTERIZE:                          decoders.single_value("2H"),
+    TaggedBlock.THRESHOLD:                          decoders.single_value("2H"),
     TaggedBlock.BLEND_CLIPPING_ELEMENTS:            decoders.boolean("I"),
     TaggedBlock.BLEND_INTERIOR_ELEMENTS:            decoders.boolean("I"),
     TaggedBlock.BLEND_FILL_OPACITY:                 decoders.single_value("4B"),
@@ -54,6 +56,19 @@ ChannelMixer = pretty_namedtuple(
     'ChannelMixer', 'version monochrome mixer_settings')
 ColorLookup = pretty_namedtuple(
     'ColorLookup', 'version, descriptor_version descriptor')
+SelectiveColor = pretty_namedtuple('SelectiveColor', 'version, method items')
+GradientSettings = pretty_namedtuple(
+    'GradientSettings',
+    'version reversed dithered name color_stops transparency_stops expansion '
+    'interpolation length mode random_seed show_transparency '
+    'use_vector_color roughness color_model min_color max_color')
+ColorStop = pretty_namedtuple('ColorStop', 'location midpoint mode color')
+TransparencyStop = pretty_namedtuple(
+    'TransparencyStop',
+    'location midpoint opacity expansion interpolation length mode')
+    # ' length mode '
+    # 'random_seed show_transparency use_vector_color roughness color_model '
+    # 'mim_color max_color')
 ExportData = pretty_namedtuple('ExportData', 'version data')
 MetadataItem = pretty_namedtuple('MetadataItem', 'key copy_on_sheet_duplication descriptor_version data')
 ProtectedSetting = pretty_namedtuple('ProtectedSetting', 'transparency, composite, position')
@@ -249,6 +264,54 @@ def _decode_color_lookup(data, **kwargs):
     except UnknownOSType as e:
         warnings.warn("Ignoring tagged block %s" % e)
         return data
+
+
+@register(TaggedBlock.SELECTIVE_COLOR)
+def _decode_selective_color(data, **kwargs):
+    fp = io.BytesIO(data)
+    version, method = read_fmt("2H", fp)
+    if version != 1:
+        warnings.warn("Invalid Selective Color version %s" % (version))
+        return data
+    items = [read_fmt("4h", fp) for i in range(10)]
+    return SelectiveColor(version, method, items)
+
+
+@register(TaggedBlock.GRADIENT_MAP_SETTINGS)
+def _decode_gradient_settings(data, **kwargs):
+    fp = io.BytesIO(data)
+    version, is_reversed, is_dithered = read_fmt("H 2B", fp)
+    if version != 1:
+        warnings.warn("Invalid Gradient settings version %s" % (version))
+        return data
+    name = read_unicode_string(fp)
+    color_count = read_fmt("H", fp)[0]
+    color_stops = []
+    for i in range(color_count):
+        location, midpoint, mode = read_fmt("2i H", fp)
+        color = read_fmt("4H", fp)
+        color_stops.append(ColorStop(location, midpoint, mode, color))
+        read_fmt("H", fp)  # Undocumented pad.
+    transparency_count = read_fmt("H", fp)[0]
+    transparency_stops = []
+    for i in range(transparency_count):
+        transparency_stops.append(read_fmt("2I H", fp))
+
+    expansion, interpolation, length, mode = read_fmt("4H", fp)
+    if expansion != 2 or length != 32:
+        warnings.warn("Ignoring Gradient settings")
+        return data
+    random_seed, show_transparency, use_vector_color = read_fmt("I 2H", fp)
+    roughness, color_model = read_fmt("I H", fp)
+    minimum_color = read_fmt("4H", fp)
+    maximum_color = read_fmt("4H", fp)
+    read_fmt("H", fp)  # Dummy pad.
+
+    return GradientSettings(
+        version, is_reversed, is_dithered, name, color_stops,
+        transparency_stops, expansion, interpolation, length, mode,
+        random_seed, show_transparency, use_vector_color, roughness,
+        color_model, minimum_color, maximum_color)
 
 
 @register(TaggedBlock.EXPORT_DATA)
