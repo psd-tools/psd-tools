@@ -50,6 +50,12 @@ ProtectedSetting = pretty_namedtuple('ProtectedSetting', 'transparency, composit
 TypeToolObjectSetting = pretty_namedtuple('TypeToolObjectSetting',
                         'version xx xy yx yy tx ty text_version descriptor1_version text_data '
                         'warp_version descriptor2_version warp_data left top right bottom')
+ContentGeneratorExtraData = pretty_namedtuple(
+    'ContentGeneratorExtraData', 'descriptor_version descriptor')
+UnicodePathName = pretty_namedtuple(
+    'UnicodePathName', 'descriptor_version descriptor')
+AnimationEffects = pretty_namedtuple(
+    'AnimationEffects', 'descriptor_version descriptor')
 VectorOriginationData = pretty_namedtuple('VectorOriginationData', 'version descriptor_version data')
 VectorMaskSetting = pretty_namedtuple(
     'VectorMaskSetting','version invert not_link disable path')
@@ -337,9 +343,29 @@ def _decode_type_tool_object_setting(data, **kwargs):
     )
 
 
+@register(TaggedBlock.CONTENT_GENERATOR_EXTRA_DATA)
+def _decode_content_generator_extra_data(data, **kwargs):
+    return _decode_descriptor_block(data, ContentGeneratorExtraData)
+
+
 @register(TaggedBlock.TEXT_ENGINE_DATA)
 def _decode_text_engine_data(data, **kwargs):
     return engine_data.decode(data)
+
+
+@register(TaggedBlock.UNICODE_PATH_NAME)
+def _decode_unicode_path_name(data, **kwargs):
+    return _decode_descriptor_block(data, UnicodePathName)
+
+
+@register(TaggedBlock.ANIMATION_EFFECTS)
+def _decode_animation_effects(data, **kwargs):
+    return _decode_descriptor_block(data, AnimationEffects)
+
+
+@register(TaggedBlock.FILTER_MASK)
+def _decode_filter_mask(data, **kwargs):
+    return read_fmt("10s H", io.BytesIO(data))
 
 
 @register(TaggedBlock.VECTOR_ORIGINATION_DATA)
