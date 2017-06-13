@@ -53,6 +53,7 @@ class EngineToken(Enum):
     NUMBER_WITH_DECIMAL = re.compile(b'^(-?\d*)\.(\d+)$')
     PROPERTY = re.compile(b'^\/([a-zA-Z0-9]+)$')
     STRING = re.compile(b'^\(\xfe\xff(.*)\)$', re.M|re.DOTALL)
+    HWID = re.compile(b'^\(hwid\)$')
 
 
 class EngineTokenizer(object):
@@ -102,6 +103,7 @@ class EngineDataDecoder(object):
     def parse(self):
         for token in self.tokenizer.tokenize(self.data):
             value = self._parse_token(token)
+
             if value is not None:
                 if isinstance(self.node_stack[-1], list):
                     self.node_stack[-1].append(value)
@@ -160,10 +162,18 @@ class EngineDataDecoder(object):
     def _decode_string(self, match):
         return match.group(1).decode('utf-16-be', 'ignore')
 
+    @register(EngineToken.HWID)
+    def _decode_hwid(self, match):
+        return match
+
 
 def decode(data, **kwargs):
     """
     Decode EngineData.
     """
-    decoder = EngineDataDecoder(data, **kwargs)
-    return decoder.parse()
+    try:
+        decoder = EngineDataDecoder(data, **kwargs)
+        return decoder.parse()
+    except InvalidTokenError as e:
+        warnings.warn("Failed to parse EngineData: %s" % e)
+        return data
