@@ -4,9 +4,11 @@ import warnings
 import collections
 import io
 
-from psd_tools.constants import TaggedBlock, SectionDivider, PathResource
+from psd_tools.constants import (TaggedBlock, SectionDivider, PathResource,
+                                 ColorMode)
 from psd_tools.decoder.actions import decode_descriptor, UnknownOSType
-from psd_tools.utils import read_fmt, unpack, read_unicode_string
+from psd_tools.utils import (read_fmt, unpack, read_unicode_string,
+                             read_pascal_string)
 from psd_tools.decoder import decoders, layer_effects
 from psd_tools.reader.layers import Block
 from psd_tools.debug import pretty_namedtuple
@@ -57,6 +59,13 @@ ChannelMixer = pretty_namedtuple(
 ColorLookup = pretty_namedtuple(
     'ColorLookup', 'version, descriptor_version descriptor')
 SelectiveColor = pretty_namedtuple('SelectiveColor', 'version, method items')
+Pattern = pretty_namedtuple('Pattern', 'version image_mode point name '
+    'pattern_id color_table data')
+VirtualMemoryArrayList = pretty_namedtuple(
+    'VirtualMemoryArrayList', 'version rectangle channels')
+VirtualMemoryArray = pretty_namedtuple(
+    'VirtualMemoryArray', 'is_written depth rectangle pixel_depth '
+    'compression data')
 GradientSettings = pretty_namedtuple(
     'GradientSettings',
     'version reversed dithered name color_stops transparency_stops expansion '
@@ -275,6 +284,63 @@ def _decode_selective_color(data, **kwargs):
         return data
     items = [read_fmt("4h", fp) for i in range(10)]
     return SelectiveColor(version, method, items)
+
+
+@register(TaggedBlock.PATTERNS1)
+@register(TaggedBlock.PATTERNS2)
+@register(TaggedBlock.PATTERNS3)
+def _decode_patterns(data, **kwargs):
+    fp = io.BytesIO(data)
+
+    patterns = []
+    while fp.tell() < len(data) - 4:
+        length = read_fmt("I", fp)[0]
+        if length == 0:
+            break
+        start = fp.tell()
+
+        version, image_mode = read_fmt("2I", fp)
+        if version != 1:
+            warnings.warn("Unsupported patterns version %s" % (version))
+            return data
+
+        point = read_fmt("2h", fp)
+        name = read_unicode_string(fp)
+        pattern_id = read_pascal_string(fp, 'ascii')
+        color_table = None
+        if image_mode == ColorMode.INDEXED:
+            color_table = [read_fmt("3H", fp) for i in range(256)]
+        data = _decode_virtual_memory_array_list(fp)
+        patterns.append(Pattern(version, image_mode, point, name, pattern_id,
+                                color_table, data))
+        assert fp.tell() - start == length
+
+    return patterns
+
+
+def _decode_virtual_memory_array_list(fp):
+    version, length = read_fmt("2I", fp)
+    if version != 3:
+        warnings.warn("Unsupported virtual memory array list %s" % (version))
+        return None
+    start = fp.tell()
+    rectangle = read_fmt("4I", fp)
+    num_channels = read_fmt("I", fp)[0]
+    channels = []
+    for i in range(num_channels + 2):
+        is_written = read_fmt("I", fp)[0]
+        if is_written == 0:
+            continue
+        array_length = read_fmt("I", fp)[0]
+        if array_length == 0:
+            continue
+        depth = read_fmt("I", fp)[0]
+        array_rect = read_fmt("4I", fp)
+        pixel_depth, compression = read_fmt("H B", fp)
+        channel_data = fp.read(array_length - 23)
+        channels.append(VirtualMemoryArray(is_written, depth, array_rect,
+            pixel_depth, compression, channel_data))
+    return VirtualMemoryArrayList(version, rectangle, channels)
 
 
 @register(TaggedBlock.GRADIENT_MAP_SETTINGS)
