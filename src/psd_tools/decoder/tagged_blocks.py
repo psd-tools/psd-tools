@@ -296,31 +296,32 @@ def _decode_selective_color(data, **kwargs):
 @register(TaggedBlock.PATTERNS3)
 def _decode_patterns(data, **kwargs):
     fp = io.BytesIO(data)
-
     patterns = []
     while fp.tell() < len(data) - 4:
         length = read_fmt("I", fp)[0]
         if length == 0:
             break
-        start = fp.tell()
-
-        version, image_mode = read_fmt("2I", fp)
-        if version != 1:
-            warnings.warn("Unsupported patterns version %s" % (version))
-            return data
-
-        point = read_fmt("2h", fp)
-        name = read_unicode_string(fp)
-        pattern_id = read_pascal_string(fp, 'ascii')
-        color_table = None
-        if image_mode == ColorMode.INDEXED:
-            color_table = [read_fmt("3H", fp) for i in range(256)]
-        data = _decode_virtual_memory_array_list(fp)
-        patterns.append(Pattern(version, image_mode, point, name, pattern_id,
-                                color_table, data))
-        assert fp.tell() - start == length
-
+        patterns.append(_decode_pattern(fp.read(length)))
+        fp.read(4 - (fp.tell() % 4))  # 4-bytes padding.
     return patterns
+
+
+def _decode_pattern(data):
+    fp = io.BytesIO(data)
+    version, image_mode = read_fmt("2I", fp)
+    if version != 1:
+        warnings.warn("Unsupported patterns version %s" % (version))
+        return data
+
+    point = read_fmt("2h", fp)
+    name = read_unicode_string(fp)
+    pattern_id = read_pascal_string(fp, 'ascii')
+    color_table = None
+    if image_mode == ColorMode.INDEXED:
+        color_table = [read_fmt("3H", fp) for i in range(256)]
+    vma_list = _decode_virtual_memory_array_list(fp)
+    return Pattern(version, image_mode, point, name, pattern_id, color_table,
+                   vma_list)
 
 
 def _decode_virtual_memory_array_list(fp):

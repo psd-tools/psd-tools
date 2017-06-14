@@ -95,3 +95,10 @@ def test_vector_mask():
     layers = psd.layer_and_mask_data.layers.layer_records
     assert layers[1].tagged_blocks[1].key == b'vmsk'
     assert isinstance(layers[1].tagged_blocks[1].data, VectorMaskSetting)
+
+
+def test_patterns():
+    psd = decode_psd('patterns.psd')
+    tagged_blocks = dict(psd.layer_and_mask_data.tagged_blocks)
+    assert b'Patt' in tagged_blocks
+    assert len(tagged_blocks[b'Patt']) == 6
