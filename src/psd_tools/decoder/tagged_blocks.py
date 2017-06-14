@@ -32,7 +32,9 @@ _tagged_block_decoders.update({
 })
 
 
-SolidColorSettings = pretty_namedtuple('SolidColorSettings', 'version data')
+SolidColorSetting = pretty_namedtuple('SolidColorSetting', 'version data')
+PatternFillSetting = pretty_namedtuple('PatternFillSetting', 'version data')
+GradientFillSetting = pretty_namedtuple('GradientFillSetting', 'version data')
 BrightnessContrast = pretty_namedtuple('BrightnessContrast',
                                        'brightness contrast mean lab')
 LevelsSettings = pretty_namedtuple('LevelsSettings', 'version data')
@@ -135,14 +137,17 @@ def _decode_descriptor_block(data, kls):
 
 @register(TaggedBlock.SOLID_COLOR_SHEET_SETTING)
 def _decode_soco(data, **kwargs):
-    fp = io.BytesIO(data)
-    version = read_fmt("I", fp)[0]
-    try:
-        data = decode_descriptor(None, fp)
-        return SolidColorSettings(version, data)
-    except UnknownOSType as e:
-        warnings.warn("Ignoring solid color tagged block (%s)" % e)
-        return data
+    return _decode_descriptor_block(data, SolidColorSetting)
+
+
+@register(TaggedBlock.PATTERN_FILL_SETTING)
+def _decode_ptfl(data, **kwargs):
+    return _decode_descriptor_block(data, PatternFillSetting)
+
+
+@register(TaggedBlock.GRADIENT_FILL_SETTING)
+def _decode_grfl(data, **kwargs):
+    return _decode_descriptor_block(data, GradientFillSetting)
 
 
 @register(TaggedBlock.BRIGHTNESS_AND_CONTRAST)
