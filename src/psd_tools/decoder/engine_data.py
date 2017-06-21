@@ -52,7 +52,8 @@ class EngineToken(Enum):
     NUMBER = re.compile(b'^(-?\d+)$')
     NUMBER_WITH_DECIMAL = re.compile(b'^(-?\d*)\.(\d+)$')
     PROPERTY = re.compile(b'^\/([a-zA-Z0-9]+)$')
-    STRING = re.compile(b'^\(\xfe\xff(.*)\)$', re.M|re.DOTALL)
+    STRING = re.compile(r'^\((\xfe\xff([^\)]|\\\)|\x00\))*)\)$'.encode(
+        'utf-8'), re.M|re.DOTALL)
     HWID = re.compile(b'^\(hwid\)$')
 
 
@@ -60,8 +61,6 @@ class EngineTokenizer(object):
     """
     Engine data tokenizer.
     """
-    STRING_END = re.compile(r'[^\\]\)'.encode('utf-8'), re.M|re.DOTALL)
-
     def __init__(self, divider):
         self.divider = re.compile(divider, re.M|re.DOTALL)
 
@@ -71,19 +70,18 @@ class EngineTokenizer(object):
             match = self.divider.search(data)
             if match is None:
                 token, data = data, b''
+            elif data.startswith(b'(\xfe\xff'):
+                for index in range(len(data)):
+                    if data[index:index+1] != b')':
+                        continue
+                    if index > 0 and (
+                            data[index-1:index+1] == b'\\)' or
+                            data[index-1:index+1] == b'\x00)'):
+                        continue
+                    break
+                token, data = data[:index+1], data[index+1:]
             else:
                 token, data = data[:match.start()], data[match.end():]
-
-            # String needs escaping.
-            if token.startswith(b'(\xfe\xff') and not token.endswith(b')'):
-                token += data[match.start():match.end()]
-
-                match = self.STRING_END.search(data)
-                if match is None:
-                    raise ValueError('Invalid string: {}'.format(token))
-
-                token += data[:match.end()]
-                data = data[match.end():]
 
             yield token
 
@@ -160,7 +158,8 @@ class EngineDataDecoder(object):
 
     @register(EngineToken.STRING)
     def _decode_string(self, match):
-        return match.group(1).decode('utf-16-be', 'ignore')
+        return match.group(1).replace(b'\\\\', b'\\').decode(
+            'utf-16', 'replace')
 
     @register(EngineToken.HWID)
     def _decode_hwid(self, match):
