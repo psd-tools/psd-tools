@@ -302,7 +302,9 @@ def _decode_patterns(data, **kwargs):
         if length == 0:
             break
         patterns.append(_decode_pattern(fp.read(length)))
-        fp.read(4 - (fp.tell() % 4))  # 4-bytes padding.
+        extra_bytes = fp.tell() % 4
+        if extra_bytes:
+            fp.read(4 - extra_bytes)  # 4-bytes padding.
     return patterns
 
 
