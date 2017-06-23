@@ -229,6 +229,54 @@ def _decompress_channel(channel, depth, size):
     return im.convert('L')
 
 
+def pattern_to_PIL(pattern):
+    channels = [_decompress_pattern_channel(c) for c in pattern.data.channels]
+    if not all(channels):
+        return None
+
+    image = None
+    if len(channels) == 1:
+        image = channels[0]
+    elif len(channels) == 3:
+        image = Image.merge('RGB', channels)
+    elif len(channels) == 4:
+        image = Image.merge('RGBA', channels)
+    return image
+
+
+def _decompress_pattern_channel(channel):
+    depth = channel.depth
+    size = (channel.rectangle[3], channel.rectangle[2])
+    if channel.compression in [Compression.RAW, Compression.ZIP, Compression.ZIP_WITH_PREDICTION]:
+        if depth == 8:
+            im = _from_8bit_raw(channel.data, size)
+        elif depth == 16:
+            im = _from_16bit_raw(channel.data, size)
+        elif depth == 32:
+            im = _from_32bit_raw(channel.data, size)
+        else:
+            warnings.warn("Unsupported depth (%s)" % depth)
+            return None
+
+    elif channel.compression == Compression.PACK_BITS:
+        if depth != 8:
+            warnings.warn("Depth %s is unsupported for PackBits compression" % depth)
+        import packbits
+        channel_data = packbits.decode(channel.data)
+        if len(channel_data) == (size[0] * (size[1] + 1)):
+            # Sometimes there is a padding row.
+            im = frombytes('L', size, channel_data[size[1]:], "raw", 'L')
+        else:
+            im = frombytes('L', size, channel_data, "raw", 'L')
+    else:
+        if Compression.is_known(channel.compression):
+            warnings.warn("Compression method is not implemented (%s)" % channel.compression)
+        else:
+            warnings.warn("Unknown compression method (%s)" % channel.compression)
+        return None
+    return im.convert('L')
+
+
 def _from_8bit_raw(data, size):
     return frombytes('L', size, data, "raw", 'L')
 

@@ -45,6 +45,7 @@ library::
 .. _packbits: http://pypi.python.org/pypi/packbits/
 .. _Pymaging: https://github.com/ojii/pymaging
 .. _Pymaging installation instructions: http://pymaging.readthedocs.org/en/latest/usr/installation.html
+.. _exifread: https://github.com/ianare/exif-py
 
 Optional exif decoding is available with exifread_ library.
 
@@ -122,7 +123,6 @@ Work with a layer::
     >>> layer.mask_data.as_PIL()
     <PIL.Image.Image image mode=L size=43x62 at ...>
 
-
 Export a single layer::
 
     >>> layer_image = layer.as_PIL()
@@ -144,6 +144,11 @@ Export layer group (experimental)::
 
     >>> group_image = group2.as_PIL()
     >>> group_image.save('group.png')
+
+Get pattern dict::
+
+    >>> psd.patterns
+    {'b2fdfd29-de85-11d5-838b-ff55e75fb875': <psd_tools.Pattern: size=265x219 ...>}
 
 
 Why yet another PSD reader?

@@ -88,6 +88,34 @@ class MaskData(object):
             bbox.width, bbox.height, bbox.x1, bbox.y1)
 
 
+class PatternData(object):
+    def __init__(self, pattern):
+        self._pattern = pattern
+
+    @property
+    def pattern_id(self):
+        return self._pattern.pattern_id
+
+    @property
+    def name(self):
+        return self._pattern.name
+
+    @property
+    def width(self):
+        return self._pattern.point[1]
+
+    @property
+    def height(self):
+        return self._pattern.point[0]
+
+    def as_PIL(self):
+        return pil_support.pattern_to_PIL(self._pattern)
+
+    def __repr__(self):
+        return "<psd_tools.Pattern: name='%s' size=%dx%d>" % (
+            self.name, self.width, self.height)
+
+
 class _RawLayer(object):
     """
     Layer groups and layers are internally both 'layers' in PSD;
@@ -335,6 +363,17 @@ class PSDImage(object):
         (img.header.width and img.header.heigth).
         """
         return combined_bbox(self.layers)
+
+    @property
+    def patterns(self):
+        """
+        Returns a dict of pattern (texture) data in PIL.Image.
+        """
+        layer_and_mask_data = self.decoded_data.layer_and_mask_data
+        blocks = dict(layer_and_mask_data.tagged_blocks)
+        patterns = blocks.get(b'Patt', blocks.get(b'Pat2', blocks.get(
+            b'Pat3', [])))
+        return {p.pattern_id: PatternData(p) for p in patterns}
 
     def _layer_info(self, index):
         layers = self.decoded_data.layer_and_mask_data.layers.layer_records
