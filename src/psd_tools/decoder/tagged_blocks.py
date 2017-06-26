@@ -81,6 +81,9 @@ TransparencyStop = pretty_namedtuple(
     # 'random_seed show_transparency use_vector_color roughness color_model '
     # 'mim_color max_color')
 ExportData = pretty_namedtuple('ExportData', 'version data')
+VectorStrokeSetting = pretty_namedtuple('VectorStrokeSetting', 'version data')
+VectorStrokeContentSetting = pretty_namedtuple(
+    'VectorStrokeContentSetting', 'key version data')
 MetadataItem = pretty_namedtuple('MetadataItem', 'key copy_on_sheet_duplication descriptor_version data')
 ProtectedSetting = pretty_namedtuple('ProtectedSetting', 'transparency, composite, position')
 TypeToolObjectSetting = pretty_namedtuple('TypeToolObjectSetting',
@@ -437,6 +440,7 @@ def _decode_divider(data):
 
     return tp, key
 
+
 @register(TaggedBlock.PLACED_LAYER_DATA)
 @register(TaggedBlock.SMART_OBJECT_PLACED_LAYER_DATA)
 def _decode_placed_layer(data, **kwargs):
@@ -444,6 +448,42 @@ def _decode_placed_layer(data, **kwargs):
     type, version, descriptorVersion = read_fmt("4s I I", fp)
     descriptor = decode_descriptor(None, fp)
     return descriptor.items
+
+
+@register(TaggedBlock.VECTOR_STROKE_DATA)
+def _decode_vector_stroke_data(data, **kwargs):
+    fp = io.BytesIO(data)
+    version = read_fmt("I", fp)[0]
+
+    if version != 16:
+        warnings.warn("Invalid vstk version %s" % (version))
+        return data
+
+    try:
+        data = decode_descriptor(None, fp)
+        return VectorStrokeSetting(version, data)
+    except UnknownOSType as e:
+        warnings.warn("Ignoring vstk tagged block (%s)" % e)
+        return data
+
+
+@register(TaggedBlock.VECTOR_STROKE_CONTENT_DATA)
+def _decode_vector_stroke_content_data(data, **kwargs):
+    fp = io.BytesIO(data)
+    key, version = read_fmt("II", fp)
+
+    if version != 16:
+        warnings.warn("Invalid vscg version %s" % (version))
+        return data
+
+    try:
+        descriptor = decode_descriptor(None, fp)
+    except UnknownOSType as e:
+        warnings.warn("Ignoring vscg tagged block (%s)" % e)
+        return data
+
+    return VectorStrokeContentSetting(key, version, descriptor)
+
 
 @register(TaggedBlock.METADATA_SETTING)
 def _decode_metadata(data, **kwargs):
