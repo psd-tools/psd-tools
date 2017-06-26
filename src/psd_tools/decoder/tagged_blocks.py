@@ -6,7 +6,8 @@ import io
 
 from psd_tools.constants import (TaggedBlock, SectionDivider, PathResource,
                                  ColorMode)
-from psd_tools.decoder.actions import decode_descriptor, UnknownOSType
+from psd_tools.decoder.actions import (decode_descriptor, UnknownOSType,
+                                       RawData)
 from psd_tools.utils import (read_fmt, unpack, read_unicode_string,
                              read_pascal_string)
 from psd_tools.decoder import decoders, layer_effects
@@ -103,7 +104,11 @@ AnimationEffects = pretty_namedtuple(
 VectorOriginationData = pretty_namedtuple('VectorOriginationData', 'version descriptor_version data')
 VectorMaskSetting = pretty_namedtuple(
     'VectorMaskSetting','version invert not_link disable path')
-
+FilterEffects = pretty_namedtuple(
+    'FilterEffects',
+    'uuid version rectangle depth max_channels channels extra_data')
+FilterEffectChannel = pretty_namedtuple(
+    'FilterEffectChannel', 'is_written compression data')
 
 class Divider(collections.namedtuple('Divider', 'block type key')):
     def __repr__(self):
@@ -706,3 +711,48 @@ def _decode_channel_blending_restrictions_setting(data, **kwargs):
         channel = read_fmt("I", fp)[0]
         restrictions[channel] = True
     return restrictions
+
+
+@register(TaggedBlock.FILTER_EFFECTS1)
+@register(TaggedBlock.FILTER_EFFECTS2)
+def _decode_filter_effects(data, **kwargs):
+    fp = io.BytesIO(data)
+    version, length = read_fmt("I Q", fp)
+    if version not in (1, 2, 3):
+        warnings.warn("Unknown filter effects version %d" % version)
+        return data
+
+    return _decode_filter_effect_item(fp.read(length))
+
+
+def _decode_filter_effect_item(data):
+    fp = io.BytesIO(data)
+    uuid = read_pascal_string(fp, "ascii")
+    version, length = read_fmt("I Q", fp)
+    assert version == 1, "Unknown filter effect version %d" % version
+
+    rectangle = read_fmt("4i", fp)
+    depth, max_channels = read_fmt("2I", fp)
+
+    channels = []
+    for i in range(max_channels + 2):
+        is_written = read_fmt("I", fp)[0]
+        assert is_written in (0, 1)
+        if is_written:
+            channel_len, compression = read_fmt("Q H", fp)
+            channel_data = fp.read(max(0, channel_len - 2))
+            channels.append(FilterEffectChannel(is_written, compression,
+                                                RawData(channel_data)))
+        else:
+            channels.append(FilterEffectChannel(is_written, 0, None))
+
+    # There seems to be undocumented extra fields.
+    extra_data = None
+    if len(data) > fp.tell() and read_fmt("B", fp)[0]:
+        extra_rect = read_fmt("4i", fp)
+        extra_length, extra_compression = read_fmt("Q H", fp)
+        extra_data = (extra_rect, extra_compression,
+                      RawData(fp.read(extra_length)))
+
+    return FilterEffects(uuid, version, rectangle, depth, max_channels,
+                         channels, extra_data)
