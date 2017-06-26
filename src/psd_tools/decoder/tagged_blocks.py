@@ -28,7 +28,12 @@ _tagged_block_decoders.update({
     TaggedBlock.EFFECTS_LAYER:                      layer_effects.decode,
     TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO:    layer_effects.decode_object_based,
     TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO_V0: layer_effects.decode_object_based,
-    TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO_V1: layer_effects.decode_object_based
+    TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO_V1: layer_effects.decode_object_based,
+    TaggedBlock.USING_ALIGNED_RENDERING:            decoders.boolean("I"),
+    TaggedBlock.LAYER_VERSION:                      decoders.single_value("I"),
+    TaggedBlock.TRANSPARENCY_SHAPES_LAYER:          decoders.single_value("4B"),
+    TaggedBlock.LAYER_MASK_AS_GLOBAL_MASK:          decoders.single_value("4B"),
+    TaggedBlock.VECTOR_MASK_AS_GLOBAL_MASK:         decoders.single_value("4B"),
 })
 
 
