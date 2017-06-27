@@ -257,17 +257,13 @@ def _decompress_pattern_channel(channel):
         else:
             warnings.warn("Unsupported depth (%s)" % depth)
             return None
-
     elif channel.compression == Compression.PACK_BITS:
         if depth != 8:
             warnings.warn("Depth %s is unsupported for PackBits compression" % depth)
         import packbits
         channel_data = packbits.decode(channel.data)
-        if len(channel_data) == (size[0] * (size[1] + 1)):
-            # Sometimes there is a padding row.
-            im = frombytes('L', size, channel_data[size[1]:], "raw", 'L')
-        else:
-            im = frombytes('L', size, channel_data, "raw", 'L')
+        padding = (len(channel_data) - size[0] * size[1])
+        im = frombytes('L', size, channel_data[padding:], "raw", 'L')
     else:
         if Compression.is_known(channel.compression):
             warnings.warn("Compression method is not implemented (%s)" % channel.compression)
