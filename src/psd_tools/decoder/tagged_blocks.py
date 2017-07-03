@@ -333,7 +333,8 @@ def _decode_pattern(data):
     pattern_id = read_pascal_string(fp, 'ascii')
     color_table = None
     if image_mode == ColorMode.INDEXED:
-        color_table = [read_fmt("3H", fp) for i in range(256)]
+        color_table = [read_fmt("3B", fp) for i in range(256)]
+        read_fmt('4B', fp)  # Undocumented field here...
     vma_list = _decode_virtual_memory_array_list(fp)
     return Pattern(version, image_mode, point, name, pattern_id, color_table,
                    vma_list)
