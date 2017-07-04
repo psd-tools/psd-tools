@@ -239,6 +239,68 @@ class Layer(_RawLayer):
             self.name, bbox.width, bbox.height, bbox.x1, bbox.y1)
 
 
+class ShapeLayer(Layer):
+    """ PSD shape layer wrapper """
+
+    def as_PIL(self):
+        """ Returns a PIL image for this layer. """
+        from PIL import Image, ImageDraw
+        bbox = self.bbox
+        image = Image.new("RGBA", (bbox.width, bbox.height))
+        draw = ImageDraw.Draw(image)
+        draw.polygon(self.anchors, fill=self._get_color())
+        del draw
+        return image
+
+    def as_pymaging(self):
+        """ Returns a pymaging.Image for this PSD file. """
+        raise NotImplementedError
+
+    @property
+    def bbox(self):
+        """ BBox(x1, y1, x2, y2) namedtuple of the shape. """
+        blocks = self._tagged_blocks
+        vector_data = blocks.get(TaggedBlock.VECTOR_ORIGINATION_DATA)
+        if not vector_data:
+            return None
+        items = dict(dict(vector_data.data.items).get(
+            b'keyDescriptorList').items[0].items)
+        rect = dict(items.get(b'keyOriginShapeBBox').items)
+        corners = [int(rect[key].value)
+                   for key in (b'Left', b'Top ', b'Rght', b'Btom')]
+        return BBox(*corners)
+
+    @property
+    def anchors(self):
+        """ Anchor points of the shape [(x, y), (x, y), ...]. """
+        blocks = self._tagged_blocks
+        vmsk = blocks.get(TaggedBlock.VECTOR_MASK_SETTING1,
+                          blocks.get(TaggedBlock.VECTOR_MASK_SETTING2))
+        if not vmsk:
+            return None
+        bbox = self.bbox
+        return [(int(p['anchor'][1] * bbox.width),
+                 int(p['anchor'][0] * bbox.height))
+                for p in vmsk.path if p.get('selector') in (1, 2)]
+
+    def _get_color(self, default='black'):
+        soco = self._tagged_blocks.get(TaggedBlock.SOLID_COLOR_SHEET_SETTING)
+        if not soco:
+            return default
+        color_data = dict(soco.data.items).get(b'Clr ')
+        if color_data.classID == b'RGBC':
+            colors = dict(color_data.items)
+            return (int(colors[b'Rd  '].value), int(colors[b'Grn '].value),
+                    int(colors[b'Bl  '].value), int(self.opacity))
+        else:
+            return default
+
+    def __repr__(self):
+        bbox = self.bbox
+        return "<psd_tools.ShapeLayer: %r, size=%dx%d, x=%d, y=%d>" % (
+            self.name, bbox.width, bbox.height, bbox.x1, bbox.y1)
+
+
 class Group(_RawLayer):
     """ PSD layer group wrapper """
 
@@ -282,7 +344,6 @@ class Group(_RawLayer):
             self.name, len(self.layers))
 
 
-
 class PSDImage(object):
     """ PSD image wrapper """
 
@@ -302,8 +363,12 @@ class PSDImage(object):
                     fill_group(sub_group, layer)
                     group._add_layer(sub_group)
                 else:
-                    # regular layer
-                    group._add_layer(Layer(group, index))
+                    layer_type = layer['type']
+                    if layer_type == 'shape':
+                        group._add_layer(ShapeLayer(group, index))
+                    else:
+                        # regular layer
+                        group._add_layer(Layer(group, index))
 
         self._psd = self
         fake_root_data = {'layers': group_layers(decoded_data), 'index': None}
