@@ -54,7 +54,8 @@ class EngineToken(Enum):
     PROPERTY = re.compile(b'^\/([a-zA-Z0-9]+)$')
     STRING = re.compile(r'^\((\xfe\xff([^\)]|\\\)|\x00\))*)\)$'.encode(
         'utf-8'), re.M|re.DOTALL)
-    HWID = re.compile(b'^\(hwid\)$')
+    HWID = re.compile(b'^\(hwid\)$')  # Unknown token
+    FWID = re.compile(b'^\(fwid\)$')  # Unknown token
 
 
 class EngineTokenizer(object):
@@ -162,7 +163,8 @@ class EngineDataDecoder(object):
             'utf-16', 'replace')
 
     @register(EngineToken.HWID)
-    def _decode_hwid(self, match):
+    @register(EngineToken.FWID)
+    def _decode_unknown(self, match):
         return match
 
 
