@@ -104,6 +104,7 @@ AnimationEffects = pretty_namedtuple(
 VectorOriginationData = pretty_namedtuple('VectorOriginationData', 'version descriptor_version data')
 VectorMaskSetting = pretty_namedtuple(
     'VectorMaskSetting','version invert not_link disable path')
+ArtboardData = pretty_namedtuple('ArtboardData', 'version data')
 FilterEffects = pretty_namedtuple(
     'FilterEffects',
     'uuid version rectangle depth max_channels channels extra_data')
@@ -692,6 +693,13 @@ def _decode_vector_mask_setting1(data, **kwargs):
 
     return VectorMaskSetting(
         ver, (0x01 & flags) > 0, (0x02 & flags) > 0, (0x04 & flags) > 0, path)
+
+
+@register(TaggedBlock.ARTBOARD_DATA1)
+@register(TaggedBlock.ARTBOARD_DATA2)
+@register(TaggedBlock.ARTBOARD_DATA3)
+def _decode_artboard_data(data, **kwargs):
+    return _decode_descriptor_block(data, ArtboardData)
 
 
 @register(TaggedBlock.LINKED_LAYER1)
