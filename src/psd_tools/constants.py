@@ -322,6 +322,7 @@ class TaggedBlock(Enum):
     USER_MASK = b'LMsk'
     FILTER_EFFECTS1 = b'FXid'
     FILTER_EFFECTS2 = b'FEid'
+    FILTER_EFFECTS3 = b'FELS'  # Undocumented.
 
     LAYER_16 = b'Lr16'
     LAYER_32 = b'Lr32'

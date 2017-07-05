@@ -724,6 +724,7 @@ def _decode_channel_blending_restrictions_setting(data, **kwargs):
 
 @register(TaggedBlock.FILTER_EFFECTS1)
 @register(TaggedBlock.FILTER_EFFECTS2)
+@register(TaggedBlock.FILTER_EFFECTS3)
 def _decode_filter_effects(data, **kwargs):
     fp = io.BytesIO(data)
     version, length = read_fmt("I Q", fp)
