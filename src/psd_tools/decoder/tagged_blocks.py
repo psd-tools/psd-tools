@@ -360,7 +360,7 @@ def _decode_virtual_memory_array_list(fp):
         depth = read_fmt("I", fp)[0]
         array_rect = read_fmt("4I", fp)
         pixel_depth, compression = read_fmt("H B", fp)
-        channel_data = fp.read(array_length - 23)
+        channel_data = RawData(fp.read(array_length - 23))
         channels.append(VirtualMemoryArray(is_written, depth, array_rect,
             pixel_depth, compression, channel_data))
     return VirtualMemoryArrayList(version, rectangle, channels)

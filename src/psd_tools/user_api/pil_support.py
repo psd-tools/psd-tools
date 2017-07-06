@@ -249,20 +249,27 @@ def _decompress_pattern_channel(channel):
     size = (channel.rectangle[3], channel.rectangle[2])
     if channel.compression in [Compression.RAW, Compression.ZIP, Compression.ZIP_WITH_PREDICTION]:
         if depth == 8:
-            im = _from_8bit_raw(channel.data, size)
+            im = _from_8bit_raw(channel.data.value, size)
         elif depth == 16:
-            im = _from_16bit_raw(channel.data, size)
+            im = _from_16bit_raw(channel.data.value, size)
         elif depth == 32:
-            im = _from_32bit_raw(channel.data, size)
+            im = _from_32bit_raw(channel.data.value, size)
         else:
             warnings.warn("Unsupported depth (%s)" % depth)
             return None
     elif channel.compression == Compression.PACK_BITS:
         if depth != 8:
             warnings.warn("Depth %s is unsupported for PackBits compression" % depth)
-        import packbits
-        channel_data = packbits.decode(channel.data)
-        padding = (len(channel_data) - size[0] * size[1])
+        try:
+            import packbits
+            channel_data = packbits.decode(channel.data.value)
+        except ImportError as e:
+            warnings.warn("Install packbits (%s)" % e)
+            channel_data = b'\x00' * (size[0] * size[1])  # Default fill
+        except IndexError as e:
+            warnings.warn("Failed to decode pattern (%s)" % e)
+            channel_data = b'\x00' * (size[0] * size[1])  # Default fill
+        padding = len(channel_data) - size[0] * size[1]
         im = frombytes('L', size, channel_data[padding:], "raw", 'L')
     else:
         if Compression.is_known(channel.compression):
