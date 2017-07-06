@@ -83,12 +83,12 @@ def group_layers(decoded_data):
             sizeless = (layer.bottom - layer.top == 0) and (layer.right - layer.left == 0)
             if blocks.get(TaggedBlock.TYPE_TOOL_OBJECT_SETTING):
                 layer_type = 'type'
+            elif sizeless and any([TaggedBlock.is_adjustment_key(key) for key in blocks.keys()]):
+                layer_type = 'adjustment'
             elif sizeless and blocks.get(TaggedBlock.VECTOR_ORIGINATION_DATA) and (
                     blocks.get(TaggedBlock.VECTOR_MASK_SETTING1,
                                blocks.get(TaggedBlock.VECTOR_MASK_SETTING2))):
                 layer_type = 'shape'
-            elif sizeless and any([TaggedBlock.is_adjustment_key(key) for key in blocks.keys()]):
-                layer_type = 'adjustment'
             else:
                 layer_type = 'pixel'
 

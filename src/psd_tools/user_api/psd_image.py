@@ -265,7 +265,10 @@ class ShapeLayer(Layer):
             return None
         items = dict(dict(vector_data.data.items).get(
             b'keyDescriptorList').items[0].items)
-        rect = dict(items.get(b'keyOriginShapeBBox').items)
+        origin_bbox = items.get(b'keyOriginShapeBBox', None)
+        if not origin_bbox:
+            return None
+        rect = dict(origin_bbox.items)
         corners = [int(rect[key].value)
                    for key in (b'Left', b'Top ', b'Rght', b'Btom')]
         return BBox(*corners)
