@@ -109,7 +109,7 @@ def decode_ref(key, fp):
     item_count = read_fmt("I", fp)[0]
     items = []
 
-    with_enum = False
+    enum_ref = None
     for _ in range(item_count):
         ostype = fp.read(4)
 
@@ -121,11 +121,11 @@ def decode_ref(key, fp):
         if value is not None:
             items.append(value)
 
-        with_enum = with_enum or (
-            ostype == ReferenceOSType.ENUMERATED_REFERENCE)
+        if ostype == ReferenceOSType.ENUMERATED_REFERENCE:
+            enum_ref = value
 
-    # Undocumented enum fields.
-    if with_enum:
+    # In a rare case, undocumented field exists...
+    if enum_ref and enum_ref.classID == b'Path':
         items.append(_decode_enum_descriptor(key, fp))
     return Reference(items)
 
