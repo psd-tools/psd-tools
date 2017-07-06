@@ -69,6 +69,7 @@ def get_ostype_decode_func(ostype):
         OSType.OBJECT_ARRAY: decode_object_array,
     }.get(ostype, None)
 
+
 def get_reference_ostype_decode_func(ostype):
     return {
         ReferenceOSType.PROPERTY:   decode_prop,
@@ -103,9 +104,12 @@ def decode_descriptor(_, fp):
 
     return Descriptor(name, classID, items)
 
+
 def decode_ref(key, fp):
     item_count = read_fmt("I", fp)[0]
     items = []
+
+    with_enum = False
     for _ in range(item_count):
         ostype = fp.read(4)
 
@@ -117,7 +121,14 @@ def decode_ref(key, fp):
         if value is not None:
             items.append(value)
 
+        with_enum = with_enum or (
+            ostype == ReferenceOSType.ENUMERATED_REFERENCE)
+
+    # Undocumented enum fields.
+    if with_enum:
+        items.append(_decode_enum_descriptor(key, fp))
     return Reference(items)
+
 
 def decode_prop(key, fp):
     name = read_unicode_string(fp)[:-1]
@@ -127,6 +138,7 @@ def decode_prop(key, fp):
     keyID = fp.read(keyID_length or 4)
     return Property(name, classID, keyID)
 
+
 def decode_unit_float(key, fp):
     unit_key = fp.read(4)
     if not UnitFloatType.is_known(unit_key):
@@ -134,6 +146,7 @@ def decode_unit_float(key, fp):
 
     value = read_fmt("d", fp)[0]
     return UnitFloat(UnitFloatType.name_of(unit_key), value)
+
 
 def decode_unit_floats(key, fp):
     unit_key = fp.read(4)
@@ -149,8 +162,10 @@ def decode_unit_floats(key, fp):
 
     return floats
 
+
 def decode_double(key, fp):
     return Double(read_fmt("d", fp)[0])
+
 
 def decode_class(key, fp):
     name = read_unicode_string(fp)[:-1]
@@ -158,9 +173,11 @@ def decode_class(key, fp):
     classID = fp.read(classID_length or 4)
     return Class(name, classID)
 
+
 def decode_string(key, fp):
     value = read_unicode_string(fp)[:-1]
     return String(value)
+
 
 def decode_enum_ref(key, fp):
     name = read_unicode_string(fp)[:-1]
@@ -172,6 +189,7 @@ def decode_enum_ref(key, fp):
     enum = fp.read(enum_length or 4)
     return EnumReference(name, classID, typeID, enum)
 
+
 def decode_offset(key, fp):
     name = read_unicode_string(fp)[:-1]
     classID_length = read_fmt("I", fp)[0]
@@ -179,13 +197,16 @@ def decode_offset(key, fp):
     offset = read_fmt("I", fp)[0]
     return Offset(name, classID, offset)
 
+
 def decode_bool(key, fp):
     return Boolean(read_fmt("?", fp)[0])
+
 
 def decode_alias(key, fp):
     length = read_fmt("I", fp)[0]
     value = fp.read(length)
     return Alias(value)
+
 
 def decode_list(key, fp):
     items_count = read_fmt("I", fp)[0]
@@ -203,8 +224,10 @@ def decode_list(key, fp):
 
     return List(items)
 
+
 def decode_integer(key, fp):
     return Integer(read_fmt("I", fp)[0])
+
 
 def decode_enum(key, fp):
     type_length = read_fmt("I", fp)[0]
@@ -213,11 +236,14 @@ def decode_enum(key, fp):
     value = fp.read(value_length or 4)
     return Enum(type_, value)
 
+
 def decode_identifier(key, fp):
     return Identifier(read_fmt("I", fp)[0])
 
+
 def decode_index(key, fp):
     return Index(read_fmt("I", fp)[0])
+
 
 def decode_name(key, fp):
     value = read_unicode_string(fp)[:-1]
@@ -230,6 +256,7 @@ def decode_raw(key, fp):
     size = read_fmt("I", fp)[0]
     data = fp.read(size)
     return RawData(data)
+
 
 def decode_object_array(key, fp):
     items_per_object_count = read_fmt("I", fp)[0]
@@ -245,6 +272,7 @@ def decode_object_array(key, fp):
 
     return ObjectArray(classObj, items)
 
+
 def decode_object_array_item(key, fp):
     keyID_length = read_fmt("I", fp)[0]
     keyID = fp.read(keyID_length or 4)
@@ -258,6 +286,14 @@ def decode_object_array_item(key, fp):
     value = decode_ostype(key, fp)
 
     return ObjectArrayItem(keyID, value)
+
+
+def _decode_enum_descriptor(key, fp):
+    type_length = read_fmt("I", fp)[0]
+    type_ = fp.read(type_length or 4)
+    value = read_unicode_string(fp)[:-1]  # Undocumented unicode
+    return Enum(type_, value)
+
 
 class UnknownOSType(ValueError):
     pass
