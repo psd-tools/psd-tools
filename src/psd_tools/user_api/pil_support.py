@@ -7,13 +7,14 @@ from psd_tools.constants import Compression, ChannelID, ColorMode, ImageResource
 from psd_tools import icc_profiles
 
 try:
-    from PIL import Image
+    from PIL import Image, ImageDraw
     if hasattr(Image, 'frombytes'):
         frombytes = Image.frombytes
     else:
         frombytes = Image.fromstring  # PIL and older Pillow versions
 except ImportError:
     Image = None
+    ImageDraw = None
 
 try:
     from PIL import ImageCms
@@ -134,6 +135,29 @@ def apply_opacity(im, opacity):
         raise NotImplementedError()
 
 
+def pattern_to_PIL(pattern):
+    channels = [_decompress_pattern_channel(c) for c in pattern.data.channels]
+    if not all(channels):
+        return None
+
+    image = None
+    if len(channels) == 1:
+        image = channels[0]
+    elif len(channels) == 3:
+        image = Image.merge('RGB', channels)
+    elif len(channels) == 4:
+        image = Image.merge('RGBA', channels)
+    return image
+
+
+def draw_polygon(bbox, anchors, fill='white'):
+    image = Image.new("RGBA", (bbox.width, bbox.height))
+    draw = ImageDraw.Draw(image)
+    draw.polygon(anchors, fill=fill)
+    del draw
+    return image
+
+
 def _channel_data_to_PIL(channel_data, channel_ids, color_mode, size, depth, icc_profile):
     bands = _get_band_images(
         channel_data=channel_data,
@@ -229,21 +253,6 @@ def _decompress_channel(channel, depth, size):
     return im.convert('L')
 
 
-def pattern_to_PIL(pattern):
-    channels = [_decompress_pattern_channel(c) for c in pattern.data.channels]
-    if not all(channels):
-        return None
-
-    image = None
-    if len(channels) == 1:
-        image = channels[0]
-    elif len(channels) == 3:
-        image = Image.merge('RGB', channels)
-    elif len(channels) == 4:
-        image = Image.merge('RGBA', channels)
-    return image
-
-
 def _decompress_pattern_channel(channel):
     depth = channel.depth
     size = (channel.rectangle[3], channel.rectangle[2])
@@ -269,7 +278,13 @@ def _decompress_pattern_channel(channel):
         except IndexError as e:
             warnings.warn("Failed to decode pattern (%s)" % e)
             channel_data = b'\x00' * (size[0] * size[1])  # Default fill
+        # Packbit pattern tends not to have the correct size ???
         padding = len(channel_data) - size[0] * size[1]
+        if padding < 0:
+            warnings.warn('Broken pattern data (%g for %g)' % (
+                len(channel_data), size[0] * size[1]))
+            channel_data += b'\x00' * -padding  # Append default fill
+            padding = 0
         im = frombytes('L', size, channel_data[padding:], "raw", 'L')
     else:
         if Compression.is_known(channel.compression):

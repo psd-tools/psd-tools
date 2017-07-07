@@ -7,6 +7,7 @@ from psd_tools import PSDImage, BBox
 from psd_tools.constants import TaggedBlock
 from psd_tools.decoder.tagged_blocks import (
     BrightnessContrast, LevelsSettings, CurvesSettings, Exposure)
+from PIL.Image import Image
 from .utils import decode_psd, DATA_PATH
 
 
@@ -18,3 +19,10 @@ def test_adjustment_layers():
     assert isinstance(dict(layers[5].tagged_blocks)[b'levl'], LevelsSettings)
     assert isinstance(dict(layers[4].tagged_blocks)[b'brit'],
                       BrightnessContrast)
+
+
+def test_adjustment_and_shapes():
+    psd = PSDImage(decode_psd('adjustment-fillers.psd'))
+    for layer in psd.layers:
+        if layer.bbox.width:
+            assert isinstance(layer.as_PIL(), Image)

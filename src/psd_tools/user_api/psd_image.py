@@ -244,13 +244,8 @@ class ShapeLayer(Layer):
 
     def as_PIL(self):
         """ Returns a PIL image for this layer. """
-        from PIL import Image, ImageDraw
-        bbox = self.bbox
-        image = Image.new("RGBA", (bbox.width, bbox.height))
-        draw = ImageDraw.Draw(image)
-        draw.polygon(self.anchors, fill=self._get_color())
-        del draw
-        return image
+        return pil_support.draw_polygon(self.bbox, self.anchors,
+                                        self._get_color())
 
     def as_pymaging(self):
         """ Returns a pymaging.Image for this PSD file. """
@@ -259,19 +254,14 @@ class ShapeLayer(Layer):
     @property
     def bbox(self):
         """ BBox(x1, y1, x2, y2) namedtuple of the shape. """
-        blocks = self._tagged_blocks
-        vector_data = blocks.get(TaggedBlock.VECTOR_ORIGINATION_DATA)
-        if not vector_data:
-            return None
-        items = dict(dict(vector_data.data.items).get(
-            b'keyDescriptorList').items[0].items)
-        origin_bbox = items.get(b'keyOriginShapeBBox', None)
-        if not origin_bbox:
-            return None
-        rect = dict(origin_bbox.items)
-        corners = [int(rect[key].value)
-                   for key in (b'Left', b'Top ', b'Rght', b'Btom')]
-        return BBox(*corners)
+        anchors = self.anchors
+        if not anchors or len(anchors) < 2:
+            logger.warning("Empty shape anchors")
+            return BBox(0, 0, 0, 0)
+        return BBox(min([p[0] for p in anchors]),
+                    min([p[1] for p in anchors]),
+                    max([p[0] for p in anchors]),
+                    max([p[1] for p in anchors]))
 
     @property
     def anchors(self):
@@ -281,14 +271,14 @@ class ShapeLayer(Layer):
                           blocks.get(TaggedBlock.VECTOR_MASK_SETTING2))
         if not vmsk:
             return None
-        bbox = self.bbox
-        return [(int(p['anchor'][1] * bbox.width),
-                 int(p['anchor'][0] * bbox.height))
+        return [(int(p['anchor'][1] * self._psd.header.width),
+                 int(p['anchor'][0] * self._psd.header.height))
                 for p in vmsk.path if p.get('selector') in (1, 2)]
 
     def _get_color(self, default='black'):
         soco = self._tagged_blocks.get(TaggedBlock.SOLID_COLOR_SHEET_SETTING)
         if not soco:
+            logger.warning("Gradient or pattern fill not supported")
             return default
         color_data = dict(soco.data.items).get(b'Clr ')
         if color_data.classID == b'RGBC':

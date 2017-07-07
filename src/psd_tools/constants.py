@@ -226,10 +226,14 @@ class PrintScaleStyle(Enum):
 
 class TaggedBlock(Enum):
 
+    _FILL_KEYS = set([
+        b'SoCo', b'GdFl', b'PtFl'
+    ])
+
     _ADJUSTMENT_KEYS = set([
-        b'SoCo', b'GdFl', b'PtFl', b'brit', b'levl', b'curv', b'expA',
-        b'vibA', b'hue ', b'hue2', b'blnc', b'blwh', b'phfl', b'mixr',
-        b'clrL', b'nvrt', b'post', b'thrs', b'grdm', b'selc'
+        b'brit', b'levl', b'curv', b'expA', b'vibA', b'hue ', b'hue2',
+        b'blnc', b'blwh', b'phfl', b'mixr', b'clrL', b'nvrt', b'post',
+        b'thrs', b'grdm', b'selc'
     ])
 
     SOLID_COLOR_SHEET_SETTING = b'SoCo'
@@ -256,6 +260,10 @@ class TaggedBlock(Enum):
     @classmethod
     def is_adjustment_key(cls, key):
         return key in cls._ADJUSTMENT_KEYS
+
+    @classmethod
+    def is_fill_key(cls, key):
+        return key in cls._FILL_KEYS
 
     EFFECTS_LAYER = b'lrFX'
     TYPE_TOOL_INFO = b'tySh'
