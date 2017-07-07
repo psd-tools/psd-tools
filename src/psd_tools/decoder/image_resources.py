@@ -33,6 +33,9 @@ _image_resource_decoders.update({
 })
 
 
+HalftoneScreen = namedtuple(
+    'HalftoneScreen', 'ink_frequency units angle shape accurate_screen '
+    'printer_default')
 TransferFunction = namedtuple('TransferFunction', 'curve override')
 PrintScale = namedtuple('PrintScale', 'style, x, y, scale')
 PrintFlags = namedtuple(
@@ -127,6 +130,31 @@ def _decode_descriptor_resource(data, kls):
     except UnknownOSType as e:
         warnings.warn("Ignoring image resource %s" % e)
         return data
+
+
+@register(ImageResourceID.GRAYSCALE_HALFTONING_INFO)
+@register(ImageResourceID.COLOR_HALFTONING_INFO)
+@register(ImageResourceID.DUOTONE_HALFTONING_INFO)
+def _decode_halftone_screens(data):
+    if not len(data) == 72:
+        return data
+    fp = io.BytesIO(data)
+    descriptions = []
+    for i in range(4):
+        # 16 bits + 16 bits fixed points.
+        ink_frequency = float(read_fmt("I", fp)[0]) / 0x10000
+        units = read_fmt("h", fp)[0]
+        angle = read_fmt("I", fp)[0] / 0x10000
+        shape = read_fmt("H", fp)[0]
+        padding = read_fmt("I", fp)[0]
+        if padding:
+            warnings.warn("Invalid halftone screens")
+            return data
+        accurate_screen, printer_default = read_fmt("2?", fp)
+        descriptions.append(HalftoneScreen(
+            ink_frequency, units, angle, shape, accurate_screen,
+            printer_default))
+    return descriptions
 
 
 @register(ImageResourceID.GRAYSCALE_TRANSFER_FUNCTION)
