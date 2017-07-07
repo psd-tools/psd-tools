@@ -83,9 +83,6 @@ ColorStop = pretty_namedtuple('ColorStop', 'location midpoint mode color')
 TransparencyStop = pretty_namedtuple(
     'TransparencyStop',
     'location midpoint opacity expansion interpolation length mode')
-    # ' length mode '
-    # 'random_seed show_transparency use_vector_color roughness color_model '
-    # 'mim_color max_color')
 ExportData = pretty_namedtuple('ExportData', 'version data')
 VectorStrokeSetting = pretty_namedtuple('VectorStrokeSetting', 'version data')
 VectorStrokeContentSetting = pretty_namedtuple(
@@ -104,6 +101,7 @@ AnimationEffects = pretty_namedtuple(
 VectorOriginationData = pretty_namedtuple('VectorOriginationData', 'version descriptor_version data')
 VectorMaskSetting = pretty_namedtuple(
     'VectorMaskSetting','version invert not_link disable path')
+PixelSourceData = pretty_namedtuple('PixelSourceData', 'version data')
 ArtboardData = pretty_namedtuple('ArtboardData', 'version data')
 FilterEffects = pretty_namedtuple(
     'FilterEffects',
@@ -640,6 +638,18 @@ def _decode_vector_origination_data(data, **kwargs):
         return data
 
     return VectorOriginationData(ver, descr_ver, vector_origination_data)
+
+
+@register(TaggedBlock.PIXEL_SOURCE_DATA1)
+def _decode_pixel_source_data1(data, **kwargs):
+    return _decode_descriptor_block(data, PixelSourceData)
+
+
+@register(TaggedBlock.PIXEL_SOURCE_DATA2)
+def _decode_pixel_source_data2(data, **kwargs):
+    fp = io.BytesIO(data)
+    length = read_fmt("Q", fp)
+    return fp.read(length)
 
 
 @register(TaggedBlock.VECTOR_MASK_SETTING1)

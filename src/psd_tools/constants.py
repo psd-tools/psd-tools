@@ -301,6 +301,8 @@ class TaggedBlock(Enum):
     LAYER_MASK_AS_GLOBAL_MASK = b'lmgm'
     VECTOR_MASK_AS_GLOBAL_MASK = b'vmgm'
     VECTOR_ORIGINATION_DATA = b'vogk'
+    PIXEL_SOURCE_DATA1 = b'PxSc'
+    PIXEL_SOURCE_DATA2 = b'PxSD'
     ARTBOARD_DATA1 = b'artb'
     ARTBOARD_DATA2 = b'artd'
     ARTBOARD_DATA3 = b'abdd'
