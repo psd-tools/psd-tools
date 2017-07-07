@@ -32,6 +32,8 @@ _image_resource_decoders.update({
     ImageResourceID.AUTO_SAVE_FORMAT:           decoders.unicode_string,
 })
 
+
+TransferFunction = namedtuple('TransferFunction', 'curve override')
 PrintScale = namedtuple('PrintScale', 'style, x, y, scale')
 PrintFlags = namedtuple(
     'PrintFlags', 'labels, crop_marks, color_bars, registration_marks, '
@@ -125,6 +127,21 @@ def _decode_descriptor_resource(data, kls):
     except UnknownOSType as e:
         warnings.warn("Ignoring image resource %s" % e)
         return data
+
+
+@register(ImageResourceID.GRAYSCALE_TRANSFER_FUNCTION)
+@register(ImageResourceID.COLOR_TRANSFER_FUNCTION)
+@register(ImageResourceID.DUOTONE_TRANSFER_FUNCTION)
+def _decode_transfer_function(data):
+    if not len(data) == 112:
+        return data
+    fp = io.BytesIO(data)
+    functions = []
+    for i in range(4):
+        curve = read_fmt("13h", fp)
+        override = read_fmt("H", fp)[0]
+        functions.append(TransferFunction(curve, override))
+    return functions
 
 
 @register(ImageResourceID.LAYER_GROUP_INFO)
