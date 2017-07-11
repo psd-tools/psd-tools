@@ -11,6 +11,7 @@ from psd_tools.decoder.actions import (decode_descriptor, UnknownOSType,
 from psd_tools.utils import (read_fmt, unpack, read_unicode_string,
                              read_pascal_string)
 from psd_tools.decoder import decoders, layer_effects
+from psd_tools.decoder.color import decode_color
 from psd_tools.reader.layers import Block
 from psd_tools.debug import pretty_namedtuple
 from psd_tools.decoder import engine_data
@@ -98,16 +99,19 @@ UnicodePathName = pretty_namedtuple(
     'UnicodePathName', 'descriptor_version descriptor')
 AnimationEffects = pretty_namedtuple(
     'AnimationEffects', 'descriptor_version descriptor')
+FilterMask = pretty_namedtuple('FilterMask', 'color opacity')
 VectorOriginationData = pretty_namedtuple('VectorOriginationData', 'version descriptor_version data')
 VectorMaskSetting = pretty_namedtuple(
     'VectorMaskSetting','version invert not_link disable path')
 PixelSourceData = pretty_namedtuple('PixelSourceData', 'version data')
 ArtboardData = pretty_namedtuple('ArtboardData', 'version data')
+UserMask = pretty_namedtuple('UserMask', 'color opacity flag')
 FilterEffects = pretty_namedtuple(
     'FilterEffects',
     'uuid version rectangle depth max_channels channels extra_data')
 FilterEffectChannel = pretty_namedtuple(
     'FilterEffectChannel', 'is_written compression data')
+
 
 class Divider(collections.namedtuple('Divider', 'block type key')):
     def __repr__(self):
@@ -619,7 +623,10 @@ def _decode_animation_effects(data, **kwargs):
 
 @register(TaggedBlock.FILTER_MASK)
 def _decode_filter_mask(data, **kwargs):
-    return read_fmt("10s H", io.BytesIO(data))
+    fp = io.BytesIO(data)
+    color = decode_color(fp)
+    opacity = read_fmt("H", fp)[0]
+    return FilterMask(color, opacity)
 
 
 @register(TaggedBlock.VECTOR_ORIGINATION_DATA)
@@ -730,6 +737,14 @@ def _decode_channel_blending_restrictions_setting(data, **kwargs):
         channel = read_fmt("I", fp)[0]
         restrictions[channel] = True
     return restrictions
+
+
+@register(TaggedBlock.USER_MASK)
+def _decode_user_mask(data, **kwargs):
+    fp = io.BytesIO(data)
+    color = decode_color(fp)
+    opacity, flag = read_fmt("H B", fp)
+    return UserMask(color, opacity, flag)
 
 
 @register(TaggedBlock.FILTER_EFFECTS1)
