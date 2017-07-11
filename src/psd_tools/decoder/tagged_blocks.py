@@ -111,6 +111,12 @@ FilterEffects = pretty_namedtuple(
     'uuid version rectangle depth max_channels channels extra_data')
 FilterEffectChannel = pretty_namedtuple(
     'FilterEffectChannel', 'is_written compression data')
+PlacedLayerObsolete = pretty_namedtuple(
+    'PlacedLayerObsolete',
+    'type version uuid page total_pages anti_alias layer_type transformation '
+    'warp')
+WarpInformation = pretty_namedtuple(
+    'WarpInformation', 'version descriptor_version descriptor')
 
 
 class Divider(collections.namedtuple('Divider', 'block type key')):
@@ -681,6 +687,24 @@ def _decode_vector_mask_setting1(data, **kwargs):
 @register(TaggedBlock.ARTBOARD_DATA3)
 def _decode_artboard_data(data, **kwargs):
     return _decode_descriptor_block(data, ArtboardData)
+
+
+@register(TaggedBlock.PLACED_LAYER_OBSOLETE1)
+@register(TaggedBlock.PLACED_LAYER_OBSOLETE2)
+def _decode_placed_layer(data, **kwargs):
+    fp = io.BytesIO(data)
+    type_, version = read_fmt("2I", fp)
+    if version != 3:
+        warnings.warn("Unsupported placed layer version %s" % (version))
+        return data
+    uuid = read_pascal_string(fp, "ascii")
+    page, total_pages, anti_alias, layer_type = read_fmt("4I", fp)
+    transformation = read_fmt("8d", fp)
+    warp_version, warp_desc_version = read_fmt("2I", fp)
+    descriptor = decode_descriptor(None, fp)
+    warp = WarpInformation(warp_version, warp_desc_version, descriptor)
+    return PlacedLayerObsolete(type_, version, uuid, page, total_pages,
+                               anti_alias, layer_type, transformation, warp)
 
 
 @register(TaggedBlock.LINKED_LAYER1)
