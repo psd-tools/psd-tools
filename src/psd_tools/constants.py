@@ -116,7 +116,7 @@ class ImageResourceID(Enum):
     PRINT_INFO_CS2 = 1071
     LAYER_GROUPS_ENABLED_ID = 1072
     COLOR_SAMPLERS_RESOURCE = 1073
-    MEASURMENT_SCALE = 1074
+    MEASUREMENT_SCALE = 1074
     TIMELINE_INFO = 1075
     SHEET_DISCLOSURE = 1076
     DISPLAY_INFO = 1077
@@ -226,10 +226,14 @@ class PrintScaleStyle(Enum):
 
 class TaggedBlock(Enum):
 
+    _FILL_KEYS = set([
+        b'SoCo', b'GdFl', b'PtFl'
+    ])
+
     _ADJUSTMENT_KEYS = set([
-        b'SoCo', b'GdFl', b'PtFl', b'brit', b'levl', b'curv', b'expA',
-        b'vibA', b'hue ', b'hue2', b'blnc', b'blwh', b'phfl', b'mixr',
-        b'clrL', b'nvrt', b'post', b'thrs', b'grdm', b'selc'
+        b'brit', b'levl', b'curv', b'expA', b'vibA', b'hue ', b'hue2',
+        b'blnc', b'blwh', b'phfl', b'mixr', b'clrL', b'nvrt', b'post',
+        b'thrs', b'grdm', b'selc'
     ])
 
     SOLID_COLOR_SHEET_SETTING = b'SoCo'
@@ -257,10 +261,16 @@ class TaggedBlock(Enum):
     def is_adjustment_key(cls, key):
         return key in cls._ADJUSTMENT_KEYS
 
+    @classmethod
+    def is_fill_key(cls, key):
+        return key in cls._FILL_KEYS
+
     EFFECTS_LAYER = b'lrFX'
     TYPE_TOOL_INFO = b'tySh'
     UNICODE_LAYER_NAME = b'luni'
     LAYER_ID = b'lyid'
+    OBJECT_BASED_EFFECTS_LAYER_INFO_V0 = b'lmfx'  # Undocumented.
+    OBJECT_BASED_EFFECTS_LAYER_INFO_V1 = b'lfxs'  # Undocumented.
     OBJECT_BASED_EFFECTS_LAYER_INFO = b'lfx2'
 
     PATTERNS1 = b'Patt'
@@ -270,6 +280,7 @@ class TaggedBlock(Enum):
     ANNOTATIONS = b'Anno'
     BLEND_CLIPPING_ELEMENTS = b'clbl'
     BLEND_INTERIOR_ELEMENTS = b'infx'
+    BLEND_FILL_OPACITY = b'iOpa'  # Undocumented.
 
     KNOCKOUT_SETTING = b'knko'
     PROTECTED_SETTING = b'lspf'
@@ -290,6 +301,11 @@ class TaggedBlock(Enum):
     LAYER_MASK_AS_GLOBAL_MASK = b'lmgm'
     VECTOR_MASK_AS_GLOBAL_MASK = b'vmgm'
     VECTOR_ORIGINATION_DATA = b'vogk'
+    PIXEL_SOURCE_DATA1 = b'PxSc'
+    PIXEL_SOURCE_DATA2 = b'PxSD'
+    ARTBOARD_DATA1 = b'artb'
+    ARTBOARD_DATA2 = b'artd'
+    ARTBOARD_DATA3 = b'abdd'
 
     PLACED_LAYER_OBSOLETE1 = b'plLd'
     PLACED_LAYER_OBSOLETE2 = b'PlLd'
@@ -297,6 +313,7 @@ class TaggedBlock(Enum):
     LINKED_LAYER1 = b'lnkD'
     LINKED_LAYER2 = b'lnk2'
     LINKED_LAYER3 = b'lnk3'
+    LINKED_LAYER_EXTERNAL = b'lnkE'
     CONTENT_GENERATOR_EXTRA_DATA = b'CgEd'
     TEXT_ENGINE_DATA = b'Txt2'
     UNICODE_PATH_NAME = b'pths'
@@ -304,6 +321,7 @@ class TaggedBlock(Enum):
     FILTER_MASK = b'FMsk'
     PLACED_LAYER_DATA = b'SoLd'
     SMART_OBJECT_PLACED_LAYER_DATA = b'SoLE'
+    EXPORT_DATA = b'extd'  # Undocumented.
 
     VECTOR_STROKE_DATA = b'vstk'
     VECTOR_STROKE_CONTENT_DATA = b'vscg'
@@ -314,6 +332,7 @@ class TaggedBlock(Enum):
     USER_MASK = b'LMsk'
     FILTER_EFFECTS1 = b'FXid'
     FILTER_EFFECTS2 = b'FEid'
+    FILTER_EFFECTS3 = b'FELS'  # Undocumented.
 
     LAYER_16 = b'Lr16'
     LAYER_32 = b'Lr32'
@@ -409,3 +428,21 @@ class TextProperty(Enum):
 
 class TextOrientation(Enum):
     HORIZONTAL = b'Hrzn'
+
+
+class PathResource(Enum):
+    CLOSED_SUBPATH_LENGTH_RECORD = 0
+    CLOSED_SUBPATH_BEZIER_KNOT_LINKED = 1
+    CLOSED_SUBPATH_BEZIER_KNOT_UNLINKED = 2
+    OPEN_SUBPATH_LENGTH_RECORD = 3
+    OPEN_SUBPATH_BEZIER_KNOT_LINKED = 4
+    OPEN_SUBPATH_BEZIER_KNOT_UNLINKED = 5
+    PATH_FILL_RULE_RECORD = 6
+    CLIPBOARD_RECORD = 7
+    INITIAL_FILL_RULE_RECORD = 8
+
+
+class LinkedLayerType(Enum):
+    DATA = b'liFD'
+    EXTERNAL = b'liFE'
+    UNKNOWN = b'liFA'

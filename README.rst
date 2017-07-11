@@ -45,6 +45,14 @@ library::
 .. _packbits: http://pypi.python.org/pypi/packbits/
 .. _Pymaging: https://github.com/ojii/pymaging
 .. _Pymaging installation instructions: http://pymaging.readthedocs.org/en/latest/usr/installation.html
+.. _exifread: https://github.com/ianare/exif-py
+
+Optional exif decoding is available with exifread_ library.
+
+::
+
+    pip install exifread
+
 
 Usage
 -----
@@ -109,6 +117,11 @@ Work with a layer::
     >>> layer.as_PIL()
     <PIL.Image.Image image mode=RGBA size=43x62 at ...>
 
+    >>> layer.mask_data.bbox
+    BBox(x1=40, y1=72, x2=83, y2=134)
+
+    >>> layer.mask_data.as_PIL()
+    <PIL.Image.Image image mode=L size=43x62 at ...>
 
 Export a single layer::
 
@@ -131,6 +144,11 @@ Export layer group (experimental)::
 
     >>> group_image = group2.as_PIL()
     >>> group_image.save('group.png')
+
+Get pattern dict::
+
+    >>> psd.patterns
+    {'b2fdfd29-de85-11d5-838b-ff55e75fb875': <psd_tools.Pattern: size=265x219 ...>}
 
 
 Why yet another PSD reader?
@@ -217,14 +235,18 @@ Supported:
 * layer effects information is decoded;
 * Descriptor structures are decoded;
 * there is an optional Cython extension to make the parsing fast;
-* very basic & experimental layer merging.
+* very basic & experimental layer merging;
+* support both PSD and PSB file formats;
+* EngineData structure is decoded;
+* EXIF data is taken into account;
+* experimental JSON export (only Python 3).
 
 Not implemented:
 
 * reading of Duotone, LAB, etc. images;
-* many image resource types and tagged blocks are not decoded
+* some image resource types and tagged blocks are not decoded
   (they are attached to the result as raw bytes);
-* some of the raw Descriptor values (like EngineData) are not decoded;
+* some of the raw Descriptor values are not decoded;
 * this library can't reliably blend layers together: it is possible to export
   a single layer and to export a final image, but rendering of
   e.g. layer group may produce incorrect results;
@@ -232,7 +254,7 @@ Not implemented:
 * Pymaging_ support is limited: it only supports 8bit RGB/RGBA
   images, ICC profiles are not applied, layer merging doesn't work, etc.
 
-If you need some of unimplemented features then please fire an issue
+If you need some of unimplemented features then please file an issue
 or implement it yourself (pull requests are welcome in this case).
 
 

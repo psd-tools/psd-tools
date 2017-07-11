@@ -7,13 +7,14 @@ from psd_tools.constants import Compression, ChannelID, ColorMode, ImageResource
 from psd_tools import icc_profiles
 
 try:
-    from PIL import Image
+    from PIL import Image, ImageDraw
     if hasattr(Image, 'frombytes'):
         frombytes = Image.frombytes
     else:
         frombytes = Image.fromstring  # PIL and older Pillow versions
 except ImportError:
     Image = None
+    ImageDraw = None
 
 try:
     from PIL import ImageCms
@@ -43,6 +44,35 @@ def extract_layer_image(decoded_data, layer_index):
         size = (layer.width(), layer.height()),
         depth = decoded_data.header.depth,
         icc_profile = get_icc_profile(decoded_data)
+    )
+
+
+def extract_layer_mask(decoded_data, layer_index, real_mask):
+    """
+    Converts a layer mask from the ``decoded_data`` to a PIL image.
+
+    If ``real_mask`` is True, extract real mask consisting of both bitmap and
+    vector mask.
+    """
+    layers = decoded_data.layer_and_mask_data.layers
+    layer = layers.layer_records[layer_index]
+    mask_data = layer.mask_data
+    if not mask_data:
+        return None
+    real_mask = real_mask and mask_data.real_flags
+    if real_mask:
+        size = (mask_data.real_right - mask_data.real_left,
+                mask_data.real_bottom - mask_data.real_top)
+    else:
+        size = (mask_data.right - mask_data.left,
+                mask_data.bottom - mask_data.top)
+
+    return _mask_data_to_PIL(
+        channel_data = layers.channel_image_data[layer_index],
+        channel_ids = _get_layer_channel_ids(layer),
+        size = size,
+        depth = decoded_data.header.depth,
+        real_mask = real_mask
     )
 
 
@@ -105,6 +135,29 @@ def apply_opacity(im, opacity):
         raise NotImplementedError()
 
 
+def pattern_to_PIL(pattern):
+    channels = [_decompress_pattern_channel(c) for c in pattern.data.channels]
+    if not all(channels):
+        return None
+
+    image = None
+    if len(channels) == 1:
+        image = channels[0]
+    elif len(channels) == 3:
+        image = Image.merge('RGB', channels)
+    elif len(channels) == 4:
+        image = Image.merge('RGBA', channels)
+    return image
+
+
+def draw_polygon(bbox, anchors, fill='white'):
+    image = Image.new("RGBA", (bbox.width, bbox.height))
+    draw = ImageDraw.Draw(image)
+    draw.polygon(anchors, fill=fill)
+    del draw
+    return image
+
+
 def _channel_data_to_PIL(channel_data, channel_ids, color_mode, size, depth, icc_profile):
     bands = _get_band_images(
         channel_data=channel_data,
@@ -156,37 +209,90 @@ def _merge_bands(bands, color_mode, size, icc_profile):
 def _get_band_images(channel_data, channel_ids, color_mode, size, depth):
     bands = {}
     for channel, channel_id in zip(channel_data, channel_ids):
-
         pil_band = _channel_id_to_PIL(channel_id, color_mode)
         if pil_band is None:
-            warnings.warn("Unsupported channel type (%d)" % channel_id)
             continue
 
-        if channel.compression in [Compression.RAW, Compression.ZIP, Compression.ZIP_WITH_PREDICTION]:
-            if depth == 8:
-                im = _from_8bit_raw(channel.data, size)
-            elif depth == 16:
-                im = _from_16bit_raw(channel.data, size)
-            elif depth == 32:
-                im = _from_32bit_raw(channel.data, size)
-            else:
-                warnings.warn("Unsupported depth (%s)" % depth)
-                continue
-
-        elif channel.compression == Compression.PACK_BITS:
-            if depth != 8:
-                warnings.warn("Depth %s is unsupported for PackBits compression" % depth)
-                continue
-            im = frombytes('L', size, channel.data, "packbits", 'L')
-        else:
-            if Compression.is_known(channel.compression):
-                warnings.warn("Compression method is not implemented (%s)" % channel.compression)
-            else:
-                warnings.warn("Unknown compression method (%s)" % channel.compression)
-            continue
-
-        bands[pil_band] = im.convert('L')
+        im = _decompress_channel(channel, depth, size)
+        if im:
+            bands[pil_band] = im
     return bands
+
+
+def _mask_data_to_PIL(channel_data, channel_ids, size, depth, real_mask):
+    target_id = (ChannelID.REAL_USER_LAYER_MASK if real_mask
+        else ChannelID.USER_LAYER_MASK)
+    for channel, channel_id in zip(channel_data, channel_ids):
+        if channel_id == target_id:
+            return _decompress_channel(channel, depth, size)
+    return None
+
+
+def _decompress_channel(channel, depth, size):
+    if channel.compression in [Compression.RAW, Compression.ZIP, Compression.ZIP_WITH_PREDICTION]:
+        if depth == 8:
+            im = _from_8bit_raw(channel.data, size)
+        elif depth == 16:
+            im = _from_16bit_raw(channel.data, size)
+        elif depth == 32:
+            im = _from_32bit_raw(channel.data, size)
+        else:
+            warnings.warn("Unsupported depth (%s)" % depth)
+            return None
+
+    elif channel.compression == Compression.PACK_BITS:
+        if depth != 8:
+            warnings.warn("Depth %s is unsupported for PackBits compression" % depth)
+        im = frombytes('L', size, channel.data, "packbits", 'L')
+    else:
+        if Compression.is_known(channel.compression):
+            warnings.warn("Compression method is not implemented (%s)" % channel.compression)
+        else:
+            warnings.warn("Unknown compression method (%s)" % channel.compression)
+        return None
+    return im.convert('L')
+
+
+def _decompress_pattern_channel(channel):
+    depth = channel.depth
+    size = (channel.rectangle[3], channel.rectangle[2])
+    if channel.compression in [Compression.RAW, Compression.ZIP, Compression.ZIP_WITH_PREDICTION]:
+        if depth == 8:
+            im = _from_8bit_raw(channel.data.value, size)
+        elif depth == 16:
+            im = _from_16bit_raw(channel.data.value, size)
+        elif depth == 32:
+            im = _from_32bit_raw(channel.data.value, size)
+        else:
+            warnings.warn("Unsupported depth (%s)" % depth)
+            return None
+    elif channel.compression == Compression.PACK_BITS:
+        if depth != 8:
+            warnings.warn("Depth %s is unsupported for PackBits compression" % depth)
+        try:
+            import packbits
+            channel_data = packbits.decode(channel.data.value)
+        except ImportError as e:
+            warnings.warn("Install packbits (%s)" % e)
+            channel_data = b'\x00' * (size[0] * size[1])  # Default fill
+        except IndexError as e:
+            warnings.warn("Failed to decode pattern (%s)" % e)
+            channel_data = b'\x00' * (size[0] * size[1])  # Default fill
+        # Packbit pattern tends not to have the correct size ???
+        padding = len(channel_data) - size[0] * size[1]
+        if padding < 0:
+            warnings.warn('Broken pattern data (%g for %g)' % (
+                len(channel_data), size[0] * size[1]))
+            channel_data += b'\x00' * -padding  # Append default fill
+            padding = 0
+        im = frombytes('L', size, channel_data[padding:], "raw", 'L')
+    else:
+        if Compression.is_known(channel.compression):
+            warnings.warn("Compression method is not implemented (%s)" % channel.compression)
+        else:
+            warnings.warn("Unknown compression method (%s)" % channel.compression)
+        return None
+    return im.convert('L')
 
 
 def _from_8bit_raw(data, size):
@@ -209,7 +315,8 @@ def _channel_id_to_PIL(channel_id, color_mode):
     if ChannelID.is_known(channel_id):
         if channel_id == ChannelID.TRANSPARENCY_MASK:
             return 'A'
-        warnings.warn("Channel %s (%s) is not handled" % (channel_id, ChannelID.name_of(channel_id)))
+        elif channel_id in (ChannelID.USER_LAYER_MASK, ChannelID.REAL_USER_LAYER_MASK):
+            return None
         return None
 
     try:

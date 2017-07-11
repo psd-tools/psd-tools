@@ -37,6 +37,7 @@ def group_layers(decoded_data):
                     id = layer_id,
                     index = index,
                     name = name,
+                    type = 'group',
                     layers = [],
                     closed = divider.type == SectionDivider.CLOSED_FOLDER,
 
@@ -79,11 +80,31 @@ def group_layers(decoded_data):
                 warnings.warn("invalid state")
         else:
             # layer with image
+            sizeless = (layer.bottom - layer.top == 0) and (layer.right - layer.left == 0)
+            if blocks.get(TaggedBlock.TYPE_TOOL_OBJECT_SETTING):
+                layer_type = 'type'
+            elif sizeless:
+                if any([TaggedBlock.is_adjustment_key(key) for key in blocks.keys()]):
+                    layer_type = 'adjustment'
+                elif (TaggedBlock.VECTOR_ORIGINATION_DATA in blocks or
+                      TaggedBlock.VECTOR_STROKE_DATA in blocks):
+                    layer_type = 'shape'
+                else:
+                    layer_type = 'adjustment'  # Fill with vector mask or shape?
+            elif sizeless and any([TaggedBlock.is_adjustment_key(key) for key in blocks.keys()]):
+                layer_type = 'adjustment'
+            elif sizeless and blocks.get(TaggedBlock.VECTOR_ORIGINATION_DATA) and (
+                    blocks.get(TaggedBlock.VECTOR_MASK_SETTING1,
+                               blocks.get(TaggedBlock.VECTOR_MASK_SETTING2))):
+                layer_type = 'shape'
+            else:
+                layer_type = 'pixel'
 
             current_group['layers'].append(dict(
                 id = layer_id,
                 index = index,
                 name = name,
+                type = layer_type,
 
                 top = layer.top,
                 left = layer.left,

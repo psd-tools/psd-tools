@@ -6,7 +6,8 @@ import collections
 import weakref              # FIXME: there should be weakrefs in this module
 import psd_tools.reader
 import psd_tools.decoder
-from psd_tools.constants import TaggedBlock, SectionDivider, BlendMode, TextProperty, PlacedLayerProperty, SzProperty
+from psd_tools.constants import (TaggedBlock, SectionDivider, BlendMode,
+    TextProperty, PlacedLayerProperty, SzProperty, ChannelID)
 from psd_tools.user_api.layers import group_layers
 from psd_tools.user_api import pymaging_support
 from psd_tools.user_api import pil_support
@@ -39,6 +40,80 @@ class PlacedLayerData(object):
         placed_layer_data = dict(placed_layer_block)
         self.transform = placed_layer_data[PlacedLayerProperty.TRANSFORM].items
         self.size = dict(placed_layer_data[PlacedLayerProperty.SIZE].items)
+
+
+class MaskData(object):
+    def __init__(self, layer):
+        self.mask_data = layer._info.mask_data
+        self._decoded_data = layer._psd.decoded_data
+        self._layer_index = layer._index
+
+    @property
+    def bbox(self, real_mask=True):
+        """ BBox(x1, y1, x2, y2) namedtuple with mask bounding box. """
+        if real_mask and self.mask_data.real_flags:
+            return BBox(self.mask_data.real_left, self.mask_data.real_top,
+                        self.mask_data.real_right, self.mask_data.real_bottom)
+        else:
+            return BBox(self.mask_data.left, self.mask_data.top,
+                        self.mask_data.right, self.mask_data.bottom)
+
+    @property
+    def background_color(self):
+        return self.mask_data.background_color
+
+    @property
+    def is_valid(self):
+        bbox = self.bbox
+        return bbox.width > 0 and bbox.height > 0
+
+    def as_PIL(self, real_mask=True):
+        """
+        Returns a PIL image for the mask.
+
+        If ``real_mask`` is True, extract real mask consisting of both bitmap
+        and vector mask.
+
+        Returns ``None`` if the mask has zero size.
+        """
+        if not self.is_valid:
+            return None
+        return pil_support.extract_layer_mask(self._decoded_data,
+                                              self._layer_index,
+                                              real_mask)
+
+    def __repr__(self):
+        bbox = self.bbox
+        return "<psd_tools.Mask: size=%dx%d, x=%d, y=%d>" % (
+            bbox.width, bbox.height, bbox.x1, bbox.y1)
+
+
+class PatternData(object):
+    def __init__(self, pattern):
+        self._pattern = pattern
+
+    @property
+    def pattern_id(self):
+        return self._pattern.pattern_id
+
+    @property
+    def name(self):
+        return self._pattern.name
+
+    @property
+    def width(self):
+        return self._pattern.point[1]
+
+    @property
+    def height(self):
+        return self._pattern.point[0]
+
+    def as_PIL(self):
+        return pil_support.pattern_to_PIL(self._pattern)
+
+    def __repr__(self):
+        return "<psd_tools.Pattern: name='%s' size=%dx%d>" % (
+            self.name, self.width, self.height)
 
 
 class _RawLayer(object):
@@ -153,9 +228,69 @@ class Layer(_RawLayer):
         if tagged_blocks:
             return TextData(tagged_blocks)
 
+    @property
+    def mask_data(self):
+        return MaskData(self) if self._info.mask_data else None
+
+
     def __repr__(self):
         bbox = self.bbox
         return "<psd_tools.Layer: %r, size=%dx%d, x=%d, y=%d>" % (
+            self.name, bbox.width, bbox.height, bbox.x1, bbox.y1)
+
+
+class ShapeLayer(Layer):
+    """ PSD shape layer wrapper """
+
+    def as_PIL(self):
+        """ Returns a PIL image for this layer. """
+        return pil_support.draw_polygon(self.bbox, self.anchors,
+                                        self._get_color())
+
+    def as_pymaging(self):
+        """ Returns a pymaging.Image for this PSD file. """
+        raise NotImplementedError
+
+    @property
+    def bbox(self):
+        """ BBox(x1, y1, x2, y2) namedtuple of the shape. """
+        anchors = self.anchors
+        if not anchors or len(anchors) < 2:
+            logger.warning("Empty shape anchors")
+            return BBox(0, 0, 0, 0)
+        return BBox(min([p[0] for p in anchors]),
+                    min([p[1] for p in anchors]),
+                    max([p[0] for p in anchors]),
+                    max([p[1] for p in anchors]))
+
+    @property
+    def anchors(self):
+        """ Anchor points of the shape [(x, y), (x, y), ...]. """
+        blocks = self._tagged_blocks
+        vmsk = blocks.get(TaggedBlock.VECTOR_MASK_SETTING1,
+                          blocks.get(TaggedBlock.VECTOR_MASK_SETTING2))
+        if not vmsk:
+            return None
+        return [(int(p['anchor'][1] * self._psd.header.width),
+                 int(p['anchor'][0] * self._psd.header.height))
+                for p in vmsk.path if p.get('selector') in (1, 2)]
+
+    def _get_color(self, default='black'):
+        soco = self._tagged_blocks.get(TaggedBlock.SOLID_COLOR_SHEET_SETTING)
+        if not soco:
+            logger.warning("Gradient or pattern fill not supported")
+            return default
+        color_data = dict(soco.data.items).get(b'Clr ')
+        if color_data.classID == b'RGBC':
+            colors = dict(color_data.items)
+            return (int(colors[b'Rd  '].value), int(colors[b'Grn '].value),
+                    int(colors[b'Bl  '].value), int(self.opacity))
+        else:
+            return default
+
+    def __repr__(self):
+        bbox = self.bbox
+        return "<psd_tools.ShapeLayer: %r, size=%dx%d, x=%d, y=%d>" % (
             self.name, bbox.width, bbox.height, bbox.x1, bbox.y1)
 
 
@@ -183,6 +318,10 @@ class Group(_RawLayer):
         """
         return combined_bbox(self.layers)
 
+    @property
+    def mask_data(self):
+        return MaskData(self) if self._info.mask_data else None
+
     def as_PIL(self):
         """
         Returns a PIL image for this group.
@@ -196,7 +335,6 @@ class Group(_RawLayer):
     def __repr__(self):
         return "<psd_tools.Group: %r, layer_count=%d>" % (
             self.name, len(self.layers))
-
 
 
 class PSDImage(object):
@@ -218,8 +356,12 @@ class PSDImage(object):
                     fill_group(sub_group, layer)
                     group._add_layer(sub_group)
                 else:
-                    # regular layer
-                    group._add_layer(Layer(group, index))
+                    layer_type = layer['type']
+                    if layer_type == 'shape':
+                        group._add_layer(ShapeLayer(group, index))
+                    else:
+                        # regular layer
+                        group._add_layer(Layer(group, index))
 
         self._psd = self
         fake_root_data = {'layers': group_layers(decoded_data), 'index': None}
@@ -279,6 +421,17 @@ class PSDImage(object):
         (img.header.width and img.header.heigth).
         """
         return combined_bbox(self.layers)
+
+    @property
+    def patterns(self):
+        """
+        Returns a dict of pattern (texture) data in PIL.Image.
+        """
+        layer_and_mask_data = self.decoded_data.layer_and_mask_data
+        blocks = dict(layer_and_mask_data.tagged_blocks)
+        patterns = blocks.get(b'Patt', blocks.get(b'Pat2', blocks.get(
+            b'Pat3', [])))
+        return {p.pattern_id: PatternData(p) for p in patterns}
 
     def _layer_info(self, index):
         layers = self.decoded_data.layer_and_mask_data.layers.layer_records
