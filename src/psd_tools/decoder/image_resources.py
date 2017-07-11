@@ -86,6 +86,8 @@ GridGuideResource = namedtuple(
     'GridGuideResource', 'version grid_horizontal grid_vertical guides')
 GuideResourceBlock = namedtuple(
     'GuideResourceBlock', 'location direction')
+OriginPathInfo = namedtuple(
+    'OriginPathInfo', 'descriptor_version descriptor')
 
 
 class ResolutionInfo(_ResolutionInfo):
@@ -437,3 +439,8 @@ def _decode_path_selection_state(data):
 def _decode_clipping_path_name(data):
     fp = io.BytesIO(data)  # TODO: flatness and fill rule decoding?
     return read_pascal_string(fp, 'ascii')
+
+
+@register(ImageResourceID.ORIGIN_PATH_INFO)
+def _decode_origin_path_info(data):
+    return _decode_descriptor_resource(data, OriginPathInfo)
