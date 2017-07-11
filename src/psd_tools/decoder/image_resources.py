@@ -431,3 +431,9 @@ def _decode_print_style(data):
 @register(ImageResourceID.PATH_SELECTION_STATE)
 def _decode_path_selection_state(data):
     return _decode_descriptor_resource(data, PathSelectionState)
+
+
+@register(ImageResourceID.CLIPPING_PATH_NAME)
+def _decode_clipping_path_name(data):
+    fp = io.BytesIO(data)  # TODO: flatness and fill rule decoding?
+    return read_pascal_string(fp, 'ascii')
