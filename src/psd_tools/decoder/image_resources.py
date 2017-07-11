@@ -11,6 +11,7 @@ from psd_tools.constants import (ImageResourceID, PrintScaleStyle,
 from psd_tools.decoder import decoders
 from psd_tools.decoder.actions import decode_descriptor, UnknownOSType, RawData
 from psd_tools.decoder.color import decode_color
+from psd_tools.decoder.path import decode_path_resource
 
 _image_resource_decoders, register = decoders.new_registry()
 
@@ -115,8 +116,12 @@ def parse_image_resource(resource):
     if not ImageResourceID.is_known(resource.resource_id):
         warnings.warn("Unknown resource_id (%s)" % resource.resource_id)
 
-    decoder = _image_resource_decoders.get(resource.resource_id,
-                                           lambda data: data)
+    if (ImageResourceID.PATH_INFO_0 <= resource.resource_id and
+            ImageResourceID.PATH_INFO_LAST >= resource.resource_id):
+        decoder = decode_path_resource
+    else:
+        decoder = _image_resource_decoders.get(resource.resource_id,
+                                               lambda data: data)
     return resource._replace(data=decoder(resource.data))
 
 
