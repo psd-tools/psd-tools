@@ -1,3 +1,10 @@
+1.5 (2017-07-13)
+----------------
+
+- implemented many decodings of image resources and tagged blocks;
+- implemented EngineData text information;
+- user API for getting mask and patterns;
+- user API to calculate bbox for shape layers;
 
 1.4 (2017-01-02)
 ----------------
