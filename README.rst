@@ -1,25 +1,28 @@
-psd-tools
-=========
+psd-tools2
+==========
 
-``psd-tools`` is a package for reading Adobe Photoshop PSD files
+This is a fork of [psd-tools](https://github.com/psd-tools/psd-tools) that
+adds a couple of enhancements to the original version.
+
+``psd-tools2`` is a package for reading Adobe Photoshop PSD files
 (as described in specification_) to Python data structures.
 
 .. _specification: https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/PhotoshopFileFormats.htm
 
-.. image:: https://img.shields.io/pypi/v/psd-tools.svg
-   :target: https://pypi.python.org/pypi/psd-tools
+.. image:: https://img.shields.io/pypi/v/psd-tools2.svg
+   :target: https://pypi.python.org/pypi/psd-tools2
    :alt: PyPI Version
 
-.. image:: https://img.shields.io/travis/psd-tools/psd-tools/master.svg
+.. image:: https://img.shields.io/travis/kyamagu/psd-tools/master.svg
    :alt: Build Status
-   :target: https://travis-ci.org/psd-tools/psd-tools
+   :target: https://travis-ci.org/kyamagu/psd-tools
 
 Installation
 ------------
 
 ::
 
-    pip install psd-tools
+    pip install psd-tools2
 
 Pillow_ should be installed if you want work with PSD image and layer data:
 export images to PNG, process them. PIL_ library should also work.
@@ -33,12 +36,8 @@ export images to PNG, process them. PIL_ library should also work.
     In order to extract images from 32bit PSD files PIL/Pillow must be built
     with LITTLECMS or LITTLECMS2 support.
 
-psd-tools also has a rudimentary support for Pymaging_.
+psd-tools2 also has a rudimentary support for Pymaging_.
 `Pymaging installation instructions`_ are available in pymaging docs.
-If you want to use Pymaging instead of Pillow you'll also need packbits_
-library::
-
-      pip install packbits
 
 .. _PIL: http://www.pythonware.com/products/pil/
 .. _Pillow: https://github.com/python-imaging/Pillow
@@ -46,12 +45,6 @@ library::
 .. _Pymaging: https://github.com/ojii/pymaging
 .. _Pymaging installation instructions: http://pymaging.readthedocs.org/en/latest/usr/installation.html
 .. _exifread: https://github.com/ianare/exif-py
-
-Optional exif decoding is available with exifread_ library.
-
-::
-
-    pip install exifread
 
 
 Usage
@@ -215,7 +208,7 @@ Stage separation also means user-facing API may be opinionated:
 if somebody doesn't like it then it should possible to build an
 another API based on lower-level decoded PSD file.
 
-``psd-tools`` tries not to throw away information from the original
+``psd-tools2`` tries not to throw away information from the original
 PSD file; even if the library can't parse some info, this info
 will be likely available somewhere as raw bytes (open a bug if this is
 not the case). This should make it possible to modify and write PSD
@@ -261,17 +254,12 @@ or implement it yourself (pull requests are welcome in this case).
 Contributing
 ------------
 
-Development happens at github: `source code <https://github.com/psd-tools/psd-tools>`__,
-`bug tracker <https://github.com/psd-tools/psd-tools/issues>`__.
+Development happens at github: `source code <https://github.com/kyamagu/psd-tools>`__,
+`bug tracker <https://github.com/kyamagu/psd-tools/issues>`__.
 Feel free to submit ideas, bugs or pull requests.
 
 In case of bugs it would be helpful to provide a small PSD file
 demonstrating the issue; this file may be added to a test suite.
-
-.. note::
-
-    Unfortunately I don't have a license for Adobe Photoshop and use GIMP for
-    testing; PNG screenshots may be necessary in cases where GIMP fails.
 
 In order to run tests, make sure PIL/Pillow is built with LittleCMS
 or LittleCMS2 support, install `tox <http://tox.testrun.org>`_ and type
@@ -287,19 +275,6 @@ The license is MIT.
 Acknowledgments
 ---------------
 
+Great thanks to the original `psd-tools` author Mikhail Korobov.
 A full list of contributors can be found here:
-https://github.com/psd-tools/psd-tools/blob/master/AUTHORS.txt
-
-Thanks to all guys who write PSD parsers: I learned a lot about PSD
-file structure from the source code of psdparse_, GIMP_, libpsd_
-and `psdparse C library`_; special thanks to `Paint.NET PSD Plugin`_ authors
-for deciphering the "32bit layer + zip-with-prediction compression" case.
-
-Sponsors:
-
-* Leonid Gluzman;
-* https://marvelapp.com/.
-
-.. _libpsd: http://sourceforge.net/projects/libpsd/
-.. _psdparse C library: http://telegraphics.com.au/svn/psdparse/trunk/
-.. _Paint.NET PSD Plugin: http://psdplugin.codeplex.com/
+https://github.com/kyamagu/psd-tools/blob/master/AUTHORS.txt
