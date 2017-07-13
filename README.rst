@@ -1,7 +1,7 @@
 psd-tools2
 ==========
 
-This is a fork of [psd-tools](https://github.com/psd-tools/psd-tools) that
+This is a fork of psd-tools_ that
 adds a couple of enhancements to the original version.
 
 ``psd-tools2`` is a package for reading Adobe Photoshop PSD files
@@ -16,6 +16,9 @@ adds a couple of enhancements to the original version.
 .. image:: https://img.shields.io/travis/kyamagu/psd-tools/master.svg
    :alt: Build Status
    :target: https://travis-ci.org/kyamagu/psd-tools
+
+.. _psd-tools: https://github.com/psd-tools/psd-tools
+
 
 Installation
 ------------
