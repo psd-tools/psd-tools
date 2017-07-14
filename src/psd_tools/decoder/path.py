@@ -15,7 +15,7 @@ def _decode_fixed_point(fixed_point):
 def decode_path_resource(data):
     fp = io.BytesIO(data)
     path = []
-    path_rec = (len(data) - 8) // 26
+    path_rec = len(data) // 26
     while path_rec > 0:
         selector, = read_fmt("H", fp)
         record = {"selector": selector}
