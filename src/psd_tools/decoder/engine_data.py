@@ -159,7 +159,8 @@ class EngineDataDecoder(object):
 
     @register(EngineToken.STRING)
     def _decode_string(self, match):
-        return match.group(1).replace(b'\\\\', b'\\').decode(
+        # TODO: Check if backslash is correctly escaped.
+        return match.group(1).replace(b'\\', b'').decode(
             'utf-16', 'replace')
 
     @register(EngineToken.UNKNOWN_TAG)
