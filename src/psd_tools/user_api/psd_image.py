@@ -260,10 +260,13 @@ class ShapeLayer(Layer):
     def __init__(self, parent, index):
         super(ShapeLayer, self).__init__(parent, index, 'shape')
 
-    def as_PIL(self):
+    def as_PIL(self, vector=False):
         """ Returns a PIL image for this layer. """
-        return pil_support.draw_polygon(self.bbox, self.anchors,
-                                        self._get_color())
+        if vector or self._info.flags.pixel_data_irrelevant:
+            return pil_support.draw_polygon(self.bbox, self.anchors,
+                                            self._get_color())
+        else:
+            return self._psd._layer_as_PIL(self._index)
 
     def as_pymaging(self):
         """ Returns a pymaging.Image for this PSD file. """
@@ -274,10 +277,11 @@ class ShapeLayer(Layer):
         """ BBox(x1, y1, x2, y2) namedtuple of the shape. """
         info = self._info
         bbox = BBox(info.left, info.top, info.right, info.bottom)
-        if bbox.width and bbox.height:
+        if bbox.width > 0 and bbox.height > 0:
             return bbox
 
         # If sizeless shape, calculate bbox.
+        # TODO: Compute bezier curve.
         anchors = self.anchors
         if not anchors or len(anchors) < 2:
             logger.warning("Empty shape anchors")
@@ -332,7 +336,7 @@ class TypeLayer(Layer):
     def __repr__(self):
         bbox = self.bbox
         return "<psd_tools.TypeLayer: %r, size=%dx%d, x=%d, y=%d, text='%s'>" % (
-            self.name, bbox.width, bbox.height, bbox.x1, bbox.y1, self.text)
+            self.name, bbox.width, bbox.height, bbox.x1, bbox.y1, repr(self.text))
 
 
 class Group(_RawLayer):

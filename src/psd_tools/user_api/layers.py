@@ -82,8 +82,6 @@ def group_layers(decoded_data):
             else:
                 warnings.warn("invalid state")
         else:
-            # layer with image
-            sizeless = (layer.bottom - layer.top == 0) and (layer.right - layer.left == 0)
             if blocks.get(TaggedBlock.TYPE_TOOL_OBJECT_SETTING):
                 kind = 'type'
             elif (TaggedBlock.VECTOR_ORIGINATION_DATA in blocks or
@@ -95,7 +93,7 @@ def group_layers(decoded_data):
             elif any([TaggedBlock.is_adjustment_key(key) for key in blocks.keys()]):
                 kind = 'adjustment'
             elif any([TaggedBlock.is_fill_key(key) for key in blocks.keys()]):
-                # Either shape or adjustment layer.
+                # TODO: Check if shape layer with fill keys precedes.
                 kind = 'adjustment'
             else:
                 kind = 'pixel'
