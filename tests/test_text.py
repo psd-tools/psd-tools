@@ -21,4 +21,4 @@ def test_text(filename, layer_num, text):
 
 def test_no_text():
     psd = PSDImage(decode_psd('1layer.psd'))
-    assert psd.layers[0].text_data is None
+    assert not hasattr(psd.layers[0], 'text_data')
