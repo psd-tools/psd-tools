@@ -246,6 +246,17 @@ class Layer(_RawLayer):
             self.name, bbox.width, bbox.height, bbox.x1, bbox.y1, self.mask)
 
 
+class PixelLayer(Layer):
+    """ PSD pixel layer wrapper """
+    def __init__(self, parent, index):
+        super(PixelLayer, self).__init__(parent, index, 'pixel')
+
+    def __repr__(self):
+        bbox = self.bbox
+        return "<psd_tools.PixelLayer: %r, size=%dx%d, x=%d, y=%d, mask=%s>" % (
+            self.name, bbox.width, bbox.height, bbox.x1, bbox.y1, self.mask)
+
+
 class AdjustmentLayer(Layer):
     """ PSD adjustment layer wrapper """
     def __init__(self, parent, index):
@@ -396,17 +407,20 @@ class PSDImage(object):
         # wrap decoded data to Layer and Group structures
         def make_layer(group, layer):
             index = layer['index']
-            if layer['kind'] == 'group':
+            kind = layer['kind']
+            if kind == 'group':
                 child = Group(group, index, [])
                 fill_group(child, layer)
-            elif layer['kind'] == 'adjustment':
+            elif kind == 'adjustment':
                 child = AdjustmentLayer(group, index)
-            elif layer['kind'] == 'type':
+            elif kind == 'type':
                 child = TypeLayer(group, index)
-            elif layer['kind'] == 'shape':
+            elif kind == 'shape':
                 child = ShapeLayer(group, index)
+            elif kind == 'pixel':
+                child = PixelLayer(group, index)
             else:
-                child = Layer(group, index, kind=layer['kind'])
+                logger.fatal("Unknown layer type (%s)" % (kind))
             return child
 
         def fill_group(group, data):
