@@ -87,8 +87,9 @@ class Mask(object):
 
     def __repr__(self):
         bbox = self.bbox
-        return "<psd_tools.Mask: size=%dx%d, x=%d, y=%d>" % (
-            bbox.width, bbox.height, bbox.x1, bbox.y1)
+        return "<%s: size=%dx%d, x=%d, y=%d>" % (
+            self.__class__.__name__, bbox.width, bbox.height, bbox.x1,
+            bbox.y1)
 
 
 class Pattern(object):
@@ -115,8 +116,8 @@ class Pattern(object):
         return pil_support.pattern_to_PIL(self._pattern)
 
     def __repr__(self):
-        return "<psd_tools.Pattern: name='%s' size=%dx%d>" % (
-            self.name, self.width, self.height)
+        return "<%s: name='%s' size=%dx%d>" % (
+            self.__class__.__name__, self.name, self.width, self.height)
 
 
 class _RawLayer(object):
@@ -242,19 +243,21 @@ class Layer(_RawLayer):
 
     def __repr__(self):
         bbox = self.bbox
-        return "<psd_tools.Layer: %r, size=%dx%d, x=%d, y=%d, mask=%s>" % (
-            self.name, bbox.width, bbox.height, bbox.x1, bbox.y1, self.mask)
+        return "<%s: %r, size=%dx%d, x=%d, y=%d, mask=%s, visible=%d>" % (
+            self.__class__.__name__, self.name, bbox.width, bbox.height,
+            bbox.x1, bbox.y1, self.mask, self.visible)
+
+
+class SmartObjectLayer(Layer):
+    """ PSD pixel layer wrapper """
+    def __init__(self, parent, index):
+        super(SmartObjectLayer, self).__init__(parent, index, 'smartobject')
 
 
 class PixelLayer(Layer):
     """ PSD pixel layer wrapper """
     def __init__(self, parent, index):
         super(PixelLayer, self).__init__(parent, index, 'pixel')
-
-    def __repr__(self):
-        bbox = self.bbox
-        return "<psd_tools.PixelLayer: %r, size=%dx%d, x=%d, y=%d, mask=%s>" % (
-            self.name, bbox.width, bbox.height, bbox.x1, bbox.y1, self.mask)
 
 
 class AdjustmentLayer(Layer):
@@ -263,7 +266,8 @@ class AdjustmentLayer(Layer):
         super(AdjustmentLayer, self).__init__(parent, index, 'adjustment')
 
     def __repr__(self):
-        return "<psd_tools.AdjustmentLayer: %r>" % (self.name)
+        return "<%s: %r, visible=%s>" % (self.__class__.__name__, self.name,
+            self.visible)
 
 
 class ShapeLayer(Layer):
@@ -333,11 +337,6 @@ class ShapeLayer(Layer):
         else:
             return default
 
-    def __repr__(self):
-        bbox = self.bbox
-        return "<psd_tools.ShapeLayer: %r, size=%dx%d, x=%d, y=%d>" % (
-            self.name, bbox.width, bbox.height, bbox.x1, bbox.y1)
-
 
 class TypeLayer(Layer):
     """ PSD type layer wrapper """
@@ -349,11 +348,6 @@ class TypeLayer(Layer):
     @property
     def text(self):
         return self.text_data.text
-
-    def __repr__(self):
-        bbox = self.bbox
-        return "<psd_tools.TypeLayer: %r, size=%dx%d, x=%d, y=%d, text='%s'>" % (
-            self.name, bbox.width, bbox.height, bbox.x1, bbox.y1, repr(self.text))
 
 
 class Group(_RawLayer):
@@ -393,8 +387,9 @@ class Group(_RawLayer):
         self.layers.append(child)
 
     def __repr__(self):
-        return "<psd_tools.Group: %r, layer_count=%d, mask=%s>" % (
-            self.name, len(self.layers), self.mask)
+        return "<%s: %r, layer_count=%d, mask=%s, visible=%d>" % (
+            self.__class__.__name__, self.name, len(self.layers), self.mask,
+            self.visible)
 
 
 class PSDImage(object):
@@ -419,8 +414,10 @@ class PSDImage(object):
                 child = ShapeLayer(group, index)
             elif kind == 'pixel':
                 child = PixelLayer(group, index)
+            elif kind == 'smartobject':
+                child = SmartObjectLayer(group, index)
             else:
-                logger.fatal("Unknown layer type (%s)" % (kind))
+                logger.critical("Unknown layer type (%s)" % (kind))
             return child
 
         def fill_group(group, data):
@@ -519,6 +516,26 @@ class PSDImage(object):
             if isinstance(block.data, LinkedLayerCollection):
                 for layer in block.data.linked_list:
                     yield layer
+
+    def print_tree(self, layers=None, indent=0):
+        """
+        Print the layer tree structure
+        """
+        if not layers:
+            layers = self.layers
+            print(((' ' * indent) + "{}").format(self))
+            indent = indent + 2
+        for l in layers:
+            for clip in l.clip_layers:
+                print(((' ' * indent) + "/{}").format(clip))
+            print(((' ' * indent) + "{}").format(l))
+            if isinstance(l, Group):
+                self.print_tree(l.layers, indent + 2)
+
+    def __repr__(self):
+        return "<%s: size=%dx%d, layer_count=%d, linked_files=%d>" % (
+            self.__class__.__name__, self.header.width, self.header.height,
+            len(self.layers), len(self.embedded))
 
 
 class _RootGroup(Group):

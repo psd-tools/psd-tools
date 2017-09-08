@@ -95,6 +95,9 @@ def group_layers(decoded_data):
             elif any([TaggedBlock.is_fill_key(key) for key in blocks.keys()]):
                 # TODO: Check if shape layer with fill keys precedes.
                 kind = 'adjustment'
+            elif (TaggedBlock.PLACED_LAYER_OBSOLETE2 in blocks or
+                  TaggedBlock.PLACED_LAYER_DATA in blocks):
+                kind = 'smartobject'
             else:
                 kind = 'pixel'
 
