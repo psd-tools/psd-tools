@@ -282,9 +282,13 @@ or LittleCMS2 support, install `tox <http://tox.testrun.org>`_ and type
 
     tox
 
-Use Sphinx to generate documents::
+Install Sphinx to generate documents::
 
     pip install sphinx sphinx_rtd_theme
+
+Once installed, use ``Makefile``::
+
+    make -C docs html
 
 from the source checkout.
 
