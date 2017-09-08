@@ -3,7 +3,7 @@
 EngineData decoder.
 
 PSD file embeds text formatting data in its own markup language referred
-EngineData. The format looks like the following.
+EngineData. The format looks like the following::
 
     <<
       /EngineDict
