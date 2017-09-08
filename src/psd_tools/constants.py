@@ -417,6 +417,7 @@ class DimensionUnit(Enum):
 class PlacedLayerProperty(Enum):
     TRANSFORM = b'Trnf'
     SIZE = b'Sz  '
+    ID = b'Idnt'
 
 class SzProperty(Enum):
     WIDTH = b'Wdth'
@@ -445,4 +446,4 @@ class PathResource(Enum):
 class LinkedLayerType(Enum):
     DATA = b'liFD'
     EXTERNAL = b'liFE'
-    UNKNOWN = b'liFA'
+    ALIAS = b'liFA'

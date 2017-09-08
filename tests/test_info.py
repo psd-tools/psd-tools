@@ -72,7 +72,7 @@ def test_api():
 def test_fakeroot_layer_repr():
     img = PSDImage(decode_psd('1layer.psd'))
     fakeroot = img.layers[0].parent
-    assert re.match(r"<psd_tools.Group: u?'_RootGroup', layer_count=1>", repr(fakeroot)), repr(fakeroot)
+    assert re.match(r"<_RootGroup: u?'_RootGroup', layer_count=1, mask=None, visible=1>", repr(fakeroot)), repr(fakeroot)
 
 
 @pytest.mark.parametrize(('filename', 'has_layer_and_mask_data'), FILES_WITH_NO_LAYERS)

@@ -4,16 +4,17 @@ from __future__ import absolute_import, unicode_literals, division
 import os
 import logging
 import contextlib
+from psd_tools.constants import LinkedLayerType
 
 
 class Embedded(object):
     """Embedded Smart Object"""
 
     def __repr__(self):
-        return "<psd_tools.Embedded: %s, %s bytes>" % (
-            self.filename,
-            len(self.data)
-        )
+        return "<%s: %s, type=%s, %s bytes>" % (
+            self.__class__.__name__, self.filename,
+            LinkedLayerType.name_of(self._layer.type),
+            len(self.data))
 
     def __init__(self, linked_layer):
         self._layer = linked_layer

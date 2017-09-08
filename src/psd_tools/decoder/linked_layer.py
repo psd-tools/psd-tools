@@ -95,7 +95,7 @@ def decode(data):
             file_size = read_fmt('Q', fp)[0]  # External file size.
             if version > 2:
                 decoded = fp.read(datasize)
-        elif link_type == LinkedLayerType.UNKNOWN:
+        elif link_type == LinkedLayerType.ALIAS:
             fp.seek(8, io.SEEK_CUR)
 
         if link_type == LinkedLayerType.DATA:

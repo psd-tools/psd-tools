@@ -1,3 +1,10 @@
+1.6 (2017-09-08)
+----------------
+
+- PSDImage user API update;
+- user API adds distinct layer types;
+- Sphinx documentation;
+
 1.5 (2017-07-13)
 ----------------
 

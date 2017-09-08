@@ -2,7 +2,7 @@
 from __future__ import absolute_import, unicode_literals
 
 from psd_tools.user_api.layers import group_layers
-from .utils import decode_psd
+from tests.utils import decode_psd
 
 def test_no_groups():
     layers = group_layers(decode_psd('2layers.psd'))
@@ -72,3 +72,18 @@ def test_group_with_empty_layer():
     group1, bg = layers
     assert group1['name'] == 'group'
     assert bg['name'] == 'Background'
+
+def test_clipping():
+    layers = group_layers(decode_psd('clipping-mask2.psd'))
+    assert layers[0]['name'] == 'Group 1'
+    layer = layers[0]['layers'][0]
+    assert layer['name'] == 'Rounded Rectangle 4'
+    assert layer['clip_layers'][0]['name'] == 'Color Balance 1'
+    assert layers[1]['name'] == 'Rounded Rectangle 3'
+    assert layers[1]['clip_layers'][0]['name'] == 'Brightness/Contrast 1'
+    assert layers[2]['name'] == 'Polygon 1'
+    assert layers[2]['clip_layers'][0]['name'] == 'Ellipse 1'
+    assert layers[2]['clip_layers'][1]['name'] == 'Rounded Rectangle 2'
+    assert layers[2]['clip_layers'][2]['name'] == 'Rounded Rectangle 1'
+    assert layers[2]['clip_layers'][3]['name'] == 'Color Fill 1'
+    assert layers[3]['name'] == 'Background'

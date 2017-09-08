@@ -31,8 +31,11 @@ class BBox(collections.namedtuple('BBox', 'x1, y1, x2, y2')):
 
 class TextData(object):
     def __init__(self, tagged_blocks):
-        text_data = dict(tagged_blocks.text_data.items)
-        self.text = text_data[TextProperty.TXT].value
+        self.text_data = dict(tagged_blocks.text_data.items)
+
+    @property
+    def text(self):
+        return self.text_data[TextProperty.TXT].value
 
 
 class PlacedLayerData(object):
@@ -42,7 +45,7 @@ class PlacedLayerData(object):
         self.size = dict(placed_layer_data[PlacedLayerProperty.SIZE].items)
 
 
-class MaskData(object):
+class Mask(object):
     def __init__(self, layer):
         self.mask_data = layer._info.mask_data
         self._decoded_data = layer._psd.decoded_data
@@ -84,11 +87,12 @@ class MaskData(object):
 
     def __repr__(self):
         bbox = self.bbox
-        return "<psd_tools.Mask: size=%dx%d, x=%d, y=%d>" % (
-            bbox.width, bbox.height, bbox.x1, bbox.y1)
+        return "<%s: size=%dx%d, x=%d, y=%d>" % (
+            self.__class__.__name__, bbox.width, bbox.height, bbox.x1,
+            bbox.y1)
 
 
-class PatternData(object):
+class Pattern(object):
     def __init__(self, pattern):
         self._pattern = pattern
 
@@ -112,8 +116,8 @@ class PatternData(object):
         return pil_support.pattern_to_PIL(self._pattern)
 
     def __repr__(self):
-        return "<psd_tools.Pattern: name='%s' size=%dx%d>" % (
-            self.name, self.width, self.height)
+        return "<%s: name='%s' size=%dx%d>" % (
+            self.__class__.__name__, self.name, self.width, self.height)
 
 
 class _RawLayer(object):
@@ -125,6 +129,8 @@ class _RawLayer(object):
     parent = None
     _psd = None
     _index = None
+    _kind = None
+    clip_layers = None
 
     @property
     def name(self):
@@ -157,6 +163,17 @@ class _RawLayer(object):
         return self._info.blend_mode
 
     @property
+    def kind(self):
+        return self._kind
+
+    def has_mask(self):
+        return True if self._index and self._info.mask_data else False
+
+    @property
+    def mask(self):
+        return Mask(self) if self.has_mask() else None
+
+    @property
     def _info(self):
         return self._psd._layer_info(self._index)
 
@@ -168,10 +185,12 @@ class _RawLayer(object):
 class Layer(_RawLayer):
     """ PSD layer wrapper """
 
-    def __init__(self, parent, index):
+    def __init__(self, parent, index, kind="pixel"):
         self.parent = parent
         self._psd = parent._psd
         self._index = index
+        self._kind = kind
+        self.clip_layers = []
 
     def as_PIL(self):
         """ Returns a PIL image for this layer. """
@@ -222,30 +241,75 @@ class Layer(_RawLayer):
         so_layer_block = self._tagged_blocks.get(TaggedBlock.SMART_OBJECT_PLACED_LAYER_DATA)
         return self._tagged_blocks.get(TaggedBlock.PLACED_LAYER_DATA, so_layer_block)
 
-    @property
-    def text_data(self):
-        tagged_blocks = self._tagged_blocks.get(TaggedBlock.TYPE_TOOL_OBJECT_SETTING)
-        if tagged_blocks:
-            return TextData(tagged_blocks)
+    def __repr__(self):
+        bbox = self.bbox
+        return "<%s: %r, size=%dx%d, x=%d, y=%d, mask=%s, visible=%d>" % (
+            self.__class__.__name__, self.name, bbox.width, bbox.height,
+            bbox.x1, bbox.y1, self.mask, self.visible)
 
-    @property
-    def mask_data(self):
-        return MaskData(self) if self._info.mask_data else None
 
+class SmartObjectLayer(Layer):
+    """ PSD pixel layer wrapper """
+    def __init__(self, parent, index):
+        super(SmartObjectLayer, self).__init__(parent, index, 'smartobject')
+        self._placed = None
+        placed_block = self._placed_layer_block()
+        if placed_block:
+            self._placed = dict(placed_block)
+
+    def unique_id(self):
+        if self._placed:
+            return self._placed.get(PlacedLayerProperty.ID).value
+        else:
+            return None
+
+    def linked_data(self):
+        """
+        Return linked layer data.
+        """
+        unique_id = self.unique_id()
+        return self._psd.embedded.get(unique_id) if unique_id else None
 
     def __repr__(self):
         bbox = self.bbox
-        return "<psd_tools.Layer: %r, size=%dx%d, x=%d, y=%d>" % (
-            self.name, bbox.width, bbox.height, bbox.x1, bbox.y1)
+        return (
+            "<%s: %r, size=%dx%d, x=%d, y=%d, mask=%s, visible=%d, "
+            "linked=%s>") % (
+            self.__class__.__name__, self.name, bbox.width, bbox.height,
+            bbox.x1, bbox.y1, self.mask, self.visible,
+            self.linked_data())
+
+
+class PixelLayer(Layer):
+    """ PSD pixel layer wrapper """
+    def __init__(self, parent, index):
+        super(PixelLayer, self).__init__(parent, index, 'pixel')
+
+
+class AdjustmentLayer(Layer):
+    """ PSD adjustment layer wrapper """
+    def __init__(self, parent, index):
+        super(AdjustmentLayer, self).__init__(parent, index, 'adjustment')
+
+    def __repr__(self):
+        return "<%s: %r, visible=%s>" % (self.__class__.__name__, self.name,
+            self.visible)
 
 
 class ShapeLayer(Layer):
     """ PSD shape layer wrapper """
+    def __init__(self, parent, index):
+        super(ShapeLayer, self).__init__(parent, index, 'shape')
 
-    def as_PIL(self):
+    def as_PIL(self, vector=False):
         """ Returns a PIL image for this layer. """
-        return pil_support.draw_polygon(self.bbox, self.anchors,
-                                        self._get_color())
+        if vector or (self._info.flags.pixel_data_irrelevant and
+                      self._is_sizeless()):
+            # TODO: Replace polygon with bezier curve.
+            return pil_support.draw_polygon(self.bbox, self.anchors,
+                                            self._get_color())
+        else:
+            return self._psd._layer_as_PIL(self._index)
 
     def as_pymaging(self):
         """ Returns a pymaging.Image for this PSD file. """
@@ -254,9 +318,15 @@ class ShapeLayer(Layer):
     @property
     def bbox(self):
         """ BBox(x1, y1, x2, y2) namedtuple of the shape. """
+        if not self._is_sizeless():
+            info = self._info
+            return BBox(info.left, info.top, info.right, info.bottom)
+
+        # If sizeless shape, calculate bbox.
+        # TODO: Compute bezier curve.
         anchors = self.anchors
         if not anchors or len(anchors) < 2:
-            logger.warning("Empty shape anchors")
+            # Could be all pixel fill.
             return BBox(0, 0, 0, 0)
         return BBox(min([p[0] for p in anchors]),
                     min([p[1] for p in anchors]),
@@ -273,7 +343,12 @@ class ShapeLayer(Layer):
             return None
         return [(int(p['anchor'][1] * self._psd.header.width),
                  int(p['anchor'][0] * self._psd.header.height))
-                for p in vmsk.path if p.get('selector') in (1, 2)]
+                for p in vmsk.path if p.get('selector') in (1, 2, 4, 5)]
+
+    def _is_sizeless(self):
+        info = self._info
+        bbox = BBox(info.left, info.top, info.right, info.bottom)
+        return bbox.width == 0 or bbox.height == 0
 
     def _get_color(self, default='black'):
         soco = self._tagged_blocks.get(TaggedBlock.SOLID_COLOR_SHEET_SETTING)
@@ -288,10 +363,17 @@ class ShapeLayer(Layer):
         else:
             return default
 
-    def __repr__(self):
-        bbox = self.bbox
-        return "<psd_tools.ShapeLayer: %r, size=%dx%d, x=%d, y=%d>" % (
-            self.name, bbox.width, bbox.height, bbox.x1, bbox.y1)
+
+class TypeLayer(Layer):
+    """ PSD type layer wrapper """
+    def __init__(self, parent, index):
+        super(TypeLayer, self).__init__(parent, index, 'type')
+        self.text_data = TextData(self._tagged_blocks.get(
+            TaggedBlock.TYPE_TOOL_OBJECT_SETTING))
+
+    @property
+    def text(self):
+        return self.text_data.text
 
 
 class Group(_RawLayer):
@@ -302,6 +384,8 @@ class Group(_RawLayer):
         self._psd = parent._psd
         self._index = index
         self.layers = layers
+        self._kind = "group"
+        self.clip_layers = []
 
     @property
     def closed(self):
@@ -318,10 +402,6 @@ class Group(_RawLayer):
         """
         return combined_bbox(self.layers)
 
-    @property
-    def mask_data(self):
-        return MaskData(self) if self._info.mask_data else None
-
     def as_PIL(self):
         """
         Returns a PIL image for this group.
@@ -333,8 +413,9 @@ class Group(_RawLayer):
         self.layers.append(child)
 
     def __repr__(self):
-        return "<psd_tools.Group: %r, layer_count=%d>" % (
-            self.name, len(self.layers))
+        return "<%s: %r, layer_count=%d, mask=%s, visible=%d>" % (
+            self.__class__.__name__, self.name, len(self.layers), self.mask,
+            self.visible)
 
 
 class PSDImage(object):
@@ -345,23 +426,32 @@ class PSDImage(object):
         self.decoded_data = decoded_data
 
         # wrap decoded data to Layer and Group structures
+        def make_layer(group, layer):
+            index = layer['index']
+            kind = layer['kind']
+            if kind == 'group':
+                child = Group(group, index, [])
+                fill_group(child, layer)
+            elif kind == 'adjustment':
+                child = AdjustmentLayer(group, index)
+            elif kind == 'type':
+                child = TypeLayer(group, index)
+            elif kind == 'shape':
+                child = ShapeLayer(group, index)
+            elif kind == 'pixel':
+                child = PixelLayer(group, index)
+            elif kind == 'smartobject':
+                child = SmartObjectLayer(group, index)
+            else:
+                logger.critical("Unknown layer type (%s)" % (kind))
+            return child
+
         def fill_group(group, data):
-
             for layer in data['layers']:
-                index = layer['index']
-
-                if 'layers' in layer:
-                    # group
-                    sub_group = Group(group, index, [])
-                    fill_group(sub_group, layer)
-                    group._add_layer(sub_group)
-                else:
-                    layer_type = layer['type']
-                    if layer_type == 'shape':
-                        group._add_layer(ShapeLayer(group, index))
-                    else:
-                        # regular layer
-                        group._add_layer(Layer(group, index))
+                child = make_layer(group, layer)
+                group._add_layer(child)
+                for clip in layer['clip_layers']:
+                    child.clip_layers.append(make_layer(group, clip))
 
         self._psd = self
         fake_root_data = {'layers': group_layers(decoded_data), 'index': None}
@@ -370,7 +460,8 @@ class PSDImage(object):
 
         self._fake_root_group = root
         self.layers = root.layers
-        self.embedded = [Embedded(linked) for linked in self._linked_layer_iter()]
+        self.embedded = {linked.unique_id: Embedded(linked) for linked in
+                         self._linked_layer_iter()}
 
     @classmethod
     def load(cls, path, encoding='utf8'):
@@ -431,7 +522,7 @@ class PSDImage(object):
         blocks = dict(layer_and_mask_data.tagged_blocks)
         patterns = blocks.get(b'Patt', blocks.get(b'Pat2', blocks.get(
             b'Pat3', [])))
-        return {p.pattern_id: PatternData(p) for p in patterns}
+        return {p.pattern_id: Pattern(p) for p in patterns}
 
     def _layer_info(self, index):
         layers = self.decoded_data.layer_and_mask_data.layers.layer_records
@@ -452,6 +543,26 @@ class PSDImage(object):
             if isinstance(block.data, LinkedLayerCollection):
                 for layer in block.data.linked_list:
                     yield layer
+
+    def print_tree(self, layers=None, indent=0):
+        """
+        Print the layer tree structure
+        """
+        if not layers:
+            layers = self.layers
+            print(((' ' * indent) + "{}").format(self))
+            indent = indent + 2
+        for l in layers:
+            for clip in l.clip_layers:
+                print(((' ' * indent) + "/{}").format(clip))
+            print(((' ' * indent) + "{}").format(l))
+            if isinstance(l, Group):
+                self.print_tree(l.layers, indent + 2)
+
+    def __repr__(self):
+        return "<%s: size=%dx%d, layer_count=%d>" % (
+            self.__class__.__name__, self.header.width, self.header.height,
+            len(self.layers))
 
 
 class _RootGroup(Group):

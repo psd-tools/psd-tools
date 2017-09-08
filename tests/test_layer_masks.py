@@ -109,12 +109,12 @@ def test_mask_data_as_pil(filename):
         if isinstance(layers, PSDImage):
             layers = layers.layers
         for l in layers:
-            mask_data = l.mask_data
-            if mask_data:
-                if mask_data.is_valid:
-                    assert mask_data.as_PIL() is not None
+            if l.has_mask():
+                mask = l.mask
+                if mask.is_valid:
+                    assert mask.as_PIL() is not None
                 else:
-                    bbox = mask_data.bbox
+                    bbox = mask.bbox
                     assert bbox.width == 0 or bbox.height == 0
             if isinstance(l, Group):
                 traverse_tree(l.layers)
