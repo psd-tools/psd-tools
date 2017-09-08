@@ -262,7 +262,9 @@ class ShapeLayer(Layer):
 
     def as_PIL(self, vector=False):
         """ Returns a PIL image for this layer. """
-        if vector or self._info.flags.pixel_data_irrelevant:
+        if vector or (self._info.flags.pixel_data_irrelevant and
+                      self._is_sizeless()):
+            # TODO: Replace polygon with bezier curve.
             return pil_support.draw_polygon(self.bbox, self.anchors,
                                             self._get_color())
         else:
@@ -275,10 +277,9 @@ class ShapeLayer(Layer):
     @property
     def bbox(self):
         """ BBox(x1, y1, x2, y2) namedtuple of the shape. """
-        info = self._info
-        bbox = BBox(info.left, info.top, info.right, info.bottom)
-        if bbox.width > 0 and bbox.height > 0:
-            return bbox
+        if not self._is_sizeless():
+            info = self._info
+            return BBox(info.left, info.top, info.right, info.bottom)
 
         # If sizeless shape, calculate bbox.
         # TODO: Compute bezier curve.
@@ -302,6 +303,11 @@ class ShapeLayer(Layer):
         return [(int(p['anchor'][1] * self._psd.header.width),
                  int(p['anchor'][0] * self._psd.header.height))
                 for p in vmsk.path if p.get('selector') in (1, 2, 4, 5)]
+
+    def _is_sizeless(self):
+        info = self._info
+        bbox = BBox(info.left, info.top, info.right, info.bottom)
+        return bbox.width == 0 or bbox.height == 0
 
     def _get_color(self, default='black'):
         soco = self._tagged_blocks.get(TaggedBlock.SOLID_COLOR_SHEET_SETTING)
