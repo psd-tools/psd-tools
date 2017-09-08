@@ -252,6 +252,32 @@ class SmartObjectLayer(Layer):
     """ PSD pixel layer wrapper """
     def __init__(self, parent, index):
         super(SmartObjectLayer, self).__init__(parent, index, 'smartobject')
+        self._placed = None
+        placed_block = self._placed_layer_block()
+        if placed_block:
+            self._placed = dict(placed_block)
+
+    def unique_id(self):
+        if self._placed:
+            return self._placed.get(PlacedLayerProperty.ID).value
+        else:
+            return None
+
+    def linked_data(self):
+        """
+        Return linked layer data.
+        """
+        unique_id = self.unique_id()
+        return self._psd.embedded.get(unique_id) if unique_id else None
+
+    def __repr__(self):
+        bbox = self.bbox
+        return (
+            "<%s: %r, size=%dx%d, x=%d, y=%d, mask=%s, visible=%d, "
+            "linked=%s>") % (
+            self.__class__.__name__, self.name, bbox.width, bbox.height,
+            bbox.x1, bbox.y1, self.mask, self.visible,
+            self.linked_data())
 
 
 class PixelLayer(Layer):
@@ -300,7 +326,7 @@ class ShapeLayer(Layer):
         # TODO: Compute bezier curve.
         anchors = self.anchors
         if not anchors or len(anchors) < 2:
-            logger.warning("Empty shape anchors")
+            # Could be all pixel fill.
             return BBox(0, 0, 0, 0)
         return BBox(min([p[0] for p in anchors]),
                     min([p[1] for p in anchors]),
@@ -434,7 +460,8 @@ class PSDImage(object):
 
         self._fake_root_group = root
         self.layers = root.layers
-        self.embedded = [Embedded(linked) for linked in self._linked_layer_iter()]
+        self.embedded = {linked.unique_id: Embedded(linked) for linked in
+                         self._linked_layer_iter()}
 
     @classmethod
     def load(cls, path, encoding='utf8'):
@@ -533,9 +560,9 @@ class PSDImage(object):
                 self.print_tree(l.layers, indent + 2)
 
     def __repr__(self):
-        return "<%s: size=%dx%d, layer_count=%d, linked_files=%d>" % (
+        return "<%s: size=%dx%d, layer_count=%d>" % (
             self.__class__.__name__, self.header.width, self.header.height,
-            len(self.layers), len(self.embedded))
+            len(self.layers))
 
 
 class _RootGroup(Group):
