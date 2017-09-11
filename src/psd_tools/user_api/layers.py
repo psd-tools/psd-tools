@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, unicode_literals, print_function, division
+from __future__ import (absolute_import, unicode_literals, print_function,
+    division)
 import warnings
 
 from psd_tools.constants import TaggedBlock, SectionDivider
+from psd_tools.user_api.actions import translate
 
 
 def group_layers(decoded_data):
@@ -32,7 +34,8 @@ def group_layers(decoded_data):
 
         if divider is not None:
             # group information
-            if divider.type in [SectionDivider.CLOSED_FOLDER, SectionDivider.OPEN_FOLDER]:
+            if divider.type in [SectionDivider.CLOSED_FOLDER,
+                                SectionDivider.OPEN_FOLDER]:
                 # group begins
                 group = dict(
                     id = layer_id,
@@ -90,7 +93,8 @@ def group_layers(decoded_data):
                   TaggedBlock.VECTOR_STROKE_DATA in blocks or
                   TaggedBlock.VECTOR_STROKE_CONTENT_DATA in blocks):
                 kind = 'shape'
-            elif any([TaggedBlock.is_adjustment_key(key) for key in blocks.keys()]):
+            elif any([TaggedBlock.is_adjustment_key(key)
+                      for key in blocks.keys()]):
                 kind = 'adjustment'
             elif any([TaggedBlock.is_fill_key(key) for key in blocks.keys()]):
                 # TODO: Check if shape layer with fill keys precedes.
@@ -127,3 +131,18 @@ def group_layers(decoded_data):
                 current_group['layers'].append(layer_dict)
 
     return root['layers']
+
+
+def get_effects(self):
+    """
+    Return effects block from the layer.
+    """
+    blocks = self._tagged_blocks
+    effects = blocks.get(
+        TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO,
+        blocks.get(
+            TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO_V0,
+            blocks.get(TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO_V0)))
+    if not effects:
+        return None
+    return translate(effects.descriptor)

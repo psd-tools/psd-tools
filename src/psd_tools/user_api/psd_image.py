@@ -8,7 +8,7 @@ import psd_tools.reader
 import psd_tools.decoder
 from psd_tools.constants import (TaggedBlock, SectionDivider, BlendMode,
     TextProperty, PlacedLayerProperty, SzProperty, ChannelID)
-from psd_tools.user_api.layers import group_layers
+from psd_tools.user_api.layers import group_layers, get_effects
 from psd_tools.user_api import pymaging_support
 from psd_tools.user_api import pil_support
 from psd_tools.user_api.embedded import Embedded
@@ -180,6 +180,10 @@ class _RawLayer(object):
     @property
     def _tagged_blocks(self):
         return dict(self._info.tagged_blocks)
+
+    @property
+    def effects(self):
+        return get_effects(self)
 
 
 class Layer(_RawLayer):
