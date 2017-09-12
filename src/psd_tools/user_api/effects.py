@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-"""
-Layer effects API.
+"""Layer effects API.
 
-Usage:
+Usage::
 
     for effect in psd.layers[0].effects:
         print(effect.blend_mode)
@@ -18,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 
-""" List of blending mode keys and names. """
+# List of blending mode keys and names.
 BLEND_MODES = {
     b'Nrml': 'normal',
     b'Dslv': 'dissolve',
@@ -51,9 +50,7 @@ BLEND_MODES = {
 
 
 def get_effects(self):
-    """
-    Return effects block from the layer.
-    """
+    """Return effects block from the layer."""
     blocks = self._tagged_blocks
     effects = blocks.get(
         TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO,
@@ -66,25 +63,50 @@ def get_effects(self):
     return Effects(descriptor)
 
 
-class _BaseEffect(object):
-    """ Base class for effect. """
+class BaseEffect(object):
+    """Base class for effect."""
     def __init__(self, info):
         self._info = info
 
     @property
     def enabled(self):
-        return self._info.get(b'enab')
+        """Whether if the effect is enabled.
+
+        :rtype: bool
+        """
+        return self._info.get(b'enab', True)
 
     @property
     def present(self):
+        """Whether if the effect is present in UI.
+
+        :rtype: bool
+        """
         return self._info.get(b'present')
 
     @property
     def show_in_dialog(self):
+        """Whether if the effect is shown in dialog.
+
+        :rtype: bool
+        """
         return self._info.get(b'showInDialog')
 
     @property
     def blend_mode(self):
+        """Effect blending mode.
+
+        +--------------+
+        |Blending modes|
+        +--------------+
+        |normal        |
+        +--------------+
+        |dissolve      |
+        +--------------+
+
+        :returns: blending mode
+        :rtype: str
+        """
         return BLEND_MODES.get(self._info.get(b'Md  ', b'Nrml'), 'normal')
 
     @property
@@ -108,7 +130,7 @@ class _BaseEffect(object):
         return "<%s>" % (self.name(),)
 
 
-class _ShadowEffect(_BaseEffect):
+class _ShadowEffect(BaseEffect):
     """ Base class for shadow effect. """
     @property
     def color(self):
@@ -154,12 +176,12 @@ class DropShadow(_ShadowEffect):
         return self._info.get(b'layerConceals', True)
 
 
-class InnerShadow(_BaseEffect):
+class InnerShadow(BaseEffect):
     """ InnerShadow effect. """
     pass
 
 
-class _GlowEffect(_BaseEffect):
+class _GlowEffect(BaseEffect):
     """ Base class for glow effect. """
     @property
     def color(self):
@@ -216,7 +238,7 @@ class InnerGlow(_GlowEffect):
                                      'center')
 
 
-class _OverlayEffect(_BaseEffect):
+class _OverlayEffect(BaseEffect):
     pass
 
 
@@ -284,7 +306,7 @@ class PatternOverlay(_OverlayEffect):
         return self._info.get(b'phase')
 
 
-class Stroke(_BaseEffect):
+class Stroke(BaseEffect):
     """ Stroke effect """
     @property
     def color(self):
@@ -309,7 +331,7 @@ class Stroke(_BaseEffect):
         return self._info.get(b'overprint', False)
 
 
-class BevelEmboss(_BaseEffect):
+class BevelEmboss(BaseEffect):
     """ Bevel and Emboss effect """
     @property
     def highlight_mode(self):
@@ -392,7 +414,7 @@ class BevelEmboss(_BaseEffect):
         return self._info.get(b'useTexture', False)
 
 
-class Satin(_BaseEffect):
+class Satin(BaseEffect):
     """ Satin effect """
     @property
     def color(self):
@@ -473,7 +495,8 @@ class Effects(object):
 
     def enabled_items(self):
         if self.enabled:
-            return [item for item in self.items if getattr(item, 'enabled', False)]
+            return [item for item in self.items
+                    if getattr(item, 'enabled', False)]
         return []
 
     def __getitem__(self, index):

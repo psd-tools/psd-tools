@@ -53,8 +53,8 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'psd-tools2'
-copyright = '2017, Author'
-author = 'Author'
+copyright = '2017, Kota Yamaguchi'
+author = 'Kota Yamaguchi'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the

@@ -28,6 +28,22 @@ psd\_tools\.user\_api\.layers module
     :undoc-members:
     :show-inheritance:
 
+psd\_tools\.user\_api\.actions module
+-------------------------------------
+
+.. automodule:: psd_tools.user_api.actions
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+psd\_tools\.user\_api\.effects module
+-------------------------------------
+
+.. automodule:: psd_tools.user_api.effects
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 psd\_tools\.user\_api\.pil\_support module
 ------------------------------------------
 

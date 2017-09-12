@@ -607,7 +607,7 @@ def merge_layers(layers, respect_visibility=True, skip_layer=lambda layer: False
     pass ``respect_visibility=False`` to render them.
 
     In order to skip some layers pass ``skip_layer`` function which
-    should take ``layer` as an argument and return True or False.
+    should take ``layer`` as an argument and return True or False.
 
     If ``bbox`` is not None, it should be a 4-tuple with coordinates;
     returned image will be restricted to this rectangle.
