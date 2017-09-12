@@ -4,7 +4,6 @@ from __future__ import (absolute_import, unicode_literals, print_function,
 import warnings
 
 from psd_tools.constants import TaggedBlock, SectionDivider
-from psd_tools.user_api.actions import translate
 
 
 def group_layers(decoded_data):
@@ -131,18 +130,3 @@ def group_layers(decoded_data):
                 current_group['layers'].append(layer_dict)
 
     return root['layers']
-
-
-def get_effects(self):
-    """
-    Return effects block from the layer.
-    """
-    blocks = self._tagged_blocks
-    effects = blocks.get(
-        TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO,
-        blocks.get(
-            TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO_V0,
-            blocks.get(TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO_V0)))
-    if not effects:
-        return None
-    return translate(effects.descriptor)

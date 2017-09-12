@@ -8,10 +8,11 @@ import psd_tools.reader
 import psd_tools.decoder
 from psd_tools.constants import (TaggedBlock, SectionDivider, BlendMode,
     TextProperty, PlacedLayerProperty, SzProperty, ChannelID)
-from psd_tools.user_api.layers import group_layers, get_effects
+from psd_tools.user_api.layers import group_layers
 from psd_tools.user_api import pymaging_support
 from psd_tools.user_api import pil_support
 from psd_tools.user_api.embedded import Embedded
+from psd_tools.user_api.effects import get_effects
 
 logger = logging.getLogger(__name__)
 
@@ -247,9 +248,9 @@ class Layer(_RawLayer):
 
     def __repr__(self):
         bbox = self.bbox
-        return "<%s: %r, size=%dx%d, x=%d, y=%d, mask=%s, visible=%d>" % (
+        return "<%s: %r, size=%dx%d, x=%d, y=%d, visible=%d, mask=%s, effects=%s>" % (
             self.__class__.__name__, self.name, bbox.width, bbox.height,
-            bbox.x1, bbox.y1, self.mask, self.visible)
+            bbox.x1, bbox.y1, self.visible, self.mask, self.effects)
 
 
 class SmartObjectLayer(Layer):
