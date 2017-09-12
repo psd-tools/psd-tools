@@ -338,7 +338,13 @@ class GradientOverlay(_OverlayEffect, _AlignScaleMixin):
 
 
 class PatternOverlay(_OverlayEffect, _AlignScaleMixin):
-    """PatternOverlay effect."""
+    """PatternOverlay effect.
+
+    Retrieving pattern data::
+
+        if effect.name() == 'PatternOverlay':
+            pattern = psd.patterns.get(effect.pattern.id)
+    """
     @property
     def pattern(self):
         """Pattern config.
