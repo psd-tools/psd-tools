@@ -16,18 +16,35 @@ from psd_tools.decoder.actions import (Descriptor, Reference, Property,
 _translators, register = new_registry()
 _desc_translators, desc_register = new_registry()
 
-
+#: Point object, x and y attributes.
 Point = pretty_namedtuple('Point', 'x y')
+
+#: Shape object, contains list of points in curve.
 Shape = pretty_namedtuple('Shape', 'name curve')
+
+#: Pattern object.
 Pattern = pretty_namedtuple('Pattern', 'name id')
+
 _Gradation = pretty_namedtuple('Gradation',
     'desc_name name type smoothness colors transform')
+
+#: StopColor in gradient.
 StopColor = pretty_namedtuple('StopColor', 'color type location midpoint')
+
+#: StopOpacity in gradient.
 StopOpacity = pretty_namedtuple('StopOpacity', 'opacity location midpoint')
 
 
 class Color(object):
-    """ Color picker point """
+    """Color picker point representing a single color.
+
+    Example::
+
+        color.name  # => rgb
+        color.value # => (1.0, 1.0, 1.0)
+
+    .. todo:: Add colorspace conversion support. Perhaps add ``rgb()`` method.
+    """
     def __init__(self, name, value):
         self.name = name
         self.value = value
@@ -37,16 +54,15 @@ class Color(object):
 
 
 class Gradation(_Gradation):
-    """ Gradation object """
+    """Gradation object."""
     @property
     def short_name(self):
+        """Short gradient name."""
         return self._name.split("=")[-1]
 
 
 def translate(data):
-    """
-    Translate descriptor-based formats.
-    """
+    """Translate descriptor-based formats."""
     translator = _translators.get(type(data), lambda data: data)
     return translator(data)
 
