@@ -4,6 +4,11 @@ psd\_tools\.user\_api package
 Submodules
 ----------
 
+.. toctree::
+
+    psd_tools.user_api.actions
+    psd_tools.user_api.effects
+
 psd\_tools\.user\_api\.embedded module
 --------------------------------------
 
@@ -25,24 +30,6 @@ psd\_tools\.user\_api\.layers module
 
 .. automodule:: psd_tools.user_api.layers
     :members:
-    :undoc-members:
-    :show-inheritance:
-
-psd\_tools\.user\_api\.actions module
--------------------------------------
-
-.. automodule:: psd_tools.user_api.actions
-    :members:
-    :inherited-members:
-    :undoc-members:
-    :show-inheritance:
-
-psd\_tools\.user\_api\.effects module
--------------------------------------
-
-.. automodule:: psd_tools.user_api.effects
-    :members:
-    :inherited-members:
     :undoc-members:
     :show-inheritance:
 
