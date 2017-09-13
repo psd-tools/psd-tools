@@ -10,7 +10,7 @@ from psd_tools.debug import pretty_namedtuple
 from psd_tools.utils import trimmed_repr
 import warnings
 
-Descriptor = pretty_namedtuple('_Descriptor', 'name classID items')
+Descriptor = pretty_namedtuple('Descriptor', 'name classID items')
 Reference = pretty_namedtuple('Reference', 'items')
 Property = pretty_namedtuple('Property', 'name classID keyID')
 UnitFloat = pretty_namedtuple('UnitFloat', 'unit value')
