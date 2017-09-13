@@ -198,3 +198,20 @@ epub_copyright = copyright
 epub_exclude_files = ['search.html']
 
 
+# -- Remove auto-generated namedtuple docstrings ---------------------------
+
+# Named tuples generate rather inhumane docstring. Remove them.
+def no_namedtuple_attrib_docstring(app, what, name, obj, options, lines):
+    is_namedtuple_docstring = (
+        len(lines) == 2 and
+        lines[0].startswith(u'Alias for field number')
+    )
+    if is_namedtuple_docstring:
+        del lines[:]
+
+
+def setup(app):
+    app.connect(
+        'autodoc-process-docstring',
+        no_namedtuple_attrib_docstring,
+    )
