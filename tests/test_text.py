@@ -17,7 +17,7 @@ def test_text(filename, layer_num, text):
     psd = PSDImage(decode_psd(filename))
 
     layer = psd.layers[layer_num]
-    assert layer.text_data.text == text
+    assert layer.text == text
 
 def test_no_text():
     psd = PSDImage(decode_psd('1layer.psd'))

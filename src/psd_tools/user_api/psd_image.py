@@ -30,15 +30,6 @@ class BBox(collections.namedtuple('BBox', 'x1, y1, x2, y2')):
         return self.y2-self.y1
 
 
-class TextData(object):
-    def __init__(self, tagged_blocks):
-        self.text_data = dict(tagged_blocks.text_data.items)
-
-    @property
-    def text(self):
-        return self.text_data[TextProperty.TXT].value
-
-
 class PlacedLayerData(object):
     def __init__(self, placed_layer_block):
         placed_layer_data = dict(placed_layer_block)
@@ -373,12 +364,12 @@ class TypeLayer(Layer):
     """ PSD type layer wrapper """
     def __init__(self, parent, index):
         super(TypeLayer, self).__init__(parent, index, 'type')
-        self.text_data = TextData(self._tagged_blocks.get(
-            TaggedBlock.TYPE_TOOL_OBJECT_SETTING))
+        self.text_data = dict(self._tagged_blocks.get(
+            TaggedBlock.TYPE_TOOL_OBJECT_SETTING).text_data.items)
 
     @property
     def text(self):
-        return self.text_data.text
+        return self.text_data[TextProperty.TXT].value
 
 
 class Group(_RawLayer):
