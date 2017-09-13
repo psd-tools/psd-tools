@@ -21,13 +21,16 @@ Size = collections.namedtuple('Size', 'width, height')
 
 
 class BBox(collections.namedtuple('BBox', 'x1, y1, x2, y2')):
+    """Bounding box tuple representing (x1, y1, x2, y2)."""
     @property
     def width(self):
-        return self.x2-self.x1
+        """Width of the bounding box."""
+        return self.x2 - self.x1
 
     @property
     def height(self):
-        return self.y2-self.y1
+        """Height of the bounding box."""
+        return self.y2 - self.y1
 
 
 class PlacedLayerData(object):
@@ -202,41 +205,6 @@ class Layer(_RawLayer):
         info = self._info
         return BBox(info.left, info.top, info.right, info.bottom)
 
-    @property
-    def transform_bbox(self):
-        """ BBox(x1, y1, x2, y2) namedtuple with layer transform box
-        (Top Left and Bottom Right corners). The tranform of a layer the
-        points for all 4 corners.
-        """
-        placed_layer_block = self._placed_layer_block()
-        if not placed_layer_block:
-            return None
-        placed_layer_data = PlacedLayerData(placed_layer_block)
-
-        transform = placed_layer_data.transform
-        if not transform:
-            return None
-        return BBox(transform[0].value, transform[1].value, transform[4].value, transform[5].value)
-
-    @property
-    def placed_layer_size(self):
-        """ BBox(x1, y1, x2, y2) namedtuple with original
-        smart object content size.
-        """
-        placed_layer_block = self._placed_layer_block()
-        if not placed_layer_block:
-            return None
-        placed_layer_data = PlacedLayerData(placed_layer_block)
-
-        size = placed_layer_data.size
-        if not size:
-            return None
-        return Size(size[SzProperty.WIDTH].value, size[SzProperty.HEIGHT].value)
-
-    def _placed_layer_block(self):
-        so_layer_block = self._tagged_blocks.get(TaggedBlock.SMART_OBJECT_PLACED_LAYER_DATA)
-        return self._tagged_blocks.get(TaggedBlock.PLACED_LAYER_DATA, so_layer_block)
-
     def __repr__(self):
         bbox = self.bbox
         return "<%s: %r, size=%dx%d, x=%d, y=%d, visible=%d, mask=%s, effects=%s>" % (
@@ -265,6 +233,50 @@ class SmartObjectLayer(Layer):
         """
         unique_id = self.unique_id()
         return self._psd.embedded.get(unique_id) if unique_id else None
+
+    @property
+    def transform_bbox(self):
+        """ BBox(x1, y1, x2, y2) namedtuple with layer transform box
+        (Top Left and Bottom Right corners). The tranform of a layer the
+        points for all 4 corners.
+        """
+        placed_layer_block = self._placed_layer_block()
+        if not placed_layer_block:
+            return None
+        placed_layer_data = PlacedLayerData(placed_layer_block)
+
+        transform = placed_layer_data.transform
+        if not transform:
+            return None
+        return BBox(transform[0].value, transform[1].value,
+                    transform[4].value, transform[5].value)
+
+    @property
+    def placed_layer_size(self):
+        """ BBox(x1, y1, x2, y2) namedtuple with original
+        smart object content size.
+        """
+        placed_layer_block = self._placed_layer_block()
+        if not placed_layer_block:
+            return None
+        placed_layer_data = PlacedLayerData(placed_layer_block)
+
+        size = placed_layer_data.size
+        if not size:
+            return None
+        return Size(size[SzProperty.WIDTH].value,
+                    size[SzProperty.HEIGHT].value)
+
+    def _placed_layer_block(self):
+        blocks = self._tagged_blocks
+        return blocks.get(
+            TaggedBlock.SMART_OBJECT_PLACED_LAYER_DATA,
+            blocks.get(
+                TaggedBlock.PLACED_LAYER_DATA,
+                blocks.get(
+                    TaggedBlock.PLACED_LAYER_OBSOLETE1,
+                    blocks.get(
+                        TaggedBlock.PLACED_LAYER_OBSOLETE2))))
 
     def __repr__(self):
         bbox = self.bbox
@@ -514,9 +526,12 @@ class PSDImage(object):
         """
         Returns a dict of pattern (texture) data in PIL.Image.
         """
-        patterns = self._tagged_blocks.get(TaggedBlock.PATTERNS1,
-            blocks.get(TaggedBlock.PATTERNS2, blocks.get(
-            TaggedBlock.PATTERNS3, [])))
+        blocks = self._tagged_blocks
+        patterns = blocks.get(
+            TaggedBlock.PATTERNS1,
+            blocks.get(
+                TaggedBlock.PATTERNS2,
+                blocks.get(TaggedBlock.PATTERNS3, [])))
         return {p.pattern_id: Pattern(p) for p in patterns}
 
     @property
