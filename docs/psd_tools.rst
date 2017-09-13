@@ -10,6 +10,15 @@ Subpackages
     psd_tools.reader
     psd_tools.user_api
 
+Classes
+-------
+
+.. autoclass:: psd_tools.PSDImage
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 Submodules
 ----------
 
