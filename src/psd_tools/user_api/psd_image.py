@@ -143,7 +143,7 @@ class _RawLayer(object):
     @property
     def visible_global(self):
         """ Layer visibility. Takes group visibility in account. """
-        return self.visible and self.parent.visible
+        return self.visible and self.parent.visible_global
 
     @property
     def layer_id(self):
