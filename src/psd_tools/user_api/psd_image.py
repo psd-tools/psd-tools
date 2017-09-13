@@ -431,6 +431,7 @@ class TypeLayer(_VisibleLayer):
 
     @property
     def text(self):
+        """Unicode string."""
         return self.text_data[TextProperty.TXT].value
 
     @property
@@ -457,6 +458,7 @@ class TypeLayer(_VisibleLayer):
 
     @property
     def full_text(self):
+        """Raw string including trailing newline."""
         return self.engine_data[b'EngineDict'][b'Editor'][b'Text']
 
     def style_spans(self):
