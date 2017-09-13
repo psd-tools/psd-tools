@@ -6,8 +6,9 @@ import collections
 import weakref              # FIXME: there should be weakrefs in this module
 import psd_tools.reader
 import psd_tools.decoder
-from psd_tools.constants import (TaggedBlock, SectionDivider, BlendMode,
-    TextProperty, PlacedLayerProperty, SzProperty, ChannelID)
+from psd_tools.constants import (
+    TaggedBlock, SectionDivider, BlendMode, TextProperty, PlacedLayerProperty,
+    SzProperty, ChannelID)
 from psd_tools.user_api.layers import group_layers
 from psd_tools.user_api import pymaging_support
 from psd_tools.user_api import pil_support
@@ -207,9 +208,11 @@ class Layer(_RawLayer):
 
     def __repr__(self):
         bbox = self.bbox
-        return "<%s: %r, size=%dx%d, x=%d, y=%d, visible=%d, mask=%s, effects=%s>" % (
-            self.__class__.__name__, self.name, bbox.width, bbox.height,
-            bbox.x1, bbox.y1, self.visible, self.mask, self.effects)
+        return (
+            "<%s: %r, size=%dx%d, x=%d, y=%d, visible=%d, mask=%s, "
+            "effects=%s>" % (
+                self.__class__.__name__, self.name, bbox.width, bbox.height,
+                bbox.x1, bbox.y1, self.visible, self.mask, self.effects))
 
 
 class SmartObjectLayer(Layer):
@@ -300,8 +303,8 @@ class AdjustmentLayer(Layer):
         super(AdjustmentLayer, self).__init__(parent, index, 'adjustment')
 
     def __repr__(self):
-        return "<%s: %r, visible=%s>" % (self.__class__.__name__, self.name,
-            self.visible)
+        return "<%s: %r, visible=%s>" % (
+            self.__class__.__name__, self.name, self.visible)
 
 
 class ShapeLayer(Layer):
@@ -397,7 +400,8 @@ class Group(_RawLayer):
 
     @property
     def closed(self):
-        divider = self._tagged_blocks.get(TaggedBlock.SECTION_DIVIDER_SETTING, None)
+        divider = self._tagged_blocks.get(
+            TaggedBlock.SECTION_DIVIDER_SETTING, None)
         if divider is None:
             return
         return divider.type == SectionDivider.CLOSED_FOLDER
@@ -600,7 +604,8 @@ def combined_bbox(layers):
     Returns a bounding box for ``layers`` or None if this is not possible.
     """
     bboxes = [layer.bbox for layer in layers
-              if layer.bbox is not None and layer.bbox.width > 0 and layer.bbox.height > 0]
+              if layer.bbox is not None and
+              layer.bbox.width > 0 and layer.bbox.height > 0]
     if not bboxes:
         return None
 
@@ -608,7 +613,8 @@ def combined_bbox(layers):
     return BBox(min(lefts), min(tops), max(rights), max(bottoms))
 
 
-def merge_layers(layers, respect_visibility=True, skip_layer=lambda layer: False, bbox=None):
+def merge_layers(layers, respect_visibility=True,
+                 skip_layer=lambda layer: False, bbox=None):
     """
     Merges layers together (the first layer is on top).
 
@@ -636,7 +642,7 @@ def merge_layers(layers, respect_visibility=True, skip_layer=lambda layer: False
     result = Image.new(
         "RGBA",
         (bbox.width, bbox.height),
-        color=(255, 255, 255, 0)  # fixme: transparency calculation is incorrect
+        color=(255, 255, 255, 0)  # fixme: transparency is incorrect
     )
 
     for layer in reversed(layers):
@@ -654,7 +660,8 @@ def merge_layers(layers, respect_visibility=True, skip_layer=lambda layer: False
             continue
 
         if isinstance(layer, psd_tools.Group):
-            layer_image = merge_layers(layer.layers, respect_visibility, skip_layer)
+            layer_image = merge_layers(
+                layer.layers, respect_visibility, skip_layer)
         else:
             layer_image = layer.as_PIL()
 
@@ -681,12 +688,15 @@ def merge_layers(layers, respect_visibility=True, skip_layer=lambda layer: False
                 tmp.paste(layer_image, (x, y))
                 result = Image.alpha_composite(result, tmp)
             elif layer_image.mode == 'RGB':
-                result.paste(layer_image, (x,y))
+                result.paste(layer_image, (x, y))
             else:
-                logger.warning("layer image mode is unsupported for merging: %s", layer_image.mode)
+                logger.warning(
+                    "layer image mode is unsupported for merging: %s",
+                    layer_image.mode)
                 continue
         else:
-            logger.warning("Blend mode is not implemented: %s", BlendMode.name_of(layer.blend_mode))
+            logger.warning("Blend mode is not implemented: %s",
+                           BlendMode.name_of(layer.blend_mode))
             continue
 
     return result
