@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, unicode_literals, print_function, division
+from __future__ import (absolute_import, unicode_literals, print_function,
+    division)
 import warnings
 
 from psd_tools.constants import TaggedBlock, SectionDivider
@@ -32,7 +33,8 @@ def group_layers(decoded_data):
 
         if divider is not None:
             # group information
-            if divider.type in [SectionDivider.CLOSED_FOLDER, SectionDivider.OPEN_FOLDER]:
+            if divider.type in [SectionDivider.CLOSED_FOLDER,
+                                SectionDivider.OPEN_FOLDER]:
                 # group begins
                 group = dict(
                     id = layer_id,
@@ -90,7 +92,8 @@ def group_layers(decoded_data):
                   TaggedBlock.VECTOR_STROKE_DATA in blocks or
                   TaggedBlock.VECTOR_STROKE_CONTENT_DATA in blocks):
                 kind = 'shape'
-            elif any([TaggedBlock.is_adjustment_key(key) for key in blocks.keys()]):
+            elif any([TaggedBlock.is_adjustment_key(key)
+                      for key in blocks.keys()]):
                 kind = 'adjustment'
             elif any([TaggedBlock.is_fill_key(key) for key in blocks.keys()]):
                 # TODO: Check if shape layer with fill keys precedes.

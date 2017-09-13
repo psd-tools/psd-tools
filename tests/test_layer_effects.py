@@ -2,8 +2,9 @@
 from __future__ import absolute_import, unicode_literals
 import pytest
 
-from .utils import decode_psd
+from .utils import decode_psd, full_name
 from psd_tools.constants import BlendMode
+from psd_tools.user_api import PSDImage
 
 
 psd = decode_psd('layer_params.psd')
@@ -107,3 +108,9 @@ def test_iopa_brst_block():
     assert tagged_blocks[b'brst'][0] == False
     assert tagged_blocks[b'brst'][1] == False
     assert tagged_blocks[b'brst'][2] == True
+
+
+def test_effects_api():
+    _psd = PSDImage.load(full_name('layer_effects.psd'))
+    for layer in _psd.layers:
+        assert len(layer.effects) > 0

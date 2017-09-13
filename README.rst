@@ -94,7 +94,7 @@ Work with a layer group::
     True
 
     >>> group2.layers
-    [<Layer: 'Shape 2', size=43x62, x=40, y=72, mask=None, visible=1)>]
+    [<ShapeLayer: 'Shape 2', size=43x62, x=40, y=72, mask=None, visible=1)>]
 
 Work with a layer::
 
@@ -129,6 +129,9 @@ Work with a layer::
 
     >>> layer.clip_layers
     [<Layer: 'Clipped', size=43x62, x=40, y=72, mask=None, visible=1)>, ...]
+
+    >>> layer.effects
+    [<GradientOverlay>]
 
 Export a single layer::
 
