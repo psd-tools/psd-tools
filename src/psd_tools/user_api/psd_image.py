@@ -514,11 +514,14 @@ class PSDImage(object):
         """
         Returns a dict of pattern (texture) data in PIL.Image.
         """
-        layer_and_mask_data = self.decoded_data.layer_and_mask_data
-        blocks = dict(layer_and_mask_data.tagged_blocks)
-        patterns = blocks.get(b'Patt', blocks.get(b'Pat2', blocks.get(
-            b'Pat3', [])))
+        patterns = self._tagged_blocks.get(TaggedBlock.PATTERNS1,
+            blocks.get(TaggedBlock.PATTERNS2, blocks.get(
+            TaggedBlock.PATTERNS3, [])))
         return {p.pattern_id: Pattern(p) for p in patterns}
+
+    @property
+    def _tagged_blocks(self):
+        return dict(self.decoded_data.layer_and_mask_data.tagged_blocks)
 
     def _layer_info(self, index):
         layers = self.decoded_data.layer_and_mask_data.layers.layer_records
