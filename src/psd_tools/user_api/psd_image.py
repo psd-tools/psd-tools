@@ -425,12 +425,58 @@ class TypeLayer(_VisibleLayer):
     """
     def __init__(self, parent, index):
         super(TypeLayer, self).__init__(parent, index, 'type')
-        self.text_data = dict(self._tagged_blocks.get(
-            TaggedBlock.TYPE_TOOL_OBJECT_SETTING).text_data.items)
+        self._type_info = self._tagged_blocks.get(
+            TaggedBlock.TYPE_TOOL_OBJECT_SETTING)
+        self.text_data = dict(self._type_info.text_data.items)
 
     @property
     def text(self):
         return self.text_data[TextProperty.TXT].value
+
+    @property
+    def matrix(self):
+        """Matrix [xx xy yx yy tx ty] applies affine transformation."""
+        return (self._type_info.xx, self._type_info.xy, self._type_info.yx,
+                self._type_info.yy, self._type_info.tx, self._type_info.ty)
+
+    @property
+    def engine_data(self):
+        """Type information in engine data format."""
+        return self.text_data.get(b'EngineData')
+
+    @property
+    def fontset(self):
+        """Font set."""
+        return self.engine_data[b'DocumentResources'][b'FontSet']
+
+    @property
+    def writing_direction(self):
+        """Writing direction."""
+        return self.engine_data[b'EngineDict'][
+            b'Rendered'][b'Shapes'][b'WritingDirection']
+
+    @property
+    def full_text(self):
+        return self.engine_data[b'EngineDict'][b'Editor'][b'Text']
+
+    def style_spans(self):
+        """Returns spans by text style segments."""
+        text = self.full_text
+        fontset = self.fontset
+        engine_data = self.engine_data
+        runlength = engine_data[b'EngineDict'][b'StyleRun'][b'RunLengthArray']
+        runarray = engine_data[b'EngineDict'][b'StyleRun'][b'RunArray']
+
+        start = 0
+        spans = []
+        for run, size in zip(runarray, runlength):
+            runtext = text[start:start + size]
+            stylesheet = run[b'StyleSheet'][b'StyleSheetData'].copy()
+            stylesheet[b'Text'] = runtext
+            stylesheet[b'Font'] = fontset[stylesheet.get(b'Font', 0)]
+            spans.append(stylesheet)
+            start += size
+        return spans
 
 
 class Group(_RawLayer):

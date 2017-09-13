@@ -18,6 +18,11 @@ def test_text(filename, layer_num, text):
 
     layer = psd.layers[layer_num]
     assert layer.text == text
+    assert len(layer.matrix) == 6
+    assert len(layer.fontset) == 3       # Specific to files.
+    assert layer.writing_direction == 0  # Specific to files.
+    assert layer.full_text.startswith(text)
+    assert all([isinstance(span, dict) for span in layer.style_spans()])
 
 def test_no_text():
     psd = PSDImage(decode_psd('1layer.psd'))
