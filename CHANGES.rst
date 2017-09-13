@@ -1,3 +1,11 @@
+1.6.2 (2017-09-13)
+------------------
+
+- layer class structure reorganization;
+- add Effects API;
+- add TypeLayer API methods;
+
+
 1.6.1 (2017-09-12)
 ------------------
 
