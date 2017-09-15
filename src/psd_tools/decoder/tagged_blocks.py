@@ -179,13 +179,23 @@ def _decode_brightness_and_contrast(data, **kwargs):
 
 @register(TaggedBlock.LEVELS)
 def _decode_levels(data, **kwargs):
+    def read_level_record(fp):
+        input_f, input_c, output_f, output_c, gamma = read_fmt("5H", fp)
+        return LevelRecord(
+            input_f, input_c, output_f, output_c, gamma / 100.0)
+
     fp = io.BytesIO(data)
     version = read_fmt("H", fp)[0]
-    level_records = []
-    for i in range(29):
-        input_f, input_c, output_f, output_c, gamma = read_fmt("5H", fp)
-        level_records.append(LevelRecord(
-            input_f, input_c, output_f, output_c, gamma / 100.0))
+    level_records = [read_level_record(fp) for i in range(29)]
+
+    # decode extra level record, Photoshop CS (8.0) Additional information
+    if fp.tell() < len(data):
+        signature = read_fmt('4s', fp)[0]
+        assert signature == b'Lvls', 'unexpected token: {0}'.format(signature)
+        _ = read_fmt('H', fp)[0]  # version (= 3)
+        count = read_fmt('H', fp)[0] - 29
+        level_records = level_records + [read_level_record(fp) for i in range(count)]
+
     return LevelsSettings(version, level_records)
 
 
