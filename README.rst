@@ -17,6 +17,10 @@ original version.
    :alt: Build Status
    :target: https://travis-ci.org/kyamagu/psd-tools2
 
+.. image:: https://readthedocs.org/projects/psd-tools2/badge/?version=latest
+   :alt: Document Status
+   :target: http://psd-tools2.readthedocs.io/en/latest/?badge=latest
+
 .. _psd-tools: https://github.com/psd-tools/psd-tools
 
 
