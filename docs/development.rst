@@ -36,42 +36,6 @@ have tests and support both Python 2.x and Python 3.x.
 .. _psdparse: https://github.com/jerem/psdparse
 .. _pypsd: https://code.google.com/p/pypsd
 
-Features
---------
-
-Supported:
-
-* reading of RGB, RGBA, CMYK, CMYKA and Grayscale images;
-* 8bit, 16bit and 32bit channels;
-* all PSD compression methods are supported (not only the most
-  common RAW and RLE);
-* image ICC profile is taken into account;
-* many image resource types and tagged block types are decoded;
-* layer effects information is decoded;
-* Descriptor structures are decoded;
-* there is an optional Cython extension to make the parsing fast;
-* very basic & experimental layer merging;
-* support both PSD and PSB file formats;
-* EngineData structure is decoded;
-* EXIF data is taken into account;
-* experimental JSON export (only Python 3).
-
-Not implemented:
-
-* reading of Duotone, LAB, etc. images;
-* some image resource types and tagged blocks are not decoded
-  (they are attached to the result as raw bytes);
-* some of the raw Descriptor values are not decoded;
-* this library can't reliably blend layers together: it is possible to export
-  a single layer and to export a final image, but rendering of
-  e.g. layer group may produce incorrect results;
-* the writing of PSD images is not implemented;
-* Pymaging_ support is limited: it only supports 8bit RGB/RGBA
-  images, ICC profiles are not applied, layer merging doesn't work, etc.
-
-If you need some of unimplemented features then please file an issue
-or implement it yourself (pull requests are welcome in this case).
-
 Design overview
 ---------------
 
