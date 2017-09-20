@@ -1,16 +1,23 @@
+1.6.3
+-----
+
+- documentation updates;
+- github repository renamed to psd-tools2.
+
+
 1.6.2 (2017-09-13)
 ------------------
 
 - layer class structure reorganization;
 - add Effects API;
-- add TypeLayer API methods;
+- add TypeLayer API methods.
 
 1.6 (2017-09-08)
 ----------------
 
 - PSDImage user API update;
 - user API adds distinct layer types;
-- Sphinx documentation;
+- Sphinx documentation.
 
 1.5 (2017-07-13)
 ----------------

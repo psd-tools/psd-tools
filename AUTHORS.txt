@@ -18,4 +18,5 @@ Contributors
 * Michael Wu;
 * Josh Drake;
 * Leendert Brouwer;
-* Kota Yamaguchi.
+* Kota Yamaguchi;
+* Ichiro Arai.

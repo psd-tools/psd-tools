@@ -1,11 +1,11 @@
 psd-tools2
 ==========
 
-This is a fork of psd-tools_ that
-adds a couple of enhancements to the original version.
-
 ``psd-tools2`` is a package for reading Adobe Photoshop PSD files
-(as described in specification_) to Python data structures.
+as described in specification_ to Python data structures.
+
+This is a fork of psd-tools_ that adds a couple of enhancements to the
+original version.
 
 .. _specification: https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/PhotoshopFileFormats.htm
 
@@ -13,9 +13,9 @@ adds a couple of enhancements to the original version.
    :target: https://pypi.python.org/pypi/psd-tools2
    :alt: PyPI Version
 
-.. image:: https://img.shields.io/travis/kyamagu/psd-tools/master.svg
+.. image:: https://img.shields.io/travis/kyamagu/psd-tools2/master.svg
    :alt: Build Status
-   :target: https://travis-ci.org/kyamagu/psd-tools
+   :target: https://travis-ci.org/kyamagu/psd-tools2
 
 .. _psd-tools: https://github.com/psd-tools/psd-tools
 
@@ -271,8 +271,8 @@ or implement it yourself (pull requests are welcome in this case).
 Contributing
 ------------
 
-Development happens at github: `source code <https://github.com/kyamagu/psd-tools>`__,
-`bug tracker <https://github.com/kyamagu/psd-tools/issues>`__.
+Development happens at github: `source code <https://github.com/kyamagu/psd-tools2>`__,
+`bug tracker <https://github.com/kyamagu/psd-tools2/issues>`__.
 Feel free to submit ideas, bugs or pull requests.
 
 In case of bugs it would be helpful to provide a small PSD file
@@ -302,4 +302,4 @@ Acknowledgments
 
 Great thanks to the original `psd-tools` author Mikhail Korobov.
 A full list of contributors can be found here:
-https://github.com/kyamagu/psd-tools/blob/master/AUTHORS.txt
+https://github.com/kyamagu/psd-tools2/blob/master/AUTHORS.txt
