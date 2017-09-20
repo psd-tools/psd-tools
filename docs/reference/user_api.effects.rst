@@ -1,5 +1,5 @@
-psd\_tools\.user\_api.effects module
-------------------------------------
+psd\_tools\.user\_api.effects
+-----------------------------
 
 .. automodule:: psd_tools.user_api.effects
     :members:

@@ -1,5 +1,5 @@
-psd\_tools\.user\_api\.pil\_support module
-------------------------------------------
+psd\_tools\.user\_api\.pil\_support
+-----------------------------------
 
 .. automodule:: psd_tools.user_api.pil_support
     :members:
