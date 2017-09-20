@@ -1,5 +1,5 @@
-psd\_tools\.user\_api.actions module
-------------------------------------
+psd\_tools\.user\_api.actions
+-----------------------------
 
 .. automodule:: psd_tools.user_api.actions
     :members:
