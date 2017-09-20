@@ -9,13 +9,5 @@ psd\_tools\.user\_api
     user_api.json_encoder
     user_api.layers
     user_api.pil_support
+    user_api.psd_image
     user_api.pymaging_support
-
-psd\_tools\.user\_api\.psd\_image
----------------------------------
-
-.. automodule:: psd_tools.user_api.psd_image
-    :members:
-    :inherited-members:
-    :undoc-members:
-    :show-inheritance:

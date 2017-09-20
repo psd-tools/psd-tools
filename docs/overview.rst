@@ -10,6 +10,13 @@ psd-tools_ that adds a couple of enhancements to the original version.
 .. _psd-tools: https://github.com/psd-tools/psd-tools
 
 
+Getting started
+---------------
+
+Check out the :doc:`usage` documentation.
+
+:doc:`development` page describes the package design and development utilities.
+
 Features
 --------
 
