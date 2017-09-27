@@ -1,8 +1,9 @@
-1.6.3
------
+1.6.3 (2017-09-27)
+------------------
 
 - documentation updates;
-- github repository renamed to psd-tools2.
+- github repository renamed to psd-tools2;
+- AdjustmentLayer fix.
 
 
 1.6.2 (2017-09-13)
