@@ -266,6 +266,12 @@ class AdjustmentLayer(_RawLayer):
         return "<%s: %r, visible=%s>" % (
             self.__class__.__name__, self.name, self.visible)
 
+    @property
+    def bbox(self):
+        """BBox(x1, y1, x2, y2) namedtuple with layer bounding box."""
+        info = self._info
+        return BBox(info.left, info.top, info.right, info.bottom)
+
 
 class PixelLayer(_VisibleLayer):
     """PSD pixel layer wrapper."""
