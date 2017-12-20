@@ -9,7 +9,7 @@ import psd_tools.reader
 import psd_tools.decoder
 from psd_tools.constants import (
     TaggedBlock, SectionDivider, BlendMode, TextProperty, PlacedLayerProperty,
-    SzProperty, ChannelID)
+    SzProperty, ChannelID, ImageResourceID)
 from psd_tools.user_api.layers import group_layers
 from psd_tools.user_api import pymaging_support
 from psd_tools.user_api import pil_support
@@ -492,7 +492,7 @@ class Group(_RawLayer):
 
     def __init__(self, parent, index, layers):
         super(Group, self).__init__(parent, index, 'group')
-        self.layers = layers
+        self._layers = layers
 
     @property
     def closed(self):
@@ -509,6 +509,26 @@ class Group(_RawLayer):
         all layers in this group; None if a group has no children.
         """
         return combined_bbox(self.layers)
+
+    @property
+    def layers(self):
+        """
+        Return a list of child layers in this group.
+        """
+        return self._layers
+
+    def all_layers(self, include_clip=True):
+        """
+        Return a generator to iterate over all descendant layers.
+        """
+        for layer in self._layers:
+            yield layer
+            if hasattr(layer, "all_layers"):
+                for child in layer.all_layers(include_clip):
+                    yield child
+            if include_clip:
+                for clip_layer in layer.clip_layers:
+                    yield clip_layer
 
     def as_PIL(self):
         """
@@ -644,11 +664,19 @@ class PSDImage(object):
     def _tagged_blocks(self):
         return dict(self.decoded_data.layer_and_mask_data.tagged_blocks)
 
+    @property
+    def _image_resource_blocks(self):
+        return {ImageResourceID.name_of(block.resource_id).lower(): block.data
+                for block in self.decoded_data.image_resource_blocks}
+
     def _layer_info(self, index):
         layers = self.decoded_data.layer_and_mask_data.layers.layer_records
         return layers[index]
 
     def _layer_as_PIL(self, index):
+        version_info = self._image_resource_blocks.get("version_info")
+        if version_info and not version_info.has_real_merged_data:
+            logger.warning("Could not find a pre-rendered image.")
         return pil_support.extract_layer_image(self.decoded_data, index)
 
     def _layer_as_pymaging(self, index):
@@ -662,6 +690,12 @@ class PSDImage(object):
                 for layer in block.data.linked_list:
                     yield layer
 
+    def all_layers(self, include_clip=True):
+        """
+        Returns a generator to iterate over all descendant layers.
+        """
+        return self._fake_root_group.all_layers(include_clip=include_clip)
+
     def print_tree(self, layers=None, indent=0, indent_width=2, **kwargs):
         """Print the layer tree structure."""
         if not layers:
@@ -674,6 +708,22 @@ class PSDImage(object):
             print(((' ' * indent) + "{}").format(l), **kwargs)
             if isinstance(l, Group):
                 self.print_tree(l.layers, indent + indent_width)
+
+    def thumbnail(self):
+        """
+        Returns a thumbnail image in PIL.Image. When the file does not
+        contain an embedded thumbnail image, returns None.
+        """
+        blocks = self._image_resource_blocks
+        thumbnail_resource = blocks.get("thumbnail_resource")
+        if thumbnail_resource:
+            return pil_support.extract_thumbnail(thumbnail_resource)
+        else:
+            thumbnail_resource = blocks.get("thumbnail_resource_ps4")
+            if thumbnail_resource:
+                return pil_support.extract_thumbnail(thumbnail_resource,
+                                                     "BGR")
+        return None
 
     def __repr__(self):
         return "<%s: size=%dx%d, layer_count=%d>" % (

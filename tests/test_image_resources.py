@@ -5,11 +5,17 @@ import pytest
 from psd_tools.constants import ImageResourceID
 from psd_tools.decoder.image_resources import (
     SlicesHeaderV6, SlicesResourceBlock)
-from .utils import decode_psd, with_psb
+from tests.utils import decode_psd, with_psb, full_name
+from psd_tools.user_api.psd_image import PSDImage
 
 
 SLICES_FILES = with_psb([
     ('slices.psd',),
+])
+
+
+THUMBNAIL_FILES = with_psb([
+    ('layer_comps.psd',),
 ])
 
 
@@ -21,3 +27,15 @@ def test_slices_resource(filename):
             assert isinstance(block.data, SlicesHeaderV6)
             for item in block.data.items:
                 assert isinstance(item, SlicesResourceBlock)
+
+
+def test_resource_blocks():
+    psd = PSDImage.load(full_name("fill_adjustments.psd"))
+    blocks = psd._image_resource_blocks
+    assert "version_info" in blocks
+
+
+@pytest.mark.parametrize(["filename"], THUMBNAIL_FILES)
+def test_thumbnail(filename):
+    psd = PSDImage.load(full_name(filename))
+    assert psd.thumbnail()

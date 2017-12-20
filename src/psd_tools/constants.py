@@ -29,7 +29,7 @@ class Enum(object):
 
     @classmethod
     def name_of(cls, value):
-        return cls._values_dict().get(value, "<unknown>")
+        return cls._values_dict().get(value, "<unknown:{}>".format(value))
 
 
 class ColorMode(Enum):
