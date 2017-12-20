@@ -674,6 +674,9 @@ class PSDImage(object):
         return layers[index]
 
     def _layer_as_PIL(self, index):
+        version_info = self._image_resource_blocks.get("version_info")
+        if version_info and not version_info.has_real_merged_data:
+            logger.warning("Could not find a pre-rendered image.")
         return pil_support.extract_layer_image(self.decoded_data, index)
 
     def _layer_as_pymaging(self, index):
@@ -689,7 +692,7 @@ class PSDImage(object):
 
     def all_layers(self, include_clip=True):
         """
-        Return a generator to iterate over all descendant layers.
+        Returns a generator to iterate over all descendant layers.
         """
         return self._fake_root_group.all_layers(include_clip=include_clip)
 
@@ -705,6 +708,22 @@ class PSDImage(object):
             print(((' ' * indent) + "{}").format(l), **kwargs)
             if isinstance(l, Group):
                 self.print_tree(l.layers, indent + indent_width)
+
+    def thumbnail(self):
+        """
+        Returns a thumbnail image in PIL.Image. When the file does not
+        contain an embedded thumbnail image, returns None.
+        """
+        blocks = self._image_resource_blocks
+        thumbnail_resource = blocks.get("thumbnail_resource")
+        if thumbnail_resource:
+            return pil_support.extract_thumbnail(thumbnail_resource)
+        else:
+            thumbnail_resource = blocks.get("thumbnail_resource_ps4")
+            if thumbnail_resource:
+                return pil_support.extract_thumbnail(thumbnail_resource,
+                                                     "BGR")
+        return None
 
     def __repr__(self):
         return "<%s: size=%dx%d, layer_count=%d>" % (

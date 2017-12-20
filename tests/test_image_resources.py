@@ -14,6 +14,11 @@ SLICES_FILES = with_psb([
 ])
 
 
+THUMBNAIL_FILES = with_psb([
+    ('layer_comps.psd',),
+])
+
+
 @pytest.mark.parametrize(["filename"], SLICES_FILES)
 def test_slices_resource(filename):
     decoded = decode_psd(filename)
@@ -28,3 +33,9 @@ def test_resource_blocks():
     psd = PSDImage.load(full_name("fill_adjustments.psd"))
     blocks = psd._image_resource_blocks
     assert "version_info" in blocks
+
+
+@pytest.mark.parametrize(["filename"], THUMBNAIL_FILES)
+def test_thumbnail(filename):
+    psd = PSDImage.load(full_name(filename))
+    assert psd.thumbnail()

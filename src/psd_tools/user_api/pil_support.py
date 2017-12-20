@@ -2,6 +2,7 @@
 from __future__ import absolute_import, unicode_literals, division
 
 import warnings
+import io
 from psd_tools.utils import be_array_from_bytes
 from psd_tools.constants import Compression, ChannelID, ColorMode, ImageResourceID
 from psd_tools import icc_profiles
@@ -155,6 +156,16 @@ def draw_polygon(bbox, anchors, fill='white'):
     draw = ImageDraw.Draw(image)
     draw.polygon(anchors, fill=fill)
     del draw
+    return image
+
+
+def extract_thumbnail(resource, mode="RGB"):
+    if resource.format == 0:
+        size = (resource.width, resource.height)
+        stride = resource.widthbytes
+        image = frombytes('RGBX', size, data.value, 'raw', mode, stride)
+    elif resource.format == 1:
+        image = Image.open(io.BytesIO(resource.data.value))
     return image
 
 
