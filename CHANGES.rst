@@ -3,6 +3,7 @@
 
 - Add `all_layers()` method;
 - Add `_image_resource_blocks` property;
+- Add `thumbnail()` method.
 
 1.6.3 (2017-09-27)
 ------------------

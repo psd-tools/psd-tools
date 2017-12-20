@@ -86,7 +86,6 @@ Access its layers::
      ]
 
 
-
 Work with a layer group::
 
     >>> group2 = psd.layers[0]
@@ -163,15 +162,14 @@ The same using Pymaging_::
     >>> layer_image = layer.as_pymaging()
     >>> layer_image.save_to_path('layer.png')
 
+Export a thumbnail in PIL Image::
+
+    >>> thumbnail_image = psd.thumbnail()
+
 Export layer group (experimental)::
 
     >>> group_image = group2.as_PIL()
     >>> group_image.save('group.png')
-
-Get pattern dict::
-
-    >>> psd.patterns
-    {'b2fdfd29-de85-11d5-838b-ff55e75fb875': <psd_tools.Pattern: size=265x219 ...>}
 
 
 Why yet another PSD reader?
