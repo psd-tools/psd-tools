@@ -78,6 +78,15 @@ Access its layers::
      <Group: 'Group 1', layer_count=1, mask=None, visible=1>,
      <PixelLayer: 'Background', size=100x200, x=0, y=0, mask=None, visible=1>]
 
+    >>> psd.all_layers()
+    [<Group: 'Group 2', layer_count=1, mask=None, visible=1>,
+     <ShapeLayer: 'Shape 2', size=43x62, x=40, y=72, mask=None, visible=1)>,
+     <Group: 'Group 1', layer_count=1, mask=None, visible=1>,
+     ...
+     ]
+
+
+
 Work with a layer group::
 
     >>> group2 = psd.layers[0]

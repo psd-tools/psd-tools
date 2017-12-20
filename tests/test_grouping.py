@@ -2,7 +2,8 @@
 from __future__ import absolute_import, unicode_literals
 
 from psd_tools.user_api.layers import group_layers
-from tests.utils import decode_psd
+from psd_tools.user_api.psd_image import PSDImage
+from tests.utils import decode_psd, full_name
 
 def test_no_groups():
     layers = group_layers(decode_psd('2layers.psd'))
@@ -87,3 +88,16 @@ def test_clipping():
     assert layers[2]['clip_layers'][2]['name'] == 'Rounded Rectangle 1'
     assert layers[2]['clip_layers'][3]['name'] == 'Color Fill 1'
     assert layers[3]['name'] == 'Background'
+
+
+def test_generator():
+    psd = PSDImage.load(full_name('hidden-groups.psd'))
+    assert len([True for layer in psd.layers]) == 3
+    assert len([True for layer in psd.all_layers()]) == 5
+
+
+def test_generator_with_clip_layers():
+    psd = PSDImage.load(full_name('clipping-mask.psd'))
+    assert len([True for layer in psd.layers]) == 2
+    assert len([True for layer in psd.all_layers()]) == 7
+    assert len([True for layer in psd.all_layers(include_clip=False)]) == 6

@@ -18,4 +18,4 @@ def test_is_known():
 def test_name_of():
     assert SampleEnum.name_of(1) == 'FOO'
     assert SampleEnum.name_of(2) == 'BAR'
-    assert SampleEnum.name_of(3) == '<unknown>'
+    assert SampleEnum.name_of(3) == '<unknown:3>'

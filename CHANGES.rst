@@ -1,10 +1,15 @@
+1.6.4 (2017-12-20)
+------------------
+
+- Add `all_layers()` method;
+- Add `_image_resource_blocks` property;
+
 1.6.3 (2017-09-27)
 ------------------
 
 - documentation updates;
 - github repository renamed to psd-tools2;
 - AdjustmentLayer fix.
-
 
 1.6.2 (2017-09-13)
 ------------------

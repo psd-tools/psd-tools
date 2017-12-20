@@ -9,7 +9,7 @@ import psd_tools.reader
 import psd_tools.decoder
 from psd_tools.constants import (
     TaggedBlock, SectionDivider, BlendMode, TextProperty, PlacedLayerProperty,
-    SzProperty, ChannelID)
+    SzProperty, ChannelID, ImageResourceID)
 from psd_tools.user_api.layers import group_layers
 from psd_tools.user_api import pymaging_support
 from psd_tools.user_api import pil_support
@@ -492,7 +492,7 @@ class Group(_RawLayer):
 
     def __init__(self, parent, index, layers):
         super(Group, self).__init__(parent, index, 'group')
-        self.layers = layers
+        self._layers = layers
 
     @property
     def closed(self):
@@ -509,6 +509,26 @@ class Group(_RawLayer):
         all layers in this group; None if a group has no children.
         """
         return combined_bbox(self.layers)
+
+    @property
+    def layers(self):
+        """
+        Return a list of child layers in this group.
+        """
+        return self._layers
+
+    def all_layers(self, include_clip=True):
+        """
+        Return a generator to iterate over all descendant layers.
+        """
+        for layer in self._layers:
+            yield layer
+            if hasattr(layer, "all_layers"):
+                for child in layer.all_layers(include_clip):
+                    yield child
+            if include_clip:
+                for clip_layer in layer.clip_layers:
+                    yield clip_layer
 
     def as_PIL(self):
         """
@@ -644,6 +664,11 @@ class PSDImage(object):
     def _tagged_blocks(self):
         return dict(self.decoded_data.layer_and_mask_data.tagged_blocks)
 
+    @property
+    def _image_resource_blocks(self):
+        return {ImageResourceID.name_of(block.resource_id).lower(): block.data
+                for block in self.decoded_data.image_resource_blocks}
+
     def _layer_info(self, index):
         layers = self.decoded_data.layer_and_mask_data.layers.layer_records
         return layers[index]
@@ -661,6 +686,12 @@ class PSDImage(object):
             if isinstance(block.data, LinkedLayerCollection):
                 for layer in block.data.linked_list:
                     yield layer
+
+    def all_layers(self, include_clip=True):
+        """
+        Return a generator to iterate over all descendant layers.
+        """
+        return self._fake_root_group.all_layers(include_clip=include_clip)
 
     def print_tree(self, layers=None, indent=0, indent_width=2, **kwargs):
         """Print the layer tree structure."""
