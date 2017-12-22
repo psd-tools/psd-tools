@@ -629,7 +629,11 @@ def _decode_text_engine_data(data, **kwargs):
 
 @register(TaggedBlock.UNICODE_PATH_NAME)
 def _decode_unicode_path_name(data, **kwargs):
-    return _decode_descriptor_block(data, UnicodePathName)
+    if data:
+        return _decode_descriptor_block(data, UnicodePathName)
+    else:
+        warnings.warn("Empty Unicode Path Name")
+        return None
 
 
 @register(TaggedBlock.ANIMATION_EFFECTS)
