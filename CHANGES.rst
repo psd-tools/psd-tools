@@ -1,3 +1,9 @@
+1.6.6 (2018-01-10)
+------------------
+
+- experimental clipping support in `merge_layer()`;
+- revert `as_PIL()` in `AdjustmentLayer`.
+
 1.6.5 (2017-12-22)
 ------------------
 

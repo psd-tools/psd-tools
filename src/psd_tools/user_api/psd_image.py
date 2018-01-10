@@ -36,6 +36,28 @@ class BBox(collections.namedtuple('BBox', 'x1, y1, x2, y2')):
         """Height of the bounding box."""
         return self.y2 - self.y1
 
+    def intersect(self, bbox):
+        """Intersect of two bounding boxes. Return None if empty."""
+        box = BBox(max(self.x1, bbox.x1),
+                   max(self.y1, bbox.y1),
+                   min(self.x2, bbox.x2),
+                   min(self.y2, bbox.y2))
+        if box.width <= 0 or box.height <= 0:
+            return None
+        return box
+
+    def union(self, bbox):
+        """Union of two boxes."""
+        return BBox(min(self.x1, bbox.x1),
+                    min(self.y1, bbox.y1),
+                    max(self.x2, bbox.x2),
+                    max(self.y2, bbox.y2))
+
+    def offset(self, point):
+        """Subtract offset point from the bounding box."""
+        return BBox(self.x1 - point[0], self.y1 - point[1],
+                    self.x2 - point[0], self.y2 - point[1])
+
 
 class PlacedLayerData(object):
     """Placed layer data."""
@@ -257,7 +279,7 @@ class _VisibleLayer(_RawLayer):
                 bbox.x1, bbox.y1, self.visible, self.mask, self.effects))
 
 
-class AdjustmentLayer(_RawLayer):
+class AdjustmentLayer(_VisibleLayer):
     """PSD adjustment layer wrapper."""
     def __init__(self, parent, index):
         super(AdjustmentLayer, self).__init__(parent, index, 'adjustment')
@@ -265,12 +287,6 @@ class AdjustmentLayer(_RawLayer):
     def __repr__(self):
         return "<%s: %r, visible=%s>" % (
             self.__class__.__name__, self.name, self.visible)
-
-    @property
-    def bbox(self):
-        """BBox(x1, y1, x2, y2) namedtuple with layer bounding box."""
-        info = self._info
-        return BBox(info.left, info.top, info.right, info.bottom)
 
 
 class PixelLayer(_VisibleLayer):
@@ -621,8 +637,14 @@ class PSDImage(object):
         )
         return cls(decoded_data)
 
-    def as_PIL(self):
+    def as_PIL(self, fallback=True):
         """Returns a PIL image for this PSD file."""
+        version_info = self._image_resource_blocks.get("version_info")
+        if version_info and not version_info.has_real_merged_data:
+            logger.warning("Could not find a pre-rendered image.")
+            if fallback:
+                return self.as_PIL_merged()
+
         return pil_support.extract_composite_image(self.decoded_data)
 
     def as_PIL_merged(self):
@@ -674,9 +696,6 @@ class PSDImage(object):
         return layers[index]
 
     def _layer_as_PIL(self, index):
-        version_info = self._image_resource_blocks.get("version_info")
-        if version_info and not version_info.has_real_merged_data:
-            logger.warning("Could not find a pre-rendered image.")
         return pil_support.extract_layer_image(self.decoded_data, index)
 
     def _layer_as_pymaging(self, index):
@@ -797,6 +816,21 @@ def merge_layers(layers, respect_visibility=True,
         else:
             layer_image = layer.as_PIL()
 
+        if not layer_image:
+            continue
+
+        if len(layer.clip_layers):
+            clip_box = combined_bbox(layer.clip_layers)
+            if clip_box:
+                intersect = clip_box.intersect(layer.bbox)
+                if intersect:
+                    clip_image = merge_layers(
+                        layer.clip_layers, respect_visibility, skip_layer)
+                    clip_image = clip_image.crop(
+                        intersect.offset((clip_box.x1, clip_box.y1)))
+                    clip_mask = layer_image.crop(
+                        intersect.offset((layer.bbox.x1, layer.bbox.y1)))
+
         layer_image = pil_support.apply_opacity(layer_image, layer.opacity)
 
         x, y = layer.bbox.x1 - bbox.x1, layer.bbox.y1 - bbox.y1
@@ -830,5 +864,14 @@ def merge_layers(layers, respect_visibility=True,
             logger.warning("Blend mode is not implemented: %s",
                            BlendMode.name_of(layer.blend_mode))
             continue
+
+        if 'clip_mask' in locals():
+            location = (intersect.x1 - bbox.x1, intersect.y1 - bbox.y1)
+            if clip_image.mode == 'RGBA':
+                tmp = Image.new("RGBA", result.size, color=(255, 255, 255, 0))
+                tmp.paste(clip_image, location, mask=clip_mask)
+                result = Image.alpha_composite(result, tmp)
+            elif clip_image.mode == 'RGB':
+                result.paste(clip_image, location, mask=clip_mask)
 
     return result
