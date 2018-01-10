@@ -643,8 +643,14 @@ class PSDImage(object):
         )
         return cls(decoded_data)
 
-    def as_PIL(self):
+    def as_PIL(self, fallback=True):
         """Returns a PIL image for this PSD file."""
+        version_info = self._image_resource_blocks.get("version_info")
+        if version_info and not version_info.has_real_merged_data:
+            logger.warning("Could not find a pre-rendered image.")
+            if fallback:
+                return self.as_PIL_merged()
+
         return pil_support.extract_composite_image(self.decoded_data)
 
     def as_PIL_merged(self):
@@ -696,9 +702,6 @@ class PSDImage(object):
         return layers[index]
 
     def _layer_as_PIL(self, index):
-        version_info = self._image_resource_blocks.get("version_info")
-        if version_info and not version_info.has_real_merged_data:
-            logger.warning("Could not find a pre-rendered image.")
         return pil_support.extract_layer_image(self.decoded_data, index)
 
     def _layer_as_pymaging(self, index):
