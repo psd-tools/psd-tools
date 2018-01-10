@@ -279,7 +279,7 @@ class _VisibleLayer(_RawLayer):
                 bbox.x1, bbox.y1, self.visible, self.mask, self.effects))
 
 
-class AdjustmentLayer(_RawLayer):
+class AdjustmentLayer(_VisibleLayer):
     """PSD adjustment layer wrapper."""
     def __init__(self, parent, index):
         super(AdjustmentLayer, self).__init__(parent, index, 'adjustment')
@@ -287,12 +287,6 @@ class AdjustmentLayer(_RawLayer):
     def __repr__(self):
         return "<%s: %r, visible=%s>" % (
             self.__class__.__name__, self.name, self.visible)
-
-    @property
-    def bbox(self):
-        """BBox(x1, y1, x2, y2) namedtuple with layer bounding box."""
-        info = self._info
-        return BBox(info.left, info.top, info.right, info.bottom)
 
 
 class PixelLayer(_VisibleLayer):
@@ -822,6 +816,9 @@ def merge_layers(layers, respect_visibility=True,
         else:
             layer_image = layer.as_PIL()
 
+        if not layer_image:
+            continue
+
         if len(layer.clip_layers):
             clip_box = combined_bbox(layer.clip_layers)
             if clip_box:
@@ -830,9 +827,9 @@ def merge_layers(layers, respect_visibility=True,
                     clip_image = merge_layers(
                         layer.clip_layers, respect_visibility, skip_layer)
                     clip_image = clip_image.crop(
-                        intersect.offset(clip_box.x1, clip_box.y1))
+                        intersect.offset((clip_box.x1, clip_box.y1)))
                     clip_mask = layer_image.crop(
-                        intersect.offset(layer.bbox.x1, layer.bbox.y1))
+                        intersect.offset((layer.bbox.x1, layer.bbox.y1)))
 
         layer_image = pil_support.apply_opacity(layer_image, layer.opacity)
 
