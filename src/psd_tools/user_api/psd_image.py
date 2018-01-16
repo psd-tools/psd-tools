@@ -801,7 +801,8 @@ def merge_layers(layers, respect_visibility=True,
         if layer is None:
             continue
 
-        if layer.bbox.width == 0 and layer.bbox.height == 0:
+        if not layer.bbox or (
+            layer.bbox.width == 0 and layer.bbox.height == 0):
             continue
 
         if skip_layer(layer):
