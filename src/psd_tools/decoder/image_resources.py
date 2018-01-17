@@ -375,13 +375,12 @@ def _decode_grid_and_guides_info(data):
 def _decode_icc(data):
     try:
         from PIL import ImageCms
+        return ImageCms.ImageCmsProfile(io.BytesIO(data))
     except ImportError:
         warnings.warn(
             "ICC profile is not handled; colors could be incorrect. "
             "Please build PIL or Pillow with littlecms/littlecms2 support.")
         return data
-
-    return ImageCms.ImageCmsProfile(io.BytesIO(data))
 
 
 @register(ImageResourceID.BACKGROUND_COLOR)
