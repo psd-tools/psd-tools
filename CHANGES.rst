@@ -1,3 +1,9 @@
+1.6.7 (2018-01-17)
+------------------
+
+- workaround for anaconda 2.7 pillow;
+- bbox existence checkf.
+
 1.6.6 (2018-01-10)
 ------------------
 
