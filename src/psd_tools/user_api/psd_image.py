@@ -821,7 +821,7 @@ def merge_layers(layers, respect_visibility=True, ignore_blend_mode=True,
         if not layer_image:
             continue
 
-        if ignore_blend_mode and layer.blend_mode != BlendMode.NORMAL:
+        if not ignore_blend_mode and layer.blend_mode != BlendMode.NORMAL:
             logger.warning("Blend mode is not implemented: %s",
                            BlendMode.name_of(layer.blend_mode))
             continue
