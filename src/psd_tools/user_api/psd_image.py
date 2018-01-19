@@ -764,7 +764,7 @@ def combined_bbox(layers):
     return BBox(min(lefts), min(tops), max(rights), max(bottoms))
 
 
-def merge_layers(layers, respect_visibility=True,
+def merge_layers(layers, respect_visibility=True, ignore_blend_mode=True,
                  skip_layer=lambda layer: False, bbox=None):
     """
     Merges layers together (the first layer is on top).
@@ -813,11 +813,17 @@ def merge_layers(layers, respect_visibility=True,
 
         if isinstance(layer, psd_tools.Group):
             layer_image = merge_layers(
-                layer.layers, respect_visibility, skip_layer)
+                layer.layers, respect_visibility, ignore_blend_mode,
+                skip_layer)
         else:
             layer_image = layer.as_PIL()
 
         if not layer_image:
+            continue
+
+        if ignore_blend_mode and layer.blend_mode != BlendMode.NORMAL:
+            logger.warning("Blend mode is not implemented: %s",
+                           BlendMode.name_of(layer.blend_mode))
             continue
 
         if len(layer.clip_layers):
@@ -826,7 +832,8 @@ def merge_layers(layers, respect_visibility=True,
                 intersect = clip_box.intersect(layer.bbox)
                 if intersect:
                     clip_image = merge_layers(
-                        layer.clip_layers, respect_visibility, skip_layer)
+                        layer.clip_layers, respect_visibility,
+                        ignore_blend_mode, skip_layer)
                     clip_image = clip_image.crop(
                         intersect.offset((clip_box.x1, clip_box.y1)))
                     clip_mask = layer_image.crop(
@@ -849,21 +856,16 @@ def merge_layers(layers, respect_visibility=True,
             # FIXME
             logger.debug("cropping..")
 
-        if layer.blend_mode == BlendMode.NORMAL:
-            if layer_image.mode == 'RGBA':
-                tmp = Image.new("RGBA", result.size, color=(255, 255, 255, 0))
-                tmp.paste(layer_image, (x, y))
-                result = Image.alpha_composite(result, tmp)
-            elif layer_image.mode == 'RGB':
-                result.paste(layer_image, (x, y))
-            else:
-                logger.warning(
-                    "layer image mode is unsupported for merging: %s",
-                    layer_image.mode)
-                continue
+        if layer_image.mode == 'RGBA':
+            tmp = Image.new("RGBA", result.size, color=(255, 255, 255, 0))
+            tmp.paste(layer_image, (x, y))
+            result = Image.alpha_composite(result, tmp)
+        elif layer_image.mode == 'RGB':
+            result.paste(layer_image, (x, y))
         else:
-            logger.warning("Blend mode is not implemented: %s",
-                           BlendMode.name_of(layer.blend_mode))
+            logger.warning(
+                "layer image mode is unsupported for merging: %s",
+                layer_image.mode)
             continue
 
         if 'clip_mask' in locals():
