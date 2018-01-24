@@ -22,32 +22,32 @@ def test_placed_layer():
 def test_userapi_no_placed_layers():
     img = PSDImage(decode_psd("1layer.psd"))
     layer = img.layers[0]
-    assert not hasattr(layer, 'placed_layer_size')
-    assert not hasattr(layer, 'transform_bbox')
+    assert not hasattr(layer, 'object_bbox')
+    assert not hasattr(layer, 'placed_bbox')
 
 
 def test_userapi_placed_layers():
     img = PSDImage(decode_psd("placedLayer.psd"))
     bg = img.layers[3]
     assert bg.kind == 'pixel'
-    assert not hasattr(bg, 'placed_layer_size')
-    assert not hasattr(bg, 'transform_bbox')
+    assert not hasattr(bg, 'object_bbox')
+    assert not hasattr(bg, 'placed_bbox')
 
     layer0 = img.layers[0]
     assert layer0.kind == 'smartobject'
-    assert layer0.placed_layer_size == (64, 64)
-    assert layer0.transform_bbox == BBox(x1=96.0, y1=96.0, x2=160.0, y2=160.0)
+    assert layer0.object_bbox == BBox(0, 0, 64, 64)
+    assert layer0.placed_bbox == BBox(x1=96.0, y1=96.0, x2=160.0, y2=160.0)
 
     layer1 = img.layers[1]
     assert layer1.kind == 'smartobject'
-    assert layer1.placed_layer_size == (101, 55)
-    assert layer1.placed_layer_size.width == 101
-    assert layer1.transform_bbox == BBox(x1=27.0, y1=73.0, x2=229.0, y2=183.0)
+    assert layer1.object_bbox == BBox(0, 0, 101, 55)
+    assert layer1.object_bbox.width == 101
+    assert layer1.placed_bbox == BBox(x1=27.0, y1=73.0, x2=229.0, y2=183.0)
 
     layer2 = img.layers[2]
     assert layer2.kind == 'smartobject'
-    assert layer2.placed_layer_size == (64, 64)
-    assert layer2.transform_bbox == BBox(x1=96.0, y1=96.0, x2=160.0, y2=160.0)
+    assert layer2.object_bbox == BBox(0, 0, 64, 64)
+    assert layer2.placed_bbox == BBox(x1=96.0, y1=96.0, x2=160.0, y2=160.0)
 
 
 def test_embedded():

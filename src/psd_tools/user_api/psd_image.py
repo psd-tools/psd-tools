@@ -3,157 +3,20 @@ from __future__ import (
     absolute_import, unicode_literals, division, print_function)
 
 import logging
-import collections
 import weakref              # FIXME: there should be weakrefs in this module
 import psd_tools.reader
 import psd_tools.decoder
 from psd_tools.constants import (
     TaggedBlock, SectionDivider, BlendMode, TextProperty, PlacedLayerProperty,
-    SzProperty, ImageResourceID, SectionDivider, PathResource)
+    SzProperty, ImageResourceID, PathResource)
 from psd_tools.user_api import pymaging_support
 from psd_tools.user_api import pil_support
+from psd_tools.user_api import BBox, Pattern
+from psd_tools.user_api.mask import Mask
 from psd_tools.user_api.embedded import Embedded
 from psd_tools.user_api.effects import get_effects
 
 logger = logging.getLogger(__name__)
-
-
-Size = collections.namedtuple('Size', 'width, height')
-
-
-class BBox(collections.namedtuple('BBox', 'x1, y1, x2, y2')):
-    """
-    Bounding box tuple representing (x1, y1, x2, y2).
-    """
-    @property
-    def width(self):
-        """Width of the bounding box."""
-        return self.x2 - self.x1
-
-    @property
-    def height(self):
-        """Height of the bounding box."""
-        return self.y2 - self.y1
-
-    def intersect(self, bbox):
-        """Intersect of two bounding boxes. Return None if empty."""
-        box = BBox(max(self.x1, bbox.x1),
-                   max(self.y1, bbox.y1),
-                   min(self.x2, bbox.x2),
-                   min(self.y2, bbox.y2))
-        if box.width <= 0 or box.height <= 0:
-            return None
-        return box
-
-    def union(self, bbox):
-        """Union of two boxes."""
-        return BBox(min(self.x1, bbox.x1),
-                    min(self.y1, bbox.y1),
-                    max(self.x2, bbox.x2),
-                    max(self.y2, bbox.y2))
-
-    def offset(self, point):
-        """Subtract offset point from the bounding box."""
-        return BBox(self.x1 - point[0], self.y1 - point[1],
-                    self.x2 - point[0], self.y2 - point[1])
-
-
-class PlacedLayerData(object):
-    """Placed layer data."""
-    def __init__(self, placed_layer_block):
-        self._info = dict(placed_layer_block)
-
-    @property
-    def transform(self):
-        return self._info[PlacedLayerProperty.TRANSFORM].items
-
-    @property
-    def size(self):
-        return dict(self._info[PlacedLayerProperty.SIZE].items)
-
-
-class Mask(object):
-    """Mask data attached to a layer."""
-    def __init__(self, layer):
-        self.mask_data = layer._info.mask_data
-        self._decoded_data = layer._psd.decoded_data
-        self._layer_index = layer._index
-
-    @property
-    def bbox(self, real_mask=True):
-        """BBox(x1, y1, x2, y2) namedtuple with mask bounding box."""
-        if real_mask and self.mask_data.real_flags:
-            return BBox(self.mask_data.real_left, self.mask_data.real_top,
-                        self.mask_data.real_right, self.mask_data.real_bottom)
-        else:
-            return BBox(self.mask_data.left, self.mask_data.top,
-                        self.mask_data.right, self.mask_data.bottom)
-
-    @property
-    def background_color(self):
-        """Background color."""
-        return self.mask_data.background_color
-
-    @property
-    def is_valid(self):
-        """Returns whether the bounding box has a valid size."""
-        bbox = self.bbox
-        return bbox.width > 0 and bbox.height > 0
-
-    def as_PIL(self, real_mask=True):
-        """
-        Returns a PIL image for the mask.
-
-        If ``real_mask`` is True, extract real mask consisting of both bitmap
-        and vector mask.
-
-        Returns ``None`` if the mask has zero size.
-        """
-        if not self.is_valid:
-            return None
-        return pil_support.extract_layer_mask(self._decoded_data,
-                                              self._layer_index,
-                                              real_mask)
-
-    def __repr__(self):
-        bbox = self.bbox
-        return "<%s: size=%dx%d, x=%d, y=%d>" % (
-            self.__class__.__name__, bbox.width, bbox.height, bbox.x1,
-            bbox.y1)
-
-
-class Pattern(object):
-    """Pattern data."""
-    def __init__(self, pattern):
-        self._pattern = pattern
-
-    @property
-    def pattern_id(self):
-        """Pattern UUID."""
-        return self._pattern.pattern_id
-
-    @property
-    def name(self):
-        """Name of the pattern."""
-        return self._pattern.name
-
-    @property
-    def width(self):
-        """Width of the pattern."""
-        return self._pattern.point[1]
-
-    @property
-    def height(self):
-        """Height of the pattern."""
-        return self._pattern.point[0]
-
-    def as_PIL(self):
-        """Returns a PIL image for this pattern."""
-        return pil_support.pattern_to_PIL(self._pattern)
-
-    def __repr__(self):
-        return "<%s: name='%s' size=%dx%d>" % (
-            self.__class__.__name__, self.name, self.width, self.height)
 
 
 class _RawLayer(object):
@@ -321,12 +184,12 @@ class Group(_RawLayer):
                 for clip_layer in layer.clip_layers:
                     yield clip_layer
 
-    def as_PIL(self):
+    def as_PIL(self, **kwargs):
         """
         Returns a PIL image for this group.
         This is highly experimental.
         """
-        return merge_layers(self.layers, respect_visibility=True)
+        return merge_layers(self.layers, **kwargs)
 
     @property
     def _divider(self):
@@ -630,67 +493,62 @@ class SmartObjectLayer(_RawLayer):
     """PSD smartobject layer wrapper."""
     def __init__(self, parent, index):
         super(SmartObjectLayer, self).__init__(parent, index)
-        self._placed = None
-        placed_block = self._placed_layer_block()
-        if placed_block:
-            self._placed = dict(placed_block)
+        self._block = self._get_block()
 
+    @property
     def unique_id(self):
-        if self._placed:
-            return self._placed.get(PlacedLayerProperty.ID).value
+        return (self._block.get(PlacedLayerProperty.ID).value
+                if self._block else None)
+
+    @property
+    def placed_bbox(self):
+        """
+        BBox(x1, y1, x2, y2) with transformed box. The tranform of a layer
+        the points for all 4 corners.
+        """
+        if self._block:
+            transform = self._block.get(PlacedLayerProperty.TRANSFORM).items
+            return BBox(transform[0].value, transform[1].value,
+                        transform[4].value, transform[5].value)
         else:
             return None
 
+    @property
+    def object_bbox(self):
+        """
+        BBox(x1, y1, x2, y2) with original object content coordinates.
+        """
+        if self._block:
+            size = dict(self._block.get(PlacedLayerProperty.SIZE).items)
+            return BBox(0, 0,
+                        size[SzProperty.WIDTH].value,
+                        size[SzProperty.HEIGHT].value)
+        else:
+            return None
+
+    @property
     def linked_data(self):
         """
         Return linked layer data.
         """
-        unique_id = self.unique_id()
-        return self._psd.embedded.get(unique_id) if unique_id else None
+        return self._psd.embedded.get(self.unique_id)
 
-    @property
-    def transform_bbox(self):
-        """BBox(x1, y1, x2, y2) namedtuple with layer transform box
-        (Top Left and Bottom Right corners). The tranform of a layer the
-        points for all 4 corners.
-        """
-        placed_layer_block = self._placed_layer_block()
-        if not placed_layer_block:
-            return None
-        placed_layer_data = PlacedLayerData(placed_layer_block)
-
-        transform = placed_layer_data.transform
-        if not transform:
-            return None
-        return BBox(transform[0].value, transform[1].value,
-                    transform[4].value, transform[5].value)
-
-    @property
-    def placed_layer_size(self):
-        """BBox(x1, y1, x2, y2) namedtuple with original
-        smart object content size.
-        """
-        placed_layer_block = self._placed_layer_block()
-        if not placed_layer_block:
-            return None
-        placed_layer_data = PlacedLayerData(placed_layer_block)
-
-        size = placed_layer_data.size
-        if not size:
-            return None
-        return Size(size[SzProperty.WIDTH].value,
-                    size[SzProperty.HEIGHT].value)
-
-    def _placed_layer_block(self):
+    def _get_block(self):
         blocks = self._tagged_blocks
-        return blocks.get(
-            TaggedBlock.SMART_OBJECT_PLACED_LAYER_DATA,
-            blocks.get(
-                TaggedBlock.PLACED_LAYER_DATA,
-                blocks.get(
+        block = None
+        for key in (TaggedBlock.SMART_OBJECT_PLACED_LAYER_DATA,
+                    TaggedBlock.PLACED_LAYER_DATA,
                     TaggedBlock.PLACED_LAYER_OBSOLETE1,
-                    blocks.get(
-                        TaggedBlock.PLACED_LAYER_OBSOLETE2))))
+                    TaggedBlock.PLACED_LAYER_OBSOLETE2):
+            block = blocks.get(key)
+            if block:
+                break
+
+        if not block:
+            logger.warning("Empty smartobject")
+            return None
+
+        return dict(block)
 
     def __repr__(self):
         bbox = self.bbox
@@ -699,7 +557,7 @@ class SmartObjectLayer(_RawLayer):
             "linked=%s>") % (
             self.__class__.__name__, self.name, bbox.width, bbox.height,
             bbox.x1, bbox.y1, self.mask, self.visible,
-            self.linked_data())
+            self.linked_data)
 
 
 class TypeLayer(_RawLayer):

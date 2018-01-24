@@ -101,9 +101,9 @@ def test_object_based_layer_effect(layer_num, effect_key, param_name, subparam_n
 
 
 def test_iopa_brst_block():
-    _psd = decode_psd('layer_effects.psd')
-    _layer_records = _psd.layer_and_mask_data.layers.layer_records
-    tagged_blocks = dict(_layer_records[4].tagged_blocks)
+    decoded_data = decode_psd('layer_effects.psd')
+    layer_records = decoded_data.layer_and_mask_data.layers.layer_records
+    tagged_blocks = dict(layer_records[4].tagged_blocks)
     assert tagged_blocks[b'iOpa'] == 252
     assert tagged_blocks[b'brst'][0] == False
     assert tagged_blocks[b'brst'][1] == False
@@ -111,6 +111,6 @@ def test_iopa_brst_block():
 
 
 def test_effects_api():
-    _psd = PSDImage.load(full_name('layer_effects.psd'))
-    for layer in _psd.layers:
+    psd = PSDImage.load(full_name('layer_effects.psd'))
+    for layer in psd.layers:
         assert len(layer.effects) > 0
