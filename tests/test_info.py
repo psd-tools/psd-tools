@@ -69,12 +69,6 @@ def test_api():
     assert layer.blend_mode == BlendMode.NORMAL
 
 
-def test_fakeroot_layer_repr():
-    img = PSDImage(decode_psd('1layer.psd'))
-    fakeroot = img.layers[0].parent
-    assert re.match(r"<_RootGroup: u?'_RootGroup', layer_count=1, mask=None, visible=1>", repr(fakeroot)), repr(fakeroot)
-
-
 @pytest.mark.parametrize(('filename', 'has_layer_and_mask_data'), FILES_WITH_NO_LAYERS)
 def test_no_layers_has_tagged_blocks(filename, has_layer_and_mask_data):
     psd = load_psd(filename)

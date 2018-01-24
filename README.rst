@@ -74,14 +74,14 @@ Read image header::
 Access its layers::
 
     >>> psd.layers
-    [<Group: 'Group 2', layer_count=1, mask=None, visible=1>,
-     <Group: 'Group 1', layer_count=1, mask=None, visible=1>,
-     <PixelLayer: 'Background', size=100x200, x=0, y=0, mask=None, visible=1>]
+    [<group: 'Group 2', layer_count=1, mask=None, visible=1>,
+     <group: 'Group 1', layer_count=1, mask=None, visible=1>,
+     <pixel: 'Background', size=100x200, x=0, y=0, mask=None, visible=1>]
 
     >>> psd.all_layers()
-    [<Group: 'Group 2', layer_count=1, mask=None, visible=1>,
-     <ShapeLayer: 'Shape 2', size=43x62, x=40, y=72, mask=None, visible=1)>,
-     <Group: 'Group 1', layer_count=1, mask=None, visible=1>,
+    [<group: 'Group 2', layer_count=1, mask=None, visible=1>,
+     <shape: 'Shape 2', size=43x62, x=40, y=72, mask=None, visible=1)>,
+     <group: 'Group 1', layer_count=1, mask=None, visible=1>,
      ...
      ]
 
@@ -106,7 +106,7 @@ Work with a layer group::
     True
 
     >>> group2.layers
-    [<ShapeLayer: 'Shape 2', size=43x62, x=40, y=72, mask=None, visible=1)>]
+    [<shape: 'Shape 2', size=43x62, x=40, y=72, mask=None, visible=1)>]
 
 Work with a layer::
 
@@ -140,7 +140,7 @@ Work with a layer::
     <PIL.Image.Image image mode=L size=43x62 at ...>
 
     >>> layer.clip_layers
-    [<Layer: 'Clipped', size=43x62, x=40, y=72, mask=None, visible=1)>, ...]
+    [<shape: 'Clipped', size=43x62, x=40, y=72, mask=None, visible=1)>, ...]
 
     >>> layer.effects
     [<GradientOverlay>]

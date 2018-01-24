@@ -9,8 +9,7 @@ import psd_tools.reader
 import psd_tools.decoder
 from psd_tools.constants import (
     TaggedBlock, SectionDivider, BlendMode, TextProperty, PlacedLayerProperty,
-    SzProperty, ChannelID, ImageResourceID)
-from psd_tools.user_api.layers import group_layers
+    SzProperty, ImageResourceID, SectionDivider, PathResource)
 from psd_tools.user_api import pymaging_support
 from psd_tools.user_api import pil_support
 from psd_tools.user_api.embedded import Embedded
@@ -162,27 +161,25 @@ class _RawLayer(object):
     Layer groups and layers are internally both 'layers' in PSD;
     they share some common properties.
     """
-    def __init__(self, parent, index, kind):
+    def __init__(self, parent, index):
         self._parent = parent
-        self._psd = parent._psd
+        self._psd = parent._psd if parent else self
         self._index = index
-        self._kind = kind
         self._clip_layers = []
 
     @property
     def name(self):
         """Layer name (as unicode). """
-        return self._tagged_blocks.get(
-            TaggedBlock.UNICODE_LAYER_NAME,
-            self._info.name
-        )
+        return self._tagged_blocks.get(TaggedBlock.UNICODE_LAYER_NAME,
+                                       self._info.name)
 
     @property
     def kind(self):
         """
-        Kind of this layer, either group, pixel, shape, type, or smartobject.
+        Kind of this layer, either group, pixel, shape, type, smartobject, or
+        psdimage (root object).
         """
-        return self._kind
+        return self.__class__.__name__.lower().replace("layer", "")
 
     @property
     def visible(self):
@@ -193,6 +190,10 @@ class _RawLayer(object):
     def visible_global(self):
         """Layer visibility. Takes group visibility in account."""
         return self.visible and self.parent.visible_global
+
+    def has_box(self):
+        info = self._info
+        return info.left < info.right and info.top < info.bottom
 
     @property
     def layer_id(self):
@@ -217,6 +218,21 @@ class _RawLayer(object):
     def has_mask(self):
         """Returns if the layer has a mask."""
         return True if self._index and self._info.mask_data else False
+
+    """PSD base layer."""
+    def as_PIL(self):
+        """Returns a PIL image for this layer."""
+        return self._psd._layer_as_PIL(self._index)
+
+    def as_pymaging(self):
+        """Returns a pymaging.Image for this PSD file."""
+        return self._psd._layer_as_pymaging(self._index)
+
+    @property
+    def bbox(self):
+        """BBox(x1, y1, x2, y2) namedtuple with layer bounding box."""
+        info = self._info
+        return BBox(info.left, info.top, info.right, info.bottom)
 
     @property
     def mask(self):
@@ -253,77 +269,324 @@ class _RawLayer(object):
     def _tagged_blocks(self):
         return dict(self._info.tagged_blocks)
 
-
-class _VisibleLayer(_RawLayer):
-    """PSD base layer."""
-    def as_PIL(self):
-        """Returns a PIL image for this layer."""
-        return self._psd._layer_as_PIL(self._index)
-
-    def as_pymaging(self):
-        """Returns a pymaging.Image for this PSD file."""
-        return self._psd._layer_as_pymaging(self._index)
-
-    @property
-    def bbox(self):
-        """BBox(x1, y1, x2, y2) namedtuple with layer bounding box."""
-        info = self._info
-        return BBox(info.left, info.top, info.right, info.bottom)
-
     def __repr__(self):
         bbox = self.bbox
         return (
             "<%s: %r, size=%dx%d, x=%d, y=%d, visible=%d, mask=%s, "
             "effects=%s>" % (
-                self.__class__.__name__, self.name, bbox.width, bbox.height,
+                self.kind, self.name, bbox.width, bbox.height,
                 bbox.x1, bbox.y1, self.visible, self.mask, self.effects))
 
 
-class AdjustmentLayer(_VisibleLayer):
-    """PSD adjustment layer wrapper."""
+class Group(_RawLayer):
+    """PSD layer group."""
+
     def __init__(self, parent, index):
-        super(AdjustmentLayer, self).__init__(parent, index, 'adjustment')
+        super(Group, self).__init__(parent, index)
+        self._layers = []
+
+
+    @property
+    def closed(self):
+        divider = self._divider
+        if divider is None:
+            return None
+        return divider.type == SectionDivider.CLOSED_FOLDER
+
+    @property
+    def bbox(self):
+        """
+        BBox(x1, y1, x2, y2) namedtuple with a bounding box for
+        all layers in this group; None if a group has no children.
+        """
+        return combined_bbox(self.layers)
+
+    @property
+    def layers(self):
+        """
+        Return a list of child layers in this group.
+        """
+        return self._layers
+
+    def descendants(self, include_clip=True):
+        """
+        Return a generator to iterate over all descendant layers.
+        """
+        for layer in self._layers:
+            yield layer
+            if layer.kind == "group":
+                for child in layer.descendants(include_clip):
+                    yield child
+            if include_clip:
+                for clip_layer in layer.clip_layers:
+                    yield clip_layer
+
+    def as_PIL(self):
+        """
+        Returns a PIL image for this group.
+        This is highly experimental.
+        """
+        return merge_layers(self.layers, respect_visibility=True)
+
+    @property
+    def _divider(self):
+        blocks = self._tagged_blocks
+        return blocks.get(
+            TaggedBlock.SECTION_DIVIDER_SETTING,
+            blocks.get(TaggedBlock.NESTED_SECTION_DIVIDER_SETTING),
+        )
 
     def __repr__(self):
+        return "<%s: %r, layer_count=%d, mask=%s, visible=%d>" % (
+            self.kind, self.name, len(self.layers), self.mask,
+            self.visible)
+
+
+class PSDImage(Group):
+    """PSD image."""
+
+    def __init__(self, decoded_data):
+        super(PSDImage, self).__init__(None, None)
+        self.build(decoded_data)
+
+    @classmethod
+    def load(cls, path, encoding='utf8'):
+        """Returns a new :class:`PSDImage` loaded from ``path``."""
+        with open(path, 'rb') as fp:
+            return cls.from_stream(fp, encoding)
+
+    @classmethod
+    def from_stream(cls, fp, encoding='utf8'):
+        """Returns a new :class:`PSDImage` loaded from stream ``fp``."""
+        decoded_data = psd_tools.decoder.parse(
+            psd_tools.reader.parse(fp, encoding)
+        )
+        return cls(decoded_data)
+
+    def build(self, decoded_data):
+        """Build the tree structure."""
+        self.decoded_data = decoded_data
+        layer_records = decoded_data.layer_and_mask_data.layers.layer_records
+
+        group_stack = [self]
+        clip_stack = []
+
+        for index, record in reversed(list(enumerate(layer_records))):
+            current_group = group_stack[-1]
+            blocks = dict(record.tagged_blocks)
+
+            divider = blocks.get(
+                TaggedBlock.SECTION_DIVIDER_SETTING,
+                blocks.get(TaggedBlock.NESTED_SECTION_DIVIDER_SETTING),
+            )
+            if divider:
+                if divider.type in (SectionDivider.CLOSED_FOLDER,
+                                    SectionDivider.OPEN_FOLDER):
+                    layer = Group(current_group, index)
+                    group_stack.append(layer)
+
+                elif divider.type == SectionDivider.BOUNDING_SECTION_DIVIDER:
+                    if len(group_stack) == 1:
+                        # This means that there is a BOUNDING_SECTION_DIVIDER
+                        # without an OPEN_FOLDER before it. Create a new group
+                        # and move layers to this new group in this case.
+
+                        # Assume the first layer is a group
+                        # and convert it to a group:
+                        layers = group_stack[0].layers[0]
+                        group = Group(current_group, layers[0]._index)
+                        group._layers = layers[1:]
+
+                        # replace moved layers with newly created group:
+                        group_stack[0].layers = [group]
+                    else:
+                        assert group_stack.pop() is not self
+                    continue
+                else:
+                    logger.warn("Invalid state")
+
+            elif blocks.get(TaggedBlock.TYPE_TOOL_OBJECT_SETTING):
+                layer = TypeLayer(current_group, index)
+
+            elif (TaggedBlock.VECTOR_ORIGINATION_DATA in blocks or
+                  TaggedBlock.VECTOR_MASK_SETTING1 in blocks or
+                  TaggedBlock.VECTOR_MASK_SETTING2 in blocks or
+                  TaggedBlock.VECTOR_STROKE_DATA in blocks or
+                  TaggedBlock.VECTOR_STROKE_CONTENT_DATA in blocks):
+                layer = ShapeLayer(current_group, index)
+
+            elif (TaggedBlock.SMART_OBJECT_PLACED_LAYER_DATA in blocks or
+                  TaggedBlock.PLACED_LAYER_OBSOLETE2 in blocks or
+                  TaggedBlock.PLACED_LAYER_DATA in blocks):
+                layer = SmartObjectLayer(current_group, index)
+
+            elif any([TaggedBlock.is_adjustment_key(key) or
+                      TaggedBlock.is_fill_key(key)
+                      for key in blocks.keys()]):
+                layer = AdjustmentLayer(current_group, index)
+
+            else:
+                layer = PixelLayer(current_group, index)
+
+            if record.clipping:
+                clip_stack.append(layer)
+            else:
+                layer._clip_layers = clip_stack
+                clip_stack = []
+                current_group._layers.append(layer)
+
+    def as_PIL(self, fallback=True):
+        """Returns a PIL image for this PSD file."""
+        if not self.has_preview() and fallback:
+            logger.warning("Rendering PIL")
+            return self.as_PIL_merged()
+        return pil_support.extract_composite_image(self.decoded_data)
+
+    def as_PIL_merged(self):
+        """
+        Returns a PIL image for this PSD file.
+        Image is obtained by merging all layers.
+        This is highly experimental.
+        """
+        bbox = BBox(0, 0, self.header.width, self.header.height)
+        return merge_layers(self.layers, bbox=bbox)
+
+    def has_preview(self):
+        """Returns if the image has a preview."""
+        version_info = self._image_resource_blocks.get("version_info")
+        return not version_info or version_info.has_real_merged_data
+
+    def as_pymaging(self):
+        """Returns a pymaging.Image for this PSD file."""
+        return pymaging_support.extract_composite_image(self.decoded_data)
+
+    @property
+    def name(self):
+        return "root"
+
+    @property
+    def visible(self):
+        return True
+
+    @property
+    def visible_global(self):
+        return True
+
+    @property
+    def header(self):
+        return self.decoded_data.header
+
+    @property
+    def embedded(self):
+        return {linked.unique_id: Embedded(linked) for linked in
+                self._linked_layer_iter()}
+
+    @property
+    def patterns(self):
+        """Returns a dict of pattern (texture) data in PIL.Image."""
+        blocks = self._tagged_blocks
+        patterns = blocks.get(
+            TaggedBlock.PATTERNS1,
+            blocks.get(
+                TaggedBlock.PATTERNS2,
+                blocks.get(TaggedBlock.PATTERNS3, [])))
+        return {p.pattern_id: Pattern(p) for p in patterns}
+
+    def print_tree(self, layers=None, indent=0, indent_width=2, **kwargs):
+        """Print the layer tree structure."""
+        if not layers:
+            layers = self.layers
+            print(((' ' * indent) + "{}").format(self), **kwargs)
+            indent = indent + indent_width
+        for l in layers:
+            for clip in l.clip_layers:
+                print(((' ' * indent) + "/{}").format(clip), **kwargs)
+            print(((' ' * indent) + "{}").format(l), **kwargs)
+            if isinstance(l, Group):
+                self.print_tree(l.layers, indent + indent_width, **kwargs)
+
+    def thumbnail(self):
+        """
+        Returns a thumbnail image in PIL.Image. When the file does not
+        contain an embedded thumbnail image, returns None.
+        """
+        blocks = self._image_resource_blocks
+        thumbnail_resource = blocks.get("thumbnail_resource")
+        if thumbnail_resource:
+            return pil_support.extract_thumbnail(thumbnail_resource)
+        else:
+            thumbnail_resource = blocks.get("thumbnail_resource_ps4")
+            if thumbnail_resource:
+                return pil_support.extract_thumbnail(thumbnail_resource,
+                                                     "BGR")
+        return None
+
+    @property
+    def _tagged_blocks(self):
+        return dict(self.decoded_data.layer_and_mask_data.tagged_blocks)
+
+    @property
+    def _image_resource_blocks(self):
+        return {ImageResourceID.name_of(block.resource_id).lower(): block.data
+                for block in self.decoded_data.image_resource_blocks}
+
+    def _layer_info(self, index):
+        layers = self.decoded_data.layer_and_mask_data.layers.layer_records
+        return layers[index]
+
+    def _layer_as_PIL(self, index):
+        return pil_support.extract_layer_image(self.decoded_data, index)
+
+    def _layer_as_pymaging(self, index):
+        return pymaging_support.extract_layer_image(self.decoded_data, index)
+
+    def _linked_layer_iter(self):
+        """Iterate over linked layers (smart objects / embedded files)."""
+        from psd_tools.decoder.linked_layer import LinkedLayerCollection
+        for data in self._tagged_blocks.values():
+            if isinstance(data, LinkedLayerCollection):
+                for layer in data.linked_list:
+                    yield layer
+
+    def __repr__(self):
+        return "<%s: size=%dx%d, layer_count=%d>" % (
+            self.kind, self.header.width, self.header.height,
+            len(self.layers))
+
+
+class AdjustmentLayer(_RawLayer):
+    """PSD adjustment layer wrapper."""
+    def __repr__(self):
         return "<%s: %r, visible=%s>" % (
-            self.__class__.__name__, self.name, self.visible)
+            self.kind, self.name, self.visible)
 
 
-class PixelLayer(_VisibleLayer):
+class PixelLayer(_RawLayer):
     """PSD pixel layer wrapper."""
-    def __init__(self, parent, index):
-        super(PixelLayer, self).__init__(parent, index, 'pixel')
+    pass
 
 
-class ShapeLayer(_VisibleLayer):
+class ShapeLayer(_RawLayer):
     """PSD shape layer wrapper."""
-    def __init__(self, parent, index):
-        super(ShapeLayer, self).__init__(parent, index, 'shape')
 
     def as_PIL(self, vector=False):
         """Returns a PIL image for this layer."""
         if vector or (self._info.flags.pixel_data_irrelevant and
-                      self._is_sizeless()):
+                      not self.has_box()):
             # TODO: Replace polygon with bezier curve.
-            return pil_support.draw_polygon(self.bbox, self.anchors,
+            return pil_support.draw_polygon(self.bbox, self.get_anchors(),
                                             self._get_color())
         else:
             return self._psd._layer_as_PIL(self._index)
 
-    def as_pymaging(self):
-        """Returns a pymaging.Image for this layer."""
-        raise NotImplementedError
-
     @property
     def bbox(self):
         """BBox(x1, y1, x2, y2) namedtuple of the shape."""
-        if not self._is_sizeless():
-            info = self._info
-            return BBox(info.left, info.top, info.right, info.bottom)
+        if self.has_box():
+            return super(ShapeLayer, self).bbox
 
-        # If sizeless shape, calculate bbox.
         # TODO: Compute bezier curve.
-        anchors = self.anchors
+        anchors = self.get_anchors()
         if not anchors or len(anchors) < 2:
             # Could be all pixel fill.
             return BBox(0, 0, 0, 0)
@@ -332,22 +595,22 @@ class ShapeLayer(_VisibleLayer):
                     max([p[0] for p in anchors]),
                     max([p[1] for p in anchors]))
 
-    @property
-    def anchors(self):
+    def get_anchors(self):
         """Anchor points of the shape [(x, y), (x, y), ...]."""
         blocks = self._tagged_blocks
         vmsk = blocks.get(TaggedBlock.VECTOR_MASK_SETTING1,
                           blocks.get(TaggedBlock.VECTOR_MASK_SETTING2))
         if not vmsk:
             return None
-        return [(int(p['anchor'][1] * self._psd.header.width),
-                 int(p['anchor'][0] * self._psd.header.height))
-                for p in vmsk.path if p.get('selector') in (1, 2, 4, 5)]
-
-    def _is_sizeless(self):
-        info = self._info
-        bbox = BBox(info.left, info.top, info.right, info.bottom)
-        return bbox.width == 0 or bbox.height == 0
+        width, height = self._psd.header.width, self._psd.header.height
+        knot_types = (
+            PathResource.CLOSED_SUBPATH_BEZIER_KNOT_LINKED,
+            PathResource.CLOSED_SUBPATH_BEZIER_KNOT_UNLINKED,
+            PathResource.OPEN_SUBPATH_BEZIER_KNOT_LINKED,
+            PathResource.OPEN_SUBPATH_BEZIER_KNOT_UNLINKED
+        )
+        return [(int(p["anchor"][1] * width), int(p["anchor"][0] * height))
+                for p in vmsk.path if p.get("selector") in knot_types]
 
     def _get_color(self, default='black'):
         soco = self._tagged_blocks.get(TaggedBlock.SOLID_COLOR_SHEET_SETTING)
@@ -363,10 +626,10 @@ class ShapeLayer(_VisibleLayer):
             return default
 
 
-class SmartObjectLayer(_VisibleLayer):
-    """PSD pixel layer wrapper."""
+class SmartObjectLayer(_RawLayer):
+    """PSD smartobject layer wrapper."""
     def __init__(self, parent, index):
-        super(SmartObjectLayer, self).__init__(parent, index, 'smartobject')
+        super(SmartObjectLayer, self).__init__(parent, index)
         self._placed = None
         placed_block = self._placed_layer_block()
         if placed_block:
@@ -439,14 +702,14 @@ class SmartObjectLayer(_VisibleLayer):
             self.linked_data())
 
 
-class TypeLayer(_VisibleLayer):
+class TypeLayer(_RawLayer):
     """
     PSD type layer.
 
     A type layer has text information such as fonts and paragraph settings.
     """
     def __init__(self, parent, index):
-        super(TypeLayer, self).__init__(parent, index, 'type')
+        super(TypeLayer, self).__init__(parent, index)
         self._type_info = self._tagged_blocks.get(
             TaggedBlock.TYPE_TOOL_OBJECT_SETTING)
         self.text_data = dict(self._type_info.text_data.items)
@@ -501,253 +764,6 @@ class TypeLayer(_VisibleLayer):
             spans.append(stylesheet)
             start += size
         return spans
-
-
-class Group(_RawLayer):
-    """PSD layer group."""
-
-    def __init__(self, parent, index, layers):
-        super(Group, self).__init__(parent, index, 'group')
-        self._layers = layers
-
-    @property
-    def closed(self):
-        divider = self._tagged_blocks.get(
-            TaggedBlock.SECTION_DIVIDER_SETTING, None)
-        if divider is None:
-            return
-        return divider.type == SectionDivider.CLOSED_FOLDER
-
-    @property
-    def bbox(self):
-        """
-        BBox(x1, y1, x2, y2) namedtuple with a bounding box for
-        all layers in this group; None if a group has no children.
-        """
-        return combined_bbox(self.layers)
-
-    @property
-    def layers(self):
-        """
-        Return a list of child layers in this group.
-        """
-        return self._layers
-
-    def all_layers(self, include_clip=True):
-        """
-        Return a generator to iterate over all descendant layers.
-        """
-        for layer in self._layers:
-            yield layer
-            if hasattr(layer, "all_layers"):
-                for child in layer.all_layers(include_clip):
-                    yield child
-            if include_clip:
-                for clip_layer in layer.clip_layers:
-                    yield clip_layer
-
-    def as_PIL(self):
-        """
-        Returns a PIL image for this group.
-        This is highly experimental.
-        """
-        return merge_layers(self.layers, respect_visibility=True)
-
-    def _add_layer(self, child):
-        self.layers.append(child)
-
-    def __repr__(self):
-        return "<%s: %r, layer_count=%d, mask=%s, visible=%d>" % (
-            self.__class__.__name__, self.name, len(self.layers), self.mask,
-            self.visible)
-
-
-class _RootGroup(Group):
-    """A fake group for holding all layers."""
-
-    @property
-    def visible(self):
-        return True
-
-    @property
-    def visible_global(self):
-        return True
-
-    @property
-    def name(self):
-        return "_RootGroup"
-
-
-class PSDImage(object):
-    """PSD image."""
-
-    def __init__(self, decoded_data):
-        self.header = decoded_data.header
-        self.decoded_data = decoded_data
-
-        # wrap decoded data to Layer and Group structures
-        def make_layer(group, layer):
-            index = layer['index']
-            kind = layer['kind']
-            if kind == 'group':
-                child = Group(group, index, [])
-                fill_group(child, layer)
-            elif kind == 'adjustment':
-                child = AdjustmentLayer(group, index)
-            elif kind == 'type':
-                child = TypeLayer(group, index)
-            elif kind == 'shape':
-                child = ShapeLayer(group, index)
-            elif kind == 'pixel':
-                child = PixelLayer(group, index)
-            elif kind == 'smartobject':
-                child = SmartObjectLayer(group, index)
-            else:
-                logger.critical("Unknown layer type (%s)" % (kind))
-            return child
-
-        def fill_group(group, data):
-            for layer in data['layers']:
-                child = make_layer(group, layer)
-                group._add_layer(child)
-                for clip in layer['clip_layers']:
-                    child.clip_layers.append(make_layer(group, clip))
-
-        self._psd = self
-        fake_root_data = {'layers': group_layers(decoded_data), 'index': None}
-        root = _RootGroup(self, None, [])
-        fill_group(root, fake_root_data)
-
-        self._fake_root_group = root
-        self.layers = root.layers
-        self.embedded = {linked.unique_id: Embedded(linked) for linked in
-                         self._linked_layer_iter()}
-
-    @classmethod
-    def load(cls, path, encoding='utf8'):
-        """Returns a new :class:`PSDImage` loaded from ``path``."""
-        with open(path, 'rb') as fp:
-            return cls.from_stream(fp, encoding)
-
-    @classmethod
-    def from_stream(cls, fp, encoding='utf8'):
-        """Returns a new :class:`PSDImage` loaded from stream ``fp``."""
-        decoded_data = psd_tools.decoder.parse(
-            psd_tools.reader.parse(fp, encoding)
-        )
-        return cls(decoded_data)
-
-    def as_PIL(self, fallback=True):
-        """Returns a PIL image for this PSD file."""
-        version_info = self._image_resource_blocks.get("version_info")
-        if version_info and not version_info.has_real_merged_data:
-            logger.warning("Could not find a pre-rendered image.")
-            if fallback:
-                return self.as_PIL_merged()
-
-        return pil_support.extract_composite_image(self.decoded_data)
-
-    def as_PIL_merged(self):
-        """
-        Returns a PIL image for this PSD file.
-        Image is obtained by merging all layers.
-        This is highly experimental.
-        """
-        bbox = BBox(0, 0, self.header.width, self.header.height)
-        return merge_layers(self.layers, bbox=bbox)
-
-    def as_pymaging(self):
-        """Returns a pymaging.Image for this PSD file."""
-        return pymaging_support.extract_composite_image(self.decoded_data)
-
-    @property
-    def bbox(self):
-        """
-        BBox(x1, y1, x2, y2) namedtuple with a bounding box for
-        all layers in this image; None if there are no image layers.
-
-        This may differ from the image dimensions
-        (img.header.width and img.header.heigth).
-        """
-        return combined_bbox(self.layers)
-
-    @property
-    def patterns(self):
-        """Returns a dict of pattern (texture) data in PIL.Image."""
-        blocks = self._tagged_blocks
-        patterns = blocks.get(
-            TaggedBlock.PATTERNS1,
-            blocks.get(
-                TaggedBlock.PATTERNS2,
-                blocks.get(TaggedBlock.PATTERNS3, [])))
-        return {p.pattern_id: Pattern(p) for p in patterns}
-
-    @property
-    def _tagged_blocks(self):
-        return dict(self.decoded_data.layer_and_mask_data.tagged_blocks)
-
-    @property
-    def _image_resource_blocks(self):
-        return {ImageResourceID.name_of(block.resource_id).lower(): block.data
-                for block in self.decoded_data.image_resource_blocks}
-
-    def _layer_info(self, index):
-        layers = self.decoded_data.layer_and_mask_data.layers.layer_records
-        return layers[index]
-
-    def _layer_as_PIL(self, index):
-        return pil_support.extract_layer_image(self.decoded_data, index)
-
-    def _layer_as_pymaging(self, index):
-        return pymaging_support.extract_layer_image(self.decoded_data, index)
-
-    def _linked_layer_iter(self):
-        """Iterate over linked layers (smart objects / embedded files)."""
-        from psd_tools.decoder.linked_layer import LinkedLayerCollection
-        for block in self.decoded_data.layer_and_mask_data.tagged_blocks:
-            if isinstance(block.data, LinkedLayerCollection):
-                for layer in block.data.linked_list:
-                    yield layer
-
-    def all_layers(self, include_clip=True):
-        """
-        Returns a generator to iterate over all descendant layers.
-        """
-        return self._fake_root_group.all_layers(include_clip=include_clip)
-
-    def print_tree(self, layers=None, indent=0, indent_width=2, **kwargs):
-        """Print the layer tree structure."""
-        if not layers:
-            layers = self.layers
-            print(((' ' * indent) + "{}").format(self), **kwargs)
-            indent = indent + indent_width
-        for l in layers:
-            for clip in l.clip_layers:
-                print(((' ' * indent) + "/{}").format(clip), **kwargs)
-            print(((' ' * indent) + "{}").format(l), **kwargs)
-            if isinstance(l, Group):
-                self.print_tree(l.layers, indent + indent_width)
-
-    def thumbnail(self):
-        """
-        Returns a thumbnail image in PIL.Image. When the file does not
-        contain an embedded thumbnail image, returns None.
-        """
-        blocks = self._image_resource_blocks
-        thumbnail_resource = blocks.get("thumbnail_resource")
-        if thumbnail_resource:
-            return pil_support.extract_thumbnail(thumbnail_resource)
-        else:
-            thumbnail_resource = blocks.get("thumbnail_resource_ps4")
-            if thumbnail_resource:
-                return pil_support.extract_thumbnail(thumbnail_resource,
-                                                     "BGR")
-        return None
-
-    def __repr__(self):
-        return "<%s: size=%dx%d, layer_count=%d>" % (
-            self.__class__.__name__, self.header.width, self.header.height,
-            len(self.layers))
 
 
 def combined_bbox(layers):
