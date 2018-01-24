@@ -4,7 +4,7 @@ import pytest
 
 from .utils import load_psd, decode_psd, with_psb
 
-from psd_tools import PSDImage, BBox
+from psd_tools.user_api.psd_image import PSDImage, BBox
 from psd_tools.decoder.image_resources import ResolutionInfo
 from psd_tools.constants import DisplayResolutionUnit, DimensionUnit, ImageResourceID
 

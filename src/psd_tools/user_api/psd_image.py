@@ -811,7 +811,7 @@ def merge_layers(layers, respect_visibility=True, ignore_blend_mode=True,
         if not layer.visible and respect_visibility:
             continue
 
-        if isinstance(layer, psd_tools.Group):
+        if layer.kind == "group":
             layer_image = merge_layers(
                 layer.layers, respect_visibility, ignore_blend_mode,
                 skip_layer)

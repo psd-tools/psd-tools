@@ -4,7 +4,7 @@ import pytest
 
 from .utils import decode_psd, full_name
 from psd_tools.constants import BlendMode
-from psd_tools.user_api import PSDImage
+from psd_tools.user_api.psd_image import PSDImage
 
 
 psd = decode_psd('layer_params.psd')

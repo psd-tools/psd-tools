@@ -184,6 +184,7 @@ class _ColorMixin(object):
         """
         return self._info.get(b'Clr ')
 
+
 class _ChokeNoiseMixin(_ColorMixin):
     @property
     def choke(self):
@@ -209,7 +210,6 @@ class _ChokeNoiseMixin(_ColorMixin):
     def contour(self):
         """Contour configuration."""
         return self._info.get(b'TrnS')
-
 
 
 class _ShadowEffect(_BaseEffect, _ChokeNoiseMixin):
