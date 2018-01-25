@@ -12,7 +12,7 @@ from psd_tools.user_api import BBox, Pattern
 from psd_tools.user_api.smart_object import SmartObject
 from psd_tools.user_api.layers import (
     Group, AdjustmentLayer, TypeLayer, ShapeLayer, SmartObjectLayer,
-    PixelLayer, merge_layers)
+    PixelLayer)
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +138,13 @@ class PSDImage(Group, _PSDImageBuilder):
     def has_preview(self):
         """Returns if the image has a preview."""
         version_info = self.image_resource_blocks.get("version_info")
-        return not version_info or version_info.has_real_merged_data
+        return self.has_pixels() and (
+            not version_info or version_info.has_real_merged_data)
+
+    def has_pixels(self):
+        """Return True if the image has associated pixels."""
+        return all(c.data and len(c.data) > 0
+                   for c in self.decoded_data.image_data)
 
     def as_pymaging(self):
         """Returns a pymaging.Image for this PSD file."""
