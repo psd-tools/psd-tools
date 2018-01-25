@@ -125,8 +125,7 @@ class PSDImage(Group, _PSDImageBuilder):
         :returns: PIL Image
         """
         if render or not self.has_preview():
-            bbox = BBox(0, 0, self.header.width, self.header.height)
-            return super(PSDImage, self).as_PIL(bbox=bbox, **kwargs)
+            return super(PSDImage, self).as_PIL(bbox=self.viewbox, **kwargs)
         return pil_support.extract_composite_image(self.decoded_data)
 
     def as_PIL_merged(self, **kwargs):
@@ -134,6 +133,10 @@ class PSDImage(Group, _PSDImageBuilder):
         (Deprecated) Returns a PIL image with forced rendering.
         """
         return self.as_PIL(render=True, **kwargs)
+
+    def has_box(self):
+        """Return True if the layer has a nonzero area."""
+        return self.width > 0 and self.height > 0
 
     def has_preview(self):
         """Returns if the image has a preview."""
@@ -178,11 +181,6 @@ class PSDImage(Group, _PSDImageBuilder):
         return True
 
     @property
-    def header(self):
-        """Header section of the underlying PSD data."""
-        return self.decoded_data.header
-
-    @property
     def width(self):
         """Width of the image."""
         return self.decoded_data.header.width
@@ -191,6 +189,20 @@ class PSDImage(Group, _PSDImageBuilder):
     def height(self):
         """Height of the image."""
         return self.decoded_data.header.height
+
+    @property
+    def depth(self):
+        """Depth of colors."""
+        return self.decoded_data.header.depth
+
+    @property
+    def channels(self):
+        """Number of color channels."""
+        return self.decoded_data.header.channels
+
+    @property
+    def viewbox(self):
+        return BBox(0, 0, self.width, self.height)
 
     @property
     def embedded(self):
@@ -252,6 +264,11 @@ class PSDImage(Group, _PSDImageBuilder):
         return None
 
     @property
+    def header(self):
+        """Header section of the underlying PSD data."""
+        return self.decoded_data.header
+
+    @property
     def tagged_blocks(self):
         """Returns dict of the underlying tagged blocks."""
         if not self._tagged_blocks:
@@ -285,5 +302,4 @@ class PSDImage(Group, _PSDImageBuilder):
 
     def __repr__(self):
         return "<%s: size=%dx%d, layer_count=%d>" % (
-            self.kind, self.header.width, self.header.height,
-            len(self.layers))
+            self.kind, self.width, self.height, len(self.layers))
