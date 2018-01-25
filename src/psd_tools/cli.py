@@ -6,7 +6,6 @@ import docopt
 import psd_tools.reader
 import psd_tools.decoder
 from psd_tools import PSDImage
-from psd_tools.user_api.layers import group_layers
 from psd_tools.debug import pprint
 from psd_tools.version import __version__
 
@@ -62,5 +61,4 @@ def main():
         print("\nDecoded data\n-----------")
         pprint(decoded)
         print("\nLayers\n------")
-        pprint(group_layers(decoded))
-
+        PSDImage(decoded).print_tree()
