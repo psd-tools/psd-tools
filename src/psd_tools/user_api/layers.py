@@ -51,11 +51,6 @@ class _RawLayer(object):
         """Return True if the layer is a group."""
         return isinstance(self, Group)
 
-    def has_box(self):
-        """Return True if the layer has a nonzero area."""
-        info = self._info
-        return info.left < info.right and info.top < info.bottom
-
     @property
     def layer_id(self):
         """ID of the layer."""
@@ -81,11 +76,11 @@ class _RawLayer(object):
         return True if self._index and self._info.mask_data else False
 
     def as_PIL(self):
-        """Returns a PIL image for this layer."""
+        """Returns a PIL.Image for this layer."""
         return self._psd._layer_as_PIL(self._index)
 
     def as_pymaging(self):
-        """Returns a pymaging.Image for this PSD file."""
+        """Returns a pymaging.Image for this layer."""
         return self._psd._layer_as_pymaging(self._index)
 
     @property
@@ -94,12 +89,17 @@ class _RawLayer(object):
         info = self._info
         return BBox(info.left, info.top, info.right, info.bottom)
 
+    def has_box(self):
+        """Return True if the layer has a nonzero area."""
+        info = self._info
+        return info.left < info.right and info.top < info.bottom
+
     @property
     def mask(self):
         """
         Returns mask associated with this layer.
 
-        :rtype: Mask
+        :rtype: psd_tools.user_api.mask.Mask
         """
         return Mask(self) if self.has_mask() else None
 
@@ -163,10 +163,16 @@ class Group(_RawLayer):
         """
         return combined_bbox(self.layers)
 
+    def has_box(self):
+        """Return True if the layer has a nonzero area."""
+        return any(l.has_box() for l in self.descendants())
+
     @property
     def layers(self):
         """
         Return a list of child layers in this group.
+
+        :rtype: list
         """
         return self._layers
 
@@ -230,20 +236,20 @@ class ShapeLayer(_RawLayer):
             return self._psd._layer_as_PIL(self._index)
 
     @property
-    def bbox(self):
+    def bbox(self, vector=False):
         """BBox(x1, y1, x2, y2) namedtuple of the shape."""
-        if self.has_box():
+        if vector:
+            # TODO: Compute bezier curve.
+            anchors = self.get_anchors()
+            if not anchors or len(anchors) < 2:
+                # Could be all pixel fill.
+                return BBox(0, 0, 0, 0)
+            return BBox(min([p[0] for p in anchors]),
+                        min([p[1] for p in anchors]),
+                        max([p[0] for p in anchors]),
+                        max([p[1] for p in anchors]))
+        else:
             return super(ShapeLayer, self).bbox
-
-        # TODO: Compute bezier curve.
-        anchors = self.get_anchors()
-        if not anchors or len(anchors) < 2:
-            # Could be all pixel fill.
-            return BBox(0, 0, 0, 0)
-        return BBox(min([p[0] for p in anchors]),
-                    min([p[1] for p in anchors]),
-                    max([p[0] for p in anchors]),
-                    max([p[1] for p in anchors]))
 
     def get_anchors(self):
         """Anchor points of the shape [(x, y), (x, y), ...]."""
@@ -439,7 +445,7 @@ def merge_layers(layers, respect_visibility=True, ignore_blend_mode=True,
     If ``bbox`` is not None, it should be a 4-tuple with coordinates;
     returned image will be restricted to this rectangle.
 
-    This is highly experimental.
+    This is experimental.
     """
 
     # FIXME: this currently assumes PIL
@@ -462,8 +468,7 @@ def merge_layers(layers, respect_visibility=True, ignore_blend_mode=True,
         if layer is None:
             continue
 
-        if not layer.bbox or (
-            layer.bbox.width == 0 and layer.bbox.height == 0):
+        if not layer.has_box():
             continue
 
         if skip_layer(layer):
@@ -473,9 +478,10 @@ def merge_layers(layers, respect_visibility=True, ignore_blend_mode=True,
             continue
 
         if layer.is_group():
-            layer_image = merge_layers(
-                layer.layers, respect_visibility, ignore_blend_mode,
-                skip_layer)
+            layer_image = layer.as_PIL(
+                respect_visibility=respect_visibility,
+                ignore_blend_mode=ignore_blend_mode,
+                skip_layer=skip_layer)
         else:
             layer_image = layer.as_PIL()
 

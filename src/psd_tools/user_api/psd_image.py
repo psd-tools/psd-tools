@@ -98,6 +98,8 @@ class PSDImage(Group, _PSDImageBuilder):
 
     def __init__(self, decoded_data):
         super(PSDImage, self).__init__(None, None)
+        self._smart_objects = None
+        self._patterns = None
         self.build(decoded_data)
 
     @classmethod
@@ -114,21 +116,23 @@ class PSDImage(Group, _PSDImageBuilder):
         )
         return cls(decoded_data)
 
-    def as_PIL(self, fallback=True):
-        """Returns a PIL image for this PSD file."""
-        if not self.has_preview() and fallback:
-            logger.warning("Rendering PIL")
-            return self.as_PIL_merged()
-        return pil_support.extract_composite_image(self.decoded_data)
-
-    def as_PIL_merged(self):
+    def as_PIL(self, render=False, **kwargs):
         """
         Returns a PIL image for this PSD file.
-        Image is obtained by merging all layers.
-        This is highly experimental.
+
+        :param render: Force rendering the view if True
+        :returns: PIL Image
         """
-        bbox = BBox(0, 0, self.header.width, self.header.height)
-        return merge_layers(self.layers, bbox=bbox)
+        if render or not self.has_preview():
+            bbox = BBox(0, 0, self.header.width, self.header.height)
+            return super(PSDImage, self).as_PIL(bbox=bbox, **kwargs)
+        return pil_support.extract_composite_image(self.decoded_data)
+
+    def as_PIL_merged(self, **kwargs):
+        """
+        (Deprecated) Returns a PIL image with forced rendering.
+        """
+        return self.as_PIL(render=True, **kwargs)
 
     def has_preview(self):
         """Returns if the image has a preview."""
@@ -141,34 +145,67 @@ class PSDImage(Group, _PSDImageBuilder):
 
     @property
     def name(self):
+        """Layer name as unicode. PSDImage is 'root'."""
         return "root"
 
     @property
+    def mask(self):
+        """Returns mask associated with this layer. PSDImage returns `None`."""
+        return None
+
+    @property
     def visible(self):
+        """
+        Visiblity flag of this layer. PSDImage is always visible.
+
+        :returns: True
+        """
         return True
 
     def is_visible(self):
+        """
+        Layer visibility. PSDImage is always visible.
+
+        :returns: True
+        """
         return True
 
     @property
     def header(self):
+        """Header section of the underlying PSD data."""
         return self.decoded_data.header
 
     @property
+    def width(self):
+        """Width of the image."""
+        return self.decoded_data.header.width
+
+    @property
+    def height(self):
+        """Height of the image."""
+        return self.decoded_data.header.height
+
+    @property
     def embedded(self):
-        return {linked.unique_id: Embedded(linked) for linked in
-                self._linked_layer_iter()}
+        """Dict of the smart objects."""
+        if not self._smart_objects:
+            self._smart_objects = {
+                linked.unique_id: Embedded(linked)
+                for linked in self._linked_layer_iter()}
+        return self._smart_objects
 
     @property
     def patterns(self):
         """Returns a dict of pattern (texture) data in PIL.Image."""
-        blocks = self._tagged_blocks
-        patterns = blocks.get(
-            TaggedBlock.PATTERNS1,
-            blocks.get(
-                TaggedBlock.PATTERNS2,
-                blocks.get(TaggedBlock.PATTERNS3, [])))
-        return {p.pattern_id: Pattern(p) for p in patterns}
+        if not self._patterns:
+            blocks = self._tagged_blocks
+            patterns = blocks.get(
+                TaggedBlock.PATTERNS1,
+                blocks.get(
+                    TaggedBlock.PATTERNS2,
+                    blocks.get(TaggedBlock.PATTERNS3, [])))
+            self._patterns = {p.pattern_id: Pattern(p) for p in patterns}
+        return self._patterns
 
     def print_tree(self, layers=None, indent=0, indent_width=2, **kwargs):
         """Print the layer tree structure."""
