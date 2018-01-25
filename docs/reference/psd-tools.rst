@@ -1,10 +1,10 @@
 psd-tools
 =========
 
-psd\_tools\.cli
----------------
+psd\_tools\.\_\_main\_\_
+------------------------
 
-.. automodule:: psd_tools.cli
+.. automodule:: psd_tools.__main__
     :members:
     :undoc-members:
     :show-inheritance:
