@@ -1,10 +1,9 @@
-1.6.8 (2018-01-24)
+1.7.0 (2018-01-25)
 ------------------
 
-- remove `user_api.layers` module;
-- merge fake root group to `PSDImage`;
+- cleanup user API organization;
 - remove json encoder api;
-- rename `all_layers()` to `descendants()`;
+- make cli a package main.
 
 1.6.7 (2018-01-17)
 ------------------

@@ -27,14 +27,14 @@ original version.
 Installation
 ------------
 
-::
+.. code-block:: bash
 
     pip install psd-tools2
 
 Pillow_ should be installed if you want work with PSD image and layer data:
 export images to PNG, process them. PIL_ library should also work.
 
-::
+.. code-block:: bash
 
    pip install Pillow
 
@@ -54,24 +54,46 @@ psd-tools2 also has a rudimentary support for Pymaging_.
 .. _exifread: https://github.com/ianare/exif-py
 
 
-Usage
------
+Command line
+------------
 
-Load an image::
+The current tool supports PNG/JPEG export:
+
+.. code-block:: bash
+
+    psd-tools convert <psd_filename> <out_filename> [options]
+    psd-tools export_layer <psd_filename> <layer_index> <out_filename> [options]
+    psd-tools debug <filename> [options]
+    psd-tools -h | --help
+    psd-tools --version
+
+
+API Usage
+---------
+
+Load an image:
+
+.. code-block:: python
 
     >>> from psd_tools import PSDImage
     >>> psd = PSDImage.load('my_image.psd')
 
-Print the layer structure::
+Print the layer structure:
+
+.. code-block:: python
 
     >>> psd.print_tree()
 
-Read image header::
+Read image header:
+
+.. code-block:: python
 
     >>> psd.header
     PsdHeader(number_of_channels=3, height=200, width=100, depth=8, color_mode=RGB)
 
-Access its layers::
+Access its layers:
+
+.. code-block:: python
 
     >>> psd.layers
     [<group: 'Group 2', layer_count=1, mask=None, visible=1>,
@@ -86,7 +108,9 @@ Access its layers::
      ]
 
 
-Work with a layer group::
+Work with a layer group:
+
+.. code-block:: python
 
     >>> group2 = psd.layers[0]
     >>> group2.name
@@ -108,7 +132,9 @@ Work with a layer group::
     >>> group2.layers
     [<shape: 'Shape 2', size=43x62, x=40, y=72, mask=None, visible=1)>]
 
-Work with a layer::
+Work with a layer:
+
+.. code-block:: python
 
     >>> layer = group2.layers[0]
     >>> layer.name
@@ -145,28 +171,38 @@ Work with a layer::
     >>> layer.effects
     [<GradientOverlay>]
 
-Export a single layer::
+Export a single layer:
+
+.. code-block:: python
 
     >>> layer_image = layer.as_PIL()
     >>> layer_image.save('layer.png')
 
-Export the merged image::
+Export the merged image:
+
+.. code-block:: python
 
     >>> merged_image = psd.as_PIL()
     >>> merged_image.save('my_image.png')
 
-The same using Pymaging_::
+The same using Pymaging_:
+
+.. code-block:: python
 
     >>> merged_image = psd.as_pymaging()
     >>> merged_image.save_to_path('my_image.png')
     >>> layer_image = layer.as_pymaging()
     >>> layer_image.save_to_path('layer.png')
 
-Export a thumbnail in PIL Image::
+Export a thumbnail in PIL Image:
+
+.. code-block:: python
 
     >>> thumbnail_image = psd.thumbnail()
 
-Export layer group (experimental)::
+Export layer group (experimental):
+
+.. code-block:: python
 
     >>> group_image = group2.as_PIL()
     >>> group_image.save('group.png')
@@ -290,17 +326,21 @@ In case of bugs it would be helpful to provide a small PSD file
 demonstrating the issue; this file may be added to a test suite.
 
 In order to run tests, make sure PIL/Pillow is built with LittleCMS
-or LittleCMS2 support, install `tox <http://tox.testrun.org>`_ and type
+or LittleCMS2 support, install `tox <http://tox.testrun.org>`_ and type:
 
-::
+.. code-block:: bash
 
     tox
 
-Install Sphinx to generate documents::
+Install Sphinx to generate documents:
+
+.. code-block:: bash
 
     pip install sphinx sphinx_rtd_theme
 
-Once installed, use ``Makefile``::
+Once installed, use ``Makefile``:
+
+.. code-block:: bash
 
     make -C docs html
 
