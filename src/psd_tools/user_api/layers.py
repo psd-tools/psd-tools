@@ -27,8 +27,7 @@ class _RawLayer(object):
     @property
     def name(self):
         """Layer name (as unicode). """
-        return self._tagged_blocks.get(TaggedBlock.UNICODE_LAYER_NAME,
-                                       self._record.name)
+        return self.get_tag(TaggedBlock.UNICODE_LAYER_NAME, self._record.name)
 
     @property
     def kind(self):
@@ -54,7 +53,7 @@ class _RawLayer(object):
     @property
     def layer_id(self):
         """ID of the layer."""
-        return self._tagged_blocks.get(TaggedBlock.LAYER_ID)
+        return self.get_tag(TaggedBlock.LAYER_ID)
 
     @property
     def opacity(self):
@@ -92,13 +91,13 @@ class _RawLayer(object):
     @property
     def bbox(self):
         """BBox(x1, y1, x2, y2) namedtuple with layer bounding box."""
-        info = self._record
-        return BBox(info.left, info.top, info.right, info.bottom)
+        record = self._record
+        return BBox(record.left, record.top, record.right, record.bottom)
 
     def has_box(self):
         """Return True if the layer has a nonzero area."""
-        info = self._record
-        return info.left < info.right and info.top < info.bottom
+        record = self._record
+        return record.left < record.right and record.top < record.bottom
 
     def has_pixels(self):
         """Return True if the layer has associated pixels."""
@@ -150,6 +149,17 @@ class _RawLayer(object):
     def _tagged_blocks(self):
         """Returns the underlying tagged blocks structure."""
         return dict(self._record.tagged_blocks)
+
+    def get_tag(self, keys, default=None):
+        """Get specified record from tagged blocks."""
+        if isinstance(keys, bytes):
+            keys = [keys]
+        blocks = self._tagged_blocks
+        for key in keys:
+            value = blocks.get(key)
+            if value:
+                return value
+        return default
 
     def __repr__(self):
         bbox = self.bbox
@@ -218,11 +228,8 @@ class Group(_RawLayer):
 
     @property
     def _divider(self):
-        blocks = self._tagged_blocks
-        return blocks.get(
-            TaggedBlock.SECTION_DIVIDER_SETTING,
-            blocks.get(TaggedBlock.NESTED_SECTION_DIVIDER_SETTING),
-        )
+        return self.get_tag([TaggedBlock.SECTION_DIVIDER_SETTING,
+                             TaggedBlock.NESTED_SECTION_DIVIDER_SETTING])
 
     def __repr__(self):
         return "<%s: %r, layer_count=%d, mask=%s, visible=%d>" % (
@@ -274,8 +281,8 @@ class ShapeLayer(_RawLayer):
     def get_anchors(self):
         """Anchor points of the shape [(x, y), (x, y), ...]."""
         blocks = self._tagged_blocks
-        vmsk = blocks.get(TaggedBlock.VECTOR_MASK_SETTING1,
-                          blocks.get(TaggedBlock.VECTOR_MASK_SETTING2))
+        vmsk = self.get_tag([TaggedBlock.VECTOR_MASK_SETTING1,
+                             TaggedBlock.VECTOR_MASK_SETTING2])
         if not vmsk:
             return None
         width, height = self._psd.header.width, self._psd.header.height
@@ -289,7 +296,7 @@ class ShapeLayer(_RawLayer):
                 for p in vmsk.path if p.get("selector") in knot_types]
 
     def _get_color(self, default='black'):
-        soco = self._tagged_blocks.get(TaggedBlock.SOLID_COLOR_SHEET_SETTING)
+        soco = self.get_tag(TaggedBlock.SOLID_COLOR_SHEET_SETTING)
         if not soco:
             logger.warning("Gradient or pattern fill not supported")
             return default
@@ -347,20 +354,15 @@ class SmartObjectLayer(_RawLayer):
         return self._psd.embedded.get(self.unique_id)
 
     def _get_block(self):
-        blocks = self._tagged_blocks
-        block = None
-        for key in (TaggedBlock.SMART_OBJECT_PLACED_LAYER_DATA,
-                    TaggedBlock.PLACED_LAYER_DATA,
-                    TaggedBlock.PLACED_LAYER_OBSOLETE1,
-                    TaggedBlock.PLACED_LAYER_OBSOLETE2):
-            block = blocks.get(key)
-            if block:
-                break
-
+        block = self.get_tag([
+            TaggedBlock.SMART_OBJECT_PLACED_LAYER_DATA,
+            TaggedBlock.PLACED_LAYER_DATA,
+            TaggedBlock.PLACED_LAYER_OBSOLETE1,
+            TaggedBlock.PLACED_LAYER_OBSOLETE2,
+            ])
         if not block:
             logger.warning("Empty smartobject")
             return None
-
         return dict(block)
 
     def __repr__(self):
@@ -381,8 +383,7 @@ class TypeLayer(_RawLayer):
     """
     def __init__(self, parent, index):
         super(TypeLayer, self).__init__(parent, index)
-        self._type_info = self._tagged_blocks.get(
-            TaggedBlock.TYPE_TOOL_OBJECT_SETTING)
+        self._type_info = self.get_tag(TaggedBlock.TYPE_TOOL_OBJECT_SETTING)
         self.text_data = dict(self._type_info.text_data.items)
 
     @property

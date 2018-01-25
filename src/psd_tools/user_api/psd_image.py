@@ -62,7 +62,7 @@ class _PSDImageBuilder(object):
                 else:
                     logger.warn("Invalid state")
 
-            elif blocks.get(TaggedBlock.TYPE_TOOL_OBJECT_SETTING):
+            elif TaggedBlock.TYPE_TOOL_OBJECT_SETTING in blocks:
                 layer = TypeLayer(current_group, index)
 
             elif (TaggedBlock.VECTOR_ORIGINATION_DATA in blocks or
@@ -198,12 +198,9 @@ class PSDImage(Group, _PSDImageBuilder):
     def patterns(self):
         """Returns a dict of pattern (texture) data in PIL.Image."""
         if not self._patterns:
-            blocks = self._tagged_blocks
-            patterns = blocks.get(
-                TaggedBlock.PATTERNS1,
-                blocks.get(
-                    TaggedBlock.PATTERNS2,
-                    blocks.get(TaggedBlock.PATTERNS3, [])))
+            patterns = self.get_tag([TaggedBlock.PATTERNS1,
+                                     TaggedBlock.PATTERNS2,
+                                     TaggedBlock.PATTERNS3])
             self._patterns = {p.pattern_id: Pattern(p) for p in patterns}
         return self._patterns
 
