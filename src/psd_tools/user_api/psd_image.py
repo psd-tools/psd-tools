@@ -233,15 +233,12 @@ class PSDImage(Group, _PSDImageBuilder):
         Returns a thumbnail image in PIL.Image. When the file does not
         contain an embedded thumbnail image, returns None.
         """
-        blocks = self.image_resource_blocks
-        thumbnail_resource = blocks.get("thumbnail_resource")
-        if thumbnail_resource:
-            return pil_support.extract_thumbnail(thumbnail_resource)
-        else:
-            thumbnail_resource = blocks.get("thumbnail_resource_ps4")
-            if thumbnail_resource:
-                return pil_support.extract_thumbnail(thumbnail_resource,
-                                                     "BGR")
+        if "thumbnail_resource" in self.image_resource_blocks:
+            return pil_support.extract_thumbnail(
+                self.image_resource_blocks["thumbnail_resource"])
+        elif "thumbnail_resource_ps4" in self.image_resource_blocks:
+            return pil_support.extract_thumbnail(
+                self.image_resource_blocks["thumbnail_resource_ps4"], "BGR")
         return None
 
     @property
