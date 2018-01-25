@@ -32,7 +32,9 @@ setup_args = dict(
     packages=['psd_tools', 'psd_tools.reader', 'psd_tools.decoder',
               'psd_tools.user_api'],
     package_data={'psd_tools': ['icc_profiles/*.icc']},
-    scripts=['bin/psd-tools.py'],
+    entry_points={
+        'console_scripts': ['psd-tools=psd_tools.__main__:main']
+    },
 
     classifiers=[
         'Development Status :: 4 - Beta',

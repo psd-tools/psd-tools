@@ -9,19 +9,19 @@ from psd_tools import PSDImage
 from psd_tools.debug import pprint
 from psd_tools.version import __version__
 
-logger = logging.getLogger('psd_tools')
+logger = logging.getLogger(__name__)
 logger.addHandler(logging.StreamHandler())
 
 def main():
     """
-    psd-tools.py
+    psd-tools
 
     Usage:
-        psd-tools.py convert <psd_filename> <out_filename> [options]
-        psd-tools.py export_layer <psd_filename> <layer_index> <out_filename> [options]
-        psd-tools.py debug <filename> [options]
-        psd-tools.py -h | --help
-        psd-tools.py --version
+        psd-tools convert <psd_filename> <out_filename> [options]
+        psd-tools export_layer <psd_filename> <layer_index> <out_filename> [options]
+        psd-tools debug <filename> [options]
+        psd-tools -h | --help
+        psd-tools --version
 
     Options:
         -v --verbose                Be more verbose.
@@ -51,14 +51,15 @@ def main():
         psd.as_PIL()
 
     elif args['debug']:
-        with open(args['<filename>'], "rb") as f:
-            decoded = psd_tools.decoder.parse(
-                psd_tools.reader.parse(f, encoding)
-            )
+        psd = PSDImage.load(args['<filename>'], encoding=encoding)
 
         print("\nHeader\n------")
-        print(decoded.header)
+        print(psd.decoded_data.header)
         print("\nDecoded data\n-----------")
-        pprint(decoded)
+        pprint(psd.decoded_data)
         print("\nLayers\n------")
-        PSDImage(decoded).print_tree()
+        psd.print_tree()
+
+
+if __name__ == "__main__":
+    main()
