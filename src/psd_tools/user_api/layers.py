@@ -354,7 +354,7 @@ class SmartObjectLayer(_RawLayer):
         """
         Return linked layer data.
         """
-        return self._psd.embedded.get(self.unique_id)
+        return self._psd.smart_objects.get(self.unique_id)
 
     def _get_block(self):
         block = self.get_tag([
