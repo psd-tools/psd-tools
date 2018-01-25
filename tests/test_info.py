@@ -4,7 +4,7 @@ import re
 import pytest
 
 from psd_tools import PSDImage
-from psd_tools.constants import TaggedBlock, SectionDivider, BlendMode
+from psd_tools.constants import TaggedBlock, SectionDivider
 from .utils import load_psd, decode_psd, with_psb
 from psd_tools.decoder.tagged_blocks import VectorMaskSetting
 
@@ -66,7 +66,7 @@ def test_api():
     assert layer.bbox == (0, 0, 101, 55)
     assert layer.visible
     assert layer.opacity == 255
-    assert layer.blend_mode == BlendMode.NORMAL
+    assert layer.blend_mode == 'normal'
 
 
 @pytest.mark.parametrize(('filename', 'has_layer_and_mask_data'), FILES_WITH_NO_LAYERS)
@@ -87,7 +87,7 @@ def test_no_layers_has_tagged_blocks(filename, has_layer_and_mask_data):
 def test_vector_mask():
     psd = decode_psd('vector mask.psd')
     layers = psd.layer_and_mask_data.layers.layer_records
-    assert layers[1].tagged_blocks[1].key == b'vmsk'
+    assert layers[1].tagged_blocks[1].key == TaggedBlock.VECTOR_MASK_SETTING1
     assert isinstance(layers[1].tagged_blocks[1].data, VectorMaskSetting)
 
 

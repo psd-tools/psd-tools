@@ -68,8 +68,13 @@ class _RawLayer(object):
 
     @property
     def blend_mode(self):
-        """Blend mode of this layer."""
-        return self._record.blend_mode
+        """
+        Blend mode of this layer. See
+        :py:class:`~psd_tools.constants.BlendMode`
+
+        :rtype: str
+        """
+        return BlendMode.human_name_of(self._record.blend_mode)
 
     def has_mask(self):
         """Returns if the layer has a mask."""
@@ -512,9 +517,9 @@ def merge_layers(layers, respect_visibility=True, ignore_blend_mode=True,
         if not layer_image:
             continue
 
-        if not ignore_blend_mode and layer.blend_mode != BlendMode.NORMAL:
+        if not ignore_blend_mode and layer.blend_mode != "normal":
             logger.warning("Blend mode is not implemented: %s",
-                           BlendMode.name_of(layer.blend_mode))
+                           layer.blend_mode)
             continue
 
         if len(layer.clip_layers):

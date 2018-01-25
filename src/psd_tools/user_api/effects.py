@@ -14,41 +14,9 @@ from __future__ import absolute_import
 import inspect
 import logging
 from psd_tools.user_api.actions import translate
-from psd_tools.constants import TaggedBlock
+from psd_tools.constants import TaggedBlock, BlendMode2, ObjectBasedEffects
 
 logger = logging.getLogger(__name__)
-
-
-# List of blending mode keys and names.
-BLEND_MODES = {
-    b'Nrml': 'normal',
-    b'Dslv': 'dissolve',
-    b'Drkn': 'darken',
-    b'Mltp': 'multiply',
-    b'CBrn': 'color burn',
-    b'linearBurn': 'linear burn',
-    b'darkerColor': 'darken',
-    b'Lghn': 'lighten',
-    b'Scrn': 'screen',
-    b'CDdg': 'color dodge',
-    b'linearDodge': 'linear dodge',
-    b'lighterColor': 'lighter color',
-    b'Ovrl': 'overlay',
-    b'SftL': 'soft light',
-    b'HrdL': 'hard light',
-    b'vividLight': 'vivid light',
-    b'linearLight': 'linear light',
-    b'pinLight': 'pin light',
-    b'hardMix': 'hard mix',
-    b'Dfrn': 'difference',
-    b'Xclu': 'exclusion',
-    b'blendSubtraction': 'subtract',
-    b'blendDivide': 'divide',
-    b'H   ': 'hue',
-    b'Strt': 'saturation',
-    b'Clr ': 'color',
-    b'Lmns': 'luminosity',
-}
 
 
 def get_effects(layer):
@@ -130,7 +98,8 @@ class _BaseEffect(object):
           - color
           - luminosity
         """
-        return BLEND_MODES.get(self.get(b'Md  ', b'Nrml'), 'normal')
+        return BlendMode2.human_name_of(
+            self.get(b'Md  ', BlendMode2.NORMAL), 'normal')
 
     @property
     def opacity(self):
@@ -388,7 +357,8 @@ class BevelEmboss(_BaseEffect):
     @property
     def highlight_mode(self):
         """Highlight blending mode."""
-        return BLEND_MODES.get(self.get(b'hglM', b'Nrml'), 'normal')
+        return BlendMode2.human_name_of(
+            self.get(b'hglM', BlendMode2.NORMAL), 'normal')
 
     @property
     def highlight_color(self):
@@ -403,7 +373,8 @@ class BevelEmboss(_BaseEffect):
     @property
     def shadow_mode(self):
         """Shadow blending mode."""
-        return BLEND_MODES.get(self.get(b'sdwM', b'Nrml'), 'normal')
+        return BlendMode2.human_name_of(
+            self.get(b'sdwM', BlendMode2.NORMAL), 'normal')
 
     @property
     def shadow_color(self):
@@ -526,21 +497,21 @@ class Effects(object):
             print(effect.name())
     """
     _KEYS = {
-        b'dropShadowMulti': DropShadow,
-        b'DrSh': DropShadow,
-        b'innerShadowMulti': InnerShadow,
-        b'IrSh': InnerShadow,
-        b'OrGl': OuterGlow,
-        b'solidFillMulti': ColorOverlay,
-        b'SoFi': ColorOverlay,
-        b'gradientFillMulti': GradientOverlay,
-        b'GrFl': GradientOverlay,
-        b'patternFill': PatternOverlay,
-        b'frameFXMulti': Stroke,
-        b'FrFX': Stroke,
-        b'IrGl': InnerGlow,
-        b'ebbl': BevelEmboss,
-        b'ChFX': Satin,
+        ObjectBasedEffects.DROP_SHADOW_MULTI: DropShadow,
+        ObjectBasedEffects.DROP_SHADOW: DropShadow,
+        ObjectBasedEffects.INNER_SHADOW_MULTI: InnerShadow,
+        ObjectBasedEffects.INNER_SHADOW: InnerShadow,
+        ObjectBasedEffects.OUTER_GLOW: OuterGlow,
+        ObjectBasedEffects.COLOR_OVERLAY_MULTI: ColorOverlay,
+        ObjectBasedEffects.COLOR_OVERLAY: ColorOverlay,
+        ObjectBasedEffects.GRADIENT_OVERLAY_MULTI: GradientOverlay,
+        ObjectBasedEffects.GRADIENT_OVERLAY: GradientOverlay,
+        ObjectBasedEffects.PATTERN_OVERLAY: PatternOverlay,
+        ObjectBasedEffects.STROKE_MULTI: Stroke,
+        ObjectBasedEffects.STROKE: Stroke,
+        ObjectBasedEffects.INNER_GLOW: InnerGlow,
+        ObjectBasedEffects.BEVEL_EMBOSS: BevelEmboss,
+        ObjectBasedEffects.SATIN: Satin,
         }
 
     def __init__(self, descriptor):
