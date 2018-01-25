@@ -9,7 +9,7 @@ from psd_tools.constants import TaggedBlock, SectionDivider, ImageResourceID
 from psd_tools.user_api import pymaging_support
 from psd_tools.user_api import pil_support
 from psd_tools.user_api import BBox, Pattern
-from psd_tools.user_api.embedded import Embedded
+from psd_tools.user_api.smart_object import SmartObject
 from psd_tools.user_api.layers import (
     Group, AdjustmentLayer, TypeLayer, ShapeLayer, SmartObjectLayer,
     PixelLayer, merge_layers)
@@ -100,6 +100,7 @@ class PSDImage(Group, _PSDImageBuilder):
         super(PSDImage, self).__init__(None, None)
         self._smart_objects = None
         self._patterns = None
+        self._image_resource_blocks = None
         self.build(decoded_data)
 
     @classmethod
@@ -136,7 +137,7 @@ class PSDImage(Group, _PSDImageBuilder):
 
     def has_preview(self):
         """Returns if the image has a preview."""
-        version_info = self._image_resource_blocks.get("version_info")
+        version_info = self.image_resource_blocks.get("version_info")
         return not version_info or version_info.has_real_merged_data
 
     def as_pymaging(self):
@@ -187,11 +188,21 @@ class PSDImage(Group, _PSDImageBuilder):
 
     @property
     def embedded(self):
+        """(Deprecated) Use `smart_objects`."""
+        return self.smart_objects
+
+    @property
+    def smart_objects(self):
         """Dict of the smart objects."""
         if not self._smart_objects:
-            self._smart_objects = {
-                linked.unique_id: Embedded(linked)
-                for linked in self._linked_layer_iter()}
+            links = self.get_tag([
+                TaggedBlock.LINKED_LAYER1,
+                TaggedBlock.LINKED_LAYER2,
+                TaggedBlock.LINKED_LAYER3,
+                TaggedBlock.LINKED_LAYER_EXTERNAL
+            ])
+            self._smart_objects = {item.unique_id: SmartObject(item)
+                                   for item in links.linked_list}
         return self._smart_objects
 
     @property
@@ -214,7 +225,7 @@ class PSDImage(Group, _PSDImageBuilder):
             for clip in l.clip_layers:
                 print(((' ' * indent) + "/{}").format(clip), **kwargs)
             print(((' ' * indent) + "{}").format(l), **kwargs)
-            if isinstance(l, Group):
+            if l.is_group():
                 self.print_tree(l.layers, indent + indent_width, **kwargs)
 
     def thumbnail(self):
@@ -222,7 +233,7 @@ class PSDImage(Group, _PSDImageBuilder):
         Returns a thumbnail image in PIL.Image. When the file does not
         contain an embedded thumbnail image, returns None.
         """
-        blocks = self._image_resource_blocks
+        blocks = self.image_resource_blocks
         thumbnail_resource = blocks.get("thumbnail_resource")
         if thumbnail_resource:
             return pil_support.extract_thumbnail(thumbnail_resource)
@@ -234,13 +245,22 @@ class PSDImage(Group, _PSDImageBuilder):
         return None
 
     @property
-    def _tagged_blocks(self):
-        return dict(self.decoded_data.layer_and_mask_data.tagged_blocks)
+    def tagged_blocks(self):
+        """Returns dict of the underlying tagged blocks."""
+        if not self._tagged_blocks:
+            self._tagged_blocks = dict(
+                self.decoded_data.layer_and_mask_data.tagged_blocks)
+        return self._tagged_blocks
 
     @property
-    def _image_resource_blocks(self):
-        return {ImageResourceID.name_of(block.resource_id).lower(): block.data
-                for block in self.decoded_data.image_resource_blocks}
+    def image_resource_blocks(self):
+        """Returns dict of the underlying image resource blocks."""
+        if not self._image_resource_blocks:
+            self._image_resource_blocks = {
+                ImageResourceID.name_of(block.resource_id).lower(): block.data
+                for block in self.decoded_data.image_resource_blocks
+            }
+        return self._image_resource_blocks
 
     def _layer_records(self, index):
         records = self.decoded_data.layer_and_mask_data.layers.layer_records
@@ -255,14 +275,6 @@ class PSDImage(Group, _PSDImageBuilder):
 
     def _layer_as_pymaging(self, index):
         return pymaging_support.extract_layer_image(self.decoded_data, index)
-
-    def _linked_layer_iter(self):
-        """Iterate over linked layers (smart objects / embedded files)."""
-        from psd_tools.decoder.linked_layer import LinkedLayerCollection
-        for data in self._tagged_blocks.values():
-            if isinstance(data, LinkedLayerCollection):
-                for layer in data.linked_list:
-                    yield layer
 
     def __repr__(self):
         return "<%s: size=%dx%d, layer_count=%d>" % (

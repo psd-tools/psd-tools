@@ -23,6 +23,7 @@ class _RawLayer(object):
         self._psd = parent._psd if parent else self
         self._index = index
         self._clip_layers = []
+        self._tagged_blocks = None
 
     @property
     def name(self):
@@ -146,15 +147,17 @@ class _RawLayer(object):
         return self._psd._layer_channels(self._index)
 
     @property
-    def _tagged_blocks(self):
+    def tagged_blocks(self):
         """Returns the underlying tagged blocks structure."""
-        return dict(self._record.tagged_blocks)
+        if not self._tagged_blocks:
+            self._tagged_blocks = dict(self._record.tagged_blocks)
+        return self._tagged_blocks
 
     def get_tag(self, keys, default=None):
         """Get specified record from tagged blocks."""
         if isinstance(keys, bytes):
             keys = [keys]
-        blocks = self._tagged_blocks
+        blocks = self.tagged_blocks
         for key in keys:
             value = blocks.get(key)
             if value:

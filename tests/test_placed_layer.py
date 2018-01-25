@@ -53,7 +53,7 @@ def test_userapi_placed_layers():
 def test_embedded():
     # This file contains both an embedded and linked png
     psd = PSDImage.load(os.path.join(DATA_PATH, 'placedLayer.psd'))
-    embedded = psd.embedded['5a96c404-ab9c-1177-97ef-96ca454b82b7']
-    assert embedded.filename == 'linked-layer.png'
+    link = psd.smart_objects['5a96c404-ab9c-1177-97ef-96ca454b82b7']
+    assert link.filename == 'linked-layer.png'
     with open(os.path.join(DATA_PATH, 'linked-layer.png'), 'rb') as f:
-        assert embedded.data == f.read()
+        assert link.data == f.read()
