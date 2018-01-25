@@ -117,7 +117,7 @@ Other layers have similar properties::
 
     >>> smart_object = layer.linked_data()
 
-Raw internal data is accessible by ``layer.decoded_data`` property.
+Raw internal data is accessible by :py:attr:`~psd_tools.user_api.layers._RawLayer._record` property.
 
 
 Exporting data
