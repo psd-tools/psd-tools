@@ -245,9 +245,13 @@ class PSDImage(Group, _PSDImageBuilder):
         return {ImageResourceID.name_of(block.resource_id).lower(): block.data
                 for block in self.decoded_data.image_resource_blocks}
 
-    def _layer_info(self, index):
-        layers = self.decoded_data.layer_and_mask_data.layers.layer_records
-        return layers[index]
+    def _layer_records(self, index):
+        records = self.decoded_data.layer_and_mask_data.layers.layer_records
+        return records[index]
+
+    def _layer_channels(self, index):
+        data = self.decoded_data.layer_and_mask_data.layers.channel_image_data
+        return data[index]
 
     def _layer_as_PIL(self, index):
         return pil_support.extract_layer_image(self.decoded_data, index)

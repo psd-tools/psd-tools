@@ -28,7 +28,7 @@ class _RawLayer(object):
     def name(self):
         """Layer name (as unicode). """
         return self._tagged_blocks.get(TaggedBlock.UNICODE_LAYER_NAME,
-                                       self._info.name)
+                                       self._record.name)
 
     @property
     def kind(self):
@@ -41,7 +41,7 @@ class _RawLayer(object):
     @property
     def visible(self):
         """Layer visibility. Doesn't take group visibility in account."""
-        return self._info.flags.visible
+        return self._record.flags.visible
 
     def is_visible(self):
         """Layer visibility. Takes group visibility in account."""
@@ -59,7 +59,7 @@ class _RawLayer(object):
     @property
     def opacity(self):
         """Opacity of this layer."""
-        return self._info.opacity
+        return self._record.opacity
 
     @property
     def parent(self):
@@ -69,30 +69,40 @@ class _RawLayer(object):
     @property
     def blend_mode(self):
         """Blend mode of this layer."""
-        return self._info.blend_mode
+        return self._record.blend_mode
 
     def has_mask(self):
         """Returns if the layer has a mask."""
-        return True if self._index and self._info.mask_data else False
+        return True if self._index and self._record.mask_data else False
 
     def as_PIL(self):
         """Returns a PIL.Image for this layer."""
-        return self._psd._layer_as_PIL(self._index)
+        if self.has_pixels():
+            return self._psd._layer_as_PIL(self._index)
+        else:
+            return None
 
     def as_pymaging(self):
         """Returns a pymaging.Image for this layer."""
-        return self._psd._layer_as_pymaging(self._index)
+        if self.has_pixels():
+            return self._psd._layer_as_pymaging(self._index)
+        else:
+            return None
 
     @property
     def bbox(self):
         """BBox(x1, y1, x2, y2) namedtuple with layer bounding box."""
-        info = self._info
+        info = self._record
         return BBox(info.left, info.top, info.right, info.bottom)
 
     def has_box(self):
         """Return True if the layer has a nonzero area."""
-        info = self._info
+        info = self._record
         return info.left < info.right and info.top < info.bottom
+
+    def has_pixels(self):
+        """Return True if the layer has associated pixels."""
+        return all(c.data and len(c.data) > 0 for c in self._channels)
 
     @property
     def mask(self):
@@ -123,13 +133,23 @@ class _RawLayer(object):
 
     @property
     def _info(self):
+        """(Deprecated) Use `_record()`."""
+        return self._record
+
+    @property
+    def _record(self):
         """Returns the underlying layer record."""
-        return self._psd._layer_info(self._index)
+        return self._psd._layer_records(self._index)
+
+    @property
+    def _channels(self):
+        """Returns the underlying layer channel images."""
+        return self._psd._layer_channels(self._index)
 
     @property
     def _tagged_blocks(self):
         """Returns the underlying tagged blocks structure."""
-        return dict(self._info.tagged_blocks)
+        return dict(self._record.tagged_blocks)
 
     def __repr__(self):
         bbox = self.bbox
@@ -227,7 +247,7 @@ class ShapeLayer(_RawLayer):
 
     def as_PIL(self, vector=False):
         """Returns a PIL image for this layer."""
-        if vector or (self._info.flags.pixel_data_irrelevant and
+        if vector or (self._record.flags.pixel_data_irrelevant and
                       not self.has_box()):
             # TODO: Replace polygon with bezier curve.
             return pil_support.draw_polygon(self.bbox, self.get_anchors(),

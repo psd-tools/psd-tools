@@ -8,7 +8,7 @@ from psd_tools.user_api.psd_image import BBox
 class Mask(object):
     """Mask data attached to a layer."""
     def __init__(self, layer):
-        self.mask_data = layer._info.mask_data
+        self.mask_data = layer._record.mask_data
         self._decoded_data = layer._psd.decoded_data
         self._layer_index = layer._index
 
