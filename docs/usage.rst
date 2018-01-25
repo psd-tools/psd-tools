@@ -71,8 +71,7 @@ Layers can be one of :py:class:`~psd_tools.user_api.layers.Group`,
     >>> group1.opacity
     255
 
-    >>> from psd_tools.constants import BlendMode
-    >>> group1.blend_mode == BlendMode.NORMAL
+    >>> group1.blend_mode == 'normal'
     True
 
     >>> group1.layers
@@ -94,7 +93,7 @@ Other layers have similar properties::
     (43, 62)
 
     >>> layer.visible, layer.opacity, layer.blend_mode
-    (True, 255, u'norm')
+    (True, 255, 'normal')
 
     >>> mask = layer.mask
     >>> mask.bbox

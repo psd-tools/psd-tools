@@ -119,14 +119,10 @@ Work with a layer group:
     >>> group2.visible
     True
 
-    >>> group2.closed
-    False
-
     >>> group2.opacity
     255
 
-    >>> from psd_tools.constants import BlendMode
-    >>> group2.blend_mode == BlendMode.NORMAL
+    >>> group2.blend_mode == 'normal'
     True
 
     >>> group2.layers
@@ -150,7 +146,7 @@ Work with a layer:
     (43, 62)
 
     >>> layer.visible, layer.opacity, layer.blend_mode
-    (True, 255, u'norm')
+    (True, 255, 'normal')
 
     >>> layer.text
     'Text inside a text box'
