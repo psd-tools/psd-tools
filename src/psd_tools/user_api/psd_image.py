@@ -201,8 +201,11 @@ class PSDImage(Group, _PSDImageBuilder):
                 TaggedBlock.LINKED_LAYER3,
                 TaggedBlock.LINKED_LAYER_EXTERNAL
             ])
-            self._smart_objects = {item.unique_id: SmartObject(item)
-                                   for item in links.linked_list}
+            if links:
+                self._smart_objects = {item.unique_id: SmartObject(item)
+                                       for item in links.linked_list}
+            else:
+                self._smart_objects = {}
         return self._smart_objects
 
     @property
@@ -211,7 +214,8 @@ class PSDImage(Group, _PSDImageBuilder):
         if not self._patterns:
             patterns = self.get_tag([TaggedBlock.PATTERNS1,
                                      TaggedBlock.PATTERNS2,
-                                     TaggedBlock.PATTERNS3])
+                                     TaggedBlock.PATTERNS3],
+                                    [])
             self._patterns = {p.pattern_id: Pattern(p) for p in patterns}
         return self._patterns
 
