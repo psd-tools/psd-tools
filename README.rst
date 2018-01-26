@@ -71,36 +71,28 @@ The current tool supports PNG/JPEG export:
 API Usage
 ---------
 
-Load an image:
-
-.. code-block:: python
+Load an image::
 
     >>> from psd_tools import PSDImage
     >>> psd = PSDImage.load('my_image.psd')
 
-Print the layer structure:
-
-.. code-block:: python
+Print the layer structure::
 
     >>> psd.print_tree()
 
-Read image header:
-
-.. code-block:: python
+Read image header::
 
     >>> psd.header
     PsdHeader(number_of_channels=3, height=200, width=100, depth=8, color_mode=RGB)
 
-Access its layers:
-
-.. code-block:: python
+Access its layers::
 
     >>> psd.layers
     [<group: 'Group 2', layer_count=1, mask=None, visible=1>,
      <group: 'Group 1', layer_count=1, mask=None, visible=1>,
      <pixel: 'Background', size=100x200, x=0, y=0, mask=None, visible=1>]
 
-    >>> psd.all_layers()
+    >>> list(psd.descendants())
     [<group: 'Group 2', layer_count=1, mask=None, visible=1>,
      <shape: 'Shape 2', size=43x62, x=40, y=72, mask=None, visible=1)>,
      <group: 'Group 1', layer_count=1, mask=None, visible=1>,
@@ -108,9 +100,7 @@ Access its layers:
      ]
 
 
-Work with a layer group:
-
-.. code-block:: python
+Work with a layer group::
 
     >>> group2 = psd.layers[0]
     >>> group2.name
@@ -128,9 +118,7 @@ Work with a layer group:
     >>> group2.layers
     [<shape: 'Shape 2', size=43x62, x=40, y=72, mask=None, visible=1)>]
 
-Work with a layer:
-
-.. code-block:: python
+Work with a layer::
 
     >>> layer = group2.layers[0]
     >>> layer.name
@@ -167,74 +155,31 @@ Work with a layer:
     >>> layer.effects
     [<GradientOverlay>]
 
-Export a single layer:
-
-.. code-block:: python
+Export a single layer::
 
     >>> layer_image = layer.as_PIL()
     >>> layer_image.save('layer.png')
 
-Export the merged image:
-
-.. code-block:: python
+Export the merged image::
 
     >>> merged_image = psd.as_PIL()
     >>> merged_image.save('my_image.png')
 
-The same using Pymaging_:
-
-.. code-block:: python
+The same using Pymaging_::
 
     >>> merged_image = psd.as_pymaging()
     >>> merged_image.save_to_path('my_image.png')
     >>> layer_image = layer.as_pymaging()
     >>> layer_image.save_to_path('layer.png')
 
-Export a thumbnail in PIL Image:
-
-.. code-block:: python
+Export a thumbnail in PIL Image::
 
     >>> thumbnail_image = psd.thumbnail()
 
-Export layer group (experimental):
-
-.. code-block:: python
+Export layer group (experimental)::
 
     >>> group_image = group2.as_PIL()
     >>> group_image.save('group.png')
-
-
-Why yet another PSD reader?
----------------------------
-
-There are existing PSD readers for Python:
-
-* psdparse_;
-* pypsd_;
-* there is a PSD reader in PIL_ library;
-* it is possible to write Python plugins for GIMP_.
-
-PSD reader in PIL is incomplete and contributing to PIL
-is complicated because of the slow release process, but the main issue
-with PIL for me is that PIL doesn't have an API for layer groups.
-
-GIMP is cool, but it is a huge dependency, its PSD parser
-is not perfect and it is not easy to use GIMP Python plugin
-from *your* code.
-
-I also considered contributing to pypsd or psdparse, but they are
-GPL and I was not totally satisfied with the interface and the code
-(they are really fine, that's me having specific style requirements).
-
-So I finally decided to roll out yet another implementation
-that should be MIT-licensed, systematically based on the specification_
-(it turns out the specs are incomplete and sometimes incorrect though);
-parser should be implemented as a set of functions; the package should
-have tests and support both Python 2.x and Python 3.x.
-
-.. _GIMP: http://www.gimp.org/
-.. _psdparse: https://github.com/jerem/psdparse
-.. _pypsd: https://code.google.com/p/pypsd
 
 
 Design overview
