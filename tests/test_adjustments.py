@@ -3,7 +3,7 @@ from __future__ import absolute_import
 
 import os
 
-from psd_tools import PSDImage, BBox
+from psd_tools.user_api.psd_image import PSDImage
 from psd_tools.constants import TaggedBlock
 from psd_tools.decoder.tagged_blocks import (
     BrightnessContrast, LevelsSettings, CurvesSettings, Exposure)

@@ -31,6 +31,10 @@ class Enum(object):
     def name_of(cls, value):
         return cls._values_dict().get(value, "<unknown:{}>".format(value))
 
+    @classmethod
+    def human_name_of(cls, value):
+        return cls.name_of(value).lower().replace("_", " ")
+
 
 class ColorMode(Enum):
     BITMAP = 0
@@ -197,6 +201,37 @@ class BlendMode(Enum):
     SATURATION = b'sat '
     COLOR = b'colr'
     LUMINOSITY = b'lum '
+
+
+class BlendMode2(Enum):
+    """Blend mode in layer effect descriptor."""
+    NORMAL = b'Nrml'
+    DISSOLVE = b'Dslv'
+    DARKEN = b'Drkn'
+    MULTIPLY = b'Mltp'
+    COLOR_BURN = b'CBrn'
+    LINEAR_BURN = b'linearBurn'
+    DARKER_COLOR = b'darkerColor'
+    LIGHTEN = b'Lghn'
+    SCREEN = b'Scrn'
+    COLOR_DODGE = b'CDdg'
+    LINEAR_DODGE = b'linearDodge'
+    LIGHTER_COLOR = b'lighterColor'
+    OVERLAY = b'Ovrl'
+    SOFT_LIGHT = b'SftL'
+    HARD_LIGHT = b'HrdL'
+    VIVID_LIGHT = b'vividLight'
+    LINEAR_LIGHT = b'linearLight'
+    PIN_LIGHT = b'pinLight'
+    HARD_MIX = b'hardMix'
+    DIFFERENCE = b'Dfrn'
+    EXCLUSION = b'Xclu'
+    SUBTRACT = b'blendSubtraction'
+    DIVIDE = b'blendDivide'
+    HUE = b'H   '
+    SATURATION = b'Strt'
+    COLOR = b'Clr '
+    LUMINOSITY = b'Lmns'
 
 
 class Clipping(Enum):
@@ -430,7 +465,6 @@ class TextProperty(Enum):
 class TextOrientation(Enum):
     HORIZONTAL = b'Hrzn'
 
-
 class PathResource(Enum):
     CLOSED_SUBPATH_LENGTH_RECORD = 0
     CLOSED_SUBPATH_BEZIER_KNOT_LINKED = 1
@@ -442,8 +476,25 @@ class PathResource(Enum):
     CLIPBOARD_RECORD = 7
     INITIAL_FILL_RULE_RECORD = 8
 
-
 class LinkedLayerType(Enum):
     DATA = b'liFD'
     EXTERNAL = b'liFE'
     ALIAS = b'liFA'
+
+class ObjectBasedEffects(Enum):
+    """Type of the object-based effects."""
+    DROP_SHADOW_MULTI = b'dropShadowMulti'
+    DROP_SHADOW = b'DrSh'
+    INNER_SHADOW_MULTI = b'innerShadowMulti'
+    INNER_SHADOW = b'IrSh'
+    OUTER_GLOW = b'OrGl'
+    COLOR_OVERLAY_MULTI = b'solidFillMulti'
+    COLOR_OVERLAY = b'SoFi'
+    GRADIENT_OVERLAY_MULTI = b'gradientFillMulti'
+    GRADIENT_OVERLAY = b'GrFl'
+    PATTERN_OVERLAY = b'patternFill'
+    STROKE_MULTI = b'frameFXMulti'
+    STROKE = b'FrFX'
+    INNER_GLOW = b'IrGl'
+    BEVEL_EMBOSS = b'ebbl'
+    SATIN = b'ChFX'

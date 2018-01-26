@@ -17,10 +17,10 @@ Load an image::
 Print the layer structure::
 
     >>> psd.print_tree()
-    <PSDImage: size=100x200, layer_count=2>
-      <Group: 'Group 1', layer_count=1, mask=None, visible=1>
-        <ShapeLayer: 'Shape 1', size=41x74, x=25, y=24, visible=1, mask=None, effects=None>
-      <PixelLayer: 'Background', size=100x200, x=0, y=0, visible=1, mask=None, effects=None>
+    <psdimage: size=100x200, layer_count=2>
+      <group: 'Group 1', layer_count=1, mask=None, visible=1>
+        <shape: 'Shape 1', size=41x74, x=25, y=24, visible=1, mask=None, effects=None>
+      <pixel: 'Background', size=100x200, x=0, y=0, visible=1, mask=None, effects=None>
 
 Read image header::
 
@@ -30,8 +30,8 @@ Read image header::
 Access its layers::
 
     >>> psd.layers
-    [<Group: 'Group 1', layer_count=1, mask=None, visible=1>,
-     <PixelLayer: 'Background', size=100x200, x=0, y=0, visible=1, mask=None, effects=None>]
+    [<group: 'Group 1', layer_count=1, mask=None, visible=1>,
+     <pixel: 'Background', size=100x200, x=0, y=0, visible=1, mask=None, effects=None>]
 
 Get pattern dict::
 
@@ -45,15 +45,15 @@ All the low-level internal data are kept in the
 Working with Layers
 -------------------
 
-Layers can be one of :py:class:`~psd_tools.user_api.psd_image.Group`,
-:py:class:`~psd_tools.user_api.psd_image.PixelLayer`,
-:py:class:`~psd_tools.user_api.psd_image.ShapeLayer`,
-:py:class:`~psd_tools.user_api.psd_image.TypeLayer`,
-:py:class:`~psd_tools.user_api.psd_image.AdjustmentLayer`, or
-:py:class:`~psd_tools.user_api.psd_image.SmartObjectLayer`.
+Layers can be one of :py:class:`~psd_tools.user_api.layers.Group`,
+:py:class:`~psd_tools.user_api.layers.PixelLayer`,
+:py:class:`~psd_tools.user_api.layers.ShapeLayer`,
+:py:class:`~psd_tools.user_api.layers.TypeLayer`,
+:py:class:`~psd_tools.user_api.layers.AdjustmentLayer`, or
+:py:class:`~psd_tools.user_api.layers.SmartObjectLayer`.
 
-:py:class:`~psd_tools.user_api.psd_image.Group` has internal
-:py:attr:`~psd_tools.user_api.psd_image.Group.layers`::
+:py:class:`~psd_tools.user_api.layers.Group` has internal
+:py:attr:`~psd_tools.user_api.layers.Group.layers`::
 
     >>> group1 = psd.layers[0]
     >>> group1.name
@@ -71,12 +71,11 @@ Layers can be one of :py:class:`~psd_tools.user_api.psd_image.Group`,
     >>> group1.opacity
     255
 
-    >>> from psd_tools.constants import BlendMode
-    >>> group1.blend_mode == BlendMode.NORMAL
+    >>> group1.blend_mode == 'normal'
     True
 
     >>> group1.layers
-    [<ShapeLayer: 'Shape 1', size=41x74, x=25, y=24, visible=1, mask=None, effects=None>]
+    [<shape: 'Shape 1', size=41x74, x=25, y=24, visible=1, mask=None, effects=None>]
 
 Other layers have similar properties::
 
@@ -94,30 +93,30 @@ Other layers have similar properties::
     (43, 62)
 
     >>> layer.visible, layer.opacity, layer.blend_mode
-    (True, 255, u'norm')
+    (True, 255, 'normal')
 
     >>> mask = layer.mask
     >>> mask.bbox
     BBox(x1=40, y1=72, x2=83, y2=134)
 
     >>> layer.clip_layers
-    [<PixelLayer: 'Clipped', size=43x62, x=40, y=72, mask=None, visible=1)>, ...]
+    [<pixel: 'Clipped', size=43x62, x=40, y=72, mask=None, visible=1)>, ...]
 
     >>> layer.effects
     [<GradientOverlay>]
 
-:py:class:`~psd_tools.user_api.psd_image.TypeLayer` has :py:meth:`~psd_tools.user_api.psd_image.TypeLayer.text` attribute::
+:py:class:`~psd_tools.user_api.layers.TypeLayer` has :py:meth:`~psd_tools.user_api.layers.TypeLayer.text` attribute::
 
     >>> layer.text
     'Text inside a text box'
 
-:py:class:`~psd_tools.user_api.psd_image.SmartObjectLayer` has
+:py:class:`~psd_tools.user_api.layers.SmartObjectLayer` has
 :py:meth:`~psd_tools.user_api.psd_image.SmartObjectLayer.linked_data` to obtain
-:py:class:`~psd_tools.user_api.embedded.Embedded` object::
+:py:class:`~psd_tools.user_api.smart_object.SmartObject` object::
 
-    >>> embedded = layer.linked_data()
+    >>> smart_object = layer.linked_data()
 
-Raw internal data is accessible by ``layer._info`` property.
+Raw internal data is accessible by :py:attr:`~psd_tools.user_api.layers._RawLayer._record` property.
 
 
 Exporting data

@@ -3,7 +3,7 @@ from __future__ import absolute_import, unicode_literals
 import pytest
 
 from PIL.Image import Image
-from psd_tools.user_api.psd_image import PSDImage, merge_layers
+from psd_tools.user_api.psd_image import PSDImage
 from tests.utils import decode_psd, full_name
 
 

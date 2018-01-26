@@ -31,7 +31,7 @@ def test_slices_resource(filename):
 
 def test_resource_blocks():
     psd = PSDImage.load(full_name("fill_adjustments.psd"))
-    blocks = psd._image_resource_blocks
+    blocks = psd.image_resource_blocks
     assert "version_info" in blocks
 
 

@@ -3,7 +3,7 @@ from __future__ import absolute_import
 import pytest
 
 from .utils import load_psd, decode_psd, full_name
-from psd_tools import PSDImage, Group
+from psd_tools.user_api.psd_image import PSDImage, Group
 
 
 FILE_NAMES = (
@@ -111,7 +111,7 @@ def test_mask_data_as_pil(filename):
         for l in layers:
             if l.has_mask():
                 mask = l.mask
-                if mask.is_valid:
+                if mask.is_valid():
                     assert mask.as_PIL() is not None
                 else:
                     bbox = mask.bbox

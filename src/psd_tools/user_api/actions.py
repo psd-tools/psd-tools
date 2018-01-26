@@ -117,7 +117,7 @@ def _translate_generic_descriptor(data):
 
 
 @desc_register(b'Grsc')
-def _translate_rgbc_color(data):
+def _translate_grsc_color(data):
     colors = OrderedDict(data.items)
     return Color('gray', ((100.0 - colors[0][1].value / 100.0), ))
 
@@ -130,7 +130,7 @@ def _translate_rgbc_color(data):
 
 
 @desc_register(b'CMYC')
-def _translate_rgbc_color(data):
+def _translate_cmyc_color(data):
     colors = OrderedDict(data.items)
     return Color('cmyk', (colors[b'Cyn '].value, colors[b'Mgnt'].value,
                           colors[b'Ylw '].value, colors[b'Blck'].value))

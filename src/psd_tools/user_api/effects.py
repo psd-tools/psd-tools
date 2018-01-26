@@ -14,51 +14,18 @@ from __future__ import absolute_import
 import inspect
 import logging
 from psd_tools.user_api.actions import translate
-from psd_tools.constants import TaggedBlock
+from psd_tools.constants import TaggedBlock, BlendMode2, ObjectBasedEffects
 
 logger = logging.getLogger(__name__)
 
 
-# List of blending mode keys and names.
-BLEND_MODES = {
-    b'Nrml': 'normal',
-    b'Dslv': 'dissolve',
-    b'Drkn': 'darken',
-    b'Mltp': 'multiply',
-    b'CBrn': 'color burn',
-    b'linearBurn': 'linear burn',
-    b'darkerColor': 'darken',
-    b'Lghn': 'lighten',
-    b'Scrn': 'screen',
-    b'CDdg': 'color dodge',
-    b'linearDodge': 'linear dodge',
-    b'lighterColor': 'lighter color',
-    b'Ovrl': 'overlay',
-    b'SftL': 'soft light',
-    b'HrdL': 'hard light',
-    b'vividLight': 'vivid light',
-    b'linearLight': 'linear light',
-    b'pinLight': 'pin light',
-    b'hardMix': 'hard mix',
-    b'Dfrn': 'difference',
-    b'Xclu': 'exclusion',
-    b'blendSubtraction': 'subtract',
-    b'blendDivide': 'divide',
-    b'H   ': 'hue',
-    b'Strt': 'saturation',
-    b'Clr ': 'color',
-    b'Lmns': 'luminosity',
-}
-
-
-def get_effects(self):
+def get_effects(layer):
     """Return effects block from the layer."""
-    blocks = self._tagged_blocks
-    effects = blocks.get(
+    effects = layer.get_tag([
         TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO,
-        blocks.get(
-            TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO_V0,
-            blocks.get(TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO_V0)))
+        TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO_V0,
+        TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO_V1,
+        ])
     if not effects:
         return None
     descriptor = translate(effects.descriptor)
@@ -67,8 +34,8 @@ def get_effects(self):
 
 class _BaseEffect(object):
     """Base class for effect."""
-    def __init__(self, info):
-        self._info = info
+    def __init__(self, descriptor):
+        self._descriptor = descriptor
 
     @property
     def enabled(self):
@@ -76,7 +43,7 @@ class _BaseEffect(object):
 
         :rtype: bool
         """
-        return self._info.get(b'enab', True)
+        return self.get(b'enab', True)
 
     @property
     def present(self):
@@ -84,7 +51,7 @@ class _BaseEffect(object):
 
         :rtype: bool
         """
-        return self._info.get(b'present')
+        return self.get(b'present')
 
     @property
     def show_in_dialog(self):
@@ -92,7 +59,7 @@ class _BaseEffect(object):
 
         :rtype: bool
         """
-        return self._info.get(b'showInDialog')
+        return self.get(b'showInDialog')
 
     @property
     def blend_mode(self):
@@ -131,7 +98,8 @@ class _BaseEffect(object):
           - color
           - luminosity
         """
-        return BLEND_MODES.get(self._info.get(b'Md  ', b'Nrml'), 'normal')
+        return BlendMode2.human_name_of(
+            self.get(b'Md  ', BlendMode2.NORMAL), 'normal')
 
     @property
     def opacity(self):
@@ -139,7 +107,7 @@ class _BaseEffect(object):
 
         :rtype: float
         """
-        return self._info.get(b'Opct', 100.0)
+        return self.get(b'Opct', 100.0)
 
     def name(self):
         """Layer effect name.
@@ -155,7 +123,7 @@ class _BaseEffect(object):
         :type key: bytes
         :param default: default value to return
         """
-        return self._info.get(key, default)
+        return self._descriptor.get(key, default)
 
     def properties(self):
         """Return a list of property names.
@@ -182,34 +150,34 @@ class _ColorMixin(object):
         :returns: color tuple.
         :rtype: psd_tools.user_api.actions.Color
         """
-        return self._info.get(b'Clr ')
+        return self.get(b'Clr ')
+
 
 class _ChokeNoiseMixin(_ColorMixin):
     @property
     def choke(self):
         """Choke level."""
-        return self._info.get(b'Ckmt', 0.0)
+        return self.get(b'Ckmt', 0.0)
 
     @property
     def size(self):
         """Size in pixels."""
-        return self._info.get(b'blur', 41.0)
+        return self.get(b'blur', 41.0)
 
     @property
     def noise(self):
         """Noise level."""
-        return self._info.get(b'Nose', 0.0)
+        return self.get(b'Nose', 0.0)
 
     @property
     def anti_aliased(self):
         """Angi-aliased."""
-        return self._info.get(b'AntA', False)
+        return self.get(b'AntA', False)
 
     @property
     def contour(self):
         """Contour configuration."""
-        return self._info.get(b'TrnS')
-
+        return self.get(b'TrnS')
 
 
 class _ShadowEffect(_BaseEffect, _ChokeNoiseMixin):
@@ -217,17 +185,17 @@ class _ShadowEffect(_BaseEffect, _ChokeNoiseMixin):
     @property
     def use_global_light(self):
         """Using global light."""
-        return self._info.get(b'uglg', True)
+        return self.get(b'uglg', True)
 
     @property
     def angle(self):
         """Angle."""
-        return self._info.get(b'lagl', 90.0)
+        return self.get(b'lagl', 90.0)
 
     @property
     def distance(self):
         """Distance."""
-        return self._info.get(b'Dstn', 18.0)
+        return self.get(b'Dstn', 18.0)
 
 
 class DropShadow(_ShadowEffect):
@@ -235,7 +203,7 @@ class DropShadow(_ShadowEffect):
     @property
     def layer_knocks_out(self):
         """Layers are knocking out."""
-        return self._info.get(b'layerConceals', True)
+        return self.get(b'layerConceals', True)
 
 
 class InnerShadow(_ShadowEffect):
@@ -248,25 +216,24 @@ class _GlowEffect(_BaseEffect, _ChokeNoiseMixin):
     @property
     def glow_type(self):
         """ Elements technique, softer or precise """
-        return {b'SfBL': 'softer'}.get(self._info.get(b'GlwT', b'SfBL'),
-                                       'precise')
+        return {b'SfBL': 'softer'}.get(self.get(b'GlwT', b'SfBL'), 'precise')
 
     @property
     def quality_range(self):
         """Quality range."""
-        return self._info.get(b'Inpr')
+        return self.get(b'Inpr')
 
     @property
     def quality_jitter(self):
         """Quality jitter"""
-        return self._info.get(b'ShdN')
+        return self.get(b'ShdN')
 
 
 class OuterGlow(_GlowEffect):
     """OuterGlow effect."""
     @property
     def spread(self):
-        return self._info.get(b'ShdN')
+        return self.get(b'ShdN')
 
 
 class InnerGlow(_GlowEffect):
@@ -274,8 +241,7 @@ class InnerGlow(_GlowEffect):
     @property
     def glow_source(self):
         """ Elements source, center or edge """
-        return {b'SrcE': 'edge'}.get(self._info.get(b'glwS', b'SrcE'),
-                                     'center')
+        return {b'SrcE': 'edge'}.get(self.get(b'glwS', b'SrcE'), 'center')
 
 
 class _OverlayEffect(_BaseEffect):
@@ -286,12 +252,12 @@ class _AlignScaleMixin(object):
     @property
     def scale(self):
         """Scale value."""
-        return self._info.get(b'Scl ')
+        return self.get(b'Scl ')
 
     @property
     def aligned(self):
         """Aligned."""
-        return self._info.get(b'Algn')
+        return self.get(b'Algn')
 
 
 class ColorOverlay(_OverlayEffect, _ColorMixin):
@@ -308,33 +274,33 @@ class GradientOverlay(_OverlayEffect, _AlignScaleMixin):
         :rtype: psd_tools.user_api.actions.Gradient
         """
         # TODO: Expose nested property.
-        return self._info.get(b'Grad')
+        return self.get(b'Grad')
 
     @property
     def angle(self):
         """Angle value."""
-        return self._info.get(b'Angl', 30.0)
+        return self.get(b'Angl', 30.0)
 
     @property
     def type(self):
         """Gradient type, linear or radial."""
         # TODO: Rephrase bytes. b'Lnr ': 'linear'.
-        return self._info.get(b'Type', b'Lnr ')
+        return self.get(b'Type', b'Lnr ')
 
     @property
     def reversed(self):
         """Reverse flag."""
-        return self._info.get(b'Rvrs', False)
+        return self.get(b'Rvrs', False)
 
     @property
     def dithered(self):
         """Dither flag."""
-        return self._info.get(b'Dthr', False)
+        return self.get(b'Dthr', False)
 
     @property
     def offset(self):
         """Offset value."""
-        return self._info.get(b'Ofst')
+        return self.get(b'Ofst')
 
 
 class PatternOverlay(_OverlayEffect, _AlignScaleMixin):
@@ -352,12 +318,12 @@ class PatternOverlay(_OverlayEffect, _AlignScaleMixin):
         :rtype: psd_tools.user_api.actions.Pattern
         """
         # TODO: Expose nested property.
-        return self._info.get(b'Ptrn')
+        return self.get(b'Ptrn')
 
     @property
     def phase(self):
         """Phase value."""
-        return self._info.get(b'phase')
+        return self.get(b'phase')
 
 
 class Stroke(_BaseEffect, _ColorMixin):
@@ -367,23 +333,23 @@ class Stroke(_BaseEffect, _ColorMixin):
     def position(self):
         """Position of the stroke."""
         # TODO: Rephrase bytes.
-        return self._info.get(b'Styl', b'OutF')
+        return self.get(b'Styl', b'OutF')
 
     @property
     def fill_type(self):
         """Fill type, solid color, gradient, or pattern."""
         # TODO: Rephrase bytes. b'SClr': 'color'.
-        return self._info.get(b'PntT', b'SClr')
+        return self.get(b'PntT', b'SClr')
 
     @property
     def size(self):
         """Size value."""
-        return self._info.get(b'Sz ', 6.0)
+        return self.get(b'Sz ', 6.0)
 
     @property
     def overprint(self):
         """Overprint flag."""
-        return self._info.get(b'overprint', False)
+        return self.get(b'overprint', False)
 
 
 class BevelEmboss(_BaseEffect):
@@ -391,100 +357,102 @@ class BevelEmboss(_BaseEffect):
     @property
     def highlight_mode(self):
         """Highlight blending mode."""
-        return BLEND_MODES.get(self._info.get(b'hglM', b'Nrml'), 'normal')
+        return BlendMode2.human_name_of(
+            self.get(b'hglM', BlendMode2.NORMAL), 'normal')
 
     @property
     def highlight_color(self):
         """Highlight color value."""
-        return self._info.get(b'hglC')
+        return self.get(b'hglC')
 
     @property
     def highlight_opacity(self):
         """Highlight opacity value."""
-        return self._info.get(b'hglO')
+        return self.get(b'hglO')
 
     @property
     def shadow_mode(self):
         """Shadow blending mode."""
-        return BLEND_MODES.get(self._info.get(b'sdwM', b'Nrml'), 'normal')
+        return BlendMode2.human_name_of(
+            self.get(b'sdwM', BlendMode2.NORMAL), 'normal')
 
     @property
     def shadow_color(self):
         """Shadow color value."""
-        return self._info.get(b'sdwC')
+        return self.get(b'sdwC')
 
     @property
     def shadow_opacity(self):
         """Shadow opacity value."""
-        return self._info.get(b'sdwO')
+        return self.get(b'sdwO')
 
     @property
     def bevel_type(self):
         """Bevel type."""
         # TODO: Rephrase bytes.
-        return self._info.get(b'bvlT', b'SfBL')
+        return self.get(b'bvlT', b'SfBL')
 
     @property
     def bevel_style(self):
         """Bevel style, emboss or bevel."""
         # TODO: Rephrase bytes.
-        return self._info.get(b'bvlS', b'Embs')
+        return self.get(b'bvlS', b'Embs')
 
     @property
     def use_global_light(self):
         """Using global light."""
-        return self._info.get(b'uglg', True)
+        return self.get(b'uglg', True)
 
     @property
     def angle(self):
         """Angle value."""
-        return self._info.get(b'lagl', 90.0)
+        return self.get(b'lagl', 90.0)
 
     @property
     def altitude(self):
         """Altitude value."""
-        return self._info.get(b'Lald', 30.0)
+        return self.get(b'Lald', 30.0)
 
     @property
     def depth(self):
         """Depth value."""
-        return self._info.get(b'srgR', 100.0)
+        return self.get(b'srgR', 100.0)
 
     @property
     def size(self):
         """Size value in pixel."""
-        return self._info.get(b'blur', 41.0)
+        return self.get(b'blur', 41.0)
 
     @property
     def direction(self):
         """Direction."""
         # TODO: Rephrase bytes.
-        return self._info.get(b'bvlD', b'In  ')
+        return self.get(b'bvlD', b'In  ')
 
     @property
     def contour(self):
         """Contour configuration."""
-        return self._info.get(b'TrnS')
+        return self.get(b'TrnS')
 
     @property
     def anti_aliased(self):
         """Anti-aliased."""
-        return self._info.get(b'antialiasGloss', False)
+        return self.get(b'antialiasGloss', False)
 
     @property
     def soften(self):
         """Soften value."""
-        return self._info.get(b'Sftn', 0.0)
+        return self.get(b'Sftn', 0.0)
 
     @property
     def use_shape(self):
         """Using shape."""
-        return self._info.get(b'useShape', False)
+        return self.get(b'useShape', False)
 
     @property
     def use_texture(self):
         """Using texture."""
-        return self._info.get(b'useTexture', False)
+        return self.get(b'useTexture', False)
 
 
 class Satin(_BaseEffect, _ColorMixin):
@@ -492,32 +460,32 @@ class Satin(_BaseEffect, _ColorMixin):
     @property
     def anti_aliased(self):
         """Anti-aliased."""
-        return self._info.get(b'AntA', True)
+        return self.get(b'AntA', True)
 
     @property
     def inverted(self):
         """Inverted."""
-        return self._info.get(b'Invr', True)
+        return self.get(b'Invr', True)
 
     @property
     def angle(self):
         """Angle value."""
-        return self._info.get(b'lagl', 90.0)
+        return self.get(b'lagl', 90.0)
 
     @property
     def distance(self):
         """Distance value."""
-        return self._info.get(b'Dstn', 250.0)
+        return self.get(b'Dstn', 250.0)
 
     @property
     def size(self):
         """Size value in pixel."""
-        return self._info.get(b'blur', 250.0)
+        return self.get(b'blur', 250.0)
 
     @property
     def contour(self):
         """Contour configuration."""
-        return self._info.get(b'MpgS')
+        return self.get(b'MpgS')
 
 
 class Effects(object):
@@ -529,31 +497,31 @@ class Effects(object):
             print(effect.name())
     """
     _KEYS = {
-        b'dropShadowMulti': DropShadow,
-        b'DrSh': DropShadow,
-        b'innerShadowMulti': InnerShadow,
-        b'IrSh': InnerShadow,
-        b'OrGl': OuterGlow,
-        b'solidFillMulti': ColorOverlay,
-        b'SoFi': ColorOverlay,
-        b'gradientFillMulti': GradientOverlay,
-        b'GrFl': GradientOverlay,
-        b'patternFill': PatternOverlay,
-        b'frameFXMulti': Stroke,
-        b'FrFX': Stroke,
-        b'IrGl': InnerGlow,
-        b'ebbl': BevelEmboss,
-        b'ChFX': Satin,
+        ObjectBasedEffects.DROP_SHADOW_MULTI: DropShadow,
+        ObjectBasedEffects.DROP_SHADOW: DropShadow,
+        ObjectBasedEffects.INNER_SHADOW_MULTI: InnerShadow,
+        ObjectBasedEffects.INNER_SHADOW: InnerShadow,
+        ObjectBasedEffects.OUTER_GLOW: OuterGlow,
+        ObjectBasedEffects.COLOR_OVERLAY_MULTI: ColorOverlay,
+        ObjectBasedEffects.COLOR_OVERLAY: ColorOverlay,
+        ObjectBasedEffects.GRADIENT_OVERLAY_MULTI: GradientOverlay,
+        ObjectBasedEffects.GRADIENT_OVERLAY: GradientOverlay,
+        ObjectBasedEffects.PATTERN_OVERLAY: PatternOverlay,
+        ObjectBasedEffects.STROKE_MULTI: Stroke,
+        ObjectBasedEffects.STROKE: Stroke,
+        ObjectBasedEffects.INNER_GLOW: InnerGlow,
+        ObjectBasedEffects.BEVEL_EMBOSS: BevelEmboss,
+        ObjectBasedEffects.SATIN: Satin,
         }
 
     def __init__(self, descriptor):
-        self._info = descriptor
+        self._descriptor = descriptor
         self.items = self._build_items()
 
     @property
     def scale(self):
         """Scale value."""
-        return self._info.get(b'Scl ')
+        return self.get(b'Scl ')
 
     @property
     def enabled(self):
@@ -561,19 +529,19 @@ class Effects(object):
 
         :rtype: bool
         """
-        return self._info.get(b'masterFXSwitch', True)
+        return self._descriptor.get(b'masterFXSwitch', True)
 
     def _build_items(self):
         items = []
-        for key in self._info:
+        for key in self._descriptor:
             cls = self._KEYS.get(key, None)
             if not cls:
                 continue
             if key.endswith(b'Multi'):
-                for value in self._info[key]:
+                for value in self._descriptor[key]:
                     items.append(cls(value))
             else:
-                items.append(cls(self._info[key]))
+                items.append(cls(self._descriptor[key]))
         return items
 
     def present_items(self):

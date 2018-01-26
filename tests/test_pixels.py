@@ -2,7 +2,7 @@
 from __future__ import absolute_import, unicode_literals
 import pytest
 
-from psd_tools import PSDImage, Group
+from psd_tools.user_api.psd_image import PSDImage, Group
 
 from .utils import full_name, FuzzyInt, with_psb
 

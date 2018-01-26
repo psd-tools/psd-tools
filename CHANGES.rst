@@ -1,3 +1,10 @@
+1.7.0 (2018-01-25)
+------------------
+
+- cleanup user API organization;
+- remove json encoder api;
+- make cli a package main.
+
 1.6.7 (2018-01-17)
 ------------------
 

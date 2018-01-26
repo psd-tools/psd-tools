@@ -27,14 +27,14 @@ original version.
 Installation
 ------------
 
-::
+.. code-block:: bash
 
     pip install psd-tools2
 
 Pillow_ should be installed if you want work with PSD image and layer data:
 export images to PNG, process them. PIL_ library should also work.
 
-::
+.. code-block:: bash
 
    pip install Pillow
 
@@ -54,8 +54,22 @@ psd-tools2 also has a rudimentary support for Pymaging_.
 .. _exifread: https://github.com/ianare/exif-py
 
 
-Usage
------
+Command line
+------------
+
+The current tool supports PNG/JPEG export:
+
+.. code-block:: bash
+
+    psd-tools convert <psd_filename> <out_filename> [options]
+    psd-tools export_layer <psd_filename> <layer_index> <out_filename> [options]
+    psd-tools debug <filename> [options]
+    psd-tools -h | --help
+    psd-tools --version
+
+
+API Usage
+---------
 
 Load an image::
 
@@ -74,14 +88,14 @@ Read image header::
 Access its layers::
 
     >>> psd.layers
-    [<Group: 'Group 2', layer_count=1, mask=None, visible=1>,
-     <Group: 'Group 1', layer_count=1, mask=None, visible=1>,
-     <PixelLayer: 'Background', size=100x200, x=0, y=0, mask=None, visible=1>]
+    [<group: 'Group 2', layer_count=1, mask=None, visible=1>,
+     <group: 'Group 1', layer_count=1, mask=None, visible=1>,
+     <pixel: 'Background', size=100x200, x=0, y=0, mask=None, visible=1>]
 
-    >>> psd.all_layers()
-    [<Group: 'Group 2', layer_count=1, mask=None, visible=1>,
-     <ShapeLayer: 'Shape 2', size=43x62, x=40, y=72, mask=None, visible=1)>,
-     <Group: 'Group 1', layer_count=1, mask=None, visible=1>,
+    >>> list(psd.descendants())
+    [<group: 'Group 2', layer_count=1, mask=None, visible=1>,
+     <shape: 'Shape 2', size=43x62, x=40, y=72, mask=None, visible=1)>,
+     <group: 'Group 1', layer_count=1, mask=None, visible=1>,
      ...
      ]
 
@@ -95,18 +109,14 @@ Work with a layer group::
     >>> group2.visible
     True
 
-    >>> group2.closed
-    False
-
     >>> group2.opacity
     255
 
-    >>> from psd_tools.constants import BlendMode
-    >>> group2.blend_mode == BlendMode.NORMAL
+    >>> group2.blend_mode == 'normal'
     True
 
     >>> group2.layers
-    [<ShapeLayer: 'Shape 2', size=43x62, x=40, y=72, mask=None, visible=1)>]
+    [<shape: 'Shape 2', size=43x62, x=40, y=72, mask=None, visible=1)>]
 
 Work with a layer::
 
@@ -124,7 +134,7 @@ Work with a layer::
     (43, 62)
 
     >>> layer.visible, layer.opacity, layer.blend_mode
-    (True, 255, u'norm')
+    (True, 255, 'normal')
 
     >>> layer.text
     'Text inside a text box'
@@ -140,7 +150,7 @@ Work with a layer::
     <PIL.Image.Image image mode=L size=43x62 at ...>
 
     >>> layer.clip_layers
-    [<Layer: 'Clipped', size=43x62, x=40, y=72, mask=None, visible=1)>, ...]
+    [<shape: 'Clipped', size=43x62, x=40, y=72, mask=None, visible=1)>, ...]
 
     >>> layer.effects
     [<GradientOverlay>]
@@ -170,39 +180,6 @@ Export layer group (experimental)::
 
     >>> group_image = group2.as_PIL()
     >>> group_image.save('group.png')
-
-
-Why yet another PSD reader?
----------------------------
-
-There are existing PSD readers for Python:
-
-* psdparse_;
-* pypsd_;
-* there is a PSD reader in PIL_ library;
-* it is possible to write Python plugins for GIMP_.
-
-PSD reader in PIL is incomplete and contributing to PIL
-is complicated because of the slow release process, but the main issue
-with PIL for me is that PIL doesn't have an API for layer groups.
-
-GIMP is cool, but it is a huge dependency, its PSD parser
-is not perfect and it is not easy to use GIMP Python plugin
-from *your* code.
-
-I also considered contributing to pypsd or psdparse, but they are
-GPL and I was not totally satisfied with the interface and the code
-(they are really fine, that's me having specific style requirements).
-
-So I finally decided to roll out yet another implementation
-that should be MIT-licensed, systematically based on the specification_
-(it turns out the specs are incomplete and sometimes incorrect though);
-parser should be implemented as a set of functions; the package should
-have tests and support both Python 2.x and Python 3.x.
-
-.. _GIMP: http://www.gimp.org/
-.. _psdparse: https://github.com/jerem/psdparse
-.. _pypsd: https://code.google.com/p/pypsd
 
 
 Design overview
@@ -259,8 +236,7 @@ Supported:
 * very basic & experimental layer merging;
 * support both PSD and PSB file formats;
 * EngineData structure is decoded;
-* EXIF data is taken into account;
-* experimental JSON export (only Python 3).
+* EXIF data is taken into account.
 
 Not implemented:
 
@@ -290,17 +266,21 @@ In case of bugs it would be helpful to provide a small PSD file
 demonstrating the issue; this file may be added to a test suite.
 
 In order to run tests, make sure PIL/Pillow is built with LittleCMS
-or LittleCMS2 support, install `tox <http://tox.testrun.org>`_ and type
+or LittleCMS2 support, install `tox <http://tox.testrun.org>`_ and type:
 
-::
+.. code-block:: bash
 
     tox
 
-Install Sphinx to generate documents::
+Install Sphinx to generate documents:
+
+.. code-block:: bash
 
     pip install sphinx sphinx_rtd_theme
 
-Once installed, use ``Makefile``::
+Once installed, use ``Makefile``:
+
+.. code-block:: bash
 
     make -C docs html
 

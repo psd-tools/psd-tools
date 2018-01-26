@@ -14,4 +14,7 @@ publish: package
 	pip install twine
 	twine upload dist/*
 
-.PHONY: clean package publish
+docs:
+	make -C docs html
+
+.PHONY: clean package publish docs

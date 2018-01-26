@@ -34,8 +34,7 @@ Supported:
 * very basic & experimental layer merging;
 * support both PSD and PSB file formats;
 * EngineData structure is decoded;
-* EXIF data is taken into account;
-* experimental JSON export (only Python 3).
+* EXIF data is taken into account.
 
 Not implemented:
 
