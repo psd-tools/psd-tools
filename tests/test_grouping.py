@@ -81,6 +81,7 @@ def test_clipping():
     assert psd.layers[0].name == 'Group 1'
     layer = psd.layers[0].layers[0]
     assert layer.name == 'Rounded Rectangle 4'
+    assert layer.has_clip_layers()
     assert layer.clip_layers[0].name == 'Color Balance 1'
     assert psd.layers[1].name == 'Rounded Rectangle 3'
     assert psd.layers[1].clip_layers[0].name == 'Brightness/Contrast 1'
@@ -100,6 +101,7 @@ def test_generator():
 
 def test_generator_with_clip_layers():
     psd = PSDImage.load(full_name('clipping-mask.psd'))
+    assert not psd.has_clip_layers()
     assert len([True for layer in psd.layers]) == 2
     assert len([True for layer in psd.descendants()]) == 7
     assert len([True for layer in psd.descendants(include_clip=False)]) == 6

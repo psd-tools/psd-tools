@@ -113,4 +113,5 @@ def test_iopa_brst_block():
 def test_effects_api():
     psd = PSDImage.load(full_name('layer_effects.psd'))
     for layer in psd.layers:
+        assert layer.has_effects()
         assert len(layer.effects) > 0
