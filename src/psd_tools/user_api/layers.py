@@ -77,7 +77,7 @@ class _RawLayer(object):
         return BlendMode.human_name_of(self._record.blend_mode)
 
     def has_mask(self):
-        """Returns if the layer has a mask."""
+        """Returns True if the layer has a mask."""
         return True if self._index and self._record.mask_data else False
 
     def as_PIL(self):
@@ -118,6 +118,10 @@ class _RawLayer(object):
         """
         return Mask(self) if self.has_mask() else None
 
+    def has_clip_layers(self):
+        """Returns True if the layer has associated clipping."""
+        return len(self.clip_layers) > 0
+
     @property
     def clip_layers(self):
         """
@@ -126,6 +130,14 @@ class _RawLayer(object):
         :rtype: list
         """
         return self._clip_layers
+
+    def has_effects(self):
+        """Returns True if the layer has layer effects."""
+        return any(x in self.tagged_blocks for x in (
+            TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO,
+            TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO_V0,
+            TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO_V1,
+            ))
 
     @property
     def effects(self):
