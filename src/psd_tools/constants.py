@@ -32,8 +32,8 @@ class Enum(object):
         return cls._values_dict().get(value, "<unknown:{}>".format(value))
 
     @classmethod
-    def human_name_of(cls, value):
-        return cls.name_of(value).lower().replace("_", " ")
+    def human_name_of(cls, value, separator=" "):
+        return cls.name_of(value).lower().replace("_", separator)
 
 
 class ColorMode(Enum):
