@@ -111,11 +111,12 @@ def test_mask_data_as_pil(filename):
         for l in layers:
             if l.has_mask():
                 mask = l.mask
-                if mask.is_valid():
+                if mask.has_box():
                     assert mask.as_PIL() is not None
                 else:
                     bbox = mask.bbox
                     assert bbox.width == 0 or bbox.height == 0
+                assert mask.background_color is not None
             if isinstance(l, Group):
                 traverse_tree(l.layers)
 
