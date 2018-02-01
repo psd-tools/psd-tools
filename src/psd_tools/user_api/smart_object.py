@@ -9,18 +9,13 @@ from psd_tools.constants import LinkedLayerType
 class SmartObject(object):
     """Embedded smart object."""
 
-    def __repr__(self):
-        return "<%s: %s, type=%s, %s bytes>" % (
-            self.__class__.__name__, self.filename,
-            self.kind, len(self.data))
-
     def __init__(self, linked_layer):
         self._linked_layer = linked_layer
 
     @property
     def kind(self):
-        """Kind of the object, one of `DATA`, `EXTERNAL`, `ALIAS`."""
-        return LinkedLayerType.name_of(self._linked_layer.type)
+        """Kind of the object, one of `data`, `external`, `alias`."""
+        return LinkedLayerType.human_name_of(self._linked_layer.type)
 
     @property
     def filename(self):
@@ -29,7 +24,7 @@ class SmartObject(object):
 
     @property
     def data(self):
-        """Embedded file content."""
+        """Embedded file content, or empty if kind is `external` or `alias`"""
         return self._linked_layer.decoded
 
     @property
@@ -43,7 +38,7 @@ class SmartObject(object):
         return self._linked_layer.filesize
 
     def preferred_extension(self):
-        """Preferred file extension."""
+        """Preferred file extension, such as `jpg`."""
         return self._linked_layer.filetype.lower().strip()
 
     def is_psd(self):
@@ -60,3 +55,8 @@ class SmartObject(object):
             filename = self.filename
         with open(filename, 'wb') as f:
             f.write(self.data)
+
+    def __repr__(self):
+        return "<%s: %s, type=%s, %s bytes>" % (
+            self.__class__.__name__, self.filename,
+            self.kind, len(self.data))

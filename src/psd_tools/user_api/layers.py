@@ -320,6 +320,16 @@ class AdjustmentLayer(_RawLayer):
         return "<%s: %r, visible=%s>" % (
             self.kind, self.name, self.visible)
 
+    @property
+    def adjustment_type(self):
+        """Type of adjustment."""
+        for key in self.tagged_blocks:
+            if (TaggedBlock.is_adjustment_key(key) or
+                    TaggedBlock.is_fill_key(key)):
+                return TaggedBlock.human_name_of(key).replace(" setting", "")
+        logger.error("Unknown adjustment layer: {}".format(self))
+        return None
+
 
 class PixelLayer(_RawLayer):
     """PSD pixel layer wrapper."""
@@ -427,6 +437,8 @@ class SmartObjectLayer(_RawLayer):
     def linked_data(self):
         """
         Return linked layer data.
+
+        :rtype: psd_tools.user_api.smart_object.SmartObject
         """
         return self._psd.smart_objects.get(self.unique_id)
 

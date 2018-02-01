@@ -26,3 +26,5 @@ def test_adjustment_and_shapes():
     for layer in psd.layers:
         if layer.bbox.width:
             assert isinstance(layer.as_PIL(), Image)
+        if layer.kind == "adjustment":
+            assert layer.adjustment_type
