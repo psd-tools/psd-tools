@@ -229,6 +229,7 @@ class Group(_RawLayer):
     def __init__(self, parent, index):
         super(Group, self).__init__(parent, index)
         self._layers = []
+        self._bbox = None
 
     @property
     def closed(self):
@@ -243,7 +244,9 @@ class Group(_RawLayer):
         BBox(x1, y1, x2, y2) namedtuple with a bounding box for
         all layers in this group; None if a group has no children.
         """
-        return combined_bbox(self.layers)
+        if not self._bbox:
+            self._bbox = combined_bbox(self.layers)
+        return self._bbox
 
     @property
     def left(self):
