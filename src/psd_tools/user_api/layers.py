@@ -316,19 +316,33 @@ class Group(_RawLayer):
 
 class AdjustmentLayer(_RawLayer):
     """PSD adjustment layer wrapper."""
-    def __repr__(self):
-        return "<%s: %r, visible=%s>" % (
-            self.kind, self.name, self.visible)
+
+    def __init__(self, parent, index):
+        super(Group, self).__init__(parent, index)
+        self._set_key()
+
+    def _set_key(self):
+        self._key = None
+        for key in self.tagged_blocks:
+            if (TaggedBlock.is_adjustment_key(key) or
+                    TaggedBlock.is_fill_key(key)):
+                self._key = key
+                return
+        logger.error("Unknown adjustment layer: {}".format(self))
 
     @property
     def adjustment_type(self):
         """Type of adjustment."""
-        for key in self.tagged_blocks:
-            if (TaggedBlock.is_adjustment_key(key) or
-                    TaggedBlock.is_fill_key(key)):
-                return TaggedBlock.human_name_of(key).replace(" setting", "")
-        logger.error("Unknown adjustment layer: {}".format(self))
-        return None
+        return TaggedBlock.human_name_of(self._key).replace(" setting", "")
+
+    @property
+    def data(self):
+        """Adjustment data."""
+        return self.tagged_blocks.get(self._key)
+
+    def __repr__(self):
+        return "<%s: %r, visible=%s>" % (
+            self.kind, self.name, self.visible)
 
 
 class PixelLayer(_RawLayer):

@@ -28,3 +28,4 @@ def test_adjustment_and_shapes():
             assert isinstance(layer.as_PIL(), Image)
         if layer.kind == "adjustment":
             assert layer.adjustment_type
+            assert layer.data
