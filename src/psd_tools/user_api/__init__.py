@@ -21,15 +21,36 @@ class BBox(namedtuple('BBox', 'x1, y1, x2, y2')):
         """Height of the bounding box."""
         return self.y2 - self.y1
 
+    @property
+    def left(self):
+        """Alias of x1."""
+        return self.x1
+
+    @property
+    def right(self):
+        """Alias of x2."""
+        return self.x2
+
+    @property
+    def top(self):
+        """Alias of y1."""
+        return self.y1
+
+    @property
+    def bottom(self):
+        """Alias of y2."""
+        return self.y2
+
+    def is_empty(self):
+        """Return True if the box does not have an area."""
+        return self.width <= 0 or self.height <= 0
+
     def intersect(self, bbox):
-        """Intersect of two bounding boxes. Return None if empty."""
-        box = BBox(max(self.x1, bbox.x1),
-                   max(self.y1, bbox.y1),
-                   min(self.x2, bbox.x2),
-                   min(self.y2, bbox.y2))
-        if box.width <= 0 or box.height <= 0:
-            return None
-        return box
+        """Intersect of two bounding boxes."""
+        return BBox(max(self.x1, bbox.x1),
+                    max(self.y1, bbox.y1),
+                    min(self.x2, bbox.x2),
+                    min(self.y2, bbox.y2))
 
     def union(self, bbox):
         """Union of two boxes."""

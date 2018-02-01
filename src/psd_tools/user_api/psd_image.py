@@ -211,6 +211,14 @@ class PSDImage(Group, _PSDImageBuilder):
         return self.decoded_data.header.height
 
     @property
+    def bbox(self):
+        """
+        Return BBox enclosing all layers, or viewbox if there is no layer.
+        """
+        bbox = super(PSDImage, self).bbox
+        return self.viewbox if bbox.is_empty() else bbox
+
+    @property
     def viewbox(self):
         """Return BBox of the viewport."""
         return BBox(0, 0, self.width, self.height)

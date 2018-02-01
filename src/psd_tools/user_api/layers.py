@@ -97,8 +97,8 @@ class _RawLayer(object):
     @property
     def bbox(self):
         """BBox(x1, y1, x2, y2) namedtuple with layer bounding box."""
-        record = self._record
-        return BBox(record.left, record.top, record.right, record.bottom)
+        return BBox(self._record.left, self._record.top, self._record.right,
+                    self._record.bottom)
 
     @property
     def left(self):
@@ -493,12 +493,11 @@ class SmartObjectLayer(_RawLayer):
         return dict(block)
 
     def __repr__(self):
-        bbox = self.bbox
         return (
             "<%s: %r, size=%dx%d, x=%d, y=%d, mask=%s, visible=%d, "
             "linked=%s>") % (
-            self.__class__.__name__, self.name, bbox.width, bbox.height,
-            bbox.x1, bbox.y1, self.mask, self.visible,
+            self.__class__.__name__, self.name, self.width, self.height,
+            self.left, self.top, self.mask, self.visible,
             self.linked_data)
 
 
@@ -567,14 +566,12 @@ class TypeLayer(_RawLayer):
 
 def combined_bbox(layers):
     """
-    Returns a bounding box for ``layers`` or None if this is not possible.
+    Returns a bounding box for ``layers`` or BBox(0, 0, 0, 0) if the layers
+    have no bbox.
     """
-    bboxes = [layer.bbox for layer in layers
-              if layer.bbox is not None and
-              layer.bbox.width > 0 and layer.bbox.height > 0]
-    if not bboxes:
-        return None
-
+    bboxes = [layer.bbox for layer in layers if not layer.bbox.is_empty()]
+    if len(bboxes) == 0:
+        return BBox(0, 0, 0, 0)
     lefts, tops, rights, bottoms = zip(*bboxes)
     return BBox(min(lefts), min(tops), max(rights), max(bottoms))
 
@@ -602,7 +599,7 @@ def merge_layers(layers, respect_visibility=True, ignore_blend_mode=True,
     if bbox is None:
         bbox = combined_bbox(layers)
 
-    if bbox is None:
+    if bbox.is_empty():
         return None
 
     result = Image.new(
@@ -612,17 +609,8 @@ def merge_layers(layers, respect_visibility=True, ignore_blend_mode=True,
     )
 
     for layer in reversed(layers):
-
-        if layer is None:
-            continue
-
-        if not layer.has_box():
-            continue
-
-        if skip_layer(layer):
-            continue
-
-        if not layer.visible and respect_visibility:
+        if skip_layer(layer) or not layer.has_box() or (
+                not layer.visible and respect_visibility):
             continue
 
         if layer.is_group():
@@ -643,9 +631,9 @@ def merge_layers(layers, respect_visibility=True, ignore_blend_mode=True,
 
         if len(layer.clip_layers):
             clip_box = combined_bbox(layer.clip_layers)
-            if clip_box:
+            if not clip_box.is_empty():
                 intersect = clip_box.intersect(layer.bbox)
-                if intersect:
+                if not intersect.is_empty():
                     clip_image = merge_layers(
                         layer.clip_layers, respect_visibility,
                         ignore_blend_mode, skip_layer)

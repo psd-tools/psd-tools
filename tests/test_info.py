@@ -57,22 +57,6 @@ def test_groups():
     assert layers[1].tagged_blocks[3].data.type == SectionDivider.BOUNDING_SECTION_DIVIDER
 
 
-def test_api():
-    image = PSDImage(decode_psd('1layer.psd'))
-    assert len(image.layers) == 1
-
-    layer = image.layers[0]
-    assert layer.name == 'Фон'
-    assert layer.bbox == (0, 0, 101, 55)
-    assert layer.left == 0
-    assert layer.right == 101
-    assert layer.top == 0
-    assert layer.bottom == 55
-    assert layer.visible
-    assert layer.opacity == 255
-    assert layer.blend_mode == 'normal'
-
-
 @pytest.mark.parametrize(('filename', 'has_layer_and_mask_data'), FILES_WITH_NO_LAYERS)
 def test_no_layers_has_tagged_blocks(filename, has_layer_and_mask_data):
     psd = load_psd(filename)
@@ -110,4 +94,19 @@ def test_layer_properties():
     assert psd.viewbox
     for layer in psd.descendants():
         assert layer.bbox
-        assert (layer.left, layer.right, layer.width, layer.height)
+
+
+def test_api():
+    image = PSDImage(decode_psd('1layer.psd'))
+    assert len(image.layers) == 1
+
+    layer = image.layers[0]
+    assert layer.name == 'Фон'
+    assert layer.bbox == (0, 0, 101, 55)
+    assert layer.left == 0
+    assert layer.right == 101
+    assert layer.top == 0
+    assert layer.bottom == 55
+    assert layer.visible
+    assert layer.opacity == 255
+    assert layer.blend_mode == 'normal'
