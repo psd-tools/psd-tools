@@ -104,21 +104,15 @@ def test_layer_mask_data(filename, mask_data_by_layers):
 
 @pytest.mark.parametrize('filename', FILE_NAMES)
 def test_mask_data_as_pil(filename):
-
-    def traverse_tree(layers):
-        if isinstance(layers, PSDImage):
-            layers = layers.layers
-        for l in layers:
-            if l.has_mask():
-                mask = l.mask
-                if mask.has_box():
-                    assert mask.as_PIL() is not None
-                else:
-                    assert mask.width == 0 or mask.height == 0
-                    assert mask.bbox.width == 0 or mask.bbox.height == 0
-                assert mask.background_color is not None
-            if isinstance(l, Group):
-                traverse_tree(l.layers)
-
     psd = PSDImage.load(full_name(filename))
-    traverse_tree(psd)
+    for layer in psd.descendants():
+        if layer.has_mask():
+            mask = layer.mask
+            if mask.has_box():
+                assert mask.as_PIL() is not None
+            else:
+                assert mask.width == 0 or mask.height == 0
+                assert mask.bbox.width == 0 or mask.bbox.height == 0
+            assert mask.background_color is not None
+            assert not mask.disabled
+

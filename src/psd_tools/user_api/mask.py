@@ -66,6 +66,11 @@ class Mask(object):
         """Height."""
         return self.bottom - self.top
 
+    @property
+    def disabled(self):
+        """Height."""
+        return self.mask_data.flags.mask_disabled
+
     def get_bbox(self, real=True):
         """
         Get BBox(x1, y1, x2, y2) namedtuple with mask bounding box.
