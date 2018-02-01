@@ -100,3 +100,14 @@ def test_patterns():
     tagged_blocks = dict(psd.layer_and_mask_data.tagged_blocks)
     assert b'Patt' in tagged_blocks
     assert len(tagged_blocks[b'Patt']) == 6
+
+
+def test_layer_properties():
+    psd = PSDImage(decode_psd('clipping-mask2.psd'))
+    assert psd.width
+    assert psd.height
+    assert psd.channels
+    assert psd.viewbox
+    for layer in psd.descendants():
+        assert layer.bbox
+        assert (layer.left, layer.right, layer.width, layer.height)

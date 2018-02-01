@@ -251,22 +251,22 @@ class Group(_RawLayer):
     @property
     def left(self):
         """Left coordinate."""
-        return self.bbox.left
+        return self.bbox.x1
 
     @property
     def right(self):
         """Right coordinate."""
-        return self.bbox.right
+        return self.bbox.x2
 
     @property
     def top(self):
         """Top coordinate."""
-        return self.bbox.top
+        return self.bbox.y1
 
     @property
     def bottom(self):
         """Bottom coordinate."""
-        return self.bbox.bottom
+        return self.bbox.y2
 
     @property
     def width(self):

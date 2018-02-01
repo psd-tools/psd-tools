@@ -223,7 +223,7 @@ class PSDImage(Group, _PSDImageBuilder):
     @property
     def channels(self):
         """Number of color channels."""
-        return self.decoded_data.header.channels
+        return self.decoded_data.header.number_of_channels
 
     @property
     def embedded(self):
