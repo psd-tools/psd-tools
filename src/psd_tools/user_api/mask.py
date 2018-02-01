@@ -13,11 +13,6 @@ class Mask(object):
         self._layer_index = layer._index
 
     @property
-    def bbox(self):
-        """BBox"""
-        return self.get_bbox()
-
-    @property
     def background_color(self):
         """Background color."""
         return self.get_background_color()
@@ -28,8 +23,55 @@ class Mask(object):
             return self.mask_data.real_background_color
         return self.mask_data.background_color
 
+    @property
+    def bbox(self):
+        """BBox"""
+        return self.get_bbox()
+
+    @property
+    def left(self):
+        """Left coordinate."""
+        if self.mask_data.real_flags:
+            return self.mask_data.real_left
+        return self.mask_data.left
+
+    @property
+    def right(self):
+        """Right coordinate."""
+        if self.mask_data.real_flags:
+            return self.mask_data.real_right
+        return self.mask_data.right
+
+    @property
+    def top(self):
+        """Top coordinate."""
+        if self.mask_data.real_flags:
+            return self.mask_data.real_top
+        return self.mask_data.top
+
+    @property
+    def bottom(self):
+        """Bottom coordinate."""
+        if self.mask_data.real_flags:
+            return self.mask_data.real_bottom
+        return self.mask_data.bottom
+
+    @property
+    def width(self):
+        """Width."""
+        return self.right - self.left
+
+    @property
+    def height(self):
+        """Height."""
+        return self.bottom - self.top
+
     def get_bbox(self, real=True):
-        """Get BBox(x1, y1, x2, y2) namedtuple with mask bounding box."""
+        """
+        Get BBox(x1, y1, x2, y2) namedtuple with mask bounding box.
+
+        :param real: When False, ignore real flags.
+        """
         if real and self.mask_data.real_flags:
             return BBox(self.mask_data.real_left, self.mask_data.real_top,
                         self.mask_data.real_right, self.mask_data.real_bottom)
@@ -39,8 +81,7 @@ class Mask(object):
 
     def has_box(self):
         """Return True if the mask has a valid bbox."""
-        bbox = self.bbox
-        return bbox.width > 0 and bbox.height > 0
+        return self.width > 0 and self.height > 0
 
     def is_valid(self):
         """(Deprecated) Use `has_box`"""
@@ -62,9 +103,6 @@ class Mask(object):
                                               real)
 
     def __repr__(self):
-        if self.has_box():
-            return "<%s: size=%dx%d, x=%d, y=%d>" % (
-                self.__class__.__name__.lower(), bbox.width, bbox.height,
-                bbox.x1, bbox.y1)
-        else:
-            return "<%s>" % (self.__class__.__name__.lower())
+        return "<%s: size=%dx%d, x=%d, y=%d>" % (
+            self.__class__.__name__.lower(), bbox.width, bbox.height,
+            bbox.x1, bbox.y1)

@@ -64,6 +64,10 @@ def test_api():
     layer = image.layers[0]
     assert layer.name == 'Фон'
     assert layer.bbox == (0, 0, 101, 55)
+    assert layer.left == 0
+    assert layer.right == 101
+    assert layer.top == 0
+    assert layer.bottom == 55
     assert layer.visible
     assert layer.opacity == 255
     assert layer.blend_mode == 'normal'

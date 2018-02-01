@@ -181,6 +181,26 @@ class PSDImage(Group, _PSDImageBuilder):
         return True
 
     @property
+    def left(self):
+        """Left coordinate (0)."""
+        return 0
+
+    @property
+    def right(self):
+        """Right coordinate (width)."""
+        return self.width
+
+    @property
+    def top(self):
+        """Top coordinate (0)."""
+        return 0
+
+    @property
+    def bottom(self):
+        """Bottom coordinate (height)."""
+        return self.height
+
+    @property
     def width(self):
         """Width of the image."""
         return self.decoded_data.header.width
@@ -191,6 +211,11 @@ class PSDImage(Group, _PSDImageBuilder):
         return self.decoded_data.header.height
 
     @property
+    def viewbox(self):
+        """Return BBox of the viewport."""
+        return BBox(0, 0, self.width, self.height)
+
+    @property
     def depth(self):
         """Depth of colors."""
         return self.decoded_data.header.depth
@@ -199,10 +224,6 @@ class PSDImage(Group, _PSDImageBuilder):
     def channels(self):
         """Number of color channels."""
         return self.decoded_data.header.channels
-
-    @property
-    def viewbox(self):
-        return BBox(0, 0, self.width, self.height)
 
     @property
     def embedded(self):

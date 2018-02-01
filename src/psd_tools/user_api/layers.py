@@ -100,10 +100,39 @@ class _RawLayer(object):
         record = self._record
         return BBox(record.left, record.top, record.right, record.bottom)
 
+    @property
+    def left(self):
+        """Left coordinate."""
+        return self._record.left
+
+    @property
+    def right(self):
+        """Right coordinate."""
+        return self._record.right
+
+    @property
+    def top(self):
+        """Top coordinate."""
+        return self._record.top
+
+    @property
+    def bottom(self):
+        """Bottom coordinate."""
+        return self._record.bottom
+
+    @property
+    def width(self):
+        """Width."""
+        return self.right - self.left
+
+    @property
+    def height(self):
+        """Height."""
+        return self.bottom - self.top
+
     def has_box(self):
         """Return True if the layer has a nonzero area."""
-        record = self._record
-        return record.left < record.right and record.top < record.bottom
+        return self.width > 0 and self.height > 0
 
     def has_pixels(self):
         """Return True if the layer has associated pixels."""
@@ -182,12 +211,11 @@ class _RawLayer(object):
         return default
 
     def __repr__(self):
-        bbox = self.bbox
         return (
             "<%s: %r, size=%dx%d, x=%d, y=%d, visible=%d, mask=%s, "
             "effects=%s>" % (
-                self.kind, self.name, bbox.width, bbox.height,
-                bbox.x1, bbox.y1, self.visible, self.mask, self.effects))
+                self.kind, self.name, self.width, self.height,
+                self.left, self.top, self.visible, self.mask, self.effects))
 
 
 class Group(_RawLayer):
@@ -212,6 +240,36 @@ class Group(_RawLayer):
         all layers in this group; None if a group has no children.
         """
         return combined_bbox(self.layers)
+
+    @property
+    def left(self):
+        """Left coordinate."""
+        return self.bbox.left
+
+    @property
+    def right(self):
+        """Right coordinate."""
+        return self.bbox.right
+
+    @property
+    def top(self):
+        """Top coordinate."""
+        return self.bbox.top
+
+    @property
+    def bottom(self):
+        """Bottom coordinate."""
+        return self.bbox.bottom
+
+    @property
+    def width(self):
+        """Width."""
+        return self.bbox.width
+
+    @property
+    def height(self):
+        """Height."""
+        return self.bbox.height
 
     def has_box(self):
         """Return True if the layer has a nonzero area."""
