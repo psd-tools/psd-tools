@@ -280,7 +280,7 @@ class Group(_RawLayer):
 
     def has_box(self):
         """Return True if the layer has a nonzero area."""
-        return any(l.has_box() for l in self.descendants())
+        return any(l.has_box() for l in self.layers)
 
     @property
     def layers(self):
