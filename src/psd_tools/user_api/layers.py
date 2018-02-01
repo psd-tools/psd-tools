@@ -225,7 +225,6 @@ class Group(_RawLayer):
         super(Group, self).__init__(parent, index)
         self._layers = []
 
-
     @property
     def closed(self):
         divider = self._divider

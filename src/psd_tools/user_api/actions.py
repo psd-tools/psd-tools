@@ -7,10 +7,10 @@ from __future__ import absolute_import
 from collections import OrderedDict
 from psd_tools.debug import pretty_namedtuple
 from psd_tools.decoder.decoders import new_registry
-from psd_tools.decoder.actions import (Descriptor, Reference, Property,
-    UnitFloat, Double, Class, String, EnumReference, Boolean, Offset, Alias,
-    List, Integer, Enum, Identifier, Index, Name, ObjectArray,
-    ObjectArrayItem, RawData)
+from psd_tools.decoder.actions import (
+    Descriptor, Reference, Property, UnitFloat, Double, Class, String,
+    EnumReference, Boolean, Offset, Alias, List, Integer, Enum, Identifier,
+    Index, Name, ObjectArray, ObjectArrayItem, RawData)
 
 
 _translators, register = new_registry()
@@ -25,8 +25,8 @@ Shape = pretty_namedtuple('Shape', 'name curve')
 #: Pattern object.
 Pattern = pretty_namedtuple('Pattern', 'name id')
 
-_Gradation = pretty_namedtuple('Gradation',
-    'desc_name name type smoothness colors transform')
+_Gradation = pretty_namedtuple(
+    'Gradation', 'desc_name name type smoothness colors transform')
 
 #: StopColor in gradient.
 StopColor = pretty_namedtuple('StopColor', 'color type location midpoint')
