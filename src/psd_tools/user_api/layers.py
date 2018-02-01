@@ -150,7 +150,9 @@ class _RawLayer(object):
 
         :rtype: psd_tools.user_api.mask.Mask
         """
-        return Mask(self) if self.has_mask() else None
+        if not hasattr(self, "_mask"):
+            self._mask = Mask(self) if self.has_mask() else None
+        return self._mask
 
     def has_clip_layers(self):
         """Returns True if the layer has associated clipping."""
