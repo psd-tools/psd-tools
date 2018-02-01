@@ -138,6 +138,11 @@ class _RawLayer(object):
         """Return True if the layer has associated pixels."""
         return all(c.data and len(c.data) > 0 for c in self._channels)
 
+    def has_relevant_pixels(self):
+        if self._record.flags.pixel_data_irrelevant:
+            return False
+        return self.has_pixels()
+
     @property
     def mask(self):
         """
@@ -318,7 +323,7 @@ class AdjustmentLayer(_RawLayer):
     """PSD adjustment layer wrapper."""
 
     def __init__(self, parent, index):
-        super(Group, self).__init__(parent, index)
+        super(AdjustmentLayer, self).__init__(parent, index)
         self._set_key()
 
     def _set_key(self):
@@ -341,8 +346,7 @@ class AdjustmentLayer(_RawLayer):
         return self.tagged_blocks.get(self._key)
 
     def __repr__(self):
-        return "<%s: %r, visible=%s>" % (
-            self.kind, self.name, self.visible)
+        return "<%s: %r, visible=%s>" % (self.kind, self.name, self.visible)
 
 
 class PixelLayer(_RawLayer):
@@ -355,16 +359,14 @@ class ShapeLayer(_RawLayer):
 
     def as_PIL(self, vector=False):
         """Returns a PIL image for this layer."""
-        if vector or (self._record.flags.pixel_data_irrelevant and
-                      not self.has_box()):
+        if vector or (not self.has_box() and not self.has_relevant_pixels()):
             # TODO: Replace polygon with bezier curve.
             return pil_support.draw_polygon(self.bbox, self.get_anchors(),
                                             self._get_color())
         else:
             return self._psd._layer_as_PIL(self._index)
 
-    @property
-    def bbox(self, vector=False):
+    def get_bbox(self, vector=False):
         """BBox(x1, y1, x2, y2) namedtuple of the shape."""
         if vector:
             # TODO: Compute bezier curve.
@@ -379,14 +381,33 @@ class ShapeLayer(_RawLayer):
         else:
             return super(ShapeLayer, self).bbox
 
+    @property
+    def bbox(self):
+        return self.get_bbox()
+
+    @property
+    def _origination(self):
+        return self.get_tag(TaggedBlock.VECTOR_ORIGINATION_DATA)
+
+    @property
+    def _vector_mask(self):
+        return self.get_tag((TaggedBlock.VECTOR_MASK_SETTING1,
+                             TaggedBlock.VECTOR_MASK_SETTING2))
+
+    @property
+    def _stroke(self):
+        return self.get_tag(TaggedBlock.VECTOR_STROKE_DATA)
+
+    @property
+    def _stroke_content(self):
+        return self.get_tag(TaggedBlock.VECTOR_STROKE_CONTENT_DATA)
+
     def get_anchors(self):
         """Anchor points of the shape [(x, y), (x, y), ...]."""
-        blocks = self._tagged_blocks
-        vmsk = self.get_tag([TaggedBlock.VECTOR_MASK_SETTING1,
-                             TaggedBlock.VECTOR_MASK_SETTING2])
+        vmsk = self._vector_mask
         if not vmsk:
             return None
-        width, height = self._psd.header.width, self._psd.header.height
+        width, height = self._psd.width, self._psd.height
         knot_types = (
             PathResource.CLOSED_SUBPATH_BEZIER_KNOT_LINKED,
             PathResource.CLOSED_SUBPATH_BEZIER_KNOT_UNLINKED,

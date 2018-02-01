@@ -29,3 +29,5 @@ def test_adjustment_and_shapes():
         if layer.kind == "adjustment":
             assert layer.adjustment_type
             assert layer.data
+        if layer.kind == "shape":
+            assert isinstance(layer.get_anchors(), list)

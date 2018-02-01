@@ -104,5 +104,5 @@ class Mask(object):
 
     def __repr__(self):
         return "<%s: size=%dx%d, x=%d, y=%d>" % (
-            self.__class__.__name__.lower(), bbox.width, bbox.height,
-            bbox.x1, bbox.y1)
+            self.__class__.__name__.lower(), self.width, self.height,
+            self.left, self.right)
