@@ -137,6 +137,7 @@ def test_effects_api():
         if layer.effects.has('gradientoverlay'):
             for item in layer.effects.find('gradientoverlay'):
                 assert item.gradient
+                assert item.type == 'linear'
 
         if layer.effects.has('patternoverlay'):
             for item in layer.effects.find('patternoverlay'):

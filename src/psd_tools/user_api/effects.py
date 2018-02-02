@@ -266,6 +266,11 @@ class ColorOverlay(_OverlayEffect, _ColorMixin):
 
 class GradientOverlay(_OverlayEffect, _AlignScaleMixin):
     """GradientOverlay effect."""
+    _NAMES = {
+        b'Lnr ': 'linear',
+        b'Rdl ': 'radial',
+    }
+
     @property
     def gradient(self):
         """Gradient configuration.
@@ -282,9 +287,10 @@ class GradientOverlay(_OverlayEffect, _AlignScaleMixin):
 
     @property
     def type(self):
-        """Gradient type, linear or radial."""
-        # TODO: Rephrase bytes. b'Lnr ': 'linear'.
-        return self.get(b'Type', b'Lnr ')
+        """Gradient type, ``linear`` or ``radial``."""
+        # TODO: Check other types.
+        key = self.get(b'Type', b'Lnr ')
+        return self._NAMES.get(key, key)
 
     @property
     def reversed(self):

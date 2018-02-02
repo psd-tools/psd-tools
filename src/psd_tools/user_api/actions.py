@@ -14,6 +14,7 @@ from psd_tools.decoder.actions import (
 from psd_tools.decoder.tagged_blocks import (
     SolidColorSetting, PatternFillSetting, GradientFillSetting)
 from psd_tools.decoder.layer_effects import ObjectBasedEffects
+from psd_tools.user_api.effects import GradientOverlay
 
 
 _translators, register = new_registry()
@@ -28,8 +29,6 @@ Shape = pretty_namedtuple('Shape', 'name curve')
 #: Pattern object.
 Pattern = pretty_namedtuple('Pattern', 'name id')
 
-GradientSetting = pretty_namedtuple(
-    'GradientSetting', 'dither angle type data')
 _Gradient = pretty_namedtuple(
     'Gradient', 'desc_name name type smoothness colors transform')
 
@@ -122,11 +121,8 @@ def _translate_fill_setting(data):
 
 @register(GradientFillSetting)
 def _translate_gradient_fill_setting(data):
-    data = translate(data.data)
-    return GradientSetting(data.get(b'Dthr'),
-                           data.get(b'Angl'),
-                           data.get(b'Type'),
-                           data.get(b'Grad'))
+    descriptor = translate(data.data)
+    return GradientOverlay(descriptor)
 
 
 def _translate_generic_descriptor(data):
