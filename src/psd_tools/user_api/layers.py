@@ -433,11 +433,11 @@ class ShapeLayer(_RawLayer):
                 for p in vmsk.path if p.get("selector") in knot_types]
 
     def _get_color(self, default='black'):
-        soco = self.get_tag(TaggedBlock.SOLID_COLOR_SHEET_SETTING)
-        if not soco:
+        color = self.get_tag(TaggedBlock.SOLID_COLOR_SHEET_SETTING)
+        print(color)
+        if not color:
             logger.warning("Gradient or pattern fill not supported")
             return default
-        color = soco.get(b'Clr ')
         if color.name == 'rgb':
             return tuple(list(map(int, color.value)) + [int(self.opacity)])
         else:

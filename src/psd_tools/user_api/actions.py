@@ -131,6 +131,13 @@ def _translate_generic_descriptor(data):
     return result
 
 
+@desc_register(b'null')
+def _translate_null_descriptor(data):
+    if len(data.items) == 1:
+        return translate(data.items[0][1])
+    return _translate_generic_descriptor(data)
+
+
 @desc_register(b'Grsc')
 def _translate_grsc_color(data):
     colors = OrderedDict(data.items)
