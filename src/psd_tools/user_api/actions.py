@@ -28,6 +28,8 @@ Shape = pretty_namedtuple('Shape', 'name curve')
 #: Pattern object.
 Pattern = pretty_namedtuple('Pattern', 'name id')
 
+GradientSetting = pretty_namedtuple(
+    'GradientSetting', 'dither angle type data')
 _Gradient = pretty_namedtuple(
     'Gradient', 'desc_name name type smoothness colors transform')
 
@@ -114,9 +116,17 @@ def _translate_object_based_effects(data):
 
 @register(SolidColorSetting)
 @register(PatternFillSetting)
-@register(GradientFillSetting)
 def _translate_fill_setting(data):
     return translate(data.data)
+
+
+@register(GradientFillSetting)
+def _translate_gradient_fill_setting(data):
+    data = translate(data.data)
+    return GradientSetting(data.get(b'Dthr'),
+                           data.get(b'Angl'),
+                           data.get(b'Type'),
+                           data.get(b'Grad'))
 
 
 def _translate_generic_descriptor(data):
@@ -176,11 +186,11 @@ def _translate_point(data):
 def _translate_gradient(data):
     items = dict(data.items)
     return Gradient(data.name,
-                     translate(items.get(b'Nm  ')),
-                     translate(items.get(b'GrdF')),
-                     translate(items.get(b'Intr')),
-                     translate(items.get(b'Clrs')),
-                     translate(items.get(b'Trns')))
+                    translate(items.get(b'Nm  ')),
+                    translate(items.get(b'GrdF')),
+                    translate(items.get(b'Intr')),
+                    translate(items.get(b'Clrs')),
+                    translate(items.get(b'Trns')))
 
 
 @desc_register(b'Clrt')
