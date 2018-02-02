@@ -12,9 +12,11 @@ from psd_tools.decoder.actions import (
     EnumReference, Boolean, Offset, Alias, List, Integer, Enum, Identifier,
     Index, Name, ObjectArray, ObjectArrayItem, RawData)
 from psd_tools.decoder.tagged_blocks import (
-    SolidColorSetting, PatternFillSetting, GradientFillSetting)
+    SolidColorSetting, PatternFillSetting, GradientFillSetting,
+    VectorStrokeSetting)
 from psd_tools.decoder.layer_effects import ObjectBasedEffects
 from psd_tools.user_api.effects import GradientOverlay
+from psd_tools.user_api.shape import StrokeStyle
 
 
 _translators, register = new_registry()
@@ -115,6 +117,7 @@ def _translate_object_based_effects(data):
 
 @register(SolidColorSetting)
 @register(PatternFillSetting)
+@register(VectorStrokeSetting)
 def _translate_fill_setting(data):
     return translate(data.data)
 
@@ -205,3 +208,15 @@ def _translate_stopcolor(data):
 def _translate_shape(data):
     items = dict(data.items)
     return Shape(translate(items.get(b'Nm  ')), translate(items.get(b'Crv ')))
+
+@desc_register(b'metadata')
+def _translate_metadata(data):
+    return _translate_generic_descriptor(data)
+
+@desc_register(b'strokeStyle')
+def _translate_stroke_style(data):
+    return StrokeStyle(_translate_generic_descriptor(data))
+
+@desc_register(b'solidColorLayer')
+def _translate_solid_color_layer(data):
+    return _translate_generic_descriptor(data)

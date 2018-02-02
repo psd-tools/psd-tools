@@ -417,6 +417,13 @@ class ShapeLayer(_RawLayer):
     def _stroke_content(self):
         return self.get_tag(TaggedBlock.VECTOR_STROKE_CONTENT_DATA)
 
+    def has_vector_mask(self):
+        return self.has_tag([TaggedBlock.VECTOR_MASK_SETTING1,
+                             TaggedBlock.VECTOR_MASK_SETTING2])
+
+    def has_stroke(self):
+        return self.has_tag(TaggedBlock.VECTOR_STROKE_DATA)
+
     def get_anchors(self):
         """Anchor points of the shape [(x, y), (x, y), ...]."""
         vmsk = self._vector_mask
