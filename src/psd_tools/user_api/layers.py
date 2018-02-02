@@ -430,10 +430,14 @@ class ShapeLayer(_RawLayer):
     def has_stroke_content(self):
         return self.has_tag(TaggedBlock.VECTOR_STROKE_CONTENT_DATA)
 
+    def has_path(self):
+        anchors = self.get_anchors()
+        return anchors and len(anchors) > 1
+
     def get_anchors(self):
         """Anchor points of the shape [(x, y), (x, y), ...]."""
-        vmsk = self.vector_mask
-        if not vmsk:
+        vector_mask = self.vector_mask
+        if not vector_mask:
             return None
         width, height = self._psd.width, self._psd.height
         knot_types = (
@@ -443,7 +447,7 @@ class ShapeLayer(_RawLayer):
             PathResource.OPEN_SUBPATH_BEZIER_KNOT_UNLINKED
         )
         return [(int(p["anchor"][1] * width), int(p["anchor"][0] * height))
-                for p in vmsk.path if p.get("selector") in knot_types]
+                for p in vector_mask.path if p.get("selector") in knot_types]
 
     def _get_color(self, default='black'):
         color = self.get_tag(TaggedBlock.SOLID_COLOR_SHEET_SETTING)

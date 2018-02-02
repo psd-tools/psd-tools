@@ -78,4 +78,4 @@ class StrokeStyle(object):
         return self.get(b'strokeStyleContent')
 
     def __repr__(self):
-        return __repr__(self._descriptor)
+        return self._descriptor.__repr__()
