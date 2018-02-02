@@ -140,7 +140,7 @@ class _BaseEffect(object):
         return {k: getattr(self, k) for k in self.properties()}
 
     def __repr__(self):
-        return "<%s>" % (self.name(),)
+        return "<%s>" % (self.name.lower(),)
 
 
 class _ColorMixin(object):
