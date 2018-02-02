@@ -27,7 +27,7 @@ def get_effects(layer):
         TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO_V1,
         ])
     if not effects:
-        return None
+        return Effects({})
     descriptor = translate(effects.descriptor)
     return Effects(descriptor)
 
