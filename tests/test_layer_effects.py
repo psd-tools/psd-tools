@@ -3,7 +3,7 @@ from __future__ import absolute_import, unicode_literals
 import pytest
 
 from .utils import decode_psd, full_name
-from psd_tools.constants import BlendMode
+from psd_tools.constants import BlendMode, TaggedBlock
 from psd_tools.user_api.psd_image import PSDImage
 
 
@@ -104,10 +104,10 @@ def test_iopa_brst_block():
     decoded_data = decode_psd('layer_effects.psd')
     layer_records = decoded_data.layer_and_mask_data.layers.layer_records
     tagged_blocks = dict(layer_records[4].tagged_blocks)
-    assert tagged_blocks[b'iOpa'] == 252
-    assert tagged_blocks[b'brst'][0] == False
-    assert tagged_blocks[b'brst'][1] == False
-    assert tagged_blocks[b'brst'][2] == True
+    assert tagged_blocks[TaggedBlock.BLEND_FILL_OPACITY] == 252
+    assert tagged_blocks[TaggedBlock.CHANNEL_BLENDING_RESTRICTIONS_SETTING][0] == False
+    assert tagged_blocks[TaggedBlock.CHANNEL_BLENDING_RESTRICTIONS_SETTING][1] == False
+    assert tagged_blocks[TaggedBlock.CHANNEL_BLENDING_RESTRICTIONS_SETTING][2] == True
 
 
 def test_effects_api():
