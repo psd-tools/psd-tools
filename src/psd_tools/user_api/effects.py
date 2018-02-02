@@ -559,6 +559,13 @@ class Effects(object):
                     if getattr(item, 'enabled', False)]
         return []
 
+    def has(self, kinds):
+        if kinds == str or kinds == bytes:
+            kinds = [kinds]
+        kinds = {kind.lower() for kind in kinds}
+        return any(item.name.lower() in kinds
+                   for item in self.enabled_items())
+
     def find(self, kind):
         """Return a list of specified effects.
 
@@ -575,11 +582,8 @@ class Effects(object):
         - BevelEmboss
         - Satin
         """
-        if self.enabled:
-            return [item for item in self.items
-                    if getattr(item, 'enabled', False) and
-                       item.name.lower() == kind.lower()]
-        return []
+        return [item for item in self.enabled_items()
+                if item.name.lower() == kind.lower()]
 
     def __getitem__(self, index):
         return self.enabled_items()[index]

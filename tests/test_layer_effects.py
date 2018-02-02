@@ -128,3 +128,40 @@ def test_effects_api():
         assert layer.has_effects()
         assert len(layer.effects) > 0
         assert any([any(layer.effects.find(kind)) for kind in effect_kinds])
+        assert layer.effects.has(effect_kinds)
+
+        if layer.effects.has('coloroverlay'):
+            for item in layer.effects.find('coloroverlay'):
+                assert item.color
+
+        if layer.effects.has('gradientoverlay'):
+            for item in layer.effects.find('gradientoverlay'):
+                assert item.gradient
+
+        if layer.effects.has('patternoverlay'):
+            for item in layer.effects.find('patternoverlay'):
+                assert item.pattern
+
+        if layer.effects.has('outerglow'):
+            for item in layer.effects.find('outerglow'):
+                assert item.spread
+
+        if layer.effects.has('innerglow'):
+            for item in layer.effects.find('innerglow'):
+                assert item.glow_source
+
+        if layer.effects.has('dropshadow'):
+            for item in layer.effects.find('dropshadow'):
+                assert item.layer_knocks_out
+
+        if layer.effects.has('innershadow'):
+            for item in layer.effects.find('innershadow'):
+                assert item.angle
+
+        if layer.effects.has('bevelemboss'):
+            for item in layer.effects.find('bevelemboss'):
+                assert item.highlight_mode
+
+        if layer.effects.has('satin'):
+            for item in layer.effects.find('satin'):
+                assert item.anti_aliased
