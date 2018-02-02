@@ -31,3 +31,11 @@ def test_adjustment_and_shapes():
             assert layer.data
         if layer.kind == "shape":
             assert isinstance(layer.get_anchors(), list)
+            if layer.has_origination():
+                assert layer.origination
+            if layer.has_vector_mask():
+                assert layer.vector_mask
+            if layer.has_stroke():
+                assert layer.stroke
+            if layer.has_stroke_content():
+                assert layer.stroke_content

@@ -15,7 +15,7 @@ class StrokeStyle(object):
         assert self.get(b'classID') == b'strokeStyle'
 
     def get(self, key, default=None):
-        return self.descriptor.get(key, default)
+        return self._descriptor.get(key, default)
 
     @property
     def stroke_enabled(self):

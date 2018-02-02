@@ -401,21 +401,24 @@ class ShapeLayer(_RawLayer):
         return self.get_bbox()
 
     @property
-    def _origination(self):
+    def origination(self):
         return self.get_tag(TaggedBlock.VECTOR_ORIGINATION_DATA)
 
     @property
-    def _vector_mask(self):
+    def vector_mask(self):
         return self.get_tag((TaggedBlock.VECTOR_MASK_SETTING1,
                              TaggedBlock.VECTOR_MASK_SETTING2))
 
     @property
-    def _stroke(self):
+    def stroke(self):
         return self.get_tag(TaggedBlock.VECTOR_STROKE_DATA)
 
     @property
-    def _stroke_content(self):
+    def stroke_content(self):
         return self.get_tag(TaggedBlock.VECTOR_STROKE_CONTENT_DATA)
+
+    def has_origination(self):
+        return self.has_tag(TaggedBlock.VECTOR_ORIGINATION_DATA)
 
     def has_vector_mask(self):
         return self.has_tag([TaggedBlock.VECTOR_MASK_SETTING1,
@@ -424,9 +427,12 @@ class ShapeLayer(_RawLayer):
     def has_stroke(self):
         return self.has_tag(TaggedBlock.VECTOR_STROKE_DATA)
 
+    def has_stroke_content(self):
+        return self.has_tag(TaggedBlock.VECTOR_STROKE_CONTENT_DATA)
+
     def get_anchors(self):
         """Anchor points of the shape [(x, y), (x, y), ...]."""
-        vmsk = self._vector_mask
+        vmsk = self.vector_mask
         if not vmsk:
             return None
         width, height = self._psd.width, self._psd.height
@@ -441,7 +447,6 @@ class ShapeLayer(_RawLayer):
 
     def _get_color(self, default='black'):
         color = self.get_tag(TaggedBlock.SOLID_COLOR_SHEET_SETTING)
-        print(color)
         if not color:
             logger.warning("Gradient or pattern fill not supported")
             return default
