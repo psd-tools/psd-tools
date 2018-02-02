@@ -11,6 +11,9 @@ from psd_tools.decoder.actions import (
     Descriptor, Reference, Property, UnitFloat, Double, Class, String,
     EnumReference, Boolean, Offset, Alias, List, Integer, Enum, Identifier,
     Index, Name, ObjectArray, ObjectArrayItem, RawData)
+from psd_tools.decoder.tagged_blocks import (
+    SolidColorSetting, PatternFillSetting, GradientFillSetting)
+from psd_tools.decoder.layer_effects import ObjectBasedEffects
 
 
 _translators, register = new_registry()
@@ -102,6 +105,18 @@ def _translate_property(data):
 @register(RawData)
 def _translate_value(data):
     return data.value
+
+
+@register(ObjectBasedEffects)
+def _translate_object_based_effects(data):
+    return translate(data.descriptor)
+
+
+@register(SolidColorSetting)
+@register(PatternFillSetting)
+@register(GradientFillSetting)
+def _translate_fill_setting(data):
+    return translate(data.data)
 
 
 def _translate_generic_descriptor(data):

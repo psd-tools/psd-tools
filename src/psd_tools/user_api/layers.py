@@ -218,7 +218,7 @@ class _RawLayer(object):
         for key in keys:
             value = self.tagged_blocks.get(key)
             if value:
-                return value
+                return translate(value)
         return default
 
     def has_tag(self, keys):
@@ -437,11 +437,9 @@ class ShapeLayer(_RawLayer):
         if not soco:
             logger.warning("Gradient or pattern fill not supported")
             return default
-        color_data = dict(soco.data.items).get(b'Clr ')
-        if color_data.classID == b'RGBC':
-            colors = dict(color_data.items)
-            return (int(colors[b'Rd  '].value), int(colors[b'Grn '].value),
-                    int(colors[b'Bl  '].value), int(self.opacity))
+        color = soco.get(b'Clr ')
+        if color.name == 'rgb':
+            return tuple(list(map(int, color.value)) + [int(self.opacity)])
         else:
             return default
 

@@ -13,7 +13,6 @@ Usage::
 from __future__ import absolute_import
 import inspect
 import logging
-from psd_tools.user_api.actions import translate
 from psd_tools.constants import TaggedBlock, BlendMode2, ObjectBasedEffects
 
 logger = logging.getLogger(__name__)
@@ -28,8 +27,7 @@ def get_effects(layer):
         ])
     if not effects:
         return Effects({})
-    descriptor = translate(effects.descriptor)
-    return Effects(descriptor)
+    return Effects(effects)
 
 
 class _BaseEffect(object):
