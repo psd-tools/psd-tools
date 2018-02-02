@@ -24,6 +24,7 @@ class _RawLayer(object):
         self._index = index
         self._clip_layers = []
         self._tagged_blocks = None
+        self._effects = None
 
     @property
     def name(self):
@@ -182,7 +183,9 @@ class _RawLayer(object):
 
         :rtype: psd_tools.user_api.effects.Effects
         """
-        return get_effects(self)
+        if not self._effects:
+            self._effects = get_effects(self)
+        return self._effects
 
     @property
     def _info(self):
