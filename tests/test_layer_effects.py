@@ -112,6 +112,19 @@ def test_iopa_brst_block():
 
 def test_effects_api():
     psd = PSDImage.load(full_name('layer_effects.psd'))
+    effect_kinds = [
+        'DropShadow',
+        'InnerShadow',
+        'OuterGlow',
+        'ColorOverlay',
+        'GradientOverlay',
+        'PatternOverlay',
+        'Stroke',
+        'InnerGlow',
+        'BevelEmboss',
+        'Satin',
+    ]
     for layer in psd.layers:
         assert layer.has_effects()
         assert len(layer.effects) > 0
+        assert any([any(layer.effects.find(kind)) for kind in effect_kinds])

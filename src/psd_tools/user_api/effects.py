@@ -109,6 +109,7 @@ class _BaseEffect(object):
         """
         return self.get(b'Opct', 100.0)
 
+    @property
     def name(self):
         """Layer effect name.
 
@@ -495,6 +496,9 @@ class Effects(object):
 
         for effect in psd.layers[0].effects:
             print(effect.name())
+
+        for effect in psd.layers[0].effects.find('coloroverlay'):
+            print(effect.color)
     """
     _KEYS = {
         ObjectBasedEffects.DROP_SHADOW_MULTI: DropShadow,
@@ -553,6 +557,28 @@ class Effects(object):
         if self.enabled:
             return [item for item in self.items
                     if getattr(item, 'enabled', False)]
+        return []
+
+    def find(self, kind):
+        """Return a list of specified effects.
+
+        Names can be one of the following:
+
+        - DropShadow
+        - InnerShadow
+        - OuterGlow
+        - ColorOverlay
+        - GradientOverlay
+        - PatternOverlay
+        - Stroke
+        - InnerGlow
+        - BevelEmboss
+        - Satin
+        """
+        if self.enabled:
+            return [item for item in self.items
+                    if getattr(item, 'enabled', False) and
+                       item.name.lower() == kind.lower()]
         return []
 
     def __getitem__(self, index):
