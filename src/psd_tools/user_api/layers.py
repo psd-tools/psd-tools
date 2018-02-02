@@ -5,8 +5,10 @@ import logging
 from psd_tools.constants import (
     TaggedBlock, SectionDivider, BlendMode, TextProperty, PlacedLayerProperty,
     SzProperty, PathResource)
+from psd_tools.decoder.actions import Descriptor
 from psd_tools.user_api import pil_support
 from psd_tools.user_api import BBox
+from psd_tools.user_api.actions import translate
 from psd_tools.user_api.mask import Mask
 from psd_tools.user_api.effects import get_effects
 
@@ -213,12 +215,17 @@ class _RawLayer(object):
         """Get specified record from tagged blocks."""
         if isinstance(keys, bytes):
             keys = [keys]
-        blocks = self.tagged_blocks
         for key in keys:
-            value = blocks.get(key)
+            value = self.tagged_blocks.get(key)
             if value:
                 return value
         return default
+
+    def has_tag(self, keys):
+        """Returns if the specified record exists in the tagged blocks."""
+        if isinstance(keys, bytes):
+            keys = [keys]
+        return any(key in self.tagged_blocks for key in keys)
 
     def __repr__(self):
         return (
