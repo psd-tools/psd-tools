@@ -28,8 +28,8 @@ Shape = pretty_namedtuple('Shape', 'name curve')
 #: Pattern object.
 Pattern = pretty_namedtuple('Pattern', 'name id')
 
-_Gradation = pretty_namedtuple(
-    'Gradation', 'desc_name name type smoothness colors transform')
+_Gradient = pretty_namedtuple(
+    'Gradient', 'desc_name name type smoothness colors transform')
 
 #: StopColor in gradient.
 StopColor = pretty_namedtuple('StopColor', 'color type location midpoint')
@@ -56,8 +56,8 @@ class Color(object):
         return "%s%s" % (self.name, self.value)
 
 
-class Gradation(_Gradation):
-    """Gradation object."""
+class Gradient(_Gradient):
+    """Gradient object."""
     @property
     def short_name(self):
         """Short gradient name."""
@@ -175,7 +175,7 @@ def _translate_point(data):
 @desc_register(b'Grdn')
 def _translate_gradient(data):
     items = dict(data.items)
-    return Gradation(data.name,
+    return Gradient(data.name,
                      translate(items.get(b'Nm  ')),
                      translate(items.get(b'GrdF')),
                      translate(items.get(b'Intr')),
