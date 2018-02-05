@@ -118,7 +118,7 @@ class VectorMask(object):
     @property
     def closed(self):
         for p in self.path:
-            if p.get('selector') in PathResource.CLOSED_SUBPATH_LENGTH_RECORD:
+            if p.get('selector') == PathResource.CLOSED_SUBPATH_LENGTH_RECORD:
                 return True
         return False
 
