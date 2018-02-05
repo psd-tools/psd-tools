@@ -251,7 +251,7 @@ class _AlignScaleMixin(object):
     @property
     def scale(self):
         """Scale value."""
-        return self.get(b'Scl ')
+        return self.get(b'Scl ', 100.0)
 
     @property
     def aligned(self):
@@ -328,7 +328,7 @@ class PatternOverlay(_OverlayEffect, _AlignScaleMixin):
     @property
     def phase(self):
         """Phase value."""
-        return self.get(b'phase')
+        return self.get(b'phase', (0, 0))
 
 
 class Stroke(_BaseEffect, _ColorMixin):
