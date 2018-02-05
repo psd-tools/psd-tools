@@ -39,7 +39,8 @@ def test_adjustment_and_shapes():
                 if layer.has_path():
                     assert len(vector_mask.anchors) > 0
                 assert len(vector_mask.anchors) == vector_mask.num_knots
-                vector_mask.closed
+                assert vector_mask.closed in (True, False)
+                assert vector_mask.initial_fill_rule in (0, 1)
             if layer.has_stroke():
                 assert layer.stroke
             if layer.has_stroke_content():
