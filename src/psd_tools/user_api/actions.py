@@ -15,7 +15,9 @@ from psd_tools.decoder.tagged_blocks import (
     SolidColorSetting, PatternFillSetting, GradientFillSetting,
     VectorStrokeSetting)
 from psd_tools.decoder.layer_effects import ObjectBasedEffects
-from psd_tools.user_api.effects import GradientOverlay
+from psd_tools.user_api.effects import (
+    GradientOverlay, PatternOverlay, ColorOverlay)
+
 from psd_tools.user_api.shape import StrokeStyle
 
 
@@ -115,11 +117,21 @@ def _translate_object_based_effects(data):
     return translate(data.descriptor)
 
 
-@register(SolidColorSetting)
-@register(PatternFillSetting)
 @register(VectorStrokeSetting)
 def _translate_fill_setting(data):
     return translate(data.data)
+
+
+@register(SolidColorSetting)
+def _translate_solid_color_setting(data):
+    descriptor = translate(data.data)
+    return ColorOverlay(descriptor)
+
+
+@register(PatternFillSetting)
+def _translate_pattern_fill_setting(data):
+    descriptor = translate(data.data)
+    return PatternOverlay(descriptor)
 
 
 @register(GradientFillSetting)
@@ -150,7 +162,7 @@ def _translate_null_descriptor(data):
 @desc_register(b'Grsc')
 def _translate_grsc_color(data):
     colors = OrderedDict(data.items)
-    return Color('gray', ((100.0 - colors[0][1].value / 100.0), ))
+    return Color('gray', ((100.0 - colors[b'Gry '][0] / 100.0), ))
 
 
 @desc_register(b'RGBC')
@@ -219,12 +231,12 @@ def _translate_stroke_style(data):
 
 @desc_register(b'solidColorLayer')
 def _translate_solid_color_layer(data):
-    return _translate_generic_descriptor(data)
+    return ColorOverlay(_translate_generic_descriptor(data))
 
 @desc_register(b'patternLayer')
 def _translate_pattern_layer(data):
-    return _translate_generic_descriptor(data)
+    return PatternOverlay(_translate_generic_descriptor(data))
 
 @desc_register(b'gradientLayer')
 def _translate_gradient_layer(data):
-    return _translate_generic_descriptor(data)
+    return GradientOverlay(_translate_generic_descriptor(data))
