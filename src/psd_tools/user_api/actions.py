@@ -18,7 +18,7 @@ from psd_tools.decoder.layer_effects import ObjectBasedEffects
 from psd_tools.user_api.effects import (
     GradientOverlay, PatternOverlay, ColorOverlay)
 
-from psd_tools.user_api.shape import StrokeStyle
+from psd_tools.user_api.shape import StrokeStyle, VectorMask
 
 
 _translators, register = new_registry()
@@ -119,7 +119,7 @@ def _translate_object_based_effects(data):
 
 @register(VectorStrokeSetting)
 def _translate_fill_setting(data):
-    return translate(data.data)
+    return VectorMask(translate(data.data))
 
 
 @register(SolidColorSetting)

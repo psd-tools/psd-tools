@@ -75,3 +75,63 @@ class StrokeStyle(object):
 
     def __repr__(self):
         return self._descriptor.__repr__()
+
+
+class VectorMask(object):
+    def __init__(self, setting):
+        self._setting = setting
+
+    @property
+    def invert(self):
+        return self._setting.invert
+
+    @property
+    def not_link(self):
+        return self._setting.not_link
+
+    @property
+    def disable(self):
+        return self._setting.disable
+
+    @property
+    def path(self):
+        return self._setting.path
+
+    @property
+    def initial_fill_rule(self):
+        for p in self.path:
+            if p.get('selector') == PathResource.INITIAL_FILL_RULE_RECORD:
+                return p.get('initial_fill_rule', 0)
+        return 0
+
+    @property
+    def num_knots(self):
+        keys = {
+            PathResource.OPEN_SUBPATH_LENGTH_RECORD,
+            PathResource.CLOSED_SUBPATH_LENGTH_RECORD,
+        }
+        for p in self.path:
+            if p.get('selector') in keys:
+                return p.get('num_knot_records', 0)
+        return 0
+
+    @property
+    def closed(self):
+        for p in self.path:
+            if p.get('selector') in PathResource.CLOSED_SUBPATH_LENGTH_RECORD:
+                return True
+        return False
+
+    @property
+    def knots(self):
+        keys = (
+            PathResource.CLOSED_SUBPATH_BEZIER_KNOT_LINKED,
+            PathResource.CLOSED_SUBPATH_BEZIER_KNOT_UNLINKED,
+            PathResource.OPEN_SUBPATH_BEZIER_KNOT_LINKED,
+            PathResource.OPEN_SUBPATH_BEZIER_KNOT_UNLINKED
+        )
+        return [p for p in self.path if p.get('selector') in keys]
+
+    @property
+    def anchors(self):
+        return [p.get('anchor') for p in self.knots]
