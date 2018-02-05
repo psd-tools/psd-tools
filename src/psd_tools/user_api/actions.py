@@ -220,3 +220,11 @@ def _translate_stroke_style(data):
 @desc_register(b'solidColorLayer')
 def _translate_solid_color_layer(data):
     return _translate_generic_descriptor(data)
+
+@desc_register(b'patternLayer')
+def _translate_pattern_layer(data):
+    return _translate_generic_descriptor(data)
+
+@desc_register(b'gradientLayer')
+def _translate_gradient_layer(data):
+    return _translate_generic_descriptor(data)

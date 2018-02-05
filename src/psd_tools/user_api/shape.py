@@ -30,16 +30,16 @@ class StrokeStyle(object):
         return self.get(b'strokeStyleLineWidth')
 
     @property
+    def line_dash_set(self):
+        return self.get(b'strokeStyleLineDashSet')
+
+    @property
     def line_dash_offset(self):
-        return self.get(b'strokeStyleLineDashOffset')
+        return self.get(b'strokeStyleLineDashOffset', 0)
 
     @property
     def miter_limit(self):
         return self.get(b'strokeStyleMiterLimit')
-
-    @property
-    def line_cap_type(self):
-        return self.get(b'strokeStyleLineCapType')
 
     @property
     def line_cap_type(self):
@@ -60,10 +60,6 @@ class StrokeStyle(object):
     @property
     def stroke_adjust(self):
         return self.get(b'strokeStyleStrokeAdjust')
-
-    @property
-    def line_dash_set(self):
-        return self.get(b'strokeStyleLineDashSet')
 
     @property
     def blend_mode(self):
