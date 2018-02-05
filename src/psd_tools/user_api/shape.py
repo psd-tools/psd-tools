@@ -4,7 +4,7 @@
 from __future__ import absolute_import
 import inspect
 import logging
-from psd_tools.constants import TaggedBlock
+from psd_tools.constants import TaggedBlock, PathResource
 
 logger = logging.getLogger(__name__)
 

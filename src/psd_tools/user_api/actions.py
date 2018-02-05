@@ -13,7 +13,7 @@ from psd_tools.decoder.actions import (
     Index, Name, ObjectArray, ObjectArrayItem, RawData)
 from psd_tools.decoder.tagged_blocks import (
     SolidColorSetting, PatternFillSetting, GradientFillSetting,
-    VectorStrokeSetting)
+    VectorStrokeSetting, VectorMaskSetting)
 from psd_tools.decoder.layer_effects import ObjectBasedEffects
 from psd_tools.user_api.effects import (
     GradientOverlay, PatternOverlay, ColorOverlay)
@@ -118,8 +118,13 @@ def _translate_object_based_effects(data):
 
 
 @register(VectorStrokeSetting)
-def _translate_fill_setting(data):
-    return VectorMask(translate(data.data))
+def _translate_vector_stroke_setting(data):
+    return translate(data.data)
+
+
+@register(VectorMaskSetting)
+def _translate_vector_mask_setting(data):
+    return VectorMask(data)
 
 
 @register(SolidColorSetting)

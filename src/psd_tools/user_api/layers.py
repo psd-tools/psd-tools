@@ -4,7 +4,7 @@ from __future__ import absolute_import, unicode_literals
 import logging
 from psd_tools.constants import (
     TaggedBlock, SectionDivider, BlendMode, TextProperty, PlacedLayerProperty,
-    SzProperty, PathResource)
+    SzProperty)
 from psd_tools.decoder.actions import Descriptor
 from psd_tools.user_api import pil_support
 from psd_tools.user_api import BBox
@@ -442,8 +442,7 @@ class ShapeLayer(_RawLayer):
         return self.has_tag(TaggedBlock.VECTOR_STROKE_CONTENT_DATA)
 
     def has_path(self):
-        anchors = self.get_anchors()
-        return anchors and len(anchors) > 1
+        return self.has_vector_mask() and self.vector_mask.num_knots > 1
 
     def get_anchors(self):
         """Anchor points of the shape [(x, y), (x, y), ...]."""
@@ -451,14 +450,8 @@ class ShapeLayer(_RawLayer):
         if not vector_mask:
             return None
         width, height = self._psd.width, self._psd.height
-        knot_types = (
-            PathResource.CLOSED_SUBPATH_BEZIER_KNOT_LINKED,
-            PathResource.CLOSED_SUBPATH_BEZIER_KNOT_UNLINKED,
-            PathResource.OPEN_SUBPATH_BEZIER_KNOT_LINKED,
-            PathResource.OPEN_SUBPATH_BEZIER_KNOT_UNLINKED
-        )
         return [(int(p["anchor"][1] * width), int(p["anchor"][0] * height))
-                for p in vector_mask.path if p.get("selector") in knot_types]
+                for p in vector_mask.knots]
 
     def _get_color(self, default='black'):
         effect = self.get_tag(TaggedBlock.SOLID_COLOR_SHEET_SETTING)
