@@ -15,14 +15,40 @@ from psd_tools.user_api.effects import get_effects
 logger = logging.getLogger(__name__)
 
 
-class _RawLayer(object):
+class _TaggedBlockMixin(object):
+
+    @property
+    def tagged_blocks(self):
+        """Returns the underlying tagged blocks structure."""
+        if not self._tagged_blocks:
+            self._tagged_blocks = dict(self._record.tagged_blocks)
+        return self._tagged_blocks
+
+    def get_tag(self, keys, default=None):
+        """Get specified record from tagged blocks."""
+        if isinstance(keys, bytes):
+            keys = [keys]
+        for key in keys:
+            value = self.tagged_blocks.get(key)
+            if value:
+                return translate(value)
+        return default
+
+    def has_tag(self, keys):
+        """Returns if the specified record exists in the tagged blocks."""
+        if isinstance(keys, bytes):
+            keys = [keys]
+        return any(key in self.tagged_blocks for key in keys)
+
+
+class _RawLayer(_TaggedBlockMixin):
     """
     Layer groups and layers are internally both 'layers' in PSD;
     they share some common properties.
     """
     def __init__(self, parent, index):
         self._parent = parent
-        self._psd = parent._psd if parent else self
+        self._psd = parent._psd
         self._index = index
         self._clip_layers = []
         self._tagged_blocks = None
@@ -50,10 +76,6 @@ class _RawLayer(object):
         """Layer visibility. Takes group visibility in account."""
         return self.visible and self.parent.is_visible()
 
-    def is_group(self):
-        """Return True if the layer is a group."""
-        return isinstance(self, Group)
-
     @property
     def layer_id(self):
         """ID of the layer."""
@@ -68,6 +90,10 @@ class _RawLayer(object):
     def parent(self):
         """Parent of this layer."""
         return self._parent
+
+    def is_group(self):
+        """Return True if the layer is a group."""
+        return False
 
     @property
     def blend_mode(self):
@@ -204,29 +230,6 @@ class _RawLayer(object):
         """Returns the underlying layer channel images."""
         return self._psd._layer_channels(self._index)
 
-    @property
-    def tagged_blocks(self):
-        """Returns the underlying tagged blocks structure."""
-        if not self._tagged_blocks:
-            self._tagged_blocks = dict(self._record.tagged_blocks)
-        return self._tagged_blocks
-
-    def get_tag(self, keys, default=None):
-        """Get specified record from tagged blocks."""
-        if isinstance(keys, bytes):
-            keys = [keys]
-        for key in keys:
-            value = self.tagged_blocks.get(key)
-            if value:
-                return translate(value)
-        return default
-
-    def has_tag(self, keys):
-        """Returns if the specified record exists in the tagged blocks."""
-        if isinstance(keys, bytes):
-            keys = [keys]
-        return any(key in self.tagged_blocks for key in keys)
-
     def __repr__(self):
         return (
             "<%s: %r, size=%dx%d, x=%d, y=%d, visible=%d, mask=%s, "
@@ -235,20 +238,8 @@ class _RawLayer(object):
                 self.left, self.top, self.visible, self.mask, self.effects))
 
 
-class Group(_RawLayer):
-    """PSD layer group."""
-
-    def __init__(self, parent, index):
-        super(Group, self).__init__(parent, index)
-        self._layers = []
-        self._bbox = None
-
-    @property
-    def closed(self):
-        divider = self._divider
-        if divider is None:
-            return None
-        return divider.type == SectionDivider.CLOSED_FOLDER
+class _GroupMixin(object):
+    """Group mixin."""
 
     @property
     def bbox(self):
@@ -303,6 +294,10 @@ class Group(_RawLayer):
         """
         return self._layers
 
+    def is_group(self):
+        """Return True if the layer is a group."""
+        return True
+
     def descendants(self, include_clip=True):
         """
         Return a generator to iterate over all descendant layers.
@@ -322,6 +317,22 @@ class Group(_RawLayer):
         This is highly experimental.
         """
         return merge_layers(self.layers, **kwargs)
+
+
+class Group(_GroupMixin, _RawLayer):
+    """PSD layer group."""
+
+    def __init__(self, parent, index):
+        super(Group, self).__init__(parent, index)
+        self._layers = []
+        self._bbox = None
+
+    @property
+    def closed(self):
+        divider = self._divider
+        if divider is None:
+            return None
+        return divider.type == SectionDivider.CLOSED_FOLDER
 
     @property
     def _divider(self):

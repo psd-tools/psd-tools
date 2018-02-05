@@ -110,3 +110,9 @@ def test_api():
     assert layer.visible
     assert layer.opacity == 255
     assert layer.blend_mode == 'normal'
+
+
+
+def test_print():
+    psd = PSDImage(decode_psd('empty-layer.psd'))
+    psd.print_tree()

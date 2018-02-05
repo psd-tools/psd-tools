@@ -12,7 +12,7 @@ from psd_tools.user_api import BBox, Pattern
 from psd_tools.user_api.smart_object import SmartObject
 from psd_tools.user_api.layers import (
     Group, AdjustmentLayer, TypeLayer, ShapeLayer, SmartObjectLayer,
-    PixelLayer)
+    PixelLayer, _TaggedBlockMixin, _GroupMixin)
 
 logger = logging.getLogger(__name__)
 
@@ -93,11 +93,14 @@ class _PSDImageBuilder(object):
                 current_group._layers.append(layer)
 
 
-class PSDImage(Group, _PSDImageBuilder):
+class PSDImage(_TaggedBlockMixin, _GroupMixin, _PSDImageBuilder):
     """PSD image."""
 
     def __init__(self, decoded_data):
-        super(PSDImage, self).__init__(None, None)
+        self._psd = self
+        self._tagged_blocks = None
+        self._layers = []
+        self._bbox = None
         self._smart_objects = None
         self._patterns = None
         self._image_resource_blocks = None
@@ -157,11 +160,6 @@ class PSDImage(Group, _PSDImageBuilder):
     def name(self):
         """Layer name as unicode. PSDImage is 'root'."""
         return "root"
-
-    @property
-    def mask(self):
-        """Returns mask associated with this layer. PSDImage returns `None`."""
-        return None
 
     @property
     def visible(self):
@@ -294,7 +292,11 @@ class PSDImage(Group, _PSDImageBuilder):
 
     @property
     def header(self):
-        """Header section of the underlying PSD data."""
+        """
+        Header section of the underlying PSD data.
+
+        :rtype: psd_tools.reader.header.PsdHeader
+        """
         return self.decoded_data.header
 
     @property
@@ -331,4 +333,5 @@ class PSDImage(Group, _PSDImageBuilder):
 
     def __repr__(self):
         return "<%s: size=%dx%d, layer_count=%d>" % (
-            self.kind, self.width, self.height, len(self.layers))
+            self.__class__.__name__.lower(),
+            self.width, self.height, len(self.layers))

@@ -101,7 +101,7 @@ def test_generator():
 
 def test_generator_with_clip_layers():
     psd = PSDImage.load(full_name('clipping-mask.psd'))
-    assert not psd.has_clip_layers()
+    assert not psd.layers[0].has_clip_layers()
     assert len([True for layer in psd.layers]) == 2
     assert len([True for layer in psd.descendants()]) == 7
     assert len([True for layer in psd.descendants(include_clip=False)]) == 6
