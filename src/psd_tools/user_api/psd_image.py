@@ -60,7 +60,7 @@ class _PSDImageBuilder(object):
                         assert group_stack.pop() is not self
                     continue
                 else:
-                    logger.warn("Invalid state")
+                    logger.warning("Invalid state")
 
             elif TaggedBlock.TYPE_TOOL_OBJECT_SETTING in blocks:
                 layer = TypeLayer(current_group, index)
