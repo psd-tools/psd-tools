@@ -26,55 +26,55 @@ class StrokeStyle(object):
         return self.get(b'fillEnabled')
 
     @property
-    def stroke_style_line_width(self):
+    def line_width(self):
         return self.get(b'strokeStyleLineWidth')
 
     @property
-    def stroke_style_line_dash_offset(self):
+    def line_dash_offset(self):
         return self.get(b'strokeStyleLineDashOffset')
 
     @property
-    def stroke_style_miter_limit(self):
+    def miter_limit(self):
         return self.get(b'strokeStyleMiterLimit')
 
     @property
-    def stroke_style_line_cap_type(self):
+    def line_cap_type(self):
         return self.get(b'strokeStyleLineCapType')
 
     @property
-    def stroke_style_line_cap_type(self):
+    def line_cap_type(self):
         return self.get(b'strokeStyleLineCapType')
 
     @property
-    def stroke_style_line_join_type(self):
+    def line_join_type(self):
         return self.get(b'strokeStyleLineJoinType')
 
     @property
-    def stroke_style_line_alignment(self):
+    def line_alignment(self):
         return self.get(b'strokeStyleLineAlignment')
 
     @property
-    def stroke_style_scale_lock(self):
+    def scale_lock(self):
         return self.get(b'strokeStyleScaleLock')
 
     @property
-    def stroke_style_stroke_adjust(self):
+    def stroke_adjust(self):
         return self.get(b'strokeStyleStrokeAdjust')
 
     @property
-    def stroke_style_line_dash_set(self):
+    def line_dash_set(self):
         return self.get(b'strokeStyleLineDashSet')
 
     @property
-    def stroke_style_blend_mode(self):
+    def blend_mode(self):
         return self.get(b'strokeStyleBlendMode')
 
     @property
-    def stroke_style_opacity(self):
+    def opacity(self):
         return self.get(b'strokeStyleOpacity')
 
     @property
-    def stroke_style_content(self):
+    def content(self):
         return self.get(b'strokeStyleContent')
 
     def __repr__(self):
