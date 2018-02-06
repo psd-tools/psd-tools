@@ -179,7 +179,7 @@ class _ChokeNoiseMixin(_ColorMixin):
         return self.get(b'TrnS')
 
 
-class _ShadowEffect(_BaseEffect, _ChokeNoiseMixin, _ColorMixin):
+class _ShadowEffect(_BaseEffect, _ChokeNoiseMixin):
     """Base class for shadow effect."""
     @property
     def use_global_light(self):
@@ -211,7 +211,11 @@ class InnerShadow(_ShadowEffect):
 
 
 class _GlowEffect(_BaseEffect, _ChokeNoiseMixin):
-    """Base class for glow effect."""
+    """
+    Base class for glow effect.
+
+    TODO: Include color and gradient mixin.
+    """
     @property
     def glow_type(self):
         """ Elements technique, softer or precise """
@@ -332,7 +336,11 @@ class PatternOverlay(_OverlayEffect, _AlignScaleMixin):
 
 
 class Stroke(_BaseEffect, _ColorMixin):
-    """Stroke effect."""
+    """
+    Stroke effect.
+
+    TODO: Implement color, pattern, gradient fill. Replace _ColorMixin.
+    """
 
     @property
     def position(self):
@@ -355,6 +363,17 @@ class Stroke(_BaseEffect, _ColorMixin):
     def overprint(self):
         """Overprint flag."""
         return self.get(b'overprint', False)
+
+    @property
+    def fill(self):
+        if self.fill_type == b'SClr':
+            return ColorOverlay(self._descriptor)
+        elif self.fill_type.startswith(b'P'):
+            return PatternOverlay(self._descriptor)
+        elif self.fill_type.startswith(b'G'):
+            return GradientOverlay(self._descriptor)
+        logger.error("Unknown fill type: {}".format(self.fill_type))
+        return None
 
 
 class BevelEmboss(_BaseEffect):
