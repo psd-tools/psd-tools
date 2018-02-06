@@ -179,7 +179,7 @@ class _ChokeNoiseMixin(_ColorMixin):
         return self.get(b'TrnS')
 
 
-class _ShadowEffect(_BaseEffect, _ChokeNoiseMixin):
+class _ShadowEffect(_BaseEffect, _ChokeNoiseMixin, _ColorMixin):
     """Base class for shadow effect."""
     @property
     def use_global_light(self):
