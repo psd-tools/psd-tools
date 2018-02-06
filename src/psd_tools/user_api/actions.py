@@ -171,7 +171,7 @@ def _translate_generic_descriptor(data):
 @desc_register(b'Grsc')
 def _translate_grsc_color(data):
     colors = OrderedDict(data.items)
-    return Color('gray', ((100.0 - colors[b'Gry '][0] / 100.0), ))
+    return Color('gray', ((1.0 - colors[b'Gry '][0] / 100.0),) )
 
 
 @desc_register(b'RGBC')
