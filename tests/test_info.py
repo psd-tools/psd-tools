@@ -7,6 +7,7 @@ from psd_tools import PSDImage
 from psd_tools.constants import TaggedBlock, SectionDivider
 from .utils import load_psd, decode_psd, with_psb
 from psd_tools.decoder.tagged_blocks import VectorMaskSetting
+from psd_tools.user_api.effects import PatternOverlay
 
 
 FILES_WITH_NO_LAYERS = (
@@ -111,6 +112,11 @@ def test_api():
     assert layer.opacity == 255
     assert layer.blend_mode == 'normal'
 
+
+def test_vector_stroke_content_setting():
+    psd = PSDImage(decode_psd('stroke.psd'))
+    assert psd.layers[1].kind == 'shape'
+    assert isinstance(psd.layers[1].stroke_content, PatternOverlay)
 
 
 def test_print():
