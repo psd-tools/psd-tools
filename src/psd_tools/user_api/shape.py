@@ -2,8 +2,8 @@
 """Shape layer API."""
 
 from __future__ import absolute_import
-import inspect
 import logging
+from psd_tools.debug import pretty_namedtuple
 from psd_tools.constants import TaggedBlock, PathResource
 
 logger = logging.getLogger(__name__)
@@ -77,9 +77,44 @@ class StrokeStyle(object):
         return self._descriptor.__repr__()
 
 
+Path = pretty_namedtuple("Path", "closed num_knots knots")
+Knot = pretty_namedtuple("Knot", "anchor leaving_knot preceding_knot")
+
+
 class VectorMask(object):
+    """Shape path data."""
+    _KNOT_KEYS = (
+        PathResource.CLOSED_SUBPATH_BEZIER_KNOT_LINKED,
+        PathResource.CLOSED_SUBPATH_BEZIER_KNOT_UNLINKED,
+        PathResource.OPEN_SUBPATH_BEZIER_KNOT_LINKED,
+        PathResource.OPEN_SUBPATH_BEZIER_KNOT_UNLINKED,
+    )
+
     def __init__(self, setting):
         self._setting = setting
+        self._paths = []
+        self._build()
+
+    def _build(self):
+        for p in self._setting.path:
+            selector = p.get('selector')
+            if selector == PathResource.CLOSED_SUBPATH_LENGTH_RECORD:
+                self._paths.append(Path(True, p.get('num_knot_records'), []))
+            elif selector == PathResource.OPEN_SUBPATH_LENGTH_RECORD:
+                self._paths.append(Path(False, p.get('num_knot_records'), []))
+            elif selector in self._KNOT_KEYS:
+                knot = Knot(p.get('anchor'),
+                            p.get('control_leaving_knot'),
+                            p.get('control_preceding_knot'))
+                self._paths[-1].knots.append(knot)
+            elif selector == PathResource.PATH_FILL_RULE_RECORD:
+                pass
+            elif selector == PathResource.CLIPBOARD_RECORD:
+                self._clipboard_record = p
+            elif selector == PathResource.INITIAL_FILL_RULE_RECORD:
+                self._initial_fill_rule = p.get('initial_fill_rule', 0)
+        for path in self.paths:
+            assert path.num_knots == len(path.knots)
 
     @property
     def invert(self):
@@ -90,48 +125,18 @@ class VectorMask(object):
         return self._setting.not_link
 
     @property
-    def disable(self):
+    def disabled(self):
         return self._setting.disable
 
     @property
-    def path(self):
-        return self._setting.path
+    def paths(self):
+        return self._paths
 
     @property
     def initial_fill_rule(self):
-        for p in self.path:
-            if p.get('selector') == PathResource.INITIAL_FILL_RULE_RECORD:
-                return p.get('initial_fill_rule', 0)
-        return 0
-
-    @property
-    def num_knots(self):
-        keys = {
-            PathResource.OPEN_SUBPATH_LENGTH_RECORD,
-            PathResource.CLOSED_SUBPATH_LENGTH_RECORD,
-        }
-        for p in self.path:
-            if p.get('selector') in keys:
-                return p.get('num_knot_records', 0)
-        return 0
-
-    @property
-    def closed(self):
-        for p in self.path:
-            if p.get('selector') == PathResource.CLOSED_SUBPATH_LENGTH_RECORD:
-                return True
-        return False
-
-    @property
-    def knots(self):
-        keys = (
-            PathResource.CLOSED_SUBPATH_BEZIER_KNOT_LINKED,
-            PathResource.CLOSED_SUBPATH_BEZIER_KNOT_UNLINKED,
-            PathResource.OPEN_SUBPATH_BEZIER_KNOT_LINKED,
-            PathResource.OPEN_SUBPATH_BEZIER_KNOT_UNLINKED
-        )
-        return [p for p in self.path if p.get('selector') in keys]
+        return self._initial_fill_rule
 
     @property
     def anchors(self):
-        return [p.get('anchor') for p in self.knots]
+        return [p['anchor'] for p in self._setting.path
+                if p.get('selector') in self._KNOT_KEYS]

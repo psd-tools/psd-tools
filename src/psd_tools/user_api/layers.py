@@ -442,7 +442,8 @@ class ShapeLayer(_RawLayer):
         return self.has_tag(TaggedBlock.VECTOR_STROKE_CONTENT_DATA)
 
     def has_path(self):
-        return self.has_vector_mask() and self.vector_mask.num_knots > 1
+        return self.has_vector_mask() and any(
+            path.num_knots > 1 for path in self.vector_mask.paths)
 
     def get_anchors(self):
         """Anchor points of the shape [(x, y), (x, y), ...]."""
@@ -450,8 +451,8 @@ class ShapeLayer(_RawLayer):
         if not vector_mask:
             return None
         width, height = self._psd.width, self._psd.height
-        return [(int(p["anchor"][1] * width), int(p["anchor"][0] * height))
-                for p in vector_mask.knots]
+        return [(int(p[1] * width), int(p[0] * height))
+                for p in vector_mask.anchors]
 
     def _get_color(self, default='black'):
         effect = self.get_tag(TaggedBlock.SOLID_COLOR_SHEET_SETTING)

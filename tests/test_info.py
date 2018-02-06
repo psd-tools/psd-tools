@@ -73,13 +73,6 @@ def test_no_layers_has_tagged_blocks(filename, has_layer_and_mask_data):
     assert (len(tagged_blocks) != 0) == has_layer_and_mask_data
 
 
-def test_vector_mask():
-    psd = decode_psd('vector mask.psd')
-    layers = psd.layer_and_mask_data.layers.layer_records
-    assert layers[1].tagged_blocks[1].key == TaggedBlock.VECTOR_MASK_SETTING1
-    assert isinstance(layers[1].tagged_blocks[1].data, VectorMaskSetting)
-
-
 def test_patterns():
     psd = decode_psd('patterns.psd')
     tagged_blocks = dict(psd.layer_and_mask_data.tagged_blocks)
@@ -111,6 +104,29 @@ def test_api():
     assert layer.visible
     assert layer.opacity == 255
     assert layer.blend_mode == 'normal'
+
+
+def test_vector_mask():
+    psd = decode_psd('vector mask.psd')
+    layers = psd.layer_and_mask_data.layers.layer_records
+    assert layers[1].tagged_blocks[1].key == TaggedBlock.VECTOR_MASK_SETTING1
+    assert isinstance(layers[1].tagged_blocks[1].data, VectorMaskSetting)
+
+
+def test_shape_paths():
+    psd = PSDImage(decode_psd('gray1.psd'))
+    assert psd.layers[1].has_vector_mask()
+    vector_mask = psd.layers[1].vector_mask
+    assert not vector_mask.invert
+    assert not vector_mask.disabled
+    assert not vector_mask.not_link
+    assert len(vector_mask.paths) == 2
+    path = vector_mask.paths[0]
+    assert len(path.knots) == path.num_knots
+    assert path.closed
+    path = vector_mask.paths[1]
+    assert len(path.knots) == path.num_knots
+    assert path.closed
 
 
 def test_vector_stroke_content_setting():
