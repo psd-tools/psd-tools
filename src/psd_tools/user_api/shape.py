@@ -71,6 +71,7 @@ class StrokeStyle(object):
 
     @property
     def miter_limit(self):
+        """Miter limit in float."""
         return self.get(b'strokeStyleMiterLimit')
 
     @property
