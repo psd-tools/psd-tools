@@ -10,6 +10,25 @@ logger = logging.getLogger(__name__)
 
 
 class StrokeStyle(object):
+    """StrokeStyle contains decorative infromation for strokes."""
+    STROKE_STYLE_LINE_CAP_TYPES = {
+        b'strokeStyleButtCap': 'butt',
+        b'strokeStyleRoundCap': 'round',
+        b'strokeStyleSquareCap': 'square',
+    }
+
+    STROKE_STYLE_LINE_JOIN_TYPES = {
+        b'strokeStyleMiterJoin': 'miter',
+        b'strokeStyleRoundJoin': 'round',
+        b'strokeStyleBevelJoin': 'bevel',
+    }
+
+    STROKE_STYLE_LINE_ALIGNMENTS = {
+        b'strokeStyleAlignInside': 'inner',
+        b'strokeStyleAlignOutside': 'outer',
+        b'strokeStyleAlignCenter': 'center',
+    }
+
     def __init__(self, descriptor):
         self._descriptor = descriptor
         assert self.get(b'classID') == b'strokeStyle'
@@ -18,24 +37,37 @@ class StrokeStyle(object):
         return self._descriptor.get(key, default)
 
     @property
-    def stroke_enabled(self):
+    def enabled(self):
+        """If the stroke is enabled."""
         return self.get(b'strokeEnabled')
 
     @property
     def fill_enabled(self):
+        """If the stroke fill is enabled."""
         return self.get(b'fillEnabled')
 
     @property
     def line_width(self):
-        return self.get(b'strokeStyleLineWidth')
+        """Stroke width in float."""
+        return self.get(b'strokeStyleLineWidth', 1.0)
 
     @property
     def line_dash_set(self):
+        """
+        Line dash set in list of float.
+
+        :rtype: list
+        """
         return self.get(b'strokeStyleLineDashSet')
 
     @property
     def line_dash_offset(self):
-        return self.get(b'strokeStyleLineDashOffset', 0)
+        """
+        Line dash offset in float.
+
+        :rtype: float
+        """
+        return self.get(b'strokeStyleLineDashOffset', 0.0)
 
     @property
     def miter_limit(self):
@@ -43,15 +75,21 @@ class StrokeStyle(object):
 
     @property
     def line_cap_type(self):
-        return self.get(b'strokeStyleLineCapType')
+        """Cap type, one of `butt`, `round`, `square`."""
+        key = self.get(b'strokeStyleLineCapType')
+        return self.STROKE_STYLE_LINE_CAP_TYPES.get(key, str(key))
 
     @property
     def line_join_type(self):
-        return self.get(b'strokeStyleLineJoinType')
+        """Join type, one of `miter`, `round`, `bevel`."""
+        key =  self.get(b'strokeStyleLineJoinType')
+        return self.STROKE_STYLE_LINE_JOIN_TYPES.get(key, str(key))
 
     @property
     def line_alignment(self):
-        return self.get(b'strokeStyleLineAlignment')
+        """Alignment, one of `inner`, `outer`, `center`."""
+        key =  self.get(b'strokeStyleLineAlignment')
+        return self.STROKE_STYLE_LINE_ALIGNMENTS.get(key, str(key))
 
     @property
     def scale_lock(self):
@@ -59,18 +97,29 @@ class StrokeStyle(object):
 
     @property
     def stroke_adjust(self):
+        """Stroke adjust"""
         return self.get(b'strokeStyleStrokeAdjust')
 
     @property
     def blend_mode(self):
+        """Blend mode."""
         return self.get(b'strokeStyleBlendMode')
 
     @property
     def opacity(self):
-        return self.get(b'strokeStyleOpacity')
+        """Opacity from 0 to 100."""
+        return self.get(b'strokeStyleOpacity', 100)
 
     @property
     def content(self):
+        """
+        Fill effect, one of
+        :py:class:`~psd_tools.user_api.effects.ColorOverlay`,
+        :py:class:`~psd_tools.user_api.effects.PatternOverlay`,
+        or :py:class:`~psd_tools.user_api.effects.GradientOverlay`.
+
+        :rtype: :py:class:`~psd_tools.user_api.effects._OverlayEffect`
+        """
         return self.get(b'strokeStyleContent')
 
     def __repr__(self):
@@ -118,25 +167,39 @@ class VectorMask(object):
 
     @property
     def invert(self):
+        """Invert the mask."""
         return self._setting.invert
 
     @property
     def not_link(self):
+        """If the knots are not linked."""
         return self._setting.not_link
 
     @property
     def disabled(self):
+        """If the mask is disabled."""
         return self._setting.disable
 
     @property
     def paths(self):
+        """
+        List of `Path`. Path contains `closed`, `num_knots`, and `knots`.
+
+        :rtype: Path
+        """
         return self._paths
 
     @property
     def initial_fill_rule(self):
+        """
+        Initial fill rule.
+
+        When 0, fill inside of the path. When 1, fill outside of the shape.
+        """
         return self._initial_fill_rule
 
     @property
     def anchors(self):
+        """List of vertices of all subpaths."""
         return [p['anchor'] for p in self._setting.path
                 if p.get('selector') in self._KNOT_KEYS]
