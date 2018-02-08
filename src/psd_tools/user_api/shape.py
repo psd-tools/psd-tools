@@ -5,6 +5,7 @@ from __future__ import absolute_import
 import logging
 from psd_tools.debug import pretty_namedtuple
 from psd_tools.constants import TaggedBlock, PathResource
+from psd_tools.decoder.actions import UnitFloat
 
 logger = logging.getLogger(__name__)
 
@@ -48,13 +49,17 @@ class StrokeStyle(object):
 
     @property
     def line_width(self):
-        """Stroke width in float."""
-        return self.get(b'strokeStyleLineWidth', 1.0)
+        """Stroke width in float.
+
+        :rtype: UnitFloat
+        """
+        return self.get(b'strokeStyleLineWidth', UnitFloat('PIXELS', 1.0))
 
     @property
     def line_dash_set(self):
         """
-        Line dash set in list of float.
+        Line dash set in list of
+        :py:class:`~psd_tools.decoder.actions.UnitFloat`.
 
         :rtype: list
         """
@@ -108,8 +113,11 @@ class StrokeStyle(object):
 
     @property
     def opacity(self):
-        """Opacity from 0 to 100."""
-        return self.get(b'strokeStyleOpacity', 100)
+        """Opacity value.
+
+        :rtype: UnitFloat
+        """
+        return self.get(b'strokeStyleOpacity', UnitFloat('PERCENT', 100.0))
 
     @property
     def content(self):
