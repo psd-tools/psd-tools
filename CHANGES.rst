@@ -2,7 +2,11 @@
 ------------------
 
 - add mask user API;
-- add layer coordinate user API.
+- add layer coordinate user API;
+- add vector mask and vector stroke API;
+- cleanup user API;
+- add automatic descriptor conversion.
+
 
 1.7.0 (2018-01-25)
 ------------------
