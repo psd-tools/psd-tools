@@ -9,7 +9,7 @@ from psd_tools.constants import PathResource
 
 # Path points are 8 bits + 24 bits fixed points. Convert to float here.
 def _decode_fixed_point(fixed_point):
-    return tuple(x / 0x01000000 for x in fixed_point)
+    return tuple(float(x) / 0x01000000 for x in fixed_point)
 
 
 def decode_path_resource(data):

@@ -14,6 +14,8 @@ from __future__ import absolute_import
 import inspect
 import logging
 from psd_tools.constants import TaggedBlock, BlendMode2, ObjectBasedEffects
+from psd_tools.decoder.actions import UnitFloat
+import psd_tools.user_api.actions
 
 logger = logging.getLogger(__name__)
 
@@ -156,17 +158,17 @@ class _ChokeNoiseMixin(_ColorMixin):
     @property
     def choke(self):
         """Choke level."""
-        return self.get(b'Ckmt', 0.0)
+        return self.get(b'Ckmt', UnitFloat('PIXELS', 0.0))
 
     @property
     def size(self):
         """Size in pixels."""
-        return self.get(b'blur', 41.0)
+        return self.get(b'blur', UnitFloat('PIXELS', 41.0))
 
     @property
     def noise(self):
         """Noise level."""
-        return self.get(b'Nose', 0.0)
+        return self.get(b'Nose', UnitFloat('PERCENT', 0.0))
 
     @property
     def anti_aliased(self):
@@ -189,12 +191,12 @@ class _ShadowEffect(_BaseEffect, _ChokeNoiseMixin):
     @property
     def angle(self):
         """Angle."""
-        return self.get(b'lagl', 90.0)
+        return self.get(b'lagl', UnitFloat('ANGLE', 90.0))
 
     @property
     def distance(self):
         """Distance."""
-        return self.get(b'Dstn', 18.0)
+        return self.get(b'Dstn', UnitFloat('PIXELS', 18.0))
 
 
 class DropShadow(_ShadowEffect):
@@ -255,7 +257,7 @@ class _AlignScaleMixin(object):
     @property
     def scale(self):
         """Scale value."""
-        return self.get(b'Scl ', 100.0)
+        return self.get(b'Scl ', UnitFloat('PERCENT', 100.0))
 
     @property
     def aligned(self):
@@ -331,8 +333,11 @@ class PatternOverlay(_OverlayEffect, _AlignScaleMixin):
 
     @property
     def phase(self):
-        """Phase value."""
-        return self.get(b'phase', (0, 0))
+        """Phase value in Point.
+
+        :rtype: Point
+        """
+        return self.get(b'phase', psd_tools.user_api.actions.Point(0.0, 0.0))
 
 
 class Stroke(_BaseEffect, _ColorMixin):
@@ -342,11 +347,17 @@ class Stroke(_BaseEffect, _ColorMixin):
     TODO: Implement color, pattern, gradient fill. Replace _ColorMixin.
     """
 
+
+    POSITIONS = {
+        b'InsF': 'inner',
+        b'OutF': 'outer',
+        # b'   ': 'center', # TODO: Check center key
+    }
+
     @property
     def position(self):
-        """Position of the stroke."""
-        # TODO: Rephrase bytes.
-        return self.get(b'Styl', b'OutF')
+        """Position of the stroke, `inner`, `outer`, or `center`."""
+        return self.POSITIONS.get(self.get(b'Styl', b'OutF'), 'center')
 
     @property
     def fill_type(self):
@@ -357,7 +368,7 @@ class Stroke(_BaseEffect, _ColorMixin):
     @property
     def size(self):
         """Size value."""
-        return self.get(b'Sz ', 6.0)
+        return self.get(b'Sz  ', UnitFloat('PIXELS', 1.0))
 
     @property
     def overprint(self):
@@ -430,7 +441,7 @@ class BevelEmboss(_BaseEffect):
     @property
     def angle(self):
         """Angle value."""
-        return self.get(b'lagl', 90.0)
+        return self.get(b'lagl', UnitFloat('ANGLE', 90.0))
 
     @property
     def altitude(self):
@@ -445,7 +456,7 @@ class BevelEmboss(_BaseEffect):
     @property
     def size(self):
         """Size value in pixel."""
-        return self.get(b'blur', 41.0)
+        return self.get(b'blur', UnitFloat('PIXELS', 41.0))
 
     @property
     def direction(self):
@@ -494,17 +505,17 @@ class Satin(_BaseEffect, _ColorMixin):
     @property
     def angle(self):
         """Angle value."""
-        return self.get(b'lagl', 90.0)
+        return self.get(b'lagl', UnitFloat('ANGLE', 90.0))
 
     @property
     def distance(self):
         """Distance value."""
-        return self.get(b'Dstn', 250.0)
+        return self.get(b'Dstn', UnitFloat('PIXELS', 250.0))
 
     @property
     def size(self):
         """Size value in pixel."""
-        return self.get(b'blur', 250.0)
+        return self.get(b'blur', UnitFloat('PIXELS', 250.0))
 
     @property
     def contour(self):
