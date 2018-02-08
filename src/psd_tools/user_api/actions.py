@@ -97,7 +97,7 @@ def _translate_property(data):
     return data
 
 
-@register(UnitFloat)
+# @register(UnitFloat)
 @register(Double)
 @register(String)
 @register(Boolean)
