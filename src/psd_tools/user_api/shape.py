@@ -72,7 +72,7 @@ class StrokeStyle(object):
     @property
     def miter_limit(self):
         """Miter limit in float."""
-        return self.get(b'strokeStyleMiterLimit')
+        return self.get(b'strokeStyleMiterLimit', 100.0)
 
     @property
     def line_cap_type(self):
