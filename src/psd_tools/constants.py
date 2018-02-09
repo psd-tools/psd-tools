@@ -289,7 +289,7 @@ class TaggedBlock(Enum):
     INVERT = b'nvrt'
     POSTERIZE = b'post'
     THRESHOLD = b'thrs'
-    GRADIENT_MAP_SETTINGS = b'grdm'
+    GRADIENT_MAP_SETTING = b'grdm'
     SELECTIVE_COLOR = b'selc'
 
     @classmethod

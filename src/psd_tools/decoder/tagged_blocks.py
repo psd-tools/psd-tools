@@ -384,7 +384,7 @@ def _decode_virtual_memory_array_list(fp):
     return VirtualMemoryArrayList(version, rectangle, channels)
 
 
-@register(TaggedBlock.GRADIENT_MAP_SETTINGS)
+@register(TaggedBlock.GRADIENT_MAP_SETTING)
 def _decode_gradient_settings(data, **kwargs):
     fp = io.BytesIO(data)
     version, is_reversed, is_dithered = read_fmt("H 2B", fp)
