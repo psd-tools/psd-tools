@@ -156,7 +156,7 @@ def test_gradient_map(psd):
     assert isinstance(data, adjustments.GradientMap)
     assert data.reversed == 0
     assert data.dithered == 0
-    assert data.name == u'Foreground to Background'
+    assert data.gradient_name == u'Foreground to Background'
     assert len(data.color_stops) == 2
     assert len(data.transparency_stops) == 2
     assert data.expansion == 2

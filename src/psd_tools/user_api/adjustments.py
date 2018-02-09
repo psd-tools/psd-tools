@@ -231,6 +231,10 @@ class ColorBalance(_NameMixin):
     def preserve_luminosity(self):
         return self._data.preserve_luminosity
 
+    def __repr__(self):
+        return "<%s: shadows=%s midtones=%s highlights=%s>" % (
+            self.name, self.shadows, self.midtones, self.highlights)
+
 
 class BlackWhite(_DescriptorMixin):
     """Black and white adjustment."""
@@ -274,6 +278,14 @@ class BlackWhite(_DescriptorMixin):
     def preset_file_name(self):
         return self.get(b'blackAndWhitePresetFileName', '')
 
+    def __repr__(self):
+        return (
+            "<%s: red=%g yellow=%g green=%g cyan=%g blue=%g magenta=%g>" % (
+                self.name, self.red, self.yellow, self.green, self.cyan,
+                self.blue, self.magenta
+            )
+        )
+
 
 class PhotoFilter(_NameMixin):
     """Photo filter adjustment."""
@@ -297,6 +309,14 @@ class PhotoFilter(_NameMixin):
     def preserve_luminosity(self):
         return self._data.preserve_luminosity
 
+    def __repr__(self):
+        return (
+            "<%s: xyz=%s color_space=%g color_components=%s density=%g>" % (
+                self.name, self.xyz, self.color_space, self.color_components,
+                self.density
+            )
+        )
+
 
 class ChannelMixer(_NameMixin):
     """Channel mixer adjustment."""
@@ -307,6 +327,13 @@ class ChannelMixer(_NameMixin):
     @property
     def mixer_settings(self):
         return self._data.mixer_settings
+
+    def __repr__(self):
+        return (
+            "<%s: monochrome=%g, settings=%s>" % (
+                self.name, self.monochrome, self.mixer_settings
+            )
+        )
 
 
 class ColorLookup(_DescriptorMixin):
@@ -325,12 +352,18 @@ class Posterize(_NameMixin):
     def posterize(self):
         return self._data.value
 
+    def __repr__(self):
+        return "<%s: posterize=%s>" % (self.name, self.posterize)
+
 
 class Threshold(_NameMixin):
     """Threshold adjustment."""
     @property
     def threshold(self):
         return self._data.value
+
+    def __repr__(self):
+        return "<%s: threshold=%s>" % (self.name, self.threshold)
 
 
 class SelectiveColor(_NameMixin):
@@ -342,6 +375,9 @@ class SelectiveColor(_NameMixin):
     @property
     def data(self):
         return self._data.items
+
+    def __repr__(self):
+        return "<%s: method=%g>" % (self.name, self.method)
 
 
 class GradientMap(_NameMixin):
@@ -355,7 +391,7 @@ class GradientMap(_NameMixin):
         return self._data.dithered
 
     @property
-    def name(self):
+    def gradient_name(self):
         return self._data.name.strip('\x00')
 
     @property
@@ -409,3 +445,6 @@ class GradientMap(_NameMixin):
     @property
     def max_color(self):
         return self._data.max_color
+
+    def __repr__(self):
+        return "<%s: name=%s>" % (self.name, self.gradient_name)
