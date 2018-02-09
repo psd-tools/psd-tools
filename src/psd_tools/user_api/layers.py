@@ -369,14 +369,25 @@ class AdjustmentLayer(_RawLayer):
     @property
     def data(self):
         """
-        Adjustment data. Depending on the adjustment type, return on of the
-        following.
+        Adjustment data. Depending on the adjustment type, return one of the
+        following instance.
 
         - :py:class:`~psd_tools.user_api.adjustments.BrightnessContrast`
         - :py:class:`~psd_tools.user_api.adjustments.Levels`
-        - :py:class:`~psd_tools.decoder.tagged_blocks.CurvesSettings`
-        - :py:class:`~psd_tools.decoder.tagged_blocks.Exposure`
-        - :py:class:`~psd_tools.decoder.tagged_blocks.Vibrance`
+        - :py:class:`~psd_tools.user_api.adjustments.Curves`
+        - :py:class:`~psd_tools.user_api.adjustments.Exposure`
+        - :py:class:`~psd_tools.user_api.adjustments.Vibrance`
+        - :py:class:`~psd_tools.user_api.adjustments.HueSaturation`
+        - :py:class:`~psd_tools.user_api.adjustments.ColorBalance`
+        - :py:class:`~psd_tools.user_api.adjustments.BlackWhite`
+        - :py:class:`~psd_tools.user_api.adjustments.PhotoFilter`
+        - :py:class:`~psd_tools.user_api.adjustments.ChannelMixer`
+        - :py:class:`~psd_tools.user_api.adjustments.ColorLookup`
+        - :py:class:`~psd_tools.user_api.adjustments.Invert`
+        - :py:class:`~psd_tools.user_api.adjustments.Posterize`
+        - :py:class:`~psd_tools.user_api.adjustments.Threshold`
+        - :py:class:`~psd_tools.user_api.adjustments.SelectiveColor`
+        - :py:class:`~psd_tools.user_api.adjustments.GradientMap`
 
         """
         if (self.adjustment_type == 'brightness and contrast' and

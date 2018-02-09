@@ -1,5 +1,15 @@
 # -*- coding: utf-8 -*-
-"""Adjustment API."""
+"""Adjustment API.
+
+Adjustment classes are attached to ``data`` attribute of
+:py:class:`~psd_tools.user_api.layers.AdjustmentLayer`.
+
+
+Example::
+
+    if layer.kind == 'adjustment':
+        adjustment = layer.data
+"""
 from __future__ import absolute_import
 import inspect
 import logging
@@ -28,18 +38,14 @@ class _DescriptorMixin(_NameMixin):
     def __init__(self, descriptor):
         self._descriptor = descriptor
 
-    def get(self, key, default=None):
+    def _get(self, key, default=None):
         """Get attribute in the low-level structure.
 
         :param key: property key
         :type key: bytes
         :param default: default value to return
         """
-        return self._descriptor.get(key, default)
-
-    def dict(self):
-        """Convert to dict."""
-        return {k: getattr(self, k) for k in self.properties()}
+        return self._descriptor._get(key, default)
 
 
 class BrightnessContrast(_DescriptorMixin):
@@ -47,31 +53,31 @@ class BrightnessContrast(_DescriptorMixin):
 
     @property
     def brightness(self):
-        return self.get(b'Brgh', 0)
+        return self._get(b'Brgh', 0)
 
     @property
     def contrast(self):
-        return self.get(b'Cntr', 0)
+        return self._get(b'Cntr', 0)
 
     @property
     def mean(self):
-        return self.get(b'means', 0)
+        return self._get(b'means', 0)
 
     @property
     def lab(self):
-        return self.get(b'Lab ', False)
+        return self._get(b'Lab ', False)
 
     @property
     def use_legacy(self):
-        return self.get(b'useLegacy', False)
+        return self._get(b'useLegacy', False)
 
     @property
     def vrsn(self):
-        return self.get(b'Vrsn', 1)
+        return self._get(b'Vrsn', 1)
 
     @property
     def automatic(self):
-        return self.get(b'auto', False)
+        return self._get(b'auto', False)
 
 
 class Curves(_NameMixin):
@@ -88,7 +94,7 @@ class Curves(_NameMixin):
     @property
     def data(self):
         """
-        List of curve data.
+        List of :py:class:`~psd_tools.decoder.tagged_blocks.CurveData`
 
         :rtype: list
         """
@@ -108,14 +114,26 @@ class Exposure(_NameMixin):
     """
     @property
     def exposure(self):
+        """Exposure.
+
+        :rtype: float
+        """
         return self._data.exposure
 
     @property
     def offset(self):
+        """Offset.
+
+        :rtype: float
+        """
         return self._data.offset
 
     @property
     def gamma(self):
+        """Gamma.
+
+        :rtype: float
+        """
         return self._data.gamma
 
     def __repr__(self):
@@ -157,11 +175,19 @@ class Vibrance(_DescriptorMixin):
     """Vibrance adjustment."""
     @property
     def vibrance(self):
-        return self.get(b'vibrance', 0)
+        """Vibrance.
+
+        :rtype: int
+        """
+        return self._get(b'vibrance', 0)
 
     @property
     def saturation(self):
-        return self.get(b'Strt', 0)
+        """Saturation.
+
+        :rtype: int
+        """
+        return self._get(b'Strt', 0)
 
     def __repr__(self):
         return "<%s: vibrance=%g saturation=%g>" % (
@@ -217,14 +243,26 @@ class ColorBalance(_NameMixin):
     """Color balance adjustment."""
     @property
     def shadows(self):
+        """Shadows.
+
+        :rtype: tuple
+        """
         return self._data.shadows
 
     @property
     def midtones(self):
+        """Mid-tones.
+
+        :rtype: tuple
+        """
         return self._data.midtones
 
     @property
     def highlights(self):
+        """Highlights.
+
+        :rtype: tuple
+        """
         return self._data.highlights
 
     @property
@@ -240,43 +278,43 @@ class BlackWhite(_DescriptorMixin):
     """Black and white adjustment."""
     @property
     def red(self):
-        return self.get(b'Rd  ', 0)
+        return self._get(b'Rd  ', 0)
 
     @property
     def yellow(self):
-        return self.get(b'Yllw', 0)
+        return self._get(b'Yllw', 0)
 
     @property
     def green(self):
-        return self.get(b'Grn ', 0)
+        return self._get(b'Grn ', 0)
 
     @property
     def cyan(self):
-        return self.get(b'Cyn ', 0)
+        return self._get(b'Cyn ', 0)
 
     @property
     def blue(self):
-        return self.get(b'Bl  ', 0)
+        return self._get(b'Bl  ', 0)
 
     @property
     def magenta(self):
-        return self.get(b'Mgnt', 0)
+        return self._get(b'Mgnt', 0)
 
     @property
     def use_tint(self):
-        return self.get(b'useTint', False)
+        return self._get(b'useTint', False)
 
     @property
     def tint_color(self):
-        return self.get(b'tintColor')
+        return self._get(b'tintColor')
 
     @property
     def preset_kind(self):
-        return self.get(b'bwPresetKind', 1)
+        return self._get(b'bwPresetKind', 1)
 
     @property
     def preset_file_name(self):
-        return self.get(b'blackAndWhitePresetFileName', '')
+        return self._get(b'blackAndWhitePresetFileName', '')
 
     def __repr__(self):
         return (
@@ -291,6 +329,10 @@ class PhotoFilter(_NameMixin):
     """Photo filter adjustment."""
     @property
     def xyz(self):
+        """xyz.
+
+        :rtype: bool
+        """
         return self._data.xyz
 
     @property
@@ -350,6 +392,10 @@ class Posterize(_NameMixin):
     """Posterize adjustment."""
     @property
     def posterize(self):
+        """Posterize value.
+
+        :rtype: int
+        """
         return self._data.value
 
     def __repr__(self):
@@ -360,6 +406,10 @@ class Threshold(_NameMixin):
     """Threshold adjustment."""
     @property
     def threshold(self):
+        """Threshold value.
+
+        :rtype: int
+        """
         return self._data.value
 
     def __repr__(self):
@@ -408,6 +458,7 @@ class GradientMap(_NameMixin):
 
     @property
     def interpolation(self):
+        """Interpolation between 0.0 and 1.0."""
         return self._data.interpolation / 4096.0
 
     @property
