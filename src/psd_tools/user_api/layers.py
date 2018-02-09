@@ -369,7 +369,11 @@ class AdjustmentLayer(_RawLayer):
     @property
     def data(self):
         """Adjustment data."""
-        return self.get_tag(self._key)
+        if (self.adjustment_type == 'brightness and contrast' and
+                self.has_tag(TaggedBlock.CONTENT_GENERATOR_EXTRA_DATA)):
+            return self.get_tag(TaggedBlock.CONTENT_GENERATOR_EXTRA_DATA)
+        else:
+            return self.get_tag(self._key)
 
     def __repr__(self):
         return "<%s: %r, visible=%s>" % (self.kind, self.name, self.visible)

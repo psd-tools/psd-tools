@@ -6,16 +6,16 @@ import os
 from psd_tools.user_api.psd_image import PSDImage
 from psd_tools.constants import TaggedBlock
 from psd_tools.decoder.tagged_blocks import (
-    BrightnessContrast, LevelsSettings, CurvesSettings, Exposure, Vibrance,
-    HueSaturation, ColorBalance, BlackWhite, PhotoFilter, ChannelMixer,
-    ColorLookup, SelectiveColor, GradientSettings)
+    ContentGeneratorExtraData, LevelsSettings, CurvesSettings, Exposure,
+    Vibrance, HueSaturation, ColorBalance, BlackWhite, PhotoFilter,
+    ChannelMixer, ColorLookup, SelectiveColor, GradientSettings)
 from PIL.Image import Image
 from tests.utils import decode_psd, DATA_PATH
 
 
 def test_adjustment_data_types():
     psd = PSDImage(decode_psd('fill_adjustments.psd'))
-    assert isinstance(psd.layers[15].data, BrightnessContrast)
+    assert isinstance(psd.layers[15].data, ContentGeneratorExtraData)
     assert isinstance(psd.layers[14].data, LevelsSettings)
     assert isinstance(psd.layers[13].data, CurvesSettings)
     assert isinstance(psd.layers[12].data, Exposure)
