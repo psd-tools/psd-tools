@@ -45,7 +45,7 @@ class _DescriptorMixin(_NameMixin):
         :type key: bytes
         :param default: default value to return
         """
-        return self._descriptor._get(key, default)
+        return self._descriptor.get(key, default)
 
 
 class BrightnessContrast(_DescriptorMixin):
