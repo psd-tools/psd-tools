@@ -13,7 +13,7 @@ from PIL.Image import Image
 from tests.utils import decode_psd, DATA_PATH
 
 
-def test_adjustment_layers():
+def test_adjustment_data_types():
     psd = PSDImage(decode_psd('fill_adjustments.psd'))
     assert isinstance(psd.layers[15].get_tag(
         TaggedBlock.BRIGHTNESS_AND_CONTRAST), BrightnessContrast)
