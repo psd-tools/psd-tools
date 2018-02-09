@@ -1,42 +1,20 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
 
-import os
-
-from psd_tools.user_api.psd_image import PSDImage
+import pytest
 from psd_tools.constants import TaggedBlock
-from psd_tools.decoder.tagged_blocks import (
-    LevelsSettings, CurvesSettings, Exposure,
-    Vibrance, HueSaturation, ColorBalance, BlackWhite, PhotoFilter,
-    ChannelMixer, ColorLookup, SelectiveColor, GradientSettings)
-from psd_tools.user_api.adjustments import (
-    BrightnessContrast)
+from psd_tools.user_api.psd_image import PSDImage
+from psd_tools.user_api import adjustments
 from PIL.Image import Image
 from tests.utils import decode_psd, DATA_PATH
 
 
-def test_adjustment_data_types():
-    psd = PSDImage(decode_psd('fill_adjustments.psd'))
-    assert isinstance(psd.layers[15].data, BrightnessContrast)
-    assert isinstance(psd.layers[14].data, LevelsSettings)
-    assert isinstance(psd.layers[13].data, CurvesSettings)
-    assert isinstance(psd.layers[12].data, Exposure)
-    assert isinstance(psd.layers[11].data, Vibrance)
-    assert isinstance(psd.layers[10].data, HueSaturation)
-    assert isinstance(psd.layers[9].data, ColorBalance)
-    assert isinstance(psd.layers[8].data, BlackWhite)
-    assert isinstance(psd.layers[7].data, PhotoFilter)
-    assert isinstance(psd.layers[6].data, ChannelMixer)
-    assert isinstance(psd.layers[5].data, ColorLookup)
-    assert psd.layers[4].data == None
-    assert isinstance(psd.layers[3].data, int)
-    assert isinstance(psd.layers[2].data, int)
-    assert isinstance(psd.layers[1].data, SelectiveColor)
-    assert isinstance(psd.layers[0].data, GradientSettings)
+@pytest.fixture(scope="module")
+def psd():
+    return PSDImage(decode_psd('fill_adjustments.psd'))
 
 
-def test_adjustment_types():
-    psd = PSDImage(decode_psd('fill_adjustments.psd'))
+def test_adjustment_types(psd):
     assert psd.layers[15].adjustment_type == 'brightness and contrast'
     assert psd.layers[14].adjustment_type == 'levels'
     assert psd.layers[13].adjustment_type == 'curves'
@@ -53,6 +31,145 @@ def test_adjustment_types():
     assert psd.layers[2].adjustment_type == 'threshold'
     assert psd.layers[1].adjustment_type == 'selective color'
     assert psd.layers[0].adjustment_type == 'gradient map'
+
+
+def test_brightness_contrast(psd):
+    data = psd.layers[15].data
+    assert isinstance(data, adjustments.BrightnessContrast)
+    assert data.brightness == 34
+    assert data.contrast == 18
+    assert data.mean == 127
+    assert data.use_legacy == False
+    assert data.automatic == False
+
+
+def test_levels(psd):
+    data = psd.layers[14].data
+    assert isinstance(data, adjustments.Levels)
+    assert data.master
+
+
+def test_curves(psd):
+    data = psd.layers[13].data
+    assert isinstance(data, adjustments.Curves)
+    assert data.data
+    assert data.count == len(data.data)
+    assert data.extra
+
+
+def test_exposure(psd):
+    data = psd.layers[12].data
+    assert isinstance(data, adjustments.Exposure)
+    assert pytest.approx(data.exposure) == -0.39
+    assert pytest.approx(data.offset) == 0.0168
+    assert pytest.approx(data.gamma) == 0.91
+
+
+def test_vibrance(psd):
+    data = psd.layers[11].data
+    assert isinstance(data, adjustments.Vibrance)
+    assert data.vibrance == -6
+    assert data.saturation == 2
+
+
+def test_hue_saturation(psd):
+    data = psd.layers[10].data
+    assert isinstance(data, adjustments.HueSaturation)
+    assert data.enable_colorization == 0
+    assert data.colorization == (0, 25, 0)
+    assert data.master == (-17, 19, 4)
+    assert len(data.data) == 6
+
+
+def test_hue_saturation(psd):
+    data = psd.layers[9].data
+    assert isinstance(data, adjustments.ColorBalance)
+    assert data.shadows == (-4, 2, -5)
+    assert data.midtones == (10, 4, -9)
+    assert data.highlights == (1, -9, -3)
+    assert data.preserve_luminosity == 1
+
+
+def test_black_and_white(psd):
+    data = psd.layers[8].data
+    assert isinstance(data, adjustments.BlackWhite)
+    assert data.red == 40
+    assert data.yellow == 60
+    assert data.green == 40
+    assert data.cyan == 60
+    assert data.blue == 20
+    assert data.magenta == 80
+    assert data.use_tint == False
+    assert data.tint_color
+    assert data.preset_kind == 1
+    assert data.preset_file_name == ''
+
+
+def test_photo_filter(psd):
+    data = psd.layers[7].data
+    assert isinstance(data, adjustments.PhotoFilter)
+    assert data.xyz == None
+    assert data.color_space == 7
+    assert data.color_components == (6706, 3200, 12000, 0)
+    assert data.density == 25
+    assert data.preserve_luminosity == 1
+
+
+def test_channel_mixer(psd):
+    data = psd.layers[6].data
+    assert isinstance(data, adjustments.ChannelMixer)
+    assert data.monochrome == 0
+    assert data.mixer_settings == (100, 0, 0, 0, 0)
+
+
+def test_color_lookup(psd):
+    data = psd.layers[5].data
+    assert isinstance(data, adjustments.ColorLookup)
+
+
+def test_invert(psd):
+    data = psd.layers[4].data
+    assert isinstance(data, adjustments.Invert)
+
+
+def test_posterize(psd):
+    data = psd.layers[3].data
+    assert isinstance(data, adjustments.Posterize)
+    assert data.posterize == 4
+
+
+def test_threshold(psd):
+    data = psd.layers[2].data
+    assert isinstance(data, adjustments.Threshold)
+    assert data.threshold == 128
+
+
+def test_selective_color(psd):
+    data = psd.layers[1].data
+    assert isinstance(data, adjustments.SelectiveColor)
+    assert data.method == 0
+    assert len(data.data) == 10
+
+
+def test_gradient_map(psd):
+    data = psd.layers[0].data
+    assert isinstance(data, adjustments.GradientMap)
+    assert data.reversed == 0
+    assert data.dithered == 0
+    assert data.name == u'Foreground to Background'
+    assert len(data.color_stops) == 2
+    assert len(data.transparency_stops) == 2
+    assert data.expansion == 2
+    assert data.interpolation == 1.0
+    assert data.length == 32
+    assert data.mode == 0
+    assert data.random_seed == 470415386
+    assert data.show_transparency == 0
+    assert data.use_vector_color == 1
+    assert data.roughness == 2048
+    assert data.color_model == 3
+    assert data.min_color == (0, 0, 0, 0)
+    assert data.max_color == (32768, 32768, 32768, 32768)
 
 
 def test_adjustment_and_shapes():

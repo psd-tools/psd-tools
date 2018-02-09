@@ -10,8 +10,21 @@ import psd_tools.user_api.actions
 logger = logging.getLogger(__name__)
 
 
-class _Descriptor(object):
-    """Base class for effect."""
+class _NameMixin(object):
+    """Nameable wrapper."""
+    def __init__(self, data):
+        self._data = data
+
+    @property
+    def name(self):
+        return self.__class__.__name__.lower()
+
+    def __repr__(self):
+        return "<%s>" % (self.name,)
+
+
+class _DescriptorMixin(_NameMixin):
+    """Descriptor wrapper."""
     def __init__(self, descriptor):
         self._descriptor = descriptor
 
@@ -28,12 +41,8 @@ class _Descriptor(object):
         """Convert to dict."""
         return {k: getattr(self, k) for k in self.properties()}
 
-    def __repr__(self):
-        return "<%s>" % (self.__class__.__name__.lower(),)
 
-
-
-class BrightnessContrast(_Descriptor):
+class BrightnessContrast(_DescriptorMixin):
     """Brightness and contrast adjustment."""
 
     @property
@@ -65,20 +74,63 @@ class BrightnessContrast(_Descriptor):
         return self.get(b'auto', False)
 
 
-class Levels(object):
+class Curves(_NameMixin):
+    """
+    Curves adjustment.
+
+    Curves contain a list of
+    :py:class:`~psd_tools.decoder.tagged_blocks.CurveData`.
+    """
+    @property
+    def count(self):
+        return self._data.count
+
+    @property
+    def data(self):
+        """
+        List of curve data.
+
+        :rtype: list
+        """
+        return self._data.data
+
+    @property
+    def extra(self):
+        return self._data.extra
+
+    def __repr__(self):
+        return "<%s: data=%s>" % (self.name, self.data)
+
+
+class Exposure(_NameMixin):
+    """
+    Exposure adjustment.
+    """
+    @property
+    def exposure(self):
+        return self._data.exposure
+
+    @property
+    def offset(self):
+        return self._data.offset
+
+    @property
+    def gamma(self):
+        return self._data.gamma
+
+    def __repr__(self):
+        return "<%s: exposure=%g offset=%g gamma=%g>" % (
+            self.name, self.exposure, self.offset,
+            self.gamma)
+
+
+class Levels(_NameMixin):
     """
     Levels adjustment.
 
     Levels contain a list of
     :py:class:`~psd_tools.decoder.tagged_blocks.LevelRecord`.
     """
-    def __init__(self, levels):
-        self._levels = levels
-
-    @property
-    def __len__(self):
-        return len(self._levels.data)
-
     @property
     def data(self):
         """
@@ -86,7 +138,7 @@ class Levels(object):
 
         :rtype: list
         """
-        return self._levels.data
+        return self._data.data
 
     @property
     def master(self):
@@ -94,16 +146,266 @@ class Levels(object):
 
         :rtype: psd_tools.decoder.tagged_blocks.LevelRecord
         """
-        return self._levels.data[0]
+        return self._data.data[0]
+
+    def __repr__(self):
+        return "<%s: master=%s>" % (
+            self.name, self.master)
 
 
-class Vibrance(_Descriptor):
+class Vibrance(_DescriptorMixin):
     """Vibrance adjustment."""
-
     @property
     def vibrance(self):
         return self.get(b'vibrance', 0)
 
     @property
-    def automatic(self):
-        return self.get(b'auto', False)
+    def saturation(self):
+        return self.get(b'Strt', 0)
+
+    def __repr__(self):
+        return "<%s: vibrance=%g saturation=%g>" % (
+            self.name, self.vibrance, self.saturation)
+
+
+class HueSaturation(_NameMixin):
+    """
+    Hue/Saturation adjustment.
+
+    HueSaturation contains a list of
+    :py:class:`~psd_tools.decoder.tagged_blocks.HueSaturationData`.
+    """
+    @property
+    def data(self):
+        """
+        List of Hue/Saturation records.
+
+        :rtype: list
+        """
+        return self._data.items
+
+    @property
+    def enable_colorization(self):
+        """Enable colorization.
+
+        :rtype: int
+        """
+        return self._data.enable_colorization
+
+    @property
+    def colorization(self):
+        """Colorization.
+
+        :rtype: tuple
+        """
+        return self._data.colorization
+
+    @property
+    def master(self):
+        """Master record.
+
+        :rtype: tuple
+        """
+        return self._data.master
+
+    def __repr__(self):
+        return "<%s: colorization=%s master=%s>" % (
+            self.name, self.colorization, self.master)
+
+
+class ColorBalance(_NameMixin):
+    """Color balance adjustment."""
+    @property
+    def shadows(self):
+        return self._data.shadows
+
+    @property
+    def midtones(self):
+        return self._data.midtones
+
+    @property
+    def highlights(self):
+        return self._data.highlights
+
+    @property
+    def preserve_luminosity(self):
+        return self._data.preserve_luminosity
+
+
+class BlackWhite(_DescriptorMixin):
+    """Black and white adjustment."""
+    @property
+    def red(self):
+        return self.get(b'Rd  ', 0)
+
+    @property
+    def yellow(self):
+        return self.get(b'Yllw', 0)
+
+    @property
+    def green(self):
+        return self.get(b'Grn ', 0)
+
+    @property
+    def cyan(self):
+        return self.get(b'Cyn ', 0)
+
+    @property
+    def blue(self):
+        return self.get(b'Bl  ', 0)
+
+    @property
+    def magenta(self):
+        return self.get(b'Mgnt', 0)
+
+    @property
+    def use_tint(self):
+        return self.get(b'useTint', False)
+
+    @property
+    def tint_color(self):
+        return self.get(b'tintColor')
+
+    @property
+    def preset_kind(self):
+        return self.get(b'bwPresetKind', 1)
+
+    @property
+    def preset_file_name(self):
+        return self.get(b'blackAndWhitePresetFileName', '')
+
+
+class PhotoFilter(_NameMixin):
+    """Photo filter adjustment."""
+    @property
+    def xyz(self):
+        return self._data.xyz
+
+    @property
+    def color_space(self):
+        return self._data.color_space
+
+    @property
+    def color_components(self):
+        return self._data.color_components
+
+    @property
+    def density(self):
+        return self._data.density
+
+    @property
+    def preserve_luminosity(self):
+        return self._data.preserve_luminosity
+
+
+class ChannelMixer(_NameMixin):
+    """Channel mixer adjustment."""
+    @property
+    def monochrome(self):
+        return self._data.monochrome
+
+    @property
+    def mixer_settings(self):
+        return self._data.mixer_settings
+
+
+class ColorLookup(_DescriptorMixin):
+    """Color lookup adjustment."""
+    pass
+
+
+class Invert(_NameMixin):
+    """Invert adjustment."""
+    pass
+
+
+class Posterize(_NameMixin):
+    """Posterize adjustment."""
+    @property
+    def posterize(self):
+        return self._data.value
+
+
+class Threshold(_NameMixin):
+    """Threshold adjustment."""
+    @property
+    def threshold(self):
+        return self._data.value
+
+
+class SelectiveColor(_NameMixin):
+    """Selective color adjustment."""
+    @property
+    def method(self):
+        return self._data.method
+
+    @property
+    def data(self):
+        return self._data.items
+
+
+class GradientMap(_NameMixin):
+    """Gradient map adjustment."""
+    @property
+    def reversed(self):
+        return self._data.reversed
+
+    @property
+    def dithered(self):
+        return self._data.dithered
+
+    @property
+    def name(self):
+        return self._data.name.strip('\x00')
+
+    @property
+    def color_stops(self):
+        return self._data.color_stops
+
+    @property
+    def transparency_stops(self):
+        return self._data.transparency_stops
+
+    @property
+    def expansion(self):
+        return self._data.expansion
+
+    @property
+    def interpolation(self):
+        return self._data.interpolation / 4096.0
+
+    @property
+    def length(self):
+        return self._data.length
+
+    @property
+    def mode(self):
+        return self._data.mode
+
+    @property
+    def random_seed(self):
+        return self._data.random_seed
+
+    @property
+    def show_transparency(self):
+        return self._data.show_transparency
+
+    @property
+    def use_vector_color(self):
+        return self._data.use_vector_color
+
+    @property
+    def roughness(self):
+        return self._data.roughness
+
+    @property
+    def color_model(self):
+        return self._data.color_model
+
+    @property
+    def min_color(self):
+        return self._data.min_color
+
+    @property
+    def max_color(self):
+        return self._data.max_color

@@ -30,7 +30,7 @@ class _TaggedBlockMixin(object):
             keys = [keys]
         for key in keys:
             value = self.tagged_blocks.get(key)
-            if value:
+            if value != None:
                 return translate(value)
         return default
 
