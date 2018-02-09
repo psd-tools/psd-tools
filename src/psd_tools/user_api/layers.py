@@ -369,7 +369,7 @@ class AdjustmentLayer(_RawLayer):
     @property
     def data(self):
         """Adjustment data."""
-        return self.tagged_blocks.get(self._key)
+        return self.get_tag(self._key)
 
     def __repr__(self):
         return "<%s: %r, visible=%s>" % (self.kind, self.name, self.visible)

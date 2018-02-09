@@ -15,33 +15,22 @@ from tests.utils import decode_psd, DATA_PATH
 
 def test_adjustment_data_types():
     psd = PSDImage(decode_psd('fill_adjustments.psd'))
-    assert isinstance(psd.layers[15].get_tag(
-        TaggedBlock.BRIGHTNESS_AND_CONTRAST), BrightnessContrast)
-    assert isinstance(psd.layers[14].get_tag(
-        TaggedBlock.LEVELS), LevelsSettings)
-    assert isinstance(psd.layers[13].get_tag(
-        TaggedBlock.CURVES), CurvesSettings)
-    assert isinstance(psd.layers[12].get_tag(TaggedBlock.EXPOSURE), Exposure)
-    assert isinstance(psd.layers[11].get_tag(TaggedBlock.VIBRANCE), Vibrance)
-    assert isinstance(psd.layers[10].get_tag(
-        TaggedBlock.HUE_SATURATION_5), HueSaturation)
-    assert isinstance(psd.layers[9].get_tag(
-        TaggedBlock.COLOR_BALANCE), ColorBalance)
-    assert isinstance(psd.layers[8].get_tag(
-        TaggedBlock.BLACK_AND_WHITE), BlackWhite)
-    assert isinstance(psd.layers[7].get_tag(
-        TaggedBlock.PHOTO_FILTER), PhotoFilter)
-    assert isinstance(psd.layers[6].get_tag(
-        TaggedBlock.CHANNEL_MIXER), ChannelMixer)
-    assert isinstance(psd.layers[5].get_tag(
-        TaggedBlock.COLOR_LOOKUP), ColorLookup)
-    assert psd.layers[4].has_tag(TaggedBlock.INVERT)
-    assert isinstance(psd.layers[3].get_tag(TaggedBlock.POSTERIZE), int)
-    assert isinstance(psd.layers[2].get_tag(TaggedBlock.THRESHOLD), int)
-    assert isinstance(psd.layers[1].get_tag(
-        TaggedBlock.SELECTIVE_COLOR), SelectiveColor)
-    assert isinstance(psd.layers[0].get_tag(
-        TaggedBlock.GRADIENT_MAP_SETTING), GradientSettings)
+    assert isinstance(psd.layers[15].data, BrightnessContrast)
+    assert isinstance(psd.layers[14].data, LevelsSettings)
+    assert isinstance(psd.layers[13].data, CurvesSettings)
+    assert isinstance(psd.layers[12].data, Exposure)
+    assert isinstance(psd.layers[11].data, Vibrance)
+    assert isinstance(psd.layers[10].data, HueSaturation)
+    assert isinstance(psd.layers[9].data, ColorBalance)
+    assert isinstance(psd.layers[8].data, BlackWhite)
+    assert isinstance(psd.layers[7].data, PhotoFilter)
+    assert isinstance(psd.layers[6].data, ChannelMixer)
+    assert isinstance(psd.layers[5].data, ColorLookup)
+    assert psd.layers[4].data == None
+    assert isinstance(psd.layers[3].data, int)
+    assert isinstance(psd.layers[2].data, int)
+    assert isinstance(psd.layers[1].data, SelectiveColor)
+    assert isinstance(psd.layers[0].data, GradientSettings)
 
 
 def test_adjustment_types():
