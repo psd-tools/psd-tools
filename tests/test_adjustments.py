@@ -8,9 +8,9 @@ from psd_tools.constants import TaggedBlock
 from psd_tools.decoder.tagged_blocks import (
     BrightnessContrast, LevelsSettings, CurvesSettings, Exposure, Vibrance,
     HueSaturation, ColorBalance, BlackWhite, PhotoFilter, ChannelMixer,
-    ColorLookup, SelectiveColor)
+    ColorLookup, SelectiveColor, GradientSettings)
 from PIL.Image import Image
-from .utils import decode_psd, DATA_PATH
+from tests.utils import decode_psd, DATA_PATH
 
 
 def test_adjustment_layers():
@@ -35,13 +35,13 @@ def test_adjustment_layers():
         TaggedBlock.CHANNEL_MIXER), ChannelMixer)
     assert isinstance(psd.layers[5].get_tag(
         TaggedBlock.COLOR_LOOKUP), ColorLookup)
-    # assert isinstance(psd.layers[4].get_tag(TaggedBlock.INVERT), )
-    # assert isinstance(psd.layers[3].get_tag(TaggedBlock.POSTERIZE), )
-    # assert isinstance(psd.layers[2].get_tag(TaggedBlock.THRESHOLD), )
+    assert psd.layers[4].has_tag(TaggedBlock.INVERT)
+    assert isinstance(psd.layers[3].get_tag(TaggedBlock.POSTERIZE), int)
+    assert isinstance(psd.layers[2].get_tag(TaggedBlock.THRESHOLD), int)
     assert isinstance(psd.layers[1].get_tag(
         TaggedBlock.SELECTIVE_COLOR), SelectiveColor)
-    # assert isinstance(psd.layers[0].get_tag(
-    #                   TaggedBlock.GRADIENT_MAP_SETTINGS), )
+    assert isinstance(psd.layers[0].get_tag(
+        TaggedBlock.GRADIENT_MAP_SETTING), GradientSettings)
 
 
 def test_adjustment_types():
