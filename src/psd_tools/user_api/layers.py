@@ -368,12 +368,24 @@ class AdjustmentLayer(_RawLayer):
 
     @property
     def data(self):
-        """Adjustment data."""
+        """
+        Adjustment data. Depending on the adjustment type, return on of the
+        following.
+
+        - :py:class:`~psd_tools.user_api.adjustments.BrightnessContrast`
+        - :py:class:`~psd_tools.user_api.adjustments.Levels`
+        - :py:class:`~psd_tools.decoder.tagged_blocks.CurvesSettings`
+        - :py:class:`~psd_tools.decoder.tagged_blocks.Exposure`
+        - :py:class:`~psd_tools.decoder.tagged_blocks.Vibrance`
+
+        """
         if (self.adjustment_type == 'brightness and contrast' and
                 self.has_tag(TaggedBlock.CONTENT_GENERATOR_EXTRA_DATA)):
-            return self.get_tag(TaggedBlock.CONTENT_GENERATOR_EXTRA_DATA)
-        else:
-            return self.get_tag(self._key)
+            data = self.get_tag(TaggedBlock.CONTENT_GENERATOR_EXTRA_DATA)
+            if not data.use_legacy:
+                return data
+
+        return self.get_tag(self._key)
 
     def __repr__(self):
         return "<%s: %r, visible=%s>" % (self.kind, self.name, self.visible)

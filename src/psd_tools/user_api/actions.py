@@ -13,10 +13,13 @@ from psd_tools.decoder.actions import (
     Index, Name, ObjectArray, ObjectArrayItem, RawData)
 from psd_tools.decoder.tagged_blocks import (
     SolidColorSetting, PatternFillSetting, GradientFillSetting,
-    VectorStrokeSetting, VectorMaskSetting, VectorStrokeContentSetting)
+    VectorStrokeSetting, VectorMaskSetting, VectorStrokeContentSetting,
+    ContentGeneratorExtraData)
 from psd_tools.decoder.layer_effects import ObjectBasedEffects
 from psd_tools.user_api.effects import (
     GradientOverlay, PatternOverlay, ColorOverlay)
+from psd_tools.user_api.adjustments import (
+    BrightnessContrast)
 
 from psd_tools.user_api.shape import StrokeStyle, VectorMask
 
@@ -154,6 +157,11 @@ def _translate_pattern_fill_setting(data):
 def _translate_gradient_fill_setting(data):
     descriptor = translate(data.data)
     return GradientOverlay(descriptor)
+
+
+@register(ContentGeneratorExtraData)
+def _translate_content_generator_extra_data(data):
+    return BrightnessContrast(_translate_generic_descriptor(data.descriptor))
 
 
 def _translate_generic_descriptor(data):
