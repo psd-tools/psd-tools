@@ -31,28 +31,28 @@ class Mask(object):
     @property
     def left(self):
         """Left coordinate."""
-        if self.mask_data.real_flags:
+        if self.has_real():
             return self.mask_data.real_left
         return self.mask_data.left
 
     @property
     def right(self):
         """Right coordinate."""
-        if self.mask_data.real_flags:
+        if self.has_real():
             return self.mask_data.real_right
         return self.mask_data.right
 
     @property
     def top(self):
         """Top coordinate."""
-        if self.mask_data.real_flags:
+        if self.has_real():
             return self.mask_data.real_top
         return self.mask_data.top
 
     @property
     def bottom(self):
         """Bottom coordinate."""
-        if self.mask_data.real_flags:
+        if self.has_real():
             return self.mask_data.real_bottom
         return self.mask_data.bottom
 
@@ -68,8 +68,43 @@ class Mask(object):
 
     @property
     def disabled(self):
-        """Height."""
+        """Disabled."""
         return self.mask_data.flags.mask_disabled
+
+    @property
+    def relative_to_layer(self):
+        """If the position is relative to the layer."""
+        return self.mask_data.flags.pos_relative_to_layer
+
+    @property
+    def inverted(self):
+        """If the mask is inverted."""
+        return self.mask_data.flags.invert_mask
+
+    @property
+    def user_mask_from_render(self):
+        """If the mask is rendered."""
+        return self.mask_data.flags.user_mask_from_render
+
+    @property
+    def parameters_applied(self):
+        """If the parameters are applied."""
+        return self.mask_data.flags.parameters_applied
+
+    @property
+    def flags(self):
+        """Flags."""
+        return self.mask_data.flags
+
+    @property
+    def parameters(self):
+        """Parameters."""
+        return self.mask_data.parameters
+
+    @property
+    def real_flags(self):
+        """Real flag."""
+        return self.mask_data.real_flags
 
     def get_bbox(self, real=True):
         """
@@ -77,12 +112,16 @@ class Mask(object):
 
         :param real: When False, ignore real flags.
         """
-        if real and self.mask_data.real_flags:
+        if real and self.has_real():
             return BBox(self.mask_data.real_left, self.mask_data.real_top,
                         self.mask_data.real_right, self.mask_data.real_bottom)
         else:
             return BBox(self.mask_data.left, self.mask_data.top,
                         self.mask_data.right, self.mask_data.bottom)
+
+    def has_real(self):
+        """Return True if the mask has a valid bbox."""
+        return self.real_flags is not None
 
     def has_box(self):
         """Return True if the mask has a valid bbox."""

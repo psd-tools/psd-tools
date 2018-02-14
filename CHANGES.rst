@@ -1,7 +1,8 @@
-1.7.2 (2018-02-09)
+1.7.2 (2018-02-14)
 ------------------
 
 - add adjustments API;
+- add mask API;
 - bugfix for tagged_blocks decoders.
 
 1.7.1 (2018-02-08)
