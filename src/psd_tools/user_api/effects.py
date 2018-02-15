@@ -368,7 +368,7 @@ class Stroke(_BaseEffect, _ColorMixin):
     @property
     def fill_type(self):
         """Fill type, solid-color, gradient, or pattern."""
-        return self.POSITIONS.get(self.get(b'PntT', b'SClr'), 'solid-color')
+        return self.FILL_TYPES.get(self.get(b'PntT'))
 
     @property
     def size(self):
