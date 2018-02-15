@@ -23,8 +23,8 @@ _image_resource_decoders.update({
     ImageResourceID.IDS_SEED_NUMBER:            decoders.single_value("I"),
     ImageResourceID.INDEXED_COLOR_TABLE_COUNT:  decoders.single_value("H"),
     ImageResourceID.TRANSPARENCY_INDEX:         decoders.single_value("H"),
-    ImageResourceID.GLOBAL_ALTITUDE:            decoders.single_value("I"),
-    ImageResourceID.GLOBAL_ANGLE_OBSOLETE:      decoders.single_value("I"),
+    ImageResourceID.GLOBAL_ALTITUDE:            decoders.single_value("i"),
+    ImageResourceID.GLOBAL_ANGLE:               decoders.single_value("i"),
     ImageResourceID.COPYRIGHT_FLAG:             decoders.boolean("H"),
 
     ImageResourceID.ALPHA_NAMES_UNICODE:        decoders.unicode_string,
