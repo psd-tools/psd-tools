@@ -17,6 +17,12 @@ from psd_tools.constants import TaggedBlock, BlendMode2, ObjectBasedEffects
 from psd_tools.decoder.actions import UnitFloat
 import psd_tools.user_api.actions
 
+try:
+  basestring
+except NameError:
+  basestring = str
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -107,7 +113,7 @@ class _BaseEffect(object):
 
         :rtype: float
         """
-        return self.get(b'Opct', 100.0)
+        return self.get(b'Opct', UnitFloat('PERCENT',100.0))
 
     @property
     def name(self):
@@ -115,7 +121,7 @@ class _BaseEffect(object):
 
         :rtype: str
         """
-        return self.__class__.__name__
+        return self.__class__.__name__.lower()
 
     def get(self, key, default=None):
         """Get attribute in the low-level structure.
@@ -272,9 +278,12 @@ class ColorOverlay(_OverlayEffect, _ColorMixin):
 
 class GradientOverlay(_OverlayEffect, _AlignScaleMixin):
     """GradientOverlay effect."""
-    _NAMES = {
+    TYPES = {
         b'Lnr ': 'linear',
         b'Rdl ': 'radial',
+        b'Angl': 'angle',
+        b'Rflc': 'reflected',
+        b'Dmnd': 'diamond',
     }
 
     @property
@@ -293,10 +302,11 @@ class GradientOverlay(_OverlayEffect, _AlignScaleMixin):
 
     @property
     def type(self):
-        """Gradient type, ``linear`` or ``radial``."""
-        # TODO: Check other types.
-        key = self.get(b'Type', b'Lnr ')
-        return self._NAMES.get(key, key)
+        """
+        Gradient type, one of `linear`, `radial`, `angle`, `reflected`, or
+        `diamond`.
+        """
+        return self.TYPES.get(self.get(b'Type', b'Lnr '))
 
     @property
     def reversed(self):
@@ -347,11 +357,10 @@ class Stroke(_BaseEffect, _ColorMixin):
     TODO: Implement color, pattern, gradient fill. Replace _ColorMixin.
     """
 
-
     POSITIONS = {
         b'InsF': 'inner',
         b'OutF': 'outer',
-        # b'   ': 'center', # TODO: Check center key
+        b'CtrF': 'center',
     }
 
     FILL_TYPES = {
@@ -363,7 +372,7 @@ class Stroke(_BaseEffect, _ColorMixin):
     @property
     def position(self):
         """Position of the stroke, `inner`, `outer`, or `center`."""
-        return self.POSITIONS.get(self.get(b'Styl', b'OutF'), 'center')
+        return self.POSITIONS.get(self.get(b'Styl', b'OutF'))
 
     @property
     def fill_type(self):
@@ -394,6 +403,26 @@ class Stroke(_BaseEffect, _ColorMixin):
 
 class BevelEmboss(_BaseEffect):
     """Bevel and Emboss effect."""
+
+    BEVEL_TYPE = {
+        b'SfBL': 'smooth',
+        b'PrBL': 'chiesel-hard',
+        b'Slmt': 'chiesel-soft',
+    }
+
+    BEVEL_STYLE = {
+        b'OtrB': 'outer-bevel',
+        b'InrB': 'inner-bevel',
+        b'Embs': 'emboss',
+        b'PlEb': 'pillow-emboss',
+        b'strokeEmboss': 'stroke-emboss',
+    }
+
+    DIRECTION = {
+        b'In  ': 'up',
+        b'Out ': 'down',
+    }
+
     @property
     def highlight_mode(self):
         """Highlight blending mode."""
@@ -428,15 +457,16 @@ class BevelEmboss(_BaseEffect):
 
     @property
     def bevel_type(self):
-        """Bevel type."""
-        # TODO: Rephrase bytes.
-        return self.get(b'bvlT', b'SfBL')
+        """Bevel type, one of `smooth`, `chiesel-hard`, `chiesel-soft`."""
+        return self.BEVEL_TYPE.get(self.get(b'bvlT', b'SfBL'))
 
     @property
     def bevel_style(self):
-        """Bevel style, emboss or bevel."""
-        # TODO: Rephrase bytes.
-        return self.get(b'bvlS', b'Embs')
+        """
+        Bevel style, one of `outer-bevel`, `inner-bevel`, `emboss`,
+        `pillow-emboss`, or `stroke-emboss`.
+        """
+        return self.BEVEL_STYLE.get(self.get(b'bvlS', b'Embs'))
 
     @property
     def use_global_light(self):
@@ -465,9 +495,8 @@ class BevelEmboss(_BaseEffect):
 
     @property
     def direction(self):
-        """Direction."""
-        # TODO: Rephrase bytes.
-        return self.get(b'bvlD', b'In  ')
+        """Direction, either `up` or `down`."""
+        return self.DIRECTION.get(self.get(b'bvlD', b'In  '))
 
     @property
     def contour(self):
@@ -599,7 +628,7 @@ class Effects(object):
         return []
 
     def has(self, kinds):
-        if kinds == str or kinds == bytes:
+        if isinstance(kinds, basestring):
             kinds = [kinds]
         kinds = {kind.lower() for kind in kinds}
         return any(item.name.lower() in kinds
