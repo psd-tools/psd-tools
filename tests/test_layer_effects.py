@@ -203,6 +203,9 @@ def test_stroke(effects_psd):
     assert effect.overprint == False
     assert effect.position == 'outer'
     assert effect.size.value == 6.0
+    assert effect.color
+    assert effect.gradient == None
+    assert effect.pattern == None
 
 
 def test_dropshadow(effects_psd):
@@ -259,6 +262,7 @@ def test_innerglow(effects_psd):
     assert effect.quality_jitter.value == 0.0
     assert effect.quality_range.value == 50.0
     assert effect.size.value == 18.0
+    assert effect.gradient == None
 
 
 def test_outerglow(effects_psd):
@@ -278,6 +282,7 @@ def test_outerglow(effects_psd):
     assert effect.quality_range.value == 50.0
     assert effect.size.value == 41.0
     assert effect.spread.value == 0.0
+    assert effect.gradient == None
 
 
 def test_emboss(effects_psd):

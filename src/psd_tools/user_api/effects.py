@@ -205,6 +205,29 @@ class _AngleMixin(object):
         return self.get(b'lagl', UnitFloat('ANGLE', 90.0))
 
 
+class _GradientMixin(object):
+    """Mixin for gradient property."""
+    @property
+    def gradient(self):
+        """Gradient configuration.
+
+        :rtype: psd_tools.user_api.actions.Gradient
+        """
+        return self.get(b'Grad')
+
+
+class _PatternMixin(object):
+    """Mixin for pattern property."""
+    @property
+    def pattern(self):
+        """Pattern config.
+
+        :rtype: psd_tools.user_api.actions.Pattern
+        """
+        # TODO: Expose nested property.
+        return self.get(b'Ptrn')
+
+
 class _ShadowEffect(_BaseEffect, _ChokeNoiseMixin, _AngleMixin):
     """Base class for shadow effect."""
     @property
@@ -226,12 +249,8 @@ class InnerShadow(_ShadowEffect):
     pass
 
 
-class _GlowEffect(_BaseEffect, _ChokeNoiseMixin):
-    """
-    Base class for glow effect.
-
-    TODO: Include color and gradient mixin.
-    """
+class _GlowEffect(_BaseEffect, _ChokeNoiseMixin, _GradientMixin):
+    """Base class for glow effect."""
     @property
     def glow_type(self):
         """ Elements technique, softer or precise """
@@ -284,7 +303,7 @@ class ColorOverlay(_OverlayEffect, _ColorMixin):
     pass
 
 
-class GradientOverlay(_OverlayEffect, _AlignScaleMixin):
+class GradientOverlay(_OverlayEffect, _AlignScaleMixin, _GradientMixin):
     """GradientOverlay effect."""
     TYPES = {
         b'Lnr ': 'linear',
@@ -293,15 +312,6 @@ class GradientOverlay(_OverlayEffect, _AlignScaleMixin):
         b'Rflc': 'reflected',
         b'Dmnd': 'diamond',
     }
-
-    @property
-    def gradient(self):
-        """Gradient configuration.
-
-        :rtype: psd_tools.user_api.actions.Gradient
-        """
-        # TODO: Expose nested property.
-        return self.get(b'Grad')
 
     @property
     def angle(self):
@@ -332,7 +342,7 @@ class GradientOverlay(_OverlayEffect, _AlignScaleMixin):
         return self.get(b'Ofst')
 
 
-class PatternOverlay(_OverlayEffect, _AlignScaleMixin):
+class PatternOverlay(_OverlayEffect, _AlignScaleMixin, _PatternMixin):
     """PatternOverlay effect.
 
     Retrieving pattern data::
@@ -340,15 +350,6 @@ class PatternOverlay(_OverlayEffect, _AlignScaleMixin):
         if effect.name() == 'PatternOverlay':
             pattern = psd.patterns.get(effect.pattern.id)
     """
-    @property
-    def pattern(self):
-        """Pattern config.
-
-        :rtype: psd_tools.user_api.actions.Pattern
-        """
-        # TODO: Expose nested property.
-        return self.get(b'Ptrn')
-
     @property
     def phase(self):
         """Phase value in Point.
@@ -358,12 +359,8 @@ class PatternOverlay(_OverlayEffect, _AlignScaleMixin):
         return self.get(b'phase', psd_tools.user_api.actions.Point(0.0, 0.0))
 
 
-class Stroke(_BaseEffect, _ColorMixin):
-    """
-    Stroke effect.
-
-    TODO: Implement color, pattern, gradient fill. Replace _ColorMixin.
-    """
+class Stroke(_BaseEffect, _ColorMixin, _PatternMixin, _GradientMixin):
+    """Stroke effect."""
 
     POSITIONS = {
         b'InsF': 'inner',
