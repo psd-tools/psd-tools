@@ -6,7 +6,13 @@ from psd_tools.user_api.psd_image import BBox
 
 
 class Mask(object):
-    """Mask data attached to a layer."""
+    """Mask data attached to a layer.
+
+    There are two distinct internal mask data: user mask and vector mask.
+    User mask refers any pixel-based mask whereas vector mask refers a mask
+    from a shape path. Internally, two masks are combined and referred
+    real mask.
+    """
     def __init__(self, layer):
         self.mask_data = layer._record.mask_data
         self._decoded_data = layer._psd.decoded_data
