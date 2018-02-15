@@ -354,6 +354,12 @@ class Stroke(_BaseEffect, _ColorMixin):
         # b'   ': 'center', # TODO: Check center key
     }
 
+    FILL_TYPES = {
+        b'SClr': 'solid-color',
+        b'GrFl': 'gradient',
+        b'Ptrn': 'pattern',
+    }
+
     @property
     def position(self):
         """Position of the stroke, `inner`, `outer`, or `center`."""
@@ -361,9 +367,8 @@ class Stroke(_BaseEffect, _ColorMixin):
 
     @property
     def fill_type(self):
-        """Fill type, solid color, gradient, or pattern."""
-        # TODO: Rephrase bytes. b'SClr': 'color'.
-        return self.get(b'PntT', b'SClr')
+        """Fill type, solid-color, gradient, or pattern."""
+        return self.POSITIONS.get(self.get(b'PntT', b'SClr'), 'solid-color')
 
     @property
     def size(self):
@@ -377,11 +382,11 @@ class Stroke(_BaseEffect, _ColorMixin):
 
     @property
     def fill(self):
-        if self.fill_type == b'SClr':
+        if self.fill_type == 'solid-color':
             return ColorOverlay(self._descriptor)
-        elif self.fill_type.startswith(b'P'):
+        elif self.fill_type.startswith('pattern'):
             return PatternOverlay(self._descriptor)
-        elif self.fill_type.startswith(b'G'):
+        elif self.fill_type.startswith('gradient'):
             return GradientOverlay(self._descriptor)
         logger.error("Unknown fill type: {}".format(self.fill_type))
         return None
