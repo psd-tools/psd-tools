@@ -136,29 +136,29 @@ def _translate_vector_mask_setting(data):
 def _translate_vector_stroke_content_setting(data):
     descriptor = translate(data.data)
     if b'Ptrn' in descriptor:
-        return PatternOverlay(descriptor)
+        return PatternOverlay(descriptor, None)
     elif b'Grdn' in descriptor:
-        return GradientOverlay(descriptor)
+        return GradientOverlay(descriptor, None)
     else:
-        return ColorOverlay(descriptor)
+        return ColorOverlay(descriptor, None)
 
 
 @register(SolidColorSetting)
 def _translate_solid_color_setting(data):
     descriptor = translate(data.data)
-    return ColorOverlay(descriptor)
+    return ColorOverlay(descriptor, None)
 
 
 @register(PatternFillSetting)
 def _translate_pattern_fill_setting(data):
     descriptor = translate(data.data)
-    return PatternOverlay(descriptor)
+    return PatternOverlay(descriptor, None)
 
 
 @register(GradientFillSetting)
 def _translate_gradient_fill_setting(data):
     descriptor = translate(data.data)
-    return GradientOverlay(descriptor)
+    return GradientOverlay(descriptor, None)
 
 
 @register(ContentGeneratorExtraData)
@@ -329,12 +329,12 @@ def _translate_stroke_style(data):
 
 @desc_register(b'solidColorLayer')
 def _translate_solid_color_layer(data):
-    return ColorOverlay(_translate_generic_descriptor(data))
+    return ColorOverlay(_translate_generic_descriptor(data), None)
 
 @desc_register(b'patternLayer')
 def _translate_pattern_layer(data):
-    return PatternOverlay(_translate_generic_descriptor(data))
+    return PatternOverlay(_translate_generic_descriptor(data), None)
 
 @desc_register(b'gradientLayer')
 def _translate_gradient_layer(data):
-    return GradientOverlay(_translate_generic_descriptor(data))
+    return GradientOverlay(_translate_generic_descriptor(data), None)

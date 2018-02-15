@@ -26,7 +26,7 @@ except NameError:
 logger = logging.getLogger(__name__)
 
 
-def get_effects(layer):
+def get_effects(layer, psd):
     """Return effects block from the layer."""
     effects = layer.get_tag([
         TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO,
@@ -34,14 +34,15 @@ def get_effects(layer):
         TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO_V1,
         ])
     if not effects:
-        return Effects({})
-    return Effects(effects)
+        return Effects({}, psd)
+    return Effects(effects, psd)
 
 
 class _BaseEffect(object):
     """Base class for effect."""
-    def __init__(self, descriptor):
+    def __init__(self, descriptor, psd):
         self._descriptor = descriptor
+        self._psd = psd  # Some effects use global image resources
 
     @property
     def enabled(self):
@@ -187,8 +188,7 @@ class _ChokeNoiseMixin(_ColorMixin):
         return self.get(b'TrnS')
 
 
-class _ShadowEffect(_BaseEffect, _ChokeNoiseMixin):
-    """Base class for shadow effect."""
+class _AngleMixin(object):
     @property
     def use_global_light(self):
         """Using global light."""
@@ -196,9 +196,17 @@ class _ShadowEffect(_BaseEffect, _ChokeNoiseMixin):
 
     @property
     def angle(self):
-        """Angle."""
+        """Angle value."""
+        if self.use_global_light:
+            return UnitFloat(
+                'ANGLE',
+                self._psd.image_resource_blocks.get('global_angle', 30.0)
+            )
         return self.get(b'lagl', UnitFloat('ANGLE', 90.0))
 
+
+class _ShadowEffect(_BaseEffect, _ChokeNoiseMixin, _AngleMixin):
+    """Base class for shadow effect."""
     @property
     def distance(self):
         """Distance."""
@@ -392,16 +400,16 @@ class Stroke(_BaseEffect, _ColorMixin):
     @property
     def fill(self):
         if self.fill_type == 'solid-color':
-            return ColorOverlay(self._descriptor)
+            return ColorOverlay(self._descriptor, self._psd)
         elif self.fill_type.startswith('pattern'):
-            return PatternOverlay(self._descriptor)
+            return PatternOverlay(self._descriptor, self._psd)
         elif self.fill_type.startswith('gradient'):
-            return GradientOverlay(self._descriptor)
+            return GradientOverlay(self._descriptor, self._psd)
         logger.error("Unknown fill type: {}".format(self.fill_type))
         return None
 
 
-class BevelEmboss(_BaseEffect):
+class BevelEmboss(_BaseEffect, _AngleMixin):
     """Bevel and Emboss effect."""
 
     BEVEL_TYPE = {
@@ -467,16 +475,6 @@ class BevelEmboss(_BaseEffect):
         `pillow-emboss`, or `stroke-emboss`.
         """
         return self.BEVEL_STYLE.get(self.get(b'bvlS', b'Embs'))
-
-    @property
-    def use_global_light(self):
-        """Using global light."""
-        return self.get(b'uglg', True)
-
-    @property
-    def angle(self):
-        """Angle value."""
-        return self.get(b'lagl', UnitFloat('ANGLE', 90.0))
 
     @property
     def altitude(self):
@@ -586,9 +584,9 @@ class Effects(object):
         ObjectBasedEffects.SATIN: Satin,
         }
 
-    def __init__(self, descriptor):
+    def __init__(self, descriptor, psd):
         self._descriptor = descriptor
-        self.items = self._build_items()
+        self.items = self._build_items(psd)
 
     @property
     def scale(self):
@@ -603,7 +601,7 @@ class Effects(object):
         """
         return self._descriptor.get(b'masterFXSwitch', True)
 
-    def _build_items(self):
+    def _build_items(self, psd):
         items = []
         for key in self._descriptor:
             cls = self._KEYS.get(key, None)
@@ -611,9 +609,9 @@ class Effects(object):
                 continue
             if key.endswith(b'Multi'):
                 for value in self._descriptor[key]:
-                    items.append(cls(value))
+                    items.append(cls(value, psd))
             else:
-                items.append(cls(self._descriptor[key]))
+                items.append(cls(self._descriptor[key], psd))
         return items
 
     def present_items(self):

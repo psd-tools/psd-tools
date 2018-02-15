@@ -212,7 +212,7 @@ class _RawLayer(_TaggedBlockMixin):
         :rtype: psd_tools.user_api.effects.Effects
         """
         if not self._effects:
-            self._effects = get_effects(self)
+            self._effects = get_effects(self, self._psd)
         return self._effects
 
     @property
