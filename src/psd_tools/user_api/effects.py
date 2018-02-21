@@ -17,10 +17,16 @@ from psd_tools.constants import TaggedBlock, BlendMode2, ObjectBasedEffects
 from psd_tools.decoder.actions import UnitFloat
 import psd_tools.user_api.actions
 
+try:
+  basestring
+except NameError:
+  basestring = str
+
+
 logger = logging.getLogger(__name__)
 
 
-def get_effects(layer):
+def get_effects(layer, psd):
     """Return effects block from the layer."""
     effects = layer.get_tag([
         TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO,
@@ -28,14 +34,15 @@ def get_effects(layer):
         TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO_V1,
         ])
     if not effects:
-        return Effects({})
-    return Effects(effects)
+        return Effects({}, psd)
+    return Effects(effects, psd)
 
 
 class _BaseEffect(object):
     """Base class for effect."""
-    def __init__(self, descriptor):
+    def __init__(self, descriptor, psd):
         self._descriptor = descriptor
+        self._psd = psd  # Some effects use global image resources
 
     @property
     def enabled(self):
@@ -107,7 +114,7 @@ class _BaseEffect(object):
 
         :rtype: float
         """
-        return self.get(b'Opct', 100.0)
+        return self.get(b'Opct', UnitFloat('PERCENT',100.0))
 
     @property
     def name(self):
@@ -115,7 +122,7 @@ class _BaseEffect(object):
 
         :rtype: str
         """
-        return self.__class__.__name__
+        return self.__class__.__name__.lower()
 
     def get(self, key, default=None):
         """Get attribute in the low-level structure.
@@ -181,8 +188,7 @@ class _ChokeNoiseMixin(_ColorMixin):
         return self.get(b'TrnS')
 
 
-class _ShadowEffect(_BaseEffect, _ChokeNoiseMixin):
-    """Base class for shadow effect."""
+class _AngleMixin(object):
     @property
     def use_global_light(self):
         """Using global light."""
@@ -190,9 +196,40 @@ class _ShadowEffect(_BaseEffect, _ChokeNoiseMixin):
 
     @property
     def angle(self):
-        """Angle."""
+        """Angle value."""
+        if self.use_global_light:
+            return UnitFloat(
+                'ANGLE',
+                self._psd.image_resource_blocks.get('global_angle', 30.0)
+            )
         return self.get(b'lagl', UnitFloat('ANGLE', 90.0))
 
+
+class _GradientMixin(object):
+    """Mixin for gradient property."""
+    @property
+    def gradient(self):
+        """Gradient configuration.
+
+        :rtype: psd_tools.user_api.actions.Gradient
+        """
+        return self.get(b'Grad')
+
+
+class _PatternMixin(object):
+    """Mixin for pattern property."""
+    @property
+    def pattern(self):
+        """Pattern config.
+
+        :rtype: psd_tools.user_api.actions.Pattern
+        """
+        # TODO: Expose nested property.
+        return self.get(b'Ptrn')
+
+
+class _ShadowEffect(_BaseEffect, _ChokeNoiseMixin, _AngleMixin):
+    """Base class for shadow effect."""
     @property
     def distance(self):
         """Distance."""
@@ -212,12 +249,8 @@ class InnerShadow(_ShadowEffect):
     pass
 
 
-class _GlowEffect(_BaseEffect, _ChokeNoiseMixin):
-    """
-    Base class for glow effect.
-
-    TODO: Include color and gradient mixin.
-    """
+class _GlowEffect(_BaseEffect, _ChokeNoiseMixin, _GradientMixin):
+    """Base class for glow effect."""
     @property
     def glow_type(self):
         """ Elements technique, softer or precise """
@@ -270,21 +303,15 @@ class ColorOverlay(_OverlayEffect, _ColorMixin):
     pass
 
 
-class GradientOverlay(_OverlayEffect, _AlignScaleMixin):
+class GradientOverlay(_OverlayEffect, _AlignScaleMixin, _GradientMixin):
     """GradientOverlay effect."""
-    _NAMES = {
+    TYPES = {
         b'Lnr ': 'linear',
         b'Rdl ': 'radial',
+        b'Angl': 'angle',
+        b'Rflc': 'reflected',
+        b'Dmnd': 'diamond',
     }
-
-    @property
-    def gradient(self):
-        """Gradient configuration.
-
-        :rtype: psd_tools.user_api.actions.Gradient
-        """
-        # TODO: Expose nested property.
-        return self.get(b'Grad')
 
     @property
     def angle(self):
@@ -293,10 +320,11 @@ class GradientOverlay(_OverlayEffect, _AlignScaleMixin):
 
     @property
     def type(self):
-        """Gradient type, ``linear`` or ``radial``."""
-        # TODO: Check other types.
-        key = self.get(b'Type', b'Lnr ')
-        return self._NAMES.get(key, key)
+        """
+        Gradient type, one of `linear`, `radial`, `angle`, `reflected`, or
+        `diamond`.
+        """
+        return self.TYPES.get(self.get(b'Type', b'Lnr '))
 
     @property
     def reversed(self):
@@ -314,7 +342,7 @@ class GradientOverlay(_OverlayEffect, _AlignScaleMixin):
         return self.get(b'Ofst')
 
 
-class PatternOverlay(_OverlayEffect, _AlignScaleMixin):
+class PatternOverlay(_OverlayEffect, _AlignScaleMixin, _PatternMixin):
     """PatternOverlay effect.
 
     Retrieving pattern data::
@@ -322,15 +350,6 @@ class PatternOverlay(_OverlayEffect, _AlignScaleMixin):
         if effect.name() == 'PatternOverlay':
             pattern = psd.patterns.get(effect.pattern.id)
     """
-    @property
-    def pattern(self):
-        """Pattern config.
-
-        :rtype: psd_tools.user_api.actions.Pattern
-        """
-        # TODO: Expose nested property.
-        return self.get(b'Ptrn')
-
     @property
     def phase(self):
         """Phase value in Point.
@@ -340,30 +359,30 @@ class PatternOverlay(_OverlayEffect, _AlignScaleMixin):
         return self.get(b'phase', psd_tools.user_api.actions.Point(0.0, 0.0))
 
 
-class Stroke(_BaseEffect, _ColorMixin):
-    """
-    Stroke effect.
-
-    TODO: Implement color, pattern, gradient fill. Replace _ColorMixin.
-    """
-
+class Stroke(_BaseEffect, _ColorMixin, _PatternMixin, _GradientMixin):
+    """Stroke effect."""
 
     POSITIONS = {
         b'InsF': 'inner',
         b'OutF': 'outer',
-        # b'   ': 'center', # TODO: Check center key
+        b'CtrF': 'center',
+    }
+
+    FILL_TYPES = {
+        b'SClr': 'solid-color',
+        b'GrFl': 'gradient',
+        b'Ptrn': 'pattern',
     }
 
     @property
     def position(self):
         """Position of the stroke, `inner`, `outer`, or `center`."""
-        return self.POSITIONS.get(self.get(b'Styl', b'OutF'), 'center')
+        return self.POSITIONS.get(self.get(b'Styl', b'OutF'))
 
     @property
     def fill_type(self):
-        """Fill type, solid color, gradient, or pattern."""
-        # TODO: Rephrase bytes. b'SClr': 'color'.
-        return self.get(b'PntT', b'SClr')
+        """Fill type, solid-color, gradient, or pattern."""
+        return self.FILL_TYPES.get(self.get(b'PntT'))
 
     @property
     def size(self):
@@ -377,18 +396,38 @@ class Stroke(_BaseEffect, _ColorMixin):
 
     @property
     def fill(self):
-        if self.fill_type == b'SClr':
-            return ColorOverlay(self._descriptor)
-        elif self.fill_type.startswith(b'P'):
-            return PatternOverlay(self._descriptor)
-        elif self.fill_type.startswith(b'G'):
-            return GradientOverlay(self._descriptor)
+        if self.fill_type == 'solid-color':
+            return ColorOverlay(self._descriptor, self._psd)
+        elif self.fill_type.startswith('pattern'):
+            return PatternOverlay(self._descriptor, self._psd)
+        elif self.fill_type.startswith('gradient'):
+            return GradientOverlay(self._descriptor, self._psd)
         logger.error("Unknown fill type: {}".format(self.fill_type))
         return None
 
 
-class BevelEmboss(_BaseEffect):
+class BevelEmboss(_BaseEffect, _AngleMixin):
     """Bevel and Emboss effect."""
+
+    BEVEL_TYPE = {
+        b'SfBL': 'smooth',
+        b'PrBL': 'chiesel-hard',
+        b'Slmt': 'chiesel-soft',
+    }
+
+    BEVEL_STYLE = {
+        b'OtrB': 'outer-bevel',
+        b'InrB': 'inner-bevel',
+        b'Embs': 'emboss',
+        b'PlEb': 'pillow-emboss',
+        b'strokeEmboss': 'stroke-emboss',
+    }
+
+    DIRECTION = {
+        b'In  ': 'up',
+        b'Out ': 'down',
+    }
+
     @property
     def highlight_mode(self):
         """Highlight blending mode."""
@@ -423,25 +462,16 @@ class BevelEmboss(_BaseEffect):
 
     @property
     def bevel_type(self):
-        """Bevel type."""
-        # TODO: Rephrase bytes.
-        return self.get(b'bvlT', b'SfBL')
+        """Bevel type, one of `smooth`, `chiesel-hard`, `chiesel-soft`."""
+        return self.BEVEL_TYPE.get(self.get(b'bvlT', b'SfBL'))
 
     @property
     def bevel_style(self):
-        """Bevel style, emboss or bevel."""
-        # TODO: Rephrase bytes.
-        return self.get(b'bvlS', b'Embs')
-
-    @property
-    def use_global_light(self):
-        """Using global light."""
-        return self.get(b'uglg', True)
-
-    @property
-    def angle(self):
-        """Angle value."""
-        return self.get(b'lagl', UnitFloat('ANGLE', 90.0))
+        """
+        Bevel style, one of `outer-bevel`, `inner-bevel`, `emboss`,
+        `pillow-emboss`, or `stroke-emboss`.
+        """
+        return self.BEVEL_STYLE.get(self.get(b'bvlS', b'Embs'))
 
     @property
     def altitude(self):
@@ -460,9 +490,8 @@ class BevelEmboss(_BaseEffect):
 
     @property
     def direction(self):
-        """Direction."""
-        # TODO: Rephrase bytes.
-        return self.get(b'bvlD', b'In  ')
+        """Direction, either `up` or `down`."""
+        return self.DIRECTION.get(self.get(b'bvlD', b'In  '))
 
     @property
     def contour(self):
@@ -552,9 +581,9 @@ class Effects(object):
         ObjectBasedEffects.SATIN: Satin,
         }
 
-    def __init__(self, descriptor):
+    def __init__(self, descriptor, psd):
         self._descriptor = descriptor
-        self.items = self._build_items()
+        self.items = self._build_items(psd)
 
     @property
     def scale(self):
@@ -569,7 +598,7 @@ class Effects(object):
         """
         return self._descriptor.get(b'masterFXSwitch', True)
 
-    def _build_items(self):
+    def _build_items(self, psd):
         items = []
         for key in self._descriptor:
             cls = self._KEYS.get(key, None)
@@ -577,9 +606,9 @@ class Effects(object):
                 continue
             if key.endswith(b'Multi'):
                 for value in self._descriptor[key]:
-                    items.append(cls(value))
+                    items.append(cls(value, psd))
             else:
-                items.append(cls(self._descriptor[key]))
+                items.append(cls(self._descriptor[key], psd))
         return items
 
     def present_items(self):
@@ -594,7 +623,7 @@ class Effects(object):
         return []
 
     def has(self, kinds):
-        if kinds == str or kinds == bytes:
+        if isinstance(kinds, basestring):
             kinds = [kinds]
         kinds = {kind.lower() for kind in kinds}
         return any(item.name.lower() in kinds

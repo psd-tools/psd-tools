@@ -78,5 +78,6 @@ psd\_tools\.decoder\.tagged\_blocks
 
 .. automodule:: psd_tools.decoder.tagged_blocks
     :members:
+    :inherited-members:
     :undoc-members:
     :show-inheritance:

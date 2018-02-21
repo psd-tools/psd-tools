@@ -88,7 +88,7 @@ class ImageResourceID(Enum):
     COPYRIGHT_FLAG = 1034
     URL = 1035
     THUMBNAIL_RESOURCE = 1036
-    GLOBAL_ANGLE_OBSOLETE = 1037
+    GLOBAL_ANGLE = 1037
     COLOR_SAMPLERS_RESOURCE_OBSOLETE = 1038
     ICC_PROFILE = 1039
     WATERMARK = 1040
@@ -289,7 +289,7 @@ class TaggedBlock(Enum):
     INVERT = b'nvrt'
     POSTERIZE = b'post'
     THRESHOLD = b'thrs'
-    GRADIENT_MAP_SETTINGS = b'grdm'
+    GRADIENT_MAP_SETTING = b'grdm'
     SELECTIVE_COLOR = b'selc'
 
     @classmethod

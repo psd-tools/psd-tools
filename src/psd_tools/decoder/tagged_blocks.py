@@ -19,8 +19,6 @@ from psd_tools.decoder import engine_data
 _tagged_block_decoders, register = decoders.new_registry()
 
 _tagged_block_decoders.update({
-    TaggedBlock.POSTERIZE:                          decoders.single_value("2H"),
-    TaggedBlock.THRESHOLD:                          decoders.single_value("2H"),
     TaggedBlock.BLEND_CLIPPING_ELEMENTS:            decoders.boolean("I"),
     TaggedBlock.BLEND_INTERIOR_ELEMENTS:            decoders.boolean("I"),
     TaggedBlock.BLEND_FILL_OPACITY:                 decoders.single_value("4B"),
@@ -67,6 +65,9 @@ ChannelMixer = pretty_namedtuple(
     'ChannelMixer', 'version monochrome mixer_settings')
 ColorLookup = pretty_namedtuple(
     'ColorLookup', 'version, descriptor_version descriptor')
+Invert = pretty_namedtuple('Invert', '')
+Posterize = pretty_namedtuple('Posterize', 'value')
+Threshold = pretty_namedtuple('Threshold', 'value')
 SelectiveColor = pretty_namedtuple('SelectiveColor', 'version, method items')
 Pattern = pretty_namedtuple('Pattern', 'version image_mode point name '
     'pattern_id color_table data')
@@ -312,6 +313,21 @@ def _decode_color_lookup(data, **kwargs):
         return data
 
 
+@register(TaggedBlock.INVERT)
+def _decode_invert(data, **kwargs):
+    return Invert()
+
+
+@register(TaggedBlock.POSTERIZE)
+def _decode_posterize(data, **kwargs):
+    return Posterize(read_fmt("2H", io.BytesIO(data))[0])
+
+
+@register(TaggedBlock.THRESHOLD)
+def _decode_threshold(data, **kwargs):
+    return Threshold(read_fmt("2H", io.BytesIO(data))[0])
+
+
 @register(TaggedBlock.SELECTIVE_COLOR)
 def _decode_selective_color(data, **kwargs):
     fp = io.BytesIO(data)
@@ -384,7 +400,7 @@ def _decode_virtual_memory_array_list(fp):
     return VirtualMemoryArrayList(version, rectangle, channels)
 
 
-@register(TaggedBlock.GRADIENT_MAP_SETTINGS)
+@register(TaggedBlock.GRADIENT_MAP_SETTING)
 def _decode_gradient_settings(data, **kwargs):
     fp = io.BytesIO(data)
     version, is_reversed, is_dithered = read_fmt("H 2B", fp)

@@ -193,6 +193,7 @@ class VectorMask(object):
     def paths(self):
         """
         List of `Path`. Path contains `closed`, `num_knots`, and `knots`.
+        In PSD, path fill rule is even-odd for multiple paths.
 
         :rtype: Path
         """

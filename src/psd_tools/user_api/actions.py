@@ -13,10 +13,15 @@ from psd_tools.decoder.actions import (
     Index, Name, ObjectArray, ObjectArrayItem, RawData)
 from psd_tools.decoder.tagged_blocks import (
     SolidColorSetting, PatternFillSetting, GradientFillSetting,
-    VectorStrokeSetting, VectorMaskSetting, VectorStrokeContentSetting)
+    VectorStrokeSetting, VectorMaskSetting, VectorStrokeContentSetting,
+    ContentGeneratorExtraData, LevelsSettings, CurvesSettings, Exposure,
+    Vibrance, HueSaturation, ColorBalance, BlackWhite, PhotoFilter,
+    ChannelMixer, ColorLookup, Invert, Posterize, Threshold, SelectiveColor,
+    GradientSettings)
 from psd_tools.decoder.layer_effects import ObjectBasedEffects
 from psd_tools.user_api.effects import (
     GradientOverlay, PatternOverlay, ColorOverlay)
+from psd_tools.user_api import adjustments
 
 from psd_tools.user_api.shape import StrokeStyle, VectorMask
 
@@ -131,29 +136,113 @@ def _translate_vector_mask_setting(data):
 def _translate_vector_stroke_content_setting(data):
     descriptor = translate(data.data)
     if b'Ptrn' in descriptor:
-        return PatternOverlay(descriptor)
+        return PatternOverlay(descriptor, None)
     elif b'Grdn' in descriptor:
-        return GradientOverlay(descriptor)
+        return GradientOverlay(descriptor, None)
     else:
-        return ColorOverlay(descriptor)
+        return ColorOverlay(descriptor, None)
 
 
 @register(SolidColorSetting)
 def _translate_solid_color_setting(data):
     descriptor = translate(data.data)
-    return ColorOverlay(descriptor)
+    return ColorOverlay(descriptor, None)
 
 
 @register(PatternFillSetting)
 def _translate_pattern_fill_setting(data):
     descriptor = translate(data.data)
-    return PatternOverlay(descriptor)
+    return PatternOverlay(descriptor, None)
 
 
 @register(GradientFillSetting)
 def _translate_gradient_fill_setting(data):
     descriptor = translate(data.data)
-    return GradientOverlay(descriptor)
+    return GradientOverlay(descriptor, None)
+
+
+@register(ContentGeneratorExtraData)
+def _translate_content_generator_extra_data(data):
+    descriptor = _translate_generic_descriptor(data.descriptor)
+    return adjustments.BrightnessContrast(descriptor)
+
+
+@register(LevelsSettings)
+def _translate_levels_settings(data):
+    return adjustments.Levels(data)
+
+
+@register(CurvesSettings)
+def _translate_curves_settings(data):
+    return adjustments.Curves(data)
+
+
+@register(Exposure)
+def _translate_levels_settings(data):
+    return adjustments.Exposure(data)
+
+
+@register(Vibrance)
+def _translate_vibrance(data):
+    descriptor = _translate_generic_descriptor(data.descriptor)
+    return adjustments.Vibrance(descriptor)
+
+
+@register(HueSaturation)
+def _translate_hue_saturation(data):
+    return adjustments.HueSaturation(data)
+
+
+@register(ColorBalance)
+def _translate_color_balance(data):
+    return adjustments.ColorBalance(data)
+
+
+@register(BlackWhite)
+def _translate_black_and_white(data):
+    descriptor =_translate_generic_descriptor(data.descriptor)
+    return adjustments.BlackWhite(descriptor)
+
+
+@register(PhotoFilter)
+def _translate_photo_filter(data):
+    return adjustments.PhotoFilter(data)
+
+
+@register(ChannelMixer)
+def _translate_channel_mixer(data):
+    return adjustments.ChannelMixer(data)
+
+
+@register(ColorLookup)
+def _translate_color_lookup(data):
+    descriptor =_translate_generic_descriptor(data.descriptor)
+    return adjustments.ColorLookup(descriptor)
+
+
+@register(Invert)
+def _translate_invert(data):
+    return adjustments.Invert(data)
+
+
+@register(Posterize)
+def _translate_posterize(data):
+    return adjustments.Posterize(data)
+
+
+@register(Threshold)
+def _translate_threshold(data):
+    return adjustments.Threshold(data)
+
+
+@register(SelectiveColor)
+def _translate_selective_color(data):
+    return adjustments.SelectiveColor(data)
+
+
+@register(GradientSettings)
+def _translate_gradient_map(data):
+    return adjustments.GradientMap(data)
 
 
 def _translate_generic_descriptor(data):
@@ -240,12 +329,12 @@ def _translate_stroke_style(data):
 
 @desc_register(b'solidColorLayer')
 def _translate_solid_color_layer(data):
-    return ColorOverlay(_translate_generic_descriptor(data))
+    return ColorOverlay(_translate_generic_descriptor(data), None)
 
 @desc_register(b'patternLayer')
 def _translate_pattern_layer(data):
-    return PatternOverlay(_translate_generic_descriptor(data))
+    return PatternOverlay(_translate_generic_descriptor(data), None)
 
 @desc_register(b'gradientLayer')
 def _translate_gradient_layer(data):
-    return GradientOverlay(_translate_generic_descriptor(data))
+    return GradientOverlay(_translate_generic_descriptor(data), None)

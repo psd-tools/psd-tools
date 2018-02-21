@@ -116,3 +116,22 @@ def test_mask_data_as_pil(filename):
             assert mask.background_color is not None
             assert not mask.disabled
 
+
+def test_mask_data_api():
+    psd = PSDImage.load(full_name('layer_mask_data.psd'))
+    layer = psd.layers[0]
+    assert layer.has_mask()
+    mask = layer.mask
+    assert mask.has_real()
+    assert mask.top == 146
+    assert mask.left == 36
+    assert mask.bottom == 186
+    assert mask.right == 170
+    assert mask.background_color == 255
+    assert mask.relative_to_layer == False
+    assert mask.disabled == False
+    assert mask.inverted == False
+    assert mask.user_mask_from_render == True
+    assert mask.parameters_applied == True
+    assert mask.parameters
+    assert mask.real_flags

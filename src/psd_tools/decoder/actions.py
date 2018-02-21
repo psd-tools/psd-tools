@@ -224,7 +224,7 @@ def decode_list(key, fp):
 
 
 def decode_integer(key, fp):
-    return Integer(read_fmt("I", fp)[0])
+    return Integer(read_fmt("i", fp)[0])
 
 
 def decode_enum(key, fp):

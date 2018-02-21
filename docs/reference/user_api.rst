@@ -4,6 +4,7 @@ psd\_tools\.user\_api
 .. toctree::
 
     user_api.actions
+    user_api.adjustments
     user_api.effects
     user_api.layers
     user_api.mask

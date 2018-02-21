@@ -30,7 +30,7 @@ class _TaggedBlockMixin(object):
             keys = [keys]
         for key in keys:
             value = self.tagged_blocks.get(key)
-            if value:
+            if value != None:
                 return translate(value)
         return default
 
@@ -212,7 +212,7 @@ class _RawLayer(_TaggedBlockMixin):
         :rtype: psd_tools.user_api.effects.Effects
         """
         if not self._effects:
-            self._effects = get_effects(self)
+            self._effects = get_effects(self, self._psd)
         return self._effects
 
     @property
@@ -368,8 +368,35 @@ class AdjustmentLayer(_RawLayer):
 
     @property
     def data(self):
-        """Adjustment data."""
-        return self.tagged_blocks.get(self._key)
+        """
+        Adjustment data. Depending on the adjustment type, return one of the
+        following instance.
+
+        - :py:class:`~psd_tools.user_api.adjustments.BrightnessContrast`
+        - :py:class:`~psd_tools.user_api.adjustments.Levels`
+        - :py:class:`~psd_tools.user_api.adjustments.Curves`
+        - :py:class:`~psd_tools.user_api.adjustments.Exposure`
+        - :py:class:`~psd_tools.user_api.adjustments.Vibrance`
+        - :py:class:`~psd_tools.user_api.adjustments.HueSaturation`
+        - :py:class:`~psd_tools.user_api.adjustments.ColorBalance`
+        - :py:class:`~psd_tools.user_api.adjustments.BlackWhite`
+        - :py:class:`~psd_tools.user_api.adjustments.PhotoFilter`
+        - :py:class:`~psd_tools.user_api.adjustments.ChannelMixer`
+        - :py:class:`~psd_tools.user_api.adjustments.ColorLookup`
+        - :py:class:`~psd_tools.user_api.adjustments.Invert`
+        - :py:class:`~psd_tools.user_api.adjustments.Posterize`
+        - :py:class:`~psd_tools.user_api.adjustments.Threshold`
+        - :py:class:`~psd_tools.user_api.adjustments.SelectiveColor`
+        - :py:class:`~psd_tools.user_api.adjustments.GradientMap`
+
+        """
+        if (self.adjustment_type == 'brightness and contrast' and
+                self.has_tag(TaggedBlock.CONTENT_GENERATOR_EXTRA_DATA)):
+            data = self.get_tag(TaggedBlock.CONTENT_GENERATOR_EXTRA_DATA)
+            if not data.use_legacy:
+                return data
+
+        return self.get_tag(self._key)
 
     def __repr__(self):
         return "<%s: %r, visible=%s>" % (self.kind, self.name, self.visible)
