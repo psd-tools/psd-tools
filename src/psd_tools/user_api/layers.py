@@ -492,19 +492,25 @@ class ShapeLayer(_RawLayer):
 
     @property
     def bbox(self):
-        """BBox(x1, y1, x2, y2) namedtuple with layer bounding box."""
+        """BBox(x1, y1, x2, y2) namedtuple with layer bounding box.
+
+        :rtype: BBox
+        """
         return self.get_bbox()
 
     @property
     def origination(self):
-        """Vector origination data."""
+        """Vector origination data.
+
+        :rtype: ~psd_tools.user_api.shape.Origination
+        """
         return self.get_tag(TaggedBlock.VECTOR_ORIGINATION_DATA)
 
     @property
     def stroke(self):
         """Stroke style data.
 
-        :rtype: psd_tools.user_api.shape.StrokeStyle
+        :rtype: ~psd_tools.user_api.shape.StrokeStyle
         """
         return self.get_tag(TaggedBlock.VECTOR_STROKE_DATA)
 
@@ -512,9 +518,9 @@ class ShapeLayer(_RawLayer):
     def stroke_content(self):
         """Shape fill data.
 
-        :rtype: psd_tools.user_api.effects.ColorOverlay or
-                psd_tools.user_api.effects.PatternOverlay or
-                psd_tools.user_api.effects.GradientOverlay
+        :rtype: ~psd_tools.user_api.effects.ColorOverlay,
+                ~psd_tools.user_api.effects.PatternOverlay, or
+                ~psd_tools.user_api.effects.GradientOverlay
         """
         return self.get_tag(TaggedBlock.VECTOR_STROKE_CONTENT_DATA)
 
