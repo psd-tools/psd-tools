@@ -416,7 +416,7 @@ class AdjustmentLayer(_RawLayer):
     @property
     def adjustment_type(self):
         """Type of adjustment."""
-        return TaggedBlock.human_name_of(self._key).replace(" setting", "")
+        return TaggedBlock.human_name_of(self._key).replace("-setting", "")
 
     @property
     def data(self):
@@ -442,7 +442,7 @@ class AdjustmentLayer(_RawLayer):
         - :py:class:`~psd_tools.user_api.adjustments.GradientMap`
 
         """
-        if (self.adjustment_type == 'brightness and contrast' and
+        if (self.adjustment_type == 'brightness-and-contrast' and
                 self.has_tag(TaggedBlock.CONTENT_GENERATOR_EXTRA_DATA)):
             data = self.get_tag(TaggedBlock.CONTENT_GENERATOR_EXTRA_DATA)
             if not data.use_legacy:
