@@ -65,11 +65,12 @@ class _PSDImageBuilder(object):
             elif TaggedBlock.TYPE_TOOL_OBJECT_SETTING in blocks:
                 layer = TypeLayer(current_group, index)
 
-            elif (TaggedBlock.VECTOR_ORIGINATION_DATA in blocks or
-                  TaggedBlock.VECTOR_MASK_SETTING1 in blocks or
-                  TaggedBlock.VECTOR_MASK_SETTING2 in blocks or
-                  TaggedBlock.VECTOR_STROKE_DATA in blocks or
-                  TaggedBlock.VECTOR_STROKE_CONTENT_DATA in blocks):
+            elif ((TaggedBlock.VECTOR_ORIGINATION_DATA in blocks or
+                   TaggedBlock.VECTOR_MASK_SETTING1 in blocks or
+                   TaggedBlock.VECTOR_MASK_SETTING2 in blocks or
+                   TaggedBlock.VECTOR_STROKE_DATA in blocks or
+                   TaggedBlock.VECTOR_STROKE_CONTENT_DATA in blocks) and
+                  record.flags.pixel_data_irrelevant):
                 layer = ShapeLayer(current_group, index)
 
             elif (TaggedBlock.SMART_OBJECT_PLACED_LAYER_DATA in blocks or
