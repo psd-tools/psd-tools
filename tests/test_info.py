@@ -129,10 +129,35 @@ def test_shape_paths():
     assert path.closed
 
 
-def test_vector_stroke_content_setting():
+@pytest.fixture(scope='module')
+def stroke_psd():
     psd = PSDImage(decode_psd('stroke.psd'))
-    assert psd.layers[1].kind == 'shape'
-    assert isinstance(psd.layers[1].stroke_content, PatternOverlay)
+    yield psd
+
+
+def test_vector_stroke_content_setting(stroke_psd):
+    assert stroke_psd.layers[1].kind == 'shape'
+    assert isinstance(stroke_psd.layers[1].stroke_content, PatternOverlay)
+
+
+def test_vector_origination(stroke_psd):
+    assert stroke_psd.layers[0].has_origination
+    origination = stroke_psd.layers[0].origination
+    print(origination)
+    assert origination.origin_type == 4
+    assert origination.resolution == 150.0
+    assert origination.shape_bbox == (187.0, 146.0, 220.0, 206.0)
+    assert origination.line_end.x == 220.0
+    assert origination.line_end.y == 146.0
+    assert origination.line_start.x == 187.0
+    assert origination.line_start.y == 206.0
+    assert origination.line_weight == 1.0
+    assert origination.arrow_start == False
+    assert origination.arrow_end == False
+    assert origination.arrow_width == 0.0
+    assert origination.arrow_length == 0.0
+    assert origination.arrow_conc == 0
+    assert origination.index == 0
 
 
 def test_print():

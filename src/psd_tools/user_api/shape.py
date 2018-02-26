@@ -213,3 +213,124 @@ class VectorMask(object):
         """List of vertices of all subpaths."""
         return [p['anchor'] for p in self._setting.path
                 if p.get('selector') in self._KNOT_KEYS]
+
+
+class Origination(object):
+    """Vector origination.
+
+    Vector origination keeps live shape properties such as bounding box.
+    """
+    def __init__(self, data):
+        self._descriptor = data
+
+    @property
+    def origin_type(self):
+        """Type of the origination.
+
+        * 1: rectangle
+        * 2: rounded rectangle
+        * 4: line
+        * 5: ellipse
+
+        :rtype: int
+        """
+        return self._descriptor.get('keyOriginType')
+
+    @property
+    def resolution(self):
+        """Resolution.
+
+        :rtype: float
+        """
+        return self._descriptor.get('keyOriginResolution')
+
+    @property
+    def radii(self):
+        """Corner radii of rounded rectangles.
+        The order is top-left, top-right, bottom-left, bottom-right.
+
+        :rtype: tuple of float
+        """
+        return self._descriptor.get('keyOriginRRectRadii')
+
+    @property
+    def shape_bbox(self):
+        """Bounding box of the live shape.
+
+        :rtype: BBox
+        """
+        return self._descriptor.get('keyOriginShapeBBox')
+
+    @property
+    def line_end(self):
+        """Line end.
+
+        :rtype: Point
+        """
+        return self._descriptor.get('keyOriginLineEnd')
+
+    @property
+    def line_start(self):
+        """Line start.
+
+        :rtype: Point
+        """
+        return self._descriptor.get('keyOriginLineStart')
+
+    @property
+    def line_weight(self):
+        """Line weight
+
+        :rtype: float
+        """
+        return self._descriptor.get('keyOriginLineWeight')
+
+    @property
+    def arrow_start(self):
+        """Line arrow start.
+
+        :rtype: bool
+        """
+        return self._descriptor.get('keyOriginLineArrowSt')
+
+    @property
+    def arrow_end(self):
+        """Line arrow end.
+
+        :rtype: bool"""
+        return self._descriptor.get('keyOriginLineArrowEnd')
+
+    @property
+    def arrow_width(self):
+        """Line arrow width.
+
+        :rtype: float
+        """
+        return self._descriptor.get('keyOriginLineArrWdth')
+
+    @property
+    def arrow_length(self):
+        """Line arrow length.
+
+        :rtype: float
+        """
+        return self._descriptor.get('keyOriginLineArrLngth')
+
+    @property
+    def arrow_conc(self):
+        """
+
+        :rtype: int
+        """
+        return self._descriptor.get('keyOriginLineArrConc')
+
+    @property
+    def index(self):
+        """
+
+        :rtype: int
+        """
+        return self._descriptor.get('keyOriginIndex')
+
+    def __repr__(self):
+        return self._descriptor.__repr__()
