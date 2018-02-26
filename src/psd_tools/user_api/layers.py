@@ -169,9 +169,9 @@ class _RawLayer(_TaggedBlockMixin):
 
     def has_relevant_pixels(self):
         """Return True if the layer has relevant associated pixels."""
-        if not self.flags.pixel_data_irrelevant:
-            return self.has_pixels()
-        return False
+        if self.flags.pixel_data_irrelevant:
+            return False
+        return self.has_pixels()
 
     def has_vector_mask(self):
         """Return True if the layer has an associated vector mask."""
