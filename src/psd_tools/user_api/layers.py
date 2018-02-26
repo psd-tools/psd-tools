@@ -180,7 +180,10 @@ class _RawLayer(_TaggedBlockMixin):
 
     @property
     def vector_mask(self):
-        """Return the associated vector mask, or None."""
+        """Return the associated vector mask, or None.
+
+        :rtype: psd_tools.user_api.shape.VectorMask
+        """
         return self.get_tag((TaggedBlock.VECTOR_MASK_SETTING1,
                              TaggedBlock.VECTOR_MASK_SETTING2))
 
@@ -425,7 +428,11 @@ class PixelLayer(_RawLayer):
 
 
 class ShapeLayer(_RawLayer):
-    """PSD shape layer wrapper."""
+    """PSD shape layer wrapper.
+
+    The shape path is accessible by
+    :py:attr:`vector_mask` attribute.
+    """
 
     def as_PIL(self, vector=False):
         """Returns a PIL image for this layer."""
