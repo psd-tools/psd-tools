@@ -145,7 +145,7 @@ def _translate_vector_stroke_content_setting(data):
 
 @register(VectorOriginationData)
 def _translate_vector_origination_data(data):
-    return Origination(translate(data.data).get('keyDescriptorList')[0])
+    return Origination(translate(data.data).get(b'keyDescriptorList')[0])
 
 
 @register(SolidColorSetting)

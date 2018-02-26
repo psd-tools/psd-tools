@@ -234,7 +234,7 @@ class Origination(object):
 
         :rtype: int
         """
-        return self._descriptor.get('keyOriginType')
+        return self._descriptor.get(b'keyOriginType')
 
     @property
     def resolution(self):
@@ -242,7 +242,7 @@ class Origination(object):
 
         :rtype: float
         """
-        return self._descriptor.get('keyOriginResolution')
+        return self._descriptor.get(b'keyOriginResolution')
 
     @property
     def radii(self):
@@ -251,7 +251,7 @@ class Origination(object):
 
         :rtype: tuple of float
         """
-        return self._descriptor.get('keyOriginRRectRadii')
+        return self._descriptor.get(b'keyOriginRRectRadii')
 
     @property
     def shape_bbox(self):
@@ -259,7 +259,7 @@ class Origination(object):
 
         :rtype: BBox
         """
-        return self._descriptor.get('keyOriginShapeBBox')
+        return self._descriptor.get(b'keyOriginShapeBBox')
 
     @property
     def line_end(self):
@@ -267,7 +267,7 @@ class Origination(object):
 
         :rtype: Point
         """
-        return self._descriptor.get('keyOriginLineEnd')
+        return self._descriptor.get(b'keyOriginLineEnd')
 
     @property
     def line_start(self):
@@ -275,7 +275,7 @@ class Origination(object):
 
         :rtype: Point
         """
-        return self._descriptor.get('keyOriginLineStart')
+        return self._descriptor.get(b'keyOriginLineStart')
 
     @property
     def line_weight(self):
@@ -283,7 +283,7 @@ class Origination(object):
 
         :rtype: float
         """
-        return self._descriptor.get('keyOriginLineWeight')
+        return self._descriptor.get(b'keyOriginLineWeight')
 
     @property
     def arrow_start(self):
@@ -291,14 +291,14 @@ class Origination(object):
 
         :rtype: bool
         """
-        return self._descriptor.get('keyOriginLineArrowSt')
+        return self._descriptor.get(b'keyOriginLineArrowSt')
 
     @property
     def arrow_end(self):
         """Line arrow end.
 
         :rtype: bool"""
-        return self._descriptor.get('keyOriginLineArrowEnd')
+        return self._descriptor.get(b'keyOriginLineArrowEnd')
 
     @property
     def arrow_width(self):
@@ -306,7 +306,7 @@ class Origination(object):
 
         :rtype: float
         """
-        return self._descriptor.get('keyOriginLineArrWdth')
+        return self._descriptor.get(b'keyOriginLineArrWdth')
 
     @property
     def arrow_length(self):
@@ -314,7 +314,7 @@ class Origination(object):
 
         :rtype: float
         """
-        return self._descriptor.get('keyOriginLineArrLngth')
+        return self._descriptor.get(b'keyOriginLineArrLngth')
 
     @property
     def arrow_conc(self):
@@ -322,7 +322,7 @@ class Origination(object):
 
         :rtype: int
         """
-        return self._descriptor.get('keyOriginLineArrConc')
+        return self._descriptor.get(b'keyOriginLineArrConc')
 
     @property
     def index(self):
@@ -330,7 +330,7 @@ class Origination(object):
 
         :rtype: int
         """
-        return self._descriptor.get('keyOriginIndex')
+        return self._descriptor.get(b'keyOriginIndex')
 
     def __repr__(self):
         return self._descriptor.__repr__()

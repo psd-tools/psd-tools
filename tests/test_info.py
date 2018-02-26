@@ -143,7 +143,6 @@ def test_vector_stroke_content_setting(stroke_psd):
 def test_vector_origination(stroke_psd):
     assert stroke_psd.layers[0].has_origination
     origination = stroke_psd.layers[0].origination
-    print(origination)
     assert origination.origin_type == 4
     assert origination.resolution == 150.0
     assert origination.shape_bbox == (187.0, 146.0, 220.0, 206.0)
