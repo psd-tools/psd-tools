@@ -168,9 +168,26 @@ class _RawLayer(_TaggedBlockMixin):
         return all(c.data and len(c.data) > 0 for c in self._channels)
 
     def has_relevant_pixels(self):
-        if self._record.flags.pixel_data_irrelevant:
-            return False
-        return self.has_pixels()
+        """Return True if the layer has relevant associated pixels."""
+        if not self.flags.pixel_data_irrelevant:
+            return self.has_pixels()
+        return False
+
+    def has_vector_mask(self):
+        """Return True if the layer has an associated vector mask."""
+        return self.has_tag([TaggedBlock.VECTOR_MASK_SETTING1,
+                             TaggedBlock.VECTOR_MASK_SETTING2])
+
+    @property
+    def vector_mask(self):
+        """Return the associated vector mask, or None."""
+        return self.get_tag((TaggedBlock.VECTOR_MASK_SETTING1,
+                             TaggedBlock.VECTOR_MASK_SETTING2))
+
+    @property
+    def flags(self):
+        """Return flags assocated to the layer."""
+        return self._record.flags
 
     @property
     def mask(self):
@@ -443,11 +460,6 @@ class ShapeLayer(_RawLayer):
         return self.get_tag(TaggedBlock.VECTOR_ORIGINATION_DATA)
 
     @property
-    def vector_mask(self):
-        return self.get_tag((TaggedBlock.VECTOR_MASK_SETTING1,
-                             TaggedBlock.VECTOR_MASK_SETTING2))
-
-    @property
     def stroke(self):
         return self.get_tag(TaggedBlock.VECTOR_STROKE_DATA)
 
@@ -457,10 +469,6 @@ class ShapeLayer(_RawLayer):
 
     def has_origination(self):
         return self.has_tag(TaggedBlock.VECTOR_ORIGINATION_DATA)
-
-    def has_vector_mask(self):
-        return self.has_tag([TaggedBlock.VECTOR_MASK_SETTING1,
-                             TaggedBlock.VECTOR_MASK_SETTING2])
 
     def has_stroke(self):
         return self.has_tag(TaggedBlock.VECTOR_STROKE_DATA)
@@ -688,6 +696,7 @@ def merge_layers(layers, respect_visibility=True, ignore_blend_mode=True,
                            layer.blend_mode)
             continue
 
+        clip_mask_exists = False
         if len(layer.clip_layers):
             clip_box = combined_bbox(layer.clip_layers)
             if not clip_box.is_empty():
@@ -700,6 +709,7 @@ def merge_layers(layers, respect_visibility=True, ignore_blend_mode=True,
                         intersect.offset((clip_box.x1, clip_box.y1)))
                     clip_mask = layer_image.crop(
                         intersect.offset((layer.bbox.x1, layer.bbox.y1)))
+                    clip_mask_exists = True
 
         layer_image = pil_support.apply_opacity(layer_image, layer.opacity)
 
@@ -730,7 +740,7 @@ def merge_layers(layers, respect_visibility=True, ignore_blend_mode=True,
                 layer_image.mode)
             continue
 
-        if 'clip_mask' in locals():
+        if clip_mask_exists:
             location = (intersect.x1 - bbox.x1, intersect.y1 - bbox.y1)
             if clip_image.mode == 'RGBA':
                 tmp = Image.new("RGBA", result.size, color=(255, 255, 255, 0))
