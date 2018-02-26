@@ -21,7 +21,7 @@ FILES_WITH_NO_LAYERS = (
     ('history.psd',         True),
     ('pen-text.psd',        True),
     ('transparentbg.psd',   True),
-    ('vector mask.psd',     True),
+    ('vector-mask.psd',     True),
     ('0layers.psb',         True),
     ('0layers_tblocks.psb', True),
     ('16bit5x5.psb',        True),
@@ -32,7 +32,7 @@ FILES_WITH_NO_LAYERS = (
     ('history.psb',         True),
     ('pen-text.psb',        True),
     ('transparentbg.psb',   True),
-    ('vector mask.psb',     True)
+    ('vector-mask.psb',     True)
 )
 
 
@@ -107,7 +107,7 @@ def test_api():
 
 
 def test_vector_mask():
-    psd = decode_psd('vector mask.psd')
+    psd = decode_psd('vector-mask.psd')
     layers = psd.layer_and_mask_data.layers.layer_records
     assert layers[1].tagged_blocks[1].key == TaggedBlock.VECTOR_MASK_SETTING1
     assert isinstance(layers[1].tagged_blocks[1].data, VectorMaskSetting)

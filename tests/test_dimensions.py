@@ -25,7 +25,7 @@ DIMENSIONS = with_psb((
     ('smart-object-slice.psd',  (100, 100)),
     ('transparentbg.psd',       (100, 150)),
     ('transparentbg-gimp.psd',  (40, 40)),
-    ('vector mask.psd',         (100, 150)),
+    ('vector-mask.psd',         (100, 150)),
     ('gray0.psd',               (400, 359)),
     ('gray1.psd',               (1800, 1200)),
     ('empty-layer.psd',         (100, 150)),

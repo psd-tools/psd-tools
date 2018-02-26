@@ -46,8 +46,8 @@ PIXEL_COLORS_32BIT = with_psb((
     ('gradient fill.psd',       (50, 50),     (205, 144, 110)), # filled ellipse
     ('pen-text.psd',            (50, 50),     (229, 93, 93)),
     ('pen-text.psd',            (170, 40),    (0, 0, 0)),
-    ('vector mask.psd',         (10, 15),     (255, 255, 255)),
-    ('vector mask.psd',         (50, 90),     (221, 227, 236)),
+    ('vector-mask.psd',         (10, 15),     (255, 255, 255)),
+    ('vector-mask.psd',         (50, 90),     (221, 227, 236)),
     ('transparentbg.psd',       (0, 0),       (255, 255, 255, 0)),
     ('transparentbg.psd',       (50, 50),     (0, 0, 0, 255)),
     ('32bit5x5.psd',            (0, 0),       (235, 241, 250)), # why not equal to 16bit5x5.psd?
