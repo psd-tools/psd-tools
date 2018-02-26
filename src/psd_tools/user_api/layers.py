@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+"""PSD layer classes.
+"""
 from __future__ import absolute_import, unicode_literals
 
 import logging
@@ -125,38 +127,59 @@ class _RawLayer(_TaggedBlockMixin):
 
     @property
     def bbox(self):
-        """BBox(x1, y1, x2, y2) namedtuple with layer bounding box."""
+        """BBox(x1, y1, x2, y2) namedtuple with layer bounding box.
+
+        :rtype: BBox
+        """
         return BBox(self._record.left, self._record.top, self._record.right,
                     self._record.bottom)
 
     @property
     def left(self):
-        """Left coordinate."""
+        """Left coordinate.
+
+        :rtype: int
+        """
         return self._record.left
 
     @property
     def right(self):
-        """Right coordinate."""
+        """Right coordinate.
+
+        :rtype: int
+        """
         return self._record.right
 
     @property
     def top(self):
-        """Top coordinate."""
+        """Top coordinate.
+
+        :rtype: int
+        """
         return self._record.top
 
     @property
     def bottom(self):
-        """Bottom coordinate."""
+        """Bottom coordinate.
+
+        :rtype: int
+        """
         return self._record.bottom
 
     @property
     def width(self):
-        """Width."""
+        """Width.
+
+        :rtype: int
+        """
         return self.right - self.left
 
     @property
     def height(self):
-        """Height."""
+        """Height.
+
+        :rtype: int
+        """
         return self.bottom - self.top
 
     def has_box(self):
@@ -182,14 +205,17 @@ class _RawLayer(_TaggedBlockMixin):
     def vector_mask(self):
         """Return the associated vector mask, or None.
 
-        :rtype: psd_tools.user_api.shape.VectorMask
+        :rtype: ~psd_tools.user_api.shape.VectorMask
         """
         return self.get_tag((TaggedBlock.VECTOR_MASK_SETTING1,
                              TaggedBlock.VECTOR_MASK_SETTING2))
 
     @property
     def flags(self):
-        """Return flags assocated to the layer."""
+        """Return flags assocated to the layer.
+
+        :rtype: ~psd_tools.reader.layers.LayerFlags
+        """
         return self._record.flags
 
     @property
@@ -197,7 +223,7 @@ class _RawLayer(_TaggedBlockMixin):
         """
         Returns mask associated with this layer.
 
-        :rtype: psd_tools.user_api.mask.Mask
+        :rtype: ~psd_tools.user_api.mask.Mask
         """
         if not hasattr(self, "_mask"):
             self._mask = Mask(self) if self.has_mask() else None
@@ -212,7 +238,7 @@ class _RawLayer(_TaggedBlockMixin):
         """
         Returns clip layers associated with this layer.
 
-        :rtype: list
+        :rtype: list of, AdjustmentLayer, PixelLayer, or ShapeLayer
         """
         return self._clip_layers
 
@@ -229,7 +255,7 @@ class _RawLayer(_TaggedBlockMixin):
         """
         Effects associated with this layer.
 
-        :rtype: psd_tools.user_api.effects.Effects
+        :rtype: ~psd_tools.user_api.effects.Effects
         """
         if not self._effects:
             self._effects = get_effects(self, self._psd)
@@ -310,7 +336,13 @@ class _GroupMixin(object):
         """
         Return a list of child layers in this group.
 
-        :rtype: list
+        :rtype: list of,
+                ~psd_tools.user_api.layers.Group,
+                ~psd_tools.user_api.layers.AdjustmentLayer,
+                ~psd_tools.user_api.layers.PixelLayer,
+                ~psd_tools.user_api.layers.ShapeLayer,
+                ~psd_tools.user_api.layers.SmartObjectLayer, or
+                ~psd_tools.user_api.layers.TypeLayer
         """
         return self._layers
 
@@ -366,7 +398,7 @@ class Group(_GroupMixin, _RawLayer):
 
 
 class AdjustmentLayer(_RawLayer):
-    """PSD adjustment layer wrapper."""
+    """PSD adjustment layer."""
 
     def __init__(self, parent, index):
         super(AdjustmentLayer, self).__init__(parent, index)
@@ -423,12 +455,12 @@ class AdjustmentLayer(_RawLayer):
 
 
 class PixelLayer(_RawLayer):
-    """PSD pixel layer wrapper."""
+    """PSD pixel layer."""
     pass
 
 
 class ShapeLayer(_RawLayer):
-    """PSD shape layer wrapper.
+    """PSD shape layer.
 
     The shape path is accessible by
     :py:attr:`vector_mask` attribute.
@@ -460,30 +492,46 @@ class ShapeLayer(_RawLayer):
 
     @property
     def bbox(self):
+        """BBox(x1, y1, x2, y2) namedtuple with layer bounding box."""
         return self.get_bbox()
 
     @property
     def origination(self):
+        """Vector origination data."""
         return self.get_tag(TaggedBlock.VECTOR_ORIGINATION_DATA)
 
     @property
     def stroke(self):
+        """Stroke style data.
+
+        :rtype: psd_tools.user_api.shape.StrokeStyle
+        """
         return self.get_tag(TaggedBlock.VECTOR_STROKE_DATA)
 
     @property
     def stroke_content(self):
+        """Shape fill data.
+
+        :rtype: psd_tools.user_api.effects.ColorOverlay or
+                psd_tools.user_api.effects.PatternOverlay or
+                psd_tools.user_api.effects.GradientOverlay
+        """
         return self.get_tag(TaggedBlock.VECTOR_STROKE_CONTENT_DATA)
 
     def has_origination(self):
+        """True if the layer has vector origination."""
         return self.has_tag(TaggedBlock.VECTOR_ORIGINATION_DATA)
 
     def has_stroke(self):
+        """True if the layer has stroke."""
         return self.has_tag(TaggedBlock.VECTOR_STROKE_DATA)
 
     def has_stroke_content(self):
+        """True if the layer has shape fill."""
         return self.has_tag(TaggedBlock.VECTOR_STROKE_CONTENT_DATA)
 
     def has_path(self):
+        """True if the layer has path knots."""
         return self.has_vector_mask() and any(
             path.num_knots > 1 for path in self.vector_mask.paths)
 
@@ -509,7 +557,12 @@ class ShapeLayer(_RawLayer):
 
 
 class SmartObjectLayer(_RawLayer):
-    """PSD smartobject layer wrapper."""
+    """PSD smartobject layer.
+
+    Smart object is an embedded or external object in PSD document. Typically
+    smart objects is used for non-destructive editing. The linked data is
+    accessible by :py:attr:`linked_data` attribute.
+    """
     def __init__(self, parent, index):
         super(SmartObjectLayer, self).__init__(parent, index)
         self._block = self._get_block()
@@ -550,7 +603,7 @@ class SmartObjectLayer(_RawLayer):
         """
         Return linked layer data.
 
-        :rtype: psd_tools.user_api.smart_object.SmartObject
+        :rtype: ~psd_tools.user_api.smart_object.SmartObject
         """
         return self._psd.smart_objects.get(self.unique_id)
 
