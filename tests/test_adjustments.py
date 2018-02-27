@@ -15,22 +15,22 @@ def psd():
 
 
 def test_adjustment_types(psd):
-    assert psd.layers[15].adjustment_type == 'brightness and contrast'
+    assert psd.layers[15].adjustment_type == 'brightness-and-contrast'
     assert psd.layers[14].adjustment_type == 'levels'
     assert psd.layers[13].adjustment_type == 'curves'
     assert psd.layers[12].adjustment_type == 'exposure'
     assert psd.layers[11].adjustment_type == 'vibrance'
-    assert psd.layers[10].adjustment_type == 'hue saturation 5'
-    assert psd.layers[9].adjustment_type == 'color balance'
-    assert psd.layers[8].adjustment_type == 'black and white'
-    assert psd.layers[7].adjustment_type == 'photo filter'
-    assert psd.layers[6].adjustment_type == 'channel mixer'
-    assert psd.layers[5].adjustment_type == 'color lookup'
+    assert psd.layers[10].adjustment_type == 'hue-saturation'
+    assert psd.layers[9].adjustment_type == 'color-balance'
+    assert psd.layers[8].adjustment_type == 'black-and-white'
+    assert psd.layers[7].adjustment_type == 'photo-filter'
+    assert psd.layers[6].adjustment_type == 'channel-mixer'
+    assert psd.layers[5].adjustment_type == 'color-lookup'
     assert psd.layers[4].adjustment_type == 'invert'
     assert psd.layers[3].adjustment_type == 'posterize'
     assert psd.layers[2].adjustment_type == 'threshold'
-    assert psd.layers[1].adjustment_type == 'selective color'
-    assert psd.layers[0].adjustment_type == 'gradient map'
+    assert psd.layers[1].adjustment_type == 'selective-color'
+    assert psd.layers[0].adjustment_type == 'gradient-map'
 
 
 def test_brightness_contrast(psd):

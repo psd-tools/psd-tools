@@ -17,13 +17,13 @@ from psd_tools.decoder.tagged_blocks import (
     ContentGeneratorExtraData, LevelsSettings, CurvesSettings, Exposure,
     Vibrance, HueSaturation, ColorBalance, BlackWhite, PhotoFilter,
     ChannelMixer, ColorLookup, Invert, Posterize, Threshold, SelectiveColor,
-    GradientSettings)
+    GradientSettings, VectorOriginationData)
 from psd_tools.decoder.layer_effects import ObjectBasedEffects
 from psd_tools.user_api.effects import (
     GradientOverlay, PatternOverlay, ColorOverlay)
-from psd_tools.user_api import adjustments
+from psd_tools.user_api import adjustments, BBox
 
-from psd_tools.user_api.shape import StrokeStyle, VectorMask
+from psd_tools.user_api.shape import StrokeStyle, VectorMask, Origination
 
 
 _translators, register = new_registry()
@@ -141,6 +141,11 @@ def _translate_vector_stroke_content_setting(data):
         return GradientOverlay(descriptor, None)
     else:
         return ColorOverlay(descriptor, None)
+
+
+@register(VectorOriginationData)
+def _translate_vector_origination_data(data):
+    return Origination(translate(data.data).get(b'keyDescriptorList')[0])
 
 
 @register(SolidColorSetting)
@@ -319,22 +324,45 @@ def _translate_shape(data):
     items = dict(data.items)
     return Shape(translate(items.get(b'Nm  ')), translate(items.get(b'Crv ')))
 
+
 @desc_register(b'metadata')
 def _translate_metadata(data):
     return _translate_generic_descriptor(data)
+
 
 @desc_register(b'strokeStyle')
 def _translate_stroke_style(data):
     return StrokeStyle(_translate_generic_descriptor(data))
 
+
 @desc_register(b'solidColorLayer')
 def _translate_solid_color_layer(data):
     return ColorOverlay(_translate_generic_descriptor(data), None)
+
 
 @desc_register(b'patternLayer')
 def _translate_pattern_layer(data):
     return PatternOverlay(_translate_generic_descriptor(data), None)
 
+
 @desc_register(b'gradientLayer')
 def _translate_gradient_layer(data):
     return GradientOverlay(_translate_generic_descriptor(data), None)
+
+
+@desc_register(b'radii')
+def _translate_rrect_radii(data):
+    items = dict(data.items)
+    return (items.get(b'topLeft').value,
+            items.get(b'topRight').value,
+            items.get(b'bottomLeft').value,
+            items.get(b'bottomRight').value)
+
+
+@desc_register(b'unitRect')
+def _translate_unit_rect(data):
+    items = dict(data.items)
+    return BBox(items.get(b'Left').value,
+                items.get(b'Top ').value,
+                items.get(b'Rght').value,
+                items.get(b'Btom').value)

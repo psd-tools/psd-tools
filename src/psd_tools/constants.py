@@ -32,7 +32,7 @@ class Enum(object):
         return cls._values_dict().get(value, "<unknown:{}>".format(value))
 
     @classmethod
-    def human_name_of(cls, value, separator=" "):
+    def human_name_of(cls, value, separator="-"):
         return cls.name_of(value).lower().replace("_", separator)
 
 
@@ -279,8 +279,8 @@ class TaggedBlock(Enum):
     CURVES = b'curv'
     EXPOSURE = b'expA'
     VIBRANCE = b'vibA'
-    HUE_SATURATION_4 = b'hue '
-    HUE_SATURATION_5 = b'hue2'
+    HUE_SATURATION_V4 = b'hue '
+    HUE_SATURATION = b'hue2'
     COLOR_BALANCE = b'blnc'
     BLACK_AND_WHITE = b'blwh'
     PHOTO_FILTER = b'phfl'

@@ -65,11 +65,12 @@ class _PSDImageBuilder(object):
             elif TaggedBlock.TYPE_TOOL_OBJECT_SETTING in blocks:
                 layer = TypeLayer(current_group, index)
 
-            elif (TaggedBlock.VECTOR_ORIGINATION_DATA in blocks or
-                  TaggedBlock.VECTOR_MASK_SETTING1 in blocks or
-                  TaggedBlock.VECTOR_MASK_SETTING2 in blocks or
-                  TaggedBlock.VECTOR_STROKE_DATA in blocks or
-                  TaggedBlock.VECTOR_STROKE_CONTENT_DATA in blocks):
+            elif ((TaggedBlock.VECTOR_ORIGINATION_DATA in blocks or
+                   TaggedBlock.VECTOR_MASK_SETTING1 in blocks or
+                   TaggedBlock.VECTOR_MASK_SETTING2 in blocks or
+                   TaggedBlock.VECTOR_STROKE_DATA in blocks or
+                   TaggedBlock.VECTOR_STROKE_CONTENT_DATA in blocks) and
+                  record.flags.pixel_data_irrelevant):
                 layer = ShapeLayer(current_group, index)
 
             elif (TaggedBlock.SMART_OBJECT_PLACED_LAYER_DATA in blocks or
@@ -94,7 +95,22 @@ class _PSDImageBuilder(object):
 
 
 class PSDImage(_TaggedBlockMixin, _GroupMixin, _PSDImageBuilder):
-    """PSD image."""
+    """PSD image.
+
+    The internal layers are accessible with :py:attr:`layers` attribute.
+
+    Example::
+
+        from psd_tools import PSDImage
+        psd = PSDImage.load("path/to/example.psd")
+        psd.print_tree()
+
+        for layer in psd.layers:
+            print(layer.kind)
+
+        image = psd.as_PIL()
+
+    """
 
     def __init__(self, decoded_data):
         self._psd = self
@@ -142,7 +158,11 @@ class PSDImage(_TaggedBlockMixin, _GroupMixin, _PSDImageBuilder):
         return self.width > 0 and self.height > 0
 
     def has_preview(self):
-        """Returns if the image has a preview."""
+        """Returns if the image has a preview.
+
+        PSD files may contain a preview for compatibility. If a preview
+        exists, PSDImage exports the preview as is in :py:attr:`as_PIL()`.
+        """
         version_info = self.image_resource_blocks.get("version_info")
         return self.has_pixels() and (
             not version_info or version_info.has_real_merged_data)
@@ -276,6 +296,11 @@ class PSDImage(_TaggedBlockMixin, _GroupMixin, _PSDImageBuilder):
             print(((' ' * indent) + "{}").format(l), **kwargs)
             if l.is_group():
                 self.print_tree(l.layers, indent + indent_width, **kwargs)
+
+    def has_thumbnail(self):
+        """True if the PSDImage has a thumbnail resource."""
+        return ("thumbnail_resource" in self.image_resource_blocks or
+                "thumbnail_resource_ps4" in self.image_resource_blocks)
 
     def thumbnail(self):
         """

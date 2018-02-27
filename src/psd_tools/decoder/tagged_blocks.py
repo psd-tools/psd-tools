@@ -237,8 +237,8 @@ def _decode_vibrance(data, **kwargs):
     return _decode_descriptor_block(data, Vibrance)
 
 
-@register(TaggedBlock.HUE_SATURATION_4)
-@register(TaggedBlock.HUE_SATURATION_5)
+@register(TaggedBlock.HUE_SATURATION_V4)
+@register(TaggedBlock.HUE_SATURATION)
 def _decode_hue_saturation(data, **kwargs):
     fp = io.BytesIO(data)
     version, enable_colorization, _ = read_fmt('H 2B', fp)

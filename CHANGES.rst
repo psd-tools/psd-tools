@@ -1,3 +1,11 @@
+1.7.3 (2018-02-27)
+------------------
+
+- add vector origination API;
+- fix shape and vector mask identification;
+- change enum name conversion;
+- update docs.
+
 1.7.2 (2018-02-14)
 ------------------
 
