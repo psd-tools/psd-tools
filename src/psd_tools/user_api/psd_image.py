@@ -286,7 +286,7 @@ class PSDImage(_TaggedBlockMixin, _GroupMixin, _PSDImageBuilder):
 
     def print_tree(self, layers=None, indent=0, indent_width=2, **kwargs):
         """Print the layer tree structure."""
-        if not layers:
+        if layers is None:
             layers = self.layers
             print(((' ' * indent) + "{}").format(self), **kwargs)
             indent = indent + indent_width
