@@ -175,14 +175,26 @@ def _merge_bands(bands, color_mode, size, icc_profile):
 def _get_band_images(layer_left, layer_top, channel_data, channel_ids, color_mode, size, depth):
     bands = {}
     for channel, channel_id in zip(channel_data, channel_ids):
-
+        im = None
+        mask_im = None
+        mask_size = None
         pil_band = _channel_id_to_PIL(channel_id, color_mode)
         if pil_band is None:
             warnings.warn("Unsupported channel type (%d)" % channel_id)
             continue
 
         if channel.compression in [Compression.RAW, Compression.ZIP, Compression.ZIP_WITH_PREDICTION]:
-            if depth == 8:
+            if pil_band == 'M':
+                mask_size = (channel.mask_data.width(), channel.mask_data.height())
+                if mask_size[0] == 0 or mask_size[1] == 0:
+                    warnings.warn("Empty layer mask found, ignoring it.")
+                    continue
+                try:
+                    mask_im = _from_8bit_raw(channel.data, mask_size)
+                except Exception as e: 
+                    warnings.warn("Failed parsing layer mask! " + str(e))
+                    continue               
+            elif depth == 8:
                 im = _from_8bit_raw(channel.data, size)
             elif depth == 16:
                 im = _from_16bit_raw(channel.data, size)
@@ -196,14 +208,16 @@ def _get_band_images(layer_left, layer_top, channel_data, channel_ids, color_mod
             if depth != 8:
                 warnings.warn("Depth %s is unsupported for PackBits compression" % depth)
                 continue
-            if pil_band == 'M' and channel.mask_data != None:
+            if pil_band == 'M':
+                mask_size = (channel.mask_data.width(), channel.mask_data.height())
+                if mask_size[0] == 0 or mask_size[1] == 0:
+                    warnings.warn("Empty layer mask found, ignoring it.")
+                    continue
                 try:
-                    mask_im = frombytes('L', size, channel.data, "packbits", 'L')
-                except Exception as e: # can fail if mask size data is not the same as other channels
-                    mask_size = (channel.mask_data.width(), channel.mask_data.height())
                     mask_im = frombytes('L', mask_size, channel.data, "packbits", 'L')
-                im = Image.new('L', size, 255)
-                im.paste(mask_im, (channel.mask_data.left - layer_left, channel.mask_data.top - layer_top))
+                except Exception as e: 
+                    warnings.warn("Failed parsing layer mask! " + str(e))
+                    continue
             else:
                 im = frombytes('L', size, channel.data, "packbits", 'L')
         else:
@@ -212,6 +226,10 @@ def _get_band_images(layer_left, layer_top, channel_data, channel_ids, color_mod
             else:
                 warnings.warn("Unknown compression method (%s)" % channel.compression)
             continue
+        if pil_band == 'M':
+            im = Image.new('L', size, 255)
+            offset = (channel.mask_data.left - layer_left, channel.mask_data.top - layer_top)
+            im.paste(mask_im, offset)
 
         bands[pil_band] = im.convert('L')
     return bands
