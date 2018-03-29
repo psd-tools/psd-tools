@@ -20,6 +20,7 @@ try:
 except ImportError:
     ImageCms = None
 
+import PIL.ImageOps
 
 def tobytes(image):
     # Some versions of PIL are missing the tobytes alias for tostring
@@ -37,6 +38,8 @@ def extract_layer_image(decoded_data, layer_index):
     layer = layers.layer_records[layer_index]
 
     return _channel_data_to_PIL(
+        layer_left = layer.left,
+        layer_top = layer.top,
         channel_data = layers.channel_image_data[layer_index],
         channel_ids = _get_layer_channel_ids(layer),
         color_mode = decoded_data.header.color_mode,  # XXX?
@@ -63,6 +66,8 @@ def extract_composite_image(decoded_data):
         return
 
     return _channel_data_to_PIL(
+        layer_left = 0,
+        layer_top = 0,
         channel_data=decoded_data.image_data,
         channel_ids=channel_ids,
         color_mode=header.color_mode,
@@ -105,8 +110,10 @@ def apply_opacity(im, opacity):
         raise NotImplementedError()
 
 
-def _channel_data_to_PIL(channel_data, channel_ids, color_mode, size, depth, icc_profile):
+def _channel_data_to_PIL(layer_left, layer_top, channel_data, channel_ids, color_mode, size, depth, icc_profile):
     bands = _get_band_images(
+        layer_left = layer_left,
+        layer_top = layer_top,
         channel_data=channel_data,
         channel_ids=channel_ids,
         color_mode=color_mode,
@@ -146,14 +153,26 @@ def _merge_bands(bands, color_mode, size, icc_profile):
     if color_mode == ColorMode.CMYK:
         merged_image = merged_image.convert('RGB')
 
-    alpha = bands.get('A')
-    if alpha:
-        merged_image.putalpha(alpha)
+    mask = bands.get('M')
+    if mask:
+        alpha = bands.get('A')
+        if alpha:
+            blank = Image.new('L', (mask.width, mask.height), 0)
+            inverted_mask = PIL.ImageOps.invert(mask)
+
+            alpha.paste(blank, (0, 0), inverted_mask)
+            merged_image.putalpha(alpha)
+        else:
+            merged_image.putalpha(mask)
+    else:
+        alpha = bands.get('A')
+        if alpha:
+            merged_image.putalpha(alpha)
 
     return merged_image
 
 
-def _get_band_images(channel_data, channel_ids, color_mode, size, depth):
+def _get_band_images(layer_left, layer_top, channel_data, channel_ids, color_mode, size, depth):
     bands = {}
     for channel, channel_id in zip(channel_data, channel_ids):
 
@@ -177,7 +196,16 @@ def _get_band_images(channel_data, channel_ids, color_mode, size, depth):
             if depth != 8:
                 warnings.warn("Depth %s is unsupported for PackBits compression" % depth)
                 continue
-            im = frombytes('L', size, channel.data, "packbits", 'L')
+            if pil_band == 'M' and channel.mask_data != None:
+                try:
+                    mask_im = frombytes('L', size, channel.data, "packbits", 'L')
+                except Exception as e: # can fail if mask size data is not the same as other channels
+                    mask_size = (channel.mask_data.width(), channel.mask_data.height())
+                    mask_im = frombytes('L', mask_size, channel.data, "packbits", 'L')
+                im = Image.new('L', size, 255)
+                im.paste(mask_im, (channel.mask_data.left - layer_left, channel.mask_data.top - layer_top))
+            else:
+                im = frombytes('L', size, channel.data, "packbits", 'L')
         else:
             if Compression.is_known(channel.compression):
                 warnings.warn("Compression method is not implemented (%s)" % channel.compression)
@@ -209,6 +237,8 @@ def _channel_id_to_PIL(channel_id, color_mode):
     if ChannelID.is_known(channel_id):
         if channel_id == ChannelID.TRANSPARENCY_MASK:
             return 'A'
+        elif channel_id == ChannelID.USER_LAYER_MASK:
+            return 'M'
         warnings.warn("Channel %s (%s) is not handled" % (channel_id, ChannelID.name_of(channel_id)))
         return None
 

@@ -31,7 +31,7 @@ MaskParameters = pretty_namedtuple('MaskParameters', 'user_mask_density user_mas
                                                      'vector_mask_density vector_mask_feather')
 LayerBlendingRanges = pretty_namedtuple('LayerBlendingRanges', 'composite_ranges channel_ranges')
 _Block = pretty_namedtuple('Block', 'key data')
-_ChannelData = pretty_namedtuple('ChannelData', 'compression data')
+_ChannelData = pretty_namedtuple('ChannelData', 'compression data mask_data')
 GlobalMaskInfo = pretty_namedtuple('GlobalMaskInfo', 'overlay_color opacity kind')
 
 
@@ -90,9 +90,9 @@ class Block(_Block):
 
 class ChannelData(_ChannelData):
     def __repr__(self):
-        return "ChannelData(compression=%r %s, len(data)=%r)" % (
+        return "ChannelData(compression=%r %s, len(data)=%r, mask_data=%r)" % (
             self.compression, Compression.name_of(self.compression),
-            len(self.data) if self.data is not None else None
+            len(self.data) if self.data is not None else None, self.mask_data
         )
 
     def _repr_pretty_(self, p, cycle):
@@ -406,7 +406,7 @@ def _read_channel_image_data(fp, layer, depth):
             if data is None:
                 return []
 
-            channel_data.append(ChannelData(compress_type, data))
+            channel_data.append(ChannelData(compress_type, data, layer.mask_data))
 
         remaining_length = channel.length - (fp.tell() - start_pos)
         if remaining_length > 0:
@@ -477,6 +477,6 @@ def read_image_data(fp, header):
 
         if data is None:
             return []
-        channel_data.append(ChannelData(compress_type, data))
+        channel_data.append(ChannelData(compress_type, data, None))
 
     return channel_data
