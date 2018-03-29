@@ -6,6 +6,15 @@ from psd_tools.utils import be_array_from_bytes
 from psd_tools.constants import Compression, ChannelID, ColorMode, ImageResourceID
 from psd_tools import icc_profiles
 
+def default_layer_mask_callback(layer):
+    return True
+
+layer_mask_callback = default_layer_mask_callback
+
+def set_layer_mask_callback(callback):
+    global layer_mask_callback
+    layer_mask_callback = callback
+
 try:
     from PIL import Image
     if hasattr(Image, 'frombytes'):
@@ -38,8 +47,7 @@ def extract_layer_image(decoded_data, layer_index):
     layer = layers.layer_records[layer_index]
 
     return _channel_data_to_PIL(
-        layer_left = layer.left,
-        layer_top = layer.top,
+        layer = layer,
         channel_data = layers.channel_image_data[layer_index],
         channel_ids = _get_layer_channel_ids(layer),
         color_mode = decoded_data.header.color_mode,  # XXX?
@@ -66,8 +74,7 @@ def extract_composite_image(decoded_data):
         return
 
     return _channel_data_to_PIL(
-        layer_left = 0,
-        layer_top = 0,
+        layer = None,
         channel_data=decoded_data.image_data,
         channel_ids=channel_ids,
         color_mode=header.color_mode,
@@ -110,10 +117,9 @@ def apply_opacity(im, opacity):
         raise NotImplementedError()
 
 
-def _channel_data_to_PIL(layer_left, layer_top, channel_data, channel_ids, color_mode, size, depth, icc_profile):
+def _channel_data_to_PIL(layer, channel_data, channel_ids, color_mode, size, depth, icc_profile):
     bands = _get_band_images(
-        layer_left = layer_left,
-        layer_top = layer_top,
+        layer = layer,
         channel_data=channel_data,
         channel_ids=channel_ids,
         color_mode=color_mode,
@@ -172,7 +178,7 @@ def _merge_bands(bands, color_mode, size, icc_profile):
     return merged_image
 
 
-def _get_band_images(layer_left, layer_top, channel_data, channel_ids, color_mode, size, depth):
+def _get_band_images(layer, channel_data, channel_ids, color_mode, size, depth):
     bands = {}
     for channel, channel_id in zip(channel_data, channel_ids):
         im = None
@@ -187,7 +193,7 @@ def _get_band_images(layer_left, layer_top, channel_data, channel_ids, color_mod
             if pil_band == 'M':
                 mask_size = (channel.mask_data.width(), channel.mask_data.height())
                 if mask_size[0] == 0 or mask_size[1] == 0:
-                    warnings.warn("Empty layer mask found, ignoring it.")
+                    # warnings.warn("Empty layer mask found on layer '%s', ignoring it." % layer.name)
                     continue
                 try:
                     mask_im = _from_8bit_raw(channel.data, mask_size)
@@ -211,7 +217,7 @@ def _get_band_images(layer_left, layer_top, channel_data, channel_ids, color_mod
             if pil_band == 'M':
                 mask_size = (channel.mask_data.width(), channel.mask_data.height())
                 if mask_size[0] == 0 or mask_size[1] == 0:
-                    warnings.warn("Empty layer mask found, ignoring it.")
+                    # warnings.warn("Empty layer mask found on layer '%s', ignoring it." % layer.name)
                     continue
                 try:
                     mask_im = frombytes('L', mask_size, channel.data, "packbits", 'L')
@@ -227,8 +233,10 @@ def _get_band_images(layer_left, layer_top, channel_data, channel_ids, color_mod
                 warnings.warn("Unknown compression method (%s)" % channel.compression)
             continue
         if pil_band == 'M':
+            if layer_mask_callback(layer) == False:
+                continue
             im = Image.new('L', size, 255)
-            offset = (channel.mask_data.left - layer_left, channel.mask_data.top - layer_top)
+            offset = (channel.mask_data.left - layer.left, channel.mask_data.top - layer.top)
             im.paste(mask_im, offset)
 
         bands[pil_band] = im.convert('L')
