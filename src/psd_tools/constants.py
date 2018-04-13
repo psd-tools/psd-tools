@@ -406,6 +406,7 @@ class SzProperty(Enum):
 class TextProperty(Enum):
     TXT = b'Txt '
     ORIENTATION = b'Ornt'
+    ENGINE_DATA = b'EngineData'
 
 class TextOrientation(Enum):
     HORIZONTAL = b'Hrzn'

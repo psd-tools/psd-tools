@@ -11,6 +11,7 @@ from psd_tools.user_api.layers import group_layers
 from psd_tools.user_api import pymaging_support
 from psd_tools.user_api import pil_support
 from psd_tools.user_api.embedded import Embedded
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,27 @@ class BBox(collections.namedtuple('BBox', 'x1, y1, x2, y2')):
 class TextData(object):
     def __init__(self, tagged_blocks):
         text_data = dict(tagged_blocks.text_data.items)
+        font_info = self.get_font_info(text_data[TextProperty.ENGINE_DATA].value)
         self.text = text_data[TextProperty.TXT].value
+        self.font_size = font_info['size']
+        self.font_color = font_info['color']
+        
+    def get_font_info(self, engine_data):
+        re_str = '/FontSize\s*([^\s]*)[^/]*/AutoLeading[^(<<)]*<<[^>]*/Values[^\[]*\[([^\]]*)'
+        re_size_color = re.search(re_str, engine_data, re.M|re.S)
+        re_color = re.search('\s*([^\s]*)\s*([^\s]*)\s*([^\s]*)\s*([^\s]*)',
+                             re_size_color.group(2), re.M|re.S)
+        color_a = float(re_color.group(1))
+        color_a = int(round(color_a * 255))
+        color_r = float(re_color.group(2))
+        color_r = int(round(color_r * 255))
+        color_g = float(re_color.group(3))
+        color_g = int(round(color_g * 255))
+        color_b = float(re_color.group(4))
+        color_b = int(round(color_b * 255))
+        font_size = int(float(re_size_color.group(1)))
+        font_color = {'A': color_a, 'B': color_b, 'R': color_r, 'G': color_g}
+        return {'size': font_size, 'color': font_color}
 
 
 class PlacedLayerData(object):
