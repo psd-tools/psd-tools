@@ -38,10 +38,10 @@ class TextData(object):
         self.font_color = font_info['color']
         
     def get_font_info(self, engine_data):
-        re_str = '/FontSize\s*([^\s]*)[^/]*/AutoLeading[^(<<)]*<<[^>]*/Values[^\[]*\[([^\]]*)'
-        re_size_color = re.search(re_str, engine_data, re.M|re.S)
-        re_color = re.search('\s*([^\s]*)\s*([^\s]*)\s*([^\s]*)\s*([^\s]*)',
-                             re_size_color.group(2), re.M|re.S)
+        re_str_size = b'/RunArray.*?/FontSize\s+([^\s]+)'
+        re_str_color = b'/RunArray.*?/Values.*?\[\s*([^\s\]]+)\s*([^\s\]]+)\s*([^\s\]]+)\s*([^\s\]]+)'
+        re_size = re.search(re_str_size, engine_data, re.M|re.S)
+        re_color = re.search(re_str_color,engine_data, re.M|re.S)
         color_a = float(re_color.group(1))
         color_a = int(round(color_a * 255))
         color_r = float(re_color.group(2))
@@ -50,7 +50,7 @@ class TextData(object):
         color_g = int(round(color_g * 255))
         color_b = float(re_color.group(4))
         color_b = int(round(color_b * 255))
-        font_size = int(float(re_size_color.group(1)))
+        font_size = int(float(re_size.group(1)))
         font_color = {'A': color_a, 'B': color_b, 'R': color_r, 'G': color_g}
         return {'size': font_size, 'color': font_color}
 
