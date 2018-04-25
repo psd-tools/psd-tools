@@ -109,7 +109,8 @@ class _RawLayer(_TaggedBlockMixin):
 
     def has_mask(self):
         """Returns True if the layer has a mask."""
-        return True if self._index and self._record.mask_data else False
+        return (True if self._index is not None and self._record.mask_data
+            else False)
 
     def as_PIL(self):
         """Returns a PIL.Image for this layer."""
