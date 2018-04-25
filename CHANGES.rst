@@ -1,6 +1,9 @@
-1.7.5 (2018-xx-xx)
+1.7.5 (2018-04-25)
 ------------------
 
+- Fix `has_mask()` condition
+- Add mask composition in `merge_layers()`
+- Fix mask display
 
 1.7.4 (2018-03-06)
 ------------------
