@@ -16,3 +16,4 @@ htmlcov/
 .python-version
 *.ipynb
 .ipynb_checkpoint/
+.pytest_cache
