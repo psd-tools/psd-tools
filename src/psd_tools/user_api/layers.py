@@ -795,12 +795,13 @@ def merge_layers(layers, respect_visibility=True, ignore_blend_mode=True,
             # FIXME
             logger.debug("cropping..")
 
+        mask = layer.mask.as_PIL() if layer.has_mask() else None
         if layer_image.mode == 'RGBA':
             tmp = Image.new("RGBA", result.size, color=(255, 255, 255, 0))
-            tmp.paste(layer_image, (x, y))
+            tmp.paste(layer_image, (x, y), mask=mask)
             result = Image.alpha_composite(result, tmp)
         elif layer_image.mode == 'RGB':
-            result.paste(layer_image, (x, y))
+            result.paste(layer_image, (x, y), mask=mask)
         else:
             logger.warning(
                 "layer image mode is unsupported for merging: %s",
