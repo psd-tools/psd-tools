@@ -109,7 +109,8 @@ class _RawLayer(_TaggedBlockMixin):
 
     def has_mask(self):
         """Returns True if the layer has a mask."""
-        return True if self._index and self._record.mask_data else False
+        return (True if self._index is not None and self._record.mask_data
+            else False)
 
     def as_PIL(self):
         """Returns a PIL.Image for this layer."""
@@ -762,7 +763,7 @@ def merge_layers(layers, respect_visibility=True, ignore_blend_mode=True,
                            layer.blend_mode)
             continue
 
-        clip_mask_exists = False
+        clip_image = None
         if len(layer.clip_layers):
             clip_box = combined_bbox(layer.clip_layers)
             if not clip_box.is_empty():
@@ -775,44 +776,36 @@ def merge_layers(layers, respect_visibility=True, ignore_blend_mode=True,
                         intersect.offset((clip_box.x1, clip_box.y1)))
                     clip_mask = layer_image.crop(
                         intersect.offset((layer.bbox.x1, layer.bbox.y1)))
-                    clip_mask_exists = True
 
         layer_image = pil_support.apply_opacity(layer_image, layer.opacity)
-
-        x, y = layer.bbox.x1 - bbox.x1, layer.bbox.y1 - bbox.y1
-        w, h = layer_image.size
-
-        if x < 0 or y < 0:  # image doesn't fit the bbox
-            x_overflow = - min(x, 0)
-            y_overflow = - min(y, 0)
-            logger.debug("cropping.. (%s, %s)", x_overflow, y_overflow)
-            layer_image = layer_image.crop((x_overflow, y_overflow, w, h))
-            x += x_overflow
-            y += y_overflow
-
-        if w+x > bbox.width or h+y > bbox.height:
-            # FIXME
-            logger.debug("cropping..")
+        layer_offset = layer.bbox.offset((bbox.x1, bbox.y1))
+        mask = None
+        if layer.has_mask():
+            mask_box = layer.mask.bbox
+            if not mask_box.is_empty():
+                mask = Image.new("L", layer_image.size, color=(0,))
+                mask.paste(layer.mask.as_PIL(),
+                    mask_box.offset((layer.bbox.x1, layer.bbox.y1)))
 
         if layer_image.mode == 'RGBA':
             tmp = Image.new("RGBA", result.size, color=(255, 255, 255, 0))
-            tmp.paste(layer_image, (x, y))
+            tmp.paste(layer_image, layer_offset, mask=mask)
             result = Image.alpha_composite(result, tmp)
         elif layer_image.mode == 'RGB':
-            result.paste(layer_image, (x, y))
+            result.paste(layer_image, layer_offset, mask=mask)
         else:
             logger.warning(
                 "layer image mode is unsupported for merging: %s",
                 layer_image.mode)
             continue
 
-        if clip_mask_exists:
-            location = (intersect.x1 - bbox.x1, intersect.y1 - bbox.y1)
+        if clip_image is not None:
+            offset = (intersect.x1 - bbox.x1, intersect.y1 - bbox.y1)
             if clip_image.mode == 'RGBA':
                 tmp = Image.new("RGBA", result.size, color=(255, 255, 255, 0))
-                tmp.paste(clip_image, location, mask=clip_mask)
+                tmp.paste(clip_image, offset, mask=clip_mask)
                 result = Image.alpha_composite(result, tmp)
             elif clip_image.mode == 'RGB':
-                result.paste(clip_image, location, mask=clip_mask)
+                result.paste(clip_image, offset, mask=clip_mask)
 
     return result
