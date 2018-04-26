@@ -135,3 +135,10 @@ def test_mask_data_api():
     assert mask.parameters_applied == True
     assert mask.parameters
     assert mask.real_flags
+
+
+def test_mask_index():
+    psd = PSDImage.load(full_name('mask-index.psd'))
+    layer = psd.layers[0]
+    assert layer.has_mask()
+    assert layer._index == 0
