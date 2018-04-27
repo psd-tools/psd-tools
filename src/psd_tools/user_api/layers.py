@@ -782,7 +782,7 @@ def merge_layers(layers, respect_visibility=True, ignore_blend_mode=True,
         mask = None
         if layer.has_mask():
             mask_box = layer.mask.bbox
-            if not mask_box.is_empty():
+            if not layer.mask.disabled and not mask_box.is_empty():
                 mask = Image.new("L", layer_image.size, color=(0,))
                 mask.paste(layer.mask.as_PIL(),
                     mask_box.offset((layer.bbox.x1, layer.bbox.y1)))
