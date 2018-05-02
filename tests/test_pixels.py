@@ -21,6 +21,7 @@ TRANSPARENCY_PIXEL_COLORS = (
     ('2layers.psd',             (70, 30),     (0xF1, 0xF3, 0xC1)), # why gimp shows it as F2F4C2 ?
     ('transparentbg-gimp.psb',  (14, 14),     (0xFF, 0xFF, 0xFF, 0x13)),
     ('2layers.psb',             (70, 30),     (0xF1, 0xF4, 0xC1)), # actually photoshop also
+    ('background-red-opacity-80.psd', (0, 0), (0xFF, 0x00, 0x00, 0xCC)),
 )
 
 MASK_PIXEL_COLORS = with_psb((
@@ -128,6 +129,9 @@ BACKENDS = [[color_PIL], [color_pymaging]]
 @pytest.mark.parametrize(["get_color"], BACKENDS)
 @pytest.mark.parametrize(["filename", "point", "color"], PIXEL_COLORS_8BIT)
 def test_composite(filename, point, color, get_color):
+    if (get_color == color_pymaging and
+        filename == 'background-red-opacity-80.psd'):
+        pytest.xfail("Pymaging white-bg removal not implemented")
     psd = PSDImage.load(full_name(filename))
     assert color == get_color(psd, point)
 

@@ -16,6 +16,7 @@ CLIP_FILES = [
 
 QUALITY_TEST_FILES = [
     ('mask-index.psd',),
+    ('background-red-opacity-80.psd',),
 ]
 
 
@@ -29,7 +30,7 @@ def test_render_clip_layers(filename):
 
 
 @pytest.mark.parametrize(("filename",), QUALITY_TEST_FILES)
-def test_render_clip_layers(filename):
+def test_render_quality(filename):
     psd = PSDImage.load(full_name(filename))
     preview = psd.as_PIL()
     rendered = psd.as_PIL_merged()

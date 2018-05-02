@@ -9,7 +9,7 @@ from psd_tools.constants import (
 from psd_tools import icc_profiles
 
 try:
-    from PIL import Image, ImageDraw
+    from PIL import Image, ImageDraw, ImageMath
     if hasattr(Image, 'frombytes'):
         frombytes = Image.frombytes
     else:
@@ -95,7 +95,7 @@ def extract_composite_image(decoded_data):
             "(%s)" % (header.number_of_channels, header.color_mode))
         return
 
-    return _channel_data_to_PIL(
+    image = _channel_data_to_PIL(
         channel_data=decoded_data.image_data,
         channel_ids=channel_ids,
         color_mode=header.color_mode,
@@ -103,6 +103,9 @@ def extract_composite_image(decoded_data):
         depth=header.depth,
         icc_profile=get_icc_profile(decoded_data)
     )
+
+    # Composed image is blended into white background. Remove here.
+    return _remove_white_background(image)
 
 
 def get_icc_profile(decoded_data):
@@ -393,3 +396,23 @@ def _get_header_channel_ids(header):
 
 def _get_layer_channel_ids(layer):
     return [info.id for info in layer.channels]
+
+
+def _remove_white_background(image):
+    """Remove white background in the preview image."""
+    if image.mode == "RGBA":
+        bands = image.split()
+        a = bands[3]
+        rgb = [
+            ImageMath.eval(
+                'convert('
+                'float(x + a - 255) * 255.0 / float(max(a, 1)) * '
+                'float(min(a, 1)) + float(x) * float(1 - min(a, 1))'
+                ', "L")',
+                x=x, a=a
+            )
+            for x in bands[:3]
+        ]
+        return Image.merge(bands=rgb + [a], mode="RGBA")
+
+    return image
