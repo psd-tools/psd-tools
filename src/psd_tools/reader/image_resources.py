@@ -9,9 +9,20 @@ from psd_tools.constants import ImageResourceID
 
 logger = logging.getLogger(__name__)
 
-_ImageResource = collections.namedtuple("ImageResource", "resource_id, name, data")
 
-class ImageResource(_ImageResource):
+class ImageResource(collections.namedtuple(
+    "ImageResource", "resource_id, name, data"
+)):
+    """
+    Image resource.
+
+    .. py:attribute:: resource_id
+
+        :py:class:`~psd_tools.constants.ImageResourceID`
+
+    .. py:attribute:: name
+    .. py:attribute:: data
+    """
     def __repr__(self):
         return "ImageResource(%r %s, %r, %s)" % (
             self.resource_id, ImageResourceID.name_of(self.resource_id),
@@ -35,13 +46,14 @@ def read(fp, encoding):
 
     return blocks
 
+
 def _read_block(fp, encoding):
     """
     Reads single image resource block. Such blocks contain non-pixel data
     for the images (e.g. pen tool paths).
     """
     sig = fp.read(4)
-    if not sig in [b'8BIM', b'MeSa']:
+    if sig not in [b'8BIM', b'MeSa']:
         raise Error("Invalid resource signature (%r)" % sig)
 
     resource_id = read_fmt("H", fp)[0]

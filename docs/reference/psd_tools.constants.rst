@@ -78,6 +78,13 @@ GlobalLayerMaskKind
     :members:
     :undoc-members:
 
+ImageResourceID
+---------------
+
+.. autoclass:: psd_tools.constants.ImageResourceID
+    :members:
+    :undoc-members:
+
 LinkedLayerType
 ---------------
 

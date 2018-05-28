@@ -6,6 +6,17 @@ import io
 from psd_tools.constants import TaggedBlock
 
 def parse(reader_parse_result):
+    """
+    Decode :py:class:`~psd_tools.reader.reader.ParseResult` into Python structure::
+
+        import psd_tools.reader
+        import psd_tools.decoder
+
+        with open('/path/to/input.psd', 'rb') as fp:
+            binary = psd_tools.reader.parse(fp)
+            decoded = psd_tools.decoder.parse(binary)
+
+    """
     image_resource_blocks = reader_parse_result.image_resource_blocks
     image_resource_blocks = image_resources.decode(image_resource_blocks)
 

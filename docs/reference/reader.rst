@@ -2,44 +2,127 @@ psd-tools\.reader
 =================
 
 The reader package provides a low-level API to read binary data from PSD file.
+According to the `specification`_, Adobe Photoshop files have the following
+five sections. The reader package reads these sections without parsing the
+individual data structure:
+
+ - File header
+ - Color mode data
+ - Image resources
+ - Layer and mask information
+ - Image data
+
 The API is intended to be internally used in the :doc:`decoder` package.
 
-color\_mode\_data
------------------
+.. _specification: https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/
 
-.. automodule:: psd_tools.reader.color_mode_data
+
+parse
+-----
+
+.. autofunction:: psd_tools.reader.parse
+
+ParseResult
+-----------
+
+.. autoclass:: psd_tools.reader.reader.ParseResult
     :members:
     :undoc-members:
-    :show-inheritance:
 
-header
-------
+PsdHeader
+---------
 
-.. automodule:: psd_tools.reader.header
+.. autoclass:: psd_tools.reader.header.PsdHeader
     :members:
     :undoc-members:
-    :show-inheritance:
 
-image\_resources
+ImageResource
+-------------
+
+.. autoclass:: psd_tools.reader.image_resources.ImageResource
+    :members:
+    :undoc-members:
+
+Block
+-----
+
+.. autoclass:: psd_tools.reader.layers.Block
+    :members:
+    :undoc-members:
+
+ChannelData
+-----------
+
+.. autoclass:: psd_tools.reader.layers.ChannelData
+    :members:
+    :undoc-members:
+
+ChannelInfo
+-----------
+
+.. autoclass:: psd_tools.reader.layers.ChannelInfo
+    :members:
+    :undoc-members:
+
+GlobalMaskInfo
+--------------
+
+.. autoclass:: psd_tools.reader.layers.GlobalMaskInfo
+    :members:
+    :undoc-members:
+
+LayerAndMaskData
 ----------------
 
-.. automodule:: psd_tools.reader.image_resources
+.. autoclass:: psd_tools.reader.layers.LayerAndMaskData
     :members:
     :undoc-members:
-    :show-inheritance:
 
-layers
+LayerBlendingRanges
+-------------------
+
+.. autoclass:: psd_tools.reader.layers.LayerBlendingRanges
+    :members:
+    :undoc-members:
+
+LayerFlags
+----------
+
+.. autoclass:: psd_tools.reader.layers.LayerFlags
+    :members:
+    :undoc-members:
+
+LayerRecord
+-----------
+
+.. autoclass:: psd_tools.reader.layers.LayerRecord
+    :members:
+    :undoc-members:
+
+Layers
 ------
 
-.. automodule:: psd_tools.reader.layers
+.. autoclass:: psd_tools.reader.layers.Layers
     :members:
     :undoc-members:
-    :show-inheritance:
 
-reader
-------
+MaskData
+--------
 
-.. automodule:: psd_tools.reader.reader
+.. autoclass:: psd_tools.reader.layers.MaskData
     :members:
     :undoc-members:
-    :show-inheritance:
+
+MaskFlags
+---------
+
+.. autoclass:: psd_tools.reader.layers.MaskFlags
+    :members:
+    :undoc-members:
+
+MaskParameters
+--------------
+
+.. autoclass:: psd_tools.reader.layers.MaskParameters
+    :members:
+    :undoc-members:
