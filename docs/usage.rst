@@ -1,11 +1,26 @@
 Usage
 =====
 
-:py:mod:`psd_tools.user_api.psd_image` module provides the user-friendly API
-to work with PSD files.
+
+Command line
+------------
+
+The package provides command line tools to parse a PSD document.
+
+.. code::
+
+    psd-tools convert <psd_filename> <out_filename> [options]
+    psd-tools export_layer <psd_filename> <layer_index> <out_filename> [options]
+    psd-tools debug <filename> [options]
+    psd-tools -h | –help
+    psd-tools –version
+
 
 Parsing PSD document
 --------------------
+
+:py:mod:`psd_tools.user_api.psd_image` module provides the user-friendly API
+to work with PSD files.
 
 :py:class:`~psd_tools.user_api.psd_image.PSDImage` represents a PSD file.
 

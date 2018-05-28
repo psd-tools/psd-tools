@@ -1,43 +1,43 @@
-psd\_tools\.reader
-==================
+psd-tools\.reader
+=================
 
 The reader package provides a low-level API to read binary data from PSD file.
 The API is intended to be internally used in the :doc:`decoder` package.
 
-psd\_tools\.reader\.color\_mode\_data
--------------------------------------
+color\_mode\_data
+-----------------
 
 .. automodule:: psd_tools.reader.color_mode_data
     :members:
     :undoc-members:
     :show-inheritance:
 
-psd\_tools\.reader\.header
---------------------------
+header
+------
 
 .. automodule:: psd_tools.reader.header
     :members:
     :undoc-members:
     :show-inheritance:
 
-psd\_tools\.reader\.image\_resources
-------------------------------------
+image\_resources
+----------------
 
 .. automodule:: psd_tools.reader.image_resources
     :members:
     :undoc-members:
     :show-inheritance:
 
-psd\_tools\.reader\.layers
---------------------------
+layers
+------
 
 .. automodule:: psd_tools.reader.layers
     :members:
     :undoc-members:
     :show-inheritance:
 
-psd\_tools\.reader\.reader
---------------------------
+reader
+------
 
 .. automodule:: psd_tools.reader.reader
     :members:
