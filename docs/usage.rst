@@ -1,13 +1,27 @@
 Usage
 =====
 
-:py:mod:`psd_tools.user_api.psd_image` module provides the user-friendly API
-to work with PSD files.
+
+Command line
+------------
+
+The package provides command line tools to parse a PSD document.
+
+.. code::
+
+    psd-tools convert <psd_filename> <out_filename> [options]
+    psd-tools export_layer <psd_filename> <layer_index> <out_filename> [options]
+    psd-tools debug <filename> [options]
+    psd-tools -h | –help
+    psd-tools –version
+
 
 Parsing PSD document
 --------------------
 
-:py:class:`~psd_tools.user_api.psd_image.PSDImage` represents a PSD file.
+:py:mod:`psd_tools.user_api` package provides the user-friendly API to work
+with PSD files.
+:py:class:`~psd_tools.PSDImage` represents a PSD file.
 
 Load an image::
 
@@ -39,7 +53,7 @@ Get pattern dict::
     {'b2fdfd29-de85-11d5-838b-ff55e75fb875': <psd_tools.Pattern: size=265x219 ...>}
 
 All the low-level internal data are kept in the
-:py:attr:`~psd_tools.user_api.psd_image.PSDImage.decoded_data` attribute.
+:py:attr:`~psd_tools.PSDImage.decoded_data` attribute.
 
 
 Working with Layers
@@ -111,10 +125,10 @@ Other layers have similar properties::
     'Text inside a text box'
 
 :py:class:`~psd_tools.user_api.layers.SmartObjectLayer` has
-:py:meth:`~psd_tools.user_api.psd_image.SmartObjectLayer.linked_data` to obtain
+:py:attr:`~psd_tools.user_api.layers.SmartObjectLayer.linked_data` to obtain
 :py:class:`~psd_tools.user_api.smart_object.SmartObject` object::
 
-    >>> smart_object = layer.linked_data()
+    >>> smart_object = layer.linked_data
 
 Raw internal data is accessible by :py:attr:`~psd_tools.user_api.layers._RawLayer._record` property.
 

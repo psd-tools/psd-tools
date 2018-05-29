@@ -1,14 +1,23 @@
 # -*- coding: utf-8 -*-
+"""
+Module for decoding tagged blocks.
+
+Tagged blocks are key-value configuration for individual layers or for a
+photoshop document. The keys are specified by
+:py:class:`~psd_tools.constants.TaggedBlock`.
+"""
 from __future__ import absolute_import, unicode_literals, print_function
 import warnings
 import collections
 import io
 
 from psd_tools.constants import TaggedBlock, SectionDivider, ColorMode
-from psd_tools.decoder.actions import (decode_descriptor, UnknownOSType,
-                                       RawData)
-from psd_tools.utils import (read_fmt, unpack, read_unicode_string,
-                             read_pascal_string)
+from psd_tools.decoder.actions import (
+    decode_descriptor, UnknownOSType, RawData
+)
+from psd_tools.utils import (
+    read_fmt, unpack, read_unicode_string, read_pascal_string
+)
 from psd_tools.decoder import decoders, layer_effects
 from psd_tools.decoder.color import decode_color
 from psd_tools.decoder.path import decode_path_resource
@@ -19,111 +28,568 @@ from psd_tools.decoder import engine_data
 _tagged_block_decoders, register = decoders.new_registry()
 
 _tagged_block_decoders.update({
-    TaggedBlock.BLEND_CLIPPING_ELEMENTS:            decoders.boolean("I"),
-    TaggedBlock.BLEND_INTERIOR_ELEMENTS:            decoders.boolean("I"),
-    TaggedBlock.BLEND_FILL_OPACITY:                 decoders.single_value("4B"),
-    TaggedBlock.KNOCKOUT_SETTING:                   decoders.boolean("I"),
-    TaggedBlock.UNICODE_LAYER_NAME:                 decoders.unicode_string,
-    TaggedBlock.LAYER_ID:                           decoders.single_value("I"), # XXX: there are more fields in docs, but they seem to be incorrect
-    TaggedBlock.EFFECTS_LAYER:                      layer_effects.decode,
-    TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO:    layer_effects.decode_object_based,
-    TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO_V0: layer_effects.decode_object_based,
-    TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO_V1: layer_effects.decode_object_based,
-    TaggedBlock.USING_ALIGNED_RENDERING:            decoders.boolean("I"),
-    TaggedBlock.LAYER_VERSION:                      decoders.single_value("I"),
-    TaggedBlock.TRANSPARENCY_SHAPES_LAYER:          decoders.single_value("4B"),
-    TaggedBlock.LAYER_MASK_AS_GLOBAL_MASK:          decoders.single_value("4B"),
-    TaggedBlock.VECTOR_MASK_AS_GLOBAL_MASK:         decoders.single_value("4B"),
+    TaggedBlock.BLEND_CLIPPING_ELEMENTS: decoders.boolean("I"),
+    TaggedBlock.BLEND_INTERIOR_ELEMENTS: decoders.boolean("I"),
+    TaggedBlock.BLEND_FILL_OPACITY: decoders.single_value("4B"),
+    TaggedBlock.KNOCKOUT_SETTING: decoders.boolean("I"),
+    TaggedBlock.UNICODE_LAYER_NAME: decoders.unicode_string,
+    # XXX: there are more fields in docs, but they seem to be incorrect
+    TaggedBlock.LAYER_ID: decoders.single_value("I"),
+    TaggedBlock.EFFECTS_LAYER: layer_effects.decode,
+    TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO:
+        layer_effects.decode_object_based,
+    TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO_V0:
+        layer_effects.decode_object_based,
+    TaggedBlock.OBJECT_BASED_EFFECTS_LAYER_INFO_V1:
+        layer_effects.decode_object_based,
+    TaggedBlock.USING_ALIGNED_RENDERING: decoders.boolean("I"),
+    TaggedBlock.LAYER_VERSION: decoders.single_value("I"),
+    TaggedBlock.TRANSPARENCY_SHAPES_LAYER: decoders.single_value("4B"),
+    TaggedBlock.LAYER_MASK_AS_GLOBAL_MASK: decoders.single_value("4B"),
+    TaggedBlock.VECTOR_MASK_AS_GLOBAL_MASK: decoders.single_value("4B"),
 })
 
 
-SolidColorSetting = pretty_namedtuple('SolidColorSetting', 'version data')
-PatternFillSetting = pretty_namedtuple('PatternFillSetting', 'version data')
-GradientFillSetting = pretty_namedtuple('GradientFillSetting', 'version data')
-BrightnessContrast = pretty_namedtuple('BrightnessContrast',
-                                       'brightness contrast mean lab')
-LevelsSettings = pretty_namedtuple('LevelsSettings', 'version data')
-LevelRecord = pretty_namedtuple('LevelRecord', 'input_floor input_ceiling '
-    'output_floor output_ceiling gamma')
-CurvesSettings = pretty_namedtuple(
-    'CurvesSettings', 'version count data extra')
-CurvesExtraMarker = pretty_namedtuple(
-    'CurvesExtraMarker', 'tag version count data')
-CurveData = pretty_namedtuple('CurveData', 'channel points')
-Exposure = pretty_namedtuple('Exposure', 'version exposure offset gamma')
-Vibrance = pretty_namedtuple('Vibrance', 'descriptor_version descriptor')
-HueSaturation = pretty_namedtuple(
-    'HueSaturation', 'version enable_colorization colorization master items')
-HueSaturationData = pretty_namedtuple('HueSaturationData', 'range settings')
-ColorBalance = pretty_namedtuple(
-    'ColorBalance', 'shadows midtones highlights preserve_luminosity')
-BlackWhite = pretty_namedtuple('BlackWhite', 'descriptor_version descriptor')
-PhotoFilter = pretty_namedtuple(
+class SolidColorSetting(pretty_namedtuple(
+    'SolidColorSetting',
+    'version data'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: data
+    """
+
+
+class PatternFillSetting(pretty_namedtuple(
+    'PatternFillSetting',
+    'version data'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: data
+    """
+
+
+class GradientFillSetting(pretty_namedtuple(
+    'GradientFillSetting',
+    'version data'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: data
+    """
+
+
+class BrightnessContrast(pretty_namedtuple(
+    'BrightnessContrast',
+    'brightness contrast mean lab'
+)):
+    """
+    .. py:attribute:: brightness
+    .. py:attribute:: contrast
+    .. py:attribute:: mean
+    .. py:attribute:: lab
+    """
+
+
+class LevelsSettings(pretty_namedtuple('LevelsSettings', 'version data')):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: data
+    """
+
+
+class LevelRecord(pretty_namedtuple(
+    'LevelRecord',
+    'input_floor input_ceiling output_floor output_ceiling gamma'
+)):
+    """
+    .. py:attribute:: input_floor
+    .. py:attribute:: input_ceiling
+    .. py:attribute:: output_floor
+    .. py:attribute:: output_ceiling
+    .. py:attribute:: gamma
+    """
+
+
+class CurvesSettings(pretty_namedtuple(
+    'CurvesSettings',
+    'version count data extra'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: count
+    .. py:attribute:: data
+    .. py:attribute:: extra
+    """
+
+
+class CurvesExtraMarker(pretty_namedtuple(
+    'CurvesExtraMarker',
+    'tag version count data'
+)):
+    """
+    .. py:attribute:: tag
+    .. py:attribute:: version
+    .. py:attribute:: count
+    .. py:attribute:: data
+    """
+
+
+class CurveData(pretty_namedtuple('CurveData', 'channel points')):
+    """
+    .. py:attribute:: channel
+    .. py:attribute:: points
+    """
+
+
+class Exposure(pretty_namedtuple(
+    'Exposure',
+    'version exposure offset gamma'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: exposure
+    .. py:attribute:: offset
+    .. py:attribute:: gamma
+    """
+
+
+class Vibrance(pretty_namedtuple(
+    'Vibrance',
+    'descriptor_version descriptor'
+)):
+    """
+    .. py:attribute:: descriptor_version
+    .. py:attribute:: descriptor
+    """
+
+
+class HueSaturation(pretty_namedtuple(
+    'HueSaturation',
+    'version enable_colorization colorization master items'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: enable_colorization
+    .. py:attribute:: colorization
+    .. py:attribute:: master
+    .. py:attribute:: items
+    """
+
+
+class HueSaturationData(pretty_namedtuple(
+    'HueSaturationData',
+    'range settings'
+)):
+    """
+    .. py:attribute:: range
+    .. py:attribute:: settings
+    """
+
+
+class ColorBalance(pretty_namedtuple(
+    'ColorBalance',
+    'shadows midtones highlights preserve_luminosity'
+)):
+    """
+    .. py:attribute:: shadows
+    .. py:attribute:: midtones
+    .. py:attribute:: highlights
+    .. py:attribute:: preserve_luminosity
+    """
+
+
+class BlackWhite(pretty_namedtuple(
+    'BlackWhite',
+    'descriptor_version descriptor'
+)):
+    """
+    .. py:attribute:: descriptor_version
+    .. py:attribute:: descriptor
+    """
+
+
+class PhotoFilter(pretty_namedtuple(
     'PhotoFilter',
-    'version xyz color_space color_components density preserve_luminosity')
-ChannelMixer = pretty_namedtuple(
-    'ChannelMixer', 'version monochrome mixer_settings')
-ColorLookup = pretty_namedtuple(
-    'ColorLookup', 'version, descriptor_version descriptor')
-Invert = pretty_namedtuple('Invert', '')
-Posterize = pretty_namedtuple('Posterize', 'value')
-Threshold = pretty_namedtuple('Threshold', 'value')
-SelectiveColor = pretty_namedtuple('SelectiveColor', 'version, method items')
-Pattern = pretty_namedtuple('Pattern', 'version image_mode point name '
-    'pattern_id color_table data')
-VirtualMemoryArrayList = pretty_namedtuple(
-    'VirtualMemoryArrayList', 'version rectangle channels')
-VirtualMemoryArray = pretty_namedtuple(
-    'VirtualMemoryArray', 'is_written depth rectangle pixel_depth '
-    'compression data')
-GradientSettings = pretty_namedtuple(
+    'version xyz color_space color_components density preserve_luminosity'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: xyz
+    .. py:attribute:: color_space
+    .. py:attribute:: color_components
+    .. py:attribute:: density
+    .. py:attribute:: preserve_luminosity
+    """
+
+
+class ChannelMixer(pretty_namedtuple(
+    'ChannelMixer',
+    'version monochrome mixer_settings'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: monochrome
+    .. py:attribute:: mixer_settings
+    """
+
+
+class ColorLookup(pretty_namedtuple(
+    'ColorLookup',
+    'version descriptor_version descriptor'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: descriptor_version
+    .. py:attribute:: descriptor
+    """
+
+
+class Invert(pretty_namedtuple('Invert', '')):
+    """
+    """
+
+
+class Posterize(pretty_namedtuple('Posterize', 'value')):
+    """
+    .. py:attribute:: value
+    """
+
+
+class Threshold(pretty_namedtuple('Threshold', 'value')):
+    """
+    .. py:attribute:: value
+    """
+
+
+class SelectiveColor(pretty_namedtuple(
+    'SelectiveColor',
+    'version method items'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: method
+    .. py:attribute:: items
+    """
+
+
+class Pattern(pretty_namedtuple(
+    'Pattern',
+    'version image_mode point name pattern_id color_table data'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: image_mode
+    .. py:attribute:: point
+    .. py:attribute:: name
+    .. py:attribute:: pattern_id
+    .. py:attribute:: color_table data
+    """
+
+
+class VirtualMemoryArrayList(pretty_namedtuple(
+    'VirtualMemoryArrayList',
+    'version rectangle channels'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: rectangle
+    .. py:attribute:: channels
+    """
+
+
+class VirtualMemoryArray(pretty_namedtuple(
+    'VirtualMemoryArray',
+    'is_written depth rectangle pixel_depth compression data'
+)):
+    """
+    .. py:attribute:: is_written
+    .. py:attribute:: depth
+    .. py:attribute:: rectangle
+    .. py:attribute:: pixel_depth
+    .. py:attribute:: compression data
+    """
+
+
+class GradientSettings(pretty_namedtuple(
     'GradientSettings',
     'version reversed dithered name color_stops transparency_stops expansion '
     'interpolation length mode random_seed show_transparency '
-    'use_vector_color roughness color_model min_color max_color')
-ColorStop = pretty_namedtuple('ColorStop', 'location midpoint mode color')
-TransparencyStop = pretty_namedtuple(
+    'use_vector_color roughness color_model min_color max_color'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: reversed
+    .. py:attribute:: dithered
+    .. py:attribute:: name
+    .. py:attribute:: color_stops
+    .. py:attribute:: transparency_stops
+    .. py:attribute:: expansion
+    .. py:attribute:: interpolation
+    .. py:attribute:: length
+    .. py:attribute:: mode
+    .. py:attribute:: random_seed
+    .. py:attribute:: show_transparency
+    .. py:attribute:: use_vector_color
+    .. py:attribute:: roughness
+    .. py:attribute:: color_model
+    .. py:attribute:: min_color
+    .. py:attribute:: max_color
+    """
+
+
+class ColorStop(pretty_namedtuple(
+    'ColorStop',
+    'location midpoint mode color'
+)):
+    """
+    .. py:attribute:: location
+    .. py:attribute:: midpoint
+    .. py:attribute:: mode
+    .. py:attribute:: color
+    """
+
+
+class TransparencyStop(pretty_namedtuple(
     'TransparencyStop',
-    'location midpoint opacity expansion interpolation length mode')
-ExportData = pretty_namedtuple('ExportData', 'version data')
-VectorStrokeSetting = pretty_namedtuple('VectorStrokeSetting', 'version data')
-VectorStrokeContentSetting = pretty_namedtuple(
-    'VectorStrokeContentSetting', 'key version data')
-MetadataItem = pretty_namedtuple('MetadataItem', 'key copy_on_sheet_duplication descriptor_version data')
-ProtectedSetting = pretty_namedtuple('ProtectedSetting', 'transparency, composite, position')
-TypeToolObjectSetting = pretty_namedtuple('TypeToolObjectSetting',
-                        'version xx xy yx yy tx ty text_version descriptor1_version text_data '
-                        'warp_version descriptor2_version warp_data left top right bottom')
-ContentGeneratorExtraData = pretty_namedtuple(
-    'ContentGeneratorExtraData', 'descriptor_version descriptor')
-UnicodePathName = pretty_namedtuple(
-    'UnicodePathName', 'descriptor_version descriptor')
-AnimationEffects = pretty_namedtuple(
-    'AnimationEffects', 'descriptor_version descriptor')
-FilterMask = pretty_namedtuple('FilterMask', 'color opacity')
-VectorOriginationData = pretty_namedtuple('VectorOriginationData', 'version descriptor_version data')
-VectorMaskSetting = pretty_namedtuple(
-    'VectorMaskSetting','version invert not_link disable path')
-PixelSourceData = pretty_namedtuple('PixelSourceData', 'version data')
-ArtboardData = pretty_namedtuple('ArtboardData', 'version data')
-UserMask = pretty_namedtuple('UserMask', 'color opacity flag')
-FilterEffects = pretty_namedtuple(
+    'location midpoint opacity expansion interpolation length mode'
+)):
+    """
+    .. py:attribute:: location
+    .. py:attribute:: midpoint
+    .. py:attribute:: opacity
+    .. py:attribute:: expansion
+    .. py:attribute:: interpolation
+    .. py:attribute:: length
+    .. py:attribute:: mode
+    """
+
+
+class ExportData(pretty_namedtuple('ExportData', 'version data')):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: data
+    """
+
+
+class VectorStrokeSetting(pretty_namedtuple(
+    'VectorStrokeSetting',
+    'version data'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: data
+    """
+
+
+class VectorStrokeContentSetting(pretty_namedtuple(
+    'VectorStrokeContentSetting',
+    'key version data'
+)):
+    """
+    .. py:attribute:: key
+    .. py:attribute:: version
+    .. py:attribute:: data
+    """
+
+
+class MetadataItem(pretty_namedtuple(
+    'MetadataItem',
+    'key copy_on_sheet_duplication descriptor_version data'
+)):
+    """
+    .. py:attribute:: key
+    .. py:attribute:: copy_on_sheet_duplication
+    .. py:attribute:: descriptor_version
+    .. py:attribute:: data
+    """
+
+
+class ProtectedSetting(pretty_namedtuple(
+    'ProtectedSetting',
+    'transparency composite position'
+)):
+    """
+    .. py:attribute:: transparency
+    .. py:attribute:: composite
+    .. py:attribute:: position
+    """
+
+
+class TypeToolObjectSetting(pretty_namedtuple(
+    'TypeToolObjectSetting',
+    'version xx xy yx yy tx ty text_version descriptor1_version text_data '
+    'warp_version descriptor2_version warp_data left top right bottom'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: xx
+    .. py:attribute:: xy
+    .. py:attribute:: yx
+    .. py:attribute:: yy
+    .. py:attribute:: tx
+    .. py:attribute:: ty
+    .. py:attribute:: text_version
+    .. py:attribute:: descriptor1_version
+    .. py:attribute:: text_data
+    .. py:attribute:: warp_version
+    .. py:attribute:: descriptor2_version
+    .. py:attribute:: warp_data
+    .. py:attribute:: left
+    .. py:attribute:: top
+    .. py:attribute:: right
+    .. py:attribute:: bottom
+    """
+
+
+class ContentGeneratorExtraData(pretty_namedtuple(
+    'ContentGeneratorExtraData',
+    'descriptor_version descriptor'
+)):
+    """
+    .. py:attribute:: descriptor_version
+    .. py:attribute:: descriptor
+    """
+
+
+class UnicodePathName(pretty_namedtuple(
+    'UnicodePathName',
+    'descriptor_version descriptor'
+)):
+    """
+    .. py:attribute:: descriptor_version
+    .. py:attribute:: descriptor
+    """
+
+
+class AnimationEffects(pretty_namedtuple(
+    'AnimationEffects',
+    'descriptor_version descriptor'
+)):
+    """
+    .. py:attribute:: descriptor_version
+    .. py:attribute:: descriptor
+    """
+
+
+class FilterMask(pretty_namedtuple('FilterMask', 'color opacity')):
+    """
+    .. py:attribute:: color
+    .. py:attribute:: opacity
+    """
+
+
+class VectorOriginationData(pretty_namedtuple(
+    'VectorOriginationData',
+    'version descriptor_version data'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: descriptor_version
+    .. py:attribute:: descriptor
+    """
+
+
+class VectorMaskSetting(pretty_namedtuple(
+    'VectorMaskSetting',
+    'version invert not_link disable path'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: invert
+    .. py:attribute:: not_link
+    .. py:attribute:: disable path
+    """
+
+
+class PixelSourceData(pretty_namedtuple('PixelSourceData', 'version data')):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: data
+    """
+
+
+class ArtboardData(pretty_namedtuple('ArtboardData', 'version data')):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: data
+    """
+
+
+class UserMask(pretty_namedtuple('UserMask', 'color opacity flag')):
+    """
+    .. py:attribute:: color
+    .. py:attribute:: opacity
+    .. py:attribute:: flag
+    """
+
+
+class FilterEffects(pretty_namedtuple(
     'FilterEffects',
-    'uuid version rectangle depth max_channels channels extra_data')
-FilterEffectChannel = pretty_namedtuple(
-    'FilterEffectChannel', 'is_written compression data')
-PlacedLayerObsolete = pretty_namedtuple(
+    'uuid version rectangle depth max_channels channels extra_data'
+)):
+    """
+    .. py:attribute:: uuid
+    .. py:attribute:: version
+    .. py:attribute:: rectangle
+    .. py:attribute:: depth
+    .. py:attribute:: max_channels
+    .. py:attribute:: channels
+    .. py:attribute:: extra_data
+    """
+
+
+class FilterEffectChannel(pretty_namedtuple(
+    'FilterEffectChannel',
+    'is_written compression data'
+)):
+    """
+    .. py:attribute:: is_written
+    .. py:attribute:: compression
+    .. py:attribute:: data
+    """
+
+
+class PlacedLayerObsolete(pretty_namedtuple(
     'PlacedLayerObsolete',
     'type version uuid page total_pages anti_alias layer_type transformation '
-    'warp')
-WarpInformation = pretty_namedtuple(
-    'WarpInformation', 'version descriptor_version descriptor')
+    'warp'
+)):
+    """
+    .. py:attribute:: type
+    .. py:attribute:: version
+    .. py:attribute:: uuid
+    .. py:attribute:: page
+    .. py:attribute:: total_pages
+    .. py:attribute:: anti_alias
+    .. py:attribute:: layer_type
+    .. py:attribute:: transformation
+    .. py:attribute:: warp
+    """
+
+
+class WarpInformation(pretty_namedtuple(
+    'WarpInformation',
+    'version descriptor_version descriptor'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: descriptor_version
+    .. py:attribute:: descriptor
+    """
 
 
 class Divider(collections.namedtuple('Divider', 'block type key')):
+    """
+    .. py:attribute:: block
+    .. py:attribute:: type
+    .. py:attribute:: key
+    """
     def __repr__(self):
         return "Divider(%s %r %s, %s)" % (
-            self.block, self.type, SectionDivider.name_of(self.type), self.key)
+            self.block, self.type, SectionDivider.name_of(self.type), self.key
+        )
 
 
 def decode(tagged_blocks, version):
@@ -142,7 +608,8 @@ def parse_tagged_block(block, version=1, **kwargs):
     if not TaggedBlock.is_known(block.key):
         warnings.warn("Unknown tagged block (%s)" % block.key)
 
-    decoder = _tagged_block_decoders.get(block.key, lambda data, **kwargs: data)
+    decoder = _tagged_block_decoders.get(
+        block.key, lambda data, **kwargs: data)
     return Block(block.key, decoder(block.data, version=version))
 
 
@@ -195,7 +662,9 @@ def _decode_levels(data, **kwargs):
         assert signature == b'Lvls', 'unexpected token: {0}'.format(signature)
         _ = read_fmt('H', fp)[0]  # version (= 3)
         count = read_fmt('H', fp)[0] - 29
-        level_records = level_records + [read_level_record(fp) for i in range(count)]
+        level_records = level_records + [
+            read_level_record(fp) for i in range(count)
+        ]
 
     return LevelsSettings(version, level_records)
 
@@ -395,8 +864,10 @@ def _decode_virtual_memory_array_list(fp):
         array_rect = read_fmt("4I", fp)
         pixel_depth, compression = read_fmt("H B", fp)
         channel_data = RawData(fp.read(array_length - 23))
-        channels.append(VirtualMemoryArray(is_written, depth, array_rect,
-            pixel_depth, compression, channel_data))
+        channels.append(VirtualMemoryArray(
+            is_written, depth, array_rect, pixel_depth, compression,
+            channel_data
+        ))
     return VirtualMemoryArrayList(version, rectangle, channels)
 
 
@@ -580,7 +1051,8 @@ def _decode_layer32(data, version=1, **kwargs):
     from psd_tools.reader import layers
     from psd_tools.decoder.decoder import decode_layers
     fp = io.BytesIO(data)
-    layers = layers._read_layers(fp, 'latin1', 32, length=len(data), version=version)
+    layers = layers._read_layers(
+        fp, 'latin1', 32, length=len(data), version=version)
     return decode_layers(layers, version)
 
 
@@ -589,18 +1061,21 @@ def _decode_layer16(data, version=1, **kwargs):
     from psd_tools.reader import layers
     from psd_tools.decoder.decoder import decode_layers
     fp = io.BytesIO(data)
-    layers = layers._read_layers(fp, 'latin1', 16, length=len(data), version=version)
+    layers = layers._read_layers(
+        fp, 'latin1', 16, length=len(data), version=version)
     return decode_layers(layers, version)
 
 
 @register(TaggedBlock.TYPE_TOOL_OBJECT_SETTING)
 def _decode_type_tool_object_setting(data, **kwargs):
     fp = io.BytesIO(data)
-    ver, xx, xy, yx, yy, tx, ty, txt_ver, descr1_ver = read_fmt("H 6d H I", fp)
+    ver, xx, xy, yx, yy, tx, ty, txt_ver, descr1_ver = read_fmt(
+        "H 6d H I", fp)
 
     # This decoder needs to be updated if we have new formats.
     if ver != 1 or txt_ver != 50 or descr1_ver != 16:
-        warnings.warn("Ignoring type setting tagged block due to old versions")
+        warnings.warn(
+            "Ignoring type setting tagged block due to old versions")
         return data
 
     try:
@@ -613,11 +1088,13 @@ def _decode_type_tool_object_setting(data, **kwargs):
     for index in range(len(text_data.items)):
         item = text_data.items[index]
         if item[0] == b'EngineData':
-            text_data.items[index] = (b'EngineData', engine_data.decode(item[1].value))
+            text_data.items[index] = (
+                b'EngineData', engine_data.decode(item[1].value))
 
     warp_ver, descr2_ver = read_fmt("H I", fp)
     if warp_ver != 1 or descr2_ver != 16:
-        warnings.warn("Ignoring type setting tagged block due to old versions")
+        warnings.warn(
+            "Ignoring type setting tagged block due to old versions")
         return data
 
     try:

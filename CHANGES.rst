@@ -1,3 +1,10 @@
+1.7.8 (2018-05-29)
+------------------
+
+- update documentation;
+- fix PEP8 compliance;
+- rename merge_layers to compose.
+
 1.7.7 (2018-05-02)
 ------------------
 

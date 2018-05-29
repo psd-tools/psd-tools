@@ -5,6 +5,7 @@ from psd_tools.utils import read_fmt
 
 logger = logging.getLogger(__name__)
 
+
 def read(fp):
     """
     Reads data from the color mode data section.

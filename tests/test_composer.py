@@ -24,7 +24,7 @@ QUALITY_TEST_FILES = [
 def test_render_clip_layers(filename):
     psd = PSDImage.load(full_name(filename))
     image1 = psd.as_PIL()
-    image2 = psd.as_PIL_merged()
+    image2 = psd.as_PIL(render=True)
     assert isinstance(image1, Image)
     assert isinstance(image2, Image)
 
@@ -33,7 +33,7 @@ def test_render_clip_layers(filename):
 def test_render_quality(filename):
     psd = PSDImage.load(full_name(filename))
     preview = psd.as_PIL()
-    rendered = psd.as_PIL_merged()
+    rendered = psd.as_PIL(render=True)
     assert isinstance(preview, Image)
     assert isinstance(rendered, Image)
     preview_hash = imagehash.average_hash(preview)

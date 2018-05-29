@@ -6,7 +6,9 @@ from .utils import load_psd, decode_psd, with_psb
 
 from psd_tools.user_api.psd_image import PSDImage, BBox
 from psd_tools.decoder.image_resources import ResolutionInfo
-from psd_tools.constants import DisplayResolutionUnit, DimensionUnit, ImageResourceID
+from psd_tools.constants import (
+    DisplayResolutionUnit, DimensionUnit, ImageResourceID
+)
 
 DIMENSIONS = with_psb((
     ('1layer.psd',              (101, 55)),
@@ -71,7 +73,9 @@ def test_dimensions(filename, size):
 @pytest.mark.parametrize(("filename", "resolution"), RESOLUTIONS)
 def test_resolution(filename, resolution):
     psd = decode_psd(filename)
-    psd_res = dict((block.resource_id, block.data) for block in psd.image_resource_blocks)
+    psd_res = dict(
+        (block.resource_id, block.data) for block in psd.image_resource_blocks
+    )
     assert psd_res[ImageResourceID.RESOLUTION_INFO] == resolution
 
 

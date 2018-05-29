@@ -52,13 +52,21 @@ def test_1layer_name():
 def test_groups():
     psd = decode_psd('group.psd')
     layers = psd.layer_and_mask_data.layers.layer_records
-    assert len(layers) == 3+1 # 3 layers + 1 divider
+    assert len(layers) == 3 + 1  # 3 layers + 1 divider
 
-    assert layers[1].tagged_blocks[3].key == TaggedBlock.SECTION_DIVIDER_SETTING
-    assert layers[1].tagged_blocks[3].data.type == SectionDivider.BOUNDING_SECTION_DIVIDER
+    assert (
+        layers[1].tagged_blocks[3].key == TaggedBlock.SECTION_DIVIDER_SETTING
+    )
+    assert (
+        layers[1].tagged_blocks[3].data.type ==
+        SectionDivider.BOUNDING_SECTION_DIVIDER
+    )
 
 
-@pytest.mark.parametrize(('filename', 'has_layer_and_mask_data'), FILES_WITH_NO_LAYERS)
+@pytest.mark.parametrize(
+    ('filename', 'has_layer_and_mask_data'),
+    FILES_WITH_NO_LAYERS
+)
 def test_no_layers_has_tagged_blocks(filename, has_layer_and_mask_data):
     psd = load_psd(filename)
 
@@ -151,8 +159,8 @@ def test_vector_origination(stroke_psd):
     assert origination.line_start.x == 187.0
     assert origination.line_start.y == 206.0
     assert origination.line_weight == 1.0
-    assert origination.arrow_start == False
-    assert origination.arrow_end == False
+    assert origination.arrow_start is False
+    assert origination.arrow_end is False
     assert origination.arrow_width == 0.0
     assert origination.arrow_length == 0.0
     assert origination.arrow_conc == 0

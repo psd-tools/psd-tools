@@ -18,9 +18,9 @@ from psd_tools.decoder.actions import UnitFloat
 import psd_tools.user_api.actions
 
 try:
-  basestring
+    basestring
 except NameError:
-  basestring = str
+    basestring = str
 
 
 logger = logging.getLogger(__name__)
@@ -114,7 +114,7 @@ class _BaseEffect(object):
 
         :rtype: float
         """
-        return self.get(b'Opct', UnitFloat('PERCENT',100.0))
+        return self.get(b'Opct', UnitFloat('PERCENT', 100.0))
 
     @property
     def name(self):

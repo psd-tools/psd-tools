@@ -5,6 +5,7 @@ import pytest
 from psd_tools.user_api import pil_support, pymaging_support
 from .utils import decode_psd, with_psb
 
+
 def _tobytes(image):
     if hasattr(image, 'tobytes'):
         return image.tobytes()  # PIL

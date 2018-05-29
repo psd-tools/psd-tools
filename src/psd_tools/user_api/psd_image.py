@@ -95,9 +95,11 @@ class _PSDImageBuilder(object):
 
 
 class PSDImage(_TaggedBlockMixin, _GroupMixin, _PSDImageBuilder):
-    """PSD image.
+    """
+    PSD image.
 
-    The internal layers are accessible with :py:attr:`layers` attribute.
+    The internal layers are accessible with
+    :py:attr:`~psd_tools.PSDImage.layers` attribute.
 
     Example::
 
@@ -109,6 +111,10 @@ class PSDImage(_TaggedBlockMixin, _GroupMixin, _PSDImageBuilder):
             print(layer.kind)
 
         image = psd.as_PIL()
+
+    .. py:attribute:: decoded_data
+
+        Low-level document structure from :py:mod:`~psd_tools.decoder`.
 
     """
 
@@ -326,7 +332,12 @@ class PSDImage(_TaggedBlockMixin, _GroupMixin, _PSDImageBuilder):
 
     @property
     def tagged_blocks(self):
-        """Returns dict of the underlying tagged blocks."""
+        """
+        Returns dict of the underlying tagged blocks. See
+        :py:mod:`psd_tools.decoder.tagged_blocks`
+
+        :rtype: `dict`
+        """
         if not self._tagged_blocks:
             self._tagged_blocks = dict(
                 self.decoded_data.layer_and_mask_data.tagged_blocks)
@@ -334,7 +345,12 @@ class PSDImage(_TaggedBlockMixin, _GroupMixin, _PSDImageBuilder):
 
     @property
     def image_resource_blocks(self):
-        """Returns dict of the underlying image resource blocks."""
+        """
+        Returns dict of the underlying image resource blocks. See
+        :py:mod:`psd_tools.decoder.image_resources`
+
+        :rtype: `dict`
+        """
         if not self._image_resource_blocks:
             self._image_resource_blocks = {
                 ImageResourceID.name_of(block.resource_id).lower(): block.data

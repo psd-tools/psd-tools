@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, unicode_literals, division, print_function
+from __future__ import (
+    absolute_import, unicode_literals, division, print_function
+    )
 import logging
 import warnings
 import zlib
@@ -14,28 +16,70 @@ from psd_tools.debug import pretty_namedtuple
 
 logger = logging.getLogger(__name__)
 
-LayerAndMaskData = pretty_namedtuple('LayerAndMaskData', 'layers global_mask_info tagged_blocks')
-Layers = pretty_namedtuple('Layers', 'layer_count layer_records channel_image_data')
-_LayerRecord = pretty_namedtuple('LayerRecord', 'top left bottom right '
-                                                'num_channels channels '
-                                                'blend_mode opacity clipping flags '
-                                                'mask_data blending_ranges name '
-                                                'tagged_blocks')
-_ChannelInfo = pretty_namedtuple('ChannelInfo', 'id length')
-LayerFlags = pretty_namedtuple('LayerFlags', 'transparency_protected visible pixel_data_irrelevant')
-_MaskData = pretty_namedtuple('MaskData', 'top left bottom right background_color flags parameters '
-                                          'real_flags real_background_color real_top real_left real_bottom real_right')
-MaskFlags = pretty_namedtuple('MaskFlags', 'pos_relative_to_layer mask_disabled invert_mask '
-                                           'user_mask_from_render parameters_applied')
-MaskParameters = pretty_namedtuple('MaskParameters', 'user_mask_density user_mask_feather '
-                                                     'vector_mask_density vector_mask_feather')
-LayerBlendingRanges = pretty_namedtuple('LayerBlendingRanges', 'composite_ranges channel_ranges')
-_Block = pretty_namedtuple('Block', 'key data')
-_ChannelData = pretty_namedtuple('ChannelData', 'compression data')
-GlobalMaskInfo = pretty_namedtuple('GlobalMaskInfo', 'overlay_color opacity kind')
+
+class LayerAndMaskData(pretty_namedtuple(
+    'LayerAndMaskData',
+    'layers global_mask_info tagged_blocks'
+)):
+    """
+    Layer and mask data container.
+
+    .. py:attribute:: layers
+
+        :py:attr:`~psd_tools.reader.layers.Layers`
+
+    .. py:attribute:: global_mask_info
+
+        :py:attr:`~psd_tools.reader.layers.GlobalMaskInfo`
+
+    .. py:attribute:: tagged_blocks
+
+        :py:class:`list` of :py:attr:`~psd_tools.reader.layers.Block`
+    """
 
 
-class LayerRecord(_LayerRecord):
+class Layers(pretty_namedtuple(
+    'Layers',
+    'layer_count layer_records channel_image_data'
+)):
+    """
+    Layer container.
+
+    .. py:attribute:: layer_count
+    .. py:attribute:: layer_records
+
+        :py:class:`list` of :py:class:`~psd_tools.reader.layers.LayerRecord`
+
+    .. py:attribute:: channel_image_data
+
+        :py:class:`list` of :py:class:`~psd_tools.reader.layers.ChannelInfo`
+    """
+
+
+class LayerRecord(pretty_namedtuple(
+    'LayerRecord',
+    'top left bottom right num_channels channels blend_mode opacity clipping '
+    'flags mask_data blending_ranges name tagged_blocks'
+)):
+    """
+    Layer container.
+
+    .. py:attribute:: top
+    .. py:attribute:: left
+    .. py:attribute:: bottom
+    .. py:attribute:: right
+    .. py:attribute:: num_channels
+    .. py:attribute:: channels
+    .. py:attribute:: blend_mode
+    .. py:attribute:: opacity
+    .. py:attribute:: clipping
+    .. py:attribute:: flags
+    .. py:attribute:: mask_data
+    .. py:attribute:: blending_ranges
+    .. py:attribute:: name
+    .. py:attribute:: tagged_blocks
+
+    """
 
     def width(self):
         return self.right - self.left
@@ -44,14 +88,57 @@ class LayerRecord(_LayerRecord):
         return self.bottom - self.top
 
 
-class ChannelInfo(_ChannelInfo):
+class ChannelInfo(pretty_namedtuple('ChannelInfo', 'id length')):
+    """
+    Channel information.
+
+    .. py:attribute:: id
+
+        :py:class:`~psd_tools.constants.ChannelID`
+
+    .. py:attribute:: length
+    """
     def __repr__(self):
         return "ChannelInfo(id=%s %s, length=%s)" % (
             self.id, ChannelID.name_of(self.id), self.length
         )
 
 
-class MaskData(_MaskData):
+class LayerFlags(pretty_namedtuple(
+    'LayerFlags',
+    'transparency_protected visible pixel_data_irrelevant'
+)):
+    """
+    Layer flags.
+
+    .. py:attribute:: transparency_protected
+    .. py:attribute:: visible
+    .. py:attribute:: pixel_data_irrelevant
+    """
+
+
+class MaskData(pretty_namedtuple(
+    'MaskData',
+    'top left bottom right background_color flags parameters real_flags '
+    'real_background_color real_top real_left real_bottom real_right'
+)):
+    """
+    Mask data.
+
+    .. py:attribute:: top
+    .. py:attribute:: left
+    .. py:attribute:: bottom
+    .. py:attribute:: right
+    .. py:attribute:: background_color
+    .. py:attribute:: flags
+    .. py:attribute:: parameters
+    .. py:attribute:: real_flags
+    .. py:attribute:: real_background_color
+    .. py:attribute:: real_top
+    .. py:attribute:: real_left
+    .. py:attribute:: real_bottom
+    .. py:attribute:: real_right
+    """
 
     def width(self):
         return self.right - self.left
@@ -66,9 +153,54 @@ class MaskData(_MaskData):
         return self.real_bottom - self.real_top
 
 
-class Block(_Block):
+class MaskFlags(pretty_namedtuple(
+    'MaskFlags',
+    'pos_relative_to_layer mask_disabled invert_mask user_mask_from_render '
+    'parameters_applied'
+)):
+    """
+    Mask flags.
+
+    .. py:attribute:: pos_relative_to_layer
+    .. py:attribute:: mask_disabled
+    .. py:attribute:: invert_mask
+    .. py:attribute:: user_mask_from_render
+    .. py:attribute:: parameters_applied
+    """
+
+
+class MaskParameters(pretty_namedtuple(
+    'MaskParameters',
+    'user_mask_density user_mask_feather vector_mask_density '
+    'vector_mask_feather'
+)):
+    """
+    Mask parameters.
+
+    .. py:attribute:: user_mask_density
+    .. py:attribute:: user_mask_feather
+    .. py:attribute:: vector_mask_density
+    """
+
+
+class LayerBlendingRanges(pretty_namedtuple(
+    'LayerBlendingRanges',
+    'composite_ranges channel_ranges'
+)):
+    """
+    Layer blending ranges.
+
+    .. py:attribute:: composite_ranges
+    .. py:attribute:: channel_ranges
+    """
+
+
+class Block(pretty_namedtuple('Block', 'key data')):
     """
     Layer tagged block with extra info.
+
+    .. py:attribute:: key
+    .. py:attribute:: data
     """
     def __repr__(self):
         return "Block(%s %s, %s)" % (self.key, TaggedBlock.name_of(self.key),
@@ -88,7 +220,16 @@ class Block(_Block):
                     p.pretty(self.data)
 
 
-class ChannelData(_ChannelData):
+class ChannelData(pretty_namedtuple('ChannelData', 'compression data')):
+    """
+    Channel data.
+
+    .. py:attribute:: compression
+
+        :py:class:`~psd_tools.constants.Compression`
+
+    .. py:attribute:: data
+    """
     def __repr__(self):
         return "ChannelData(compression=%r %s, len(data)=%r)" % (
             self.compression, Compression.name_of(self.compression),
@@ -100,6 +241,19 @@ class ChannelData(_ChannelData):
             p.text('ChannelData(...)')
         else:
             p.text(repr(self))
+
+
+class GlobalMaskInfo(pretty_namedtuple(
+    'GlobalMaskInfo',
+    'overlay_color opacity kind'
+)):
+    """
+    Global mask information.
+
+    .. py:attribute:: overlay_color
+    .. py:attribute:: opacity
+    .. py:attribute:: kind
+    """
 
 
 def read(fp, encoding, depth, version):
@@ -125,13 +279,15 @@ def read(fp, encoding, depth, version):
         if remaining_length > 0:
             global_mask_info = _read_global_mask_info(fp)
 
-            synchronize(fp) # hack hack hack
+            synchronize(fp)  # hack hack hack
             remaining_length = length - (fp.tell() - start_pos)
 
             logger.debug('reading tagged blocks...')
-            logger.debug('  length=%d, start_pos=%d', remaining_length, fp.tell())
+            logger.debug('  length=%d, start_pos=%d',
+                         remaining_length, fp.tell())
 
-            tagged_blocks = _read_layer_tagged_blocks(fp, remaining_length, version, 4)
+            tagged_blocks = _read_layer_tagged_blocks(
+                fp, remaining_length, version, 4)
 
             remaining_length = length - (fp.tell() - start_pos)
             if remaining_length > 0:
@@ -169,7 +325,8 @@ def _read_layers(fp, encoding, depth, version, length=None):
             layer_records.append(layer)
 
         for idx, layer in enumerate(layer_records):
-            logger.debug('reading layer channel data %d, pos=%d', idx, fp.tell())
+            logger.debug('reading layer channel data %d, pos=%d',
+                         idx, fp.tell())
             data = _read_channel_image_data(fp, layer, depth, version)
             channel_image_data.append(data)
 
@@ -234,7 +391,7 @@ def _read_layer_record(fp, encoding, version):
 
     remaining_length = extra_length - (fp.tell() - start_pos)
     if remaining_length > 0:
-        fp.seek(remaining_length, 1) # skip the remainder
+        fp.seek(remaining_length, 1)  # skip the remainder
         logger.debug('  skipping %s bytes', remaining_length)
 
     return LayerRecord(
@@ -294,7 +451,8 @@ def _read_layer_mask_data(fp):
 
     return MaskData(
         top, left, bottom, right, background_color, flags, parameters,
-        real_flags, real_background_color, real_top, real_left, real_bottom, real_right
+        real_flags, real_background_color, real_top, real_left, real_bottom,
+        real_right
     )
 
 
@@ -344,12 +502,14 @@ def _read_additional_layer_info_block(fp, padding, version):
     sig = fp.read(4)
     if sig not in [b'8BIM', b'8B64']:
         fp.seek(-4, 1)
-        #warnings.warn("not a block: %r" % sig)
+        # warnings.warn("not a block: %r" % sig)
         return
 
     key = fp.read(4)
-    if version == 2 and key in (b'LMsk', b'Lr16', b'Lr32', b'Layr', b'Mt16',
-        b'Mt32', b'Mtrn', b'Alph', b'FMsk', b'lnk2', b'FEid', b'FXid', b'PxSD'):
+    if version == 2 and key in (
+        b'LMsk', b'Lr16', b'Lr32', b'Layr', b'Mt16', b'Mt32', b'Mtrn',
+        b'Alph', b'FMsk', b'lnk2', b'FEid', b'FXid', b'PxSD'
+    ):
         length = read_fmt("Q", fp)[0]
     else:
         length = read_fmt("I", fp)[0]
@@ -388,7 +548,8 @@ def _read_channel_image_data(fp, layer, depth, version):
         # read data size
         if compress_type == Compression.RAW:
             data_size = w * h * bytes_per_pixel
-            logger.debug('    data size = %sx%sx%s=%s bytes', w, h, bytes_per_pixel, data_size)
+            logger.debug('    data size = %sx%sx%s=%s bytes',
+                         w, h, bytes_per_pixel, data_size)
 
         elif compress_type == Compression.PACK_BITS:
             if version == 1:
@@ -398,9 +559,11 @@ def _read_channel_image_data(fp, layer, depth, version):
             data_size = sum(byte_counts)
             logger.debug('    data size = %s bytes', data_size)
 
-        elif compress_type in (Compression.ZIP, Compression.ZIP_WITH_PREDICTION):
+        elif compress_type in (Compression.ZIP,
+                               Compression.ZIP_WITH_PREDICTION):
             data_size = channel.length - 2
-            logger.debug('    data size = %s-2=%s bytes', channel.length, data_size)
+            logger.debug('    data size = %s-2=%s bytes',
+                         channel.length, data_size)
 
         else:
             warnings.warn("Bad compression type %s" % compress_type)
@@ -408,7 +571,8 @@ def _read_channel_image_data(fp, layer, depth, version):
 
         # read the data itself
         if data_size > channel.length:
-            warnings.warn("Incorrect data size: %s > %s" % (data_size, channel.length))
+            warnings.warn("Incorrect data size: %s > %s" % (
+                data_size, channel.length))
         else:
             raw_data = fp.read(data_size)
             if compress_type in (Compression.RAW, Compression.PACK_BITS):
@@ -417,7 +581,8 @@ def _read_channel_image_data(fp, layer, depth, version):
                 data = zlib.decompress(raw_data)
             elif compress_type == Compression.ZIP_WITH_PREDICTION:
                 decompressed = zlib.decompress(raw_data)
-                data = compression.decode_prediction(decompressed, w, h, bytes_per_pixel)
+                data = compression.decode_prediction(
+                    decompressed, w, h, bytes_per_pixel)
 
             if data is None:
                 return []
@@ -471,7 +636,8 @@ def read_image_data(fp, header):
             if header.version == 1:
                 channel_byte_counts.append(read_be_array("H", h, fp))
             elif header.version == 2:
-                channel_byte_counts.append(read_be_array("I", h, fp))  # Undocumented...
+                # Undocumented...
+                channel_byte_counts.append(read_be_array("I", h, fp))
 
     channel_data = []
     for channel_id in range(header.number_of_channels):
@@ -489,10 +655,13 @@ def read_image_data(fp, header):
 
         # are there any ZIP-encoded composite images in a wild?
         elif compress_type == Compression.ZIP:
-            warnings.warn("ZIP compression of composite image is not supported.")
+            warnings.warn(
+                "ZIP compression of composite image is not supported.")
 
         elif compress_type == Compression.ZIP_WITH_PREDICTION:
-            warnings.warn("ZIP_WITH_PREDICTION compression of composite image is not supported.")
+            warnings.warn(
+                "ZIP_WITH_PREDICTION compression of composite image is not "
+                "supported.")
 
         if data is None:
             return []

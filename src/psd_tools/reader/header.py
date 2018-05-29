@@ -10,14 +10,37 @@ from psd_tools.constants import ColorMode
 
 logger = logging.getLogger(__name__)
 
-_PsdHeader = collections.namedtuple("PsdHeader", "version, number_of_channels, height, width, depth, color_mode")
 
-class PsdHeader(_PsdHeader):
+class PsdHeader(collections.namedtuple(
+    "PsdHeader",
+    "version, number_of_channels, height, width, depth, color_mode"
+)):
+    """
+    Header section of the PSD file.
+
+    Example::
+
+        PsdHeader(version=1, number_of_channels=2, height=359, width=400, \
+depth=8, color_mode=GRAYSCALE)
+
+    .. py:attribute:: version
+    .. py:attribute:: number_of_channels
+    .. py:attribute:: height
+    .. py:attribute:: width
+    .. py:attribute:: depth
+    .. py:attribute:: color_mode
+
+        :py:class:`~psd_tools.constants.ColorMode`
+    """
     def __repr__(self):
-        return "PsdHeader(version=%s, number_of_channels=%s, height=%s, width=%s, depth=%s, color_mode=%s)" % (
-            self.version, self.number_of_channels, self.height, self.width,
-            self.depth, ColorMode.name_of(self.color_mode)
+        return (
+            "PsdHeader(version=%s, number_of_channels=%s, height=%s, "
+            "width=%s, depth=%s, color_mode=%s)" % (
+                self.version, self.number_of_channels, self.height,
+                self.width, self.depth, ColorMode.name_of(self.color_mode)
+            )
         )
+
 
 def read(fp):
     """
@@ -29,7 +52,7 @@ def read(fp):
         raise Error("This is not a PSD or PSB file")
 
     version = read_fmt("H", fp)[0]
-    if not version in (1, 2):
+    if version not in (1, 2):
         raise Error("Unsupported PSD version (%s)" % version)
 
     header = PsdHeader(version, *read_fmt("6x HIIHH", fp))

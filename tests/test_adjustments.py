@@ -39,8 +39,8 @@ def test_brightness_contrast(psd):
     assert data.brightness == 34
     assert data.contrast == 18
     assert data.mean == 127
-    assert data.use_legacy == False
-    assert data.automatic == False
+    assert data.use_legacy is False
+    assert data.automatic is False
 
 
 def test_levels(psd):
@@ -99,7 +99,7 @@ def test_black_and_white(psd):
     assert data.cyan == 60
     assert data.blue == 20
     assert data.magenta == 80
-    assert data.use_tint == False
+    assert data.use_tint is False
     assert data.tint_color
     assert data.preset_kind == 1
     assert data.preset_file_name == ''
@@ -108,7 +108,7 @@ def test_black_and_white(psd):
 def test_photo_filter(psd):
     data = psd.layers[7].data
     assert isinstance(data, adjustments.PhotoFilter)
-    assert data.xyz == None
+    assert data.xyz is None
     assert data.color_space == 7
     assert data.color_components == (6706, 3200, 12000, 0)
     assert data.density == 25
