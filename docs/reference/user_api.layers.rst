@@ -48,8 +48,3 @@ TypeLayer
     :members:
     :inherited-members:
     :undoc-members:
-
-merge\_layers
--------------
-
-.. autofunction:: psd_tools.user_api.layers.merge_layers

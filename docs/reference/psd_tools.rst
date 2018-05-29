@@ -8,3 +8,8 @@ PSDImage
     :members:
     :inherited-members:
     :undoc-members:
+
+compose
+-------
+
+.. autofunction:: psd_tools.compose

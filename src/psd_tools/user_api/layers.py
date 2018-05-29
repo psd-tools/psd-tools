@@ -13,6 +13,7 @@ from psd_tools.user_api import BBox
 from psd_tools.user_api.actions import translate
 from psd_tools.user_api.mask import Mask
 from psd_tools.user_api.effects import get_effects
+from psd_tools.user_api.composer import combined_bbox, compose
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +116,14 @@ class _RawLayer(_TaggedBlockMixin):
         )
 
     def as_PIL(self):
-        """Returns a PIL.Image for this layer."""
+        """
+        Returns a PIL.Image for this layer.
+
+        Note that this method does not apply layer masks. To compose a layer
+        with mask, use :py:func:`psd_tools.compose`.
+
+        :rtype: `PIL.Image`
+        """
         if self.has_pixels():
             return self._psd._layer_as_PIL(self._index)
         else:
@@ -371,7 +379,7 @@ class _GroupMixin(object):
         Returns a PIL image for this group.
         This is highly experimental.
         """
-        return merge_layers(self.layers, **kwargs)
+        return compose(self.layers, **kwargs)
 
 
 class Group(_GroupMixin, _RawLayer):
@@ -571,7 +579,9 @@ class SmartObjectLayer(_RawLayer):
 
     Smart object is an embedded or external object in PSD document. Typically
     smart objects is used for non-destructive editing. The linked data is
-    accessible by :py:attr:`linked_data` attribute.
+    accessible by
+    :py:attr:`~psd_tools.user_api.layers.SmartObjectLayer.linked_data`
+    attribute.
     """
     def __init__(self, parent, index):
         super(SmartObjectLayer, self).__init__(parent, index)
@@ -711,116 +721,6 @@ class TypeLayer(_RawLayer):
         return spans
 
 
-def combined_bbox(layers):
-    """
-    Returns a bounding box for ``layers`` or BBox(0, 0, 0, 0) if the layers
-    have no bbox.
-    """
-    bboxes = [layer.bbox for layer in layers if not layer.bbox.is_empty()]
-    if len(bboxes) == 0:
-        return BBox(0, 0, 0, 0)
-    lefts, tops, rights, bottoms = zip(*bboxes)
-    return BBox(min(lefts), min(tops), max(rights), max(bottoms))
-
-
-def merge_layers(layers, respect_visibility=True, ignore_blend_mode=True,
-                 skip_layer=lambda layer: False, bbox=None):
-    """
-    Merges layers together (the first layer is on top).
-
-    By default hidden layers are not rendered;
-    pass ``respect_visibility=False`` to render them.
-
-    In order to skip some layers pass ``skip_layer`` function which
-    should take ``layer`` as an argument and return True or False.
-
-    If ``bbox`` is not None, it should be a 4-tuple with coordinates;
-    returned image will be restricted to this rectangle.
-
-    This is experimental.
-    """
-
-    # FIXME: this currently assumes PIL
-    from PIL import Image
-
-    if bbox is None:
-        bbox = combined_bbox(layers)
-
-    if bbox.is_empty():
-        return None
-
-    result = Image.new(
-        "RGBA",
-        (bbox.width, bbox.height),
-        color=(255, 255, 255, 0)  # fixme: transparency is incorrect
-    )
-
-    for layer in reversed(layers):
-        if skip_layer(layer) or not layer.has_box() or (
-                not layer.visible and respect_visibility):
-            continue
-
-        if layer.is_group():
-            layer_image = layer.as_PIL(
-                respect_visibility=respect_visibility,
-                ignore_blend_mode=ignore_blend_mode,
-                skip_layer=skip_layer)
-        else:
-            layer_image = layer.as_PIL()
-
-        if not layer_image:
-            continue
-
-        if not ignore_blend_mode and layer.blend_mode != "normal":
-            logger.warning("Blend mode is not implemented: %s",
-                           layer.blend_mode)
-            continue
-
-        clip_image = None
-        if len(layer.clip_layers):
-            clip_box = combined_bbox(layer.clip_layers)
-            if not clip_box.is_empty():
-                intersect = clip_box.intersect(layer.bbox)
-                if not intersect.is_empty():
-                    clip_image = merge_layers(
-                        layer.clip_layers, respect_visibility,
-                        ignore_blend_mode, skip_layer)
-                    clip_image = clip_image.crop(
-                        intersect.offset((clip_box.x1, clip_box.y1)))
-                    clip_mask = layer_image.crop(
-                        intersect.offset((layer.bbox.x1, layer.bbox.y1)))
-
-        layer_image = pil_support.apply_opacity(layer_image, layer.opacity)
-        layer_offset = layer.bbox.offset((bbox.x1, bbox.y1))
-        mask = None
-        if layer.has_mask():
-            mask_box = layer.mask.bbox
-            if not layer.mask.disabled and not mask_box.is_empty():
-                mask = Image.new("L", layer_image.size, color=(0,))
-                mask.paste(
-                    layer.mask.as_PIL(),
-                    mask_box.offset((layer.bbox.x1, layer.bbox.y1))
-                )
-
-        if layer_image.mode == 'RGBA':
-            tmp = Image.new("RGBA", result.size, color=(255, 255, 255, 0))
-            tmp.paste(layer_image, layer_offset, mask=mask)
-            result = Image.alpha_composite(result, tmp)
-        elif layer_image.mode == 'RGB':
-            result.paste(layer_image, layer_offset, mask=mask)
-        else:
-            logger.warning(
-                "layer image mode is unsupported for merging: %s",
-                layer_image.mode)
-            continue
-
-        if clip_image is not None:
-            offset = (intersect.x1 - bbox.x1, intersect.y1 - bbox.y1)
-            if clip_image.mode == 'RGBA':
-                tmp = Image.new("RGBA", result.size, color=(255, 255, 255, 0))
-                tmp.paste(clip_image, offset, mask=clip_mask)
-                result = Image.alpha_composite(result, tmp)
-            elif clip_image.mode == 'RGB':
-                result.paste(clip_image, offset, mask=clip_mask)
-
-    return result
+def merge_layers(*args, **kwargs):
+    """Deprecated, use :py:func:`psd_tools.user_api.composer.compose`."""
+    return compose(*args, **kwargs)
