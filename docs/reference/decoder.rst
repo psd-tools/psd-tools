@@ -1,6 +1,8 @@
 psd\_tools\.decoder
 ===================
 
+.. automodule:: psd_tools.decoder
+
 Low-level API that translates binary data to Python structure
 
 

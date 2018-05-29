@@ -95,7 +95,8 @@ class _PSDImageBuilder(object):
 
 
 class PSDImage(_TaggedBlockMixin, _GroupMixin, _PSDImageBuilder):
-    """PSD image.
+    """
+    PSD image.
 
     The internal layers are accessible with
     :py:attr:`~psd_tools.PSDImage.layers` attribute.
@@ -110,6 +111,10 @@ class PSDImage(_TaggedBlockMixin, _GroupMixin, _PSDImageBuilder):
             print(layer.kind)
 
         image = psd.as_PIL()
+
+    .. py:attribute:: decoded_data
+
+        Low-level document structure from :py:mod:`~psd_tools.decoder`.
 
     """
 

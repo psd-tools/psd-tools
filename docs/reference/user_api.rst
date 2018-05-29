@@ -1,6 +1,8 @@
 psd\_tools\.user\_api
 =====================
 
+.. automodule:: psd_tools.user_api
+
 BBox
 ----
 

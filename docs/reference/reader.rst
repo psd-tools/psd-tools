@@ -1,6 +1,8 @@
 psd-tools\.reader
 =================
 
+.. automodule:: psd_tools.reader
+
 The reader package provides a low-level API to read binary data from PSD
 files. According to the `specification`_, Adobe Photoshop files have the
 following five sections. The reader package reads these sections without
