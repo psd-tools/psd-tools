@@ -97,7 +97,8 @@ class _PSDImageBuilder(object):
 class PSDImage(_TaggedBlockMixin, _GroupMixin, _PSDImageBuilder):
     """PSD image.
 
-    The internal layers are accessible with :py:attr:`~psd_tools.PSDImage.layers` attribute.
+    The internal layers are accessible with
+    :py:attr:`~psd_tools.PSDImage.layers` attribute.
 
     Example::
 

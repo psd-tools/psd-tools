@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+"""
+Module for decoding image resources section.
+
+Image resources section holds key-value store of various resources that are
+relevant to the photoshop document. The keys are specified by
+:py:class:`~psd_tools.constants.ImageResourceID`.
+
+"""
 from __future__ import absolute_import, unicode_literals, division
 import io
 import warnings
@@ -34,63 +42,178 @@ _image_resource_decoders.update({
 })
 
 
-HalftoneScreen = namedtuple(
-    'HalftoneScreen', 'ink_frequency units angle shape accurate_screen '
-    'printer_default')
-TransferFunction = namedtuple('TransferFunction', 'curve override')
-PrintScale = namedtuple('PrintScale', 'style, x, y, scale')
-PrintFlags = namedtuple(
-    'PrintFlags', 'labels, crop_marks, color_bars, registration_marks, '
-    'negative, flip, interpolate, caption, print_flags')
-PrintFlagsInfo = namedtuple(
+class HalftoneScreen(namedtuple(
+    'HalftoneScreen',
+    'ink_frequency units angle shape accurate_screen printer_default'
+)):
+    """
+    .. py:attribute:: ink_frequency
+    .. py:attribute:: units
+    .. py:attribute:: angle
+    .. py:attribute:: shape
+    .. py:attribute:: accurate_screen
+    .. py:attribute:: printer_default
+    """
+
+
+class TransferFunction(namedtuple('TransferFunction', 'curve override')):
+    """
+    .. py:attribute:: curve
+    .. py:attribute:: override
+    """
+
+
+class PrintScale(namedtuple('PrintScale', 'style x y scale')):
+    """
+    .. py:attribute:: style
+    .. py:attribute:: x
+    .. py:attribute:: y
+    .. py:attribute:: scale
+    """
+
+
+class PrintFlags(namedtuple(
+    'PrintFlags',
+    'labels crop_marks color_bars registration_marks negative flip '
+    'interpolate caption print_flags'
+)):
+    """
+    .. py:attribute:: labels
+    .. py:attribute:: crop_marks
+    .. py:attribute:: color_bars
+    .. py:attribute:: registration_marks
+    .. py:attribute:: negative
+    .. py:attribute:: flip
+    .. py:attribute:: interpolate
+    .. py:attribute:: caption
+    .. py:attribute:: print_flags
+    """
+
+
+class PrintFlagsInfo(namedtuple(
     'PrintFlagsInfo',
-    'version, center_crop_marks, bleed_width_value, bleed_width_scale')
-ThumbnailResource = namedtuple(
+    'version center_crop_marks bleed_width_value bleed_width_scale'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: center_crop_marks
+    .. py:attribute:: bleed_width_value
+    .. py:attribute:: bleed_width_scale
+    """
+
+
+class ThumbnailResource(namedtuple(
     'ThumbnailResource',
-    'format, width, height, widthbytes, total_size, size, bits, planes, '
-    'data')
-SlicesHeader = namedtuple('SlicesHeader', 'descriptor_version, descriptor')
-SlicesHeaderV6 = namedtuple(
-    'SlicesHeaderV6', 'top left bottom right name count items')
-SlicesResourceBlock = namedtuple(
-    'SlicesResourceBlock', 'id group_id origin associated_id name type '
-    'left top right bottom url target message alt_tag cell_is_html cell_text '
-    'horizontal_alignment vertical_alignment alpha red green blue descriptor')
-VersionInfo = namedtuple(
-    'VersionInfo', 'version, has_real_merged_data, writer_name, '
-    'reader_name, file_version')
-UrlListItem = namedtuple('UrlListItem', 'number, id, url')
-PixelAspectRatio = namedtuple(
-    'PixelAspectRatio', 'version aspect')
-_ResolutionInfo = namedtuple(
-    'ResolutionInfo', 'h_res, h_res_unit, width_unit, v_res, v_res_unit, '
-    'height_unit')
-LayerComps = namedtuple(
-    'LayerComps', 'descriptor_version descriptor')
-MeasurementScale = namedtuple(
-    'MeasurementScale', 'descriptor_version descriptor')
-TimelineInformation = namedtuple(
-    'TimelineInformation', 'descriptor_version descriptor')
-SheetDisclosure = namedtuple(
-    'SheetDisclosure', 'descriptor_version descriptor')
-OnionSkins = namedtuple('OnionSkins', 'descriptor_version descriptor')
-CountInformation = namedtuple(
-    'CountInformation', 'descriptor_version descriptor')
-PrintInformation = namedtuple(
-    'PrintInformation', 'descriptor_version descriptor')
-PrintStyle = namedtuple(
-    'PrintStyle', 'descriptor_version descriptor')
-PathSelectionState = namedtuple(
-    'PathSelectionState', 'descriptor_version descriptor')
-GridGuideResource = namedtuple(
-    'GridGuideResource', 'version grid_horizontal grid_vertical guides')
-GuideResourceBlock = namedtuple(
-    'GuideResourceBlock', 'location direction')
-OriginPathInfo = namedtuple(
-    'OriginPathInfo', 'descriptor_version descriptor')
+    'format width height widthbytes total_size size bits planes data'
+)):
+    """
+    """
 
 
-class ResolutionInfo(_ResolutionInfo):
+class SlicesHeader(namedtuple(
+    'SlicesHeader',
+    'descriptor_version descriptor'
+)):
+    """
+    .. py:attribute:: format
+    .. py:attribute:: width
+    .. py:attribute:: height
+    .. py:attribute:: widthbytes
+    .. py:attribute:: total_size
+    .. py:attribute:: size
+    .. py:attribute:: bits
+    .. py:attribute:: planes data
+    """
+
+
+class SlicesHeaderV6(namedtuple(
+    'SlicesHeaderV6',
+    'top left bottom right name count items'
+)):
+    """
+    .. py:attribute:: top
+    .. py:attribute:: left
+    .. py:attribute:: bottom
+    .. py:attribute:: right
+    .. py:attribute:: name
+    .. py:attribute:: count
+    .. py:attribute:: items
+    """
+
+
+class SlicesResourceBlock(namedtuple(
+    'SlicesResourceBlock',
+    'id group_id origin associated_id name type left top right bottom url '
+    'target message alt_tag cell_is_html cell_text horizontal_alignment '
+    'vertical_alignment alpha red green blue descriptor'
+)):
+    """
+    .. py:attribute:: id
+    .. py:attribute:: group_id
+    .. py:attribute:: origin
+    .. py:attribute:: associated_id
+    .. py:attribute:: name
+    .. py:attribute:: type
+    .. py:attribute:: left
+    .. py:attribute:: top
+    .. py:attribute:: right
+    .. py:attribute:: bottom
+    .. py:attribute:: url
+    .. py:attribute:: target
+    .. py:attribute:: message
+    .. py:attribute:: alt_tag
+    .. py:attribute:: cell_is_html
+    .. py:attribute:: cell_text
+    .. py:attribute:: horizontal_alignment
+    .. py:attribute:: vertical_alignment
+    .. py:attribute:: alpha
+    .. py:attribute:: red
+    .. py:attribute:: green
+    .. py:attribute:: blue
+    .. py:attribute:: descriptor
+    """
+
+
+class VersionInfo(namedtuple(
+    'VersionInfo',
+    'version has_real_merged_data writer_name reader_name file_version'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: has_real_merged_data
+    .. py:attribute:: writer_name
+    .. py:attribute:: reader_name
+    .. py:attribute:: file_version
+    """
+
+
+class UrlListItem(namedtuple('UrlListItem', 'number id url')):
+    """
+    .. py:attribute:: number
+    .. py:attribute:: id
+    .. py:attribute:: url
+    """
+
+
+class PixelAspectRatio(namedtuple('PixelAspectRatio', 'version aspect')):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: aspect
+    """
+
+
+class ResolutionInfo(namedtuple(
+    'ResolutionInfo',
+    'h_res h_res_unit width_unit v_res v_res_unit height_unit'
+)):
+    """
+    .. py:attribute:: h_res
+    .. py:attribute:: h_res_unit
+    .. py:attribute:: width_unit
+    .. py:attribute:: v_res
+    .. py:attribute:: v_res_unit
+    .. py:attribute:: height_unit
+    """
     def __repr__(self):
 
         return ("ResolutionInfo(h_res=%s, h_res_unit=%s, v_res=%s, "
@@ -102,6 +225,122 @@ class ResolutionInfo(_ResolutionInfo):
             DimensionUnit.name_of(self.width_unit),
             DimensionUnit.name_of(self.height_unit),
         )
+
+
+class LayerComps(namedtuple('LayerComps', 'descriptor_version descriptor')):
+    """
+    .. py:attribute:: descriptor_version
+    .. py:attribute:: descriptor
+    """
+
+
+class MeasurementScale(namedtuple(
+    'MeasurementScale',
+    'descriptor_version descriptor'
+)):
+    """
+    .. py:attribute:: descriptor_version
+    .. py:attribute:: descriptor
+    """
+
+
+class TimelineInformation(namedtuple(
+    'TimelineInformation',
+    'descriptor_version descriptor'
+)):
+    """
+    .. py:attribute:: descriptor_version
+    .. py:attribute:: descriptor
+    """
+
+
+class SheetDisclosure(namedtuple(
+    'SheetDisclosure',
+    'descriptor_version descriptor'
+)):
+    """
+    .. py:attribute:: descriptor_version
+    .. py:attribute:: descriptor
+    """
+
+
+class OnionSkins(namedtuple('OnionSkins', 'descriptor_version descriptor')):
+    """
+    .. py:attribute:: descriptor_version
+    .. py:attribute:: descriptor
+    """
+
+
+class CountInformation(namedtuple(
+    'CountInformation',
+    'descriptor_version descriptor'
+)):
+    """
+    .. py:attribute:: descriptor_version
+    .. py:attribute:: descriptor
+    """
+
+
+class PrintInformation(namedtuple(
+    'PrintInformation',
+    'descriptor_version descriptor'
+)):
+    """
+    .. py:attribute:: descriptor_version
+    .. py:attribute:: descriptor
+    """
+
+
+class PrintStyle(namedtuple(
+    'PrintStyle',
+    'descriptor_version descriptor'
+)):
+    """
+    .. py:attribute:: descriptor_version
+    .. py:attribute:: descriptor
+    """
+
+
+class PathSelectionState(namedtuple(
+    'PathSelectionState',
+    'descriptor_version descriptor'
+)):
+    """
+    .. py:attribute:: descriptor_version
+    .. py:attribute:: descriptor
+    """
+
+
+class GridGuideResource(namedtuple(
+    'GridGuideResource',
+    'version grid_horizontal grid_vertical guides'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: grid_horizontal
+    .. py:attribute:: grid_vertical
+    .. py:attribute:: guides
+    """
+
+
+class GuideResourceBlock(namedtuple(
+    'GuideResourceBlock',
+    'location direction'
+)):
+    """
+    .. py:attribute:: location
+    .. py:attribute:: direction
+    """
+
+
+class OriginPathInfo(namedtuple(
+    'OriginPathInfo',
+    'descriptor_version descriptor'
+)):
+    """
+    .. py:attribute:: descriptor_version
+    .. py:attribute:: descriptor
+    """
 
 
 def decode(image_resource_blocks):

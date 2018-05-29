@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, unicode_literals, print_function
-
+from __future__ import (
+    absolute_import, division, unicode_literals, print_function
+)
 import sys
 import struct
 import array
@@ -10,9 +11,11 @@ try:
 except NameError:
     unichr = chr
 
+
 def unpack(fmt, data):
     fmt = str(">" + fmt)
     return struct.unpack(fmt, data)
+
 
 def read_fmt(fmt, fp):
     """
@@ -24,10 +27,12 @@ def read_fmt(fmt, fp):
     assert len(data) == fmt_size, (len(data), fmt_size)
     return struct.unpack(fmt, data)
 
+
 def pad(number, divisor):
     if number % divisor:
         number = (number // divisor + 1) * divisor
     return number
+
 
 def read_pascal_string(fp, encoding, padding=1):
     length = read_fmt("B", fp)[0]
@@ -36,16 +41,18 @@ def read_pascal_string(fp, encoding, padding=1):
         return ''
 
     res = fp.read(length)
-
-    padded_length = pad(length+1, padding) - 1 # -1 accounts for the length byte
+    # -1 accounts for the length byte
+    padded_length = pad(length+1, padding) - 1
     fp.seek(padded_length - length, 1)
     return res.decode(encoding, 'replace')
+
 
 def read_unicode_string(fp):
     num_chars = read_fmt("I", fp)[0]
     data = fp.read(num_chars*2)
     chars = be_array_from_bytes("H", data)
     return "".join(unichr(num) for num in chars)
+
 
 def read_be_array(fmt, count, fp):
     """
@@ -58,6 +65,7 @@ def read_be_array(fmt, count, fp):
         arr.fromstring(fp.read(count * arr.itemsize))
     return fix_byteorder(arr)
 
+
 def fix_byteorder(arr):
     """
     Fixes the byte order of the array (assuming it was read
@@ -66,6 +74,7 @@ def fix_byteorder(arr):
     if sys.byteorder == 'little':
         arr.byteswap()
     return arr
+
 
 def be_array_from_bytes(fmt, data):
     """
@@ -78,8 +87,12 @@ def be_array_from_bytes(fmt, data):
 def trimmed_repr(data, trim_length=30):
     if isinstance(data, bytes):
         if len(data) > trim_length:
-            return repr(data[:trim_length] + b' ... =' + str(len(data)).encode('ascii'))
+            return repr(
+                data[:trim_length] + b' ... =' +
+                str(len(data)).encode('ascii')
+            )
     return repr(data)
+
 
 def synchronize(fp, limit=8):
     # This is a hack for the cases where I gave up understanding PSD format.
@@ -96,6 +109,7 @@ def synchronize(fp, limit=8):
 
     fp.seek(start)
     return False
+
 
 def decode_fixed_point_32bit(data):
     """

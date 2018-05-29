@@ -88,13 +88,13 @@ class StrokeStyle(object):
     @property
     def line_join_type(self):
         """Join type, one of `miter`, `round`, `bevel`."""
-        key =  self.get(b'strokeStyleLineJoinType')
+        key = self.get(b'strokeStyleLineJoinType')
         return self.STROKE_STYLE_LINE_JOIN_TYPES.get(key, str(key))
 
     @property
     def line_alignment(self):
         """Alignment, one of `inner`, `outer`, `center`."""
-        key =  self.get(b'strokeStyleLineAlignment')
+        key = self.get(b'strokeStyleLineAlignment')
         return self.STROKE_STYLE_LINE_ALIGNMENTS.get(key, str(key))
 
     @property

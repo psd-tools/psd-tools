@@ -5,9 +5,11 @@ from . import image_resources, tagged_blocks, color
 import io
 from psd_tools.constants import TaggedBlock
 
+
 def parse(reader_parse_result):
     """
-    Decode :py:class:`~psd_tools.reader.reader.ParseResult` into Python structure::
+    Decode :py:class:`~psd_tools.reader.reader.ParseResult` into Python
+    structure::
 
         import psd_tools.reader
         import psd_tools.decoder
@@ -16,6 +18,10 @@ def parse(reader_parse_result):
             binary = psd_tools.reader.parse(fp)
             decoded = psd_tools.decoder.parse(binary)
 
+    :param reader_parse_result:
+        :py:class:`~psd_tools.reader.reader.ParseResult`
+    :rtype: :py:class:`~psd_tools.reader.reader.ParseResult`
+
     """
     image_resource_blocks = reader_parse_result.image_resource_blocks
     image_resource_blocks = image_resources.decode(image_resource_blocks)
@@ -23,9 +29,10 @@ def parse(reader_parse_result):
     layer_and_mask_data = reader_parse_result.layer_and_mask_data
     _layers = decode_layers(layer_and_mask_data.layers,
                             reader_parse_result.header.version)
-    _global_mask_info = decode_global_mask_info(layer_and_mask_data.global_mask_info)
-    _tagged_blocks = tagged_blocks.decode(layer_and_mask_data.tagged_blocks,
-                                          reader_parse_result.header.version)
+    _global_mask_info = decode_global_mask_info(
+        layer_and_mask_data.global_mask_info)
+    _tagged_blocks = tagged_blocks.decode(
+        layer_and_mask_data.tagged_blocks, reader_parse_result.header.version)
 
     # 16 and 32 bit layers are stored in Lr16 and Lr32 tagged blocks
     if _layers.layer_count == 0:
@@ -37,17 +44,18 @@ def parse(reader_parse_result):
 
     # XXX: this code is complicated because of the namedtuple abuse
     layer_and_mask_data = layer_and_mask_data._replace(
-        layers = _layers,
-        global_mask_info = _global_mask_info,
-        tagged_blocks = _tagged_blocks
+        layers=_layers,
+        global_mask_info=_global_mask_info,
+        tagged_blocks=_tagged_blocks
     )
 
     reader_parse_result = reader_parse_result._replace(
-        image_resource_blocks = image_resource_blocks,
-        layer_and_mask_data = layer_and_mask_data
+        image_resource_blocks=image_resource_blocks,
+        layer_and_mask_data=layer_and_mask_data
     )
 
     return reader_parse_result
+
 
 def decode_layers(layers, version):
     if layers.layer_count == 0:
@@ -55,10 +63,11 @@ def decode_layers(layers, version):
 
     _layer_records = [
         record._replace(
-            tagged_blocks = tagged_blocks.decode(record.tagged_blocks, version)
+            tagged_blocks=tagged_blocks.decode(record.tagged_blocks, version)
         ) for record in layers.layer_records
     ]
-    return layers._replace(layer_records = _layer_records)
+    return layers._replace(layer_records=_layer_records)
+
 
 def decode_global_mask_info(global_mask_info):
     if global_mask_info is None:
@@ -66,7 +75,7 @@ def decode_global_mask_info(global_mask_info):
 
     fp = io.BytesIO(global_mask_info.overlay_color)
     global_mask_info = global_mask_info._replace(
-        overlay_color = color.decode_color(fp)
+        overlay_color=color.decode_color(fp)
     )
 
     return global_mask_info

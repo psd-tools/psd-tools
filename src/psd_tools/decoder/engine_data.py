@@ -53,7 +53,7 @@ class EngineToken(Enum):
     NUMBER_WITH_DECIMAL = re.compile(b'^(-?\d*)\.(\d+)$')
     PROPERTY = re.compile(b'^\/([a-zA-Z0-9]+)$')
     STRING = re.compile(r'^\((\xfe\xff([^\)]|\\\)|\x00\))*)\)$'.encode(
-        'utf-8'), re.M|re.DOTALL)
+        'utf-8'), re.M | re.DOTALL)
     # Unknown tags: b'(hwid)', b'(fwid)', b'(aalt)'
     UNKNOWN_TAG = re.compile(b'^\([a-zA-Z0-9]+\)$')
 
@@ -63,7 +63,7 @@ class EngineTokenizer(object):
     Engine data tokenizer.
     """
     def __init__(self, divider):
-        self.divider = re.compile(divider, re.M|re.DOTALL)
+        self.divider = re.compile(divider, re.M | re.DOTALL)
 
     def tokenize(self, data):
         current_token = None
@@ -171,6 +171,9 @@ class EngineDataDecoder(object):
 def decode(data, **kwargs):
     """
     Decode EngineData.
+
+    :param data: EngineData encoded in `bytes`
+    :rtype: `dict`
     """
     try:
         decoder = EngineDataDecoder(data, **kwargs)

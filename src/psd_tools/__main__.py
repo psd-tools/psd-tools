@@ -12,13 +12,15 @@ from psd_tools.version import __version__
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.StreamHandler())
 
+
 def main():
     """
     psd-tools
 
     Usage:
         psd-tools convert <psd_filename> <out_filename> [options]
-        psd-tools export_layer <psd_filename> <layer_index> <out_filename> [options]
+        psd-tools export_layer <psd_filename> <layer_index> <out_filename> \
+[options]
         psd-tools debug <filename> [options]
         psd-tools -h | --help
         psd-tools --version

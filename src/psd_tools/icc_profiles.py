@@ -2,7 +2,8 @@
 from __future__ import absolute_import
 import os
 
-GRAY_PATH = os.path.join(os.path.dirname(__file__), 'icc_profiles', 'Gray-CIE_L.icc')
+GRAY_PATH = os.path.join(
+    os.path.dirname(__file__), 'icc_profiles', 'Gray-CIE_L.icc')
 
 try:
     from PIL import ImageCms

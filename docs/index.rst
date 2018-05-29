@@ -18,8 +18,6 @@ Python package for reading Adobe Photoshop PSD files
 
     reference/psd_tools
     reference/psd_tools.constants
-    reference/decoder
-    reference/reader
     reference/user_api
     reference/user_api.actions
     reference/user_api.adjustments
@@ -28,6 +26,13 @@ Python package for reading Adobe Photoshop PSD files
     reference/user_api.mask
     reference/user_api.shape
     reference/user_api.smart_object
+    reference/decoder
+    reference/decoder.actions
+    reference/decoder.engine_data
+    reference/decoder.image_resources
+    reference/decoder.layer_effects
+    reference/decoder.tagged_blocks
+    reference/reader
 
 
 Indices and tables

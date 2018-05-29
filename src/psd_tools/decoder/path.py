@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+"""
+Module for decoding path resource.
+"""
 from __future__ import absolute_import, unicode_literals
 import warnings
 
@@ -19,8 +22,10 @@ def decode_path_resource(data):
     while path_rec > 0:
         selector, = read_fmt("H", fp)
         record = {"selector": selector}
-        if selector in (PathResource.CLOSED_SUBPATH_LENGTH_RECORD,
-                PathResource.OPEN_SUBPATH_LENGTH_RECORD):
+        if selector in (
+            PathResource.CLOSED_SUBPATH_LENGTH_RECORD,
+            PathResource.OPEN_SUBPATH_LENGTH_RECORD
+        ):
             record["num_knot_records"], = read_fmt("H", fp)
             fp.seek(22, io.SEEK_CUR)
         elif selector in (

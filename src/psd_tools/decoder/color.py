@@ -11,7 +11,11 @@ _Color = pretty_namedtuple('Color', 'color_space_id color_data')
 
 class Color(_Color):
     def __repr__(self):
-        return "Color(id=%s %s, %s)" % (self.color_space_id, ColorSpaceID.name_of(self.color_space_id), self.color_data)
+        return "Color(id=%s %s, %s)" % (
+            self.color_space_id,
+            ColorSpaceID.name_of(self.color_space_id),
+            self.color_data
+        )
 
     def _repr_pretty_(self, p, cycle):
         # IS NOT TESTED!!
@@ -20,7 +24,10 @@ class Color(_Color):
         else:
             with p.group(1, 'Color(', ')'):
                 p.breakable()
-                p.text("id=%s %s," % (self.color_space_id, ColorSpaceID.name_of(self.color_space_id)))
+                p.text("id=%s %s," % (
+                    self.color_space_id,
+                    ColorSpaceID.name_of(self.color_space_id)
+                ))
                 p.breakable()
                 p.pretty(self.color_data)
 

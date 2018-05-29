@@ -32,7 +32,7 @@ class _TaggedBlockMixin(object):
             keys = [keys]
         for key in keys:
             value = self.tagged_blocks.get(key)
-            if value != None:
+            if value is not None:
                 return translate(value)
         return default
 
@@ -109,8 +109,10 @@ class _RawLayer(_TaggedBlockMixin):
 
     def has_mask(self):
         """Returns True if the layer has a mask."""
-        return (True if self._index is not None and self._record.mask_data
-            else False)
+        return (
+            True if self._index is not None and self._record.mask_data
+            else False
+        )
 
     def as_PIL(self):
         """Returns a PIL.Image for this layer."""
@@ -463,8 +465,9 @@ class PixelLayer(_RawLayer):
 class ShapeLayer(_RawLayer):
     """PSD shape layer.
 
-    The shape path is accessible by
-    :py:attr:`vector_mask` attribute.
+    The shape path is accessible by :py:attr:`vector_mask` attribute.
+    Stroke styling is specified by :py:attr:`stroke`, and fill styling is
+    specified by :py:attr:`stroke_content`.
     """
 
     def as_PIL(self, vector=False):
@@ -640,6 +643,11 @@ class TypeLayer(_RawLayer):
     PSD type layer.
 
     A type layer has text information such as fonts and paragraph settings.
+    In contrast to pixels, texts are placed in the image by Affine
+    transformation matrix
+    :py:attr:`~psd_tools.user_api.layers.TypeLayer.matrix`. Low level
+    information is kept in
+    :py:attr:`~psd_tools.user_api.layers.TypeLayer.engine_data`.
     """
     def __init__(self, parent, index):
         super(TypeLayer, self).__init__(parent, index)
@@ -659,7 +667,12 @@ class TypeLayer(_RawLayer):
 
     @property
     def engine_data(self):
-        """Type information in engine data format."""
+        """
+        Type information in engine data format. See
+        :py:mod:`psd_tools.decoder.engine_data`
+
+        :rtype: `dict`
+        """
         return self.text_data.get(b'EngineData')
 
     @property
@@ -784,8 +797,10 @@ def merge_layers(layers, respect_visibility=True, ignore_blend_mode=True,
             mask_box = layer.mask.bbox
             if not layer.mask.disabled and not mask_box.is_empty():
                 mask = Image.new("L", layer_image.size, color=(0,))
-                mask.paste(layer.mask.as_PIL(),
-                    mask_box.offset((layer.bbox.x1, layer.bbox.y1)))
+                mask.paste(
+                    layer.mask.as_PIL(),
+                    mask_box.offset((layer.bbox.x1, layer.bbox.y1))
+                )
 
         if layer_image.mode == 'RGBA':
             tmp = Image.new("RGBA", result.size, color=(255, 255, 255, 0))

@@ -40,12 +40,13 @@ def pretty_namedtuple(typename, field_names, verbose=False):
     PrettyMixin = _get_pretty_mixin(typename)
     cls = type(str(typename), (PrettyMixin, cls), {})
 
-    # For pickling to work, the __module__ variable needs to be set to the frame
-    # where the named tuple is created.  Bypass this step in enviroments where
-    # sys._getframe is not defined (Jython for example) or sys._getframe is not
-    # defined for arguments greater than 0 (IronPython).
+    # For pickling to work, the __module__ variable needs to be set to the
+    # frame where the named tuple is created.  Bypass this step in enviroments
+    # where sys._getframe is not defined (Jython for example) or sys._getframe
+    # is not defined for arguments greater than 0 (IronPython).
     try:
-        cls.__module__ = sys._getframe(1).f_globals.get('__name__', '__main__')
+        cls.__module__ = sys._getframe(1).f_globals.get(
+            '__name__', '__main__')
     except (AttributeError, ValueError):
         pass
 

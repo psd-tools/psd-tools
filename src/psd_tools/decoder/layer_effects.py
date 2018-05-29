@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+"""
+Module for decoding layer effects.
+"""
 from __future__ import absolute_import, unicode_literals, print_function
 import warnings
 import io
@@ -14,41 +17,31 @@ from psd_tools.debug import pretty_namedtuple
 _effect_info_decoders, register = decoders.new_registry()
 
 
-Effects = pretty_namedtuple('Effects', 'version effects_count effects_list')
-_LayerEffect = pretty_namedtuple('LayerEffect', 'effect_type effect_info')
-ObjectBasedEffects = pretty_namedtuple('ObjectBasedEffects', 'version descriptor_version descriptor')
-
-CommonStateInfo = pretty_namedtuple('CommonStateInfo', 'version visible unused')
-ShadowInfo = pretty_namedtuple('ShadowInfo', 'version enabled '
-                                             'blend_mode color opacity '
-                                             'angle use_global_angle '
-                                             'distance intensity blur '
-                                             'native_color')
-OuterGlowInfo = pretty_namedtuple('OuterGlowInfo', 'version enabled '
-                                                   'blend_mode opacity color '
-                                                   'intensity blur '
-                                                   'native_color')
-InnerGlowInfo = pretty_namedtuple('InnerGlowInfo', 'version enabled '
-                                                   'blend_mode opacity color '
-                                                   'intensity blur '
-                                                   'invert native_color')
-BevelInfo = pretty_namedtuple('BevelInfo', 'version enabled '
-                                           'bevel_style '
-                                           'depth direction blur '
-                                           'angle use_global_angle '
-                                           'highlight_blend_mode highlight_color highlight_opacity '
-                                           'shadow_blend_mode shadow_color shadow_opacity '
-                                           'real_highlight_color real_shadow_color')
-SolidFillInfo = pretty_namedtuple('SolidFillInfo', 'version enabled '
-                                                   'blend_mode color opacity '
-                                                   'native_color')
+class Effects(pretty_namedtuple(
+    'Effects',
+    'version effects_count effects_list'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: effects_count
+    .. py:attribute:: effects_list
+    """
 
 
-class LayerEffect(_LayerEffect):
+class LayerEffect(pretty_namedtuple(
+    'LayerEffect',
+    'effect_type effect_info'
+)):
+    """
+    .. py:attribute:: effect_type
+    .. py:attribute:: effect_info
+    """
 
     def __repr__(self):
-        return "LayerEffect(%s %s, %s)" % (self.effect_type, EffectOSType.name_of(self.effect_type),
-                                           self.effect_info)
+        return "LayerEffect(%s %s, %s)" % (
+            self.effect_type, EffectOSType.name_of(self.effect_type),
+            self.effect_info
+        )
 
     def _repr_pretty_(self, p, cycle):
         # IS NOT TESTED!!
@@ -57,9 +50,128 @@ class LayerEffect(_LayerEffect):
         else:
             with p.group(1, 'LayerEffect(', ')'):
                 p.breakable()
-                p.text("%s %s," % (self.effect_type, EffectOSType.name_of(self.effect_type)))
+                p.text("%s %s," % (
+                    self.effect_type, EffectOSType.name_of(self.effect_type)
+                ))
                 p.breakable()
                 p.pretty(self.effect_info)
+
+
+class ObjectBasedEffects(pretty_namedtuple(
+    'ObjectBasedEffects',
+    'version descriptor_version descriptor'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: descriptor_version
+    .. py:attribute:: descriptor
+    """
+
+
+class CommonStateInfo(pretty_namedtuple(
+    'CommonStateInfo',
+    'version visible unused'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: visible
+    .. py:attribute:: unused
+    """
+
+
+class ShadowInfo(pretty_namedtuple(
+    'ShadowInfo',
+    'version enabled blend_mode color opacity angle use_global_angle '
+    'distance intensity blur native_color'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: enabled
+    .. py:attribute:: blend_mode
+    .. py:attribute:: color
+    .. py:attribute:: opacity
+    .. py:attribute:: angle
+    .. py:attribute:: use_global_angle
+    .. py:attribute:: distance
+    .. py:attribute:: intensity
+    .. py:attribute:: blur
+    .. py:attribute:: native_color
+    """
+
+
+class OuterGlowInfo(pretty_namedtuple(
+    'OuterGlowInfo',
+    'version enabled blend_mode opacity color intensity blur native_color'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: enabled
+    .. py:attribute:: blend_mode
+    .. py:attribute:: opacity
+    .. py:attribute:: color
+    .. py:attribute:: intensity
+    .. py:attribute:: blur
+    .. py:attribute:: native_color
+    """
+
+
+class InnerGlowInfo(pretty_namedtuple(
+    'InnerGlowInfo',
+    'version enabled blend_mode opacity color intensity blur invert '
+    'native_color'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: enabled
+    .. py:attribute:: blend_mode
+    .. py:attribute:: opacity
+    .. py:attribute:: color
+    .. py:attribute:: intensity
+    .. py:attribute:: blur
+    .. py:attribute:: invert
+    .. py:attribute:: native_color
+    """
+
+
+class BevelInfo(pretty_namedtuple(
+    'BevelInfo',
+    'version enabled bevel_style depth direction blur angle use_global_angle '
+    'highlight_blend_mode highlight_color highlight_opacity '
+    'shadow_blend_mode shadow_color shadow_opacity real_highlight_color '
+    'real_shadow_color'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: enabled
+    .. py:attribute:: bevel_style
+    .. py:attribute:: depth
+    .. py:attribute:: direction
+    .. py:attribute:: blur
+    .. py:attribute:: angle
+    .. py:attribute:: use_global_angle
+    .. py:attribute:: highlight_blend_mode
+    .. py:attribute:: highlight_color
+    .. py:attribute:: highlight_opacity
+    .. py:attribute:: shadow_blend_mode
+    .. py:attribute:: shadow_color
+    .. py:attribute:: shadow_opacity
+    .. py:attribute:: real_highlight_color
+    .. py:attribute:: real_shadow_color
+    """
+
+
+class SolidFillInfo(pretty_namedtuple(
+    'SolidFillInfo',
+    'version enabled blend_mode color opacity native_color'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: enabled
+    .. py:attribute:: blend_mode
+    .. py:attribute:: color
+    .. py:attribute:: opacity
+    .. py:attribute:: native_color
+    """
 
 
 def decode(effects, **kwargs):
@@ -74,7 +186,8 @@ def decode(effects, **kwargs):
     for idx in range(effects_count):
         sig = fp.read(4)
         if sig != b'8BIM':
-            raise Error("Error parsing layer effect: invalid signature (%r)" % sig)
+            raise Error(
+                "Error parsing layer effect: invalid signature (%r)" % sig)
 
         effect_type = fp.read(4)
         if not EffectOSType.is_known(effect_type):
@@ -88,6 +201,7 @@ def decode(effects, **kwargs):
 
     return Effects(version, effects_count, effects_list)
 
+
 def decode_object_based(effects, **kwargs):
     """
     Reads and decodes info about object-based layer effects.
@@ -98,15 +212,18 @@ def decode_object_based(effects, **kwargs):
     try:
         descriptor = decode_descriptor(None, fp)
     except UnknownOSType as e:
-        warnings.warn("Ignoring object-based layer effects tagged block (%s)" % e)
+        warnings.warn(
+            "Ignoring object-based layer effects tagged block (%s)" % e)
         return effects
 
     return ObjectBasedEffects(version, descriptor_version, descriptor)
 
+
 def _read_blend_mode(fp):
     sig = fp.read(4)
     if sig != b'8BIM':
-        raise Error("Error parsing layer effect: invalid signature (%r)" % sig)
+        raise Error(
+            "Error parsing layer effect: invalid signature (%r)" % sig)
 
     blend_mode = fp.read(4)
     if not BlendMode.is_known(blend_mode):
@@ -236,4 +353,3 @@ def _decode_solid_fill_info(data):
         blend_mode, color, opacity,
         native_color
     )
-
