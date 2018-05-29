@@ -16,6 +16,7 @@ TARGET_FILES = with_psb([
     ('unicode_pathname.psd',),
 ])
 
+
 @pytest.mark.parametrize(('filename', 'layer_num', 'text'), TEXTS)
 def test_text(filename, layer_num, text):
     psd = PSDImage(decode_psd(filename))
@@ -27,6 +28,7 @@ def test_text(filename, layer_num, text):
     assert layer.writing_direction == 0  # Specific to files.
     assert layer.full_text.startswith(text)
     assert all([isinstance(span, dict) for span in layer.style_spans()])
+
 
 def test_no_text():
     psd = PSDImage(decode_psd('1layer.psd'))

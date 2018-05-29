@@ -4,6 +4,7 @@ from __future__ import absolute_import, unicode_literals
 from psd_tools.user_api.psd_image import PSDImage
 from tests.utils import decode_psd, full_name
 
+
 def test_no_groups():
     psd = PSDImage(decode_psd('2layers.psd'))
     assert len(psd.layers) == 2
@@ -18,7 +19,7 @@ def test_groups_simple():
     assert group.kind == "group"
     assert len(group.layers) == 1
     assert group.name == 'Group 1'
-    assert group.closed == False
+    assert group.closed is False
 
     group_element = group.layers[0]
     assert group_element.name == 'Shape 1'
@@ -45,15 +46,15 @@ def test_group_visibility():
     assert group1.name == 'Group 1'
     assert bg.name == 'Background'
 
-    assert bg.visible == True
-    assert group2.visible == True
-    assert group1.visible == False
+    assert bg.visible is True
+    assert group2.visible is True
+    assert group1.visible is False
 
-    assert group2.layers[0].visible == True
+    assert group2.layers[0].visible is True
 
     # The flag is 'visible=True', but this layer is hidden
     # because its group is not visible.
-    assert group1.layers[0].visible == True
+    assert group1.layers[0].visible is True
 
 
 def test_layer_visibility():
@@ -65,16 +66,19 @@ def test_layer_visibility():
     assert not visible['Shape 2']
     assert visible['Background']
 
+
 def test_groups_32bit():
     psd = PSDImage(decode_psd('32bit5x5.psd'))
     assert len(psd.layers) == 3
     assert psd.layers[0].name == 'Background copy 2'
+
 
 def test_group_with_empty_layer():
     psd = PSDImage(decode_psd('empty-layer.psd'))
     group1, bg = psd.layers
     assert group1.name == 'group'
     assert bg.name == 'Background'
+
 
 def test_clipping():
     psd = PSDImage(decode_psd('clipping-mask2.psd'))

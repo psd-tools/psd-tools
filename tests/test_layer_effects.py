@@ -81,16 +81,26 @@ def test_layer_effects_count(layer_num, count):
     assert effects_info.effects_count == count
 
 
-@pytest.mark.parametrize(("layer_num", "effect_num", "param_name", "param_value"), EFFECTS_PARAMS)
+@pytest.mark.parametrize(
+    ("layer_num", "effect_num", "param_name", "param_value"),
+    EFFECTS_PARAMS
+)
 def test_layer_effect(layer_num, effect_num, param_name, param_value):
     effects_list = layer_records[layer_num].tagged_blocks[1].data.effects_list
     effect_info = effects_list[effect_num].effect_info
     assert effect_info.__getattribute__(param_name) == param_value
 
 
-@pytest.mark.parametrize(("layer_num", "effect_key", "param_name", "subparam_name", "param_value"), OBJECT_BASED_EFFECTS_PARAMS)
-def test_object_based_layer_effect(layer_num, effect_key, param_name, subparam_name, param_value):
-    effects_dict = dict(layer_records[layer_num].tagged_blocks[0].data.descriptor.items)
+@pytest.mark.parametrize(
+    ("layer_num", "effect_key", "param_name", "subparam_name", "param_value"),
+    OBJECT_BASED_EFFECTS_PARAMS
+)
+def test_object_based_layer_effect(
+    layer_num, effect_key, param_name, subparam_name, param_value
+):
+    effects_dict = dict(
+        layer_records[layer_num].tagged_blocks[0].data.descriptor.items
+    )
     effect_info = dict(effects_dict[effect_key].items)
 
     if subparam_name is None:
@@ -105,10 +115,10 @@ def test_iopa_brst_block():
     layer_records = decoded_data.layer_and_mask_data.layers.layer_records
     tagged_blocks = dict(layer_records[4].tagged_blocks)
     assert tagged_blocks[TaggedBlock.BLEND_FILL_OPACITY] == 252
-    assert tagged_blocks[TaggedBlock.CHANNEL_BLENDING_RESTRICTIONS_SETTING][0] == False
-    assert tagged_blocks[TaggedBlock.CHANNEL_BLENDING_RESTRICTIONS_SETTING][1] == False
-    assert tagged_blocks[TaggedBlock.CHANNEL_BLENDING_RESTRICTIONS_SETTING][2] == True
-
+    setting = tagged_blocks[TaggedBlock.CHANNEL_BLENDING_RESTRICTIONS_SETTING]
+    assert setting[0] is False
+    assert setting[1] is False
+    assert setting[2] is True
 
 
 @pytest.fixture(scope='module')
@@ -150,7 +160,7 @@ def test_patternoverlay(effects_psd):
     assert layer.effects.has('patternoverlay')
     effect = list(layer.effects.find('patternoverlay'))[0]
     assert effect.name.lower() == 'patternoverlay'
-    assert effect.aligned == True
+    assert effect.aligned is True
     assert effect.blend_mode == 'normal'
     assert effect.opacity.value == 100.0
     assert effect.pattern
@@ -163,14 +173,14 @@ def test_gradientoverlay(effects_psd):
     assert layer.effects.has('gradientoverlay')
     effect = list(layer.effects.find('gradientoverlay'))[0]
     assert effect.name.lower() == 'gradientoverlay'
-    assert effect.aligned == True
+    assert effect.aligned is True
     assert effect.angle.value == 87.0
     assert effect.blend_mode == 'normal'
-    assert effect.dithered == False
+    assert effect.dithered is False
     assert effect.gradient
     assert effect.offset
     assert effect.opacity.value == 100.0
-    assert effect.reversed == False
+    assert effect.reversed is False
     assert effect.scale.value == 100.0
     assert effect.type == 'linear'
 
@@ -181,12 +191,12 @@ def test_satin(effects_psd):
     effect = list(layer.effects.find('satin'))[0]
     assert effect.name.lower() == 'satin'
     assert effect.angle.value == -60.0
-    assert effect.anti_aliased == True
+    assert effect.anti_aliased is True
     assert effect.blend_mode == 'multiply'
     assert effect.color
     assert effect.contour
     assert effect.distance.value == 20.0
-    assert effect.inverted == True
+    assert effect.inverted is True
     assert effect.opacity.value == 50.0
     assert effect.size.value == 35.0
 
@@ -200,12 +210,12 @@ def test_stroke(effects_psd):
     assert effect.fill.name.lower() == 'coloroverlay'
     assert effect.fill_type == 'solid-color'
     assert effect.opacity.value == 100.0
-    assert effect.overprint == False
+    assert effect.overprint is False
     assert effect.position == 'outer'
     assert effect.size.value == 6.0
     assert effect.color
-    assert effect.gradient == None
-    assert effect.pattern == None
+    assert effect.gradient is None
+    assert effect.pattern is None
 
 
 def test_dropshadow(effects_psd):
@@ -214,17 +224,17 @@ def test_dropshadow(effects_psd):
     effect = list(layer.effects.find('dropshadow'))[0]
     assert effect.name.lower() == 'dropshadow'
     assert effect.angle.value == 90.0
-    assert effect.anti_aliased == False
+    assert effect.anti_aliased is False
     assert effect.blend_mode == 'multiply'
     assert effect.choke.value == 0.0
     assert effect.color
     assert effect.contour
-    assert effect.layer_knocks_out == True
+    assert effect.layer_knocks_out is True
     assert effect.distance.value == 18.0
     assert effect.noise.value == 0.0
     assert effect.opacity.value == 35.0
     assert effect.size.value == 41.0
-    assert effect.use_global_light == True
+    assert effect.use_global_light is True
 
 
 def test_innershadow(effects_psd):
@@ -233,7 +243,7 @@ def test_innershadow(effects_psd):
     effect = list(layer.effects.find('innershadow'))[0]
     assert effect.name.lower() == 'innershadow'
     assert effect.angle.value == 90.0
-    assert effect.anti_aliased == False
+    assert effect.anti_aliased is False
     assert effect.blend_mode == 'multiply'
     assert effect.choke.value == 0.0
     assert effect.color
@@ -242,7 +252,7 @@ def test_innershadow(effects_psd):
     assert effect.noise.value == 0.0
     assert effect.opacity.value == 35.0
     assert effect.size.value == 41.0
-    assert effect.use_global_light == True
+    assert effect.use_global_light is True
 
 
 def test_innerglow(effects_psd):
@@ -250,7 +260,7 @@ def test_innerglow(effects_psd):
     assert layer.effects.has('innerglow')
     effect = list(layer.effects.find('innerglow'))[0]
     assert effect.name.lower() == 'innerglow'
-    assert effect.anti_aliased == False
+    assert effect.anti_aliased is False
     assert effect.blend_mode == 'screen'
     assert effect.choke.value == 0.0
     assert effect.color
@@ -262,7 +272,7 @@ def test_innerglow(effects_psd):
     assert effect.quality_jitter.value == 0.0
     assert effect.quality_range.value == 50.0
     assert effect.size.value == 18.0
-    assert effect.gradient == None
+    assert effect.gradient is None
 
 
 def test_outerglow(effects_psd):
@@ -270,7 +280,7 @@ def test_outerglow(effects_psd):
     assert layer.effects.has('outerglow')
     effect = list(layer.effects.find('outerglow'))[0]
     assert effect.name.lower() == 'outerglow'
-    assert effect.anti_aliased == False
+    assert effect.anti_aliased is False
     assert effect.blend_mode == 'screen'
     assert effect.choke.value == 0.0
     assert effect.color
@@ -282,7 +292,7 @@ def test_outerglow(effects_psd):
     assert effect.quality_range.value == 50.0
     assert effect.size.value == 41.0
     assert effect.spread.value == 0.0
-    assert effect.gradient == None
+    assert effect.gradient is None
 
 
 def test_emboss(effects_psd):
@@ -292,14 +302,14 @@ def test_emboss(effects_psd):
     assert effect.name.lower() == 'bevelemboss'
     assert effect.altitude.value == 30.0
     assert effect.angle.value == 90.0
-    assert effect.anti_aliased == False
+    assert effect.anti_aliased is False
     assert effect.bevel_style == 'emboss'
     assert effect.bevel_type == 'smooth'
     assert effect.blend_mode == 'normal'
     assert effect.contour
     assert effect.depth.value == 100.0
     assert effect.direction == 'up'
-    assert effect.enabled == True
+    assert effect.enabled is True
     assert effect.highlight_color
     assert effect.highlight_mode == 'screen'
     assert effect.highlight_opacity.value == 50.0
@@ -308,9 +318,9 @@ def test_emboss(effects_psd):
     assert effect.shadow_opacity.value == 50.0
     assert effect.size.value == 41.0
     assert effect.soften.value == 0.0
-    assert effect.use_global_light == True
-    assert effect.use_shape == False
-    assert effect.use_texture == False
+    assert effect.use_global_light is True
+    assert effect.use_shape is False
+    assert effect.use_texture is False
 
 
 def test_bevel(effects_psd):
@@ -320,14 +330,14 @@ def test_bevel(effects_psd):
     assert effect.name.lower() == 'bevelemboss'
     assert effect.altitude.value == 30.0
     assert effect.angle.value == 90.0
-    assert effect.anti_aliased == False
+    assert effect.anti_aliased is False
     assert effect.bevel_style == 'inner-bevel'
     assert effect.bevel_type == 'smooth'
     assert effect.blend_mode == 'normal'
     assert effect.contour
     assert effect.depth.value == 100.0
     assert effect.direction == 'up'
-    assert effect.enabled == True
+    assert effect.enabled is True
     assert effect.highlight_color
     assert effect.highlight_mode == 'screen'
     assert effect.highlight_opacity.value == 50.0
@@ -336,6 +346,6 @@ def test_bevel(effects_psd):
     assert effect.shadow_opacity.value == 50.0
     assert effect.size.value == 41.0
     assert effect.soften.value == 0.0
-    assert effect.use_global_light == True
-    assert effect.use_shape == False
-    assert effect.use_texture == False
+    assert effect.use_global_light is True
+    assert effect.use_shape is False
+    assert effect.use_texture is False
