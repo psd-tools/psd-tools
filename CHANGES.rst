@@ -1,3 +1,110 @@
+1.7.7 (2018-05-02)
+------------------
+
+- fix white background issue in `as_PIL()`.
+
+1.7.6 (2018-04-27)
+------------------
+
+- add quality testing;
+- fix disabled mask.
+
+1.7.5 (2018-04-25)
+------------------
+
+- fix `has_mask()` condition;
+- add mask composition in `merge_layers()`;
+- fix mask display.
+
+1.7.4 (2018-03-06)
+------------------
+
+- fix infinity loop in `print_tree()`.
+
+1.7.3 (2018-02-27)
+------------------
+
+- add vector origination API;
+- fix shape and vector mask identification;
+- change enum name conversion;
+- update docs.
+
+1.7.2 (2018-02-14)
+------------------
+
+- add adjustments API;
+- add mask API;
+- bugfix for tagged_blocks decoders.
+
+1.7.1 (2018-02-08)
+------------------
+
+- add mask user API;
+- add layer coordinate user API;
+- add vector mask and vector stroke API;
+- cleanup user API;
+- add automatic descriptor conversion.
+
+
+1.7.0 (2018-01-25)
+------------------
+
+- cleanup user API organization;
+- remove json encoder api;
+- make cli a package main.
+
+1.6.7 (2018-01-17)
+------------------
+
+- workaround for anaconda 2.7 pillow;
+- bbox existence checkf.
+
+1.6.6 (2018-01-10)
+------------------
+
+- experimental clipping support in `merge_layer()`;
+- revert `as_PIL()` in `AdjustmentLayer`.
+
+1.6.5 (2017-12-22)
+------------------
+
+- Small fix for erroneous unicode path name
+
+1.6.4 (2017-12-20)
+------------------
+
+- Add `all_layers()` method;
+- Add `_image_resource_blocks` property;
+- Add `thumbnail()` method.
+
+1.6.3 (2017-09-27)
+------------------
+
+- documentation updates;
+- github repository renamed to psd-tools2;
+- AdjustmentLayer fix.
+
+1.6.2 (2017-09-13)
+------------------
+
+- layer class structure reorganization;
+- add Effects API;
+- add TypeLayer API methods.
+
+1.6 (2017-09-08)
+----------------
+
+- PSDImage user API update;
+- user API adds distinct layer types;
+- Sphinx documentation.
+
+1.5 (2017-07-13)
+----------------
+
+- implemented many decodings of image resources and tagged blocks;
+- implemented EngineData text information;
+- user API for getting mask and patterns;
+- user API to calculate bbox for shape layers;
 
 1.4 (2017-01-02)
 ----------------

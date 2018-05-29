@@ -17,4 +17,6 @@ Contributors
 * Volker Braun;
 * Michael Wu;
 * Josh Drake;
-* Leendert Brouwer.
+* Leendert Brouwer;
+* Kota Yamaguchi;
+* Ichiro Arai.

@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, unicode_literals
 
+
 class Enum(object):
+    """
+    Base class for enumeration.
+    """
 
     _attributes_cache = None
     _values_dict_cache = None
@@ -10,7 +14,7 @@ class Enum(object):
     def _attributes(cls):
         if cls._attributes_cache is None:
             attrs = [name for name in dir(cls)
-                    if name.isupper() and not name.startswith('_')]
+                     if name.isupper() and not name.startswith('_')]
             cls._attributes_cache = attrs
         return cls._attributes_cache
 
@@ -29,10 +33,17 @@ class Enum(object):
 
     @classmethod
     def name_of(cls, value):
-        return cls._values_dict().get(value, "<unknown>")
+        return cls._values_dict().get(value, "<unknown:{}>".format(value))
+
+    @classmethod
+    def human_name_of(cls, value, separator="-"):
+        return cls.name_of(value).lower().replace("_", separator)
 
 
 class ColorMode(Enum):
+    """
+    Color mode.
+    """
     BITMAP = 0
     GRAYSCALE = 1
     INDEXED = 2
@@ -44,12 +55,18 @@ class ColorMode(Enum):
 
 
 class ChannelID(Enum):
+    """
+    Channel types.
+    """
     TRANSPARENCY_MASK = -1
     USER_LAYER_MASK = -2
     REAL_USER_LAYER_MASK = -3
 
 
 class ImageResourceID(Enum):
+    """
+    Image resource keys.
+    """
     OBSOLETE1 = 1000
     MAC_PRINT_MANAGER_INFO = 1001
     OBSOLETE2 = 1003
@@ -84,7 +101,7 @@ class ImageResourceID(Enum):
     COPYRIGHT_FLAG = 1034
     URL = 1035
     THUMBNAIL_RESOURCE = 1036
-    GLOBAL_ANGLE_OBSOLETE = 1037
+    GLOBAL_ANGLE = 1037
     COLOR_SAMPLERS_RESOURCE_OBSOLETE = 1038
     ICC_PROFILE = 1039
     WATERMARK = 1040
@@ -116,7 +133,7 @@ class ImageResourceID(Enum):
     PRINT_INFO_CS2 = 1071
     LAYER_GROUPS_ENABLED_ID = 1072
     COLOR_SAMPLERS_RESOURCE = 1073
-    MEASURMENT_SCALE = 1074
+    MEASUREMENT_SCALE = 1074
     TIMELINE_INFO = 1075
     SHEET_DISCLOSURE = 1076
     DISPLAY_INFO = 1077
@@ -148,8 +165,14 @@ class ImageResourceID(Enum):
     @classmethod
     def is_known(cls, value):
         path_info = cls.PATH_INFO_0 <= value <= cls.PATH_INFO_LAST
-        plugin_resource = cls.PLUGIN_RESOURCES_0 <= value <= cls.PLUGIN_RESOURCES_LAST
-        return super(ImageResourceID, cls).is_known(value) or path_info or plugin_resource
+        plugin_resource = (
+            cls.PLUGIN_RESOURCES_0 <= value <= cls.PLUGIN_RESOURCES_LAST
+        )
+        return (
+            super(ImageResourceID, cls).is_known(value) or
+            path_info or
+            plugin_resource
+        )
 
     @classmethod
     def name_of(cls, value):
@@ -161,6 +184,9 @@ class ImageResourceID(Enum):
 
 
 class ColorSpaceID(Enum):
+    """
+    Color space types.
+    """
     RGB = 0
     HSB = 1
     CMYK = 2
@@ -169,6 +195,9 @@ class ColorSpaceID(Enum):
 
 
 class BlendMode(Enum):
+    """
+    Blend modes.
+    """
     PASS_THROUGH = b'pass'
     NORMAL = b'norm'
     DISSOLVE = b'diss'
@@ -199,12 +228,45 @@ class BlendMode(Enum):
     LUMINOSITY = b'lum '
 
 
+class BlendMode2(Enum):
+    """Blend mode in layer effect descriptor."""
+    NORMAL = b'Nrml'
+    DISSOLVE = b'Dslv'
+    DARKEN = b'Drkn'
+    MULTIPLY = b'Mltp'
+    COLOR_BURN = b'CBrn'
+    LINEAR_BURN = b'linearBurn'
+    DARKER_COLOR = b'darkerColor'
+    LIGHTEN = b'Lghn'
+    SCREEN = b'Scrn'
+    COLOR_DODGE = b'CDdg'
+    LINEAR_DODGE = b'linearDodge'
+    LIGHTER_COLOR = b'lighterColor'
+    OVERLAY = b'Ovrl'
+    SOFT_LIGHT = b'SftL'
+    HARD_LIGHT = b'HrdL'
+    VIVID_LIGHT = b'vividLight'
+    LINEAR_LIGHT = b'linearLight'
+    PIN_LIGHT = b'pinLight'
+    HARD_MIX = b'hardMix'
+    DIFFERENCE = b'Dfrn'
+    EXCLUSION = b'Xclu'
+    SUBTRACT = b'blendSubtraction'
+    DIVIDE = b'blendDivide'
+    HUE = b'H   '
+    SATURATION = b'Strt'
+    COLOR = b'Clr '
+    LUMINOSITY = b'Lmns'
+
+
 class Clipping(Enum):
+    """Clipping."""
     BASE = 0
     NON_BASE = 1
 
 
 class GlobalLayerMaskKind(Enum):
+    """Global layer mask kind."""
     COLOR_SELECTED = 0
     COLOR_PROTECTED = 1
     PER_LAYER = 128
@@ -212,6 +274,7 @@ class GlobalLayerMaskKind(Enum):
 
 
 class Compression(Enum):
+    """Compression modes."""
     RAW = 0
     PACK_BITS = 1
     ZIP = 2
@@ -219,17 +282,22 @@ class Compression(Enum):
 
 
 class PrintScaleStyle(Enum):
+    """Print scale style."""
     CENTERED = 0
     SIZE_TO_FIT = 1
     USER_DEFINED = 2
 
 
 class TaggedBlock(Enum):
+    """Tagged blocks keys."""
+    _FILL_KEYS = set([
+        b'SoCo', b'GdFl', b'PtFl'
+    ])
 
     _ADJUSTMENT_KEYS = set([
-        b'SoCo', b'GdFl', b'PtFl', b'brit', b'levl', b'curv', b'expA',
-        b'vibA', b'hue ', b'hue2', b'blnc', b'blwh', b'phfl', b'mixr',
-        b'clrL', b'nvrt', b'post', b'thrs', b'grdm', b'selc'
+        b'brit', b'levl', b'curv', b'expA', b'vibA', b'hue ', b'hue2',
+        b'blnc', b'blwh', b'phfl', b'mixr', b'clrL', b'nvrt', b'post',
+        b'thrs', b'grdm', b'selc'
     ])
 
     SOLID_COLOR_SHEET_SETTING = b'SoCo'
@@ -240,8 +308,8 @@ class TaggedBlock(Enum):
     CURVES = b'curv'
     EXPOSURE = b'expA'
     VIBRANCE = b'vibA'
-    HUE_SATURATION_4 = b'hue '
-    HUE_SATURATION_5 = b'hue2'
+    HUE_SATURATION_V4 = b'hue '
+    HUE_SATURATION = b'hue2'
     COLOR_BALANCE = b'blnc'
     BLACK_AND_WHITE = b'blwh'
     PHOTO_FILTER = b'phfl'
@@ -250,17 +318,23 @@ class TaggedBlock(Enum):
     INVERT = b'nvrt'
     POSTERIZE = b'post'
     THRESHOLD = b'thrs'
-    GRADIENT_MAP_SETTINGS = b'grdm'
+    GRADIENT_MAP_SETTING = b'grdm'
     SELECTIVE_COLOR = b'selc'
 
     @classmethod
     def is_adjustment_key(cls, key):
         return key in cls._ADJUSTMENT_KEYS
 
+    @classmethod
+    def is_fill_key(cls, key):
+        return key in cls._FILL_KEYS
+
     EFFECTS_LAYER = b'lrFX'
     TYPE_TOOL_INFO = b'tySh'
     UNICODE_LAYER_NAME = b'luni'
     LAYER_ID = b'lyid'
+    OBJECT_BASED_EFFECTS_LAYER_INFO_V0 = b'lmfx'  # Undocumented.
+    OBJECT_BASED_EFFECTS_LAYER_INFO_V1 = b'lfxs'  # Undocumented.
     OBJECT_BASED_EFFECTS_LAYER_INFO = b'lfx2'
 
     PATTERNS1 = b'Patt'
@@ -270,6 +344,7 @@ class TaggedBlock(Enum):
     ANNOTATIONS = b'Anno'
     BLEND_CLIPPING_ELEMENTS = b'clbl'
     BLEND_INTERIOR_ELEMENTS = b'infx'
+    BLEND_FILL_OPACITY = b'iOpa'  # Undocumented.
 
     KNOCKOUT_SETTING = b'knko'
     PROTECTED_SETTING = b'lspf'
@@ -290,6 +365,11 @@ class TaggedBlock(Enum):
     LAYER_MASK_AS_GLOBAL_MASK = b'lmgm'
     VECTOR_MASK_AS_GLOBAL_MASK = b'vmgm'
     VECTOR_ORIGINATION_DATA = b'vogk'
+    PIXEL_SOURCE_DATA1 = b'PxSc'
+    PIXEL_SOURCE_DATA2 = b'PxSD'
+    ARTBOARD_DATA1 = b'artb'
+    ARTBOARD_DATA2 = b'artd'
+    ARTBOARD_DATA3 = b'abdd'
 
     PLACED_LAYER_OBSOLETE1 = b'plLd'
     PLACED_LAYER_OBSOLETE2 = b'PlLd'
@@ -297,6 +377,7 @@ class TaggedBlock(Enum):
     LINKED_LAYER1 = b'lnkD'
     LINKED_LAYER2 = b'lnk2'
     LINKED_LAYER3 = b'lnk3'
+    LINKED_LAYER_EXTERNAL = b'lnkE'
     CONTENT_GENERATOR_EXTRA_DATA = b'CgEd'
     TEXT_ENGINE_DATA = b'Txt2'
     UNICODE_PATH_NAME = b'pths'
@@ -304,6 +385,7 @@ class TaggedBlock(Enum):
     FILTER_MASK = b'FMsk'
     PLACED_LAYER_DATA = b'SoLd'
     SMART_OBJECT_PLACED_LAYER_DATA = b'SoLE'
+    EXPORT_DATA = b'extd'  # Undocumented.
 
     VECTOR_STROKE_DATA = b'vstk'
     VECTOR_STROKE_CONTENT_DATA = b'vscg'
@@ -314,6 +396,7 @@ class TaggedBlock(Enum):
     USER_MASK = b'LMsk'
     FILTER_EFFECTS1 = b'FXid'
     FILTER_EFFECTS2 = b'FEid'
+    FILTER_EFFECTS3 = b'FELS'  # Undocumented.
 
     LAYER_16 = b'Lr16'
     LAYER_32 = b'Lr32'
@@ -322,7 +405,7 @@ class TaggedBlock(Enum):
 
 class OSType(Enum):
     """
-    Action descriptor type
+    Action descriptor types.
     """
     REFERENCE = b'obj '
     DESCRIPTOR = b'Objc'
@@ -341,9 +424,10 @@ class OSType(Enum):
     RAW_DATA = b'tdta'
     OBJECT_ARRAY = b'ObAr'
 
+
 class ReferenceOSType(Enum):
     """
-    OS Type keys for Reference Structure
+    OS Type keys for Reference Structure.
     """
     PROPERTY = b'prop'
     CLASS = b'Clss'
@@ -353,9 +437,10 @@ class ReferenceOSType(Enum):
     INDEX = b'indx'
     NAME = b'name'
 
+
 class EffectOSType(Enum):
     """
-    OS Type keys for Layer Effects
+    OS Type keys for Layer Effects.
     """
     COMMON_STATE = b'cmnS'
     DROP_SHADOW = b'dsdw'
@@ -365,18 +450,20 @@ class EffectOSType(Enum):
     BEVEL = b'bevl'
     SOLID_FILL = b'sofi'
 
+
 class UnitFloatType(Enum):
     """
-    Units the value is in (used in Unit float structure)
+    Units the value is in (used in Unit float structure).
     """
     ANGLE = b'#Ang'  # base degrees
-    DENSITY = b'#Rsl' # base per inch
-    DISTANCE = b'#Rlt' # base 72ppi
-    NONE = b'#Nne' # coerced
-    PERCENT = b'#Prc' # unit value
-    PIXELS = b'#Pxl' # tagged unit value
-    POINTS = b'#Pnt' # points
-    MILLIMETERS = b'#Mlm' # millimeters
+    DENSITY = b'#Rsl'  # base per inch
+    DISTANCE = b'#Rlt'  # base 72ppi
+    NONE = b'#Nne'  # coerced
+    PERCENT = b'#Prc'  # unit value
+    PIXELS = b'#Pxl'  # tagged unit value
+    POINTS = b'#Pnt'  # points
+    MILLIMETERS = b'#Mlm'  # millimeters
+
 
 class SectionDivider(Enum):
     OTHER = 0
@@ -384,9 +471,11 @@ class SectionDivider(Enum):
     CLOSED_FOLDER = 2
     BOUNDING_SECTION_DIVIDER = 3
 
+
 class DisplayResolutionUnit(Enum):
     PIXELS_PER_INCH = 1
     PIXELS_PER_CM = 2
+
 
 class DimensionUnit(Enum):
     INCH = 1
@@ -395,17 +484,59 @@ class DimensionUnit(Enum):
     PICA = 4   # 6 pica == 1 inch
     COLUMN = 5
 
+
 class PlacedLayerProperty(Enum):
     TRANSFORM = b'Trnf'
     SIZE = b'Sz  '
+    ID = b'Idnt'
+
 
 class SzProperty(Enum):
     WIDTH = b'Wdth'
     HEIGHT = b'Hght'
 
+
 class TextProperty(Enum):
     TXT = b'Txt '
     ORIENTATION = b'Ornt'
 
+
 class TextOrientation(Enum):
     HORIZONTAL = b'Hrzn'
+
+
+class PathResource(Enum):
+    CLOSED_SUBPATH_LENGTH_RECORD = 0
+    CLOSED_SUBPATH_BEZIER_KNOT_LINKED = 1
+    CLOSED_SUBPATH_BEZIER_KNOT_UNLINKED = 2
+    OPEN_SUBPATH_LENGTH_RECORD = 3
+    OPEN_SUBPATH_BEZIER_KNOT_LINKED = 4
+    OPEN_SUBPATH_BEZIER_KNOT_UNLINKED = 5
+    PATH_FILL_RULE_RECORD = 6
+    CLIPBOARD_RECORD = 7
+    INITIAL_FILL_RULE_RECORD = 8
+
+
+class LinkedLayerType(Enum):
+    DATA = b'liFD'
+    EXTERNAL = b'liFE'
+    ALIAS = b'liFA'
+
+
+class ObjectBasedEffects(Enum):
+    """Type of the object-based effects."""
+    DROP_SHADOW_MULTI = b'dropShadowMulti'
+    DROP_SHADOW = b'DrSh'
+    INNER_SHADOW_MULTI = b'innerShadowMulti'
+    INNER_SHADOW = b'IrSh'
+    OUTER_GLOW = b'OrGl'
+    COLOR_OVERLAY_MULTI = b'solidFillMulti'
+    COLOR_OVERLAY = b'SoFi'
+    GRADIENT_OVERLAY_MULTI = b'gradientFillMulti'
+    GRADIENT_OVERLAY = b'GrFl'
+    PATTERN_OVERLAY = b'patternFill'
+    STROKE_MULTI = b'frameFXMulti'
+    STROKE = b'FrFX'
+    INNER_GLOW = b'IrGl'
+    BEVEL_EMBOSS = b'ebbl'
+    SATIN = b'ChFX'

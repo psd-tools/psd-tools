@@ -26,6 +26,7 @@ def extract_composite_image(decoded_data):
 
     return _channels_data_to_image(decoded_data.image_data, mode, size, depth)
 
+
 def extract_layer_image(decoded_data, layer_index):
     """
     Converts a layer from the ``decoded_data`` to a ``pymaging.Image``.
@@ -39,7 +40,7 @@ def extract_layer_image(decoded_data, layer_index):
 
     depth, _ = _validate_header(decoded_data.header)
 
-    # FIXME: support for layers with mask (there would be 5 channels in this case)
+    # FIXME: support for layers with mask (there would be 5 channels)
     if channel_types[0] == ChannelID.TRANSPARENCY_MASK:
         # move alpha channel to the end
         channels_data = [channels_data[i] for i in [1, 2, 3, 0]]
@@ -63,7 +64,8 @@ def _channels_data_to_image(channels_data, mode, size, depth):
 
     for index, channel in enumerate(channels_data):
 
-        data = channel.data # zip and zip-with-prediction data is already decoded
+        # zip and zip-with-prediction data is already decoded
+        data = channel.data
         if channel.compression == Compression.PACK_BITS:
             data = packbits.decode(data)
 
@@ -88,20 +90,23 @@ def _validate_header(header):
     Validates header and returns (depth, mode) tuple.
     """
     if LoadedImage is None or packbits is None:
-        raise Exception("This module requires `pymaging` and `packbits` packages.")
+        raise Exception(
+            "This module requires `pymaging` and `packbits` packages.")
 
     if header.color_mode != ColorMode.RGB:
         raise NotImplementedError(
-            "This color mode (%s) is not supported yet" % ColorMode.name_of(header.color_mode)
+            "This color mode (%s) is not supported yet" %
+            ColorMode.name_of(header.color_mode)
         )
 
     mode = _get_mode(header.number_of_channels)
     if mode is None:
-        raise NotImplementedError("This number of channels (%d) is unsupported for this color mode (%s)" % (
-                         header.number_of_channels, header.color_mode))
+        raise NotImplementedError(
+            "This number of channels (%d) is unsupported for this color mode"
+            " (%s)" % (header.number_of_channels, header.color_mode))
 
     if header.depth != 8:
-        raise NotImplementedError("Only 8bit images are currently supported with pymaging.")
+        raise NotImplementedError(
+            "Only 8bit images are currently supported with pymaging.")
 
     return 8, mode
-

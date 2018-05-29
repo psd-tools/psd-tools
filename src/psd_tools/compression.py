@@ -3,6 +3,7 @@ from __future__ import absolute_import, unicode_literals
 import array
 from psd_tools.utils import be_array_from_bytes
 
+
 def decode_prediction(data, w, h, bytes_per_pixel):
     if bytes_per_pixel == 1:
         arr = be_array_from_bytes("B", data)
@@ -32,7 +33,11 @@ def decode_prediction(data, w, h, bytes_per_pixel):
     else:
         return None
 
-    return arr.tostring()
+    if hasattr(arr, 'tobytes'):
+        return arr.tobytes()
+    else:
+        return arr.tostring()
+
 
 def _delta_decode(arr, mod, w, h):
     for y in range(h):
@@ -43,6 +48,7 @@ def _delta_decode(arr, mod, w, h):
             arr[pos+1] = next_value
     arr.byteswap()
     return arr
+
 
 def _restore_byte_order(bytes_array, w, h):
     arr = bytes_array[:]
@@ -55,7 +61,11 @@ def _restore_byte_order(bytes_array, w, h):
             for bt in rng4:
                 arr[i] = bytes_array[offsets[bt] + x]
                 i += 1
-    return arr.tostring()
+    if hasattr(arr, 'tobytes'):
+        return arr.tobytes()
+    else:
+        return arr.tostring()
+
 
 # Replace _delta_decode and _restore_byte_order with faster versions (from
 # a compiled extension) if this is possible:

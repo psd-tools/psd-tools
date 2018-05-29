@@ -4,7 +4,8 @@ import os
 import psd_tools.reader
 import psd_tools.decoder
 
-DATA_PATH = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'psd_files')
+DATA_PATH = os.path.join(
+    os.path.abspath(os.path.dirname(__file__)), 'psd_files')
 
 
 def full_name(filename):
@@ -33,3 +34,12 @@ class FuzzyInt(int):
 
     def __repr__(self):
         return str("[%d..%d]") % (self.lowest, self.highest)
+
+
+def with_psb(fixtures):
+    psb_fixtures = []
+    for fixture in fixtures:
+        psb_fixtures.append(
+            type(fixture)([fixture[0].replace('.psd', '.psb')]) + fixture[1:])
+    print(fixtures + type(fixtures)(psb_fixtures))
+    return fixtures + type(fixtures)(psb_fixtures)

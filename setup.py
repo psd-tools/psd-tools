@@ -14,17 +14,17 @@ def get_version():
         return fp.read().decode('utf8').split('=')[1].strip(" \n'")
 
 setup_args = dict(
-    name='psd-tools',
+    name='psd-tools2',
     version=get_version(),
-    author='Mikhail Korobov',
-    author_email='kmike84@gmail.com',
-    url='https://github.com/kmike/psd-tools',
+    author='Kota Yamaguchi',
+    author_email='KotaYamaguchi1984@gmail.com',
+    url='https://github.com/kyamagu/psd-tools',
 
-    description='Python package for working with Adobe Photoshop PSD files',
+    description='Fork of psd-tools for working with Adobe Photoshop PSD files',
     long_description=open('README.rst').read() + "\n\n" + open('CHANGES.rst').read(),
     license='MIT License',
     requires=['docopt (>= 0.5)', 'Pillow'],
-    install_requires=['docopt >= 0.5'],
+    install_requires=['docopt >= 0.5', 'packbits', 'exifread'],
     keywords="pymaging psd imaging pil pillow",
     zip_safe=False,
 
@@ -32,7 +32,9 @@ setup_args = dict(
     packages=['psd_tools', 'psd_tools.reader', 'psd_tools.decoder',
               'psd_tools.user_api'],
     package_data={'psd_tools': ['icc_profiles/*.icc']},
-    scripts=['bin/psd-tools.py'],
+    entry_points={
+        'console_scripts': ['psd-tools=psd_tools.__main__:main']
+    },
 
     classifiers=[
         'Development Status :: 4 - Beta',
@@ -42,9 +44,9 @@ setup_args = dict(
         'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.3',
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy',
         'Topic :: Multimedia :: Graphics',
