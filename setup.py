@@ -18,7 +18,7 @@ setup_args = dict(
     version=get_version(),
     author='Kota Yamaguchi',
     author_email='KotaYamaguchi1984@gmail.com',
-    url='https://github.com/kyamagu/psd-tools',
+    url='https://github.com/kyamagu/psd-tools2',
 
     description='Fork of psd-tools for working with Adobe Photoshop PSD files',
     long_description=(
