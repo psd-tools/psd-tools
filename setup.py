@@ -18,10 +18,12 @@ setup_args = dict(
     version=get_version(),
     author='Kota Yamaguchi',
     author_email='KotaYamaguchi1984@gmail.com',
-    url='https://github.com/kyamagu/psd-tools',
+    url='https://github.com/kyamagu/psd-tools2',
 
     description='Fork of psd-tools for working with Adobe Photoshop PSD files',
-    long_description=open('README.rst').read() + "\n\n" + open('CHANGES.rst').read(),
+    long_description=(
+        open('README.rst').read() + "\n\n" + open('CHANGES.rst').read()
+    ),
     license='MIT License',
     requires=['docopt (>= 0.5)', 'Pillow'],
     install_requires=['docopt >= 0.5', 'packbits', 'exifread'],
@@ -30,7 +32,7 @@ setup_args = dict(
 
     package_dir={'': 'src'},
     packages=['psd_tools', 'psd_tools.reader', 'psd_tools.decoder',
-              'psd_tools.user_api'],
+              'psd_tools.user_api', 'psd_tools.icc_profiles'],
     package_data={'psd_tools': ['icc_profiles/*.icc']},
     entry_points={
         'console_scripts': ['psd-tools=psd_tools.__main__:main']
@@ -117,7 +119,10 @@ if '__pypy__' in sys.builtin_module_names:
 if compile_extension:
     setup_args.update(dict(
         ext_modules = [
-            Extension("psd_tools._compression", sources=["src/psd_tools/_compression.c"])
+            Extension(
+                "psd_tools._compression",
+                sources=["src/psd_tools/_compression.c"]
+            )
         ],
         cmdclass = {'build_ext': ve_build_ext},
     ))

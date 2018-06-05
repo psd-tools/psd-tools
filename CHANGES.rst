@@ -1,3 +1,12 @@
+1.7.9 (2018-06-05)
+------------------
+
+- fix UnicodeError in exif;
+- workaround for irregular descriptor name;
+- add undocumented `extn` tagged block decoding;
+- move duplicated icc module to subpackage;
+- support PIL rendering with extra alpha channels.
+
 1.7.8 (2018-05-29)
 ------------------
 

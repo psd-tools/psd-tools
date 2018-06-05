@@ -537,13 +537,17 @@ def _decode_exif_data(data):
         ifd = tags[key]
         if isinstance(ifd, exifread.classes.IfdTag):
             field_type = exifread.tags.FIELD_TYPES[ifd.field_type - 1]
+            if isinstance(ifd.printable, bytes):
+                value = ifd.printable.decode('utf-8')
+            else:
+                value = ifd.printable
             if field_type[1] in ('A', 'B'):
-                exif[key] = str(ifd)
+                exif[key] = value
             else:
                 try:
-                    exif[key] = int(str(ifd))
+                    exif[key] = int(value)
                 except ValueError:
-                    exif[key] = str(ifd)
+                    exif[key] = value
         else:
             # Seems sometimes EXIF data is corrupt.
             pass

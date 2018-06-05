@@ -366,7 +366,7 @@ class TransparencyStop(pretty_namedtuple(
     """
 
 
-class ExportData(pretty_namedtuple('ExportData', 'version data')):
+class ExportSetting(pretty_namedtuple('ExportSetting', 'version data')):
     """
     .. py:attribute:: version
     .. py:attribute:: data
@@ -908,16 +908,10 @@ def _decode_gradient_settings(data, **kwargs):
         color_model, minimum_color, maximum_color)
 
 
-@register(TaggedBlock.EXPORT_DATA)
-def _decode_extd(data, **kwargs):
-    fp = io.BytesIO(data)
-    version = read_fmt("I", fp)[0]
-    try:
-        data = decode_descriptor(None, fp)
-        return ExportData(version, data)
-    except UnknownOSType as e:
-        warnings.warn("Ignoring extd tagged block (%s)" % e)
-        return data
+@register(TaggedBlock.EXPORT_SETTING1)
+@register(TaggedBlock.EXPORT_SETTING2)
+def _decode_extn(data, **kwargs):
+    return _decode_descriptor_block(data, ExportSetting)
 
 
 @register(TaggedBlock.REFERENCE_POINT)
