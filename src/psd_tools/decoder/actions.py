@@ -89,13 +89,19 @@ def decode_descriptor(_, fp):
 
     items = []
     item_count = read_fmt("I", fp)[0]
-    for n in range(item_count):
+    while len(items) < item_count:
         item_length = read_fmt("I", fp)[0]
         key = fp.read(item_length or 4)
         ostype = fp.read(4)
 
         decode_ostype = get_ostype_decode_func(ostype)
         if not decode_ostype:
+            # For some reason, name can appear in the middle of items...
+            if key == ReferenceOSType.NAME:
+                fp.seek(fp.tell() - 4)
+                name = decode_name(key, fp)
+                continue
+
             raise UnknownOSType('Unknown descriptor item of type %r' % ostype)
 
         value = decode_ostype(key, fp)
