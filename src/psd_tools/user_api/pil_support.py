@@ -373,21 +373,30 @@ def _get_header_channel_ids(header):
     if header.color_mode == ColorMode.RGB:
         if header.number_of_channels == 3:
             return [0, 1, 2]
-        elif header.number_of_channels == 4:
+        elif header.number_of_channels >= 4:
+            if header.number_of_channels > 4:
+                warnings.warn("header.number_of_channels = %d > 4" % (
+                    header.number_of_channels))
             return [0, 1, 2, ChannelID.TRANSPARENCY_MASK]
 
     elif header.color_mode == ColorMode.CMYK:
         if header.number_of_channels == 4:
             return [0, 1, 2, 3]
-        elif header.number_of_channels == 5:
+        elif header.number_of_channels >= 5:
             # XXX: how to distinguish
             # "4 CMYK + 1 alpha" and "4 CMYK + 1 spot"?
+            if header.number_of_channels > 5:
+                warnings.warn("header.number_of_channels = %d > 5" % (
+                    header.number_of_channels))
             return [0, 1, 2, 3, ChannelID.TRANSPARENCY_MASK]
 
     elif header.color_mode == ColorMode.GRAYSCALE:
         if header.number_of_channels == 1:
             return [0]
-        elif header.number_of_channels == 2:
+        elif header.number_of_channels >= 2:
+            if header.number_of_channels > 2:
+                warnings.warn("header.number_of_channels = %d > 2" % (
+                    header.number_of_channels))
             return [0, ChannelID.TRANSPARENCY_MASK]
 
     else:
