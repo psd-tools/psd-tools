@@ -417,6 +417,7 @@ class OSType(Enum):
     STRING = b'TEXT'
     ENUMERATED = b'enum'
     INTEGER = b'long'
+    LARGE_INTEGER = b'comp'
     BOOLEAN = b'bool'
     GLOBAL_OBJECT = b'GlbO'
     CLASS1 = b'type'
@@ -424,6 +425,7 @@ class OSType(Enum):
     ALIAS = b'alis'
     RAW_DATA = b'tdta'
     OBJECT_ARRAY = b'ObAr'
+    PATH = b'Pth '  # Undocumented
 
 
 class ReferenceOSType(Enum):

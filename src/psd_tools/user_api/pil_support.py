@@ -94,6 +94,9 @@ def extract_composite_image(decoded_data):
             "This number of channels (%d) is unsupported for this color mode"
             "(%s)" % (header.number_of_channels, header.color_mode))
         return
+    if len(channel_ids) > len(decoded_data.image_data):
+        warnings.warn("Image data is broken")
+        return
 
     image = _channel_data_to_PIL(
         channel_data=decoded_data.image_data,

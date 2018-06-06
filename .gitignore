@@ -17,3 +17,4 @@ htmlcov/
 *.ipynb
 .ipynb_checkpoint/
 .pytest_cache
+tmp/
