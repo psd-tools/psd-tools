@@ -67,6 +67,7 @@ def get_ostype_decode_func(ostype):
         OSType.ALIAS:       decode_alias,
         OSType.RAW_DATA:    decode_raw,
         OSType.OBJECT_ARRAY: decode_object_array,
+        OSType.PATH:        decode_raw,  # Undocumented
     }.get(ostype, None)
 
 
@@ -105,8 +106,9 @@ def decode_descriptor(_, fp):
             raise UnknownOSType('Unknown descriptor item of type %r' % ostype)
 
         value = decode_ostype(key, fp)
-        if value is not None:
-            items.append((key, value))
+        if value is None:
+            warnings.warn("%r (%r) is None" % (key, ostype))
+        items.append((key, value))
 
     return Descriptor(name, classID, items)
 

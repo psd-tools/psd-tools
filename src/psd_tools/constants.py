@@ -424,6 +424,7 @@ class OSType(Enum):
     ALIAS = b'alis'
     RAW_DATA = b'tdta'
     OBJECT_ARRAY = b'ObAr'
+    PATH = b'Pth '  # Undocumented
 
 
 class ReferenceOSType(Enum):
