@@ -57,6 +57,5 @@ class SmartObject(object):
             f.write(self.data)
 
     def __repr__(self):
-        return "<%s: %r, type=%s, %s bytes>" % (
-            self.__class__.__name__, self.filename,
-            self.kind, len(self.data))
+        return "<%r, type=%s, %s bytes>" % (
+            self.filename, self.kind, len(self.data))

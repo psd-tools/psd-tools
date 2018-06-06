@@ -289,10 +289,13 @@ class _RawLayer(_TaggedBlockMixin):
 
     def __repr__(self):
         return (
-            "<%s: %r, size=%dx%d, x=%d, y=%d, visible=%d, mask=%s, "
-            "effects=%s>" % (
+            "<%s: %r, size=%dx%d, x=%d, y=%d%s%s%s>" % (
                 self.kind, self.name, self.width, self.height,
-                self.left, self.top, self.visible, self.mask, self.effects))
+                self.left, self.top,
+                ", mask=%s" % self.mask if self.has_mask() else "",
+                "" if self.visible else ", invisible",
+                ", effects=%s" % self.effects if self.has_effects() else ""
+            ))
 
 
 class _GroupMixin(object):
@@ -403,9 +406,10 @@ class Group(_GroupMixin, _RawLayer):
                              TaggedBlock.NESTED_SECTION_DIVIDER_SETTING])
 
     def __repr__(self):
-        return "<%s: %r, layer_count=%d, mask=%s, visible=%d>" % (
-            self.kind, self.name, len(self.layers), self.mask,
-            self.visible)
+        return "<%s: %r, layer_count=%d%s%s>" % (
+            self.kind, self.name, len(self.layers),
+            ", mask=%s" % self.mask if self.has_mask() else "",
+            "" if self.visible else ", invisible",)
 
 
 class AdjustmentLayer(_RawLayer):
@@ -462,7 +466,10 @@ class AdjustmentLayer(_RawLayer):
         return self.get_tag(self._key)
 
     def __repr__(self):
-        return "<%s: %r, visible=%s>" % (self.kind, self.name, self.visible)
+        return "<%s: %r type=%r%s>" % (
+            self.kind, self.name, self.adjustment_type,
+            "" if self.visible else ", invisible"
+        )
 
 
 class PixelLayer(_RawLayer):
@@ -641,10 +648,11 @@ class SmartObjectLayer(_RawLayer):
 
     def __repr__(self):
         return (
-            "<%s: %r, size=%dx%d, x=%d, y=%d, mask=%s, visible=%d, "
-            "linked=%s>") % (
-            self.__class__.__name__, self.name, self.width, self.height,
-            self.left, self.top, self.mask, self.visible,
+            "<%s: %r, size=%dx%d, x=%d, y=%d%s%s, linked=%s>") % (
+            self.kind, self.name, self.width, self.height,
+            self.left, self.top,
+            ", mask=%s" % self.mask if self.has_mask() else "",
+            "" if self.visible else ", invisible",
             self.linked_data)
 
 
