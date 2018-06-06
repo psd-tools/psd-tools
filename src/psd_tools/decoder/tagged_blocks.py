@@ -671,26 +671,42 @@ def _decode_levels(data, **kwargs):
 
 @register(TaggedBlock.CURVES)
 def _decode_curves(data, **kwargs):
+    """
+    Curve decoding is highly experimental and unstable.
+    """
     fp = io.BytesIO(data)
-    padding, version, count = read_fmt("B H I", fp)  # Documentation wrong.
+    # Documentation wrong.
+    is_map, version, count_map = read_fmt("B H I", fp)
     if version not in (1, 4):
         warnings.warn("Invalid curves version {}".format(version))
         return data
     if version == 1:
-        count = bin(count).count("1")  # Bitmap = channel index?
+        count = bin(count_map).count("1")  # Bitmap = channel index?
 
     items = []
     for i in range(count):
-        point_count = read_fmt("H", fp)[0]
-        points = [read_fmt("2H", fp) for c in range(point_count)]
+        if is_map:
+            # This lookup format is never documented.
+            points = list(read_fmt("256B", fp))
+        else:
+            point_count = read_fmt("H", fp)[0]
+            if point_count <= 2 or 19 <= point_count:
+                warnings.warn("point count not in [2, 19]")
+                return data
+            points = [read_fmt("2H", fp) for c in range(point_count)]
         items.append(CurveData(None, points))
     extra = None
     if version == 1:
         tag, version_, count_ = read_fmt("4s H I", fp)
+        assert tag == b'Crv '
         extra_items = []
         for i in range(count_):
-            channel_index, point_count = read_fmt("2H", fp)
-            points = [read_fmt("2H", fp) for c in range(point_count)]
+            if is_map:
+                channel_index = read_fmt("H", fp)[0]
+                points = list(read_fmt("256B", fp))
+            else:
+                channel_index, point_count = read_fmt("2H", fp)
+                points = [read_fmt("2H", fp) for c in range(point_count)]
             extra_items.append(CurveData(channel_index, points))
         extra = CurvesExtraMarker(tag, version_, count_, extra_items)
     return CurvesSettings(version, count, items, extra)
