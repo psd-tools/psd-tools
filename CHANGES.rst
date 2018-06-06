@@ -1,10 +1,8 @@
-
 1.7.10 (2018-06-06)
 -------------------
 
 - fix descriptor decoding errors;
 - minor bugfixes.
-
 
 1.7.9 (2018-06-05)
 ------------------
