@@ -147,11 +147,13 @@ class PSDImage(_TaggedBlockMixin, _GroupMixin, _PSDImageBuilder):
         Returns a PIL image for this PSD file.
 
         :param render: Force rendering the view if True
-        :returns: PIL Image
+        :returns: `PIL.Image`
         """
-        if render or not self.has_preview():
-            return super(PSDImage, self).as_PIL(bbox=self.viewbox, **kwargs)
-        return pil_support.extract_composite_image(self.decoded_data)
+        if not render and self.has_preview():
+            image = pil_support.extract_composite_image(self.decoded_data)
+            if image:
+                return image
+        return super(PSDImage, self).as_PIL(bbox=self.viewbox, **kwargs)
 
     def as_PIL_merged(self, **kwargs):
         """
