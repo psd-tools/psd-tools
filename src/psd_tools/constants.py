@@ -417,6 +417,7 @@ class OSType(Enum):
     STRING = b'TEXT'
     ENUMERATED = b'enum'
     INTEGER = b'long'
+    LARGE_INTEGER = b'comp'
     BOOLEAN = b'bool'
     GLOBAL_OBJECT = b'GlbO'
     CLASS1 = b'type'

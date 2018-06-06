@@ -1162,7 +1162,7 @@ def _decode_pixel_source_data1(data, **kwargs):
 @register(TaggedBlock.PIXEL_SOURCE_DATA2)
 def _decode_pixel_source_data2(data, **kwargs):
     fp = io.BytesIO(data)
-    length = read_fmt("Q", fp)
+    length = read_fmt("Q", fp)[0]
     return fp.read(length)
 
 

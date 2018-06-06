@@ -60,6 +60,7 @@ def get_ostype_decode_func(ostype):
         OSType.STRING:      decode_string,
         OSType.ENUMERATED:  decode_enum,
         OSType.INTEGER:     decode_integer,
+        OSType.LARGE_INTEGER: decode_large_integer,
         OSType.BOOLEAN:     decode_bool,
         OSType.GLOBAL_OBJECT: decode_descriptor,
         OSType.CLASS1:      decode_class,
@@ -233,6 +234,10 @@ def decode_list(key, fp):
 
 def decode_integer(key, fp):
     return Integer(read_fmt("i", fp)[0])
+
+
+def decode_large_integer(key, fp):
+    return Integer(read_fmt("q", fp)[0])
 
 
 def decode_enum(key, fp):
