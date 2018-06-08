@@ -538,7 +538,10 @@ def _decode_exif_data(data):
         if isinstance(ifd, exifread.classes.IfdTag):
             field_type = exifread.tags.FIELD_TYPES[ifd.field_type - 1]
             if isinstance(ifd.printable, bytes):
-                value = ifd.printable.decode('utf-8')
+                try:
+                    value = ifd.printable.decode('utf-8')
+                except UnicodeDecodeError:
+                    value = ifd.printable.encode('string_escape')
             else:
                 value = ifd.printable
             if field_type[1] in ('A', 'B'):
