@@ -13,7 +13,10 @@ def single_value(fmt):
 
 
 def unicode_string(data, **kwargs):
-    return read_unicode_string(io.BytesIO(data))
+    if len(data):
+        return read_unicode_string(io.BytesIO(data))
+    else:
+        return u''
 
 
 def boolean(fmt="?"):
