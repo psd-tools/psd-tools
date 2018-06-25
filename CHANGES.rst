@@ -1,3 +1,8 @@
+1.7.12 (2018-06-25)
+-------------------
+
+- Fix mask rendering in compose (Thanks @andrey-hider and @nkato).
+
 1.7.11 (2018-06-11)
 -------------------
 

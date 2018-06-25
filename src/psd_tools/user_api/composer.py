@@ -106,7 +106,8 @@ def compose(layers, respect_visibility=True, ignore_blend_mode=True,
         if layer.has_mask():
             mask_box = layer.mask.bbox
             if not layer.mask.disabled and not mask_box.is_empty():
-                mask = Image.new("L", layer_image.size, color=(0,))
+                mask_color = layer.mask.background_color
+                mask = Image.new("L", layer_image.size, color=(mask_color,))
                 mask.paste(
                     layer.mask.as_PIL(),
                     mask_box.offset((layer.bbox.x1, layer.bbox.y1))
