@@ -24,6 +24,20 @@ def combined_bbox(layers):
     return BBox(min(lefts), min(tops), max(rights), max(bottoms))
 
 
+# TODO: Implement and refactor layer effects.
+def _apply_coloroverlay(layer, layer_image):
+    """
+    Apply color overlay effect.
+    """
+    for effect in layer.effects.find('coloroverlay'):
+        opacity = effect.opacity.value * 255.0 / 100
+        color = tuple(int(x) for x in effect.color.value + (opacity,))
+        tmp = Image.new("RGBA", layer_image.size, color=color)
+        layer_image = Image.alpha_composite(layer_image, tmp)
+    return layer_image
+
+
+
 def compose(layers, respect_visibility=True, ignore_blend_mode=True,
             skip_layer=lambda layer: False, bbox=None):
     """
@@ -101,6 +115,8 @@ def compose(layers, respect_visibility=True, ignore_blend_mode=True,
                         intersect.offset((layer.bbox.x1, layer.bbox.y1)))
 
         layer_image = pil_support.apply_opacity(layer_image, layer.opacity)
+        layer_image = _apply_coloroverlay(layer, layer_image)
+
         layer_offset = layer.bbox.offset((bbox.x1, bbox.y1))
         mask = None
         if layer.has_mask():
