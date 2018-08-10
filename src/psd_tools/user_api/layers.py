@@ -199,7 +199,7 @@ class _RawLayer(_TaggedBlockMixin):
 
     def has_pixels(self):
         """Return True if the layer has associated pixels."""
-        return all(c.data and len(c.data) > 0 for c in self._channels)
+        return any(c.data and len(c.data) > 0 for c in self._channels)
 
     def has_relevant_pixels(self):
         """Return True if the layer has relevant associated pixels."""

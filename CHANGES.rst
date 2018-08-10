@@ -1,3 +1,9 @@
+1.7.13 (2018-08-10)
+-------------------
+
+- Fix `has_pixel()` for partial channels;
+- Support color overlay in `compose()`.
+
 1.7.12 (2018-06-25)
 -------------------
 
