@@ -33,9 +33,17 @@ def _apply_coloroverlay(layer, layer_image):
         opacity = effect.opacity.value * 255.0 / 100
         color = tuple(int(x) for x in effect.color.value + (opacity,))
         tmp = Image.new("RGBA", layer_image.size, color=color)
+
+        # Overlay only applies strokes when fill is disabled.
+        fill_only = (
+            layer.kind == 'shape' and layer.has_stroke() and
+            layer.stroke.get(b'fillEnabled', True)
+        )
+        if not fill_only:
+            tmp.putalpha(layer_image.split()[-1])
+
         layer_image = Image.alpha_composite(layer_image, tmp)
     return layer_image
-
 
 
 def compose(layers, respect_visibility=True, ignore_blend_mode=True,
