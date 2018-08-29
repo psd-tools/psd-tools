@@ -6,6 +6,7 @@ from __future__ import absolute_import, unicode_literals
 import logging
 from psd_tools.user_api import BBox
 from psd_tools.user_api import pil_support
+from psd_tools.constants import TaggedBlock
 import psd_tools.user_api.layers
 from PIL import Image
 
@@ -122,7 +123,10 @@ def compose(layers, respect_visibility=True, ignore_blend_mode=True,
                     clip_mask = layer_image.crop(
                         intersect.offset((layer.bbox.x1, layer.bbox.y1)))
 
-        layer_image = pil_support.apply_opacity(layer_image, layer.opacity)
+        layer_opacity = layer.opacity
+        if layer.has_tag(TaggedBlock.BLEND_FILL_OPACITY):
+            layer_opacity *= layer.get_tag(TaggedBlock.BLEND_FILL_OPACITY)
+        layer_image = pil_support.apply_opacity(layer_image, layer_opacity)
         layer_image = _apply_coloroverlay(layer, layer_image)
 
         layer_offset = layer.bbox.offset((bbox.x1, bbox.y1))
