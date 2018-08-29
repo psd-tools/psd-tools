@@ -1,23 +1,29 @@
+1.7.16 (2018-08-29)
+-------------------
+
+- fix fill opacity in `compose()`;
+- workaround for broken `PrintFlags`.
+
 1.7.15 (2018-08-28)
 -------------------
 
-- Fix color overlay issue in `compose()`.
+- fix color overlay issue in `compose()`.
 
 1.7.14 (2018-08-24)
 -------------------
 
-- Fix `verbose` arg for python 3.7 compatibility.
+- fix `verbose` arg for python 3.7 compatibility.
 
 1.7.13 (2018-08-10)
 -------------------
 
-- Fix `has_pixel()` for partial channels;
-- Support color overlay in `compose()`.
+- fix `has_pixel()` for partial channels;
+- support color overlay in `compose()`.
 
 1.7.12 (2018-06-25)
 -------------------
 
-- Fix mask rendering in compose (Thanks @andrey-hider and @nkato).
+- fix mask rendering in compose (Thanks @andrey-hider and @nkato).
 
 1.7.11 (2018-06-11)
 -------------------
