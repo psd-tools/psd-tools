@@ -9,6 +9,7 @@ relevant to the photoshop document. The keys are specified by
 """
 from __future__ import absolute_import, unicode_literals, division
 import io
+import struct
 import warnings
 from collections import namedtuple
 from psd_tools.utils import (read_pascal_string, unpack, read_fmt,
@@ -566,7 +567,11 @@ def _decode_pixel_aspect_ration(data):
 
 @register(ImageResourceID.PRINT_FLAGS)
 def _decode_print_flags(data):
-    return PrintFlags(*(unpack("9?x", data)))
+    try:
+        return PrintFlags(*(unpack("9?x", data)))
+    except struct.error as e:
+        warnings.warn("%s" % e)
+        return data
 
 
 @register(ImageResourceID.PRINT_FLAGS_INFO)
