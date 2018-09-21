@@ -193,3 +193,11 @@ def test_adjustment_and_shapes():
                 assert layer.stroke
             if layer.has_stroke_content():
                 assert layer.stroke_content
+
+
+def test_adjustment_and_shapes():
+    psd = PSDImage(decode_psd('adjustment-mask.psd'))
+    for layer in psd.descendants():
+        layer.as_PIL()
+        if layer.has_mask():
+            layer.mask.as_PIL()
