@@ -132,7 +132,7 @@ def get_icc_profile(decoded_data):
 
 def apply_opacity(im, opacity):
     """ Apply opacity to an image. """
-    if im.mode == 'RGB':
+    if im.mode == 'RGB' or 'L':
         im.putalpha(opacity)
         return im
     elif im.mode == 'RGBA':
