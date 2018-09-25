@@ -132,14 +132,14 @@ def get_icc_profile(decoded_data):
 
 def apply_opacity(im, opacity):
     """ Apply opacity to an image. """
-    if im.mode == 'RGB' or 'L':
+    if im.mode in ('RGB', 'L'):
         im.putalpha(opacity)
         return im
-    elif im.mode == 'RGBA':
-        r, g, b, a = im.split()
-        opacity_scale = opacity / 255
-        a = a.point(lambda i: i*opacity_scale)
-        return Image.merge('RGBA', [r, g, b, a])
+    elif im.mode in ('RGBA', 'LA'):
+        channels = list(im.split())
+        opacity_scale = opacity / 255.
+        channels[-1] = channels[-1].point(lambda i: int(i * opacity_scale))
+        return Image.merge(im.mode, channels)
     else:
         raise NotImplementedError()
 
@@ -159,8 +159,9 @@ def pattern_to_PIL(pattern):
     return image
 
 
-def draw_polygon(bbox, anchors, fill='white'):
-    image = Image.new("RGBA", (bbox.width, bbox.height))
+def draw_polygon(bbox, anchors, fill=(255, 255, 255, 255)):
+    image = Image.new("RGBA", (bbox.width, bbox.height),
+                      color=(255, 255, 255, 0))
     draw = ImageDraw.Draw(image)
     draw.polygon(anchors, fill=fill)
     del draw

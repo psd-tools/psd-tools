@@ -89,7 +89,7 @@ def compose(layers, respect_visibility=True, ignore_blend_mode=True,
     )
 
     for layer in reversed(layers):
-        if skip_layer(layer) or not layer.has_box() or (
+        if skip_layer(layer) or (
                 not layer.visible and respect_visibility):
             continue
 
@@ -123,6 +123,7 @@ def compose(layers, respect_visibility=True, ignore_blend_mode=True,
                     clip_mask = layer_image.crop(
                         intersect.offset((layer.bbox.x1, layer.bbox.y1)))
 
+        # Rendered shape layers already takes opacity into account.
         layer_opacity = layer.opacity
         if layer.has_tag(TaggedBlock.BLEND_FILL_OPACITY):
             layer_opacity *= layer.get_tag(TaggedBlock.BLEND_FILL_OPACITY)
@@ -141,11 +142,11 @@ def compose(layers, respect_visibility=True, ignore_blend_mode=True,
                     mask_box.offset((layer.bbox.x1, layer.bbox.y1))
                 )
 
-        if layer_image.mode == 'RGBA':
-            tmp = Image.new("RGBA", result.size, color=(255, 255, 255, 0))
+        if layer_image.mode in ('RGBA', 'LA'):
+            tmp = Image.new('RGBA', result.size, color=(255, 255, 255, 0))
             tmp.paste(layer_image, layer_offset, mask=mask)
             result = Image.alpha_composite(result, tmp)
-        elif layer_image.mode == 'RGB':
+        elif layer_image.mode == ('RGB', 'L'):
             result.paste(layer_image, layer_offset, mask=mask)
         else:
             logger.warning(
