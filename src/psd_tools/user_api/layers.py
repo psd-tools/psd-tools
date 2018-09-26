@@ -486,29 +486,22 @@ class ShapeLayer(_RawLayer):
     specified by :py:attr:`stroke_content`.
     """
 
-    def as_PIL(self, vector=False):
-        """Returns a PIL image for this layer."""
-        if vector or (not self.has_box() and not self.has_relevant_pixels()):
-            # TODO: Replace polygon with bezier curve.
-            return pil_support.draw_polygon(self.bbox, self.get_anchors(),
-                                            self._get_color())
-        else:
-            return self._psd._layer_as_PIL(self._index)
+    def __init__(self, parent, index):
+        super(ShapeLayer, self).__init__(parent, index)
+        self._bbox = None
 
-    def get_bbox(self, vector=False):
-        """BBox(x1, y1, x2, y2) namedtuple of the shape."""
-        if vector:
-            # TODO: Compute bezier curve.
-            anchors = self.get_anchors()
-            if not anchors or len(anchors) < 2:
-                # Could be all pixel fill.
-                return BBox(0, 0, 0, 0)
-            return BBox(min([p[0] for p in anchors]),
-                        min([p[1] for p in anchors]),
-                        max([p[0] for p in anchors]),
-                        max([p[1] for p in anchors]))
+    def as_PIL(self, draw=False):
+        """Returns a PIL image for this layer."""
+        if draw or not self.has_pixels():
+            # TODO: Replace polygon with bezier curve.
+            drawing = pil_support.draw_polygon(
+                self._psd.viewbox,
+                self._get_anchors(),
+                self._get_color()
+            )
+            return drawing.crop(self.bbox)
         else:
-            return super(ShapeLayer, self).bbox
+            return super(ShapeLayer, self).as_PIL()
 
     @property
     def bbox(self):
@@ -516,7 +509,43 @@ class ShapeLayer(_RawLayer):
 
         :rtype: BBox
         """
-        return self.get_bbox()
+        if self._bbox is None:
+            self._bbox = super(ShapeLayer, self).bbox
+            if self._bbox.is_empty():
+                self._bbox = self._get_bbox()
+        return self._bbox
+
+    @property
+    def left(self):
+        """Left coordinate.
+
+        :rtype: int
+        """
+        return self.bbox.left
+
+    @property
+    def right(self):
+        """Right coordinate.
+
+        :rtype: int
+        """
+        return self.bbox.right
+
+    @property
+    def top(self):
+        """Top coordinate.
+
+        :rtype: int
+        """
+        return self.bbox.top
+
+    @property
+    def bottom(self):
+        """Bottom coordinate.
+
+        :rtype: int
+        """
+        return self.bbox.bottom
 
     @property
     def origination(self):
@@ -561,16 +590,31 @@ class ShapeLayer(_RawLayer):
         return self.has_vector_mask() and any(
             path.num_knots > 1 for path in self.vector_mask.paths)
 
-    def get_anchors(self):
+    def _get_anchors(self):
         """Anchor points of the shape [(x, y), (x, y), ...]."""
         vector_mask = self.vector_mask
         if not vector_mask:
             return None
         width, height = self._psd.width, self._psd.height
-        return [(int(p[1] * width), int(p[0] * height))
-                for p in vector_mask.anchors]
+        anchors = [(int(p[1] * width), int(p[0] * height))
+                   for p in vector_mask.anchors]
+        if not anchors:
+            return [(0, 0), (0, height), (width, height), (width, 0)]
+        return anchors
 
-    def _get_color(self, default='black'):
+    def _get_bbox(self):
+        """BBox(x1, y1, x2, y2) namedtuple of the shape."""
+        # TODO: Compute bezier curve.
+        anchors = self._get_anchors()
+        if not anchors or len(anchors) < 2:
+            # Likely be all-pixel fill.
+            return BBox(0, 0, self._psd.width, self._psd.height)
+        return BBox(min([p[0] for p in anchors]),
+                    min([p[1] for p in anchors]),
+                    max([p[0] for p in anchors]),
+                    max([p[1] for p in anchors]))
+
+    def _get_color(self, default=(0, 0, 0, 0)):
         effect = self.get_tag(TaggedBlock.SOLID_COLOR_SHEET_SETTING)
         if not effect:
             logger.warning("Gradient or pattern fill not supported")

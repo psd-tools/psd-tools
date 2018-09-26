@@ -17,6 +17,7 @@ CLIP_FILES = [
 QUALITY_TEST_FILES = [
     ('mask-index.psd',),
     ('background-red-opacity-80.psd',),
+    ('32bit.psd',),
 ]
 
 
