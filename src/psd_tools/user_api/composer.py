@@ -6,11 +6,24 @@ from __future__ import absolute_import, unicode_literals
 import logging
 from psd_tools.user_api import BBox
 from psd_tools.user_api import pil_support
-from psd_tools.constants import TaggedBlock
+from psd_tools.constants import TaggedBlock, ColorMode
 import psd_tools.user_api.layers
 from PIL import Image
 
 logger = logging.getLogger(__name__)
+
+
+# Color mode mappings.
+COLOR_MODES = {
+    ColorMode.BITMAP: '1',
+    ColorMode.GRAYSCALE: 'LA',
+    ColorMode.INDEXED: 'P',         # Not supported.
+    ColorMode.RGB: 'RGBA',
+    ColorMode.CMYK: 'RGBA',         # Force RGB.
+    ColorMode.MULTICHANNEL: 'RGB',  # Not supported.
+    ColorMode.DUOTONE: 'RGB',       # Not supported.
+    ColorMode.LAB: 'LAB',
+}
 
 
 def combined_bbox(layers):
@@ -23,6 +36,24 @@ def combined_bbox(layers):
         return BBox(0, 0, 0, 0)
     lefts, tops, rights, bottoms = zip(*bboxes)
     return BBox(min(lefts), min(tops), max(rights), max(bottoms))
+
+
+def _get_default_color(mode):
+    color = 0
+    if mode in ('RGBA', 'LA'):
+        color = tuple([255] * (len(mode) - 1) + [0])
+    elif mode in ('RGB', 'L'):
+        color = tuple([255] * len(mode))
+    return color
+
+
+def _apply_opacity(layer_image, layer):
+    layer_opacity = layer.opacity
+    if layer.has_tag(TaggedBlock.BLEND_FILL_OPACITY):
+        layer_opacity *= layer.get_tag(TaggedBlock.BLEND_FILL_OPACITY)
+    if layer_opacity == 255:
+        return layer_image
+    return pil_support.apply_opacity(layer_image, layer_opacity)
 
 
 # TODO: Implement and refactor layer effects.
@@ -47,6 +78,23 @@ def _apply_coloroverlay(layer, layer_image):
     return layer_image
 
 
+def _blend(target, image, offset, mask):
+    if image.mode == 'RGBA':
+        tmp = Image.new(image.mode, target.size,
+                        _get_default_color(image.mode))
+        tmp.paste(image, offset, mask=mask)
+        target = Image.alpha_composite(target, tmp)
+    elif target.mode == 'LA':
+        tmp = Image.new('RGBA', target.size, _get_default_color('RGBA'))
+        tmp.paste(image.convert('RGBA'), offset, mask=mask)
+        target = Image.alpha_composite(target.convert('RGBA'), tmp)
+        target = target.convert('LA')
+    else:
+        target.paste(image, offset, mask=mask)
+
+    return target
+
+
 def compose(layers, respect_visibility=True, ignore_blend_mode=True,
             skip_layer=lambda layer: False, bbox=None):
     """
@@ -63,7 +111,7 @@ def compose(layers, respect_visibility=True, ignore_blend_mode=True,
 
     Adjustment and layer effects are ignored.
 
-    This is experimental.
+    This is experimental and requires PIL.
 
     :param layers: a layer, or an iterable of layers
     :param respect_visibility: Take visibility flag into account
@@ -72,7 +120,6 @@ def compose(layers, respect_visibility=True, ignore_blend_mode=True,
     :rtype: `PIL.Image`
     """
 
-    # FIXME: this currently assumes PIL
     if isinstance(layers, psd_tools.user_api.layers._RawLayer):
         layers = [layers]
 
@@ -82,15 +129,15 @@ def compose(layers, respect_visibility=True, ignore_blend_mode=True,
     if bbox.is_empty():
         return None
 
-    result = Image.new(
-        "RGBA",
-        (bbox.width, bbox.height),
-        color=(255, 255, 255, 0)  # fixme: transparency is incorrect
-    )
+    mode = 'RGBA'
+    if len(layers):
+        mode = COLOR_MODES.get(layers[0]._psd.header.color_mode, 'RGBA')
+    result = Image.new(mode, (bbox.width, bbox.height),
+                       color=_get_default_color(mode))
 
     for layer in reversed(layers):
         if skip_layer(layer) or (
-                not layer.visible and respect_visibility):
+                not layer.is_visible() and respect_visibility):
             continue
 
         if layer.is_group():
@@ -104,8 +151,8 @@ def compose(layers, respect_visibility=True, ignore_blend_mode=True,
         if not layer_image:
             continue
 
-        if not ignore_blend_mode and layer.blend_mode != "normal":
-            logger.warning("Blend mode is not implemented: %s",
+        if not ignore_blend_mode and layer.blend_mode != 'normal':
+            logger.warning('Blend mode is not implemented: %s',
                            layer.blend_mode)
             continue
 
@@ -123,11 +170,7 @@ def compose(layers, respect_visibility=True, ignore_blend_mode=True,
                     clip_mask = layer_image.crop(
                         intersect.offset((layer.bbox.x1, layer.bbox.y1)))
 
-        # Rendered shape layers already takes opacity into account.
-        layer_opacity = layer.opacity
-        if layer.has_tag(TaggedBlock.BLEND_FILL_OPACITY):
-            layer_opacity *= layer.get_tag(TaggedBlock.BLEND_FILL_OPACITY)
-        layer_image = pil_support.apply_opacity(layer_image, layer_opacity)
+        layer_image = _apply_opacity(layer_image, layer)
         layer_image = _apply_coloroverlay(layer, layer_image)
 
         layer_offset = layer.bbox.offset((bbox.x1, bbox.y1))
@@ -136,31 +179,16 @@ def compose(layers, respect_visibility=True, ignore_blend_mode=True,
             mask_box = layer.mask.bbox
             if not layer.mask.disabled and not mask_box.is_empty():
                 mask_color = layer.mask.background_color
-                mask = Image.new("L", layer_image.size, color=(mask_color,))
+                mask = Image.new('L', layer_image.size, color=(mask_color,))
                 mask.paste(
                     layer.mask.as_PIL(),
                     mask_box.offset((layer.bbox.x1, layer.bbox.y1))
                 )
 
-        if layer_image.mode in ('RGBA', 'LA'):
-            tmp = Image.new('RGBA', result.size, color=(255, 255, 255, 0))
-            tmp.paste(layer_image, layer_offset, mask=mask)
-            result = Image.alpha_composite(result, tmp)
-        elif layer_image.mode == ('RGB', 'L'):
-            result.paste(layer_image, layer_offset, mask=mask)
-        else:
-            logger.warning(
-                "layer image mode is unsupported for merging: %s",
-                layer_image.mode)
-            continue
+        result = _blend(result, layer_image, layer_offset, mask)
 
         if clip_image is not None:
             offset = (intersect.x1 - bbox.x1, intersect.y1 - bbox.y1)
-            if clip_image.mode == 'RGBA':
-                tmp = Image.new("RGBA", result.size, color=(255, 255, 255, 0))
-                tmp.paste(clip_image, offset, mask=clip_mask)
-                result = Image.alpha_composite(result, tmp)
-            elif clip_image.mode == 'RGB':
-                result.paste(clip_image, offset, mask=clip_mask)
+            result = _blend(result, clip_image, offset, clip_mask)
 
     return result

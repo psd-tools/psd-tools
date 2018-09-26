@@ -132,16 +132,19 @@ def get_icc_profile(decoded_data):
 
 def apply_opacity(im, opacity):
     """ Apply opacity to an image. """
-    if im.mode in ('RGB', 'L'):
-        im.putalpha(opacity)
-        return im
-    elif im.mode in ('RGBA', 'LA'):
+    if im.mode in ('RGBA', 'LA'):
         channels = list(im.split())
         opacity_scale = opacity / 255.
         channels[-1] = channels[-1].point(lambda i: int(i * opacity_scale))
         return Image.merge(im.mode, channels)
+    elif im.mode in ('RGB', 'L'):
+        im.putalpha(opacity)
+        return im
     else:
-        raise NotImplementedError()
+        warnings.warn("%s converted to RGB" % im.mode)
+        im = im.convert('RGB')
+        im.putalpha(opacity)
+        return im
 
 
 def pattern_to_PIL(pattern):
