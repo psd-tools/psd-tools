@@ -1,3 +1,9 @@
+1.7.18 (2018-09-26)
+-------------------
+
+- add shape rendering in `compose()`;
+- add grayscale support.
+
 1.7.17 (2018-09-21)
 -------------------
 
