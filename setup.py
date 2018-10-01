@@ -14,11 +14,11 @@ def get_version():
         return fp.read().decode('utf8').split('=')[1].strip(" \n'")
 
 setup_args = dict(
-    name='psd-tools2',
+    name='psd-tools3',
     version=get_version(),
-    author='Kota Yamaguchi',
-    author_email='KotaYamaguchi1984@gmail.com',
-    url='https://github.com/kyamagu/psd-tools2',
+    author='Stephen Neal',
+    author_email='stephen@stephenneal.net',
+    url='https://github.com/mrstephenneal/psd-tools3',
 
     description='Fork of psd-tools for working with Adobe Photoshop PSD files',
     long_description=(
@@ -74,11 +74,13 @@ if sys.platform == 'win32' and sys.version_info > (2, 6):
     # find the compiler
     ext_errors += (IOError,)
 
+
 class BuildFailed(Exception):
     """Raise this to indicate the C extension wouldn't build."""
     def __init__(self):
         Exception.__init__(self)
         self.cause = sys.exc_info()[1] # work around py 2/3 different syntax
+
 
 class ve_build_ext(build_ext):
     """Build C extensions, but fail with a straightforward exception."""
@@ -128,6 +130,7 @@ if compile_extension:
         cmdclass = {'build_ext': ve_build_ext},
     ))
 
+
 def main():
     """Actually invoke setup() with the arguments we built above."""
     # For a variety of reasons, it might not be possible to install the C
@@ -142,6 +145,7 @@ def main():
 
         del setup_args['ext_modules']
         setup(**setup_args)
+
 
 if __name__ == '__main__':
     main()
