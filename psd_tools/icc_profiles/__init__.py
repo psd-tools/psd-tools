@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
 import os
+from PyBundle import bundle_dir
 
-GRAY_PATH = os.path.join(os.path.dirname(__file__), 'Gray-CIE_L.icc')
+GRAY_PATH = os.path.join(bundle_dir(), 'Gray-CIE_L.icc')
 
 try:
     from PIL import ImageCms
