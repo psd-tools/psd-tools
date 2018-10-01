@@ -2,4 +2,4 @@ include AUTHORS.txt
 include README.rst
 include CHANGES.rst
 
-recursive-include src *.c *.pxd *.pyx *.icc
+recursive-include psd_tools *.c *.pxd *.pyx *.icc
