@@ -7,11 +7,12 @@ from distutils import errors
 import os
 import sys
 
+
 def get_version():
-    curdir = os.path.dirname(__file__)
-    filename = os.path.join(curdir, 'src', 'psd_tools', 'version.py')
+    filename = os.path.join(os.path.dirname(__file__), 'psd_tools', 'version.py')
     with open(filename, 'rb') as fp:
         return fp.read().decode('utf8').split('=')[1].strip(" \n'")
+
 
 setup_args = dict(
     name='psd-tools3',
@@ -109,7 +110,9 @@ class ve_build_ext(build_ext):
 # There are a few reasons we might not be able to compile the C extension.
 # Figure out if we should attempt the C extension or not.
 
+
 compile_extension = True
+
 
 if sys.platform.startswith('java'):
     # Jython can't compile C extensions
@@ -121,13 +124,13 @@ if '__pypy__' in sys.builtin_module_names:
 
 if compile_extension:
     setup_args.update(dict(
-        ext_modules = [
+        ext_modules=[
             Extension(
                 "psd_tools._compression",
-                sources=["src/psd_tools/_compression.c"]
+                sources=["psd_tools/_compression.c"]
             )
         ],
-        cmdclass = {'build_ext': ve_build_ext},
+        cmdclass={'build_ext': ve_build_ext},
     ))
 
 
