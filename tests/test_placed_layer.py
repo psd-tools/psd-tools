@@ -5,7 +5,7 @@ import os
 
 from psd_tools.user_api.psd_image import PSDImage, BBox
 from psd_tools.constants import TaggedBlock
-from .utils import decode_psd, DATA_PATH
+from tests.utils import decode_psd, DATA_PATH
 
 
 def test_placed_layer():

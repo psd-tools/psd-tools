@@ -4,7 +4,7 @@ from __future__ import absolute_import, unicode_literals
 import pytest
 
 from psd_tools import PSDImage
-from .utils import decode_psd
+from tests.utils import decode_psd
 
 
 def test_text():

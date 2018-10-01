@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
-from .utils import decode_psd
+from tests.utils import decode_psd
 
 
 def test_metadata():

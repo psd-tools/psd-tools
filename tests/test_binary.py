@@ -3,7 +3,7 @@ from __future__ import absolute_import, unicode_literals
 
 import pytest
 from psd_tools.user_api import pil_support, pymaging_support
-from .utils import decode_psd, with_psb
+from tests.utils import decode_psd, with_psb
 
 
 def _tobytes(image):

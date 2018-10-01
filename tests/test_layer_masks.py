@@ -2,7 +2,7 @@
 from __future__ import absolute_import
 import pytest
 
-from .utils import load_psd, decode_psd, full_name
+from tests.utils import load_psd, decode_psd, full_name
 from psd_tools.user_api.psd_image import PSDImage, Group
 
 
