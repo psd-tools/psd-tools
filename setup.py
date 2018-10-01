@@ -9,7 +9,7 @@ import sys
 
 
 def get_version():
-    filename = os.path.join(os.path.dirname(__file__), 'psd_tools', 'version.py')
+    filename = os.path.join(os.path.dirname(__file__), 'psd_tools', '_version.py')
     with open(filename, 'rb') as fp:
         return fp.read().decode('utf8').split('=')[1].strip(" \n'")
 

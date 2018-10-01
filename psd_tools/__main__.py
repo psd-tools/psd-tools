@@ -7,7 +7,7 @@ import psd_tools.reader
 import psd_tools.decoder
 from psd_tools import PSDImage
 from psd_tools.debug import pprint
-from psd_tools.version import __version__
+from psd_tools._version import __version__
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.StreamHandler())
