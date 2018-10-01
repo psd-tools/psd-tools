@@ -31,7 +31,6 @@ setup_args = dict(
     keywords="pymaging psd imaging pil pillow",
     zip_safe=False,
 
-    package_dir={'': 'src'},
     packages=['psd_tools', 'psd_tools.reader', 'psd_tools.decoder',
               'psd_tools.user_api', 'psd_tools.icc_profiles'],
     package_data={'psd_tools': ['icc_profiles/*.icc']},
