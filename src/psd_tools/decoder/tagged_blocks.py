@@ -614,11 +614,12 @@ def parse_tagged_block(block, version=1, **kwargs):
 
 
 def _decode_descriptor_block(data, kls):
-    if isinstance(data, bytes):
-        fp = io.BytesIO(data)
-    version = read_fmt("I", fp)[0]
-
+    if len(data) == 0:
+        warnings.warn("Empty descriptor")
+        return data
     try:
+        fp = io.BytesIO(data)
+        version = read_fmt("I", fp)[0]
         return kls(version, decode_descriptor(None, fp))
     except UnknownOSType as e:
         warnings.warn("Ignoring tagged block %s" % e)
