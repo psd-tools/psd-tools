@@ -155,9 +155,15 @@ Work with a layer::
     >>> layer.effects
     [<GradientOverlay>]
 
-Export a single layer::
+Export a single raw layer::
 
     >>> layer_image = layer.as_PIL()
+    >>> layer_image.save('layer.png')
+
+Compose a single layer including a mask::
+
+    >>> from psd_tools import compose
+    >>> layer_image = compose(layer)
     >>> layer_image.save('layer.png')
 
 Export the merged image::
