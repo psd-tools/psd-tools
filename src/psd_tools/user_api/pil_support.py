@@ -150,15 +150,31 @@ def apply_opacity(im, opacity):
 def pattern_to_PIL(pattern):
     channels = [_decompress_pattern_channel(c) for c in pattern.data.channels]
     if not all(channels):
+        warnings.warn("Failed to decompress pattern")
         return None
-
+    # Bitmap = 0; Grayscale = 1; Indexed = 2; RGB = 3; CMYK = 4;
+    # Multichannel = 7; Duotone = 8; Lab = 9
+    image_mode = pattern.image_mode
     image = None
-    if len(channels) == 1:
+    if image_mode == 1:
+        assert len(channels) in (1, 2)
         image = channels[0]
-    elif len(channels) == 3:
-        image = Image.merge('RGB', channels)
-    elif len(channels) == 4:
-        image = Image.merge('RGBA', channels)
+        if len(channels) > 1:
+            image.putalpha(channels[1])
+    elif image_mode == 3:
+        assert len(channels) in (3, 4)
+        image = Image.merge('RGB', channels[:3])
+        if len(channels) > 3:
+            image.putalpha(channels[3])
+    elif image_mode == 4:
+        assert len(channels) in (4, 5)
+        image = Image.merge('CMYK', channels[:4]).convert('RGB')
+        if len(channels) > 4:
+            image.putalpha(channels[4])
+    else:
+        warnings.warn("Unsupported image mode %d" % pattern.image_mode)
+        if len(channels) > 0:
+            image = channels[0]
     return image
 
 
