@@ -2,7 +2,8 @@
 -------------------
 
 - fix coloroverlay bug;
-- fix gradient angle bug.
+- fix gradient angle bug;
+- fix curves decoder bug.
 
 1.7.19 (2018-10-02)
 -------------------

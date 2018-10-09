@@ -691,7 +691,7 @@ def _decode_curves(data, **kwargs):
             points = list(read_fmt("256B", fp))
         else:
             point_count = read_fmt("H", fp)[0]
-            if point_count <= 2 or 19 <= point_count:
+            if point_count < 2 or 19 < point_count:
                 warnings.warn("point count not in [2, 19]")
                 return data
             points = [read_fmt("2H", fp) for c in range(point_count)]
