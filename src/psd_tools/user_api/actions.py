@@ -137,7 +137,7 @@ def _translate_vector_stroke_content_setting(data):
     descriptor = translate(data.data)
     if b'Ptrn' in descriptor:
         return PatternOverlay(descriptor, None)
-    elif b'Grdn' in descriptor:
+    elif b'Grdn' in descriptor or b'Grad' in descriptor:
         return GradientOverlay(descriptor, None)
     else:
         return ColorOverlay(descriptor, None)
@@ -297,6 +297,7 @@ def _translate_point(data):
 
 
 @desc_register(b'Grdn')
+@desc_register(b'Grad')
 def _translate_gradient(data):
     items = dict(data.items)
     return Gradient(data.name,

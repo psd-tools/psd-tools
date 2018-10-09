@@ -316,7 +316,7 @@ class GradientOverlay(_OverlayEffect, _AlignScaleMixin, _GradientMixin):
     @property
     def angle(self):
         """Angle value."""
-        return self.get(b'Angl', 30.0)
+        return self.get(b'Angl', UnitFloat('ANGLE', 90.0))
 
     @property
     def type(self):
