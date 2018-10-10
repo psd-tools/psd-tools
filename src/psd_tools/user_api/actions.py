@@ -74,6 +74,17 @@ class Gradient(_Gradient):
         return self._name.split("=")[-1]
 
 
+class NoiseGradient(pretty_namedtuple(
+        'NoiseGradient',
+        'desc_name name type add_transparency restrict_colors colors '
+        'random_seed smooth minimum maximum')):
+    """NoiseGradient object."""
+    @property
+    def short_name(self):
+        """Short gradient name."""
+        return self._name.split("=")[-1]
+
+
 def translate(data):
     """Translate descriptor-based formats."""
     translator = _translators.get(type(data), lambda data: data)
@@ -297,15 +308,26 @@ def _translate_point(data):
 
 
 @desc_register(b'Grdn')
-@desc_register(b'Grad')
 def _translate_gradient(data):
     items = dict(data.items)
-    return Gradient(data.name,
-                    translate(items.get(b'Nm  ')),
-                    translate(items.get(b'GrdF')),
-                    translate(items.get(b'Intr')),
-                    translate(items.get(b'Clrs')),
-                    translate(items.get(b'Trns')))
+    if items.get(b'GrdF', dict(value=b'')).value == b'ClNs':
+        return NoiseGradient(data.name,
+                        translate(items.get(b'Nm  ')),
+                        translate(items.get(b'GrdF')),
+                        translate(items.get(b'ShTr')),
+                        translate(items.get(b'VctC')),
+                        translate(items.get(b'ClrS')),
+                        translate(items.get(b'RndS')),
+                        translate(items.get(b'Smth')),
+                        translate(items.get(b'Mnm ')),
+                        translate(items.get(b'Mxm ')))
+    else:
+        return Gradient(data.name,
+                        translate(items.get(b'Nm  ')),
+                        translate(items.get(b'GrdF')),
+                        translate(items.get(b'Intr')),
+                        translate(items.get(b'Clrs')),
+                        translate(items.get(b'Trns')))
 
 
 @desc_register(b'Clrt')
