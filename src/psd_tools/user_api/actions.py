@@ -312,15 +312,15 @@ def _translate_gradient(data):
     items = dict(data.items)
     if items.get(b'GrdF', dict(value=b'')).value == b'ClNs':
         return NoiseGradient(data.name,
-                        translate(items.get(b'Nm  ')),
-                        translate(items.get(b'GrdF')),
-                        translate(items.get(b'ShTr')),
-                        translate(items.get(b'VctC')),
-                        translate(items.get(b'ClrS')),
-                        translate(items.get(b'RndS')),
-                        translate(items.get(b'Smth')),
-                        translate(items.get(b'Mnm ')),
-                        translate(items.get(b'Mxm ')))
+                             translate(items.get(b'Nm  ')),
+                             translate(items.get(b'GrdF')),
+                             translate(items.get(b'ShTr')),
+                             translate(items.get(b'VctC')),
+                             translate(items.get(b'ClrS')),
+                             translate(items.get(b'RndS')),
+                             translate(items.get(b'Smth')),
+                             translate(items.get(b'Mnm ')),
+                             translate(items.get(b'Mxm ')))
     else:
         return Gradient(data.name,
                         translate(items.get(b'Nm  ')),
