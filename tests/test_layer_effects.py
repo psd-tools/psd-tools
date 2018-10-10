@@ -349,3 +349,9 @@ def test_bevel(effects_psd):
     assert effect.use_global_light is True
     assert effect.use_shape is False
     assert effect.use_texture is False
+
+
+def test_gradient_descriptor():
+    psd = PSDImage.load(full_name('effect-stroke-gradient.psd'))
+    assert psd.layers[0].effects[0].gradient.type == b'ClNs'
+    assert psd.layers[1].effects[0].gradient.type == b'CstS'
