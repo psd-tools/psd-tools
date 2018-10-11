@@ -37,8 +37,8 @@ depth=8, color_mode=GRAYSCALE)
         return read(fp)
 
     @staticmethod
-    def write(fp, header):
-        return write(fp, header)
+    def write(self, fp):
+        write(fp, self)
 
     def __repr__(self):
         return (
