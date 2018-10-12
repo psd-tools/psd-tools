@@ -45,5 +45,7 @@ def _restore_byte_order(bytes_array, int w, int h):
             for b in range(4):
                 dst[i+b] = src[row_start + w*b + x]
             i += 4
-
-    return bytes_copy.tostring()
+    if hasattr(bytes_copy, 'tobytes'):
+        return bytes_copy.tobytes()
+    else:
+        return bytes_copy.tostring()

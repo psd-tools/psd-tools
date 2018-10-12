@@ -12,6 +12,11 @@ except NameError:
     unichr = chr
 
 
+def pack(fmt, *args):
+    fmt = str(">" + fmt)
+    return struct.pack(fmt, *args)
+
+
 def unpack(fmt, data):
     fmt = str(">" + fmt)
     return struct.unpack(fmt, data)
@@ -26,6 +31,13 @@ def read_fmt(fmt, fp):
     data = fp.read(fmt_size)
     assert len(data) == fmt_size, (len(data), fmt_size)
     return struct.unpack(fmt, data)
+
+
+def write_fmt(fp, fmt, *args):
+    """
+    Writes data to ``fp`` according to ``fmt``.
+    """
+    fp.write(pack(fmt, *args))
 
 
 def pad(number, divisor):

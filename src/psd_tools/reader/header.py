@@ -5,7 +5,7 @@ import collections
 import warnings
 
 from psd_tools.exceptions import Error
-from psd_tools.utils import read_fmt
+from psd_tools.utils import read_fmt, write_fmt
 from psd_tools.constants import ColorMode
 
 logger = logging.getLogger(__name__)
@@ -32,6 +32,13 @@ depth=8, color_mode=GRAYSCALE)
 
         :py:class:`~psd_tools.constants.ColorMode`
     """
+    @staticmethod
+    def read(fp):
+        return read(fp)
+
+    def write(self, fp):
+        write(fp, self)
+
     def __repr__(self):
         return (
             "PsdHeader(version=%s, number_of_channels=%s, height=%s, "
@@ -62,3 +69,12 @@ def read(fp):
 
     logger.debug(header)
     return header
+
+
+def write(fp, header):
+    """
+    Write PSD file header.
+    """
+    fp.write(b'8BPS')
+    write_fmt(fp, 'H', header.version)
+    write_fmt(fp, '6x HIIHH', *header[1:])
