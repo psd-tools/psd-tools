@@ -36,7 +36,6 @@ depth=8, color_mode=GRAYSCALE)
     def read(fp):
         return read(fp)
 
-    @staticmethod
     def write(self, fp):
         write(fp, self)
 
