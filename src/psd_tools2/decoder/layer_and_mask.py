@@ -10,7 +10,8 @@ from psd_tools2.constants import BlendMode, Compression, ChannelID
 from psd_tools2.validators import in_, range_
 from psd_tools2.utils import (
     read_fmt, write_fmt, read_pascal_string, read_be_array, write_be_array,
-    pad, write_pascal_string, read_length_block, write_length_block
+    pad, write_pascal_string, read_length_block, write_length_block,
+    is_readable
 )
 
 import psd_tools.compression  # TODO: Migrate compression module.
@@ -271,13 +272,6 @@ class TaggedBlocks(ListElement):
 
     @classmethod
     def read(cls, fp, length=None, version=1, padding=1):
-        def is_readable(f):
-            if len(f.read(1)):
-                f.seek(-1, 1)
-                return True
-            else:
-                return False
-
         items = []
         start_pos = fp.tell()
         while is_readable(fp):
@@ -322,7 +316,6 @@ class TaggedBlock(BaseElement):
     @classmethod
     def read(cls, fp, version=1, padding=1):
         signature, key = read_fmt('4s4s', fp)
-        print(signature, key)
         try:
             self = cls(signature, key)
         except ValueError:
@@ -480,118 +473,6 @@ class LayerRecord(BaseElement):
 
 
 @attr.s
-class MaskData(BaseElement):
-    """
-    Mask data.
-
-    .. py:attribute:: top
-    .. py:attribute:: left
-    .. py:attribute:: bottom
-    .. py:attribute:: right
-    .. py:attribute:: background_color
-    .. py:attribute:: flags
-    .. py:attribute:: parameters
-    .. py:attribute:: real_flags
-    .. py:attribute:: real_background_color
-    .. py:attribute:: real_top
-    .. py:attribute:: real_left
-    .. py:attribute:: real_bottom
-    .. py:attribute:: real_right
-    """
-    top = attr.ib(default=0, type=int)
-    left = attr.ib(default=0, type=int)
-    bottom = attr.ib(default=0, type=int)
-    right = attr.ib(default=0, type=int)
-    background_color = attr.ib(default=0, type=int)
-    flags = attr.ib(default=None)
-    parameters = attr.ib(default=None)
-    real_flags = attr.ib(default=None)
-    real_background_color = attr.ib(default=None)
-    real_top = attr.ib(default=None)
-    real_left = attr.ib(default=None)
-    real_bottom = attr.ib(default=None)
-    real_right = attr.ib(default=None)
-
-    @classmethod
-    def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        :rtype: MaskData or None
-        """
-        length = read_fmt("I", fp)[0]
-        if not length:
-            return None
-        start_pos = fp.tell()
-
-        self = cls()
-        self.top, self.left, self.bottom, self.right = read_fmt("4i", fp)
-        self.background_color = read_fmt("B", fp)[0]
-        self.flags = MaskFlags.read(fp)
-
-        # Order is based on tests. The specification is messed up here...
-        if length >= 36:
-            self.real_flags = MaskFlags.read(fp)
-            self.real_background_color = read_fmt("B", fp)[0]
-            self.real_top, self.real_left = read_fmt("2i", fp)
-            self.real_bottom, self.real_right = read_fmt("2i", fp)
-
-        if self.flags.parameters_applied:
-            self.parameters = MaskParameters.read(fp)
-
-        padding_size = length - (fp.tell() - start_pos)
-        if padding_size > 0:
-            fp.seek(padding_size, 1)
-
-        attr.validate(self)
-        return self
-
-    def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
-        start_pos = fp.tell()
-        fp.seek(4, 1)
-        written = write_fmt(fp, '4iB', self.top, self.left, self.bottom,
-                            self.right, self.background_color)
-        written += self.flags.write(fp)
-        if self.real_flags:
-            written += self.real_flags.write(fp)
-            written += write_fmt(fp, 'B4i', self.real_background_color,
-                                 self.real_top, self.real_left,
-                                 self.real_bottom, self.real_right)
-
-        if self.flags.parameters_applied and self.parameters:
-            written += self.parameters.write(fp)
-
-        length = pad(written, 2)  # Correct?
-        written += write_fmt(fp, '%dx' % length - (fp.tell() - start_pos))
-
-        end_pos = fp.tell()
-        fp.seek(start_pos)
-        written += write_fmt(fp, 'I', length)
-        fp.seek(end_pos)
-        return written
-
-    @property
-    def width(self):
-        return max(self.right - self.left, 0)
-
-    @property
-    def height(self):
-        return max(self.bottom - self.top, 0)
-
-    @property
-    def real_width(self):
-        return max(self.real_right - self.real_left, 0)
-
-    @property
-    def real_height(self):
-        return max(self.real_bottom - self.real_top, 0)
-
-
-@attr.s
 class MaskFlags(BaseElement):
     """
     Mask flags.
@@ -625,6 +506,124 @@ class MaskFlags(BaseElement):
             (self.parameters_applied * 16)
         )
         return write_fmt(fp, 'B', flags)
+
+
+@attr.s
+class MaskData(BaseElement):
+    """
+    Mask data.
+
+    .. py:attribute:: top
+    .. py:attribute:: left
+    .. py:attribute:: bottom
+    .. py:attribute:: right
+    .. py:attribute:: background_color
+    .. py:attribute:: flags
+    .. py:attribute:: parameters
+    .. py:attribute:: real_flags
+    .. py:attribute:: real_background_color
+    .. py:attribute:: real_top
+    .. py:attribute:: real_left
+    .. py:attribute:: real_bottom
+    .. py:attribute:: real_right
+    """
+    top = attr.ib(default=0, type=int)
+    left = attr.ib(default=0, type=int)
+    bottom = attr.ib(default=0, type=int)
+    right = attr.ib(default=0, type=int)
+    background_color = attr.ib(default=0, type=int)
+    flags = attr.ib(factory=MaskFlags)
+    parameters = attr.ib(default=None)
+    real_flags = attr.ib(default=None)
+    real_background_color = attr.ib(default=None)
+    real_top = attr.ib(default=None)
+    real_left = attr.ib(default=None)
+    real_bottom = attr.ib(default=None)
+    real_right = attr.ib(default=None)
+
+    @classmethod
+    def read(cls, fp):
+        """Read the element from a file-like object.
+
+        :param fp: file-like object
+        :rtype: MaskData or None
+        """
+        data = read_length_block(fp)
+        if len(data) == 0:
+            return None
+        print('%d %r' % (len(data), data))
+
+        with io.BytesIO(data) as f:
+            return cls._read_body(f, len(data))
+
+    @classmethod
+    def _read_body(cls, fp, length):
+        top, left, bottom, right, background_color = read_fmt('4iB', fp)
+        flags = MaskFlags.read(fp)
+
+        if length == 20:
+            read_fmt('2x', fp)
+            return cls(top, left, bottom, right, background_color, flags)
+
+        # Order is based on tests. The specification is messed up here...
+        real_flags, real_background_color = None, None
+        real_top, real_left, real_bottom, real_right = None, None, None, None
+        if length >= 36:
+            real_flags = MaskFlags.read(fp)
+            real_background_color = read_fmt('B', fp)[0]
+            real_top, real_left, real_bottom, real_right = read_fmt('4i', fp)
+
+        parameters = None
+        if flags.parameters_applied:
+            parameters = MaskParameters.read(fp)
+
+        return cls(top, left, bottom, right, background_color, flags,
+                   parameters, real_flags, real_background_color, real_top,
+                   real_left, real_bottom, real_right)
+
+    def write(self, fp):
+        """Write the element to a file-like object.
+
+        :param fp: file-like object
+        """
+        return write_length_block(fp, lambda f: self._write_body(fp),
+                                  padding=2)
+
+    def _write_body(self, fp):
+        written = write_fmt(fp, '4iB', self.top, self.left, self.bottom,
+                            self.right, self.background_color)
+        written += self.flags.write(fp)
+        if not self.real_flags and not self.flags.parameters_applied:
+            written += write_fmt(fp, '2x')
+            assert written == 20
+            return written
+
+        if self.real_flags:
+            written += self.real_flags.write(fp)
+            written += write_fmt(fp, 'B4i', self.real_background_color,
+                                 self.real_top, self.real_left,
+                                 self.real_bottom, self.real_right)
+
+        if self.flags.parameters_applied:
+            written += self.parameters.write(fp)
+
+        return written
+
+    @property
+    def width(self):
+        return max(self.right - self.left, 0)
+
+    @property
+    def height(self):
+        return max(self.bottom - self.top, 0)
+
+    @property
+    def real_width(self):
+        return max(self.real_right - self.real_left, 0)
+
+    @property
+    def real_height(self):
+        return max(self.real_bottom - self.real_top, 0)
 
 
 @attr.s

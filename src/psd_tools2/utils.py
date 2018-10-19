@@ -138,6 +138,20 @@ def write_padding(fp, size, divisor=2):
     return 0
 
 
+def is_readable(fp):
+    """
+    Check if the file-like object is readable.
+
+    :param fp: file-like object
+    :return: bool
+    """
+    if len(fp.read(1)):
+        fp.seek(-1, 1)
+        return True
+    else:
+        return False
+
+
 def pad(number, divisor):
     if number % divisor:
         number = (number // divisor + 1) * divisor
