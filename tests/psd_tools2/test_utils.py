@@ -2,7 +2,8 @@ from __future__ import unicode_literals, print_function
 import pytest
 import io
 from psd_tools2.utils import (
-    pack, unpack, read_length_block, write_length_block
+    pack, unpack, read_length_block, write_length_block, read_pascal_string,
+    write_pascal_string,
 )
 
 
@@ -46,3 +47,36 @@ def test_write_length_block():
         write_length_block(f, lambda fp: fp.write(body), padding=2)
         assert f.getvalue() == data
         assert f.tell() == 12
+
+
+@pytest.mark.parametrize(['fixture', 'padding'], [
+    ('', 1),
+    ('a', 1),
+    ('ab', 1),
+    ('abc', 1),
+    ('', 2),
+    ('a', 2),
+    ('ab', 2),
+    ('abc', 2),
+    ('', 4),
+    ('a', 4),
+    ('ab', 4),
+    ('abc', 4),
+])
+def test_pascal_string(fixture, padding):
+    with io.BytesIO() as f:
+        write_pascal_string(f, fixture, padding=padding)
+        f.flush()
+        f.seek(0)
+        output = read_pascal_string(f, padding=padding)
+        assert fixture == output
+
+
+@pytest.mark.parametrize(['input', 'expected', 'padding'], [
+    ('', '\x00\x00', 2),
+    ('', '\x00\x00\x00\x00', 4),
+])
+def test_pascal_string_format(input, expected, padding):
+    with io.BytesIO() as f:
+        write_pascal_string(f, input, padding=padding)
+        assert f.getvalue() == expected

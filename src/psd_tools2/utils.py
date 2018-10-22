@@ -68,13 +68,13 @@ def write_length_block(fp, writer, fmt='I', padding=1, **kwargs):
     :param fp: file-like
     :param writer: function object that takes file-like object as an argument
     :param fmt: format of the length marker
+    :param padding: divisor for padding not included in length marker
     :return: written byte size
     """
     length_position = reserve_position(fp, fmt)
     written = writer(fp, **kwargs)
-    size = written
     written += write_position(fp, length_position, written, fmt)
-    written += write_padding(fp, size, padding)
+    written += write_padding(fp, written, padding)
     return written
 
 
@@ -121,7 +121,7 @@ def read_padding(fp, size, divisor=2):
     remainder = size % divisor
     if remainder:
         return fp.read(divisor - remainder)
-    return 0
+    return b''
 
 
 def write_padding(fp, size, divisor=2):
@@ -138,15 +138,16 @@ def write_padding(fp, size, divisor=2):
     return 0
 
 
-def is_readable(fp):
+def is_readable(fp, size=1):
     """
     Check if the file-like object is readable.
 
     :param fp: file-like object
+    :param size: byte size
     :return: bool
     """
-    if len(fp.read(1)):
-        fp.seek(-1, 1)
+    if len(fp.read(size)):
+        fp.seek(-size, 1)
         return True
     else:
         return False
@@ -162,20 +163,12 @@ def pad_data(value, divisor):
     return value + b'\x00' * (len(value) % divisor)
 
 
-def read_pascal_string(fp, encoding='utf-8', padding=1):
-    length = read_fmt("B", fp)[0]
-    if length == 0:
-        fp.seek(padding-1, 1)
-        return ''
-
-    res = fp.read(length)
-    # -1 accounts for the length byte
-    padded_length = pad(length+1, padding) - 1
-    fp.seek(padded_length - length, 1)
-    return res.decode(encoding, 'replace')
+def read_pascal_string(fp, encoding='macroman', padding=2):
+    data = read_length_block(fp, fmt='B', padding=padding)
+    return data.decode(encoding)
 
 
-def write_pascal_string(fp, value, encoding='utf-8', padding=1):
+def write_pascal_string(fp, value, encoding='macroman', padding=2):
     data = value.encode(encoding)
     written = write_fmt(fp, 'B', len(data))
     written += fp.write(data)
@@ -184,9 +177,9 @@ def write_pascal_string(fp, value, encoding='utf-8', padding=1):
 
 
 def read_unicode_string(fp):
-    num_chars = read_fmt("I", fp)[0]
+    num_chars = read_fmt('I', fp)[0]
     data = fp.read(num_chars*2)
-    chars = be_array_from_bytes("H", data)
+    chars = be_array_from_bytes('H', data)
     return "".join(unichr(num) for num in chars)
 
 

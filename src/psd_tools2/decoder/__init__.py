@@ -29,34 +29,31 @@ class PSD(BaseElement):
     image_data = attr.ib(factory=ImageData)
 
     @classmethod
-    def read(cls, fp, encoding='utf-8'):
+    def read(cls, fp, encoding='macroman', **kwargs):
         """Read the element from a file-like object.
 
         :param fp: file-like object
         :rtype: PSD
         """
         header = FileHeader.read(fp)
-        logger.debug(header)
+        logger.debug('read %s' % header)
         return cls(
             header,
             ColorModeData.read(fp),
-            ImageResources.read(fp, encoding=encoding),
-            LayerAndMaskInformation.read(
-                fp, encoding=encoding, depth=header.depth,
-                version=header.version
-            ),
-            ImageData.read(fp, header),
+            ImageResources.read(fp, encoding),
+            LayerAndMaskInformation.read(fp, encoding, header.version),
+            ImageData.read(fp),
         )
 
-    def write(self, fp, encoding='utf-8'):
+    def write(self, fp, encoding='macroman', **kwargs):
         """Write the element to a file-like object.
         """
+        logger.debug('writing %s' % self.header)
         written = self.header.write(fp)
         written += self.color_mode_data.write(fp)
-        written += self.image_resources.write(fp, encoding=encoding)
+        written += self.image_resources.write(fp, encoding)
         written += self.layer_and_mask_information.write(
-            fp, depth=self.header.depth, encoding=encoding,
-            version=self.header.version
+            fp, encoding, self.header.version, **kwargs
         )
-        # written += self.image_data.write(fp)
+        written += self.image_data.write(fp)
         return written

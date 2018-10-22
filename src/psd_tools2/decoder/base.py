@@ -80,7 +80,7 @@ class ListElement(BaseElement):
         return self.items[index]
 
     def __repr__(self):
-        return self.items.__repr__()
+        return '%s%s' % (self.__class__.__name__, self.items.__repr__())
 
     def _repr_pretty_(self, p, cycle):
         if cycle:
@@ -99,5 +99,5 @@ class ListElement(BaseElement):
                 p.pretty(value)
             p.breakable('')
 
-    def write(self, fp, **kwargs):
-        return sum(item.write(fp, **kwargs) for item in self)
+    def write(self, fp, *args, **kwargs):
+        return sum(item.write(fp, *args, **kwargs) for item in self)

@@ -26,13 +26,17 @@ setup_args = dict(
     ),
     license='MIT License',
     requires=['docopt (>= 0.5)', 'Pillow'],
-    install_requires=['docopt >= 0.5', 'packbits', 'exifread'],
+    install_requires=[
+        'docopt >= 0.5', 'packbits', 'exifread',
+        'enum34;python_version<"3.4"',
+    ],
     keywords="pymaging psd imaging pil pillow",
     zip_safe=False,
 
     package_dir={'': 'src'},
     packages=['psd_tools', 'psd_tools.reader', 'psd_tools.decoder',
-              'psd_tools.user_api', 'psd_tools.icc_profiles'],
+              'psd_tools.user_api', 'psd_tools.icc_profiles',
+              'psd_tools2', 'psd_tools2.decoder'],
     package_data={'psd_tools': ['icc_profiles/*.icc']},
     entry_points={
         'console_scripts': ['psd-tools=psd_tools.__main__:main']

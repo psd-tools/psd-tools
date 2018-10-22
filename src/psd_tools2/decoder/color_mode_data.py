@@ -29,12 +29,18 @@ class ColorModeData(BaseElement):
         :param fp: file-like object
         :rtype: ColorModeData
         """
-        logger.debug('reading color mode data, pos=%d' % fp.tell())
-        return cls(read_length_block(fp))  # TODO: Parse color table.
+        data = read_length_block(fp)
+        logger.debug('reading color mode data, len=%d' % (len(data)))
+        # TODO: Parse color table.
+        return cls(data)
 
     def write(self, fp):
         """Write the element to a file-like object.
 
         :param fp: file-like object
         """
-        return write_length_block(fp, lambda f: f.write(self.data))
+        def writer(f):
+            return f.write(self.data)
+
+        logger.debug('writing color mode data, len=%d' % (len(self.data)))
+        return write_length_block(fp, writer)

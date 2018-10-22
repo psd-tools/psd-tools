@@ -29,9 +29,9 @@ class ImageResources(ListElement):
         :param fp: file-like object
         :rtype: ImageResources
         """
-        logger.debug('reading resources, pos=%d' % fp.tell())
         items = []
         data = read_length_block(fp)
+        logger.debug('reading image resources, len=%d' % (len(data)))
         with io.BytesIO(data) as f:
             while f.tell() < len(data):
                 item = ImageResource.read(f, encoding)
@@ -43,10 +43,12 @@ class ImageResources(ListElement):
 
         :param fp: file-like object
         """
-        return write_length_block(fp, lambda f: self._write_body(f, encoding))
+        def writer(f):
+            written = sum(item.write(f, encoding) for item in self)
+            logger.debug('writing image resources, len=%d' % (written))
+            return written
 
-    def _write_body(self, fp, encoding):
-        return sum(block.write(fp, encoding) for block in self)
+        return write_length_block(fp, writer)
 
 
 @attr.s
@@ -73,7 +75,7 @@ class ImageResource(BaseElement):
         :rtype: ImageResource
         """
         signature, id = read_fmt('4sH', fp)
-        name = read_pascal_string(fp, encoding, 2)
+        name = read_pascal_string(fp, encoding, padding=1)
         data = read_length_block(fp, padding=2)
         # TODO: parse image resource
         return cls(signature, id, name, data)
@@ -82,7 +84,6 @@ class ImageResource(BaseElement):
         """Write the element to a file-like object.
         """
         written = write_fmt(fp, '4sH', self.signature, self.id)
-        written += write_pascal_string(fp, self.name, encoding, 2)
-        written += write_length_block(fp, lambda f: f.write(self.data),
-                                      padding=2)
+        written += write_pascal_string(fp, self.name, encoding)
+        written += write_length_block(fp, lambda f: f.write(self.data))
         return written
