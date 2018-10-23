@@ -201,6 +201,8 @@ class LayerFlags(BaseElement):
     """
     Layer flags.
 
+    Note there are undocumented flags. Maybe photoshop version.
+
     .. py:attribute:: transparency_protected
     .. py:attribute:: visible
     .. py:attribute:: pixel_data_irrelevant
@@ -210,6 +212,9 @@ class LayerFlags(BaseElement):
     obsolete = attr.ib(default=False, type=bool, repr=False)
     photoshop_v5_later = attr.ib(default=False, type=bool, repr=False)
     pixel_data_irrelevant = attr.ib(default=False, type=bool)
+    undocumented_1 = attr.ib(default=False, type=bool, repr=False)
+    undocumented_2 = attr.ib(default=False, type=bool, repr=False)
+    undocumented_3 = attr.ib(default=False, type=bool, repr=False)
 
     @classmethod
     def read(cls, fp):
@@ -224,7 +229,10 @@ class LayerFlags(BaseElement):
             not bool(flags & 2),  # why "not"?
             bool(flags & 4),
             bool(flags & 8),
-            bool(flags & 16)
+            bool(flags & 16),
+            bool(flags & 32),
+            bool(flags & 64),
+            bool(flags & 128)
         )
 
     def write(self, fp):
@@ -237,7 +245,10 @@ class LayerFlags(BaseElement):
             ((not self.visible) * 2) |
             (self.obsolete * 4) |
             (self.photoshop_v5_later * 8) |
-            (self.pixel_data_irrelevant * 16)
+            (self.pixel_data_irrelevant * 16) |
+            (self.undocumented_1 * 32) |
+            (self.undocumented_2 * 64) |
+            (self.undocumented_3 * 128)
         )
         return write_fmt(fp, 'B', flags)
 
@@ -512,13 +523,17 @@ class MaskFlags(BaseElement):
     invert_mask = attr.ib(default=False, type=bool)
     user_mask_from_render = attr.ib(default=False, type=bool)
     parameters_applied = attr.ib(default=False, type=bool)
+    undocumented_1 = attr.ib(default=False, type=bool, repr=False)
+    undocumented_2 = attr.ib(default=False, type=bool, repr=False)
+    undocumented_3 = attr.ib(default=False, type=bool, repr=False)
 
     @classmethod
     def read(cls, fp):
         flags = read_fmt('B', fp)[0]
         return cls(
             bool(flags & 1), bool(flags & 2), bool(flags & 4),
-            bool(flags & 8), bool(flags & 16)
+            bool(flags & 8), bool(flags & 16), bool(flags & 32),
+            bool(flags & 64), bool(flags & 128)
         )
 
     def write(self, fp):
@@ -527,7 +542,10 @@ class MaskFlags(BaseElement):
             (self.mask_disabled * 2) |
             (self.invert_mask * 4) |
             (self.user_mask_from_render * 8) |
-            (self.parameters_applied * 16)
+            (self.parameters_applied * 16) |
+            (self.undocumented_1 * 32) |
+            (self.undocumented_2 * 64) |
+            (self.undocumented_3 * 128)
         )
         return write_fmt(fp, 'B', flags)
 
@@ -576,7 +594,6 @@ class MaskData(BaseElement):
         if len(data) == 0:
             return None
 
-        # logger.debug('  reading mask data, len=%d' % (len(data)))
         with io.BytesIO(data) as f:
             return cls._read_body(f, len(data))
 
@@ -585,11 +602,12 @@ class MaskData(BaseElement):
         top, left, bottom, right, background_color = read_fmt('4iB', fp)
         flags = MaskFlags.read(fp)
 
-        if length == 20:
-            read_fmt('2x', fp)
-            return cls(top, left, bottom, right, background_color, flags)
-
         # Order is based on tests. The specification is messed up here...
+
+        # if length == 20:
+        #     read_fmt('2x', fp)
+        #     return cls(top, left, bottom, right, background_color, flags)
+
         real_flags, real_background_color = None, None
         real_top, real_left, real_bottom, real_right = None, None, None, None
         if length >= 36:
@@ -617,9 +635,10 @@ class MaskData(BaseElement):
         written = write_fmt(fp, '4iB', self.top, self.left, self.bottom,
                             self.right, self.background_color)
         written += self.flags.write(fp)
-        if self.real_flags is None and self.parameters is None:
-            written += write_fmt(fp, '2x')
-            assert written == 20
+
+        # if self.real_flags is None and self.parameters is None:
+        #     written += write_fmt(fp, '2x')
+        #     assert written == 20
 
         if self.real_flags:
             written += self.real_flags.write(fp)
@@ -631,7 +650,6 @@ class MaskData(BaseElement):
             written += self.parameters.write(fp)
 
         written += write_padding(fp, written, 4)
-        # logger.debug('  writing mask data, len=%d' % (written))
         return written
 
     @property

@@ -3,8 +3,31 @@ import logging
 import glob
 import os
 import tempfile
+from psd_tools2.utils import trimmed_repr
 
 logging.basicConfig(level=logging.DEBUG)
+
+
+# Use maccyrillic encoding.
+CYRILLIC_FILES = {
+    'layer_mask_data.psb',
+    'layer_mask_data.psd',
+    'layer_params.psb',
+    'layer_params.psd',
+    'layer_comps.psb',
+    'layer_comps.psd',
+}
+
+# Unknown encoding.
+OTHER_FILES = {
+    'advanced-blending.psd',
+    'effect-stroke-gradient.psd',
+    'layer_effects.psd',
+    'patterns.psd',
+    'fill_adjustments.psd',
+    'blend-and-clipping.psd',
+    'clipping-mask2.psd',
+}
 
 
 def full_name(filename):
@@ -30,4 +53,6 @@ def check_write_read(element, *args, **kwargs):
 def check_read_write(cls, data, *args, **kwargs):
     element = cls.frombytes(data, *args, **kwargs)
     new_data = element.tobytes(*args, **kwargs)
-    assert data == new_data
+    assert data == new_data, '%s vs %s' % (
+        trimmed_repr(data), trimmed_repr(new_data)
+    )

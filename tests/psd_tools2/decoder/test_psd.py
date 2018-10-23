@@ -21,25 +21,8 @@ BAD_PADDINGS = {
     'transparentbg-gimp.psd': 2,
 }
 
-NEW_FILES = {
-    'layer_params.psb',
-    'layer_params.psd',
-    'layer_comps.psb',
-    'layer_comps.psd',
-    'layer_mask_data.psb',
-    'layer_mask_data.psd',
-    'advanced-blending.psd',
-    'effect-stroke-gradient.psd',
-    'layer_effects.psd',
-    'patterns.psd',
-    'fill_adjustments.psd',
-    'blend-and-clipping.psd',
-    'clipping-mask2.psd',
-}
 
-@pytest.mark.parametrize(['filename'], [
-    f for f in all_files() if os.path.basename(f[0]) not in NEW_FILES
-])
+@pytest.mark.parametrize(['filename'], all_files())
 def test_psd_read_write(filename):
     with open(filename, 'rb') as f:
         expected = f.read()
@@ -54,17 +37,7 @@ def test_psd_read_write(filename):
         f.flush()
         output = f.getvalue()
 
-    assert len(output) == len(expected)
     assert output == expected
-
-
-# TODO: Check why they fail.
-@pytest.mark.xfail()
-@pytest.mark.parametrize(['filename'], [(f,) for f in NEW_FILES])
-def test_psd_read_write_new_files(filename):
-    with open(full_name(filename), 'rb') as f:
-        fixture = f.read()
-    check_read_write(PSD, fixture)
 
 
 @pytest.mark.parametrize(['filename'], all_files())

@@ -179,6 +179,14 @@ def pad(number, divisor):
 
 
 def read_pascal_string(fp, encoding='macroman', padding=2):
+    """
+    Reads pascal string (length + bytes).
+
+    :param fp: file-like object
+    :param encoding: string encoding
+    :param padding: padding size
+    :return: str
+    """
     start_pos = fp.tell()
     # read_length_block doesn't work for a byte.
     length = read_fmt('B', fp)[0]
