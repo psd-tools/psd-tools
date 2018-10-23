@@ -40,9 +40,8 @@ def test_channel_info():
 
 
 @pytest.mark.parametrize(['args'], [
-    ((False, False, False),),
-    (( True,  True,  True),),
-    (( True, False,  None),),
+    ((False, False, False, False, False),),
+    (( True,  True,  True,  True,  True),),
 ])
 def test_layer_flags(args):
     check_write_read(LayerFlags(*args))

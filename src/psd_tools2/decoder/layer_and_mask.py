@@ -207,6 +207,8 @@ class LayerFlags(BaseElement):
     """
     transparency_protected = attr.ib(default=False, type=bool)
     visible = attr.ib(default=True, type=bool)
+    obsolete = attr.ib(default=False, type=bool, repr=False)
+    photoshop_v5_later = attr.ib(default=False, type=bool, repr=False)
     pixel_data_irrelevant = attr.ib(default=False, type=bool)
 
     @classmethod
@@ -220,7 +222,9 @@ class LayerFlags(BaseElement):
         return cls(
             bool(flags & 1),
             not bool(flags & 2),  # why "not"?
-            bool(flags & 16) if bool(flags & 8) else None
+            bool(flags & 4),
+            bool(flags & 8),
+            bool(flags & 16)
         )
 
     def write(self, fp):
@@ -228,12 +232,12 @@ class LayerFlags(BaseElement):
 
         :param fp: file-like object
         """
-        photoshop_v5_later = self.pixel_data_irrelevant is not None
         flags = (
             (self.transparency_protected * 1) |
             ((not self.visible) * 2) |
-            (photoshop_v5_later * 8) |
-            ((photoshop_v5_later & bool(self.pixel_data_irrelevant)) * 16)
+            (self.obsolete * 4) |
+            (self.photoshop_v5_later * 8) |
+            (self.pixel_data_irrelevant * 16)
         )
         return write_fmt(fp, 'B', flags)
 
