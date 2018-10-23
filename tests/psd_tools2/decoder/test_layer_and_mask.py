@@ -10,8 +10,6 @@ from psd_tools2.decoder.layer_and_mask import (
 
 from ..utils import check_write_read
 
-logging.basicConfig(level=logging.DEBUG)
-
 
 def test_layer_and_mask_information():
     check_write_read(LayerAndMaskInformation())

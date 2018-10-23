@@ -1,6 +1,9 @@
 from __future__ import absolute_import, unicode_literals
+import logging
 import glob
 import os
+
+logging.basicConfig(level=logging.DEBUG)
 
 
 def full_name(filename):

@@ -13,8 +13,6 @@ except ImportError:
     from pprint import pprint
 
 
-logging.basicConfig(level=logging.DEBUG)
-
 # It seems some fixtures made outside of Photoshop has different paddings.
 BAD_PADDINGS = {
     '1layer.psd': 1,
