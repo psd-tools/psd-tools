@@ -295,19 +295,15 @@ class TaggedBlocks(ListElement):
     @classmethod
     def read(cls, fp, version=1, padding=1):
         items = []
-        start_pos = fp.tell()
         while is_readable(fp, 8):  # len(signature) + len(key) = 8
             block = TaggedBlock.read(fp, version, padding)
             if block is None:
                 break
             items.append(block)
-        logger.debug('  read tagged blocks, len=%d' % (fp.tell() - start_pos))
         return cls(items)
 
     def write(self, fp, version=1, padding=1):
-        written = sum(item.write(fp, version, padding) for item in self)
-        logger.debug('  wrote tagged_blocks, len=%d' % (written))
-        return written
+        return sum(item.write(fp, version, padding) for item in self)
 
 
 @attr.s
@@ -446,9 +442,7 @@ class LayerRecord(BaseElement):
     def _read_extra(cls, fp, encoding, version):
         mask_data = MaskData.read(fp)
         blending_ranges = LayerBlendingRanges.read(fp)
-        pos = fp.tell()
         name = read_pascal_string(fp, encoding, padding=4)
-        logger.debug('  read pascal string, len=%d, %s' % (fp.tell() - pos, name))
         tagged_blocks = TaggedBlocks.read(fp, version, padding=1)
         return mask_data, blending_ranges, name, tagged_blocks
 
@@ -483,9 +477,7 @@ class LayerRecord(BaseElement):
             written += write_fmt(fp, 'I', 0)
 
         written += self.blending_ranges.write(fp)
-        pos = fp.tell()
         written += write_pascal_string(fp, self.name, encoding, padding=4)
-        logger.debug('  wrote pascal string, len=%d, %s' % (fp.tell() - pos, self.name))
         written += self.tagged_blocks.write(fp, version, padding=1)
         written += write_padding(fp, written, 2)
         return written

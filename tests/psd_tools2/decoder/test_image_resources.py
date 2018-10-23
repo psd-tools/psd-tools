@@ -14,8 +14,12 @@ def test_image_resources_exception():
         ImageResources.frombytes(b'\x00\x00\x00\x01')
 
 
-def test_image_resource_from_to():
-    check_write_read(ImageResource(name='foo', data=b'\x01\x04\x02'))
+@pytest.mark.parametrize(['fixture'], [
+    (ImageResource(name='', data=b'\x01\x04\x02'),),
+    (ImageResource(name='foo', data=b'\x01\x04\x02'),),
+])
+def test_image_resource_from_to(fixture):
+    check_write_read(fixture)
 
 
 def test_image_resource_exception():

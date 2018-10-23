@@ -66,8 +66,9 @@ def test_write_length_block():
 def test_pascal_string(fixture, padding):
     with io.BytesIO() as f:
         write_pascal_string(f, fixture, padding=padding)
-        f.flush()
-        f.seek(0)
+        data = f.getvalue()
+
+    with io.BytesIO(data) as f:
         output = read_pascal_string(f, padding=padding)
         assert fixture == output
 

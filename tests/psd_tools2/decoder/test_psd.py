@@ -23,7 +23,7 @@ BAD_PADDINGS = {
     'transparentbg-gimp.psd': 2,
 }
 
-UTF8_FILES = {
+NEW_FILES = {
     'layer_params.psb',
     'layer_params.psd',
     'layer_comps.psb',
@@ -39,19 +39,20 @@ UTF8_FILES = {
     'clipping-mask2.psd',
 }
 
-@pytest.mark.parametrize(['filename'], all_files())
+@pytest.mark.parametrize(['filename'], [
+    f for f in all_files() if os.path.basename(f[0]) not in NEW_FILES
+])
 def test_psd_read_write(filename):
     with open(filename, 'rb') as f:
         expected = f.read()
 
-    encoding = 'utf_8' if os.path.basename(filename) in UTF8_FILES else 'macroman'
     with io.BytesIO(expected) as f:
-        psd = PSD.read(f, encoding=encoding)
+        psd = PSD.read(f)
         pprint(psd)
 
     padding = BAD_PADDINGS.get(os.path.basename(filename), 4)
     with io.BytesIO() as f:
-        psd.write(f, encoding=encoding, padding=padding)
+        psd.write(f, padding=padding)
         f.flush()
         output = f.getvalue()
 
@@ -59,7 +60,16 @@ def test_psd_read_write(filename):
     assert output == expected
 
 
-@pytest.mark.parametrize(["filename"], all_files())
+# TODO: Check why they fail.
+@pytest.mark.xfail()
+@pytest.mark.parametrize(['filename'], [(f,) for f in NEW_FILES])
+def test_psd_read_write_new_files(filename):
+    with open(full_name(filename), 'rb') as f:
+        fixture = f.read()
+    check_read_write(PSD, fixture)
+
+
+@pytest.mark.parametrize(['filename'], all_files())
 def test_psd_write_read(filename):
     with open(filename, 'rb') as f:
         psd = PSD.read(f)

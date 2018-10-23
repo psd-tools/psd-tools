@@ -68,22 +68,25 @@ class ImageResource(BaseElement):
     data = attr.ib(default=b'', type=bytes, repr=False)
 
     @classmethod
-    def read(cls, fp, encoding='utf-8'):
+    def read(cls, fp, encoding='macroman'):
         """Read the element from a file-like object.
 
         :param fp: file-like object
         :rtype: ImageResource
         """
+        pos = fp.tell()
         signature, id = read_fmt('4sH', fp)
-        name = read_pascal_string(fp, encoding, padding=1)
+        pos = fp.tell()
+        name = read_pascal_string(fp, encoding, padding=2)
         data = read_length_block(fp, padding=2)
         # TODO: parse image resource
         return cls(signature, id, name, data)
 
-    def write(self, fp, encoding='utf-8'):
+    def write(self, fp, encoding='macroman'):
         """Write the element to a file-like object.
         """
         written = write_fmt(fp, '4sH', self.signature, self.id)
-        written += write_pascal_string(fp, self.name, encoding)
-        written += write_length_block(fp, lambda f: f.write(self.data))
+        written += write_pascal_string(fp, self.name, encoding, 2)
+        written += write_length_block(fp, lambda f: f.write(self.data),
+                                      padding=2)
         return written

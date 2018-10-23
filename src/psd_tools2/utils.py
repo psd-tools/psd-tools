@@ -159,12 +159,13 @@ def pad(number, divisor):
     return number
 
 
-def pad_data(value, divisor):
-    return value + b'\x00' * (len(value) % divisor)
-
-
 def read_pascal_string(fp, encoding='macroman', padding=2):
-    data = read_length_block(fp, fmt='B', padding=padding)
+    start_pos = fp.tell()
+    # read_length_block doesn't work for a byte.
+    length = read_fmt('B', fp)[0]
+    data = fp.read(length)
+    assert len(data) == length, (len(data), length)
+    read_padding(fp, fp.tell() - start_pos, padding)
     return data.decode(encoding)
 
 
