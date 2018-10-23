@@ -2,6 +2,7 @@ from __future__ import absolute_import, unicode_literals
 import logging
 import glob
 import os
+import tempfile
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -18,8 +19,11 @@ def all_files():
 
 
 def check_write_read(element, *args, **kwargs):
-    data = element.tobytes(*args, **kwargs)
-    new_element = element.frombytes(data, *args, **kwargs)
+    with tempfile.TemporaryFile() as f:
+        element.write(f, *args, **kwargs)
+        f.flush()
+        f.seek(0)
+        new_element = element.read(f, *args, **kwargs)
     assert element == new_element, '%s vs %s' % (element, new_element)
 
 

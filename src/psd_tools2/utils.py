@@ -26,7 +26,9 @@ def read_fmt(fmt, fp):
     fmt = str(">" + fmt)
     fmt_size = struct.calcsize(fmt)
     data = fp.read(fmt_size)
-    assert len(data) == fmt_size, (len(data), fmt_size)
+    assert len(data) == fmt_size, 'read=%d, expected=%d' % (
+        len(data), fmt_size
+    )
     return struct.unpack(fmt, data)
 
 
@@ -36,8 +38,25 @@ def write_fmt(fp, fmt, *args):
     """
     fmt = str(">" + fmt)
     fmt_size = struct.calcsize(fmt)
-    written = fp.write(struct.pack(fmt, *args))
-    assert written == fmt_size, (written, fmt_size)
+    written = write_bytes(fp, struct.pack(fmt, *args))
+    assert written == fmt_size, 'written=%d, expected=%d' % (
+        written, fmt_size
+    )
+    return written
+
+
+def write_bytes(fp, data):
+    """
+    Write bytes to the file object and returns bytes written.
+
+    :return: written byte size
+    """
+    pos = fp.tell()
+    fp.write(data)
+    written = fp.tell() - pos
+    assert written == len(data), 'written=%d, expected=%d' % (
+        written, len(data)
+    )
     return written
 
 
@@ -105,7 +124,7 @@ def write_position(fp, position, value, fmt='I'):
     """
     current_position = fp.tell()
     fp.seek(position)
-    written = fp.write(struct.pack(str('>' + fmt), value))
+    written = write_bytes(fp, struct.pack(str('>' + fmt), value))
     fp.seek(current_position)
     return written
 
@@ -134,7 +153,7 @@ def write_padding(fp, size, divisor=2):
     """
     remainder = size % divisor
     if remainder:
-        return fp.write(struct.pack('%dx' % (divisor - remainder)))
+        return write_bytes(fp, struct.pack('%dx' % (divisor - remainder)))
     return 0
 
 
@@ -172,7 +191,7 @@ def read_pascal_string(fp, encoding='macroman', padding=2):
 def write_pascal_string(fp, value, encoding='macroman', padding=2):
     data = value.encode(encoding)
     written = write_fmt(fp, 'B', len(data))
-    written += fp.write(data)
+    written += write_bytes(fp, data)
     written += write_padding(fp, written, padding)
     return written
 
@@ -206,7 +225,7 @@ def write_be_array(fp, arr):
     """
     Writes an array to a file with big-endian data.
     """
-    return fp.write(be_array_to_bytes(arr))
+    return write_bytes(fp, be_array_to_bytes(arr))
 
 
 def fix_byteorder(arr):

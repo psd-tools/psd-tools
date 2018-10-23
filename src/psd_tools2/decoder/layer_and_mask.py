@@ -10,7 +10,8 @@ from psd_tools2.constants import BlendMode, Compression, ChannelID
 from psd_tools2.validators import in_, range_
 from psd_tools2.utils import (
     read_fmt, write_fmt, read_pascal_string, write_pascal_string,
-    read_length_block, write_length_block, is_readable, write_padding
+    read_length_block, write_length_block, is_readable, write_padding,
+    write_bytes
 )
 
 # import psd_tools.compression  # TODO: Migrate compression module.
@@ -347,7 +348,7 @@ class TaggedBlock(BaseElement):
         def writer(f):
             # TODO: Serialize data here.
             # written = self.data.write(f)
-            return f.write(self.data)
+            return write_bytes(f, self.data)
 
         fmt = self._length_format(self.key, version)
         written += write_length_block(fp, writer, fmt=fmt, padding=padding)
@@ -769,7 +770,7 @@ class ChannelData(BaseElement):
 
     def write(self, fp, **kwargs):
         written = write_fmt(fp, 'H', self.compression.value)
-        written += fp.write(self.data)
+        written += write_bytes(fp, self.data)
         return written
 
     @property
@@ -838,9 +839,9 @@ class ChannelData(BaseElement):
     #         written += write_be_array(fp, self.byte_counts)
 
     #     if self.compression in (Compression.RAW, Compression.PACK_BITS):
-    #         written += fp.write(self.data)
+    #         written += write_bytes(fp, self.data)
     #     elif self.compression == Compression.ZIP:
-    #         written += fp.write(zlib.compress(self.data))
+    #         written += write_bytes(fp, zlib.compress(self.data))
     #     elif self.compression == Compression.ZIP_WITH_PREDICTION:
     #         raise NotImplementedError('ZIP+prediction is not supported.')
 

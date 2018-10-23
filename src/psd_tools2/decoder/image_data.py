@@ -4,7 +4,7 @@ import logging
 from psd_tools2.constants import Compression
 from psd_tools2.decoder.base import BaseElement
 from psd_tools2.validators import in_
-from psd_tools2.utils import read_fmt, write_fmt
+from psd_tools2.utils import read_fmt, write_fmt, write_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +35,7 @@ class ImageData(BaseElement):
     def write(self, fp):
         start_pos = fp.tell()
         written = write_fmt(fp, 'H', self.compression.value)
-        length = fp.write(self.data)
-        assert len(self.data) == length, '(%d, %d)' % (len(self.data), length)
-        written += length
+        written += write_bytes(fp, self.data)
         logger.debug('  wrote image data, len=%d' % (fp.tell() - start_pos))
         return written
 

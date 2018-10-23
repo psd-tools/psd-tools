@@ -1,8 +1,10 @@
 from __future__ import absolute_import, unicode_literals
 import attr
 import logging
-from psd_tools2.utils import read_length_block, write_length_block
 from psd_tools2.decoder.base import BaseElement
+from psd_tools2.utils import (
+    read_length_block, write_length_block, write_bytes
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +42,7 @@ class ColorModeData(BaseElement):
         :param fp: file-like object
         """
         def writer(f):
-            return f.write(self.data)
+            return write_bytes(f, self.data)
 
         logger.debug('writing color mode data, len=%d' % (len(self.data)))
         return write_length_block(fp, writer)

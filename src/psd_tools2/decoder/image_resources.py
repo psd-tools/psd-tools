@@ -4,7 +4,7 @@ import logging
 import io
 from psd_tools2.utils import (
     read_fmt, write_fmt, read_pascal_string, write_pascal_string,
-    read_length_block, write_length_block
+    read_length_block, write_length_block, write_bytes
 )
 from psd_tools2.validators import in_
 from psd_tools2.decoder.base import BaseElement, ListElement
@@ -74,9 +74,7 @@ class ImageResource(BaseElement):
         :param fp: file-like object
         :rtype: ImageResource
         """
-        pos = fp.tell()
         signature, id = read_fmt('4sH', fp)
-        pos = fp.tell()
         name = read_pascal_string(fp, encoding, padding=2)
         data = read_length_block(fp, padding=2)
         # TODO: parse image resource
@@ -87,6 +85,6 @@ class ImageResource(BaseElement):
         """
         written = write_fmt(fp, '4sH', self.signature, self.id)
         written += write_pascal_string(fp, self.name, encoding, 2)
-        written += write_length_block(fp, lambda f: f.write(self.data),
+        written += write_length_block(fp, lambda f: write_bytes(f, self.data),
                                       padding=2)
         return written
