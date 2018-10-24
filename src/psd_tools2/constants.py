@@ -347,6 +347,7 @@ class TaggedBlockID(Enum):
 
     @classmethod
     def set(cls):
+        """Set of values."""
         return set(x.value for x in cls)
 
 
