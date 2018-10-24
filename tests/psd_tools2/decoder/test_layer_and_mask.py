@@ -52,8 +52,8 @@ def test_layer_flags_wr(args):
 
 
 @pytest.mark.parametrize(['fixture'], [
-    (b'('),
-    (b'\t'),
+    (b'(',),
+    (b'\t',),
 ])
 def test_layer_flags_rw(fixture):
     check_read_write(LayerFlags, fixture)
@@ -102,8 +102,8 @@ def test_mask_flags_wr():
 
 
 @pytest.mark.parametrize(['fixture'], [
-    (b'('),
-    (b'\t'),
+    (b'(',),
+    (b'\t',),
 ])
 def test_mask_flags_rw(fixture):
     check_read_write(MaskFlags, fixture)

@@ -74,8 +74,8 @@ def test_pascal_string(fixture, padding):
 
 
 @pytest.mark.parametrize(['input', 'expected', 'padding'], [
-    ('', '\x00\x00', 2),
-    ('', '\x00\x00\x00\x00', 4),
+    ('', b'\x00\x00', 2),
+    ('', b'\x00\x00\x00\x00', 4),
 ])
 def test_pascal_string_format(input, expected, padding):
     with io.BytesIO() as f:
