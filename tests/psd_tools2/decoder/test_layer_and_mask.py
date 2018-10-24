@@ -8,6 +8,7 @@ from psd_tools2.decoder.layer_and_mask import (
     MaskParameters, ChannelImageData, ChannelDataList, ChannelData,
     GlobalLayerMaskInfo
 )
+from psd_tools2.constants import ChannelID
 
 from ..utils import check_write_read, check_read_write
 
@@ -94,6 +95,26 @@ def test_layer_record():
     check_write_read(LayerRecord())
     check_write_read(LayerRecord(name='foo', tagged_blocks=tagged_blocks))
     check_write_read(LayerRecord(tagged_blocks=tagged_blocks), version=2)
+
+
+def test_layer_record_channel_sizes():
+    layer_record = LayerRecord(
+        left=0, top=0, right=100, bottom=120,
+        channel_info=[
+            ChannelInfo(id=ChannelID.CHANNEL_0),
+            ChannelInfo(id=ChannelID.USER_LAYER_MASK),
+            ChannelInfo(id=ChannelID.REAL_USER_LAYER_MASK),
+        ],
+        mask_data=MaskData(
+            left=20, top=20, right=80, bottom=90,
+            real_left=10, real_top=10, real_right=90, real_bottom=100,
+        )
+    )
+    channel_sizes = layer_record.channel_sizes
+    assert len(channel_sizes) == 3
+    assert channel_sizes[0] == (100, 120)
+    assert channel_sizes[1] == (60, 70)
+    assert channel_sizes[2] == (80, 90)
 
 
 def test_mask_flags_wr():

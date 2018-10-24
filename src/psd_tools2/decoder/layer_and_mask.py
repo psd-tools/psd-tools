@@ -535,6 +535,22 @@ class LayerRecord(BaseElement):
         """Height of the layer."""
         return max(self.bottom - self.top, 0)
 
+    @property
+    def channel_sizes(self):
+        """List of channel sizes: [(width, height)].
+        """
+        return [
+            {
+                ChannelID.USER_LAYER_MASK: (
+                    self.mask_data.width, self.mask_data.height
+                ),
+                ChannelID.REAL_USER_LAYER_MASK: (
+                    self.mask_data.real_width, self.mask_data.real_height
+                )
+            }.get(channel.id, (self.width, self.height))
+            for channel in self.channel_info
+        ]
+
 
 @attr.s
 class MaskFlags(BaseElement):
