@@ -1,3 +1,5 @@
+#!python
+#cython: language_level=2
 """
 Cython extension with utilities for "zip-with-prediction"
 decompression method.
