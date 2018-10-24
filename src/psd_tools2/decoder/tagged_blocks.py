@@ -1,9 +1,13 @@
+"""
+Tagged block data structure.
+"""
 from __future__ import absolute_import, unicode_literals
 import attr
 import io
 import logging
 
 from psd_tools2.decoder.base import BaseElement, ListElement
+from psd_tools2.constants import TaggedBlockID
 from psd_tools2.validators import in_
 from psd_tools2.utils import (
     read_fmt, write_fmt, read_length_block, write_length_block, is_readable,
@@ -24,6 +28,12 @@ class TaggedBlocks(ListElement):
 
     @classmethod
     def read(cls, fp, version=1, padding=1):
+        """Read the element from a file-like object.
+
+        :param fp: file-like object
+        :param version: psd file version
+        :rtype: :py:class:`.TaggedBlocks`
+        """
         items = []
         while is_readable(fp, 8):  # len(signature) + len(key) = 8
             block = TaggedBlock.read(fp, version, padding)
@@ -33,6 +43,11 @@ class TaggedBlocks(ListElement):
         return cls(items)
 
     def write(self, fp, version=1, padding=1):
+        """Write the element to a file-like object.
+
+        :param fp: file-like object
+        :rtype: int
+        """
         return sum(item.write(fp, version, padding) for item in self)
 
 
@@ -42,7 +57,12 @@ class TaggedBlock(BaseElement):
     Layer tagged block with extra info.
 
     .. py:attribute:: key
+
+        4-character code. See :py:class:`~psd_tools2.constants.TaggedBlock`
+
     .. py:attribute:: data
+
+        Data.
     """
     _SIGNATURES = (b'8BIM', b'8B64')
     _BIG_KEYS = set((
@@ -58,6 +78,12 @@ class TaggedBlock(BaseElement):
 
     @classmethod
     def read(cls, fp, version=1, padding=1):
+        """Read the element from a file-like object.
+
+        :param fp: file-like object
+        :param version: psd file version
+        :rtype: :py:class:`.TaggedBlock`
+        """
         signature = read_fmt('4s', fp)[0]
         if signature not in cls._SIGNATURES:
             logger.warning('Invalid signature (%r)' % (signature))
@@ -65,6 +91,9 @@ class TaggedBlock(BaseElement):
             return None
 
         key = read_fmt('4s', fp)[0]
+        if key not in set(TaggedBlockID):
+            logger.warning('Unknown key: %r' % (key))
+
         fmt = cls._length_format(key, version)
         data = read_length_block(fp, fmt=fmt, padding=padding)
         # TODO: Parse data here.
@@ -72,6 +101,11 @@ class TaggedBlock(BaseElement):
         return cls(signature, key, data)
 
     def write(self, fp, version=1, padding=1):
+        """Write the element to a file-like object.
+
+        :param fp: file-like object
+        :param version: psd file version
+        """
         written = write_fmt(fp, '4s4s', self.signature, self.key)
 
         def writer(f):

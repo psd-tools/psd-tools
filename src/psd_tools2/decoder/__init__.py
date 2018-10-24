@@ -14,13 +14,27 @@ logger = logging.getLogger(__name__)
 @attr.s
 class PSD(BaseElement):
     """
-    PSD file format.
+    Low-level PSD file structure.
 
     .. py:attribute:: header
+
+        See :py:class:`.FileHeader`.
+
     .. py:attribute:: color_mode_data
+
+        See :py:class:`.ColorModeData`.
+
     .. py:attribute:: image_resources
+
+        See :py:class:`.ImageResources`.
+
     .. py:attribute:: layer_and_mask_information
+
+        See :py:class:`.LayerAndMaskInformation`.
+
     .. py:attribute:: image_data
+
+        See :py:class:`.ImageData`.
     """
     header = attr.ib(factory=FileHeader)
     color_mode_data = attr.ib(factory=ColorModeData)

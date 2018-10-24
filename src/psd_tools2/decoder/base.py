@@ -15,7 +15,6 @@ class BaseElement(object):
         """Read the element from a file-like object.
 
         :param fp: file-like object
-        :rtype: BaseElement
         """
         raise NotImplementedError()
 
@@ -29,7 +28,6 @@ class BaseElement(object):
         """Read the element from bytes.
 
         :param data: bytes
-        :rtype: BaseElement
         """
         with io.BytesIO(data) as f:
             return self.read(f, *args, **kwargs)

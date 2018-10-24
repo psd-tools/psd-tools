@@ -1,3 +1,6 @@
+"""
+File header structure.
+"""
 from __future__ import absolute_import, unicode_literals
 import attr
 import logging
@@ -16,19 +19,41 @@ class FileHeader(BaseElement):
 
     Example::
 
-        FileHeader(signature=b'8BPS', version=1, number_of_channels=2,
-                   height=359, width=400, depth=8, color_mode=GRAYSCALE)
+        from psd_tools2.decoder.header import FileHeader
+        from psd_tools2.constants import ColorMode
+
+        header = FileHeader(channels=2, height=359, width=400, depth=8,
+                            color_mode=ColorMode.GRAYSCALE)
+
+    .. py:attribute:: signature
+
+        Signature: always equal to ``b'8BPS'``.
 
     .. py:attribute:: version
+
+        Version number. PSD is 1, and PSB is 2.
+
     .. py:attribute:: channels
+
+        The number of channels in the image, including any alpha channels.
+
     .. py:attribute:: height
+
+        The height of the image in pixels.
+
     .. py:attribute:: width
+
+        The width of the image in pixels.
+
     .. py:attribute:: depth
+
+        The number of bits per channel.
+
     .. py:attribute:: color_mode
 
-        :py:class:`~psd_tools2.constants.ColorMode`
+        The color mode of the file. See :py:class:`.ColorMode`
     """
-    FORMAT = '4sH6xHIIHH'
+    _FORMAT = '4sH6xHIIHH'
 
     signature = attr.ib(default=b'8BPS', type=bytes, repr=False)
     version = attr.ib(default=1, type=int, validator=in_((1, 2)))
@@ -51,11 +76,11 @@ class FileHeader(BaseElement):
         :param fp: file-like object
         :rtype: FileHeader
         """
-        return cls(*read_fmt(cls.FORMAT, fp))
+        return cls(*read_fmt(cls._FORMAT, fp))
 
     def write(self, fp):
         """Write the element to a file-like object.
 
         :param fp: file-like object
         """
-        return write_fmt(fp, self.FORMAT, *attr.astuple(self))
+        return write_fmt(fp, self._FORMAT, *attr.astuple(self))

@@ -1,3 +1,7 @@
+"""
+Image resources section structure. Image resources are used to store non-pixel
+data associated with images, such as pen tool paths.
+"""
 from __future__ import absolute_import, unicode_literals
 import attr
 import logging
@@ -16,18 +20,19 @@ logger = logging.getLogger(__name__)
 @attr.s(repr=False)
 class ImageResources(ListElement):
     """
-    Image resources section of the PSD file.
+    Image resources section of the PSD file. List of
+    :py:class:`~ImageResource`.
 
     .. py:attribute:: items
     """
     items = attr.ib(factory=list)
 
     @classmethod
-    def read(cls, fp, encoding='utf-8'):
+    def read(cls, fp, encoding='macroman'):
         """Read the element from a file-like object.
 
         :param fp: file-like object
-        :rtype: ImageResources
+        :rtype: :py:class:`.ImageResources`
         """
         items = []
         data = read_length_block(fp)
@@ -38,7 +43,7 @@ class ImageResources(ListElement):
                 items.append(item)
         return cls(items)
 
-    def write(self, fp, encoding='utf-8'):
+    def write(self, fp, encoding='macroman'):
         """Write the element to a file-like object.
 
         :param fp: file-like object
@@ -57,9 +62,17 @@ class ImageResource(BaseElement):
     Image resource block.
 
     .. py:attribute:: signature
+
+        Binary signature, always ``b'8BIM'``.
+
     .. py:attribute:: id
+
+        Unique identifier for the resource. See :py:class:`.ImageResourceID`.
+
     .. py:attribute:: name
     .. py:attribute:: data
+
+        The resource data.
     """
     signature = attr.ib(default=b'8BIM', type=bytes, repr=False,
                         validator=in_((b'8BIM', b'MeSa')))
@@ -72,7 +85,7 @@ class ImageResource(BaseElement):
         """Read the element from a file-like object.
 
         :param fp: file-like object
-        :rtype: ImageResource
+        :rtype: :py:class:`.ImageResource`
         """
         signature, id = read_fmt('4sH', fp)
         name = read_pascal_string(fp, encoding, padding=2)
@@ -82,6 +95,9 @@ class ImageResource(BaseElement):
 
     def write(self, fp, encoding='macroman'):
         """Write the element to a file-like object.
+
+        :param fp: file-like object
+        :rtype: int
         """
         written = write_fmt(fp, '4sH', self.signature, self.id)
         written += write_pascal_string(fp, self.name, encoding, 2)

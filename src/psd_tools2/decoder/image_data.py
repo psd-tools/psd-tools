@@ -1,3 +1,6 @@
+"""
+Image data section structure.
+"""
 from __future__ import absolute_import, unicode_literals
 import attr
 import logging
@@ -16,7 +19,7 @@ class ImageData(BaseElement):
 
     .. py:attribute:: compression
 
-        :py:class:`~psd_tools.constants.Compression`
+        :py:class:`~psd_tools2.constants.Compression`
 
     .. py:attribute:: data
     """
@@ -26,6 +29,11 @@ class ImageData(BaseElement):
 
     @classmethod
     def read(cls, fp):
+        """Read the element from a file-like object.
+
+        :param fp: file-like object
+        :rtype: :py:class:`.ImageData`
+        """
         start_pos = fp.tell()
         compression = Compression(read_fmt('H', fp)[0])
         data = fp.read()  # TODO: Parse data here. Need header.
@@ -33,6 +41,11 @@ class ImageData(BaseElement):
         return cls(compression, data)
 
     def write(self, fp):
+        """Write the element to a file-like object.
+
+        :param fp: file-like object
+        :rtype: int
+        """
         start_pos = fp.tell()
         written = write_fmt(fp, 'H', self.compression.value)
         written += write_bytes(fp, self.data)

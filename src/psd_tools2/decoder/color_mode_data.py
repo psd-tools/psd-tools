@@ -1,3 +1,6 @@
+"""
+Color mode data structure.
+"""
 from __future__ import absolute_import, unicode_literals
 import attr
 import logging
@@ -19,8 +22,9 @@ class ColorModeData(BaseElement):
 
     Duotone images also have this data, but the data format is undocumented.
 
-    .. py:attribute:: length
     .. py:attribute:: data
+
+        The color data.
     """
     data = attr.ib(default=b'', type=bytes, repr=False)
 

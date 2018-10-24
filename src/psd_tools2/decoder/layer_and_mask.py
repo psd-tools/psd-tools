@@ -1,3 +1,6 @@
+"""
+Layer and mask data structure.
+"""
 from __future__ import absolute_import, unicode_literals
 import attr
 import io
@@ -6,8 +9,10 @@ import logging
 
 from psd_tools2.decoder.base import BaseElement, ListElement
 from psd_tools2.decoder.tagged_blocks import TaggedBlocks
-from psd_tools2.constants import BlendMode, Compression, ChannelID
 from psd_tools2.validators import in_, range_
+from psd_tools2.constants import (
+    BlendMode, Clipping, Compression, ChannelID, GlobalLayerMaskKind
+)
 from psd_tools2.utils import (
     read_fmt, write_fmt, read_pascal_string, write_pascal_string,
     read_length_block, write_length_block, is_readable, write_padding,
@@ -25,8 +30,16 @@ class LayerAndMaskInformation(BaseElement):
     Layer and mask information section.
 
     .. py:attribute:: layer_info
+
+        See :py:class:`.LayerInfo`.
+
     .. py:attribute:: global_layer_mask_info
+
+        See :py:class:`.GlobalLayerMaskInfo`.
+
     .. py:attribute:: tagged_blocks
+
+        See :py:class:`.TaggedBlocks`.
     """
     layer_info = attr.ib(default=None)
     global_layer_mask_info = attr.ib(default=None)
@@ -92,11 +105,22 @@ class LayerAndMaskInformation(BaseElement):
 @attr.s
 class LayerInfo(BaseElement):
     """
-    Layer information.
+    High-level organization of the layer information.
 
     .. py:attribute:: layer_count
+
+        Layer count. If it is a negative number, its absolute value is the
+        number of layers and the first alpha channel contains the transparency
+        data for the merged result.
+
     .. py:attribute:: layer_records
+
+        Information about each layer. See :py:class:`.LayerRecords`.
+
     .. py:attribute:: channel_image_data
+
+        Channel image data. Contains one or more image data records.
+        See :py:class:`.ChannelImageData`.
     """
     layer_count = attr.ib(default=0, type=int)
     layer_records = attr.ib(default=None)
@@ -109,7 +133,7 @@ class LayerInfo(BaseElement):
         :param fp: file-like object
         :param encoding: encoding of the string
         :param version: psd file version
-        :rtype: LayerInfo
+        :rtype: :py:class:`.LayerInfo`
         """
         data = read_length_block(fp, fmt=('I', 'Q')[version - 1])
         logger.debug('reading layer info, len=%d' % (len(data)))
@@ -130,6 +154,9 @@ class LayerInfo(BaseElement):
 
     def write(self, fp, encoding='macroman', version=1, padding=4):
         """Write the element to a file-like object.
+
+        :param fp: file-like object
+        :rtype: int
         """
         def writer(f):
             written = self._write_body(f, encoding, version, padding)
@@ -161,7 +188,7 @@ class LayerInfo(BaseElement):
             return
 
         for layer, lengths in zip(self.layer_records,
-                                  self.channel_image_data.lengths):
+                                  self.channel_image_data._lengths):
             for channel_info, length in zip(layer.channel_info, lengths):
                 channel_info.length = length
 
@@ -172,7 +199,15 @@ class ChannelInfo(BaseElement):
     Channel information.
 
     .. py:attribute:: id
+
+        Channel ID: 0 = red, 1 = green, etc.;-1 = transparency mask;
+        -2 = user supplied layer mask, -3 real user supplied layer mask (when
+        both a user mask and a vector mask are present).
+        See :py:class:`.ChannelID`.
+
     .. py:attribute:: length
+
+        Length of the corresponding channel data.
     """
     id = attr.ib(type=int)
     length = attr.ib(default=0, type=int)
@@ -183,7 +218,7 @@ class ChannelInfo(BaseElement):
 
         :param fp: file-like object
         :param version: psd file version
-        :rtype: ChannelInfo
+        :rtype: :py:class:`.ChannelInfo`
         """
         return cls(*read_fmt(('hI', 'hQ')[version - 1], fp))
 
@@ -210,7 +245,7 @@ class LayerFlags(BaseElement):
     transparency_protected = attr.ib(default=False, type=bool)
     visible = attr.ib(default=True, type=bool)
     obsolete = attr.ib(default=False, type=bool, repr=False)
-    photoshop_v5_later = attr.ib(default=False, type=bool, repr=False)
+    photoshop_v5_later = attr.ib(default=True, type=bool, repr=False)
     pixel_data_irrelevant = attr.ib(default=False, type=bool)
     undocumented_1 = attr.ib(default=False, type=bool, repr=False)
     undocumented_2 = attr.ib(default=False, type=bool, repr=False)
@@ -221,7 +256,7 @@ class LayerFlags(BaseElement):
         """Read the element from a file-like object.
 
         :param fp: file-like object
-        :rtype: LayerFlags
+        :rtype: :py:class:`.LayerFlags`
         """
         flags = read_fmt('B', fp)[0]
         return cls(
@@ -258,14 +293,26 @@ class LayerBlendingRanges(BaseElement):
     """
     Layer blending ranges.
 
+    All ranges contain 2 black values followed by 2 white values.
+
     .. py:attribute:: composite_ranges
+
+        List of composite gray blend source and destination ranges.
+
     .. py:attribute:: channel_ranges
+
+        List of channel source and destination ranges.
     """
     composite_ranges = attr.ib(default=None)
     channel_ranges = attr.ib(factory=list)
 
     @classmethod
     def read(cls, fp):
+        """Read the element from a file-like object.
+
+        :param fp: file-like object
+        :rtype: :py:class:`.LayerBlendingRanges`
+        """
         data = read_length_block(fp)
         if len(data) == 0:
             return cls()
@@ -286,6 +333,10 @@ class LayerBlendingRanges(BaseElement):
         return cls(composite_ranges, channel_ranges)
 
     def write(self, fp):
+        """Write the element to a file-like object.
+
+        :param fp: file-like object
+        """
         return write_length_block(fp, lambda f: self._write_body(f))
 
     def _write_body(self, fp):
@@ -302,7 +353,7 @@ class LayerBlendingRanges(BaseElement):
 @attr.s(repr=False)
 class LayerRecords(ListElement):
     """
-    List of layer records.
+    List of layer records. See :py:class:`.LayerRecord`.
 
     .. py:attribute:: items
     """
@@ -310,6 +361,11 @@ class LayerRecords(ListElement):
 
     @classmethod
     def read(cls, fp, layer_count, encoding='macroman', version=1):
+        """Read the element from a file-like object.
+
+        :param fp: file-like object
+        :rtype: :py:class:`.LayerRecords`
+        """
         items = []
         for idx in range(abs(layer_count)):
             items.append(LayerRecord.read(fp, encoding, version))
@@ -322,19 +378,60 @@ class LayerRecord(BaseElement):
     Layer record.
 
     .. py:attribute:: top
+
+        Top position.
+
     .. py:attribute:: left
+
+        Left position.
+
     .. py:attribute:: bottom
+
+        Bottom position.
+
     .. py:attribute:: right
+
+        Right position.
+
     .. py:attribute:: channel_info
+
+        List of :py:class:`.ChannelInfo`.
+
     .. py:attribute:: signature
+
+        Blend mode signature ``b'8BIM'``.
+
     .. py:attribute:: blend_mode
+
+        Blend mode key. See :py:class:`.BlendMode`.
+
     .. py:attribute:: opacity
+
+        Opacity, 0 = transparent, 255 = opaque.
+
     .. py:attribute:: clipping
+
+        Clipping, 0 = base, 1 = non-base. See :py:class:`.Clipping`.
+
     .. py:attribute:: flags
+
+        See :py:class:`.LayerFlags`.
+
     .. py:attribute:: mask_data
+
+        :py:class:`.MaskData` or None.
+
     .. py:attribute:: blending_ranges
+
+        See :py:class:`.LayerBlendingRanges`.
+
     .. py:attribute:: name
+
+        Layer name.
+
     .. py:attribute:: tagged_blocks
+
+        See :py:class:`.TaggedBlocks`.
     """
     top = attr.ib(default=0, type=int)
     left = attr.ib(default=0, type=int)
@@ -346,7 +443,8 @@ class LayerRecord(BaseElement):
     blend_mode = attr.ib(default=BlendMode.NORMAL, converter=BlendMode,
                          validator=in_(BlendMode))
     opacity = attr.ib(default=255, type=int, validator=range_(0, 255))
-    clipping = attr.ib(default=0, type=int)
+    clipping = attr.ib(default=Clipping.BASE, converter=Clipping,
+                       validator=in_(Clipping))
     flags = attr.ib(factory=LayerFlags)
     mask_data = attr.ib(default=None)
     blending_ranges = attr.ib(factory=LayerBlendingRanges)
@@ -360,7 +458,7 @@ class LayerRecord(BaseElement):
         :param fp: file-like object
         :param encoding: encoding of the string
         :param version: psd file version
-        :rtype: LayerAndMaskInformation
+        :rtype: :py:class:`.LayerRecord`
         """
         start_pos = fp.tell()
         top, left, bottom, right, num_channels = read_fmt('4iH', fp)
@@ -389,6 +487,10 @@ class LayerRecord(BaseElement):
 
     def write(self, fp, encoding='macroman', version=1):
         """Write the element to a file-like object.
+
+        :param fp: file-like object
+        :param encoding: encoding of the string
+        :param version: psd file version
         """
         start_pos = fp.tell()
         written = write_fmt(fp, '4iH', self.top, self.left, self.bottom,
@@ -396,7 +498,7 @@ class LayerRecord(BaseElement):
         written += sum(c.write(fp, version) for c in self.channel_info)
         written += write_fmt(
             fp, '4s4sBB', self.signature, self.blend_mode.value, self.opacity,
-            self.clipping
+            self.clipping.value
         )
         written += self.flags.write(fp)
 
@@ -425,10 +527,12 @@ class LayerRecord(BaseElement):
 
     @property
     def width(self):
+        """Width of the layer."""
         return max(self.right - self.left, 0)
 
     @property
     def height(self):
+        """Height of the layer."""
         return max(self.bottom - self.top, 0)
 
 
@@ -438,10 +542,24 @@ class MaskFlags(BaseElement):
     Mask flags.
 
     .. py:attribute:: pos_relative_to_layer
+
+        Position relative to layer.
+
     .. py:attribute:: mask_disabled
+
+        Layer mask disabled.
+
     .. py:attribute:: invert_mask
+
+        Invert layer mask when blending (Obsolete).
+
     .. py:attribute:: user_mask_from_render
+
+        The user mask actually came from rendering other data.
+
     .. py:attribute:: parameters_applied
+
+        The user and/or vector masks have parameters applied to them.
     """
     pos_relative_to_layer = attr.ib(default=False, type=bool)
     mask_disabled = attr.ib(default=False, type=bool)
@@ -454,6 +572,11 @@ class MaskFlags(BaseElement):
 
     @classmethod
     def read(cls, fp):
+        """Read the element from a file-like object.
+
+        :param fp: file-like object
+        :rtype: :py:class:`.MaskFlags`
+        """
         flags = read_fmt('B', fp)[0]
         return cls(
             bool(flags & 1), bool(flags & 2), bool(flags & 4),
@@ -462,6 +585,10 @@ class MaskFlags(BaseElement):
         )
 
     def write(self, fp):
+        """Write the element to a file-like object.
+
+        :param fp: file-like object
+        """
         flags = (
             (self.pos_relative_to_layer * 1) |
             (self.mask_disabled * 2) |
@@ -480,19 +607,59 @@ class MaskData(BaseElement):
     """
     Mask data.
 
+    Real user mask is a final composite mask of vector and pixel masks.
+
     .. py:attribute:: top
+
+        Top position.
+
     .. py:attribute:: left
+
+        Left position.
+
     .. py:attribute:: bottom
+
+        Bottom position.
+
     .. py:attribute:: right
+
+        Right position.
+
     .. py:attribute:: background_color
+
+        Default color. 0 or 255.
+
     .. py:attribute:: flags
+
+        See :py:class:`.MaskFlags`.
+
     .. py:attribute:: parameters
+
+        :py:class:`.MaskParameters` or None.
+
     .. py:attribute:: real_flags
+
+        Real user mask flags. See :py:class:`.MaskFlags`.
+
     .. py:attribute:: real_background_color
+
+        Real user mask background. 0 or 255.
+
     .. py:attribute:: real_top
+
+        Top position of real user mask.
+
     .. py:attribute:: real_left
+
+        Left position of real user mask.
+
     .. py:attribute:: real_bottom
+
+        Bottom position of real user mask.
+
     .. py:attribute:: real_right
+
+        Right position of real user mask.
     """
     top = attr.ib(default=0, type=int)
     left = attr.ib(default=0, type=int)
@@ -513,7 +680,7 @@ class MaskData(BaseElement):
         """Read the element from a file-like object.
 
         :param fp: file-like object
-        :rtype: MaskData or None
+        :rtype: :py:class:`.MaskData` or None
         """
         data = read_length_block(fp)
         if len(data) == 0:
@@ -579,18 +746,22 @@ class MaskData(BaseElement):
 
     @property
     def width(self):
+        """Width of the mask."""
         return max(self.right - self.left, 0)
 
     @property
     def height(self):
+        """Height of the mask."""
         return max(self.bottom - self.top, 0)
 
     @property
     def real_width(self):
+        """Width of real user mask."""
         return max(self.real_right - self.real_left, 0)
 
     @property
     def real_height(self):
+        """Height of real user mask."""
         return max(self.real_bottom - self.real_top, 0)
 
 
@@ -611,6 +782,11 @@ class MaskParameters(BaseElement):
 
     @classmethod
     def read(cls, fp):
+        """Read the element from a file-like object.
+
+        :param fp: file-like object
+        :rtype: :py:class:`.MaskParameters`
+        """
         parameters = read_fmt('B', fp)[0]
         return cls(
             read_fmt('B', fp)[0] if bool(parameters & 1) else None,
@@ -620,6 +796,10 @@ class MaskParameters(BaseElement):
         )
 
     def write(self, fp):
+        """Write the element to a file-like object.
+
+        :param fp: file-like object
+        """
         written = 0
         written += write_fmt(fp, 'B', (
             (1 if self.user_mask_density is not None else 0) |
@@ -643,12 +823,19 @@ class ChannelImageData(ListElement):
     """
     List of channel image data.
 
+    See :py:class:`.ChannelDataList`.
+
     .. py:attribute:: items
     """
     items = attr.ib(factory=list)
 
     @classmethod
     def read(cls, fp, layer_records=None):
+        """Read the element from a file-like object.
+
+        :param fp: file-like object
+        :rtype: :py:class:`.ChannelImageData`
+        """
         start_pos = fp.tell()
         items = []
         for idx, layer in enumerate(layer_records):
@@ -658,6 +845,10 @@ class ChannelImageData(ListElement):
         return cls(items)
 
     def write(self, fp, **kwargs):
+        """Write the element to a file-like object.
+
+        :param fp: file-like object
+        """
         start_pos = fp.tell()
         written = sum(item.write(fp) for item in self)
         logger.debug('  wrote channel image data, len=%d' % (
@@ -665,8 +856,10 @@ class ChannelImageData(ListElement):
         return written
 
     @property
-    def lengths(self):
-        return [item.lengths for item in self]
+    def _lengths(self):
+        """List of layer channel lengths.
+        """
+        return [item._lengths for item in self]
 
 
 @attr.s(repr=False)
@@ -674,12 +867,20 @@ class ChannelDataList(ListElement):
     """
     List of channel image data.
 
+    See :py:class:`.ChannelData`.
+
     .. py:attribute:: items
     """
     items = attr.ib(factory=list)
 
     @classmethod
     def read(cls, fp, channel_info):
+        """Read the element from a file-like object.
+
+        :param fp: file-like object
+        :param channel_info: :py:class:`.ChannelInfo`
+        :rtype: :py:class:`.ChannelDataList`
+        """
         items = []
         for c in channel_info:
             data = fp.read(c.length)
@@ -690,8 +891,9 @@ class ChannelDataList(ListElement):
         return cls(items)
 
     @property
-    def lengths(self):
-        return [item.length for item in self]
+    def _lengths(self):
+        """List of channel lengths."""
+        return [item._length for item in self]
 
 
 @attr.s
@@ -701,9 +903,11 @@ class ChannelData(BaseElement):
 
     .. py:attribute:: compression
 
-        :py:class:`~psd_tools.constants.Compression`
+        Compression type. See :py:class:`~psd_tools2.constants.Compression`.
 
     .. py:attribute:: data
+
+        Data.
     """
     compression = attr.ib(default=Compression.RAW, converter=Compression,
                           validator=in_(Compression))
@@ -711,17 +915,28 @@ class ChannelData(BaseElement):
 
     @classmethod
     def read(cls, fp):
+        """Read the element from a file-like object.
+
+        :param fp: file-like object
+        :rtype: :py:class:`.ChannelData`
+        """
         compress_type = Compression(read_fmt('H', fp)[0])
         data = fp.read()
         return cls(compress_type, data)
 
     def write(self, fp, **kwargs):
+        """Write the element to a file-like object.
+
+        :param fp: file-like object
+        """
         written = write_fmt(fp, 'H', self.compression.value)
         written += write_bytes(fp, self.data)
         return written
 
     @property
-    def length(self):
+    def _length(self):
+        """Length of channel data block.
+        """
         return 2 + len(self.data)
 
     # @classmethod
@@ -806,15 +1021,34 @@ class GlobalLayerMaskInfo(BaseElement):
     Global mask information.
 
     .. py:attribute:: overlay_color
+
+        Overlay color space (undocumented) and color components.
+
     .. py:attribute:: opacity
+
+        Opacity. 0 = transparent, 100 = opaque.
+
     .. py:attribute:: kind
+
+        Kind.
+        0 = Color selected--i.e. inverted;
+        1 = Color protected;
+        128 = use value stored per layer. This value is preferred. The others
+        are for backward compatibility with beta versions.
     """
     overlay_color = attr.ib(default=None)
     opacity = attr.ib(default=0, type=int)
-    kind = attr.ib(default=0, type=int)
+    kind = attr.ib(default=GlobalLayerMaskKind.PER_LAYER,
+                   converter=GlobalLayerMaskKind,
+                   validator=in_(GlobalLayerMaskKind))
 
     @classmethod
     def read(cls, fp):
+        """Read the element from a file-like object.
+
+        :param fp: file-like object
+        :rtype: :py:class:`.GlobalLayerMaskInfo`
+        """
         data = read_length_block(fp)
         logger.debug('reading global layer mask info, len=%d' % (len(data)))
         if len(data) == 0:
@@ -830,13 +1064,17 @@ class GlobalLayerMaskInfo(BaseElement):
         return cls(overlay_color, opacity, kind)
 
     def write(self, fp):
+        """Write the element to a file-like object.
+
+        :param fp: file-like object
+        """
         return write_length_block(fp, lambda f: self._write_body(f))
 
     def _write_body(self, fp):
         written = 0
         if self.overlay_color is not None:
             written = write_fmt(fp, '5H', *self.overlay_color)
-            written += write_fmt(fp, 'HB', self.opacity, self.kind)
+            written += write_fmt(fp, 'HB', self.opacity, self.kind.value)
             written += write_padding(fp, written, 4)
         logger.debug('writing global layer mask info, len=%d' % (written))
         return written

@@ -34,6 +34,16 @@ Python package for reading Adobe Photoshop PSD files
     reference/decoder.tagged_blocks
     reference/reader
 
+    reference/psd_tools2
+    reference/psd_tools2.constants
+    reference/psd_tools2.decoder
+    reference/psd_tools2.decoder.color_mode_data
+    reference/psd_tools2.decoder.header
+    reference/psd_tools2.decoder.image_data
+    reference/psd_tools2.decoder.image_resources
+    reference/psd_tools2.decoder.layer_and_mask
+    reference/psd_tools2.decoder.tagged_blocks
+
 
 Indices and tables
 ==================

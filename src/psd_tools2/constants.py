@@ -1,3 +1,6 @@
+"""
+Various constants for psd_tools2
+"""
 from enum import Enum, IntEnum
 
 
@@ -15,23 +18,15 @@ class ColorMode(IntEnum):
     LAB = 9
 
 
-class ChannelID(IntEnum):
-    """
-    Channel types.
-    """
-    CHANNEL0 = 0  # Red, Cyan, Gray, ...
-    CHANNEL1 = 1  # Green, Magenta, ...
-    CHANNEL2 = 2  # Blue, Yellow, ...
-    CHANNEL3 = 3  # Black, ...
-    CHANNEL4 = 4
-    CHANNEL5 = 5
-    CHANNEL6 = 6
-    CHANNEL7 = 7
-    CHANNEL8 = 8
-    CHANNEL9 = 9
-    TRANSPARENCY_MASK = -1
-    USER_LAYER_MASK = -2
-    REAL_USER_LAYER_MASK = -3
+# class ColorSpaceID(Enum):
+#     """
+#     Color space types.
+#     """
+#     RGB = 0
+#     HSB = 1
+#     CMYK = 2
+#     LAB = 7
+#     GRAYSCALE = 8
 
 
 class ImageResourceID(IntEnum):
@@ -134,35 +129,37 @@ class ImageResourceID(IntEnum):
     PRINT_FLAGS_INFO = 10000
 
     @classmethod
-    def is_known(cls, value):
-        path_info = cls.PATH_INFO_0 <= value <= cls.PATH_INFO_LAST
-        plugin_resource = (
-            cls.PLUGIN_RESOURCES_0 <= value <= cls.PLUGIN_RESOURCES_LAST
-        )
-        return (
-            super(ImageResourceID, cls).is_known(value) or
-            path_info or
-            plugin_resource
-        )
-
-    @classmethod
-    def name_of(cls, value):
+    def name(cls, value):
         if cls.PATH_INFO_0 < value < cls.PATH_INFO_LAST:
             return "PATH_INFO_%d" % (value - cls.PATH_INFO_0)
         if cls.PLUGIN_RESOURCES_0 < value < cls.PLUGIN_RESOURCES_LAST:
             return "PLUGIN_RESOURCES_%d" % (value - cls.PLUGIN_RESOURCES_0)
-        return super(ImageResourceID, cls).name_of(value)
+        return super(ImageResourceID, cls).name
 
 
-class ColorSpaceID(Enum):
+class ChannelID(IntEnum):
     """
-    Color space types.
+    Channel types.
     """
-    RGB = 0
-    HSB = 1
-    CMYK = 2
-    LAB = 7
-    GRAYSCALE = 8
+    CHANNEL_0 = 0  # Red, Cyan, Gray, ...
+    CHANNEL_1 = 1  # Green, Magenta, ...
+    CHANNEL_2 = 2  # Blue, Yellow, ...
+    CHANNEL_3 = 3  # Black, ...
+    CHANNEL_4 = 4
+    CHANNEL_5 = 5
+    CHANNEL_6 = 6
+    CHANNEL_7 = 7
+    CHANNEL_8 = 8
+    CHANNEL_9 = 9
+    TRANSPARENCY_MASK = -1
+    USER_LAYER_MASK = -2
+    REAL_USER_LAYER_MASK = -3
+
+
+class Clipping(IntEnum):
+    """Clipping."""
+    BASE = 0
+    NON_BASE = 1
 
 
 class BlendMode(Enum):
@@ -199,41 +196,35 @@ class BlendMode(Enum):
     LUMINOSITY = b'lum '
 
 
-class BlendMode2(Enum):
-    """Blend mode in layer effect descriptor."""
-    NORMAL = b'Nrml'
-    DISSOLVE = b'Dslv'
-    DARKEN = b'Drkn'
-    MULTIPLY = b'Mltp'
-    COLOR_BURN = b'CBrn'
-    LINEAR_BURN = b'linearBurn'
-    DARKER_COLOR = b'darkerColor'
-    LIGHTEN = b'Lghn'
-    SCREEN = b'Scrn'
-    COLOR_DODGE = b'CDdg'
-    LINEAR_DODGE = b'linearDodge'
-    LIGHTER_COLOR = b'lighterColor'
-    OVERLAY = b'Ovrl'
-    SOFT_LIGHT = b'SftL'
-    HARD_LIGHT = b'HrdL'
-    VIVID_LIGHT = b'vividLight'
-    LINEAR_LIGHT = b'linearLight'
-    PIN_LIGHT = b'pinLight'
-    HARD_MIX = b'hardMix'
-    DIFFERENCE = b'Dfrn'
-    EXCLUSION = b'Xclu'
-    SUBTRACT = b'blendSubtraction'
-    DIVIDE = b'blendDivide'
-    HUE = b'H   '
-    SATURATION = b'Strt'
-    COLOR = b'Clr '
-    LUMINOSITY = b'Lmns'
-
-
-class Clipping(IntEnum):
-    """Clipping."""
-    BASE = 0
-    NON_BASE = 1
+# class BlendMode2(Enum):
+#     """Blend mode in layer effect descriptor."""
+#     NORMAL = b'Nrml'
+#     DISSOLVE = b'Dslv'
+#     DARKEN = b'Drkn'
+#     MULTIPLY = b'Mltp'
+#     COLOR_BURN = b'CBrn'
+#     LINEAR_BURN = b'linearBurn'
+#     DARKER_COLOR = b'darkerColor'
+#     LIGHTEN = b'Lghn'
+#     SCREEN = b'Scrn'
+#     COLOR_DODGE = b'CDdg'
+#     LINEAR_DODGE = b'linearDodge'
+#     LIGHTER_COLOR = b'lighterColor'
+#     OVERLAY = b'Ovrl'
+#     SOFT_LIGHT = b'SftL'
+#     HARD_LIGHT = b'HrdL'
+#     VIVID_LIGHT = b'vividLight'
+#     LINEAR_LIGHT = b'linearLight'
+#     PIN_LIGHT = b'pinLight'
+#     HARD_MIX = b'hardMix'
+#     DIFFERENCE = b'Dfrn'
+#     EXCLUSION = b'Xclu'
+#     SUBTRACT = b'blendSubtraction'
+#     DIVIDE = b'blendDivide'
+#     HUE = b'H   '
+#     SATURATION = b'Strt'
+#     COLOR = b'Clr '
+#     LUMINOSITY = b'Lmns'
 
 
 class GlobalLayerMaskKind(IntEnum):
@@ -245,40 +236,20 @@ class GlobalLayerMaskKind(IntEnum):
 
 
 class Compression(IntEnum):
-    """Compression modes."""
+    """
+    Compression modes.
+
+    Compression. 0 = Raw Data, 1 = RLE compressed, 2 = ZIP without prediction,
+    3 = ZIP with prediction.
+    """
     RAW = 0
     PACK_BITS = 1
     ZIP = 2
     ZIP_WITH_PREDICTION = 3
 
 
-class PrintScaleStyle(Enum):
-    """Print scale style."""
-    CENTERED = 0
-    SIZE_TO_FIT = 1
-    USER_DEFINED = 2
-
-
-class TaggedBlock(Enum):
+class TaggedBlockID(Enum):
     """Tagged blocks keys."""
-    _FILL_KEYS = set([
-        b'SoCo', b'GdFl', b'PtFl'
-    ])
-
-    _ADJUSTMENT_KEYS = set([
-        b'brit', b'levl', b'curv', b'expA', b'vibA', b'hue ', b'hue2',
-        b'blnc', b'blwh', b'phfl', b'mixr', b'clrL', b'nvrt', b'post',
-        b'thrs', b'grdm', b'selc'
-    ])
-
-    @classmethod
-    def is_adjustment_key(cls, key):
-        return key in cls._ADJUSTMENT_KEYS
-
-    @classmethod
-    def is_fill_key(cls, key):
-        return key in cls._FILL_KEYS
-
     SOLID_COLOR_SHEET_SETTING = b'SoCo'
     GRADIENT_FILL_SETTING = b'GdFl'
     PATTERN_FILL_SETTING = b'PtFl'
@@ -374,143 +345,154 @@ class TaggedBlock(Enum):
     LAYER_32 = b'Lr32'
     LAYER = b'Layr'
 
-
-class OSType(Enum):
-    """
-    Action descriptor types.
-    """
-    REFERENCE = b'obj '
-    DESCRIPTOR = b'Objc'
-    LIST = b'VlLs'
-    DOUBLE = b'doub'
-    UNIT_FLOAT = b'UntF'
-    UNIT_FLOATS = b'UnFl'
-    STRING = b'TEXT'
-    ENUMERATED = b'enum'
-    INTEGER = b'long'
-    LARGE_INTEGER = b'comp'
-    BOOLEAN = b'bool'
-    GLOBAL_OBJECT = b'GlbO'
-    CLASS1 = b'type'
-    CLASS2 = b'GlbC'
-    ALIAS = b'alis'
-    RAW_DATA = b'tdta'
-    OBJECT_ARRAY = b'ObAr'
-    PATH = b'Pth '  # Undocumented
+    @classmethod
+    def set(cls):
+        return set(x.value for x in cls)
 
 
-class ReferenceOSType(Enum):
-    """
-    OS Type keys for Reference Structure.
-    """
-    PROPERTY = b'prop'
-    CLASS = b'Clss'
-    ENUMERATED_REFERENCE = b'Enmr'
-    OFFSET = b'rele'
-    IDENTIFIER = b'Idnt'
-    INDEX = b'indx'
-    NAME = b'name'
+# class PrintScaleStyle(Enum):
+#     """Print scale style."""
+#     CENTERED = 0
+#     SIZE_TO_FIT = 1
+#     USER_DEFINED = 2
 
 
-class EffectOSType(Enum):
-    """
-    OS Type keys for Layer Effects.
-    """
-    COMMON_STATE = b'cmnS'
-    DROP_SHADOW = b'dsdw'
-    INNER_SHADOW = b'isdw'
-    OUTER_GLOW = b'oglw'
-    INNER_GLOW = b'iglw'
-    BEVEL = b'bevl'
-    SOLID_FILL = b'sofi'
+# class OSType(Enum):
+#     """
+#     Action descriptor types.
+#     """
+#     REFERENCE = b'obj '
+#     DESCRIPTOR = b'Objc'
+#     LIST = b'VlLs'
+#     DOUBLE = b'doub'
+#     UNIT_FLOAT = b'UntF'
+#     UNIT_FLOATS = b'UnFl'
+#     STRING = b'TEXT'
+#     ENUMERATED = b'enum'
+#     INTEGER = b'long'
+#     LARGE_INTEGER = b'comp'
+#     BOOLEAN = b'bool'
+#     GLOBAL_OBJECT = b'GlbO'
+#     CLASS1 = b'type'
+#     CLASS2 = b'GlbC'
+#     ALIAS = b'alis'
+#     RAW_DATA = b'tdta'
+#     OBJECT_ARRAY = b'ObAr'
+#     PATH = b'Pth '  # Undocumented
 
 
-class UnitFloatType(Enum):
-    """
-    Units the value is in (used in Unit float structure).
-    """
-    ANGLE = b'#Ang'  # base degrees
-    DENSITY = b'#Rsl'  # base per inch
-    DISTANCE = b'#Rlt'  # base 72ppi
-    NONE = b'#Nne'  # coerced
-    PERCENT = b'#Prc'  # unit value
-    PIXELS = b'#Pxl'  # tagged unit value
-    POINTS = b'#Pnt'  # points
-    MILLIMETERS = b'#Mlm'  # millimeters
+# class ReferenceOSType(Enum):
+#     """
+#     OS Type keys for Reference Structure.
+#     """
+#     PROPERTY = b'prop'
+#     CLASS = b'Clss'
+#     ENUMERATED_REFERENCE = b'Enmr'
+#     OFFSET = b'rele'
+#     IDENTIFIER = b'Idnt'
+#     INDEX = b'indx'
+#     NAME = b'name'
 
 
-class SectionDivider(Enum):
-    OTHER = 0
-    OPEN_FOLDER = 1
-    CLOSED_FOLDER = 2
-    BOUNDING_SECTION_DIVIDER = 3
+# class EffectOSType(Enum):
+#     """
+#     OS Type keys for Layer Effects.
+#     """
+#     COMMON_STATE = b'cmnS'
+#     DROP_SHADOW = b'dsdw'
+#     INNER_SHADOW = b'isdw'
+#     OUTER_GLOW = b'oglw'
+#     INNER_GLOW = b'iglw'
+#     BEVEL = b'bevl'
+#     SOLID_FILL = b'sofi'
 
 
-class DisplayResolutionUnit(Enum):
-    PIXELS_PER_INCH = 1
-    PIXELS_PER_CM = 2
+# class UnitFloatType(Enum):
+#     """
+#     Units the value is in (used in Unit float structure).
+#     """
+#     ANGLE = b'#Ang'  # base degrees
+#     DENSITY = b'#Rsl'  # base per inch
+#     DISTANCE = b'#Rlt'  # base 72ppi
+#     NONE = b'#Nne'  # coerced
+#     PERCENT = b'#Prc'  # unit value
+#     PIXELS = b'#Pxl'  # tagged unit value
+#     POINTS = b'#Pnt'  # points
+#     MILLIMETERS = b'#Mlm'  # millimeters
 
 
-class DimensionUnit(Enum):
-    INCH = 1
-    CM = 2
-    POINT = 3  # 72 points == 1 inch
-    PICA = 4   # 6 pica == 1 inch
-    COLUMN = 5
+# class SectionDivider(Enum):
+#     OTHER = 0
+#     OPEN_FOLDER = 1
+#     CLOSED_FOLDER = 2
+#     BOUNDING_SECTION_DIVIDER = 3
 
 
-class PlacedLayerProperty(Enum):
-    TRANSFORM = b'Trnf'
-    SIZE = b'Sz  '
-    ID = b'Idnt'
+# class DisplayResolutionUnit(Enum):
+#     PIXELS_PER_INCH = 1
+#     PIXELS_PER_CM = 2
 
 
-class SzProperty(Enum):
-    WIDTH = b'Wdth'
-    HEIGHT = b'Hght'
+# class DimensionUnit(Enum):
+#     INCH = 1
+#     CM = 2
+#     POINT = 3  # 72 points == 1 inch
+#     PICA = 4   # 6 pica == 1 inch
+#     COLUMN = 5
 
 
-class TextProperty(Enum):
-    TXT = b'Txt '
-    ORIENTATION = b'Ornt'
+# class PlacedLayerProperty(Enum):
+#     TRANSFORM = b'Trnf'
+#     SIZE = b'Sz  '
+#     ID = b'Idnt'
 
 
-class TextOrientation(Enum):
-    HORIZONTAL = b'Hrzn'
+# class SzProperty(Enum):
+#     WIDTH = b'Wdth'
+#     HEIGHT = b'Hght'
 
 
-class PathResource(Enum):
-    CLOSED_SUBPATH_LENGTH_RECORD = 0
-    CLOSED_SUBPATH_BEZIER_KNOT_LINKED = 1
-    CLOSED_SUBPATH_BEZIER_KNOT_UNLINKED = 2
-    OPEN_SUBPATH_LENGTH_RECORD = 3
-    OPEN_SUBPATH_BEZIER_KNOT_LINKED = 4
-    OPEN_SUBPATH_BEZIER_KNOT_UNLINKED = 5
-    PATH_FILL_RULE_RECORD = 6
-    CLIPBOARD_RECORD = 7
-    INITIAL_FILL_RULE_RECORD = 8
+# class TextProperty(Enum):
+#     TXT = b'Txt '
+#     ORIENTATION = b'Ornt'
 
 
-class LinkedLayerType(Enum):
-    DATA = b'liFD'
-    EXTERNAL = b'liFE'
-    ALIAS = b'liFA'
+# class TextOrientation(Enum):
+#     HORIZONTAL = b'Hrzn'
 
 
-class ObjectBasedEffects(Enum):
-    """Type of the object-based effects."""
-    DROP_SHADOW_MULTI = b'dropShadowMulti'
-    DROP_SHADOW = b'DrSh'
-    INNER_SHADOW_MULTI = b'innerShadowMulti'
-    INNER_SHADOW = b'IrSh'
-    OUTER_GLOW = b'OrGl'
-    COLOR_OVERLAY_MULTI = b'solidFillMulti'
-    COLOR_OVERLAY = b'SoFi'
-    GRADIENT_OVERLAY_MULTI = b'gradientFillMulti'
-    GRADIENT_OVERLAY = b'GrFl'
-    PATTERN_OVERLAY = b'patternFill'
-    STROKE_MULTI = b'frameFXMulti'
-    STROKE = b'FrFX'
-    INNER_GLOW = b'IrGl'
-    BEVEL_EMBOSS = b'ebbl'
-    SATIN = b'ChFX'
+# class PathResource(Enum):
+#     CLOSED_SUBPATH_LENGTH_RECORD = 0
+#     CLOSED_SUBPATH_BEZIER_KNOT_LINKED = 1
+#     CLOSED_SUBPATH_BEZIER_KNOT_UNLINKED = 2
+#     OPEN_SUBPATH_LENGTH_RECORD = 3
+#     OPEN_SUBPATH_BEZIER_KNOT_LINKED = 4
+#     OPEN_SUBPATH_BEZIER_KNOT_UNLINKED = 5
+#     PATH_FILL_RULE_RECORD = 6
+#     CLIPBOARD_RECORD = 7
+#     INITIAL_FILL_RULE_RECORD = 8
+
+
+# class LinkedLayerType(Enum):
+#     DATA = b'liFD'
+#     EXTERNAL = b'liFE'
+#     ALIAS = b'liFA'
+
+
+# class ObjectBasedEffects(Enum):
+#     """Type of the object-based effects."""
+#     DROP_SHADOW_MULTI = b'dropShadowMulti'
+#     DROP_SHADOW = b'DrSh'
+#     INNER_SHADOW_MULTI = b'innerShadowMulti'
+#     INNER_SHADOW = b'IrSh'
+#     OUTER_GLOW = b'OrGl'
+#     COLOR_OVERLAY_MULTI = b'solidFillMulti'
+#     COLOR_OVERLAY = b'SoFi'
+#     GRADIENT_OVERLAY_MULTI = b'gradientFillMulti'
+#     GRADIENT_OVERLAY = b'GrFl'
+#     PATTERN_OVERLAY = b'patternFill'
+#     STROKE_MULTI = b'frameFXMulti'
+#     STROKE = b'FrFX'
+#     INNER_GLOW = b'IrGl'
+#     BEVEL_EMBOSS = b'ebbl'
+#     SATIN = b'ChFX'
