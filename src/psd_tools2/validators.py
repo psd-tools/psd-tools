@@ -1,3 +1,6 @@
+"""
+Validation functions for attr.
+"""
 import attr
 from attr.validators import in_
 
