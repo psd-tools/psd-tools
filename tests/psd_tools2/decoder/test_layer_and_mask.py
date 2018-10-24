@@ -1,14 +1,18 @@
 from __future__ import absolute_import, unicode_literals
 import pytest
 import logging
+from psd_tools2.decoder.tagged_blocks import TaggedBlocks, TaggedBlock
 from psd_tools2.decoder.layer_and_mask import (
     LayerAndMaskInformation, LayerInfo, LayerRecords, LayerRecord,
-    ChannelInfo, LayerFlags, LayerBlendingRanges, TaggedBlocks, TaggedBlock,
-    MaskFlags, MaskData, MaskParameters, ChannelImageData, ChannelDataList,
-    ChannelData, GlobalLayerMaskInfo
+    ChannelInfo, LayerFlags, LayerBlendingRanges, MaskFlags, MaskData,
+    MaskParameters, ChannelImageData, ChannelDataList, ChannelData,
+    GlobalLayerMaskInfo
 )
 
 from ..utils import check_write_read, check_read_write
+
+
+logger = logging.getLogger(__name__)
 
 
 def test_layer_and_mask_information():
@@ -87,9 +91,9 @@ def test_tagged_block():
 
 def test_layer_record():
     tagged_blocks = TaggedBlocks([TaggedBlock(key=b'lnkE')])
-    # check_write_read(LayerRecord())
+    check_write_read(LayerRecord())
     check_write_read(LayerRecord(name='foo', tagged_blocks=tagged_blocks))
-    # check_write_read(LayerRecord(tagged_blocks=tagged_blocks), version=2)
+    check_write_read(LayerRecord(tagged_blocks=tagged_blocks), version=2)
 
 
 def test_mask_flags_wr():

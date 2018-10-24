@@ -2,10 +2,10 @@ from __future__ import absolute_import, unicode_literals
 import attr
 import io
 import logging
-import warnings
-import zlib
+# import zlib
 
 from psd_tools2.decoder.base import BaseElement, ListElement
+from psd_tools2.decoder.tagged_blocks import TaggedBlocks
 from psd_tools2.constants import BlendMode, Compression, ChannelID
 from psd_tools2.validators import in_, range_
 from psd_tools2.utils import (
@@ -297,81 +297,6 @@ class LayerBlendingRanges(BaseElement):
             for x in channel:
                 written += write_fmt(fp, '2H', *x)
         return written
-
-
-@attr.s(repr=False)
-class TaggedBlocks(ListElement):
-    """
-    List of tagged blocks.
-
-    .. py:attribute:: items
-    """
-    items = attr.ib(factory=list)
-
-    @classmethod
-    def read(cls, fp, version=1, padding=1):
-        items = []
-        while is_readable(fp, 8):  # len(signature) + len(key) = 8
-            block = TaggedBlock.read(fp, version, padding)
-            if block is None:
-                break
-            items.append(block)
-        return cls(items)
-
-    def write(self, fp, version=1, padding=1):
-        return sum(item.write(fp, version, padding) for item in self)
-
-
-@attr.s
-class TaggedBlock(BaseElement):
-    """
-    Layer tagged block with extra info.
-
-    .. py:attribute:: key
-    .. py:attribute:: data
-    """
-    _SIGNATURES = (b'8BIM', b'8B64')
-    BIG_KEYS = set((
-        b'LMsk', b'Lr16', b'Lr32', b'Layr', b'Mt16', b'Mt32', b'Mtrn',
-        b'Alph', b'FMsk', b'lnk2', b'FEid', b'FXid', b'PxSD',
-        b'lnkE', b'pths',  # Undocumented.
-    ))
-
-    signature = attr.ib(default=b'8BIM', repr=False,
-                        validator=in_(_SIGNATURES))
-    key = attr.ib(default=b'', type=bytes)
-    data = attr.ib(default=b'', repr=False)
-
-    @classmethod
-    def read(cls, fp, version=1, padding=1):
-        signature = read_fmt('4s', fp)[0]
-        if signature not in cls._SIGNATURES:
-            logger.warning('Invalid signature (%r)' % (signature))
-            fp.seek(-4, 1)
-            return None
-
-        key = read_fmt('4s', fp)[0]
-        fmt = cls._length_format(key, version)
-        data = read_length_block(fp, fmt=fmt, padding=padding)
-        # TODO: Parse data here.
-        # data = get_cls(key).frombytes(data)
-        return cls(signature, key, data)
-
-    def write(self, fp, version=1, padding=1):
-        written = write_fmt(fp, '4s4s', self.signature, self.key)
-
-        def writer(f):
-            # TODO: Serialize data here.
-            # written = self.data.write(f)
-            return write_bytes(f, self.data)
-
-        fmt = self._length_format(self.key, version)
-        written += write_length_block(fp, writer, fmt=fmt, padding=padding)
-        return written
-
-    @classmethod
-    def _length_format(cls, key, version):
-        return ('I', 'Q')[int(version == 2 and key in cls.BIG_KEYS)]
 
 
 @attr.s(repr=False)
