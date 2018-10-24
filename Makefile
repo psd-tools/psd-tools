@@ -1,5 +1,5 @@
 BRANCH=master
-VERSIONS=2.7 3.4 3.5 3.6
+VERSIONS=2.7 3.5 3.6 3.7
 
 clean:
 	rm -rf dist/ build/

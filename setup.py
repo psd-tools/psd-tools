@@ -117,6 +117,9 @@ setup_args = dict(
         'Pillow',
         'enum34;python_version<"3.4"',
     ],
+    extras_require={
+        'ext': ['cython']
+    },
     keywords="psd imaging pil pillow",
     zip_safe=False,
     package_dir={'': 'src'},
