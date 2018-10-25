@@ -91,7 +91,7 @@ class TaggedBlock(BaseElement):
             return None
 
         key = read_fmt('4s', fp)[0]
-        if key not in set(TaggedBlockID):
+        if key not in TaggedBlockID.set():
             logger.warning('Unknown key: %r' % (key))
 
         fmt = cls._length_format(key, version)
