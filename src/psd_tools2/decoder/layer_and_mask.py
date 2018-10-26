@@ -946,7 +946,7 @@ class ChannelData(BaseElement):
         """
         written = write_fmt(fp, 'H', self.compression.value)
         written += write_bytes(fp, self.data)
-        written += write_padding(fp, written, 2)
+        # written += write_padding(fp, written, 2)  # Seems no padding here.
         return written
 
 

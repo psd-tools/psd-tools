@@ -37,6 +37,7 @@ def test_psd_read_write(filename):
         f.flush()
         output = f.getvalue()
 
+    assert len(output) == len(expected)
     assert output == expected
 
 
