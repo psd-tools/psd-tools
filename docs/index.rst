@@ -38,6 +38,7 @@ Python package for reading Adobe Photoshop PSD files
     reference/psd_tools2.constants
     reference/psd_tools2.decoder
     reference/psd_tools2.decoder.color_mode_data
+    reference/psd_tools2.decoder.descriptor
     reference/psd_tools2.decoder.header
     reference/psd_tools2.decoder.image_data
     reference/psd_tools2.decoder.image_resources

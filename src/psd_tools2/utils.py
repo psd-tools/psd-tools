@@ -217,7 +217,7 @@ def read_unicode_string(fp):
 def write_unicode_string(fp, value):
     arr = array.array(str('H'), value.encode('utf-8'))
     data = be_array_to_bytes(arr)
-    return write_fmt(fp, 'I%dH', len(data), *data)
+    return write_fmt(fp, 'I%dH' % len(data), len(data), *data)
 
 
 def read_be_array(fmt, count, fp):

@@ -358,41 +358,39 @@ class TaggedBlockID(Enum):
 #     USER_DEFINED = 2
 
 
-# class OSType(Enum):
-#     """
-#     Action descriptor types.
-#     """
-#     REFERENCE = b'obj '
-#     DESCRIPTOR = b'Objc'
-#     LIST = b'VlLs'
-#     DOUBLE = b'doub'
-#     UNIT_FLOAT = b'UntF'
-#     UNIT_FLOATS = b'UnFl'
-#     STRING = b'TEXT'
-#     ENUMERATED = b'enum'
-#     INTEGER = b'long'
-#     LARGE_INTEGER = b'comp'
-#     BOOLEAN = b'bool'
-#     GLOBAL_OBJECT = b'GlbO'
-#     CLASS1 = b'type'
-#     CLASS2 = b'GlbC'
-#     ALIAS = b'alis'
-#     RAW_DATA = b'tdta'
-#     OBJECT_ARRAY = b'ObAr'
-#     PATH = b'Pth '  # Undocumented
+class OSType(Enum):
+    """
+    Descriptor OSTypes and reference OSTypes.
+    """
 
+    # OS types
+    REFERENCE = b'obj '
+    DESCRIPTOR = b'Objc'
+    LIST = b'VlLs'
+    DOUBLE = b'doub'
+    UNIT_FLOAT = b'UntF'
+    UNIT_FLOATS = b'UnFl'  # Undocumented
+    STRING = b'TEXT'
+    ENUMERATED = b'enum'
+    INTEGER = b'long'
+    LARGE_INTEGER = b'comp'
+    BOOLEAN = b'bool'
+    GLOBAL_OBJECT = b'GlbO'
+    CLASS1 = b'type'
+    CLASS2 = b'GlbC'
+    ALIAS = b'alis'
+    RAW_DATA = b'tdta'
+    OBJECT_ARRAY = b'ObAr'  # Undocumented
+    PATH = b'Pth '  # Undocumented
 
-# class ReferenceOSType(Enum):
-#     """
-#     OS Type keys for Reference Structure.
-#     """
-#     PROPERTY = b'prop'
-#     CLASS = b'Clss'
-#     ENUMERATED_REFERENCE = b'Enmr'
-#     OFFSET = b'rele'
-#     IDENTIFIER = b'Idnt'
-#     INDEX = b'indx'
-#     NAME = b'name'
+    # Reference OS types
+    PROPERTY = b'prop'
+    CLASS3 = b'Clss'
+    ENUMERATED_REFERENCE = b'Enmr'
+    OFFSET = b'rele'
+    IDENTIFIER = b'Idnt'
+    INDEX = b'indx'
+    NAME = b'name'
 
 
 # class EffectOSType(Enum):
@@ -408,18 +406,18 @@ class TaggedBlockID(Enum):
 #     SOLID_FILL = b'sofi'
 
 
-# class UnitFloatType(Enum):
-#     """
-#     Units the value is in (used in Unit float structure).
-#     """
-#     ANGLE = b'#Ang'  # base degrees
-#     DENSITY = b'#Rsl'  # base per inch
-#     DISTANCE = b'#Rlt'  # base 72ppi
-#     NONE = b'#Nne'  # coerced
-#     PERCENT = b'#Prc'  # unit value
-#     PIXELS = b'#Pxl'  # tagged unit value
-#     POINTS = b'#Pnt'  # points
-#     MILLIMETERS = b'#Mlm'  # millimeters
+class UnitFloatType(Enum):
+    """
+    Units the value is in (used in Unit float structure).
+    """
+    ANGLE = b'#Ang'  # base degrees
+    DENSITY = b'#Rsl'  # base per inch
+    DISTANCE = b'#Rlt'  # base 72ppi
+    NONE = b'#Nne'  # coerced
+    PERCENT = b'#Prc'  # unit value
+    PIXELS = b'#Pxl'  # tagged unit value
+    POINTS = b'#Pnt'  # points
+    MILLIMETERS = b'#Mlm'  # millimeters
 
 
 # class SectionDivider(Enum):
