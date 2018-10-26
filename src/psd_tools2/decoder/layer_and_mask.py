@@ -5,10 +5,10 @@ from __future__ import absolute_import, unicode_literals
 import attr
 import io
 import logging
-# import zlib
 
 from psd_tools2.decoder.base import BaseElement, ListElement
 from psd_tools2.decoder.tagged_blocks import TaggedBlocks
+from psd_tools2.decoder.image_data import compress, decompress
 from psd_tools2.validators import in_, range_
 from psd_tools2.constants import (
     BlendMode, Clipping, Compression, ChannelID, GlobalLayerMaskKind
@@ -18,8 +18,6 @@ from psd_tools2.utils import (
     read_length_block, write_length_block, is_readable, write_padding,
     write_bytes
 )
-
-# import psd_tools.compression  # TODO: Migrate compression module.
 
 logger = logging.getLogger(__name__)
 
@@ -200,16 +198,17 @@ class ChannelInfo(BaseElement):
 
     .. py:attribute:: id
 
-        Channel ID: 0 = red, 1 = green, etc.;-1 = transparency mask;
-        -2 = user supplied layer mask, -3 real user supplied layer mask (when
-        both a user mask and a vector mask are present).
-        See :py:class:`.ChannelID`.
+        Channel ID: 0 = red, 1 = green, etc.; -1 = transparency mask; -2 =
+        user supplied layer mask, -3 real user supplied layer mask (when both
+        a user mask and a vector mask are present). See
+        :py:class:`~psd_tools2.constants.ChannelID`.
 
     .. py:attribute:: length
 
         Length of the corresponding channel data.
     """
-    id = attr.ib(type=int)
+    id = attr.ib(default=ChannelID.CHANNEL_0, converter=ChannelID,
+                 validator=in_(ChannelID))
     length = attr.ib(default=0, type=int)
 
     @classmethod
@@ -403,7 +402,7 @@ class LayerRecord(BaseElement):
 
     .. py:attribute:: blend_mode
 
-        Blend mode key. See :py:class:`.BlendMode`.
+        Blend mode key. See :py:class:`~psd_tools2.constants.BlendMode`.
 
     .. py:attribute:: opacity
 
@@ -411,7 +410,8 @@ class LayerRecord(BaseElement):
 
     .. py:attribute:: clipping
 
-        Clipping, 0 = base, 1 = non-base. See :py:class:`.Clipping`.
+        Clipping, 0 = base, 1 = non-base. See
+        :py:class:`~psd_tools2.constants.Clipping`.
 
     .. py:attribute:: flags
 
@@ -423,7 +423,7 @@ class LayerRecord(BaseElement):
 
     .. py:attribute:: blending_ranges
 
-        See :py:class:`.LayerBlendingRanges`.
+        See :py:class:`~psd_tools2.constants.LayerBlendingRanges`.
 
     .. py:attribute:: name
 
@@ -539,17 +539,16 @@ class LayerRecord(BaseElement):
     def channel_sizes(self):
         """List of channel sizes: [(width, height)].
         """
-        return [
-            {
-                ChannelID.USER_LAYER_MASK: (
-                    self.mask_data.width, self.mask_data.height
-                ),
-                ChannelID.REAL_USER_LAYER_MASK: (
-                    self.mask_data.real_width, self.mask_data.real_height
-                )
-            }.get(channel.id, (self.width, self.height))
-            for channel in self.channel_info
-        ]
+        sizes = []
+        for channel in self.channel_info:
+            if channel.id == ChannelID.USER_LAYER_MASK:
+                sizes.append((self.mask_data.width, self.mask_data.height))
+            elif channel.id == ChannelID.REAL_USER_LAYER_MASK:
+                sizes.append((self.mask_data.real_width,
+                              self.mask_data.real_height))
+            else:
+                sizes.append((self.width, self.height))
+        return sizes
 
 
 @attr.s
@@ -936,9 +935,9 @@ class ChannelData(BaseElement):
         :param fp: file-like object
         :rtype: :py:class:`.ChannelData`
         """
-        compress_type = Compression(read_fmt('H', fp)[0])
+        compression = Compression(read_fmt('H', fp)[0])
         data = fp.read()
-        return cls(compress_type, data)
+        return cls(compression, data)
 
     def write(self, fp, **kwargs):
         """Write the element to a file-like object.
@@ -947,88 +946,42 @@ class ChannelData(BaseElement):
         """
         written = write_fmt(fp, 'H', self.compression.value)
         written += write_bytes(fp, self.data)
+        written += write_padding(fp, written, 2)
         return written
+
+
+    def get_data(self, width, height, depth, version=1):
+        """Get decompressed channel data.
+
+        :param width: width.
+        :param height: height.
+        :param depth: bit depth of the pixel.
+        :param version: psd file version.
+        :rtype: bytes
+        """
+        return decompress(self.data, self.compression, width, height, depth,
+                          version)
+
+    def set_data(self, data, width, height, depth, version=1):
+        """Set raw channel data and compress to store.
+
+        :param data: raw data bytes to write.
+        :param compression: compression type,
+            see :py:class:`~psd_tools2.constants.Compression`.
+        :param width: width.
+        :param height: height.
+        :param depth: bit depth of the pixel.
+        :param version: psd file version.
+        """
+        self.data = compress(data, self.compression, width, height, depth,
+                             version)
+        return len(self.data)
 
     @property
     def _length(self):
         """Length of channel data block.
         """
         return 2 + len(self.data)
-
-    # @classmethod
-    # def _read(cls, fp, layer, channel, depth, version=1):
-    #     bytes_per_pixel = depth // 8
-
-    #     if channel.id == ChannelID.USER_LAYER_MASK:
-    #         w, h = layer.mask_data.width, layer.mask_data.height
-    #     elif channel.id == ChannelID.REAL_USER_LAYER_MASK:
-    #         w, h = layer.mask_data.real_width, layer.mask_data.real_height
-    #     else:
-    #         w, h = layer.width, layer.height
-
-    #     start_pos = fp.tell()
-    #     compress_type = Compression(read_fmt('H', fp)[0])
-    #     data = None
-
-    #     # read data size.
-    #     byte_counts = None
-    #     if compress_type == Compression.RAW:
-    #         data_size = w * h * bytes_per_pixel
-    #     elif compress_type == Compression.PACK_BITS:
-    #         byte_counts = read_be_array(('H', 'I')[version - 1], h, fp)
-    #         data_size = sum(byte_counts)
-    #     elif compress_type in (Compression.ZIP,
-    #                            Compression.ZIP_WITH_PREDICTION):
-    #         data_size = channel.length - 2
-
-    #     logger.debug('  reading channel id=%d, len=%d, start_pos=%d' % (
-    #         channel.id, data_size, start_pos))
-
-    #     # read the data itself.
-    #     if data_size > channel.length:
-    #         raise ValueError("Incorrect data size: %s > %s" % (
-    #             data_size, channel.length
-    #         ))
-    #     else:
-    #         raw_data = fp.read(data_size)
-    #         if compress_type in (Compression.RAW, Compression.PACK_BITS):
-    #             data = raw_data
-    #         elif compress_type == Compression.ZIP:
-    #             data = zlib.decompress(raw_data)
-    #         elif compress_type == Compression.ZIP_WITH_PREDICTION:
-    #             decompressed = zlib.decompress(raw_data)
-    #             data = psd_tools.compression.decode_prediction(
-    #                 decompressed, w, h, bytes_per_pixel)
-
-    #         if data is None:
-    #             raise ValueError("Empty data")
-
-    #     remaining_length = channel.length - (fp.tell() - start_pos)
-    #     if remaining_length > 0:
-    #         fp.seek(remaining_length, 1)
-    #         logger.debug('skipping %s bytes', remaining_length)
-
-    #     return cls(compress_type, data, byte_counts)
-
-    # def write(self, fp, channel):
-    #     written = write_fmt(fp, 'H', self.compression.value)
-
-    #     if self.compression == Compression.PACK_BITS:
-    #         written += write_be_array(fp, self.byte_counts)
-
-    #     if self.compression in (Compression.RAW, Compression.PACK_BITS):
-    #         written += write_bytes(fp, self.data)
-    #     elif self.compression == Compression.ZIP:
-    #         written += write_bytes(fp, zlib.compress(self.data))
-    #     elif self.compression == Compression.ZIP_WITH_PREDICTION:
-    #         raise NotImplementedError('ZIP+prediction is not supported.')
-
-    #     # TODO: Should the padding size be determined here?
-    #     padding_size = channel.length - (fp.tell() - start_pos)
-    #     assert padding_size >= 0, 'padding_size = %d' % padding_size
-    #     written += write_fmt(fp, '%dx' % padding_size)
-
-    #     return written
 
 
 @attr.s

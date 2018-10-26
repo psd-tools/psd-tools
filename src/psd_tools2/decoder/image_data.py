@@ -3,11 +3,20 @@ Image data section structure.
 """
 from __future__ import absolute_import, unicode_literals
 import attr
+import io
 import logging
+
+import array
+import packbits
+import zlib
+from psd_tools.compression import decode_prediction
+
 from psd_tools2.constants import Compression
 from psd_tools2.decoder.base import BaseElement
 from psd_tools2.validators import in_
-from psd_tools2.utils import read_fmt, write_fmt, write_bytes
+from psd_tools2.utils import (
+    read_fmt, write_fmt, write_bytes, read_be_array, write_be_array
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +28,7 @@ class ImageData(BaseElement):
 
     .. py:attribute:: compression
 
-        :py:class:`~psd_tools2.constants.Compression`
+        See :py:class:`~psd_tools2.constants.Compression`.
 
     .. py:attribute:: data
     """
@@ -52,75 +61,109 @@ class ImageData(BaseElement):
         logger.debug('  wrote image data, len=%d' % (fp.tell() - start_pos))
         return written
 
+    def get_data(self, header):
+        """Get decompressed data.
 
-# @classmethod
-# def read(cls, fp, header):
-#     """
-#     Reads merged image pixel data which is stored at the end of PSD file.
-#     """
-#     w, h = header.width, header.height
-#     compress_type = Compression(read_fmt('H', fp)[0])
+        :param header: See :py:class:`~psd_tools2.decoder.header.FileHeader`.
+        :return: list of bytes corresponding each channel.
+        :rtype: list
+        """
+        data = decompress(self.data, self.compression, header.width,
+                          header.height * header.channels, header.depth,
+                          header.version)
+        plane_size = len(data) // header.channels
+        with io.BytesIO(data) as f:
+            return [f.read(plane_size) for _ in range(header.channels)]
 
-#     bytes_per_pixel = header.depth // 8
+    def set_data(self, data, header):
+        """Set raw data and compress.
 
-#     channel_byte_counts = []
-#     if compress_type == Compression.PACK_BITS:
-#         for ch in range(header.channels):
-#             channel_byte_counts.append(
-#                 read_be_array(('H', 'I')[header.version - 1], h, fp)
-#             )
+        :param data: list of raw data bytes corresponding channels.
+        :param compression: compression type,
+            see :py:class:`~psd_tools2.constants.Compression`.
+        :param header: See :py:class:`~psd_tools2.decoder.header.FileHeader`.
+        :return: length of compressed data.
+        """
+        self.data = compress(b''.join(data), self.compression, header.width,
+                             header.height * header.channels, header.depth,
+                             header.version)
+        return len(self.data)
 
-#     items = []
-#     for channel_id in range(header.channels):
-#         data = None
-#         if compress_type == Compression.RAW:
-#             data_size = w * h * bytes_per_pixel
-#             data = fp.read(data_size)
 
-#         elif compress_type == Compression.PACK_BITS:
-#             byte_counts = channel_byte_counts[channel_id]
-#             data_size = sum(byte_counts)
-#             data = fp.read(data_size)
+def decompress(data, compression, width, height, depth, version):
+    """Decompress raw data.
 
-#         # are there any ZIP-encoded composite images in a wild?
-#         elif compress_type == Compression.ZIP:
-#             warnings.warn(
-#                 "ZIP compression of composite image is not supported."
-#             )
+    :param data: compressed data bytes.
+    :param compression: compression type,
+            see :py:class:`~psd_tools2.constants.Compression`.
+    :param width: width.
+    :param height: height.
+    :param depth: bit depth of the pixel.
+    :param version: psd file version.
+    :return: decompressed data bytes.
+    """
+    bytes_per_pixel = depth // 8
+    length = width * height * bytes_per_pixel
 
-#         elif compress_type == Compression.ZIP_WITH_PREDICTION:
-#             warnings.warn(
-#                 "ZIP_WITH_PREDICTION compression of composite image is "
-#                 "not supported."
-#             )
+    result = None
+    if compression == Compression.RAW:
+        result = data[:length]
+    elif compression == Compression.PACK_BITS:
+        with io.BytesIO(data) as fp:
+            bytes_counts = read_be_array(
+                ('H', 'I')[version - 1], height, fp
+            )
+            result = b''
+            for count in bytes_counts:
+                result += packbits.decode(fp.read(count))
+    elif compression == Compression.ZIP:
+        result = zlib.decompress(data)
+    else:
+        decompressed = zlib.decompress(data)
+        result = decode_prediction(decompressed, w, h, bytes_per_pixel)
 
-#         if data is None:
-#             continue
+    assert len(result) == length, 'len=%d, expected=%d' % (
+        len(result), length
+    )
 
-#         items.append(ChannelData(compress_type, data))
+    return result
 
-#     return cls(items)
 
-# def write(self, fp, header):
-#     if len(self) == 0:
-#         raise ValueError('Image data must be populated.')
+def compress(data, compression, width, height, depth, version=1):
+    """Compress raw data.
 
-#     compress_type = self[0].compression
-#     written = write_fmt(fp, 'H', compression_type.value)
+    :param data: raw data bytes to write.
+    :param compression: compression type, see :py:class:`.Compression`.
+    :param width: width.
+    :param height: height.
+    :param depth: bit depth of the pixel.
+    :param version: psd file version.
+    :return: compressed data bytes.
+    """
+    bytes_per_pixel = depth // 8
 
-#     bytes_per_pixel = header.depth // 8
-#     if compress_type == Compression.PACK_BITS:
-#         # TODO: Calculate channel byte counts from packbits.
-#         raise NotImplementedError
+    if compression == Compression.RAW:
+        result = data
+    elif compression == Compression.PACK_BITS:
+        bytes_counts = array.array(('H', 'I')[version - 1])
+        encoded = b''
+        with io.BytesIO(data) as fp:
+            row_size = width * bytes_per_pixel
+            for index in range(height):
+                row = packbits.encode(fp.read(row_size))
+                bytes_counts.append(len(row))
+                encoded += row
 
-#     for channel in self:
-#         if compress_type in (Compression.RAW, Compression.PACK_BITS):
-#             written += fp.write(channel.data)
-#             written += fp.write(channel.data)
-#         elif compress_type in (Compression.ZIP,
-#                                Compression.ZIP_WITH_PREDICTION):
-#             warnings.warn(
-#                 "ZIP compression of composite image is not supported."
-#             )
+        with io.BytesIO() as fp:
+            write_be_array(fp, bytes_counts)
+            fp.write(encoded)
+            result = fp.getvalue()
+    elif compression == Compression.ZIP:
+        result = zlib.compress(data)
+    else:
+        # TODO: Implement ZIP with prediction encoding.
+        raise NotImplementedError(
+            'ZIP with prediction encoding is not supported.'
+        )
 
-#     return written
+    return result

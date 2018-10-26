@@ -8,7 +8,7 @@ from psd_tools2.decoder.layer_and_mask import (
     MaskParameters, ChannelImageData, ChannelDataList, ChannelData,
     GlobalLayerMaskInfo
 )
-from psd_tools2.constants import ChannelID
+from psd_tools2.constants import ChannelID, Compression
 
 from ..utils import check_write_read, check_read_write
 
@@ -214,6 +214,29 @@ def test_channel_data_list():
 
 def test_channel_data():
     check_write_read(ChannelData())
+
+
+RAW_IMAGE_3x3_8bit = b'\x00\x01\x02\x01\x01\x01\x01\x00\x00'
+RAW_IMAGE_2x2_16bit = b'\x00\x01\x00\x02\x00\x03\x00\x04'
+@pytest.mark.parametrize('compression, data, width, height, depth, version', [
+    (Compression.RAW, RAW_IMAGE_3x3_8bit, 3, 3, 8, 1),
+    (Compression.PACK_BITS, RAW_IMAGE_3x3_8bit, 3, 3, 8, 1),
+    (Compression.ZIP, RAW_IMAGE_3x3_8bit, 3, 3, 8, 1),
+    (Compression.RAW, RAW_IMAGE_3x3_8bit, 3, 3, 8, 2),
+    (Compression.PACK_BITS, RAW_IMAGE_3x3_8bit, 3, 3, 8, 2),
+    (Compression.ZIP, RAW_IMAGE_3x3_8bit, 3, 3, 8, 2),
+    (Compression.RAW, RAW_IMAGE_2x2_16bit, 2, 2, 16, 1),
+    (Compression.PACK_BITS, RAW_IMAGE_2x2_16bit, 2, 2, 16, 1),
+    (Compression.ZIP, RAW_IMAGE_2x2_16bit, 2, 2, 16, 1),
+    (Compression.RAW, RAW_IMAGE_2x2_16bit, 2, 2, 16, 2),
+    (Compression.PACK_BITS, RAW_IMAGE_2x2_16bit, 2, 2, 16, 2),
+    (Compression.ZIP, RAW_IMAGE_2x2_16bit, 2, 2, 16, 2),
+])
+def test_channel_data_data(compression, data, width, height, depth, version):
+    channel = ChannelData(compression)
+    channel.set_data(data, width, height, depth, version)
+    output = channel.get_data(width, height, depth, version)
+    assert output == data, 'output=%r, expected=%r' % (output, data)
 
 
 def test_global_layer_mask_info():

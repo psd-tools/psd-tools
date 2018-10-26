@@ -51,3 +51,8 @@ def test_psd_write_read(filename):
 def test_psd_from_error():
     with pytest.raises(AssertionError):
         PSD.frombytes(b'\x00\x00\x00\x00')
+
+
+# def test_decompress_packbits():
+#     with open(full_name('1layer.psd'), 'rb') as f:
+#         psd = PSD.read(f)

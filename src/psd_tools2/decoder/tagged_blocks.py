@@ -17,6 +17,15 @@ from psd_tools2.utils import (
 logger = logging.getLogger(__name__)
 
 
+# DECODERS = {}
+
+
+# def decoder(key):
+#     def _decoder(cls):
+#         DECODERS[key] = cls
+#     return _decoder
+
+
 @attr.s(repr=False)
 class TaggedBlocks(ListElement):
     """
