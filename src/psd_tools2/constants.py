@@ -345,6 +345,8 @@ class TaggedBlockID(Enum):
     LAYER_32 = b'Lr32'
     LAYER = b'Layr'
 
+    ALPHA = b'Alph'  # Undocumented.
+
     @classmethod
     def set(cls):
         """Set of values."""

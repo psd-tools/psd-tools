@@ -3,7 +3,7 @@ import pytest
 import io
 from psd_tools2.utils import (
     pack, unpack, read_length_block, write_length_block, read_pascal_string,
-    write_pascal_string,
+    write_pascal_string, read_unicode_string, write_unicode_string
 )
 
 
@@ -81,3 +81,34 @@ def test_pascal_string_format(input, expected, padding):
     with io.BytesIO() as f:
         write_pascal_string(f, input, padding=padding)
         assert f.getvalue() == expected
+
+
+@pytest.mark.parametrize('fixture', [
+    u'',
+    u'abc',
+    u'\u3042\u3044\u3046\u3048\u304a',
+])
+def test_unicode_string_wr(fixture):
+    with io.BytesIO() as f:
+        write_unicode_string(f, fixture)
+        data = f.getvalue()
+
+    with io.BytesIO(data) as f:
+        output = read_unicode_string(f)
+        assert fixture == output
+
+
+@pytest.mark.parametrize('fixture', [
+    b'\x00\x00\x00\x07\x00L\x00a\x00y\x00e\x00r\x00 \x001\x00\x00',
+])
+def test_unicode_stringrw(fixture):
+    with io.BytesIO(fixture) as f:
+        data = read_unicode_string(f)
+        print(len(fixture), f.tell())
+
+    print('%d %r' % (len(data), data))
+
+    with io.BytesIO() as f:
+        write_unicode_string(f, data)
+        output = f.getvalue()
+        assert fixture == output

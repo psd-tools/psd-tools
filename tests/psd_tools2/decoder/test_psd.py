@@ -21,9 +21,14 @@ BAD_PADDINGS = {
     'transparentbg-gimp.psd': 2,
 }
 
+BAD_UNICODE_PADDINGS = {
+    'broken-groups.psd': 2,
+}
 
-@pytest.mark.parametrize(['filename'], all_files())
+
+@pytest.mark.parametrize('filename', all_files())
 def test_psd_read_write(filename):
+    basename = os.path.basename(filename)
     with open(filename, 'rb') as f:
         expected = f.read()
 
@@ -31,17 +36,19 @@ def test_psd_read_write(filename):
         psd = PSD.read(f)
         pprint(psd)
 
-    padding = BAD_PADDINGS.get(os.path.basename(filename), 4)
+    padding = BAD_PADDINGS.get(basename, 4)
     with io.BytesIO() as f:
         psd.write(f, padding=padding)
         f.flush()
         output = f.getvalue()
 
+    if basename in BAD_UNICODE_PADDINGS:
+        pytest.xfail('Broken file')
     assert len(output) == len(expected)
     assert output == expected
 
 
-@pytest.mark.parametrize(['filename'], all_files())
+@pytest.mark.parametrize('filename', all_files())
 def test_psd_write_read(filename):
     with open(filename, 'rb') as f:
         psd = PSD.read(f)

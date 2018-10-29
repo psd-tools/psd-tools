@@ -7,23 +7,25 @@ import io
 import logging
 
 from psd_tools2.decoder.base import BaseElement, ListElement
+from psd_tools2.decoder.descriptor import Descriptor
 from psd_tools2.constants import TaggedBlockID
 from psd_tools2.validators import in_
 from psd_tools2.utils import (
     read_fmt, write_fmt, read_length_block, write_length_block, is_readable,
-    write_bytes
+    write_bytes, read_unicode_string, write_unicode_string,
 )
 
 logger = logging.getLogger(__name__)
 
 
-# DECODERS = {}
+TYPES = {}
 
 
-# def decoder(key):
-#     def _decoder(cls):
-#         DECODERS[key] = cls
-#     return _decoder
+def register(key):
+    def _register(cls):
+        TYPES[key] = cls
+        return cls
+    return _register
 
 
 @attr.s(repr=False)
@@ -74,16 +76,29 @@ class TaggedBlock(BaseElement):
         Data.
     """
     _SIGNATURES = (b'8BIM', b'8B64')
-    _BIG_KEYS = set((
-        b'LMsk', b'Lr16', b'Lr32', b'Layr', b'Mt16', b'Mt32', b'Mtrn',
-        b'Alph', b'FMsk', b'lnk2', b'FEid', b'FXid', b'PxSD',
-        b'lnkE', b'pths',  # Undocumented.
-    ))
+    _BIG_KEYS = {
+        TaggedBlockID.USER_MASK,
+        TaggedBlockID.LAYER_16,
+        TaggedBlockID.LAYER_32,
+        TaggedBlockID.LAYER,
+        TaggedBlockID.SAVING_MERGED_TRANSPARENCY16,
+        TaggedBlockID.SAVING_MERGED_TRANSPARENCY32,
+        TaggedBlockID.SAVING_MERGED_TRANSPARENCY,
+        TaggedBlockID.SAVING_MERGED_TRANSPARENCY16,
+        TaggedBlockID.ALPHA,
+        TaggedBlockID.FILTER_MASK,
+        TaggedBlockID.LINKED_LAYER2,
+        TaggedBlockID.LINKED_LAYER_EXTERNAL,
+        TaggedBlockID.FILTER_EFFECTS1,
+        TaggedBlockID.FILTER_EFFECTS2,
+        TaggedBlockID.PIXEL_SOURCE_DATA2,
+        TaggedBlockID.UNICODE_PATH_NAME,
+    }
 
     signature = attr.ib(default=b'8BIM', repr=False,
                         validator=in_(_SIGNATURES))
-    key = attr.ib(default=b'', type=bytes)
-    data = attr.ib(default=b'', repr=False)
+    key = attr.ib(default=b'')
+    data = attr.ib(default=b'', repr=True)
 
     @classmethod
     def read(cls, fp, version=1, padding=1):
@@ -100,13 +115,21 @@ class TaggedBlock(BaseElement):
             return None
 
         key = read_fmt('4s', fp)[0]
-        if key not in TaggedBlockID.set():
+        try:
+            key = TaggedBlockID(key)
+        except ValueError:
             logger.warning('Unknown key: %r' % (key))
 
         fmt = cls._length_format(key, version)
         data = read_length_block(fp, fmt=fmt, padding=padding)
-        # TODO: Parse data here.
-        # data = get_cls(key).frombytes(data)
+
+        kls = TYPES.get(key)
+        # logger.debug('%s %s' % (key, kls))
+        if kls and len(data) >= 4:
+            try:
+                data = kls.frombytes(data)
+            except (ValueError,):
+                logger.warning('Failed to read tagged block: %r' % (key))
         return cls(signature, key, data)
 
     def write(self, fp, version=1, padding=1):
@@ -115,11 +138,12 @@ class TaggedBlock(BaseElement):
         :param fp: file-like object
         :param version: psd file version
         """
-        written = write_fmt(fp, '4s4s', self.signature, self.key)
+        key = self.key if isinstance(self.key, bytes) else self.key.value
+        written = write_fmt(fp, '4s4s', self.signature, key)
 
         def writer(f):
-            # TODO: Serialize data here.
-            # written = self.data.write(f)
+            if hasattr(self.data, 'write'):
+                return self.data.write(f)
             return write_bytes(f, self.data)
 
         fmt = self._length_format(self.key, version)
@@ -129,3 +153,122 @@ class TaggedBlock(BaseElement):
     @classmethod
     def _length_format(cls, key, version):
         return ('I', 'Q')[int(version == 2 and key in cls._BIG_KEYS)]
+
+
+@register(TaggedBlockID.BLEND_CLIPPING_ELEMENTS)
+@register(TaggedBlockID.BLEND_INTERIOR_ELEMENTS)
+@register(TaggedBlockID.KNOCKOUT_SETTING)
+@register(TaggedBlockID.LAYER_ID)
+@register(TaggedBlockID.LAYER_VERSION)
+@register(TaggedBlockID.USING_ALIGNED_RENDERING)
+@attr.s
+class Integer(BaseElement):
+    """
+    Integer structure.
+
+    .. py:attribute:: value
+    """
+    value = attr.ib(default=0, type=int)
+
+    @classmethod
+    def read(cls, fp):
+        return cls(read_fmt('I', fp)[0])
+
+    def write(self, fp):
+        return write_fmt(fp, 'I', self.value)
+
+    def __int__(self):
+        return self.value
+
+    def __index__(self):
+        return self.value
+
+
+@register(TaggedBlockID.BLEND_FILL_OPACITY)
+@register(TaggedBlockID.LAYER_MASK_AS_GLOBAL_MASK)
+@register(TaggedBlockID.TRANSPARENCY_SHAPES_LAYER)
+@register(TaggedBlockID.VECTOR_MASK_AS_GLOBAL_MASK)
+@attr.s
+class Bytes(BaseElement):
+    """
+    Integer structure.
+
+    .. py:attribute:: value
+    """
+    value = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
+
+    @classmethod
+    def read(cls, fp):
+        return cls(read_fmt('B3x', fp)[0])
+
+    def write(self, fp):
+        return write_fmt(fp, 'B3x', self.value)
+
+    def __bytes__(self):
+        return self.value
+
+
+@register(TaggedBlockID.UNICODE_LAYER_NAME)
+@attr.s
+class String(BaseElement):
+    """
+    Integer structure.
+
+    .. py:attribute:: value
+    """
+    value = attr.ib(default='', type=str)
+
+    @classmethod
+    def read(cls, fp):
+        return cls(read_unicode_string(fp))
+
+    def write(self, fp):
+        return write_unicode_string(fp, self.value)
+
+    def __str__(self):
+        return self.value
+
+
+# @register(TaggedBlockID.ANIMATION_EFFECTS)
+# @register(TaggedBlockID.ARTBOARD_DATA1)
+# @register(TaggedBlockID.ARTBOARD_DATA2)
+# @register(TaggedBlockID.ARTBOARD_DATA3)
+# @register(TaggedBlockID.BLACK_AND_WHITE)
+# @register(TaggedBlockID.CONTENT_GENERATOR_EXTRA_DATA)
+# @register(TaggedBlockID.EXPORT_SETTING1)
+# @register(TaggedBlockID.EXPORT_SETTING2)
+# @register(TaggedBlockID.GRADIENT_FILL_SETTING)
+# @register(TaggedBlockID.PATTERN_FILL_SETTING)
+# @register(TaggedBlockID.PIXEL_SOURCE_DATA1)
+# @register(TaggedBlockID.SOLID_COLOR_SHEET_SETTING)
+# @register(TaggedBlockID.UNICODE_PATH_NAME)
+# @register(TaggedBlockID.VIBRANCE)
+@attr.s
+class DescriptorBlock(BaseElement):
+    """
+    Integer structure.
+
+    .. py:attribute:: version
+    .. py:attribute:: data
+    """
+    version = attr.ib(default=1, type=int)
+    data = attr.ib(default=None, type=Descriptor)
+
+    @classmethod
+    def read(cls, fp):
+        version = read_fmt('I', fp)[0]
+        data = Descriptor.read(fp)
+        return cls(version, data)
+
+    def write(self, fp):
+        written = write_fmt(fp, 'I', self.version)
+        written += self.data.write(fp)
+        return written
+
+
+# TaggedBlockID.BRIGHTNESS_AND_CONTRAST
+# TaggedBlockID.EFFECTS_LAYER
+# TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO
+# TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V0
+# TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V1
+#

@@ -17,6 +17,8 @@ from psd_tools2.utils import (
     write_bytes, read_length_block, write_length_block,
 )
 
+logger = logging.getLogger(__name__)
+
 
 TYPES = {}
 
@@ -281,7 +283,7 @@ class Double(BaseElement):
 
         :param fp: file-like object
         """
-        return cls(*read_fmt('d'))
+        return cls(*read_fmt('d', fp))
 
     def write(self, fp):
         """Write the element to a file-like object.
@@ -325,7 +327,7 @@ class Class(BaseElement):
         return written
 
 
-@register(OSType.DOUBLE)
+@register(OSType.STRING)
 @attr.s
 class String(BaseElement):
     """

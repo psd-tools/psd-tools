@@ -38,7 +38,7 @@ def full_name(filename):
 
 
 def all_files():
-    return [(filepath,) for filepath in glob.glob(full_name('*.ps*'))]
+    return [filepath for filepath in glob.glob(full_name('*.ps*'))]
 
 
 def check_write_read(element, *args, **kwargs):

@@ -8,7 +8,7 @@ from psd_tools2.decoder.layer_and_mask import (
     MaskParameters, ChannelImageData, ChannelDataList, ChannelData,
     GlobalLayerMaskInfo
 )
-from psd_tools2.constants import ChannelID, Compression
+from psd_tools2.constants import ChannelID, Compression, TaggedBlockID
 
 from ..utils import check_write_read, check_read_write
 
@@ -72,26 +72,8 @@ def test_layer_blending_ranges():
     ))
 
 
-def test_tagged_blocks():
-    blocks = TaggedBlocks([TaggedBlock(key=b'lnkE')])
-    check_write_read(blocks)
-    check_write_read(blocks, version=2)
-    check_write_read(blocks, version=2, padding=4)
-
-
-def test_tagged_block():
-    check_write_read(TaggedBlock(key=b'SoCo'))
-    check_write_read(TaggedBlock(key=b'lnkE'))
-    check_write_read(TaggedBlock(key=b'SoCo'), version=2)
-    check_write_read(TaggedBlock(key=b'lnkE'), version=2)
-    check_write_read(TaggedBlock(key=b'SoCo'), padding=4)
-    check_write_read(TaggedBlock(key=b'lnkE'), padding=4)
-    check_write_read(TaggedBlock(key=b'SoCo'), version=2, padding=4)
-    check_write_read(TaggedBlock(key=b'lnkE'), version=2, padding=4)
-
-
 def test_layer_record():
-    tagged_blocks = TaggedBlocks([TaggedBlock(key=b'lnkE')])
+    tagged_blocks = TaggedBlocks([TaggedBlock(key=TaggedBlockID(b'lnkE'))])
     check_write_read(LayerRecord())
     check_write_read(LayerRecord(name='foo', tagged_blocks=tagged_blocks))
     check_write_read(LayerRecord(tagged_blocks=tagged_blocks), version=2)

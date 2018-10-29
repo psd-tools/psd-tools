@@ -2,6 +2,7 @@
 Various utility functions for low-level binary processing.
 """
 from __future__ import unicode_literals, print_function, division
+import logging
 import sys
 import struct
 import array
@@ -10,6 +11,8 @@ try:
     unichr = unichr
 except NameError:
     unichr = chr
+
+logger = logging.getLogger(__name__)
 
 
 def pack(fmt, *args):
@@ -207,17 +210,19 @@ def write_pascal_string(fp, value, encoding='macroman', padding=2):
     return written
 
 
-def read_unicode_string(fp):
+def read_unicode_string(fp, padding=4):
     num_chars = read_fmt('I', fp)[0]
-    data = fp.read(num_chars*2)
-    chars = be_array_from_bytes('H', data)
+    chars = be_array_from_bytes('H', fp.read(num_chars * 2))
+    read_padding(fp, struct.calcsize('I') + num_chars * 2, padding)
     return "".join(unichr(num) for num in chars)
 
 
-def write_unicode_string(fp, value):
-    arr = array.array(str('H'), value.encode('utf-8'))
-    data = be_array_to_bytes(arr)
-    return write_fmt(fp, 'I%dH' % len(data), len(data), *data)
+def write_unicode_string(fp, value, padding=4):
+    arr = array.array(str('H'), [ord(x) for x in value])
+    written = write_fmt(fp, 'I', len(arr))
+    written += write_bytes(fp, be_array_to_bytes(arr))
+    written += write_padding(fp, written, padding)
+    return written
 
 
 def read_be_array(fmt, count, fp):
