@@ -1,5 +1,7 @@
 """
 Descriptor data structure.
+
+Descriptors are basic data structure used throughout PSD files.
 """
 from __future__ import absolute_import, unicode_literals
 import attr
@@ -90,7 +92,12 @@ class List(BaseElement):
 @attr.s
 class Descriptor(BaseElement):
     """
-    Descriptor structure.
+    Descriptor structure similar to `dict`.
+
+    Example::
+
+        for key in descriptor:
+            print(descriptor[key])
 
     .. py:attribute:: name
     .. py:attribute:: classID
@@ -143,6 +150,7 @@ class Descriptor(BaseElement):
             yield key
 
     def __getitem__(self, key):
+        key = key if isinstance(key, bytes) else key.encode('ascii')
         return self.items[key]
 
     def __len__(self):
@@ -548,6 +556,8 @@ class RawData(BaseElement):
     RawData structure.
 
     .. py:attribute:: value
+
+        `bytes`
     """
     value = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
 
@@ -573,7 +583,8 @@ class RawData(BaseElement):
 @register(OSType.CLASS1)
 class Class1(Class):
     """
-    Class structure.
+    Class structure equivalent to
+    :py:class:`~psd_tools2.decoder.descriptor.Class`.
     """
     pass
 
@@ -581,7 +592,8 @@ class Class1(Class):
 @register(OSType.CLASS2)
 class Class2(Class):
     """
-    Class structure.
+    Class structure equivalent to
+    :py:class:`~psd_tools2.decoder.descriptor.Class`.
     """
     pass
 
@@ -589,7 +601,8 @@ class Class2(Class):
 @register(OSType.CLASS3)
 class Class3(Class):
     """
-    Class structure.
+    Class structure equivalent to
+    :py:class:`~psd_tools2.decoder.descriptor.Class`.
     """
     pass
 
@@ -606,7 +619,8 @@ class Reference(List):
 @register(OSType.ALIAS)
 class Alias(RawData):
     """
-    Alias structure.
+    Alias structure equivalent to
+    :py:class:`~psd_tools2.decoder.descriptor.RawData`.
 
     .. py:attribute:: value
     """
@@ -634,7 +648,8 @@ class ObjectArray(Descriptor):
 @register(OSType.PATH)
 class Path(RawData):
     """
-    Undocumented path structure.
+    Undocumented path structure equivalent to
+    :py:class:`~psd_tools2.decoder.descriptor.RawData`.
     """
     pass
 
