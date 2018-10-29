@@ -5,6 +5,7 @@ from __future__ import absolute_import, unicode_literals
 import attr
 import io
 import logging
+from collections import OrderedDict
 
 from psd_tools2.decoder.base import BaseElement
 from psd_tools2.constants import OSType, UnitFloatType
@@ -36,11 +37,11 @@ def write_length_and_key(fp, value):
     return written
 
 
-@register(OSType.REFERENCE)
+@register(OSType.LIST)
 @attr.s
-class Reference(BaseElement):
+class List(BaseElement):
     """
-    Reference structure.
+    List structure.
 
     .. py:attribute:: items
     """
@@ -54,11 +55,11 @@ class Reference(BaseElement):
         """
         items = []
         count = read_fmt('I', fp)[0]
-        while len(items) < count:
+        for _ in range(count):
             key = OSType(fp.read(4))
             decoder = TYPES.get(key)
             if not decoder:
-                raise ValueError('Unknown reference key %r' % key)
+                raise ValueError('Unknown key %r' % key)
             value = decoder.read(fp)
             items.append(value)
         return cls(items)
@@ -74,6 +75,16 @@ class Reference(BaseElement):
             written += item.write(fp)
         return written
 
+    def __iter__(self):
+        for item in self.items:
+            yield item
+
+    def __getitem__(self, index):
+        return self.items[index]
+
+    def __len__(self):
+        return len(self.items)
+
 
 @register(OSType.DESCRIPTOR)
 @attr.s
@@ -87,7 +98,7 @@ class Descriptor(BaseElement):
     """
     name = attr.ib(default='', type=str)
     classID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
-    items = attr.ib(factory=list)
+    items = attr.ib(factory=OrderedDict)
 
     @classmethod
     def read(cls, fp):
@@ -104,11 +115,6 @@ class Descriptor(BaseElement):
             ostype = OSType(fp.read(4))
             decoder = TYPES.get(ostype)
             if not decoder:
-                # # For some reason, name can appear in the middle of items...
-                # if key == OSType.NAME:
-                #     fp.seek(fp.tell() - 4)
-                #     name = decode_name(key, fp)
-                #     continue
                 raise ValueError('Unknown descriptor type %r' % ostype)
 
             value = decoder.read(fp)
@@ -116,7 +122,7 @@ class Descriptor(BaseElement):
                 warnings.warn("%r (%r) is None" % (key, ostype))
             items.append((key, value))
 
-        return cls(name, classID, items)
+        return cls(name, classID, OrderedDict(items))
 
     def write(self, fp):
         """Write the element to a file-like object.
@@ -131,6 +137,16 @@ class Descriptor(BaseElement):
             written += fp.write(item[1].ostype.value)
             written += item[1].write(fp)
         return written
+
+    def __iter__(self):
+        for key in self.items:
+            yield key
+
+    def __getitem__(self, key):
+        return self.items[key]
+
+    def __len__(self):
+        return len(self.items)
 
 
 @register(OSType.PROPERTY)
@@ -195,6 +211,9 @@ class UnitFloat(BaseElement):
         """
         return write_fmt(fp, '4sd', self.unit.value, self.value)
 
+    def __float__(self):
+        return self.value
+
 
 @register(OSType.UNIT_FLOATS)
 @attr.s
@@ -227,6 +246,16 @@ class UnitFloats(BaseElement):
         return write_fmt(fp, '4sI%dd' % len(self.values), self.unit.value,
                          len(self.values), *self.values)
 
+    def __iter__(self):
+        for value in self.values:
+            yield value
+
+    def __getitem__(self, index):
+        return self.values[index]
+
+    def __len__(self):
+        return len(self.values)
+
 
 @register(OSType.DOUBLE)
 @attr.s
@@ -252,6 +281,9 @@ class Double(BaseElement):
         :param fp: file-like object
         """
         return write_fmt(fp, 'd', self.value)
+
+    def __float__(self):
+        return self.value
 
 
 @attr.s
@@ -285,21 +317,6 @@ class Class(BaseElement):
         return written
 
 
-@register(OSType.CLASS1)
-class Class1(Class):
-    pass
-
-
-@register(OSType.CLASS2)
-class Class2(Class):
-    pass
-
-
-@register(OSType.CLASS3)
-class Class3(Class):
-    pass
-
-
 @register(OSType.DOUBLE)
 @attr.s
 class String(BaseElement):
@@ -324,6 +341,9 @@ class String(BaseElement):
         :param fp: file-like object
         """
         return write_unicode_string(fp, self.value)
+
+    def __str__(self):
+        return self.value
 
 
 @register(OSType.ENUMERATED_REFERENCE)
@@ -422,44 +442,8 @@ class Bool(BaseElement):
         """
         return write_fmt(fp, '?', self.value)
 
-
-@register(OSType.LIST)
-@attr.s
-class List(BaseElement):
-    """
-    List structure.
-
-    .. py:attribute:: items
-    """
-    items = attr.ib(factory=list)
-
-    @classmethod
-    def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        """
-        items = []
-        count = read_fmt('I', fp)[0]
-        while len(items) < count:
-            key = OSType(fp.read(4))
-            decoder = TYPES.get(key)
-            if not decoder:
-                raise ValueError('Unknown key %r' % key)
-            value = decoder.read(fp)
-            items.append(value)
-        return cls(items)
-
-    def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
-        written = write_fmt(fp, 'I', len(self.items))
-        for item in self.items:
-            written += write_bytes(item.ostype)
-            written += item.write(fp)
-        return written
+    def __bool__(self):
+        return self.value
 
 
 @register(OSType.LARGE_INTEGER)
@@ -487,6 +471,12 @@ class LargeInteger(BaseElement):
         """
         return write_fmt(fp, 'q', self.value)
 
+    def __int__(self):
+        return self.value
+
+    def __index__(self):
+        return self.value
+
 
 @register(OSType.INTEGER)
 @attr.s
@@ -512,6 +502,12 @@ class Integer(BaseElement):
         :param fp: file-like object
         """
         return write_fmt(fp, 'i', self.value)
+
+    def __int__(self):
+        return self.value
+
+    def __index__(self):
+        return self.value
 
 
 @register(OSType.ENUMERATED)
@@ -569,6 +565,42 @@ class RawData(BaseElement):
         :param fp: file-like object
         """
         return write_length_block(fp, lambda f: write_bytes(f, self.value))
+
+    def __bytes__(self):
+        return self.value
+
+
+@register(OSType.CLASS1)
+class Class1(Class):
+    """
+    Class structure.
+    """
+    pass
+
+
+@register(OSType.CLASS2)
+class Class2(Class):
+    """
+    Class structure.
+    """
+    pass
+
+
+@register(OSType.CLASS3)
+class Class3(Class):
+    """
+    Class structure.
+    """
+    pass
+
+
+@register(OSType.REFERENCE)
+class Reference(List):
+    """
+    Reference structure equivalent to
+    :py:class:`~psd_tools2.decoder.descriptor.List`.
+    """
+    pass
 
 
 @register(OSType.ALIAS)
