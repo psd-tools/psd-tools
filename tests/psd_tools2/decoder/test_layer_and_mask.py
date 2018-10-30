@@ -1,7 +1,9 @@
 from __future__ import absolute_import, unicode_literals
 import pytest
 import logging
-from psd_tools2.decoder.tagged_blocks import TaggedBlocks, TaggedBlock
+from psd_tools2.decoder.tagged_blocks import (
+    TaggedBlocks, TaggedBlock, Integer
+)
 from psd_tools2.decoder.layer_and_mask import (
     LayerAndMaskInformation, LayerInfo, LayerRecords, LayerRecord,
     ChannelInfo, LayerFlags, LayerBlendingRanges, MaskFlags, MaskData,
@@ -74,8 +76,8 @@ def test_layer_blending_ranges():
 
 def test_layer_record():
     tagged_blocks = TaggedBlocks([
-        (TaggedBlockID.FILTER_MASK,
-         TaggedBlock(key=TaggedBlockID.FILTER_MASK)),
+        (TaggedBlockID.LAYER_ID,
+         TaggedBlock(key=TaggedBlockID.LAYER_ID, data=Integer(0))),
     ])
     check_write_read(LayerRecord())
     check_write_read(LayerRecord(name='foo', tagged_blocks=tagged_blocks))

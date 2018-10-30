@@ -135,14 +135,17 @@ class TaggedBlock(BaseElement):
 
         fmt = cls._length_format(key, version)
         data = read_length_block(fp, fmt=fmt, padding=padding)
-
         kls = TYPES.get(key)
         # logger.debug('%s %r' % (key, trimmed_repr(data)))
-        if kls and len(data) >= 4:
+        if kls:
             try:
                 data = kls.frombytes(data)
             except (ValueError,):  # AssertionError also.
                 logger.warning('Failed to read tagged block: %r' % (key))
+        else:
+            logger.warning('Unknown tagged block: %r, %r' % (
+                key, trimmed_repr(data))
+            )
         return cls(signature, key, data)
 
     def write(self, fp, version=1, padding=1):
@@ -157,7 +160,8 @@ class TaggedBlock(BaseElement):
         def writer(f):
             if hasattr(self.data, 'write'):
                 # It seems padding size applies at the block level here.
-                return self.data.write(f, padding=1 if padding == 4 else 4)
+                inner_padding = 1 if padding == 4 else 4
+                return self.data.write(f, padding=inner_padding)
             return write_bytes(f, self.data)
 
         fmt = self._length_format(self.key, version)
@@ -203,13 +207,13 @@ class Integer(ValueElement):
 @register(TaggedBlockID.TRANSPARENCY_SHAPES_LAYER)
 @register(TaggedBlockID.VECTOR_MASK_AS_GLOBAL_MASK)
 @attr.s(repr=False)
-class Bytes(ValueElement):
+class Byte(ValueElement):
     """
-    Integer structure.
+    Byte structure.
 
     .. py:attribute:: value
     """
-    value = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
+    value = attr.ib(default=0, type=bytes)
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -226,7 +230,7 @@ class Bytes(ValueElement):
 @attr.s(repr=False)
 class String(ValueElement):
     """
-    Integer structure.
+    String structure.
 
     .. py:attribute:: value
     """
