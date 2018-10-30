@@ -544,7 +544,7 @@ class DescriptorClassID(Enum):
     # Grow
     GLOW_TYPE = b'GlwT'
     GLOW_SOURCE = b'glwS'
-    GLOW_SOURCE_EDGE = 'SrcE'
+    GLOW_SOURCE_EDGE = b'SrcE'
 
     INNER_GLOW_SR = b'IGSr'  # ???
 
@@ -558,7 +558,7 @@ class DescriptorClassID(Enum):
     BEVEL_CHIESEL_HARD = b'PrBL'
     BEVEL_CHIESEL_SOFT = b'Slmt'
 
-    BEVEL_STYLE = 'bvlS'
+    BEVEL_STYLE = b'bvlS'
     BEVEL_STYLE_OUTER = b'OtrB'
     BEVEL_STYLE_INNER = b'InrB'
     BEVEL_STYLE_EMBOSS = b'Embs'
@@ -573,9 +573,9 @@ class DescriptorClassID(Enum):
     HIGHLIGHT_COLOR = b'hglC'
     HIGHLIGHT_OPACITY = b'hglO'
 
-    SHADOW_MODE = 'sdwM'
-    SHADOW_COLOR = 'sdwC'
-    SHADOW_OPACITY = 'sdwO'
+    SHADOW_MODE = b'sdwM'
+    SHADOW_COLOR = b'sdwC'
+    SHADOW_OPACITY = b'sdwO'
 
     ALTITUDE = b'Lald'
     DEPTH = b'srgR'
