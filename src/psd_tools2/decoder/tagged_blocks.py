@@ -12,7 +12,7 @@ from psd_tools2.decoder.base import (
 )
 from psd_tools2.decoder.descriptor import Descriptor
 from psd_tools2.constants import (
-    TaggedBlockID, SectionDivider, BlendMode
+    TaggedBlockID, SectionDivider, BlendMode, ColorSpaceID
 )
 from psd_tools2.validators import in_
 from psd_tools2.utils import (
@@ -258,6 +258,28 @@ class Byte(ValueElement):
         return self.value
 
 
+@register(TaggedBlockID.FOREIGN_EFFECT_ID)
+@register(TaggedBlockID.LAYER_NAME_SOURCE_SETTING)
+@attr.s(repr=False)
+class Bytes(ValueElement):
+    """
+    Bytes structure.
+
+    .. py:attribute:: value
+    """
+    value = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        return cls(fp.read(4))
+
+    def write(self, fp, **kwargs):
+        return write_bytes(fp, self.value)
+
+    def __bytes__(self):
+        return self.value
+
+
 @register(TaggedBlockID.UNICODE_LAYER_NAME)
 @attr.s(repr=False)
 class String(ValueElement):
@@ -326,6 +348,54 @@ class DescriptorBlock(BaseElement):
         written = write_fmt(fp, 'I', self.version)
         written += self.data.write(fp)
         written += write_padding(fp, written, padding)
+        return written
+
+
+@register(TaggedBlockID.FILTER_MASK)
+@attr.s
+class FilterMask(BaseElement):
+    """
+    FilterMask structure.
+
+    .. py:attribute:: color
+    .. py:attribute:: opacity
+    """
+    color = attr.ib(default=None)
+    opacity = attr.ib(default=0, type=int)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        color = Color.read(fp)
+        opacity = read_fmt('H', fp)[0]
+        return cls(color, opacity)
+
+    def write(self, fp, **kwargs):
+        written = self.color.write(fp)
+        written += write_fmt(fp, 'H', self.opacity)
+        return written
+
+
+@attr.s
+class Color(BaseElement):
+    id = attr.ib(default=ColorSpaceID.RGB, converter=ColorSpaceID,
+                 validator=in_(ColorSpaceID))
+    values = attr.ib(factory=list)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        id = ColorSpaceID(read_fmt('H', fp)[0])
+        if id == ColorSpaceID.LAB:
+            values = read_fmt('4h', fp)
+        else:
+            values = read_fmt('4H', fp)
+        return cls(id, values)
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, 'H', self.id.value)
+        if self.id == ColorSpaceID.LAB:
+            written += write_fmt(fp, '4h', *self.values)
+        else:
+            written += write_fmt(fp, '4H', *self.values)
         return written
 
 

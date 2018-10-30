@@ -18,15 +18,15 @@ class ColorMode(IntEnum):
     LAB = 9
 
 
-# class ColorSpaceID(Enum):
-#     """
-#     Color space types.
-#     """
-#     RGB = 0
-#     HSB = 1
-#     CMYK = 2
-#     LAB = 7
-#     GRAYSCALE = 8
+class ColorSpaceID(IntEnum):
+    """
+    Color space types.
+    """
+    RGB = 0
+    HSB = 1
+    CMYK = 2
+    LAB = 7
+    GRAYSCALE = 8
 
 
 class ImageResourceID(IntEnum):
