@@ -9,7 +9,9 @@ from collections import OrderedDict
 
 from psd_tools2.decoder.base import BaseElement, ValueElement, DictElement
 from psd_tools2.decoder.descriptor import Descriptor
-from psd_tools2.constants import TaggedBlockID
+from psd_tools2.constants import (
+    TaggedBlockID, SectionDivider, BlendMode
+)
 from psd_tools2.validators import in_
 from psd_tools2.utils import (
     read_fmt, write_fmt, read_length_block, write_length_block, is_readable,
@@ -173,9 +175,6 @@ class TaggedBlock(BaseElement):
         return ('I', 'Q')[int(version == 2 and key in cls._BIG_KEYS)]
 
 
-@register(TaggedBlockID.BLEND_CLIPPING_ELEMENTS)
-@register(TaggedBlockID.BLEND_INTERIOR_ELEMENTS)
-@register(TaggedBlockID.KNOCKOUT_SETTING)
 @register(TaggedBlockID.LAYER_ID)
 @register(TaggedBlockID.LAYER_VERSION)
 @register(TaggedBlockID.USING_ALIGNED_RENDERING)
@@ -227,6 +226,9 @@ class ShortInteger(ValueElement):
         return self.value
 
 
+@register(TaggedBlockID.BLEND_CLIPPING_ELEMENTS)
+@register(TaggedBlockID.BLEND_INTERIOR_ELEMENTS)
+@register(TaggedBlockID.KNOCKOUT_SETTING)
 @register(TaggedBlockID.BLEND_FILL_OPACITY)
 @register(TaggedBlockID.LAYER_MASK_AS_GLOBAL_MASK)
 @register(TaggedBlockID.TRANSPARENCY_SHAPES_LAYER)
@@ -287,9 +289,6 @@ class Empty(BaseElement):
         return 0
 
 
-
-
-
 @register(TaggedBlockID.ANIMATION_EFFECTS)
 @register(TaggedBlockID.ARTBOARD_DATA1)
 @register(TaggedBlockID.ARTBOARD_DATA2)
@@ -326,6 +325,176 @@ class DescriptorBlock(BaseElement):
         written += self.data.write(fp)
         written += write_padding(fp, written, padding)
         return written
+
+
+@register(TaggedBlockID.PROTECTED_SETTING)
+@attr.s
+class ProtectedSetting(BaseElement):
+    """
+    ProtectedSetting structure.
+    """
+    transparency = attr.ib(default=False, type=bool)
+    composite = attr.ib(default=False, type=bool)
+    position = attr.ib(default=False, type=bool)
+    bit4 = attr.ib(default=False, type=bool, repr=False)
+    bit5 = attr.ib(default=False, type=bool, repr=False)
+    bit6 = attr.ib(default=False, type=bool, repr=False)
+    bit7 = attr.ib(default=False, type=bool, repr=False)
+    bit8 = attr.ib(default=False, type=bool, repr=False)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        flag = read_fmt('I', fp)[0]
+        return cls(
+            bool(flag & 1), bool(flag & 2), bool(flag & 4), bool(flag & 8),
+            bool(flag & 16), bool(flag & 32), bool(flag & 64),
+            bool(flag & 128)
+        )
+
+    def write(self, fp, **kwargs):
+        flag = (
+            (self.transparency * 1) |
+            (self.composite * 2) |
+            (self.position * 4) |
+            (self.bit4 * 8) |
+            (self.bit5 * 16) |
+            (self.bit6 * 32) |
+            (self.bit7 * 64) |
+            (self.bit8 * 128)
+        )
+        return write_fmt(fp, 'I', flag)
+
+
+@register(TaggedBlockID.SECTION_DIVIDER_SETTING)
+@register(TaggedBlockID.NESTED_SECTION_DIVIDER_SETTING)
+@attr.s
+class SectionDividerSetting(BaseElement):
+    """
+    SectionDividerSetting structure.
+
+    .. py:attribute:: kind
+    .. py:attribute:: key
+    .. py:attribute:: sub_type
+    """
+    kind = attr.ib(default=SectionDivider.OTHER, converter=SectionDivider,
+                   validator=in_(SectionDivider))
+    signature = attr.ib(default=None, repr=False)
+    key = attr.ib(default=None)
+    sub_type = attr.ib(default=None)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        kind = SectionDivider(read_fmt('I', fp)[0])
+        signature, key = None, None
+        if is_readable(fp, 8):
+            signature = fp.read(4)
+            assert signature == b'8BIM', 'Invalid signature %r' % signature
+            key = BlendMode(fp.read(4))
+        sub_type = None
+        if is_readable(fp, 4):
+            sub_type = read_fmt('I', fp)[0]
+        return cls(kind, signature=signature, key=key, sub_type=sub_type)
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, 'I', self.kind.value)
+        if self.signature and self.key:
+            written += write_bytes(fp, self.signature)
+            written += write_bytes(fp, self.key.value)
+            if self.sub_type is not None:
+                written += write_fmt(fp, 'I', self.sub_type)
+        return written
+
+
+@register(TaggedBlockID.SHEET_COLOR_SETTING)
+@attr.s
+class SheetColorSetting(ValueElement):
+    """
+    SheetColorSetting structure.
+
+    .. py:attribute:: values
+    """
+    value = attr.ib(default=None, converter=list)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        return cls(read_fmt('4H', fp))
+
+    def write(self, fp, **kwargs):
+        return write_fmt(fp, '4H', *self.value)
+
+
+@register(TaggedBlockID.TYPE_TOOL_OBJECT_SETTING)
+@attr.s
+class TypeToolObjectSetting(BaseElement):
+    """
+    TypeToolObjectSetting structure.
+
+    .. py:attribute:: version
+    .. py:attribute:: xx
+    .. py:attribute:: xy
+    .. py:attribute:: yx
+    .. py:attribute:: yy
+    .. py:attribute:: tx
+    .. py:attribute:: ty
+    .. py:attribute:: text_version
+    .. py:attribute:: text_data_version
+    .. py:attribute:: text_data
+    .. py:attribute:: warp_version
+    .. py:attribute:: warp_data_version
+    .. py:attribute:: warp_data
+    .. py:attribute:: left
+    .. py:attribute:: top
+    .. py:attribute:: right
+    .. py:attribute:: bottom
+    """
+    version = attr.ib(default=1, type=int)
+    xx = attr.ib(default=0, type=int)
+    xy = attr.ib(default=0, type=int)
+    yx = attr.ib(default=0, type=int)
+    yy = attr.ib(default=0, type=int)
+    tx = attr.ib(default=0, type=int)
+    ty = attr.ib(default=0, type=int)
+    text_version = attr.ib(default=1, type=int, validator=in_((1,)))
+    text_data_version = attr.ib(default=16, type=int, validator=in_((16,)))
+    text_data = attr.ib(default=None, type=Descriptor)
+    warp_version = attr.ib(default=1, type=int, validator=in_((1,)))
+    warp_data_version = attr.ib(default=16, type=int, validator=in_((16,)))
+    warp_data = attr.ib(default=None, type=Descriptor)
+    left = attr.ib(default=0, type=int)
+    top = attr.ib(default=0, type=int)
+    right = attr.ib(default=0, type=int)
+    bottom = attr.ib(default=0, type=int)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        version, xx, xy, yx, yy, tx, ty = read_fmt('H6d', fp)
+        text_version, text_data_version = read_fmt('HI', fp)
+        text_data = Descriptor.read(fp)
+        warp_version, warp_data_version = read_fmt('HI', fp)
+        warp_data = Descriptor.read(fp)
+        left, top, right, bottom = read_fmt("4i", fp)
+        return cls(
+            version, xx, xy, yx, yy, tx, ty, text_version, text_data_version,
+            text_data, warp_version, warp_data_version, warp_data, left, top,
+            right, bottom
+        )
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, 'H6dHI', self.version, self.xx, self.xy,
+            self.yx, self.yy, self.tx, self.ty, self.text_version,
+            self.text_data_version
+        )
+        written += self.text_data.write(fp, **kwargs)
+        written += write_fmt(
+            fp, 'HI', self.warp_version, self.warp_data_version
+        )
+        written += self.warp_data.write(fp, **kwargs)
+        written += write_fmt(
+            fp, '4i', self.left, self.top, self.right, self.bottom
+        )
+        return written
+
+
 
 
 # TaggedBlockID.BRIGHTNESS_AND_CONTRAST

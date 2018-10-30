@@ -509,11 +509,11 @@ class DescriptorClassID(Enum):
 #     SOLID_FILL = b'sofi'
 
 
-# class SectionDivider(Enum):
-#     OTHER = 0
-#     OPEN_FOLDER = 1
-#     CLOSED_FOLDER = 2
-#     BOUNDING_SECTION_DIVIDER = 3
+class SectionDivider(IntEnum):
+    OTHER = 0
+    OPEN_FOLDER = 1
+    CLOSED_FOLDER = 2
+    BOUNDING_SECTION_DIVIDER = 3
 
 
 # class DisplayResolutionUnit(Enum):
