@@ -351,6 +351,30 @@ class DescriptorBlock(BaseElement):
         return written
 
 
+@register(TaggedBlockID.BRIGHTNESS_AND_CONTRAST)
+@attr.s
+class BrightnessContrast(BaseElement):
+    """
+    BrightnessContrast structure.
+
+    .. py:attribute:: brightness
+    .. py:attribute:: contrast
+    .. py:attribute:: mean
+    .. py:attribute:: lab_only
+    """
+    brightness = attr.ib(default=0, type=int)
+    contrast = attr.ib(default=0, type=int)
+    mean = attr.ib(default=0, type=int)
+    lab_only = attr.ib(default=0, type=int)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        return cls(*read_fmt('3HBx', fp))
+
+    def write(self, fp, **kwargs):
+        return write_fmt(fp, '3HBx', *attr.astuple(self))
+
+
 @register(TaggedBlockID.FILTER_MASK)
 @attr.s
 class FilterMask(BaseElement):
@@ -742,11 +766,3 @@ class VersionedDescriptorBlock(BaseElement):
         written += self.data.write(fp)
         written += write_padding(fp, written, padding)
         return written
-
-
-# TaggedBlockID.BRIGHTNESS_AND_CONTRAST
-# TaggedBlockID.EFFECTS_LAYER
-# TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO
-# TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V0
-# TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V1
-#
