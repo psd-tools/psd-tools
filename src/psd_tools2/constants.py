@@ -395,19 +395,6 @@ class OSType(Enum):
     NAME = b'name'
 
 
-# class EffectOSType(Enum):
-#     """
-#     OS Type keys for Layer Effects.
-#     """
-#     COMMON_STATE = b'cmnS'
-#     DROP_SHADOW = b'dsdw'
-#     INNER_SHADOW = b'isdw'
-#     OUTER_GLOW = b'oglw'
-#     INNER_GLOW = b'iglw'
-#     BEVEL = b'bevl'
-#     SOLID_FILL = b'sofi'
-
-
 class UnitFloatType(Enum):
     """
     Units the value is in (used in Unit float structure).
@@ -420,6 +407,106 @@ class UnitFloatType(Enum):
     PIXELS = b'#Pxl'  # tagged unit value
     POINTS = b'#Pnt'  # points
     MILLIMETERS = b'#Mlm'  # millimeters
+
+
+class DescriptorClassID(Enum):
+    """
+    Descriptor classID.
+    """
+    NULL = b'null'
+    NAME = b'Nm  '
+    IDENTIFIER = b'Idnt'
+
+    SHAPE = b'ShpC'
+    CURVE = b'Crv '
+    TOP = b'Top '
+    LEFT = b'Left'
+    BOTTOM = b'Btom'
+    RIGHT = b'Rght'
+
+    CNT = b'Cnt '  # ???
+    POINT = b'Pnt '
+    CR_POINT = b'CrPt'
+    HORIZONTAL = b'Hrzn'
+    VERTICAL = b'Vrtc'
+
+    TYPE = b'Type'
+    CLRY = b'Clry'
+    USRS = b'UsrS'
+    LOCATION = b'Lctn'
+    MDPN = b'Mdpn'
+    OPACITY = b'Opct'
+
+    COLOR = b'Clr '
+    RGB = b'RGBC'
+    GRAYSCALE = b'Grsc'
+    CMYK = b'CMYC'
+
+    RED = b'Rd  '
+    GREEN = b'Grn '
+    BLUE = b'Bl  '
+    GRAY = b'Gry '
+    CYAN = b'Cyn '
+    MAGENTA = b'Mgnt'
+    YELLOW = b'Yllw'
+
+    PATTERN = b'Ptrn'
+    GRADIENT = b'Grdn'
+    STOP_COLOR = b'Clrt'
+    STOP_OPACITY = b'TrnS'
+
+    LINEAR = b'Lnr '
+    RADIAL = b'Rdl '
+    REFLECTED = b'Rflc'
+    DIAMOND = b'DMND'
+    COLORS = b'Clrs'
+    INTERPOLATION = b'Intr'
+    TRANSFORM = b'Trns'
+
+    GRADIENT2 = b'Grad'
+    GRADIENT2_TYPE = b'GrdT'
+    CSTS = b'CstS'  # ???
+
+    # Noise gradient
+    GRADIENT_TYPE = b'GrdF'
+    TRANSPARENCY = b'ShTr'
+    RESTRICT_COLORS = b'VctC'
+    RANDOM_SEED = b'RndS'
+    SMOOTHNESS = b'Smth'
+    MINIMUM = b'Mnm '
+    MAXIMUM = b'Mxm '
+
+    # BrightnessContrast adjustment
+    BC_VRSN = b'Vrsn'  # ???
+    BC_BRIGHTNESS = b'Brgh'
+    BC_CONTRAST = b'Cntr'
+    BC_LAB = b'Lab '
+    BC_AUTO = b'Auto'
+
+    # Vibrance adjustment
+    SATURATION = b'Strt'
+
+    # ENABLED = b'enab'
+    ANGLE = b'Angl'
+    MODE = b'Md  '
+    CHOKE = b'Ckmt'
+    BLUR = b'blur'
+    NOISE = b'Nose'
+    ANTI_ALIASED = b'AntA'
+    DITHERED = b'Dthr'
+
+
+# class EffectOSType(Enum):
+#     """
+#     OS Type keys for Layer Effects.
+#     """
+#     COMMON_STATE = b'cmnS'
+#     DROP_SHADOW = b'dsdw'
+#     INNER_SHADOW = b'isdw'
+#     OUTER_GLOW = b'oglw'
+#     INNER_GLOW = b'iglw'
+#     BEVEL = b'bevl'
+#     SOLID_FILL = b'sofi'
 
 
 # class SectionDivider(Enum):

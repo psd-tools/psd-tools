@@ -83,32 +83,35 @@ def test_pascal_string_format(input, expected, padding):
         assert f.getvalue() == expected
 
 
-@pytest.mark.parametrize('fixture', [
-    u'',
-    u'abc',
-    u'\u3042\u3044\u3046\u3048\u304a',
+@pytest.mark.parametrize('fixture, padding', [
+    (u'', 1),
+    (u'abc', 1),
+    (u'\u3042\u3044\u3046\u3048\u304a', 1),
+    (u'', 4),
+    (u'abc', 4),
+    (u'\u3042\u3044\u3046\u3048\u304a', 4),
 ])
-def test_unicode_string_wr(fixture):
+def test_unicode_string_wr(fixture, padding):
     with io.BytesIO() as f:
-        write_unicode_string(f, fixture)
+        write_unicode_string(f, fixture, padding=padding)
         data = f.getvalue()
 
     with io.BytesIO(data) as f:
-        output = read_unicode_string(f)
+        output = read_unicode_string(f, padding=padding)
         assert fixture == output
 
 
-@pytest.mark.parametrize('fixture', [
-    b'\x00\x00\x00\x07\x00L\x00a\x00y\x00e\x00r\x00 \x001\x00\x00',
+@pytest.mark.parametrize('fixture, padding', [
+    (b'\x00\x00\x00\x07\x00L\x00a\x00y\x00e\x00r\x00 \x001\x00\x00', 4),
 ])
-def test_unicode_stringrw(fixture):
+def test_unicode_stringrw(fixture, padding):
     with io.BytesIO(fixture) as f:
-        data = read_unicode_string(f)
+        data = read_unicode_string(f, padding=padding)
         print(len(fixture), f.tell())
 
     print('%d %r' % (len(data), data))
 
     with io.BytesIO() as f:
-        write_unicode_string(f, data)
+        write_unicode_string(f, data, padding=padding)
         output = f.getvalue()
         assert fixture == output

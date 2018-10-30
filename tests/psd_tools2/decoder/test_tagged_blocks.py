@@ -11,9 +11,10 @@ logger = logging.getLogger(__name__)
 
 
 def test_tagged_blocks():
-    blocks = TaggedBlocks([TaggedBlock(
-        key=TaggedBlockID.LINKED_LAYER_EXTERNAL
-    )])
+    blocks = TaggedBlocks([
+        (TaggedBlockID.LINKED_LAYER_EXTERNAL,
+         TaggedBlock(key=TaggedBlockID.LINKED_LAYER_EXTERNAL))
+    ])
     check_write_read(blocks)
     check_write_read(blocks, version=2)
     check_write_read(blocks, version=2, padding=4)

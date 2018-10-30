@@ -73,7 +73,10 @@ def test_layer_blending_ranges():
 
 
 def test_layer_record():
-    tagged_blocks = TaggedBlocks([TaggedBlock(key=TaggedBlockID(b'lnkE'))])
+    tagged_blocks = TaggedBlocks([
+        (TaggedBlockID.FILTER_MASK,
+         TaggedBlock(key=TaggedBlockID.FILTER_MASK)),
+    ])
     check_write_read(LayerRecord())
     check_write_read(LayerRecord(name='foo', tagged_blocks=tagged_blocks))
     check_write_read(LayerRecord(tagged_blocks=tagged_blocks), version=2)

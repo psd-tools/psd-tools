@@ -210,14 +210,14 @@ def write_pascal_string(fp, value, encoding='macroman', padding=2):
     return written
 
 
-def read_unicode_string(fp, padding=4):
+def read_unicode_string(fp, padding=1):
     num_chars = read_fmt('I', fp)[0]
     chars = be_array_from_bytes('H', fp.read(num_chars * 2))
     read_padding(fp, struct.calcsize('I') + num_chars * 2, padding)
     return "".join(unichr(num) for num in chars)
 
 
-def write_unicode_string(fp, value, padding=4):
+def write_unicode_string(fp, value, padding=1):
     arr = array.array(str('H'), [ord(x) for x in value])
     written = write_fmt(fp, 'I', len(arr))
     written += write_bytes(fp, be_array_to_bytes(arr))

@@ -9,8 +9,10 @@ import io
 import logging
 from collections import OrderedDict
 
-from psd_tools2.decoder.base import BaseElement
-from psd_tools2.constants import OSType, UnitFloatType
+from psd_tools2.decoder.base import (
+    BaseElement, ListElement, DictElement, ValueElement
+)
+from psd_tools2.constants import OSType, UnitFloatType, DescriptorClassID
 from psd_tools2.validators import in_
 from psd_tools2.utils import (
     read_fmt, write_fmt, read_unicode_string, write_unicode_string,
@@ -31,19 +33,121 @@ def register(ostype):
     return wrapper
 
 
+def read_length_and_key(fp):
+    """
+    Helper to write descriptor classID and key.
+    """
+    length = read_fmt('I', fp)[0]
+    key = fp.read(length or 4)
+    if length == 0:
+        try:
+            return DescriptorClassID(key)
+        except ValueError:
+            logger.warning('Unknown classID: %r' % (key))
+
+    return key  # Fallback.
+
+
 def write_length_and_key(fp, value):
     """
     Helper to write descriptor classID and key.
     """
-    length = 0 if len(value) == 4 else len(value)
-    written = write_fmt(fp, 'I', length)
-    written += write_bytes(fp, value)
+    if value in DescriptorClassID:
+        written = write_fmt(fp, 'I', 0)
+        written += write_bytes(fp, value.value)
+    else:
+        written = write_fmt(fp, 'I', len(value))
+        written += write_bytes(fp, value)
     return written
+
+
+@register(OSType.DESCRIPTOR)
+@attr.s(repr=False)
+class Descriptor(DictElement):
+    """
+    Descriptor structure similar to `dict`.
+
+    Example::
+
+        for key in descriptor:
+            print(descriptor[key])
+
+    .. py:attribute:: name
+    .. py:attribute:: classID
+    .. py:attribute:: items
+    """
+    name = attr.ib(default='', type=str)
+    classID = attr.ib(default=DescriptorClassID.NULL)
+    items = attr.ib(factory=OrderedDict, converter=OrderedDict)
+
+    @classmethod
+    def read(cls, fp):
+        """Read the element from a file-like object.
+
+        :param fp: file-like object
+        """
+        name = read_unicode_string(fp, padding=1)
+        classID = read_length_and_key(fp)
+        items = []
+        count = read_fmt('I', fp)[0]
+        for _ in range(count):
+            key = read_length_and_key(fp)
+            ostype = OSType(fp.read(4))
+            decoder = TYPES.get(ostype)
+            if not decoder:
+                raise ValueError('Unknown descriptor type %r' % ostype)
+
+            value = decoder.read(fp)
+            if value is None:
+                warnings.warn("%r (%r) is None" % (key, ostype))
+            items.append((key, value))
+
+        return cls(name, classID, items)
+
+    def write(self, fp):
+        """Write the element to a file-like object.
+
+        :param fp: file-like object
+        """
+        written = write_unicode_string(fp, self.name, padding=1)
+        written += write_length_and_key(fp, self.classID)
+        written += write_fmt(fp, 'I', len(self.items))
+        for key in self.items:
+            written += write_length_and_key(fp, key)
+            written += write_bytes(fp, self.items[key].ostype.value)
+            written += self.items[key].write(fp)
+        return written
+
+    def __getitem__(self, key):
+        key = key if isinstance(key, bytes) else key.encode('ascii')
+        return self.items[key]
+
+    def _repr_pretty_(self, p, cycle):
+        if cycle:
+            return "{name}{{...}".format(name=self.__class__.__name__)
+
+        prefix = '{cls}({name}){{'.format(
+            cls=self.__class__.__name__,
+            name=getattr(self.classID, 'name', self.classID),
+        )
+        with p.group(2, prefix, '}'):
+            p.breakable('')
+            for idx, key in enumerate(self.items):
+                if idx:
+                    p.text(',')
+                    p.breakable()
+                value = self.items[key]
+                if isinstance(value, bytes):
+                    value = trimmed_repr(value)
+                p.pretty(key.name if hasattr(key, 'name') else key)
+                p.text(': ')
+                p.pretty(value)
+            p.breakable('')
 
 
 @register(OSType.LIST)
 @attr.s
-class List(BaseElement):
+class List(ListElement):
     """
     List structure.
 
@@ -75,88 +179,9 @@ class List(BaseElement):
         """
         written = write_fmt(fp, 'I', len(self.items))
         for item in self.items:
-            written += write_bytes(item.ostype)
+            written += write_bytes(fp, item.ostype.value)
             written += item.write(fp)
         return written
-
-    def __iter__(self):
-        for item in self.items:
-            yield item
-
-    def __getitem__(self, index):
-        return self.items[index]
-
-    def __len__(self):
-        return len(self.items)
-
-
-@register(OSType.DESCRIPTOR)
-@attr.s
-class Descriptor(BaseElement):
-    """
-    Descriptor structure similar to `dict`.
-
-    Example::
-
-        for key in descriptor:
-            print(descriptor[key])
-
-    .. py:attribute:: name
-    .. py:attribute:: classID
-    .. py:attribute:: items
-    """
-    name = attr.ib(default='', type=str)
-    classID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
-    items = attr.ib(factory=OrderedDict)
-
-    @classmethod
-    def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        """
-        name = read_unicode_string(fp)
-        classID = fp.read(read_fmt('I', fp)[0] or 4)
-        items = []
-        count = read_fmt('I', fp)[0]
-        for _ in range(count):
-            key = fp.read(read_fmt("I", fp)[0] or 4)
-            ostype = OSType(fp.read(4))
-            decoder = TYPES.get(ostype)
-            if not decoder:
-                raise ValueError('Unknown descriptor type %r' % ostype)
-
-            value = decoder.read(fp)
-            if value is None:
-                warnings.warn("%r (%r) is None" % (key, ostype))
-            items.append((key, value))
-
-        return cls(name, classID, OrderedDict(items))
-
-    def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
-        written = write_unicode_string(fp, self.name)
-        written += write_length_and_key(fp, self.classID)
-        written += write_fmt(fp, 'I', len(self.items))
-        for item in self.items:
-            written += write_length_and_key(fp, item[0])
-            written += fp.write(item[1].ostype.value)
-            written += item[1].write(fp)
-        return written
-
-    def __iter__(self):
-        for key in self.items:
-            yield key
-
-    def __getitem__(self, key):
-        key = key if isinstance(key, bytes) else key.encode('ascii')
-        return self.items[key]
-
-    def __len__(self):
-        return len(self.items)
 
 
 @register(OSType.PROPERTY)
@@ -178,8 +203,8 @@ class Property(BaseElement):
         :param fp: file-like object
         """
         name = read_unicode_string(fp)
-        classID = fp.read(read_fmt('I', fp)[0] or 4)
-        keyID = fp.read(read_fmt('I', fp)[0] or 4)
+        classID = read_length_and_key(fp)
+        keyID = read_length_and_key(fp)
         return cls(name, classID, keyID)
 
     def write(self, fp):
@@ -268,8 +293,8 @@ class UnitFloats(BaseElement):
 
 
 @register(OSType.DOUBLE)
-@attr.s
-class Double(BaseElement):
+@attr.s(repr=False)
+class Double(ValueElement):
     """
     Double structure.
 
@@ -314,7 +339,7 @@ class Class(BaseElement):
         :param fp: file-like object
         """
         name = read_unicode_string(fp)
-        classID = fp.read(read_fmt('I', fp)[0] or 4)
+        classID = read_length_and_key(fp)
         return cls(name, classID)
 
     def write(self, fp):
@@ -328,8 +353,8 @@ class Class(BaseElement):
 
 
 @register(OSType.STRING)
-@attr.s
-class String(BaseElement):
+@attr.s(repr=False)
+class String(ValueElement):
     """
     String structure.
 
@@ -343,14 +368,14 @@ class String(BaseElement):
 
         :param fp: file-like object
         """
-        return cls(read_unicode_string(fp))
+        return cls(read_unicode_string(fp, padding=1))
 
     def write(self, fp):
         """Write the element to a file-like object.
 
         :param fp: file-like object
         """
-        return write_unicode_string(fp, self.value)
+        return write_unicode_string(fp, self.value, padding=1)
 
     def __str__(self):
         return self.value
@@ -376,9 +401,9 @@ class EnumeratedReference(BaseElement):
         :param fp: file-like object
         """
         name = read_unicode_string(fp)
-        classID = fp.read(read_fmt('I', fp)[0] or 4)
-        typeID = fp.read(read_fmt('I', fp)[0] or 4)
-        enum = fp.read(read_fmt('I', fp)[0] or 4)
+        classID = read_length_and_key(fp)
+        typeID = read_length_and_key(fp)
+        enum = read_length_and_key(fp)
         return cls(name, classID, typeID, enum)
 
     def write(self, fp):
@@ -412,7 +437,7 @@ class Offset(BaseElement):
         :param fp: file-like object
         """
         name = read_unicode_string(fp)
-        classID = fp.read(read_fmt('I', fp)[0] or 4)
+        classID = read_length_and_key(fp)
         offset = read_fmt('I', fp)[0]
         return cls(name, classID, offset)
 
@@ -428,8 +453,8 @@ class Offset(BaseElement):
 
 
 @register(OSType.BOOLEAN)
-@attr.s
-class Bool(BaseElement):
+@attr.s(repr=False)
+class Bool(ValueElement):
     """
     Bool structure.
 
@@ -457,8 +482,8 @@ class Bool(BaseElement):
 
 
 @register(OSType.LARGE_INTEGER)
-@attr.s
-class LargeInteger(BaseElement):
+@attr.s(repr=False)
+class LargeInteger(ValueElement):
     """
     LargeInteger structure.
 
@@ -489,8 +514,8 @@ class LargeInteger(BaseElement):
 
 
 @register(OSType.INTEGER)
-@attr.s
-class Integer(BaseElement):
+@attr.s(repr=False)
+class Integer(ValueElement):
     """
     Integer structure.
 
@@ -537,8 +562,8 @@ class Enum(BaseElement):
 
         :param fp: file-like object
         """
-        typeID = fp.read(read_fmt('I', fp)[0] or 4)
-        enum = fp.read(read_fmt('I', fp)[0] or 4)
+        typeID = read_length_and_key(fp)
+        enum = read_length_and_key(fp)
         return cls(typeID, enum)
 
     def write(self, fp):

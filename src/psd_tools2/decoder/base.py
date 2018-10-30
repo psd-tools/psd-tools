@@ -1,6 +1,7 @@
 from __future__ import absolute_import, unicode_literals, division
 import attr
 import io
+from collections import OrderedDict
 from psd_tools2.utils import read_fmt, write_fmt, trimmed_repr
 
 
@@ -60,6 +61,21 @@ class BaseElement(object):
             p.breakable('')
 
 
+class ValueElement(BaseElement):
+    """
+    Single value element that has `value`.
+
+    Use with `@attr.s(repr=False)` decorator.
+    """
+    def __repr__(self):
+        return self.value.__repr__()
+
+    def _repr_pretty_(self, p, cycle):
+        if cycle:
+            return self.__repr__()
+        p.pretty(self.value)
+
+
 class ListElement(BaseElement):
     """
     List-like element that has `items` list.
@@ -86,7 +102,6 @@ class ListElement(BaseElement):
 
         with p.group(2, '{name}['.format(name=self.__class__.__name__), ']'):
             p.breakable('')
-            fields = [f for f in attr.fields(self.__class__) if f.repr]
             for idx in range(len(self.items)):
                 if idx:
                     p.text(',')
@@ -99,3 +114,45 @@ class ListElement(BaseElement):
 
     def write(self, fp, *args, **kwargs):
         return sum(item.write(fp, *args, **kwargs) for item in self)
+
+
+class DictElement(BaseElement):
+    """
+    Dict-like element that has `items` OrderedDict.
+
+    Use with `@attr.s(repr=False)` decorator.
+    """
+
+    def __len__(self):
+        return len(self.items)
+
+    def __iter__(self):
+        for key in self.items:
+            yield key
+
+    def __getitem__(self, key):
+        return self.items[key]
+
+    def __repr__(self):
+        return '%s%s' % (self.__class__.__name__, dict.__repr__(self.items))
+
+    def _repr_pretty_(self, p, cycle):
+        if cycle:
+            return "{name}[...]".format(name=self.__class__.__name__)
+
+        with p.group(2, '{name}{{'.format(name=self.__class__.__name__), '}'):
+            p.breakable('')
+            for idx, key in enumerate(self.items):
+                if idx:
+                    p.text(',')
+                    p.breakable()
+                value = self.items[key]
+                p.pretty(key)
+                p.text(': ')
+                if isinstance(value, bytes):
+                    value = trimmed_repr(value)
+                p.pretty(value)
+            p.breakable('')
+
+    def write(self, fp, *args, **kwargs):
+        return sum(self.items[key].write(fp, *args, **kwargs) for key in self)

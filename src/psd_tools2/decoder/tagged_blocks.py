@@ -5,14 +5,16 @@ from __future__ import absolute_import, unicode_literals
 import attr
 import io
 import logging
+from collections import OrderedDict
 
-from psd_tools2.decoder.base import BaseElement, ListElement
+from psd_tools2.decoder.base import BaseElement, ValueElement, DictElement
 from psd_tools2.decoder.descriptor import Descriptor
 from psd_tools2.constants import TaggedBlockID
 from psd_tools2.validators import in_
 from psd_tools2.utils import (
     read_fmt, write_fmt, read_length_block, write_length_block, is_readable,
-    write_bytes, read_unicode_string, write_unicode_string,
+    write_bytes, read_unicode_string, write_unicode_string, write_padding,
+    trimmed_repr
 )
 
 logger = logging.getLogger(__name__)
@@ -29,13 +31,13 @@ def register(key):
 
 
 @attr.s(repr=False)
-class TaggedBlocks(ListElement):
+class TaggedBlocks(DictElement):
     """
     List of tagged blocks.
 
     .. py:attribute:: items
     """
-    items = attr.ib(factory=list)
+    items = attr.ib(factory=OrderedDict, converter=OrderedDict)
 
     @classmethod
     def read(cls, fp, version=1, padding=1):
@@ -50,16 +52,27 @@ class TaggedBlocks(ListElement):
             block = TaggedBlock.read(fp, version, padding)
             if block is None:
                 break
-            items.append(block)
+            items.append((block.key, block))
         return cls(items)
 
-    def write(self, fp, version=1, padding=1):
-        """Write the element to a file-like object.
+    def _repr_pretty_(self, p, cycle):
+        if cycle:
+            return "{name}[...]".format(name=self.__class__.__name__)
 
-        :param fp: file-like object
-        :rtype: int
-        """
-        return sum(item.write(fp, version, padding) for item in self)
+        with p.group(2, '{name}{{'.format(name=self.__class__.__name__), '}'):
+            p.breakable('')
+            for idx, key in enumerate(self.items):
+                if idx:
+                    p.text(',')
+                    p.breakable()
+                value = self.items[key]
+                p.pretty(key.name)
+                p.text(': ')
+                value = value.data
+                if isinstance(value, bytes):
+                    value = trimmed_repr(value)
+                p.pretty(value)
+            p.breakable('')
 
 
 @attr.s
@@ -124,11 +137,11 @@ class TaggedBlock(BaseElement):
         data = read_length_block(fp, fmt=fmt, padding=padding)
 
         kls = TYPES.get(key)
-        # logger.debug('%s %s' % (key, kls))
+        # logger.debug('%s %r' % (key, trimmed_repr(data)))
         if kls and len(data) >= 4:
             try:
                 data = kls.frombytes(data)
-            except (ValueError,):
+            except (ValueError,):  # AssertionError also.
                 logger.warning('Failed to read tagged block: %r' % (key))
         return cls(signature, key, data)
 
@@ -143,7 +156,8 @@ class TaggedBlock(BaseElement):
 
         def writer(f):
             if hasattr(self.data, 'write'):
-                return self.data.write(f)
+                # It seems padding size applies at the block level here.
+                return self.data.write(f, padding=1 if padding == 4 else 4)
             return write_bytes(f, self.data)
 
         fmt = self._length_format(self.key, version)
@@ -161,8 +175,8 @@ class TaggedBlock(BaseElement):
 @register(TaggedBlockID.LAYER_ID)
 @register(TaggedBlockID.LAYER_VERSION)
 @register(TaggedBlockID.USING_ALIGNED_RENDERING)
-@attr.s
-class Integer(BaseElement):
+@attr.s(repr=False)
+class Integer(ValueElement):
     """
     Integer structure.
 
@@ -171,10 +185,10 @@ class Integer(BaseElement):
     value = attr.ib(default=0, type=int)
 
     @classmethod
-    def read(cls, fp):
+    def read(cls, fp, **kwargs):
         return cls(read_fmt('I', fp)[0])
 
-    def write(self, fp):
+    def write(self, fp, **kwargs):
         return write_fmt(fp, 'I', self.value)
 
     def __int__(self):
@@ -188,8 +202,8 @@ class Integer(BaseElement):
 @register(TaggedBlockID.LAYER_MASK_AS_GLOBAL_MASK)
 @register(TaggedBlockID.TRANSPARENCY_SHAPES_LAYER)
 @register(TaggedBlockID.VECTOR_MASK_AS_GLOBAL_MASK)
-@attr.s
-class Bytes(BaseElement):
+@attr.s(repr=False)
+class Bytes(ValueElement):
     """
     Integer structure.
 
@@ -198,10 +212,10 @@ class Bytes(BaseElement):
     value = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
 
     @classmethod
-    def read(cls, fp):
+    def read(cls, fp, **kwargs):
         return cls(read_fmt('B3x', fp)[0])
 
-    def write(self, fp):
+    def write(self, fp, **kwargs):
         return write_fmt(fp, 'B3x', self.value)
 
     def __bytes__(self):
@@ -209,8 +223,8 @@ class Bytes(BaseElement):
 
 
 @register(TaggedBlockID.UNICODE_LAYER_NAME)
-@attr.s
-class String(BaseElement):
+@attr.s(repr=False)
+class String(ValueElement):
     """
     Integer structure.
 
@@ -219,30 +233,30 @@ class String(BaseElement):
     value = attr.ib(default='', type=str)
 
     @classmethod
-    def read(cls, fp):
-        return cls(read_unicode_string(fp))
+    def read(cls, fp, padding=4):
+        return cls(read_unicode_string(fp, padding))
 
-    def write(self, fp):
-        return write_unicode_string(fp, self.value)
+    def write(self, fp, padding=4):
+        return write_unicode_string(fp, self.value, padding)
 
     def __str__(self):
         return self.value
 
 
-# @register(TaggedBlockID.ANIMATION_EFFECTS)
-# @register(TaggedBlockID.ARTBOARD_DATA1)
-# @register(TaggedBlockID.ARTBOARD_DATA2)
-# @register(TaggedBlockID.ARTBOARD_DATA3)
-# @register(TaggedBlockID.BLACK_AND_WHITE)
-# @register(TaggedBlockID.CONTENT_GENERATOR_EXTRA_DATA)
-# @register(TaggedBlockID.EXPORT_SETTING1)
-# @register(TaggedBlockID.EXPORT_SETTING2)
-# @register(TaggedBlockID.GRADIENT_FILL_SETTING)
-# @register(TaggedBlockID.PATTERN_FILL_SETTING)
-# @register(TaggedBlockID.PIXEL_SOURCE_DATA1)
-# @register(TaggedBlockID.SOLID_COLOR_SHEET_SETTING)
-# @register(TaggedBlockID.UNICODE_PATH_NAME)
-# @register(TaggedBlockID.VIBRANCE)
+@register(TaggedBlockID.ANIMATION_EFFECTS)
+@register(TaggedBlockID.ARTBOARD_DATA1)
+@register(TaggedBlockID.ARTBOARD_DATA2)
+@register(TaggedBlockID.ARTBOARD_DATA3)
+@register(TaggedBlockID.BLACK_AND_WHITE)
+@register(TaggedBlockID.CONTENT_GENERATOR_EXTRA_DATA)
+@register(TaggedBlockID.EXPORT_SETTING1)
+@register(TaggedBlockID.EXPORT_SETTING2)
+@register(TaggedBlockID.GRADIENT_FILL_SETTING)
+@register(TaggedBlockID.PATTERN_FILL_SETTING)
+@register(TaggedBlockID.PIXEL_SOURCE_DATA1)
+@register(TaggedBlockID.SOLID_COLOR_SHEET_SETTING)
+@register(TaggedBlockID.UNICODE_PATH_NAME)
+@register(TaggedBlockID.VIBRANCE)
 @attr.s
 class DescriptorBlock(BaseElement):
     """
@@ -255,14 +269,15 @@ class DescriptorBlock(BaseElement):
     data = attr.ib(default=None, type=Descriptor)
 
     @classmethod
-    def read(cls, fp):
+    def read(cls, fp, **kwargs):
         version = read_fmt('I', fp)[0]
         data = Descriptor.read(fp)
         return cls(version, data)
 
-    def write(self, fp):
+    def write(self, fp, padding=4):
         written = write_fmt(fp, 'I', self.version)
         written += self.data.write(fp)
+        written += write_padding(fp, written, padding)
         return written
 
 

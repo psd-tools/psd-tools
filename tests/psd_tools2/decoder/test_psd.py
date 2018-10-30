@@ -22,10 +22,13 @@ BAD_PADDINGS = {
 }
 
 BAD_UNICODE_PADDINGS = {
-    'broken-groups.psd': 2,
+    'broken-groups.psd': 2,  # Unicode aligns 2 byte.
+    'unicode_pathname.psd': 2,  # DescriptorBlock aligns 2 byte.
+    'unicode_pathname.psb': 2,  # DescriptorBlock aligns 2 byte.
 }
 
 
+# @pytest.mark.parametrize('filename', [full_name('layer_effects.psd')])
 @pytest.mark.parametrize('filename', all_files())
 def test_psd_read_write(filename):
     basename = os.path.basename(filename)
@@ -59,8 +62,3 @@ def test_psd_write_read(filename):
 def test_psd_from_error():
     with pytest.raises(AssertionError):
         PSD.frombytes(b'\x00\x00\x00\x00')
-
-
-# def test_decompress_packbits():
-#     with open(full_name('1layer.psd'), 'rb') as f:
-#         psd = PSD.read(f)
