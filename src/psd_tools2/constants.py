@@ -196,37 +196,6 @@ class BlendMode(Enum):
     LUMINOSITY = b'lum '
 
 
-# class BlendMode2(Enum):
-#     """Blend mode in layer effect descriptor."""
-#     NORMAL = b'Nrml'
-#     DISSOLVE = b'Dslv'
-#     DARKEN = b'Drkn'
-#     MULTIPLY = b'Mltp'
-#     COLOR_BURN = b'CBrn'
-#     LINEAR_BURN = b'linearBurn'
-#     DARKER_COLOR = b'darkerColor'
-#     LIGHTEN = b'Lghn'
-#     SCREEN = b'Scrn'
-#     COLOR_DODGE = b'CDdg'
-#     LINEAR_DODGE = b'linearDodge'
-#     LIGHTER_COLOR = b'lighterColor'
-#     OVERLAY = b'Ovrl'
-#     SOFT_LIGHT = b'SftL'
-#     HARD_LIGHT = b'HrdL'
-#     VIVID_LIGHT = b'vividLight'
-#     LINEAR_LIGHT = b'linearLight'
-#     PIN_LIGHT = b'pinLight'
-#     HARD_MIX = b'hardMix'
-#     DIFFERENCE = b'Dfrn'
-#     EXCLUSION = b'Xclu'
-#     SUBTRACT = b'blendSubtraction'
-#     DIVIDE = b'blendDivide'
-#     HUE = b'H   '
-#     SATURATION = b'Strt'
-#     COLOR = b'Clr '
-#     LUMINOSITY = b'Lmns'
-
-
 class GlobalLayerMaskKind(IntEnum):
     """Global layer mask kind."""
     COLOR_SELECTED = 0
@@ -486,7 +455,7 @@ class DescriptorClassID(Enum):
     # Vibrance adjustment
     SATURATION = b'Strt'
 
-    # ENABLED = b'enab'
+    ENABLED = b'enab'
     ANGLE = b'Angl'
     MODE = b'Md  '
     CHOKE = b'Ckmt'
@@ -494,6 +463,127 @@ class DescriptorClassID(Enum):
     NOISE = b'Nose'
     ANTI_ALIASED = b'AntA'
     DITHERED = b'Dthr'
+
+    LAYER_I = b'LyrI'  # ???
+    OFFSET = b'Ofst'
+    LAYER_FONT_EFFECT = b'Lefx'  # ???
+    SCALE = b'Scl '
+    LAYER_EFFECT = b'FrFX'
+    FSTL = b'FStl'  # ???
+
+    FR_FILL = b'FrFl'  # ???
+    SOLID_COLOR = b'SClr'
+
+    # Stroke
+    STROKE_STYLE = b'Styl'
+    STROKE_INNER = b'InsF'
+    STROKE_OUTER = b'OutF'
+    STROKE_CENTER = b'CtrF'
+    FILL_TYPE = b'PntT'
+
+    GRADIENT_FILL = b'GrFl'
+    REVERSED = b'Rvrs'
+    ALIGNED = b'Algn'
+
+
+    # Blend mode
+    BLEND_MODE = b'BlnM'
+    BLEND_NORMAL = b'Nrml'
+    BLEND_DISSOLVE = b'Dslv'
+    BLEND_DARKEN = b'Drkn'
+    BLEND_MULTIPLY = b'Mltp'
+    BLEND_COLOR_BURN = b'CBrn'
+    BLEND_LINEAR_BURN = b'linearBurn'
+    BLEND_DARKER_COLOR = b'darkerColor'
+    BLEND_LIGHTEN = b'Lghn'
+    BLEND_SCREEN = b'Scrn'
+    BLEND_COLOR_DODGE = b'CDdg'
+    BLEND_LINEAR_DODGE = b'linearDodge'
+    BLEND_LIGHTER_COLOR = b'lighterColor'
+    BLEND_OVERLAY = b'Ovrl'
+    BLEND_SOFT_LIGHT = b'SftL'
+    BLEND_HARD_LIGHT = b'HrdL'
+    BLEND_VIVID_LIGHT = b'vividLight'
+    BLEND_LINEAR_LIGHT = b'linearLight'
+    BLEND_PIN_LIGHT = b'pinLight'
+    BLEND_HARD_MIX = b'hardMix'
+    BLEND_DIFFERENCE = b'Dfrn'
+    BLEND_EXCLUSION = b'Xclu'
+    BLEND_SUBTRACT = b'blendSubtraction'
+    BLEND_DIVIDE = b'blendDivide'
+    BLEND_HUE = b'H   '
+    BLEND_SATURATION = b'Strt'
+    BLEND_COLOR = b'Clr '
+    BLEND_LUMINOSITY = b'Lmns'
+
+    DISTANCE = b'Dstn'
+    SIZE = b'Sz  '
+
+    # Effect types
+    # DROP_SHADOW_MULTI = b'dropShadowMulti'
+    DROP_SHADOW = b'DrSh'
+    # INNER_SHADOW_MULTI = b'innerShadowMulti'
+    INNER_SHADOW = b'IrSh'
+    OUTER_GLOW = b'OrGl'
+    # COLOR_OVERLAY_MULTI = b'solidFillMulti'
+    COLOR_OVERLAY = b'SoFi'
+    # GRADIENT_OVERLAY_MULTI = b'gradientFillMulti'
+    GRADIENT_OVERLAY = b'GrFl'
+    # PATTERN_OVERLAY = b'patternFill'
+    # STROKE_MULTI = b'frameFXMulti'
+    STROKE = b'FrFX'
+    INNER_GLOW = b'IrGl'
+    BEVEL_EMBOSS = b'ebbl'
+    SATIN = b'ChFX'
+
+    USE_GLOBAL_LIGHT = b'uglg'
+    BESL = b'BESl'  # ???
+    BESS = b'BESs'  # ???
+    BETE = b'BETE'  # ???
+
+    # Grow
+    GLOW_TYPE = b'GlwT'
+    GLOW_SOURCE = b'glwS'
+    GLOW_SOURCE_EDGE = 'SrcE'
+
+    INNER_GLOW_SR = b'IGSr'  # ???
+
+    INVERTED = b'Invr'
+    QUARYTY_RANGE = b'Inpr'
+    QUALITY_JITTER = b'ShdN'
+
+    # BevelEmboss
+    BEVEL_TYPE = b'bvlT'
+    BEVEL_SMOOTH = b'SfBL'
+    BEVEL_CHIESEL_HARD = b'PrBL'
+    BEVEL_CHIESEL_SOFT = b'Slmt'
+
+    BEVEL_STYLE = 'bvlS'
+    BEVEL_STYLE_OUTER = b'OtrB'
+    BEVEL_STYLE_INNER = b'InrB'
+    BEVEL_STYLE_EMBOSS = b'Embs'
+    BEVEL_STYLE_PILLOW_EMBOSS = b'PlEb'
+    # BEVEL_STROKE_EMBOSS = b'strokeEmboss'
+
+    BEVEL_DIRECTION = b'bvlD'
+    IN = b'In  '
+    OUT = b'Out '
+
+    HIGHLIGHT_MODE = b'hglM'
+    HIGHLIGHT_COLOR = b'hglC'
+    HIGHLIGHT_OPACITY = b'hglO'
+
+    SHADOW_MODE = 'sdwM'
+    SHADOW_COLOR = 'sdwC'
+    SHADOW_OPACITY = 'sdwO'
+
+    ALTITUDE = b'Lald'
+    DEPTH = b'srgR'
+    SOFTEN = b'Sftn'
+
+    # Satin
+    LIGHT_ANGLE = b'lagl'
+    SATIN_CONTOUR = b'MpgS'
 
 
 # class EffectOSType(Enum):

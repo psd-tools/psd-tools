@@ -7,7 +7,9 @@ import io
 import logging
 from collections import OrderedDict
 
-from psd_tools2.decoder.base import BaseElement, ValueElement, DictElement
+from psd_tools2.decoder.base import (
+    BaseElement, ValueElement, ListElement, DictElement
+)
 from psd_tools2.decoder.descriptor import Descriptor
 from psd_tools2.constants import (
     TaggedBlockID, SectionDivider, BlendMode
@@ -324,6 +326,66 @@ class DescriptorBlock(BaseElement):
         written = write_fmt(fp, 'I', self.version)
         written += self.data.write(fp)
         written += write_padding(fp, written, padding)
+        return written
+
+
+@register(TaggedBlockID.METADATA_SETTING)
+@attr.s(repr=False)
+class MetadataSettings(ListElement):
+    """
+    MetadataSettings structure.
+    """
+    items = attr.ib(factory=list)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        count = read_fmt('I', fp)[0]
+        items = []
+        for _ in range(count):
+            items.append(MetadataSetting.read(fp))
+        return cls(items)
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, 'I', len(self.items))
+        for item in self:
+            written += item.write(fp)
+        return written
+
+
+@attr.s
+class MetadataSetting(BaseElement):
+    """
+    MetadataSetting structure.
+    """
+    signature = attr.ib(default=b'8BIM', type=bytes, repr=False,
+                        validator=in_((b'8BIM',)))
+    key = attr.ib(default=b'', type=bytes)
+    copy_on_sheet = attr.ib(default=False, type=bool)
+    data = attr.ib(default=b'', type=bytes)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        signature = fp.read(4)
+        assert signature == b'8BIM', 'Invalid signature %r' % signature
+        key, copy_on_sheet = read_fmt("4s?3x", fp)
+        data = read_length_block(fp)
+        try:
+            with io.BytesIO(data) as f:
+                data = DescriptorBlock.read(f, padding=4)
+        except (ValueError, AssertionError):
+            logger.warning('Failed to read metadata item %r' % (
+                trimmed_repr(data))
+            )
+        return cls(signature, key, copy_on_sheet, data)
+
+    def write(self, fp, **kwargs):
+        written = write_bytes(fp, self.signature)
+        written += write_fmt(fp, '4s?3x', self.key, self.copy_on_sheet)
+        def writer(f):
+            if hasattr(self.data, 'write'):
+                return self.data.write(f, padding=4)
+            return write_bytes(f, self.data)
+        written += write_length_block(fp, writer)
         return written
 
 
