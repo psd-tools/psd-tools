@@ -213,7 +213,7 @@ class Byte(ValueElement):
 
     .. py:attribute:: value
     """
-    value = attr.ib(default=0, type=bytes)
+    value = attr.ib(default=0, type=int)
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -222,7 +222,10 @@ class Byte(ValueElement):
     def write(self, fp, **kwargs):
         return write_fmt(fp, 'B3x', self.value)
 
-    def __bytes__(self):
+    def __int__(self):
+        return self.value
+
+    def __index__(self):
         return self.value
 
 
