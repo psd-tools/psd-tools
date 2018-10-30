@@ -573,24 +573,30 @@ class VirtualMemoryArrayList(BaseElement):
     .. py:attribute:: channels
     """
     version = attr.ib(default=3, type=int)
-    length = attr.ib(default=0, type=int)
     rectangle = attr.ib(default=None)
     channels = attr.ib(default=None)
 
     @classmethod
     def read(cls, fp, **kwargs):
-        version, length = read_fmt('2I', fp)
+        version = read_fmt('I', fp)[0]
         assert version == 3, 'Invalid version %d' % (version)
-        rectangle = read_fmt('4I', fp)
-        num_channels = read_fmt('I', fp)[0]
-        channels = []
-        for _ in range(num_channels + 2):
-            channels.append(VirtualMemoryArray.read(fp))
-        return cls(version, length, rectangle, channels)
+
+        data = read_length_block(fp)
+        with io.BytesIO(data) as f:
+            rectangle = read_fmt('4I', f)
+            num_channels = read_fmt('I', f)[0]
+            channels = []
+            for _ in range(num_channels + 2):
+                channels.append(VirtualMemoryArray.read(f))
+
+        return cls(version, rectangle, channels)
 
     def write(self, fp, **kwargs):
-        written = write_fmt(fp, '2I', self.version, self.length)
-        written += write_fmt(fp, '4I', *self.rectangle)
+        written = write_fmt(fp, 'I', self.version)
+        return written + write_length_block(fp, lambda f: self._write_body(f))
+
+    def _write_body(self, fp):
+        written = write_fmt(fp, '4I', *self.rectangle)
         written += write_fmt(fp, 'I', len(self.channels) - 2)
         for channel in self.channels:
             written += channel.write(fp)
