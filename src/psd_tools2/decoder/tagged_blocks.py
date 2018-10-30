@@ -645,6 +645,30 @@ class TypeToolObjectSetting(BaseElement):
         return written
 
 
+@register(TaggedBlockID.USER_MASK)
+@attr.s
+class UserMask(BaseElement):
+    """
+    UserMask structure.
+
+    .. py:attribute:: color
+    .. py:attribute:: opacity
+    .. py:attribute:: flag
+    """
+    color = attr.ib(default=None)
+    opacity = attr.ib(default=0, type=int)
+    flag = attr.ib(default=128, type=int)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        color = Color.read(fp)
+        opacity, flag = read_fmt('HBx', fp)
+        return cls(color, opacity, flag)
+
+    def write(self, fp, **kwargs):
+        written = self.color.write(fp)
+        written += write_fmt(fp, 'HBx', self.opacity, self.flag)
+        return written
 
 
 # TaggedBlockID.BRIGHTNESS_AND_CONTRAST
