@@ -427,6 +427,24 @@ class ProtectedSetting(BaseElement):
         return write_fmt(fp, 'I', flag)
 
 
+@register(TaggedBlockID.REFERENCE_POINT)
+@attr.s(repr=False)
+class ReferencePoint(ValueElement):
+    """
+    ReferencePoint structure.
+
+    .. py:attribute:: value
+    """
+    value = attr.ib(default=None, converter=list)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        return cls(read_fmt('2d', fp))
+
+    def write(self, fp, **kwargs):
+        return write_fmt(fp, '2d', *self.value)
+
+
 @register(TaggedBlockID.SECTION_DIVIDER_SETTING)
 @register(TaggedBlockID.NESTED_SECTION_DIVIDER_SETTING)
 @attr.s
@@ -468,12 +486,12 @@ class SectionDividerSetting(BaseElement):
 
 
 @register(TaggedBlockID.SHEET_COLOR_SETTING)
-@attr.s
+@attr.s(repr=False)
 class SheetColorSetting(ValueElement):
     """
     SheetColorSetting structure.
 
-    .. py:attribute:: values
+    .. py:attribute:: value
     """
     value = attr.ib(default=None, converter=list)
 
