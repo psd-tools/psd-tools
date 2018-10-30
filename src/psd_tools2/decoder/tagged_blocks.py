@@ -202,6 +202,31 @@ class Integer(ValueElement):
         return self.value
 
 
+@register(TaggedBlockID.POSTERIZE)
+@register(TaggedBlockID.THRESHOLD)
+@attr.s(repr=False)
+class ShortInteger(ValueElement):
+    """
+    Short integer structure.
+
+    .. py:attribute:: value
+    """
+    value = attr.ib(default=0, type=int)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        return cls(read_fmt('H2x', fp)[0])
+
+    def write(self, fp, **kwargs):
+        return write_fmt(fp, 'H2x', self.value)
+
+    def __int__(self):
+        return self.value
+
+    def __index__(self):
+        return self.value
+
+
 @register(TaggedBlockID.BLEND_FILL_OPACITY)
 @register(TaggedBlockID.LAYER_MASK_AS_GLOBAL_MASK)
 @register(TaggedBlockID.TRANSPARENCY_SHAPES_LAYER)
@@ -248,6 +273,21 @@ class String(ValueElement):
 
     def __str__(self):
         return self.value
+
+
+@register(TaggedBlockID.INVERT)
+@attr.s()
+class Empty(BaseElement):
+    """Empty structure."""
+    @classmethod
+    def read(cls, fp, **kwargs):
+        return cls()
+
+    def write(self, fp, **kwargs):
+        return 0
+
+
+
 
 
 @register(TaggedBlockID.ANIMATION_EFFECTS)
