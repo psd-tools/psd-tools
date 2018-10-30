@@ -713,6 +713,32 @@ class VectorMaskSetting(BaseElement):
         return self.flags & 4
 
 
+@register(TaggedBlockID.VECTOR_ORIGINATION_DATA)
+@attr.s
+class VectorOriginationData(BaseElement):
+    """
+    VectorMaskSetting structure.
+
+    .. py:attribute:: version
+    .. py:attribute:: data_version
+    .. py:attribute:: data
+    """
+    version = attr.ib(default=1, type=int, validator=in_((1,)))
+    data_version = attr.ib(default=16, type=int, validator=in_((16,)))
+    data = attr.ib(default=None, type=Descriptor)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        version, data_version = read_fmt('2I', fp)
+        data = Descriptor.read(fp)
+        return cls(version, data_version, data)
+
+    def write(self, fp, padding=4):
+        written = write_fmt(fp, '2I', self.version, self.data_version)
+        written += self.data.write(fp)
+        written += write_padding(fp, written, padding)
+        return written
+
 
 # TaggedBlockID.BRIGHTNESS_AND_CONTRAST
 # TaggedBlockID.EFFECTS_LAYER
