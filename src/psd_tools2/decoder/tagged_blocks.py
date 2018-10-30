@@ -142,10 +142,10 @@ class TaggedBlock(BaseElement):
         kls = TYPES.get(key)
         # logger.debug('%s %r' % (key, trimmed_repr(data)))
         if kls:
-            try:
-                data = kls.frombytes(data)
-            except (ValueError,):  # AssertionError also.
-                logger.warning('Failed to read tagged block: %r' % (key))
+            # try:
+            data = kls.frombytes(data)
+            # except (ValueError,):  # AssertionError also.
+            #     logger.warning('Failed to read tagged block: %r' % (key))
         else:
             logger.warning('Unknown tagged block: %r, %r' % (
                 key, trimmed_repr(data))
@@ -604,7 +604,7 @@ class TypeToolObjectSetting(BaseElement):
     yy = attr.ib(default=0, type=int)
     tx = attr.ib(default=0, type=int)
     ty = attr.ib(default=0, type=int)
-    text_version = attr.ib(default=1, type=int, validator=in_((1,)))
+    text_version = attr.ib(default=1, type=int, validator=in_((50,)))
     text_data_version = attr.ib(default=16, type=int, validator=in_((16,)))
     text_data = attr.ib(default=None, type=Descriptor)
     warp_version = attr.ib(default=1, type=int, validator=in_((1,)))
@@ -629,19 +629,20 @@ class TypeToolObjectSetting(BaseElement):
             right, bottom
         )
 
-    def write(self, fp, **kwargs):
+    def write(self, fp, padding=4):
         written = write_fmt(fp, 'H6dHI', self.version, self.xx, self.xy,
             self.yx, self.yy, self.tx, self.ty, self.text_version,
             self.text_data_version
         )
-        written += self.text_data.write(fp, **kwargs)
+        written += self.text_data.write(fp)
         written += write_fmt(
             fp, 'HI', self.warp_version, self.warp_data_version
         )
-        written += self.warp_data.write(fp, **kwargs)
+        written += self.warp_data.write(fp)
         written += write_fmt(
             fp, '4i', self.left, self.top, self.right, self.bottom
         )
+        written += write_padding(fp, written, padding)
         return written
 
 
@@ -713,17 +714,20 @@ class VectorMaskSetting(BaseElement):
         return self.flags & 4
 
 
+@register(TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO)
+@register(TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V0)
+@register(TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V1)
 @register(TaggedBlockID.VECTOR_ORIGINATION_DATA)
 @attr.s
-class VectorOriginationData(BaseElement):
+class VersionedDescriptorBlock(BaseElement):
     """
-    VectorMaskSetting structure.
+    VersionedDescriptorBlock structure.
 
     .. py:attribute:: version
     .. py:attribute:: data_version
     .. py:attribute:: data
     """
-    version = attr.ib(default=1, type=int, validator=in_((1,)))
+    version = attr.ib(default=1, type=int)
     data_version = attr.ib(default=16, type=int, validator=in_((16,)))
     data = attr.ib(default=None, type=Descriptor)
 

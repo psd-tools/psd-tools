@@ -585,6 +585,18 @@ class DescriptorClassID(Enum):
     LIGHT_ANGLE = b'lagl'
     SATIN_CONTOUR = b'MpgS'
 
+    # Text property
+    TEXT_LAYER = b'TxLr'
+    TEXT = b'Txt '
+    NONE = b'None'
+    ORIENTATION = b'Ornt'
+    NOISE_GRADIENT = b'ClNs'
+    COLORS2 = b'ClrS'
+
+    ANNT = b'Annt'  # ???
+    ANCR = b'AnCr'  # ???
+    ANSM = b'AnSm'  # ???
+
 
 # class EffectOSType(Enum):
 #     """
