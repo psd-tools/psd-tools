@@ -277,6 +277,9 @@ class String(ValueElement):
         return write_unicode_string(fp, self.value, padding)
 
 
+@register(TaggedBlockID.SAVING_MERGED_TRANSPARENCY)
+@register(TaggedBlockID.SAVING_MERGED_TRANSPARENCY16)
+@register(TaggedBlockID.SAVING_MERGED_TRANSPARENCY32)
 @register(TaggedBlockID.INVERT)
 @attr.s()
 class Empty(BaseElement):
