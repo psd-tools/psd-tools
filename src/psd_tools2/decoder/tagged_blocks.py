@@ -443,7 +443,7 @@ class EffectsLayerShadowInfo(BaseElement):
     def read(cls, fp):
         # TODO: Check 4-byte = 2-byte int + 2-byte fraction?
         version, blur, intensity, angle, distance = read_fmt(
-            'IH2xH2xh2xH2x', fp
+            'IIIiI', fp
         )
         color = Color.read(fp)
         signature = read_fmt('4s', fp)[0]
@@ -458,7 +458,7 @@ class EffectsLayerShadowInfo(BaseElement):
 
     def write(self, fp):
         written = write_fmt(
-            fp, 'IH2xH2xh2xH2x', self.version, self.blur, self.intensity,
+            fp, 'IIIiI', self.version, self.blur, self.intensity,
             self.angle, self.distance
         )
         written += self.color.write(fp)
@@ -475,7 +475,7 @@ class _EffectsLayerGlowInfo(object):
     @classmethod
     def _read_body(cls, fp):
         # TODO: Check 4-byte = 2-byte int + 2-byte fraction?
-        version, blur, intensity = read_fmt('IH2xH2x', fp)
+        version, blur, intensity = read_fmt('III', fp)
         color = Color.read(fp)
         signature = read_fmt('4s', fp)[0]
         assert signature == b'8BIM', 'Invalid signature %r' % (signature)
@@ -484,7 +484,7 @@ class _EffectsLayerGlowInfo(object):
         return version, blur, intensity, color, blend_mode, enabled, opacity
 
     def _write_body(self, fp):
-        written = write_fmt(fp, 'IH2xH2x', self.version, self.blur,
+        written = write_fmt(fp, 'III', self.version, self.blur,
                             self.intensity)
         written += self.color.write(fp)
         written += write_fmt(
@@ -630,7 +630,7 @@ class EffectsLayerBevelInfo(BaseElement):
     @classmethod
     def read(cls, fp):
         # TODO: Check 4-byte = 2-byte int + 2-byte fraction?
-        version, angle, depth, blur = read_fmt('Ih2x2I', fp)
+        version, angle, depth, blur = read_fmt('Ii2I', fp)
         signature, highlight_blend_mode = read_fmt('4s4s', fp)
         assert signature == b'8BIM', 'Invalid signature %r' % (signature)
         signature, shadow_blend_mode = read_fmt('4s4s', fp)
@@ -652,7 +652,7 @@ class EffectsLayerBevelInfo(BaseElement):
 
     def write(self, fp):
         written = write_fmt(
-            fp, 'Ih2x2I', self.version, self.angle, self.depth, self.blur
+            fp, 'Ii2I', self.version, self.angle, self.depth, self.blur
         )
         written += write_fmt(
             fp, '4s4s4s4s', b'8BIM', self.highlight_blend_mode.value, b'8BIM',
