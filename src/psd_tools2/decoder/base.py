@@ -63,10 +63,46 @@ class BaseElement(object):
 
 class ValueElement(BaseElement):
     """
-    Single value element that has `value`.
+    Single value element that has a `value` attribute.
 
     Use with `@attr.s(repr=False)` decorator.
     """
+    def __lt__(self, other):
+        return self.value < other
+
+    def __le__(self, other):
+        return self.value <= other
+
+    def __eq__(self, other):
+        return self.value == other
+
+    def __ne__(self, other):
+        return self.value != other
+
+    def __gt__(self, other):
+        return self.value > other
+
+    def __ge__(self, other):
+        return self.value >= other
+
+    def __add__(self, other):
+        return self.value + other
+
+    def __sub__(self, other):
+        return self.value - other
+
+    def __mul__(self, other):
+        return self.value * other
+
+    def __mod__(self, other):
+        return self.value % other
+
+    def __rmul__(self, other):
+        return self.value.__rmul__(other)
+
+    def __rmod__(self, other):
+        return self.value.__rmod__(other)
+
     def __repr__(self):
         return self.value.__repr__()
 
@@ -74,6 +110,121 @@ class ValueElement(BaseElement):
         if cycle:
             return self.__repr__()
         p.pretty(self.value)
+
+
+class NumericElement(ValueElement):
+
+    def __floordiv__(self, other):
+        return self.value.__floordiv__(other)
+
+    def __div__(self, other):
+        return self.value.__div__(other)
+
+    def __truediv__(self, other):
+        return self.value.__truediv__(other)
+
+    def __divmod__(self, other):
+        return self.value.__divmod__(other)
+
+    def __pow__(self, other):
+        return self.value.__pow__(other)
+
+    def __radd__(self, other):
+        return self.value.__radd__(other)
+
+    def __rsub__(self, other):
+        return self.value.__rsub__(other)
+
+    def __rfloordiv__(self, other):
+        return self.value.__rfloordiv__(other)
+
+    def __rdiv__(self, other):
+        return self.value.__rdiv__(other)
+
+    def __rtruediv__(self, other):
+        return self.value.__rtruediv__(other)
+
+    def __rdivmod__(self, other):
+        return self.value.__rdivmod__(other)
+
+    def __rpow__(self, other):
+        return self.value.__rpow__(other)
+
+    def __nonzero__(self):
+        return self.value.__nonzero__()
+
+    def __neg__(self):
+        return self.value.__neg__()
+
+    def __pos__(self):
+        return self.value.__pos__()
+
+    def __abs__(self):
+        return self.value.__abs__()
+
+    def __int__(self):
+        return self.value.__int__()
+
+    def __long__(self):
+        return self.value.__long__()
+
+    def __float__(self):
+        return self.value.__float__()
+
+    def __coerce__(self, other):
+        return self.value.__coerce__(other)
+
+
+class IntegerElement(NumericElement):
+    """
+    Single integer or bool value element that has a `value` attribute.
+
+    Use with `@attr.s(repr=False)` decorator.
+    """
+    def __cmp__(self, other):
+        return self.value.__cmp__(other)
+
+    def __lshift__(self, other):
+        return self.value.__lshift__(other)
+
+    def __rshift__(self, other):
+        return self.value.__rshift__(other)
+
+    def __and__(self, other):
+        return self.value.__and__(other)
+
+    def __xor__(self, other):
+        return self.value.__xor__(other)
+
+    def __or__(self, other):
+        return self.value.__or__(other)
+
+    def __rlshift__(self, other):
+        return self.value.__rlshift__(other)
+
+    def __rrshift__(self, other):
+        return self.value.__rrshift__(other)
+
+    def __rand__(self, other):
+        return self.value.__rand__(other)
+
+    def __rxor__(self, other):
+        return self.value.__rxor__(other)
+
+    def __ror__(self, other):
+        return self.value.__ror__(other)
+
+    def __invert__(self):
+        return self.value.__invert__()
+
+    def __oct__(self):
+        return self.value.__oct__()
+
+    def __hex__(self):
+        return self.value.__hex__()
+
+    def __index__(self):
+        return self.value.__index__()
 
 
 class ListElement(BaseElement):
@@ -84,14 +235,19 @@ class ListElement(BaseElement):
     """
 
     def __len__(self):
-        return len(self.items)
+        return self.items.__len__()
 
     def __iter__(self):
-        for item in self.items:
-            yield item
+        return self.items.__iter__()
 
-    def __getitem__(self, index):
-        return self.items[index]
+    def __getitem__(self, key):
+        return self.items.__getitem__(key)
+
+    def __setitem__(self, key, value):
+        return self.items.__setitem__(key, value)
+
+    def __delitem__(self, key):
+        return self.items.__delitem__(key)
 
     def __repr__(self):
         return '%s%s' % (self.__class__.__name__, self.items.__repr__())
@@ -124,14 +280,22 @@ class DictElement(BaseElement):
     """
 
     def __len__(self):
-        return len(self.items)
+        return self.items.__len__()
 
     def __iter__(self):
-        for key in self.items:
-            yield key
+        return self.items.__iter__()
 
     def __getitem__(self, key):
-        return self.items[key]
+        return self.items.__getitem__(key)
+
+    def __setitem__(self, key, value):
+        return self.items.__setitem__(key, value)
+
+    def __delitem__(self, key):
+        return self.items.__delitem__(key)
+
+    def __contains__(self, item):
+        return self.items.__contains__(item)
 
     def __repr__(self):
         return '%s%s' % (self.__class__.__name__, dict.__repr__(self.items))

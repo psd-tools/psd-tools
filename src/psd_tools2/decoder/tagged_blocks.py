@@ -8,7 +8,7 @@ import logging
 from collections import OrderedDict
 
 from psd_tools2.decoder.base import (
-    BaseElement, ValueElement, ListElement, DictElement
+    BaseElement, ValueElement, IntegerElement, ListElement, DictElement
 )
 from psd_tools2.decoder.descriptor import Descriptor
 from psd_tools2.constants import (
@@ -181,7 +181,7 @@ class TaggedBlock(BaseElement):
 @register(TaggedBlockID.LAYER_VERSION)
 @register(TaggedBlockID.USING_ALIGNED_RENDERING)
 @attr.s(repr=False)
-class Integer(ValueElement):
+class Integer(IntegerElement):
     """
     Integer structure.
 
@@ -196,17 +196,11 @@ class Integer(ValueElement):
     def write(self, fp, **kwargs):
         return write_fmt(fp, 'I', self.value)
 
-    def __int__(self):
-        return self.value
-
-    def __index__(self):
-        return self.value
-
 
 @register(TaggedBlockID.POSTERIZE)
 @register(TaggedBlockID.THRESHOLD)
 @attr.s(repr=False)
-class ShortInteger(ValueElement):
+class ShortInteger(IntegerElement):
     """
     Short integer structure.
 
@@ -221,12 +215,6 @@ class ShortInteger(ValueElement):
     def write(self, fp, **kwargs):
         return write_fmt(fp, 'H2x', self.value)
 
-    def __int__(self):
-        return self.value
-
-    def __index__(self):
-        return self.value
-
 
 @register(TaggedBlockID.BLEND_CLIPPING_ELEMENTS)
 @register(TaggedBlockID.BLEND_INTERIOR_ELEMENTS)
@@ -236,7 +224,7 @@ class ShortInteger(ValueElement):
 @register(TaggedBlockID.TRANSPARENCY_SHAPES_LAYER)
 @register(TaggedBlockID.VECTOR_MASK_AS_GLOBAL_MASK)
 @attr.s(repr=False)
-class Byte(ValueElement):
+class Byte(IntegerElement):
     """
     Byte structure.
 
@@ -250,12 +238,6 @@ class Byte(ValueElement):
 
     def write(self, fp, **kwargs):
         return write_fmt(fp, 'B3x', self.value)
-
-    def __int__(self):
-        return self.value
-
-    def __index__(self):
-        return self.value
 
 
 @register(TaggedBlockID.FOREIGN_EFFECT_ID)
@@ -276,9 +258,6 @@ class Bytes(ValueElement):
     def write(self, fp, **kwargs):
         return write_bytes(fp, self.value)
 
-    def __bytes__(self):
-        return self.value
-
 
 @register(TaggedBlockID.UNICODE_LAYER_NAME)
 @attr.s(repr=False)
@@ -296,9 +275,6 @@ class String(ValueElement):
 
     def write(self, fp, padding=4):
         return write_unicode_string(fp, self.value, padding)
-
-    def __str__(self):
-        return self.value
 
 
 @register(TaggedBlockID.INVERT)

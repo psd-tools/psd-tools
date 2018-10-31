@@ -399,13 +399,6 @@ class DescriptorClassID(Enum):
     HORIZONTAL = b'Hrzn'
     VERTICAL = b'Vrtc'
 
-    TYPE = b'Type'
-    CLRY = b'Clry'
-    USRS = b'UsrS'
-    LOCATION = b'Lctn'
-    MDPN = b'Mdpn'
-    OPACITY = b'Opct'
-
     COLOR = b'Clr '
     RGB = b'RGBC'
     GRAYSCALE = b'Grsc'
@@ -420,7 +413,15 @@ class DescriptorClassID(Enum):
     YELLOW = b'Yllw'
 
     PATTERN = b'Ptrn'
+
+    # Gradient configuration
     GRADIENT = b'Grdn'
+    TYPE = b'Type'
+    CLRY = b'Clry'  # Color picker?
+    USRS = b'UsrS'  # User setting?
+    LOCATION = b'Lctn'
+    MID_POINT = b'Mdpn'
+    OPACITY = b'Opct'
     STOP_COLOR = b'Clrt'
     STOP_OPACITY = b'TrnS'
 
@@ -432,12 +433,13 @@ class DescriptorClassID(Enum):
     INTERPOLATION = b'Intr'
     TRANSFORM = b'Trns'
 
-    GRADIENT2 = b'Grad'
-    GRADIENT2_TYPE = b'GrdT'
-    CSTS = b'CstS'  # ???
+    GRADIENT_CONFIG = b'Grad'
+    GRADIENT_TYPE = b'GrdT'
+
+    GRADIENT_TYPE_VALUE = b'GrdF'
+    GRADIENT_TYPE_SOLID = b'CstS'
 
     # Noise gradient
-    GRADIENT_TYPE = b'GrdF'
     TRANSPARENCY = b'ShTr'
     RESTRICT_COLORS = b'VctC'
     RANDOM_SEED = b'RndS'
@@ -481,7 +483,6 @@ class DescriptorClassID(Enum):
     STROKE_CENTER = b'CtrF'
     FILL_TYPE = b'PntT'
 
-    GRADIENT_FILL = b'GrFl'
     REVERSED = b'Rvrs'
     ALIGNED = b'Algn'
 
@@ -537,9 +538,6 @@ class DescriptorClassID(Enum):
     SATIN = b'ChFX'
 
     USE_GLOBAL_LIGHT = b'uglg'
-    BESL = b'BESl'  # ???
-    BESS = b'BESs'  # ???
-    BETE = b'BETE'  # ???
 
     # Grow
     GLOW_TYPE = b'GlwT'
@@ -559,6 +557,7 @@ class DescriptorClassID(Enum):
     BEVEL_CHIESEL_SOFT = b'Slmt'
 
     BEVEL_STYLE = b'bvlS'
+    BEVEL_STYLE_TYPE = b'BESl'
     BEVEL_STYLE_OUTER = b'OtrB'
     BEVEL_STYLE_INNER = b'InrB'
     BEVEL_STYLE_EMBOSS = b'Embs'
@@ -566,8 +565,11 @@ class DescriptorClassID(Enum):
     # BEVEL_STROKE_EMBOSS = b'strokeEmboss'
 
     BEVEL_DIRECTION = b'bvlD'
+    BEVEL_DIRECTION_TYPE = b'BESs'  # ???
     IN = b'In  '
     OUT = b'Out '
+
+    BEVEL_BETE = b'BETE'  # ???
 
     HIGHLIGHT_MODE = b'hglM'
     HIGHLIGHT_COLOR = b'hglC'

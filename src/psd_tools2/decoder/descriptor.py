@@ -10,7 +10,8 @@ import logging
 from collections import OrderedDict
 
 from psd_tools2.decoder.base import (
-    BaseElement, ListElement, DictElement, ValueElement
+    BaseElement, ValueElement, NumericElement, IntegerElement, ListElement,
+    DictElement
 )
 from psd_tools2.constants import OSType, UnitFloatType, DescriptorClassID
 from psd_tools2.validators import in_
@@ -146,7 +147,7 @@ class Descriptor(DictElement):
 
 
 @register(OSType.LIST)
-@attr.s
+@attr.s(repr=False)
 class List(ListElement):
     """
     List structure.
@@ -246,8 +247,12 @@ class UnitFloat(BaseElement):
         """
         return write_fmt(fp, '4sd', self.unit.value, self.value)
 
-    def __float__(self):
-        return self.value
+    def _repr_pretty_(self, p, cycle):
+        if cycle:
+            return self.__repr__()
+        p.pretty(self.value)
+        p.text(' ')
+        p.text(self.unit.name)
 
 
 @register(OSType.UNIT_FLOATS)
@@ -294,7 +299,7 @@ class UnitFloats(BaseElement):
 
 @register(OSType.DOUBLE)
 @attr.s(repr=False)
-class Double(ValueElement):
+class Double(NumericElement):
     """
     Double structure.
 
@@ -316,9 +321,6 @@ class Double(ValueElement):
         :param fp: file-like object
         """
         return write_fmt(fp, 'd', self.value)
-
-    def __float__(self):
-        return self.value
 
 
 @attr.s
@@ -376,9 +378,6 @@ class String(ValueElement):
         :param fp: file-like object
         """
         return write_unicode_string(fp, self.value, padding=1)
-
-    def __str__(self):
-        return self.value
 
 
 @register(OSType.ENUMERATED_REFERENCE)
@@ -454,7 +453,7 @@ class Offset(BaseElement):
 
 @register(OSType.BOOLEAN)
 @attr.s(repr=False)
-class Bool(ValueElement):
+class Bool(IntegerElement):
     """
     Bool structure.
 
@@ -477,13 +476,10 @@ class Bool(ValueElement):
         """
         return write_fmt(fp, '?', self.value)
 
-    def __bool__(self):
-        return self.value
-
 
 @register(OSType.LARGE_INTEGER)
 @attr.s(repr=False)
-class LargeInteger(ValueElement):
+class LargeInteger(IntegerElement):
     """
     LargeInteger structure.
 
@@ -506,16 +502,10 @@ class LargeInteger(ValueElement):
         """
         return write_fmt(fp, 'q', self.value)
 
-    def __int__(self):
-        return self.value
-
-    def __index__(self):
-        return self.value
-
 
 @register(OSType.INTEGER)
 @attr.s(repr=False)
-class Integer(ValueElement):
+class Integer(IntegerElement):
     """
     Integer structure.
 
@@ -537,12 +527,6 @@ class Integer(ValueElement):
         :param fp: file-like object
         """
         return write_fmt(fp, 'i', self.value)
-
-    def __int__(self):
-        return self.value
-
-    def __index__(self):
-        return self.value
 
 
 @register(OSType.ENUMERATED)
@@ -575,6 +559,15 @@ class Enum(BaseElement):
         written += write_length_and_key(fp, self.enum)
         return written
 
+    def _repr_pretty_(self, p, cycle):
+        if cycle:
+            return self.__repr__()
+        p.text('(')
+        p.pretty(getattr(self.typeID, 'name', self.typeID))
+        p.text(', ')
+        p.pretty(getattr(self.enum, 'name', self.enum))
+        p.text(')')
+
 
 @register(OSType.RAW_DATA)
 @attr.s
@@ -602,9 +595,6 @@ class RawData(BaseElement):
         :param fp: file-like object
         """
         return write_length_block(fp, lambda f: write_bytes(f, self.value))
-
-    def __bytes__(self):
-        return self.value
 
 
 @register(OSType.CLASS1)
