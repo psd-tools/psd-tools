@@ -611,17 +611,17 @@ class DescriptorClassID(Enum):
     SO_COMP = b'comp'
 
 
-# class EffectOSType(Enum):
-#     """
-#     OS Type keys for Layer Effects.
-#     """
-#     COMMON_STATE = b'cmnS'
-#     DROP_SHADOW = b'dsdw'
-#     INNER_SHADOW = b'isdw'
-#     OUTER_GLOW = b'oglw'
-#     INNER_GLOW = b'iglw'
-#     BEVEL = b'bevl'
-#     SOLID_FILL = b'sofi'
+class EffectOSType(Enum):
+    """
+    OS Type keys for Layer Effects.
+    """
+    COMMON_STATE = b'cmnS'
+    DROP_SHADOW = b'dsdw'
+    INNER_SHADOW = b'isdw'
+    OUTER_GLOW = b'oglw'
+    INNER_GLOW = b'iglw'
+    BEVEL = b'bevl'
+    SOLID_FILL = b'sofi'
 
 
 class SectionDivider(IntEnum):

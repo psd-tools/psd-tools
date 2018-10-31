@@ -37,7 +37,7 @@ def test_psd_read_write(filename):
 
     with io.BytesIO(expected) as f:
         psd = PSD.read(f)
-        pprint(psd)
+        # pprint(psd)
 
     padding = BAD_PADDINGS.get(basename, 4)
     with io.BytesIO() as f:

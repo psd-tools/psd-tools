@@ -2,7 +2,10 @@ from __future__ import absolute_import, unicode_literals
 import pytest
 import logging
 from psd_tools2.decoder.tagged_blocks import (
-    TaggedBlocks, TaggedBlock, Integer, FilterEffect, FilterEffectChannel
+    TaggedBlocks, TaggedBlock, Integer, FilterEffect, FilterEffectChannel,
+    EffectsLayerCommonStateInfo, EffectsLayerShadowInfo,
+    EffectsLayerInnerGlowInfo, EffectsLayerOuterGlowInfo,
+    EffectsLayerBevelInfo, EffectsLayerSolidFillInfo,
 )
 
 from psd_tools2.constants import TaggedBlockID
@@ -62,3 +65,12 @@ def test_filter_effect(args):
 ])
 def test_filter_effect_channel(is_written, compression, data):
     check_write_read(FilterEffectChannel(is_written, compression, data))
+
+
+@pytest.mark.parametrize('cls', [
+    EffectsLayerCommonStateInfo, EffectsLayerShadowInfo,
+    EffectsLayerInnerGlowInfo, EffectsLayerOuterGlowInfo,
+    EffectsLayerBevelInfo, EffectsLayerSolidFillInfo,
+])
+def test_effects_layer_item(cls):
+    check_write_read(cls())
