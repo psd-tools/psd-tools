@@ -62,31 +62,9 @@ def write_length_and_key(fp, value):
     return written
 
 
-@register(OSType.DESCRIPTOR)
-@attr.s(repr=False)
-class Descriptor(DictElement):
-    """
-    Descriptor structure similar to `dict`.
-
-    Example::
-
-        for key in descriptor:
-            print(descriptor[key])
-
-    .. py:attribute:: name
-    .. py:attribute:: classID
-    .. py:attribute:: items
-    """
-    name = attr.ib(default='', type=str)
-    classID = attr.ib(default=DescriptorClassID.NULL)
-    items = attr.ib(factory=OrderedDict, converter=OrderedDict)
-
+class _DescriptorMixin(DictElement):
     @classmethod
-    def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        """
+    def _read_body(cls, fp):
         name = read_unicode_string(fp, padding=1)
         classID = read_length_and_key(fp)
         items = []
@@ -103,13 +81,9 @@ class Descriptor(DictElement):
                 warnings.warn("%r (%r) is None" % (key, ostype))
             items.append((key, value))
 
-        return cls(name, classID, items)
+        return name, classID, items
 
-    def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
+    def _write_body(self, fp):
         written = write_unicode_string(fp, self.name, padding=1)
         written += write_length_and_key(fp, self.classID)
         written += write_fmt(fp, 'I', len(self.items))
@@ -144,6 +118,78 @@ class Descriptor(DictElement):
                 p.text(': ')
                 p.pretty(value)
             p.breakable('')
+
+
+@register(OSType.DESCRIPTOR)
+@attr.s(repr=False)
+class Descriptor(_DescriptorMixin):
+    """
+    Descriptor structure similar to `dict`.
+
+    Example::
+
+        for key in descriptor:
+            print(descriptor[key])
+
+    .. py:attribute:: name
+    .. py:attribute:: classID
+    .. py:attribute:: items
+    """
+    name = attr.ib(default='', type=str)
+    classID = attr.ib(default=DescriptorClassID.NULL)
+    items = attr.ib(factory=OrderedDict, converter=OrderedDict)
+
+
+    @classmethod
+    def read(cls, fp):
+        """Read the element from a file-like object.
+
+        :param fp: file-like object
+        """
+        return cls(*cls._read_body(fp))
+
+    def write(self, fp):
+        """Write the element to a file-like object.
+
+        :param fp: file-like object
+        """
+        return self._write_body(fp)
+
+
+@register(OSType.OBJECT_ARRAY)
+@attr.s(repr=False)
+class ObjectArray(_DescriptorMixin):
+    """
+    Object array structure almost equivalent to
+    :py:class:`~psd_tools2.decoder.descriptor.Descriptor`.
+
+    .. py:attribute:: items_count
+    .. py:attribute:: name
+    .. py:attribute:: classID
+    .. py:attribute:: items
+    """
+    items_count = attr.ib(default=0, type=int)
+    name = attr.ib(default='', type=str)
+    classID = attr.ib(default=DescriptorClassID.NULL)
+    items = attr.ib(factory=OrderedDict, converter=OrderedDict)
+
+    @classmethod
+    def read(cls, fp):
+        """Read the element from a file-like object.
+
+        :param fp: file-like object
+        """
+        items_count = read_fmt('I', fp)[0]
+        return cls(items_count, *cls._read_body(fp))
+
+    def write(self, fp):
+        """Write the element to a file-like object.
+
+        :param fp: file-like object
+        """
+        written = write_fmt(fp, 'I', self.items_count)
+        written += self._write_body(fp)
+        return written
 
 
 @register(OSType.LIST)
@@ -648,15 +694,6 @@ class Alias(RawData):
 class GlobalObject(Descriptor):
     """
     Global object structure equivalent to
-    :py:class:`~psd_tools2.decoder.descriptor.Descriptor`.
-    """
-    pass
-
-
-@register(OSType.OBJECT_ARRAY)
-class ObjectArray(Descriptor):
-    """
-    Object array structure equivalent to
     :py:class:`~psd_tools2.decoder.descriptor.Descriptor`.
     """
     pass

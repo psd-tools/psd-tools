@@ -177,7 +177,7 @@ class TaggedBlock(BaseElement):
         return ('I', 'Q')[int(version == 2 and key in cls._BIG_KEYS)]
 
 
-@register(TaggedBlockID.LAYER_ID)
+@register(TaggedBlockID.LAYER_ID)  # Documentation is incorrect.
 @register(TaggedBlockID.LAYER_VERSION)
 @register(TaggedBlockID.USING_ALIGNED_RENDERING)
 @attr.s(repr=False)
@@ -692,99 +692,6 @@ class Pattern(BaseElement):
         return written
 
 
-@attr.s
-class VirtualMemoryArrayList(BaseElement):
-    """
-    VirtualMemoryArrayList structure.
-
-    .. py:attribute:: version
-    .. py:attribute:: rectangle
-    .. py:attribute:: channels
-    """
-    version = attr.ib(default=3, type=int)
-    rectangle = attr.ib(default=None)
-    channels = attr.ib(default=None)
-
-    @classmethod
-    def read(cls, fp, **kwargs):
-        version = read_fmt('I', fp)[0]
-        assert version == 3, 'Invalid version %d' % (version)
-
-        data = read_length_block(fp)
-        with io.BytesIO(data) as f:
-            rectangle = read_fmt('4I', f)
-            num_channels = read_fmt('I', f)[0]
-            channels = []
-            for _ in range(num_channels + 2):
-                channels.append(VirtualMemoryArray.read(f))
-
-        return cls(version, rectangle, channels)
-
-    def write(self, fp, **kwargs):
-        written = write_fmt(fp, 'I', self.version)
-        return written + write_length_block(fp, lambda f: self._write_body(f))
-
-    def _write_body(self, fp):
-        written = write_fmt(fp, '4I', *self.rectangle)
-        written += write_fmt(fp, 'I', len(self.channels) - 2)
-        for channel in self.channels:
-            written += channel.write(fp)
-        return written
-
-
-@attr.s
-class VirtualMemoryArray(BaseElement):
-    """
-    VirtualMemoryArrayList structure.
-
-    .. py:attribute:: is_written
-    .. py:attribute:: depth
-    .. py:attribute:: rectangle
-    .. py:attribute:: pixel_depth
-    .. py:attribute:: compression
-    .. py:attribute:: data
-    """
-    is_written = attr.ib(default=0)
-    depth = attr.ib(default=None)
-    rectangle = attr.ib(default=None)
-    pixel_depth = attr.ib(default=None)
-    compression = attr.ib(default=None)
-    data = attr.ib(default=b'')
-
-    @classmethod
-    def read(cls, fp, **kwargs):
-        is_written = read_fmt('I', fp)[0]
-        if is_written == 0:
-            return cls(is_written=is_written)
-        length = read_fmt('I', fp)[0]
-        if length == 0:
-            return cls(is_written=is_written)
-        depth = read_fmt('I', fp)[0]
-        rectangle = read_fmt('4I', fp)
-        pixel_depth, compression = read_fmt('HB', fp)
-        data = fp.read(length - 23)
-        return cls(
-            is_written, depth, rectangle, pixel_depth, compression, data
-        )
-
-    def write(self, fp, **kwargs):
-        written = write_fmt(fp, 'I', self.is_written)
-        if self.is_written == 0:
-            return written
-        if self.depth is None:
-            written += write_fmt(fp, 'I', 0)
-            return written
-
-        return written + write_length_block(fp, lambda f: self._write_body(f))
-
-    def _write_body(self, fp):
-        written = write_fmt(fp, 'I', self.depth)
-        written += write_fmt(fp, '4I', *self.rectangle)
-        written += write_fmt(fp, 'HB', self.pixel_depth, self.compression)
-        written += write_bytes(fp, self.data)
-        return written
-
-
 @register(TaggedBlockID.PROTECTED_SETTING)
 @attr.s
 class ProtectedSetting(BaseElement):
@@ -897,6 +804,38 @@ class SheetColorSetting(ValueElement):
 
     def write(self, fp, **kwargs):
         return write_fmt(fp, '4H', *self.value)
+
+
+@register(TaggedBlockID.PLACED_LAYER_DATA)
+@register(TaggedBlockID.SMART_OBJECT_LAYER_DATA)
+@attr.s
+class SmartObjectLayerData(BaseElement):
+    """
+    VersionedDescriptorBlock structure.
+
+    .. py:attribute:: kind
+    .. py:attribute:: version
+    .. py:attribute:: data
+    """
+    kind = attr.ib(default=b'soLD', type=bytes)
+    version = attr.ib(default=5, type=int, validator=in_((4, 5)))
+    data_version = attr.ib(default=16, type=int)
+    data = attr.ib(default=None, type=Descriptor)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        kind, version, data_version = read_fmt('4s2I', fp)
+        assert kind == b'soLD', 'Unknown type %r' % (kind)
+        assert version in (4, 5), 'Invalid version %d' % (version)
+        data = Descriptor.read(fp)
+        return cls(kind, version, data_version, data)
+
+    def write(self, fp, padding=4):
+        written = write_fmt(fp, '4s2I', self.kind, self.version,
+                            self.data_version)
+        written += self.data.write(fp)
+        written += write_padding(fp, written, padding)
+        return written
 
 
 @register(TaggedBlockID.TYPE_TOOL_OBJECT_SETTING)
@@ -1067,4 +1006,97 @@ class VersionedDescriptorBlock(BaseElement):
         written = write_fmt(fp, '2I', self.version, self.data_version)
         written += self.data.write(fp)
         written += write_padding(fp, written, padding)
+        return written
+
+
+@attr.s
+class VirtualMemoryArrayList(BaseElement):
+    """
+    VirtualMemoryArrayList structure.
+
+    .. py:attribute:: version
+    .. py:attribute:: rectangle
+    .. py:attribute:: channels
+    """
+    version = attr.ib(default=3, type=int)
+    rectangle = attr.ib(default=None)
+    channels = attr.ib(default=None)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        version = read_fmt('I', fp)[0]
+        assert version == 3, 'Invalid version %d' % (version)
+
+        data = read_length_block(fp)
+        with io.BytesIO(data) as f:
+            rectangle = read_fmt('4I', f)
+            num_channels = read_fmt('I', f)[0]
+            channels = []
+            for _ in range(num_channels + 2):
+                channels.append(VirtualMemoryArray.read(f))
+
+        return cls(version, rectangle, channels)
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, 'I', self.version)
+        return written + write_length_block(fp, lambda f: self._write_body(f))
+
+    def _write_body(self, fp):
+        written = write_fmt(fp, '4I', *self.rectangle)
+        written += write_fmt(fp, 'I', len(self.channels) - 2)
+        for channel in self.channels:
+            written += channel.write(fp)
+        return written
+
+
+@attr.s
+class VirtualMemoryArray(BaseElement):
+    """
+    VirtualMemoryArrayList structure.
+
+    .. py:attribute:: is_written
+    .. py:attribute:: depth
+    .. py:attribute:: rectangle
+    .. py:attribute:: pixel_depth
+    .. py:attribute:: compression
+    .. py:attribute:: data
+    """
+    is_written = attr.ib(default=0)
+    depth = attr.ib(default=None)
+    rectangle = attr.ib(default=None)
+    pixel_depth = attr.ib(default=None)
+    compression = attr.ib(default=None)
+    data = attr.ib(default=b'')
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        is_written = read_fmt('I', fp)[0]
+        if is_written == 0:
+            return cls(is_written=is_written)
+        length = read_fmt('I', fp)[0]
+        if length == 0:
+            return cls(is_written=is_written)
+        depth = read_fmt('I', fp)[0]
+        rectangle = read_fmt('4I', fp)
+        pixel_depth, compression = read_fmt('HB', fp)
+        data = fp.read(length - 23)
+        return cls(
+            is_written, depth, rectangle, pixel_depth, compression, data
+        )
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, 'I', self.is_written)
+        if self.is_written == 0:
+            return written
+        if self.depth is None:
+            written += write_fmt(fp, 'I', 0)
+            return written
+
+        return written + write_length_block(fp, lambda f: self._write_body(f))
+
+    def _write_body(self, fp):
+        written = write_fmt(fp, 'I', self.depth)
+        written += write_fmt(fp, '4I', *self.rectangle)
+        written += write_fmt(fp, 'HB', self.pixel_depth, self.compression)
+        written += write_bytes(fp, self.data)
         return written

@@ -295,7 +295,7 @@ class TaggedBlockID(Enum):
     ANIMATION_EFFECTS = b'anFX'
     FILTER_MASK = b'FMsk'
     PLACED_LAYER_DATA = b'SoLd'
-    SMART_OBJECT_PLACED_LAYER_DATA = b'SoLE'
+    SMART_OBJECT_LAYER_DATA = b'SoLE'
     EXPORT_SETTING1 = b'extd'  # Undocumented.
     EXPORT_SETTING2 = b'extn'  # Undocumented.
 
@@ -598,6 +598,17 @@ class DescriptorClassID(Enum):
     ANNT = b'Annt'  # ???
     ANCR = b'AnCr'  # ???
     ANSM = b'AnSm'  # ???
+
+
+    # Smart object
+    SO_PAGE_NUMBER = b'PgNm'
+    SO_TRANSFORM = b'Trnf'
+    SO_RECTANGLE = b'Rctn'
+    SO_CROP = b'Crop'
+    SO_WIDTH = b'Wdth'
+    SO_HEIGHT = b'Hght'
+    SO_RESULT = b'Rslt'
+    SO_COMP = b'comp'
 
 
 # class EffectOSType(Enum):
