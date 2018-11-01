@@ -969,7 +969,7 @@ class MetadataSetting(BaseElement):
 
     @classmethod
     def read(cls, fp, **kwargs):
-        signature = fp.read(4)
+        signature = read_fmt('4s', fp)[0]
         assert signature == b'8BIM', 'Invalid signature %r' % signature
         key, copy_on_sheet = read_fmt("4s?3x", fp)
         data = read_length_block(fp)
@@ -983,8 +983,8 @@ class MetadataSetting(BaseElement):
         return cls(signature, key, copy_on_sheet, data)
 
     def write(self, fp, **kwargs):
-        written = write_bytes(fp, self.signature)
-        written += write_fmt(fp, '4s?3x', self.key, self.copy_on_sheet)
+        written = write_fmt(fp, '4s4s?3x', self.signature, self.key,
+                            self.copy_on_sheet)
         def writer(f):
             if hasattr(self.data, 'write'):
                 return self.data.write(f, padding=4)
@@ -1151,9 +1151,9 @@ class SectionDividerSetting(BaseElement):
         kind = SectionDivider(read_fmt('I', fp)[0])
         signature, key = None, None
         if is_readable(fp, 8):
-            signature = fp.read(4)
+            signature = read_fmt('4s', fp)[0]
             assert signature == b'8BIM', 'Invalid signature %r' % signature
-            key = BlendMode(fp.read(4))
+            key = BlendMode(read_fmt('4s', fp)[0])
         sub_type = None
         if is_readable(fp, 4):
             sub_type = read_fmt('I', fp)[0]
@@ -1162,8 +1162,7 @@ class SectionDividerSetting(BaseElement):
     def write(self, fp, **kwargs):
         written = write_fmt(fp, 'I', self.kind.value)
         if self.signature and self.key:
-            written += write_bytes(fp, self.signature)
-            written += write_bytes(fp, self.key.value)
+            written += write_fmt(fp, '4s4s', self.signature, self.key.value)
             if self.sub_type is not None:
                 written += write_fmt(fp, 'I', self.sub_type)
         return written
