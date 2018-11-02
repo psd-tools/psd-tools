@@ -290,3 +290,18 @@ def decode_fixed_point_32bit(data):
     lo, hi = unpack("2H", data)
     # XXX: shouldn't denominator be 2**16 ?
     return lo + hi / (2**16 - 1)
+
+
+def new_registry():
+    """
+    Returns an empty dict and a @register decorator.
+    """
+    registry = {}
+
+    def register(key):
+        def decorator(func):
+            registry[key] = func
+            return func
+        return decorator
+
+    return registry, register

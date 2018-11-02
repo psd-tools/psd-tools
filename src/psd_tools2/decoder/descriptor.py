@@ -97,6 +97,10 @@ class _DescriptorMixin(DictElement):
         key = key if isinstance(key, bytes) else key.encode('ascii')
         return self.items[key]
 
+    def __setitem__(self, key, value):
+        key = key if isinstance(key, bytes) else key.encode('ascii')
+        self.items[key] = value
+
     def _repr_pretty_(self, p, cycle):
         if cycle:
             return "{name}{{...}".format(name=self.__class__.__name__)
@@ -640,7 +644,11 @@ class RawData(BaseElement):
 
         :param fp: file-like object
         """
-        return write_length_block(fp, lambda f: write_bytes(f, self.value))
+        def writer(f):
+            if hasattr(self.value, 'write'):
+                return self.value.write(f)
+            return write_bytes(f, self.value)
+        return write_length_block(fp, writer)
 
 
 @register(OSType.CLASS1)

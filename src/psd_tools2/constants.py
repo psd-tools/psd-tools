@@ -607,7 +607,7 @@ class DescriptorClassID(Enum):
     SO_CROP = b'Crop'
     SO_WIDTH = b'Wdth'
     SO_HEIGHT = b'Hght'
-    SO_RESULT = b'Rslt'
+    SO_RESOLUTION = b'Rslt'
     SO_COMP = b'comp'
 
 
@@ -648,11 +648,6 @@ class SectionDivider(IntEnum):
 #     TRANSFORM = b'Trnf'
 #     SIZE = b'Sz  '
 #     ID = b'Idnt'
-
-
-# class SzProperty(Enum):
-#     WIDTH = b'Wdth'
-#     HEIGHT = b'Hght'
 
 
 # class TextProperty(Enum):

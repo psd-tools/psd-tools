@@ -30,11 +30,11 @@ OTHER_FILES = {
 }
 
 
+TEST_ROOT = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+
+
 def full_name(filename):
-    return os.path.join(
-        os.path.abspath(os.path.dirname(os.path.dirname(__file__))),
-        'psd_files', filename
-    )
+    return os.path.join(TEST_ROOT, 'psd_files', filename)
 
 
 def all_files():

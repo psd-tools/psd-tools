@@ -11,6 +11,7 @@ from psd_tools2.decoder.base import (
     BaseElement, ValueElement, IntegerElement, ListElement, DictElement
 )
 from psd_tools2.decoder.descriptor import Descriptor
+from psd_tools2.decoder.engine_data import EngineData, EngineData2
 from psd_tools2.constants import (
     BlendMode, ColorMode, ColorSpaceID, SectionDivider, TaggedBlockID,
     EffectOSType
@@ -19,20 +20,17 @@ from psd_tools2.validators import in_
 from psd_tools2.utils import (
     read_fmt, write_fmt, read_length_block, write_length_block, is_readable,
     write_bytes, read_unicode_string, write_unicode_string, write_padding,
-    read_pascal_string, write_pascal_string, trimmed_repr
+    read_pascal_string, write_pascal_string, trimmed_repr, new_registry
 )
 
 logger = logging.getLogger(__name__)
 
 
-TYPES = {}
+TYPES, register = new_registry()
 
-
-def register(key):
-    def _register(cls):
-        TYPES[key] = cls
-        return cls
-    return _register
+TYPES.update({
+    TaggedBlockID.TEXT_ENGINE_DATA: EngineData2,
+})
 
 
 @attr.s(repr=False)
@@ -1265,6 +1263,14 @@ class TypeToolObjectSetting(BaseElement):
         version, xx, xy, yx, yy, tx, ty = read_fmt('H6d', fp)
         text_version, text_data_version = read_fmt('HI', fp)
         text_data = Descriptor.read(fp)
+        # Engine data.
+        if b'EngineData' in text_data:
+            try:
+                engine_data = text_data[b'EngineData'].value
+                engine_data = EngineData.frombytes(engine_data)
+                text_data[b'EngineData'].value = engine_data
+            except:
+                logger.warning('Failed to read engine data')
         warp_version, warp_data_version = read_fmt('HI', fp)
         warp_data = Descriptor.read(fp)
         left, top, right, bottom = read_fmt("4i", fp)
