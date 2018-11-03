@@ -237,7 +237,7 @@ class TaggedBlockID(Enum):
     INVERT = b'nvrt'
     POSTERIZE = b'post'
     THRESHOLD = b'thrs'
-    GRADIENT_MAP_SETTING = b'grdm'
+    GRADIENT_MAP = b'grdm'
     SELECTIVE_COLOR = b'selc'
 
     EFFECTS_LAYER = b'lrFX'

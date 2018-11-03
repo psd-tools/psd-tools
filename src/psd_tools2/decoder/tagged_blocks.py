@@ -10,11 +10,13 @@ from collections import OrderedDict
 from psd_tools2.constants import (
     BlendMode, SectionDivider, TaggedBlockID, PlacedLayerType
 )
+from psd_tools2.decoder.adjustments import ADJUSTMENT_TYPES
 from psd_tools2.decoder.base import (
-    BaseElement, ValueElement, IntegerElement, ListElement, DictElement,
+    BaseElement, EmptyElement, ValueElement, IntegerElement, ListElement,
+    DictElement,
 )
 from psd_tools2.decoder.color import Color
-from psd_tools2.decoder.descriptor import Descriptor
+from psd_tools2.decoder.descriptor import DescriptorBlock, DescriptorBlock2
 from psd_tools2.decoder.effects_layer import EffectsLayer
 from psd_tools2.decoder.filter_effects import FilterEffects
 from psd_tools2.decoder.engine_data import EngineData, EngineData2
@@ -34,17 +36,38 @@ logger = logging.getLogger(__name__)
 
 TYPES, register = new_registry()
 
+TYPES.update(ADJUSTMENT_TYPES)
 TYPES.update({
+    TaggedBlockID.ANIMATION_EFFECTS: DescriptorBlock,
+    TaggedBlockID.ARTBOARD_DATA1: DescriptorBlock,
+    TaggedBlockID.ARTBOARD_DATA2: DescriptorBlock,
+    TaggedBlockID.ARTBOARD_DATA3: DescriptorBlock,
+    TaggedBlockID.CONTENT_GENERATOR_EXTRA_DATA: DescriptorBlock,
+    TaggedBlockID.EFFECTS_LAYER: EffectsLayer,
+    TaggedBlockID.EXPORT_SETTING1: DescriptorBlock,
+    TaggedBlockID.EXPORT_SETTING2: DescriptorBlock,
     TaggedBlockID.FILTER_EFFECTS1: FilterEffects,
     TaggedBlockID.FILTER_EFFECTS2: FilterEffects,
     TaggedBlockID.FILTER_EFFECTS3: FilterEffects,
-    TaggedBlockID.EFFECTS_LAYER: EffectsLayer,
+    TaggedBlockID.GRADIENT_FILL_SETTING: DescriptorBlock,
+    TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO: DescriptorBlock2,
+    TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V0: DescriptorBlock2,
+    TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V1: DescriptorBlock2,
+    TaggedBlockID.PATTERN_FILL_SETTING: DescriptorBlock,
     TaggedBlockID.PATTERNS1: Patterns,
     TaggedBlockID.PATTERNS2: Patterns,
     TaggedBlockID.PATTERNS3: Patterns,
+    TaggedBlockID.PIXEL_SOURCE_DATA1: DescriptorBlock,
+    TaggedBlockID.SAVING_MERGED_TRANSPARENCY: EmptyElement,
+    TaggedBlockID.SAVING_MERGED_TRANSPARENCY16: EmptyElement,
+    TaggedBlockID.SAVING_MERGED_TRANSPARENCY32: EmptyElement,
+    TaggedBlockID.SOLID_COLOR_SHEET_SETTING: DescriptorBlock,
     TaggedBlockID.TEXT_ENGINE_DATA: EngineData2,
+    TaggedBlockID.UNICODE_PATH_NAME: DescriptorBlock,
     TaggedBlockID.VECTOR_MASK_SETTING1: VectorMaskSetting,
     TaggedBlockID.VECTOR_MASK_SETTING2: VectorMaskSetting,
+    TaggedBlockID.VECTOR_ORIGINATION_DATA: DescriptorBlock2,
+    TaggedBlockID.VECTOR_STROKE_DATA: DescriptorBlock,
     TaggedBlockID.VECTOR_STROKE_CONTENT_DATA: VectorStrokeContentSetting,
 })
 
@@ -206,20 +229,6 @@ class Integer(IntegerElement):
         return write_fmt(fp, 'I', self.value)
 
 
-@register(TaggedBlockID.POSTERIZE)
-@register(TaggedBlockID.THRESHOLD)
-class ShortInteger(IntegerElement):
-    """
-    Short integer structure.
-    """
-    @classmethod
-    def read(cls, fp, **kwargs):
-        return cls(read_fmt('H2x', fp)[0])
-
-    def write(self, fp, **kwargs):
-        return write_fmt(fp, 'H2x', self.value)
-
-
 @register(TaggedBlockID.BLEND_CLIPPING_ELEMENTS)
 @register(TaggedBlockID.BLEND_INTERIOR_ELEMENTS)
 @register(TaggedBlockID.KNOCKOUT_SETTING)
@@ -276,110 +285,6 @@ class String(ValueElement):
         return write_unicode_string(fp, self.value, padding)
 
 
-@register(TaggedBlockID.SAVING_MERGED_TRANSPARENCY)
-@register(TaggedBlockID.SAVING_MERGED_TRANSPARENCY16)
-@register(TaggedBlockID.SAVING_MERGED_TRANSPARENCY32)
-@register(TaggedBlockID.INVERT)
-class Empty(BaseElement):
-    """Empty structure."""
-    @classmethod
-    def read(cls, fp, **kwargs):
-        return cls()
-
-    def write(self, fp, **kwargs):
-        return 0
-
-
-@register(TaggedBlockID.ANIMATION_EFFECTS)
-@register(TaggedBlockID.ARTBOARD_DATA1)
-@register(TaggedBlockID.ARTBOARD_DATA2)
-@register(TaggedBlockID.ARTBOARD_DATA3)
-@register(TaggedBlockID.BLACK_AND_WHITE)
-@register(TaggedBlockID.CONTENT_GENERATOR_EXTRA_DATA)
-@register(TaggedBlockID.EXPORT_SETTING1)
-@register(TaggedBlockID.EXPORT_SETTING2)
-@register(TaggedBlockID.GRADIENT_FILL_SETTING)
-@register(TaggedBlockID.PATTERN_FILL_SETTING)
-@register(TaggedBlockID.PIXEL_SOURCE_DATA1)
-@register(TaggedBlockID.SOLID_COLOR_SHEET_SETTING)
-@register(TaggedBlockID.UNICODE_PATH_NAME)
-@register(TaggedBlockID.VECTOR_STROKE_DATA)
-@register(TaggedBlockID.VIBRANCE)
-@attr.s(repr=False)
-class DescriptorBlock(Descriptor):
-    """
-    Dict-like Descriptor-based structure. See
-    :py:class:`~psd_tools2.decoder.descriptor.Descriptor`.
-
-    .. py:attribute:: version
-    """
-    version = attr.ib(default=1, type=int)
-
-    @classmethod
-    def read(cls, fp, **kwargs):
-        version = read_fmt('I', fp)[0]
-        return cls(version=version, **cls._read_body(fp))
-
-    def write(self, fp, padding=4):
-        written = write_fmt(fp, 'I', self.version)
-        written += self._write_body(fp)
-        written += write_padding(fp, written, padding)
-        return written
-
-
-@register(TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO)
-@register(TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V0)
-@register(TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V1)
-@register(TaggedBlockID.VECTOR_ORIGINATION_DATA)
-@attr.s(repr=False)
-class DescriptorBlock2(Descriptor):
-    """
-    Dict-like Descriptor-based structure. See
-    :py:class:`~psd_tools2.decoder.descriptor.Descriptor`.
-
-    .. py:attribute:: version
-    .. py:attribute:: data_version
-    """
-    version = attr.ib(default=1, type=int)
-    data_version = attr.ib(default=16, type=int, validator=in_((16,)))
-
-    @classmethod
-    def read(cls, fp, **kwargs):
-        version, data_version = read_fmt('2I', fp)
-        return cls(version=version, data_version=data_version,
-                   **cls._read_body(fp))
-
-    def write(self, fp, padding=4):
-        written = write_fmt(fp, '2I', self.version, self.data_version)
-        written += self._write_body(fp)
-        written += write_padding(fp, written, padding)
-        return written
-
-
-@register(TaggedBlockID.BRIGHTNESS_AND_CONTRAST)
-@attr.s
-class BrightnessContrast(BaseElement):
-    """
-    BrightnessContrast structure.
-
-    .. py:attribute:: brightness
-    .. py:attribute:: contrast
-    .. py:attribute:: mean
-    .. py:attribute:: lab_only
-    """
-    brightness = attr.ib(default=0, type=int)
-    contrast = attr.ib(default=0, type=int)
-    mean = attr.ib(default=0, type=int)
-    lab_only = attr.ib(default=0, type=int)
-
-    @classmethod
-    def read(cls, fp, **kwargs):
-        return cls(*read_fmt('3HBx', fp))
-
-    def write(self, fp, **kwargs):
-        return write_fmt(fp, '3HBx', *attr.astuple(self))
-
-
 @register(TaggedBlockID.CHANNEL_BLENDING_RESTRICTIONS_SETTING)
 @attr.s(repr=False)
 class ChannelBlendingRestrictionsSetting(ListElement):
@@ -397,116 +302,6 @@ class ChannelBlendingRestrictionsSetting(ListElement):
 
     def write(self, fp, **kwargs):
         return write_fmt(fp, '%dI' % len(self), *self._items)
-
-
-@register(TaggedBlockID.CHANNEL_MIXER)
-@attr.s
-class ChannelMixer(BaseElement):
-    """
-    ChannelMixer structure.
-
-    .. py:attribute:: version
-    .. py:attribute:: monochrome
-    .. py:attribute:: data
-    """
-    version = attr.ib(default=1, type=int, validator=in_((1,)))
-    monochrome = attr.ib(default=0, type=int)
-    data = attr.ib(factory=list, converter=list)
-    unknown = attr.ib(default=b'', type=bytes, repr=False)
-
-    @classmethod
-    def read(cls, fp, **kwargs):
-        version, monochrome = read_fmt('2H', fp)
-        data = list(read_fmt('5h', fp))
-        unknown = fp.read()
-        return cls(version, monochrome, data, unknown)
-
-    def write(self, fp, **kwargs):
-        written = write_fmt(fp, '2H', self.version, self.monochrome)
-        written += write_fmt(fp, '5h', *self.data)
-        written += write_bytes(fp, self.unknown)
-        return written
-
-
-@register(TaggedBlockID.COLOR_BALANCE)
-@attr.s
-class ColorBalance(BaseElement):
-    """
-    ColorBalance structure.
-
-    .. py:attribute:: shadows
-    .. py:attribute:: midtones
-    .. py:attribute:: highlights
-    .. py:attribute:: luminosity
-    """
-    shadows = attr.ib(default=(0,) * 3, type=tuple)
-    midtones = attr.ib(default=(0,) * 3, type=tuple)
-    highlights = attr.ib(default=(0,) * 3, type=tuple)
-    luminosity = attr.ib(default=False, type=bool)
-
-    @classmethod
-    def read(cls, fp, **kwargs):
-        shadows = read_fmt('3h', fp)
-        midtones = read_fmt('3h', fp)
-        highlights = read_fmt('3h', fp)
-        luminosity = read_fmt('B', fp)[0]
-        return cls(shadows, midtones, highlights, luminosity)
-
-    def write(self, fp, **kwargs):
-        written = write_fmt(fp, '3h', *self.shadows)
-        written += write_fmt(fp, '3h', *self.midtones)
-        written += write_fmt(fp, '3h', *self.highlights)
-        written += write_fmt(fp, 'B', self.luminosity)
-        written += write_padding(fp, written, 4)
-        return written
-
-
-@register(TaggedBlockID.COLOR_LOOKUP)
-class ColorLookup(DescriptorBlock2):
-    """
-    Dict-like Descriptor-based structure. See
-    :py:class:`~psd_tools2.decoder.descriptor.Descriptor`.
-
-    .. py:attribute:: version
-    .. py:attribute:: data_version
-    """
-    @classmethod
-    def read(cls, fp, **kwargs):
-        version, data_version = read_fmt('HI', fp)
-        return cls(version=version, data_version=data_version,
-                   **cls._read_body(fp))
-
-    def write(self, fp, padding=4):
-        written = write_fmt(fp, 'HI', self.version, self.data_version)
-        written += self._write_body(fp)
-        written += write_padding(fp, written, padding)
-        return written
-
-
-@register(TaggedBlockID.EXPOSURE)
-@attr.s
-class Exposure(BaseElement):
-    """
-    Exposure structure.
-
-    .. py:attribute:: version
-    .. py:attribute:: exposure
-    .. py:attribute:: offset
-    .. py:attribute:: gamma
-    """
-    version = attr.ib(default=0, type=int)
-    exposure = attr.ib(default=0., type=float)
-    offset = attr.ib(default=0., type=float)
-    gamma = attr.ib(default=0., type=float)
-
-    @classmethod
-    def read(cls, fp, **kwargs):
-        return cls(*read_fmt('H3f', fp))
-
-    def write(self, fp, padding=4):
-        written = write_fmt(fp, 'H3f', *attr.astuple(self))
-        written += write_padding(fp, written, padding)
-        return written
 
 
 @register(TaggedBlockID.FILTER_MASK)
@@ -724,31 +519,6 @@ class SectionDividerSetting(BaseElement):
         return written
 
 
-@register(TaggedBlockID.SELECTIVE_COLOR)
-@attr.s
-class SelectiveColor(BaseElement):
-    """
-    SelectiveColor structure.
-
-    .. py:attribute:: value
-    """
-    version = attr.ib(default=1, type=int, validator=in_((1,)))
-    method = attr.ib(default=0, type=int)
-    data = attr.ib(factory=list, converter=list)
-
-    @classmethod
-    def read(cls, fp, **kwargs):
-        version, method = read_fmt('2H', fp)
-        data = [read_fmt('4h', fp) for i in range(10)]
-        return cls(version, method, data)
-
-    def write(self, fp, **kwargs):
-        written = write_fmt(fp, '2H', self.version, self.method)
-        for plate in self.data:
-            written += write_fmt(fp, '4h', *plate)
-        return written
-
-
 @register(TaggedBlockID.SHEET_COLOR_SETTING)
 @attr.s(repr=False)
 class SheetColorSetting(ValueElement):
@@ -818,9 +588,9 @@ class TypeToolObjectSetting(BaseElement):
     version = attr.ib(default=1, type=int)
     transform = attr.ib(default=(0.,) * 6, type=tuple)
     text_version = attr.ib(default=1, type=int, validator=in_((50,)))
-    text_data = attr.ib(default=None, type=Descriptor)
+    text_data = attr.ib(default=None, type=DescriptorBlock)
     warp_version = attr.ib(default=1, type=int, validator=in_((1,)))
-    warp = attr.ib(default=None, type=Descriptor)
+    warp = attr.ib(default=None, type=DescriptorBlock)
     left = attr.ib(default=0, type=int)
     top = attr.ib(default=0, type=int)
     right = attr.ib(default=0, type=int)

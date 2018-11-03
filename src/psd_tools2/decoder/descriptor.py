@@ -17,7 +17,8 @@ from psd_tools2.constants import OSType, UnitFloatType, DescriptorClassID
 from psd_tools2.validators import in_
 from psd_tools2.utils import (
     read_fmt, write_fmt, read_unicode_string, write_unicode_string,
-    write_bytes, read_length_block, write_length_block, new_registry
+    write_bytes, read_length_block, write_length_block, write_padding,
+    new_registry,
 )
 
 logger = logging.getLogger(__name__)
@@ -729,3 +730,50 @@ class Name(String):
     Name equivalent to :py:class:`~psd_tools2.decoder.descriptor.String`.
     """
     pass
+
+
+@attr.s(repr=False)
+class DescriptorBlock(Descriptor):
+    """
+    Dict-like Descriptor-based structure. See
+    :py:class:`~psd_tools2.decoder.descriptor.Descriptor`.
+
+    .. py:attribute:: version
+    """
+    version = attr.ib(default=1, type=int)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        version = read_fmt('I', fp)[0]
+        return cls(version=version, **cls._read_body(fp))
+
+    def write(self, fp, padding=4):
+        written = write_fmt(fp, 'I', self.version)
+        written += self._write_body(fp)
+        written += write_padding(fp, written, padding)
+        return written
+
+
+@attr.s(repr=False)
+class DescriptorBlock2(Descriptor):
+    """
+    Dict-like Descriptor-based structure. See
+    :py:class:`~psd_tools2.decoder.descriptor.Descriptor`.
+
+    .. py:attribute:: version
+    .. py:attribute:: data_version
+    """
+    version = attr.ib(default=1, type=int)
+    data_version = attr.ib(default=16, type=int, validator=in_((16,)))
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        version, data_version = read_fmt('2I', fp)
+        return cls(version=version, data_version=data_version,
+                   **cls._read_body(fp))
+
+    def write(self, fp, padding=4):
+        written = write_fmt(fp, '2I', self.version, self.data_version)
+        written += self._write_body(fp)
+        written += write_padding(fp, written, padding)
+        return written

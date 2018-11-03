@@ -67,6 +67,19 @@ class BaseElement(object):
             p.breakable('')
 
 
+@attr.s
+class EmptyElement(BaseElement):
+    """
+    Empty element that does not have a value.
+    """
+    @classmethod
+    def read(cls, fp, *args, **kwargs):
+        return cls()
+
+    def write(self, fp, *args, **kwargs):
+        return 0
+
+
 @attr.s(repr=False)
 class ValueElement(BaseElement):
     """
