@@ -671,12 +671,10 @@ class TypeToolObjectSetting(BaseElement):
     TypeToolObjectSetting structure.
 
     .. py:attribute:: version
-    .. py:attribute:: xx
-    .. py:attribute:: xy
-    .. py:attribute:: yx
-    .. py:attribute:: yy
-    .. py:attribute:: tx
-    .. py:attribute:: ty
+    .. py:attribute:: transform
+
+        Tuple of affine transform parameters (xx, xy, yx, yy, tx, ty).
+
     .. py:attribute:: text_version
     .. py:attribute:: text_data_version
     .. py:attribute:: text_data
@@ -689,17 +687,10 @@ class TypeToolObjectSetting(BaseElement):
     .. py:attribute:: bottom
     """
     version = attr.ib(default=1, type=int)
-    xx = attr.ib(default=0., type=float)
-    xy = attr.ib(default=0., type=float)
-    yx = attr.ib(default=0., type=float)
-    yy = attr.ib(default=0., type=float)
-    tx = attr.ib(default=0., type=float)
-    ty = attr.ib(default=0., type=float)
+    transform = attr.ib(default=(0.,) * 6, type=tuple)
     text_version = attr.ib(default=1, type=int, validator=in_((50,)))
-    text_data_version = attr.ib(default=16, type=int, validator=in_((16,)))
     text_data = attr.ib(default=None, type=Descriptor)
     warp_version = attr.ib(default=1, type=int, validator=in_((1,)))
-    warp_data_version = attr.ib(default=16, type=int, validator=in_((16,)))
     warp_data = attr.ib(default=None, type=Descriptor)
     left = attr.ib(default=0, type=int)
     top = attr.ib(default=0, type=int)
@@ -708,9 +699,10 @@ class TypeToolObjectSetting(BaseElement):
 
     @classmethod
     def read(cls, fp, **kwargs):
-        version, xx, xy, yx, yy, tx, ty = read_fmt('H6d', fp)
-        text_version, text_data_version = read_fmt('HI', fp)
-        text_data = Descriptor.read(fp)
+        version = read_fmt('H', fp)[0]
+        transform = read_fmt('6d', fp)
+        text_version = read_fmt('H', fp)[0]
+        text_data = DescriptorBlock.read(fp)
         # Engine data.
         if b'EngineData' in text_data:
             try:
@@ -719,25 +711,18 @@ class TypeToolObjectSetting(BaseElement):
                 text_data[b'EngineData'].value = engine_data
             except:
                 logger.warning('Failed to read engine data')
-        warp_version, warp_data_version = read_fmt('HI', fp)
-        warp_data = Descriptor.read(fp)
+        warp_version = read_fmt('H', fp)[0]
+        warp_data = DescriptorBlock.read(fp)
         left, top, right, bottom = read_fmt("4i", fp)
-        return cls(
-            version, xx, xy, yx, yy, tx, ty, text_version, text_data_version,
-            text_data, warp_version, warp_data_version, warp_data, left, top,
-            right, bottom
-        )
+        return cls(version, transform, text_version, text_data, warp_version,
+                   warp_data, left, top, right, bottom)
 
     def write(self, fp, padding=4):
-        written = write_fmt(fp, 'H6dHI', self.version, self.xx, self.xy,
-            self.yx, self.yy, self.tx, self.ty, self.text_version,
-            self.text_data_version
-        )
-        written += self.text_data.write(fp)
-        written += write_fmt(
-            fp, 'HI', self.warp_version, self.warp_data_version
-        )
-        written += self.warp_data.write(fp)
+        written = write_fmt(fp, 'H6d', self.version, *self.transform)
+        written += write_fmt(fp, 'H', self.text_version)
+        written += self.text_data.write(fp, padding=1)
+        written += write_fmt(fp, 'H', self.warp_version)
+        written += self.warp_data.write(fp, padding=1)
         written += write_fmt(
             fp, '4i', self.left, self.top, self.right, self.bottom
         )
