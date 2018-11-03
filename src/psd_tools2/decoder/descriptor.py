@@ -54,7 +54,8 @@ def write_length_and_key(fp, value):
     Helper to write descriptor classID and key.
     """
     if value in DescriptorClassID:
-        written = write_fmt(fp, 'I', 0)
+        length = (len(value.value) != 4) * len(value.value)
+        written = write_fmt(fp, 'I', length)
         written += write_bytes(fp, value.value)
     else:
         written = write_fmt(fp, 'I', len(value))
@@ -116,11 +117,15 @@ class _DescriptorMixin(DictElement):
                     p.text(',')
                     p.breakable()
                 value = self[key]
-                if isinstance(value, bytes):
-                    value = trimmed_repr(value)
-                p.pretty(key.name if hasattr(key, 'name') else key)
+                if hasattr(key, 'name'):
+                    p.text(key.name)
+                else:
+                    p.pretty(key)
                 p.text(': ')
-                p.pretty(value)
+                if isinstance(value, bytes):
+                    p.text(trimmed_repr(value))
+                else:
+                    p.pretty(value)
             p.breakable('')
 
 

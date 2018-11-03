@@ -79,7 +79,7 @@ class TaggedBlocks(DictElement):
                     p.pretty(key)
                 p.text(': ')
                 if isinstance(value.data, bytes):
-                    p.pretty(trimmed_repr(value.data))
+                    p.text(trimmed_repr(value.data))
                 else:
                     p.pretty(value.data)
             p.breakable('')

@@ -59,8 +59,7 @@ class BaseElement(object):
                 p.text('{field}='.format(field=field.name))
                 value = getattr(self, field.name)
                 if isinstance(value, bytes):
-                    value = trimmed_repr(value)
-                    p.pretty(value)
+                    p.text(trimmed_repr(value))
                 elif isinstance(value, Enum):
                     p.text(value.name)
                 else:

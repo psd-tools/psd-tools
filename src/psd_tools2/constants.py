@@ -395,7 +395,7 @@ class DescriptorClassID(Enum):
 
     CNT = b'Cnt '  # ???
     POINT = b'Pnt '
-    CR_POINT = b'CrPt'
+    CONTROL_POINT = b'CrPt'
     HORIZONTAL = b'Hrzn'
     VERTICAL = b'Vrtc'
 
