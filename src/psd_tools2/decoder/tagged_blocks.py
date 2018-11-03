@@ -643,23 +643,19 @@ class SmartObjectLayerData(BaseElement):
     .. py:attribute:: version
     .. py:attribute:: data
     """
-    kind = attr.ib(default=b'soLD', type=bytes)
+    kind = attr.ib(default=b'soLD', type=bytes, validator=in_((b'soLD',)))
     version = attr.ib(default=5, type=int, validator=in_((4, 5)))
-    data_version = attr.ib(default=16, type=int)
-    data = attr.ib(default=None, type=Descriptor)
+    data = attr.ib(default=None, type=DescriptorBlock)
 
     @classmethod
     def read(cls, fp, **kwargs):
-        kind, version, data_version = read_fmt('4s2I', fp)
-        assert kind == b'soLD', 'Unknown type %r' % (kind)
-        assert version in (4, 5), 'Invalid version %d' % (version)
-        data = Descriptor.read(fp)
-        return cls(kind, version, data_version, data)
+        kind, version = read_fmt('4sI', fp)
+        data = DescriptorBlock.read(fp)
+        return cls(kind, version, data)
 
     def write(self, fp, padding=4):
-        written = write_fmt(fp, '4s2I', self.kind, self.version,
-                            self.data_version)
-        written += self.data.write(fp)
+        written = write_fmt(fp, '4sI', self.kind, self.version)
+        written += self.data.write(fp, padding=1)
         written += write_padding(fp, written, padding)
         return written
 
@@ -676,11 +672,9 @@ class TypeToolObjectSetting(BaseElement):
         Tuple of affine transform parameters (xx, xy, yx, yy, tx, ty).
 
     .. py:attribute:: text_version
-    .. py:attribute:: text_data_version
     .. py:attribute:: text_data
     .. py:attribute:: warp_version
-    .. py:attribute:: warp_data_version
-    .. py:attribute:: warp_data
+    .. py:attribute:: warp
     .. py:attribute:: left
     .. py:attribute:: top
     .. py:attribute:: right
@@ -691,7 +685,7 @@ class TypeToolObjectSetting(BaseElement):
     text_version = attr.ib(default=1, type=int, validator=in_((50,)))
     text_data = attr.ib(default=None, type=Descriptor)
     warp_version = attr.ib(default=1, type=int, validator=in_((1,)))
-    warp_data = attr.ib(default=None, type=Descriptor)
+    warp = attr.ib(default=None, type=Descriptor)
     left = attr.ib(default=0, type=int)
     top = attr.ib(default=0, type=int)
     right = attr.ib(default=0, type=int)
@@ -712,17 +706,17 @@ class TypeToolObjectSetting(BaseElement):
             except:
                 logger.warning('Failed to read engine data')
         warp_version = read_fmt('H', fp)[0]
-        warp_data = DescriptorBlock.read(fp)
+        warp = DescriptorBlock.read(fp)
         left, top, right, bottom = read_fmt("4i", fp)
         return cls(version, transform, text_version, text_data, warp_version,
-                   warp_data, left, top, right, bottom)
+                   warp, left, top, right, bottom)
 
     def write(self, fp, padding=4):
         written = write_fmt(fp, 'H6d', self.version, *self.transform)
         written += write_fmt(fp, 'H', self.text_version)
         written += self.text_data.write(fp, padding=1)
         written += write_fmt(fp, 'H', self.warp_version)
-        written += self.warp_data.write(fp, padding=1)
+        written += self.warp.write(fp, padding=1)
         written += write_fmt(
             fp, '4i', self.left, self.top, self.right, self.bottom
         )
