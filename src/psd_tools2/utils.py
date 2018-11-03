@@ -171,11 +171,9 @@ def is_readable(fp, size=1):
     :param size: byte size
     :return: bool
     """
-    if len(fp.read(size)):
-        fp.seek(-size, 1)
-        return True
-    else:
-        return False
+    read_size = len(fp.read(size))
+    fp.seek(-read_size, 1)
+    return read_size == size
 
 
 def pad(number, divisor):
