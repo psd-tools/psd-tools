@@ -3,10 +3,10 @@ Vector mask and stroke structure.
 """
 from __future__ import absolute_import, unicode_literals
 import attr
-import io
 import logging
 
 from psd_tools2.decoder.base import BaseElement
+from psd_tools2.decoder.path import Path
 from psd_tools2.utils import (
     read_fmt, write_fmt, read_length_block, write_length_block, is_readable,
     write_bytes
@@ -34,12 +34,12 @@ class VectorMaskSetting(BaseElement):
     def read(cls, fp, **kwargs):
         version, flags = read_fmt('2I', fp)
         assert version == 3, 'Unknown vector mask version %d' % version
-        path = fp.read()
+        path = Path.read(fp)
         return cls(version, flags, path)
 
     def write(self, fp, **kwargs):
         written = write_fmt(fp, '2I', self.version, self.flags)
-        written += write_bytes(fp, self.path)
+        written += self.path.write(fp)
         return written
 
     @property

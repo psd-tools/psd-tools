@@ -624,6 +624,18 @@ class EffectOSType(Enum):
     SOLID_FILL = b'sofi'
 
 
+class PathResourceID(IntEnum):
+    CLOSED_LENGTH = 0
+    CLOSED_KNOT_LINKED = 1
+    CLOSED_KNOT_UNLINKED = 2
+    OPEN_LENGTH = 3
+    OPEN_KNOT_LINKED = 4
+    OPEN_KNOT_UNLINKED = 5
+    PATH_FILL = 6
+    CLIPBOARD = 7
+    INITIAL_FILL = 8
+
+
 class SectionDivider(IntEnum):
     OTHER = 0
     OPEN_FOLDER = 1
@@ -657,18 +669,6 @@ class SectionDivider(IntEnum):
 
 # class TextOrientation(Enum):
 #     HORIZONTAL = b'Hrzn'
-
-
-# class PathResource(Enum):
-#     CLOSED_SUBPATH_LENGTH_RECORD = 0
-#     CLOSED_SUBPATH_BEZIER_KNOT_LINKED = 1
-#     CLOSED_SUBPATH_BEZIER_KNOT_UNLINKED = 2
-#     OPEN_SUBPATH_LENGTH_RECORD = 3
-#     OPEN_SUBPATH_BEZIER_KNOT_LINKED = 4
-#     OPEN_SUBPATH_BEZIER_KNOT_UNLINKED = 5
-#     PATH_FILL_RULE_RECORD = 6
-#     CLIPBOARD_RECORD = 7
-#     INITIAL_FILL_RULE_RECORD = 8
 
 
 # class LinkedLayerType(Enum):
