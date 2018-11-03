@@ -381,7 +381,9 @@ class ChannelMixer(BaseElement):
     """
     ChannelMixer structure.
 
-    .. py:attribute:: value
+    .. py:attribute:: version
+    .. py:attribute:: monochrome
+    .. py:attribute:: data
     """
     version = attr.ib(default=1, type=int, validator=in_((1,)))
     monochrome = attr.ib(default=0, type=int)
@@ -399,6 +401,39 @@ class ChannelMixer(BaseElement):
         written = write_fmt(fp, '2H', self.version, self.monochrome)
         written += write_fmt(fp, '5h', *self.data)
         written += write_bytes(fp, self.unknown)
+        return written
+
+
+@register(TaggedBlockID.COLOR_BALANCE)
+@attr.s
+class ColorBalance(BaseElement):
+    """
+    ColorBalance structure.
+
+    .. py:attribute:: shadows
+    .. py:attribute:: midtones
+    .. py:attribute:: highlights
+    .. py:attribute:: luminosity
+    """
+    shadows = attr.ib(default=(0,) * 3, type=tuple)
+    midtones = attr.ib(default=(0,) * 3, type=tuple)
+    highlights = attr.ib(default=(0,) * 3, type=tuple)
+    luminosity = attr.ib(default=False, type=bool)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        shadows = read_fmt('3h', fp)
+        midtones = read_fmt('3h', fp)
+        highlights = read_fmt('3h', fp)
+        luminosity = read_fmt('B', fp)[0]
+        return cls(shadows, midtones, highlights, luminosity)
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, '3h', *self.shadows)
+        written += write_fmt(fp, '3h', *self.midtones)
+        written += write_fmt(fp, '3h', *self.highlights)
+        written += write_fmt(fp, 'B', self.luminosity)
+        written += write_padding(fp, written, 4)
         return written
 
 
