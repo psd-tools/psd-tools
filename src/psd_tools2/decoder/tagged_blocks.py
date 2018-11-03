@@ -375,6 +375,33 @@ class ChannelBlendingRestrictionsSetting(ListElement):
         return write_fmt(fp, '%dI' % len(self), *self._items)
 
 
+@register(TaggedBlockID.CHANNEL_MIXER)
+@attr.s
+class ChannelMixer(BaseElement):
+    """
+    ChannelMixer structure.
+
+    .. py:attribute:: value
+    """
+    version = attr.ib(default=1, type=int, validator=in_((1,)))
+    monochrome = attr.ib(default=0, type=int)
+    data = attr.ib(factory=list, converter=list)
+    unknown = attr.ib(default=b'', type=bytes, repr=False)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        version, monochrome = read_fmt('2H', fp)
+        data = list(read_fmt('5h', fp))
+        unknown = fp.read()
+        return cls(version, monochrome, data, unknown)
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, '2H', self.version, self.monochrome)
+        written += write_fmt(fp, '5h', *self.data)
+        written += write_bytes(fp, self.unknown)
+        return written
+
+
 @register(TaggedBlockID.COLOR_LOOKUP)
 class ColorLookup(DescriptorBlock2):
     """
