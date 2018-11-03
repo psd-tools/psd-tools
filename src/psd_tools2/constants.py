@@ -282,8 +282,8 @@ class TaggedBlockID(Enum):
     ARTBOARD_DATA2 = b'artd'
     ARTBOARD_DATA3 = b'abdd'
 
-    PLACED_LAYER_OBSOLETE1 = b'plLd'
-    PLACED_LAYER_OBSOLETE2 = b'PlLd'
+    PLACED_LAYER1 = b'plLd'
+    PLACED_LAYER2 = b'PlLd'
 
     LINKED_LAYER1 = b'lnkD'
     LINKED_LAYER2 = b'lnk2'
@@ -294,8 +294,8 @@ class TaggedBlockID(Enum):
     UNICODE_PATH_NAME = b'pths'
     ANIMATION_EFFECTS = b'anFX'
     FILTER_MASK = b'FMsk'
-    PLACED_LAYER_DATA = b'SoLd'
-    SMART_OBJECT_LAYER_DATA = b'SoLE'
+    SMART_OBJECT_LAYER_DATA1 = b'SoLd'
+    SMART_OBJECT_LAYER_DATA2 = b'SoLE'
     EXPORT_SETTING1 = b'extd'  # Undocumented.
     EXPORT_SETTING2 = b'extn'  # Undocumented.
 
@@ -634,6 +634,13 @@ class PathResourceID(IntEnum):
     PATH_FILL = 6
     CLIPBOARD = 7
     INITIAL_FILL = 8
+
+
+class PlacedLayerType(IntEnum):
+    UNKNOWN = 0
+    VECTOR = 1
+    RASTER = 2
+    IMAGE_STACK = 3
 
 
 class SectionDivider(IntEnum):

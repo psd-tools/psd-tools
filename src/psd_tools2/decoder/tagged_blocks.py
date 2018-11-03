@@ -7,6 +7,9 @@ import io
 import logging
 from collections import OrderedDict
 
+from psd_tools2.constants import (
+    BlendMode, SectionDivider, TaggedBlockID, PlacedLayerType
+)
 from psd_tools2.decoder.base import (
     BaseElement, ValueElement, IntegerElement, ListElement, DictElement,
 )
@@ -16,8 +19,9 @@ from psd_tools2.decoder.effects_layer import EffectsLayer
 from psd_tools2.decoder.filter_effects import FilterEffects
 from psd_tools2.decoder.engine_data import EngineData, EngineData2
 from psd_tools2.decoder.patterns import Patterns
-from psd_tools2.decoder.vector import VectorMaskSetting
-from psd_tools2.constants import BlendMode, SectionDivider, TaggedBlockID
+from psd_tools2.decoder.vector import (
+    VectorMaskSetting, VectorStrokeContentSetting
+)
 from psd_tools2.validators import in_
 from psd_tools2.utils import (
     read_fmt, write_fmt, read_length_block, write_length_block, is_readable,
@@ -41,6 +45,7 @@ TYPES.update({
     TaggedBlockID.TEXT_ENGINE_DATA: EngineData2,
     TaggedBlockID.VECTOR_MASK_SETTING1: VectorMaskSetting,
     TaggedBlockID.VECTOR_MASK_SETTING2: VectorMaskSetting,
+    TaggedBlockID.VECTOR_STROKE_CONTENT_DATA: VectorStrokeContentSetting,
 })
 
 
@@ -298,6 +303,7 @@ class Empty(BaseElement):
 @register(TaggedBlockID.PIXEL_SOURCE_DATA1)
 @register(TaggedBlockID.SOLID_COLOR_SHEET_SETTING)
 @register(TaggedBlockID.UNICODE_PATH_NAME)
+@register(TaggedBlockID.VECTOR_STROKE_DATA)
 @register(TaggedBlockID.VIBRANCE)
 @attr.s(repr=False)
 class DescriptorBlock(Descriptor):
@@ -473,6 +479,46 @@ class MetadataSetting(BaseElement):
         return written
 
 
+@register(TaggedBlockID.PLACED_LAYER1)
+@register(TaggedBlockID.PLACED_LAYER2)
+@attr.s
+class PlacedLayerData(BaseElement):
+    """
+    PlacedLayerData structure.
+    """
+    kind = attr.ib(default=b'plcL', type=bytes)
+    version = attr.ib(default=3, type=int, validator=in_((3,)))
+    uuid = attr.ib(default='', type=bytes)
+    page = attr.ib(default=0, type=int)
+    total_pages = attr.ib(default=0, type=int)
+    anti_alias = attr.ib(default=0, type=int)
+    layer_type = attr.ib(default=PlacedLayerType.UNKNOWN,
+                         converter=PlacedLayerType,
+                         validator=in_(PlacedLayerType))
+    transform = attr.ib(default=(0.,) * 8, type=tuple)
+    warp = attr.ib(default=None)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        kind, version = read_fmt('4sI', fp)
+        uuid = read_pascal_string(fp, 'macroman', padding=1)
+        page, total_pages, anti_alias, layer_type = read_fmt('4I', fp)
+        transform = read_fmt('8d', fp)
+        warp = DescriptorBlock2.read(fp, padding=1)
+        return cls(kind, version, uuid, page, total_pages, anti_alias,
+                   layer_type, transform, warp)
+
+    def write(self, fp, padding=4):
+        written = write_fmt(fp, '4sI', self.kind, self.version)
+        written += write_pascal_string(fp, self.uuid, 'macroman', padding=1)
+        written += write_fmt(fp, '4I', self.page, self.total_pages,
+                             self.anti_alias, self.layer_type.value)
+        written += write_fmt(fp, '8d', *self.transform)
+        written += self.warp.write(fp, padding=1)
+        written += write_padding(fp, written, padding)
+        return written
+
+
 @register(TaggedBlockID.PROTECTED_SETTING)
 @attr.s
 class ProtectedSetting(BaseElement):
@@ -586,8 +632,8 @@ class SheetColorSetting(ValueElement):
         return write_fmt(fp, '4H', *self.value)
 
 
-@register(TaggedBlockID.PLACED_LAYER_DATA)
-@register(TaggedBlockID.SMART_OBJECT_LAYER_DATA)
+@register(TaggedBlockID.SMART_OBJECT_LAYER_DATA1)
+@register(TaggedBlockID.SMART_OBJECT_LAYER_DATA2)
 @attr.s
 class SmartObjectLayerData(BaseElement):
     """
