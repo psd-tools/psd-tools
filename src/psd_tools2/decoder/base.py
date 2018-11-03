@@ -2,7 +2,9 @@ from __future__ import absolute_import, unicode_literals, division
 import attr
 import io
 from collections import OrderedDict
+from psd_tools2.constants import ColorSpaceID
 from psd_tools2.utils import read_fmt, write_fmt, trimmed_repr
+from psd_tools2.validators import in_
 
 
 class BaseElement(object):
@@ -320,3 +322,38 @@ class DictElement(BaseElement):
 
     def write(self, fp, *args, **kwargs):
         return sum(self.items[key].write(fp, *args, **kwargs) for key in self)
+
+
+@attr.s
+class Color(BaseElement):
+    """
+    Color structure.
+
+    .. py:attribute:: id
+
+        See :py:class:`~psd_tools2.constants.ColorSpaceID`.
+
+    .. py:attribute:: values
+
+        List of int values.
+    """
+    id = attr.ib(default=ColorSpaceID.RGB, converter=ColorSpaceID,
+                 validator=in_(ColorSpaceID))
+    values = attr.ib(factory=lambda: (0, 0, 0, 0))
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        id = ColorSpaceID(read_fmt('H', fp)[0])
+        if id == ColorSpaceID.LAB:
+            values = read_fmt('4h', fp)
+        else:
+            values = read_fmt('4H', fp)
+        return cls(id, values)
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, 'H', self.id.value)
+        if self.id == ColorSpaceID.LAB:
+            written += write_fmt(fp, '4h', *self.values)
+        else:
+            written += write_fmt(fp, '4H', *self.values)
+        return written
