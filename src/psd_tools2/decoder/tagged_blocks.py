@@ -9,16 +9,14 @@ from collections import OrderedDict
 
 from psd_tools2.decoder.base import (
     BaseElement, ValueElement, IntegerElement, ListElement, DictElement,
-    Color
 )
+from psd_tools2.decoder.color import Color
 from psd_tools2.decoder.descriptor import Descriptor
 from psd_tools2.decoder.effects_layer import EffectsLayer
 from psd_tools2.decoder.filter_effects import FilterEffects
 from psd_tools2.decoder.engine_data import EngineData, EngineData2
 from psd_tools2.decoder.patterns import Patterns
-from psd_tools2.constants import (
-    BlendMode, ColorSpaceID, SectionDivider, TaggedBlockID
-)
+from psd_tools2.constants import BlendMode, SectionDivider, TaggedBlockID
 from psd_tools2.validators import in_
 from psd_tools2.utils import (
     read_fmt, write_fmt, read_length_block, write_length_block, is_readable,

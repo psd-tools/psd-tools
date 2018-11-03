@@ -8,7 +8,8 @@ import logging
 from collections import OrderedDict
 
 from psd_tools2.constants import BlendMode, EffectOSType
-from psd_tools2.decoder.base import BaseElement, DictElement, Color
+from psd_tools2.decoder.base import BaseElement, DictElement
+from psd_tools2.decoder.color import Color
 from psd_tools2.validators import in_
 from psd_tools2.utils import (
     read_fmt, write_fmt, read_length_block, write_length_block, write_bytes,
