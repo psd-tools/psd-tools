@@ -2,7 +2,7 @@ from __future__ import absolute_import, unicode_literals
 import pytest
 import logging
 from psd_tools2.decoder.tagged_blocks import (
-    TaggedBlocks, TaggedBlock, Integer
+    TaggedBlocks, TaggedBlock, Integer, ChannelBlendingRestrictionsSetting,
 )
 from psd_tools2.decoder.effects_layer import (
     CommonStateInfo, ShadowInfo, InnerGlowInfo, OuterGlowInfo, BevelInfo,
@@ -39,6 +39,15 @@ def test_tagged_blocks():
 def test_tagged_block(key, data, version, padding):
     check_write_read(TaggedBlock(key=key, data=data),
                      version=version, padding=padding)
+
+
+@pytest.mark.parametrize('fixture', [
+    list(range(0)),
+    list(range(1)),
+    list(range(2)),
+])
+def test_channel_blending_restrictions_setting(fixture):
+    check_write_read(ChannelBlendingRestrictionsSetting(fixture))
 
 
 @pytest.mark.parametrize('args', [

@@ -339,6 +339,27 @@ class DescriptorBlock(BaseElement):
         return written
 
 
+@register(TaggedBlockID.CHANNEL_BLENDING_RESTRICTIONS_SETTING)
+@attr.s(repr=False)
+class ChannelBlendingRestrictionsSetting(ListElement):
+    """
+    ChannelBlendingRestrictionsSetting structure.
+
+    List-like element, consisting of list of restricted channel numbers (int).
+    """
+    items = attr.ib(factory=list)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        items = []
+        while is_readable(fp, 4):
+            items.append(read_fmt('I', fp)[0])
+        return cls(items)
+
+    def write(self, fp, **kwargs):
+        return write_fmt(fp, '%dI' % len(self), *self.items)
+
+
 @register(TaggedBlockID.BRIGHTNESS_AND_CONTRAST)
 @attr.s
 class BrightnessContrast(BaseElement):
