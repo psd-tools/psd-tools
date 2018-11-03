@@ -614,6 +614,31 @@ class SectionDividerSetting(BaseElement):
         return written
 
 
+@register(TaggedBlockID.SELECTIVE_COLOR)
+@attr.s
+class SelectiveColor(BaseElement):
+    """
+    SelectiveColor structure.
+
+    .. py:attribute:: value
+    """
+    version = attr.ib(default=1, type=int, validator=in_((1,)))
+    method = attr.ib(default=0, type=int)
+    data = attr.ib(factory=list, converter=list)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        version, method = read_fmt('2H', fp)
+        data = [read_fmt('4h', fp) for i in range(10)]
+        return cls(version, method, data)
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, '2H', self.version, self.method)
+        for plate in self.data:
+            written += write_fmt(fp, '4h', *plate)
+        return written
+
+
 @register(TaggedBlockID.SHEET_COLOR_SETTING)
 @attr.s(repr=False)
 class SheetColorSetting(ValueElement):
