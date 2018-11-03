@@ -123,13 +123,10 @@ class Tokenizer(object):
 
 
 @register(EngineToken.DICT_START)
-@attr.s(repr=False)
 class Dict(DictElement):
     """
     Dict-like element.
     """
-    items = attr.ib(factory=OrderedDict)
-
     @classmethod
     def read(cls, fp, **kwargs):
         return cls.frombytes(fp.read())
@@ -150,7 +147,7 @@ class Dict(DictElement):
                     value = kls.frombytes(v_token)
                 else:
                     raise ValueError('Invalid token: %r' % (v_token))
-                self.items[key] = value
+                self[key] = value
             elif k_token_type == EngineToken.DICT_END:
                 return self
         return self
@@ -212,7 +209,7 @@ class Dict(DictElement):
 
     def __contains__(self, key):
         key = key if isinstance(key, Property) else Property(key)
-        return self.items.__contains__(key)
+        return self._items.__contains__(key)
 
     def get(self, key, *args):
         key = key if isinstance(key, Property) else Property(key)
@@ -242,13 +239,10 @@ class EngineData2(Dict):
 
 
 @register(EngineToken.ARRAY_START)
-@attr.s(repr=False)
 class List(ListElement):
     """
     List-like element.
     """
-    items = attr.ib(factory=list)
-
     @classmethod
     def read(cls, fp):
         return cls.frombytes(fp.read())
@@ -267,7 +261,7 @@ class List(ListElement):
                 value = kls.frombytes(tokenizer)
             else:
                 value = kls.frombytes(token)
-            self.items.append(value)
+            self.append(value)
 
         return self
 

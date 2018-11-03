@@ -22,11 +22,7 @@ class ImageResources(ListElement):
     """
     Image resources section of the PSD file. List of
     :py:class:`~ImageResource`.
-
-    .. py:attribute:: items
     """
-    items = attr.ib(factory=list)
-
     @classmethod
     def read(cls, fp, encoding='macroman'):
         """Read the element from a file-like object.

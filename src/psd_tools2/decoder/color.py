@@ -46,3 +46,16 @@ class Color(BaseElement):
         else:
             written += write_fmt(fp, '4H', *self.values)
         return written
+
+    def _repr_pretty_(self, p, cycle):
+        if cycle:
+            return "{name}(...)".format(name=self.__class__.__name__)
+
+        with p.group(2, '{name}('.format(name=self.id.name), ')'):
+            p.breakable('')
+            for idx, value in enumerate(self.values):
+                if idx:
+                    p.text(',')
+                    p.breakable()
+                p.pretty(value)
+            p.breakable('')

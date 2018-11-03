@@ -273,7 +273,7 @@ def be_array_to_bytes(arr):
         return data.tostring()
 
 
-def trimmed_repr(data, trim_length=30):
+def trimmed_repr(data, trim_length=16):
     if isinstance(data, bytes):
         if len(data) > trim_length:
             return repr(

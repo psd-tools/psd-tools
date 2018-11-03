@@ -349,15 +349,10 @@ class LayerBlendingRanges(BaseElement):
         return written
 
 
-@attr.s(repr=False)
 class LayerRecords(ListElement):
     """
     List of layer records. See :py:class:`.LayerRecord`.
-
-    .. py:attribute:: items
     """
-    items = attr.ib(factory=list)
-
     @classmethod
     def read(cls, fp, layer_count, encoding='macroman', version=1):
         """Read the element from a file-like object.
@@ -833,16 +828,12 @@ class MaskParameters(BaseElement):
         return written
 
 
-@attr.s(repr=False)
 class ChannelImageData(ListElement):
     """
     List of channel image data.
 
     See :py:class:`.ChannelDataList`.
-
-    .. py:attribute:: items
     """
-    items = attr.ib(factory=list)
 
     @classmethod
     def read(cls, fp, layer_records=None):
@@ -877,17 +868,12 @@ class ChannelImageData(ListElement):
         return [item._lengths for item in self]
 
 
-@attr.s(repr=False)
 class ChannelDataList(ListElement):
     """
     List of channel image data.
 
     See :py:class:`.ChannelData`.
-
-    .. py:attribute:: items
     """
-    items = attr.ib(factory=list)
-
     @classmethod
     def read(cls, fp, channel_info):
         """Read the element from a file-like object.

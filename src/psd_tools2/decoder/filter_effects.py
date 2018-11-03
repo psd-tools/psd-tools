@@ -18,13 +18,11 @@ logger = logging.getLogger(__name__)
 @attr.s(repr=False)
 class FilterEffects(ListElement):
     """
-    FilterEffects structure.
+    List-like FilterEffects structure.
 
     .. py:attribute:: version
-    .. py:attribute:: items
     """
     version = attr.ib(default=1, type=int)
-    items = attr.ib(factory=list)
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -34,7 +32,7 @@ class FilterEffects(ListElement):
             items = []
             while is_readable(f):
                 items.append(FilterEffect.read(f))
-        return cls(version, items)
+        return cls(version=version, items=items)
 
     def write(self, fp, **kwargs):
         written = write_fmt(fp, 'I', self.version)

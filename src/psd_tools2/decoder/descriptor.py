@@ -81,25 +81,25 @@ class _DescriptorMixin(DictElement):
                 warnings.warn("%r (%r) is None" % (key, ostype))
             items.append((key, value))
 
-        return name, classID, items
+        return dict(name=name, classID=classID, items=items)
 
     def _write_body(self, fp):
         written = write_unicode_string(fp, self.name, padding=1)
         written += write_length_and_key(fp, self.classID)
-        written += write_fmt(fp, 'I', len(self.items))
-        for key in self.items:
+        written += write_fmt(fp, 'I', len(self))
+        for key in self:
             written += write_length_and_key(fp, key)
-            written += write_bytes(fp, self.items[key].ostype.value)
-            written += self.items[key].write(fp)
+            written += write_bytes(fp, self[key].ostype.value)
+            written += self[key].write(fp)
         return written
 
     def __getitem__(self, key):
-        key = key if isinstance(key, bytes) else key.encode('ascii')
-        return self.items[key]
+        key = key.encode('ascii') if isinstance(key, str) else key
+        return self._items[key]
 
     def __setitem__(self, key, value):
-        key = key if isinstance(key, bytes) else key.encode('ascii')
-        self.items[key] = value
+        key = key.encode('ascii') if isinstance(key, str) else key
+        self._items[key] = value
 
     def _repr_pretty_(self, p, cycle):
         if cycle:
@@ -111,11 +111,11 @@ class _DescriptorMixin(DictElement):
         )
         with p.group(2, prefix, '}'):
             p.breakable('')
-            for idx, key in enumerate(self.items):
+            for idx, key in enumerate(self):
                 if idx:
                     p.text(',')
                     p.breakable()
-                value = self.items[key]
+                value = self[key]
                 if isinstance(value, bytes):
                     value = trimmed_repr(value)
                 p.pretty(key.name if hasattr(key, 'name') else key)
@@ -125,10 +125,10 @@ class _DescriptorMixin(DictElement):
 
 
 @register(OSType.DESCRIPTOR)
-@attr.s(repr=False)
+@attr.s
 class Descriptor(_DescriptorMixin):
     """
-    Descriptor structure similar to `dict`.
+    Dict-like descriptor structure.
 
     Example::
 
@@ -137,12 +137,9 @@ class Descriptor(_DescriptorMixin):
 
     .. py:attribute:: name
     .. py:attribute:: classID
-    .. py:attribute:: items
     """
     name = attr.ib(default='', type=str)
     classID = attr.ib(default=DescriptorClassID.NULL)
-    items = attr.ib(factory=OrderedDict, converter=OrderedDict)
-
 
     @classmethod
     def read(cls, fp):
@@ -150,7 +147,7 @@ class Descriptor(_DescriptorMixin):
 
         :param fp: file-like object
         """
-        return cls(*cls._read_body(fp))
+        return cls(**cls._read_body(fp))
 
     def write(self, fp):
         """Write the element to a file-like object.
@@ -170,12 +167,10 @@ class ObjectArray(_DescriptorMixin):
     .. py:attribute:: items_count
     .. py:attribute:: name
     .. py:attribute:: classID
-    .. py:attribute:: items
     """
     items_count = attr.ib(default=0, type=int)
     name = attr.ib(default='', type=str)
     classID = attr.ib(default=DescriptorClassID.NULL)
-    items = attr.ib(factory=OrderedDict, converter=OrderedDict)
 
     @classmethod
     def read(cls, fp):
@@ -184,7 +179,7 @@ class ObjectArray(_DescriptorMixin):
         :param fp: file-like object
         """
         items_count = read_fmt('I', fp)[0]
-        return cls(items_count, *cls._read_body(fp))
+        return cls(items_count=items_count, **cls._read_body(fp))
 
     def write(self, fp):
         """Write the element to a file-like object.
@@ -204,8 +199,6 @@ class List(ListElement):
 
     .. py:attribute:: items
     """
-    items = attr.ib(factory=list)
-
     @classmethod
     def read(cls, fp):
         """Read the element from a file-like object.
@@ -228,8 +221,8 @@ class List(ListElement):
 
         :param fp: file-like object
         """
-        written = write_fmt(fp, 'I', len(self.items))
-        for item in self.items:
+        written = write_fmt(fp, 'I', len(self))
+        for item in self:
             written += write_bytes(fp, item.ostype.value)
             written += item.write(fp)
         return written

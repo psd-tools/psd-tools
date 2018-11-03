@@ -2,11 +2,12 @@ from __future__ import absolute_import, unicode_literals, division
 import attr
 import io
 from collections import OrderedDict
-from psd_tools2.constants import ColorSpaceID
+from enum import Enum
 from psd_tools2.utils import read_fmt, write_fmt, trimmed_repr
 from psd_tools2.validators import in_
 
 
+@attr.s
 class BaseElement(object):
     """
     Base element of various PSD file structs.
@@ -59,16 +60,23 @@ class BaseElement(object):
                 value = getattr(self, field.name)
                 if isinstance(value, bytes):
                     value = trimmed_repr(value)
-                p.pretty(value)
+                    p.pretty(value)
+                elif isinstance(value, Enum):
+                    p.text(value.name)
+                else:
+                    p.pretty(value)
             p.breakable('')
 
 
+@attr.s(repr=False)
 class ValueElement(BaseElement):
     """
     Single value element that has a `value` attribute.
 
     Use with `@attr.s(repr=False)` decorator.
     """
+    value = attr.ib(default=None)
+
     def __lt__(self, other):
         return self.value < other
 
@@ -114,7 +122,12 @@ class ValueElement(BaseElement):
         p.pretty(self.value)
 
 
+@attr.s(repr=False)
 class NumericElement(ValueElement):
+    """
+    Single value element that has a numeric `value` attribute.
+    """
+    value = attr.ib(default=1.0, type=float, converter=float)
 
     def __floordiv__(self, other):
         return self.value.__floordiv__(other)
@@ -177,12 +190,15 @@ class NumericElement(ValueElement):
         return self.value.__coerce__(other)
 
 
+@attr.s(repr=False)
 class IntegerElement(NumericElement):
     """
     Single integer or bool value element that has a `value` attribute.
 
     Use with `@attr.s(repr=False)` decorator.
     """
+    value = attr.ib(default=1, type=int, converter=int)
+
     def __cmp__(self, other):
         return self.value.__cmp__(other)
 
@@ -229,96 +245,187 @@ class IntegerElement(NumericElement):
         return self.value.__index__()
 
 
-class ListElement(BaseElement):
+@attr.s(repr=False)
+class BooleanElement(IntegerElement):
     """
-    List-like element that has `items` list.
+    Single integer or bool value element that has a `value` attribute.
 
     Use with `@attr.s(repr=False)` decorator.
     """
+    value = attr.ib(default=False, type=bool, converter=bool)
+
+
+@attr.s(repr=False)
+class ListElement(BaseElement):
+    """
+    List-like element that has `items` list.
+    """
+    _items = attr.ib(factory=list, converter=list)
+
+    def append(self, x):
+        return self._items.append(x)
+
+    def extend(self, L):
+        return self._items.extend(L)
+
+    def insert(self, i, x):
+        return self._items.insert(i, x)
+
+    def remove(self, x):
+        return self._items.remove(x)
+
+    def pop(self, *args):
+        return self._items.pop(*args)
+
+    def index(self, x):
+        return self._items.index(x)
+
+    def count(self, x):
+        return self._items.count(x)
+
+    def sort(self, *args, **kwargs):
+        return self._items.sort(*args, **kwargs)
+
+    def reverse(self):
+        return self._items.reverse()
 
     def __len__(self):
-        return self.items.__len__()
+        return self._items.__len__()
 
     def __iter__(self):
-        return self.items.__iter__()
+        return self._items.__iter__()
 
     def __getitem__(self, key):
-        return self.items.__getitem__(key)
+        return self._items.__getitem__(key)
 
     def __setitem__(self, key, value):
-        return self.items.__setitem__(key, value)
+        return self._items.__setitem__(key, value)
 
     def __delitem__(self, key):
-        return self.items.__delitem__(key)
+        return self._items.__delitem__(key)
 
     def __repr__(self):
-        return '%s%s' % (self.__class__.__name__, self.items.__repr__())
+        return self._items.__repr__()
 
     def _repr_pretty_(self, p, cycle):
         if cycle:
-            return "{name}[...]".format(name=self.__class__.__name__)
+            return "[...]".format(name=self.__class__.__name__)
 
-        with p.group(2, '{name}['.format(name=self.__class__.__name__), ']'):
+        with p.group(2, '['.format(name=self.__class__.__name__), ']'):
             p.breakable('')
-            for idx in range(len(self.items)):
+            for idx in range(len(self._items)):
                 if idx:
                     p.text(',')
                     p.breakable()
-                value = self.items[idx]
+                value = self._items[idx]
                 if isinstance(value, bytes):
                     value = trimmed_repr(value)
                 p.pretty(value)
             p.breakable('')
 
     def write(self, fp, *args, **kwargs):
-        return sum(item.write(fp, *args, **kwargs) for item in self)
+        written = 0
+        for item in self:
+            if hasattr(item, 'write'):
+                written += item.write(fp, *args, **kwargs)
+            elif isinstance(item, bytes):
+                written += write_bytes(fp, item)
+        return written
 
 
+@attr.s(repr=False)
 class DictElement(BaseElement):
     """
     Dict-like element that has `items` OrderedDict.
-
-    Use with `@attr.s(repr=False)` decorator.
     """
+    _items = attr.ib(factory=OrderedDict, converter=OrderedDict)
+
+    def clear(self):
+        return self._items.clear()
+
+    def copy(self):
+        return self._items.copy()
+
+    @classmethod
+    def fromkeys(cls, seq, *args):
+        return cls(OrderedDict.fromkeys(seq, *args))
+
+    def get(self, key, *args):
+        return self._items.get(key, *args)
+
+    def items(self):
+        return self._items.items()
+
+    def keys(self):
+        return self._items.keys()
+
+    def pop(self, key, *args):
+        return self._items.pop(key, *args)
+
+    def popitem(self):
+        return self._items.popitem()
+
+    def setdefault(self, key, *args):
+        return self._items.setdefault(key, *args)
+
+    def update(self, *args):
+        return self._items.update(*args)
+
+    def values(self):
+        return self._items.values()
 
     def __len__(self):
-        return self.items.__len__()
+        return self._items.__len__()
 
     def __iter__(self):
-        return self.items.__iter__()
+        return self._items.__iter__()
 
     def __getitem__(self, key):
-        return self.items.__getitem__(key)
+        return self._items.__getitem__(key)
 
     def __setitem__(self, key, value):
-        return self.items.__setitem__(key, value)
+        return self._items.__setitem__(key, value)
 
     def __delitem__(self, key):
-        return self.items.__delitem__(key)
+        return self._items.__delitem__(key)
 
     def __contains__(self, item):
-        return self.items.__contains__(item)
+        return self._items.__contains__(item)
 
     def __repr__(self):
-        return '%s%s' % (self.__class__.__name__, dict.__repr__(self.items))
+        return dict.__repr__(self._items)
 
     def _repr_pretty_(self, p, cycle):
         if cycle:
-            return "{name}[...]".format(name=self.__class__.__name__)
+            return "{{...}".format(name=self.__class__.__name__)
 
-        with p.group(2, '{name}{{'.format(name=self.__class__.__name__), '}'):
+        with p.group(2, '{{'.format(name=self.__class__.__name__), '}'):
             p.breakable('')
-            for idx, key in enumerate(self.items):
+            for idx, key in enumerate(self._items):
                 if idx:
                     p.text(',')
                     p.breakable()
-                value = self.items[key]
-                p.pretty(key)
+                value = self._items[key]
+                if hasattr(key, 'name'):
+                    p.text(key.name)
+                else:
+                    p.pretty(key)
                 p.text(': ')
                 if isinstance(value, bytes):
                     value = trimmed_repr(value)
                 p.pretty(value)
             p.breakable('')
 
+    @classmethod
+    def read(cls, fp, *args, **kwargs):
+        raise NotImplementedError
+
     def write(self, fp, *args, **kwargs):
-        return sum(self.items[key].write(fp, *args, **kwargs) for key in self)
+        written = 0
+        for key in self:
+            value = self[key]
+            if hasattr(value, 'write'):
+                written += value.write(fp, *args, **kwargs)
+            elif isinstance(value, bytes):
+                written += write_bytes(fp, value)
+        return written

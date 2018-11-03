@@ -44,12 +44,8 @@ TYPES.update({
 @attr.s(repr=False)
 class TaggedBlocks(DictElement):
     """
-    List of tagged blocks.
-
-    .. py:attribute:: items
+    Dict of tagged blocks.
     """
-    items = attr.ib(factory=OrderedDict, converter=OrderedDict)
-
     @classmethod
     def read(cls, fp, version=1, padding=1):
         """Read the element from a file-like object.
@@ -68,21 +64,24 @@ class TaggedBlocks(DictElement):
 
     def _repr_pretty_(self, p, cycle):
         if cycle:
-            return "{name}[...]".format(name=self.__class__.__name__)
+            return "{{...}".format(name=self.__class__.__name__)
 
-        with p.group(2, '{name}{{'.format(name=self.__class__.__name__), '}'):
+        with p.group(2, '{{'.format(name=self.__class__.__name__), '}'):
             p.breakable('')
-            for idx, key in enumerate(self.items):
+            for idx, key in enumerate(self._items):
                 if idx:
                     p.text(',')
                     p.breakable()
-                value = self.items[key]
-                p.pretty(key.name)
+                value = self._items[key]
+                if hasattr(key, 'name'):
+                    p.text(key.name)
+                else:
+                    p.pretty(key)
                 p.text(': ')
-                value = value.data
-                if isinstance(value, bytes):
-                    value = trimmed_repr(value)
-                p.pretty(value)
+                if isinstance(value.data, bytes):
+                    p.pretty(trimmed_repr(value.data))
+                else:
+                    p.pretty(value.data)
             p.breakable('')
 
 
@@ -187,15 +186,10 @@ class TaggedBlock(BaseElement):
 @register(TaggedBlockID.LAYER_ID)  # Documentation is incorrect.
 @register(TaggedBlockID.LAYER_VERSION)
 @register(TaggedBlockID.USING_ALIGNED_RENDERING)
-@attr.s(repr=False)
 class Integer(IntegerElement):
     """
     Integer structure.
-
-    .. py:attribute:: value
     """
-    value = attr.ib(default=0, type=int)
-
     @classmethod
     def read(cls, fp, **kwargs):
         return cls(read_fmt('I', fp)[0])
@@ -206,15 +200,10 @@ class Integer(IntegerElement):
 
 @register(TaggedBlockID.POSTERIZE)
 @register(TaggedBlockID.THRESHOLD)
-@attr.s(repr=False)
 class ShortInteger(IntegerElement):
     """
     Short integer structure.
-
-    .. py:attribute:: value
     """
-    value = attr.ib(default=0, type=int)
-
     @classmethod
     def read(cls, fp, **kwargs):
         return cls(read_fmt('H2x', fp)[0])
@@ -230,15 +219,10 @@ class ShortInteger(IntegerElement):
 @register(TaggedBlockID.LAYER_MASK_AS_GLOBAL_MASK)
 @register(TaggedBlockID.TRANSPARENCY_SHAPES_LAYER)
 @register(TaggedBlockID.VECTOR_MASK_AS_GLOBAL_MASK)
-@attr.s(repr=False)
 class Byte(IntegerElement):
     """
     Byte structure.
-
-    .. py:attribute:: value
     """
-    value = attr.ib(default=0, type=int)
-
     @classmethod
     def read(cls, fp, **kwargs):
         return cls(read_fmt('B3x', fp)[0])
@@ -288,7 +272,6 @@ class String(ValueElement):
 @register(TaggedBlockID.SAVING_MERGED_TRANSPARENCY16)
 @register(TaggedBlockID.SAVING_MERGED_TRANSPARENCY32)
 @register(TaggedBlockID.INVERT)
-@attr.s()
 class Empty(BaseElement):
     """Empty structure."""
     @classmethod
@@ -313,26 +296,53 @@ class Empty(BaseElement):
 @register(TaggedBlockID.SOLID_COLOR_SHEET_SETTING)
 @register(TaggedBlockID.UNICODE_PATH_NAME)
 @register(TaggedBlockID.VIBRANCE)
-@attr.s
-class DescriptorBlock(BaseElement):
+@attr.s(repr=False)
+class DescriptorBlock(Descriptor):
     """
-    Integer structure.
+    Dict-like Descriptor-based structure. See
+    :py:class:`~psd_tools2.decoder.descriptor.Descriptor`.
 
     .. py:attribute:: version
-    .. py:attribute:: data
     """
     version = attr.ib(default=1, type=int)
-    data = attr.ib(default=None, type=Descriptor)
 
     @classmethod
     def read(cls, fp, **kwargs):
         version = read_fmt('I', fp)[0]
-        data = Descriptor.read(fp)
-        return cls(version, data)
+        return cls(version=version, **cls._read_body(fp))
 
     def write(self, fp, padding=4):
         written = write_fmt(fp, 'I', self.version)
-        written += self.data.write(fp)
+        written += self._write_body(fp)
+        written += write_padding(fp, written, padding)
+        return written
+
+
+@register(TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO)
+@register(TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V0)
+@register(TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V1)
+@register(TaggedBlockID.VECTOR_ORIGINATION_DATA)
+@attr.s(repr=False)
+class DescriptorBlock2(Descriptor):
+    """
+    Dict-like Descriptor-based structure. See
+    :py:class:`~psd_tools2.decoder.descriptor.Descriptor`.
+
+    .. py:attribute:: version
+    .. py:attribute:: data_version
+    """
+    version = attr.ib(default=1, type=int)
+    data_version = attr.ib(default=16, type=int, validator=in_((16,)))
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        version, data_version = read_fmt('2I', fp)
+        return cls(version=version, data_version=data_version,
+                   **cls._read_body(fp))
+
+    def write(self, fp, padding=4):
+        written = write_fmt(fp, '2I', self.version, self.data_version)
+        written += self._write_body(fp)
         written += write_padding(fp, written, padding)
         return written
 
@@ -343,10 +353,8 @@ class ChannelBlendingRestrictionsSetting(ListElement):
     """
     ChannelBlendingRestrictionsSetting structure.
 
-    List-like element, consisting of list of restricted channel numbers (int).
+    List of restricted channel numbers (int).
     """
-    items = attr.ib(factory=list)
-
     @classmethod
     def read(cls, fp, **kwargs):
         items = []
@@ -355,7 +363,7 @@ class ChannelBlendingRestrictionsSetting(ListElement):
         return cls(items)
 
     def write(self, fp, **kwargs):
-        return write_fmt(fp, '%dI' % len(self), *self.items)
+        return write_fmt(fp, '%dI' % len(self), *self._items)
 
 
 @register(TaggedBlockID.BRIGHTNESS_AND_CONTRAST)
@@ -407,13 +415,10 @@ class FilterMask(BaseElement):
 
 
 @register(TaggedBlockID.METADATA_SETTING)
-@attr.s(repr=False)
 class MetadataSettings(ListElement):
     """
     MetadataSettings structure.
     """
-    items = attr.ib(factory=list)
-
     @classmethod
     def read(cls, fp, **kwargs):
         count = read_fmt('I', fp)[0]
@@ -423,9 +428,8 @@ class MetadataSettings(ListElement):
         return cls(items)
 
     def write(self, fp, **kwargs):
-        written = write_fmt(fp, 'I', len(self.items))
-        for item in self:
-            written += item.write(fp)
+        written = write_fmt(fp, 'I', len(self))
+        written += sum(item.write(fp) for item in self)
         return written
 
 
@@ -512,7 +516,7 @@ class ReferencePoint(ValueElement):
 
     .. py:attribute:: value
     """
-    value = attr.ib(default=None, converter=list)
+    value = attr.ib(factory=list, converter=list)
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -758,33 +762,3 @@ class VectorMaskSetting(BaseElement):
     @property
     def disable(self):
         return self.flags & 4
-
-
-@register(TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO)
-@register(TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V0)
-@register(TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V1)
-@register(TaggedBlockID.VECTOR_ORIGINATION_DATA)
-@attr.s
-class VersionedDescriptorBlock(BaseElement):
-    """
-    VersionedDescriptorBlock structure.
-
-    .. py:attribute:: version
-    .. py:attribute:: data_version
-    .. py:attribute:: data
-    """
-    version = attr.ib(default=1, type=int)
-    data_version = attr.ib(default=16, type=int, validator=in_((16,)))
-    data = attr.ib(default=None, type=Descriptor)
-
-    @classmethod
-    def read(cls, fp, **kwargs):
-        version, data_version = read_fmt('2I', fp)
-        data = Descriptor.read(fp)
-        return cls(version, data_version, data)
-
-    def write(self, fp, padding=4):
-        written = write_fmt(fp, '2I', self.version, self.data_version)
-        written += self.data.write(fp)
-        written += write_padding(fp, written, padding)
-        return written

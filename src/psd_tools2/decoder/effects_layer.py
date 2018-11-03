@@ -342,13 +342,11 @@ class SolidFillInfo(BaseElement):
 @attr.s
 class EffectsLayer(DictElement):
     """
-    EffectsLayer structure.
+    Dict-like EffectsLayer structure.
 
     .. py:attribute:: version
-    .. py:attribute:: items
     """
     version = attr.ib(default=0, type=int)
-    items = attr.ib(factory=OrderedDict, converter=OrderedDict)
 
     EFFECT_TYPES = {
         EffectOSType.COMMON_STATE: CommonStateInfo,
@@ -371,14 +369,14 @@ class EffectsLayer(DictElement):
             kls = cls.EFFECT_TYPES.get(ostype)
             with io.BytesIO(read_length_block(fp)) as f:
                 items.append((ostype, kls.read(f)))
-        return cls(version, OrderedDict(items))
+        return cls(version=version, items=items)
 
     def write(self, fp, **kwargs):
-        written = write_fmt(fp, '2H', self.version, len(self.items))
-        for key in self.items:
+        written = write_fmt(fp, '2H', self.version, len(self))
+        for key in self:
             written += write_fmt(fp, '4s4s', b'8BIM', key.value)
             written += write_length_block(
-                fp, lambda f: self.items[key].write(f)
+                fp, lambda f: self[key].write(f)
             )
         written += write_padding(fp, written, 4)
         return written

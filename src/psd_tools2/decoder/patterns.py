@@ -18,13 +18,11 @@ from psd_tools2.utils import (
 logger = logging.getLogger(__name__)
 
 
-@attr.s(repr=False)
 class Patterns(ListElement):
     """
-    List-like patterns structure.
+    List of Pattern structure. See
+    :py:class:`~psd_tools2.decoder.patterns.Pattern`.
     """
-    items = attr.ib(factory=list)
-
     @classmethod
     def read(cls, fp, **kwargs):
         items = []
