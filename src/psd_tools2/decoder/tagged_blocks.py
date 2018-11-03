@@ -16,6 +16,7 @@ from psd_tools2.decoder.effects_layer import EffectsLayer
 from psd_tools2.decoder.filter_effects import FilterEffects
 from psd_tools2.decoder.engine_data import EngineData, EngineData2
 from psd_tools2.decoder.patterns import Patterns
+from psd_tools2.decoder.vector import VectorMaskSetting
 from psd_tools2.constants import BlendMode, SectionDivider, TaggedBlockID
 from psd_tools2.validators import in_
 from psd_tools2.utils import (
@@ -38,6 +39,8 @@ TYPES.update({
     TaggedBlockID.PATTERNS2: Patterns,
     TaggedBlockID.PATTERNS3: Patterns,
     TaggedBlockID.TEXT_ENGINE_DATA: EngineData2,
+    TaggedBlockID.VECTOR_MASK_SETTING1: VectorMaskSetting,
+    TaggedBlockID.VECTOR_MASK_SETTING2: VectorMaskSetting,
 })
 
 
@@ -720,45 +723,3 @@ class UserMask(BaseElement):
         written = self.color.write(fp)
         written += write_fmt(fp, 'HBx', self.opacity, self.flag)
         return written
-
-
-@register(TaggedBlockID.VECTOR_MASK_SETTING1)
-@register(TaggedBlockID.VECTOR_MASK_SETTING2)
-@attr.s
-class VectorMaskSetting(BaseElement):
-    """
-    VectorMaskSetting structure.
-
-    .. py:attribute:: version
-    .. py:attribute:: invert
-    .. py:attribute:: not_link
-    .. py:attribute:: disable
-    .. py:attribute:: path
-    """
-    version = attr.ib(default=3, type=int)
-    flags = attr.ib(default=0, type=int, repr=False)
-    path = attr.ib(default=None)
-
-    @classmethod
-    def read(cls, fp, **kwargs):
-        version, flags = read_fmt('2I', fp)
-        assert version == 3, 'Unknown vector mask version %d' % version
-        path = fp.read()
-        return cls(version, flags, path)
-
-    def write(self, fp, **kwargs):
-        written = write_fmt(fp, '2I', self.version, self.flags)
-        written += write_bytes(fp, self.path)
-        return written
-
-    @property
-    def invert(self):
-        return self.flags & 1
-
-    @property
-    def not_link(self):
-        return self.flags & 2
-
-    @property
-    def disable(self):
-        return self.flags & 4
