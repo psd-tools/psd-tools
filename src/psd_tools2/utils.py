@@ -292,7 +292,7 @@ def decode_fixed_point_32bit(data):
     return lo + hi / (2**16 - 1)
 
 
-def new_registry():
+def new_registry(attribute=None):
     """
     Returns an empty dict and a @register decorator.
     """
@@ -301,6 +301,8 @@ def new_registry():
     def register(key):
         def decorator(func):
             registry[key] = func
+            if attribute:
+                setattr(func, attribute, key)
             return func
         return decorator
 

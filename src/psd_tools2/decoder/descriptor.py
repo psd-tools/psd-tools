@@ -17,21 +17,13 @@ from psd_tools2.constants import OSType, UnitFloatType, DescriptorClassID
 from psd_tools2.validators import in_
 from psd_tools2.utils import (
     read_fmt, write_fmt, read_unicode_string, write_unicode_string,
-    write_bytes, read_length_block, write_length_block,
+    write_bytes, read_length_block, write_length_block, new_registry
 )
 
 logger = logging.getLogger(__name__)
 
 
-TYPES = {}
-
-
-def register(ostype):
-    def wrapper(cls):
-        TYPES[ostype] = cls
-        setattr(cls, 'ostype', ostype)
-        return cls
-    return wrapper
+TYPES, register = new_registry(attribute='ostype')
 
 
 def read_length_and_key(fp):
