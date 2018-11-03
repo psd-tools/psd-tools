@@ -18,13 +18,11 @@ TYPES, register = new_registry(attribute='selector')
 
 
 def decode_fixed_point(numbers):
-    return tuple(numbers)
-    # return tuple(float(x) / 0x01000000 for x in numbers)
+    return tuple(float(x) / 0x01000000 for x in numbers)
 
 
 def encode_fixed_point(numbers):
-    return tuple(numbers)
-    # return tuple(int(x * 0x01000000) for x in numbers)
+    return tuple(int(x * 0x01000000) for x in numbers)
 
 
 @attr.s(repr=False)
