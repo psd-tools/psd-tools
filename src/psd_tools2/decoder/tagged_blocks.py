@@ -356,6 +356,30 @@ class DescriptorBlock2(Descriptor):
         return written
 
 
+@register(TaggedBlockID.BRIGHTNESS_AND_CONTRAST)
+@attr.s
+class BrightnessContrast(BaseElement):
+    """
+    BrightnessContrast structure.
+
+    .. py:attribute:: brightness
+    .. py:attribute:: contrast
+    .. py:attribute:: mean
+    .. py:attribute:: lab_only
+    """
+    brightness = attr.ib(default=0, type=int)
+    contrast = attr.ib(default=0, type=int)
+    mean = attr.ib(default=0, type=int)
+    lab_only = attr.ib(default=0, type=int)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        return cls(*read_fmt('3HBx', fp))
+
+    def write(self, fp, **kwargs):
+        return write_fmt(fp, '3HBx', *attr.astuple(self))
+
+
 @register(TaggedBlockID.CHANNEL_BLENDING_RESTRICTIONS_SETTING)
 @attr.s(repr=False)
 class ChannelBlendingRestrictionsSetting(ListElement):
@@ -459,28 +483,30 @@ class ColorLookup(DescriptorBlock2):
         return written
 
 
-@register(TaggedBlockID.BRIGHTNESS_AND_CONTRAST)
+@register(TaggedBlockID.EXPOSURE)
 @attr.s
-class BrightnessContrast(BaseElement):
+class Exposure(BaseElement):
     """
-    BrightnessContrast structure.
+    Exposure structure.
 
-    .. py:attribute:: brightness
-    .. py:attribute:: contrast
-    .. py:attribute:: mean
-    .. py:attribute:: lab_only
+    .. py:attribute:: version
+    .. py:attribute:: exposure
+    .. py:attribute:: offset
+    .. py:attribute:: gamma
     """
-    brightness = attr.ib(default=0, type=int)
-    contrast = attr.ib(default=0, type=int)
-    mean = attr.ib(default=0, type=int)
-    lab_only = attr.ib(default=0, type=int)
+    version = attr.ib(default=0, type=int)
+    exposure = attr.ib(default=0., type=float)
+    offset = attr.ib(default=0., type=float)
+    gamma = attr.ib(default=0., type=float)
 
     @classmethod
     def read(cls, fp, **kwargs):
-        return cls(*read_fmt('3HBx', fp))
+        return cls(*read_fmt('H3f', fp))
 
-    def write(self, fp, **kwargs):
-        return write_fmt(fp, '3HBx', *attr.astuple(self))
+    def write(self, fp, padding=4):
+        written = write_fmt(fp, 'H3f', *attr.astuple(self))
+        written += write_padding(fp, written, padding)
+        return written
 
 
 @register(TaggedBlockID.FILTER_MASK)
