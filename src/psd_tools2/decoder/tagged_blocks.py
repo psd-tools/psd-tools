@@ -375,6 +375,28 @@ class ChannelBlendingRestrictionsSetting(ListElement):
         return write_fmt(fp, '%dI' % len(self), *self._items)
 
 
+@register(TaggedBlockID.COLOR_LOOKUP)
+class ColorLookup(DescriptorBlock2):
+    """
+    Dict-like Descriptor-based structure. See
+    :py:class:`~psd_tools2.decoder.descriptor.Descriptor`.
+
+    .. py:attribute:: version
+    .. py:attribute:: data_version
+    """
+    @classmethod
+    def read(cls, fp, **kwargs):
+        version, data_version = read_fmt('HI', fp)
+        return cls(version=version, data_version=data_version,
+                   **cls._read_body(fp))
+
+    def write(self, fp, padding=4):
+        written = write_fmt(fp, 'HI', self.version, self.data_version)
+        written += self._write_body(fp)
+        written += write_padding(fp, written, padding)
+        return written
+
+
 @register(TaggedBlockID.BRIGHTNESS_AND_CONTRAST)
 @attr.s
 class BrightnessContrast(BaseElement):
