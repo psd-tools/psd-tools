@@ -302,12 +302,47 @@ class Exposure(BaseElement):
         return written
 
 
-# @register(TaggedBlockID.HUE_SATURATION)
-# @attr.s
-# class Levels(BaseElement):
-#     """
-#     Levels structure.
-#     """
+@register(TaggedBlockID.HUE_SATURATION_V4)
+@register(TaggedBlockID.HUE_SATURATION)
+@attr.s
+class HueSaturation(BaseElement):
+    """
+    HueSaturation structure.
+
+    .. py:attribute:: version
+    .. py:attribute:: enable
+    .. py:attribute:: colorization
+    .. py:attribute:: master
+    .. py:attribute:: items
+    """
+    version = attr.ib(default=2, type=int)
+    enable = attr.ib(default=1, type=int)
+    colorization = attr.ib(default=(0, 0, 0), type=tuple)
+    master = attr.ib(default=(0, 0, 0), type=tuple)
+    items = attr.ib(factory=list, converter=list)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        version, enable = read_fmt('HBx', fp)
+        assert version == 2, 'Invalid version %d' % (version)
+        colorization = read_fmt('3h', fp)
+        master = read_fmt('3h', fp)
+        items = []
+        for _ in range(6):
+            range_values = read_fmt('4h', fp)
+            settings_values = read_fmt('3h', fp)
+            items.append([range_values, settings_values])
+        return cls(version, enable, colorization, master, items)
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, 'HBx', self.version, self.enable)
+        written += write_fmt(fp, '3h', *self.colorization)
+        written += write_fmt(fp, '3h', *self.master)
+        for item in self.items:
+            written += write_fmt(fp, '4h', *item[0])
+            written += write_fmt(fp, '3h', *item[1])
+        written += write_padding(fp, written, 4)
+        return written
 
 
 # @register(TaggedBlockID.LEVELS)
