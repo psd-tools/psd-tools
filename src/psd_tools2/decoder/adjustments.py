@@ -353,12 +353,52 @@ class HueSaturation(BaseElement):
 #     """
 
 
-# @register(TaggedBlockID.PHOTO_FILTER)
-# @attr.s
-# class PhotoFilter(BaseElement):
-#     """
-#     PhotoFilter structure.
-#     """
+@register(TaggedBlockID.PHOTO_FILTER)
+@attr.s
+class PhotoFilter(BaseElement):
+    """
+    PhotoFilter structure.
+
+    .. py:attribute:: version
+    .. py:attribute:: xyz
+    .. py:attribute:: color_space
+    .. py:attribute:: color_components
+    .. py:attribute:: density
+    .. py:attribute:: luminosity
+    """
+    version = attr.ib(default=0, type=int, validator=in_((2, 3)))
+    xyz = attr.ib(default=(0, 0, 0), type=tuple)
+    color_space = attr.ib(default=None)
+    color_components = attr.ib(default=None)
+    density = attr.ib(default=None)
+    luminosity = attr.ib(default=None)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        version = read_fmt('H', fp)[0]
+        assert version in (2, 3), 'Invalid version %d' % (version)
+        if version == 3:
+            xyz = read_fmt('3I', fp)
+            color_space = None
+            color_components = None
+        else:
+            xyz = None
+            color_space = read_fmt('H', fp)[0]
+            color_components = read_fmt('4H', fp)
+        density, luminosity = read_fmt('IB', fp)
+        return cls(version, xyz, color_space, color_components, density,
+                   luminosity)
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, 'H', self.version)
+        if self.version == 3:
+            written += write_fmt(fp, '3I', *self.xyz)
+        else:
+            written += write_fmt(fp, 'H4H', self.color_space,
+                                 *self.color_components)
+        written += write_fmt(fp, 'IB', self.density, self.luminosity)
+        written += write_padding(fp, written, 4)
+        return written
 
 
 @register(TaggedBlockID.SELECTIVE_COLOR)
