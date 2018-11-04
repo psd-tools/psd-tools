@@ -145,12 +145,135 @@ class ChannelMixer(BaseElement):
 #     """
 
 
-# @register(TaggedBlockID.GRADIENT_MAP)
-# @attr.s
-# class GradientMap(BaseElement):
-#     """
-#     GradientMap structure.
-#     """
+@register(TaggedBlockID.GRADIENT_MAP)
+@attr.s
+class GradientMap(BaseElement):
+    """
+    GradientMap structure.
+
+    .. py:attribute:: version
+    .. py:attribute:: is_reversed
+    .. py:attribute:: is_dithered
+    .. py:attribute:: name
+    .. py:attribute:: color_stops
+    .. py:attribute:: transparency_stops
+    .. py:attribute:: expansion
+    .. py:attribute:: interpolation
+    .. py:attribute:: length
+    .. py:attribute:: mode
+    .. py:attribute:: random_seed
+    .. py:attribute:: show_transparency
+    .. py:attribute:: use_vector_color
+    .. py:attribute:: roughness
+    .. py:attribute:: color_model
+    .. py:attribute:: minimum_color
+    .. py:attribute:: maximum_color
+    """
+    version = attr.ib(default=1, type=int, validator=in_((1,)))
+    is_reversed = attr.ib(default=0, type=int)
+    is_dithered = attr.ib(default=0, type=int)
+    name = attr.ib(default='', type=str)
+    color_stops = attr.ib(factory=list, converter=list)
+    transparency_stops = attr.ib(factory=list, converter=list)
+    expansion = attr.ib(default=2, type=int, validator=in_((2,)))
+    interpolation = attr.ib(default=0, type=int)
+    length = attr.ib(default=32, type=int, validator=in_((32,)))
+    mode = attr.ib(default=0, type=int)
+    random_seed = attr.ib(default=0, type=int)
+    show_transparency = attr.ib(default=0, type=int)
+    use_vector_color = attr.ib(default=0, type=int)
+    roughness = attr.ib(default=0, type=int)
+    color_model = attr.ib(default=0, type=int)
+    minimum_color = attr.ib(factory=list, converter=list)
+    maximum_color = attr.ib(factory=list, converter=list)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        version, is_reversed, is_dithered = read_fmt('H2B', fp)
+        assert version == 1, 'Invalid version %s' % (version)
+        name = read_unicode_string(fp)
+        count = read_fmt('H', fp)[0]
+        color_stops = [ColorStop.read(fp) for _ in range(count)]
+        count = read_fmt('H', fp)[0]
+        transparency_stops = [TransparencyStop.read(fp) for _ in range(count)]
+        expansion, interpolation, length, mode = read_fmt('4H', fp)
+        assert expansion == 2, 'Invalid expansion %d' % (expansion)
+        random_seed, show_transparency, use_vector_color = read_fmt('I2H', fp)
+        roughness, color_model = read_fmt('IH', fp)
+        minimum_color = read_fmt('4H', fp)
+        maximum_color = read_fmt('4H', fp)
+        read_fmt('2x', fp)  # Dummy?
+        return cls(version, is_reversed, is_dithered, name, color_stops,
+                   transparency_stops, expansion, interpolation, length,
+                   mode, random_seed, show_transparency, use_vector_color,
+                   roughness, color_model, minimum_color, maximum_color)
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, 'H2B', self.version, self.is_reversed,
+                            self.is_dithered)
+        written += write_unicode_string(fp, self.name)
+        written += write_fmt(fp, 'H', len(self.color_stops))
+        written += sum(stop.write(fp) for stop in self.color_stops)
+        written += write_fmt(fp, 'H', len(self.transparency_stops))
+        written += sum(stop.write(fp) for stop in self.transparency_stops)
+        written += write_fmt(
+            fp, '4HI2HIH', self.expansion, self.interpolation, self.length,
+            self.mode, self.random_seed, self.show_transparency,
+            self.use_vector_color, self.roughness, self.color_model
+        )
+        written += write_fmt(fp, '4H', *self.minimum_color)
+        written += write_fmt(fp, '4H', *self.maximum_color)
+        written += write_fmt(fp, '2x')
+        written += write_padding(fp, written, 4)
+        return written
+
+
+@attr.s
+class ColorStop(BaseElement):
+    """
+    ColorStop of GradientMap.
+
+    .. py:attribute:: location
+    .. py:attribute:: midpoint
+    .. py:attribute:: mode
+    .. py:attribute:: color
+    """
+    location = attr.ib(default=0, type=int)
+    midpoint = attr.ib(default=0, type=int)
+    mode = attr.ib(default=0, type=int)
+    color = attr.ib(default=(0, 0, 0, 0), type=tuple)
+
+    @classmethod
+    def read(cls, fp):
+        location, midpoint, mode = read_fmt('2IH', fp)
+        color = read_fmt('4H2x', fp)
+        return cls(location, midpoint, mode, color)
+
+    def write(self, fp):
+        return write_fmt(
+            fp, '2I5H2x', self.location, self.midpoint, self.mode, *self.color
+        )
+
+
+@attr.s
+class TransparencyStop(BaseElement):
+    """
+    TransparencyStop of GradientMap.
+
+    .. py:attribute:: location
+    .. py:attribute:: midpoint
+    .. py:attribute:: opacity
+    """
+    location = attr.ib(default=0, type=int)
+    midpoint = attr.ib(default=0, type=int)
+    opacity = attr.ib(default=0, type=int)
+
+    @classmethod
+    def read(cls, fp):
+        return cls(*read_fmt('2IH', fp))
+
+    def write(self, fp):
+        return write_fmt(fp, '2IH', *attr.astuple(self))
 
 
 @register(TaggedBlockID.EXPOSURE)
