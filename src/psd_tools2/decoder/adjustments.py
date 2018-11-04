@@ -7,7 +7,9 @@ import io
 import logging
 
 from psd_tools2.constants import TaggedBlockID
-from psd_tools2.decoder.base import EmptyElement, BaseElement, IntegerElement
+from psd_tools2.decoder.base import (
+    BaseElement, EmptyElement, IntegerElement, ListElement
+)
 from psd_tools2.decoder.color import Color
 from psd_tools2.decoder.descriptor import DescriptorBlock, DescriptorBlock2
 from psd_tools2.validators import in_
@@ -345,12 +347,95 @@ class HueSaturation(BaseElement):
         return written
 
 
-# @register(TaggedBlockID.LEVELS)
-# @attr.s
-# class Levels(BaseElement):
-#     """
-#     Levels structure.
-#     """
+@register(TaggedBlockID.LEVELS)
+@attr.s
+class Levels(ListElement):
+    """
+    List of level records. See :py:class:
+    `~psd_tools2.decoder.adjustments.LevelRecord`.
+
+    .. py:attribute:: version
+
+        Version.
+
+    .. py:attribute:: extra_version
+
+        Version of the extra field.
+    """
+    version = attr.ib(default=0, type=int, validator=in_((2,)))
+    extra_version = attr.ib(default=None)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        version = read_fmt('H', fp)[0]
+        assert version == 2, 'Invalid version %d' % (version)
+        items = [LevelRecord.read(fp) for _ in range(29)]
+
+        extra_version = None
+        if is_readable(fp, 6):
+            signature, extra_version = read_fmt('4sH', fp)
+            assert signature == b'Lvls', 'Invalid signature %r' % (signature)
+            assert extra_version == 3, 'Invalid extra version %d' % (
+                extra_version
+            )
+            count = read_fmt('H', fp)[0]
+            items += [LevelRecord.read(fp) for _ in range(count - 29)]
+
+        return cls(version=version, extra_version=extra_version, items=items)
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, 'H', self.version)
+        for index in range(29):
+            written += self[index].write(fp)
+
+        if self.extra_version is not None:
+            written += write_fmt(fp, '4sH', b'Lvls', self.extra_version)
+            written += write_fmt(fp, 'H', len(self))
+            for index in range(29, len(self)):
+                written += self[index].write(fp)
+
+        written += write_padding(fp, written, 4)
+        return written
+
+
+@attr.s
+class LevelRecord(BaseElement):
+    """
+    Level record.
+
+    .. py:attribute:: input_floor
+
+        Input floor (0...253).
+
+    .. py:attribute:: input_ceiling
+
+        Input ceiling (2...255).
+
+    .. py:attribute:: output_floor
+
+        Output floor (0...255). Matched to input floor.
+
+    .. py:attribute:: output_ceiling
+
+        Output ceiling (0...255).
+
+    .. py:attribute:: gamma
+
+        Gamma. Short integer from 10...999 representing 0.1...9.99. Applied
+        to all image data.
+    """
+    input_floor = attr.ib(default=0, type=int)
+    input_ceiling = attr.ib(default=0, type=int)
+    output_floor = attr.ib(default=0, type=int)
+    output_ceiling = attr.ib(default=0, type=int)
+    gamma = attr.ib(default=0, type=int)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        return cls(*read_fmt('5H', fp))
+
+    def write(self, fp, **kwargs):
+        return write_fmt(fp, '5H', *attr.astuple(self))
 
 
 @register(TaggedBlockID.PHOTO_FILTER)
