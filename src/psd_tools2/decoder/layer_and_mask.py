@@ -7,11 +7,12 @@ import io
 import logging
 
 from psd_tools2.decoder.base import BaseElement, ListElement
-from psd_tools2.decoder.tagged_blocks import TaggedBlocks
+from psd_tools2.decoder.tagged_blocks import TaggedBlocks, register
 from psd_tools2.decoder.image_data import compress, decompress
 from psd_tools2.validators import in_, range_
 from psd_tools2.constants import (
-    BlendMode, Clipping, Compression, ChannelID, GlobalLayerMaskKind
+    BlendMode, Clipping, Compression, ChannelID, GlobalLayerMaskKind,
+    TaggedBlockID
 )
 from psd_tools2.utils import (
     read_fmt, write_fmt, read_pascal_string, write_pascal_string,
@@ -189,6 +190,19 @@ class LayerInfo(BaseElement):
                                   self.channel_image_data._lengths):
             for channel_info, length in zip(layer.channel_info, lengths):
                 channel_info.length = length
+
+
+@register(TaggedBlockID.LAYER_16)
+@register(TaggedBlockID.LAYER_32)
+class LayerInfoBlock(LayerInfo):
+    """
+    """
+    @classmethod
+    def read(cls, fp, encoding='macroman', version=1, **kwargs):
+        return cls._read_body(fp, encoding, version)
+
+    def write(self, fp, encoding='macroman', version=1, padding=4, **kwargs):
+        return self._write_body(fp, encoding, version, padding)
 
 
 @attr.s
@@ -477,7 +491,7 @@ class LayerRecord(BaseElement):
         mask_data = MaskData.read(fp)
         blending_ranges = LayerBlendingRanges.read(fp)
         name = read_pascal_string(fp, encoding, padding=4)
-        tagged_blocks = TaggedBlocks.read(fp, version, padding=1)
+        tagged_blocks = TaggedBlocks.read(fp, version=version, padding=1)
         return mask_data, blending_ranges, name, tagged_blocks
 
     def write(self, fp, encoding='macroman', version=1):

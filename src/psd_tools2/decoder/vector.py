@@ -74,7 +74,7 @@ class VectorStrokeContentSetting(Descriptor):
         key, version = read_fmt('4sI', fp)
         return cls(key=key, version=version, **cls._read_body(fp))
 
-    def write(self, fp, padding=4):
+    def write(self, fp, padding=4, **kwargs):
         written = write_fmt(fp, '4sI', self.key, self.version)
         written += self._write_body(fp)
         written += write_padding(fp, written, padding)

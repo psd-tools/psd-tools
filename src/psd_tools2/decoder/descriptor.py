@@ -747,7 +747,7 @@ class DescriptorBlock(Descriptor):
         version = read_fmt('I', fp)[0]
         return cls(version=version, **cls._read_body(fp))
 
-    def write(self, fp, padding=4):
+    def write(self, fp, padding=4, **kwargs):
         written = write_fmt(fp, 'I', self.version)
         written += self._write_body(fp)
         written += write_padding(fp, written, padding)
@@ -772,7 +772,7 @@ class DescriptorBlock2(Descriptor):
         return cls(version=version, data_version=data_version,
                    **cls._read_body(fp))
 
-    def write(self, fp, padding=4):
+    def write(self, fp, padding=4, **kwargs):
         written = write_fmt(fp, '2I', self.version, self.data_version)
         written += self._write_body(fp)
         written += write_padding(fp, written, padding)

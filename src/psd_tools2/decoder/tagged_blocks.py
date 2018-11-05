@@ -10,6 +10,7 @@ from collections import OrderedDict
 from psd_tools2.constants import (
     BlendMode, SectionDivider, TaggedBlockID, PlacedLayerType
 )
+import psd_tools2.decoder.layer_and_mask
 from psd_tools2.decoder.adjustments import ADJUSTMENT_TYPES
 from psd_tools2.decoder.base import (
     BaseElement, EmptyElement, ValueElement, IntegerElement, ListElement,
@@ -180,7 +181,7 @@ class TaggedBlock(BaseElement):
         # logger.debug('%s %r' % (key, trimmed_repr(data)))
         if kls:
             # try:
-            data = kls.frombytes(data)
+            data = kls.frombytes(data, version=version)
             # except (ValueError,):  # AssertionError also.
             #     logger.warning('Failed to read tagged block: %r' % (key))
         else:
@@ -202,7 +203,8 @@ class TaggedBlock(BaseElement):
             if hasattr(self.data, 'write'):
                 # It seems padding size applies at the block level here.
                 inner_padding = 1 if padding == 4 else 4
-                return self.data.write(f, padding=inner_padding)
+                return self.data.write(f, padding=inner_padding,
+                                       version=version)
             return write_bytes(f, self.data)
 
         fmt = self._length_format(self.key, version)
@@ -278,10 +280,10 @@ class String(ValueElement):
     value = attr.ib(default='', type=str)
 
     @classmethod
-    def read(cls, fp, padding=4):
+    def read(cls, fp, padding=4, **kwargs):
         return cls(read_unicode_string(fp, padding))
 
-    def write(self, fp, padding=4):
+    def write(self, fp, padding=4, **kwargs):
         return write_unicode_string(fp, self.value, padding)
 
 
@@ -413,7 +415,7 @@ class PlacedLayerData(BaseElement):
         return cls(kind, version, uuid, page, total_pages, anti_alias,
                    layer_type, transform, warp)
 
-    def write(self, fp, padding=4):
+    def write(self, fp, padding=4, **kwargs):
         written = write_fmt(fp, '4sI', self.kind, self.version)
         written += write_pascal_string(fp, self.uuid, 'macroman', padding=1)
         written += write_fmt(fp, '4I', self.page, self.total_pages,
@@ -558,7 +560,7 @@ class SmartObjectLayerData(BaseElement):
         data = DescriptorBlock.read(fp)
         return cls(kind, version, data)
 
-    def write(self, fp, padding=4):
+    def write(self, fp, padding=4, **kwargs):
         written = write_fmt(fp, '4sI', self.kind, self.version)
         written += self.data.write(fp, padding=1)
         written += write_padding(fp, written, padding)
@@ -616,7 +618,7 @@ class TypeToolObjectSetting(BaseElement):
         return cls(version, transform, text_version, text_data, warp_version,
                    warp, left, top, right, bottom)
 
-    def write(self, fp, padding=4):
+    def write(self, fp, padding=4, **kwargs):
         written = write_fmt(fp, 'H6d', self.version, *self.transform)
         written += write_fmt(fp, 'H', self.text_version)
         written += self.text_data.write(fp, padding=1)

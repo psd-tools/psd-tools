@@ -103,7 +103,7 @@ class ColorLookup(DescriptorBlock2):
         return cls(version=version, data_version=data_version,
                    **cls._read_body(fp))
 
-    def write(self, fp, padding=4):
+    def write(self, fp, padding=4, **kwargs):
         written = write_fmt(fp, 'HI', self.version, self.data_version)
         written += self._write_body(fp)
         written += write_padding(fp, written, padding)
@@ -222,7 +222,7 @@ class CurvesExtraMarker(ListElement):
             items.append(CurvesExtraItem.read(fp, **kwargs))
         return cls(version=version, items=items)
 
-    def write(self, fp):
+    def write(self, fp, **kwargs):
         written = write_fmt(fp, '4sHI', b'Crv ', self.version, len(self))
         written += sum(item.write(fp) for item in self)
         return written
@@ -410,7 +410,7 @@ class Exposure(BaseElement):
     def read(cls, fp, **kwargs):
         return cls(*read_fmt('H3f', fp))
 
-    def write(self, fp, padding=4):
+    def write(self, fp, padding=4, **kwargs):
         written = write_fmt(fp, 'H3f', *attr.astuple(self))
         written += write_padding(fp, written, padding)
         return written
@@ -543,10 +543,10 @@ class LevelRecord(BaseElement):
     gamma = attr.ib(default=0, type=int)
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp):
         return cls(*read_fmt('5H', fp))
 
-    def write(self, fp, **kwargs):
+    def write(self, fp):
         return write_fmt(fp, '5H', *attr.astuple(self))
 
 
