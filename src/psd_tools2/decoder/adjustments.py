@@ -139,12 +139,124 @@ class ChannelMixer(BaseElement):
         return written
 
 
-# @register(TaggedBlockID.CURVES)
-# @attr.s
-# class Curves(BaseElement):
-#     """
-#     Curves structure.
-#     """
+@register(TaggedBlockID.CURVES)
+@attr.s
+class Curves(BaseElement):
+    """
+    Curves structure.
+
+    .. py:attribute:: is_map
+    .. py:attribute:: version
+    .. py:attribute:: count
+    .. py:attribute:: data
+    .. py:attribute:: extra
+    """
+    is_map = attr.ib(default=False, type=bool, converter=bool)
+    version = attr.ib(default=0, type=int)
+    count_map = attr.ib(default=0, type=int)
+    data = attr.ib(factory=list, converter=list)
+    extra = attr.ib(default=None)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        # NOTE: This is highly experimental and unstable.
+        is_map, version, count_map = read_fmt('BHI', fp)
+        assert version in (1, 4), 'Invalid version %d' % (version)
+
+        if version == 1:
+            count = bin(count_map).count('1')  # Bitmap = channel index?
+        else:
+            count = count_map
+
+        if is_map:
+            # This lookup format is never documented.
+            data = [list(read_fmt('256B', fp)) for _ in range(count)]
+        else:
+            data = []
+            for _ in range(count):
+                point_count = read_fmt('H', fp)[0]
+                assert 2 <= point_count and point_count <= 19, (
+                    'Curves point count not in [2, 19]'
+                )
+                points = [read_fmt('2H', fp) for i in range(point_count)]
+                data.append(points)
+
+        extra = None
+        if version == 1:
+            extra = CurvesExtraMarker.read(fp, is_map=is_map)
+
+        return cls(is_map, version, count_map, data, extra)
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, 'BHI', self.is_map, self.version,
+                            self.count_map)
+        if self.is_map:
+            written += sum(write_fmt(fp, '256B', *item) for item in self.data)
+        else:
+            for points in self.data:
+                written += write_fmt(fp, 'H', len(points))
+                written += sum(write_fmt(fp, '2H', *item) for item in points)
+
+        if self.extra:
+            written += self.extra.write(fp)
+
+        written += write_padding(fp, written, 4)
+        return written
+
+
+@attr.s(repr=False)
+class CurvesExtraMarker(ListElement):
+    """
+    Curves extra marker structure.
+
+    .. py:attribute:: version
+    """
+    version = attr.ib(default=4, type=int, validator=in_((4,)))
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        signature, version, count = read_fmt('4sHI', fp)
+        assert signature == b'Crv ', 'Invalid signature %r' % (signature)
+        items = []
+        for i in range(count):
+            items.append(CurvesExtraItem.read(fp, **kwargs))
+        return cls(version=version, items=items)
+
+    def write(self, fp):
+        written = write_fmt(fp, '4sHI', b'Crv ', self.version, len(self))
+        written += sum(item.write(fp) for item in self)
+        return written
+
+
+@attr.s
+class CurvesExtraItem(BaseElement):
+    """
+    Curves extra item.
+
+    .. py:attribute:: channel_id
+    .. py:attribute:: points
+    """
+    channel_id = attr.ib(default=0, type=int)
+    points = attr.ib(factory=list, converter=list)
+
+    @classmethod
+    def read(cls, fp, is_map=False, **kwargs):
+        if is_map:
+            channel_id = read_fmt('H', fp)[0]
+            points = list(read_fmt('256B', fp))
+        else:
+            channel_id, point_count = read_fmt('2H', fp)
+            points = [read_fmt('2H', fp) for c in range(point_count)]
+        return cls(channel_id, points)
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, 'H', self.channel_id)
+        if len(self.points) > 0 and isinstance(self.points[0], int):
+            written += write_fmt(fp, '256B', *self.points)
+        else:
+            written += write_fmt(fp, 'H', len(self.points))
+            written += sum(write_fmt(fp, '2H', *p) for p in self.points)
+        return written
 
 
 @register(TaggedBlockID.GRADIENT_MAP)
