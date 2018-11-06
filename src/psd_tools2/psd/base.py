@@ -139,7 +139,7 @@ class NumericElement(ValueElement):
     """
     Single value element that has a numeric `value` attribute.
     """
-    value = attr.ib(default=1.0, type=float, converter=float)
+    value = attr.ib(default=0.0, type=float, converter=float)
 
     def __floordiv__(self, other):
         return self.value.__floordiv__(other)
@@ -201,15 +201,22 @@ class NumericElement(ValueElement):
     def __coerce__(self, other):
         return self.value.__coerce__(other)
 
+    @classmethod
+    def read(cls, fp, **kwargs):
+        return cls(read_fmt('d', fp)[0])
+
+    def write(self, fp, **kwargs):
+        return write_fmt(fp, 'd', self.value)
+
 
 @attr.s(repr=False)
 class IntegerElement(NumericElement):
     """
-    Single integer or bool value element that has a `value` attribute.
+    Single integer value element that has a `value` attribute.
 
     Use with `@attr.s(repr=False)` decorator.
     """
-    value = attr.ib(default=1, type=int, converter=int)
+    value = attr.ib(default=0, type=int, converter=int)
 
     def __cmp__(self, other):
         return self.value.__cmp__(other)
@@ -256,15 +263,59 @@ class IntegerElement(NumericElement):
     def __index__(self):
         return self.value.__index__()
 
+    @classmethod
+    def read(cls, fp, **kwargs):
+        return cls(read_fmt('I', fp)[0])
+
+    def write(self, fp, **kwargs):
+        return write_fmt(fp, 'I', self.value)
+
+
+@attr.s(repr=False)
+class ShortIntegerElement(IntegerElement):
+    """
+    Single short integer element that has a `value` attribute.
+
+    Use with `@attr.s(repr=False)` decorator.
+    """
+    @classmethod
+    def read(cls, fp, **kwargs):
+        return cls(read_fmt('H2x', fp)[0])
+
+    def write(self, fp, **kwargs):
+        return write_fmt(fp, 'H2x', self.value)
+
+
+@attr.s(repr=False)
+class ByteElement(IntegerElement):
+    """
+    Single 1-byte integer element that has a `value` attribute.
+
+    Use with `@attr.s(repr=False)` decorator.
+    """
+    @classmethod
+    def read(cls, fp, **kwargs):
+        return cls(read_fmt('B3x', fp)[0])
+
+    def write(self, fp, **kwargs):
+        return write_fmt(fp, 'B3x', self.value)
+
 
 @attr.s(repr=False)
 class BooleanElement(IntegerElement):
     """
-    Single integer or bool value element that has a `value` attribute.
+    Single bool value element that has a `value` attribute.
 
     Use with `@attr.s(repr=False)` decorator.
     """
     value = attr.ib(default=False, type=bool, converter=bool)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        return cls(read_fmt('?3x', fp)[0])
+
+    def write(self, fp, **kwargs):
+        return write_fmt(fp, '?3x', self.value)
 
 
 @attr.s(repr=False)

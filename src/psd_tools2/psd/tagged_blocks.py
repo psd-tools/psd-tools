@@ -13,8 +13,8 @@ from psd_tools2.constants import (
 import psd_tools2.psd.layer_and_mask
 from psd_tools2.psd.adjustments import ADJUSTMENT_TYPES
 from psd_tools2.psd.base import (
-    BaseElement, EmptyElement, ValueElement, IntegerElement, ListElement,
-    DictElement,
+    BaseElement, ByteElement, DictElement, EmptyElement, IntegerElement,
+    ListElement, ValueElement,
 )
 from psd_tools2.psd.color import Color
 from psd_tools2.psd.descriptor import DescriptorBlock, DescriptorBlock2
@@ -43,6 +43,9 @@ TYPES.update({
     TaggedBlockID.ARTBOARD_DATA1: DescriptorBlock,
     TaggedBlockID.ARTBOARD_DATA2: DescriptorBlock,
     TaggedBlockID.ARTBOARD_DATA3: DescriptorBlock,
+    TaggedBlockID.BLEND_CLIPPING_ELEMENTS: ByteElement,
+    TaggedBlockID.BLEND_FILL_OPACITY: ByteElement,
+    TaggedBlockID.BLEND_INTERIOR_ELEMENTS: ByteElement,
     TaggedBlockID.CONTENT_GENERATOR_EXTRA_DATA: DescriptorBlock,
     TaggedBlockID.EFFECTS_LAYER: EffectsLayer,
     TaggedBlockID.EXPORT_SETTING1: DescriptorBlock,
@@ -50,11 +53,13 @@ TYPES.update({
     TaggedBlockID.FILTER_EFFECTS1: FilterEffects,
     TaggedBlockID.FILTER_EFFECTS2: FilterEffects,
     TaggedBlockID.FILTER_EFFECTS3: FilterEffects,
-    TaggedBlockID.GRADIENT_FILL_SETTING: DescriptorBlock,
+    TaggedBlockID.KNOCKOUT_SETTING: ByteElement,
+    TaggedBlockID.LAYER_ID: IntegerElement,
+    TaggedBlockID.LAYER_VERSION: IntegerElement,
+    TaggedBlockID.LAYER_MASK_AS_GLOBAL_MASK: ByteElement,
     TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO: DescriptorBlock2,
     TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V0: DescriptorBlock2,
     TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V1: DescriptorBlock2,
-    TaggedBlockID.PATTERN_FILL_SETTING: DescriptorBlock,
     TaggedBlockID.PATTERNS1: Patterns,
     TaggedBlockID.PATTERNS2: Patterns,
     TaggedBlockID.PATTERNS3: Patterns,
@@ -62,16 +67,17 @@ TYPES.update({
     TaggedBlockID.SAVING_MERGED_TRANSPARENCY: EmptyElement,
     TaggedBlockID.SAVING_MERGED_TRANSPARENCY16: EmptyElement,
     TaggedBlockID.SAVING_MERGED_TRANSPARENCY32: EmptyElement,
-    TaggedBlockID.SOLID_COLOR_SHEET_SETTING: DescriptorBlock,
     TaggedBlockID.TEXT_ENGINE_DATA: EngineData2,
+    TaggedBlockID.TRANSPARENCY_SHAPES_LAYER: ByteElement,
     TaggedBlockID.UNICODE_PATH_NAME: DescriptorBlock,
+    TaggedBlockID.USING_ALIGNED_RENDERING: IntegerElement,
+    TaggedBlockID.VECTOR_MASK_AS_GLOBAL_MASK: ByteElement,
     TaggedBlockID.VECTOR_MASK_SETTING1: VectorMaskSetting,
     TaggedBlockID.VECTOR_MASK_SETTING2: VectorMaskSetting,
     TaggedBlockID.VECTOR_ORIGINATION_DATA: DescriptorBlock2,
     TaggedBlockID.VECTOR_STROKE_DATA: DescriptorBlock,
     TaggedBlockID.VECTOR_STROKE_CONTENT_DATA: VectorStrokeContentSetting,
 })
-
 
 @attr.s(repr=False)
 class TaggedBlocks(DictElement):
@@ -214,40 +220,6 @@ class TaggedBlock(BaseElement):
     @classmethod
     def _length_format(cls, key, version):
         return ('I', 'Q')[int(version == 2 and key in cls._BIG_KEYS)]
-
-
-@register(TaggedBlockID.LAYER_ID)  # Documentation is incorrect.
-@register(TaggedBlockID.LAYER_VERSION)
-@register(TaggedBlockID.USING_ALIGNED_RENDERING)
-class Integer(IntegerElement):
-    """
-    Integer structure.
-    """
-    @classmethod
-    def read(cls, fp, **kwargs):
-        return cls(read_fmt('I', fp)[0])
-
-    def write(self, fp, **kwargs):
-        return write_fmt(fp, 'I', self.value)
-
-
-@register(TaggedBlockID.BLEND_CLIPPING_ELEMENTS)
-@register(TaggedBlockID.BLEND_INTERIOR_ELEMENTS)
-@register(TaggedBlockID.KNOCKOUT_SETTING)
-@register(TaggedBlockID.BLEND_FILL_OPACITY)
-@register(TaggedBlockID.LAYER_MASK_AS_GLOBAL_MASK)
-@register(TaggedBlockID.TRANSPARENCY_SHAPES_LAYER)
-@register(TaggedBlockID.VECTOR_MASK_AS_GLOBAL_MASK)
-class Byte(IntegerElement):
-    """
-    Byte structure.
-    """
-    @classmethod
-    def read(cls, fp, **kwargs):
-        return cls(read_fmt('B3x', fp)[0])
-
-    def write(self, fp, **kwargs):
-        return write_fmt(fp, 'B3x', self.value)
 
 
 @register(TaggedBlockID.FOREIGN_EFFECT_ID)

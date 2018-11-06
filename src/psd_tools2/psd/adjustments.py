@@ -8,7 +8,7 @@ import logging
 
 from psd_tools2.constants import TaggedBlockID
 from psd_tools2.psd.base import (
-    BaseElement, EmptyElement, IntegerElement, ListElement
+    BaseElement, EmptyElement, ListElement, ShortIntegerElement,
 )
 from psd_tools2.psd.color import Color
 from psd_tools2.psd.descriptor import DescriptorBlock, DescriptorBlock2
@@ -26,7 +26,12 @@ ADJUSTMENT_TYPES, register = new_registry()
 
 ADJUSTMENT_TYPES.update({
     TaggedBlockID.BLACK_AND_WHITE: DescriptorBlock,
+    TaggedBlockID.GRADIENT_FILL_SETTING: DescriptorBlock,
     TaggedBlockID.INVERT: EmptyElement,
+    TaggedBlockID.PATTERN_FILL_SETTING: DescriptorBlock,
+    TaggedBlockID.POSTERIZE: ShortIntegerElement,
+    TaggedBlockID.SOLID_COLOR_SHEET_SETTING: DescriptorBlock,
+    TaggedBlockID.THRESHOLD: ShortIntegerElement,
     TaggedBlockID.VIBRANCE: DescriptorBlock,
 })
 
@@ -623,17 +628,3 @@ class SelectiveColor(BaseElement):
         for plate in self.data:
             written += write_fmt(fp, '4h', *plate)
         return written
-
-
-@register(TaggedBlockID.POSTERIZE)
-@register(TaggedBlockID.THRESHOLD)
-class ShortInteger(IntegerElement):
-    """
-    Short integer structure.
-    """
-    @classmethod
-    def read(cls, fp, **kwargs):
-        return cls(read_fmt('H2x', fp)[0])
-
-    def write(self, fp, **kwargs):
-        return write_fmt(fp, 'H2x', self.value)

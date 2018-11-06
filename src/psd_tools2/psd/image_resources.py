@@ -6,15 +6,36 @@ from __future__ import absolute_import, unicode_literals
 import attr
 import logging
 import io
+
+from psd_tools2.constants import ImageResourceID
+from psd_tools2.psd.base import (
+    BaseElement, BooleanElement, ByteElement, ListElement, IntegerElement,
+    ShortIntegerElement, ValueElement,
+)
 from psd_tools2.utils import (
     read_fmt, write_fmt, read_pascal_string, write_pascal_string,
-    read_length_block, write_length_block, write_bytes
+    read_length_block, write_length_block, write_bytes, new_registry,
+    read_unicode_string, write_unicode_string, is_readable
 )
 from psd_tools2.validators import in_
-from psd_tools2.psd.base import BaseElement, ListElement
-from psd_tools2.constants import ImageResourceID
+
 
 logger = logging.getLogger(__name__)
+
+TYPES, register = new_registry()
+
+TYPES.update({
+    ImageResourceID.COPYRIGHT_FLAG: ShortIntegerElement,
+    ImageResourceID.EFFECTS_VISIBLE: BooleanElement,
+    ImageResourceID.GLOBAL_ALTITUDE: IntegerElement,
+    ImageResourceID.GLOBAL_ANGLE: IntegerElement,
+    ImageResourceID.ICC_UNTAGGED_PROFILE: BooleanElement,
+    ImageResourceID.IDS_SEED_NUMBER: IntegerElement,
+    ImageResourceID.INDEXED_COLOR_TABLE_COUNT: ShortIntegerElement,
+    ImageResourceID.LAYER_STATE_INFO: ShortIntegerElement,
+    ImageResourceID.TRANSPARENCY_INDEX: ShortIntegerElement,
+    ImageResourceID.WATERMARK: ByteElement,
+})
 
 
 @attr.s(repr=False)
@@ -30,13 +51,16 @@ class ImageResources(ListElement):
         :param fp: file-like object
         :rtype: :py:class:`.ImageResources`
         """
-        items = []
         data = read_length_block(fp)
         logger.debug('reading image resources, len=%d' % (len(data)))
         with io.BytesIO(data) as f:
-            while f.tell() < len(data):
-                item = ImageResource.read(f, encoding)
-                items.append(item)
+            return cls._read_body(f, encoding=encoding)
+
+    @classmethod
+    def _read_body(cls, fp, *args, **kwargs):
+        items = []
+        while is_readable(fp, 4):
+            items.append(ImageResource.read(fp, *args, **kwargs))
         return cls(items)
 
     def write(self, fp, encoding='macroman'):
@@ -101,3 +125,19 @@ class ImageResource(BaseElement):
         written += write_length_block(fp, lambda f: write_bytes(f, self.data),
                                       padding=2)
         return written
+
+
+@register(ImageResourceID.ALPHA_NAMES_UNICODE)
+@register(ImageResourceID.AUTO_SAVE_FILE_PATH)
+@register(ImageResourceID.AUTO_SAVE_FORMAT)
+@register(ImageResourceID.WORKFLOW_URL)
+class String(ValueElement):
+    """
+    String element.
+    """
+    @classmethod
+    def read(cls, fp, **kwargs):
+        return cls(read_unicode_string(fp, padding=2))
+
+    def write(cls, fp, **kwargs):
+        return write_unicode_string(fp, self.value, padding=2)
