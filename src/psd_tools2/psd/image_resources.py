@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class ImageResources(ListElement):
     """
     Image resources section of the PSD file. List of
-    :py:class:`~ImageResource`.
+    :py:class:`.ImageResource`.
     """
     @classmethod
     def read(cls, fp, encoding='macroman'):
@@ -63,7 +63,8 @@ class ImageResource(BaseElement):
 
     .. py:attribute:: id
 
-        Unique identifier for the resource. See :py:class:`.ImageResourceID`.
+        Unique identifier for the resource. See
+        :py:class:`~psd_tools2.constants.ImageResourceID`.
 
     .. py:attribute:: name
     .. py:attribute:: data

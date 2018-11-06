@@ -51,7 +51,8 @@ class FileHeader(BaseElement):
 
     .. py:attribute:: color_mode
 
-        The color mode of the file. See :py:class:`.ColorMode`
+        The color mode of the file. See
+        :py:class:`~psd_tools2.constants.ColorMode`
     """
     _FORMAT = '4sH6xHIIHH'
 
