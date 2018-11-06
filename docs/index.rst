@@ -36,15 +36,15 @@ Python package for reading Adobe Photoshop PSD files
 
     reference/psd_tools2
     reference/psd_tools2.constants
-    reference/psd_tools2.decoder
-    reference/psd_tools2.decoder.color_mode_data
-    reference/psd_tools2.decoder.descriptor
-    reference/psd_tools2.decoder.engine_data
-    reference/psd_tools2.decoder.header
-    reference/psd_tools2.decoder.image_data
-    reference/psd_tools2.decoder.image_resources
-    reference/psd_tools2.decoder.layer_and_mask
-    reference/psd_tools2.decoder.tagged_blocks
+    reference/psd_tools2.psd
+    reference/psd_tools2.psd.color_mode_data
+    reference/psd_tools2.psd.descriptor
+    reference/psd_tools2.psd.engine_data
+    reference/psd_tools2.psd.header
+    reference/psd_tools2.psd.image_data
+    reference/psd_tools2.psd.image_resources
+    reference/psd_tools2.psd.layer_and_mask
+    reference/psd_tools2.psd.tagged_blocks
 
 
 Indices and tables
