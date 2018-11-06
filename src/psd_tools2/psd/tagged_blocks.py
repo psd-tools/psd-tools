@@ -225,6 +225,94 @@ class TaggedBlock(BaseElement):
         return ('I', 'Q')[int(version == 2 and key in cls._BIG_KEYS)]
 
 
+@register(TaggedBlockID.ANNOTATIONS)
+@attr.s(repr=False)
+class Annotations(ListElement):
+    """
+    List of Annotation, see :py:class: `.Annotation`.
+
+    .. py:attribute:: major_version
+    .. py:attribute:: minor_version
+    """
+    major_version = attr.ib(default=2, type=int)
+    minor_version = attr.ib(default=1, type=int)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        major_version, minor_version, count = read_fmt('2HI', fp)
+        items = []
+        for _ in range(count):
+            length = read_fmt('I', fp)[0] - 4
+            if length > 0:
+                with io.BytesIO(fp.read(length)) as f:
+                    items.append(Annotation.read(f))
+        return cls(major_version=major_version, minor_version=minor_version,
+                   items=items)
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, '2HI', self.major_version, self.minor_version,
+                            len(self))
+        for item in self:
+            data = item.tobytes()
+            written += write_fmt(fp, 'I', len(data) + 4)
+            written += write_bytes(fp, data)
+        written += write_padding(fp, written, 4)
+        return written
+
+
+@attr.s
+class Annotation(BaseElement):
+    """
+    Annotation structure.
+
+    .. py:attribute:: kind
+    .. py:attribute:: is_open
+    """
+    kind = attr.ib(default=b'txtA', type=bytes,
+                   validator=in_((b'txtA', b'sndM')))
+    is_open = attr.ib(default=0, type=int)
+    flags = attr.ib(default=0, type=int)
+    optional_blocks = attr.ib(default=1, type=int)
+    icon_location = attr.ib(factory=lambda: [0, 0, 0, 0], converter=list)
+    popup_location = attr.ib(factory=lambda: [0, 0, 0, 0], converter=list)
+    color = attr.ib(factory=Color)
+    author = attr.ib(default='', type=str)
+    name = attr.ib(default='', type=str)
+    mod_date = attr.ib(default='', type=str)
+    marker = attr.ib(default=b'txtC', type=bytes,
+                     validator=in_((b'txtC', b'sndM')))
+    data = attr.ib(default=b'', type=bytes)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        kind, is_open, flags, optional_blocks = read_fmt('4s2BH', fp)
+        icon_location = read_fmt('4i', fp)
+        popup_location = read_fmt('4i', fp)
+        color = Color.read(fp)
+        author = read_pascal_string(fp, 'macroman', padding=2)
+        name = read_pascal_string(fp, 'macroman', padding=2)
+        mod_date = read_pascal_string(fp, 'macroman', padding=2)
+        length, marker = read_fmt('I4s', fp)
+        data = read_length_block(fp)
+        return cls(kind, is_open, flags, optional_blocks, icon_location,
+                   popup_location, color, author, name, mod_date, marker,
+                   data)
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, '4s2BH', self.kind, self.is_open, self.flags,
+                            self.optional_blocks)
+        written += write_fmt(fp, '4i', *self.icon_location)
+        written += write_fmt(fp, '4i', *self.popup_location)
+        written += self.color.write(fp)
+        written += write_pascal_string(fp, self.author, 'macroman', padding=2)
+        written += write_pascal_string(fp, self.name, 'macroman', padding=2)
+        written += write_pascal_string(fp, self.mod_date, 'macroman',
+                                       padding=2)
+        written += write_fmt(fp, 'I4s', len(self.data) + 12, self.marker)
+        written += write_length_block(fp, lambda f: write_bytes(f, self.data))
+        return written
+
+
 @register(TaggedBlockID.FOREIGN_EFFECT_ID)
 @register(TaggedBlockID.LAYER_NAME_SOURCE_SETTING)
 @attr.s(repr=False)

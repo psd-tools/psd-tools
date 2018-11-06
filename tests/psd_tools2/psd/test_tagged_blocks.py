@@ -3,8 +3,9 @@ import pytest
 import logging
 
 from psd_tools2.constants import TaggedBlockID
+from psd_tools2.psd.base import IntegerElement
 from psd_tools2.psd.tagged_blocks import (
-    TaggedBlocks, TaggedBlock, IntegerElement,
+    TaggedBlocks, TaggedBlock, Annotation, Annotations,
     ChannelBlendingRestrictionsSetting,
 )
 
@@ -33,6 +34,13 @@ def test_tagged_blocks():
 def test_tagged_block(key, data, version, padding):
     check_write_read(TaggedBlock(key=key, data=data),
                      version=version, padding=padding)
+
+
+def test_annotations():
+    check_write_read(Annotations([
+        Annotation(data=b'\x05'),
+        Annotation(data=b'\x03')
+    ]))
 
 
 @pytest.mark.parametrize('fixture', [
