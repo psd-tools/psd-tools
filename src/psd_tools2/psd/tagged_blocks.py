@@ -5,7 +5,7 @@ from __future__ import absolute_import, unicode_literals
 import attr
 import io
 import logging
-from collections import OrderedDict
+from warnings import warn
 
 from psd_tools2.constants import (
     BlendMode, SectionDivider, TaggedBlockID, PlacedLayerType
@@ -179,21 +179,19 @@ class TaggedBlock(BaseElement):
         try:
             key = TaggedBlockID(key)
         except ValueError:
-            logger.warning('Unknown key: %r' % (key))
+            logger.debug('Unknown key: %r' % (key))
 
         fmt = cls._length_format(key, version)
         data = read_length_block(fp, fmt=fmt, padding=padding)
         kls = TYPES.get(key)
-        # logger.debug('%s %r' % (key, trimmed_repr(data)))
         if kls:
-            # try:
             data = kls.frombytes(data, version=version)
-            # except (ValueError,):  # AssertionError also.
-            #     logger.warning('Failed to read tagged block: %r' % (key))
         else:
-            logger.warning('Unknown tagged block: %r, %r' % (
-                key, trimmed_repr(data))
+            message = 'Unknown tagged block: %r, %s' % (
+                key, trimmed_repr(data)
             )
+            warn(message)
+            logger.warning(message)
         return cls(signature, key, data)
 
     def write(self, fp, version=1, padding=1):

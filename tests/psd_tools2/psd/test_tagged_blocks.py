@@ -1,15 +1,12 @@
 from __future__ import absolute_import, unicode_literals
 import pytest
 import logging
+
+from psd_tools2.constants import TaggedBlockID
 from psd_tools2.psd.tagged_blocks import (
     TaggedBlocks, TaggedBlock, IntegerElement,
     ChannelBlendingRestrictionsSetting,
 )
-from psd_tools2.psd.filter_effects import (
-    FilterEffect, FilterEffectChannel
-)
-
-from psd_tools2.constants import TaggedBlockID
 
 from ..utils import check_write_read
 
