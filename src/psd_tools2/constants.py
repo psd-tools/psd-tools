@@ -137,6 +137,12 @@ class ImageResourceID(IntEnum):
         return super(ImageResourceID, cls).name
 
 
+class LinkedLayerType(Enum):
+    DATA = b'liFD'
+    EXTERNAL = b'liFE'
+    ALIAS = b'liFA'
+
+
 class ChannelID(IntEnum):
     """
     Channel types.
@@ -385,6 +391,8 @@ class DescriptorClassID(Enum):
     NULL = b'null'
     NAME = b'Nm  '
     IDENTIFIER = b'Idnt'
+
+    ALIAS = b'alis'
 
     SHAPE = b'ShpC'
     CURVE = b'Crv '
@@ -676,12 +684,6 @@ class SectionDivider(IntEnum):
 
 # class TextOrientation(Enum):
 #     HORIZONTAL = b'Hrzn'
-
-
-# class LinkedLayerType(Enum):
-#     DATA = b'liFD'
-#     EXTERNAL = b'liFE'
-#     ALIAS = b'liFA'
 
 
 # class ObjectBasedEffects(Enum):

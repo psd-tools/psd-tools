@@ -19,8 +19,9 @@ from psd_tools2.psd.base import (
 from psd_tools2.psd.color import Color
 from psd_tools2.psd.descriptor import DescriptorBlock, DescriptorBlock2
 from psd_tools2.psd.effects_layer import EffectsLayer
-from psd_tools2.psd.filter_effects import FilterEffects
 from psd_tools2.psd.engine_data import EngineData, EngineData2
+from psd_tools2.psd.filter_effects import FilterEffects
+from psd_tools2.psd.linked_layer import LinkedLayers
 from psd_tools2.psd.patterns import Patterns
 from psd_tools2.psd.vector import (
     VectorMaskSetting, VectorStrokeContentSetting
@@ -54,6 +55,10 @@ TYPES.update({
     TaggedBlockID.FILTER_EFFECTS2: FilterEffects,
     TaggedBlockID.FILTER_EFFECTS3: FilterEffects,
     TaggedBlockID.KNOCKOUT_SETTING: ByteElement,
+    TaggedBlockID.LINKED_LAYER1: LinkedLayers,
+    TaggedBlockID.LINKED_LAYER2: LinkedLayers,
+    TaggedBlockID.LINKED_LAYER3: LinkedLayers,
+    TaggedBlockID.LINKED_LAYER_EXTERNAL: LinkedLayers,
     TaggedBlockID.LAYER_ID: IntegerElement,
     TaggedBlockID.LAYER_VERSION: IntegerElement,
     TaggedBlockID.LAYER_MASK_AS_GLOBAL_MASK: ByteElement,
@@ -190,7 +195,7 @@ class TaggedBlock(BaseElement):
             message = 'Unknown tagged block: %r, %s' % (
                 key, trimmed_repr(data)
             )
-            warn(message)
+            warn(message.encode('ascii'))
             logger.warning(message)
         return cls(signature, key, data)
 
