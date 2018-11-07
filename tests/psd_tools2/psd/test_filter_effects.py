@@ -1,12 +1,13 @@
 from __future__ import absolute_import, unicode_literals
 import pytest
 import logging
+import os
 
 from psd_tools2.psd.filter_effects import (
-    FilterEffect, FilterEffectChannel
+    FilterEffects, FilterEffect, FilterEffectChannel
 )
 
-from ..utils import check_write_read
+from ..utils import check_write_read, check_read_write, TEST_ROOT
 
 
 logger = logging.getLogger(__name__)
@@ -40,3 +41,13 @@ def test_filter_effect(args):
 ])
 def test_filter_effect_channel(is_written, compression, data):
     check_write_read(FilterEffectChannel(is_written, compression, data))
+
+
+@pytest.mark.parametrize('filename', [
+    'filter_effects2.dat'
+])
+def test_filter_effects_rw(filename):
+    filepath = os.path.join(TEST_ROOT, 'tagged_blocks', filename)
+    with open(filepath, 'rb') as f:
+        fixture = f.read()
+    check_read_write(FilterEffects, fixture)

@@ -67,10 +67,24 @@ class FilterEffect(BaseElement):
     def read(cls, fp, **kwargs):
         uuid = read_pascal_string(fp, encoding='ascii', padding=1)
         version = read_fmt('I', fp)[0]
-        assert version == 1, 'Invalid version %d' % (version)
-        data = read_length_block(fp, fmt='Q')
-        with io.BytesIO(data) as f:
-            return cls(uuid, version, *cls._read_body(f))
+        assert version <= 1, 'Invalid version %d' % (version)
+        with io.BytesIO(read_length_block(fp, fmt='Q')) as f:
+            rectangle, depth, max_channels, channels = cls._read_body(f)
+
+        # Documentation is incorrect here.
+        extra_data = None
+        if is_readable(fp):
+            item_present = read_fmt('B', fp)[0]
+            if item_present:
+                extra_rectangle = read_fmt('4i', fp)
+                with io.BytesIO(read_length_block(fp, fmt='Q')) as f:
+                    extra_compression = read_fmt('H', f)[0]
+                    extra_data = (
+                        extra_rectangle, extra_compression, f.read()
+                )
+
+        return cls(uuid, version, rectangle, depth, max_channels, channels,
+                   extra_data)
 
     @classmethod
     def _read_body(cls, fp):
@@ -79,19 +93,7 @@ class FilterEffect(BaseElement):
         channels = []
         for _ in range(max_channels + 2):
             channels.append(FilterEffectChannel.read(fp))
-
-        # Documentation is incorrect here.
-        extra_data = None
-        if is_readable(fp):
-            item_present = read_fmt('B', fp)[0]
-            extra_rectangle = read_fmt('4i', fp)
-            with io.BytesIO(read_length_block(fp, fmt='Q')) as f:
-                extra_compression = read_fmt('H', f)[0]
-                extra_data = (
-                    extra_rectangle, extra_compression, f.read()
-                )
-
-        return rectangle, depth, max_channels, channels, extra_data
+        return rectangle, depth, max_channels, channels
 
     def write(self, fp, **kwargs):
         written = write_pascal_string(fp, self.uuid, encoding='ascii',

@@ -216,7 +216,7 @@ class CurvesExtraMarker(ListElement):
 
     .. py:attribute:: version
     """
-    version = attr.ib(default=4, type=int, validator=in_((4,)))
+    version = attr.ib(default=4, type=int, validator=in_((3, 4)))
 
     @classmethod
     def read(cls, fp, **kwargs):

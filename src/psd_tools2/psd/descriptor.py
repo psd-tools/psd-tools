@@ -7,7 +7,7 @@ from __future__ import absolute_import, unicode_literals
 import attr
 import io
 import logging
-from collections import OrderedDict
+from warnings import warn
 
 from psd_tools2.psd.base import (
     BaseElement, ValueElement, NumericElement, IntegerElement, ListElement,
@@ -37,7 +37,9 @@ def read_length_and_key(fp):
         try:
             return DescriptorClassID(key)
         except ValueError:
-            logger.warning('Unknown classID: %r' % (key))
+            message = ('Unknown classID: %r' % (key)).encode('ascii')
+            warn(message)
+            logger.warning(message)
 
     return key  # Fallback.
 
@@ -66,13 +68,8 @@ class _DescriptorMixin(DictElement):
         for _ in range(count):
             key = read_length_and_key(fp)
             ostype = OSType(fp.read(4))
-            decoder = TYPES.get(ostype)
-            if not decoder:
-                raise ValueError('Unknown descriptor type %r' % ostype)
-
-            value = decoder.read(fp)
-            if value is None:
-                warnings.warn("%r (%r) is None" % (key, ostype))
+            kls = TYPES.get(ostype)
+            value = kls.read(fp)
             items.append((key, value))
 
         return dict(name=name, classID=classID, items=items)
@@ -110,10 +107,7 @@ class _DescriptorMixin(DictElement):
                     p.text(',')
                     p.breakable()
                 value = self[key]
-                if hasattr(key, 'name'):
-                    p.text(key.name)
-                else:
-                    p.pretty(key)
+                p.pretty(getattr(key, 'value', key))
                 p.text(': ')
                 if isinstance(value, bytes):
                     p.text(trimmed_repr(value))
@@ -207,10 +201,8 @@ class List(ListElement):
         count = read_fmt('I', fp)[0]
         for _ in range(count):
             key = OSType(fp.read(4))
-            decoder = TYPES.get(key)
-            if not decoder:
-                raise ValueError('Unknown key %r' % key)
-            value = decoder.read(fp)
+            kls = TYPES.get(key)
+            value = kls.read(fp)
             items.append(value)
         return cls(items)
 
@@ -725,11 +717,35 @@ class Index(Integer):
 
 
 @register(OSType.NAME)
-class Name(String):
+@attr.s
+class Name(BaseElement):
     """
-    Name equivalent to :py:class:`~psd_tools2.psd.descriptor.String`.
+    Name structure (Undocumented).
     """
-    pass
+    name = attr.ib(default='', type=str)
+    classID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
+    value = attr.ib(default='', type=str)
+
+    @classmethod
+    def read(cls, fp):
+        """Read the element from a file-like object.
+
+        :param fp: file-like object
+        """
+        name = read_unicode_string(fp)
+        classID = read_length_and_key(fp)
+        value = read_unicode_string(fp)
+        return cls(name, classID, value)
+
+    def write(self, fp):
+        """Write the element to a file-like object.
+
+        :param fp: file-like object
+        """
+        written = write_unicode_string(fp, self.name)
+        written += write_length_and_key(fp, self.classID)
+        written += write_unicode_string(fp, self.value)
+        return written
 
 
 @attr.s(repr=False)

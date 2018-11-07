@@ -449,6 +449,23 @@ class MetadataSetting(BaseElement):
         return written
 
 
+@register(TaggedBlockID.PIXEL_SOURCE_DATA2)
+@attr.s
+class PixelSourceData2(ValueElement):
+    """
+    PixelSourceData2 structure.
+    """
+    data = attr.ib(default=b'', type=bytes)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        return cls(read_length_block(fp, fmt='Q'))
+
+    def write(self, fp, padding=4, **kwargs):
+        return write_length_block(fp, lambda f: write_bytes(f, self.data),
+                                  fmt='Q', padding=padding)
+
+
 @register(TaggedBlockID.PLACED_LAYER1)
 @register(TaggedBlockID.PLACED_LAYER2)
 @attr.s

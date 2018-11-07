@@ -1,6 +1,6 @@
 from __future__ import absolute_import, unicode_literals
 import pytest
-from psd_tools2.psd.descriptor import TYPES, Descriptor
+from psd_tools2.psd.descriptor import TYPES, Descriptor, Reference
 from ..utils import check_write_read, check_read_write
 
 
@@ -68,3 +68,11 @@ def test_empty_wr(cls):
 @pytest.mark.parametrize('fixture', DESCRIPTOR_DATA)
 def test_descriptor_rw(fixture):
     check_read_write(Descriptor, fixture)
+
+
+@pytest.mark.parametrize('fixture', [
+    (b'\x00\x00\x00\x01name\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00name\x00'
+     b'\x00\x00\x030j0W\x00\x00')
+])
+def test_reference_rw(fixture):
+    check_read_write(Reference, fixture)
