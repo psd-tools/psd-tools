@@ -187,16 +187,20 @@ class TaggedBlock(BaseElement):
             logger.debug('Unknown key: %r' % (key))
 
         fmt = cls._length_format(key, version)
-        data = read_length_block(fp, fmt=fmt, padding=padding)
+        raw_data = read_length_block(fp, fmt=fmt, padding=padding)
         kls = TYPES.get(key)
         if kls:
-            data = kls.frombytes(data, version=version)
+            data = kls.frombytes(raw_data, version=version)
+            # assert data.tobytes(version=version) == raw_data, '%r' % (
+            #     kls
+            # )
         else:
             message = 'Unknown tagged block: %r, %s' % (
-                key, trimmed_repr(data)
+                key, trimmed_repr(raw_data)
             )
             warn(message.encode('ascii'))
             logger.warning(message)
+            data = raw_data
         return cls(signature, key, data)
 
     def write(self, fp, version=1, padding=1):
@@ -507,59 +511,35 @@ class PlacedLayerData(BaseElement):
 
 
 @register(TaggedBlockID.PROTECTED_SETTING)
-@attr.s
-class ProtectedSetting(BaseElement):
+class ProtectedSetting(IntegerElement):
     """
     ProtectedSetting structure.
     """
-    transparency = attr.ib(default=False, type=bool)
-    composite = attr.ib(default=False, type=bool)
-    position = attr.ib(default=False, type=bool)
-    bit4 = attr.ib(default=False, type=bool, repr=False)
-    bit5 = attr.ib(default=False, type=bool, repr=False)
-    bit6 = attr.ib(default=False, type=bool, repr=False)
-    bit7 = attr.ib(default=False, type=bool, repr=False)
-    bit8 = attr.ib(default=False, type=bool, repr=False)
+    @property
+    def transparency(self):
+        return bool(self.value & 0x01)
 
-    @classmethod
-    def read(cls, fp, **kwargs):
-        flag = read_fmt('I', fp)[0]
-        return cls(
-            bool(flag & 1), bool(flag & 2), bool(flag & 4), bool(flag & 8),
-            bool(flag & 16), bool(flag & 32), bool(flag & 64),
-            bool(flag & 128)
-        )
+    @property
+    def composite(self):
+        return bool(self.value & 0x02)
 
-    def write(self, fp, **kwargs):
-        flag = (
-            (self.transparency * 1) |
-            (self.composite * 2) |
-            (self.position * 4) |
-            (self.bit4 * 8) |
-            (self.bit5 * 16) |
-            (self.bit6 * 32) |
-            (self.bit7 * 64) |
-            (self.bit8 * 128)
-        )
-        return write_fmt(fp, 'I', flag)
+    @property
+    def position(self):
+        return bool(self.value & 0x04)
 
 
 @register(TaggedBlockID.REFERENCE_POINT)
 @attr.s(repr=False)
-class ReferencePoint(ValueElement):
+class ReferencePoint(ListElement):
     """
     ReferencePoint structure.
-
-    .. py:attribute:: value
     """
-    value = attr.ib(factory=list, converter=list)
-
     @classmethod
     def read(cls, fp, **kwargs):
-        return cls(read_fmt('2d', fp))
+        return cls(list(read_fmt('2d', fp)))
 
     def write(self, fp, **kwargs):
-        return write_fmt(fp, '2d', *self.value)
+        return write_fmt(fp, '2d', *self._items)
 
 
 @register(TaggedBlockID.SECTION_DIVIDER_SETTING)

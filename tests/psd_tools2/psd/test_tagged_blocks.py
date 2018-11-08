@@ -6,7 +6,7 @@ from psd_tools2.constants import TaggedBlockID
 from psd_tools2.psd.base import IntegerElement
 from psd_tools2.psd.tagged_blocks import (
     TaggedBlocks, TaggedBlock, Annotation, Annotations,
-    ChannelBlendingRestrictionsSetting,
+    ChannelBlendingRestrictionsSetting, ReferencePoint
 )
 
 from ..utils import check_write_read
@@ -50,3 +50,7 @@ def test_annotations():
 ])
 def test_channel_blending_restrictions_setting(fixture):
     check_write_read(ChannelBlendingRestrictionsSetting(fixture))
+
+
+def test_reference_point():
+    check_write_read(ReferencePoint([3, 5]))

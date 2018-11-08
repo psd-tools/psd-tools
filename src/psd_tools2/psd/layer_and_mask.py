@@ -53,8 +53,11 @@ class LayerAndMaskInformation(BaseElement):
         :param version: psd file version
         :rtype: LayerAndMaskInformation
         """
+        start_pos = fp.tell()
         data = read_length_block(fp, fmt=('I', 'Q')[version - 1])
-        logger.debug('reading layer and mask info, len=%d' % (len(data)))
+        logger.debug('reading layer and mask info, len=%d, offset=%d' % (
+            len(data), start_pos
+        ))
         if len(data) == 0:
             return cls()
         with io.BytesIO(data) as f:
@@ -480,11 +483,17 @@ class LayerRecord(BaseElement):
         data = read_length_block(fp, fmt='xI')
         logger.debug('  read layer record, len=%d' % (fp.tell() - start_pos))
         with io.BytesIO(data) as f:
-            return cls(
+            self = cls(
                 top, left, bottom, right, channel_info, signature, blend_mode,
                 opacity, clipping, flags,
                 *cls._read_extra(f, encoding, version)
             )
+
+        # with io.BytesIO() as f:
+        #     self._write_extra(f, encoding, version)
+        #     assert data == f.getvalue()
+
+        return self
 
     @classmethod
     def _read_extra(cls, fp, encoding, version):
