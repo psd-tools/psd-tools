@@ -614,12 +614,11 @@ class DescriptorClassID(Enum):
     COMP = b'comp'
 
     ANTI_ALIASE = b'Annt'  # ???
-    ANCR = b'AnCr'  # ???
-    ANSM = b'AnSm'  # ???
-    ANST = b'AnSt'  # ???
 
+    ANCR = b'AnCr'
+    ANSM = b'AnSm'
+    ANST = b'AnSt'
     name = b'name'
-
     Rnd  = b'Rnd '
     FrgC = b'FrgC'
     BckC = b'BckC'
@@ -704,7 +703,6 @@ class DescriptorClassID(Enum):
     Rct1 = b'Rct1'
     Bckg = b'Bckg'
     Clsp = b'Clsp'
-
     Qcsa = b'Qcsa'
     Mtrl = b'Mtrl'
     mtID = b'mtID'
@@ -754,7 +752,6 @@ class DescriptorClassID(Enum):
     sMag = b'sMag'
     sMip = b'sMip'
     sUsE = b'sUsE'
-
     KeFL = b'KeFL'
     KeCS = b'KeCS'
     InsN = b'InsN'
@@ -776,7 +773,6 @@ class DescriptorClassID(Enum):
     RgBl = b'RgBl'
     sTCl = b'sTCl'
     repo = b'repo'
-
     GsnB = b'GsnB'
     HSBC = b'HSBC'
     Lyr  = b'Lyr '
@@ -800,7 +796,6 @@ class DescriptorClassID(Enum):
     FrmW = b'FrmW'
     BmpA = b'BmpA'
     BmpC = b'BmpC'
-
     LnsF = b'LnsF'
     FlrC = b'FlrC'
     Nkn1 = b'Nkn1'
@@ -925,7 +920,6 @@ class DescriptorClassID(Enum):
     Cmps = b'Cmps'
     Inpt = b'Inpt'
     Gmm  = b'Gmm '
-
     AWBV = b'AWBV'
     TMMs = b'TMMs'
     LNRD = b'LNRD'
@@ -934,6 +928,10 @@ class DescriptorClassID(Enum):
     CNRS = b'CNRS'
     Nkn  = b'Nkn '
     HghP = b'HghP'
+    LbCl = b'LbCl'
+    Lmnc = b'Lmnc'
+    A    = b'A   '
+    B    = b'B   '
 
 
 

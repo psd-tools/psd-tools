@@ -131,7 +131,10 @@ class ValueElement(BaseElement):
     def _repr_pretty_(self, p, cycle):
         if cycle:
             return self.__repr__()
-        p.pretty(self.value)
+        if isinstance(self.value, bytes):
+            p.text(trimmed_repr(self.value))
+        else:
+            p.pretty(self.value)
 
 
 @attr.s(repr=False)

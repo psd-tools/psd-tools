@@ -26,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 TYPES, register = new_registry(attribute='ostype')
 
+_UNKNOWN_CLASS_ID = set()
+
 
 def read_length_and_key(fp):
     """
@@ -39,7 +41,8 @@ def read_length_and_key(fp):
         except ValueError:
             message = ('Unknown classID: %r' % (key)).encode('ascii')
             warn(message)
-            logger.warning(message)
+            logger.debug(message)
+            _UNKNOWN_CLASS_ID.add(key)
 
     return key  # Fallback.
 
@@ -48,7 +51,7 @@ def write_length_and_key(fp, value):
     """
     Helper to write descriptor classID and key.
     """
-    if value in DescriptorClassID:
+    if value in DescriptorClassID or value in _UNKNOWN_CLASS_ID:
         length = (len(value.value) != 4) * len(value.value)
         written = write_fmt(fp, 'I', length)
         written += write_bytes(fp, value.value)

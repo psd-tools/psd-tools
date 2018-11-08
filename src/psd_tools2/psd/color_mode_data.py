@@ -4,7 +4,7 @@ Color mode data structure.
 from __future__ import absolute_import, unicode_literals
 import attr
 import logging
-from psd_tools2.psd.base import BaseElement
+from psd_tools2.psd.base import ValueElement
 from psd_tools2.utils import (
     read_length_block, write_length_block, write_bytes
 )
@@ -12,8 +12,8 @@ from psd_tools2.utils import (
 logger = logging.getLogger(__name__)
 
 
-@attr.s
-class ColorModeData(BaseElement):
+@attr.s(repr=False)
+class ColorModeData(ValueElement):
     """
     Color mode data section of the PSD file.
 
@@ -21,13 +21,7 @@ class ColorModeData(BaseElement):
     non-interleaved order.
 
     Duotone images also have this data, but the data format is undocumented.
-
-    .. py:attribute:: data
-
-        The color data.
     """
-    data = attr.ib(default=b'', type=bytes, repr=False)
-
     @classmethod
     def read(cls, fp):
         """Read the element from a file-like object.
@@ -35,10 +29,10 @@ class ColorModeData(BaseElement):
         :param fp: file-like object
         :rtype: ColorModeData
         """
-        data = read_length_block(fp)
-        logger.debug('reading color mode data, len=%d' % (len(data)))
+        value = read_length_block(fp)
+        logger.debug('reading color mode data, len=%d' % (len(value)))
         # TODO: Parse color table.
-        return cls(data)
+        return cls(value)
 
     def write(self, fp):
         """Write the element to a file-like object.
@@ -46,7 +40,7 @@ class ColorModeData(BaseElement):
         :param fp: file-like object
         """
         def writer(f):
-            return write_bytes(f, self.data)
+            return write_bytes(f, self.value)
 
-        logger.debug('writing color mode data, len=%d' % (len(self.data)))
+        logger.debug('writing color mode data, len=%d' % (len(self.value)))
         return write_length_block(fp, writer)
