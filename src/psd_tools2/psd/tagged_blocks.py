@@ -184,15 +184,20 @@ class TaggedBlock(BaseElement):
         try:
             key = TaggedBlockID(key)
         except ValueError:
-            logger.debug('Unknown key: %r' % (key))
+            message = 'Unknown key: %r' % (key)
+            warn(message.encode('ascii'))
+            logger.warning(message)
 
         fmt = cls._length_format(key, version)
         raw_data = read_length_block(fp, fmt=fmt, padding=padding)
         kls = TYPES.get(key)
         if kls:
             data = kls.frombytes(raw_data, version=version)
-            _raw_data = data.tobytes(version=version,
-                                     padding=1 if padding == 4 else 4)
+            # _raw_data = data.tobytes(version=version,
+            #                          padding=1 if padding == 4 else 4)
+            # assert raw_data == _raw_data, '%r: %s vs %s' % (
+            #     kls, trimmed_repr(raw_data), trimmed_repr(_raw_data)
+            # )
         else:
             message = 'Unknown tagged block: %r, %s' % (
                 key, trimmed_repr(raw_data)
@@ -335,24 +340,6 @@ class Bytes(ValueElement):
         return write_bytes(fp, self.value)
 
 
-@register(TaggedBlockID.UNICODE_LAYER_NAME)
-@attr.s(repr=False)
-class String(ValueElement):
-    """
-    String structure.
-
-    .. py:attribute:: value
-    """
-    value = attr.ib(default='', type=str)
-
-    @classmethod
-    def read(cls, fp, padding=4, **kwargs):
-        return cls(read_unicode_string(fp, padding))
-
-    def write(self, fp, padding=4, **kwargs):
-        return write_unicode_string(fp, self.value, padding)
-
-
 @register(TaggedBlockID.CHANNEL_BLENDING_RESTRICTIONS_SETTING)
 @attr.s(repr=False)
 class ChannelBlendingRestrictionsSetting(ListElement):
@@ -394,6 +381,24 @@ class FilterMask(BaseElement):
         written = self.color.write(fp)
         written += write_fmt(fp, 'H', self.opacity)
         return written
+
+
+@register(TaggedBlockID.UNICODE_LAYER_NAME)
+@attr.s(repr=False)
+class LayerName(ValueElement):
+    """
+    LayerName structure.
+
+    .. py:attribute:: value
+    """
+    value = attr.ib(default='', type=str)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        return cls(read_unicode_string(fp))
+
+    def write(self, fp, padding=1, **kwargs):
+        return write_unicode_string(fp, self.value, padding)
 
 
 @register(TaggedBlockID.METADATA_SETTING)
