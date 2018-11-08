@@ -296,13 +296,10 @@ class List(ListElement):
 
 
 @register(EngineToken.STRING)
-@attr.s(repr=False)
 class String(ValueElement):
     """
     String element.
     """
-    value = attr.ib(default='')
-
     @classmethod
     def read(cls, fp):
         return cls.frombytes(fp.read())
@@ -320,7 +317,6 @@ class String(ValueElement):
 
 
 @register(EngineToken.BOOLEAN)
-@attr.s(repr=False)
 class Bool(BooleanElement):
     """
     Bool element.
@@ -338,7 +334,6 @@ class Bool(BooleanElement):
 
 
 @register(EngineToken.NUMBER)
-@attr.s(repr=False)
 class Integer(IntegerElement):
     """
     Integer element.
@@ -356,7 +351,6 @@ class Integer(IntegerElement):
 
 
 @register(EngineToken.NUMBER_WITH_DECIMAL)
-@attr.s(repr=False)
 class Float(NumericElement):
     """
     Float element.
@@ -372,7 +366,7 @@ class Float(NumericElement):
     def write(self, fp):
         value = b'%.8f' % (self.value)
         value = value.rstrip(b'0')
-        value = value + b'0' if value[-1] == b'.' else value
+        value = value + b'0' if value.endswith(b'.') else value
         if 0.0 < abs(self.value) and abs(self.value) < 1.0:
             value = value.replace(b'0.', b'.')
         return write_bytes(fp, value)
@@ -384,8 +378,6 @@ class Property(ValueElement):
     """
     Property element.
     """
-    value = attr.ib(default='')
-
     @classmethod
     def read(cls, fp):
         return cls.frombytes(fp.read())
@@ -399,13 +391,10 @@ class Property(ValueElement):
 
 
 @register(EngineToken.UNKNOWN_TAG)
-@attr.s(repr=False)
 class Tag(ValueElement):
     """
     Tag element.
     """
-    value = attr.ib(default=b'')
-
     @classmethod
     def read(cls, fp):
         return cls(fp.read())
