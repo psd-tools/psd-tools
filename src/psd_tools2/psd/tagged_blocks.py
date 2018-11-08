@@ -191,9 +191,8 @@ class TaggedBlock(BaseElement):
         kls = TYPES.get(key)
         if kls:
             data = kls.frombytes(raw_data, version=version)
-            # assert data.tobytes(version=version) == raw_data, '%r' % (
-            #     kls
-            # )
+            _raw_data = data.tobytes(version=version,
+                                     padding=1 if padding == 4 else 4)
         else:
             message = 'Unknown tagged block: %r, %s' % (
                 key, trimmed_repr(raw_data)
@@ -455,19 +454,24 @@ class MetadataSetting(BaseElement):
 
 @register(TaggedBlockID.PIXEL_SOURCE_DATA2)
 @attr.s
-class PixelSourceData2(ValueElement):
+class PixelSourceData2(ListElement):
     """
     PixelSourceData2 structure.
     """
-    data = attr.ib(default=b'', type=bytes)
-
     @classmethod
     def read(cls, fp, **kwargs):
-        return cls(read_length_block(fp, fmt='Q'))
+        items = []
+        while is_readable(fp, 8):
+            items.append(read_length_block(fp, fmt='Q'))
+        return cls(items)
 
     def write(self, fp, padding=4, **kwargs):
-        return write_length_block(fp, lambda f: write_bytes(f, self.data),
-                                  fmt='Q', padding=padding)
+        written = 0
+        for item in self:
+            written += write_length_block(fp, lambda f: write_bytes(f, item),
+                                          fmt='Q')
+        written += write_padding(fp, written, padding)
+        return written
 
 
 @register(TaggedBlockID.PLACED_LAYER1)

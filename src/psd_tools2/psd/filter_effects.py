@@ -28,17 +28,17 @@ class FilterEffects(ListElement):
     def read(cls, fp, **kwargs):
         version = read_fmt('I', fp)[0]
         assert version in (1, 2, 3), 'Invalid version %d' % (version)
-        with io.BytesIO(read_length_block(fp, fmt='Q')) as f:
-            items = []
-            while is_readable(f):
+        items = []
+        while is_readable(fp, 8):
+            with io.BytesIO(read_length_block(fp, fmt='Q', padding=4)) as f:
                 items.append(FilterEffect.read(f))
         return cls(version=version, items=items)
 
     def write(self, fp, **kwargs):
         written = write_fmt(fp, 'I', self.version)
-        def writer(f):
-            return sum(item.write(f) for item in self)
-        written += write_length_block(fp, writer, fmt='Q')
+        for item in self:
+            written += write_length_block(fp, lambda f: item.write(f),
+                                          fmt='Q', padding=4)
         return written
 
 

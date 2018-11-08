@@ -51,7 +51,8 @@ def test_filter_effect_channel(is_written, compression, data):
 
 
 @pytest.mark.parametrize('filename', [
-    'filter_effects2.dat'
+    'filter_effects_1.dat',
+    'filter_effects_2.dat',
 ])
 def test_filter_effects_rw(filename):
     filepath = os.path.join(TEST_ROOT, 'tagged_blocks', filename)

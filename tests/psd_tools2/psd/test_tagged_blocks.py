@@ -1,15 +1,17 @@
 from __future__ import absolute_import, unicode_literals
 import pytest
 import logging
+import os
 
 from psd_tools2.constants import TaggedBlockID
 from psd_tools2.psd.base import IntegerElement
 from psd_tools2.psd.tagged_blocks import (
     TaggedBlocks, TaggedBlock, Annotation, Annotations,
-    ChannelBlendingRestrictionsSetting, ReferencePoint
+    ChannelBlendingRestrictionsSetting, PixelSourceData2, ReferencePoint,
+    String
 )
 
-from ..utils import check_write_read
+from ..utils import check_read_write, check_write_read, TEST_ROOT
 
 
 logger = logging.getLogger(__name__)
@@ -52,5 +54,23 @@ def test_channel_blending_restrictions_setting(fixture):
     check_write_read(ChannelBlendingRestrictionsSetting(fixture))
 
 
+def test_pixel_source_data2_wr():
+    filepath = os.path.join(TEST_ROOT, 'tagged_blocks',
+                            'pixel_source_data2.dat')
+    with open(filepath, 'rb') as f:
+        fixture = f.read()
+    check_read_write(PixelSourceData2, fixture)
+
+
 def test_reference_point():
     check_write_read(ReferencePoint([3, 5]))
+
+
+@pytest.mark.parametrize('fixture', [
+    '',
+    'a',
+    'ab',
+    '\u0034\u0035\u0036',
+])
+def test_string(fixture):
+    check_write_read(String(fixture))

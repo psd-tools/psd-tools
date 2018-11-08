@@ -1,7 +1,9 @@
 from __future__ import absolute_import, unicode_literals
 import os
 import pytest
-from psd_tools2.psd.engine_data import Tokenizer, EngineToken, EngineData
+from psd_tools2.psd.engine_data import (
+    Tokenizer, EngineToken, EngineData, Float
+)
 
 from ..utils import check_write_read, check_read_write, TEST_ROOT
 
@@ -29,6 +31,7 @@ def test_tokenizer_item(fixture, token_type):
 @pytest.mark.parametrize('filename, indent, write', [
     ('TySh_1.dat', 0, True),
     ('Txt2_1.dat', None, False),
+    ('Txt2_2.dat', None, False),
 ])
 def test_engine_data(filename, indent, write):
     filepath = os.path.join(TEST_ROOT, 'engine_data', filename)
@@ -38,3 +41,15 @@ def test_engine_data(filename, indent, write):
     engine_data = EngineData.frombytes(fixture)
     output = engine_data.tobytes(indent=indent, write_container=write)
     assert output == fixture
+
+
+@pytest.mark.parametrize('fixture', [
+    b'0.0',
+    b'.4',
+    b'-.4',
+    b'1.0',
+    b'.00006',
+    b'-47.55428',
+])
+def test_float(fixture):
+    check_read_write(Float, fixture)

@@ -39,7 +39,8 @@ import logging
 import re
 from enum import Enum
 from psd_tools2.psd.base import (
-    DictElement, ListElement, ValueElement, IntegerElement, NumericElement
+    BooleanElement, DictElement, IntegerElement, ListElement, NumericElement,
+    ValueElement
 )
 from psd_tools2.utils import new_registry, trimmed_repr, write_bytes
 
@@ -320,12 +321,10 @@ class String(ValueElement):
 
 @register(EngineToken.BOOLEAN)
 @attr.s(repr=False)
-class Bool(IntegerElement):
+class Bool(BooleanElement):
     """
     Bool element.
     """
-    value = attr.ib(default=False)
-
     @classmethod
     def read(cls, fp):
         return cls.frombytes(fp.read())
@@ -344,8 +343,6 @@ class Integer(IntegerElement):
     """
     Integer element.
     """
-    value = attr.ib(default=0)
-
     @classmethod
     def read(cls, fp):
         return cls.frombytes(fp.read())
@@ -364,8 +361,6 @@ class Float(NumericElement):
     """
     Float element.
     """
-    value = attr.ib(default=0.)
-
     @classmethod
     def read(cls, fp):
         return cls.frombytes(fp.read())
@@ -375,8 +370,9 @@ class Float(NumericElement):
         return cls(float(data))
 
     def write(self, fp):
-        value = b'%.12g' % (self.value)
-        value = value + b'.0' if b'.' not in value else value
+        value = b'%.8f' % (self.value)
+        value = value.rstrip(b'0')
+        value = value + b'0' if value[-1] == b'.' else value
         if 0.0 < abs(self.value) and abs(self.value) < 1.0:
             value = value.replace(b'0.', b'.')
         return write_bytes(fp, value)
