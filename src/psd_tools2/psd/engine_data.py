@@ -415,4 +415,4 @@ class Tag(ValueElement):
         return cls(fp.read())
 
     def write(self, fp):
-        return write_bytes(fp, value)
+        return write_bytes(fp, self.value)
