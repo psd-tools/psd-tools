@@ -4,7 +4,7 @@ import logging
 import os
 
 from psd_tools2.psd.filter_effects import (
-    FilterEffects, FilterEffect, FilterEffectChannel
+    FilterEffects, FilterEffect, FilterEffectChannel, FilterEffectExtra
 )
 
 from ..utils import check_write_read, check_read_write, TEST_ROOT
@@ -27,7 +27,14 @@ logger = logging.getLogger(__name__)
         FilterEffectChannel(1, 0, b'\x00'),
         FilterEffectChannel(1, 0, b'\x00'),
         FilterEffectChannel(1, 0, b'\x00'),
-    ], ((0, 0, 512, 512), 0, b'\x00')),
+    ], FilterEffectExtra(1, [0, 0, 512, 512], 0, b'\x00')),
+    ('uuid', 1, (0, 0, 512, 512), 8, 3, [
+        FilterEffectChannel(1, 0, b'\x00'),
+        FilterEffectChannel(1, 0, b'\x00'),
+        FilterEffectChannel(1, 0, b'\x00'),
+        FilterEffectChannel(1, 0, b'\x00'),
+        FilterEffectChannel(1, 0, b'\x00'),
+    ], FilterEffectExtra(0)),
 ])
 def test_filter_effect(args):
     check_write_read(FilterEffect(*args))

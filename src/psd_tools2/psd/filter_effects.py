@@ -53,7 +53,7 @@ class FilterEffect(BaseElement):
     .. py:attribute:: depth
     .. py:attribute:: max_channels
     .. py:attribute:: channels
-    .. py:attribute:: extra_data
+    .. py:attribute:: extra
     """
     uuid = attr.ib(default=None)
     version = attr.ib(default=None)
@@ -61,7 +61,7 @@ class FilterEffect(BaseElement):
     depth = attr.ib(default=None)
     max_channels = attr.ib(default=None)
     channels = attr.ib(default=None)
-    extra_data = attr.ib(default=None)
+    extra = attr.ib(default=None)
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -70,21 +70,10 @@ class FilterEffect(BaseElement):
         assert version <= 1, 'Invalid version %d' % (version)
         with io.BytesIO(read_length_block(fp, fmt='Q')) as f:
             rectangle, depth, max_channels, channels = cls._read_body(f)
-
         # Documentation is incorrect here.
-        extra_data = None
-        if is_readable(fp):
-            item_present = read_fmt('B', fp)[0]
-            if item_present:
-                extra_rectangle = read_fmt('4i', fp)
-                with io.BytesIO(read_length_block(fp, fmt='Q')) as f:
-                    extra_compression = read_fmt('H', f)[0]
-                    extra_data = (
-                        extra_rectangle, extra_compression, f.read()
-                )
-
+        extra = FilterEffectExtra.read(fp) if is_readable(fp) else None
         return cls(uuid, version, rectangle, depth, max_channels, channels,
-                   extra_data)
+                   extra)
 
     @classmethod
     def _read_body(cls, fp):
@@ -102,6 +91,9 @@ class FilterEffect(BaseElement):
         def writer(f):
             return self._write_body(f)
         written += write_length_block(fp, writer, fmt='Q')
+
+        if self.extra is not None:
+            written += self.extra.write(fp)
         return written
 
     def _write_body(self, fp):
@@ -109,17 +101,6 @@ class FilterEffect(BaseElement):
         written += write_fmt(fp, '2I', self.depth, self.max_channels)
         for channel in self.channels:
             written += channel.write(fp)
-
-        def extra_writer(f):
-            length = write_fmt(f, 'H', self.extra_data[1])
-            length += write_bytes(f, self.extra_data[2])
-            return length
-
-        if self.extra_data is not None:
-            written += write_fmt(fp, 'B', 1)
-            written += write_fmt(fp, '4i', *self.extra_data[0])
-            written += write_length_block(fp, extra_writer, fmt='Q')
-
         return written
 
 
@@ -162,4 +143,48 @@ class FilterEffectChannel(BaseElement):
             return length
 
         written += write_length_block(fp, writer, fmt='Q')
+        return written
+
+
+@attr.s
+class FilterEffectExtra(BaseElement):
+    """
+    FilterEffectExtra structure.
+
+    .. py:attribute:: is_written
+    .. py:attribute:: rectangle
+    .. py:attribute:: compression
+    .. py:attribute:: data
+    """
+    is_written = attr.ib(default=0)
+    rectangle = attr.ib(factory=lambda: [0, 0, 0, 0], converter=list)
+    compression = attr.ib(default=0, type=int)
+    data = attr.ib(default=b'', type=bytes)
+
+    @classmethod
+    def read(cls, fp):
+        is_written = read_fmt('B', fp)[0]
+        if not is_written:
+            return cls(is_written=is_written)
+
+        rectangle = read_fmt('4i', fp)
+        compression = 0
+        data = b''
+        with io.BytesIO(read_length_block(fp, fmt='Q')) as f:
+            compression = read_fmt('H', f)[0]
+            data = f.read()
+
+        return cls(is_written, rectangle, compression, data)
+
+    def write(self, fp):
+        written = write_fmt(fp, 'B', self.is_written)
+
+        def writer(f):
+            length = write_fmt(f, 'H', self.compression)
+            length += write_bytes(f, self.data)
+            return length
+
+        if self.is_written:
+            written += write_fmt(fp, '4i', *self.rectangle)
+            written += write_length_block(fp, writer, fmt='Q')
         return written
