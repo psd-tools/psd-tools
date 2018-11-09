@@ -247,6 +247,30 @@ class PascalString(ValueElement):
         return write_pascal_string(fp, 'macroman', padding=1)
 
 
+@register(ImageResourceID.PRINT_FLAGS_INFO)
+@attr.s
+class PrintFlagsInfo(BaseElement):
+    """
+    Print flags info structure.
+
+    .. py:attribute:: version
+    .. py:attribute:: center_crop
+    .. py:attribute:: bleed_width_value
+    .. py:attribute:: bleed_width_scale
+    """
+    version = attr.ib(default=0, type=int)
+    center_crop = attr.ib(default=0, type=int)
+    bleed_width_value = attr.ib(default=0, type=int)
+    bleed_width_scale = attr.ib(default=0, type=int)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        return cls(*read_fmt('HBxIH', fp))
+
+    def write(self, fp, **kwargs):
+        return write_fmt(fp, 'HBxIH', *attr.astuple(self))
+
+
 @register(ImageResourceID.RESOLUTION_INFO)
 @attr.s
 class ResoulutionInfo(BaseElement):
