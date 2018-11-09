@@ -211,6 +211,34 @@ class String(ValueElement):
         return write_unicode_string(fp, self.value, padding=1)
 
 
+@register(ImageResourceID.RESOLUTION_INFO)
+@attr.s
+class ResoulutionInfo(BaseElement):
+    """
+    Resoulution info structure.
+
+    .. py:attribute:: horizontal
+    .. py:attribute:: horizontal_unit
+    .. py:attribute:: width_unit
+    .. py:attribute:: vertical
+    .. py:attribute:: vertical_unit
+    .. py:attribute:: height_unit
+    """
+    horizontal = attr.ib(default=0, type=int)
+    horizontal_unit = attr.ib(default=0, type=int)
+    width_unit = attr.ib(default=0, type=int)
+    vertical = attr.ib(default=0, type=int)
+    vertical_unit = attr.ib(default=0, type=int)
+    height_unit = attr.ib(default=0, type=int)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        return cls(*read_fmt('I2HI2H', fp))
+
+    def write(self, fp, **kwargs):
+        return write_fmt(fp, 'I2HI2H', *attr.astuple(self))
+
+
 @register(ImageResourceID.VERSION_INFO)
 @attr.s
 class VersionInfo(BaseElement):
