@@ -29,6 +29,15 @@ TYPES, register = new_registry()
 TYPES.update({
     ImageResourceID.BACKGROUND_COLOR: Color,
     ImageResourceID.LAYER_COMPS: DescriptorBlock,
+    ImageResourceID.MEASUREMENT_SCALE: DescriptorBlock,
+    ImageResourceID.SHEET_DISCLOSURE: DescriptorBlock,
+    ImageResourceID.TIMELINE_INFO: DescriptorBlock,
+    ImageResourceID.ONION_SKINS: DescriptorBlock,
+    ImageResourceID.COUNT_INFO: DescriptorBlock,
+    ImageResourceID.PRINT_INFO_CS5: DescriptorBlock,
+    ImageResourceID.PRINT_STYLE: DescriptorBlock,
+    ImageResourceID.PATH_SELECTION_STATE: DescriptorBlock,
+    ImageResourceID.ORIGIN_PATH_INFO: DescriptorBlock,
 })
 
 
@@ -165,6 +174,19 @@ class ImageResource(BaseElement):
         return written
 
 
+@register(ImageResourceID.COPYRIGHT_FLAG)
+class Byte(ByteElement):
+    """
+    Byte element.
+    """
+    @classmethod
+    def read(cls, fp, **kwargs):
+        return cls(*read_fmt('B', fp))
+
+    def write(self, fp, **kwargs):
+        return write_fmt(fp, 'B', self.value)
+
+
 @register(ImageResourceID.GLOBAL_ALTITUDE)
 @register(ImageResourceID.GLOBAL_ANGLE)
 @register(ImageResourceID.IDS_SEED_NUMBER)
@@ -209,6 +231,20 @@ class String(ValueElement):
 
     def write(self, fp, **kwargs):
         return write_unicode_string(fp, self.value, padding=1)
+
+
+@register(ImageResourceID.CAPTION_PASCAL)
+@register(ImageResourceID.CLIPPING_PATH_NAME)
+class PascalString(ValueElement):
+    """
+    Pascal string element.
+    """
+    @classmethod
+    def read(cls, fp, **kwargs):
+        return cls(read_pascal_string(fp, 'macroman'))
+
+    def write(self, fp, **kwargs):
+        return write_pascal_string(fp, 'macroman', padding=1)
 
 
 @register(ImageResourceID.RESOLUTION_INFO)
