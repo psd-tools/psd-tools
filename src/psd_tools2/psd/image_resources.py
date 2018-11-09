@@ -209,3 +209,37 @@ class String(ValueElement):
 
     def write(self, fp, **kwargs):
         return write_unicode_string(fp, self.value, padding=1)
+
+
+@register(ImageResourceID.VERSION_INFO)
+@attr.s
+class VersionInfo(BaseElement):
+    """
+    Version info structure.
+
+    .. py:attribute:: version
+    .. py:attribute:: has_composite
+    .. py:attribute:: writer
+    .. py:attribute:: reader
+    .. py:attribute:: file_version
+    """
+    version = attr.ib(default=0, type=int)
+    has_composite = attr.ib(default=False, type=bool)
+    writer = attr.ib(default='', type=str)
+    reader = attr.ib(default='', type=str)
+    file_version = attr.ib(default=0, type=int)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        version, has_composite = read_fmt('I?', fp)
+        writer = read_unicode_string(fp)
+        reader = read_unicode_string(fp)
+        file_version = read_fmt('I', fp)[0]
+        return cls(version, has_composite, writer, reader, file_version)
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, 'I?', self.version, self.has_composite)
+        written += write_unicode_string(fp, self.writer)
+        written += write_unicode_string(fp, self.reader)
+        written += write_fmt(fp, 'I', self.file_version)
+        return written
