@@ -28,6 +28,7 @@ TYPES, register = new_registry()
 
 TYPES.update({
     ImageResourceID.BACKGROUND_COLOR: Color,
+    ImageResourceID.LAYER_COMPS: DescriptorBlock,
 })
 
 
@@ -130,9 +131,19 @@ class ImageResource(BaseElement):
         except ValueError:
             logger.warning('Unknown image resource %d' % (key))
         name = read_pascal_string(fp, encoding, padding=2)
-        data = read_length_block(fp, padding=2)
+        raw_data = read_length_block(fp, padding=2)
         if key in TYPES:
-            data = TYPES[key].frombytes(data)
+            data = TYPES[key].frombytes(raw_data)
+            # try:
+            #     _raw_data = data.tobytes(padding=1)
+            #     assert _raw_data == raw_data, '%r vs %r' % (
+            #         _raw_data, raw_data
+            #     )
+            # except AssertionError as e:
+            #     logger.error(e)
+            #     raise
+        else:
+            data = raw_data
         return cls(signature, key, name, data)
 
     def write(self, fp, encoding='macroman'):
@@ -147,7 +158,7 @@ class ImageResource(BaseElement):
 
         def writer(f):
             if hasattr(self.data, 'write'):
-                return self.data.write(f)
+                return self.data.write(f, padding=1)
             return write_bytes(f, self.data)
 
         written += write_length_block(fp, writer, padding=2)
@@ -194,13 +205,7 @@ class String(ValueElement):
     """
     @classmethod
     def read(cls, fp, **kwargs):
-        return cls(read_unicode_string(fp, padding=2))
+        return cls(read_unicode_string(fp))
 
     def write(self, fp, **kwargs):
-        return write_unicode_string(fp, self.value, padding=2)
-
-
-# @register(ImageResourceID.LAYER_COMPS)
-class DescriptorBlockPad2(DescriptorBlock):
-    def write(self, fp, **kwargs):
-        return super(DescriptorBlockPad2, self).write(fp, padding=2, **kwargs)
+        return write_unicode_string(fp, self.value, padding=1)
