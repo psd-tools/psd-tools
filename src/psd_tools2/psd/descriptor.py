@@ -39,6 +39,8 @@ def read_length_and_key(fp):
         try:
             return DescriptorClassID(key)
         except ValueError:
+            if key == b'\x00\x00\x00\x00':
+                raise
             message = ('Unknown classID: %r' % (key)).encode('ascii')
             warn(message)
             logger.debug(message)
@@ -762,7 +764,7 @@ class DescriptorBlock(Descriptor):
 
     .. py:attribute:: version
     """
-    version = attr.ib(default=1, type=int)
+    version = attr.ib(default=1, type=int, validator=in_((16,)))
 
     @classmethod
     def read(cls, fp, **kwargs):

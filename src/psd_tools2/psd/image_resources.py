@@ -455,6 +455,165 @@ class ResoulutionInfo(BaseElement):
         return write_fmt(fp, 'I2HI2H', *attr.astuple(self))
 
 
+@register(ImageResourceID.SLICES)
+@attr.s
+class Slices(BaseElement):
+    """
+    Slices resource.
+
+    .. py:attribute:: version
+    .. py:attribute:: data
+    """
+    version = attr.ib(default=0, type=int, validator=in_((6, 7, 8)))
+    data = attr.ib(default=None)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        version = read_fmt('I', fp)[0]
+        assert version in (6, 7, 8), 'Invalid version %d' % (version)
+        if version == 6:
+            return cls(version=version, data=SlicesV6.read(fp))
+        return cls(version=version, data=DescriptorBlock.read(fp))
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, 'I', self.version)
+        written += self.data.write(fp, padding=1)
+        return written
+
+
+@attr.s
+class SlicesV6(BaseElement):
+    """
+    Slices resource version 6.
+
+    .. py:attribute:: bbox
+    .. py:attribute:: name
+    .. py:attribute:: items
+    """
+    bbox = attr.ib(factory=lambda: [0, 0, 0, 0], converter=list)
+    name = attr.ib(default='', type=str)
+    items = attr.ib(factory=list, converter=list)
+
+    @classmethod
+    def read(cls, fp):
+        bbox = read_fmt('4I', fp)
+        name = read_unicode_string(fp)
+        count = read_fmt('I', fp)[0]
+        items = [SliceV6.read(fp) for _ in range(count)]
+        return cls(bbox, name, items)
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, '4I', *self.bbox)
+        written += write_unicode_string(fp, self.name)
+        written += write_fmt(fp, 'I', len(self.items))
+        written += sum(item.write(fp) for item in self.items)
+        return written
+
+
+@attr.s
+class SliceV6(BaseElement):
+    """
+    Slice element for version 6.
+
+    .. py:attribute:: slice_id
+    .. py:attribute:: group_id
+    .. py:attribute:: origin
+    .. py:attribute:: associated_id
+    .. py:attribute:: name
+    .. py:attribute:: slice_type
+    .. py:attribute:: bbox
+    .. py:attribute:: url
+    .. py:attribute:: target
+    .. py:attribute:: message
+    .. py:attribute:: alt_tag
+    .. py:attribute:: cell_is_html
+    .. py:attribute:: cell_text
+    .. py:attribute:: horizontal
+    .. py:attribute:: vertical
+    .. py:attribute:: alpha
+    .. py:attribute:: red
+    .. py:attribute:: green
+    .. py:attribute:: blue
+    .. py:attribute:: data
+    """
+    slice_id = attr.ib(default=0, type=int)
+    group_id = attr.ib(default=0, type=int)
+    origin = attr.ib(default=0, type=int)
+    associated_id = attr.ib(default=None)
+    name = attr.ib(default='', type=str)
+    slice_type = attr.ib(default=0, type=int)
+    bbox = attr.ib(factory=lambda: [0, 0, 0, 0], converter=list)
+    url = attr.ib(default='', type=str)
+    target = attr.ib(default='', type=str)
+    message = attr.ib(default='', type=str)
+    alt_tag = attr.ib(default='', type=str)
+    cell_is_html = attr.ib(default=False, type=bool)
+    cell_text = attr.ib(default='', type=str)
+    horizontal = attr.ib(default=0, type=int)
+    vertical = attr.ib(default=0, type=int)
+    alpha = attr.ib(default=0, type=int)
+    red = attr.ib(default=0, type=int)
+    green = attr.ib(default=0, type=int)
+    blue = attr.ib(default=0, type=int)
+    data = attr.ib(default=None)
+
+    @classmethod
+    def read(cls, fp):
+        slice_id, group_id, origin = read_fmt('3I', fp)
+        associated_id = read_fmt('I', fp)[0] if origin == 1 else None
+        name = read_unicode_string(fp)
+        slice_type = read_fmt('I', fp)[0]
+        bbox = read_fmt('4I', fp)
+        url = read_unicode_string(fp)
+        target = read_unicode_string(fp)
+        message = read_unicode_string(fp)
+        alt_tag = read_unicode_string(fp)
+        cell_is_html = read_fmt('?', fp)[0]
+        cell_text = read_unicode_string(fp)
+        horizontal, vertical = read_fmt('2I', fp)
+        alpha, red, green, blue = read_fmt('4B', fp)
+        data = None
+        if is_readable(fp, 4):
+            current_position = fp.tell()
+            version = read_fmt('I', fp)[0]
+            fp.seek(-4, 1)
+            if version == 16:
+                try:
+                    data = DescriptorBlock.read(fp)
+                except ValueError:
+                    logger.debug('Failed to read DescriptorBlock')
+                    fp.seek(current_position)
+        return cls(
+            slice_id, group_id, origin, associated_id, name, slice_type, bbox,
+            url, target, message, alt_tag, cell_is_html, cell_text,
+            horizontal, vertical, alpha, red, green, blue, data
+        )
+
+    def write(self, fp):
+        written = write_fmt(fp, '3I', self.slice_id, self.group_id,
+                            self.origin)
+        if self.origin == 1 and self.associated_id is not None:
+            written += write_fmt(fp, 'I', self.associated_id)
+        written += write_unicode_string(fp, self.name, padding=1)
+        written += write_fmt(fp, 'I', self.slice_type)
+        written += write_fmt(fp, '4I', *self.bbox)
+        written += write_unicode_string(fp, self.url, padding=1)
+        written += write_unicode_string(fp, self.target, padding=1)
+        written += write_unicode_string(fp, self.message, padding=1)
+        written += write_unicode_string(fp, self.alt_tag, padding=1)
+        written += write_fmt(fp, '?', self.cell_is_html)
+        written += write_unicode_string(fp, self.cell_text, padding=1)
+        written += write_fmt(fp, '2I', self.horizontal, self.vertical)
+        written += write_fmt(fp, '4B', self.alpha, self.red, self.green,
+                             self.blue)
+        if self.data is not None:
+            if hasattr(self.data, 'write'):
+                written += self.data.write(fp, padding=1)
+            elif self.data:
+                written += write_bytes(fp, self.data)
+        return written
+
+
 @register(ImageResourceID.THUMBNAIL_RESOURCE_PS4)
 @register(ImageResourceID.THUMBNAIL_RESOURCE)
 @attr.s

@@ -946,6 +946,7 @@ class DescriptorClassID(Enum):
     MpBl = b'MpBl'
     Spcn = b'Spcn'
     LCnt = b'LCnt'
+    Msge = b'Msge'
 
 
 
