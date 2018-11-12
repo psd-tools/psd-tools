@@ -455,6 +455,48 @@ class ResoulutionInfo(BaseElement):
         return write_fmt(fp, 'I2HI2H', *attr.astuple(self))
 
 
+@register(ImageResourceID.THUMBNAIL_RESOURCE_PS4)
+@register(ImageResourceID.THUMBNAIL_RESOURCE)
+@attr.s
+class ThumbnailResource(BaseElement):
+    """
+    Thumbnail resource structure.
+
+    .. py:attribute:: fmt
+    .. py:attribute:: width
+    .. py:attribute:: height
+    .. py:attribute:: row
+    .. py:attribute:: total_size
+    .. py:attribute:: size
+    .. py:attribute:: bits
+    .. py:attribute:: planes
+    .. py:attribute:: data
+    """
+    fmt = attr.ib(default=0, type=int)
+    width = attr.ib(default=0, type=int)
+    height = attr.ib(default=0, type=int)
+    row = attr.ib(default=0, type=int)
+    total_size = attr.ib(default=0, type=int)
+    bits = attr.ib(default=0, type=int)
+    planes = attr.ib(default=0, type=int)
+    data = attr.ib(default=b'', type=bytes)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        fmt, width, height, row, total_size, size, bits, planes = read_fmt(
+            '6I2H', fp
+        )
+        data = fp.read(size)
+        return cls(fmt, width, height, row, total_size, bits, planes, data)
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, '6I2H', self.fmt, self.width, self.height,
+                            self.row, self.total_size, len(self.data),
+                            self.bits, self.planes)
+        written += write_bytes(fp, self.data)
+        return written
+
+
 @register(ImageResourceID.VERSION_INFO)
 @attr.s
 class VersionInfo(BaseElement):
