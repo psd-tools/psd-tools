@@ -549,8 +549,8 @@ class SliceV6(BaseElement):
     alt_tag = attr.ib(default='', type=str)
     cell_is_html = attr.ib(default=False, type=bool)
     cell_text = attr.ib(default='', type=str)
-    horizontal = attr.ib(default=0, type=int)
-    vertical = attr.ib(default=0, type=int)
+    horizontal_align = attr.ib(default=0, type=int)
+    vertical_align = attr.ib(default=0, type=int)
     alpha = attr.ib(default=0, type=int)
     red = attr.ib(default=0, type=int)
     green = attr.ib(default=0, type=int)
@@ -570,10 +570,12 @@ class SliceV6(BaseElement):
         alt_tag = read_unicode_string(fp)
         cell_is_html = read_fmt('?', fp)[0]
         cell_text = read_unicode_string(fp)
-        horizontal, vertical = read_fmt('2I', fp)
+        horizontal_align, vertical_align = read_fmt('2I', fp)
         alpha, red, green, blue = read_fmt('4B', fp)
         data = None
         if is_readable(fp, 4):
+            # There is no easy distinction between descriptor block and
+            # next slice v6 item here...
             current_position = fp.tell()
             version = read_fmt('I', fp)[0]
             fp.seek(-4, 1)
@@ -586,7 +588,7 @@ class SliceV6(BaseElement):
         return cls(
             slice_id, group_id, origin, associated_id, name, slice_type, bbox,
             url, target, message, alt_tag, cell_is_html, cell_text,
-            horizontal, vertical, alpha, red, green, blue, data
+            horizontal_align, vertical_align, alpha, red, green, blue, data
         )
 
     def write(self, fp):
@@ -603,7 +605,8 @@ class SliceV6(BaseElement):
         written += write_unicode_string(fp, self.alt_tag, padding=1)
         written += write_fmt(fp, '?', self.cell_is_html)
         written += write_unicode_string(fp, self.cell_text, padding=1)
-        written += write_fmt(fp, '2I', self.horizontal, self.vertical)
+        written += write_fmt(fp, '2I', self.horizontal_align,
+                             self.vertical_align)
         written += write_fmt(fp, '4B', self.alpha, self.red, self.green,
                              self.blue)
         if self.data is not None:
