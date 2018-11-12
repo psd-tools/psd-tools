@@ -707,6 +707,44 @@ class ThumbnailResource(BaseElement):
         return written
 
 
+@register(ImageResourceID.COLOR_TRANSFER_FUNCTION)
+@register(ImageResourceID.DUOTONE_TRANSFER_FUNCTION)
+@register(ImageResourceID.GRAYSCALE_TRANSFER_FUNCTION)
+class TransferFunctions(ListElement):
+    """
+    Transfer functions.
+    """
+    @classmethod
+    def read(cls, fp, **kwargs):
+        items = []
+        while is_readable(fp, 28):
+            items.append(TransferFunction.read(fp))
+        return cls(items)
+
+    def write(self, fp, **kwargs):
+        return sum(item.write(fp) for item in self)
+
+
+@attr.s
+class TransferFunction(BaseElement):
+    """
+    Transfer function
+    """
+    curve = attr.ib(factory=list, converter=list)
+    override = attr.ib(default=False, type=bool)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        curve = read_fmt('13H', fp)
+        override = read_fmt('H', fp)[0]
+        return cls(curve, override)
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, '13H', *self.curve)
+        written += write_fmt(fp, 'H', self.override)
+        return written
+
+
 @register(ImageResourceID.URL_LIST)
 class URLList(ListElement):
     """
