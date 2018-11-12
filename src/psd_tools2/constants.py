@@ -321,11 +321,11 @@ class TaggedBlockID(Enum):
         return set(x.value for x in cls)
 
 
-# class PrintScaleStyle(Enum):
-#     """Print scale style."""
-#     CENTERED = 0
-#     SIZE_TO_FIT = 1
-#     USER_DEFINED = 2
+class PrintScaleStyle(IntEnum):
+    """Print scale style."""
+    CENTERED = 0
+    SIZE_TO_FIT = 1
+    USER_DEFINED = 2
 
 
 class OSType(Enum):

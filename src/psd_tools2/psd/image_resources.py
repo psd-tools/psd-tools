@@ -7,7 +7,7 @@ import attr
 import logging
 import io
 
-from psd_tools2.constants import ImageResourceID
+from psd_tools2.constants import ImageResourceID, PrintScaleStyle
 from psd_tools2.psd.base import (
     BaseElement, BooleanElement, ByteElement, DictElement, IntegerElement,
     ListElement, NumericElement, ShortIntegerElement, ValueElement,
@@ -398,6 +398,33 @@ class PrintFlagsInfo(BaseElement):
 
     def write(self, fp, **kwargs):
         return write_fmt(fp, 'HBxIH', *attr.astuple(self))
+
+
+@register(ImageResourceID.PRINT_SCALE)
+@attr.s
+class PrintScale(BaseElement):
+    """
+    Print scale structure.
+
+    .. py:attribute:: style
+    .. py:attribute:: x
+    .. py:attribute:: y
+    .. py:attribute:: scale
+    """
+    style = attr.ib(default=PrintScaleStyle.CENTERED,
+                    converter=PrintScaleStyle,
+                    validator=in_(PrintScaleStyle))
+    x = attr.ib(default=0., type=float)
+    y = attr.ib(default=0., type=float)
+    scale = attr.ib(default=0., type=float)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        return cls(*read_fmt('H3f', fp))
+
+    def write(self, fp, **kwargs):
+        return write_fmt(fp, 'H3f', self.style.value, self.x, self.y,
+                         self.scale)
 
 
 @register(ImageResourceID.RESOLUTION_INFO)
