@@ -181,12 +181,13 @@ class AlphaIdentifiers(ListElement):
     """
     @classmethod
     def read(cls, fp, **kwargs):
-        count = read_fmt('I', fp)[0]
-        items = read_fmt('%dI' % count, fp)
+        items = []
+        while is_readable(fp, 4):
+            items.append(read_fmt('I', fp)[0])
         return cls(items)
 
     def write(self, fp, **kwargs):
-        return write_fmt('I%dI' % len(self), len(self), *self)
+        return sum(write_fmt(fp, 'I', item) for item in self)
 
 
 @register(ImageResourceID.ALPHA_NAMES_PASCAL)
@@ -221,6 +222,7 @@ class AlphaNamesUnicode(ListElement):
         return sum(write_unicode_string(fp, item) for item in self)
 
 
+@register(ImageResourceID.ICC_UNTAGGED_PROFILE)
 @register(ImageResourceID.COPYRIGHT_FLAG)
 class Byte(ByteElement):
     """
