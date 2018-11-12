@@ -300,6 +300,8 @@ class String(ValueElement):
     """
     String element.
     """
+    _ESCAPED_CHARS = (b'\\', b'(', b')')
+
     @classmethod
     def read(cls, fp):
         return cls.frombytes(fp.read())
@@ -307,12 +309,14 @@ class String(ValueElement):
     @classmethod
     def frombytes(cls, data):
         value = data[1:-1]
-        value = value.replace(b'\\', b'')
+        for c in cls._ESCAPED_CHARS:
+            value = value.replace(b'\\' + c, c)
         return cls(value.decode('utf-16'))
 
     def write(self, fp):
         value = self.value.encode('utf-16-be')
-        value = value.replace(b')', b'\\)').replace(b'(', b'\\(')
+        for c in self._ESCAPED_CHARS:
+            value = value.replace(c, b'\\' + c)
         return write_bytes(fp, b'(' + codecs.BOM_UTF16_BE + value + b')')
 
 
