@@ -202,6 +202,22 @@ class Integer(IntegerElement):
         return write_fmt(fp, 'i', self.value)
 
 
+@register(ImageResourceID.LAYER_GROUPS_ENABLED_ID)
+class LayerGroupEnabledIDs(ListElement):
+    """
+    Layer group enabled ids.
+    """
+    @classmethod
+    def read(cls, fp, **kwargs):
+        items = []
+        while is_readable(fp, 1):
+            items.append(read_fmt('B', fp)[0])
+        return cls(items)
+
+    def write(self, fp, **kwargs):
+        return sum(write_fmt(fp, 'B', item) for item in self)
+
+
 @register(ImageResourceID.LAYER_GROUP_INFO)
 class LayerGroupInfo(ListElement):
     """
@@ -216,6 +232,22 @@ class LayerGroupInfo(ListElement):
 
     def write(self, fp, **kwargs):
         return sum(write_fmt(fp, 'H', item) for item in self)
+
+
+@register(ImageResourceID.LAYER_SELECTION_IDS)
+class LayerSelectionIDs(ListElement):
+    """
+    Layer selection ids.
+    """
+    @classmethod
+    def read(cls, fp, **kwargs):
+        count = read_fmt('H', fp)[0]
+        return cls(read_fmt('I', fp)[0] for _ in range(count))
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, 'H', len(self))
+        written += sum(write_fmt(fp, 'I', item) for item in self)
+        return written
 
 
 @register(ImageResourceID.INDEXED_COLOR_TABLE_COUNT)
