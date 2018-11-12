@@ -1,11 +1,13 @@
 from __future__ import absolute_import, unicode_literals
 import pytest
 import logging
+import os
+
 from psd_tools2.psd.adjustments import (
     Curves, CurvesExtraMarker, CurvesExtraItem,
 )
 
-from ..utils import check_write_read, check_read_write
+from ..utils import check_write_read, check_read_write, TEST_ROOT
 
 
 logger = logging.getLogger(__name__)
@@ -39,3 +41,13 @@ def test_curves_extra_item_wr(channel_id, points, is_map):
 ])
 def test_curves_extra_item_rw(fixture, is_map):
     check_read_write(CurvesExtraItem, fixture, is_map=is_map)
+
+
+@pytest.mark.parametrize('filename', [
+    'curves.dat'
+])
+def test_curves_rw(filename):
+    filepath = os.path.join(TEST_ROOT, 'tagged_blocks', filename)
+    with open(filepath, 'rb') as f:
+        fixture = f.read()
+    check_read_write(Curves, fixture)

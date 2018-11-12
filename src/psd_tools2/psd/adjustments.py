@@ -202,7 +202,7 @@ class Curves(BaseElement):
                 written += write_fmt(fp, 'H', len(points))
                 written += sum(write_fmt(fp, '2H', *item) for item in points)
 
-        if self.extra:
+        if self.extra is not None:
             written += self.extra.write(fp)
 
         written += write_padding(fp, written, 4)
