@@ -10,7 +10,7 @@ import io
 from psd_tools2.constants import ImageResourceID
 from psd_tools2.psd.base import (
     BaseElement, BooleanElement, ByteElement, DictElement, IntegerElement,
-    NumericElement, ShortIntegerElement, ValueElement,
+    ListElement, NumericElement, ShortIntegerElement, ValueElement,
 )
 from psd_tools2.psd.color import Color
 from psd_tools2.psd.descriptor import DescriptorBlock
@@ -200,6 +200,22 @@ class Integer(IntegerElement):
 
     def write(self, fp, **kwargs):
         return write_fmt(fp, 'i', self.value)
+
+
+@register(ImageResourceID.LAYER_GROUP_INFO)
+class LayerGroupInfo(ListElement):
+    """
+    Layer group info list.
+    """
+    @classmethod
+    def read(cls, fp, **kwargs):
+        items = []
+        while is_readable(fp, 2):
+            items.append(read_fmt('H', fp)[0])
+        return cls(items)
+
+    def write(self, fp, **kwargs):
+        return sum(write_fmt(fp, 'H', item) for item in self)
 
 
 @register(ImageResourceID.INDEXED_COLOR_TABLE_COUNT)
