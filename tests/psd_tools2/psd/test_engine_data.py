@@ -2,7 +2,7 @@ from __future__ import absolute_import, unicode_literals
 import os
 import pytest
 from psd_tools2.psd.engine_data import (
-    Tokenizer, EngineToken, EngineData, Float
+    Tokenizer, EngineToken, EngineData, Float, String
 )
 
 from ..utils import check_write_read, check_read_write, TEST_ROOT
@@ -53,3 +53,13 @@ def test_engine_data(filename, indent, write):
 ])
 def test_float(fixture):
     check_read_write(Float, fixture)
+
+
+@pytest.mark.parametrize('fixture', [
+    b'(\xfe\xff0\x00)',
+    b'(\xfe\xff0\x00\\) /1 \\(\xfe\xff\x001)',
+    b'(\xfe\xff)',
+    b'(\xfe\xffb\x10\\\\1\x00\r)',
+])
+def test_string(fixture):
+    check_read_write(String, fixture)

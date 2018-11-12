@@ -438,8 +438,7 @@ class MetadataSetting(BaseElement):
         key, copy_on_sheet = read_fmt("4s?3x", fp)
         data = read_length_block(fp)
         try:
-            with io.BytesIO(data) as f:
-                data = DescriptorBlock.read(f, padding=4)
+            data = DescriptorBlock.frombytes(data, padding=4)
         except (ValueError, AssertionError):
             logger.warning('Failed to read metadata item %r' % (
                 trimmed_repr(data))
