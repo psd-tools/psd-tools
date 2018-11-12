@@ -174,6 +174,21 @@ class ImageResource(BaseElement):
         return written
 
 
+@register(ImageResourceID.ALPHA_IDENTIFIERS)
+class AlphaIdentifiers(ListElement):
+    """
+    List of alpha identifiers.
+    """
+    @classmethod
+    def read(cls, fp, **kwargs):
+        count = read_fmt('I', fp)[0]
+        items = read_fmt('%dI' % count, fp)
+        return cls(items)
+
+    def write(self, fp, **kwargs):
+        return write_fmt('I%dI' % len(self), len(self), *self)
+
+
 @register(ImageResourceID.ALPHA_NAMES_PASCAL)
 class AlphaNamesPascal(ListElement):
     """
