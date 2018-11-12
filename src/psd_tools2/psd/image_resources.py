@@ -187,6 +187,34 @@ class Byte(ByteElement):
         return write_fmt(fp, 'B', self.value)
 
 
+@register(ImageResourceID.GRID_AND_GUIDES_INFO)
+@attr.s
+class GridGuidesInfo(BaseElement):
+    """
+    Grid and guides info structure.
+
+    .. py:attribute: version
+    """
+    version = attr.ib(default=1, type=int)
+    horizontal = attr.ib(default=0, type=int)
+    vertical = attr.ib(default=0, type=int)
+    data = attr.ib(factory=list, converter=list)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        version, horizontal, vertical, count = read_fmt('4I', fp)
+        items = []
+        for _ in range(count):
+            items.append(read_fmt('IB', fp))
+        return cls(version, horizontal, vertical, items)
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, '4I', self.version, self.horizontal,
+                            self.vertical, len(self.data))
+        written += sum(write_fmt(fp, 'IB', *item) for item in self.data)
+        return written
+
+
 @register(ImageResourceID.GLOBAL_ALTITUDE)
 @register(ImageResourceID.GLOBAL_ANGLE)
 @register(ImageResourceID.IDS_SEED_NUMBER)
