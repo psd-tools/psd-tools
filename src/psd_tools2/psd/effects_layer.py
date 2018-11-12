@@ -367,8 +367,7 @@ class EffectsLayer(DictElement):
             assert signature == b'8BIM', 'Invalid signature %r' % (signature)
             ostype = EffectOSType(read_fmt('4s', fp)[0])
             kls = cls.EFFECT_TYPES.get(ostype)
-            with io.BytesIO(read_length_block(fp)) as f:
-                items.append((ostype, kls.read(f)))
+            items.append((ostype, kls.frombytes(read_length_block(fp))))
         return cls(version=version, items=items)
 
     def write(self, fp, **kwargs):
