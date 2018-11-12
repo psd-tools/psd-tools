@@ -1,6 +1,6 @@
 from __future__ import absolute_import, unicode_literals
 import logging
-import glob
+import fnmatch
 import os
 import tempfile
 from psd_tools2.utils import trimmed_repr
@@ -33,12 +33,18 @@ OTHER_FILES = {
 TEST_ROOT = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
 
+def find_files(pattern='*.ps*', root=TEST_ROOT):
+    for root, dirnames, filenames in os.walk(root):
+        for filename in fnmatch.filter(filenames, pattern):
+            yield os.path.join(root, filename)
+
+
 def full_name(filename):
     return os.path.join(TEST_ROOT, 'psd_files', filename)
 
 
 def all_files():
-    return [filepath for filepath in glob.glob(full_name('*.ps*'))]
+    return list(find_files())
 
 
 def check_write_read(element, *args, **kwargs):

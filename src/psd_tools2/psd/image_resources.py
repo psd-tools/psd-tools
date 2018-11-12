@@ -174,6 +174,38 @@ class ImageResource(BaseElement):
         return written
 
 
+@register(ImageResourceID.ALPHA_NAMES_PASCAL)
+class AlphaNamesPascal(ListElement):
+    """
+    List of alpha names.
+    """
+    @classmethod
+    def read(cls, fp, **kwargs):
+        items = []
+        while is_readable(fp):
+            items.append(read_pascal_string(fp, 'macroman', padding=1))
+        return cls(items)
+
+    def write(self, fp, **kwargs):
+        return sum(write_pascal_string(fp, item, padding=1) for item in self)
+
+
+@register(ImageResourceID.ALPHA_NAMES_UNICODE)
+class AlphaNamesUnicode(ListElement):
+    """
+    List of alpha names.
+    """
+    @classmethod
+    def read(cls, fp, **kwargs):
+        items = []
+        while is_readable(fp):
+            items.append(read_unicode_string(fp))
+        return cls(items)
+
+    def write(self, fp, **kwargs):
+        return sum(write_unicode_string(fp, item) for item in self)
+
+
 @register(ImageResourceID.COPYRIGHT_FLAG)
 class Byte(ByteElement):
     """
@@ -293,7 +325,6 @@ class ShortInteger(ShortIntegerElement):
         return write_fmt(fp, 'H', self.value)
 
 
-@register(ImageResourceID.ALPHA_NAMES_UNICODE)
 @register(ImageResourceID.AUTO_SAVE_FILE_PATH)
 @register(ImageResourceID.AUTO_SAVE_FORMAT)
 @register(ImageResourceID.WORKFLOW_URL)
@@ -320,7 +351,7 @@ class PascalString(ValueElement):
         return cls(read_pascal_string(fp, 'macroman'))
 
     def write(self, fp, **kwargs):
-        return write_pascal_string(fp, 'macroman', padding=1)
+        return write_pascal_string(fp, self.value, 'macroman', padding=1)
 
 
 @register(ImageResourceID.PIXEL_ASPECT_RATIO)
