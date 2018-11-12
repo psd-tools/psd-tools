@@ -764,7 +764,7 @@ class DescriptorBlock(Descriptor):
 
     .. py:attribute:: version
     """
-    version = attr.ib(default=1, type=int, validator=in_((16,)))
+    version = attr.ib(default=16, type=int, validator=in_((16,)))
 
     @classmethod
     def read(cls, fp, **kwargs):
