@@ -10,7 +10,7 @@ import io
 from psd_tools2.constants import ImageResourceID
 from psd_tools2.psd.base import (
     BaseElement, BooleanElement, ByteElement, DictElement, IntegerElement,
-    ShortIntegerElement, ValueElement,
+    NumericElement, ShortIntegerElement, ValueElement,
 )
 from psd_tools2.psd.color import Color
 from psd_tools2.psd.descriptor import DescriptorBlock
@@ -245,6 +245,25 @@ class PascalString(ValueElement):
 
     def write(self, fp, **kwargs):
         return write_pascal_string(fp, 'macroman', padding=1)
+
+
+@register(ImageResourceID.PIXEL_ASPECT_RATIO)
+@attr.s
+class PixelAspectRatio(NumericElement):
+    """
+    Pixel aspect ratio.
+
+    .. py:attribute: version
+    """
+    version = attr.ib(default=1, type=int)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        version, value = read_fmt('Id', fp)
+        return cls(version=version, value=value)
+
+    def write(self, fp, **kwargs):
+        return write_fmt(fp, 'Id', self.version, self.value)
 
 
 @register(ImageResourceID.PRINT_FLAGS)
