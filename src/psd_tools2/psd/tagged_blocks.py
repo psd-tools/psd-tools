@@ -437,12 +437,16 @@ class MetadataSetting(BaseElement):
         assert signature == b'8BIM', 'Invalid signature %r' % signature
         key, copy_on_sheet = read_fmt("4s?3x", fp)
         data = read_length_block(fp)
-        try:
+        if key == b'mdyn':
+            with io.BytesIO(data) as f:
+                data = read_fmt('I', f)[0]
+        elif key in (b'cust', b'cmls'):
             data = DescriptorBlock.frombytes(data, padding=4)
-        except (ValueError, AssertionError):
-            logger.warning('Failed to read metadata item %r' % (
-                trimmed_repr(data))
-            )
+        else:
+            message = 'Unknown metadata key %r' % (key)
+            logger.warning(message)
+            warn(message.encode('ascii'))
+            data = data
         return cls(signature, key, copy_on_sheet, data)
 
     def write(self, fp, **kwargs):
@@ -451,6 +455,8 @@ class MetadataSetting(BaseElement):
         def writer(f):
             if hasattr(self.data, 'write'):
                 return self.data.write(f, padding=4)
+            elif isinstance(self.data, int):
+                return write_fmt(fp, 'I', self.data)
             return write_bytes(f, self.data)
         written += write_length_block(fp, writer)
         return written
