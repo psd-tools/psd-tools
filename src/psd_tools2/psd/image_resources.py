@@ -707,6 +707,50 @@ class ThumbnailResource(BaseElement):
         return written
 
 
+@register(ImageResourceID.URL_LIST)
+class URLList(ListElement):
+    """
+    URL list structure.
+    """
+    @classmethod
+    def read(cls, fp, **kwargs):
+        count = read_fmt('I', fp)[0]
+        items = []
+        for _ in range(count):
+            items.append(URLItem.read(fp))
+        return cls(items)
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, 'I', len(self))
+        written += sum(item.write(fp) for item in self)
+        return written
+
+
+@attr.s
+class URLItem(BaseElement):
+    """
+    URL item.
+
+    .. py:attribute:: number
+    .. py:attribute:: id
+    .. py:attribute:: name
+    """
+    number = attr.ib(default=0, type=int)
+    id = attr.ib(default=0, type=int)
+    name = attr.ib(default='', type=str)
+
+    @classmethod
+    def read(cls, fp):
+        number, id = read_fmt('2I', fp)
+        name = read_unicode_string(fp)
+        return cls(number, id, name)
+
+    def write(self, fp):
+        written = write_fmt(fp, '2I', self.number, self.id)
+        written += write_unicode_string(fp, self.name)
+        return written
+
+
 @register(ImageResourceID.VERSION_INFO)
 @attr.s
 class VersionInfo(BaseElement):
