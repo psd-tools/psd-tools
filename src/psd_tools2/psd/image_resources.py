@@ -468,14 +468,20 @@ class PrintFlags(BaseElement):
     flip = attr.ib(default=False, type=bool)
     interpolate = attr.ib(default=False, type=bool)
     caption = attr.ib(default=False, type=bool)
-    print_flags = attr.ib(default=False, type=bool)
+    print_flags = attr.ib(default=None)  # Not existing for old versions.
 
     @classmethod
     def read(cls, fp, **kwargs):
-        return cls(*read_fmt('9?', fp))
+        values = read_fmt('8?', fp)
+        if is_readable(fp):
+            values += read_fmt('?', fp)
+        return cls(*values)
 
     def write(self, fp, **kwargs):
-        return write_fmt(fp, '9?', *attr.astuple(self))
+        values = attr.astuple(self)
+        if self.print_flags is None:
+            values = values[:-1]
+        return write_fmt(fp, '%d?' % len(values), *values)
 
 
 @register(ImageResourceID.PRINT_FLAGS_INFO)
