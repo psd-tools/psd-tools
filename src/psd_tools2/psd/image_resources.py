@@ -264,6 +264,60 @@ class GridGuidesInfo(BaseElement):
         return written
 
 
+@register(ImageResourceID.COLOR_HALFTONING_INFO)
+@register(ImageResourceID.DUOTONE_HALFTONING_INFO)
+@register(ImageResourceID.GRAYSCALE_HALFTONING_INFO)
+class HalftoneScreens(ListElement):
+    """
+    Halftone screens.
+    """
+    @classmethod
+    def read(cls, fp, **kwargs):
+        items = []
+        while is_readable(fp, 18):
+            items.append(HalftoneScreen.read(fp))
+        return cls(items)
+
+    def write(self, fp, **kwargs):
+        return sum(item.write(fp) for item in self)
+
+
+@attr.s
+class HalftoneScreen(BaseElement):
+    """
+    Halftone screen.
+
+    .. py:attribute:: freq
+    .. py:attribute:: unit
+    .. py:attribute:: angle
+    .. py:attribute:: shape
+    .. py:attribute:: use_accurate
+    .. py:attribute:: use_printer
+    """
+    freq = attr.ib(default=0, type=int)
+    unit = attr.ib(default=0, type=int)
+    angle = attr.ib(default=0, type=int)
+    shape = attr.ib(default=0, type=int)
+    use_accurate = attr.ib(default=False, type=bool)
+    use_printer = attr.ib(default=False, type=bool)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        freq = float(read_fmt('I', fp)[0]) / 0x10000
+        unit = read_fmt('H', fp)[0]
+        angle = float(read_fmt('i', fp)[0]) / 0x10000
+        shape, use_accurate, use_printer = read_fmt('H4x2?', fp)
+        return cls(freq, unit, angle, shape, use_accurate, use_printer)
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, 'I', int(self.freq * 0x10000))
+        written += write_fmt(fp, 'H', self.unit)
+        written += write_fmt(fp, 'i', int(self.angle * 0x10000))
+        written += write_fmt(fp, 'H4x2?', self.shape, self.use_accurate,
+                            self.use_printer)
+        return written
+
+
 @register(ImageResourceID.GLOBAL_ALTITUDE)
 @register(ImageResourceID.GLOBAL_ANGLE)
 @register(ImageResourceID.IDS_SEED_NUMBER)
