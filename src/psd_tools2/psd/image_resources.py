@@ -247,6 +247,40 @@ class PascalString(ValueElement):
         return write_pascal_string(fp, 'macroman', padding=1)
 
 
+@register(ImageResourceID.PRINT_FLAGS)
+@attr.s
+class PrintFlags(BaseElement):
+    """
+    Print flags.
+
+    .. py:attribute: labels
+    .. py:attribute: crop_marks
+    .. py:attribute: colorbars
+    .. py:attribute: registration_marks
+    .. py:attribute: negative
+    .. py:attribute: flip
+    .. py:attribute: interpolate
+    .. py:attribute: caption
+    .. py:attribute: print_flags
+    """
+    labels = attr.ib(default=False, type=bool)
+    crop_marks = attr.ib(default=False, type=bool)
+    colorbars = attr.ib(default=False, type=bool)
+    registration_marks = attr.ib(default=False, type=bool)
+    negative = attr.ib(default=False, type=bool)
+    flip = attr.ib(default=False, type=bool)
+    interpolate = attr.ib(default=False, type=bool)
+    caption = attr.ib(default=False, type=bool)
+    print_flags = attr.ib(default=False, type=bool)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        return cls(*read_fmt('9?', fp))
+
+    def write(self, fp, **kwargs):
+        return write_fmt(fp, '9?', *attr.astuple(self))
+
+
 @register(ImageResourceID.PRINT_FLAGS_INFO)
 @attr.s
 class PrintFlagsInfo(BaseElement):
