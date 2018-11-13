@@ -67,6 +67,8 @@ def write_length_and_key(fp, value):
 
 
 class _DescriptorMixin(DictElement):
+    enum = DescriptorClassID
+
     @classmethod
     def _read_body(cls, fp):
         name = read_unicode_string(fp, padding=1)
@@ -91,14 +93,6 @@ class _DescriptorMixin(DictElement):
             written += write_bytes(fp, self[key].ostype.value)
             written += self[key].write(fp)
         return written
-
-    def __getitem__(self, key):
-        key = key.encode('ascii') if isinstance(key, str) else key
-        return self._items[key]
-
-    def __setitem__(self, key, value):
-        key = key.encode('ascii') if isinstance(key, str) else key
-        self._items[key] = value
 
     def _repr_pretty_(self, p, cycle):
         if cycle:

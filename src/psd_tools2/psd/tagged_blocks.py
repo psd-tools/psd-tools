@@ -1,5 +1,10 @@
 """
 Tagged block data structure.
+
+.. todo:: Support the following tagged blocks: ``TaggedBlockID.PATTERN_DATA``,
+    ``TaggedBlockID.TYPE_TOOL_INFO``, ``TaggedBlockID.LAYER``,
+    ``TaggedBlockID.ALPHA``
+
 """
 from __future__ import absolute_import, unicode_literals
 import attr
@@ -88,7 +93,23 @@ TYPES.update({
 class TaggedBlocks(DictElement):
     """
     Dict of tagged blocks.
+
+    Example::
+
+        from psd_tools2.constants import TaggedBlockID
+
+        # Iterate over fields
+        for key in tagged_blocks:
+            print(key)
+
+        # Get a field
+        block = tagged_blocks.get(TaggedBlockID.TYPE_TOOL_OBJECT_SETTING)
+        type_setting = block.data
+
+        block = tagged_blocks[TaggedBlockID(b'TySh')]
     """
+    enum = TaggedBlockID
+
     @classmethod
     def read(cls, fp, version=1, padding=1):
         """Read the element from a file-like object.

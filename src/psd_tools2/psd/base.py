@@ -403,6 +403,9 @@ class ListElement(BaseElement):
 class DictElement(BaseElement):
     """
     Dict-like element that has `items` OrderedDict.
+
+    If the class has `enum` class variable, key is always converted to that
+    enum.
     """
     _items = attr.ib(factory=OrderedDict, converter=OrderedDict)
 
@@ -417,6 +420,7 @@ class DictElement(BaseElement):
         return cls(OrderedDict.fromkeys(seq, *args))
 
     def get(self, key, *args):
+        key = self._key_converter(key)
         return self._items.get(key, *args)
 
     def items(self):
@@ -426,12 +430,14 @@ class DictElement(BaseElement):
         return self._items.keys()
 
     def pop(self, key, *args):
+        key = self._key_converter(key)
         return self._items.pop(key, *args)
 
     def popitem(self):
         return self._items.popitem()
 
     def setdefault(self, key, *args):
+        key = self._key_converter(key)
         return self._items.setdefault(key, *args)
 
     def update(self, *args):
@@ -447,12 +453,15 @@ class DictElement(BaseElement):
         return self._items.__iter__()
 
     def __getitem__(self, key):
+        key = self._key_converter(key)
         return self._items.__getitem__(key)
 
     def __setitem__(self, key, value):
+        key = self._key_converter(key)
         return self._items.__setitem__(key, value)
 
     def __delitem__(self, key):
+        key = self._key_converter(key)
         return self._items.__delitem__(key)
 
     def __contains__(self, item):
@@ -481,6 +490,26 @@ class DictElement(BaseElement):
                     value = trimmed_repr(value)
                 p.pretty(value)
             p.breakable('')
+
+    @classmethod
+    def _key_converter(cls, key):
+        if hasattr(cls, 'enum'):
+            return cls._convert_enum(cls.enum, key)
+        return key
+
+    @classmethod
+    def _convert_enum(cls, enum, key):
+        if isinstance(key, Enum):
+            return key
+        key = key.encode('ascii') if hasattr(key, 'encode') else key
+        if isinstance(key, bytes) and hasattr(enum, key.upper()):
+            key = getattr(enum, key.upper())
+        else:
+            try:
+                key = enum(key)
+            except ValueError:
+                pass
+        return key
 
     @classmethod
     def read(cls, fp, *args, **kwargs):

@@ -1,6 +1,47 @@
 """
 Image resources section structure. Image resources are used to store non-pixel
 data associated with images, such as pen tool paths.
+
+The following resources are plain bytes::
+
+    ImageResourceID.OBSOLETE1: 1000
+    ImageResourceID.MAC_PRINT_MANAGER_INFO: 1001
+    ImageResourceID.OBSOLETE2: 1003
+    ImageResourceID.DISPLAY_INFO_OBSOLETE: 1007
+    ImageResourceID.BORDER_INFO: 1009
+    ImageResourceID.DUOTONE_IMAGE_INFO: 1018
+    ImageResourceID.EFFECTIVE_BW: 1019
+    ImageResourceID.OBSOLETE3: 1020
+    ImageResourceID.EPS_OPTIONS: 1021
+    ImageResourceID.QUICK_MASK_INFO: 1022
+    ImageResourceID.OBSOLETE4: 1023
+    ImageResourceID.WORKING_PATH: 1025
+    ImageResourceID.OBSOLETE5: 1027
+    ImageResourceID.IPTC_NAA: 1028
+    ImageResourceID.IMAGE_MODE_RAW: 1029
+    ImageResourceID.JPEG_QUALITY: 1030
+    ImageResourceID.URL: 1035
+    ImageResourceID.COLOR_SAMPLERS_RESOURCE_OBSOLETE: 1038
+    ImageResourceID.ICC_PROFILE: 1039
+    ImageResourceID.SPOT_HALFTONE: 1043
+    ImageResourceID.JUMP_TO_XPEP: 1052
+    ImageResourceID.EXIF_DATA_1: 1058
+    ImageResourceID.EXIF_DATA_3: 1059
+    ImageResourceID.XMP_METADATA: 1060
+    ImageResourceID.CAPTION_DIGEST: 1061
+    ImageResourceID.ALTERNATE_DUOTONE_COLORS: 1066
+    ImageResourceID.ALTERNATE_SPOT_COLORS: 1067
+    ImageResourceID.HDR_TONING_INFO: 1070
+    ImageResourceID.PRINT_INFO_CS2: 1071
+    ImageResourceID.COLOR_SAMPLERS_RESOURCE: 1073
+    ImageResourceID.DISPLAY_INFO: 1077
+    ImageResourceID.MAC_NSPRINTINFO: 1084
+    ImageResourceID.WINDOWS_DEVMODE: 1085
+    ImageResourceID.PATH_INFO_N: 2000-2999
+    ImageResourceID.PLUGIN_RESOURCES_N: 4000-4999
+    ImageResourceID.IMAGE_READY_VARIABLES: 7000
+    ImageResourceID.IMAGE_READY_DATA_SETS: 7001
+    ImageResourceID.LIGHTROOM_WORKFLOW: 8000
 """
 from __future__ import absolute_import, unicode_literals
 import attr
@@ -47,6 +88,8 @@ class ImageResources(DictElement):
     Image resources section of the PSD file. Dict of
     :py:class:`.ImageResource`.
     """
+    enum = ImageResourceID
+
     @classmethod
     def read(cls, fp, encoding='macroman'):
         """Read the element from a file-like object.
@@ -224,6 +267,8 @@ class AlphaNamesUnicode(ListElement):
 
 @register(ImageResourceID.ICC_UNTAGGED_PROFILE)
 @register(ImageResourceID.COPYRIGHT_FLAG)
+@register(ImageResourceID.EFFECTS_VISIBLE)
+@register(ImageResourceID.WATERMARK)
 class Byte(ByteElement):
     """
     Byte element.
