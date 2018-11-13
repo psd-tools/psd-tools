@@ -8,7 +8,7 @@ import logging
 
 from psd_tools2.psd.base import BaseElement, ListElement
 from psd_tools2.psd.tagged_blocks import TaggedBlocks, register
-from psd_tools2.psd.image_data import compress, decompress
+from psd_tools2.compression import compress, decompress
 from psd_tools2.validators import in_, range_
 from psd_tools2.constants import (
     BlendMode, Clipping, Compression, ChannelID, GlobalLayerMaskKind,
