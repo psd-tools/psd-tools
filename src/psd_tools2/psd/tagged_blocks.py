@@ -89,6 +89,7 @@ TYPES.update({
     TaggedBlockID.VECTOR_STROKE_CONTENT_DATA: VectorStrokeContentSetting,
 })
 
+
 @attr.s(repr=False)
 class TaggedBlocks(DictElement):
     """
@@ -489,12 +490,14 @@ class MetadataSetting(BaseElement):
     def write(self, fp, **kwargs):
         written = write_fmt(fp, '4s4s?3x', self.signature, self.key,
                             self.copy_on_sheet)
+
         def writer(f):
             if hasattr(self.data, 'write'):
                 return self.data.write(f, padding=4)
             elif isinstance(self.data, int):
                 return write_fmt(fp, 'I', self.data)
             return write_bytes(f, self.data)
+
         written += write_length_block(fp, writer)
         return written
 

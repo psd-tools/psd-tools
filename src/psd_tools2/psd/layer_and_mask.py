@@ -958,7 +958,6 @@ class ChannelData(BaseElement):
         # written += write_padding(fp, written, 2)  # Seems no padding here.
         return written
 
-
     def get_data(self, width, height, depth, version=1):
         """Get decompressed channel data.
 

@@ -88,8 +88,10 @@ class FilterEffect(BaseElement):
         written = write_pascal_string(fp, self.uuid, encoding='ascii',
                                       padding=1)
         written += write_fmt(fp, 'I', self.version)
+
         def writer(f):
             return self._write_body(f)
+
         written += write_length_block(fp, writer, fmt='Q')
 
         if self.extra is not None:

@@ -478,7 +478,6 @@ class DescriptorClassID(Enum):
     REVERSED = b'Rvrs'
     ALIGNED = b'Algn'
 
-
     # Blend mode
     BLEND_MODE = b'BlnM'
     BLEND_NORMAL = b'Nrml'

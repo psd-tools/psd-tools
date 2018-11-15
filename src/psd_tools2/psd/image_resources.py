@@ -375,7 +375,7 @@ class HalftoneScreen(BaseElement):
         written += write_fmt(fp, 'H', self.unit)
         written += write_fmt(fp, 'i', int(self.angle * 0x10000))
         written += write_fmt(fp, 'H4x2?', self.shape, self.use_accurate,
-                            self.use_printer)
+                             self.use_printer)
         return written
 
 

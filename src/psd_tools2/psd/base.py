@@ -7,12 +7,9 @@ from psd_tools2.utils import read_fmt, write_fmt, trimmed_repr
 from psd_tools2.validators import in_
 
 
-@attr.s
 class BaseElement(object):
     """
     Base element of various PSD file structs.
-
-    If FORMAT attribute is set, read/write method automatically parse binary.
     """
     @classmethod
     def read(cls, fp):

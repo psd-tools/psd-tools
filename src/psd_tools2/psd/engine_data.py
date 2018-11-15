@@ -142,7 +142,7 @@ class Dict(DictElement):
                 v_token, v_token_type = next(tokenizer)
                 kls = TOKEN_CLASSES.get(v_token_type)
                 if v_token_type in (EngineToken.ARRAY_START,
-                                  EngineToken.DICT_START):
+                                    EngineToken.DICT_START):
                     value = kls.frombytes(tokenizer)
                 elif kls:
                     value = kls.frombytes(v_token)
