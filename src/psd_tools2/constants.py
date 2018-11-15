@@ -113,12 +113,12 @@ ImageResourceID = IntEnum('ImageResourceID', [
     ('AUTO_SAVE_FORMAT', 1087),
     ('PATH_SELECTION_STATE', 1088),
 ] + [
-    ('PATH_INFO_%d' % x, x) for x in range(2000, 2998)
+    ('PATH_INFO_%d' % (x - 2000), x) for x in range(2000, 2998)
 ] + [
     ('CLIPPING_PATH_NAME', 2999),
     ('ORIGIN_PATH_INFO', 3000),
 ] + [
-    ('PLUGIN_RESOURCES_%d' % x, x) for x in range(4000, 5000)
+    ('PLUGIN_RESOURCES_%d' % (x - 4000), x) for x in range(4000, 5000)
 ] + [
     ('IMAGE_READY_VARIABLES', 7000),
     ('IMAGE_READY_DATA_SETS', 7001),
