@@ -66,6 +66,34 @@ class BaseElement(object):
                     p.pretty(value)
             p.breakable('')
 
+    def _find(self, condition=None):
+        """
+        Traversal API intended for debugging.
+        """
+        for _ in BaseElement._traverse(self, condition):
+            yield _
+
+    @staticmethod
+    def _traverse(element, condition=None):
+        """
+        Traversal API intended for debugging.
+        """
+        if condition is None or condition(element):
+            yield element
+        if isinstance(element, DictElement):
+            for child in element.values():
+                for _ in BaseElement._traverse(child, condition):
+                    yield _
+        elif isinstance(element, ListElement):
+            for child in element:
+                for _ in BaseElement._traverse(child, condition):
+                    yield _
+        elif attr.has(element.__class__):
+            for field in attr.fields(element.__class__):
+                child = getattr(element, field.name)
+                for _ in BaseElement._traverse(child, condition):
+                    yield _
+
 
 @attr.s
 class EmptyElement(BaseElement):
