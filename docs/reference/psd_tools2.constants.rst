@@ -31,10 +31,24 @@ ColorMode
     :members:
     :undoc-members:
 
+ColorSpaceID
+------------
+
+.. autoclass:: psd_tools2.constants.ColorSpaceID
+    :members:
+    :undoc-members:
+
 Compression
 -----------
 
 .. autoclass:: psd_tools2.constants.Compression
+    :members:
+    :undoc-members:
+
+EffectOSType
+------------
+
+.. autoclass:: psd_tools2.constants.EffectOSType
     :members:
     :undoc-members:
 
@@ -45,11 +59,18 @@ GlobalLayerMaskKind
     :members:
     :undoc-members:
 
+LinkedLayerType
+---------------
+
+.. autoclass:: psd_tools2.constants.LinkedLayerType
+    :members:
+    :undoc-members:
+
 ImageResourceID
 ---------------
 
 .. autoclass:: psd_tools2.constants.ImageResourceID
-    :members: OBSOLETE1,OBSOLETE1, MAC_PRINT_MANAGER_INFO, OBSOLETE2,
+    :members: OBSOLETE1, MAC_PRINT_MANAGER_INFO, OBSOLETE2,
               RESOLUTION_INFO, ALPHA_NAMES_PASCAL, DISPLAY_INFO_OBSOLETE,
               CAPTION_PASCAL, BORDER_INFO, BACKGROUND_COLOR, PRINT_FLAGS,
               GRAYSCALE_HALFTONING_INFO, COLOR_HALFTONING_INFO,
@@ -77,6 +98,35 @@ ImageResourceID
               CLIPPING_PATH_NAME, ORIGIN_PATH_INFO, IMAGE_READY_VARIABLES,
               IMAGE_READY_DATA_SETS, LIGHTROOM_WORKFLOW, PRINT_FLAGS_INFO,
               PATH_INFO_0, PLUGIN_RESOURCES_0
+    :undoc-members:
+
+
+PathResourceID
+--------------
+
+.. autoclass:: psd_tools2.constants.PathResourceID
+    :members:
+    :undoc-members:
+
+PlacedLayerType
+---------------
+
+.. autoclass:: psd_tools2.constants.PlacedLayerType
+    :members:
+    :undoc-members:
+
+PrintScaleStyle
+---------------
+
+.. autoclass:: psd_tools2.constants.PrintScaleStyle
+    :members:
+    :undoc-members:
+
+SectionDivider
+--------------
+
+.. autoclass:: psd_tools2.constants.SectionDivider
+    :members:
     :undoc-members:
 
 TaggedBlockID

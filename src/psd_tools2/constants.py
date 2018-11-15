@@ -29,9 +29,6 @@ class ColorSpaceID(IntEnum):
     GRAYSCALE = 8
 
 
-"""
-Image resource keys.
-"""
 ImageResourceID = IntEnum('ImageResourceID', [
     ('OBSOLETE1', 1000),
     ('MAC_PRINT_MANAGER_INFO', 1001),
@@ -125,6 +122,14 @@ ImageResourceID = IntEnum('ImageResourceID', [
     ('LIGHTROOM_WORKFLOW', 8000),
     ('PRINT_FLAGS_INFO', 10000),
 ], module=__name__)
+"""
+Image resource keys.
+
+Other than the attributes below, path and plugin resources exist:
+
+ * PATH_INFO_0 to PATH_INFO_999 corresponding to 2000 - 2999
+ * PLUGIN_RESOURCES_0 to PLUGIN_RESOURCES_999 corresponding to 4000 - 4999
+"""
 
 
 class LinkedLayerType(Enum):
