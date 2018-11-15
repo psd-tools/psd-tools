@@ -90,6 +90,22 @@ class ImageResources(DictElement):
     """
     enum = ImageResourceID
 
+    def get_data(self, key, *args):
+        """
+        Get data from the image resources.
+
+        Shortcut for the following::
+
+            value = image_resources.get(key)
+            if value:
+                value = value.data
+
+        """
+        value = self.get(key, *args)
+        if value:
+            return value.data
+        return value
+
     @classmethod
     def read(cls, fp, encoding='macroman'):
         """Read the element from a file-like object.
