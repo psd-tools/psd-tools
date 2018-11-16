@@ -527,8 +527,9 @@ class DictElement(BaseElement):
         if isinstance(key, Enum):
             return key
         key = key.encode('ascii') if hasattr(key, 'encode') else key
-        if isinstance(key, bytes) and hasattr(enum, key.upper()):
-            key = getattr(enum, key.upper())
+        key_str = key.upper().decode('ascii')
+        if isinstance(key, bytes) and hasattr(enum, key_str):
+            key = getattr(enum, key_str)
         else:
             try:
                 key = enum(key)
