@@ -42,6 +42,12 @@ class BaseElement(object):
             self.write(f, *args, **kwargs)
             return f.getvalue()
 
+    def validate(self):
+        """
+        Validate the attribute.
+        """
+        return attr.validate(self)
+
     def _repr_pretty_(self, p, cycle):
         if cycle:
             return "{name}(...)".format(name=self.__class__.__name__)
@@ -489,8 +495,9 @@ class DictElement(BaseElement):
         key = self._key_converter(key)
         return self._items.__delitem__(key)
 
-    def __contains__(self, item):
-        return self._items.__contains__(item)
+    def __contains__(self, key):
+        key = self._key_converter(key)
+        return self._items.__contains__(key)
 
     def __repr__(self):
         return dict.__repr__(self._items)
