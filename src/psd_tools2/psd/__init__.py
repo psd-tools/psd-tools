@@ -11,7 +11,7 @@ from .image_data import ImageData
 logger = logging.getLogger(__name__)
 
 
-@attr.s
+@attr.s(slots=True)
 class PSD(BaseElement):
     """
     Low-level PSD file structure.
