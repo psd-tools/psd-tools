@@ -12,6 +12,7 @@ from psd_tools2.utils import (
 logger = logging.getLogger(__name__)
 
 
+@attr.s(repr=False, slots=True)
 class ColorModeData(ValueElement):
     """
     Color mode data section of the PSD file.
@@ -21,6 +22,8 @@ class ColorModeData(ValueElement):
 
     Duotone images also have this data, but the data format is undocumented.
     """
+    value = attr.ib(default=b'', type=bytes)
+
     @classmethod
     def read(cls, fp):
         """Read the element from a file-like object.
