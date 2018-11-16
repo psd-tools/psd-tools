@@ -40,7 +40,7 @@ class LinkedLayers(ListElement):
         return written
 
 
-@attr.s
+@attr.s(slots=True)
 class LinkedLayer(BaseElement):
     """
     LinkedLayer structure.

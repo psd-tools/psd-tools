@@ -40,7 +40,7 @@ class Patterns(ListElement):
         return written
 
 
-@attr.s
+@attr.s(slots=True)
 class Pattern(BaseElement):
     """
     Pattern structure.
@@ -93,7 +93,7 @@ class Pattern(BaseElement):
         return written
 
 
-@attr.s
+@attr.s(slots=True)
 class VirtualMemoryArrayList(BaseElement):
     """
     VirtualMemoryArrayList structure.
@@ -133,7 +133,7 @@ class VirtualMemoryArrayList(BaseElement):
         return written
 
 
-@attr.s
+@attr.s(slots=True)
 class VirtualMemoryArray(BaseElement):
     """
     VirtualMemoryArrayList structure.

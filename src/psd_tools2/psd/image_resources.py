@@ -82,7 +82,7 @@ TYPES.update({
 })
 
 
-@attr.s(repr=False)
+@attr.s(repr=False, slots=True)
 class ImageResources(DictElement):
     """
     Image resources section of the PSD file. Dict of
@@ -161,7 +161,7 @@ class ImageResources(DictElement):
             p.breakable('')
 
 
-@attr.s
+@attr.s(slots=True)
 class ImageResource(BaseElement):
     """
     Image resource block.
@@ -298,7 +298,7 @@ class Byte(ByteElement):
 
 
 @register(ImageResourceID.GRID_AND_GUIDES_INFO)
-@attr.s
+@attr.s(slots=True)
 class GridGuidesInfo(BaseElement):
     """
     Grid and guides info structure.
@@ -343,7 +343,7 @@ class HalftoneScreens(ListElement):
         return sum(item.write(fp) for item in self)
 
 
-@attr.s
+@attr.s(slots=True)
 class HalftoneScreen(BaseElement):
     """
     Halftone screen.
@@ -487,7 +487,7 @@ class PascalString(ValueElement):
 
 
 @register(ImageResourceID.PIXEL_ASPECT_RATIO)
-@attr.s
+@attr.s(slots=True)
 class PixelAspectRatio(NumericElement):
     """
     Pixel aspect ratio.
@@ -506,7 +506,7 @@ class PixelAspectRatio(NumericElement):
 
 
 @register(ImageResourceID.PRINT_FLAGS)
-@attr.s
+@attr.s(slots=True)
 class PrintFlags(BaseElement):
     """
     Print flags.
@@ -546,7 +546,7 @@ class PrintFlags(BaseElement):
 
 
 @register(ImageResourceID.PRINT_FLAGS_INFO)
-@attr.s
+@attr.s(slots=True)
 class PrintFlagsInfo(BaseElement):
     """
     Print flags info structure.
@@ -570,7 +570,7 @@ class PrintFlagsInfo(BaseElement):
 
 
 @register(ImageResourceID.PRINT_SCALE)
-@attr.s
+@attr.s(slots=True)
 class PrintScale(BaseElement):
     """
     Print scale structure.
@@ -597,7 +597,7 @@ class PrintScale(BaseElement):
 
 
 @register(ImageResourceID.RESOLUTION_INFO)
-@attr.s
+@attr.s(slots=True)
 class ResoulutionInfo(BaseElement):
     """
     Resoulution info structure.
@@ -625,7 +625,7 @@ class ResoulutionInfo(BaseElement):
 
 
 @register(ImageResourceID.SLICES)
-@attr.s
+@attr.s(slots=True)
 class Slices(BaseElement):
     """
     Slices resource.
@@ -650,7 +650,7 @@ class Slices(BaseElement):
         return written
 
 
-@attr.s
+@attr.s(slots=True)
 class SlicesV6(BaseElement):
     """
     Slices resource version 6.

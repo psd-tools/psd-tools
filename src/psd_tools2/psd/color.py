@@ -13,7 +13,7 @@ from psd_tools2.utils import read_fmt, write_fmt
 logger = logging.getLogger(__name__)
 
 
-@attr.s
+@attr.s(slots=True)
 class Color(BaseElement):
     """
     Color structure.

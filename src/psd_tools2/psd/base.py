@@ -92,7 +92,7 @@ class BaseElement(object):
                     yield _
 
 
-@attr.s
+@attr.s(slots=True)
 class EmptyElement(BaseElement):
     """
     Empty element that does not have a value.

@@ -15,7 +15,7 @@ from psd_tools2.utils import (
 logger = logging.getLogger(__name__)
 
 
-@attr.s(repr=False)
+@attr.s(repr=False, slots=True)
 class FilterEffects(ListElement):
     """
     List-like FilterEffects structure.
@@ -42,7 +42,7 @@ class FilterEffects(ListElement):
         return written
 
 
-@attr.s
+@attr.s(slots=True)
 class FilterEffect(BaseElement):
     """
     FilterEffect structure.
@@ -106,7 +106,7 @@ class FilterEffect(BaseElement):
         return written
 
 
-@attr.s
+@attr.s(slots=True)
 class FilterEffectChannel(BaseElement):
     """
     FilterEffectChannel structure.
@@ -148,7 +148,7 @@ class FilterEffectChannel(BaseElement):
         return written
 
 
-@attr.s
+@attr.s(slots=True)
 class FilterEffectExtra(BaseElement):
     """
     FilterEffectExtra structure.

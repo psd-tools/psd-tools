@@ -17,7 +17,7 @@ from psd_tools2.validators import in_
 logger = logging.getLogger(__name__)
 
 
-@attr.s
+@attr.s(slots=True)
 class VectorMaskSetting(BaseElement):
     """
     VectorMaskSetting structure.
@@ -57,7 +57,7 @@ class VectorMaskSetting(BaseElement):
         return self.flags & 4
 
 
-@attr.s(repr=False)
+@attr.s(repr=False, slots=True)
 class VectorStrokeContentSetting(Descriptor):
     """
     Dict-like Descriptor-based structure. See

@@ -90,7 +90,7 @@ TYPES.update({
 })
 
 
-@attr.s(repr=False)
+@attr.s(repr=False, slots=True)
 class TaggedBlocks(DictElement):
     """
     Dict of tagged blocks.
@@ -166,7 +166,7 @@ class TaggedBlocks(DictElement):
             p.breakable('')
 
 
-@attr.s
+@attr.s(slots=True)
 class TaggedBlock(BaseElement):
     """
     Layer tagged block with extra info.
@@ -272,7 +272,7 @@ class TaggedBlock(BaseElement):
 
 
 @register(TaggedBlockID.ANNOTATIONS)
-@attr.s(repr=False)
+@attr.s(repr=False, slots=True)
 class Annotations(ListElement):
     """
     List of Annotation, see :py:class: `.Annotation`.
@@ -306,7 +306,7 @@ class Annotations(ListElement):
         return written
 
 
-@attr.s
+@attr.s(slots=True)
 class Annotation(BaseElement):
     """
     Annotation structure.
@@ -361,7 +361,7 @@ class Annotation(BaseElement):
 
 @register(TaggedBlockID.FOREIGN_EFFECT_ID)
 @register(TaggedBlockID.LAYER_NAME_SOURCE_SETTING)
-@attr.s(repr=False)
+@attr.s(repr=False, slots=True)
 class Bytes(ValueElement):
     """
     Bytes structure.
@@ -379,7 +379,7 @@ class Bytes(ValueElement):
 
 
 @register(TaggedBlockID.CHANNEL_BLENDING_RESTRICTIONS_SETTING)
-@attr.s(repr=False)
+@attr.s(repr=False, slots=True)
 class ChannelBlendingRestrictionsSetting(ListElement):
     """
     ChannelBlendingRestrictionsSetting structure.
@@ -398,7 +398,7 @@ class ChannelBlendingRestrictionsSetting(ListElement):
 
 
 @register(TaggedBlockID.FILTER_MASK)
-@attr.s
+@attr.s(slots=True)
 class FilterMask(BaseElement):
     """
     FilterMask structure.
@@ -422,7 +422,7 @@ class FilterMask(BaseElement):
 
 
 @register(TaggedBlockID.UNICODE_LAYER_NAME)
-@attr.s(repr=False)
+@attr.s(repr=False, slots=True)
 class LayerName(ValueElement):
     """
     LayerName structure.
@@ -458,7 +458,7 @@ class MetadataSettings(ListElement):
         return written
 
 
-@attr.s
+@attr.s(slots=True)
 class MetadataSetting(BaseElement):
     """
     MetadataSetting structure.
@@ -503,7 +503,7 @@ class MetadataSetting(BaseElement):
 
 
 @register(TaggedBlockID.PIXEL_SOURCE_DATA2)
-@attr.s
+@attr.s(slots=True)
 class PixelSourceData2(ListElement):
     """
     PixelSourceData2 structure.
@@ -526,7 +526,7 @@ class PixelSourceData2(ListElement):
 
 @register(TaggedBlockID.PLACED_LAYER1)
 @register(TaggedBlockID.PLACED_LAYER2)
-@attr.s
+@attr.s(slots=True)
 class PlacedLayerData(BaseElement):
     """
     PlacedLayerData structure.
@@ -583,7 +583,7 @@ class ProtectedSetting(IntegerElement):
 
 
 @register(TaggedBlockID.REFERENCE_POINT)
-@attr.s(repr=False)
+@attr.s(repr=False, slots=True)
 class ReferencePoint(ListElement):
     """
     ReferencePoint structure.
@@ -598,7 +598,7 @@ class ReferencePoint(ListElement):
 
 @register(TaggedBlockID.SECTION_DIVIDER_SETTING)
 @register(TaggedBlockID.NESTED_SECTION_DIVIDER_SETTING)
-@attr.s
+@attr.s(slots=True)
 class SectionDividerSetting(BaseElement):
     """
     SectionDividerSetting structure.
@@ -636,7 +636,7 @@ class SectionDividerSetting(BaseElement):
 
 
 @register(TaggedBlockID.SHEET_COLOR_SETTING)
-@attr.s(repr=False)
+@attr.s(repr=False, slots=True)
 class SheetColorSetting(ValueElement):
     """
     SheetColorSetting structure.
@@ -655,7 +655,7 @@ class SheetColorSetting(ValueElement):
 
 @register(TaggedBlockID.SMART_OBJECT_LAYER_DATA1)
 @register(TaggedBlockID.SMART_OBJECT_LAYER_DATA2)
-@attr.s
+@attr.s(slots=True)
 class SmartObjectLayerData(BaseElement):
     """
     VersionedDescriptorBlock structure.
@@ -682,7 +682,7 @@ class SmartObjectLayerData(BaseElement):
 
 
 @register(TaggedBlockID.TYPE_TOOL_OBJECT_SETTING)
-@attr.s
+@attr.s(slots=True)
 class TypeToolObjectSetting(BaseElement):
     """
     TypeToolObjectSetting structure.
@@ -746,7 +746,7 @@ class TypeToolObjectSetting(BaseElement):
 
 
 @register(TaggedBlockID.USER_MASK)
-@attr.s
+@attr.s(slots=True)
 class UserMask(BaseElement):
     """
     UserMask structure.

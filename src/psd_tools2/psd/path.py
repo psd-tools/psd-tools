@@ -25,7 +25,7 @@ def encode_fixed_point(numbers):
     return tuple(int(x * 0x01000000) for x in numbers)
 
 
-@attr.s(repr=False)
+@attr.s(repr=False, slots=True)
 class Path(ListElement):
     """
     List-like Path structure. Elements are either of Knot.
@@ -48,7 +48,7 @@ class Path(ListElement):
         return written
 
 
-@attr.s(repr=False)
+@attr.s(repr=False, slots=True)
 class Subpath(ListElement):
     """
     Subpath element.
@@ -75,7 +75,7 @@ class Subpath(ListElement):
         return written
 
 
-@attr.s
+@attr.s(slots=True)
 class Knot(BaseElement):
     """
     Knot element consisting of 3 control point for Bezier curves.
@@ -131,7 +131,7 @@ class OpenKnotLinked(Knot):
 
 
 @register(PathResourceID.PATH_FILL)
-@attr.s
+@attr.s(slots=True)
 class PathFillRule(BaseElement):
     """
     Path fill rule record, empty.
@@ -146,7 +146,7 @@ class PathFillRule(BaseElement):
 
 
 @register(PathResourceID.CLIPBOARD)
-@attr.s
+@attr.s(slots=True)
 class ClipboardRecord(BaseElement):
     """
     Clipboard record.
@@ -172,7 +172,7 @@ class ClipboardRecord(BaseElement):
 
 
 @register(PathResourceID.INITIAL_FILL)
-@attr.s
+@attr.s(slots=True)
 class InitialFillRule(BaseElement):
     """
     Initial fill rule record.

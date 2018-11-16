@@ -12,7 +12,6 @@ from psd_tools2.utils import (
 logger = logging.getLogger(__name__)
 
 
-@attr.s(repr=False)
 class ColorModeData(ValueElement):
     """
     Color mode data section of the PSD file.

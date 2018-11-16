@@ -12,7 +12,7 @@ from psd_tools2.utils import read_fmt, write_fmt
 logger = logging.getLogger(__name__)
 
 
-@attr.s
+@attr.s(slots=True)
 class FileHeader(BaseElement):
     """
     Header section of the PSD file.

@@ -19,7 +19,7 @@ from psd_tools2.utils import (
 logger = logging.getLogger(__name__)
 
 
-@attr.s
+@attr.s(slots=True)
 class CommonStateInfo(BaseElement):
     """
     Effects layer common state info.
@@ -38,7 +38,7 @@ class CommonStateInfo(BaseElement):
         return write_fmt(fp, 'IB2x', *attr.astuple(self))
 
 
-@attr.s
+@attr.s(slots=True)
 class ShadowInfo(BaseElement):
     """
     Effects layer shadow info.
@@ -123,7 +123,7 @@ class _GlowInfo(object):
         return written
 
 
-@attr.s
+@attr.s(slots=True)
 class OuterGlowInfo(BaseElement, _GlowInfo):
     """
     Effects layer outer glow info.
@@ -167,7 +167,7 @@ class OuterGlowInfo(BaseElement, _GlowInfo):
         return written
 
 
-@attr.s
+@attr.s(slots=True)
 class InnerGlowInfo(BaseElement, _GlowInfo):
     """
     Effects layer inner glow info.
@@ -215,7 +215,7 @@ class InnerGlowInfo(BaseElement, _GlowInfo):
         return written
 
 
-@attr.s
+@attr.s(slots=True)
 class BevelInfo(BaseElement):
     """
     Effects layer bevel info.
@@ -300,7 +300,7 @@ class BevelInfo(BaseElement):
         return written
 
 
-@attr.s
+@attr.s(slots=True)
 class SolidFillInfo(BaseElement):
     """
     Effects layer inner glow info.
@@ -339,7 +339,7 @@ class SolidFillInfo(BaseElement):
         return written
 
 
-@attr.s
+@attr.s(slots=True)
 class EffectsLayer(DictElement):
     """
     Dict-like EffectsLayer structure.
