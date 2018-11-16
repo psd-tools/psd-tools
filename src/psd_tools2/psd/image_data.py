@@ -10,7 +10,7 @@ from psd_tools2.compression import compress, decompress
 from psd_tools2.constants import Compression
 from psd_tools2.psd.base import BaseElement
 from psd_tools2.validators import in_
-from psd_tools2.utils import read_fmt, write_fmt, write_bytes
+from psd_tools2.utils import read_fmt, write_fmt, write_bytes, pack
 
 logger = logging.getLogger(__name__)
 
@@ -82,3 +82,27 @@ class ImageData(BaseElement):
                              header.height * header.channels, header.depth,
                              header.version)
         return len(self.data)
+
+    @classmethod
+    def new(cls, header, color=0, compression=Compression.RAW):
+        """Create a new image data object.
+
+        :param header: FileHeader.
+        :param compression: compression type.
+        :param color: default color. int or iterable for channel length.
+        """
+        data = b''
+        plane_size = header.width * header.height
+        if isinstance(color, (bool, int, float)):
+            color = (color,) * header.channels
+        if len(color) != header.channels:
+            raise ValueError('Invalid color %s for channel size %d' % (
+                color, header.channels)
+            )
+        # Bitmap is not supported here.
+        fmt = {8: 'B', 16: 'H', 32: 'I'}.get(header.depth)
+        for i in range(header.channels):
+            data += pack(fmt, color[i]) * plane_size
+        self = cls(compression=compression)
+        self.set_data(data, header)
+        return self
