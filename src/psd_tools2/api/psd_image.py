@@ -11,11 +11,13 @@ from psd_tools2.api.layers import (
     TypeLayer
 )
 
+logger = logging.getLogger(__name__)
+
 
 class PSDImage(Group):
-    def __init__(self):
-        super(PSDImage, self).__init__(None, None, None)
-        self._psd = None
+    def __init__(self, psd):
+        assert isinstance(psd, PSD)
+        super(PSDImage, self).__init__(psd, None, None, None)
 
     @classmethod
     def new(cls, mode, size, color=0, **kwargs):
@@ -27,8 +29,7 @@ class PSDImage(Group):
         :param color: What color to use for the image. Default is black.
         :return: A :py:class:`~psd_tools2.api.psd_image.PSDImage` object.
         """
-        self = cls()
-        self._psd = PSD.new(mode, size, color=color, **kwargs)
+        self = cls(PSD.new(mode, size, color=color, **kwargs))
         return self
 
     @classmethod
@@ -39,36 +40,38 @@ class PSDImage(Group):
         :param fp: filename or file-like object.
         :return: A :py:class:`~psd_tools2.api.psd_image.PSDImage` object.
         """
-        self = cls()
         if hasattr(fp, 'read'):
-            self._psd = PSD.read(fp)
+            self = cls(PSD.read(fp))
         else:
             with open(fp, 'rb') as f:
-                self._psd = PSD.read(f)
+                self = cls(PSD.read(f))
         self._init()
         return self
 
     def _init(self):
         group_stack = [self]
         clip_stack = []
+        last_layer = None
 
-        for record, channels in reversed(list(self._psd._iter_layers())):
+        for record, channels in self._psd._iter_layers():
             current_group = group_stack[-1]
 
             blocks = record.tagged_blocks
-            divider = blocks.get('SECTION_DIVIDER_SETTING', None)
-            divider = blocks.get('NESTED_SECTION_DIVIDER_SETTING', divider)
+            end_of_group = False
+            divider = blocks.get_data('SECTION_DIVIDER_SETTING', None)
+            divider = blocks.get_data('NESTED_SECTION_DIVIDER_SETTING', divider)
             if divider is not None:
-                if divider.kind in (SectionDivider.OPEN_FOLDER,
-                                    SectionDivider.CLOSED_FOLDER):
-                    layer = Group(record, channels, current_group)
+                if divider.kind == SectionDivider.BOUNDING_SECTION_DIVIDER:
+                    layer = Group(self._psd, None, channels, current_group)
                     group_stack.append(layer)
-                elif divider.kind == SectionDivider.BOUNDING_SECTION_DIVIDER:
+                elif divider.kind in (SectionDivider.OPEN_FOLDER,
+                                      SectionDivider.CLOSED_FOLDER):
                     layer = group_stack.pop()
                     assert layer is not self
-                    continue
+                    layer._record = record
+                    end_of_group = True
             elif 'TYPE_TOOL_OBJECT_SETTING' in blocks:
-                layer = TypeLayer(record, channels, current_group)
+                layer = TypeLayer(self._psd, record, channels, current_group)
             elif (
                 record.flags.pixel_data_irrelevant and (
                     'VECTOR_ORIGINATION_DATA' in blocks or
@@ -78,13 +81,14 @@ class PSDImage(Group):
                     'VECTOR_STROKE_CONTENT_DATA' in blocks
                 )
             ):
-                layer = ShapeLayer(record, channels, current_group)
+                layer = ShapeLayer(self._psd, record, channels, current_group)
             elif (
                 'SMART_OBJECT_PLACED_LAYER_DATA' in blocks or
                 'PLACED_LAYER_OBSOLETE2' in blocks or
                 'PLACED_LAYER_DATA' in blocks
             ):
-                layer = SmartObjectLayer(record, channels, current_group)
+                layer = SmartObjectLayer(self._psd, record, channels,
+                                         current_group)
             elif (
                 'BLACK_AND_WHITE' in blocks or
                 'GRADIENT_FILL_SETTING' in blocks or
@@ -107,13 +111,58 @@ class PSDImage(Group):
                 'PHOTO_FILTER' in blocks or
                 'SELECTIVE_COLOR' in blocks
             ):
-                layer = AdjustmentLayer(record, channels, current_group)
+                layer = AdjustmentLayer(self._psd, record, channels,
+                                        current_group)
             else:
-                layer = PixelLayer(record, channels, current_group)
+                layer = PixelLayer(self._psd, record, channels, current_group)
 
             if record.clipping == Clipping.NON_BASE:
                 clip_stack.append(layer)
             else:
-                layer._clip_layers = clip_stack
+                if clip_stack:
+                    last_layer._clip_layers = clip_stack
                 clip_stack = []
-                current_group._layers.append(layer)
+                if not end_of_group:
+                    current_group._layers.append(layer)
+                last_layer = layer
+
+    @property
+    def name(self):
+        return 'Root'
+
+    @property
+    def invisible(self):
+        return False
+
+    @property
+    def left(self):
+        return 0
+
+    @property
+    def top(self):
+        return 0
+
+    @property
+    def right(self):
+        return self.width
+
+    @property
+    def bottom(self):
+        return self.height
+
+    @property
+    def width(self):
+        return self._psd.header.width
+
+    @property
+    def height(self):
+        return self._psd.header.height
+
+    def __repr__(self):
+        return (
+            '%s(mode=%s size=%dx%d depth=%d channels=%d)'
+        ) % (
+            self.__class__.__name__, self._psd.header.color_mode.name,
+            self._psd.header.width, self._psd.header.height,
+            self._psd.header.depth, self._psd.header.channels, 
+        )

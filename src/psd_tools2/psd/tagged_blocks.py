@@ -111,21 +111,18 @@ class TaggedBlocks(DictElement):
     """
     enum = TaggedBlockID
 
-    def get_data(self, key, *args):
+    def get_data(self, key, default=None):
         """
         Get data from the tagged blocks.
 
         Shortcut for the following::
 
-            value = tagged_blocks.get(key)
-            if value:
-                value = value.data
-
+            if key in tagged_blocks:
+                value = tagged_blocks[key].data
         """
-        value = self.get(key, *args)
-        if value:
-            return value.data
-        return value
+        if key in self:
+            return self[key].data
+        return default
 
     @classmethod
     def read(cls, fp, version=1, padding=1):

@@ -96,10 +96,8 @@ class ImageResources(DictElement):
 
         Shortcut for the following::
 
-            value = image_resources.get(key)
-            if value:
-                value = value.data
-
+            if key in image_resources:
+                value = tagged_blocks[key].data
         """
         value = self.get(key, *args)
         if value:
