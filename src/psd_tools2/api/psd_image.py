@@ -4,12 +4,16 @@ PSD Image module.
 from __future__ import absolute_import, unicode_literals
 import logging
 
-from psd_tools2.constants import SectionDivider, Clipping
-from psd_tools2.psd import PSD
+from psd_tools2.constants import (
+    Clipping, Compression, ColorMode, SectionDivider
+)
+from psd_tools2.psd import PSD, FileHeader, ImageData
 from psd_tools2.api.layers import (
     AdjustmentLayer, Group, PixelLayer, ShapeLayer, SmartObjectLayer,
     TypeLayer, GroupMixin
 )
+from psd_tools2.api import pil_io
+
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +27,7 @@ class PSDImage(GroupMixin):
         self._init()
 
     @classmethod
-    def new(cls, mode, size, color=0, **kwargs):
+    def new(cls, mode, size, color=0, depth=8):
         """
         Create a new PSD document.
 
@@ -32,8 +36,33 @@ class PSDImage(GroupMixin):
         :param color: What color to use for the image. Default is black.
         :return: A :py:class:`~psd_tools2.api.psd_image.PSDImage` object.
         """
-        self = cls(PSD.new(mode, size, color=color, **kwargs))
-        return self
+        header = cls._make_header(mode, size, depth)
+        image_data = ImageData.new(header, color=color, **kwargs)
+        # TODO: Add a background layer.
+        return cls(PSD(header=header, image_data=image_data))
+
+    @classmethod
+    def _make_header(cls, mode, size, depth=8):
+        assert depth in (8, 16, 32), 'Invalid depth: %d' % (depth)
+        color_mode = pil_io.get_color_mode(mode)
+        alpha = int(mode.upper().endswith('A'))
+        channels = ColorMode.channels(color_mode, alpha)
+        return FileHeader(
+            width=size[0], height=size[1], depth=depth, channels=channels,
+            color_mode=color_mode
+        )
+
+    @classmethod
+    def frompil(cls, image, compression=Compression.PACK_BITS):
+        """
+        Create a PSD from PIL Image.
+        """
+        header = cls._make_header(image.mode, image.size)
+        # TODO: Add the background layer.
+        image_data = ImageData(compression=compression)
+        image_data.set_data([channel.tobytes() for channel in image.split()],
+                            header)
+        return cls(PSD(header=header, image_data=image_data))
 
     @classmethod
     def open(cls, fp):
@@ -180,8 +209,21 @@ class PSDImage(GroupMixin):
         return self.left, self.top, self.right, self.bottom
 
     @property
+    def image_resources(self):
+        return self._psd.image_resources
+
+    @property
     def tagged_blocks(self):
         return self._psd.layer_and_mask_information.tagged_blocks
+
+    def topil(self):
+        """
+        Get PIL Image.
+        """
+        version_info = self.image_resources.get_data('version_info')
+        if version_info and not version_info.has_composite:
+            return None
+        return pil_io.convert_image_data_to_pil(self._psd)
 
     def __repr__(self):
         return (

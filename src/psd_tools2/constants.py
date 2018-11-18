@@ -17,6 +17,19 @@ class ColorMode(IntEnum):
     DUOTONE = 8
     LAB = 9
 
+    @staticmethod
+    def channels(value, alpha=True):
+        return {
+            ColorMode.BITMAP: 1,
+            ColorMode.GRAYSCALE: 1,
+            ColorMode.INDEXED: 1,
+            ColorMode.RGB: 3,
+            ColorMode.CMYK: 4,
+            ColorMode.MULTICHANNEL: 3,
+            ColorMode.DUOTONE: 1,
+            ColorMode.LAB: 3,
+        }.get(value) + alpha
+
 
 class ColorSpaceID(IntEnum):
     """
