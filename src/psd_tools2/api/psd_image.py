@@ -8,16 +8,19 @@ from psd_tools2.constants import SectionDivider, Clipping
 from psd_tools2.psd import PSD
 from psd_tools2.api.layers import (
     AdjustmentLayer, Group, PixelLayer, ShapeLayer, SmartObjectLayer,
-    TypeLayer
+    TypeLayer, GroupMixin
 )
 
 logger = logging.getLogger(__name__)
 
 
-class PSDImage(Group):
+class PSDImage(GroupMixin):
     def __init__(self, psd):
         assert isinstance(psd, PSD)
-        super(PSDImage, self).__init__(psd, None, None, None)
+        self._psd = psd
+        self._layers = []
+        self._tagged_blocks = None
+        self._init()
 
     @classmethod
     def new(cls, mode, size, color=0, **kwargs):
@@ -45,10 +48,10 @@ class PSDImage(Group):
         else:
             with open(fp, 'rb') as f:
                 self = cls(PSD.read(f))
-        self._init()
         return self
 
     def _init(self):
+        """Initialize layer structure."""
         group_stack = [self]
         clip_stack = []
         last_layer = None
@@ -62,13 +65,14 @@ class PSDImage(Group):
             divider = blocks.get_data('NESTED_SECTION_DIVIDER_SETTING', divider)
             if divider is not None:
                 if divider.kind == SectionDivider.BOUNDING_SECTION_DIVIDER:
-                    layer = Group(self._psd, None, channels, current_group)
+                    layer = Group(self._psd, None, None, current_group)
                     group_stack.append(layer)
                 elif divider.kind in (SectionDivider.OPEN_FOLDER,
                                       SectionDivider.CLOSED_FOLDER):
                     layer = group_stack.pop()
                     assert layer is not self
                     layer._record = record
+                    layer._channels = channels
                     end_of_group = True
             elif 'TYPE_TOOL_OBJECT_SETTING' in blocks:
                 layer = TypeLayer(self._psd, record, channels, current_group)
@@ -131,8 +135,15 @@ class PSDImage(Group):
         return 'Root'
 
     @property
-    def invisible(self):
-        return False
+    def kind(self):
+        return self.__class__.__name__.lower()
+
+    @property
+    def visible(self):
+        return True
+
+    def is_visible(self):
+        return True
 
     @property
     def left(self):
@@ -158,11 +169,45 @@ class PSDImage(Group):
     def height(self):
         return self._psd.header.height
 
+    @property
+    def size(self):
+        """(width, height) tuple."""
+        return self.width, self.height
+
+    @property
+    def bbox(self):
+        """(left, top, right, bottom) tuple."""
+        return self.left, self.top, self.right, self.bottom
+
+    @property
+    def tagged_blocks(self):
+        return self._psd.layer_and_mask_information.tagged_blocks
+
     def __repr__(self):
         return (
             '%s(mode=%s size=%dx%d depth=%d channels=%d)'
         ) % (
             self.__class__.__name__, self._psd.header.color_mode.name,
-            self._psd.header.width, self._psd.header.height,
-            self._psd.header.depth, self._psd.header.channels, 
+            self.width, self.height, self._psd.header.depth,
+            self._psd.header.channels,
         )
+
+    def _repr_pretty_(self, p, cycle):
+        if cycle:
+            return self.__repr__()
+
+        def _pretty(layer, p):
+            p.text(layer.__repr__())
+            if hasattr(layer, 'clip_layers'):
+                for idx, layer in enumerate(layer.clip_layers or []):
+                    p.break_()
+                    p.text(' +  ')
+                    p.pretty(layer)
+            if hasattr(layer, '__iter__'):
+                with p.indent(2):
+                    for idx, layer in enumerate(layer):
+                        p.break_()
+                        p.text('[%d] ' % idx)
+                        _pretty(layer, p)
+
+        _pretty(self, p)
