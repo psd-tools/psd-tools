@@ -784,7 +784,6 @@ class SliceV6(BaseElement):
         return written
 
 
-@register(ImageResourceID.THUMBNAIL_RESOURCE_PS4)
 @register(ImageResourceID.THUMBNAIL_RESOURCE)
 @attr.s
 class ThumbnailResource(BaseElement):
@@ -801,6 +800,8 @@ class ThumbnailResource(BaseElement):
     .. py:attribute:: planes
     .. py:attribute:: data
     """
+    _RAW_MODE = 'RGB'
+
     fmt = attr.ib(default=0, type=int)
     width = attr.ib(default=0, type=int)
     height = attr.ib(default=0, type=int)
@@ -824,6 +825,23 @@ class ThumbnailResource(BaseElement):
                             self.bits, self.planes)
         written += write_bytes(fp, self.data)
         return written
+
+    def topil(self):
+        from PIL import Image
+        if self.fmt == 1:
+            with io.BytesIO(self.data) as f:
+                image = Image.open(f)
+                image.load()
+        else:
+            image = Image.frombytes('RGB', (self.width, self.height),
+                                    self.data, 'raw', self._RAW_MODE,
+                                    self.row)
+        return image
+
+
+@register(ImageResourceID.THUMBNAIL_RESOURCE_PS4)
+class ThumbnailResourceV4(ThumbnailResource):
+    _RAW_MODE = 'BGR'
 
 
 @register(ImageResourceID.COLOR_TRANSFER_FUNCTION)
