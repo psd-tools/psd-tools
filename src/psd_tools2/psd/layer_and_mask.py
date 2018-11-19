@@ -319,8 +319,18 @@ class LayerBlendingRanges(BaseElement):
 
         List of channel source and destination ranges.
     """
-    composite_ranges = attr.ib(default=None)
-    channel_ranges = attr.ib(factory=list)
+    composite_ranges = attr.ib(
+        factory=lambda: [(0, 65535), (0, 65535)], converter=list,
+    )
+    channel_ranges = attr.ib(
+        factory=lambda: [
+            [(0, 65535), (0, 65535)],
+            [(0, 65535), (0, 65535)],
+            [(0, 65535), (0, 65535)],
+            [(0, 65535), (0, 65535)],
+        ],
+        converter=list,
+    )
 
     @classmethod
     def read(cls, fp):
