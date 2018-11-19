@@ -827,6 +827,11 @@ class ThumbnailResource(BaseElement):
         return written
 
     def topil(self):
+        """
+        Get PIL Image.
+
+        :return: PIL Image object.
+        """
         from PIL import Image
         if self.fmt == 1:
             with io.BytesIO(self.data) as f:
