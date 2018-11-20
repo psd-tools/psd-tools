@@ -31,7 +31,10 @@ def combined_bbox(layers):
     Returns a bounding box for ``layers`` or BBox(0, 0, 0, 0) if the layers
     have no bbox.
     """
-    bboxes = [layer.bbox for layer in layers if not layer.bbox.is_empty()]
+    bboxes = [
+        layer.bbox for layer in layers
+        if not layer.bbox.is_empty() and layer.is_visible()
+    ]
     if len(bboxes) == 0:
         return BBox(0, 0, 0, 0)
     lefts, tops, rights, bottoms = zip(*bboxes)
