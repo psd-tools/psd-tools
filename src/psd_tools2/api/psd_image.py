@@ -27,7 +27,7 @@ class PSDImage(GroupMixin):
         self._init()
 
     @classmethod
-    def new(cls, mode, size, color=0, depth=8):
+    def new(cls, mode, size, color=0, depth=8, **kwargs):
         """
         Create a new PSD document.
 
@@ -91,7 +91,8 @@ class PSDImage(GroupMixin):
             blocks = record.tagged_blocks
             end_of_group = False
             divider = blocks.get_data('SECTION_DIVIDER_SETTING', None)
-            divider = blocks.get_data('NESTED_SECTION_DIVIDER_SETTING', divider)
+            divider = blocks.get_data('NESTED_SECTION_DIVIDER_SETTING',
+                                      divider)
             if divider is not None:
                 if divider.kind == SectionDivider.BOUNDING_SECTION_DIVIDER:
                     layer = Group(self._psd, None, None, current_group)
@@ -158,6 +159,16 @@ class PSDImage(GroupMixin):
                 if not end_of_group:
                     current_group._layers.append(layer)
                 last_layer = layer
+
+    def save(self, fp, mode='wb'):
+        """
+        Save the PSD file.
+        """
+        if hasattr(fp, 'write'):
+            self._psd.write(fp)
+        else:
+            with open(fp, mode) as f:
+                self._psd.write(f)
 
     @property
     def name(self):
