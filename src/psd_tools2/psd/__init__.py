@@ -80,7 +80,7 @@ class PSD(BaseElement):
         tagged_blocks = self.layer_and_mask_information.tagged_blocks
         if tagged_blocks is not None:
             for key in ('LAYER_16', 'LAYER_32'):
-                layer_info = tagged_blocks.get(key, layer_info)
+                layer_info = tagged_blocks.get_data(key, layer_info)
         if layer_info is not None:
             records = layer_info.layer_records
             channel_data = layer_info.channel_image_data

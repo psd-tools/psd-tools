@@ -18,7 +18,7 @@ class ColorMode(IntEnum):
     LAB = 9
 
     @staticmethod
-    def channels(value, alpha=True):
+    def channels(value, alpha=False):
         return {
             ColorMode.BITMAP: 1,
             ColorMode.GRAYSCALE: 1,
