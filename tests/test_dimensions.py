@@ -38,7 +38,7 @@ BBOXES = (
     ('2layers.psd', 0, BBox(8, 4, 93, 50)),
     ('2layers.psd', 1, BBox(0, 0, 101, 55)),
     ('group.psd', 0, BBox(25, 24, 66, 98)),
-    ('empty-layer.psd', 0, BBox(36, 57, 52, 73)),
+    ('empty-layer.psd', 0, BBox(37, 58, 51, 72)),
     ('empty-layer.psd', 1, BBox(0, 0, 100, 150)),
 )
 

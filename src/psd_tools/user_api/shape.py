@@ -211,8 +211,10 @@ class VectorMask(object):
     @property
     def anchors(self):
         """List of vertices of all subpaths."""
-        return [p['anchor'] for p in self._setting.path
-                if p.get('selector') in self._KNOT_KEYS]
+        return [
+            [knot.anchor for knot in path.knots]
+            for path in self.paths
+        ]
 
 
 class Origination(object):

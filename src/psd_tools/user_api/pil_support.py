@@ -178,11 +178,17 @@ def pattern_to_PIL(pattern):
     return image
 
 
-def draw_polygon(bbox, anchors, fill=(255, 255, 255, 255)):
-    image = Image.new("RGBA", (bbox.width, bbox.height),
-                      color=(255, 255, 255, 0))
+def draw_polygon(bbox, anchors, mode='RGBA', fill=(255, 255, 255, 255)):
+    color = {
+        'RGBA': (255, 255, 255, 0),
+        'LA': (255, 0),
+        'CMYKA': (255, 255, 255, 255, 0),
+    }.get(mode)
+    image = Image.new(mode, (bbox.width, bbox.height),
+                      color=color)
     draw = ImageDraw.Draw(image)
-    draw.polygon(anchors, fill=fill)
+    for path in anchors:
+        draw.polygon(path, fill=fill)
     del draw
     return image
 
