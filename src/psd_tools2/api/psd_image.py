@@ -13,6 +13,7 @@ from psd_tools2.api.layers import (
     TypeLayer, GroupMixin
 )
 from psd_tools2.api import pil_io
+from psd_tools2.api import deprecated
 
 
 logger = logging.getLogger(__name__)
@@ -235,6 +236,10 @@ class PSDImage(GroupMixin):
         if version_info and not version_info.has_composite:
             return None
         return pil_io.convert_image_data_to_pil(self._psd)
+
+    @deprecated
+    def as_PIL(self):
+        return self.topil()
 
     def __repr__(self):
         return (
