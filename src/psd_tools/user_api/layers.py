@@ -5,8 +5,8 @@ from __future__ import absolute_import, unicode_literals
 
 import logging
 from psd_tools.constants import (
-    TaggedBlock, SectionDivider, BlendMode, TextProperty, PlacedLayerProperty,
-    SzProperty)
+    ColorMode, TaggedBlock, SectionDivider, BlendMode, TextProperty,
+    PlacedLayerProperty, SzProperty)
 from psd_tools.decoder.actions import Descriptor
 from psd_tools.user_api import pil_support
 from psd_tools.user_api import BBox
@@ -494,12 +494,18 @@ class ShapeLayer(_RawLayer):
 
     def as_PIL(self, draw=False):
         """Returns a PIL image for this layer."""
-        if draw or not self.has_pixels():
+        if draw or self._must_draw():
             # TODO: Replace polygon with bezier curve.
+            mode = {
+                ColorMode.RGB: 'RGBA',
+                ColorMode.GRAYSCALE: 'LA',
+                ColorMode.CMYK: 'CMYKA',
+            }.get(self._psd.header.color_mode, 'RGBA')
             drawing = pil_support.draw_polygon(
                 self._psd.viewbox,
                 self._get_anchors(),
-                self._get_color()
+                mode=mode,
+                fill=self._get_color(mode),
             )
             return drawing.crop(self.bbox)
         else:
@@ -512,10 +518,21 @@ class ShapeLayer(_RawLayer):
         :rtype: BBox
         """
         if self._bbox is None:
-            self._bbox = super(ShapeLayer, self).bbox
-            if self._bbox.is_empty():
+            if self._must_draw():
                 self._bbox = self._get_bbox()
+            else:
+                self._bbox = super(ShapeLayer, self).bbox
+                if self._bbox.is_empty():
+                    self._bbox = self._get_bbox()
         return self._bbox
+
+    def _is_unitrect(self):
+        if self.has_origination():
+            return self.origination.origin_type == 1
+        return False
+
+    def _must_draw(self):
+        return self._is_unitrect() or not self.has_pixels()
 
     @property
     def left(self):
@@ -598,32 +615,43 @@ class ShapeLayer(_RawLayer):
         if not vector_mask:
             return None
         width, height = self._psd.width, self._psd.height
-        anchors = [(int(p[1] * width), int(p[0] * height))
-                   for p in vector_mask.anchors]
+        anchors = [
+            [(int(round(p[1] * width)), int(round(p[0] * height)))
+             for p in path]
+            for path in vector_mask.anchors
+        ]
         if not anchors:
-            return [(0, 0), (0, height), (width, height), (width, 0)]
+            return [[(0, 0), (0, height), (width, height), (width, 0)]]
         return anchors
 
     def _get_bbox(self):
         """BBox(x1, y1, x2, y2) namedtuple of the shape."""
         # TODO: Compute bezier curve.
         anchors = self._get_anchors()
-        if not anchors or len(anchors) < 2:
+        if not anchors or len(anchors[0]) < 2:
             # Likely be all-pixel fill.
             return BBox(0, 0, self._psd.width, self._psd.height)
-        return BBox(min([p[0] for p in anchors]),
-                    min([p[1] for p in anchors]),
-                    max([p[0] for p in anchors]),
-                    max([p[1] for p in anchors]))
+        return BBox(min(min([p[0] for p in path]) for path in anchors),
+                    min(min([p[1] for p in path]) for path in anchors),
+                    max(max([p[0] for p in path]) for path in anchors),
+                    max(max([p[1] for p in path]) for path in anchors))
 
-    def _get_color(self, default=(0, 0, 0, 0)):
+    def _get_color(self, mode, default=(0, 0, 0, 0)):
         effect = self.get_tag(TaggedBlock.SOLID_COLOR_SHEET_SETTING)
         if not effect:
             logger.warning("Gradient or pattern fill not supported")
             return default
         color = effect.color
-        if color.name == 'rgb':
-            return tuple(list(map(int, color.value)) + [int(self.opacity)])
+        if mode in ('RGBA', 'CMYKA'):
+            return tuple(list(map(int, map(round, color.value))) +
+                         [int(round(self.opacity))])
+        elif mode == 'LA':
+            if color.name != 'gray':
+                logger.warning('mode and color mismatch %r vs %r' % (
+                    mode, color.name
+                ))
+            return (int(round(255 * (1. - color.value[0]))),
+                    int(round(self.opacity)))
         else:
             return default
 
