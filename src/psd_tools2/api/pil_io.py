@@ -52,7 +52,7 @@ def convert_pil_to_image_data(header, image):
 
 def _remove_white_background(image):
     """Remove white background in the preview image."""
-    from PIL import ImageMath
+    from PIL import ImageMath, Image
     if image.mode == "RGBA":
         bands = image.split()
         a = bands[3]
