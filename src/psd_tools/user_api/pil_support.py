@@ -5,7 +5,8 @@ import warnings
 import io
 from psd_tools.utils import be_array_from_bytes
 from psd_tools.constants import (
-    Compression, ChannelID, ColorMode, ImageResourceID)
+    Compression, ChannelID, ColorMode, ImageResourceID, TaggedBlock
+)
 from psd_tools import icc_profiles
 
 try:
@@ -98,13 +99,15 @@ def extract_composite_image(decoded_data):
         warnings.warn("Image data is broken")
         return
 
+    use_alpha = _get_alpha_use(decoded_data)
     image = _channel_data_to_PIL(
         channel_data=decoded_data.image_data,
         channel_ids=channel_ids,
         color_mode=header.color_mode,
         size=size,
         depth=header.depth,
-        icc_profile=get_icc_profile(decoded_data)
+        icc_profile=get_icc_profile(decoded_data),
+        use_alpha=use_alpha
     )
 
     # Composed image is blended into white background. Remove here.
@@ -204,7 +207,7 @@ def extract_thumbnail(resource, mode="RGB"):
 
 
 def _channel_data_to_PIL(channel_data, channel_ids, color_mode, size, depth,
-                         icc_profile):
+                         icc_profile, use_alpha=True):
     bands = _get_band_images(
         channel_data=channel_data,
         channel_ids=channel_ids,
@@ -212,10 +215,10 @@ def _channel_data_to_PIL(channel_data, channel_ids, color_mode, size, depth,
         size=size,
         depth=depth
     )
-    return _merge_bands(bands, color_mode, size, icc_profile)
+    return _merge_bands(bands, color_mode, size, icc_profile, use_alpha)
 
 
-def _merge_bands(bands, color_mode, size, icc_profile):
+def _merge_bands(bands, color_mode, size, icc_profile, use_alpha):
     if Image is None:
         raise Exception("This module requires PIL (or Pillow) installed.")
 
@@ -250,7 +253,7 @@ def _merge_bands(bands, color_mode, size, icc_profile):
         merged_image = merged_image.convert('RGB')
 
     alpha = bands.get('A')
-    if alpha:
+    if alpha and use_alpha:
         merged_image.putalpha(alpha)
 
     return merged_image
@@ -434,6 +437,18 @@ def _get_header_channel_ids(header):
 
 def _get_layer_channel_ids(layer):
     return [info.id for info in layer.channels]
+
+
+def _get_alpha_use(decoded_data):
+    use_alpha = decoded_data.layer_and_mask_data.layers.layer_count < 0
+    keys = {
+        TaggedBlock.SAVING_MERGED_TRANSPARENCY,
+        TaggedBlock.SAVING_MERGED_TRANSPARENCY16,
+        TaggedBlock.SAVING_MERGED_TRANSPARENCY32,
+    }
+    tagged_blocks = decoded_data.layer_and_mask_data.tagged_blocks
+    use_alpha |= any(block.key in keys for block in tagged_blocks)
+    return use_alpha
 
 
 def _remove_white_background(image):
