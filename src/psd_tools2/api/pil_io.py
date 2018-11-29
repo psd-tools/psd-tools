@@ -37,12 +37,34 @@ def convert_image_data_to_pil(psd):
     channels = []
     for channel_data in psd.image_data.get_data(header):
         channels.append(Image.frombytes('L', size, channel_data, 'raw'))
-    # if psd.layer_and_mask_information.layer_info.layer_count < 0:
-    #     alpha = True
-    alpha = (header.channels - ColorMode.channels(header.color_mode)) > 0
+    alpha = _get_alpha_use(psd)
+    channel_size = ColorMode.channels(header.color_mode, alpha)
+    if len(channels) < channel_size:
+        logger.warning('Incorrect channel size: %d vs %d' % (
+            len(channels), channel_size)
+        )
+        channel_size = len(channels)
+        alpha = False
     mode = get_pil_mode(header.color_mode, alpha)
-    image = Image.merge(mode, channels)
+    image = Image.merge(mode, channels[:channel_size])
     return _remove_white_background(image)
+
+
+def _get_alpha_use(psd):
+    layer_info = psd._get_layer_info()
+    if layer_info and layer_info.layer_count < 0:
+        return True
+    tagged_blocks = psd.layer_and_mask_information.tagged_blocks
+    if tagged_blocks:
+        keys = (
+            'SAVING_MERGED_TRANSPARENCY',
+            'SAVING_MERGED_TRANSPARENCY16',
+            'SAVING_MERGED_TRANSPARENCY32',
+        )
+        for key in keys:
+            if key in tagged_blocks:
+                return True
+    return False
 
 
 def _remove_white_background(image):
