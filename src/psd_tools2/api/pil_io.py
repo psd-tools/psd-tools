@@ -30,11 +30,11 @@ def get_pil_mode(value, alpha=False):
 
 def convert_image_data_to_pil(psd):
     from PIL import Image
-    channels = []
     header = psd.header
     if header.color_mode == ColorMode.BITMAP:
         raise NotImplementedError
     size = (header.width, header.height)
+    channels = []
     for channel_data in psd.image_data.get_data(header):
         channels.append(Image.frombytes('L', size, channel_data, 'raw'))
     # if psd.layer_and_mask_information.layer_info.layer_count < 0:
@@ -43,11 +43,6 @@ def convert_image_data_to_pil(psd):
     mode = get_pil_mode(header.color_mode, alpha)
     image = Image.merge(mode, channels)
     return _remove_white_background(image)
-
-
-def convert_pil_to_image_data(header, image):
-    raw_data = b''.join(channel.tobytes() for channel in image.split())
-    return ImageData
 
 
 def _remove_white_background(image):

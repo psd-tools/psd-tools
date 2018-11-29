@@ -91,7 +91,6 @@ class ImageData(BaseElement):
         :param compression: compression type.
         :param color: default color. int or iterable for channel length.
         """
-        data = b''
         plane_size = header.width * header.height
         if isinstance(color, (bool, int, float)):
             color = (color,) * header.channels
@@ -101,8 +100,9 @@ class ImageData(BaseElement):
             )
         # Bitmap is not supported here.
         fmt = {8: 'B', 16: 'H', 32: 'I'}.get(header.depth)
+        data = []
         for i in range(header.channels):
-            data += pack(fmt, color[i]) * plane_size
+            data.append(pack(fmt, color[i]) * plane_size)
         self = cls(compression=compression)
         self.set_data(data, header)
         return self
