@@ -43,20 +43,14 @@ class PSDImage(GroupMixin):
         return cls(PSD(header=header, image_data=image_data))
 
     @classmethod
-    def _make_header(cls, mode, size, depth=8):
-        assert depth in (8, 16, 32), 'Invalid depth: %d' % (depth)
-        color_mode = pil_io.get_color_mode(mode)
-        alpha = int(mode.upper().endswith('A'))
-        channels = ColorMode.channels(color_mode, alpha)
-        return FileHeader(
-            width=size[0], height=size[1], depth=depth, channels=channels,
-            color_mode=color_mode
-        )
-
-    @classmethod
     def frompil(cls, image, compression=Compression.PACK_BITS):
         """
-        Create a PSD from PIL Image.
+        Create a new PSD document from PIL Image.
+
+        :param image: PIL Image object.
+        :param compression: ImageData compression option. See
+            :py:class:`~psd_tools2.constants.Compression`.
+        :return: A :py:class:`~psd_tools2.api.psd_image.PSDImage` object.
         """
         header = cls._make_header(image.mode, image.size)
         # TODO: Add the background layer.
@@ -79,6 +73,204 @@ class PSDImage(GroupMixin):
             with open(fp, 'rb') as f:
                 self = cls(PSD.read(f))
         return self
+
+    def save(self, fp, mode='wb'):
+        """
+        Save the PSD file.
+
+        :param fp: filename or file-like object.
+        :param mode: file open mode, default 'wb'.
+        """
+        if hasattr(fp, 'write'):
+            self._psd.write(fp)
+        else:
+            with open(fp, mode) as f:
+                self._psd.write(f)
+
+    def topil(self):
+        """
+        Get PIL Image.
+
+        :return: PIL Image object, or None if the composed image is not
+            available.
+        """
+        version_info = self.image_resources.get_data('version_info')
+        if version_info and not version_info.has_composite:
+            return None
+        return pil_io.convert_image_data_to_pil(self._psd)
+
+    @deprecated
+    def as_PIL(self, *args, **kwargs):
+        """Deprecated"""
+        return self.topil(*args, **kwargs)
+
+    def is_visible(self):
+        """
+        Returns visibility of the element.
+
+        :return: True.
+        """
+        return True
+
+    @property
+    def name(self):
+        """
+        Element name.
+
+        :return: 'Root'.
+        """
+        return 'Root'
+
+    @property
+    def kind(self):
+        """
+        Kind.
+
+        :return: 'psdimage'.
+        """
+        return self.__class__.__name__.lower()
+
+    @property
+    def visible(self):
+        """
+        Visibility.
+
+        :return: True.
+        """
+        return True
+
+    @property
+    def left(self):
+        """
+        Left coordinate.
+
+        :return: 0.
+        """
+        return 0
+
+    @property
+    def top(self):
+        """
+        Top coordinate.
+
+        :return: 0.
+        """
+        return 0
+
+    @property
+    def right(self):
+        """
+        Right coordinate.
+
+        :return: int.
+        """
+        return self.width
+
+    @property
+    def bottom(self):
+        """
+        Bottom coordinate.
+
+        :return: int.
+        """
+        return self.height
+
+    @property
+    def width(self):
+        """
+        Document width.
+
+        :return: int.
+        """
+        return self._psd.header.width
+
+    @property
+    def height(self):
+        """
+        Document height.
+
+        :return: int.
+        """
+        return self._psd.header.height
+
+    @property
+    def size(self):
+        """(width, height) tuple."""
+        return self.width, self.height
+
+    @property
+    def bbox(self):
+        """(left, top, right, bottom) tuple."""
+        return self.left, self.top, self.right, self.bottom
+
+    @property
+    def color_mode(self):
+        """
+        Document color mode, such as 'RGB' or 'GRAYSCALE'. See
+        :py:class:`~psd_tools2.constants.ColorMode`.
+
+        :return: str.
+        """
+        return self._psd.header.color_mode.name
+
+    @property
+    def image_resources(self):
+        """
+        Document image resources.
+
+        :return: :py:class:`~psd_tools2.psd.image_resouces.ImageResouces`.
+        """
+        return self._psd.image_resources
+
+    @property
+    def tagged_blocks(self):
+        """
+        Document tagged blocks.
+
+        :return: :py:class:`~psd_tools2.psd.tagged_blocks.TaggedBlocks` or
+            None.
+        """
+        return self._psd.layer_and_mask_information.tagged_blocks
+
+    def __repr__(self):
+        return (
+            '%s(mode=%s size=%dx%d depth=%d channels=%d)'
+        ) % (
+            self.__class__.__name__, self.color_mode,
+            self.width, self.height, self._psd.header.depth,
+            self._psd.header.channels,
+        )
+
+    def _repr_pretty_(self, p, cycle):
+        if cycle:
+            return self.__repr__()
+
+        def _pretty(layer, p):
+            p.text(layer.__repr__())
+            if hasattr(layer, 'clip_layers'):
+                for idx, layer in enumerate(layer.clip_layers or []):
+                    p.break_()
+                    p.text(' +  ')
+                    p.pretty(layer)
+            if hasattr(layer, '__iter__'):
+                with p.indent(2):
+                    for idx, layer in enumerate(layer):
+                        p.break_()
+                        p.text('[%d] ' % idx)
+                        _pretty(layer, p)
+
+        _pretty(self, p)
+
+    @classmethod
+    def _make_header(cls, mode, size, depth=8):
+        assert depth in (8, 16, 32), 'Invalid depth: %d' % (depth)
+        color_mode = pil_io.get_color_mode(mode)
+        alpha = int(mode.upper().endswith('A'))
+        channels = ColorMode.channels(color_mode, alpha)
+        return FileHeader(
+            width=size[0], height=size[1], depth=depth, channels=channels,
+            color_mode=color_mode
+        )
 
     def _init(self):
         """Initialize layer structure."""
@@ -160,112 +352,3 @@ class PSDImage(GroupMixin):
                 if not end_of_group:
                     current_group._layers.append(layer)
                 last_layer = layer
-
-    def save(self, fp, mode='wb'):
-        """
-        Save the PSD file.
-        """
-        if hasattr(fp, 'write'):
-            self._psd.write(fp)
-        else:
-            with open(fp, mode) as f:
-                self._psd.write(f)
-
-    @property
-    def name(self):
-        return 'Root'
-
-    @property
-    def kind(self):
-        return self.__class__.__name__.lower()
-
-    @property
-    def visible(self):
-        return True
-
-    def is_visible(self):
-        return True
-
-    @property
-    def left(self):
-        return 0
-
-    @property
-    def top(self):
-        return 0
-
-    @property
-    def right(self):
-        return self.width
-
-    @property
-    def bottom(self):
-        return self.height
-
-    @property
-    def width(self):
-        return self._psd.header.width
-
-    @property
-    def height(self):
-        return self._psd.header.height
-
-    @property
-    def size(self):
-        """(width, height) tuple."""
-        return self.width, self.height
-
-    @property
-    def bbox(self):
-        """(left, top, right, bottom) tuple."""
-        return self.left, self.top, self.right, self.bottom
-
-    @property
-    def image_resources(self):
-        return self._psd.image_resources
-
-    @property
-    def tagged_blocks(self):
-        return self._psd.layer_and_mask_information.tagged_blocks
-
-    def topil(self):
-        """
-        Get PIL Image.
-        """
-        version_info = self.image_resources.get_data('version_info')
-        if version_info and not version_info.has_composite:
-            return None
-        return pil_io.convert_image_data_to_pil(self._psd)
-
-    @deprecated
-    def as_PIL(self):
-        return self.topil()
-
-    def __repr__(self):
-        return (
-            '%s(mode=%s size=%dx%d depth=%d channels=%d)'
-        ) % (
-            self.__class__.__name__, self._psd.header.color_mode.name,
-            self.width, self.height, self._psd.header.depth,
-            self._psd.header.channels,
-        )
-
-    def _repr_pretty_(self, p, cycle):
-        if cycle:
-            return self.__repr__()
-
-        def _pretty(layer, p):
-            p.text(layer.__repr__())
-            if hasattr(layer, 'clip_layers'):
-                for idx, layer in enumerate(layer.clip_layers or []):
-                    p.break_()
-                    p.text(' +  ')
-                    p.pretty(layer)
-            if hasattr(layer, '__iter__'):
-                with p.indent(2):
-                    for idx, layer in enumerate(layer):
-                        p.break_()
-                        p.text('[%d] ' % idx)
-                        _pretty(layer, p)
-
-        _pretty(self, p)
