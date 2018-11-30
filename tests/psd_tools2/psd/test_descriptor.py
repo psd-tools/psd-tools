@@ -1,6 +1,9 @@
 from __future__ import absolute_import, unicode_literals
 import pytest
-from psd_tools2.psd.descriptor import TYPES, Descriptor, Reference
+from psd_tools2.psd.descriptor import (
+    TYPES, Descriptor, Reference, Double, String, Bool, LargeInteger, Integer
+
+)
 from ..utils import check_write_read, check_read_write
 
 
@@ -76,3 +79,15 @@ def test_descriptor_rw(fixture):
 ])
 def test_reference_rw(fixture):
     check_read_write(Reference, fixture)
+
+
+@pytest.mark.parametrize('kls, value', [
+    (Double, 1.),
+    (String, ''),
+    (Bool, True),
+    (LargeInteger, 1),
+    (Integer, 1),
+])
+def test_value_elements(kls, value):
+    fixture = kls(value)
+    assert fixture == value

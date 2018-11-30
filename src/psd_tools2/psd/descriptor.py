@@ -10,8 +10,8 @@ import logging
 from warnings import warn
 
 from psd_tools2.psd.base import (
-    BaseElement, ValueElement, NumericElement, IntegerElement, ListElement,
-    DictElement
+    BaseElement, BooleanElement, ValueElement, NumericElement, IntegerElement,
+    ListElement, DictElement
 )
 from psd_tools2.constants import OSType, UnitFloatType, DescriptorClassID
 from psd_tools2.validators import in_
@@ -333,15 +333,12 @@ class UnitFloats(BaseElement):
 
 
 @register(OSType.DOUBLE)
-@attr.s(repr=False)
 class Double(NumericElement):
     """
     Double structure.
 
     .. py:attribute:: value
     """
-    value = attr.ib(default=0.0, type=float)
-
     @classmethod
     def read(cls, fp):
         """Read the element from a file-like object.
@@ -390,7 +387,7 @@ class Class(BaseElement):
 
 
 @register(OSType.STRING)
-@attr.s(repr=False)
+@attr.s(repr=False, cmp=False)
 class String(ValueElement):
     """
     String structure.
@@ -487,15 +484,12 @@ class Offset(BaseElement):
 
 
 @register(OSType.BOOLEAN)
-@attr.s(repr=False)
-class Bool(IntegerElement):
+class Bool(BooleanElement):
     """
     Bool structure.
 
     .. py:attribute:: value
     """
-    value = attr.ib(default=False, type=bool)
-
     @classmethod
     def read(cls, fp):
         """Read the element from a file-like object.
@@ -513,15 +507,12 @@ class Bool(IntegerElement):
 
 
 @register(OSType.LARGE_INTEGER)
-@attr.s(repr=False)
 class LargeInteger(IntegerElement):
     """
     LargeInteger structure.
 
     .. py:attribute:: value
     """
-    value = attr.ib(default=0, type=int)
-
     @classmethod
     def read(cls, fp):
         """Read the element from a file-like object.
@@ -539,15 +530,12 @@ class LargeInteger(IntegerElement):
 
 
 @register(OSType.INTEGER)
-@attr.s(repr=False)
 class Integer(IntegerElement):
     """
     Integer structure.
 
     .. py:attribute:: value
     """
-    value = attr.ib(default=0, type=int)
-
     @classmethod
     def read(cls, fp):
         """Read the element from a file-like object.

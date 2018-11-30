@@ -111,7 +111,7 @@ class EmptyElement(BaseElement):
         return 0
 
 
-@attr.s(repr=False)
+@attr.s(repr=False, cmp=False)
 class ValueElement(BaseElement):
     """
     Single value element that has a `value` attribute.
@@ -168,7 +168,7 @@ class ValueElement(BaseElement):
             p.pretty(self.value)
 
 
-@attr.s(repr=False)
+@attr.s(repr=False, cmp=False)
 class NumericElement(ValueElement):
     """
     Single value element that has a numeric `value` attribute.
@@ -243,7 +243,7 @@ class NumericElement(ValueElement):
         return write_fmt(fp, 'd', self.value)
 
 
-@attr.s(repr=False)
+@attr.s(repr=False, cmp=False)
 class IntegerElement(NumericElement):
     """
     Single integer value element that has a `value` attribute.
@@ -305,7 +305,7 @@ class IntegerElement(NumericElement):
         return write_fmt(fp, 'I', self.value)
 
 
-@attr.s(repr=False)
+@attr.s(repr=False, cmp=False)
 class ShortIntegerElement(IntegerElement):
     """
     Single short integer element that has a `value` attribute.
@@ -320,7 +320,7 @@ class ShortIntegerElement(IntegerElement):
         return write_fmt(fp, 'H2x', self.value)
 
 
-@attr.s(repr=False)
+@attr.s(repr=False, cmp=False)
 class ByteElement(IntegerElement):
     """
     Single 1-byte integer element that has a `value` attribute.
@@ -335,7 +335,7 @@ class ByteElement(IntegerElement):
         return write_fmt(fp, 'B3x', self.value)
 
 
-@attr.s(repr=False)
+@attr.s(repr=False, cmp=False)
 class BooleanElement(IntegerElement):
     """
     Single bool value element that has a `value` attribute.

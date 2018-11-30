@@ -358,7 +358,7 @@ class Annotation(BaseElement):
 
 @register(TaggedBlockID.FOREIGN_EFFECT_ID)
 @register(TaggedBlockID.LAYER_NAME_SOURCE_SETTING)
-@attr.s(repr=False, slots=True)
+@attr.s(repr=False, slots=True, cmp=False)
 class Bytes(ValueElement):
     """
     Bytes structure.
@@ -419,7 +419,7 @@ class FilterMask(BaseElement):
 
 
 @register(TaggedBlockID.UNICODE_LAYER_NAME)
-@attr.s(repr=False, slots=True)
+@attr.s(repr=False, slots=True, cmp=False)
 class LayerName(ValueElement):
     """
     LayerName structure.
@@ -633,7 +633,7 @@ class SectionDividerSetting(BaseElement):
 
 
 @register(TaggedBlockID.SHEET_COLOR_SETTING)
-@attr.s(repr=False, slots=True)
+@attr.s(repr=False, slots=True, cmp=False)
 class SheetColorSetting(ValueElement):
     """
     SheetColorSetting structure.

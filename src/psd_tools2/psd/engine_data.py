@@ -377,7 +377,7 @@ class Float(NumericElement):
 
 
 @register(EngineToken.PROPERTY)
-@attr.s(repr=False, frozen=True)
+@attr.s(repr=False, frozen=True, cmp=False)
 class Property(ValueElement):
     """
     Property element.
