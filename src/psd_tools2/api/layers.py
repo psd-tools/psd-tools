@@ -15,10 +15,15 @@ class Layer(object):
         self._record = record
         self._channels = channels
         self._parent = parent
-        self._clip_layers = None
+        self._clip_layers = []
 
     @property
     def name(self):
+        """
+        Layer name.
+
+        :return: str.
+        """
         return self._record.tagged_blocks.get_data(
             'UNICODE_LAYER_NAME', self._record.name
         )
@@ -26,8 +31,10 @@ class Layer(object):
     @property
     def kind(self):
         """
-        Kind of this layer, either group, pixel, shape, type, smartobject, or
-        psdimage (root object).
+        Kind of this layer, either of group, pixel, shape, type, smartobject,
+        or psdimage.
+
+        :return: str.
         """
         return self.__class__.__name__.lower().replace("layer", "")
 
@@ -66,7 +73,7 @@ class Layer(object):
 
     def has_mask(self):
         """Returns True if the layer has a mask."""
-        return self._record.mask_data is None
+        return self._record.mask_data is not None
 
     @property
     def left(self):
@@ -164,7 +171,7 @@ class GroupMixin(object):
                 for child in layer.descendants(include_clip):
                     yield child
             if include_clip and hasattr(layer, 'clip_layers'):
-                for clip_layer in (layer.clip_layers or []):
+                for clip_layer in layer.clip_layers:
                     yield clip_layer
 
 
