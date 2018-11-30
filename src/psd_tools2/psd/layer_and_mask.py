@@ -320,7 +320,7 @@ class LayerBlendingRanges(BaseElement):
         List of channel source and destination ranges.
     """
     composite_ranges = attr.ib(
-        factory=lambda: [(0, 65535), (0, 65535)], converter=list,
+        factory=lambda: [(0, 65535), (0, 65535)],
     )
     channel_ranges = attr.ib(
         factory=lambda: [
@@ -329,7 +329,6 @@ class LayerBlendingRanges(BaseElement):
             [(0, 65535), (0, 65535)],
             [(0, 65535), (0, 65535)],
         ],
-        converter=list,
     )
 
     @classmethod
@@ -341,7 +340,7 @@ class LayerBlendingRanges(BaseElement):
         """
         data = read_length_block(fp)
         if len(data) == 0:
-            return cls()
+            return cls(None, None)
 
         with io.BytesIO(data) as f:
             return cls._read_body(f)
@@ -367,12 +366,13 @@ class LayerBlendingRanges(BaseElement):
 
     def _write_body(self, fp):
         written = 0
-        if self.composite_ranges:
+        if self.composite_ranges is not None:
             for x in self.composite_ranges:
                 written += write_fmt(fp, '2H', *x)
-        for channel in self.channel_ranges:
-            for x in channel:
-                written += write_fmt(fp, '2H', *x)
+        if self.channel_ranges is not None:
+            for channel in self.channel_ranges:
+                for x in channel:
+                    written += write_fmt(fp, '2H', *x)
         return written
 
 
