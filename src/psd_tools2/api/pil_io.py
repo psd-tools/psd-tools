@@ -11,9 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_color_mode(mode):
-    """
-    Convert PIL mode to ColorMode.
-    """
+    """Convert PIL mode to ColorMode."""
     name = mode.upper()
     name = name.rstrip('A')  # Trim alpha.
     name = {'1': 'BITMAP', 'L': 'GRAYSCALE'}.get(name, name)
@@ -21,6 +19,7 @@ def get_color_mode(mode):
 
 
 def get_pil_mode(value, alpha=False):
+    """Get PIL mode from ColorMode."""
     name = value.name
     name = {'GRAYSCALE': 'L', 'BITMAP': '1'}.get(name, name)
     if alpha:
@@ -29,6 +28,7 @@ def get_pil_mode(value, alpha=False):
 
 
 def convert_image_data_to_pil(psd):
+    """Convert ImageData to PIL Image."""
     from PIL import Image
     header = psd.header
     if header.color_mode == ColorMode.BITMAP:
