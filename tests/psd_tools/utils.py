@@ -5,7 +5,9 @@ import psd_tools.reader
 import psd_tools.decoder
 
 DATA_PATH = os.path.join(
-    os.path.abspath(os.path.dirname(__file__)), 'psd_files')
+    os.path.abspath(os.path.dirname(os.path.dirname(__file__))),
+    'psd_files'
+)
 
 
 def full_name(filename):

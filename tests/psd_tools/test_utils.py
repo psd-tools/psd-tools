@@ -4,8 +4,8 @@ import pytest
 from io import BytesIO
 
 from psd_tools.utils import read_be_array
-from tests.utils import decode_psd
 from psd_tools.user_api.psd_image import PSDImage
+from .utils import decode_psd
 
 
 PRINT_FILES = (
