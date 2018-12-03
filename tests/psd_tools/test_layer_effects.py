@@ -2,9 +2,9 @@
 from __future__ import absolute_import, unicode_literals
 import pytest
 
-from .utils import decode_psd, full_name
 from psd_tools.constants import BlendMode, TaggedBlock
 from psd_tools.user_api.psd_image import PSDImage
+from .utils import decode_psd, full_name
 
 
 psd = decode_psd('layer_params.psd')

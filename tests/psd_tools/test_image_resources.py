@@ -5,8 +5,8 @@ import pytest
 from psd_tools.constants import ImageResourceID
 from psd_tools.decoder.image_resources import (
     SlicesHeaderV6, SlicesResourceBlock)
-from tests.utils import decode_psd, with_psb, full_name
 from psd_tools.user_api.psd_image import PSDImage
+from .utils import decode_psd, with_psb, full_name
 
 
 SLICES_FILES = with_psb([
