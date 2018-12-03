@@ -7,8 +7,8 @@ from psd_tools import PSDImage
 from psd_tools.constants import TaggedBlock
 from psd_tools.decoder.actions import Descriptor
 from psd_tools.decoder.tagged_blocks import ArtboardData
-from .utils import decode_psd, DATA_PATH
 from PIL import Image
+from .utils import decode_psd, DATA_PATH
 
 
 def test_advanced_blending():

@@ -6,7 +6,7 @@ from PIL.Image import Image
 import imagehash
 import numpy as np
 from psd_tools.user_api.psd_image import PSDImage
-from tests.utils import decode_psd, full_name
+from .utils import decode_psd, full_name
 
 
 CLIP_FILES = [

@@ -5,9 +5,9 @@ import pytest
 
 from psd_tools import PSDImage
 from psd_tools.constants import TaggedBlock, SectionDivider
-from .utils import load_psd, decode_psd, with_psb
 from psd_tools.decoder.tagged_blocks import VectorMaskSetting
 from psd_tools.user_api.effects import PatternOverlay
+from .utils import load_psd, decode_psd, with_psb
 
 
 FILES_WITH_NO_LAYERS = (

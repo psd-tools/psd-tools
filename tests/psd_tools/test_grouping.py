@@ -2,7 +2,7 @@
 from __future__ import absolute_import, unicode_literals
 
 from psd_tools.user_api.psd_image import PSDImage
-from tests.utils import decode_psd, full_name
+from .utils import decode_psd, full_name
 
 
 def test_no_groups():

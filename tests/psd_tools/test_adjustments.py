@@ -6,7 +6,7 @@ from psd_tools.constants import TaggedBlock
 from psd_tools.user_api.psd_image import PSDImage
 from psd_tools.user_api import adjustments
 from PIL.Image import Image
-from tests.utils import decode_psd, DATA_PATH
+from .utils import decode_psd, DATA_PATH
 
 
 @pytest.fixture(scope="module")
