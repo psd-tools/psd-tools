@@ -48,6 +48,7 @@ import attr
 import logging
 import io
 
+from psd_tools2.version import __version__
 from psd_tools2.constants import ImageResourceID, PrintScaleStyle
 from psd_tools2.psd.base import (
     BaseElement, BooleanElement, ByteElement, DictElement, IntegerElement,
@@ -107,6 +108,25 @@ class ImageResources(DictElement):
         if value:
             return value.data
         return value
+
+    @classmethod
+    def new(cls, **kwargs):
+        """
+        Create a new default image resouces.
+
+        :return: ImageResources
+        """
+        return cls([
+            (ImageResourceID.VERSION_INFO,
+             ImageResource(
+                key=ImageResourceID.VERSION_INFO,
+                data=VersionInfo(
+                    has_composite=True,
+                    writer='psd-tools2 %s' % __version__,
+                    reader='psd-tools2 %s' % __version__,
+                ))
+             ),
+        ])
 
     @classmethod
     def read(cls, fp, encoding='macroman'):
@@ -932,11 +952,11 @@ class VersionInfo(BaseElement):
     .. py:attribute:: reader
     .. py:attribute:: file_version
     """
-    version = attr.ib(default=0, type=int)
+    version = attr.ib(default=1, type=int)
     has_composite = attr.ib(default=False, type=bool)
     writer = attr.ib(default='', type=str)
     reader = attr.ib(default='', type=str)
-    file_version = attr.ib(default=0, type=int)
+    file_version = attr.ib(default=1, type=int)
 
     @classmethod
     def read(cls, fp, **kwargs):

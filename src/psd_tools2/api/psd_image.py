@@ -7,7 +7,7 @@ import logging
 from psd_tools2.constants import (
     Clipping, Compression, ColorMode, SectionDivider
 )
-from psd_tools2.psd import PSD, FileHeader, ImageData
+from psd_tools2.psd import PSD, FileHeader, ImageData, ImageResources
 from psd_tools2.api.layers import (
     AdjustmentLayer, Group, PixelLayer, ShapeLayer, SmartObjectLayer,
     TypeLayer, GroupMixin
@@ -40,7 +40,11 @@ class PSDImage(GroupMixin):
         header = cls._make_header(mode, size, depth)
         image_data = ImageData.new(header, color=color, **kwargs)
         # TODO: Add a background layer.
-        return cls(PSD(header=header, image_data=image_data))
+        return cls(PSD(
+            header=header,
+            image_data=image_data,
+            image_resources=ImageResources.new(),
+        ))
 
     @classmethod
     def frompil(cls, image, compression=Compression.PACK_BITS):
@@ -57,7 +61,11 @@ class PSDImage(GroupMixin):
         image_data = ImageData(compression=compression)
         image_data.set_data([channel.tobytes() for channel in image.split()],
                             header)
-        return cls(PSD(header=header, image_data=image_data))
+        return cls(PSD(
+            header=header,
+            image_data=image_data,
+            image_resources=ImageResources.new(),
+        ))
 
     @classmethod
     def open(cls, fp):
