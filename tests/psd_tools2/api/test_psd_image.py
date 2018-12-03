@@ -77,6 +77,10 @@ def test_is_visible(fixture):
     assert fixture.is_visible() == True
 
 
+def test_has_preview(fixture):
+    assert fixture.has_preview() == True
+
+
 def test_repr_pretty(fixture):
     fixture.__repr__()
     pprint(fixture)

@@ -94,10 +94,9 @@ class PSDImage(GroupMixin):
         :return: PIL Image object, or None if the composed image is not
             available.
         """
-        version_info = self.image_resources.get_data('version_info')
-        if version_info and not version_info.has_composite:
-            return None
-        return pil_io.convert_image_data_to_pil(self._psd)
+        if self.has_preview():
+            return pil_io.convert_image_data_to_pil(self._psd)
+        return None
 
     @deprecated
     def as_PIL(self, *args, **kwargs):
@@ -111,6 +110,16 @@ class PSDImage(GroupMixin):
         :return: True.
         """
         return True
+
+    def has_preview(self):
+        """
+        Returns if the document has real merged data. When True, `topil()`
+        returns pre-composed data.
+        """
+        version_info = self.image_resources.get_data('version_info')
+        if version_info:
+            return version_info.has_composite
+        return True  # Assuming the image data is valid by default.
 
     @property
     def name(self):
