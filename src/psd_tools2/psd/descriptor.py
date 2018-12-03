@@ -10,8 +10,8 @@ import logging
 from warnings import warn
 
 from psd_tools2.psd.base import (
-    BaseElement, BooleanElement, ValueElement, NumericElement, IntegerElement,
-    ListElement, DictElement
+    BaseElement, BooleanElement, DictElement, IntegerElement, ListElement,
+    NumericElement, StringElement,
 )
 from psd_tools2.constants import OSType, UnitFloatType, DescriptorClassID
 from psd_tools2.validators import in_
@@ -387,29 +387,13 @@ class Class(BaseElement):
 
 
 @register(OSType.STRING)
-@attr.s(repr=False, cmp=False)
-class String(ValueElement):
+class String(StringElement):
     """
     String structure.
 
     .. py:attribute:: value
     """
-    value = attr.ib(default='', type=str)
-
-    @classmethod
-    def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        """
-        return cls(read_unicode_string(fp, padding=1))
-
-    def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
-        return write_unicode_string(fp, self.value, padding=1)
+    pass
 
 
 @register(OSType.ENUMERATED_REFERENCE)

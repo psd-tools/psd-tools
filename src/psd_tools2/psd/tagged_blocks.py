@@ -19,7 +19,7 @@ import psd_tools2.psd.layer_and_mask
 from psd_tools2.psd.adjustments import ADJUSTMENT_TYPES
 from psd_tools2.psd.base import (
     BaseElement, ByteElement, DictElement, EmptyElement, IntegerElement,
-    ListElement, ValueElement,
+    ListElement, StringElement, ValueElement,
 )
 from psd_tools2.psd.color import Color
 from psd_tools2.psd.descriptor import DescriptorBlock, DescriptorBlock2
@@ -65,8 +65,9 @@ TYPES.update({
     TaggedBlockID.LINKED_LAYER3: LinkedLayers,
     TaggedBlockID.LINKED_LAYER_EXTERNAL: LinkedLayers,
     TaggedBlockID.LAYER_ID: IntegerElement,
-    TaggedBlockID.LAYER_VERSION: IntegerElement,
     TaggedBlockID.LAYER_MASK_AS_GLOBAL_MASK: ByteElement,
+    TaggedBlockID.UNICODE_LAYER_NAME: StringElement,
+    TaggedBlockID.LAYER_VERSION: IntegerElement,
     TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO: DescriptorBlock2,
     TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V0: DescriptorBlock2,
     TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V1: DescriptorBlock2,
@@ -416,24 +417,6 @@ class FilterMask(BaseElement):
         written = self.color.write(fp)
         written += write_fmt(fp, 'H', self.opacity)
         return written
-
-
-@register(TaggedBlockID.UNICODE_LAYER_NAME)
-@attr.s(repr=False, slots=True, cmp=False)
-class LayerName(ValueElement):
-    """
-    LayerName structure.
-
-    .. py:attribute:: value
-    """
-    value = attr.ib(default='', type=str)
-
-    @classmethod
-    def read(cls, fp, **kwargs):
-        return cls(read_unicode_string(fp))
-
-    def write(self, fp, padding=1, **kwargs):
-        return write_unicode_string(fp, self.value, padding)
 
 
 @register(TaggedBlockID.METADATA_SETTING)

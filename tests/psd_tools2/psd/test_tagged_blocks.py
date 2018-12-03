@@ -8,7 +8,6 @@ from psd_tools2.psd.base import IntegerElement
 from psd_tools2.psd.tagged_blocks import (
     TaggedBlocks, TaggedBlock, Annotation, Annotations,
     ChannelBlendingRestrictionsSetting, PixelSourceData2, ReferencePoint,
-    LayerName
 )
 
 from ..utils import check_read_write, check_write_read, TEST_ROOT
@@ -64,13 +63,3 @@ def test_pixel_source_data2_wr():
 
 def test_reference_point():
     check_write_read(ReferencePoint([3, 5]))
-
-
-@pytest.mark.parametrize('fixture', [
-    '',
-    'a',
-    'ab',
-    '\u0034\u0035\u0036',
-])
-def test_string(fixture):
-    check_write_read(LayerName(fixture))

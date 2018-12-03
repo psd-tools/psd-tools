@@ -3,7 +3,10 @@ import attr
 import io
 from collections import OrderedDict
 from enum import Enum
-from psd_tools2.utils import read_fmt, write_fmt, trimmed_repr
+from psd_tools2.utils import (
+    read_fmt, write_fmt, trimmed_repr, read_unicode_string,
+    write_unicode_string
+)
 from psd_tools2.validators import in_
 
 
@@ -353,6 +356,23 @@ class BooleanElement(IntegerElement):
 
     def write(self, fp, **kwargs):
         return write_fmt(fp, '?3x', self.value)
+
+
+@attr.s(repr=False, slots=True, cmp=False)
+class StringElement(ValueElement):
+    """
+    Single unicode string.
+
+    .. py:attribute:: value
+    """
+    value = attr.ib(default='', type=str)
+
+    @classmethod
+    def read(cls, fp, padding=1, **kwargs):
+        return cls(read_unicode_string(fp, padding=padding))
+
+    def write(self, fp, padding=1, **kwargs):
+        return write_unicode_string(fp, self.value, padding=padding)
 
 
 @attr.s(repr=False)

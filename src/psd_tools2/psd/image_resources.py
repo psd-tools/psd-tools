@@ -51,7 +51,8 @@ import io
 from psd_tools2.constants import ImageResourceID, PrintScaleStyle
 from psd_tools2.psd.base import (
     BaseElement, BooleanElement, ByteElement, DictElement, IntegerElement,
-    ListElement, NumericElement, ShortIntegerElement, ValueElement,
+    ListElement, NumericElement, ShortIntegerElement, StringElement,
+    ValueElement,
 )
 from psd_tools2.psd.color import Color
 from psd_tools2.psd.descriptor import DescriptorBlock
@@ -79,6 +80,9 @@ TYPES.update({
     ImageResourceID.PRINT_STYLE: DescriptorBlock,
     ImageResourceID.PATH_SELECTION_STATE: DescriptorBlock,
     ImageResourceID.ORIGIN_PATH_INFO: DescriptorBlock,
+    ImageResourceID.AUTO_SAVE_FILE_PATH: StringElement,
+    ImageResourceID.AUTO_SAVE_FORMAT: StringElement,
+    ImageResourceID.WORKFLOW_URL: StringElement,
 })
 
 
@@ -453,21 +457,6 @@ class ShortInteger(ShortIntegerElement):
 
     def write(self, fp, **kwargs):
         return write_fmt(fp, 'H', self.value)
-
-
-@register(ImageResourceID.AUTO_SAVE_FILE_PATH)
-@register(ImageResourceID.AUTO_SAVE_FORMAT)
-@register(ImageResourceID.WORKFLOW_URL)
-class String(ValueElement):
-    """
-    String element.
-    """
-    @classmethod
-    def read(cls, fp, **kwargs):
-        return cls(read_unicode_string(fp))
-
-    def write(self, fp, **kwargs):
-        return write_unicode_string(fp, self.value, padding=1)
 
 
 @register(ImageResourceID.CAPTION_PASCAL)
