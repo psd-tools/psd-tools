@@ -156,6 +156,9 @@ class ValueElement(BaseElement):
     def __rmod__(self, other):
         return self.value.__rmod__(other)
 
+    def __hash__(self):
+        return self.value.__hash__()
+
     def __repr__(self):
         return self.value.__repr__()
 
