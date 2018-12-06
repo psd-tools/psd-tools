@@ -68,6 +68,33 @@ def test_pixel_layer_properties(pixel_layer):
     assert layer.tagged_blocks is not None
 
 
+def test_pixel_layer_writable_properties(pixel_layer):
+    layer = pixel_layer
+    layer.name = 'foo'
+    assert layer.name == 'foo'
+    layer.name = u'\ud83d\udc7d'
+    assert layer.name == u'\ud83d\udc7d'
+
+    layer.visible = False
+    assert layer.visible == False
+
+    layer.opacity = 128
+    assert layer.opacity == 128
+
+    layer.blend_mode = 'linear_dodge'
+    assert layer.blend_mode == BlendMode.LINEAR_DODGE
+
+    layer.left = 2
+    assert layer.left == 2
+    layer.top = 2
+    assert layer.top == 2
+    assert layer.size == (29, 29)
+
+    layer.offset = (1, 1)
+    assert layer.offset == (1, 1)
+    assert layer.size == (29, 29)
+
+
 def test_layer_is_visible(pixel_layer):
     assert pixel_layer.is_visible()
 

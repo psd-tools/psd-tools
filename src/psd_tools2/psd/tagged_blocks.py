@@ -125,6 +125,21 @@ class TaggedBlocks(DictElement):
             return self[key].data
         return default
 
+    def set_data(self, key, *args, **kwargs):
+        """
+        Set data for the given key.
+
+        Shortut for the following::
+
+            key = getattr(TaggedBlockID, key)
+            kls = TYPES.get(key)
+            self[key] = TaggedBlocks(key=key, data=kls(value))
+
+        """
+        key = self._key_converter(key)
+        kls = TYPES.get(key)
+        self[key] = TaggedBlock(key=key, data=kls(*args, **kwargs))
+
     @classmethod
     def read(cls, fp, version=1, padding=1):
         """Read the element from a file-like object.

@@ -4,7 +4,7 @@ Layer module.
 from __future__ import absolute_import, unicode_literals
 import logging
 
-from psd_tools2.constants import SectionDivider, Clipping
+from psd_tools2.constants import BlendMode, SectionDivider, Clipping
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +28,22 @@ class Layer(object):
             'UNICODE_LAYER_NAME', self._record.name
         )
 
+    @name.setter
+    def name(self, value):
+        if str != bytes:
+            assert isinstance(value, str)
+        else:
+            assert isinstance(value, unicode)
+        assert len(value) < 256, 'Layer name too long (%d) %s' % (
+            len(value), value
+        )
+        try:
+            value.encode('macroman')
+            self._record.name = value
+        except UnicodeEncodeError:
+            self._record.name = str('?')
+        self._record.tagged_blocks.set_data('UNICODE_LAYER_NAME', value)
+
     @property
     def kind(self):
         """
@@ -43,6 +59,10 @@ class Layer(object):
         """Layer invisibility. Doesn't take group visibility in account."""
         return self._record.flags.visible
 
+    @visible.setter
+    def visible(self, value):
+        self._record.flags.visible = bool(value)
+
     def is_visible(self):
         """Layer invisibility. Takes group visibility in account."""
         return self.visible or self.parent.is_visible()
@@ -51,6 +71,11 @@ class Layer(object):
     def opacity(self):
         """Opacity of this layer."""
         return self._record.opacity
+
+    @opacity.setter
+    def opacity(self, value):
+        assert 0 <= value and value <= 255
+        self._record.opacity = int(value)
 
     @property
     def parent(self):
@@ -71,6 +96,13 @@ class Layer(object):
         """
         return self._record.blend_mode
 
+    @blend_mode.setter
+    def blend_mode(self, value):
+        if hasattr(BlendMode, value.upper()):
+            self._record.blend_mode = getattr(BlendMode, value.upper())
+        else:
+            self._record.blend_mode = BlendMode(value)
+
     def has_mask(self):
         """Returns True if the layer has a mask."""
         return self._record.mask_data is not None
@@ -80,10 +112,22 @@ class Layer(object):
         """Left coordinate."""
         return self._record.left
 
+    @left.setter
+    def left(self, value):
+        w = self.width
+        self._record.left = int(value)
+        self._record.right = int(value) + w
+
     @property
     def top(self):
         """Top coordinate."""
         return self._record.top
+
+    @top.setter
+    def top(self, value):
+        h = self.height
+        self._record.top = int(value)
+        self._record.bottom = int(value) + h
 
     @property
     def right(self):
@@ -104,6 +148,15 @@ class Layer(object):
     def height(self):
         """Height of the layer."""
         return self.bottom - self.top
+
+    @property
+    def offset(self):
+        """(left, top) tuple."""
+        return self.left, self.top
+
+    @offset.setter
+    def offset(self, value):
+        self.left, self.top = value
 
     @property
     def size(self):
