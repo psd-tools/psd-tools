@@ -202,8 +202,10 @@ class ImageResource(BaseElement):
 
         The resource data.
     """
-    signature = attr.ib(default=b'8BIM', type=bytes, repr=False,
-                        validator=in_((b'8BIM', b'MeSa')))
+    signature = attr.ib(
+        default=b'8BIM', type=bytes, repr=False,
+        validator=in_({b'8BIM', b'MeSa', b'AgHg', b'PHUT', b'DCSR'})
+    )
     key = attr.ib(default=1000, type=int)
     name = attr.ib(default='', type=str)
     data = attr.ib(default=b'', type=bytes, repr=False)
