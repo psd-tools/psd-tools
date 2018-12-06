@@ -1,3 +1,8 @@
+1.7.27 (2018-12-06)
+-------------------
+
+- add missing extra image resource block signatures.
+
 1.7.26 (2018-12-03)
 -------------------
 
