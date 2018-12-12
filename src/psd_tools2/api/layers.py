@@ -55,6 +55,15 @@ class Layer(object):
         return self.__class__.__name__.lower().replace("layer", "")
 
     @property
+    def layer_id(self):
+        """
+        Layer ID.
+
+        :return: int layer id. if the layer is not assigned an id, -1.
+        """
+        return self.tagged_blocks.get_data('layer_id', -1)
+
+    @property
     def visible(self):
         """Layer invisibility. Doesn't take group visibility in account."""
         return self._record.flags.visible

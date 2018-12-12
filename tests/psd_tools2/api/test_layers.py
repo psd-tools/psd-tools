@@ -66,6 +66,7 @@ def test_pixel_layer_properties(pixel_layer):
     assert layer.bbox == (1, 1, 30, 30)
     assert layer.clip_layers == []
     assert layer.tagged_blocks is not None
+    assert layer.layer_id == 3
 
 
 def test_pixel_layer_writable_properties(pixel_layer):
