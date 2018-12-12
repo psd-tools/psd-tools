@@ -28,10 +28,6 @@ def test_new(args):
     PSDImage.new(*args)
 
 
-# def test_frompil():
-#     pass
-
-
 @pytest.mark.parametrize('filename', [
     'colormodes/4x4_8bit_rgb.psd',
 ])

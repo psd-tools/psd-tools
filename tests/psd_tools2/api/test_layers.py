@@ -99,11 +99,11 @@ def test_layer_is_visible(pixel_layer):
     assert pixel_layer.is_visible()
 
 
-@pytest.fixture(params=['pixel', 'group'])
+@pytest.fixture(params=['pixel_layer', 'group'])
 def is_group_args(request):
     return (
         request.getfixturevalue(request.param),
-        {'pixel': False, 'group': True}.get(request.param)
+        {'pixel_layer': False, 'group': True}.get(request.param)
     )
 
 
@@ -112,5 +112,5 @@ def test_layer_is_group(is_group_args):
     assert layer.is_group() == expected
 
 
-def test_layer_is_group(pixel_layer):
+def test_layer_has_mask(pixel_layer):
     assert pixel_layer.has_mask() == False
