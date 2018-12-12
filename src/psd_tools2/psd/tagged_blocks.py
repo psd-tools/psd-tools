@@ -236,7 +236,7 @@ class TaggedBlock(BaseElement):
             key = TaggedBlockID(key)
         except ValueError:
             message = 'Unknown key: %r' % (key)
-            warn(message.encode('ascii'))
+            warn(message)
             logger.warning(message)
 
         fmt = cls._length_format(key, version)
@@ -253,7 +253,7 @@ class TaggedBlock(BaseElement):
             message = 'Unknown tagged block: %r, %s' % (
                 key, trimmed_repr(raw_data)
             )
-            warn(message.encode('ascii'))
+            warn(message)
             logger.warning(message)
             data = raw_data
         return cls(signature, key, data)
@@ -478,7 +478,7 @@ class MetadataSetting(BaseElement):
         else:
             message = 'Unknown metadata key %r' % (key)
             logger.warning(message)
-            warn(message.encode('ascii'))
+            warn(message)
             data = data
         return cls(signature, key, copy_on_sheet, data)
 
