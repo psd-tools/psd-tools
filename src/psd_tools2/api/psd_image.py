@@ -327,9 +327,10 @@ class PSDImage(GroupMixin):
             ):
                 layer = ShapeLayer(self._psd, record, channels, current_group)
             elif (
-                'SMART_OBJECT_PLACED_LAYER_DATA' in blocks or
-                'PLACED_LAYER_OBSOLETE2' in blocks or
-                'PLACED_LAYER_DATA' in blocks
+                'SMART_OBJECT_LAYER_DATA1' in blocks or
+                'SMART_OBJECT_LAYER_DATA2' in blocks or
+                'PLACED_LAYER1' in blocks or
+                'PLACED_LAYER2' in blocks
             ):
                 layer = SmartObjectLayer(self._psd, record, channels,
                                          current_group)

@@ -115,3 +115,18 @@ def test_layer_is_group(is_group_args):
 
 def test_layer_has_mask(pixel_layer):
     assert pixel_layer.has_mask() == False
+
+
+@pytest.fixture(params=[
+    'pixel_layer', 'adjustment_layer', 'fill_layer', 'shape_layer',
+    'smartobject_layer', 'type_layer', 'group',
+])
+def kind_args(request):
+    expected = request.param.replace('_layer', '')
+    expected = expected.replace('fill', 'adjustment')
+    return (request.getfixturevalue(request.param), expected)
+
+
+def test_layer_kind(kind_args):
+    layer, expected = kind_args
+    assert layer.kind == expected
