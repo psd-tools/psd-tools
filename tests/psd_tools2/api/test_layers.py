@@ -48,6 +48,12 @@ def group():
     return PSDImage.open(full_name('layers/group.psd'))[0]
 
 
+ALL_FIXTURES = [
+    'pixel_layer', 'adjustment_layer', 'fill_layer', 'shape_layer',
+    'smartobject_layer', 'type_layer', 'group',
+]
+
+
 def test_pixel_layer_properties(pixel_layer):
     layer = pixel_layer
     assert layer.name == 'Pixel', 'layer.name = %s' % type(layer.name)
@@ -117,10 +123,7 @@ def test_layer_has_mask(pixel_layer):
     assert pixel_layer.has_mask() == False
 
 
-@pytest.fixture(params=[
-    'pixel_layer', 'adjustment_layer', 'fill_layer', 'shape_layer',
-    'smartobject_layer', 'type_layer', 'group',
-])
+@pytest.fixture(params=ALL_FIXTURES)
 def kind_args(request):
     expected = request.param.replace('_layer', '')
     expected = expected.replace('fill', 'adjustment')
@@ -130,3 +133,19 @@ def kind_args(request):
 def test_layer_kind(kind_args):
     layer, expected = kind_args
     assert layer.kind == expected
+
+
+@pytest.fixture(params=ALL_FIXTURES)
+def topil_args(request):
+    is_image = request.param in {
+        'pixel_layer', 'smartobject_layer', 'type_layer', 'fill_layer',
+        'shape_layer',
+    }
+    return (request.getfixturevalue(request.param), is_image)
+
+
+def test_topil(topil_args):
+    from PIL.Image import Image
+    fixture, is_image = topil_args
+    image = fixture.topil()
+    assert isinstance(image, Image) if is_image else image is None
