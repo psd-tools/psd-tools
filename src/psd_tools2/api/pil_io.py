@@ -5,7 +5,7 @@ from __future__ import absolute_import, unicode_literals
 import logging
 
 from psd_tools2.psd.image_data import ImageData
-from psd_tools2.constants import ColorMode
+from psd_tools2.constants import ColorMode, ChannelID
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +48,32 @@ def convert_image_data_to_pil(psd):
     mode = get_pil_mode(header.color_mode, alpha)
     image = Image.merge(mode, channels[:channel_size])
     return _remove_white_background(image)
+
+
+def convert_layer_to_pil(layer):
+    from PIL import Image
+    header = layer._psd.header
+    if header.color_mode == ColorMode.BITMAP:
+        raise NotImplementedError
+    width, height = layer.width, layer.height
+    channels, alpha = [], None
+    for ci, cd in zip(layer._record.channel_info, layer._channels):
+        if ci.id in (ChannelID.USER_LAYER_MASK,
+                     ChannelID.REAL_USER_LAYER_MASK):
+            continue
+        channel = cd.get_data(width, height, header.depth, header.version)
+        channel_image = Image.frombytes('L', (width, height), channel, 'raw')
+        if ci.id == ChannelID.TRANSPARENCY_MASK:
+            alpha = channel_image
+        else:
+            channels.append(channel_image)
+    if alpha is not None:
+        mode = get_pil_mode(header.color_mode, True)
+        image = Image.merge(mode, channels + [alpha])
+    else:
+        mode = get_pil_mode(header.color_mode, False)
+        image = Image.merge(mode, channels)
+    return image
 
 
 def _get_alpha_use(psd):

@@ -5,6 +5,7 @@ from __future__ import absolute_import, unicode_literals
 import logging
 
 from psd_tools2.constants import BlendMode, SectionDivider, Clipping
+from psd_tools2.api.pil_io import convert_layer_to_pil
 
 logger = logging.getLogger(__name__)
 
@@ -176,6 +177,23 @@ class Layer(object):
     def bbox(self):
         """(left, top, right, bottom) tuple."""
         return self.left, self.top, self.right, self.bottom
+
+    def has_pixels(self):
+        """Returns True if the layer has associated pixels."""
+        return any(
+            ci.id >= 0 and cd.data and len(cd.data) > 0
+            for ci, cd in zip(self._record.channel_info, self._channels)
+        )
+
+    def topil(self):
+        """
+        Get PIL Image of the layer.
+
+        :return: PIL Image object, or None if the layer has no pixels.
+        """
+        if self.has_pixels():
+            return convert_layer_to_pil(self)
+        return None
 
     @property
     def clip_layers(self):
