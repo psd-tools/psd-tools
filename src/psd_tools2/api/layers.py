@@ -6,6 +6,7 @@ import logging
 
 from psd_tools2.constants import BlendMode, SectionDivider, Clipping
 from psd_tools2.api.pil_io import convert_layer_to_pil
+from psd_tools2.api.mask import Mask
 
 logger = logging.getLogger(__name__)
 
@@ -185,6 +186,21 @@ class Layer(object):
             for ci, cd in zip(self._record.channel_info, self._channels)
         )
 
+    def has_mask(self):
+        """Returns True if the layer has a mask."""
+        return self._record.mask_data is not None
+
+    @property
+    def mask(self):
+        """
+        Returns mask associated with this layer.
+
+        :rtype: ~psd_tools.user_api.mask.Mask
+        """
+        if not hasattr(self, "_mask"):
+            self._mask = Mask(self) if self.has_mask() else None
+        return self._mask
+
     def topil(self):
         """
         Get PIL Image of the layer.
@@ -209,9 +225,10 @@ class Layer(object):
         return self._record.tagged_blocks
 
     def __repr__(self):
-        return '%s(%r size=%dx%d%s)' % (
+        return '%s(%r size=%dx%d%s%s)' % (
             self.__class__.__name__, self.name, self.width, self.height,
             ' invisible' if not self.visible else '',
+            ' mask' if self.has_mask() else '',
         )
 
 

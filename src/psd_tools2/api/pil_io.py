@@ -51,6 +51,7 @@ def convert_image_data_to_pil(psd):
 
 
 def convert_layer_to_pil(layer):
+    """Convert Layer to PIL Image."""
     from PIL import Image
     header = layer._psd.header
     if header.color_mode == ColorMode.BITMAP:
@@ -74,6 +75,27 @@ def convert_layer_to_pil(layer):
         mode = get_pil_mode(header.color_mode, False)
         image = Image.merge(mode, channels)
     return image
+
+
+def convert_mask_to_pil(mask, real=True):
+    """Convert Mask to PIL Image."""
+    from PIL import Image
+    header = mask._layer._psd.header
+    channel_ids = [ci.id for ci in mask._layer._record.channel_info]
+    if real and mask._has_real():
+        width = mask._data.real_right - mask._data.real_left
+        height = mask._data.real_bottom - mask._data.real_top
+        channel = mask._layer._channels[
+            channel_ids.index(ChannelID.REAL_USER_LAYER_MASK)
+        ]
+    else:
+        width = mask._data.right - mask._data.left
+        height = mask._data.bottom - mask._data.top
+        channel = mask._layer._channels[
+            channel_ids.index(ChannelID.USER_LAYER_MASK)
+        ]
+    data = channel.get_data(width, height, header.depth, header.version)
+    return Image.frombytes('L', (width, height), data, 'raw')
 
 
 def _get_alpha_use(psd):
