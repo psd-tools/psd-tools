@@ -314,7 +314,10 @@ class PSDImage(GroupMixin):
                     layer._record = record
                     layer._channels = channels
                     end_of_group = True
-            elif 'TYPE_TOOL_OBJECT_SETTING' in blocks:
+            elif (
+                'TYPE_TOOL_OBJECT_SETTING' in blocks or
+                'TYPE_TOOL_INFO' in blocks
+            ):
                 layer = TypeLayer(self._psd, record, channels, current_group)
             elif (
                 record.flags.pixel_data_irrelevant and (
