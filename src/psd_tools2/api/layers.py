@@ -94,7 +94,7 @@ class Layer(object):
 
     def is_group(self):
         """Return True if the layer is a group."""
-        return False
+        return isinstance(self, GroupMixin)
 
     @property
     def blend_mode(self):
@@ -216,9 +216,6 @@ class Layer(object):
 
 
 class GroupMixin(object):
-    def __init__(self, *args):
-        super(GroupMixin, self).__init__(*args)
-        self._layers = []
 
     def __len__(self):
         return self._layers.__len__()
@@ -234,10 +231,6 @@ class GroupMixin(object):
 
     def __delitem__(self, key):
         return self._layers.__delitem__(key)
-
-    def is_group(self):
-        """Return True if the layer is a group."""
-        return True
 
     def descendants(self, include_clip=True):
         """
@@ -255,8 +248,10 @@ class GroupMixin(object):
                     yield clip_layer
 
 
-class Group(GroupMixin, Layer):
-    pass
+class Group(Layer, GroupMixin):
+    def __init__(self, *args):
+        super(Group, self).__init__(*args)
+        self._layers = []
 
 
 class PixelLayer(Layer):
