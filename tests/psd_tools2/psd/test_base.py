@@ -53,6 +53,9 @@ def test_boolean():
     value = BooleanElement(True)
     assert value == True
     assert value
+    value = BooleanElement(False)
+    assert value == False
+    assert not value
 
 
 def test_list():
