@@ -431,9 +431,9 @@ class DescriptorClassID(Enum):
     STOP_OPACITY = b'TrnS'
 
     LINEAR = b'Lnr '
-    RADIAL = b'Rdl '
-    REFLECTED = b'Rflc'
-    DIAMOND = b'DMND'
+    GRADIENT_RADIAL = b'Rdl '
+    GRADIENT_REFLECTED = b'Rflc'
+    GRADIENT_DIAMOND = b'DMND'
     COLORS = b'Clrs'
     INTERPOLATION = b'Intr'
     TRANSPARENCY = b'Trns'
@@ -475,7 +475,7 @@ class DescriptorClassID(Enum):
     OFFSET = b'Ofst'
     LAYER_FONT_EFFECT = b'Lefx'  # ???
     SCALE = b'Scl '
-    LAYER_EFFECT = b'FrFX'
+    # LAYER_EFFECT = b'FrFX'
     FSTL = b'FStl'  # ???
 
     FR_FILL = b'FrFl'  # ???
@@ -525,17 +525,11 @@ class DescriptorClassID(Enum):
     SIZE = b'Sz  '
 
     # Effect types
-    # DROP_SHADOW_MULTI = b'dropShadowMulti'
     DROP_SHADOW = b'DrSh'
-    # INNER_SHADOW_MULTI = b'innerShadowMulti'
     INNER_SHADOW = b'IrSh'
     OUTER_GLOW = b'OrGl'
-    # COLOR_OVERLAY_MULTI = b'solidFillMulti'
     COLOR_OVERLAY = b'SoFi'
-    # GRADIENT_OVERLAY_MULTI = b'gradientFillMulti'
     GRADIENT_OVERLAY = b'GrFl'
-    # PATTERN_OVERLAY = b'patternFill'
-    # STROKE_MULTI = b'frameFXMulti'
     STROKE = b'FrFX'
     INNER_GLOW = b'IrGl'
     BEVEL_EMBOSS = b'ebbl'
@@ -546,9 +540,10 @@ class DescriptorClassID(Enum):
     # Grow
     GLOW_TYPE = b'GlwT'
     GLOW_SOURCE = b'glwS'
-    GLOW_SOURCE_EDGE = b'SrcE'
 
-    INNER_GLOW_SR = b'IGSr'  # ???
+    GLOW_SOURCE_TYPE = b'IGSr'
+    GLOW_SOURCE_EDGE = b'SrcE'
+    GLOW_SOURCE_CENTER = b'SrcC'
 
     INVERTED = b'Invr'
     QUARYTY_RANGE = b'Inpr'
@@ -573,7 +568,7 @@ class DescriptorClassID(Enum):
     IN = b'In  '
     OUT = b'Out '
 
-    BEVEL_BETE = b'BETE'  # ???
+    GLOW_TYPE_VALUE = b'BETE'  # ???
 
     HIGHLIGHT_MODE = b'hglM'
     HIGHLIGHT_COLOR = b'hglC'
@@ -977,7 +972,6 @@ class DescriptorClassID(Enum):
     Ntrl = b'Ntrl'
     Blks = b'Blks'
     Bk   = b'Bk  '
-    SrcC = b'SrcC'
     MtnB = b'MtnB'
     RdlB = b'RdlB'
     BlrM = b'BlrM'

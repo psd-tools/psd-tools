@@ -7,6 +7,7 @@ import logging
 from psd_tools2.constants import BlendMode, SectionDivider, Clipping
 from psd_tools2.api.pil_io import convert_layer_to_pil
 from psd_tools2.api.mask import Mask
+from psd_tools2.api.effects import Effects
 
 logger = logging.getLogger(__name__)
 
@@ -220,15 +221,30 @@ class Layer(object):
         """
         return self._clip_layers
 
+    def has_effects(self):
+        """Returns True if the layer has effects."""
+        return any(tag in self.tagged_blocks for tag in (
+            'OBJECT_BASED_EFFECTS_LAYER_INFO',
+            'OBJECT_BASED_EFFECTS_LAYER_INFO_V0',
+            'OBJECT_BASED_EFFECTS_LAYER_INFO_V1',
+        ))
+
+    @property
+    def effects(self):
+        if not hasattr(self, '_effects'):
+            self._effects = Effects(self) if self.has_effects() else None
+        return self._effects
+
     @property
     def tagged_blocks(self):
         return self._record.tagged_blocks
 
     def __repr__(self):
-        return '%s(%r size=%dx%d%s%s)' % (
+        return '%s(%r size=%dx%d%s%s%s)' % (
             self.__class__.__name__, self.name, self.width, self.height,
             ' invisible' if not self.visible else '',
             ' mask' if self.has_mask() else '',
+            ' effects' if self.has_effects() else '',
         )
 
 
