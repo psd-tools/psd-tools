@@ -8,6 +8,7 @@ from psd_tools2.constants import BlendMode, SectionDivider, Clipping
 from psd_tools2.api.pil_io import convert_layer_to_pil
 from psd_tools2.api.mask import Mask
 from psd_tools2.api.effects import Effects
+from psd_tools2.api.smart_object import SmartObject
 
 logger = logging.getLogger(__name__)
 
@@ -292,7 +293,12 @@ class PixelLayer(Layer):
 
 
 class SmartObjectLayer(Layer):
-    pass
+
+    @property
+    def smart_object(self):
+        if not hasattr(self, '_smart_object'):
+            self._smart_object = SmartObject(self)
+        return self._smart_object
 
 
 class TypeLayer(Layer):
