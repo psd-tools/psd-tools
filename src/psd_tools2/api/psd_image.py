@@ -428,3 +428,6 @@ class PSDImage(GroupMixin):
                 if not end_of_group:
                     current_group._layers.append(layer)
                 last_layer = layer
+
+        if clip_stack and last_layer:
+            last_layer._clip_layers = clip_stack

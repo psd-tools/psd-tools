@@ -150,3 +150,12 @@ def test_topil(topil_args):
     fixture, is_image = topil_args
     image = fixture.topil()
     assert isinstance(image, Image) if is_image else image is None
+
+
+
+def test_clip_adjustment():
+    psd = PSDImage.open(full_name('clip-adjustment.psd'))
+    assert len(psd) == 1
+    layer = psd[0]
+    assert layer.kind == 'type'
+    assert len(layer.clip_layers) == 1
