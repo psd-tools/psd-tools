@@ -55,7 +55,7 @@ def test_pilio(fixture):
 def test_properties(fixture):
     assert fixture.name == 'Root'
     assert fixture.kind == 'psdimage'
-    assert fixture.visible == True
+    assert fixture.visible is True
     assert fixture.left == 0
     assert fixture.top == 0
     assert fixture.right == 4
@@ -70,11 +70,11 @@ def test_properties(fixture):
 
 
 def test_is_visible(fixture):
-    assert fixture.is_visible() == True
+    assert fixture.is_visible() is True
 
 
 def test_has_preview(fixture):
-    assert fixture.has_preview() == True
+    assert fixture.has_preview() is True
 
 
 def test_repr_pretty(fixture):

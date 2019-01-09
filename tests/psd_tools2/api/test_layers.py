@@ -58,7 +58,7 @@ def test_pixel_layer_properties(pixel_layer):
     layer = pixel_layer
     assert layer.name == 'Pixel', 'layer.name = %s' % type(layer.name)
     assert layer.kind == 'pixel'
-    assert layer.visible == True
+    assert layer.visible is True
     assert layer.opacity == 255
     assert isinstance(layer.parent, PSDImage)
     assert isinstance(layer.blend_mode, BlendMode)
@@ -83,7 +83,7 @@ def test_pixel_layer_writable_properties(pixel_layer):
     assert layer.name == u'\ud83d\udc7d'
 
     layer.visible = False
-    assert layer.visible == False
+    assert layer.visible is False
 
     layer.opacity = 128
     assert layer.opacity == 128
@@ -120,7 +120,7 @@ def test_layer_is_group(is_group_args):
 
 
 def test_layer_has_mask(pixel_layer):
-    assert pixel_layer.has_mask() == False
+    assert pixel_layer.has_mask() is False
 
 
 @pytest.fixture(params=ALL_FIXTURES)
@@ -150,7 +150,6 @@ def test_topil(topil_args):
     fixture, is_image = topil_args
     image = fixture.topil()
     assert isinstance(image, Image) if is_image else image is None
-
 
 
 def test_clip_adjustment():

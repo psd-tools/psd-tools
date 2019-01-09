@@ -21,9 +21,9 @@ def fixture():
 
 def test_effects(fixture):
     assert isinstance(fixture[0].effects.scale, float)
-    assert fixture[0].effects.enabled == True
+    assert fixture[0].effects.enabled is True
     for effect in fixture[0].effects:
-        assert effect.enabled == True
+        assert effect.enabled is True
 
 
 def test_bevel(fixture):
