@@ -9,9 +9,10 @@ from psd_tools2.constants import (
 )
 from psd_tools2.psd import PSD, FileHeader, ImageData, ImageResources
 from psd_tools2.api.layers import (
-    AdjustmentLayer, Group, PixelLayer, ShapeLayer, SmartObjectLayer,
-    TypeLayer, GroupMixin
+    AdjustmentLayer,
+    Group, PixelLayer, ShapeLayer, SmartObjectLayer, TypeLayer, GroupMixin
 )
+from psd_tools2.api import adjustments
 from psd_tools2.api import pil_io
 from psd_tools2.api import deprecated
 
@@ -337,30 +338,84 @@ class PSDImage(GroupMixin):
             ):
                 layer = SmartObjectLayer(self._psd, record, channels,
                                          current_group)
+            elif 'BLACK_AND_WHITE' in blocks:
+                layer = adjustments.BlackWhite(self._psd, record, channels,
+                                               current_group)
+            elif 'BRIGHTNESS_AND_CONTRAST' in blocks:
+                layer = adjustments.BrightnessContrast(
+                    self._psd, record, channels, current_group
+                )
+            elif 'COLOR_BALANCE' in blocks:
+                layer = adjustments.ColorBalance(
+                    self._psd, record, channels, current_group
+                )
+            elif 'COLOR_LOOKUP' in blocks:
+                layer = adjustments.ColorLookup(
+                    self._psd, record, channels, current_group
+                )
+            elif 'CHANNEL_MIXER' in blocks:
+                layer = adjustments.ChannelMixer(
+                    self._psd, record, channels, current_group
+                )
+            elif 'CURVES' in blocks:
+                layer = adjustments.Curves(
+                    self._psd, record, channels, current_group
+                )
+            elif 'EXPOSURE' in blocks:
+                layer = adjustments.Exposure(
+                    self._psd, record, channels, current_group
+                )
+            elif 'GRADIENT_MAP' in blocks:
+                layer = adjustments.GradientMap(
+                    self._psd, record, channels, current_group
+                )
             elif (
-                'BLACK_AND_WHITE' in blocks or
-                'GRADIENT_FILL_SETTING' in blocks or
-                'INVERT' in blocks or
-                'PATTERN_FILL_SETTING' in blocks or
-                'POSTERIZE' in blocks or
-                'SOLID_COLOR_SHEET_SETTING' in blocks or
-                'THRESHOLD' in blocks or
-                'VIBRANCE' in blocks or
-                'BRIGHTNESS_AND_CONTRAST' in blocks or
-                'COLOR_BALANCE' in blocks or
-                'COLOR_LOOKUP' in blocks or
-                'CHANNEL_MIXER' in blocks or
-                'CURVES' in blocks or
-                'GRADIENT_MAP' in blocks or
-                'EXPOSURE' in blocks or
-                'HUE_SATURATION_V4' in blocks or
                 'HUE_SATURATION' in blocks or
-                'LEVELS' in blocks or
-                'PHOTO_FILTER' in blocks or
-                'SELECTIVE_COLOR' in blocks
+                'HUE_SATURATION_V4' in blocks
             ):
-                layer = AdjustmentLayer(self._psd, record, channels,
-                                        current_group)
+                layer = adjustments.HueSaturation(
+                    self._psd, record, channels, current_group
+                )
+            elif 'INVERT' in blocks:
+                layer = adjustments.Invert(
+                    self._psd, record, channels, current_group
+                )
+            elif 'LEVELS' in blocks:
+                layer = adjustments.Levels(
+                    self._psd, record, channels, current_group
+                )
+            elif 'PHOTO_FILTER' in blocks:
+                layer = adjustments.PhotoFilter(
+                    self._psd, record, channels, current_group
+                )
+            elif 'POSTERIZE' in blocks:
+                layer = adjustments.Posterize(
+                    self._psd, record, channels, current_group
+                )
+            elif 'SELECTIVE_COLOR' in blocks:
+                layer = adjustments.SelectiveColor(
+                    self._psd, record, channels, current_group
+                )
+            elif 'THRESHOLD' in blocks:
+                layer = adjustments.Threshold(
+                    self._psd, record, channels, current_group
+                )
+            elif 'VIBRANCE' in blocks:
+                layer = adjustments.Vibrance(
+                    self._psd, record, channels, current_group
+                )
+            elif 'SOLID_COLOR_SHEET_SETTING' in blocks:
+                layer = adjustments.SolidColorFill(
+                    self._psd, record, channels, current_group
+                )
+            elif 'GRADIENT_FILL_SETTING' in blocks:
+                layer = adjustments.GradientFill(
+                    self._psd, record, channels, current_group
+                )
+            elif 'PATTERN_FILL_SETTING' in blocks:
+                layer = adjustments.PatternFill(
+                    self._psd, record, channels, current_group
+                )
             else:
                 layer = PixelLayer(self._psd, record, channels, current_group)
 

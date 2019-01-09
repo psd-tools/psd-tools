@@ -241,8 +241,10 @@ class Layer(object):
         return self._record.tagged_blocks
 
     def __repr__(self):
-        return '%s(%r size=%dx%d%s%s%s)' % (
-            self.__class__.__name__, self.name, self.width, self.height,
+        has_size = self.width > 0 and self.height > 0
+        return '%s(%r%s%s%s%s)' % (
+            self.__class__.__name__, self.name,
+            ' size=%dx%d' % (self.width, self.height) if has_size else '',
             ' invisible' if not self.visible else '',
             ' mask' if self.has_mask() else '',
             ' effects' if self.has_effects() else '',
@@ -310,4 +312,16 @@ class ShapeLayer(Layer):
 
 
 class AdjustmentLayer(Layer):
-    pass
+    def __init__(self, *args):
+        super(AdjustmentLayer, self).__init__(*args)
+        self._data = None
+        if hasattr(self.__class__, '_KEY'):
+            self._data = self.tagged_blocks.get_data(self.__class__._KEY)
+
+
+class FillLayer(Layer):
+    def __init__(self, *args):
+        super(FillLayer, self).__init__(*args)
+        self._data = None
+        if hasattr(self.__class__, '_KEY'):
+            self._data = self.tagged_blocks.get_data(self.__class__._KEY)

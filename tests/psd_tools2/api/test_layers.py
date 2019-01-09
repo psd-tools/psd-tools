@@ -126,7 +126,8 @@ def test_layer_has_mask(pixel_layer):
 @pytest.fixture(params=ALL_FIXTURES)
 def kind_args(request):
     expected = request.param.replace('_layer', '')
-    expected = expected.replace('fill', 'adjustment')
+    expected = expected.replace('fill', 'solidcolorfill')
+    expected = expected.replace('adjustment', 'brightnesscontrast')
     return (request.getfixturevalue(request.param), expected)
 
 
