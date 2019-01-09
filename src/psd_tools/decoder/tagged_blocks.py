@@ -580,6 +580,16 @@ class WarpInformation(pretty_namedtuple(
     """
 
 
+class ComputerInfo(pretty_namedtuple(
+    'ComputerInfo',
+    'version data'
+)):
+    """
+    .. py:attribute:: version
+    .. py:attribute:: data
+    """
+
+
 class Divider(collections.namedtuple('Divider', 'block type key')):
     """
     .. py:attribute:: block
@@ -1297,3 +1307,8 @@ def _decode_filter_effect_item(data):
 
     return FilterEffects(uuid, version, rectangle, depth, max_channels,
                          channels, extra_data)
+
+
+@register(TaggedBlock.COMPUTER_INFO)
+def _decode_extn(data, **kwargs):
+    return _decode_descriptor_block(data, ComputerInfo)
