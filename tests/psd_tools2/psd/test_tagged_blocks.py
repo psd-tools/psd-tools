@@ -7,10 +7,11 @@ from psd_tools2.constants import TaggedBlockID
 from psd_tools2.psd.base import IntegerElement
 from psd_tools2.psd.tagged_blocks import (
     TaggedBlocks, TaggedBlock, Annotation, Annotations,
-    ChannelBlendingRestrictionsSetting, PixelSourceData2, ReferencePoint,
+    ChannelBlendingRestrictionsSetting, DescriptorBlock, PixelSourceData2,
+    ReferencePoint,
 )
 
-from ..utils import check_read_write, check_write_read, TEST_ROOT
+from ..utils import check_read_write, check_write_read, TEST_ROOT, full_name
 
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,13 @@ def test_annotations():
 ])
 def test_channel_blending_restrictions_setting(fixture):
     check_write_read(ChannelBlendingRestrictionsSetting(fixture))
+
+
+def test_computer_info():
+    filepath = os.path.join(TEST_ROOT, 'tagged_blocks', 'cinf.dat')
+    with open(filepath, 'rb') as f:
+        fixture = f.read()
+    check_read_write(DescriptorBlock, fixture)
 
 
 def test_pixel_source_data2_wr():

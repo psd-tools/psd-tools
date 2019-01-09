@@ -41,7 +41,7 @@ def read_length_and_key(fp):
         except ValueError:
             if key == b'\x00\x00\x00\x00':
                 raise
-            message = ('Unknown classID: %r' % (key)).encode('ascii')
+            message = ('Unknown classID: %r' % (key))
             warn(message)
             logger.debug(message)
             _UNKNOWN_CLASS_ID.add(key)

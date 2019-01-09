@@ -251,6 +251,7 @@ class TaggedBlockID(Enum):
     CHANNEL_MIXER = b'mixr'
     COLOR_BALANCE = b'blnc'
     COLOR_LOOKUP = b'clrL'
+    COMPUTER_INFO = b'cinf'  # Undocumented.
     CONTENT_GENERATOR_EXTRA_DATA = b'CgEd'
     CURVES = b'curv'
     EFFECTS_LAYER = b'lrFX'
@@ -388,6 +389,7 @@ class DescriptorClassID(Enum):
     NULL = b'null'
     NAME = b'Nm  '
     IDENTIFIER = b'Idnt'
+    VERSION = b'Vrsn'
 
     ALIAS = b'alis'
 
@@ -453,7 +455,6 @@ class DescriptorClassID(Enum):
     MAXIMUM = b'Mxm '
 
     # BrightnessContrast adjustment
-    BC_VRSN = b'Vrsn'  # ???
     BC_BRIGHTNESS = b'Brgh'
     BC_CONTRAST = b'Cntr'
     BC_LAB = b'Lab '
@@ -992,6 +993,7 @@ class DescriptorClassID(Enum):
     PltK = b'PltK'
     StrS = b'StrS'
     StDt = b'StDt'
+    Engn = b'Engn'
 
 
 class EffectOSType(Enum):

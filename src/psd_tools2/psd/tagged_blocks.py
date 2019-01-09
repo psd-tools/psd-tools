@@ -52,6 +52,7 @@ TYPES.update({
     TaggedBlockID.BLEND_CLIPPING_ELEMENTS: ByteElement,
     TaggedBlockID.BLEND_FILL_OPACITY: ByteElement,
     TaggedBlockID.BLEND_INTERIOR_ELEMENTS: ByteElement,
+    TaggedBlockID.COMPUTER_INFO: DescriptorBlock,
     TaggedBlockID.CONTENT_GENERATOR_EXTRA_DATA: DescriptorBlock,
     TaggedBlockID.EFFECTS_LAYER: EffectsLayer,
     TaggedBlockID.EXPORT_SETTING1: DescriptorBlock,
