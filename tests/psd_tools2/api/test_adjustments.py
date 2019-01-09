@@ -20,6 +20,23 @@ def psd():
     return FILL_ADJUSTMENTS
 
 
+def test_solid_color_fill():
+    layer = PSDImage.open(full_name('layers/solid-color-fill.psd'))[0]
+    assert layer.data
+
+
+def test_gradient_fill():
+    layer = PSDImage.open(full_name('layers/gradient-fill.psd'))[0]
+    assert layer.angle
+    assert layer.type
+    assert layer.data
+
+
+def test_pattern_fill():
+    layer = PSDImage.open(full_name('layers/pattern-fill.psd'))[0]
+    assert layer.data
+
+
 def test_brightness_contrast(psd):
     layer = psd[4]
     assert isinstance(layer, adjustments.BrightnessContrast)
@@ -78,7 +95,7 @@ def test_color_balance(psd):
 
 def test_black_and_white(psd):
     layer = psd[11]
-    assert isinstance(layer, adjustments.BlackWhite)
+    assert isinstance(layer, adjustments.BlackAndWhite)
     assert layer.red == 40
     assert layer.yellow == 60
     assert layer.green == 40

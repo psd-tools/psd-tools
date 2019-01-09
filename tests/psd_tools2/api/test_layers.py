@@ -20,12 +20,12 @@ def pixel_layer():
 
 @pytest.fixture
 def adjustment_layer():
-    return PSDImage.open(full_name('layers/adjustment-layer.psd'))[0]
+    return PSDImage.open(full_name('layers/brightness-contrast.psd'))[0]
 
 
 @pytest.fixture
 def fill_layer():
-    return PSDImage.open(full_name('layers/fill-layer.psd'))[0]
+    return PSDImage.open(full_name('layers/solid-color-fill.psd'))[0]
 
 
 @pytest.fixture
@@ -49,8 +49,8 @@ def group():
 
 
 ALL_FIXTURES = [
-    'pixel_layer', 'adjustment_layer', 'fill_layer', 'shape_layer',
-    'smartobject_layer', 'type_layer', 'group',
+    'pixel_layer', 'shape_layer', 'smartobject_layer', 'type_layer', 'group',
+    'adjustment_layer', 'fill_layer',
 ]
 
 

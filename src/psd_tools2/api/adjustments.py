@@ -26,20 +26,37 @@ class SolidColorFill(FillLayer):
     """Solid color fill."""
 
     @property
-    def color(self):
+    def data(self):
+        """Color in Descriptor(RGB)."""
         return self._data.get(b'Clr ')
 
 
 @register(TaggedBlockID.PATTERN_FILL_SETTING)
 class PatternFill(FillLayer):
     """Pattern fill."""
-    pass
+
+    @property
+    def data(self):
+        """Pattern in Descriptor(PATTERN)."""
+        return self._data.get(b'Ptrn')
 
 
 @register(TaggedBlockID.GRADIENT_FILL_SETTING)
 class GradientFill(FillLayer):
     """Gradient fill."""
-    pass
+
+    @property
+    def angle(self):
+        return self._data.get(b'Angl')
+
+    @property
+    def type(self):
+        return self._data.get(b'Type')
+
+    @property
+    def data(self):
+        """Gradient in Descriptor(GRADIENT)."""
+        return self._data.get(b'Grad')
 
 
 @register(TaggedBlockID.CONTENT_GENERATOR_EXTRA_DATA)
@@ -49,15 +66,15 @@ class BrightnessContrast(AdjustmentLayer):
 
     @property
     def brightness(self):
-        return self._data.get(b'Brgh', 0)
+        return int(self._data.get(b'Brgh', 0))
 
     @property
     def contrast(self):
-        return self._data.get(b'Cntr', 0)
+        return int(self._data.get(b'Cntr', 0))
 
     @property
     def mean(self):
-        return self._data.get(b'means', 0)
+        return int(self._data.get(b'means', 0))
 
     @property
     def lab(self):
@@ -69,7 +86,7 @@ class BrightnessContrast(AdjustmentLayer):
 
     @property
     def vrsn(self):
-        return self._data.get(b'Vrsn', 1)
+        return int(self._data.get(b'Vrsn', 1))
 
     @property
     def automatic(self):
@@ -85,11 +102,11 @@ class Curves(AdjustmentLayer):
     @property
     def data(self):
         """
-        List of :py:class:`~psd_tools.decoder.tagged_blocks.CurveData`
+        Raw data.
 
-        :rtype: list
+        :rtype: :py:class:`~psd_tools2.psd.adjustments.Curves`
         """
-        return self._data.data
+        return self._data
 
     @property
     def extra(self):
@@ -108,7 +125,7 @@ class Exposure(AdjustmentLayer):
 
         :rtype: float
         """
-        return self._data.exposure
+        return float(self._data.exposure)
 
     @property
     def offset(self):
@@ -116,7 +133,7 @@ class Exposure(AdjustmentLayer):
 
         :rtype: float
         """
-        return self._data.offset
+        return float(self._data.offset)
 
     @property
     def gamma(self):
@@ -124,7 +141,7 @@ class Exposure(AdjustmentLayer):
 
         :rtype: float
         """
-        return self._data.gamma
+        return float(self._data.gamma)
 
 
 @register(TaggedBlockID.LEVELS)
@@ -133,7 +150,7 @@ class Levels(AdjustmentLayer):
     Levels adjustment.
 
     Levels contain a list of
-    :py:class:`~psd_tools.decoder.tagged_blocks.LevelRecord`.
+    :py:class:`~psd_tools2.psd.adjustments.LevelRecord`.
     """
 
     @property
@@ -141,16 +158,13 @@ class Levels(AdjustmentLayer):
         """
         List of level records. The first record is the master.
 
-        :rtype: list
+        :rtype: :py:class:`~psd_tools2.psd.adjustments.Levels`.
         """
         return self._data
 
     @property
     def master(self):
-        """Master record.
-
-        :rtype: psd_tools.decoder.tagged_blocks.LevelRecord
-        """
+        """Master record."""
         return self.data[0]
 
 
@@ -164,7 +178,7 @@ class Vibrance(AdjustmentLayer):
 
         :rtype: int
         """
-        return self._data.get(b'vibrance', 0)
+        return int(self._data.get(b'vibrance', 0))
 
     @property
     def saturation(self):
@@ -172,7 +186,7 @@ class Vibrance(AdjustmentLayer):
 
         :rtype: int
         """
-        return self._data.get(b'Strt', 0)
+        return int(self._data.get(b'Strt', 0))
 
 
 @register(TaggedBlockID.HUE_SATURATION)
@@ -198,7 +212,7 @@ class HueSaturation(AdjustmentLayer):
 
         :rtype: int
         """
-        return self._data.enable
+        return int(self._data.enable)
 
     @property
     def colorization(self):
@@ -247,36 +261,40 @@ class ColorBalance(AdjustmentLayer):
 
     @property
     def luminosity(self):
-        return self._data.luminosity
+        """Luminosity.
+
+        :rtype: int
+        """
+        return int(self._data.luminosity)
 
 
 @register(TaggedBlockID.BLACK_AND_WHITE)
-class BlackWhite(AdjustmentLayer):
+class BlackAndWhite(AdjustmentLayer):
     """Black and white adjustment."""
 
     @property
     def red(self):
-        return self._data.get(b'Rd  ', 0)
+        return self._data.get(b'Rd  ', 40)
 
     @property
     def yellow(self):
-        return self._data.get(b'Yllw', 0)
+        return self._data.get(b'Yllw', 60)
 
     @property
     def green(self):
-        return self._data.get(b'Grn ', 0)
+        return self._data.get(b'Grn ', 40)
 
     @property
     def cyan(self):
-        return self._data.get(b'Cyn ', 0)
+        return self._data.get(b'Cyn ', 60)
 
     @property
     def blue(self):
-        return self._data.get(b'Bl  ', 0)
+        return self._data.get(b'Bl  ', 20)
 
     @property
     def magenta(self):
-        return self._data.get(b'Mgnt', 0)
+        return self._data.get(b'Mgnt', 80)
 
     @property
     def use_tint(self):
