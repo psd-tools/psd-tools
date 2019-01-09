@@ -9,7 +9,6 @@ from psd_tools2.constants import (
 )
 from psd_tools2.psd import PSD, FileHeader, ImageData, ImageResources
 from psd_tools2.api.layers import (
-    AdjustmentLayer,
     Group, PixelLayer, ShapeLayer, SmartObjectLayer, TypeLayer, GroupMixin
 )
 from psd_tools2.api import adjustments
@@ -338,86 +337,19 @@ class PSDImage(GroupMixin):
             ):
                 layer = SmartObjectLayer(self._psd, record, channels,
                                          current_group)
-            elif 'BLACK_AND_WHITE' in blocks:
-                layer = adjustments.BlackWhite(self._psd, record, channels,
-                                               current_group)
-            elif 'BRIGHTNESS_AND_CONTRAST' in blocks:
-                layer = adjustments.BrightnessContrast(
-                    self._psd, record, channels, current_group
-                )
-            elif 'COLOR_BALANCE' in blocks:
-                layer = adjustments.ColorBalance(
-                    self._psd, record, channels, current_group
-                )
-            elif 'COLOR_LOOKUP' in blocks:
-                layer = adjustments.ColorLookup(
-                    self._psd, record, channels, current_group
-                )
-            elif 'CHANNEL_MIXER' in blocks:
-                layer = adjustments.ChannelMixer(
-                    self._psd, record, channels, current_group
-                )
-            elif 'CURVES' in blocks:
-                layer = adjustments.Curves(
-                    self._psd, record, channels, current_group
-                )
-            elif 'EXPOSURE' in blocks:
-                layer = adjustments.Exposure(
-                    self._psd, record, channels, current_group
-                )
-            elif 'GRADIENT_MAP' in blocks:
-                layer = adjustments.GradientMap(
-                    self._psd, record, channels, current_group
-                )
-            elif (
-                'HUE_SATURATION' in blocks or
-                'HUE_SATURATION_V4' in blocks
-            ):
-                layer = adjustments.HueSaturation(
-                    self._psd, record, channels, current_group
-                )
-            elif 'INVERT' in blocks:
-                layer = adjustments.Invert(
-                    self._psd, record, channels, current_group
-                )
-            elif 'LEVELS' in blocks:
-                layer = adjustments.Levels(
-                    self._psd, record, channels, current_group
-                )
-            elif 'PHOTO_FILTER' in blocks:
-                layer = adjustments.PhotoFilter(
-                    self._psd, record, channels, current_group
-                )
-            elif 'POSTERIZE' in blocks:
-                layer = adjustments.Posterize(
-                    self._psd, record, channels, current_group
-                )
-            elif 'SELECTIVE_COLOR' in blocks:
-                layer = adjustments.SelectiveColor(
-                    self._psd, record, channels, current_group
-                )
-            elif 'THRESHOLD' in blocks:
-                layer = adjustments.Threshold(
-                    self._psd, record, channels, current_group
-                )
-            elif 'VIBRANCE' in blocks:
-                layer = adjustments.Vibrance(
-                    self._psd, record, channels, current_group
-                )
-            elif 'SOLID_COLOR_SHEET_SETTING' in blocks:
-                layer = adjustments.SolidColorFill(
-                    self._psd, record, channels, current_group
-                )
-            elif 'GRADIENT_FILL_SETTING' in blocks:
-                layer = adjustments.GradientFill(
-                    self._psd, record, channels, current_group
-                )
-            elif 'PATTERN_FILL_SETTING' in blocks:
-                layer = adjustments.PatternFill(
-                    self._psd, record, channels, current_group
-                )
             else:
-                layer = PixelLayer(self._psd, record, channels, current_group)
+                layer = None
+                for key in adjustments.TYPES.keys():
+                    if key in blocks:
+                        layer = adjustments.TYPES[key](
+                            self._psd, record, channels, current_group
+                        )
+                        break
+                # If nothing applies, this is a pixel layer.
+                if layer is None:
+                    layer = PixelLayer(
+                        self._psd, record, channels, current_group
+                    )
 
             if record.clipping == Clipping.NON_BASE:
                 clip_stack.append(layer)

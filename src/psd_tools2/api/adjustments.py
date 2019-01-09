@@ -12,31 +12,40 @@ import logging
 
 from psd_tools2.api.layers import AdjustmentLayer, FillLayer
 from psd_tools2.constants import TaggedBlockID
+from psd_tools2.utils import new_registry
 
 
 logger = logging.getLogger(__name__)
 
 
+TYPES, register = new_registry(attribute='_KEY')
+
+
+@register(TaggedBlockID.SOLID_COLOR_SHEET_SETTING)
 class SolidColorFill(FillLayer):
     """Solid color fill."""
-    _KEY = TaggedBlockID.SOLID_COLOR_SHEET_SETTING
+
+    @property
+    def color(self):
+        return self._data.get(b'Clr ')
 
 
+@register(TaggedBlockID.PATTERN_FILL_SETTING)
 class PatternFill(FillLayer):
-    """Solid color fill."""
-    _KEY = TaggedBlockID.PATTERN_FILL_SETTING
+    """Pattern fill."""
+    pass
 
 
+@register(TaggedBlockID.GRADIENT_FILL_SETTING)
 class GradientFill(FillLayer):
-    """Solid color fill."""
-    _KEY = TaggedBlockID.GRADIENT_FILL_SETTING
+    """Gradient fill."""
+    pass
 
 
-
+@register(TaggedBlockID.CONTENT_GENERATOR_EXTRA_DATA)
 class BrightnessContrast(AdjustmentLayer):
     """Brightness and contrast adjustment."""
     # TaggedBlockID.BRIGHTNESS_AND_CONTRAST is obsolete.
-    _KEY = TaggedBlockID.CONTENT_GENERATOR_EXTRA_DATA
 
     @property
     def brightness(self):
@@ -67,11 +76,11 @@ class BrightnessContrast(AdjustmentLayer):
         return bool(self._data.get(b'auto', False))
 
 
+@register(TaggedBlockID.CURVES)
 class Curves(AdjustmentLayer):
     """
     Curves adjustment.
     """
-    _KEY = TaggedBlockID.CURVES
 
     @property
     def data(self):
@@ -87,11 +96,11 @@ class Curves(AdjustmentLayer):
         return self._data.extra
 
 
+@register(TaggedBlockID.EXPOSURE)
 class Exposure(AdjustmentLayer):
     """
     Exposure adjustment.
     """
-    _KEY = TaggedBlockID.EXPOSURE
 
     @property
     def exposure(self):
@@ -118,6 +127,7 @@ class Exposure(AdjustmentLayer):
         return self._data.gamma
 
 
+@register(TaggedBlockID.LEVELS)
 class Levels(AdjustmentLayer):
     """
     Levels adjustment.
@@ -125,7 +135,6 @@ class Levels(AdjustmentLayer):
     Levels contain a list of
     :py:class:`~psd_tools.decoder.tagged_blocks.LevelRecord`.
     """
-    _KEY = TaggedBlockID.LEVELS
 
     @property
     def data(self):
@@ -145,9 +154,9 @@ class Levels(AdjustmentLayer):
         return self.data[0]
 
 
+@register(TaggedBlockID.VIBRANCE)
 class Vibrance(AdjustmentLayer):
     """Vibrance adjustment."""
-    _KEY = TaggedBlockID.VIBRANCE
 
     @property
     def vibrance(self):
@@ -166,13 +175,13 @@ class Vibrance(AdjustmentLayer):
         return self._data.get(b'Strt', 0)
 
 
+@register(TaggedBlockID.HUE_SATURATION)
 class HueSaturation(AdjustmentLayer):
     """
     Hue/Saturation adjustment.
 
     HueSaturation contains a list of data.
     """
-    _KEY = TaggedBlockID.HUE_SATURATION
 
     @property
     def data(self):
@@ -208,9 +217,9 @@ class HueSaturation(AdjustmentLayer):
         return self._data.master
 
 
+@register(TaggedBlockID.COLOR_BALANCE)
 class ColorBalance(AdjustmentLayer):
     """Color balance adjustment."""
-    _KEY = TaggedBlockID.COLOR_BALANCE
 
     @property
     def shadows(self):
@@ -241,9 +250,9 @@ class ColorBalance(AdjustmentLayer):
         return self._data.luminosity
 
 
+@register(TaggedBlockID.BLACK_AND_WHITE)
 class BlackWhite(AdjustmentLayer):
     """Black and white adjustment."""
-    _KEY = TaggedBlockID.BLACK_AND_WHITE
 
     @property
     def red(self):
@@ -287,9 +296,9 @@ class BlackWhite(AdjustmentLayer):
         return value.strip('\x00')
 
 
+@register(TaggedBlockID.PHOTO_FILTER)
 class PhotoFilter(AdjustmentLayer):
     """Photo filter adjustment."""
-    _KEY = TaggedBlockID.PHOTO_FILTER
 
     @property
     def xyz(self):
@@ -316,9 +325,9 @@ class PhotoFilter(AdjustmentLayer):
         return self._data.luminosity
 
 
+@register(TaggedBlockID.CHANNEL_MIXER)
 class ChannelMixer(AdjustmentLayer):
     """Channel mixer adjustment."""
-    _KEY = TaggedBlockID.CHANNEL_MIXER
 
     @property
     def monochrome(self):
@@ -329,19 +338,21 @@ class ChannelMixer(AdjustmentLayer):
         return self._data.data
 
 
+@register(TaggedBlockID.COLOR_LOOKUP)
 class ColorLookup(AdjustmentLayer):
     """Color lookup adjustment."""
-    _KEY = TaggedBlockID.COLOR_LOOKUP
+    pass
 
 
+@register(TaggedBlockID.INVERT)
 class Invert(AdjustmentLayer):
     """Invert adjustment."""
-    _KEY = TaggedBlockID.INVERT
+    pass
 
 
+@register(TaggedBlockID.POSTERIZE)
 class Posterize(AdjustmentLayer):
     """Posterize adjustment."""
-    _KEY = TaggedBlockID.POSTERIZE
 
     @property
     def posterize(self):
@@ -352,9 +363,9 @@ class Posterize(AdjustmentLayer):
         return self._data.value
 
 
+@register(TaggedBlockID.THRESHOLD)
 class Threshold(AdjustmentLayer):
     """Threshold adjustment."""
-    _KEY = TaggedBlockID.THRESHOLD
 
     @property
     def threshold(self):
@@ -365,9 +376,9 @@ class Threshold(AdjustmentLayer):
         return self._data.value
 
 
+@register(TaggedBlockID.SELECTIVE_COLOR)
 class SelectiveColor(AdjustmentLayer):
     """Selective color adjustment."""
-    _KEY = TaggedBlockID.SELECTIVE_COLOR
 
     @property
     def method(self):
@@ -378,9 +389,9 @@ class SelectiveColor(AdjustmentLayer):
         return self._data.data
 
 
+@register(TaggedBlockID.GRADIENT_MAP)
 class GradientMap(AdjustmentLayer):
     """Gradient map adjustment."""
-    _KEY = TaggedBlockID.GRADIENT_MAP
 
     @property
     def reversed(self):
