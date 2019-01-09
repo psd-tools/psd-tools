@@ -403,6 +403,8 @@ class TaggedBlock(Enum):
     LAYER_32 = b'Lr32'
     LAYER = b'Layr'
 
+    COMPUTER_INFO = b'cinf'
+
 
 class OSType(Enum):
     """
