@@ -197,11 +197,58 @@ class Layer(object):
         """
         Returns mask associated with this layer.
 
-        :rtype: ~psd_tools.user_api.mask.Mask
+        :rtype: ~psd_tools2.api.mask.Mask
         """
         if not hasattr(self, "_mask"):
             self._mask = Mask(self) if self.has_mask() else None
         return self._mask
+
+    def has_vector_mask(self):
+        """Returns True if the layer has a vector mask."""
+        return any(
+            key in self.tagged_blocks for key in
+            ('VECTOR_MASK_SETTING1', 'VECTOR_MASK_SETTING2')
+        )
+
+    @property
+    def vector_mask(self):
+        """
+        Returns vector mask associated with this layer.
+
+        :rtype: ~psd_tools2.api.shape.VectorMask
+        """
+        if not hasattr(self, '_vector_mask'):
+            self._vector_mask = None
+            blocks = self.tagged_blocks
+            for key in ('VECTOR_MASK_SETTING1', 'VECTOR_MASK_SETTING2'):
+                if key in blocks:
+                    self._vector_mask = blocks.get_data(key)
+        return self._vector_mask
+
+    def has_origination(self):
+        """Returns True if the layer has live shape properties."""
+        if self.live_shape is not None:
+            return not any(
+                x.get(b'keyShapeInvalidated')
+                for x in self.live_shape[b'keyDescriptorList']
+            )
+        return False
+
+    @property
+    def origination(self):
+        """
+        Property for live shapes.
+
+        Some of the vector masks have associated live shape properties, that
+        are Photoshop feature to handle primitive shapes such as a rectangle,
+        an ellipse, or a line. Vector masks without live shape properties are
+        plain path objects.
+        """
+        if not hasattr(self, '_origination'):
+            self._origination = self.tagged_blocks.get_data(
+                'VECTOR_ORIGINATION_DATA'
+            )
+        return self._origination
 
     def topil(self):
         """
@@ -308,7 +355,14 @@ class TypeLayer(Layer):
 
 
 class ShapeLayer(Layer):
-    pass
+    def has_stroke(self):
+        """Returns True if the shape has a stroke."""
+        return 'VECTOR_STROKE_DATA' in self.tagged_blocks
+
+    @property
+    def stroke(self):
+        """Property for strokes."""
+        return self.tagged_blocks.get_data('VECTOR_STROKE_DATA')
 
 
 class AdjustmentLayer(Layer):
