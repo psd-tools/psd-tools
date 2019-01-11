@@ -31,12 +31,12 @@ def debug_view(fp, txt="", max_back=20):
     print(txt, repr(pre), "--->.<---", repr(post))
 
 
-def pretty_namedtuple(typename, field_names, verbose=False):
+def pretty_namedtuple(typename, field_names):
     """
     Return a namedtuple class that knows how to pretty-print itself
     using IPython.lib.pretty library.
     """
-    cls = namedtuple(typename, field_names, verbose=verbose)
+    cls = namedtuple(typename, field_names)
     PrettyMixin = _get_pretty_mixin(typename)
     cls = type(str(typename), (PrettyMixin, cls), {})
 
