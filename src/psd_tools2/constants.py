@@ -1035,6 +1035,17 @@ class SectionDivider(IntEnum):
     BOUNDING_SECTION_DIVIDER = 3
 
 
+class SheetColorType(IntEnum):
+    NO_COLOR = 0
+    RED = 1
+    ORANGE = 2
+    YELLOW = 3
+    GREEN = 4
+    BLUE = 5
+    VIOLET = 6
+    GRAY = 7
+
+
 # class DisplayResolutionUnit(Enum):
 #     PIXELS_PER_INCH = 1
 #     PIXELS_PER_CM = 2

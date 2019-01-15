@@ -13,7 +13,7 @@ import logging
 from warnings import warn
 
 from psd_tools2.constants import (
-    BlendMode, SectionDivider, TaggedBlockID, PlacedLayerType
+    BlendMode, SectionDivider, TaggedBlockID, PlacedLayerType, SheetColorType
 )
 import psd_tools2.psd.layer_and_mask
 from psd_tools2.psd.adjustments import ADJUSTMENT_TYPES
@@ -635,18 +635,20 @@ class SectionDividerSetting(BaseElement):
 @attr.s(repr=False, slots=True, cmp=False)
 class SheetColorSetting(ValueElement):
     """
-    SheetColorSetting structure.
+    SheetColorSetting value.
+
+    This setting represents color label in the layers panel in Photoshop UI.
 
     .. py:attribute:: value
     """
-    value = attr.ib(default=None, converter=list)
+    value = attr.ib(default=0, converter=SheetColorType, type=SheetColorType)
 
     @classmethod
     def read(cls, fp, **kwargs):
-        return cls(read_fmt('4H', fp))
+        return cls(SheetColorType(*read_fmt('H6x', fp)))
 
     def write(self, fp, **kwargs):
-        return write_fmt(fp, '4H', *self.value)
+        return write_fmt(fp, 'H6x', self.value.value)
 
 
 @register(TaggedBlockID.SMART_OBJECT_LAYER_DATA1)
