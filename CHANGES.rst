@@ -1,6 +1,7 @@
-1.7.29 (2019-01-15)
+1.7.30 (2019-01-15)
 -------------------
 
+- composer alpha blending fix;
 - documentation fix.
 
 1.7.28 (2019-01-09)
