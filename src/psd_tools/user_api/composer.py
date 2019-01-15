@@ -81,7 +81,7 @@ def _apply_coloroverlay(layer, layer_image):
     return layer_image
 
 
-def _blend(target, image, offset, mask):
+def _blend(target, image, offset, mask=None):
     if image.mode == 'RGBA':
         tmp = Image.new(image.mode, target.size,
                         _get_default_color(image.mode))
@@ -187,8 +187,9 @@ def compose(layers, respect_visibility=True, ignore_blend_mode=True,
                     layer.mask.as_PIL(),
                     mask_box.offset((layer.bbox.x1, layer.bbox.y1))
                 )
+                layer_image.putalpha(mask)
 
-        result = _blend(result, layer_image, layer_offset, mask)
+        result = _blend(result, layer_image, layer_offset)
 
         if clip_image is not None:
             offset = (intersect.x1 - bbox.x1, intersect.y1 - bbox.y1)
