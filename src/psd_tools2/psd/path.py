@@ -111,12 +111,12 @@ class OpenPath(Subpath):
 
 
 @register(PathResourceID.CLOSED_KNOT_LINKED)
-class OpenKnotLinked(Knot):
+class ClosedKnotLinked(Knot):
     pass
 
 
 @register(PathResourceID.CLOSED_KNOT_UNLINKED)
-class OpenKnotLinked(Knot):
+class ClosedKnotUnlinked(Knot):
     pass
 
 
@@ -126,7 +126,7 @@ class OpenKnotLinked(Knot):
 
 
 @register(PathResourceID.OPEN_KNOT_UNLINKED)
-class OpenKnotLinked(Knot):
+class OpenKnotUnlinked(Knot):
     pass
 
 

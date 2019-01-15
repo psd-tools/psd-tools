@@ -227,17 +227,14 @@ class Layer(object):
 
     def has_origination(self):
         """Returns True if the layer has live shape properties."""
-        if self.live_shape is not None:
-            return not any(
-                x.get(b'keyShapeInvalidated')
-                for x in self.live_shape[b'keyDescriptorList']
-            )
+        if self.origination:
+            return True
         return False
 
     @property
     def origination(self):
         """
-        Property for live shapes.
+        Property for live shapes or a line.
 
         Some of the vector masks have associated live shape properties, that
         are Photoshop feature to handle primitive shapes such as a rectangle,
@@ -245,9 +242,16 @@ class Layer(object):
         plain path objects.
         """
         if not hasattr(self, '_origination'):
-            self._origination = self.tagged_blocks.get_data(
+            origination = self.tagged_blocks.get_data(
                 'VECTOR_ORIGINATION_DATA'
             )
+            if not origination or any(
+                x.get(b'keyShapeInvalidated')
+                for x in origination[b'keyDescriptorList']
+            ):
+                self._origination = None
+            else:
+                self._origination = origination
         return self._origination
 
     def topil(self):
@@ -363,6 +367,19 @@ class ShapeLayer(Layer):
     def stroke(self):
         """Property for strokes."""
         return self.tagged_blocks.get_data('VECTOR_STROKE_DATA')
+
+    def has_stroke_content(self):
+        """Returns True if the shape has stroke content data."""
+        return 'VECTOR_STROKE_CONTENT_DATA' in self.tagged_blocks
+
+    @property
+    def stroke_content(self):
+        """
+        Property for stroke content.
+
+        Stroke content is metadata associated with fill of the stroke.
+        """
+        return self.tagged_blocks.get_data('VECTOR_STROKE_CONTENT_DATA')
 
 
 class AdjustmentLayer(Layer):
