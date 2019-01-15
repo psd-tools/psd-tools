@@ -51,7 +51,7 @@ class StrokeStyle(object):
     def line_width(self):
         """Stroke width in float.
 
-        :rtype: UnitFloat
+        :rtype: :py:class:`~psd_tools.decoder.actions.UnitFloat`
         """
         return self.get(b'strokeStyleLineWidth', UnitFloat('PIXELS', 1.0))
 
@@ -115,7 +115,7 @@ class StrokeStyle(object):
     def opacity(self):
         """Opacity value.
 
-        :rtype: UnitFloat
+        :rtype: :py:class:`~psd_tools.decoder.actions.UnitFloat`
         """
         return self.get(b'strokeStyleOpacity', UnitFloat('PERCENT', 100.0))
 
@@ -195,7 +195,7 @@ class VectorMask(object):
         List of `Path`. Path contains `closed`, `num_knots`, and `knots`.
         In PSD, path fill rule is even-odd for multiple paths.
 
-        :rtype: Path
+        :return: Path named tuples
         """
         return self._paths
 

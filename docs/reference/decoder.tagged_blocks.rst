@@ -94,10 +94,10 @@ Divider
     :members:
     :undoc-members:
 
-ExportData
-----------
+ExportSetting
+-------------
 
-.. autoclass:: psd_tools.decoder.tagged_blocks.ExportData
+.. autoclass:: psd_tools.decoder.tagged_blocks.ExportSetting
     :members:
     :undoc-members:
 
