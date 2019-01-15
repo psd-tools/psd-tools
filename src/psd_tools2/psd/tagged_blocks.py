@@ -474,7 +474,7 @@ class MetadataSetting(BaseElement):
         if key == b'mdyn':
             with io.BytesIO(data) as f:
                 data = read_fmt('I', f)[0]
-        elif key in (b'cust', b'cmls'):
+        elif key in (b'cust', b'cmls', b'extn'):
             data = DescriptorBlock.frombytes(data, padding=4)
         else:
             message = 'Unknown metadata key %r' % (key)
