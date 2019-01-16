@@ -255,17 +255,17 @@ class Property(BaseElement):
 
 
 @register(OSType.UNIT_FLOAT)
-@attr.s
-class UnitFloat(BaseElement):
+@attr.s(slots=True, cmp=False, repr=False)
+class UnitFloat(NumericElement):
     """
     Unit float structure.
 
     .. py:attribute:: unit
     .. py:attribute:: value
     """
+    value = attr.ib(default=0.0, type=float)
     unit = attr.ib(default=UnitFloatType.NONE, converter=UnitFloatType,
                    validator=in_(UnitFloatType))
-    value = attr.ib(default=0.0, type=float)
 
     @classmethod
     def read(cls, fp):
@@ -273,7 +273,8 @@ class UnitFloat(BaseElement):
 
         :param fp: file-like object
         """
-        return cls(*read_fmt('4sd', fp))
+        unit, value = read_fmt('4sd', fp)
+        return cls(unit=UnitFloatType(unit), value=value)
 
     def write(self, fp):
         """Write the element to a file-like object.

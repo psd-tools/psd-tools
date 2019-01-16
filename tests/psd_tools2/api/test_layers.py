@@ -158,27 +158,3 @@ def test_clip_adjustment():
     layer = psd[0]
     assert layer.kind == 'type'
     assert len(layer.clip_layers) == 1
-
-
-def test_vector_mask():
-    psd = PSDImage.open(full_name('vector-mask2.psd'))
-    for index in range(len(psd)):
-        layer = psd[index]
-        assert layer.has_vector_mask() is True
-        assert layer.vector_mask
-        expected = index in (1, 2, 3, 5, 9)
-        assert layer.has_origination() is expected
-        if expected:
-            assert layer.origination
-        else:
-            assert layer.origination is None
-        if layer.kind == 'shape':
-            expected = index in (2, 4)
-            assert layer.has_stroke() is expected
-            assert layer.has_stroke_content() is expected
-            if expected:
-                assert layer.stroke is not None
-                assert layer.stroke_content is not None
-            else:
-                assert layer.stroke is None
-                assert layer.stroke_content is None

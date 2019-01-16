@@ -8,6 +8,7 @@ from psd_tools2.constants import BlendMode, SectionDivider, Clipping
 from psd_tools2.api.pil_io import convert_layer_to_pil
 from psd_tools2.api.mask import Mask
 from psd_tools2.api.effects import Effects
+from psd_tools2.api.shape import VectorMask, Stroke, Origination
 from psd_tools2.api.smart_object import SmartObject
 
 logger = logging.getLogger(__name__)
@@ -222,7 +223,7 @@ class Layer(object):
             blocks = self.tagged_blocks
             for key in ('VECTOR_MASK_SETTING1', 'VECTOR_MASK_SETTING2'):
                 if key in blocks:
-                    self._vector_mask = blocks.get_data(key)
+                    self._vector_mask = VectorMask(blocks.get_data(key))
         return self._vector_mask
 
     def has_origination(self):
@@ -240,6 +241,11 @@ class Layer(object):
         are Photoshop feature to handle primitive shapes such as a rectangle,
         an ellipse, or a line. Vector masks without live shape properties are
         plain path objects.
+
+        :return: One of :py:class:`~psd_tools2.api.shape.Rectangle`,
+            :py:class:`~psd_tools2.api.shape.RoundedRectangle`,
+            :py:class:`~psd_tools2.api.shape.Ellipse`,
+            :py:class:`~psd_tools2.api.shape.Line`, or None
         """
         if not hasattr(self, '_origination'):
             origination = self.tagged_blocks.get_data(
@@ -251,7 +257,7 @@ class Layer(object):
             ):
                 self._origination = None
             else:
-                self._origination = origination
+                self._origination = Origination.create(origination)
         return self._origination
 
     def topil(self):
@@ -366,20 +372,27 @@ class ShapeLayer(Layer):
     @property
     def stroke(self):
         """Property for strokes."""
-        return self.tagged_blocks.get_data('VECTOR_STROKE_DATA')
+        if not hasattr(self, '_stroke'):
+            self._stroke = None
+            stroke = self.tagged_blocks.get_data('VECTOR_STROKE_DATA')
+            if stroke:
+                self._stroke = Stroke(stroke)
+        return self._stroke
 
-    def has_stroke_content(self):
-        """Returns True if the shape has stroke content data."""
-        return 'VECTOR_STROKE_CONTENT_DATA' in self.tagged_blocks
+    # Stroke content data seems obsolete.
 
-    @property
-    def stroke_content(self):
-        """
-        Property for stroke content.
+    # def has_stroke_content(self):
+    #     """Returns True if the shape has stroke content data."""
+    #     return 'VECTOR_STROKE_CONTENT_DATA' in self.tagged_blocks
 
-        Stroke content is metadata associated with fill of the stroke.
-        """
-        return self.tagged_blocks.get_data('VECTOR_STROKE_CONTENT_DATA')
+    # @property
+    # def stroke_content(self):
+    #     """
+    #     Property for stroke content.
+
+    #     Stroke content is metadata associated with fill of the stroke.
+    #     """
+    #     return self.tagged_blocks.get_data('VECTOR_STROKE_CONTENT_DATA')
 
 
 class AdjustmentLayer(Layer):

@@ -1,9 +1,12 @@
 from __future__ import absolute_import, unicode_literals
 import pytest
-from psd_tools2.psd.descriptor import (
-    TYPES, Descriptor, Reference, Double, String, Bool, LargeInteger, Integer
 
+from psd_tools2.constants import UnitFloatType
+from psd_tools2.psd.descriptor import (
+    TYPES, Descriptor, Reference, Double, String, Bool, LargeInteger, Integer,
+    UnitFloat
 )
+
 from ..utils import check_write_read, check_read_write
 
 
@@ -91,3 +94,14 @@ def test_reference_rw(fixture):
 def test_value_elements(kls, value):
     fixture = kls(value)
     assert fixture == value
+
+
+@pytest.mark.parametrize('unit, value', [
+    (UnitFloatType.PIXELS, 100.0),
+    (UnitFloatType.POINTS, 0.0),
+])
+def test_unit_float(unit, value):
+    fixture = UnitFloat(unit=unit, value=value)
+    assert fixture == value
+    assert fixture + 1.0
+    assert isinstance(float(fixture), float)

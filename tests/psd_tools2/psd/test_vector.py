@@ -1,6 +1,6 @@
 from __future__ import absolute_import, unicode_literals
 import pytest
-from psd_tools2.psd.path import Path
+from psd_tools2.psd.vector import Path
 
 from ..utils import check_read_write
 
