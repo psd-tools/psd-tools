@@ -3,7 +3,9 @@ import pytest
 import logging
 
 from psd_tools2.api.psd_image import PSDImage
-from psd_tools2.api.shape import Rectangle, RoundedRectangle, Ellipse, Line
+from psd_tools2.api.shape import (
+    Rectangle, RoundedRectangle, Ellipse, Line, Invalidated
+)
 
 from ..utils import full_name
 
@@ -24,12 +26,12 @@ def test_layer_properties(psd):
         layer = psd[index]
         assert layer.has_vector_mask() is True
         assert layer.vector_mask
-        expected = index in (1, 2, 3, 5, 9)
+        expected = index != 0
         assert layer.has_origination() is expected
         if expected:
             assert layer.origination
         else:
-            assert layer.origination is None
+            assert not layer.origination
         if layer.kind == 'shape':
             expected = index in (2, 4)
             assert layer.has_stroke() is expected
@@ -61,11 +63,15 @@ def test_vector_mask(psd):
     (1, Rectangle),
     (2, RoundedRectangle),
     (3, Ellipse),
+    (4, Invalidated),
     (5, Line),
 ])
 def test_origination(psd, index, kls):
-    origination = psd[index].origination
+    origination = psd[index].origination[0]
     assert isinstance(origination, kls)
+    if kls == Invalidated:
+        return
+
     assert origination.origin_type > 0
     assert origination.resolution
     assert origination.shape_bbox

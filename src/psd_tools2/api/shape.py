@@ -53,6 +53,10 @@ class VectorMask(object):
         list-like structure that contains one or more
         :py:class:`~psd_tools2.psd.vector.Knot` items. Knot contains
         relative coordinates of control points for a Bezier curve.
+        :py:attr:`~psd_tools2.psd.vector.Subpath.index` indicates which
+        origination item the subpath belongs, and
+        :py:class:`~psd_tools2.psd.vector.Subpath.operation` indicates how
+        to combine multiple shape paths.
 
         In PSD, path fill rule is even-odd.
 
@@ -219,13 +223,14 @@ class Origination(object):
     """
     @classmethod
     def create(kls, data):
-        origin_type = data.get(b'keyDescriptorList')[0].get(b'keyOriginType')
+        if data.get(b'keyShapeInvalidated'):
+            return Invalidated(data)
+        origin_type = data.get(b'keyOriginType')
         types = {1: Rectangle, 2: RoundedRectangle, 4: Line, 5: Ellipse}
         return types.get(origin_type, kls)(data)
 
     def __init__(self, data):
-        # Seems currently only one item is present in the list.
-        self._data = data.get(b'keyDescriptorList')[0]
+        self._data = data
 
     @property
     def origin_type(self):
@@ -257,6 +262,7 @@ class Origination(object):
     @property
     def index(self):
         """
+        Origination item index.
 
         :rtype: int
         """
@@ -272,6 +278,12 @@ class Origination(object):
             bbox.get(b'Rght'),
             self.resolution
         )
+
+
+class Invalidated(Origination):
+    """Invalidated live shape."""
+    def __repr__(self):
+        return '%s()' % (self.__class__.__name__)
 
 
 class Rectangle(Origination):

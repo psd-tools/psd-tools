@@ -55,27 +55,45 @@ class Path(ListElement):
 class Subpath(ListElement):
     """
     Subpath element.
+
+    Operation types:
+
+        1: Or (union), 2: Not-Or, 3: And (intersect), 4: Xor (exclude),
+        -1: Subtract?
     """
 
-    # Undocumented data, that should be zeros.
-    _unknown = attr.ib(default=b'\x00' * 22, type=bytes, repr=False)
+    # Undocumented data that seem to contain path operation info.
+    operation = attr.ib(default=1, type=int)  # Type of shape operation.
+    _unknown1 = attr.ib(default=1, type=int)
+    _unknown2 = attr.ib(default=0, type=int)
+    index = attr.ib(default=0, type=int)  # Origination index.
+    _unknown3 = attr.ib(default=b'\x00' * 10, type=bytes, repr=False)
 
     @classmethod
     def read(cls, fp):
         items = []
-        length, _unknown = read_fmt('H22s', fp)
+        length, operation, _unknown1, _unknown2, index, _unknown3 = read_fmt(
+            'HhH2I10s', fp
+        )
         for _ in range(length):
             selector = PathResourceID(read_fmt('H', fp)[0])
             kls = TYPES.get(selector)
             items.append(kls.read(fp))
-        return cls(items=items, unknown=_unknown)
+        return cls(items=items, operation=operation, index=index,
+                   unknown1=_unknown1, unknown2=_unknown2, unknown3=_unknown3)
 
     def write(self, fp):
-        written = write_fmt(fp, 'H22s', len(self), self._unknown)
+        written = write_fmt(
+            fp, 'HhH2I10s', len(self), self.operation, self._unknown1,
+            self._unknown2, self.index, self._unknown3
+        )
         for item in self:
             written += write_fmt(fp, 'H', item.selector.value)
             written += item.write(fp)
         return written
+
+    # TODO: Make subpath repr better.
+    # def __repr__(self):
 
 
 @attr.s(slots=True)

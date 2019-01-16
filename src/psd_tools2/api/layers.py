@@ -235,29 +235,25 @@ class Layer(object):
     @property
     def origination(self):
         """
-        Property for live shapes or a line.
+        Property for a list of live shapes or a line.
 
         Some of the vector masks have associated live shape properties, that
         are Photoshop feature to handle primitive shapes such as a rectangle,
         an ellipse, or a line. Vector masks without live shape properties are
         plain path objects.
 
-        :return: One of :py:class:`~psd_tools2.api.shape.Rectangle`,
+        :return: List of :py:class:`~psd_tools2.api.shape.Rectangle`,
             :py:class:`~psd_tools2.api.shape.RoundedRectangle`,
-            :py:class:`~psd_tools2.api.shape.Ellipse`,
-            :py:class:`~psd_tools2.api.shape.Line`, or None
+            :py:class:`~psd_tools2.api.shape.Ellipse`, or
+            :py:class:`~psd_tools2.api.shape.Line`.
         """
         if not hasattr(self, '_origination'):
-            origination = self.tagged_blocks.get_data(
-                'VECTOR_ORIGINATION_DATA'
-            )
-            if not origination or any(
-                x.get(b'keyShapeInvalidated')
-                for x in origination[b'keyDescriptorList']
-            ):
-                self._origination = None
-            else:
-                self._origination = Origination.create(origination)
+            data = self.tagged_blocks.get_data('VECTOR_ORIGINATION_DATA', {})
+            self._origination = [
+                Origination.create(x) for x
+                in data.get(b'keyDescriptorList', [])
+                if not data.get(b'keyShapeInvalidated')
+            ]
         return self._origination
 
     def topil(self):
