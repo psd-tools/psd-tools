@@ -64,6 +64,7 @@ def test_properties(fixture):
     assert fixture.height == 4
     assert fixture.size == (4, 4)
     assert fixture.bbox == (0, 0, 4, 4)
+    assert fixture.viewbox == (0, 0, 4, 4)
     assert fixture.image_resources
     assert fixture.tagged_blocks
     assert fixture.color_mode == 'RGB'
@@ -75,6 +76,12 @@ def test_is_visible(fixture):
 
 def test_has_preview(fixture):
     assert fixture.has_preview() is True
+
+
+def test_thumnail(fixture):
+    assert fixture.has_thumbnail() is True
+    with pytest.raises(NotImplementedError):
+        fixture.thumbnail
 
 
 def test_repr_pretty(fixture):

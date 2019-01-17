@@ -158,3 +158,14 @@ def test_clip_adjustment():
     layer = psd[0]
     assert layer.kind == 'type'
     assert len(layer.clip_layers) == 1
+
+
+def test_type_layer(type_layer):
+    assert type_layer.text == 'A'
+    assert type_layer.transform == (
+        1.0000000000000002, 0.0, 0.0, 1.0, 0.0, 4.978787878787878
+    )
+    assert type_layer.engine_dict
+    assert type_layer.resource_dict
+    assert type_layer.document_resources
+    assert type_layer.warp

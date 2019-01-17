@@ -4,6 +4,7 @@ Layer module.
 from __future__ import absolute_import, unicode_literals
 import logging
 
+from psd_tools2.api import deprecated
 from psd_tools2.constants import BlendMode, SectionDivider, Clipping
 from psd_tools2.api.pil_io import convert_layer_to_pil
 from psd_tools2.api.mask import Mask
@@ -266,6 +267,10 @@ class Layer(object):
             return convert_layer_to_pil(self)
         return None
 
+    def has_clip_layers(self):
+        """Returns True if the layer has associated clipping."""
+        return len(self.clip_layers) > 0
+
     @property
     def clip_layers(self):
         """
@@ -303,6 +308,28 @@ class Layer(object):
             ' effects' if self.has_effects() else '',
         )
 
+    @deprecated
+    def as_PIL(self, *args, **kwargs):
+        """Use `topil`."""
+        return self.topil(*args, **kwargs)
+
+    @property
+    @deprecated
+    def flags(self):
+        return self._record.flags
+
+    @deprecated
+    def has_box(self):
+        """Return True if the layer has a nonzero area."""
+        return self.width > 0 and self.height > 0
+
+    @deprecated
+    def has_relevant_pixels(self):
+        """Return True if the layer has relevant associated pixels."""
+        if self._record.flags.pixel_data_irrelevant:
+            return False
+        return self.has_pixels()
+
 
 class GroupMixin(object):
 
@@ -338,29 +365,145 @@ class GroupMixin(object):
 
 
 class Group(Layer, GroupMixin):
+    """
+    Group of layers.
+
+    Example::
+
+        group = psd[1]
+        for layer in group:
+            if layer.kind == 'pixel':
+                print(layer.name)
+    """
     def __init__(self, *args):
         super(Group, self).__init__(*args)
         self._layers = []
 
 
 class PixelLayer(Layer):
+    """Layer that has rasterized image in pixels."""
     pass
 
 
 class SmartObjectLayer(Layer):
+    """
+    Layer that inserts external data.
 
+    Use :py:attr:`~psd_tools2.api.layers.SmartObjectLayer.smart_object`
+    attribute to get the external data. See
+    :py:class:`~psd_tools2.api.smart_object.SmartObject`.
+
+    Example::
+
+        layer = psd[0]
+        if layer.smart_object.filetype == 'jpg':
+            image = Image.open(io.BytesIO(layer.smart_object.data))
+    """
     @property
     def smart_object(self):
         if not hasattr(self, '_smart_object'):
             self._smart_object = SmartObject(self)
         return self._smart_object
 
+    @property
+    @deprecated
+    def unique_id(self):
+        return self.smart_object.unique_id
+
+    @property
+    @deprecated
+    def linked_data(self):
+        return self.smart_object
+
 
 class TypeLayer(Layer):
-    pass
+    """Layer that has text and styling information for fonts or paragraphs."""
+    def __init__(self, *args):
+        super(TypeLayer, self).__init__(*args)
+        self._data = self.tagged_blocks.get_data('TYPE_TOOL_OBJECT_SETTING')
+
+    @property
+    def text(self):
+        """Text in the layer"""
+        return self._data.text_data.get(b'Txt ').value.rstrip('\x00')
+
+    @property
+    def transform(self):
+        """Matrix (xx, xy, yx, yy, tx, ty) applies affine transformation."""
+        return self._data.transform
+
+    @property
+    def _engine_data(self):
+        """Styling and resource information."""
+        return self._data.text_data.get(b'EngineData').value
+
+    @property
+    def engine_dict(self):
+        """Styling information dict."""
+        return self._engine_data.get('EngineDict')
+
+    @property
+    def resource_dict(self):
+        """Resource set."""
+        return self._engine_data.get('ResourceDict')
+
+    @property
+    def document_resources(self):
+        """Resource set relevant to the document."""
+        return self._engine_data.get('DocumentResources')
+
+    @property
+    def warp(self):
+        """Warp configuration."""
+        return self._data.warp
+
+    @property
+    @deprecated
+    def fontset(self):
+        """Shortcut for `layer.document_resources.get('FontSet')`."""
+        return self.document_resources.get('FontSet')
+
+    @property
+    @deprecated
+    def engine_data(self):
+        """Deprecated."""
+        return self._engine_data
+
+    @property
+    @deprecated
+    def full_text(self):
+        """Deprecated."""
+        return self.engine_dict['Editor']['Txt ']
+
+    @property
+    @deprecated
+    def writing_direction(self):
+        """Deprecated."""
+        return self.engine_dict['Rendered']['Shapes']['WritingDirection']
+
+    @deprecated
+    def style_spans(self):
+        """Returns spans by text style segments."""
+        text = self.engine_dict['Editor']['Text'].value
+        fontset = self.document_resources['FontSet']
+        style_run = self.engine_dict['StyleRun']
+        runlength = style_run['RunLengthArray']
+        runarray = style_run['RunArray']
+
+        start = 0
+        spans = []
+        for run, size in zip(runarray, runlength):
+            runtext = text[start:start + size]
+            stylesheet = dict(run['StyleSheet']['StyleSheetData'])
+            stylesheet['Text'] = runtext
+            stylesheet['Font'] = fontset[stylesheet.get('Font', 0)]
+            spans.append(stylesheet)
+            start += size
+        return spans
 
 
 class ShapeLayer(Layer):
+    """Layer that has drawing in vector mask."""
     def has_stroke(self):
         """Returns True if the shape has a stroke."""
         return 'VECTOR_STROKE_DATA' in self.tagged_blocks
@@ -392,6 +535,7 @@ class ShapeLayer(Layer):
 
 
 class AdjustmentLayer(Layer):
+    """Layer that applies specified image adjustment effect."""
     def __init__(self, *args):
         super(AdjustmentLayer, self).__init__(*args)
         self._data = None
@@ -400,6 +544,7 @@ class AdjustmentLayer(Layer):
 
 
 class FillLayer(Layer):
+    """Layer that fills the canvas region."""
     def __init__(self, *args):
         super(FillLayer, self).__init__(*args)
         self._data = None

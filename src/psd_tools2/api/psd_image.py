@@ -20,6 +20,20 @@ logger = logging.getLogger(__name__)
 
 
 class PSDImage(GroupMixin):
+    """
+    Photoshop PSD/PSB file object.
+
+    Example::
+
+        from psd_tools2 import PSDImage
+
+        psd = PSDImage.open('example.psd')
+        image = psd.topil()
+
+        for layer in psd:
+            if layer.has_pixels():
+                layer_image = layer.topil()
+    """
     def __init__(self, psd):
         assert isinstance(psd, PSD)
         self._psd = psd
@@ -39,7 +53,7 @@ class PSDImage(GroupMixin):
         """
         header = cls._make_header(mode, size, depth)
         image_data = ImageData.new(header, color=color, **kwargs)
-        # TODO: Add a background layer.
+        # TODO: Add default metadata.
         return cls(PSD(
             header=header,
             image_data=image_data,
@@ -57,7 +71,8 @@ class PSDImage(GroupMixin):
         :return: A :py:class:`~psd_tools2.api.psd_image.PSDImage` object.
         """
         header = cls._make_header(image.mode, image.size)
-        # TODO: Add the background layer.
+        # TODO: Add default metadata.
+        # TODO: Perhaps make this smart object.
         image_data = ImageData(compression=compression)
         image_data.set_data([channel.tobytes() for channel in image.split()],
                             header)
@@ -104,12 +119,8 @@ class PSDImage(GroupMixin):
         """
         if self.has_preview():
             return pil_io.convert_image_data_to_pil(self._psd)
+        # TODO: Composer fallback.
         return None
-
-    @deprecated
-    def as_PIL(self, *args, **kwargs):
-        """Deprecated"""
-        return self.topil(*args, **kwargs)
 
     def is_visible(self):
         """
@@ -218,7 +229,23 @@ class PSDImage(GroupMixin):
     @property
     def bbox(self):
         """(left, top, right, bottom) tuple."""
+        # TODO: Bounding box calculation.
         return self.left, self.top, self.right, self.bottom
+
+    @property
+    def viewbox(self):
+        """Return BBox of the viewport."""
+        return self.left, self.top, self.right, self.bottom
+
+    @property
+    def channels(self):
+        """Number of color channels."""
+        return self._psd.header.channels
+
+    @property
+    def depth(self):
+        """Pixel depth bits."""
+        return self._psd.header.depth
 
     @property
     def color_mode(self):
@@ -248,6 +275,28 @@ class PSDImage(GroupMixin):
             None.
         """
         return self._psd.layer_and_mask_information.tagged_blocks
+
+    def has_thumbnail(self):
+        """True if the PSDImage has a thumbnail resource."""
+        return ('thumbnail_resource' in self.image_resources or
+                'thumbnail_resource_ps4' in self.image_resources)
+
+    @property
+    def thumbnail(self):
+        """
+        Returns a thumbnail image in PIL.Image. When the file does not
+        contain an embedded thumbnail image, returns None.
+        """
+        raise NotImplementedError
+        if 'thumbnail_resource' in self.image_resources:
+            return pil_io.extract_thumbnail(
+                self.image_resources.get_data('thumbnail_resource')
+            )
+        elif 'thumbnail_resource_ps4' in self.image_resources:
+            return pil_support.extract_thumbnail(
+                self.image_resources.get_data('thumbnail_resource_ps4'), 'BGR'
+            )
+        return None
 
     def __repr__(self):
         return (
@@ -363,3 +412,45 @@ class PSDImage(GroupMixin):
 
         if clip_stack and last_layer:
             last_layer._clip_layers = clip_stack
+
+    @classmethod
+    @deprecated
+    def load(kls, *args, **kwargs):
+        """Deprecated, use `open`."""
+        return kls.open(*args, **kwargs)
+
+    @classmethod
+    @deprecated
+    def from_stream(kls, *args, **kwargs):
+        """Deprecated, use `open`."""
+        return kls.open(*args, **kwargs)
+
+    @property
+    @deprecated
+    def header(self):
+        return self._psd.header
+
+    @property
+    @deprecated
+    def patterns(self):
+        raise NotImplementedError
+
+    @property
+    @deprecated
+    def image_resource_blocks(self):
+        """Deprecated, use `image_resources`."""
+        return self.image_resources
+
+    @deprecated
+    def as_PIL(self, *args, **kwargs):
+        """Deprecated, use `topil`."""
+        return self.topil(*args, **kwargs)
+
+    @deprecated
+    def print_tree(self):
+        """Deprecated, use `pprint`."""
+        try:
+            from IPython.lib.pretty import pprint
+        except ImportError:
+            from pprint import pprint
+        pprint(self)
