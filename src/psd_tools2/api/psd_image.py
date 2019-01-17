@@ -228,24 +228,28 @@ class PSDImage(GroupMixin):
 
     @property
     def bbox(self):
-        """(left, top, right, bottom) tuple."""
-        # TODO: Bounding box calculation.
-        return self.left, self.top, self.right, self.bottom
+        """
+        Minimal bounding box that contains all the visible layers.
+
+        Use :py:attr:`~psd_tools2.api.psd_image.PSDImage.viewbox` to get
+        viewport bounding box. When the psd is empty, bbox is equal to the
+        canvas bounding box.
+
+        :return: (left, top, right, bottom) tuple.
+        """
+        bbox = super(PSDImage, self).bbox
+        if bbox == (0, 0, 0, 0):
+            bbox = self.viewbox
+        return bbox
 
     @property
     def viewbox(self):
-        """Return BBox of the viewport."""
+        """
+        Return bounding box of the viewport.
+
+        :return: (left, top, right, bottom) tuple.
+        """
         return self.left, self.top, self.right, self.bottom
-
-    @property
-    def channels(self):
-        """Number of color channels."""
-        return self._psd.header.channels
-
-    @property
-    def depth(self):
-        """Pixel depth bits."""
-        return self._psd.header.depth
 
     @property
     def color_mode(self):
@@ -256,6 +260,16 @@ class PSDImage(GroupMixin):
         :return: str.
         """
         return self._psd.header.color_mode.name
+
+    @property
+    def channels(self):
+        """Number of color channels."""
+        return self._psd.header.channels
+
+    @property
+    def depth(self):
+        """Pixel depth bits."""
+        return self._psd.header.depth
 
     @property
     def image_resources(self):

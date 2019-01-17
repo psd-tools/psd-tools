@@ -6,9 +6,10 @@ import logging
 
 from psd_tools2.api import deprecated
 from psd_tools2.constants import BlendMode, SectionDivider, Clipping
-from psd_tools2.api.pil_io import convert_layer_to_pil
-from psd_tools2.api.mask import Mask
+from psd_tools2.api.composer import extract_bbox
 from psd_tools2.api.effects import Effects
+from psd_tools2.api.mask import Mask
+from psd_tools2.api.pil_io import convert_layer_to_pil
 from psd_tools2.api.shape import VectorMask, Stroke, Origination
 from psd_tools2.api.smart_object import SmartObject
 
@@ -267,6 +268,15 @@ class Layer(object):
             return convert_layer_to_pil(self)
         return None
 
+    def compose(self):
+        """
+        Compose layer and masks (mask, vector mask, and clipping layers).
+
+        :return: PIL Image object, or None if the layer has no pixels.
+        """
+        from psd_tools2.api.composer import compose_layer
+        return compose_layer(self)
+
     def has_clip_layers(self):
         """Returns True if the layer has associated clipping."""
         return len(self.clip_layers) > 0
@@ -332,6 +342,11 @@ class Layer(object):
 
 
 class GroupMixin(object):
+
+    @property
+    def bbox(self):
+        """(left, top, right, bottom) tuple."""
+        return extract_bbox(self)
 
     def __len__(self):
         return self._layers.__len__()
