@@ -39,15 +39,24 @@ def intersect(*bboxes):
 
 
 def _blend(target, image, offset, mask=None):
+    if offset[0] < 0:
+        if image.width <= -offset[0]:
+            return target
+        image = image.crop((-offset[0], 0, image.width, image.height))
+        offset = (0, offset[1])
+
+    if offset[1] < 0:
+        if image.height <= -offset[1]:
+            return target
+        image = image.crop((0, -offset[1], image.width, image.height))
+        offset = (offset[0], 0)
+
     if target.mode == 'RGBA':
         target.alpha_composite(image.convert('RGBA'), offset)
-    elif target.mode in ('LA', 'CMYKA'):
-        tmp = target.convert('RGBA')
-        tmp.alpha_composite(tmp, image.convert('RGBA'), offset)
-        target = tmp.convert(target.mode)
     else:
-        target.paste(image, offset, mask=mask)
-
+        tmp = target.convert('RGBA')
+        tmp.alpha_composite(image.convert('RGBA'), offset)
+        target = tmp.convert(target.mode)
     return target
 
 
