@@ -81,7 +81,7 @@ class Layer(object):
 
     def is_visible(self):
         """Layer invisibility. Takes group visibility in account."""
-        return self.visible or self.parent.is_visible()
+        return self.visible and self.parent.is_visible()
 
     @property
     def opacity(self):

@@ -38,6 +38,19 @@ def intersect(*bboxes):
     return result
 
 
+def _blend(target, image, offset, mask=None):
+    if target.mode == 'RGBA':
+        target.alpha_composite(image.convert('RGBA'), offset)
+    elif target.mode in ('LA', 'CMYKA'):
+        tmp = target.convert('RGBA')
+        tmp.alpha_composite(tmp, image.convert('RGBA'), offset)
+        target = tmp.convert(target.mode)
+    else:
+        target.paste(image, offset, mask=mask)
+
+    return target
+
+
 def compose(layers, bbox=None, layer_filter=None, color=None):
     """
     Compose layers to a single ``PIL.Image``.
@@ -70,17 +83,16 @@ def compose(layers, bbox=None, layer_filter=None, color=None):
     """
     from PIL import Image
 
-    def _default_filter(layer):
-        return layer.is_visible() and layer.has_pixels()
-
     if not hasattr(layers, '__iter__'):
         layers = [layers]
 
-    valid_layers = [
-        x for x in layers if (
-            layer_filter(x) if layer_filter is not None else _default_filter
-        )
-    ]
+    def _default_filter(layer):
+        return layer.is_visible() and layer.has_pixels()
+
+    layer_filter = layer_filter or _default_filter
+    valid_layers = [x for x in layers if layer_filter(x)]
+    if len(valid_layers) == 0:
+        return None
 
     if bbox is None:
         bbox = extract_bbox(valid_layers)
@@ -102,12 +114,13 @@ def compose(layers, bbox=None, layer_filter=None, color=None):
         if image is None:
             continue
 
+        logger.debug('Composing %s' % layer)
         offset = (layer.left - bbox[0], layer.top - bbox[1])
         if initial_layer:
             result.paste(image, offset)
             initial_layer = False
         else:
-            result.alpha_composite(image, offset)
+            result = _blend(result, image, offset)
 
     return result
 
