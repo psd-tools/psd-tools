@@ -74,7 +74,7 @@ def test_origination(psd, index, kls):
 
     assert origination.origin_type > 0
     assert origination.resolution
-    assert origination.shape_bbox
+    assert origination.bbox
     assert origination.index == 0
     if kls == RoundedRectangle:
         assert origination.radii

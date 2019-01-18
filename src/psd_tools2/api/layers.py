@@ -344,9 +344,27 @@ class Layer(object):
 class GroupMixin(object):
 
     @property
+    def left(self):
+        return self.bbox[0]
+
+    @property
+    def top(self):
+        return self.bbox[1]
+
+    @property
+    def right(self):
+        return self.bbox[2]
+
+    @property
+    def bottom(self):
+        return self.bbox[3]
+
+    @property
     def bbox(self):
         """(left, top, right, bottom) tuple."""
-        return extract_bbox(self)
+        if not hasattr(self, '_bbox'):
+            self._bbox = extract_bbox(self)
+        return self._bbox
 
     def __len__(self):
         return self._layers.__len__()
@@ -388,7 +406,7 @@ class GroupMixin(object):
                     yield clip_layer
 
 
-class Group(Layer, GroupMixin):
+class Group(GroupMixin, Layer):
     """
     Group of layers.
 
@@ -528,6 +546,63 @@ class TypeLayer(Layer):
 
 class ShapeLayer(Layer):
     """Layer that has drawing in vector mask."""
+    @property
+    def left(self):
+        return self.bbox[0]
+
+    @property
+    def top(self):
+        return self.bbox[1]
+
+    @property
+    def right(self):
+        return self.bbox[2]
+
+    @property
+    def bottom(self):
+        return self.bbox[3]
+
+    @property
+    def bbox(self):
+        """(left, top, right, bottom) tuple."""
+        if not hasattr(self, '_bbox'):
+            if self.has_pixels():
+                self._bbox = (
+                    self._record.left,
+                    self._record.top,
+                    self._record.right,
+                    self._record.bottom,
+                )
+            elif self.has_origination() and not any(
+                x.invalidated for x in self.origination
+            ):
+                lefts, tops, rights, bottoms = zip(*[
+                    x.bbox for x in self.origination
+                ])
+                self._bbox = (
+                    int(min(lefts)), int(min(tops)),
+                    int(max(rights)), int(max(bottoms))
+                )
+            elif self.has_vector_mask():
+                from itertools import chain
+                width = self._psd.header.width
+                height = self._psd.header.height
+                knots = [
+                    (
+                        int(knot.anchor[1] * width),
+                        int(knot.anchor[0] * height)
+                    )
+                    for knot in chain.from_iterable(self.vector_mask.paths)
+                ]
+                if len(knots) == 0:
+                    self._bbox = (0, 0, width, height)
+                else:
+                    x, y = zip(*knots)
+                    self._bbox = (min(x), min(y), max(x), max(y))
+            else:
+                self._bbox = (0, 0, 0, 0)
+        return self._bbox
+
     def has_stroke(self):
         """Returns True if the shape has a stroke."""
         return 'VECTOR_STROKE_DATA' in self.tagged_blocks

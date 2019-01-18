@@ -251,13 +251,21 @@ class Origination(object):
         return self._data.get(b'keyOriginResolution')
 
     @property
-    def shape_bbox(self):
+    def bbox(self):
         """
         Bounding box of the live shape.
 
         :rtype: :py:class:`~psd_tools2.psd.descriptor.Descriptor`
         """
-        return self._data.get(b'keyOriginShapeBBox')
+        bbox = self._data.get(b'keyOriginShapeBBox')
+        if bbox:
+            return (
+                bbox.get(b'Left').value,
+                bbox.get(b'Top ').value,
+                bbox.get(b'Rght').value,
+                bbox.get(b'Btom').value,
+            )
+        return (0, 0, 0, 0)
 
     @property
     def index(self):
@@ -268,20 +276,23 @@ class Origination(object):
         """
         return self._data.get(b'keyOriginIndex')
 
+    @property
+    def invalidated(self):
+        return False
+
     def __repr__(self):
-        bbox = self.shape_bbox
-        return '%s(bbox=(%g, %g, %g, %g), resolution=%g)' % (
+        return '%s(bbox=(%g, %g, %g, %g))' % (
             self.__class__.__name__,
-            bbox.get(b'Top '),
-            bbox.get(b'Left'),
-            bbox.get(b'Btom'),
-            bbox.get(b'Rght'),
-            self.resolution
+            *self.bbox
         )
 
 
 class Invalidated(Origination):
     """Invalidated live shape."""
+    @property
+    def invalidated(self):
+        return True
+
     def __repr__(self):
         return '%s()' % (self.__class__.__name__)
 

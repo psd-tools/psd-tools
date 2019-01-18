@@ -4,7 +4,7 @@ Composer module.
 from __future__ import absolute_import, unicode_literals
 import logging
 
-from psd_tools2.api.pil_io import extract_pil_mode
+from psd_tools2.api.pil_io import get_pil_mode
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,7 @@ def compose(layers, bbox=None, layer_filter=None, color=None):
     or return False to skip. By default, layers that satisfies the following
     condition is composed::
 
-        layer.has_pixels() and layer.is_visible()
+        layer.is_visible()
 
     Currently the following are ignored:
 
@@ -96,7 +96,7 @@ def compose(layers, bbox=None, layer_filter=None, color=None):
         layers = [layers]
 
     def _default_filter(layer):
-        return layer.is_visible() and layer.has_pixels()
+        return layer.is_visible()
 
     layer_filter = layer_filter or _default_filter
     valid_layers = [x for x in layers if layer_filter(x)]
@@ -108,10 +108,10 @@ def compose(layers, bbox=None, layer_filter=None, color=None):
         if bbox == (0, 0, 0, 0):
             return None
 
+    # Alpha must be forced to correctly blend.
+    mode = get_pil_mode(valid_layers[0]._psd.header.color_mode, True)
     result = Image.new(
-        extract_pil_mode(valid_layers[0]._psd),
-        (bbox[2] - bbox[0], bbox[3] - bbox[1]),
-        color=color,
+        mode, (bbox[2] - bbox[0], bbox[3] - bbox[1]), color=color,
     )
 
     initial_layer = True
@@ -138,11 +138,23 @@ def compose_layer(layer):
     """Compose a single layer with pixels."""
     from PIL import Image
 
-    bbox = layer.bbox
-    if bbox == (0, 0, 0, 0) or not layer.has_pixels():
+    if layer.bbox == (0, 0, 0, 0):
         return None
 
-    image = layer.topil()
+    image = None
+    if layer.has_pixels():
+        image = layer.topil()
+    elif layer.kind == 'solidcolorfill':
+        image = Image.new(
+            layer._psd.header.color_mode.name,
+            (layer._psd.header.width, layer._psd.header.height),
+            color=tuple(int(x) for x in layer.data.values()),
+        )
+    elif layer.kind == 'shape':
+        image = draw_shape(layer)
+
+    if image is None:
+        return image
 
     # Apply mask.
     if layer.has_mask() and not layer.mask.disabled:
@@ -156,6 +168,10 @@ def compose_layer(layer):
                 # What should we do here? There are two alpha channels.
                 pass
             image.putalpha(mask)
+    elif layer.has_vector_mask() and layer.kind != 'shape':
+        mask = draw_shape(layer, mode='L', fill=255)
+        image.putalpha(mask)
+
 
     # Clip layers.
     # if layer.has_clip_layers():
@@ -179,3 +195,29 @@ def compose_layer(layer):
             image.putalpha(opacity)
 
     return image
+
+
+def draw_shape(layer, mode=None, fill=None):
+    from PIL import Image, ImageDraw
+
+    width = layer._psd.header.width
+    height = layer._psd.header.height
+    mode = mode or get_pil_mode(layer._psd.header.color_mode, True)
+    image = Image.new(mode, (width, height))
+    draw = ImageDraw.Draw(image)
+
+    if fill is None:
+        fill = layer.tagged_blocks.get_data('SOLID_COLOR_SHEET_SETTING')
+        if fill:
+            fill = tuple(int(x) for x in fill.get(b'Clr ').values())
+
+    for subpath in layer.vector_mask.paths:
+        path = [(
+            int(knot.anchor[1] * width),
+            int(knot.anchor[0] * height),
+        ) for knot in subpath]
+        # TODO: Use bezier curve instead of polygon.
+        draw.polygon(path, fill=fill)
+
+    del draw
+    return image.crop(layer.bbox)
