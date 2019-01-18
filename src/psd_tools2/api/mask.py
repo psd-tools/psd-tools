@@ -98,7 +98,7 @@ class Mask(object):
 
     def _has_real(self):
         """Return True if the mask has real flags."""
-        return self.real_flags is not None
+        return self.real_flags and self.real_flags.parameters_applied
 
     def topil(self):
         """
