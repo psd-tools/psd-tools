@@ -27,6 +27,12 @@ def get_pil_mode(value, alpha=False):
     return name
 
 
+def extract_pil_mode(psd):
+    """Extract PIL mode from PSD."""
+    alpha = _get_alpha_use(psd)
+    return get_pil_mode(psd.header.color_mode, alpha)
+
+
 def convert_image_data_to_pil(psd):
     """Convert ImageData to PIL Image."""
     from PIL import Image

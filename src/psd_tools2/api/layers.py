@@ -363,6 +363,15 @@ class GroupMixin(object):
     def __delitem__(self, key):
         return self._layers.__delitem__(key)
 
+    def compose(self):
+        """
+        Compose layer and masks (mask, vector mask, and clipping layers).
+
+        :return: PIL Image object, or None if the layer has no pixels.
+        """
+        from psd_tools2.api.composer import compose
+        return compose(self)
+
     def descendants(self, include_clip=True):
         """
         Return a generator to iterate over all descendant layers.

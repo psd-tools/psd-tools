@@ -4,6 +4,8 @@ Composer module.
 from __future__ import absolute_import, unicode_literals
 import logging
 
+from psd_tools2.api.pil_io import extract_pil_mode
+
 logger = logging.getLogger(__name__)
 
 
@@ -24,8 +26,8 @@ def extract_bbox(layers):
     return (min(lefts), min(tops), max(rights), max(bottoms))
 
 
-def intersect(bboxes):
-    if len(intersect) == 0:
+def intersect(*bboxes):
+    if len(bboxes) == 0:
         return (0, 0, 0, 0)
 
     lefts, tops, rights, bottoms = zip(*bboxes)
@@ -36,30 +38,78 @@ def intersect(bboxes):
     return result
 
 
-def compose(layers, skip_layer=None):
+def compose(layers, bbox=None, layer_filter=None, color=None):
     """
     Compose layers to a single ``PIL.Image``.
 
-    In order to skip some layers pass ``skip_layer`` function which
-    should take ``layer`` as an argument and return True or False.
+    In order to skip some layers, pass ``layer_filter`` function which
+    should take ``layer`` as an argument and return True to keep the layer
+    or return False to skip. By default, layers that satisfies the following
+    condition is composed::
 
-    Adjustment and layer effects are ignored.
+        layer.has_pixels() and layer.is_visible()
 
-    This is experimental and requires PIL.
+    Currently the following are ignored:
 
-    :param layers: a layer, or an iterable of layers
-    :param skip_layer: skip composing the given layer if returns True
-    :return: PIL Image or None
+     - Clipping layers.
+     - Layers that do not have associated pixels in the file.
+     - Adjustments layers.
+     - Layer effects.
+     - Blending mode (all blending modes become normal).
+
+    This function is experimental and does not guarantee Photoshop-quality
+    rendering.
+
+    :param layers: a layer, or an iterable of layers.
+    :param bbox: (left, top, bottom, right) tuple that specifies a region to
+        compose. By default, all the visible area is composed. The origin
+        is at the top-left corner of the PSD document.
+    :param layer_filter: a callable that takes a layer and returns bool.
+    :param color: background color in int or tuple.
+    :return: PIL Image or None.
     """
-    raise NotImplementedError
+    from PIL import Image
+
+    def _default_filter(layer):
+        return layer.is_visible() and layer.has_pixels()
 
     if not hasattr(layers, '__iter__'):
         layers = [layers]
 
-    bbox = extract_bbox(layers)
-    if bbox == (0, 0, 0, 0):
-        return None
+    valid_layers = [
+        x for x in layers if (
+            layer_filter(x) if layer_filter is not None else _default_filter
+        )
+    ]
 
+    if bbox is None:
+        bbox = extract_bbox(valid_layers)
+        if bbox == (0, 0, 0, 0):
+            return None
+
+    result = Image.new(
+        extract_pil_mode(valid_layers[0]._psd),
+        (bbox[2] - bbox[0], bbox[3] - bbox[1]),
+        color=color,
+    )
+
+    initial_layer = True
+    for layer in valid_layers:
+        if intersect(layer.bbox, bbox) == (0, 0, 0, 0):
+            continue
+
+        image = layer.compose()
+        if image is None:
+            continue
+
+        offset = (layer.left - bbox[0], layer.top - bbox[1])
+        if initial_layer:
+            result.paste(image, offset)
+            initial_layer = False
+        else:
+            result.alpha_composite(image, offset)
+
+    return result
 
 
 def compose_layer(layer):
@@ -71,6 +121,8 @@ def compose_layer(layer):
         return None
 
     image = layer.topil()
+
+    # Apply mask.
     if layer.has_mask() and not layer.mask.disabled:
         mask_bbox = layer.mask.bbox
         if mask_bbox != (0, 0, 0, 0):
@@ -82,5 +134,26 @@ def compose_layer(layer):
                 # What should we do here? There are two alpha channels.
                 pass
             image.putalpha(mask)
+
+    # Clip layers.
+    # if layer.has_clip_layers():
+    #     clip_box = extract_bbox(layer.clip_layers)
+    #     if clip_box != (0, 0, 0, 0):
+    #         clip_image = compose(layer.clip_layers, bbox=clip_box)
+
+
+    # Apply opacity.
+    if layer.opacity < 255:
+        opacity = int(
+            layer.tagged_blocks.get_data('BLEND_FILL_OPACITY', 1) *
+            layer.opacity
+        )
+        if image.mode.endswith('A'):
+            opacity = opacity / 255.
+            channels = list(image.split())
+            channels[-1] = channels[-1].point(lambda x: int(x * opacity))
+            image = Image.merge(image.mode, channels)
+        else:
+            image.putalpha(opacity)
 
     return image

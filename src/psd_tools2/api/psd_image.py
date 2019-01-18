@@ -119,8 +119,23 @@ class PSDImage(GroupMixin):
         """
         if self.has_preview():
             return pil_io.convert_image_data_to_pil(self._psd)
-        # TODO: Composer fallback.
         return None
+
+    def compose(self, bbox=None, **kwargs):
+        """
+        Compose the PSD image.
+
+        Currently adjustment layers, fill layers, and layer effects are
+        ignored.
+
+        See :py:func:`~psd_tools2.api.composer.compose` for available extra
+        arguments.
+
+        :param bbox: Viewport tuple (left, top, right, bottom).
+        :return: PIL Image object, or None if there is no pixel.
+        """
+        from psd_tools2.api.composer import compose
+        return compose(self, bbox=bbox or self.viewbox, **kwargs)
 
     def is_visible(self):
         """
