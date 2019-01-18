@@ -42,7 +42,7 @@ def convert_image_data_to_pil(psd):
     size = (header.width, header.height)
     channels = []
     for channel_data in psd.image_data.get_data(header):
-        channels.append(Image.frombytes('L', size, channel_data, 'raw'))
+        channels.append(_create_channel(size, channel_data, header.depth))
     alpha = _get_alpha_use(psd)
     channel_size = ColorMode.channels(header.color_mode, alpha)
     if len(channels) < channel_size:
@@ -53,6 +53,8 @@ def convert_image_data_to_pil(psd):
         alpha = False
     mode = get_pil_mode(header.color_mode, alpha)
     image = Image.merge(mode, channels[:channel_size])
+    if 'ICC_PROFILE' in psd.image_resources:
+        image = _apply_icc(psd, image)
     return _remove_white_background(image)
 
 
@@ -69,7 +71,9 @@ def convert_layer_to_pil(layer):
                      ChannelID.REAL_USER_LAYER_MASK):
             continue
         channel = cd.get_data(width, height, header.depth, header.version)
-        channel_image = Image.frombytes('L', (width, height), channel, 'raw')
+        channel_image = _create_channel(
+            (width, height), channel, header.depth
+        )
         if ci.id == ChannelID.TRANSPARENCY_MASK:
             alpha = channel_image
         else:
@@ -80,6 +84,8 @@ def convert_layer_to_pil(layer):
     else:
         mode = get_pil_mode(header.color_mode, False)
         image = Image.merge(mode, channels)
+    if 'ICC_PROFILE' in layer._psd.image_resources:
+        image = _apply_icc(layer._psd, image)
     return image
 
 
@@ -101,7 +107,7 @@ def convert_mask_to_pil(mask, real=True):
             channel_ids.index(ChannelID.USER_LAYER_MASK)
         ]
     data = channel.get_data(width, height, header.depth, header.version)
-    return Image.frombytes('L', (width, height), data, 'raw')
+    return _create_channel((width, height), data, header.depth)
 
 
 def _get_alpha_use(psd):
@@ -119,6 +125,43 @@ def _get_alpha_use(psd):
             if key in tagged_blocks:
                 return True
     return False
+
+
+def _create_channel(size, channel_data, depth):
+    from PIL import Image
+    if depth == 8:
+        return Image.frombytes('L', size, channel_data, 'raw')
+    elif depth == 16:
+        image = Image.frombytes('I', size, channel_data, 'raw', 'I;16B')
+        return image.point(lambda x: x * (1. / 256.)).convert('L')
+    elif depth == 32:
+        image = Image.frombytes('F', size, channel_data, 'raw', 'F;32BF')
+        return image.point(lambda x: x * (256.)).convert('L')
+    else:
+        raise ValueError('Unsupported depth: %g' % depth)
+
+
+def _apply_icc(psd, image):
+    """Apply ICC Color profile."""
+    from io import BytesIO
+    try:
+        from PIL import ImageCms
+    except ImportError:
+        logger.debug(
+            'ICC profile found but not supported. Install little-cms.'
+        )
+        return image
+
+    try:
+        in_profile = ImageCms.ImageCmsProfile(
+            BytesIO(psd.image_resources.get_data('ICC_PROFILE'))
+        )
+        out_profile = ImageCms.createProfile('sRGB')
+        return ImageCms.profileToProfile(image, in_profile, out_profile)
+    except ImageCms.PyCMSError as e:
+        logger.warning('PyCMSError: %s' % e)
+
+    return image
 
 
 def _remove_white_background(image):
