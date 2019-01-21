@@ -4,7 +4,7 @@ Composer module.
 from __future__ import absolute_import, unicode_literals
 import logging
 
-from psd_tools2.api.pil_io import get_pil_mode
+from psd_tools2.api.pil_io import get_pil_mode, convert_pattern_to_pil
 
 logger = logging.getLogger(__name__)
 
@@ -144,14 +144,12 @@ def compose_layer(layer):
     image = None
     if layer.has_pixels():
         image = layer.topil()
-    elif layer.kind == 'solidcolorfill':
-        image = Image.new(
-            layer._psd.header.color_mode.name,
-            (layer._psd.header.width, layer._psd.header.height),
-            color=tuple(int(x) for x in layer.data.values()),
-        )
-    elif layer.kind == 'shape':
-        image = draw_shape(layer)
+    elif 'SOLID_COLOR_SHEET_SETTING' in layer.tagged_blocks:
+        image = draw_solid_color_fill(layer)
+    elif 'PATTERN_FILL_SETTING' in layer.tagged_blocks:
+        image = draw_pattern_fill(layer)
+    elif 'GRADIENT_FILL_SETTING' in layer.tagged_blocks:
+        image = draw_gradient_fill(layer)
 
     if image is None:
         return image
@@ -168,8 +166,8 @@ def compose_layer(layer):
                 # What should we do here? There are two alpha channels.
                 pass
             image.putalpha(mask)
-    elif layer.has_vector_mask() and layer.kind != 'shape':
-        mask = draw_shape(layer, mode='L', fill=255)
+    elif layer.has_vector_mask():
+        mask = draw_vector_mask(layer)
         image.putalpha(mask)
 
 
@@ -197,27 +195,65 @@ def compose_layer(layer):
     return image
 
 
-def draw_shape(layer, mode=None, fill=None):
+def draw_vector_mask(layer):
     from PIL import Image, ImageDraw
 
     width = layer._psd.header.width
     height = layer._psd.header.height
-    mode = mode or get_pil_mode(layer._psd.header.color_mode, True)
-    image = Image.new(mode, (width, height))
-    draw = ImageDraw.Draw(image)
-
-    if fill is None:
-        fill = layer.tagged_blocks.get_data('SOLID_COLOR_SHEET_SETTING')
-        if fill:
-            fill = tuple(int(x) for x in fill.get(b'Clr ').values())
-
+    color = layer.vector_mask.initial_fill_rule * 255
+    mask = Image.new('L', (width, height), color)
+    draw = ImageDraw.Draw(mask)
     for subpath in layer.vector_mask.paths:
         path = [(
             int(knot.anchor[1] * width),
             int(knot.anchor[0] * height),
         ) for knot in subpath]
         # TODO: Use bezier curve instead of polygon.
-        draw.polygon(path, fill=fill)
-
+        draw.polygon(path, fill=(255 - color))
     del draw
-    return image.crop(layer.bbox)
+
+    return mask.crop(layer.bbox)
+
+
+def draw_solid_color_fill(layer):
+    from PIL import Image
+
+    mode = get_pil_mode(layer._psd.header.color_mode, True)
+    fill = layer.tagged_blocks.get_data('SOLID_COLOR_SHEET_SETTING')
+    color = tuple(int(x) for x in fill.get(b'Clr ').values())
+    return Image.new(mode, (layer.width, layer.height), color)
+
+
+def draw_pattern_fill(layer):
+    from PIL import Image
+
+    mode = get_pil_mode(layer._psd.header.color_mode, True)
+    fill = layer.tagged_blocks.get_data('PATTERN_FILL_SETTING')
+    pattern_id = fill[b'Ptrn'][b'Idnt'].value.rstrip('\x00')
+    pattern = _get_pattern(layer._psd, pattern_id)
+    if not pattern:
+        logger.error('Pattern not found: %s' % (pattern_id))
+        return None
+    panel = convert_pattern_to_pil(pattern, layer._psd.header.version)
+    image = Image.new(mode, (layer.width, layer.height))
+    for left in range(0, image.width, panel.width):
+        for top in range(0, image.height, panel.height):
+            image.paste(panel, (left, top))
+    return image
+
+
+def draw_gradient_fill(layer):
+    from PIL import Image
+    logger.debug('Not implemented yet')
+    return None
+
+
+def _get_pattern(psd, pattern_id):
+    tagged_blocks = psd.layer_and_mask_information.tagged_blocks
+    for key in ('PATTERNS1', 'PATTERNS2', 'PATTERNS3'):
+        if key in tagged_blocks:
+            data = tagged_blocks.get_data(key)
+            for pattern in data:
+                if pattern.pattern_id == pattern_id:
+                    return pattern
+    return None

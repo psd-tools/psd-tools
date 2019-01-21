@@ -110,6 +110,21 @@ def convert_mask_to_pil(mask, real=True):
     return _create_channel((width, height), data, header.depth)
 
 
+def convert_pattern_to_pil(pattern, version=1):
+    """Convert Pattern to PIL Image."""
+    from PIL import Image
+    mode = get_pil_mode(pattern.image_mode, False)
+    # The order is different here.
+    size = pattern.data.rectangle[3], pattern.data.rectangle[2]
+    channels = [
+        _create_channel(size, c.get_data(version), c.pixel_depth).convert('L')
+        for c in pattern.data.channels if c.is_written
+    ]
+    if len(channels) == len(mode) + 1:
+        mode += 'A'  # TODO: Perhaps doesn't work for some modes.
+    return Image.merge(mode, channels)
+
+
 def _get_alpha_use(psd):
     layer_info = psd._get_layer_info()
     if layer_info and layer_info.layer_count < 0:

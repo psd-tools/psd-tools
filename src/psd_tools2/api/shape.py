@@ -87,11 +87,26 @@ class VectorMask(object):
         """
         return self._clipboard_record
 
+    @property
+    def bbox(self):
+        """
+        Bounding box tuple (left, top, right, bottom) in relative coordinates.
+        """
+        from itertools import chain
+        knots = [
+            (knot.anchor[1], knot.anchor[0])
+            for knot in chain.from_iterable(self.paths)
+        ]
+        if len(knots) == 0:
+            return (0., 0., 1., 1.)
+        x, y = zip(*knots)
+        return (min(x), min(y), max(x), max(y))
+
     def __repr__(self):
-        return '%s(paths=%d%s)' % (
-            self.__class__.__name__,
-            len(self.paths),
-            ' disabled' if self.disabled else '',
+        bbox = self.bbox
+        return '%s(bbox=(%g, %g, %g, %g) paths=%d%s)' % (
+            self.__class__.__name__, bbox[0], bbox[1], bbox[2], bbox[3],
+            len(self.paths), ' disabled' if self.disabled else '',
         )
 
 

@@ -584,21 +584,13 @@ class ShapeLayer(Layer):
                     int(max(rights)), int(max(bottoms))
                 )
             elif self.has_vector_mask():
-                from itertools import chain
-                width = self._psd.header.width
-                height = self._psd.header.height
-                knots = [
-                    (
-                        int(knot.anchor[1] * width),
-                        int(knot.anchor[0] * height)
-                    )
-                    for knot in chain.from_iterable(self.vector_mask.paths)
-                ]
-                if len(knots) == 0:
-                    self._bbox = (0, 0, width, height)
-                else:
-                    x, y = zip(*knots)
-                    self._bbox = (min(x), min(y), max(x), max(y))
+                bbox = self.vector_mask.bbox
+                self._bbox = (
+                    int(bbox[0] * self._psd.header.width),
+                    int(bbox[1] * self._psd.header.height),
+                    int(bbox[2] * self._psd.header.width),
+                    int(bbox[3] * self._psd.header.height),
+                )
             else:
                 self._bbox = (0, 0, 0, 0)
         return self._bbox
