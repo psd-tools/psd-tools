@@ -6,7 +6,8 @@ import attr
 import io
 import logging
 
-from psd_tools2.constants import ColorMode
+from psd_tools2.compression import compress, decompress
+from psd_tools2.constants import ColorMode, Compression
 from psd_tools2.psd.base import BaseElement, ListElement
 from psd_tools2.validators import in_
 from psd_tools2.utils import (
@@ -149,7 +150,8 @@ class VirtualMemoryArray(BaseElement):
     depth = attr.ib(default=None)
     rectangle = attr.ib(default=None)
     pixel_depth = attr.ib(default=None)
-    compression = attr.ib(default=None)
+    compression = attr.ib(default=Compression.RAW, converter=Compression,
+                          validator=in_(Compression))
     data = attr.ib(default=b'')
 
     @classmethod
@@ -181,6 +183,23 @@ class VirtualMemoryArray(BaseElement):
     def _write_body(self, fp):
         written = write_fmt(fp, 'I', self.depth)
         written += write_fmt(fp, '4I', *self.rectangle)
-        written += write_fmt(fp, 'HB', self.pixel_depth, self.compression)
+        written += write_fmt(fp, 'HB', self.pixel_depth,
+                             self.compression.value)
         written += write_bytes(fp, self.data)
         return written
+
+    def get_data(self, version=1):
+        if not self.is_written:
+            return None
+        width, height = self.rectangle[3], self.rectangle[2]
+        return decompress(self.data, self.compression, width, height,
+                          self.depth, version)
+
+    def set_data(self, size, data, depth, compression=0, version=1):
+        self.data = compress(data, compression, size[0], size[1], depth,
+                             version)
+        self.depth = int(depth)
+        self.pixel_depth = int(depth)
+        self.rectangle = (0, 0, int(size[1]), int(size[0]))
+        self.compression = Compression(compression)
+        self.is_written = True
