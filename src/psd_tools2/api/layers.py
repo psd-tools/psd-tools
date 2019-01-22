@@ -652,16 +652,16 @@ class FillLayer(Layer):
 
     @property
     def left(self):
-        return 0
+        return self._record.left
 
     @property
     def top(self):
-        return 0
+        return self._record.top
 
     @property
     def right(self):
-        return self._psd.header.width
+        return self._record.right or self._psd.header.width
 
     @property
     def bottom(self):
-        return self._psd.header.height
+        return self._record.bottom or self._psd.header.height

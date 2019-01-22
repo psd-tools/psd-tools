@@ -30,16 +30,6 @@ class SolidColorFill(FillLayer):
         """Color in Descriptor(RGB)."""
         return self._data.get(b'Clr ')
 
-    @property
-    def right(self):
-        """Right coordinate."""
-        return self._record.right or self._psd.header.width
-
-    @property
-    def bottom(self):
-        """Bottom coordinate."""
-        return self._record.bottom or self._psd.header.height
-
 
 @register(TaggedBlockID.PATTERN_FILL_SETTING)
 class PatternFill(FillLayer):

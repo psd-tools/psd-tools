@@ -135,7 +135,9 @@ class PSDImage(GroupMixin):
         :return: PIL Image object, or None if there is no pixel.
         """
         from psd_tools2.api.composer import compose
-        return compose(self, bbox=bbox or self.viewbox, **kwargs)
+        return (
+            compose(self, bbox=bbox or self.viewbox, **kwargs) or self.topil()
+        )
 
     def is_visible(self):
         """

@@ -164,7 +164,7 @@ def compose_layer(layer):
                 # What should we do here? There are two alpha channels.
                 pass
             image.putalpha(mask)
-    elif layer.has_vector_mask():
+    elif layer.has_vector_mask() and not layer.has_pixels():
         mask = draw_vector_mask(layer)
         # TODO: Stroke drawing.
         image.putalpha(mask)
@@ -260,13 +260,17 @@ def draw_gradient_fill(layer):
         logger.error('Gradient fill requires numpy and scipy.')
         return None
 
-    if layer.gradient_kind == 'linear':
-        Z = _make_linear_gradient(layer.width, layer.height, -layer.angle)
+    fill = layer.tagged_blocks.get_data('GRADIENT_FILL_SETTING')
+    angle = float(fill.get(b'Angl'))
+    gradient_kind = fill.get(b'Type').enum.name.lower()
+    if gradient_kind == 'linear':
+        Z = _make_linear_gradient(layer.width, layer.height, -angle)
     else:
         logger.warning('Only linear gradient is supported.')
         return None
 
-    return _apply_color_map(layer, Z)
+    mode = layer._psd.header.color_mode
+    return _apply_color_map(mode, fill.get(b'Grad'), Z)
 
 
 def _make_linear_gradient(width, height, angle=90.):
@@ -286,13 +290,13 @@ def _make_linear_gradient(width, height, angle=90.):
     return (Z - Z.min()) / (Z.max() - Z.min())
 
 
-def _apply_color_map(layer, Z):
+def _apply_color_map(mode, grad, Z):
     """"""
     import numpy as np
     from scipy import interpolate
     from PIL import Image
 
-    stops = layer.data.get(b'Clrs')
+    stops = grad.get(b'Clrs')
     G = interpolate.interp1d(
         [stop.get(b'Lctn').value / 4096. for stop in stops],
         [
@@ -303,8 +307,8 @@ def _apply_color_map(layer, Z):
     )
     pixels = G(Z).astype(np.uint8)
 
-    if b'Trns' in layer.data:
-        stops = layer.data.get(b'Trns')
+    if b'Trns' in grad:
+        stops = grad.get(b'Trns')
         G_opacity = interpolate.interp1d(
             [stop.get(b'Lctn').value / 4096 for stop in stops],
             [(stop.get(b'Opct').value * 2.55,) for stop in stops],
@@ -313,5 +317,5 @@ def _apply_color_map(layer, Z):
         alpha = G_opacity(Z).astype(np.uint8)
         pixels = np.concatenate((pixels, alpha), axis=2)
 
-    mode = get_pil_mode(layer._psd.header.color_mode, b'Trns' in layer.data)
+    mode = get_pil_mode(mode, b'Trns' in grad)
     return Image.fromarray(pixels, mode)
