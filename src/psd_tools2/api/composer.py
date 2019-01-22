@@ -136,7 +136,7 @@ def compose(layers, bbox=None, layer_filter=None, color=None):
 
 def compose_layer(layer):
     """Compose a single layer with pixels."""
-    from PIL import Image
+    from PIL import Image, ImageChops
     assert layer.bbox != (0, 0, 0, 0), 'Layer bbox is (0, 0, 0, 0)'
 
     image = None
@@ -155,7 +155,10 @@ def compose_layer(layer):
     # Apply mask.
     if layer.has_mask() and not layer.mask.disabled:
         mask_bbox = layer.mask.bbox
-        if mask_bbox != (0, 0, 0, 0):
+        if (
+            (mask_bbox[2] - mask_bbox[0]) > 0 and
+            (mask_bbox[3] - mask_bbox[1]) > 0
+        ):
             color = layer.mask.background_color
             offset = (mask_bbox[0] - layer.left, mask_bbox[1] - layer.top)
             mask = Image.new('L', image.size, color=color)
@@ -169,13 +172,17 @@ def compose_layer(layer):
         # TODO: Stroke drawing.
         image.putalpha(mask)
 
-
-    # TODO: Clip layers.
-    # if layer.has_clip_layers():
-    #     clip_box = extract_bbox(layer.clip_layers)
-    #     if clip_box != (0, 0, 0, 0):
-    #         clip_image = compose(layer.clip_layers, bbox=clip_box)
-
+    # Clip layers.
+    if layer.has_clip_layers():
+        clip_box = extract_bbox(layer.clip_layers)
+        inter_box = intersect(layer.bbox, clip_box)
+        if inter_box != (0, 0, 0, 0):
+            clip_image = compose(layer.clip_layers, bbox=layer.bbox)
+            mask = image.getchannel('A')
+            if clip_image.mode.endswith('A'):
+                mask = ImageChops.multiply(clip_image.getchannel('A'), mask)
+            clip_image.putalpha(mask)
+            image = _blend(image, clip_image, (0, 0))
 
     # Apply opacity.
     if layer.opacity < 255:
