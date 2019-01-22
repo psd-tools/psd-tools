@@ -57,11 +57,20 @@ class GradientFill(FillLayer):
 
     @property
     def angle(self):
-        return self._data.get(b'Angl')
+        return float(self._data.get(b'Angl'))
 
     @property
-    def type(self):
-        return self._data.get(b'Type')
+    def gradient_kind(self):
+        """
+        Kind of the gradient, one of the following:
+
+         - `linear`
+         - `radial`
+         - `angle`
+         - `reflected`
+         - `diamond`
+        """
+        return self._data.get(b'Type').enum.name.lower()
 
     @property
     def data(self):

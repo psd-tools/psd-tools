@@ -633,6 +633,14 @@ class AdjustmentLayer(Layer):
         if hasattr(self.__class__, '_KEY'):
             self._data = self.tagged_blocks.get_data(self.__class__._KEY)
 
+    def compose(self):
+        """
+        Adjustment layer is never composed.
+
+        :return: None
+        """
+        return None
+
 
 class FillLayer(Layer):
     """Layer that fills the canvas region."""
@@ -641,3 +649,19 @@ class FillLayer(Layer):
         self._data = None
         if hasattr(self.__class__, '_KEY'):
             self._data = self.tagged_blocks.get_data(self.__class__._KEY)
+
+    @property
+    def left(self):
+        return 0
+
+    @property
+    def top(self):
+        return 0
+
+    @property
+    def right(self):
+        return self._psd.header.width
+
+    @property
+    def bottom(self):
+        return self._psd.header.height

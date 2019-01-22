@@ -137,9 +137,7 @@ def compose(layers, bbox=None, layer_filter=None, color=None):
 def compose_layer(layer):
     """Compose a single layer with pixels."""
     from PIL import Image
-
-    if layer.bbox == (0, 0, 0, 0):
-        return None
+    assert layer.bbox != (0, 0, 0, 0), 'Layer bbox is (0, 0, 0, 0)'
 
     image = None
     if layer.has_pixels():
@@ -208,7 +206,7 @@ def draw_vector_mask(layer):
             int(knot.anchor[1] * width),
             int(knot.anchor[0] * height),
         ) for knot in subpath]
-        # TODO: Use bezier curve instead of polygon.
+        # TODO: Use bezier curve instead of polygon. Perhaps aggdraw module.
         draw.polygon(path, fill=(255 - color))
     del draw
 
@@ -242,12 +240,6 @@ def draw_pattern_fill(layer):
     return image
 
 
-def draw_gradient_fill(layer):
-    from PIL import Image
-    logger.debug('Not implemented yet')
-    return None
-
-
 def _get_pattern(psd, pattern_id):
     tagged_blocks = psd.layer_and_mask_information.tagged_blocks
     for key in ('PATTERNS1', 'PATTERNS2', 'PATTERNS3'):
@@ -257,3 +249,68 @@ def _get_pattern(psd, pattern_id):
                 if pattern.pattern_id == pattern_id:
                     return pattern
     return None
+
+
+def draw_gradient_fill(layer):
+    try:
+        import numpy as np
+        from scipy import interpolate
+    except ImportError:
+        logger.error('Gradient fill requires numpy and scipy.')
+        return None
+
+    if layer.gradient_kind == 'linear':
+        Z = _make_linear_gradient(layer.width, layer.height, -layer.angle)
+    else:
+        logger.warning('Only linear gradient is supported.')
+        return None
+
+    return _apply_color_map(layer, Z)
+
+
+def _make_linear_gradient(width, height, angle=90.):
+    """Generates index map for linear gradients."""
+    import numpy as np
+    X, Y = np.meshgrid(np.linspace(0, 1, width), np.linspace(0, 1, height))
+    theta = np.radians(angle % 360)
+    c, s = np.cos(theta), np.sin(theta)
+    if 0 <= theta and theta < 0.5 * np.pi:
+        Z = np.abs(c * X + s * Y)
+    elif 0.5 * np.pi <= theta and theta < np.pi:
+        Z = np.abs(c * (X - width) + s * Y)
+    elif np.pi <= theta and theta < 1.5 * np.pi:
+        Z = np.abs(c * (X - width) + s * (Y - height))
+    elif 1.5 * np.pi <= theta and theta < 2.0 * np.pi:
+        Z = np.abs(c * X + s * (Y - height))
+    return (Z - Z.min()) / (Z.max() - Z.min())
+
+
+def _apply_color_map(layer, Z):
+    """"""
+    import numpy as np
+    from scipy import interpolate
+    from PIL import Image
+
+    stops = layer.data.get(b'Clrs')
+    G = interpolate.interp1d(
+        [stop.get(b'Lctn').value / 4096. for stop in stops],
+        [
+            tuple(int(x.value) for x in stop.get(b'Clr ').values())
+            for stop in stops
+        ],
+        axis=0, fill_value='extrapolate'
+    )
+    pixels = G(Z).astype(np.uint8)
+
+    if b'Trns' in layer.data:
+        stops = layer.data.get(b'Trns')
+        G_opacity = interpolate.interp1d(
+            [stop.get(b'Lctn').value / 4096 for stop in stops],
+            [(stop.get(b'Opct').value * 2.55,) for stop in stops],
+            axis=0, fill_value='extrapolate'
+        )
+        alpha = G_opacity(Z).astype(np.uint8)
+        pixels = np.concatenate((pixels, alpha), axis=2)
+
+    mode = get_pil_mode(layer._psd.header.color_mode, b'Trns' in layer.data)
+    return Image.fromarray(pixels, mode)
