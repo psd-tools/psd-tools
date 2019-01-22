@@ -166,10 +166,11 @@ def compose_layer(layer):
             image.putalpha(mask)
     elif layer.has_vector_mask():
         mask = draw_vector_mask(layer)
+        # TODO: Stroke drawing.
         image.putalpha(mask)
 
 
-    # Clip layers.
+    # TODO: Clip layers.
     # if layer.has_clip_layers():
     #     clip_box = extract_bbox(layer.clip_layers)
     #     if clip_box != (0, 0, 0, 0):

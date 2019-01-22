@@ -28,7 +28,7 @@ def test_solid_color_fill():
 def test_gradient_fill():
     layer = PSDImage.open(full_name('layers/gradient-fill.psd'))[0]
     assert layer.angle
-    assert layer.type
+    assert layer.gradient_kind
     assert layer.data
 
 

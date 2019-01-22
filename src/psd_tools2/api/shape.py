@@ -296,9 +296,10 @@ class Origination(object):
         return False
 
     def __repr__(self):
+        bbox = self.bbox
         return '%s(bbox=(%g, %g, %g, %g))' % (
             self.__class__.__name__,
-            *self.bbox
+            bbox[0], bbox[1], bbox[2], bbox[3]
         )
 
 

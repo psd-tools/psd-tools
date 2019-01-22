@@ -42,7 +42,7 @@ def test_smart_object_data(embedded_object, linked_layer_png, tmpdir):
     assert embedded_object.data == linked_layer_png
     with embedded_object.open() as f:
         assert f.read() == linked_layer_png
-    tmppath = os.path.join(tmpdir, embedded_object.filename)
+    tmppath = os.path.join(tmpdir.strpath, embedded_object.filename)
     embedded_object.save(tmppath)
 
 

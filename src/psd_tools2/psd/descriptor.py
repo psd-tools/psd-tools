@@ -53,7 +53,7 @@ def write_length_and_key(fp, value):
     """
     Helper to write descriptor classID and key.
     """
-    if value in DescriptorClassID:
+    if isinstance(value, DescriptorClassID):
         length = (len(value.value) != 4) * len(value.value)
         written = write_fmt(fp, 'I', length)
         written += write_bytes(fp, value.value)
