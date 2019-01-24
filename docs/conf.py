@@ -24,7 +24,7 @@ import sphinx_rtd_theme
 sys.path.insert(0, os.path.join(
     os.path.dirname(os.path.dirname(__file__)), 'src'))
 
-from psd_tools.version import __version__
+from psd_tools2.version import __version__
 
 # -- General configuration ------------------------------------------------
 
