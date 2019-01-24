@@ -34,7 +34,7 @@ Getting started
     from psd_tools2 import PSDImage
 
     psd = PSDImage.open('example.psd')
-    psd.topil().save('example.png')
+    psd.compose().save('example.png')
 
     for layer in psd:
         print(layer)
