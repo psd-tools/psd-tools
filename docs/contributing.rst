@@ -15,7 +15,7 @@ The package consists of two major subpackages:
 
 1) ``psd_tools.psd``: subpackage that reads/writes low-level binary structure
    of the PSD/PSB file. The core data structures are built around attrs_
-   package that all implement `read` and `write` methods. Each data object
+   class that all implement `read` and `write` methods. Each data object
    tries to resemble the structure described in the specification_. Although
    documented, the specification_ is far from complete and some are even
    inaccurate. When ``psd-tools2`` finds unknown data structure, the package

@@ -13,7 +13,14 @@ logger = logging.getLogger(__name__)
 
 
 class VectorMask(object):
-    """Shape path data."""
+    """
+    Vector mask data.
+
+    Vector mask is a resolution-independent mask that consists of one or more
+    Path objects. In Photoshop, all the path objects are represented as
+    Bezier curves. Check :py:attr:`~psd_tools2.api.shape.VectorMask.paths`
+    property for how to deal with path objects.
+    """
 
     def __init__(self, data):
         self._data = data
@@ -60,6 +67,14 @@ class VectorMask(object):
 
         In PSD, path fill rule is even-odd.
 
+        Example::
+
+            for subpath in layer.vector_mask.paths:
+                anchors = [(
+                    int(knot.anchor[1] * psd.width),
+                    int(knot.anchor[0] * psd.height),
+                ) for knot in subpath]
+
         :return: List of Subpath.
         """
         return self._paths
@@ -70,6 +85,8 @@ class VectorMask(object):
         Initial fill rule.
 
         When 0, fill inside of the path. When 1, fill outside of the shape.
+
+        :return: `int`
         """
         return self._initial_fill_rule.value
 
@@ -90,7 +107,10 @@ class VectorMask(object):
     @property
     def bbox(self):
         """
-        Bounding box tuple (left, top, right, bottom) in relative coordinates.
+        Bounding box tuple (left, top, right, bottom) in relative coordinates,
+        where top-left corner is (0., 0.) and bottom-right corner is (1., 1.).
+
+        :return: `tuple`
         """
         from itertools import chain
         knots = [
@@ -161,7 +181,7 @@ class Stroke(object):
         Line dash set in list of
         :py:class:`~psd_tools.decoder.actions.UnitFloat`.
 
-        :rtype: list
+        :return: list
         """
         return self._data.get(b'strokeStyleLineDashSet')
 
@@ -170,7 +190,7 @@ class Stroke(object):
         """
         Line dash offset in float.
 
-        :rtype: float
+        :return: float
         """
         return self._data.get(b'strokeStyleLineDashOffset')
 
@@ -252,25 +272,29 @@ class Origination(object):
         """
         Type of the vector shape.
 
-        * 1: rectangle
-        * 2: rounded rectangle
-        * 4: line
-        * 5: ellipse
+        * 1: :py:class:`~psd_tools.api.shape.Rectangle`
+        * 2: :py:class:`~psd_tools.api.shape.RoundedRectangle`
+        * 4: :py:class:`~psd_tools.api.shape.Line`
+        * 5: :py:class:`~psd_tools.api.shape.Ellipse`
+
+        :return: `int`
         """
-        return self._data.get(b'keyOriginType')
+        return int(self._data.get(b'keyOriginType'))
 
     @property
     def resolution(self):
         """Resolution.
+
+        :return: `float`
         """
-        return self._data.get(b'keyOriginResolution')
+        return float(self._data.get(b'keyOriginResolution'))
 
     @property
     def bbox(self):
         """
         Bounding box of the live shape.
 
-        :rtype: :py:class:`~psd_tools2.psd.descriptor.Descriptor`
+        :return: :py:class:`~psd_tools2.psd.descriptor.Descriptor`
         """
         bbox = self._data.get(b'keyOriginShapeBBox')
         if bbox:
@@ -287,12 +311,15 @@ class Origination(object):
         """
         Origination item index.
 
-        :rtype: int
+        :return: `int`
         """
         return self._data.get(b'keyOriginIndex')
 
     @property
     def invalidated(self):
+        """
+        :return: `bool`
+        """
         return False
 
     def __repr__(self):
@@ -304,7 +331,13 @@ class Origination(object):
 
 
 class Invalidated(Origination):
-    """Invalidated live shape."""
+    """
+    Invalidated live shape.
+
+    This equals to a primitive shape that does not provide Live shape
+    properties. Use :py:class:`~psd_tools.api.shape.VectorMask` to access
+    shape information instead of this origination object.
+    """
     @property
     def invalidated(self):
         return True
@@ -332,7 +365,7 @@ class RoundedRectangle(Origination):
         Corner radii of rounded rectangles.
         The order is top-left, top-right, bottom-left, bottom-right.
 
-        :rtype: :py:class:`~psd_tools2.psd.descriptor.Descriptor`
+        :return: :py:class:`~psd_tools2.psd.descriptor.Descriptor`
         """
         return self._data.get(b'keyOriginRRectRadii')
 
@@ -342,25 +375,28 @@ class Line(Origination):
 
     @property
     def line_end(self):
-        """Line end.
+        """
+        Line end.
 
-        :rtype: :py:class:`~psd_tools2.psd.descriptor.Descriptor`
+        :return: :py:class:`~psd_tools2.psd.descriptor.Descriptor`
         """
         return self._data.get(b'keyOriginLineEnd')
 
     @property
     def line_start(self):
-        """Line start.
+        """
+        Line start.
 
-        :rtype: :py:class:`~psd_tools2.psd.descriptor.Descriptor`
+        :return: :py:class:`~psd_tools2.psd.descriptor.Descriptor`
         """
         return self._data.get(b'keyOriginLineStart')
 
     @property
     def line_weight(self):
-        """Line weight
+        """
+        Line weight
 
-        :rtype: float
+        :return: `float`
         """
         return self._data.get(b'keyOriginLineWeight')
 
@@ -368,22 +404,24 @@ class Line(Origination):
     def arrow_start(self):
         """Line arrow start.
 
-        :rtype: bool
+        :return: `bool`
         """
         return bool(self._data.get(b'keyOriginLineArrowSt'))
 
     @property
     def arrow_end(self):
-        """Line arrow end.
+        """
+        Line arrow end.
 
-        :rtype: bool"""
+        :return: `bool`
+        """
         return bool(self._data.get(b'keyOriginLineArrowEnd'))
 
     @property
     def arrow_width(self):
         """Line arrow width.
 
-        :rtype: float
+        :return: `float`
         """
         return self._data.get(b'keyOriginLineArrWdth')
 
@@ -391,7 +429,7 @@ class Line(Origination):
     def arrow_length(self):
         """Line arrow length.
 
-        :rtype: float
+        :return: `float`
         """
         return self._data.get(b'keyOriginLineArrLngth')
 
@@ -399,6 +437,6 @@ class Line(Origination):
     def arrow_conc(self):
         """
 
-        :rtype: int
+        :return: `int`
         """
         return self._data.get(b'keyOriginLineArrConc')

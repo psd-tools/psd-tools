@@ -27,9 +27,9 @@ class Layer(object):
     @property
     def name(self):
         """
-        Layer name.
+        Layer name. Writable.
 
-        :return: str.
+        :return: `str`
         """
         return self._record.tagged_blocks.get_data(
             'UNICODE_LAYER_NAME', self._record.name
@@ -57,7 +57,7 @@ class Layer(object):
         Kind of this layer, either of group, pixel, shape, type, smartobject,
         or psdimage.
 
-        :return: str.
+        :return: `str`
         """
         return self.__class__.__name__.lower().replace("layer", "")
 
@@ -72,7 +72,11 @@ class Layer(object):
 
     @property
     def visible(self):
-        """Layer invisibility. Doesn't take group visibility in account."""
+        """
+        Layer visibility. Doesn't take group visibility in account. Writable.
+
+        :return: `bool`
+        """
         return self._record.flags.visible
 
     @visible.setter
@@ -80,12 +84,20 @@ class Layer(object):
         self._record.flags.visible = bool(value)
 
     def is_visible(self):
-        """Layer invisibility. Takes group visibility in account."""
+        """
+        Layer visibility. Takes group visibility in account.
+
+        :return: `bool`
+        """
         return self.visible and self.parent.is_visible()
 
     @property
     def opacity(self):
-        """Opacity of this layer."""
+        """
+        Opacity of this layer in [0, 255] range. Writable.
+
+        :return: int
+        """
         return self._record.opacity
 
     @opacity.setter
@@ -99,22 +111,33 @@ class Layer(object):
         return self._parent
 
     def is_group(self):
-        """Return True if the layer is a group."""
+        """
+        Return True if the layer is a group.
+
+        :return: `bool`
+        """
         return isinstance(self, GroupMixin)
 
     @property
     def blend_mode(self):
         """
-        Blend mode of this layer. See
-        :py:class:`~psd_tools2.constants.BlendMode`
+        Blend mode of this layer. Writable.
 
-        :return: blend mode enum.
+        Example::
+
+            from psd_tools2.constants import BlendMode
+            if layer.blend_mode == BlendMode.NORMAL:
+                layer.blend_mode = BlendMode.SCREEN
+
+        :return: :py:class:`~psd_tools2.constants.BlendMode`.
         """
         return self._record.blend_mode
 
     @blend_mode.setter
     def blend_mode(self, value):
-        if hasattr(BlendMode, value.upper()):
+        if isinstance(value, BlendMode):
+            self._record.blend_mode = value
+        elif hasattr(BlendMode, value.upper()):
             self._record.blend_mode = getattr(BlendMode, value.upper())
         else:
             self._record.blend_mode = BlendMode(value)
@@ -125,7 +148,11 @@ class Layer(object):
 
     @property
     def left(self):
-        """Left coordinate."""
+        """
+        Left coordinate. Writable.
+
+        :return: int
+        """
         return self._record.left
 
     @left.setter
@@ -136,7 +163,11 @@ class Layer(object):
 
     @property
     def top(self):
-        """Top coordinate."""
+        """
+        Top coordinate. Writable.
+
+        :return: int
+        """
         return self._record.top
 
     @top.setter
@@ -147,36 +178,60 @@ class Layer(object):
 
     @property
     def right(self):
-        """Right coordinate."""
+        """
+        Right coordinate.
+
+        :return: int
+        """
         return self._record.right
 
     @property
     def bottom(self):
-        """Bottom coordinate."""
+        """
+        Bottom coordinate.
+
+        :return: int
+        """
         return self._record.bottom
 
     @property
     def width(self):
-        """Width of the layer."""
+        """
+        Width of the layer.
+
+        :return: int
+        """
         return self.right - self.left
 
     @property
     def height(self):
-        """Height of the layer."""
+        """
+        Height of the layer.
+
+        :return: int
+        """
         return self.bottom - self.top
 
     @property
     def offset(self):
-        """(left, top) tuple."""
+        """
+        (left, top) tuple. Writable.
+
+        :return: `tuple`
+        """
         return self.left, self.top
 
     @offset.setter
     def offset(self, value):
-        self.left, self.top = value
+        self.left, self.top = tuple(int(x) for x in value)
 
     @property
     def size(self):
-        """(width, height) tuple."""
+        """
+        (width, height) tuple.
+
+        :return: `tuple`
+        """
         return self.width, self.height
 
     @property
@@ -185,14 +240,23 @@ class Layer(object):
         return self.left, self.top, self.right, self.bottom
 
     def has_pixels(self):
-        """Returns True if the layer has associated pixels."""
+        """
+        Returns True if the layer has associated pixels. When this is True,
+        ``topil`` method returns :py:class:`PIL.Image`.
+
+        :return: `bool`
+        """
         return any(
             ci.id >= 0 and cd.data and len(cd.data) > 0
             for ci, cd in zip(self._record.channel_info, self._channels)
         )
 
     def has_mask(self):
-        """Returns True if the layer has a mask."""
+        """
+        Returns True if the layer has a mask.
+
+        :return: `bool`
+        """
         return self._record.mask_data is not None
 
     @property
@@ -200,14 +264,18 @@ class Layer(object):
         """
         Returns mask associated with this layer.
 
-        :rtype: ~psd_tools2.api.mask.Mask
+        :return: :py:class:`~psd_tools2.api.mask.Mask` or `None`
         """
         if not hasattr(self, "_mask"):
             self._mask = Mask(self) if self.has_mask() else None
         return self._mask
 
     def has_vector_mask(self):
-        """Returns True if the layer has a vector mask."""
+        """
+        Returns True if the layer has a vector mask.
+
+        :return: `bool`
+        """
         return any(
             key in self.tagged_blocks for key in
             ('VECTOR_MASK_SETTING1', 'VECTOR_MASK_SETTING2')
@@ -218,7 +286,7 @@ class Layer(object):
         """
         Returns vector mask associated with this layer.
 
-        :rtype: ~psd_tools2.api.shape.VectorMask
+        :return: :py:class:`~psd_tools2.api.shape.VectorMask` or `None`
         """
         if not hasattr(self, '_vector_mask'):
             self._vector_mask = None
@@ -229,7 +297,11 @@ class Layer(object):
         return self._vector_mask
 
     def has_origination(self):
-        """Returns True if the layer has live shape properties."""
+        """
+        Returns True if the layer has live shape properties.
+
+        :return: `bool`
+        """
         if self.origination:
             return True
         return False
@@ -244,7 +316,8 @@ class Layer(object):
         an ellipse, or a line. Vector masks without live shape properties are
         plain path objects.
 
-        :return: List of :py:class:`~psd_tools2.api.shape.Rectangle`,
+        :return: List of :py:class:`~psd_tools2.api.shape.Invalidated`,
+            :py:class:`~psd_tools2.api.shape.Rectangle`,
             :py:class:`~psd_tools2.api.shape.RoundedRectangle`,
             :py:class:`~psd_tools2.api.shape.Ellipse`, or
             :py:class:`~psd_tools2.api.shape.Line`.
@@ -262,23 +335,29 @@ class Layer(object):
         """
         Get PIL Image of the layer.
 
-        :return: PIL Image object, or None if the layer has no pixels.
+        :return: :py:class:`PIL.Image`, or `None` if the layer has no pixels.
         """
         if self.has_pixels():
             return convert_layer_to_pil(self)
         return None
 
-    def compose(self):
+    def compose(self, *args, **kwargs):
         """
         Compose layer and masks (mask, vector mask, and clipping layers).
 
-        :return: PIL Image object, or None if the layer has no pixels.
+        :return: :py:class:`PIL.Image`, or `None` if the layer has no pixel.
         """
         from psd_tools2.api.composer import compose_layer
-        return compose_layer(self)
+        if self.bbox == (0, 0, 0, 0):
+            return None
+        return compose_layer(self, *args, **kwargs)
 
     def has_clip_layers(self):
-        """Returns True if the layer has associated clipping."""
+        """
+        Returns True if the layer has associated clipping.
+
+        :return: `bool`
+        """
         return len(self.clip_layers) > 0
 
     @property
@@ -286,12 +365,21 @@ class Layer(object):
         """
         Clip layers associated with this layer.
 
-        :return: list of, AdjustmentLayer, PixelLayer, or ShapeLayer
+        To compose clipping layers::
+
+            from psd_tools2 import compose
+            clip_mask = compose(layer.clip_layers)
+
+        :return: list of layers
         """
         return self._clip_layers
 
     def has_effects(self):
-        """Returns True if the layer has effects."""
+        """
+        Returns True if the layer has effects.
+
+        :return: `bool`
+        """
         return any(tag in self.tagged_blocks for tag in (
             'OBJECT_BASED_EFFECTS_LAYER_INFO',
             'OBJECT_BASED_EFFECTS_LAYER_INFO_V0',
@@ -300,6 +388,11 @@ class Layer(object):
 
     @property
     def effects(self):
+        """
+        Layer effects.
+
+        :return: :py:class:`~psd_tools2.api.effects.Effects`
+        """
         if not hasattr(self, '_effects'):
             self._effects = Effects(self) if self.has_effects() else None
         return self._effects
@@ -320,7 +413,6 @@ class Layer(object):
 
     @deprecated
     def as_PIL(self, *args, **kwargs):
-        """Use `topil`."""
         return self.topil(*args, **kwargs)
 
     @property
@@ -330,12 +422,10 @@ class Layer(object):
 
     @deprecated
     def has_box(self):
-        """Return True if the layer has a nonzero area."""
         return self.width > 0 and self.height > 0
 
     @deprecated
     def has_relevant_pixels(self):
-        """Return True if the layer has relevant associated pixels."""
         if self._record.flags.pixel_data_irrelevant:
             return False
         return self.has_pixels()
@@ -423,7 +513,18 @@ class Group(GroupMixin, Layer):
 
 
 class PixelLayer(Layer):
-    """Layer that has rasterized image in pixels."""
+    """
+    Layer that has rasterized image in pixels.
+
+    Example::
+
+        assert layer.kind == 'pixel':
+        image = layer.topil()
+        image.save('layer.png')
+
+        composed_image = layer.compose()
+        composed_image.save('composed-layer.png')
+    """
     pass
 
 
@@ -437,7 +538,7 @@ class SmartObjectLayer(Layer):
 
     Example::
 
-        layer = psd[0]
+        import io
         if layer.smart_object.filetype == 'jpg':
             image = Image.open(io.BytesIO(layer.smart_object.data))
     """
@@ -459,14 +560,34 @@ class SmartObjectLayer(Layer):
 
 
 class TypeLayer(Layer):
-    """Layer that has text and styling information for fonts or paragraphs."""
+    """
+    Layer that has text and styling information for fonts or paragraphs.
+
+    Text is accessible at :py:attr:`~psd_tools2.api.layers.TypeLayer.text`
+    property. Styling information for paragraphs is in
+    :py:attr:`~psd_tools2.api.layers.TypeLayer.engine_dict`.
+    Document styling information such as font list is is
+    :py:attr:`~psd_tools2.api.layers.TypeLayer.resource_dict`.
+
+    Currently, textual information is read-only.
+
+    Example::
+
+        if layer.kind == 'type':
+            print(layer.text)
+            print(layer.engine_dict['StyleRun'])
+    """
     def __init__(self, *args):
         super(TypeLayer, self).__init__(*args)
         self._data = self.tagged_blocks.get_data('TYPE_TOOL_OBJECT_SETTING')
 
     @property
     def text(self):
-        """Text in the layer"""
+        """
+        Text in the layer. Read-only.
+
+        .. note:: New-line character in Photoshop is `'\\\\r'`.
+        """
         return self._data.text_data.get(b'Txt ').value.rstrip('\x00')
 
     @property
@@ -502,30 +623,25 @@ class TypeLayer(Layer):
     @property
     @deprecated
     def fontset(self):
-        """Shortcut for `layer.document_resources.get('FontSet')`."""
         return self.document_resources.get('FontSet')
 
     @property
     @deprecated
     def engine_data(self):
-        """Deprecated."""
         return self._engine_data
 
     @property
     @deprecated
     def full_text(self):
-        """Deprecated."""
         return self.engine_dict['Editor']['Txt ']
 
     @property
     @deprecated
     def writing_direction(self):
-        """Deprecated."""
         return self.engine_dict['Rendered']['Shapes']['WritingDirection']
 
     @deprecated
     def style_spans(self):
-        """Returns spans by text style segments."""
         text = self.engine_dict['Editor']['Text'].value
         fontset = self.document_resources['FontSet']
         style_run = self.engine_dict['StyleRun']
@@ -545,7 +661,9 @@ class TypeLayer(Layer):
 
 
 class ShapeLayer(Layer):
-    """Layer that has drawing in vector mask."""
+    """
+    Layer that has drawing in vector mask.
+    """
     @property
     def left(self):
         return self.bbox[0]

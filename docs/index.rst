@@ -29,9 +29,6 @@ compatibility and the image contains gradient fill::
 Getting started
 ---------------
 
-
-Check out the :doc:`usage` documentation for more examples.
-
 .. code-block:: python
 
     from psd_tools2 import PSDImage
@@ -50,6 +47,7 @@ Check out the :doc:`usage` documentation for more examples.
     :maxdepth: 1
 
     usage
+    migration
     contributing
 
 Features
@@ -75,10 +73,16 @@ Not supported:
 
 
 .. toctree::
-    :caption: Package Reference
+    :caption: Package reference
     :maxdepth: 1
 
     reference/psd_tools2
+    reference/psd_tools2.api.adjustments
+    reference/psd_tools2.api.effects
+    reference/psd_tools2.api.layers
+    reference/psd_tools2.api.mask
+    reference/psd_tools2.api.shape
+    reference/psd_tools2.api.smart_object
     reference/psd_tools2.constants
     reference/psd_tools2.psd
     reference/psd_tools2.psd.color_mode_data
@@ -89,6 +93,7 @@ Not supported:
     reference/psd_tools2.psd.image_resources
     reference/psd_tools2.psd.layer_and_mask
     reference/psd_tools2.psd.tagged_blocks
+    reference/psd_tools2.psd.vector
 
 Indices and tables
 ------------------

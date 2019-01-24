@@ -14,7 +14,20 @@ logger = logging.getLogger(__name__)
 @attr.s(slots=True)
 class PSD(BaseElement):
     """
-    Low-level PSD file structure.
+    Low-level PSD file structure that resembles the specification_.
+
+    .. _specification: https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/
+
+    Example::
+
+        from psd_tools.psd import PSD
+
+        with open(input_file, 'rb') as f:
+            psd = PSD.read(f)
+
+        with open(output_file, 'wb') as f:
+            psd.write(f)
+
 
     .. py:attribute:: header
 

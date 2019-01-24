@@ -31,12 +31,8 @@ def test_get_color_mode(mode):
     (ColorMode.RGB, False, 'RGB'),
     (ColorMode.RGB, True, 'RGBA'),
     (ColorMode.CMYK, False, 'CMYK'),
-    (ColorMode.CMYK, True, 'CMYKA'),
+    (ColorMode.CMYK, True, 'CMYK'),  # CMYK with alpha is not supported.
     (ColorMode.LAB, False, 'LAB'),
 ])
 def test_get_pil_mode(mode, alpha, expected):
     assert pil_io.get_pil_mode(mode, alpha) == expected
-
-
-# def test_convert_image_data_to_pil():
-#     pil_io.convert_image_data_to_pil()

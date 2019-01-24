@@ -1,10 +1,13 @@
 """
-Adjustment module.
+Adjustment and fill layers.
 
 Example::
 
     if layer.kind == 'brightnesscontrast':
         print(layer.brightness)
+
+    if layer.kind == 'gradient-fill':
+        print(layer.gradient_kind)
 """
 from __future__ import absolute_import
 import logging
@@ -113,7 +116,7 @@ class Curves(AdjustmentLayer):
         """
         Raw data.
 
-        :rtype: :py:class:`~psd_tools2.psd.adjustments.Curves`
+        :return: :py:class:`~psd_tools2.psd.adjustments.Curves`
         """
         return self._data
 
@@ -132,7 +135,7 @@ class Exposure(AdjustmentLayer):
     def exposure(self):
         """Exposure.
 
-        :rtype: float
+        :return: `float`
         """
         return float(self._data.exposure)
 
@@ -140,7 +143,7 @@ class Exposure(AdjustmentLayer):
     def offset(self):
         """Offset.
 
-        :rtype: float
+        :return: `float`
         """
         return float(self._data.offset)
 
@@ -148,7 +151,7 @@ class Exposure(AdjustmentLayer):
     def gamma(self):
         """Gamma.
 
-        :rtype: float
+        :return: `float`
         """
         return float(self._data.gamma)
 
@@ -167,7 +170,7 @@ class Levels(AdjustmentLayer):
         """
         List of level records. The first record is the master.
 
-        :rtype: :py:class:`~psd_tools2.psd.adjustments.Levels`.
+        :return: :py:class:`~psd_tools2.psd.adjustments.Levels`.
         """
         return self._data
 
@@ -185,7 +188,7 @@ class Vibrance(AdjustmentLayer):
     def vibrance(self):
         """Vibrance.
 
-        :rtype: int
+        :return: `int`
         """
         return int(self._data.get(b'vibrance', 0))
 
@@ -193,7 +196,7 @@ class Vibrance(AdjustmentLayer):
     def saturation(self):
         """Saturation.
 
-        :rtype: int
+        :return: `int`
         """
         return int(self._data.get(b'Strt', 0))
 
@@ -211,7 +214,7 @@ class HueSaturation(AdjustmentLayer):
         """
         List of Hue/Saturation records.
 
-        :rtype: list
+        :return: `list`
         """
         return self._data.items
 
@@ -219,7 +222,7 @@ class HueSaturation(AdjustmentLayer):
     def enable_colorization(self):
         """Enable colorization.
 
-        :rtype: int
+        :return: `int`
         """
         return int(self._data.enable)
 
@@ -227,7 +230,7 @@ class HueSaturation(AdjustmentLayer):
     def colorization(self):
         """Colorization.
 
-        :rtype: tuple
+        :return: `tuple`
         """
         return self._data.colorization
 
@@ -235,7 +238,7 @@ class HueSaturation(AdjustmentLayer):
     def master(self):
         """Master record.
 
-        :rtype: tuple
+        :return: `tuple`
         """
         return self._data.master
 
@@ -248,7 +251,7 @@ class ColorBalance(AdjustmentLayer):
     def shadows(self):
         """Shadows.
 
-        :rtype: tuple
+        :return: `tuple`
         """
         return self._data.shadows
 
@@ -256,7 +259,7 @@ class ColorBalance(AdjustmentLayer):
     def midtones(self):
         """Mid-tones.
 
-        :rtype: tuple
+        :return: `tuple`
         """
         return self._data.midtones
 
@@ -264,7 +267,7 @@ class ColorBalance(AdjustmentLayer):
     def highlights(self):
         """Highlights.
 
-        :rtype: tuple
+        :return: `tuple`
         """
         return self._data.highlights
 
@@ -272,7 +275,7 @@ class ColorBalance(AdjustmentLayer):
     def luminosity(self):
         """Luminosity.
 
-        :rtype: int
+        :return: `int`
         """
         return int(self._data.luminosity)
 
@@ -331,7 +334,7 @@ class PhotoFilter(AdjustmentLayer):
     def xyz(self):
         """xyz.
 
-        :rtype: bool
+        :return: `bool`
         """
         return self._data.xyz
 
@@ -385,7 +388,7 @@ class Posterize(AdjustmentLayer):
     def posterize(self):
         """Posterize value.
 
-        :rtype: int
+        :return: `int`
         """
         return self._data.value
 
@@ -398,7 +401,7 @@ class Threshold(AdjustmentLayer):
     def threshold(self):
         """Threshold value.
 
-        :rtype: int
+        :return: `int`
         """
         return self._data.value
 

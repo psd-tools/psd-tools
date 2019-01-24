@@ -1,11 +1,16 @@
 psd\_tools2
 ===========
 
-psd-tools 2 packages that support read/write functionality.
-
+See :doc:`../usage` for examples.
 
 PSDImage
 --------
 
 .. autoclass:: psd_tools2.PSDImage
     :members:
+    :inherited-members:
+
+compose
+-------
+
+.. autofunction:: psd_tools2.compose
