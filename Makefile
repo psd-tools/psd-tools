@@ -1,5 +1,4 @@
 BRANCH=master
-VERSIONS=2.7 3.5 3.6 3.7
 
 clean:
 	rm -rf dist/ build/
@@ -7,7 +6,7 @@ clean:
 package:
 	pip install wheel
 	python setup.py sdist
-	for v in ${VERSIONS}; do python$$v setup.py bdist_wheel; done
+	python setup.py bdist_wheel --universal
 
 publish: package
 	test -n "$(shell git branch | grep '* ${BRANCH}')"

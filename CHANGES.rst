@@ -1,3 +1,14 @@
+1.8.0 (2019-01-24)
+------------------
+
+- major API changes;
+- package name changed to `psd_tools2`;
+- completely rewritten decoding subpackage `psd_tools2.psd`;
+- improved composer functionality;
+- file write support;
+- drop cython compression module and makes the package pure-python;
+- drop pymaging support.
+
 1.7.30 (2019-01-15)
 -------------------
 
