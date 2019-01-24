@@ -4,6 +4,7 @@ Color mode data structure.
 from __future__ import absolute_import, unicode_literals
 import attr
 import logging
+
 from psd_tools2.psd.base import ValueElement
 from psd_tools2.utils import (
     read_length_block, write_length_block, write_bytes
@@ -46,3 +47,14 @@ class ColorModeData(ValueElement):
 
         logger.debug('writing color mode data, len=%d' % (len(self.value)))
         return write_length_block(fp, writer)
+
+    def interleave(self):
+        import array
+        return b''.join(
+            array.array('B', [
+                self.value[i],
+                self.value[i + 256],
+                self.value[i + 512]
+            ]).tobytes()
+            for i in range(256)
+        )
