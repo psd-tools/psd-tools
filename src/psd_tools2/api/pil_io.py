@@ -21,8 +21,13 @@ def get_color_mode(mode):
 def get_pil_mode(value, alpha=False):
     """Get PIL mode from ColorMode."""
     name = value.name
-    name = {'GRAYSCALE': 'L', 'BITMAP': '1'}.get(name, name)
-    if alpha:
+    name = {
+        'GRAYSCALE': 'L',
+        'BITMAP': '1',
+        'DUOTONE': 'L',
+        'INDEXED': 'P',
+    }.get(name, name)
+    if alpha and name in ('L', 'RGB'):
         name += 'A'
     return name
 
@@ -35,26 +40,27 @@ def extract_pil_mode(psd):
 
 def convert_image_data_to_pil(psd):
     """Convert ImageData to PIL Image."""
-    from PIL import Image
+    from PIL import Image, ImageOps
     header = psd.header
-    if header.color_mode == ColorMode.BITMAP:
-        raise NotImplementedError
     size = (header.width, header.height)
     channels = []
     for channel_data in psd.image_data.get_data(header):
         channels.append(_create_channel(size, channel_data, header.depth))
     alpha = _get_alpha_use(psd)
-    channel_size = ColorMode.channels(header.color_mode, alpha)
-    if len(channels) < channel_size:
-        logger.warning('Incorrect channel size: %d vs %d' % (
-            len(channels), channel_size)
-        )
-        channel_size = len(channels)
-        alpha = False
-    mode = get_pil_mode(header.color_mode, alpha)
-    image = Image.merge(mode, channels[:channel_size])
+    mode = get_pil_mode(header.color_mode)
+    if mode == 'P':
+        image = Image.merge('L', channels[:(len(channels) - alpha)])
+        image.putpalette(psd.color_mode_data.interleave())
+    elif mode == 'MULTICHANNEL':
+        image = channels[0]  # Multi-channel mode is a collection of alpha.
+    else:
+        image = Image.merge(mode, channels[:(len(channels) - alpha)])
+    if mode == 'CMYK':
+        image = image.point(lambda x: 255 - x)
     if 'ICC_PROFILE' in psd.image_resources:
         image = _apply_icc(psd, image)
+    if alpha and mode in ('L', 'RGB'):
+        image.putalpha(channels[-1])
     return _remove_white_background(image)
 
 
@@ -78,12 +84,16 @@ def convert_layer_to_pil(layer):
             alpha = channel_image
         else:
             channels.append(channel_image)
+    mode = get_pil_mode(header.color_mode)
+    image = Image.merge(mode, channels)
+    if mode == 'CMYK':
+        image = image.point(lambda x: 255 - x)
     if alpha is not None:
-        mode = get_pil_mode(header.color_mode, True)
-        image = Image.merge(mode, channels + [alpha])
-    else:
-        mode = get_pil_mode(header.color_mode, False)
-        image = Image.merge(mode, channels)
+        if mode in ('RGB', 'L'):
+            image.putalpha(alpha)
+        else:
+            logger.debug('Alpha channel is not supported in %s' % (mode))
+
     if 'ICC_PROFILE' in layer._psd.image_resources:
         image = _apply_icc(layer._psd, image)
     return image
@@ -122,7 +132,10 @@ def convert_pattern_to_pil(pattern, version=1):
     ]
     if len(channels) == len(mode) + 1:
         mode += 'A'  # TODO: Perhaps doesn't work for some modes.
-    return Image.merge(mode, channels)
+    image = Image.merge(mode, channels)
+    if mode == 'CMYK':
+        image = image.point(lambda x: 255 - x)
+    return image
 
 
 def _get_alpha_use(psd):
@@ -151,6 +164,7 @@ def _create_channel(size, channel_data, depth):
         return image.point(lambda x: x * (1. / 256.)).convert('L')
     elif depth == 32:
         image = Image.frombytes('F', size, channel_data, 'raw', 'F;32BF')
+        # TODO: Check grayscale range.
         return image.point(lambda x: x * (256.)).convert('L')
     else:
         raise ValueError('Unsupported depth: %g' % depth)
@@ -167,6 +181,10 @@ def _apply_icc(psd, image):
         )
         return image
 
+    if image.mode not in ('RGB',):
+        logger.debug('%s ICC profile is not supported.' % image.mode)
+        return image
+
     try:
         in_profile = ImageCms.ImageCmsProfile(
             BytesIO(psd.image_resources.get_data('ICC_PROFILE'))
@@ -174,7 +192,7 @@ def _apply_icc(psd, image):
         out_profile = ImageCms.createProfile('sRGB')
         return ImageCms.profileToProfile(image, in_profile, out_profile)
     except ImageCms.PyCMSError as e:
-        logger.warning('PyCMSError: %s' % e)
+        logger.warning('PyCMSError: %s' % (e))
 
     return image
 

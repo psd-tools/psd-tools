@@ -34,7 +34,7 @@ def _calculate_hash_error(image1, image2):
 def test_compose_quality(filename):
     psd = PSDImage.open(full_name(filename))
     preview = psd.topil()
-    rendered = psd.compose()
+    rendered = psd.compose(force=True)
     assert _calculate_hash_error(preview, rendered) <= 0.1
 
 
@@ -49,5 +49,26 @@ def test_compose_quality(filename):
 ])
 def test_compose_minimal(filename):
     source = PSDImage.open(full_name('layers-minimal/' + filename)).compose()
-    reference = PSDImage.open(full_name('layers/' + filename)).compose()
-    assert _calculate_hash_error(source, reference) <= 0.15
+    reference = PSDImage.open(full_name('layers/' + filename)).compose(True)
+    assert _calculate_hash_error(source, reference) <= 0.172
+
+
+@pytest.mark.parametrize('colormode, depth', [
+    ('cmyk', 8),
+    ('duotone', 8),
+    ('grayscale', 8),
+    ('index_color', 8),
+    ('rgb', 8),
+    ('lab', 8),
+    ('cmyk', 16),
+    ('grayscale', 16),
+    ('multichannel', 16),
+    ('lab', 16),
+    ('rgb', 16),
+    ('grayscale', 32),
+    ('rgb', 32),
+])
+def test_compose_colormodes(colormode, depth):
+    filename = 'colormodes/4x4_%gbit_%s.psd' % (depth, colormode)
+    psd = PSDImage.open(full_name(filename))
+    assert isinstance(psd.compose(), Image)

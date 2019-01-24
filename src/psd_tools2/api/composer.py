@@ -62,33 +62,43 @@ def _blend(target, image, offset, mask=None):
 
 def compose(layers, bbox=None, layer_filter=None, color=None):
     """
-    Compose layers to a single ``PIL.Image``.
+    Compose layers to a single :py:class:`PIL.Image`.
+    If the layers do not have visible pixels, the function returns `None`.
 
-    In order to skip some layers, pass ``layer_filter`` function which
-    should take ``layer`` as an argument and return True to keep the layer
-    or return False to skip. By default, layers that satisfies the following
-    condition is composed::
+    Example::
 
-        layer.is_visible()
+        image = compose([layer1, layer2])
 
-    Currently the following are ignored:
+    In order to skip some layers, pass `layer_filter` function which
+    should take `layer` as an argument and return `True` to keep the layer
+    or return `False` to skip::
 
-     - Clipping layers.
-     - Layers that do not have associated pixels in the file.
-     - Adjustments layers.
-     - Layer effects.
-     - Blending mode (all blending modes become normal).
+        image = compose(
+            layers,
+            layer_filter=lambda x: x.is_visible() and x.kind == 'type'
+        )
 
-    This function is experimental and does not guarantee Photoshop-quality
-    rendering.
+    By default, visible layers are composed.
+
+    .. note:: This function is experimental and does not guarantee
+        Photoshop-quality rendering.
+
+        Currently the following are ignored:
+
+         - Adjustments layers
+         - Layer effects
+         - Blending mode (all blending modes become normal)
+
+        Shape drawing is inaccurate if the PSD file is not saved with
+        maximum compatibility.
 
     :param layers: a layer, or an iterable of layers.
     :param bbox: (left, top, bottom, right) tuple that specifies a region to
         compose. By default, all the visible area is composed. The origin
         is at the top-left corner of the PSD document.
-    :param layer_filter: a callable that takes a layer and returns bool.
-    :param color: background color in int or tuple.
-    :return: PIL Image or None.
+    :param layer_filter: a callable that takes a layer and returns `bool`.
+    :param color: background color in `int` or `tuple`.
+    :return: :py:class:`PIL.Image` or `None`.
     """
     from PIL import Image
 
@@ -134,20 +144,19 @@ def compose(layers, bbox=None, layer_filter=None, color=None):
     return result
 
 
-def compose_layer(layer):
+def compose_layer(layer, force=False):
     """Compose a single layer with pixels."""
     from PIL import Image, ImageChops
     assert layer.bbox != (0, 0, 0, 0), 'Layer bbox is (0, 0, 0, 0)'
 
-    image = None
-    if layer.has_pixels():
-        image = layer.topil()
-    elif 'SOLID_COLOR_SHEET_SETTING' in layer.tagged_blocks:
-        image = draw_solid_color_fill(layer)
-    elif 'PATTERN_FILL_SETTING' in layer.tagged_blocks:
-        image = draw_pattern_fill(layer)
-    elif 'GRADIENT_FILL_SETTING' in layer.tagged_blocks:
-        image = draw_gradient_fill(layer)
+    image = layer.topil()
+    if image is None or force:
+        if 'SOLID_COLOR_SHEET_SETTING' in layer.tagged_blocks:
+            image = draw_solid_color_fill(layer)
+        elif 'PATTERN_FILL_SETTING' in layer.tagged_blocks:
+            image = draw_pattern_fill(layer)
+        elif 'GRADIENT_FILL_SETTING' in layer.tagged_blocks:
+            image = draw_gradient_fill(layer)
 
     if image is None:
         return image
@@ -274,7 +283,7 @@ def draw_gradient_fill(layer):
         Z = _make_linear_gradient(layer.width, layer.height, -angle)
     else:
         logger.warning('Only linear gradient is supported.')
-        return None
+        Z = np.ones((layer.height, layer.width)) * 0.5
 
     mode = layer._psd.header.color_mode
     return _apply_color_map(mode, fill.get(b'Grad'), Z)
@@ -303,26 +312,33 @@ def _apply_color_map(mode, grad, Z):
     from scipy import interpolate
     from PIL import Image
 
+    mode = get_pil_mode(mode)
+
     stops = grad.get(b'Clrs')
+    scalar = {
+        'RGB': 1.0, 'L': 2.55, 'CMYK': 2.55,
+    }.get(mode, 1.0)
     G = interpolate.interp1d(
         [stop.get(b'Lctn').value / 4096. for stop in stops],
         [
-            tuple(int(x.value) for x in stop.get(b'Clr ').values())
+            tuple(int(scalar * x.value) for x in stop.get(b'Clr ').values())
             for stop in stops
         ],
         axis=0, fill_value='extrapolate'
     )
     pixels = G(Z).astype(np.uint8)
+    if pixels.shape[-1] == 1:
+        pixels = pixels[:, :, 0]
+    image = Image.fromarray(pixels, mode)
 
     if b'Trns' in grad:
         stops = grad.get(b'Trns')
         G_opacity = interpolate.interp1d(
             [stop.get(b'Lctn').value / 4096 for stop in stops],
-            [(stop.get(b'Opct').value * 2.55,) for stop in stops],
+            [stop.get(b'Opct').value * 2.55 for stop in stops],
             axis=0, fill_value='extrapolate'
         )
         alpha = G_opacity(Z).astype(np.uint8)
-        pixels = np.concatenate((pixels, alpha), axis=2)
+        image.putalpha(Image.fromarray(alpha, 'L'))
 
-    mode = get_pil_mode(mode, b'Trns' in grad)
-    return Image.fromarray(pixels, mode)
+    return image

@@ -114,36 +114,33 @@ class PSDImage(GroupMixin):
         """
         Get PIL Image.
 
-        :return: PIL Image object, or None if the composed image is not
+        :return: :py:class:`PIL.Image`, or `None` if the composed image is not
             available.
         """
         if self.has_preview():
             return pil_io.convert_image_data_to_pil(self._psd)
         return None
 
-    def compose(self, bbox=None, **kwargs):
+    def compose(self, force=False, bbox=None, **kwargs):
         """
         Compose the PSD image.
 
-        Currently adjustment layers, fill layers, and layer effects are
-        ignored.
-
-        See :py:func:`~psd_tools2.api.composer.compose` for available extra
-        arguments.
+        See :py:func:`~psd_tools2.compose` for available extra arguments.
 
         :param bbox: Viewport tuple (left, top, right, bottom).
-        :return: PIL Image object, or None if there is no pixel.
+        :return: :py:class:`PIL.Image`, or `None` if there is no pixel.
         """
         from psd_tools2.api.composer import compose
-        return (
-            compose(self, bbox=bbox or self.viewbox, **kwargs) or self.topil()
-        )
+        image = self.topil() if (not force or len(self) == 0) else None
+        if image is None:
+            image = compose(self, bbox=bbox or self.viewbox, **kwargs)
+        return image
 
     def is_visible(self):
         """
         Returns visibility of the element.
 
-        :return: True.
+        :return: `True`
         """
         return True
 
@@ -162,7 +159,7 @@ class PSDImage(GroupMixin):
         """
         Element name.
 
-        :return: 'Root'.
+        :return: `'Root'`
         """
         return 'Root'
 
@@ -171,7 +168,7 @@ class PSDImage(GroupMixin):
         """
         Kind.
 
-        :return: 'psdimage'.
+        :return: `'psdimage'`
         """
         return self.__class__.__name__.lower()
 
@@ -180,7 +177,7 @@ class PSDImage(GroupMixin):
         """
         Visibility.
 
-        :return: True.
+        :return: `True`
         """
         return True
 
@@ -189,7 +186,7 @@ class PSDImage(GroupMixin):
         """
         Left coordinate.
 
-        :return: 0.
+        :return: `0`
         """
         return 0
 
@@ -198,7 +195,7 @@ class PSDImage(GroupMixin):
         """
         Top coordinate.
 
-        :return: 0.
+        :return: `0`
         """
         return 0
 
@@ -207,7 +204,7 @@ class PSDImage(GroupMixin):
         """
         Right coordinate.
 
-        :return: int.
+        :return: `int`
         """
         return self.width
 
@@ -216,7 +213,7 @@ class PSDImage(GroupMixin):
         """
         Bottom coordinate.
 
-        :return: int.
+        :return: `int`
         """
         return self.height
 
@@ -225,7 +222,7 @@ class PSDImage(GroupMixin):
         """
         Document width.
 
-        :return: int.
+        :return: `int`
         """
         return self._psd.header.width
 
@@ -234,13 +231,17 @@ class PSDImage(GroupMixin):
         """
         Document height.
 
-        :return: int.
+        :return: `int`
         """
         return self._psd.header.height
 
     @property
     def size(self):
-        """(width, height) tuple."""
+        """
+        (width, height) tuple.
+
+        :return: `tuple`
+        """
         return self.width, self.height
 
     @property
@@ -252,7 +253,7 @@ class PSDImage(GroupMixin):
         viewport bounding box. When the psd is empty, bbox is equal to the
         canvas bounding box.
 
-        :return: (left, top, right, bottom) tuple.
+        :return: (left, top, right, bottom) `tuple`.
         """
         bbox = super(PSDImage, self).bbox
         if bbox == (0, 0, 0, 0):
@@ -264,7 +265,7 @@ class PSDImage(GroupMixin):
         """
         Return bounding box of the viewport.
 
-        :return: (left, top, right, bottom) tuple.
+        :return: (left, top, right, bottom) `tuple`.
         """
         return self.left, self.top, self.right, self.bottom
 
@@ -274,18 +275,26 @@ class PSDImage(GroupMixin):
         Document color mode, such as 'RGB' or 'GRAYSCALE'. See
         :py:class:`~psd_tools2.constants.ColorMode`.
 
-        :return: str.
+        :return: `str`
         """
         return self._psd.header.color_mode.name
 
     @property
     def channels(self):
-        """Number of color channels."""
+        """
+        Number of color channels.
+
+        :return: `int`
+        """
         return self._psd.header.channels
 
     @property
     def depth(self):
-        """Pixel depth bits."""
+        """
+        Pixel depth bits.
+
+        :return: `int`
+        """
         return self._psd.header.depth
 
     @property
@@ -447,13 +456,11 @@ class PSDImage(GroupMixin):
     @classmethod
     @deprecated
     def load(kls, *args, **kwargs):
-        """Deprecated, use `open`."""
         return kls.open(*args, **kwargs)
 
     @classmethod
     @deprecated
     def from_stream(kls, *args, **kwargs):
-        """Deprecated, use `open`."""
         return kls.open(*args, **kwargs)
 
     @property
@@ -469,17 +476,14 @@ class PSDImage(GroupMixin):
     @property
     @deprecated
     def image_resource_blocks(self):
-        """Deprecated, use `image_resources`."""
         return self.image_resources
 
     @deprecated
     def as_PIL(self, *args, **kwargs):
-        """Deprecated, use `topil`."""
         return self.topil(*args, **kwargs)
 
     @deprecated
     def print_tree(self):
-        """Deprecated, use `pprint`."""
         try:
             from IPython.lib.pretty import pprint
         except ImportError:
