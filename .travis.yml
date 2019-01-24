@@ -24,7 +24,7 @@ addons:
             - libffi-dev
 
 install:
-    - pip install -U pip wheel tox
+    - pip install -U pip wheel tox cython
 
 script: tox
 

@@ -1,0 +1,69 @@
+from __future__ import unicode_literals
+import logging
+import docopt
+
+from psd_tools2 import PSDImage
+from psd_tools2.version import __version__
+
+try:
+    from IPython.lib.pretty import pprint
+except ImportError:
+    from pprint import pprint
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.StreamHandler())
+
+
+def main():
+    """
+    psd-tools command line utility.
+
+    Usage:
+        psd-tools2 export <input_file> <output_file> [options]
+        psd-tools2 show <input_file> [options]
+        psd-tools2 debug <input_file> [options]
+        psd-tools2 -h | --help
+        psd-tools2 --version
+
+    Options:
+        -v --verbose                Be more verbose.
+
+    Example:
+        psd-tools2 show example.psd  # Show the file content
+        psd-tools2 export example.psd example.png  # Export as PNG
+        psd-tools2 export example.psd[0] example-0.png  # Export layer as PNG
+    """
+
+    args = docopt.docopt(main.__doc__, version=__version__)
+
+    if args['--verbose']:
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
+
+    if args['export']:
+        input_parts = args['<input_file>'].split('[')
+        input_file = input_parts[0]
+        if len(input_parts) > 1:
+            indices = [int(x.rstrip(']')) for x in input_parts[1:]]
+        else:
+            indices = []
+        layer = PSDImage.open(input_file)
+        for index in indices:
+            layer = layer[index]
+        if isinstance(layer, PSDImage) and layer.has_preview():
+            image = layer.topil()
+        else:
+            image = layer.compose()
+        image.save(args['<output_file>'])
+
+    elif args['show']:
+        psd = PSDImage.open(args['<input_file>'])
+        pprint(psd)
+
+    elif args['debug']:
+        psd = PSDImage.open(args['<input_file>'])
+        pprint(psd._psd)
+
+if __name__ == "__main__":
+    main()
