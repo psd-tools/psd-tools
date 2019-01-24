@@ -53,7 +53,7 @@ Getting started
     for layer in psd:
         print(layer)
 
-Check out the documentation_ for more examples.
+Check out the documentation_ for details.
 
 .. _documentation:: https://psd-tools2.readthedocs.io/
 
@@ -78,3 +78,8 @@ Not supported:
 * Composition of layer effects;
 * Drawing of bezier curves;
 * Font rendering.
+
+Contributing
+------------
+
+See `development <https://github.com/kyamagu/psd-tools2/blob/master/docs/contributing.rst>` page.

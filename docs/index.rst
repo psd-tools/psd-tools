@@ -69,7 +69,8 @@ Not supported:
 * Editing of layer structure, such as adding or removing a layer.
 * Blending modes other than normal;
 * Composition of layer effects;
-* Drawing of bezier curves.
+* Drawing of bezier curves;
+* Font rendering.
 
 
 .. toctree::
