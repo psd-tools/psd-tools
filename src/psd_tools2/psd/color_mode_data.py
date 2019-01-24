@@ -50,11 +50,21 @@ class ColorModeData(ValueElement):
 
     def interleave(self):
         import array
-        return b''.join(
-            array.array('B', [
-                self.value[i],
-                self.value[i + 256],
-                self.value[i + 512]
-            ]).tobytes()
-            for i in range(256)
-        )
+        if bytes == str:
+            return b''.join(
+                array.array('B', [
+                    ord(self.value[i]),
+                    ord(self.value[i + 256]),
+                    ord(self.value[i + 512])
+                ]).tostring()
+                for i in range(256)
+            )
+        else:
+            return b''.join(
+                array.array('B', [
+                    (self.value[i]),
+                    (self.value[i + 256]),
+                    (self.value[i + 512])
+                ]).tobytes()
+                for i in range(256)
+            )
