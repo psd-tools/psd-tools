@@ -82,4 +82,6 @@ Not supported:
 Contributing
 ------------
 
-See `development <https://github.com/kyamagu/psd-tools2/blob/master/docs/contributing.rst>` page.
+See contributing_ page.
+
+.. _contributing: https://github.com/kyamagu/psd-tools2/blob/master/docs/contributing.rst
