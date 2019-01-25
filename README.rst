@@ -55,7 +55,7 @@ Getting started
 
 Check out the documentation_ for details.
 
-.. _documentation:: https://psd-tools2.readthedocs.io/
+.. _documentation: https://psd-tools2.readthedocs.io/
 
 Features
 --------
