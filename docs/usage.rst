@@ -90,6 +90,14 @@ Other layers can also have shape information as a mask::
     for shape in layer.origination:
         print(shape)
 
+:py:class:`~psd_tools2.api.layers.SmartObjectLayer` embeds or links an
+external file for non-destructive editing. The file content is accessible
+via `smart_object` property::
+
+    import io
+    if layer.smart_object.filetype in ('jpg', 'png'):
+        image = Image.open(io.BytesIO(layer.smart_object.data))
+
 :py:class:`~psd_tools2.api.adjustments.SolidColorFill`,
 :py:class:`~psd_tools2.api.adjustments.PatternFill`, and
 :py:class:`~psd_tools2.api.adjustments.GradientFill` are fill layers that
