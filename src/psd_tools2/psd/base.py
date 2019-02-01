@@ -561,7 +561,7 @@ class DictElement(BaseElement):
 
     @classmethod
     def _convert_enum(cls, enum, key):
-        if isinstance(key, Enum):
+        if isinstance(key, enum):
             return key
         key = key.encode('ascii') if hasattr(key, 'encode') else key
         key_str = key.upper().decode('ascii')
