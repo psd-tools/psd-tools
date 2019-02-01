@@ -54,27 +54,18 @@ def test_channel_blending_restrictions_setting(fixture):
     check_write_read(ChannelBlendingRestrictionsSetting(fixture))
 
 
-def test_computer_info():
-    filepath = os.path.join(TEST_ROOT, 'tagged_blocks', 'cinf.dat')
+@pytest.mark.parametrize('kls, filename', [
+    (DescriptorBlock, 'cinf.dat'),
+    (DescriptorBlock, 'PxSc_1.dat'),
+    (PixelSourceData2, 'pixel_source_data2.dat'),
+    (MetadataSettings, 'shmd_1.dat'),
+])
+def test_tagged_block_rw(kls, filename):
+    filepath = os.path.join(TEST_ROOT, 'tagged_blocks', filename)
     with open(filepath, 'rb') as f:
         fixture = f.read()
-    check_read_write(DescriptorBlock, fixture)
-
-
-def test_pixel_source_data2_wr():
-    filepath = os.path.join(TEST_ROOT, 'tagged_blocks',
-                            'pixel_source_data2.dat')
-    with open(filepath, 'rb') as f:
-        fixture = f.read()
-    check_read_write(PixelSourceData2, fixture)
+    check_read_write(kls, fixture)
 
 
 def test_reference_point():
     check_write_read(ReferencePoint([3, 5]))
-
-
-def test_metadata_settings():
-    filepath = os.path.join(TEST_ROOT, 'tagged_blocks', 'shmd_1.dat')
-    with open(filepath, 'rb') as f:
-        fixture = f.read()
-    check_read_write(MetadataSettings, fixture)
