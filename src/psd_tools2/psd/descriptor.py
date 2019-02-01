@@ -117,6 +117,22 @@ class _DescriptorMixin(DictElement):
                     p.pretty(value)
             p.breakable('')
 
+    @classmethod
+    def _convert_enum(cls, enum, key):
+        """Descriptor class ID is case-sensitive for now."""
+        if isinstance(key, enum):
+            return key
+        key = key.encode('ascii') if hasattr(key, 'encode') else key
+        key_str = key.decode('ascii')
+        if isinstance(key, bytes) and hasattr(enum, key_str):
+            key = getattr(enum, key_str)
+        else:
+            try:
+                key = enum(key)
+            except ValueError:
+                pass
+        return key
+
 
 @register(OSType.DESCRIPTOR)
 @attr.s

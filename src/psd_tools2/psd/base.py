@@ -1,6 +1,7 @@
 from __future__ import absolute_import, unicode_literals, division
 import attr
 import io
+import logging
 from collections import OrderedDict
 from enum import Enum
 from psd_tools2.utils import (
@@ -8,6 +9,9 @@ from psd_tools2.utils import (
     write_unicode_string
 )
 from psd_tools2.validators import in_
+
+
+logger = logging.getLogger(__name__)
 
 
 class BaseElement(object):
@@ -557,7 +561,7 @@ class DictElement(BaseElement):
 
     @classmethod
     def _convert_enum(cls, enum, key):
-        if isinstance(key, Enum):
+        if isinstance(key, enum):
             return key
         key = key.encode('ascii') if hasattr(key, 'encode') else key
         key_str = key.upper().decode('ascii')
