@@ -85,6 +85,7 @@ def convert_layer_to_pil(layer):
         else:
             channels.append(channel_image)
     mode = get_pil_mode(header.color_mode)
+    channels = _check_channels(channels, header.color_mode)
     image = Image.merge(mode, channels)
     if mode == 'CMYK':
         image = image.point(lambda x: 255 - x)
@@ -168,6 +169,20 @@ def _create_channel(size, channel_data, depth):
         return image.point(lambda x: x * (256.)).convert('L')
     else:
         raise ValueError('Unsupported depth: %g' % depth)
+
+
+def _check_channels(channels, color_mode):
+    expected_channels = ColorMode.channels(color_mode)
+    if len(channels) > expected_channels:
+        logger.warning('Channels mismatch: expected %g != given %g' % (
+            expected_channels, len(channels)
+        ))
+        channels = channels[:expected_channels]
+    elif len(channels) < expected_channels:
+        raise ValueError('Channels mismatch: expected %g != given %g' % (
+            expected_channels, len(channels)
+        ))
+    return channels
 
 
 def _apply_icc(psd, image):
