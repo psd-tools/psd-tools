@@ -1,9 +1,11 @@
-1.8.1 (2019-02-01)
+1.8.2 (2019-02-01)
 ------------------
 
+- add channel size checking in topil;
+- add mlst metadata decoding;
+- fix key collision issue in descriptor;
 - performance improvement for packbit encoding/decoding;
 - drop cython dependency in travis config.
-
 
 1.8.0 (2019-01-24)
 ------------------
