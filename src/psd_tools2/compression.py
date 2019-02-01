@@ -70,14 +70,11 @@ def decompress(data, compression, width, height, depth, version=1):
 
 
 def encode_packbits(data, width, height, depth, version):
-    bytes_counts = array.array(('H', 'I')[version - 1])
-    encoded = b''
+    row_size = width * depth // 8
     with io.BytesIO(data) as fp:
-        row_size = width * depth // 8
-        for index in range(height):
-            row = packbits.encode(fp.read(row_size))
-            bytes_counts.append(len(row))
-            encoded += row
+        rows = [packbits.encode(fp.read(row_size)) for _ in range(height)]
+    bytes_counts = array.array(('H', 'I')[version - 1], map(len, rows))
+    encoded = b''.join(rows)
 
     with io.BytesIO() as fp:
         write_be_array(fp, bytes_counts)
@@ -92,10 +89,9 @@ def decode_packbits(data, height, version):
         bytes_counts = read_be_array(
             ('H', 'I')[version - 1], height, fp
         )
-        result = b''
-        for count in bytes_counts:
-            result += packbits.decode(fp.read(count))
-    return result
+        return b''.join(
+            packbits.decode(fp.read(count)) for count in bytes_counts
+        )
 
 
 def encode_prediction(data, w, h, depth):
