@@ -1,11 +1,12 @@
-1.8.2 (2019-02-01)
+1.8.3 (2019-02-01)
 ------------------
 
 - add channel size checking in topil;
 - add mlst metadata decoding;
 - fix key collision issue in descriptor;
 - performance improvement for packbit encoding/decoding;
-- drop cython dependency in travis config.
+- drop cython dependency in travis config;
+- implement thumbnail, is_group, and parent methods in PSDImage.
 
 1.8.0 (2019-01-24)
 ------------------
