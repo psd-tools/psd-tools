@@ -123,7 +123,11 @@ class TaggedBlocks(DictElement):
                 value = tagged_blocks[key].data
         """
         if key in self:
-            return self[key].data
+            value = self[key].data
+            if isinstance(value, ValueElement):
+                return value.value
+            else:
+                return value
         return default
 
     def set_data(self, key, *args, **kwargs):

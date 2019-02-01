@@ -95,7 +95,7 @@ class ImageResources(DictElement):
     """
     enum = ImageResourceID
 
-    def get_data(self, key, *args):
+    def get_data(self, key, default=None):
         """
         Get data from the image resources.
 
@@ -104,10 +104,13 @@ class ImageResources(DictElement):
             if key in image_resources:
                 value = tagged_blocks[key].data
         """
-        value = self.get(key, *args)
-        if value:
-            return value.data
-        return value
+        if key in self:
+            value = self[key].data
+            if isinstance(value, ValueElement):
+                return value.value
+            else:
+                return value
+        return default
 
     @classmethod
     def new(cls, **kwargs):
