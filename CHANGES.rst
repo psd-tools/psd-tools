@@ -1,3 +1,10 @@
+1.8.1 (2019-02-01)
+------------------
+
+- performance improvement for packbit encoding/decoding;
+- drop cython dependency in travis config.
+
+
 1.8.0 (2019-01-24)
 ------------------
 
