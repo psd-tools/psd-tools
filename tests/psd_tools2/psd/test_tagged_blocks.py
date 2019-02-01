@@ -8,7 +8,7 @@ from psd_tools2.psd.base import IntegerElement
 from psd_tools2.psd.tagged_blocks import (
     TaggedBlocks, TaggedBlock, Annotation, Annotations,
     ChannelBlendingRestrictionsSetting, DescriptorBlock, PixelSourceData2,
-    ReferencePoint,
+    ReferencePoint, MetadataSettings,
 )
 
 from ..utils import check_read_write, check_write_read, TEST_ROOT, full_name
@@ -71,3 +71,10 @@ def test_pixel_source_data2_wr():
 
 def test_reference_point():
     check_write_read(ReferencePoint([3, 5]))
+
+
+def test_metadata_settings():
+    filepath = os.path.join(TEST_ROOT, 'tagged_blocks', 'shmd_1.dat')
+    with open(filepath, 'rb') as f:
+        fixture = f.read()
+    check_read_write(MetadataSettings, fixture)
