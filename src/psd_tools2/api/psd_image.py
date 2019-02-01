@@ -140,9 +140,22 @@ class PSDImage(GroupMixin):
         """
         Returns visibility of the element.
 
-        :return: `True`
+        :return: `bool`
         """
-        return True
+        return self.visible
+
+    @property
+    def parent(self):
+        """Parent of this layer."""
+        return None
+
+    def is_group(self):
+        """
+        Return True if the layer is a group.
+
+        :return: `bool`
+        """
+        return isinstance(self, GroupMixin)
 
     def has_preview(self):
         """
@@ -245,6 +258,15 @@ class PSDImage(GroupMixin):
         return self.width, self.height
 
     @property
+    def offset(self):
+        """
+        (left, top) tuple.
+
+        :return: `tuple`
+        """
+        return self.left, self.top
+
+    @property
     def bbox(self):
         """
         Minimal bounding box that contains all the visible layers.
@@ -321,20 +343,18 @@ class PSDImage(GroupMixin):
         return ('thumbnail_resource' in self.image_resources or
                 'thumbnail_resource_ps4' in self.image_resources)
 
-    @property
     def thumbnail(self):
         """
         Returns a thumbnail image in PIL.Image. When the file does not
         contain an embedded thumbnail image, returns None.
         """
-        raise NotImplementedError
-        if 'thumbnail_resource' in self.image_resources:
-            return pil_io.extract_thumbnail(
-                self.image_resources.get_data('thumbnail_resource')
+        if 'THUMBNAIL_RESOURCE' in self.image_resources:
+            return pil_io.convert_thumbnail_to_pil(
+                self.image_resources.get_data('THUMBNAIL_RESOURCE')
             )
-        elif 'thumbnail_resource_ps4' in self.image_resources:
-            return pil_support.extract_thumbnail(
-                self.image_resources.get_data('thumbnail_resource_ps4'), 'BGR'
+        elif 'THUMBNAIL_RESOURCE_PS4' in self.image_resources:
+            return pil_io.convert_thumbnail_to_pil(
+                self.image_resources.get_data('THUMBNAIL_RESOURCE_PS4'), 'BGR'
             )
         return None
 

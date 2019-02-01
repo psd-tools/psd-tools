@@ -56,6 +56,7 @@ def test_properties(fixture):
     assert fixture.name == 'Root'
     assert fixture.kind == 'psdimage'
     assert fixture.visible is True
+    assert fixture.parent is None
     assert fixture.left == 0
     assert fixture.top == 0
     assert fixture.right == 4
@@ -74,14 +75,17 @@ def test_is_visible(fixture):
     assert fixture.is_visible() is True
 
 
+def test_is_group(fixture):
+    assert fixture.is_group() is True
+
+
 def test_has_preview(fixture):
     assert fixture.has_preview() is True
 
 
 def test_thumnail(fixture):
     assert fixture.has_thumbnail() is True
-    with pytest.raises(NotImplementedError):
-        fixture.thumbnail
+    assert fixture.thumbnail()
 
 
 def test_repr_pretty(fixture):

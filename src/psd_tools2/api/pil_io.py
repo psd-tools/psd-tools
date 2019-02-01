@@ -3,6 +3,7 @@ PIL IO module.
 """
 from __future__ import absolute_import, unicode_literals
 import logging
+import io
 
 from psd_tools2.psd.image_data import ImageData
 from psd_tools2.constants import ColorMode, ChannelID
@@ -137,6 +138,20 @@ def convert_pattern_to_pil(pattern, version=1):
     if mode == 'CMYK':
         image = image.point(lambda x: 255 - x)
     return image
+
+
+def convert_thumbnail_to_pil(thumbnail, mode='RGB'):
+    """Convert thumbnail resource."""
+    from PIL import Image
+    if thumbnail.fmt == 0:
+        size = (thumbnail.width, thumbnail.height)
+        stride = thumbnail.widthbytes
+        return Image.frombytes('RGBX', size, thumbnail.data, 'raw', mode,
+                                stride)
+    elif thumbnail.fmt == 1:
+        return Image.open(io.BytesIO(thumbnail.data))
+    else:
+        raise ValueError('Unknown thumbnail format %d' % (thumbnail.fmt))
 
 
 def _get_alpha_use(psd):
