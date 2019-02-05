@@ -1,3 +1,10 @@
+1.8.4 (2019-02-05)
+------------------
+
+- change tagged block/image resource singleton accessor in user API;
+- add documentation on iterator order;
+- fix export setting 1 big key config.
+
 1.8.3 (2019-02-01)
 ------------------
 
