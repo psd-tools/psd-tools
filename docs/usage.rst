@@ -31,7 +31,9 @@ Open an image::
     psd = PSDImage.open('my_image.psd')
 
 Most of the data structure in the :py:mod:`psd-tools2` suppports pretty
-printing in IPython environment::
+printing in IPython environment.
+
+.. code-block:: none
 
     In [1]: PSDImage.open('example.psd')
     Out[1]:
@@ -48,6 +50,10 @@ Internal layers are accessible by iterator or indexing::
                 print(child)
 
     child = psd[0][0]
+
+.. note:: The iteration order is from background to foreground, which is
+    reversed from version prior to 1.7.x. Use ``reversed(list(psd))`` to
+    iterate from foreground to background.
 
 The opened file can be saved::
 

@@ -390,7 +390,7 @@ class Posterize(AdjustmentLayer):
 
         :return: `int`
         """
-        return self._data.value
+        return self._data
 
 
 @register(TaggedBlockID.THRESHOLD)
@@ -403,7 +403,7 @@ class Threshold(AdjustmentLayer):
 
         :return: `int`
         """
-        return self._data.value
+        return self._data
 
 
 @register(TaggedBlockID.SELECTIVE_COLOR)

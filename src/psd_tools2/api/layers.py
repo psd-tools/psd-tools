@@ -37,10 +37,6 @@ class Layer(object):
 
     @name.setter
     def name(self, value):
-        if str != bytes:
-            assert isinstance(value, str)
-        else:
-            assert isinstance(value, unicode)
         assert len(value) < 256, 'Layer name too long (%d) %s' % (
             len(value), value
         )
@@ -483,6 +479,16 @@ class GroupMixin(object):
     def descendants(self, include_clip=True):
         """
         Return a generator to iterate over all descendant layers.
+
+        Example::
+
+            # Iterate over all layers
+            for layer in psd.descendants():
+                print(layer)
+
+            # Iterate over all layers in reverse order
+            for layer in reversed(list(psd.descendants())):
+                print(layer)
 
         :param include_clip: include clipping layers.
         """
