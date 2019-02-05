@@ -484,6 +484,16 @@ class GroupMixin(object):
         """
         Return a generator to iterate over all descendant layers.
 
+        Example::
+
+            # Iterate over all layers
+            for layer in psd.descendants():
+                print(layer)
+
+            # Iterate over all layers in reverse order
+            for layer in reversed(list(psd.descendants())):
+                print(layer)
+
         :param include_clip: include clipping layers.
         """
         for layer in self:
