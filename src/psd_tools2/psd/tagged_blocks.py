@@ -216,6 +216,7 @@ class TaggedBlock(BaseElement):
         TaggedBlockID.PIXEL_SOURCE_DATA2,
         TaggedBlockID.UNICODE_PATH_NAME,
         TaggedBlockID.EXPORT_SETTING1,
+        TaggedBlockID.COMPUTER_INFO,
     }
 
     signature = attr.ib(default=b'8BIM', repr=False,
