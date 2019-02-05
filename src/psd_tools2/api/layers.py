@@ -37,10 +37,6 @@ class Layer(object):
 
     @name.setter
     def name(self, value):
-        if str != bytes:
-            assert isinstance(value, str)
-        else:
-            assert isinstance(value, unicode)
         assert len(value) < 256, 'Layer name too long (%d) %s' % (
             len(value), value
         )
