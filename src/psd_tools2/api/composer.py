@@ -195,10 +195,7 @@ def compose_layer(layer, force=False):
 
     # Apply opacity.
     if layer.opacity < 255:
-        opacity = int(
-            layer.tagged_blocks.get_data('BLEND_FILL_OPACITY', 1) *
-            layer.opacity
-        )
+        opacity = layer.opacity
         if image.mode.endswith('A'):
             opacity = opacity / 255.
             channels = list(image.split())
