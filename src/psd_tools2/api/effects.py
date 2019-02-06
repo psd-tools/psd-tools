@@ -29,10 +29,9 @@ class Effects(object):
             if tag in layer.tagged_blocks:
                 self._data = layer.tagged_blocks.get_data(tag)
                 break
-        assert self._data is not None
 
         self._items = []
-        for key in self._data:
+        for key in (self._data or []):
             if key in (b'masterFXSwitch', DescriptorClassID.SCALE):
                 continue
             value = self._data[key]

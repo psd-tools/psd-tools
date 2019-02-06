@@ -390,7 +390,7 @@ class Layer(object):
         :return: :py:class:`~psd_tools2.api.effects.Effects`
         """
         if not hasattr(self, '_effects'):
-            self._effects = Effects(self) if self.has_effects() else None
+            self._effects = Effects(self)
         return self._effects
 
     @property
