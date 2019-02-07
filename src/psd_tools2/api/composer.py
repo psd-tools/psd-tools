@@ -119,7 +119,7 @@ def compose(layers, bbox=None, layer_filter=None, color=None):
             return None
 
     # Alpha must be forced to correctly blend.
-    mode = get_pil_mode(valid_layers[0]._psd.header.color_mode, True)
+    mode = get_pil_mode(valid_layers[0]._psd.color_mode, True)
     result = Image.new(
         mode, (bbox[2] - bbox[0], bbox[3] - bbox[1]), color=color,
     )
@@ -209,7 +209,7 @@ def compose_layer(layer, force=False):
 
 def create_fill(layer):
     from PIL import Image
-    mode = get_pil_mode(layer._psd.header.color_mode, True)
+    mode = get_pil_mode(layer._psd.color_mode, True)
     image = Image.new(mode, (layer.width, layer.height))
     if 'SOLID_COLOR_SHEET_SETTING' in layer.tagged_blocks:
         setting = layer.tagged_blocks.get_data(
@@ -258,8 +258,8 @@ def apply_effect(layer, image):
 
 def draw_vector_mask(layer):
     from PIL import Image, ImageDraw
-    width = layer._psd.header.width
-    height = layer._psd.header.height
+    width = layer._psd.width
+    height = layer._psd.height
     color = layer.vector_mask.initial_fill_rule * 255
     mask = Image.new('L', (width, height), color)
     draw = ImageDraw.Draw(mask)
@@ -285,25 +285,14 @@ def draw_solid_color_fill(image, setting):
 
 def draw_pattern_fill(image, psd, setting):
     pattern_id = setting[b'Ptrn'][b'Idnt'].value.rstrip('\x00')
-    pattern = _get_pattern(psd, pattern_id)
+    pattern = psd._get_pattern(pattern_id)
     if not pattern:
         logger.error('Pattern not found: %s' % (pattern_id))
         return None
-    panel = convert_pattern_to_pil(pattern, psd.header.version)
+    panel = convert_pattern_to_pil(pattern, psd._record.header.version)
     for left in range(0, image.width, panel.width):
         for top in range(0, image.height, panel.height):
             image.paste(panel, (left, top))
-
-
-def _get_pattern(psd, pattern_id):
-    tagged_blocks = psd.layer_and_mask_information.tagged_blocks
-    for key in ('PATTERNS1', 'PATTERNS2', 'PATTERNS3'):
-        if key in tagged_blocks:
-            data = tagged_blocks.get_data(key)
-            for pattern in data:
-                if pattern.pattern_id == pattern_id:
-                    return pattern
-    return None
 
 
 def draw_gradient_fill(image, setting, blend=True):

@@ -21,13 +21,12 @@ def get_color_mode(mode):
 
 def get_pil_mode(value, alpha=False):
     """Get PIL mode from ColorMode."""
-    name = value.name
     name = {
         'GRAYSCALE': 'L',
         'BITMAP': '1',
         'DUOTONE': 'L',
         'INDEXED': 'P',
-    }.get(name, name)
+    }.get(value, value)
     if alpha and name in ('L', 'RGB'):
         name += 'A'
     return name
@@ -48,7 +47,7 @@ def convert_image_data_to_pil(psd):
     for channel_data in psd.image_data.get_data(header):
         channels.append(_create_channel(size, channel_data, header.depth))
     alpha = _get_alpha_use(psd)
-    mode = get_pil_mode(header.color_mode)
+    mode = get_pil_mode(header.color_mode.name)
     if mode == 'P':
         image = Image.merge('L', channels[:(len(channels) - alpha)])
         image.putpalette(psd.color_mode_data.interleave())
@@ -59,7 +58,7 @@ def convert_image_data_to_pil(psd):
     if mode == 'CMYK':
         image = image.point(lambda x: 255 - x)
     if 'ICC_PROFILE' in psd.image_resources:
-        image = _apply_icc(psd, image)
+        image = _apply_icc(image, psd.image_resources.get_data('ICC_PROFILE'))
     if alpha and mode in ('L', 'RGB'):
         image.putalpha(channels[-1])
     return _remove_white_background(image)
@@ -68,7 +67,7 @@ def convert_image_data_to_pil(psd):
 def convert_layer_to_pil(layer):
     """Convert Layer to PIL Image."""
     from PIL import Image
-    header = layer._psd.header
+    header = layer._psd._record.header
     if header.color_mode == ColorMode.BITMAP:
         raise NotImplementedError
     width, height = layer.width, layer.height
@@ -85,7 +84,7 @@ def convert_layer_to_pil(layer):
             alpha = channel_image
         else:
             channels.append(channel_image)
-    mode = get_pil_mode(header.color_mode)
+    mode = get_pil_mode(header.color_mode.name)
     channels = _check_channels(channels, header.color_mode)
     image = Image.merge(mode, channels)
     if mode == 'CMYK':
@@ -97,14 +96,16 @@ def convert_layer_to_pil(layer):
             logger.debug('Alpha channel is not supported in %s' % (mode))
 
     if 'ICC_PROFILE' in layer._psd.image_resources:
-        image = _apply_icc(layer._psd, image)
+        image = _apply_icc(
+            image, layer._psd.image_resources.get_data('ICC_PROFILE')
+        )
     return image
 
 
 def convert_mask_to_pil(mask, real=True):
     """Convert Mask to PIL Image."""
     from PIL import Image
-    header = mask._layer._psd.header
+    header = mask._layer._psd._record.header
     channel_ids = [ci.id for ci in mask._layer._record.channel_info]
     if real and mask._has_real():
         width = mask._data.real_right - mask._data.real_left
@@ -125,7 +126,7 @@ def convert_mask_to_pil(mask, real=True):
 def convert_pattern_to_pil(pattern, version=1):
     """Convert Pattern to PIL Image."""
     from PIL import Image
-    mode = get_pil_mode(pattern.image_mode, False)
+    mode = get_pil_mode(pattern.image_mode.name, False)
     # The order is different here.
     size = pattern.data.rectangle[3], pattern.data.rectangle[2]
     channels = [
@@ -200,7 +201,7 @@ def _check_channels(channels, color_mode):
     return channels
 
 
-def _apply_icc(psd, image):
+def _apply_icc(image, icc_profile):
     """Apply ICC Color profile."""
     from io import BytesIO
     try:
@@ -216,9 +217,7 @@ def _apply_icc(psd, image):
         return image
 
     try:
-        in_profile = ImageCms.ImageCmsProfile(
-            BytesIO(psd.image_resources.get_data('ICC_PROFILE'))
-        )
+        in_profile = ImageCms.ImageCmsProfile(BytesIO(icc_profile))
         out_profile = ImageCms.createProfile('sRGB')
         return ImageCms.profileToProfile(image, in_profile, out_profile)
     except ImageCms.PyCMSError as e:

@@ -710,10 +710,10 @@ class ShapeLayer(Layer):
             elif self.has_vector_mask():
                 bbox = self.vector_mask.bbox
                 self._bbox = (
-                    int(bbox[0] * self._psd.header.width),
-                    int(bbox[1] * self._psd.header.height),
-                    int(bbox[2] * self._psd.header.width),
-                    int(bbox[3] * self._psd.header.height),
+                    int(bbox[0] * self._psd.width),
+                    int(bbox[1] * self._psd.height),
+                    int(bbox[2] * self._psd.width),
+                    int(bbox[3] * self._psd.height),
                 )
             else:
                 self._bbox = (0, 0, 0, 0)
@@ -784,8 +784,8 @@ class FillLayer(Layer):
 
     @property
     def right(self):
-        return self._record.right or self._psd.header.width
+        return self._record.right or self._psd.width
 
     @property
     def bottom(self):
-        return self._record.bottom or self._psd.header.height
+        return self._record.bottom or self._psd.height

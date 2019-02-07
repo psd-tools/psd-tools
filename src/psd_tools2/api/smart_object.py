@@ -20,11 +20,10 @@ class SmartObject(object):
                 break
 
         self._data = None
-        global_blocks = layer._psd.layer_and_mask_information.tagged_blocks
         for key in ('LINKED_LAYER1', 'LINKED_LAYER2', 'LINKED_LAYER3',
                     'LINKED_LAYER_EXTERNAL'):
-            if key in global_blocks:
-                data = global_blocks.get_data(key)
+            if key in layer._psd.tagged_blocks:
+                data = layer._psd.tagged_blocks.get_data(key)
                 for item in data:
                     if item.uuid == self.unique_id:
                         self._data = item
