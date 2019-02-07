@@ -177,14 +177,7 @@ def compose_layer(layer, force=False):
         image.putalpha(mask)
 
     # Apply layer fill effects.
-    for effect in layer.effects:
-        name = effect.__class__.__name__
-        if name == 'ColorOverlay':
-            draw_solid_color_fill(image, effect.value)
-        elif name == 'PatternOverlay':
-            draw_pattern_fill(image, layer._psd, effect.value)
-        elif name == 'GradientOverlay':
-            draw_gradient_fill(image, effect.value)
+    apply_effect(layer, image)
 
     # Clip layers.
     if layer.has_clip_layers():
@@ -226,8 +219,19 @@ def create_fill(layer):
         draw_pattern_fill(image, layer._psd, setting)
     elif 'GRADIENT_FILL_SETTING' in layer.tagged_blocks:
         setting = layer.tagged_blocks.get_data('GRADIENT_FILL_SETTING')
-        draw_gradient_fill(image, setting)
+        draw_gradient_fill(image, setting, blend=False)
     return image
+
+
+def apply_effect(layer, image):
+    for effect in layer.effects:
+        name = effect.__class__.__name__
+        if name == 'ColorOverlay':
+            draw_solid_color_fill(image, effect.value)
+        elif name == 'PatternOverlay':
+            draw_pattern_fill(image, layer._psd, effect.value)
+        elif name == 'GradientOverlay':
+            draw_gradient_fill(image, effect.value)
 
 
 def draw_vector_mask(layer):
@@ -280,7 +284,7 @@ def _get_pattern(psd, pattern_id):
     return None
 
 
-def draw_gradient_fill(image, setting):
+def draw_gradient_fill(image, setting, blend=True):
     try:
         import numpy as np
         from scipy import interpolate
@@ -297,7 +301,10 @@ def draw_gradient_fill(image, setting):
         Z = np.ones((image.height, image.width)) * 0.5
 
     gradient_image = _apply_color_map(image.mode, setting.get(b'Grad'), Z)
-    _blend(image, gradient_image, offset=(0, 0))
+    if blend:
+        _blend(image, gradient_image, offset=(0, 0))
+    else:
+        image.paste(gradient_image)
 
 
 def _make_linear_gradient(width, height, angle=90.):
