@@ -69,6 +69,11 @@ def test_properties(fixture):
     assert fixture.image_resources
     assert fixture.tagged_blocks
     assert fixture.color_mode == 'RGB'
+    assert fixture.version == 1
+
+
+def test_version():
+    PSDImage.open(full_name('gray0.psb')).version == 2
 
 
 def test_is_visible(fixture):

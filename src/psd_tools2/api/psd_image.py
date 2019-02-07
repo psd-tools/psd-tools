@@ -321,6 +321,15 @@ class PSDImage(GroupMixin):
         return self._record.header.depth
 
     @property
+    def version(self):
+        """
+        Document version. PSD file is 1, and PSB file is 2.
+
+        :return: `int`
+        """
+        return self._record.header.version
+
+    @property
     def image_resources(self):
         """
         Document image resources.
