@@ -156,6 +156,8 @@ def compose_layer(layer, force=False):
     if image is None:
         return image
 
+    # TODO: Group should have the following too.
+
     # Apply mask.
     if layer.has_mask() and not layer.mask.disabled:
         mask_bbox = layer.mask.bbox
@@ -224,14 +226,34 @@ def create_fill(layer):
 
 
 def apply_effect(layer, image):
+    """Apply effect to the image.
+
+    ..note: Correct effect order is the following. All the effects are first
+        applied to the original image then blended together.
+
+        * dropshadow
+        * outerglow
+        * (original)
+        * patternoverlay
+        * gradientoverlay
+        * coloroverlay
+        * innershadow
+        * innerglow
+        * bevelemboss
+        * satin
+        * stroke
+    """
     for effect in layer.effects:
-        name = effect.__class__.__name__
-        if name == 'ColorOverlay':
-            draw_solid_color_fill(image, effect.value)
-        elif name == 'PatternOverlay':
+        if effect.__class__.__name__ == 'PatternOverlay':
             draw_pattern_fill(image, layer._psd, effect.value)
-        elif name == 'GradientOverlay':
+
+    for effect in layer.effects:
+        if effect.__class__.__name__ == 'GradientOverlay':
             draw_gradient_fill(image, effect.value)
+
+    for effect in layer.effects:
+        if effect.__class__.__name__ == 'ColorOverlay':
+            draw_solid_color_fill(image, effect.value)
 
 
 def draw_vector_mask(layer):
