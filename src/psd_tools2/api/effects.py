@@ -29,10 +29,9 @@ class Effects(object):
             if tag in layer.tagged_blocks:
                 self._data = layer.tagged_blocks.get_data(tag)
                 break
-        assert self._data is not None
 
         self._items = []
-        for key in self._data:
+        for key in (self._data or []):
             if key in (b'masterFXSwitch', DescriptorClassID.SCALE):
                 continue
             value = self._data[key]
@@ -43,7 +42,7 @@ class Effects(object):
                     continue
                 kls = _TYPES.get(item.classID)
                 assert kls is not None
-                self._items.append(kls(item, layer._psd))
+                self._items.append(kls(item, layer._psd.image_resources))
 
     @property
     def scale(self):
@@ -87,9 +86,9 @@ class Effects(object):
 
 class _Effect(object):
     """Base Effect class."""
-    def __init__(self, value, psd=None):
+    def __init__(self, value, image_resources):
         self.value = value
-        self._psd = psd
+        self._image_resources = image_resources
 
     @property
     def enabled(self):
@@ -170,9 +169,7 @@ class _AngleMixin(object):
     def angle(self):
         """Angle value."""
         if self.use_global_light:
-            return self._psd.image_resources.get_data(
-                'global_angle', 30.0
-            )
+            return self._image_resources.get_data('global_angle', 30.0)
         return self.value.get(DescriptorClassID.LIGHT_ANGLE).value
 
 

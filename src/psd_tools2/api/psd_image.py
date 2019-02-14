@@ -34,9 +34,10 @@ class PSDImage(GroupMixin):
             if layer.has_pixels():
                 layer_image = layer.topil()
     """
-    def __init__(self, psd):
-        assert isinstance(psd, PSD)
-        self._psd = psd
+    def __init__(self, data):
+        assert isinstance(data, PSD)
+        self._record = None
+        self._record = data
         self._layers = []
         self._tagged_blocks = None
         self._init()
@@ -105,10 +106,10 @@ class PSDImage(GroupMixin):
         :param mode: file open mode, default 'wb'.
         """
         if hasattr(fp, 'write'):
-            self._psd.write(fp)
+            self._record.write(fp)
         else:
             with open(fp, mode) as f:
-                self._psd.write(f)
+                self._record.write(f)
 
     def topil(self):
         """
@@ -118,7 +119,7 @@ class PSDImage(GroupMixin):
             available.
         """
         if self.has_preview():
-            return pil_io.convert_image_data_to_pil(self._psd)
+            return pil_io.convert_image_data_to_pil(self._record)
         return None
 
     def compose(self, force=False, bbox=None, **kwargs):
@@ -237,7 +238,7 @@ class PSDImage(GroupMixin):
 
         :return: `int`
         """
-        return self._psd.header.width
+        return self._record.header.width
 
     @property
     def height(self):
@@ -246,7 +247,7 @@ class PSDImage(GroupMixin):
 
         :return: `int`
         """
-        return self._psd.header.height
+        return self._record.header.height
 
     @property
     def size(self):
@@ -299,7 +300,7 @@ class PSDImage(GroupMixin):
 
         :return: `str`
         """
-        return self._psd.header.color_mode.name
+        return self._record.header.color_mode.name
 
     @property
     def channels(self):
@@ -308,7 +309,7 @@ class PSDImage(GroupMixin):
 
         :return: `int`
         """
-        return self._psd.header.channels
+        return self._record.header.channels
 
     @property
     def depth(self):
@@ -317,7 +318,16 @@ class PSDImage(GroupMixin):
 
         :return: `int`
         """
-        return self._psd.header.depth
+        return self._record.header.depth
+
+    @property
+    def version(self):
+        """
+        Document version. PSD file is 1, and PSB file is 2.
+
+        :return: `int`
+        """
+        return self._record.header.version
 
     @property
     def image_resources(self):
@@ -326,7 +336,7 @@ class PSDImage(GroupMixin):
 
         :return: :py:class:`~psd_tools2.psd.image_resouces.ImageResouces`.
         """
-        return self._psd.image_resources
+        return self._record.image_resources
 
     @property
     def tagged_blocks(self):
@@ -336,7 +346,7 @@ class PSDImage(GroupMixin):
         :return: :py:class:`~psd_tools2.psd.tagged_blocks.TaggedBlocks` or
             None.
         """
-        return self._psd.layer_and_mask_information.tagged_blocks
+        return self._record.layer_and_mask_information.tagged_blocks
 
     def has_thumbnail(self):
         """True if the PSDImage has a thumbnail resource."""
@@ -363,8 +373,8 @@ class PSDImage(GroupMixin):
             '%s(mode=%s size=%dx%d depth=%d channels=%d)'
         ) % (
             self.__class__.__name__, self.color_mode,
-            self.width, self.height, self._psd.header.depth,
-            self._psd.header.channels,
+            self.width, self.height, self._record.header.depth,
+            self._record.header.channels,
         )
 
     def _repr_pretty_(self, p, cycle):
@@ -398,13 +408,23 @@ class PSDImage(GroupMixin):
             color_mode=color_mode
         )
 
+    def _get_pattern(self, pattern_id):
+        """Get pattern item by id."""
+        for key in ('PATTERNS1', 'PATTERNS2', 'PATTERNS3'):
+            if key in self.tagged_blocks:
+                data = self.tagged_blocks.get_data(key)
+                for pattern in data:
+                    if pattern.pattern_id == pattern_id:
+                        return pattern
+        return None
+
     def _init(self):
         """Initialize layer structure."""
         group_stack = [self]
         clip_stack = []
         last_layer = None
 
-        for record, channels in self._psd._iter_layers():
+        for record, channels in self._record._iter_layers():
             current_group = group_stack[-1]
 
             blocks = record.tagged_blocks
@@ -414,7 +434,7 @@ class PSDImage(GroupMixin):
                                       divider)
             if divider is not None:
                 if divider.kind == SectionDivider.BOUNDING_SECTION_DIVIDER:
-                    layer = Group(self._psd, None, None, current_group)
+                    layer = Group(self, None, None, current_group)
                     group_stack.append(layer)
                 elif divider.kind in (SectionDivider.OPEN_FOLDER,
                                       SectionDivider.CLOSED_FOLDER):
@@ -427,7 +447,7 @@ class PSDImage(GroupMixin):
                 'TYPE_TOOL_OBJECT_SETTING' in blocks or
                 'TYPE_TOOL_INFO' in blocks
             ):
-                layer = TypeLayer(self._psd, record, channels, current_group)
+                layer = TypeLayer(self, record, channels, current_group)
             elif (
                 record.flags.pixel_data_irrelevant and (
                     'VECTOR_ORIGINATION_DATA' in blocks or
@@ -437,27 +457,27 @@ class PSDImage(GroupMixin):
                     'VECTOR_STROKE_CONTENT_DATA' in blocks
                 )
             ):
-                layer = ShapeLayer(self._psd, record, channels, current_group)
+                layer = ShapeLayer(self, record, channels, current_group)
             elif (
                 'SMART_OBJECT_LAYER_DATA1' in blocks or
                 'SMART_OBJECT_LAYER_DATA2' in blocks or
                 'PLACED_LAYER1' in blocks or
                 'PLACED_LAYER2' in blocks
             ):
-                layer = SmartObjectLayer(self._psd, record, channels,
+                layer = SmartObjectLayer(self, record, channels,
                                          current_group)
             else:
                 layer = None
                 for key in adjustments.TYPES.keys():
                     if key in blocks:
                         layer = adjustments.TYPES[key](
-                            self._psd, record, channels, current_group
+                            self, record, channels, current_group
                         )
                         break
                 # If nothing applies, this is a pixel layer.
                 if layer is None:
                     layer = PixelLayer(
-                        self._psd, record, channels, current_group
+                        self, record, channels, current_group
                     )
 
             if record.clipping == Clipping.NON_BASE:
@@ -486,7 +506,7 @@ class PSDImage(GroupMixin):
     @property
     @deprecated
     def header(self):
-        return self._psd.header
+        return self._record.header
 
     @property
     @deprecated

@@ -1,3 +1,10 @@
+1.8.6 (2019-02-14)
+------------------
+
+- change _psd pointer in PSDImage;
+- add version property;
+- support fill effects in composer.
+
 1.8.5 (2019-02-05)
 ------------------
 

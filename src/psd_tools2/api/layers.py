@@ -390,7 +390,7 @@ class Layer(object):
         :return: :py:class:`~psd_tools2.api.effects.Effects`
         """
         if not hasattr(self, '_effects'):
-            self._effects = Effects(self) if self.has_effects() else None
+            self._effects = Effects(self)
         return self._effects
 
     @property
@@ -582,6 +582,19 @@ class TypeLayer(Layer):
         if layer.kind == 'type':
             print(layer.text)
             print(layer.engine_dict['StyleRun'])
+
+            # Extract font for each substring in the text.
+            text = layer.engine_dict['Editor']['Text'].value
+            fontset = layer.resource_dict['FontSet']
+            runlength = layer.engine_dict['StyleRun']['RunLengthArray']
+            rundata = layer.engine_dict['StyleRun']['RunArray']
+            index = 0
+            for length, style in zip(runlength, rundata):
+                substring = text[index:index + length]
+                stylesheet = style['StyleSheet']['StyleSheetData']
+                font = fontset[stylesheet['Font']]
+                print('%r gets %s' % (substring, font))
+                index += length
     """
     def __init__(self, *args):
         super(TypeLayer, self).__init__(*args)
@@ -710,10 +723,10 @@ class ShapeLayer(Layer):
             elif self.has_vector_mask():
                 bbox = self.vector_mask.bbox
                 self._bbox = (
-                    int(bbox[0] * self._psd.header.width),
-                    int(bbox[1] * self._psd.header.height),
-                    int(bbox[2] * self._psd.header.width),
-                    int(bbox[3] * self._psd.header.height),
+                    int(bbox[0] * self._psd.width),
+                    int(bbox[1] * self._psd.height),
+                    int(bbox[2] * self._psd.width),
+                    int(bbox[3] * self._psd.height),
                 )
             else:
                 self._bbox = (0, 0, 0, 0)
@@ -784,8 +797,8 @@ class FillLayer(Layer):
 
     @property
     def right(self):
-        return self._record.right or self._psd.header.width
+        return self._record.right or self._psd.width
 
     @property
     def bottom(self):
-        return self._record.bottom or self._psd.header.height
+        return self._record.bottom or self._psd.height

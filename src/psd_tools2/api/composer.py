@@ -119,7 +119,7 @@ def compose(layers, bbox=None, layer_filter=None, color=None):
             return None
 
     # Alpha must be forced to correctly blend.
-    mode = get_pil_mode(valid_layers[0]._psd.header.color_mode, True)
+    mode = get_pil_mode(valid_layers[0]._psd.color_mode, True)
     result = Image.new(
         mode, (bbox[2] - bbox[0], bbox[3] - bbox[1]), color=color,
     )
@@ -151,15 +151,12 @@ def compose_layer(layer, force=False):
 
     image = layer.topil()
     if image is None or force:
-        if 'SOLID_COLOR_SHEET_SETTING' in layer.tagged_blocks:
-            image = draw_solid_color_fill(layer)
-        elif 'PATTERN_FILL_SETTING' in layer.tagged_blocks:
-            image = draw_pattern_fill(layer)
-        elif 'GRADIENT_FILL_SETTING' in layer.tagged_blocks:
-            image = draw_gradient_fill(layer)
+        image = create_fill(layer)
 
     if image is None:
         return image
+
+    # TODO: Group should have the following too.
 
     # Apply mask.
     if layer.has_mask() and not layer.mask.disabled:
@@ -181,6 +178,9 @@ def compose_layer(layer, force=False):
         # TODO: Stroke drawing.
         image.putalpha(mask)
 
+    # Apply layer fill effects.
+    apply_effect(layer, image)
+
     # Clip layers.
     if layer.has_clip_layers():
         clip_box = extract_bbox(layer.clip_layers)
@@ -195,10 +195,7 @@ def compose_layer(layer, force=False):
 
     # Apply opacity.
     if layer.opacity < 255:
-        opacity = int(
-            layer.tagged_blocks.get_data('BLEND_FILL_OPACITY', 1) *
-            layer.opacity
-        )
+        opacity = layer.opacity
         if image.mode.endswith('A'):
             opacity = opacity / 255.
             channels = list(image.split())
@@ -210,11 +207,59 @@ def compose_layer(layer, force=False):
     return image
 
 
+def create_fill(layer):
+    from PIL import Image
+    mode = get_pil_mode(layer._psd.color_mode, True)
+    image = Image.new(mode, (layer.width, layer.height))
+    if 'SOLID_COLOR_SHEET_SETTING' in layer.tagged_blocks:
+        setting = layer.tagged_blocks.get_data(
+            'SOLID_COLOR_SHEET_SETTING'
+        )
+        draw_solid_color_fill(image, setting)
+    elif 'PATTERN_FILL_SETTING' in layer.tagged_blocks:
+        setting = layer.tagged_blocks.get_data('PATTERN_FILL_SETTING')
+        draw_pattern_fill(image, layer._psd, setting)
+    elif 'GRADIENT_FILL_SETTING' in layer.tagged_blocks:
+        setting = layer.tagged_blocks.get_data('GRADIENT_FILL_SETTING')
+        draw_gradient_fill(image, setting, blend=False)
+    return image
+
+
+def apply_effect(layer, image):
+    """Apply effect to the image.
+
+    ..note: Correct effect order is the following. All the effects are first
+        applied to the original image then blended together.
+
+        * dropshadow
+        * outerglow
+        * (original)
+        * patternoverlay
+        * gradientoverlay
+        * coloroverlay
+        * innershadow
+        * innerglow
+        * bevelemboss
+        * satin
+        * stroke
+    """
+    for effect in layer.effects:
+        if effect.__class__.__name__ == 'PatternOverlay':
+            draw_pattern_fill(image, layer._psd, effect.value)
+
+    for effect in layer.effects:
+        if effect.__class__.__name__ == 'GradientOverlay':
+            draw_gradient_fill(image, effect.value)
+
+    for effect in layer.effects:
+        if effect.__class__.__name__ == 'ColorOverlay':
+            draw_solid_color_fill(image, effect.value)
+
+
 def draw_vector_mask(layer):
     from PIL import Image, ImageDraw
-
-    width = layer._psd.header.width
-    height = layer._psd.header.height
+    width = layer._psd.width
+    height = layer._psd.height
     color = layer.vector_mask.initial_fill_rule * 255
     mask = Image.new('L', (width, height), color)
     draw = ImageDraw.Draw(mask)
@@ -230,45 +275,27 @@ def draw_vector_mask(layer):
     return mask.crop(layer.bbox)
 
 
-def draw_solid_color_fill(layer):
-    from PIL import Image
+def draw_solid_color_fill(image, setting):
+    from PIL import ImageDraw
+    color = tuple(int(x) for x in setting.get(b'Clr ').values())
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((0, 0, image.width, image.height), fill=color)
+    del draw
 
-    mode = get_pil_mode(layer._psd.header.color_mode, True)
-    fill = layer.tagged_blocks.get_data('SOLID_COLOR_SHEET_SETTING')
-    color = tuple(int(x) for x in fill.get(b'Clr ').values())
-    return Image.new(mode, (layer.width, layer.height), color)
 
-
-def draw_pattern_fill(layer):
-    from PIL import Image
-
-    mode = get_pil_mode(layer._psd.header.color_mode, True)
-    fill = layer.tagged_blocks.get_data('PATTERN_FILL_SETTING')
-    pattern_id = fill[b'Ptrn'][b'Idnt'].value.rstrip('\x00')
-    pattern = _get_pattern(layer._psd, pattern_id)
+def draw_pattern_fill(image, psd, setting):
+    pattern_id = setting[b'Ptrn'][b'Idnt'].value.rstrip('\x00')
+    pattern = psd._get_pattern(pattern_id)
     if not pattern:
         logger.error('Pattern not found: %s' % (pattern_id))
         return None
-    panel = convert_pattern_to_pil(pattern, layer._psd.header.version)
-    image = Image.new(mode, (layer.width, layer.height))
+    panel = convert_pattern_to_pil(pattern, psd._record.header.version)
     for left in range(0, image.width, panel.width):
         for top in range(0, image.height, panel.height):
             image.paste(panel, (left, top))
-    return image
 
 
-def _get_pattern(psd, pattern_id):
-    tagged_blocks = psd.layer_and_mask_information.tagged_blocks
-    for key in ('PATTERNS1', 'PATTERNS2', 'PATTERNS3'):
-        if key in tagged_blocks:
-            data = tagged_blocks.get_data(key)
-            for pattern in data:
-                if pattern.pattern_id == pattern_id:
-                    return pattern
-    return None
-
-
-def draw_gradient_fill(layer):
+def draw_gradient_fill(image, setting, blend=True):
     try:
         import numpy as np
         from scipy import interpolate
@@ -276,17 +303,19 @@ def draw_gradient_fill(layer):
         logger.error('Gradient fill requires numpy and scipy.')
         return None
 
-    fill = layer.tagged_blocks.get_data('GRADIENT_FILL_SETTING')
-    angle = float(fill.get(b'Angl'))
-    gradient_kind = fill.get(b'Type').enum.name.lower()
+    angle = float(setting.get(b'Angl'))
+    gradient_kind = setting.get(b'Type').enum.name.lower()
     if gradient_kind == 'linear':
-        Z = _make_linear_gradient(layer.width, layer.height, -angle)
+        Z = _make_linear_gradient(image.width, image.height, -angle)
     else:
         logger.warning('Only linear gradient is supported.')
-        Z = np.ones((layer.height, layer.width)) * 0.5
+        Z = np.ones((image.height, image.width)) * 0.5
 
-    mode = layer._psd.header.color_mode
-    return _apply_color_map(mode, fill.get(b'Grad'), Z)
+    gradient_image = _apply_color_map(image.mode, setting.get(b'Grad'), Z)
+    if blend:
+        _blend(image, gradient_image, offset=(0, 0))
+    else:
+        image.paste(gradient_image)
 
 
 def _make_linear_gradient(width, height, angle=90.):
@@ -312,8 +341,6 @@ def _apply_color_map(mode, grad, Z):
     from scipy import interpolate
     from PIL import Image
 
-    mode = get_pil_mode(mode)
-
     stops = grad.get(b'Clrs')
     scalar = {
         'RGB': 1.0, 'L': 2.55, 'CMYK': 2.55,
@@ -329,9 +356,9 @@ def _apply_color_map(mode, grad, Z):
     pixels = G(Z).astype(np.uint8)
     if pixels.shape[-1] == 1:
         pixels = pixels[:, :, 0]
-    image = Image.fromarray(pixels, mode)
 
-    if b'Trns' in grad:
+    image = Image.fromarray(pixels, mode.rstrip('A'))
+    if b'Trns' in grad and mode.endswith('A'):
         stops = grad.get(b'Trns')
         G_opacity = interpolate.interp1d(
             [stop.get(b'Lctn').value / 4096 for stop in stops],

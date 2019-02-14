@@ -48,8 +48,8 @@ def test_save(fixture, tmpdir):
 def test_pilio(fixture):
     image = fixture.topil()
     psd = PSDImage.frompil(image, compression=Compression.RAW)
-    assert psd._psd.header == fixture._psd.header
-    assert psd._psd.image_data == fixture._psd.image_data
+    assert psd._record.header == fixture._record.header
+    assert psd._record.image_data == fixture._record.image_data
 
 
 def test_properties(fixture):
@@ -69,6 +69,11 @@ def test_properties(fixture):
     assert fixture.image_resources
     assert fixture.tagged_blocks
     assert fixture.color_mode == 'RGB'
+    assert fixture.version == 1
+
+
+def test_version():
+    PSDImage.open(full_name('gray0.psb')).version == 2
 
 
 def test_is_visible(fixture):
