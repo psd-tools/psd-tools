@@ -69,6 +69,7 @@ Supported:
 Limited support:
 
 * Composition of basic pixel-based layers by normal blending;
+* Composition of fill layer effects;
 * Editing of some layer attributes such as layer name.
 
 Not supported:
