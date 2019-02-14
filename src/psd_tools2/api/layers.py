@@ -582,6 +582,19 @@ class TypeLayer(Layer):
         if layer.kind == 'type':
             print(layer.text)
             print(layer.engine_dict['StyleRun'])
+
+            # Extract font for each substring in the text.
+            text = layer.engine_dict['Editor']['Text'].value
+            fontset = layer.resource_dict['FontSet']
+            runlength = layer.engine_dict['StyleRun']['RunLengthArray']
+            rundata = layer.engine_dict['StyleRun']['RunArray']
+            index = 0
+            for length, style in zip(runlength, rundata):
+                substring = text[index:index + length]
+                stylesheet = style['StyleSheet']['StyleSheetData']
+                font = fontset[stylesheet['Font']]
+                print('%r gets %s' % (substring, font))
+                index += length
     """
     def __init__(self, *args):
         super(TypeLayer, self).__init__(*args)
