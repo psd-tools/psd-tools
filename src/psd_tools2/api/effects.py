@@ -363,7 +363,7 @@ class BevelEmboss(_Effect, _AngleMixin):
         """Shadow blending mode."""
         value = self.value.get(b'sdwM').enum
         value = value.decode() if isinstance(value, bytes) else value.name
-        return value.replace('blend_', '').replace('_', '-')
+        return value.lower().replace('blend_', '').replace('_', '-')
 
     @property
     def shadow_color(self):
