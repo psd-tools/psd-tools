@@ -344,8 +344,9 @@ class BevelEmboss(_Effect, _AngleMixin):
     @property
     def highlight_mode(self):
         """Highlight blending mode."""
-        value = self.value.get(b'hglM').enum.name.lower()
-        return value.replace('blend_', '').replace('_', '-')
+        value = self.value.get(b'hglM').enum
+        value = value.decode() if isinstance(value, bytes) else value.name
+        return value.lower().replace('blend_', '').replace('_', '-')
 
     @property
     def highlight_color(self):
@@ -360,7 +361,8 @@ class BevelEmboss(_Effect, _AngleMixin):
     @property
     def shadow_mode(self):
         """Shadow blending mode."""
-        value = self.value.get(b'sdwM').enum.name.lower()
+        value = self.value.get(b'sdwM').enum
+        value = value.decode() if isinstance(value, bytes) else value.name
         return value.replace('blend_', '').replace('_', '-')
 
     @property
