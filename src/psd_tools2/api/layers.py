@@ -550,6 +550,11 @@ class SmartObjectLayer(Layer):
     """
     @property
     def smart_object(self):
+        """
+        Associated smart object.
+
+        :return: :py:class:`~psd_tools2.api.smart_object.SmartObject`.
+        """
         if not hasattr(self, '_smart_object'):
             self._smart_object = SmartObject(self)
         return self._smart_object

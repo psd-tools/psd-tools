@@ -106,8 +106,10 @@ class Mask(object):
         """
         Get PIL Image of the mask.
 
-        :return: PIL Image object.
+        :return: PIL Image object, or None if the mask is empty.
         """
+        if self.width == 0 or self.height == 0:
+            return None
         return convert_mask_to_pil(self)
 
     def __repr__(self):
