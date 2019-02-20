@@ -3,21 +3,7 @@ Migrating from version 1.7 to 1.8
 
 There are major API changes in version 1.8.x.
 
-Package name
-------------
-
-Starting version 1.8.0, the package name is changed from `psd_tools` to
-`psd_tools`.
-
-version 1.7.x::
-
-    import psd_tools
-    from psd_tools import PSDImage
-
-version 1.8.x::
-
-    import psd_tools
-    from psd_tools import PSDImage
+.. note:: In version 1.8.0 - 1.8.7, the package name was `psd_tools2`.
 
 PSDImage
 --------
