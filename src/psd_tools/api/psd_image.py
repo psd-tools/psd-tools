@@ -9,7 +9,8 @@ from psd_tools.constants import (
 )
 from psd_tools.psd import PSD, FileHeader, ImageData, ImageResources
 from psd_tools.api.layers import (
-    Group, PixelLayer, ShapeLayer, SmartObjectLayer, TypeLayer, GroupMixin
+    Artboard, Group, PixelLayer, ShapeLayer, SmartObjectLayer, TypeLayer,
+    GroupMixin
 )
 from psd_tools.api import adjustments
 from psd_tools.api import pil_io
@@ -440,8 +441,14 @@ class PSDImage(GroupMixin):
                                       SectionDivider.CLOSED_FOLDER):
                     layer = group_stack.pop()
                     assert layer is not self
+
                     layer._record = record
                     layer._channels = channels
+                    for key in (
+                        'ARTBOARD_DATA1', 'ARTBOARD_DATA2', 'ARTBOARD_DATA3'
+                    ):
+                        if key in blocks:
+                            layer = Artboard._move(layer)
                     end_of_group = True
             elif (
                 'TYPE_TOOL_OBJECT_SETTING' in blocks or
