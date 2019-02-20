@@ -224,7 +224,12 @@ class ImageResource(BaseElement):
         try:
             key = ImageResourceID(key)
         except ValueError:
-            logger.warning('Unknown image resource %d' % (key))
+            if ImageResourceID.is_path_info(key):
+                logger.debug('Undefined PATH_INFO found: %d' % (key))
+            elif ImageResourceID.is_plugin_resource(key):
+                logger.debug('Undefined PLUGIN_RESOURCE found: %d' % (key))
+            else:
+                logger.warning('Unknown image resource %d' % (key))
         name = read_pascal_string(fp, encoding, padding=2)
         raw_data = read_length_block(fp, padding=2)
         if key in TYPES:
