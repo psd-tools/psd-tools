@@ -19,19 +19,19 @@ def main():
     psd-tools command line utility.
 
     Usage:
-        psd-tools2 export <input_file> <output_file> [options]
-        psd-tools2 show <input_file> [options]
-        psd-tools2 debug <input_file> [options]
-        psd-tools2 -h | --help
-        psd-tools2 --version
+        psd-tools export <input_file> <output_file> [options]
+        psd-tools show <input_file> [options]
+        psd-tools debug <input_file> [options]
+        psd-tools -h | --help
+        psd-tools --version
 
     Options:
         -v --verbose                Be more verbose.
 
     Example:
-        psd-tools2 show example.psd  # Show the file content
-        psd-tools2 export example.psd example.png  # Export as PNG
-        psd-tools2 export example.psd[0] example-0.png  # Export layer as PNG
+        psd-tools show example.psd  # Show the file content
+        psd-tools export example.psd example.png  # Export as PNG
+        psd-tools export example.psd[0] example-0.png  # Export layer as PNG
     """
 
     args = docopt.docopt(main.__doc__, version=__version__)
