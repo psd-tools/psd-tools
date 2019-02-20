@@ -1,4 +1,3 @@
-from __future__ import absolute_import
-from .user_api import PSDImage, Layer, Group, BBox, Embedded
-from .version import __version__
-
+from __future__ import absolute_import, unicode_literals
+from .api.psd_image import PSDImage
+from .api.composer import compose

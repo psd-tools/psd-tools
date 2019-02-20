@@ -1,17 +1,20 @@
 language: python
-python: 3.5
-sudo: false
+
+matrix:
+    include:
+        - python: 2.7
+          env: TOXENV=py27
+        - python: 3.6
+          env: TOXENV=py36
+        - python: 3.7
+          env: TOXENV=py37
+          dist: xenial
+          sudo: true
+
 branches:
     only:
         - master
         - /^\d\.\d+$/
-
-env:
-    - TOXENV=py27
-    - TOXENV=py33
-    - TOXENV=py34
-    - TOXENV=py35
-    - TOXENV=pypy
 
 addons:
     apt:

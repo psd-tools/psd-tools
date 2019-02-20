@@ -2,9 +2,10 @@
 build
 *.pyc
 *.so
+*.c
 MANIFEST
 *.DS_Store
-psd_tools.egg-info
+psd_tools*.egg-info
 *~
 \#*
 \.\#*
@@ -13,3 +14,8 @@ dist
 .cache
 .coverage
 htmlcov/
+.python-version
+*.ipynb
+.ipynb_checkpoint/
+.pytest_cache
+tmp/

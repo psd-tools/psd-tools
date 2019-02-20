@@ -1,3 +1,282 @@
+1.8.8 (2019-02-20)
+------------------
+
+- revert package name to `psd_tools`;
+- prepare merging to the main repo.
+
+1.8.7 (2019-02-15)
+------------------
+
+- minor bugfix.
+
+1.8.6 (2019-02-14)
+------------------
+
+- change _psd pointer in PSDImage;
+- add version property;
+- support fill effects in composer.
+
+1.8.5 (2019-02-05)
+------------------
+
+- change tagged block/image resource singleton accessor in user API;
+- add documentation on iterator order;
+- fix export setting 1 big key config;
+- fix computer info big key config.
+
+1.8.3 (2019-02-01)
+------------------
+
+- add channel size checking in topil;
+- add mlst metadata decoding;
+- fix key collision issue in descriptor;
+- performance improvement for packbit encoding/decoding;
+- drop cython dependency in travis config;
+- implement thumbnail, is_group, and parent methods in PSDImage.
+
+1.8.0 (2019-01-24)
+------------------
+
+- major API changes;
+- package name changed to `psd_tools2`;
+- completely rewritten decoding subpackage `psd_tools2.psd`;
+- improved composer functionality;
+- file write support;
+- drop cython compression module and makes the package pure-python;
+- drop pymaging support.
+
+1.7.30 (2019-01-15)
+-------------------
+
+- composer alpha blending fix;
+- documentation fix.
+
+1.7.28 (2019-01-09)
+-------------------
+
+- support cinf tagged block.
+
+1.7.27 (2018-12-06)
+-------------------
+
+- add missing extra image resource block signatures.
+
+1.7.26 (2018-12-03)
+-------------------
+
+- move psd_tools tests under tests/psd_tools.
+
+1.7.25 (2018-11-27)
+-------------------
+
+- fix alpha channel visibility of composed image.
+
+1.7.24 (2018-11-21)
+-------------------
+
+- fix unit rectangle drawing size.
+
+
+1.7.23 (2018-11-20)
+-------------------
+
+- fix ignored visibility in bbox calculation.
+
+1.7.22 (2018-10-12)
+-------------------
+
+- drop py34 support;
+- fix tobytes deprecation warning.
+
+1.7.21 (2018-10-10)
+-------------------
+
+- fix gradient descriptor bug.
+
+1.7.20 (2018-10-09)
+-------------------
+
+- fix coloroverlay bug;
+- fix gradient angle bug;
+- fix curves decoder bug.
+
+1.7.19 (2018-10-02)
+-------------------
+
+- fix descriptor decoder.
+
+1.7.18 (2018-09-26)
+-------------------
+
+- add shape rendering in `compose()`;
+- add grayscale support.
+
+1.7.17 (2018-09-21)
+-------------------
+
+- fix `has_pixel()` condition.
+
+1.7.16 (2018-08-29)
+-------------------
+
+- fix fill opacity in `compose()`;
+- workaround for broken `PrintFlags`.
+
+1.7.15 (2018-08-28)
+-------------------
+
+- fix color overlay issue in `compose()`.
+
+1.7.14 (2018-08-24)
+-------------------
+
+- fix `verbose` arg for python 3.7 compatibility.
+
+1.7.13 (2018-08-10)
+-------------------
+
+- fix `has_pixel()` for partial channels;
+- support color overlay in `compose()`.
+
+1.7.12 (2018-06-25)
+-------------------
+
+- fix mask rendering in compose (Thanks @andrey-hider and @nkato).
+
+1.7.11 (2018-06-11)
+-------------------
+
+- unicode bugfixes.
+
+1.7.10 (2018-06-06)
+-------------------
+
+- fix descriptor decoding errors;
+- minor bugfixes.
+
+1.7.9 (2018-06-05)
+------------------
+
+- fix UnicodeError in exif;
+- workaround for irregular descriptor name;
+- add undocumented `extn` tagged block decoding;
+- move duplicated icc module to subpackage;
+- support PIL rendering with extra alpha channels.
+
+1.7.8 (2018-05-29)
+------------------
+
+- update documentation;
+- fix PEP8 compliance;
+- rename merge_layers to compose.
+
+1.7.7 (2018-05-02)
+------------------
+
+- fix white background issue in `as_PIL()`.
+
+1.7.6 (2018-04-27)
+------------------
+
+- add quality testing;
+- fix disabled mask.
+
+1.7.5 (2018-04-25)
+------------------
+
+- fix `has_mask()` condition;
+- add mask composition in `merge_layers()`;
+- fix mask display.
+
+1.7.4 (2018-03-06)
+------------------
+
+- fix infinity loop in `print_tree()`.
+
+1.7.3 (2018-02-27)
+------------------
+
+- add vector origination API;
+- fix shape and vector mask identification;
+- change enum name conversion;
+- update docs.
+
+1.7.2 (2018-02-14)
+------------------
+
+- add adjustments API;
+- add mask API;
+- bugfix for tagged_blocks decoders.
+
+1.7.1 (2018-02-08)
+------------------
+
+- add mask user API;
+- add layer coordinate user API;
+- add vector mask and vector stroke API;
+- cleanup user API;
+- add automatic descriptor conversion.
+
+
+1.7.0 (2018-01-25)
+------------------
+
+- cleanup user API organization;
+- remove json encoder api;
+- make cli a package main.
+
+1.6.7 (2018-01-17)
+------------------
+
+- workaround for anaconda 2.7 pillow;
+- bbox existence checkf.
+
+1.6.6 (2018-01-10)
+------------------
+
+- experimental clipping support in `merge_layer()`;
+- revert `as_PIL()` in `AdjustmentLayer`.
+
+1.6.5 (2017-12-22)
+------------------
+
+- Small fix for erroneous unicode path name
+
+1.6.4 (2017-12-20)
+------------------
+
+- Add `all_layers()` method;
+- Add `_image_resource_blocks` property;
+- Add `thumbnail()` method.
+
+1.6.3 (2017-09-27)
+------------------
+
+- documentation updates;
+- github repository renamed to psd-tools2;
+- AdjustmentLayer fix.
+
+1.6.2 (2017-09-13)
+------------------
+
+- layer class structure reorganization;
+- add Effects API;
+- add TypeLayer API methods.
+
+1.6 (2017-09-08)
+----------------
+
+- PSDImage user API update;
+- user API adds distinct layer types;
+- Sphinx documentation.
+
+1.5 (2017-07-13)
+----------------
+
+- implemented many decodings of image resources and tagged blocks;
+- implemented EngineData text information;
+- user API for getting mask and patterns;
+- user API to calculate bbox for shape layers;
 
 1.4 (2017-01-02)
 ----------------
