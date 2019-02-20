@@ -1,9 +1,8 @@
-psd-tools2
+psd-tools
 ==========
 
-``psd-tools2`` is a Python package for working with Adobe Photoshop PSD files
-as described in specification_. ``psd-tools2`` is a fork of psd-tools_ that
-implements various functionalities.
+`psd-tools` is a Python package for working with Adobe Photoshop PSD files
+as described in specification_.
 
 .. _specification: https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/
 .. _psd-tools: https://github.com/psd-tools/psd-tools
@@ -11,9 +10,9 @@ implements various functionalities.
 Installation
 ------------
 
-Use ``pip`` to install the package::
+Use `pip` to install the package::
 
-    pip install psd-tools2
+    pip install psd-tools
 
 .. note::
 
@@ -31,7 +30,7 @@ Getting started
 
 .. code-block:: python
 
-    from psd_tools2 import PSDImage
+    from psd_tools import PSDImage
 
     psd = PSDImage.open('example.psd')
     psd.compose().save('example.png')
@@ -78,24 +77,24 @@ Not supported:
     :caption: Package reference
     :maxdepth: 1
 
-    reference/psd_tools2
-    reference/psd_tools2.api.adjustments
-    reference/psd_tools2.api.effects
-    reference/psd_tools2.api.layers
-    reference/psd_tools2.api.mask
-    reference/psd_tools2.api.shape
-    reference/psd_tools2.api.smart_object
-    reference/psd_tools2.constants
-    reference/psd_tools2.psd
-    reference/psd_tools2.psd.color_mode_data
-    reference/psd_tools2.psd.descriptor
-    reference/psd_tools2.psd.engine_data
-    reference/psd_tools2.psd.header
-    reference/psd_tools2.psd.image_data
-    reference/psd_tools2.psd.image_resources
-    reference/psd_tools2.psd.layer_and_mask
-    reference/psd_tools2.psd.tagged_blocks
-    reference/psd_tools2.psd.vector
+    reference/psd_tools
+    reference/psd_tools.api.adjustments
+    reference/psd_tools.api.effects
+    reference/psd_tools.api.layers
+    reference/psd_tools.api.mask
+    reference/psd_tools.api.shape
+    reference/psd_tools.api.smart_object
+    reference/psd_tools.constants
+    reference/psd_tools.psd
+    reference/psd_tools.psd.color_mode_data
+    reference/psd_tools.psd.descriptor
+    reference/psd_tools.psd.engine_data
+    reference/psd_tools.psd.header
+    reference/psd_tools.psd.image_data
+    reference/psd_tools.psd.image_resources
+    reference/psd_tools.psd.layer_and_mask
+    reference/psd_tools.psd.tagged_blocks
+    reference/psd_tools.psd.vector
 
 Indices and tables
 ------------------

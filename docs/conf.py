@@ -24,7 +24,7 @@ import sphinx_rtd_theme
 sys.path.insert(0, os.path.join(
     os.path.dirname(os.path.dirname(__file__)), 'src'))
 
-from psd_tools2.version import __version__
+from psd_tools.version import __version__
 
 # -- General configuration ------------------------------------------------
 
@@ -52,8 +52,8 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = 'psd-tools2'
-copyright = '2017, Kota Yamaguchi'
+project = 'psd-tools'
+copyright = '2019, Kota Yamaguchi'
 author = 'Kota Yamaguchi'
 
 # The version info for the project you're documenting, acts as replacement for

@@ -1,3 +1,9 @@
+1.8.8 (2019-02-20)
+------------------
+
+- revert package name to `psd_tools`;
+- prepare merging to the main repo.
+
 1.8.7 (2019-02-15)
 ------------------
 

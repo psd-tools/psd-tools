@@ -11,17 +11,17 @@ def get_version():
     Get package version.
     """
     curdir = os.path.dirname(__file__)
-    filename = os.path.join(curdir, 'src', 'psd_tools2', 'version.py')
+    filename = os.path.join(curdir, 'src', 'psd_tools', 'version.py')
     with open(filename, 'rb') as fp:
         return fp.read().decode('utf8').split('=')[1].strip(" \n'")
 
 
 setup(
-    name='psd-tools2',
+    name='psd-tools',
     version=get_version(),
     author='Kota Yamaguchi',
     author_email='KotaYamaguchi1984@gmail.com',
-    url='https://github.com/kyamagu/psd-tools2',
+    url='https://github.com/psd-tools/psd-tools',
     description='Fork of psd-tools for working with Photoshop PSD files',
     long_description=(
         open('README.rst').read() + "\n\n" + open('CHANGES.rst').read()
@@ -38,7 +38,7 @@ setup(
     package_dir={'': 'src'},
     packages=find_packages('src'),
     entry_points={
-        'console_scripts': ['psd-tools2=psd_tools2.__main__:main']
+        'console_scripts': ['psd-tools=psd_tools.__main__:main']
     },
     classifiers=[
         'Development Status :: 4 - Beta',
