@@ -1,24 +1,23 @@
-psd-tools2
-==========
+psd-tools
+=========
 
-``psd-tools2`` is a Python package for working with Adobe Photoshop PSD files
-as described in specification_. ``psd-tools2`` is a fork of psd-tools_ that
-implements various functionalities.
+`psd-tools` is a Python package for working with Adobe Photoshop PSD files
+as described in specification_.
 
 .. _specification: https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/
 .. _psd-tools: https://github.com/psd-tools/psd-tools
 
-.. image:: https://img.shields.io/pypi/v/psd-tools2.svg
-   :target: https://pypi.python.org/pypi/psd-tools2
+.. image:: https://img.shields.io/pypi/v/psd-tools.svg
+   :target: https://pypi.python.org/pypi/psd-tools
    :alt: PyPI Version
 
-.. image:: https://img.shields.io/travis/kyamagu/psd-tools2/master.svg
+.. image:: https://img.shields.io/travis/psd-tools/psd-tools/master.svg
    :alt: Build Status
-   :target: https://travis-ci.org/kyamagu/psd-tools2
+   :target: https://travis-ci.org/psd-tools/psd-tools
 
-.. image:: https://readthedocs.org/projects/psd-tools2/badge/
+.. image:: https://readthedocs.org/projects/psd-tools/badge/
    :alt: Document Status
-   :target: http://psd-tools2.readthedocs.io/en/latest/
+   :target: http://psd-tools.readthedocs.io/en/latest/
 
 .. _psd-tools: https://github.com/psd-tools/psd-tools
 
@@ -27,7 +26,7 @@ Installation
 
 Use ``pip`` to install the package::
 
-    pip install psd-tools2
+    pip install psd-tools
 
 .. note::
 
@@ -45,7 +44,7 @@ Getting started
 
 .. code-block:: python
 
-    from psd_tools2 import PSDImage
+    from psd_tools import PSDImage
 
     psd = PSDImage.open('example.psd')
     psd.compose().save('example.png')
@@ -53,36 +52,13 @@ Getting started
     for layer in psd:
         print(layer)
 
-Check out the documentation_ for details.
+Check out the documentation_ for features and details.
 
-.. _documentation: https://psd-tools2.readthedocs.io/
-
-Features
---------
-
-Supported:
-
-* Read and write of the low-level PSD/PSB file structure;
-* Raw layer image export;
-* ICC profile handling for sRGB images.
-
-Limited support:
-
-* Composition of basic pixel-based layers by normal blending;
-* Composition of fill layer effects;
-* Editing of some layer attributes such as layer name.
-
-Not supported:
-
-* Editing of layer structure, such as adding or removing a layer.
-* Blending modes other than normal;
-* Composition of layer effects;
-* Drawing of bezier curves;
-* Font rendering.
+.. _documentation: https://psd-tools.readthedocs.io/
 
 Contributing
 ------------
 
 See contributing_ page.
 
-.. _contributing: https://github.com/kyamagu/psd-tools2/blob/master/docs/contributing.rst
+.. _contributing: https://github.com/psd-tools/psd-tools/blob/master/docs/contributing.rst
