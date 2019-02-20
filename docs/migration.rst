@@ -56,6 +56,10 @@ version 1.8.x::
 
     first_child = group[0]
 
+
+In version 1.8.x, the order of layers is reversed to reflect that the index
+should not change when a new layer is added on top.
+
 PIL export
 ----------
 
@@ -88,4 +92,4 @@ version 1.7.x::
 
 version 1.8.x::
 
-    psd._psd
+    psd._record
