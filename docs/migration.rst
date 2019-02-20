@@ -7,7 +7,7 @@ Package name
 ------------
 
 Starting version 1.8.0, the package name is changed from `psd_tools` to
-`psd_tools2`.
+`psd_tools`.
 
 version 1.7.x::
 
@@ -16,14 +16,14 @@ version 1.7.x::
 
 version 1.8.x::
 
-    import psd_tools2
-    from psd_tools2 import PSDImage
+    import psd_tools
+    from psd_tools import PSDImage
 
 PSDImage
 --------
 
 File open method is changed from `load` to
-:py:meth:`~psd_tools2.PSDImage.open`.
+:py:meth:`~psd_tools.PSDImage.open`.
 
 version 1.7.x::
 
@@ -63,7 +63,7 @@ should not change when a new layer is added on top.
 PIL export
 ----------
 
-Primary PIL export method is now :py:func:`~psd_tools2.compose`.
+Primary PIL export method is now :py:func:`~psd_tools.compose`.
 
 version 1.7.x::
 
@@ -84,7 +84,7 @@ Low-level data structure
 ------------------------
 
 Data structures are completely rewritten to support writing functionality.
-See :py:mod:`psd_tools2.psd` subpackage.
+See :py:mod:`psd_tools.psd` subpackage.
 
 version 1.7.x::
 
