@@ -1,3 +1,9 @@
+"""
+Low-level API that translates binary data to Python structure.
+
+All the data structure in this subpackage inherits from one of the object
+defined in :py:mod:`psd_tools.psd.base` module.
+"""
 from __future__ import absolute_import, unicode_literals
 import attr
 import logging
@@ -57,11 +63,6 @@ class PSD(BaseElement):
 
     @classmethod
     def read(cls, fp, encoding='macroman', **kwargs):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        :rtype: PSD
-        """
         header = FileHeader.read(fp)
         logger.debug('read %s' % header)
         return cls(
@@ -73,8 +74,6 @@ class PSD(BaseElement):
         )
 
     def write(self, fp, encoding='macroman', **kwargs):
-        """Write the element to a file-like object.
-        """
         logger.debug('writing %s' % self.header)
         written = self.header.write(fp)
         written += self.color_mode_data.write(fp)

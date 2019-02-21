@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-EngineData parser.
+EngineData structure.
 
 PSD file embeds text formatting data in its own markup language referred
 EngineData. The format looks like the following::
@@ -28,7 +28,6 @@ EngineData. The format looks like the following::
         ]
       >>
     >>
-
 """
 from __future__ import absolute_import, unicode_literals
 import attr

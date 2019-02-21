@@ -1,6 +1,16 @@
 """
 Image resources section structure. Image resources are used to store non-pixel
-data associated with images, such as pen tool paths.
+data associated with images, such as pen tool paths or slices.
+
+See :py:class:`~psd_tools.constants.ImageResourceID` to check available
+resource names.
+
+Example::
+
+    from psd_tools.constants import ImageResourceID
+
+    version_info = psd.image_resources.get_data(ImageResourceID.VERSION_INFO)
+
 
 The following resources are plain bytes::
 
@@ -133,11 +143,6 @@ class ImageResources(DictElement):
 
     @classmethod
     def read(cls, fp, encoding='macroman'):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        :rtype: :py:class:`.ImageResources`
-        """
         data = read_length_block(fp)
         logger.debug('reading image resources, len=%d' % (len(data)))
         with io.BytesIO(data) as f:
@@ -152,10 +157,6 @@ class ImageResources(DictElement):
         return cls(items)
 
     def write(self, fp, encoding='macroman'):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         def writer(f):
             written = sum(self[key].write(f, encoding) for key in self)
             logger.debug('writing image resources, len=%d' % (written))
@@ -215,11 +216,6 @@ class ImageResource(BaseElement):
 
     @classmethod
     def read(cls, fp, encoding='macroman'):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        :rtype: :py:class:`.ImageResource`
-        """
         signature, key = read_fmt('4sH', fp)
         try:
             key = ImageResourceID(key)
@@ -247,11 +243,6 @@ class ImageResource(BaseElement):
         return cls(signature, key, name, data)
 
     def write(self, fp, encoding='macroman'):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        :rtype: int
-        """
         written = write_fmt(fp, '4sH', self.signature,
                             getattr(self.key, 'value', self.key))
         written += write_pascal_string(fp, self.name, encoding, 2)

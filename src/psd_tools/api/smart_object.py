@@ -11,7 +11,12 @@ logger = logging.getLogger(__name__)
 
 
 class SmartObject(object):
-    """Smart object that represents embedded or external file."""
+    """
+    Smart object that represents embedded or external file.
+
+    Smart objects are attached to
+    :py:class:`~psd_tools.api.layers.SmartObjectLayer`.
+    """
     def __init__(self, layer):
         self._config = None
         for key in ('SMART_OBJECT_LAYER_DATA1', 'SMART_OBJECT_LAYER_DATA2'):
@@ -47,6 +52,11 @@ class SmartObject(object):
         Open the smart object as binary IO.
 
         :param external_dir: Path to the directory of the external file.
+
+        Example::
+
+            with layer.smart_object.open() as f:
+                data = f.read()
         """
         if self.kind == 'data':
             with io.BytesIO(self._data.data) as f:

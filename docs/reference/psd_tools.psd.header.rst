@@ -8,4 +8,3 @@ FileHeader
 
 .. autoclass:: psd_tools.psd.header.FileHeader
     :members:
-    :undoc-members:

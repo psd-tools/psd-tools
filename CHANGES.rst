@@ -1,3 +1,9 @@
+1.8.9 (2019-02-21)
+------------------
+
+- documentation updates;
+- introduce `Artboard` class.
+
 1.8.8 (2019-02-20)
 ------------------
 

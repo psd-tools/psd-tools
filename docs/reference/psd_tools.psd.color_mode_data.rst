@@ -8,4 +8,3 @@ ColorModeData
 
 .. autoclass:: psd_tools.psd.color_mode_data.ColorModeData
     :members:
-    :undoc-members:

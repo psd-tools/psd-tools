@@ -17,7 +17,8 @@ Use `pip` to install the package::
 .. note::
 
     In order to extract images from 32bit PSD files PIL/Pillow must be built
-    with LITTLECMS or LITTLECMS2 support.
+    with LITTLECMS or LITTLECMS2 support (``apt-get install liblcms2-2`` or
+    ``brew install little-cms2``)
 
 For complete layer image composition functionality, also install NumPy/SciPy.
 This will be only necessary when the PSD files are saved without maximized
@@ -66,7 +67,8 @@ Limited support:
 
 Not supported:
 
-* Editing of layer structure, such as adding or removing a layer.
+* Bitmap image export;
+* Editing of layer structure, such as adding or removing a layer;
 * Blending modes other than normal;
 * Composition of layer effects;
 * Drawing of bezier curves;
@@ -86,13 +88,18 @@ Not supported:
     reference/psd_tools.api.smart_object
     reference/psd_tools.constants
     reference/psd_tools.psd
+    reference/psd_tools.psd.base
     reference/psd_tools.psd.color_mode_data
     reference/psd_tools.psd.descriptor
     reference/psd_tools.psd.engine_data
+    reference/psd_tools.psd.effects_layer
+    reference/psd_tools.psd.filter_effects
     reference/psd_tools.psd.header
     reference/psd_tools.psd.image_data
     reference/psd_tools.psd.image_resources
     reference/psd_tools.psd.layer_and_mask
+    reference/psd_tools.psd.linked_layer
+    reference/psd_tools.psd.patterns
     reference/psd_tools.psd.tagged_blocks
     reference/psd_tools.psd.vector
 

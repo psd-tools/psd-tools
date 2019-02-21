@@ -95,7 +95,9 @@ TYPES.update({
 @attr.s(repr=False, slots=True)
 class TaggedBlocks(DictElement):
     """
-    Dict of tagged blocks.
+    Dict of tagged block items.
+
+    See :py:class:`~psd_tools.constants.TaggedBlockID` for available keys.
 
     Example::
 
@@ -106,10 +108,7 @@ class TaggedBlocks(DictElement):
             print(key)
 
         # Get a field
-        block = tagged_blocks.get(TaggedBlockID.TYPE_TOOL_OBJECT_SETTING)
-        type_setting = block.data
-
-        block = tagged_blocks[TaggedBlockID(b'TySh')]
+        value = tagged_blocks.get_data(TaggedBlockID.TYPE_TOOL_OBJECT_SETTING)
     """
     enum = TaggedBlockID
 
@@ -147,12 +146,6 @@ class TaggedBlocks(DictElement):
 
     @classmethod
     def read(cls, fp, version=1, padding=1):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        :param version: psd file version
-        :rtype: :py:class:`.TaggedBlocks`
-        """
         items = []
         while is_readable(fp, 8):  # len(signature) + len(key) = 8
             block = TaggedBlock.read(fp, version, padding)
@@ -191,7 +184,7 @@ class TaggedBlock(BaseElement):
 
     .. py:attribute:: key
 
-        4-character code. See :py:class:`~psd_tools.constants.TaggedBlock`
+        4-character code. See :py:class:`~psd_tools.constants.TaggedBlockID`
 
     .. py:attribute:: data
 
@@ -226,12 +219,6 @@ class TaggedBlock(BaseElement):
 
     @classmethod
     def read(cls, fp, version=1, padding=1):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        :param version: psd file version
-        :rtype: :py:class:`.TaggedBlock`
-        """
         signature = read_fmt('4s', fp)[0]
         if signature not in cls._SIGNATURES:
             logger.warning('Invalid signature (%r)' % (signature))
@@ -266,11 +253,6 @@ class TaggedBlock(BaseElement):
         return cls(signature, key, data)
 
     def write(self, fp, version=1, padding=1):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        :param version: psd file version
-        """
         key = self.key if isinstance(self.key, bytes) else self.key.value
         written = write_fmt(fp, '4s4s', self.signature, key)
 

@@ -27,21 +27,12 @@ class ColorModeData(ValueElement):
 
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        :rtype: ColorModeData
-        """
         value = read_length_block(fp)
         logger.debug('reading color mode data, len=%d' % (len(value)))
         # TODO: Parse color table.
         return cls(value)
 
     def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         def writer(f):
             return write_bytes(f, self.value)
 
@@ -49,6 +40,9 @@ class ColorModeData(ValueElement):
         return write_length_block(fp, writer)
 
     def interleave(self):
+        """
+        Returns interleaved color table in bytes.
+        """
         import array
         if bytes == str:
             return b''.join(

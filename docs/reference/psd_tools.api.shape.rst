@@ -28,20 +28,35 @@ defined: :py:class:`~psd_tools.api.shape.Invalidated`,
 :py:class:`~psd_tools.api.shape.Ellipse`,
 and :py:class:`~psd_tools.api.shape.RoundedRectangle`.
 
+Invalidated
+^^^^^^^^^^^
+
 .. autoclass:: psd_tools.api.shape.Invalidated
     :members:
+
+Line
+^^^^
 
 .. autoclass:: psd_tools.api.shape.Line
     :members:
     :inherited-members:
 
+Ellipse
+^^^^^^^
+
 .. autoclass:: psd_tools.api.shape.Ellipse
     :members:
     :inherited-members:
 
+Rectangle
+^^^^^^^^^
+
 .. autoclass:: psd_tools.api.shape.Rectangle
     :members:
     :inherited-members:
+
+RoundedRectangle
+^^^^^^^^^^^^^^^^
 
 .. autoclass:: psd_tools.api.shape.RoundedRectangle
     :members:

@@ -6,7 +6,7 @@ Example::
     if layer.kind == 'brightnesscontrast':
         print(layer.brightness)
 
-    if layer.kind == 'gradient-fill':
+    if layer.kind == 'gradientfill':
         print(layer.gradient_kind)
 """
 from __future__ import absolute_import

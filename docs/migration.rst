@@ -1,5 +1,5 @@
-Migrating from version 1.7 to 1.8
-=================================
+Migrating to 1.8
+================
 
 There are major API changes in version 1.8.x.
 
@@ -79,3 +79,8 @@ version 1.7.x::
 version 1.8.x::
 
     psd._record
+
+Drop pymaging support
+---------------------
+
+Pymaging support is dropped.

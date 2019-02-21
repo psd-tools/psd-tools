@@ -24,10 +24,10 @@ class Color(BaseElement):
 
     .. py:attribute:: values
 
-        List of int values.
+        List of `int` values.
     """
     id = attr.ib(default=ColorSpaceID.RGB)
-    values = attr.ib(factory=lambda: (0, 0, 0, 0))
+    values = attr.ib(factory=lambda: [0, 0, 0, 0])
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -40,7 +40,7 @@ class Color(BaseElement):
             values = read_fmt('4h', fp)
         else:
             values = read_fmt('4H', fp)
-        return cls(id, values)
+        return cls(id, list(values))
 
     def write(self, fp, **kwargs):
         id = getattr(self.id, 'value', self.id)

@@ -3,6 +3,13 @@ psd\_tools\.api\.layers
 
 .. automodule:: psd_tools.api.layers
 
+Artboard
+--------
+
+.. autoclass:: psd_tools.api.layers.Artboard
+    :members:
+    :inherited-members:
+
 Group
 -----
 

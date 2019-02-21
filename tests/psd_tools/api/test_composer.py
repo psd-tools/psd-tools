@@ -7,6 +7,7 @@ import imagehash
 import numpy as np
 
 from psd_tools.api.psd_image import PSDImage
+from psd_tools.api.composer import extract_bbox
 
 from ..utils import full_name
 
@@ -72,3 +73,13 @@ def test_compose_colormodes(colormode, depth):
     filename = 'colormodes/4x4_%gbit_%s.psd' % (depth, colormode)
     psd = PSDImage.open(full_name(filename))
     assert isinstance(psd.compose(), Image)
+
+
+def test_compose_artboard():
+    psd = PSDImage.open(full_name('artboard.psd'))
+    document_image = psd.compose()
+    assert document_image.size == psd.size
+    artboard = psd[0]
+    artboard_image = artboard.compose()
+    assert artboard_image.size == artboard.size
+    assert artboard.size != extract_bbox(artboard)

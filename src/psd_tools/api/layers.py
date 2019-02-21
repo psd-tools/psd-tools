@@ -50,12 +50,12 @@ class Layer(object):
     @property
     def kind(self):
         """
-        Kind of this layer, either of group, pixel, shape, type, smartobject,
-        or psdimage.
+        Kind of this layer, such as group, pixel, shape, type, smartobject,
+        or psdimage. Class name without `layer` suffix.
 
         :return: `str`
         """
-        return self.__class__.__name__.lower().replace("layer", "")
+        return self.__class__.__name__.lower().replace('layer', '')
 
     @property
     def layer_id(self):
@@ -238,7 +238,7 @@ class Layer(object):
     def has_pixels(self):
         """
         Returns True if the layer has associated pixels. When this is True,
-        ``topil`` method returns :py:class:`PIL.Image`.
+        `topil` method returns :py:class:`PIL.Image`.
 
         :return: `bool`
         """
@@ -311,6 +311,8 @@ class Layer(object):
         are Photoshop feature to handle primitive shapes such as a rectangle,
         an ellipse, or a line. Vector masks without live shape properties are
         plain path objects.
+
+        See :py:mod:`psd_tools.api.shape`.
 
         :return: List of :py:class:`~psd_tools.api.shape.Invalidated`,
             :py:class:`~psd_tools.api.shape.Rectangle`,
@@ -395,6 +397,19 @@ class Layer(object):
 
     @property
     def tagged_blocks(self):
+        """
+        Layer tagged blocks that is a dict-like container of settings.
+
+        See :py:class:`psd_tools.constants.TaggedBlockID` for available
+        keys.
+
+        :return: :py:class:`~psd_tools.psd.tagged_blocks.TaggedBlocks` or
+            `None`.
+
+        Example::
+
+            metadata = layer.tagged_blocks.get_data('METADATA_SETTING')
+        """
         return self._record.tagged_blocks
 
     def __repr__(self):
@@ -516,6 +531,74 @@ class Group(GroupMixin, Layer):
     def __init__(self, *args):
         super(Group, self).__init__(*args)
         self._layers = []
+
+
+class Artboard(Group):
+    """
+    Artboard is a special kind of group that has a pre-defined viewbox.
+
+    Example::
+
+        artboard = psd[1]
+        image = artboard.compose()
+    """
+
+    @classmethod
+    def _move(kls, group):
+        self = kls(group._psd, group._record, group._channels, group._parent)
+        self._layers = group._layers
+        for layer in self._layers:
+            layer._parent = self
+        for index in range(len(self.parent)):
+            if group == self.parent[index]:
+                self.parent._layers[index] = self
+        return self
+
+    @property
+    def left(self):
+        return self.bbox[0]
+
+    @property
+    def top(self):
+        return self.bbox[1]
+
+    @property
+    def right(self):
+        return self.bbox[2]
+
+    @property
+    def bottom(self):
+        return self.bbox[3]
+
+    @property
+    def bbox(self):
+        """(left, top, right, bottom) tuple."""
+        if not hasattr(self, '_bbox'):
+            data = None
+            for key in ('ARTBOARD_DATA1', 'ARTBOARD_DATA2', 'ARTBOARD_DATA3'):
+                if key in self.tagged_blocks:
+                    data = self.tagged_blocks.get_data(key)
+            assert data is not None
+            rect = data.get('artboardRect')
+            self._bbox = (
+                int(rect.get('Left')),
+                int(rect.get('Top ')),
+                int(rect.get('Rght')),
+                int(rect.get('Btom')),
+            )
+        return self._bbox
+
+    def compose(self, bbox=None, **kwargs):
+        """
+        Compose the artboard.
+
+        See :py:func:`~psd_tools.compose` for available extra arguments.
+
+        :param bbox: Viewport tuple (left, top, right, bottom).
+        :return: :py:class:`PIL.Image`, or `None` if there is no pixel.
+        """
+        from psd_tools.api.composer import compose
+        return compose(self, bbox=bbox or self.bbox, **kwargs)
 
 
 class PixelLayer(Layer):

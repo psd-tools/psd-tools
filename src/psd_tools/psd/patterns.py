@@ -48,11 +48,28 @@ class Pattern(BaseElement):
 
     .. py:attribute:: version
     .. py:attribute:: image_mode
+
+        See :py:class:`ColorMode`
+
     .. py:attribute:: point
+
+        Size in tuple.
+
     .. py:attribute:: name
+
+        `str` name of the pattern.
+
     .. py:attribute:: pattern_id
+
+        ID of this pattern.
+
     .. py:attribute:: color_table
+
+        Color table if the mode is INDEXED.
+
     .. py:attribute:: data
+
+        See :py:class:`VirtualMemoryArrayList`
     """
     version = attr.ib(default=1, type=int)
     image_mode = attr.ib(default=ColorMode, converter=ColorMode,
@@ -97,11 +114,16 @@ class Pattern(BaseElement):
 @attr.s(slots=True)
 class VirtualMemoryArrayList(BaseElement):
     """
-    VirtualMemoryArrayList structure.
+    VirtualMemoryArrayList structure. Container of channels.
 
     .. py:attribute:: version
     .. py:attribute:: rectangle
+
+        Tuple of `int`
+
     .. py:attribute:: channels
+
+        List of :py:class:`VirtualMemoryArray`
     """
     version = attr.ib(default=3, type=int)
     rectangle = attr.ib(default=None)
@@ -137,7 +159,7 @@ class VirtualMemoryArrayList(BaseElement):
 @attr.s(slots=True)
 class VirtualMemoryArray(BaseElement):
     """
-    VirtualMemoryArrayList structure.
+    VirtualMemoryArrayList structure, corresponding to each channel.
 
     .. py:attribute:: is_written
     .. py:attribute:: depth
@@ -189,6 +211,7 @@ class VirtualMemoryArray(BaseElement):
         return written
 
     def get_data(self, version=1):
+        """Get decompressed bytes."""
         if not self.is_written:
             return None
         width, height = self.rectangle[3], self.rectangle[2]
@@ -196,6 +219,7 @@ class VirtualMemoryArray(BaseElement):
                           self.depth, version)
 
     def set_data(self, size, data, depth, compression=0, version=1):
+        """Set bytes."""
         self.data = compress(data, compression, size[0], size[1], depth,
                              version)
         self.depth = int(depth)

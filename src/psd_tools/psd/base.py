@@ -1,3 +1,16 @@
+"""
+Base data structures intended for inheritance.
+
+All the data objects in this subpackage inherit from the base classes here.
+That means, all the data structures in the :py:mod:`psd_tools.psd` subpackage
+implements the methods of :py:class:`~psd_tools.psd.BaseElement` for
+serialization and decoding.
+
+Objects that inherit from the :py:class:`~psd_tools.psd.BaseElement` typically
+gets attrs_ decoration to have data fields.
+
+.. _attrs: https://www.attrs.org/en/stable/index.html
+"""
 from __future__ import absolute_import, unicode_literals, division
 import attr
 import io
@@ -16,43 +29,47 @@ logger = logging.getLogger(__name__)
 
 class BaseElement(object):
     """
-    Base element of various PSD file structs.
+    Base element of various PSD file structs. All the data objects in
+    :py:mod:`psd_tools.psd` subpackage inherit from this class.
+
+    .. py:classmethod:: read(cls, fp)
+
+        Read the element from a file-like object.
+
+    .. py:method:: write(self, fp)
+
+        Write the element to a file-like object.
+
+    .. py:classmethod:: frombytes(self, data, *args, **kwargs)
+
+        Read the element from bytes.
+
+    .. py:method:: tobytes(self, *args, **kwargs)
+
+        Write the element to bytes.
+
+    .. py:method:: validate(self)
+
+        Validate the attribute.
     """
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        """
         raise NotImplementedError()
 
     def write(self, fp):
-        """Write the element to a file-like object.
-        """
         raise NotImplementedError()
 
     @classmethod
     def frombytes(self, data, *args, **kwargs):
-        """Read the element from bytes.
-
-        :param data: bytes
-        """
         with io.BytesIO(data) as f:
             return self.read(f, *args, **kwargs)
 
     def tobytes(self, *args, **kwargs):
-        """Write the element to bytes.
-
-        :rtype: bytes
-        """
         with io.BytesIO() as f:
             self.write(f, *args, **kwargs)
             return f.getvalue()
 
     def validate(self):
-        """
-        Validate the attribute.
-        """
         return attr.validate(self)
 
     def _repr_pretty_(self, p, cycle):
@@ -121,9 +138,14 @@ class EmptyElement(BaseElement):
 @attr.s(repr=False, cmp=False)
 class ValueElement(BaseElement):
     """
-    Single value element that has a `value` attribute.
+    Single value wrapper that has a `value` attribute.
 
-    Use with `@attr.s(repr=False)` decorator.
+    Pretty printing shows the internal value by default. Inherit with
+    `@attr.s(repr=False)` decorator to keep this behavior.
+
+    .. py:attribute:: value
+
+        Internal value.
     """
     value = attr.ib(default=None)
 
@@ -371,6 +393,8 @@ class StringElement(ValueElement):
     Single unicode string.
 
     .. py:attribute:: value
+
+        `str` value
     """
     value = attr.ib(default='', type=str)
 
