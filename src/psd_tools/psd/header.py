@@ -72,16 +72,7 @@ class FileHeader(BaseElement):
 
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        :rtype: FileHeader
-        """
         return cls(*read_fmt(cls._FORMAT, fp))
 
     def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         return write_fmt(fp, self._FORMAT, *attr.astuple(self))

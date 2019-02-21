@@ -54,12 +54,20 @@ class Path(ListElement):
 @attr.s(repr=False, slots=True)
 class Subpath(ListElement):
     """
-    Subpath element.
+    Subpath element. This is a list of Knot objects.
 
-    Operation types:
+    .. note:: There are undocumented data associated with this structure.
+
+    .. py:attribute:: operation
+
+        `int` value indicating how multiple subpath should be combined:
 
         1: Or (union), 2: Not-Or, 3: And (intersect), 4: Xor (exclude),
         -1: Subtract?
+
+    .. py:attribute:: index
+
+        `int` index that specifies corresponding origination object.
     """
 
     # Undocumented data that seem to contain path operation info.
@@ -92,6 +100,14 @@ class Subpath(ListElement):
             written += item.write(fp)
         return written
 
+    def is_closed(self):
+        """
+        Returns whether if the path is closed or not.
+
+        :return: `bool`.
+        """
+        raise NotImplementedError
+
     # TODO: Make subpath repr better.
     # def __repr__(self):
 
@@ -99,11 +115,20 @@ class Subpath(ListElement):
 @attr.s(slots=True)
 class Knot(BaseElement):
     """
-    Knot element consisting of 3 control point for Bezier curves.
+    Knot element consisting of 3 control points for Bezier curves.
 
-    ..py:attribute: preceding
-    ..py:attribute: anchor
-    ..py:attribute: leaving
+    .. py:attribute:: preceding
+
+        (y, x) tuple of preceding control point in relative coordinates.
+
+    .. py:attribute:: anchor
+
+        (y, x) tuple of anchor point in relative coordinates.
+
+    .. py:attribute:: leaving
+
+        (y, x) tuple of leaving control point in relative coordinates.
+
     """
     preceding = attr.ib(default=(0., 0.), type=tuple)
     anchor = attr.ib(default=(0., 0.), type=tuple)
@@ -174,11 +199,25 @@ class ClipboardRecord(BaseElement):
     """
     Clipboard record.
 
-    ..py:attribute: top
-    ..py:attribute: left
-    ..py:attribute: bottom
-    ..py:attribute: right
-    ..py:attribute: resolution
+    .. py:attribute:: top
+
+        Top position in `int`
+
+    .. py:attribute:: left
+
+        Left position in `int`
+
+    .. py:attribute:: bottom
+
+        Bottom position in `int`
+
+    .. py:attribute:: right
+
+        Right position in `int`
+
+    .. py:attribute:: resolution
+
+        Resolution in `int`
     """
     top = attr.ib(default=0, type=int)
     left = attr.ib(default=0, type=int)
@@ -200,7 +239,10 @@ class InitialFillRule(ValueElement):
     """
     Initial fill rule record.
 
-    ..py:attribute: rule
+    .. py:attribute:: rule
+
+        A value of 1 means that the fill starts with all pixels. The value
+        will be either 0 or 1.
     """
     value = attr.ib(default=0, converter=int, type=int)
 
@@ -218,10 +260,9 @@ class VectorMaskSetting(BaseElement):
     VectorMaskSetting structure.
 
     .. py:attribute:: version
-    .. py:attribute:: invert
-    .. py:attribute:: not_link
-    .. py:attribute:: disable
     .. py:attribute:: path
+
+        List of :py:class:`~psd_tools.psd.vector.Subpath` objects.
     """
     version = attr.ib(default=3, type=int)
     flags = attr.ib(default=0, type=int)
@@ -241,14 +282,17 @@ class VectorMaskSetting(BaseElement):
 
     @property
     def invert(self):
+        """Flag to indicate that the vector mask is inverted."""
         return self.flags & 1
 
     @property
     def not_link(self):
+        """Flag to indicate that the vector mask is not linked."""
         return self.flags & 2
 
     @property
     def disable(self):
+        """Flag to indicate that the vector mask is disabled."""
         return self.flags & 4
 
 

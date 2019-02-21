@@ -1,5 +1,8 @@
 """
 Effects layer structure.
+
+Note the structures in this module is obsolete and object-based layer effects
+are stored in tagged blocks.
 """
 from __future__ import absolute_import, unicode_literals
 import attr
@@ -342,7 +345,8 @@ class SolidFillInfo(BaseElement):
 @attr.s(slots=True)
 class EffectsLayer(DictElement):
     """
-    Dict-like EffectsLayer structure.
+    Dict-like EffectsLayer structure. See
+    :py:class:`psd_tools.constants.EffectOSType` for available keys.
 
     .. py:attribute:: version
     """

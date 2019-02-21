@@ -24,6 +24,8 @@ class PSDImage(GroupMixin):
     """
     Photoshop PSD/PSB file object.
 
+    The low-level data structure is accessible at :py:attr:`PSDImage._record`.
+
     Example::
 
         from psd_tools import PSDImage
@@ -334,18 +336,35 @@ class PSDImage(GroupMixin):
     def image_resources(self):
         """
         Document image resources.
+        :py:class:`~psd_tools.psd.image_resources.ImageResources` is a
+        dict-like structure that keeps various document settings.
 
-        :return: :py:class:`~psd_tools.psd.image_resouces.ImageResouces`.
+        See :py:class:`psd_tools.constants.ImageResourceID` for available
+        keys.
+
+        :return: :py:class:`~psd_tools.psd.image_resources.ImageResources`
+
+        Example::
+
+            version_info = psd.image_resources.get_data('VERSION_INFO')
+            slices = psd.image_resources.get_data('SLICES')
         """
         return self._record.image_resources
 
     @property
     def tagged_blocks(self):
         """
-        Document tagged blocks.
+        Document tagged blocks that is a dict-like container of settings.
+
+        See :py:class:`psd_tools.constants.TaggedBlockID` for available
+        keys.
 
         :return: :py:class:`~psd_tools.psd.tagged_blocks.TaggedBlocks` or
-            None.
+            `None`.
+
+        Example::
+
+            patterns = psd.tagged_blocks.get_data('PATTERNS1')
         """
         return self._record.layer_and_mask_information.tagged_blocks
 

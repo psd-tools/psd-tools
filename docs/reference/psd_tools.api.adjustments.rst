@@ -19,13 +19,22 @@ Example::
     if isinstance(layer, psd_tools.layers.FillLayer):
         image = layer.compose()
 
+SolidColorFill
+^^^^^^^^^^^^^^
+
 .. autoclass:: psd_tools.api.adjustments.SolidColorFill
     :members:
     :inherited-members:
 
+PatternFill
+^^^^^^^^^^^
+
 .. autoclass:: psd_tools.api.adjustments.PatternFill
     :members:
     :inherited-members:
+
+GradientFill
+^^^^^^^^^^^^
 
 .. autoclass:: psd_tools.api.adjustments.GradientFill
     :members:
@@ -50,61 +59,106 @@ Example::
     if isinstance(layer, psd_tools.layers.AdjustmentLayer):
         print(layer.kind)
 
+BrightnessContrast
+^^^^^^^^^^^^^^^^^^
+
 .. autoclass:: psd_tools.api.adjustments.BrightnessContrast
     :members:
     :undoc-members:
+
+Curves
+^^^^^^
 
 .. autoclass:: psd_tools.api.adjustments.Curves
     :members:
     :undoc-members:
 
+Exposure
+^^^^^^^^
+
 .. autoclass:: psd_tools.api.adjustments.Exposure
     :members:
     :undoc-members:
+
+Levels
+^^^^^^
 
 .. autoclass:: psd_tools.api.adjustments.Levels
     :members:
     :undoc-members:
 
+Vibrance
+^^^^^^^^
+
 .. autoclass:: psd_tools.api.adjustments.Vibrance
     :members:
     :undoc-members:
+
+HueSaturation
+^^^^^^^^^^^^^
 
 .. autoclass:: psd_tools.api.adjustments.HueSaturation
     :members:
     :undoc-members:
 
+ColorBalance
+^^^^^^^^^^^^
+
 .. autoclass:: psd_tools.api.adjustments.ColorBalance
     :members:
     :undoc-members:
+
+BlackAndWhite
+^^^^^^^^^^^^^
 
 .. autoclass:: psd_tools.api.adjustments.BlackAndWhite
     :members:
     :undoc-members:
 
+PhotoFilter
+^^^^^^^^^^^
+
 .. autoclass:: psd_tools.api.adjustments.PhotoFilter
     :members:
     :undoc-members:
+
+ChannelMixer
+^^^^^^^^^^^^
 
 .. autoclass:: psd_tools.api.adjustments.ChannelMixer
     :members:
     :undoc-members:
 
+ColorLookup
+^^^^^^^^^^^
+
 .. autoclass:: psd_tools.api.adjustments.ColorLookup
     :members:
     :undoc-members:
+
+Posterize
+^^^^^^^^^
 
 .. autoclass:: psd_tools.api.adjustments.Posterize
     :members:
     :undoc-members:
 
+Threshold
+^^^^^^^^^
+
 .. autoclass:: psd_tools.api.adjustments.Threshold
     :members:
     :undoc-members:
 
+SelectiveColor
+^^^^^^^^^^^^^^
+
 .. autoclass:: psd_tools.api.adjustments.SelectiveColor
     :members:
     :undoc-members:
+
+GradientMap
+^^^^^^^^^^^
 
 .. autoclass:: psd_tools.api.adjustments.GradientMap
     :members:

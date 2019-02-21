@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 @attr.s(repr=False, slots=True)
 class FilterEffects(ListElement):
     """
-    List-like FilterEffects structure.
+    List-like FilterEffects structure. See :py:class:`FilterEffect`.
 
     .. py:attribute:: version
     """
@@ -53,7 +53,12 @@ class FilterEffect(BaseElement):
     .. py:attribute:: depth
     .. py:attribute:: max_channels
     .. py:attribute:: channels
+
+        List of :py:class:`FilterEffectChannel`.
+
     .. py:attribute:: extra
+
+        See :py:class:`FilterEffectExtra`.
     """
     uuid = attr.ib(default=None)
     version = attr.ib(default=None)

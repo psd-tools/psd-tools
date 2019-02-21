@@ -1,5 +1,9 @@
 """
 Image data section structure.
+
+:py:class:`ImageData` corresponds to the last section of the PSD/PSB file
+where a composited image is stored. When the file does not contain layers,
+this is the only place pixels are saved.
 """
 from __future__ import absolute_import, unicode_literals
 import attr
@@ -25,6 +29,8 @@ class ImageData(BaseElement):
         See :py:class:`~psd_tools.constants.Compression`.
 
     .. py:attribute:: data
+
+        `bytes` as compressed in the `compression` flag.
     """
     compression = attr.ib(default=Compression.RAW, converter=Compression,
                           validator=in_(Compression))
@@ -32,11 +38,6 @@ class ImageData(BaseElement):
 
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        :rtype: :py:class:`.ImageData`
-        """
         start_pos = fp.tell()
         compression = Compression(read_fmt('H', fp)[0])
         data = fp.read()  # TODO: Parse data here. Need header.
@@ -44,11 +45,6 @@ class ImageData(BaseElement):
         return cls(compression, data)
 
     def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        :rtype: int
-        """
         start_pos = fp.tell()
         written = write_fmt(fp, 'H', self.compression.value)
         written += write_bytes(fp, self.data)
@@ -56,11 +52,11 @@ class ImageData(BaseElement):
         return written
 
     def get_data(self, header):
-        """Get decompressed data.
+        """
+        Get decompressed data.
 
         :param header: See :py:class:`~psd_tools.psd.header.FileHeader`.
-        :return: list of bytes corresponding each channel.
-        :rtype: list
+        :return: `list` of bytes corresponding each channel.
         """
         data = decompress(self.data, self.compression, header.width,
                           header.height * header.channels, header.depth,
@@ -70,7 +66,8 @@ class ImageData(BaseElement):
             return [f.read(plane_size) for _ in range(header.channels)]
 
     def set_data(self, data, header):
-        """Set raw data and compress.
+        """
+        Set raw data and compress.
 
         :param data: list of raw data bytes corresponding channels.
         :param compression: compression type,
@@ -85,7 +82,8 @@ class ImageData(BaseElement):
 
     @classmethod
     def new(cls, header, color=0, compression=Compression.RAW):
-        """Create a new image data object.
+        """
+        Create a new image data object.
 
         :param header: FileHeader.
         :param compression: compression type.

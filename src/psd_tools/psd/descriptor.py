@@ -1,7 +1,19 @@
 """
 Descriptor data structure.
 
-Descriptors are basic data structure used throughout PSD files.
+Descriptors are basic data structure used throughout PSD files. Descriptor is
+one kind of serialization protocol for data objects, and
+:py:class:`~psd_tools.constants.DescriptorClassID` indicates what kind of
+descriptor it is.
+
+:py:class:`~psd_tools.constants.DescriptorClassID` can be pre-defined enum if
+the tag is 4-byte length or plain bytes if the length is arbitrary. It seems
+this depends on the internal of Adobe Photoshop but it is unknown.
+
+Pretty printing is the best approach to check the descriptor content::
+
+    from IPython.pretty import pprint
+    pprint(descriptor)
 """
 from __future__ import absolute_import, unicode_literals
 import attr
@@ -146,24 +158,21 @@ class Descriptor(_DescriptorMixin):
             print(descriptor[key])
 
     .. py:attribute:: name
+
+        `str`
+
     .. py:attribute:: classID
+
+        :py:class:`psd_tools.constants.DescriptorClassID` enum
     """
     name = attr.ib(default='', type=str)
     classID = attr.ib(default=DescriptorClassID.NULL)
 
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        """
         return cls(**cls._read_body(fp))
 
     def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         return self._write_body(fp)
 
 
@@ -175,8 +184,16 @@ class ObjectArray(_DescriptorMixin):
     :py:class:`~psd_tools.psd.descriptor.Descriptor`.
 
     .. py:attribute:: items_count
+
+        `int` value
+
     .. py:attribute:: name
+
+        `str` value
+
     .. py:attribute:: classID
+
+        :py:class:`DescriptorClassID`
     """
     items_count = attr.ib(default=0, type=int)
     name = attr.ib(default='', type=str)
@@ -184,18 +201,10 @@ class ObjectArray(_DescriptorMixin):
 
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        """
         items_count = read_fmt('I', fp)[0]
         return cls(items_count=items_count, **cls._read_body(fp))
 
     def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         written = write_fmt(fp, 'I', self.items_count)
         written += self._write_body(fp)
         return written
@@ -207,14 +216,13 @@ class List(ListElement):
     """
     List structure.
 
-    .. py:attribute:: items
+    Example::
+
+        for item in list_value:
+            print(item)
     """
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        """
         items = []
         count = read_fmt('I', fp)[0]
         for _ in range(count):
@@ -225,10 +233,6 @@ class List(ListElement):
         return cls(items)
 
     def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         written = write_fmt(fp, 'I', len(self))
         for item in self:
             written += write_bytes(fp, item.ostype.value)
@@ -243,6 +247,16 @@ class Property(BaseElement):
     Property structure.
 
     .. py:attribute:: name
+
+        `str` value
+
+    .. py:attribute:: classID
+
+        :py:class:`DescriptorClassID`
+
+    .. py:attribute:: keyID
+
+        :py:class:`DescriptorClassID`
     """
     name = attr.ib(default='', type=str)
     classID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
@@ -250,20 +264,12 @@ class Property(BaseElement):
 
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        """
         name = read_unicode_string(fp)
         classID = read_length_and_key(fp)
         keyID = read_length_and_key(fp)
         return cls(name, classID, keyID)
 
     def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         written = write_unicode_string(fp, self.name)
         written += write_length_and_key(fp, self.classID)
         written += write_length_and_key(fp, self.keyID)
@@ -277,7 +283,12 @@ class UnitFloat(NumericElement):
     Unit float structure.
 
     .. py:attribute:: unit
+
+        unit of the value in :py:class:`UnitFloatType`
+
     .. py:attribute:: value
+
+        `float` value
     """
     value = attr.ib(default=0.0, type=float)
     unit = attr.ib(default=UnitFloatType.NONE, converter=UnitFloatType,
@@ -285,18 +296,10 @@ class UnitFloat(NumericElement):
 
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        """
         unit, value = read_fmt('4sd', fp)
         return cls(unit=UnitFloatType(unit), value=value)
 
     def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         return write_fmt(fp, '4sd', self.unit.value, self.value)
 
     def _repr_pretty_(self, p, cycle):
@@ -314,7 +317,12 @@ class UnitFloats(BaseElement):
     Unit floats structure.
 
     .. py:attribute:: unit
+
+        unit of the value in :py:class:`UnitFloatType`
+
     .. py:attribute:: values
+
+        List of `float` values
     """
     unit = attr.ib(default=UnitFloatType.NONE, converter=UnitFloatType,
                    validator=in_(UnitFloatType))
@@ -322,19 +330,11 @@ class UnitFloats(BaseElement):
 
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        """
         unit, count = read_fmt('4sI', fp)
         values = list(read_fmt('%dd' % count, fp))
         return cls(unit, values)
 
     def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         return write_fmt(fp, '4sI%dd' % len(self.values), self.unit.value,
                          len(self.values), *self.values)
 
@@ -355,20 +355,14 @@ class Double(NumericElement):
     Double structure.
 
     .. py:attribute:: value
+
+        `float` value
     """
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        """
         return cls(*read_fmt('d', fp))
 
     def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         return write_fmt(fp, 'd', self.value)
 
 
@@ -378,26 +372,23 @@ class Class(BaseElement):
     Class structure.
 
     .. py:attribute:: name
+
+        `str` value
+
     .. py:attribute:: classID
+
+        :py:class:`DescriptorClassID`
     """
     name = attr.ib(default='', type=str)
     classID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
 
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        """
         name = read_unicode_string(fp)
         classID = read_length_and_key(fp)
         return cls(name, classID)
 
     def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         written = write_unicode_string(fp, self.name)
         written += write_length_and_key(fp, self.classID)
         return written
@@ -409,6 +400,8 @@ class String(StringElement):
     String structure.
 
     .. py:attribute:: value
+
+        `str` value
     """
     pass
 
@@ -419,7 +412,21 @@ class EnumeratedReference(BaseElement):
     """
     Enumerated reference structure.
 
-    .. py:attribute:: value
+    .. py:attribute:: name
+
+        `str` value
+
+    .. py:attribute:: classID
+
+        :py:class:`DescriptorClassID`
+
+    .. py:attribute:: typeID
+
+        :py:class:`DescriptorClassID`
+
+    .. py:attribute:: enum
+
+        :py:class:`DescriptorClassID`
     """
     name = attr.ib(default='', type=str)
     classID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
@@ -428,10 +435,6 @@ class EnumeratedReference(BaseElement):
 
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        """
         name = read_unicode_string(fp)
         classID = read_length_and_key(fp)
         typeID = read_length_and_key(fp)
@@ -439,10 +442,6 @@ class EnumeratedReference(BaseElement):
         return cls(name, classID, typeID, enum)
 
     def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         written = write_unicode_string(fp, self.name)
         written += write_length_and_key(fp, self.classID)
         written += write_length_and_key(fp, self.typeID)
@@ -456,7 +455,17 @@ class Offset(BaseElement):
     """
     Offset structure.
 
+    .. py:attribute:: name
+
+        `str` value
+
+    .. py:attribute:: classID
+
+        :py:class:`DescriptorClassID`
+
     .. py:attribute:: value
+
+        `int` value
     """
     name = attr.ib(default='', type=str)
     classID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
@@ -464,20 +473,12 @@ class Offset(BaseElement):
 
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        """
         name = read_unicode_string(fp)
         classID = read_length_and_key(fp)
         offset = read_fmt('I', fp)[0]
         return cls(name, classID, offset)
 
     def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         written = write_unicode_string(fp, self.name)
         written += write_length_and_key(fp, self.classID)
         written += write_fmt(fp, 'I', self.value)
@@ -490,20 +491,14 @@ class Bool(BooleanElement):
     Bool structure.
 
     .. py:attribute:: value
+
+        `bool` value
     """
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        """
         return cls(read_fmt('?', fp)[0])
 
     def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         return write_fmt(fp, '?', self.value)
 
 
@@ -513,20 +508,14 @@ class LargeInteger(IntegerElement):
     LargeInteger structure.
 
     .. py:attribute:: value
+
+        `int` value
     """
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        """
         return cls(read_fmt('q', fp)[0])
 
     def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         return write_fmt(fp, 'q', self.value)
 
 
@@ -536,20 +525,14 @@ class Integer(IntegerElement):
     Integer structure.
 
     .. py:attribute:: value
+
+        `int` value
     """
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        """
         return cls(read_fmt('i', fp)[0])
 
     def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         return write_fmt(fp, 'i', self.value)
 
 
@@ -559,26 +542,24 @@ class Enum(BaseElement):
     """
     Enum structure.
 
-    .. py:attribute:: value
+    .. py:attribute:: typeID
+
+        :py:class:`DescriptorClassID`
+
+    .. py:attribute:: enum
+
+        :py:class:`DescriptorClassID`
     """
     typeID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
     enum = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
 
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        """
         typeID = read_length_and_key(fp)
         enum = read_length_and_key(fp)
         return cls(typeID, enum)
 
     def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         written = write_length_and_key(fp, self.typeID)
         written += write_length_and_key(fp, self.enum)
         return written
@@ -601,23 +582,15 @@ class RawData(BaseElement):
 
     .. py:attribute:: value
 
-        `bytes`
+        `bytes` value
     """
     value = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
 
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        """
         return cls(read_length_block(fp))
 
     def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         def writer(f):
             if hasattr(self.value, 'write'):
                 return self.value.write(f)
@@ -666,8 +639,6 @@ class Alias(RawData):
     """
     Alias structure equivalent to
     :py:class:`~psd_tools.psd.descriptor.RawData`.
-
-    .. py:attribute:: value
     """
     pass
 
@@ -712,6 +683,12 @@ class Index(Integer):
 class Name(BaseElement):
     """
     Name structure (Undocumented).
+
+    .. py:attribute:: name
+
+    .. py:attribute:: classID
+
+    .. py:attribute:: value
     """
     name = attr.ib(default='', type=str)
     classID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
@@ -719,20 +696,12 @@ class Name(BaseElement):
 
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        """
         name = read_unicode_string(fp)
         classID = read_length_and_key(fp)
         value = read_unicode_string(fp)
         return cls(name, classID, value)
 
     def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         written = write_unicode_string(fp, self.name)
         written += write_length_and_key(fp, self.classID)
         written += write_unicode_string(fp, self.value)
@@ -742,7 +711,7 @@ class Name(BaseElement):
 @attr.s(repr=False)
 class DescriptorBlock(Descriptor):
     """
-    Dict-like Descriptor-based structure. See
+    Dict-like Descriptor-based structure that has `version` field. See
     :py:class:`~psd_tools.psd.descriptor.Descriptor`.
 
     .. py:attribute:: version
@@ -764,7 +733,8 @@ class DescriptorBlock(Descriptor):
 @attr.s(repr=False)
 class DescriptorBlock2(Descriptor):
     """
-    Dict-like Descriptor-based structure. See
+    Dict-like Descriptor-based structure that has `version` and
+    `data_version` fields. See
     :py:class:`~psd_tools.psd.descriptor.Descriptor`.
 
     .. py:attribute:: version

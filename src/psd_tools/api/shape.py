@@ -1,5 +1,10 @@
 """
 Shape module.
+
+In PSD/PSB, shapes are all represented as :py:class:`VectorMask` in each
+layer, and optionally there might be :py:class:`Origination` object to control
+live shape properties and :py:class:`Stroke` to specify how outline is
+stylized.
 """
 
 from __future__ import absolute_import

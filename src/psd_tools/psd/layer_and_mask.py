@@ -46,13 +46,6 @@ class LayerAndMaskInformation(BaseElement):
 
     @classmethod
     def read(cls, fp, encoding='macroman', version=1):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        :param encoding: encoding of the string
-        :param version: psd file version
-        :rtype: LayerAndMaskInformation
-        """
         start_pos = fp.tell()
         data = read_length_block(fp, fmt=('I', 'Q')[version - 1])
         logger.debug('reading layer and mask info, len=%d, offset=%d' % (
@@ -78,12 +71,6 @@ class LayerAndMaskInformation(BaseElement):
         return cls(layer_info, global_layer_mask_info, tagged_blocks)
 
     def write(self, fp, encoding='macroman', version=1, padding=4):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        :param encoding: encoding of the string
-        :param version: psd file version
-        """
         def writer(f):
             written = self._write_body(f, encoding, version, padding)
             logger.debug('writing layer and mask info, len=%d' % (written))
@@ -121,8 +108,7 @@ class LayerInfo(BaseElement):
 
     .. py:attribute:: channel_image_data
 
-        Channel image data. Contains one or more image data records.
-        See :py:class:`.ChannelImageData`.
+        Channel image data. See :py:class:`.ChannelImageData`.
     """
     layer_count = attr.ib(default=0, type=int)
     layer_records = attr.ib(default=None)
@@ -130,13 +116,6 @@ class LayerInfo(BaseElement):
 
     @classmethod
     def read(cls, fp, encoding='macroman', version=1):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        :param encoding: encoding of the string
-        :param version: psd file version
-        :rtype: :py:class:`.LayerInfo`
-        """
         data = read_length_block(fp, fmt=('I', 'Q')[version - 1])
         logger.debug('reading layer info, len=%d' % (len(data)))
         if len(data) == 0:
@@ -155,11 +134,6 @@ class LayerInfo(BaseElement):
         return cls(layer_count, layer_records, channel_image_data)
 
     def write(self, fp, encoding='macroman', version=1, padding=4):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        :rtype: int
-        """
         def writer(f):
             written = self._write_body(f, encoding, version, padding)
             logger.debug('writing layer info, len=%d' % (written))
@@ -230,20 +204,9 @@ class ChannelInfo(BaseElement):
 
     @classmethod
     def read(cls, fp, version=1):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        :param version: psd file version
-        :rtype: :py:class:`.ChannelInfo`
-        """
         return cls(*read_fmt(('hI', 'hQ')[version - 1], fp))
 
     def write(self, fp, version=1):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        :param version: psd file version
-        """
         return write_fmt(fp, ('hI', 'hQ')[version - 1], *attr.astuple(self))
 
 
@@ -269,11 +232,6 @@ class LayerFlags(BaseElement):
 
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        :rtype: :py:class:`.LayerFlags`
-        """
         flags = read_fmt('B', fp)[0]
         return cls(
             bool(flags & 1),
@@ -287,10 +245,6 @@ class LayerFlags(BaseElement):
         )
 
     def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         flags = (
             (self.transparency_protected * 1) |
             ((not self.visible) * 2) |
@@ -333,11 +287,6 @@ class LayerBlendingRanges(BaseElement):
 
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        :rtype: :py:class:`.LayerBlendingRanges`
-        """
         data = read_length_block(fp)
         if len(data) == 0:
             return cls(None, None)
@@ -358,10 +307,6 @@ class LayerBlendingRanges(BaseElement):
         return cls(composite_ranges, channel_ranges)
 
     def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         return write_length_block(fp, lambda f: self._write_body(f))
 
     def _write_body(self, fp):
@@ -382,11 +327,6 @@ class LayerRecords(ListElement):
     """
     @classmethod
     def read(cls, fp, layer_count, encoding='macroman', version=1):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        :rtype: :py:class:`.LayerRecords`
-        """
         items = []
         for idx in range(abs(layer_count)):
             items.append(LayerRecord.read(fp, encoding, version))
@@ -475,13 +415,6 @@ class LayerRecord(BaseElement):
 
     @classmethod
     def read(cls, fp, encoding='macroman', version=1):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        :param encoding: encoding of the string
-        :param version: psd file version
-        :rtype: :py:class:`.LayerRecord`
-        """
         start_pos = fp.tell()
         top, left, bottom, right, num_channels = read_fmt('4iH', fp)
         channel_info = [
@@ -514,12 +447,6 @@ class LayerRecord(BaseElement):
         return mask_data, blending_ranges, name, tagged_blocks
 
     def write(self, fp, encoding='macroman', version=1):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        :param encoding: encoding of the string
-        :param version: psd file version
-        """
         start_pos = fp.tell()
         written = write_fmt(fp, '4iH', self.top, self.left, self.bottom,
                             self.right, len(self.channel_info))
@@ -615,11 +542,6 @@ class MaskFlags(BaseElement):
 
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        :rtype: :py:class:`.MaskFlags`
-        """
         flags = read_fmt('B', fp)[0]
         return cls(
             bool(flags & 1), bool(flags & 2), bool(flags & 4),
@@ -628,10 +550,6 @@ class MaskFlags(BaseElement):
         )
 
     def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         flags = (
             (self.pos_relative_to_layer * 1) |
             (self.mask_disabled * 2) |
@@ -720,11 +638,6 @@ class MaskData(BaseElement):
 
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        :rtype: :py:class:`.MaskData` or None
-        """
         data = read_length_block(fp)
         if len(data) == 0:
             return None
@@ -760,10 +673,6 @@ class MaskData(BaseElement):
                    real_left, real_bottom, real_right)
 
     def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         return write_length_block(fp, lambda f: self._write_body(f))
 
     def _write_body(self, fp):
@@ -825,11 +734,6 @@ class MaskParameters(BaseElement):
 
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        :rtype: :py:class:`.MaskParameters`
-        """
         parameters = read_fmt('B', fp)[0]
         return cls(
             read_fmt('B', fp)[0] if bool(parameters & 1) else None,
@@ -839,10 +743,6 @@ class MaskParameters(BaseElement):
         )
 
     def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         written = 0
         written += write_fmt(fp, 'B', (
             (1 if self.user_mask_density is not None else 0) |
@@ -863,18 +763,17 @@ class MaskParameters(BaseElement):
 
 class ChannelImageData(ListElement):
     """
-    List of channel image data.
+    List of channel data list.
+
+    This size of this list corresponds to the size of
+    :py:class:`LayerRecords`. Each item corresponds to the channels of each
+    layer.
 
     See :py:class:`.ChannelDataList`.
     """
 
     @classmethod
     def read(cls, fp, layer_records=None):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        :rtype: :py:class:`.ChannelImageData`
-        """
         start_pos = fp.tell()
         items = []
         for idx, layer in enumerate(layer_records):
@@ -884,10 +783,6 @@ class ChannelImageData(ListElement):
         return cls(items)
 
     def write(self, fp, **kwargs):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         start_pos = fp.tell()
         written = sum(item.write(fp) for item in self)
         logger.debug('  wrote channel image data, len=%d' % (
@@ -903,18 +798,12 @@ class ChannelImageData(ListElement):
 
 class ChannelDataList(ListElement):
     """
-    List of channel image data.
+    List of channel image data, corresponding to each color or alpha.
 
     See :py:class:`.ChannelData`.
     """
     @classmethod
     def read(cls, fp, channel_info):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        :param channel_info: :py:class:`.ChannelInfo`
-        :rtype: :py:class:`.ChannelDataList`
-        """
         items = []
         for c in channel_info:
             data = fp.read(c.length)
@@ -949,20 +838,11 @@ class ChannelData(BaseElement):
 
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        :rtype: :py:class:`.ChannelData`
-        """
         compression = Compression(read_fmt('H', fp)[0])
         data = fp.read()
         return cls(compression, data)
 
     def write(self, fp, **kwargs):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         written = write_fmt(fp, 'H', self.compression.value)
         written += write_bytes(fp, self.data)
         # written += write_padding(fp, written, 2)  # Seems no padding here.
@@ -1031,11 +911,6 @@ class GlobalLayerMaskInfo(BaseElement):
 
     @classmethod
     def read(cls, fp):
-        """Read the element from a file-like object.
-
-        :param fp: file-like object
-        :rtype: :py:class:`.GlobalLayerMaskInfo`
-        """
         data = read_length_block(fp)
         logger.debug('reading global layer mask info, len=%d' % (len(data)))
         if len(data) == 0:
@@ -1051,10 +926,6 @@ class GlobalLayerMaskInfo(BaseElement):
         return cls(overlay_color, opacity, kind)
 
     def write(self, fp):
-        """Write the element to a file-like object.
-
-        :param fp: file-like object
-        """
         return write_length_block(fp, lambda f: self._write_body(f))
 
     def _write_body(self, fp):

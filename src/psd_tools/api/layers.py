@@ -50,12 +50,12 @@ class Layer(object):
     @property
     def kind(self):
         """
-        Kind of this layer, either of group, pixel, shape, type, smartobject,
-        or psdimage.
+        Kind of this layer, such as group, pixel, shape, type, smartobject,
+        or psdimage. Class name without `layer` suffix.
 
         :return: `str`
         """
-        return self.__class__.__name__.lower().replace("layer", "")
+        return self.__class__.__name__.lower().replace('layer', '')
 
     @property
     def layer_id(self):
@@ -238,7 +238,7 @@ class Layer(object):
     def has_pixels(self):
         """
         Returns True if the layer has associated pixels. When this is True,
-        ``topil`` method returns :py:class:`PIL.Image`.
+        `topil` method returns :py:class:`PIL.Image`.
 
         :return: `bool`
         """
@@ -311,6 +311,8 @@ class Layer(object):
         are Photoshop feature to handle primitive shapes such as a rectangle,
         an ellipse, or a line. Vector masks without live shape properties are
         plain path objects.
+
+        See :py:mod:`psd_tools.api.shape`.
 
         :return: List of :py:class:`~psd_tools.api.shape.Invalidated`,
             :py:class:`~psd_tools.api.shape.Rectangle`,
@@ -395,6 +397,19 @@ class Layer(object):
 
     @property
     def tagged_blocks(self):
+        """
+        Layer tagged blocks that is a dict-like container of settings.
+
+        See :py:class:`psd_tools.constants.TaggedBlockID` for available
+        keys.
+
+        :return: :py:class:`~psd_tools.psd.tagged_blocks.TaggedBlocks` or
+            `None`.
+
+        Example::
+
+            metadata = layer.tagged_blocks.get_data('METADATA_SETTING')
+        """
         return self._record.tagged_blocks
 
     def __repr__(self):
