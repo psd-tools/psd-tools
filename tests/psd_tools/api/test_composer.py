@@ -7,6 +7,7 @@ import imagehash
 import numpy as np
 
 from psd_tools.api.psd_image import PSDImage
+from psd_tools.api.composer import extract_bbox
 
 from ..utils import full_name
 
@@ -81,3 +82,4 @@ def test_compose_artboard():
     artboard = psd[0]
     artboard_image = artboard.compose()
     assert artboard_image.size == artboard.size
+    assert artboard.size != extract_bbox(artboard)
