@@ -27,6 +27,15 @@ def test_tagged_blocks():
     check_write_read(blocks, version=2, padding=4)
 
 
+def test_tagged_blocks_v2():
+    filepath = os.path.join(
+        TEST_ROOT, 'tagged_blocks', 'tagged_blocks_v2.dat'
+    )
+    with open(filepath, 'rb') as f:
+        fixture = f.read()
+    check_read_write(TaggedBlocks, fixture, version=2, padding=4)
+
+
 @pytest.mark.parametrize('key, data, version, padding', [
     (TaggedBlockID.LAYER_VERSION, IntegerElement(1), 1, 1),
     (TaggedBlockID.LAYER_VERSION, IntegerElement(1), 2, 1),
@@ -56,6 +65,7 @@ def test_channel_blending_restrictions_setting(fixture):
 
 @pytest.mark.parametrize('kls, filename', [
     (DescriptorBlock, 'cinf.dat'),
+    (DescriptorBlock, 'extn_1.dat'),
     (DescriptorBlock, 'PxSc_1.dat'),
     (PixelSourceData2, 'pixel_source_data2.dat'),
     (MetadataSettings, 'shmd_1.dat'),
