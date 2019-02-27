@@ -22,7 +22,7 @@ setup(
     author='Kota Yamaguchi',
     author_email='KotaYamaguchi1984@gmail.com',
     url='https://github.com/psd-tools/psd-tools',
-    description='Fork of psd-tools for working with Photoshop PSD files',
+    description='Python package for working with Adobe Photoshop PSD files',
     long_description=(
         open('README.rst').read() + "\n\n" + open('CHANGES.rst').read()
     ),
