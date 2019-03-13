@@ -8,6 +8,10 @@ Usage:
         photoshopsdk/PITerminology.h \
         photoshopsdk/PIStringTerminology.h \
         src/psd_tools/terminology.py
+
+.. note:: Adobe explicitly prohibits Photoshop SDK to be used for Open source
+    software. Therefore, psd-tools does not bundle the official header files.
+    https://www.adobe.com/devnet/photoshop/sdk/eula.html
 """
 import re
 import sys
