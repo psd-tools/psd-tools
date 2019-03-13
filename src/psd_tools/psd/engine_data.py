@@ -85,33 +85,36 @@ class Tokenizer(object):
 
     def __init__(self, data):
         self.data = data
+        self.index = 0
 
     def __iter__(self):
         return self
 
     def __len__(self):
-        return len(self.data)
+        return len(self.data) - self.index
 
     def next(self):
         return self.__next__()
 
     def __next__(self):
-        if len(self.data) == 0:
+        if len(self) == 0:
             raise StopIteration
 
-        if self.data.startswith(self.UTF16_START):
-            match = self.UTF16_END.search(self.data)
+        index = self.index
+        if self.data[index:].startswith(self.UTF16_START):
+            match = self.UTF16_END.search(self.data[index:])
             if match is None:
-                raise ValueError('Invalid token: %r' % (self.data))
-            token = self.data[:match.end()]
-            self.data = self.data[match.end() + 1:]
+                raise ValueError('Invalid token: %r' % (self.data[index:]))
+            token = self.data[index:index + match.end()]
+            self.index += match.end()
         else:
-            match = self.DIVIDER.search(self.data)
+            match = self.DIVIDER.search(self.data[index:])
             if match is None:
-                token, self.data = self.data, b''
+                token = self.data[index:]
+                self.index = len(self.data)
             else:
-                token = self.data[:match.start()]
-                self.data = self.data[match.end():]
+                token = self.data[index:index + match.start()]
+                self.index += match.end()
                 if token == b'':
                     return self.__next__()
 
