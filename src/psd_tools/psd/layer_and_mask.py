@@ -47,24 +47,28 @@ class LayerAndMaskInformation(BaseElement):
     @classmethod
     def read(cls, fp, encoding='macroman', version=1):
         start_pos = fp.tell()
-        data = read_length_block(fp, fmt=('I', 'Q')[version - 1])
+        length = read_fmt(('I', 'Q')[version - 1], fp)[0]
+        end_pos = fp.tell() + length
         logger.debug('reading layer and mask info, len=%d, offset=%d' % (
-            len(data), start_pos
+            length, start_pos
         ))
-        if len(data) == 0:
-            return cls()
-        with io.BytesIO(data) as f:
-            return cls._read_body(f, encoding, version)
+        if length == 0:
+            self = cls()
+        else:
+            self = cls._read_body(fp, end_pos, encoding, version)
+        assert fp.tell() <= end_pos
+        fp.seek(end_pos, 0)
+        return self
 
     @classmethod
-    def _read_body(cls, fp, encoding, version):
+    def _read_body(cls, fp, end_pos, encoding, version):
         layer_info = LayerInfo.read(fp, encoding, version)
         global_layer_mask_info = None
-        if is_readable(fp):
+        if is_readable(fp) and fp.tell() < end_pos:
             global_layer_mask_info = GlobalLayerMaskInfo.read(fp)
 
         tagged_blocks = None
-        if is_readable(fp):
+        if is_readable(fp) and fp.tell() < end_pos:
             # For some reason, global tagged blocks aligns 4 byte
             tagged_blocks = TaggedBlocks.read(fp, version=version, padding=4)
 
@@ -116,13 +120,16 @@ class LayerInfo(BaseElement):
 
     @classmethod
     def read(cls, fp, encoding='macroman', version=1):
-        data = read_length_block(fp, fmt=('I', 'Q')[version - 1])
-        logger.debug('reading layer info, len=%d' % (len(data)))
-        if len(data) == 0:
-            return LayerInfo()
-
-        with io.BytesIO(data) as f:
-            return cls._read_body(f, encoding, version)
+        length = read_fmt(('I', 'Q')[version - 1], fp)[0]
+        logger.debug('reading layer info, len=%d' % length)
+        end_pos = fp.tell() + length
+        if length == 0:
+            self = LayerInfo()
+        else:
+            self = cls._read_body(fp, encoding, version)
+        assert fp.tell() <= end_pos
+        fp.seek(end_pos, 0)
+        return self
 
     @classmethod
     def _read_body(cls, fp, encoding, version):
