@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.StreamHandler())
 
 
-def main():
+def main(argv=None):
     """
     psd-tools command line utility.
 
@@ -34,7 +34,7 @@ def main():
         psd-tools export example.psd[0] example-0.png  # Export layer as PNG
     """
 
-    args = docopt.docopt(main.__doc__, version=__version__)
+    args = docopt.docopt(main.__doc__, version=__version__, argv=argv)
 
     if args['--verbose']:
         logger.setLevel(logging.DEBUG)
@@ -63,7 +63,7 @@ def main():
 
     elif args['debug']:
         psd = PSDImage.open(args['<input_file>'])
-        pprint(psd._psd)
+        pprint(psd._record)
 
 if __name__ == "__main__":
     main()
