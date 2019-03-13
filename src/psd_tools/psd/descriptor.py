@@ -3,12 +3,15 @@ Descriptor data structure.
 
 Descriptors are basic data structure used throughout PSD files. Descriptor is
 one kind of serialization protocol for data objects, and
-:py:class:`~psd_tools.constants.Term` indicates what kind of
+:py:class:`~psd_tools.constants.Term` or
+:py:class:`~psd_tools.constants.StringTerm` indicates what kind of
 descriptor it is.
 
-:py:class:`~psd_tools.constants.Term` can be pre-defined enum if
-the tag is 4-byte length or plain bytes if the length is arbitrary. It seems
-this depends on the internal of Adobe Photoshop but it is unknown.
+The class ID can be pre-defined enum (:py:class:`~psd_tools.constants.Term`)
+if the tag is 4-byte length or plain bytes
+(:py:class:`~psd_tools.constants.StringTerm`) if the length is arbitrary.
+They depend on the internal version of Adobe Photoshop but the detail is
+unknown.
 
 Pretty printing is the best approach to check the descriptor content::
 
