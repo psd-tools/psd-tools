@@ -3,15 +3,12 @@ Descriptor data structure.
 
 Descriptors are basic data structure used throughout PSD files. Descriptor is
 one kind of serialization protocol for data objects, and
-:py:class:`~psd_tools.constants.Term` or
-:py:class:`~psd_tools.constants.StringTerm` indicates what kind of
-descriptor it is.
+enum classes in :py:mod:`psd_tools.terminology` or bytes indicates what kind
+of descriptor it is.
 
-The class ID can be pre-defined enum (:py:class:`~psd_tools.constants.Term`)
-if the tag is 4-byte length or plain bytes
-(:py:class:`~psd_tools.constants.StringTerm`) if the length is arbitrary.
-They depend on the internal version of Adobe Photoshop but the detail is
-unknown.
+The class ID can be pre-defined enum if the tag is 4-byte length or plain
+bytes if the length is arbitrary. They depend on the internal version of
+Adobe Photoshop but the detail is unknown.
 
 Pretty printing is the best approach to check the descriptor content::
 
@@ -28,7 +25,8 @@ from psd_tools.psd.base import (
     BaseElement, BooleanElement, DictElement, IntegerElement, ListElement,
     NumericElement, StringElement,
 )
-from psd_tools.constants import OSType, Term
+from psd_tools.constants import OSType
+from psd_tools.terminology import Klass, Enum, Event, Form, Key, Type, Unit
 from psd_tools.validators import in_
 from psd_tools.utils import (
     read_fmt, write_fmt, read_unicode_string, write_unicode_string,
@@ -44,19 +42,22 @@ TYPES, register = new_registry(attribute='ostype')
 _UNKNOWN_CLASS_ID = set()
 
 
-def read_length_and_key(fp):
+def read_length_and_key(fp, kls=None):
     """
     Helper to write descriptor classID and key.
     """
     length = read_fmt('I', fp)[0]
     key = fp.read(length or 4)
     if length == 0:
-        try:
-            return Term(key)
-        except ValueError:
-            if key == b'\x00\x00\x00\x00':
-                raise
-            logger.debug('Unknown classID: %r' % (key))
+        if kls is not None:
+            try:
+                return kls(key)
+            except ValueError:
+                if key == b'\x00\x00\x00\x00':
+                    raise
+                logger.debug('Unknown classID: %r' % (key))
+                _UNKNOWN_CLASS_ID.add(key)
+        else:
             _UNKNOWN_CLASS_ID.add(key)
 
     return key  # Fallback.
@@ -66,9 +67,10 @@ def write_length_and_key(fp, value):
     """
     Helper to write descriptor classID and key.
     """
-    if isinstance(value, Term):
-        length = (len(value.value) != 4) * len(value.value)
-        written = write_fmt(fp, 'I', length)
+    if isinstance(value, (Klass, Enum, Event, Form, Key, Type, Unit)):
+        # length = (len(value.value) != 4) * len(value.value)
+        assert len(value.value) == 4
+        written = write_fmt(fp, 'I', 0)
         written += write_bytes(fp, value.value)
     elif value in _UNKNOWN_CLASS_ID:
         written = write_fmt(fp, 'I', 0)
@@ -80,16 +82,15 @@ def write_length_and_key(fp, value):
 
 
 class _DescriptorMixin(DictElement):
-    enum = Term
 
     @classmethod
     def _read_body(cls, fp):
         name = read_unicode_string(fp, padding=1)
-        classID = read_length_and_key(fp)
+        classID = read_length_and_key(fp, Klass)
         items = []
         count = read_fmt('I', fp)[0]
         for _ in range(count):
-            key = read_length_and_key(fp)
+            key = read_length_and_key(fp, Key)
             ostype = OSType(fp.read(4))
             kls = TYPES.get(ostype)
             value = kls.read(fp)
@@ -167,7 +168,7 @@ class Descriptor(_DescriptorMixin):
         :py:class:`psd_tools.constants.Term` enum
     """
     name = attr.ib(default='', type=str)
-    classID = attr.ib(default=Term.classNull)
+    classID = attr.ib(default=Klass.Null)
 
     @classmethod
     def read(cls, fp):
@@ -198,7 +199,7 @@ class ObjectArray(_DescriptorMixin):
     """
     items_count = attr.ib(default=0, type=int)
     name = attr.ib(default='', type=str)
-    classID = attr.ib(default=Term.classNull)
+    classID = attr.ib(default=Klass.Null)
 
     @classmethod
     def read(cls, fp):
@@ -266,8 +267,8 @@ class Property(BaseElement):
     @classmethod
     def read(cls, fp):
         name = read_unicode_string(fp)
-        classID = read_length_and_key(fp)
-        keyID = read_length_and_key(fp)
+        classID = read_length_and_key(fp, Klass)
+        keyID = read_length_and_key(fp, Key)
         return cls(name, classID, keyID)
 
     def write(self, fp):
@@ -285,20 +286,19 @@ class UnitFloat(NumericElement):
 
     .. py:attribute:: unit
 
-        unit of the value in :py:class:`Term`
+        unit of the value in :py:class:`Unit`
 
     .. py:attribute:: value
 
         `float` value
     """
     value = attr.ib(default=0.0, type=float)
-    unit = attr.ib(default=Term.unitNone, converter=Term,
-                   validator=in_(Term))
+    unit = attr.ib(default=Unit._None, converter=Unit, validator=in_(Unit))
 
     @classmethod
     def read(cls, fp):
         unit, value = read_fmt('4sd', fp)
-        return cls(unit=Term(unit), value=value)
+        return cls(unit=Unit(unit), value=value)
 
     def write(self, fp):
         return write_fmt(fp, '4sd', self.unit.value, self.value)
@@ -319,14 +319,13 @@ class UnitFloats(BaseElement):
 
     .. py:attribute:: unit
 
-        unit of the value in :py:class:`Term`
+        unit of the value in :py:class:`Unit`
 
     .. py:attribute:: values
 
         List of `float` values
     """
-    unit = attr.ib(default=Term.unitNone, converter=Term,
-                   validator=in_(Term))
+    unit = attr.ib(default=Unit._None, converter=Unit, validator=in_(Unit))
     values = attr.ib(factory=list)
 
     @classmethod
@@ -386,7 +385,7 @@ class Class(BaseElement):
     @classmethod
     def read(cls, fp):
         name = read_unicode_string(fp)
-        classID = read_length_and_key(fp)
+        classID = read_length_and_key(fp, Klass)
         return cls(name, classID)
 
     def write(self, fp):
@@ -437,9 +436,9 @@ class EnumeratedReference(BaseElement):
     @classmethod
     def read(cls, fp):
         name = read_unicode_string(fp)
-        classID = read_length_and_key(fp)
-        typeID = read_length_and_key(fp)
-        enum = read_length_and_key(fp)
+        classID = read_length_and_key(fp, Klass)
+        typeID = read_length_and_key(fp, Type)
+        enum = read_length_and_key(fp, Enum)
         return cls(name, classID, typeID, enum)
 
     def write(self, fp):
@@ -475,7 +474,7 @@ class Offset(BaseElement):
     @classmethod
     def read(cls, fp):
         name = read_unicode_string(fp)
-        classID = read_length_and_key(fp)
+        classID = read_length_and_key(fp, Klass)
         offset = read_fmt('I', fp)[0]
         return cls(name, classID, offset)
 
@@ -539,7 +538,7 @@ class Integer(IntegerElement):
 
 @register(OSType.ENUMERATED)
 @attr.s
-class Enum(BaseElement):
+class Enumerated(BaseElement):
     """
     Enum structure.
 
@@ -556,8 +555,8 @@ class Enum(BaseElement):
 
     @classmethod
     def read(cls, fp):
-        typeID = read_length_and_key(fp)
-        enum = read_length_and_key(fp)
+        typeID = read_length_and_key(fp, Type)
+        enum = read_length_and_key(fp, Enum)
         return cls(typeID, enum)
 
     def write(self, fp):
@@ -698,7 +697,7 @@ class Name(BaseElement):
     @classmethod
     def read(cls, fp):
         name = read_unicode_string(fp)
-        classID = read_length_and_key(fp)
+        classID = read_length_and_key(fp, Klass)
         value = read_unicode_string(fp)
         return cls(name, classID, value)
 

@@ -2,7 +2,6 @@
 Various constants for psd_tools
 """
 from enum import Enum, IntEnum
-from psd_tools.terminology import Term, StringTerm
 
 
 class ColorMode(IntEnum):
