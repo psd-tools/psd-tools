@@ -145,9 +145,11 @@ class TaggedBlocks(DictElement):
         self[key] = TaggedBlock(key=key, data=kls(*args, **kwargs))
 
     @classmethod
-    def read(cls, fp, version=1, padding=1):
+    def read(cls, fp, version=1, padding=1, end_pos=None):
         items = []
         while is_readable(fp, 8):  # len(signature) + len(key) = 8
+            if end_pos is not None and fp.tell() >= end_pos:
+                break
             block = TaggedBlock.read(fp, version, padding)
             if block is None:
                 break

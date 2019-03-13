@@ -68,9 +68,10 @@ class LayerAndMaskInformation(BaseElement):
             global_layer_mask_info = GlobalLayerMaskInfo.read(fp)
 
         tagged_blocks = None
-        if is_readable(fp) and fp.tell() < end_pos:
+        if is_readable(fp):
             # For some reason, global tagged blocks aligns 4 byte
-            tagged_blocks = TaggedBlocks.read(fp, version=version, padding=4)
+            tagged_blocks = TaggedBlocks.read(fp, version=version, padding=4,
+                                              end_pos=end_pos)
 
         return cls(layer_info, global_layer_mask_info, tagged_blocks)
 
@@ -914,7 +915,7 @@ class GlobalLayerMaskInfo(BaseElement):
 
     @classmethod
     def read(cls, fp):
-        data = read_length_block(fp)
+        data = read_length_block(fp)  # fmt?
         logger.debug('reading global layer mask info, len=%d' % (len(data)))
         if len(data) == 0:
             return cls(overlay_color=None)
