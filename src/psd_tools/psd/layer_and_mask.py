@@ -803,14 +803,10 @@ class ChannelDataList(ListElement):
     See :py:class:`.ChannelData`.
     """
     @classmethod
-    def read(cls, fp, channel_info):
+    def read(cls, fp, channel_info, **kwargs):
         items = []
         for c in channel_info:
-            data = fp.read(c.length)
-            assert len(data) == c.length, '(%d, %d)' % (len(data), c.length)
-            # Seems no padding here.
-            with io.BytesIO(data) as f:
-                items.append(ChannelData.read(f))
+            items.append(ChannelData.read(fp, c.length - 2, **kwargs))
         return cls(items)
 
     @property
@@ -837,9 +833,9 @@ class ChannelData(BaseElement):
     data = attr.ib(default=b'', type=bytes, repr=False)
 
     @classmethod
-    def read(cls, fp):
+    def read(cls, fp, length=0, **kwargs):
         compression = Compression(read_fmt('H', fp)[0])
-        data = fp.read()
+        data = fp.read(length)
         return cls(compression, data)
 
     def write(self, fp, **kwargs):

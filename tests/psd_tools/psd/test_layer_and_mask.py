@@ -201,7 +201,8 @@ def test_channel_data_list():
 
 
 def test_channel_data():
-    check_write_read(ChannelData())
+    check_write_read(ChannelData(data=b''), length=0)
+    check_write_read(ChannelData(data=b'\xFF' * 8), length=8)
 
 
 RAW_IMAGE_3x3_8bit = b'\x00\x01\x02\x01\x01\x01\x01\x00\x00'
