@@ -1,7 +1,7 @@
 from __future__ import absolute_import, unicode_literals
 import pytest
 
-from psd_tools.constants import UnitFloatType
+from psd_tools.constants import Term
 from psd_tools.psd.descriptor import (
     TYPES, Descriptor, Reference, Double, String, Bool, LargeInteger, Integer,
     UnitFloat
@@ -97,8 +97,8 @@ def test_value_elements(kls, value):
 
 
 @pytest.mark.parametrize('unit, value', [
-    (UnitFloatType.PIXELS, 100.0),
-    (UnitFloatType.POINTS, 0.0),
+    (Term.unitPixels, 100.0),
+    (Term.unitPoints, 0.0),
 ])
 def test_unit_float(unit, value):
     fixture = UnitFloat(unit=unit, value=value)
