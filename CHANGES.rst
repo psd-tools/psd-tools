@@ -1,3 +1,10 @@
+1.8.11 (2019-03-14)
+-------------------
+
+- introduce terminology module;
+- reduce memory use in read;
+- add main testing.
+
 1.8.10 (2019-02-27)
 -------------------
 
