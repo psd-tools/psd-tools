@@ -57,13 +57,13 @@ class GradientFill(FillLayer):
         """
         Kind of the gradient, one of the following:
 
-         - `linear`
-         - `radial`
-         - `angle`
-         - `reflected`
-         - `diamond`
+         - `Linear`
+         - `Radial`
+         - `Angle`
+         - `Reflected`
+         - `Diamond`
         """
-        return self._data.get(b'Type').enum.name.lower()
+        return self._data.get(b'Type').get_name()
 
     @property
     def data(self):

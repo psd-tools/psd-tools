@@ -39,58 +39,50 @@ logger = logging.getLogger(__name__)
 
 TYPES, register = new_registry(attribute='ostype')
 
-_UNKNOWN_CLASS_ID = set()
+_TERMS = set(
+    item.value for kls in (Klass, Enum, Event, Form, Key, Type, Unit)
+    for item in kls
+)
 
 
-def read_length_and_key(fp, kls=None):
+def read_length_and_key(fp):
     """
-    Helper to write descriptor classID and key.
+    Helper to read descriptor key.
     """
     length = read_fmt('I', fp)[0]
     key = fp.read(length or 4)
-    if length == 0:
-        if kls is not None:
-            try:
-                return kls(key)
-            except ValueError:
-                if key == b'\x00\x00\x00\x00':
-                    raise
-                logger.debug('Unknown classID: %r' % (key))
-                _UNKNOWN_CLASS_ID.add(key)
-        else:
-            _UNKNOWN_CLASS_ID.add(key)
-
-    return key  # Fallback.
+    if length == 0 and key not in _TERMS:
+        logger.debug('Unknown term: %r' % (key))
+        _TERMS.add(key)
+    return key
 
 
 def write_length_and_key(fp, value):
     """
-    Helper to write descriptor classID and key.
+    Helper to write descriptor key.
     """
-    if isinstance(value, (Klass, Enum, Event, Form, Key, Type, Unit)):
-        # length = (len(value.value) != 4) * len(value.value)
-        assert len(value.value) == 4
-        written = write_fmt(fp, 'I', 0)
-        written += write_bytes(fp, value.value)
-    elif value in _UNKNOWN_CLASS_ID:
-        written = write_fmt(fp, 'I', 0)
-        written += write_bytes(fp, value)
-    else:
-        written = write_fmt(fp, 'I', len(value))
-        written += write_bytes(fp, value)
+    written = write_fmt(fp, 'I', 0 if value in _TERMS else len(value))
+    written += write_bytes(fp, value)
     return written
 
 
 class _DescriptorMixin(DictElement):
+    @classmethod
+    def _key_converter(cls, key):
+        if hasattr(key, 'value'):
+            return key.value
+        elif hasattr(key, 'encode'):
+            return key.encode('ascii')
+        return key
 
     @classmethod
     def _read_body(cls, fp):
         name = read_unicode_string(fp, padding=1)
-        classID = read_length_and_key(fp, Klass)
+        classID = read_length_and_key(fp)
         items = []
         count = read_fmt('I', fp)[0]
         for _ in range(count):
-            key = read_length_and_key(fp, Key)
+            key = read_length_and_key(fp)
             ostype = OSType(fp.read(4))
             kls = TYPES.get(ostype)
             value = kls.read(fp)
@@ -131,22 +123,6 @@ class _DescriptorMixin(DictElement):
                     p.pretty(value)
             p.breakable('')
 
-    @classmethod
-    def _convert_enum(cls, enum, key):
-        """Descriptor class ID is case-sensitive for now."""
-        if isinstance(key, enum):
-            return key
-        key = key.encode('ascii') if hasattr(key, 'encode') else key
-        key_str = key.decode('ascii')
-        if isinstance(key, bytes) and hasattr(enum, key_str):
-            key = getattr(enum, key_str)
-        else:
-            try:
-                key = enum(key)
-            except ValueError:
-                pass
-        return key
-
 
 @register(OSType.DESCRIPTOR)
 @attr.s
@@ -154,7 +130,15 @@ class Descriptor(_DescriptorMixin):
     """
     Dict-like descriptor structure.
 
+    Key values can be 4-character `bytes` in
+    :py:class:`~psd_tools.terminology.Key` or arbitrary length `bytes`.
+    Supports direct access by :py:class:`~psd_tools.terminology.Key`.
+
     Example::
+
+        from psd_tools.terminology import Key
+
+        descriptor[Key.Enabled]
 
         for key in descriptor:
             print(descriptor[key])
@@ -165,10 +149,10 @@ class Descriptor(_DescriptorMixin):
 
     .. py:attribute:: classID
 
-        :py:class:`psd_tools.constants.Term` enum
+        bytes in :py:class:`~psd_tools.terminology.Klass`
     """
     name = attr.ib(default='', type=str)
-    classID = attr.ib(default=Klass.Null)
+    classID = attr.ib(default=Klass.Null.value)
 
     @classmethod
     def read(cls, fp):
@@ -195,11 +179,11 @@ class ObjectArray(_DescriptorMixin):
 
     .. py:attribute:: classID
 
-        :py:class:`Term`
+        bytes in :py:class:`~psd_tools.terminology.Klass`
     """
     items_count = attr.ib(default=0, type=int)
     name = attr.ib(default='', type=str)
-    classID = attr.ib(default=Klass.Null)
+    classID = attr.ib(default=Klass.Null.value)
 
     @classmethod
     def read(cls, fp):
@@ -254,11 +238,11 @@ class Property(BaseElement):
 
     .. py:attribute:: classID
 
-        :py:class:`Term`
+        bytes in :py:class:`~psd_tools.terminology.Klass`
 
     .. py:attribute:: keyID
 
-        :py:class:`Term`
+        bytes in :py:class:`~psd_tools.terminology.Key`
     """
     name = attr.ib(default='', type=str)
     classID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
@@ -267,8 +251,8 @@ class Property(BaseElement):
     @classmethod
     def read(cls, fp):
         name = read_unicode_string(fp)
-        classID = read_length_and_key(fp, Klass)
-        keyID = read_length_and_key(fp, Key)
+        classID = read_length_and_key(fp)
+        keyID = read_length_and_key(fp)
         return cls(name, classID, keyID)
 
     def write(self, fp):
@@ -377,7 +361,7 @@ class Class(BaseElement):
 
     .. py:attribute:: classID
 
-        :py:class:`Term`
+        bytes in :py:class:`~psd_tools.terminology.Klass`
     """
     name = attr.ib(default='', type=str)
     classID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
@@ -385,7 +369,7 @@ class Class(BaseElement):
     @classmethod
     def read(cls, fp):
         name = read_unicode_string(fp)
-        classID = read_length_and_key(fp, Klass)
+        classID = read_length_and_key(fp)
         return cls(name, classID)
 
     def write(self, fp):
@@ -418,15 +402,15 @@ class EnumeratedReference(BaseElement):
 
     .. py:attribute:: classID
 
-        :py:class:`Term`
+        bytes in :py:class:`~psd_tools.terminology.Klass`
 
     .. py:attribute:: typeID
 
-        :py:class:`Term`
+        bytes in :py:class:`~psd_tools.terminology.Type`
 
     .. py:attribute:: enum
 
-        :py:class:`Term`
+        bytes in :py:class:`~psd_tools.terminology.Enum`
     """
     name = attr.ib(default='', type=str)
     classID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
@@ -436,9 +420,9 @@ class EnumeratedReference(BaseElement):
     @classmethod
     def read(cls, fp):
         name = read_unicode_string(fp)
-        classID = read_length_and_key(fp, Klass)
-        typeID = read_length_and_key(fp, Type)
-        enum = read_length_and_key(fp, Enum)
+        classID = read_length_and_key(fp)
+        typeID = read_length_and_key(fp)
+        enum = read_length_and_key(fp)
         return cls(name, classID, typeID, enum)
 
     def write(self, fp):
@@ -461,7 +445,7 @@ class Offset(BaseElement):
 
     .. py:attribute:: classID
 
-        :py:class:`Term`
+        bytes in :py:class:`~psd_tools.terminology.Klass
 
     .. py:attribute:: value
 
@@ -474,7 +458,7 @@ class Offset(BaseElement):
     @classmethod
     def read(cls, fp):
         name = read_unicode_string(fp)
-        classID = read_length_and_key(fp, Klass)
+        classID = read_length_and_key(fp)
         offset = read_fmt('I', fp)[0]
         return cls(name, classID, offset)
 
@@ -544,19 +528,19 @@ class Enumerated(BaseElement):
 
     .. py:attribute:: typeID
 
-        :py:class:`Term`
+        bytes in :py:class:`~psd_tools.terminology.Type`
 
     .. py:attribute:: enum
 
-        :py:class:`Term`
+        bytes in :py:class:`~psd_tools.terminology.Enum`
     """
     typeID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
     enum = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
 
     @classmethod
     def read(cls, fp):
-        typeID = read_length_and_key(fp, Type)
-        enum = read_length_and_key(fp, Enum)
+        typeID = read_length_and_key(fp)
+        enum = read_length_and_key(fp)
         return cls(typeID, enum)
 
     def write(self, fp):
@@ -572,6 +556,15 @@ class Enumerated(BaseElement):
         p.text(', ')
         p.pretty(getattr(self.enum, 'name', self.enum))
         p.text(')')
+
+    def get_name(self):
+        """Get enum name."""
+        if len(self.enum) == 4:
+            try:
+                return Enum(self.enum).name
+            except ValueError:
+                pass
+        return str(self.enum)
 
 
 @register(OSType.RAW_DATA)
@@ -686,9 +679,15 @@ class Name(BaseElement):
 
     .. py:attribute:: name
 
+        str
+
     .. py:attribute:: classID
 
+        bytes in :py:class:`~psd_tools.terminology.Klass`
+
     .. py:attribute:: value
+
+        str
     """
     name = attr.ib(default='', type=str)
     classID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
@@ -697,7 +696,7 @@ class Name(BaseElement):
     @classmethod
     def read(cls, fp):
         name = read_unicode_string(fp)
-        classID = read_length_and_key(fp, Klass)
+        classID = read_length_and_key(fp)
         value = read_unicode_string(fp)
         return cls(name, classID, value)
 

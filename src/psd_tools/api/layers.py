@@ -579,12 +579,12 @@ class Artboard(Group):
                 if key in self.tagged_blocks:
                     data = self.tagged_blocks.get_data(key)
             assert data is not None
-            rect = data.get('artboardRect')
+            rect = data.get(b'artboardRect')
             self._bbox = (
-                int(rect.get('Left')),
-                int(rect.get('Top ')),
-                int(rect.get('Rght')),
-                int(rect.get('Btom')),
+                int(rect.get(b'Left')),
+                int(rect.get(b'Top ')),
+                int(rect.get(b'Rght')),
+                int(rect.get(b'Btom')),
             )
         return self._bbox
 
