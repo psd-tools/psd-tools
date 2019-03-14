@@ -102,6 +102,7 @@ Not supported:
     reference/psd_tools.psd.patterns
     reference/psd_tools.psd.tagged_blocks
     reference/psd_tools.psd.vector
+    reference/psd_tools.terminology
 
 Indices and tables
 ------------------

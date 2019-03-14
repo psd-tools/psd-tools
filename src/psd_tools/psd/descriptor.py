@@ -445,7 +445,7 @@ class Offset(BaseElement):
 
     .. py:attribute:: classID
 
-        bytes in :py:class:`~psd_tools.terminology.Klass
+        bytes in :py:class:`~psd_tools.terminology.Klass`
 
     .. py:attribute:: value
 
