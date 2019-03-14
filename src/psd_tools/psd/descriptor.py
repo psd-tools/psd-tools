@@ -3,12 +3,12 @@ Descriptor data structure.
 
 Descriptors are basic data structure used throughout PSD files. Descriptor is
 one kind of serialization protocol for data objects, and
-:py:class:`~psd_tools.constants.DescriptorClassID` indicates what kind of
-descriptor it is.
+enum classes in :py:mod:`psd_tools.terminology` or bytes indicates what kind
+of descriptor it is.
 
-:py:class:`~psd_tools.constants.DescriptorClassID` can be pre-defined enum if
-the tag is 4-byte length or plain bytes if the length is arbitrary. It seems
-this depends on the internal of Adobe Photoshop but it is unknown.
+The class ID can be pre-defined enum if the tag is 4-byte length or plain
+bytes if the length is arbitrary. They depend on the internal version of
+Adobe Photoshop but the detail is unknown.
 
 Pretty printing is the best approach to check the descriptor content::
 
@@ -25,7 +25,8 @@ from psd_tools.psd.base import (
     BaseElement, BooleanElement, DictElement, IntegerElement, ListElement,
     NumericElement, StringElement,
 )
-from psd_tools.constants import OSType, UnitFloatType, DescriptorClassID
+from psd_tools.constants import OSType
+from psd_tools.terminology import Klass, Enum, Event, Form, Key, Type, Unit
 from psd_tools.validators import in_
 from psd_tools.utils import (
     read_fmt, write_fmt, read_unicode_string, write_unicode_string,
@@ -38,48 +39,41 @@ logger = logging.getLogger(__name__)
 
 TYPES, register = new_registry(attribute='ostype')
 
-_UNKNOWN_CLASS_ID = set()
+_TERMS = set(
+    item.value for kls in (Klass, Enum, Event, Form, Key, Type, Unit)
+    for item in kls
+)
 
 
 def read_length_and_key(fp):
     """
-    Helper to write descriptor classID and key.
+    Helper to read descriptor key.
     """
     length = read_fmt('I', fp)[0]
     key = fp.read(length or 4)
-    if length == 0:
-        try:
-            return DescriptorClassID(key)
-        except ValueError:
-            if key == b'\x00\x00\x00\x00':
-                raise
-            message = ('Unknown classID: %r' % (key))
-            warn(message)
-            logger.debug(message)
-            _UNKNOWN_CLASS_ID.add(key)
-
-    return key  # Fallback.
+    if length == 0 and key not in _TERMS:
+        logger.debug('Unknown term: %r' % (key))
+        _TERMS.add(key)
+    return key
 
 
 def write_length_and_key(fp, value):
     """
-    Helper to write descriptor classID and key.
+    Helper to write descriptor key.
     """
-    if isinstance(value, DescriptorClassID):
-        length = (len(value.value) != 4) * len(value.value)
-        written = write_fmt(fp, 'I', length)
-        written += write_bytes(fp, value.value)
-    elif value in _UNKNOWN_CLASS_ID:
-        written = write_fmt(fp, 'I', 0)
-        written += write_bytes(fp, value)
-    else:
-        written = write_fmt(fp, 'I', len(value))
-        written += write_bytes(fp, value)
+    written = write_fmt(fp, 'I', 0 if value in _TERMS else len(value))
+    written += write_bytes(fp, value)
     return written
 
 
 class _DescriptorMixin(DictElement):
-    enum = DescriptorClassID
+    @classmethod
+    def _key_converter(cls, key):
+        if hasattr(key, 'value'):
+            return key.value
+        elif hasattr(key, 'encode'):
+            return key.encode('ascii')
+        return key
 
     @classmethod
     def _read_body(cls, fp):
@@ -129,22 +123,6 @@ class _DescriptorMixin(DictElement):
                     p.pretty(value)
             p.breakable('')
 
-    @classmethod
-    def _convert_enum(cls, enum, key):
-        """Descriptor class ID is case-sensitive for now."""
-        if isinstance(key, enum):
-            return key
-        key = key.encode('ascii') if hasattr(key, 'encode') else key
-        key_str = key.decode('ascii')
-        if isinstance(key, bytes) and hasattr(enum, key_str):
-            key = getattr(enum, key_str)
-        else:
-            try:
-                key = enum(key)
-            except ValueError:
-                pass
-        return key
-
 
 @register(OSType.DESCRIPTOR)
 @attr.s
@@ -152,7 +130,15 @@ class Descriptor(_DescriptorMixin):
     """
     Dict-like descriptor structure.
 
+    Key values can be 4-character `bytes` in
+    :py:class:`~psd_tools.terminology.Key` or arbitrary length `bytes`.
+    Supports direct access by :py:class:`~psd_tools.terminology.Key`.
+
     Example::
+
+        from psd_tools.terminology import Key
+
+        descriptor[Key.Enabled]
 
         for key in descriptor:
             print(descriptor[key])
@@ -163,10 +149,10 @@ class Descriptor(_DescriptorMixin):
 
     .. py:attribute:: classID
 
-        :py:class:`psd_tools.constants.DescriptorClassID` enum
+        bytes in :py:class:`~psd_tools.terminology.Klass`
     """
     name = attr.ib(default='', type=str)
-    classID = attr.ib(default=DescriptorClassID.NULL)
+    classID = attr.ib(default=Klass.Null.value)
 
     @classmethod
     def read(cls, fp):
@@ -193,11 +179,11 @@ class ObjectArray(_DescriptorMixin):
 
     .. py:attribute:: classID
 
-        :py:class:`DescriptorClassID`
+        bytes in :py:class:`~psd_tools.terminology.Klass`
     """
     items_count = attr.ib(default=0, type=int)
     name = attr.ib(default='', type=str)
-    classID = attr.ib(default=DescriptorClassID.NULL)
+    classID = attr.ib(default=Klass.Null.value)
 
     @classmethod
     def read(cls, fp):
@@ -252,11 +238,11 @@ class Property(BaseElement):
 
     .. py:attribute:: classID
 
-        :py:class:`DescriptorClassID`
+        bytes in :py:class:`~psd_tools.terminology.Klass`
 
     .. py:attribute:: keyID
 
-        :py:class:`DescriptorClassID`
+        bytes in :py:class:`~psd_tools.terminology.Key`
     """
     name = attr.ib(default='', type=str)
     classID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
@@ -284,20 +270,19 @@ class UnitFloat(NumericElement):
 
     .. py:attribute:: unit
 
-        unit of the value in :py:class:`UnitFloatType`
+        unit of the value in :py:class:`Unit`
 
     .. py:attribute:: value
 
         `float` value
     """
     value = attr.ib(default=0.0, type=float)
-    unit = attr.ib(default=UnitFloatType.NONE, converter=UnitFloatType,
-                   validator=in_(UnitFloatType))
+    unit = attr.ib(default=Unit._None, converter=Unit, validator=in_(Unit))
 
     @classmethod
     def read(cls, fp):
         unit, value = read_fmt('4sd', fp)
-        return cls(unit=UnitFloatType(unit), value=value)
+        return cls(unit=Unit(unit), value=value)
 
     def write(self, fp):
         return write_fmt(fp, '4sd', self.unit.value, self.value)
@@ -318,14 +303,13 @@ class UnitFloats(BaseElement):
 
     .. py:attribute:: unit
 
-        unit of the value in :py:class:`UnitFloatType`
+        unit of the value in :py:class:`Unit`
 
     .. py:attribute:: values
 
         List of `float` values
     """
-    unit = attr.ib(default=UnitFloatType.NONE, converter=UnitFloatType,
-                   validator=in_(UnitFloatType))
+    unit = attr.ib(default=Unit._None, converter=Unit, validator=in_(Unit))
     values = attr.ib(factory=list)
 
     @classmethod
@@ -377,7 +361,7 @@ class Class(BaseElement):
 
     .. py:attribute:: classID
 
-        :py:class:`DescriptorClassID`
+        bytes in :py:class:`~psd_tools.terminology.Klass`
     """
     name = attr.ib(default='', type=str)
     classID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
@@ -418,15 +402,15 @@ class EnumeratedReference(BaseElement):
 
     .. py:attribute:: classID
 
-        :py:class:`DescriptorClassID`
+        bytes in :py:class:`~psd_tools.terminology.Klass`
 
     .. py:attribute:: typeID
 
-        :py:class:`DescriptorClassID`
+        bytes in :py:class:`~psd_tools.terminology.Type`
 
     .. py:attribute:: enum
 
-        :py:class:`DescriptorClassID`
+        bytes in :py:class:`~psd_tools.terminology.Enum`
     """
     name = attr.ib(default='', type=str)
     classID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
@@ -461,7 +445,7 @@ class Offset(BaseElement):
 
     .. py:attribute:: classID
 
-        :py:class:`DescriptorClassID`
+        bytes in :py:class:`~psd_tools.terminology.Klass`
 
     .. py:attribute:: value
 
@@ -538,17 +522,17 @@ class Integer(IntegerElement):
 
 @register(OSType.ENUMERATED)
 @attr.s
-class Enum(BaseElement):
+class Enumerated(BaseElement):
     """
     Enum structure.
 
     .. py:attribute:: typeID
 
-        :py:class:`DescriptorClassID`
+        bytes in :py:class:`~psd_tools.terminology.Type`
 
     .. py:attribute:: enum
 
-        :py:class:`DescriptorClassID`
+        bytes in :py:class:`~psd_tools.terminology.Enum`
     """
     typeID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
     enum = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
@@ -572,6 +556,15 @@ class Enum(BaseElement):
         p.text(', ')
         p.pretty(getattr(self.enum, 'name', self.enum))
         p.text(')')
+
+    def get_name(self):
+        """Get enum name."""
+        if len(self.enum) == 4:
+            try:
+                return Enum(self.enum).name
+            except ValueError:
+                pass
+        return str(self.enum)
 
 
 @register(OSType.RAW_DATA)
@@ -686,9 +679,15 @@ class Name(BaseElement):
 
     .. py:attribute:: name
 
+        str
+
     .. py:attribute:: classID
 
+        bytes in :py:class:`~psd_tools.terminology.Klass`
+
     .. py:attribute:: value
+
+        str
     """
     name = attr.ib(default='', type=str)
     classID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)

@@ -47,26 +47,31 @@ class LayerAndMaskInformation(BaseElement):
     @classmethod
     def read(cls, fp, encoding='macroman', version=1):
         start_pos = fp.tell()
-        data = read_length_block(fp, fmt=('I', 'Q')[version - 1])
+        length = read_fmt(('I', 'Q')[version - 1], fp)[0]
+        end_pos = fp.tell() + length
         logger.debug('reading layer and mask info, len=%d, offset=%d' % (
-            len(data), start_pos
+            length, start_pos
         ))
-        if len(data) == 0:
-            return cls()
-        with io.BytesIO(data) as f:
-            return cls._read_body(f, encoding, version)
+        if length == 0:
+            self = cls()
+        else:
+            self = cls._read_body(fp, end_pos, encoding, version)
+        assert fp.tell() <= end_pos
+        fp.seek(end_pos, 0)
+        return self
 
     @classmethod
-    def _read_body(cls, fp, encoding, version):
+    def _read_body(cls, fp, end_pos, encoding, version):
         layer_info = LayerInfo.read(fp, encoding, version)
         global_layer_mask_info = None
-        if is_readable(fp):
+        if is_readable(fp) and fp.tell() < end_pos:
             global_layer_mask_info = GlobalLayerMaskInfo.read(fp)
 
         tagged_blocks = None
         if is_readable(fp):
             # For some reason, global tagged blocks aligns 4 byte
-            tagged_blocks = TaggedBlocks.read(fp, version=version, padding=4)
+            tagged_blocks = TaggedBlocks.read(fp, version=version, padding=4,
+                                              end_pos=end_pos)
 
         return cls(layer_info, global_layer_mask_info, tagged_blocks)
 
@@ -116,13 +121,16 @@ class LayerInfo(BaseElement):
 
     @classmethod
     def read(cls, fp, encoding='macroman', version=1):
-        data = read_length_block(fp, fmt=('I', 'Q')[version - 1])
-        logger.debug('reading layer info, len=%d' % (len(data)))
-        if len(data) == 0:
-            return LayerInfo()
-
-        with io.BytesIO(data) as f:
-            return cls._read_body(f, encoding, version)
+        length = read_fmt(('I', 'Q')[version - 1], fp)[0]
+        logger.debug('reading layer info, len=%d' % length)
+        end_pos = fp.tell() + length
+        if length == 0:
+            self = LayerInfo()
+        else:
+            self = cls._read_body(fp, encoding, version)
+        assert fp.tell() <= end_pos
+        fp.seek(end_pos, 0)
+        return self
 
     @classmethod
     def _read_body(cls, fp, encoding, version):
@@ -803,14 +811,10 @@ class ChannelDataList(ListElement):
     See :py:class:`.ChannelData`.
     """
     @classmethod
-    def read(cls, fp, channel_info):
+    def read(cls, fp, channel_info, **kwargs):
         items = []
         for c in channel_info:
-            data = fp.read(c.length)
-            assert len(data) == c.length, '(%d, %d)' % (len(data), c.length)
-            # Seems no padding here.
-            with io.BytesIO(data) as f:
-                items.append(ChannelData.read(f))
+            items.append(ChannelData.read(fp, c.length - 2, **kwargs))
         return cls(items)
 
     @property
@@ -837,9 +841,9 @@ class ChannelData(BaseElement):
     data = attr.ib(default=b'', type=bytes, repr=False)
 
     @classmethod
-    def read(cls, fp):
+    def read(cls, fp, length=0, **kwargs):
         compression = Compression(read_fmt('H', fp)[0])
-        data = fp.read()
+        data = fp.read(length)
         return cls(compression, data)
 
     def write(self, fp, **kwargs):
@@ -911,7 +915,7 @@ class GlobalLayerMaskInfo(BaseElement):
 
     @classmethod
     def read(cls, fp):
-        data = read_length_block(fp)
+        data = read_length_block(fp)  # fmt?
         logger.debug('reading global layer mask info, len=%d' % (len(data)))
         if len(data) == 0:
             return cls(overlay_color=None)

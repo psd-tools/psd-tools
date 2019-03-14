@@ -304,8 +304,8 @@ def draw_gradient_fill(image, setting, blend=True):
         return None
 
     angle = float(setting.get(b'Angl'))
-    gradient_kind = setting.get(b'Type').enum.name.lower()
-    if gradient_kind == 'linear':
+    gradient_kind = setting.get(b'Type').get_name()
+    if gradient_kind == 'Linear':
         Z = _make_linear_gradient(image.width, image.height, -angle)
     else:
         logger.warning('Only linear gradient is supported.')

@@ -4,7 +4,8 @@ Effects module.
 from __future__ import absolute_import, unicode_literals
 import logging
 
-from psd_tools.constants import TaggedBlockID, DescriptorClassID
+from psd_tools.constants import TaggedBlockID
+from psd_tools.terminology import Klass, Enum, Key
 from psd_tools.utils import new_registry
 from psd_tools.psd.base import ValueElement
 from psd_tools.psd.descriptor import List
@@ -32,22 +33,22 @@ class Effects(object):
 
         self._items = []
         for key in (self._data or []):
-            if key in (b'masterFXSwitch', DescriptorClassID.SCALE):
+            if key in (b'masterFXSwitch', Key.Scale.value):
                 continue
             value = self._data[key]
             if not isinstance(value, List):
                 value = [value]
             for item in value:
-                if not item.get(DescriptorClassID.ENABLED):
+                if not item.get(Key.Enabled):
                     continue
                 kls = _TYPES.get(item.classID)
-                assert kls is not None
+                assert kls is not None, 'kls not found for %r' % item.classID
                 self._items.append(kls(item, layer._psd.image_resources))
 
     @property
     def scale(self):
         """Scale value."""
-        return self._data.get(DescriptorClassID.SCALE).value
+        return self._data.get(Key.Scale).value
 
     @property
     def enabled(self):
@@ -93,7 +94,7 @@ class _Effect(object):
     @property
     def enabled(self):
         """Whether if the effect is enabled."""
-        return bool(self.value.get(DescriptorClassID.ENABLED))
+        return bool(self.value.get(Key.Enabled))
 
     @property
     def present(self):
@@ -108,7 +109,7 @@ class _Effect(object):
     @property
     def opacity(self):
         """Layer effect opacity in percentage."""
-        return self.value.get(DescriptorClassID.OPACITY).value
+        return self.value.get(Key.Opacity).value
 
     def __repr__(self):
         return self.__class__.__name__
@@ -123,61 +124,60 @@ class _ColorMixin(object):
     @property
     def color(self):
         """Color."""
-        return self.value.get(DescriptorClassID.COLOR)
+        return self.value.get(Key.Color)
 
     @property
     def blend_mode(self):
         """Effect blending mode."""
-        mode = self.value.get(DescriptorClassID.MODE)
-        return mode.enum.name.lower().replace('blend_', '')
+        return self.value.get(Key.Mode).get_name()
 
 
 class _ChokeNoiseMixin(_ColorMixin):
     @property
     def choke(self):
         """Choke level."""
-        return self.value.get(DescriptorClassID.CHOKE).value
+        return self.value.get(Key.ChokeMatte).value
 
     @property
     def size(self):
         """Size in pixels."""
-        return self.value.get(DescriptorClassID.BLUR).value
+        return self.value.get(Key.Blur).value
 
     @property
     def noise(self):
         """Noise level."""
-        return self.value.get(DescriptorClassID.NOISE).value
+        return self.value.get(Key.Noise).value
 
     @property
     def anti_aliased(self):
         """Angi-aliased."""
-        return bool(self.value.get(DescriptorClassID.ANTI_ALIASED))
+        return bool(self.value.get(Key.AntiAlias))
 
     @property
     def contour(self):
         """Contour configuration."""
-        return self.value.get(DescriptorClassID.STOP_OPACITY)
+        return self.value.get(Key.TransferSpec)
 
 
 class _AngleMixin(object):
     @property
     def use_global_light(self):
         """Using global light."""
-        return bool(self.value.get(DescriptorClassID.USE_GLOBAL_LIGHT))
+        return bool(self.value.get(Key.UseGlobalAngle))
 
     @property
     def angle(self):
         """Angle value."""
         if self.use_global_light:
             return self._image_resources.get_data('global_angle', 30.0)
-        return self.value.get(DescriptorClassID.LIGHT_ANGLE).value
+        return self.value.get(Key.LocalLightingAngle).value
 
 
 class _GradientMixin(object):
     @property
     def gradient(self):
         """Gradient configuration."""
-        return self.value.get(DescriptorClassID.GRADIENT_CONFIG)
+        return self.value.get(Key.Gradient)
 
 
 class _PatternMixin(object):
@@ -185,7 +185,7 @@ class _PatternMixin(object):
     def pattern(self):
         """Pattern config."""
         # TODO: Expose nested property.
-        return self.value.get(DescriptorClassID.PATTERN)
+        return self.value.get(b'Ptrn')  # Enum.Pattern. Seems a bug.
 
 
 class _ShadowEffect(_Effect, _ChokeNoiseMixin, _AngleMixin):
@@ -193,27 +193,25 @@ class _ShadowEffect(_Effect, _ChokeNoiseMixin, _AngleMixin):
     @property
     def distance(self):
         """Distance."""
-        return self.value.get(DescriptorClassID.DISTANCE).value
+        return self.value.get(Key.Distance).value
 
 
 class _GlowEffect(_Effect, _ChokeNoiseMixin, _GradientMixin):
     """Base class for glow effect."""
     @property
     def glow_type(self):
-        """Glow type. 'softer' or 'precise'."""
-        value = self.value.get(DescriptorClassID.GLOW_TYPE).enum.name.lower()
-        value = value.replace('bevel_', '')
-        return {'smooth': 'softer'}.get(value, 'precise')
+        """Glow type."""
+        return self.value.get(Key.GlowTechnique).get_name()
 
     @property
     def quality_range(self):
         """Quality range."""
-        return self.value.get(DescriptorClassID.QUARYTY_RANGE).value
+        return self.value.get(Key.InputRange).value
 
     @property
     def quality_jitter(self):
         """Quality jitter"""
-        return self.value.get(DescriptorClassID.QUALITY_JITTER).value
+        return self.value.get(Key.ShadingNoise).value
 
 
 class _OverlayEffect(_Effect):
@@ -224,21 +222,20 @@ class _AlignScaleMixin(object):
     @property
     def blend_mode(self):
         """Effect blending mode."""
-        mode = self.value.get(DescriptorClassID.MODE)
-        return mode.enum.name.lower().replace('blend_', '')
+        return self.value.get(Key.Mode).get_name()
 
     @property
     def scale(self):
         """Scale value."""
-        return self.value.get(DescriptorClassID.SCALE).value
+        return self.value.get(Key.Scale).value
 
     @property
     def aligned(self):
         """Aligned."""
-        return bool(self.value.get(DescriptorClassID.ALIGNED))
+        return bool(self.value.get(Key.Alignment))
 
 
-@register(DescriptorClassID.DROP_SHADOW)
+@register(Klass.DropShadow.value)
 class DropShadow(_ShadowEffect):
     @property
     def layer_knocks_out(self):
@@ -246,39 +243,37 @@ class DropShadow(_ShadowEffect):
         return bool(self.value.get(b'layerConceals'))
 
 
-@register(DescriptorClassID.INNER_SHADOW)
+@register(Klass.InnerShadow.value)
 class InnerShadow(_ShadowEffect):
     pass
 
 
-@register(DescriptorClassID.OUTER_GLOW)
+@register(Klass.OuterGlow.value)
 class OuterGlow(_GlowEffect):
     @property
     def spread(self):
-        return self.value.get(DescriptorClassID.QUALITY_JITTER).value
+        return self.value.get(Key.ShadingNoise).value
 
 
-@register(DescriptorClassID.INNER_GLOW)
+@register(Klass.InnerGlow.value)
 class InnerGlow(_GlowEffect):
     @property
     def glow_source(self):
-        """Elements source, 'edge' or 'center'."""
-        value = self.value.get(DescriptorClassID.GLOW_SOURCE).enum.name
-        value = value.lower().replace('glow_source_', '')
-        return value
+        """Elements source."""
+        return self.value.get(Key.InnerGlowSource).get_name()
 
 
-@register(DescriptorClassID.COLOR_OVERLAY)
+@register(Klass.SolidFill.value)
 class ColorOverlay(_OverlayEffect, _ColorMixin):
     pass
 
 
-@register(DescriptorClassID.GRADIENT_OVERLAY)
+@register(b'GrFl')  # Equalt to Enum.GradientFill. This seems a bug.
 class GradientOverlay(_OverlayEffect, _AlignScaleMixin, _GradientMixin):
     @property
     def angle(self):
         """Angle value."""
-        return self.value.get(DescriptorClassID.ANGLE).value
+        return self.value.get(Key.Angle).value
 
     @property
     def type(self):
@@ -286,23 +281,22 @@ class GradientOverlay(_OverlayEffect, _AlignScaleMixin, _GradientMixin):
         Gradient type, one of `linear`, `radial`, `angle`, `reflected`, or
         `diamond`.
         """
-        value = self.value.get(DescriptorClassID.TYPE).enum.name.lower()
-        return value.replace('gradient_', '')
+        return self.value.get(Key.Type).get_name()
 
     @property
     def reversed(self):
         """Reverse flag."""
-        return bool(self.value.get(DescriptorClassID.REVERSED))
+        return bool(self.value.get(Key.Reverse))
 
     @property
     def dithered(self):
         """Dither flag."""
-        return bool(self.value.get(DescriptorClassID.DITHERED))
+        return bool(self.value.get(Key.Dither))
 
     @property
     def offset(self):
         """Offset value."""
-        return self.value.get(DescriptorClassID.OFFSET)
+        return self.value.get(Key.Offset)
 
 
 @register(b'patternFill')
@@ -313,24 +307,25 @@ class PatternOverlay(_OverlayEffect, _AlignScaleMixin, _PatternMixin):
         return self.value.get(b'phase')
 
 
-@register(DescriptorClassID.STROKE)
+@register(Klass.FrameFX.value)
 class Stroke(_Effect, _ColorMixin, _PatternMixin, _GradientMixin):
 
     @property
     def position(self):
-        """Position of the stroke, `inner`, `outer`, or `center`."""
-        value = self.value.get(b'Styl')
-        return value.enum.name.lower().replace('stroke_', '')
+        """
+        Position of the stroke, InsetFrame, OutsetFrame, or CenteredFrame.
+        """
+        return self.value.get(Key.Style).get_name()
 
     @property
     def fill_type(self):
-        """Fill type, solid-color, gradient, or pattern."""
-        return self.value.get(b'PntT').enum.name.lower().replace('_', '-')
+        """Fill type, SolidColor, Gradient, or Pattern."""
+        return self.value.get(Key.PaintType).get_name()
 
     @property
     def size(self):
         """Size value."""
-        return self.value.get(b'Sz  ').value
+        return self.value.get(Key.SizeKey).value
 
     @property
     def overprint(self):
@@ -338,82 +333,76 @@ class Stroke(_Effect, _ColorMixin, _PatternMixin, _GradientMixin):
         return bool(self.value.get(b'overprint'))
 
 
-@register(DescriptorClassID.BEVEL_EMBOSS)
+@register(Klass.BevelEmboss.value)
 class BevelEmboss(_Effect, _AngleMixin):
 
     @property
     def highlight_mode(self):
         """Highlight blending mode."""
-        value = self.value.get(b'hglM').enum
-        value = value.decode() if isinstance(value, bytes) else value.name
-        return value.lower().replace('blend_', '').replace('_', '-')
+        return self.value.get(Key.HighlightMode).get_name()
 
     @property
     def highlight_color(self):
         """Highlight color value."""
-        return self.value.get(b'hglC')
+        return self.value.get(Key.HighlightColor)
 
     @property
     def highlight_opacity(self):
         """Highlight opacity value."""
-        return self.value.get(b'hglO').value
+        return self.value.get(Key.HighlightOpacity).value
 
     @property
     def shadow_mode(self):
         """Shadow blending mode."""
-        value = self.value.get(b'sdwM').enum
-        value = value.decode() if isinstance(value, bytes) else value.name
-        return value.lower().replace('blend_', '').replace('_', '-')
+        return self.value.get(Key.ShadowMode).get_name()
 
     @property
     def shadow_color(self):
         """Shadow color value."""
-        return self.value.get(b'sdwC')
+        return self.value.get(Key.ShadowColor)
 
     @property
     def shadow_opacity(self):
         """Shadow opacity value."""
-        return self.value.get(b'sdwO').value
+        return self.value.get(Key.ShadowOpacity).value
 
     @property
     def bevel_type(self):
-        """Bevel type, one of `smooth`, `chiesel-hard`, `chiesel-soft`."""
-        value = self.value.get(b'bvlT').enum.name.lower()
-        return value.replace('bevel_', '').replace('_', '-')
+        """Bevel type, one of `SoftMatte`, `HardLight`, `SoftLight`."""
+        return self.value.get(Key.BevelTechnique).get_name()
 
     @property
     def bevel_style(self):
         """
-        Bevel style, one of `outer`, `inner`, `emboss`,
-        `pillow-emboss`, or `stroke-emboss`.
+        Bevel style, one of `OuterBevel`, `InnerBevel`, `Emboss`,
+        `PillowEmboss`, or `StrokeEmboss`.
         """
-        value = self.value.get(b'bvlS').enum.name.lower()
-        return value.replace('bevel_style_', '').replace('_', '-')
+        return self.value.get(Key.BevelStyle).get_name()
 
     @property
     def altitude(self):
         """Altitude value."""
-        return self.value.get(b'Lald').value
+        return self.value.get(Key.LocalLightingAltitude).value
 
     @property
     def depth(self):
         """Depth value."""
-        return self.value.get(b'srgR').value
+        return self.value.get(Key.StrengthRatio).value
 
     @property
     def size(self):
         """Size value in pixel."""
-        return self.value.get(b'blur').value
+        return self.value.get(Key.Blur).value
 
     @property
     def direction(self):
-        """Direction, either `in` or `out`."""
-        return self.value.get(b'bvlD').enum.name.lower()
+        """Direction, either `StampIn` or `StampOut`."""
+        return self.value.get(Key.BevelDirection).get_name()
 
     @property
     def contour(self):
         """Contour configuration."""
-        return self.value.get(b'TrnS')
+        return self.value.get(Key.TransferSpec)
 
     @property
     def anti_aliased(self):
@@ -423,7 +412,7 @@ class BevelEmboss(_Effect, _AngleMixin):
     @property
     def soften(self):
         """Soften value."""
-        return self.value.get(b'Sftn').value
+        return self.value.get(Key.Softness).value
 
     @property
     def use_shape(self):
@@ -436,35 +425,35 @@ class BevelEmboss(_Effect, _AngleMixin):
         return bool(self.value.get(b'useTexture'))
 
 
-@register(DescriptorClassID.SATIN)
+@register(Klass.ChromeFX.value)
 class Satin(_Effect, _ColorMixin):
     """ Satin effect """
     @property
     def anti_aliased(self):
         """Anti-aliased."""
-        return bool(self.value.get(b'AntA'))
+        return bool(self.value.get(Key.AntiAlias))
 
     @property
     def inverted(self):
         """Inverted."""
-        return bool(self.value.get(b'Invr'))
+        return bool(self.value.get(Key.Invert))
 
     @property
     def angle(self):
         """Angle value."""
-        return self.value.get(b'lagl').value
+        return self.value.get(Key.LocalLightingAngle).value
 
     @property
     def distance(self):
         """Distance value."""
-        return self.value.get(b'Dstn').value
+        return self.value.get(Key.Distance).value
 
     @property
     def size(self):
         """Size value in pixel."""
-        return self.value.get(b'blur').value
+        return self.value.get(Key.Blur).value
 
     @property
     def contour(self):
         """Contour configuration."""
-        return self.value.get(b'MpgS')
+        return self.value.get(Key.MappingShape)
