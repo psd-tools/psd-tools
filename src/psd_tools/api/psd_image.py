@@ -350,6 +350,13 @@ class PSDImage(GroupMixin):
 
             version_info = psd.image_resources.get_data('VERSION_INFO')
             slices = psd.image_resources.get_data('SLICES')
+
+        Image resources contain an ICC profile. The following shows how to
+        export a PNG file with embedded ICC profile::
+
+            icc_profile = psd.image_resources.get_data('ICC_PROFILE')
+            image = psd.compose(apply_icc=False)
+            image.save('output.png', icc_profile=icc_profile)
         """
         return self._record.image_resources
 
