@@ -329,14 +329,14 @@ class Layer(object):
             ]
         return self._origination
 
-    def topil(self):
+    def topil(self, **kwargs):
         """
         Get PIL Image of the layer.
 
         :return: :py:class:`PIL.Image`, or `None` if the layer has no pixels.
         """
         if self.has_pixels():
-            return convert_layer_to_pil(self)
+            return convert_layer_to_pil(self, **kwargs)
         return None
 
     def compose(self, *args, **kwargs):
@@ -482,14 +482,14 @@ class GroupMixin(object):
     def __delitem__(self, key):
         return self._layers.__delitem__(key)
 
-    def compose(self):
+    def compose(self, **kwargs):
         """
         Compose layer and masks (mask, vector mask, and clipping layers).
 
         :return: PIL Image object, or None if the layer has no pixels.
         """
         from psd_tools.api.composer import compose
-        return compose(self)
+        return compose(self, **kwargs)
 
     def descendants(self, include_clip=True):
         """
@@ -858,7 +858,7 @@ class AdjustmentLayer(Layer):
         if hasattr(self.__class__, '_KEY'):
             self._data = self.tagged_blocks.get_data(self.__class__._KEY)
 
-    def compose(self):
+    def compose(self, **kwargs):
         """
         Adjustment layer is never composed.
 

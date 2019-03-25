@@ -83,3 +83,11 @@ def test_compose_artboard():
     artboard_image = artboard.compose()
     assert artboard_image.size == artboard.size
     assert artboard.size != extract_bbox(artboard)
+
+
+def test_apply_icc_profile():
+    filepath = full_name('colorprofiles/north_america_newspaper.psd')
+    psd = PSDImage.open(filepath)
+    no_icc = psd.compose(apply_icc=False)
+    with_icc = psd.compose(apply_icc=True)
+    assert no_icc.getextrema() != with_icc.getextrema()

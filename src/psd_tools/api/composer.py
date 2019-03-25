@@ -60,7 +60,7 @@ def _blend(target, image, offset, mask=None):
     return target
 
 
-def compose(layers, bbox=None, layer_filter=None, color=None):
+def compose(layers, bbox=None, layer_filter=None, color=None, **kwargs):
     """
     Compose layers to a single :py:class:`PIL.Image`.
     If the layers do not have visible pixels, the function returns `None`.
@@ -129,7 +129,7 @@ def compose(layers, bbox=None, layer_filter=None, color=None):
         if intersect(layer.bbox, bbox) == (0, 0, 0, 0):
             continue
 
-        image = layer.compose()
+        image = layer.compose(**kwargs)
         if image is None:
             continue
 
@@ -144,12 +144,12 @@ def compose(layers, bbox=None, layer_filter=None, color=None):
     return result
 
 
-def compose_layer(layer, force=False):
+def compose_layer(layer, force=False, **kwargs):
     """Compose a single layer with pixels."""
     from PIL import Image, ImageChops
     assert layer.bbox != (0, 0, 0, 0), 'Layer bbox is (0, 0, 0, 0)'
 
-    image = layer.topil()
+    image = layer.topil(**kwargs)
     if image is None or force:
         image = create_fill(layer)
 

@@ -51,10 +51,10 @@ Double
 .. autoclass:: psd_tools.psd.descriptor.Double
     :members:
 
-Enum
-----
+Enumerated
+----------
 
-.. autoclass:: psd_tools.psd.descriptor.Enum
+.. autoclass:: psd_tools.psd.descriptor.Enumerated
     :members:
 
 EnumeratedReference

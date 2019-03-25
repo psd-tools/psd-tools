@@ -114,7 +114,7 @@ class PSDImage(GroupMixin):
             with open(fp, mode) as f:
                 self._record.write(f)
 
-    def topil(self):
+    def topil(self, **kwargs):
         """
         Get PIL Image.
 
@@ -122,7 +122,7 @@ class PSDImage(GroupMixin):
             available.
         """
         if self.has_preview():
-            return pil_io.convert_image_data_to_pil(self._record)
+            return pil_io.convert_image_data_to_pil(self._record, **kwargs)
         return None
 
     def compose(self, force=False, bbox=None, **kwargs):
@@ -135,7 +135,9 @@ class PSDImage(GroupMixin):
         :return: :py:class:`PIL.Image`, or `None` if there is no pixel.
         """
         from psd_tools.api.composer import compose
-        image = self.topil() if (not force or len(self) == 0) else None
+        image = None
+        if not force or len(self) == 0:
+            image = self.topil(**kwargs)
         if image is None:
             image = compose(self, bbox=bbox or self.viewbox, **kwargs)
         return image
@@ -348,6 +350,13 @@ class PSDImage(GroupMixin):
 
             version_info = psd.image_resources.get_data('VERSION_INFO')
             slices = psd.image_resources.get_data('SLICES')
+
+        Image resources contain an ICC profile. The following shows how to
+        export a PNG file with embedded ICC profile::
+
+            icc_profile = psd.image_resources.get_data('ICC_PROFILE')
+            image = psd.compose(apply_icc=False)
+            image.save('output.png', icc_profile=icc_profile)
         """
         return self._record.image_resources
 
