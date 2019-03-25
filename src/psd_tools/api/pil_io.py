@@ -38,7 +38,7 @@ def extract_pil_mode(psd):
     return get_pil_mode(psd.header.color_mode, alpha)
 
 
-def convert_image_data_to_pil(psd):
+def convert_image_data_to_pil(psd, apply_icc=True, **kwargs):
     """Convert ImageData to PIL Image."""
     from PIL import Image, ImageOps
     header = psd.header
@@ -57,14 +57,14 @@ def convert_image_data_to_pil(psd):
         image = Image.merge(mode, channels[:(len(channels) - alpha)])
     if mode == 'CMYK':
         image = image.point(lambda x: 255 - x)
-    if 'ICC_PROFILE' in psd.image_resources:
+    if apply_icc and 'ICC_PROFILE' in psd.image_resources:
         image = _apply_icc(image, psd.image_resources.get_data('ICC_PROFILE'))
     if alpha and mode in ('L', 'RGB'):
         image.putalpha(channels[-1])
     return _remove_white_background(image)
 
 
-def convert_layer_to_pil(layer):
+def convert_layer_to_pil(layer, apply_icc=True, **kwargs):
     """Convert Layer to PIL Image."""
     from PIL import Image
     header = layer._psd._record.header
@@ -95,7 +95,7 @@ def convert_layer_to_pil(layer):
         else:
             logger.debug('Alpha channel is not supported in %s' % (mode))
 
-    if 'ICC_PROFILE' in layer._psd.image_resources:
+    if apply_icc and 'ICC_PROFILE' in layer._psd.image_resources:
         image = _apply_icc(
             image, layer._psd.image_resources.get_data('ICC_PROFILE')
         )
