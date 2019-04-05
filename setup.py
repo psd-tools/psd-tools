@@ -28,10 +28,10 @@ setup(
     ),
     license='MIT License',
     install_requires=[
-        'docopt >= 0.5',
+        'docopt>=0.5',
         'packbits',
         'attrs',
-        'Pillow',
+        'Pillow!=6.0.0',
         'enum34;python_version<"3.4"',
     ],
     keywords="photoshop psd pil pillow",
