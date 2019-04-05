@@ -32,14 +32,29 @@ def get_pil_mode(value, alpha=False):
     return name
 
 
-def extract_pil_mode(psd):
-    """Extract PIL mode from PSD."""
-    alpha = _get_alpha_use(psd)
-    return get_pil_mode(psd.header.color_mode, alpha)
+def get_pil_channels(pil_mode):
+    """Get the number of channels for PIL modes."""
+    return {
+        '1': 1,
+        'L': 1,
+        'P': 1,
+        'P': 1,
+        'RGB': 3,
+        'CMYK': 4,
+        'YCbCr': 3,
+        'LAB': 3,
+        'HSV': 3,
+        'I': 1,
+        'F': 1,
+    }.get(pil_mode, 3)
 
 
 def convert_image_data_to_pil(psd, apply_icc=True, **kwargs):
-    """Convert ImageData to PIL Image."""
+    """Convert ImageData to PIL Image.
+
+    .. note:: Image resources contain extra alpha channels in these keys:
+        `ALPHA_NAMES_UNICODE`, `ALPHA_NAMES_PASCAL`, `ALPHA_IDENTIFIERS`.
+    """
     from PIL import Image, ImageOps
     header = psd.header
     size = (header.width, header.height)
@@ -49,12 +64,12 @@ def convert_image_data_to_pil(psd, apply_icc=True, **kwargs):
     alpha = _get_alpha_use(psd)
     mode = get_pil_mode(header.color_mode.name)
     if mode == 'P':
-        image = Image.merge('L', channels[:(len(channels) - alpha)])
+        image = Image.merge('L', channels[:get_pil_channels(mode)])
         image.putpalette(psd.color_mode_data.interleave())
     elif mode == 'MULTICHANNEL':
         image = channels[0]  # Multi-channel mode is a collection of alpha.
     else:
-        image = Image.merge(mode, channels[:(len(channels) - alpha)])
+        image = Image.merge(mode, channels[:get_pil_channels(mode)])
     if mode == 'CMYK':
         image = image.point(lambda x: 255 - x)
     if apply_icc and 'ICC_PROFILE' in psd.image_resources:

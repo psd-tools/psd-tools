@@ -35,7 +35,8 @@ class FileHeader(BaseElement):
 
     .. py:attribute:: channels
 
-        The number of channels in the image, including any alpha channels.
+        The number of channels in the image, including any user-defined alpha
+        channel.
 
     .. py:attribute:: height
 
