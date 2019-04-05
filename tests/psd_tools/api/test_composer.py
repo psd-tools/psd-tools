@@ -60,6 +60,7 @@ def test_compose_minimal(filename):
     ('grayscale', 8),
     ('index_color', 8),
     ('rgb', 8),
+    ('rgba', 8),
     ('lab', 8),
     ('cmyk', 16),
     ('grayscale', 16),

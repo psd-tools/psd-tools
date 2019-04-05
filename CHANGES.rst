@@ -1,3 +1,10 @@
+1.8.13 (2019-04-05)
+-------------------
+
+- fix engine_data unknown tag format;
+- fix compose for extra alpha channels;
+- workaround for pillow 6.0.0 bug.
+
 1.8.12 (2019-03-25)
 -------------------
 
