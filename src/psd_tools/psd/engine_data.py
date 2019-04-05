@@ -66,7 +66,7 @@ class EngineToken(Enum):
     PROPERTY = compile_re(r'^\/[a-zA-Z0-9]+$')
     STRING = compile_re(r'^\((\xfe\xff([^\)]|\\\))*)\)$')
     # Unknown tags: b'(hwid)', b'(fwid)', b'(aalt)'
-    UNKNOWN_TAG = compile_re(r'^\([a-zA-Z0-9]+\)$')
+    UNKNOWN_TAG = compile_re(r'^\([a-zA-Z0-9]*\)$')
 
 
 class Tokenizer(object):
