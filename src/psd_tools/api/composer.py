@@ -345,13 +345,17 @@ def _apply_color_map(mode, grad, Z):
     scalar = {
         'RGB': 1.0, 'L': 2.55, 'CMYK': 2.55,
     }.get(mode, 1.0)
+
+    X = [stop.get(b'Lctn').value / 4096. for stop in stops]
+    Y = [
+        tuple(int(scalar * x.value) for x in stop.get(b'Clr ').values())
+        for stop in stops
+    ]
+    if len(stops) == 1:
+        X = [0., 1.]
+        Y = [Y[0], Y[0]]
     G = interpolate.interp1d(
-        [stop.get(b'Lctn').value / 4096. for stop in stops],
-        [
-            tuple(int(scalar * x.value) for x in stop.get(b'Clr ').values())
-            for stop in stops
-        ],
-        axis=0, fill_value='extrapolate'
+        X, Y, axis=0, fill_value='extrapolate'
     )
     pixels = G(Z).astype(np.uint8)
     if pixels.shape[-1] == 1:
@@ -360,10 +364,13 @@ def _apply_color_map(mode, grad, Z):
     image = Image.fromarray(pixels, mode.rstrip('A'))
     if b'Trns' in grad and mode.endswith('A'):
         stops = grad.get(b'Trns')
+        X = [stop.get(b'Lctn').value / 4096 for stop in stops]
+        Y = [stop.get(b'Opct').value * 2.55 for stop in stops]
+        if len(stops) == 1:
+            X = [0., 1.]
+            Y = [Y[0], Y[0]]
         G_opacity = interpolate.interp1d(
-            [stop.get(b'Lctn').value / 4096 for stop in stops],
-            [stop.get(b'Opct').value * 2.55 for stop in stops],
-            axis=0, fill_value='extrapolate'
+            X, Y, axis=0, fill_value='extrapolate'
         )
         alpha = G_opacity(Z).astype(np.uint8)
         image.putalpha(Image.fromarray(alpha, 'L'))
