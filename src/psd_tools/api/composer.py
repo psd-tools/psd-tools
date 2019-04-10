@@ -38,7 +38,7 @@ def intersect(*bboxes):
     return result
 
 
-def _blend(target, image, offset, mask=None):
+def _blend(target, image, offset):
     if offset[0] < 0:
         if image.width <= -offset[0]:
             return target
@@ -284,15 +284,35 @@ def draw_solid_color_fill(image, setting):
 
 
 def draw_pattern_fill(image, psd, setting):
+    from PIL import Image
     pattern_id = setting[b'Ptrn'][b'Idnt'].value.rstrip('\x00')
     pattern = psd._get_pattern(pattern_id)
     if not pattern:
         logger.error('Pattern not found: %s' % (pattern_id))
         return None
     panel = convert_pattern_to_pil(pattern, psd._record.header.version)
-    for left in range(0, image.width, panel.width):
-        for top in range(0, image.height, panel.height):
-            image.paste(panel, (left, top))
+
+    scale = setting.get(b'Scl ').value / 100.
+    if scale != 1.:
+        panel = panel.resize((
+            int(panel.width * scale),
+            int(panel.height * scale)
+        ))
+
+    opacity = int(setting.get(b'Opct').value / 100. * 255)
+    if opacity != 255:
+        panel.putalpha(opacity)
+
+    pattern_image = Image.new(image.mode, image.size)
+    mask = image.getchannel('A')
+    for left in range(0, pattern_image.width, panel.width):
+        for top in range(0, pattern_image.height, panel.height):
+            panel_mask = mask.crop(
+                (left, top, left + panel.width, top + panel.height)
+            )
+            pattern_image.paste(panel, (left, top), panel_mask)
+
+    image.paste(_blend(image, pattern_image, (0, 0)))
 
 
 def draw_gradient_fill(image, setting, blend=True):
