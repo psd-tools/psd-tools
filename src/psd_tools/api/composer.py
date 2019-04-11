@@ -215,10 +215,10 @@ def create_fill(layer):
         setting = layer.tagged_blocks.get_data(
             'SOLID_COLOR_SHEET_SETTING'
         )
-        draw_solid_color_fill(image, setting)
+        draw_solid_color_fill(image, setting, blend=False)
     elif 'VECTOR_STROKE_CONTENT_DATA' in layer.tagged_blocks:
         setting = layer.tagged_blocks.get_data('VECTOR_STROKE_CONTENT_DATA')
-        draw_solid_color_fill(image, setting)
+        draw_solid_color_fill(image, setting, blend=False)
     elif 'PATTERN_FILL_SETTING' in layer.tagged_blocks:
         setting = layer.tagged_blocks.get_data('PATTERN_FILL_SETTING')
         draw_pattern_fill(image, layer._psd, setting, blend=False)
@@ -265,48 +265,80 @@ def draw_vector_mask(layer):
     height = layer._psd.height
     color = layer.vector_mask.initial_fill_rule
 
-    mask = Image.new('1', (width, height), color)
+    mask = Image.new('L', (width, height), color)
     first = True
     for subpath in layer.vector_mask.paths:
         plane = _draw_subpath(subpath, width, height)
         if subpath.operation == 0:
-            mask = ImageChops.logical_xor(mask, plane)
+            mask = ImageChops.difference(mask, plane)
         elif subpath.operation == 1:
-            mask = ImageChops.logical_or(mask, plane)
+            mask = ImageChops.lighter(mask, plane)
         elif subpath.operation == 2:
             if first:
                 mask = ImageChops.invert(mask)
-            mask = ImageChops.subtract(
-                mask.convert('L'), plane.convert('L')
-            ).convert('1')
+            mask = ImageChops.subtract(mask, plane)
         elif subpath.operation == 3:
             if first:
                 mask = ImageChops.invert(mask)
-            mask = ImageChops.logical_and(mask, plane)
+            mask = ImageChops.darker(mask, plane)
         first = False
-    return mask.crop(layer.bbox).convert('L')
+    return mask.crop(layer.bbox)
 
 
 def _draw_subpath(subpath, width, height):
-    from PIL import Image, ImageDraw
-    mask = Image.new('1', (width, height), 0)
-    draw = ImageDraw.Draw(mask)
-    path = [(
-        int(knot.anchor[1] * width),
-        int(knot.anchor[0] * height),
-    ) for knot in subpath]
-    # TODO: Use bezier curve instead of polygon. Perhaps aggdraw module.
-    draw.polygon(path, fill=1)
+    from PIL import Image
+    import aggdraw
+    mask = Image.new('L', (width, height), 0)
+    path = ' '.join(map(str, _generate_symbol(subpath, width, height)))
+    draw = aggdraw.Draw(mask)
+    brush = aggdraw.Brush(255)
+    symbol = aggdraw.Symbol(path)
+    draw.symbol((0, 0), symbol, None, brush)
+    draw.flush()
     del draw
     return mask
 
 
-def draw_solid_color_fill(image, setting):
-    from PIL import ImageDraw
+def _generate_symbol(path, width, height, command='C'):
+    """Sequence generator for SVG path."""
+    if len(path) == 0:
+        return
+
+    # Initial point.
+    yield 'M'
+    yield path[0].anchor[1] * width
+    yield path[0].anchor[0] * height
+    yield command
+
+    # Closed path or open path
+    points = (zip(path, path[1:] + path[0:1]) if path.is_closed()
+              else zip(path, path[1:]))
+
+    # Rest of the points.
+    for p1, p2 in points:
+        yield p1.leaving[1] * width
+        yield p1.leaving[0] * height
+        yield p2.preceding[1] * width
+        yield p2.preceding[0] * height
+        yield p2.anchor[1] * width
+        yield p2.anchor[0] * height
+
+    if path.is_closed():
+        yield 'Z'
+
+
+def draw_solid_color_fill(image, setting, blend=True):
+    from PIL import Image, ImageDraw
     color = tuple(int(x) for x in setting.get(b'Clr ').values())
-    draw = ImageDraw.Draw(image)
-    draw.rectangle((0, 0, image.width, image.height), fill=color)
+    canvas = Image.new(image.mode, image.size)
+    draw = ImageDraw.Draw(canvas)
+    draw.rectangle((0, 0, canvas.width, canvas.height), fill=color)
     del draw
+    if blend:
+        canvas.putalpha(image.getchannel('A'))
+        _blend(image, canvas, (0, 0))
+    else:
+        image.paste(canvas)
 
 
 def draw_pattern_fill(image, psd, setting, blend=True):
@@ -371,7 +403,8 @@ def draw_gradient_fill(image, setting, blend=True):
 
     gradient_image = _apply_color_map(image.mode, setting.get(b'Grad'), Z)
     if blend:
-        image.paste(_blend(image, gradient_image, offset=(0, 0)))
+        gradient_image.putalpha(image.getchannel('A'))
+        _blend(image, gradient_image, offset=(0, 0))
     else:
         image.paste(gradient_image)
 

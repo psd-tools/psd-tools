@@ -33,6 +33,7 @@ setup(
         'attrs',
         'Pillow!=6.0.0',
         'enum34;python_version<"3.4"',
+        'aggdraw',
     ],
     keywords="photoshop psd pil pillow",
     package_dir={'': 'src'},
