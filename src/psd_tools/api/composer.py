@@ -173,7 +173,7 @@ def compose_layer(layer, force=False, **kwargs):
                 # What should we do here? There are two alpha channels.
                 pass
             image.putalpha(mask)
-    elif layer.has_vector_mask() and not layer.has_pixels():
+    elif layer.has_vector_mask() and (force or not layer.has_pixels()):
         mask = draw_vector_mask(layer)
         # TODO: Stroke drawing.
         image.putalpha(mask)
@@ -216,9 +216,12 @@ def create_fill(layer):
             'SOLID_COLOR_SHEET_SETTING'
         )
         draw_solid_color_fill(image, setting)
+    elif 'VECTOR_STROKE_CONTENT_DATA' in layer.tagged_blocks:
+        setting = layer.tagged_blocks.get_data('VECTOR_STROKE_CONTENT_DATA')
+        draw_solid_color_fill(image, setting)
     elif 'PATTERN_FILL_SETTING' in layer.tagged_blocks:
         setting = layer.tagged_blocks.get_data('PATTERN_FILL_SETTING')
-        draw_pattern_fill(image, layer._psd, setting)
+        draw_pattern_fill(image, layer._psd, setting, blend=False)
     elif 'GRADIENT_FILL_SETTING' in layer.tagged_blocks:
         setting = layer.tagged_blocks.get_data('GRADIENT_FILL_SETTING')
         draw_gradient_fill(image, setting, blend=False)
@@ -257,22 +260,45 @@ def apply_effect(layer, image):
 
 
 def draw_vector_mask(layer):
-    from PIL import Image, ImageDraw
+    from PIL import Image, ImageChops
     width = layer._psd.width
     height = layer._psd.height
-    color = layer.vector_mask.initial_fill_rule * 255
-    mask = Image.new('L', (width, height), color)
-    draw = ImageDraw.Draw(mask)
-    for subpath in layer.vector_mask.paths:
-        path = [(
-            int(knot.anchor[1] * width),
-            int(knot.anchor[0] * height),
-        ) for knot in subpath]
-        # TODO: Use bezier curve instead of polygon. Perhaps aggdraw module.
-        draw.polygon(path, fill=(255 - color))
-    del draw
+    color = layer.vector_mask.initial_fill_rule
 
-    return mask.crop(layer.bbox)
+    mask = Image.new('1', (width, height), color)
+    first = True
+    for subpath in layer.vector_mask.paths:
+        plane = _draw_subpath(subpath, width, height)
+        if subpath.operation == 0:
+            mask = ImageChops.logical_xor(mask, plane)
+        elif subpath.operation == 1:
+            mask = ImageChops.logical_or(mask, plane)
+        elif subpath.operation == 2:
+            if first:
+                mask = ImageChops.invert(mask)
+            mask = ImageChops.subtract(
+                mask.convert('L'), plane.convert('L')
+            ).convert('1')
+        elif subpath.operation == 3:
+            if first:
+                mask = ImageChops.invert(mask)
+            mask = ImageChops.logical_and(mask, plane)
+        first = False
+    return mask.crop(layer.bbox).convert('L')
+
+
+def _draw_subpath(subpath, width, height):
+    from PIL import Image, ImageDraw
+    mask = Image.new('1', (width, height), 0)
+    draw = ImageDraw.Draw(mask)
+    path = [(
+        int(knot.anchor[1] * width),
+        int(knot.anchor[0] * height),
+    ) for knot in subpath]
+    # TODO: Use bezier curve instead of polygon. Perhaps aggdraw module.
+    draw.polygon(path, fill=1)
+    del draw
+    return mask
 
 
 def draw_solid_color_fill(image, setting):
@@ -283,7 +309,15 @@ def draw_solid_color_fill(image, setting):
     del draw
 
 
-def draw_pattern_fill(image, psd, setting):
+def draw_pattern_fill(image, psd, setting, blend=True):
+    """
+    Draw pattern fill on the image.
+
+    :param image: Image to be filled.
+    :param psd: :py:class:`PSDImage`.
+    :param setting: Descriptor containing pattern fill.
+    :param blend: Blend the fill or ignore. Effects blend.
+    """
     from PIL import Image
     pattern_id = setting[b'Ptrn'][b'Idnt'].value.rstrip('\x00')
     pattern = psd._get_pattern(pattern_id)
@@ -292,19 +326,20 @@ def draw_pattern_fill(image, psd, setting):
         return None
     panel = convert_pattern_to_pil(pattern, psd._record.header.version)
 
-    scale = setting.get(b'Scl ').value / 100.
+    scale = setting.get(b'Scl ', 100) / 100.
     if scale != 1.:
         panel = panel.resize((
             int(panel.width * scale),
             int(panel.height * scale)
         ))
 
-    opacity = int(setting.get(b'Opct').value / 100. * 255)
+    opacity = int(setting.get(b'Opct', 100) / 100. * 255)
     if opacity != 255:
         panel.putalpha(opacity)
 
     pattern_image = Image.new(image.mode, image.size)
-    mask = image.getchannel('A')
+    mask = image.getchannel('A') if blend else Image.new('L', image.size, 255)
+
     for left in range(0, pattern_image.width, panel.width):
         for top in range(0, pattern_image.height, panel.height):
             panel_mask = mask.crop(
@@ -312,7 +347,10 @@ def draw_pattern_fill(image, psd, setting):
             )
             pattern_image.paste(panel, (left, top), panel_mask)
 
-    image.paste(_blend(image, pattern_image, (0, 0)))
+    if blend:
+        image.paste(_blend(image, pattern_image, (0, 0)))
+    else:
+        image.paste(pattern_image)
 
 
 def draw_gradient_fill(image, setting, blend=True):
@@ -333,7 +371,7 @@ def draw_gradient_fill(image, setting, blend=True):
 
     gradient_image = _apply_color_map(image.mode, setting.get(b'Grad'), Z)
     if blend:
-        _blend(image, gradient_image, offset=(0, 0))
+        image.paste(_blend(image, gradient_image, offset=(0, 0)))
     else:
         image.paste(gradient_image)
 
