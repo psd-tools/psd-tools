@@ -62,8 +62,10 @@ class Subpath(ListElement):
 
         `int` value indicating how multiple subpath should be combined:
 
-        1: Or (union), 2: Not-Or, 3: And (intersect), 4: Xor (exclude),
-        -1: Subtract?
+        1: Or (union), 2: Not-Or, 3: And (intersect), 0: Xor (exclude)
+
+        The first path element is applied to the background surface.
+        Intersection does not have strokes.
 
     .. py:attribute:: index
 

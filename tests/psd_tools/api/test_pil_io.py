@@ -5,6 +5,8 @@ import os
 
 from psd_tools.api import pil_io
 from psd_tools.constants import ColorMode
+from psd_tools.psd.patterns import Pattern
+from ..utils import TEST_ROOT, full_name
 
 
 logger = logging.getLogger(__name__)
@@ -36,3 +38,11 @@ def test_get_color_mode(mode):
 ])
 def test_get_pil_mode(mode, alpha, expected):
     assert pil_io.get_pil_mode(mode.name, alpha) == expected
+
+
+def test_convert_pattern_to_pil():
+    filepath = os.path.join(TEST_ROOT, 'tagged_blocks', 'Patt_1.dat')
+    with open(filepath, 'rb') as f:
+        pattern = Pattern.read(f)
+
+    assert pil_io.convert_pattern_to_pil(pattern)

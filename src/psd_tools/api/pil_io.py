@@ -150,7 +150,11 @@ def convert_pattern_to_pil(pattern, version=1):
     ]
     if len(channels) == len(mode) + 1:
         mode += 'A'  # TODO: Perhaps doesn't work for some modes.
-    image = Image.merge(mode, channels)
+    if mode == 'P':
+        image = channels[0]
+        image.putpalette([x for rgb in pattern.color_table for x in rgb])
+    else:
+        image = Image.merge(mode, channels)
     if mode == 'CMYK':
         image = image.point(lambda x: 255 - x)
     return image

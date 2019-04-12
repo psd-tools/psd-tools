@@ -1,3 +1,14 @@
+1.8.14 (2019-04-12)
+-------------------
+
+- add dependency to aggdraw;
+- support bezier curves in vector masks;
+- support path operations;
+- fix `compose(force=True)` behavior;
+- fix default background color in composer;
+- improve pattern overlay parameters support;
+- fix gradient map generation for a single stop.
+
 1.8.13 (2019-04-05)
 -------------------
 
