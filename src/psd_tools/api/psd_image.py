@@ -139,7 +139,9 @@ class PSDImage(GroupMixin):
         if not force or len(self) == 0:
             image = self.topil(**kwargs)
         if image is None:
-            image = compose(self, bbox=bbox or self.viewbox, **kwargs)
+            image = compose(
+                self, bbox=bbox or self.viewbox, force=force, **kwargs
+            )
         return image
 
     def is_visible(self):

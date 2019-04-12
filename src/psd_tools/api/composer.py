@@ -121,10 +121,11 @@ def compose(layers, bbox=None, layer_filter=None, color=None, **kwargs):
     # Alpha must be forced to correctly blend.
     mode = get_pil_mode(valid_layers[0]._psd.color_mode, True)
     result = Image.new(
-        mode, (bbox[2] - bbox[0], bbox[3] - bbox[1]), color=color,
+        mode, (bbox[2] - bbox[0], bbox[3] - bbox[1]),
+        color=color if color is not None else 'white',
     )
+    result.putalpha(0)
 
-    initial_layer = True
     for layer in valid_layers:
         if intersect(layer.bbox, bbox) == (0, 0, 0, 0):
             continue
@@ -135,11 +136,7 @@ def compose(layers, bbox=None, layer_filter=None, color=None, **kwargs):
 
         logger.debug('Composing %s' % layer)
         offset = (layer.left - bbox[0], layer.top - bbox[1])
-        if initial_layer:
-            result.paste(image, offset)
-            initial_layer = False
-        else:
-            result = _blend(result, image, offset)
+        result = _blend(result, image, offset)
 
     return result
 
@@ -151,7 +148,9 @@ def compose_layer(layer, force=False, **kwargs):
 
     image = layer.topil(**kwargs)
     if image is None or force:
-        image = create_fill(layer)
+        texture = create_fill(layer)
+        if texture is not None:
+            image = texture
 
     if image is None:
         return image
@@ -176,7 +175,9 @@ def compose_layer(layer, force=False, **kwargs):
     elif layer.has_vector_mask() and (force or not layer.has_pixels()):
         mask = draw_vector_mask(layer)
         # TODO: Stroke drawing.
-        image.putalpha(mask)
+        texture = image
+        image = Image.new(image.mode, image.size, 'white')
+        image.paste(texture, mask=mask)
 
     # Apply layer fill effects.
     apply_effect(layer, image)
@@ -210,19 +211,23 @@ def compose_layer(layer, force=False, **kwargs):
 def create_fill(layer):
     from PIL import Image
     mode = get_pil_mode(layer._psd.color_mode, True)
-    image = Image.new(mode, (layer.width, layer.height))
+    image = None
     if 'SOLID_COLOR_SHEET_SETTING' in layer.tagged_blocks:
+        image = Image.new(mode, (layer.width, layer.height), 'white')
         setting = layer.tagged_blocks.get_data(
             'SOLID_COLOR_SHEET_SETTING'
         )
         draw_solid_color_fill(image, setting, blend=False)
     elif 'VECTOR_STROKE_CONTENT_DATA' in layer.tagged_blocks:
+        image = Image.new(mode, (layer.width, layer.height), 'white')
         setting = layer.tagged_blocks.get_data('VECTOR_STROKE_CONTENT_DATA')
         draw_solid_color_fill(image, setting, blend=False)
     elif 'PATTERN_FILL_SETTING' in layer.tagged_blocks:
+        image = Image.new(mode, (layer.width, layer.height), 'white')
         setting = layer.tagged_blocks.get_data('PATTERN_FILL_SETTING')
         draw_pattern_fill(image, layer._psd, setting, blend=False)
     elif 'GRADIENT_FILL_SETTING' in layer.tagged_blocks:
+        image = Image.new(mode, (layer.width, layer.height), 'white')
         setting = layer.tagged_blocks.get_data('GRADIENT_FILL_SETTING')
         draw_gradient_fill(image, setting, blend=False)
     return image
@@ -263,7 +268,7 @@ def draw_vector_mask(layer):
     from PIL import Image, ImageChops
     width = layer._psd.width
     height = layer._psd.height
-    color = layer.vector_mask.initial_fill_rule
+    color = 255 * layer.vector_mask.initial_fill_rule
 
     mask = Image.new('L', (width, height), color)
     first = True
@@ -328,7 +333,7 @@ def _generate_symbol(path, width, height, command='C'):
 
 
 def draw_solid_color_fill(image, setting, blend=True):
-    from PIL import Image, ImageDraw
+    from PIL import Image, ImageDraw, ImageChops
     color = tuple(int(x) for x in setting.get(b'Clr ').values())
     canvas = Image.new(image.mode, image.size)
     draw = ImageDraw.Draw(canvas)
