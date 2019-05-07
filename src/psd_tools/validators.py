@@ -17,9 +17,7 @@ class _RangeValidator(object):
             range_options = False
 
         if not range_options:
-            raise ValueError(
-                "'{name}' must be in range []"
-            )
+            raise ValueError("'{name}' must be in range []")
 
     def __repr__(self):
         return "<range_ validator with [{minimum!r}, {maximum!r}]".format(

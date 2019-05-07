@@ -7,7 +7,6 @@ from psd_tools.utils import trimmed_repr
 
 logging.basicConfig(level=logging.DEBUG)
 
-
 # Use maccyrillic encoding.
 CYRILLIC_FILES = {
     'layer_mask_data.psb',
@@ -28,7 +27,6 @@ OTHER_FILES = {
     'blend-and-clipping.psd',
     'clipping-mask2.psd',
 }
-
 
 TEST_ROOT = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 

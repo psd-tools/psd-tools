@@ -9,7 +9,6 @@ from psd_tools.constants import BlendMode
 
 from ..utils import full_name
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -49,8 +48,13 @@ def group():
 
 
 ALL_FIXTURES = [
-    'pixel_layer', 'shape_layer', 'smartobject_layer', 'type_layer', 'group',
-    'adjustment_layer', 'fill_layer',
+    'pixel_layer',
+    'shape_layer',
+    'smartobject_layer',
+    'type_layer',
+    'group',
+    'adjustment_layer',
+    'fill_layer',
 ]
 
 
@@ -111,8 +115,10 @@ def test_layer_is_visible(pixel_layer):
 @pytest.fixture(params=['pixel_layer', 'group'])
 def is_group_args(request):
     return (
-        request.getfixturevalue(request.param),
-        {'pixel_layer': False, 'group': True}.get(request.param)
+        request.getfixturevalue(request.param), {
+            'pixel_layer': False,
+            'group': True
+        }.get(request.param)
     )
 
 
@@ -141,7 +147,10 @@ def test_layer_kind(kind_args):
 @pytest.fixture(params=ALL_FIXTURES)
 def topil_args(request):
     is_image = request.param in {
-        'pixel_layer', 'smartobject_layer', 'type_layer', 'fill_layer',
+        'pixel_layer',
+        'smartobject_layer',
+        'type_layer',
+        'fill_layer',
         'shape_layer',
     }
     return (request.getfixturevalue(request.param), is_image)

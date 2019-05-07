@@ -43,9 +43,7 @@ from psd_tools.psd.base import (
 )
 from psd_tools.utils import new_registry, trimmed_repr, write_bytes
 
-
 logger = logging.getLogger(__name__)
-
 
 TOKEN_CLASSES, register = new_registry()
 
@@ -130,6 +128,7 @@ class Dict(DictElement):
     """
     Dict-like element.
     """
+
     @classmethod
     def read(cls, fp, **kwargs):
         return cls.frombytes(fp.read())
@@ -143,8 +142,9 @@ class Dict(DictElement):
                 key = Property.frombytes(k_token)
                 v_token, v_token_type = next(tokenizer)
                 kls = TOKEN_CLASSES.get(v_token_type)
-                if v_token_type in (EngineToken.ARRAY_START,
-                                    EngineToken.DICT_START):
+                if v_token_type in (
+                    EngineToken.ARRAY_START, EngineToken.DICT_START
+                ):
                     value = kls.frombytes(tokenizer)
                 elif kls:
                     value = kls.frombytes(v_token)
@@ -235,6 +235,7 @@ class EngineData2(Dict):
 
     TEXT_ENGINE_DATA tagged block has this object.
     """
+
     def write(self, fp, indent=None, write_container=False, **kwargs):
         return super(EngineData2, self).write(
             fp, indent=indent, write_container=write_container
@@ -246,6 +247,7 @@ class List(ListElement):
     """
     List-like element.
     """
+
     @classmethod
     def read(cls, fp):
         return cls.frombytes(fp.read())
@@ -259,8 +261,7 @@ class List(ListElement):
                 return self
 
             kls = TOKEN_CLASSES.get(token_type)
-            if token_type in (EngineToken.ARRAY_START,
-                              EngineToken.DICT_START):
+            if token_type in (EngineToken.ARRAY_START, EngineToken.DICT_START):
                 value = kls.frombytes(tokenizer)
             else:
                 value = kls.frombytes(token)
@@ -327,6 +328,7 @@ class Bool(BooleanElement):
     """
     Bool element.
     """
+
     @classmethod
     def read(cls, fp):
         return cls.frombytes(fp.read())
@@ -344,6 +346,7 @@ class Integer(IntegerElement):
     """
     Integer element.
     """
+
     @classmethod
     def read(cls, fp):
         return cls.frombytes(fp.read())
@@ -361,6 +364,7 @@ class Float(NumericElement):
     """
     Float element.
     """
+
     @classmethod
     def read(cls, fp):
         return cls.frombytes(fp.read())
@@ -384,6 +388,7 @@ class Property(ValueElement):
     """
     Property element.
     """
+
     @classmethod
     def read(cls, fp):
         return cls.frombytes(fp.read())
@@ -401,6 +406,7 @@ class Tag(ValueElement):
     """
     Tag element.
     """
+
     @classmethod
     def read(cls, fp):
         return cls(fp.read())

@@ -121,7 +121,8 @@ def compose(layers, bbox=None, layer_filter=None, color=None, **kwargs):
     # Alpha must be forced to correctly blend.
     mode = get_pil_mode(valid_layers[0]._psd.color_mode, True)
     result = Image.new(
-        mode, (bbox[2] - bbox[0], bbox[3] - bbox[1]),
+        mode,
+        (bbox[2] - bbox[0], bbox[3] - bbox[1]),
         color=color if color is not None else 'white',
     )
     result.putalpha(0)
@@ -160,10 +161,8 @@ def compose_layer(layer, force=False, **kwargs):
     # Apply mask.
     if layer.has_mask() and not layer.mask.disabled:
         mask_bbox = layer.mask.bbox
-        if (
-            (mask_bbox[2] - mask_bbox[0]) > 0 and
-            (mask_bbox[3] - mask_bbox[1]) > 0
-        ):
+        if ((mask_bbox[2] - mask_bbox[0]) > 0 and
+            (mask_bbox[3] - mask_bbox[1]) > 0):
             color = layer.mask.background_color
             offset = (mask_bbox[0] - layer.left, mask_bbox[1] - layer.top)
             mask = Image.new('L', image.size, color=color)
@@ -214,9 +213,7 @@ def create_fill(layer):
     image = None
     if 'SOLID_COLOR_SHEET_SETTING' in layer.tagged_blocks:
         image = Image.new(mode, (layer.width, layer.height), 'white')
-        setting = layer.tagged_blocks.get_data(
-            'SOLID_COLOR_SHEET_SETTING'
-        )
+        setting = layer.tagged_blocks.get_data('SOLID_COLOR_SHEET_SETTING')
         draw_solid_color_fill(image, setting, blend=False)
     elif 'VECTOR_STROKE_CONTENT_DATA' in layer.tagged_blocks:
         image = Image.new(mode, (layer.width, layer.height), 'white')
@@ -316,8 +313,10 @@ def _generate_symbol(path, width, height, command='C'):
     yield command
 
     # Closed path or open path
-    points = (zip(path, path[1:] + path[0:1]) if path.is_closed()
-              else zip(path, path[1:]))
+    points = (
+        zip(path, path[1:] +
+            path[0:1]) if path.is_closed() else zip(path, path[1:])
+    )
 
     # Rest of the points.
     for p1, p2 in points:
@@ -365,10 +364,9 @@ def draw_pattern_fill(image, psd, setting, blend=True):
 
     scale = setting.get(b'Scl ', 100) / 100.
     if scale != 1.:
-        panel = panel.resize((
-            int(panel.width * scale),
-            int(panel.height * scale)
-        ))
+        panel = panel.resize(
+            (int(panel.width * scale), int(panel.height * scale))
+        )
 
     opacity = int(setting.get(b'Opct', 100) / 100. * 255)
     if opacity != 255:
@@ -439,7 +437,9 @@ def _apply_color_map(mode, grad, Z):
 
     stops = grad.get(b'Clrs')
     scalar = {
-        'RGB': 1.0, 'L': 2.55, 'CMYK': 2.55,
+        'RGB': 1.0,
+        'L': 2.55,
+        'CMYK': 2.55,
     }.get(mode, 1.0)
 
     X = [stop.get(b'Lctn').value / 4096. for stop in stops]
@@ -450,9 +450,7 @@ def _apply_color_map(mode, grad, Z):
     if len(stops) == 1:
         X = [0., 1.]
         Y = [Y[0], Y[0]]
-    G = interpolate.interp1d(
-        X, Y, axis=0, fill_value='extrapolate'
-    )
+    G = interpolate.interp1d(X, Y, axis=0, fill_value='extrapolate')
     pixels = G(Z).astype(np.uint8)
     if pixels.shape[-1] == 1:
         pixels = pixels[:, :, 0]

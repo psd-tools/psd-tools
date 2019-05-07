@@ -61,8 +61,15 @@ import io
 from psd_tools.version import __version__
 from psd_tools.constants import ImageResourceID, PrintScaleStyle
 from psd_tools.psd.base import (
-    BaseElement, BooleanElement, ByteElement, DictElement, IntegerElement,
-    ListElement, NumericElement, ShortIntegerElement, StringElement,
+    BaseElement,
+    BooleanElement,
+    ByteElement,
+    DictElement,
+    IntegerElement,
+    ListElement,
+    NumericElement,
+    ShortIntegerElement,
+    StringElement,
     ValueElement,
 )
 from psd_tools.psd.color import Color
@@ -73,7 +80,6 @@ from psd_tools.utils import (
     read_unicode_string, write_unicode_string, is_readable, trimmed_repr
 )
 from psd_tools.validators import in_
-
 
 logger = logging.getLogger(__name__)
 
@@ -130,15 +136,17 @@ class ImageResources(DictElement):
         :return: ImageResources
         """
         return cls([
-            (ImageResourceID.VERSION_INFO,
-             ImageResource(
-                key=ImageResourceID.VERSION_INFO,
-                data=VersionInfo(
-                    has_composite=True,
-                    writer='psd-tools2 %s' % __version__,
-                    reader='psd-tools2 %s' % __version__,
-                ))
-             ),
+            (
+                ImageResourceID.VERSION_INFO,
+                ImageResource(
+                    key=ImageResourceID.VERSION_INFO,
+                    data=VersionInfo(
+                        has_composite=True,
+                        writer='psd-tools2 %s' % __version__,
+                        reader='psd-tools2 %s' % __version__,
+                    )
+                )
+            ),
         ])
 
     @classmethod
@@ -207,7 +215,9 @@ class ImageResource(BaseElement):
         The resource data.
     """
     signature = attr.ib(
-        default=b'8BIM', type=bytes, repr=False,
+        default=b'8BIM',
+        type=bytes,
+        repr=False,
         validator=in_({b'8BIM', b'MeSa', b'AgHg', b'PHUT', b'DCSR'})
     )
     key = attr.ib(default=1000, type=int)
@@ -243,8 +253,9 @@ class ImageResource(BaseElement):
         return cls(signature, key, name, data)
 
     def write(self, fp, encoding='macroman'):
-        written = write_fmt(fp, '4sH', self.signature,
-                            getattr(self.key, 'value', self.key))
+        written = write_fmt(
+            fp, '4sH', self.signature, getattr(self.key, 'value', self.key)
+        )
         written += write_pascal_string(fp, self.name, encoding, 2)
 
         def writer(f):
@@ -261,6 +272,7 @@ class AlphaIdentifiers(ListElement):
     """
     List of alpha identifiers.
     """
+
     @classmethod
     def read(cls, fp, **kwargs):
         items = []
@@ -277,6 +289,7 @@ class AlphaNamesPascal(ListElement):
     """
     List of alpha names.
     """
+
     @classmethod
     def read(cls, fp, **kwargs):
         items = []
@@ -293,6 +306,7 @@ class AlphaNamesUnicode(ListElement):
     """
     List of alpha names.
     """
+
     @classmethod
     def read(cls, fp, **kwargs):
         items = []
@@ -312,6 +326,7 @@ class Byte(ByteElement):
     """
     Byte element.
     """
+
     @classmethod
     def read(cls, fp, **kwargs):
         return cls(*read_fmt('B', fp))
@@ -342,8 +357,10 @@ class GridGuidesInfo(BaseElement):
         return cls(version, horizontal, vertical, items)
 
     def write(self, fp, **kwargs):
-        written = write_fmt(fp, '4I', self.version, self.horizontal,
-                            self.vertical, len(self.data))
+        written = write_fmt(
+            fp, '4I', self.version, self.horizontal, self.vertical,
+            len(self.data)
+        )
         written += sum(write_fmt(fp, 'IB', *item) for item in self.data)
         return written
 
@@ -355,6 +372,7 @@ class HalftoneScreens(ListElement):
     """
     Halftone screens.
     """
+
     @classmethod
     def read(cls, fp, **kwargs):
         items = []
@@ -397,8 +415,9 @@ class HalftoneScreen(BaseElement):
         written = write_fmt(fp, 'I', int(self.freq * 0x10000))
         written += write_fmt(fp, 'H', self.unit)
         written += write_fmt(fp, 'i', int(self.angle * 0x10000))
-        written += write_fmt(fp, 'H4x2?', self.shape, self.use_accurate,
-                             self.use_printer)
+        written += write_fmt(
+            fp, 'H4x2?', self.shape, self.use_accurate, self.use_printer
+        )
         return written
 
 
@@ -409,6 +428,7 @@ class Integer(IntegerElement):
     """
     Integer element.
     """
+
     @classmethod
     def read(cls, fp, **kwargs):
         return cls(*read_fmt('i', fp))
@@ -422,6 +442,7 @@ class LayerGroupEnabledIDs(ListElement):
     """
     Layer group enabled ids.
     """
+
     @classmethod
     def read(cls, fp, **kwargs):
         items = []
@@ -438,6 +459,7 @@ class LayerGroupInfo(ListElement):
     """
     Layer group info list.
     """
+
     @classmethod
     def read(cls, fp, **kwargs):
         items = []
@@ -454,6 +476,7 @@ class LayerSelectionIDs(ListElement):
     """
     Layer selection ids.
     """
+
     @classmethod
     def read(cls, fp, **kwargs):
         count = read_fmt('H', fp)[0]
@@ -472,6 +495,7 @@ class ShortInteger(ShortIntegerElement):
     """
     Short integer element.
     """
+
     @classmethod
     def read(cls, fp, **kwargs):
         return cls(*read_fmt('H', fp))
@@ -486,6 +510,7 @@ class PascalString(ValueElement):
     """
     Pascal string element.
     """
+
     @classmethod
     def read(cls, fp, **kwargs):
         return cls(read_pascal_string(fp, 'macroman'))
@@ -588,9 +613,11 @@ class PrintScale(BaseElement):
     .. py:attribute:: y
     .. py:attribute:: scale
     """
-    style = attr.ib(default=PrintScaleStyle.CENTERED,
-                    converter=PrintScaleStyle,
-                    validator=in_(PrintScaleStyle))
+    style = attr.ib(
+        default=PrintScaleStyle.CENTERED,
+        converter=PrintScaleStyle,
+        validator=in_(PrintScaleStyle)
+    )
     x = attr.ib(default=0., type=float)
     y = attr.ib(default=0., type=float)
     scale = attr.ib(default=0., type=float)
@@ -600,8 +627,9 @@ class PrintScale(BaseElement):
         return cls(*read_fmt('H3f', fp))
 
     def write(self, fp, **kwargs):
-        return write_fmt(fp, 'H3f', self.style.value, self.x, self.y,
-                         self.scale)
+        return write_fmt(
+            fp, 'H3f', self.style.value, self.x, self.y, self.scale
+        )
 
 
 @register(ImageResourceID.RESOLUTION_INFO)
@@ -769,8 +797,9 @@ class SliceV6(BaseElement):
         )
 
     def write(self, fp):
-        written = write_fmt(fp, '3I', self.slice_id, self.group_id,
-                            self.origin)
+        written = write_fmt(
+            fp, '3I', self.slice_id, self.group_id, self.origin
+        )
         if self.origin == 1 and self.associated_id is not None:
             written += write_fmt(fp, 'I', self.associated_id)
         written += write_unicode_string(fp, self.name, padding=1)
@@ -782,10 +811,12 @@ class SliceV6(BaseElement):
         written += write_unicode_string(fp, self.alt_tag, padding=1)
         written += write_fmt(fp, '?', self.cell_is_html)
         written += write_unicode_string(fp, self.cell_text, padding=1)
-        written += write_fmt(fp, '2I', self.horizontal_align,
-                             self.vertical_align)
-        written += write_fmt(fp, '4B', self.alpha, self.red, self.green,
-                             self.blue)
+        written += write_fmt(
+            fp, '2I', self.horizontal_align, self.vertical_align
+        )
+        written += write_fmt(
+            fp, '4B', self.alpha, self.red, self.green, self.blue
+        )
         if self.data is not None:
             if hasattr(self.data, 'write'):
                 written += self.data.write(fp, padding=1)
@@ -830,9 +861,10 @@ class ThumbnailResource(BaseElement):
         return cls(fmt, width, height, row, total_size, bits, planes, data)
 
     def write(self, fp, **kwargs):
-        written = write_fmt(fp, '6I2H', self.fmt, self.width, self.height,
-                            self.row, self.total_size, len(self.data),
-                            self.bits, self.planes)
+        written = write_fmt(
+            fp, '6I2H', self.fmt, self.width, self.height, self.row,
+            self.total_size, len(self.data), self.bits, self.planes
+        )
         written += write_bytes(fp, self.data)
         return written
 
@@ -848,9 +880,10 @@ class ThumbnailResource(BaseElement):
                 image = Image.open(f)
                 image.load()
         else:
-            image = Image.frombytes('RGB', (self.width, self.height),
-                                    self.data, 'raw', self._RAW_MODE,
-                                    self.row)
+            image = Image.frombytes(
+                'RGB', (self.width, self.height), self.data, 'raw',
+                self._RAW_MODE, self.row
+            )
         return image
 
 
@@ -866,6 +899,7 @@ class TransferFunctions(ListElement):
     """
     Transfer functions.
     """
+
     @classmethod
     def read(cls, fp, **kwargs):
         items = []
@@ -902,6 +936,7 @@ class URLList(ListElement):
     """
     URL list structure.
     """
+
     @classmethod
     def read(cls, fp, **kwargs):
         count = read_fmt('I', fp)[0]

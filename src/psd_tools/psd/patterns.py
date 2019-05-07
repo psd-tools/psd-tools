@@ -11,9 +11,16 @@ from psd_tools.constants import ColorMode, Compression
 from psd_tools.psd.base import BaseElement, ListElement
 from psd_tools.validators import in_
 from psd_tools.utils import (
-    read_fmt, write_fmt, read_length_block, write_length_block, is_readable,
-    write_bytes, read_unicode_string, write_unicode_string,
-    read_pascal_string, write_pascal_string,
+    read_fmt,
+    write_fmt,
+    read_length_block,
+    write_length_block,
+    is_readable,
+    write_bytes,
+    read_unicode_string,
+    write_unicode_string,
+    read_pascal_string,
+    write_pascal_string,
 )
 
 logger = logging.getLogger(__name__)
@@ -24,6 +31,7 @@ class Patterns(ListElement):
     List of Pattern structure. See
     :py:class:`~psd_tools.psd.patterns.Pattern`.
     """
+
     @classmethod
     def read(cls, fp, **kwargs):
         items = []
@@ -36,8 +44,9 @@ class Patterns(ListElement):
     def write(self, fp, **kwargs):
         written = 0
         for item in self:
-            written += write_length_block(fp, lambda f: item.write(f),
-                                          padding=4)
+            written += write_length_block(
+                fp, lambda f: item.write(f), padding=4
+            )
         return written
 
 
@@ -72,8 +81,9 @@ class Pattern(BaseElement):
         See :py:class:`VirtualMemoryArrayList`
     """
     version = attr.ib(default=1, type=int)
-    image_mode = attr.ib(default=ColorMode, converter=ColorMode,
-                         validator=in_(ColorMode))
+    image_mode = attr.ib(
+        default=ColorMode, converter=ColorMode, validator=in_(ColorMode)
+    )
     point = attr.ib(default=None)
     name = attr.ib(default='', type=str)
     pattern_id = attr.ib(default='', type=str)
@@ -94,15 +104,17 @@ class Pattern(BaseElement):
             read_fmt('4x', fp)
 
         data = VirtualMemoryArrayList.read(fp)
-        return cls(version, image_mode, point, name, pattern_id, color_table,
-                   data)
+        return cls(
+            version, image_mode, point, name, pattern_id, color_table, data
+        )
 
     def write(self, fp, **kwargs):
         written = write_fmt(fp, '2I', self.version, self.image_mode.value)
         written += write_fmt(fp, '2h', *self.point)
         written += write_unicode_string(fp, self.name)
-        written += write_pascal_string(fp, self.pattern_id, encoding='ascii',
-                                       padding=1)
+        written += write_pascal_string(
+            fp, self.pattern_id, encoding='ascii', padding=1
+        )
         if self.color_table:
             for row in self.color_table:
                 written += write_fmt(fp, '3B', *row)
@@ -172,8 +184,11 @@ class VirtualMemoryArray(BaseElement):
     depth = attr.ib(default=None)
     rectangle = attr.ib(default=None)
     pixel_depth = attr.ib(default=None)
-    compression = attr.ib(default=Compression.RAW, converter=Compression,
-                          validator=in_(Compression))
+    compression = attr.ib(
+        default=Compression.RAW,
+        converter=Compression,
+        validator=in_(Compression)
+    )
     data = attr.ib(default=b'')
 
     @classmethod
@@ -205,8 +220,9 @@ class VirtualMemoryArray(BaseElement):
     def _write_body(self, fp):
         written = write_fmt(fp, 'I', self.depth)
         written += write_fmt(fp, '4I', *self.rectangle)
-        written += write_fmt(fp, 'HB', self.pixel_depth,
-                             self.compression.value)
+        written += write_fmt(
+            fp, 'HB', self.pixel_depth, self.compression.value
+        )
         written += write_bytes(fp, self.data)
         return written
 
@@ -215,13 +231,15 @@ class VirtualMemoryArray(BaseElement):
         if not self.is_written:
             return None
         width, height = self.rectangle[3], self.rectangle[2]
-        return decompress(self.data, self.compression, width, height,
-                          self.depth, version)
+        return decompress(
+            self.data, self.compression, width, height, self.depth, version
+        )
 
     def set_data(self, size, data, depth, compression=0, version=1):
         """Set bytes."""
-        self.data = compress(data, compression, size[0], size[1], depth,
-                             version)
+        self.data = compress(
+            data, compression, size[0], size[1], depth, version
+        )
         self.depth = int(depth)
         self.pixel_depth = int(depth)
         self.rectangle = (0, 0, int(size[1]), int(size[0]))

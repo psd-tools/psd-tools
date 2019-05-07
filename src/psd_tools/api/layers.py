@@ -273,8 +273,8 @@ class Layer(object):
         :return: `bool`
         """
         return any(
-            key in self.tagged_blocks for key in
-            ('VECTOR_MASK_SETTING1', 'VECTOR_MASK_SETTING2')
+            key in self.tagged_blocks
+            for key in ('VECTOR_MASK_SETTING1', 'VECTOR_MASK_SETTING2')
         )
 
     @property
@@ -323,8 +323,8 @@ class Layer(object):
         if not hasattr(self, '_origination'):
             data = self.tagged_blocks.get_data('VECTOR_ORIGINATION_DATA', {})
             self._origination = [
-                Origination.create(x) for x
-                in data.get(b'keyDescriptorList', [])
+                Origination.create(x)
+                for x in data.get(b'keyDescriptorList', [])
                 if not data.get(b'keyShapeInvalidated')
             ]
         return self._origination
@@ -378,11 +378,13 @@ class Layer(object):
 
         :return: `bool`
         """
-        return any(tag in self.tagged_blocks for tag in (
-            'OBJECT_BASED_EFFECTS_LAYER_INFO',
-            'OBJECT_BASED_EFFECTS_LAYER_INFO_V0',
-            'OBJECT_BASED_EFFECTS_LAYER_INFO_V1',
-        ))
+        return any(
+            tag in self.tagged_blocks for tag in (
+                'OBJECT_BASED_EFFECTS_LAYER_INFO',
+                'OBJECT_BASED_EFFECTS_LAYER_INFO_V0',
+                'OBJECT_BASED_EFFECTS_LAYER_INFO_V1',
+            )
+        )
 
     @property
     def effects(self):
@@ -415,7 +417,8 @@ class Layer(object):
     def __repr__(self):
         has_size = self.width > 0 and self.height > 0
         return '%s(%r%s%s%s%s)' % (
-            self.__class__.__name__, self.name,
+            self.__class__.__name__,
+            self.name,
             ' size=%dx%d' % (self.width, self.height) if has_size else '',
             ' invisible' if not self.visible else '',
             ' mask' if self.has_mask() else '',
@@ -443,7 +446,6 @@ class Layer(object):
 
 
 class GroupMixin(object):
-
     @property
     def left(self):
         return self.bbox[0]
@@ -528,6 +530,7 @@ class Group(GroupMixin, Layer):
             if layer.kind == 'pixel':
                 print(layer.name)
     """
+
     def __init__(self, *args):
         super(Group, self).__init__(*args)
         self._layers = []
@@ -631,6 +634,7 @@ class SmartObjectLayer(Layer):
         if layer.smart_object.filetype == 'jpg':
             image = Image.open(io.BytesIO(layer.smart_object.data))
     """
+
     @property
     def smart_object(self):
         """
@@ -684,6 +688,7 @@ class TypeLayer(Layer):
                 print('%r gets %s' % (substring, font))
                 index += length
     """
+
     def __init__(self, *args):
         super(TypeLayer, self).__init__(*args)
         self._data = self.tagged_blocks.get_data('TYPE_TOOL_OBJECT_SETTING')
@@ -771,6 +776,7 @@ class ShapeLayer(Layer):
     """
     Layer that has drawing in vector mask.
     """
+
     @property
     def left(self):
         return self.bbox[0]
@@ -801,12 +807,12 @@ class ShapeLayer(Layer):
             elif self.has_origination() and not any(
                 x.invalidated for x in self.origination
             ):
-                lefts, tops, rights, bottoms = zip(*[
-                    x.bbox for x in self.origination
-                ])
+                lefts, tops, rights, bottoms = zip(
+                    *[x.bbox for x in self.origination]
+                )
                 self._bbox = (
-                    int(min(lefts)), int(min(tops)),
-                    int(max(rights)), int(max(bottoms))
+                    int(min(lefts)), int(min(tops)), int(max(rights)),
+                    int(max(bottoms))
                 )
             elif self.has_vector_mask():
                 bbox = self.vector_mask.bbox
@@ -852,6 +858,7 @@ class ShapeLayer(Layer):
 
 class AdjustmentLayer(Layer):
     """Layer that applies specified image adjustment effect."""
+
     def __init__(self, *args):
         super(AdjustmentLayer, self).__init__(*args)
         self._data = None
@@ -869,6 +876,7 @@ class AdjustmentLayer(Layer):
 
 class FillLayer(Layer):
     """Layer that fills the canvas region."""
+
     def __init__(self, *args):
         super(FillLayer, self).__init__(*args)
         self._data = None

@@ -8,7 +8,6 @@ from psd_tools.api.psd_image import PSDImage
 from psd_tools.constants import Compression
 from ..utils import full_name
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -17,13 +16,15 @@ def fixture():
     return PSDImage.open(full_name('colormodes/4x4_8bit_rgb.psd'))
 
 
-@pytest.mark.parametrize('args', [
-    ('L', (16, 24), (0,)),
-    ('LA', (16, 24), (0, 255)),
-    ('RGB', (16, 24), (255, 128, 64)),
-    ('RGBA', (16, 24), (255, 128, 64, 255)),
-    ('CMYK', (16, 24), (255, 128, 64, 128)),
-])
+@pytest.mark.parametrize(
+    'args', [
+        ('L', (16, 24), (0, )),
+        ('LA', (16, 24), (0, 255)),
+        ('RGB', (16, 24), (255, 128, 64)),
+        ('RGBA', (16, 24), (255, 128, 64, 255)),
+        ('CMYK', (16, 24), (255, 128, 64, 128)),
+    ]
+)
 def test_new(args):
     PSDImage.new(*args)
 

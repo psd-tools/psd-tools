@@ -23,7 +23,6 @@ from psd_tools.utils import (
 )
 from psd_tools.validators import in_
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -52,6 +51,7 @@ class BaseElement(object):
 
         Validate the attribute.
     """
+
     @classmethod
     def read(cls, fp):
         raise NotImplementedError()
@@ -127,6 +127,7 @@ class EmptyElement(BaseElement):
     """
     Empty element that does not have a value.
     """
+
     @classmethod
     def read(cls, fp, *args, **kwargs):
         return cls()
@@ -347,6 +348,7 @@ class ShortIntegerElement(IntegerElement):
 
     Use with `@attr.s(repr=False)` decorator.
     """
+
     @classmethod
     def read(cls, fp, **kwargs):
         return cls(read_fmt('H2x', fp)[0])
@@ -362,6 +364,7 @@ class ByteElement(IntegerElement):
 
     Use with `@attr.s(repr=False)` decorator.
     """
+
     @classmethod
     def read(cls, fp, **kwargs):
         return cls(read_fmt('B3x', fp)[0])

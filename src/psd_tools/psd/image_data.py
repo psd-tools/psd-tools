@@ -32,8 +32,11 @@ class ImageData(BaseElement):
 
         `bytes` as compressed in the `compression` flag.
     """
-    compression = attr.ib(default=Compression.RAW, converter=Compression,
-                          validator=in_(Compression))
+    compression = attr.ib(
+        default=Compression.RAW,
+        converter=Compression,
+        validator=in_(Compression)
+    )
     data = attr.ib(default=b'', type=bytes, repr=False)
 
     @classmethod
@@ -58,9 +61,10 @@ class ImageData(BaseElement):
         :param header: See :py:class:`~psd_tools.psd.header.FileHeader`.
         :return: `list` of bytes corresponding each channel.
         """
-        data = decompress(self.data, self.compression, header.width,
-                          header.height * header.channels, header.depth,
-                          header.version)
+        data = decompress(
+            self.data, self.compression, header.width,
+            header.height * header.channels, header.depth, header.version
+        )
         plane_size = len(data) // header.channels
         with io.BytesIO(data) as f:
             return [f.read(plane_size) for _ in range(header.channels)]
@@ -75,9 +79,10 @@ class ImageData(BaseElement):
         :param header: See :py:class:`~psd_tools.psd.header.FileHeader`.
         :return: length of compressed data.
         """
-        self.data = compress(b''.join(data), self.compression, header.width,
-                             header.height * header.channels, header.depth,
-                             header.version)
+        self.data = compress(
+            b''.join(data), self.compression, header.width,
+            header.height * header.channels, header.depth, header.version
+        )
         return len(self.data)
 
     @classmethod
@@ -91,10 +96,11 @@ class ImageData(BaseElement):
         """
         plane_size = header.width * header.height
         if isinstance(color, (bool, int, float)):
-            color = (color,) * header.channels
+            color = (color, ) * header.channels
         if len(color) != header.channels:
-            raise ValueError('Invalid color %s for channel size %d' % (
-                color, header.channels)
+            raise ValueError(
+                'Invalid color %s for channel size %d' %
+                (color, header.channels)
             )
         # Bitmap is not supported here.
         fmt = {8: 'B', 16: 'H', 32: 'I'}.get(header.depth)

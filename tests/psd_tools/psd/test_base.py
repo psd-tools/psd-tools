@@ -11,7 +11,6 @@ from psd_tools.psd.base import (
 
 from ..utils import check_write_read
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -34,12 +33,14 @@ def test_string(fixture):
     assert (value % tuple()) == fixture
 
 
-@pytest.mark.parametrize('kls, fixture', [
-    (ByteElement, 1),
-    (ShortIntegerElement, 1),
-    (IntegerElement, 1),
-    (NumericElement, 1.),
-])
+@pytest.mark.parametrize(
+    'kls, fixture', [
+        (ByteElement, 1),
+        (ShortIntegerElement, 1),
+        (IntegerElement, 1),
+        (NumericElement, 1.),
+    ]
+)
 def test_numbers(kls, fixture):
     value = kls(fixture)
     check_write_read(value)
