@@ -146,6 +146,8 @@ class PSDImage(GroupMixin):
             image = compose(
                 self, bbox=bbox or self.viewbox, force=force, **kwargs
             )
+        elif bbox is not None:
+            image = image.crop(bbox)
         return image
 
     def is_visible(self):

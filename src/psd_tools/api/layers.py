@@ -345,10 +345,10 @@ class Layer(object):
 
         :return: :py:class:`PIL.Image`, or `None` if the layer has no pixel.
         """
-        from psd_tools.api.composer import compose_layer
+        from psd_tools.api.composer import compose
         if self.bbox == (0, 0, 0, 0):
             return None
-        return compose_layer(self, *args, **kwargs)
+        return compose(self, *args, **kwargs)
 
     def has_clip_layers(self):
         """

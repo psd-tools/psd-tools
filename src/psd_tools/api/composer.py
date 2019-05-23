@@ -131,7 +131,7 @@ def compose(layers, bbox=None, layer_filter=None, color=None, **kwargs):
         if intersect(layer.bbox, bbox) == (0, 0, 0, 0):
             continue
 
-        image = layer.compose(**kwargs)
+        image = compose_layer(layer, **kwargs)
         if image is None:
             continue
 

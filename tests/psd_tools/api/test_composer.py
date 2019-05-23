@@ -113,3 +113,13 @@ def test_apply_icc_profile():
     no_icc = psd.compose(apply_icc=False)
     with_icc = psd.compose(apply_icc=True)
     assert no_icc.getextrema() != with_icc.getextrema()
+
+
+def test_compose_bbox():
+    psd = PSDImage.open(full_name('layers/smartobject-layer.psd'))
+    bbox = (1, 1, 31, 31)
+    size = (bbox[2] - bbox[0], bbox[3] - bbox[1])
+    assert psd.compose().size == psd.size
+    assert psd.compose(bbox=bbox).size == size
+    assert psd[0].compose().size == psd[0].size
+    assert psd[0].compose(bbox=bbox).size == size
