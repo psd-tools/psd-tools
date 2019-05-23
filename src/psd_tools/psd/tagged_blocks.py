@@ -18,8 +18,14 @@ from psd_tools.constants import (
 import psd_tools.psd.layer_and_mask
 from psd_tools.psd.adjustments import ADJUSTMENT_TYPES
 from psd_tools.psd.base import (
-    BaseElement, ByteElement, DictElement, EmptyElement, IntegerElement,
-    ListElement, StringElement, ValueElement,
+    BaseElement,
+    ByteElement,
+    DictElement,
+    EmptyElement,
+    IntegerElement,
+    ListElement,
+    StringElement,
+    ValueElement,
 )
 from psd_tools.psd.color import Color
 from psd_tools.psd.descriptor import DescriptorBlock, DescriptorBlock2
@@ -40,55 +46,98 @@ from psd_tools.utils import (
 
 logger = logging.getLogger(__name__)
 
-
 TYPES, register = new_registry()
 
 TYPES.update(ADJUSTMENT_TYPES)
 TYPES.update({
-    TaggedBlockID.ANIMATION_EFFECTS: DescriptorBlock,
-    TaggedBlockID.ARTBOARD_DATA1: DescriptorBlock,
-    TaggedBlockID.ARTBOARD_DATA2: DescriptorBlock,
-    TaggedBlockID.ARTBOARD_DATA3: DescriptorBlock,
-    TaggedBlockID.BLEND_CLIPPING_ELEMENTS: ByteElement,
-    TaggedBlockID.BLEND_FILL_OPACITY: ByteElement,
-    TaggedBlockID.BLEND_INTERIOR_ELEMENTS: ByteElement,
-    TaggedBlockID.COMPUTER_INFO: DescriptorBlock,
-    TaggedBlockID.CONTENT_GENERATOR_EXTRA_DATA: DescriptorBlock,
-    TaggedBlockID.EFFECTS_LAYER: EffectsLayer,
-    TaggedBlockID.EXPORT_SETTING1: DescriptorBlock,
-    TaggedBlockID.EXPORT_SETTING2: DescriptorBlock,
-    TaggedBlockID.FILTER_EFFECTS1: FilterEffects,
-    TaggedBlockID.FILTER_EFFECTS2: FilterEffects,
-    TaggedBlockID.FILTER_EFFECTS3: FilterEffects,
-    TaggedBlockID.KNOCKOUT_SETTING: ByteElement,
-    TaggedBlockID.LINKED_LAYER1: LinkedLayers,
-    TaggedBlockID.LINKED_LAYER2: LinkedLayers,
-    TaggedBlockID.LINKED_LAYER3: LinkedLayers,
-    TaggedBlockID.LINKED_LAYER_EXTERNAL: LinkedLayers,
-    TaggedBlockID.LAYER_ID: IntegerElement,
-    TaggedBlockID.LAYER_MASK_AS_GLOBAL_MASK: ByteElement,
-    TaggedBlockID.UNICODE_LAYER_NAME: StringElement,
-    TaggedBlockID.LAYER_VERSION: IntegerElement,
-    TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO: DescriptorBlock2,
-    TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V0: DescriptorBlock2,
-    TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V1: DescriptorBlock2,
-    TaggedBlockID.PATTERNS1: Patterns,
-    TaggedBlockID.PATTERNS2: Patterns,
-    TaggedBlockID.PATTERNS3: Patterns,
-    TaggedBlockID.PIXEL_SOURCE_DATA1: DescriptorBlock,
-    TaggedBlockID.SAVING_MERGED_TRANSPARENCY: EmptyElement,
-    TaggedBlockID.SAVING_MERGED_TRANSPARENCY16: EmptyElement,
-    TaggedBlockID.SAVING_MERGED_TRANSPARENCY32: EmptyElement,
-    TaggedBlockID.TEXT_ENGINE_DATA: EngineData2,
-    TaggedBlockID.TRANSPARENCY_SHAPES_LAYER: ByteElement,
-    TaggedBlockID.UNICODE_PATH_NAME: DescriptorBlock,
-    TaggedBlockID.USING_ALIGNED_RENDERING: IntegerElement,
-    TaggedBlockID.VECTOR_MASK_AS_GLOBAL_MASK: ByteElement,
-    TaggedBlockID.VECTOR_MASK_SETTING1: VectorMaskSetting,
-    TaggedBlockID.VECTOR_MASK_SETTING2: VectorMaskSetting,
-    TaggedBlockID.VECTOR_ORIGINATION_DATA: DescriptorBlock2,
-    TaggedBlockID.VECTOR_STROKE_DATA: DescriptorBlock,
-    TaggedBlockID.VECTOR_STROKE_CONTENT_DATA: VectorStrokeContentSetting,
+    TaggedBlockID.ANIMATION_EFFECTS:
+    DescriptorBlock,
+    TaggedBlockID.ARTBOARD_DATA1:
+    DescriptorBlock,
+    TaggedBlockID.ARTBOARD_DATA2:
+    DescriptorBlock,
+    TaggedBlockID.ARTBOARD_DATA3:
+    DescriptorBlock,
+    TaggedBlockID.BLEND_CLIPPING_ELEMENTS:
+    ByteElement,
+    TaggedBlockID.BLEND_FILL_OPACITY:
+    ByteElement,
+    TaggedBlockID.BLEND_INTERIOR_ELEMENTS:
+    ByteElement,
+    TaggedBlockID.COMPUTER_INFO:
+    DescriptorBlock,
+    TaggedBlockID.CONTENT_GENERATOR_EXTRA_DATA:
+    DescriptorBlock,
+    TaggedBlockID.EFFECTS_LAYER:
+    EffectsLayer,
+    TaggedBlockID.EXPORT_SETTING1:
+    DescriptorBlock,
+    TaggedBlockID.EXPORT_SETTING2:
+    DescriptorBlock,
+    TaggedBlockID.FILTER_EFFECTS1:
+    FilterEffects,
+    TaggedBlockID.FILTER_EFFECTS2:
+    FilterEffects,
+    TaggedBlockID.FILTER_EFFECTS3:
+    FilterEffects,
+    TaggedBlockID.KNOCKOUT_SETTING:
+    ByteElement,
+    TaggedBlockID.LINKED_LAYER1:
+    LinkedLayers,
+    TaggedBlockID.LINKED_LAYER2:
+    LinkedLayers,
+    TaggedBlockID.LINKED_LAYER3:
+    LinkedLayers,
+    TaggedBlockID.LINKED_LAYER_EXTERNAL:
+    LinkedLayers,
+    TaggedBlockID.LAYER_ID:
+    IntegerElement,
+    TaggedBlockID.LAYER_MASK_AS_GLOBAL_MASK:
+    ByteElement,
+    TaggedBlockID.UNICODE_LAYER_NAME:
+    StringElement,
+    TaggedBlockID.LAYER_VERSION:
+    IntegerElement,
+    TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO:
+    DescriptorBlock2,
+    TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V0:
+    DescriptorBlock2,
+    TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V1:
+    DescriptorBlock2,
+    TaggedBlockID.PATTERNS1:
+    Patterns,
+    TaggedBlockID.PATTERNS2:
+    Patterns,
+    TaggedBlockID.PATTERNS3:
+    Patterns,
+    TaggedBlockID.PIXEL_SOURCE_DATA1:
+    DescriptorBlock,
+    TaggedBlockID.SAVING_MERGED_TRANSPARENCY:
+    EmptyElement,
+    TaggedBlockID.SAVING_MERGED_TRANSPARENCY16:
+    EmptyElement,
+    TaggedBlockID.SAVING_MERGED_TRANSPARENCY32:
+    EmptyElement,
+    TaggedBlockID.TEXT_ENGINE_DATA:
+    EngineData2,
+    TaggedBlockID.TRANSPARENCY_SHAPES_LAYER:
+    ByteElement,
+    TaggedBlockID.UNICODE_PATH_NAME:
+    DescriptorBlock,
+    TaggedBlockID.USING_ALIGNED_RENDERING:
+    IntegerElement,
+    TaggedBlockID.VECTOR_MASK_AS_GLOBAL_MASK:
+    ByteElement,
+    TaggedBlockID.VECTOR_MASK_SETTING1:
+    VectorMaskSetting,
+    TaggedBlockID.VECTOR_MASK_SETTING2:
+    VectorMaskSetting,
+    TaggedBlockID.VECTOR_ORIGINATION_DATA:
+    DescriptorBlock2,
+    TaggedBlockID.VECTOR_STROKE_DATA:
+    DescriptorBlock,
+    TaggedBlockID.VECTOR_STROKE_CONTENT_DATA:
+    VectorStrokeContentSetting,
 })
 
 
@@ -215,8 +264,9 @@ class TaggedBlock(BaseElement):
         TaggedBlockID.COMPUTER_INFO,
     }
 
-    signature = attr.ib(default=b'8BIM', repr=False,
-                        validator=in_(_SIGNATURES))
+    signature = attr.ib(
+        default=b'8BIM', repr=False, validator=in_(_SIGNATURES)
+    )
     key = attr.ib(default=b'')
     data = attr.ib(default=b'', repr=True)
 
@@ -263,8 +313,9 @@ class TaggedBlock(BaseElement):
             if hasattr(self.data, 'write'):
                 # It seems padding size applies at the block level here.
                 inner_padding = 1 if padding == 4 else 4
-                return self.data.write(f, padding=inner_padding,
-                                       version=version)
+                return self.data.write(
+                    f, padding=inner_padding, version=version
+                )
             return write_bytes(f, self.data)
 
         fmt = self._length_format(self.key, version)
@@ -297,12 +348,16 @@ class Annotations(ListElement):
             if length > 0:
                 with io.BytesIO(fp.read(length)) as f:
                     items.append(Annotation.read(f))
-        return cls(major_version=major_version, minor_version=minor_version,
-                   items=items)
+        return cls(
+            major_version=major_version,
+            minor_version=minor_version,
+            items=items
+        )
 
     def write(self, fp, **kwargs):
-        written = write_fmt(fp, '2HI', self.major_version, self.minor_version,
-                            len(self))
+        written = write_fmt(
+            fp, '2HI', self.major_version, self.minor_version, len(self)
+        )
         for item in self:
             data = item.tobytes()
             written += write_fmt(fp, 'I', len(data) + 4)
@@ -319,8 +374,9 @@ class Annotation(BaseElement):
     .. py:attribute:: kind
     .. py:attribute:: is_open
     """
-    kind = attr.ib(default=b'txtA', type=bytes,
-                   validator=in_((b'txtA', b'sndM')))
+    kind = attr.ib(
+        default=b'txtA', type=bytes, validator=in_((b'txtA', b'sndM'))
+    )
     is_open = attr.ib(default=0, type=int)
     flags = attr.ib(default=0, type=int)
     optional_blocks = attr.ib(default=1, type=int)
@@ -330,8 +386,9 @@ class Annotation(BaseElement):
     author = attr.ib(default='', type=str)
     name = attr.ib(default='', type=str)
     mod_date = attr.ib(default='', type=str)
-    marker = attr.ib(default=b'txtC', type=bytes,
-                     validator=in_((b'txtC', b'sndM')))
+    marker = attr.ib(
+        default=b'txtC', type=bytes, validator=in_((b'txtC', b'sndM'))
+    )
     data = attr.ib(default=b'', type=bytes)
 
     @classmethod
@@ -345,20 +402,24 @@ class Annotation(BaseElement):
         mod_date = read_pascal_string(fp, 'macroman', padding=2)
         length, marker = read_fmt('I4s', fp)
         data = read_length_block(fp)
-        return cls(kind, is_open, flags, optional_blocks, icon_location,
-                   popup_location, color, author, name, mod_date, marker,
-                   data)
+        return cls(
+            kind, is_open, flags, optional_blocks, icon_location,
+            popup_location, color, author, name, mod_date, marker, data
+        )
 
     def write(self, fp, **kwargs):
-        written = write_fmt(fp, '4s2BH', self.kind, self.is_open, self.flags,
-                            self.optional_blocks)
+        written = write_fmt(
+            fp, '4s2BH', self.kind, self.is_open, self.flags,
+            self.optional_blocks
+        )
         written += write_fmt(fp, '4i', *self.icon_location)
         written += write_fmt(fp, '4i', *self.popup_location)
         written += self.color.write(fp)
         written += write_pascal_string(fp, self.author, 'macroman', padding=2)
         written += write_pascal_string(fp, self.name, 'macroman', padding=2)
-        written += write_pascal_string(fp, self.mod_date, 'macroman',
-                                       padding=2)
+        written += write_pascal_string(
+            fp, self.mod_date, 'macroman', padding=2
+        )
         written += write_fmt(fp, 'I4s', len(self.data) + 12, self.marker)
         written += write_length_block(fp, lambda f: write_bytes(f, self.data))
         return written
@@ -391,6 +452,7 @@ class ChannelBlendingRestrictionsSetting(ListElement):
 
     List of restricted channel numbers (int).
     """
+
     @classmethod
     def read(cls, fp, **kwargs):
         items = []
@@ -431,6 +493,7 @@ class MetadataSettings(ListElement):
     """
     MetadataSettings structure.
     """
+
     @classmethod
     def read(cls, fp, **kwargs):
         count = read_fmt('I', fp)[0]
@@ -450,8 +513,9 @@ class MetadataSetting(BaseElement):
     """
     MetadataSetting structure.
     """
-    signature = attr.ib(default=b'8BIM', type=bytes, repr=False,
-                        validator=in_((b'8BIM',)))
+    signature = attr.ib(
+        default=b'8BIM', type=bytes, repr=False, validator=in_((b'8BIM', ))
+    )
     key = attr.ib(default=b'', type=bytes)
     copy_on_sheet = attr.ib(default=False, type=bool)
     data = attr.ib(default=b'', type=bytes)
@@ -475,8 +539,9 @@ class MetadataSetting(BaseElement):
         return cls(signature, key, copy_on_sheet, data)
 
     def write(self, fp, **kwargs):
-        written = write_fmt(fp, '4s4s?3x', self.signature, self.key,
-                            self.copy_on_sheet)
+        written = write_fmt(
+            fp, '4s4s?3x', self.signature, self.key, self.copy_on_sheet
+        )
 
         def writer(f):
             if hasattr(self.data, 'write'):
@@ -495,6 +560,7 @@ class PixelSourceData2(ListElement):
     """
     PixelSourceData2 structure.
     """
+
     @classmethod
     def read(cls, fp, **kwargs):
         items = []
@@ -505,8 +571,9 @@ class PixelSourceData2(ListElement):
     def write(self, fp, padding=4, **kwargs):
         written = 0
         for item in self:
-            written += write_length_block(fp, lambda f: write_bytes(f, item),
-                                          fmt='Q')
+            written += write_length_block(
+                fp, lambda f: write_bytes(f, item), fmt='Q'
+            )
         written += write_padding(fp, written, padding)
         return written
 
@@ -519,15 +586,17 @@ class PlacedLayerData(BaseElement):
     PlacedLayerData structure.
     """
     kind = attr.ib(default=b'plcL', type=bytes)
-    version = attr.ib(default=3, type=int, validator=in_((3,)))
+    version = attr.ib(default=3, type=int, validator=in_((3, )))
     uuid = attr.ib(default='', type=bytes)
     page = attr.ib(default=0, type=int)
     total_pages = attr.ib(default=0, type=int)
     anti_alias = attr.ib(default=0, type=int)
-    layer_type = attr.ib(default=PlacedLayerType.UNKNOWN,
-                         converter=PlacedLayerType,
-                         validator=in_(PlacedLayerType))
-    transform = attr.ib(default=(0.,) * 8, type=tuple)
+    layer_type = attr.ib(
+        default=PlacedLayerType.UNKNOWN,
+        converter=PlacedLayerType,
+        validator=in_(PlacedLayerType)
+    )
+    transform = attr.ib(default=(0., ) * 8, type=tuple)
     warp = attr.ib(default=None)
 
     @classmethod
@@ -537,14 +606,18 @@ class PlacedLayerData(BaseElement):
         page, total_pages, anti_alias, layer_type = read_fmt('4I', fp)
         transform = read_fmt('8d', fp)
         warp = DescriptorBlock2.read(fp, padding=1)
-        return cls(kind, version, uuid, page, total_pages, anti_alias,
-                   layer_type, transform, warp)
+        return cls(
+            kind, version, uuid, page, total_pages, anti_alias, layer_type,
+            transform, warp
+        )
 
     def write(self, fp, padding=4, **kwargs):
         written = write_fmt(fp, '4sI', self.kind, self.version)
         written += write_pascal_string(fp, self.uuid, 'macroman', padding=1)
-        written += write_fmt(fp, '4I', self.page, self.total_pages,
-                             self.anti_alias, self.layer_type.value)
+        written += write_fmt(
+            fp, '4I', self.page, self.total_pages, self.anti_alias,
+            self.layer_type.value
+        )
         written += write_fmt(fp, '8d', *self.transform)
         written += self.warp.write(fp, padding=1)
         written += write_padding(fp, written, padding)
@@ -556,6 +629,7 @@ class ProtectedSetting(IntegerElement):
     """
     ProtectedSetting structure.
     """
+
     @property
     def transparency(self):
         return bool(self.value & 0x01)
@@ -575,6 +649,7 @@ class ReferencePoint(ListElement):
     """
     ReferencePoint structure.
     """
+
     @classmethod
     def read(cls, fp, **kwargs):
         return cls(list(read_fmt('2d', fp)))
@@ -594,8 +669,11 @@ class SectionDividerSetting(BaseElement):
     .. py:attribute:: key
     .. py:attribute:: sub_type
     """
-    kind = attr.ib(default=SectionDivider.OTHER, converter=SectionDivider,
-                   validator=in_(SectionDivider))
+    kind = attr.ib(
+        default=SectionDivider.OTHER,
+        converter=SectionDivider,
+        validator=in_(SectionDivider)
+    )
     signature = attr.ib(default=None, repr=False)
     key = attr.ib(default=None)
     sub_type = attr.ib(default=None)
@@ -653,7 +731,7 @@ class SmartObjectLayerData(BaseElement):
     .. py:attribute:: version
     .. py:attribute:: data
     """
-    kind = attr.ib(default=b'soLD', type=bytes, validator=in_((b'soLD',)))
+    kind = attr.ib(default=b'soLD', type=bytes, validator=in_((b'soLD', )))
     version = attr.ib(default=5, type=int, validator=in_((4, 5)))
     data = attr.ib(default=None, type=DescriptorBlock)
 
@@ -691,10 +769,10 @@ class TypeToolObjectSetting(BaseElement):
     .. py:attribute:: bottom
     """
     version = attr.ib(default=1, type=int)
-    transform = attr.ib(default=(0.,) * 6, type=tuple)
-    text_version = attr.ib(default=1, type=int, validator=in_((50,)))
+    transform = attr.ib(default=(0., ) * 6, type=tuple)
+    text_version = attr.ib(default=1, type=int, validator=in_((50, )))
     text_data = attr.ib(default=None, type=DescriptorBlock)
-    warp_version = attr.ib(default=1, type=int, validator=in_((1,)))
+    warp_version = attr.ib(default=1, type=int, validator=in_((1, )))
     warp = attr.ib(default=None, type=DescriptorBlock)
     left = attr.ib(default=0, type=int)
     top = attr.ib(default=0, type=int)
@@ -718,8 +796,10 @@ class TypeToolObjectSetting(BaseElement):
         warp_version = read_fmt('H', fp)[0]
         warp = DescriptorBlock.read(fp)
         left, top, right, bottom = read_fmt("4i", fp)
-        return cls(version, transform, text_version, text_data, warp_version,
-                   warp, left, top, right, bottom)
+        return cls(
+            version, transform, text_version, text_data, warp_version, warp,
+            left, top, right, bottom
+        )
 
     def write(self, fp, padding=4, **kwargs):
         written = write_fmt(fp, 'H6d', self.version, *self.transform)

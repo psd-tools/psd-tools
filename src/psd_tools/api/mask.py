@@ -17,6 +17,7 @@ class Mask(object):
     from a shape path. Internally, two masks are combined and referred
     real mask.
     """
+
     def __init__(self, layer):
         self._layer = layer
         self._data = layer._record.mask_data
@@ -114,6 +115,9 @@ class Mask(object):
 
     def __repr__(self):
         return '%s(offset=(%d,%d) size=%dx%d)' % (
-            self.__class__.__name__, self.left, self.top, self.width,
+            self.__class__.__name__,
+            self.left,
+            self.top,
+            self.width,
             self.height,
         )

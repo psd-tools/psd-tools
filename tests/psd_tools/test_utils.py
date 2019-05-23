@@ -7,20 +7,24 @@ from psd_tools.utils import (
 )
 
 
-@pytest.mark.parametrize('fmt, value, expected', [
-    ('B', 1, b'\x01'),
-    ('H', 1, b'\x00\x01'),
-    ('I', 1, b'\x00\x00\x00\x01'),
-])
+@pytest.mark.parametrize(
+    'fmt, value, expected', [
+        ('B', 1, b'\x01'),
+        ('H', 1, b'\x00\x01'),
+        ('I', 1, b'\x00\x00\x00\x01'),
+    ]
+)
 def test_pack(fmt, value, expected):
     assert pack(fmt, value) == expected
 
 
-@pytest.mark.parametrize('fmt, value, expected', [
-    ('B', b'\x01', 1),
-    ('H', b'\x00\x01', 1),
-    ('I', b'\x00\x00\x00\x01', 1),
-])
+@pytest.mark.parametrize(
+    'fmt, value, expected', [
+        ('B', b'\x01', 1),
+        ('H', b'\x00\x01', 1),
+        ('I', b'\x00\x00\x00\x01', 1),
+    ]
+)
 def test_unpack(fmt, value, expected):
     assert unpack(fmt, value)[0] == expected
 
@@ -83,14 +87,16 @@ def test_pascal_string_format(input, expected, padding):
         assert f.getvalue() == expected
 
 
-@pytest.mark.parametrize('fixture, padding', [
-    (u'', 1),
-    (u'abc', 1),
-    (u'\u3042\u3044\u3046\u3048\u304a', 1),
-    (u'', 4),
-    (u'abc', 4),
-    (u'\u3042\u3044\u3046\u3048\u304a', 4),
-])
+@pytest.mark.parametrize(
+    'fixture, padding', [
+        (u'', 1),
+        (u'abc', 1),
+        (u'\u3042\u3044\u3046\u3048\u304a', 1),
+        (u'', 4),
+        (u'abc', 4),
+        (u'\u3042\u3044\u3046\u3048\u304a', 4),
+    ]
+)
 def test_unicode_string_wr(fixture, padding):
     with io.BytesIO() as f:
         write_unicode_string(f, fixture, padding=padding)
@@ -101,9 +107,11 @@ def test_unicode_string_wr(fixture, padding):
         assert fixture == output
 
 
-@pytest.mark.parametrize('fixture, padding', [
-    (b'\x00\x00\x00\x07\x00L\x00a\x00y\x00e\x00r\x00 \x001\x00\x00', 4),
-])
+@pytest.mark.parametrize(
+    'fixture, padding', [
+        (b'\x00\x00\x00\x07\x00L\x00a\x00y\x00e\x00r\x00 \x001\x00\x00', 4),
+    ]
+)
 def test_unicode_stringrw(fixture, padding):
     with io.BytesIO(fixture) as f:
         data = read_unicode_string(f, padding=padding)

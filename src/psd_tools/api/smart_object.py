@@ -17,6 +17,7 @@ class SmartObject(object):
     Smart objects are attached to
     :py:class:`~psd_tools.api.layers.SmartObjectLayer`.
     """
+
     def __init__(self, layer):
         self._config = None
         for key in ('SMART_OBJECT_LAYER_DATA1', 'SMART_OBJECT_LAYER_DATA2'):
@@ -25,8 +26,10 @@ class SmartObject(object):
                 break
 
         self._data = None
-        for key in ('LINKED_LAYER1', 'LINKED_LAYER2', 'LINKED_LAYER3',
-                    'LINKED_LAYER_EXTERNAL'):
+        for key in (
+            'LINKED_LAYER1', 'LINKED_LAYER2', 'LINKED_LAYER3',
+            'LINKED_LAYER_EXTERNAL'
+        ):
             if key in layer._psd.tagged_blocks:
                 data = layer._psd.tagged_blocks.get_data(key)
                 for item in data:

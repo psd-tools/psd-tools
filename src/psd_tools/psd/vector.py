@@ -33,6 +33,7 @@ class Path(ListElement):
     List-like Path structure. Elements are either PathFillRule,
     InitialFillRule, ClipboardRecord, ClosedPath, or OpenPath.
     """
+
     @classmethod
     def read(cls, fp):
         items = []
@@ -89,8 +90,14 @@ class Subpath(ListElement):
             selector = PathResourceID(read_fmt('H', fp)[0])
             kls = TYPES.get(selector)
             items.append(kls.read(fp))
-        return cls(items=items, operation=operation, index=index,
-                   unknown1=_unknown1, unknown2=_unknown2, unknown3=_unknown3)
+        return cls(
+            items=items,
+            operation=operation,
+            index=index,
+            unknown1=_unknown1,
+            unknown2=_unknown2,
+            unknown3=_unknown3
+        )
 
     def write(self, fp):
         written = write_fmt(
@@ -186,6 +193,7 @@ class PathFillRule(BaseElement):
     """
     Path fill rule record, empty.
     """
+
     @classmethod
     def read(cls, fp):
         read_fmt('24x', fp)

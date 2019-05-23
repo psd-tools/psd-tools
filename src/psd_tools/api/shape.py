@@ -118,10 +118,8 @@ class VectorMask(object):
         :return: `tuple`
         """
         from itertools import chain
-        knots = [
-            (knot.anchor[1], knot.anchor[0])
-            for knot in chain.from_iterable(self.paths)
-        ]
+        knots = [(knot.anchor[1], knot.anchor[0])
+                 for knot in chain.from_iterable(self.paths)]
         if len(knots) == 0:
             return (0., 0., 1., 1.)
         x, y = zip(*knots)
@@ -130,8 +128,13 @@ class VectorMask(object):
     def __repr__(self):
         bbox = self.bbox
         return '%s(bbox=(%g, %g, %g, %g) paths=%d%s)' % (
-            self.__class__.__name__, bbox[0], bbox[1], bbox[2], bbox[3],
-            len(self.paths), ' disabled' if self.disabled else '',
+            self.__class__.__name__,
+            bbox[0],
+            bbox[1],
+            bbox[2],
+            bbox[3],
+            len(self.paths),
+            ' disabled' if self.disabled else '',
         )
 
 
@@ -249,9 +252,7 @@ class Stroke(object):
         return self._data.get(b'strokeStyleContent')
 
     def __repr__(self):
-        return '%s(width=%g)' % (
-            self.__class__.__name__, self.line_width
-        )
+        return '%s(width=%g)' % (self.__class__.__name__, self.line_width)
 
 
 class Origination(object):
@@ -261,6 +262,7 @@ class Origination(object):
     Vector origination keeps live shape properties for some of the primitive
     shapes.
     """
+
     @classmethod
     def create(kls, data):
         if data.get(b'keyShapeInvalidated'):
@@ -330,8 +332,7 @@ class Origination(object):
     def __repr__(self):
         bbox = self.bbox
         return '%s(bbox=(%g, %g, %g, %g))' % (
-            self.__class__.__name__,
-            bbox[0], bbox[1], bbox[2], bbox[3]
+            self.__class__.__name__, bbox[0], bbox[1], bbox[2], bbox[3]
         )
 
 
@@ -343,6 +344,7 @@ class Invalidated(Origination):
     properties. Use :py:class:`~psd_tools.api.shape.VectorMask` to access
     shape information instead of this origination object.
     """
+
     @property
     def invalidated(self):
         return True

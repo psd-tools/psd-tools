@@ -63,8 +63,9 @@ class FileHeader(BaseElement):
     height = attr.ib(default=64, type=int, validator=range_(1, 300001))
     width = attr.ib(default=64, type=int, validator=range_(1, 300001))
     depth = attr.ib(default=8, type=int, validator=in_((1, 8, 16, 32)))
-    color_mode = attr.ib(default=ColorMode.RGB, converter=ColorMode,
-                         validator=in_(ColorMode))
+    color_mode = attr.ib(
+        default=ColorMode.RGB, converter=ColorMode, validator=in_(ColorMode)
+    )
 
     @signature.validator
     def _validate_signature(self, attribute, value):

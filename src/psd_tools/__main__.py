@@ -65,5 +65,6 @@ def main(argv=None):
         psd = PSDImage.open(args['<input_file>'])
         pprint(psd._record)
 
+
 if __name__ == "__main__":
     main()

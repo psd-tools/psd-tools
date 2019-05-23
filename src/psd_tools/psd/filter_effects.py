@@ -8,8 +8,14 @@ import logging
 
 from psd_tools.psd.base import BaseElement, ListElement
 from psd_tools.utils import (
-    read_fmt, write_fmt, read_length_block, write_length_block, is_readable,
-    write_bytes, read_pascal_string, write_pascal_string,
+    read_fmt,
+    write_fmt,
+    read_length_block,
+    write_length_block,
+    is_readable,
+    write_bytes,
+    read_pascal_string,
+    write_pascal_string,
 )
 
 logger = logging.getLogger(__name__)
@@ -37,8 +43,9 @@ class FilterEffects(ListElement):
     def write(self, fp, **kwargs):
         written = write_fmt(fp, 'I', self.version)
         for item in self:
-            written += write_length_block(fp, lambda f: item.write(f),
-                                          fmt='Q', padding=4)
+            written += write_length_block(
+                fp, lambda f: item.write(f), fmt='Q', padding=4
+            )
         return written
 
 
@@ -77,8 +84,9 @@ class FilterEffect(BaseElement):
             rectangle, depth, max_channels, channels = cls._read_body(f)
         # Documentation is incorrect here.
         extra = FilterEffectExtra.read(fp) if is_readable(fp) else None
-        return cls(uuid, version, rectangle, depth, max_channels, channels,
-                   extra)
+        return cls(
+            uuid, version, rectangle, depth, max_channels, channels, extra
+        )
 
     @classmethod
     def _read_body(cls, fp):
@@ -90,8 +98,9 @@ class FilterEffect(BaseElement):
         return rectangle, depth, max_channels, channels
 
     def write(self, fp, **kwargs):
-        written = write_pascal_string(fp, self.uuid, encoding='ascii',
-                                      padding=1)
+        written = write_pascal_string(
+            fp, self.uuid, encoding='ascii', padding=1
+        )
         written += write_fmt(fp, 'I', self.version)
 
         def writer(f):

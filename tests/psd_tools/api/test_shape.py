@@ -9,9 +9,7 @@ from psd_tools.api.shape import (
 
 from ..utils import full_name
 
-
 logger = logging.getLogger(__name__)
-
 
 VECTOR_MASK2 = PSDImage.open(full_name('vector-mask2.psd'))
 
@@ -59,13 +57,15 @@ def test_vector_mask(psd):
             assert knot.leaving
 
 
-@pytest.mark.parametrize('index, kls', [
-    (1, Rectangle),
-    (2, RoundedRectangle),
-    (3, Ellipse),
-    (4, Invalidated),
-    (5, Line),
-])
+@pytest.mark.parametrize(
+    'index, kls', [
+        (1, Rectangle),
+        (2, RoundedRectangle),
+        (3, Ellipse),
+        (4, Invalidated),
+        (5, Line),
+    ]
+)
 def test_origination(psd, index, kls):
     origination = psd[index].origination[0]
     assert isinstance(origination, kls)

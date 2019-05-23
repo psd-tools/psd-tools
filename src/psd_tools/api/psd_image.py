@@ -16,7 +16,6 @@ from psd_tools.api import adjustments
 from psd_tools.api import pil_io
 from psd_tools.api import deprecated
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -37,6 +36,7 @@ class PSDImage(GroupMixin):
             if layer.has_pixels():
                 layer_image = layer.topil()
     """
+
     def __init__(self, data):
         assert isinstance(data, PSD)
         self._record = None
@@ -58,11 +58,13 @@ class PSDImage(GroupMixin):
         header = cls._make_header(mode, size, depth)
         image_data = ImageData.new(header, color=color, **kwargs)
         # TODO: Add default metadata.
-        return cls(PSD(
-            header=header,
-            image_data=image_data,
-            image_resources=ImageResources.new(),
-        ))
+        return cls(
+            PSD(
+                header=header,
+                image_data=image_data,
+                image_resources=ImageResources.new(),
+            )
+        )
 
     @classmethod
     def frompil(cls, image, compression=Compression.PACK_BITS):
@@ -80,11 +82,13 @@ class PSDImage(GroupMixin):
         image_data = ImageData(compression=compression)
         image_data.set_data([channel.tobytes() for channel in image.split()],
                             header)
-        return cls(PSD(
-            header=header,
-            image_data=image_data,
-            image_resources=ImageResources.new(),
-        ))
+        return cls(
+            PSD(
+                header=header,
+                image_data=image_data,
+                image_resources=ImageResources.new(),
+            )
+        )
 
     @classmethod
     def open(cls, fp):
@@ -142,6 +146,8 @@ class PSDImage(GroupMixin):
             image = compose(
                 self, bbox=bbox or self.viewbox, force=force, **kwargs
             )
+        elif bbox is not None:
+            image = image.crop(bbox)
         return image
 
     def is_visible(self):
@@ -381,8 +387,10 @@ class PSDImage(GroupMixin):
 
     def has_thumbnail(self):
         """True if the PSDImage has a thumbnail resource."""
-        return ('thumbnail_resource' in self.image_resources or
-                'thumbnail_resource_ps4' in self.image_resources)
+        return (
+            'thumbnail_resource' in self.image_resources or
+            'thumbnail_resource_ps4' in self.image_resources
+        )
 
     def thumbnail(self):
         """
@@ -400,11 +408,12 @@ class PSDImage(GroupMixin):
         return None
 
     def __repr__(self):
-        return (
-            '%s(mode=%s size=%dx%d depth=%d channels=%d)'
-        ) % (
-            self.__class__.__name__, self.color_mode,
-            self.width, self.height, self._record.header.depth,
+        return ('%s(mode=%s size=%dx%d depth=%d channels=%d)') % (
+            self.__class__.__name__,
+            self.color_mode,
+            self.width,
+            self.height,
+            self._record.header.depth,
             self._record.header.channels,
         )
 
@@ -435,7 +444,10 @@ class PSDImage(GroupMixin):
         alpha = int(mode.upper().endswith('A'))
         channels = ColorMode.channels(color_mode, alpha)
         return FileHeader(
-            width=size[0], height=size[1], depth=depth, channels=channels,
+            width=size[0],
+            height=size[1],
+            depth=depth,
+            channels=channels,
             color_mode=color_mode
         )
 
@@ -461,14 +473,16 @@ class PSDImage(GroupMixin):
             blocks = record.tagged_blocks
             end_of_group = False
             divider = blocks.get_data('SECTION_DIVIDER_SETTING', None)
-            divider = blocks.get_data('NESTED_SECTION_DIVIDER_SETTING',
-                                      divider)
+            divider = blocks.get_data(
+                'NESTED_SECTION_DIVIDER_SETTING', divider
+            )
             if divider is not None:
                 if divider.kind == SectionDivider.BOUNDING_SECTION_DIVIDER:
                     layer = Group(self, None, None, current_group)
                     group_stack.append(layer)
-                elif divider.kind in (SectionDivider.OPEN_FOLDER,
-                                      SectionDivider.CLOSED_FOLDER):
+                elif divider.kind in (
+                    SectionDivider.OPEN_FOLDER, SectionDivider.CLOSED_FOLDER
+                ):
                     layer = group_stack.pop()
                     assert layer is not self
 
@@ -498,11 +512,9 @@ class PSDImage(GroupMixin):
             elif (
                 'SMART_OBJECT_LAYER_DATA1' in blocks or
                 'SMART_OBJECT_LAYER_DATA2' in blocks or
-                'PLACED_LAYER1' in blocks or
-                'PLACED_LAYER2' in blocks
+                'PLACED_LAYER1' in blocks or 'PLACED_LAYER2' in blocks
             ):
-                layer = SmartObjectLayer(self, record, channels,
-                                         current_group)
+                layer = SmartObjectLayer(self, record, channels, current_group)
             else:
                 layer = None
                 for key in adjustments.TYPES.keys():
@@ -513,9 +525,7 @@ class PSDImage(GroupMixin):
                         break
                 # If nothing applies, this is a pixel layer.
                 if layer is None:
-                    layer = PixelLayer(
-                        self, record, channels, current_group
-                    )
+                    layer = PixelLayer(self, record, channels, current_group)
 
             if record.clipping == Clipping.NON_BASE:
                 clip_stack.append(layer)

@@ -8,9 +8,7 @@ from psd_tools.api import adjustments
 
 from ..utils import full_name
 
-
 logger = logging.getLogger(__name__)
-
 
 FILL_ADJUSTMENTS = PSDImage.open(full_name('fill_adjustments.psd'))
 

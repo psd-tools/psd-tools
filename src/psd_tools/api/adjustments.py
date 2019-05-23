@@ -12,14 +12,11 @@ Example::
 from __future__ import absolute_import
 import logging
 
-
 from psd_tools.api.layers import AdjustmentLayer, FillLayer
 from psd_tools.constants import TaggedBlockID
 from psd_tools.utils import new_registry
 
-
 logger = logging.getLogger(__name__)
-
 
 TYPES, register = new_registry(attribute='_KEY')
 

@@ -5,7 +5,6 @@ from psd_tools.utils import pack
 
 from ..utils import check_read_write, check_write_read
 
-
 INDEX_COLOR_DATA = (
     b'\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff'
     b'\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff'
@@ -79,11 +78,13 @@ DUOTONE_DATA = (
 )
 
 
-@pytest.mark.parametrize('fixture', [
-    b'\x00\x00\x00\x00',
-    pack('I', len(INDEX_COLOR_DATA)) + INDEX_COLOR_DATA,
-    pack('I', len(DUOTONE_DATA)) + DUOTONE_DATA,
-])
+@pytest.mark.parametrize(
+    'fixture', [
+        b'\x00\x00\x00\x00',
+        pack('I', len(INDEX_COLOR_DATA)) + INDEX_COLOR_DATA,
+        pack('I', len(DUOTONE_DATA)) + DUOTONE_DATA,
+    ]
+)
 def test_color_mode_data(fixture):
     check_read_write(ColorModeData, fixture)
 

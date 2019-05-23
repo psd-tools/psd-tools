@@ -32,9 +32,8 @@ def read_fmt(fmt, fp):
     fmt = str(">" + fmt)
     fmt_size = struct.calcsize(fmt)
     data = fp.read(fmt_size)
-    assert len(data) == fmt_size, 'read=%d, expected=%d' % (
-        len(data), fmt_size
-    )
+    assert len(data
+               ) == fmt_size, 'read=%d, expected=%d' % (len(data), fmt_size)
     return struct.unpack(fmt, data)
 
 
@@ -45,9 +44,7 @@ def write_fmt(fp, fmt, *args):
     fmt = str(">" + fmt)
     fmt_size = struct.calcsize(fmt)
     written = write_bytes(fp, struct.pack(fmt, *args))
-    assert written == fmt_size, 'written=%d, expected=%d' % (
-        written, fmt_size
-    )
+    assert written == fmt_size, 'written=%d, expected=%d' % (written, fmt_size)
     return written
 
 
@@ -60,9 +57,8 @@ def write_bytes(fp, data):
     pos = fp.tell()
     fp.write(data)
     written = fp.tell() - pos
-    assert written == len(data), 'written=%d, expected=%d' % (
-        written, len(data)
-    )
+    assert written == len(data
+                          ), 'written=%d, expected=%d' % (written, len(data))
     return written
 
 
@@ -302,6 +298,7 @@ def new_registry(attribute=None):
             if attribute:
                 setattr(func, attribute, key)
             return func
+
         return decorator
 
     return registry, register

@@ -12,7 +12,6 @@ from psd_tools.psd.descriptor import List
 
 logger = logging.getLogger(__name__)
 
-
 _TYPES, register = new_registry()
 
 
@@ -20,6 +19,7 @@ class Effects(object):
     """
     List-like effects.
     """
+
     def __init__(self, layer):
         self._data = None
         for tag in (
@@ -79,14 +79,14 @@ class Effects(object):
 
     def __repr__(self):
         return '%s(%s%s)' % (
-            self.__class__.__name__,
-            '' if self.enabled else 'disabled ',
+            self.__class__.__name__, '' if self.enabled else 'disabled ',
             ' '.join(x.__class__.__name__.lower() for x in self)
         )
 
 
 class _Effect(object):
     """Base Effect class."""
+
     def __init__(self, value, image_resources):
         self.value = value
         self._image_resources = image_resources
@@ -190,6 +190,7 @@ class _PatternMixin(object):
 
 class _ShadowEffect(_Effect, _ChokeNoiseMixin, _AngleMixin):
     """Base class for shadow effect."""
+
     @property
     def distance(self):
         """Distance."""
@@ -198,6 +199,7 @@ class _ShadowEffect(_Effect, _ChokeNoiseMixin, _AngleMixin):
 
 class _GlowEffect(_Effect, _ChokeNoiseMixin, _GradientMixin):
     """Base class for glow effect."""
+
     @property
     def glow_type(self):
         """Glow type."""
@@ -309,7 +311,6 @@ class PatternOverlay(_OverlayEffect, _AlignScaleMixin, _PatternMixin):
 
 @register(Klass.FrameFX.value)
 class Stroke(_Effect, _ColorMixin, _PatternMixin, _GradientMixin):
-
     @property
     def position(self):
         """
@@ -335,7 +336,6 @@ class Stroke(_Effect, _ColorMixin, _PatternMixin, _GradientMixin):
 
 @register(Klass.BevelEmboss.value)
 class BevelEmboss(_Effect, _AngleMixin):
-
     @property
     def highlight_mode(self):
         """Highlight blending mode."""
@@ -428,6 +428,7 @@ class BevelEmboss(_Effect, _AngleMixin):
 @register(Klass.ChromeFX.value)
 class Satin(_Effect, _ColorMixin):
     """ Satin effect """
+
     @property
     def anti_aliased(self):
         """Anti-aliased."""

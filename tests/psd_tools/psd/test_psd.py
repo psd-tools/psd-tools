@@ -12,7 +12,6 @@ try:
 except ImportError:
     from pprint import pprint
 
-
 # It seems some fixtures made outside of Photoshop has different paddings.
 BAD_PADDINGS = {
     '1layer.psd': 1,
