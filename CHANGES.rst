@@ -1,5 +1,12 @@
 1.8.15 (2019-05-23)
 -------------------
+
+- fix broken group compose in 1.8.15;
+- fix missing pattern / gradient composition in vector stroke content.
+
+1.8.15 (2019-05-23)
+-------------------
+
 - coding style fix;
 - fix `compose()` bbox option.
 
