@@ -214,13 +214,18 @@ def create_fill(layer):
     from PIL import Image
     mode = get_pil_mode(layer._psd.color_mode, True)
     image = None
-    if 'SOLID_COLOR_SHEET_SETTING' in layer.tagged_blocks:
-        image = Image.new(mode, (layer.width, layer.height), 'white')
-        setting = layer.tagged_blocks.get_data('SOLID_COLOR_SHEET_SETTING')
-        draw_solid_color_fill(image, setting, blend=False)
-    elif 'VECTOR_STROKE_CONTENT_DATA' in layer.tagged_blocks:
+    if 'VECTOR_STROKE_CONTENT_DATA' in layer.tagged_blocks:
         image = Image.new(mode, (layer.width, layer.height), 'white')
         setting = layer.tagged_blocks.get_data('VECTOR_STROKE_CONTENT_DATA')
+        if b'Ptrn' in setting:
+            draw_pattern_fill(image, layer._psd, setting, blend=False)
+        elif b'Grad' in setting:
+            draw_gradient_fill(image, setting, blend=False)
+        else:
+            draw_solid_color_fill(image, setting, blend=False)
+    elif 'SOLID_COLOR_SHEET_SETTING' in layer.tagged_blocks:
+        image = Image.new(mode, (layer.width, layer.height), 'white')
+        setting = layer.tagged_blocks.get_data('SOLID_COLOR_SHEET_SETTING')
         draw_solid_color_fill(image, setting, blend=False)
     elif 'PATTERN_FILL_SETTING' in layer.tagged_blocks:
         image = Image.new(mode, (layer.width, layer.height), 'white')
