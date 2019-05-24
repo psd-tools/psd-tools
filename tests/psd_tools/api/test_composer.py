@@ -48,6 +48,7 @@ def test_compose_quality(filename):
     ('path-operations/subtract-all.psd', ),
     ('path-operations/subtract-first.psd', ),
     ('path-operations/subtract-second.psd', ),
+    ('stroke.psd', ),
 ])
 def test_compose_quality_rgb(filename):
     psd = PSDImage.open(full_name(filename))
