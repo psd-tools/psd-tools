@@ -373,7 +373,7 @@ class PSDImage(GroupMixin):
         """
         Document tagged blocks that is a dict-like container of settings.
 
-        See :py:class:`psd_tools.constants.TaggedBlockID` for available
+        See :py:class:`psd_tools.constants.Tag` for available
         keys.
 
         :return: :py:class:`~psd_tools.psd.tagged_blocks.TaggedBlocks` or

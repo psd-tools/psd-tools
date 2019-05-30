@@ -5,9 +5,7 @@ from __future__ import absolute_import, unicode_literals
 import logging
 
 from psd_tools.api import deprecated
-from psd_tools.constants import (
-    BlendMode, SectionDivider, Clipping, TaggedBlockID
-)
+from psd_tools.constants import (BlendMode, SectionDivider, Clipping, Tag)
 from psd_tools.api.composer import extract_bbox
 from psd_tools.api.effects import Effects
 from psd_tools.api.mask import Mask
@@ -399,7 +397,7 @@ class Layer(object):
         """
         Layer tagged blocks that is a dict-like container of settings.
 
-        See :py:class:`psd_tools.constants.TaggedBlockID` for available
+        See :py:class:`psd_tools.constants.Tag` for available
         keys.
 
         :return: :py:class:`~psd_tools.psd.tagged_blocks.TaggedBlocks` or
@@ -534,9 +532,7 @@ class Group(GroupMixin, Layer):
 
     @property
     def _setting(self):
-        return self.tagged_blocks.get_data(
-            TaggedBlockID.SECTION_DIVIDER_SETTING
-        )
+        return self.tagged_blocks.get_data(Tag.SECTION_DIVIDER_SETTING)
 
     @property
     def blend_mode(self):

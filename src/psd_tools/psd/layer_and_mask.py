@@ -11,8 +11,7 @@ from psd_tools.psd.tagged_blocks import TaggedBlocks, register
 from psd_tools.compression import compress, decompress
 from psd_tools.validators import in_, range_
 from psd_tools.constants import (
-    BlendMode, Clipping, Compression, ChannelID, GlobalLayerMaskKind,
-    TaggedBlockID
+    BlendMode, Clipping, Compression, ChannelID, GlobalLayerMaskKind, Tag
 )
 from psd_tools.utils import (
     read_fmt, write_fmt, read_pascal_string, write_pascal_string,
@@ -177,8 +176,8 @@ class LayerInfo(BaseElement):
                 channel_info.length = length
 
 
-@register(TaggedBlockID.LAYER_16)
-@register(TaggedBlockID.LAYER_32)
+@register(Tag.LAYER_16)
+@register(Tag.LAYER_32)
 class LayerInfoBlock(LayerInfo):
     """
     """

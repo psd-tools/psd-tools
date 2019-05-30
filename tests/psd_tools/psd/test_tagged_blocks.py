@@ -3,7 +3,7 @@ import pytest
 import logging
 import os
 
-from psd_tools.constants import TaggedBlockID
+from psd_tools.constants import Tag
 from psd_tools.psd.base import IntegerElement
 from psd_tools.psd.tagged_blocks import (
     TaggedBlocks,
@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 def test_tagged_blocks():
     blocks = TaggedBlocks([(
-        TaggedBlockID.LAYER_VERSION,
-        TaggedBlock(key=TaggedBlockID.LAYER_VERSION, data=IntegerElement(1))
+        Tag.LAYER_VERSION,
+        TaggedBlock(key=Tag.LAYER_VERSION, data=IntegerElement(1))
     )])
     check_write_read(blocks)
     check_write_read(blocks, version=2)
@@ -41,10 +41,10 @@ def test_tagged_blocks_v2():
 
 @pytest.mark.parametrize(
     'key, data, version, padding', [
-        (TaggedBlockID.LAYER_VERSION, IntegerElement(1), 1, 1),
-        (TaggedBlockID.LAYER_VERSION, IntegerElement(1), 2, 1),
-        (TaggedBlockID.LAYER_VERSION, IntegerElement(1), 1, 4),
-        (TaggedBlockID.LAYER_VERSION, IntegerElement(1), 2, 4),
+        (Tag.LAYER_VERSION, IntegerElement(1), 1, 1),
+        (Tag.LAYER_VERSION, IntegerElement(1), 2, 1),
+        (Tag.LAYER_VERSION, IntegerElement(1), 1, 4),
+        (Tag.LAYER_VERSION, IntegerElement(1), 2, 4),
     ]
 )
 def test_tagged_block(key, data, version, padding):

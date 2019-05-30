@@ -4,7 +4,7 @@ Effects module.
 from __future__ import absolute_import, unicode_literals
 import logging
 
-from psd_tools.constants import TaggedBlockID
+from psd_tools.constants import Tag
 from psd_tools.terminology import Klass, Enum, Key
 from psd_tools.utils import new_registry
 from psd_tools.psd.base import ValueElement
@@ -23,9 +23,9 @@ class Effects(object):
     def __init__(self, layer):
         self._data = None
         for tag in (
-            TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO,
-            TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V0,
-            TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V1,
+            Tag.OBJECT_BASED_EFFECTS_LAYER_INFO,
+            Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V0,
+            Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V1,
         ):
             if tag in layer.tagged_blocks:
                 self._data = layer.tagged_blocks.get_data(tag)

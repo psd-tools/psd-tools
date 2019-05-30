@@ -101,9 +101,9 @@ SectionDivider
     :members:
     :undoc-members:
 
-TaggedBlockID
--------------
+Tag
+---
 
-.. autoclass:: psd_tools.constants.TaggedBlockID
+.. autoclass:: psd_tools.constants.Tag
     :members:
     :undoc-members:

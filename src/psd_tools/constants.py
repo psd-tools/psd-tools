@@ -276,7 +276,7 @@ class Compression(IntEnum):
     ZIP_WITH_PREDICTION = 3
 
 
-class TaggedBlockID(Enum):
+class Tag(Enum):
     """Tagged blocks keys."""
     ALPHA = b'Alph'  # Undocumented.
     ANIMATION_EFFECTS = b'anFX'
@@ -366,6 +366,9 @@ class TaggedBlockID(Enum):
     VECTOR_STROKE_DATA = b'vstk'
     VECTOR_STROKE_CONTENT_DATA = b'vscg'
     VIBRANCE = b'vibA'
+
+
+Tag = Tag  # For backward compatibility.
 
 
 class PrintScaleStyle(IntEnum):

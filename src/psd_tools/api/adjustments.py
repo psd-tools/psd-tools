@@ -13,7 +13,7 @@ from __future__ import absolute_import
 import logging
 
 from psd_tools.api.layers import AdjustmentLayer, FillLayer
-from psd_tools.constants import TaggedBlockID
+from psd_tools.constants import Tag
 from psd_tools.utils import new_registry
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 TYPES, register = new_registry(attribute='_KEY')
 
 
-@register(TaggedBlockID.SOLID_COLOR_SHEET_SETTING)
+@register(Tag.SOLID_COLOR_SHEET_SETTING)
 class SolidColorFill(FillLayer):
     """Solid color fill."""
 
@@ -31,7 +31,7 @@ class SolidColorFill(FillLayer):
         return self._data.get(b'Clr ')
 
 
-@register(TaggedBlockID.PATTERN_FILL_SETTING)
+@register(Tag.PATTERN_FILL_SETTING)
 class PatternFill(FillLayer):
     """Pattern fill."""
 
@@ -41,7 +41,7 @@ class PatternFill(FillLayer):
         return self._data.get(b'Ptrn')
 
 
-@register(TaggedBlockID.GRADIENT_FILL_SETTING)
+@register(Tag.GRADIENT_FILL_SETTING)
 class GradientFill(FillLayer):
     """Gradient fill."""
 
@@ -68,10 +68,10 @@ class GradientFill(FillLayer):
         return self._data.get(b'Grad')
 
 
-@register(TaggedBlockID.CONTENT_GENERATOR_EXTRA_DATA)
+@register(Tag.CONTENT_GENERATOR_EXTRA_DATA)
 class BrightnessContrast(AdjustmentLayer):
     """Brightness and contrast adjustment."""
-    # TaggedBlockID.BRIGHTNESS_AND_CONTRAST is obsolete.
+    # Tag.BRIGHTNESS_AND_CONTRAST is obsolete.
 
     @property
     def brightness(self):
@@ -102,7 +102,7 @@ class BrightnessContrast(AdjustmentLayer):
         return bool(self._data.get(b'auto', False))
 
 
-@register(TaggedBlockID.CURVES)
+@register(Tag.CURVES)
 class Curves(AdjustmentLayer):
     """
     Curves adjustment.
@@ -122,7 +122,7 @@ class Curves(AdjustmentLayer):
         return self._data.extra
 
 
-@register(TaggedBlockID.EXPOSURE)
+@register(Tag.EXPOSURE)
 class Exposure(AdjustmentLayer):
     """
     Exposure adjustment.
@@ -153,7 +153,7 @@ class Exposure(AdjustmentLayer):
         return float(self._data.gamma)
 
 
-@register(TaggedBlockID.LEVELS)
+@register(Tag.LEVELS)
 class Levels(AdjustmentLayer):
     """
     Levels adjustment.
@@ -177,7 +177,7 @@ class Levels(AdjustmentLayer):
         return self.data[0]
 
 
-@register(TaggedBlockID.VIBRANCE)
+@register(Tag.VIBRANCE)
 class Vibrance(AdjustmentLayer):
     """Vibrance adjustment."""
 
@@ -198,7 +198,7 @@ class Vibrance(AdjustmentLayer):
         return int(self._data.get(b'Strt', 0))
 
 
-@register(TaggedBlockID.HUE_SATURATION)
+@register(Tag.HUE_SATURATION)
 class HueSaturation(AdjustmentLayer):
     """
     Hue/Saturation adjustment.
@@ -240,7 +240,7 @@ class HueSaturation(AdjustmentLayer):
         return self._data.master
 
 
-@register(TaggedBlockID.COLOR_BALANCE)
+@register(Tag.COLOR_BALANCE)
 class ColorBalance(AdjustmentLayer):
     """Color balance adjustment."""
 
@@ -277,7 +277,7 @@ class ColorBalance(AdjustmentLayer):
         return int(self._data.luminosity)
 
 
-@register(TaggedBlockID.BLACK_AND_WHITE)
+@register(Tag.BLACK_AND_WHITE)
 class BlackAndWhite(AdjustmentLayer):
     """Black and white adjustment."""
 
@@ -323,7 +323,7 @@ class BlackAndWhite(AdjustmentLayer):
         return value.strip('\x00')
 
 
-@register(TaggedBlockID.PHOTO_FILTER)
+@register(Tag.PHOTO_FILTER)
 class PhotoFilter(AdjustmentLayer):
     """Photo filter adjustment."""
 
@@ -352,7 +352,7 @@ class PhotoFilter(AdjustmentLayer):
         return self._data.luminosity
 
 
-@register(TaggedBlockID.CHANNEL_MIXER)
+@register(Tag.CHANNEL_MIXER)
 class ChannelMixer(AdjustmentLayer):
     """Channel mixer adjustment."""
 
@@ -365,19 +365,19 @@ class ChannelMixer(AdjustmentLayer):
         return self._data.data
 
 
-@register(TaggedBlockID.COLOR_LOOKUP)
+@register(Tag.COLOR_LOOKUP)
 class ColorLookup(AdjustmentLayer):
     """Color lookup adjustment."""
     pass
 
 
-@register(TaggedBlockID.INVERT)
+@register(Tag.INVERT)
 class Invert(AdjustmentLayer):
     """Invert adjustment."""
     pass
 
 
-@register(TaggedBlockID.POSTERIZE)
+@register(Tag.POSTERIZE)
 class Posterize(AdjustmentLayer):
     """Posterize adjustment."""
 
@@ -390,7 +390,7 @@ class Posterize(AdjustmentLayer):
         return self._data
 
 
-@register(TaggedBlockID.THRESHOLD)
+@register(Tag.THRESHOLD)
 class Threshold(AdjustmentLayer):
     """Threshold adjustment."""
 
@@ -403,7 +403,7 @@ class Threshold(AdjustmentLayer):
         return self._data
 
 
-@register(TaggedBlockID.SELECTIVE_COLOR)
+@register(Tag.SELECTIVE_COLOR)
 class SelectiveColor(AdjustmentLayer):
     """Selective color adjustment."""
 
@@ -416,7 +416,7 @@ class SelectiveColor(AdjustmentLayer):
         return self._data.data
 
 
-@register(TaggedBlockID.GRADIENT_MAP)
+@register(Tag.GRADIENT_MAP)
 class GradientMap(AdjustmentLayer):
     """Gradient map adjustment."""
 
