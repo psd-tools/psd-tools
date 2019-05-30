@@ -666,7 +666,7 @@ class SectionDividerSetting(BaseElement):
     SectionDividerSetting structure.
 
     .. py:attribute:: kind
-    .. py:attribute:: key
+    .. py:attribute:: blend_mode
     .. py:attribute:: sub_type
     """
     kind = attr.ib(
@@ -675,26 +675,33 @@ class SectionDividerSetting(BaseElement):
         validator=in_(SectionDivider)
     )
     signature = attr.ib(default=None, repr=False)
-    key = attr.ib(default=None)
+    blend_mode = attr.ib(default=None)
     sub_type = attr.ib(default=None)
 
     @classmethod
     def read(cls, fp, **kwargs):
         kind = SectionDivider(read_fmt('I', fp)[0])
-        signature, key = None, None
+        signature, blend_mode = None, None
         if is_readable(fp, 8):
             signature = read_fmt('4s', fp)[0]
             assert signature == b'8BIM', 'Invalid signature %r' % signature
-            key = BlendMode(read_fmt('4s', fp)[0])
+            blend_mode = BlendMode(read_fmt('4s', fp)[0])
         sub_type = None
         if is_readable(fp, 4):
             sub_type = read_fmt('I', fp)[0]
-        return cls(kind, signature=signature, key=key, sub_type=sub_type)
+        return cls(
+            kind,
+            signature=signature,
+            blend_mode=blend_mode,
+            sub_type=sub_type
+        )
 
     def write(self, fp, **kwargs):
         written = write_fmt(fp, 'I', self.kind.value)
-        if self.signature and self.key:
-            written += write_fmt(fp, '4s4s', self.signature, self.key.value)
+        if self.signature and self.blend_mode:
+            written += write_fmt(
+                fp, '4s4s', self.signature, self.blend_mode.value
+            )
             if self.sub_type is not None:
                 written += write_fmt(fp, 'I', self.sub_type)
         return written

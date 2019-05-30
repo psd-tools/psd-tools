@@ -5,7 +5,9 @@ from __future__ import absolute_import, unicode_literals
 import logging
 
 from psd_tools.api import deprecated
-from psd_tools.constants import BlendMode, SectionDivider, Clipping
+from psd_tools.constants import (
+    BlendMode, SectionDivider, Clipping, TaggedBlockID
+)
 from psd_tools.api.composer import extract_bbox
 from psd_tools.api.effects import Effects
 from psd_tools.api.mask import Mask
@@ -131,12 +133,7 @@ class Layer(object):
 
     @blend_mode.setter
     def blend_mode(self, value):
-        if isinstance(value, BlendMode):
-            self._record.blend_mode = value
-        elif hasattr(BlendMode, value.upper()):
-            self._record.blend_mode = getattr(BlendMode, value.upper())
-        else:
-            self._record.blend_mode = BlendMode(value)
+        self._record.blend_mode = BlendMode(value)
 
     def has_mask(self):
         """Returns True if the layer has a mask."""
@@ -534,6 +531,25 @@ class Group(GroupMixin, Layer):
     def __init__(self, *args):
         super(Group, self).__init__(*args)
         self._layers = []
+
+    @property
+    def _setting(self):
+        return self.tagged_blocks.get_data(
+            TaggedBlockID.SECTION_DIVIDER_SETTING
+        )
+
+    @property
+    def blend_mode(self):
+        return self._setting.blend_mode
+
+    @blend_mode.setter
+    def blend_mode(self, value):
+        _value = BlendMode(value)
+        if _value == BlendMode.PASS_THROUGH:
+            self._record.blend_mode = BlendMode.NORMAL
+        else:
+            self._record.blend_mode = _value
+        self._setting.blend_mode = _value
 
 
 class Artboard(Group):
