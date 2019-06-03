@@ -32,7 +32,7 @@ class Layer(object):
         :return: `str`
         """
         return self._record.tagged_blocks.get_data(
-            'UNICODE_LAYER_NAME', self._record.name
+            Tag.UNICODE_LAYER_NAME, self._record.name
         )
 
     @name.setter
@@ -45,7 +45,7 @@ class Layer(object):
             self._record.name = value
         except UnicodeEncodeError:
             self._record.name = str('?')
-        self._record.tagged_blocks.set_data('UNICODE_LAYER_NAME', value)
+        self._record.tagged_blocks.set_data(Tag.UNICODE_LAYER_NAME, value)
 
     @property
     def kind(self):
@@ -64,7 +64,7 @@ class Layer(object):
 
         :return: int layer id. if the layer is not assigned an id, -1.
         """
-        return self.tagged_blocks.get_data('layer_id', -1)
+        return self.tagged_blocks.get_data(Tag.LAYER_ID, -1)
 
     @property
     def visible(self):
@@ -269,7 +269,7 @@ class Layer(object):
         """
         return any(
             key in self.tagged_blocks
-            for key in ('VECTOR_MASK_SETTING1', 'VECTOR_MASK_SETTING2')
+            for key in (Tag.VECTOR_MASK_SETTING1, Tag.VECTOR_MASK_SETTING2)
         )
 
     @property
@@ -282,7 +282,7 @@ class Layer(object):
         if not hasattr(self, '_vector_mask'):
             self._vector_mask = None
             blocks = self.tagged_blocks
-            for key in ('VECTOR_MASK_SETTING1', 'VECTOR_MASK_SETTING2'):
+            for key in (Tag.VECTOR_MASK_SETTING1, Tag.VECTOR_MASK_SETTING2):
                 if key in blocks:
                     self._vector_mask = VectorMask(blocks.get_data(key))
         return self._vector_mask
@@ -316,7 +316,7 @@ class Layer(object):
             :py:class:`~psd_tools.api.shape.Line`.
         """
         if not hasattr(self, '_origination'):
-            data = self.tagged_blocks.get_data('VECTOR_ORIGINATION_DATA', {})
+            data = self.tagged_blocks.get_data(Tag.VECTOR_ORIGINATION_DATA, {})
             self._origination = [
                 Origination.create(x)
                 for x in data.get(b'keyDescriptorList', [])
@@ -375,9 +375,9 @@ class Layer(object):
         """
         return any(
             tag in self.tagged_blocks for tag in (
-                'OBJECT_BASED_EFFECTS_LAYER_INFO',
-                'OBJECT_BASED_EFFECTS_LAYER_INFO_V0',
-                'OBJECT_BASED_EFFECTS_LAYER_INFO_V1',
+                Tag.OBJECT_BASED_EFFECTS_LAYER_INFO,
+                Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V0,
+                Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V1,
             )
         )
 
@@ -405,7 +405,8 @@ class Layer(object):
 
         Example::
 
-            metadata = layer.tagged_blocks.get_data('METADATA_SETTING')
+            from psd_tools.constants import Tag
+            metadata = layer.tagged_blocks.get_data(Tag.METADATA_SETTING)
         """
         return self._record.tagged_blocks
 
@@ -590,7 +591,9 @@ class Artboard(Group):
         """(left, top, right, bottom) tuple."""
         if not hasattr(self, '_bbox'):
             data = None
-            for key in ('ARTBOARD_DATA1', 'ARTBOARD_DATA2', 'ARTBOARD_DATA3'):
+            for key in (
+                Tag.ARTBOARD_DATA1, Tag.ARTBOARD_DATA2, Tag.ARTBOARD_DATA3
+            ):
                 if key in self.tagged_blocks:
                     data = self.tagged_blocks.get_data(key)
             assert data is not None
@@ -703,7 +706,7 @@ class TypeLayer(Layer):
 
     def __init__(self, *args):
         super(TypeLayer, self).__init__(*args)
-        self._data = self.tagged_blocks.get_data('TYPE_TOOL_OBJECT_SETTING')
+        self._data = self.tagged_blocks.get_data(Tag.TYPE_TOOL_OBJECT_SETTING)
 
     @property
     def text(self):
@@ -840,14 +843,14 @@ class ShapeLayer(Layer):
 
     def has_stroke(self):
         """Returns True if the shape has a stroke."""
-        return 'VECTOR_STROKE_DATA' in self.tagged_blocks
+        return Tag.VECTOR_STROKE_DATA in self.tagged_blocks
 
     @property
     def stroke(self):
         """Property for strokes."""
         if not hasattr(self, '_stroke'):
             self._stroke = None
-            stroke = self.tagged_blocks.get_data('VECTOR_STROKE_DATA')
+            stroke = self.tagged_blocks.get_data(Tag.VECTOR_STROKE_DATA)
             if stroke:
                 self._stroke = Stroke(stroke)
         return self._stroke
@@ -865,7 +868,7 @@ class ShapeLayer(Layer):
 
     #     Stroke content is metadata associated with fill of the stroke.
     #     """
-    #     return self.tagged_blocks.get_data('VECTOR_STROKE_CONTENT_DATA')
+    #     return self.tagged_blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)
 
 
 class AdjustmentLayer(Layer):

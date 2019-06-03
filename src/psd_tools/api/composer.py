@@ -4,6 +4,7 @@ Composer module.
 from __future__ import absolute_import, unicode_literals
 import logging
 
+from psd_tools.constants import Tag
 from psd_tools.api.pil_io import get_pil_mode, convert_pattern_to_pil
 
 logger = logging.getLogger(__name__)
@@ -214,26 +215,26 @@ def create_fill(layer):
     from PIL import Image
     mode = get_pil_mode(layer._psd.color_mode, True)
     image = None
-    if 'VECTOR_STROKE_CONTENT_DATA' in layer.tagged_blocks:
+    if Tag.VECTOR_STROKE_CONTENT_DATA in layer.tagged_blocks:
         image = Image.new(mode, (layer.width, layer.height), 'white')
-        setting = layer.tagged_blocks.get_data('VECTOR_STROKE_CONTENT_DATA')
+        setting = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)
         if b'Ptrn' in setting:
             draw_pattern_fill(image, layer._psd, setting, blend=False)
         elif b'Grad' in setting:
             draw_gradient_fill(image, setting, blend=False)
         else:
             draw_solid_color_fill(image, setting, blend=False)
-    elif 'SOLID_COLOR_SHEET_SETTING' in layer.tagged_blocks:
+    elif Tag.SOLID_COLOR_SHEET_SETTING in layer.tagged_blocks:
         image = Image.new(mode, (layer.width, layer.height), 'white')
-        setting = layer.tagged_blocks.get_data('SOLID_COLOR_SHEET_SETTING')
+        setting = layer.tagged_blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING)
         draw_solid_color_fill(image, setting, blend=False)
-    elif 'PATTERN_FILL_SETTING' in layer.tagged_blocks:
+    elif Tag.PATTERN_FILL_SETTING in layer.tagged_blocks:
         image = Image.new(mode, (layer.width, layer.height), 'white')
-        setting = layer.tagged_blocks.get_data('PATTERN_FILL_SETTING')
+        setting = layer.tagged_blocks.get_data(Tag.PATTERN_FILL_SETTING)
         draw_pattern_fill(image, layer._psd, setting, blend=False)
-    elif 'GRADIENT_FILL_SETTING' in layer.tagged_blocks:
+    elif Tag.GRADIENT_FILL_SETTING in layer.tagged_blocks:
         image = Image.new(mode, (layer.width, layer.height), 'white')
-        setting = layer.tagged_blocks.get_data('GRADIENT_FILL_SETTING')
+        setting = layer.tagged_blocks.get_data(Tag.GRADIENT_FILL_SETTING)
         draw_gradient_fill(image, setting, blend=False)
     return image
 
