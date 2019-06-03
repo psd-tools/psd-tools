@@ -560,7 +560,7 @@ class DictElement(BaseElement):
         if cycle:
             return '{{...}'
 
-        with p.group(2, '{{', '}'):
+        with p.group(2, '{', '}'):
             p.breakable('')
             for idx, key in enumerate(self._items):
                 if idx:
