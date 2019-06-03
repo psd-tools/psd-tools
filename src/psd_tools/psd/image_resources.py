@@ -2,56 +2,56 @@
 Image resources section structure. Image resources are used to store non-pixel
 data associated with images, such as pen tool paths or slices.
 
-See :py:class:`~psd_tools.constants.ImageResourceID` to check available
+See :py:class:`~psd_tools.constants.Resource` to check available
 resource names.
 
 Example::
 
-    from psd_tools.constants import ImageResourceID
+    from psd_tools.constants import Resource
 
-    version_info = psd.image_resources.get_data(ImageResourceID.VERSION_INFO)
+    version_info = psd.image_resources.get_data(Resource.VERSION_INFO)
 
 
 The following resources are plain bytes::
 
-    ImageResourceID.OBSOLETE1: 1000
-    ImageResourceID.MAC_PRINT_MANAGER_INFO: 1001
-    ImageResourceID.OBSOLETE2: 1003
-    ImageResourceID.DISPLAY_INFO_OBSOLETE: 1007
-    ImageResourceID.BORDER_INFO: 1009
-    ImageResourceID.DUOTONE_IMAGE_INFO: 1018
-    ImageResourceID.EFFECTIVE_BW: 1019
-    ImageResourceID.OBSOLETE3: 1020
-    ImageResourceID.EPS_OPTIONS: 1021
-    ImageResourceID.QUICK_MASK_INFO: 1022
-    ImageResourceID.OBSOLETE4: 1023
-    ImageResourceID.WORKING_PATH: 1025
-    ImageResourceID.OBSOLETE5: 1027
-    ImageResourceID.IPTC_NAA: 1028
-    ImageResourceID.IMAGE_MODE_RAW: 1029
-    ImageResourceID.JPEG_QUALITY: 1030
-    ImageResourceID.URL: 1035
-    ImageResourceID.COLOR_SAMPLERS_RESOURCE_OBSOLETE: 1038
-    ImageResourceID.ICC_PROFILE: 1039
-    ImageResourceID.SPOT_HALFTONE: 1043
-    ImageResourceID.JUMP_TO_XPEP: 1052
-    ImageResourceID.EXIF_DATA_1: 1058
-    ImageResourceID.EXIF_DATA_3: 1059
-    ImageResourceID.XMP_METADATA: 1060
-    ImageResourceID.CAPTION_DIGEST: 1061
-    ImageResourceID.ALTERNATE_DUOTONE_COLORS: 1066
-    ImageResourceID.ALTERNATE_SPOT_COLORS: 1067
-    ImageResourceID.HDR_TONING_INFO: 1070
-    ImageResourceID.PRINT_INFO_CS2: 1071
-    ImageResourceID.COLOR_SAMPLERS_RESOURCE: 1073
-    ImageResourceID.DISPLAY_INFO: 1077
-    ImageResourceID.MAC_NSPRINTINFO: 1084
-    ImageResourceID.WINDOWS_DEVMODE: 1085
-    ImageResourceID.PATH_INFO_N: 2000-2999
-    ImageResourceID.PLUGIN_RESOURCES_N: 4000-4999
-    ImageResourceID.IMAGE_READY_VARIABLES: 7000
-    ImageResourceID.IMAGE_READY_DATA_SETS: 7001
-    ImageResourceID.LIGHTROOM_WORKFLOW: 8000
+    Resource.OBSOLETE1: 1000
+    Resource.MAC_PRINT_MANAGER_INFO: 1001
+    Resource.OBSOLETE2: 1003
+    Resource.DISPLAY_INFO_OBSOLETE: 1007
+    Resource.BORDER_INFO: 1009
+    Resource.DUOTONE_IMAGE_INFO: 1018
+    Resource.EFFECTIVE_BW: 1019
+    Resource.OBSOLETE3: 1020
+    Resource.EPS_OPTIONS: 1021
+    Resource.QUICK_MASK_INFO: 1022
+    Resource.OBSOLETE4: 1023
+    Resource.WORKING_PATH: 1025
+    Resource.OBSOLETE5: 1027
+    Resource.IPTC_NAA: 1028
+    Resource.IMAGE_MODE_RAW: 1029
+    Resource.JPEG_QUALITY: 1030
+    Resource.URL: 1035
+    Resource.COLOR_SAMPLERS_RESOURCE_OBSOLETE: 1038
+    Resource.ICC_PROFILE: 1039
+    Resource.SPOT_HALFTONE: 1043
+    Resource.JUMP_TO_XPEP: 1052
+    Resource.EXIF_DATA_1: 1058
+    Resource.EXIF_DATA_3: 1059
+    Resource.XMP_METADATA: 1060
+    Resource.CAPTION_DIGEST: 1061
+    Resource.ALTERNATE_DUOTONE_COLORS: 1066
+    Resource.ALTERNATE_SPOT_COLORS: 1067
+    Resource.HDR_TONING_INFO: 1070
+    Resource.PRINT_INFO_CS2: 1071
+    Resource.COLOR_SAMPLERS_RESOURCE: 1073
+    Resource.DISPLAY_INFO: 1077
+    Resource.MAC_NSPRINTINFO: 1084
+    Resource.WINDOWS_DEVMODE: 1085
+    Resource.PATH_INFO_N: 2000-2999
+    Resource.PLUGIN_RESOURCES_N: 4000-4999
+    Resource.IMAGE_READY_VARIABLES: 7000
+    Resource.IMAGE_READY_DATA_SETS: 7001
+    Resource.LIGHTROOM_WORKFLOW: 8000
 """
 from __future__ import absolute_import, unicode_literals
 import attr
@@ -59,7 +59,7 @@ import logging
 import io
 
 from psd_tools.version import __version__
-from psd_tools.constants import ImageResourceID, PrintScaleStyle
+from psd_tools.constants import Resource, PrintScaleStyle
 from psd_tools.psd.base import (
     BaseElement,
     BooleanElement,
@@ -86,20 +86,20 @@ logger = logging.getLogger(__name__)
 TYPES, register = new_registry()
 
 TYPES.update({
-    ImageResourceID.BACKGROUND_COLOR: Color,
-    ImageResourceID.LAYER_COMPS: DescriptorBlock,
-    ImageResourceID.MEASUREMENT_SCALE: DescriptorBlock,
-    ImageResourceID.SHEET_DISCLOSURE: DescriptorBlock,
-    ImageResourceID.TIMELINE_INFO: DescriptorBlock,
-    ImageResourceID.ONION_SKINS: DescriptorBlock,
-    ImageResourceID.COUNT_INFO: DescriptorBlock,
-    ImageResourceID.PRINT_INFO_CS5: DescriptorBlock,
-    ImageResourceID.PRINT_STYLE: DescriptorBlock,
-    ImageResourceID.PATH_SELECTION_STATE: DescriptorBlock,
-    ImageResourceID.ORIGIN_PATH_INFO: DescriptorBlock,
-    ImageResourceID.AUTO_SAVE_FILE_PATH: StringElement,
-    ImageResourceID.AUTO_SAVE_FORMAT: StringElement,
-    ImageResourceID.WORKFLOW_URL: StringElement,
+    Resource.BACKGROUND_COLOR: Color,
+    Resource.LAYER_COMPS: DescriptorBlock,
+    Resource.MEASUREMENT_SCALE: DescriptorBlock,
+    Resource.SHEET_DISCLOSURE: DescriptorBlock,
+    Resource.TIMELINE_INFO: DescriptorBlock,
+    Resource.ONION_SKINS: DescriptorBlock,
+    Resource.COUNT_INFO: DescriptorBlock,
+    Resource.PRINT_INFO_CS5: DescriptorBlock,
+    Resource.PRINT_STYLE: DescriptorBlock,
+    Resource.PATH_SELECTION_STATE: DescriptorBlock,
+    Resource.ORIGIN_PATH_INFO: DescriptorBlock,
+    Resource.AUTO_SAVE_FILE_PATH: StringElement,
+    Resource.AUTO_SAVE_FORMAT: StringElement,
+    Resource.WORKFLOW_URL: StringElement,
 })
 
 
@@ -109,7 +109,7 @@ class ImageResources(DictElement):
     Image resources section of the PSD file. Dict of
     :py:class:`.ImageResource`.
     """
-    enum = ImageResourceID
+    enum = Resource
 
     def get_data(self, key, default=None):
         """
@@ -137,9 +137,9 @@ class ImageResources(DictElement):
         """
         return cls([
             (
-                ImageResourceID.VERSION_INFO,
+                Resource.VERSION_INFO,
                 ImageResource(
-                    key=ImageResourceID.VERSION_INFO,
+                    key=Resource.VERSION_INFO,
                     data=VersionInfo(
                         has_composite=True,
                         writer='psd-tools2 %s' % __version__,
@@ -207,7 +207,7 @@ class ImageResource(BaseElement):
     .. py:attribute:: key
 
         Unique identifier for the resource. See
-        :py:class:`~psd_tools.constants.ImageResourceID`.
+        :py:class:`~psd_tools.constants.Resource`.
 
     .. py:attribute:: name
     .. py:attribute:: data
@@ -228,11 +228,11 @@ class ImageResource(BaseElement):
     def read(cls, fp, encoding='macroman'):
         signature, key = read_fmt('4sH', fp)
         try:
-            key = ImageResourceID(key)
+            key = Resource(key)
         except ValueError:
-            if ImageResourceID.is_path_info(key):
+            if Resource.is_path_info(key):
                 logger.debug('Undefined PATH_INFO found: %d' % (key))
-            elif ImageResourceID.is_plugin_resource(key):
+            elif Resource.is_plugin_resource(key):
                 logger.debug('Undefined PLUGIN_RESOURCE found: %d' % (key))
             else:
                 logger.warning('Unknown image resource %d' % (key))
@@ -267,7 +267,7 @@ class ImageResource(BaseElement):
         return written
 
 
-@register(ImageResourceID.ALPHA_IDENTIFIERS)
+@register(Resource.ALPHA_IDENTIFIERS)
 class AlphaIdentifiers(ListElement):
     """
     List of alpha identifiers.
@@ -284,7 +284,7 @@ class AlphaIdentifiers(ListElement):
         return sum(write_fmt(fp, 'I', item) for item in self)
 
 
-@register(ImageResourceID.ALPHA_NAMES_PASCAL)
+@register(Resource.ALPHA_NAMES_PASCAL)
 class AlphaNamesPascal(ListElement):
     """
     List of alpha names.
@@ -301,7 +301,7 @@ class AlphaNamesPascal(ListElement):
         return sum(write_pascal_string(fp, item, padding=1) for item in self)
 
 
-@register(ImageResourceID.ALPHA_NAMES_UNICODE)
+@register(Resource.ALPHA_NAMES_UNICODE)
 class AlphaNamesUnicode(ListElement):
     """
     List of alpha names.
@@ -318,10 +318,10 @@ class AlphaNamesUnicode(ListElement):
         return sum(write_unicode_string(fp, item) for item in self)
 
 
-@register(ImageResourceID.ICC_UNTAGGED_PROFILE)
-@register(ImageResourceID.COPYRIGHT_FLAG)
-@register(ImageResourceID.EFFECTS_VISIBLE)
-@register(ImageResourceID.WATERMARK)
+@register(Resource.ICC_UNTAGGED_PROFILE)
+@register(Resource.COPYRIGHT_FLAG)
+@register(Resource.EFFECTS_VISIBLE)
+@register(Resource.WATERMARK)
 class Byte(ByteElement):
     """
     Byte element.
@@ -335,7 +335,7 @@ class Byte(ByteElement):
         return write_fmt(fp, 'B', self.value)
 
 
-@register(ImageResourceID.GRID_AND_GUIDES_INFO)
+@register(Resource.GRID_AND_GUIDES_INFO)
 @attr.s(slots=True)
 class GridGuidesInfo(BaseElement):
     """
@@ -365,9 +365,9 @@ class GridGuidesInfo(BaseElement):
         return written
 
 
-@register(ImageResourceID.COLOR_HALFTONING_INFO)
-@register(ImageResourceID.DUOTONE_HALFTONING_INFO)
-@register(ImageResourceID.GRAYSCALE_HALFTONING_INFO)
+@register(Resource.COLOR_HALFTONING_INFO)
+@register(Resource.DUOTONE_HALFTONING_INFO)
+@register(Resource.GRAYSCALE_HALFTONING_INFO)
 class HalftoneScreens(ListElement):
     """
     Halftone screens.
@@ -421,9 +421,9 @@ class HalftoneScreen(BaseElement):
         return written
 
 
-@register(ImageResourceID.GLOBAL_ALTITUDE)
-@register(ImageResourceID.GLOBAL_ANGLE)
-@register(ImageResourceID.IDS_SEED_NUMBER)
+@register(Resource.GLOBAL_ALTITUDE)
+@register(Resource.GLOBAL_ANGLE)
+@register(Resource.IDS_SEED_NUMBER)
 class Integer(IntegerElement):
     """
     Integer element.
@@ -437,7 +437,7 @@ class Integer(IntegerElement):
         return write_fmt(fp, 'i', self.value)
 
 
-@register(ImageResourceID.LAYER_GROUPS_ENABLED_ID)
+@register(Resource.LAYER_GROUPS_ENABLED_ID)
 class LayerGroupEnabledIDs(ListElement):
     """
     Layer group enabled ids.
@@ -454,7 +454,7 @@ class LayerGroupEnabledIDs(ListElement):
         return sum(write_fmt(fp, 'B', item) for item in self)
 
 
-@register(ImageResourceID.LAYER_GROUP_INFO)
+@register(Resource.LAYER_GROUP_INFO)
 class LayerGroupInfo(ListElement):
     """
     Layer group info list.
@@ -471,7 +471,7 @@ class LayerGroupInfo(ListElement):
         return sum(write_fmt(fp, 'H', item) for item in self)
 
 
-@register(ImageResourceID.LAYER_SELECTION_IDS)
+@register(Resource.LAYER_SELECTION_IDS)
 class LayerSelectionIDs(ListElement):
     """
     Layer selection ids.
@@ -488,9 +488,9 @@ class LayerSelectionIDs(ListElement):
         return written
 
 
-@register(ImageResourceID.INDEXED_COLOR_TABLE_COUNT)
-@register(ImageResourceID.LAYER_STATE_INFO)
-@register(ImageResourceID.TRANSPARENCY_INDEX)
+@register(Resource.INDEXED_COLOR_TABLE_COUNT)
+@register(Resource.LAYER_STATE_INFO)
+@register(Resource.TRANSPARENCY_INDEX)
 class ShortInteger(ShortIntegerElement):
     """
     Short integer element.
@@ -504,8 +504,8 @@ class ShortInteger(ShortIntegerElement):
         return write_fmt(fp, 'H', self.value)
 
 
-@register(ImageResourceID.CAPTION_PASCAL)
-@register(ImageResourceID.CLIPPING_PATH_NAME)
+@register(Resource.CAPTION_PASCAL)
+@register(Resource.CLIPPING_PATH_NAME)
 class PascalString(ValueElement):
     """
     Pascal string element.
@@ -519,7 +519,7 @@ class PascalString(ValueElement):
         return write_pascal_string(fp, self.value, 'macroman', padding=1)
 
 
-@register(ImageResourceID.PIXEL_ASPECT_RATIO)
+@register(Resource.PIXEL_ASPECT_RATIO)
 @attr.s(slots=True)
 class PixelAspectRatio(NumericElement):
     """
@@ -538,7 +538,7 @@ class PixelAspectRatio(NumericElement):
         return write_fmt(fp, 'Id', self.version, self.value)
 
 
-@register(ImageResourceID.PRINT_FLAGS)
+@register(Resource.PRINT_FLAGS)
 @attr.s(slots=True)
 class PrintFlags(BaseElement):
     """
@@ -578,7 +578,7 @@ class PrintFlags(BaseElement):
         return write_fmt(fp, '%d?' % len(values), *values)
 
 
-@register(ImageResourceID.PRINT_FLAGS_INFO)
+@register(Resource.PRINT_FLAGS_INFO)
 @attr.s(slots=True)
 class PrintFlagsInfo(BaseElement):
     """
@@ -602,7 +602,7 @@ class PrintFlagsInfo(BaseElement):
         return write_fmt(fp, 'HBxIH', *attr.astuple(self))
 
 
-@register(ImageResourceID.PRINT_SCALE)
+@register(Resource.PRINT_SCALE)
 @attr.s(slots=True)
 class PrintScale(BaseElement):
     """
@@ -632,7 +632,7 @@ class PrintScale(BaseElement):
         )
 
 
-@register(ImageResourceID.RESOLUTION_INFO)
+@register(Resource.RESOLUTION_INFO)
 @attr.s(slots=True)
 class ResoulutionInfo(BaseElement):
     """
@@ -660,7 +660,7 @@ class ResoulutionInfo(BaseElement):
         return write_fmt(fp, 'I2HI2H', *attr.astuple(self))
 
 
-@register(ImageResourceID.SLICES)
+@register(Resource.SLICES)
 @attr.s(slots=True)
 class Slices(BaseElement):
     """
@@ -825,7 +825,7 @@ class SliceV6(BaseElement):
         return written
 
 
-@register(ImageResourceID.THUMBNAIL_RESOURCE)
+@register(Resource.THUMBNAIL_RESOURCE)
 @attr.s
 class ThumbnailResource(BaseElement):
     """
@@ -887,14 +887,14 @@ class ThumbnailResource(BaseElement):
         return image
 
 
-@register(ImageResourceID.THUMBNAIL_RESOURCE_PS4)
+@register(Resource.THUMBNAIL_RESOURCE_PS4)
 class ThumbnailResourceV4(ThumbnailResource):
     _RAW_MODE = 'BGR'
 
 
-@register(ImageResourceID.COLOR_TRANSFER_FUNCTION)
-@register(ImageResourceID.DUOTONE_TRANSFER_FUNCTION)
-@register(ImageResourceID.GRAYSCALE_TRANSFER_FUNCTION)
+@register(Resource.COLOR_TRANSFER_FUNCTION)
+@register(Resource.DUOTONE_TRANSFER_FUNCTION)
+@register(Resource.GRAYSCALE_TRANSFER_FUNCTION)
 class TransferFunctions(ListElement):
     """
     Transfer functions.
@@ -931,7 +931,7 @@ class TransferFunction(BaseElement):
         return written
 
 
-@register(ImageResourceID.URL_LIST)
+@register(Resource.URL_LIST)
 class URLList(ListElement):
     """
     URL list structure.
@@ -976,7 +976,7 @@ class URLItem(BaseElement):
         return written
 
 
-@register(ImageResourceID.VERSION_INFO)
+@register(Resource.VERSION_INFO)
 @attr.s
 class VersionInfo(BaseElement):
     """

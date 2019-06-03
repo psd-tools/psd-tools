@@ -6,7 +6,7 @@ import logging
 import io
 
 from psd_tools.psd.image_data import ImageData
-from psd_tools.constants import ColorMode, ChannelID
+from psd_tools.constants import ColorMode, ChannelID, Resource
 
 logger = logging.getLogger(__name__)
 
@@ -72,8 +72,10 @@ def convert_image_data_to_pil(psd, apply_icc=True, **kwargs):
         image = Image.merge(mode, channels[:get_pil_channels(mode)])
     if mode == 'CMYK':
         image = image.point(lambda x: 255 - x)
-    if apply_icc and 'ICC_PROFILE' in psd.image_resources:
-        image = _apply_icc(image, psd.image_resources.get_data('ICC_PROFILE'))
+    if apply_icc and Resource.ICC_PROFILE in psd.image_resources:
+        image = _apply_icc(
+            image, psd.image_resources.get_data(Resource.ICC_PROFILE)
+        )
     if alpha and mode in ('L', 'RGB'):
         image.putalpha(channels[-1])
     return _remove_white_background(image)
@@ -109,9 +111,9 @@ def convert_layer_to_pil(layer, apply_icc=True, **kwargs):
         else:
             logger.debug('Alpha channel is not supported in %s' % (mode))
 
-    if apply_icc and 'ICC_PROFILE' in layer._psd.image_resources:
+    if apply_icc and Resource.ICC_PROFILE in layer._psd.image_resources:
         image = _apply_icc(
-            image, layer._psd.image_resources.get_data('ICC_PROFILE')
+            image, layer._psd.image_resources.get_data(Resource.ICC_PROFILE)
         )
     return image
 

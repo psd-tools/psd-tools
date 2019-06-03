@@ -5,7 +5,7 @@ from __future__ import absolute_import, unicode_literals
 import logging
 
 from psd_tools.constants import (
-    Clipping, Compression, ColorMode, SectionDivider, Tag
+    Clipping, Compression, ColorMode, SectionDivider, Resource, Tag
 )
 from psd_tools.psd import PSD, FileHeader, ImageData, ImageResources
 from psd_tools.api.layers import (
@@ -176,7 +176,7 @@ class PSDImage(GroupMixin):
         Returns if the document has real merged data. When True, `topil()`
         returns pre-composed data.
         """
-        version_info = self.image_resources.get_data('version_info')
+        version_info = self.image_resources.get_data(Resource.VERSION_INFO)
         if version_info:
             return version_info.has_composite
         return True  # Assuming the image data is valid by default.
@@ -349,20 +349,21 @@ class PSDImage(GroupMixin):
         :py:class:`~psd_tools.psd.image_resources.ImageResources` is a
         dict-like structure that keeps various document settings.
 
-        See :py:class:`psd_tools.constants.ImageResourceID` for available
-        keys.
+        See :py:class:`psd_tools.constants.Resource` for available keys.
 
         :return: :py:class:`~psd_tools.psd.image_resources.ImageResources`
 
         Example::
 
-            version_info = psd.image_resources.get_data('VERSION_INFO')
-            slices = psd.image_resources.get_data('SLICES')
+            from psd_tools.constants import Resource
+            version_info = psd.image_resources.get_data(Resource.VERSION_INFO)
+            slices = psd.image_resources.get_data(Resource.SLICES)
 
         Image resources contain an ICC profile. The following shows how to
         export a PNG file with embedded ICC profile::
 
-            icc_profile = psd.image_resources.get_data('ICC_PROFILE')
+            from psd_tools.constants import Resource
+            icc_profile = psd.image_resources.get_data(Resource.ICC_PROFILE)
             image = psd.compose(apply_icc=False)
             image.save('output.png', icc_profile=icc_profile)
         """
@@ -381,15 +382,16 @@ class PSDImage(GroupMixin):
 
         Example::
 
-            patterns = psd.tagged_blocks.get_data('PATTERNS1')
+            from psd_tools.constants import Tag
+            patterns = psd.tagged_blocks.get_data(Tag.PATTERNS1)
         """
         return self._record.layer_and_mask_information.tagged_blocks
 
     def has_thumbnail(self):
         """True if the PSDImage has a thumbnail resource."""
         return (
-            'THUMBNAIL_RESOURCE' in self.image_resources or
-            'THUMBNAIL_RESOURCE_PS4' in self.image_resources
+            Resource.THUMBNAIL_RESOURCE in self.image_resources or
+            Resource.THUMBNAIL_RESOURCE_PS4 in self.image_resources
         )
 
     def thumbnail(self):
@@ -397,13 +399,14 @@ class PSDImage(GroupMixin):
         Returns a thumbnail image in PIL.Image. When the file does not
         contain an embedded thumbnail image, returns None.
         """
-        if 'THUMBNAIL_RESOURCE' in self.image_resources:
+        if Resource.THUMBNAIL_RESOURCE in self.image_resources:
             return pil_io.convert_thumbnail_to_pil(
-                self.image_resources.get_data('THUMBNAIL_RESOURCE')
+                self.image_resources.get_data(Resource.THUMBNAIL_RESOURCE)
             )
-        elif 'THUMBNAIL_RESOURCE_PS4' in self.image_resources:
+        elif Resource.THUMBNAIL_RESOURCE_PS4 in self.image_resources:
             return pil_io.convert_thumbnail_to_pil(
-                self.image_resources.get_data('THUMBNAIL_RESOURCE_PS4'), 'BGR'
+                self.image_resources.get_data(Resource.THUMBNAIL_RESOURCE_PS4),
+                'BGR'
             )
         return None
 

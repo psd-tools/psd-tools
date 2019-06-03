@@ -66,13 +66,6 @@ LinkedLayerType
     :members:
     :undoc-members:
 
-ImageResourceID
----------------
-
-.. autoclass:: psd_tools.constants.ImageResourceID
-    :members:
-    :undoc-members:
-
 PathResourceID
 --------------
 
@@ -91,6 +84,13 @@ PrintScaleStyle
 ---------------
 
 .. autoclass:: psd_tools.constants.PrintScaleStyle
+    :members:
+    :undoc-members:
+
+Resource
+--------
+
+.. autoclass:: psd_tools.constants.Resource
     :members:
     :undoc-members:
 

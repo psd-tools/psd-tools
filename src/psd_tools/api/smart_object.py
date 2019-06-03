@@ -7,6 +7,8 @@ import logging
 import io
 import os
 
+from psd_tools.constants import Tag
+
 logger = logging.getLogger(__name__)
 
 
@@ -20,15 +22,17 @@ class SmartObject(object):
 
     def __init__(self, layer):
         self._config = None
-        for key in ('SMART_OBJECT_LAYER_DATA1', 'SMART_OBJECT_LAYER_DATA2'):
+        for key in (
+            Tag.SMART_OBJECT_LAYER_DATA1, Tag.SMART_OBJECT_LAYER_DATA2
+        ):
             if key in layer.tagged_blocks:
                 self._config = layer.tagged_blocks.get_data(key)
                 break
 
         self._data = None
         for key in (
-            'LINKED_LAYER1', 'LINKED_LAYER2', 'LINKED_LAYER3',
-            'LINKED_LAYER_EXTERNAL'
+            Tag.LINKED_LAYER1, Tag.LINKED_LAYER2, Tag.LINKED_LAYER3,
+            Tag.LINKED_LAYER_EXTERNAL
         ):
             if key in layer._psd.tagged_blocks:
                 data = layer._psd.tagged_blocks.get_data(key)

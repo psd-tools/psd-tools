@@ -42,7 +42,7 @@ class ColorSpaceID(IntEnum):
     GRAYSCALE = 8
 
 
-class ImageResourceID(IntEnum):
+class Resource(IntEnum):
     """
     Image resource keys.
 
@@ -185,6 +185,9 @@ class ImageResourceID(IntEnum):
     @staticmethod
     def is_plugin_resource(value):
         return 4000 <= value and value <= 4999
+
+
+ImageResourceID = Resource  # For backward compatibility.
 
 
 class LinkedLayerType(Enum):
@@ -368,7 +371,7 @@ class Tag(Enum):
     VIBRANCE = b'vibA'
 
 
-Tag = Tag  # For backward compatibility.
+TaggedBlockID = Tag  # For backward compatibility.
 
 
 class PrintScaleStyle(IntEnum):
