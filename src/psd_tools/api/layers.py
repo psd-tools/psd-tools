@@ -6,7 +6,6 @@ import logging
 
 from psd_tools.api import deprecated
 from psd_tools.constants import (BlendMode, SectionDivider, Clipping, Tag)
-from psd_tools.api.composer import extract_bbox
 from psd_tools.api.effects import Effects
 from psd_tools.api.mask import Mask
 from psd_tools.api.pil_io import convert_layer_to_pil
@@ -340,7 +339,7 @@ class Layer(object):
 
         :return: :py:class:`PIL.Image`, or `None` if the layer has no pixel.
         """
-        from psd_tools.api.composer import compose
+        from psd_tools.composer import compose
         if self.bbox == (0, 0, 0, 0):
             return None
         return compose(self, *args, **kwargs)
@@ -462,7 +461,7 @@ class GroupMixin(object):
     def bbox(self):
         """(left, top, right, bottom) tuple."""
         if not hasattr(self, '_bbox'):
-            self._bbox = extract_bbox(self)
+            self._bbox = Group.extract_bbox(self)
         return self._bbox
 
     def __len__(self):
@@ -486,7 +485,7 @@ class GroupMixin(object):
 
         :return: PIL Image object, or None if the layer has no pixels.
         """
-        from psd_tools.api.composer import compose
+        from psd_tools.composer import compose
         return compose(self, **kwargs)
 
     def descendants(self, include_clip=True):
@@ -526,6 +525,23 @@ class Group(GroupMixin, Layer):
             if layer.kind == 'pixel':
                 print(layer.name)
     """
+
+    @staticmethod
+    def extract_bbox(layers):
+        """
+        Returns a bounding box for ``layers`` or (0, 0, 0, 0) if the layers
+        have no bounding box.
+        """
+        if not hasattr(layers, '__iter__'):
+            layers = [layers]
+        bboxes = [
+            layer.bbox for layer in layers
+            if layer.is_visible() and not layer.bbox == (0, 0, 0, 0)
+        ]
+        if len(bboxes) == 0:  # Empty bounding box.
+            return (0, 0, 0, 0)
+        lefts, tops, rights, bottoms = zip(*bboxes)
+        return (min(lefts), min(tops), max(rights), max(bottoms))
 
     def __init__(self, *args):
         super(Group, self).__init__(*args)
@@ -615,7 +631,7 @@ class Artboard(Group):
         :param bbox: Viewport tuple (left, top, right, bottom).
         :return: :py:class:`PIL.Image`, or `None` if there is no pixel.
         """
-        from psd_tools.api.composer import compose
+        from psd_tools.composer import compose
         return compose(self, bbox=bbox or self.bbox, **kwargs)
 
 

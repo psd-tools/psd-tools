@@ -138,7 +138,7 @@ class PSDImage(GroupMixin):
         :param bbox: Viewport tuple (left, top, right, bottom).
         :return: :py:class:`PIL.Image`, or `None` if there is no pixel.
         """
-        from psd_tools.api.composer import compose
+        from psd_tools.composer import compose
         image = None
         if not force or len(self) == 0:
             image = self.topil(**kwargs)

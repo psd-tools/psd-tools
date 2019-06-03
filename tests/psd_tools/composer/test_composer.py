@@ -7,7 +7,7 @@ import imagehash
 import numpy as np
 
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.api.composer import extract_bbox
+from psd_tools.api.layers import Group
 
 from ..utils import full_name
 
@@ -105,7 +105,7 @@ def test_compose_artboard():
     artboard = psd[0]
     artboard_image = artboard.compose()
     assert artboard_image.size == artboard.size
-    assert artboard.size != extract_bbox(artboard)
+    assert artboard.size != Group.extract_bbox(artboard)
 
 
 def test_apply_icc_profile():

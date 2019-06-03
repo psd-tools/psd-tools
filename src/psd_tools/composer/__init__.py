@@ -6,25 +6,9 @@ import logging
 
 from psd_tools.constants import Tag
 from psd_tools.api.pil_io import get_pil_mode, convert_pattern_to_pil
+from psd_tools.api.layers import Group
 
 logger = logging.getLogger(__name__)
-
-
-def extract_bbox(layers):
-    """
-    Returns a bounding box for ``layers`` or (0, 0, 0, 0) if the layers
-    have no bounding box.
-    """
-    if not hasattr(layers, '__iter__'):
-        layers = [layers]
-    bboxes = [
-        layer.bbox for layer in layers
-        if layer.is_visible() and not layer.bbox == (0, 0, 0, 0)
-    ]
-    if len(bboxes) == 0:  # Empty bounding box.
-        return (0, 0, 0, 0)
-    lefts, tops, rights, bottoms = zip(*bboxes)
-    return (min(lefts), min(tops), max(rights), max(bottoms))
 
 
 def intersect(*bboxes):
@@ -115,7 +99,7 @@ def compose(layers, bbox=None, layer_filter=None, color=None, **kwargs):
         return None
 
     if bbox is None:
-        bbox = extract_bbox(valid_layers)
+        bbox = Group.extract_bbox(valid_layers)
         if bbox == (0, 0, 0, 0):
             return None
 
@@ -187,7 +171,7 @@ def compose_layer(layer, force=False, **kwargs):
 
     # Clip layers.
     if layer.has_clip_layers():
-        clip_box = extract_bbox(layer.clip_layers)
+        clip_box = Group.extract_bbox(layer.clip_layers)
         inter_box = intersect(layer.bbox, clip_box)
         if inter_box != (0, 0, 0, 0):
             clip_image = compose(layer.clip_layers, bbox=layer.bbox)
