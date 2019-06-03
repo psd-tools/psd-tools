@@ -190,7 +190,7 @@ class Resource(IntEnum):
 ImageResourceID = Resource  # For backward compatibility.
 
 
-class LinkedLayerType(Enum):
+class LinkedLayerType(bytes, Enum):
     """
     Linked layer types.
     """
@@ -224,7 +224,7 @@ class Clipping(IntEnum):
     NON_BASE = 1
 
 
-class BlendMode(Enum):
+class BlendMode(bytes, Enum):
     """
     Blend modes.
     """
@@ -279,7 +279,7 @@ class Compression(IntEnum):
     ZIP_WITH_PREDICTION = 3
 
 
-class Tag(Enum):
+class Tag(bytes, Enum):
     """Tagged blocks keys."""
     ALPHA = b'Alph'  # Undocumented.
     ANIMATION_EFFECTS = b'anFX'
@@ -381,7 +381,7 @@ class PrintScaleStyle(IntEnum):
     USER_DEFINED = 2
 
 
-class OSType(Enum):
+class OSType(bytes, Enum):
     """
     Descriptor OSTypes and reference OSTypes.
     """
@@ -416,7 +416,7 @@ class OSType(Enum):
     NAME = b'name'
 
 
-class EffectOSType(Enum):
+class EffectOSType(bytes, Enum):
     """
     OS Type keys for Layer Effects.
     """

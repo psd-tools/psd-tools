@@ -115,7 +115,6 @@ class TaggedBlocks(DictElement):
         # Get a field
         value = tagged_blocks.get_data(Tag.TYPE_TOOL_OBJECT_SETTING)
     """
-    enum = Tag
 
     def get_data(self, key, default=None):
         """
@@ -161,20 +160,24 @@ class TaggedBlocks(DictElement):
             items.append((block.key, block))
         return cls(items)
 
+    @classmethod
+    def _key_converter(self, key):
+        return getattr(key, 'value', key)
+
     def _repr_pretty_(self, p, cycle):
         if cycle:
-            return "{{...}".format(name=self.__class__.__name__)
+            return '{{...}'
 
-        with p.group(2, '{{'.format(name=self.__class__.__name__), '}'):
+        with p.group(2, '{{', '}'):
             p.breakable('')
             for idx, key in enumerate(self._items):
                 if idx:
                     p.text(',')
                     p.breakable()
                 value = self._items[key]
-                if hasattr(key, 'name'):
-                    p.text(key.name)
-                else:
+                try:
+                    p.text(Tag(key).name)
+                except ValueError:
                     p.pretty(key)
                 p.text(': ')
                 if isinstance(value.data, bytes):

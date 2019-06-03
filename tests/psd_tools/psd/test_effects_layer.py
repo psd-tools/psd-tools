@@ -33,8 +33,8 @@ def test_effects_layer_empty_wr(kls):
 @pytest.mark.parametrize(
     'fixture', [
         (
-            b'\x00\x00\x00\x028BIMnorm\x0b\xf40262SC\x00\x00\xff\x01\x00\x00\xf0\x89'
-            b'\xa7s\x94\xd1\x00\x00'
+            b'\x00\x00\x00\x028BIMnorm\x0b\xf40262SC\x00\x00\xff\x01\x00\x00'
+            b'\xf0\x89\xa7s\x94\xd1\x00\x00'
         ),
     ]
 )

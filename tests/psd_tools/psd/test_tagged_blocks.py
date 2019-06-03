@@ -2,6 +2,7 @@ from __future__ import absolute_import, unicode_literals
 import pytest
 import logging
 import os
+from IPython.display import display
 
 from psd_tools.constants import Tag
 from psd_tools.psd.base import IntegerElement
@@ -30,6 +31,10 @@ def test_tagged_blocks():
     check_write_read(blocks)
     check_write_read(blocks, version=2)
     check_write_read(blocks, version=2, padding=4)
+    display(blocks)
+    assert blocks.get_data(Tag.LAYER_VERSION)
+    assert blocks.get_data(Tag.LAYER_ID) is None
+    assert len([1 for key in blocks if key == Tag.LAYER_VERSION]) == 1
 
 
 def test_tagged_blocks_v2():

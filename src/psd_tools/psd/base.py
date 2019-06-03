@@ -491,9 +491,6 @@ class ListElement(BaseElement):
 class DictElement(BaseElement):
     """
     Dict-like element that has `items` OrderedDict.
-
-    If the class has `enum` class variable, key is always converted to that
-    enum.
     """
     _items = attr.ib(factory=OrderedDict, converter=OrderedDict)
 
@@ -561,19 +558,16 @@ class DictElement(BaseElement):
 
     def _repr_pretty_(self, p, cycle):
         if cycle:
-            return "{{...}".format(name=self.__class__.__name__)
+            return '{{...}'
 
-        with p.group(2, '{{'.format(name=self.__class__.__name__), '}'):
+        with p.group(2, '{{', '}'):
             p.breakable('')
             for idx, key in enumerate(self._items):
                 if idx:
                     p.text(',')
                     p.breakable()
                 value = self._items[key]
-                if hasattr(key, 'name'):
-                    p.text(key.name)
-                else:
-                    p.pretty(key)
+                p.pretty(key)
                 p.text(': ')
                 if isinstance(value, bytes):
                     value = trimmed_repr(value)
@@ -582,26 +576,6 @@ class DictElement(BaseElement):
 
     @classmethod
     def _key_converter(cls, key):
-        if hasattr(cls, 'enum'):
-            return cls._convert_enum(cls.enum, key)
-        return key
-
-    @classmethod
-    def _convert_enum(cls, enum, key):
-        if isinstance(key, enum):
-            return key
-
-        # Check if the key is enum attribute.
-        key = key.encode('ascii') if hasattr(key, 'encode') else key
-        if isinstance(key, bytes):
-            key_str = key.upper().decode('ascii')
-            if hasattr(enum, key_str):
-                return getattr(enum, key_str)
-
-        try:
-            key = enum(key)
-        except ValueError:
-            pass
         return key
 
     @classmethod

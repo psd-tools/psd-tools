@@ -109,7 +109,6 @@ class ImageResources(DictElement):
     Image resources section of the PSD file. Dict of
     :py:class:`.ImageResource`.
     """
-    enum = Resource
 
     def get_data(self, key, default=None):
         """
@@ -172,20 +171,24 @@ class ImageResources(DictElement):
 
         return write_length_block(fp, writer)
 
+    @classmethod
+    def _key_converter(self, key):
+        return getattr(key, 'value', key)
+
     def _repr_pretty_(self, p, cycle):
         if cycle:
-            return "{{...}".format(name=self.__class__.__name__)
+            return '{{...}'
 
-        with p.group(2, '{{'.format(name=self.__class__.__name__), '}'):
+        with p.group(2, '{{', '}'):
             p.breakable('')
             for idx, key in enumerate(self._items):
                 if idx:
                     p.text(',')
                     p.breakable()
                 value = self._items[key]
-                if hasattr(key, 'name'):
-                    p.text(key.name)
-                else:
+                try:
+                    p.text(Resource(key).name)
+                except ValueError:
                     p.pretty(key)
                 p.text(': ')
                 if isinstance(value.data, bytes):
