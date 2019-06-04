@@ -42,7 +42,9 @@ def intersect(*bboxes):
     return result
 
 
-def compose(layers, bbox=None, layer_filter=None, color=None, **kwargs):
+def compose(
+    layers, bbox=None, context=None, layer_filter=None, color=None, **kwargs
+):
     """
     Compose layers to a single :py:class:`PIL.Image`.
     If the layers do not have visible pixels, the function returns `None`.
@@ -93,21 +95,22 @@ def compose(layers, bbox=None, layer_filter=None, color=None, **kwargs):
     layer_filter = layer_filter or _default_filter
     valid_layers = [x for x in layers if layer_filter(x)]
     if len(valid_layers) == 0:
-        return None
+        return context
 
     if bbox is None:
         bbox = Group.extract_bbox(valid_layers)
         if bbox == (0, 0, 0, 0):
-            return None
+            return context
 
-    # Alpha must be forced to correctly blend.
-    mode = get_pil_mode(valid_layers[0]._psd.color_mode, True)
-    result = Image.new(
-        mode,
-        (bbox[2] - bbox[0], bbox[3] - bbox[1]),
-        color=color if color is not None else 'white',
-    )
-    result.putalpha(0)
+    if context is None:
+        mode = get_pil_mode(valid_layers[0]._psd.color_mode, True)
+        context = Image.new(
+            mode,
+            (bbox[2] - bbox[0], bbox[3] - bbox[1]),
+            color=color if color is not None else 'white',
+        )
+        context.putalpha(0)  # Alpha must be forced to correctly blend.
+        context.info['offset'] = (0, 0)
 
     for layer in valid_layers:
         if intersect(layer.bbox, bbox) == (0, 0, 0, 0):
@@ -123,9 +126,9 @@ def compose(layers, bbox=None, layer_filter=None, color=None, **kwargs):
         logger.debug('Composing %s' % layer)
         offset = image.info.get('offset', layer.offset)
         offset = (offset[0] - bbox[0], offset[1] - bbox[1])
-        result = blend(result, image, offset)
+        context = blend(context, image, offset, layer.blend_mode)
 
-    return result
+    return context
 
 
 def compose_layer(layer, force=False, **kwargs):
