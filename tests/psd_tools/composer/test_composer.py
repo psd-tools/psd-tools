@@ -2,7 +2,7 @@ from __future__ import absolute_import, unicode_literals
 import pytest
 import logging
 
-from PIL.Image import Image
+from PIL import Image
 import imagehash
 import numpy as np
 
@@ -22,11 +22,17 @@ QUALITY_TEST_FILES = [
 ]
 
 
+def _normalize_alpha(image):
+    if image.mode.endswith('A'):
+        return Image.alpha_composite(Image.new(image.mode, image.size), image)
+    return image
+
+
 def _calculate_hash_error(image1, image2):
-    assert isinstance(image1, Image)
-    assert isinstance(image2, Image)
-    hash1 = imagehash.average_hash(image1)
-    hash2 = imagehash.average_hash(image2)
+    assert isinstance(image1, Image.Image)
+    assert isinstance(image2, Image.Image)
+    hash1 = imagehash.average_hash(_normalize_alpha(image1))
+    hash2 = imagehash.average_hash(_normalize_alpha(image2))
     error_count = np.sum(np.bitwise_xor(hash1.hash, hash2.hash))
     return error_count / float(hash1.hash.size)
 
@@ -95,7 +101,7 @@ def test_compose_minimal(filename):
 def test_compose_colormodes(colormode, depth):
     filename = 'colormodes/4x4_%gbit_%s.psd' % (depth, colormode)
     psd = PSDImage.open(full_name(filename))
-    assert isinstance(psd.compose(), Image)
+    assert isinstance(psd.compose(), Image.Image)
 
 
 def test_compose_artboard():
@@ -124,3 +130,18 @@ def test_compose_bbox():
     assert psd.compose(bbox=bbox).size == size
     assert psd[0].compose().size == psd[0].size
     assert psd[0].compose(bbox=bbox).size == size
+
+
+def test_apply_mask():
+    psd = PSDImage.open(full_name('masks/2.psd'))
+    image = Image.open(full_name('masks/2.png'))
+    rendered = psd.compose()
+    assert image.size == rendered.size
+    assert _calculate_hash_error(image, rendered) <= 0.1
+
+    for i, layer in enumerate(psd):
+        image = Image.open(full_name('masks/2-ellipse{}.png'.format(i + 1)))
+        image = image
+        rendered = layer.compose()
+        assert image.size == rendered.size
+        assert _calculate_hash_error(image, rendered) <= 0.1

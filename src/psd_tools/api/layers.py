@@ -284,6 +284,7 @@ class Layer(object):
             for key in (Tag.VECTOR_MASK_SETTING1, Tag.VECTOR_MASK_SETTING2):
                 if key in blocks:
                     self._vector_mask = VectorMask(blocks.get_data(key))
+                    break
         return self._vector_mask
 
     def has_origination(self):
@@ -333,16 +334,22 @@ class Layer(object):
             return convert_layer_to_pil(self, **kwargs)
         return None
 
-    def compose(self, *args, **kwargs):
+    def compose(self, bbox=None, **kwargs):
         """
         Compose layer and masks (mask, vector mask, and clipping layers).
 
+        Note that the resulting image size is not necessarily equal to the
+        layer size due to different mask dimensions. The offset of the
+        composed image is stored at `.info['offset']` attribute of `PIL.Image`.
+
         :return: :py:class:`PIL.Image`, or `None` if the layer has no pixel.
         """
-        from psd_tools.composer import compose
+        from psd_tools.composer import compose, compose_layer
         if self.bbox == (0, 0, 0, 0):
             return None
-        return compose(self, *args, **kwargs)
+        if bbox is None:
+            return compose_layer(self, **kwargs)
+        return compose(self, bbox=bbox, **kwargs)
 
     def has_clip_layers(self):
         """

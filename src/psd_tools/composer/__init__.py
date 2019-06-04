@@ -18,6 +18,18 @@ from psd_tools.composer.vector import (
 logger = logging.getLogger(__name__)
 
 
+def union(*bboxes):
+    if len(bboxes) == 0:
+        return (0, 0, 0, 0)
+
+    lefts, tops, rights, bottoms = zip(*bboxes)
+    result = (min(lefts), min(tops), max(rights), max(bottoms))
+    if result[2] <= result[0] or result[3] <= result[1]:
+        return (0, 0, 0, 0)
+
+    return result
+
+
 def intersect(*bboxes):
     if len(bboxes) == 0:
         return (0, 0, 0, 0)
@@ -109,7 +121,8 @@ def compose(layers, bbox=None, layer_filter=None, color=None, **kwargs):
             continue
 
         logger.debug('Composing %s' % layer)
-        offset = (layer.left - bbox[0], layer.top - bbox[1])
+        offset = image.info.get('offset', layer.offset)
+        offset = (offset[0] - bbox[0], offset[1] - bbox[1])
         result = blend(result, image, offset)
 
     return result
@@ -131,25 +144,16 @@ def compose_layer(layer, force=False, **kwargs):
 
     # TODO: Group should have the following too.
 
-    # Apply mask.
-    if layer.has_mask() and not layer.mask.disabled:
-        mask_bbox = layer.mask.bbox
-        if ((mask_bbox[2] - mask_bbox[0]) > 0 and
-            (mask_bbox[3] - mask_bbox[1]) > 0):
-            color = layer.mask.background_color
-            offset = (mask_bbox[0] - layer.left, mask_bbox[1] - layer.top)
-            mask = Image.new('L', image.size, color=color)
-            mask.paste(layer.mask.topil(), offset)
-            if image.mode.endswith('A'):
-                # What should we do here? There are two alpha channels.
-                pass
-            image.putalpha(mask)
-    elif layer.has_vector_mask() and (force or not layer.has_pixels()):
-        mask = draw_vector_mask(layer)
+    # Apply vector mask.
+    if layer.has_vector_mask() and (force or not layer.has_pixels()):
+        vector_mask = draw_vector_mask(layer)
         # TODO: Stroke drawing.
-        texture = image
-        image = Image.new(image.mode, image.size, 'white')
-        image.paste(texture, mask=mask)
+        if image.mode.endswith('A'):
+            vector_mask = ImageChops.darker(image.getchannel('A'), vector_mask)
+        image.putalpha(vector_mask)
+
+    # Apply mask.
+    image = apply_mask(layer, image)
 
     # Apply layer fill effects.
     apply_effect(layer, image)
@@ -205,6 +209,44 @@ def create_fill(layer):
         image = Image.new(mode, (layer.width, layer.height), 'white')
         setting = layer.tagged_blocks.get_data(Tag.GRADIENT_FILL_SETTING)
         draw_gradient_fill(image, setting, blend=False)
+    return image
+
+
+def apply_mask(layer, image):
+    """
+    Apply raster mask to the image.
+
+    This might change the size and offset of the image. Resulting offset wrt
+    the psd viewport is kept in `image.info['offset']` field.
+
+    :param layer: `~psd_tools.api.layers.Layer`
+    :param image: PIL.Image
+    :return: PIL.Image
+    """
+    from PIL import Image, ImageChops
+
+    image.info['offset'] = layer.offset  # Later needed for composition.
+    if layer.has_mask() and not layer.mask.disabled:
+        mask_bbox = layer.mask.bbox
+        if mask_bbox != (0, 0, 0, 0):
+            color = layer.mask.background_color
+            if color == 0:
+                bbox = mask_bbox
+            else:
+                bbox = layer._psd.viewbox
+            size = (bbox[2] - bbox[0], bbox[3] - bbox[1])
+            image_ = Image.new(image.mode, size)
+            image_.paste(image, (layer.left - bbox[0], layer.top - bbox[1]))
+            mask = Image.new('L', size, color=color)
+            mask_image = layer.mask.topil()
+            mask.paste(
+                mask_image, (mask_bbox[0] - bbox[0], mask_bbox[1] - bbox[1])
+            )
+            if image_.mode.endswith('A'):
+                mask = ImageChops.darker(image_.getchannel('A'), mask)
+            image_.putalpha(mask)
+            image_.info['offset'] = (bbox[0], bbox[1])
+            return image_
     return image
 
 
