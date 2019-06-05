@@ -20,11 +20,15 @@ Use `pip` to install the package::
     with LITTLECMS or LITTLECMS2 support (``apt-get install liblcms2-2`` or
     ``brew install little-cms2``)
 
-For complete layer image composition functionality, also install NumPy/SciPy.
-This will be only necessary when the PSD files are saved without maximized
-compatibility and the image contains gradient fill::
+For complete layer image composition functionality, also install NumPy/SciPy::
 
     pip install numpy scipy
+
+Numpy will be necessary when:
+
+ - Blending modes other than `normal` are used;
+ - Gradient fill is used.
+
 
 Getting started
 ---------------

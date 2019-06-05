@@ -80,6 +80,8 @@ def compose(
     :param bbox: (left, top, bottom, right) tuple that specifies a region to
         compose. By default, all the visible area is composed. The origin
         is at the top-left corner of the PSD document.
+    :param context: `PIL.Image` object for the backdrop rendering context. Must
+        be used with the correct `bbox` size.
     :param layer_filter: a callable that takes a layer and returns `bool`.
     :param color: background color in `int` or `tuple`.
     :return: :py:class:`PIL.Image` or `None`.
