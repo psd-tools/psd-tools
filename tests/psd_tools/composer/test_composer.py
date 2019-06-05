@@ -38,11 +38,11 @@ def _calculate_hash_error(image1, image2):
 
 
 @pytest.mark.parametrize(("filename", ), QUALITY_TEST_FILES)
-def test_compose_quality(filename):
+def test_compose_quality(filename, threshold=0.1):
     psd = PSDImage.open(full_name(filename))
     preview = psd.topil()
     rendered = psd.compose(force=True)
-    assert _calculate_hash_error(preview, rendered) <= 0.1
+    assert _calculate_hash_error(preview, rendered) <= threshold
 
 
 @pytest.mark.parametrize(("filename", ), [

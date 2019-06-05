@@ -30,4 +30,4 @@ logger = logging.getLogger(__name__)
     ('blend-modes/hard-mix.psd', ),
 ])
 def test_blend_quality(filename):
-    test_compose_quality(filename)
+    test_compose_quality(filename, threshold=0.02)

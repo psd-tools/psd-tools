@@ -16,38 +16,41 @@ logger = logging.getLogger(__name__)
 BLEND_FUNCTIONS, register = new_registry()
 
 
-def blend(target, image, offset, mode=None):
+def blend(backdrop, image, offset, mode=None):
     from PIL import Image, ImageChops, ImageMath
 
     # Align the canvas size.
     if offset[0] < 0:
         if image.width <= -offset[0]:
-            return target
+            return backdrop
         image = image.crop((-offset[0], 0, image.width, image.height))
         offset = (0, offset[1])
 
     if offset[1] < 0:
         if image.height <= -offset[1]:
-            return target
+            return backdrop
         image = image.crop((0, -offset[1], image.width, image.height))
         offset = (offset[0], 0)
 
     # Operations must happen in RGBA in Pillow.
-    image_ = Image.new(image.mode, target.size)
+    image_ = Image.new(image.mode, backdrop.size)
     image_.paste(image, offset)
     image = image_.convert('RGBA')
 
-    target_mode = target.mode
+    target_mode = backdrop.mode
     if target_mode != 'RGBA':
-        target = target.convert('RGBA')
+        backdrop = backdrop.convert('RGBA')
 
     # Composite blended image.
-    blend_func = BLEND_FUNCTIONS.get(mode, _normal)
-    _alpha_composite(target, image, blend_func)
+    if mode == BlendMode.NORMAL:
+        backdrop.alpha_composite(image)
+    else:
+        blend_func = BLEND_FUNCTIONS.get(mode, _normal)
+        _alpha_composite(backdrop, image, blend_func)
 
     if target_mode != 'RGBA':
-        target = target.convert(target_mode)
-    return target
+        backdrop = backdrop.convert(target_mode)
+    return backdrop
 
 
 def _alpha_composite(backdrop, source, blend_fn):
@@ -58,7 +61,7 @@ def _alpha_composite(backdrop, source, blend_fn):
     Ab = np.asarray(backdrop.getchannel('A')).astype(np.float) / 255.
     Ab = np.expand_dims(Ab, axis=2)
     Cr = (1. - Ab) * Cs + Ab * blend_fn(Cs, Cb)
-    result = Image.fromarray((Cr * 255.).astype(np.uint8), mode='RGB')
+    result = Image.fromarray((Cr * 255).astype(np.uint8), mode='RGB')
     result.putalpha(source.getchannel('A'))
     backdrop.alpha_composite(result)
 
@@ -96,41 +99,36 @@ def _lighten(Cs, Cb):
 
 
 @register(BlendMode.COLOR_DODGE)
-def _color_dodge(Cs, Cb):
+def _color_dodge(Cs, Cb, s=1.0):
     import numpy as np
-    B = np.ones_like(Cs)
-    index = (Cs != 1)
-    B[index] = np.minimum(1, Cb[index] / (1 - Cs[index]))
+    B = np.zeros_like(Cs)
+    B[Cs == 1] = 1
     B[Cb == 0] = 0
+    index = (Cs != 1) & (Cb != 0)
+    B[index] = np.minimum(1, Cb[index] / (s * (1 - Cs[index])))
     return B
 
 
 @register(BlendMode.LINEAR_DODGE)
 def _linear_dodge(Cs, Cb):
     import numpy as np
-    B = np.minimum(1, Cb + Cs)
-    return B
+    return np.minimum(1, Cb + Cs)
 
 
 @register(BlendMode.COLOR_BURN)
-def _color_burn(Cs, Cb):
+def _color_burn(Cs, Cb, s=1.0):
     import numpy as np
-    B = np.ones_like(Cs)
-    index = (Cs != 0)
-    B[index] = 1 - np.minimum(1, (1 - Cb[index]) / Cs[index])
-    B[Cs == 0] = 0
+    B = np.zeros_like(Cb)
+    B[Cb == 1] = 1
+    index = (Cb != 1) & (Cs != 0)
+    B[index] = 1 - np.minimum(1, (1 - Cb[index]) / (s * Cs[index]))
     return B
 
 
 @register(BlendMode.LINEAR_BURN)
 def _linear_burn(Cs, Cb):
     import numpy as np
-    B = np.zeros_like(Cs)
-    B[Cb == 1] = 1
-    B[Cs == 0] = 0
-    index = (Cb != 1) & (Cs != 0)
-    B[index] = np.maximum(0, Cb[index] + Cs[index] - 1)
-    return B
+    return np.maximum(0, Cb + Cs - 1)
 
 
 @register(BlendMode.HARD_LIGHT)
@@ -155,9 +153,17 @@ def _soft_light(Cs, Cb):
 
 @register(BlendMode.VIVID_LIGHT)
 def _vivid_light(Cs, Cb):
+    """
+    Burns or dodges the colors by increasing or decreasing the contrast,
+    depending on the blend color. If the blend color (light source) is lighter
+    than 50% gray, the image is lightened by decreasing the contrast. If the
+    blend color is darker than 50% gray, the image is darkened by increasing
+    the contrast.
+    """
+    # TODO: Still inaccurate.
     index = Cs > 0.5
-    B = _color_dodge(Cs, Cb)
-    B[index] = _color_burn(Cs, Cb)[index]
+    B = _color_dodge(Cs, Cb, 128)
+    B[index] = _color_burn(Cs, Cb, 128)[index]
     return B
 
 
