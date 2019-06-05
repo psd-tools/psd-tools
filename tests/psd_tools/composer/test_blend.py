@@ -31,3 +31,7 @@ logger = logging.getLogger(__name__)
 ])
 def test_blend_quality(filename):
     test_compose_quality(filename, threshold=0.02)
+
+
+def test_pass_through_blend():
+    test_compose_quality('blend-modes/pass-through.psd')
