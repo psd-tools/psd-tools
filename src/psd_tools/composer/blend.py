@@ -61,7 +61,7 @@ def _alpha_composite(backdrop, source, blend_fn):
     Ab = np.asarray(backdrop.getchannel('A')).astype(np.float) / 255.
     Ab = np.expand_dims(Ab, axis=2)
     Cr = (1. - Ab) * Cs + Ab * blend_fn(Cs, Cb)
-    result = Image.fromarray((Cr * 255).astype(np.uint8), mode='RGB')
+    result = Image.fromarray((Cr * 255).round().astype(np.uint8), mode='RGB')
     result.putalpha(source.getchannel('A'))
     backdrop.alpha_composite(result)
 
