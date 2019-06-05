@@ -52,10 +52,10 @@ def test_numbers(kls, fixture):
 
 def test_boolean():
     value = BooleanElement(True)
-    assert value == True
+    assert value.value is True
     assert value
     value = BooleanElement(False)
-    assert value == False
+    assert value.value is False
     assert not value
 
 
@@ -73,25 +73,22 @@ def test_list():
     repr(value)
 
 
-class Dummy(Enum):
+class Dummy(bytes, Enum):
     A = b'x'
     B = b'y'
     C = b'x'
 
 
-class EnumDict(DictElement):
-    enum = Dummy
-
-
 def test_dict():
-    value = EnumDict()
-    value['A'] = 'foo'
-    assert value.get('A') == value.get(Dummy.A)
+    value = DictElement()
+    value[Dummy.A] = 'foo'
+    assert value.get(Dummy.A) == value.get(b'x')
     assert list(value.keys())[0] == Dummy.A
-    assert 'A' in value
-    assert value['A'] == 'foo'
-    assert value[b'A'] == 'foo'
-    assert value['x'] == 'foo'
+    assert list(value.keys())[0] == b'x'
+    assert Dummy.A in value
+    assert b'x' in value
+    assert value[Dummy.A] == 'foo'
+    assert value[Dummy(b'x')] == 'foo'
     assert value[b'x'] == 'foo'
     repr(value)
-    del value['A']
+    del value[Dummy.A]

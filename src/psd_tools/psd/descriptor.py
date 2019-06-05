@@ -78,14 +78,6 @@ def write_length_and_key(fp, value):
 
 class _DescriptorMixin(DictElement):
     @classmethod
-    def _key_converter(cls, key):
-        if hasattr(key, 'value'):
-            return key.value
-        elif hasattr(key, 'encode'):
-            return key.encode('ascii')
-        return key
-
-    @classmethod
     def _read_body(cls, fp):
         name = read_unicode_string(fp, padding=1)
         classID = read_length_and_key(fp)
@@ -110,6 +102,12 @@ class _DescriptorMixin(DictElement):
             written += self[key].write(fp)
         return written
 
+    @classmethod
+    def _key_converter(cls, key):
+        if hasattr(key, 'encode'):
+            return key.encode('ascii')
+        return getattr(key, 'value', key)
+
     def _repr_pretty_(self, p, cycle):
         if cycle:
             return "{name}{{...}".format(name=self.__class__.__name__)
@@ -125,7 +123,7 @@ class _DescriptorMixin(DictElement):
                     p.text(',')
                     p.breakable()
                 value = self[key]
-                p.pretty(getattr(key, 'value', key))
+                p.pretty(key.decode('ascii'))
                 p.text(': ')
                 if isinstance(value, bytes):
                     p.text(trimmed_repr(value))

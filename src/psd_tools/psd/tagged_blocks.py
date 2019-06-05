@@ -1,9 +1,9 @@
 """
 Tagged block data structure.
 
-.. todo:: Support the following tagged blocks: ``TaggedBlockID.PATTERN_DATA``,
-    ``TaggedBlockID.TYPE_TOOL_INFO``, ``TaggedBlockID.LAYER``,
-    ``TaggedBlockID.ALPHA``
+.. todo:: Support the following tagged blocks: ``Tag.PATTERN_DATA``,
+    ``Tag.TYPE_TOOL_INFO``, ``Tag.LAYER``,
+    ``Tag.ALPHA``
 
 """
 from __future__ import absolute_import, unicode_literals
@@ -13,7 +13,7 @@ import logging
 from warnings import warn
 
 from psd_tools.constants import (
-    BlendMode, SectionDivider, TaggedBlockID, PlacedLayerType, SheetColorType
+    BlendMode, SectionDivider, Tag, PlacedLayerType, SheetColorType
 )
 import psd_tools.psd.layer_and_mask
 from psd_tools.psd.adjustments import ADJUSTMENT_TYPES
@@ -50,94 +50,50 @@ TYPES, register = new_registry()
 
 TYPES.update(ADJUSTMENT_TYPES)
 TYPES.update({
-    TaggedBlockID.ANIMATION_EFFECTS:
-    DescriptorBlock,
-    TaggedBlockID.ARTBOARD_DATA1:
-    DescriptorBlock,
-    TaggedBlockID.ARTBOARD_DATA2:
-    DescriptorBlock,
-    TaggedBlockID.ARTBOARD_DATA3:
-    DescriptorBlock,
-    TaggedBlockID.BLEND_CLIPPING_ELEMENTS:
-    ByteElement,
-    TaggedBlockID.BLEND_FILL_OPACITY:
-    ByteElement,
-    TaggedBlockID.BLEND_INTERIOR_ELEMENTS:
-    ByteElement,
-    TaggedBlockID.COMPUTER_INFO:
-    DescriptorBlock,
-    TaggedBlockID.CONTENT_GENERATOR_EXTRA_DATA:
-    DescriptorBlock,
-    TaggedBlockID.EFFECTS_LAYER:
-    EffectsLayer,
-    TaggedBlockID.EXPORT_SETTING1:
-    DescriptorBlock,
-    TaggedBlockID.EXPORT_SETTING2:
-    DescriptorBlock,
-    TaggedBlockID.FILTER_EFFECTS1:
-    FilterEffects,
-    TaggedBlockID.FILTER_EFFECTS2:
-    FilterEffects,
-    TaggedBlockID.FILTER_EFFECTS3:
-    FilterEffects,
-    TaggedBlockID.KNOCKOUT_SETTING:
-    ByteElement,
-    TaggedBlockID.LINKED_LAYER1:
-    LinkedLayers,
-    TaggedBlockID.LINKED_LAYER2:
-    LinkedLayers,
-    TaggedBlockID.LINKED_LAYER3:
-    LinkedLayers,
-    TaggedBlockID.LINKED_LAYER_EXTERNAL:
-    LinkedLayers,
-    TaggedBlockID.LAYER_ID:
-    IntegerElement,
-    TaggedBlockID.LAYER_MASK_AS_GLOBAL_MASK:
-    ByteElement,
-    TaggedBlockID.UNICODE_LAYER_NAME:
-    StringElement,
-    TaggedBlockID.LAYER_VERSION:
-    IntegerElement,
-    TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO:
-    DescriptorBlock2,
-    TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V0:
-    DescriptorBlock2,
-    TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V1:
-    DescriptorBlock2,
-    TaggedBlockID.PATTERNS1:
-    Patterns,
-    TaggedBlockID.PATTERNS2:
-    Patterns,
-    TaggedBlockID.PATTERNS3:
-    Patterns,
-    TaggedBlockID.PIXEL_SOURCE_DATA1:
-    DescriptorBlock,
-    TaggedBlockID.SAVING_MERGED_TRANSPARENCY:
-    EmptyElement,
-    TaggedBlockID.SAVING_MERGED_TRANSPARENCY16:
-    EmptyElement,
-    TaggedBlockID.SAVING_MERGED_TRANSPARENCY32:
-    EmptyElement,
-    TaggedBlockID.TEXT_ENGINE_DATA:
-    EngineData2,
-    TaggedBlockID.TRANSPARENCY_SHAPES_LAYER:
-    ByteElement,
-    TaggedBlockID.UNICODE_PATH_NAME:
-    DescriptorBlock,
-    TaggedBlockID.USING_ALIGNED_RENDERING:
-    IntegerElement,
-    TaggedBlockID.VECTOR_MASK_AS_GLOBAL_MASK:
-    ByteElement,
-    TaggedBlockID.VECTOR_MASK_SETTING1:
-    VectorMaskSetting,
-    TaggedBlockID.VECTOR_MASK_SETTING2:
-    VectorMaskSetting,
-    TaggedBlockID.VECTOR_ORIGINATION_DATA:
-    DescriptorBlock2,
-    TaggedBlockID.VECTOR_STROKE_DATA:
-    DescriptorBlock,
-    TaggedBlockID.VECTOR_STROKE_CONTENT_DATA:
-    VectorStrokeContentSetting,
+    Tag.ANIMATION_EFFECTS: DescriptorBlock,
+    Tag.ARTBOARD_DATA1: DescriptorBlock,
+    Tag.ARTBOARD_DATA2: DescriptorBlock,
+    Tag.ARTBOARD_DATA3: DescriptorBlock,
+    Tag.BLEND_CLIPPING_ELEMENTS: ByteElement,
+    Tag.BLEND_FILL_OPACITY: ByteElement,
+    Tag.BLEND_INTERIOR_ELEMENTS: ByteElement,
+    Tag.COMPUTER_INFO: DescriptorBlock,
+    Tag.CONTENT_GENERATOR_EXTRA_DATA: DescriptorBlock,
+    Tag.EFFECTS_LAYER: EffectsLayer,
+    Tag.EXPORT_SETTING1: DescriptorBlock,
+    Tag.EXPORT_SETTING2: DescriptorBlock,
+    Tag.FILTER_EFFECTS1: FilterEffects,
+    Tag.FILTER_EFFECTS2: FilterEffects,
+    Tag.FILTER_EFFECTS3: FilterEffects,
+    Tag.KNOCKOUT_SETTING: ByteElement,
+    Tag.LINKED_LAYER1: LinkedLayers,
+    Tag.LINKED_LAYER2: LinkedLayers,
+    Tag.LINKED_LAYER3: LinkedLayers,
+    Tag.LINKED_LAYER_EXTERNAL: LinkedLayers,
+    Tag.LAYER_ID: IntegerElement,
+    Tag.LAYER_MASK_AS_GLOBAL_MASK: ByteElement,
+    Tag.UNICODE_LAYER_NAME: StringElement,
+    Tag.LAYER_VERSION: IntegerElement,
+    Tag.OBJECT_BASED_EFFECTS_LAYER_INFO: DescriptorBlock2,
+    Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V0: DescriptorBlock2,
+    Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V1: DescriptorBlock2,
+    Tag.PATTERNS1: Patterns,
+    Tag.PATTERNS2: Patterns,
+    Tag.PATTERNS3: Patterns,
+    Tag.PIXEL_SOURCE_DATA1: DescriptorBlock,
+    Tag.SAVING_MERGED_TRANSPARENCY: EmptyElement,
+    Tag.SAVING_MERGED_TRANSPARENCY16: EmptyElement,
+    Tag.SAVING_MERGED_TRANSPARENCY32: EmptyElement,
+    Tag.TEXT_ENGINE_DATA: EngineData2,
+    Tag.TRANSPARENCY_SHAPES_LAYER: ByteElement,
+    Tag.UNICODE_PATH_NAME: DescriptorBlock,
+    Tag.USING_ALIGNED_RENDERING: IntegerElement,
+    Tag.VECTOR_MASK_AS_GLOBAL_MASK: ByteElement,
+    Tag.VECTOR_MASK_SETTING1: VectorMaskSetting,
+    Tag.VECTOR_MASK_SETTING2: VectorMaskSetting,
+    Tag.VECTOR_ORIGINATION_DATA: DescriptorBlock2,
+    Tag.VECTOR_STROKE_DATA: DescriptorBlock,
+    Tag.VECTOR_STROKE_CONTENT_DATA: VectorStrokeContentSetting,
 })
 
 
@@ -146,20 +102,19 @@ class TaggedBlocks(DictElement):
     """
     Dict of tagged block items.
 
-    See :py:class:`~psd_tools.constants.TaggedBlockID` for available keys.
+    See :py:class:`~psd_tools.constants.Tag` for available keys.
 
     Example::
 
-        from psd_tools.constants import TaggedBlockID
+        from psd_tools.constants import Tag
 
         # Iterate over fields
         for key in tagged_blocks:
             print(key)
 
         # Get a field
-        value = tagged_blocks.get_data(TaggedBlockID.TYPE_TOOL_OBJECT_SETTING)
+        value = tagged_blocks.get_data(Tag.TYPE_TOOL_OBJECT_SETTING)
     """
-    enum = TaggedBlockID
 
     def get_data(self, key, default=None):
         """
@@ -184,7 +139,7 @@ class TaggedBlocks(DictElement):
 
         Shortut for the following::
 
-            key = getattr(TaggedBlockID, key)
+            key = getattr(Tag, key)
             kls = TYPES.get(key)
             self[key] = TaggedBlocks(key=key, data=kls(value))
 
@@ -205,20 +160,24 @@ class TaggedBlocks(DictElement):
             items.append((block.key, block))
         return cls(items)
 
+    @classmethod
+    def _key_converter(self, key):
+        return getattr(key, 'value', key)
+
     def _repr_pretty_(self, p, cycle):
         if cycle:
-            return "{{...}".format(name=self.__class__.__name__)
+            return '{{...}'
 
-        with p.group(2, '{{'.format(name=self.__class__.__name__), '}'):
+        with p.group(2, '{', '}'):
             p.breakable('')
             for idx, key in enumerate(self._items):
                 if idx:
                     p.text(',')
                     p.breakable()
                 value = self._items[key]
-                if hasattr(key, 'name'):
-                    p.text(key.name)
-                else:
+                try:
+                    p.text(Tag(key).name)
+                except ValueError:
                     p.pretty(key)
                 p.text(': ')
                 if isinstance(value.data, bytes):
@@ -235,7 +194,7 @@ class TaggedBlock(BaseElement):
 
     .. py:attribute:: key
 
-        4-character code. See :py:class:`~psd_tools.constants.TaggedBlockID`
+        4-character code. See :py:class:`~psd_tools.constants.Tag`
 
     .. py:attribute:: data
 
@@ -243,25 +202,25 @@ class TaggedBlock(BaseElement):
     """
     _SIGNATURES = (b'8BIM', b'8B64')
     _BIG_KEYS = {
-        TaggedBlockID.USER_MASK,
-        TaggedBlockID.LAYER_16,
-        TaggedBlockID.LAYER_32,
-        TaggedBlockID.LAYER,
-        TaggedBlockID.SAVING_MERGED_TRANSPARENCY16,
-        TaggedBlockID.SAVING_MERGED_TRANSPARENCY32,
-        TaggedBlockID.SAVING_MERGED_TRANSPARENCY,
-        TaggedBlockID.SAVING_MERGED_TRANSPARENCY16,
-        TaggedBlockID.ALPHA,
-        TaggedBlockID.FILTER_MASK,
-        TaggedBlockID.LINKED_LAYER2,
-        TaggedBlockID.LINKED_LAYER_EXTERNAL,
-        TaggedBlockID.FILTER_EFFECTS1,
-        TaggedBlockID.FILTER_EFFECTS2,
-        TaggedBlockID.PIXEL_SOURCE_DATA2,
-        TaggedBlockID.UNICODE_PATH_NAME,
-        TaggedBlockID.EXPORT_SETTING1,
-        TaggedBlockID.EXPORT_SETTING2,
-        TaggedBlockID.COMPUTER_INFO,
+        Tag.USER_MASK,
+        Tag.LAYER_16,
+        Tag.LAYER_32,
+        Tag.LAYER,
+        Tag.SAVING_MERGED_TRANSPARENCY16,
+        Tag.SAVING_MERGED_TRANSPARENCY32,
+        Tag.SAVING_MERGED_TRANSPARENCY,
+        Tag.SAVING_MERGED_TRANSPARENCY16,
+        Tag.ALPHA,
+        Tag.FILTER_MASK,
+        Tag.LINKED_LAYER2,
+        Tag.LINKED_LAYER_EXTERNAL,
+        Tag.FILTER_EFFECTS1,
+        Tag.FILTER_EFFECTS2,
+        Tag.PIXEL_SOURCE_DATA2,
+        Tag.UNICODE_PATH_NAME,
+        Tag.EXPORT_SETTING1,
+        Tag.EXPORT_SETTING2,
+        Tag.COMPUTER_INFO,
     }
 
     signature = attr.ib(
@@ -280,7 +239,7 @@ class TaggedBlock(BaseElement):
 
         key = read_fmt('4s', fp)[0]
         try:
-            key = TaggedBlockID(key)
+            key = Tag(key)
         except ValueError:
             message = 'Unknown key: %r' % (key)
             warn(message)
@@ -327,7 +286,7 @@ class TaggedBlock(BaseElement):
         return ('I', 'Q')[int(version == 2 and key in cls._BIG_KEYS)]
 
 
-@register(TaggedBlockID.ANNOTATIONS)
+@register(Tag.ANNOTATIONS)
 @attr.s(repr=False, slots=True)
 class Annotations(ListElement):
     """
@@ -425,8 +384,8 @@ class Annotation(BaseElement):
         return written
 
 
-@register(TaggedBlockID.FOREIGN_EFFECT_ID)
-@register(TaggedBlockID.LAYER_NAME_SOURCE_SETTING)
+@register(Tag.FOREIGN_EFFECT_ID)
+@register(Tag.LAYER_NAME_SOURCE_SETTING)
 @attr.s(repr=False, slots=True, cmp=False)
 class Bytes(ValueElement):
     """
@@ -444,7 +403,7 @@ class Bytes(ValueElement):
         return write_bytes(fp, self.value)
 
 
-@register(TaggedBlockID.CHANNEL_BLENDING_RESTRICTIONS_SETTING)
+@register(Tag.CHANNEL_BLENDING_RESTRICTIONS_SETTING)
 @attr.s(repr=False, slots=True)
 class ChannelBlendingRestrictionsSetting(ListElement):
     """
@@ -464,7 +423,7 @@ class ChannelBlendingRestrictionsSetting(ListElement):
         return write_fmt(fp, '%dI' % len(self), *self._items)
 
 
-@register(TaggedBlockID.FILTER_MASK)
+@register(Tag.FILTER_MASK)
 @attr.s(slots=True)
 class FilterMask(BaseElement):
     """
@@ -488,7 +447,7 @@ class FilterMask(BaseElement):
         return written
 
 
-@register(TaggedBlockID.METADATA_SETTING)
+@register(Tag.METADATA_SETTING)
 class MetadataSettings(ListElement):
     """
     MetadataSettings structure.
@@ -554,7 +513,7 @@ class MetadataSetting(BaseElement):
         return written
 
 
-@register(TaggedBlockID.PIXEL_SOURCE_DATA2)
+@register(Tag.PIXEL_SOURCE_DATA2)
 @attr.s(slots=True)
 class PixelSourceData2(ListElement):
     """
@@ -578,8 +537,8 @@ class PixelSourceData2(ListElement):
         return written
 
 
-@register(TaggedBlockID.PLACED_LAYER1)
-@register(TaggedBlockID.PLACED_LAYER2)
+@register(Tag.PLACED_LAYER1)
+@register(Tag.PLACED_LAYER2)
 @attr.s(slots=True)
 class PlacedLayerData(BaseElement):
     """
@@ -624,7 +583,7 @@ class PlacedLayerData(BaseElement):
         return written
 
 
-@register(TaggedBlockID.PROTECTED_SETTING)
+@register(Tag.PROTECTED_SETTING)
 class ProtectedSetting(IntegerElement):
     """
     ProtectedSetting structure.
@@ -643,7 +602,7 @@ class ProtectedSetting(IntegerElement):
         return bool(self.value & 0x04)
 
 
-@register(TaggedBlockID.REFERENCE_POINT)
+@register(Tag.REFERENCE_POINT)
 @attr.s(repr=False, slots=True)
 class ReferencePoint(ListElement):
     """
@@ -658,15 +617,15 @@ class ReferencePoint(ListElement):
         return write_fmt(fp, '2d', *self._items)
 
 
-@register(TaggedBlockID.SECTION_DIVIDER_SETTING)
-@register(TaggedBlockID.NESTED_SECTION_DIVIDER_SETTING)
+@register(Tag.SECTION_DIVIDER_SETTING)
+@register(Tag.NESTED_SECTION_DIVIDER_SETTING)
 @attr.s(slots=True)
 class SectionDividerSetting(BaseElement):
     """
     SectionDividerSetting structure.
 
     .. py:attribute:: kind
-    .. py:attribute:: key
+    .. py:attribute:: blend_mode
     .. py:attribute:: sub_type
     """
     kind = attr.ib(
@@ -675,32 +634,39 @@ class SectionDividerSetting(BaseElement):
         validator=in_(SectionDivider)
     )
     signature = attr.ib(default=None, repr=False)
-    key = attr.ib(default=None)
+    blend_mode = attr.ib(default=None)
     sub_type = attr.ib(default=None)
 
     @classmethod
     def read(cls, fp, **kwargs):
         kind = SectionDivider(read_fmt('I', fp)[0])
-        signature, key = None, None
+        signature, blend_mode = None, None
         if is_readable(fp, 8):
             signature = read_fmt('4s', fp)[0]
             assert signature == b'8BIM', 'Invalid signature %r' % signature
-            key = BlendMode(read_fmt('4s', fp)[0])
+            blend_mode = BlendMode(read_fmt('4s', fp)[0])
         sub_type = None
         if is_readable(fp, 4):
             sub_type = read_fmt('I', fp)[0]
-        return cls(kind, signature=signature, key=key, sub_type=sub_type)
+        return cls(
+            kind,
+            signature=signature,
+            blend_mode=blend_mode,
+            sub_type=sub_type
+        )
 
     def write(self, fp, **kwargs):
         written = write_fmt(fp, 'I', self.kind.value)
-        if self.signature and self.key:
-            written += write_fmt(fp, '4s4s', self.signature, self.key.value)
+        if self.signature and self.blend_mode:
+            written += write_fmt(
+                fp, '4s4s', self.signature, self.blend_mode.value
+            )
             if self.sub_type is not None:
                 written += write_fmt(fp, 'I', self.sub_type)
         return written
 
 
-@register(TaggedBlockID.SHEET_COLOR_SETTING)
+@register(Tag.SHEET_COLOR_SETTING)
 @attr.s(repr=False, slots=True, cmp=False)
 class SheetColorSetting(ValueElement):
     """
@@ -720,8 +686,8 @@ class SheetColorSetting(ValueElement):
         return write_fmt(fp, 'H6x', self.value.value)
 
 
-@register(TaggedBlockID.SMART_OBJECT_LAYER_DATA1)
-@register(TaggedBlockID.SMART_OBJECT_LAYER_DATA2)
+@register(Tag.SMART_OBJECT_LAYER_DATA1)
+@register(Tag.SMART_OBJECT_LAYER_DATA2)
 @attr.s(slots=True)
 class SmartObjectLayerData(BaseElement):
     """
@@ -748,7 +714,7 @@ class SmartObjectLayerData(BaseElement):
         return written
 
 
-@register(TaggedBlockID.TYPE_TOOL_OBJECT_SETTING)
+@register(Tag.TYPE_TOOL_OBJECT_SETTING)
 @attr.s(slots=True)
 class TypeToolObjectSetting(BaseElement):
     """
@@ -814,7 +780,7 @@ class TypeToolObjectSetting(BaseElement):
         return written
 
 
-@register(TaggedBlockID.USER_MASK)
+@register(Tag.USER_MASK)
 @attr.s(slots=True)
 class UserMask(BaseElement):
     """

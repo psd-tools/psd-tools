@@ -6,7 +6,7 @@ import attr
 import io
 import logging
 
-from psd_tools.constants import TaggedBlockID
+from psd_tools.constants import Tag
 from psd_tools.psd.base import (
     BaseElement,
     EmptyElement,
@@ -27,18 +27,18 @@ logger = logging.getLogger(__name__)
 ADJUSTMENT_TYPES, register = new_registry()
 
 ADJUSTMENT_TYPES.update({
-    TaggedBlockID.BLACK_AND_WHITE: DescriptorBlock,
-    TaggedBlockID.GRADIENT_FILL_SETTING: DescriptorBlock,
-    TaggedBlockID.INVERT: EmptyElement,
-    TaggedBlockID.PATTERN_FILL_SETTING: DescriptorBlock,
-    TaggedBlockID.POSTERIZE: ShortIntegerElement,
-    TaggedBlockID.SOLID_COLOR_SHEET_SETTING: DescriptorBlock,
-    TaggedBlockID.THRESHOLD: ShortIntegerElement,
-    TaggedBlockID.VIBRANCE: DescriptorBlock,
+    Tag.BLACK_AND_WHITE: DescriptorBlock,
+    Tag.GRADIENT_FILL_SETTING: DescriptorBlock,
+    Tag.INVERT: EmptyElement,
+    Tag.PATTERN_FILL_SETTING: DescriptorBlock,
+    Tag.POSTERIZE: ShortIntegerElement,
+    Tag.SOLID_COLOR_SHEET_SETTING: DescriptorBlock,
+    Tag.THRESHOLD: ShortIntegerElement,
+    Tag.VIBRANCE: DescriptorBlock,
 })
 
 
-@register(TaggedBlockID.BRIGHTNESS_AND_CONTRAST)
+@register(Tag.BRIGHTNESS_AND_CONTRAST)
 @attr.s(slots=True)
 class BrightnessContrast(BaseElement):
     """
@@ -62,7 +62,7 @@ class BrightnessContrast(BaseElement):
         return write_fmt(fp, '3HBx', *attr.astuple(self))
 
 
-@register(TaggedBlockID.COLOR_BALANCE)
+@register(Tag.COLOR_BALANCE)
 @attr.s(slots=True)
 class ColorBalance(BaseElement):
     """
@@ -95,7 +95,7 @@ class ColorBalance(BaseElement):
         return written
 
 
-@register(TaggedBlockID.COLOR_LOOKUP)
+@register(Tag.COLOR_LOOKUP)
 class ColorLookup(DescriptorBlock2):
     """
     Dict-like Descriptor-based structure. See
@@ -119,7 +119,7 @@ class ColorLookup(DescriptorBlock2):
         return written
 
 
-@register(TaggedBlockID.CHANNEL_MIXER)
+@register(Tag.CHANNEL_MIXER)
 @attr.s(slots=True)
 class ChannelMixer(BaseElement):
     """
@@ -148,7 +148,7 @@ class ChannelMixer(BaseElement):
         return written
 
 
-@register(TaggedBlockID.CURVES)
+@register(Tag.CURVES)
 @attr.s(slots=True)
 class Curves(BaseElement):
     """
@@ -269,7 +269,7 @@ class CurvesExtraItem(BaseElement):
         return written
 
 
-@register(TaggedBlockID.GRADIENT_MAP)
+@register(Tag.GRADIENT_MAP)
 @attr.s(slots=True)
 class GradientMap(BaseElement):
     """
@@ -403,7 +403,7 @@ class TransparencyStop(BaseElement):
         return write_fmt(fp, '2IH', *attr.astuple(self))
 
 
-@register(TaggedBlockID.EXPOSURE)
+@register(Tag.EXPOSURE)
 @attr.s(slots=True)
 class Exposure(BaseElement):
     """
@@ -429,8 +429,8 @@ class Exposure(BaseElement):
         return written
 
 
-@register(TaggedBlockID.HUE_SATURATION_V4)
-@register(TaggedBlockID.HUE_SATURATION)
+@register(Tag.HUE_SATURATION_V4)
+@register(Tag.HUE_SATURATION)
 @attr.s(slots=True)
 class HueSaturation(BaseElement):
     """
@@ -472,7 +472,7 @@ class HueSaturation(BaseElement):
         return written
 
 
-@register(TaggedBlockID.LEVELS)
+@register(Tag.LEVELS)
 @attr.s(slots=True)
 class Levels(ListElement):
     """
@@ -563,7 +563,7 @@ class LevelRecord(BaseElement):
         return write_fmt(fp, '5H', *attr.astuple(self))
 
 
-@register(TaggedBlockID.PHOTO_FILTER)
+@register(Tag.PHOTO_FILTER)
 @attr.s(slots=True)
 class PhotoFilter(BaseElement):
     """
@@ -613,7 +613,7 @@ class PhotoFilter(BaseElement):
         return written
 
 
-@register(TaggedBlockID.SELECTIVE_COLOR)
+@register(Tag.SELECTIVE_COLOR)
 @attr.s(slots=True)
 class SelectiveColor(BaseElement):
     """

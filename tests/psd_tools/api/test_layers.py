@@ -94,7 +94,7 @@ def test_pixel_layer_writable_properties(pixel_layer):
     layer.opacity = 128
     assert layer.opacity == 128
 
-    layer.blend_mode = 'linear_dodge'
+    layer.blend_mode = BlendMode.LINEAR_DODGE
     assert layer.blend_mode == BlendMode.LINEAR_DODGE
 
     layer.left = 2
@@ -180,3 +180,9 @@ def test_type_layer(type_layer):
     assert type_layer.resource_dict
     assert type_layer.document_resources
     assert type_layer.warp
+
+
+def test_group_writable_properties(group):
+    assert group.blend_mode == BlendMode.PASS_THROUGH
+    group.blend_mode = BlendMode.SCREEN
+    assert group.blend_mode == BlendMode.SCREEN

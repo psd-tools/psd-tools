@@ -5,8 +5,7 @@ from __future__ import absolute_import, unicode_literals
 import logging
 
 from psd_tools.api import deprecated
-from psd_tools.constants import BlendMode, SectionDivider, Clipping
-from psd_tools.api.composer import extract_bbox
+from psd_tools.constants import (BlendMode, SectionDivider, Clipping, Tag)
 from psd_tools.api.effects import Effects
 from psd_tools.api.mask import Mask
 from psd_tools.api.pil_io import convert_layer_to_pil
@@ -32,7 +31,7 @@ class Layer(object):
         :return: `str`
         """
         return self._record.tagged_blocks.get_data(
-            'UNICODE_LAYER_NAME', self._record.name
+            Tag.UNICODE_LAYER_NAME, self._record.name
         )
 
     @name.setter
@@ -45,7 +44,7 @@ class Layer(object):
             self._record.name = value
         except UnicodeEncodeError:
             self._record.name = str('?')
-        self._record.tagged_blocks.set_data('UNICODE_LAYER_NAME', value)
+        self._record.tagged_blocks.set_data(Tag.UNICODE_LAYER_NAME, value)
 
     @property
     def kind(self):
@@ -64,7 +63,7 @@ class Layer(object):
 
         :return: int layer id. if the layer is not assigned an id, -1.
         """
-        return self.tagged_blocks.get_data('layer_id', -1)
+        return self.tagged_blocks.get_data(Tag.LAYER_ID, -1)
 
     @property
     def visible(self):
@@ -131,12 +130,7 @@ class Layer(object):
 
     @blend_mode.setter
     def blend_mode(self, value):
-        if isinstance(value, BlendMode):
-            self._record.blend_mode = value
-        elif hasattr(BlendMode, value.upper()):
-            self._record.blend_mode = getattr(BlendMode, value.upper())
-        else:
-            self._record.blend_mode = BlendMode(value)
+        self._record.blend_mode = BlendMode(value)
 
     def has_mask(self):
         """Returns True if the layer has a mask."""
@@ -274,7 +268,7 @@ class Layer(object):
         """
         return any(
             key in self.tagged_blocks
-            for key in ('VECTOR_MASK_SETTING1', 'VECTOR_MASK_SETTING2')
+            for key in (Tag.VECTOR_MASK_SETTING1, Tag.VECTOR_MASK_SETTING2)
         )
 
     @property
@@ -287,9 +281,10 @@ class Layer(object):
         if not hasattr(self, '_vector_mask'):
             self._vector_mask = None
             blocks = self.tagged_blocks
-            for key in ('VECTOR_MASK_SETTING1', 'VECTOR_MASK_SETTING2'):
+            for key in (Tag.VECTOR_MASK_SETTING1, Tag.VECTOR_MASK_SETTING2):
                 if key in blocks:
                     self._vector_mask = VectorMask(blocks.get_data(key))
+                    break
         return self._vector_mask
 
     def has_origination(self):
@@ -321,7 +316,7 @@ class Layer(object):
             :py:class:`~psd_tools.api.shape.Line`.
         """
         if not hasattr(self, '_origination'):
-            data = self.tagged_blocks.get_data('VECTOR_ORIGINATION_DATA', {})
+            data = self.tagged_blocks.get_data(Tag.VECTOR_ORIGINATION_DATA, {})
             self._origination = [
                 Origination.create(x)
                 for x in data.get(b'keyDescriptorList', [])
@@ -339,16 +334,22 @@ class Layer(object):
             return convert_layer_to_pil(self, **kwargs)
         return None
 
-    def compose(self, *args, **kwargs):
+    def compose(self, bbox=None, **kwargs):
         """
         Compose layer and masks (mask, vector mask, and clipping layers).
 
+        Note that the resulting image size is not necessarily equal to the
+        layer size due to different mask dimensions. The offset of the
+        composed image is stored at `.info['offset']` attribute of `PIL.Image`.
+
         :return: :py:class:`PIL.Image`, or `None` if the layer has no pixel.
         """
-        from psd_tools.api.composer import compose
+        from psd_tools.composer import compose, compose_layer
         if self.bbox == (0, 0, 0, 0):
             return None
-        return compose(self, *args, **kwargs)
+        if bbox is None:
+            return compose_layer(self, **kwargs)
+        return compose(self, bbox=bbox, **kwargs)
 
     def has_clip_layers(self):
         """
@@ -380,9 +381,9 @@ class Layer(object):
         """
         return any(
             tag in self.tagged_blocks for tag in (
-                'OBJECT_BASED_EFFECTS_LAYER_INFO',
-                'OBJECT_BASED_EFFECTS_LAYER_INFO_V0',
-                'OBJECT_BASED_EFFECTS_LAYER_INFO_V1',
+                Tag.OBJECT_BASED_EFFECTS_LAYER_INFO,
+                Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V0,
+                Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V1,
             )
         )
 
@@ -402,7 +403,7 @@ class Layer(object):
         """
         Layer tagged blocks that is a dict-like container of settings.
 
-        See :py:class:`psd_tools.constants.TaggedBlockID` for available
+        See :py:class:`psd_tools.constants.Tag` for available
         keys.
 
         :return: :py:class:`~psd_tools.psd.tagged_blocks.TaggedBlocks` or
@@ -410,7 +411,8 @@ class Layer(object):
 
         Example::
 
-            metadata = layer.tagged_blocks.get_data('METADATA_SETTING')
+            from psd_tools.constants import Tag
+            metadata = layer.tagged_blocks.get_data(Tag.METADATA_SETTING)
         """
         return self._record.tagged_blocks
 
@@ -466,7 +468,7 @@ class GroupMixin(object):
     def bbox(self):
         """(left, top, right, bottom) tuple."""
         if not hasattr(self, '_bbox'):
-            self._bbox = extract_bbox(self)
+            self._bbox = Group.extract_bbox(self)
         return self._bbox
 
     def __len__(self):
@@ -490,7 +492,7 @@ class GroupMixin(object):
 
         :return: PIL Image object, or None if the layer has no pixels.
         """
-        from psd_tools.api.composer import compose
+        from psd_tools.composer import compose
         return compose(self, **kwargs)
 
     def descendants(self, include_clip=True):
@@ -531,9 +533,43 @@ class Group(GroupMixin, Layer):
                 print(layer.name)
     """
 
+    @staticmethod
+    def extract_bbox(layers):
+        """
+        Returns a bounding box for ``layers`` or (0, 0, 0, 0) if the layers
+        have no bounding box.
+        """
+        if not hasattr(layers, '__iter__'):
+            layers = [layers]
+        bboxes = [
+            layer.bbox for layer in layers
+            if layer.is_visible() and not layer.bbox == (0, 0, 0, 0)
+        ]
+        if len(bboxes) == 0:  # Empty bounding box.
+            return (0, 0, 0, 0)
+        lefts, tops, rights, bottoms = zip(*bboxes)
+        return (min(lefts), min(tops), max(rights), max(bottoms))
+
     def __init__(self, *args):
         super(Group, self).__init__(*args)
         self._layers = []
+
+    @property
+    def _setting(self):
+        return self.tagged_blocks.get_data(Tag.SECTION_DIVIDER_SETTING)
+
+    @property
+    def blend_mode(self):
+        return self._setting.blend_mode
+
+    @blend_mode.setter
+    def blend_mode(self, value):
+        _value = BlendMode(value)
+        if _value == BlendMode.PASS_THROUGH:
+            self._record.blend_mode = BlendMode.NORMAL
+        else:
+            self._record.blend_mode = _value
+        self._setting.blend_mode = _value
 
 
 class Artboard(Group):
@@ -578,7 +614,9 @@ class Artboard(Group):
         """(left, top, right, bottom) tuple."""
         if not hasattr(self, '_bbox'):
             data = None
-            for key in ('ARTBOARD_DATA1', 'ARTBOARD_DATA2', 'ARTBOARD_DATA3'):
+            for key in (
+                Tag.ARTBOARD_DATA1, Tag.ARTBOARD_DATA2, Tag.ARTBOARD_DATA3
+            ):
                 if key in self.tagged_blocks:
                     data = self.tagged_blocks.get_data(key)
             assert data is not None
@@ -600,7 +638,7 @@ class Artboard(Group):
         :param bbox: Viewport tuple (left, top, right, bottom).
         :return: :py:class:`PIL.Image`, or `None` if there is no pixel.
         """
-        from psd_tools.api.composer import compose
+        from psd_tools.composer import compose
         return compose(self, bbox=bbox or self.bbox, **kwargs)
 
 
@@ -691,7 +729,7 @@ class TypeLayer(Layer):
 
     def __init__(self, *args):
         super(TypeLayer, self).__init__(*args)
-        self._data = self.tagged_blocks.get_data('TYPE_TOOL_OBJECT_SETTING')
+        self._data = self.tagged_blocks.get_data(Tag.TYPE_TOOL_OBJECT_SETTING)
 
     @property
     def text(self):
@@ -828,14 +866,14 @@ class ShapeLayer(Layer):
 
     def has_stroke(self):
         """Returns True if the shape has a stroke."""
-        return 'VECTOR_STROKE_DATA' in self.tagged_blocks
+        return Tag.VECTOR_STROKE_DATA in self.tagged_blocks
 
     @property
     def stroke(self):
         """Property for strokes."""
         if not hasattr(self, '_stroke'):
             self._stroke = None
-            stroke = self.tagged_blocks.get_data('VECTOR_STROKE_DATA')
+            stroke = self.tagged_blocks.get_data(Tag.VECTOR_STROKE_DATA)
             if stroke:
                 self._stroke = Stroke(stroke)
         return self._stroke
@@ -853,7 +891,7 @@ class ShapeLayer(Layer):
 
     #     Stroke content is metadata associated with fill of the stroke.
     #     """
-    #     return self.tagged_blocks.get_data('VECTOR_STROKE_CONTENT_DATA')
+    #     return self.tagged_blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)
 
 
 class AdjustmentLayer(Layer):

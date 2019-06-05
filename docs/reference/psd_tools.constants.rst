@@ -66,13 +66,6 @@ LinkedLayerType
     :members:
     :undoc-members:
 
-ImageResourceID
----------------
-
-.. autoclass:: psd_tools.constants.ImageResourceID
-    :members:
-    :undoc-members:
-
 PathResourceID
 --------------
 
@@ -94,6 +87,13 @@ PrintScaleStyle
     :members:
     :undoc-members:
 
+Resource
+--------
+
+.. autoclass:: psd_tools.constants.Resource
+    :members:
+    :undoc-members:
+
 SectionDivider
 --------------
 
@@ -101,9 +101,9 @@ SectionDivider
     :members:
     :undoc-members:
 
-TaggedBlockID
--------------
+Tag
+---
 
-.. autoclass:: psd_tools.constants.TaggedBlockID
+.. autoclass:: psd_tools.constants.Tag
     :members:
     :undoc-members:

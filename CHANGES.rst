@@ -1,4 +1,16 @@
-1.8.15 (2019-05-23)
+1.8.17 (2019-06-05)
+-------------------
+
+- move `psd_tools.api.composer` module to `psd_tools.composer` package;
+- support 19 blending modes in composer;
+- support fill opacity;
+- fix image size when composing with masks;
+- rename `TaggedBlockID` to `Tag`;
+- rename `ImageResourceID` to `Resource`;
+- add `bytes` mixin to `Enum` constants;
+- replace `Enum` keys with raw values in `psd_tools.psd.base.Dict` classes.
+
+1.8.16 (2019-05-24)
 -------------------
 
 - fix broken group compose in 1.8.15;

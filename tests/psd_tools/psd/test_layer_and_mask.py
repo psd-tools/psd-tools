@@ -9,7 +9,7 @@ from psd_tools.psd.layer_and_mask import (
     LayerFlags, LayerBlendingRanges, MaskFlags, MaskData, MaskParameters,
     ChannelImageData, ChannelDataList, ChannelData, GlobalLayerMaskInfo
 )
-from psd_tools.constants import ChannelID, Compression, TaggedBlockID
+from psd_tools.constants import ChannelID, Compression, Tag
 
 from ..utils import check_write_read, check_read_write
 
@@ -76,10 +76,8 @@ def test_layer_blending_ranges():
 def test_layer_record():
     tagged_blocks = TaggedBlocks([
         (
-            TaggedBlockID.LAYER_VERSION,
-            TaggedBlock(
-                key=TaggedBlockID.LAYER_VERSION, data=IntegerElement(0)
-            )
+            Tag.LAYER_VERSION,
+            TaggedBlock(key=Tag.LAYER_VERSION, data=IntegerElement(0))
         ),
     ])
     check_write_read(LayerRecord())

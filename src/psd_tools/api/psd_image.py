@@ -5,7 +5,7 @@ from __future__ import absolute_import, unicode_literals
 import logging
 
 from psd_tools.constants import (
-    Clipping, Compression, ColorMode, SectionDivider
+    Clipping, Compression, ColorMode, SectionDivider, Resource, Tag
 )
 from psd_tools.psd import PSD, FileHeader, ImageData, ImageResources
 from psd_tools.api.layers import (
@@ -138,7 +138,7 @@ class PSDImage(GroupMixin):
         :param bbox: Viewport tuple (left, top, right, bottom).
         :return: :py:class:`PIL.Image`, or `None` if there is no pixel.
         """
-        from psd_tools.api.composer import compose
+        from psd_tools.composer import compose
         image = None
         if not force or len(self) == 0:
             image = self.topil(**kwargs)
@@ -176,7 +176,7 @@ class PSDImage(GroupMixin):
         Returns if the document has real merged data. When True, `topil()`
         returns pre-composed data.
         """
-        version_info = self.image_resources.get_data('version_info')
+        version_info = self.image_resources.get_data(Resource.VERSION_INFO)
         if version_info:
             return version_info.has_composite
         return True  # Assuming the image data is valid by default.
@@ -349,20 +349,21 @@ class PSDImage(GroupMixin):
         :py:class:`~psd_tools.psd.image_resources.ImageResources` is a
         dict-like structure that keeps various document settings.
 
-        See :py:class:`psd_tools.constants.ImageResourceID` for available
-        keys.
+        See :py:class:`psd_tools.constants.Resource` for available keys.
 
         :return: :py:class:`~psd_tools.psd.image_resources.ImageResources`
 
         Example::
 
-            version_info = psd.image_resources.get_data('VERSION_INFO')
-            slices = psd.image_resources.get_data('SLICES')
+            from psd_tools.constants import Resource
+            version_info = psd.image_resources.get_data(Resource.VERSION_INFO)
+            slices = psd.image_resources.get_data(Resource.SLICES)
 
         Image resources contain an ICC profile. The following shows how to
         export a PNG file with embedded ICC profile::
 
-            icc_profile = psd.image_resources.get_data('ICC_PROFILE')
+            from psd_tools.constants import Resource
+            icc_profile = psd.image_resources.get_data(Resource.ICC_PROFILE)
             image = psd.compose(apply_icc=False)
             image.save('output.png', icc_profile=icc_profile)
         """
@@ -373,7 +374,7 @@ class PSDImage(GroupMixin):
         """
         Document tagged blocks that is a dict-like container of settings.
 
-        See :py:class:`psd_tools.constants.TaggedBlockID` for available
+        See :py:class:`psd_tools.constants.Tag` for available
         keys.
 
         :return: :py:class:`~psd_tools.psd.tagged_blocks.TaggedBlocks` or
@@ -381,15 +382,16 @@ class PSDImage(GroupMixin):
 
         Example::
 
-            patterns = psd.tagged_blocks.get_data('PATTERNS1')
+            from psd_tools.constants import Tag
+            patterns = psd.tagged_blocks.get_data(Tag.PATTERNS1)
         """
         return self._record.layer_and_mask_information.tagged_blocks
 
     def has_thumbnail(self):
         """True if the PSDImage has a thumbnail resource."""
         return (
-            'thumbnail_resource' in self.image_resources or
-            'thumbnail_resource_ps4' in self.image_resources
+            Resource.THUMBNAIL_RESOURCE in self.image_resources or
+            Resource.THUMBNAIL_RESOURCE_PS4 in self.image_resources
         )
 
     def thumbnail(self):
@@ -397,13 +399,14 @@ class PSDImage(GroupMixin):
         Returns a thumbnail image in PIL.Image. When the file does not
         contain an embedded thumbnail image, returns None.
         """
-        if 'THUMBNAIL_RESOURCE' in self.image_resources:
+        if Resource.THUMBNAIL_RESOURCE in self.image_resources:
             return pil_io.convert_thumbnail_to_pil(
-                self.image_resources.get_data('THUMBNAIL_RESOURCE')
+                self.image_resources.get_data(Resource.THUMBNAIL_RESOURCE)
             )
-        elif 'THUMBNAIL_RESOURCE_PS4' in self.image_resources:
+        elif Resource.THUMBNAIL_RESOURCE_PS4 in self.image_resources:
             return pil_io.convert_thumbnail_to_pil(
-                self.image_resources.get_data('THUMBNAIL_RESOURCE_PS4'), 'BGR'
+                self.image_resources.get_data(Resource.THUMBNAIL_RESOURCE_PS4),
+                'BGR'
             )
         return None
 
@@ -453,7 +456,7 @@ class PSDImage(GroupMixin):
 
     def _get_pattern(self, pattern_id):
         """Get pattern item by id."""
-        for key in ('PATTERNS1', 'PATTERNS2', 'PATTERNS3'):
+        for key in (Tag.PATTERNS1, Tag.PATTERNS2, Tag.PATTERNS3):
             if key in self.tagged_blocks:
                 data = self.tagged_blocks.get_data(key)
                 for pattern in data:
@@ -472,9 +475,9 @@ class PSDImage(GroupMixin):
 
             blocks = record.tagged_blocks
             end_of_group = False
-            divider = blocks.get_data('SECTION_DIVIDER_SETTING', None)
+            divider = blocks.get_data(Tag.SECTION_DIVIDER_SETTING, None)
             divider = blocks.get_data(
-                'NESTED_SECTION_DIVIDER_SETTING', divider
+                Tag.NESTED_SECTION_DIVIDER_SETTING, divider
             )
             if divider is not None:
                 if divider.kind == SectionDivider.BOUNDING_SECTION_DIVIDER:
@@ -489,30 +492,31 @@ class PSDImage(GroupMixin):
                     layer._record = record
                     layer._channels = channels
                     for key in (
-                        'ARTBOARD_DATA1', 'ARTBOARD_DATA2', 'ARTBOARD_DATA3'
+                        Tag.ARTBOARD_DATA1, Tag.ARTBOARD_DATA2,
+                        Tag.ARTBOARD_DATA3
                     ):
                         if key in blocks:
                             layer = Artboard._move(layer)
                     end_of_group = True
             elif (
-                'TYPE_TOOL_OBJECT_SETTING' in blocks or
-                'TYPE_TOOL_INFO' in blocks
+                Tag.TYPE_TOOL_OBJECT_SETTING in blocks or
+                Tag.TYPE_TOOL_INFO in blocks
             ):
                 layer = TypeLayer(self, record, channels, current_group)
             elif (
                 record.flags.pixel_data_irrelevant and (
-                    'VECTOR_ORIGINATION_DATA' in blocks or
-                    'VECTOR_MASK_SETTING1' in blocks or
-                    'VECTOR_MASK_SETTING2' in blocks or
-                    'VECTOR_STROKE_DATA' in blocks or
-                    'VECTOR_STROKE_CONTENT_DATA' in blocks
+                    Tag.VECTOR_ORIGINATION_DATA in blocks or
+                    Tag.VECTOR_MASK_SETTING1 in blocks or
+                    Tag.VECTOR_MASK_SETTING2 in blocks or
+                    Tag.VECTOR_STROKE_DATA in blocks or
+                    Tag.VECTOR_STROKE_CONTENT_DATA in blocks
                 )
             ):
                 layer = ShapeLayer(self, record, channels, current_group)
             elif (
-                'SMART_OBJECT_LAYER_DATA1' in blocks or
-                'SMART_OBJECT_LAYER_DATA2' in blocks or
-                'PLACED_LAYER1' in blocks or 'PLACED_LAYER2' in blocks
+                Tag.SMART_OBJECT_LAYER_DATA1 in blocks or
+                Tag.SMART_OBJECT_LAYER_DATA2 in blocks or
+                Tag.PLACED_LAYER1 in blocks or Tag.PLACED_LAYER2 in blocks
             ):
                 layer = SmartObjectLayer(self, record, channels, current_group)
             else:
