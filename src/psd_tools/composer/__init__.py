@@ -177,15 +177,7 @@ def compose_layer(layer, force=False, **kwargs):
             image = blend(image, clip_image, (0, 0))
 
     # Apply opacity.
-    if layer.opacity < 255:
-        opacity = layer.opacity
-        if image.mode.endswith('A'):
-            opacity = opacity / 255.
-            channels = list(image.split())
-            channels[-1] = channels[-1].point(lambda x: int(x * opacity))
-            image = Image.merge(image.mode, channels)
-        else:
-            image.putalpha(opacity)
+    apply_opacity(layer, image)
 
     return image
 
@@ -285,3 +277,15 @@ def apply_effect(layer, image):
     for effect in layer.effects:
         if effect.__class__.__name__ == 'ColorOverlay':
             draw_solid_color_fill(image, effect.value)
+
+
+def apply_opacity(layer, image):
+    fill_opacity = layer.tagged_blocks.get_data(Tag.BLEND_FILL_OPACITY, 255)
+    if layer.opacity < 255 or fill_opacity < 255:
+        opacity = (layer.opacity / 255.) * (fill_opacity / 255.)
+        if image.mode.endswith('A'):
+            alpha = image.getchannel('A')
+            alpha = alpha.point(lambda x: int(round(x * opacity)))
+            image.putalpha(alpha)
+        else:
+            image.putalpha(int(255 * opacity))

@@ -145,3 +145,9 @@ def test_apply_mask():
         rendered = layer.compose()
         assert image.size == rendered.size
         assert _calculate_hash_error(image, rendered) <= 0.1
+
+
+def test_apply_opacity():
+    psd = PSDImage.open(full_name('opacity-fill.psd'))
+    image = psd.compose(force=True)
+    assert image.getpixel((0, 0))[-1] == psd.compose().getpixel((0, 0))[-1]
