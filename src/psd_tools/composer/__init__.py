@@ -6,7 +6,7 @@ Composer takes responsibility of rendering layers as an image.
 from __future__ import absolute_import, unicode_literals
 import logging
 
-from psd_tools.constants import Tag
+from psd_tools.constants import Tag, BlendMode
 from psd_tools.api.pil_io import get_pil_mode
 from psd_tools.api.layers import Group
 from psd_tools.composer.blend import blend
@@ -110,14 +110,17 @@ def compose(
             color=color if color is not None else 'white',
         )
         context.putalpha(0)  # Alpha must be forced to correctly blend.
-        context.info['offset'] = (0, 0)
+        context.info['offset'] = (bbox[0], bbox[1])
 
     for layer in valid_layers:
         if intersect(layer.bbox, bbox) == (0, 0, 0, 0):
             continue
 
         if layer.is_group():
-            image = layer.compose(**kwargs)
+            if layer.blend_mode == BlendMode.PASS_THROUGH:
+                image = layer.compose(context=context, bbox=bbox)
+            else:
+                image = layer.compose(**kwargs)
         else:
             image = compose_layer(layer, **kwargs)
         if image is None:
