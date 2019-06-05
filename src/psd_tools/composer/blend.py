@@ -15,35 +15,6 @@ logger = logging.getLogger(__name__)
 
 BLEND_FUNCTIONS, register = new_registry()
 
-# BlendMode.PASS_THROUGH: _normal,
-# BlendMode.NORMAL: _normal,
-# BlendMode.DISSOLVE: _dissolve,
-# BlendMode.DARKEN: _darken,
-# BlendMode.MULTIPLY: _multiply,
-# BlendMode.COLOR_BURN: _color_burn,
-# BlendMode.LINEAR_BURN: _linear_burn,
-# BlendMode.DARKER_COLOR: _darker_color,
-# BlendMode.LIGHTEN: _lighten,
-# BlendMode.SCREEN: _screen,
-# BlendMode.COLOR_DODGE: _color_dodge,
-# BlendMode.LINEAR_DODGE: _linear_dodge,
-# BlendMode.LIGHTER_COLOR: _lighter_color,
-# BlendMode.OVERLAY: _overlay,
-# BlendMode.SOFT_LIGHT: _soft_light,
-# BlendMode.HARD_LIGHT: _hard_light,
-# BlendMode.VIVID_LIGHT: _vivid_light,
-# BlendMode.LINEAR_LIGHT: _linear_light,
-# BlendMode.PIN_LIGHT: _pin_light,
-# BlendMode.HARD_MIX: _hard_mix,
-# BlendMode.DIFFERENCE: _difference,
-# BlendMode.EXCLUSION: _exclusion,
-# BlendMode.SUBTRACT: _subtract,
-# BlendMode.DIVIDE: _divide,
-# BlendMode.HUE: _hue,
-# BlendMode.SATURATION: _saturation,
-# BlendMode.COLOR: _color,
-# BlendMode.LUMINOSITY: _luminosity,
-
 
 def blend(target, image, offset, mode=None):
     from PIL import Image, ImageChops, ImageMath
@@ -114,33 +85,51 @@ def _overlay(Cs, Cb):
 
 @register(BlendMode.DARKEN)
 def _darken(Cs, Cb):
-    return Cb.minimum(Cs)
+    import numpy as np
+    return np.minimum(Cb, Cs)
 
 
 @register(BlendMode.LIGHTEN)
 def _lighten(Cs, Cb):
-    return Cb.maximum(Cs)
+    import numpy as np
+    return np.maximum(Cb, Cs)
 
 
 @register(BlendMode.COLOR_DODGE)
 def _color_dodge(Cs, Cb):
     import numpy as np
-    B = np.zeros_like(Cs)
-    B[Cb == 0] = 0
-    B[Cs == 1] = 1
-    index = (Cb != 0) & (Cs != 1)
+    B = np.ones_like(Cs)
+    index = (Cs != 1)
     B[index] = np.minimum(1, Cb[index] / (1 - Cs[index]))
+    B[Cb == 0] = 0
+    return B
+
+
+@register(BlendMode.LINEAR_DODGE)
+def _linear_dodge(Cs, Cb):
+    import numpy as np
+    B = np.minimum(1, Cb + Cs)
     return B
 
 
 @register(BlendMode.COLOR_BURN)
 def _color_burn(Cs, Cb):
     import numpy as np
+    B = np.ones_like(Cs)
+    index = (Cs != 0)
+    B[index] = 1 - np.minimum(1, (1 - Cb[index]) / Cs[index])
+    B[Cs == 0] = 0
+    return B
+
+
+@register(BlendMode.LINEAR_BURN)
+def _linear_burn(Cs, Cb):
+    import numpy as np
     B = np.zeros_like(Cs)
     B[Cb == 1] = 1
     B[Cs == 0] = 0
     index = (Cb != 1) & (Cs != 0)
-    B[index] = 1 - np.minimum(1, (1 - Cb[index]) / Cs[index])
+    B[index] = np.maximum(0, Cb[index] + Cs[index] - 1)
     return B
 
 
@@ -164,6 +153,30 @@ def _soft_light(Cs, Cb):
     return B
 
 
+@register(BlendMode.VIVID_LIGHT)
+def _vivid_light(Cs, Cb):
+    index = Cs > 0.5
+    B = _color_dodge(Cs, Cb)
+    B[index] = _color_burn(Cs, Cb)[index]
+    return B
+
+
+@register(BlendMode.LINEAR_LIGHT)
+def _linear_light(Cs, Cb):
+    index = Cs > 0.5
+    B = _linear_burn(Cs, Cb)
+    B[index] = _linear_dodge(Cs, Cb)[index]
+    return B
+
+
+@register(BlendMode.PIN_LIGHT)
+def _pin_light(Cs, Cb):
+    index = Cs > 0.5
+    B = _darken(Cs, Cb)
+    B[index] = _lighten(Cs, Cb)[index]
+    return B
+
+
 @register(BlendMode.DIFFERENCE)
 def _difference(Cs, Cb):
     import numpy as np
@@ -173,3 +186,34 @@ def _difference(Cs, Cb):
 @register(BlendMode.EXCLUSION)
 def _exclusion(Cs, Cb):
     return Cb + Cs - 2 * Cb * Cs
+
+
+@register(BlendMode.SUBTRACT)
+def _subtract(Cs, Cb):
+    import numpy as np
+    return np.maximum(0, Cb - Cs)
+
+
+@register(BlendMode.HARD_MIX)
+def _hard_mix(Cs, Cb):
+    B = Cb.copy()
+    B[(Cs + Cb) < 1] = 0
+    return B
+
+
+# @register(BlendMode.DIVIDE)
+# def _divide(Cs, Cb):
+#     B = Cb.copy()
+#     index = Cs > 0
+#     B[index] = Cb[index] / Cs[index]  # Seems incorrect...
+#     return B
+
+# BlendMode.PASS_THROUGH: _normal,
+# BlendMode.DISSOLVE: _dissolve,
+# BlendMode.DARKER_COLOR: _darker_color,
+# BlendMode.LIGHTER_COLOR: _lighter_color,
+# BlendMode.DIVIDE: _divide,
+# BlendMode.HUE: _hue,
+# BlendMode.SATURATION: _saturation,
+# BlendMode.COLOR: _color,
+# BlendMode.LUMINOSITY: _luminosity,
