@@ -19,6 +19,7 @@ QUALITY_TEST_FILES = [
         'background-red-opacity-80.psd',
     ),
     ('32bit.psd', ),
+    ('clipping-mask2.psd', ),
 ]
 
 

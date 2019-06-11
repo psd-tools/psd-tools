@@ -239,9 +239,11 @@ def apply_mask(layer, image):
             image_.paste(image, (layer.left - bbox[0], layer.top - bbox[1]))
             mask = Image.new('L', size, color=color)
             mask_image = layer.mask.topil()
-            mask.paste(
-                mask_image, (mask_bbox[0] - bbox[0], mask_bbox[1] - bbox[1])
-            )
+            if mask_image:
+                mask.paste(
+                    mask_image,
+                    (mask_bbox[0] - bbox[0], mask_bbox[1] - bbox[1])
+                )
             if image_.mode.endswith('A'):
                 mask = ImageChops.darker(image_.getchannel('A'), mask)
             image_.putalpha(mask)
