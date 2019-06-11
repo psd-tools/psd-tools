@@ -6,6 +6,7 @@ import logging
 
 from psd_tools.api.pil_io import convert_pattern_to_pil
 from psd_tools.composer.blend import blend
+from psd_tools.terminology import Enum, Key
 
 logger = logging.getLogger(__name__)
 
@@ -154,11 +155,12 @@ def draw_gradient_fill(image, setting, mode=None):
         Z = np.ones((image.height, image.width)) * 0.5
 
     gradient_image = _apply_color_map(image.mode, setting.get(b'Grad'), Z)
-    if mode:
-        gradient_image.putalpha(image.getchannel('A'))
-        blend(image, gradient_image, (0, 0), mode=mode)
-    else:
-        image.paste(gradient_image)
+    if gradient_image:
+        if mode:
+            gradient_image.putalpha(image.getchannel('A'))
+            blend(image, gradient_image, (0, 0), mode=mode)
+        else:
+            image.paste(gradient_image)
 
 
 def _make_linear_gradient(width, height, angle=90.):
@@ -184,38 +186,75 @@ def _apply_color_map(mode, grad, Z):
     from scipy import interpolate
     from PIL import Image
 
-    stops = grad.get(b'Clrs')
-    scalar = {
-        'RGB': 1.0,
-        'L': 2.55,
-        'CMYK': 2.55,
-    }.get(mode, 1.0)
+    if grad.get(b'GrdF').enum == Enum.ColorNoise:
+        """
+        TODO: Improve noise gradient quality.
 
-    X = [stop.get(b'Lctn').value / 4096. for stop in stops]
-    Y = [
-        tuple(int(scalar * x.value) for x in stop.get(b'Clr ').values())
-        for stop in stops
-    ]
-    if len(stops) == 1:
-        X = [0., 1.]
-        Y = [Y[0], Y[0]]
-    G = interpolate.interp1d(X, Y, axis=0, fill_value='extrapolate')
-    pixels = G(Z).astype(np.uint8)
-    if pixels.shape[-1] == 1:
-        pixels = pixels[:, :, 0]
+        Example:
 
-    image = Image.fromarray(pixels, mode.rstrip('A'))
-    if b'Trns' in grad and mode.endswith('A'):
-        stops = grad.get(b'Trns')
-        X = [stop.get(b'Lctn').value / 4096 for stop in stops]
-        Y = [stop.get(b'Opct').value * 2.55 for stop in stops]
+            Descriptor(b'Grdn'){
+                'Nm  ': 'Custom\x00',
+                'GrdF': (b'GrdF', b'ClNs'),
+                'ShTr': False,
+                'VctC': False,
+                'ClrS': (b'ClrS', b'RGBC'),
+                'RndS': 3650322,
+                'Smth': 2048,
+                'Mnm ': [0, 0, 0, 0],
+                'Mxm ': [0, 100, 100, 100]
+            }
+        """
+        logger.debug('Noise gradient is not accurate.')
+        from scipy.ndimage.filters import maximum_filter1d, uniform_filter1d
+        roughness = grad.get(
+            Key.Smoothness
+        ).value / 4096.  # Larger is sharper.
+        maximum = np.array([x.value for x in grad.get(Key.Maximum)])
+        minimum = np.array([x.value for x in grad.get(Key.Minimum)])
+        seed = grad.get(Key.RandomSeed).value
+
+        rng = np.random.RandomState(seed)
+        G = rng.binomial(1, .5, (256, len(maximum))).astype(np.float)
+        size = int(roughness * 4)
+        G = maximum_filter1d(G, size, axis=0)
+        G = uniform_filter1d(G, size * 64, axis=0)
+        G = (2.55 * ((maximum - minimum) * G + minimum)).astype(np.uint8)
+        Z = (255 * Z).astype(np.uint8)
+        pixels = G[Z]
+        if pixels.shape[-1] == 1:
+            pixels = pixels[:, :, 0]
+        image = Image.fromarray(pixels, mode)
+    elif grad.get(b'GrdF').enum == Enum.CustomStops:
+        scalar = {
+            'RGB': 1.0,
+            'L': 2.55,
+            'CMYK': 2.55,
+        }.get(mode, 1.0)
+        stops = grad.get(b'Clrs')
+        X = [stop.get(b'Lctn').value / 4096. for stop in stops]
+        Y = [
+            tuple(int(scalar * x.value) for x in stop.get(b'Clr ').values())
+            for stop in stops
+        ]
         if len(stops) == 1:
             X = [0., 1.]
             Y = [Y[0], Y[0]]
-        G_opacity = interpolate.interp1d(
-            X, Y, axis=0, fill_value='extrapolate'
-        )
-        alpha = G_opacity(Z).astype(np.uint8)
-        image.putalpha(Image.fromarray(alpha, 'L'))
+        G = interpolate.interp1d(X, Y, axis=0, fill_value='extrapolate')
+        pixels = G(Z).astype(np.uint8)
+        if pixels.shape[-1] == 1:
+            pixels = pixels[:, :, 0]
 
+        image = Image.fromarray(pixels, mode.rstrip('A'))
+        if b'Trns' in grad and mode.endswith('A'):
+            stops = grad.get(b'Trns')
+            X = [stop.get(b'Lctn').value / 4096 for stop in stops]
+            Y = [stop.get(b'Opct').value * 2.55 for stop in stops]
+            if len(stops) == 1:
+                X = [0., 1.]
+                Y = [Y[0], Y[0]]
+            G_opacity = interpolate.interp1d(
+                X, Y, axis=0, fill_value='extrapolate'
+            )
+            alpha = G_opacity(Z).astype(np.uint8)
+            image.putalpha(Image.fromarray(alpha, 'L'))
     return image
