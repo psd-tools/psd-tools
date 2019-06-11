@@ -89,7 +89,8 @@ def draw_solid_color_fill(image, setting, mode=None):
     draw.rectangle((0, 0, canvas.width, canvas.height), fill=color)
     del draw
     if mode:
-        canvas.putalpha(image.getchannel('A'))
+        if image.mode.endswith('A'):
+            canvas.putalpha(image.getchannel('A'))
         blend(image, canvas, (0, 0), mode=mode)
     else:
         image.paste(canvas)
@@ -123,7 +124,10 @@ def draw_pattern_fill(image, psd, setting, mode=None):
         panel.putalpha(opacity)
 
     pattern_image = Image.new(image.mode, image.size)
-    mask = image.getchannel('A') if mode else Image.new('L', image.size, 255)
+    if mode and image.mode.endswith('A'):
+        mask = image.getchannel('A')
+    else:
+        mask = Image.new('L', image.size, 255)
 
     for left in range(0, pattern_image.width, panel.width):
         for top in range(0, pattern_image.height, panel.height):
@@ -157,7 +161,8 @@ def draw_gradient_fill(image, setting, mode=None):
     gradient_image = _apply_color_map(image.mode, setting.get(b'Grad'), Z)
     if gradient_image:
         if mode:
-            gradient_image.putalpha(image.getchannel('A'))
+            if image.mode.endswith('A'):
+                gradient_image.putalpha(image.getchannel('A'))
             blend(image, gradient_image, (0, 0), mode=mode)
         else:
             image.paste(gradient_image)
