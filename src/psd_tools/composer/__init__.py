@@ -171,7 +171,9 @@ def compose_layer(layer, force=False, **kwargs):
         clip_box = Group.extract_bbox(layer.clip_layers)
         inter_box = intersect(layer.bbox, clip_box)
         if inter_box != (0, 0, 0, 0):
-            clip_image = compose(layer.clip_layers, bbox=layer.bbox)
+            offset = image.info.get('offset', layer.offset)
+            bbox = offset + (offset[0] + image.width, offset[1] + image.height)
+            clip_image = compose(layer.clip_layers, bbox=bbox)
             mask = image.getchannel('A')
             if clip_image.mode.endswith('A'):
                 mask = ImageChops.multiply(clip_image.getchannel('A'), mask)
