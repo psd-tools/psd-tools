@@ -192,23 +192,23 @@ def create_fill(layer):
         image = Image.new(mode, (layer.width, layer.height), 'white')
         setting = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)
         if b'Ptrn' in setting:
-            draw_pattern_fill(image, layer._psd, setting, blend=False)
+            draw_pattern_fill(image, layer._psd, setting)
         elif b'Grad' in setting:
-            draw_gradient_fill(image, setting, blend=False)
+            draw_gradient_fill(image, setting)
         else:
-            draw_solid_color_fill(image, setting, blend=False)
+            draw_solid_color_fill(image, setting)
     elif Tag.SOLID_COLOR_SHEET_SETTING in layer.tagged_blocks:
         image = Image.new(mode, (layer.width, layer.height), 'white')
         setting = layer.tagged_blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING)
-        draw_solid_color_fill(image, setting, blend=False)
+        draw_solid_color_fill(image, setting)
     elif Tag.PATTERN_FILL_SETTING in layer.tagged_blocks:
         image = Image.new(mode, (layer.width, layer.height), 'white')
         setting = layer.tagged_blocks.get_data(Tag.PATTERN_FILL_SETTING)
-        draw_pattern_fill(image, layer._psd, setting, blend=False)
+        draw_pattern_fill(image, layer._psd, setting)
     elif Tag.GRADIENT_FILL_SETTING in layer.tagged_blocks:
         image = Image.new(mode, (layer.width, layer.height), 'white')
         setting = layer.tagged_blocks.get_data(Tag.GRADIENT_FILL_SETTING)
-        draw_gradient_fill(image, setting, blend=False)
+        draw_gradient_fill(image, setting)
     return image
 
 
@@ -270,15 +270,17 @@ def apply_effect(layer, image):
     """
     for effect in layer.effects:
         if effect.__class__.__name__ == 'PatternOverlay':
-            draw_pattern_fill(image, layer._psd, effect.value)
+            draw_pattern_fill(
+                image, layer._psd, effect.value, effect.blend_mode
+            )
 
     for effect in layer.effects:
         if effect.__class__.__name__ == 'GradientOverlay':
-            draw_gradient_fill(image, effect.value)
+            draw_gradient_fill(image, effect.value, effect.blend_mode)
 
     for effect in layer.effects:
         if effect.__class__.__name__ == 'ColorOverlay':
-            draw_solid_color_fill(image, effect.value)
+            draw_solid_color_fill(image, effect.value, effect.blend_mode)
 
 
 def apply_opacity(layer, image):

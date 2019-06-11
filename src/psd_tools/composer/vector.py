@@ -5,6 +5,7 @@ from __future__ import absolute_import, unicode_literals
 import logging
 
 from psd_tools.api.pil_io import convert_pattern_to_pil
+from psd_tools.composer.blend import blend
 
 logger = logging.getLogger(__name__)
 
@@ -79,28 +80,28 @@ def _generate_symbol(path, width, height, command='C'):
         yield 'Z'
 
 
-def draw_solid_color_fill(image, setting, blend=True):
+def draw_solid_color_fill(image, setting, mode=None):
     from PIL import Image, ImageDraw, ImageChops
     color = tuple(int(x) for x in setting.get(b'Clr ').values())
     canvas = Image.new(image.mode, image.size)
     draw = ImageDraw.Draw(canvas)
     draw.rectangle((0, 0, canvas.width, canvas.height), fill=color)
     del draw
-    if blend:
+    if mode:
         canvas.putalpha(image.getchannel('A'))
-        _blend(image, canvas, (0, 0))
+        blend(image, canvas, (0, 0), mode=mode)
     else:
         image.paste(canvas)
 
 
-def draw_pattern_fill(image, psd, setting, blend=True):
+def draw_pattern_fill(image, psd, setting, mode=None):
     """
     Draw pattern fill on the image.
 
     :param image: Image to be filled.
     :param psd: :py:class:`PSDImage`.
     :param setting: Descriptor containing pattern fill.
-    :param blend: Blend the fill or ignore. Effects blend.
+    :param mode: Blend the fill or ignore if None.
     """
     from PIL import Image
     pattern_id = setting[b'Ptrn'][b'Idnt'].value.rstrip('\x00')
@@ -121,7 +122,7 @@ def draw_pattern_fill(image, psd, setting, blend=True):
         panel.putalpha(opacity)
 
     pattern_image = Image.new(image.mode, image.size)
-    mask = image.getchannel('A') if blend else Image.new('L', image.size, 255)
+    mask = image.getchannel('A') if mode else Image.new('L', image.size, 255)
 
     for left in range(0, pattern_image.width, panel.width):
         for top in range(0, pattern_image.height, panel.height):
@@ -130,13 +131,13 @@ def draw_pattern_fill(image, psd, setting, blend=True):
             )
             pattern_image.paste(panel, (left, top), panel_mask)
 
-    if blend:
-        image.paste(_blend(image, pattern_image, (0, 0)))
+    if mode:
+        image.paste(blend(image, pattern_image, (0, 0), mode=mode))
     else:
         image.paste(pattern_image)
 
 
-def draw_gradient_fill(image, setting, blend=True):
+def draw_gradient_fill(image, setting, mode=None):
     try:
         import numpy as np
         from scipy import interpolate
@@ -153,9 +154,9 @@ def draw_gradient_fill(image, setting, blend=True):
         Z = np.ones((image.height, image.width)) * 0.5
 
     gradient_image = _apply_color_map(image.mode, setting.get(b'Grad'), Z)
-    if blend:
+    if mode:
         gradient_image.putalpha(image.getchannel('A'))
-        _blend(image, gradient_image, offset=(0, 0))
+        blend(image, gradient_image, (0, 0), mode=mode)
     else:
         image.paste(gradient_image)
 
