@@ -1,7 +1,10 @@
-1.8.18 (2019-06-05)
+1.8.19 (2019-06-11)
 -------------------
 
-- fix broken `psd_tools.composer.vector` module in 1.8.17.
+- fix broken `psd_tools.composer.vector` module in 1.8.17;
+- experimental support for color noise gradient;
+- bugfix for clip masks;
+- bugfix for CMYK composing.
 
 1.8.17 (2019-06-05)
 -------------------

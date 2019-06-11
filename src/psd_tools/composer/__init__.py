@@ -171,7 +171,9 @@ def compose_layer(layer, force=False, **kwargs):
         clip_box = Group.extract_bbox(layer.clip_layers)
         inter_box = intersect(layer.bbox, clip_box)
         if inter_box != (0, 0, 0, 0):
-            clip_image = compose(layer.clip_layers, bbox=layer.bbox)
+            offset = image.info.get('offset', layer.offset)
+            bbox = offset + (offset[0] + image.width, offset[1] + image.height)
+            clip_image = compose(layer.clip_layers, bbox=bbox)
             mask = image.getchannel('A')
             if clip_image.mode.endswith('A'):
                 mask = ImageChops.multiply(clip_image.getchannel('A'), mask)
@@ -239,9 +241,11 @@ def apply_mask(layer, image):
             image_.paste(image, (layer.left - bbox[0], layer.top - bbox[1]))
             mask = Image.new('L', size, color=color)
             mask_image = layer.mask.topil()
-            mask.paste(
-                mask_image, (mask_bbox[0] - bbox[0], mask_bbox[1] - bbox[1])
-            )
+            if mask_image:
+                mask.paste(
+                    mask_image,
+                    (mask_bbox[0] - bbox[0], mask_bbox[1] - bbox[1])
+                )
             if image_.mode.endswith('A'):
                 mask = ImageChops.darker(image_.getchannel('A'), mask)
             image_.putalpha(mask)
