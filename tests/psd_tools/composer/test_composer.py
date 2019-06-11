@@ -45,24 +45,6 @@ def test_compose_quality(filename, threshold=0.1):
     assert _calculate_hash_error(preview, rendered) <= threshold
 
 
-@pytest.mark.parametrize(("filename", ), [
-    ('path-operations/combine.psd', ),
-    ('path-operations/exclude-first.psd', ),
-    ('path-operations/exclude.psd', ),
-    ('path-operations/intersect-all.psd', ),
-    ('path-operations/intersect-first.psd', ),
-    ('path-operations/subtract-all.psd', ),
-    ('path-operations/subtract-first.psd', ),
-    ('path-operations/subtract-second.psd', ),
-    ('stroke.psd', ),
-])
-def test_compose_quality_rgb(filename):
-    psd = PSDImage.open(full_name(filename))
-    preview = psd.topil().convert('RGB')
-    rendered = psd.compose(force=True).convert('RGB')
-    assert _calculate_hash_error(preview, rendered) <= 0.1
-
-
 @pytest.mark.parametrize(
     'filename', [
         'smartobject-layer.psd',
