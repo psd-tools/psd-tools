@@ -556,11 +556,15 @@ class Group(GroupMixin, Layer):
 
     @property
     def _setting(self):
+        # Can be None.
         return self.tagged_blocks.get_data(Tag.SECTION_DIVIDER_SETTING)
 
     @property
     def blend_mode(self):
-        return self._setting.blend_mode
+        setting = self._setting
+        if setting:
+            return self._setting.blend_mode
+        return super(Group, self).blend_mode
 
     @blend_mode.setter
     def blend_mode(self, value):
@@ -569,7 +573,9 @@ class Group(GroupMixin, Layer):
             self._record.blend_mode = BlendMode.NORMAL
         else:
             self._record.blend_mode = _value
-        self._setting.blend_mode = _value
+        setting = self._setting
+        if setting:
+            setting.blend_mode = _value
 
 
 class Artboard(Group):
