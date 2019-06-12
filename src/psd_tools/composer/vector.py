@@ -150,11 +150,16 @@ def draw_gradient_fill(image, setting, mode=None):
         logger.error('Gradient fill requires numpy and scipy.')
         return None
 
-    angle = float(setting.get(b'Angl'))
+    angle = float(setting.get(Key.Angle, 0))
+    scale = float(setting.get(Key.Scale, 100.)) / 100.
+    reverse = bool(setting.get(Key.Reverse, False))
     gradient_kind = setting.get(b'Type').get_name()
     if gradient_kind == 'Linear':
-        Z = _make_linear_gradient(image.width, image.height, -angle)
+        Z = _make_linear_gradient(
+            image.width, image.height, -angle, scale, reverse
+        )
     else:
+        # TODO: Support other gradient.
         logger.warning('Only linear gradient is supported.')
         Z = np.ones((image.height, image.width)) * 0.5
 
@@ -168,10 +173,13 @@ def draw_gradient_fill(image, setting, mode=None):
             image.paste(gradient_image)
 
 
-def _make_linear_gradient(width, height, angle=90.):
+def _make_linear_gradient(width, height, angle=90., scale=1., reverse=False):
     """Generates index map for linear gradients."""
     import numpy as np
-    X, Y = np.meshgrid(np.linspace(0, 1, width), np.linspace(0, 1, height))
+    if reverse:
+        X, Y = np.meshgrid(np.linspace(1, 0, width), np.linspace(1, 0, height))
+    else:
+        X, Y = np.meshgrid(np.linspace(0, 1, width), np.linspace(0, 1, height))
     theta = np.radians(angle % 360)
     c, s = np.cos(theta), np.sin(theta)
     if 0 <= theta and theta < 0.5 * np.pi:
@@ -182,7 +190,9 @@ def _make_linear_gradient(width, height, angle=90.):
         Z = np.abs(c * (X - width) + s * (Y - height))
     elif 1.5 * np.pi <= theta and theta < 2.0 * np.pi:
         Z = np.abs(c * X + s * (Y - height))
-    return (Z - Z.min()) / (Z.max() - Z.min())
+    Z = (Z - Z.min()) / (Z.max() - Z.min())
+    Z = np.maximum(0., np.minimum(1., np.sqrt(2) * (Z - 0.5) / scale + 0.5))
+    return Z
 
 
 def _apply_color_map(mode, grad, Z):
@@ -220,7 +230,7 @@ def _apply_color_map(mode, grad, Z):
 
         rng = np.random.RandomState(seed)
         G = rng.binomial(1, .5, (256, len(maximum))).astype(np.float)
-        size = int(roughness * 4)
+        size = max(1, int(roughness * 4))
         G = maximum_filter1d(G, size, axis=0)
         G = uniform_filter1d(G, size * 64, axis=0)
         G = (2.55 * ((maximum - minimum) * G + minimum)).astype(np.uint8)
@@ -244,6 +254,7 @@ def _apply_color_map(mode, grad, Z):
         if len(stops) == 1:
             X = [0., 1.]
             Y = [Y[0], Y[0]]
+        # TODO: Workaround zero-division.
         G = interpolate.interp1d(X, Y, axis=0, fill_value='extrapolate')
         pixels = G(Z).astype(np.uint8)
         if pixels.shape[-1] == 1:
