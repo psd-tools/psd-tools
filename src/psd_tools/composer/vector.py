@@ -163,6 +163,8 @@ def draw_gradient_fill(image, setting, mode=None):
         Z = _make_radial_gradient(X, Y)
     elif gradient_kind == Enum.Angle:
         Z = _make_angle_gradient(X, Y, angle)
+    elif gradient_kind == Enum.Reflected:
+        Z = _make_reflected_gradient(X, Y, angle)
     else:
         # TODO: Support other gradient.
         logger.warning('Gradient style %s is not supported.' % (gradient_kind))
@@ -201,6 +203,14 @@ def _make_angle_gradient(X, Y, angle):
     """Generates index map for angle gradients."""
     import numpy as np
     Z = (((180 * np.arctan2(Y, X) / np.pi) + angle) % 360) / 360
+    return Z
+
+
+def _make_reflected_gradient(X, Y, angle):
+    """Generates index map for reflected gradients."""
+    import numpy as np
+    theta = np.radians(angle % 360)
+    Z = np.abs((np.cos(theta) * X - np.sin(theta) * Y))
     return Z
 
 

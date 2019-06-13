@@ -79,8 +79,9 @@ def test_gradient_styles():
     for artboard in psd[0:3]:
         for layer in artboard:
             setting = layer.tagged_blocks.get_data(Tag.GRADIENT_FILL_SETTING)
-            if setting.get(Key.Type
-                           ).enum in (Enum.Linear, Enum.Radial, Enum.Angle):
+            if setting.get(
+                Key.Type
+            ).enum in (Enum.Linear, Enum.Radial, Enum.Angle, Enum.Reflected):
                 reference = layer.compose().convert('RGB')
                 rendered = layer.compose(force=True).convert('RGB')
                 assert _calculate_hash_error(reference, rendered) <= 0.1
