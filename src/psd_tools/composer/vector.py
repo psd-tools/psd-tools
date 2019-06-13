@@ -275,32 +275,38 @@ def _apply_color_map(mode, grad, Z):
             'L': 2.55,
             'CMYK': 2.55,
         }.get(mode, 1.0)
-        stops = grad.get(b'Clrs')
-        X = [stop.get(b'Lctn').value / 4096. for stop in stops]
-        Y = [
-            tuple(int(scalar * x.value) for x in stop.get(b'Clr ').values())
-            for stop in stops
-        ]
-        if len(stops) == 1:
+        X, Y = [], []
+        for stop in grad.get(Key.Colors, []):
+            location = int(stop.get(Key.Location)) / 4096.
+            color = tuple(scalar * x for x in stop.get(Key.Color).values())
+            if len(X) and X[-1] == location:
+                logger.debug('Duplicate stop at %d' % location)
+                X.pop(), Y.pop()
+            X.append(location), Y.append(color)
+        assert len(X) > 0
+        if len(X) == 1:
             X = [0., 1.]
             Y = [Y[0], Y[0]]
-        # TODO: Workaround zero-division.
         G = interpolate.interp1d(X, Y, axis=0, fill_value='extrapolate')
         pixels = G(Z).astype(np.uint8)
         if pixels.shape[-1] == 1:
             pixels = pixels[:, :, 0]
 
         image = Image.fromarray(pixels, mode.rstrip('A'))
-        if b'Trns' in grad and mode.endswith('A'):
-            stops = grad.get(b'Trns')
-            X = [stop.get(b'Lctn').value / 4096 for stop in stops]
-            Y = [stop.get(b'Opct').value * 2.55 for stop in stops]
-            if len(stops) == 1:
+        if Key.Transparency in grad and mode.endswith('A'):
+            X, Y = [], []
+            for stop in grad.get(Key.Transparency):
+                location = int(stop.get(Key.Location)) / 4096.
+                opacity = float(stop.get(Key.Opacity)) * 2.55
+                if len(X) and X[-1] == location:
+                    logger.debug('Duplicate stop at %d' % location)
+                    X.pop(), Y.pop()
+                X.append(location), Y.append(opacity)
+            assert len(X) > 0
+            if len(X) == 1:
                 X = [0., 1.]
                 Y = [Y[0], Y[0]]
-            G_opacity = interpolate.interp1d(
-                X, Y, axis=0, fill_value='extrapolate'
-            )
-            alpha = G_opacity(Z).astype(np.uint8)
+            G = interpolate.interp1d(X, Y, axis=0, fill_value='extrapolate')
+            alpha = G(Z).astype(np.uint8)
             image.putalpha(Image.fromarray(alpha, 'L'))
     return image
