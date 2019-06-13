@@ -145,20 +145,38 @@ def draw_pattern_fill(image, psd, setting, mode=None):
 def draw_gradient_fill(image, setting, mode=None):
     try:
         import numpy as np
-        from scipy import interpolate
     except ImportError:
         logger.error('Gradient fill requires numpy and scipy.')
         return None
 
-    angle = float(setting.get(b'Angl'))
-    gradient_kind = setting.get(b'Type').get_name()
-    if gradient_kind == 'Linear':
-        Z = _make_linear_gradient(image.width, image.height, -angle)
+    angle = float(setting.get(Key.Angle, 0))
+    scale = float(setting.get(Key.Scale, 100.)) / 100.
+    scale *= min(image.height, image.width)
+    X, Y = np.meshgrid(
+        np.linspace(-image.width / scale, image.width / scale, image.width),
+        np.linspace(-image.height / scale, image.height / scale, image.height),
+    )
+
+    gradient_kind = setting.get(Key.Type).enum
+    if gradient_kind == Enum.Linear:
+        Z = _make_linear_gradient(X, Y, angle)
+    elif gradient_kind == Enum.Radial:
+        Z = _make_radial_gradient(X, Y)
+    elif gradient_kind == Enum.Angle:
+        Z = _make_angle_gradient(X, Y, angle)
+    elif gradient_kind == Enum.Reflected:
+        Z = _make_reflected_gradient(X, Y, angle)
+    elif gradient_kind == Enum.Diamond:
+        Z = _make_diamond_gradient(X, Y, angle)
     else:
-        logger.warning('Only linear gradient is supported.')
+        logger.warning('Unknown gradient style: %s.' % (gradient_kind))
         Z = np.ones((image.height, image.width)) * 0.5
 
-    gradient_image = _apply_color_map(image.mode, setting.get(b'Grad'), Z)
+    Z = np.maximum(0, np.minimum(1, Z))
+    if bool(setting.get(Key.Reverse, False)):
+        Z = 1 - Z
+
+    gradient_image = _apply_color_map(image.mode, setting.get(Key.Gradient), Z)
     if gradient_image:
         if mode:
             if image.mode.endswith('A'):
@@ -168,21 +186,43 @@ def draw_gradient_fill(image, setting, mode=None):
             image.paste(gradient_image)
 
 
-def _make_linear_gradient(width, height, angle=90.):
+def _make_linear_gradient(X, Y, angle):
     """Generates index map for linear gradients."""
     import numpy as np
-    X, Y = np.meshgrid(np.linspace(0, 1, width), np.linspace(0, 1, height))
     theta = np.radians(angle % 360)
-    c, s = np.cos(theta), np.sin(theta)
-    if 0 <= theta and theta < 0.5 * np.pi:
-        Z = np.abs(c * X + s * Y)
-    elif 0.5 * np.pi <= theta and theta < np.pi:
-        Z = np.abs(c * (X - width) + s * Y)
-    elif np.pi <= theta and theta < 1.5 * np.pi:
-        Z = np.abs(c * (X - width) + s * (Y - height))
-    elif 1.5 * np.pi <= theta and theta < 2.0 * np.pi:
-        Z = np.abs(c * X + s * (Y - height))
-    return (Z - Z.min()) / (Z.max() - Z.min())
+    Z = .5 * (np.cos(theta) * X - np.sin(theta) * Y + 1)
+    return Z
+
+
+def _make_radial_gradient(X, Y):
+    """Generates index map for radial gradients."""
+    import numpy as np
+    Z = np.sqrt(np.power(X, 2) + np.power(Y, 2))
+    return Z
+
+
+def _make_angle_gradient(X, Y, angle):
+    """Generates index map for angle gradients."""
+    import numpy as np
+    Z = (((180 * np.arctan2(Y, X) / np.pi) + angle) % 360) / 360
+    return Z
+
+
+def _make_reflected_gradient(X, Y, angle):
+    """Generates index map for reflected gradients."""
+    import numpy as np
+    theta = np.radians(angle % 360)
+    Z = np.abs((np.cos(theta) * X - np.sin(theta) * Y))
+    return Z
+
+
+def _make_diamond_gradient(X, Y, angle):
+    """Generates index map for diamond gradients."""
+    import numpy as np
+    theta = np.radians(angle % 360)
+    Z = np.abs(np.cos(theta) * X - np.sin(theta) *
+               Y) + np.abs(np.sin(theta) * X + np.cos(theta) * Y)
+    return Z
 
 
 def _apply_color_map(mode, grad, Z):
@@ -220,7 +260,7 @@ def _apply_color_map(mode, grad, Z):
 
         rng = np.random.RandomState(seed)
         G = rng.binomial(1, .5, (256, len(maximum))).astype(np.float)
-        size = int(roughness * 4)
+        size = max(1, int(roughness * 4))
         G = maximum_filter1d(G, size, axis=0)
         G = uniform_filter1d(G, size * 64, axis=0)
         G = (2.55 * ((maximum - minimum) * G + minimum)).astype(np.uint8)
@@ -244,6 +284,7 @@ def _apply_color_map(mode, grad, Z):
         if len(stops) == 1:
             X = [0., 1.]
             Y = [Y[0], Y[0]]
+        # TODO: Workaround zero-division.
         G = interpolate.interp1d(X, Y, axis=0, fill_value='extrapolate')
         pixels = G(Z).astype(np.uint8)
         if pixels.shape[-1] == 1:

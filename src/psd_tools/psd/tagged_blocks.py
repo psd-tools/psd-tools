@@ -491,6 +491,7 @@ class MetadataSetting(BaseElement):
         elif key in (b'cust', b'cmls', b'extn', b'mlst'):
             data = DescriptorBlock.frombytes(data, padding=4)
         else:
+            # TODO: Unknown b'tmln' key.
             message = 'Unknown metadata key %r' % (key)
             logger.warning(message)
             warn(message)
