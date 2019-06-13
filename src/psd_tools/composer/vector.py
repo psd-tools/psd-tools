@@ -115,29 +115,27 @@ def draw_pattern_fill(image, psd, setting, mode=None):
 
     scale = setting.get(b'Scl ', 100) / 100.
     if scale != 1.:
-        panel = panel.resize(
-            (int(panel.width * scale), int(panel.height * scale))
-        )
+        panel = panel.resize((
+            max(1, int(panel.width * scale)),
+            max(1, int(panel.height * scale)),
+        ))
 
-    opacity = int(setting.get(b'Opct', 100) / 100. * 255)
-    if opacity != 255:
-        panel.putalpha(opacity)
+    opacity = int(setting.get(b'Opct', 100))
+    if opacity != 100:
+        if panel.mode.endswith('A'):
+            alpha = panel.getchannel('A')
+            alpha = alpha.point(lambda x: int(x * opacity / 100))
+            panel.putalpha(alpha)
+        else:
+            panel.putalpha(int(opacity * 255))
 
-    pattern_image = Image.new(image.mode, image.size)
-    if mode and image.mode.endswith('A'):
-        mask = image.getchannel('A')
-    else:
-        mask = Image.new('L', image.size, 255)
-
-    for left in range(0, pattern_image.width, panel.width):
-        for top in range(0, pattern_image.height, panel.height):
-            panel_mask = mask.crop(
-                (left, top, left + panel.width, top + panel.height)
-            )
-            pattern_image.paste(panel, (left, top), panel_mask)
+    pattern_image = Image.new(panel.mode, image.size)
+    for top in range(0, pattern_image.height, panel.height):
+        for left in range(0, pattern_image.width, panel.width):
+            pattern_image.paste(panel, (left, top))
 
     if mode:
-        image.paste(blend(image, pattern_image, (0, 0), mode=mode))
+        blend(image, pattern_image, (0, 0), mode=mode)
     else:
         image.paste(pattern_image)
 
