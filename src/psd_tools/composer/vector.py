@@ -145,7 +145,6 @@ def draw_pattern_fill(image, psd, setting, mode=None):
 def draw_gradient_fill(image, setting, mode=None):
     try:
         import numpy as np
-        from scipy import interpolate
     except ImportError:
         logger.error('Gradient fill requires numpy and scipy.')
         return None
@@ -153,17 +152,19 @@ def draw_gradient_fill(image, setting, mode=None):
     angle = float(setting.get(Key.Angle, 0))
     scale = float(setting.get(Key.Scale, 100.)) / 100.
     reverse = bool(setting.get(Key.Reverse, False))
-    gradient_kind = setting.get(b'Type').get_name()
-    if gradient_kind == 'Linear':
+    gradient_kind = setting.get(Key.Type).enum
+    if gradient_kind == Enum.Linear:
         Z = _make_linear_gradient(
             image.width, image.height, -angle, scale, reverse
         )
+    elif gradient_kind == Enum.Radial:
+        Z = _make_radial_gradient(image.width, image.height, scale, reverse)
     else:
         # TODO: Support other gradient.
-        logger.warning('Only linear gradient is supported.')
+        logger.warning('Gradient style %s is not supported.' % (gradient_kind))
         Z = np.ones((image.height, image.width)) * 0.5
 
-    gradient_image = _apply_color_map(image.mode, setting.get(b'Grad'), Z)
+    gradient_image = _apply_color_map(image.mode, setting.get(Key.Gradient), Z)
     if gradient_image:
         if mode:
             if image.mode.endswith('A'):
@@ -192,6 +193,17 @@ def _make_linear_gradient(width, height, angle=90., scale=1., reverse=False):
         Z = np.abs(c * X + s * (Y - height))
     Z = (Z - Z.min()) / (Z.max() - Z.min())
     Z = np.maximum(0., np.minimum(1., np.sqrt(2) * (Z - 0.5) / scale + 0.5))
+    return Z
+
+
+def _make_radial_gradient(width, height, scale=1., reverse=False):
+    """Generates index map for linear gradients."""
+    import numpy as np
+    X, Y = np.meshgrid(np.linspace(-1, 1, width), np.linspace(-1, 1, height))
+    Z = np.sqrt(np.power(X / scale, 2) + np.power(Y / scale, 2))
+    Z = np.maximum(0., np.minimum(1., Z))
+    if reverse:
+        Z = 1 - Z
     return Z
 
 

@@ -72,3 +72,14 @@ def test_draw_gradient_fill():
 
     setting.get(b'Type').enum = Enum.Radial.value
     draw_gradient_fill(image, setting)
+
+
+def test_gradient_styles():
+    psd = PSDImage.open(full_name('gradient-styles.psd'))
+    for artboard in psd[0:3]:
+        for layer in artboard:
+            setting = layer.tagged_blocks.get_data(Tag.GRADIENT_FILL_SETTING)
+            if setting.get(Key.Type).enum in (Enum.Linear, Enum.Radial):
+                reference = layer.compose().convert('RGB')
+                rendered = layer.compose(force=True).convert('RGB')
+                assert _calculate_hash_error(reference, rendered) <= 0.1
