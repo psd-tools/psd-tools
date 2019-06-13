@@ -165,9 +165,10 @@ def draw_gradient_fill(image, setting, mode=None):
         Z = _make_angle_gradient(X, Y, angle)
     elif gradient_kind == Enum.Reflected:
         Z = _make_reflected_gradient(X, Y, angle)
+    elif gradient_kind == Enum.Diamond:
+        Z = _make_diamond_gradient(X, Y, angle)
     else:
-        # TODO: Support other gradient.
-        logger.warning('Gradient style %s is not supported.' % (gradient_kind))
+        logger.warning('Unknown gradient style: %s.' % (gradient_kind))
         Z = np.ones((image.height, image.width)) * 0.5
 
     Z = np.maximum(0, np.minimum(1, Z))
@@ -211,6 +212,15 @@ def _make_reflected_gradient(X, Y, angle):
     import numpy as np
     theta = np.radians(angle % 360)
     Z = np.abs((np.cos(theta) * X - np.sin(theta) * Y))
+    return Z
+
+
+def _make_diamond_gradient(X, Y, angle):
+    """Generates index map for diamond gradients."""
+    import numpy as np
+    theta = np.radians(angle % 360)
+    Z = np.abs(np.cos(theta) * X - np.sin(theta) *
+               Y) + np.abs(np.sin(theta) * X + np.cos(theta) * Y)
     return Z
 
 
