@@ -151,18 +151,26 @@ def draw_gradient_fill(image, setting, mode=None):
 
     angle = float(setting.get(Key.Angle, 0))
     scale = float(setting.get(Key.Scale, 100.)) / 100.
-    reverse = bool(setting.get(Key.Reverse, False))
     gradient_kind = setting.get(Key.Type).enum
+
+    X, Y = np.meshgrid(
+        np.linspace(-1. / scale, 1. / scale, image.width),
+        np.linspace(-1. / scale, 1. / scale, image.height),
+    )
     if gradient_kind == Enum.Linear:
-        Z = _make_linear_gradient(
-            image.width, image.height, -angle, scale, reverse
-        )
+        Z = _make_linear_gradient(X, Y, angle)
     elif gradient_kind == Enum.Radial:
-        Z = _make_radial_gradient(image.width, image.height, scale, reverse)
+        Z = _make_radial_gradient(X, Y)
+    elif gradient_kind == Enum.Angle:
+        Z = _make_angle_gradient(X, Y, angle)
     else:
         # TODO: Support other gradient.
         logger.warning('Gradient style %s is not supported.' % (gradient_kind))
         Z = np.ones((image.height, image.width)) * 0.5
+
+    Z = np.maximum(0, np.minimum(1, Z))
+    if bool(setting.get(Key.Reverse, False)):
+        Z = 1 - Z
 
     gradient_image = _apply_color_map(image.mode, setting.get(Key.Gradient), Z)
     if gradient_image:
@@ -174,36 +182,25 @@ def draw_gradient_fill(image, setting, mode=None):
             image.paste(gradient_image)
 
 
-def _make_linear_gradient(width, height, angle=90., scale=1., reverse=False):
+def _make_linear_gradient(X, Y, angle):
     """Generates index map for linear gradients."""
     import numpy as np
-    if reverse:
-        X, Y = np.meshgrid(np.linspace(1, 0, width), np.linspace(1, 0, height))
-    else:
-        X, Y = np.meshgrid(np.linspace(0, 1, width), np.linspace(0, 1, height))
     theta = np.radians(angle % 360)
-    c, s = np.cos(theta), np.sin(theta)
-    if 0 <= theta and theta < 0.5 * np.pi:
-        Z = np.abs(c * X + s * Y)
-    elif 0.5 * np.pi <= theta and theta < np.pi:
-        Z = np.abs(c * (X - width) + s * Y)
-    elif np.pi <= theta and theta < 1.5 * np.pi:
-        Z = np.abs(c * (X - width) + s * (Y - height))
-    elif 1.5 * np.pi <= theta and theta < 2.0 * np.pi:
-        Z = np.abs(c * X + s * (Y - height))
-    Z = (Z - Z.min()) / (Z.max() - Z.min())
-    Z = np.maximum(0., np.minimum(1., np.sqrt(2) * (Z - 0.5) / scale + 0.5))
+    Z = .5 * (np.cos(theta) * X - np.sin(theta) * Y + 1)
     return Z
 
 
-def _make_radial_gradient(width, height, scale=1., reverse=False):
-    """Generates index map for linear gradients."""
+def _make_radial_gradient(X, Y):
+    """Generates index map for radial gradients."""
     import numpy as np
-    X, Y = np.meshgrid(np.linspace(-1, 1, width), np.linspace(-1, 1, height))
-    Z = np.sqrt(np.power(X / scale, 2) + np.power(Y / scale, 2))
-    Z = np.maximum(0., np.minimum(1., Z))
-    if reverse:
-        Z = 1 - Z
+    Z = np.sqrt(np.power(X, 2) + np.power(Y, 2))
+    return Z
+
+
+def _make_angle_gradient(X, Y, angle):
+    """Generates index map for angle gradients."""
+    import numpy as np
+    Z = (((180 * np.arctan2(Y, X) / np.pi) + angle) % 360) / 360
     return Z
 
 
