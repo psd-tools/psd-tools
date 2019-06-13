@@ -151,12 +151,13 @@ def draw_gradient_fill(image, setting, mode=None):
 
     angle = float(setting.get(Key.Angle, 0))
     scale = float(setting.get(Key.Scale, 100.)) / 100.
-    gradient_kind = setting.get(Key.Type).enum
-
+    scale *= min(image.height, image.width)
     X, Y = np.meshgrid(
-        np.linspace(-1. / scale, 1. / scale, image.width),
-        np.linspace(-1. / scale, 1. / scale, image.height),
+        np.linspace(-image.width / scale, image.width / scale, image.width),
+        np.linspace(-image.height / scale, image.height / scale, image.height),
     )
+
+    gradient_kind = setting.get(Key.Type).enum
     if gradient_kind == Enum.Linear:
         Z = _make_linear_gradient(X, Y, angle)
     elif gradient_kind == Enum.Radial:
