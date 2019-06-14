@@ -149,7 +149,8 @@ def draw_gradient_fill(image, setting, mode=None):
 
     angle = float(setting.get(Key.Angle, 0))
     scale = float(setting.get(Key.Scale, 100.)) / 100.
-    scale *= min(image.height, image.width)
+    ratio = (angle % 90)
+    scale *= (90. - ratio) / 90. * image.width + (ratio / 90.) * image.height
     X, Y = np.meshgrid(
         np.linspace(-image.width / scale, image.width / scale, image.width),
         np.linspace(-image.height / scale, image.height / scale, image.height),
