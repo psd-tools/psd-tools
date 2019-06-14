@@ -88,7 +88,7 @@ def _apply_opacity(image, setting):
             alpha = alpha.point(lambda x: int(x * opacity / 100.))
             image.putalpha(alpha)
         else:
-            image.putalpha(int(opacity * 255))
+            image.putalpha(int(opacity * 2.55))
 
 
 def draw_solid_color_fill(mode, size, setting):
