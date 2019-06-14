@@ -9,7 +9,7 @@ from psd_tools.composer.vector import (
     draw_solid_color_fill, draw_pattern_fill, draw_gradient_fill
 )
 from psd_tools.psd.descriptor import Double
-from psd_tools.terminology import Enum, Key
+from psd_tools.terminology import Enum, Key, Type
 
 from ..utils import full_name
 from .test_composer import _calculate_hash_error
@@ -69,11 +69,17 @@ def test_draw_gradient_fill():
     draw_gradient_fill('RGBA', psd.size, setting)
 
 
-def test_gradient_styles():
-    psd = PSDImage.open(full_name('gradient-styles.psd'))
+@pytest.mark.parametrize(("filename", ), [
+    ('gradient-styles.psd', ),
+    ('gradient-sizes.psd', ),
+])
+def test_gradient_styles(filename):
+    psd = PSDImage.open(full_name(filename))
     for artboard in psd[0:3]:
         for layer in artboard:
             setting = layer.tagged_blocks.get_data(Tag.GRADIENT_FILL_SETTING)
-            reference = layer.compose().convert('RGB')
-            rendered = layer.compose(force=True).convert('RGB')
-            assert _calculate_hash_error(reference, rendered) <= 0.1
+            form = setting.get(Key.Gradient).get(Type.GradientForm).enum
+            if form == Enum.CustomStops:
+                reference = layer.compose().convert('RGB')
+                rendered = layer.compose(force=True).convert('RGB')
+                assert _calculate_hash_error(reference, rendered) <= 0.1
