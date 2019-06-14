@@ -42,18 +42,17 @@ def blend(backdrop, image, offset, mode=None):
         backdrop = backdrop.convert('RGBA')
 
     # Composite blended image.
-    if mode == BlendMode.NORMAL:
-        backdrop.alpha_composite(image)
-    else:
+    if mode != BlendMode.NORMAL:
         blend_func = BLEND_FUNCTIONS.get(mode, _normal)
-        _alpha_composite(backdrop, image, blend_func)
+        image = _blend_image(backdrop, image, blend_func)
+    backdrop = Image.alpha_composite(backdrop, image)
 
     if target_mode != 'RGBA':
         backdrop = backdrop.convert(target_mode)
     return backdrop
 
 
-def _alpha_composite(backdrop, source, blend_fn):
+def _blend_image(backdrop, source, blend_fn):
     from PIL import Image
     import numpy as np
     Cb = np.asarray(backdrop.convert('RGB')).astype(np.float) / 255.
@@ -63,7 +62,7 @@ def _alpha_composite(backdrop, source, blend_fn):
     Cr = (1. - Ab) * Cs + Ab * blend_fn(Cs, Cb)
     result = Image.fromarray((Cr * 255).round().astype(np.uint8), mode='RGB')
     result.putalpha(source.getchannel('A'))
-    backdrop.alpha_composite(result)
+    return result
 
 
 @register(BlendMode.NORMAL)

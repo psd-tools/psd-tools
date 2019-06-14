@@ -5,7 +5,6 @@ from __future__ import absolute_import, unicode_literals
 import logging
 
 from psd_tools.api.pil_io import convert_pattern_to_pil
-from psd_tools.composer.blend import blend
 from psd_tools.terminology import Enum, Key, Type
 
 logger = logging.getLogger(__name__)
@@ -81,29 +80,35 @@ def _generate_symbol(path, width, height, command='C'):
         yield 'Z'
 
 
-def draw_solid_color_fill(image, setting, mode=None):
+def _apply_opacity(image, setting):
+    opacity = int(setting.get(Key.Opacity, 100))
+    if opacity != 100:
+        if image.mode.endswith('A'):
+            alpha = image.getchannel('A')
+            alpha = alpha.point(lambda x: int(x * opacity / 100.))
+            image.putalpha(alpha)
+        else:
+            image.putalpha(int(opacity * 255))
+
+
+def draw_solid_color_fill(mode, size, setting):
     from PIL import Image, ImageDraw, ImageChops
     color = tuple(int(x) for x in setting.get(Key.Color).values())
-    canvas = Image.new(image.mode, image.size)
+    canvas = Image.new(mode, size)
     draw = ImageDraw.Draw(canvas)
     draw.rectangle((0, 0, canvas.width, canvas.height), fill=color)
     del draw
-    if mode:
-        if image.mode.endswith('A'):
-            canvas.putalpha(image.getchannel('A'))
-        blend(image, canvas, (0, 0), mode=mode)
-    else:
-        image.paste(canvas)
+    _apply_opacity(canvas, setting)
+    return canvas
 
 
-def draw_pattern_fill(image, psd, setting, mode=None):
+def draw_pattern_fill(size, psd, setting):
     """
-    Draw pattern fill on the image.
+    Create a pattern fill image.
 
-    :param image: Image to be filled.
+    :param size: (width, height) tuple.
     :param psd: :py:class:`PSDImage`.
     :param setting: Descriptor containing pattern fill.
-    :param mode: Blend the fill or ignore if None.
     """
     from PIL import Image
     pattern_id = setting[Enum.Pattern][Key.ID].value.rstrip('\x00')
@@ -119,28 +124,24 @@ def draw_pattern_fill(image, psd, setting, mode=None):
             max(1, int(panel.width * scale)),
             max(1, int(panel.height * scale)),
         ))
+    _apply_opacity(panel, setting)
 
-    opacity = int(setting.get(Key.Opacity, 100))
-    if opacity != 100:
-        if panel.mode.endswith('A'):
-            alpha = panel.getchannel('A')
-            alpha = alpha.point(lambda x: int(x * opacity / 100))
-            panel.putalpha(alpha)
-        else:
-            panel.putalpha(int(opacity * 255))
-
-    pattern_image = Image.new(panel.mode, image.size)
+    pattern_image = Image.new(panel.mode, size)
     for top in range(0, pattern_image.height, panel.height):
         for left in range(0, pattern_image.width, panel.width):
             pattern_image.paste(panel, (left, top))
 
-    if mode:
-        blend(image, pattern_image, (0, 0), mode=mode)
-    else:
-        image.paste(pattern_image)
+    return pattern_image
 
 
-def draw_gradient_fill(image, setting, mode=None):
+def draw_gradient_fill(mode, size, setting):
+    """
+    Create a gradient fill image.
+
+    :param mode: PIL.Image mode str.
+    :param size: (width, height) tuple.
+    :param setting: Descriptor containing pattern fill.
+    """
     try:
         import numpy as np
     except ImportError:
@@ -150,10 +151,10 @@ def draw_gradient_fill(image, setting, mode=None):
     angle = float(setting.get(Key.Angle, 0))
     scale = float(setting.get(Key.Scale, 100.)) / 100.
     ratio = (angle % 90)
-    scale *= (90. - ratio) / 90. * image.width + (ratio / 90.) * image.height
+    scale *= (90. - ratio) / 90. * size[0] + (ratio / 90.) * size[1]
     X, Y = np.meshgrid(
-        np.linspace(-image.width / scale, image.width / scale, image.width),
-        np.linspace(-image.height / scale, image.height / scale, image.height),
+        np.linspace(-size[0] / scale, size[0] / scale, size[0]),
+        np.linspace(-size[1] / scale, size[1] / scale, size[1]),
     )
 
     gradient_kind = setting.get(Key.Type).enum
@@ -169,20 +170,15 @@ def draw_gradient_fill(image, setting, mode=None):
         Z = _make_diamond_gradient(X, Y, angle)
     else:
         logger.warning('Unknown gradient style: %s.' % (gradient_kind))
-        Z = np.ones((image.height, image.width)) * 0.5
+        Z = np.ones((size[1], size[0])) * 0.5
 
     Z = np.maximum(0, np.minimum(1, Z))
     if bool(setting.get(Key.Reverse, False)):
         Z = 1 - Z
 
-    gradient_image = _apply_color_map(image.mode, setting.get(Key.Gradient), Z)
-    if gradient_image:
-        if mode:
-            if image.mode.endswith('A'):
-                gradient_image.putalpha(image.getchannel('A'))
-            blend(image, gradient_image, (0, 0), mode=mode)
-        else:
-            image.paste(gradient_image)
+    gradient_image = _apply_color_map(mode, setting.get(Key.Gradient), Z)
+    _apply_opacity(gradient_image, setting)
+    return gradient_image
 
 
 def _make_linear_gradient(X, Y, angle):
@@ -287,7 +283,9 @@ def _apply_color_map(mode, grad, Z):
         if len(X) == 1:
             X = [0., 1.]
             Y = [Y[0], Y[0]]
-        G = interpolate.interp1d(X, Y, axis=0, fill_value='extrapolate')
+        G = interpolate.interp1d(
+            X, Y, axis=0, bounds_error=False, fill_value=(Y[0], Y[-1])
+        )
         pixels = G(Z).astype(np.uint8)
         if pixels.shape[-1] == 1:
             pixels = pixels[:, :, 0]
@@ -306,9 +304,12 @@ def _apply_color_map(mode, grad, Z):
             if len(X) == 1:
                 X = [0., 1.]
                 Y = [Y[0], Y[0]]
-            G = interpolate.interp1d(X, Y, axis=0, fill_value='extrapolate')
+            G = interpolate.interp1d(
+                X, Y, axis=0, bounds_error=False, fill_value=(Y[0], Y[-1])
+            )
             alpha = G(Z).astype(np.uint8)
             image.putalpha(Image.fromarray(alpha, 'L'))
     else:
         logger.error('Unknown gradient form: %s' % gradient_form)
+        return None
     return image

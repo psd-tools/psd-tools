@@ -4,7 +4,7 @@ import logging
 from PIL import Image
 
 from psd_tools import PSDImage
-from psd_tools.constants import Tag, BlendMode
+from psd_tools.constants import Tag
 from psd_tools.composer.vector import (
     draw_solid_color_fill, draw_pattern_fill, draw_gradient_fill
 )
@@ -38,28 +38,23 @@ def test_draw_vector_mask(filename):
 def test_draw_solid_color_fill():
     psd = PSDImage.open(full_name('layers-minimal/solid-color-fill.psd'))
     setting = psd[0].tagged_blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING)
-    image = Image.new('RGBA', psd.size)
-    draw_solid_color_fill(image, setting)
-    draw_solid_color_fill(image, setting, BlendMode.SCREEN)
+    draw_solid_color_fill('RGBA', psd.size, setting)
 
 
 def test_draw_pattern_fill():
     psd = PSDImage.open(full_name('layers-minimal/pattern-fill.psd'))
     setting = psd[0].tagged_blocks.get_data(Tag.PATTERN_FILL_SETTING)
     image = Image.new('RGBA', psd.size)
-    draw_pattern_fill(image, psd, setting)
-    draw_pattern_fill(image, psd, setting, BlendMode.SCREEN)
+    draw_pattern_fill(psd.size, psd, setting)
     setting[b'Scl '] = Double(50.)
     setting[b'Opct'] = Double(67.)
-    draw_pattern_fill(image, psd, setting, BlendMode.NORMAL)
+    draw_pattern_fill(psd.size, psd, setting)
 
 
 def test_draw_gradient_fill():
     psd = PSDImage.open(full_name('layers-minimal/gradient-fill.psd'))
     setting = psd[0].tagged_blocks.get_data(Tag.GRADIENT_FILL_SETTING)
-    image = Image.new('RGBA', psd.size)
-    draw_gradient_fill(image, setting)
-    draw_gradient_fill(image, setting, BlendMode.SCREEN)
+    draw_gradient_fill('RGBA', psd.size, setting)
 
     for angle in (
         -90.,
@@ -68,10 +63,10 @@ def test_draw_gradient_fill():
         180.,
     ):
         setting.get(Key.Angle.value).value = angle
-        draw_gradient_fill(image, setting)
+        draw_gradient_fill('RGBA', psd.size, setting)
 
     setting.get(b'Type').enum = Enum.Radial.value
-    draw_gradient_fill(image, setting)
+    draw_gradient_fill('RGBA', psd.size, setting)
 
 
 def test_gradient_styles():
