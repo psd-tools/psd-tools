@@ -14,6 +14,7 @@ from psd_tools.composer.vector import (
     draw_pattern_fill, draw_gradient_fill, draw_solid_color_fill,
     draw_vector_mask
 )
+from psd_tools.terminology import Enum, Key
 
 logger = logging.getLogger(__name__)
 
@@ -193,9 +194,9 @@ def create_fill(layer):
     if Tag.VECTOR_STROKE_CONTENT_DATA in layer.tagged_blocks:
         image = Image.new(mode, (layer.width, layer.height), 'white')
         setting = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)
-        if b'Ptrn' in setting:
+        if Enum.Pattern in setting:
             draw_pattern_fill(image, layer._psd, setting)
-        elif b'Grad' in setting:
+        elif Key.Gradient in setting:
             draw_gradient_fill(image, setting)
         else:
             draw_solid_color_fill(image, setting)

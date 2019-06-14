@@ -6,7 +6,7 @@ import logging
 
 from psd_tools.api.pil_io import convert_pattern_to_pil
 from psd_tools.composer.blend import blend
-from psd_tools.terminology import Enum, Key
+from psd_tools.terminology import Enum, Key, Type
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +83,7 @@ def _generate_symbol(path, width, height, command='C'):
 
 def draw_solid_color_fill(image, setting, mode=None):
     from PIL import Image, ImageDraw, ImageChops
-    color = tuple(int(x) for x in setting.get(b'Clr ').values())
+    color = tuple(int(x) for x in setting.get(Key.Color).values())
     canvas = Image.new(image.mode, image.size)
     draw = ImageDraw.Draw(canvas)
     draw.rectangle((0, 0, canvas.width, canvas.height), fill=color)
@@ -106,21 +106,21 @@ def draw_pattern_fill(image, psd, setting, mode=None):
     :param mode: Blend the fill or ignore if None.
     """
     from PIL import Image
-    pattern_id = setting[b'Ptrn'][b'Idnt'].value.rstrip('\x00')
+    pattern_id = setting[Enum.Pattern][Key.ID].value.rstrip('\x00')
     pattern = psd._get_pattern(pattern_id)
     if not pattern:
         logger.error('Pattern not found: %s' % (pattern_id))
         return None
     panel = convert_pattern_to_pil(pattern, psd._record.header.version)
 
-    scale = setting.get(b'Scl ', 100) / 100.
+    scale = float(setting.get(Key.Scale, 100.)) / 100.
     if scale != 1.:
         panel = panel.resize((
             max(1, int(panel.width * scale)),
             max(1, int(panel.height * scale)),
         ))
 
-    opacity = int(setting.get(b'Opct', 100))
+    opacity = int(setting.get(Key.Opacity, 100))
     if opacity != 100:
         if panel.mode.endswith('A'):
             alpha = panel.getchannel('A')
@@ -229,7 +229,8 @@ def _apply_color_map(mode, grad, Z):
     from scipy import interpolate
     from PIL import Image
 
-    if grad.get(b'GrdF').enum == Enum.ColorNoise:
+    gradient_form = grad.get(Type.GradientForm).enum
+    if gradient_form == Enum.ColorNoise:
         """
         TODO: Improve noise gradient quality.
 
@@ -267,7 +268,7 @@ def _apply_color_map(mode, grad, Z):
         if pixels.shape[-1] == 1:
             pixels = pixels[:, :, 0]
         image = Image.fromarray(pixels, mode)
-    elif grad.get(b'GrdF').enum == Enum.CustomStops:
+    elif gradient_form == Enum.CustomStops:
         scalar = {
             'RGB': 1.0,
             'L': 2.55,
@@ -307,4 +308,6 @@ def _apply_color_map(mode, grad, Z):
             G = interpolate.interp1d(X, Y, axis=0, fill_value='extrapolate')
             alpha = G(Z).astype(np.uint8)
             image.putalpha(Image.fromarray(alpha, 'L'))
+    else:
+        logger.error('Unknown gradient form: %s' % gradient_form)
     return image
