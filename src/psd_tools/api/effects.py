@@ -129,7 +129,7 @@ class _ColorMixin(object):
     @property
     def blend_mode(self):
         """Effect blending mode."""
-        return self.value.get(Key.Mode).get_name()
+        return self.value.get(Key.Mode).enum
 
 
 class _ChokeNoiseMixin(_ColorMixin):
@@ -203,7 +203,7 @@ class _GlowEffect(_Effect, _ChokeNoiseMixin, _GradientMixin):
     @property
     def glow_type(self):
         """Glow type."""
-        return self.value.get(Key.GlowTechnique).get_name()
+        return self.value.get(Key.GlowTechnique).enum
 
     @property
     def quality_range(self):
@@ -224,7 +224,7 @@ class _AlignScaleMixin(object):
     @property
     def blend_mode(self):
         """Effect blending mode."""
-        return self.value.get(Key.Mode).get_name()
+        return self.value.get(Key.Mode).enum
 
     @property
     def scale(self):
@@ -262,7 +262,7 @@ class InnerGlow(_GlowEffect):
     @property
     def glow_source(self):
         """Elements source."""
-        return self.value.get(Key.InnerGlowSource).get_name()
+        return self.value.get(Key.InnerGlowSource).enum
 
 
 @register(Klass.SolidFill.value)
@@ -283,7 +283,7 @@ class GradientOverlay(_OverlayEffect, _AlignScaleMixin, _GradientMixin):
         Gradient type, one of `linear`, `radial`, `angle`, `reflected`, or
         `diamond`.
         """
-        return self.value.get(Key.Type).get_name()
+        return self.value.get(Key.Type).enum
 
     @property
     def reversed(self):
@@ -316,12 +316,12 @@ class Stroke(_Effect, _ColorMixin, _PatternMixin, _GradientMixin):
         """
         Position of the stroke, InsetFrame, OutsetFrame, or CenteredFrame.
         """
-        return self.value.get(Key.Style).get_name()
+        return self.value.get(Key.Style).enum
 
     @property
     def fill_type(self):
         """Fill type, SolidColor, Gradient, or Pattern."""
-        return self.value.get(Key.PaintType).get_name()
+        return self.value.get(Key.PaintType).enum
 
     @property
     def size(self):
@@ -339,7 +339,7 @@ class BevelEmboss(_Effect, _AngleMixin):
     @property
     def highlight_mode(self):
         """Highlight blending mode."""
-        return self.value.get(Key.HighlightMode).get_name()
+        return self.value.get(Key.HighlightMode).enum
 
     @property
     def highlight_color(self):
@@ -354,7 +354,7 @@ class BevelEmboss(_Effect, _AngleMixin):
     @property
     def shadow_mode(self):
         """Shadow blending mode."""
-        return self.value.get(Key.ShadowMode).get_name()
+        return self.value.get(Key.ShadowMode).enum
 
     @property
     def shadow_color(self):
@@ -369,7 +369,7 @@ class BevelEmboss(_Effect, _AngleMixin):
     @property
     def bevel_type(self):
         """Bevel type, one of `SoftMatte`, `HardLight`, `SoftLight`."""
-        return self.value.get(Key.BevelTechnique).get_name()
+        return self.value.get(Key.BevelTechnique).enum
 
     @property
     def bevel_style(self):
@@ -377,7 +377,7 @@ class BevelEmboss(_Effect, _AngleMixin):
         Bevel style, one of `OuterBevel`, `InnerBevel`, `Emboss`,
         `PillowEmboss`, or `StrokeEmboss`.
         """
-        return self.value.get(Key.BevelStyle).get_name()
+        return self.value.get(Key.BevelStyle).enum
 
     @property
     def altitude(self):
@@ -397,7 +397,7 @@ class BevelEmboss(_Effect, _AngleMixin):
     @property
     def direction(self):
         """Direction, either `StampIn` or `StampOut`."""
-        return self.value.get(Key.BevelDirection).get_name()
+        return self.value.get(Key.BevelDirection).enum
 
     @property
     def contour(self):
