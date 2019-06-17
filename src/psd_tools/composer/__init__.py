@@ -190,26 +190,34 @@ def compose_layer(layer, force=False, **kwargs):
 
 
 def create_fill(layer):
+    from PIL import Image
     mode = get_pil_mode(layer._psd.color_mode, True)
     size = (layer.width, layer.height)
+    fill_image = None
+    stroke = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_DATA)
+
+    # Apply fill.
     if Tag.VECTOR_STROKE_CONTENT_DATA in layer.tagged_blocks:
         setting = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)
-        if Enum.Pattern in setting:
-            return draw_pattern_fill(size, layer._psd, setting)
+        if stroke and bool(stroke.get('fillEnabled', True)) is False:
+            fill_image = Image.new(mode, size)
+        elif Enum.Pattern in setting:
+            fill_image = draw_pattern_fill(size, layer._psd, setting)
         elif Key.Gradient in setting:
-            return draw_gradient_fill(mode, size, setting)
+            fill_image = draw_gradient_fill(mode, size, setting)
         else:
-            return draw_solid_color_fill(mode, size, setting)
+            fill_image = draw_solid_color_fill(mode, size, setting)
     elif Tag.SOLID_COLOR_SHEET_SETTING in layer.tagged_blocks:
         setting = layer.tagged_blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING)
-        return draw_solid_color_fill(mode, size, setting)
+        fill_image = draw_solid_color_fill(mode, size, setting)
     elif Tag.PATTERN_FILL_SETTING in layer.tagged_blocks:
         setting = layer.tagged_blocks.get_data(Tag.PATTERN_FILL_SETTING)
-        return draw_pattern_fill(size, layer._psd, setting)
+        fill_image = draw_pattern_fill(size, layer._psd, setting)
     elif Tag.GRADIENT_FILL_SETTING in layer.tagged_blocks:
         setting = layer.tagged_blocks.get_data(Tag.GRADIENT_FILL_SETTING)
-        return draw_gradient_fill(mode, size, setting)
-    return None
+        fill_image = draw_gradient_fill(mode, size, setting)
+
+    return fill_image
 
 
 def apply_mask(layer, image):
