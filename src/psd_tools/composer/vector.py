@@ -5,8 +5,7 @@ from __future__ import absolute_import, unicode_literals
 import logging
 
 from psd_tools.api.pil_io import convert_pattern_to_pil
-from psd_tools.composer.blend import blend
-from psd_tools.terminology import Enum, Key
+from psd_tools.terminology import Enum, Key, Type
 
 logger = logging.getLogger(__name__)
 
@@ -81,68 +80,68 @@ def _generate_symbol(path, width, height, command='C'):
         yield 'Z'
 
 
-def draw_solid_color_fill(image, setting, mode=None):
+def _apply_opacity(image, setting):
+    opacity = int(setting.get(Key.Opacity, 100))
+    if opacity != 100:
+        if image.mode.endswith('A'):
+            alpha = image.getchannel('A')
+            alpha = alpha.point(lambda x: int(x * opacity / 100.))
+            image.putalpha(alpha)
+        else:
+            image.putalpha(int(opacity * 2.55))
+
+
+def draw_solid_color_fill(mode, size, setting):
     from PIL import Image, ImageDraw, ImageChops
-    color = tuple(int(x) for x in setting.get(b'Clr ').values())
-    canvas = Image.new(image.mode, image.size)
+    color = tuple(int(x) for x in setting.get(Key.Color).values())
+    canvas = Image.new(mode, size)
     draw = ImageDraw.Draw(canvas)
     draw.rectangle((0, 0, canvas.width, canvas.height), fill=color)
     del draw
-    if mode:
-        if image.mode.endswith('A'):
-            canvas.putalpha(image.getchannel('A'))
-        blend(image, canvas, (0, 0), mode=mode)
-    else:
-        image.paste(canvas)
+    _apply_opacity(canvas, setting)
+    return canvas
 
 
-def draw_pattern_fill(image, psd, setting, mode=None):
+def draw_pattern_fill(size, psd, setting):
     """
-    Draw pattern fill on the image.
+    Create a pattern fill image.
 
-    :param image: Image to be filled.
+    :param size: (width, height) tuple.
     :param psd: :py:class:`PSDImage`.
     :param setting: Descriptor containing pattern fill.
-    :param mode: Blend the fill or ignore if None.
     """
     from PIL import Image
-    pattern_id = setting[b'Ptrn'][b'Idnt'].value.rstrip('\x00')
+    pattern_id = setting[Enum.Pattern][Key.ID].value.rstrip('\x00')
     pattern = psd._get_pattern(pattern_id)
     if not pattern:
         logger.error('Pattern not found: %s' % (pattern_id))
         return None
     panel = convert_pattern_to_pil(pattern, psd._record.header.version)
 
-    scale = setting.get(b'Scl ', 100) / 100.
+    scale = float(setting.get(Key.Scale, 100.)) / 100.
     if scale != 1.:
-        panel = panel.resize(
-            (int(panel.width * scale), int(panel.height * scale))
-        )
+        panel = panel.resize((
+            max(1, int(panel.width * scale)),
+            max(1, int(panel.height * scale)),
+        ))
+    _apply_opacity(panel, setting)
 
-    opacity = int(setting.get(b'Opct', 100) / 100. * 255)
-    if opacity != 255:
-        panel.putalpha(opacity)
+    pattern_image = Image.new(panel.mode, size)
+    for top in range(0, pattern_image.height, panel.height):
+        for left in range(0, pattern_image.width, panel.width):
+            pattern_image.paste(panel, (left, top))
 
-    pattern_image = Image.new(image.mode, image.size)
-    if mode and image.mode.endswith('A'):
-        mask = image.getchannel('A')
-    else:
-        mask = Image.new('L', image.size, 255)
-
-    for left in range(0, pattern_image.width, panel.width):
-        for top in range(0, pattern_image.height, panel.height):
-            panel_mask = mask.crop(
-                (left, top, left + panel.width, top + panel.height)
-            )
-            pattern_image.paste(panel, (left, top), panel_mask)
-
-    if mode:
-        image.paste(blend(image, pattern_image, (0, 0), mode=mode))
-    else:
-        image.paste(pattern_image)
+    return pattern_image
 
 
-def draw_gradient_fill(image, setting, mode=None):
+def draw_gradient_fill(mode, size, setting):
+    """
+    Create a gradient fill image.
+
+    :param mode: PIL.Image mode str.
+    :param size: (width, height) tuple.
+    :param setting: Descriptor containing pattern fill.
+    """
     try:
         import numpy as np
     except ImportError:
@@ -151,10 +150,11 @@ def draw_gradient_fill(image, setting, mode=None):
 
     angle = float(setting.get(Key.Angle, 0))
     scale = float(setting.get(Key.Scale, 100.)) / 100.
-    scale *= min(image.height, image.width)
+    ratio = (angle % 90)
+    scale *= (90. - ratio) / 90. * size[0] + (ratio / 90.) * size[1]
     X, Y = np.meshgrid(
-        np.linspace(-image.width / scale, image.width / scale, image.width),
-        np.linspace(-image.height / scale, image.height / scale, image.height),
+        np.linspace(-size[0] / scale, size[0] / scale, size[0]),
+        np.linspace(-size[1] / scale, size[1] / scale, size[1]),
     )
 
     gradient_kind = setting.get(Key.Type).enum
@@ -170,20 +170,15 @@ def draw_gradient_fill(image, setting, mode=None):
         Z = _make_diamond_gradient(X, Y, angle)
     else:
         logger.warning('Unknown gradient style: %s.' % (gradient_kind))
-        Z = np.ones((image.height, image.width)) * 0.5
+        Z = np.ones((size[1], size[0])) * 0.5
 
     Z = np.maximum(0, np.minimum(1, Z))
     if bool(setting.get(Key.Reverse, False)):
         Z = 1 - Z
 
-    gradient_image = _apply_color_map(image.mode, setting.get(Key.Gradient), Z)
-    if gradient_image:
-        if mode:
-            if image.mode.endswith('A'):
-                gradient_image.putalpha(image.getchannel('A'))
-            blend(image, gradient_image, (0, 0), mode=mode)
-        else:
-            image.paste(gradient_image)
+    gradient_image = _apply_color_map(mode, setting.get(Key.Gradient), Z)
+    _apply_opacity(gradient_image, setting)
+    return gradient_image
 
 
 def _make_linear_gradient(X, Y, angle):
@@ -231,7 +226,8 @@ def _apply_color_map(mode, grad, Z):
     from scipy import interpolate
     from PIL import Image
 
-    if grad.get(b'GrdF').enum == Enum.ColorNoise:
+    gradient_form = grad.get(Type.GradientForm).enum
+    if gradient_form == Enum.ColorNoise:
         """
         TODO: Improve noise gradient quality.
 
@@ -269,38 +265,51 @@ def _apply_color_map(mode, grad, Z):
         if pixels.shape[-1] == 1:
             pixels = pixels[:, :, 0]
         image = Image.fromarray(pixels, mode)
-    elif grad.get(b'GrdF').enum == Enum.CustomStops:
+    elif gradient_form == Enum.CustomStops:
         scalar = {
             'RGB': 1.0,
             'L': 2.55,
             'CMYK': 2.55,
         }.get(mode, 1.0)
-        stops = grad.get(b'Clrs')
-        X = [stop.get(b'Lctn').value / 4096. for stop in stops]
-        Y = [
-            tuple(int(scalar * x.value) for x in stop.get(b'Clr ').values())
-            for stop in stops
-        ]
-        if len(stops) == 1:
+        X, Y = [], []
+        for stop in grad.get(Key.Colors, []):
+            location = int(stop.get(Key.Location)) / 4096.
+            color = tuple(scalar * x for x in stop.get(Key.Color).values())
+            if len(X) and X[-1] == location:
+                logger.debug('Duplicate stop at %d' % location)
+                X.pop(), Y.pop()
+            X.append(location), Y.append(color)
+        assert len(X) > 0
+        if len(X) == 1:
             X = [0., 1.]
             Y = [Y[0], Y[0]]
-        # TODO: Workaround zero-division.
-        G = interpolate.interp1d(X, Y, axis=0, fill_value='extrapolate')
+        G = interpolate.interp1d(
+            X, Y, axis=0, bounds_error=False, fill_value=(Y[0], Y[-1])
+        )
         pixels = G(Z).astype(np.uint8)
         if pixels.shape[-1] == 1:
             pixels = pixels[:, :, 0]
 
         image = Image.fromarray(pixels, mode.rstrip('A'))
-        if b'Trns' in grad and mode.endswith('A'):
-            stops = grad.get(b'Trns')
-            X = [stop.get(b'Lctn').value / 4096 for stop in stops]
-            Y = [stop.get(b'Opct').value * 2.55 for stop in stops]
-            if len(stops) == 1:
+        if Key.Transparency in grad and mode.endswith('A'):
+            X, Y = [], []
+            for stop in grad.get(Key.Transparency):
+                location = int(stop.get(Key.Location)) / 4096.
+                opacity = float(stop.get(Key.Opacity)) * 2.55
+                if len(X) and X[-1] == location:
+                    logger.debug('Duplicate stop at %d' % location)
+                    X.pop(), Y.pop()
+                X.append(location), Y.append(opacity)
+            assert len(X) > 0
+            if len(X) == 1:
                 X = [0., 1.]
                 Y = [Y[0], Y[0]]
-            G_opacity = interpolate.interp1d(
-                X, Y, axis=0, fill_value='extrapolate'
+            G = interpolate.interp1d(
+                X, Y, axis=0, bounds_error=False, fill_value=(Y[0], Y[-1])
             )
-            alpha = G_opacity(Z).astype(np.uint8)
+            alpha = G(Z).astype(np.uint8)
             image.putalpha(Image.fromarray(alpha, 'L'))
+    else:
+        logger.error('Unknown gradient form: %s' % gradient_form)
+        return None
     return image
