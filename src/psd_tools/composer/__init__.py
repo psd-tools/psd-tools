@@ -165,7 +165,9 @@ def compose_layer(layer, force=False, **kwargs):
 
     # Apply layer fill effects.
     effect_base = image.copy()
-    apply_fill_opacity(layer, image)
+    apply_opacity(
+        image, layer.tagged_blocks.get_data(Tag.BLEND_FILL_OPACITY, 255)
+    )
     image = apply_effect(layer, image, effect_base)
 
     # Clip layers.
@@ -184,7 +186,7 @@ def compose_layer(layer, force=False, **kwargs):
             image = blend(image, clip_image, (0, 0))
 
     # Apply opacity.
-    apply_opacity(layer, image)
+    apply_opacity(image, layer.opacity)
 
     return image
 
@@ -322,24 +324,12 @@ def apply_effect(layer, backdrop, base_image):
     return backdrop
 
 
-def apply_fill_opacity(layer, image):
-    fill_opacity = layer.tagged_blocks.get_data(Tag.BLEND_FILL_OPACITY, 255)
-    if fill_opacity < 255:
-        opacity = fill_opacity / 255.
+def apply_opacity(image, opacity):
+    if opacity < 255:
         if image.mode.endswith('A'):
+            opacity /= 255.
             alpha = image.getchannel('A')
             alpha = alpha.point(lambda x: int(round(x * opacity)))
             image.putalpha(alpha)
         else:
-            image.putalpha(int(255 * opacity))
-
-
-def apply_opacity(layer, image):
-    if layer.opacity < 255:
-        opacity = layer.opacity / 255.
-        if image.mode.endswith('A'):
-            alpha = image.getchannel('A')
-            alpha = alpha.point(lambda x: int(round(x * opacity)))
-            image.putalpha(alpha)
-        else:
-            image.putalpha(int(255 * opacity))
+            image.putalpha(int(opacity))
