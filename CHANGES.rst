@@ -1,3 +1,11 @@
+1.8.21 (2019-06-18)
+-------------------
+
+- change effect property return type from str to enum;
+- improve gradient quality;
+- support fill opacity and layer opacity;
+- add tmln key in metadata setting.
+
 1.8.20 (2019-06-13)
 -------------------
 
