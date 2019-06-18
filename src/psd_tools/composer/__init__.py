@@ -217,6 +217,10 @@ def create_fill(layer):
         setting = layer.tagged_blocks.get_data(Tag.GRADIENT_FILL_SETTING)
         fill_image = draw_gradient_fill(mode, size, setting)
 
+    # Apply stroke.
+    if stroke and bool(stroke.get('strokeEnabled', True)):
+        logger.debug('Stroke not supported.')
+
     return fill_image
 
 
