@@ -289,9 +289,9 @@ def apply_effect(layer, backdrop, base_image):
                 base_image.size, layer._psd, effect.value
             )
             if base_image.mode.endswith('A'):
-                alpha = ImageChops.darker(
-                    base_image.getchannel('A'), image.getchannel('A')
-                )
+                alpha = base_image.getchannel('A')
+                if image.mode.endswith('A'):
+                    alpha = ImageChops.darker(alpha, image.getchannel('A'))
                 image.putalpha(alpha)
             backdrop = blend(backdrop, image, (0, 0), effect.blend_mode)
 
@@ -301,9 +301,9 @@ def apply_effect(layer, backdrop, base_image):
                 base_image.mode, base_image.size, effect.value
             )
             if base_image.mode.endswith('A'):
-                alpha = ImageChops.darker(
-                    base_image.getchannel('A'), image.getchannel('A')
-                )
+                alpha = base_image.getchannel('A')
+                if image.mode.endswith('A'):
+                    alpha = ImageChops.darker(alpha, image.getchannel('A'))
                 image.putalpha(alpha)
             backdrop = blend(backdrop, image, (0, 0), effect.blend_mode)
 
@@ -313,9 +313,9 @@ def apply_effect(layer, backdrop, base_image):
                 base_image.mode, base_image.size, effect.value
             )
             if base_image.mode.endswith('A'):
-                alpha = ImageChops.darker(
-                    base_image.getchannel('A'), image.getchannel('A')
-                )
+                alpha = base_image.getchannel('A')
+                if image.mode.endswith('A'):
+                    alpha = ImageChops.darker(alpha, image.getchannel('A'))
                 image.putalpha(alpha)
             backdrop = blend(backdrop, image, (0, 0), effect.blend_mode)
 
