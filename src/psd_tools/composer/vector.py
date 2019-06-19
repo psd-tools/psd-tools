@@ -33,7 +33,61 @@ def draw_vector_mask(layer):
                 mask = ImageChops.invert(mask)
             mask = ImageChops.darker(mask, plane)
         first = False
-    return mask.crop(layer.bbox)
+
+    mask = mask.crop(layer.bbox)
+    mask.info['offset'] = layer.offset
+    return mask
+
+
+def draw_stroke(backdrop, layer, vector_mask=None):
+    from PIL import Image, ImageChops
+    import aggdraw
+    from psd_tools.composer.blend import blend
+    width = layer._psd.width
+    height = layer._psd.height
+    setting = layer.stroke._data
+
+    # Draw mask.
+    stroke_width = float(setting.get('strokeStyleLineWidth', 1.))
+    mask = Image.new('L', (width, height))
+    draw = aggdraw.Draw(mask)
+    for subpath in layer.vector_mask.paths:
+        path = ' '.join(map(str, _generate_symbol(subpath, width, height)))
+        symbol = aggdraw.Symbol(path)
+        pen = aggdraw.Pen(255, int(2 * stroke_width))
+        draw.symbol((0, 0), symbol, pen, None)
+    draw.flush()
+    del draw
+
+    # For now, path operations are not implemented.
+    if vector_mask:
+        vector_mask_ = Image.new('L', (width, height))
+        vector_mask_.paste(vector_mask, vector_mask.info['offset'])
+        mask = ImageChops.darker(mask, vector_mask_)
+
+    offset = backdrop.info.get('offset', layer.offset)
+    bbox = offset + (offset[0] + backdrop.width, offset[1] + backdrop.height)
+    mask = mask.crop(bbox)
+
+    # Paint the mask.
+    painter = setting.get('strokeStyleContent')
+    mode = setting.get('strokeStyleBlendMode').enum
+    if not painter:
+        logger.warning('Empty stroke style content.')
+        return backdrop
+
+    if painter.classID == b'solidColorLayer':
+        image = draw_solid_color_fill('RGB', mask.size, painter)
+    elif painter.classID == b'gradientLayer':
+        image = draw_gradient_fill('RGB', mask.size, painter)
+    elif painter.classID == b'patternLayer':
+        image = draw_pattern_fill(mask.size, layer._psd, painter)
+    else:
+        logger.warning('Unknown painter: %s' % painter)
+        return backdrop
+
+    image.putalpha(mask)
+    return blend(backdrop, image, (0, 0), mode)
 
 
 def _draw_subpath(subpath, width, height):

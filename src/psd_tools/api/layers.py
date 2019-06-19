@@ -324,6 +324,20 @@ class Layer(object):
             ]
         return self._origination
 
+    def has_stroke(self):
+        """Returns True if the shape has a stroke."""
+        return Tag.VECTOR_STROKE_DATA in self.tagged_blocks
+
+    @property
+    def stroke(self):
+        """Property for strokes."""
+        if not hasattr(self, '_stroke'):
+            self._stroke = None
+            stroke = self.tagged_blocks.get_data(Tag.VECTOR_STROKE_DATA)
+            if stroke:
+                self._stroke = Stroke(stroke)
+        return self._stroke
+
     def topil(self, **kwargs):
         """
         Get PIL Image of the layer.
@@ -869,20 +883,6 @@ class ShapeLayer(Layer):
             else:
                 self._bbox = (0, 0, 0, 0)
         return self._bbox
-
-    def has_stroke(self):
-        """Returns True if the shape has a stroke."""
-        return Tag.VECTOR_STROKE_DATA in self.tagged_blocks
-
-    @property
-    def stroke(self):
-        """Property for strokes."""
-        if not hasattr(self, '_stroke'):
-            self._stroke = None
-            stroke = self.tagged_blocks.get_data(Tag.VECTOR_STROKE_DATA)
-            if stroke:
-                self._stroke = Stroke(stroke)
-        return self._stroke
 
     # Stroke content data seems obsolete.
 

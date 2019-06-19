@@ -13,7 +13,7 @@ from psd_tools.composer.blend import blend
 from psd_tools.composer.effects import create_stroke_effect
 from psd_tools.composer.vector import (
     draw_pattern_fill, draw_gradient_fill, draw_solid_color_fill,
-    draw_vector_mask
+    draw_vector_mask, draw_stroke
 )
 from psd_tools.terminology import Enum, Key
 
@@ -158,10 +158,15 @@ def compose_layer(layer, force=False, **kwargs):
     # Apply vector mask.
     if layer.has_vector_mask() and (force or not layer.has_pixels()):
         vector_mask = draw_vector_mask(layer)
-        # TODO: Stroke drawing.
         if image.mode.endswith('A'):
+            offset = vector_mask.info['offset']
             vector_mask = ImageChops.darker(image.getchannel('A'), vector_mask)
+            vector_mask.info['offset'] = offset
         image.putalpha(vector_mask)
+
+        # Apply stroke.
+        if layer.has_stroke() and layer.stroke.enabled:
+            image = draw_stroke(image, layer, vector_mask)
 
     # Apply mask.
     image = apply_mask(layer, image)
@@ -221,10 +226,6 @@ def create_fill(layer):
     elif Tag.GRADIENT_FILL_SETTING in layer.tagged_blocks:
         setting = layer.tagged_blocks.get_data(Tag.GRADIENT_FILL_SETTING)
         fill_image = draw_gradient_fill(mode, size, setting)
-
-    # Apply stroke.
-    if stroke and bool(stroke.get('strokeEnabled', True)):
-        logger.debug('Stroke not supported.')
 
     return fill_image
 
