@@ -1,3 +1,12 @@
+1.8.22 (2019-06-19)
+-------------------
+
+- fix pass-through composing bug;
+- fix alpha blending in effect;
+- fix vector mask composition;
+- experimental support for shape stroke;
+- experimental support for stroke effect.
+
 1.8.21 (2019-06-18)
 -------------------
 
