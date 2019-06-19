@@ -211,7 +211,8 @@ def _create_channel(size, channel_data, depth):
 def _check_channels(channels, color_mode):
     expected_channels = ColorMode.channels(color_mode)
     if len(channels) > expected_channels:
-        logger.warning(
+        # Seems possible when FilterMask is attached.
+        logger.debug(
             'Channels mismatch: expected %g != given %g' %
             (expected_channels, len(channels))
         )
