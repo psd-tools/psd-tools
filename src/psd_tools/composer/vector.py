@@ -24,7 +24,7 @@ def draw_vector_mask(layer):
             mask = ImageChops.difference(mask, plane)
         elif subpath.operation == 1:
             mask = ImageChops.lighter(mask, plane)
-        elif subpath.operation == 2:
+        elif subpath.operation in (2, -1):
             if first:
                 mask = ImageChops.invert(mask)
             mask = ImageChops.subtract(mask, plane)
