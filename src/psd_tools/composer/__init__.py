@@ -122,7 +122,8 @@ def compose(
 
         if layer.is_group():
             if layer.blend_mode == BlendMode.PASS_THROUGH:
-                image = layer.compose(context=context, bbox=bbox)
+                context = layer.compose(context=context, bbox=bbox, **kwargs)
+                continue
             else:
                 image = layer.compose(**kwargs)
         else:
