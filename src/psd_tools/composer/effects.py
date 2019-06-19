@@ -22,9 +22,9 @@ def create_stroke_effect(alpha, setting, psd, mask_given=False):
         mask = create_stroke_mask(alpha, setting)
     paint = setting.get(Key.PaintType).enum
     if paint == Enum.SolidColor:
-        result = draw_solid_color_fill('RGB', mask.size, setting)
+        result = draw_solid_color_fill(mask.size, setting)
     elif paint == Enum.GradientFill:
-        result = draw_gradient_fill('RGB', mask.size, setting)
+        result = draw_gradient_fill(mask.size, setting)
     elif paint == Enum.Pattern:
         result = draw_pattern_fill(mask.size, psd, setting)
     result.putalpha(mask)

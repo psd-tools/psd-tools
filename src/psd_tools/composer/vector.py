@@ -5,9 +5,16 @@ from __future__ import absolute_import, unicode_literals
 import logging
 
 from psd_tools.api.pil_io import convert_pattern_to_pil
-from psd_tools.terminology import Enum, Key, Type
+from psd_tools.terminology import Enum, Key, Type, Klass
 
 logger = logging.getLogger(__name__)
+
+_COLORSPACE = {
+    Klass.CMYKColor: 'CMYK',
+    Klass.RGBColor: 'RGB',
+    Klass.LabColor: 'LAB',
+    Klass.Grayscale: 'L',
+}
 
 
 def draw_vector_mask(layer):
@@ -77,7 +84,7 @@ def draw_stroke(backdrop, layer, vector_mask=None):
         return backdrop
 
     if painter.classID == b'solidColorLayer':
-        image = draw_solid_color_fill('RGB', mask.size, painter)
+        image = draw_solid_color_fill(mask.size, painter)
     elif painter.classID == b'gradientLayer':
         image = draw_gradient_fill('RGB', mask.size, painter)
     elif painter.classID == b'patternLayer':
@@ -145,12 +152,14 @@ def _apply_opacity(image, setting):
             image.putalpha(int(opacity * 2.55))
 
 
-def draw_solid_color_fill(mode, size, setting):
+def draw_solid_color_fill(size, setting):
     from PIL import Image, ImageDraw, ImageChops
-    color = tuple(int(x) for x in setting.get(Key.Color).values())
+    color = setting.get(Key.Color)
+    mode = _COLORSPACE.get(color.classID)
+    fill = tuple(int(x) for x in color.values())
     canvas = Image.new(mode, size)
     draw = ImageDraw.Draw(canvas)
-    draw.rectangle((0, 0, canvas.width, canvas.height), fill=color)
+    draw.rectangle((0, 0, canvas.width, canvas.height), fill=fill)
     del draw
     _apply_opacity(canvas, setting)
     return canvas
@@ -188,11 +197,10 @@ def draw_pattern_fill(size, psd, setting):
     return pattern_image
 
 
-def draw_gradient_fill(mode, size, setting):
+def draw_gradient_fill(size, setting):
     """
     Create a gradient fill image.
 
-    :param mode: PIL.Image mode str.
     :param size: (width, height) tuple.
     :param setting: Descriptor containing pattern fill.
     """
@@ -230,7 +238,7 @@ def draw_gradient_fill(mode, size, setting):
     if bool(setting.get(Key.Reverse, False)):
         Z = 1 - Z
 
-    gradient_image = _apply_color_map(mode, setting.get(Key.Gradient), Z)
+    gradient_image = _apply_color_map(setting.get(Key.Gradient), Z)
     _apply_opacity(gradient_image, setting)
     return gradient_image
 
@@ -274,7 +282,7 @@ def _make_diamond_gradient(X, Y, angle):
     return Z
 
 
-def _apply_color_map(mode, grad, Z):
+def _apply_color_map(grad, Z):
     """"""
     import numpy as np
     from scipy import interpolate
@@ -307,6 +315,7 @@ def _apply_color_map(mode, grad, Z):
         maximum = np.array([x.value for x in grad.get(Key.Maximum)])
         minimum = np.array([x.value for x in grad.get(Key.Minimum)])
         seed = grad.get(Key.RandomSeed).value
+        mode = _COLORSPACE.get(grad.get(Key.ColorSpace).enum)
 
         rng = np.random.RandomState(seed)
         G = rng.binomial(1, .5, (256, len(maximum))).astype(np.float)
@@ -324,11 +333,15 @@ def _apply_color_map(mode, grad, Z):
             'RGB': 1.0,
             'L': 2.55,
             'CMYK': 2.55,
-        }.get(mode, 1.0)
+            'LAB': 1.0,
+        }
         X, Y = [], []
+        mode = None
         for stop in grad.get(Key.Colors, []):
+            mode = _COLORSPACE.get(stop.get(Key.Color).classID)
+            s = scalar.get(mode, 1.0)
             location = int(stop.get(Key.Location)) / 4096.
-            color = tuple(scalar * x for x in stop.get(Key.Color).values())
+            color = tuple(s * x for x in stop.get(Key.Color).values())
             if len(X) and X[-1] == location:
                 logger.debug('Duplicate stop at %d' % location)
                 X.pop(), Y.pop()
@@ -344,25 +357,28 @@ def _apply_color_map(mode, grad, Z):
         if pixels.shape[-1] == 1:
             pixels = pixels[:, :, 0]
 
-        image = Image.fromarray(pixels, mode.rstrip('A'))
-        if Key.Transparency in grad and mode.endswith('A'):
-            X, Y = [], []
-            for stop in grad.get(Key.Transparency):
-                location = int(stop.get(Key.Location)) / 4096.
-                opacity = float(stop.get(Key.Opacity)) * 2.55
-                if len(X) and X[-1] == location:
-                    logger.debug('Duplicate stop at %d' % location)
-                    X.pop(), Y.pop()
-                X.append(location), Y.append(opacity)
-            assert len(X) > 0
-            if len(X) == 1:
-                X = [0., 1.]
-                Y = [Y[0], Y[0]]
-            G = interpolate.interp1d(
-                X, Y, axis=0, bounds_error=False, fill_value=(Y[0], Y[-1])
-            )
-            alpha = G(Z).astype(np.uint8)
-            image.putalpha(Image.fromarray(alpha, 'L'))
+        image = Image.fromarray(pixels, mode)
+        if Key.Transparency in grad:
+            if mode in ('RGB', 'L'):
+                X, Y = [], []
+                for stop in grad.get(Key.Transparency):
+                    location = int(stop.get(Key.Location)) / 4096.
+                    opacity = float(stop.get(Key.Opacity)) * 2.55
+                    if len(X) and X[-1] == location:
+                        logger.debug('Duplicate stop at %d' % location)
+                        X.pop(), Y.pop()
+                    X.append(location), Y.append(opacity)
+                assert len(X) > 0
+                if len(X) == 1:
+                    X = [0., 1.]
+                    Y = [Y[0], Y[0]]
+                G = interpolate.interp1d(
+                    X, Y, axis=0, bounds_error=False, fill_value=(Y[0], Y[-1])
+                )
+                alpha = G(Z).astype(np.uint8)
+                image.putalpha(Image.fromarray(alpha, 'L'))
+            else:
+                logger.warning('Alpha not supported in %s' % (mode))
     else:
         logger.error('Unknown gradient form: %s' % gradient_form)
         return None

@@ -214,18 +214,18 @@ def create_fill(layer):
         elif Enum.Pattern in setting:
             fill_image = draw_pattern_fill(size, layer._psd, setting)
         elif Key.Gradient in setting:
-            fill_image = draw_gradient_fill(mode, size, setting)
+            fill_image = draw_gradient_fill(size, setting)
         else:
-            fill_image = draw_solid_color_fill(mode, size, setting)
+            fill_image = draw_solid_color_fill(size, setting)
     elif Tag.SOLID_COLOR_SHEET_SETTING in layer.tagged_blocks:
         setting = layer.tagged_blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING)
-        fill_image = draw_solid_color_fill(mode, size, setting)
+        fill_image = draw_solid_color_fill(size, setting)
     elif Tag.PATTERN_FILL_SETTING in layer.tagged_blocks:
         setting = layer.tagged_blocks.get_data(Tag.PATTERN_FILL_SETTING)
         fill_image = draw_pattern_fill(size, layer._psd, setting)
     elif Tag.GRADIENT_FILL_SETTING in layer.tagged_blocks:
         setting = layer.tagged_blocks.get_data(Tag.GRADIENT_FILL_SETTING)
-        fill_image = draw_gradient_fill(mode, size, setting)
+        fill_image = draw_gradient_fill(size, setting)
 
     return fill_image
 
@@ -303,9 +303,7 @@ def apply_effect(layer, backdrop, base_image):
 
     for effect in layer.effects:
         if effect.__class__.__name__ == 'GradientOverlay':
-            image = draw_gradient_fill(
-                base_image.mode, base_image.size, effect.value
-            )
+            image = draw_gradient_fill(base_image.size, effect.value)
             if base_image.mode.endswith('A'):
                 alpha = base_image.getchannel('A')
                 if image.mode.endswith('A'):
@@ -315,9 +313,7 @@ def apply_effect(layer, backdrop, base_image):
 
     for effect in layer.effects:
         if effect.__class__.__name__ == 'ColorOverlay':
-            image = draw_solid_color_fill(
-                base_image.mode, base_image.size, effect.value
-            )
+            image = draw_solid_color_fill(base_image.size, effect.value)
             if base_image.mode.endswith('A'):
                 alpha = base_image.getchannel('A')
                 if image.mode.endswith('A'):
