@@ -10,6 +10,7 @@ from psd_tools.constants import Tag, BlendMode
 from psd_tools.api.pil_io import get_pil_mode
 from psd_tools.api.layers import Group
 from psd_tools.composer.blend import blend
+from psd_tools.composer.effects import create_stroke_effect
 from psd_tools.composer.vector import (
     draw_pattern_fill, draw_gradient_fill, draw_solid_color_fill,
     draw_vector_mask
@@ -132,6 +133,7 @@ def compose(
         logger.debug('Composing %s' % layer)
         offset = image.info.get('offset', layer.offset)
         offset = (offset[0] - bbox[0], offset[1] - bbox[1])
+
         context = blend(context, image, offset, layer.blend_mode)
 
     return context
@@ -320,6 +322,37 @@ def apply_effect(layer, backdrop, base_image):
                     alpha = ImageChops.darker(alpha, image.getchannel('A'))
                 image.putalpha(alpha)
             backdrop = blend(backdrop, image, (0, 0), effect.blend_mode)
+
+    for effect in layer.effects:
+        if effect.__class__.__name__ == 'Stroke':
+            from PIL import ImageOps
+
+            if layer.has_vector_mask():
+                alpha = draw_vector_mask(layer)
+            elif base_image.mode.endswith('A'):
+                alpha = base_image.getchannel('A')
+            else:
+                alpha = base_image.convert('L')
+            alpha.info['offset'] = base_image.info['offset']
+
+            # Expand the image size
+            setting = effect.value
+            size = int(setting.get(Key.SizeKey))
+            offset = backdrop.info['offset']
+            backdrop = ImageOps.expand(backdrop, size)
+            backdrop.info['offset'] = tuple(x - size for x in offset)
+            offset = alpha.info['offset']
+            alpha = ImageOps.expand(alpha, size)
+            alpha.info['offset'] = tuple(x - size for x in offset)
+
+            if not layer.has_vector_mask() and setting.get(
+                Key.Style
+            ).enum == Enum.InsetFrame:
+                image = create_stroke_effect(alpha, setting, layer._psd, True)
+                backdrop.paste(image)
+            else:
+                image = create_stroke_effect(alpha, setting, layer._psd)
+                backdrop = blend(backdrop, image, (0, 0), effect.blend_mode)
 
     return backdrop
 
