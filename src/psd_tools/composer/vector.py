@@ -156,7 +156,7 @@ def draw_solid_color_fill(size, setting):
     from PIL import Image, ImageDraw, ImageChops
     color = setting.get(Key.Color)
     mode = _COLORSPACE.get(color.classID)
-    fill = tuple(int(x) for x in color.values())
+    fill = tuple(int(x) for x in list(color.values())[:len(mode)])
     canvas = Image.new(mode, size)
     draw = ImageDraw.Draw(canvas)
     draw.rectangle((0, 0, canvas.width, canvas.height), fill=fill)
@@ -345,7 +345,8 @@ def _apply_color_map(grad, Z):
             mode = _COLORSPACE.get(stop.get(Key.Color).classID)
             s = scalar.get(mode, 1.0)
             location = int(stop.get(Key.Location)) / 4096.
-            color = tuple(s * x for x in stop.get(Key.Color).values())
+            color = list(stop.get(Key.Color).values())[:len(mode)]
+            color = tuple(s * int(x) for x in color)
             if len(X) and X[-1] == location:
                 logger.debug('Duplicate stop at %d' % location)
                 X.pop(), Y.pop()
