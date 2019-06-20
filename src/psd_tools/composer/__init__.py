@@ -187,7 +187,10 @@ def compose_layer(layer, force=False, **kwargs):
             clip_image = compose(
                 layer.clip_layers, bbox=bbox, context=image.copy()
             )
-            mask = image.getchannel('A')
+            if image.mode.endswith('A'):
+                mask = image.getchannel('A')
+            else:
+                mask = Image.new('L', image.size, 255)
             if clip_image.mode.endswith('A'):
                 mask = ImageChops.darker(clip_image.getchannel('A'), mask)
             clip_image.putalpha(mask)
