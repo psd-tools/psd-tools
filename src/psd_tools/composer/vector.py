@@ -230,6 +230,10 @@ def draw_gradient_fill(size, setting):
         Z = _make_reflected_gradient(X, Y, angle)
     elif gradient_kind == Enum.Diamond:
         Z = _make_diamond_gradient(X, Y, angle)
+    elif gradient_kind == b'shapeburst':
+        # Only available in stroke effect.
+        logger.warning('Gradient style not supported: %s' % gradient_kind)
+        Z = np.ones((size[1], size[0])) * 0.5
     else:
         logger.warning('Unknown gradient style: %s.' % (gradient_kind))
         Z = np.ones((size[1], size[0])) * 0.5
