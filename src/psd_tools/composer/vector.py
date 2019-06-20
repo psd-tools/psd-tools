@@ -101,6 +101,9 @@ def _draw_subpath(subpath, width, height):
     from PIL import Image
     import aggdraw
     mask = Image.new('L', (width, height), 0)
+    if len(subpath) <= 1:
+        logger.warning('not enough knots: %d' % len(subpath))
+        return mask
     path = ' '.join(map(str, _generate_symbol(subpath, width, height)))
     draw = aggdraw.Draw(mask)
     brush = aggdraw.Brush(255)
