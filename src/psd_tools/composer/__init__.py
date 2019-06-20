@@ -332,6 +332,7 @@ def apply_effect(layer, backdrop, base_image):
             else:
                 alpha = base_image.convert('L')
             alpha.info['offset'] = base_image.info['offset']
+            flat = alpha.getextrema()[0] < 255
 
             # Expand the image size
             setting = effect.value
@@ -345,7 +346,7 @@ def apply_effect(layer, backdrop, base_image):
 
             if not layer.has_vector_mask() and setting.get(
                 Key.Style
-            ).enum == Enum.InsetFrame:
+            ).enum == Enum.InsetFrame and flat:
                 image = create_stroke_effect(alpha, setting, layer._psd, True)
                 backdrop.paste(image)
             else:
