@@ -1,3 +1,11 @@
+1.8.23 (2019-06-24)
+-------------------
+
+- [composer] fix clipping on alpha-less image;
+- [composer] fix stroke effect for flat plane;
+- [composer] workaround for insufficient knots;
+- [composer] fix for custom color space.
+
 1.8.22 (2019-06-19)
 -------------------
 
