@@ -226,27 +226,124 @@ def _hard_mix(Cs, Cb):
     return B
 
 
-# @register(BlendMode.DIVIDE)
-# @register(b'blendDivide')
-# def _divide(Cs, Cb):
-#     B = Cb.copy()
-#     index = Cs > 0
-#     B[index] = Cb[index] / Cs[index]  # Seems incorrect...
-#     return B
+@register(BlendMode.DIVIDE)
+@register(b'blendDivide')
+def _divide(Cs, Cb):
+    B = Cb.copy()
+    index = Cs > 0
+    B[index] = Cb[index] / Cs[index]  # Seems incorrect...
+    return B
 
-# BlendMode.PASS_THROUGH: _normal,
+
+@register(BlendMode.HUE)
+@register(Enum.Hue)
+def _hue(Cs, Cb):
+    import numpy as np
+    hs, ls, ss = rgb_to_hls(Cs)
+    hb, lb, sb = rgb_to_hls(Cb)
+    return hls_to_rgb(hs, lb, sb)
+
+
+@register(BlendMode.SATURATION)
+@register(Enum.Saturation)
+def _saturation(Cs, Cb):
+    import numpy as np
+    hs, ls, ss = rgb_to_hls(Cs)
+    hb, lb, sb = rgb_to_hls(Cb)
+    return hls_to_rgb(hb, lb, ss)
+
+
+@register(BlendMode.COLOR)
+@register(Enum.Color)
+def _color(Cs, Cb):
+    import numpy as np
+    hs, ls, ss = rgb_to_hls(Cs)
+    hb, lb, sb = rgb_to_hls(Cb)
+    return hls_to_rgb(hs, lb, ss)
+
+
+@register(BlendMode.LUMINOSITY)
+@register(Enum.Luminosity)
+def _saturation(Cs, Cb):
+    import numpy as np
+    hs, ls, ss = rgb_to_hls(Cs)
+    hb, lb, sb = rgb_to_hls(Cb)
+    return hls_to_rgb(hb, ls, sb)
+
+
 # BlendMode.DISSOLVE: _dissolve,
 # BlendMode.DARKER_COLOR: _darker_color,
 # BlendMode.LIGHTER_COLOR: _lighter_color,
-# BlendMode.HUE: _hue,
-# BlendMode.SATURATION: _saturation,
-# BlendMode.COLOR: _color,
-# BlendMode.LUMINOSITY: _luminosity,
 
 # Enum.Dissolve: _dissolve,
 # b'darkerColor': _darker_color,
 # b'lighterColor': _lighter_color,
-# Enum.Hue: _hue,
-# Enum.Saturation: _saturation,
-# Enum.Color: _color,
-# Enum.Luminosity: _luminosity,
+
+
+def rgb_to_hls(rgb):
+    """RGB to HSL conversion.
+
+    See colorsys module.
+    """
+    import numpy as np
+
+    maxc = np.max(rgb, axis=2)
+    minc = np.min(rgb, axis=2)
+    nonzero_index = (minc < maxc)
+    c_diff = maxc - minc
+
+    l = (minc + maxc) / 2.0
+    s = np.zeros_like(l)
+    h = np.zeros_like(l)
+
+    index = nonzero_index
+    s[index] = c_diff[index] / (2.0 - maxc[index] - minc[index])
+    index = (l <= 0.5) & nonzero_index
+    s[index] = c_diff[index] / (maxc[index] + minc[index])
+
+    rc, gc, bc = (
+        maxc[nonzero_index] -
+        rgb[:, :, i][nonzero_index] / c_diff[nonzero_index] for i in range(3)
+    )
+    hc = 4.0 + gc - rc  # 4 + gc - rc
+    index = (rgb[:, :, 1][nonzero_index] == maxc[nonzero_index])
+    hc[index] = 2.0 + rc[index] - bc[index]  # 2 + rc - bc
+    index = (rgb[:, :, 0][nonzero_index] == maxc[nonzero_index])
+    hc[index] = bc[index] - gc[index]  # bc - gc
+    h[nonzero_index] = (hc / 6.0) % 1.0
+    return h, l, s
+
+
+def hls_to_rgb(h, l, s):
+    """HSL to RGB conversion.
+
+    See colorsys module.
+    """
+    import numpy as np
+    ONE_THIRD = 1. / 3.
+    TWO_THIRD = 2. / 3.
+    ONE_SIXTH = 1. / 6.
+    r, g, b = np.copy(l), np.copy(l), np.copy(l)
+    nonzero_index = (s != 0.)
+
+    m2 = l + s - (l * s)
+    index = l <= 0.5
+    m2[index] = l[index] * (1.0 + s[index])
+    m1 = 2.0 * l - m2
+
+    def _v(m1, m2, hue):
+        hue = hue % 1.0
+        c = np.copy(m1)
+        index = hue < TWO_THIRD
+        c[index] = m1[index] + (m2[index] -
+                                m1[index]) * (TWO_THIRD - hue[index]) * 6.0
+        index = hue < 0.5
+        c[index] = m2[index]
+        index = hue < ONE_SIXTH
+        c[index] = m1[index] + (m2[index] - m1[index]) * hue[index] * 6.0
+        return c
+
+    r[nonzero_index] = _v(m1, m2, h + ONE_THIRD)[nonzero_index]
+    g[nonzero_index] = _v(m1, m2, h)[nonzero_index]
+    b[nonzero_index] = _v(m1, m2, h - ONE_THIRD)[nonzero_index]
+    return np.stack((r, g, b), axis=2)
