@@ -1,3 +1,8 @@
+1.8.24 (2019-07-25)
+-------------------
+
+- [composer] experimental support of commutative blending modes.
+
 1.8.23 (2019-06-24)
 -------------------
 
