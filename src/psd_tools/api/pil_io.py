@@ -204,6 +204,8 @@ def _create_channel(size, channel_data, depth):
         image = Image.frombytes('F', size, channel_data, 'raw', 'F;32BF')
         # TODO: Check grayscale range.
         return image.point(lambda x: x * (256.)).convert('L')
+    elif depth == 1:
+        return Image.frombytes('1', size, channel_data, 'raw', '1;I')
     else:
         raise ValueError('Unsupported depth: %g' % depth)
 

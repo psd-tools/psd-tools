@@ -49,7 +49,7 @@ def decompress(data, compression, width, height, depth, version=1):
     :param version: psd file version.
     :return: decompressed data bytes.
     """
-    length = width * height * depth // 8
+    length = width * height * max(1, depth // 8)
 
     result = None
     if compression == Compression.RAW:
@@ -62,7 +62,10 @@ def decompress(data, compression, width, height, depth, version=1):
         decompressed = zlib.decompress(data)
         result = decode_prediction(decompressed, width, height, depth)
 
-    assert len(result) == length, 'len=%d, expected=%d' % (len(result), length)
+    if depth >= 8:
+        assert len(result) == length, (
+            'len=%d, expected=%d' % (len(result), length)
+        )
 
     return result
 

@@ -65,6 +65,7 @@ def test_compose_minimal(filename):
 
 @pytest.mark.parametrize(
     'colormode, depth', [
+        ('bitmap', 1),
         ('cmyk', 8),
         ('duotone', 8),
         ('grayscale', 8),
