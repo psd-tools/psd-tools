@@ -187,9 +187,7 @@ def _get_alpha_use(psd):
             'SAVING_MERGED_TRANSPARENCY16',
             'SAVING_MERGED_TRANSPARENCY32',
         )
-        for key in keys:
-            if key in tagged_blocks:
-                return True
+        return any(key in tagged_blocks for key in keys)
     return False
 
 
