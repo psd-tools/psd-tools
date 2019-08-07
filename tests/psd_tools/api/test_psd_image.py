@@ -5,7 +5,7 @@ import os
 from IPython.lib.pretty import pprint
 
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.constants import Compression
+from psd_tools.constants import Compression, ColorMode
 from ..utils import full_name
 
 logger = logging.getLogger(__name__)
@@ -48,6 +48,8 @@ def test_save(fixture, tmpdir):
 
 def test_pilio(fixture):
     image = fixture.topil()
+    for i in range(fixture.channels):
+        fixture.topil(channel=i)
     psd = PSDImage.frompil(image, compression=Compression.RAW)
     assert psd._record.header == fixture._record.header
     assert psd._record.image_data == fixture._record.image_data
@@ -69,7 +71,7 @@ def test_properties(fixture):
     assert fixture.viewbox == (0, 0, 4, 4)
     assert fixture.image_resources
     assert fixture.tagged_blocks
-    assert fixture.color_mode == 'RGB'
+    assert fixture.color_mode == ColorMode.RGB
     assert fixture.version == 1
 
 

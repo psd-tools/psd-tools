@@ -25,7 +25,7 @@ class ColorMode(IntEnum):
             ColorMode.INDEXED: 1,
             ColorMode.RGB: 3,
             ColorMode.CMYK: 4,
-            ColorMode.MULTICHANNEL: 3,
+            ColorMode.MULTICHANNEL: 1,
             ColorMode.DUOTONE: 1,
             ColorMode.LAB: 3,
         }.get(value) + alpha

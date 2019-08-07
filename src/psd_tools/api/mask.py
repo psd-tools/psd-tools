@@ -4,7 +4,8 @@ Mask module.
 from __future__ import absolute_import, unicode_literals
 import logging
 
-from psd_tools.api.pil_io import convert_mask_to_pil
+from psd_tools.constants import ChannelID
+from psd_tools.api.pil_io import convert_layer_to_pil
 
 logger = logging.getLogger(__name__)
 
@@ -103,15 +104,18 @@ class Mask(object):
             self.real_flags is not None and self.real_flags.parameters_applied
         )
 
-    def topil(self):
+    def topil(self, real=True, **kwargs):
         """
         Get PIL Image of the mask.
 
+        :param real: When True, returns pixel + vector mask combined.
         :return: PIL Image object, or None if the mask is empty.
         """
-        if self.width == 0 or self.height == 0:
-            return None
-        return convert_mask_to_pil(self)
+        if real and self._has_real():
+            channel = ChannelID.REAL_USER_LAYER_MASK
+        else:
+            channel = ChannelID.USER_LAYER_MASK
+        return self._layer.topil(channel, **kwargs)
 
     def __repr__(self):
         return '%s(offset=(%d,%d) size=%dx%d)' % (

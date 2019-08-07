@@ -41,7 +41,7 @@ def test_get_color_mode(mode):
     ]
 )
 def test_get_pil_mode(mode, alpha, expected):
-    assert pil_io.get_pil_mode(mode.name, alpha) == expected
+    assert pil_io.get_pil_mode(mode, alpha) == expected
 
 
 def test_convert_pattern_to_pil():

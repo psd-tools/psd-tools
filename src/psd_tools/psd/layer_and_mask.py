@@ -848,7 +848,7 @@ class ChannelData(BaseElement):
         converter=Compression,
         validator=in_(Compression)
     )
-    data = attr.ib(default=b'', type=bytes, repr=False)
+    data = attr.ib(default=b'', type=bytes)
 
     @classmethod
     def read(cls, fp, length=0, **kwargs):
