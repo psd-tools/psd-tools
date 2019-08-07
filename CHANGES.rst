@@ -1,3 +1,10 @@
+1.8.25 (2019-08-07)
+-------------------
+
+- [api] change return type of `PSDImage.color_mode` to enum.
+- [api] support reading of bitmap color mode.
+- [api] support channel option in `topil()` method.
+
 1.8.24 (2019-07-25)
 -------------------
 
