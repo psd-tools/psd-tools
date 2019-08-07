@@ -30,11 +30,10 @@ class PSDImage(GroupMixin):
         from psd_tools import PSDImage
 
         psd = PSDImage.open('example.psd')
-        image = psd.topil()
+        image = psd.compose()
 
         for layer in psd:
-            if layer.has_pixels():
-                layer_image = layer.topil()
+            layer_image = layer.compose()
     """
 
     def __init__(self, data):
@@ -118,7 +117,7 @@ class PSDImage(GroupMixin):
             with open(fp, mode) as f:
                 self._record.write(f)
 
-    def topil(self, **kwargs):
+    def topil(self, channel=None, **kwargs):
         """
         Get PIL Image.
 
@@ -126,7 +125,7 @@ class PSDImage(GroupMixin):
             available.
         """
         if self.has_preview():
-            return pil_io.convert_image_data_to_pil(self._record, **kwargs)
+            return pil_io.convert_image_data_to_pil(self, channel, **kwargs)
         return None
 
     def compose(self, force=False, bbox=None, **kwargs):
@@ -311,9 +310,9 @@ class PSDImage(GroupMixin):
         Document color mode, such as 'RGB' or 'GRAYSCALE'. See
         :py:class:`~psd_tools.constants.ColorMode`.
 
-        :return: `str`
+        :return: :py:class:`~psd_tools.constants.ColorMode`
         """
-        return self._record.header.color_mode.name
+        return self._record.header.color_mode
 
     @property
     def channels(self):

@@ -338,15 +338,28 @@ class Layer(object):
                 self._stroke = Stroke(stroke)
         return self._stroke
 
-    def topil(self, **kwargs):
+    def topil(self, channel=None, **kwargs):
         """
         Get PIL Image of the layer.
 
+        :param channel: Which channel to return; e.g., 0 for 'R' channel in RGB
+            image. See :py:class:`~psd_tools.constants.ChannelID`. When `None`,
+            the method returns all the channels.
         :return: :py:class:`PIL.Image`, or `None` if the layer has no pixels.
+
+        Example::
+
+            from psd_tools.constants import ChannelID
+
+            image = layer.topil()
+            red = layer.topil(ChannelID.CHANNEL_0)
+            alpha = layer.topil(ChannelID.TRANSPARENCY_MASK)
+
+        .. note: Not all of the PSD image modes are supported in
+            :py:class:`PIL.Image`. For example, 'CMYK' mode cannot include
+            alpha channel in PIL. In this case, topil drops alpha channel.
         """
-        if self.has_pixels():
-            return convert_layer_to_pil(self, **kwargs)
-        return None
+        return convert_layer_to_pil(self, channel, **kwargs)
 
     def compose(self, bbox=None, **kwargs):
         """
@@ -356,6 +369,7 @@ class Layer(object):
         layer size due to different mask dimensions. The offset of the
         composed image is stored at `.info['offset']` attribute of `PIL.Image`.
 
+        :param bbox: Viewport bounding box specified by (x1, y1, x2, y2) tuple.
         :return: :py:class:`PIL.Image`, or `None` if the layer has no pixel.
         """
         from psd_tools.composer import compose, compose_layer

@@ -15,19 +15,16 @@ def layer_mask_data():
     return PSDImage.open(full_name('layer_mask_data.psd'))
 
 
-def test_layer_mask(layer_mask_data):
-    from PIL.Image import Image
-    for layer in layer_mask_data:
-        if not layer.has_mask():
-            continue
-
-        mask = layer.mask
-        mask.background_color
-        mask.bbox
-        mask.size
-        mask.disabled
-        mask.flags
-        mask.parameters
-        mask.real_flags
-        repr(mask)
-        assert isinstance(mask.topil(), Image)
+@pytest.mark.parametrize('real', [True, False])
+def test_layer_mask(layer_mask_data, real):
+    mask = layer_mask_data[4].mask
+    mask.real_flags.parameters_applied = real
+    mask.background_color
+    mask.bbox
+    mask.size
+    mask.disabled
+    mask.flags
+    mask.parameters
+    mask.real_flags
+    repr(mask)
+    assert mask.topil()

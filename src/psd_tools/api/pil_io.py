@@ -19,14 +19,15 @@ def get_color_mode(mode):
     return getattr(ColorMode, name)
 
 
-def get_pil_mode(value, alpha=False):
+def get_pil_mode(color_mode, alpha=False):
     """Get PIL mode from ColorMode."""
     name = {
-        'GRAYSCALE': 'L',
-        'BITMAP': '1',
-        'DUOTONE': 'L',
-        'INDEXED': 'P',
-    }.get(value, value)
+        ColorMode.GRAYSCALE: 'L',
+        ColorMode.BITMAP: '1',
+        ColorMode.DUOTONE: 'L',
+        ColorMode.INDEXED: 'P',
+        ColorMode.MULTICHANNEL: 'L',  # TODO: Cannot support in PIL.
+    }.get(color_mode, color_mode.name)
     if alpha and name in ('L', 'RGB'):
         name += 'A'
     return name
@@ -49,23 +50,22 @@ def get_pil_channels(pil_mode):
     }.get(pil_mode, 3)
 
 
-def convert_image_data_to_pil(psd, apply_icc=True, **kwargs):
+def convert_image_data_to_pil(psd, channel=None, apply_icc=True, **kwargs):
     """Convert ImageData to PIL Image.
 
     .. note:: Image resources contain extra alpha channels in these keys:
         `ALPHA_NAMES_UNICODE`, `ALPHA_NAMES_PASCAL`, `ALPHA_IDENTIFIERS`.
     """
-    from PIL import Image, ImageOps
-    header = psd.header
-    size = (header.width, header.height)
+    from PIL import Image
+    size = (psd.width, psd.height)
     channels = []
-    for channel_data in psd.image_data.get_data(header):
-        channels.append(_create_channel(size, channel_data, header.depth))
-    alpha = _get_alpha_use(psd)
-    mode = get_pil_mode(header.color_mode.name)
+    for channel_data in psd._record.image_data.get_data(psd._record.header):
+        channels.append(_create_image(size, channel_data, psd.depth))
+    alpha = _get_alpha_use(psd._record)
+    mode = get_pil_mode(psd.color_mode)
     if mode == 'P':
         image = Image.merge('L', channels[:get_pil_channels(mode)])
-        image.putpalette(psd.color_mode_data.interleave())
+        image.putpalette(psd._record.color_mode_data.interleave())
     elif mode == 'MULTICHANNEL':
         image = channels[0]  # Multi-channel mode is a collection of alpha.
     else:
@@ -81,72 +81,45 @@ def convert_image_data_to_pil(psd, apply_icc=True, **kwargs):
     return _remove_white_background(image)
 
 
-def convert_layer_to_pil(layer, apply_icc=True, **kwargs):
+def convert_layer_to_pil(layer, channel=None, apply_icc=True, **kwargs):
     """Convert Layer to PIL Image."""
     from PIL import Image
-    header = layer._psd._record.header
-    if header.color_mode == ColorMode.BITMAP:
-        raise NotImplementedError
-    width, height = layer.width, layer.height
-    channels, alpha = [], None
-    for ci, cd in zip(layer._record.channel_info, layer._channels):
-        if ci.id in (
-            ChannelID.USER_LAYER_MASK, ChannelID.REAL_USER_LAYER_MASK
-        ):
-            continue
-        channel = cd.get_data(width, height, header.depth, header.version)
-        channel_image = _create_channel((width, height), channel, header.depth)
-        if ci.id == ChannelID.TRANSPARENCY_MASK:
-            alpha = channel_image
-        else:
-            channels.append(channel_image)
-    mode = get_pil_mode(header.color_mode.name)
-    channels = _check_channels(channels, header.color_mode)
-    image = Image.merge(mode, channels)
-    if mode == 'CMYK':
-        image = image.point(lambda x: 255 - x)
-    if alpha is not None:
-        if mode in ('RGB', 'L'):
-            image.putalpha(alpha)
-        else:
-            logger.debug('Alpha channel is not supported in %s' % (mode))
-
-    if apply_icc and Resource.ICC_PROFILE in layer._psd.image_resources:
-        image = _apply_icc(
-            image, layer._psd.image_resources.get_data(Resource.ICC_PROFILE)
-        )
-    return image
-
-
-def convert_mask_to_pil(mask, real=True):
-    """Convert Mask to PIL Image."""
-    from PIL import Image
-    header = mask._layer._psd._record.header
-    channel_ids = [ci.id for ci in mask._layer._record.channel_info]
-    if real and mask._has_real():
-        width = mask._data.real_right - mask._data.real_left
-        height = mask._data.real_bottom - mask._data.real_top
-        channel = mask._layer._channels[channel_ids.index(
-            ChannelID.REAL_USER_LAYER_MASK
-        )]
+    if channel is None:
+        image = _merge_channels(layer)
+        alpha = _get_channel(layer, ChannelID.TRANSPARENCY_MASK)
+        apply_icc &= (Resource.ICC_PROFILE in layer._psd.image_resources)
     else:
-        width = mask._data.right - mask._data.left
-        height = mask._data.bottom - mask._data.top
-        channel = mask._layer._channels[channel_ids.index(
-            ChannelID.USER_LAYER_MASK
-        )]
-    data = channel.get_data(width, height, header.depth, header.version)
-    return _create_channel((width, height), data, header.depth)
+        image = _get_channel(layer, channel)
+        alpha = None
+        apply_icc = False  # TODO: How can we apply ICC for a single channel?
+
+    if not image or channel < 0:
+        return image  # Return None, alpha or mask.
+
+    # Fix inverted CMYK.
+    if layer._psd.color_mode == ColorMode.CMYK:
+        from PIL import ImageChops
+        image = ImageChops.invert(image)
+
+    # In Pillow, alpha channel is only available in RGB or L.
+    if alpha and image.mode in ('RGB', 'L'):
+        image.putalpha(alpha)
+
+    if apply_icc:
+        icc_profile = layer._psd.image_resources.get_data(Resource.ICC_PROFILE)
+        image = _apply_icc(image, icc_profile)
+
+    return image
 
 
 def convert_pattern_to_pil(pattern, version=1):
     """Convert Pattern to PIL Image."""
     from PIL import Image
-    mode = get_pil_mode(pattern.image_mode.name, False)
+    mode = get_pil_mode(pattern.image_mode, False)
     # The order is different here.
     size = pattern.data.rectangle[3], pattern.data.rectangle[2]
     channels = [
-        _create_channel(size, c.get_data(version), c.pixel_depth).convert('L')
+        _create_image(size, c.get_data(version), c.pixel_depth).convert('L')
         for c in pattern.data.channels if c.is_written
     ]
     if mode in ('RGB', 'L') and len(channels) == len(mode) + 1:
@@ -191,19 +164,53 @@ def _get_alpha_use(psd):
     return False
 
 
-def _create_channel(size, channel_data, depth):
+def _merge_channels(layer):
+    from PIL import Image
+    mode = get_pil_mode(layer._psd.color_mode)
+    channels = [
+        _get_channel(layer, info.id) for info in layer._record.channel_info
+        if info.id >= 0
+    ]
+    if any(image is None for image in channels):
+        return None
+    channels = _check_channels(channels, layer._psd.color_mode)
+    return Image.merge(mode, channels)
+
+
+def _get_channel(layer, channel):
+    if channel == ChannelID.USER_LAYER_MASK:
+        width = layer.mask._data.right - layer.mask._data.left
+        height = layer.mask._data.bottom - layer.mask._data.top
+    elif channel == ChannelID.REAL_USER_LAYER_MASK:
+        width = layer.mask._data.real_right - layer.mask._data.real_left
+        height = layer.mask._data.real_bottom - layer.mask._data.real_top
+    else:
+        width, height = layer.width, layer.height
+
+    index = {info.id: i for i, info in enumerate(layer._record.channel_info)}
+    if channel not in index:
+        return None
+    depth = layer._psd.depth
+    channel_data = layer._channels[index[channel]]
+    if width == 0 or height == 0 or len(channel_data.data) == 0:
+        return None
+    channel = channel_data.get_data(width, height, depth, layer._psd.version)
+    return _create_image((width, height), channel, depth)
+
+
+def _create_image(size, data, depth):
     from PIL import Image
     if depth == 8:
-        return Image.frombytes('L', size, channel_data, 'raw')
+        return Image.frombytes('L', size, data, 'raw')
     elif depth == 16:
-        image = Image.frombytes('I', size, channel_data, 'raw', 'I;16B')
+        image = Image.frombytes('I', size, data, 'raw', 'I;16B')
         return image.point(lambda x: x * (1. / 256.)).convert('L')
     elif depth == 32:
-        image = Image.frombytes('F', size, channel_data, 'raw', 'F;32BF')
+        image = Image.frombytes('F', size, data, 'raw', 'F;32BF')
         # TODO: Check grayscale range.
         return image.point(lambda x: x * (256.)).convert('L')
     elif depth == 1:
-        return Image.frombytes('1', size, channel_data, 'raw', '1;I')
+        return Image.frombytes('1', size, data, 'raw', '1;I')
     else:
         raise ValueError('Unsupported depth: %g' % depth)
 
