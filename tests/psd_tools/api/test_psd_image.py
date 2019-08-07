@@ -48,6 +48,8 @@ def test_save(fixture, tmpdir):
 
 def test_pilio(fixture):
     image = fixture.topil()
+    for i in range(fixture.channels):
+        fixture.topil(channel=i)
     psd = PSDImage.frompil(image, compression=Compression.RAW)
     assert psd._record.header == fixture._record.header
     assert psd._record.image_data == fixture._record.image_data

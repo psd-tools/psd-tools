@@ -39,7 +39,6 @@ def get_pil_channels(pil_mode):
         '1': 1,
         'L': 1,
         'P': 1,
-        'P': 1,
         'RGB': 3,
         'CMYK': 4,
         'YCbCr': 3,
@@ -57,47 +56,70 @@ def convert_image_data_to_pil(psd, channel=None, apply_icc=True, **kwargs):
         `ALPHA_NAMES_UNICODE`, `ALPHA_NAMES_PASCAL`, `ALPHA_IDENTIFIERS`.
     """
     from PIL import Image
+
+    assert channel is None or channel < psd.channels, (
+        'Invalid channel specified: %s' % channel
+    )
+
+    # Support alpha channel via ChannelID enum.
+    if channel == ChannelID.TRANSPARENCY_MASK:
+        channel = get_pil_channels(get_pil_mode(psd.color_mode))
+        if channel >= psd.channels:
+            return None
+
+    alpha = None
+    icc = None
+    channel_data = psd._record.image_data.get_data(psd._record.header)
     size = (psd.width, psd.height)
-    channels = []
-    for channel_data in psd._record.image_data.get_data(psd._record.header):
-        channels.append(_create_image(size, channel_data, psd.depth))
-    alpha = _get_alpha_use(psd._record)
-    mode = get_pil_mode(psd.color_mode)
-    if mode == 'P':
-        image = Image.merge('L', channels[:get_pil_channels(mode)])
-        image.putpalette(psd._record.color_mode_data.interleave())
-    elif mode == 'MULTICHANNEL':
-        image = channels[0]  # Multi-channel mode is a collection of alpha.
+    if channel is None:
+        channels = [_create_image(size, c, psd.depth) for c in channel_data]
+
+        if _get_alpha_use(psd):
+            alpha = channels[-1]
+
+        if psd.color_mode == ColorMode.INDEXED:
+            image = channels[0]
+            image.putpalette(psd._record.color_mode_data.interleave())
+        elif psd.color_mode == ColorMode.MULTICHANNEL:
+            image = channels[0]  # Multi-channel mode is a collection of alpha.
+        else:
+            mode = get_pil_mode(psd.color_mode)
+            image = Image.merge(mode, channels[:get_pil_channels(mode)])
+
+        if apply_icc and (Resource.ICC_PROFILE in psd.image_resources):
+            icc = psd.image_resources.get_data(Resource.ICC_PROFILE)
     else:
-        image = Image.merge(mode, channels[:get_pil_channels(mode)])
-    if mode == 'CMYK':
-        image = image.point(lambda x: 255 - x)
-    if apply_icc and Resource.ICC_PROFILE in psd.image_resources:
-        image = _apply_icc(
-            image, psd.image_resources.get_data(Resource.ICC_PROFILE)
-        )
-    if alpha and mode in ('L', 'RGB'):
-        image.putalpha(channels[-1])
+        image = _create_image(size, channel_data[channel], psd.depth)
+
+    if not image:
+        return None
+
+    image = _post_process(image, alpha, icc)
     return _remove_white_background(image)
 
 
 def convert_layer_to_pil(layer, channel=None, apply_icc=True, **kwargs):
     """Convert Layer to PIL Image."""
     from PIL import Image
+    alpha = None
+    icc = None
     if channel is None:
         image = _merge_channels(layer)
         alpha = _get_channel(layer, ChannelID.TRANSPARENCY_MASK)
-        apply_icc &= (Resource.ICC_PROFILE in layer._psd.image_resources)
+        if apply_icc and (Resource.ICC_PROFILE in layer._psd.image_resources):
+            icc = layer._psd.image_resources.get_data(Resource.ICC_PROFILE)
     else:
         image = _get_channel(layer, channel)
-        alpha = None
-        apply_icc = False  # TODO: How can we apply ICC for a single channel?
 
-    if not image or channel < 0:
+    if not image or (channel is not None and channel < 0):
         return image  # Return None, alpha or mask.
 
+    return _post_process(image, alpha, icc)
+
+
+def _post_process(image, alpha, icc_profile):
     # Fix inverted CMYK.
-    if layer._psd.color_mode == ColorMode.CMYK:
+    if image.mode == 'CMYK':
         from PIL import ImageChops
         image = ImageChops.invert(image)
 
@@ -105,8 +127,7 @@ def convert_layer_to_pil(layer, channel=None, apply_icc=True, **kwargs):
     if alpha and image.mode in ('RGB', 'L'):
         image.putalpha(alpha)
 
-    if apply_icc:
-        icc_profile = layer._psd.image_resources.get_data(Resource.ICC_PROFILE)
+    if icc_profile:
         image = _apply_icc(image, icc_profile)
 
     return image
@@ -115,23 +136,24 @@ def convert_layer_to_pil(layer, channel=None, apply_icc=True, **kwargs):
 def convert_pattern_to_pil(pattern, version=1):
     """Convert Pattern to PIL Image."""
     from PIL import Image
-    mode = get_pil_mode(pattern.image_mode, False)
+    mode = get_pil_mode(pattern.image_mode)
     # The order is different here.
     size = pattern.data.rectangle[3], pattern.data.rectangle[2]
     channels = [
         _create_image(size, c.get_data(version), c.pixel_depth).convert('L')
         for c in pattern.data.channels if c.is_written
     ]
-    if mode in ('RGB', 'L') and len(channels) == len(mode) + 1:
-        mode += 'A'  # TODO: Perhaps doesn't work for some modes.
+    alpha = None
+    channel_size = get_pil_channels(mode)
+    if mode in ('RGB', 'L') and len(channels) > channel_size:
+        alpha = channels[channel_size]
     if mode == 'P':
         image = channels[0]
         image.putpalette([x for rgb in pattern.color_table for x in rgb])
     else:
-        image = Image.merge(mode, channels[:len(mode)])
-    if mode == 'CMYK':
-        image = image.point(lambda x: 255 - x)
-    return image
+        image = Image.merge(mode, channels[:channel_size])
+
+    return _post_process(image, alpha, None)  # TODO: icc support?
 
 
 def convert_thumbnail_to_pil(thumbnail, mode='RGB'):
@@ -150,17 +172,16 @@ def convert_thumbnail_to_pil(thumbnail, mode='RGB'):
 
 
 def _get_alpha_use(psd):
-    layer_info = psd._get_layer_info()
+    layer_info = psd._record._get_layer_info()
     if layer_info and layer_info.layer_count < 0:
         return True
-    tagged_blocks = psd.layer_and_mask_information.tagged_blocks
-    if tagged_blocks:
+    if psd.tagged_blocks:
         keys = (
             'SAVING_MERGED_TRANSPARENCY',
             'SAVING_MERGED_TRANSPARENCY16',
             'SAVING_MERGED_TRANSPARENCY32',
         )
-        return any(key in tagged_blocks for key in keys)
+        return any(key in psd.tagged_blocks for key in keys)
     return False
 
 

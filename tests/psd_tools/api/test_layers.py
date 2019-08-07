@@ -160,6 +160,11 @@ def test_topil(topil_args):
     from PIL.Image import Image
     fixture, is_image = topil_args
     image = fixture.topil()
+
+    channel_ids = [c.id for c in fixture._record.channel_info if c.id >= -1]
+    for channel in channel_ids:
+        fixture.topil(channel)
+
     assert isinstance(image, Image) if is_image else image is None
 
 
