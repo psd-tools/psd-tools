@@ -121,6 +121,9 @@ class PSDImage(GroupMixin):
         """
         Get PIL Image.
 
+        :param channel: Which channel to return; e.g., 0 for 'R' channel in RGB
+            image. See :py:class:`~psd_tools.constants.ChannelID`. When `None`,
+            the method returns all the channels supported by PIL modes.
         :return: :py:class:`PIL.Image`, or `None` if the composed image is not
             available.
         """

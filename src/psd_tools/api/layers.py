@@ -344,7 +344,7 @@ class Layer(object):
 
         :param channel: Which channel to return; e.g., 0 for 'R' channel in RGB
             image. See :py:class:`~psd_tools.constants.ChannelID`. When `None`,
-            the method returns all the channels.
+            the method returns all the channels supported by PIL modes.
         :return: :py:class:`PIL.Image`, or `None` if the layer has no pixels.
 
         Example::
@@ -355,7 +355,7 @@ class Layer(object):
             red = layer.topil(ChannelID.CHANNEL_0)
             alpha = layer.topil(ChannelID.TRANSPARENCY_MASK)
 
-        .. note: Not all of the PSD image modes are supported in
+        .. note:: Not all of the PSD image modes are supported in
             :py:class:`PIL.Image`. For example, 'CMYK' mode cannot include
             alpha channel in PIL. In this case, topil drops alpha channel.
         """
