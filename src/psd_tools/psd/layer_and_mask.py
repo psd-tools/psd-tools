@@ -259,8 +259,8 @@ class LayerFlags(BaseElement):
         flags = ((self.transparency_protected * 1) | ((not self.visible) * 2) |
                  (self.obsolete * 4) | (self.photoshop_v5_later * 8) |
                  (self.pixel_data_irrelevant * 16) |
-                 (self.undocumented_1 * 32) | (self.undocumented_2 * 64) |
-                 (self.undocumented_3 * 128))
+                 (self.undocumented_1 * 32)
+                 | (self.undocumented_2 * 64) | (self.undocumented_3 * 128))
         return write_fmt(fp, 'B', flags)
 
 

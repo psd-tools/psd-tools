@@ -1,33 +1,31 @@
 language: python
-
 matrix:
-    include:
-        - python: 2.7
-          env: TOXENV=py27
-        - python: 3.6
-          env: TOXENV=py36
-        - python: 3.7
-          env: TOXENV=py37
-          dist: xenial
-          sudo: true
-
+  include:
+  - python: 2.7
+  - python: 3.5
+  - python: 3.6
+  - python: 3.7
+    env: DEPLOY=true
 branches:
-    only:
-        - master
-        - /^\d\.\d+$/
-
+  only:
+  - master
 addons:
-    apt:
-        packages:
-            - libfreetype6-dev
-            - liblcms2-dev
-            - libffi-dev
-
+  apt:
+    packages:
+    - libfreetype6-dev
+    - liblcms2-dev
+    - libffi-dev
 install:
-    - pip install -U pip wheel tox
-
-script: tox
-
-cache:
-    directories:
-        - $HOME/.cache/pip
+- pip install -U pip tox tox-travis
+script:
+- tox
+deploy:
+  provider: pypi
+  user: kyamagu
+  on:
+    tags: true
+    env: "$DEPLOY = true"
+  skip_existing: true
+  password:
+    secure: R2j2Rw1WqCZEnlmpHnj6HQjeW+488H2irp/AsZoi7pHD9FKubPoDX8aKm1vLw1D4OMoFGdYHjTVrLYqegVsmNDnw/p/dhrS7at9+Sz0IcQ7UWUbHkOOXjqSPhfFjxGQ/0PyDgIiJ4jD+lZIU+tLMnYsbXcrjxMV2nD7c/hOtlPs=
+  distributions: 'sdist bdist_wheel'

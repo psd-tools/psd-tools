@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 def test_blend_quality(filename):
     test_compose_quality(filename, threshold=0.02)
 
+
 @pytest.mark.parametrize(("filename", ), [
     ('blend-modes/divide.psd', ),
     ('blend-modes/hue.psd', ),
