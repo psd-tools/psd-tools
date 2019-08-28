@@ -122,7 +122,11 @@ def compose(
 
         if layer.is_group():
             if layer.blend_mode == BlendMode.PASS_THROUGH:
-                context = layer.compose(context=context, bbox=bbox, **kwargs)
+                _context = layer.compose(context=context, bbox=bbox, **kwargs)
+                offset = _context.info.get('offset', (0, 0))
+                context.paste(
+                    _context, (offset[0] - bbox[0], offset[1] - bbox[1])
+                )
                 continue
             else:
                 image = layer.compose(**kwargs)
@@ -137,12 +141,15 @@ def compose(
 
         context = blend(context, image, offset, layer.blend_mode)
 
+    logger.debug('Composing: %s' % layers)
+    if isinstance(layers, Group):
+        context = _apply_layer_ops(layers, context, **kwargs)
+
     return context
 
 
 def compose_layer(layer, force=False, **kwargs):
     """Compose a single layer with pixels."""
-    from PIL import Image, ImageChops
     assert layer.bbox != (0, 0, 0, 0), 'Layer bbox is (0, 0, 0, 0)'
 
     image = layer.topil(**kwargs)
@@ -153,8 +160,12 @@ def compose_layer(layer, force=False, **kwargs):
     if image is None:
         return image
 
-    # TODO: Group should have the following too.
+    return _apply_layer_ops(layer, image, force=force, **kwargs)
 
+
+def _apply_layer_ops(layer, image, force=False, bbox=None, **kwargs):
+    """Apply layer masks, effects, and clipping."""
+    from PIL import Image, ImageChops
     # Apply vector mask.
     if layer.has_vector_mask() and (force or not layer.has_pixels()):
         vector_mask = draw_vector_mask(layer)
@@ -169,7 +180,7 @@ def compose_layer(layer, force=False, **kwargs):
             image = draw_stroke(image, layer, vector_mask)
 
     # Apply mask.
-    image = apply_mask(layer, image)
+    image = apply_mask(layer, image, bbox=bbox)
 
     # Apply layer fill effects.
     effect_base = image.copy()
@@ -233,7 +244,7 @@ def create_fill(layer):
     return fill_image
 
 
-def apply_mask(layer, image):
+def apply_mask(layer, image, bbox=None):
     """
     Apply raster mask to the image.
 
@@ -246,18 +257,21 @@ def apply_mask(layer, image):
     """
     from PIL import Image, ImageChops
 
-    image.info['offset'] = layer.offset  # Later needed for composition.
+    offset = image.info.get('offset', layer.offset)
+    image.info['offset'] = offset
     if layer.has_mask() and not layer.mask.disabled:
         mask_bbox = layer.mask.bbox
         if mask_bbox != (0, 0, 0, 0):
             color = layer.mask.background_color
-            if color == 0:
+            if bbox:
+                pass
+            elif color == 0:
                 bbox = mask_bbox
             else:
                 bbox = layer._psd.viewbox
             size = (bbox[2] - bbox[0], bbox[3] - bbox[1])
             image_ = Image.new(image.mode, size)
-            image_.paste(image, (layer.left - bbox[0], layer.top - bbox[1]))
+            image_.paste(image, (offset[0] - bbox[0], offset[1] - bbox[1]))
             mask = Image.new('L', size, color=color)
             mask_image = layer.mask.topil()
             if mask_image:

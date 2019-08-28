@@ -131,6 +131,13 @@ def test_apply_mask():
         assert _calculate_hash_error(image, rendered) <= 0.1
 
 
+def test_group_mask():
+    psd = PSDImage.open(full_name('masks3.psd'))
+    image = psd.compose()
+    rendered = psd.compose(force=True)
+    assert _calculate_hash_error(image, rendered) <= 0.1
+
+
 def test_apply_opacity():
     psd = PSDImage.open(full_name('opacity-fill.psd'))
     image = psd.compose(force=True)
