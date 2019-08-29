@@ -1,3 +1,10 @@
+1.8.27 (2019-08-29)
+-------------------
+
+- [api] accept encoding param in `PSDImage.open` and `PSDImage.save`.
+- [deploy] bugfix travis deployment condition.
+
+
 1.8.26 (2019-08-28)
 -------------------
 
