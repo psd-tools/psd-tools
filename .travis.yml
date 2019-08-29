@@ -21,7 +21,7 @@ deploy:
   user: kyamagu
   on:
     tags: true
-    env: "$DEPLOY = true"
+    condition: "$DEPLOY = true"
   skip_existing: true
   password:
     secure: R2j2Rw1WqCZEnlmpHnj6HQjeW+488H2irp/AsZoi7pHD9FKubPoDX8aKm1vLw1D4OMoFGdYHjTVrLYqegVsmNDnw/p/dhrS7at9+Sz0IcQ7UWUbHkOOXjqSPhfFjxGQ/0PyDgIiJ4jD+lZIU+tLMnYsbXcrjxMV2nD7c/hOtlPs=
