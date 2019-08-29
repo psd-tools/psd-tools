@@ -90,32 +90,36 @@ class PSDImage(GroupMixin):
         )
 
     @classmethod
-    def open(cls, fp):
+    def open(cls, fp, **kwargs):
         """
         Open a PSD document.
 
         :param fp: filename or file-like object.
+        :param encoding: charset encoding of the pascal string within the file,
+            default 'macroman'. Some psd files need explicit encoding option.
         :return: A :py:class:`~psd_tools.api.psd_image.PSDImage` object.
         """
         if hasattr(fp, 'read'):
-            self = cls(PSD.read(fp))
+            self = cls(PSD.read(fp, **kwargs))
         else:
             with open(fp, 'rb') as f:
-                self = cls(PSD.read(f))
+                self = cls(PSD.read(f, **kwargs))
         return self
 
-    def save(self, fp, mode='wb'):
+    def save(self, fp, mode='wb', **kwargs):
         """
         Save the PSD file.
 
         :param fp: filename or file-like object.
+        :param encoding: charset encoding of the pascal string within the file,
+            default 'macroman'.
         :param mode: file open mode, default 'wb'.
         """
         if hasattr(fp, 'write'):
-            self._record.write(fp)
+            self._record.write(fp, **kwargs)
         else:
             with open(fp, mode) as f:
-                self._record.write(f)
+                self._record.write(f, **kwargs)
 
     def topil(self, channel=None, **kwargs):
         """
