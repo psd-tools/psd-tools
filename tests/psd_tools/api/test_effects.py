@@ -21,6 +21,8 @@ def fixture():
 def test_effects(fixture):
     assert isinstance(fixture[0].effects.scale, float)
     assert fixture[0].effects.enabled is True
+    for layer in fixture:
+        assert layer.__repr__()
     for effect in fixture[0].effects:
         assert effect.enabled is True
 

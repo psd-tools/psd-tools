@@ -48,7 +48,7 @@ class Effects(object):
     @property
     def scale(self):
         """Scale value."""
-        return self._data.get(Key.Scale).value
+        return self._data.get(Key.Scale).value if self._data else None
 
     @property
     def enabled(self):
@@ -56,7 +56,7 @@ class Effects(object):
 
         :rtype: bool
         """
-        return bool(self._data.get(b'masterFXSwitch'))
+        return bool(self._data.get(b'masterFXSwitch')) if self._data else False
 
     @property
     def items(self):
@@ -78,9 +78,10 @@ class Effects(object):
     #     return self._items.__delitem__(key)
 
     def __repr__(self):
-        return '%s(%s%s)' % (
-            self.__class__.__name__, '' if self.enabled else 'disabled ',
-            ' '.join(x.__class__.__name__.lower() for x in self)
+        return '%s(%s)' % (
+            self.__class__.__name__,
+            ' '.join(x.__class__.__name__.lower()
+                     for x in self) if self._data else ''
         )
 
 
