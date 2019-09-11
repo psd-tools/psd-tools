@@ -168,7 +168,9 @@ def _apply_layer_ops(layer, image, force=False, bbox=None, **kwargs):
     from PIL import Image, ImageChops
     # Apply vector mask.
     if layer.has_vector_mask() and (force or not layer.has_pixels()):
-        vector_mask = draw_vector_mask(layer)
+        offset = image.info.get('offset', layer.offset)
+        mask_box = offset + (offset[0] + image.width, offset[1] + image.height)
+        vector_mask = draw_vector_mask(layer, mask_box)
         if image.mode.endswith('A'):
             offset = vector_mask.info['offset']
             vector_mask = ImageChops.darker(image.getchannel('A'), vector_mask)
