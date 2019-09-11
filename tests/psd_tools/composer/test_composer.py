@@ -20,6 +20,7 @@ QUALITY_TEST_FILES = [
     ),
     ('32bit.psd', ),
     ('clipping-mask2.psd', ),
+    ('vector-mask3.psd', )
 ]
 
 

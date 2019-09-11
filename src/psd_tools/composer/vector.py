@@ -17,7 +17,7 @@ _COLORSPACE = {
 }
 
 
-def draw_vector_mask(layer):
+def draw_vector_mask(layer, bbox=None):
     from PIL import Image, ImageChops
     width = layer._psd.width
     height = layer._psd.height
@@ -41,7 +41,7 @@ def draw_vector_mask(layer):
             mask = ImageChops.darker(mask, plane)
         first = False
 
-    mask = mask.crop(layer.bbox)
+    mask = mask.crop(bbox or layer.bbox)
     mask.info['offset'] = layer.offset
     return mask
 
