@@ -351,7 +351,11 @@ class ShortIntegerElement(IntegerElement):
 
     @classmethod
     def read(cls, fp, **kwargs):
-        return cls(read_fmt('H2x', fp)[0])
+        try:
+            return cls(read_fmt('H2x', fp)[0])
+        except AssertionError as e:
+            logger.error(e)
+        return cls(read_fmt('H', fp)[0])
 
     def write(self, fp, **kwargs):
         return write_fmt(fp, 'H2x', self.value)
@@ -367,7 +371,11 @@ class ByteElement(IntegerElement):
 
     @classmethod
     def read(cls, fp, **kwargs):
-        return cls(read_fmt('B3x', fp)[0])
+        try:
+            return cls(read_fmt('B3x', fp)[0])
+        except AssertionError as e:
+            logger.error(e)
+        return cls(read_fmt('B', fp)[0])
 
     def write(self, fp, **kwargs):
         return write_fmt(fp, 'B3x', self.value)
@@ -384,7 +392,11 @@ class BooleanElement(IntegerElement):
 
     @classmethod
     def read(cls, fp, **kwargs):
-        return cls(read_fmt('?3x', fp)[0])
+        try:
+            return cls(read_fmt('?3x', fp)[0])
+        except AssertionError as e:
+            logger.error(e)
+        return cls(read_fmt('?', fp)[0])
 
     def write(self, fp, **kwargs):
         return write_fmt(fp, '?3x', self.value)
