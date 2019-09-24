@@ -1,3 +1,8 @@
+1.8.30 (2019-09-24)
+-------------------
+
+- [psd] workaround for reading less-than-4-byte int in malformed psd files.
+
 1.8.29 (2019-09-10)
 -------------------
 

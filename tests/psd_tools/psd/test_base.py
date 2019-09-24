@@ -50,6 +50,17 @@ def test_numbers(kls, fixture):
     assert hash(value) == hash(fixture)
 
 
+@pytest.mark.parametrize(
+    'kls, fixture', [
+        (ByteElement, b'\x01\x00'),
+        (ShortIntegerElement, b'\x00\x01'),
+        (BooleanElement, b'\x00\x01'),
+    ]
+)
+def test_malformed_numbers(kls, fixture):
+    kls.frombytes(fixture)
+
+
 def test_boolean():
     value = BooleanElement(True)
     assert value.value is True

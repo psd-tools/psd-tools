@@ -32,8 +32,12 @@ def read_fmt(fmt, fp):
     fmt = str(">" + fmt)
     fmt_size = struct.calcsize(fmt)
     data = fp.read(fmt_size)
-    assert len(data
-               ) == fmt_size, 'read=%d, expected=%d' % (len(data), fmt_size)
+    try:
+        assert len(data
+                   ) == fmt_size, 'read=%d, expected=%d' % (len(data), fmt_size)
+    except:
+        fp.seek(-len(data), 1)
+        raise
     return struct.unpack(fmt, data)
 
 
