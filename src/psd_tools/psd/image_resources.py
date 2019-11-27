@@ -790,6 +790,9 @@ class SliceV6(BaseElement):
             if version == 16:
                 try:
                     data = DescriptorBlock.read(fp)
+                    if data.classID == b'\x00\x00\x00\x00':
+                        data = None
+                        raise ValueError(data)
                 except ValueError:
                     logger.debug('Failed to read DescriptorBlock')
                     fp.seek(current_position)

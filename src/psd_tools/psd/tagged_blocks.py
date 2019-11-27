@@ -221,6 +221,7 @@ class TaggedBlock(BaseElement):
         Tag.EXPORT_SETTING1,
         Tag.EXPORT_SETTING2,
         Tag.COMPUTER_INFO,
+        Tag.ARTBOARD_DATA2,
     }
 
     signature = attr.ib(
@@ -472,6 +473,7 @@ class MetadataSetting(BaseElement):
     """
     MetadataSetting structure.
     """
+    _KNOWN_KEYS = {b'cust', b'cmls', b'extn', b'mlst', b'tmln'}
     signature = attr.ib(
         default=b'8BIM', type=bytes, repr=False, validator=in_((b'8BIM', ))
     )
@@ -488,7 +490,7 @@ class MetadataSetting(BaseElement):
         if key == b'mdyn':
             with io.BytesIO(data) as f:
                 data = read_fmt('I', f)[0]
-        elif key in (b'cust', b'cmls', b'extn', b'mlst', b'tmln'):
+        elif key in cls._KNOWN_KEYS:
             data = DescriptorBlock.frombytes(data, padding=4)
         else:
             message = 'Unknown metadata key %r' % (key)

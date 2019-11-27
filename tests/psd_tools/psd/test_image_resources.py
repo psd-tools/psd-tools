@@ -1,11 +1,12 @@
 from __future__ import absolute_import, unicode_literals
 import pytest
+import os
 
 from psd_tools.constants import Resource
-from psd_tools.psd.image_resources import ImageResources, ImageResource
+from psd_tools.psd.image_resources import ImageResources, ImageResource, Slices
 from IPython.display import display
 
-from ..utils import check_read_write, check_write_read
+from ..utils import check_read_write, check_write_read, TEST_ROOT
 
 
 def test_image_resources_from_to():
@@ -37,3 +38,14 @@ def test_image_resource_from_to(fixture):
 def test_image_resource_exception():
     with pytest.raises(AssertionError):
         ImageResource.frombytes(b'\x00\x00\x00\x01')
+
+@pytest.mark.parametrize(
+    'kls, filename', [
+        (Slices, 'slices_0.dat'),
+    ]
+)
+def test_image_resource_rw(kls, filename):
+    filepath = os.path.join(TEST_ROOT, 'image_resources', filename)
+    with open(filepath, 'rb') as f:
+        fixture = f.read()
+    check_read_write(kls, fixture)
