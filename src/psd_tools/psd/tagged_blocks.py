@@ -221,6 +221,7 @@ class TaggedBlock(BaseElement):
         Tag.EXPORT_SETTING1,
         Tag.EXPORT_SETTING2,
         Tag.COMPUTER_INFO,
+        Tag.ARTBOARD_DATA2,
     }
 
     signature = attr.ib(
