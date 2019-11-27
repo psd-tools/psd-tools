@@ -31,7 +31,7 @@ setup(
         'docopt>=0.5',
         'packbits',
         'attrs',
-        'Pillow!=6.0.0',
+        'Pillow>=6.2.0',
         'enum34;python_version<"3.4"',
         'aggdraw',
     ],

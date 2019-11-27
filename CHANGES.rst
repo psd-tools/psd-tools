@@ -3,6 +3,7 @@
 
 - [psd] bugfix reading psb.
 - [psd] bugfix reading slices resource.
+- [security] update dependency to pillow >= 6.2.0.
 
 1.8.30 (2019-09-24)
 -------------------
