@@ -5,7 +5,7 @@ import io
 import os
 from psd_tools.psd import PSD
 
-from ..utils import full_name, all_files, check_write_read, check_read_write
+from ..utils import full_name, all_files, check_write_read, check_read_write, TEST_ROOT
 
 try:
     from IPython.lib.pretty import pprint
@@ -61,3 +61,14 @@ def test_psd_write_read(filename):
 def test_psd_from_error():
     with pytest.raises(AssertionError):
         PSD.frombytes(b'\x00\x00\x00\x00')
+
+
+@pytest.mark.parametrize(['filename', 'length'], [
+    ('colormodes/4x4_8bit_rgb.psd', 2),
+    ('colormodes/4x4_16bit_rgb.psd', 2),
+    ('colormodes/4x4_32bit_rgb.psd', 2),
+])
+def test_psd__iter_layers(filename, length):
+    with open(os.path.join(TEST_ROOT, 'psd_files', filename), 'rb') as f:
+        psd = PSD.read(f)
+    assert len(list(psd._iter_layers())) == length

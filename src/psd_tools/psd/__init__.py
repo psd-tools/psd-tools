@@ -97,9 +97,10 @@ class PSD(BaseElement):
                     yield record, channels
 
     def _get_layer_info(self):
+        from psd_tools.constants import Tag
         tagged_blocks = self.layer_and_mask_information.tagged_blocks
         if tagged_blocks is not None:
-            for key in ('LAYER_16', 'LAYER_32'):
+            for key in (Tag.LAYER_16, Tag.LAYER_32):
                 if key in tagged_blocks:
                     return tagged_blocks.get_data(key)
         return self.layer_and_mask_information.layer_info
