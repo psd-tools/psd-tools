@@ -1,3 +1,9 @@
+1.8.34 (2019-11-28)
+-------------------
+
+- [api] fix `compose()` arguments.
+- [psd] fix attrs version dependency.
+
 1.8.33 (2019-11-28)
 -------------------
 
