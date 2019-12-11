@@ -1,3 +1,10 @@
+1.8.33 (2019-11-28)
+-------------------
+
+- [api] add `include_invisible` option to `Group.extract_bbox`.
+- [psd] fix deprecated attrs api.
+
+
 1.8.32 (2019-11-28)
 -------------------
 

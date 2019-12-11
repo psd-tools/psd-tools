@@ -562,17 +562,29 @@ class Group(GroupMixin, Layer):
     """
 
     @staticmethod
-    def extract_bbox(layers):
+    def extract_bbox(layers, include_invisible=False):
         """
         Returns a bounding box for ``layers`` or (0, 0, 0, 0) if the layers
         have no bounding box.
+
+        :param include_invisible: include invisible layers in calculation.
+        :return: tuple of four int
         """
+
+        def _get_bbox(layer, **kwargs):
+            if layer.is_group():
+                return Group.extract_bbox(layer, **kwargs)
+            else:
+                return layer.bbox
+
         if not hasattr(layers, '__iter__'):
             layers = [layers]
+
         bboxes = [
-            layer.bbox for layer in layers
-            if layer.is_visible() and not layer.bbox == (0, 0, 0, 0)
+            _get_bbox(layer, include_invisible=include_invisible)
+            for layer in layers if include_invisible or layer.is_visible()
         ]
+        bbox = [bbox for bbox in bboxes if bbox != (0, 0, 0, 0)]
         if len(bboxes) == 0:  # Empty bounding box.
             return (0, 0, 0, 0)
         lefts, tops, rights, bottoms = zip(*bboxes)

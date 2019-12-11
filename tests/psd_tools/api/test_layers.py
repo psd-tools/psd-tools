@@ -4,7 +4,7 @@ import logging
 import os
 
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.api.layers import Layer
+from psd_tools.api.layers import Layer, Group
 from psd_tools.constants import BlendMode
 
 from ..utils import full_name
@@ -191,3 +191,9 @@ def test_group_writable_properties(group):
     assert group.blend_mode == BlendMode.PASS_THROUGH
     group.blend_mode = BlendMode.SCREEN
     assert group.blend_mode == BlendMode.SCREEN
+
+
+def test_group_extract_bbox():
+    psd = PSDImage.open(full_name('hidden-groups.psd'))
+    assert Group.extract_bbox(psd[1:], False) == (40, 72, 83, 134)
+    assert Group.extract_bbox(psd[1:], True) == (25, 34, 83, 134)

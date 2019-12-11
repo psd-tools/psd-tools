@@ -387,7 +387,7 @@ class Annotation(BaseElement):
 
 @register(Tag.FOREIGN_EFFECT_ID)
 @register(Tag.LAYER_NAME_SOURCE_SETTING)
-@attr.s(repr=False, slots=True, cmp=False)
+@attr.s(repr=False, slots=True, eq=False, order=False)
 class Bytes(ValueElement):
     """
     Bytes structure.
@@ -669,7 +669,7 @@ class SectionDividerSetting(BaseElement):
 
 
 @register(Tag.SHEET_COLOR_SETTING)
-@attr.s(repr=False, slots=True, cmp=False)
+@attr.s(repr=False, slots=True, eq=False, order=False)
 class SheetColorSetting(ValueElement):
     """
     SheetColorSetting value.
