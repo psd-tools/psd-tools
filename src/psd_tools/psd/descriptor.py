@@ -272,7 +272,7 @@ class Property(BaseElement):
 
 
 @register(OSType.UNIT_FLOAT)
-@attr.s(slots=True, cmp=False, repr=False)
+@attr.s(slots=True, repr=False, eq=False, order=False)
 class UnitFloat(NumericElement):
     """
     Unit float structure.
