@@ -143,3 +143,10 @@ def test_apply_opacity():
     psd = PSDImage.open(full_name('opacity-fill.psd'))
     image = psd.compose(force=True)
     assert image.getpixel((0, 0))[-1] == psd.compose().getpixel((0, 0))[-1]
+
+
+def test_compose_layer_filter():
+    psd = PSDImage.open(full_name('clipping-mask.psd'))
+    reference = psd.compose(force=True)
+    rendered = psd.compose(layer_filter=lambda x: x.name != 'Shape 3')
+    assert _calculate_hash_error(reference, rendered) > 0

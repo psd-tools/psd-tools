@@ -135,7 +135,7 @@ class PSDImage(GroupMixin):
             return pil_io.convert_image_data_to_pil(self, channel, **kwargs)
         return None
 
-    def compose(self, force=False, bbox=None, **kwargs):
+    def compose(self, force=False, bbox=None, layer_filter=None, **kwargs):
         """
         Compose the PSD image.
 
@@ -146,11 +146,15 @@ class PSDImage(GroupMixin):
         """
         from psd_tools.composer import compose
         image = None
-        if not force or len(self) == 0:
+        if (not force or len(self) == 0) and not bbox and not layer_filter:
             image = self.topil(**kwargs)
         if image is None:
             image = compose(
-                self, bbox=bbox or self.viewbox, force=force, **kwargs
+                self,
+                bbox=bbox or self.viewbox,
+                force=force,
+                layer_filter=layer_filter,
+                **kwargs
             )
         elif bbox is not None:
             image = image.crop(bbox)

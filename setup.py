@@ -30,7 +30,7 @@ setup(
     install_requires=[
         'docopt>=0.5',
         'packbits',
-        'attrs',
+        'attrs>=19.2.0',
         'Pillow>=6.2.0',
         'enum34;python_version<"3.4"',
         'aggdraw',

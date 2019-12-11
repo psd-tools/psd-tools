@@ -42,6 +42,7 @@ Getting started
 
     for layer in psd:
         print(layer)
+        image = layer.compose()
 
 Check out the :doc:`usage` documentation for more examples.
 
@@ -67,14 +68,15 @@ Limited support:
 
 * Composition of basic pixel-based layers by normal blending;
 * Composition of fill layer effects;
-* Editing of some layer attributes such as layer name.
+* Editing of some layer attributes such as layer name;
+* Blending modes except for dissolve and lighter/darker colors.
 
 Not supported:
 
 * Bitmap image export;
 * Editing of layer structure, such as adding or removing a layer;
-* Blending modes other than normal;
 * Composition of layer effects;
+* Composition of adjustment layers;
 * Drawing of bezier curves;
 * Font rendering.
 
