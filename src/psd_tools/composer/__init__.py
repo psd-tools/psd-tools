@@ -45,7 +45,12 @@ def intersect(*bboxes):
 
 
 def compose(
-    layers, bbox=None, context=None, layer_filter=None, color=None, **kwargs
+    layers,
+    bbox=None,
+    context=None,
+    layer_filter=None,
+    color=None,
+    **kwargs
 ):
     """
     Compose layers to a single :py:class:`PIL.Image`.
@@ -88,6 +93,7 @@ def compose(
         be used with the correct `bbox` size.
     :param layer_filter: a callable that takes a layer and returns `bool`.
     :param color: background color in `int` or `tuple`.
+    :param kwargs: arguments passed to underling `topil()` call.
     :return: :py:class:`PIL.Image` or `None`.
     """
     from PIL import Image
@@ -124,14 +130,19 @@ def compose(
 
         if layer.is_group():
             if layer.blend_mode == BlendMode.PASS_THROUGH:
-                _context = layer.compose(context=context, bbox=bbox, **kwargs)
+                _context = layer.compose(
+                    context=context,
+                    bbox=bbox,
+                    layer_filter=layer_filter,
+                    **kwargs
+                )
                 offset = _context.info.get('offset', (0, 0))
                 context.paste(
                     _context, (offset[0] - bbox[0], offset[1] - bbox[1])
                 )
                 continue
             else:
-                image = layer.compose(**kwargs)
+                image = layer.compose(layer_filter=layer_filter, **kwargs)
         else:
             image = compose_layer(layer, **kwargs)
         if image is None:
@@ -145,7 +156,7 @@ def compose(
 
     logger.debug('Composing: %s' % layers)
     if isinstance(layers, Group):
-        context = _apply_layer_ops(layers, context, **kwargs)
+        context = _apply_layer_ops(layers, context)
 
     return context
 
@@ -162,10 +173,10 @@ def compose_layer(layer, force=False, **kwargs):
     if image is None:
         return image
 
-    return _apply_layer_ops(layer, image, force=force, **kwargs)
+    return _apply_layer_ops(layer, image, force=force)
 
 
-def _apply_layer_ops(layer, image, force=False, bbox=None, **kwargs):
+def _apply_layer_ops(layer, image, force=False, bbox=None):
     """Apply layer masks, effects, and clipping."""
     from PIL import Image, ImageChops
     # Apply vector mask.
