@@ -133,3 +133,8 @@ Export layer, mask, or clipping layers separately without composition::
 
     from psd_tools import compose
     clip_image = compose(layer.clip_layers)
+
+To compose specific layers, such as layers except for texts, use layer_filter
+option::
+
+    image = psd.compose(layer_filter=lambda layer: layer.is_visible() and layer.kind != 'type')
