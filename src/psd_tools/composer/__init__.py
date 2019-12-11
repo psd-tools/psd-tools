@@ -73,10 +73,12 @@ def compose(
 
          - Adjustments layers
          - Layer effects
-         - Blending mode (all blending modes become normal)
+         - Blending modes: dissolve and darker/lighter color becomes normal
 
         Shape drawing is inaccurate if the PSD file is not saved with
         maximum compatibility.
+
+        Some of the blending modes do not reproduce photoshop blending.
 
     :param layers: a layer, or an iterable of layers.
     :param bbox: (left, top, bottom, right) tuple that specifies a region to
