@@ -8,7 +8,7 @@ from psd_tools.constants import Tag, Resource
 from psd_tools.terminology import Klass, Enum, Key
 from psd_tools.utils import new_registry
 from psd_tools.psd.base import ValueElement
-from psd_tools.psd.descriptor import List
+from psd_tools.psd.descriptor import Descriptor, List
 
 logger = logging.getLogger(__name__)
 
@@ -33,13 +33,13 @@ class Effects(object):
 
         self._items = []
         for key in (self._data or []):
-            if key in (b'masterFXSwitch', Key.Scale.value):
-                continue
             value = self._data[key]
             if not isinstance(value, List):
                 value = [value]
             for item in value:
-                if not item.get(Key.Enabled):
+                if not (
+                    isinstance(item, Descriptor) and item.get(Key.Enabled)
+                ):
                     continue
                 kls = _TYPES.get(item.classID)
                 assert kls is not None, 'kls not found for %r' % item.classID
