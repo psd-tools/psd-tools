@@ -137,6 +137,7 @@ def compose(
                     **kwargs
                 )
                 offset = _context.info.get('offset', (0, 0))
+                # TODO: group opacity is not properly considered here.
                 context.paste(
                     _context, (offset[0] - bbox[0], offset[1] - bbox[1])
                 )
@@ -198,11 +199,11 @@ def _apply_layer_ops(layer, image, force=False, bbox=None):
     image = apply_mask(layer, image, bbox=bbox)
 
     # Apply layer fill effects.
-    effect_base = image.copy()
     apply_opacity(
         image, layer.tagged_blocks.get_data(Tag.BLEND_FILL_OPACITY, 255)
     )
-    image = apply_effect(layer, image, effect_base)
+    if layer.effects.enabled:
+        image = apply_effect(layer, image, image.copy())
 
     # Clip layers.
     if layer.has_clip_layers():
@@ -321,6 +322,7 @@ def apply_effect(layer, backdrop, base_image):
         * stroke
     """
     from PIL import ImageChops
+
     for effect in layer.effects:
         if effect.__class__.__name__ == 'PatternOverlay':
             image = draw_pattern_fill(
