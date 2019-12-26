@@ -1,3 +1,9 @@
+1.8.35 (2019-12-26)
+-------------------
+
+- [api] remove duplicate `has_mask()` definition.
+- [composer] fix empty effects check.
+
 1.8.34 (2019-11-28)
 -------------------
 
