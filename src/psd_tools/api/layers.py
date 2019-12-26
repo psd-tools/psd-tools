@@ -132,10 +132,6 @@ class Layer(object):
     def blend_mode(self, value):
         self._record.blend_mode = BlendMode(value)
 
-    def has_mask(self):
-        """Returns True if the layer has a mask."""
-        return self._record.mask_data is not None
-
     @property
     def left(self):
         """
