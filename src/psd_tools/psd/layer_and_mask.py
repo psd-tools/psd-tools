@@ -63,8 +63,9 @@ class LayerAndMaskInformation(BaseElement):
     @classmethod
     def _read_body(cls, fp, end_pos, encoding, version):
         layer_info = LayerInfo.read(fp, encoding, version)
+
         global_layer_mask_info = None
-        if is_readable(fp) and fp.tell() < end_pos:
+        if is_readable(fp, 17) and fp.tell() < end_pos:
             global_layer_mask_info = GlobalLayerMaskInfo.read(fp)
 
         tagged_blocks = None
@@ -929,9 +930,17 @@ class GlobalLayerMaskInfo(BaseElement):
 
     @classmethod
     def read(cls, fp):
+        pos = fp.tell()
         data = read_length_block(fp)  # fmt?
         logger.debug('reading global layer mask info, len=%d' % (len(data)))
         if len(data) == 0:
+            return cls(overlay_color=None)
+        elif len(data) < 13:
+            logger.warning(
+                'global layer mask info is broken, expected 13 bytes but found '
+                'only %d' % (len(data))
+            )
+            fp.seek(pos)
             return cls(overlay_color=None)
 
         with io.BytesIO(data) as f:
