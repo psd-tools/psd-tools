@@ -1,6 +1,11 @@
 1.8.35 (2019-12-26)
 -------------------
 
+- [psd] add safeguard for malformed global layer mask info parser.
+
+1.8.35 (2019-12-26)
+-------------------
+
 - [api] remove duplicate `has_mask()` definition.
 - [composer] fix empty effects check.
 
