@@ -7,7 +7,6 @@ import logging
 
 from psd_tools.psd.base import BaseElement
 from psd_tools.constants import ColorSpaceID
-from psd_tools.validators import in_
 from psd_tools.utils import read_fmt, write_fmt
 
 logger = logging.getLogger(__name__)

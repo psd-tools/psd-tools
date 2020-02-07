@@ -5,7 +5,6 @@ from __future__ import absolute_import, unicode_literals
 import logging
 
 from psd_tools.constants import ChannelID
-from psd_tools.api.pil_io import convert_layer_to_pil
 
 logger = logging.getLogger(__name__)
 

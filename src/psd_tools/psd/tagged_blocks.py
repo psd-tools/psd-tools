@@ -15,7 +15,6 @@ from warnings import warn
 from psd_tools.constants import (
     BlendMode, SectionDivider, Tag, PlacedLayerType, SheetColorType
 )
-import psd_tools.psd.layer_and_mask
 from psd_tools.psd.adjustments import ADJUSTMENT_TYPES
 from psd_tools.psd.base import (
     BaseElement,
@@ -40,8 +39,8 @@ from psd_tools.psd.vector import (
 from psd_tools.validators import in_
 from psd_tools.utils import (
     read_fmt, write_fmt, read_length_block, write_length_block, is_readable,
-    write_bytes, read_unicode_string, write_unicode_string, write_padding,
-    read_pascal_string, write_pascal_string, trimmed_repr, new_registry
+    write_bytes, write_padding, read_pascal_string, write_pascal_string,
+    trimmed_repr, new_registry
 )
 
 logger = logging.getLogger(__name__)
@@ -759,7 +758,7 @@ class TypeToolObjectSetting(BaseElement):
                 engine_data = text_data[b'EngineData'].value
                 engine_data = EngineData.frombytes(engine_data)
                 text_data[b'EngineData'].value = engine_data
-            except:
+            except Exception:
                 logger.warning('Failed to read engine data')
         warp_version = read_fmt('H', fp)[0]
         warp = DescriptorBlock.read(fp)

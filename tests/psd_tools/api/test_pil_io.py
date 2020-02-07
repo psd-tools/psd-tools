@@ -6,7 +6,7 @@ import os
 from psd_tools.api import pil_io
 from psd_tools.constants import ColorMode
 from psd_tools.psd.patterns import Pattern
-from ..utils import TEST_ROOT, full_name
+from ..utils import TEST_ROOT
 
 logger = logging.getLogger(__name__)
 

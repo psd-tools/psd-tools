@@ -18,10 +18,13 @@ import logging
 from collections import OrderedDict
 from enum import Enum
 from psd_tools.utils import (
-    read_fmt, write_fmt, trimmed_repr, read_unicode_string,
-    write_unicode_string
+    read_fmt,
+    write_fmt,
+    trimmed_repr,
+    read_unicode_string,
+    write_unicode_string,
+    write_bytes,
 )
-from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
 

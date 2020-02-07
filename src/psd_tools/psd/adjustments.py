@@ -3,7 +3,6 @@ Adjustment layer structure.
 """
 from __future__ import absolute_import, unicode_literals
 import attr
-import io
 import logging
 
 from psd_tools.constants import Tag
@@ -13,13 +12,11 @@ from psd_tools.psd.base import (
     ListElement,
     ShortIntegerElement,
 )
-from psd_tools.psd.color import Color
 from psd_tools.psd.descriptor import DescriptorBlock, DescriptorBlock2
 from psd_tools.validators import in_
 from psd_tools.utils import (
-    read_fmt, write_fmt, read_length_block, write_length_block, is_readable,
-    write_bytes, read_unicode_string, write_unicode_string, write_padding,
-    read_pascal_string, write_pascal_string, trimmed_repr, new_registry
+    read_fmt, write_fmt, is_readable, write_bytes, read_unicode_string,
+    write_unicode_string, write_padding, new_registry
 )
 
 logger = logging.getLogger(__name__)

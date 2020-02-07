@@ -5,7 +5,6 @@ from __future__ import absolute_import, unicode_literals
 import logging
 import io
 
-from psd_tools.psd.image_data import ImageData
 from psd_tools.constants import ColorMode, ChannelID, Resource
 
 logger = logging.getLogger(__name__)
@@ -100,7 +99,6 @@ def convert_image_data_to_pil(psd, channel=None, apply_icc=True, **kwargs):
 
 def convert_layer_to_pil(layer, channel=None, apply_icc=True, **kwargs):
     """Convert Layer to PIL Image."""
-    from PIL import Image
     alpha = None
     icc = None
     if channel is None:

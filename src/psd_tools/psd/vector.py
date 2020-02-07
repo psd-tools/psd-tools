@@ -9,10 +9,8 @@ from psd_tools.psd.base import BaseElement, ListElement, ValueElement
 from psd_tools.constants import PathResourceID
 from psd_tools.psd.descriptor import Descriptor
 from psd_tools.utils import (
-    read_fmt, write_fmt, read_length_block, write_length_block, is_readable,
-    write_bytes, write_padding, new_registry
+    read_fmt, write_fmt, is_readable, write_padding, new_registry
 )
-from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
 

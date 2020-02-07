@@ -18,7 +18,7 @@ from psd_tools.psd.tagged_blocks import (
     MetadataSettings,
 )
 
-from ..utils import check_read_write, check_write_read, TEST_ROOT, full_name
+from ..utils import check_read_write, check_write_read, TEST_ROOT
 
 logger = logging.getLogger(__name__)
 

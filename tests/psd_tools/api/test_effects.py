@@ -1,7 +1,6 @@
 from __future__ import absolute_import, unicode_literals
 import pytest
 import logging
-import os
 
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.terminology import Enum

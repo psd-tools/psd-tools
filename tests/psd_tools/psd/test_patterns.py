@@ -2,7 +2,7 @@ from __future__ import absolute_import, unicode_literals
 import pytest
 import logging
 
-from psd_tools.psd.patterns import (Patterns, VirtualMemoryArray)
+from psd_tools.psd.patterns import VirtualMemoryArray
 
 from ..utils import check_write_read, check_read_write
 

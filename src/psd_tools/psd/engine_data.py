@@ -31,9 +31,7 @@ EngineData. The format looks like the following::
 """
 from __future__ import absolute_import, unicode_literals
 import attr
-from collections import OrderedDict
 import codecs
-import io
 import logging
 import re
 from enum import Enum
@@ -41,7 +39,7 @@ from psd_tools.psd.base import (
     BooleanElement, DictElement, IntegerElement, ListElement, NumericElement,
     ValueElement
 )
-from psd_tools.utils import new_registry, trimmed_repr, write_bytes
+from psd_tools.utils import new_registry, write_bytes
 
 logger = logging.getLogger(__name__)
 

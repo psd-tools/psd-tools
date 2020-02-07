@@ -5,7 +5,7 @@ from __future__ import absolute_import, unicode_literals
 import logging
 
 from psd_tools.api import deprecated
-from psd_tools.constants import (BlendMode, SectionDivider, Clipping, Tag)
+from psd_tools.constants import BlendMode, Tag
 from psd_tools.api.effects import Effects
 from psd_tools.api.mask import Mask
 from psd_tools.api.pil_io import convert_layer_to_pil
@@ -580,7 +580,7 @@ class Group(GroupMixin, Layer):
             _get_bbox(layer, include_invisible=include_invisible)
             for layer in layers if include_invisible or layer.is_visible()
         ]
-        bbox = [bbox for bbox in bboxes if bbox != (0, 0, 0, 0)]
+        bboxes = [bbox for bbox in bboxes if bbox != (0, 0, 0, 0)]
         if len(bboxes) == 0:  # Empty bounding box.
             return (0, 0, 0, 0)
         lefts, tops, rights, bottoms = zip(*bboxes)

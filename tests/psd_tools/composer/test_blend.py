@@ -3,10 +3,8 @@ import pytest
 import logging
 import colorsys
 import numpy as np
-import os
 from psd_tools.composer.blend import rgb_to_hls, hls_to_rgb
 
-from ..utils import full_name
 from .test_composer import test_compose_quality
 
 logger = logging.getLogger(__name__)

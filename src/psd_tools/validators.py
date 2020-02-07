@@ -4,6 +4,8 @@ Validation functions for attr.
 import attr
 from attr.validators import in_
 
+__all__ = ['in_', 'range_']
+
 
 @attr.s(repr=False, slots=True, hash=True)
 class _RangeValidator(object):
@@ -13,7 +15,7 @@ class _RangeValidator(object):
     def __call__(self, inst, attr, value):
         try:
             range_options = self.minimum <= value and value <= self.maximum
-        except TypeError as e:
+        except TypeError:
             range_options = False
 
         if not range_options:

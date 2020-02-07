@@ -6,21 +6,14 @@ are stored in tagged blocks.
 """
 from __future__ import absolute_import, unicode_literals
 import attr
-import io
 import logging
-from collections import OrderedDict
 
 from psd_tools.constants import BlendMode, EffectOSType
 from psd_tools.psd.base import BaseElement, DictElement
 from psd_tools.psd.color import Color
 from psd_tools.validators import in_
 from psd_tools.utils import (
-    read_fmt,
-    write_fmt,
-    read_length_block,
-    write_length_block,
-    write_bytes,
-    write_padding,
+    read_fmt, write_fmt, read_length_block, write_length_block, write_padding
 )
 
 logger = logging.getLogger(__name__)
