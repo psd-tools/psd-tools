@@ -3,15 +3,19 @@ from setuptools import setup, find_packages
 from distutils.extension import Extension
 import logging
 import os
+import sys
 
 try:
     from Cython.Build import cythonize
-    extension = cythonize([
-        Extension(
-            'psd_tools.compression._packbits',
-            ['src/psd_tools/compression/_packbits.pyx']
-        )
-    ])
+    extension = cythonize(
+        [
+            Extension(
+                'psd_tools.compression._packbits',
+                ['src/psd_tools/compression/_packbits.pyx']
+            )
+        ],
+        language_level=sys.version_info[0],
+    )
 except ImportError:
     logging.error('Cython not found, no extension will be built.')
     extension = []
@@ -23,8 +27,8 @@ def get_version():
     """
     curdir = os.path.dirname(__file__)
     filename = os.path.join(curdir, 'src', 'psd_tools', 'version.py')
-    with open(filename, 'rb') as fp:
-        return fp.read().decode('utf8').split('=')[1].strip(" \n'")
+    with open(filename, 'r') as fp:
+        return fp.read().split('=')[1].strip(" \r\n'")
 
 
 setup(
