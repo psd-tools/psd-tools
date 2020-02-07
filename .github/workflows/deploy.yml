@@ -86,5 +86,5 @@ jobs:
         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
         TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
       run: |
-        pip wheel . -w dist/
-        twine upload --skip-existing wheelhouse/*
+        pip wheel . -w dist/ --no-deps
+        twine upload --skip-existing dist/*
