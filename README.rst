@@ -8,16 +8,15 @@ as described in specification_.
 .. _psd-tools: https://github.com/psd-tools/psd-tools
 
 .. image:: https://img.shields.io/pypi/v/psd-tools.svg
-   :target: https://pypi.python.org/pypi/psd-tools
-   :alt: PyPI Version
+    :target: https://pypi.python.org/pypi/psd-tools
+    :alt: PyPI Version
 
-.. image:: https://img.shields.io/travis/psd-tools/psd-tools/master.svg
-   :alt: Build Status
-   :target: https://travis-ci.org/psd-tools/psd-tools
+.. image:: https://github.com/psd-tools/psd-tools/workflows/Test/badge.svg
+    :alt: Test
 
 .. image:: https://readthedocs.org/projects/psd-tools/badge/
-   :alt: Document Status
-   :target: http://psd-tools.readthedocs.io/en/latest/
+    :alt: Document Status
+    :target: http://psd-tools.readthedocs.io/en/latest/
 
 .. _psd-tools: https://github.com/psd-tools/psd-tools
 
