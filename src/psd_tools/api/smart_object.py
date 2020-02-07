@@ -76,12 +76,6 @@ class SmartObject(object):
                 filepath = filepath.replace('\x00', '')
                 if external_dir is not None:
                     filepath = os.path.join(external_dir, filepath)
-            if not os.path.exists(filepath):
-                try:
-                    FileNotFoundError
-                except NameError:
-                    FileNotFoundError = IOError
-                raise FileNotFoundError(filepath)
             with open(filepath, 'rb') as f:
                 yield f
         else:
