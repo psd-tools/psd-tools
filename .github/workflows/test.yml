@@ -28,6 +28,8 @@ jobs:
     - uses: actions/checkout@v1
     - name: Set PATH
       run: echo "::add-path::/opt/python/${{ matrix.python-version }}/bin"
+    - name: Install dependencies
+      run: python -m pip install --upgrade pip
     - name: Lint with flake8
       run: |
         pip install flake8
@@ -35,7 +37,6 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test
       run: |
-        python -m pip install --upgrade pip
         pip install tox cython
         tox -e py
   other:
@@ -55,6 +56,8 @@ jobs:
     - name: Set PATH  # See actions/virtual-environments#294
       run: echo "::add-path::C:\Program Files (x86)\Windows Kits\10\bin\10.0.18362.0\x64"
       if: runner.os == 'Windows'
+    - name: Install dependencies
+      run: python -m pip install --upgrade pip
     - name: Lint with flake8
       run: |
         pip install flake8
@@ -62,6 +65,5 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test
       run: |
-        python -m pip install --upgrade pip
         pip install tox cython
         tox -e py
