@@ -57,7 +57,7 @@ jobs:
         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
         TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
       run: |
-        pip wheel . -w dist/
+        pip wheel . -w dist/ --no-deps
         auditwheel repair dist/*.whl --plat $AUDITWHEEL_PLAT
         twine upload --skip-existing wheelhouse/*
   bdist_other:
