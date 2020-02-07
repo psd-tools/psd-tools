@@ -1,9 +1,20 @@
 #!/usr/bin/env python
 from setuptools import setup, find_packages
+from distutils.extension import Extension
 import logging
 import os
 
-logger = logging.getLogger(__name__)
+try:
+    from Cython.Build import cythonize
+    extension = cythonize([
+        Extension(
+            'psd_tools.compression._packbits',
+            ['src/psd_tools/compression/_packbits.pyx']
+        )
+    ])
+except ImportError:
+    logging.error('Cython not found, no extension will be built.')
+    extension = []
 
 
 def get_version():
@@ -29,7 +40,6 @@ setup(
     license='MIT License',
     install_requires=[
         'docopt>=0.5',
-        'packbits',
         'attrs>=19.2.0',
         'Pillow>=6.2.0',
         'enum34;python_version<"3.4"',
@@ -38,9 +48,8 @@ setup(
     keywords="photoshop psd pil pillow",
     package_dir={'': 'src'},
     packages=find_packages('src'),
-    entry_points={
-        'console_scripts': ['psd-tools=psd_tools.__main__:main']
-    },
+    ext_modules=extension,
+    entry_points={'console_scripts': ['psd-tools=psd_tools.__main__:main']},
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
