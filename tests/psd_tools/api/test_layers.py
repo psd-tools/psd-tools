@@ -1,10 +1,9 @@
 from __future__ import absolute_import, unicode_literals
 import pytest
 import logging
-import os
 
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.api.layers import Layer, Group
+from psd_tools.api.layers import Group
 from psd_tools.constants import BlendMode
 
 from ..utils import full_name

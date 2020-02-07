@@ -3,7 +3,8 @@ import pytest
 from psd_tools.psd.color_mode_data import ColorModeData
 from psd_tools.utils import pack
 
-from ..utils import check_read_write, check_write_read
+from ..utils import check_read_write
+
 
 INDEX_COLOR_DATA = (
     b'\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff'

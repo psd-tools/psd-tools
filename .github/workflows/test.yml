@@ -1,0 +1,67 @@
+name: Test
+
+on: [push, pull_request]
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        container:
+          - quay.io/pypa/manylinux1_x86_64
+          - quay.io/pypa/manylinux2010_x86_64
+          - quay.io/pypa/manylinux2014_x86_64
+        python-version:
+          - cp27-cp27m
+          - cp27-cp27mu
+          - cp35-cp35m
+          - cp36-cp36m
+          - cp37-cp37m
+          - cp38-cp38
+        exclude:
+          - container: quay.io/pypa/manylinux2014_x86_64
+            python-version: cp27-cp27m
+          - container: quay.io/pypa/manylinux2014_x86_64
+            python-version: cp27-cp27mu
+    container: ${{ matrix.container }}
+    steps:
+    - uses: actions/checkout@v1
+    - name: Set PATH
+      run: echo "::add-path::/opt/python/${{ matrix.python-version }}/bin"
+    - name: Lint with flake8
+      run: |
+        pip install flake8
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    - name: Test
+      run: |
+        python -m pip install --upgrade pip
+        pip install tox cython
+        tox -e py
+  other:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+        python-version: [2.7, 3.5, 3.6, 3.7, 3.8]
+        exclude:
+          - os: windows-latest
+            python-version: 2.7
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-python@v1
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Set PATH  # See actions/virtual-environments#294
+      run: echo "::add-path::C:\Program Files (x86)\Windows Kits\10\bin\10.0.18362.0\x64"
+      if: runner.os == 'Windows'
+    - name: Lint with flake8
+      run: |
+        pip install flake8
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    - name: Test
+      run: |
+        python -m pip install --upgrade pip
+        pip install tox cython
+        tox -e py

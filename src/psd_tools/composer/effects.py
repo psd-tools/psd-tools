@@ -13,8 +13,6 @@ logger = logging.getLogger(__name__)
 
 
 def create_stroke_effect(alpha, setting, psd, mask_given=False):
-    from PIL import ImageOps
-    size = int(setting.get(Key.SizeKey))
     offset = alpha.info['offset']
     if mask_given:
         mask = alpha

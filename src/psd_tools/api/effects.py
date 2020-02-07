@@ -5,9 +5,8 @@ from __future__ import absolute_import, unicode_literals
 import logging
 
 from psd_tools.constants import Tag, Resource
-from psd_tools.terminology import Klass, Enum, Key
+from psd_tools.terminology import Klass, Key
 from psd_tools.utils import new_registry
-from psd_tools.psd.base import ValueElement
 from psd_tools.psd.descriptor import Descriptor, List
 
 logger = logging.getLogger(__name__)

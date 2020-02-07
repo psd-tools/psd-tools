@@ -156,7 +156,7 @@ def _apply_opacity(image, setting):
 
 
 def draw_solid_color_fill(size, setting):
-    from PIL import Image, ImageDraw, ImageChops
+    from PIL import Image, ImageDraw
     color = setting.get(Key.Color)
     mode = _COLORSPACE.get(color.classID)
     fill = tuple(int(x) for x in list(color.values())[:len(mode)])

@@ -1,16 +1,10 @@
 from __future__ import absolute_import, unicode_literals
 import pytest
-import logging
 import io
 import os
 from psd_tools.psd import PSD
 
-from ..utils import full_name, all_files, check_write_read, check_read_write, TEST_ROOT
-
-try:
-    from IPython.lib.pretty import pprint
-except ImportError:
-    from pprint import pprint
+from ..utils import all_files, check_write_read, TEST_ROOT
 
 # It seems some fixtures made outside of Photoshop has different paddings.
 BAD_PADDINGS = {
@@ -27,7 +21,6 @@ BAD_UNICODE_PADDINGS = {
 }
 
 
-# @pytest.mark.parametrize('filename', [full_name('layer_effects.psd')])
 @pytest.mark.parametrize('filename', all_files())
 def test_psd_read_write(filename):
     basename = os.path.basename(filename)
@@ -36,7 +29,6 @@ def test_psd_read_write(filename):
 
     with io.BytesIO(expected) as f:
         psd = PSD.read(f)
-        # pprint(psd)
 
     padding = BAD_PADDINGS.get(basename, 4)
     with io.BytesIO() as f:

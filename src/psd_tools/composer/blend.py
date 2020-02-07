@@ -18,7 +18,7 @@ BLEND_FUNCTIONS, register = new_registry()
 
 
 def blend(backdrop, image, offset, mode=None):
-    from PIL import Image, ImageChops, ImageMath
+    from PIL import Image
 
     # Align the canvas size.
     if offset[0] < 0:
@@ -238,7 +238,6 @@ def _divide(Cs, Cb):
 @register(BlendMode.HUE)
 @register(Enum.Hue)
 def _hue(Cs, Cb):
-    import numpy as np
     hs, ls, ss = rgb_to_hls(Cs)
     hb, lb, sb = rgb_to_hls(Cb)
     return hls_to_rgb(hs, lb, sb)
@@ -247,7 +246,6 @@ def _hue(Cs, Cb):
 @register(BlendMode.SATURATION)
 @register(Enum.Saturation)
 def _saturation(Cs, Cb):
-    import numpy as np
     hs, ls, ss = rgb_to_hls(Cs)
     hb, lb, sb = rgb_to_hls(Cb)
     return hls_to_rgb(hb, lb, ss)
@@ -256,7 +254,6 @@ def _saturation(Cs, Cb):
 @register(BlendMode.COLOR)
 @register(Enum.Color)
 def _color(Cs, Cb):
-    import numpy as np
     hs, ls, ss = rgb_to_hls(Cs)
     hb, lb, sb = rgb_to_hls(Cb)
     return hls_to_rgb(hs, lb, ss)
@@ -264,8 +261,7 @@ def _color(Cs, Cb):
 
 @register(BlendMode.LUMINOSITY)
 @register(Enum.Luminosity)
-def _saturation(Cs, Cb):
-    import numpy as np
+def _luminosity(Cs, Cb):
     hs, ls, ss = rgb_to_hls(Cs)
     hb, lb, sb = rgb_to_hls(Cb)
     return hls_to_rgb(hb, ls, sb)

@@ -62,7 +62,6 @@ from psd_tools.version import __version__
 from psd_tools.constants import Resource, PrintScaleStyle
 from psd_tools.psd.base import (
     BaseElement,
-    BooleanElement,
     ByteElement,
     DictElement,
     IntegerElement,

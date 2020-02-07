@@ -6,7 +6,6 @@ from psd_tools.compression import (
     encode_packbits, decode_packbits
 )
 from psd_tools.constants import Compression
-import psd_tools.utils
 
 logger = logging.getLogger(__name__)
 

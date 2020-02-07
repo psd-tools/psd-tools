@@ -10,9 +10,7 @@ stylized.
 from __future__ import absolute_import
 import logging
 
-from psd_tools.psd.vector import (
-    Subpath, PathFillRule, InitialFillRule, ClipboardRecord
-)
+from psd_tools.psd.vector import Subpath, InitialFillRule, ClipboardRecord
 
 logger = logging.getLogger(__name__)
 

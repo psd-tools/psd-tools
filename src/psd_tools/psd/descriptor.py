@@ -17,9 +17,7 @@ Pretty printing is the best approach to check the descriptor content::
 """
 from __future__ import absolute_import, unicode_literals
 import attr
-import io
 import logging
-from warnings import warn
 
 from psd_tools.psd.base import (
     BaseElement,
@@ -43,6 +41,7 @@ from psd_tools.utils import (
     write_length_block,
     write_padding,
     new_registry,
+    trimmed_repr,
 )
 
 logger = logging.getLogger(__name__)

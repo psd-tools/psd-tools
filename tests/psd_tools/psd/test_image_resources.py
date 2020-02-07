@@ -39,6 +39,7 @@ def test_image_resource_exception():
     with pytest.raises(AssertionError):
         ImageResource.frombytes(b'\x00\x00\x00\x01')
 
+
 @pytest.mark.parametrize(
     'kls, filename', [
         (Slices, 'slices_0.dat'),

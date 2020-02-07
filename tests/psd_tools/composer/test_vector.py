@@ -1,7 +1,6 @@
 from __future__ import absolute_import, unicode_literals
 import pytest
 import logging
-from PIL import Image
 
 from psd_tools import PSDImage
 from psd_tools.constants import Tag
@@ -54,7 +53,6 @@ def test_draw_solid_color_fill():
 def test_draw_pattern_fill():
     psd = PSDImage.open(full_name('layers-minimal/pattern-fill.psd'))
     setting = psd[0].tagged_blocks.get_data(Tag.PATTERN_FILL_SETTING)
-    image = Image.new('RGBA', psd.size)
     draw_pattern_fill(psd.size, psd, setting)
     setting[b'Scl '] = Double(50.)
     setting[b'Opct'] = Double(67.)

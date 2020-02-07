@@ -4,13 +4,16 @@ Image compression utils.
 from __future__ import absolute_import, unicode_literals
 import array
 import io
-import packbits
 import zlib
 
 from psd_tools.constants import Compression
 from psd_tools.utils import (
     be_array_from_bytes, be_array_to_bytes, read_be_array, write_be_array
 )
+try:
+    from . import _packbits as packbits
+except ImportError:
+    from . import packbits
 
 
 def compress(data, compression, width, height, depth, version=1):

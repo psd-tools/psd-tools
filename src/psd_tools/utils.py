@@ -35,7 +35,7 @@ def read_fmt(fmt, fp):
     try:
         assert len(data
                    ) == fmt_size, 'read=%d, expected=%d' % (len(data), fmt_size)
-    except:
+    except AssertionError:
         fp.seek(-len(data), 1)
         raise
     return struct.unpack(fmt, data)

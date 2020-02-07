@@ -21,8 +21,9 @@ import os
 import sys
 import sphinx_rtd_theme
 
-sys.path.insert(0, os.path.join(
-    os.path.dirname(os.path.dirname(__file__)), 'src'))
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'src')
+)
 
 from psd_tools.version import __version__
 
@@ -35,9 +36,7 @@ from psd_tools.version import __version__
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ['sphinx.ext.autodoc',
-    'sphinx.ext.todo',
-    'sphinx.ext.viewcode']
+extensions = ['sphinx.ext.autodoc', 'sphinx.ext.todo', 'sphinx.ext.viewcode']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -83,7 +82,6 @@ pygments_style = 'sphinx'
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
 
-
 # -- Options for HTML output ----------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
@@ -127,12 +125,10 @@ html_context = dict(
     conf_py_path="/docs/",
 )
 
-
 # -- Options for HTMLHelp output ------------------------------------------
 
 # Output file base name for HTML help builder.
 htmlhelp_basename = 'srcdoc'
-
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -158,20 +154,14 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'src.tex', 'src Documentation',
-     'Author', 'manual'),
+    (master_doc, 'src.tex', 'src Documentation', 'Author', 'manual'),
 ]
-
 
 # -- Options for manual page output ---------------------------------------
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [
-    (master_doc, 'src', 'src Documentation',
-     [author], 1)
-]
-
+man_pages = [(master_doc, 'src', 'src Documentation', [author], 1)]
 
 # -- Options for Texinfo output -------------------------------------------
 
@@ -179,12 +169,11 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'src', 'src Documentation',
-     author, 'src', 'One line description of project.',
-     'Miscellaneous'),
+    (
+        master_doc, 'src', 'src Documentation', author, 'src',
+        'One line description of project.', 'Miscellaneous'
+    ),
 ]
-
-
 
 # -- Options for Epub output ----------------------------------------------
 
@@ -206,14 +195,13 @@ epub_copyright = copyright
 # A list of files that should not be packed into the epub file.
 epub_exclude_files = ['search.html']
 
-
 # -- Remove auto-generated namedtuple docstrings ---------------------------
+
 
 # Named tuples generate rather inhumane docstring. Remove them.
 def no_namedtuple_attrib_docstring(app, what, name, obj, options, lines):
     is_namedtuple_docstring = (
-        len(lines) == 2 and
-        lines[0].startswith(u'Alias for field number')
+        len(lines) == 2 and lines[0].startswith(u'Alias for field number')
     )
     if is_namedtuple_docstring:
         del lines[:]

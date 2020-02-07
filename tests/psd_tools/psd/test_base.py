@@ -5,8 +5,7 @@ import logging
 from enum import Enum
 from psd_tools.psd.base import (
     BooleanElement, ByteElement, DictElement, EmptyElement, IntegerElement,
-    ListElement, NumericElement, ShortIntegerElement, StringElement,
-    ValueElement
+    ListElement, NumericElement, ShortIntegerElement, StringElement
 )
 
 from ..utils import check_write_read

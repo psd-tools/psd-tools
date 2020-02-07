@@ -1,7 +1,6 @@
 from __future__ import absolute_import, unicode_literals
 import pytest
 import logging
-from PIL import Image
 
 from psd_tools import PSDImage
 

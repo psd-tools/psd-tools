@@ -1,0 +1,90 @@
+name: PyPI Deployment
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - uses: actions/setup-python@v1
+      with:
+        python-version: '3.x'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install twine
+    - name: Build and publish
+      env:
+        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+      run: |
+        python setup.py sdist
+        twine upload --skip-existing dist/*
+  bdist_manylinux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        container:
+          - quay.io/pypa/manylinux1_x86_64
+          - quay.io/pypa/manylinux2010_x86_64
+          - quay.io/pypa/manylinux2014_x86_64
+        python-version:
+          - cp27-cp27m
+          - cp27-cp27mu
+          - cp35-cp35m
+          - cp36-cp36m
+          - cp37-cp37m
+          - cp38-cp38
+        exclude:
+          - container: quay.io/pypa/manylinux2014_x86_64
+            python-version: cp27-cp27m
+          - container: quay.io/pypa/manylinux2014_x86_64
+            python-version: cp27-cp27mu
+    container: ${{ matrix.container }}
+    steps:
+    - uses: actions/checkout@v1
+    - name: Set PATH
+      run: echo "::add-path::/opt/python/${{ matrix.python-version }}/bin"
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install cython wheel twine
+    - name: Build and publish
+      env:
+        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+      run: |
+        pip wheel . -w dist/
+        auditwheel repair dist/*.whl --plat $AUDITWHEEL_PLAT
+        twine upload --skip-existing wheelhouse/*
+  bdist_other:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+        python-version: [2.7, 3.5, 3.6, 3.7, 3.8]
+        exclude:
+          - os: windows-latest
+            python-version: 2.7
+    steps:
+    - uses: actions/checkout@v1
+    - uses: actions/setup-python@v1
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Set PATH  # See actions/virtual-environments#294
+      run: echo "::add-path::C:\Program Files (x86)\Windows Kits\10\bin\10.0.18362.0\x64"
+      if: runner.os == 'Windows'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install cython wheel twine
+    - name: Build and publish
+      env:
+        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+      run: |
+        pip wheel . -w dist/
+        twine upload --skip-existing wheelhouse/*

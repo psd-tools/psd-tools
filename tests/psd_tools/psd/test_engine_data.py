@@ -5,7 +5,7 @@ from psd_tools.psd.engine_data import (
     Tokenizer, EngineToken, EngineData, Float, String
 )
 
-from ..utils import check_write_read, check_read_write, TEST_ROOT
+from ..utils import check_read_write, TEST_ROOT
 
 
 @pytest.mark.parametrize(
