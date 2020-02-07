@@ -1,4 +1,11 @@
-1.8.35 (2019-12-26)
+1.8.37 (2020-02-07)
+-------------------
+
+- [compression] Remove packbits dependency and introduce cython implementation.
+- [deploy] Move CI provider from Travis-CI to Github Actions.
+- [deploy] Start distributing binary wheels.
+
+1.8.36 (2019-12-26)
 -------------------
 
 - [psd] add safeguard for malformed global layer mask info parser.
