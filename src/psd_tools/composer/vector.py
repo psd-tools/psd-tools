@@ -86,7 +86,7 @@ def draw_stroke(backdrop, layer, vector_mask=None):
     if painter.classID == b'solidColorLayer':
         image = draw_solid_color_fill(mask.size, painter)
     elif painter.classID == b'gradientLayer':
-        image = draw_gradient_fill('RGB', mask.size, painter)
+        image = draw_gradient_fill(mask.size, painter)
     elif painter.classID == b'patternLayer':
         image = draw_pattern_fill(mask.size, layer._psd, painter)
     else:

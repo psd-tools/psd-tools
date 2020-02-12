@@ -150,3 +150,10 @@ def test_compose_layer_filter():
     reference = psd.compose(force=True)
     rendered = psd.compose(layer_filter=lambda x: x.name != 'Shape 3')
     assert _calculate_hash_error(reference, rendered) > 0
+
+
+def test_compose_stroke():
+    psd = PSDImage.open(full_name('stroke.psd'))
+    reference = psd.compose(force=True)
+    rendered = psd.compose()
+    assert _calculate_hash_error(reference, rendered) > 0
