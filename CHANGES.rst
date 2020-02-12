@@ -1,3 +1,8 @@
+1.8.38 (2020-02-12)
+-------------------
+
+- [composer] fix crash when gradient fill is in stroke.
+
 1.8.37 (2020-02-07)
 -------------------
 
