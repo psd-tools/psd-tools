@@ -87,8 +87,10 @@ def _screen(Cs, Cb):
 @register(BlendMode.OVERLAY)
 @register(Enum.Overlay)
 def _overlay(Cs, Cb):
-    return _hard_light(Cb, Cs)
-
+    index = Cb <= 0.5
+    B = 1-2*(1 - Cb)*(1-Cs)
+    B[index] = 2 * Cs[index]*Cb[index]
+    return B
 
 @register(BlendMode.DARKEN)
 @register(Enum.Darken)
@@ -144,9 +146,9 @@ def _linear_burn(Cs, Cb):
 @register(BlendMode.HARD_LIGHT)
 @register(Enum.HardLight)
 def _hard_light(Cs, Cb):
-    index = Cs > 0.5
-    B = _multiply(Cs, Cb)
-    B[index] = _screen(Cs, Cb)[index]
+    index = Cs <= 0.5
+    B = 1-2*(1 - Cb)*(1-Cs)
+    B[index] = 2 * Cs[index]*Cb[index]
     return B
 
 
