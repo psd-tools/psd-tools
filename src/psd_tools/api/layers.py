@@ -375,6 +375,17 @@ class Layer(object):
             return compose_layer(self, **kwargs)
         return compose(self, bbox=bbox, **kwargs)
 
+    def numpy(self, channel=None):
+        """
+        Get NumPy array of the layer.
+
+        :param channel: Which channel to return, can be 'color+shape', 'color',
+            'shape', 'alpha', or 'mask'.
+        :return: :py:class:`numpy.ndarray`
+        """
+        from .numpy_io import get_array
+        return get_array(self, channel)
+
     def has_clip_layers(self):
         """
         Returns True if the layer has associated clipping.
