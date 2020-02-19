@@ -52,8 +52,6 @@ def composite(group, color=1.0, alpha=0.0, viewport=None, layer_filter=None,
         if needs_stroke:
             compositor.apply_stroke(layer)
 
-        # TODO: Effects.
-
     return compositor.finish()
 
 
@@ -116,6 +114,8 @@ class Compositor(object):
 
         if layer.is_group():
             # Compose in the group view, then paste to the current view.
+
+            # TODO: compare bbox size and choose smaller viewport.
             color, shape, alpha = composite(
                 layer,
                 paste(layer.bbox, self._viewport, self._color, 1.),
@@ -248,6 +248,11 @@ def _get_object(layer, viewport, force):
         color, shape = create_fill(layer, layer.bbox)
         if shape is None:
             shape = np.ones((layer.height, layer.width, 1))
+
+    if color is None and shape is None:
+        # Truly empty layer.
+        color = np.ones((height, width, 1))
+        shape = np.zeros((height, width, 1))
 
     if color is None:
         color = np.ones((height, width, 1))
