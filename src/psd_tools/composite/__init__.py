@@ -1,5 +1,7 @@
 import numpy as np
-from psd_tools.constants import ChannelID, Tag, BlendMode
+from psd_tools.constants import ChannelID, Tag, BlendMode, Clipping
+from psd_tools.api.layers import AdjustmentLayer
+
 import logging
 from .blend import BLEND_FUNC, _normal
 from .vector import create_fill, create_fill_desc, draw_vector_mask, draw_stroke
@@ -16,6 +18,17 @@ def composite(group, color=1.0, alpha=0.0, viewport=None, layer_filter=None,
     def _visible_filter(layer):
         return layer.is_visible()
 
+    def _iterate(layer, layer_filter):
+        if layer.is_group():
+            for child in layer:
+                if layer_filter(child):
+                    yield child
+                for clip_layer in child.clip_layers:
+                    if layer_filter(clip_layer):
+                        yield clip_layer
+        else:
+            yield layer
+
     viewport = viewport or getattr(group, 'viewbox', None) or group.bbox
 
     if group.kind == 'psdimage' and len(group) == 0:
@@ -27,19 +40,20 @@ def composite(group, color=1.0, alpha=0.0, viewport=None, layer_filter=None,
 
     compositor = Compositor(
         viewport, color, alpha, isolated, layer_filter, force)
+    for layer in _iterate(group, layer_filter):
+        if isinstance(layer, AdjustmentLayer):
+            logger.warning('Ignore %s' % layer)
+            continue
 
-    for layer in (group if group.is_group() else [group]):
-        if layer_filter(layer):
-            compositor.apply(layer)
+        compositor.apply(layer)
+        needs_stroke = (force or not layer.has_pixels()) and \
+            layer.has_stroke() and layer.stroke.enabled and \
+            layer.stroke.fill_enabled
+        if needs_stroke:
+            compositor.apply_stroke(layer)
 
-            needs_stroke = (force or not layer.has_pixels()) and \
-                layer.has_stroke() and layer.stroke.enabled and \
-                layer.stroke.fill_enabled
-            if needs_stroke:
-                compositor.apply_stroke(layer)
+        # TODO: Effects.
 
-            # for effect in layer.effects:
-            #     compositor.apply(effect)
     return compositor.finish()
 
 
@@ -77,6 +91,7 @@ class Compositor(object):
         self._viewport = viewport
         self._layer_filter = layer_filter
         self._force = force
+        self._clip_mask = 1.
 
         height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
         if isolated:
@@ -97,7 +112,7 @@ class Compositor(object):
         self._alpha = self._alpha_0
 
     def apply(self, layer):
-        logger.debug('Compositing %s' % (layer))
+        logger.debug('Compositing %s' % layer)
 
         if layer.is_group():
             # Compose in the group view, then paste to the current view.
@@ -121,6 +136,13 @@ class Compositor(object):
 
         shape *= shape_mask * shape_const
         alpha *= (shape_mask * opacity_mask) * (shape_const * opacity_const)
+
+        if layer._record.clipping == Clipping.NON_BASE:
+            shape *= self._clip_mask
+            alpha *= self._clip_mask
+        else:
+            self._clip_mask = shape.copy()
+
         knockout = bool(layer.tagged_blocks.get_data(Tag.KNOCKOUT_SETTING, 0))
 
         self._apply_source(color, shape, alpha, knockout, layer.blend_mode)
@@ -255,7 +277,7 @@ def _get_mask(layer, viewport):
             if density is None:
                 density = layer.mask.parameters.vector_mask_density
             if density is None:
-                opacity = 255
+                density = 255
             opacity = float(density) / 255.
     elif layer.has_vector_mask():
         shape = draw_vector_mask(layer)
