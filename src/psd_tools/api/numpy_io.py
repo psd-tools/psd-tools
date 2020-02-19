@@ -1,7 +1,7 @@
 import numpy as np
 import logging
 
-from psd_tools.constants import Resource, ChannelID, Tag
+from psd_tools.constants import Resource, ChannelID, Tag, ColorMode
 
 logger = logging.getLogger(__name__)
 
@@ -81,16 +81,27 @@ def _has_alpha(psd):
             Tag.SAVING_MERGED_TRANSPARENCY32,
         )
         return any(key in psd.tagged_blocks for key in keys)
-    return False
+
+    _EXPECTED_CHANNELS = {
+        ColorMode.BITMAP: 1,
+        ColorMode.GRAYSCALE: 1,
+        ColorMode.INDEXED: 1,
+        ColorMode.RGB: 3,
+        ColorMode.CMYK: 4,
+        ColorMode.MULTICHANNEL: 64,
+        ColorMode.DUOTONE: 2,
+        ColorMode.LAB: 3,
+    }
+    return psd.channels > _EXPECTED_CHANNELS.get(psd.color_mode)
 
 
 def _parse_array(data, depth):
     if depth == 8:
-        return np.frombuffer(data, np.uint8) / float(255)
+        return np.frombuffer(data, '>u1') / float(255)
     elif depth == 16:
-        return np.frombuffer(data, np.uint16) / float(65535)
+        return np.frombuffer(data, '>u2') / float(65535)
     elif depth == 32:
-        return np.frombuffer(data, np.float32).astype(np.float)
+        return np.frombuffer(data, '>f4').astype(np.float)
     elif depth == 1:
         return np.unpackbits(np.frombuffer(data, np.uint8)).astype(np.float)
     else:
