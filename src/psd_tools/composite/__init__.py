@@ -104,7 +104,7 @@ class Compositor(object):
         if isinstance(color, np.ndarray):
             self._color_0 = color
         else:
-            self._color_0 = np.full((height, width, 3), color)
+            self._color_0 = np.full((height, width, 1), color)
 
         self._shape_g = np.zeros((height, width, 1))
         self._alpha_g = np.zeros((height, width, 1))
@@ -197,7 +197,7 @@ class Compositor(object):
             ((1. - alpha_b) * color + alpha_b * blend_fn(color_b, color))
         self._color = _clip(_divide(
             (1. - shape) * alpha_previous * self._color + color_t,
-            np.repeat(self._alpha, 3, axis=2)))
+            np.repeat(self._alpha, color_t.shape[2], axis=2)))
 
     def finish(self):
         return self.color, self.shape, self.alpha
@@ -250,7 +250,7 @@ def _get_object(layer, viewport, force):
             shape = np.ones((layer.height, layer.width, 1))
 
     if color is None:
-        color = np.ones((height, width, 3))
+        color = np.ones((height, width, 1))
     else:
         color = paste(viewport, layer.bbox, color, 1.)
     if shape is None:
