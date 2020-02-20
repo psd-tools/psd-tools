@@ -7,9 +7,7 @@ from psd_tools.terminology import Enum, Key, Type, Klass
 from psd_tools.constants import Tag
 from psd_tools.api.numpy_io import get_pattern
 
-
 logger = logging.getLogger(__name__)
-
 
 _COLOR_FUNC = {
     Klass.RGBColor: lambda x: x / 255.,
@@ -42,13 +40,16 @@ def draw_stroke(layer):
     linecap = linecap.enum if linecap else 'strokeStyleButtCap'
     miterlimit = setting.get('strokeStyleMiterLimit', 100.0) / 100.
     # aggdraw >= 1.3.12 will support additional params.
-    return _draw_path(layer, pen={
-        'color': 255,
-        'width': width,
-        # 'linejoin': _JOIN.get(linejoin, 0),
-        # 'linecap': _CAP.get(linecap, 0),
-        # 'miterlimit': miterlimit,
-    })
+    return _draw_path(
+        layer,
+        pen={
+            'color': 255,
+            'width': width,
+            # 'linejoin': _JOIN.get(linejoin, 0),
+            # 'linecap': _CAP.get(linecap, 0),
+            # 'miterlimit': miterlimit,
+        }
+    )
 
 
 def _draw_path(layer, **kwargs):
@@ -179,8 +180,10 @@ def draw_pattern_fill(viewport, psd, setting):
 
     scale = float(setting.get(Key.Scale, 100.)) / 100.
     if scale != 1.:
-        new_shape = (max(1, int(panel.shape[0] * scale)),
-                     max(1, int(panel.shape[1] * scale)))
+        new_shape = (
+            max(1, int(panel.shape[0] * scale)),
+            max(1, int(panel.shape[1] * scale))
+        )
         panel = resize(panel, new_shape)
 
     height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
@@ -277,6 +280,7 @@ def _make_gradient_color(grad):
     logger.error('Unknown gradient form: %s' % gradient_form)
     return None
 
+
 def _make_linear_gradient_color(grad):
     X, Y = [], []
     for stop in grad.get(Key.Colors, []):
@@ -351,17 +355,26 @@ def _make_noise_gradient_color(grad):
     X = np.linspace(0, 1, 256)
     if grad.get(Key.ShowTransparency):
         G = interpolate.interp1d(
-           X, Y[:, :-1], axis=0, bounds_error=False,
-           fill_value=(Y[0, :-1], Y[-1, :-1])
+            X,
+            Y[:, :-1],
+            axis=0,
+            bounds_error=False,
+            fill_value=(Y[0, :-1], Y[-1, :-1])
         )
         Ga = interpolate.interp1d(
-           X, Y[:, -1], axis=0, bounds_error=False,
-           fill_value=(Y[0, -1], Y[-1, -1])
+            X,
+            Y[:, -1],
+            axis=0,
+            bounds_error=False,
+            fill_value=(Y[0, -1], Y[-1, -1])
         )
     else:
         G = interpolate.interp1d(
-           X, Y[:, :3], axis=0, bounds_error=False,
-           fill_value=(Y[0, :3], Y[-1, :3])
+            X,
+            Y[:, :3],
+            axis=0,
+            bounds_error=False,
+            fill_value=(Y[0, :3], Y[-1, :3])
         )
         Ga = None
     return G, Ga

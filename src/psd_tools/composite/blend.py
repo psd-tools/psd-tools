@@ -6,7 +6,6 @@ from psd_tools.constants import BlendMode
 from psd_tools.terminology import Enum
 import logging
 
-
 logger = logging.getLogger(__name__)
 
 
