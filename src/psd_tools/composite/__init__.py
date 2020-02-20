@@ -19,40 +19,30 @@ def composite(
     def _visible_filter(layer):
         return layer.is_visible()
 
-    def _iterate(layer, layer_filter):
-        if layer.is_group():
-            for child in layer:
-                if layer_filter(child):
-                    yield child
-                for clip_layer in child.clip_layers:
-                    if layer_filter(clip_layer):
-                        yield clip_layer
-        else:
-            yield layer
-
     viewport = viewport or getattr(group, 'viewbox', None) or group.bbox
 
-    if group.kind == 'psdimage' and len(group) == 0:
+    if getattr(group, 'kind', None) == 'psdimage' and len(group) == 0:
         color, shape = group.numpy('color'), group.numpy('shape')
         return color, shape, shape
 
-    isolated = getattr(group, 'blend_mode', None) != BlendMode.PASS_THROUGH
+    isolated = False
+    if hasattr(group, 'blend_mode'):
+        isolated = group.blend_mode != BlendMode.PASS_THROUGH
+
     layer_filter = layer_filter or _visible_filter
 
     compositor = Compositor(
         viewport, color, alpha, isolated, layer_filter, force
     )
-    for layer in _iterate(group, layer_filter):
+    for layer in (group if hasattr(group, '__iter__') else [group]):
         if isinstance(layer, AdjustmentLayer):
-            logger.warning('Ignore %s' % layer)
+            logger.info('Ignore %s' % layer)
             continue
-
-        compositor.apply(layer)
-        needs_stroke = (force or not layer.has_pixels()) and \
-            layer.has_stroke() and layer.stroke.enabled and \
-            layer.stroke.fill_enabled
-        if needs_stroke:
-            compositor.apply_stroke(layer)
+        if _intersect(viewport, layer.bbox) == (0, 0, 0, 0):
+            logger.debug('Out of viewport %s' % (layer))
+            continue
+        if layer_filter(layer):
+            compositor.apply(layer)
 
     return compositor.finish()
 
@@ -63,11 +53,8 @@ def paste(viewport, bbox, values, background=None):
         viewport[3] - viewport[1], viewport[2] - viewport[0], values.shape[2]
     )
     view = np.full(shape, background) if background else np.zeros(shape)
-    inter = (
-        max(viewport[0], bbox[0]), max(viewport[1], bbox[1]),
-        min(viewport[2], bbox[2]), min(viewport[3], bbox[3])
-    )
-    if inter[0] >= inter[2] or inter[1] >= inter[3]:
+    inter = _intersect(viewport, bbox)
+    if inter == (0, 0, 0, 0):
         return view
 
     v = (
@@ -126,20 +113,10 @@ class Compositor(object):
 
     def apply(self, layer):
         logger.debug('Compositing %s' % layer)
+
         knockout = bool(layer.tagged_blocks.get_data(Tag.KNOCKOUT_SETTING, 0))
-
-        inter = (
-            max(self._viewport[0], layer.bbox[0]),
-            max(self._viewport[1], layer.bbox[1]),
-            min(self._viewport[2], layer.bbox[2]),
-            min(self._viewport[3], layer.bbox[3]),
-        )
-        if inter[0] >= inter[2] or inter[1] >= inter[3]:
-            logger.debug('Out of viewport %s' % (layer))
-            return
-
         if layer.is_group():
-            color, shape, alpha = self._get_group(layer, inter, knockout)
+            color, shape, alpha = self._get_group(layer, knockout)
         else:
             color, shape, alpha = self._get_object(layer)
 
@@ -148,47 +125,13 @@ class Compositor(object):
         shape *= shape_mask * shape_const
         alpha *= (shape_mask * opacity_mask) * (shape_const * opacity_const)
 
-        if layer._record.clipping == Clipping.NON_BASE:
-            shape *= self._clip_mask
-            alpha *= self._clip_mask
-        else:
-            self._clip_mask = shape.copy()
+        # TODO: Apply before_effect
 
-        self._apply_source(color, shape, alpha, knockout, layer.blend_mode)
+        self._apply_source(color, shape, alpha, layer.blend_mode, knockout)
 
-    def apply_stroke(self, layer):
-        logger.debug('Compositing stroke of %s' % (layer))
-        desc = layer.stroke._data
+        # TODO: Apply after_effect
 
-        # TODO: Check the origin and offset of the fill.
-        lw = int(desc.get('strokeStyleLineWidth', 1.))
-        adjusted_bbox = tuple(
-            x + d for x, d in zip(layer.bbox, (-lw, -lw, lw, lw))
-        )
-
-        color, shape = create_fill_desc(
-            layer, desc.get('strokeStyleContent'), adjusted_bbox
-        )
-        color = paste(self._viewport, adjusted_bbox, color, 1.)
-        if shape is None:
-            shape = np.ones((self.height, self.width, 1))
-        else:
-            shape = paste(self._viewport, adjusted_bbox, shape)
-        alpha = shape * 1.
-        shape_mask = draw_stroke(layer)
-        if shape_mask.shape[0] != self.height or shape_mask.shape[
-            1] != self.width:
-            bbox = (0, 0, shape_mask.shape[1], shape_mask.shape[0])
-            shape_mask = paste(self._viewport, bbox, shape_mask)
-        opacity_mask = float(desc.get('strokeStyleOpacity', 100.)) / 100.
-        shape_const, opacity_const = self._get_const(layer)
-        shape *= shape_mask * shape_const
-        alpha *= (shape_mask * opacity_mask) * (shape_const * opacity_const)
-
-        blend_mode = desc.get('strokeStyleBlendMode').enum
-        self._apply_source(color, shape, alpha, False, blend_mode)
-
-    def _apply_source(self, color, shape, alpha, knockout, blend_mode):
+    def _apply_source(self, color, shape, alpha, blend_mode, knockout=False):
         self._shape_g = _union(self._shape_g, shape)
         if knockout:
             self._alpha_g = (1. - shape) * self._alpha_g + \
@@ -239,7 +182,8 @@ class Compositor(object):
     def alpha(self):
         return self._alpha_g
 
-    def _get_group(self, layer, viewport, knockout):
+    def _get_group(self, layer, knockout):
+        viewport = _intersect(self._viewport, layer.bbox)
         if knockout:
             color_b = self._color_0
             alpha_b = self._alpha_0
@@ -270,6 +214,7 @@ class Compositor(object):
             Tag.SOLID_COLOR_SHEET_SETTING,
             Tag.PATTERN_FILL_SETTING,
             Tag.GRADIENT_FILL_SETTING,
+            Tag.VECTOR_STROKE_CONTENT_DATA,
         )
         has_fill = any(tag in layer.tagged_blocks for tag in FILL_TAGS)
         if (self._force or not layer.has_pixels()) and has_fill:
@@ -292,6 +237,27 @@ class Compositor(object):
             shape = paste(self._viewport, layer.bbox, shape)
 
         alpha = shape * 1.  # Constant factor is always 1.
+
+        # Composite clip layers.
+        if len(layer.clip_layers):
+            color, _, _ = composite(
+                layer.clip_layers,
+                color,
+                alpha,
+                self._viewport,
+                layer_filter=self._layer_filter,
+                force=self._force
+            )
+
+        # Apply stroke if any.
+        if layer.has_stroke() and layer.stroke.enabled:
+            color_s, shape_s, alpha_s = self._get_stroke(layer)
+            compositor = Compositor(self._viewport, color, alpha)
+            compositor._apply_source(
+                color_s, shape_s, alpha_s, layer.stroke.blend_mode
+            )
+            color, _, _ = compositor.finish()
+
         assert color is not None
         assert shape is not None
         assert alpha is not None
@@ -331,6 +297,34 @@ class Compositor(object):
         assert shape is not None
         assert opacity is not None
         return shape, opacity
+
+    def _get_stroke(self, layer):
+        """Get stroke source."""
+        desc = layer.stroke._data
+        width = int(desc.get('strokeStyleLineWidth', 1.))
+        viewport = tuple(
+            x + d for x, d in zip(layer.bbox, (-width, -width, width, width))
+        )
+        color, _ = create_fill_desc(
+            layer, desc.get('strokeStyleContent'), viewport
+        )
+        color = paste(self._viewport, viewport, color, 1.)
+        shape = draw_stroke(layer)
+        if shape.shape[0] != self.height or shape.shape[1] != self.width:
+            bbox = (0, 0, shape.shape[1], shape.shape[0])
+            shape = paste(self._viewport, bbox, shape)
+        opacity = desc.get('strokeStyleOpacity', 100.) / 100.
+        alpha = shape * opacity
+        return color, shape, alpha
+
+
+def _intersect(a, b):
+    inter = (
+        max(a[0], b[0]), max(a[1], b[1]), min(a[2], b[2]), min(a[3], b[3])
+    )
+    if inter[0] >= inter[2] or inter[1] >= inter[3]:
+        return (0, 0, 0, 0)
+    return inter
 
 
 def _union(backdrop, source):

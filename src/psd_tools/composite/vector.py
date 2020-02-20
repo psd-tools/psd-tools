@@ -143,22 +143,32 @@ def create_fill_desc(layer, desc, viewport):
 def create_fill(layer, viewport):
     """Create a fill image."""
     if Tag.SOLID_COLOR_SHEET_SETTING in layer.tagged_blocks:
-        setting = layer.tagged_blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING)
-        return draw_solid_color_fill(viewport, setting)
+        desc = layer.tagged_blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING)
+        return draw_solid_color_fill(viewport, desc)
     if Tag.PATTERN_FILL_SETTING in layer.tagged_blocks:
-        setting = layer.tagged_blocks.get_data(Tag.PATTERN_FILL_SETTING)
-        return draw_pattern_fill(viewport, layer._psd, setting)
+        desc = layer.tagged_blocks.get_data(Tag.PATTERN_FILL_SETTING)
+        return draw_pattern_fill(viewport, layer._psd, desc)
     if Tag.GRADIENT_FILL_SETTING in layer.tagged_blocks:
-        setting = layer.tagged_blocks.get_data(Tag.GRADIENT_FILL_SETTING)
-        return draw_gradient_fill(viewport, setting)
+        desc = layer.tagged_blocks.get_data(Tag.GRADIENT_FILL_SETTING)
+        return draw_gradient_fill(viewport, desc)
+    if Tag.VECTOR_STROKE_CONTENT_DATA in layer.tagged_blocks:
+        stroke = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_DATA)
+        if not stroke or stroke.get('fillEnabled').value == True:
+            desc = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)
+            if Key.Color in desc:
+                return draw_solid_color_fill(viewport, desc)
+            elif Key.Pattern in desc:
+                return draw_pattern_fill(viewport, layer._psd, desc)
+            elif Key.Gradient in desc:
+                return draw_gradient_fill(viewport, desc)
     return None, None
 
 
-def draw_solid_color_fill(viewport, setting):
+def draw_solid_color_fill(viewport, desc):
     """
     Create a solid color fill.
     """
-    color_desc = setting.get(Key.Color)
+    color_desc = desc.get(Key.Color)
     color_fn = _COLOR_FUNC.get(color_desc.classID, 1.0)
     fill = [color_fn(x) for x in color_desc.values()]
     height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
@@ -166,11 +176,11 @@ def draw_solid_color_fill(viewport, setting):
     return color, None
 
 
-def draw_pattern_fill(viewport, psd, setting):
+def draw_pattern_fill(viewport, psd, desc):
     """
     Create a pattern fill.
     """
-    pattern_id = setting[Enum.Pattern][Key.ID].value.rstrip('\x00')
+    pattern_id = desc[Enum.Pattern][Key.ID].value.rstrip('\x00')
     pattern = psd._get_pattern(pattern_id)
     if not pattern:
         logger.error('Pattern not found: %s' % (pattern_id))
@@ -178,7 +188,7 @@ def draw_pattern_fill(viewport, psd, setting):
 
     panel = get_pattern(pattern, psd._record.header.version)
 
-    scale = float(setting.get(Key.Scale, 100.)) / 100.
+    scale = float(desc.get(Key.Scale, 100.)) / 100.
     if scale != 1.:
         new_shape = (
             max(1, int(panel.shape[0] * scale)),
