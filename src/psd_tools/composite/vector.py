@@ -1,5 +1,4 @@
 import numpy as np
-from skimage.transform import resize
 from scipy import interpolate
 import logging
 
@@ -186,9 +185,11 @@ def draw_pattern_fill(viewport, psd, desc):
         return None
 
     panel = get_pattern(pattern, psd._record.header.version)
+    assert panel.shape[0] > 0
 
     scale = float(desc.get(Key.Scale, 100.)) / 100.
     if scale != 1.:
+        from skimage.transform import resize
         new_shape = (
             max(1, int(panel.shape[0] * scale)),
             max(1, int(panel.shape[1] * scale))
@@ -197,8 +198,8 @@ def draw_pattern_fill(viewport, psd, desc):
 
     height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
     reps = (
-        int(np.ceil(height / panel.shape[0])),
-        int(np.ceil(width / panel.shape[1])),
+        int(np.ceil(float(height) / panel.shape[0])),
+        int(np.ceil(float(width) / panel.shape[1])),
         1,
     )
     return np.tile(panel, reps)[:height, :width, :], None

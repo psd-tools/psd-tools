@@ -142,6 +142,11 @@ class Compositor(object):
         self._apply_stroke_effect(layer, color, shape, alpha)
 
     def _apply_source(self, color, shape, alpha, blend_mode, knockout=False):
+        if self._color_0.shape[2] == 1 and 1 < color.shape[2]:
+            self._color_0 = np.repeat(self._color_0, color.shape[2], axis=2)
+        if self._color.shape[2] == 1 and 1 < color.shape[2]:
+            self._color = np.repeat(self._color, color.shape[2], axis=2)
+
         self._shape_g = _union(self._shape_g, shape)
         if knockout:
             self._alpha_g = (1. - shape) * self._alpha_g + \
@@ -279,6 +284,7 @@ class Compositor(object):
         shape = 1.
         opacity = 1.
         if layer.has_mask():
+            # TODO: When force, ignore real mask.
             mask = layer.numpy('mask')
             if mask is not None:
                 shape = paste(
@@ -292,9 +298,14 @@ class Compositor(object):
                 if density is None:
                     density = 255
                 opacity = float(density) / 255.
-        elif layer.has_vector_mask():
-            shape = draw_vector_mask(layer)
-            shape = paste(self._viewport, layer._psd.viewbox, shape)
+
+        if layer.has_vector_mask() and (
+            self._force or not (layer.has_mask() and layer.mask._has_real())
+        ):
+            shape_v = draw_vector_mask(layer)
+            shape_v = paste(self._viewport, layer._psd.viewbox, shape_v)
+            shape *= shape_v
+
         assert shape is not None
         assert opacity is not None
         return shape, opacity

@@ -35,7 +35,7 @@ def _lighten(Cb, Cs):
 
 
 def _color_dodge(Cb, Cs, s=1.0):
-    B = np.zeros_like(Cs)
+    B = np.zeros_like(Cb)
     B[Cs == 1] = 1
     B[Cb == 0] = 0
     index = (Cs != 1) & (Cb != 0)
