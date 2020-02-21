@@ -52,31 +52,30 @@ def draw_stroke(layer):
     )
 
 
-def _draw_path(layer, **kwargs):
+def _draw_path(layer, brush=None, pen=None):
     height, width = layer._psd.height, layer._psd.width
     color = layer.vector_mask.initial_fill_rule
-
     mask = np.full((height, width, 1), color)
     first = True
     for subpath in layer.vector_mask.paths:
-        plane = _draw_subpath(subpath, width, height, **kwargs)
-        if subpath.operation == 0:
-            mask = np.maximum(0, mask - plane)
-        elif subpath.operation == 1:
-            mask = np.maximum(mask, plane)
-        elif subpath.operation in (2, -1):
-            if first:
+        plane = _draw_subpath(subpath, width, height, brush, pen)
+        if subpath.operation == 0:  # Exclude = Union - Intersect.
+            mask = mask + plane - 2 * mask * plane
+        elif subpath.operation == 1:  # Union (Combine).
+            mask = mask + plane - mask * plane
+        elif subpath.operation in (2, -1):  # Subtract.
+            if first and brush:
                 mask = 1 - mask
             mask = np.maximum(0, mask - plane)
-        elif subpath.operation == 3:
-            if first:
+        elif subpath.operation == 3:  # Intersect.
+            if first and brush:
                 mask = 1 - mask
-            mask = np.minimum(mask, plane)
+            mask = mask * plane
         first = False
     return np.minimum(1, np.maximum(0, mask))
 
 
-def _draw_subpath(subpath, width, height, brush=None, pen=None):
+def _draw_subpath(subpath, width, height, brush, pen):
     """
     Rasterize Bezier curves.
 
