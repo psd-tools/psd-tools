@@ -1,10 +1,14 @@
 import numpy as np
-from psd_tools.constants import ChannelID, Tag, BlendMode, Clipping
+from psd_tools.constants import Tag, BlendMode
 from psd_tools.api.layers import AdjustmentLayer
 
 import logging
 from .blend import BLEND_FUNC, _normal
-from .vector import create_fill, create_fill_desc, draw_vector_mask, draw_stroke
+from .vector import (
+    create_fill, create_fill_desc, draw_vector_mask, draw_stroke,
+    draw_solid_color_fill, draw_pattern_fill, draw_gradient_fill
+)
+from .effects import draw_stroke_effect
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +40,7 @@ def composite(
     )
     for layer in (group if hasattr(group, '__iter__') else [group]):
         if isinstance(layer, AdjustmentLayer):
-            logger.info('Ignore %s' % layer)
+            logger.debug('Ignore %s' % layer)
             continue
         if _intersect(viewport, layer.bbox) == (0, 0, 0, 0):
             logger.debug('Out of viewport %s' % (layer))
@@ -125,11 +129,17 @@ class Compositor(object):
         shape *= shape_mask * shape_const
         alpha *= (shape_mask * opacity_mask) * (shape_const * opacity_const)
 
-        # TODO: Apply before_effect
+        # TODO: Tag.BLEND_INTERIOR_ELEMENTS controls how inner effects apply.
+
+        # TODO: Apply before effects
 
         self._apply_source(color, shape, alpha, layer.blend_mode, knockout)
 
-        # TODO: Apply after_effect
+        # TODO: Apply after effects
+        self._apply_color_overlay(layer, color, shape, alpha)
+        self._apply_pattern_overlay(layer, color, shape, alpha)
+        self._apply_gradient_overlay(layer, color, shape, alpha)
+        self._apply_stroke_effect(layer, color, shape, alpha)
 
     def _apply_source(self, color, shape, alpha, blend_mode, knockout=False):
         self._shape_g = _union(self._shape_g, shape)
@@ -239,6 +249,7 @@ class Compositor(object):
         alpha = shape * 1.  # Constant factor is always 1.
 
         # Composite clip layers.
+        # TODO: Consider Tag.BLEND_CLIPPING_ELEMENTS.
         if len(layer.clip_layers):
             color, _, _ = composite(
                 layer.clip_layers,
@@ -316,6 +327,60 @@ class Compositor(object):
         opacity = desc.get('strokeStyleOpacity', 100.) / 100.
         alpha = shape * opacity
         return color, shape, alpha
+
+    def _apply_color_overlay(self, layer, color, shape, alpha):
+        for effect in layer.effects.find('coloroverlay'):
+            color, shape_e = draw_solid_color_fill(layer.bbox, effect.value)
+            color = paste(self._viewport, layer.bbox, color, 1.)
+            if shape_e is None:
+                shape_e = np.ones((self.height, self.width, 1))
+            else:
+                shape_e = paste(self._viewport, layer.bbox, shape_e)
+            opacity = effect.opacity / 100.
+            self._apply_source(
+                color, shape * shape_e, alpha * shape_e * opacity,
+                effect.blend_mode
+            )
+
+    def _apply_pattern_overlay(self, layer, color, shape, alpha):
+        for effect in layer.effects.find('patternoverlay'):
+            color, shape_e = draw_pattern_fill(
+                layer.bbox, layer._psd, effect.value
+            )
+            color = paste(self._viewport, layer.bbox, color, 1.)
+            if shape_e is None:
+                shape_e = np.ones((self.height, self.width, 1))
+            else:
+                shape_e = paste(self._viewport, layer.bbox, shape_e)
+            opacity = effect.opacity / 100.
+            self._apply_source(
+                color, shape * shape_e, alpha * shape_e * opacity,
+                effect.blend_mode
+            )
+
+    def _apply_gradient_overlay(self, layer, color, shape, alpha):
+        for effect in layer.effects.find('gradientoverlay'):
+            color, shape_e = draw_gradient_fill(layer.bbox, effect.value)
+            color = paste(self._viewport, layer.bbox, color, 1.)
+            if shape_e is None:
+                shape_e = np.ones((self.height, self.width, 1))
+            else:
+                shape_e = paste(self._viewport, layer.bbox, shape_e)
+            opacity = effect.opacity / 100.
+            self._apply_source(
+                color, shape * shape_e, alpha * shape_e * opacity,
+                effect.blend_mode
+            )
+
+    def _apply_stroke_effect(self, layer, color, shape, alpha):
+        for effect in layer.effects.find('stroke'):
+            color, shape_e = draw_stroke_effect(
+                self._viewport, shape, effect.value, layer._psd
+            )
+            opacity = effect.opacity / 100.
+            self._apply_source(
+                color, shape_e, shape_e * opacity, effect.blend_mode
+            )
 
 
 def _intersect(a, b):

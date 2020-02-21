@@ -22,23 +22,23 @@ def draw_vector_mask(layer):
 
 
 def draw_stroke(layer):
-    setting = layer.stroke._data
-    _CAP = {
-        'strokeStyleButtCap': 0,
-        'strokeStyleSquareCap': 1,
-        'strokeStyleRoundCap': 2,
-    }
-    _JOIN = {
-        'strokeStyleMiterJoin': 0,
-        'strokeStyleRoundJoin': 2,
-        'strokeStyleBevelJoin': 3,
-    }
-    width = float(setting.get('strokeStyleLineWidth', 1.))
-    linejoin = setting.get('strokeStyleLineJoinType', None)
+    desc = layer.stroke._data
+    # _CAP = {
+    #     'strokeStyleButtCap': 0,
+    #     'strokeStyleSquareCap': 1,
+    #     'strokeStyleRoundCap': 2,
+    # }
+    # _JOIN = {
+    #     'strokeStyleMiterJoin': 0,
+    #     'strokeStyleRoundJoin': 2,
+    #     'strokeStyleBevelJoin': 3,
+    # }
+    width = float(desc.get('strokeStyleLineWidth', 1.))
+    linejoin = desc.get('strokeStyleLineJoinType', None)
     linejoin = linejoin.enum if linejoin else 'strokeStyleMiterJoin'
-    linecap = setting.get('strokeStyleLineCapType', None)
+    linecap = desc.get('strokeStyleLineCapType', None)
     linecap = linecap.enum if linecap else 'strokeStyleButtCap'
-    miterlimit = setting.get('strokeStyleMiterLimit', 100.0) / 100.
+    miterlimit = desc.get('strokeStyleMiterLimit', 100.0) / 100.
     # aggdraw >= 1.3.12 will support additional params.
     return _draw_path(
         layer,
@@ -79,7 +79,7 @@ def _draw_subpath(subpath, width, height, brush, pen):
     """
     Rasterize Bezier curves.
 
-    TODO: Replace aggdraw implementation.
+    TODO: Replace aggdraw implementation with skimage.draw.
     """
     from PIL import Image
     import aggdraw
@@ -204,14 +204,14 @@ def draw_pattern_fill(viewport, psd, desc):
     return np.tile(panel, reps)[:height, :width, :], None
 
 
-def draw_gradient_fill(viewport, setting):
+def draw_gradient_fill(viewport, desc):
     """
     Create a gradient fill image.
     """
     height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
 
-    angle = float(setting.get(Key.Angle, 0))
-    scale = float(setting.get(Key.Scale, 100.)) / 100.
+    angle = float(desc.get(Key.Angle, 0))
+    scale = float(desc.get(Key.Scale, 100.)) / 100.
     ratio = (angle % 90)
     scale *= (90. - ratio) / 90. * width + (ratio / 90.) * height
     X, Y = np.meshgrid(
@@ -219,7 +219,7 @@ def draw_gradient_fill(viewport, setting):
         np.linspace(-height / scale, height / scale, height),
     )
 
-    gradient_kind = setting.get(Key.Type).enum
+    gradient_kind = desc.get(Key.Type).enum
     if gradient_kind == Enum.Linear:
         Z = _make_linear_gradient(X, Y, angle)
     elif gradient_kind == Enum.Radial:
@@ -236,10 +236,10 @@ def draw_gradient_fill(viewport, setting):
         Z = np.ones((height, width)) * 0.5
 
     Z = np.maximum(0., np.minimum(1., Z))
-    if bool(setting.get(Key.Reverse, False)):
+    if bool(desc.get(Key.Reverse, False)):
         Z = 1. - Z
 
-    G, Ga = _make_gradient_color(setting.get(Key.Gradient))
+    G, Ga = _make_gradient_color(desc.get(Key.Gradient))
     color = G(Z) if G is not None else None
     shape = np.expand_dims(Ga(Z), 2) if Ga is not None else None
     return color, shape
