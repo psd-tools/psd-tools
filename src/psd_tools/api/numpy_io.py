@@ -32,10 +32,16 @@ def get_image_data(psd, channel):
     data = psd._record.image_data.get_data(psd._record.header, False)
     data = _parse_array(data, psd.depth)
     data = data.reshape((-1, psd.height, psd.width)).transpose((1, 2, 0))
+    data = _remove_background(data, psd)
+
     if channel == 'shape':
-        return data[:, :, -1]
+        return data[:, :, -1:]
     elif channel == 'color':
-        return data[:, :, :psd.channels]
+        if psd.color_mode == ColorMode.MULTICHANNEL:
+            return data
+        # TODO: psd.color_mode == ColorMode.INDEXED --> Convert?
+        return data[:, :, :_EXPECTED_CHANNELS[psd.color_mode]]
+
     return data
 
 
@@ -99,13 +105,13 @@ def get_pattern(pattern, version=1):
 
 
 def _has_alpha(psd):
-    if psd.tagged_blocks:
-        keys = (
-            Tag.SAVING_MERGED_TRANSPARENCY,
-            Tag.SAVING_MERGED_TRANSPARENCY16,
-            Tag.SAVING_MERGED_TRANSPARENCY32,
-        )
-        return any(key in psd.tagged_blocks for key in keys)
+    keys = (
+        Tag.SAVING_MERGED_TRANSPARENCY,
+        Tag.SAVING_MERGED_TRANSPARENCY16,
+        Tag.SAVING_MERGED_TRANSPARENCY32,
+    )
+    if psd.tagged_blocks and any(key in psd.tagged_blocks for key in keys):
+        return True
     return psd.channels > _EXPECTED_CHANNELS.get(psd.color_mode)
 
 
@@ -120,3 +126,14 @@ def _parse_array(data, depth):
         return np.unpackbits(np.frombuffer(data, np.uint8)).astype(np.float)
     else:
         raise ValueError('Unsupported depth: %g' % depth)
+
+
+def _remove_background(data, psd):
+    """ImageData preview is rendered on a white background."""
+    if psd.color_mode == ColorMode.RGB and data.shape[2] > 3:
+        color = data[:, :, :3]
+        alpha = data[:, :, 3:4]
+        a = np.repeat(alpha, color.shape[2], axis=2)
+        color[a > 0] = (color + alpha - 1)[a > 0] / a[a > 0]
+        data[:, :, :3] = color
+    return data
