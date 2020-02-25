@@ -10,19 +10,9 @@ from ..utils import full_name
 
 logger = logging.getLogger(__name__)
 
-QUALITY_TEST_FILES = [
-    # ('mask-index.psd',),  # Transparent region in preview image is wrong...
-    (
-        'background-red-opacity-80.psd',
-    ),
-    ('32bit.psd', ),
-    ('clipping-mask2.psd', ),
-    ('vector-mask3.psd', )
-]
-
 
 def _mse(x, y):
-    return np.nanmean((x - y) ** 2)
+    return np.nanmean((x - y)**2)
 
 
 def composite_error(layer, threshold, force=True, channel=None):
@@ -41,9 +31,28 @@ def check_composite_quality(filename, threshold=0.1, force=False):
     composite_error(psd, threshold, force)
 
 
-@pytest.mark.parametrize(("filename", ), QUALITY_TEST_FILES)
+@pytest.mark.parametrize(("filename", ), [
+    ('background-red-opacity-80.psd', ),
+    ('32bit.psd', ),
+    ('clipping-mask2.psd', ),
+    ('vector-mask3.psd', ),
+    ('clipping-mask.psd', ),
+    ('clipping-mask2.psd', ),
+    ('opacity-fill.psd', ),
+    ('transparency/transparency-group.psd', ),
+    ('transparency/knockout-isolated-groups.psd', ),
+])
 def test_composite_quality(filename):
-    check_composite_quality(filename, 0.1, False)
+    check_composite_quality(filename, 0.01, False)
+
+
+@pytest.mark.parametrize(("filename", ), [
+    ('advanced-blending.psd', ),
+    ('vector-mask2.psd', ),
+])
+@pytest.mark.xfail
+def test_composite_quality_xfail(filename):
+    check_composite_quality(filename, 0.01, False)
 
 
 @pytest.mark.parametrize(
