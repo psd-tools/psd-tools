@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 _EXPECTED_CHANNELS = {
     ColorMode.BITMAP: 1,
     ColorMode.GRAYSCALE: 1,
-    ColorMode.INDEXED: 1,
+    ColorMode.INDEXED: 3,
     ColorMode.RGB: 3,
     ColorMode.CMYK: 4,
     ColorMode.MULTICHANNEL: 64,
@@ -26,12 +26,19 @@ def get_array(layer, channel):
 
 
 def get_image_data(psd, channel):
-    if (channel == 'mask') or (channel == 'shape' and not _has_alpha(psd)):
+    if (channel == 'mask') or (channel == 'shape' and not has_alpha(psd)):
         return np.ones((psd.height, psd.width, 1))
 
+    lut = None
+    if psd.color_mode == ColorMode.INDEXED:
+        lut = np.frombuffer(psd._record.color_mode_data.value, np.uint8)
+        lut = lut.reshape((3, -1)).transpose()
     data = psd._record.image_data.get_data(psd._record.header, False)
-    data = _parse_array(data, psd.depth)
-    data = data.reshape((-1, psd.height, psd.width)).transpose((1, 2, 0))
+    data = _parse_array(data, psd.depth, lut=lut)
+    if lut is not None:
+        data = data.reshape((psd.height, psd.width, -1))
+    else:
+        data = data.reshape((-1, psd.height, psd.width)).transpose((1, 2, 0))
     data = _remove_background(data, psd)
 
     if channel == 'shape':
@@ -104,7 +111,7 @@ def get_pattern(pattern, version=1):
                     axis=1).reshape((height, width, -1))
 
 
-def _has_alpha(psd):
+def has_alpha(psd):
     keys = (
         Tag.SAVING_MERGED_TRANSPARENCY,
         Tag.SAVING_MERGED_TRANSPARENCY16,
@@ -115,9 +122,12 @@ def _has_alpha(psd):
     return psd.channels > _EXPECTED_CHANNELS.get(psd.color_mode)
 
 
-def _parse_array(data, depth):
+def _parse_array(data, depth, lut=None):
     if depth == 8:
-        return np.frombuffer(data, '>u1') / float(255)
+        parsed = np.frombuffer(data, '>u1')
+        if lut is not None:
+            parsed = lut[parsed]
+        return parsed / float(255)
     elif depth == 16:
         return np.frombuffer(data, '>u2') / float(65535)
     elif depth == 32:
