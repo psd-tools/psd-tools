@@ -1,7 +1,7 @@
 import pytest
 import logging
 
-from .test_composite import test_composite_quality
+from .test_composite import check_composite_quality
 
 logger = logging.getLogger(__name__)
 
@@ -34,14 +34,16 @@ logger = logging.getLogger(__name__)
     ('blend-modes/pass-through.psd', ),
     # Total test
     ('blend-modes/rgb-blend-modes.psd', ),
+    ('blend-modes/gray-blend-modes.psd', ),
 ])
 def test_blend_quality(filename):
-    test_composite_quality(filename, threshold=0.01)
+    check_composite_quality(filename, threshold=0.01)
 
 
 @pytest.mark.parametrize(("filename", ), [
     ('blend-modes/dissolve.psd', ),
+    ('blend-modes/cmyk-blend-modes.psd', ),  # Fix me!
 ])
 @pytest.mark.xfail
 def test_blend_quality_xfail(filename):
-    test_composite_quality(filename, threshold=0.01)
+    check_composite_quality(filename, threshold=0.01)

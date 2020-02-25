@@ -11,7 +11,7 @@ from psd_tools.composite.vector import (
 )
 
 from ..utils import full_name
-from .test_composite import test_composite_quality, _mse
+from .test_composite import check_composite_quality, _mse
 
 logger = logging.getLogger(__name__)
 
@@ -27,14 +27,14 @@ logger = logging.getLogger(__name__)
     ('path-operations/subtract-second.psd', ),
 ])
 def test_path_operations(filename):
-    test_composite_quality(filename)
+    check_composite_quality(filename)
 
 
 @pytest.mark.parametrize(("filename", ), [
     ('stroke.psd', ),
 ])
 def test_draw_stroke(filename):
-    test_composite_quality(filename, 0.01, force=True)
+    check_composite_quality(filename, 0.01, force=True)
 
 
 def test_draw_solid_color_fill():

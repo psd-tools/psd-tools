@@ -36,10 +36,14 @@ def composite_error(layer, threshold, force=True, channel=None):
     return error
 
 
-@pytest.mark.parametrize(("filename", ), QUALITY_TEST_FILES)
-def test_composite_quality(filename, threshold=0.1, force=False):
+def check_composite_quality(filename, threshold=0.1, force=False):
     psd = PSDImage.open(full_name(filename))
     composite_error(psd, threshold, force)
+
+
+@pytest.mark.parametrize(("filename", ), QUALITY_TEST_FILES)
+def test_composite_quality(filename):
+    check_composite_quality(filename, 0.1, False)
 
 
 @pytest.mark.parametrize(

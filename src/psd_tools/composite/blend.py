@@ -10,31 +10,31 @@ logger = logging.getLogger(__name__)
 
 
 # Blend functions
-def _normal(Cb, Cs):
+def normal(Cb, Cs):
     return Cs
 
 
-def _multiply(Cb, Cs):
+def multiply(Cb, Cs):
     return Cb * Cs
 
 
-def _screen(Cb, Cs):
+def screen(Cb, Cs):
     return Cb + Cs - (Cb * Cs)
 
 
-def _overlay(Cb, Cs):
-    return _hard_light(Cs, Cb)
+def overlay(Cb, Cs):
+    return hard_light(Cs, Cb)
 
 
-def _darken(Cb, Cs):
+def darken(Cb, Cs):
     return np.minimum(Cb, Cs)
 
 
-def _lighten(Cb, Cs):
+def lighten(Cb, Cs):
     return np.maximum(Cb, Cs)
 
 
-def _color_dodge(Cb, Cs, s=1.0):
+def color_dodge(Cb, Cs, s=1.0):
     B = np.zeros_like(Cb)
     B[Cs == 1] = 1
     B[Cb == 0] = 0
@@ -43,7 +43,7 @@ def _color_dodge(Cb, Cs, s=1.0):
     return B
 
 
-def _color_burn(Cb, Cs, s=1.0):
+def color_burn(Cb, Cs, s=1.0):
     B = np.zeros_like(Cb)
     B[Cb == 1] = 1
     index = (Cb != 1) & (Cs != 0)
@@ -51,22 +51,22 @@ def _color_burn(Cb, Cs, s=1.0):
     return B
 
 
-def _linear_dodge(Cb, Cs):
+def linear_dodge(Cb, Cs):
     return np.minimum(1, Cb + Cs)
 
 
-def _linear_burn(Cb, Cs):
+def linear_burn(Cb, Cs):
     return np.maximum(0, Cb + Cs - 1)
 
 
-def _hard_light(Cb, Cs):
+def hard_light(Cb, Cs):
     index = Cs > 0.5
-    B = _multiply(Cb, 2 * Cs)
-    B[index] = _screen(Cb, 2 * Cs - 1)[index]
+    B = multiply(Cb, 2 * Cs)
+    B[index] = screen(Cb, 2 * Cs - 1)[index]
     return B
 
 
-def _soft_light(Cb, Cs):
+def soft_light(Cb, Cs):
     index = Cs <= 0.25
     index_not = ~index
     D = np.zeros_like(Cb)
@@ -82,7 +82,7 @@ def _soft_light(Cb, Cs):
     return B
 
 
-def _vivid_light(Cb, Cs):
+def vivid_light(Cb, Cs):
     """
     Burns or dodges the colors by increasing or decreasing the contrast,
     depending on the blend color. If the blend color (light source) is lighter
@@ -92,16 +92,16 @@ def _vivid_light(Cb, Cs):
     """
 
     # index = Cs > 0.5
-    # B = _color_dodge(Cb, Cs)
-    # B[index] = _color_burn(Cb, Cs)[index]
+    # B = color_dodge(Cb, Cs)
+    # B[index] = color_burn(Cb, Cs)[index]
     # return B
 
     # On contrary to what the document says, Photoshop generates the inverse of
-    # _hard_mix
-    return _hard_mix(Cs, Cb)
+    # hard_mix
+    return hard_mix(Cs, Cb)
 
 
-def _linear_light(Cb, Cs):
+def linear_light(Cb, Cs):
     """
     Burns or dodges the colors by decreasing or increasing the brightness,
     depending on the blend color. If the blend color (light source) is lighter
@@ -110,12 +110,12 @@ def _linear_light(Cb, Cs):
     brightness.
     """
     index = Cs > 0.5
-    B = _linear_burn(Cb, 2 * Cs)
-    B[index] = _linear_dodge(Cb, 2 * Cs - 1)[index]
+    B = linear_burn(Cb, 2 * Cs)
+    B[index] = linear_dodge(Cb, 2 * Cs - 1)[index]
     return B
 
 
-def _pin_light(Cb, Cs):
+def pin_light(Cb, Cs):
     """
     Replaces the colors, depending on the blend color. If the blend color (light
     source) is lighter than 50% gray, pixels darker than the blend color are
@@ -125,24 +125,24 @@ def _pin_light(Cb, Cs):
     useful for adding special effects to an image.
     """
     index = Cs > 0.5
-    B = _darken(Cb, 2 * Cs)
-    B[index] = _lighten(Cb, 2 * Cs - 1)[index]
+    B = darken(Cb, 2 * Cs)
+    B[index] = lighten(Cb, 2 * Cs - 1)[index]
     return B
 
 
-def _difference(Cb, Cs):
+def difference(Cb, Cs):
     return np.abs(Cb - Cs)
 
 
-def _exclusion(Cb, Cs):
+def exclusion(Cb, Cs):
     return Cb + Cs - 2 * Cb * Cs
 
 
-def _subtract(Cb, Cs):
+def subtract(Cb, Cs):
     return np.maximum(0, Cb - Cs)
 
 
-def _hard_mix(Cb, Cs):
+def hard_mix(Cb, Cs):
     """
     Adds the red, green and blue channel values of the blend color to the RGB
     values of the base color. If the resulting sum for a channel is 255 or
@@ -156,7 +156,7 @@ def _hard_mix(Cb, Cs):
     return B
 
 
-def _divide(Cb, Cs):
+def divide(Cb, Cs):
     """
     Looks at the color information in each channel and divides the blend color
     from the base color.
@@ -166,43 +166,87 @@ def _divide(Cb, Cs):
     return B
 
 
-def _hue(Cb, Cs):
+# Non-separable blending must be in RGB. CMYK should be first converted to RGB,
+# blended, then CMY components should be retrieved from RGB results. K component
+# is K of Cb for hue, saturation, and color blending, and K of Cs for
+# luminosity.
+def non_separable(_func=None, *, k='s'):
+    """Wrap non-separable blending function for CMYK handling."""
+
+    def decorator(func):
+        def _blend_fn(Cb, Cs):
+            if Cb.shape[2] == 4:
+                assert Cb.ndim == 3
+                assert Cs.ndim == 3
+                K = Cs[:, :, 3:4] if k == 's' else Cb[:, :, 3:4]
+                Cb, Cs = _cmyk2rgb(Cb), _cmyk2rgb(Cs)
+                return np.concatenate((_rgb2cmy(func(Cb, Cs), K), K), axis=2)
+            return func(Cb, Cs)
+
+        return _blend_fn
+
+    if _func is None:
+        return decorator
+    else:
+        return decorator(_func)
+
+
+def _cmyk2rgb(C):
+    return np.stack([(1. - C[:, :, i]) * (1. - C[:, :, 3]) for i in range(3)],
+                    axis=2)
+
+
+def _rgb2cmy(C, K):
+    K = np.repeat(K, 3, axis=2)
+    color = np.zeros((C.shape[0], C.shape[1], 3))
+    index = K < 1.
+    color[index] = (1. - C[index] - K[index]) / (1. - K[index])
+    return color
+
+
+@non_separable
+def hue(Cb, Cs):
     return _set_lum(_set_sat(Cs, _sat(Cb)), _lum(Cb))
 
 
-def _saturation(Cb, Cs):
+@non_separable
+def saturation(Cb, Cs):
     return _set_lum(_set_sat(Cb, _sat(Cs)), _lum(Cb))
 
 
-def _color(Cb, Cs):
+@non_separable
+def color(Cb, Cs):
     return _set_lum(Cs, _lum(Cb))
 
 
-def _luminosity(Cb, Cs):
+@non_separable(k='s')
+def luminosity(Cb, Cs):
     return _set_lum(Cb, _lum(Cs))
 
 
-def _darker_color(Cb, Cs):
+@non_separable
+def darker_color(Cb, Cs):
     index = np.repeat(_lum(Cs) < _lum(Cb), 3, axis=2)
     B = Cb.copy()
     B[index] = Cs[index]
     return B
 
 
-def _lighter_color(Cb, Cs):
+@non_separable
+def lighter_color(Cb, Cs):
     index = np.repeat(_lum(Cs) > _lum(Cb), 3, axis=2)
     B = Cb.copy()
     B[index] = Cs[index]
     return B
 
 
-def _dissolve(Cb, Cs):
+def dissolve(Cb, Cs):
     # TODO: Implement me!
     logger.debug('Dissolve blend is not implemented')
-    return _normal(Cb, Cs)
+    return normal(Cb, Cs)
 
 
-# Helper functions
+# Helper functions from PDF reference.
 def _lum(C):
     return 0.3 * C[:, :, 0:1] + 0.59 * C[:, :, 1:2] + 0.11 * C[:, :, 2:3]
 
@@ -266,59 +310,59 @@ def _set_sat(C, s):
 """Blend function table."""
 BLEND_FUNC = {
     # Layer attributes
-    BlendMode.NORMAL: _normal,
-    BlendMode.MULTIPLY: _multiply,
-    BlendMode.SCREEN: _screen,
-    BlendMode.OVERLAY: _overlay,
-    BlendMode.DARKEN: _darken,
-    BlendMode.LIGHTEN: _lighten,
-    BlendMode.COLOR_DODGE: _color_dodge,
-    BlendMode.COLOR_BURN: _color_burn,
-    BlendMode.LINEAR_DODGE: _linear_dodge,
-    BlendMode.LINEAR_BURN: _linear_burn,
-    BlendMode.HARD_LIGHT: _hard_light,
-    BlendMode.SOFT_LIGHT: _soft_light,
-    BlendMode.VIVID_LIGHT: _vivid_light,
-    BlendMode.LINEAR_LIGHT: _linear_light,
-    BlendMode.PIN_LIGHT: _pin_light,
-    BlendMode.HARD_MIX: _hard_mix,
-    BlendMode.DIVIDE: _divide,
-    BlendMode.DIFFERENCE: _difference,
-    BlendMode.EXCLUSION: _exclusion,
-    BlendMode.SUBTRACT: _subtract,
-    BlendMode.HUE: _hue,
-    BlendMode.SATURATION: _saturation,
-    BlendMode.COLOR: _color,
-    BlendMode.LUMINOSITY: _luminosity,
-    BlendMode.DARKER_COLOR: _darker_color,
-    BlendMode.LIGHTER_COLOR: _lighter_color,
-    BlendMode.DISSOLVE: _dissolve,
+    BlendMode.NORMAL: normal,
+    BlendMode.MULTIPLY: multiply,
+    BlendMode.SCREEN: screen,
+    BlendMode.OVERLAY: overlay,
+    BlendMode.DARKEN: darken,
+    BlendMode.LIGHTEN: lighten,
+    BlendMode.COLOR_DODGE: color_dodge,
+    BlendMode.COLOR_BURN: color_burn,
+    BlendMode.LINEAR_DODGE: linear_dodge,
+    BlendMode.LINEAR_BURN: linear_burn,
+    BlendMode.HARD_LIGHT: hard_light,
+    BlendMode.SOFT_LIGHT: soft_light,
+    BlendMode.VIVID_LIGHT: vivid_light,
+    BlendMode.LINEAR_LIGHT: linear_light,
+    BlendMode.PIN_LIGHT: pin_light,
+    BlendMode.HARD_MIX: hard_mix,
+    BlendMode.DIVIDE: divide,
+    BlendMode.DIFFERENCE: difference,
+    BlendMode.EXCLUSION: exclusion,
+    BlendMode.SUBTRACT: subtract,
+    BlendMode.HUE: hue,
+    BlendMode.SATURATION: saturation,
+    BlendMode.COLOR: color,
+    BlendMode.LUMINOSITY: luminosity,
+    BlendMode.DARKER_COLOR: darker_color,
+    BlendMode.LIGHTER_COLOR: lighter_color,
+    BlendMode.DISSOLVE: dissolve,
     # Descriptor keys
-    Enum.Normal: _normal,
-    Enum.Multiply: _multiply,
-    Enum.Screen: _screen,
-    Enum.Overlay: _overlay,
-    Enum.Darken: _darken,
-    Enum.Lighten: _lighten,
-    Enum.ColorDodge: _color_dodge,
-    Enum.ColorBurn: _color_burn,
-    b'linearDodge': _linear_dodge,
-    b'linearBurn': _linear_burn,
-    Enum.HardLight: _hard_light,
-    Enum.SoftLight: _soft_light,
-    b'vividLight': _vivid_light,
-    b'linearLight': _linear_light,
-    b'pinLight': _pin_light,
-    b'hardMix': _hard_mix,
-    b'blendDivide': _divide,
-    Enum.Difference: _difference,
-    Enum.Exclusion: _exclusion,
-    Enum.Subtract: _subtract,
-    Enum.Hue: _hue,
-    Enum.Saturation: _saturation,
-    Enum.Color: _color,
-    Enum.Luminosity: _luminosity,
-    b'darkerColor': _darker_color,
-    b'ligherColor': _lighter_color,
-    Enum.Dissolve: _dissolve,
+    Enum.Normal: normal,
+    Enum.Multiply: multiply,
+    Enum.Screen: screen,
+    Enum.Overlay: overlay,
+    Enum.Darken: darken,
+    Enum.Lighten: lighten,
+    Enum.ColorDodge: color_dodge,
+    Enum.ColorBurn: color_burn,
+    b'linearDodge': linear_dodge,
+    b'linearBurn': linear_burn,
+    Enum.HardLight: hard_light,
+    Enum.SoftLight: soft_light,
+    b'vividLight': vivid_light,
+    b'linearLight': linear_light,
+    b'pinLight': pin_light,
+    b'hardMix': hard_mix,
+    b'blendDivide': divide,
+    Enum.Difference: difference,
+    Enum.Exclusion: exclusion,
+    Enum.Subtract: subtract,
+    Enum.Hue: hue,
+    Enum.Saturation: saturation,
+    Enum.Color: color,
+    Enum.Luminosity: luminosity,
+    b'darkerColor': darker_color,
+    b'ligherColor': lighter_color,
+    Enum.Dissolve: dissolve,
 }

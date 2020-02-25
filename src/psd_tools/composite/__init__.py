@@ -1,9 +1,9 @@
 import numpy as np
-from psd_tools.constants import Tag, BlendMode
+from psd_tools.constants import Tag, BlendMode, ColorMode
 from psd_tools.api.layers import AdjustmentLayer
 
 import logging
-from .blend import BLEND_FUNC, _normal
+from .blend import BLEND_FUNC, normal
 from .vector import (
     create_fill, create_fill_desc, draw_vector_mask, draw_stroke,
     draw_solid_color_fill, draw_pattern_fill, draw_gradient_fill
@@ -91,12 +91,14 @@ class Compositor(object):
         alpha=0.0,
         isolated=False,
         layer_filter=None,
-        force=False
+        force=False,
+        color_mode=None,
     ):
         self._viewport = viewport
         self._layer_filter = layer_filter
         self._force = force
         self._clip_mask = 1.
+        self._color_mode = color_mode
 
         if isolated:
             self._alpha_0 = np.zeros((self.height, self.width, 1))
@@ -147,6 +149,9 @@ class Compositor(object):
         if self._color.shape[2] == 1 and 1 < color.shape[2]:
             self._color = np.repeat(self._color, color.shape[2], axis=2)
 
+        if self._color_mode == ColorMode.CMYK:
+            color = 1. - color
+
         self._shape_g = _union(self._shape_g, shape)
         if knockout:
             self._alpha_g = (1. - shape) * self._alpha_g + \
@@ -159,7 +164,7 @@ class Compositor(object):
         alpha_b = self._alpha_0 if knockout else alpha_previous
         color_b = self._color_0 if knockout else self._color
 
-        blend_fn = BLEND_FUNC.get(blend_mode, _normal)
+        blend_fn = BLEND_FUNC.get(blend_mode, normal)
         color_t = (shape - alpha) * alpha_b * color_b + alpha * \
             ((1. - alpha_b) * color + alpha_b * blend_fn(color_b, color))
         self._color = _clip(
@@ -184,10 +189,13 @@ class Compositor(object):
 
     @property
     def color(self):
-        return _clip(
+        color = _clip(
             self._color + (self._color - self._color_0) *
             (_divide(self._alpha_0, self._alpha_g) - self._alpha_0)
         )
+        if self._color_mode == ColorMode.CMYK:
+            return 1. - color
+        return color
 
     @property
     def shape(self):
