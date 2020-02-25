@@ -27,13 +27,21 @@ logger = logging.getLogger(__name__)
     ('path-operations/subtract-second.psd', ),
 ])
 def test_path_operations(filename):
-    check_composite_quality(filename)
+    check_composite_quality(filename, 0.02)
 
 
 @pytest.mark.parametrize(("filename", ), [
     ('stroke.psd', ),
 ])
 def test_draw_stroke(filename):
+    check_composite_quality(filename, 0.01, force=True)
+
+
+@pytest.mark.parametrize(("filename", ), [
+    ('effects/stroke-composite.psd', ),  # Fix me!
+])
+@pytest.mark.xfail
+def test_draw_stroke_fail(filename):
     check_composite_quality(filename, 0.01, force=True)
 
 
