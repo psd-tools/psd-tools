@@ -13,7 +13,6 @@ from psd_tools.api.layers import (
     GroupMixin
 )
 from psd_tools.api import adjustments
-from psd_tools.api import pil_io
 from psd_tools.api import deprecated
 
 logger = logging.getLogger(__name__)
@@ -121,6 +120,49 @@ class PSDImage(GroupMixin):
             with open(fp, mode) as f:
                 self._record.write(f, **kwargs)
 
+    def topil(self, channel=None, apply_icc=False):
+        """
+        Get PIL Image.
+
+        :param channel: Which channel to return; e.g., 0 for 'R' channel in RGB
+            image. See :py:class:`~psd_tools.constants.ChannelID`. When `None`,
+            the method returns all the channels supported by PIL modes.
+        :param apply_icc: Whether to apply ICC profile conversion to sRGB.
+        :return: :py:class:`PIL.Image`, or `None` if the composed image is not
+            available.
+        """
+        from .pil_io import convert_image_data_to_pil
+        if self.has_preview():
+            return convert_image_data_to_pil(self, channel, apply_icc)
+        return None
+
+    @deprecated
+    def compose(self, force=False, bbox=None, layer_filter=None):
+        """
+        Deprecated, use `composite()`.
+
+        Compose the PSD image.
+
+        See :py:func:`~psd_tools.compose` for available extra arguments.
+
+        :param bbox: Viewport tuple (left, top, right, bottom).
+        :return: :py:class:`PIL.Image`, or `None` if there is no pixel.
+        """
+        from psd_tools.composer import compose
+        image = None
+        if (not force or len(self) == 0) and not bbox and not layer_filter:
+            image = self.topil()
+        if image is None:
+            image = compose(
+                self,
+                bbox=bbox or self.viewbox,
+                force=force,
+                layer_filter=layer_filter,
+            )
+        elif bbox is not None:
+            image = image.crop(bbox)
+        return image
+
     def numpy(self, channel=None):
         """
         Get NumPy array of the layer.
@@ -132,44 +174,17 @@ class PSDImage(GroupMixin):
         from .numpy_io import get_array
         return get_array(self, channel)
 
-    def topil(self, channel=None, **kwargs):
-        """
-        Get PIL Image.
-
-        :param channel: Which channel to return; e.g., 0 for 'R' channel in RGB
-            image. See :py:class:`~psd_tools.constants.ChannelID`. When `None`,
-            the method returns all the channels supported by PIL modes.
-        :return: :py:class:`PIL.Image`, or `None` if the composed image is not
-            available.
-        """
-        if self.has_preview():
-            return pil_io.convert_image_data_to_pil(self, channel, **kwargs)
-        return None
-
-    def compose(self, force=False, bbox=None, layer_filter=None, **kwargs):
-        """
-        Compose the PSD image.
-
-        See :py:func:`~psd_tools.compose` for available extra arguments.
-
-        :param bbox: Viewport tuple (left, top, right, bottom).
-        :return: :py:class:`PIL.Image`, or `None` if there is no pixel.
-        """
-        from psd_tools.composer import compose
-        image = None
-        if (not force or len(self) == 0) and not bbox and not layer_filter:
-            image = self.topil(**kwargs)
-        if image is None:
-            image = compose(
-                self,
-                bbox=bbox or self.viewbox,
-                force=force,
-                layer_filter=layer_filter,
-                **kwargs
-            )
-        elif bbox is not None:
-            image = image.crop(bbox)
-        return image
+    def composite(
+        self,
+        color=1.0,
+        alpha=0.0,
+        viewport=None,
+        layer_filter=None,
+        force=False
+    ):
+        """Composite."""
+        from psd_tools.composite import composite_pil
+        return composite_pil(self, color, alpha, viewport, layer_filter, force)
 
     def is_visible(self):
         """
@@ -420,12 +435,13 @@ class PSDImage(GroupMixin):
         Returns a thumbnail image in PIL.Image. When the file does not
         contain an embedded thumbnail image, returns None.
         """
+        from .pil_io import convert_thumbnail_to_pil
         if Resource.THUMBNAIL_RESOURCE in self.image_resources:
-            return pil_io.convert_thumbnail_to_pil(
+            return convert_thumbnail_to_pil(
                 self.image_resources.get_data(Resource.THUMBNAIL_RESOURCE)
             )
         elif Resource.THUMBNAIL_RESOURCE_PS4 in self.image_resources:
-            return pil_io.convert_thumbnail_to_pil(
+            return convert_thumbnail_to_pil(
                 self.image_resources.get_data(Resource.THUMBNAIL_RESOURCE_PS4),
                 'BGR'
             )
@@ -463,8 +479,9 @@ class PSDImage(GroupMixin):
 
     @classmethod
     def _make_header(cls, mode, size, depth=8):
+        from .pil_io import get_color_mode
         assert depth in (8, 16, 32), 'Invalid depth: %d' % (depth)
-        color_mode = pil_io.get_color_mode(mode)
+        color_mode = get_color_mode(mode)
         alpha = int(mode.upper().endswith('A'))
         channels = ColorMode.channels(color_mode, alpha)
         return FileHeader(
@@ -564,40 +581,3 @@ class PSDImage(GroupMixin):
 
         if clip_stack and last_layer:
             last_layer._clip_layers = clip_stack
-
-    @classmethod
-    @deprecated
-    def load(kls, *args, **kwargs):
-        return kls.open(*args, **kwargs)
-
-    @classmethod
-    @deprecated
-    def from_stream(kls, *args, **kwargs):
-        return kls.open(*args, **kwargs)
-
-    @property
-    @deprecated
-    def header(self):
-        return self._record.header
-
-    @property
-    @deprecated
-    def patterns(self):
-        raise NotImplementedError
-
-    @property
-    @deprecated
-    def image_resource_blocks(self):
-        return self.image_resources
-
-    @deprecated
-    def as_PIL(self, *args, **kwargs):
-        return self.topil(*args, **kwargs)
-
-    @deprecated
-    def print_tree(self):
-        try:
-            from IPython.lib.pretty import pprint
-        except ImportError:
-            from pprint import pprint
-        pprint(self)

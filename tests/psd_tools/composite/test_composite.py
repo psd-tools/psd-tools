@@ -134,12 +134,26 @@ def test_composite_viewport():
     assert composite(psd[0], viewport=bbox)[1].shape == shape
 
 
-# def test_apply_icc_profile():
-#     filepath = full_name('colorprofiles/north_america_newspaper.psd')
-#     psd = PSDImage.open(filepath)
-#     no_icc = composite(psd, apply_icc=False)
-#     with_icc = composite(psd, apply_icc=True)
-#     assert no_icc.getextrema() != with_icc.getextrema()
+@pytest.mark.parametrize(
+    'colormode, depth', [
+        ('bitmap', 1),
+        ('cmyk', 8),
+        ('duotone', 8),
+        ('grayscale', 8),
+        ('index_color', 8),
+        ('rgb', 8),
+        ('rgba', 8),
+        ('lab', 8),
+        ('multichannel', 16),
+    ]
+)
+def test_composite_pil(colormode, depth):
+    from PIL import Image
+    filename = 'colormodes/4x4_%gbit_%s.psd' % (depth, colormode)
+    psd = PSDImage.open(full_name(filename))
+    isinstance(psd.composite(), Image.Image)
+    for layer in psd:
+        isinstance(layer.composite(), (Image.Image, type(None)))
 
 
 def test_apply_mask():

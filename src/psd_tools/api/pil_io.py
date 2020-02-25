@@ -48,7 +48,7 @@ def get_pil_channels(pil_mode):
     }.get(pil_mode, 3)
 
 
-def convert_image_data_to_pil(psd, channel=None, apply_icc=True, **kwargs):
+def convert_image_data_to_pil(psd, channel, apply_icc):
     """Convert ImageData to PIL Image.
 
     .. note:: Image resources contain extra alpha channels in these keys:
@@ -97,7 +97,7 @@ def convert_image_data_to_pil(psd, channel=None, apply_icc=True, **kwargs):
     return _remove_white_background(image)
 
 
-def convert_layer_to_pil(layer, channel=None, apply_icc=True, **kwargs):
+def convert_layer_to_pil(layer, channel, apply_icc):
     """Convert Layer to PIL Image."""
     alpha = None
     icc = None

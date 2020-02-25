@@ -6,6 +6,7 @@ Composer takes responsibility of rendering layers as an image.
 from __future__ import absolute_import, unicode_literals
 import logging
 
+from psd_tools.api import deprecated
 from psd_tools.constants import Tag, BlendMode
 from psd_tools.api.pil_io import get_pil_mode
 from psd_tools.api.layers import Group
@@ -44,13 +45,14 @@ def intersect(*bboxes):
     return result
 
 
+@deprecated
 def compose(
     layers,
+    force=False,
     bbox=None,
-    context=None,
     layer_filter=None,
+    context=None,
     color=None,
-    **kwargs
 ):
     """
     Compose layers to a single :py:class:`PIL.Image`.
@@ -131,10 +133,11 @@ def compose(
         if layer.is_group():
             if layer.blend_mode == BlendMode.PASS_THROUGH:
                 _context = layer.compose(
+                    force=force,
                     context=context,
                     bbox=bbox,
                     layer_filter=layer_filter,
-                    **kwargs
+                    color=color,
                 )
                 offset = _context.info.get('offset', (0, 0))
                 # TODO: group opacity is not properly considered here.
@@ -143,9 +146,9 @@ def compose(
                 )
                 continue
             else:
-                image = layer.compose(layer_filter=layer_filter, **kwargs)
+                image = layer.compose(layer_filter=layer_filter)
         else:
-            image = compose_layer(layer, **kwargs)
+            image = compose_layer(layer, force=force)
         if image is None:
             continue
 
@@ -162,11 +165,11 @@ def compose(
     return context
 
 
-def compose_layer(layer, force=False, **kwargs):
+def compose_layer(layer, force=False):
     """Compose a single layer with pixels."""
     assert layer.bbox != (0, 0, 0, 0), 'Layer bbox is (0, 0, 0, 0)'
 
-    image = layer.topil(**kwargs)
+    image = layer.topil()
     if image is None or force:
         texture = create_fill(layer)
         if texture is not None:
@@ -212,7 +215,10 @@ def _apply_layer_ops(layer, image, force=False, bbox=None):
         bbox = offset + (offset[0] + image.width, offset[1] + image.height)
         if intersect(bbox, clip_box) != (0, 0, 0, 0):
             clip_image = compose(
-                layer.clip_layers, bbox=bbox, context=image.copy()
+                layer.clip_layers,
+                force=force,
+                bbox=bbox,
+                context=image.copy()
             )
             if image.mode.endswith('A'):
                 mask = image.getchannel('A')

@@ -1,6 +1,6 @@
 import numpy as np
-from psd_tools.constants import Tag, BlendMode
-from psd_tools.api.layers import AdjustmentLayer
+from psd_tools.constants import Tag, BlendMode, ColorMode
+from psd_tools.api.layers import AdjustmentLayer, Layer
 
 import logging
 from .blend import BLEND_FUNC, normal
@@ -13,16 +13,48 @@ from .effects import draw_stroke_effect
 logger = logging.getLogger(__name__)
 
 
+def composite_pil(layer, color, alpha, viewport, layer_filter, force):
+    from PIL import Image
+    from psd_tools.api.pil_io import get_pil_mode
+    from psd_tools.api.numpy_io import has_alpha
+
+    UNSUPPORTED_MODES = {
+        ColorMode.DUOTONE,
+        ColorMode.LAB,
+    }
+    color_mode = getattr(layer, '_psd', layer).color_mode
+    if color_mode in UNSUPPORTED_MODES:
+        logger.warning('Unsupported composite mode %s' % (color_mode))
+
+    color, _, alpha = composite(
+        layer,
+        color=color,
+        alpha=alpha,
+        viewport=viewport,
+        layer_filter=layer_filter,
+        force=force
+    )
+
+    mode = get_pil_mode(color_mode)
+    if mode == 'P':
+        mode = 'RGB'
+    if color_mode in (ColorMode.GRAYSCALE, ColorMode.RGB) and (
+        layer.kind != 'psdimage' or has_alpha(layer)):
+        color = np.concatenate((color, alpha), 2)
+        mode += 'A'
+    if mode in ('1', 'L'):
+        color = color[:, :, 0]
+    if color.shape[0] == 0 or color.shape[1] == 0:
+        return None
+    return Image.fromarray((255 * color).astype(np.uint8), mode)
+
+
 def composite(
     group, color=1.0, alpha=0.0, viewport=None, layer_filter=None, force=False
 ):
     """
     Composite the given group of layers.
     """
-
-    def _visible_filter(layer):
-        return layer.is_visible()
-
     viewport = viewport or getattr(group, 'viewbox', None) or group.bbox
 
     if getattr(group, 'kind', None) == 'psdimage' and len(group) == 0:
@@ -33,7 +65,7 @@ def composite(
     if hasattr(group, 'blend_mode'):
         isolated = group.blend_mode != BlendMode.PASS_THROUGH
 
-    layer_filter = layer_filter or _visible_filter
+    layer_filter = layer_filter or Layer.is_visible
 
     compositor = Compositor(
         viewport, color, alpha, isolated, layer_filter, force
