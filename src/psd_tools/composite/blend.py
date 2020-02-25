@@ -2,6 +2,7 @@
 Blend mode implementations.
 """
 import numpy as np
+import functools
 from psd_tools.constants import BlendMode
 from psd_tools.terminology import Enum
 import logging
@@ -9,7 +10,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-# Blend functions
+# Separable blend functions
 def normal(Cb, Cs):
     return Cs
 
@@ -171,13 +172,14 @@ def divide(Cb, Cs):
 # is K of Cb for hue, saturation, and color blending, and K of Cs for
 # luminosity.
 def non_separable(k='s'):
-    """Wrap non-separable blending function for CMYK handling."""
+    """Wrap non-separable blending function for CMYK handling.
 
+    .. note: This implementation is still inaccurate.
+    """
     def decorator(func):
+        @functools.wraps(func)
         def _blend_fn(Cb, Cs):
-            if Cb.shape[2] == 4:
-                assert Cb.ndim == 3
-                assert Cs.ndim == 3
+            if Cs.shape[2] == 4:
                 K = Cs[:, :, 3:4] if k == 's' else Cb[:, :, 3:4]
                 Cb, Cs = _cmyk2rgb(Cb), _cmyk2rgb(Cs)
                 return np.concatenate((_rgb2cmy(func(Cb, Cs), K), K), axis=2)

@@ -1,5 +1,5 @@
 import numpy as np
-from psd_tools.constants import Tag, BlendMode, ColorMode
+from psd_tools.constants import Tag, BlendMode
 from psd_tools.api.layers import AdjustmentLayer
 
 import logging
@@ -92,13 +92,11 @@ class Compositor(object):
         isolated=False,
         layer_filter=None,
         force=False,
-        color_mode=None,
     ):
         self._viewport = viewport
         self._layer_filter = layer_filter
         self._force = force
         self._clip_mask = 1.
-        self._color_mode = color_mode
 
         if isolated:
             self._alpha_0 = np.zeros((self.height, self.width, 1))
@@ -149,9 +147,6 @@ class Compositor(object):
         if self._color.shape[2] == 1 and 1 < color.shape[2]:
             self._color = np.repeat(self._color, color.shape[2], axis=2)
 
-        if self._color_mode == ColorMode.CMYK:
-            color = 1. - color
-
         self._shape_g = _union(self._shape_g, shape)
         if knockout:
             self._alpha_g = (1. - shape) * self._alpha_g + \
@@ -189,13 +184,10 @@ class Compositor(object):
 
     @property
     def color(self):
-        color = _clip(
+        return _clip(
             self._color + (self._color - self._color_0) *
             (_divide(self._alpha_0, self._alpha_g) - self._alpha_0)
         )
-        if self._color_mode == ColorMode.CMYK:
-            return 1. - color
-        return color
 
     @property
     def shape(self):
