@@ -170,7 +170,7 @@ def divide(Cb, Cs):
 # blended, then CMY components should be retrieved from RGB results. K component
 # is K of Cb for hue, saturation, and color blending, and K of Cs for
 # luminosity.
-def non_separable(_func=None, *, k='s'):
+def non_separable(k='s'):
     """Wrap non-separable blending function for CMYK handling."""
 
     def decorator(func):
@@ -185,10 +185,7 @@ def non_separable(_func=None, *, k='s'):
 
         return _blend_fn
 
-    if _func is None:
-        return decorator
-    else:
-        return decorator(_func)
+    return decorator
 
 
 def _cmyk2rgb(C):
@@ -204,27 +201,27 @@ def _rgb2cmy(C, K):
     return color
 
 
-@non_separable
+@non_separable()
 def hue(Cb, Cs):
     return _set_lum(_set_sat(Cs, _sat(Cb)), _lum(Cb))
 
 
-@non_separable
+@non_separable()
 def saturation(Cb, Cs):
     return _set_lum(_set_sat(Cb, _sat(Cs)), _lum(Cb))
 
 
-@non_separable
+@non_separable()
 def color(Cb, Cs):
     return _set_lum(Cs, _lum(Cb))
 
 
-@non_separable(k='s')
+@non_separable('s')
 def luminosity(Cb, Cs):
     return _set_lum(Cb, _lum(Cs))
 
 
-@non_separable
+@non_separable()
 def darker_color(Cb, Cs):
     index = np.repeat(_lum(Cs) < _lum(Cb), 3, axis=2)
     B = Cb.copy()
@@ -232,7 +229,7 @@ def darker_color(Cb, Cs):
     return B
 
 
-@non_separable
+@non_separable()
 def lighter_color(Cb, Cs):
     index = np.repeat(_lum(Cs) > _lum(Cb), 3, axis=2)
     B = Cb.copy()
