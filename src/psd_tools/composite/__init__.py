@@ -1,6 +1,7 @@
 import numpy as np
 from psd_tools.constants import Tag, BlendMode, ColorMode
 from psd_tools.api.layers import AdjustmentLayer, Layer
+from psd_tools.api.numpy_io import EXPECTED_CHANNELS
 
 import logging
 from .blend import BLEND_FUNC, normal
@@ -24,7 +25,7 @@ def composite_pil(layer, color, alpha, viewport, layer_filter, force):
     }
     color_mode = getattr(layer, '_psd', layer).color_mode
     if color_mode in UNSUPPORTED_MODES:
-        logger.warning('Unsupported composite mode %s' % (color_mode))
+        logger.warning('Unsupported blending color space: %s' % (color_mode))
 
     color, _, alpha = composite(
         layer,
@@ -56,10 +57,19 @@ def composite(
     Composite the given group of layers.
     """
     viewport = viewport or getattr(group, 'viewbox', None) or group.bbox
+    if viewport == (0, 0, 0, 0):
+        viewport = getattr(group, '_psd').viewbox
 
     if getattr(group, 'kind', None) == 'psdimage' and len(group) == 0:
         color, shape = group.numpy('color'), group.numpy('shape')
+        if viewport != group.viewbox:
+            color = paste(viewport, group.bbox, color, 1.)
+            shape = paste(viewport, group.bbox, shape)
         return color, shape, shape
+
+    if not isinstance(color, np.ndarray) and not hasattr(color, '__iter__'):
+        color_mode = getattr(group, '_psd', group).color_mode
+        color = (color, ) * EXPECTED_CHANNELS.get(color_mode)
 
     isolated = False
     if hasattr(group, 'blend_mode'):
@@ -140,7 +150,8 @@ class Compositor(object):
         if isinstance(color, np.ndarray):
             self._color_0 = color
         else:
-            self._color_0 = np.full((self.height, self.width, 1), color)
+            channels = len(color) if hasattr(color, '__iter__') else 1
+            self._color_0 = np.full((self.height, self.width, channels), color)
 
         self._shape_g = np.zeros((self.height, self.width, 1))
         self._alpha_g = np.zeros((self.height, self.width, 1))

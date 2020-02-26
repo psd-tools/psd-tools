@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
         [
             'export',
             full_name('layers/pixel-layer.psd[0]'),
+            '--verbose',
         ],
         [
             'show',

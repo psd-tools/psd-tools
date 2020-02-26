@@ -5,7 +5,7 @@ from psd_tools.constants import Resource, ChannelID, Tag, ColorMode
 
 logger = logging.getLogger(__name__)
 
-_EXPECTED_CHANNELS = {
+EXPECTED_CHANNELS = {
     ColorMode.BITMAP: 1,
     ColorMode.GRAYSCALE: 1,
     ColorMode.INDEXED: 3,
@@ -47,7 +47,7 @@ def get_image_data(psd, channel):
         if psd.color_mode == ColorMode.MULTICHANNEL:
             return data
         # TODO: psd.color_mode == ColorMode.INDEXED --> Convert?
-        return data[:, :, :_EXPECTED_CHANNELS[psd.color_mode]]
+        return data[:, :, :EXPECTED_CHANNELS[psd.color_mode]]
 
     return data
 
@@ -63,7 +63,7 @@ def get_layer_data(layer, channel):
         ]
         if len(channels) and channels[0].size > 0:
             result = np.stack(channels, axis=1).reshape((height, width, -1))
-            expected_channels = _EXPECTED_CHANNELS.get(layer._psd.color_mode)
+            expected_channels = EXPECTED_CHANNELS.get(layer._psd.color_mode)
             if result.shape[2] > expected_channels:
                 logger.debug('Extra channel found')
                 return result[:, :, :expected_channels]
@@ -119,7 +119,7 @@ def has_alpha(psd):
     )
     if psd.tagged_blocks and any(key in psd.tagged_blocks for key in keys):
         return True
-    return psd.channels > _EXPECTED_CHANNELS.get(psd.color_mode)
+    return psd.channels > EXPECTED_CHANNELS.get(psd.color_mode)
 
 
 def _parse_array(data, depth, lut=None):

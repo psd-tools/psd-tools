@@ -153,7 +153,7 @@ def test_composite_pil(colormode, depth):
     psd = PSDImage.open(full_name(filename))
     isinstance(psd.composite(), Image.Image)
     for layer in psd:
-        isinstance(layer.composite(), (Image.Image, type(None)))
+        isinstance(layer.composite(), Image.Image)
 
 
 def test_apply_mask():
