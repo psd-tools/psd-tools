@@ -1,3 +1,16 @@
+1.9.0 (2020-02-26)
+------------------
+
+- [composite] Implement NumPy-based compositing functionality.
+- [composite] Support blending modes other than dissolve.
+- [composite] Support blending in RGB, CMYK, Grayscale.
+- [api] Introduce NumPy array export method.
+- [api] Drop deprecated methods from v1.7.x such as `as_PIL`.
+- [api] Deprecate `compose` method.
+- [compression] Rename packbits to rle.
+- [compression] Improve RLE decode efficiency.
+- [tests] Additional compositing tests.
+
 1.8.38 (2020-02-12)
 -------------------
 
