@@ -40,7 +40,7 @@ def composite_pil(layer, color, alpha, viewport, layer_filter, force):
     if mode == 'P':
         mode = 'RGB'
     if color_mode in (ColorMode.GRAYSCALE, ColorMode.RGB) and (
-        layer.kind != 'psdimage' or has_alpha(layer)):
+            layer.kind != 'psdimage' or has_alpha(layer)):
         color = np.concatenate((color, alpha), 2)
         mode += 'A'
     if mode in ('1', 'L'):

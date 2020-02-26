@@ -107,8 +107,8 @@ def linear_light(Cb, Cs):
     Burns or dodges the colors by decreasing or increasing the brightness,
     depending on the blend color. If the blend color (light source) is lighter
     than 50% gray, the image is lightened by increasing the brightness. If the
-    blend color is darker than 50% gray, the image is darkened by decreasing the
-    brightness.
+    blend color is darker than 50% gray, the image is darkened by decreasing
+    the brightness.
     """
     index = Cs > 0.5
     B = linear_burn(Cb, 2 * Cs)
@@ -118,11 +118,11 @@ def linear_light(Cb, Cs):
 
 def pin_light(Cb, Cs):
     """
-    Replaces the colors, depending on the blend color. If the blend color (light
-    source) is lighter than 50% gray, pixels darker than the blend color are
-    replaced, and pixels lighter than the blend color do not change. If the
-    blend color is darker than 50% gray, pixels lighter than the blend color are
-    replaced, and pixels darker than the blend color do not change. This is
+    Replaces the colors, depending on the blend color. If the blend color
+    (light source) is lighter than 50% gray, pixels darker than the blend color
+    are replaced, and pixels lighter than the blend color do not change. If the
+    blend color is darker than 50% gray, pixels lighter than the blend color
+    are replaced, and pixels darker than the blend color do not change. This is
     useful for adding special effects to an image.
     """
     index = Cs > 0.5
@@ -168,8 +168,8 @@ def divide(Cb, Cs):
 
 
 # Non-separable blending must be in RGB. CMYK should be first converted to RGB,
-# blended, then CMY components should be retrieved from RGB results. K component
-# is K of Cb for hue, saturation, and color blending, and K of Cs for
+# blended, then CMY components should be retrieved from RGB results. K
+# component is K of Cb for hue, saturation, and color blending, and K of Cs for
 # luminosity.
 def non_separable(k='s'):
     """Wrap non-separable blending function for CMYK handling.

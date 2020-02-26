@@ -937,8 +937,8 @@ class GlobalLayerMaskInfo(BaseElement):
             return cls(overlay_color=None)
         elif len(data) < 13:
             logger.warning(
-                'global layer mask info is broken, expected 13 bytes but found '
-                'only %d' % (len(data))
+                'global layer mask info is broken, expected 13 bytes but found'
+                ' only %d' % (len(data))
             )
             fp.seek(pos)
             return cls(overlay_color=None)

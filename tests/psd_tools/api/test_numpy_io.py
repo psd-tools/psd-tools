@@ -6,7 +6,6 @@ import os
 import numpy as np
 from psd_tools.api import numpy_io
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.constants import ColorMode
 from psd_tools.psd.patterns import Pattern
 from ..utils import TEST_ROOT, full_name
 

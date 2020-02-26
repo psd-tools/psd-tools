@@ -1,7 +1,7 @@
 import numpy as np
 import logging
 
-from psd_tools.constants import Resource, ChannelID, Tag, ColorMode
+from psd_tools.constants import ChannelID, Tag, ColorMode
 
 logger = logging.getLogger(__name__)
 

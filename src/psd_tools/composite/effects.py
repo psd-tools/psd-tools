@@ -4,7 +4,9 @@ from skimage.morphology import disk
 import logging
 
 from psd_tools.terminology import Enum, Key
-from .vector import draw_solid_color_fill, draw_pattern_fill, draw_gradient_fill
+from .vector import (
+    draw_solid_color_fill, draw_pattern_fill, draw_gradient_fill
+)
 
 logger = logging.getLogger(__name__)
 

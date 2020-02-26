@@ -33,11 +33,11 @@ def draw_stroke(layer):
     #     'strokeStyleBevelJoin': 3,
     # }
     width = float(desc.get('strokeStyleLineWidth', 1.))
-    linejoin = desc.get('strokeStyleLineJoinType', None)
-    linejoin = linejoin.enum if linejoin else 'strokeStyleMiterJoin'
-    linecap = desc.get('strokeStyleLineCapType', None)
-    linecap = linecap.enum if linecap else 'strokeStyleButtCap'
-    miterlimit = desc.get('strokeStyleMiterLimit', 100.0) / 100.
+    # linejoin = desc.get('strokeStyleLineJoinType', None)
+    # linejoin = linejoin.enum if linejoin else 'strokeStyleMiterJoin'
+    # linecap = desc.get('strokeStyleLineCapType', None)
+    # linecap = linecap.enum if linecap else 'strokeStyleButtCap'
+    # miterlimit = desc.get('strokeStyleMiterLimit', 100.0) / 100.
     # aggdraw >= 1.3.12 will support additional params.
     return _draw_path(
         layer,
@@ -151,7 +151,7 @@ def create_fill(layer, viewport):
         return draw_gradient_fill(viewport, desc)
     if Tag.VECTOR_STROKE_CONTENT_DATA in layer.tagged_blocks:
         stroke = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_DATA)
-        if not stroke or stroke.get('fillEnabled').value == True:
+        if not stroke or stroke.get('fillEnabled').value is True:
             desc = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)
             if Key.Color in desc:
                 return draw_solid_color_fill(viewport, desc)
