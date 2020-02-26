@@ -27,7 +27,7 @@ def get_array(layer, channel):
 
 def get_image_data(psd, channel):
     if (channel == 'mask') or (channel == 'shape' and not has_alpha(psd)):
-        return np.ones((psd.height, psd.width, 1))
+        return np.ones((psd.height, psd.width, 1), dtype=np.float32)
 
     lut = None
     if psd.color_mode == ColorMode.INDEXED:
@@ -127,13 +127,13 @@ def _parse_array(data, depth, lut=None):
         parsed = np.frombuffer(data, '>u1')
         if lut is not None:
             parsed = lut[parsed]
-        return parsed / float(255)
+        return parsed.astype(np.float32) / 255.
     elif depth == 16:
-        return np.frombuffer(data, '>u2') / float(65535)
+        return np.frombuffer(data, '>u2').astype(np.float32) / 65535.
     elif depth == 32:
-        return np.frombuffer(data, '>f4').astype(np.float)
+        return np.frombuffer(data, '>f4')
     elif depth == 1:
-        return np.unpackbits(np.frombuffer(data, np.uint8)).astype(np.float)
+        return np.unpackbits(np.frombuffer(data, np.uint8)).astype(np.float32)
     else:
         raise ValueError('Unsupported depth: %g' % depth)
 

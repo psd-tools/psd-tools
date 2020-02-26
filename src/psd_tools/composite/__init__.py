@@ -39,8 +39,8 @@ def composite_pil(layer, color, alpha, viewport, layer_filter, force):
     mode = get_pil_mode(color_mode)
     if mode == 'P':
         mode = 'RGB'
-    if color_mode in (ColorMode.GRAYSCALE, ColorMode.RGB) and (
-            layer.kind != 'psdimage' or has_alpha(layer)):
+    if color_mode in (ColorMode.GRAYSCALE, ColorMode.RGB
+                      ) and (layer.kind != 'psdimage' or has_alpha(layer)):
         color = np.concatenate((color, alpha), 2)
         mode += 'A'
     if mode in ('1', 'L'):
@@ -51,7 +51,12 @@ def composite_pil(layer, color, alpha, viewport, layer_filter, force):
 
 
 def composite(
-    group, color=1.0, alpha=0.0, viewport=None, layer_filter=None, force=False
+    group,
+    color=1.0,
+    alpha=0.0,
+    viewport=None,
+    layer_filter=None,
+    force=False
 ):
     """
     Composite the given group of layers.
@@ -98,7 +103,8 @@ def paste(viewport, bbox, values, background=None):
     shape = (
         viewport[3] - viewport[1], viewport[2] - viewport[0], values.shape[2]
     )
-    view = np.full(shape, background) if background else np.zeros(shape)
+    view = np.full(shape, background, dtype=np.float32
+                   ) if background else np.zeros(shape, dtype=np.float32)
     inter = _intersect(viewport, bbox)
     if inter == (0, 0, 0, 0):
         return view
@@ -112,7 +118,7 @@ def paste(viewport, bbox, values, background=None):
         inter[3] - bbox[1]
     )
     view[v[1]:v[3], v[0]:v[2], :] = values[b[1]:b[3], b[0]:b[2], :]
-    return _clip(view)
+    return view
 
 
 class Compositor(object):
@@ -125,7 +131,6 @@ class Compositor(object):
             compositor.apply(layer)
         color, shape, alpha = compositor.finish()
     """
-
     def __init__(
         self,
         viewport,
@@ -141,20 +146,27 @@ class Compositor(object):
         self._clip_mask = 1.
 
         if isolated:
-            self._alpha_0 = np.zeros((self.height, self.width, 1))
+            self._alpha_0 = np.zeros((self.height, self.width, 1),
+                                     dtype=np.float32)
         elif isinstance(alpha, np.ndarray):
             self._alpha_0 = alpha
         else:
-            self._alpha_0 = np.full((self.height, self.width, 1), alpha)
+            self._alpha_0 = np.full((self.height, self.width, 1),
+                                    alpha,
+                                    dtype=np.float32)
 
         if isinstance(color, np.ndarray):
             self._color_0 = color
         else:
             channels = len(color) if hasattr(color, '__iter__') else 1
-            self._color_0 = np.full((self.height, self.width, channels), color)
+            self._color_0 = np.full((self.height, self.width, channels),
+                                    color,
+                                    dtype=np.float32)
 
-        self._shape_g = np.zeros((self.height, self.width, 1))
-        self._alpha_g = np.zeros((self.height, self.width, 1))
+        self._shape_g = np.zeros((self.height, self.width, 1),
+                                 dtype=np.float32)
+        self._alpha_g = np.zeros((self.height, self.width, 1),
+                                 dtype=np.float32)
         self._color = self._color_0
         self._alpha = self._alpha_0
 
@@ -207,7 +219,7 @@ class Compositor(object):
             ((1. - alpha_b) * color + alpha_b * blend_fn(color_b, color))
         self._color = _clip(
             _divide((1. - shape) * alpha_previous * self._color + color_t,
-                    np.repeat(self._alpha, color_t.shape[2], axis=2))
+                    self._alpha)
         )
 
     def finish(self):
@@ -278,19 +290,20 @@ class Compositor(object):
         if (self._force or not layer.has_pixels()) and has_fill:
             color, shape = create_fill(layer, layer.bbox)
             if shape is None:
-                shape = np.ones((layer.height, layer.width, 1))
+                shape = np.ones((layer.height, layer.width, 1),
+                                dtype=np.float32)
 
         if color is None and shape is None:
             # Empty pixel layer.
-            color = np.ones((self.height, self.width, 1))
-            shape = np.zeros((self.height, self.width, 1))
+            color = np.ones((self.height, self.width, 1), dtype=np.float32)
+            shape = np.zeros((self.height, self.width, 1), dtype=np.float32)
 
         if color is None:
-            color = np.ones((self.height, self.width, 1))
+            color = np.ones((self.height, self.width, 1), dtype=np.float32)
         else:
             color = paste(self._viewport, layer.bbox, color, 1.)
         if shape is None:
-            shape = np.ones((self.height, self.width, 1))
+            shape = np.ones((self.height, self.width, 1), dtype=np.float32)
         else:
             shape = paste(self._viewport, layer.bbox, shape)
 
@@ -387,7 +400,8 @@ class Compositor(object):
             color, shape_e = draw_solid_color_fill(layer.bbox, effect.value)
             color = paste(self._viewport, layer.bbox, color, 1.)
             if shape_e is None:
-                shape_e = np.ones((self.height, self.width, 1))
+                shape_e = np.ones((self.height, self.width, 1),
+                                  dtype=np.float32)
             else:
                 shape_e = paste(self._viewport, layer.bbox, shape_e)
             opacity = effect.opacity / 100.
@@ -403,7 +417,8 @@ class Compositor(object):
             )
             color = paste(self._viewport, layer.bbox, color, 1.)
             if shape_e is None:
-                shape_e = np.ones((self.height, self.width, 1))
+                shape_e = np.ones((self.height, self.width, 1),
+                                  dtype=np.float32)
             else:
                 shape_e = paste(self._viewport, layer.bbox, shape_e)
             opacity = effect.opacity / 100.
@@ -417,7 +432,8 @@ class Compositor(object):
             color, shape_e = draw_gradient_fill(layer.bbox, effect.value)
             color = paste(self._viewport, layer.bbox, color, 1.)
             if shape_e is None:
-                shape_e = np.ones((self.height, self.width, 1))
+                shape_e = np.ones((self.height, self.width, 1),
+                                  dtype=np.float32)
             else:
                 shape_e = paste(self._viewport, layer.bbox, shape_e)
             opacity = effect.opacity / 100.
@@ -453,12 +469,12 @@ def _union(backdrop, source):
 
 def _clip(x):
     """Clip between [0, 1]."""
-    return np.minimum(1., np.maximum(0., x))
+    return np.clip(x, 0., 1.)
 
 
 def _divide(a, b):
     """Safe division for color ops."""
-    index = b != 0
-    c = np.ones_like(b)  # In Photoshop, undefined color is white.
-    c[index] = (a[index] if isinstance(a, np.ndarray) else a) / b[index]
+    with np.errstate(divide='ignore', invalid='ignore'):
+        c = np.true_divide(a, b)
+        c[~np.isfinite(c)] = 1.
     return c

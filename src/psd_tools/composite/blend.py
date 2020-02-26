@@ -36,7 +36,7 @@ def lighten(Cb, Cs):
 
 
 def color_dodge(Cb, Cs, s=1.0):
-    B = np.zeros_like(Cb)
+    B = np.zeros_like(Cb, dtype=np.float32)
     B[Cs == 1] = 1
     B[Cb == 0] = 0
     index = (Cs != 1) & (Cb != 0)
@@ -45,7 +45,7 @@ def color_dodge(Cb, Cs, s=1.0):
 
 
 def color_burn(Cb, Cs, s=1.0):
-    B = np.zeros_like(Cb)
+    B = np.zeros_like(Cb, dtype=np.float32)
     B[Cb == 1] = 1
     index = (Cb != 1) & (Cs != 0)
     B[index] = 1 - np.minimum(1, (1 - Cb[index]) / (s * Cs[index]))
@@ -70,13 +70,13 @@ def hard_light(Cb, Cs):
 def soft_light(Cb, Cs):
     index = Cs <= 0.25
     index_not = ~index
-    D = np.zeros_like(Cb)
+    D = np.zeros_like(Cb, dtype=np.float32)
     D[index] = ((16 * Cb[index] - 12) * Cb[index] + 4) * Cb[index]
     D[index_not] = np.sqrt(Cb[index_not])
 
     index = Cs <= 0.5
     index_not = ~index
-    B = np.zeros_like(Cb)
+    B = np.zeros_like(Cb, dtype=np.float32)
     B[index] = Cb[index] - (1 - 2 * Cs[index]) * Cb[index] * (1 - Cb[index])
     B[index_not] = Cb[index_not] + \
         (2 * Cs[index_not] - 1) * (D[index_not] - Cb[index_not])
@@ -152,7 +152,7 @@ def hard_mix(Cb, Cs):
     either 0 or 255. This changes all pixels to primary additive colors (red,
     green, or blue), white, or black.
     """
-    B = np.zeros_like(Cb)
+    B = np.zeros_like(Cb, dtype=np.float32)
     B[(Cb + .999999 * Cs) >= 1] = 1  # There seems a weird numerical issue.
     return B
 
@@ -285,7 +285,7 @@ def _set_sat(C, s):
     C_mid = np.repeat(np.median(C, axis=2, keepdims=True), 3, axis=2)
     C_min = np.repeat(np.min(C, axis=2, keepdims=True), 3, axis=2)
 
-    B = np.zeros_like(C)
+    B = np.zeros_like(C, dtype=np.float32)
 
     index_diff = (C_max > C_min)
     index_mid = (C == C_mid)

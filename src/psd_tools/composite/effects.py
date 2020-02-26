@@ -35,8 +35,9 @@ def draw_stroke_effect(viewport, shape, desc, psd):
         size *= 2
 
     edges = filters.scharr(shape[:, :, 0])
+    pen = disk(int(size / 2. - 1))
     mask = filters.rank.maximum((255 * edges).astype(np.uint8),
-                                disk(int(size / 2. - 1))) / 255.
+                                pen).astype(np.float32) / 255.
     mask = (mask - np.min(mask)) / (np.max(mask) - np.min(mask))
     mask = np.expand_dims(mask, 2)
 

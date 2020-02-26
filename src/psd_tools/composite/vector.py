@@ -54,7 +54,7 @@ def draw_stroke(layer):
 def _draw_path(layer, brush=None, pen=None):
     height, width = layer._psd.height, layer._psd.width
     color = layer.vector_mask.initial_fill_rule
-    mask = np.full((height, width, 1), color)
+    mask = np.full((height, width, 1), color, dtype=np.float32)
     first = True
     for subpath in layer.vector_mask.paths:
         plane = _draw_subpath(subpath, width, height, brush, pen)
@@ -94,7 +94,7 @@ def _draw_subpath(subpath, width, height, brush, pen):
     draw.symbol((0, 0), symbol, pen, brush)
     draw.flush()
     del draw
-    return np.expand_dims(np.array(mask) / 255., 2)
+    return np.expand_dims(np.array(mask).astype(np.float32) / 255., 2)
 
 
 def _generate_symbol(path, width, height, command='C'):
@@ -170,7 +170,7 @@ def draw_solid_color_fill(viewport, desc):
     color_fn = _COLOR_FUNC.get(color_desc.classID, 1.0)
     fill = [color_fn(x) for x in color_desc.values()]
     height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
-    color = np.full((height, width, len(fill)), fill)
+    color = np.full((height, width, len(fill)), fill, dtype=np.float32)
     return color, None
 
 
@@ -216,8 +216,8 @@ def draw_gradient_fill(viewport, desc):
     ratio = (angle % 90)
     scale *= (90. - ratio) / 90. * width + (ratio / 90.) * height
     X, Y = np.meshgrid(
-        np.linspace(-width / scale, width / scale, width),
-        np.linspace(-height / scale, height / scale, height),
+        np.linspace(-width / scale, width / scale, width, dtype=np.float32),
+        np.linspace(-height / scale, height / scale, height, dtype=np.float32),
     )
 
     gradient_kind = desc.get(Key.Type).enum
@@ -234,7 +234,7 @@ def draw_gradient_fill(viewport, desc):
     else:
         # Unsupported: b'shapeburst', only avail in stroke effect
         logger.warning('Unknown gradient style: %s.' % (gradient_kind))
-        Z = np.ones((height, width)) * 0.5
+        Z = np.full((height, width), 0.5, dtype=np.float32)
 
     Z = np.maximum(0., np.minimum(1., Z))
     if bool(desc.get(Key.Reverse, False)):
@@ -296,7 +296,8 @@ def _make_linear_gradient_color(grad):
     for stop in grad.get(Key.Colors, []):
         location = float(stop.get(Key.Location)) / 4096.
         color_fn = _COLOR_FUNC.get(stop.get(Key.Color).classID)
-        color = np.array([color_fn(x) for x in stop.get(Key.Color).values()])
+        color = np.array([color_fn(x) for x in stop.get(Key.Color).values()],
+                         dtype=np.float32)
         if len(X) and X[-1] == location:
             logger.debug('Duplicate stop at %d' % location)
             X.pop(), Y.pop()
@@ -352,17 +353,19 @@ def _make_noise_gradient_color(grad):
     from scipy.ndimage.filters import maximum_filter1d, uniform_filter1d
     logger.debug('Noise gradient is not accurate.')
     roughness = grad.get(Key.Smoothness).value / 4096.  # Larger is sharper.
-    maximum = np.array([x.value for x in grad.get(Key.Maximum)])
-    minimum = np.array([x.value for x in grad.get(Key.Minimum)])
+    maximum = np.array([x.value for x in grad.get(Key.Maximum)],
+                       dtype=np.float32)
+    minimum = np.array([x.value for x in grad.get(Key.Minimum)],
+                       dtype=np.float32)
     seed = grad.get(Key.RandomSeed).value
     rng = np.random.RandomState(seed)
-    Y = rng.binomial(1, .5, (256, len(maximum))).astype(np.float)
+    Y = rng.binomial(1, .5, (256, len(maximum))).astype(np.float32)
     size = max(1, int(roughness))
     Y = maximum_filter1d(Y, size, axis=0)
     Y = uniform_filter1d(Y, size * 64, axis=0)
     Y = Y / np.max(Y, axis=0)
     Y = ((maximum - minimum) * Y + minimum) / 100.
-    X = np.linspace(0, 1, 256)
+    X = np.linspace(0, 1, 256, dtype=np.float32)
     if grad.get(Key.ShowTransparency):
         G = interpolate.interp1d(
             X,
