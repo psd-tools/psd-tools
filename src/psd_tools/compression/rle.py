@@ -1,24 +1,27 @@
-def decode(data):
+def decode(data, size):
     """
     Decodes a PackBit encoded data.
     """
     data = bytearray(data)  # <- python 2/3 compatibility fix
-    result = bytearray()
-    pos = 0
-    while pos < len(data):
-        header_byte = data[pos]
-        if header_byte > 127:
-            header_byte -= 256
-        pos += 1
+    result = bytearray(size)
+    src = 0
+    dst = 0
+    while src < len(data):
+        header = data[src]
+        if header > 127:
+            header -= 256
+        src += 1
 
-        if 0 <= header_byte <= 127:
-            result.extend(data[pos:pos + header_byte + 1])
-            pos += header_byte + 1
-        elif header_byte == -128:
+        if 0 <= header <= 127:
+            result[dst:dst + header + 1] = data[src:src + header + 1]
+            src += header + 1
+            dst += header + 1
+        elif header == -128:
             pass
         else:
-            result.extend([data[pos]] * (1 - header_byte))
-            pos += 1
+            result[dst:dst + 1 - header] = [data[src]] * (1 - header)
+            src += 1
+            dst += 1 - header
 
     return bytes(result)
 

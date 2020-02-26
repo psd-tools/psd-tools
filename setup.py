@@ -10,8 +10,8 @@ try:
     extension = cythonize(
         [
             Extension(
-                'psd_tools.compression._packbits',
-                ['src/psd_tools/compression/_packbits.pyx']
+                'psd_tools.compression._rle',
+                ['src/psd_tools/compression/_rle.pyx']
             )
         ],
         language_level=sys.version_info[0],

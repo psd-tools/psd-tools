@@ -3,7 +3,7 @@ import pytest
 import logging
 from psd_tools.compression import (
     compress, decompress, encode_prediction, decode_prediction,
-    encode_packbits, decode_packbits
+    encode_rle, decode_rle
 )
 from psd_tools.constants import Compression
 
@@ -36,8 +36,8 @@ def test_prediction(fixture, width, height, depth):
     ]
 )
 def test_packbits(fixture, width, height, depth, version):
-    encoded = encode_packbits(fixture, width, height, depth, version)
-    decoded = decode_packbits(encoded, height, version)
+    encoded = encode_rle(fixture, width, height, depth, version)
+    decoded = decode_rle(encoded, width, height, depth, version)
     assert fixture == decoded
 
 
