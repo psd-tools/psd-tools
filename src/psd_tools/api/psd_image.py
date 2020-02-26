@@ -65,7 +65,7 @@ class PSDImage(GroupMixin):
         )
 
     @classmethod
-    def frompil(cls, image, compression=Compression.PACK_BITS):
+    def frompil(cls, image, compression=Compression.RLE):
         """
         Create a new PSD document from PIL Image.
 

@@ -250,16 +250,16 @@ RAW_IMAGE_2x2_16bit = b'\x00\x01\x00\x02\x00\x03\x00\x04'
 @pytest.mark.parametrize(
     'compression, data, width, height, depth, version', [
         (Compression.RAW, RAW_IMAGE_3x3_8bit, 3, 3, 8, 1),
-        (Compression.PACK_BITS, RAW_IMAGE_3x3_8bit, 3, 3, 8, 1),
+        (Compression.RLE, RAW_IMAGE_3x3_8bit, 3, 3, 8, 1),
         (Compression.ZIP, RAW_IMAGE_3x3_8bit, 3, 3, 8, 1),
         (Compression.RAW, RAW_IMAGE_3x3_8bit, 3, 3, 8, 2),
-        (Compression.PACK_BITS, RAW_IMAGE_3x3_8bit, 3, 3, 8, 2),
+        (Compression.RLE, RAW_IMAGE_3x3_8bit, 3, 3, 8, 2),
         (Compression.ZIP, RAW_IMAGE_3x3_8bit, 3, 3, 8, 2),
         (Compression.RAW, RAW_IMAGE_2x2_16bit, 2, 2, 16, 1),
-        (Compression.PACK_BITS, RAW_IMAGE_2x2_16bit, 2, 2, 16, 1),
+        (Compression.RLE, RAW_IMAGE_2x2_16bit, 2, 2, 16, 1),
         (Compression.ZIP, RAW_IMAGE_2x2_16bit, 2, 2, 16, 1),
         (Compression.RAW, RAW_IMAGE_2x2_16bit, 2, 2, 16, 2),
-        (Compression.PACK_BITS, RAW_IMAGE_2x2_16bit, 2, 2, 16, 2),
+        (Compression.RLE, RAW_IMAGE_2x2_16bit, 2, 2, 16, 2),
         (Compression.ZIP, RAW_IMAGE_2x2_16bit, 2, 2, 16, 2),
     ]
 )

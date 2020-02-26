@@ -29,7 +29,7 @@ def compress(data, compression, width, height, depth, version=1):
     """
     if compression == Compression.RAW:
         result = data
-    elif compression == Compression.PACK_BITS:
+    elif compression == Compression.RLE:
         result = encode_packbits(data, width, height, depth, version)
     elif compression == Compression.ZIP:
         result = zlib.compress(data)
@@ -57,7 +57,7 @@ def decompress(data, compression, width, height, depth, version=1):
     result = None
     if compression == Compression.RAW:
         result = data[:length]
-    elif compression == Compression.PACK_BITS:
+    elif compression == Compression.RLE:
         result = decode_packbits(data, height, version)
     elif compression == Compression.ZIP:
         result = zlib.decompress(data)
