@@ -34,12 +34,6 @@ Use ``pip`` to install the package::
     In order to extract images from 32bit PSD files PIL/Pillow must be built
     with LITTLECMS or LITTLECMS2 support.
 
-For complete layer image composition functionality, also install NumPy/SciPy.
-This will be only necessary when the PSD files are saved without maximized
-compatibility and the image contains gradient fill::
-
-    pip install numpy scipy
-
 Getting started
 ---------------
 
@@ -48,10 +42,12 @@ Getting started
     from psd_tools import PSDImage
 
     psd = PSDImage.open('example.psd')
-    psd.compose().save('example.png')
+    psd.composite().save('example.png')
 
     for layer in psd:
         print(layer)
+        layer_image = layer.composite()
+        layer_image.save('%s.png' % layer.name)
 
 Check out the documentation_ for features and details.
 

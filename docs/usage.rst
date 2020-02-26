@@ -55,7 +55,7 @@ Internal layers are accessible by iterator or indexing::
     reversed from version prior to 1.7.x. Use ``reversed(list(psd))`` to
     iterate from foreground to background.
 
-The opened file can be saved::
+The opened PSD file can be saved::
 
     psd.save('output.psd')
 
@@ -116,25 +116,32 @@ Exporting data to PIL
 
 Export the entire document as :py:class:`PIL.Image`::
 
-    image = psd.compose()
+    image = psd.composite()
     image.save('exported.png')
-
-Note that above :py:meth:`~psd_tools.PSDImage.compose` might return `None`
-if the PSD document has no visible pixel.
 
 Export a single layer including masks and clipping layers::
 
-    image = layer.compose()
+    image = layer.composite()
 
-Export layer, mask, or clipping layers separately without composition::
+Export layer and mask separately without composition::
 
     image = layer.topil()
     mask = layer.mask.topil()
 
-    from psd_tools import compose
-    clip_image = compose(layer.clip_layers)
-
-To compose specific layers, such as layers except for texts, use layer_filter
+To composite specific layers, such as layers except for texts, use layer_filter
 option::
 
-    image = psd.compose(layer_filter=lambda layer: layer.is_visible() and layer.kind != 'type')
+    image = psd.composite(
+        layer_filter=lambda layer: layer.is_visible() and layer.kind != 'type')
+
+Note that most of the layer effects and adjustment layers are not supported.
+The compositing result may look different from Photoshop.
+
+Exporting data to NumPy
+-----------------------
+
+PSDImage or layers can be exported to NumPy array by
+:py:meth:`~psd_tools.api.layers.PixelLayer.numpy` method::
+
+    image = psd.numpy()
+    layer_image = layer.numpy()

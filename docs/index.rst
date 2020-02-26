@@ -20,15 +20,6 @@ Use `pip` to install the package::
     with LITTLECMS or LITTLECMS2 support (``apt-get install liblcms2-2`` or
     ``brew install little-cms2``)
 
-For complete layer image composition functionality, also install NumPy/SciPy::
-
-    pip install numpy scipy
-
-Numpy will be necessary when:
-
- - Blending modes other than `normal` are used;
- - Gradient fill is used.
-
 
 Getting started
 ---------------
@@ -38,11 +29,11 @@ Getting started
     from psd_tools import PSDImage
 
     psd = PSDImage.open('example.psd')
-    psd.compose().save('example.png')
+    psd.composite().save('example.png')
 
     for layer in psd:
         print(layer)
-        image = layer.compose()
+        image = layer.composite()
 
 Check out the :doc:`usage` documentation for more examples.
 
@@ -61,25 +52,23 @@ Features
 Supported:
 
 * Read and write of the low-level PSD/PSB file structure;
-* Raw layer image export;
-* ICC profile handling for sRGB images.
+* Raw layer image export in NumPy and PIL format.
 
 Limited support:
 
 * Composition of basic pixel-based layers by normal blending;
 * Composition of fill layer effects;
+* Vector masks;
 * Editing of some layer attributes such as layer name;
-* Blending modes except for dissolve and lighter/darker colors.
+* Blending modes except for dissolve;
+* Drawing of bezier curves.
 
 Not supported:
 
-* Bitmap image export;
 * Editing of layer structure, such as adding or removing a layer;
-* Composition of layer effects;
 * Composition of adjustment layers;
-* Drawing of bezier curves;
+* Composition of layer effects;
 * Font rendering.
-
 
 .. toctree::
     :caption: Package reference

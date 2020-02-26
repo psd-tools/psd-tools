@@ -362,7 +362,7 @@ class Layer(object):
     @deprecated
     def compose(self, force=False, bbox=None, layer_filter=None):
         """
-        Deprecated, use `composite()`.
+        Deprecated, use :py:func:`~psd_tools.api.layers.PixelLayer.composite`.
 
         Compose layer and masks (mask, vector mask, and clipping layers).
 
@@ -384,22 +384,36 @@ class Layer(object):
         """
         Get NumPy array of the layer.
 
-        :param channel: Which channel to return, can be 'color+shape', 'color',
-            'shape', 'alpha', or 'mask'.
-        :return: :py:class:`numpy.ndarray`
+        :param channel: Which channel to return, can be 'color',
+            'shape', 'alpha', or 'mask'. Default is 'color+alpha'.
+        :return: :py:class:`numpy.ndarray` or None if there is no pixel.
         """
         from .numpy_io import get_array
         return get_array(self, channel)
 
     def composite(
         self,
+        viewport=None,
+        force=False,
         color=1.0,
         alpha=0.0,
-        viewport=None,
-        layer_filter=None,
-        force=False
+        layer_filter=None
     ):
-        """Composite."""
+        """
+        Composite layer and masks (mask, vector mask, and clipping layers).
+
+        :param viewport: Viewport bounding box specified by (x1, y1, x2, y2)
+            tuple. Default is the layer's bbox.
+        :param force: Boolean flag to force vector drawing.
+        :param color: Backdrop color specified by scalar or tuple of scalar.
+            The color value should be in [0.0, 1.0]. For example, (1., 0., 0.)
+            specifies red in RGB color mode.
+        :param alpha: Backdrop alpha in [0.0, 1.0].
+        :param layer_filter: Callable that takes a layer as argument and
+            returns whether if the layer is composited. Default is
+            :py:func:`~psd_tools.api.layers.PixelLayer.is_visible`.
+        :return: :py:class:`PIL.Image`.
+        """
         from psd_tools.composite import composite_pil
         return composite_pil(self, color, alpha, viewport, layer_filter, force)
 
