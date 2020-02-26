@@ -4,13 +4,13 @@ Layer module.
 from __future__ import absolute_import, unicode_literals
 import logging
 
-from psd_tools.api import deprecated
 from psd_tools.constants import BlendMode, Tag
 from psd_tools.api.effects import Effects
 from psd_tools.api.mask import Mask
-from psd_tools.api.pil_io import convert_layer_to_pil
 from psd_tools.api.shape import VectorMask, Stroke, Origination
 from psd_tools.api.smart_object import SmartObject
+
+from psd_tools.api import deprecated
 
 logger = logging.getLogger(__name__)
 
@@ -334,13 +334,14 @@ class Layer(object):
                 self._stroke = Stroke(stroke)
         return self._stroke
 
-    def topil(self, channel=None, **kwargs):
+    def topil(self, channel=None, apply_icc=False):
         """
         Get PIL Image of the layer.
 
         :param channel: Which channel to return; e.g., 0 for 'R' channel in RGB
             image. See :py:class:`~psd_tools.constants.ChannelID`. When `None`,
             the method returns all the channels supported by PIL modes.
+        :param apply_icc: Whether to apply ICC profile conversion to sRGB.
         :return: :py:class:`PIL.Image`, or `None` if the layer has no pixels.
 
         Example::
@@ -355,10 +356,14 @@ class Layer(object):
             :py:class:`PIL.Image`. For example, 'CMYK' mode cannot include
             alpha channel in PIL. In this case, topil drops alpha channel.
         """
-        return convert_layer_to_pil(self, channel, **kwargs)
+        from .pil_io import convert_layer_to_pil
+        return convert_layer_to_pil(self, channel, apply_icc)
 
-    def compose(self, bbox=None, **kwargs):
+    @deprecated
+    def compose(self, force=False, bbox=None, layer_filter=None):
         """
+        Deprecated, use :py:func:`~psd_tools.api.layers.PixelLayer.composite`.
+
         Compose layer and masks (mask, vector mask, and clipping layers).
 
         Note that the resulting image size is not necessarily equal to the
@@ -372,8 +377,45 @@ class Layer(object):
         if self.bbox == (0, 0, 0, 0):
             return None
         if bbox is None:
-            return compose_layer(self, **kwargs)
-        return compose(self, bbox=bbox, **kwargs)
+            return compose_layer(self, force=force)
+        return compose(self, force=force, bbox=bbox, layer_filter=layer_filter)
+
+    def numpy(self, channel=None):
+        """
+        Get NumPy array of the layer.
+
+        :param channel: Which channel to return, can be 'color',
+            'shape', 'alpha', or 'mask'. Default is 'color+alpha'.
+        :return: :py:class:`numpy.ndarray` or None if there is no pixel.
+        """
+        from .numpy_io import get_array
+        return get_array(self, channel)
+
+    def composite(
+        self,
+        viewport=None,
+        force=False,
+        color=1.0,
+        alpha=0.0,
+        layer_filter=None
+    ):
+        """
+        Composite layer and masks (mask, vector mask, and clipping layers).
+
+        :param viewport: Viewport bounding box specified by (x1, y1, x2, y2)
+            tuple. Default is the layer's bbox.
+        :param force: Boolean flag to force vector drawing.
+        :param color: Backdrop color specified by scalar or tuple of scalar.
+            The color value should be in [0.0, 1.0]. For example, (1., 0., 0.)
+            specifies red in RGB color mode.
+        :param alpha: Backdrop alpha in [0.0, 1.0].
+        :param layer_filter: Callable that takes a layer as argument and
+            returns whether if the layer is composited. Default is
+            :py:func:`~psd_tools.api.layers.PixelLayer.is_visible`.
+        :return: :py:class:`PIL.Image`.
+        """
+        from psd_tools.composite import composite_pil
+        return composite_pil(self, color, alpha, viewport, layer_filter, force)
 
     def has_clip_layers(self):
         """
@@ -451,25 +493,6 @@ class Layer(object):
             ' effects' if self.has_effects() else '',
         )
 
-    @deprecated
-    def as_PIL(self, *args, **kwargs):
-        return self.topil(*args, **kwargs)
-
-    @property
-    @deprecated
-    def flags(self):
-        return self._record.flags
-
-    @deprecated
-    def has_box(self):
-        return self.width > 0 and self.height > 0
-
-    @deprecated
-    def has_relevant_pixels(self):
-        if self._record.flags.pixel_data_irrelevant:
-            return False
-        return self.has_pixels()
-
 
 class GroupMixin(object):
     @property
@@ -510,14 +533,29 @@ class GroupMixin(object):
     def __delitem__(self, key):
         return self._layers.__delitem__(key)
 
-    def compose(self, **kwargs):
+    @deprecated
+    def compose(
+        self,
+        force=False,
+        bbox=None,
+        layer_filter=None,
+        context=None,
+        color=None
+    ):
         """
         Compose layer and masks (mask, vector mask, and clipping layers).
 
         :return: PIL Image object, or None if the layer has no pixels.
         """
         from psd_tools.composer import compose
-        return compose(self, **kwargs)
+        return compose(
+            self,
+            force=force,
+            context=context,
+            bbox=bbox,
+            layer_filter=layer_filter,
+            color=color,
+        )
 
     def descendants(self, include_clip=True):
         """
@@ -726,16 +764,6 @@ class SmartObjectLayer(Layer):
             self._smart_object = SmartObject(self)
         return self._smart_object
 
-    @property
-    @deprecated
-    def unique_id(self):
-        return self.smart_object.unique_id
-
-    @property
-    @deprecated
-    def linked_data(self):
-        return self.smart_object
-
 
 class TypeLayer(Layer):
     """
@@ -812,45 +840,6 @@ class TypeLayer(Layer):
         """Warp configuration."""
         return self._data.warp
 
-    @property
-    @deprecated
-    def fontset(self):
-        return self.document_resources.get('FontSet')
-
-    @property
-    @deprecated
-    def engine_data(self):
-        return self._engine_data
-
-    @property
-    @deprecated
-    def full_text(self):
-        return self.engine_dict['Editor']['Txt ']
-
-    @property
-    @deprecated
-    def writing_direction(self):
-        return self.engine_dict['Rendered']['Shapes']['WritingDirection']
-
-    @deprecated
-    def style_spans(self):
-        text = self.engine_dict['Editor']['Text'].value
-        fontset = self.document_resources['FontSet']
-        style_run = self.engine_dict['StyleRun']
-        runlength = style_run['RunLengthArray']
-        runarray = style_run['RunArray']
-
-        start = 0
-        spans = []
-        for run, size in zip(runarray, runlength):
-            runtext = text[start:start + size]
-            stylesheet = dict(run['StyleSheet']['StyleSheetData'])
-            stylesheet['Text'] = runtext
-            stylesheet['Font'] = fontset[stylesheet.get('Font', 0)]
-            spans.append(stylesheet)
-            start += size
-        return spans
-
 
 class ShapeLayer(Layer):
     """
@@ -905,21 +894,6 @@ class ShapeLayer(Layer):
             else:
                 self._bbox = (0, 0, 0, 0)
         return self._bbox
-
-    # Stroke content data seems obsolete.
-
-    # def has_stroke_content(self):
-    #     """Returns True if the shape has stroke content data."""
-    #     return 'VECTOR_STROKE_CONTENT_DATA' in self.tagged_blocks
-
-    # @property
-    # def stroke_content(self):
-    #     """
-    #     Property for stroke content.
-
-    #     Stroke content is metadata associated with fill of the stroke.
-    #     """
-    #     return self.tagged_blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)
 
 
 class AdjustmentLayer(Layer):

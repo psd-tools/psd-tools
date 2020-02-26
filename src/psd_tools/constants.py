@@ -274,7 +274,7 @@ class Compression(IntEnum):
     3 = ZIP with prediction.
     """
     RAW = 0
-    PACK_BITS = 1
+    RLE = 1
     ZIP = 2
     ZIP_WITH_PREDICTION = 3
 

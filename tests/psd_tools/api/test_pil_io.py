@@ -4,9 +4,10 @@ import logging
 import os
 
 from psd_tools.api import pil_io
+from psd_tools.api.psd_image import PSDImage
 from psd_tools.constants import ColorMode
 from psd_tools.psd.patterns import Pattern
-from ..utils import TEST_ROOT
+from ..utils import TEST_ROOT, full_name
 
 logger = logging.getLogger(__name__)
 
@@ -50,3 +51,11 @@ def test_convert_pattern_to_pil():
         pattern = Pattern.read(f)
 
     assert pil_io.convert_pattern_to_pil(pattern)
+
+
+def test_apply_icc_profile():
+    filepath = full_name('colorprofiles/north_america_newspaper.psd')
+    psd = PSDImage.open(filepath)
+    no_icc = psd.topil(apply_icc=False)
+    with_icc = psd.topil(apply_icc=True)
+    assert no_icc.getextrema() != with_icc.getextrema()

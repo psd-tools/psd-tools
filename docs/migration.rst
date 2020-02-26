@@ -1,3 +1,27 @@
+Migrating to 1.9
+================
+
+psd-tools 1.9 switches to NumPy based compositing.
+
+version 1.8.x::
+
+    psd = PSDImage.open(filename)
+    image = psd.compose()
+    layer = psd[0]
+    layer_image = layer.compose()
+
+version 1.9.x::
+
+    psd = PSDImage.open(filename)
+    image = psd.composite()
+    layer = psd[0]
+    layer_image = layer.composite()
+
+NumPy array API is introduced::
+
+    image = psd.numpy()
+    layer_image = layer.numpy()
+
 Migrating to 1.8
 ================
 
@@ -49,7 +73,7 @@ should not change when a new layer is added on top.
 PIL export
 ----------
 
-Primary PIL export method is now :py:func:`~psd_tools.compose`.
+Primary PIL export method is :py:func:`~psd_tools.compose`.
 
 version 1.7.x::
 

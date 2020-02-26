@@ -54,7 +54,7 @@ def main(argv=None):
         if isinstance(layer, PSDImage) and layer.has_preview():
             image = layer.topil()
         else:
-            image = layer.compose()
+            image = layer.composite()
         image.save(args['<output_file>'])
 
     elif args['show']:

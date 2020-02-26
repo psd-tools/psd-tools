@@ -22,7 +22,7 @@ def test_image_data():
             FileHeader(width=3, height=3, depth=8, channels=3, version=1)
         ),
         (
-            Compression.PACK_BITS, [RAW_IMAGE_3x3_8bit] * 3,
+            Compression.RLE, [RAW_IMAGE_3x3_8bit] * 3,
             FileHeader(width=3, height=3, depth=8, channels=3, version=1)
         ),
         (
@@ -34,7 +34,7 @@ def test_image_data():
             FileHeader(width=3, height=3, depth=8, channels=3, version=2)
         ),
         (
-            Compression.PACK_BITS, [RAW_IMAGE_3x3_8bit] * 3,
+            Compression.RLE, [RAW_IMAGE_3x3_8bit] * 3,
             FileHeader(width=3, height=3, depth=8, channels=3, version=2)
         ),
         (
@@ -46,7 +46,7 @@ def test_image_data():
             FileHeader(width=2, height=2, depth=16, channels=3, version=1)
         ),
         (
-            Compression.PACK_BITS, [RAW_IMAGE_2x2_16bit] * 3,
+            Compression.RLE, [RAW_IMAGE_2x2_16bit] * 3,
             FileHeader(width=2, height=2, depth=16, channels=3, version=1)
         ),
         (

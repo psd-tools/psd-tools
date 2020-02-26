@@ -54,7 +54,7 @@ class ImageData(BaseElement):
         logger.debug('  wrote image data, len=%d' % (fp.tell() - start_pos))
         return written
 
-    def get_data(self, header):
+    def get_data(self, header, split=True):
         """
         Get decompressed data.
 
@@ -65,9 +65,11 @@ class ImageData(BaseElement):
             self.data, self.compression, header.width,
             header.height * header.channels, header.depth, header.version
         )
-        plane_size = len(data) // header.channels
-        with io.BytesIO(data) as f:
-            return [f.read(plane_size) for _ in range(header.channels)]
+        if split:
+            plane_size = len(data) // header.channels
+            with io.BytesIO(data) as f:
+                return [f.read(plane_size) for _ in range(header.channels)]
+        return data
 
     def set_data(self, data, header):
         """

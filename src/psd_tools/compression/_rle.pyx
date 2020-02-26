@@ -1,26 +1,39 @@
+from libc.stdlib cimport malloc, free
+from libc.string cimport memcpy, memset
 from cpython.version cimport PY_MAJOR_VERSION
 
+def decode(const unsigned char[:] data, Py_ssize_t size):
+    cdef unsigned char* result = <unsigned char*> malloc(size * sizeof(char))
+    cdef int src = 0
+    cdef int dst = 0
 
-def decode(const unsigned char[:] data):
-    cdef int pos = 0
-    length = data.shape[0]
-    result = bytearray()
-    while pos < length:
-        header_byte = data[pos]
-        if header_byte > 127:
-            header_byte -= 256
-        pos += 1
+    if not result:
+        raise MemoryError()
 
-        if 0 <= header_byte <= 127:
-            result.extend(data[pos:pos+header_byte+1])
-            pos += header_byte+1
-        elif header_byte == -128:
-            pass
-        else:
-            result.extend([data[pos]] * (1 - header_byte))
-            pos += 1
+    try:
+        while src < data.shape[0]:
+            header = data[src]
+            if header > 127:
+                header -= 256
+            src += 1
 
-    return bytes(result)
+            if 0 <= header <= 127:
+                memcpy(&result[dst], &data[src], header + 1)
+                src += header + 1
+                dst += header + 1
+            elif header == -128:
+                pass
+            else:
+                memset(&result[dst], data[src], 1 - header)
+                src += 1
+                dst += 1 - header
+
+        py_result = result[:size]
+    finally:
+        free(result)
+
+    return py_result
+
 
 
 cdef enum State:

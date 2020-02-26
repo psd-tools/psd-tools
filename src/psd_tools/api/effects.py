@@ -61,6 +61,15 @@ class Effects(object):
     def items(self):
         return self._items
 
+    def find(self, name):
+        """Iterate effect items by name."""
+        if not self.enabled:
+            return
+        KLASS = {kls.__name__.lower(): kls for kls in _TYPES.values()}
+        for item in self:
+            if isinstance(item, KLASS.get(name.lower(), None)):
+                yield item
+
     def __len__(self):
         return self._items.__len__()
 

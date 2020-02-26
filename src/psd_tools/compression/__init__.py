@@ -11,9 +11,9 @@ from psd_tools.utils import (
     be_array_from_bytes, be_array_to_bytes, read_be_array, write_be_array
 )
 try:
-    from . import _packbits as packbits
+    from . import _rle as rle
 except ImportError:
-    from . import packbits
+    from . import rle
 
 
 def compress(data, compression, width, height, depth, version=1):
@@ -29,8 +29,8 @@ def compress(data, compression, width, height, depth, version=1):
     """
     if compression == Compression.RAW:
         result = data
-    elif compression == Compression.PACK_BITS:
-        result = encode_packbits(data, width, height, depth, version)
+    elif compression == Compression.RLE:
+        result = encode_rle(data, width, height, depth, version)
     elif compression == Compression.ZIP:
         result = zlib.compress(data)
     else:
@@ -57,8 +57,8 @@ def decompress(data, compression, width, height, depth, version=1):
     result = None
     if compression == Compression.RAW:
         result = data[:length]
-    elif compression == Compression.PACK_BITS:
-        result = decode_packbits(data, height, version)
+    elif compression == Compression.RLE:
+        result = decode_rle(data, width, height, depth, version)
     elif compression == Compression.ZIP:
         result = zlib.decompress(data)
     else:
@@ -73,10 +73,10 @@ def decompress(data, compression, width, height, depth, version=1):
     return result
 
 
-def encode_packbits(data, width, height, depth, version):
+def encode_rle(data, width, height, depth, version):
     row_size = width * depth // 8
     with io.BytesIO(data) as fp:
-        rows = [packbits.encode(fp.read(row_size)) for _ in range(height)]
+        rows = [rle.encode(fp.read(row_size)) for _ in range(height)]
     bytes_counts = array.array(('H', 'I')[version - 1], map(len, rows))
     encoded = b''.join(rows)
 
@@ -88,11 +88,12 @@ def encode_packbits(data, width, height, depth, version):
     return result
 
 
-def decode_packbits(data, height, version):
+def decode_rle(data, width, height, depth, version):
+    row_size = max(width * depth // 8, 1)
     with io.BytesIO(data) as fp:
         bytes_counts = read_be_array(('H', 'I')[version - 1], height, fp)
         return b''.join(
-            packbits.decode(fp.read(count)) for count in bytes_counts
+            rle.decode(fp.read(count), row_size) for count in bytes_counts
         )
 
 

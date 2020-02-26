@@ -10,8 +10,8 @@ try:
     extension = cythonize(
         [
             Extension(
-                'psd_tools.compression._packbits',
-                ['src/psd_tools/compression/_packbits.pyx']
+                'psd_tools.compression._rle',
+                ['src/psd_tools/compression/_rle.pyx']
             )
         ],
         language_level=sys.version_info[0],
@@ -48,6 +48,9 @@ setup(
         'Pillow>=6.2.0',
         'enum34;python_version<"3.4"',
         'aggdraw',
+        'numpy',
+        'scipy',
+        'scikit-image',
     ],
     keywords="photoshop psd pil pillow",
     package_dir={'': 'src'},
@@ -65,7 +68,7 @@ setup(
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: Implementation :: PyPy',
+        'Programming Language :: Python :: 3.8',
         'Topic :: Multimedia :: Graphics',
         'Topic :: Multimedia :: Graphics :: Viewers',
         'Topic :: Multimedia :: Graphics :: Graphics Conversion',

@@ -3,7 +3,7 @@ import pytest
 import logging
 from psd_tools.compression import (
     compress, decompress, encode_prediction, decode_prediction,
-    encode_packbits, decode_packbits
+    encode_rle, decode_rle
 )
 from psd_tools.constants import Compression
 
@@ -36,26 +36,26 @@ def test_prediction(fixture, width, height, depth):
     ]
 )
 def test_packbits(fixture, width, height, depth, version):
-    encoded = encode_packbits(fixture, width, height, depth, version)
-    decoded = decode_packbits(encoded, height, version)
+    encoded = encode_rle(fixture, width, height, depth, version)
+    decoded = decode_rle(encoded, width, height, depth, version)
     assert fixture == decoded
 
 
 @pytest.mark.parametrize(
     'data, kind, width, height, depth, version', [
         (RAW_IMAGE_3x3_8bit, Compression.RAW, 3, 3, 8, 1),
-        (RAW_IMAGE_3x3_8bit, Compression.PACK_BITS, 3, 3, 8, 1),
-        (RAW_IMAGE_3x3_8bit, Compression.PACK_BITS, 3, 3, 8, 2),
+        (RAW_IMAGE_3x3_8bit, Compression.RLE, 3, 3, 8, 1),
+        (RAW_IMAGE_3x3_8bit, Compression.RLE, 3, 3, 8, 2),
         (RAW_IMAGE_3x3_8bit, Compression.ZIP, 3, 3, 8, 1),
         (RAW_IMAGE_3x3_8bit, Compression.ZIP_WITH_PREDICTION, 3, 3, 8, 1),
         (RAW_IMAGE_2x2_16bit, Compression.RAW, 2, 2, 16, 1),
-        (RAW_IMAGE_2x2_16bit, Compression.PACK_BITS, 2, 2, 16, 1),
-        (RAW_IMAGE_2x2_16bit, Compression.PACK_BITS, 2, 2, 16, 2),
+        (RAW_IMAGE_2x2_16bit, Compression.RLE, 2, 2, 16, 1),
+        (RAW_IMAGE_2x2_16bit, Compression.RLE, 2, 2, 16, 2),
         (RAW_IMAGE_2x2_16bit, Compression.ZIP, 2, 2, 16, 1),
         (RAW_IMAGE_2x2_16bit, Compression.ZIP_WITH_PREDICTION, 2, 2, 16, 1),
         (RAW_IMAGE_2x2_32bit, Compression.RAW, 2, 2, 32, 1),
-        (RAW_IMAGE_2x2_32bit, Compression.PACK_BITS, 2, 2, 32, 1),
-        (RAW_IMAGE_2x2_32bit, Compression.PACK_BITS, 2, 2, 32, 2),
+        (RAW_IMAGE_2x2_32bit, Compression.RLE, 2, 2, 32, 1),
+        (RAW_IMAGE_2x2_32bit, Compression.RLE, 2, 2, 32, 2),
         (RAW_IMAGE_2x2_32bit, Compression.ZIP, 2, 2, 32, 1),
         (RAW_IMAGE_2x2_32bit, Compression.ZIP_WITH_PREDICTION, 2, 2, 32, 1),
     ]
