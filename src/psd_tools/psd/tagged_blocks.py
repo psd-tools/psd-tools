@@ -215,6 +215,7 @@ class TaggedBlock(BaseElement):
         Tag.LINKED_LAYER_EXTERNAL,
         Tag.FILTER_EFFECTS1,
         Tag.FILTER_EFFECTS2,
+        Tag.FILTER_EFFECTS3,
         Tag.PIXEL_SOURCE_DATA2,
         Tag.UNICODE_PATH_NAME,
         Tag.EXPORT_SETTING1,
