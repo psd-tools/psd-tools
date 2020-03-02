@@ -146,8 +146,8 @@ class ImageResources(DictElement):
                     key=Resource.VERSION_INFO,
                     data=VersionInfo(
                         has_composite=True,
-                        writer='psd-tools2 %s' % __version__,
-                        reader='psd-tools2 %s' % __version__,
+                        writer='psd-tools %s' % __version__,
+                        reader='psd-tools %s' % __version__,
                     )
                 )
             ),
