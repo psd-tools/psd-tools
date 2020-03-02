@@ -16,6 +16,7 @@ The following resources are plain bytes::
 
     Resource.OBSOLETE1: 1000
     Resource.MAC_PRINT_MANAGER_INFO: 1001
+    Resource.MAC_PAGE_FORMAT_INFO: 1002
     Resource.OBSOLETE2: 1003
     Resource.DISPLAY_INFO_OBSOLETE: 1007
     Resource.BORDER_INFO: 1009
@@ -51,6 +52,11 @@ The following resources are plain bytes::
     Resource.PLUGIN_RESOURCES_N: 4000-4999
     Resource.IMAGE_READY_VARIABLES: 7000
     Resource.IMAGE_READY_DATA_SETS: 7001
+    Resource.IMAGE_READY_DEFAULT_SELECTED_STATE: 7002
+    Resource.IMAGE_READY_7_ROLLOVER_EXPANDED_STATE: 7003
+    Resource.IMAGE_READY_ROLLOVER_EXPANDED_STATE: 7004
+    Resource.IMAGE_READY_SAVE_LAYER_SETTINGS: 7005
+    Resource.IMAGE_READY_VERSION: 7006
     Resource.LIGHTROOM_WORKFLOW: 8000
 """
 from __future__ import absolute_import, unicode_literals
