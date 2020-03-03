@@ -63,6 +63,7 @@ class EngineToken(Enum):
     STRING = compile_re(r'^\((\xfe\xff([^\)]|\\\))*)\)$')
     # Unknown tags: b'(hwid)', b'(fwid)', b'(aalt)'
     UNKNOWN_TAG = compile_re(r'^\([a-zA-Z0-9]*\)$')
+    UNKNOWN_TAG2 = compile_re(r'^--\(\.-0$')
 
 
 class Tokenizer(object):
@@ -400,6 +401,7 @@ class Property(ValueElement):
 
 
 @register(EngineToken.UNKNOWN_TAG)
+@register(EngineToken.UNKNOWN_TAG2)
 class Tag(ValueElement):
     """
     Tag element.
