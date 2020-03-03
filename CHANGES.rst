@@ -1,3 +1,14 @@
+1.9.2 (2020-03-03)
+------------------
+
+- [psd] Add missing resource ID.
+- [psd] Fix pretty printing regression.
+- [psd] Fix big tag key for linked layers.
+- [psd] Support frgb tag.
+- [psd] Support sgrp metadata key.
+- [psd] Support patt tag.
+- [psd] Workaround unknown engine data.
+
 1.9.1 (2020-02-28)
 ------------------
 

@@ -38,6 +38,7 @@ def test_tokenizer_item(fixture, token_type):
         ('Txt2_1.dat', None, False),
         ('Txt2_2.dat', None, False),
         ('Txt2_3.dat', None, False),
+        ('Txt2_4.dat', None, False),
     ]
 )
 def test_engine_data(filename, indent, write):

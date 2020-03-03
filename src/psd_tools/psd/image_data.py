@@ -19,7 +19,7 @@ from psd_tools.utils import read_fmt, write_fmt, write_bytes, pack
 logger = logging.getLogger(__name__)
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class ImageData(BaseElement):
     """
     Merged channel image data.

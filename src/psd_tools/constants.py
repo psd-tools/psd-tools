@@ -54,6 +54,7 @@ class Resource(IntEnum):
     """
     OBSOLETE1 = 1000
     MAC_PRINT_MANAGER_INFO = 1001
+    MAC_PAGE_FORMAT_INFO = 1002
     OBSOLETE2 = 1003
     RESOLUTION_INFO = 1005
     ALPHA_NAMES_PASCAL = 1006
@@ -175,6 +176,11 @@ class Resource(IntEnum):
     PLUGIN_RESOURCE_4999 = 4990
     IMAGE_READY_VARIABLES = 7000
     IMAGE_READY_DATA_SETS = 7001
+    IMAGE_READY_DEFAULT_SELECTED_STATE = 7002
+    IMAGE_READY_7_ROLLOVER_EXPANDED_STATE = 7003
+    IMAGE_READY_ROLLOVER_EXPANDED_STATE = 7004
+    IMAGE_READY_SAVE_LAYER_SETTINGS = 7005
+    IMAGE_READY_VERSION = 7006
     LIGHTROOM_WORKFLOW = 8000
     PRINT_FLAGS_INFO = 10000
 
@@ -308,6 +314,7 @@ class Tag(bytes, Enum):
     FILTER_EFFECTS3 = b'FELS'  # Undocumented.
     FILTER_MASK = b'FMsk'
     FOREIGN_EFFECT_ID = b'ffxi'
+    FRAMED_GROUP = b'frgb'  # Undocumented, Frame tool in CC 2019?
     GRADIENT_FILL_SETTING = b'GdFl'
     GRADIENT_MAP = b'grdm'
     HUE_SATURATION = b'hue2'
@@ -369,6 +376,9 @@ class Tag(bytes, Enum):
     VECTOR_STROKE_DATA = b'vstk'
     VECTOR_STROKE_CONTENT_DATA = b'vscg'
     VIBRANCE = b'vibA'
+
+    # Unknown
+    PATT = b'patt'
 
 
 TaggedBlockID = Tag  # For backward compatibility.

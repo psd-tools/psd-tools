@@ -49,7 +49,7 @@ class FilterEffects(ListElement):
         return written
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class FilterEffect(BaseElement):
     """
     FilterEffect structure.
@@ -120,7 +120,7 @@ class FilterEffect(BaseElement):
         return written
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class FilterEffectChannel(BaseElement):
     """
     FilterEffectChannel structure.
@@ -162,7 +162,7 @@ class FilterEffectChannel(BaseElement):
         return written
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class FilterEffectExtra(BaseElement):
     """
     FilterEffectExtra structure.

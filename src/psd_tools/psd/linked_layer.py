@@ -42,7 +42,7 @@ class LinkedLayers(ListElement):
         return written
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class LinkedLayer(BaseElement):
     """
     LinkedLayer structure.

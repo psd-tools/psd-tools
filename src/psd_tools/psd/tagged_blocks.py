@@ -64,6 +64,7 @@ TYPES.update({
     Tag.FILTER_EFFECTS1: FilterEffects,
     Tag.FILTER_EFFECTS2: FilterEffects,
     Tag.FILTER_EFFECTS3: FilterEffects,
+    Tag.FRAMED_GROUP: DescriptorBlock,
     Tag.KNOCKOUT_SETTING: ByteElement,
     Tag.LINKED_LAYER1: LinkedLayers,
     Tag.LINKED_LAYER2: LinkedLayers,
@@ -79,6 +80,7 @@ TYPES.update({
     Tag.PATTERNS1: Patterns,
     Tag.PATTERNS2: Patterns,
     Tag.PATTERNS3: Patterns,
+    Tag.PATT: EmptyElement,
     Tag.PIXEL_SOURCE_DATA1: DescriptorBlock,
     Tag.SAVING_MERGED_TRANSPARENCY: EmptyElement,
     Tag.SAVING_MERGED_TRANSPARENCY16: EmptyElement,
@@ -186,7 +188,7 @@ class TaggedBlocks(DictElement):
             p.breakable('')
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class TaggedBlock(BaseElement):
     """
     Layer tagged block with extra info.
@@ -212,6 +214,7 @@ class TaggedBlock(BaseElement):
         Tag.ALPHA,
         Tag.FILTER_MASK,
         Tag.LINKED_LAYER2,
+        Tag.LINKED_LAYER3,
         Tag.LINKED_LAYER_EXTERNAL,
         Tag.FILTER_EFFECTS1,
         Tag.FILTER_EFFECTS2,
@@ -326,7 +329,7 @@ class Annotations(ListElement):
         return written
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class Annotation(BaseElement):
     """
     Annotation structure.
@@ -425,7 +428,7 @@ class ChannelBlendingRestrictionsSetting(ListElement):
 
 
 @register(Tag.FILTER_MASK)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class FilterMask(BaseElement):
     """
     FilterMask structure.
@@ -468,12 +471,12 @@ class MetadataSettings(ListElement):
         return written
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class MetadataSetting(BaseElement):
     """
     MetadataSetting structure.
     """
-    _KNOWN_KEYS = {b'cust', b'cmls', b'extn', b'mlst', b'tmln'}
+    _KNOWN_KEYS = {b'cust', b'cmls', b'extn', b'mlst', b'tmln', b'sgrp'}
     signature = attr.ib(
         default=b'8BIM', type=bytes, repr=False, validator=in_((b'8BIM', ))
     )
@@ -487,7 +490,7 @@ class MetadataSetting(BaseElement):
         assert signature == b'8BIM', 'Invalid signature %r' % signature
         key, copy_on_sheet = read_fmt("4s?3x", fp)
         data = read_length_block(fp)
-        if key == b'mdyn':
+        if key in (b'mdyn', b'sgrp'):
             with io.BytesIO(data) as f:
                 data = read_fmt('I', f)[0]
         elif key in cls._KNOWN_KEYS:
@@ -495,7 +498,6 @@ class MetadataSetting(BaseElement):
         else:
             message = 'Unknown metadata key %r' % (key)
             logger.warning(message)
-            warn(message)
             data = data
         return cls(signature, key, copy_on_sheet, data)
 
@@ -516,7 +518,7 @@ class MetadataSetting(BaseElement):
 
 
 @register(Tag.PIXEL_SOURCE_DATA2)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class PixelSourceData2(ListElement):
     """
     PixelSourceData2 structure.
@@ -541,7 +543,7 @@ class PixelSourceData2(ListElement):
 
 @register(Tag.PLACED_LAYER1)
 @register(Tag.PLACED_LAYER2)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class PlacedLayerData(BaseElement):
     """
     PlacedLayerData structure.
@@ -621,7 +623,7 @@ class ReferencePoint(ListElement):
 
 @register(Tag.SECTION_DIVIDER_SETTING)
 @register(Tag.NESTED_SECTION_DIVIDER_SETTING)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class SectionDividerSetting(BaseElement):
     """
     SectionDividerSetting structure.
@@ -690,7 +692,7 @@ class SheetColorSetting(ValueElement):
 
 @register(Tag.SMART_OBJECT_LAYER_DATA1)
 @register(Tag.SMART_OBJECT_LAYER_DATA2)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class SmartObjectLayerData(BaseElement):
     """
     VersionedDescriptorBlock structure.
@@ -717,7 +719,7 @@ class SmartObjectLayerData(BaseElement):
 
 
 @register(Tag.TYPE_TOOL_OBJECT_SETTING)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class TypeToolObjectSetting(BaseElement):
     """
     TypeToolObjectSetting structure.
@@ -783,7 +785,7 @@ class TypeToolObjectSetting(BaseElement):
 
 
 @register(Tag.USER_MASK)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class UserMask(BaseElement):
     """
     UserMask structure.

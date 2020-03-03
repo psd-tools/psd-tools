@@ -16,6 +16,7 @@ The following resources are plain bytes::
 
     Resource.OBSOLETE1: 1000
     Resource.MAC_PRINT_MANAGER_INFO: 1001
+    Resource.MAC_PAGE_FORMAT_INFO: 1002
     Resource.OBSOLETE2: 1003
     Resource.DISPLAY_INFO_OBSOLETE: 1007
     Resource.BORDER_INFO: 1009
@@ -51,6 +52,11 @@ The following resources are plain bytes::
     Resource.PLUGIN_RESOURCES_N: 4000-4999
     Resource.IMAGE_READY_VARIABLES: 7000
     Resource.IMAGE_READY_DATA_SETS: 7001
+    Resource.IMAGE_READY_DEFAULT_SELECTED_STATE: 7002
+    Resource.IMAGE_READY_7_ROLLOVER_EXPANDED_STATE: 7003
+    Resource.IMAGE_READY_ROLLOVER_EXPANDED_STATE: 7004
+    Resource.IMAGE_READY_SAVE_LAYER_SETTINGS: 7005
+    Resource.IMAGE_READY_VERSION: 7006
     Resource.LIGHTROOM_WORKFLOW: 8000
 """
 from __future__ import absolute_import, unicode_literals
@@ -140,8 +146,8 @@ class ImageResources(DictElement):
                     key=Resource.VERSION_INFO,
                     data=VersionInfo(
                         has_composite=True,
-                        writer='psd-tools2 %s' % __version__,
-                        reader='psd-tools2 %s' % __version__,
+                        writer='psd-tools %s' % __version__,
+                        reader='psd-tools %s' % __version__,
                     )
                 )
             ),
@@ -197,7 +203,7 @@ class ImageResources(DictElement):
             p.breakable('')
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class ImageResource(BaseElement):
     """
     Image resource block.
@@ -338,7 +344,7 @@ class Byte(ByteElement):
 
 
 @register(Resource.GRID_AND_GUIDES_INFO)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class GridGuidesInfo(BaseElement):
     """
     Grid and guides info structure.
@@ -386,7 +392,7 @@ class HalftoneScreens(ListElement):
         return sum(item.write(fp) for item in self)
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class HalftoneScreen(BaseElement):
     """
     Halftone screen.
@@ -522,7 +528,7 @@ class PascalString(ValueElement):
 
 
 @register(Resource.PIXEL_ASPECT_RATIO)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class PixelAspectRatio(NumericElement):
     """
     Pixel aspect ratio.
@@ -541,7 +547,7 @@ class PixelAspectRatio(NumericElement):
 
 
 @register(Resource.PRINT_FLAGS)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class PrintFlags(BaseElement):
     """
     Print flags.
@@ -581,7 +587,7 @@ class PrintFlags(BaseElement):
 
 
 @register(Resource.PRINT_FLAGS_INFO)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class PrintFlagsInfo(BaseElement):
     """
     Print flags info structure.
@@ -605,7 +611,7 @@ class PrintFlagsInfo(BaseElement):
 
 
 @register(Resource.PRINT_SCALE)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class PrintScale(BaseElement):
     """
     Print scale structure.
@@ -635,7 +641,7 @@ class PrintScale(BaseElement):
 
 
 @register(Resource.RESOLUTION_INFO)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class ResoulutionInfo(BaseElement):
     """
     Resoulution info structure.
@@ -663,7 +669,7 @@ class ResoulutionInfo(BaseElement):
 
 
 @register(Resource.SLICES)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class Slices(BaseElement):
     """
     Slices resource.
@@ -688,7 +694,7 @@ class Slices(BaseElement):
         return written
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class SlicesV6(BaseElement):
     """
     Slices resource version 6.
@@ -717,7 +723,7 @@ class SlicesV6(BaseElement):
         return written
 
 
-@attr.s
+@attr.s(repr=False)
 class SliceV6(BaseElement):
     """
     Slice element for version 6.
@@ -831,7 +837,7 @@ class SliceV6(BaseElement):
 
 
 @register(Resource.THUMBNAIL_RESOURCE)
-@attr.s
+@attr.s(repr=False)
 class ThumbnailResource(BaseElement):
     """
     Thumbnail resource structure.
@@ -916,7 +922,7 @@ class TransferFunctions(ListElement):
         return sum(item.write(fp) for item in self)
 
 
-@attr.s
+@attr.s(repr=False)
 class TransferFunction(BaseElement):
     """
     Transfer function
@@ -956,7 +962,7 @@ class URLList(ListElement):
         return written
 
 
-@attr.s
+@attr.s(repr=False)
 class URLItem(BaseElement):
     """
     URL item.
@@ -982,7 +988,7 @@ class URLItem(BaseElement):
 
 
 @register(Resource.VERSION_INFO)
-@attr.s
+@attr.s(repr=False)
 class VersionInfo(BaseElement):
     """
     Version info structure.

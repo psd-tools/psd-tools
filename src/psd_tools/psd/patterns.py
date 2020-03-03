@@ -50,7 +50,7 @@ class Patterns(ListElement):
         return written
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class Pattern(BaseElement):
     """
     Pattern structure.
@@ -123,7 +123,7 @@ class Pattern(BaseElement):
         return written
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class VirtualMemoryArrayList(BaseElement):
     """
     VirtualMemoryArrayList structure. Container of channels.
@@ -168,7 +168,7 @@ class VirtualMemoryArrayList(BaseElement):
         return written
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class VirtualMemoryArray(BaseElement):
     """
     VirtualMemoryArrayList structure, corresponding to each channel.

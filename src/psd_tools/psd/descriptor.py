@@ -132,7 +132,7 @@ class _DescriptorMixin(DictElement):
 
 
 @register(OSType.DESCRIPTOR)
-@attr.s
+@attr.s(repr=False)
 class Descriptor(_DescriptorMixin):
     """
     Dict-like descriptor structure.
@@ -235,7 +235,7 @@ class List(ListElement):
 
 
 @register(OSType.PROPERTY)
-@attr.s
+@attr.s(repr=False)
 class Property(BaseElement):
     """
     Property structure.
@@ -304,7 +304,7 @@ class UnitFloat(NumericElement):
 
 
 @register(OSType.UNIT_FLOATS)
-@attr.s
+@attr.s(repr=False)
 class UnitFloats(BaseElement):
     """
     Unit floats structure.
@@ -361,7 +361,7 @@ class Double(NumericElement):
         return write_fmt(fp, 'd', self.value)
 
 
-@attr.s
+@attr.s(repr=False)
 class Class(BaseElement):
     """
     Class structure.
@@ -402,7 +402,7 @@ class String(StringElement):
 
 
 @register(OSType.ENUMERATED_REFERENCE)
-@attr.s
+@attr.s(repr=False)
 class EnumeratedReference(BaseElement):
     """
     Enumerated reference structure.
@@ -445,7 +445,7 @@ class EnumeratedReference(BaseElement):
 
 
 @register(OSType.OFFSET)
-@attr.s
+@attr.s(repr=False)
 class Offset(BaseElement):
     """
     Offset structure.
@@ -535,7 +535,7 @@ class Integer(IntegerElement):
 
 
 @register(OSType.ENUMERATED)
-@attr.s
+@attr.s(repr=False)
 class Enumerated(BaseElement):
     """
     Enum structure.
@@ -582,7 +582,7 @@ class Enumerated(BaseElement):
 
 
 @register(OSType.RAW_DATA)
-@attr.s
+@attr.s(repr=False)
 class RawData(BaseElement):
     """
     RawData structure.
@@ -687,7 +687,7 @@ class Index(Integer):
 
 
 @register(OSType.NAME)
-@attr.s
+@attr.s(repr=False)
 class Name(BaseElement):
     """
     Name structure (Undocumented).

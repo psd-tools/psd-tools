@@ -36,7 +36,7 @@ ADJUSTMENT_TYPES.update({
 
 
 @register(Tag.BRIGHTNESS_AND_CONTRAST)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class BrightnessContrast(BaseElement):
     """
     BrightnessContrast structure.
@@ -60,7 +60,7 @@ class BrightnessContrast(BaseElement):
 
 
 @register(Tag.COLOR_BALANCE)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class ColorBalance(BaseElement):
     """
     ColorBalance structure.
@@ -117,7 +117,7 @@ class ColorLookup(DescriptorBlock2):
 
 
 @register(Tag.CHANNEL_MIXER)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class ChannelMixer(BaseElement):
     """
     ChannelMixer structure.
@@ -146,7 +146,7 @@ class ChannelMixer(BaseElement):
 
 
 @register(Tag.CURVES)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class Curves(BaseElement):
     """
     Curves structure.
@@ -235,7 +235,7 @@ class CurvesExtraMarker(ListElement):
         return written
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class CurvesExtraItem(BaseElement):
     """
     Curves extra item.
@@ -267,7 +267,7 @@ class CurvesExtraItem(BaseElement):
 
 
 @register(Tag.GRADIENT_MAP)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class GradientMap(BaseElement):
     """
     GradientMap structure.
@@ -352,7 +352,7 @@ class GradientMap(BaseElement):
         return written
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class ColorStop(BaseElement):
     """
     ColorStop of GradientMap.
@@ -379,7 +379,7 @@ class ColorStop(BaseElement):
         )
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class TransparencyStop(BaseElement):
     """
     TransparencyStop of GradientMap.
@@ -401,7 +401,7 @@ class TransparencyStop(BaseElement):
 
 
 @register(Tag.EXPOSURE)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class Exposure(BaseElement):
     """
     Exposure structure.
@@ -428,7 +428,7 @@ class Exposure(BaseElement):
 
 @register(Tag.HUE_SATURATION_V4)
 @register(Tag.HUE_SATURATION)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class HueSaturation(BaseElement):
     """
     HueSaturation structure.
@@ -470,7 +470,7 @@ class HueSaturation(BaseElement):
 
 
 @register(Tag.LEVELS)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class Levels(ListElement):
     """
     List of level records. See :py:class:
@@ -520,7 +520,7 @@ class Levels(ListElement):
         return written
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class LevelRecord(BaseElement):
     """
     Level record.
@@ -561,7 +561,7 @@ class LevelRecord(BaseElement):
 
 
 @register(Tag.PHOTO_FILTER)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class PhotoFilter(BaseElement):
     """
     PhotoFilter structure.
@@ -611,7 +611,7 @@ class PhotoFilter(BaseElement):
 
 
 @register(Tag.SELECTIVE_COLOR)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class SelectiveColor(BaseElement):
     """
     SelectiveColor structure.
