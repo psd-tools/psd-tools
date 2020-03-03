@@ -81,8 +81,10 @@ def test_channel_blending_restrictions_setting(fixture):
         (DescriptorBlock, 'cinf.dat'),
         (DescriptorBlock, 'extn_1.dat'),
         (DescriptorBlock, 'PxSc_1.dat'),
+        (DescriptorBlock, 'frgb_1.dat'),
         (PixelSourceData2, 'pixel_source_data2.dat'),
         (MetadataSettings, 'shmd_1.dat'),
+        (MetadataSettings, 'shmd_2.dat'),
     ]
 )
 def test_tagged_block_rw(kls, filename):

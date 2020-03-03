@@ -475,7 +475,7 @@ class MetadataSetting(BaseElement):
     """
     MetadataSetting structure.
     """
-    _KNOWN_KEYS = {b'cust', b'cmls', b'extn', b'mlst', b'tmln'}
+    _KNOWN_KEYS = {b'cust', b'cmls', b'extn', b'mlst', b'tmln', b'sgrp'}
     signature = attr.ib(
         default=b'8BIM', type=bytes, repr=False, validator=in_((b'8BIM', ))
     )
@@ -489,7 +489,7 @@ class MetadataSetting(BaseElement):
         assert signature == b'8BIM', 'Invalid signature %r' % signature
         key, copy_on_sheet = read_fmt("4s?3x", fp)
         data = read_length_block(fp)
-        if key == b'mdyn':
+        if key in (b'mdyn', b'sgrp'):
             with io.BytesIO(data) as f:
                 data = read_fmt('I', f)[0]
         elif key in cls._KNOWN_KEYS:
@@ -497,7 +497,6 @@ class MetadataSetting(BaseElement):
         else:
             message = 'Unknown metadata key %r' % (key)
             logger.warning(message)
-            warn(message)
             data = data
         return cls(signature, key, copy_on_sheet, data)
 
