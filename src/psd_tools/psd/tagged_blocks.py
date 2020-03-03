@@ -64,6 +64,7 @@ TYPES.update({
     Tag.FILTER_EFFECTS1: FilterEffects,
     Tag.FILTER_EFFECTS2: FilterEffects,
     Tag.FILTER_EFFECTS3: FilterEffects,
+    Tag.FRAMED_GROUP: DescriptorBlock,
     Tag.KNOCKOUT_SETTING: ByteElement,
     Tag.LINKED_LAYER1: LinkedLayers,
     Tag.LINKED_LAYER2: LinkedLayers,

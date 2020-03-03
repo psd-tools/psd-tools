@@ -314,6 +314,7 @@ class Tag(bytes, Enum):
     FILTER_EFFECTS3 = b'FELS'  # Undocumented.
     FILTER_MASK = b'FMsk'
     FOREIGN_EFFECT_ID = b'ffxi'
+    FRAMED_GROUP = b'frgb'  # Undocumented, Frame tool in CC 2019?
     GRADIENT_FILL_SETTING = b'GdFl'
     GRADIENT_MAP = b'grdm'
     HUE_SATURATION = b'hue2'
