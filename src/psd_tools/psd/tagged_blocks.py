@@ -212,6 +212,7 @@ class TaggedBlock(BaseElement):
         Tag.ALPHA,
         Tag.FILTER_MASK,
         Tag.LINKED_LAYER2,
+        Tag.LINKED_LAYER3,
         Tag.LINKED_LAYER_EXTERNAL,
         Tag.FILTER_EFFECTS1,
         Tag.FILTER_EFFECTS2,
