@@ -119,7 +119,7 @@ class Subpath(ListElement):
     # def __repr__(self):
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class Knot(BaseElement):
     """
     Knot element consisting of 3 control points for Bezier curves.
@@ -186,7 +186,7 @@ class OpenKnotUnlinked(Knot):
 
 
 @register(PathResourceID.PATH_FILL)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class PathFillRule(BaseElement):
     """
     Path fill rule record, empty.
@@ -202,7 +202,7 @@ class PathFillRule(BaseElement):
 
 
 @register(PathResourceID.CLIPBOARD)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class ClipboardRecord(BaseElement):
     """
     Clipboard record.
@@ -242,7 +242,7 @@ class ClipboardRecord(BaseElement):
 
 
 @register(PathResourceID.INITIAL_FILL)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class InitialFillRule(ValueElement):
     """
     Initial fill rule record.
@@ -262,7 +262,7 @@ class InitialFillRule(ValueElement):
         return write_fmt(fp, 'H22x', *attr.astuple(self))
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class VectorMaskSetting(BaseElement):
     """
     VectorMaskSetting structure.

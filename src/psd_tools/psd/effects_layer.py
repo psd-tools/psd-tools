@@ -19,7 +19,7 @@ from psd_tools.utils import (
 logger = logging.getLogger(__name__)
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class CommonStateInfo(BaseElement):
     """
     Effects layer common state info.
@@ -38,7 +38,7 @@ class CommonStateInfo(BaseElement):
         return write_fmt(fp, 'IB2x', *attr.astuple(self))
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class ShadowInfo(BaseElement):
     """
     Effects layer shadow info.
@@ -122,7 +122,7 @@ class _GlowInfo(object):
         return written
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class OuterGlowInfo(BaseElement, _GlowInfo):
     """
     Effects layer outer glow info.
@@ -169,7 +169,7 @@ class OuterGlowInfo(BaseElement, _GlowInfo):
         return written
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class InnerGlowInfo(BaseElement, _GlowInfo):
     """
     Effects layer inner glow info.
@@ -220,7 +220,7 @@ class InnerGlowInfo(BaseElement, _GlowInfo):
         return written
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class BevelInfo(BaseElement):
     """
     Effects layer bevel info.
@@ -310,7 +310,7 @@ class BevelInfo(BaseElement):
         return written
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class SolidFillInfo(BaseElement):
     """
     Effects layer inner glow info.
@@ -353,7 +353,7 @@ class SolidFillInfo(BaseElement):
         return written
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class EffectsLayer(DictElement):
     """
     Dict-like EffectsLayer structure. See

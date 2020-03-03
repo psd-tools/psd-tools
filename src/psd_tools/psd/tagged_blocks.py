@@ -186,7 +186,7 @@ class TaggedBlocks(DictElement):
             p.breakable('')
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class TaggedBlock(BaseElement):
     """
     Layer tagged block with extra info.
@@ -326,7 +326,7 @@ class Annotations(ListElement):
         return written
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class Annotation(BaseElement):
     """
     Annotation structure.
@@ -425,7 +425,7 @@ class ChannelBlendingRestrictionsSetting(ListElement):
 
 
 @register(Tag.FILTER_MASK)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class FilterMask(BaseElement):
     """
     FilterMask structure.
@@ -468,7 +468,7 @@ class MetadataSettings(ListElement):
         return written
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class MetadataSetting(BaseElement):
     """
     MetadataSetting structure.
@@ -516,7 +516,7 @@ class MetadataSetting(BaseElement):
 
 
 @register(Tag.PIXEL_SOURCE_DATA2)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class PixelSourceData2(ListElement):
     """
     PixelSourceData2 structure.
@@ -541,7 +541,7 @@ class PixelSourceData2(ListElement):
 
 @register(Tag.PLACED_LAYER1)
 @register(Tag.PLACED_LAYER2)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class PlacedLayerData(BaseElement):
     """
     PlacedLayerData structure.
@@ -621,7 +621,7 @@ class ReferencePoint(ListElement):
 
 @register(Tag.SECTION_DIVIDER_SETTING)
 @register(Tag.NESTED_SECTION_DIVIDER_SETTING)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class SectionDividerSetting(BaseElement):
     """
     SectionDividerSetting structure.
@@ -690,7 +690,7 @@ class SheetColorSetting(ValueElement):
 
 @register(Tag.SMART_OBJECT_LAYER_DATA1)
 @register(Tag.SMART_OBJECT_LAYER_DATA2)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class SmartObjectLayerData(BaseElement):
     """
     VersionedDescriptorBlock structure.
@@ -717,7 +717,7 @@ class SmartObjectLayerData(BaseElement):
 
 
 @register(Tag.TYPE_TOOL_OBJECT_SETTING)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class TypeToolObjectSetting(BaseElement):
     """
     TypeToolObjectSetting structure.
@@ -783,7 +783,7 @@ class TypeToolObjectSetting(BaseElement):
 
 
 @register(Tag.USER_MASK)
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class UserMask(BaseElement):
     """
     UserMask structure.

@@ -22,7 +22,7 @@ from psd_tools.utils import (
 logger = logging.getLogger(__name__)
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class LayerAndMaskInformation(BaseElement):
     """
     Layer and mask information section.
@@ -97,7 +97,7 @@ class LayerAndMaskInformation(BaseElement):
         return written
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class LayerInfo(BaseElement):
     """
     High-level organization of the layer information.
@@ -179,6 +179,7 @@ class LayerInfo(BaseElement):
 
 @register(Tag.LAYER_16)
 @register(Tag.LAYER_32)
+@attr.s(repr=False)
 class LayerInfoBlock(LayerInfo):
     """
     """
@@ -191,7 +192,7 @@ class LayerInfoBlock(LayerInfo):
         return self._write_body(fp, encoding, version, padding)
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class ChannelInfo(BaseElement):
     """
     Channel information.
@@ -222,7 +223,7 @@ class ChannelInfo(BaseElement):
         return write_fmt(fp, ('hI', 'hQ')[version - 1], *attr.astuple(self))
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class LayerFlags(BaseElement):
     """
     Layer flags.
@@ -265,7 +266,7 @@ class LayerFlags(BaseElement):
         return write_fmt(fp, 'B', flags)
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class LayerBlendingRanges(BaseElement):
     """
     Layer blending ranges.
@@ -339,7 +340,7 @@ class LayerRecords(ListElement):
         return cls(items)
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class LayerRecord(BaseElement):
     """
     Layer record.
@@ -520,7 +521,7 @@ class LayerRecord(BaseElement):
         return sizes
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class MaskFlags(BaseElement):
     """
     Mask flags.
@@ -571,7 +572,7 @@ class MaskFlags(BaseElement):
         return write_fmt(fp, 'B', flags)
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class MaskData(BaseElement):
     """
     Mask data.
@@ -730,7 +731,7 @@ class MaskData(BaseElement):
         return max(self.real_bottom - self.real_top, 0)
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class MaskParameters(BaseElement):
     """
     Mask parameters.
@@ -831,7 +832,7 @@ class ChannelDataList(ListElement):
         return [item._length for item in self]
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class ChannelData(BaseElement):
     """
     Channel data.
@@ -899,7 +900,7 @@ class ChannelData(BaseElement):
         return 2 + len(self.data)
 
 
-@attr.s(slots=True)
+@attr.s(repr=False, slots=True)
 class GlobalLayerMaskInfo(BaseElement):
     """
     Global mask information.
