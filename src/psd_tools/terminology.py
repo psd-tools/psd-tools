@@ -206,6 +206,9 @@ class Klass(bytes, _Enum):
     FillFlash = b'FilF'
     ColorCast = b'ColC'
 
+    # Unknown class
+    EXRf = b'EXRf'
+
 
 class Enum(bytes, _Enum):
     """
@@ -1884,6 +1887,9 @@ class Key(bytes, _Enum):
     Yellow = b'Ylw '
     ZigZagType = b'ZZTy'
     LegacySerialString = b'lSNs'
+
+    # Unknown keys
+    comp = b'comp'
 
 
 class P(bytes, _Enum):
