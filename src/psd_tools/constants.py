@@ -377,6 +377,9 @@ class Tag(bytes, Enum):
     VECTOR_STROKE_CONTENT_DATA = b'vscg'
     VIBRANCE = b'vibA'
 
+    # Unknown
+    PATT = b'patt'
+
 
 TaggedBlockID = Tag  # For backward compatibility.
 

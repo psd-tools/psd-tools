@@ -80,6 +80,7 @@ TYPES.update({
     Tag.PATTERNS1: Patterns,
     Tag.PATTERNS2: Patterns,
     Tag.PATTERNS3: Patterns,
+    Tag.PATT: EmptyElement,
     Tag.PIXEL_SOURCE_DATA1: DescriptorBlock,
     Tag.SAVING_MERGED_TRANSPARENCY: EmptyElement,
     Tag.SAVING_MERGED_TRANSPARENCY16: EmptyElement,
