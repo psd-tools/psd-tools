@@ -1,3 +1,9 @@
+1.9.3 (2020-03-10)
+------------------
+
+- [composite] Fix memory corruption crash for pattern data in PSB files.
+- [psd] Add image data pretty printing.
+
 1.9.2 (2020-03-03)
 ------------------
 
