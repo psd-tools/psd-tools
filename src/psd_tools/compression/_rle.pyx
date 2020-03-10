@@ -11,7 +11,7 @@ def decode(const unsigned char[:] data, Py_ssize_t size):
         raise MemoryError()
 
     try:
-        while src < data.shape[0]:
+        while src < data.shape[0] and dst < size:
             header = data[src]
             if header > 127:
                 header -= 256
