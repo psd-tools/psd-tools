@@ -51,8 +51,12 @@ def test_draw_solid_color_fill():
     draw_solid_color_fill(psd.viewbox, desc)
 
 
-def test_draw_pattern_fill():
-    psd = PSDImage.open(full_name('layers-minimal/pattern-fill.psd'))
+@pytest.mark.parametrize('filename', [
+    'layers-minimal/pattern-fill.psd',
+    'layers/pattern-fill.psb'
+])
+def test_draw_pattern_fill(filename):
+    psd = PSDImage.open(full_name(filename))
     desc = psd[0].tagged_blocks.get_data(Tag.PATTERN_FILL_SETTING)
     draw_pattern_fill(psd.viewbox, psd, desc)
     desc[b'Scl '] = Double(50.)

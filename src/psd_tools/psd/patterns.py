@@ -226,19 +226,19 @@ class VirtualMemoryArray(BaseElement):
         written += write_bytes(fp, self.data)
         return written
 
-    def get_data(self, version=1):
+    def get_data(self):
         """Get decompressed bytes."""
         if not self.is_written:
             return None
         width, height = self.rectangle[3], self.rectangle[2]
         return decompress(
-            self.data, self.compression, width, height, self.depth, version
+            self.data, self.compression, width, height, self.depth, version=1
         )
 
-    def set_data(self, size, data, depth, compression=0, version=1):
+    def set_data(self, size, data, depth, compression=0):
         """Set bytes."""
         self.data = compress(
-            data, compression, size[0], size[1], depth, version
+            data, compression, size[0], size[1], depth, version=1
         )
         self.depth = int(depth)
         self.pixel_depth = int(depth)

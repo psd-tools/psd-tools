@@ -182,7 +182,7 @@ def draw_pattern_fill(size, psd, setting):
     if not pattern:
         logger.error('Pattern not found: %s' % (pattern_id))
         return None
-    panel = convert_pattern_to_pil(pattern, psd._record.header.version)
+    panel = convert_pattern_to_pil(pattern)
 
     scale = float(setting.get(Key.Scale, 100.)) / 100.
     if scale != 1.:

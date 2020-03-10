@@ -101,11 +101,11 @@ def get_layer_data(layer, channel):
     return np.concatenate([color, shape], axis=2)
 
 
-def get_pattern(pattern, version=1):
+def get_pattern(pattern):
     """Get pattern array."""
     height, width = pattern.data.rectangle[2], pattern.data.rectangle[3]
     return np.stack([
-        _parse_array(c.get_data(version), c.pixel_depth)
+        _parse_array(c.get_data(), c.pixel_depth)
         for c in pattern.data.channels if c.is_written
     ],
                     axis=1).reshape((height, width, -1))

@@ -17,7 +17,7 @@ def test_convert_pattern_to_pil():
     with open(filepath, 'rb') as f:
         pattern = Pattern.read(f)
 
-    assert isinstance(numpy_io.get_pattern(pattern, version=1), np.ndarray)
+    assert isinstance(numpy_io.get_pattern(pattern), np.ndarray)
 
 
 @pytest.mark.parametrize(
