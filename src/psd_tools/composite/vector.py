@@ -182,9 +182,9 @@ def draw_pattern_fill(viewport, psd, desc):
     pattern = psd._get_pattern(pattern_id)
     if not pattern:
         logger.error('Pattern not found: %s' % (pattern_id))
-        return None
+        return None, None
 
-    panel = get_pattern(pattern, psd._record.header.version)
+    panel = get_pattern(pattern)
     assert panel.shape[0] > 0
 
     scale = float(desc.get(Key.Scale, 100.)) / 100.

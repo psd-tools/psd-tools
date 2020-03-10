@@ -131,14 +131,14 @@ def _post_process(image, alpha, icc_profile):
     return image
 
 
-def convert_pattern_to_pil(pattern, version=1):
+def convert_pattern_to_pil(pattern):
     """Convert Pattern to PIL Image."""
     from PIL import Image
     mode = get_pil_mode(pattern.image_mode)
     # The order is different here.
     size = pattern.data.rectangle[3], pattern.data.rectangle[2]
     channels = [
-        _create_image(size, c.get_data(version), c.pixel_depth).convert('L')
+        _create_image(size, c.get_data(), c.pixel_depth).convert('L')
         for c in pattern.data.channels if c.is_written
     ]
     alpha = None
