@@ -4,7 +4,7 @@ import logging
 
 from psd_tools.terminology import Enum, Key, Type, Klass
 from psd_tools.constants import Tag
-from psd_tools.api.numpy_io import get_pattern
+from psd_tools.api.numpy_io import get_pattern, EXPECTED_CHANNELS
 
 logger = logging.getLogger(__name__)
 
@@ -202,7 +202,11 @@ def draw_pattern_fill(viewport, psd, desc):
         int(np.ceil(float(width) / panel.shape[1])),
         1,
     )
-    return np.tile(panel, reps)[:height, :width, :], None
+    channels = EXPECTED_CHANNELS.get(pattern.image_mode)
+    pixels = np.tile(panel, reps)[:height, :width, :]
+    if pixels.shape[2] >= channels:
+        return pixels[:, :, :channels], pixels[:, :, -1:]
+    return pixels, None
 
 
 def draw_gradient_fill(viewport, desc):
