@@ -1,6 +1,6 @@
 def decode(data, size):
     """
-    Decodes a PackBit encoded data.
+    Decodes RLE encoded data.
     """
     data = bytearray(data)  # <- python 2/3 compatibility fix
     result = bytearray(size)
@@ -13,22 +13,33 @@ def decode(data, size):
         src += 1
 
         if 0 <= header <= 127:
-            result[dst:dst + header + 1] = data[src:src + header + 1]
-            src += header + 1
-            dst += header + 1
+            length = header + 1
+            if src + length <= len(data) and dst + length <= size:
+                result[dst:dst + header + 1] = data[src:src + length]
+                src += length
+                dst += length
+            else:
+                raise ValueError('Invalid RLE compression')
         elif header == -128:
             pass
         else:
-            result[dst:dst + 1 - header] = [data[src]] * (1 - header)
-            src += 1
-            dst += 1 - header
+            length = 1 - header
+            if src + 1 <= len(data) and dst + length <= size:
+                result[dst:dst + length] = [data[src]] * length
+                src += 1
+                dst += length
+            else:
+                raise ValueError('Invalid RLE compression')
+    if dst < size:
+        raise ValueError('Expected %d bytes but decoded only %d bytes' % (
+            size, dst))
 
     return bytes(result)
 
 
 def encode(data):
     """
-    Encodes data using PackBits encoding.
+    Encodes data using RLE encoding.
     """
     if len(data) == 0:
         return data

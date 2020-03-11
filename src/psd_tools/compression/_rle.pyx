@@ -2,6 +2,7 @@ from libc.stdlib cimport malloc, free
 from libc.string cimport memcpy, memset
 from cpython.version cimport PY_MAJOR_VERSION
 
+
 def decode(const unsigned char[:] data, Py_ssize_t size):
     cdef unsigned char* result = <unsigned char*> malloc(size * sizeof(char))
     cdef int src = 0
@@ -18,22 +19,32 @@ def decode(const unsigned char[:] data, Py_ssize_t size):
             src += 1
 
             if 0 <= header <= 127:
-                memcpy(&result[dst], &data[src], header + 1)
-                src += header + 1
-                dst += header + 1
+                length = header + 1
+                if src + length <= data.shape[0] and dst + length <= size:
+                    memcpy(&result[dst], &data[src], length)
+                    src += length
+                    dst += length
+                else:
+                    raise ValueError('Invalid RLE compression')
             elif header == -128:
                 pass
             else:
-                memset(&result[dst], data[src], 1 - header)
-                src += 1
-                dst += 1 - header
+                length = 1 - header
+                if src + 1 <= data.shape[0] and dst + length <= size:
+                    memset(&result[dst], data[src], length)
+                    src += 1
+                    dst += length
+                else:
+                    raise ValueError('Invalid RLE compression')
+        if dst < size:
+            raise ValueError('Expected %d bytes but decoded only %d bytes' % (
+                size, dst))
 
         py_result = result[:size]
     finally:
         free(result)
 
     return py_result
-
 
 
 cdef enum State:
