@@ -34,7 +34,6 @@ class PSDImage(GroupMixin):
         for layer in psd:
             layer_image = layer.compose()
     """
-
     def __init__(self, data):
         assert isinstance(data, PSD)
         self._record = None
@@ -179,12 +178,15 @@ class PSDImage(GroupMixin):
         color=1.0,
         alpha=0.0,
         layer_filter=None,
+        ignore_preview=False,
     ):
         """
         Composite the PSD image.
 
         :param viewport: Viewport bounding box specified by (x1, y1, x2, y2)
             tuple. Default is the viewbox of the PSD.
+        :param ignore_preview: Boolean flag to whether skip compositing when a
+            pre-composited preview is available.
         :param force: Boolean flag to force vector drawing.
         :param color: Backdrop color specified by scalar or tuple of scalar.
             The color value should be in [0.0, 1.0]. For example, (1., 0., 0.)
@@ -196,6 +198,8 @@ class PSDImage(GroupMixin):
         :return: :py:class:`PIL.Image`.
         """
         from psd_tools.composite import composite_pil
+        if not (ignore_preview or force) and self.has_preview():
+            return self.topil()
         return composite_pil(self, color, alpha, viewport, layer_filter, force)
 
     def is_visible(self):
