@@ -187,7 +187,6 @@ class Compositor(object):
         # TODO: Tag.BLEND_INTERIOR_ELEMENTS controls how inner effects apply.
 
         # TODO: Apply before effects
-
         self._apply_source(color, shape, alpha, layer.blend_mode, knockout)
 
         # TODO: Apply after effects
@@ -311,15 +310,17 @@ class Compositor(object):
 
         # Composite clip layers.
         # TODO: Consider Tag.BLEND_CLIPPING_ELEMENTS.
-        if len(layer.clip_layers):
-            color, _, _ = composite(
-                layer.clip_layers,
+        if layer.has_clip_layers():
+            compositor = Compositor(
+                self._viewport,
                 color,
                 alpha,
-                self._viewport,
                 layer_filter=self._layer_filter,
                 force=self._force
             )
+            for clip_layer in layer.clip_layers:
+                compositor.apply(clip_layer)
+            color = compositor._color
 
         # Apply stroke if any.
         if layer.has_stroke() and layer.stroke.enabled:
