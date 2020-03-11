@@ -594,7 +594,6 @@ class Group(GroupMixin, Layer):
             if layer.kind == 'pixel':
                 print(layer.name)
     """
-
     @staticmethod
     def extract_bbox(layers, include_invisible=False):
         """
@@ -604,7 +603,6 @@ class Group(GroupMixin, Layer):
         :param include_invisible: include invisible layers in calculation.
         :return: tuple of four int
         """
-
         def _get_bbox(layer, **kwargs):
             if layer.is_group():
                 return Group.extract_bbox(layer, **kwargs)
@@ -651,6 +649,34 @@ class Group(GroupMixin, Layer):
         if setting:
             setting.blend_mode = _value
 
+    def composite(
+        self,
+        viewport=None,
+        force=False,
+        color=1.0,
+        alpha=0.0,
+        layer_filter=None
+    ):
+        """
+        Composite layer and masks (mask, vector mask, and clipping layers).
+
+        :param viewport: Viewport bounding box specified by (x1, y1, x2, y2)
+            tuple. Default is the layer's bbox.
+        :param force: Boolean flag to force vector drawing.
+        :param color: Backdrop color specified by scalar or tuple of scalar.
+            The color value should be in [0.0, 1.0]. For example, (1., 0., 0.)
+            specifies red in RGB color mode.
+        :param alpha: Backdrop alpha in [0.0, 1.0].
+        :param layer_filter: Callable that takes a layer as argument and
+            returns whether if the layer is composited. Default is
+            :py:func:`~psd_tools.api.layers.PixelLayer.is_visible`.
+        :return: :py:class:`PIL.Image`.
+        """
+        from psd_tools.composite import composite_pil
+        return composite_pil(
+            self, color, alpha, viewport, layer_filter, force, as_layer=True
+        )
+
 
 class Artboard(Group):
     """
@@ -661,7 +687,6 @@ class Artboard(Group):
         artboard = psd[1]
         image = artboard.compose()
     """
-
     @classmethod
     def _move(kls, group):
         self = kls(group._psd, group._record, group._channels, group._parent)
@@ -752,7 +777,6 @@ class SmartObjectLayer(Layer):
         if layer.smart_object.filetype == 'jpg':
             image = Image.open(io.BytesIO(layer.smart_object.data))
     """
-
     @property
     def smart_object(self):
         """
@@ -796,7 +820,6 @@ class TypeLayer(Layer):
                 print('%r gets %s' % (substring, font))
                 index += length
     """
-
     def __init__(self, *args):
         super(TypeLayer, self).__init__(*args)
         self._data = self.tagged_blocks.get_data(Tag.TYPE_TOOL_OBJECT_SETTING)
@@ -845,7 +868,6 @@ class ShapeLayer(Layer):
     """
     Layer that has drawing in vector mask.
     """
-
     @property
     def left(self):
         return self.bbox[0]
@@ -898,7 +920,6 @@ class ShapeLayer(Layer):
 
 class AdjustmentLayer(Layer):
     """Layer that applies specified image adjustment effect."""
-
     def __init__(self, *args):
         super(AdjustmentLayer, self).__init__(*args)
         self._data = None
@@ -916,7 +937,6 @@ class AdjustmentLayer(Layer):
 
 class FillLayer(Layer):
     """Layer that fills the canvas region."""
-
     def __init__(self, *args):
         super(FillLayer, self).__init__(*args)
         self._data = None

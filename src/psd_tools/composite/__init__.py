@@ -14,7 +14,9 @@ from .effects import draw_stroke_effect
 logger = logging.getLogger(__name__)
 
 
-def composite_pil(layer, color, alpha, viewport, layer_filter, force):
+def composite_pil(
+    layer, color, alpha, viewport, layer_filter, force, as_layer=False
+):
     from PIL import Image
     from psd_tools.api.pil_io import get_pil_mode
     from psd_tools.api.numpy_io import has_alpha
@@ -33,7 +35,8 @@ def composite_pil(layer, color, alpha, viewport, layer_filter, force):
         alpha=alpha,
         viewport=viewport,
         layer_filter=layer_filter,
-        force=force
+        force=force,
+        as_layer=as_layer
     )
 
     mode = get_pil_mode(color_mode)
@@ -56,7 +59,8 @@ def composite(
     alpha=0.0,
     viewport=None,
     layer_filter=None,
-    force=False
+    force=False,
+    as_layer=False,
 ):
     """
     Composite the given group of layers.
@@ -85,7 +89,9 @@ def composite(
     compositor = Compositor(
         viewport, color, alpha, isolated, layer_filter, force
     )
-    for layer in (group if hasattr(group, '__iter__') else [group]):
+    for layer in (
+        group if hasattr(group, '__iter__') and not as_layer else [group]
+    ):
         if isinstance(layer, AdjustmentLayer):
             logger.debug('Ignore %s' % layer)
             continue
