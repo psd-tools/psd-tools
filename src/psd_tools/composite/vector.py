@@ -58,6 +58,8 @@ def _draw_path(layer, brush=None, pen=None):
     first = True
     for subpath in layer.vector_mask.paths:
         plane = _draw_subpath(subpath, width, height, brush, pen)
+        assert mask.shape == (height, width, 1)
+        assert plane.shape == mask.shape
         if subpath.operation == 0:  # Exclude = Union - Intersect.
             mask = mask + plane - 2 * mask * plane
         elif subpath.operation == 1:  # Union (Combine).
@@ -85,15 +87,15 @@ def _draw_subpath(subpath, width, height, brush, pen):
     mask = Image.new('L', (width, height), 0)
     if len(subpath) <= 1:
         logger.warning('not enough knots: %d' % len(subpath))
-        return mask
-    path = ' '.join(map(str, _generate_symbol(subpath, width, height)))
-    draw = aggdraw.Draw(mask)
-    pen = aggdraw.Pen(**pen) if pen else None
-    brush = aggdraw.Brush(**brush) if brush else None
-    symbol = aggdraw.Symbol(path)
-    draw.symbol((0, 0), symbol, pen, brush)
-    draw.flush()
-    del draw
+    else:
+        path = ' '.join(map(str, _generate_symbol(subpath, width, height)))
+        draw = aggdraw.Draw(mask)
+        pen = aggdraw.Pen(**pen) if pen else None
+        brush = aggdraw.Brush(**brush) if brush else None
+        symbol = aggdraw.Symbol(path)
+        draw.symbol((0, 0), symbol, pen, brush)
+        draw.flush()
+        del draw
     return np.expand_dims(np.array(mask).astype(np.float32) / 255., 2)
 
 
