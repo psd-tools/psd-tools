@@ -14,7 +14,9 @@ from .effects import draw_stroke_effect
 logger = logging.getLogger(__name__)
 
 
-def composite_pil(layer, color, alpha, viewport, layer_filter, force):
+def composite_pil(
+    layer, color, alpha, viewport, layer_filter, force, as_layer=False
+):
     from PIL import Image
     from psd_tools.api.pil_io import get_pil_mode
     from psd_tools.api.numpy_io import has_alpha
@@ -33,7 +35,8 @@ def composite_pil(layer, color, alpha, viewport, layer_filter, force):
         alpha=alpha,
         viewport=viewport,
         layer_filter=layer_filter,
-        force=force
+        force=force,
+        as_layer=as_layer
     )
 
     mode = get_pil_mode(color_mode)
@@ -56,7 +59,8 @@ def composite(
     alpha=0.0,
     viewport=None,
     layer_filter=None,
-    force=False
+    force=False,
+    as_layer=False,
 ):
     """
     Composite the given group of layers.
@@ -85,7 +89,9 @@ def composite(
     compositor = Compositor(
         viewport, color, alpha, isolated, layer_filter, force
     )
-    for layer in (group if hasattr(group, '__iter__') else [group]):
+    for layer in (
+        group if hasattr(group, '__iter__') and not as_layer else [group]
+    ):
         if isinstance(layer, AdjustmentLayer):
             logger.debug('Ignore %s' % layer)
             continue
@@ -187,14 +193,16 @@ class Compositor(object):
         # TODO: Tag.BLEND_INTERIOR_ELEMENTS controls how inner effects apply.
 
         # TODO: Apply before effects
-
         self._apply_source(color, shape, alpha, layer.blend_mode, knockout)
 
         # TODO: Apply after effects
         self._apply_color_overlay(layer, color, shape, alpha)
         self._apply_pattern_overlay(layer, color, shape, alpha)
         self._apply_gradient_overlay(layer, color, shape, alpha)
-        self._apply_stroke_effect(layer, color, shape, alpha)
+        if layer.has_vector_mask():
+            self._apply_stroke_effect(layer, color, shape_mask, alpha)
+        else:
+            self._apply_stroke_effect(layer, color, shape, alpha)
 
     def _apply_source(self, color, shape, alpha, blend_mode, knockout=False):
         if self._color_0.shape[2] == 1 and 1 < color.shape[2]:
@@ -311,15 +319,17 @@ class Compositor(object):
 
         # Composite clip layers.
         # TODO: Consider Tag.BLEND_CLIPPING_ELEMENTS.
-        if len(layer.clip_layers):
-            color, _, _ = composite(
-                layer.clip_layers,
+        if layer.has_clip_layers():
+            compositor = Compositor(
+                self._viewport,
                 color,
                 alpha,
-                self._viewport,
                 layer_filter=self._layer_filter,
                 force=self._force
             )
+            for clip_layer in layer.clip_layers:
+                compositor.apply(clip_layer)
+            color = compositor._color
 
         # Apply stroke if any.
         if layer.has_stroke() and layer.stroke.enabled:

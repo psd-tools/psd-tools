@@ -12,8 +12,9 @@ from ..utils import TEST_ROOT, full_name
 logger = logging.getLogger(__name__)
 
 
-def test_convert_pattern_to_pil():
-    filepath = os.path.join(TEST_ROOT, 'tagged_blocks', 'Patt_1.dat')
+@pytest.mark.parametrize('filename', ['Patt_1.dat', 'Patt_2.dat'])
+def test_get_pattern(filename):
+    filepath = os.path.join(TEST_ROOT, 'tagged_blocks', filename)
     with open(filepath, 'rb') as f:
         pattern = Pattern.read(f)
 

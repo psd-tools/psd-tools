@@ -7,6 +7,7 @@ from psd_tools.terminology import Enum, Key
 from .vector import (
     draw_solid_color_fill, draw_pattern_fill, draw_gradient_fill
 )
+import psd_tools.composite
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,10 @@ def draw_stroke_effect(viewport, shape, desc, psd):
     pen = disk(int(size / 2. - 1))
     mask = filters.rank.maximum((255 * edges).astype(np.uint8),
                                 pen).astype(np.float32) / 255.
-    mask = (mask - np.min(mask)) / (np.max(mask) - np.min(mask))
+    mask = psd_tools.composite._divide(
+        mask - np.min(mask),
+        np.max(mask) - np.min(mask)
+    )
     mask = np.expand_dims(mask, 2)
 
     if style == Enum.OutsetFrame:

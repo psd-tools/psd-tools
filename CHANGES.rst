@@ -1,3 +1,14 @@
+1.9.5 (2020-03-11)
+------------------
+
+- [api] Add ignore_preview option to `PSDImage.composite`.
+- [composite] Improve stroke effect composition for vector masks.
+- [composite] Avoid crash when there is an erroneous subpath.
+- [composite] Workaround possible divide-by-zero warn in stroke composition.
+- [composite] Fix incorrect pattern transparency handling.
+- [composite] Fix ignored effects in direct group composition.
+- [composite] Fix incorrect opacity handling for clip layers.
+
 1.9.4 (2020-03-11)
 ------------------
 

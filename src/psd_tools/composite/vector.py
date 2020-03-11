@@ -4,7 +4,7 @@ import logging
 
 from psd_tools.terminology import Enum, Key, Type, Klass
 from psd_tools.constants import Tag
-from psd_tools.api.numpy_io import get_pattern
+from psd_tools.api.numpy_io import get_pattern, EXPECTED_CHANNELS
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +58,8 @@ def _draw_path(layer, brush=None, pen=None):
     first = True
     for subpath in layer.vector_mask.paths:
         plane = _draw_subpath(subpath, width, height, brush, pen)
+        assert mask.shape == (height, width, 1)
+        assert plane.shape == mask.shape
         if subpath.operation == 0:  # Exclude = Union - Intersect.
             mask = mask + plane - 2 * mask * plane
         elif subpath.operation == 1:  # Union (Combine).
@@ -85,15 +87,15 @@ def _draw_subpath(subpath, width, height, brush, pen):
     mask = Image.new('L', (width, height), 0)
     if len(subpath) <= 1:
         logger.warning('not enough knots: %d' % len(subpath))
-        return mask
-    path = ' '.join(map(str, _generate_symbol(subpath, width, height)))
-    draw = aggdraw.Draw(mask)
-    pen = aggdraw.Pen(**pen) if pen else None
-    brush = aggdraw.Brush(**brush) if brush else None
-    symbol = aggdraw.Symbol(path)
-    draw.symbol((0, 0), symbol, pen, brush)
-    draw.flush()
-    del draw
+    else:
+        path = ' '.join(map(str, _generate_symbol(subpath, width, height)))
+        draw = aggdraw.Draw(mask)
+        pen = aggdraw.Pen(**pen) if pen else None
+        brush = aggdraw.Brush(**brush) if brush else None
+        symbol = aggdraw.Symbol(path)
+        draw.symbol((0, 0), symbol, pen, brush)
+        draw.flush()
+        del draw
     return np.expand_dims(np.array(mask).astype(np.float32) / 255., 2)
 
 
@@ -202,7 +204,11 @@ def draw_pattern_fill(viewport, psd, desc):
         int(np.ceil(float(width) / panel.shape[1])),
         1,
     )
-    return np.tile(panel, reps)[:height, :width, :], None
+    channels = EXPECTED_CHANNELS.get(pattern.image_mode)
+    pixels = np.tile(panel, reps)[:height, :width, :]
+    if pixels.shape[2] >= channels:
+        return pixels[:, :, :channels], pixels[:, :, -1:]
+    return pixels, None
 
 
 def draw_gradient_fill(viewport, desc):
