@@ -35,7 +35,7 @@ def test_prediction(fixture, width, height, depth):
         (bytes(bytearray(range(256))), 128, 2, 8, 2),
     ]
 )
-def test_packbits(fixture, width, height, depth, version):
+def test_rle(fixture, width, height, depth, version):
     encoded = encode_rle(fixture, width, height, depth, version)
     decoded = decode_rle(encoded, width, height, depth, version)
     assert fixture == decoded

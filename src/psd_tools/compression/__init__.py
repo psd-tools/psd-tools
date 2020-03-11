@@ -5,15 +5,14 @@ from __future__ import absolute_import, unicode_literals
 import array
 import io
 import zlib
-
 from psd_tools.constants import Compression
 from psd_tools.utils import (
     be_array_from_bytes, be_array_to_bytes, read_be_array, write_be_array
 )
 try:
-    from . import _rle as rle
+    from . import _rle as rle_impl
 except ImportError:
-    from . import rle
+    from . import rle as rle_impl
 
 
 def compress(data, compression, width, height, depth, version=1):
@@ -76,7 +75,7 @@ def decompress(data, compression, width, height, depth, version=1):
 def encode_rle(data, width, height, depth, version):
     row_size = width * depth // 8
     with io.BytesIO(data) as fp:
-        rows = [rle.encode(fp.read(row_size)) for _ in range(height)]
+        rows = [rle_impl.encode(fp.read(row_size)) for _ in range(height)]
     bytes_counts = array.array(('H', 'I')[version - 1], map(len, rows))
     encoded = b''.join(rows)
 
@@ -93,7 +92,7 @@ def decode_rle(data, width, height, depth, version):
     with io.BytesIO(data) as fp:
         bytes_counts = read_be_array(('H', 'I')[version - 1], height, fp)
         return b''.join(
-            rle.decode(fp.read(count), row_size) for count in bytes_counts
+            rle_impl.decode(fp.read(count), row_size) for count in bytes_counts
         )
 
 
