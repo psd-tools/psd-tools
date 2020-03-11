@@ -8,10 +8,11 @@ logger = logging.getLogger(__name__)
 
 @pytest.mark.parametrize(("filename", ), [
     ('effects/stroke-effects.psd', ),
+    ('effects/shape-fx2.psd', ),
 ])
-@pytest.mark.xfail  # TODO: Fix me!
+@pytest.mark.xfail(strict=True)  # TODO: Fix me!
 def test_stroke_effects(filename):
-    check_composite_quality(filename, threshold=0.1)
+    err = check_composite_quality(filename, threshold=0.01)
 
 
 @pytest.mark.parametrize(("filename", ), [

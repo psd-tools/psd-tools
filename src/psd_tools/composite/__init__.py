@@ -199,7 +199,10 @@ class Compositor(object):
         self._apply_color_overlay(layer, color, shape, alpha)
         self._apply_pattern_overlay(layer, color, shape, alpha)
         self._apply_gradient_overlay(layer, color, shape, alpha)
-        self._apply_stroke_effect(layer, color, shape, alpha)
+        if layer.has_vector_mask():
+            self._apply_stroke_effect(layer, color, shape_mask, alpha)
+        else:
+            self._apply_stroke_effect(layer, color, shape, alpha)
 
     def _apply_source(self, color, shape, alpha, blend_mode, knockout=False):
         if self._color_0.shape[2] == 1 and 1 < color.shape[2]:
