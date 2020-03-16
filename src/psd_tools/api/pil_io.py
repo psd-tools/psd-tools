@@ -6,6 +6,7 @@ import logging
 import io
 
 from psd_tools.constants import ColorMode, ChannelID, Resource
+from .numpy_io import has_alpha
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,7 @@ def convert_image_data_to_pil(psd, channel, apply_icc):
     if channel is None:
         channels = [_create_image(size, c, psd.depth) for c in channel_data]
 
-        if _get_alpha_use(psd):
+        if has_alpha(psd):
             alpha = channels[-1]
 
         if psd.color_mode == ColorMode.INDEXED:
@@ -167,20 +168,6 @@ def convert_thumbnail_to_pil(thumbnail, mode='RGB'):
         return Image.open(io.BytesIO(thumbnail.data))
     else:
         raise ValueError('Unknown thumbnail format %d' % (thumbnail.fmt))
-
-
-def _get_alpha_use(psd):
-    layer_info = psd._record._get_layer_info()
-    if layer_info and layer_info.layer_count < 0:
-        return True
-    if psd.tagged_blocks:
-        keys = (
-            'SAVING_MERGED_TRANSPARENCY',
-            'SAVING_MERGED_TRANSPARENCY16',
-            'SAVING_MERGED_TRANSPARENCY32',
-        )
-        return any(key in psd.tagged_blocks for key in keys)
-    return False
 
 
 def _merge_channels(layer):

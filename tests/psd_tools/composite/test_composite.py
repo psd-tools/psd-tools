@@ -136,25 +136,36 @@ def test_composite_viewport():
 
 
 @pytest.mark.parametrize(
-    'colormode, depth', [
-        ('bitmap', 1),
-        ('cmyk', 8),
-        ('duotone', 8),
-        ('grayscale', 8),
-        ('index_color', 8),
-        ('rgb', 8),
-        ('rgba', 8),
-        ('lab', 8),
-        ('multichannel', 16),
+    'colormode, depth, mode, ignore_preview', [
+        ('bitmap', 1, '1', False),
+        ('cmyk', 8, 'CMYK', False),
+        ('duotone', 8, 'L', False),
+        ('grayscale', 8, 'L', False),
+        ('index_color', 8, 'P', False),
+        ('rgb', 8, 'RGB', False),
+        ('rgba', 8, 'RGBA', False),
+        ('lab', 8, 'LAB', False),
+        ('multichannel', 16, 'L', False),
+        ('bitmap', 1, '1', True),
+        ('cmyk', 8, 'CMYK', True),
+        ('duotone', 8, 'L', True),
+        ('grayscale', 8, 'L', True),
+        ('index_color', 8, 'RGB', True),
+        ('rgb', 8, 'RGB', True),
+        ('rgba', 8, 'RGBA', True),
+        ('lab', 8, 'LAB', True),
+        ('multichannel', 16, 'L', True),
     ]
 )
-def test_composite_pil(colormode, depth):
+def test_composite_pil(colormode, depth, mode, ignore_preview):
     from PIL import Image
     filename = 'colormodes/4x4_%gbit_%s.psd' % (depth, colormode)
     psd = PSDImage.open(full_name(filename))
-    isinstance(psd.composite(), Image.Image)
+    image = psd.composite(ignore_preview=ignore_preview)
+    assert isinstance(image, Image.Image)
+    assert image.mode == mode
     for layer in psd:
-        isinstance(layer.composite(), Image.Image)
+        assert isinstance(layer.composite(), Image.Image)
 
 
 def test_apply_mask():

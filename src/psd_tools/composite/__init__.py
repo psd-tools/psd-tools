@@ -42,8 +42,14 @@ def composite_pil(
     mode = get_pil_mode(color_mode)
     if mode == 'P':
         mode = 'RGB'
-    if color_mode in (ColorMode.GRAYSCALE, ColorMode.RGB
-                      ) and (layer.kind != 'psdimage' or has_alpha(layer)):
+    # Skip only when there is a preview image and it has no alpha.
+    skip_alpha = (
+        color_mode not in (ColorMode.GRAYSCALE, ColorMode.RGB) or (
+            layer.kind == 'psdimage' and layer.has_preview() and
+            not has_alpha(layer)
+        )
+    )
+    if not skip_alpha:
         color = np.concatenate((color, alpha), 2)
         mode += 'A'
     if mode in ('1', 'L'):
