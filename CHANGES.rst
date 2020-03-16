@@ -1,3 +1,8 @@
+1.9.6 (2020-03-16)
+------------------
+
+- [composite] Fix incorrect alpha channel handling in composite.
+
 1.9.5 (2020-03-11)
 ------------------
 
