@@ -294,14 +294,7 @@ class Compositor(object):
     def _get_object(self, layer):
         """Get object attributes."""
         color, shape = layer.numpy('color'), layer.numpy('shape')
-        FILL_TAGS = (
-            Tag.SOLID_COLOR_SHEET_SETTING,
-            Tag.PATTERN_FILL_SETTING,
-            Tag.GRADIENT_FILL_SETTING,
-            Tag.VECTOR_STROKE_CONTENT_DATA,
-        )
-        has_fill = any(tag in layer.tagged_blocks for tag in FILL_TAGS)
-        if (self._force or not layer.has_pixels()) and has_fill:
+        if (self._force or not layer.has_pixels()) and has_fill(layer):
             color, shape = create_fill(layer, layer.bbox)
             if shape is None:
                 shape = np.ones((layer.height, layer.width, 1),
@@ -372,7 +365,10 @@ class Compositor(object):
                 opacity = float(density) / 255.
 
         if layer.has_vector_mask() and (
-            self._force or not (layer.has_mask() and layer.mask._has_real())
+            self._force or not layer.has_pixels() or (
+                not has_fill(layer) and layer.has_mask() and
+                not layer.mask._has_real()
+            )
         ):
             shape_v = draw_vector_mask(layer)
             shape_v = paste(self._viewport, layer._psd.viewbox, shape_v)
@@ -476,6 +472,16 @@ def _intersect(a, b):
     if inter[0] >= inter[2] or inter[1] >= inter[3]:
         return (0, 0, 0, 0)
     return inter
+
+
+def has_fill(layer):
+    FILL_TAGS = (
+        Tag.SOLID_COLOR_SHEET_SETTING,
+        Tag.PATTERN_FILL_SETTING,
+        Tag.GRADIENT_FILL_SETTING,
+        Tag.VECTOR_STROKE_CONTENT_DATA,
+    )
+    return any(tag in layer.tagged_blocks for tag in FILL_TAGS)
 
 
 def _union(backdrop, source):

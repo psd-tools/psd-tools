@@ -18,13 +18,17 @@ logger = logging.getLogger(__name__)
 
 @pytest.mark.parametrize(("filename", ), [
     ('path-operations/combine.psd', ),
+    ('path-operations/combine-group.psd', ),
     ('path-operations/exclude-first.psd', ),
     ('path-operations/exclude.psd', ),
+    ('path-operations/exclude-group.psd', ),
     ('path-operations/intersect-all.psd', ),
     ('path-operations/intersect-first.psd', ),
+    ('path-operations/intersect-group.psd', ),
     ('path-operations/subtract-all.psd', ),
     ('path-operations/subtract-first.psd', ),
     ('path-operations/subtract-second.psd', ),
+    ('path-operations/subtract-group.psd', ),
 ])
 def test_path_operations(filename):
     check_composite_quality(filename, 0.02)

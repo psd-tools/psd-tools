@@ -1,3 +1,9 @@
+1.9.7 (2020-03-17)
+------------------
+
+- [composite] Fix path operation for merged components.
+- [composite] Fix vector mask compositing condition.
+
 1.9.6 (2020-03-16)
 ------------------
 
