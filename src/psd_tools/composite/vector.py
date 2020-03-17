@@ -55,20 +55,32 @@ def _draw_path(layer, brush=None, pen=None):
     height, width = layer._psd.height, layer._psd.width
     color = layer.vector_mask.initial_fill_rule
     mask = np.full((height, width, 1), color, dtype=np.float32)
-    first = True
+
+    # Group merged path components.
+    paths = []
     for subpath in layer.vector_mask.paths:
-        plane = _draw_subpath(subpath, width, height, brush, pen)
+        if subpath.operation == -1:
+            paths[-1].append(subpath)
+        else:
+            paths.append([subpath])
+
+    # Apply shape operation.
+    first = True
+    for subpath_list in paths:
+        plane = _draw_subpath(subpath_list, width, height, brush, pen)
         assert mask.shape == (height, width, 1)
         assert plane.shape == mask.shape
-        if subpath.operation == 0:  # Exclude = Union - Intersect.
+
+        op = subpath_list[0].operation
+        if op == 0:  # Exclude = Union - Intersect.
             mask = mask + plane - 2 * mask * plane
-        elif subpath.operation == 1:  # Union (Combine).
+        elif op == 1:  # Union (Combine).
             mask = mask + plane - mask * plane
-        elif subpath.operation in (2, -1):  # Subtract.
+        elif op == 2:  # Subtract.
             if first and brush:
                 mask = 1 - mask
             mask = np.maximum(0, mask - plane)
-        elif subpath.operation == 3:  # Intersect.
+        elif op == 3:  # Intersect.
             if first and brush:
                 mask = 1 - mask
             mask = mask * plane
@@ -76,7 +88,7 @@ def _draw_path(layer, brush=None, pen=None):
     return np.minimum(1, np.maximum(0, mask))
 
 
-def _draw_subpath(subpath, width, height, brush, pen):
+def _draw_subpath(subpath_list, width, height, brush, pen):
     """
     Rasterize Bezier curves.
 
@@ -85,17 +97,18 @@ def _draw_subpath(subpath, width, height, brush, pen):
     from PIL import Image
     import aggdraw
     mask = Image.new('L', (width, height), 0)
-    if len(subpath) <= 1:
-        logger.warning('not enough knots: %d' % len(subpath))
-    else:
+    draw = aggdraw.Draw(mask)
+    pen = aggdraw.Pen(**pen) if pen else None
+    brush = aggdraw.Brush(**brush) if brush else None
+    for subpath in subpath_list:
+        if len(subpath) <= 1:
+            logger.warning('not enough knots: %d' % len(subpath))
+            continue
         path = ' '.join(map(str, _generate_symbol(subpath, width, height)))
-        draw = aggdraw.Draw(mask)
-        pen = aggdraw.Pen(**pen) if pen else None
-        brush = aggdraw.Brush(**brush) if brush else None
         symbol = aggdraw.Symbol(path)
         draw.symbol((0, 0), symbol, pen, brush)
-        draw.flush()
-        del draw
+    draw.flush()
+    del draw
     return np.expand_dims(np.array(mask).astype(np.float32) / 255., 2)
 
 
