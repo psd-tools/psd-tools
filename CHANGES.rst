@@ -1,3 +1,9 @@
+1.9.8 (2020-03-18)
+------------------
+
+- [composite] Fix incorrect fill opacity handling in compositing.
+- [composite] Fix incorrect alpha for patterns.
+
 1.9.7 (2020-03-17)
 ------------------
 
