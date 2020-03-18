@@ -42,6 +42,7 @@ def check_composite_quality(filename, threshold=0.1, force=False):
     ('transparency/transparency-group.psd', ),
     ('transparency/knockout-isolated-groups.psd', ),
     ('transparency/clip-opacity.psd', ),
+    ('transparency/fill-opacity.psd', ),
 ])
 def test_composite_quality(filename):
     check_composite_quality(filename, 0.01, False)
