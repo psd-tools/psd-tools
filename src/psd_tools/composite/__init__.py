@@ -193,13 +193,16 @@ class Compositor(object):
 
         shape_mask, opacity_mask = self._get_mask(layer)
         shape_const, opacity_const = self._get_const(layer)
-        shape *= shape_mask * shape_const
-        alpha *= (shape_mask * opacity_mask) * (shape_const * opacity_const)
+        shape *= shape_mask
+        alpha *= shape_mask * opacity_mask * opacity_const
 
         # TODO: Tag.BLEND_INTERIOR_ELEMENTS controls how inner effects apply.
 
         # TODO: Apply before effects
-        self._apply_source(color, shape, alpha, layer.blend_mode, knockout)
+        self._apply_source(
+            color, shape * shape_const, alpha * shape_const, layer.blend_mode,
+            knockout
+        )
 
         # TODO: Apply after effects
         self._apply_color_overlay(layer, color, shape, alpha)
