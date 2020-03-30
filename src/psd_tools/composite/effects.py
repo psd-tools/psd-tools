@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 def draw_stroke_effect(viewport, shape, desc, psd):
     logger.debug('Stroke effect has limited support')
     height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
+    if not isinstance(shape, np.ndarray):
+        shape = np.full((height, width, 1), shape, dtype=np.float32)
 
     paint = desc.get(Key.PaintType).enum
     if paint == Enum.SolidColor:
