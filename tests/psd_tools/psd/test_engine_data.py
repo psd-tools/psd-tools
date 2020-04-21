@@ -51,6 +51,13 @@ def test_engine_data(filename, indent, write):
     assert output == fixture
 
 
+@pytest.mark.parametrize('filename', ['TySh_2.dat',])
+def test_engine_data_parse(filename):
+    filepath = os.path.join(TEST_ROOT, 'engine_data', filename)
+    with open(filepath, 'rb') as f:
+        assert isinstance(EngineData.read(f), EngineData)
+
+
 @pytest.mark.parametrize(
     'fixture', [
         b'0.0',
