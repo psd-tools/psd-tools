@@ -59,7 +59,7 @@ class EngineToken(Enum):
     NOOP = compile_re(r'^$')
     NUMBER = compile_re(r'^-?\d+$')
     NUMBER_WITH_DECIMAL = compile_re(r'^-?\d*\.\d+$')
-    PROPERTY = compile_re(r'^\/[a-zA-Z0-9]+$')
+    PROPERTY = compile_re(r'^\/[a-zA-Z0-9_]+$')
     STRING = compile_re(r'^\((\xfe\xff([^\)]|\\\))*)\)$')
     # Unknown tags: b'(hwid)', b'(fwid)', b'(aalt)'
     UNKNOWN_TAG = compile_re(r'^\([a-zA-Z0-9]*\)$')
