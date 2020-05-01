@@ -98,14 +98,7 @@ def composite(
     for layer in (
         group if hasattr(group, '__iter__') and not as_layer else [group]
     ):
-        if isinstance(layer, AdjustmentLayer):
-            logger.debug('Ignore %s' % layer)
-            continue
-        if _intersect(viewport, layer.bbox) == (0, 0, 0, 0):
-            logger.debug('Out of viewport %s' % (layer))
-            continue
-        if layer_filter(layer):
-            compositor.apply(layer)
+        compositor.apply(layer)
 
     return compositor.finish()
 
@@ -184,6 +177,16 @@ class Compositor(object):
 
     def apply(self, layer):
         logger.debug('Compositing %s' % layer)
+
+        if not self._layer_filter(layer):
+            logger.debug('Ignore %s' % layer)
+            return
+        if isinstance(layer, AdjustmentLayer):
+            logger.debug('Ignore adjustment %s' % layer)
+            return
+        if _intersect(self._viewport, layer.bbox) == (0, 0, 0, 0):
+            logger.debug('Out of viewport %s' % (layer))
+            return
 
         knockout = bool(layer.tagged_blocks.get_data(Tag.KNOCKOUT_SETTING, 0))
         if layer.is_group():
