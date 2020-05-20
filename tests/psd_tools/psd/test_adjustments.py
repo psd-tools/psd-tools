@@ -59,3 +59,10 @@ def test_curves_rw(filename):
     with open(filepath, 'rb') as f:
         fixture = f.read()
     check_read_write(Curves, fixture)
+
+
+@pytest.mark.parametrize('filename', ['curves_2.dat'])
+def test_curves_r(filename):
+    filepath = os.path.join(TEST_ROOT, 'tagged_blocks', filename)
+    with open(filepath, 'rb') as f:
+        Curves.read(f)
