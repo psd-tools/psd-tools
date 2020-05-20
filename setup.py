@@ -51,6 +51,7 @@ setup(
         'numpy',
         'scipy',
         'scikit-image',
+        'tifffile<=2019.7.26;python_version<"3.6"',  # scikit-image workaround
     ],
     keywords="photoshop psd pil pillow",
     package_dir={'': 'src'},
