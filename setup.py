@@ -50,8 +50,7 @@ setup(
         'aggdraw',
         'numpy',
         'scipy',
-        'scikit-image',
-        'tifffile<=2019.7.26;python_version<"3.6"',  # scikit-image workaround
+        'scikit-image<=0.16.2',
     ],
     keywords="photoshop psd pil pillow",
     package_dir={'': 'src'},
