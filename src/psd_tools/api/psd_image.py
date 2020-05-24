@@ -533,6 +533,8 @@ class PSDImage(GroupMixin):
             divider = blocks.get_data(
                 Tag.NESTED_SECTION_DIVIDER_SETTING, divider
             )
+
+            layer = None
             if divider is not None:
                 if divider.kind == SectionDivider.BOUNDING_SECTION_DIVIDER:
                     layer = Group(self, None, None, current_group)
