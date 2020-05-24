@@ -581,9 +581,9 @@ class PSDImage(GroupMixin):
                             self, record, channels, current_group
                         )
                         break
-                # If nothing applies, this is a pixel layer.
-                if layer is None:
-                    layer = PixelLayer(self, record, channels, current_group)
+            # If nothing applies, this is a pixel layer.
+            if layer is None:
+                layer = PixelLayer(self, record, channels, current_group)
 
             if record.clipping == Clipping.NON_BASE:
                 clip_stack.append(layer)
