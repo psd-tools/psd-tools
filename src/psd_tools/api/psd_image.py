@@ -529,6 +529,7 @@ class PSDImage(GroupMixin):
 
             blocks = record.tagged_blocks
             end_of_group = False
+            layer = None
             divider = blocks.get_data(Tag.SECTION_DIVIDER_SETTING, None)
             divider = blocks.get_data(
                 Tag.NESTED_SECTION_DIVIDER_SETTING, divider
@@ -552,6 +553,8 @@ class PSDImage(GroupMixin):
                         if key in blocks:
                             layer = Artboard._move(layer)
                     end_of_group = True
+                else:
+                    logger.warning('Divider %s found.' % divider.kind)
             elif (
                 Tag.TYPE_TOOL_OBJECT_SETTING in blocks or
                 Tag.TYPE_TOOL_INFO in blocks
@@ -574,16 +577,16 @@ class PSDImage(GroupMixin):
             ):
                 layer = SmartObjectLayer(self, record, channels, current_group)
             else:
-                layer = None
                 for key in adjustments.TYPES.keys():
                     if key in blocks:
                         layer = adjustments.TYPES[key](
                             self, record, channels, current_group
                         )
                         break
-                # If nothing applies, this is a pixel layer.
-                if layer is None:
-                    layer = PixelLayer(self, record, channels, current_group)
+
+            # If nothing applies, this is a pixel layer.
+            if layer is None:
+                layer = PixelLayer(self, record, channels, current_group)
 
             if record.clipping == Clipping.NON_BASE:
                 clip_stack.append(layer)

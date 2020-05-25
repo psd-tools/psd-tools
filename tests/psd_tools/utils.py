@@ -42,7 +42,7 @@ def full_name(filename):
 
 
 def all_files():
-    return list(find_files())
+    return [f for f in find_files() if f.find('third-party-psds') < 0]
 
 
 def check_write_read(element, *args, **kwargs):

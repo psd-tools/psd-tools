@@ -99,3 +99,10 @@ def test_thumnail(fixture):
 def test_repr_pretty(fixture):
     fixture.__repr__()
     pprint(fixture)
+
+
+@pytest.mark.parametrize('filename', [
+    os.path.join('third-party-psds', 'cactus_top.psd'),
+])
+def test_open(filename):
+    assert isinstance(PSDImage.open(full_name(filename)), PSDImage)
