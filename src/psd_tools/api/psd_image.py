@@ -198,7 +198,7 @@ class PSDImage(GroupMixin):
         :return: :py:class:`PIL.Image`.
         """
         from psd_tools.composite import composite_pil
-        if not (ignore_preview or force) and self.has_preview():
+        if not (ignore_preview or force or layer_filter) and self.has_preview():
             return self.topil()
         return composite_pil(self, color, alpha, viewport, layer_filter, force)
 

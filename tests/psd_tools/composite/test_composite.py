@@ -169,6 +169,15 @@ def test_composite_pil(colormode, depth, mode, ignore_preview):
         assert isinstance(layer.composite(), Image.Image)
 
 
+def test_composite_layer_filter():
+    psd = PSDImage.open(full_name('colormodes/4x4_8bit_rgba.psd'))
+    # Check layer_filter.
+    rendered = psd.composite(layer_filter=lambda x: False)
+    reference = psd.topil()
+    assert all(a != b for a, b in zip(
+        rendered.getextrema(), reference.getextrema()))
+
+
 def test_apply_mask():
     from PIL import Image
     psd = PSDImage.open(full_name('masks/2.psd'))
