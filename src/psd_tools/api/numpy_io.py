@@ -1,7 +1,7 @@
 import numpy as np
 import logging
 
-from psd_tools.constants import ChannelID, Tag, ColorMode
+from psd_tools.constants import ChannelID, Tag, ColorMode, Resource
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,8 @@ def get_array(layer, channel):
 
 
 def get_image_data(psd, channel):
-    if (channel == 'mask') or (channel == 'shape' and not has_alpha(psd)):
+    if (channel == 'mask'
+        ) or (channel == 'shape' and not has_transparency(psd)):
         return np.ones((psd.height, psd.width, 1), dtype=np.float32)
 
     lut = None
@@ -42,7 +43,7 @@ def get_image_data(psd, channel):
     data = _remove_background(data, psd)
 
     if channel == 'shape':
-        return data[:, :, -1:]
+        return np.expand_dims(data[:, :, get_transparency_index(psd)], 2)
     elif channel == 'color':
         if psd.color_mode == ColorMode.MULTICHANNEL:
             return data
@@ -76,8 +77,8 @@ def get_layer_data(layer, channel):
         )
     elif channel == 'shape':
         return _find_channel(
-            layer, layer.width,
-            layer.height, lambda x: x.id == ChannelID.TRANSPARENCY_MASK
+            layer, layer.width, layer.height,
+            lambda x: x.id == ChannelID.TRANSPARENCY_MASK
         )
     elif channel == 'mask':
         if layer.mask._has_real():
@@ -85,16 +86,16 @@ def get_layer_data(layer, channel):
         else:
             channel_id = ChannelID.USER_LAYER_MASK
         return _find_channel(
-            layer, layer.mask.width,
-            layer.mask.height, lambda x: x.id == channel_id
+            layer, layer.mask.width, layer.mask.height,
+            lambda x: x.id == channel_id
         )
 
     color = _find_channel(
         layer, layer.width, layer.height, lambda x: x.id >= 0
     )
     shape = _find_channel(
-        layer, layer.width,
-        layer.height, lambda x: x.id == ChannelID.TRANSPARENCY_MASK
+        layer, layer.width, layer.height,
+        lambda x: x.id == ChannelID.TRANSPARENCY_MASK
     )
     if shape is None:
         return color
@@ -111,7 +112,7 @@ def get_pattern(pattern):
                     axis=1).reshape((height, width, -1))
 
 
-def has_alpha(psd):
+def has_transparency(psd):
     keys = (
         Tag.SAVING_MERGED_TRANSPARENCY,
         Tag.SAVING_MERGED_TRANSPARENCY16,
@@ -119,7 +120,23 @@ def has_alpha(psd):
     )
     if psd.tagged_blocks and any(key in psd.tagged_blocks for key in keys):
         return True
-    return psd.channels > EXPECTED_CHANNELS.get(psd.color_mode)
+    if psd.channels > EXPECTED_CHANNELS.get(psd.color_mode):
+        alpha_ids = psd.image_resources.get_data(Resource.ALPHA_IDENTIFIERS)
+        if alpha_ids and all(x > 0 for x in alpha_ids):
+            return False
+        return True
+    return False
+
+
+def get_transparency_index(psd):
+    alpha_ids = psd.image_resources.get_data(Resource.ALPHA_IDENTIFIERS)
+    if alpha_ids:
+        try:
+            offset = alpha_ids.index(0)
+            return psd.channels - len(alpha_ids) + offset
+        except ValueError:
+            pass
+    return -1  # Assume the last channel is the transparency
 
 
 def _parse_array(data, depth, lut=None):
