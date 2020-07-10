@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
     ('effects/stroke-effects.psd', ),
     ('effects/shape-fx2.psd', ),
 ])
-@pytest.mark.xfail(strict=True)  # TODO: Fix me!
+@pytest.mark.xfail
 def test_stroke_effects(filename):
     err = check_composite_quality(filename, threshold=0.01)
 

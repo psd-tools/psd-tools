@@ -211,7 +211,8 @@ class Compositor(object):
         self._apply_color_overlay(layer, color, shape, alpha)
         self._apply_pattern_overlay(layer, color, shape, alpha)
         self._apply_gradient_overlay(layer, color, shape, alpha)
-        if layer.has_vector_mask():
+        if ((self._force and layer.has_vector_mask()) or (
+            not layer.has_pixels()) and has_fill(layer)):
             self._apply_stroke_effect(layer, color, shape_mask, alpha)
         else:
             self._apply_stroke_effect(layer, color, shape, alpha)
