@@ -6,7 +6,7 @@ import logging
 import io
 
 from psd_tools.constants import ColorMode, ChannelID, Resource
-from .numpy_io import has_alpha
+from .numpy_io import has_transparency, get_transparency_index
 
 logger = logging.getLogger(__name__)
 
@@ -51,9 +51,6 @@ def get_pil_channels(pil_mode):
 
 def convert_image_data_to_pil(psd, channel, apply_icc):
     """Convert ImageData to PIL Image.
-
-    .. note:: Image resources contain extra alpha channels in these keys:
-        `ALPHA_NAMES_UNICODE`, `ALPHA_NAMES_PASCAL`, `ALPHA_IDENTIFIERS`.
     """
     from PIL import Image
 
@@ -74,8 +71,8 @@ def convert_image_data_to_pil(psd, channel, apply_icc):
     if channel is None:
         channels = [_create_image(size, c, psd.depth) for c in channel_data]
 
-        if has_alpha(psd):
-            alpha = channels[-1]
+        if has_transparency(psd):
+            alpha = channels[get_transparency_index(psd)]
 
         if psd.color_mode == ColorMode.INDEXED:
             image = channels[0]

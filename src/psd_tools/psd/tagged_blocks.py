@@ -56,7 +56,7 @@ TYPES.update({
     Tag.BLEND_CLIPPING_ELEMENTS: ByteElement,
     Tag.BLEND_FILL_OPACITY: ByteElement,
     Tag.BLEND_INTERIOR_ELEMENTS: ByteElement,
-    Tag.COMPUTER_INFO: DescriptorBlock,
+    Tag.COMPOSITOR_INFO: DescriptorBlock,
     Tag.CONTENT_GENERATOR_EXTRA_DATA: DescriptorBlock,
     Tag.EFFECTS_LAYER: EffectsLayer,
     Tag.EXPORT_SETTING1: DescriptorBlock,
@@ -223,7 +223,7 @@ class TaggedBlock(BaseElement):
         Tag.UNICODE_PATH_NAME,
         Tag.EXPORT_SETTING1,
         Tag.EXPORT_SETTING2,
-        Tag.COMPUTER_INFO,
+        Tag.COMPOSITOR_INFO,
         Tag.ARTBOARD_DATA2,
     }
 

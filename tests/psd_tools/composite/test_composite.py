@@ -144,7 +144,7 @@ def test_composite_viewport():
         ('grayscale', 8, 'L', False),
         ('index_color', 8, 'P', False),
         ('rgb', 8, 'RGB', False),
-        ('rgba', 8, 'RGBA', False),
+        ('rgba', 8, 'RGB', False),  # Extra alpha is not transparency
         ('lab', 8, 'LAB', False),
         ('multichannel', 16, 'L', False),
         ('bitmap', 1, '1', True),
@@ -153,7 +153,7 @@ def test_composite_viewport():
         ('grayscale', 8, 'L', True),
         ('index_color', 8, 'RGB', True),
         ('rgb', 8, 'RGB', True),
-        ('rgba', 8, 'RGBA', True),
+        ('rgba', 8, 'RGB', True),  # Extra alpha is not transparency
         ('lab', 8, 'LAB', True),
         ('multichannel', 16, 'L', True),
     ]
@@ -167,6 +167,15 @@ def test_composite_pil(colormode, depth, mode, ignore_preview):
     assert image.mode == mode
     for layer in psd:
         assert isinstance(layer.composite(), Image.Image)
+
+
+def test_composite_layer_filter():
+    psd = PSDImage.open(full_name('colormodes/4x4_8bit_rgba.psd'))
+    # Check layer_filter.
+    rendered = psd.composite(layer_filter=lambda x: False)
+    reference = psd.topil()
+    assert all(a != b for a, b in zip(
+        rendered.getextrema(), reference.getextrema()))
 
 
 def test_apply_mask():

@@ -1,3 +1,11 @@
+1.9.14 (2020-07-10)
+-------------------
+
+- [api] Bugfix for PSDImage composite layer_filter option.
+- [api] Bugfix for transparency and alpha distinction.
+- [psd] Rename COMPOSITOR_INFO.
+- [composite] Fix stroke effect target shape.
+
 1.9.13 (2020-05-25)
 -------------------
 

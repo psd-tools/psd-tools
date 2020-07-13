@@ -19,7 +19,7 @@ def composite_pil(
 ):
     from PIL import Image
     from psd_tools.api.pil_io import get_pil_mode
-    from psd_tools.api.numpy_io import has_alpha
+    from psd_tools.api.numpy_io import has_transparency
 
     UNSUPPORTED_MODES = {
         ColorMode.DUOTONE,
@@ -46,7 +46,7 @@ def composite_pil(
     skip_alpha = (
         color_mode not in (ColorMode.GRAYSCALE, ColorMode.RGB) or (
             layer.kind == 'psdimage' and layer.has_preview() and
-            not has_alpha(layer)
+            not has_transparency(layer)
         )
     )
     if not skip_alpha:
@@ -211,7 +211,8 @@ class Compositor(object):
         self._apply_color_overlay(layer, color, shape, alpha)
         self._apply_pattern_overlay(layer, color, shape, alpha)
         self._apply_gradient_overlay(layer, color, shape, alpha)
-        if layer.has_vector_mask():
+        if ((self._force and layer.has_vector_mask()) or (
+            not layer.has_pixels()) and has_fill(layer)):
             self._apply_stroke_effect(layer, color, shape_mask, alpha)
         else:
             self._apply_stroke_effect(layer, color, shape, alpha)

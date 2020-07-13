@@ -302,7 +302,7 @@ class Tag(bytes, Enum):
     CHANNEL_MIXER = b'mixr'
     COLOR_BALANCE = b'blnc'
     COLOR_LOOKUP = b'clrL'
-    COMPUTER_INFO = b'cinf'  # Undocumented.
+    COMPOSITOR_INFO = b'cinf'  # Undocumented.
     CONTENT_GENERATOR_EXTRA_DATA = b'CgEd'
     CURVES = b'curv'
     EFFECTS_LAYER = b'lrFX'
