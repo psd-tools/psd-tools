@@ -293,6 +293,11 @@ class Compositor(object):
         color = paste(self._viewport, viewport, color, 1.)
         shape = paste(self._viewport, viewport, shape)
         alpha = paste(self._viewport, viewport, alpha)
+
+        # Composite clip layers.
+        if layer.has_clip_layers():
+            color = self._apply_clip_layers(layer, color, alpha)
+
         assert color is not None
         assert shape is not None
         assert alpha is not None
@@ -324,18 +329,8 @@ class Compositor(object):
         alpha = shape * 1.  # Constant factor is always 1.
 
         # Composite clip layers.
-        # TODO: Consider Tag.BLEND_CLIPPING_ELEMENTS.
         if layer.has_clip_layers():
-            compositor = Compositor(
-                self._viewport,
-                color,
-                alpha,
-                layer_filter=self._layer_filter,
-                force=self._force
-            )
-            for clip_layer in layer.clip_layers:
-                compositor.apply(clip_layer)
-            color = compositor._color
+            color = self._apply_clip_layers(layer, color, alpha)
 
         # Apply stroke if any.
         if layer.has_stroke() and layer.stroke.enabled:
@@ -350,6 +345,19 @@ class Compositor(object):
         assert shape is not None
         assert alpha is not None
         return color, shape, alpha
+
+    def _apply_clip_layers(self, layer, color, alpha):
+        # TODO: Consider Tag.BLEND_CLIPPING_ELEMENTS.
+        compositor = Compositor(
+            self._viewport,
+            color,
+            alpha,
+            layer_filter=self._layer_filter,
+            force=self._force
+        )
+        for clip_layer in layer.clip_layers:
+            compositor.apply(clip_layer)
+        return compositor._color
 
     def _get_mask(self, layer):
         """Get mask attributes."""
