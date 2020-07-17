@@ -38,6 +38,7 @@ def check_composite_quality(filename, threshold=0.1, force=False):
     ('vector-mask3.psd', ),
     ('clipping-mask.psd', ),
     ('clipping-mask2.psd', ),
+    ('clipping-mask3.psd', ),
     ('opacity-fill.psd', ),
     ('transparency/transparency-group.psd', ),
     ('transparency/knockout-isolated-groups.psd', ),

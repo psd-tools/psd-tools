@@ -1,3 +1,9 @@
+1.9.15 (2020-07-17)
+-------------------
+
+- [composite] Fix ignored clip layers for groups.
+- [composite] Fix out-of-viewport stroke effect.
+
 1.9.14 (2020-07-10)
 -------------------
 
