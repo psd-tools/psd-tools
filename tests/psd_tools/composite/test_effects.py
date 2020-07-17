@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 @pytest.mark.parametrize(("filename", ), [
     ('effects/stroke-effects.psd', ),
     ('effects/shape-fx2.psd', ),
+    ('effects/stroke-effect-transparent-shape.psd', ),
 ])
 @pytest.mark.xfail
 def test_stroke_effects(filename):
