@@ -497,10 +497,17 @@ class PSDImage(GroupMixin):
     def _make_header(cls, mode, size, depth=8):
         from .pil_io import get_color_mode
         assert depth in (8, 16, 32), 'Invalid depth: %d' % (depth)
+        assert size[0] <= 300000, 'Width too large > 300,000'
+        assert size[1] <= 300000, 'Height too large > 300,000'
+        version = 1
+        if size[0] > 30000 or size[1] > 30000:
+            logger.debug('Width or height larger than 30,000 pixels')
+            version = 2
         color_mode = get_color_mode(mode)
         alpha = int(mode.upper().endswith('A'))
         channels = ColorMode.channels(color_mode, alpha)
         return FileHeader(
+            version=version,
             width=size[0],
             height=size[1],
             depth=depth,
