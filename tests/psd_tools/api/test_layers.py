@@ -143,6 +143,11 @@ def test_layer_kind(kind_args):
     assert layer.kind == expected
 
 
+def test_curves_with_vectormask():
+    layer = PSDImage.open(full_name('layers/curves-with-vectormask.psd'))[0]
+    assert layer.kind == 'curves'
+
+
 @pytest.fixture(params=ALL_FIXTURES)
 def topil_args(request):
     is_image = request.param in {
