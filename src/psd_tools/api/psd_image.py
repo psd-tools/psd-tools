@@ -497,10 +497,17 @@ class PSDImage(GroupMixin):
     def _make_header(cls, mode, size, depth=8):
         from .pil_io import get_color_mode
         assert depth in (8, 16, 32), 'Invalid depth: %d' % (depth)
+        assert size[0] <= 300000, 'Width too large > 300,000'
+        assert size[1] <= 300000, 'Height too large > 300,000'
+        version = 1
+        if size[0] > 30000 or size[1] > 30000:
+            logger.debug('Width or height larger than 30,000 pixels')
+            version = 2
         color_mode = get_color_mode(mode)
         alpha = int(mode.upper().endswith('A'))
         channels = ColorMode.channels(color_mode, alpha)
         return FileHeader(
+            version=version,
             width=size[0],
             height=size[1],
             depth=depth,
@@ -561,16 +568,6 @@ class PSDImage(GroupMixin):
             ):
                 layer = TypeLayer(self, record, channels, current_group)
             elif (
-                record.flags.pixel_data_irrelevant and (
-                    Tag.VECTOR_ORIGINATION_DATA in blocks or
-                    Tag.VECTOR_MASK_SETTING1 in blocks or
-                    Tag.VECTOR_MASK_SETTING2 in blocks or
-                    Tag.VECTOR_STROKE_DATA in blocks or
-                    Tag.VECTOR_STROKE_CONTENT_DATA in blocks
-                )
-            ):
-                layer = ShapeLayer(self, record, channels, current_group)
-            elif (
                 Tag.SMART_OBJECT_LAYER_DATA1 in blocks or
                 Tag.SMART_OBJECT_LAYER_DATA2 in blocks or
                 Tag.PLACED_LAYER1 in blocks or Tag.PLACED_LAYER2 in blocks
@@ -584,9 +581,22 @@ class PSDImage(GroupMixin):
                         )
                         break
 
-            # If nothing applies, this is a pixel layer.
+            # If nothing applies, this is either a shape or pixel layer.
             if layer is None:
-                layer = PixelLayer(self, record, channels, current_group)
+                if (
+                    record.flags.pixel_data_irrelevant and (
+                        Tag.VECTOR_ORIGINATION_DATA in blocks or
+                        Tag.VECTOR_MASK_SETTING1 in blocks or
+                        Tag.VECTOR_MASK_SETTING2 in blocks or
+                        Tag.VECTOR_STROKE_DATA in blocks or
+                        Tag.VECTOR_STROKE_CONTENT_DATA in blocks
+                    )
+                ):
+                    layer = ShapeLayer(self, record, channels, current_group)
+                else:
+                    layer = PixelLayer(self, record, channels, current_group)
+
+            assert layer is not None
 
             if record.clipping == Clipping.NON_BASE:
                 clip_stack.append(layer)

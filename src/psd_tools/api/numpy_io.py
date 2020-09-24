@@ -17,11 +17,11 @@ EXPECTED_CHANNELS = {
 }
 
 
-def get_array(layer, channel):
+def get_array(layer, channel, **kwargs):
     if layer.kind == 'psdimage':
         return get_image_data(layer, channel)
     else:
-        return get_layer_data(layer, channel)
+        return get_layer_data(layer, channel, **kwargs)
     return None
 
 
@@ -53,7 +53,7 @@ def get_image_data(psd, channel):
     return data
 
 
-def get_layer_data(layer, channel):
+def get_layer_data(layer, channel, real_mask=True):
     def _find_channel(layer, width, height, condition):
         depth, version = layer._psd.depth, layer._psd.version
         iterator = zip(layer._record.channel_info, layer._channels)
@@ -81,7 +81,7 @@ def get_layer_data(layer, channel):
             lambda x: x.id == ChannelID.TRANSPARENCY_MASK
         )
     elif channel == 'mask':
-        if layer.mask._has_real():
+        if layer.mask._has_real() and real_mask:
             channel_id = ChannelID.REAL_USER_LAYER_MASK
         else:
             channel_id = ChannelID.USER_LAYER_MASK

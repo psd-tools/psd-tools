@@ -291,17 +291,17 @@ class VectorMaskSetting(BaseElement):
     @property
     def invert(self):
         """Flag to indicate that the vector mask is inverted."""
-        return self.flags & 1
+        return bool(self.flags & 1)
 
     @property
     def not_link(self):
         """Flag to indicate that the vector mask is not linked."""
-        return self.flags & 2
+        return bool(self.flags & 2)
 
     @property
     def disable(self):
         """Flag to indicate that the vector mask is disabled."""
-        return self.flags & 4
+        return bool(self.flags & 4)
 
 
 @attr.s(repr=False, slots=True)

@@ -29,6 +29,13 @@ def test_new(args):
     PSDImage.new(*args)
 
 
+def test_frompil_psb():
+    from PIL import Image
+    image = Image.new('RGB', (30001, 24))
+    psb = PSDImage.frompil(image)
+    assert psb.version == 2
+
+
 @pytest.mark.parametrize('filename', [
     'colormodes/4x4_8bit_rgb.psd',
 ])

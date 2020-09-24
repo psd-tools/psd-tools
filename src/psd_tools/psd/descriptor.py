@@ -278,19 +278,24 @@ class UnitFloat(NumericElement):
 
     .. py:attribute:: unit
 
-        unit of the value in :py:class:`Unit`
+        unit of the value in :py:class:`Unit` or :py:class:`Enum`
 
     .. py:attribute:: value
 
         `float` value
     """
     value = attr.ib(default=0.0, type=float)
-    unit = attr.ib(default=Unit._None, converter=Unit, validator=in_(Unit))
+    unit = attr.ib(default=Unit._None)
 
     @classmethod
     def read(cls, fp):
         unit, value = read_fmt('4sd', fp)
-        return cls(unit=Unit(unit), value=value)
+        try:
+            unit = Unit(unit)
+        except ValueError:
+            logger.warning('Using Enum for Unit field')
+            unit = Enum(unit)
+        return cls(unit=unit, value=value)
 
     def write(self, fp):
         return write_fmt(fp, '4sd', self.unit.value, self.value)
@@ -311,20 +316,25 @@ class UnitFloats(BaseElement):
 
     .. py:attribute:: unit
 
-        unit of the value in :py:class:`Unit`
+        unit of the value in :py:class:`Unit` or :py:class:`Enum`
 
     .. py:attribute:: values
 
         List of `float` values
     """
-    unit = attr.ib(default=Unit._None, converter=Unit, validator=in_(Unit))
+    unit = attr.ib(default=Unit._None)
     values = attr.ib(factory=list)
 
     @classmethod
     def read(cls, fp):
         unit, count = read_fmt('4sI', fp)
+        try:
+            unit = Unit(unit)
+        except ValueError:
+            logger.warning('Using Enum for Unit field')
+            unit = Enum(unit)
         values = list(read_fmt('%dd' % count, fp))
-        return cls(unit, values)
+        return cls(unit=unit, values=values)
 
     def write(self, fp):
         return write_fmt(

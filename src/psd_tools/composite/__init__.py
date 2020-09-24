@@ -43,12 +43,13 @@ def composite_pil(
     if mode == 'P':
         mode = 'RGB'
     # Skip only when there is a preview image and it has no alpha.
-    skip_alpha = (
+    skip_alpha = not force and (
         color_mode not in (ColorMode.GRAYSCALE, ColorMode.RGB) or (
             layer.kind == 'psdimage' and layer.has_preview() and
             not has_transparency(layer)
         )
     )
+    logger.debug('Skipping alpha: %g' % skip_alpha)
     if not skip_alpha:
         color = np.concatenate((color, alpha), 2)
         mode += 'A'
@@ -363,9 +364,9 @@ class Compositor(object):
         """Get mask attributes."""
         shape = 1.
         opacity = 1.
-        if layer.has_mask():
+        if layer.has_mask() and not layer.mask.disabled:
             # TODO: When force, ignore real mask.
-            mask = layer.numpy('mask')
+            mask = layer.numpy('mask', real_mask=not self._force)
             if mask is not None:
                 shape = paste(
                     self._viewport, layer.mask.bbox, mask,
@@ -379,7 +380,7 @@ class Compositor(object):
                     density = 255
                 opacity = float(density) / 255.
 
-        if layer.has_vector_mask() and (
+        if layer.has_vector_mask() and not layer.vector_mask.disabled and (
             self._force or not layer.has_pixels() or (
                 not has_fill(layer) and layer.has_mask() and
                 not layer.mask._has_real()
