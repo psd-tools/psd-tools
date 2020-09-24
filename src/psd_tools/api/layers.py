@@ -380,7 +380,7 @@ class Layer(object):
             return compose_layer(self, force=force)
         return compose(self, force=force, bbox=bbox, layer_filter=layer_filter)
 
-    def numpy(self, channel=None):
+    def numpy(self, channel=None, real_mask=True):
         """
         Get NumPy array of the layer.
 
@@ -389,7 +389,7 @@ class Layer(object):
         :return: :py:class:`numpy.ndarray` or None if there is no pixel.
         """
         from .numpy_io import get_array
-        return get_array(self, channel)
+        return get_array(self, channel, real_mask=real_mask)
 
     def composite(
         self,

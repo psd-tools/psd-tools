@@ -53,7 +53,10 @@ def draw_stroke(layer):
 
 def _draw_path(layer, brush=None, pen=None):
     height, width = layer._psd.height, layer._psd.width
-    color = layer.vector_mask.initial_fill_rule
+    color = 0
+    if layer.vector_mask.initial_fill_rule and \
+        len(layer.vector_mask.paths) == 0:
+        color = 1
     mask = np.full((height, width, 1), color, dtype=np.float32)
 
     # Group merged path components.
@@ -85,6 +88,7 @@ def _draw_path(layer, brush=None, pen=None):
                 mask = 1 - mask
             mask = mask * plane
         first = False
+
     return np.minimum(1, np.maximum(0, mask))
 
 

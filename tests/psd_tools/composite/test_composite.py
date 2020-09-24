@@ -35,7 +35,6 @@ def check_composite_quality(filename, threshold=0.1, force=False):
     ('background-red-opacity-80.psd', ),
     ('32bit.psd', ),
     ('clipping-mask2.psd', ),
-    ('vector-mask3.psd', ),
     ('clipping-mask.psd', ),
     ('clipping-mask2.psd', ),
     ('clipping-mask3.psd', ),
@@ -44,6 +43,11 @@ def check_composite_quality(filename, threshold=0.1, force=False):
     ('transparency/knockout-isolated-groups.psd', ),
     ('transparency/clip-opacity.psd', ),
     ('transparency/fill-opacity.psd', ),
+    ('mask.psd', ),
+    ('mask-disabled.psd', ),
+    # ('vector-mask.psd', ),  # 32-bit blending not working.
+    ('vector-mask-disabled.psd', ),
+    ('vector-mask3.psd', ),
 ])
 def test_composite_quality(filename):
     check_composite_quality(filename, 0.01, False)
