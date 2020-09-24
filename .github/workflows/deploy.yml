@@ -32,17 +32,9 @@ jobs:
           - quay.io/pypa/manylinux2010_x86_64
           - quay.io/pypa/manylinux2014_x86_64
         python-version:
-          - cp27-cp27m
-          - cp27-cp27mu
-          - cp35-cp35m
           - cp36-cp36m
           - cp37-cp37m
           - cp38-cp38
-        exclude:
-          - container: quay.io/pypa/manylinux2014_x86_64
-            python-version: cp27-cp27m
-          - container: quay.io/pypa/manylinux2014_x86_64
-            python-version: cp27-cp27mu
     container: ${{ matrix.container }}
     steps:
     - uses: actions/checkout@v1
@@ -65,10 +57,7 @@ jobs:
     strategy:
       matrix:
         os: [macos-latest, windows-latest]
-        python-version: [2.7, 3.5, 3.6, 3.7, 3.8]
-        exclude:
-          - os: windows-latest
-            python-version: 2.7
+        python-version: [3.6, 3.7, 3.8]
     steps:
     - uses: actions/checkout@v1
     - uses: actions/setup-python@v1
