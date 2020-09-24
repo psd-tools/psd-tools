@@ -69,3 +69,11 @@ def test_unit_float(unit, value):
     assert fixture == value
     assert fixture + 1.0
     assert isinstance(float(fixture), float)
+
+
+@pytest.mark.parametrize('fixture', [
+    b'RrCm\x00\x00\x00\x00\x00\x00\x00\x00',
+    b'#Pxl\x00\x00\x00\x00\x00\x00\x00\x00',
+])
+def test_unit_float_enum(fixture):
+    unitfloat = UnitFloat.frombytes(fixture)
