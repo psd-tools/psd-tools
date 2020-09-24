@@ -43,12 +43,13 @@ def composite_pil(
     if mode == 'P':
         mode = 'RGB'
     # Skip only when there is a preview image and it has no alpha.
-    skip_alpha = (
+    skip_alpha = not force and (
         color_mode not in (ColorMode.GRAYSCALE, ColorMode.RGB) or (
             layer.kind == 'psdimage' and layer.has_preview() and
             not has_transparency(layer)
         )
     )
+    logger.debug('Skipping alpha: %g' % skip_alpha)
     if not skip_alpha:
         color = np.concatenate((color, alpha), 2)
         mode += 'A'
