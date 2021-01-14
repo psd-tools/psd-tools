@@ -52,8 +52,8 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = 'psd-tools2'
-copyright = '2017, Kota Yamaguchi'
+project = 'psd-tools'
+copyright = '2019, Kota Yamaguchi'
 author = 'Kota Yamaguchi'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -121,8 +121,8 @@ html_sidebars = {
 # Github link
 html_context = dict(
     display_github=True,
-    github_user="kyamagu",
-    github_repo="psd-tools2",
+    github_user="psd-tools",
+    github_repo="psd-tools",
     github_version="master",
     conf_py_path="/docs/",
 )

@@ -1,13 +1,19 @@
-# -*- coding: utf-8 -*-
-from __future__ import absolute_import, unicode_literals, print_function
+from __future__ import unicode_literals
 import logging
 import docopt
 
-import psd_tools.reader
-import psd_tools.decoder
 from psd_tools import PSDImage
+<<<<<<< HEAD:psd_tools/__main__.py
 from psd_tools.debug import pprint
 from psd_tools._version import __version__
+=======
+from psd_tools.version import __version__
+>>>>>>> 21d36529b341689abad07dd7c9244fac6454ee9f:src/psd_tools/__main__.py
+
+try:
+    from IPython.lib.pretty import pprint
+except ImportError:
+    from pprint import pprint
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.StreamHandler())
@@ -15,53 +21,54 @@ logger.addHandler(logging.StreamHandler())
 
 def main():
     """
-    psd-tools
+    psd-tools command line utility.
 
     Usage:
-        psd-tools convert <psd_filename> <out_filename> [options]
-        psd-tools export_layer <psd_filename> <layer_index> <out_filename> \
-[options]
-        psd-tools debug <filename> [options]
-        psd-tools -h | --help
-        psd-tools --version
+        psd-tools2 export <input_file> <output_file> [options]
+        psd-tools2 show <input_file> [options]
+        psd-tools2 debug <input_file> [options]
+        psd-tools2 -h | --help
+        psd-tools2 --version
 
     Options:
         -v --verbose                Be more verbose.
-        --encoding <encoding>       Text encoding [default: utf8].
 
+    Example:
+        psd-tools2 show example.psd  # Show the file content
+        psd-tools2 export example.psd example.png  # Export as PNG
+        psd-tools2 export example.psd[0] example-0.png  # Export layer as PNG
     """
+
     args = docopt.docopt(main.__doc__, version=__version__)
 
     if args['--verbose']:
         logger.setLevel(logging.DEBUG)
     else:
         logger.setLevel(logging.INFO)
-    encoding = args['--encoding']
 
-    if args['convert']:
-        psd = PSDImage.load(args['<psd_filename>'], encoding=encoding)
-        im = psd.as_PIL()
-        im.save(args['<out_filename>'])
+    if args['export']:
+        input_parts = args['<input_file>'].split('[')
+        input_file = input_parts[0]
+        if len(input_parts) > 1:
+            indices = [int(x.rstrip(']')) for x in input_parts[1:]]
+        else:
+            indices = []
+        layer = PSDImage.open(input_file)
+        for index in indices:
+            layer = layer[index]
+        if isinstance(layer, PSDImage) and layer.has_preview():
+            image = layer.topil()
+        else:
+            image = layer.compose()
+        image.save(args['<output_file>'])
 
-    elif args['export_layer']:
-        psd = PSDImage.load(args['<psd_filename>'], encoding=encoding)
-        index = int(args['<layer_index>'])
-        im = psd.layers[index].as_PIL()
-        im.save(args['<out_filename>'])
-        print(psd.layers)
-
-        psd.as_PIL()
+    elif args['show']:
+        psd = PSDImage.open(args['<input_file>'])
+        pprint(psd)
 
     elif args['debug']:
-        psd = PSDImage.load(args['<filename>'], encoding=encoding)
-
-        print("\nHeader\n------")
-        print(psd.decoded_data.header)
-        print("\nDecoded data\n-----------")
-        pprint(psd.decoded_data)
-        print("\nLayers\n------")
-        psd.print_tree()
-
+        psd = PSDImage.open(args['<input_file>'])
+        pprint(psd._psd)
 
 if __name__ == "__main__":
     main()
