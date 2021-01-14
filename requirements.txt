@@ -5,7 +5,7 @@ ExifRead==2.1.2
 ImageHash==4.0
 more-itertools==4.3.0
 numpy==1.15.2
-Pillow==7.1.0
+Pillow>=7.1.0
 pluggy==0.7.1
 py==1.6.0
 PyBundle==1.0.5
