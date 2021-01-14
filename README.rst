@@ -1,6 +1,10 @@
 psd-tools2
 ==========
 
+.. image:: https://badges.production.guardrails.io/mrstephenneal/psd-tools2.svg
+   :alt: GuardRails badge
+   :target: https://www.guardrails.io
+
 ``psd-tools2`` is a package for reading Adobe Photoshop PSD files
 as described in specification_ to Python data structures.
 
