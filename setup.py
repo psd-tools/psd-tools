@@ -1,27 +1,19 @@
 #!/usr/bin/env python
-from setuptools import setup, find_packages
-import logging
+from setuptools import setup
+from setuptools.extension import Extension
+from setuptools.command.build_ext import build_ext
+from distutils import errors
+
 import os
-
-logger = logging.getLogger(__name__)
-
+import sys
 
 
 def get_version():
-<<<<<<< HEAD
     filename = os.path.join(os.path.dirname(__file__), 'psd_tools', '_version.py')
-=======
-    """
-    Get package version.
-    """
-    curdir = os.path.dirname(__file__)
-    filename = os.path.join(curdir, 'src', 'psd_tools', 'version.py')
->>>>>>> 21d36529b341689abad07dd7c9244fac6454ee9f
     with open(filename, 'rb') as fp:
         return fp.read().decode('utf8').split('=')[1].strip(" \n'")
 
 
-<<<<<<< HEAD
 setup_args = dict(
     name='psd-tools3',
     version=get_version(),
@@ -30,20 +22,10 @@ setup_args = dict(
     url='https://github.com/mrstephenneal/psd-tools3',
 
     description='Fork of psd-tools for working with Adobe Photoshop PSD files',
-=======
-setup(
-    name='psd-tools',
-    version=get_version(),
-    author='Kota Yamaguchi',
-    author_email='KotaYamaguchi1984@gmail.com',
-    url='https://github.com/psd-tools/psd-tools',
-    description='Fork of psd-tools for working with Photoshop PSD files',
->>>>>>> 21d36529b341689abad07dd7c9244fac6454ee9f
     long_description=(
         open('README.rst').read() + "\n\n" + open('CHANGES.rst').read()
     ),
     license='MIT License',
-<<<<<<< HEAD
     requires=['docopt (>= 0.5)', 'Pillow'],
     install_requires=['docopt >= 0.5', 'packbits', 'exifread', 'PyBundle'],
     keywords="pymaging psd imaging pil pillow",
@@ -52,21 +34,10 @@ setup(
     packages=['psd_tools', 'psd_tools.reader', 'psd_tools.decoder',
               'psd_tools.user_api', 'psd_tools.icc_profiles'],
     package_data={'psd_tools': ['icc_profiles/*.icc']},
-=======
-    install_requires=[
-        'docopt >= 0.5',
-        'packbits',
-        'attrs',
-        'Pillow',
-        'enum34;python_version<"3.4"',
-    ],
-    keywords="photoshop psd pil pillow",
-    package_dir={'': 'src'},
-    packages=find_packages('src'),
->>>>>>> 21d36529b341689abad07dd7c9244fac6454ee9f
     entry_points={
         'console_scripts': ['psd-tools=psd_tools.__main__:main']
     },
+
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
@@ -75,9 +46,11 @@ setup(
         'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy',
         'Topic :: Multimedia :: Graphics',
         'Topic :: Multimedia :: Graphics :: Viewers',
@@ -85,7 +58,6 @@ setup(
         'Topic :: Software Development :: Libraries :: Python Modules',
     ],
 )
-<<<<<<< HEAD
 
 # ========== make extension optional (copied from coverage.py) =========
 
@@ -179,5 +151,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-=======
->>>>>>> 21d36529b341689abad07dd7c9244fac6454ee9f

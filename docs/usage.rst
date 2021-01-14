@@ -1,135 +1,165 @@
 Usage
 =====
 
+
 Command line
 ------------
 
-The package provides command line tools to handle a PSD document::
+The package provides command line tools to parse a PSD document.
 
-    psd-tools export <input_file> <output_file> [options]
-    psd-tools show <input_file> [options]
-    psd-tools debug <input_file> [options]
-    psd-tools -h | --help
-    psd-tools --version
+.. code::
 
-Example::
+    psd-tools convert <psd_filename> <out_filename> [options]
+    psd-tools export_layer <psd_filename> <layer_index> <out_filename> [options]
+    psd-tools debug <filename> [options]
+    psd-tools -h | –help
+    psd-tools –version
 
-    psd-tools show example.psd  # Show the file content
-    psd-tools export example.psd example.png  # Export as PNG
-    psd-tools export example.psd[0] example-0.png  # Export layer as PNG
 
-Working with PSD document
--------------------------
+Parsing PSD document
+--------------------
 
-:py:mod:`psd_tools.api` package provides the user-friendly API to work
+:py:mod:`psd_tools.user_api` package provides the user-friendly API to work
 with PSD files.
 :py:class:`~psd_tools.PSDImage` represents a PSD file.
 
-Open an image::
+Load an image::
 
-    from psd_tools import PSDImage
-    psd = PSDImage.open('my_image.psd')
+    >>> from psd_tools import PSDImage
+    >>> psd = PSDImage.load('my_image.psd')
 
-Most of the data structure in the :py:mod:`psd-tools` suppports pretty
-printing in IPython environment.
+Print the layer structure::
 
-.. code-block:: none
+    >>> psd.print_tree()
+    <psdimage: size=100x200, layer_count=2>
+      <group: 'Group 1', layer_count=1, mask=None, visible=1>
+        <shape: 'Shape 1', size=41x74, x=25, y=24, visible=1, mask=None, effects=None>
+      <pixel: 'Background', size=100x200, x=0, y=0, visible=1, mask=None, effects=None>
 
-    In [1]: PSDImage.open('example.psd')
-    Out[1]:
-    PSDImage(mode=RGB size=101x55 depth=8 channels=3)
-      [0] PixelLayer('Background' size=101x55)
-      [1] PixelLayer('Layer 1' size=85x46)
+Read image header::
 
-Internal layers are accessible by iterator or indexing::
+    >>> psd.header
+    PsdHeader(version=1, number_of_channels=3, height=200, width=100, depth=8, color_mode=RGB)
 
-    for layer in psd:
-        print(layer)
-        if layer.is_group():
-            for child in layer:
-                print(child)
+Access its layers::
 
-    child = psd[0][0]
+    >>> psd.layers
+    [<group: 'Group 1', layer_count=1, mask=None, visible=1>,
+     <pixel: 'Background', size=100x200, x=0, y=0, visible=1, mask=None, effects=None>]
 
-.. note:: The iteration order is from background to foreground, which is
-    reversed from version prior to 1.7.x. Use ``reversed(list(psd))`` to
-    iterate from foreground to background.
+Get pattern dict::
 
-The opened file can be saved::
+    >>> psd.patterns
+    {'b2fdfd29-de85-11d5-838b-ff55e75fb875': <psd_tools.Pattern: size=265x219 ...>}
 
-    psd.save('output.psd')
+All the low-level internal data are kept in the
+:py:attr:`~psd_tools.PSDImage.decoded_data` attribute.
 
 
 Working with Layers
 -------------------
 
-There are various layer kinds in Photoshop.
+Layers can be one of :py:class:`~psd_tools.user_api.layers.Group`,
+:py:class:`~psd_tools.user_api.layers.PixelLayer`,
+:py:class:`~psd_tools.user_api.layers.ShapeLayer`,
+:py:class:`~psd_tools.user_api.layers.TypeLayer`,
+:py:class:`~psd_tools.user_api.layers.AdjustmentLayer`, or
+:py:class:`~psd_tools.user_api.layers.SmartObjectLayer`.
 
-The most basic layer type is :py:class:`~psd_tools.api.layers.PixelLayer`::
+:py:class:`~psd_tools.user_api.layers.Group` has internal
+:py:attr:`~psd_tools.user_api.layers.Group.layers`::
 
-    print(layer.name)
-    layer.kind == 'pixel'
+    >>> group1 = psd.layers[0]
+    >>> group1.name
+    'Group 1'
 
-Some of the layer attributes are editable, such as a layer name::
+    >>> group1.kind
+    'group'
 
-    layer.name = 'Updated layer 1'
+    >>> group1.visible
+    True
 
-.. note:: Currently, the package does not support adding or removing of
-    a layer.
+    >>> group1.closed
+    False
 
-:py:class:`~psd_tools.api.layers.Group` has internal layers::
+    >>> group1.opacity
+    255
 
-    for layer in group:
-        print(layer)
+    >>> group1.blend_mode == 'normal'
+    True
 
-    first_layer = group[0]
+    >>> group1.layers
+    [<shape: 'Shape 1', size=41x74, x=25, y=24, visible=1, mask=None, effects=None>]
 
-:py:class:`~psd_tools.api.layers.TypeLayer` is a layer with texts::
+Other layers have similar properties::
 
-    print(layer.text)
+    >>> layer = group1.layers[0]
+    >>> layer.name
+    'Shape 1'
 
-:py:class:`~psd_tools.api.layers.ShapeLayer` draws a vector shape, and the
-shape information is stored in `vector_mask` and `origination` property.
-Other layers can also have shape information as a mask::
+    >>> layer.kind
+    'shape'
 
-    print(layer.vector_mask)
-    for shape in layer.origination:
-        print(shape)
+    >>> layer.bbox
+    BBox(x1=40, y1=72, x2=83, y2=134)
 
-:py:class:`~psd_tools.api.layers.SmartObjectLayer` embeds or links an
-external file for non-destructive editing. The file content is accessible
-via `smart_object` property::
+    >>> layer.bbox.width, layer.bbox.height
+    (43, 62)
 
-    import io
-    if layer.smart_object.filetype in ('jpg', 'png'):
-        image = Image.open(io.BytesIO(layer.smart_object.data))
+    >>> layer.visible, layer.opacity, layer.blend_mode
+    (True, 255, 'normal')
 
-:py:class:`~psd_tools.api.adjustments.SolidColorFill`,
-:py:class:`~psd_tools.api.adjustments.PatternFill`, and
-:py:class:`~psd_tools.api.adjustments.GradientFill` are fill layers that
-paint the entire region if there is no associated mask. Sub-classes of
-:py:class:`~psd_tools.api.layers.AdjustmentLayer` represents layer
-adjustment applied to the composed image. See :ref:`adjustment-layers`.
+    >>> mask = layer.mask
+    >>> mask.bbox
+    BBox(x1=40, y1=72, x2=83, y2=134)
 
-Exporting data to PIL
----------------------
+    >>> layer.clip_layers
+    [<pixel: 'Clipped', size=43x62, x=40, y=72, mask=None, visible=1)>, ...]
 
-Export the entire document as :py:class:`PIL.Image`::
+    >>> layer.effects
+    [<GradientOverlay>]
 
-    image = psd.compose()
-    image.save('exported.png')
+:py:class:`~psd_tools.user_api.layers.TypeLayer` has :py:meth:`~psd_tools.user_api.layers.TypeLayer.text` attribute::
 
-Note that above :py:meth:`~psd_tools.PSDImage.compose` might return `None`
-if the PSD document has no visible pixel.
+    >>> layer.text
+    'Text inside a text box'
 
-Export a single layer including masks and clipping layers::
+:py:class:`~psd_tools.user_api.layers.SmartObjectLayer` has
+:py:attr:`~psd_tools.user_api.layers.SmartObjectLayer.linked_data` to obtain
+:py:class:`~psd_tools.user_api.smart_object.SmartObject` object::
 
-    image = layer.compose()
+    >>> smart_object = layer.linked_data
 
-Export layer, mask, or clipping layers separately without composition::
+Raw internal data is accessible by :py:attr:`~psd_tools.user_api.layers._RawLayer._record` property.
 
-    image = layer.topil()
-    mask = layer.mask.topil()
 
-    from psd_tools import compose
-    clip_image = compose(layer.clip_layers)
+Exporting data
+--------------
+
+Export a single layer::
+
+    >>> layer.as_PIL()
+    <PIL.Image.Image image mode=RGBA size=43x62 at ...>
+
+    >>> layer.mask.as_PIL()
+    <PIL.Image.Image image mode=L size=43x62 at ...>
+
+    >>> layer_image = layer.as_PIL()
+    >>> layer_image.save('layer.png')
+
+Export the merged image::
+
+    >>> merged_image = psd.as_PIL()
+    >>> merged_image.save('my_image.png')
+
+The same using Pymaging::
+
+    >>> merged_image = psd.as_pymaging()
+    >>> merged_image.save_to_path('my_image.png')
+    >>> layer_image = layer.as_pymaging()
+    >>> layer_image.save_to_path('layer.png')
+
+Export layer group (experimental)::
+
+    >>> group_image = group2.as_PIL()
+    >>> group_image.save('group.png')

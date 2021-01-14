@@ -1,12 +1,17 @@
 psd\_tools\.constants
 =====================
 
-.. automodule:: psd_tools.constants
-
 BlendMode
 ---------
 
 .. autoclass:: psd_tools.constants.BlendMode
+    :members:
+    :undoc-members:
+
+BlendMode2
+----------
+
+.. autoclass:: psd_tools.constants.BlendMode2
     :members:
     :undoc-members:
 
@@ -45,6 +50,20 @@ Compression
     :members:
     :undoc-members:
 
+DimensionUnit
+-------------
+
+.. autoclass:: psd_tools.constants.DimensionUnit
+    :members:
+    :undoc-members:
+
+DisplayResolutionUnit
+---------------------
+
+.. autoclass:: psd_tools.constants.DisplayResolutionUnit
+    :members:
+    :undoc-members:
+
 EffectOSType
 ------------
 
@@ -59,13 +78,6 @@ GlobalLayerMaskKind
     :members:
     :undoc-members:
 
-LinkedLayerType
----------------
-
-.. autoclass:: psd_tools.constants.LinkedLayerType
-    :members:
-    :undoc-members:
-
 ImageResourceID
 ---------------
 
@@ -73,17 +85,38 @@ ImageResourceID
     :members:
     :undoc-members:
 
-PathResourceID
---------------
+LinkedLayerType
+---------------
 
-.. autoclass:: psd_tools.constants.PathResourceID
+.. autoclass:: psd_tools.constants.LinkedLayerType
     :members:
     :undoc-members:
 
-PlacedLayerType
----------------
+OSType
+------
 
-.. autoclass:: psd_tools.constants.PlacedLayerType
+.. autoclass:: psd_tools.constants.OSType
+    :members:
+    :undoc-members:
+
+ObjectBasedEffects
+------------------
+
+.. autoclass:: psd_tools.constants.ObjectBasedEffects
+    :members:
+    :undoc-members:
+
+PathResource
+------------
+
+.. autoclass:: psd_tools.constants.PathResource
+    :members:
+    :undoc-members:
+
+PlacedLayerProperty
+-------------------
+
+.. autoclass:: psd_tools.constants.PlacedLayerProperty
     :members:
     :undoc-members:
 
@@ -94,6 +127,13 @@ PrintScaleStyle
     :members:
     :undoc-members:
 
+ReferenceOSType
+---------------
+
+.. autoclass:: psd_tools.constants.ReferenceOSType
+    :members:
+    :undoc-members:
+
 SectionDivider
 --------------
 
@@ -101,9 +141,37 @@ SectionDivider
     :members:
     :undoc-members:
 
-TaggedBlockID
+SzProperty
+----------
+
+.. autoclass:: psd_tools.constants.SzProperty
+    :members:
+    :undoc-members:
+
+TaggedBlock
+-----------
+
+.. autoclass:: psd_tools.constants.TaggedBlock
+    :members:
+    :undoc-members:
+
+TextOrientation
+---------------
+
+.. autoclass:: psd_tools.constants.TextOrientation
+    :members:
+    :undoc-members:
+
+TextProperty
+------------
+
+.. autoclass:: psd_tools.constants.TextProperty
+    :members:
+    :undoc-members:
+
+UnitFloatType
 -------------
 
-.. autoclass:: psd_tools.constants.TaggedBlockID
+.. autoclass:: psd_tools.constants.UnitFloatType
     :members:
     :undoc-members:
