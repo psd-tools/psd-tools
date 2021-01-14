@@ -1,11 +1,11 @@
-psd-tools2
+psd-tools3
 ==========
 
-.. image:: https://badges.production.guardrails.io/mrstephenneal/psd-tools2.svg
+.. image:: https://badges.production.guardrails.io/mrstephenneal/psd-tools3.svg
    :alt: GuardRails badge
    :target: https://www.guardrails.io
 
-``psd-tools2`` is a package for reading Adobe Photoshop PSD files
+``psd-tools3`` is a package for reading Adobe Photoshop PSD files
 as described in specification_ to Python data structures.
 
 This is a fork of psd-tools_ that adds a couple of enhancements to the
@@ -13,17 +13,17 @@ original version.
 
 .. _specification: https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/PhotoshopFileFormats.htm
 
-.. image:: https://img.shields.io/pypi/v/psd-tools2.svg
-   :target: https://pypi.python.org/pypi/psd-tools2
+.. image:: https://img.shields.io/pypi/v/psd-tools3.svg
+   :target: https://pypi.python.org/pypi/psd-tools3
    :alt: PyPI Version
 
-.. image:: https://img.shields.io/travis/kyamagu/psd-tools2/master.svg
+.. image:: https://img.shields.io/travis/kyamagu/psd-tools3/master.svg
    :alt: Build Status
-   :target: https://travis-ci.org/kyamagu/psd-tools2
+   :target: https://travis-ci.org/kyamagu/psd-tools3
 
-.. image:: https://readthedocs.org/projects/psd-tools2/badge/
+.. image:: https://readthedocs.org/projects/psd-tools3/badge/
    :alt: Document Status
-   :target: http://psd-tools2.readthedocs.io/en/latest/
+   :target: http://psd-tools3.readthedocs.io/en/latest/
 
 .. _psd-tools: https://github.com/psd-tools/psd-tools
 
@@ -33,7 +33,7 @@ Installation
 
 .. code-block:: bash
 
-    pip install psd-tools2
+    pip install psd-tools3
 
 Pillow_ should be installed if you want work with PSD image and layer data:
 export images to PNG, process them. PIL_ library should also work.
@@ -47,7 +47,7 @@ export images to PNG, process them. PIL_ library should also work.
     In order to extract images from 32bit PSD files PIL/Pillow must be built
     with LITTLECMS or LITTLECMS2 support.
 
-psd-tools2 also has a rudimentary support for Pymaging_.
+psd-tools3 also has a rudimentary support for Pymaging_.
 `Pymaging installation instructions`_ are available in pymaging docs.
 
 .. _PIL: http://www.pythonware.com/products/pil/
@@ -217,7 +217,7 @@ Stage separation also means user-facing API may be opinionated:
 if somebody doesn't like it then it should possible to build an
 another API based on lower-level decoded PSD file.
 
-``psd-tools2`` tries not to throw away information from the original
+``psd-tools3`` tries not to throw away information from the original
 PSD file; even if the library can't parse some info, this info
 will be likely available somewhere as raw bytes (open a bug if this is
 not the case). This should make it possible to modify and write PSD
@@ -262,8 +262,8 @@ or implement it yourself (pull requests are welcome in this case).
 Contributing
 ------------
 
-Development happens at github: `source code <https://github.com/kyamagu/psd-tools2>`__,
-`bug tracker <https://github.com/kyamagu/psd-tools2/issues>`__.
+Development happens at github: `source code <https://github.com/kyamagu/psd-tools3>`__,
+`bug tracker <https://github.com/kyamagu/psd-tools3/issues>`__.
 Feel free to submit ideas, bugs or pull requests.
 
 In case of bugs it would be helpful to provide a small PSD file
@@ -297,4 +297,4 @@ Acknowledgments
 
 Great thanks to the original `psd-tools` author Mikhail Korobov.
 A full list of contributors can be found here:
-https://github.com/kyamagu/psd-tools2/blob/master/AUTHORS.txt
+https://github.com/kyamagu/psd-tools3/blob/master/AUTHORS.txt
