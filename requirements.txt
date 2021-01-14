@@ -4,12 +4,12 @@ docopt==0.6.2
 ExifRead==2.1.2
 ImageHash==4.0
 more-itertools==4.3.0
-numpy==1.15.2
+numpy>=1.15.2
 Pillow>=7.1.0
 pluggy==0.7.1
 py==1.6.0
 PyBundle==1.0.5
-pytest==3.8.1
-PyWavelets==1.0.1
-scipy==1.1.0
+pytest>=3.8.1
+PyWavelets>=1.0.1
+scipy>=1.1.0
 six==1.11.0
