@@ -3,7 +3,7 @@ import pytest
 import logging
 
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.api.layers import Group
+from psd_tools.api.layers import Group, ShapeLayer, PixelLayer
 from psd_tools.constants import BlendMode
 
 from ..utils import full_name
@@ -201,3 +201,11 @@ def test_group_extract_bbox():
     psd = PSDImage.open(full_name('hidden-groups.psd'))
     assert Group.extract_bbox(psd[1:], False) == (40, 72, 83, 134)
     assert Group.extract_bbox(psd[1:], True) == (25, 34, 83, 134)
+
+
+def test_shape_and_fill_layer():
+    psd = PSDImage.open(full_name('vector-mask2.psd'))
+    for i in range(8):
+        assert isinstance(psd[i], ShapeLayer)
+    for i in range(8, 10):
+        assert isinstance(psd[i], PixelLayer)
