@@ -14,23 +14,17 @@ jobs:
     strategy:
       matrix:
         container:
-          - quay.io/pypa/manylinux1_x86_64
-          - quay.io/pypa/manylinux2010_x86_64
           - quay.io/pypa/manylinux2014_x86_64
         python-version:
           - cp36-cp36m
           - cp37-cp37m
           - cp38-cp38
-        exclude:
-          - container: quay.io/pypa/manylinux2014_x86_64
-            python-version: cp27-cp27m
-          - container: quay.io/pypa/manylinux2014_x86_64
-            python-version: cp27-cp27mu
+          - cp39-cp39
     container: ${{ matrix.container }}
     steps:
     - uses: actions/checkout@v1
     - name: Set PATH
-      run: echo "::add-path::/opt/python/${{ matrix.python-version }}/bin"
+      run: echo "/opt/python/${{ matrix.python-version }}/bin" >> $GITHUB_PATH
     - name: Install dependencies
       run: python -m pip install --upgrade pip
     - name: Lint with flake8
@@ -54,7 +48,7 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - name: Set PATH  # See actions/virtual-environments#294
-      run: echo "::add-path::C:\Program Files (x86)\Windows Kits\10\bin\10.0.18362.0\x64"
+      run: echo "C:\Program Files (x86)\Windows Kits\10\bin\10.0.18362.0\x64" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       if: runner.os == 'Windows'
     - name: Install dependencies
       run: python -m pip install --upgrade pip
