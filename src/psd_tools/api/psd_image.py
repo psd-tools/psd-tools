@@ -10,7 +10,7 @@ from psd_tools.constants import (
 from psd_tools.psd import PSD, FileHeader, ImageData, ImageResources
 from psd_tools.api.layers import (
     Artboard, Group, PixelLayer, ShapeLayer, SmartObjectLayer, TypeLayer,
-    GroupMixin
+    GroupMixin, FillLayer
 )
 from psd_tools.api import adjustments
 from psd_tools.api import deprecated
@@ -582,19 +582,17 @@ class PSDImage(GroupMixin):
                         break
 
             # If nothing applies, this is either a shape or pixel layer.
+            shape_condition = record.flags.pixel_data_irrelevant and (
+                Tag.VECTOR_ORIGINATION_DATA in blocks or
+                Tag.VECTOR_MASK_SETTING1 in blocks or
+                Tag.VECTOR_MASK_SETTING2 in blocks or
+                Tag.VECTOR_STROKE_DATA in blocks or
+                Tag.VECTOR_STROKE_CONTENT_DATA in blocks)
+            if isinstance(layer, (type(None), FillLayer)) and shape_condition:
+                layer = ShapeLayer(self, record, channels, current_group)
+
             if layer is None:
-                if (
-                    record.flags.pixel_data_irrelevant and (
-                        Tag.VECTOR_ORIGINATION_DATA in blocks or
-                        Tag.VECTOR_MASK_SETTING1 in blocks or
-                        Tag.VECTOR_MASK_SETTING2 in blocks or
-                        Tag.VECTOR_STROKE_DATA in blocks or
-                        Tag.VECTOR_STROKE_CONTENT_DATA in blocks
-                    )
-                ):
-                    layer = ShapeLayer(self, record, channels, current_group)
-                else:
-                    layer = PixelLayer(self, record, channels, current_group)
+                layer = PixelLayer(self, record, channels, current_group)
 
             assert layer is not None
 

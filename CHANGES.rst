@@ -1,3 +1,18 @@
+1.9.17 (2021-01-15)
+-------------------
+
+- [api] Fix incorrect fill layer parse (fix #254)
+
+1.9.16 (2020-09-24)
+-------------------
+
+- [package] Drop py27 and py35 support
+- [psd] Workaround Enum bug (fix #241)
+- [composite] Fix transparency issue (fix #242)
+- [composite] Fix mask disable flag (fix #243)
+- [api] Add workaround for creating PSB (fix #246)
+- [api] Fix incorrect adjustment parse (fix #247)
+
 1.9.15 (2020-07-17)
 -------------------
 

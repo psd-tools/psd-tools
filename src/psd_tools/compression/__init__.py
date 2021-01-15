@@ -109,7 +109,7 @@ def encode_prediction(data, w, h, depth):
         arr = array.array('B', data)
         arr = _shuffle_byte_order(arr, w, h)
         arr = _delta_encode(arr, 0x100, w * 4, h)
-        return getattr(arr, 'tobytes', getattr(arr, 'tostring'))()
+        return getattr(arr, 'tobytes', getattr(arr, 'tostring', None))()
     else:
         raise ValueError('Invalid pixel size %d' % (depth))
 
@@ -128,7 +128,7 @@ def decode_prediction(data, w, h, depth):
     else:
         raise ValueError('Invalid pixel size %d' % (depth))
 
-    return getattr(arr, 'tobytes', getattr(arr, 'tostring'))()
+    return getattr(arr, 'tobytes', getattr(arr, 'tostring', None))()
 
 
 def _delta_encode(arr, mod, w, h):
