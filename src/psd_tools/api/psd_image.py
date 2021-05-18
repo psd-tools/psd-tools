@@ -36,7 +36,6 @@ class PSDImage(GroupMixin):
     """
     def __init__(self, data):
         assert isinstance(data, PSD)
-        self._record = None
         self._record = data
         self._layers = []
         self._tagged_blocks = None
