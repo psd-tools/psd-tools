@@ -319,7 +319,7 @@ class PatternOverlay(_OverlayEffect, _AlignScaleMixin, _PatternMixin):
 
 
 @register(Klass.FrameFX.value)
-class Stroke(_Effect, _ColorMixin, _PatternMixin, _GradientMixin):
+class Stroke(_Effect, _ColorMixin, _PatternMixin, _GradientMixin, _AlignScaleMixin):
     @property
     def position(self):
         """
@@ -341,6 +341,11 @@ class Stroke(_Effect, _ColorMixin, _PatternMixin, _GradientMixin):
     def overprint(self):
         """Overprint flag."""
         return bool(self.value.get(b'overprint'))
+    
+    @property
+    def phase(self):
+        """Phase value in Point."""
+        return self.value.get(b'phase')
 
 
 @register(Klass.BevelEmboss.value)
