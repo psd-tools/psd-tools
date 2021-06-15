@@ -52,9 +52,9 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = 'psd-tools2'
-copyright = '2017, Kota Yamaguchi'
-author = 'Kota Yamaguchi'
+project = 'psd-tools3'
+copyright = '2021, Stephen Neal'
+author = 'Stephen Neal'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
