@@ -7,10 +7,7 @@ from enum import Enum
 
 import attr
 
-from psd_tools.utils import (
-    read_fmt, write_fmt, trimmed_repr, read_unicode_string,
-    write_unicode_string
-)
+from psd_tools.utils import (read_fmt, write_fmt, trimmed_repr, read_unicode_string, write_unicode_string)
 
 logger = logging.getLogger(__name__)
 

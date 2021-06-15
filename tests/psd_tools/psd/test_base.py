@@ -5,10 +5,8 @@ from enum import Enum
 
 import pytest
 
-from psd_tools.psd.base import (
-    BooleanElement, ByteElement, DictElement, EmptyElement, IntegerElement,
-    ListElement, NumericElement, ShortIntegerElement, StringElement
-)
+from psd_tools.psd.base import (BooleanElement, ByteElement, DictElement, EmptyElement, IntegerElement, ListElement,
+                                NumericElement, ShortIntegerElement, StringElement)
 from ..utils import check_write_read
 
 logger = logging.getLogger(__name__)

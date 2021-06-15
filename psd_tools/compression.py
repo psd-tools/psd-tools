@@ -10,9 +10,7 @@ import zlib
 import packbits
 
 from psd_tools.constants import Compression
-from psd_tools.utils import (
-    be_array_from_bytes, be_array_to_bytes, read_be_array, write_be_array
-)
+from psd_tools.utils import (be_array_from_bytes, be_array_to_bytes, read_be_array, write_be_array)
 
 
 def compress(data, compression, width, height, depth, version=1):
@@ -64,9 +62,7 @@ def decompress(data, compression, width, height, depth, version=1):
         decompressed = zlib.decompress(data)
         result = decode_prediction(decompressed, width, height, depth)
 
-    assert len(result) == length, 'len=%d, expected=%d' % (
-        len(result), length
-    )
+    assert len(result) == length, 'len=%d, expected=%d' % (len(result), length)
 
     return result
 
@@ -88,12 +84,8 @@ def encode_packbits(data, width, height, depth, version):
 
 def decode_packbits(data, height, version):
     with io.BytesIO(data) as fp:
-        bytes_counts = read_be_array(
-            ('H', 'I')[version - 1], height, fp
-        )
-        return b''.join(
-            packbits.decode(fp.read(count)) for count in bytes_counts
-        )
+        bytes_counts = read_be_array(('H', 'I')[version - 1], height, fp)
+        return b''.join(packbits.decode(fp.read(count)) for count in bytes_counts)
 
 
 def encode_prediction(data, w, h, depth):
@@ -134,21 +126,21 @@ def decode_prediction(data, w, h, depth):
 def _delta_encode(arr, mod, w, h):
     arr.byteswap()
     for y in reversed(range(h)):
-        offset = y*w
-        for x in reversed(range(w-1)):
+        offset = y * w
+        for x in reversed(range(w - 1)):
             pos = offset + x
-            next_value = (arr[pos+1] - arr[pos]) % mod
-            arr[pos+1] = next_value
+            next_value = (arr[pos + 1] - arr[pos]) % mod
+            arr[pos + 1] = next_value
     return arr
 
 
 def _delta_decode(arr, mod, w, h):
     for y in range(h):
-        offset = y*w
-        for x in range(w-1):
+        offset = y * w
+        for x in range(w - 1):
             pos = offset + x
-            next_value = (arr[pos+1] + arr[pos]) % mod
-            arr[pos+1] = next_value
+            next_value = (arr[pos + 1] + arr[pos]) % mod
+            arr[pos + 1] = next_value
     arr.byteswap()
     return arr
 

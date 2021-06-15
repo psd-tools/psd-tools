@@ -8,9 +8,7 @@ import logging
 import attr
 
 from psd_tools.psd.base import ValueElement
-from psd_tools.utils import (
-    read_length_block, write_length_block, write_bytes
-)
+from psd_tools.utils import (read_length_block, write_length_block, write_bytes)
 
 logger = logging.getLogger(__name__)
 
@@ -54,19 +52,10 @@ class ColorModeData(ValueElement):
         import array
         if bytes == str:
             return b''.join(
-                array.array('B', [
-                    ord(self.value[i]),
-                    ord(self.value[i + 256]),
-                    ord(self.value[i + 512])
-                ]).tostring()
-                for i in range(256)
-            )
+                array.array('B',
+                            [ord(self.value[i]), ord(self.value[i + 256]),
+                             ord(self.value[i + 512])]).tostring() for i in range(256))
         else:
             return b''.join(
-                array.array('B', [
-                    (self.value[i]),
-                    (self.value[i + 256]),
-                    (self.value[i + 512])
-                ]).tobytes()
-                for i in range(256)
-            )
+                array.array('B', [(self.value[i]), (self.value[i + 256]), (self.value[i + 512])]).tobytes()
+                for i in range(256))

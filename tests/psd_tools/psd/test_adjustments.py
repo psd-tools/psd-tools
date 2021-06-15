@@ -6,7 +6,9 @@ import os
 import pytest
 
 from psd_tools.psd.adjustments import (
-    Curves, CurvesExtraMarker, CurvesExtraItem,
+    Curves,
+    CurvesExtraMarker,
+    CurvesExtraItem,
 )
 from ..utils import check_write_read, check_read_write, TEST_ROOT
 
@@ -16,12 +18,8 @@ logger = logging.getLogger(__name__)
 @pytest.mark.parametrize('is_map, version, count_map, data, extra', [
     (False, 4, 1, [[(0, 0), (255, 255)]], None),
     (True, 4, 1, [list(range(256))], None),
-    (False, 1, 1, [[(0, 0), (255, 255)]], CurvesExtraMarker([
-        CurvesExtraItem(0, [(0, 0), (255, 255)])
-     ])),
-    (True, 1, 1, [list(range(256))], CurvesExtraMarker([
-        CurvesExtraItem(0, list(range(256)))
-     ])),
+    (False, 1, 1, [[(0, 0), (255, 255)]], CurvesExtraMarker([CurvesExtraItem(0, [(0, 0), (255, 255)])])),
+    (True, 1, 1, [list(range(256))], CurvesExtraMarker([CurvesExtraItem(0, list(range(256)))])),
 ])
 def test_curves(is_map, version, count_map, data, extra):
     check_write_read(Curves(is_map, version, count_map, data, extra))
@@ -43,9 +41,7 @@ def test_curves_extra_item_rw(fixture, is_map):
     check_read_write(CurvesExtraItem, fixture, is_map=is_map)
 
 
-@pytest.mark.parametrize('filename', [
-    'curves.dat'
-])
+@pytest.mark.parametrize('filename', ['curves.dat'])
 def test_curves_rw(filename):
     filepath = os.path.join(TEST_ROOT, 'tagged_blocks', filename)
     with open(filepath, 'rb') as f:

@@ -4,10 +4,8 @@ import io
 
 import pytest
 
-from psd_tools.utils import (
-    pack, unpack, read_length_block, write_length_block, read_pascal_string,
-    write_pascal_string, read_unicode_string, write_unicode_string
-)
+from psd_tools.utils import (pack, unpack, read_length_block, write_length_block, read_pascal_string,
+                             write_pascal_string, read_unicode_string, write_unicode_string)
 
 
 @pytest.mark.parametrize('fmt, value, expected', [

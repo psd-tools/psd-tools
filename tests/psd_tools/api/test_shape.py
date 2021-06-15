@@ -5,13 +5,10 @@ import logging
 import pytest
 
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.api.shape import (
-    Rectangle, RoundedRectangle, Ellipse, Line, Invalidated
-)
+from psd_tools.api.shape import (Rectangle, RoundedRectangle, Ellipse, Line, Invalidated)
 from ..utils import full_name
 
 logger = logging.getLogger(__name__)
-
 
 VECTOR_MASK2 = PSDImage.open(full_name('vector-mask2.psd'))
 

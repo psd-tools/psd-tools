@@ -4,9 +4,7 @@ import os
 
 import pytest
 
-from psd_tools.psd.engine_data import (
-    Tokenizer, EngineToken, EngineData, Float, String
-)
+from psd_tools.psd.engine_data import (Tokenizer, EngineToken, EngineData, Float, String)
 from ..utils import check_read_write, TEST_ROOT
 
 

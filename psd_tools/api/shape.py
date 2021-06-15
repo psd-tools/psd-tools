@@ -6,9 +6,7 @@ from __future__ import absolute_import
 
 import logging
 
-from psd_tools.psd.vector import (
-    Subpath, InitialFillRule, ClipboardRecord
-)
+from psd_tools.psd.vector import (Subpath, InitialFillRule, ClipboardRecord)
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +20,6 @@ class VectorMask(object):
     Bezier curves. Check :py:attr:`~psd_tools.api.shape.VectorMask.paths`
     property for how to deal with path objects.
     """
-
     def __init__(self, data):
         self._data = data
         self._build()
@@ -114,10 +111,7 @@ class VectorMask(object):
         :return: `tuple`
         """
         from itertools import chain
-        knots = [
-            (knot.anchor[1], knot.anchor[0])
-            for knot in chain.from_iterable(self.paths)
-        ]
+        knots = [(knot.anchor[1], knot.anchor[0]) for knot in chain.from_iterable(self.paths)]
         if len(knots) == 0:
             return (0., 0., 1., 1.)
         x, y = zip(*knots)
@@ -126,8 +120,13 @@ class VectorMask(object):
     def __repr__(self):
         bbox = self.bbox
         return '%s(bbox=(%g, %g, %g, %g) paths=%d%s)' % (
-            self.__class__.__name__, bbox[0], bbox[1], bbox[2], bbox[3],
-            len(self.paths), ' disabled' if self.disabled else '',
+            self.__class__.__name__,
+            bbox[0],
+            bbox[1],
+            bbox[2],
+            bbox[3],
+            len(self.paths),
+            ' disabled' if self.disabled else '',
         )
 
 
@@ -245,9 +244,7 @@ class Stroke(object):
         return self._data.get(b'strokeStyleContent')
 
     def __repr__(self):
-        return '%s(width=%g)' % (
-            self.__class__.__name__, self.line_width
-        )
+        return '%s(width=%g)' % (self.__class__.__name__, self.line_width)
 
 
 class Origination(object):
@@ -325,10 +322,7 @@ class Origination(object):
 
     def __repr__(self):
         bbox = self.bbox
-        return '%s(bbox=(%g, %g, %g, %g))' % (
-            self.__class__.__name__,
-            bbox[0], bbox[1], bbox[2], bbox[3]
-        )
+        return '%s(bbox=(%g, %g, %g, %g))' % (self.__class__.__name__, bbox[0], bbox[1], bbox[2], bbox[3])
 
 
 class Invalidated(Origination):
@@ -359,7 +353,6 @@ class Ellipse(Origination):
 
 class RoundedRectangle(Origination):
     """Rounded rectangle live shape."""
-
     @property
     def radii(self):
         """
@@ -373,7 +366,6 @@ class RoundedRectangle(Origination):
 
 class Line(Origination):
     """Line live shape."""
-
     @property
     def line_end(self):
         """

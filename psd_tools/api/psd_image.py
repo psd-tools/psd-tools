@@ -8,12 +8,8 @@ import logging
 from psd_tools.api import adjustments
 from psd_tools.api import deprecated
 from psd_tools.api import pil_io
-from psd_tools.api.layers import (
-    Group, PixelLayer, ShapeLayer, SmartObjectLayer, TypeLayer, GroupMixin
-)
-from psd_tools.constants import (
-    Clipping, Compression, ColorMode, SectionDivider
-)
+from psd_tools.api.layers import (Group, PixelLayer, ShapeLayer, SmartObjectLayer, TypeLayer, GroupMixin)
+from psd_tools.constants import (Clipping, Compression, ColorMode, SectionDivider)
 from psd_tools.psd import PSD, FileHeader, ImageData, ImageResources
 
 logger = logging.getLogger(__name__)
@@ -75,8 +71,7 @@ class PSDImage(GroupMixin):
         # TODO: Add default metadata.
         # TODO: Perhaps make this smart object.
         image_data = ImageData(compression=compression)
-        image_data.set_data([channel.tobytes() for channel in image.split()],
-                            header)
+        image_data.set_data([channel.tobytes() for channel in image.split()], header)
         return cls(PSD(
             header=header,
             image_data=image_data,
@@ -166,7 +161,7 @@ class PSDImage(GroupMixin):
         version_info = self.image_resources.get_data('version_info')
         if version_info:
             return version_info.has_composite
-        return True  # Assuming the image data is valid by default.
+        return True    # Assuming the image data is valid by default.
 
     @property
     def name(self):
@@ -350,8 +345,7 @@ class PSDImage(GroupMixin):
 
     def has_thumbnail(self):
         """True if the PSDImage has a thumbnail resource."""
-        return ('thumbnail_resource' in self.image_resources or
-                'thumbnail_resource_ps4' in self.image_resources)
+        return ('thumbnail_resource' in self.image_resources or 'thumbnail_resource_ps4' in self.image_resources)
 
     def thumbnail(self):
         """
@@ -359,21 +353,18 @@ class PSDImage(GroupMixin):
         contain an embedded thumbnail image, returns None.
         """
         if 'THUMBNAIL_RESOURCE' in self.image_resources:
-            return pil_io.convert_thumbnail_to_pil(
-                self.image_resources.get_data('THUMBNAIL_RESOURCE')
-            )
+            return pil_io.convert_thumbnail_to_pil(self.image_resources.get_data('THUMBNAIL_RESOURCE'))
         elif 'THUMBNAIL_RESOURCE_PS4' in self.image_resources:
-            return pil_io.convert_thumbnail_to_pil(
-                self.image_resources.get_data('THUMBNAIL_RESOURCE_PS4'), 'BGR'
-            )
+            return pil_io.convert_thumbnail_to_pil(self.image_resources.get_data('THUMBNAIL_RESOURCE_PS4'), 'BGR')
         return None
 
     def __repr__(self):
-        return (
-            '%s(mode=%s size=%dx%d depth=%d channels=%d)'
-        ) % (
-            self.__class__.__name__, self.color_mode,
-            self.width, self.height, self._record.header.depth,
+        return ('%s(mode=%s size=%dx%d depth=%d channels=%d)') % (
+            self.__class__.__name__,
+            self.color_mode,
+            self.width,
+            self.height,
+            self._record.header.depth,
             self._record.header.channels,
         )
 
@@ -403,10 +394,7 @@ class PSDImage(GroupMixin):
         color_mode = pil_io.get_color_mode(mode)
         alpha = int(mode.upper().endswith('A'))
         channels = ColorMode.channels(color_mode, alpha)
-        return FileHeader(
-            width=size[0], height=size[1], depth=depth, channels=channels,
-            color_mode=color_mode
-        )
+        return FileHeader(width=size[0], height=size[1], depth=depth, channels=channels, color_mode=color_mode)
 
     def _get_pattern(self, pattern_id):
         """Get pattern item by id."""
@@ -430,55 +418,35 @@ class PSDImage(GroupMixin):
             blocks = record.tagged_blocks
             end_of_group = False
             divider = blocks.get_data('SECTION_DIVIDER_SETTING', None)
-            divider = blocks.get_data('NESTED_SECTION_DIVIDER_SETTING',
-                                      divider)
+            divider = blocks.get_data('NESTED_SECTION_DIVIDER_SETTING', divider)
             if divider is not None:
                 if divider.kind == SectionDivider.BOUNDING_SECTION_DIVIDER:
                     layer = Group(self, None, None, current_group)
                     group_stack.append(layer)
-                elif divider.kind in (SectionDivider.OPEN_FOLDER,
-                                      SectionDivider.CLOSED_FOLDER):
+                elif divider.kind in (SectionDivider.OPEN_FOLDER, SectionDivider.CLOSED_FOLDER):
                     layer = group_stack.pop()
                     assert layer is not self
                     layer._record = record
                     layer._channels = channels
                     end_of_group = True
-            elif (
-                'TYPE_TOOL_OBJECT_SETTING' in blocks or
-                'TYPE_TOOL_INFO' in blocks
-            ):
+            elif ('TYPE_TOOL_OBJECT_SETTING' in blocks or 'TYPE_TOOL_INFO' in blocks):
                 layer = TypeLayer(self, record, channels, current_group)
-            elif (
-                record.flags.pixel_data_irrelevant and (
-                    'VECTOR_ORIGINATION_DATA' in blocks or
-                    'VECTOR_MASK_SETTING1' in blocks or
-                    'VECTOR_MASK_SETTING2' in blocks or
-                    'VECTOR_STROKE_DATA' in blocks or
-                    'VECTOR_STROKE_CONTENT_DATA' in blocks
-                )
-            ):
+            elif (record.flags.pixel_data_irrelevant
+                  and ('VECTOR_ORIGINATION_DATA' in blocks or 'VECTOR_MASK_SETTING1' in blocks or 'VECTOR_MASK_SETTING2'
+                       in blocks or 'VECTOR_STROKE_DATA' in blocks or 'VECTOR_STROKE_CONTENT_DATA' in blocks)):
                 layer = ShapeLayer(self, record, channels, current_group)
-            elif (
-                'SMART_OBJECT_LAYER_DATA1' in blocks or
-                'SMART_OBJECT_LAYER_DATA2' in blocks or
-                'PLACED_LAYER1' in blocks or
-                'PLACED_LAYER2' in blocks
-            ):
-                layer = SmartObjectLayer(self, record, channels,
-                                         current_group)
+            elif ('SMART_OBJECT_LAYER_DATA1' in blocks or 'SMART_OBJECT_LAYER_DATA2' in blocks
+                  or 'PLACED_LAYER1' in blocks or 'PLACED_LAYER2' in blocks):
+                layer = SmartObjectLayer(self, record, channels, current_group)
             else:
                 layer = None
                 for key in adjustments.TYPES.keys():
                     if key in blocks:
-                        layer = adjustments.TYPES[key](
-                            self, record, channels, current_group
-                        )
+                        layer = adjustments.TYPES[key](self, record, channels, current_group)
                         break
                 # If nothing applies, this is a pixel layer.
                 if layer is None:
-                    layer = PixelLayer(
-                        self, record, channels, current_group
-                    )
+                    layer = PixelLayer(self, record, channels, current_group)
 
             if record.clipping == Clipping.NON_BASE:
                 clip_stack.append(layer)

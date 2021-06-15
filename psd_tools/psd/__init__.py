@@ -82,9 +82,7 @@ class PSD(BaseElement):
         written = self.header.write(fp)
         written += self.color_mode_data.write(fp)
         written += self.image_resources.write(fp, encoding)
-        written += self.layer_and_mask_information.write(
-            fp, encoding, self.header.version, **kwargs
-        )
+        written += self.layer_and_mask_information.write(fp, encoding, self.header.version, **kwargs)
         written += self.image_data.write(fp)
         return written
 

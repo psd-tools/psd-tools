@@ -13,7 +13,6 @@ try:
 except ImportError:
     from pprint import pprint
 
-
 # It seems some fixtures made outside of Photoshop has different paddings.
 BAD_PADDINGS = {
     '1layer.psd': 1,
@@ -23,9 +22,9 @@ BAD_PADDINGS = {
 }
 
 BAD_UNICODE_PADDINGS = {
-    'broken-groups.psd': 2,  # Unicode aligns 2 byte.
-    'unicode_pathname.psd': 2,  # DescriptorBlock aligns 2 byte.
-    'unicode_pathname.psb': 2,  # DescriptorBlock aligns 2 byte.
+    'broken-groups.psd': 2,    # Unicode aligns 2 byte.
+    'unicode_pathname.psd': 2,    # DescriptorBlock aligns 2 byte.
+    'unicode_pathname.psb': 2,    # DescriptorBlock aligns 2 byte.
 }
 
 

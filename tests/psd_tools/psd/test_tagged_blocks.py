@@ -8,9 +8,15 @@ import pytest
 from psd_tools.constants import TaggedBlockID
 from psd_tools.psd.base import IntegerElement
 from psd_tools.psd.tagged_blocks import (
-    TaggedBlocks, TaggedBlock, Annotation, Annotations,
-    ChannelBlendingRestrictionsSetting, DescriptorBlock, PixelSourceData2,
-    ReferencePoint, MetadataSettings,
+    TaggedBlocks,
+    TaggedBlock,
+    Annotation,
+    Annotations,
+    ChannelBlendingRestrictionsSetting,
+    DescriptorBlock,
+    PixelSourceData2,
+    ReferencePoint,
+    MetadataSettings,
 )
 from ..utils import check_read_write, check_write_read, TEST_ROOT
 
@@ -18,10 +24,8 @@ logger = logging.getLogger(__name__)
 
 
 def test_tagged_blocks():
-    blocks = TaggedBlocks([
-        (TaggedBlockID.LAYER_VERSION,
-         TaggedBlock(key=TaggedBlockID.LAYER_VERSION, data=IntegerElement(1)))
-    ])
+    blocks = TaggedBlocks([(TaggedBlockID.LAYER_VERSION,
+                            TaggedBlock(key=TaggedBlockID.LAYER_VERSION, data=IntegerElement(1)))])
     check_write_read(blocks)
     check_write_read(blocks, version=2)
     check_write_read(blocks, version=2, padding=4)
@@ -34,15 +38,11 @@ def test_tagged_blocks():
     (TaggedBlockID.LAYER_VERSION, IntegerElement(1), 2, 4),
 ])
 def test_tagged_block(key, data, version, padding):
-    check_write_read(TaggedBlock(key=key, data=data),
-                     version=version, padding=padding)
+    check_write_read(TaggedBlock(key=key, data=data), version=version, padding=padding)
 
 
 def test_annotations():
-    check_write_read(Annotations([
-        Annotation(data=b'\x05'),
-        Annotation(data=b'\x03')
-    ]))
+    check_write_read(Annotations([Annotation(data=b'\x05'), Annotation(data=b'\x03')]))
 
 
 @pytest.mark.parametrize('fixture', [

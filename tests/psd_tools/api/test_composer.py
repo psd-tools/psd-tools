@@ -12,11 +12,11 @@ from ..utils import full_name
 
 logger = logging.getLogger(__name__)
 
-
 QUALITY_TEST_FILES = [
     # ('mask-index.psd',),  # Transparent region in preview image is wrong...
-    ('background-red-opacity-80.psd',),
-    ('32bit.psd',),
+    (
+        'background-red-opacity-80.psd', ),
+    ('32bit.psd', ),
 ]
 
 
@@ -29,7 +29,7 @@ def _calculate_hash_error(image1, image2):
     return error_count / float(hash1.hash.size)
 
 
-@pytest.mark.parametrize(("filename",), QUALITY_TEST_FILES)
+@pytest.mark.parametrize(("filename", ), QUALITY_TEST_FILES)
 def test_compose_quality(filename):
     psd = PSDImage.open(full_name(filename))
     preview = psd.topil()

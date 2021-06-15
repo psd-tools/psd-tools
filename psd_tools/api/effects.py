@@ -11,7 +11,6 @@ from psd_tools.utils import new_registry
 
 logger = logging.getLogger(__name__)
 
-
 _TYPES, register = new_registry()
 
 
@@ -22,9 +21,9 @@ class Effects(object):
     def __init__(self, layer):
         self._data = None
         for tag in (
-            TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO,
-            TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V0,
-            TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V1,
+                TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO,
+                TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V0,
+                TaggedBlockID.OBJECT_BASED_EFFECTS_LAYER_INFO_V1,
         ):
             if tag in layer.tagged_blocks:
                 self._data = layer.tagged_blocks.get_data(tag)
@@ -77,11 +76,8 @@ class Effects(object):
     #     return self._items.__delitem__(key)
 
     def __repr__(self):
-        return '%s(%s%s)' % (
-            self.__class__.__name__,
-            '' if self.enabled else 'disabled ',
-            ' '.join(x.__class__.__name__.lower() for x in self)
-        )
+        return '%s(%s%s)' % (self.__class__.__name__, '' if self.enabled else 'disabled ', ' '.join(
+            x.__class__.__name__.lower() for x in self))
 
 
 class _Effect(object):
@@ -315,7 +311,6 @@ class PatternOverlay(_OverlayEffect, _AlignScaleMixin, _PatternMixin):
 
 @register(DescriptorClassID.STROKE)
 class Stroke(_Effect, _ColorMixin, _PatternMixin, _GradientMixin):
-
     @property
     def position(self):
         """Position of the stroke, `inner`, `outer`, or `center`."""
@@ -340,7 +335,6 @@ class Stroke(_Effect, _ColorMixin, _PatternMixin, _GradientMixin):
 
 @register(DescriptorClassID.BEVEL_EMBOSS)
 class BevelEmboss(_Effect, _AngleMixin):
-
     @property
     def highlight_mode(self):
         """Highlight blending mode."""

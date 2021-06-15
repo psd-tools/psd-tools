@@ -12,18 +12,28 @@ import attr
 
 from psd_tools.constants import OSType, UnitFloatType, DescriptorClassID
 from psd_tools.psd.base import (
-    BaseElement, BooleanElement, DictElement, IntegerElement, ListElement,
-    NumericElement, StringElement,
+    BaseElement,
+    BooleanElement,
+    DictElement,
+    IntegerElement,
+    ListElement,
+    NumericElement,
+    StringElement,
 )
 from psd_tools.utils import (
-    read_fmt, write_fmt, read_unicode_string, write_unicode_string,
-    write_bytes, read_length_block, write_length_block, write_padding,
+    read_fmt,
+    write_fmt,
+    read_unicode_string,
+    write_unicode_string,
+    write_bytes,
+    read_length_block,
+    write_length_block,
+    write_padding,
     new_registry,
 )
 from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
-
 
 TYPES, register = new_registry(attribute='ostype')
 
@@ -47,7 +57,7 @@ def read_length_and_key(fp):
             logger.debug(message)
             _UNKNOWN_CLASS_ID.add(key)
 
-    return key  # Fallback.
+    return key    # Fallback.
 
 
 def write_length_and_key(fp, value):
@@ -281,8 +291,7 @@ class UnitFloat(NumericElement):
     .. py:attribute:: value
     """
     value = attr.ib(default=0.0, type=float)
-    unit = attr.ib(default=UnitFloatType.NONE, converter=UnitFloatType,
-                   validator=in_(UnitFloatType))
+    unit = attr.ib(default=UnitFloatType.NONE, converter=UnitFloatType, validator=in_(UnitFloatType))
 
     @classmethod
     def read(cls, fp):
@@ -317,8 +326,7 @@ class UnitFloats(BaseElement):
     .. py:attribute:: unit
     .. py:attribute:: values
     """
-    unit = attr.ib(default=UnitFloatType.NONE, converter=UnitFloatType,
-                   validator=in_(UnitFloatType))
+    unit = attr.ib(default=UnitFloatType.NONE, converter=UnitFloatType, validator=in_(UnitFloatType))
     values = attr.ib(factory=list)
 
     @classmethod
@@ -336,8 +344,7 @@ class UnitFloats(BaseElement):
 
         :param fp: file-like object
         """
-        return write_fmt(fp, '4sI%dd' % len(self.values), self.unit.value,
-                         len(self.values), *self.values)
+        return write_fmt(fp, '4sI%dd' % len(self.values), self.unit.value, len(self.values), *self.values)
 
     def __iter__(self):
         for value in self.values:
@@ -623,6 +630,7 @@ class RawData(BaseElement):
             if hasattr(self.value, 'write'):
                 return self.value.write(f)
             return write_bytes(f, self.value)
+
         return write_length_block(fp, writer)
 
 
@@ -748,7 +756,7 @@ class DescriptorBlock(Descriptor):
 
     .. py:attribute:: version
     """
-    version = attr.ib(default=16, type=int, validator=in_((16,)))
+    version = attr.ib(default=16, type=int, validator=in_((16, )))
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -772,13 +780,12 @@ class DescriptorBlock2(Descriptor):
     .. py:attribute:: data_version
     """
     version = attr.ib(default=1, type=int)
-    data_version = attr.ib(default=16, type=int, validator=in_((16,)))
+    data_version = attr.ib(default=16, type=int, validator=in_((16, )))
 
     @classmethod
     def read(cls, fp, **kwargs):
         version, data_version = read_fmt('2I', fp)
-        return cls(version=version, data_version=data_version,
-                   **cls._read_body(fp))
+        return cls(version=version, data_version=data_version, **cls._read_body(fp))
 
     def write(self, fp, padding=4, **kwargs):
         written = write_fmt(fp, '2I', self.version, self.data_version)

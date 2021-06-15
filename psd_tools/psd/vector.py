@@ -10,14 +10,11 @@ import attr
 from psd_tools.constants import PathResourceID
 from psd_tools.psd.base import BaseElement, ListElement, ValueElement
 from psd_tools.psd.descriptor import Descriptor
-from psd_tools.utils import (
-    read_fmt, write_fmt, is_readable,
-    write_padding, new_registry
-)
+from psd_tools.utils import (read_fmt, write_fmt, is_readable, write_padding, new_registry)
 
 logger = logging.getLogger(__name__)
 
-TYPES, register = new_registry(attribute='selector')  # Path item types.
+TYPES, register = new_registry(attribute='selector')    # Path item types.
 
 
 def decode_fixed_point(numbers):
@@ -64,30 +61,30 @@ class Subpath(ListElement):
     """
 
     # Undocumented data that seem to contain path operation info.
-    operation = attr.ib(default=1, type=int)  # Type of shape operation.
+    operation = attr.ib(default=1, type=int)    # Type of shape operation.
     _unknown1 = attr.ib(default=1, type=int)
     _unknown2 = attr.ib(default=0, type=int)
-    index = attr.ib(default=0, type=int)  # Origination index.
+    index = attr.ib(default=0, type=int)    # Origination index.
     _unknown3 = attr.ib(default=b'\x00' * 10, type=bytes, repr=False)
 
     @classmethod
     def read(cls, fp):
         items = []
-        length, operation, _unknown1, _unknown2, index, _unknown3 = read_fmt(
-            'HhH2I10s', fp
-        )
+        length, operation, _unknown1, _unknown2, index, _unknown3 = read_fmt('HhH2I10s', fp)
         for _ in range(length):
             selector = PathResourceID(read_fmt('H', fp)[0])
             kls = TYPES.get(selector)
             items.append(kls.read(fp))
-        return cls(items=items, operation=operation, index=index,
-                   unknown1=_unknown1, unknown2=_unknown2, unknown3=_unknown3)
+        return cls(items=items,
+                   operation=operation,
+                   index=index,
+                   unknown1=_unknown1,
+                   unknown2=_unknown2,
+                   unknown3=_unknown3)
 
     def write(self, fp):
-        written = write_fmt(
-            fp, 'HhH2I10s', len(self), self.operation, self._unknown1,
-            self._unknown2, self.index, self._unknown3
-        )
+        written = write_fmt(fp, 'HhH2I10s', len(self), self.operation, self._unknown1, self._unknown2, self.index,
+                            self._unknown3)
         for item in self:
             written += write_fmt(fp, 'H', item.selector.value)
             written += item.write(fp)

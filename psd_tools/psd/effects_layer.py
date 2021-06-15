@@ -11,7 +11,11 @@ from psd_tools.constants import BlendMode, EffectOSType
 from psd_tools.psd.base import BaseElement, DictElement
 from psd_tools.psd.color import Color
 from psd_tools.utils import (
-    read_fmt, write_fmt, read_length_block, write_length_block, write_padding,
+    read_fmt,
+    write_fmt,
+    read_length_block,
+    write_length_block,
+    write_padding,
 )
 from psd_tools.validators import in_
 
@@ -60,8 +64,7 @@ class ShadowInfo(BaseElement):
     angle = attr.ib(default=0, type=int)
     distance = attr.ib(default=0, type=int)
     color = attr.ib(factory=Color)
-    blend_mode = attr.ib(default=BlendMode.NORMAL, converter=BlendMode,
-                         validator=in_(BlendMode))
+    blend_mode = attr.ib(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
     enabled = attr.ib(default=0, type=int)
     use_global_angle = attr.ib(default=0, type=int)
     opacity = attr.ib(default=0, type=int)
@@ -70,36 +73,26 @@ class ShadowInfo(BaseElement):
     @classmethod
     def read(cls, fp):
         # TODO: Check 4-byte = 2-byte int + 2-byte fraction?
-        version, blur, intensity, angle, distance = read_fmt(
-            'IIIiI', fp
-        )
+        version, blur, intensity, angle, distance = read_fmt('IIIiI', fp)
         color = Color.read(fp)
         signature = read_fmt('4s', fp)[0]
         assert signature == b'8BIM', 'Invalid signature %r' % (signature)
         blend_mode = BlendMode(read_fmt('4s', fp)[0])
         enabled, use_global_angle, opacity = read_fmt('3B', fp)
         native_color = Color.read(fp)
-        return cls(
-            version, blur, intensity, angle, distance, color, blend_mode,
-            enabled, use_global_angle, opacity, native_color
-        )
+        return cls(version, blur, intensity, angle, distance, color, blend_mode, enabled, use_global_angle, opacity,
+                   native_color)
 
     def write(self, fp):
-        written = write_fmt(
-            fp, 'IIIiI', self.version, self.blur, self.intensity,
-            self.angle, self.distance
-        )
+        written = write_fmt(fp, 'IIIiI', self.version, self.blur, self.intensity, self.angle, self.distance)
         written += self.color.write(fp)
-        written += write_fmt(
-            fp, '4s4s3B', b'8BIM', self.blend_mode.value, self.enabled,
-            self.use_global_angle, self.opacity
-        )
+        written += write_fmt(fp, '4s4s3B', b'8BIM', self.blend_mode.value, self.enabled, self.use_global_angle,
+                             self.opacity)
         written += self.native_color.write(fp)
         return written
 
 
 class _GlowInfo(object):
-
     @classmethod
     def _read_body(cls, fp):
         # TODO: Check 4-byte = 2-byte int + 2-byte fraction?
@@ -112,13 +105,9 @@ class _GlowInfo(object):
         return version, blur, intensity, color, blend_mode, enabled, opacity
 
     def _write_body(self, fp):
-        written = write_fmt(fp, 'III', self.version, self.blur,
-                            self.intensity)
+        written = write_fmt(fp, 'III', self.version, self.blur, self.intensity)
         written += self.color.write(fp)
-        written += write_fmt(
-            fp, '4s4s2B', b'8BIM', self.blend_mode.value, self.enabled,
-            self.opacity
-        )
+        written += write_fmt(fp, '4s4s2B', b'8BIM', self.blend_mode.value, self.enabled, self.opacity)
         return written
 
 
@@ -140,24 +129,18 @@ class OuterGlowInfo(BaseElement, _GlowInfo):
     blur = attr.ib(default=0, type=int)
     intensity = attr.ib(default=0, type=int)
     color = attr.ib(factory=Color)
-    blend_mode = attr.ib(default=BlendMode.NORMAL, converter=BlendMode,
-                         validator=in_(BlendMode))
+    blend_mode = attr.ib(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
     enabled = attr.ib(default=0, type=int)
     opacity = attr.ib(default=0, type=int)
     native_color = attr.ib(default=None)
 
     @classmethod
     def read(cls, fp):
-        version, blur, intensity, color, blend_mode, enabled, opacity = (
-            cls._read_body(fp)
-        )
+        version, blur, intensity, color, blend_mode, enabled, opacity = (cls._read_body(fp))
         native_color = None
         if version >= 2:
             native_color = Color.read(fp)
-        return cls(
-            version, blur, intensity, color, blend_mode, enabled, opacity,
-            native_color
-        )
+        return cls(version, blur, intensity, color, blend_mode, enabled, opacity, native_color)
 
     def write(self, fp):
         written = self._write_body(fp)
@@ -185,8 +168,7 @@ class InnerGlowInfo(BaseElement, _GlowInfo):
     blur = attr.ib(default=0, type=int)
     intensity = attr.ib(default=0, type=int)
     color = attr.ib(factory=Color)
-    blend_mode = attr.ib(default=BlendMode.NORMAL, converter=BlendMode,
-                         validator=in_(BlendMode))
+    blend_mode = attr.ib(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
     enabled = attr.ib(default=0, type=int)
     opacity = attr.ib(default=0, type=int)
     invert = attr.ib(default=None)
@@ -194,17 +176,12 @@ class InnerGlowInfo(BaseElement, _GlowInfo):
 
     @classmethod
     def read(cls, fp):
-        version, blur, intensity, color, blend_mode, enabled, opacity = (
-            cls._read_body(fp)
-        )
+        version, blur, intensity, color, blend_mode, enabled, opacity = (cls._read_body(fp))
         invert, native_color = None, None
         if version >= 2:
             invert = read_fmt('B', fp)[0]
             native_color = Color.read(fp)
-        return cls(
-            version, blur, intensity, color, blend_mode, enabled, opacity,
-            invert, native_color
-        )
+        return cls(version, blur, intensity, color, blend_mode, enabled, opacity, invert, native_color)
 
     def write(self, fp):
         written = self._write_body(fp)
@@ -239,11 +216,8 @@ class BevelInfo(BaseElement):
     angle = attr.ib(default=0, type=int)
     depth = attr.ib(default=0, type=int)
     blur = attr.ib(default=0, type=int)
-    highlight_blend_mode = attr.ib(default=BlendMode.NORMAL,
-                                   converter=BlendMode,
-                                   validator=in_(BlendMode))
-    shadow_blend_mode = attr.ib(default=BlendMode.NORMAL, converter=BlendMode,
-                                validator=in_(BlendMode))
+    highlight_blend_mode = attr.ib(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
+    shadow_blend_mode = attr.ib(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
     highlight_color = attr.ib(factory=Color)
     shadow_color = attr.ib(factory=Color)
     bevel_style = attr.ib(default=0, type=int)
@@ -271,28 +245,18 @@ class BevelInfo(BaseElement):
         if version == 2:
             real_highlight_color = Color.read(fp)
             real_shadow_color = Color.read(fp)
-        return cls(
-            version, angle, depth, blur, highlight_blend_mode,
-            shadow_blend_mode, highlight_color, shadow_color, bevel_style,
-            highlight_opacity, shadow_opacity, enabled, use_global_angle,
-            direction, real_highlight_color, real_shadow_color
-        )
+        return cls(version, angle, depth, blur, highlight_blend_mode, shadow_blend_mode, highlight_color, shadow_color,
+                   bevel_style, highlight_opacity, shadow_opacity, enabled, use_global_angle, direction,
+                   real_highlight_color, real_shadow_color)
 
     def write(self, fp):
-        written = write_fmt(
-            fp, 'Ii2I', self.version, self.angle, self.depth, self.blur
-        )
-        written += write_fmt(
-            fp, '4s4s4s4s', b'8BIM', self.highlight_blend_mode.value, b'8BIM',
-            self.shadow_blend_mode.value
-        )
+        written = write_fmt(fp, 'Ii2I', self.version, self.angle, self.depth, self.blur)
+        written += write_fmt(fp, '4s4s4s4s', b'8BIM', self.highlight_blend_mode.value, b'8BIM',
+                             self.shadow_blend_mode.value)
         written += self.highlight_color.write(fp)
         written += self.shadow_color.write(fp)
-        written += write_fmt(
-            fp, '6B', self.bevel_style, self.highlight_opacity,
-            self.shadow_opacity, self.enabled, self.use_global_angle,
-            self.direction
-        )
+        written += write_fmt(fp, '6B', self.bevel_style, self.highlight_opacity, self.shadow_opacity, self.enabled,
+                             self.use_global_angle, self.direction)
         if self.version >= 2:
             written += self.highlight_color.write(fp)
             written += self.shadow_color.write(fp)
@@ -312,8 +276,7 @@ class SolidFillInfo(BaseElement):
     .. py:attribute:: native_color
     """
     version = attr.ib(default=2, type=int)
-    blend_mode = attr.ib(default=BlendMode.NORMAL, converter=BlendMode,
-                         validator=in_(BlendMode))
+    blend_mode = attr.ib(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
     color = attr.ib(factory=Color)
     opacity = attr.ib(default=0, type=int)
     enabled = attr.ib(default=0, type=int)
@@ -330,8 +293,7 @@ class SolidFillInfo(BaseElement):
         return cls(version, blend_mode, color, opacity, enabled, native_color)
 
     def write(self, fp):
-        written = write_fmt(fp, 'I4s4s', self.version, b'8BIM',
-                            self.blend_mode.value)
+        written = write_fmt(fp, 'I4s4s', self.version, b'8BIM', self.blend_mode.value)
         written += self.color.write(fp)
         written += write_fmt(fp, '2B', self.opacity, self.enabled)
         written += self.native_color.write(fp)
@@ -373,8 +335,6 @@ class EffectsLayer(DictElement):
         written = write_fmt(fp, '2H', self.version, len(self))
         for key in self:
             written += write_fmt(fp, '4s4s', b'8BIM', key.value)
-            written += write_length_block(
-                fp, lambda f: self[key].write(f)
-            )
+            written += write_length_block(fp, lambda f: self[key].write(f))
         written += write_padding(fp, written, 4)
         return written

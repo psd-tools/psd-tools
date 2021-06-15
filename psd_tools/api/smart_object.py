@@ -21,8 +21,7 @@ class SmartObject(object):
                 break
 
         self._data = None
-        for key in ('LINKED_LAYER1', 'LINKED_LAYER2', 'LINKED_LAYER3',
-                    'LINKED_LAYER_EXTERNAL'):
+        for key in ('LINKED_LAYER1', 'LINKED_LAYER2', 'LINKED_LAYER3', 'LINKED_LAYER_EXTERNAL'):
             if key in layer._psd.tagged_blocks:
                 data = layer._psd.tagged_blocks.get_data(key)
                 for item in data:
@@ -119,6 +118,4 @@ class SmartObject(object):
             f.write(self.data)
 
     def __repr__(self):
-        return "SmartObject(%r kind=%r type=%r size=%s)" % (
-            self.filename, self.kind, self.filetype, self.filesize
-        )
+        return "SmartObject(%r kind=%r type=%r size=%s)" % (self.filename, self.kind, self.filetype, self.filesize)

@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 def get_color_mode(mode):
     """Convert PIL mode to ColorMode."""
     name = mode.upper()
-    name = name.rstrip('A')  # Trim alpha.
+    name = name.rstrip('A')    # Trim alpha.
     name = {'1': 'BITMAP', 'L': 'GRAYSCALE'}.get(name, name)
     return getattr(ColorMode, name)
 
@@ -52,7 +52,7 @@ def convert_image_data_to_pil(psd):
         image = Image.merge('L', channels[:(len(channels) - alpha)])
         image.putpalette(psd.color_mode_data.interleave())
     elif mode == 'MULTICHANNEL':
-        image = channels[0]  # Multi-channel mode is a collection of alpha.
+        image = channels[0]    # Multi-channel mode is a collection of alpha.
     else:
         image = Image.merge(mode, channels[:(len(channels) - alpha)])
     if mode == 'CMYK':
@@ -73,13 +73,10 @@ def convert_layer_to_pil(layer):
     width, height = layer.width, layer.height
     channels, alpha = [], None
     for ci, cd in zip(layer._record.channel_info, layer._channels):
-        if ci.id in (ChannelID.USER_LAYER_MASK,
-                     ChannelID.REAL_USER_LAYER_MASK):
+        if ci.id in (ChannelID.USER_LAYER_MASK, ChannelID.REAL_USER_LAYER_MASK):
             continue
         channel = cd.get_data(width, height, header.depth, header.version)
-        channel_image = _create_channel(
-            (width, height), channel, header.depth
-        )
+        channel_image = _create_channel((width, height), channel, header.depth)
         if ci.id == ChannelID.TRANSPARENCY_MASK:
             alpha = channel_image
         else:
@@ -96,9 +93,7 @@ def convert_layer_to_pil(layer):
             logger.debug('Alpha channel is not supported in %s' % (mode))
 
     if 'ICC_PROFILE' in layer._psd.image_resources:
-        image = _apply_icc(
-            image, layer._psd.image_resources.get_data('ICC_PROFILE')
-        )
+        image = _apply_icc(image, layer._psd.image_resources.get_data('ICC_PROFILE'))
     return image
 
 
@@ -109,15 +104,11 @@ def convert_mask_to_pil(mask, real=True):
     if real and mask._has_real():
         width = mask._data.real_right - mask._data.real_left
         height = mask._data.real_bottom - mask._data.real_top
-        channel = mask._layer._channels[
-            channel_ids.index(ChannelID.REAL_USER_LAYER_MASK)
-        ]
+        channel = mask._layer._channels[channel_ids.index(ChannelID.REAL_USER_LAYER_MASK)]
     else:
         width = mask._data.right - mask._data.left
         height = mask._data.bottom - mask._data.top
-        channel = mask._layer._channels[
-            channel_ids.index(ChannelID.USER_LAYER_MASK)
-        ]
+        channel = mask._layer._channels[channel_ids.index(ChannelID.USER_LAYER_MASK)]
     data = channel.get_data(width, height, header.depth, header.version)
     return _create_channel((width, height), data, header.depth)
 
@@ -129,11 +120,11 @@ def convert_pattern_to_pil(pattern, version=1):
     # The order is different here.
     size = pattern.data.rectangle[3], pattern.data.rectangle[2]
     channels = [
-        _create_channel(size, c.get_data(version), c.pixel_depth).convert('L')
-        for c in pattern.data.channels if c.is_written
+        _create_channel(size, c.get_data(version), c.pixel_depth).convert('L') for c in pattern.data.channels
+        if c.is_written
     ]
     if len(channels) == len(mode) + 1:
-        mode += 'A'  # TODO: Perhaps doesn't work for some modes.
+        mode += 'A'    # TODO: Perhaps doesn't work for some modes.
     image = Image.merge(mode, channels)
     if mode == 'CMYK':
         image = image.point(lambda x: 255 - x)
@@ -146,8 +137,7 @@ def convert_thumbnail_to_pil(thumbnail, mode='RGB'):
     if thumbnail.fmt == 0:
         size = (thumbnail.width, thumbnail.height)
         stride = thumbnail.widthbytes
-        return Image.frombytes('RGBX', size, thumbnail.data, 'raw', mode,
-                                stride)
+        return Image.frombytes('RGBX', size, thumbnail.data, 'raw', mode, stride)
     elif thumbnail.fmt == 1:
         return Image.open(io.BytesIO(thumbnail.data))
     else:
@@ -189,14 +179,10 @@ def _create_channel(size, channel_data, depth):
 def _check_channels(channels, color_mode):
     expected_channels = ColorMode.channels(color_mode)
     if len(channels) > expected_channels:
-        logger.warning('Channels mismatch: expected %g != given %g' % (
-            expected_channels, len(channels)
-        ))
+        logger.warning('Channels mismatch: expected %g != given %g' % (expected_channels, len(channels)))
         channels = channels[:expected_channels]
     elif len(channels) < expected_channels:
-        raise ValueError('Channels mismatch: expected %g != given %g' % (
-            expected_channels, len(channels)
-        ))
+        raise ValueError('Channels mismatch: expected %g != given %g' % (expected_channels, len(channels)))
     return channels
 
 
@@ -206,12 +192,10 @@ def _apply_icc(image, icc_profile):
     try:
         from PIL import ImageCms
     except ImportError:
-        logger.debug(
-            'ICC profile found but not supported. Install little-cms.'
-        )
+        logger.debug('ICC profile found but not supported. Install little-cms.')
         return image
 
-    if image.mode not in ('RGB',):
+    if image.mode not in ('RGB', ):
         logger.debug('%s ICC profile is not supported.' % image.mode)
         return image
 
@@ -237,9 +221,8 @@ def _remove_white_background(image):
                 'float(x + a - 255) * 255.0 / float(max(a, 1)) * '
                 'float(min(a, 1)) + float(x) * float(1 - min(a, 1))'
                 ', "L")',
-                x=x, a=a
-            )
-            for x in bands[:3]
+                x=x,
+                a=a) for x in bands[:3]
         ]
         return Image.merge(bands=rgb + [a], mode="RGBA")
 

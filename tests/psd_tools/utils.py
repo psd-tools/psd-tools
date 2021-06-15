@@ -9,7 +9,6 @@ from psd_tools.utils import trimmed_repr
 
 logging.basicConfig(level=logging.DEBUG)
 
-
 # Use maccyrillic encoding.
 CYRILLIC_FILES = {
     'layer_mask_data.psb',
@@ -30,7 +29,6 @@ OTHER_FILES = {
     'blend-and-clipping.psd',
     'clipping-mask2.psd',
 }
-
 
 TEST_ROOT = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
@@ -61,6 +59,4 @@ def check_write_read(element, *args, **kwargs):
 def check_read_write(cls, data, *args, **kwargs):
     element = cls.frombytes(data, *args, **kwargs)
     new_data = element.tobytes(*args, **kwargs)
-    assert data == new_data, '%s vs %s' % (
-        trimmed_repr(data), trimmed_repr(new_data)
-    )
+    assert data == new_data, '%s vs %s' % (trimmed_repr(data), trimmed_repr(new_data))

@@ -5,9 +5,7 @@ import os
 
 import pytest
 
-from psd_tools.psd.filter_effects import (
-    FilterEffects, FilterEffect, FilterEffectChannel, FilterEffectExtra
-)
+from psd_tools.psd.filter_effects import (FilterEffects, FilterEffect, FilterEffectChannel, FilterEffectExtra)
 from ..utils import check_write_read, check_read_write, TEST_ROOT
 
 logger = logging.getLogger(__name__)

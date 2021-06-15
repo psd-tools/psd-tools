@@ -10,7 +10,6 @@ from ..utils import full_name
 
 logger = logging.getLogger(__name__)
 
-
 PLACED_LAYER = PSDImage.open(full_name('placedLayer.psd'))
 
 

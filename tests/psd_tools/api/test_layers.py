@@ -47,8 +47,13 @@ def group():
 
 
 ALL_FIXTURES = [
-    'pixel_layer', 'shape_layer', 'smartobject_layer', 'type_layer', 'group',
-    'adjustment_layer', 'fill_layer',
+    'pixel_layer',
+    'shape_layer',
+    'smartobject_layer',
+    'type_layer',
+    'group',
+    'adjustment_layer',
+    'fill_layer',
 ]
 
 
@@ -108,10 +113,7 @@ def test_layer_is_visible(pixel_layer):
 
 @pytest.fixture(params=['pixel_layer', 'group'])
 def is_group_args(request):
-    return (
-        request.getfixturevalue(request.param),
-        {'pixel_layer': False, 'group': True}.get(request.param)
-    )
+    return (request.getfixturevalue(request.param), {'pixel_layer': False, 'group': True}.get(request.param))
 
 
 def test_layer_is_group(is_group_args):
@@ -139,7 +141,10 @@ def test_layer_kind(kind_args):
 @pytest.fixture(params=ALL_FIXTURES)
 def topil_args(request):
     is_image = request.param in {
-        'pixel_layer', 'smartobject_layer', 'type_layer', 'fill_layer',
+        'pixel_layer',
+        'smartobject_layer',
+        'type_layer',
+        'fill_layer',
         'shape_layer',
     }
     return (request.getfixturevalue(request.param), is_image)
@@ -162,9 +167,7 @@ def test_clip_adjustment():
 
 def test_type_layer(type_layer):
     assert type_layer.text == 'A'
-    assert type_layer.transform == (
-        1.0000000000000002, 0.0, 0.0, 1.0, 0.0, 4.978787878787878
-    )
+    assert type_layer.transform == (1.0000000000000002, 0.0, 0.0, 1.0, 0.0, 4.978787878787878)
     assert type_layer.engine_dict
     assert type_layer.resource_dict
     assert type_layer.document_resources

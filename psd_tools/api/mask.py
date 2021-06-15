@@ -99,9 +99,7 @@ class Mask(object):
 
     def _has_real(self):
         """Return True if the mask has real flags."""
-        return (
-            self.real_flags is not None and self.real_flags.parameters_applied
-        )
+        return (self.real_flags is not None and self.real_flags.parameters_applied)
 
     def topil(self):
         """
@@ -115,6 +113,9 @@ class Mask(object):
 
     def __repr__(self):
         return '%s(offset=(%d,%d) size=%dx%d)' % (
-            self.__class__.__name__, self.left, self.top, self.width,
+            self.__class__.__name__,
+            self.left,
+            self.top,
+            self.width,
             self.height,
         )

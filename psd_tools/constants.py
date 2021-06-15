@@ -200,10 +200,10 @@ class ChannelID(IntEnum):
     """
     Channel types.
     """
-    CHANNEL_0 = 0  # Red, Cyan, Gray, ...
-    CHANNEL_1 = 1  # Green, Magenta, ...
-    CHANNEL_2 = 2  # Blue, Yellow, ...
-    CHANNEL_3 = 3  # Black, ...
+    CHANNEL_0 = 0    # Red, Cyan, Gray, ...
+    CHANNEL_1 = 1    # Green, Magenta, ...
+    CHANNEL_2 = 2    # Blue, Yellow, ...
+    CHANNEL_3 = 3    # Black, ...
     CHANNEL_4 = 4
     CHANNEL_5 = 5
     CHANNEL_6 = 6
@@ -278,7 +278,7 @@ class Compression(IntEnum):
 
 class TaggedBlockID(Enum):
     """Tagged blocks keys."""
-    ALPHA = b'Alph'  # Undocumented.
+    ALPHA = b'Alph'    # Undocumented.
     ANIMATION_EFFECTS = b'anFX'
     ANNOTATIONS = b'Anno'
     ARTBOARD_DATA1 = b'artb'
@@ -286,23 +286,23 @@ class TaggedBlockID(Enum):
     ARTBOARD_DATA3 = b'abdd'
     BLACK_AND_WHITE = b'blwh'
     BLEND_CLIPPING_ELEMENTS = b'clbl'
-    BLEND_FILL_OPACITY = b'iOpa'  # Undocumented.
+    BLEND_FILL_OPACITY = b'iOpa'    # Undocumented.
     BLEND_INTERIOR_ELEMENTS = b'infx'
     BRIGHTNESS_AND_CONTRAST = b'brit'
     CHANNEL_BLENDING_RESTRICTIONS_SETTING = b'brst'
     CHANNEL_MIXER = b'mixr'
     COLOR_BALANCE = b'blnc'
     COLOR_LOOKUP = b'clrL'
-    COMPUTER_INFO = b'cinf'  # Undocumented.
+    COMPUTER_INFO = b'cinf'    # Undocumented.
     CONTENT_GENERATOR_EXTRA_DATA = b'CgEd'
     CURVES = b'curv'
     EFFECTS_LAYER = b'lrFX'
-    EXPORT_SETTING1 = b'extd'  # Undocumented.
-    EXPORT_SETTING2 = b'extn'  # Undocumented.
+    EXPORT_SETTING1 = b'extd'    # Undocumented.
+    EXPORT_SETTING2 = b'extn'    # Undocumented.
     EXPOSURE = b'expA'
     FILTER_EFFECTS1 = b'FXid'
     FILTER_EFFECTS2 = b'FEid'
-    FILTER_EFFECTS3 = b'FELS'  # Undocumented.
+    FILTER_EFFECTS3 = b'FELS'    # Undocumented.
     FILTER_MASK = b'FMsk'
     FOREIGN_EFFECT_ID = b'ffxi'
     GRADIENT_FILL_SETTING = b'GdFl'
@@ -326,8 +326,8 @@ class TaggedBlockID(Enum):
     METADATA_SETTING = b'shmd'
     NESTED_SECTION_DIVIDER_SETTING = b'lsdk'
     OBJECT_BASED_EFFECTS_LAYER_INFO = b'lfx2'
-    OBJECT_BASED_EFFECTS_LAYER_INFO_V0 = b'lmfx'  # Undocumented.
-    OBJECT_BASED_EFFECTS_LAYER_INFO_V1 = b'lfxs'  # Undocumented.
+    OBJECT_BASED_EFFECTS_LAYER_INFO_V0 = b'lmfx'    # Undocumented.
+    OBJECT_BASED_EFFECTS_LAYER_INFO_V1 = b'lfxs'    # Undocumented.
     PATTERNS1 = b'Patt'
     PATTERNS2 = b'Pat2'
     PATTERNS3 = b'Pat3'
@@ -386,7 +386,7 @@ class OSType(Enum):
     LIST = b'VlLs'
     DOUBLE = b'doub'
     UNIT_FLOAT = b'UntF'
-    UNIT_FLOATS = b'UnFl'  # Undocumented
+    UNIT_FLOATS = b'UnFl'    # Undocumented
     STRING = b'TEXT'
     ENUMERATED = b'enum'
     INTEGER = b'long'
@@ -397,8 +397,8 @@ class OSType(Enum):
     CLASS2 = b'GlbC'
     ALIAS = b'alis'
     RAW_DATA = b'tdta'
-    OBJECT_ARRAY = b'ObAr'  # Undocumented
-    PATH = b'Pth '  # Undocumented
+    OBJECT_ARRAY = b'ObAr'    # Undocumented
+    PATH = b'Pth '    # Undocumented
 
     # Reference OS types
     PROPERTY = b'prop'
@@ -414,14 +414,14 @@ class UnitFloatType(Enum):
     """
     Units the value is in (used in Unit float structure).
     """
-    ANGLE = b'#Ang'  # base degrees
-    DENSITY = b'#Rsl'  # base per inch
-    DISTANCE = b'#Rlt'  # base 72ppi
-    NONE = b'#Nne'  # coerced
-    PERCENT = b'#Prc'  # unit value
-    PIXELS = b'#Pxl'  # tagged unit value
-    POINTS = b'#Pnt'  # points
-    MILLIMETERS = b'#Mlm'  # millimeters
+    ANGLE = b'#Ang'    # base degrees
+    DENSITY = b'#Rsl'    # base per inch
+    DISTANCE = b'#Rlt'    # base 72ppi
+    NONE = b'#Nne'    # coerced
+    PERCENT = b'#Prc'    # unit value
+    PIXELS = b'#Pxl'    # tagged unit value
+    POINTS = b'#Pnt'    # points
+    MILLIMETERS = b'#Mlm'    # millimeters
 
 
 class DescriptorClassID(Enum):
@@ -442,7 +442,7 @@ class DescriptorClassID(Enum):
     BOTTOM = b'Btom'
     RIGHT = b'Rght'
 
-    CNT = b'Cnt '  # ???
+    CNT = b'Cnt '    # ???
     POINT = b'Pnt '
     CONTROL_POINT = b'CrPt'
     HORIZONTAL = b'Hrzn'
@@ -466,8 +466,8 @@ class DescriptorClassID(Enum):
     # Gradient configuration
     GRADIENT = b'Grdn'
     TYPE = b'Type'
-    CLRY = b'Clry'  # Color picker?
-    USRS = b'UsrS'  # User setting?
+    CLRY = b'Clry'    # Color picker?
+    USRS = b'UsrS'    # User setting?
     LOCATION = b'Lctn'
     MID_POINT = b'Mdpn'
     OPACITY = b'Opct'
@@ -514,14 +514,14 @@ class DescriptorClassID(Enum):
     ANTI_ALIASED = b'AntA'
     DITHERED = b'Dthr'
 
-    LAYER_I = b'LyrI'  # ???
+    LAYER_I = b'LyrI'    # ???
     OFFSET = b'Ofst'
-    LAYER_FONT_EFFECT = b'Lefx'  # ???
+    LAYER_FONT_EFFECT = b'Lefx'    # ???
     SCALE = b'Scl '
     # LAYER_EFFECT = b'FrFX'
-    FSTL = b'FStl'  # ???
+    FSTL = b'FStl'    # ???
 
-    FR_FILL = b'FrFl'  # ???
+    FR_FILL = b'FrFl'    # ???
     SOLID_COLOR = b'SClr'
 
     # Stroke
@@ -607,11 +607,11 @@ class DescriptorClassID(Enum):
     # BEVEL_STROKE_EMBOSS = b'strokeEmboss'
 
     BEVEL_DIRECTION = b'bvlD'
-    BEVEL_DIRECTION_TYPE = b'BESs'  # ???
+    BEVEL_DIRECTION_TYPE = b'BESs'    # ???
     IN = b'In  '
     OUT = b'Out '
 
-    GLOW_TYPE_VALUE = b'BETE'  # ???
+    GLOW_TYPE_VALUE = b'BETE'    # ???
 
     HIGHLIGHT_MODE = b'hglM'
     HIGHLIGHT_COLOR = b'hglC'
@@ -647,23 +647,23 @@ class DescriptorClassID(Enum):
     RESOLUTION = b'Rslt'
     COMP = b'comp'
 
-    ANTI_ALIASE = b'Annt'  # ???
+    ANTI_ALIASE = b'Annt'    # ???
 
     ANCR = b'AnCr'
     ANSM = b'AnSm'
     ANST = b'AnSt'
     name = b'name'
-    Rnd  = b'Rnd '
+    Rnd = b'Rnd '
     FrgC = b'FrgC'
     BckC = b'BckC'
     Fltr = b'Fltr'
     UnsM = b'UnsM'
     Amnt = b'Amnt'
-    Rds  = b'Rds '
+    Rds = b'Rds '
     Thsh = b'Thsh'
-    X    = b'X   '
-    Y    = b'Y   '
-    Z    = b'Z   '
+    X = b'X   '
+    Y = b'Y   '
+    Z = b'Z   '
     VrsM = b'VrsM'
     VrsN = b'VrsN'
     VrsF = b'VrsF'
@@ -703,7 +703,7 @@ class DescriptorClassID(Enum):
     caml = b'caml'
     camc = b'camc'
     bank = b'bank'
-    Lns  = b'Lns '
+    Lns = b'Lns '
     orth = b'orth'
     aspr = b'aspr'
     zmfc = b'zmfc'
@@ -711,7 +711,7 @@ class DescriptorClassID(Enum):
     msho = b'msho'
     verl = b'verl'
     nrml = b'nrml'
-    uvl  = b'uvl '
+    uvl = b'uvl '
     faci = b'faci'
     plyc = b'plyc'
     Mtrx = b'Mtrx'
@@ -732,7 +732,7 @@ class DescriptorClassID(Enum):
     QCSt = b'QCSt'
     QCsa = b'QCsa'
     Qlty = b'Qlty'
-    Nw   = b'Nw  '
+    Nw = b'Nw  '
     PrnS = b'PrnS'
     Rct1 = b'Rct1'
     Bckg = b'Bckg'
@@ -741,7 +741,7 @@ class DescriptorClassID(Enum):
     Mtrl = b'Mtrl'
     mtID = b'mtID'
     Srce = b'Srce'
-    Dfs  = b'Dfs '
+    Dfs = b'Dfs '
     mtll = b'mtll'
     mtlo = b'mtlo'
     ared = b'ared'
@@ -809,14 +809,14 @@ class DescriptorClassID(Enum):
     repo = b'repo'
     GsnB = b'GsnB'
     HSBC = b'HSBC'
-    Lyr  = b'Lyr '
+    Lyr = b'Lyr '
     Ordn = b'Ordn'
     Trgt = b'Trgt'
-    Ylw  = b'Ylw '
+    Ylw = b'Ylw '
     Blck = b'Blck'
     LghS = b'LghS'
-    On   = b'On  '
-    Fcs  = b'Fcs '
+    On = b'On  '
+    Fcs = b'Fcs '
     Intn = b'Intn'
     LghT = b'LghT'
     Pstn = b'Pstn'
@@ -851,15 +851,15 @@ class DescriptorClassID(Enum):
     FrLs = b'FrLs'
     CMod = b'CMod'
     Sett = b'Sett'
-    Cst  = b'Cst '
+    Cst = b'Cst '
     WBal = b'WBal'
     AsSh = b'AsSh'
     Temp = b'Temp'
     Tint = b'Tint'
     CtoG = b'CtoG'
     Shrp = b'Shrp'
-    LNR  = b'LNR '
-    CNR  = b'CNR '
+    LNR = b'LNR '
+    CNR = b'CNR '
     VigA = b'VigA'
     BlkB = b'BlkB'
     RHue = b'RHue'
@@ -897,7 +897,7 @@ class DescriptorClassID(Enum):
     STSS = b'STSS'
     STHH = b'STHH'
     STHS = b'STHS'
-    STB  = b'STB '
+    STB = b'STB '
     PC_S = b'PC_S'
     PC_D = b'PC_D'
     PC_L = b'PC_L'
@@ -943,7 +943,7 @@ class DescriptorClassID(Enum):
     PrVe = b'PrVe'
     Rtch = b'Rtch'
     REye = b'REye'
-    LCs  = b'LCs '
+    LCs = b'LCs '
     Upri = b'Upri'
     GuUr = b'GuUr'
     FXRf = b'FXRf'
@@ -953,23 +953,23 @@ class DescriptorClassID(Enum):
     Chnl = b'Chnl'
     Cmps = b'Cmps'
     Inpt = b'Inpt'
-    Gmm  = b'Gmm '
+    Gmm = b'Gmm '
     AWBV = b'AWBV'
     TMMs = b'TMMs'
     LNRD = b'LNRD'
     CNRD = b'CNRD'
     LNRC = b'LNRC'
     CNRS = b'CNRS'
-    Nkn  = b'Nkn '
+    Nkn = b'Nkn '
     HghP = b'HghP'
     LbCl = b'LbCl'
     Lmnc = b'Lmnc'
-    A    = b'A   '
-    B    = b'B   '
+    A = b'A   '
+    B = b'B   '
     Expn = b'Expn'
     PstS = b'PstS'
     Inte = b'Inte'
-    Img  = b'Img '
+    Img = b'Img '
     Bltn = b'Bltn'
     Cptn = b'Cptn'
     Clbr = b'Clbr'
@@ -980,7 +980,7 @@ class DescriptorClassID(Enum):
     Ngtv = b'Ngtv'
     EmlD = b'EmlD'
     BrdT = b'BrdT'
-    Bld  = b'Bld '
+    Bld = b'Bld '
     PgPs = b'PgPs'
     PgPC = b'PgPC'
     Clrm = b'Clrm'
@@ -997,11 +997,11 @@ class DescriptorClassID(Enum):
     PaCm = b'PaCm'
     SbpL = b'SbpL'
     Sbpl = b'Sbpl'
-    Pts  = b'Pts '
+    Pts = b'Pts '
     Pthp = b'Pthp'
     Anch = b'Anch'
-    Fwd  = b'Fwd '
-    Bwd  = b'Bwd '
+    Fwd = b'Fwd '
+    Bwd = b'Bwd '
     Smoo = b'Smoo'
     InvT = b'InvT'
     BanW = b'BanW'
@@ -1014,13 +1014,13 @@ class DescriptorClassID(Enum):
     Whts = b'Whts'
     Ntrl = b'Ntrl'
     Blks = b'Blks'
-    Bk   = b'Bk  '
+    Bk = b'Bk  '
     MtnB = b'MtnB'
     RdlB = b'RdlB'
     BlrM = b'BlrM'
-    Zm   = b'Zm  '
+    Zm = b'Zm  '
     BlrQ = b'BlrQ'
-    Gd   = b'Gd  '
+    Gd = b'Gd  '
     GEfc = b'GEfc'
     GEfs = b'GEfs'
     GEfk = b'GEfk'
@@ -1092,7 +1092,6 @@ class SheetColorType(IntEnum):
 #     PIXELS_PER_INCH = 1
 #     PIXELS_PER_CM = 2
 
-
 # class DimensionUnit(Enum):
 #     INCH = 1
 #     CM = 2
@@ -1100,21 +1099,17 @@ class SheetColorType(IntEnum):
 #     PICA = 4   # 6 pica == 1 inch
 #     COLUMN = 5
 
-
 # class PlacedLayerProperty(Enum):
 #     TRANSFORM = b'Trnf'
 #     SIZE = b'Sz  '
 #     ID = b'Idnt'
 
-
 # class TextProperty(Enum):
 #     TXT = b'Txt '
 #     ORIENTATION = b'Ornt'
 
-
 # class TextOrientation(Enum):
 #     HORIZONTAL = b'Hrzn'
-
 
 # class ObjectBasedEffects(Enum):
 #     """Type of the object-based effects."""

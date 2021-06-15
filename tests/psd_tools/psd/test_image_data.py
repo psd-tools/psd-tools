@@ -17,24 +17,15 @@ def test_image_data():
 
 
 @pytest.mark.parametrize('compression, data, header', [
-    (Compression.RAW, [RAW_IMAGE_3x3_8bit] * 3,
-     FileHeader(width=3, height=3, depth=8, channels=3, version=1)),
-    (Compression.PACK_BITS, [RAW_IMAGE_3x3_8bit] * 3,
-     FileHeader(width=3, height=3, depth=8, channels=3, version=1)),
-    (Compression.ZIP, [RAW_IMAGE_3x3_8bit] * 3,
-     FileHeader(width=3, height=3, depth=8, channels=3, version=1)),
-    (Compression.RAW, [RAW_IMAGE_3x3_8bit] * 3,
-     FileHeader(width=3, height=3, depth=8, channels=3, version=2)),
-    (Compression.PACK_BITS, [RAW_IMAGE_3x3_8bit] * 3,
-     FileHeader(width=3, height=3, depth=8, channels=3, version=2)),
-    (Compression.ZIP, [RAW_IMAGE_3x3_8bit] * 3,
-     FileHeader(width=3, height=3, depth=8, channels=3, version=2)),
-    (Compression.RAW, [RAW_IMAGE_2x2_16bit] * 3,
-     FileHeader(width=2, height=2, depth=16, channels=3, version=1)),
-    (Compression.PACK_BITS, [RAW_IMAGE_2x2_16bit] * 3,
-     FileHeader(width=2, height=2, depth=16, channels=3, version=1)),
-    (Compression.ZIP, [RAW_IMAGE_2x2_16bit] * 3,
-     FileHeader(width=2, height=2, depth=16, channels=3, version=1)),
+    (Compression.RAW, [RAW_IMAGE_3x3_8bit] * 3, FileHeader(width=3, height=3, depth=8, channels=3, version=1)),
+    (Compression.PACK_BITS, [RAW_IMAGE_3x3_8bit] * 3, FileHeader(width=3, height=3, depth=8, channels=3, version=1)),
+    (Compression.ZIP, [RAW_IMAGE_3x3_8bit] * 3, FileHeader(width=3, height=3, depth=8, channels=3, version=1)),
+    (Compression.RAW, [RAW_IMAGE_3x3_8bit] * 3, FileHeader(width=3, height=3, depth=8, channels=3, version=2)),
+    (Compression.PACK_BITS, [RAW_IMAGE_3x3_8bit] * 3, FileHeader(width=3, height=3, depth=8, channels=3, version=2)),
+    (Compression.ZIP, [RAW_IMAGE_3x3_8bit] * 3, FileHeader(width=3, height=3, depth=8, channels=3, version=2)),
+    (Compression.RAW, [RAW_IMAGE_2x2_16bit] * 3, FileHeader(width=2, height=2, depth=16, channels=3, version=1)),
+    (Compression.PACK_BITS, [RAW_IMAGE_2x2_16bit] * 3, FileHeader(width=2, height=2, depth=16, channels=3, version=1)),
+    (Compression.ZIP, [RAW_IMAGE_2x2_16bit] * 3, FileHeader(width=2, height=2, depth=16, channels=3, version=1)),
 ])
 def test_image_data_data(compression, data, header):
     image_data = ImageData(compression)

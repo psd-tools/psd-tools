@@ -10,7 +10,6 @@ from ..utils import full_name
 
 logger = logging.getLogger(__name__)
 
-
 FILL_ADJUSTMENTS = PSDImage.open(full_name('fill_adjustments.psd'))
 
 

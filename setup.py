@@ -20,32 +20,18 @@ setup_args = dict(
     author='Stephen Neal',
     author_email='stephen@stephenneal.net',
     url='https://github.com/sfneal/psd-tools3',
-
     description='Fork of psd-tools for working with Adobe Photoshop PSD files',
-    long_description=(
-        open('README.rst').read() + "\n\n" + open('CHANGES.rst').read()
-    ),
+    long_description=(open('README.rst').read() + "\n\n" + open('CHANGES.rst').read()),
     license='MIT License',
     requires=['docopt (>= 0.5)', 'Pillow'],
     install_requires=[
-        'docopt >= 0.5',
-        'packbits',
-        'attrs',
-        'Pillow',
-        'enum34;python_version<"3.4"',
-        'exifread',
-        'PyBundle'
+        'docopt >= 0.5', 'packbits', 'attrs', 'Pillow', 'enum34;python_version<"3.4"', 'exifread', 'PyBundle'
     ],
     keywords="pymaging psd imaging pil pillow",
     zip_safe=False,
-
-    packages=['psd_tools', 'psd_tools.reader', 'psd_tools.decoder',
-              'psd_tools.user_api', 'psd_tools.icc_profiles'],
+    packages=['psd_tools', 'psd_tools.reader', 'psd_tools.decoder', 'psd_tools.user_api', 'psd_tools.icc_profiles'],
     package_data={'psd_tools': ['icc_profiles/*.icc']},
-    entry_points={
-        'console_scripts': ['psd-tools=psd_tools.__main__:main']
-    },
-
+    entry_points={'console_scripts': ['psd-tools=psd_tools.__main__:main']},
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
@@ -80,19 +66,18 @@ ext_errors = (
 if sys.platform == 'win32' and sys.version_info > (2, 6):
     # 2.6's distutils.msvc9compiler can raise an IOError when failing to
     # find the compiler
-    ext_errors += (IOError,)
+    ext_errors += (IOError, )
 
 
 class BuildFailed(Exception):
     """Raise this to indicate the C extension wouldn't build."""
     def __init__(self):
         Exception.__init__(self)
-        self.cause = sys.exc_info()[1] # work around py 2/3 different syntax
+        self.cause = sys.exc_info()[1]    # work around py 2/3 different syntax
 
 
 class ve_build_ext(build_ext):
     """Build C extensions, but fail with a straightforward exception."""
-
     def run(self):
         """Wrap `run` with `BuildFailed`."""
         try:
@@ -110,16 +95,15 @@ class ve_build_ext(build_ext):
             raise BuildFailed()
         except ValueError:
             # this can happen on Windows 64 bit, see Python issue 7511
-            if "'path'" in str(sys.exc_info()[1]): # works with both py 2/3
+            if "'path'" in str(sys.exc_info()[1]):    # works with both py 2/3
                 raise BuildFailed()
             raise
+
 
 # There are a few reasons we might not be able to compile the C extension.
 # Figure out if we should attempt the C extension or not.
 
-
 compile_extension = True
-
 
 if sys.platform.startswith('java'):
     # Jython can't compile C extensions
@@ -130,15 +114,11 @@ if '__pypy__' in sys.builtin_module_names:
     compile_extension = False
 
 if compile_extension:
-    setup_args.update(dict(
-        ext_modules=[
-            Extension(
-                "psd_tools._compression",
-                sources=["psd_tools/_compression.c"]
-            )
-        ],
-        cmdclass={'build_ext': ve_build_ext},
-    ))
+    setup_args.update(
+        dict(
+            ext_modules=[Extension("psd_tools._compression", sources=["psd_tools/_compression.c"])],
+            cmdclass={'build_ext': ve_build_ext},
+        ))
 
 
 def main():

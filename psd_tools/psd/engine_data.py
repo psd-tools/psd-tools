@@ -39,14 +39,10 @@ from enum import Enum
 
 import attr
 
-from psd_tools.psd.base import (
-    BooleanElement, DictElement, IntegerElement, ListElement, NumericElement,
-    ValueElement
-)
+from psd_tools.psd.base import (BooleanElement, DictElement, IntegerElement, ListElement, NumericElement, ValueElement)
 from psd_tools.utils import new_registry, write_bytes
 
 logger = logging.getLogger(__name__)
-
 
 TOKEN_CLASSES, register = new_registry()
 
@@ -59,7 +55,7 @@ class EngineToken(Enum):
     ARRAY_END = compile_re(r'^\]$')
     ARRAY_START = compile_re(r'^\[$')
     BOOLEAN = compile_re(r'^(true|false)$')
-    DICT_END = compile_re(r'^>>(\x00)*$')  # Buggy one?
+    DICT_END = compile_re(r'^>>(\x00)*$')    # Buggy one?
     DICT_START = compile_re(r'^<<$')
     NOOP = compile_re(r'^$')
     NUMBER = compile_re(r'^-?\d+$')
@@ -141,8 +137,7 @@ class Dict(DictElement):
                 key = Property.frombytes(k_token)
                 v_token, v_token_type = next(tokenizer)
                 kls = TOKEN_CLASSES.get(v_token_type)
-                if v_token_type in (EngineToken.ARRAY_START,
-                                    EngineToken.DICT_START):
+                if v_token_type in (EngineToken.ARRAY_START, EngineToken.DICT_START):
                     value = kls.frombytes(tokenizer)
                 elif kls:
                     value = kls.frombytes(v_token)
@@ -234,9 +229,7 @@ class EngineData2(Dict):
     TEXT_ENGINE_DATA tagged block has this object.
     """
     def write(self, fp, indent=None, write_container=False, **kwargs):
-        return super(EngineData2, self).write(
-            fp, indent=indent, write_container=write_container
-        )
+        return super(EngineData2, self).write(fp, indent=indent, write_container=write_container)
 
 
 @register(EngineToken.ARRAY_START)
@@ -257,8 +250,7 @@ class List(ListElement):
                 return self
 
             kls = TOKEN_CLASSES.get(token_type)
-            if token_type in (EngineToken.ARRAY_START,
-                              EngineToken.DICT_START):
+            if token_type in (EngineToken.ARRAY_START, EngineToken.DICT_START):
                 value = kls.frombytes(tokenizer)
             else:
                 value = kls.frombytes(token)

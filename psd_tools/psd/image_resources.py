@@ -53,17 +53,21 @@ import attr
 from psd_tools._version import __version__
 from psd_tools.constants import ImageResourceID, PrintScaleStyle
 from psd_tools.psd.base import (
-    BaseElement, ByteElement, DictElement, IntegerElement,
-    ListElement, NumericElement, ShortIntegerElement, StringElement,
+    BaseElement,
+    ByteElement,
+    DictElement,
+    IntegerElement,
+    ListElement,
+    NumericElement,
+    ShortIntegerElement,
+    StringElement,
     ValueElement,
 )
 from psd_tools.psd.color import Color
 from psd_tools.psd.descriptor import DescriptorBlock
-from psd_tools.utils import (
-    read_fmt, write_fmt, read_pascal_string, write_pascal_string,
-    read_length_block, write_length_block, write_bytes, new_registry,
-    read_unicode_string, write_unicode_string, is_readable, trimmed_repr
-)
+from psd_tools.utils import (read_fmt, write_fmt, read_pascal_string, write_pascal_string, read_length_block,
+                             write_length_block, write_bytes, new_registry, read_unicode_string, write_unicode_string,
+                             is_readable, trimmed_repr)
 from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
@@ -122,14 +126,12 @@ class ImageResources(DictElement):
         """
         return cls([
             (ImageResourceID.VERSION_INFO,
-             ImageResource(
-                key=ImageResourceID.VERSION_INFO,
-                data=VersionInfo(
-                    has_composite=True,
-                    writer='psd-tools2 %s' % __version__,
-                    reader='psd-tools2 %s' % __version__,
-                ))
-             ),
+             ImageResource(key=ImageResourceID.VERSION_INFO,
+                           data=VersionInfo(
+                               has_composite=True,
+                               writer='psd-tools2 %s' % __version__,
+                               reader='psd-tools2 %s' % __version__,
+                           ))),
         ])
 
     @classmethod
@@ -206,10 +208,10 @@ class ImageResource(BaseElement):
 
         The resource data.
     """
-    signature = attr.ib(
-        default=b'8BIM', type=bytes, repr=False,
-        validator=in_({b'8BIM', b'MeSa', b'AgHg', b'PHUT', b'DCSR'})
-    )
+    signature = attr.ib(default=b'8BIM',
+                        type=bytes,
+                        repr=False,
+                        validator=in_({b'8BIM', b'MeSa', b'AgHg', b'PHUT', b'DCSR'}))
     key = attr.ib(default=1000, type=int)
     name = attr.ib(default='', type=str)
     data = attr.ib(default=b'', type=bytes, repr=False)
@@ -253,8 +255,7 @@ class ImageResource(BaseElement):
         :param fp: file-like object
         :rtype: int
         """
-        written = write_fmt(fp, '4sH', self.signature,
-                            getattr(self.key, 'value', self.key))
+        written = write_fmt(fp, '4sH', self.signature, getattr(self.key, 'value', self.key))
         written += write_pascal_string(fp, self.name, encoding, 2)
 
         def writer(f):
@@ -352,8 +353,7 @@ class GridGuidesInfo(BaseElement):
         return cls(version, horizontal, vertical, items)
 
     def write(self, fp, **kwargs):
-        written = write_fmt(fp, '4I', self.version, self.horizontal,
-                            self.vertical, len(self.data))
+        written = write_fmt(fp, '4I', self.version, self.horizontal, self.vertical, len(self.data))
         written += sum(write_fmt(fp, 'IB', *item) for item in self.data)
         return written
 
@@ -407,8 +407,7 @@ class HalftoneScreen(BaseElement):
         written = write_fmt(fp, 'I', int(self.freq * 0x10000))
         written += write_fmt(fp, 'H', self.unit)
         written += write_fmt(fp, 'i', int(self.angle * 0x10000))
-        written += write_fmt(fp, 'H4x2?', self.shape, self.use_accurate,
-                             self.use_printer)
+        written += write_fmt(fp, 'H4x2?', self.shape, self.use_accurate, self.use_printer)
         return written
 
 
@@ -547,7 +546,7 @@ class PrintFlags(BaseElement):
     flip = attr.ib(default=False, type=bool)
     interpolate = attr.ib(default=False, type=bool)
     caption = attr.ib(default=False, type=bool)
-    print_flags = attr.ib(default=None)  # Not existing for old versions.
+    print_flags = attr.ib(default=None)    # Not existing for old versions.
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -598,9 +597,7 @@ class PrintScale(BaseElement):
     .. py:attribute:: y
     .. py:attribute:: scale
     """
-    style = attr.ib(default=PrintScaleStyle.CENTERED,
-                    converter=PrintScaleStyle,
-                    validator=in_(PrintScaleStyle))
+    style = attr.ib(default=PrintScaleStyle.CENTERED, converter=PrintScaleStyle, validator=in_(PrintScaleStyle))
     x = attr.ib(default=0., type=float)
     y = attr.ib(default=0., type=float)
     scale = attr.ib(default=0., type=float)
@@ -610,8 +607,7 @@ class PrintScale(BaseElement):
         return cls(*read_fmt('H3f', fp))
 
     def write(self, fp, **kwargs):
-        return write_fmt(fp, 'H3f', self.style.value, self.x, self.y,
-                         self.scale)
+        return write_fmt(fp, 'H3f', self.style.value, self.x, self.y, self.scale)
 
 
 @register(ImageResourceID.RESOLUTION_INFO)
@@ -772,15 +768,11 @@ class SliceV6(BaseElement):
                 except ValueError:
                     logger.debug('Failed to read DescriptorBlock')
                     fp.seek(current_position)
-        return cls(
-            slice_id, group_id, origin, associated_id, name, slice_type, bbox,
-            url, target, message, alt_tag, cell_is_html, cell_text,
-            horizontal_align, vertical_align, alpha, red, green, blue, data
-        )
+        return cls(slice_id, group_id, origin, associated_id, name, slice_type, bbox, url, target, message, alt_tag,
+                   cell_is_html, cell_text, horizontal_align, vertical_align, alpha, red, green, blue, data)
 
     def write(self, fp):
-        written = write_fmt(fp, '3I', self.slice_id, self.group_id,
-                            self.origin)
+        written = write_fmt(fp, '3I', self.slice_id, self.group_id, self.origin)
         if self.origin == 1 and self.associated_id is not None:
             written += write_fmt(fp, 'I', self.associated_id)
         written += write_unicode_string(fp, self.name, padding=1)
@@ -792,10 +784,8 @@ class SliceV6(BaseElement):
         written += write_unicode_string(fp, self.alt_tag, padding=1)
         written += write_fmt(fp, '?', self.cell_is_html)
         written += write_unicode_string(fp, self.cell_text, padding=1)
-        written += write_fmt(fp, '2I', self.horizontal_align,
-                             self.vertical_align)
-        written += write_fmt(fp, '4B', self.alpha, self.red, self.green,
-                             self.blue)
+        written += write_fmt(fp, '2I', self.horizontal_align, self.vertical_align)
+        written += write_fmt(fp, '4B', self.alpha, self.red, self.green, self.blue)
         if self.data is not None:
             if hasattr(self.data, 'write'):
                 written += self.data.write(fp, padding=1)
@@ -833,15 +823,12 @@ class ThumbnailResource(BaseElement):
 
     @classmethod
     def read(cls, fp, **kwargs):
-        fmt, width, height, row, total_size, size, bits, planes = read_fmt(
-            '6I2H', fp
-        )
+        fmt, width, height, row, total_size, size, bits, planes = read_fmt('6I2H', fp)
         data = fp.read(size)
         return cls(fmt, width, height, row, total_size, bits, planes, data)
 
     def write(self, fp, **kwargs):
-        written = write_fmt(fp, '6I2H', self.fmt, self.width, self.height,
-                            self.row, self.total_size, len(self.data),
+        written = write_fmt(fp, '6I2H', self.fmt, self.width, self.height, self.row, self.total_size, len(self.data),
                             self.bits, self.planes)
         written += write_bytes(fp, self.data)
         return written
@@ -858,9 +845,7 @@ class ThumbnailResource(BaseElement):
                 image = Image.open(f)
                 image.load()
         else:
-            image = Image.frombytes('RGB', (self.width, self.height),
-                                    self.data, 'raw', self._RAW_MODE,
-                                    self.row)
+            image = Image.frombytes('RGB', (self.width, self.height), self.data, 'raw', self._RAW_MODE, self.row)
         return image
 
 

@@ -4,20 +4,15 @@ import logging
 
 import pytest
 
-from psd_tools.compression import (
-    compress, decompress, encode_prediction, decode_prediction,
-    encode_packbits, decode_packbits
-)
+from psd_tools.compression import (compress, decompress, encode_prediction, decode_prediction, encode_packbits,
+                                   decode_packbits)
 from psd_tools.constants import Compression
 
 logger = logging.getLogger(__name__)
 
-
 RAW_IMAGE_3x3_8bit = b'\x00\x01\x02\x01\x01\x01\x01\x00\x00'
 RAW_IMAGE_2x2_16bit = b'\x00\x01\x00\x02\x00\x03\x00\x04'
-RAW_IMAGE_2x2_32bit = (
-    b'\x00\x00\x00\x01\x00\x00\x00\x02\x00\x00\x00\x03\x00\x00\x00\x04'
-)
+RAW_IMAGE_2x2_32bit = (b'\x00\x00\x00\x01\x00\x00\x00\x02\x00\x00\x00\x03\x00\x00\x00\x04')
 
 
 @pytest.mark.parametrize('fixture, width, height, depth', [
@@ -66,15 +61,12 @@ def test_compress_decompress(data, kind, width, height, depth, version):
 
 # This will fail due to irreversible zlib compression.
 @pytest.mark.xfail
-@pytest.mark.parametrize('data, width, height, depth', [
-    (b'H\x89\xb2g`8\xc8P\xca\xc0\xd0\xcd\xf0\x85\x81\x81\x87\x01\n\xec1D\xed'
-     b'\x0f\x02\xc5\xcc\xba\x81b\xf5<01;\x06F\x06\x86\xf3\x0c\xe9\x8b\xe2\xf4'
-     b'\x19\x026\xf9\xcdf(\x9c\x91a\x0f\x920cX\xc4\x10W\xcf\xb0\x89\xc1\x8f'
-     b'\x87a\x06C\x06@\x80\x01\x00\x94#\x14\x01', 5, 5, 32)
-])
+@pytest.mark.parametrize('data, width, height, depth',
+                         [(b'H\x89\xb2g`8\xc8P\xca\xc0\xd0\xcd\xf0\x85\x81\x81\x87\x01\n\xec1D\xed'
+                           b'\x0f\x02\xc5\xcc\xba\x81b\xf5<01;\x06F\x06\x86\xf3\x0c\xe9\x8b\xe2\xf4'
+                           b'\x19\x026\xf9\xcdf(\x9c\x91a\x0f\x920cX\xc4\x10W\xcf\xb0\x89\xc1\x8f'
+                           b'\x87a\x06C\x06@\x80\x01\x00\x94#\x14\x01', 5, 5, 32)])
 def test_compress_decompress_fail(data, width, height, depth):
-    decoded = decompress(data, Compression.ZIP_WITH_PREDICTION, width, height,
-                         depth)
-    encoded = compress(decoded, Compression.ZIP_WITH_PREDICTION, width,
-                       height, depth)
+    decoded = decompress(data, Compression.ZIP_WITH_PREDICTION, width, height, depth)
+    encoded = compress(decoded, Compression.ZIP_WITH_PREDICTION, width, height, depth)
     assert data == encoded

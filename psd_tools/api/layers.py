@@ -32,15 +32,11 @@ class Layer(object):
 
         :return: `str`
         """
-        return self._record.tagged_blocks.get_data(
-            'UNICODE_LAYER_NAME', self._record.name
-        )
+        return self._record.tagged_blocks.get_data('UNICODE_LAYER_NAME', self._record.name)
 
     @name.setter
     def name(self, value):
-        assert len(value) < 256, 'Layer name too long (%d) %s' % (
-            len(value), value
-        )
+        assert len(value) < 256, 'Layer name too long (%d) %s' % (len(value), value)
         try:
             value.encode('macroman')
             self._record.name = value
@@ -243,10 +239,8 @@ class Layer(object):
 
         :return: `bool`
         """
-        return any(
-            ci.id >= 0 and cd.data and len(cd.data) > 0
-            for ci, cd in zip(self._record.channel_info, self._channels)
-        )
+        return any(ci.id >= 0 and cd.data and len(cd.data) > 0
+                   for ci, cd in zip(self._record.channel_info, self._channels))
 
     def has_mask(self):
         """
@@ -273,10 +267,7 @@ class Layer(object):
 
         :return: `bool`
         """
-        return any(
-            key in self.tagged_blocks for key in
-            ('VECTOR_MASK_SETTING1', 'VECTOR_MASK_SETTING2')
-        )
+        return any(key in self.tagged_blocks for key in ('VECTOR_MASK_SETTING1', 'VECTOR_MASK_SETTING2'))
 
     @property
     def vector_mask(self):
@@ -322,8 +313,7 @@ class Layer(object):
         if not hasattr(self, '_origination'):
             data = self.tagged_blocks.get_data('VECTOR_ORIGINATION_DATA', {})
             self._origination = [
-                Origination.create(x) for x
-                in data.get(b'keyDescriptorList', [])
+                Origination.create(x) for x in data.get(b'keyDescriptorList', [])
                 if not data.get(b'keyShapeInvalidated')
             ]
         return self._origination
@@ -401,7 +391,8 @@ class Layer(object):
     def __repr__(self):
         has_size = self.width > 0 and self.height > 0
         return '%s(%r%s%s%s%s)' % (
-            self.__class__.__name__, self.name,
+            self.__class__.__name__,
+            self.name,
             ' size=%dx%d' % (self.width, self.height) if has_size else '',
             ' invisible' if not self.visible else '',
             ' mask' if self.has_mask() else '',
@@ -429,7 +420,6 @@ class Layer(object):
 
 
 class GroupMixin(object):
-
     @property
     def left(self):
         return self.bbox[0]
@@ -716,16 +706,9 @@ class ShapeLayer(Layer):
                     self._record.right,
                     self._record.bottom,
                 )
-            elif self.has_origination() and not any(
-                x.invalidated for x in self.origination
-            ):
-                lefts, tops, rights, bottoms = zip(*[
-                    x.bbox for x in self.origination
-                ])
-                self._bbox = (
-                    int(min(lefts)), int(min(tops)),
-                    int(max(rights)), int(max(bottoms))
-                )
+            elif self.has_origination() and not any(x.invalidated for x in self.origination):
+                lefts, tops, rights, bottoms = zip(*[x.bbox for x in self.origination])
+                self._bbox = (int(min(lefts)), int(min(tops)), int(max(rights)), int(max(bottoms)))
             elif self.has_vector_mask():
                 bbox = self.vector_mask.bbox
                 self._bbox = (

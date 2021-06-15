@@ -17,11 +17,8 @@ def extract_bbox(layers):
     """
     if not hasattr(layers, '__iter__'):
         layers = [layers]
-    bboxes = [
-        layer.bbox for layer in layers
-        if layer.is_visible() and not layer.bbox == (0, 0, 0, 0)
-    ]
-    if len(bboxes) == 0:  # Empty bounding box.
+    bboxes = [layer.bbox for layer in layers if layer.is_visible() and not layer.bbox == (0, 0, 0, 0)]
+    if len(bboxes) == 0:    # Empty bounding box.
         return (0, 0, 0, 0)
     lefts, tops, rights, bottoms = zip(*bboxes)
     return (min(lefts), min(tops), max(rights), max(bottoms))
@@ -122,7 +119,9 @@ def compose(layers, bbox=None, layer_filter=None, color=None):
     # Alpha must be forced to correctly blend.
     mode = get_pil_mode(valid_layers[0]._psd.color_mode, True)
     result = Image.new(
-        mode, (bbox[2] - bbox[0], bbox[3] - bbox[1]), color=color,
+        mode,
+        (bbox[2] - bbox[0], bbox[3] - bbox[1]),
+        color=color,
     )
 
     initial_layer = True
@@ -162,10 +161,7 @@ def compose_layer(layer, force=False):
     # Apply mask.
     if layer.has_mask() and not layer.mask.disabled:
         mask_bbox = layer.mask.bbox
-        if (
-            (mask_bbox[2] - mask_bbox[0]) > 0 and
-            (mask_bbox[3] - mask_bbox[1]) > 0
-        ):
+        if ((mask_bbox[2] - mask_bbox[0]) > 0 and (mask_bbox[3] - mask_bbox[1]) > 0):
             color = layer.mask.background_color
             offset = (mask_bbox[0] - layer.left, mask_bbox[1] - layer.top)
             mask = Image.new('L', image.size, color=color)
@@ -213,9 +209,7 @@ def create_fill(layer):
     mode = get_pil_mode(layer._psd.color_mode, True)
     image = Image.new(mode, (layer.width, layer.height))
     if 'SOLID_COLOR_SHEET_SETTING' in layer.tagged_blocks:
-        setting = layer.tagged_blocks.get_data(
-            'SOLID_COLOR_SHEET_SETTING'
-        )
+        setting = layer.tagged_blocks.get_data('SOLID_COLOR_SHEET_SETTING')
         draw_solid_color_fill(image, setting)
     elif 'PATTERN_FILL_SETTING' in layer.tagged_blocks:
         setting = layer.tagged_blocks.get_data('PATTERN_FILL_SETTING')
@@ -344,16 +338,14 @@ def _apply_color_map(mode, grad, Z):
 
     stops = grad.get(b'Clrs')
     scalar = {
-        'RGB': 1.0, 'L': 2.55, 'CMYK': 2.55,
+        'RGB': 1.0,
+        'L': 2.55,
+        'CMYK': 2.55,
     }.get(mode, 1.0)
-    G = interpolate.interp1d(
-        [stop.get(b'Lctn').value / 4096. for stop in stops],
-        [
-            tuple(int(scalar * x.value) for x in stop.get(b'Clr ').values())
-            for stop in stops
-        ],
-        axis=0, fill_value='extrapolate'
-    )
+    G = interpolate.interp1d([stop.get(b'Lctn').value / 4096. for stop in stops],
+                             [tuple(int(scalar * x.value) for x in stop.get(b'Clr ').values()) for stop in stops],
+                             axis=0,
+                             fill_value='extrapolate')
     pixels = G(Z).astype(np.uint8)
     if pixels.shape[-1] == 1:
         pixels = pixels[:, :, 0]
@@ -361,11 +353,10 @@ def _apply_color_map(mode, grad, Z):
     image = Image.fromarray(pixels, mode.rstrip('A'))
     if b'Trns' in grad and mode.endswith('A'):
         stops = grad.get(b'Trns')
-        G_opacity = interpolate.interp1d(
-            [stop.get(b'Lctn').value / 4096 for stop in stops],
-            [stop.get(b'Opct').value * 2.55 for stop in stops],
-            axis=0, fill_value='extrapolate'
-        )
+        G_opacity = interpolate.interp1d([stop.get(b'Lctn').value / 4096 for stop in stops],
+                                         [stop.get(b'Opct').value * 2.55 for stop in stops],
+                                         axis=0,
+                                         fill_value='extrapolate')
         alpha = G_opacity(Z).astype(np.uint8)
         image.putalpha(Image.fromarray(alpha, 'L'))
 

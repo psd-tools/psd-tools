@@ -9,18 +9,17 @@ import attr
 
 from psd_tools.constants import TaggedBlockID
 from psd_tools.psd.base import (
-    BaseElement, EmptyElement, ListElement, ShortIntegerElement,
+    BaseElement,
+    EmptyElement,
+    ListElement,
+    ShortIntegerElement,
 )
 from psd_tools.psd.descriptor import DescriptorBlock, DescriptorBlock2
-from psd_tools.utils import (
-    read_fmt, write_fmt, is_readable,
-    write_bytes, read_unicode_string, write_unicode_string, write_padding,
-    new_registry
-)
+from psd_tools.utils import (read_fmt, write_fmt, is_readable, write_bytes, read_unicode_string, write_unicode_string,
+                             write_padding, new_registry)
 from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
-
 
 ADJUSTMENT_TYPES, register = new_registry()
 
@@ -71,9 +70,9 @@ class ColorBalance(BaseElement):
     .. py:attribute:: highlights
     .. py:attribute:: luminosity
     """
-    shadows = attr.ib(default=(0,) * 3, type=tuple)
-    midtones = attr.ib(default=(0,) * 3, type=tuple)
-    highlights = attr.ib(default=(0,) * 3, type=tuple)
+    shadows = attr.ib(default=(0, ) * 3, type=tuple)
+    midtones = attr.ib(default=(0, ) * 3, type=tuple)
+    highlights = attr.ib(default=(0, ) * 3, type=tuple)
     luminosity = attr.ib(default=False, type=bool)
 
     @classmethod
@@ -105,8 +104,7 @@ class ColorLookup(DescriptorBlock2):
     @classmethod
     def read(cls, fp, **kwargs):
         version, data_version = read_fmt('HI', fp)
-        return cls(version=version, data_version=data_version,
-                   **cls._read_body(fp))
+        return cls(version=version, data_version=data_version, **cls._read_body(fp))
 
     def write(self, fp, padding=4, **kwargs):
         written = write_fmt(fp, 'HI', self.version, self.data_version)
@@ -125,7 +123,7 @@ class ChannelMixer(BaseElement):
     .. py:attribute:: monochrome
     .. py:attribute:: data
     """
-    version = attr.ib(default=1, type=int, validator=in_((1,)))
+    version = attr.ib(default=1, type=int, validator=in_((1, )))
     monochrome = attr.ib(default=0, type=int)
     data = attr.ib(factory=list, converter=list)
     unknown = attr.ib(default=b'', type=bytes, repr=False)
@@ -169,7 +167,7 @@ class Curves(BaseElement):
         assert version in (1, 4), 'Invalid version %d' % (version)
 
         if version == 1:
-            count = bin(count_map).count('1')  # Bitmap = channel index?
+            count = bin(count_map).count('1')    # Bitmap = channel index?
         else:
             count = count_map
 
@@ -180,9 +178,7 @@ class Curves(BaseElement):
             data = []
             for _ in range(count):
                 point_count = read_fmt('H', fp)[0]
-                assert 2 <= point_count and point_count <= 19, (
-                    'Curves point count not in [2, 19]'
-                )
+                assert 2 <= point_count and point_count <= 19, ('Curves point count not in [2, 19]')
                 points = [read_fmt('2H', fp) for i in range(point_count)]
                 data.append(points)
 
@@ -193,8 +189,7 @@ class Curves(BaseElement):
         return cls(is_map, version, count_map, data, extra)
 
     def write(self, fp, **kwargs):
-        written = write_fmt(fp, 'BHI', self.is_map, self.version,
-                            self.count_map)
+        written = write_fmt(fp, 'BHI', self.is_map, self.version, self.count_map)
         if self.is_map:
             written += sum(write_fmt(fp, '256B', *item) for item in self.data)
         else:
@@ -288,15 +283,15 @@ class GradientMap(BaseElement):
     .. py:attribute:: minimum_color
     .. py:attribute:: maximum_color
     """
-    version = attr.ib(default=1, type=int, validator=in_((1,)))
+    version = attr.ib(default=1, type=int, validator=in_((1, )))
     is_reversed = attr.ib(default=0, type=int)
     is_dithered = attr.ib(default=0, type=int)
     name = attr.ib(default='', type=str)
     color_stops = attr.ib(factory=list, converter=list)
     transparency_stops = attr.ib(factory=list, converter=list)
-    expansion = attr.ib(default=2, type=int, validator=in_((2,)))
+    expansion = attr.ib(default=2, type=int, validator=in_((2, )))
     interpolation = attr.ib(default=0, type=int)
-    length = attr.ib(default=32, type=int, validator=in_((32,)))
+    length = attr.ib(default=32, type=int, validator=in_((32, )))
     mode = attr.ib(default=0, type=int)
     random_seed = attr.ib(default=0, type=int)
     show_transparency = attr.ib(default=0, type=int)
@@ -321,25 +316,21 @@ class GradientMap(BaseElement):
         roughness, color_model = read_fmt('IH', fp)
         minimum_color = read_fmt('4H', fp)
         maximum_color = read_fmt('4H', fp)
-        read_fmt('2x', fp)  # Dummy?
-        return cls(version, is_reversed, is_dithered, name, color_stops,
-                   transparency_stops, expansion, interpolation, length,
-                   mode, random_seed, show_transparency, use_vector_color,
-                   roughness, color_model, minimum_color, maximum_color)
+        read_fmt('2x', fp)    # Dummy?
+        return cls(version, is_reversed, is_dithered, name, color_stops, transparency_stops, expansion, interpolation,
+                   length, mode, random_seed, show_transparency, use_vector_color, roughness, color_model,
+                   minimum_color, maximum_color)
 
     def write(self, fp, **kwargs):
-        written = write_fmt(fp, 'H2B', self.version, self.is_reversed,
-                            self.is_dithered)
+        written = write_fmt(fp, 'H2B', self.version, self.is_reversed, self.is_dithered)
         written += write_unicode_string(fp, self.name)
         written += write_fmt(fp, 'H', len(self.color_stops))
         written += sum(stop.write(fp) for stop in self.color_stops)
         written += write_fmt(fp, 'H', len(self.transparency_stops))
         written += sum(stop.write(fp) for stop in self.transparency_stops)
-        written += write_fmt(
-            fp, '4HI2HIH', self.expansion, self.interpolation, self.length,
-            self.mode, self.random_seed, self.show_transparency,
-            self.use_vector_color, self.roughness, self.color_model
-        )
+        written += write_fmt(fp, '4HI2HIH', self.expansion, self.interpolation, self.length, self.mode,
+                             self.random_seed, self.show_transparency, self.use_vector_color, self.roughness,
+                             self.color_model)
         written += write_fmt(fp, '4H', *self.minimum_color)
         written += write_fmt(fp, '4H', *self.maximum_color)
         written += write_fmt(fp, '2x')
@@ -369,9 +360,7 @@ class ColorStop(BaseElement):
         return cls(location, midpoint, mode, color)
 
     def write(self, fp):
-        return write_fmt(
-            fp, '2I5H2x', self.location, self.midpoint, self.mode, *self.color
-        )
+        return write_fmt(fp, '2I5H2x', self.location, self.midpoint, self.mode, *self.color)
 
 
 @attr.s(slots=True)
@@ -479,7 +468,7 @@ class Levels(ListElement):
 
         Version of the extra field.
     """
-    version = attr.ib(default=0, type=int, validator=in_((2,)))
+    version = attr.ib(default=0, type=int, validator=in_((2, )))
     extra_version = attr.ib(default=None)
 
     @classmethod
@@ -492,9 +481,7 @@ class Levels(ListElement):
         if is_readable(fp, 6):
             signature, extra_version = read_fmt('4sH', fp)
             assert signature == b'Lvls', 'Invalid signature %r' % (signature)
-            assert extra_version == 3, 'Invalid extra version %d' % (
-                extra_version
-            )
+            assert extra_version == 3, 'Invalid extra version %d' % (extra_version)
             count = read_fmt('H', fp)[0]
             items += [LevelRecord.read(fp) for _ in range(count - 29)]
 
@@ -588,16 +575,14 @@ class PhotoFilter(BaseElement):
             color_space = read_fmt('H', fp)[0]
             color_components = read_fmt('4H', fp)
         density, luminosity = read_fmt('IB', fp)
-        return cls(version, xyz, color_space, color_components, density,
-                   luminosity)
+        return cls(version, xyz, color_space, color_components, density, luminosity)
 
     def write(self, fp, **kwargs):
         written = write_fmt(fp, 'H', self.version)
         if self.version == 3:
             written += write_fmt(fp, '3I', *self.xyz)
         else:
-            written += write_fmt(fp, 'H4H', self.color_space,
-                                 *self.color_components)
+            written += write_fmt(fp, 'H4H', self.color_space, *self.color_components)
         written += write_fmt(fp, 'IB', self.density, self.luminosity)
         written += write_padding(fp, written, 4)
         return written
@@ -613,7 +598,7 @@ class SelectiveColor(BaseElement):
     .. py:attribute:: method
     .. py:attribute:: data
     """
-    version = attr.ib(default=1, type=int, validator=in_((1,)))
+    version = attr.ib(default=1, type=int, validator=in_((1, )))
     method = attr.ib(default=0, type=int)
     data = attr.ib(factory=list, converter=list)
 
