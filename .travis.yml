@@ -5,6 +5,11 @@ cache:
   directories:
     - $HOME/.cache/pip
 
+env:
+  global:
+    - secure: FgkS+p+p9MI/q1ZP+TfEp7iUHVqohWj4oBusYPjNnjcQPaFMbwX4mfQMGqqp5MOlUdNiACFPZIGjVGs32phM/pv84I/1XloIcnnEbjefu90ep1ro0c3kq07hY7AotkwmUakzrG6q0PqdxZeoDYg5nmKycjC7TZkvMeBGZqQt5VYSkSTde88H+igi1+rKeEIFlrakVWjHy9Mf71xrfiUSIUKb4ktu/5fn5fTFw2xzkx0dbfSNKyjgZbr2l20kOPv1glpjmWB+Ccg+xiRJDvx2JoiA4UIlm1tp5bk4vf3DEPly7e1CTzO2/9o0ABfktWCXDjiG7qymf8IjK7o1XHSpUDVvWGVD+umCnAEeyQXXNQU7U0oc5R2Dcp5HqzrSTay3P4HwKRfEmAtrbwkfbcUdZY/U+YYKqGOK6baIa3azFxwLd/MRVthH1ngnai14t6vuDD4F+q6rbcOTyUuiGchYVPVtECZSnHJoAi9vI/7d8SE11mvGxKmGpkX9NhQDJWedKvDJRUtGkPPuTCux4MLjqG8eRvRfR8QmSXZ+NHZ8WQE5blT7LqtMJbRJkwlU++Wnp5bzYD7VwN/bfC7XjN7bUJsvdui/VCVuN5aGYEq1/OEhyHFnCEcXCmZEo0dZe0FnzOm8ofG9cr5Qyf8/Ju3R5ry+QphXYpjXkHdmUZTy2mM=
+    - secure: pmFANAFn4z4m082nNNmABUWIFdTfgGqCDATLEbZQ+RRdsBH7Eiv+LUD+UXM8EcHw4uJwSTdpIxTreWUWoz7NPqq6m+MgT0aqVwhmKFbGXmp6e1h/0Lzy76f9Gke27g1ibSkvuK17Q+cfjZRgbLfwc6h3IWz0Hdj/UUBMOoi86vDEhUHNt5wVEq11chW60UOcEpAC/fv8C/YoGrXoB91yl809Kr0qNe/W0Nejqh875HcsnfADquos6+4+L4qi94Biu5DDaWogXj75N+NddU7jP+5UycAhMsWdy+sexc1auVVNMxVkStMO4PE7VHAhh5dAXJcTlMallCgsn9VrSm4mPamMys//Iirx8qxqSNGDpbVhoj+5gzDN3kZ6bQyfCfEYax7F/85hDMKrlu8mA8phPNVXNCxV9QUjG1SepX8eZeyvNzEmZFWhUTBDUlJ59WZiv1KOSLBXWPA0FPyqAPeIs7FKfeB5bMmt4UolkwE3Ciw6p9VJ2t6Jo8ImnfraTaEfTXGDGDNRr7+Dsahj+3JS8V5AJ3WDjRkqj5mkkhzc1S8yINO8qC5Yn0Cj07rmidGXSnHDFLYeBsoIsPjQLe9rrTL6nwi7dj5WBhK4tWP85XJ2/zL6mYVh5xdeG1cxeJwBxYiTLCfcG+N69PakVhVAvdXbmmWC4XdSUGMMr4RI7bY=
+
 python:
   - 3.6
   - 3.7
@@ -27,3 +32,12 @@ install:
 
 script:
   - sh unittest.sh
+
+deploy:
+  provider: pypi
+  username: "$PYPI_USERNAME"
+  password: "$PYPI_PASSWORD"
+  skip_existing: true
+  on:
+    tags: true
+    python: 3.9
