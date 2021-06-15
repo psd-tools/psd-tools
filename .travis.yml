@@ -5,12 +5,12 @@ python:
   - 3.7
   - 3.8
   - 3.9
-  - 3.9-dev
+  - 3.10-dev
   - nightly
 
 jobs:
   allow_failures:
-    - python: 3.9-dev
+    - python: 3.10-dev
     - python: nightly
 
 before_install:
