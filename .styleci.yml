@@ -1,0 +1,17 @@
+py:
+  version: 3
+  preset: pep8
+  options:
+    tab-width: 4
+    use-tabs: false
+    print-width: 120
+    multiline-split-indent: 4
+    join-short-lines: false
+    comment-indent: 4
+  finder:
+    exclude:
+      - "modules"
+      - "node_modules"
+      - "storage"
+      - "vendor"
+    name:

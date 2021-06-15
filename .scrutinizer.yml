@@ -1,0 +1,14 @@
+checks:
+    python:
+        code_rating: true
+        duplicate_code: true
+
+build:
+  environment:
+    python: 3.9.1
+  nodes:
+    analysis:
+      project_setup:
+        override: true
+      tests:
+        override: [py-scrutinizer-run]
