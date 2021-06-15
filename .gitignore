@@ -18,3 +18,5 @@ htmlcov/
 .ipynb_checkpoint/
 .pytest_cache
 tmp/
+venv
+.idea

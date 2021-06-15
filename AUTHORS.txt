@@ -20,4 +20,4 @@ Contributors
 * Leendert Brouwer;
 * Kota Yamaguchi;
 * Ichiro Arai;
-* Stephen Neal.
+* Stephen Neal;
