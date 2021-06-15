@@ -1,4 +1,4 @@
-from __future__ import absolute_import
-from psd_tools.user_api.psd_image import PSDImage
-from psd_tools.user_api.composer import compose
-from psd_tools._version import __version__
+from __future__ import absolute_import, unicode_literals
+
+from .api.composer import compose
+from .api.psd_image import PSDImage
