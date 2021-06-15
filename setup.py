@@ -19,7 +19,7 @@ setup_args = dict(
     version=get_version(),
     author='Stephen Neal',
     author_email='stephen@stephenneal.net',
-    url='https://github.com/mrstephenneal/psd-tools3',
+    url='https://github.com/sfneal/psd-tools3',
 
     description='Fork of psd-tools for working with Adobe Photoshop PSD files',
     long_description=(
@@ -27,7 +27,15 @@ setup_args = dict(
     ),
     license='MIT License',
     requires=['docopt (>= 0.5)', 'Pillow'],
-    install_requires=['docopt >= 0.5', 'packbits', 'exifread', 'PyBundle'],
+    install_requires=[
+        'docopt >= 0.5',
+        'packbits',
+        'attrs',
+        'Pillow',
+        'enum34;python_version<"3.4"',
+        'exifread',
+        'PyBundle'
+    ],
     keywords="pymaging psd imaging pil pillow",
     zip_safe=False,
 

@@ -1,7 +1,7 @@
 psd-tools3
 ==========
 
-.. image:: https://badges.production.guardrails.io/mrstephenneal/psd-tools3.svg
+.. image:: https://badges.production.guardrails.io/sfneal/psd-tools3.svg
    :alt: GuardRails badge
    :target: https://www.guardrails.io
 
