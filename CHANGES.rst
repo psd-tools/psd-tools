@@ -1,32 +1,37 @@
+1.9.0 (2021-06-15)
+------------------
+- upgrade Py dependency
+- merge changes from kyamagu/psd-tools
+
+
 1.8.8 (2019-02-20)
 ------------------
-
 - revert package name to `psd_tools`;
 - prepare merging to the main repo.
 
+
 1.8.7 (2019-02-15)
 ------------------
-
 - minor bugfix.
+
 
 1.8.6 (2019-02-14)
 ------------------
-
 - change _psd pointer in PSDImage;
 - add version property;
 - support fill effects in composer.
 
+
 1.8.5 (2019-02-05)
 ------------------
-
 - change tagged block/image resource singleton accessor in user API;
 - add documentation on iterator order;
 - fix export setting 1 big key config;
 - fix computer info big key config.
 
+
 1.8.3 (2019-02-01)
 ------------------
-
 - add channel size checking in topil;
 - add mlst metadata decoding;
 - fix key collision issue in descriptor;
