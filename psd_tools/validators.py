@@ -2,6 +2,7 @@
 Validation functions for attr.
 """
 import attr
+from attr.validators import in_
 
 
 @attr.s(repr=False, slots=True, hash=True)
