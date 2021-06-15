@@ -2,6 +2,7 @@ atomicwrites>=1.2.1
 attrs>=18.2.0
 docopt>=0.6.2
 ExifRead>=2.1.2
+IPython>=7.0
 ImageHash>=4.0
 more-itertools>=4.3.0
 numpy>=1.15.2

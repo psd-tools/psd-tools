@@ -19,6 +19,7 @@
 #
 import os
 import sys
+
 import sphinx_rtd_theme
 
 sys.path.insert(0, os.path.join(
@@ -121,8 +122,8 @@ html_sidebars = {
 # Github link
 html_context = dict(
     display_github=True,
-    github_user="kyamagu",
-    github_repo="psd-tools2",
+    github_user="psd-tools",
+    github_repo="psd-tools",
     github_version="master",
     conf_py_path="/docs/",
 )
