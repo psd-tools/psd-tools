@@ -138,7 +138,7 @@ class VectorMask(object):
 
 class Stroke(object):
     """
-    Stroke contains decorative infromation for strokes.
+    Stroke contains decorative information for strokes.
 
     This is a thin wrapper around
     :py:class:`~psd_tools.psd.descriptor.Descriptor` structure.

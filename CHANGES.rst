@@ -635,7 +635,7 @@
 
 - Fixed reading of images with layer masks (thanks Evgeny Kopylov);
 - improved mask data decoding (thanks Evgeny Kopylov);
-- fixed syncronization in case of ``8B64`` signatures (thanks Evgeny Kopylov);
+- fixed synchronization in case of ``8B64`` signatures (thanks Evgeny Kopylov);
 - fixed reading of layers with zero length (thanks Evgeny Kopylov);
 - fixed Descriptor parsing (thanks Evgeny Kopylov);
 - some of the descriptor structures and tagged block constants are renamed (thanks Evgeny Kopylov);
