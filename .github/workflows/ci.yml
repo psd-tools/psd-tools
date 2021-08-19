@@ -81,7 +81,7 @@ jobs:
           path: ./wheelhouse/*.whl
 
   publish:
-  name: Upload packages to PyPI
+    name: Upload packages to PyPI
     needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
     if: github.event_name == 'release' && github.event.action == 'published'
