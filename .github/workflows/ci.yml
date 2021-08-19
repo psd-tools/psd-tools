@@ -1,22 +1,25 @@
-name: Test
+name: Build and publish to PyPI
 
 on:
   push:
     branches: [master]
   pull_request:
     branches: [master]
+  release:
+    types: [published]
 
 jobs:
   lint:
     name: Run linting
     runs-on: ubuntu-latest
+    if: github.event_name != 'release'
     steps:
     - uses: actions/checkout@v2
 
     - uses: actions/setup-python@v2
       name: Install Python
       with:
-        python-version: '3.7'
+        python-version: '3.8'
 
     - name: Lint with flake8
       run: |
@@ -24,6 +27,24 @@ jobs:
         pip install flake8
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+  build_sdist:
+    name: Build source distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-python@v2
+        name: Install Python
+        with:
+          python-version: '3.8'
+
+      - name: Build sdist
+        run: python setup.py sdist
+
+      - uses: actions/upload-artifact@v2
+        with:
+          path: dist/*.tar.gz
 
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
@@ -38,7 +59,7 @@ jobs:
       - uses: actions/setup-python@v2
         name: Install Python
         with:
-          python-version: '3.7'
+          python-version: '3.8'
 
       - name: Set up QEMU
         if: runner.os == 'Linux'
@@ -47,9 +68,30 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.1.1
         env:
+          CIBW_BUILD: cp37-* cp38-* cp39-*
           CIBW_ARCHS_LINUX: auto aarch64
           CIBW_ARCHS_MACOS: x86_64 universal2
           CIBW_BEFORE_BUILD: pip install cython
           CIBW_TEST_REQUIRES: pytest numpy ipython
           CIBW_TEST_COMMAND: pytest {project}/tests
           CIBW_TEST_SKIP: "*-macosx_arm64 *-macosx_universal2:arm64 cp39-win*"
+
+      - uses: actions/upload-artifact@v2
+        with:
+          path: ./wheelhouse/*.whl
+
+  publish:
+  name: Upload packages to PyPI
+    needs: [build_wheels, build_sdist]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' && github.event.action == 'published'
+    steps:
+      - uses: actions/download-artifact@v2
+        with:
+          name: artifact
+          path: dist
+
+      - uses: pypa/gh-action-pypi-publish@v1.4.2
+        with:
+          user: ${{ secrets.PYPI_USERNAME }}
+          password: ${{ secrets.PYPI_PASSWORD }}
