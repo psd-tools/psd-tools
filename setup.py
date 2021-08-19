@@ -11,7 +11,8 @@ try:
         [
             Extension(
                 'psd_tools.compression._rle',
-                ['src/psd_tools/compression/_rle.pyx']
+                ['src/psd_tools/compression/_rle.pyx'],
+                extra_compile_args=['/d2FH4-'] if sys.platform == 'win32' else [],
             )
         ],
         language_level=sys.version_info[0],

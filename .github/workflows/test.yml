@@ -2,87 +2,54 @@ name: Test
 
 on:
   push:
-    branches:
-    - master
+    branches: [master]
   pull_request:
-    branches:
-    - master
+    branches: [master]
 
 jobs:
-  linux:
+  lint:
+    name: Run linting
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        container:
-          - quay.io/pypa/manylinux2014_x86_64
-        python-version:
-          - cp36-cp36m
-          - cp37-cp37m
-          - cp38-cp38
-          - cp39-cp39
-    container: ${{ matrix.container }}
     steps:
-    - uses: actions/checkout@v1
-    - name: Set PATH
-      run: echo "/opt/python/${{ matrix.python-version }}/bin" >> $GITHUB_PATH
-    - name: Install dependencies
-      run: python -m pip install --upgrade pip
+    - uses: actions/checkout@v2
+
+    - uses: actions/setup-python@v2
+      name: Install Python
+      with:
+        python-version: '3.7'
+
     - name: Lint with flake8
       run: |
+        pip install --upgrade pip
         pip install flake8
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Test
-      run: |
-        pip install tox cython numpy
-        tox -e py
-  linux_aarch64:
-    strategy:
-      matrix:
-        pyver: [cp37-cp37m, cp38-cp38, cp39-cp39]
-      fail-fast: false
-    runs-on: ubuntu-latest
-    env:
-      py: /opt/python/${{ matrix.pyver }}/bin/python
-      img: quay.io/pypa/manylinux2014_aarch64
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v2
-    - name: Set up QEMU
-      id: qemu
-      uses: docker/setup-qemu-action@v1
-    - name: Test
-      run: |
-            docker run --rm -v ${{ github.workspace }}:/ws:rw --workdir=/ws \
-            ${{ env.img }} \
-            bash -exc '${{ env.py }} -m venv .env && \
-            source .env/bin/activate && \
-            python -m pip install --upgrade pip && \
-            pip install tox cython numpy && \
-            tox -e py && \
-            deactivate'
-  other:
+
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-latest, windows-latest]
-        python-version: [3.6, 3.7, 3.8, 3.9]
+        os: [ubuntu-20.04, windows-2019, macos-10.15]
+
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-python@v1
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Set PATH  # See actions/virtual-environments#294
-      run: echo "C:\Program Files (x86)\Windows Kits\10\bin\10.0.18362.0\x64" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-      if: runner.os == 'Windows'
-    - name: Install dependencies
-      run: python -m pip install --upgrade pip
-    - name: Lint with flake8
-      run: |
-        pip install flake8
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Test
-      run: |
-        pip install tox cython numpy
-        tox -e py
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-python@v2
+        name: Install Python
+        with:
+          python-version: '3.7'
+
+      - name: Set up QEMU
+        if: runner.os == 'Linux'
+        uses: docker/setup-qemu-action@v1
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.1.1
+        env:
+          CIBW_ARCHS_LINUX: auto aarch64
+          CIBW_ARCHS_MACOS: x86_64 universal2
+          CIBW_BEFORE_BUILD: pip install cython
+          CIBW_TEST_REQUIRES: pytest numpy
+          CIBW_TEST_COMMAND: pytest {project}/tests
+          CIBW_TEST_SKIP: "*-macosx_arm64 *-macosx_universal2:arm64 cp39-win*"
