@@ -47,11 +47,12 @@ jobs:
           path: dist/*.tar.gz
 
   build_wheels:
-    name: Build wheels on ${{ matrix.os }}
+    name: Build wheels on ${{ matrix.os }} (${{ matrix.build }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-20.04, windows-2019, macos-10.15]
+        build: [cp37-*, cp38-*, cp39-*]
 
     steps:
       - uses: actions/checkout@v2
@@ -68,7 +69,7 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.1.1
         env:
-          CIBW_BUILD: cp37-* cp38-* cp39-*
+          CIBW_BUILD: ${{ matrix.build }}
           CIBW_ARCHS_LINUX: auto aarch64
           CIBW_ARCHS_MACOS: x86_64 universal2
           CIBW_BEFORE_BUILD: pip install cython
