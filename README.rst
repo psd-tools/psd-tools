@@ -4,17 +4,18 @@ psd-tools
 `psd-tools` is a Python package for working with Adobe Photoshop PSD files
 as described in specification_.
 
-|pypi| |test| |docs|
+|pypi| |build| |docs|
 
 .. _specification: https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/
 .. _psd-tools: https://github.com/psd-tools/psd-tools
 
 .. |pypi| image:: https://img.shields.io/pypi/v/psd-tools.svg
-    :target: https://pypi.python.org/pypi/psd-tools
     :alt: PyPI Version
+    :target: https://pypi.python.org/pypi/psd-tools
 
-.. |test| image:: https://github.com/psd-tools/psd-tools/workflows/Test/badge.svg
-    :alt: Test
+.. |build| image:: https://github.com/psd-tools/psd-tools/actions/workflows/ci.yml/badge.svg
+    :alt: Build
+    :target: https://github.com/psd-tools/psd-tools/actions/workflows/ci.yml
 
 .. |docs| image:: https://readthedocs.org/projects/psd-tools/badge/
     :alt: Document Status
