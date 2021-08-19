@@ -23,56 +23,64 @@ jobs:
       run: |
         python setup.py sdist
         twine upload --skip-existing dist/*
-  bdist_manylinux:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        container:
-          - quay.io/pypa/manylinux2014_x86_64
-        python-version:
-          - cp36-cp36m
-          - cp37-cp37m
-          - cp38-cp38
-          - cp39-cp39
-    container: ${{ matrix.container }}
-    steps:
-    - uses: actions/checkout@v1
-    - name: Set PATH
-      run: echo "/opt/python/${{ matrix.python-version }}/bin" >> $GITHUB_PATH
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install cython wheel twine
-    - name: Build and publish
-      env:
-        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-      run: |
-        pip wheel . -w dist/ --no-deps
-        auditwheel repair dist/*.whl --plat $AUDITWHEEL_PLAT
-        twine upload --skip-existing wheelhouse/*
-  bdist_other:
+  build_wheels:
+    name: Build wheels for ${{ matrix.os }} ${{ matrix.archs }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
-        python-version: [3.6, 3.7, 3.8, 3.9]
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        archs: [x86_64, aarch64]
+        exclude:
+          - os: windows-latest
+            archs: aarch64
+          - os: macos-latest
+            archs: aarch64
     steps:
-    - uses: actions/checkout@v1
-    - uses: actions/setup-python@v1
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Set PATH  # See actions/virtual-environments#294
-      run: echo "C:\Program Files (x86)\Windows Kits\10\bin\10.0.18362.0\x64" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-      if: runner.os == 'Windows'
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install cython wheel twine
-    - name: Build and publish
-      env:
-        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-      run: |
-        pip wheel . -w dist/ --no-deps
-        twine upload --skip-existing dist/*
+      - uses: actions/checkout@v2
+
+      - name: Set up QEMU
+        if: matrix.archs == 'aarch64'
+        id: qemu
+        uses: docker/setup-qemu-action@v1
+
+      - name: Install Python
+        uses: actions/setup-python@v2
+
+      - name: Install cibuildwheel
+        run: |
+          python -m pip install cibuildwheel
+      - name: Build wheels
+        run: |
+          python -m cibuildwheel --output-dir dist
+        env:
+          CIBW_BUILD: 'cp37-* cp38-* cp39-*'
+          CIBW_BEFORE_BUILD: pip install cython
+          CIBW_ARCHS_LINUX: ${{ matrix.archs }}
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: wheels
+          path: ./dist/*.whl
+
+  deploy:
+    name: Release
+    needs: [sdist, build_wheels]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install twine
+      - uses: actions/download-artifact@v2
+        id: download
+        with:
+          name: wheels
+          path: ./dist
+      - name: Build and publish
+        if: github.repository_owner == 'psd-tools' && startsWith(github.event.ref, 'refs/tags/')
+        env:
+          TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+          TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        run: |
+          twine upload --skip-existing dist/*
