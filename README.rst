@@ -1,13 +1,12 @@
 psd-tools
 =========
 
-`psd-tools` is a Python package for working with Adobe Photoshop PSD files
+``psd-tools`` is a Python package for working with Adobe Photoshop PSD files
 as described in specification_.
 
 |pypi| |build| |docs|
 
 .. _specification: https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/
-.. _psd-tools: https://github.com/psd-tools/psd-tools
 
 .. |pypi| image:: https://img.shields.io/pypi/v/psd-tools.svg
     :alt: PyPI Version
@@ -21,7 +20,29 @@ as described in specification_.
     :alt: Document Status
     :target: http://psd-tools.readthedocs.io/en/latest/
 
-.. _psd-tools: https://github.com/psd-tools/psd-tools
+Features
+--------
+
+Supported:
+
+* Read and write of the low-level PSD/PSB file structure
+* Raw layer image export in NumPy and PIL format
+
+Limited support:
+
+* Composition of basic pixel-based layers
+* Composition of fill layer effects
+* Vector masks
+* Editing of some layer attributes such as layer name
+* Blending modes except for dissolve
+* Drawing of bezier curves
+
+Not supported:
+
+* Editing of layer structure, such as adding or removing a layer
+* Composition of adjustment layers
+* Composition of many layer effects
+* Font rendering
 
 Installation
 ------------
@@ -29,11 +50,6 @@ Installation
 Use ``pip`` to install the package::
 
     pip install psd-tools
-
-.. note::
-
-    In order to extract images from 32bit PSD files PIL/Pillow must be built
-    with LITTLECMS or LITTLECMS2 support.
 
 Getting started
 ---------------
@@ -60,3 +76,9 @@ Contributing
 See contributing_ page.
 
 .. _contributing: https://github.com/psd-tools/psd-tools/blob/master/docs/contributing.rst
+
+.. note::
+
+    PSD specification_ is far from complete. If you cannot find a desired
+    information in the documentation_, you should inspect the low-level
+    data structure.
