@@ -51,24 +51,24 @@ Features
 
 Supported:
 
-* Read and write of the low-level PSD/PSB file structure;
-* Raw layer image export in NumPy and PIL format.
+* Read and write of the low-level PSD/PSB file structure
+* Raw layer image export in NumPy and PIL format
 
 Limited support:
 
-* Composition of basic pixel-based layers by normal blending;
-* Composition of fill layer effects;
-* Vector masks;
-* Editing of some layer attributes such as layer name;
-* Blending modes except for dissolve;
-* Drawing of bezier curves.
+* Composition of basic pixel-based layers
+* Composition of fill layer effects
+* Vector masks
+* Editing of some layer attributes such as layer name
+* Blending modes except for dissolve
+* Drawing of bezier curves
 
 Not supported:
 
-* Editing of layer structure, such as adding or removing a layer;
-* Composition of adjustment layers;
-* Composition of layer effects;
-* Font rendering.
+* Editing of layer structure, such as adding or removing a layer
+* Composition of adjustment layers
+* Composition of many layer effects
+* Font rendering
 
 .. toctree::
     :caption: Package reference
