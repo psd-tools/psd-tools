@@ -188,6 +188,34 @@ class _GradientMixin(object):
         """Gradient configuration."""
         return self.value.get(Key.Gradient)
 
+    @property
+    def angle(self):
+        """Angle value."""
+        return self.value.get(Key.Angle).value
+
+    @property
+    def type(self):
+        """
+        Gradient type, one of `linear`, `radial`, `angle`, `reflected`, or
+        `diamond`.
+        """
+        return self.value.get(Key.Type).enum
+
+    @property
+    def reversed(self):
+        """Reverse flag."""
+        return bool(self.value.get(Key.Reverse))
+
+    @property
+    def dithered(self):
+        """Dither flag."""
+        return bool(self.value.get(Key.Dither))
+
+    @property
+    def offset(self):
+        """Offset value."""
+        return self.value.get(Key.Offset)
+
 
 class _PatternMixin(object):
     @property
@@ -195,6 +223,21 @@ class _PatternMixin(object):
         """Pattern config."""
         # TODO: Expose nested property.
         return self.value.get(b'Ptrn')  # Enum.Pattern. Seems a bug.
+
+    @property
+    def linked(self):
+        """Linked."""
+        return self.value.get(b'Lnkd')  # Enum.Linked. Seems a bug.
+
+    @property
+    def angle(self):
+        """Angle value."""
+        return self.value.get(Key.Angle).value
+
+    @property
+    def phase(self):
+        """Phase value in Point."""
+        return self.value.get(b'phase')
 
 
 class _ShadowEffect(_Effect, _ChokeNoiseMixin, _AngleMixin):
@@ -279,43 +322,14 @@ class ColorOverlay(_OverlayEffect, _ColorMixin):
     pass
 
 
-@register(b'GrFl')  # Equalt to Enum.GradientFill. This seems a bug.
+@register(b'GrFl')  # Equal to Enum.GradientFill. This seems a bug.
 class GradientOverlay(_OverlayEffect, _AlignScaleMixin, _GradientMixin):
-    @property
-    def angle(self):
-        """Angle value."""
-        return self.value.get(Key.Angle).value
-
-    @property
-    def type(self):
-        """
-        Gradient type, one of `linear`, `radial`, `angle`, `reflected`, or
-        `diamond`.
-        """
-        return self.value.get(Key.Type).enum
-
-    @property
-    def reversed(self):
-        """Reverse flag."""
-        return bool(self.value.get(Key.Reverse))
-
-    @property
-    def dithered(self):
-        """Dither flag."""
-        return bool(self.value.get(Key.Dither))
-
-    @property
-    def offset(self):
-        """Offset value."""
-        return self.value.get(Key.Offset)
+    pass
 
 
 @register(b'patternFill')
 class PatternOverlay(_OverlayEffect, _AlignScaleMixin, _PatternMixin):
-    @property
-    def phase(self):
-        """Phase value in Point."""
-        return self.value.get(b'phase')
+    pass
 
 
 @register(Klass.FrameFX.value)
