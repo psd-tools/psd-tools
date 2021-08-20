@@ -1,3 +1,10 @@
+1.9.17 (2021-08-20)
+-------------------
+
+- [api] Fix missing effect attributes (#284)
+- [package] Support additional platforms (i686, aarch64, universal2, win32)
+- [package] Drop py36 support
+
 1.9.17 (2021-01-15)
 -------------------
 
