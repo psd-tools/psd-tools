@@ -67,7 +67,7 @@ jobs:
         uses: docker/setup-qemu-action@v1
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.1.1
+        uses: pypa/cibuildwheel@v2.3.1
         env:
           CIBW_BUILD: ${{ matrix.build }}
           CIBW_ARCHS_LINUX: auto aarch64
