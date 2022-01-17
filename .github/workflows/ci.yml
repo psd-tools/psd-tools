@@ -71,7 +71,7 @@ jobs:
           CIBW_TEST_REQUIRES: pytest numpy ipython
           CIBW_TEST_COMMAND: pytest {project}/tests
           # aggdraw 1.3.12 only supports <cp39
-          CIBW_TEST_SKIP: "*-macosx_arm64 *-macosx_universal2:arm64 *-musllinux*"
+          CIBW_TEST_SKIP: "*-macosx_arm64 *-macosx_universal2:arm64 *-musllinux* cp39-manylinux_i686 cp310-manylinux_i686"
 
       - uses: actions/upload-artifact@v2
         with:
