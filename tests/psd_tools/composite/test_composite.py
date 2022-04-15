@@ -218,3 +218,10 @@ def test_composite_stroke():
     reference = composite(psd, force=True)
     result = composite(psd)
     assert _mse(reference[0], result[0]) > 0
+
+
+def test_composite_pixel_layer_with_vector_stroke():
+    psd = PSDImage.open(full_name('effects/stroke-without-vector-mask.psd'))
+    reference = composite(psd, force=True)
+    result = composite(psd)
+    assert _mse(reference[0], result[0]) <= 0.01
