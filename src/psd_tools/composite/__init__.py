@@ -334,7 +334,7 @@ class Compositor(object):
             color = self._apply_clip_layers(layer, color, alpha)
 
         # Apply stroke if any.
-        if layer.has_stroke() and layer.stroke.enabled:
+        if layer.has_vector_mask() and layer.has_stroke() and layer.stroke.enabled:
             color_s, shape_s, alpha_s = self._get_stroke(layer)
             compositor = Compositor(self._viewport, color, alpha)
             compositor._apply_source(
