@@ -93,6 +93,7 @@ TYPES.update({
     Tag.VECTOR_MASK_SETTING1: VectorMaskSetting,
     Tag.VECTOR_MASK_SETTING2: VectorMaskSetting,
     Tag.VECTOR_ORIGINATION_DATA: DescriptorBlock2,
+    Tag.VECTOR_ORIGINATION_UNKNOWN: IntegerElement,
     Tag.VECTOR_STROKE_DATA: DescriptorBlock,
     Tag.VECTOR_STROKE_CONTENT_DATA: VectorStrokeContentSetting,
 })

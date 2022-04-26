@@ -373,6 +373,7 @@ class Tag(bytes, Enum):
     VECTOR_MASK_SETTING1 = b'vmsk'
     VECTOR_MASK_SETTING2 = b'vsms'
     VECTOR_ORIGINATION_DATA = b'vogk'
+    VECTOR_ORIGINATION_UNKNOWN = b'vowv'
     VECTOR_STROKE_DATA = b'vstk'
     VECTOR_STROKE_CONTENT_DATA = b'vscg'
     VIBRANCE = b'vibA'

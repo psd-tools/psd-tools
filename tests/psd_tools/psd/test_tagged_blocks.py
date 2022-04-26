@@ -50,6 +50,7 @@ def test_tagged_blocks_v2():
         (Tag.LAYER_VERSION, IntegerElement(1), 2, 1),
         (Tag.LAYER_VERSION, IntegerElement(1), 1, 4),
         (Tag.LAYER_VERSION, IntegerElement(1), 2, 4),
+        (Tag.VECTOR_ORIGINATION_UNKNOWN, IntegerElement(2), 2, 1),
     ]
 )
 def test_tagged_block(key, data, version, padding):
