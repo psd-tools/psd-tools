@@ -473,15 +473,15 @@ class Compositor(object):
     def _apply_stroke_effect(self, layer, color, shape, alpha):
         for effect in layer.effects.find('stroke'):
             # Effect must happen at the layer viewport.
-            shape = paste(layer.bbox, self._viewport, shape)
-            color, shape_e = draw_stroke_effect(
-                layer.bbox, shape, effect.value, layer._psd
+            shape_in_bbox = paste(layer.bbox, self._viewport, shape)
+            color, shape_in_bbox = draw_stroke_effect(
+                layer.bbox, shape_in_bbox, effect.value, layer._psd
             )
             color = paste(self._viewport, layer.bbox, color)
-            shape_e = paste(self._viewport, layer.bbox, shape_e)
+            shape = paste(self._viewport, layer.bbox, shape_in_bbox)
             opacity = effect.opacity / 100.
             self._apply_source(
-                color, shape_e, shape_e * opacity, effect.blend_mode
+                color, shape, shape * opacity, effect.blend_mode
             )
 
 
