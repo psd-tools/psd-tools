@@ -1,4 +1,11 @@
-1.9.19 (2021-04-15)
+1.9.20 (2022-05-16)
+-------------------
+
+- [ci] Update CI configuration (#313 #314)
+- [composite] Fix composite errors (#312)
+- [psd] Suppress vowv tagged blocks (#306)
+
+1.9.19 (2022-04-15)
 -------------------
 
 - [composite] Fix rasterized shape composite (#301 #302)
