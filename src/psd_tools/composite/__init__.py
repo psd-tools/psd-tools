@@ -439,10 +439,16 @@ class Compositor(object):
             )
 
     def _apply_pattern_overlay(self, layer, color, shape, alpha):
+        channels = color.shape[-1]
         for effect in layer.effects.find('patternoverlay'):
             color, shape_e = draw_pattern_fill(
                 layer.bbox, layer._psd, effect.value
             )
+            if color.shape[-1] == 1 and color.shape[-1] < channels:
+                # Pattern has different # color channels here.
+                color = np.full([layer.height, layer.width, channels], color)
+            assert color.shape[-1] == channels, "Inconsistent pattern channels."
+
             color = paste(self._viewport, layer.bbox, color, 1.)
             if shape_e is None:
                 shape_e = np.ones((self.height, self.width, 1),
@@ -473,15 +479,15 @@ class Compositor(object):
     def _apply_stroke_effect(self, layer, color, shape, alpha):
         for effect in layer.effects.find('stroke'):
             # Effect must happen at the layer viewport.
-            shape = paste(layer.bbox, self._viewport, shape)
-            color, shape_e = draw_stroke_effect(
-                layer.bbox, shape, effect.value, layer._psd
+            shape_in_bbox = paste(layer.bbox, self._viewport, shape)
+            color, shape_in_bbox = draw_stroke_effect(
+                layer.bbox, shape_in_bbox, effect.value, layer._psd
             )
             color = paste(self._viewport, layer.bbox, color)
-            shape_e = paste(self._viewport, layer.bbox, shape_e)
+            shape = paste(self._viewport, layer.bbox, shape_in_bbox)
             opacity = effect.opacity / 100.
             self._apply_source(
-                color, shape_e, shape_e * opacity, effect.blend_mode
+                color, shape, shape * opacity, effect.blend_mode
             )
 
 
