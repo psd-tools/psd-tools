@@ -1,19 +1,71 @@
-import numpy as np
-from scipy import interpolate
 import logging
+from typing import Tuple
 
-from psd_tools.terminology import Enum, Key, Type, Klass
+import numpy as np
+from psd_tools.api.numpy_io import EXPECTED_CHANNELS, get_pattern
 from psd_tools.constants import Tag
-from psd_tools.api.numpy_io import get_pattern, EXPECTED_CHANNELS
+from psd_tools.terminology import Enum, Key, Klass, Type
+from scipy import interpolate
 
 logger = logging.getLogger(__name__)
 
-_COLOR_FUNC = {
-    Klass.RGBColor: lambda x: x / 255.,
-    Klass.Grayscale: lambda x: (100. - x) / 100.,
-    Klass.CMYKColor: lambda x: (100 - x) / 100.,
-    Klass.LabColor: lambda x: x / 255.,
-}
+
+
+def _get_color(desc) -> Tuple[float, ...]:
+    """Return color tuple from descriptor.
+
+    Example descriptor::
+
+        Descriptor(b'solidColorLayer'){
+            'Clr ': Descriptor(b'CMYC'){
+                'Cyn ': 83.04,
+                'Mgnt': 74.03,
+                'Ylw ': 80.99,
+                'Blck': 58.3
+                }
+            }
+
+        Descriptor(b'solidColorLayer'){
+            'Clr ': Descriptor(b'RGBC'){
+                'Rd  ': 235.90926200151443,
+                'Grn ': 232.29671984910965,
+                'Bl  ': 25.424751117825508,
+                'Bk  ': 'PANTONE+® Solid Coated\x00',
+                'Nm  ': 'PANTONE 395 C\x00',
+                'bookID': 3060,
+                'bookKey': RawData(value=b'1123SC')
+                }
+            }
+    """
+    def _get_int_color(color_desc, keys):
+        return tuple(float(color_desc[key]) / 255. for key in keys)
+
+    def _get_invert_color(color_desc, keys):
+        return tuple((100. - float(color_desc[key])) / 100. for key in keys)
+
+    def _get_rgb(x):
+        return _get_int_color(x, (Key.Red, Key.Green, Key.Blue))
+
+    def _get_gray(x):
+        return _get_invert_color(x, (Key.Gray,))
+
+    def _get_cmyk(x):
+        return _get_invert_color(
+            x, (Key.Cyan, Key.Magenta, Key.Yellow, Key.Black))
+
+    def _get_lab(x):
+        return _get_int_color(x, (Key.Luminance, Key.A, Key.B))
+
+    _COLOR_FUNC = {
+        Klass.RGBColor: _get_rgb,
+        Klass.Grayscale: _get_gray,
+        Klass.CMYKColor: _get_cmyk,
+        Klass.LabColor: _get_lab,
+    }
+    color_desc = desc.get(Key.Color)
+    assert color_desc, f"Could not find a color descriptor {desc}"
+    return _COLOR_FUNC[color_desc.classID](color_desc)
+
 
 
 def draw_vector_mask(layer):
@@ -98,8 +150,8 @@ def _draw_subpath(subpath_list, width, height, brush, pen):
 
     TODO: Replace aggdraw implementation with skimage.draw.
     """
-    from PIL import Image
     import aggdraw
+    from PIL import Image
     mask = Image.new('L', (width, height), 0)
     draw = aggdraw.Draw(mask)
     pen = aggdraw.Pen(**pen) if pen else None
@@ -185,9 +237,7 @@ def draw_solid_color_fill(viewport, desc):
     """
     Create a solid color fill.
     """
-    color_desc = desc.get(Key.Color)
-    color_fn = _COLOR_FUNC.get(color_desc.classID, 1.0)
-    fill = [color_fn(x) for x in color_desc.values()]
+    fill = _get_color(desc)
     height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
     color = np.full((height, width, len(fill)), fill, dtype=np.float32)
     return color, None
@@ -318,9 +368,7 @@ def _make_linear_gradient_color(grad):
     X, Y = [], []
     for stop in grad.get(Key.Colors, []):
         location = float(stop.get(Key.Location)) / 4096.
-        color_fn = _COLOR_FUNC.get(stop.get(Key.Color).classID)
-        color = np.array([color_fn(x) for x in stop.get(Key.Color).values()],
-                         dtype=np.float32)
+        color = np.array(_get_color(stop), dtype=np.float32)
         if len(X) and X[-1] == location:
             logger.debug('Duplicate stop at %d' % location)
             X.pop(), Y.pop()

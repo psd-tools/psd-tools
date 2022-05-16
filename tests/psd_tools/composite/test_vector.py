@@ -96,3 +96,12 @@ def test_gradient_styles(filename):
             elif form == Enum.ColorNoise:
                 # Noise gradient is not of good quality.
                 assert _mse(reference, result) <= 0.2
+
+
+@pytest.mark.parametrize(("filename", ), [
+    ('descriptors/stroke-color-descriptors-rgb.psd', ),
+    ('descriptors/stroke-color-descriptors-gray.psd', ),
+    ('descriptors/stroke-color-descriptors-lab.psd', ),
+])
+def test_stroke_color(filename):
+    check_composite_quality(filename, 0.05, force=True)
