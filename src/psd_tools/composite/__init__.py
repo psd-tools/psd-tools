@@ -439,10 +439,16 @@ class Compositor(object):
             )
 
     def _apply_pattern_overlay(self, layer, color, shape, alpha):
+        channels = color.shape[-1]
         for effect in layer.effects.find('patternoverlay'):
             color, shape_e = draw_pattern_fill(
                 layer.bbox, layer._psd, effect.value
             )
+            if color.shape[-1] == 1 and color.shape[-1] < channels:
+                # Pattern has different # color channels here.
+                color = np.full([layer.height, layer.width, channels], color)
+            assert color.shape[-1] == channels, "Inconsistent pattern channels."
+
             color = paste(self._viewport, layer.bbox, color, 1.)
             if shape_e is None:
                 shape_e = np.ones((self.height, self.width, 1),

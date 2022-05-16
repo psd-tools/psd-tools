@@ -246,6 +246,26 @@ def draw_solid_color_fill(viewport, desc):
 def draw_pattern_fill(viewport, psd, desc):
     """
     Create a pattern fill.
+
+    Example descriptor::
+
+        Descriptor(b'patternFill'){
+            'enab': True,
+            'present': True,
+            'showInDialog': True,
+            'Md  ': (b'BlnM', b'CBrn'),
+            'Opct': 100.0 Percent,
+            'Ptrn': Descriptor(b'Ptrn'){
+                'Nm  ': 'foo\x00',
+                'Idnt': '5e1713ab-e968-4c4c-8855-c8fa2cde8610\x00'
+                },
+            'Angl': 0.0 Angle,
+            'Scl ': 87.0 Percent,
+            'Algn': True,
+            'phase': Descriptor(b'Pnt '){'Hrzn': 0.0, 'Vrtc': 0.0}
+            }
+
+    .. todo:: Test this.
     """
     pattern_id = desc[Enum.Pattern][Key.ID].value.rstrip('\x00')
     pattern = psd._get_pattern(pattern_id)
