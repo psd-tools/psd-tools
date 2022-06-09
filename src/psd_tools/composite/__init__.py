@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 def composite_pil(
-    layer, color, alpha, viewport, layer_filter, force, as_layer=False
+    layer, color, alpha, viewport, layer_filter, force, as_layer=False, apply_icc = False
 ):
     from PIL import Image
     from psd_tools.api.pil_io import get_pil_mode
@@ -64,7 +64,7 @@ def composite_pil(
     if not force and delay_alpha_application:
         alpha_as_image = Image.fromarray((255 * np.squeeze(alpha, axis=2)).astype(np.uint8), "L")
     icc = None
-    if (Resource.ICC_PROFILE in layer._psd.image_resources):
+    if (apply_icc and Resource.ICC_PROFILE in layer._psd.image_resources):
         icc = layer._psd.image_resources.get_data(Resource.ICC_PROFILE)
     return post_process(image, alpha_as_image, icc)
 

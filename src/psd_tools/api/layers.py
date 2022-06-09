@@ -397,7 +397,8 @@ class Layer(object):
         force=False,
         color=1.0,
         alpha=0.0,
-        layer_filter=None
+        layer_filter=None,
+        apply_icc=False
     ):
         """
         Composite layer and masks (mask, vector mask, and clipping layers).
