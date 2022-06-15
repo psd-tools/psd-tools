@@ -1,10 +1,13 @@
 import numpy as np
+from psd_tools.api.psd_image import PSDImage
 from psd_tools.constants import Tag, BlendMode, ColorMode, Resource
 from psd_tools.api.layers import AdjustmentLayer, Layer
 from psd_tools.api.numpy_io import EXPECTED_CHANNELS
 from psd_tools.api.pil_io import post_process
 
 import logging
+
+from psd_tools.psd import image_resources
 from .blend import BLEND_FUNC, normal
 from .vector import (
     create_fill, create_fill_desc, draw_vector_mask, draw_stroke,
@@ -64,8 +67,9 @@ def composite_pil(
     if not force and delay_alpha_application:
         alpha_as_image = Image.fromarray((255 * np.squeeze(alpha, axis=2)).astype(np.uint8), "L")
     icc = None
-    if (apply_icc and Resource.ICC_PROFILE in layer._psd.image_resources):
-        icc = layer._psd.image_resources.get_data(Resource.ICC_PROFILE)
+    image_resources = layer.image_resources if isinstance(layer, PSDImage) else layer._psd.image_resources
+    if (apply_icc and Resource.ICC_PROFILE in image_resources):
+        icc = image_resources.get_data(Resource.ICC_PROFILE)
     return post_process(image, alpha_as_image, icc)
 
 

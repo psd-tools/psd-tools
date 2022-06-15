@@ -178,6 +178,7 @@ class PSDImage(GroupMixin):
         alpha=0.0,
         layer_filter=None,
         ignore_preview=False,
+        apply_icc=False
     ):
         """
         Composite the PSD image.
@@ -198,8 +199,8 @@ class PSDImage(GroupMixin):
         """
         from psd_tools.composite import composite_pil
         if not (ignore_preview or force or layer_filter) and self.has_preview():
-            return self.topil()
-        return composite_pil(self, color, alpha, viewport, layer_filter, force)
+            return self.topil(apply_icc=apply_icc)
+        return composite_pil(self, color, alpha, viewport, layer_filter, force, apply_icc=apply_icc)
 
     def is_visible(self):
         """

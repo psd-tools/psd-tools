@@ -142,36 +142,39 @@ def test_composite_viewport():
 
 
 @pytest.mark.parametrize(
-    'colormode, depth, mode, ignore_preview', [
-        ('bitmap', 1, '1', False),
-        ('cmyk', 8, 'CMYK', False),
-        ('duotone', 8, 'LA', False),
-        ('grayscale', 8, 'L', False),
-        ('index_color', 8, 'P', False),
-        ('rgb', 8, 'RGB', False),
-        ('rgba', 8, 'RGB', False),  # Extra alpha is not transparency
-        ('lab', 8, 'LAB', False),
-        ('multichannel', 16, 'L', False),
-        ('bitmap', 1, '1', True),
-        ('cmyk', 8, 'CMYK', True),
-        ('duotone', 8, 'L', True),
-        ('grayscale', 8, 'L', True),
-        ('index_color', 8, 'RGBA', True),
-        ('rgb', 8, 'RGB', True),
-        ('rgba', 8, 'RGB', True),  # Extra alpha is not transparency
-        ('lab', 8, 'LAB', True),
-        ('multichannel', 16, 'LA', True),
+    'colormode, depth, mode, ignore_preview, apply_icc', [
+        ('bitmap', 1, '1', False, False),
+        ('cmyk', 8, 'CMYK', False, False),
+        ('duotone', 8, 'L', False, False),
+        ('grayscale', 8, 'L', False, False),
+        ('index_color', 8, 'P', False, False),
+        ('rgb', 8, 'RGB', False, False),
+        ('rgba', 8, 'RGB', False, False),  # Extra alpha is not transparency
+        ('lab', 8, 'LAB', False, False),
+        ('multichannel', 16, 'L', False, False),
+        ('bitmap', 1, '1', True, False),
+        ('cmyk', 8, 'CMYK', True, False),
+        ('duotone', 8, 'LA', True, False),
+        ('grayscale', 8, 'L', True, False),
+        ('index_color', 8, 'RGBA', True, False),
+        ('rgb', 8, 'RGB', True, False),
+        ('rgba', 8, 'RGB', True, False),  # Extra alpha is not transparency
+        ('lab', 8, 'LAB', True, False),
+        ('multichannel', 16, 'LA', True, False),
+        ('cmyk', 8, 'RGBA', True, True),
+        ('rgb', 8, 'RGB', False, True),
+        ('duotone', 8, 'L', False, True),
     ]
 )
-def test_composite_pil(colormode, depth, mode, ignore_preview):
+def test_composite_pil(colormode, depth, mode, ignore_preview, apply_icc):
     from PIL import Image
     filename = 'colormodes/4x4_%gbit_%s.psd' % (depth, colormode)
     psd = PSDImage.open(full_name(filename))
-    image = psd.composite(ignore_preview=ignore_preview)
+    image = psd.composite(ignore_preview=ignore_preview, apply_icc=apply_icc)
     assert isinstance(image, Image.Image)
     assert image.mode == mode
     for layer in psd:
-        assert isinstance(layer.composite(), Image.Image)
+        assert isinstance(layer.composite(apply_icc=apply_icc), Image.Image)
 
 
 def test_composite_layer_filter():
