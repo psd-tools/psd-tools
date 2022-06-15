@@ -91,7 +91,7 @@ def convert_image_data_to_pil(psd, channel, apply_icc):
     if not image:
         return None
 
-    image = _post_process(image, alpha, icc)
+    image = post_process(image, alpha, icc)
     return _remove_white_background(image)
 
 
@@ -110,22 +110,21 @@ def convert_layer_to_pil(layer, channel, apply_icc):
     if not image or (channel is not None and channel < 0):
         return image  # Return None, alpha or mask.
 
-    return _post_process(image, alpha, icc)
+    return post_process(image, alpha, icc)
 
 
-def _post_process(image, alpha, icc_profile):
+def post_process(image, alpha, icc_profile):
     # Fix inverted CMYK.
     if image.mode == 'CMYK':
         from PIL import ImageChops
         image = ImageChops.invert(image)
 
-    # In Pillow, alpha channel is only available in RGB or L.
-    if alpha and image.mode in ('RGB', 'L'):
-        image.putalpha(alpha)
-
     if icc_profile:
         image = _apply_icc(image, icc_profile)
 
+    # In Pillow, alpha channel is only available in RGB or L.
+    if alpha and image.mode in ('RGB', 'L'):
+        image.putalpha(alpha)
     return image
 
 
@@ -149,7 +148,7 @@ def convert_pattern_to_pil(pattern):
     else:
         image = Image.merge(mode, channels[:channel_size])
 
-    return _post_process(image, alpha, None)  # TODO: icc support?
+    return post_process(image, alpha, None)  # TODO: icc support?
 
 
 def convert_thumbnail_to_pil(thumbnail, mode='RGB'):
@@ -245,15 +244,11 @@ def _apply_icc(image, icc_profile):
             'ICC profile found but not supported. Install little-cms.'
         )
         return image
-
-    if image.mode not in ('RGB', ):
-        logger.debug('%s ICC profile is not supported.' % image.mode)
-        return image
-
     try:
         in_profile = ImageCms.ImageCmsProfile(BytesIO(icc_profile))
         out_profile = ImageCms.createProfile('sRGB')
-        return ImageCms.profileToProfile(image, in_profile, out_profile)
+        outputMode = image.mode if image.mode in ('L', 'LA', 'RGBA') else 'RGB'
+        return ImageCms.profileToProfile(image, in_profile, out_profile, outputMode=outputMode)
     except ImageCms.PyCMSError as e:
         logger.warning('PyCMSError: %s' % (e))
 

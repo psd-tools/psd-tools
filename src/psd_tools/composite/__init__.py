@@ -1,9 +1,13 @@
 import numpy as np
-from psd_tools.constants import Tag, BlendMode, ColorMode
+from psd_tools.api.psd_image import PSDImage
+from psd_tools.constants import Tag, BlendMode, ColorMode, Resource
 from psd_tools.api.layers import AdjustmentLayer, Layer
 from psd_tools.api.numpy_io import EXPECTED_CHANNELS
+from psd_tools.api.pil_io import post_process
 
 import logging
+
+from psd_tools.psd import image_resources
 from .blend import BLEND_FUNC, normal
 from .vector import (
     create_fill, create_fill_desc, draw_vector_mask, draw_stroke,
@@ -15,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def composite_pil(
-    layer, color, alpha, viewport, layer_filter, force, as_layer=False
+    layer, color, alpha, viewport, layer_filter, force, as_layer=False, apply_icc = False
 ):
     from PIL import Image
     from psd_tools.api.pil_io import get_pil_mode
@@ -43,8 +47,9 @@ def composite_pil(
     if mode == 'P':
         mode = 'RGB'
     # Skip only when there is a preview image and it has no alpha.
+    delay_alpha_application = color_mode not in (ColorMode.GRAYSCALE, ColorMode.RGB)
     skip_alpha = not force and (
-        color_mode not in (ColorMode.GRAYSCALE, ColorMode.RGB) or (
+        delay_alpha_application or (
             layer.kind == 'psdimage' and layer.has_preview() and
             not has_transparency(layer)
         )
@@ -57,7 +62,15 @@ def composite_pil(
         color = color[:, :, 0]
     if color.shape[0] == 0 or color.shape[1] == 0:
         return None
-    return Image.fromarray((255 * color).astype(np.uint8), mode)
+    image = Image.fromarray((255 * color).astype(np.uint8), mode)
+    alpha_as_image = None
+    if not force and delay_alpha_application:
+        alpha_as_image = Image.fromarray((255 * np.squeeze(alpha, axis=2)).astype(np.uint8), "L")
+    icc = None
+    image_resources = layer.image_resources if isinstance(layer, PSDImage) else layer._psd.image_resources
+    if (apply_icc and Resource.ICC_PROFILE in image_resources):
+        icc = image_resources.get_data(Resource.ICC_PROFILE)
+    return post_process(image, alpha_as_image, icc)
 
 
 def composite(

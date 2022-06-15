@@ -397,7 +397,8 @@ class Layer(object):
         force=False,
         color=1.0,
         alpha=0.0,
-        layer_filter=None
+        layer_filter=None,
+        apply_icc=False
     ):
         """
         Composite layer and masks (mask, vector mask, and clipping layers).
@@ -415,7 +416,7 @@ class Layer(object):
         :return: :py:class:`PIL.Image`.
         """
         from psd_tools.composite import composite_pil
-        return composite_pil(self, color, alpha, viewport, layer_filter, force)
+        return composite_pil(self, color, alpha, viewport, layer_filter, force, apply_icc=apply_icc)
 
     def has_clip_layers(self):
         """
@@ -655,7 +656,8 @@ class Group(GroupMixin, Layer):
         force=False,
         color=1.0,
         alpha=0.0,
-        layer_filter=None
+        layer_filter=None,
+        apply_icc=False
     ):
         """
         Composite layer and masks (mask, vector mask, and clipping layers).
@@ -674,7 +676,7 @@ class Group(GroupMixin, Layer):
         """
         from psd_tools.composite import composite_pil
         return composite_pil(
-            self, color, alpha, viewport, layer_filter, force, as_layer=True
+            self, color, alpha, viewport, layer_filter, force, as_layer=True, apply_icc=apply_icc
         )
 
 
