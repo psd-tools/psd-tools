@@ -145,7 +145,7 @@ def test_composite_viewport():
     'colormode, depth, mode, ignore_preview', [
         ('bitmap', 1, '1', False),
         ('cmyk', 8, 'CMYK', False),
-        ('duotone', 8, 'L', False),
+        ('duotone', 8, 'LA', False),
         ('grayscale', 8, 'L', False),
         ('index_color', 8, 'P', False),
         ('rgb', 8, 'RGB', False),
@@ -156,11 +156,11 @@ def test_composite_viewport():
         ('cmyk', 8, 'CMYK', True),
         ('duotone', 8, 'L', True),
         ('grayscale', 8, 'L', True),
-        ('index_color', 8, 'RGB', True),
+        ('index_color', 8, 'RGBA', True),
         ('rgb', 8, 'RGB', True),
         ('rgba', 8, 'RGB', True),  # Extra alpha is not transparency
         ('lab', 8, 'LAB', True),
-        ('multichannel', 16, 'L', True),
+        ('multichannel', 16, 'LA', True),
     ]
 )
 def test_composite_pil(colormode, depth, mode, ignore_preview):

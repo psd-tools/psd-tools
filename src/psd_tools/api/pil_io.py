@@ -124,7 +124,7 @@ def post_process(image, alpha, icc_profile):
 
     # In Pillow, alpha channel is only available in RGB or L.
     if alpha and image.mode in ('RGB', 'L'):
-        image.putalpha(alpha) # fix here to apply the alpha channel after ICC_profile
+        image.putalpha(alpha)
     return image
 
 
@@ -247,7 +247,8 @@ def _apply_icc(image, icc_profile):
     try:
         in_profile = ImageCms.ImageCmsProfile(BytesIO(icc_profile))
         out_profile = ImageCms.createProfile('sRGB')
-        return ImageCms.profileToProfile(image, in_profile, out_profile, outputMode="RGB")
+        outputMode = image.mode if image.mode in ('L', 'LA', 'RGBA') else 'RGB'
+        return ImageCms.profileToProfile(image, in_profile, out_profile, outputMode=outputMode)
     except ImageCms.PyCMSError as e:
         logger.warning('PyCMSError: %s' % (e))
 
