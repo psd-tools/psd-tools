@@ -209,3 +209,11 @@ def test_shape_and_fill_layer():
         assert isinstance(psd[i], ShapeLayer)
     for i in range(8, 10):
         assert isinstance(psd[i], PixelLayer)
+
+
+def test_has_effects():
+    psd = PSDImage.open(full_name('effects/effects-enabled.psd'))
+    assert not psd[0].has_effects()
+    assert psd[1].has_effects()
+    assert not psd[2].has_effects()
+    assert not psd[3].has_effects()
