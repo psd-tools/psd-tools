@@ -56,7 +56,10 @@ class LayerAndMaskInformation(BaseElement):
             self = cls()
         else:
             self = cls._read_body(fp, end_pos, encoding, version)
-        assert fp.tell() <= end_pos
+        if fp.tell() > end_pos:
+            logger.warning(
+                'LayerAndMaskInformation is broken: current fp=%d, expected=%d' % (
+                    fp.tell(), end_pos))
         fp.seek(end_pos, 0)
         return self
 
