@@ -40,7 +40,7 @@ def color_dodge(Cb, Cs, s=1.0):
     B[Cs == 1] = 1
     B[Cb == 0] = 0
     index = (Cs != 1) & (Cb != 0)
-    B[index] = np.minimum(1, Cb[index] / (s * (1 - Cs[index])))
+    B[index] = np.minimum(1, Cb[index] / (s * (1 - Cs[index] + 1e-9)))
     return B
 
 
@@ -48,7 +48,7 @@ def color_burn(Cb, Cs, s=1.0):
     B = np.zeros_like(Cb, dtype=np.float32)
     B[Cb == 1] = 1
     index = (Cb != 1) & (Cs != 0)
-    B[index] = 1 - np.minimum(1, (1 - Cb[index]) / (s * Cs[index]))
+    B[index] = 1 - np.minimum(1, (1 - Cb[index]) / (s * Cs[index] + 1e-9))
     return B
 
 
@@ -162,7 +162,7 @@ def divide(Cb, Cs):
     Looks at the color information in each channel and divides the blend color
     from the base color.
     """
-    B = Cb / (Cs + 1e-6)
+    B = Cb / (Cs + 1e-9)
     B[B > 1] = 1
     return B
 
@@ -199,7 +199,7 @@ def _rgb2cmy(C, K):
     K = np.repeat(K, 3, axis=2)
     color = np.zeros((C.shape[0], C.shape[1], 3))
     index = K < 1.
-    color[index] = (1. - C[index] - K[index]) / (1. - K[index])
+    color[index] = (1. - C[index] - K[index]) / (1. - K[index] + 1e-9)
     return color
 
 
@@ -262,11 +262,11 @@ def _clip_color(C):
 
     index = C_min < 0.
     L_i = L[index]
-    C[index] = L_i + (C[index] - L_i) * L_i / (L_i - C_min[index])
+    C[index] = L_i + (C[index] - L_i) * L_i / (L_i - C_min[index] + 1e-9)
 
     index = C_max > 1.
     L_i = L[index]
-    C[index] = L_i + (C[index] - L_i) * (1 - L_i) / (C_max[index] - L_i)
+    C[index] = L_i + (C[index] - L_i) * (1 - L_i) / (C_max[index] - L_i + 1e-9)
 
     # For numerical stability.
     C[C < 0.] = 0
@@ -294,7 +294,7 @@ def _set_sat(C, s):
 
     index = index_mid & index_diff
     B[index] = C_mid[index] - C_min[index] * \
-        s[index] / (C_max[index] - C_min[index])
+        s[index] / (C_max[index] - C_min[index] + 1e-9)
     index = index_max & index_diff
     B[index] = s[index]
 
