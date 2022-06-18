@@ -1,3 +1,11 @@
+1.9.21 (2022-06-18)
+-------------------
+
+- [api] Fix incorrect has_effects behavior (#322)
+- [composite] Improve blending numerical stability (#321)
+- [composite] Improve non-RGB modes and transparency (#319, @Etienne-Gautier)
+- [psd] Workaround assertion error in broken file (#320)
+
 1.9.20 (2022-05-16)
 -------------------
 
