@@ -446,13 +446,21 @@ class Layer(object):
 
         :return: `bool`
         """
-        return any(
+        has_effect_tag = any(
             tag in self.tagged_blocks for tag in (
                 Tag.OBJECT_BASED_EFFECTS_LAYER_INFO,
                 Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V0,
                 Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V1,
             )
         )
+        if not has_effect_tag:
+            return False
+        if not self.effects.enabled:
+            return False
+        for effect in self.effects:
+            if effect.enabled:
+                return True
+        return False
 
     @property
     def effects(self):
