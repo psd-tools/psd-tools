@@ -293,10 +293,11 @@ class GradientMap(BaseElement):
     .. py:attribute:: minimum_color
     .. py:attribute:: maximum_color
     """
-    version = attr.ib(default=1, type=int, validator=in_((1, )))
+    version = attr.ib(default=1, type=int, validator=in_((1, 3, )))
     is_reversed = attr.ib(default=0, type=int)
     is_dithered = attr.ib(default=0, type=int)
     name = attr.ib(default='', type=str)
+    method = attr.ib(default=b'Gcls', type=bytes, validator=in_((b'Gcls', b'Lnr ', b'Perc',)))
     color_stops = attr.ib(factory=list, converter=list)
     transparency_stops = attr.ib(factory=list, converter=list)
     expansion = attr.ib(default=2, type=int, validator=in_((2, )))
@@ -314,7 +315,8 @@ class GradientMap(BaseElement):
     @classmethod
     def read(cls, fp, **kwargs):
         version, is_reversed, is_dithered = read_fmt('H2B', fp)
-        assert version == 1, 'Invalid version %s' % (version)
+        assert version in (1, 3), 'Invalid version %s' % (version)
+        method = read_fmt('4s', fp)[0] if version == 3 else b'Gcls'
         name = read_unicode_string(fp)
         count = read_fmt('H', fp)[0]
         color_stops = [ColorStop.read(fp) for _ in range(count)]
@@ -328,7 +330,7 @@ class GradientMap(BaseElement):
         maximum_color = read_fmt('4H', fp)
         read_fmt('2x', fp)  # Dummy?
         return cls(
-            version, is_reversed, is_dithered, name, color_stops,
+            version, is_reversed, is_dithered, name, method, color_stops,
             transparency_stops, expansion, interpolation, length, mode,
             random_seed, show_transparency, use_vector_color, roughness,
             color_model, minimum_color, maximum_color
@@ -338,6 +340,8 @@ class GradientMap(BaseElement):
         written = write_fmt(
             fp, 'H2B', self.version, self.is_reversed, self.is_dithered
         )
+        if self.version == 3:
+            written += write_fmt(fp, '4s', self.method)
         written += write_unicode_string(fp, self.name)
         written += write_fmt(fp, 'H', len(self.color_stops))
         written += sum(stop.write(fp) for stop in self.color_stops)

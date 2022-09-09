@@ -151,8 +151,7 @@ def test_selective_color(psd):
     assert len(layer.data) == 10
 
 
-def test_gradient_map(psd):
-    layer = psd[19]
+def _test_gradient_map_common(layer, random_seed):
     assert isinstance(layer, adjustments.GradientMap)
     assert layer.reversed == 0
     assert layer.dithered == 0
@@ -163,10 +162,27 @@ def test_gradient_map(psd):
     assert layer.interpolation == 1.0
     assert layer.length == 32
     assert layer.mode == 0
-    assert layer.random_seed == 470415386
+    assert layer.random_seed == random_seed
     assert layer.show_transparency == 0
     assert layer.use_vector_color == 1
     assert layer.roughness == 2048
     assert layer.color_model == 3
     assert layer.min_color == [0, 0, 0, 0]
     assert layer.max_color == [32768, 32768, 32768, 32768]
+
+
+def test_gradient_map(psd):
+    layer = psd[19]
+    _test_gradient_map_common(layer, 470415386)
+
+
+def test_gradient_map_v3(psd):
+    for suffix, method in (
+            ('classic', b'Gcls'),
+            ('linear', b'Lnr '),
+            ('perceptual', b'Perc'),
+    ):
+        layer = PSDImage.open(full_name('layers/gradient-map-v3-'+suffix+'.psd'))[0]
+        _test_gradient_map_common(layer, 691687736)
+        assert layer._data.version == 3
+        assert layer._data.method == method
