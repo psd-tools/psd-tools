@@ -65,6 +65,16 @@ class Layer(object):
         """
         return self.tagged_blocks.get_data(Tag.LAYER_ID, -1)
 
+    def _invalidate_bbox(self):
+        """
+        Invalidate this layer's _bbox and any parents recursively to the root.
+        """
+        current = self
+        while current is not None:
+            if hasattr(current, '_bbox'):
+                delattr(current, '_bbox')
+            current = current.parent
+
     @property
     def visible(self):
         """
@@ -76,6 +86,7 @@ class Layer(object):
 
     @visible.setter
     def visible(self, value):
+        self._invalidate_bbox()
         self._record.flags.visible = bool(value)
 
     def is_visible(self):
@@ -143,6 +154,7 @@ class Layer(object):
 
     @left.setter
     def left(self, value):
+        self._invalidate_bbox()
         w = self.width
         self._record.left = int(value)
         self._record.right = int(value) + w
@@ -158,6 +170,7 @@ class Layer(object):
 
     @top.setter
     def top(self, value):
+        self._invalidate_bbox()
         h = self.height
         self._record.top = int(value)
         self._record.bottom = int(value) + h
