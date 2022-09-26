@@ -217,3 +217,12 @@ def test_has_effects():
     assert psd[1].has_effects()
     assert not psd[2].has_effects()
     assert not psd[3].has_effects()
+
+
+def test_bbox_updates():
+    psd = PSDImage.open(full_name('hidden-groups.psd'))
+    group1 = psd[1]
+    group1.visible = False
+    assert group1.bbox == (0, 0, 0 ,0)
+    group1.visible = True
+    assert group1.bbox == (25, 34, 80, 88)
