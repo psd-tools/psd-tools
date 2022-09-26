@@ -65,6 +65,16 @@ class Layer(object):
         """
         return self.tagged_blocks.get_data(Tag.LAYER_ID, -1)
 
+    def invalidate_bbox(self):
+        """
+        Invalidate this layer's _bbox and any parents recursively to the root.
+        """
+        current = self
+        while current is not None:
+            if hasattr(current, '_bbox'):
+                delattr(current, '_bbox')
+            current = current.parent
+
     @property
     def visible(self):
         """
@@ -72,6 +82,7 @@ class Layer(object):
 
         :return: `bool`
         """
+        self.invalidate_bbox()
         return self._record.flags.visible
 
     @visible.setter
