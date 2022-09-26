@@ -82,11 +82,11 @@ class Layer(object):
 
         :return: `bool`
         """
-        self.invalidate_bbox()
         return self._record.flags.visible
 
     @visible.setter
     def visible(self, value):
+        self.invalidate_bbox()
         self._record.flags.visible = bool(value)
 
     def is_visible(self):
