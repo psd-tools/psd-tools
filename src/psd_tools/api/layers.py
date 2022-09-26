@@ -222,7 +222,6 @@ class Layer(object):
 
     @offset.setter
     def offset(self, value):
-        self._invalidate_bbox()
         self.left, self.top = tuple(int(x) for x in value)
 
     @property
