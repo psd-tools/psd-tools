@@ -1,3 +1,8 @@
+1.9.23 (2022-09-26)
+-------------------
+
+- [api] Add bbox invalidation when toggling layer visibility (#334)
+
 1.9.22 (2022-09-09)
 -------------------
 
