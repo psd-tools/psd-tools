@@ -5,7 +5,7 @@ from __future__ import absolute_import, unicode_literals
 import logging
 
 from psd_tools.constants import (
-    Clipping, Compression, ColorMode, SectionDivider, Resource, Tag
+    BlendMode, Clipping, Compression, ColorMode, SectionDivider, Resource, Tag
 )
 from psd_tools.psd import PSD, FileHeader, ImageData, ImageResources
 from psd_tools.api.layers import (
@@ -541,12 +541,16 @@ class PSDImage(GroupMixin):
                 if sublayer.clipping_layer:
                     stack.append(sublayer)
                 else:
-                    stack.reverse()
-                    sublayer._clip_layers = stack
+                    if sublayer.blend_mode == BlendMode.PASS_THROUGH:
+                        for clip_layer in stack:
+                            clip_layer._has_clip_target = False
+                    else:
+                        stack.reverse()
+                        sublayer._clip_layers = stack
                     stack = []
                 rec_helper(sublayer)
-            for sublayer in stack:
-                sublayer._has_clip_target = False
+            for clip_layer in stack:
+                clip_layer._has_clip_target = False
 
         rec_helper(self)
 
