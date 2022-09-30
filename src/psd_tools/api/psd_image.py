@@ -525,6 +525,28 @@ class PSDImage(GroupMixin):
                         return pattern
         return None
 
+    def _clear_clipping_layers(self):
+        for layer in self.descendants():
+            layer._clip_layers = []
+
+    def _compute_clipping_layers(self):
+        self._clear_clipping_layers()
+
+        def rec_helper(layer):
+            if not layer.is_group():
+                return
+            stack = []
+            for sublayer in reversed(layer._layers):
+                if sublayer.clipping_layer:
+                    stack.append(sublayer)
+                else:
+                    stack.reverse()
+                    sublayer._clip_layers = stack
+                    stack = []
+                rec_helper(sublayer)
+
+        rec_helper(self)
+
     def _init(self):
         """Initialize layer structure."""
         group_stack = [self]
@@ -596,15 +618,7 @@ class PSDImage(GroupMixin):
 
             assert layer is not None
 
-            if record.clipping == Clipping.NON_BASE:
-                clip_stack.append(layer)
-            else:
-                if clip_stack:
-                    last_layer._clip_layers = clip_stack
-                clip_stack = []
-                if not end_of_group:
-                    current_group._layers.append(layer)
-                last_layer = layer
+            if not end_of_group:
+                current_group._layers.append(layer)
 
-        if clip_stack and last_layer:
-            last_layer._clip_layers = clip_stack
+        self._compute_clipping_layers()
