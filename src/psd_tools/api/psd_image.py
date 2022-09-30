@@ -528,6 +528,7 @@ class PSDImage(GroupMixin):
     def _clear_clipping_layers(self):
         for layer in self.descendants():
             layer._clip_layers = []
+            layer._has_clip_target = True
 
     def _compute_clipping_layers(self):
         self._clear_clipping_layers()
@@ -544,6 +545,8 @@ class PSDImage(GroupMixin):
                     sublayer._clip_layers = stack
                     stack = []
                 rec_helper(sublayer)
+            for sublayer in stack:
+                sublayer._has_clip_target = False
 
         rec_helper(self)
 

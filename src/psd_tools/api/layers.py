@@ -22,6 +22,7 @@ class Layer(object):
         self._channels = channels
         self._parent = parent
         self._clip_layers = []
+        self._has_clip_target = True
 
     @property
     def name(self):

@@ -189,7 +189,7 @@ class Compositor(object):
         self._color = self._color_0
         self._alpha = self._alpha_0
 
-    def apply(self, layer):
+    def apply(self, layer, clip_compositing=False):
         logger.debug('Compositing %s' % layer)
 
         if not self._layer_filter(layer):
@@ -200,6 +200,8 @@ class Compositor(object):
             return
         if _intersect(self._viewport, layer.bbox) == (0, 0, 0, 0):
             logger.debug('Out of viewport %s' % (layer))
+            return
+        if not clip_compositing and layer.clipping_layer and layer._has_clip_target:
             return
 
         knockout = bool(layer.tagged_blocks.get_data(Tag.KNOCKOUT_SETTING, 0))
@@ -370,7 +372,7 @@ class Compositor(object):
             force=self._force
         )
         for clip_layer in layer.clip_layers:
-            compositor.apply(clip_layer)
+            compositor.apply(clip_layer, clip_compositing=True)
         return compositor._color
 
     def _get_mask(self, layer):
