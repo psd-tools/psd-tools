@@ -1,8 +1,20 @@
 """
 Various constants for psd_tools
 """
-from enum import Enum, IntEnum
+from enum import Enum, IntEnum, auto
 
+class CompatibilityMode(Enum):
+    """
+    Compatibility modes that describe how compositing and
+    layer control should attempt to behave.
+    """
+    PHOTOSHOP = auto()
+    PAINT_TOOL_SAI = auto()
+    CLIP_STUDIO_PAINT = auto()
+    GIMP = auto()
+    KRITA = auto()
+
+    DEFAULT = PHOTOSHOP
 
 class ColorMode(IntEnum):
     """

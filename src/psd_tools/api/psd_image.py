@@ -5,7 +5,7 @@ from __future__ import absolute_import, unicode_literals
 import logging
 
 from psd_tools.constants import (
-    BlendMode, Clipping, Compression, ColorMode, SectionDivider, Resource, Tag
+    BlendMode, CompatibilityMode, Compression, ColorMode, SectionDivider, Resource, Tag
 )
 from psd_tools.psd import PSD, FileHeader, ImageData, ImageResources
 from psd_tools.api.layers import (
@@ -39,6 +39,7 @@ class PSDImage(GroupMixin):
         self._record = data
         self._layers = []
         self._tagged_blocks = None
+        self._compatibility_mode = CompatibilityMode.DEFAULT
         self._init()
 
     @classmethod
@@ -439,6 +440,20 @@ class PSDImage(GroupMixin):
         """
         return self._record.layer_and_mask_information.tagged_blocks
 
+    @property
+    def compatibility_mode(self):
+        """
+        Set the compositing and layer organization compatibility mode. Writable.
+
+        :return: :py:class:`~psd_tools.constants.CompatibilityMode`
+        """
+        return self._compatibility_mode
+
+    @compatibility_mode.setter
+    def compatibility_mode(self, value):
+        self._compatibility_mode = value
+        self._compute_clipping_layers()
+
     def has_thumbnail(self):
         """True if the PSDImage has a thumbnail resource."""
         return (
@@ -541,7 +556,10 @@ class PSDImage(GroupMixin):
                 if sublayer.clipping_layer:
                     stack.append(sublayer)
                 else:
-                    if sublayer.blend_mode == BlendMode.PASS_THROUGH:
+                    if (sublayer.blend_mode == BlendMode.PASS_THROUGH and (
+                        self.compatibility_mode == CompatibilityMode.PAINT_TOOL_SAI or
+                        self.compatibility_mode == CompatibilityMode.CLIP_STUDIO_PAINT
+                    )):
                         for clip_layer in stack:
                             clip_layer._has_clip_target = False
                     else:
