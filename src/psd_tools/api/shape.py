@@ -164,7 +164,7 @@ class Stroke(object):
 
     def __init__(self, data):
         self._data = data
-        assert self._data.classID == b'strokeStyle'
+        assert self._data.classID == b'strokeStyle' or self._data.classID == b'Strk'
 
     @property
     def enabled(self):
