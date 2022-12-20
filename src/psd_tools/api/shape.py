@@ -11,6 +11,7 @@ from __future__ import absolute_import
 import logging
 
 from psd_tools.psd.vector import Subpath, InitialFillRule, ClipboardRecord
+from psd_tools.terminology import Event
 
 logger = logging.getLogger(__name__)
 
@@ -164,7 +165,8 @@ class Stroke(object):
 
     def __init__(self, data):
         self._data = data
-        assert self._data.classID == b'strokeStyle'
+        if self._data.classID not in (b'strokeStyle', Event.Stroke):
+            logger.warning("Unknown class ID found: {}".format(self._data.classID))
 
     @property
     def enabled(self):
