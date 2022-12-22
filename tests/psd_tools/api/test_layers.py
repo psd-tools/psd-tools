@@ -174,10 +174,20 @@ def test_topil(topil_args):
 
 def test_clip_adjustment():
     psd = PSDImage.open(full_name('clip-adjustment.psd'))
-    assert len(psd) == 1
+    assert len(psd) == 2
     layer = psd[0]
     assert layer.kind == 'type'
     assert len(layer.clip_layers) == 1
+
+
+def test_nested_clipping_layers():
+    psd = PSDImage.open(full_name('clipping-mask.psd'))
+    psd[1].blend_mode = BlendMode.NORMAL
+    psd[1].clipping_layer = True
+    assert psd[1].clipping_layer == True
+    assert psd[1][1].has_clip_layers()
+    assert psd[1][2].clipping_layer
+    assert psd[0].has_clip_layers()
 
 
 def test_type_layer(type_layer):

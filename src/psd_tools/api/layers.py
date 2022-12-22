@@ -4,7 +4,7 @@ Layer module.
 from __future__ import absolute_import, unicode_literals
 import logging
 
-from psd_tools.constants import BlendMode, Tag
+from psd_tools.constants import BlendMode, Tag, Clipping
 from psd_tools.api.effects import Effects
 from psd_tools.api.mask import Mask
 from psd_tools.api.shape import VectorMask, Stroke, Origination
@@ -22,6 +22,7 @@ class Layer(object):
         self._channels = channels
         self._parent = parent
         self._clip_layers = []
+        self._has_clip_target = True
 
     @property
     def name(self):
@@ -452,6 +453,20 @@ class Layer(object):
         :return: list of layers
         """
         return self._clip_layers
+
+    @property
+    def clipping_layer(self):
+        """
+        Clipping flag for this layer. Writable.
+
+        :return: `bool`
+        """
+        return self._record.clipping == Clipping.NON_BASE
+
+    @clipping_layer.setter
+    def clipping_layer(self, value):
+        self._record.clipping = Clipping.NON_BASE if value else Clipping.Base
+        self._psd._compute_clipping_layers()
 
     def has_effects(self):
         """
