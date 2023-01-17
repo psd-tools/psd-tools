@@ -43,8 +43,11 @@ def _get_color(desc) -> Tuple[float, ...]:
     def _get_invert_color(color_desc, keys):
         return tuple((100. - float(color_desc[key])) / 100. for key in keys)
 
-    def _get_rgb(x):
-        return _get_int_color(x, (Key.Red, Key.Green, Key.Blue))
+    def _get_rgb(color_desc):
+        if Key.Red in color_desc:
+            return _get_int_color(color_desc, (Key.Red, Key.Green, Key.Blue))
+        else:
+            return tuple(float(color_desc[key]) for key in (Key.RedFloat, Key.GreenFloat, Key.BlueFloat))
 
     def _get_gray(x):
         return _get_invert_color(x, (Key.Gray,))
