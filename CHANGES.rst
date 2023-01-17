@@ -1,3 +1,11 @@
+1.9.24 (2023-01-17)
+-------------------
+
+- [psd] Support float RGB values (#350)
+- [psd] Workaround stroke class ID (#346)
+- [ci] Update CI configuration (#347)
+- [composite] Fix group clipping (#336)
+
 1.9.23 (2022-09-26)
 -------------------
 
