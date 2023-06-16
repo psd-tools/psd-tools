@@ -24,7 +24,7 @@ def draw_stroke_effect(viewport, shape, desc, psd):
     elif paint == Enum.Pattern:
         color, _ = draw_pattern_fill(viewport, psd, desc)
     elif paint == Enum.GradientFill:
-        color, _ = draw_gradient_fill(viewport, desc)
+        color, _ = draw_gradient_fill(viewport, psd, desc)
     else:
         logger.warning('No fill specification found.')
         color = np.ones((height, width, 1))
