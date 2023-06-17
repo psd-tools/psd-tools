@@ -293,7 +293,7 @@ def _set_sat(C, s):
     index_min = (C == C_min)
 
     index = index_mid & index_diff
-    B[index] = C_mid[index] - C_min[index] * \
+    B[index] = (C_mid[index] - C_min[index]) * \
         s[index] / (C_max[index] - C_min[index] + 1e-9)
     index = index_max & index_diff
     B[index] = s[index]
