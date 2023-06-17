@@ -92,15 +92,12 @@ def vivid_light(Cb, Cs):
     the contrast.
     """
 
-    # index = Cs > 0.5
-    # B = color_dodge(Cb, Cs)
-    # B[index] = color_burn(Cb, Cs)[index]
-    # return B
-
-    # On contrary to what the document says, Photoshop generates the inverse of
-    # hard_mix
-    return hard_mix(Cs, Cb)
-
+    Cs2 = Cs * 2
+    index = Cs > 0.5
+    B = color_burn(Cb, Cs2)
+    D = color_dodge(Cb, Cs2 - 1)
+    B[index] = D[index]
+    return B
 
 def linear_light(Cb, Cs):
     """
