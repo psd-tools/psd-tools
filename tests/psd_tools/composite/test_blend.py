@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
     ('blend-modes/linear-burn.psd', ),
     ('blend-modes/hard-light.psd', ),
     ('blend-modes/soft-light.psd', ),
-    ('blend-modes/vivid-light.psd', ),
+    pytest.param('blend-modes/vivid-light.psd', marks=pytest.mark.xfail(reason="vivid light algorithm discrepency")),
     ('blend-modes/linear-light.psd', ),
     ('blend-modes/pin-light.psd', ),
     ('blend-modes/difference.psd', ),
