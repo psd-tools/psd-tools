@@ -86,11 +86,11 @@ def _get_color(psd, desc) -> Tuple[float, ...]:
         saturation = float(color_desc[Key.Saturation]) / 100.
         brightness = float(color_desc[Key.Brightness]) / 100.
         rgb_components = hsb_to_rgb(hue, saturation, brightness)
-        if (psd._record.header.color_mode == ColorMode.RGB):
+        if (psd.color_mode == ColorMode.RGB):
             return rgb_components
-        if (psd._record.header.color_mode == ColorMode.CMYK):
+        if (psd.color_mode == ColorMode.CMYK):
             return rgb_to_cmyk(rgb_components[0], rgb_components[1], rgb_components[2])
-        raise ValueError('Unexpected color mode for HSB color %s' % (psd._record.header.color_mode))
+        raise ValueError('Unexpected color mode for HSB color %s' % (psd.color_mode))
 
     def _get_gray(psd, x):
         return _get_invert_color(x, (Key.Gray,))
@@ -260,7 +260,7 @@ def create_fill(layer, viewport):
     """Create a fill image."""
     if Tag.SOLID_COLOR_SHEET_SETTING in layer.tagged_blocks:
         desc = layer.tagged_blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING)
-        return draw_solid_color_fill(viewport, desc)
+        return draw_solid_color_fill(viewport, layer._psd, desc)
     if Tag.PATTERN_FILL_SETTING in layer.tagged_blocks:
         desc = layer.tagged_blocks.get_data(Tag.PATTERN_FILL_SETTING)
         return draw_pattern_fill(viewport, layer._psd, desc)
@@ -272,7 +272,7 @@ def create_fill(layer, viewport):
         if not stroke or stroke.get('fillEnabled').value is True:
             desc = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)
             if Key.Color in desc:
-                return draw_solid_color_fill(viewport, desc)
+                return draw_solid_color_fill(viewport, layer._psd, desc)
             elif Key.Pattern in desc:
                 return draw_pattern_fill(viewport, layer._psd, desc)
             elif Key.Gradient in desc:
@@ -420,7 +420,7 @@ def _make_diamond_gradient(X, Y, angle):
     return Z
 
 
-def _make_gradient_color(grad):
+def _make_gradient_color(psd, grad):
     gradient_form = grad.get(Type.GradientForm).enum
     if gradient_form == Enum.ColorNoise:
         return _make_noise_gradient_color(grad)
