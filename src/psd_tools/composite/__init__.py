@@ -478,7 +478,7 @@ class Compositor(object):
 
     def _apply_gradient_overlay(self, layer, color, shape, alpha):
         for effect in layer.effects.find('gradientoverlay'):
-            color, shape_e = draw_gradient_fill(layer.bbox, layer._psd, effect.value)
+            color, shape_e = draw_gradient_fill(layer.bbox, layer._psd.color_mode, effect.value)
             color = paste(self._viewport, layer.bbox, color, 1.)
             if shape_e is None:
                 shape_e = np.ones((self.height, self.width, 1),
