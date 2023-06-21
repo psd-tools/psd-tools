@@ -3,7 +3,7 @@ from typing import Tuple
 
 import numpy as np
 from psd_tools.api.numpy_io import EXPECTED_CHANNELS, get_pattern
-from psd_tools.constants import Tag
+from psd_tools.constants import Tag, ColorMode
 from psd_tools.terminology import Enum, Key, Klass, Type
 from scipy import interpolate
 
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 
-def _get_color(desc) -> Tuple[float, ...]:
+def _get_color(color_mode, desc) -> Tuple[float, ...]:
     """Return color tuple from descriptor.
 
     Example descriptor::
@@ -42,21 +42,64 @@ def _get_color(desc) -> Tuple[float, ...]:
 
     def _get_invert_color(color_desc, keys):
         return tuple((100. - float(color_desc[key])) / 100. for key in keys)
+    
+    def hsb_to_rgb( h:float, s:float, v:float) -> Tuple[float, ...]:
+        if s:
+            if h == 1.0: h = 0.0
+            i = int(h*6.0); f = h*6.0 - i
+            
+            w = v * (1.0 - s)
+            q = v * (1.0 - s * f)
+            t = v * (1.0 - s * (1.0 - f))
+            
+            if i==0: return (v, t, w)
+            if i==1: return (q, v, w)
+            if i==2: return (w, v, t)
+            if i==3: return (w, q, v)
+            if i==4: return (t, w, v)
+            if i==5: return (v, w, q)
+        else: return (v, v, v)
 
-    def _get_rgb(color_desc):
+    def rgb_to_cmyk(r, g, b) -> Tuple[float, ...]:
+        if (r, g, b) == (0, 0, 0):
+            # black
+            return (0., 0., 0.)
+        c = 1 - r
+        m = 1 - g
+        y = 1 - b
+        
+        min_cmy = min(c, m, y)
+        c = (c - min_cmy) / (1 - min_cmy)
+        m = (m - min_cmy) / (1 - min_cmy)
+        y = (y - min_cmy) / (1 - min_cmy)
+        k = min_cmy
+        return (c, m, y, k)
+
+    def _get_rgb(color_mode, color_desc):
         if Key.Red in color_desc:
             return _get_int_color(color_desc, (Key.Red, Key.Green, Key.Blue))
         else:
             return tuple(float(color_desc[key]) for key in (Key.RedFloat, Key.GreenFloat, Key.BlueFloat))
+        
+    def _get_hsb(color_mode, color_desc):
+        hue = float(color_desc[Key.Hue])/ 300.
+        saturation = float(color_desc[Key.Saturation]) / 100.
+        brightness = float(color_desc[Key.Brightness]) / 100.
+        rgb_components = hsb_to_rgb(hue, saturation, brightness)
+        if (color_mode == ColorMode.RGB):
+            return rgb_components
+        if (color_mode == ColorMode.CMYK):
+            return rgb_to_cmyk(rgb_components[0], rgb_components[1], rgb_components[2])
+        raise ValueError('Unexpected color mode for HSB color %s' % (color_mode))
 
-    def _get_gray(x):
+    def _get_gray(color_mode, x):
         return _get_invert_color(x, (Key.Gray,))
 
-    def _get_cmyk(x):
+    def _get_cmyk(color_mode, x):
         return _get_invert_color(
             x, (Key.Cyan, Key.Magenta, Key.Yellow, Key.Black))
 
-    def _get_lab(x):
+    def _get_lab(color_mode, x):
         return _get_int_color(x, (Key.Luminance, Key.A, Key.B))
 
     _COLOR_FUNC = {
@@ -64,10 +107,11 @@ def _get_color(desc) -> Tuple[float, ...]:
         Klass.Grayscale: _get_gray,
         Klass.CMYKColor: _get_cmyk,
         Klass.LabColor: _get_lab,
+        Klass.HSBColor: _get_hsb,
     }
     color_desc = desc.get(Key.Color)
     assert color_desc, f"Could not find a color descriptor {desc}"
-    return _COLOR_FUNC[color_desc.classID](color_desc)
+    return _COLOR_FUNC[color_desc.classID](color_mode, color_desc)
 
 
 
@@ -204,11 +248,11 @@ def _generate_symbol(path, width, height, command='C'):
 def create_fill_desc(layer, desc, viewport):
     """Create a fill image."""
     if desc.classID == b'solidColorLayer':
-        return draw_solid_color_fill(viewport, desc)
+        return draw_solid_color_fill(viewport, layer._psd.color_mode, desc)
     if desc.classID == b'patternLayer':
         return draw_pattern_fill(viewport, layer._psd, desc)
     if desc.classID == b'gradientLayer':
-        return draw_gradient_fill(viewport, desc)
+        return draw_gradient_fill(viewport, layer._psd.color_mode, desc)
     return None, None
 
 
@@ -216,31 +260,31 @@ def create_fill(layer, viewport):
     """Create a fill image."""
     if Tag.SOLID_COLOR_SHEET_SETTING in layer.tagged_blocks:
         desc = layer.tagged_blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING)
-        return draw_solid_color_fill(viewport, desc)
+        return draw_solid_color_fill(viewport, layer._psd.color_mode, desc)
     if Tag.PATTERN_FILL_SETTING in layer.tagged_blocks:
         desc = layer.tagged_blocks.get_data(Tag.PATTERN_FILL_SETTING)
         return draw_pattern_fill(viewport, layer._psd, desc)
     if Tag.GRADIENT_FILL_SETTING in layer.tagged_blocks:
         desc = layer.tagged_blocks.get_data(Tag.GRADIENT_FILL_SETTING)
-        return draw_gradient_fill(viewport, desc)
+        return draw_gradient_fill(viewport, layer._psd.color_mode, desc)
     if Tag.VECTOR_STROKE_CONTENT_DATA in layer.tagged_blocks:
         stroke = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_DATA)
         if not stroke or stroke.get('fillEnabled').value is True:
             desc = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)
             if Key.Color in desc:
-                return draw_solid_color_fill(viewport, desc)
+                return draw_solid_color_fill(viewport, layer._psd.color_mode, desc)
             elif Key.Pattern in desc:
                 return draw_pattern_fill(viewport, layer._psd, desc)
             elif Key.Gradient in desc:
-                return draw_gradient_fill(viewport, desc)
+                return draw_gradient_fill(viewport, layer._psd.color_mode, desc)
     return None, None
 
 
-def draw_solid_color_fill(viewport, desc):
+def draw_solid_color_fill(viewport, color_mode, desc):
     """
     Create a solid color fill.
     """
-    fill = _get_color(desc)
+    fill = _get_color(color_mode, desc)
     height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
     color = np.full((height, width, len(fill)), fill, dtype=np.float32)
     return color, None
@@ -301,7 +345,7 @@ def draw_pattern_fill(viewport, psd, desc):
     return pixels, None
 
 
-def draw_gradient_fill(viewport, desc):
+def draw_gradient_fill(viewport, color_mode, desc):
     """
     Create a gradient fill image.
     """
@@ -336,7 +380,7 @@ def draw_gradient_fill(viewport, desc):
     if bool(desc.get(Key.Reverse, False)):
         Z = 1. - Z
 
-    G, Ga = _make_gradient_color(desc.get(Key.Gradient))
+    G, Ga = _make_gradient_color(color_mode, desc.get(Key.Gradient))
     color = G(Z) if G is not None else None
     shape = np.expand_dims(Ga(Z), 2) if Ga is not None else None
     return color, shape
@@ -376,22 +420,22 @@ def _make_diamond_gradient(X, Y, angle):
     return Z
 
 
-def _make_gradient_color(grad):
+def _make_gradient_color(color_mode, grad):
     gradient_form = grad.get(Type.GradientForm).enum
     if gradient_form == Enum.ColorNoise:
         return _make_noise_gradient_color(grad)
     elif gradient_form == Enum.CustomStops:
-        return _make_linear_gradient_color(grad)
+        return _make_linear_gradient_color(color_mode, grad)
 
     logger.error('Unknown gradient form: %s' % gradient_form)
     return None
 
 
-def _make_linear_gradient_color(grad):
+def _make_linear_gradient_color(color_mode, grad):
     X, Y = [], []
     for stop in grad.get(Key.Colors, []):
         location = float(stop.get(Key.Location)) / 4096.
-        color = np.array(_get_color(stop), dtype=np.float32)
+        color = np.array(_get_color(color_mode, stop), dtype=np.float32)
         if len(X) and X[-1] == location:
             logger.debug('Duplicate stop at %d' % location)
             X.pop(), Y.pop()

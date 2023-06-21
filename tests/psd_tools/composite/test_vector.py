@@ -52,7 +52,7 @@ def test_draw_stroke_fail(filename):
 def test_draw_solid_color_fill():
     psd = PSDImage.open(full_name('layers-minimal/solid-color-fill.psd'))
     desc = psd[0].tagged_blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING)
-    draw_solid_color_fill(psd.viewbox, desc)
+    draw_solid_color_fill(psd.viewbox, psd.color_mode, desc)
 
 
 @pytest.mark.parametrize('filename', [
@@ -71,12 +71,12 @@ def test_draw_pattern_fill(filename):
 def test_draw_gradient_fill():
     psd = PSDImage.open(full_name('layers-minimal/gradient-fill.psd'))
     desc = psd[0].tagged_blocks.get_data(Tag.GRADIENT_FILL_SETTING)
-    draw_gradient_fill(psd.viewbox, desc)
+    draw_gradient_fill(psd.viewbox, psd.color_mode, desc)
     for angle in (-90., 0., 90., 180.):
         desc.get(Key.Angle.value).value = angle
-        draw_gradient_fill(psd.viewbox, desc)
+        draw_gradient_fill(psd.viewbox, psd.color_mode, desc)
     desc.get(b'Type').enum = Enum.Radial.value
-    draw_gradient_fill(psd.viewbox, desc)
+    draw_gradient_fill(psd.viewbox, psd.color_mode, desc)
 
 
 @pytest.mark.parametrize(("filename", ), [
@@ -102,6 +102,7 @@ def test_gradient_styles(filename):
     ('descriptors/stroke-color-descriptors-rgb.psd', ),
     ('descriptors/stroke-color-descriptors-gray.psd', ),
     ('descriptors/stroke-color-descriptors-lab.psd', ),
+    ('descriptors/stroke-color-descriptors-hsb-with-rgb-mode.psd', ),
 ])
 def test_stroke_color(filename):
     check_composite_quality(filename, 0.05, force=True)
