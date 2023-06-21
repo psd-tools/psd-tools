@@ -1,3 +1,9 @@
+1.9.26 (2023-06-21)
+-------------------
+
+- [composite] Read HSB colors in RGB and CMYK color modes (#361)
+- [ci] Update CI configuration (#362)
+
 1.9.25 (2023-06-19)
 -------------------
 
