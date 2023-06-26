@@ -20,7 +20,7 @@ def draw_stroke_effect(viewport, shape, desc, psd):
 
     paint = desc.get(Key.PaintType).enum
     if paint == Enum.SolidColor:
-        color, _ = draw_solid_color_fill(viewport, desc)
+        color, _ = draw_solid_color_fill(viewport, psd.color_mode, desc)
     elif paint == Enum.Pattern:
         color, _ = draw_pattern_fill(viewport, psd, desc)
     elif paint == Enum.GradientFill:

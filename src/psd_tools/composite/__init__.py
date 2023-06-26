@@ -440,7 +440,7 @@ class Compositor(object):
 
     def _apply_color_overlay(self, layer, color, shape, alpha):
         for effect in layer.effects.find('coloroverlay'):
-            color, shape_e = draw_solid_color_fill(layer.bbox, effect.value)
+            color, shape_e = draw_solid_color_fill(layer.bbox, layer._psd.color_mode, effect.value)
             color = paste(self._viewport, layer.bbox, color, 1.)
             if shape_e is None:
                 shape_e = np.ones((self.height, self.width, 1),
