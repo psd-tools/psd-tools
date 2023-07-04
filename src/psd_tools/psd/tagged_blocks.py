@@ -478,8 +478,9 @@ class MetadataSetting(BaseElement):
     MetadataSetting structure.
     """
     _KNOWN_KEYS = {b'cust', b'cmls', b'extn', b'mlst', b'tmln', b'sgrp'}
+    _KNOWN_SIGNATURES = (b'8BIM', b'8ELE')
     signature = attr.ib(
-        default=b'8BIM', type=bytes, repr=False, validator=in_((b'8BIM', ))
+        default=b'8BIM', type=bytes, repr=False, validator=in_(_KNOWN_SIGNATURES)
     )
     key = attr.ib(default=b'', type=bytes)
     copy_on_sheet = attr.ib(default=False, type=bool)
@@ -488,7 +489,7 @@ class MetadataSetting(BaseElement):
     @classmethod
     def read(cls, fp, **kwargs):
         signature = read_fmt('4s', fp)[0]
-        assert signature == b'8BIM', 'Invalid signature %r' % signature
+        assert signature in cls._KNOWN_SIGNATURES, 'Invalid signature %r' % signature
         key, copy_on_sheet = read_fmt("4s?3x", fp)
         data = read_length_block(fp)
         if key in (b'mdyn', b'sgrp'):
