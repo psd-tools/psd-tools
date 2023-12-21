@@ -487,3 +487,7 @@ class SheetColorType(IntEnum):
     BLUE = 5
     VIOLET = 6
     GRAY = 7
+    SEAFOAM = 8
+    INDIGO = 9
+    MAGENTA = 10
+    FUSCHIA = 11
