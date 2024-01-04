@@ -124,6 +124,8 @@ def has_transparency(psd):
         alpha_ids = psd.image_resources.get_data(Resource.ALPHA_IDENTIFIERS)
         if alpha_ids and all(x > 0 for x in alpha_ids):
             return False
+        if(psd._record.layer_and_mask_information.layer_info is not None and psd._record.layer_and_mask_information.layer_info.layer_count > 0):
+            return False
         return True
     return False
 
