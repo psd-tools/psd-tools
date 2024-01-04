@@ -9,8 +9,3 @@ PSDImage
 .. autoclass:: psd_tools.PSDImage
     :members:
     :inherited-members:
-
-compose
--------
-
-.. autofunction:: psd_tools.compose
