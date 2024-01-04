@@ -37,7 +37,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        build: [cp38-*, cp39-*, cp310-*, cp311-*, cp312-*]
+        build: [cp38, cp39, cp310, cp311, cp312]
 
     steps:
       - uses: actions/checkout@v4
@@ -50,7 +50,7 @@ jobs:
       - name: Build wheels
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
-          CIBW_BUILD: ${{ matrix.build }}
+          CIBW_BUILD: ${{ matrix.build }}-*
           CIBW_ARCHS_LINUX: auto aarch64
           CIBW_ARCHS_MACOS: x86_64 arm64
           CIBW_TEST_COMMAND: pytest {project}/tests
