@@ -14,19 +14,19 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name != 'release'
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - uses: actions/setup-python@v4
-      name: Install Python
-      with:
-        python-version: '3.8'
+      - uses: actions/setup-python@v4
+        name: Install Python
+        with:
+          python-version: "3.x"
 
-    - name: Lint with flake8
-      run: |
-        pip install --upgrade pip
-        pip install flake8
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+      - name: Lint with flake8
+        run: |
+          pip install --upgrade pip
+          pip install flake8
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
   build_sdist:
     name: Build source distribution
@@ -37,7 +37,7 @@ jobs:
       - uses: actions/setup-python@v4
         name: Install Python
         with:
-          python-version: '3.8'
+          python-version: "3.x"
 
       - name: Build sdist
         run: python setup.py sdist
@@ -52,27 +52,27 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        build: [cp37-*, cp38-*, cp39-*, cp310-*, cp311-*]
+        build: [cp38-*, cp39-*, cp310-*, cp311-*, cp312-*]
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        if: runner.os == 'Linux'
-        uses: docker/setup-qemu-action@v2
+      - uses: actions/setup-python@v3
+
+      - name: Install cibuildwheel
+        run: python -m pip install cibuildwheel==2.16.2
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.13.1
+        run: python -m cibuildwheel --output-dir wheelhouse
         env:
           CIBW_BUILD: ${{ matrix.build }}
           CIBW_ARCHS_LINUX: auto aarch64
-          CIBW_ARCHS_MACOS: x86_64 universal2
-          CIBW_BEFORE_BUILD: pip install cython
-          CIBW_TEST_REQUIRES: pytest numpy ipython
+          CIBW_ARCHS_MACOS: x86_64 arm64
           CIBW_TEST_COMMAND: pytest {project}/tests
           CIBW_TEST_SKIP: "*arm64 *aarch64 *musllinux* *i686 *win32"
 
       - uses: actions/upload-artifact@v3
+        name: cibw-wheels-${{ matrix.os }}-${{ matrix.build }}
         with:
           path: ./wheelhouse/*.whl
 

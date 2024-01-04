@@ -1,6 +1,8 @@
 from __future__ import absolute_import, unicode_literals
-import pytest
+
 import logging
+
+import pytest
 
 from psd_tools.api.psd_image import PSDImage
 
@@ -11,10 +13,10 @@ logger = logging.getLogger(__name__)
 
 @pytest.fixture
 def layer_mask_data():
-    return PSDImage.open(full_name('layer_mask_data.psd'))
+    return PSDImage.open(full_name("layer_mask_data.psd"))
 
 
-@pytest.mark.parametrize('real', [True, False])
+@pytest.mark.parametrize("real", [True, False])
 def test_layer_mask(layer_mask_data, real):
     mask = layer_mask_data[4].mask
     mask.real_flags.parameters_applied = real

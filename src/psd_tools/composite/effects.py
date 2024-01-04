@@ -1,19 +1,19 @@
+import logging
+
 import numpy as np
 from skimage import filters
 from skimage.morphology import disk
-import logging
 
-from psd_tools.terminology import Enum, Key
-from .vector import (
-    draw_solid_color_fill, draw_pattern_fill, draw_gradient_fill
-)
 import psd_tools.composite
+from psd_tools.terminology import Enum, Key
+
+from .vector import draw_gradient_fill, draw_pattern_fill, draw_solid_color_fill
 
 logger = logging.getLogger(__name__)
 
 
 def draw_stroke_effect(viewport, shape, desc, psd):
-    logger.debug('Stroke effect has limited support')
+    logger.debug("Stroke effect has limited support")
     height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
     if not isinstance(shape, np.ndarray):
         shape = np.full((height, width, 1), shape, dtype=np.float32)
@@ -26,7 +26,7 @@ def draw_stroke_effect(viewport, shape, desc, psd):
     elif paint == Enum.GradientFill:
         color, _ = draw_gradient_fill(viewport, psd.color_mode, desc)
     else:
-        logger.warning('No fill specification found.')
+        logger.warning("No fill specification found.")
         color = np.ones((height, width, 1))
 
     # Note: current implementation is purely image-based.
@@ -38,13 +38,12 @@ def draw_stroke_effect(viewport, shape, desc, psd):
         size *= 2
 
     edges = filters.scharr(shape[:, :, 0])
-    pen = disk(int(size / 2. - 1))
-    mask = filters.rank.maximum((255 * edges).astype(np.uint8),
-                                pen).astype(np.float32) / 255.
-    mask = psd_tools.composite._divide(
-        mask - np.min(mask),
-        np.max(mask) - np.min(mask)
+    pen = disk(int(size / 2.0 - 1))
+    mask = (
+        filters.rank.maximum((255 * edges).astype(np.uint8), pen).astype(np.float32)
+        / 255.0
     )
+    mask = psd_tools.composite._divide(mask - np.min(mask), np.max(mask) - np.min(mask))
     mask = np.expand_dims(mask, 2)
 
     if style == Enum.OutsetFrame:

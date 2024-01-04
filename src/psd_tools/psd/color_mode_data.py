@@ -2,13 +2,13 @@
 Color mode data structure.
 """
 from __future__ import absolute_import, unicode_literals
-import attr
+
 import logging
 
+import attr
+
 from psd_tools.psd.base import ValueElement
-from psd_tools.utils import (
-    read_length_block, write_length_block, write_bytes
-)
+from psd_tools.utils import read_length_block, write_bytes, write_length_block
 
 logger = logging.getLogger(__name__)
 
@@ -23,12 +23,13 @@ class ColorModeData(ValueElement):
 
     Duotone images also have this data, but the data format is undocumented.
     """
-    value = attr.ib(default=b'', type=bytes)
+
+    value = attr.ib(default=b"", type=bytes)
 
     @classmethod
     def read(cls, fp):
         value = read_length_block(fp)
-        logger.debug('reading color mode data, len=%d' % (len(value)))
+        logger.debug("reading color mode data, len=%d" % (len(value)))
         # TODO: Parse color table.
         return cls(value)
 
@@ -36,7 +37,7 @@ class ColorModeData(ValueElement):
         def writer(f):
             return write_bytes(f, self.value)
 
-        logger.debug('writing color mode data, len=%d' % (len(self.value)))
+        logger.debug("writing color mode data, len=%d" % (len(self.value)))
         return write_length_block(fp, writer)
 
     def interleave(self):
@@ -44,20 +45,23 @@ class ColorModeData(ValueElement):
         Returns interleaved color table in bytes.
         """
         import array
+
         if bytes == str:
-            return b''.join(
+            return b"".join(
                 array.array(
-                    'B', [
+                    "B",
+                    [
                         ord(self.value[i]),
                         ord(self.value[i + 256]),
-                        ord(self.value[i + 512])
-                    ]
-                ).tostring() for i in range(256)
+                        ord(self.value[i + 512]),
+                    ],
+                ).tostring()
+                for i in range(256)
             )
         else:
-            return b''.join(
+            return b"".join(
                 array.array(
-                    'B', [(self.value[i]), (self.value[i + 256]
-                                            ), (self.value[i + 512])]
-                ).tobytes() for i in range(256)
+                    "B", [(self.value[i]), (self.value[i + 256]), (self.value[i + 512])]
+                ).tobytes()
+                for i in range(256)
             )

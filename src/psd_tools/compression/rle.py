@@ -15,24 +15,23 @@ def decode(data, size):
         if 0 <= header <= 127:
             length = header + 1
             if src + length <= len(data) and dst + length <= size:
-                result[dst:dst + header + 1] = data[src:src + length]
+                result[dst : dst + header + 1] = data[src : src + length]
                 src += length
                 dst += length
             else:
-                raise ValueError('Invalid RLE compression')
+                raise ValueError("Invalid RLE compression")
         elif header == -128:
             pass
         else:
             length = 1 - header
             if src + 1 <= len(data) and dst + length <= size:
-                result[dst:dst + length] = [data[src]] * length
+                result[dst : dst + length] = [data[src]] * length
                 src += 1
                 dst += length
             else:
-                raise ValueError('Invalid RLE compression')
+                raise ValueError("Invalid RLE compression")
     if dst < size:
-        raise ValueError('Expected %d bytes but decoded only %d bytes' % (
-            size, dst))
+        raise ValueError("Expected %d bytes but decoded only %d bytes" % (size, dst))
 
     return bytes(result)
 
@@ -45,7 +44,7 @@ def encode(data):
         return data
 
     if len(data) == 1:
-        return b'\x00' + data
+        return b"\x00" + data
 
     data = bytearray(data)
 
@@ -57,18 +56,18 @@ def encode(data):
 
     # we can safely start with RAW as empty RAW sequences
     # are handled by finish_raw(buf, result)
-    state = 'RAW'
+    state = "RAW"
 
     while pos < len(data) - 1:
         current_byte = data[pos]
 
         if data[pos] == data[pos + 1]:
-            if state == 'RAW':
+            if state == "RAW":
                 # end of RAW data
                 finish_raw(buf, result)
-                state = 'RLE'
+                state = "RLE"
                 repeat_count = 1
-            elif state == 'RLE':
+            elif state == "RLE":
                 if repeat_count == MAX_LENGTH:
                     # restart the encoding
                     finish_rle(result, repeat_count, data, pos)
@@ -77,12 +76,12 @@ def encode(data):
                 repeat_count += 1
 
         else:
-            if state == 'RLE':
+            if state == "RLE":
                 repeat_count += 1
                 finish_rle(result, repeat_count, data, pos)
-                state = 'RAW'
+                state = "RAW"
                 repeat_count = 0
-            elif state == 'RAW':
+            elif state == "RAW":
                 if len(buf) == MAX_LENGTH:
                     # restart the encoding
                     finish_raw(buf, result)
@@ -91,7 +90,7 @@ def encode(data):
 
         pos += 1
 
-    if state == 'RAW':
+    if state == "RAW":
         buf.append(data[pos])
         finish_raw(buf, result)
     else:

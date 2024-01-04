@@ -1,7 +1,8 @@
-import numpy as np
 import logging
 
-from psd_tools.constants import ChannelID, Tag, ColorMode, Resource
+import numpy as np
+
+from psd_tools.constants import ChannelID, ColorMode, Resource, Tag
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ EXPECTED_CHANNELS = {
 
 
 def get_array(layer, channel, **kwargs):
-    if layer.kind == 'psdimage':
+    if layer.kind == "psdimage":
         return get_image_data(layer, channel)
     else:
         return get_layer_data(layer, channel, **kwargs)
@@ -26,8 +27,7 @@ def get_array(layer, channel, **kwargs):
 
 
 def get_image_data(psd, channel):
-    if (channel == 'mask'
-        ) or (channel == 'shape' and not has_transparency(psd)):
+    if (channel == "mask") or (channel == "shape" and not has_transparency(psd)):
         return np.ones((psd.height, psd.width, 1), dtype=np.float32)
 
     lut = None
@@ -42,13 +42,13 @@ def get_image_data(psd, channel):
         data = data.reshape((-1, psd.height, psd.width)).transpose((1, 2, 0))
     data = _remove_background(data, psd)
 
-    if channel == 'shape':
+    if channel == "shape":
         return np.expand_dims(data[:, :, get_transparency_index(psd)], 2)
-    elif channel == 'color':
+    elif channel == "color":
         if psd.color_mode == ColorMode.MULTICHANNEL:
             return data
         # TODO: psd.color_mode == ColorMode.INDEXED --> Convert?
-        return data[:, :, :EXPECTED_CHANNELS[psd.color_mode]]
+        return data[:, :, : EXPECTED_CHANNELS[psd.color_mode]]
 
     return data
 
@@ -66,36 +66,32 @@ def get_layer_data(layer, channel, real_mask=True):
             result = np.stack(channels, axis=1).reshape((height, width, -1))
             expected_channels = EXPECTED_CHANNELS.get(layer._psd.color_mode)
             if result.shape[2] > expected_channels:
-                logger.debug('Extra channel found')
+                logger.debug("Extra channel found")
                 return result[:, :, :expected_channels]
             return result
         return None
 
-    if channel == 'color':
+    if channel == "color":
+        return _find_channel(layer, layer.width, layer.height, lambda x: x.id >= 0)
+    elif channel == "shape":
         return _find_channel(
-            layer, layer.width, layer.height, lambda x: x.id >= 0
+            layer,
+            layer.width,
+            layer.height,
+            lambda x: x.id == ChannelID.TRANSPARENCY_MASK,
         )
-    elif channel == 'shape':
-        return _find_channel(
-            layer, layer.width, layer.height,
-            lambda x: x.id == ChannelID.TRANSPARENCY_MASK
-        )
-    elif channel == 'mask':
+    elif channel == "mask":
         if layer.mask._has_real() and real_mask:
             channel_id = ChannelID.REAL_USER_LAYER_MASK
         else:
             channel_id = ChannelID.USER_LAYER_MASK
         return _find_channel(
-            layer, layer.mask.width, layer.mask.height,
-            lambda x: x.id == channel_id
+            layer, layer.mask.width, layer.mask.height, lambda x: x.id == channel_id
         )
 
-    color = _find_channel(
-        layer, layer.width, layer.height, lambda x: x.id >= 0
-    )
+    color = _find_channel(layer, layer.width, layer.height, lambda x: x.id >= 0)
     shape = _find_channel(
-        layer, layer.width, layer.height,
-        lambda x: x.id == ChannelID.TRANSPARENCY_MASK
+        layer, layer.width, layer.height, lambda x: x.id == ChannelID.TRANSPARENCY_MASK
     )
     if shape is None:
         return color
@@ -105,11 +101,14 @@ def get_layer_data(layer, channel, real_mask=True):
 def get_pattern(pattern):
     """Get pattern array."""
     height, width = pattern.data.rectangle[2], pattern.data.rectangle[3]
-    return np.stack([
-        _parse_array(c.get_data(), c.pixel_depth)
-        for c in pattern.data.channels if c.is_written
-    ],
-                    axis=1).reshape((height, width, -1))
+    return np.stack(
+        [
+            _parse_array(c.get_data(), c.pixel_depth)
+            for c in pattern.data.channels
+            if c.is_written
+        ],
+        axis=1,
+    ).reshape((height, width, -1))
 
 
 def has_transparency(psd):
@@ -124,7 +123,10 @@ def has_transparency(psd):
         alpha_ids = psd.image_resources.get_data(Resource.ALPHA_IDENTIFIERS)
         if alpha_ids and all(x > 0 for x in alpha_ids):
             return False
-        if(psd._record.layer_and_mask_information.layer_info is not None and psd._record.layer_and_mask_information.layer_info.layer_count > 0):
+        if (
+            psd._record.layer_and_mask_information.layer_info is not None
+            and psd._record.layer_and_mask_information.layer_info.layer_count > 0
+        ):
             return False
         return True
     return False
@@ -143,18 +145,18 @@ def get_transparency_index(psd):
 
 def _parse_array(data, depth, lut=None):
     if depth == 8:
-        parsed = np.frombuffer(data, '>u1')
+        parsed = np.frombuffer(data, ">u1")
         if lut is not None:
             parsed = lut[parsed]
-        return parsed.astype(np.float32) / 255.
+        return parsed.astype(np.float32) / 255.0
     elif depth == 16:
-        return np.frombuffer(data, '>u2').astype(np.float32) / 65535.
+        return np.frombuffer(data, ">u2").astype(np.float32) / 65535.0
     elif depth == 32:
-        return np.frombuffer(data, '>f4')
+        return np.frombuffer(data, ">f4")
     elif depth == 1:
         return np.unpackbits(np.frombuffer(data, np.uint8)).astype(np.float32)
     else:
-        raise ValueError('Unsupported depth: %g' % depth)
+        raise ValueError("Unsupported depth: %g" % depth)
 
 
 def _remove_background(data, psd):

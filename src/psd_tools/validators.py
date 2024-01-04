@@ -4,7 +4,7 @@ Validation functions for attr.
 import attr
 from attr.validators import in_
 
-__all__ = ['in_', 'range_']
+__all__ = ["in_", "range_"]
 
 
 @attr.s(repr=False, slots=True, hash=True)

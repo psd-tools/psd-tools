@@ -1,3 +1,11 @@
+1.9.29 (2024-01-04)
+-------------------
+
+- [ci] Update CI configuration
+- [dev] Migrate the builder to pyproject.toml
+- [dev] Update linter and formatter to pysen
+- [dev] Deprecate tox
+
 1.9.28 (2023-07-04)
 -------------------
 

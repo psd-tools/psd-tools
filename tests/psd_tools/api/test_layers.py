@@ -1,9 +1,11 @@
 from __future__ import absolute_import, unicode_literals
-import pytest
+
 import logging
 
+import pytest
+
+from psd_tools.api.layers import Group, PixelLayer, ShapeLayer
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.api.layers import Group, ShapeLayer, PixelLayer
 from psd_tools.constants import BlendMode
 
 from ..utils import full_name
@@ -13,54 +15,54 @@ logger = logging.getLogger(__name__)
 
 @pytest.fixture
 def pixel_layer():
-    return PSDImage.open(full_name('layers/pixel-layer.psd'))[0]
+    return PSDImage.open(full_name("layers/pixel-layer.psd"))[0]
 
 
 @pytest.fixture
 def adjustment_layer():
-    return PSDImage.open(full_name('layers/brightness-contrast.psd'))[0]
+    return PSDImage.open(full_name("layers/brightness-contrast.psd"))[0]
 
 
 @pytest.fixture
 def fill_layer():
-    return PSDImage.open(full_name('layers/solid-color-fill.psd'))[0]
+    return PSDImage.open(full_name("layers/solid-color-fill.psd"))[0]
 
 
 @pytest.fixture
 def shape_layer():
-    return PSDImage.open(full_name('layers/shape-layer.psd'))[0]
+    return PSDImage.open(full_name("layers/shape-layer.psd"))[0]
 
 
 @pytest.fixture
 def smartobject_layer():
-    return PSDImage.open(full_name('layers/smartobject-layer.psd'))[0]
+    return PSDImage.open(full_name("layers/smartobject-layer.psd"))[0]
 
 
 @pytest.fixture
 def type_layer():
-    return PSDImage.open(full_name('layers/type-layer.psd'))[0]
+    return PSDImage.open(full_name("layers/type-layer.psd"))[0]
 
 
 @pytest.fixture
 def group():
-    return PSDImage.open(full_name('layers/group.psd'))[0]
+    return PSDImage.open(full_name("layers/group.psd"))[0]
 
 
 ALL_FIXTURES = [
-    'pixel_layer',
-    'shape_layer',
-    'smartobject_layer',
-    'type_layer',
-    'group',
-    'adjustment_layer',
-    'fill_layer',
+    "pixel_layer",
+    "shape_layer",
+    "smartobject_layer",
+    "type_layer",
+    "group",
+    "adjustment_layer",
+    "fill_layer",
 ]
 
 
 def test_pixel_layer_properties(pixel_layer):
     layer = pixel_layer
-    assert layer.name == 'Pixel', 'layer.name = %s' % type(layer.name)
-    assert layer.kind == 'pixel'
+    assert layer.name == "Pixel", "layer.name = %s" % type(layer.name)
+    assert layer.kind == "pixel"
     assert layer.visible is True
     assert layer.opacity == 255
     assert isinstance(layer.parent, PSDImage)
@@ -80,11 +82,11 @@ def test_pixel_layer_properties(pixel_layer):
 
 def test_pixel_layer_writable_properties(pixel_layer):
     layer = pixel_layer
-    layer.name = 'foo'
-    assert layer.name == 'foo'
+    layer.name = "foo"
+    assert layer.name == "foo"
     layer._record.tobytes()
-    layer.name = u'\ud83d\udc7d'
-    assert layer.name == u'\ud83d\udc7d'
+    layer.name = "\ud83d\udc7d"
+    assert layer.name == "\ud83d\udc7d"
     layer._record.tobytes()
 
     layer.visible = False
@@ -111,13 +113,11 @@ def test_layer_is_visible(pixel_layer):
     assert pixel_layer.is_visible()
 
 
-@pytest.fixture(params=['pixel_layer', 'group'])
+@pytest.fixture(params=["pixel_layer", "group"])
 def is_group_args(request):
     return (
-        request.getfixturevalue(request.param), {
-            'pixel_layer': False,
-            'group': True
-        }.get(request.param)
+        request.getfixturevalue(request.param),
+        {"pixel_layer": False, "group": True}.get(request.param),
     )
 
 
@@ -132,9 +132,9 @@ def test_layer_has_mask(pixel_layer):
 
 @pytest.fixture(params=ALL_FIXTURES)
 def kind_args(request):
-    expected = request.param.replace('_layer', '')
-    expected = expected.replace('fill', 'solidcolorfill')
-    expected = expected.replace('adjustment', 'brightnesscontrast')
+    expected = request.param.replace("_layer", "")
+    expected = expected.replace("fill", "solidcolorfill")
+    expected = expected.replace("adjustment", "brightnesscontrast")
     return (request.getfixturevalue(request.param), expected)
 
 
@@ -144,24 +144,25 @@ def test_layer_kind(kind_args):
 
 
 def test_curves_with_vectormask():
-    layer = PSDImage.open(full_name('layers/curves-with-vectormask.psd'))[0]
-    assert layer.kind == 'curves'
+    layer = PSDImage.open(full_name("layers/curves-with-vectormask.psd"))[0]
+    assert layer.kind == "curves"
 
 
 @pytest.fixture(params=ALL_FIXTURES)
 def topil_args(request):
     is_image = request.param in {
-        'pixel_layer',
-        'smartobject_layer',
-        'type_layer',
-        'fill_layer',
-        'shape_layer',
+        "pixel_layer",
+        "smartobject_layer",
+        "type_layer",
+        "fill_layer",
+        "shape_layer",
     }
     return (request.getfixturevalue(request.param), is_image)
 
 
 def test_topil(topil_args):
     from PIL.Image import Image
+
     fixture, is_image = topil_args
     image = fixture.topil()
 
@@ -173,27 +174,32 @@ def test_topil(topil_args):
 
 
 def test_clip_adjustment():
-    psd = PSDImage.open(full_name('clip-adjustment.psd'))
+    psd = PSDImage.open(full_name("clip-adjustment.psd"))
     assert len(psd) == 2
     layer = psd[0]
-    assert layer.kind == 'type'
+    assert layer.kind == "type"
     assert len(layer.clip_layers) == 1
 
 
 def test_nested_clipping_layers():
-    psd = PSDImage.open(full_name('clipping-mask.psd'))
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
     psd[1].blend_mode = BlendMode.NORMAL
     psd[1].clipping_layer = True
-    assert psd[1].clipping_layer == True
+    assert psd[1].clipping_layer is True
     assert psd[1][1].has_clip_layers()
     assert psd[1][2].clipping_layer
     assert psd[0].has_clip_layers()
 
 
 def test_type_layer(type_layer):
-    assert type_layer.text == 'A'
+    assert type_layer.text == "A"
     assert type_layer.transform == (
-        1.0000000000000002, 0.0, 0.0, 1.0, 0.0, 4.978787878787878
+        1.0000000000000002,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        4.978787878787878,
     )
     assert type_layer.engine_dict
     assert type_layer.resource_dict
@@ -208,13 +214,13 @@ def test_group_writable_properties(group):
 
 
 def test_group_extract_bbox():
-    psd = PSDImage.open(full_name('hidden-groups.psd'))
+    psd = PSDImage.open(full_name("hidden-groups.psd"))
     assert Group.extract_bbox(psd[1:], False) == (40, 72, 83, 134)
     assert Group.extract_bbox(psd[1:], True) == (25, 34, 83, 134)
 
 
 def test_shape_and_fill_layer():
-    psd = PSDImage.open(full_name('vector-mask2.psd'))
+    psd = PSDImage.open(full_name("vector-mask2.psd"))
     for i in range(8):
         assert isinstance(psd[i], ShapeLayer)
     for i in range(8, 10):
@@ -222,7 +228,7 @@ def test_shape_and_fill_layer():
 
 
 def test_has_effects():
-    psd = PSDImage.open(full_name('effects/effects-enabled.psd'))
+    psd = PSDImage.open(full_name("effects/effects-enabled.psd"))
     assert not psd[0].has_effects()
     assert psd[1].has_effects()
     assert not psd[2].has_effects()
@@ -230,9 +236,9 @@ def test_has_effects():
 
 
 def test_bbox_updates():
-    psd = PSDImage.open(full_name('hidden-groups.psd'))
+    psd = PSDImage.open(full_name("hidden-groups.psd"))
     group1 = psd[1]
     group1.visible = False
-    assert group1.bbox == (0, 0, 0 ,0)
+    assert group1.bbox == (0, 0, 0, 0)
     group1.visible = True
     assert group1.bbox == (25, 34, 80, 88)

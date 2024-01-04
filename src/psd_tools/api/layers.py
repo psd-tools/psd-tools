@@ -2,15 +2,15 @@
 Layer module.
 """
 from __future__ import absolute_import, unicode_literals
+
 import logging
 
-from psd_tools.constants import BlendMode, Tag, Clipping
+from psd_tools.api import deprecated
 from psd_tools.api.effects import Effects
 from psd_tools.api.mask import Mask
-from psd_tools.api.shape import VectorMask, Stroke, Origination
+from psd_tools.api.shape import Origination, Stroke, VectorMask
 from psd_tools.api.smart_object import SmartObject
-
-from psd_tools.api import deprecated
+from psd_tools.constants import BlendMode, Clipping, Tag
 
 logger = logging.getLogger(__name__)
 
@@ -37,14 +37,12 @@ class Layer(object):
 
     @name.setter
     def name(self, value):
-        assert len(value) < 256, 'Layer name too long (%d) %s' % (
-            len(value), value
-        )
+        assert len(value) < 256, "Layer name too long (%d) %s" % (len(value), value)
         try:
-            value.encode('macroman')
+            value.encode("macroman")
             self._record.name = value
         except UnicodeEncodeError:
-            self._record.name = str('?')
+            self._record.name = str("?")
         self._record.tagged_blocks.set_data(Tag.UNICODE_LAYER_NAME, value)
 
     @property
@@ -55,7 +53,7 @@ class Layer(object):
 
         :return: `str`
         """
-        return self.__class__.__name__.lower().replace('layer', '')
+        return self.__class__.__name__.lower().replace("layer", "")
 
     @property
     def layer_id(self):
@@ -72,8 +70,8 @@ class Layer(object):
         """
         current = self
         while current is not None:
-            if hasattr(current, '_bbox'):
-                delattr(current, '_bbox')
+            if hasattr(current, "_bbox"):
+                delattr(current, "_bbox")
             current = current.parent
 
     @property
@@ -288,7 +286,7 @@ class Layer(object):
 
         :return: :py:class:`~psd_tools.api.shape.VectorMask` or `None`
         """
-        if not hasattr(self, '_vector_mask'):
+        if not hasattr(self, "_vector_mask"):
             self._vector_mask = None
             blocks = self.tagged_blocks
             for key in (Tag.VECTOR_MASK_SETTING1, Tag.VECTOR_MASK_SETTING2):
@@ -325,12 +323,12 @@ class Layer(object):
             :py:class:`~psd_tools.api.shape.Ellipse`, or
             :py:class:`~psd_tools.api.shape.Line`.
         """
-        if not hasattr(self, '_origination'):
+        if not hasattr(self, "_origination"):
             data = self.tagged_blocks.get_data(Tag.VECTOR_ORIGINATION_DATA, {})
             self._origination = [
                 Origination.create(x)
-                for x in data.get(b'keyDescriptorList', [])
-                if not data.get(b'keyShapeInvalidated')
+                for x in data.get(b"keyDescriptorList", [])
+                if not data.get(b"keyShapeInvalidated")
             ]
         return self._origination
 
@@ -341,7 +339,7 @@ class Layer(object):
     @property
     def stroke(self):
         """Property for strokes."""
-        if not hasattr(self, '_stroke'):
+        if not hasattr(self, "_stroke"):
             self._stroke = None
             stroke = self.tagged_blocks.get_data(Tag.VECTOR_STROKE_DATA)
             if stroke:
@@ -371,6 +369,7 @@ class Layer(object):
             alpha channel in PIL. In this case, topil drops alpha channel.
         """
         from .pil_io import convert_layer_to_pil
+
         return convert_layer_to_pil(self, channel, apply_icc)
 
     @deprecated
@@ -388,6 +387,7 @@ class Layer(object):
         :return: :py:class:`PIL.Image`, or `None` if the layer has no pixel.
         """
         from psd_tools.composer import compose, compose_layer
+
         if self.bbox == (0, 0, 0, 0):
             return None
         if bbox is None:
@@ -403,6 +403,7 @@ class Layer(object):
         :return: :py:class:`numpy.ndarray` or None if there is no pixel.
         """
         from .numpy_io import get_array
+
         return get_array(self, channel, real_mask=real_mask)
 
     def composite(
@@ -412,7 +413,7 @@ class Layer(object):
         color=1.0,
         alpha=0.0,
         layer_filter=None,
-        apply_icc=False
+        apply_icc=False,
     ):
         """
         Composite layer and masks (mask, vector mask, and clipping layers).
@@ -430,7 +431,10 @@ class Layer(object):
         :return: :py:class:`PIL.Image`.
         """
         from psd_tools.composite import composite_pil
-        return composite_pil(self, color, alpha, viewport, layer_filter, force, apply_icc=apply_icc)
+
+        return composite_pil(
+            self, color, alpha, viewport, layer_filter, force, apply_icc=apply_icc
+        )
 
     def has_clip_layers(self):
         """
@@ -475,7 +479,8 @@ class Layer(object):
         :return: `bool`
         """
         has_effect_tag = any(
-            tag in self.tagged_blocks for tag in (
+            tag in self.tagged_blocks
+            for tag in (
                 Tag.OBJECT_BASED_EFFECTS_LAYER_INFO,
                 Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V0,
                 Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V1,
@@ -497,7 +502,7 @@ class Layer(object):
 
         :return: :py:class:`~psd_tools.api.effects.Effects`
         """
-        if not hasattr(self, '_effects'):
+        if not hasattr(self, "_effects"):
             self._effects = Effects(self)
         return self._effects
 
@@ -521,13 +526,13 @@ class Layer(object):
 
     def __repr__(self):
         has_size = self.width > 0 and self.height > 0
-        return '%s(%r%s%s%s%s)' % (
+        return "%s(%r%s%s%s%s)" % (
             self.__class__.__name__,
             self.name,
-            ' size=%dx%d' % (self.width, self.height) if has_size else '',
-            ' invisible' if not self.visible else '',
-            ' mask' if self.has_mask() else '',
-            ' effects' if self.has_effects() else '',
+            " size=%dx%d" % (self.width, self.height) if has_size else "",
+            " invisible" if not self.visible else "",
+            " mask" if self.has_mask() else "",
+            " effects" if self.has_effects() else "",
         )
 
 
@@ -551,7 +556,7 @@ class GroupMixin(object):
     @property
     def bbox(self):
         """(left, top, right, bottom) tuple."""
-        if not hasattr(self, '_bbox'):
+        if not hasattr(self, "_bbox"):
             self._bbox = Group.extract_bbox(self)
         return self._bbox
 
@@ -572,12 +577,7 @@ class GroupMixin(object):
 
     @deprecated
     def compose(
-        self,
-        force=False,
-        bbox=None,
-        layer_filter=None,
-        context=None,
-        color=None
+        self, force=False, bbox=None, layer_filter=None, context=None, color=None
     ):
         """
         Compose layer and masks (mask, vector mask, and clipping layers).
@@ -585,6 +585,7 @@ class GroupMixin(object):
         :return: PIL Image object, or None if the layer has no pixels.
         """
         from psd_tools.composer import compose
+
         return compose(
             self,
             force=force,
@@ -615,7 +616,7 @@ class GroupMixin(object):
             if layer.is_group():
                 for child in layer.descendants(include_clip):
                     yield child
-            if include_clip and hasattr(layer, 'clip_layers'):
+            if include_clip and hasattr(layer, "clip_layers"):
                 for clip_layer in layer.clip_layers:
                     yield clip_layer
 
@@ -631,6 +632,7 @@ class Group(GroupMixin, Layer):
             if layer.kind == 'pixel':
                 print(layer.name)
     """
+
     @staticmethod
     def extract_bbox(layers, include_invisible=False):
         """
@@ -640,18 +642,20 @@ class Group(GroupMixin, Layer):
         :param include_invisible: include invisible layers in calculation.
         :return: tuple of four int
         """
+
         def _get_bbox(layer, **kwargs):
             if layer.is_group():
                 return Group.extract_bbox(layer, **kwargs)
             else:
                 return layer.bbox
 
-        if not hasattr(layers, '__iter__'):
+        if not hasattr(layers, "__iter__"):
             layers = [layers]
 
         bboxes = [
             _get_bbox(layer, include_invisible=include_invisible)
-            for layer in layers if include_invisible or layer.is_visible()
+            for layer in layers
+            if include_invisible or layer.is_visible()
         ]
         bboxes = [bbox for bbox in bboxes if bbox != (0, 0, 0, 0)]
         if len(bboxes) == 0:  # Empty bounding box.
@@ -693,7 +697,7 @@ class Group(GroupMixin, Layer):
         color=1.0,
         alpha=0.0,
         layer_filter=None,
-        apply_icc=False
+        apply_icc=False,
     ):
         """
         Composite layer and masks (mask, vector mask, and clipping layers).
@@ -711,8 +715,16 @@ class Group(GroupMixin, Layer):
         :return: :py:class:`PIL.Image`.
         """
         from psd_tools.composite import composite_pil
+
         return composite_pil(
-            self, color, alpha, viewport, layer_filter, force, as_layer=True, apply_icc=apply_icc
+            self,
+            color,
+            alpha,
+            viewport,
+            layer_filter,
+            force,
+            as_layer=True,
+            apply_icc=apply_icc,
         )
 
 
@@ -725,6 +737,7 @@ class Artboard(Group):
         artboard = psd[1]
         image = artboard.compose()
     """
+
     @classmethod
     def _move(kls, group):
         self = kls(group._psd, group._record, group._channels, group._parent)
@@ -755,20 +768,18 @@ class Artboard(Group):
     @property
     def bbox(self):
         """(left, top, right, bottom) tuple."""
-        if not hasattr(self, '_bbox'):
+        if not hasattr(self, "_bbox"):
             data = None
-            for key in (
-                Tag.ARTBOARD_DATA1, Tag.ARTBOARD_DATA2, Tag.ARTBOARD_DATA3
-            ):
+            for key in (Tag.ARTBOARD_DATA1, Tag.ARTBOARD_DATA2, Tag.ARTBOARD_DATA3):
                 if key in self.tagged_blocks:
                     data = self.tagged_blocks.get_data(key)
             assert data is not None
-            rect = data.get(b'artboardRect')
+            rect = data.get(b"artboardRect")
             self._bbox = (
-                int(rect.get(b'Left')),
-                int(rect.get(b'Top ')),
-                int(rect.get(b'Rght')),
-                int(rect.get(b'Btom')),
+                int(rect.get(b"Left")),
+                int(rect.get(b"Top ")),
+                int(rect.get(b"Rght")),
+                int(rect.get(b"Btom")),
             )
         return self._bbox
 
@@ -782,6 +793,7 @@ class Artboard(Group):
         :return: :py:class:`PIL.Image`, or `None` if there is no pixel.
         """
         from psd_tools.composer import compose
+
         return compose(self, bbox=bbox or self.bbox, **kwargs)
 
 
@@ -798,6 +810,7 @@ class PixelLayer(Layer):
         composed_image = layer.compose()
         composed_image.save('composed-layer.png')
     """
+
     pass
 
 
@@ -815,6 +828,7 @@ class SmartObjectLayer(Layer):
         if layer.smart_object.filetype == 'jpg':
             image = Image.open(io.BytesIO(layer.smart_object.data))
     """
+
     @property
     def smart_object(self):
         """
@@ -822,7 +836,7 @@ class SmartObjectLayer(Layer):
 
         :return: :py:class:`~psd_tools.api.smart_object.SmartObject`.
         """
-        if not hasattr(self, '_smart_object'):
+        if not hasattr(self, "_smart_object"):
             self._smart_object = SmartObject(self)
         return self._smart_object
 
@@ -858,6 +872,7 @@ class TypeLayer(Layer):
                 print('%r gets %s' % (substring, font))
                 index += length
     """
+
     def __init__(self, *args):
         super(TypeLayer, self).__init__(*args)
         self._data = self.tagged_blocks.get_data(Tag.TYPE_TOOL_OBJECT_SETTING)
@@ -869,7 +884,7 @@ class TypeLayer(Layer):
 
         .. note:: New-line character in Photoshop is `'\\\\r'`.
         """
-        return self._data.text_data.get(b'Txt ').value.rstrip('\x00')
+        return self._data.text_data.get(b"Txt ").value.rstrip("\x00")
 
     @property
     def transform(self):
@@ -879,22 +894,22 @@ class TypeLayer(Layer):
     @property
     def _engine_data(self):
         """Styling and resource information."""
-        return self._data.text_data.get(b'EngineData').value
+        return self._data.text_data.get(b"EngineData").value
 
     @property
     def engine_dict(self):
         """Styling information dict."""
-        return self._engine_data.get('EngineDict')
+        return self._engine_data.get("EngineDict")
 
     @property
     def resource_dict(self):
         """Resource set."""
-        return self._engine_data.get('ResourceDict')
+        return self._engine_data.get("ResourceDict")
 
     @property
     def document_resources(self):
         """Resource set relevant to the document."""
-        return self._engine_data.get('DocumentResources')
+        return self._engine_data.get("DocumentResources")
 
     @property
     def warp(self):
@@ -906,6 +921,7 @@ class ShapeLayer(Layer):
     """
     Layer that has drawing in vector mask.
     """
+
     @property
     def left(self):
         return self.bbox[0]
@@ -925,7 +941,7 @@ class ShapeLayer(Layer):
     @property
     def bbox(self):
         """(left, top, right, bottom) tuple."""
-        if not hasattr(self, '_bbox'):
+        if not hasattr(self, "_bbox"):
             if self.has_pixels():
                 self._bbox = (
                     self._record.left,
@@ -936,12 +952,12 @@ class ShapeLayer(Layer):
             elif self.has_origination() and not any(
                 x.invalidated for x in self.origination
             ):
-                lefts, tops, rights, bottoms = zip(
-                    *[x.bbox for x in self.origination]
-                )
+                lefts, tops, rights, bottoms = zip(*[x.bbox for x in self.origination])
                 self._bbox = (
-                    int(min(lefts)), int(min(tops)), int(max(rights)),
-                    int(max(bottoms))
+                    int(min(lefts)),
+                    int(min(tops)),
+                    int(max(rights)),
+                    int(max(bottoms)),
                 )
             elif self.has_vector_mask():
                 bbox = self.vector_mask.bbox
@@ -958,10 +974,11 @@ class ShapeLayer(Layer):
 
 class AdjustmentLayer(Layer):
     """Layer that applies specified image adjustment effect."""
+
     def __init__(self, *args):
         super(AdjustmentLayer, self).__init__(*args)
         self._data = None
-        if hasattr(self.__class__, '_KEY'):
+        if hasattr(self.__class__, "_KEY"):
             self._data = self.tagged_blocks.get_data(self.__class__._KEY)
 
     def compose(self, **kwargs):
@@ -975,10 +992,11 @@ class AdjustmentLayer(Layer):
 
 class FillLayer(Layer):
     """Layer that fills the canvas region."""
+
     def __init__(self, *args):
         super(FillLayer, self).__init__(*args)
         self._data = None
-        if hasattr(self.__class__, '_KEY'):
+        if hasattr(self.__class__, "_KEY"):
             self._data = self.tagged_blocks.get_data(self.__class__._KEY)
 
     @property

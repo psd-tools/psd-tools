@@ -1,4 +1,0 @@
-include README.rst
-include CHANGES.rst
-
-recursive-include src *.pxd *.pyx

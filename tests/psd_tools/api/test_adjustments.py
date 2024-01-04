@@ -1,15 +1,17 @@
 from __future__ import absolute_import, unicode_literals
-import pytest
+
 import logging
 
-from psd_tools.api.psd_image import PSDImage
+import pytest
+
 from psd_tools.api import adjustments
+from psd_tools.api.psd_image import PSDImage
 
 from ..utils import full_name
 
 logger = logging.getLogger(__name__)
 
-FILL_ADJUSTMENTS = PSDImage.open(full_name('fill_adjustments.psd'))
+FILL_ADJUSTMENTS = PSDImage.open(full_name("fill_adjustments.psd"))
 
 
 @pytest.fixture(scope="module")
@@ -18,19 +20,19 @@ def psd():
 
 
 def test_solid_color_fill():
-    layer = PSDImage.open(full_name('layers/solid-color-fill.psd'))[0]
+    layer = PSDImage.open(full_name("layers/solid-color-fill.psd"))[0]
     assert layer.data
 
 
 def test_gradient_fill():
-    layer = PSDImage.open(full_name('layers/gradient-fill.psd'))[0]
+    layer = PSDImage.open(full_name("layers/gradient-fill.psd"))[0]
     assert layer.angle
     assert layer.gradient_kind
     assert layer.data
 
 
 def test_pattern_fill():
-    layer = PSDImage.open(full_name('layers/pattern-fill.psd'))[0]
+    layer = PSDImage.open(full_name("layers/pattern-fill.psd"))[0]
     assert layer.data
 
 
@@ -102,7 +104,7 @@ def test_black_and_white(psd):
     assert layer.use_tint is False
     assert layer.tint_color
     assert layer.preset_kind == 1
-    assert layer.preset_file_name == ''
+    assert layer.preset_file_name == ""
 
 
 def test_photo_filter(psd):
@@ -155,7 +157,7 @@ def _test_gradient_map_common(layer, random_seed):
     assert isinstance(layer, adjustments.GradientMap)
     assert layer.reversed == 0
     assert layer.dithered == 0
-    assert layer.gradient_name == u'Foreground to Background'
+    assert layer.gradient_name == "Foreground to Background"
     assert len(layer.color_stops) == 2
     assert len(layer.transparency_stops) == 2
     assert layer.expansion == 2
@@ -178,11 +180,11 @@ def test_gradient_map(psd):
 
 def test_gradient_map_v3(psd):
     for suffix, method in (
-            ('classic', b'Gcls'),
-            ('linear', b'Lnr '),
-            ('perceptual', b'Perc'),
+        ("classic", b"Gcls"),
+        ("linear", b"Lnr "),
+        ("perceptual", b"Perc"),
     ):
-        layer = PSDImage.open(full_name('layers/gradient-map-v3-'+suffix+'.psd'))[0]
+        layer = PSDImage.open(full_name("layers/gradient-map-v3-" + suffix + ".psd"))[0]
         _test_gradient_map_common(layer, 691687736)
         assert layer._data.version == 3
         assert layer._data.method == method

@@ -1,11 +1,20 @@
 from __future__ import absolute_import, unicode_literals
-import pytest
-import logging
 
+import logging
 from enum import Enum
+
+import pytest
+
 from psd_tools.psd.base import (
-    BooleanElement, ByteElement, DictElement, EmptyElement, IntegerElement,
-    ListElement, NumericElement, ShortIntegerElement, StringElement
+    BooleanElement,
+    ByteElement,
+    DictElement,
+    EmptyElement,
+    IntegerElement,
+    ListElement,
+    NumericElement,
+    ShortIntegerElement,
+    StringElement,
 )
 
 from ..utils import check_write_read
@@ -17,12 +26,15 @@ def test_empty():
     check_write_read(EmptyElement())
 
 
-@pytest.mark.parametrize('fixture', [
-    '',
-    'a',
-    'ab',
-    '\u0034\u0035\u0036',
-])
+@pytest.mark.parametrize(
+    "fixture",
+    [
+        "",
+        "a",
+        "ab",
+        "\u0034\u0035\u0036",
+    ],
+)
 def test_string(fixture):
     value = StringElement(fixture)
     check_write_read(value)
@@ -33,12 +45,13 @@ def test_string(fixture):
 
 
 @pytest.mark.parametrize(
-    'kls, fixture', [
+    "kls, fixture",
+    [
         (ByteElement, 1),
         (ShortIntegerElement, 1),
         (IntegerElement, 1),
-        (NumericElement, 1.),
-    ]
+        (NumericElement, 1.0),
+    ],
 )
 def test_numbers(kls, fixture):
     value = kls(fixture)
@@ -50,11 +63,12 @@ def test_numbers(kls, fixture):
 
 
 @pytest.mark.parametrize(
-    'kls, fixture', [
-        (ByteElement, b'\x01\x00'),
-        (ShortIntegerElement, b'\x00\x01'),
-        (BooleanElement, b'\x00\x01'),
-    ]
+    "kls, fixture",
+    [
+        (ByteElement, b"\x01\x00"),
+        (ShortIntegerElement, b"\x00\x01"),
+        (BooleanElement, b"\x00\x01"),
+    ],
 )
 def test_malformed_numbers(kls, fixture):
     kls.frombytes(fixture)
@@ -84,21 +98,21 @@ def test_list():
 
 
 class Dummy(bytes, Enum):
-    A = b'x'
-    B = b'y'
-    C = b'x'
+    A = b"x"
+    B = b"y"
+    C = b"x"
 
 
 def test_dict():
     value = DictElement()
-    value[Dummy.A] = 'foo'
-    assert value.get(Dummy.A) == value.get(b'x')
+    value[Dummy.A] = "foo"
+    assert value.get(Dummy.A) == value.get(b"x")
     assert list(value.keys())[0] == Dummy.A
-    assert list(value.keys())[0] == b'x'
+    assert list(value.keys())[0] == b"x"
     assert Dummy.A in value
-    assert b'x' in value
-    assert value[Dummy.A] == 'foo'
-    assert value[Dummy(b'x')] == 'foo'
-    assert value[b'x'] == 'foo'
+    assert b"x" in value
+    assert value[Dummy.A] == "foo"
+    assert value[Dummy(b"x")] == "foo"
+    assert value[b"x"] == "foo"
     repr(value)
     del value[Dummy.A]

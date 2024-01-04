@@ -10,6 +10,7 @@ Example::
         print(layer.gradient_kind)
 """
 from __future__ import absolute_import
+
 import logging
 
 from psd_tools.api.layers import AdjustmentLayer, FillLayer
@@ -18,7 +19,7 @@ from psd_tools.utils import new_registry
 
 logger = logging.getLogger(__name__)
 
-TYPES, register = new_registry(attribute='_KEY')
+TYPES, register = new_registry(attribute="_KEY")
 
 
 @register(Tag.SOLID_COLOR_SHEET_SETTING)
@@ -28,7 +29,7 @@ class SolidColorFill(FillLayer):
     @property
     def data(self):
         """Color in Descriptor(RGB)."""
-        return self._data.get(b'Clr ')
+        return self._data.get(b"Clr ")
 
 
 @register(Tag.PATTERN_FILL_SETTING)
@@ -38,7 +39,7 @@ class PatternFill(FillLayer):
     @property
     def data(self):
         """Pattern in Descriptor(PATTERN)."""
-        return self._data.get(b'Ptrn')
+        return self._data.get(b"Ptrn")
 
 
 @register(Tag.GRADIENT_FILL_SETTING)
@@ -47,7 +48,7 @@ class GradientFill(FillLayer):
 
     @property
     def angle(self):
-        return float(self._data.get(b'Angl'))
+        return float(self._data.get(b"Angl"))
 
     @property
     def gradient_kind(self):
@@ -60,46 +61,47 @@ class GradientFill(FillLayer):
          - `Reflected`
          - `Diamond`
         """
-        return self._data.get(b'Type').get_name()
+        return self._data.get(b"Type").get_name()
 
     @property
     def data(self):
         """Gradient in Descriptor(GRADIENT)."""
-        return self._data.get(b'Grad')
+        return self._data.get(b"Grad")
 
 
 @register(Tag.CONTENT_GENERATOR_EXTRA_DATA)
 class BrightnessContrast(AdjustmentLayer):
     """Brightness and contrast adjustment."""
+
     # Tag.BRIGHTNESS_AND_CONTRAST is obsolete.
 
     @property
     def brightness(self):
-        return int(self._data.get(b'Brgh', 0))
+        return int(self._data.get(b"Brgh", 0))
 
     @property
     def contrast(self):
-        return int(self._data.get(b'Cntr', 0))
+        return int(self._data.get(b"Cntr", 0))
 
     @property
     def mean(self):
-        return int(self._data.get(b'means', 0))
+        return int(self._data.get(b"means", 0))
 
     @property
     def lab(self):
-        return bool(self._data.get(b'Lab ', False))
+        return bool(self._data.get(b"Lab ", False))
 
     @property
     def use_legacy(self):
-        return bool(self._data.get(b'useLegacy', False))
+        return bool(self._data.get(b"useLegacy", False))
 
     @property
     def vrsn(self):
-        return int(self._data.get(b'Vrsn', 1))
+        return int(self._data.get(b"Vrsn", 1))
 
     @property
     def automatic(self):
-        return bool(self._data.get(b'auto', False))
+        return bool(self._data.get(b"auto", False))
 
 
 @register(Tag.CURVES)
@@ -187,7 +189,7 @@ class Vibrance(AdjustmentLayer):
 
         :return: `int`
         """
-        return int(self._data.get(b'vibrance', 0))
+        return int(self._data.get(b"vibrance", 0))
 
     @property
     def saturation(self):
@@ -195,7 +197,7 @@ class Vibrance(AdjustmentLayer):
 
         :return: `int`
         """
-        return int(self._data.get(b'Strt', 0))
+        return int(self._data.get(b"Strt", 0))
 
 
 @register(Tag.HUE_SATURATION)
@@ -283,44 +285,44 @@ class BlackAndWhite(AdjustmentLayer):
 
     @property
     def red(self):
-        return self._data.get(b'Rd  ', 40)
+        return self._data.get(b"Rd  ", 40)
 
     @property
     def yellow(self):
-        return self._data.get(b'Yllw', 60)
+        return self._data.get(b"Yllw", 60)
 
     @property
     def green(self):
-        return self._data.get(b'Grn ', 40)
+        return self._data.get(b"Grn ", 40)
 
     @property
     def cyan(self):
-        return self._data.get(b'Cyn ', 60)
+        return self._data.get(b"Cyn ", 60)
 
     @property
     def blue(self):
-        return self._data.get(b'Bl  ', 20)
+        return self._data.get(b"Bl  ", 20)
 
     @property
     def magenta(self):
-        return self._data.get(b'Mgnt', 80)
+        return self._data.get(b"Mgnt", 80)
 
     @property
     def use_tint(self):
-        return bool(self._data.get(b'useTint', False))
+        return bool(self._data.get(b"useTint", False))
 
     @property
     def tint_color(self):
-        return self._data.get(b'tintColor')
+        return self._data.get(b"tintColor")
 
     @property
     def preset_kind(self):
-        return self._data.get(b'bwPresetKind', 1)
+        return self._data.get(b"bwPresetKind", 1)
 
     @property
     def preset_file_name(self):
-        value = self._data.get(b'blackAndWhitePresetFileName', '') + ''
-        return value.strip('\x00')
+        value = self._data.get(b"blackAndWhitePresetFileName", "") + ""
+        return value.strip("\x00")
 
 
 @register(Tag.PHOTO_FILTER)
@@ -368,12 +370,14 @@ class ChannelMixer(AdjustmentLayer):
 @register(Tag.COLOR_LOOKUP)
 class ColorLookup(AdjustmentLayer):
     """Color lookup adjustment."""
+
     pass
 
 
 @register(Tag.INVERT)
 class Invert(AdjustmentLayer):
     """Invert adjustment."""
+
     pass
 
 
@@ -430,7 +434,7 @@ class GradientMap(AdjustmentLayer):
 
     @property
     def gradient_name(self):
-        return self._data.name.strip('\x00')
+        return self._data.name.strip("\x00")
 
     @property
     def color_stops(self):

@@ -1,0 +1,78 @@
+[build-system]
+requires = ["setuptools", "wheel", "cython"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "psd-tools"
+dynamic = ["version"]
+authors = [
+    { name = "Mikhail Korobov", email = "kmike84@gmail.com" },
+    { name = "Kota Yamaguchi", email = "KotaYamaguchi1984@gmail.com" },
+]
+description = "Python package for working with Adobe Photoshop PSD files"
+readme = "README.rst"
+keywords = ["photoshop", "psd"]
+license = { text = "MIT License" }
+dependencies = [
+    "docopt>=0.6.0",
+    "attrs>=23.0.0",
+    "Pillow>=10.0.0",
+    "aggdraw",
+    "numpy",
+    "scipy",
+    "scikit-image",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Multimedia :: Graphics :: Viewers",
+    "Topic :: Multimedia :: Graphics :: Graphics Conversion",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-cov", "ipython", "flake8", "black", "isort", "pysen"]
+
+[project.scripts]
+psd-tools = "psd_tools.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+mypkg = ["*.pyx"]
+
+[tool.setuptools.dynamic]
+version = { attr = "psd_tools.version.__version__" }
+
+[tool.cibuildwheel]
+test-requires = ["pytest", "pytest-cov", "ipython"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=psd_tools"
+
+[tool.pysen]
+version = "0.10"
+
+[tool.pysen.lint]
+enable_black = true
+enable_flake8 = true
+enable_isort = true
+enable_mypy = false
+mypy_preset = "strict"
+line_length = 88
+py_version = "py38"
+isort_known_first_party = ["psd_tools"]
+
+[[tool.pysen.lint.mypy_targets]]
+paths = ["src", "tests"]

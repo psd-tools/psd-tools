@@ -2,18 +2,30 @@
 PSD Image module.
 """
 from __future__ import absolute_import, unicode_literals
+
 import logging
 
+from psd_tools.api import adjustments, deprecated
+from psd_tools.api.layers import (
+    Artboard,
+    FillLayer,
+    Group,
+    GroupMixin,
+    PixelLayer,
+    ShapeLayer,
+    SmartObjectLayer,
+    TypeLayer,
+)
 from psd_tools.constants import (
-    BlendMode, CompatibilityMode, Compression, ColorMode, SectionDivider, Resource, Tag
+    BlendMode,
+    ColorMode,
+    CompatibilityMode,
+    Compression,
+    Resource,
+    SectionDivider,
+    Tag,
 )
 from psd_tools.psd import PSD, FileHeader, ImageData, ImageResources
-from psd_tools.api.layers import (
-    Artboard, Group, PixelLayer, ShapeLayer, SmartObjectLayer, TypeLayer,
-    GroupMixin, FillLayer
-)
-from psd_tools.api import adjustments
-from psd_tools.api import deprecated
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +46,7 @@ class PSDImage(GroupMixin):
         for layer in psd:
             layer_image = layer.compose()
     """
+
     def __init__(self, data):
         assert isinstance(data, PSD)
         self._record = data
@@ -77,8 +90,7 @@ class PSDImage(GroupMixin):
         # TODO: Add default metadata.
         # TODO: Perhaps make this smart object.
         image_data = ImageData(compression=compression)
-        image_data.set_data([channel.tobytes() for channel in image.split()],
-                            header)
+        image_data.set_data([channel.tobytes() for channel in image.split()], header)
         return cls(
             PSD(
                 header=header,
@@ -97,14 +109,14 @@ class PSDImage(GroupMixin):
             default 'macroman'. Some psd files need explicit encoding option.
         :return: A :py:class:`~psd_tools.api.psd_image.PSDImage` object.
         """
-        if hasattr(fp, 'read'):
+        if hasattr(fp, "read"):
             self = cls(PSD.read(fp, **kwargs))
         else:
-            with open(fp, 'rb') as f:
+            with open(fp, "rb") as f:
                 self = cls(PSD.read(f, **kwargs))
         return self
 
-    def save(self, fp, mode='wb', **kwargs):
+    def save(self, fp, mode="wb", **kwargs):
         """
         Save the PSD file.
 
@@ -113,7 +125,7 @@ class PSDImage(GroupMixin):
             default 'macroman'.
         :param mode: file open mode, default 'wb'.
         """
-        if hasattr(fp, 'write'):
+        if hasattr(fp, "write"):
             self._record.write(fp, **kwargs)
         else:
             with open(fp, mode) as f:
@@ -131,6 +143,7 @@ class PSDImage(GroupMixin):
             available.
         """
         from .pil_io import convert_image_data_to_pil
+
         if self.has_preview():
             return convert_image_data_to_pil(self, channel, apply_icc)
         return None
@@ -146,6 +159,7 @@ class PSDImage(GroupMixin):
         :return: :py:class:`PIL.Image`, or `None` if there is no pixel.
         """
         from psd_tools.composer import compose
+
         image = None
         if (not force or len(self) == 0) and not bbox and not layer_filter:
             image = self.topil()
@@ -169,6 +183,7 @@ class PSDImage(GroupMixin):
         :return: :py:class:`numpy.ndarray`
         """
         from .numpy_io import get_array
+
         return get_array(self, channel)
 
     def composite(
@@ -179,7 +194,7 @@ class PSDImage(GroupMixin):
         alpha=0.0,
         layer_filter=None,
         ignore_preview=False,
-        apply_icc=False
+        apply_icc=False,
     ):
         """
         Composite the PSD image.
@@ -199,9 +214,12 @@ class PSDImage(GroupMixin):
         :return: :py:class:`PIL.Image`.
         """
         from psd_tools.composite import composite_pil
+
         if not (ignore_preview or force or layer_filter) and self.has_preview():
             return self.topil(apply_icc=apply_icc)
-        return composite_pil(self, color, alpha, viewport, layer_filter, force, apply_icc=apply_icc)
+        return composite_pil(
+            self, color, alpha, viewport, layer_filter, force, apply_icc=apply_icc
+        )
 
     def is_visible(self):
         """
@@ -241,7 +259,7 @@ class PSDImage(GroupMixin):
 
         :return: `'Root'`
         """
-        return 'Root'
+        return "Root"
 
     @property
     def kind(self):
@@ -457,8 +475,8 @@ class PSDImage(GroupMixin):
     def has_thumbnail(self):
         """True if the PSDImage has a thumbnail resource."""
         return (
-            Resource.THUMBNAIL_RESOURCE in self.image_resources or
-            Resource.THUMBNAIL_RESOURCE_PS4 in self.image_resources
+            Resource.THUMBNAIL_RESOURCE in self.image_resources
+            or Resource.THUMBNAIL_RESOURCE_PS4 in self.image_resources
         )
 
     def thumbnail(self):
@@ -467,19 +485,19 @@ class PSDImage(GroupMixin):
         contain an embedded thumbnail image, returns None.
         """
         from .pil_io import convert_thumbnail_to_pil
+
         if Resource.THUMBNAIL_RESOURCE in self.image_resources:
             return convert_thumbnail_to_pil(
                 self.image_resources.get_data(Resource.THUMBNAIL_RESOURCE)
             )
         elif Resource.THUMBNAIL_RESOURCE_PS4 in self.image_resources:
             return convert_thumbnail_to_pil(
-                self.image_resources.get_data(Resource.THUMBNAIL_RESOURCE_PS4),
-                'BGR'
+                self.image_resources.get_data(Resource.THUMBNAIL_RESOURCE_PS4), "BGR"
             )
         return None
 
     def __repr__(self):
-        return ('%s(mode=%s size=%dx%d depth=%d channels=%d)') % (
+        return ("%s(mode=%s size=%dx%d depth=%d channels=%d)") % (
             self.__class__.__name__,
             self.color_mode,
             self.width,
@@ -494,32 +512,33 @@ class PSDImage(GroupMixin):
 
         def _pretty(layer, p):
             p.text(layer.__repr__())
-            if hasattr(layer, 'clip_layers'):
-                for idx, layer in enumerate(layer.clip_layers or []):
+            if hasattr(layer, "clip_layers"):
+                for clip_layer in layer.clip_layers or []:
                     p.break_()
-                    p.text(' +  ')
-                    p.pretty(layer)
-            if hasattr(layer, '__iter__'):
+                    p.text(" +  ")
+                    p.pretty(clip_layer)
+            if hasattr(layer, "__iter__"):
                 with p.indent(2):
-                    for idx, layer in enumerate(layer):
+                    for idx, child in enumerate(layer):
                         p.break_()
-                        p.text('[%d] ' % idx)
-                        _pretty(layer, p)
+                        p.text("[%d] " % idx)
+                        _pretty(child, p)
 
         _pretty(self, p)
 
     @classmethod
     def _make_header(cls, mode, size, depth=8):
         from .pil_io import get_color_mode
-        assert depth in (8, 16, 32), 'Invalid depth: %d' % (depth)
-        assert size[0] <= 300000, 'Width too large > 300,000'
-        assert size[1] <= 300000, 'Height too large > 300,000'
+
+        assert depth in (8, 16, 32), "Invalid depth: %d" % (depth)
+        assert size[0] <= 300000, "Width too large > 300,000"
+        assert size[1] <= 300000, "Height too large > 300,000"
         version = 1
         if size[0] > 30000 or size[1] > 30000:
-            logger.debug('Width or height larger than 30,000 pixels')
+            logger.debug("Width or height larger than 30,000 pixels")
             version = 2
         color_mode = get_color_mode(mode)
-        alpha = int(mode.upper().endswith('A'))
+        alpha = int(mode.upper().endswith("A"))
         channels = ColorMode.channels(color_mode, alpha)
         return FileHeader(
             version=version,
@@ -527,7 +546,7 @@ class PSDImage(GroupMixin):
             height=size[1],
             depth=depth,
             channels=channels,
-            color_mode=color_mode
+            color_mode=color_mode,
         )
 
     def _get_pattern(self, pattern_id):
@@ -556,10 +575,11 @@ class PSDImage(GroupMixin):
                 if sublayer.clipping_layer:
                     stack.append(sublayer)
                 else:
-                    if (sublayer.blend_mode == BlendMode.PASS_THROUGH and (
-                        self.compatibility_mode == CompatibilityMode.PAINT_TOOL_SAI or
-                        self.compatibility_mode == CompatibilityMode.CLIP_STUDIO_PAINT
-                    )):
+                    if sublayer.blend_mode == BlendMode.PASS_THROUGH and (
+                        self.compatibility_mode == CompatibilityMode.PAINT_TOOL_SAI
+                        or self.compatibility_mode
+                        == CompatibilityMode.CLIP_STUDIO_PAINT
+                    ):
                         for clip_layer in stack:
                             clip_layer._has_clip_target = False
                     else:
@@ -575,8 +595,6 @@ class PSDImage(GroupMixin):
     def _init(self):
         """Initialize layer structure."""
         group_stack = [self]
-        clip_stack = []
-        last_layer = None
 
         for record, channels in self._record._iter_layers():
             current_group = group_stack[-1]
@@ -585,15 +603,14 @@ class PSDImage(GroupMixin):
             end_of_group = False
             layer = None
             divider = blocks.get_data(Tag.SECTION_DIVIDER_SETTING, None)
-            divider = blocks.get_data(
-                Tag.NESTED_SECTION_DIVIDER_SETTING, divider
-            )
+            divider = blocks.get_data(Tag.NESTED_SECTION_DIVIDER_SETTING, divider)
             if divider is not None:
                 if divider.kind == SectionDivider.BOUNDING_SECTION_DIVIDER:
                     layer = Group(self, None, None, current_group)
                     group_stack.append(layer)
                 elif divider.kind in (
-                    SectionDivider.OPEN_FOLDER, SectionDivider.CLOSED_FOLDER
+                    SectionDivider.OPEN_FOLDER,
+                    SectionDivider.CLOSED_FOLDER,
                 ):
                     layer = group_stack.pop()
                     assert layer is not self
@@ -601,23 +618,22 @@ class PSDImage(GroupMixin):
                     layer._record = record
                     layer._channels = channels
                     for key in (
-                        Tag.ARTBOARD_DATA1, Tag.ARTBOARD_DATA2,
-                        Tag.ARTBOARD_DATA3
+                        Tag.ARTBOARD_DATA1,
+                        Tag.ARTBOARD_DATA2,
+                        Tag.ARTBOARD_DATA3,
                     ):
                         if key in blocks:
                             layer = Artboard._move(layer)
                     end_of_group = True
                 else:
-                    logger.warning('Divider %s found.' % divider.kind)
-            elif (
-                Tag.TYPE_TOOL_OBJECT_SETTING in blocks or
-                Tag.TYPE_TOOL_INFO in blocks
-            ):
+                    logger.warning("Divider %s found." % divider.kind)
+            elif Tag.TYPE_TOOL_OBJECT_SETTING in blocks or Tag.TYPE_TOOL_INFO in blocks:
                 layer = TypeLayer(self, record, channels, current_group)
             elif (
-                Tag.SMART_OBJECT_LAYER_DATA1 in blocks or
-                Tag.SMART_OBJECT_LAYER_DATA2 in blocks or
-                Tag.PLACED_LAYER1 in blocks or Tag.PLACED_LAYER2 in blocks
+                Tag.SMART_OBJECT_LAYER_DATA1 in blocks
+                or Tag.SMART_OBJECT_LAYER_DATA2 in blocks
+                or Tag.PLACED_LAYER1 in blocks
+                or Tag.PLACED_LAYER2 in blocks
             ):
                 layer = SmartObjectLayer(self, record, channels, current_group)
             else:
@@ -630,11 +646,12 @@ class PSDImage(GroupMixin):
 
             # If nothing applies, this is either a shape or pixel layer.
             shape_condition = record.flags.pixel_data_irrelevant and (
-                Tag.VECTOR_ORIGINATION_DATA in blocks or
-                Tag.VECTOR_MASK_SETTING1 in blocks or
-                Tag.VECTOR_MASK_SETTING2 in blocks or
-                Tag.VECTOR_STROKE_DATA in blocks or
-                Tag.VECTOR_STROKE_CONTENT_DATA in blocks)
+                Tag.VECTOR_ORIGINATION_DATA in blocks
+                or Tag.VECTOR_MASK_SETTING1 in blocks
+                or Tag.VECTOR_MASK_SETTING2 in blocks
+                or Tag.VECTOR_STROKE_DATA in blocks
+                or Tag.VECTOR_STROKE_CONTENT_DATA in blocks
+            )
             if isinstance(layer, (type(None), FillLayer)) and shape_condition:
                 layer = ShapeLayer(self, record, channels, current_group)
 

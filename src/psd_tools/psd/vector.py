@@ -2,19 +2,25 @@
 Vector mask, path, and stroke structure.
 """
 from __future__ import absolute_import, unicode_literals
-import attr
+
 import logging
 
-from psd_tools.psd.base import BaseElement, ListElement, ValueElement
+import attr
+
 from psd_tools.constants import PathResourceID
+from psd_tools.psd.base import BaseElement, ListElement, ValueElement
 from psd_tools.psd.descriptor import Descriptor
 from psd_tools.utils import (
-    read_fmt, write_fmt, is_readable, write_padding, new_registry
+    is_readable,
+    new_registry,
+    read_fmt,
+    write_fmt,
+    write_padding,
 )
 
 logger = logging.getLogger(__name__)
 
-TYPES, register = new_registry(attribute='selector')  # Path item types.
+TYPES, register = new_registry(attribute="selector")  # Path item types.
 
 
 def decode_fixed_point(numbers):
@@ -36,7 +42,7 @@ class Path(ListElement):
     def read(cls, fp):
         items = []
         while is_readable(fp, 26):
-            selector = PathResourceID(read_fmt('H', fp)[0])
+            selector = PathResourceID(read_fmt("H", fp)[0])
             kls = TYPES.get(selector)
             items.append(kls.read(fp))
         return cls(items)
@@ -44,7 +50,7 @@ class Path(ListElement):
     def write(self, fp, padding=4):
         written = 0
         for item in self:
-            written += write_fmt(fp, 'H', item.selector.value)
+            written += write_fmt(fp, "H", item.selector.value)
             written += item.write(fp)
         written += write_padding(fp, written, padding)
         return written
@@ -76,16 +82,16 @@ class Subpath(ListElement):
     _unknown1 = attr.ib(default=1, type=int)
     _unknown2 = attr.ib(default=0, type=int)
     index = attr.ib(default=0, type=int)  # Origination index.
-    _unknown3 = attr.ib(default=b'\x00' * 10, type=bytes, repr=False)
+    _unknown3 = attr.ib(default=b"\x00" * 10, type=bytes, repr=False)
 
     @classmethod
     def read(cls, fp):
         items = []
         length, operation, _unknown1, _unknown2, index, _unknown3 = read_fmt(
-            'HhH2I10s', fp
+            "HhH2I10s", fp
         )
         for _ in range(length):
-            selector = PathResourceID(read_fmt('H', fp)[0])
+            selector = PathResourceID(read_fmt("H", fp)[0])
             kls = TYPES.get(selector)
             items.append(kls.read(fp))
         return cls(
@@ -94,16 +100,22 @@ class Subpath(ListElement):
             index=index,
             unknown1=_unknown1,
             unknown2=_unknown2,
-            unknown3=_unknown3
+            unknown3=_unknown3,
         )
 
     def write(self, fp):
         written = write_fmt(
-            fp, 'HhH2I10s', len(self), self.operation, self._unknown1,
-            self._unknown2, self.index, self._unknown3
+            fp,
+            "HhH2I10s",
+            len(self),
+            self.operation,
+            self._unknown1,
+            self._unknown2,
+            self.index,
+            self._unknown3,
         )
         for item in self:
-            written += write_fmt(fp, 'H', item.selector.value)
+            written += write_fmt(fp, "H", item.selector.value)
             written += item.write(fp)
         return written
 
@@ -137,20 +149,21 @@ class Knot(BaseElement):
         (y, x) tuple of leaving control point in relative coordinates.
 
     """
-    preceding = attr.ib(default=(0., 0.), type=tuple)
-    anchor = attr.ib(default=(0., 0.), type=tuple)
-    leaving = attr.ib(default=(0., 0.), type=tuple)
+
+    preceding = attr.ib(default=(0.0, 0.0), type=tuple)
+    anchor = attr.ib(default=(0.0, 0.0), type=tuple)
+    leaving = attr.ib(default=(0.0, 0.0), type=tuple)
 
     @classmethod
     def read(cls, fp):
-        preceding = decode_fixed_point(read_fmt('2i', fp))
-        anchor = decode_fixed_point(read_fmt('2i', fp))
-        leaving = decode_fixed_point(read_fmt('2i', fp))
+        preceding = decode_fixed_point(read_fmt("2i", fp))
+        anchor = decode_fixed_point(read_fmt("2i", fp))
+        leaving = decode_fixed_point(read_fmt("2i", fp))
         return cls(preceding, anchor, leaving)
 
     def write(self, fp):
         values = self.preceding + self.anchor + self.leaving
-        return write_fmt(fp, '6i', *encode_fixed_point(values))
+        return write_fmt(fp, "6i", *encode_fixed_point(values))
 
 
 @register(PathResourceID.CLOSED_LENGTH)
@@ -194,11 +207,11 @@ class PathFillRule(BaseElement):
 
     @classmethod
     def read(cls, fp):
-        read_fmt('24x', fp)
+        read_fmt("24x", fp)
         return cls()
 
     def write(self, fp):
-        return write_fmt(fp, '24x')
+        return write_fmt(fp, "24x")
 
 
 @register(PathResourceID.CLIPBOARD)
@@ -227,6 +240,7 @@ class ClipboardRecord(BaseElement):
 
         Resolution in `int`
     """
+
     top = attr.ib(default=0, type=int)
     left = attr.ib(default=0, type=int)
     bottom = attr.ib(default=0, type=int)
@@ -235,10 +249,10 @@ class ClipboardRecord(BaseElement):
 
     @classmethod
     def read(cls, fp):
-        return cls(*decode_fixed_point(read_fmt('5i4x', fp)))
+        return cls(*decode_fixed_point(read_fmt("5i4x", fp)))
 
     def write(self, fp):
-        return write_fmt(fp, '5i4x', *encode_fixed_point(attr.astuple(self)))
+        return write_fmt(fp, "5i4x", *encode_fixed_point(attr.astuple(self)))
 
 
 @register(PathResourceID.INITIAL_FILL)
@@ -252,14 +266,15 @@ class InitialFillRule(ValueElement):
         A value of 1 means that the fill starts with all pixels. The value
         will be either 0 or 1.
     """
+
     value = attr.ib(default=0, converter=int, type=int)
 
     @classmethod
     def read(cls, fp):
-        return cls(*read_fmt('H22x', fp))
+        return cls(*read_fmt("H22x", fp))
 
     def write(self, fp):
-        return write_fmt(fp, 'H22x', *attr.astuple(self))
+        return write_fmt(fp, "H22x", *attr.astuple(self))
 
 
 @attr.s(repr=False, slots=True)
@@ -272,19 +287,20 @@ class VectorMaskSetting(BaseElement):
 
         List of :py:class:`~psd_tools.psd.vector.Subpath` objects.
     """
+
     version = attr.ib(default=3, type=int)
     flags = attr.ib(default=0, type=int)
     path = attr.ib(default=None)
 
     @classmethod
     def read(cls, fp, **kwargs):
-        version, flags = read_fmt('2I', fp)
-        assert version == 3, 'Unknown vector mask version %d' % version
+        version, flags = read_fmt("2I", fp)
+        assert version == 3, "Unknown vector mask version %d" % version
         path = Path.read(fp)
         return cls(version, flags, path)
 
     def write(self, fp, **kwargs):
-        written = write_fmt(fp, '2I', self.version, self.flags)
+        written = write_fmt(fp, "2I", self.version, self.flags)
         written += self.path.write(fp)
         return written
 
@@ -313,16 +329,17 @@ class VectorStrokeContentSetting(Descriptor):
     .. py:attribute:: key
     .. py:attribute:: version
     """
-    key = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
+
+    key = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
     version = attr.ib(default=1, type=int)
 
     @classmethod
     def read(cls, fp, **kwargs):
-        key, version = read_fmt('4sI', fp)
+        key, version = read_fmt("4sI", fp)
         return cls(key=key, version=version, **cls._read_body(fp))
 
     def write(self, fp, padding=4, **kwargs):
-        written = write_fmt(fp, '4sI', self.key, self.version)
+        written = write_fmt(fp, "4sI", self.key, self.version)
         written += self._write_body(fp)
         written += write_padding(fp, written, padding)
         return written
