@@ -41,6 +41,7 @@ classifiers = [
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-cov", "ipython", "flake8", "black", "isort", "pysen"]
+docs = ["sphinx", "sphinx_rtd_theme"]
 
 [project.scripts]
 psd-tools = "psd_tools.__main__:main"
