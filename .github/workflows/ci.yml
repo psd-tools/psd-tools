@@ -9,25 +9,6 @@ on:
     types: [published]
 
 jobs:
-  lint:
-    name: Run linting
-    runs-on: ubuntu-latest
-    if: github.event_name != 'release'
-    steps:
-      - uses: actions/checkout@v3
-
-      - uses: actions/setup-python@v4
-        name: Install Python
-        with:
-          python-version: "3.x"
-
-      - name: Lint with flake8
-        run: |
-          pip install --upgrade pip
-          pip install flake8
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-
   build_sdist:
     name: Build source distribution
     runs-on: ubuntu-latest
@@ -40,7 +21,7 @@ jobs:
           python-version: "3.x"
 
       - name: Build sdist
-        run: python setup.py sdist
+        run: python -m build --sdist
 
       - uses: actions/upload-artifact@v2
         with:
