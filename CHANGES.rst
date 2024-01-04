@@ -1,3 +1,13 @@
+1.9.29 (2024-01-04)
+-------------------
+
+- [ci] Update CI configuration (#383)
+- [dev] Migrate the builder to pyproject.toml
+- [dev] Update linter and formatter to pysen
+- [dev] Deprecate tox
+- [psd] Add new color sheet (#380)
+- [psd] Fix transparency check (#370)
+
 1.9.28 (2023-07-04)
 -------------------
 

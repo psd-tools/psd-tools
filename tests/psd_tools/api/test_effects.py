@@ -1,6 +1,8 @@
 from __future__ import absolute_import, unicode_literals
-import pytest
+
 import logging
+
+import pytest
 
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.terminology import Enum
@@ -9,7 +11,7 @@ from ..utils import full_name
 
 logger = logging.getLogger(__name__)
 
-LAYER_EFFECTS = PSDImage.open(full_name('layer_effects.psd'))
+LAYER_EFFECTS = PSDImage.open(full_name("layer_effects.psd"))
 
 
 @pytest.fixture
@@ -28,7 +30,7 @@ def test_effects(fixture):
 
 def test_bevel(fixture):
     effect = fixture[1].effects[0]
-    assert not hasattr(effect, 'blend_mode')
+    assert not hasattr(effect, "blend_mode")
     assert effect.altitude == 30.0
     assert effect.angle == 90.0
     assert effect.anti_aliased is False
@@ -53,7 +55,7 @@ def test_bevel(fixture):
 
 def test_emboss(fixture):
     effect = fixture[2].effects[0]
-    assert not hasattr(effect, 'blend_mode')
+    assert not hasattr(effect, "blend_mode")
     assert effect.altitude == 30.0
     assert effect.angle == 90.0
     assert effect.anti_aliased is False

@@ -2,12 +2,13 @@
 Effects module.
 """
 from __future__ import absolute_import, unicode_literals
+
 import logging
 
-from psd_tools.constants import Tag, Resource
-from psd_tools.terminology import Klass, Key
-from psd_tools.utils import new_registry
+from psd_tools.constants import Resource, Tag
 from psd_tools.psd.descriptor import Descriptor, List
+from psd_tools.terminology import Key, Klass
+from psd_tools.utils import new_registry
 
 logger = logging.getLogger(__name__)
 
@@ -31,17 +32,15 @@ class Effects(object):
                 break
 
         self._items = []
-        for key in (self._data or []):
+        for key in self._data or []:
             value = self._data[key]
             if not isinstance(value, List):
                 value = [value]
             for item in value:
-                if not (
-                    isinstance(item, Descriptor) and item.get(Key.Enabled)
-                ):
+                if not (isinstance(item, Descriptor) and item.get(Key.Enabled)):
                     continue
                 kls = _TYPES.get(item.classID)
-                assert kls is not None, 'kls not found for %r' % item.classID
+                assert kls is not None, "kls not found for %r" % item.classID
                 self._items.append(kls(item, layer._psd.image_resources))
 
     @property
@@ -55,7 +54,7 @@ class Effects(object):
 
         :rtype: bool
         """
-        return bool(self._data.get(b'masterFXSwitch')) if self._data else False
+        return bool(self._data.get(b"masterFXSwitch")) if self._data else False
 
     @property
     def items(self):
@@ -86,10 +85,9 @@ class Effects(object):
     #     return self._items.__delitem__(key)
 
     def __repr__(self):
-        return '%s(%s)' % (
+        return "%s(%s)" % (
             self.__class__.__name__,
-            ' '.join(x.__class__.__name__.lower()
-                     for x in self) if self._data else ''
+            " ".join(x.__class__.__name__.lower() for x in self) if self._data else "",
         )
 
 
@@ -108,12 +106,12 @@ class _Effect(object):
     @property
     def present(self):
         """Whether if the effect is present in Photoshop UI."""
-        return bool(self.value.get(b'present'))
+        return bool(self.value.get(b"present"))
 
     @property
     def shown(self):
         """Whether if the effect is shown in dialog."""
-        return bool(self.value.get(b'showInDialog'))
+        return bool(self.value.get(b"showInDialog"))
 
     @property
     def opacity(self):
@@ -222,12 +220,12 @@ class _PatternMixin(object):
     def pattern(self):
         """Pattern config."""
         # TODO: Expose nested property.
-        return self.value.get(b'Ptrn')  # Enum.Pattern. Seems a bug.
+        return self.value.get(b"Ptrn")  # Enum.Pattern. Seems a bug.
 
     @property
     def linked(self):
         """Linked."""
-        return self.value.get(b'Lnkd')  # Enum.Linked. Seems a bug.
+        return self.value.get(b"Lnkd")  # Enum.Linked. Seems a bug.
 
     @property
     def angle(self):
@@ -237,7 +235,7 @@ class _PatternMixin(object):
     @property
     def phase(self):
         """Phase value in Point."""
-        return self.value.get(b'phase')
+        return self.value.get(b"phase")
 
 
 class _ShadowEffect(_Effect, _ChokeNoiseMixin, _AngleMixin):
@@ -294,7 +292,7 @@ class DropShadow(_ShadowEffect):
     @property
     def layer_knocks_out(self):
         """Layers are knocking out."""
-        return bool(self.value.get(b'layerConceals'))
+        return bool(self.value.get(b"layerConceals"))
 
 
 @register(Klass.InnerShadow.value)
@@ -322,12 +320,12 @@ class ColorOverlay(_OverlayEffect, _ColorMixin):
     pass
 
 
-@register(b'GrFl')  # Equal to Enum.GradientFill. This seems a bug.
+@register(b"GrFl")  # Equal to Enum.GradientFill. This seems a bug.
 class GradientOverlay(_OverlayEffect, _AlignScaleMixin, _GradientMixin):
     pass
 
 
-@register(b'patternFill')
+@register(b"patternFill")
 class PatternOverlay(_OverlayEffect, _AlignScaleMixin, _PatternMixin):
     pass
 
@@ -354,7 +352,7 @@ class Stroke(_Effect, _ColorMixin, _PatternMixin, _GradientMixin):
     @property
     def overprint(self):
         """Overprint flag."""
-        return bool(self.value.get(b'overprint'))
+        return bool(self.value.get(b"overprint"))
 
 
 @register(Klass.BevelEmboss.value)
@@ -430,7 +428,7 @@ class BevelEmboss(_Effect, _AngleMixin):
     @property
     def anti_aliased(self):
         """Anti-aliased."""
-        return bool(self.value.get(b'antialiasGloss'))
+        return bool(self.value.get(b"antialiasGloss"))
 
     @property
     def soften(self):
@@ -440,17 +438,17 @@ class BevelEmboss(_Effect, _AngleMixin):
     @property
     def use_shape(self):
         """Using shape."""
-        return bool(self.value.get(b'useShape'))
+        return bool(self.value.get(b"useShape"))
 
     @property
     def use_texture(self):
         """Using texture."""
-        return bool(self.value.get(b'useTexture'))
+        return bool(self.value.get(b"useTexture"))
 
 
 @register(Klass.ChromeFX.value)
 class Satin(_Effect, _ColorMixin):
-    """ Satin effect """
+    """Satin effect"""
 
     @property
     def anti_aliased(self):

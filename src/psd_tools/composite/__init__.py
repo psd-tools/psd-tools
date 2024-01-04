@@ -1,37 +1,38 @@
-import numpy as np
-from psd_tools.api.psd_image import PSDImage
-from psd_tools.constants import Tag, BlendMode, ColorMode, Resource
-from psd_tools.api.layers import AdjustmentLayer, Layer
-from psd_tools.api.numpy_io import EXPECTED_CHANNELS
-from psd_tools.api.pil_io import post_process
-
 import logging
 
-from psd_tools.psd import image_resources
-from .blend import BLEND_FUNC, normal
-from .vector import (
-    create_fill, create_fill_desc, draw_vector_mask, draw_stroke,
-    draw_solid_color_fill, draw_pattern_fill, draw_gradient_fill
+import numpy as np
+from PIL import Image
+
+from psd_tools.api.layers import AdjustmentLayer, Layer
+from psd_tools.api.numpy_io import EXPECTED_CHANNELS, has_transparency
+from psd_tools.api.pil_io import get_pil_mode, post_process
+from psd_tools.api.psd_image import PSDImage
+from psd_tools.composite.blend import BLEND_FUNC, normal
+from psd_tools.composite.effects import draw_stroke_effect
+from psd_tools.composite.vector import (
+    create_fill,
+    create_fill_desc,
+    draw_gradient_fill,
+    draw_pattern_fill,
+    draw_solid_color_fill,
+    draw_stroke,
+    draw_vector_mask,
 )
-from .effects import draw_stroke_effect
+from psd_tools.constants import BlendMode, ColorMode, Resource, Tag
 
 logger = logging.getLogger(__name__)
 
 
 def composite_pil(
-    layer, color, alpha, viewport, layer_filter, force, as_layer=False, apply_icc = False
+    layer, color, alpha, viewport, layer_filter, force, as_layer=False, apply_icc=False
 ):
-    from PIL import Image
-    from psd_tools.api.pil_io import get_pil_mode
-    from psd_tools.api.numpy_io import has_transparency
-
     UNSUPPORTED_MODES = {
         ColorMode.DUOTONE,
         ColorMode.LAB,
     }
-    color_mode = getattr(layer, '_psd', layer).color_mode
+    color_mode = getattr(layer, "_psd", layer).color_mode
     if color_mode in UNSUPPORTED_MODES:
-        logger.warning('Unsupported blending color space: %s' % (color_mode))
+        logger.warning("Unsupported blending color space: %s" % (color_mode))
 
     color, _, alpha = composite(
         layer,
@@ -40,35 +41,43 @@ def composite_pil(
         viewport=viewport,
         layer_filter=layer_filter,
         force=force,
-        as_layer=as_layer
+        as_layer=as_layer,
     )
 
     mode = get_pil_mode(color_mode)
-    if mode == 'P':
-        mode = 'RGB'
+    if mode == "P":
+        mode = "RGB"
     # Skip only when there is a preview image and it has no alpha.
     delay_alpha_application = color_mode not in (ColorMode.GRAYSCALE, ColorMode.RGB)
     skip_alpha = not force and (
-        delay_alpha_application or (
-            layer.kind == 'psdimage' and layer.has_preview() and
-            not has_transparency(layer)
+        delay_alpha_application
+        or (
+            layer.kind == "psdimage"
+            and layer.has_preview()
+            and not has_transparency(layer)
         )
     )
-    logger.debug('Skipping alpha: %g' % skip_alpha)
+    logger.debug("Skipping alpha: %g" % skip_alpha)
     if not skip_alpha:
         color = np.concatenate((color, alpha), 2)
-        mode += 'A'
-    if mode in ('1', 'L'):
+        mode += "A"
+    if mode in ("1", "L"):
         color = color[:, :, 0]
     if color.shape[0] == 0 or color.shape[1] == 0:
         return None
     image = Image.fromarray((255 * color).astype(np.uint8), mode)
     alpha_as_image = None
     if not force and delay_alpha_application:
-        alpha_as_image = Image.fromarray((255 * np.squeeze(alpha, axis=2)).astype(np.uint8), "L")
+        alpha_as_image = Image.fromarray(
+            (255 * np.squeeze(alpha, axis=2)).astype(np.uint8), "L"
+        )
     icc = None
-    image_resources = layer.image_resources if isinstance(layer, PSDImage) else layer._psd.image_resources
-    if (apply_icc and Resource.ICC_PROFILE in image_resources):
+    image_resources = (
+        layer.image_resources
+        if isinstance(layer, PSDImage)
+        else layer._psd.image_resources
+    )
+    if apply_icc and Resource.ICC_PROFILE in image_resources:
         icc = image_resources.get_data(Resource.ICC_PROFILE)
     return post_process(image, alpha_as_image, icc)
 
@@ -85,33 +94,29 @@ def composite(
     """
     Composite the given group of layers.
     """
-    viewport = viewport or getattr(group, 'viewbox', None) or group.bbox
+    viewport = viewport or getattr(group, "viewbox", None) or group.bbox
     if viewport == (0, 0, 0, 0):
-        viewport = getattr(group, '_psd').viewbox
+        viewport = group._psd.viewbox
 
-    if getattr(group, 'kind', None) == 'psdimage' and len(group) == 0:
-        color, shape = group.numpy('color'), group.numpy('shape')
+    if getattr(group, "kind", None) == "psdimage" and len(group) == 0:
+        color, shape = group.numpy("color"), group.numpy("shape")
         if viewport != group.viewbox:
-            color = paste(viewport, group.bbox, color, 1.)
+            color = paste(viewport, group.bbox, color, 1.0)
             shape = paste(viewport, group.bbox, shape)
         return color, shape, shape
 
-    if not isinstance(color, np.ndarray) and not hasattr(color, '__iter__'):
-        color_mode = getattr(group, '_psd', group).color_mode
-        color = (color, ) * EXPECTED_CHANNELS.get(color_mode)
+    if not isinstance(color, np.ndarray) and not hasattr(color, "__iter__"):
+        color_mode = getattr(group, "_psd", group).color_mode
+        color = (color,) * EXPECTED_CHANNELS.get(color_mode)
 
     isolated = False
-    if hasattr(group, 'blend_mode'):
+    if hasattr(group, "blend_mode"):
         isolated = group.blend_mode != BlendMode.PASS_THROUGH
 
     layer_filter = layer_filter or Layer.is_visible
 
-    compositor = Compositor(
-        viewport, color, alpha, isolated, layer_filter, force
-    )
-    for layer in (
-        group if hasattr(group, '__iter__') and not as_layer else [group]
-    ):
+    compositor = Compositor(viewport, color, alpha, isolated, layer_filter, force)
+    for layer in group if hasattr(group, "__iter__") and not as_layer else [group]:
         compositor.apply(layer)
 
     return compositor.finish()
@@ -119,24 +124,24 @@ def composite(
 
 def paste(viewport, bbox, values, background=None):
     """Change to the specified viewport."""
-    shape = (
-        viewport[3] - viewport[1], viewport[2] - viewport[0], values.shape[2]
+    shape = (viewport[3] - viewport[1], viewport[2] - viewport[0], values.shape[2])
+    view = (
+        np.full(shape, background, dtype=np.float32)
+        if background
+        else np.zeros(shape, dtype=np.float32)
     )
-    view = np.full(shape, background, dtype=np.float32
-                   ) if background else np.zeros(shape, dtype=np.float32)
     inter = _intersect(viewport, bbox)
     if inter == (0, 0, 0, 0):
         return view
 
     v = (
-        inter[0] - viewport[0], inter[1] - viewport[1], inter[2] - viewport[0],
-        inter[3] - viewport[1]
+        inter[0] - viewport[0],
+        inter[1] - viewport[1],
+        inter[2] - viewport[0],
+        inter[3] - viewport[1],
     )
-    b = (
-        inter[0] - bbox[0], inter[1] - bbox[1], inter[2] - bbox[0],
-        inter[3] - bbox[1]
-    )
-    view[v[1]:v[3], v[0]:v[2], :] = values[b[1]:b[3], b[0]:b[2], :]
+    b = (inter[0] - bbox[0], inter[1] - bbox[1], inter[2] - bbox[0], inter[3] - bbox[1])
+    view[v[1] : v[3], v[0] : v[2], :] = values[b[1] : b[3], b[0] : b[2], :]
     return view
 
 
@@ -150,6 +155,7 @@ class Compositor(object):
             compositor.apply(layer)
         color, shape, alpha = compositor.finish()
     """
+
     def __init__(
         self,
         viewport,
@@ -162,44 +168,41 @@ class Compositor(object):
         self._viewport = viewport
         self._layer_filter = layer_filter
         self._force = force
-        self._clip_mask = 1.
+        self._clip_mask = 1.0
 
         if isolated:
-            self._alpha_0 = np.zeros((self.height, self.width, 1),
-                                     dtype=np.float32)
+            self._alpha_0 = np.zeros((self.height, self.width, 1), dtype=np.float32)
         elif isinstance(alpha, np.ndarray):
             self._alpha_0 = alpha
         else:
-            self._alpha_0 = np.full((self.height, self.width, 1),
-                                    alpha,
-                                    dtype=np.float32)
+            self._alpha_0 = np.full(
+                (self.height, self.width, 1), alpha, dtype=np.float32
+            )
 
         if isinstance(color, np.ndarray):
             self._color_0 = color
         else:
-            channels = len(color) if hasattr(color, '__iter__') else 1
-            self._color_0 = np.full((self.height, self.width, channels),
-                                    color,
-                                    dtype=np.float32)
+            channels = len(color) if hasattr(color, "__iter__") else 1
+            self._color_0 = np.full(
+                (self.height, self.width, channels), color, dtype=np.float32
+            )
 
-        self._shape_g = np.zeros((self.height, self.width, 1),
-                                 dtype=np.float32)
-        self._alpha_g = np.zeros((self.height, self.width, 1),
-                                 dtype=np.float32)
+        self._shape_g = np.zeros((self.height, self.width, 1), dtype=np.float32)
+        self._alpha_g = np.zeros((self.height, self.width, 1), dtype=np.float32)
         self._color = self._color_0
         self._alpha = self._alpha_0
 
     def apply(self, layer, clip_compositing=False):
-        logger.debug('Compositing %s' % layer)
+        logger.debug("Compositing %s" % layer)
 
         if not self._layer_filter(layer):
-            logger.debug('Ignore %s' % layer)
+            logger.debug("Ignore %s" % layer)
             return
         if isinstance(layer, AdjustmentLayer):
-            logger.debug('Ignore adjustment %s' % layer)
+            logger.debug("Ignore adjustment %s" % layer)
             return
         if _intersect(self._viewport, layer.bbox) == (0, 0, 0, 0):
-            logger.debug('Out of viewport %s' % (layer))
+            logger.debug("Out of viewport %s" % (layer))
             return
         if not clip_compositing and layer.clipping_layer and layer._has_clip_target:
             return
@@ -219,16 +222,18 @@ class Compositor(object):
 
         # TODO: Apply before effects
         self._apply_source(
-            color, shape * shape_const, alpha * shape_const, layer.blend_mode,
-            knockout
+            color, shape * shape_const, alpha * shape_const, layer.blend_mode, knockout
         )
 
         # TODO: Apply after effects
         self._apply_color_overlay(layer, color, shape, alpha)
         self._apply_pattern_overlay(layer, color, shape, alpha)
         self._apply_gradient_overlay(layer, color, shape, alpha)
-        if ((self._force and layer.has_vector_mask()) or (
-            not layer.has_pixels()) and has_fill(layer)):
+        if (
+            (self._force and layer.has_vector_mask())
+            or (not layer.has_pixels())
+            and has_fill(layer)
+        ):
             self._apply_stroke_effect(layer, color, shape_mask, alpha)
         else:
             self._apply_stroke_effect(layer, color, shape, alpha)
@@ -241,8 +246,9 @@ class Compositor(object):
 
         self._shape_g = _union(self._shape_g, shape)
         if knockout:
-            self._alpha_g = (1. - shape) * self._alpha_g + \
-                (shape - alpha) * self._alpha_0 + alpha
+            self._alpha_g = (
+                (1.0 - shape) * self._alpha_g + (shape - alpha) * self._alpha_0 + alpha
+            )
         else:
             self._alpha_g = _union(self._alpha_g, alpha)
         alpha_previous = self._alpha
@@ -252,11 +258,11 @@ class Compositor(object):
         color_b = self._color_0 if knockout else self._color
 
         blend_fn = BLEND_FUNC.get(blend_mode, normal)
-        color_t = (shape - alpha) * alpha_b * color_b + alpha * \
-            ((1. - alpha_b) * color + alpha_b * blend_fn(color_b, color))
+        color_t = (shape - alpha) * alpha_b * color_b + alpha * (
+            (1.0 - alpha_b) * color + alpha_b * blend_fn(color_b, color)
+        )
         self._color = _clip(
-            _divide((1. - shape) * alpha_previous * self._color + color_t,
-                    self._alpha)
+            _divide((1.0 - shape) * alpha_previous * self._color + color_t, self._alpha)
         )
 
     def finish(self):
@@ -277,8 +283,9 @@ class Compositor(object):
     @property
     def color(self):
         return _clip(
-            self._color + (self._color - self._color_0) *
-            (_divide(self._alpha_0, self._alpha_g) - self._alpha_0)
+            self._color
+            + (self._color - self._color_0)
+            * (_divide(self._alpha_0, self._alpha_g) - self._alpha_0)
         )
 
     @property
@@ -300,13 +307,13 @@ class Compositor(object):
 
         color, shape, alpha = composite(
             layer,
-            paste(viewport, self._viewport, color_b, 1.),
+            paste(viewport, self._viewport, color_b, 1.0),
             paste(viewport, self._viewport, alpha_b),
             viewport,
             layer_filter=self._layer_filter,
-            force=self._force
+            force=self._force,
         )
-        color = paste(self._viewport, viewport, color, 1.)
+        color = paste(self._viewport, viewport, color, 1.0)
         shape = paste(self._viewport, viewport, shape)
         alpha = paste(self._viewport, viewport, alpha)
 
@@ -321,12 +328,11 @@ class Compositor(object):
 
     def _get_object(self, layer):
         """Get object attributes."""
-        color, shape = layer.numpy('color'), layer.numpy('shape')
+        color, shape = layer.numpy("color"), layer.numpy("shape")
         if (self._force or not layer.has_pixels()) and has_fill(layer):
             color, shape = create_fill(layer, layer.bbox)
             if shape is None:
-                shape = np.ones((layer.height, layer.width, 1),
-                                dtype=np.float32)
+                shape = np.ones((layer.height, layer.width, 1), dtype=np.float32)
 
         if color is None and shape is None:
             # Empty pixel layer.
@@ -336,13 +342,13 @@ class Compositor(object):
         if color is None:
             color = np.ones((self.height, self.width, 1), dtype=np.float32)
         else:
-            color = paste(self._viewport, layer.bbox, color, 1.)
+            color = paste(self._viewport, layer.bbox, color, 1.0)
         if shape is None:
             shape = np.ones((self.height, self.width, 1), dtype=np.float32)
         else:
             shape = paste(self._viewport, layer.bbox, shape)
 
-        alpha = shape * 1.  # Constant factor is always 1.
+        alpha = shape * 1.0  # Constant factor is always 1.
 
         # Composite clip layers.
         if layer.has_clip_layers():
@@ -352,9 +358,7 @@ class Compositor(object):
         if layer.has_vector_mask() and layer.has_stroke() and layer.stroke.enabled:
             color_s, shape_s, alpha_s = self._get_stroke(layer)
             compositor = Compositor(self._viewport, color, alpha)
-            compositor._apply_source(
-                color_s, shape_s, alpha_s, layer.stroke.blend_mode
-            )
+            compositor._apply_source(color_s, shape_s, alpha_s, layer.stroke.blend_mode)
             color, _, _ = compositor.finish()
 
         assert color is not None
@@ -369,7 +373,7 @@ class Compositor(object):
             color,
             alpha,
             layer_filter=self._layer_filter,
-            force=self._force
+            force=self._force,
         )
         for clip_layer in layer.clip_layers:
             compositor.apply(clip_layer, clip_compositing=True)
@@ -377,15 +381,17 @@ class Compositor(object):
 
     def _get_mask(self, layer):
         """Get mask attributes."""
-        shape = 1.
-        opacity = 1.
+        shape = 1.0
+        opacity = 1.0
         if layer.has_mask() and not layer.mask.disabled:
             # TODO: When force, ignore real mask.
-            mask = layer.numpy('mask', real_mask=not self._force)
+            mask = layer.numpy("mask", real_mask=not self._force)
             if mask is not None:
                 shape = paste(
-                    self._viewport, layer.mask.bbox, mask,
-                    layer.mask.background_color / 255.
+                    self._viewport,
+                    layer.mask.bbox,
+                    mask,
+                    layer.mask.background_color / 255.0,
                 )
             if layer.mask.parameters:
                 density = layer.mask.parameters.user_mask_density
@@ -393,12 +399,19 @@ class Compositor(object):
                     density = layer.mask.parameters.vector_mask_density
                 if density is None:
                     density = 255
-                opacity = float(density) / 255.
+                opacity = float(density) / 255.0
 
-        if layer.has_vector_mask() and not layer.vector_mask.disabled and (
-            self._force or not layer.has_pixels() or (
-                not has_fill(layer) and layer.has_mask() and
-                not layer.mask._has_real()
+        if (
+            layer.has_vector_mask()
+            and not layer.vector_mask.disabled
+            and (
+                self._force
+                or not layer.has_pixels()
+                or (
+                    not has_fill(layer)
+                    and layer.has_mask()
+                    and not layer.mask._has_real()
+                )
             )
         ):
             shape_v = draw_vector_mask(layer)
@@ -411,10 +424,8 @@ class Compositor(object):
 
     def _get_const(self, layer):
         """Get constant attributes."""
-        shape = layer.tagged_blocks.get_data(
-            Tag.BLEND_FILL_OPACITY, 255
-        ) / 255.
-        opacity = layer.opacity / 255.
+        shape = layer.tagged_blocks.get_data(Tag.BLEND_FILL_OPACITY, 255) / 255.0
+        opacity = layer.opacity / 255.0
         assert shape is not None
         assert opacity is not None
         return shape, opacity
@@ -422,77 +433,71 @@ class Compositor(object):
     def _get_stroke(self, layer):
         """Get stroke source."""
         desc = layer.stroke._data
-        width = int(desc.get('strokeStyleLineWidth', 1.))
+        width = int(desc.get("strokeStyleLineWidth", 1.0))
         viewport = tuple(
             x + d for x, d in zip(layer.bbox, (-width, -width, width, width))
         )
-        color, _ = create_fill_desc(
-            layer, desc.get('strokeStyleContent'), viewport
-        )
-        color = paste(self._viewport, viewport, color, 1.)
+        color, _ = create_fill_desc(layer, desc.get("strokeStyleContent"), viewport)
+        color = paste(self._viewport, viewport, color, 1.0)
         shape = draw_stroke(layer)
         if shape.shape[0] != self.height or shape.shape[1] != self.width:
             bbox = (0, 0, shape.shape[1], shape.shape[0])
             shape = paste(self._viewport, bbox, shape)
-        opacity = desc.get('strokeStyleOpacity', 100.) / 100.
+        opacity = desc.get("strokeStyleOpacity", 100.0) / 100.0
         alpha = shape * opacity
         return color, shape, alpha
 
     def _apply_color_overlay(self, layer, color, shape, alpha):
-        for effect in layer.effects.find('coloroverlay'):
-            color, shape_e = draw_solid_color_fill(layer.bbox, layer._psd.color_mode, effect.value)
-            color = paste(self._viewport, layer.bbox, color, 1.)
+        for effect in layer.effects.find("coloroverlay"):
+            color, shape_e = draw_solid_color_fill(
+                layer.bbox, layer._psd.color_mode, effect.value
+            )
+            color = paste(self._viewport, layer.bbox, color, 1.0)
             if shape_e is None:
-                shape_e = np.ones((self.height, self.width, 1),
-                                  dtype=np.float32)
+                shape_e = np.ones((self.height, self.width, 1), dtype=np.float32)
             else:
                 shape_e = paste(self._viewport, layer.bbox, shape_e)
-            opacity = effect.opacity / 100.
+            opacity = effect.opacity / 100.0
             self._apply_source(
-                color, shape * shape_e, alpha * shape_e * opacity,
-                effect.blend_mode
+                color, shape * shape_e, alpha * shape_e * opacity, effect.blend_mode
             )
 
     def _apply_pattern_overlay(self, layer, color, shape, alpha):
         channels = color.shape[-1]
-        for effect in layer.effects.find('patternoverlay'):
-            color, shape_e = draw_pattern_fill(
-                layer.bbox, layer._psd, effect.value
-            )
+        for effect in layer.effects.find("patternoverlay"):
+            color, shape_e = draw_pattern_fill(layer.bbox, layer._psd, effect.value)
             if color.shape[-1] == 1 and color.shape[-1] < channels:
                 # Pattern has different # color channels here.
                 color = np.full([layer.height, layer.width, channels], color)
             assert color.shape[-1] == channels, "Inconsistent pattern channels."
 
-            color = paste(self._viewport, layer.bbox, color, 1.)
+            color = paste(self._viewport, layer.bbox, color, 1.0)
             if shape_e is None:
-                shape_e = np.ones((self.height, self.width, 1),
-                                  dtype=np.float32)
+                shape_e = np.ones((self.height, self.width, 1), dtype=np.float32)
             else:
                 shape_e = paste(self._viewport, layer.bbox, shape_e)
-            opacity = effect.opacity / 100.
+            opacity = effect.opacity / 100.0
             self._apply_source(
-                color, shape * shape_e, alpha * shape_e * opacity,
-                effect.blend_mode
+                color, shape * shape_e, alpha * shape_e * opacity, effect.blend_mode
             )
 
     def _apply_gradient_overlay(self, layer, color, shape, alpha):
-        for effect in layer.effects.find('gradientoverlay'):
-            color, shape_e = draw_gradient_fill(layer.bbox, layer._psd.color_mode, effect.value)
-            color = paste(self._viewport, layer.bbox, color, 1.)
+        for effect in layer.effects.find("gradientoverlay"):
+            color, shape_e = draw_gradient_fill(
+                layer.bbox, layer._psd.color_mode, effect.value
+            )
+            color = paste(self._viewport, layer.bbox, color, 1.0)
             if shape_e is None:
-                shape_e = np.ones((self.height, self.width, 1),
-                                  dtype=np.float32)
+                shape_e = np.ones((self.height, self.width, 1), dtype=np.float32)
             else:
                 shape_e = paste(self._viewport, layer.bbox, shape_e)
-            opacity = effect.opacity / 100.
+            opacity = effect.opacity / 100.0
             self._apply_source(
-                color, shape * shape_e, alpha * shape_e * opacity,
-                effect.blend_mode
+                color, shape * shape_e, alpha * shape_e * opacity, effect.blend_mode
             )
 
     def _apply_stroke_effect(self, layer, color, shape, alpha):
-        for effect in layer.effects.find('stroke'):
+        for effect in layer.effects.find("stroke"):
             # Effect must happen at the layer viewport.
             shape_in_bbox = paste(layer.bbox, self._viewport, shape)
             color, shape_in_bbox = draw_stroke_effect(
@@ -500,16 +505,12 @@ class Compositor(object):
             )
             color = paste(self._viewport, layer.bbox, color)
             shape = paste(self._viewport, layer.bbox, shape_in_bbox)
-            opacity = effect.opacity / 100.
-            self._apply_source(
-                color, shape, shape * opacity, effect.blend_mode
-            )
+            opacity = effect.opacity / 100.0
+            self._apply_source(color, shape, shape * opacity, effect.blend_mode)
 
 
 def _intersect(a, b):
-    inter = (
-        max(a[0], b[0]), max(a[1], b[1]), min(a[2], b[2]), min(a[3], b[3])
-    )
+    inter = (max(a[0], b[0]), max(a[1], b[1]), min(a[2], b[2]), min(a[3], b[3]))
     if inter[0] >= inter[2] or inter[1] >= inter[3]:
         return (0, 0, 0, 0)
     return inter
@@ -532,12 +533,12 @@ def _union(backdrop, source):
 
 def _clip(x):
     """Clip between [0, 1]."""
-    return np.clip(x, 0., 1.)
+    return np.clip(x, 0.0, 1.0)
 
 
 def _divide(a, b):
     """Safe division for color ops."""
-    with np.errstate(divide='ignore', invalid='ignore'):
+    with np.errstate(divide="ignore", invalid="ignore"):
         c = np.true_divide(a, b)
-        c[~np.isfinite(c)] = 1.
+        c[~np.isfinite(c)] = 1.0
     return c

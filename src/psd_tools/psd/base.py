@@ -11,19 +11,22 @@ gets attrs_ decoration to have data fields.
 
 .. _attrs: https://www.attrs.org/en/stable/index.html
 """
-from __future__ import absolute_import, unicode_literals, division
-import attr
+from __future__ import absolute_import, division, unicode_literals
+
 import io
 import logging
 from collections import OrderedDict
 from enum import Enum
+
+import attr
+
 from psd_tools.utils import (
     read_fmt,
-    write_fmt,
-    trimmed_repr,
     read_unicode_string,
-    write_unicode_string,
+    trimmed_repr,
     write_bytes,
+    write_fmt,
+    write_unicode_string,
 )
 
 logger = logging.getLogger(__name__)
@@ -79,14 +82,14 @@ class BaseElement(object):
         if cycle:
             return "{name}(...)".format(name=self.__class__.__name__)
 
-        with p.group(2, '{name}('.format(name=self.__class__.__name__), ')'):
-            p.breakable('')
+        with p.group(2, "{name}(".format(name=self.__class__.__name__), ")"):
+            p.breakable("")
             fields = [f for f in attr.fields(self.__class__) if f.repr]
             for idx, field in enumerate(fields):
                 if idx:
-                    p.text(',')
+                    p.text(",")
                     p.breakable()
-                p.text('{field}='.format(field=field.name))
+                p.text("{field}=".format(field=field.name))
                 value = getattr(self, field.name)
                 if isinstance(value, bytes):
                     p.text(trimmed_repr(value))
@@ -94,7 +97,7 @@ class BaseElement(object):
                     p.text(value.name)
                 else:
                     p.pretty(value)
-            p.breakable('')
+            p.breakable("")
 
     def _find(self, condition=None):
         """
@@ -151,6 +154,7 @@ class ValueElement(BaseElement):
 
         Internal value.
     """
+
     value = attr.ib(default=None)
 
     def __lt__(self, other):
@@ -212,6 +216,7 @@ class NumericElement(ValueElement):
     """
     Single value element that has a numeric `value` attribute.
     """
+
     value = attr.ib(default=0.0, type=float, converter=float)
 
     def __floordiv__(self, other):
@@ -276,10 +281,10 @@ class NumericElement(ValueElement):
 
     @classmethod
     def read(cls, fp, **kwargs):
-        return cls(read_fmt('d', fp)[0])
+        return cls(read_fmt("d", fp)[0])
 
     def write(self, fp, **kwargs):
-        return write_fmt(fp, 'd', self.value)
+        return write_fmt(fp, "d", self.value)
 
 
 @attr.s(repr=False, eq=False, order=False)
@@ -289,6 +294,7 @@ class IntegerElement(NumericElement):
 
     Use with `@attr.s(repr=False)` decorator.
     """
+
     value = attr.ib(default=0, type=int, converter=int)
 
     def __cmp__(self, other):
@@ -338,10 +344,10 @@ class IntegerElement(NumericElement):
 
     @classmethod
     def read(cls, fp, **kwargs):
-        return cls(read_fmt('I', fp)[0])
+        return cls(read_fmt("I", fp)[0])
 
     def write(self, fp, **kwargs):
-        return write_fmt(fp, 'I', self.value)
+        return write_fmt(fp, "I", self.value)
 
 
 @attr.s(repr=False, eq=False, order=False)
@@ -355,13 +361,13 @@ class ShortIntegerElement(IntegerElement):
     @classmethod
     def read(cls, fp, **kwargs):
         try:
-            return cls(read_fmt('H2x', fp)[0])
+            return cls(read_fmt("H2x", fp)[0])
         except AssertionError as e:
             logger.error(e)
-        return cls(read_fmt('H', fp)[0])
+        return cls(read_fmt("H", fp)[0])
 
     def write(self, fp, **kwargs):
-        return write_fmt(fp, 'H2x', self.value)
+        return write_fmt(fp, "H2x", self.value)
 
 
 @attr.s(repr=False, eq=False, order=False)
@@ -375,13 +381,13 @@ class ByteElement(IntegerElement):
     @classmethod
     def read(cls, fp, **kwargs):
         try:
-            return cls(read_fmt('B3x', fp)[0])
+            return cls(read_fmt("B3x", fp)[0])
         except AssertionError as e:
             logger.error(e)
-        return cls(read_fmt('B', fp)[0])
+        return cls(read_fmt("B", fp)[0])
 
     def write(self, fp, **kwargs):
-        return write_fmt(fp, 'B3x', self.value)
+        return write_fmt(fp, "B3x", self.value)
 
 
 @attr.s(repr=False, eq=False, order=False)
@@ -391,18 +397,19 @@ class BooleanElement(IntegerElement):
 
     Use with `@attr.s(repr=False)` decorator.
     """
+
     value = attr.ib(default=False, type=bool, converter=bool)
 
     @classmethod
     def read(cls, fp, **kwargs):
         try:
-            return cls(read_fmt('?3x', fp)[0])
+            return cls(read_fmt("?3x", fp)[0])
         except AssertionError as e:
             logger.error(e)
-        return cls(read_fmt('?', fp)[0])
+        return cls(read_fmt("?", fp)[0])
 
     def write(self, fp, **kwargs):
-        return write_fmt(fp, '?3x', self.value)
+        return write_fmt(fp, "?3x", self.value)
 
 
 @attr.s(repr=False, slots=True, eq=False, order=False)
@@ -414,7 +421,8 @@ class StringElement(ValueElement):
 
         `str` value
     """
-    value = attr.ib(default='', type=str)
+
+    value = attr.ib(default="", type=str)
 
     @classmethod
     def read(cls, fp, padding=1, **kwargs):
@@ -429,6 +437,7 @@ class ListElement(BaseElement):
     """
     List-like element that has `items` list.
     """
+
     _items = attr.ib(factory=list, converter=list)
 
     def append(self, x):
@@ -478,24 +487,24 @@ class ListElement(BaseElement):
 
     def _repr_pretty_(self, p, cycle):
         if cycle:
-            return "[...]".format(name=self.__class__.__name__)
+            return "[...]"
 
-        with p.group(2, '['.format(name=self.__class__.__name__), ']'):
-            p.breakable('')
+        with p.group(2, "[", "]"):
+            p.breakable("")
             for idx in range(len(self._items)):
                 if idx:
-                    p.text(',')
+                    p.text(",")
                     p.breakable()
                 value = self._items[idx]
                 if isinstance(value, bytes):
                     value = trimmed_repr(value)
                 p.pretty(value)
-            p.breakable('')
+            p.breakable("")
 
     def write(self, fp, *args, **kwargs):
         written = 0
         for item in self:
-            if hasattr(item, 'write'):
+            if hasattr(item, "write"):
                 written += item.write(fp, *args, **kwargs)
             elif isinstance(item, bytes):
                 written += write_bytes(fp, item)
@@ -507,6 +516,7 @@ class DictElement(BaseElement):
     """
     Dict-like element that has `items` OrderedDict.
     """
+
     _items = attr.ib(factory=OrderedDict, converter=OrderedDict)
 
     def clear(self):
@@ -573,21 +583,21 @@ class DictElement(BaseElement):
 
     def _repr_pretty_(self, p, cycle):
         if cycle:
-            return '{{...}'
+            return "{{...}"
 
-        with p.group(2, '{', '}'):
-            p.breakable('')
+        with p.group(2, "{", "}"):
+            p.breakable("")
             for idx, key in enumerate(self._items):
                 if idx:
-                    p.text(',')
+                    p.text(",")
                     p.breakable()
                 value = self._items[key]
                 p.pretty(key)
-                p.text(': ')
+                p.text(": ")
                 if isinstance(value, bytes):
                     value = trimmed_repr(value)
                 p.pretty(value)
-            p.breakable('')
+            p.breakable("")
 
     @classmethod
     def _key_converter(cls, key):
@@ -601,7 +611,7 @@ class DictElement(BaseElement):
         written = 0
         for key in self:
             value = self[key]
-            if hasattr(value, 'write'):
+            if hasattr(value, "write"):
                 written += value.write(fp, *args, **kwargs)
             elif isinstance(value, bytes):
                 written += write_bytes(fp, value)

@@ -8,9 +8,10 @@ stylized.
 """
 
 from __future__ import absolute_import
+
 import logging
 
-from psd_tools.psd.vector import Subpath, InitialFillRule, ClipboardRecord
+from psd_tools.psd.vector import ClipboardRecord, InitialFillRule, Subpath
 from psd_tools.terminology import Event
 
 logger = logging.getLogger(__name__)
@@ -117,23 +118,25 @@ class VectorMask(object):
         :return: `tuple`
         """
         from itertools import chain
-        knots = [(knot.anchor[1], knot.anchor[0])
-                 for knot in chain.from_iterable(self.paths)]
+
+        knots = [
+            (knot.anchor[1], knot.anchor[0]) for knot in chain.from_iterable(self.paths)
+        ]
         if len(knots) == 0:
-            return (0., 0., 1., 1.)
+            return (0.0, 0.0, 1.0, 1.0)
         x, y = zip(*knots)
         return (min(x), min(y), max(x), max(y))
 
     def __repr__(self):
         bbox = self.bbox
-        return '%s(bbox=(%g, %g, %g, %g) paths=%d%s)' % (
+        return "%s(bbox=(%g, %g, %g, %g) paths=%d%s)" % (
             self.__class__.__name__,
             bbox[0],
             bbox[1],
             bbox[2],
             bbox[3],
             len(self.paths),
-            ' disabled' if self.disabled else '',
+            " disabled" if self.disabled else "",
         )
 
 
@@ -145,43 +148,44 @@ class Stroke(object):
     :py:class:`~psd_tools.psd.descriptor.Descriptor` structure.
     Check `_data` attribute to get the raw data.
     """
+
     STROKE_STYLE_LINE_CAP_TYPES = {
-        b'strokeStyleButtCap': 'butt',
-        b'strokeStyleRoundCap': 'round',
-        b'strokeStyleSquareCap': 'square',
+        b"strokeStyleButtCap": "butt",
+        b"strokeStyleRoundCap": "round",
+        b"strokeStyleSquareCap": "square",
     }
 
     STROKE_STYLE_LINE_JOIN_TYPES = {
-        b'strokeStyleMiterJoin': 'miter',
-        b'strokeStyleRoundJoin': 'round',
-        b'strokeStyleBevelJoin': 'bevel',
+        b"strokeStyleMiterJoin": "miter",
+        b"strokeStyleRoundJoin": "round",
+        b"strokeStyleBevelJoin": "bevel",
     }
 
     STROKE_STYLE_LINE_ALIGNMENTS = {
-        b'strokeStyleAlignInside': 'inner',
-        b'strokeStyleAlignOutside': 'outer',
-        b'strokeStyleAlignCenter': 'center',
+        b"strokeStyleAlignInside": "inner",
+        b"strokeStyleAlignOutside": "outer",
+        b"strokeStyleAlignCenter": "center",
     }
 
     def __init__(self, data):
         self._data = data
-        if self._data.classID not in (b'strokeStyle', Event.Stroke):
+        if self._data.classID not in (b"strokeStyle", Event.Stroke):
             logger.warning("Unknown class ID found: {}".format(self._data.classID))
 
     @property
     def enabled(self):
         """If the stroke is enabled."""
-        return bool(self._data.get(b'strokeEnabled'))
+        return bool(self._data.get(b"strokeEnabled"))
 
     @property
     def fill_enabled(self):
         """If the stroke fill is enabled."""
-        return bool(self._data.get(b'fillEnabled'))
+        return bool(self._data.get(b"fillEnabled"))
 
     @property
     def line_width(self):
         """Stroke width in float."""
-        return self._data.get(b'strokeStyleLineWidth')
+        return self._data.get(b"strokeStyleLineWidth")
 
     @property
     def line_dash_set(self):
@@ -191,7 +195,7 @@ class Stroke(object):
 
         :return: list
         """
-        return self._data.get(b'strokeStyleLineDashSet')
+        return self._data.get(b"strokeStyleLineDashSet")
 
     @property
     def line_dash_offset(self):
@@ -200,59 +204,59 @@ class Stroke(object):
 
         :return: float
         """
-        return self._data.get(b'strokeStyleLineDashOffset')
+        return self._data.get(b"strokeStyleLineDashOffset")
 
     @property
     def miter_limit(self):
         """Miter limit in float."""
-        return self._data.get(b'strokeStyleMiterLimit')
+        return self._data.get(b"strokeStyleMiterLimit")
 
     @property
     def line_cap_type(self):
         """Cap type, one of `butt`, `round`, `square`."""
-        key = self._data.get(b'strokeStyleLineCapType').enum
+        key = self._data.get(b"strokeStyleLineCapType").enum
         return self.STROKE_STYLE_LINE_CAP_TYPES.get(key, str(key))
 
     @property
     def line_join_type(self):
         """Join type, one of `miter`, `round`, `bevel`."""
-        key = self._data.get(b'strokeStyleLineJoinType').enum
+        key = self._data.get(b"strokeStyleLineJoinType").enum
         return self.STROKE_STYLE_LINE_JOIN_TYPES.get(key, str(key))
 
     @property
     def line_alignment(self):
         """Alignment, one of `inner`, `outer`, `center`."""
-        key = self._data.get(b'strokeStyleLineAlignment').enum
+        key = self._data.get(b"strokeStyleLineAlignment").enum
         return self.STROKE_STYLE_LINE_ALIGNMENTS.get(key, str(key))
 
     @property
     def scale_lock(self):
-        return self._data.get(b'strokeStyleScaleLock')
+        return self._data.get(b"strokeStyleScaleLock")
 
     @property
     def stroke_adjust(self):
         """Stroke adjust"""
-        return self._data.get(b'strokeStyleStrokeAdjust')
+        return self._data.get(b"strokeStyleStrokeAdjust")
 
     @property
     def blend_mode(self):
         """Blend mode."""
-        return self._data.get(b'strokeStyleBlendMode').enum
+        return self._data.get(b"strokeStyleBlendMode").enum
 
     @property
     def opacity(self):
         """Opacity value."""
-        return self._data.get(b'strokeStyleOpacity')
+        return self._data.get(b"strokeStyleOpacity")
 
     @property
     def content(self):
         """
         Fill effect.
         """
-        return self._data.get(b'strokeStyleContent')
+        return self._data.get(b"strokeStyleContent")
 
     def __repr__(self):
-        return '%s(width=%g)' % (self.__class__.__name__, self.line_width)
+        return "%s(width=%g)" % (self.__class__.__name__, self.line_width)
 
 
 class Origination(object):
@@ -265,9 +269,9 @@ class Origination(object):
 
     @classmethod
     def create(kls, data):
-        if data.get(b'keyShapeInvalidated'):
+        if data.get(b"keyShapeInvalidated"):
             return Invalidated(data)
-        origin_type = data.get(b'keyOriginType')
+        origin_type = data.get(b"keyOriginType")
         types = {1: Rectangle, 2: RoundedRectangle, 4: Line, 5: Ellipse}
         return types.get(origin_type, kls)(data)
 
@@ -286,7 +290,7 @@ class Origination(object):
 
         :return: `int`
         """
-        return int(self._data.get(b'keyOriginType'))
+        return int(self._data.get(b"keyOriginType"))
 
     @property
     def resolution(self):
@@ -294,7 +298,7 @@ class Origination(object):
 
         :return: `float`
         """
-        return float(self._data.get(b'keyOriginResolution'))
+        return float(self._data.get(b"keyOriginResolution"))
 
     @property
     def bbox(self):
@@ -303,13 +307,13 @@ class Origination(object):
 
         :return: :py:class:`~psd_tools.psd.descriptor.Descriptor`
         """
-        bbox = self._data.get(b'keyOriginShapeBBox')
+        bbox = self._data.get(b"keyOriginShapeBBox")
         if bbox:
             return (
-                bbox.get(b'Left').value,
-                bbox.get(b'Top ').value,
-                bbox.get(b'Rght').value,
-                bbox.get(b'Btom').value,
+                bbox.get(b"Left").value,
+                bbox.get(b"Top ").value,
+                bbox.get(b"Rght").value,
+                bbox.get(b"Btom").value,
             )
         return (0, 0, 0, 0)
 
@@ -320,7 +324,7 @@ class Origination(object):
 
         :return: `int`
         """
-        return self._data.get(b'keyOriginIndex')
+        return self._data.get(b"keyOriginIndex")
 
     @property
     def invalidated(self):
@@ -331,8 +335,12 @@ class Origination(object):
 
     def __repr__(self):
         bbox = self.bbox
-        return '%s(bbox=(%g, %g, %g, %g))' % (
-            self.__class__.__name__, bbox[0], bbox[1], bbox[2], bbox[3]
+        return "%s(bbox=(%g, %g, %g, %g))" % (
+            self.__class__.__name__,
+            bbox[0],
+            bbox[1],
+            bbox[2],
+            bbox[3],
         )
 
 
@@ -350,16 +358,18 @@ class Invalidated(Origination):
         return True
 
     def __repr__(self):
-        return '%s()' % (self.__class__.__name__)
+        return "%s()" % (self.__class__.__name__)
 
 
 class Rectangle(Origination):
     """Rectangle live shape."""
+
     pass
 
 
 class Ellipse(Origination):
     """Ellipse live shape."""
+
     pass
 
 
@@ -374,7 +384,7 @@ class RoundedRectangle(Origination):
 
         :return: :py:class:`~psd_tools.psd.descriptor.Descriptor`
         """
-        return self._data.get(b'keyOriginRRectRadii')
+        return self._data.get(b"keyOriginRRectRadii")
 
 
 class Line(Origination):
@@ -387,7 +397,7 @@ class Line(Origination):
 
         :return: :py:class:`~psd_tools.psd.descriptor.Descriptor`
         """
-        return self._data.get(b'keyOriginLineEnd')
+        return self._data.get(b"keyOriginLineEnd")
 
     @property
     def line_start(self):
@@ -396,7 +406,7 @@ class Line(Origination):
 
         :return: :py:class:`~psd_tools.psd.descriptor.Descriptor`
         """
-        return self._data.get(b'keyOriginLineStart')
+        return self._data.get(b"keyOriginLineStart")
 
     @property
     def line_weight(self):
@@ -405,7 +415,7 @@ class Line(Origination):
 
         :return: `float`
         """
-        return self._data.get(b'keyOriginLineWeight')
+        return self._data.get(b"keyOriginLineWeight")
 
     @property
     def arrow_start(self):
@@ -413,7 +423,7 @@ class Line(Origination):
 
         :return: `bool`
         """
-        return bool(self._data.get(b'keyOriginLineArrowSt'))
+        return bool(self._data.get(b"keyOriginLineArrowSt"))
 
     @property
     def arrow_end(self):
@@ -422,7 +432,7 @@ class Line(Origination):
 
         :return: `bool`
         """
-        return bool(self._data.get(b'keyOriginLineArrowEnd'))
+        return bool(self._data.get(b"keyOriginLineArrowEnd"))
 
     @property
     def arrow_width(self):
@@ -430,7 +440,7 @@ class Line(Origination):
 
         :return: `float`
         """
-        return self._data.get(b'keyOriginLineArrWdth')
+        return self._data.get(b"keyOriginLineArrWdth")
 
     @property
     def arrow_length(self):
@@ -438,7 +448,7 @@ class Line(Origination):
 
         :return: `float`
         """
-        return self._data.get(b'keyOriginLineArrLngth')
+        return self._data.get(b"keyOriginLineArrLngth")
 
     @property
     def arrow_conc(self):
@@ -446,4 +456,4 @@ class Line(Origination):
 
         :return: `int`
         """
-        return self._data.get(b'keyOriginLineArrConc')
+        return self._data.get(b"keyOriginLineArrConc")

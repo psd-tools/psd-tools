@@ -1,11 +1,12 @@
 """
 Various utility functions for low-level binary processing.
 """
-from __future__ import unicode_literals, print_function, division
-import logging
-import sys
-import struct
+from __future__ import division, print_function, unicode_literals
+
 import array
+import logging
+import struct
+import sys
 
 try:
     unichr = unichr
@@ -33,8 +34,7 @@ def read_fmt(fmt, fp):
     fmt_size = struct.calcsize(fmt)
     data = fp.read(fmt_size)
     try:
-        assert len(data
-                   ) == fmt_size, 'read=%d, expected=%d' % (len(data), fmt_size)
+        assert len(data) == fmt_size, "read=%d, expected=%d" % (len(data), fmt_size)
     except AssertionError:
         fp.seek(-len(data), 1)
         raise
@@ -48,7 +48,7 @@ def write_fmt(fp, fmt, *args):
     fmt = str(">" + fmt)
     fmt_size = struct.calcsize(fmt)
     written = write_bytes(fp, struct.pack(fmt, *args))
-    assert written == fmt_size, 'written=%d, expected=%d' % (written, fmt_size)
+    assert written == fmt_size, "written=%d, expected=%d" % (written, fmt_size)
     return written
 
 
@@ -61,12 +61,11 @@ def write_bytes(fp, data):
     pos = fp.tell()
     fp.write(data)
     written = fp.tell() - pos
-    assert written == len(data
-                          ), 'written=%d, expected=%d' % (written, len(data))
+    assert written == len(data), "written=%d, expected=%d" % (written, len(data))
     return written
 
 
-def read_length_block(fp, fmt='I', padding=1):
+def read_length_block(fp, fmt="I", padding=1):
     """
     Read a block of data with a length marker at the beginning.
 
@@ -81,7 +80,7 @@ def read_length_block(fp, fmt='I', padding=1):
     return data
 
 
-def write_length_block(fp, writer, fmt='I', padding=1, **kwargs):
+def write_length_block(fp, writer, fmt="I", padding=1, **kwargs):
     """
     Writes a block of data with a length marker at the beginning.
 
@@ -103,7 +102,7 @@ def write_length_block(fp, writer, fmt='I', padding=1, **kwargs):
     return written
 
 
-def reserve_position(fp, fmt='I'):
+def reserve_position(fp, fmt="I"):
     """
     Reserves the current position for write.
 
@@ -114,11 +113,11 @@ def reserve_position(fp, fmt='I'):
     :return: the position
     """
     position = fp.tell()
-    fp.seek(struct.calcsize(str('>' + fmt)), 1)
+    fp.seek(struct.calcsize(str(">" + fmt)), 1)
     return position
 
 
-def write_position(fp, position, value, fmt='I'):
+def write_position(fp, position, value, fmt="I"):
     """
     Writes a value to the specified position.
 
@@ -130,7 +129,7 @@ def write_position(fp, position, value, fmt='I'):
     """
     current_position = fp.tell()
     fp.seek(position)
-    written = write_bytes(fp, struct.pack(str('>' + fmt), value))
+    written = write_bytes(fp, struct.pack(str(">" + fmt), value))
     fp.seek(current_position)
     return written
 
@@ -146,7 +145,7 @@ def read_padding(fp, size, divisor=2):
     remainder = size % divisor
     if remainder:
         return fp.read(divisor - remainder)
-    return b''
+    return b""
 
 
 def write_padding(fp, size, divisor=2):
@@ -159,7 +158,7 @@ def write_padding(fp, size, divisor=2):
     """
     remainder = size % divisor
     if remainder:
-        return write_bytes(fp, struct.pack('%dx' % (divisor - remainder)))
+        return write_bytes(fp, struct.pack("%dx" % (divisor - remainder)))
     return 0
 
 
@@ -182,7 +181,7 @@ def pad(number, divisor):
     return number
 
 
-def read_pascal_string(fp, encoding='macroman', padding=2):
+def read_pascal_string(fp, encoding="macroman", padding=2):
     """
     Reads pascal string (length + bytes).
 
@@ -193,31 +192,31 @@ def read_pascal_string(fp, encoding='macroman', padding=2):
     """
     start_pos = fp.tell()
     # read_length_block doesn't work for a byte.
-    length = read_fmt('B', fp)[0]
+    length = read_fmt("B", fp)[0]
     data = fp.read(length)
     assert len(data) == length, (len(data), length)
     read_padding(fp, fp.tell() - start_pos, padding)
     return data.decode(encoding)
 
 
-def write_pascal_string(fp, value, encoding='macroman', padding=2):
+def write_pascal_string(fp, value, encoding="macroman", padding=2):
     data = value.encode(encoding)
-    written = write_fmt(fp, 'B', len(data))
+    written = write_fmt(fp, "B", len(data))
     written += write_bytes(fp, data)
     written += write_padding(fp, written, padding)
     return written
 
 
 def read_unicode_string(fp, padding=1):
-    num_chars = read_fmt('I', fp)[0]
-    chars = be_array_from_bytes('H', fp.read(num_chars * 2))
-    read_padding(fp, struct.calcsize('I') + num_chars * 2, padding)
+    num_chars = read_fmt("I", fp)[0]
+    chars = be_array_from_bytes("H", fp.read(num_chars * 2))
+    read_padding(fp, struct.calcsize("I") + num_chars * 2, padding)
     return "".join(unichr(num) for num in chars)
 
 
 def write_unicode_string(fp, value, padding=1):
-    arr = array.array(str('H'), [ord(x) for x in value])
-    written = write_fmt(fp, 'I', len(arr))
+    arr = array.array(str("H"), [ord(x) for x in value])
+    written = write_fmt(fp, "I", len(arr))
     written += write_bytes(fp, be_array_to_bytes(arr))
     written += write_padding(fp, written, padding)
     return written
@@ -228,7 +227,7 @@ def read_be_array(fmt, count, fp):
     Reads an array from a file with big-endian data.
     """
     arr = array.array(str(fmt))
-    if hasattr(arr, 'frombytes'):
+    if hasattr(arr, "frombytes"):
         arr.frombytes(fp.read(count * arr.itemsize))
     else:
         arr.fromstring(fp.read(count * arr.itemsize))
@@ -247,7 +246,7 @@ def fix_byteorder(arr):
     Fixes the byte order of the array (assuming it was read
     from a Big Endian data).
     """
-    if sys.byteorder == 'little':
+    if sys.byteorder == "little":
         arr.byteswap()
     return arr
 
@@ -265,7 +264,7 @@ def be_array_to_bytes(arr):
     Writes an array to bytestring with big-endian data.
     """
     data = fix_byteorder(arr)
-    if hasattr(arr, 'tobytes'):
+    if hasattr(arr, "tobytes"):
         return data.tobytes()
     else:
         return data.tostring()
@@ -274,10 +273,7 @@ def be_array_to_bytes(arr):
 def trimmed_repr(data, trim_length=16):
     if isinstance(data, bytes):
         if len(data) > trim_length:
-            return repr(
-                data[:trim_length] + b' ... =' +
-                str(len(data)).encode('ascii')
-            )
+            return repr(data[:trim_length] + b" ... =" + str(len(data)).encode("ascii"))
     return repr(data)
 
 

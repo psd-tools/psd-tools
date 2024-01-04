@@ -33,14 +33,17 @@ Testing
 -------
 
 In order to run tests, make sure PIL/Pillow is built with LittleCMS
-or LittleCMS2 support, install `tox <http://tox.testrun.org>`_ and type::
+or LittleCMS2 support. For example, on Ubuntu, install the following packages::
 
-    tox
+    apt-get install liblcms2-dev libjpeg-dev libfreetype6-dev zlib1g-dev
 
-from the source checkout. Or, it is a good idea to install and run
-`detox <https://github.com/tox-dev/detox>`_ for parallel execution::
+Then install `psd-tools` with the following command::
 
-    detox
+    pip install -e .[dev]
+
+Finally, run tests with `pytest`::
+
+    pytest
 
 Documentation
 -------------

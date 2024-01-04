@@ -16,9 +16,12 @@ Pretty printing is the best approach to check the descriptor content::
     pprint(descriptor)
 """
 from __future__ import absolute_import, unicode_literals
-import attr
+
 import logging
 
+import attr
+
+from psd_tools.constants import OSType
 from psd_tools.psd.base import (
     BaseElement,
     BooleanElement,
@@ -28,29 +31,27 @@ from psd_tools.psd.base import (
     NumericElement,
     StringElement,
 )
-from psd_tools.constants import OSType
-from psd_tools.terminology import Klass, Enum, Event, Form, Key, Type, Unit
-from psd_tools.validators import in_
+from psd_tools.terminology import Enum, Event, Form, Key, Klass, Type, Unit
 from psd_tools.utils import (
+    new_registry,
     read_fmt,
-    write_fmt,
-    read_unicode_string,
-    write_unicode_string,
-    write_bytes,
     read_length_block,
+    read_unicode_string,
+    trimmed_repr,
+    write_bytes,
+    write_fmt,
     write_length_block,
     write_padding,
-    new_registry,
-    trimmed_repr,
+    write_unicode_string,
 )
+from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
 
-TYPES, register = new_registry(attribute='ostype')
+TYPES, register = new_registry(attribute="ostype")
 
 _TERMS = set(
-    item.value for kls in (Klass, Enum, Event, Form, Key, Type, Unit)
-    for item in kls
+    item.value for kls in (Klass, Enum, Event, Form, Key, Type, Unit) for item in kls
 )
 
 
@@ -58,10 +59,10 @@ def read_length_and_key(fp):
     """
     Helper to read descriptor key.
     """
-    length = read_fmt('I', fp)[0]
+    length = read_fmt("I", fp)[0]
     key = fp.read(length or 4)
     if length == 0 and key not in _TERMS:
-        logger.debug('Unknown term: %r' % (key))
+        logger.debug("Unknown term: %r" % (key))
         _TERMS.add(key)
     return key
 
@@ -70,7 +71,7 @@ def write_length_and_key(fp, value):
     """
     Helper to write descriptor key.
     """
-    written = write_fmt(fp, 'I', 0 if value in _TERMS else len(value))
+    written = write_fmt(fp, "I", 0 if value in _TERMS else len(value))
     written += write_bytes(fp, value)
     return written
 
@@ -81,7 +82,7 @@ class _DescriptorMixin(DictElement):
         name = read_unicode_string(fp, padding=1)
         classID = read_length_and_key(fp)
         items = []
-        count = read_fmt('I', fp)[0]
+        count = read_fmt("I", fp)[0]
         for _ in range(count):
             key = read_length_and_key(fp)
             ostype = OSType(fp.read(4))
@@ -94,7 +95,7 @@ class _DescriptorMixin(DictElement):
     def _write_body(self, fp):
         written = write_unicode_string(fp, self.name, padding=1)
         written += write_length_and_key(fp, self.classID)
-        written += write_fmt(fp, 'I', len(self))
+        written += write_fmt(fp, "I", len(self))
         for key in self:
             written += write_length_and_key(fp, key)
             written += write_bytes(fp, self[key].ostype.value)
@@ -103,32 +104,32 @@ class _DescriptorMixin(DictElement):
 
     @classmethod
     def _key_converter(cls, key):
-        if hasattr(key, 'encode'):
-            return key.encode('ascii')
-        return getattr(key, 'value', key)
+        if hasattr(key, "encode"):
+            return key.encode("ascii")
+        return getattr(key, "value", key)
 
     def _repr_pretty_(self, p, cycle):
         if cycle:
-            return "{name}{{...}".format(name=self.__class__.__name__)
+            return "(...)"
 
-        prefix = '{cls}({name}){{'.format(
+        prefix = "{cls}({name}){{".format(
             cls=self.__class__.__name__,
-            name=getattr(self.classID, 'name', self.classID),
+            name=getattr(self.classID, "name", self.classID),
         )
-        with p.group(2, prefix, '}'):
-            p.breakable('')
+        with p.group(2, prefix, "}"):
+            p.breakable("")
             for idx, key in enumerate(self):
                 if idx:
-                    p.text(',')
+                    p.text(",")
                     p.breakable()
                 value = self[key]
-                p.pretty(key.decode('ascii'))
-                p.text(': ')
+                p.pretty(key.decode("ascii"))
+                p.text(": ")
                 if isinstance(value, bytes):
                     p.text(trimmed_repr(value))
                 else:
                     p.pretty(value)
-            p.breakable('')
+            p.breakable("")
 
 
 @register(OSType.DESCRIPTOR)
@@ -158,7 +159,8 @@ class Descriptor(_DescriptorMixin):
 
         bytes in :py:class:`~psd_tools.terminology.Klass`
     """
-    name = attr.ib(default='', type=str)
+
+    name = attr.ib(default="", type=str)
     classID = attr.ib(default=Klass.Null.value)
 
     @classmethod
@@ -188,17 +190,18 @@ class ObjectArray(_DescriptorMixin):
 
         bytes in :py:class:`~psd_tools.terminology.Klass`
     """
+
     items_count = attr.ib(default=0, type=int)
-    name = attr.ib(default='', type=str)
+    name = attr.ib(default="", type=str)
     classID = attr.ib(default=Klass.Null.value)
 
     @classmethod
     def read(cls, fp):
-        items_count = read_fmt('I', fp)[0]
+        items_count = read_fmt("I", fp)[0]
         return cls(items_count=items_count, **cls._read_body(fp))
 
     def write(self, fp):
-        written = write_fmt(fp, 'I', self.items_count)
+        written = write_fmt(fp, "I", self.items_count)
         written += self._write_body(fp)
         return written
 
@@ -218,7 +221,7 @@ class List(ListElement):
     @classmethod
     def read(cls, fp):
         items = []
-        count = read_fmt('I', fp)[0]
+        count = read_fmt("I", fp)[0]
         for _ in range(count):
             key = OSType(fp.read(4))
             kls = TYPES.get(key)
@@ -227,7 +230,7 @@ class List(ListElement):
         return cls(items)
 
     def write(self, fp):
-        written = write_fmt(fp, 'I', len(self))
+        written = write_fmt(fp, "I", len(self))
         for item in self:
             written += write_bytes(fp, item.ostype.value)
             written += item.write(fp)
@@ -252,9 +255,10 @@ class Property(BaseElement):
 
         bytes in :py:class:`~psd_tools.terminology.Key`
     """
-    name = attr.ib(default='', type=str)
-    classID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
-    keyID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
+
+    name = attr.ib(default="", type=str)
+    classID = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
+    keyID = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
 
     @classmethod
     def read(cls, fp):
@@ -284,27 +288,28 @@ class UnitFloat(NumericElement):
 
         `float` value
     """
+
     value = attr.ib(default=0.0, type=float)
     unit = attr.ib(default=Unit._None)
 
     @classmethod
     def read(cls, fp):
-        unit, value = read_fmt('4sd', fp)
+        unit, value = read_fmt("4sd", fp)
         try:
             unit = Unit(unit)
         except ValueError:
-            logger.warning('Using Enum for Unit field')
+            logger.warning("Using Enum for Unit field")
             unit = Enum(unit)
         return cls(unit=unit, value=value)
 
     def write(self, fp):
-        return write_fmt(fp, '4sd', self.unit.value, self.value)
+        return write_fmt(fp, "4sd", self.unit.value, self.value)
 
     def _repr_pretty_(self, p, cycle):
         if cycle:
             return self.__repr__()
         p.pretty(self.value)
-        p.text(' ')
+        p.text(" ")
         p.text(self.unit.name)
 
 
@@ -322,24 +327,28 @@ class UnitFloats(BaseElement):
 
         List of `float` values
     """
+
     unit = attr.ib(default=Unit._None)
     values = attr.ib(factory=list)
 
     @classmethod
     def read(cls, fp):
-        unit, count = read_fmt('4sI', fp)
+        unit, count = read_fmt("4sI", fp)
         try:
             unit = Unit(unit)
         except ValueError:
-            logger.warning('Using Enum for Unit field')
+            logger.warning("Using Enum for Unit field")
             unit = Enum(unit)
-        values = list(read_fmt('%dd' % count, fp))
+        values = list(read_fmt("%dd" % count, fp))
         return cls(unit=unit, values=values)
 
     def write(self, fp):
         return write_fmt(
-            fp, '4sI%dd' % len(self.values), self.unit.value, len(self.values),
-            *self.values
+            fp,
+            "4sI%dd" % len(self.values),
+            self.unit.value,
+            len(self.values),
+            *self.values,
         )
 
     def __iter__(self):
@@ -365,10 +374,10 @@ class Double(NumericElement):
 
     @classmethod
     def read(cls, fp):
-        return cls(*read_fmt('d', fp))
+        return cls(*read_fmt("d", fp))
 
     def write(self, fp):
-        return write_fmt(fp, 'd', self.value)
+        return write_fmt(fp, "d", self.value)
 
 
 @attr.s(repr=False)
@@ -384,8 +393,9 @@ class Class(BaseElement):
 
         bytes in :py:class:`~psd_tools.terminology.Klass`
     """
-    name = attr.ib(default='', type=str)
-    classID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
+
+    name = attr.ib(default="", type=str)
+    classID = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
 
     @classmethod
     def read(cls, fp):
@@ -408,6 +418,7 @@ class String(StringElement):
 
         `str` value
     """
+
     pass
 
 
@@ -433,10 +444,11 @@ class EnumeratedReference(BaseElement):
 
         bytes in :py:class:`~psd_tools.terminology.Enum`
     """
-    name = attr.ib(default='', type=str)
-    classID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
-    typeID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
-    enum = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
+
+    name = attr.ib(default="", type=str)
+    classID = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
+    typeID = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
+    enum = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
 
     @classmethod
     def read(cls, fp):
@@ -472,21 +484,22 @@ class Offset(BaseElement):
 
         `int` value
     """
-    name = attr.ib(default='', type=str)
-    classID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
+
+    name = attr.ib(default="", type=str)
+    classID = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
     value = attr.ib(default=0)
 
     @classmethod
     def read(cls, fp):
         name = read_unicode_string(fp)
         classID = read_length_and_key(fp)
-        offset = read_fmt('I', fp)[0]
+        offset = read_fmt("I", fp)[0]
         return cls(name, classID, offset)
 
     def write(self, fp):
         written = write_unicode_string(fp, self.name)
         written += write_length_and_key(fp, self.classID)
-        written += write_fmt(fp, 'I', self.value)
+        written += write_fmt(fp, "I", self.value)
         return written
 
 
@@ -502,10 +515,10 @@ class Bool(BooleanElement):
 
     @classmethod
     def read(cls, fp):
-        return cls(read_fmt('?', fp)[0])
+        return cls(read_fmt("?", fp)[0])
 
     def write(self, fp):
-        return write_fmt(fp, '?', self.value)
+        return write_fmt(fp, "?", self.value)
 
 
 @register(OSType.LARGE_INTEGER)
@@ -520,10 +533,10 @@ class LargeInteger(IntegerElement):
 
     @classmethod
     def read(cls, fp):
-        return cls(read_fmt('q', fp)[0])
+        return cls(read_fmt("q", fp)[0])
 
     def write(self, fp):
-        return write_fmt(fp, 'q', self.value)
+        return write_fmt(fp, "q", self.value)
 
 
 @register(OSType.INTEGER)
@@ -538,10 +551,10 @@ class Integer(IntegerElement):
 
     @classmethod
     def read(cls, fp):
-        return cls(read_fmt('i', fp)[0])
+        return cls(read_fmt("i", fp)[0])
 
     def write(self, fp):
-        return write_fmt(fp, 'i', self.value)
+        return write_fmt(fp, "i", self.value)
 
 
 @register(OSType.ENUMERATED)
@@ -558,8 +571,9 @@ class Enumerated(BaseElement):
 
         bytes in :py:class:`~psd_tools.terminology.Enum`
     """
-    typeID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
-    enum = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
+
+    typeID = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
+    enum = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
 
     @classmethod
     def read(cls, fp):
@@ -575,11 +589,11 @@ class Enumerated(BaseElement):
     def _repr_pretty_(self, p, cycle):
         if cycle:
             return self.__repr__()
-        p.text('(')
-        p.pretty(getattr(self.typeID, 'name', self.typeID))
-        p.text(', ')
-        p.pretty(getattr(self.enum, 'name', self.enum))
-        p.text(')')
+        p.text("(")
+        p.pretty(getattr(self.typeID, "name", self.typeID))
+        p.text(", ")
+        p.pretty(getattr(self.enum, "name", self.enum))
+        p.text(")")
 
     def get_name(self):
         """Get enum name."""
@@ -601,7 +615,8 @@ class RawData(BaseElement):
 
         `bytes` value
     """
-    value = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
+
+    value = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
 
     @classmethod
     def read(cls, fp):
@@ -609,7 +624,7 @@ class RawData(BaseElement):
 
     def write(self, fp):
         def writer(f):
-            if hasattr(self.value, 'write'):
+            if hasattr(self.value, "write"):
                 return self.value.write(f)
             return write_bytes(f, self.value)
 
@@ -622,6 +637,7 @@ class Class1(Class):
     Class structure equivalent to
     :py:class:`~psd_tools.psd.descriptor.Class`.
     """
+
     pass
 
 
@@ -631,6 +647,7 @@ class Class2(Class):
     Class structure equivalent to
     :py:class:`~psd_tools.psd.descriptor.Class`.
     """
+
     pass
 
 
@@ -640,6 +657,7 @@ class Class3(Class):
     Class structure equivalent to
     :py:class:`~psd_tools.psd.descriptor.Class`.
     """
+
     pass
 
 
@@ -649,6 +667,7 @@ class Reference(List):
     Reference structure equivalent to
     :py:class:`~psd_tools.psd.descriptor.List`.
     """
+
     pass
 
 
@@ -658,6 +677,7 @@ class Alias(RawData):
     Alias structure equivalent to
     :py:class:`~psd_tools.psd.descriptor.RawData`.
     """
+
     pass
 
 
@@ -667,6 +687,7 @@ class GlobalObject(Descriptor):
     Global object structure equivalent to
     :py:class:`~psd_tools.psd.descriptor.Descriptor`.
     """
+
     pass
 
 
@@ -676,6 +697,7 @@ class Path(RawData):
     Undocumented path structure equivalent to
     :py:class:`~psd_tools.psd.descriptor.RawData`.
     """
+
     pass
 
 
@@ -685,6 +707,7 @@ class Identifier(Integer):
     Identifier equivalent to
     :py:class:`~psd_tools.psd.descriptor.Integer`.
     """
+
     pass
 
 
@@ -693,6 +716,7 @@ class Index(Integer):
     """
     Index equivalent to :py:class:`~psd_tools.psd.descriptor.Integer`.
     """
+
     pass
 
 
@@ -714,9 +738,10 @@ class Name(BaseElement):
 
         str
     """
-    name = attr.ib(default='', type=str)
-    classID = attr.ib(default=b'\x00\x00\x00\x00', type=bytes)
-    value = attr.ib(default='', type=str)
+
+    name = attr.ib(default="", type=str)
+    classID = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
+    value = attr.ib(default="", type=str)
 
     @classmethod
     def read(cls, fp):
@@ -740,15 +765,16 @@ class DescriptorBlock(Descriptor):
 
     .. py:attribute:: version
     """
-    version = attr.ib(default=16, type=int, validator=in_((16, )))
+
+    version = attr.ib(default=16, type=int, validator=in_((16,)))
 
     @classmethod
     def read(cls, fp, **kwargs):
-        version = read_fmt('I', fp)[0]
+        version = read_fmt("I", fp)[0]
         return cls(version=version, **cls._read_body(fp))
 
     def write(self, fp, padding=4, **kwargs):
-        written = write_fmt(fp, 'I', self.version)
+        written = write_fmt(fp, "I", self.version)
         written += self._write_body(fp)
         written += write_padding(fp, written, padding)
         return written
@@ -764,18 +790,17 @@ class DescriptorBlock2(Descriptor):
     .. py:attribute:: version
     .. py:attribute:: data_version
     """
+
     version = attr.ib(default=1, type=int)
-    data_version = attr.ib(default=16, type=int, validator=in_((16, )))
+    data_version = attr.ib(default=16, type=int, validator=in_((16,)))
 
     @classmethod
     def read(cls, fp, **kwargs):
-        version, data_version = read_fmt('2I', fp)
-        return cls(
-            version=version, data_version=data_version, **cls._read_body(fp)
-        )
+        version, data_version = read_fmt("2I", fp)
+        return cls(version=version, data_version=data_version, **cls._read_body(fp))
 
     def write(self, fp, padding=4, **kwargs):
-        written = write_fmt(fp, '2I', self.version, self.data_version)
+        written = write_fmt(fp, "2I", self.version, self.data_version)
         written += self._write_body(fp)
         written += write_padding(fp, written, padding)
         return written

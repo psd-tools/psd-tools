@@ -1,17 +1,17 @@
 from __future__ import absolute_import, unicode_literals
-import pytest
+
 import logging
 
+import pytest
+
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.api.shape import (
-    Rectangle, RoundedRectangle, Ellipse, Line, Invalidated
-)
+from psd_tools.api.shape import Ellipse, Invalidated, Line, Rectangle, RoundedRectangle
 
 from ..utils import full_name
 
 logger = logging.getLogger(__name__)
 
-VECTOR_MASK2 = PSDImage.open(full_name('vector-mask2.psd'))
+VECTOR_MASK2 = PSDImage.open(full_name("vector-mask2.psd"))
 
 
 @pytest.fixture
@@ -30,7 +30,7 @@ def test_layer_properties(psd):
             assert layer.origination
         else:
             assert not layer.origination
-        if layer.kind == 'shape':
+        if layer.kind == "shape":
             expected = index in (2, 4)
             assert layer.has_stroke() is expected
             if expected:
@@ -58,13 +58,14 @@ def test_vector_mask(psd):
 
 
 @pytest.mark.parametrize(
-    'index, kls', [
+    "index, kls",
+    [
         (1, Rectangle),
         (2, RoundedRectangle),
         (3, Ellipse),
         (4, Invalidated),
         (5, Line),
-    ]
+    ],
 )
 def test_origination(psd, index, kls):
     origination = psd[index].origination[0]

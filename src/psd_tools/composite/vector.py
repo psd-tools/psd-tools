@@ -2,13 +2,13 @@ import logging
 from typing import Tuple
 
 import numpy as np
-from psd_tools.api.numpy_io import EXPECTED_CHANNELS, get_pattern
-from psd_tools.constants import Tag, ColorMode
-from psd_tools.terminology import Enum, Key, Klass, Type
 from scipy import interpolate
 
-logger = logging.getLogger(__name__)
+from psd_tools.api.numpy_io import EXPECTED_CHANNELS, get_pattern
+from psd_tools.constants import ColorMode, Tag
+from psd_tools.terminology import Enum, Key, Klass, Type
 
+logger = logging.getLogger(__name__)
 
 
 def _get_color(color_mode, desc) -> Tuple[float, ...]:
@@ -37,37 +37,47 @@ def _get_color(color_mode, desc) -> Tuple[float, ...]:
                 }
             }
     """
+
     def _get_int_color(color_desc, keys):
-        return tuple(float(color_desc[key]) / 255. for key in keys)
+        return tuple(float(color_desc[key]) / 255.0 for key in keys)
 
     def _get_invert_color(color_desc, keys):
-        return tuple((100. - float(color_desc[key])) / 100. for key in keys)
-    
-    def hsb_to_rgb( h:float, s:float, v:float) -> Tuple[float, ...]:
+        return tuple((100.0 - float(color_desc[key])) / 100.0 for key in keys)
+
+    def hsb_to_rgb(h: float, s: float, v: float) -> Tuple[float, ...]:
         if s:
-            if h == 1.0: h = 0.0
-            i = int(h*6.0); f = h*6.0 - i
-            
+            if h == 1.0:
+                h = 0.0
+            i = int(h * 6.0)
+            f = h * 6.0 - i
+
             w = v * (1.0 - s)
             q = v * (1.0 - s * f)
             t = v * (1.0 - s * (1.0 - f))
-            
-            if i==0: return (v, t, w)
-            if i==1: return (q, v, w)
-            if i==2: return (w, v, t)
-            if i==3: return (w, q, v)
-            if i==4: return (t, w, v)
-            if i==5: return (v, w, q)
-        else: return (v, v, v)
+
+            if i == 0:
+                return (v, t, w)
+            if i == 1:
+                return (q, v, w)
+            if i == 2:
+                return (w, v, t)
+            if i == 3:
+                return (w, q, v)
+            if i == 4:
+                return (t, w, v)
+            if i == 5:
+                return (v, w, q)
+        else:
+            return (v, v, v)
 
     def rgb_to_cmyk(r, g, b) -> Tuple[float, ...]:
         if (r, g, b) == (0, 0, 0):
             # black
-            return (0., 0., 0.)
+            return (0.0, 0.0, 0.0)
         c = 1 - r
         m = 1 - g
         y = 1 - b
-        
+
         min_cmy = min(c, m, y)
         c = (c - min_cmy) / (1 - min_cmy)
         m = (m - min_cmy) / (1 - min_cmy)
@@ -79,25 +89,27 @@ def _get_color(color_mode, desc) -> Tuple[float, ...]:
         if Key.Red in color_desc:
             return _get_int_color(color_desc, (Key.Red, Key.Green, Key.Blue))
         else:
-            return tuple(float(color_desc[key]) for key in (Key.RedFloat, Key.GreenFloat, Key.BlueFloat))
-        
+            return tuple(
+                float(color_desc[key])
+                for key in (Key.RedFloat, Key.GreenFloat, Key.BlueFloat)
+            )
+
     def _get_hsb(color_mode, color_desc):
-        hue = float(color_desc[Key.Hue])/ 300.
-        saturation = float(color_desc[Key.Saturation]) / 100.
-        brightness = float(color_desc[Key.Brightness]) / 100.
+        hue = float(color_desc[Key.Hue]) / 300.0
+        saturation = float(color_desc[Key.Saturation]) / 100.0
+        brightness = float(color_desc[Key.Brightness]) / 100.0
         rgb_components = hsb_to_rgb(hue, saturation, brightness)
-        if (color_mode == ColorMode.RGB):
+        if color_mode == ColorMode.RGB:
             return rgb_components
-        if (color_mode == ColorMode.CMYK):
+        if color_mode == ColorMode.CMYK:
             return rgb_to_cmyk(rgb_components[0], rgb_components[1], rgb_components[2])
-        raise ValueError('Unexpected color mode for HSB color %s' % (color_mode))
+        raise ValueError("Unexpected color mode for HSB color %s" % (color_mode))
 
     def _get_gray(color_mode, x):
         return _get_invert_color(x, (Key.Gray,))
 
     def _get_cmyk(color_mode, x):
-        return _get_invert_color(
-            x, (Key.Cyan, Key.Magenta, Key.Yellow, Key.Black))
+        return _get_invert_color(x, (Key.Cyan, Key.Magenta, Key.Yellow, Key.Black))
 
     def _get_lab(color_mode, x):
         return _get_int_color(x, (Key.Luminance, Key.A, Key.B))
@@ -114,9 +126,8 @@ def _get_color(color_mode, desc) -> Tuple[float, ...]:
     return _COLOR_FUNC[color_desc.classID](color_mode, color_desc)
 
 
-
 def draw_vector_mask(layer):
-    return _draw_path(layer, brush={'color': 255})
+    return _draw_path(layer, brush={"color": 255})
 
 
 def draw_stroke(layer):
@@ -131,7 +142,7 @@ def draw_stroke(layer):
     #     'strokeStyleRoundJoin': 2,
     #     'strokeStyleBevelJoin': 3,
     # }
-    width = float(desc.get('strokeStyleLineWidth', 1.))
+    width = float(desc.get("strokeStyleLineWidth", 1.0))
     # linejoin = desc.get('strokeStyleLineJoinType', None)
     # linejoin = linejoin.enum if linejoin else 'strokeStyleMiterJoin'
     # linecap = desc.get('strokeStyleLineCapType', None)
@@ -141,20 +152,19 @@ def draw_stroke(layer):
     return _draw_path(
         layer,
         pen={
-            'color': 255,
-            'width': width,
+            "color": 255,
+            "width": width,
             # 'linejoin': _JOIN.get(linejoin, 0),
             # 'linecap': _CAP.get(linecap, 0),
             # 'miterlimit': miterlimit,
-        }
+        },
     )
 
 
 def _draw_path(layer, brush=None, pen=None):
     height, width = layer._psd.height, layer._psd.width
     color = 0
-    if layer.vector_mask.initial_fill_rule and \
-        len(layer.vector_mask.paths) == 0:
+    if layer.vector_mask.initial_fill_rule and len(layer.vector_mask.paths) == 0:
         color = 1
     mask = np.full((height, width, 1), color, dtype=np.float32)
 
@@ -199,37 +209,37 @@ def _draw_subpath(subpath_list, width, height, brush, pen):
     """
     import aggdraw
     from PIL import Image
-    mask = Image.new('L', (width, height), 0)
+
+    mask = Image.new("L", (width, height), 0)
     draw = aggdraw.Draw(mask)
     pen = aggdraw.Pen(**pen) if pen else None
     brush = aggdraw.Brush(**brush) if brush else None
     for subpath in subpath_list:
         if len(subpath) <= 1:
-            logger.warning('not enough knots: %d' % len(subpath))
+            logger.warning("not enough knots: %d" % len(subpath))
             continue
-        path = ' '.join(map(str, _generate_symbol(subpath, width, height)))
+        path = " ".join(map(str, _generate_symbol(subpath, width, height)))
         symbol = aggdraw.Symbol(path)
         draw.symbol((0, 0), symbol, pen, brush)
     draw.flush()
     del draw
-    return np.expand_dims(np.array(mask).astype(np.float32) / 255., 2)
+    return np.expand_dims(np.array(mask).astype(np.float32) / 255.0, 2)
 
 
-def _generate_symbol(path, width, height, command='C'):
+def _generate_symbol(path, width, height, command="C"):
     """Sequence generator for SVG path."""
     if len(path) == 0:
         return
 
     # Initial point.
-    yield 'M'
+    yield "M"
     yield path[0].anchor[1] * width
     yield path[0].anchor[0] * height
     yield command
 
     # Closed path or open path
     points = (
-        zip(path, path[1:] +
-            path[0:1]) if path.is_closed() else zip(path, path[1:])
+        zip(path, path[1:] + path[0:1]) if path.is_closed() else zip(path, path[1:])
     )
 
     # Rest of the points.
@@ -242,16 +252,16 @@ def _generate_symbol(path, width, height, command='C'):
         yield p2.anchor[0] * height
 
     if path.is_closed():
-        yield 'Z'
+        yield "Z"
 
 
 def create_fill_desc(layer, desc, viewport):
     """Create a fill image."""
-    if desc.classID == b'solidColorLayer':
+    if desc.classID == b"solidColorLayer":
         return draw_solid_color_fill(viewport, layer._psd.color_mode, desc)
-    if desc.classID == b'patternLayer':
+    if desc.classID == b"patternLayer":
         return draw_pattern_fill(viewport, layer._psd, desc)
-    if desc.classID == b'gradientLayer':
+    if desc.classID == b"gradientLayer":
         return draw_gradient_fill(viewport, layer._psd.color_mode, desc)
     return None, None
 
@@ -269,7 +279,7 @@ def create_fill(layer, viewport):
         return draw_gradient_fill(viewport, layer._psd.color_mode, desc)
     if Tag.VECTOR_STROKE_CONTENT_DATA in layer.tagged_blocks:
         stroke = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_DATA)
-        if not stroke or stroke.get('fillEnabled').value is True:
+        if not stroke or stroke.get("fillEnabled").value is True:
             desc = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)
             if Key.Color in desc:
                 return draw_solid_color_fill(viewport, layer._psd.color_mode, desc)
@@ -314,21 +324,22 @@ def draw_pattern_fill(viewport, psd, desc):
 
     .. todo:: Test this.
     """
-    pattern_id = desc[Enum.Pattern][Key.ID].value.rstrip('\x00')
+    pattern_id = desc[Enum.Pattern][Key.ID].value.rstrip("\x00")
     pattern = psd._get_pattern(pattern_id)
     if not pattern:
-        logger.error('Pattern not found: %s' % (pattern_id))
+        logger.error("Pattern not found: %s" % (pattern_id))
         return None, None
 
     panel = get_pattern(pattern)
     assert panel.shape[0] > 0
 
-    scale = float(desc.get(Key.Scale, 100.)) / 100.
-    if scale != 1.:
+    scale = float(desc.get(Key.Scale, 100.0)) / 100.0
+    if scale != 1.0:
         from skimage.transform import resize
+
         new_shape = (
             max(1, int(panel.shape[0] * scale)),
-            max(1, int(panel.shape[1] * scale))
+            max(1, int(panel.shape[1] * scale)),
         )
         panel = resize(panel, new_shape)
 
@@ -352,9 +363,9 @@ def draw_gradient_fill(viewport, color_mode, desc):
     height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
 
     angle = float(desc.get(Key.Angle, 0))
-    scale = float(desc.get(Key.Scale, 100.)) / 100.
-    ratio = (angle % 90)
-    scale *= (90. - ratio) / 90. * width + (ratio / 90.) * height
+    scale = float(desc.get(Key.Scale, 100.0)) / 100.0
+    ratio = angle % 90
+    scale *= (90.0 - ratio) / 90.0 * width + (ratio / 90.0) * height
     X, Y = np.meshgrid(
         np.linspace(-width / scale, width / scale, width, dtype=np.float32),
         np.linspace(-height / scale, height / scale, height, dtype=np.float32),
@@ -373,12 +384,12 @@ def draw_gradient_fill(viewport, color_mode, desc):
         Z = _make_diamond_gradient(X, Y, angle)
     else:
         # Unsupported: b'shapeburst', only avail in stroke effect
-        logger.warning('Unknown gradient style: %s.' % (gradient_kind))
+        logger.warning("Unknown gradient style: %s." % (gradient_kind))
         Z = np.full((height, width), 0.5, dtype=np.float32)
 
-    Z = np.maximum(0., np.minimum(1., Z))
+    Z = np.maximum(0.0, np.minimum(1.0, Z))
     if bool(desc.get(Key.Reverse, False)):
-        Z = 1. - Z
+        Z = 1.0 - Z
 
     G, Ga = _make_gradient_color(color_mode, desc.get(Key.Gradient))
     color = G(Z) if G is not None else None
@@ -389,7 +400,7 @@ def draw_gradient_fill(viewport, color_mode, desc):
 def _make_linear_gradient(X, Y, angle):
     """Generates index map for linear gradients."""
     theta = np.radians(angle % 360)
-    Z = .5 * (np.cos(theta) * X - np.sin(theta) * Y + 1)
+    Z = 0.5 * (np.cos(theta) * X - np.sin(theta) * Y + 1)
     return Z
 
 
@@ -415,8 +426,9 @@ def _make_reflected_gradient(X, Y, angle):
 def _make_diamond_gradient(X, Y, angle):
     """Generates index map for diamond gradients."""
     theta = np.radians(angle % 360)
-    Z = np.abs(np.cos(theta) * X - np.sin(theta) *
-               Y) + np.abs(np.sin(theta) * X + np.cos(theta) * Y)
+    Z = np.abs(np.cos(theta) * X - np.sin(theta) * Y) + np.abs(
+        np.sin(theta) * X + np.cos(theta) * Y
+    )
     return Z
 
 
@@ -427,40 +439,38 @@ def _make_gradient_color(color_mode, grad):
     elif gradient_form == Enum.CustomStops:
         return _make_linear_gradient_color(color_mode, grad)
 
-    logger.error('Unknown gradient form: %s' % gradient_form)
+    logger.error("Unknown gradient form: %s" % gradient_form)
     return None
 
 
 def _make_linear_gradient_color(color_mode, grad):
     X, Y = [], []
     for stop in grad.get(Key.Colors, []):
-        location = float(stop.get(Key.Location)) / 4096.
+        location = float(stop.get(Key.Location)) / 4096.0
         color = np.array(_get_color(color_mode, stop), dtype=np.float32)
         if len(X) and X[-1] == location:
-            logger.debug('Duplicate stop at %d' % location)
+            logger.debug("Duplicate stop at %d" % location)
             X.pop(), Y.pop()
         X.append(location), Y.append(color)
     assert len(X) > 0
     if len(X) == 1:
-        X = [0., 1.]
+        X = [0.0, 1.0]
         Y = [Y[0], Y[0]]
-    G = interpolate.interp1d(
-        X, Y, axis=0, bounds_error=False, fill_value=(Y[0], Y[-1])
-    )
+    G = interpolate.interp1d(X, Y, axis=0, bounds_error=False, fill_value=(Y[0], Y[-1]))
     if Key.Transparency not in grad:
         return G, None
 
     X, Y = [], []
     for stop in grad.get(Key.Transparency):
-        location = float(stop.get(Key.Location)) / 4096.
-        opacity = float(stop.get(Key.Opacity)) / 100.
+        location = float(stop.get(Key.Location)) / 4096.0
+        opacity = float(stop.get(Key.Opacity)) / 100.0
         if len(X) and X[-1] == location:
-            logger.debug('Duplicate stop at %d' % location)
+            logger.debug("Duplicate stop at %d" % location)
             X.pop(), Y.pop()
         X.append(location), Y.append(opacity)
     assert len(X) > 0
     if len(X) == 1:
-        X = [0., 1.]
+        X = [0.0, 1.0]
         Y = [Y[0], Y[0]]
     Ga = interpolate.interp1d(
         X, Y, axis=0, bounds_error=False, fill_value=(Y[0], Y[-1])
@@ -488,44 +498,31 @@ def _make_noise_gradient_color(grad):
             'Mxm ': [0, 100, 100, 100]
         }
     """
-    from scipy.ndimage.filters import maximum_filter1d, uniform_filter1d
-    logger.debug('Noise gradient is not accurate.')
-    roughness = grad.get(Key.Smoothness).value / 4096.  # Larger is sharper.
-    maximum = np.array([x.value for x in grad.get(Key.Maximum)],
-                       dtype=np.float32)
-    minimum = np.array([x.value for x in grad.get(Key.Minimum)],
-                       dtype=np.float32)
+    from scipy.ndimage import maximum_filter1d, uniform_filter1d
+
+    logger.debug("Noise gradient is not accurate.")
+    roughness = grad.get(Key.Smoothness).value / 4096.0  # Larger is sharper.
+    maximum = np.array([x.value for x in grad.get(Key.Maximum)], dtype=np.float32)
+    minimum = np.array([x.value for x in grad.get(Key.Minimum)], dtype=np.float32)
     seed = grad.get(Key.RandomSeed).value
     rng = np.random.RandomState(seed)
-    Y = rng.binomial(1, .5, (256, len(maximum))).astype(np.float32)
+    Y = rng.binomial(1, 0.5, (256, len(maximum))).astype(np.float32)
     size = max(1, int(roughness))
     Y = maximum_filter1d(Y, size, axis=0)
     Y = uniform_filter1d(Y, size * 64, axis=0)
     Y = Y / np.max(Y, axis=0)
-    Y = ((maximum - minimum) * Y + minimum) / 100.
+    Y = ((maximum - minimum) * Y + minimum) / 100.0
     X = np.linspace(0, 1, 256, dtype=np.float32)
     if grad.get(Key.ShowTransparency):
         G = interpolate.interp1d(
-            X,
-            Y[:, :-1],
-            axis=0,
-            bounds_error=False,
-            fill_value=(Y[0, :-1], Y[-1, :-1])
+            X, Y[:, :-1], axis=0, bounds_error=False, fill_value=(Y[0, :-1], Y[-1, :-1])
         )
         Ga = interpolate.interp1d(
-            X,
-            Y[:, -1],
-            axis=0,
-            bounds_error=False,
-            fill_value=(Y[0, -1], Y[-1, -1])
+            X, Y[:, -1], axis=0, bounds_error=False, fill_value=(Y[0, -1], Y[-1, -1])
         )
     else:
         G = interpolate.interp1d(
-            X,
-            Y[:, :3],
-            axis=0,
-            bounds_error=False,
-            fill_value=(Y[0, :3], Y[-1, :3])
+            X, Y[:, :3], axis=0, bounds_error=False, fill_value=(Y[0, :3], Y[-1, :3])
         )
         Ga = None
     return G, Ga

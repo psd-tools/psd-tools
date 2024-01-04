@@ -1,5 +1,7 @@
 from __future__ import unicode_literals
+
 import logging
+
 import docopt
 
 from psd_tools import PSDImage
@@ -36,16 +38,16 @@ def main(argv=None):
 
     args = docopt.docopt(main.__doc__, version=__version__, argv=argv)
 
-    if args['--verbose']:
+    if args["--verbose"]:
         logger.setLevel(logging.DEBUG)
     else:
         logger.setLevel(logging.INFO)
 
-    if args['export']:
-        input_parts = args['<input_file>'].split('[')
+    if args["export"]:
+        input_parts = args["<input_file>"].split("[")
         input_file = input_parts[0]
         if len(input_parts) > 1:
-            indices = [int(x.rstrip(']')) for x in input_parts[1:]]
+            indices = [int(x.rstrip("]")) for x in input_parts[1:]]
         else:
             indices = []
         layer = PSDImage.open(input_file)
@@ -55,14 +57,14 @@ def main(argv=None):
             image = layer.topil()
         else:
             image = layer.composite()
-        image.save(args['<output_file>'])
+        image.save(args["<output_file>"])
 
-    elif args['show']:
-        psd = PSDImage.open(args['<input_file>'])
+    elif args["show"]:
+        psd = PSDImage.open(args["<input_file>"])
         pprint(psd)
 
-    elif args['debug']:
-        psd = PSDImage.open(args['<input_file>'])
+    elif args["debug"]:
+        psd = PSDImage.open(args["<input_file>"])
         pprint(psd._record)
 
 

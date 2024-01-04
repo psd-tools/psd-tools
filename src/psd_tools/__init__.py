@@ -1,5 +1,4 @@
-from __future__ import absolute_import, unicode_literals
-from .api.psd_image import PSDImage
-from .composer import compose
+from psd_tools.api.psd_image import PSDImage
+from psd_tools.version import __version__
 
-__all__ = ['PSDImage', 'compose']
+__all__ = ["PSDImage", "__version__"]

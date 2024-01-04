@@ -2,6 +2,7 @@
 Mask module.
 """
 from __future__ import absolute_import, unicode_literals
+
 import logging
 
 from psd_tools.constants import ChannelID
@@ -99,9 +100,7 @@ class Mask(object):
 
     def _has_real(self):
         """Return True if the mask has real flags."""
-        return (
-            self.real_flags is not None and self.real_flags.parameters_applied
-        )
+        return self.real_flags is not None and self.real_flags.parameters_applied
 
     def topil(self, real=True, **kwargs):
         """
@@ -117,7 +116,7 @@ class Mask(object):
         return self._layer.topil(channel, **kwargs)
 
     def __repr__(self):
-        return '%s(offset=(%d,%d) size=%dx%d)' % (
+        return "%s(offset=(%d,%d) size=%dx%d)" % (
             self.__class__.__name__,
             self.left,
             self.top,

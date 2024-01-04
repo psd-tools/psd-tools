@@ -2,12 +2,15 @@
 File header structure.
 """
 from __future__ import absolute_import, unicode_literals
-import attr
+
 import logging
-from psd_tools.validators import in_, range_
-from psd_tools.psd.base import BaseElement
+
+import attr
+
 from psd_tools.constants import ColorMode
+from psd_tools.psd.base import BaseElement
 from psd_tools.utils import read_fmt, write_fmt
+from psd_tools.validators import in_, range_
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +58,10 @@ class FileHeader(BaseElement):
         The color mode of the file. See
         :py:class:`~psd_tools.constants.ColorMode`
     """
-    _FORMAT = '4sH6xHIIHH'
 
-    signature = attr.ib(default=b'8BPS', type=bytes, repr=False)
+    _FORMAT = "4sH6xHIIHH"
+
+    signature = attr.ib(default=b"8BPS", type=bytes, repr=False)
     version = attr.ib(default=1, type=int, validator=in_((1, 2)))
     channels = attr.ib(default=4, type=int, validator=range_(1, 57))
     height = attr.ib(default=64, type=int, validator=range_(1, 300001))
@@ -69,8 +73,8 @@ class FileHeader(BaseElement):
 
     @signature.validator
     def _validate_signature(self, attribute, value):
-        if value != b'8BPS':
-            raise ValueError('This is not a PSD or PSB file')
+        if value != b"8BPS":
+            raise ValueError("This is not a PSD or PSB file")
 
     @classmethod
     def read(cls, fp):

@@ -4,18 +4,22 @@ Composer API.
 Composer takes responsibility of rendering layers as an image.
 """
 from __future__ import absolute_import, unicode_literals
+
 import logging
 
 from psd_tools.api import deprecated
-from psd_tools.constants import Tag, BlendMode
-from psd_tools.api.pil_io import get_pil_mode
 from psd_tools.api.layers import Group
+from psd_tools.api.pil_io import get_pil_mode
 from psd_tools.composer.blend import blend
 from psd_tools.composer.effects import create_stroke_effect
 from psd_tools.composer.vector import (
-    draw_pattern_fill, draw_gradient_fill, draw_solid_color_fill,
-    draw_vector_mask, draw_stroke
+    draw_gradient_fill,
+    draw_pattern_fill,
+    draw_solid_color_fill,
+    draw_stroke,
+    draw_vector_mask,
 )
+from psd_tools.constants import BlendMode, Tag
 from psd_tools.terminology import Enum, Key
 
 logger = logging.getLogger(__name__)
@@ -100,7 +104,7 @@ def compose(
     """
     from PIL import Image
 
-    if not hasattr(layers, '__iter__'):
+    if not hasattr(layers, "__iter__"):
         layers = [layers]
 
     def _default_filter(layer):
@@ -121,10 +125,10 @@ def compose(
         context = Image.new(
             mode,
             (bbox[2] - bbox[0], bbox[3] - bbox[1]),
-            color=color if color is not None else 'white',
+            color=color if color is not None else "white",
         )
         context.putalpha(0)  # Alpha must be forced to correctly blend.
-        context.info['offset'] = (bbox[0], bbox[1])
+        context.info["offset"] = (bbox[0], bbox[1])
 
     for layer in valid_layers:
         if intersect(layer.bbox, bbox) == (0, 0, 0, 0):
@@ -139,11 +143,9 @@ def compose(
                     layer_filter=layer_filter,
                     color=color,
                 )
-                offset = _context.info.get('offset', (0, 0))
+                offset = _context.info.get("offset", (0, 0))
                 # TODO: group opacity is not properly considered here.
-                context.paste(
-                    _context, (offset[0] - bbox[0], offset[1] - bbox[1])
-                )
+                context.paste(_context, (offset[0] - bbox[0], offset[1] - bbox[1]))
                 continue
             else:
                 image = layer.compose(layer_filter=layer_filter)
@@ -152,13 +154,13 @@ def compose(
         if image is None:
             continue
 
-        logger.debug('Composing %s' % layer)
-        offset = image.info.get('offset', layer.offset)
+        logger.debug("Composing %s" % layer)
+        offset = image.info.get("offset", layer.offset)
         offset = (offset[0] - bbox[0], offset[1] - bbox[1])
 
         context = blend(context, image, offset, layer.blend_mode)
 
-    logger.debug('Composing: %s' % layers)
+    logger.debug("Composing: %s" % layers)
     if isinstance(layers, Group):
         context = _apply_layer_ops(layers, context)
 
@@ -167,7 +169,7 @@ def compose(
 
 def compose_layer(layer, force=False):
     """Compose a single layer with pixels."""
-    assert layer.bbox != (0, 0, 0, 0), 'Layer bbox is (0, 0, 0, 0)'
+    assert layer.bbox != (0, 0, 0, 0), "Layer bbox is (0, 0, 0, 0)"
 
     image = layer.topil()
     if image is None or force:
@@ -183,15 +185,16 @@ def compose_layer(layer, force=False):
 def _apply_layer_ops(layer, image, force=False, bbox=None):
     """Apply layer masks, effects, and clipping."""
     from PIL import Image, ImageChops
+
     # Apply vector mask.
     if layer.has_vector_mask() and (force or not layer.has_pixels()):
-        offset = image.info.get('offset', layer.offset)
+        offset = image.info.get("offset", layer.offset)
         mask_box = offset + (offset[0] + image.width, offset[1] + image.height)
         vector_mask = draw_vector_mask(layer, mask_box)
-        if image.mode.endswith('A'):
-            offset = vector_mask.info['offset']
-            vector_mask = ImageChops.darker(image.getchannel('A'), vector_mask)
-            vector_mask.info['offset'] = offset
+        if image.mode.endswith("A"):
+            offset = vector_mask.info["offset"]
+            vector_mask = ImageChops.darker(image.getchannel("A"), vector_mask)
+            vector_mask.info["offset"] = offset
         image.putalpha(vector_mask)
 
         # Apply stroke.
@@ -202,30 +205,25 @@ def _apply_layer_ops(layer, image, force=False, bbox=None):
     image = apply_mask(layer, image, bbox=bbox)
 
     # Apply layer fill effects.
-    apply_opacity(
-        image, layer.tagged_blocks.get_data(Tag.BLEND_FILL_OPACITY, 255)
-    )
+    apply_opacity(image, layer.tagged_blocks.get_data(Tag.BLEND_FILL_OPACITY, 255))
     if layer.effects.enabled:
         image = apply_effect(layer, image, image.copy())
 
     # Clip layers.
     if layer.has_clip_layers():
         clip_box = Group.extract_bbox(layer.clip_layers)
-        offset = image.info.get('offset', layer.offset)
+        offset = image.info.get("offset", layer.offset)
         bbox = offset + (offset[0] + image.width, offset[1] + image.height)
         if intersect(bbox, clip_box) != (0, 0, 0, 0):
             clip_image = compose(
-                layer.clip_layers,
-                force=force,
-                bbox=bbox,
-                context=image.copy()
+                layer.clip_layers, force=force, bbox=bbox, context=image.copy()
             )
-            if image.mode.endswith('A'):
-                mask = image.getchannel('A')
+            if image.mode.endswith("A"):
+                mask = image.getchannel("A")
             else:
-                mask = Image.new('L', image.size, 255)
-            if clip_image.mode.endswith('A'):
-                mask = ImageChops.darker(clip_image.getchannel('A'), mask)
+                mask = Image.new("L", image.size, 255)
+            if clip_image.mode.endswith("A"):
+                mask = ImageChops.darker(clip_image.getchannel("A"), mask)
             clip_image.putalpha(mask)
             image = blend(image, clip_image, (0, 0))
 
@@ -237,6 +235,7 @@ def _apply_layer_ops(layer, image, force=False, bbox=None):
 
 def create_fill(layer):
     from PIL import Image
+
     mode = get_pil_mode(layer._psd.color_mode, True)
     size = (layer.width, layer.height)
     fill_image = None
@@ -245,7 +244,7 @@ def create_fill(layer):
     # Apply fill.
     if Tag.VECTOR_STROKE_CONTENT_DATA in layer.tagged_blocks:
         setting = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)
-        if stroke and bool(stroke.get('fillEnabled', True)) is False:
+        if stroke and bool(stroke.get("fillEnabled", True)) is False:
             fill_image = Image.new(mode, size)
         elif Enum.Pattern in setting:
             fill_image = draw_pattern_fill(size, layer._psd, setting)
@@ -279,8 +278,8 @@ def apply_mask(layer, image, bbox=None):
     """
     from PIL import Image, ImageChops
 
-    offset = image.info.get('offset', layer.offset)
-    image.info['offset'] = offset
+    offset = image.info.get("offset", layer.offset)
+    image.info["offset"] = offset
     if layer.has_mask() and not layer.mask.disabled:
         mask_bbox = layer.mask.bbox
         if mask_bbox != (0, 0, 0, 0):
@@ -294,17 +293,14 @@ def apply_mask(layer, image, bbox=None):
             size = (bbox[2] - bbox[0], bbox[3] - bbox[1])
             image_ = Image.new(image.mode, size)
             image_.paste(image, (offset[0] - bbox[0], offset[1] - bbox[1]))
-            mask = Image.new('L', size, color=color)
+            mask = Image.new("L", size, color=color)
             mask_image = layer.mask.topil()
             if mask_image:
-                mask.paste(
-                    mask_image,
-                    (mask_bbox[0] - bbox[0], mask_bbox[1] - bbox[1])
-                )
-            if image_.mode.endswith('A'):
-                mask = ImageChops.darker(image_.getchannel('A'), mask)
+                mask.paste(mask_image, (mask_bbox[0] - bbox[0], mask_bbox[1] - bbox[1]))
+            if image_.mode.endswith("A"):
+                mask = ImageChops.darker(image_.getchannel("A"), mask)
             image_.putalpha(mask)
-            image_.info['offset'] = (bbox[0], bbox[1])
+            image_.info["offset"] = (bbox[0], bbox[1])
             return image_
     return image
 
@@ -330,63 +326,63 @@ def apply_effect(layer, backdrop, base_image):
     from PIL import ImageChops
 
     for effect in layer.effects:
-        if effect.__class__.__name__ == 'PatternOverlay':
-            image = draw_pattern_fill(
-                base_image.size, layer._psd, effect.value
-            )
-            if base_image.mode.endswith('A'):
-                alpha = base_image.getchannel('A')
-                if image.mode.endswith('A'):
-                    alpha = ImageChops.darker(alpha, image.getchannel('A'))
+        if effect.__class__.__name__ == "PatternOverlay":
+            image = draw_pattern_fill(base_image.size, layer._psd, effect.value)
+            if base_image.mode.endswith("A"):
+                alpha = base_image.getchannel("A")
+                if image.mode.endswith("A"):
+                    alpha = ImageChops.darker(alpha, image.getchannel("A"))
                 image.putalpha(alpha)
             backdrop = blend(backdrop, image, (0, 0), effect.blend_mode)
 
     for effect in layer.effects:
-        if effect.__class__.__name__ == 'GradientOverlay':
+        if effect.__class__.__name__ == "GradientOverlay":
             image = draw_gradient_fill(base_image.size, effect.value)
-            if base_image.mode.endswith('A'):
-                alpha = base_image.getchannel('A')
-                if image.mode.endswith('A'):
-                    alpha = ImageChops.darker(alpha, image.getchannel('A'))
+            if base_image.mode.endswith("A"):
+                alpha = base_image.getchannel("A")
+                if image.mode.endswith("A"):
+                    alpha = ImageChops.darker(alpha, image.getchannel("A"))
                 image.putalpha(alpha)
             backdrop = blend(backdrop, image, (0, 0), effect.blend_mode)
 
     for effect in layer.effects:
-        if effect.__class__.__name__ == 'ColorOverlay':
+        if effect.__class__.__name__ == "ColorOverlay":
             image = draw_solid_color_fill(base_image.size, effect.value)
-            if base_image.mode.endswith('A'):
-                alpha = base_image.getchannel('A')
-                if image.mode.endswith('A'):
-                    alpha = ImageChops.darker(alpha, image.getchannel('A'))
+            if base_image.mode.endswith("A"):
+                alpha = base_image.getchannel("A")
+                if image.mode.endswith("A"):
+                    alpha = ImageChops.darker(alpha, image.getchannel("A"))
                 image.putalpha(alpha)
             backdrop = blend(backdrop, image, (0, 0), effect.blend_mode)
 
     for effect in layer.effects:
-        if effect.__class__.__name__ == 'Stroke':
+        if effect.__class__.__name__ == "Stroke":
             from PIL import ImageOps
 
             if layer.has_vector_mask():
                 alpha = draw_vector_mask(layer)
-            elif base_image.mode.endswith('A'):
-                alpha = base_image.getchannel('A')
+            elif base_image.mode.endswith("A"):
+                alpha = base_image.getchannel("A")
             else:
-                alpha = base_image.convert('L')
-            alpha.info['offset'] = base_image.info['offset']
+                alpha = base_image.convert("L")
+            alpha.info["offset"] = base_image.info["offset"]
             flat = alpha.getextrema()[0] < 255
 
             # Expand the image size
             setting = effect.value
             size = int(setting.get(Key.SizeKey))
-            offset = backdrop.info['offset']
+            offset = backdrop.info["offset"]
             backdrop = ImageOps.expand(backdrop, size)
-            backdrop.info['offset'] = tuple(x - size for x in offset)
-            offset = alpha.info['offset']
+            backdrop.info["offset"] = tuple(x - size for x in offset)
+            offset = alpha.info["offset"]
             alpha = ImageOps.expand(alpha, size)
-            alpha.info['offset'] = tuple(x - size for x in offset)
+            alpha.info["offset"] = tuple(x - size for x in offset)
 
-            if not layer.has_vector_mask() and setting.get(
-                Key.Style
-            ).enum == Enum.InsetFrame and flat:
+            if (
+                not layer.has_vector_mask()
+                and setting.get(Key.Style).enum == Enum.InsetFrame
+                and flat
+            ):
                 image = create_stroke_effect(alpha, setting, layer._psd, True)
                 backdrop.paste(image)
             else:
@@ -398,9 +394,9 @@ def apply_effect(layer, backdrop, base_image):
 
 def apply_opacity(image, opacity):
     if opacity < 255:
-        if image.mode.endswith('A'):
-            opacity /= 255.
-            alpha = image.getchannel('A')
+        if image.mode.endswith("A"):
+            opacity /= 255.0
+            alpha = image.getchannel("A")
             alpha = alpha.point(lambda x: int(round(x * opacity)))
             image.putalpha(alpha)
         else:

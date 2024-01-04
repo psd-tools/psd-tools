@@ -2,13 +2,19 @@
 Image compression utils.
 """
 from __future__ import absolute_import, unicode_literals
+
 import array
 import io
 import zlib
+
 from psd_tools.constants import Compression
 from psd_tools.utils import (
-    be_array_from_bytes, be_array_to_bytes, read_be_array, write_be_array
+    be_array_from_bytes,
+    be_array_to_bytes,
+    read_be_array,
+    write_be_array,
 )
+
 try:
     from . import _rle as rle_impl
 except ImportError:
@@ -65,9 +71,7 @@ def decompress(data, compression, width, height, depth, version=1):
         result = decode_prediction(decompressed, width, height, depth)
 
     if depth >= 8:
-        assert len(result) == length, (
-            'len=%d, expected=%d' % (len(result), length)
-        )
+        assert len(result) == length, "len=%d, expected=%d" % (len(result), length)
 
     return result
 
@@ -76,8 +80,8 @@ def encode_rle(data, width, height, depth, version):
     row_size = width * depth // 8
     with io.BytesIO(data) as fp:
         rows = [rle_impl.encode(fp.read(row_size)) for _ in range(height)]
-    bytes_counts = array.array(('H', 'I')[version - 1], map(len, rows))
-    encoded = b''.join(rows)
+    bytes_counts = array.array(("H", "I")[version - 1], map(len, rows))
+    encoded = b"".join(rows)
 
     with io.BytesIO() as fp:
         write_be_array(fp, bytes_counts)
@@ -90,45 +94,45 @@ def encode_rle(data, width, height, depth, version):
 def decode_rle(data, width, height, depth, version):
     row_size = max(width * depth // 8, 1)
     with io.BytesIO(data) as fp:
-        bytes_counts = read_be_array(('H', 'I')[version - 1], height, fp)
-        return b''.join(
+        bytes_counts = read_be_array(("H", "I")[version - 1], height, fp)
+        return b"".join(
             rle_impl.decode(fp.read(count), row_size) for count in bytes_counts
         )
 
 
 def encode_prediction(data, w, h, depth):
     if depth == 8:
-        arr = array.array('B', data)
+        arr = array.array("B", data)
         arr = _delta_encode(arr, 0x100, w, h)
         return be_array_to_bytes(arr)
     elif depth == 16:
-        arr = array.array('H', data)
+        arr = array.array("H", data)
         arr = _delta_encode(arr, 0x10000, w, h)
         return be_array_to_bytes(arr)
     elif depth == 32:
-        arr = array.array('B', data)
+        arr = array.array("B", data)
         arr = _shuffle_byte_order(arr, w, h)
         arr = _delta_encode(arr, 0x100, w * 4, h)
-        return getattr(arr, 'tobytes', getattr(arr, 'tostring', None))()
+        return getattr(arr, "tobytes", getattr(arr, "tostring", None))()
     else:
-        raise ValueError('Invalid pixel size %d' % (depth))
+        raise ValueError("Invalid pixel size %d" % (depth))
 
 
 def decode_prediction(data, w, h, depth):
     if depth == 8:
-        arr = be_array_from_bytes('B', data)
+        arr = be_array_from_bytes("B", data)
         arr = _delta_decode(arr, 0x100, w, h)
     elif depth == 16:
-        arr = be_array_from_bytes('H', data)
+        arr = be_array_from_bytes("H", data)
         arr = _delta_decode(arr, 0x10000, w, h)
     elif depth == 32:
-        arr = array.array('B', data)
+        arr = array.array("B", data)
         arr = _delta_decode(arr, 0x100, w * 4, h)
         arr = _restore_byte_order(arr, w, h)
     else:
-        raise ValueError('Invalid pixel size %d' % (depth))
+        raise ValueError("Invalid pixel size %d" % (depth))
 
-    return getattr(arr, 'tobytes', getattr(arr, 'tostring', None))()
+    return getattr(arr, "tobytes", getattr(arr, "tostring", None))()
 
 
 def _delta_encode(arr, mod, w, h):

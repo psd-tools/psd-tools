@@ -13,9 +13,9 @@ Usage:
     https://www.adobe.com/devnet/photoshop/sdk/eula.html
 """
 from __future__ import print_function
+
 import re
 import sys
-
 
 FILE_HEADER = '''"""
 Constants for descriptor.
@@ -57,42 +57,40 @@ STERM_PATTERN = re.compile(
 def extract_terminology(filepath, pattern=None):
     terms = {}
     keys = set()
-    with open(filepath, 'r') as f:
+    with open(filepath, "r") as f:
         for line in f:
             m = re.match(pattern or TERM_PATTERN, line)
             if m:
-                key = m.group('key')
+                key = m.group("key")
                 if key in keys:
                     continue
-                upper = re.search(r'[0-9A-Z]', key)
-                kls, name = key[:upper.start()], key[upper.start():]
-                if re.match(r'[0-9]', name[0]) or name in (
-                    'None', 'True', 'False'
-                ):
-                    name = '_' + name
-                kls = kls.capitalize().replace('Class', 'Klass')
+                upper = re.search(r"[0-9A-Z]", key)
+                kls, name = key[: upper.start()], key[upper.start() :]
+                if re.match(r"[0-9]", name[0]) or name in ("None", "True", "False"):
+                    name = "_" + name
+                kls = kls.capitalize().replace("Class", "Klass")
                 if kls in terms:
-                    terms[kls].append((name, m.group('value')))
+                    terms[kls].append((name, m.group("value")))
                 else:
-                    terms[kls] = [(name, m.group('value'))]
+                    terms[kls] = [(name, m.group("value"))]
     return terms
 
 
 def print_class(name, fields, header=None, **kwargs):
-    print('\n', **kwargs)
+    print("\n", **kwargs)
     print((header or "class {0}:").format(name), **kwargs)
     for field in fields:
-        print('    %s = b%r' % field, **kwargs)
+        print("    %s = b%r" % field, **kwargs)
 
 
 def main():
     terms = extract_terminology(sys.argv[1])
 
-    with open(sys.argv[2], 'w') as f:
+    with open(sys.argv[2], "w") as f:
         print(FILE_HEADER, file=f)
         for name in terms:
             print_class(name, terms[name], TERM_DEF, file=f)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

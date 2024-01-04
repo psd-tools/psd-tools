@@ -17,13 +17,7 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-import os
-import sys
 import sphinx_rtd_theme
-
-sys.path.insert(
-    0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'src')
-)
 
 from psd_tools.version import __version__
 
@@ -36,24 +30,24 @@ from psd_tools.version import __version__
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ['sphinx.ext.autodoc', 'sphinx.ext.todo', 'sphinx.ext.viewcode']
+extensions = ["sphinx.ext.autodoc", "sphinx.ext.todo", "sphinx.ext.viewcode"]
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
 #
 # source_suffix = ['.rst', '.md']
-source_suffix = '.rst'
+source_suffix = ".rst"
 
 # The master toctree document.
-master_doc = 'index'
+master_doc = "index"
 
 # General information about the project.
-project = 'psd-tools'
-copyright = '2019, Kota Yamaguchi'
-author = 'Kota Yamaguchi'
+project = "psd-tools"
+copyright = "2019, Kota Yamaguchi"
+author = "Kota Yamaguchi"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -69,15 +63,15 @@ release = __version__
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = 'en'
+language = "en"
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This patterns also effect to html_static_path and html_extra_path
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = 'sphinx'
+pygments_style = "sphinx"
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
@@ -87,7 +81,7 @@ todo_include_todos = True
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinx_rtd_theme'
+html_theme = "sphinx_rtd_theme"
 html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 
 # Theme options are theme-specific and customize the look and feel of a theme
@@ -99,7 +93,7 @@ html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ["_static"]
 
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.
@@ -107,12 +101,12 @@ html_static_path = ['_static']
 # This is required for the alabaster theme
 # refs: http://alabaster.readthedocs.io/en/latest/installation.html#sidebars
 html_sidebars = {
-    '**': [
-        'about.html',
-        'navigation.html',
-        'relations.html',  # needs 'show_related': True theme option to display
-        'searchbox.html',
-        'donate.html',
+    "**": [
+        "about.html",
+        "navigation.html",
+        "relations.html",  # needs 'show_related': True theme option to display
+        "searchbox.html",
+        "donate.html",
     ]
 }
 
@@ -128,7 +122,7 @@ html_context = dict(
 # -- Options for HTMLHelp output ------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'srcdoc'
+htmlhelp_basename = "srcdoc"
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -136,15 +130,12 @@ latex_elements = {
     # The paper size ('letterpaper' or 'a4paper').
     #
     # 'papersize': 'letterpaper',
-
     # The font size ('10pt', '11pt' or '12pt').
     #
     # 'pointsize': '10pt',
-
     # Additional stuff for the LaTeX preamble.
     #
     # 'preamble': '',
-
     # Latex figure (float) alignment
     #
     # 'figure_align': 'htbp',
@@ -154,14 +145,14 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'src.tex', 'src Documentation', 'Author', 'manual'),
+    (master_doc, "src.tex", "src Documentation", "Author", "manual"),
 ]
 
 # -- Options for manual page output ---------------------------------------
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [(master_doc, 'src', 'src Documentation', [author], 1)]
+man_pages = [(master_doc, "src", "src Documentation", [author], 1)]
 
 # -- Options for Texinfo output -------------------------------------------
 
@@ -170,8 +161,13 @@ man_pages = [(master_doc, 'src', 'src Documentation', [author], 1)]
 #  dir menu entry, description, category)
 texinfo_documents = [
     (
-        master_doc, 'src', 'src Documentation', author, 'src',
-        'One line description of project.', 'Miscellaneous'
+        master_doc,
+        "src",
+        "src Documentation",
+        author,
+        "src",
+        "One line description of project.",
+        "Miscellaneous",
     ),
 ]
 
@@ -193,15 +189,15 @@ epub_copyright = copyright
 # epub_uid = ''
 
 # A list of files that should not be packed into the epub file.
-epub_exclude_files = ['search.html']
+epub_exclude_files = ["search.html"]
 
 # -- Remove auto-generated namedtuple docstrings ---------------------------
 
 
 # Named tuples generate rather inhumane docstring. Remove them.
 def no_namedtuple_attrib_docstring(app, what, name, obj, options, lines):
-    is_namedtuple_docstring = (
-        len(lines) == 2 and lines[0].startswith(u'Alias for field number')
+    is_namedtuple_docstring = len(lines) == 2 and lines[0].startswith(
+        "Alias for field number"
     )
     if is_namedtuple_docstring:
         del lines[:]
@@ -209,6 +205,6 @@ def no_namedtuple_attrib_docstring(app, what, name, obj, options, lines):
 
 def setup(app):
     app.connect(
-        'autodoc-process-docstring',
+        "autodoc-process-docstring",
         no_namedtuple_attrib_docstring,
     )

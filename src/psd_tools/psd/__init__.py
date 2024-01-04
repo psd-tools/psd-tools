@@ -5,14 +5,17 @@ All the data structure in this subpackage inherits from one of the object
 defined in :py:mod:`psd_tools.psd.base` module.
 """
 from __future__ import absolute_import, unicode_literals
-import attr
+
 import logging
+
+import attr
+
 from .base import BaseElement
-from .header import FileHeader
 from .color_mode_data import ColorModeData
+from .header import FileHeader
+from .image_data import ImageData
 from .image_resources import ImageResources
 from .layer_and_mask import LayerAndMaskInformation
-from .image_data import ImageData
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +58,7 @@ class PSD(BaseElement):
 
         See :py:class:`.ImageData`.
     """
+
     header = attr.ib(factory=FileHeader)
     color_mode_data = attr.ib(factory=ColorModeData)
     image_resources = attr.ib(factory=ImageResources)
@@ -62,9 +66,9 @@ class PSD(BaseElement):
     image_data = attr.ib(factory=ImageData)
 
     @classmethod
-    def read(cls, fp, encoding='macroman', **kwargs):
+    def read(cls, fp, encoding="macroman", **kwargs):
         header = FileHeader.read(fp)
-        logger.debug('read %s' % header)
+        logger.debug("read %s" % header)
         return cls(
             header,
             ColorModeData.read(fp),
@@ -73,8 +77,8 @@ class PSD(BaseElement):
             ImageData.read(fp),
         )
 
-    def write(self, fp, encoding='macroman', **kwargs):
-        logger.debug('writing %s' % self.header)
+    def write(self, fp, encoding="macroman", **kwargs):
+        logger.debug("writing %s" % self.header)
         written = self.header.write(fp)
         written += self.color_mode_data.write(fp)
         written += self.image_resources.write(fp, encoding)
@@ -98,6 +102,7 @@ class PSD(BaseElement):
 
     def _get_layer_info(self):
         from psd_tools.constants import Tag
+
         tagged_blocks = self.layer_and_mask_information.tagged_blocks
         if tagged_blocks is not None:
             for key in (Tag.LAYER_16, Tag.LAYER_32):
