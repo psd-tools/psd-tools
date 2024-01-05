@@ -50,7 +50,7 @@ psd-tools = "psd_tools.__main__:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-mypkg = ["*.pyx"]
+psd_tools = ["*.pyx"]
 
 [tool.setuptools.dynamic]
 version = { attr = "psd_tools.version.__version__" }
