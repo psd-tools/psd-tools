@@ -4,12 +4,6 @@
 from libcpp.string cimport string
 
 
-class PackBitsDecodeError(Exception):
-    def __init__(self, result, *args: object) -> None:
-        self.result = result
-        super().__init__(*args)
-
-
 def decode(const unsigned char[:] data, Py_ssize_t size) -> string:
     """decode(data, size) -> bytes
 
@@ -20,28 +14,33 @@ def decode(const unsigned char[:] data, Py_ssize_t size) -> string:
     cdef int length = len(data)
     cdef unsigned char bit
     cdef string result
+    cdef Py_ssize_t result_length = 0
 
-    result.resize(size)
+    result.reserve(size)
 
     if length == 1:
         if data[0] != 128:
             raise ValueError('Invalid RLE compression')
         return result
 
-    while i < length and (result.size() < <unsigned long>size):
+    while i < length:
         i, bit = i+1, data[i]
         if bit > 128:
             bit = 256 - bit
+            if result_length+bit+1 > size:
+                raise ValueError('Invalid RLE compression')
             result.append(1+bit, <char>data[i])
+            result_length += 1+bit
             i+=1
         elif bit < 128:
-            if i+bit > length:
+            if 1+bit > length or (result_length+bit+1 > size):
                 raise ValueError('Invalid RLE compression')
             result.append(<char*>&data[i], 1+bit)
+            result_length += 1+bit
             i+=bit + 1
 
-    if size and (result.size() != <unsigned long>size):
-        raise PackBitsDecodeError(result, 'Expected %d bytes but decoded %d bytes' % (size, result.size()))
+    if size and (result_length != size):
+        raise ValueError('Expected %d bytes but decoded %d bytes' % (size, result_length))
 
     return result
 

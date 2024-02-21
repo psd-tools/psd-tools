@@ -1,9 +1,3 @@
-class PackBitsDecodeError(Exception):
-    def __init__(self, result, *args: object) -> None:
-        self.result = result
-        super().__init__(*args)
-
-
 def decode(data: bytes, size: int) -> bytes:
     """decode(data, size) -> bytes
 
@@ -35,7 +29,7 @@ def decode(data: bytes, size: int) -> bytes:
             i+=bit + 1
 
     if size and (len(result) != size):
-        raise PackBitsDecodeError(result, 'Expected %d bytes but decoded %d bytes' % (size, result_len))
+        raise ValueError('Expected %d bytes but decoded %d bytes' % (size, result_len))
 
     return bytes(result)
 
