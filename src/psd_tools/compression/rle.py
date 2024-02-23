@@ -4,32 +4,34 @@ def decode(data: bytes, size: int) -> bytes:
     Apple PackBits RLE decoder.
     """
 
-    i = 0
-    data = bytearray(data)
+    i, j = 0, 0
     length = len(data)
-    result, result_len = bytearray(), 0
+    data = bytearray(data)
+    result = bytearray()
 
     if length == 1:
         if data[0] != 128:
             raise ValueError('Invalid RLE compression')
         return result
 
-    while i < length and (result_len < size):
+    while i < length:
         i, bit = i+1, data[i]
         if bit > 128:
             bit = 256 - bit
+            if j+1+bit > size:
+                raise ValueError('Invalid RLE compression')
             result.extend((data[i:i+1])*(1+bit))
-            result_len += 1+bit
-            i+=1
+            j += 1+bit
+            i += 1
         elif bit < 128:
-            if i+bit > length:
+            if i+1+bit > length or (j+1+bit > size):
                 raise ValueError('Invalid RLE compression')
             result.extend(data[i: i+1+bit])
-            result_len += 1+bit
-            i+=bit + 1
+            j += 1+bit
+            i += 1+bit
 
     if size and (len(result) != size):
-        raise ValueError('Expected %d bytes but decoded %d bytes' % (size, result_len))
+        raise ValueError('Expected %d bytes but decoded %d bytes' % (size, j))
 
     return bytes(result)
 
@@ -69,8 +71,7 @@ def encode(data: bytes) -> bytes:
                 if j+1 < length and (data[j] != data[j+1]):
                     pass
                 # NOTE: There's no space saved from encoding length 2 repetitions.
-                #: So we only swap back once we see more than 2, or when
-                #: we need to reset our counter soon anyway. For example:
+                #: For example:
                 #  A  B  C  D  D  E  F  G  G  G  G  G  G  H  I  J  J  K
                 #: could be encoded as either of the following:
                 # +2  A  B  C -1  D +1  E  F -5  G +1  H  I -1  J +0  K
