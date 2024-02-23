@@ -76,7 +76,7 @@ def encode(data: bytes) -> bytes:
                 #: could be encoded as either of the following:
                 # +2  A  B  C -1  D +1  E  F -5  G +1  H  I -1  J +0  K
                 # +6  A  B  C  D  D  E  F -5  G +3  H  I  J  J  K
-                elif ((j+2 == length) or (MAX_LEN - (j - i) <= 4)) and (data[j] == data[j+1]):
+                elif ((j+2 == length) or (MAX_LEN - (j - i) <= 2)) and (data[j] == data[j+1]):
                     break
                 elif j+2 < length and (data[j] == data[j+1] == data[j+2]):
                     break
