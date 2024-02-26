@@ -1,113 +1,87 @@
-def decode(data, size):
+def decode(data: bytes, size: int) -> bytes:
+    """decode(data, size) -> bytes
+
+    Apple PackBits RLE decoder.
     """
-    Decodes RLE encoded data.
-    """
-    data = bytearray(data)  # <- python 2/3 compatibility fix
-    result = bytearray(size)
-    src = 0
-    dst = 0
-    while src < len(data):
-        header = data[src]
-        if header > 127:
-            header -= 256
-        src += 1
 
-        if 0 <= header <= 127:
-            length = header + 1
-            if src + length <= len(data) and dst + length <= size:
-                result[dst : dst + header + 1] = data[src : src + length]
-                src += length
-                dst += length
-            else:
-                raise ValueError("Invalid RLE compression")
-        elif header == -128:
-            pass
-        else:
-            length = 1 - header
-            if src + 1 <= len(data) and dst + length <= size:
-                result[dst : dst + length] = [data[src]] * length
-                src += 1
-                dst += length
-            else:
-                raise ValueError("Invalid RLE compression")
-    if dst < size:
-        raise ValueError("Expected %d bytes but decoded only %d bytes" % (size, dst))
-
-    return bytes(result)
-
-
-def encode(data):
-    """
-    Encodes data using RLE encoding.
-    """
-    if len(data) == 0:
-        return data
-
-    if len(data) == 1:
-        return b"\x00" + data
-
+    i, j = 0, 0
+    length = len(data)
     data = bytearray(data)
-
     result = bytearray()
-    buf = bytearray()
-    pos = 0
-    repeat_count = 0
-    MAX_LENGTH = 127
 
-    # we can safely start with RAW as empty RAW sequences
-    # are handled by finish_raw(buf, result)
-    state = "RAW"
+    if length == 1:
+        if data[0] != 128:
+            raise ValueError('Invalid RLE compression')
+        return result
 
-    while pos < len(data) - 1:
-        current_byte = data[pos]
+    while i < length:
+        i, bit = i+1, data[i]
+        if bit > 128:
+            bit = 256 - bit
+            if j+1+bit > size:
+                raise ValueError('Invalid RLE compression')
+            result.extend((data[i:i+1])*(1+bit))
+            j += 1+bit
+            i += 1
+        elif bit < 128:
+            if i+1+bit > length or (j+1+bit > size):
+                raise ValueError('Invalid RLE compression')
+            result.extend(data[i: i+1+bit])
+            j += 1+bit
+            i += 1+bit
 
-        if data[pos] == data[pos + 1]:
-            if state == "RAW":
-                # end of RAW data
-                finish_raw(buf, result)
-                state = "RLE"
-                repeat_count = 1
-            elif state == "RLE":
-                if repeat_count == MAX_LENGTH:
-                    # restart the encoding
-                    finish_rle(result, repeat_count, data, pos)
-                    repeat_count = 0
-                # move to next byte
-                repeat_count += 1
-
-        else:
-            if state == "RLE":
-                repeat_count += 1
-                finish_rle(result, repeat_count, data, pos)
-                state = "RAW"
-                repeat_count = 0
-            elif state == "RAW":
-                if len(buf) == MAX_LENGTH:
-                    # restart the encoding
-                    finish_raw(buf, result)
-
-                buf.append(current_byte)
-
-        pos += 1
-
-    if state == "RAW":
-        buf.append(data[pos])
-        finish_raw(buf, result)
-    else:
-        repeat_count += 1
-        finish_rle(result, repeat_count, data, pos)
+    if size and (len(result) != size):
+        raise ValueError('Expected %d bytes but decoded %d bytes' % (size, j))
 
     return bytes(result)
 
 
-def finish_raw(buf, result):
-    if len(buf) == 0:
-        return
-    result.append(len(buf) - 1)
-    result.extend(buf)
-    buf[:] = bytearray()
+def encode(data: bytes) -> bytes:
+    """encode(data) -> bytes
 
+    Apple PackBits RLE encoder.
+    """
 
-def finish_rle(result, repeat_count, data, pos):
-    result.append(256 - (repeat_count - 1))
-    result.append(data[pos])
+    MAX_LEN = 0xFF >> 1
+    length = len(data)
+    i = 0
+    j = 0
+    result = bytearray()
+
+    if length == 0:
+        return data
+    if length == 1:
+        result.extend((0, data[0]))
+        return result
+
+    while i < length:
+        if j + 1 < length and data[j] == data[j+1]:
+            while j < length:
+                if j - i >= MAX_LEN:
+                    break
+                if j + 1 >= length or data[j] != data[j+1]:
+                    break
+                j += 1
+            result.extend((256 - (j - i), data[i]))
+            i = j = j + 1
+        else:
+            while j < length:
+                if j - i >= MAX_LEN:
+                    break
+                if j+1 < length and (data[j] != data[j+1]):
+                    pass
+                # NOTE: There's no space saved from encoding length 2 repetitions.
+                #: For example:
+                #  A  B  C  D  D  E  F  G  G  G  G  G  G  H  I  J  J  K
+                #: could be encoded as either of the following:
+                # +2  A  B  C -1  D +1  E  F -5  G +1  H  I -1  J +0  K
+                # +6  A  B  C  D  D  E  F -5  G +3  H  I  J  J  K
+                elif ((j+2 == length) or (MAX_LEN - (j - i) <= 2)) and (data[j] == data[j+1]):
+                    break
+                elif j+2 < length and (data[j] == data[j+1] == data[j+2]):
+                    break
+                j += 1
+            result.append(j - i - 1)
+            result.extend(data[i:j])
+            i = j
+    return bytes(result)
