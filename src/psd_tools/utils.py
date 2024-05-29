@@ -1,6 +1,7 @@
 """
 Various utility functions for low-level binary processing.
 """
+
 from __future__ import division, print_function, unicode_literals
 
 import array

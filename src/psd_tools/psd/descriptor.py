@@ -15,6 +15,7 @@ Pretty printing is the best approach to check the descriptor content::
     from IPython.pretty import pprint
     pprint(descriptor)
 """
+
 from __future__ import absolute_import, unicode_literals
 
 import logging

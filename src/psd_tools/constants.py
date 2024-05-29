@@ -1,6 +1,7 @@
 """
 Various constants for psd_tools
 """
+
 from enum import Enum, IntEnum, auto
 
 

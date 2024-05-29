@@ -11,27 +11,27 @@ def decode(data: bytes, size: int) -> bytes:
 
     if length == 1:
         if data[0] != 128:
-            raise ValueError('Invalid RLE compression')
+            raise ValueError("Invalid RLE compression")
         return result
 
     while i < length:
-        i, bit = i+1, data[i]
+        i, bit = i + 1, data[i]
         if bit > 128:
             bit = 256 - bit
-            if j+1+bit > size:
-                raise ValueError('Invalid RLE compression')
-            result.extend((data[i:i+1])*(1+bit))
-            j += 1+bit
+            if j + 1 + bit > size:
+                raise ValueError("Invalid RLE compression")
+            result.extend((data[i : i + 1]) * (1 + bit))
+            j += 1 + bit
             i += 1
         elif bit < 128:
-            if i+1+bit > length or (j+1+bit > size):
-                raise ValueError('Invalid RLE compression')
-            result.extend(data[i: i+1+bit])
-            j += 1+bit
-            i += 1+bit
+            if i + 1 + bit > length or (j + 1 + bit > size):
+                raise ValueError("Invalid RLE compression")
+            result.extend(data[i : i + 1 + bit])
+            j += 1 + bit
+            i += 1 + bit
 
     if size and (len(result) != size):
-        raise ValueError('Expected %d bytes but decoded %d bytes' % (size, j))
+        raise ValueError("Expected %d bytes but decoded %d bytes" % (size, j))
 
     return bytes(result)
 
@@ -55,11 +55,11 @@ def encode(data: bytes) -> bytes:
         return result
 
     while i < length:
-        if j + 1 < length and data[j] == data[j+1]:
+        if j + 1 < length and data[j] == data[j + 1]:
             while j < length:
                 if j - i >= MAX_LEN:
                     break
-                if j + 1 >= length or data[j] != data[j+1]:
+                if j + 1 >= length or data[j] != data[j + 1]:
                     break
                 j += 1
             result.extend((256 - (j - i), data[i]))
@@ -68,7 +68,7 @@ def encode(data: bytes) -> bytes:
             while j < length:
                 if j - i >= MAX_LEN:
                     break
-                if j+1 < length and (data[j] != data[j+1]):
+                if j + 1 < length and (data[j] != data[j + 1]):
                     pass
                 # NOTE: There's no space saved from encoding length 2 repetitions.
                 #: For example:
@@ -76,9 +76,11 @@ def encode(data: bytes) -> bytes:
                 #: could be encoded as either of the following:
                 # +2  A  B  C -1  D +1  E  F -5  G +1  H  I -1  J +0  K
                 # +6  A  B  C  D  D  E  F -5  G +3  H  I  J  J  K
-                elif ((j+2 == length) or (MAX_LEN - (j - i) <= 2)) and (data[j] == data[j+1]):
+                elif ((j + 2 == length) or (MAX_LEN - (j - i) <= 2)) and (
+                    data[j] == data[j + 1]
+                ):
                     break
-                elif j+2 < length and (data[j] == data[j+1] == data[j+2]):
+                elif j + 2 < length and (data[j] == data[j + 1] == data[j + 2]):
                     break
                 j += 1
             result.append(j - i - 1)

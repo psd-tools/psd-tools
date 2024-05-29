@@ -3,6 +3,7 @@ Composer API.
 
 Composer takes responsibility of rendering layers as an image.
 """
+
 from __future__ import absolute_import, unicode_literals
 
 import logging

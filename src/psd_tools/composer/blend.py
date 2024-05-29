@@ -5,6 +5,7 @@ Check Blending_ section of W3C recommendation for blending mode definitions.
 
 .. _Blending: https://www.w3.org/TR/compositing/#blending
 """
+
 from __future__ import absolute_import, unicode_literals
 
 import logging
