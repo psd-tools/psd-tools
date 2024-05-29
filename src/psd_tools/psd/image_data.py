@@ -5,6 +5,7 @@ Image data section structure.
 where a composited image is stored. When the file does not contain layers,
 this is the only place pixels are saved.
 """
+
 from __future__ import absolute_import, unicode_literals
 
 import io

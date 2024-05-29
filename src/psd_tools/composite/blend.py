@@ -1,6 +1,7 @@
 """
 Blend mode implementations.
 """
+
 import functools
 import logging
 

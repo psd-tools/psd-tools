@@ -40,7 +40,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "ipython", "flake8", "black", "isort", "pysen"]
+dev = ["pytest", "pytest-cov", "ipython", "ruff", "types-docopt"]
 docs = ["sphinx", "sphinx_rtd_theme"]
 
 [project.scripts]
@@ -61,19 +61,3 @@ test-requires = ["pytest", "pytest-cov", "ipython"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--cov=psd_tools"
-
-[tool.pysen]
-version = "0.10"
-
-[tool.pysen.lint]
-enable_black = true
-enable_flake8 = true
-enable_isort = true
-enable_mypy = false
-mypy_preset = "strict"
-line_length = 88
-py_version = "py38"
-isort_known_first_party = ["psd_tools"]
-
-[[tool.pysen.lint.mypy_targets]]
-paths = ["src", "tests"]

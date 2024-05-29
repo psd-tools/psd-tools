@@ -1,6 +1,7 @@
 """
 PSD Image module.
 """
+
 from __future__ import absolute_import, unicode_literals
 
 import logging
@@ -605,13 +606,13 @@ class PSDImage(GroupMixin):
             divider = blocks.get_data(Tag.SECTION_DIVIDER_SETTING, None)
             divider = blocks.get_data(Tag.NESTED_SECTION_DIVIDER_SETTING, divider)
             if (
-                divider is not None and
-
+                divider is not None
+                and
                 # Some PSDs contain dividers with SectionDivider.OTHER.
                 # Ignoring them, allows the correct categorization of the layer.
                 # Issue : https://github.com/psd-tools/psd-tools/issues/338
                 divider.kind is not SectionDivider.OTHER
-                ):
+            ):
                 if divider.kind == SectionDivider.BOUNDING_SECTION_DIVIDER:
                     layer = Group(self, None, None, current_group)
                     group_stack.append(layer)

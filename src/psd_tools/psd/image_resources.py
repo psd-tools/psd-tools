@@ -59,6 +59,7 @@ The following resources are plain bytes::
     Resource.IMAGE_READY_VERSION: 7006
     Resource.LIGHTROOM_WORKFLOW: 8000
 """
+
 from __future__ import absolute_import, unicode_literals
 
 import io

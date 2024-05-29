@@ -9,6 +9,7 @@ Example::
     if layer.kind == 'gradientfill':
         print(layer.gradient_kind)
 """
+
 from __future__ import absolute_import
 
 import logging

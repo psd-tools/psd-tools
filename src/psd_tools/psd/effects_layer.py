@@ -4,6 +4,7 @@ Effects layer structure.
 Note the structures in this module is obsolete and object-based layer effects
 are stored in tagged blocks.
 """
+
 from __future__ import absolute_import, unicode_literals
 
 import logging
