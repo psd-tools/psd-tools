@@ -28,6 +28,12 @@ class SmartObject(object):
                 self._config = layer.tagged_blocks.get_data(key)
                 break
 
+        self._placed_layer = None
+        for key in (Tag.PLACED_LAYER1, Tag.PLACED_LAYER2):
+            if key in layer.tagged_blocks:
+                self._placed_layer = layer.tagged_blocks.get_data(key)
+                break
+
         self._data = None
         for key in (
             Tag.LINKED_LAYER1,
@@ -121,6 +127,21 @@ class SmartObject(object):
     def resolution(self):
         """Resolution of the object."""
         return self._config.data.get(b"Rslt").value
+
+    @property
+    def transform_box(self):
+        """
+        A tuple representing the coordinates of the smart objects's transformed box. This box is the result of one or more transformations such as scaling, rotation, translation, or skewing to the original bounding box of the smart object.
+
+        The format of the tuple is as follows:
+        (x1, y1, x2, y2, x3, y3, x4, y4)
+
+        Where 1 is top left corner, 2 is top right, 3 is bottom right and 4 is bottom left.
+        """
+        if self._placed_layer and hasattr(self._placed_layer, "transform"):
+            return self._placed_layer.transform
+        else:
+            return None
 
     def save(self, filename=None):
         """
