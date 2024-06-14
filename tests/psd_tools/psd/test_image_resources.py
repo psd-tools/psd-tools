@@ -16,7 +16,7 @@ def test_image_resources_from_to():
 
 
 def test_image_resources_exception():
-    with pytest.raises(AssertionError):
+    with pytest.raises(IOError):
         ImageResources.frombytes(b"\x00\x00\x00\x01")
 
 
@@ -40,7 +40,7 @@ def test_image_resource_from_to(fixture):
 
 
 def test_image_resource_exception():
-    with pytest.raises(AssertionError):
+    with pytest.raises(IOError):
         ImageResource.frombytes(b"\x00\x00\x00\x01")
 
 

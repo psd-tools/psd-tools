@@ -204,7 +204,7 @@ class Curves(BaseElement):
         if version == 1:
             try:
                 extra = CurvesExtraMarker.read(fp, is_map=is_map)
-            except AssertionError:
+            except IOError:
                 logger.warning("Failed to read CurvesExtraMarker")
 
         return cls(is_map, version, count_map, data, extra)
