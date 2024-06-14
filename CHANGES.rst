@@ -1,3 +1,10 @@
+1.9.33 (2024-06-14)
+-------------------
+
+- [psd] Raise IO error instead of assertion (#413)
+- [api] Add a new property to SmartObject: transform_box (#412)
+- [ci] Migrate code formatter to ruff (#408)
+
 1.9.32 (2024-05-01)
 -------------------
 
