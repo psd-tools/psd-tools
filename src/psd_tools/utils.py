@@ -34,11 +34,12 @@ def read_fmt(fmt, fp):
     fmt = str(">" + fmt)
     fmt_size = struct.calcsize(fmt)
     data = fp.read(fmt_size)
-    try:
-        assert len(data) == fmt_size, "read=%d, expected=%d" % (len(data), fmt_size)
-    except AssertionError:
+    if len(data) != fmt_size:
         fp.seek(-len(data), 1)
-        raise
+        raise IOError(
+            "Failed to read data section: read=%d, expected=%d. "
+            "Likely the file is corrupted." % (len(data), fmt_size)
+        )
     return struct.unpack(fmt, data)
 
 
@@ -49,7 +50,11 @@ def write_fmt(fp, fmt, *args):
     fmt = str(">" + fmt)
     fmt_size = struct.calcsize(fmt)
     written = write_bytes(fp, struct.pack(fmt, *args))
-    assert written == fmt_size, "written=%d, expected=%d" % (written, fmt_size)
+    if written != fmt_size:
+        raise IOError(
+            "Failed to write data section: written=%d, expected=%d."
+            % (written, fmt_size)
+        )
     return written
 
 
@@ -62,7 +67,10 @@ def write_bytes(fp, data):
     pos = fp.tell()
     fp.write(data)
     written = fp.tell() - pos
-    assert written == len(data), "written=%d, expected=%d" % (written, len(data))
+    if written != len(data):
+        raise IOError(
+            "Failed to write data: written=%d, expected=%d." % (written, len(data))
+        )
     return written
 
 
@@ -76,7 +84,11 @@ def read_length_block(fp, fmt="I", padding=1):
     """
     length = read_fmt(fmt, fp)[0]
     data = fp.read(length)
-    assert len(data) == length, (len(data), length)
+    if len(data) != length:
+        raise IOError(
+            "Failed to read data section: read=%d, expected=%d. "
+            "Likely the file is corrupted." % (len(data), length)
+        )
     read_padding(fp, length, padding)
     return data
 

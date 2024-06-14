@@ -1,7 +1,6 @@
 from __future__ import absolute_import, unicode_literals
 
 import pytest
-
 from psd_tools.psd.color_mode_data import ColorModeData
 from psd_tools.utils import pack
 
@@ -93,7 +92,7 @@ def test_color_mode_data(fixture):
 
 
 def test_color_mode_data_exception():
-    with pytest.raises(AssertionError):
+    with pytest.raises(IOError):
         ColorModeData.frombytes(b"")
-    with pytest.raises(AssertionError):
+    with pytest.raises(IOError):
         ColorModeData.frombytes(str(10).encode("ascii"))

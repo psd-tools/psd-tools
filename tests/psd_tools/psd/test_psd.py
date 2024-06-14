@@ -4,7 +4,6 @@ import io
 import os
 
 import pytest
-
 from psd_tools.psd import PSD
 
 from ..utils import TEST_ROOT, all_files, check_write_read
@@ -54,7 +53,7 @@ def test_psd_write_read(filename):
 
 
 def test_psd_from_error():
-    with pytest.raises(AssertionError):
+    with pytest.raises(IOError):
         PSD.frombytes(b"\x00\x00\x00\x00")
 
 

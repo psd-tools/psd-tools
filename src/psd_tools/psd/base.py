@@ -363,7 +363,7 @@ class ShortIntegerElement(IntegerElement):
     def read(cls, fp, **kwargs):
         try:
             return cls(read_fmt("H2x", fp)[0])
-        except AssertionError as e:
+        except IOError as e:
             logger.error(e)
         return cls(read_fmt("H", fp)[0])
 
@@ -383,7 +383,7 @@ class ByteElement(IntegerElement):
     def read(cls, fp, **kwargs):
         try:
             return cls(read_fmt("B3x", fp)[0])
-        except AssertionError as e:
+        except IOError as e:
             logger.error(e)
         return cls(read_fmt("B", fp)[0])
 
@@ -405,7 +405,7 @@ class BooleanElement(IntegerElement):
     def read(cls, fp, **kwargs):
         try:
             return cls(read_fmt("?3x", fp)[0])
-        except AssertionError as e:
+        except IOError as e:
             logger.error(e)
         return cls(read_fmt("?", fp)[0])
 
