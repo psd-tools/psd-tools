@@ -11,7 +11,7 @@ from psd_tools.api.effects import Effects
 from psd_tools.api.mask import Mask
 from psd_tools.api.shape import Origination, Stroke, VectorMask
 from psd_tools.api.smart_object import SmartObject
-from psd_tools.constants import BlendMode, Clipping, Tag
+from psd_tools.constants import BlendMode, Clipping, Tag, TextType
 
 logger = logging.getLogger(__name__)
 
@@ -886,6 +886,33 @@ class TypeLayer(Layer):
         .. note:: New-line character in Photoshop is `'\\\\r'`.
         """
         return self._data.text_data.get(b"Txt ").value.rstrip("\x00")
+
+    @property
+    def text_type(self):
+        """
+        Text type. Read-only.
+
+        :return: 
+         - :py:attr:`psd_tools.constants.TextType.POINT` for point type text (also known as character type)
+         - :py:attr:`psd_tools.constants.TextType.PARAGRAPH` for paragraph type text (also known as area type)
+         - `None` if text type cannot be determined or information is unavailable
+
+        See :py:class:`psd_tools.constants.TextType`.
+        """
+        shapes = self._engine_data.get("EngineDict", {}).get("Rendered", {}).get("Shapes", {}).get("Children", {})
+        if len(shapes) == 1:
+            text_type = shapes[0].get("Cookie", {}).get("Photoshop", {}).get("ShapeType", {})
+            if text_type in (0, 1):
+                return TextType.POINT if text_type == 0 else TextType.PARAGRAPH
+            else:
+                logger.warning(f"Cannot determine text_type of layer '{self.name}' because information inside ShapeType was not found.")
+                return None
+        elif not shapes:
+            logger.warning(f"Cannot determine text_type of layer '{self.name}' because information inside EngineDict was not found.")
+            return None
+        elif len(shapes) > 1:
+            logger.warning(f"Cannot determine text_type of layer '{self.name}' because EngineDict has {len(shapes)} shapes.")
+            return None
 
     @property
     def transform(self):

@@ -107,3 +107,10 @@ Tag
 .. autoclass:: psd_tools.constants.Tag
     :members:
     :undoc-members:
+
+TextType
+--------
+
+.. autoclass:: psd_tools.constants.TextType
+    :members:
+    :undoc-members:

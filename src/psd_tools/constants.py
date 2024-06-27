@@ -507,3 +507,12 @@ class SheetColorType(IntEnum):
     INDIGO = 9
     MAGENTA = 10
     FUSCHIA = 11
+
+
+class TextType(IntEnum):
+    """
+    Type of text
+    """
+
+    POINT = 0
+    PARAGRAPH = 1
