@@ -593,6 +593,19 @@ class PSDImage(GroupMixin):
 
         rec_helper(self)
 
+    def set_log_level(self, log_level):
+        """
+        Set the logging level.
+
+        :param log_level: string of the desired logging level 'CRITICAL', 'ERROR', 'WARNING', 'INFO' or 'DEBUG'.
+
+        Default logging level is WARNING.
+        """
+        if log_level in ("CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"):
+            logging.basicConfig(level=log_level)
+        else:
+            logging.warning(f"Logging level '{log_level}' is not valid.")
+
     def _init(self):
         """Initialize layer structure."""
         group_stack = [self]
