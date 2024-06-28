@@ -79,7 +79,7 @@ def decompress(data, compression, width, height, depth, version=1):
         if result is None:
             mode = 'L' if depth == 8 else 'RGB' if depth == 24 else 'RGBA'
             result = Image.new(mode, (width, height), color=0).tobytes()
-            logger.info("Failed channel has been replaced by black")
+            logger.warning("Failed channel has been replaced by black")
         else:
             assert len(result) == length, "len=%d, expected=%d" % (len(result), length)
 
