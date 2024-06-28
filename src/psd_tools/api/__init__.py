@@ -2,7 +2,10 @@ from __future__ import absolute_import, unicode_literals
 
 import functools
 import warnings
+import logging
 
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.StreamHandler())
 
 def deprecated(func):
     @functools.wraps(func)

@@ -602,7 +602,7 @@ class PSDImage(GroupMixin):
         Default logging level is WARNING.
         """
         if log_level in ("CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"):
-            logging.basicConfig(level=log_level)
+            logger.parent.setLevel(log_level)
         else:
             logging.warning(f"Logging level '{log_level}' is not valid.")
 
