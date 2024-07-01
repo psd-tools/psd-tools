@@ -1,3 +1,9 @@
+1.9.34 (2024-07-01)
+-------------------
+
+- [api] Support text type property (#419)
+- [psd] Improve RLE decoding error handling (#417)
+
 1.9.33 (2024-06-14)
 -------------------
 
