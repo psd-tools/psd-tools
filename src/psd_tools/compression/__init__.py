@@ -7,6 +7,10 @@ from __future__ import absolute_import, unicode_literals
 import array
 import io
 import zlib
+from PIL import Image
+import logging
+
+logger = logging.getLogger(__name__)
 
 from psd_tools.constants import Compression
 from psd_tools.utils import (
@@ -72,7 +76,12 @@ def decompress(data, compression, width, height, depth, version=1):
         result = decode_prediction(decompressed, width, height, depth)
 
     if depth >= 8:
-        assert len(result) == length, "len=%d, expected=%d" % (len(result), length)
+        if result is None:
+            mode = 'L' if depth == 8 else 'RGB' if depth == 24 else 'RGBA'
+            result = Image.new(mode, (width, height), color=0).tobytes()
+            logger.warning("Failed channel has been replaced by black")
+        else:
+            assert len(result) == length, "len=%d, expected=%d" % (len(result), length)
 
     return result
 
@@ -93,12 +102,17 @@ def encode_rle(data, width, height, depth, version):
 
 
 def decode_rle(data, width, height, depth, version):
-    row_size = max(width * depth // 8, 1)
-    with io.BytesIO(data) as fp:
-        bytes_counts = read_be_array(("H", "I")[version - 1], height, fp)
-        return b"".join(
-            rle_impl.decode(fp.read(count), row_size) for count in bytes_counts
-        )
+    try:
+        row_size = max(width * depth // 8, 1)
+        with io.BytesIO(data) as fp:
+            bytes_counts = read_be_array(("H", "I")[version - 1], height, fp)
+            return b"".join(
+                rle_impl.decode(fp.read(count), row_size) for count in bytes_counts
+            )
+    except ValueError as e:
+        logger.error(f"An error occurred during RLE decoding: {e}")
+        logger.info(f"Decompression of RLE data failed: {width=} {height=} {depth=} {version=} size={len(data)}", exc_info=True)
+        return None
 
 
 def encode_prediction(data, w, h, depth):
