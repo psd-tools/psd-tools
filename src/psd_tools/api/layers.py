@@ -12,6 +12,9 @@ from psd_tools.api.mask import Mask
 from psd_tools.api.shape import Origination, Stroke, VectorMask
 from psd_tools.api.smart_object import SmartObject
 from psd_tools.constants import BlendMode, Clipping, Tag, TextType
+from psd_tools.psd.layer_and_mask import *
+from psd_tools.psd.tagged_blocks import *
+
 
 logger = logging.getLogger(__name__)
 
@@ -537,6 +540,52 @@ class Layer(object):
             " effects" if self.has_effects() else "",
         )
 
+    # Structure operations, supposes unique references to layers, deep copy might be needed
+    def delete_layer(self):
+        self.parent.remove(self)
+
+        # Garbage collection ftw
+        return self
+
+    def move_to_group(self, group):
+        
+        if group is self:
+            return self
+
+        self._parent.remove(self)
+        
+        group.append(self)
+        self._parent = group
+        
+        return self
+
+    # Top of the group is index 0
+    def move_up(self, ranks = 1):
+
+        newrank = self._parent.index(self) - ranks
+
+        if newrank < 0:
+            newrank = 0
+        elif newrank >= len(self.parent):
+            newrank = len(self.parent) - 1
+
+        self._parent.remove(self)
+        self._parent.insert(newrank, self)
+
+        return self
+
+    def move_down(self, ranks = 1):
+        newrank = self._parent.index(self) + ranks
+
+        if newrank < 0:
+            newrank = 0
+        elif newrank >= len(self.parent):
+            newrank = len(self.parent) - 1
+
+        self._parent.remove(self)
+        self._parent.insert(newrank, self)
+
+        return self
 
 class GroupMixin(object):
     @property
@@ -576,6 +625,21 @@ class GroupMixin(object):
 
     def __delitem__(self, key):
         return self._layers.__delitem__(key)
+
+    def append(self, layer):
+        return self._layers.append(layer)
+
+    def remove(self,  layer):
+        return self._layers.remove(layer)
+
+    def insert(self, index, layer):
+        return self._layers.insert(index, layer)
+
+    def clear(self):
+        return self._layers.clear()
+
+    def index(self, layer):
+        return self._layers.index(layer)
 
     @deprecated
     def compose(
@@ -668,6 +732,9 @@ class Group(GroupMixin, Layer):
     def __init__(self, psd, record, channels, parent, _open_record = None, _open_channels = None):
         super(Group, self).__init__(psd, record, channels, parent)
 
+        # Attributes that store the record for the folder divider. 
+        # Used when updating the record so that we don't need to recompute 
+        # Them from the ending layer 
         self._open_record = _open_record
         self._open_channels = _open_channels
 
@@ -732,6 +799,23 @@ class Group(GroupMixin, Layer):
             as_layer=True,
             apply_icc=apply_icc,
         )
+
+    def add_layer(self, layer):
+
+        if layer is self:
+            return layer
+
+        layer._parent = self
+        self._layers.append(layer)
+        
+        return layer
+
+    @classmethod
+    def new(cls, psd_file, name, open = True):
+        
+        
+
+        return cls(psd_file, record, channels, parent, _open_record, _open_channels)
 
 
 class Artboard(Group):
