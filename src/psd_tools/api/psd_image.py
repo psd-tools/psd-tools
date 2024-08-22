@@ -26,7 +26,7 @@ from psd_tools.constants import (
     SectionDivider,
     Tag,
 )
-from psd_tools.psd import PSD, FileHeader, ImageData, ImageResources
+from psd_tools.psd import PSD, FileHeader, ImageData, ImageResources, LayerAndMaskInformation, LayerInfo, LayerRecords, ChannelImageData
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +126,9 @@ class PSDImage(GroupMixin):
             default 'macroman'.
         :param mode: file open mode, default 'wb'.
         """
+
+        self._update_record()
+
         if hasattr(fp, "write"):
             self._record.write(fp, **kwargs)
         else:
@@ -144,6 +147,8 @@ class PSDImage(GroupMixin):
             available.
         """
         from .pil_io import convert_image_data_to_pil
+
+        self._update_record()
 
         if self.has_preview():
             return convert_image_data_to_pil(self, channel, apply_icc)
@@ -215,6 +220,8 @@ class PSDImage(GroupMixin):
         :return: :py:class:`PIL.Image`.
         """
         from psd_tools.composite import composite_pil
+
+        self._update_record()
 
         if not (ignore_preview or force or layer_filter) and self.has_preview():
             return self.topil(apply_icc=apply_icc)
@@ -566,6 +573,9 @@ class PSDImage(GroupMixin):
             layer._has_clip_target = True
 
     def _compute_clipping_layers(self):
+
+        self._update_record()
+
         self._clear_clipping_layers()
 
         def rec_helper(layer):
@@ -614,7 +624,7 @@ class PSDImage(GroupMixin):
                 divider.kind is not SectionDivider.OTHER
             ):
                 if divider.kind == SectionDivider.BOUNDING_SECTION_DIVIDER:
-                    layer = Group(self, None, None, current_group)
+                    layer = Group(self, None, None, current_group, record, channels)
                     group_stack.append(layer)
                 elif divider.kind in (
                     SectionDivider.OPEN_FOLDER,
@@ -672,3 +682,42 @@ class PSDImage(GroupMixin):
                 current_group._layers.append(layer)
 
         self._compute_clipping_layers()
+
+    def _update_record(self, layer_group=None):
+        """
+        Compiles the tree layer structure back into records and channels list recursively
+        """
+
+        if layer_group is None:
+            layer_group = self
+
+        layer_records = LayerRecords()
+        channel_image_data = ChannelImageData()
+
+        for layer in layer_group:
+            if layer.kind in ["group", "psdimage", "artboard"]:
+                
+                layer_records.append(layer._open_record)
+                channel_image_data.append(layer._open_channels)
+
+                tmp_layer_records, tmp_channel_image_data = self._update_record(layer)
+
+                layer_records.extend(tmp_layer_records)
+                channel_image_data.extend(tmp_channel_image_data)
+
+            layer_records.append(layer._record)
+            channel_image_data.append(layer._channels)
+            
+        if layer_group == self:
+
+            # PSDImage.frompil doesn't create a LayerInfo attribute to LayerAndMaskInformation 
+            if not self._record.layer_and_mask_information.layer_info:
+                self._record.layer_and_mask_information.layer_info = LayerAndMaskInformation()
+
+            self._record.layer_and_mask_information.layer_info.layer_records = layer_records
+            self._record.layer_and_mask_information.layer_info.channel_image_data = channel_image_data
+            self._record.layer_and_mask_information.layer_info.layer_count = -1 * len(layer_records)
+
+            return
+
+        return (layer_records, channel_image_data) 

@@ -373,6 +373,7 @@ class Layer(object):
 
         return convert_layer_to_pil(self, channel, apply_icc)
 
+
     @deprecated
     def compose(self, force=False, bbox=None, layer_filter=None):
         """
@@ -664,8 +665,12 @@ class Group(GroupMixin, Layer):
         lefts, tops, rights, bottoms = zip(*bboxes)
         return (min(lefts), min(tops), max(rights), max(bottoms))
 
-    def __init__(self, *args):
-        super(Group, self).__init__(*args)
+    def __init__(self, psd, record, channels, parent, _open_record = None, _open_channels = None):
+        super(Group, self).__init__(psd, record, channels, parent)
+
+        self._open_record = _open_record
+        self._open_channels = _open_channels
+
         self._layers = []
 
     @property
@@ -812,7 +817,16 @@ class PixelLayer(Layer):
         composed_image.save('composed-layer.png')
     """
 
-    pass
+    @classmethod
+    def frompil(cls, pil_im, layer_name = "Layer", top = 0, left = 0):
+        """
+        Method to create a layer from a PIL Image object
+
+        """
+
+        self = cls()
+
+        return self
 
 
 class SmartObjectLayer(Layer):
