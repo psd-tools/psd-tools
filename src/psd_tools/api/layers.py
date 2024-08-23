@@ -541,15 +541,22 @@ class Layer(object):
         )
 
 
-    # Structure operations, supposes unique references to layers, deep copy might be needed
+    # Structure operations, supposes unique references to layers, deep copy might be needed in the future
     def delete_layer(self):
+        """
+        Deletes the layer and all its child layers if the layer is a group
+        """
+
         self.parent._remove(self)
 
         # Garbage collection ftw
         return self
 
     def move_to_group(self, group):
-        
+        """
+        Moves the layer to the given group, updates the tree metadata as needed.
+        """
+
         if group is self:
             return self
 
@@ -568,6 +575,9 @@ class Layer(object):
         return self
 
     def move_up(self, ranks = 1):
+        """
+        Moves the layer up a certain number of ranks in the group the layer is in.
+        """
 
         newrank = self._parent.index(self) - ranks
 
@@ -582,6 +592,10 @@ class Layer(object):
         return self
 
     def move_down(self, ranks = 1):
+        """
+        Moves the layer down a certain number of ranks in the group the layer is in.
+        """
+
         newrank = self._parent.index(self) + ranks
 
         if newrank < 0:
@@ -619,6 +633,11 @@ class GroupMixin(object):
         return self._bbox
 
     def add_layer(self, layer):
+        """
+        Add a layer to the end (top) of the group
+
+        :param layer: The layer to add
+        """
 
         if layer is self:
             return layer
@@ -826,6 +845,14 @@ class Group(GroupMixin, Layer):
 
     @classmethod
     def new(cls, name = "Group", open_folder = True):
+        """
+        Create a new Group object with minimal records and data channels and metadata to properly include the group in the PSD file.
+
+        :param name: The display name of the group. Default to "Group".
+        :param open_folder: Boolean defining whether the folder will be open or closed. Default to true.
+
+        :return: A :py:class:`~psd_tools.api.layers.Group` object
+        """
 
         record = LayerRecord(top=0, left=0, bottom=0, right=0, name=name)
         record.tagged_blocks = TaggedBlocks()
@@ -857,6 +884,17 @@ class Group(GroupMixin, Layer):
 
     @classmethod
     def group_layers(cls, layers = [], name = "Group", parent = None, open_folder = True):
+        """
+        Create a new Group object containing the layers given in parameters.
+
+        :param layers: The layers to group. Can by any subclass of :py:class:`~psd_tools.api.layers.Layer`
+        :param name: The display name of the group. Default to "Group".
+        :param parent: The parent group to add the newly created Group object into.
+        :param open_folder: Boolean defining whether the folder will be open or closed. Default to true.
+
+        :return: A :py:class:`~psd_tools.api.layers.Group` object
+        """
+        
         """If parent is none, the group will be placed in place of the first layer in the given list"""
         
         if not layers:
@@ -961,7 +999,14 @@ class PixelLayer(Layer):
     @classmethod
     def frompil(cls, pil_im, layer_name = "Layer", top = 0, left = 0):
         """
-        Method to create a layer from a PIL Image object
+        Method to create a layer from a PIL Image object, currently tuned for RGBA image.
+
+        :param pil_im: The :py:class:`~PIL.Image` object to convert to photoshop
+        :param layer_name: The name of the layer. Defaults to "Layer"
+        :param top: Pixelwise offset from the top of the canvas for the new layer.
+        :param left: Pixelwise offset from the left of the canvas for the new layer.
+
+        :return: A :py:class:`~psd_tools.api.layers.PixelLayer` object
 
         TODO : Proper conversion check, other modes support        
         """
