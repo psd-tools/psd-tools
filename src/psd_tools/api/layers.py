@@ -552,7 +552,8 @@ class Layer(object):
         if group is self:
             return self
 
-        self._parent.remove(self)
+        if self in self.parent:
+            self._parent.remove(self)
         
         group.append(self)
         self._parent = group
@@ -610,6 +611,16 @@ class GroupMixin(object):
         if not hasattr(self, "_bbox"):
             self._bbox = Group.extract_bbox(self)
         return self._bbox
+
+    def add_layer(self, layer):
+
+        if layer is self:
+            return layer
+
+        layer._parent = self
+        self._layers.append(layer)
+        
+        return layer
 
     def __len__(self):
         return self._layers.__len__()
@@ -800,22 +811,60 @@ class Group(GroupMixin, Layer):
             apply_icc=apply_icc,
         )
 
-    def add_layer(self, layer):
+    @classmethod
+    def new(cls, psd_file, name = "Group", open_folder = True):
 
-        if layer is self:
-            return layer
+        record = LayerRecord(top=0, left=0, bottom=0, right=0, name=name)
+        record.tagged_blocks = TaggedBlocks()
 
-        layer._parent = self
-        self._layers.append(layer)
-        
-        return layer
+        record.tagged_blocks.set_data(Tag.SECTION_DIVIDER_SETTING, SectionDivider.OPEN_FOLDER if open_folder else SectionDivider.CLOSED_FOLDER)
+        record.tagged_blocks.set_data(Tag.UNICODE_LAYER_NAME, name)
+        record.tagged_blocks.set_data(Tag.LAYER_ID, 5000)
+
+        record.channel_info = [ChannelInfo(id=i-1, length = 2) for i in range(4)]
+
+
+
+        _open_record = LayerRecord(top=0, left=0, bottom=0, right=0, name="</Layer group>")
+        _open_record.tagged_blocks = TaggedBlocks()
+
+        _open_record.tagged_blocks.set_data(Tag.SECTION_DIVIDER_SETTING, SectionDivider.BOUNDING_SECTION_DIVIDER)
+        _open_record.tagged_blocks.set_data(Tag.UNICODE_LAYER_NAME, "</Layer group>")
+        _open_record.tagged_blocks.set_data(Tag.LAYER_ID, 5001)
+
+
+
+        _open_record.channel_info = [ChannelInfo(id=i-1, length = 2) for i in range(4)]
+
+
+        channels = ChannelDataList()
+        for i in range(4):
+            channels.append(ChannelData(compression=Compression.RAW, data=b''))
+
+        _open_channels = channels
+
+        group = cls(psd_file, record, channels, psd_file, _open_record, _open_channels)
+
+        return group
 
     @classmethod
-    def new(cls, psd_file, name, open = True):
+    def group_layers(cls, psd_file, layers = [], parent = None, name = "Group", open_folder = True):
+        """If parent is none, the group will be placed in place of the first layer in the given list"""
         
-        
+        if not layers:
+            return None
 
-        return cls(psd_file, record, channels, parent, _open_record, _open_channels)
+        if parent is None:
+            parent = layers[0]._parent
+
+        group = cls.new(psd_file, name, open_folder)
+
+        for layer in layers:
+            layer.move_to_group(group)
+
+        group.move_to_group(parent)
+
+        return group
 
 
 class Artboard(Group):
