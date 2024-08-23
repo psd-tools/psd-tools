@@ -697,8 +697,8 @@ class PSDImage(GroupMixin):
         for layer in layer_group:
             if layer.kind in ["group", "psdimage", "artboard"]:
                 
-                layer_records.append(layer._open_record)
-                channel_image_data.append(layer._open_channels)
+                layer_records.append(layer._bounding_record)
+                channel_image_data.append(layer._bounding_channels)
 
                 tmp_layer_records, tmp_channel_image_data = self._update_record(layer)
 

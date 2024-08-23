@@ -11,9 +11,9 @@ from psd_tools.api.effects import Effects
 from psd_tools.api.mask import Mask
 from psd_tools.api.shape import Origination, Stroke, VectorMask
 from psd_tools.api.smart_object import SmartObject
-from psd_tools.constants import BlendMode, Clipping, Tag, TextType
-from psd_tools.psd.layer_and_mask import *
-from psd_tools.psd.tagged_blocks import *
+from psd_tools.constants import BlendMode, Clipping, Tag, TextType, Compression, ChannelID, SectionDivider
+from psd_tools.psd.layer_and_mask import LayerRecord, ChannelDataList, ChannelData, ChannelInfo
+from psd_tools.psd.tagged_blocks import TaggedBlocks
 
 
 logger = logging.getLogger(__name__)
@@ -566,8 +566,9 @@ class Layer(object):
             else:
                 self._psd = group._psd
 
-        if self in self.parent:
-            self._parent._remove(self)
+        if self.parent is not None:
+            if self in self.parent:
+                self._parent._remove(self)
         
         group._append(self)
         self._parent = group
@@ -878,7 +879,7 @@ class Group(GroupMixin, Layer):
 
         _bounding_channels = channels
 
-        group = cls(None, record, channels, psd_file, _bounding_record, _bounding_channels)
+        group = cls(None, record, channels, None, _bounding_record, _bounding_channels)
 
         return group
 
@@ -1012,12 +1013,11 @@ class PixelLayer(Layer):
         """
 
         layer_record = LayerRecord(top=top, left=left, bottom=top + pil_im.height, right=left + pil_im.width)
-
-        layer_record.name = layer_name
-
-        layer_record.channel_info = []
         channel_data_list = ChannelDataList()
 
+        layer_record.name = layer_name
+        layer_record.channel_info = []
+        
         for channel in range(len(pil_im.getbands())):
 
             channel_data = ChannelData(compression=Compression.ZIP)
