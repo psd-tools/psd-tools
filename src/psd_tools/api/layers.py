@@ -540,9 +540,10 @@ class Layer(object):
             " effects" if self.has_effects() else "",
         )
 
+
     # Structure operations, supposes unique references to layers, deep copy might be needed
     def delete_layer(self):
-        self.parent.remove(self)
+        self.parent._remove(self)
 
         # Garbage collection ftw
         return self
@@ -552,15 +553,20 @@ class Layer(object):
         if group is self:
             return self
 
+        if self._psd is None:
+            if group.kind == "psdimage":
+                self._psd = group
+            else:
+                self._psd = group._psd
+
         if self in self.parent:
-            self._parent.remove(self)
+            self._parent._remove(self)
         
-        group.append(self)
+        group._append(self)
         self._parent = group
         
         return self
 
-    # Top of the group is index 0
     def move_up(self, ranks = 1):
 
         newrank = self._parent.index(self) - ranks
@@ -570,8 +576,8 @@ class Layer(object):
         elif newrank >= len(self.parent):
             newrank = len(self.parent) - 1
 
-        self._parent.remove(self)
-        self._parent.insert(newrank, self)
+        self._parent._remove(self)
+        self._parent._insert(newrank, self)
 
         return self
 
@@ -583,8 +589,8 @@ class Layer(object):
         elif newrank >= len(self.parent):
             newrank = len(self.parent) - 1
 
-        self._parent.remove(self)
-        self._parent.insert(newrank, self)
+        self._parent._remove(self)
+        self._parent._insert(newrank, self)
 
         return self
 
@@ -617,6 +623,12 @@ class GroupMixin(object):
         if layer is self:
             return layer
 
+        if layer._psd is None:
+            if self.kind == "psdimage":
+                layer._psd = self
+            else:
+                layer._psd = self._psd
+
         layer._parent = self
         self._layers.append(layer)
         
@@ -637,19 +649,20 @@ class GroupMixin(object):
     def __delitem__(self, key):
         return self._layers.__delitem__(key)
 
-    def append(self, layer):
+    # Use the layer structure methods instead, they make more comprehensive changes (with metadata updates)
+    def _append(self, layer):
         return self._layers.append(layer)
 
-    def remove(self,  layer):
+    def _remove(self,  layer):
         return self._layers.remove(layer)
 
-    def insert(self, index, layer):
+    def _insert(self, index, layer):
         return self._layers.insert(index, layer)
 
-    def clear(self):
+    def _clear(self):
         return self._layers.clear()
 
-    def index(self, layer):
+    def _index(self, layer):
         return self._layers.index(layer)
 
     @deprecated
@@ -812,17 +825,13 @@ class Group(GroupMixin, Layer):
         )
 
     @classmethod
-    def new(cls, psd_file, name = "Group", open_folder = True):
+    def new(cls, name = "Group", open_folder = True):
 
         record = LayerRecord(top=0, left=0, bottom=0, right=0, name=name)
         record.tagged_blocks = TaggedBlocks()
 
         record.tagged_blocks.set_data(Tag.SECTION_DIVIDER_SETTING, SectionDivider.OPEN_FOLDER if open_folder else SectionDivider.CLOSED_FOLDER)
         record.tagged_blocks.set_data(Tag.UNICODE_LAYER_NAME, name)
-        record.tagged_blocks.set_data(Tag.LAYER_ID, 5000)
-
-        record.channel_info = [ChannelInfo(id=i-1, length = 2) for i in range(4)]
-
 
 
         _open_record = LayerRecord(top=0, left=0, bottom=0, right=0, name="</Layer group>")
@@ -830,10 +839,9 @@ class Group(GroupMixin, Layer):
 
         _open_record.tagged_blocks.set_data(Tag.SECTION_DIVIDER_SETTING, SectionDivider.BOUNDING_SECTION_DIVIDER)
         _open_record.tagged_blocks.set_data(Tag.UNICODE_LAYER_NAME, "</Layer group>")
-        _open_record.tagged_blocks.set_data(Tag.LAYER_ID, 5001)
 
 
-
+        record.channel_info = [ChannelInfo(id=i-1, length = 2) for i in range(4)]
         _open_record.channel_info = [ChannelInfo(id=i-1, length = 2) for i in range(4)]
 
 
@@ -843,12 +851,12 @@ class Group(GroupMixin, Layer):
 
         _open_channels = channels
 
-        group = cls(psd_file, record, channels, psd_file, _open_record, _open_channels)
+        group = cls(None, record, channels, psd_file, _open_record, _open_channels)
 
         return group
 
     @classmethod
-    def group_layers(cls, psd_file, layers = [], parent = None, name = "Group", open_folder = True):
+    def group_layers(cls, layers = [], name = "Group", parent = None, open_folder = True):
         """If parent is none, the group will be placed in place of the first layer in the given list"""
         
         if not layers:
@@ -857,7 +865,7 @@ class Group(GroupMixin, Layer):
         if parent is None:
             parent = layers[0]._parent
 
-        group = cls.new(psd_file, name, open_folder)
+        group = cls.new(name, open_folder)
 
         for layer in layers:
             layer.move_to_group(group)
@@ -955,9 +963,38 @@ class PixelLayer(Layer):
         """
         Method to create a layer from a PIL Image object
 
+        TODO : Proper conversion check, other modes support        
         """
 
-        self = cls()
+        layer_record = LayerRecord(top=top, left=left, bottom=top + pil_im.height, right=left + pil_im.width)
+
+        layer_record.name = layer_name
+
+        layer_record.channel_info = []
+        channel_data_list = ChannelDataList()
+
+        for channel in range(len(pil_im.getbands())):
+
+            channel_data = ChannelData(compression=Compression.ZIP)
+            channel_data.set_data(pil_im.getchannel(channel).tobytes(), pil_im.height, pil_im.width, 8)
+
+            channel_data_list.append( channel_data )        
+            
+            c_info = ChannelInfo()
+            c_info.length = len(channel_data.data) + 2
+
+            if pil_im.getbands()[channel] == 'R':
+                c_info.id = ChannelID.CHANNEL_0
+            elif pil_im.getbands()[channel] == 'G':
+                c_info.id = ChannelID.CHANNEL_1
+            elif pil_im.getbands()[channel] == 'B':
+                c_info.id = ChannelID.CHANNEL_2
+            elif pil_im.getbands()[channel] == 'A':
+                c_info.id = ChannelID.TRANSPARENCY_MASK
+
+            layer_record.channel_info.append(c_info)
+
+        self = cls(None, layer_record, channel_data_list, None)
 
         return self
 
