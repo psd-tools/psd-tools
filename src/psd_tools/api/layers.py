@@ -772,14 +772,14 @@ class Group(GroupMixin, Layer):
         lefts, tops, rights, bottoms = zip(*bboxes)
         return (min(lefts), min(tops), max(rights), max(bottoms))
 
-    def __init__(self, psd, record, channels, parent, _open_record = None, _open_channels = None):
+    def __init__(self, psd, record, channels, parent, _bounding_record = None, _bounding_channels = None):
         super(Group, self).__init__(psd, record, channels, parent)
 
         # Attributes that store the record for the folder divider. 
         # Used when updating the record so that we don't need to recompute 
         # Them from the ending layer 
-        self._open_record = _open_record
-        self._open_channels = _open_channels
+        self._bounding_record = _bounding_record
+        self._bounding_channels = _bounding_channels
 
         self._layers = []
 
@@ -861,24 +861,24 @@ class Group(GroupMixin, Layer):
         record.tagged_blocks.set_data(Tag.UNICODE_LAYER_NAME, name)
 
 
-        _open_record = LayerRecord(top=0, left=0, bottom=0, right=0, name="</Layer group>")
-        _open_record.tagged_blocks = TaggedBlocks()
+        _bounding_record = LayerRecord(top=0, left=0, bottom=0, right=0, name="</Layer group>")
+        _bounding_record.tagged_blocks = TaggedBlocks()
 
-        _open_record.tagged_blocks.set_data(Tag.SECTION_DIVIDER_SETTING, SectionDivider.BOUNDING_SECTION_DIVIDER)
-        _open_record.tagged_blocks.set_data(Tag.UNICODE_LAYER_NAME, "</Layer group>")
+        _bounding_record.tagged_blocks.set_data(Tag.SECTION_DIVIDER_SETTING, SectionDivider.BOUNDING_SECTION_DIVIDER)
+        _bounding_record.tagged_blocks.set_data(Tag.UNICODE_LAYER_NAME, "</Layer group>")
 
 
         record.channel_info = [ChannelInfo(id=i-1, length = 2) for i in range(4)]
-        _open_record.channel_info = [ChannelInfo(id=i-1, length = 2) for i in range(4)]
+        _bounding_record.channel_info = [ChannelInfo(id=i-1, length = 2) for i in range(4)]
 
 
         channels = ChannelDataList()
         for i in range(4):
             channels.append(ChannelData(compression=Compression.RAW, data=b''))
 
-        _open_channels = channels
+        _bounding_channels = channels
 
-        group = cls(None, record, channels, psd_file, _open_record, _open_channels)
+        group = cls(None, record, channels, psd_file, _bounding_record, _bounding_channels)
 
         return group
 
@@ -892,7 +892,7 @@ class Group(GroupMixin, Layer):
         :param parent: The parent group to add the newly created Group object into.
         :param open_folder: Boolean defining whether the folder will be open or closed. Default to true.
 
-        :return: A :py:class:`~psd_tools.api.layers.Group` object
+        :return: A :py:class:`~psd_tools.api.layers.Group`
         """
         
         """If parent is none, the group will be placed in place of the first layer in the given list"""
