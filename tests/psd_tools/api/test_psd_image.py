@@ -7,6 +7,7 @@ import pytest
 from IPython.lib.pretty import pprint
 
 from psd_tools.api.psd_image import PSDImage
+from psd_tools.api.layers import Group
 from psd_tools.constants import ColorMode, Compression
 
 from ..utils import full_name
@@ -124,3 +125,45 @@ def test_repr_pretty(fixture):
 )
 def test_open(filename):
     assert isinstance(PSDImage.open(full_name(filename)), PSDImage)
+
+
+def test_update_record(fixture):
+
+    pixel_layer = PSDImage.open(full_name("layers/pixel-layer.psd"))[0]
+    fill_layer = PSDImage.open(full_name("layers/solid-color-fill.psd"))[0]
+    shape_layer = PSDImage.open(full_name("layers/shape-layer.psd"))[0]
+    smart_layer = PSDImage.open(full_name("layers/smartobject-layer.psd"))[0]
+    type_layer = PSDImage.open(full_name("layers/type-layer.psd"))[0]
+    group_layer = PSDImage.open(full_name("layers/group.psd"))[0]
+
+    group_layer.add_layers([pixel_layer, fill_layer, shape_layer, smart_layer, type_layer])
+
+    fixture.add_layer(group_layer)
+
+    fixture._update_record()
+
+    layer_info = fixture._record.layer_and_mask_information.layer_info
+
+    assert layer_info.layer_count == -9
+
+    assert layer_info.layer_records[0] is fixture[0]._record
+    assert layer_info.layer_records[1] is fixture[1]._record
+
+    assert layer_info.layer_records[2] is group_layer._bounding_record
+    assert layer_info.layer_records[3] is pixel_layer._record
+    assert layer_info.layer_records[4] is fill_layer._record
+    assert layer_info.layer_records[5] is shape_layer._record
+    assert layer_info.layer_records[6] is smart_layer._record
+    assert layer_info.layer_records[7] is type_layer._record
+    assert layer_info.layer_records[8] is group_layer._record
+
+    assert layer_info.channel_image_data[0] is fixture[0]._channels
+    assert layer_info.channel_image_data[1] is fixture[1]._channels
+
+    assert layer_info.channel_image_data[2] is group_layer._bounding_channels
+    assert layer_info.channel_image_data[3] is pixel_layer._channels
+    assert layer_info.channel_image_data[4] is fill_layer._channels
+    assert layer_info.channel_image_data[5] is shape_layer._channels
+    assert layer_info.channel_image_data[6] is smart_layer._channels
+    assert layer_info.channel_image_data[7] is type_layer._channels
+    assert layer_info.channel_image_data[8] is group_layer._channels

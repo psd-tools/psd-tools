@@ -6,7 +6,7 @@ import pytest
 
 from psd_tools.api.layers import Group, PixelLayer, ShapeLayer
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.constants import BlendMode
+from psd_tools.constants import BlendMode, Tag, SectionDivider
 
 from ..utils import full_name
 
@@ -242,3 +242,164 @@ def test_bbox_updates():
     assert group1.bbox == (0, 0, 0, 0)
     group1.visible = True
     assert group1.bbox == (25, 34, 80, 88)
+
+
+def test_new_group(group):
+    
+    test_group = Group.new("Test Group", parent = group)
+    
+    assert test_group._parent is group
+
+    assert test_group._record.tagged_blocks.get_data(Tag.SECTION_DIVIDER_SETTING).kind is SectionDivider.OPEN_FOLDER
+    assert test_group._bounding_record.tagged_blocks.get_data(Tag.SECTION_DIVIDER_SETTING).kind is SectionDivider.BOUNDING_SECTION_DIVIDER
+
+    assert test_group._record.tagged_blocks.get_data(Tag.UNICODE_LAYER_NAME) is "Test Group"
+    #assert test_group._bounding_record.tagged_blocks.get_data(Tag.UNICODE_LAYER_NAME) is "</Layer group>"
+
+    test_group = Group.new("Test Group 2", open_folder = False)
+    
+    assert test_group._parent is None
+
+    assert test_group._record.tagged_blocks.get_data(Tag.SECTION_DIVIDER_SETTING).kind is SectionDivider.CLOSED_FOLDER
+    assert test_group._bounding_record.tagged_blocks.get_data(Tag.SECTION_DIVIDER_SETTING).kind is SectionDivider.BOUNDING_SECTION_DIVIDER
+
+    assert test_group._record.tagged_blocks.get_data(Tag.UNICODE_LAYER_NAME) is "Test Group 2"
+    #assert test_group._bounding_record.tagged_blocks.get_data(Tag.UNICODE_LAYER_NAME) is "</Layer group>"
+
+    
+def test_group_layers(group, pixel_layer, smartobject_layer, fill_layer, adjustment_layer):
+    
+    pix_old_parent = pixel_layer._parent
+    pix_old_psd = pixel_layer._psd
+
+    test_group = Group.group_layers([pixel_layer, smartobject_layer, fill_layer, adjustment_layer])
+
+    assert len(test_group) == 4
+    assert test_group.name is "Group"
+
+    assert test_group[0] is pixel_layer
+    assert test_group[1] is smartobject_layer
+    assert test_group[2] is fill_layer
+    assert test_group[3] is adjustment_layer
+
+    assert test_group[0]._parent is test_group
+    assert test_group[1]._parent is test_group
+    assert test_group[2]._parent is test_group
+    assert test_group[3]._parent is test_group
+
+    assert test_group._parent is pix_old_parent
+    assert test_group._psd is pix_old_psd
+
+    assert test_group._psd is not None
+    assert test_group[0]._psd is not None
+
+
+    test_group = Group.group_layers([pixel_layer, smartobject_layer, fill_layer, adjustment_layer], parent = group)
+
+    assert len(test_group) == 4
+    assert test_group.name is "Group"
+
+    assert test_group._parent is group
+    assert test_group._psd is group._psd
+
+    assert test_group._psd is not None
+    assert test_group[0]._psd is not None
+
+
+
+def test_pixel_layer_frompil(pixel_layer):
+    from PIL.Image import Image
+    
+    pil_im = pixel_layer.topil()
+
+    pixel = PixelLayer.frompil(pil_im)
+
+    
+
+def test_delete_layer(pixel_layer):    
+    
+    pixel_layer.delete_layer()
+
+    assert pixel_layer not in pixel_layer._parent
+
+
+def test_move_to_group(group, pixel_layer):
+
+    pix_old_parent = pixel_layer._parent
+
+    pixel_layer.move_to_group(group)
+
+    assert pixel_layer in group
+    assert pixel_layer._parent is group
+    assert pixel_layer._psd is group._psd
+
+    assert pixel_layer not in pix_old_parent
+    
+def test_move_up(group, pixel_layer, type_layer, smartobject_layer, fill_layer, adjustment_layer):
+
+    test_group = Group.group_layers([pixel_layer, smartobject_layer, fill_layer, adjustment_layer], parent = group)
+
+    test_group.move_up(50)
+
+    assert test_group._parent._index(test_group) == 0
+
+    pixel_layer.move_up(2)
+
+    assert test_group._index(smartobject_layer) == 0
+    assert test_group._index(fill_layer) == 1
+    assert test_group._index(pixel_layer) == 2
+    assert test_group._index(adjustment_layer) == 3
+
+    smartobject_layer.move_up(30)
+
+    assert test_group._index(fill_layer) == 0
+    assert test_group._index(pixel_layer) == 1
+    assert test_group._index(adjustment_layer) == 2
+    assert test_group._index(smartobject_layer) == 3
+
+
+def test_move_down(group, pixel_layer, type_layer, smartobject_layer, fill_layer, adjustment_layer):
+
+    test_group = Group.group_layers([pixel_layer, smartobject_layer, fill_layer, adjustment_layer], parent = group)
+
+    test_group.move_up(50)
+
+    assert test_group._parent._index(test_group) == 0
+
+    fill_layer.move_down(2)
+
+    assert test_group._index(fill_layer) == 0
+    assert test_group._index(pixel_layer) == 1
+    assert test_group._index(smartobject_layer) == 2
+    assert test_group._index(adjustment_layer) == 3
+
+    smartobject_layer.move_down(30)
+
+    assert test_group._index(smartobject_layer) == 0
+    assert test_group._index(fill_layer) == 1
+    assert test_group._index(pixel_layer) == 2
+    assert test_group._index(adjustment_layer) == 3
+
+
+def add_layer(group, pixel_layer):
+    
+    pix_old_parent = pixel_layer._parent
+
+    group.add_layer(pixel_layer)
+
+    assert pixel_layer in group
+    assert pixel_layer._parent is group
+    assert pixel_layer._psd is group._psd
+
+    assert pixel_layer not in pix_old_parent
+
+
+def add_layers(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+    
+    group.add_layers([pixel_layer, type_layer, smartobject_layer, fill_layer])
+
+    for layer in [pixel_layer, type_layer, smartobject_layer, fill_layer]:
+
+        assert layer in group
+        assert layer._parent is group
+        assert layer._psd is group._psd

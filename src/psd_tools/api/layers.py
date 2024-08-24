@@ -544,10 +544,12 @@ class Layer(object):
     # Structure operations, supposes unique references to layers, deep copy might be needed in the future
     def delete_layer(self):
         """
-        Deletes the layer and all its child layers if the layer is a group
+        Deletes the layer and all its child layers if the layer is a group from its parent (group or psdimage).
         """
 
-        self.parent._remove(self)
+        if self.parent is not None:
+            if self in self.parent:
+                self._parent._remove(self)
 
         # Garbage collection ftw
         return self
@@ -557,14 +559,13 @@ class Layer(object):
         Moves the layer to the given group, updates the tree metadata as needed.
         """
 
-        if group is self:
-            return self
+        assert group.kind in ["group", "psdimage", "artboard"]
+        assert group is not self
 
-        if self._psd is None:
-            if group.kind == "psdimage":
-                self._psd = group
-            else:
-                self._psd = group._psd
+        if group.kind == "psdimage":
+            self._psd = group
+        else:
+            self._psd = group._psd
 
         if self.parent is not None:
             if self in self.parent:
@@ -575,37 +576,37 @@ class Layer(object):
         
         return self
 
-    def move_up(self, ranks = 1):
+    def move_up(self, offset = 1):
         """
-        Moves the layer up a certain number of ranks in the group the layer is in.
+        Moves the layer up a certain number of offset in the group the layer is in.
         """
 
-        newrank = self._parent.index(self) - ranks
+        newindex = self._parent._index(self) + offset
 
-        if newrank < 0:
-            newrank = 0
-        elif newrank >= len(self.parent):
-            newrank = len(self.parent) - 1
+        if newindex < 0:
+            newindex = 0
+        elif newindex >= len(self.parent):
+            newindex = len(self.parent) - 1
 
         self._parent._remove(self)
-        self._parent._insert(newrank, self)
+        self._parent._insert(newindex, self)
 
         return self
 
-    def move_down(self, ranks = 1):
+    def move_down(self, offset = 1):
         """
-        Moves the layer down a certain number of ranks in the group the layer is in.
+        Moves the layer down a certain number of offset in the group the layer is in.
         """
 
-        newrank = self._parent.index(self) + ranks
+        newindex = self._parent._index(self) - offset
 
-        if newrank < 0:
-            newrank = 0
-        elif newrank >= len(self.parent):
-            newrank = len(self.parent) - 1
+        if newindex < 0:
+            newindex = 0
+        elif newindex >= len(self.parent):
+            newindex = len(self.parent) - 1
 
         self._parent._remove(self)
-        self._parent._insert(newrank, self)
+        self._parent._insert(newindex, self)
 
         return self
 
@@ -640,19 +641,37 @@ class GroupMixin(object):
         :param layer: The layer to add
         """
 
-        if layer is self:
-            return layer
+        assert layer is not self
 
-        if layer._psd is None:
-            if self.kind == "psdimage":
-                layer._psd = self
-            else:
-                layer._psd = self._psd
+        if self.kind == "psdimage":
+            layer._psd = self
+        else:
+            layer._psd = self._psd
 
         layer._parent = self
         self._layers.append(layer)
         
         return layer
+
+    def add_layers(self, layers = []):
+        """
+        Add a list of layers to the end (top) of the group
+
+        :param layers: The layers to add
+        """
+
+        assert layers
+
+        for layer in layers:
+            if self.kind == "psdimage":
+                layer._psd = self
+            else:
+                layer._psd = self._psd
+
+            layer._parent = self
+            self._layers.append(layer)
+        
+        return self
 
     def __len__(self):
         return self._layers.__len__()
@@ -845,7 +864,7 @@ class Group(GroupMixin, Layer):
         )
 
     @classmethod
-    def new(cls, name = "Group", open_folder = True):
+    def new(cls, name = "Group", open_folder = True, parent = None):
         """
         Create a new Group object with minimal records and data channels and metadata to properly include the group in the PSD file.
 
@@ -880,6 +899,9 @@ class Group(GroupMixin, Layer):
         _bounding_channels = channels
 
         group = cls(None, record, channels, None, _bounding_record, _bounding_channels)
+        
+        if parent is not None:
+            group.move_to_group(parent)
 
         return group
 
@@ -888,6 +910,8 @@ class Group(GroupMixin, Layer):
         """
         Create a new Group object containing the layers given in parameters.
 
+        If parent is none, the group will be placed in place of the first layer in the given list
+
         :param layers: The layers to group. Can by any subclass of :py:class:`~psd_tools.api.layers.Layer`
         :param name: The display name of the group. Default to "Group".
         :param parent: The parent group to add the newly created Group object into.
@@ -895,21 +919,18 @@ class Group(GroupMixin, Layer):
 
         :return: A :py:class:`~psd_tools.api.layers.Group`
         """
-        
-        """If parent is none, the group will be placed in place of the first layer in the given list"""
-        
-        if not layers:
-            return None
+                
+        assert layers
 
         if parent is None:
             parent = layers[0]._parent
 
         group = cls.new(name, open_folder)
 
+        group.move_to_group(parent)
+
         for layer in layers:
             layer.move_to_group(group)
-
-        group.move_to_group(parent)
 
         return group
 
