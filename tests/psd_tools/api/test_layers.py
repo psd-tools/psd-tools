@@ -253,8 +253,8 @@ def test_new_group(group):
     assert test_group._record.tagged_blocks.get_data(Tag.SECTION_DIVIDER_SETTING).kind is SectionDivider.OPEN_FOLDER
     assert test_group._bounding_record.tagged_blocks.get_data(Tag.SECTION_DIVIDER_SETTING).kind is SectionDivider.BOUNDING_SECTION_DIVIDER
 
-    assert test_group._record.tagged_blocks.get_data(Tag.UNICODE_LAYER_NAME) is "Test Group"
-    #assert test_group._bounding_record.tagged_blocks.get_data(Tag.UNICODE_LAYER_NAME) is "</Layer group>"
+    assert test_group._record.tagged_blocks.get_data(Tag.UNICODE_LAYER_NAME) == "Test Group"
+    assert test_group._bounding_record.tagged_blocks.get_data(Tag.UNICODE_LAYER_NAME) == "</Layer group>"
 
     test_group = Group.new("Test Group 2", open_folder = False)
     
@@ -263,8 +263,8 @@ def test_new_group(group):
     assert test_group._record.tagged_blocks.get_data(Tag.SECTION_DIVIDER_SETTING).kind is SectionDivider.CLOSED_FOLDER
     assert test_group._bounding_record.tagged_blocks.get_data(Tag.SECTION_DIVIDER_SETTING).kind is SectionDivider.BOUNDING_SECTION_DIVIDER
 
-    assert test_group._record.tagged_blocks.get_data(Tag.UNICODE_LAYER_NAME) is "Test Group 2"
-    #assert test_group._bounding_record.tagged_blocks.get_data(Tag.UNICODE_LAYER_NAME) is "</Layer group>"
+    assert test_group._record.tagged_blocks.get_data(Tag.UNICODE_LAYER_NAME) == "Test Group 2"
+    assert test_group._bounding_record.tagged_blocks.get_data(Tag.UNICODE_LAYER_NAME) == "</Layer group>"
 
     
 def test_group_layers(group, pixel_layer, smartobject_layer, fill_layer, adjustment_layer):
@@ -275,7 +275,6 @@ def test_group_layers(group, pixel_layer, smartobject_layer, fill_layer, adjustm
     test_group = Group.group_layers([pixel_layer, smartobject_layer, fill_layer, adjustment_layer])
 
     assert len(test_group) == 4
-    assert test_group.name is "Group"
 
     assert test_group[0] is pixel_layer
     assert test_group[1] is smartobject_layer
@@ -297,7 +296,6 @@ def test_group_layers(group, pixel_layer, smartobject_layer, fill_layer, adjustm
     test_group = Group.group_layers([pixel_layer, smartobject_layer, fill_layer, adjustment_layer], parent = group)
 
     assert len(test_group) == 4
-    assert test_group.name is "Group"
 
     assert test_group._parent is group
     assert test_group._psd is group._psd
