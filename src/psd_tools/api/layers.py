@@ -1032,7 +1032,7 @@ class PixelLayer(Layer):
      
         """
 
-        """
+        
         layer_record = LayerRecord(top=top, left=left, bottom=top + pil_im.height, right=left + pil_im.width)
         channel_data_list = ChannelDataList()
 
@@ -1058,37 +1058,6 @@ class PixelLayer(Layer):
             channel_data_list[0].set_data(pil_im.getchannel(transparency_channel_index).tobytes(), pil_im.height, pil_im.width, 8)
 
             layer_record.channel_info[0].length = len(channel_data_list[0].data) + 2
-
-        self = cls(None, layer_record, channel_data_list, None)
-        """
-
-        layer_record = LayerRecord(top=top, left=left, bottom=top + pil_im.height, right=left + pil_im.width)
-
-        layer_record.name = layer_name
-
-        layer_record.channel_info = []
-        channel_data_list = ChannelDataList()
-
-        for channel in range(len(pil_im.getbands())):
-
-            channel_data = ChannelData(compression=Compression.ZIP)
-            channel_data.set_data(pil_im.getchannel(channel).tobytes(), pil_im.height, pil_im.width, 8)
-
-            channel_data_list.append( channel_data )        
-
-            c_info = ChannelInfo()
-            c_info.length = len(channel_data.data) + 2
-
-            if pil_im.getbands()[channel] == 'R':
-                c_info.id = ChannelID.CHANNEL_0
-            elif pil_im.getbands()[channel] == 'G':
-                c_info.id = ChannelID.CHANNEL_1
-            elif pil_im.getbands()[channel] == 'B':
-                c_info.id = ChannelID.CHANNEL_2
-            elif pil_im.getbands()[channel] == 'A':
-                c_info.id = ChannelID.TRANSPARENCY_MASK
-
-            layer_record.channel_info.append(c_info)
 
         self = cls(None, layer_record, channel_data_list, None)
 
