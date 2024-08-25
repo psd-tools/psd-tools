@@ -11,6 +11,7 @@ from psd_tools.api.effects import Effects
 from psd_tools.api.mask import Mask
 from psd_tools.api.shape import Origination, Stroke, VectorMask
 from psd_tools.api.smart_object import SmartObject
+from psd_tools.api.pil_io import get_pil_channels
 from psd_tools.constants import BlendMode, Clipping, Tag, TextType, Compression, ChannelID, SectionDivider
 from psd_tools.psd.layer_and_mask import LayerRecord, ChannelDataList, ChannelData, ChannelInfo
 from psd_tools.psd.tagged_blocks import TaggedBlocks
@@ -540,7 +541,6 @@ class Layer(object):
             " effects" if self.has_effects() else "",
         )
 
-
     # Structure operations, supposes unique references to layers, deep copy might be needed in the future
     def delete_layer(self):
         """
@@ -1029,23 +1029,53 @@ class PixelLayer(Layer):
         :param left: Pixelwise offset from the left of the canvas for the new layer.
 
         :return: A :py:class:`~psd_tools.api.layers.PixelLayer` object
-
-        TODO : Proper conversion check, other modes support        
+     
         """
 
+        """
         layer_record = LayerRecord(top=top, left=left, bottom=top + pil_im.height, right=left + pil_im.width)
         channel_data_list = ChannelDataList()
 
         layer_record.name = layer_name
-        layer_record.channel_info = []
+        layer_record.channel_info = [ChannelInfo(ChannelID.TRANSPARENCY_MASK, 2)]
         
+        channel_data_list.append(ChannelData(compression=Compression.ZIP))
+        
+        for channel_index in range(get_pil_channels(pil_im.mode)):
+            
+            channel_data = ChannelData(compression=Compression.ZIP)
+            channel_data.set_data(pil_im.getchannel(channel_index).tobytes(), pil_im.height, pil_im.width, 8)
+
+            channel_info = ChannelInfo(id = ChannelID(channel_index), length = len(channel_data.data) + 2)
+
+            channel_data_list.append(channel_data)
+            layer_record.channel_info.append(channel_info)
+
+        if pil_im.has_transparency_data:
+            # Need check for other types of transparency
+            transparency_channel_index = pil_im.getbands().index("A")
+            
+            channel_data_list[0].set_data(pil_im.getchannel(transparency_channel_index).tobytes(), pil_im.height, pil_im.width, 8)
+
+            layer_record.channel_info[0].length = len(channel_data_list[0].data) + 2
+
+        self = cls(None, layer_record, channel_data_list, None)
+        """
+
+        layer_record = LayerRecord(top=top, left=left, bottom=top + pil_im.height, right=left + pil_im.width)
+
+        layer_record.name = layer_name
+
+        layer_record.channel_info = []
+        channel_data_list = ChannelDataList()
+
         for channel in range(len(pil_im.getbands())):
 
             channel_data = ChannelData(compression=Compression.ZIP)
             channel_data.set_data(pil_im.getchannel(channel).tobytes(), pil_im.height, pil_im.width, 8)
 
             channel_data_list.append( channel_data )        
-            
+
             c_info = ChannelInfo()
             c_info.length = len(channel_data.data) + 2
 

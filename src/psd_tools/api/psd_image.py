@@ -687,7 +687,7 @@ class PSDImage(GroupMixin):
         """
         Compiles the tree layer structure back into records and channels list recursively
         """
-
+    
         if layer_group is None:
             layer_group = self
 
