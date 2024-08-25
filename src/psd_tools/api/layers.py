@@ -1032,7 +1032,6 @@ class PixelLayer(Layer):
      
         """
 
-        
         layer_record = LayerRecord(top=top, left=left, bottom=top + pil_im.height, right=left + pil_im.width)
         channel_data_list = ChannelDataList()
 

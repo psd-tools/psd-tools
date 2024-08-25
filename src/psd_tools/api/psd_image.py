@@ -26,7 +26,7 @@ from psd_tools.constants import (
     SectionDivider,
     Tag,
 )
-from psd_tools.psd import PSD, FileHeader, ImageData, ImageResources, LayerAndMaskInformation, LayerInfo, LayerRecords, ChannelImageData
+from psd_tools.psd import PSD, FileHeader, ImageData, ImageResources, LayerAndMaskInformation, TaggedBlocks, GlobalLayerMaskInfo, LayerInfo, LayerRecords, ChannelImageData
 
 logger = logging.getLogger(__name__)
 
@@ -687,7 +687,8 @@ class PSDImage(GroupMixin):
         """
         Compiles the tree layer structure back into records and channels list recursively
         """
-    
+
+
         if layer_group is None:
             layer_group = self
 
@@ -712,7 +713,13 @@ class PSDImage(GroupMixin):
 
             # PSDImage.frompil doesn't create a LayerInfo attribute to LayerAndMaskInformation 
             if not self._record.layer_and_mask_information.layer_info:
-                self._record.layer_and_mask_information.layer_info = LayerAndMaskInformation()
+                self._record.layer_and_mask_information.layer_info = LayerInfo()
+
+            if not self._record.layer_and_mask_information.global_layer_mask_info:
+                self._record.layer_and_mask_information.global_layer_mask_info = GlobalLayerMaskInfo()
+
+            if not self._record.layer_and_mask_information.tagged_blocks:
+                self._record.layer_and_mask_information.tagged_blocks = TaggedBlocks()
 
             self._record.layer_and_mask_information.layer_info.layer_records = layer_records
             self._record.layer_and_mask_information.layer_info.channel_image_data = channel_image_data

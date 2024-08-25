@@ -16,7 +16,7 @@ from .color_mode_data import ColorModeData
 from .header import FileHeader
 from .image_data import ImageData
 from .image_resources import ImageResources
-from .layer_and_mask import LayerAndMaskInformation, LayerInfo, LayerRecords, ChannelImageData
+from .layer_and_mask import LayerAndMaskInformation, LayerInfo, LayerRecords, ChannelImageData, TaggedBlocks, GlobalLayerMaskInfo
 
 logger = logging.getLogger(__name__)
 

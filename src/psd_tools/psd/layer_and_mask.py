@@ -176,6 +176,7 @@ class LayerInfo(BaseElement):
         start_pos = fp.tell()
         written = write_fmt(fp, "h", self.layer_count)
         if self.layer_records:
+            logger.debug("Has records to write")
             self._update_channel_length()
             written += self.layer_records.write(fp, encoding, version)
         logger.debug("  wrote layer records, len=%d" % (fp.tell() - start_pos))
