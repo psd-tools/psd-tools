@@ -1049,8 +1049,6 @@ class PixelLayer(Layer):
      
         """
 
-        print(pil_im.mode)
-
         if pil_im.mode == "1":
             pil_im = pil_im.convert("L")
 
