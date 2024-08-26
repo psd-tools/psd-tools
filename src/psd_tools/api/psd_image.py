@@ -54,6 +54,7 @@ class PSDImage(GroupMixin):
         self._layers = []
         self._tagged_blocks = None
         self._compatibility_mode = CompatibilityMode.DEFAULT
+        self._updated_layers=False
         self._init()
 
     @classmethod
@@ -223,7 +224,7 @@ class PSDImage(GroupMixin):
 
         self._update_record()
 
-        if not (ignore_preview or force or layer_filter) and self.has_preview():
+        if not (ignore_preview or force or layer_filter) and self.has_preview() and not self._updated_layers:
             return self.topil(apply_icc=apply_icc)
         return composite_pil(
             self, color, alpha, viewport, layer_filter, force, apply_icc=apply_icc
@@ -688,6 +689,8 @@ class PSDImage(GroupMixin):
         Compiles the tree layer structure back into records and channels list recursively
         """
 
+        if not self._updated_layers:
+            return
 
         if layer_group is None:
             layer_group = self

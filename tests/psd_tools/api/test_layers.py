@@ -8,6 +8,8 @@ from psd_tools.api.layers import Group, PixelLayer, ShapeLayer
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.constants import BlendMode, Tag, SectionDivider
 
+from psd_tools.api.pil_io import get_pil_channels, get_pil_depth
+
 from ..utils import full_name
 
 logger = logging.getLogger(__name__)
@@ -305,13 +307,32 @@ def test_group_layers(group, pixel_layer, smartobject_layer, fill_layer, adjustm
 
 
 
-def test_pixel_layer_frompil(pixel_layer):
-    from PIL.Image import Image
-    
-    pil_im = pixel_layer.topil()
+def test_pixel_layer_frompil():
+    import PIL 
 
-    pixel = PixelLayer.frompil(pil_im)
+    pil_rgb = PIL.Image.new("RGB", (30, 30))
+    pil_rgb_a = PIL.Image.new("RGBA", (30, 30))
+    pil_lab = PIL.Image.new("LAB", (30, 30))
+    pil_grayscale_a = PIL.Image.new("LA", (30, 30))
+    pil_grayscale = PIL.Image.new("L", (30, 30))
+    pil_bitmap = PIL.Image.new("1", (30, 30))
+    pil_cmyk = PIL.Image.new("CMYK", (30, 30))
 
+    images = [pil_rgb, pil_rgb_a, pil_lab, pil_grayscale_a, pil_grayscale, pil_bitmap, pil_cmyk]
+    layers = [PixelLayer.frompil(pil_im) for pil_im in images]
+
+    for (layer, image) in zip(layers, images):
+
+        # Bitmap image gets converted to grayscale during layer creation so we have to convert here too
+        if image.mode == "1":
+            image = image.convert("L")
+
+        assert len(layer._record.channel_info) == get_pil_channels(image.mode.rstrip("A")) + 1
+        assert len(layer._channels) == get_pil_channels(image.mode.rstrip("A")) + 1
+
+        for channel in range(get_pil_channels(image.mode.rstrip("A"))):
+            
+            assert layer._channels[channel + 1].get_data(image.width, image.height, get_pil_depth(image.mode.rstrip("A"))) == image.getchannel(channel).tobytes()
     
 
 def test_delete_layer(pixel_layer):    

@@ -51,6 +51,21 @@ def get_pil_channels(pil_mode):
         "F": 1,
     }.get(pil_mode, 3)
 
+def get_pil_depth(pil_mode):
+    """Get the depth of image for PIL modes."""
+    return {
+        # Bitmap images are converted to grayscale when the layer is created from pil object
+        "1": 8,
+        "L": 8,
+        "P": 8,
+        "RGB": 8,
+        "CMYK": 8,
+        "YCbCr": 8,
+        "LAB": 8,
+        "HSV": 8,
+        "I": 32,
+        "F": 32,
+    }.get(pil_mode, 3)
 
 def convert_image_data_to_pil(psd, channel, apply_icc):
     """Convert ImageData to PIL Image."""

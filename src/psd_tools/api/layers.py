@@ -11,7 +11,7 @@ from psd_tools.api.effects import Effects
 from psd_tools.api.mask import Mask
 from psd_tools.api.shape import Origination, Stroke, VectorMask
 from psd_tools.api.smart_object import SmartObject
-from psd_tools.api.pil_io import get_pil_channels
+from psd_tools.api.pil_io import get_pil_channels, get_pil_depth
 from psd_tools.constants import BlendMode, Clipping, Tag, TextType, Compression, ChannelID, SectionDivider
 from psd_tools.psd.layer_and_mask import LayerRecord, ChannelDataList, ChannelData, ChannelInfo
 from psd_tools.psd.tagged_blocks import TaggedBlocks
@@ -377,7 +377,6 @@ class Layer(object):
 
         return convert_layer_to_pil(self, channel, apply_icc)
 
-
     @deprecated
     def compose(self, force=False, bbox=None, layer_filter=None):
         """
@@ -551,6 +550,8 @@ class Layer(object):
             if self in self.parent:
                 self._parent._remove(self)
 
+        self._update_layers()
+
         # Garbage collection ftw
         return self
 
@@ -574,6 +575,8 @@ class Layer(object):
         group._append(self)
         self._parent = group
         
+        self._update_layers()
+
         return self
 
     def move_up(self, offset = 1):
@@ -590,6 +593,8 @@ class Layer(object):
 
         self._parent._remove(self)
         self._parent._insert(newindex, self)
+
+        self._update_layers()
 
         return self
 
@@ -608,7 +613,14 @@ class Layer(object):
         self._parent._remove(self)
         self._parent._insert(newindex, self)
 
+        self._update_layers()
+
         return self
+
+    def _update_layers(self):
+        if self._psd:
+            self._psd._updated_layers = True
+
 
 class GroupMixin(object):
     @property
@@ -651,6 +663,8 @@ class GroupMixin(object):
         layer._parent = self
         self._layers.append(layer)
         
+        layer._update_layers()
+
         return layer
 
     def add_layers(self, layers = []):
@@ -670,7 +684,9 @@ class GroupMixin(object):
 
             layer._parent = self
             self._layers.append(layer)
-        
+
+            layer._update_layers()
+
         return self
 
     def __len__(self):
@@ -1019,7 +1035,7 @@ class PixelLayer(Layer):
     """
 
     @classmethod
-    def frompil(cls, pil_im, layer_name = "Layer", top = 0, left = 0):
+    def frompil(cls, pil_im, layer_name = "Layer", top = 0, left = 0, compression = Compression.RAW):
         """
         Method to create a layer from a PIL Image object, currently tuned for RGBA image.
 
@@ -1027,10 +1043,16 @@ class PixelLayer(Layer):
         :param layer_name: The name of the layer. Defaults to "Layer"
         :param top: Pixelwise offset from the top of the canvas for the new layer.
         :param left: Pixelwise offset from the left of the canvas for the new layer.
+        :param compression: Compression algorithm to use for the data
 
         :return: A :py:class:`~psd_tools.api.layers.PixelLayer` object
      
         """
+
+        print(pil_im.mode)
+
+        if pil_im.mode == "1":
+            pil_im = pil_im.convert("L")
 
         layer_record = LayerRecord(top=top, left=left, bottom=top + pil_im.height, right=left + pil_im.width)
         channel_data_list = ChannelDataList()
@@ -1038,12 +1060,16 @@ class PixelLayer(Layer):
         layer_record.name = layer_name
         layer_record.channel_info = [ChannelInfo(ChannelID.TRANSPARENCY_MASK, 2)]
         
-        channel_data_list.append(ChannelData(compression=Compression.ZIP))
-        
-        for channel_index in range(get_pil_channels(pil_im.mode)):
+        channel_data_list.append(ChannelData(compression))
+
+        print(pil_im.mode)
+
+        for channel_index in range(get_pil_channels(pil_im.mode.rstrip("A"))):
             
-            channel_data = ChannelData(compression=Compression.ZIP)
-            channel_data.set_data(pil_im.getchannel(channel_index).tobytes(), pil_im.height, pil_im.width, 8)
+            channel_data = ChannelData(compression)
+
+            # Need checking for bitmap, or bitmap conversion, since depth is global to PSDImage, converting to grayscale in such case
+            channel_data.set_data(pil_im.getchannel(channel_index).tobytes(), pil_im.width, pil_im.height, get_pil_depth(pil_im.mode.rstrip("A")))
 
             channel_info = ChannelInfo(id = ChannelID(channel_index), length = len(channel_data.data) + 2)
 
@@ -1054,7 +1080,7 @@ class PixelLayer(Layer):
             # Need check for other types of transparency
             transparency_channel_index = pil_im.getbands().index("A")
             
-            channel_data_list[0].set_data(pil_im.getchannel(transparency_channel_index).tobytes(), pil_im.height, pil_im.width, 8)
+            channel_data_list[0].set_data(pil_im.getchannel(transparency_channel_index).tobytes(), pil_im.width, pil_im.height, get_pil_depth(pil_im.mode.rstrip("A")))
 
             layer_record.channel_info[0].length = len(channel_data_list[0].data) + 2
 
