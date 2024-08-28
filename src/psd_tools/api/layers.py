@@ -474,8 +474,9 @@ class Layer(object):
 
     @clipping_layer.setter
     def clipping_layer(self, value):
-        self._record.clipping = Clipping.NON_BASE if value else Clipping.Base
-        self._psd._compute_clipping_layers()
+        if self._psd:
+            self._record.clipping = Clipping.NON_BASE if value else Clipping.Base
+            self._psd._compute_clipping_layers()
 
     def has_effects(self):
         """
@@ -563,20 +564,12 @@ class Layer(object):
         assert group.kind in ["group", "psdimage", "artboard"]
         assert group is not self
 
-        if group.kind == "psdimage":
-            self._psd = group
-        else:
-            self._psd = group._psd
-
         if self.parent is not None:
             if self in self.parent:
                 self._parent._remove(self)
         
-        group._append(self)
-        self._parent = group
+        group.add_layer(self)
         
-        self._update_layers()
-
         return self
 
     def move_up(self, offset = 1):
@@ -603,24 +596,11 @@ class Layer(object):
         Moves the layer down a certain number of offset in the group the layer is in.
         """
 
-        newindex = self._parent._index(self) - offset
-
-        if newindex < 0:
-            newindex = 0
-        elif newindex >= len(self.parent):
-            newindex = len(self.parent) - 1
-
-        self._parent._remove(self)
-        self._parent._insert(newindex, self)
-
-        self._update_layers()
-
-        return self
+        return self.move_up(-1 * offset)
 
     def _update_layers(self):
         if self._psd:
             self._psd._updated_layers = True
-
 
 class GroupMixin(object):
     @property
@@ -655,15 +635,7 @@ class GroupMixin(object):
 
         assert layer is not self
 
-        if self.kind == "psdimage":
-            layer._psd = self
-        else:
-            layer._psd = self._psd
-
-        layer._parent = self
-        self._layers.append(layer)
-        
-        layer._update_layers()
+        self.add_layers([layer])
 
         return layer
 
@@ -675,16 +647,17 @@ class GroupMixin(object):
         """
 
         assert layers
+        assert self not in layers
 
         for layer in layers:
-            if self.kind == "psdimage":
-                layer._psd = self
-            else:
-                layer._psd = self._psd
 
             layer._parent = self
             self._layers.append(layer)
 
+        _psd = self if self.kind == "psdimage" else self._psd
+
+        for layer in self.descendants():
+            layer._psd = _psd
             layer._update_layers()
 
         return self
@@ -943,10 +916,10 @@ class Group(GroupMixin, Layer):
 
         group = cls.new(name, open_folder)
 
-        group.move_to_group(parent)
-
         for layer in layers:
             layer.move_to_group(group)
+
+        parent.add_layer(group)
 
         return group
 
@@ -1035,7 +1008,7 @@ class PixelLayer(Layer):
     """
 
     @classmethod
-    def frompil(cls, pil_im, layer_name = "Layer", top = 0, left = 0, compression = Compression.RAW):
+    def frompil(cls, pil_im, layer_name = "Layer", top = 0, left = 0, compression = Compression.RAW, psd_file=None):
         """
         Method to create a layer from a PIL Image object, currently tuned for RGBA image.
 
@@ -1043,7 +1016,8 @@ class PixelLayer(Layer):
         :param layer_name: The name of the layer. Defaults to "Layer"
         :param top: Pixelwise offset from the top of the canvas for the new layer.
         :param left: Pixelwise offset from the left of the canvas for the new layer.
-        :param compression: Compression algorithm to use for the data
+        :param compression: Compression algorithm to use for the data.
+        :param psdfile: The psd file the image will be converted for.
 
         :return: A :py:class:`~psd_tools.api.layers.PixelLayer` object
      
@@ -1052,6 +1026,10 @@ class PixelLayer(Layer):
         if pil_im.mode == "1":
             pil_im = pil_im.convert("L")
 
+        if psd_file:
+            pil_im = pil_im.convert(get_pil_mode(psd_file.color_mode))
+
+
         layer_record = LayerRecord(top=top, left=left, bottom=top + pil_im.height, right=left + pil_im.width)
         channel_data_list = ChannelDataList()
 
@@ -1059,8 +1037,6 @@ class PixelLayer(Layer):
         layer_record.channel_info = [ChannelInfo(ChannelID.TRANSPARENCY_MASK, 2)]
         
         channel_data_list.append(ChannelData(compression))
-
-        print(pil_im.mode)
 
         for channel_index in range(get_pil_channels(pil_im.mode.rstrip("A"))):
             
