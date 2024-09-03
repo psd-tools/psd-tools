@@ -319,7 +319,7 @@ def test_pixel_layer_frompil():
     pil_cmyk = PIL.Image.new("CMYK", (30, 30))
 
     images = [pil_rgb, pil_rgb_a, pil_lab, pil_grayscale_a, pil_grayscale, pil_bitmap, pil_cmyk]
-    layers = [PixelLayer.frompil(pil_im) for pil_im in images]
+    layers = [PixelLayer.frompil(pil_im, None) for pil_im in images]
 
     for (layer, image) in zip(layers, images):
 

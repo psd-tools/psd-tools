@@ -26,7 +26,19 @@ from psd_tools.constants import (
     SectionDivider,
     Tag,
 )
-from psd_tools.psd import PSD, FileHeader, ImageData, ImageResources, LayerAndMaskInformation, TaggedBlocks, GlobalLayerMaskInfo, LayerInfo, LayerRecords, ChannelImageData
+from psd_tools.psd import (
+    PSD, FileHeader, 
+    ImageData, 
+    ImageResources, 
+    LayerAndMaskInformation, 
+    TaggedBlocks, 
+    GlobalLayerMaskInfo, 
+    LayerInfo, 
+    LayerRecords, 
+    ChannelImageData
+)
+
+from psd_tools.api.pil_io import get_pil_channels, get_pil_mode
 
 logger = logging.getLogger(__name__)
 
@@ -475,6 +487,13 @@ class PSDImage(GroupMixin):
         :return: :py:class:`~psd_tools.constants.CompatibilityMode`
         """
         return self._compatibility_mode
+
+    @property
+    def pil_mode(self):
+
+        alpha = self.channels - get_pil_channels(get_pil_mode(self.color_mode))
+        
+        return get_pil_mode(self.color_mode, alpha)
 
     @compatibility_mode.setter
     def compatibility_mode(self, value):

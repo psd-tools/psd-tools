@@ -11,7 +11,7 @@ from psd_tools.api.effects import Effects
 from psd_tools.api.mask import Mask
 from psd_tools.api.shape import Origination, Stroke, VectorMask
 from psd_tools.api.smart_object import SmartObject
-from psd_tools.api.pil_io import get_pil_channels, get_pil_depth
+from psd_tools.api.pil_io import get_pil_channels, get_pil_depth, get_pil_mode
 from psd_tools.constants import BlendMode, Clipping, Tag, TextType, Compression, ChannelID, SectionDivider
 from psd_tools.psd.layer_and_mask import LayerRecord, ChannelDataList, ChannelData, ChannelInfo
 from psd_tools.psd.tagged_blocks import TaggedBlocks
@@ -602,6 +602,7 @@ class Layer(object):
         if self._psd:
             self._psd._updated_layers = True
 
+
 class GroupMixin(object):
     @property
     def left(self):
@@ -657,6 +658,11 @@ class GroupMixin(object):
         _psd = self if self.kind == "psdimage" else self._psd
 
         for layer in self.descendants():
+
+            if layer.kind == "pixel":
+                if layer._psd != _psd:
+                    layer._convert(_psd)
+            
             layer._psd = _psd
             layer._update_layers()
 
@@ -1008,7 +1014,7 @@ class PixelLayer(Layer):
     """
 
     @classmethod
-    def frompil(cls, pil_im, layer_name = "Layer", top = 0, left = 0, compression = Compression.RAW, psd_file=None):
+    def frompil(cls, pil_im, psd_file, layer_name = "Layer", top = 0, left = 0, compression = Compression.RLE):
         """
         Method to create a layer from a PIL Image object, currently tuned for RGBA image.
 
@@ -1023,13 +1029,16 @@ class PixelLayer(Layer):
      
         """
 
+        assert pil_im
+
         if pil_im.mode == "1":
             pil_im = pil_im.convert("L")
-
-        if psd_file:
-            pil_im = pil_im.convert(get_pil_mode(psd_file.color_mode))
-
-
+       
+        if psd_file is not None:
+            pil_im = pil_im.convert(psd_file.pil_mode)
+        else:
+            logger.warning("No psd file was provided, it will not be possible to convert it when moving to another pdf. Might create corrupted psds.")
+      
         layer_record = LayerRecord(top=top, left=left, bottom=top + pil_im.height, right=left + pil_im.width)
         channel_data_list = ChannelDataList()
 
@@ -1037,6 +1046,7 @@ class PixelLayer(Layer):
         layer_record.channel_info = [ChannelInfo(ChannelID.TRANSPARENCY_MASK, 2)]
         
         channel_data_list.append(ChannelData(compression))
+        channel_data_list[0].set_data(b'\xff'* (pil_im.width * pil_im.height), pil_im.width, pil_im.height, get_pil_depth(pil_im.mode.rstrip("A")))
 
         for channel_index in range(get_pil_channels(pil_im.mode.rstrip("A"))):
             
@@ -1058,8 +1068,23 @@ class PixelLayer(Layer):
 
             layer_record.channel_info[0].length = len(channel_data_list[0].data) + 2
 
-        self = cls(None, layer_record, channel_data_list, None)
+        self = cls(psd_file, layer_record, channel_data_list, None)
 
+        return self
+
+    def _convert(self, target_psd):
+        
+        assert self._psd is not None, "This layer cannot be converted because it has no psd file linked."
+        new_layer = PixelLayer.frompil(self.topil(),
+                                        target_psd,
+                                        self.name,
+                                        self.top,
+                                        self.left,
+                                        self._channels[0].compression)
+
+        self._record.channel_info = new_layer._record.channel_info
+        self._channels = new_layer._channels
+    
         return self
 
 
