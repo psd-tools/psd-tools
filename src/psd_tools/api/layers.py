@@ -1035,10 +1035,15 @@ class PixelLayer(Layer):
             pil_im = pil_im.convert("L")
        
         if psd_file is not None:
+            logger.debug("Converting the pil_image from {} to {}".format(pil_im.mode, psd_file.pil_mode))
             pil_im = pil_im.convert(psd_file.pil_mode)
         else:
             logger.warning("No psd file was provided, it will not be possible to convert it when moving to another pdf. Might create corrupted psds.")
       
+        logger.debug("Creating a layer from a {} image".format(pil_im.mode))
+        logger.debug(pil_im.getbands())
+        logger.debug(pil_im.has_transparency_data)
+
         layer_record = LayerRecord(top=top, left=left, bottom=top + pil_im.height, right=left + pil_im.width)
         channel_data_list = ChannelDataList()
 
@@ -1047,6 +1052,7 @@ class PixelLayer(Layer):
         
         channel_data_list.append(ChannelData(compression))
         channel_data_list[0].set_data(b'\xff'* (pil_im.width * pil_im.height), pil_im.width, pil_im.height, get_pil_depth(pil_im.mode.rstrip("A")))
+        layer_record.channel_info[0].length = len(channel_data_list[0].data) + 2
 
         for channel_index in range(get_pil_channels(pil_im.mode.rstrip("A"))):
             

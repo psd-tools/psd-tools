@@ -745,7 +745,7 @@ class PSDImage(GroupMixin):
 
             self._record.layer_and_mask_information.layer_info.layer_records = layer_records
             self._record.layer_and_mask_information.layer_info.channel_image_data = channel_image_data
-            self._record.layer_and_mask_information.layer_info.layer_count = -1 * len(layer_records)
+            self._record.layer_and_mask_information.layer_info.layer_count = len(layer_records)
 
             return
 
