@@ -1040,10 +1040,6 @@ class PixelLayer(Layer):
         else:
             logger.warning("No psd file was provided, it will not be possible to convert it when moving to another pdf. Might create corrupted psds.")
       
-        logger.debug("Creating a layer from a {} image".format(pil_im.mode))
-        logger.debug(pil_im.getbands())
-        logger.debug(pil_im.has_transparency_data)
-
         layer_record = LayerRecord(top=top, left=left, bottom=top + pil_im.height, right=left + pil_im.width)
         channel_data_list = ChannelDataList()
 
