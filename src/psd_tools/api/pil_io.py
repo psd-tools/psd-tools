@@ -65,7 +65,7 @@ def get_pil_depth(pil_mode):
         "HSV": 8,
         "I": 32,
         "F": 32,
-    }.get(pil_mode, 3)
+    }.get(pil_mode, 8)
 
 def convert_image_data_to_pil(psd, channel, apply_icc):
     """Convert ImageData to PIL Image."""

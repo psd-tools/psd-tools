@@ -1040,12 +1040,17 @@ class PixelLayer(Layer):
         else:
             logger.warning("No psd file was provided, it will not be possible to convert it when moving to another pdf. Might create corrupted psds.")
       
+        if pil_im.mode == "CMYK":
+            from PIL import ImageChops
+            pil_im = ImageChops.invert(pil_im)
+
         layer_record = LayerRecord(top=top, left=left, bottom=top + pil_im.height, right=left + pil_im.width)
         channel_data_list = ChannelDataList()
 
         layer_record.name = layer_name
         layer_record.channel_info = [ChannelInfo(ChannelID.TRANSPARENCY_MASK, 2)]
         
+        # Initialize the alpha channel to full opacity, photoshop sometimes didn't handle the file when not done
         channel_data_list.append(ChannelData(compression))
         channel_data_list[0].set_data(b'\xff'* (pil_im.width * pil_im.height), pil_im.width, pil_im.height, get_pil_depth(pil_im.mode.rstrip("A")))
         layer_record.channel_info[0].length = len(channel_data_list[0].data) + 2
