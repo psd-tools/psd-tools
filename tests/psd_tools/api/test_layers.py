@@ -327,6 +327,11 @@ def test_pixel_layer_frompil():
         if image.mode == "1":
             image = image.convert("L")
 
+        # CMYK Images needs to be inverted, for some reason
+        if image.mode == "CMYK":
+            from PIL import ImageChops
+            image = ImageChops.invert(image)
+
         assert len(layer._record.channel_info) == get_pil_channels(image.mode.rstrip("A")) + 1
         assert len(layer._channels) == get_pil_channels(image.mode.rstrip("A")) + 1
 

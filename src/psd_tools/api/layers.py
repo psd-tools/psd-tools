@@ -551,7 +551,8 @@ class Layer(object):
             if self in self.parent:
                 self._parent._remove(self)
 
-        self._update_layers()
+        if self._psd:
+            self._psd._updated_layers = True
 
         # Garbage collection ftw
         return self
@@ -587,7 +588,8 @@ class Layer(object):
         self._parent._remove(self)
         self._parent._insert(newindex, self)
 
-        self._update_layers()
+        if self._psd:
+            self._psd._updated_layers = True
 
         return self
 
@@ -597,10 +599,6 @@ class Layer(object):
         """
 
         return self.move_up(-1 * offset)
-
-    def _update_layers(self):
-        if self._psd:
-            self._psd._updated_layers = True
 
 
 class GroupMixin(object):
@@ -659,12 +657,14 @@ class GroupMixin(object):
 
         for layer in self.descendants():
 
-            if layer.kind == "pixel":
-                if layer._psd != _psd:
-                    layer._convert(_psd)
+            if layer._psd != _psd:
+                if layer.kind == "pixel":
+                        layer._convert(_psd)
             
-            layer._psd = _psd
-            layer._update_layers()
+                layer._psd = _psd
+
+        if _psd is not None:
+            _psd._updated_layers = True
 
         return self
 
@@ -875,17 +875,14 @@ class Group(GroupMixin, Layer):
         record.tagged_blocks.set_data(Tag.SECTION_DIVIDER_SETTING, SectionDivider.OPEN_FOLDER if open_folder else SectionDivider.CLOSED_FOLDER)
         record.tagged_blocks.set_data(Tag.UNICODE_LAYER_NAME, name)
 
-
         _bounding_record = LayerRecord(top=0, left=0, bottom=0, right=0, name="</Layer group>")
         _bounding_record.tagged_blocks = TaggedBlocks()
 
         _bounding_record.tagged_blocks.set_data(Tag.SECTION_DIVIDER_SETTING, SectionDivider.BOUNDING_SECTION_DIVIDER)
         _bounding_record.tagged_blocks.set_data(Tag.UNICODE_LAYER_NAME, "</Layer group>")
 
-
         record.channel_info = [ChannelInfo(id=i-1, length = 2) for i in range(4)]
         _bounding_record.channel_info = [ChannelInfo(id=i-1, length = 2) for i in range(4)]
-
 
         channels = ChannelDataList()
         for i in range(4):
@@ -1014,7 +1011,7 @@ class PixelLayer(Layer):
     """
 
     @classmethod
-    def frompil(cls, pil_im, psd_file, layer_name = "Layer", top = 0, left = 0, compression = Compression.RLE):
+    def frompil(cls, pil_im, psd_file, layer_name = "Layer", top = 0, left = 0, compression = Compression.RLE, **kwargs):
         """
         Method to create a layer from a PIL Image object, currently tuned for RGBA image.
 
@@ -1044,7 +1041,7 @@ class PixelLayer(Layer):
             from PIL import ImageChops
             pil_im = ImageChops.invert(pil_im)
 
-        layer_record = LayerRecord(top=top, left=left, bottom=top + pil_im.height, right=left + pil_im.width)
+        layer_record = LayerRecord(top=top, left=left, bottom=top + pil_im.height, right=left + pil_im.width, **kwargs)
         channel_data_list = ChannelDataList()
 
         layer_record.name = layer_name
@@ -1081,7 +1078,12 @@ class PixelLayer(Layer):
 
     def _convert(self, target_psd):
         
-        assert self._psd is not None, "This layer cannot be converted because it has no psd file linked."
+        #assert self._psd is not None, "This layer cannot be converted because it has no psd file linked."
+
+        if self._psd is None:
+            logger.warning("This layer {} cannot be converted to the target psd")
+            return
+
         new_layer = PixelLayer.frompil(self.topil(),
                                         target_psd,
                                         self.name,

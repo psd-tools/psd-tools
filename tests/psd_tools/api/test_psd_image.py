@@ -144,7 +144,7 @@ def test_update_record(fixture):
 
     layer_info = fixture._record.layer_and_mask_information.layer_info
 
-    assert layer_info.layer_count == -9
+    assert layer_info.layer_count == 9
 
     assert layer_info.layer_records[0] is fixture[0]._record
     assert layer_info.layer_records[1] is fixture[1]._record
