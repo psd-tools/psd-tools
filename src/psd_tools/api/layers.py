@@ -649,14 +649,13 @@ class GroupMixin(object):
         assert self not in layers
 
         for layer in layers:
-
             layer._parent = self
             self._layers.append(layer)
 
         _psd = self if self.kind == "psdimage" else self._psd
 
         for layer in self.descendants():
-
+            
             if layer._psd != _psd:
                 if layer.kind == "pixel":
                         layer._convert(_psd)
@@ -1030,13 +1029,12 @@ class PixelLayer(Layer):
 
         if pil_im.mode == "1":
             pil_im = pil_im.convert("L")
-       
+
         if psd_file is not None:
-            logger.debug("Converting the pil_image from {} to {}".format(pil_im.mode, psd_file.pil_mode))
             pil_im = pil_im.convert(psd_file.pil_mode)
         else:
             logger.warning("No psd file was provided, it will not be possible to convert it when moving to another pdf. Might create corrupted psds.")
-      
+
         if pil_im.mode == "CMYK":
             from PIL import ImageChops
             pil_im = ImageChops.invert(pil_im)
@@ -1051,7 +1049,7 @@ class PixelLayer(Layer):
         channel_data_list.append(ChannelData(compression))
         channel_data_list[0].set_data(b'\xff'* (pil_im.width * pil_im.height), pil_im.width, pil_im.height, get_pil_depth(pil_im.mode.rstrip("A")))
         layer_record.channel_info[0].length = len(channel_data_list[0].data) + 2
-
+        
         for channel_index in range(get_pil_channels(pil_im.mode.rstrip("A"))):
             
             channel_data = ChannelData(compression)
@@ -1082,7 +1080,7 @@ class PixelLayer(Layer):
 
         if self._psd is None:
             logger.warning("This layer {} cannot be converted to the target psd")
-            return
+            return self
 
         new_layer = PixelLayer.frompil(self.topil(),
                                         target_psd,
