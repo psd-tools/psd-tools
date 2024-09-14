@@ -38,7 +38,6 @@ def test_identical():
         (rle, b"\x02\x01\x02\x03", 4),
         (_rle, b"\x02\x01\x02\x03", 2),
         (_rle, b"\x02\x01\x02\x03", 4),
-        
     ],
 )
 def test_malicious(mod, data, size):

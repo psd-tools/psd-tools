@@ -656,7 +656,7 @@ class GroupMixin(object):
 
         for layer in self.descendants():
             
-            if layer._psd != _psd:
+            if layer._psd != _psd and _psd is not None:
                 if layer.kind == "pixel":
                         layer._convert(_psd)
             
@@ -1079,7 +1079,7 @@ class PixelLayer(Layer):
         #assert self._psd is not None, "This layer cannot be converted because it has no psd file linked."
 
         if self._psd is None:
-            logger.warning("This layer {} cannot be converted to the target psd")
+            logger.warning("This layer {} cannot be converted to the target psd", self)
             return self
 
         new_layer = PixelLayer.frompil(self.topil(),
