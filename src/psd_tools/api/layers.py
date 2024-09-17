@@ -567,8 +567,6 @@ class Layer(object):
         if self.kind in ["group", "psdimage", "artboard"]:
             assert group not in self.descendants(), "Cannot move group {} into its descendant {}".format(self, group)
 
-        #assert self not in group.descendants(), "This operation would create a reference loop within the groups between {} and {}.".format(self, layer)
-
         if self.parent is not None:
             if self in self.parent:
                 self._parent._remove(self)
@@ -1087,7 +1085,7 @@ class PixelLayer(Layer):
         #assert self._psd is not None, "This layer cannot be converted because it has no psd file linked."
 
         if self._psd is None:
-            logger.warning("This layer {} cannot be converted to the target psd", self)
+            logger.warning("This layer {} cannot be converted to the target psd".format(self))
             return self
 
         new_layer = PixelLayer.frompil(self.topil(),
