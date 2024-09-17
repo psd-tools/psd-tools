@@ -564,6 +564,11 @@ class Layer(object):
         assert group.kind in ["group", "psdimage", "artboard"]
         assert group is not self
 
+        if self.kind in ["group", "psdimage", "artboard"]:
+            assert group not in self.descendants(), "Cannot move group {} into its descendant {}".format(self, group)
+
+        #assert self not in group.descendants(), "This operation would create a reference loop within the groups between {} and {}.".format(self, layer)
+
         if self.parent is not None:
             if self in self.parent:
                 self._parent._remove(self)
