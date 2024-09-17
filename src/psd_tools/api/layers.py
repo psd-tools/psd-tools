@@ -554,7 +554,6 @@ class Layer(object):
         if self._psd:
             self._psd._updated_layers = True
 
-        # Garbage collection ftw
         return self
 
     def move_to_group(self, group):
@@ -646,7 +645,11 @@ class GroupMixin(object):
         """
 
         assert layers
-        assert self not in layers
+        assert self not in layers, "Cannot add a group {} to itself.".format(self)
+        
+        for layer in layers:
+            if layer.kind in ["group", "psdimage", "artboard"]: 
+                assert self not in layer.descendants(), "This operation would create a reference loop within the groups between {} and {}.".format(self, layer)
 
         for layer in layers:
             layer._parent = self
