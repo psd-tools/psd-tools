@@ -640,7 +640,7 @@ class GroupMixin(object):
 
         return layer
 
-    def add_layers(self, layers = []):
+    def add_layers(self, layers):
         """
         Add a list of layers to the end (top) of the group
 
@@ -664,7 +664,7 @@ class GroupMixin(object):
             
             if layer._psd != _psd and _psd is not None:
                 if layer.kind == "pixel":
-                        layer._convert(_psd)
+                    layer._convert(_psd)
             
                 layer._psd = _psd
 
@@ -1039,7 +1039,7 @@ class PixelLayer(Layer):
         if psd_file is not None:
             pil_im = pil_im.convert(psd_file.pil_mode)
         else:
-            logger.warning("No psd file was provided, it will not be possible to convert it when moving to another pdf. Might create corrupted psds.")
+            logger.warning("No psd file was provided, it will not be possible to convert it when moving to another psd. Might create corrupted psds.")
 
         if pil_im.mode == "CMYK":
             from PIL import ImageChops
@@ -1054,13 +1054,13 @@ class PixelLayer(Layer):
         # Initialize the alpha channel to full opacity, photoshop sometimes didn't handle the file when not done
         channel_data_list.append(ChannelData(compression))
         channel_data_list[0].set_data(b'\xff'* (pil_im.width * pil_im.height), pil_im.width, pil_im.height, get_pil_depth(pil_im.mode.rstrip("A")))
+        
         layer_record.channel_info[0].length = len(channel_data_list[0].data) + 2
         
         for channel_index in range(get_pil_channels(pil_im.mode.rstrip("A"))):
             
             channel_data = ChannelData(compression)
 
-            # Need checking for bitmap, or bitmap conversion, since depth is global to PSDImage, converting to grayscale in such case
             channel_data.set_data(pil_im.getchannel(channel_index).tobytes(), pil_im.width, pil_im.height, get_pil_depth(pil_im.mode.rstrip("A")))
 
             channel_info = ChannelInfo(id = ChannelID(channel_index), length = len(channel_data.data) + 2)
