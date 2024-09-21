@@ -549,10 +549,9 @@ class Layer(object):
 
         if self.parent is not None:
             if self in self.parent:
-                self._parent._remove(self)
+                self.parent.remove(self)
 
-        if self._psd:
-            self._psd._updated_layers = True
+        self.parent._update_psd_record()
 
         return self
 
@@ -569,9 +568,9 @@ class Layer(object):
 
         if self.parent is not None:
             if self in self.parent:
-                self._parent._remove(self)
+                self.parent.remove(self)
         
-        group.add_layer(self)
+        group.append(self)
         
         return self
 
@@ -580,18 +579,19 @@ class Layer(object):
         Moves the layer up a certain number of offset in the group the layer is in.
         """
 
-        newindex = self._parent._index(self) + offset
+        assert self.parent
+
+        newindex = self._parent.index(self) + offset
 
         if newindex < 0:
             newindex = 0
         elif newindex >= len(self.parent):
             newindex = len(self.parent) - 1
 
-        self._parent._remove(self)
-        self._parent._insert(newindex, self)
+        self.parent.remove(self)
+        self.parent.insert(newindex, self)
 
-        if self._psd:
-            self._psd._updated_layers = True
+        self.parent._update_psd_record()
 
         return self
 
@@ -627,52 +627,6 @@ class GroupMixin(object):
             self._bbox = Group.extract_bbox(self)
         return self._bbox
 
-    def add_layer(self, layer):
-        """
-        Add a layer to the end (top) of the group
-
-        :param layer: The layer to add
-        """
-
-        assert layer is not self
-
-        self.add_layers([layer])
-
-        return layer
-
-    def add_layers(self, layers):
-        """
-        Add a list of layers to the end (top) of the group
-
-        :param layers: The layers to add
-        """
-
-        assert layers
-        assert self not in layers, "Cannot add a group {} to itself.".format(self)
-        
-        for layer in layers:
-            if layer.kind in ["group", "psdimage", "artboard"]: 
-                assert self not in layer.descendants(), "This operation would create a reference loop within the groups between {} and {}.".format(self, layer)
-
-        for layer in layers:
-            layer._parent = self
-            self._layers.append(layer)
-
-        _psd = self if self.kind == "psdimage" else self._psd
-
-        for layer in self.descendants():
-            
-            if layer._psd != _psd and _psd is not None:
-                if layer.kind == "pixel":
-                    layer._convert(_psd)
-            
-                layer._psd = _psd
-
-        if _psd is not None:
-            _psd._updated_layers = True
-
-        return self
-
     def __len__(self):
         return self._layers.__len__()
 
@@ -688,21 +642,101 @@ class GroupMixin(object):
     def __delitem__(self, key):
         return self._layers.__delitem__(key)
 
-    # Use the layer structure methods instead, they make more comprehensive changes (with metadata updates)
-    def _append(self, layer):
-        return self._layers.append(layer)
+    def append(self, layer):
+        """
+        Add a layer to the end (top) of the group
 
-    def _remove(self,  layer):
-        return self._layers.remove(layer)
+        :param layer: The layer to add
+        """
 
-    def _insert(self, index, layer):
-        return self._layers.insert(index, layer)
+        assert layer is not self
 
-    def _clear(self):
-        return self._layers.clear()
+        self.extend([layer])
 
-    def _index(self, layer):
+        return layer
+
+    def extend(self, layers):
+        """
+        Add a list of layers to the end (top) of the group
+
+        :param layers: The layers to add
+        """
+
+        assert layers
+        assert self not in layers, "Cannot add the group {} to itself.".format(self)
+        
+        for layer in layers:
+            if layer.kind in ["group", "psdimage", "artboard"]: 
+                assert self not in layer.descendants(), "This operation would create a reference loop within the group between {} and {}.".format(self, layer)
+
+        for layer in layers:
+            layer._parent = self
+            self._layers.append(layer)
+
+        _psd = self if self.kind == "psdimage" else self._psd
+
+        for layer in self.descendants():
+            
+            if layer._psd != _psd and _psd is not None:
+                if layer.kind == "pixel":
+                    layer._convert(_psd)
+            
+                layer._psd = _psd
+
+        self._update_psd_record()
+        
+        return self
+
+    def insert(self, index, layer):
+        
+        assert layer is not self
+        
+        if layer.kind in ["group", "psdimage", "artboard"]: 
+            assert self not in layer.descendants(), "This operation would create a reference loop within the group between {} and {}.".format(self, layer)
+
+        self._layers.insert(index, layer)
+        layer._parent = self
+
+        _psd = self if self.kind == "psdimage" else self._psd
+
+        for layer in self.descendants():
+            
+            if layer._psd != _psd and _psd is not None:
+                if layer.kind == "pixel":
+                    layer._convert(_psd)
+            
+                layer._psd = _psd
+
+        self._update_psd_record()
+
+        return self
+
+    def remove(self,  layer):
+        self._layers.remove(layer)
+        self._update_psd_record()
+        return self
+
+    def pop(self, index=-1):
+        popLayer = self._layers.pop(index)
+        self._update_psd_record()
+        return popLayer
+
+    def clear(self):
+        self._layers.clear()
+        self._update_psd_record()
+        return self
+
+    def index(self, layer):
         return self._layers.index(layer)
+
+    def count(self, layer):
+        return self._layers.count(layer)
+
+    def _update_psd_record(self):
+        if self.kind == "psdimage":
+            self._updated_layers = True
+        elif self._psd is not None:
+            self._psd._updated_layers = True
 
     @deprecated
     def compose(
@@ -792,16 +826,12 @@ class Group(GroupMixin, Layer):
         lefts, tops, rights, bottoms = zip(*bboxes)
         return (min(lefts), min(tops), max(rights), max(bottoms))
 
-    def __init__(self, psd, record, channels, parent, _bounding_record = None, _bounding_channels = None):
-        super(Group, self).__init__(psd, record, channels, parent)
-
-        # Attributes that store the record for the folder divider. 
-        # Used when updating the record so that we don't need to recompute 
-        # Them from the ending layer 
-        self._bounding_record = _bounding_record
-        self._bounding_channels = _bounding_channels
+    def __init__(self, *args):
+        super(Group, self).__init__(*args)
 
         self._layers = []
+        self._bounding_record = None
+        self._bounding_channels = None
 
     @property
     def _setting(self):
@@ -863,6 +893,15 @@ class Group(GroupMixin, Layer):
             apply_icc=apply_icc,
         )
 
+    def _set_bounding_records(self, _bounding_record, _bounding_channels):
+        # Attributes that store the record for the folder divider. 
+        # Used when updating the record so that we don't need to recompute 
+        # Them from the ending layer 
+        self._bounding_record = _bounding_record
+        self._bounding_channels = _bounding_channels
+
+        return
+
     @classmethod
     def new(cls, name = "Group", open_folder = True, parent = None):
         """
@@ -895,8 +934,10 @@ class Group(GroupMixin, Layer):
 
         _bounding_channels = channels
 
-        group = cls(None, record, channels, None, _bounding_record, _bounding_channels)
+        group = cls(None, record, channels, None)
         
+        group._set_bounding_records(_bounding_record, _bounding_channels)
+
         if parent is not None:
             group.move_to_group(parent)
 
@@ -927,7 +968,7 @@ class Group(GroupMixin, Layer):
         for layer in layers:
             layer.move_to_group(group)
 
-        parent.add_layer(group)
+        parent.append(group)
 
         return group
 
@@ -1021,14 +1062,13 @@ class PixelLayer(Layer):
         Method to create a layer from a PIL Image object, currently tuned for RGBA image.
 
         :param pil_im: The :py:class:`~PIL.Image` object to convert to photoshop
+        :param psdfile: The psd file the image will be converted for.
         :param layer_name: The name of the layer. Defaults to "Layer"
         :param top: Pixelwise offset from the top of the canvas for the new layer.
         :param left: Pixelwise offset from the left of the canvas for the new layer.
         :param compression: Compression algorithm to use for the data.
-        :param psdfile: The psd file the image will be converted for.
 
         :return: A :py:class:`~psd_tools.api.layers.PixelLayer` object
-     
         """
 
         assert pil_im
@@ -1044,6 +1084,7 @@ class PixelLayer(Layer):
         if pil_im.mode == "CMYK":
             from PIL import ImageChops
             pil_im = ImageChops.invert(pil_im)
+            
 
         layer_record = LayerRecord(top=top, left=left, bottom=top + pil_im.height, right=left + pil_im.width, **kwargs)
         channel_data_list = ChannelDataList()
@@ -1053,14 +1094,12 @@ class PixelLayer(Layer):
         
         # Initialize the alpha channel to full opacity, photoshop sometimes didn't handle the file when not done
         channel_data_list.append(ChannelData(compression))
-        channel_data_list[0].set_data(b'\xff'* (pil_im.width * pil_im.height), pil_im.width, pil_im.height, get_pil_depth(pil_im.mode.rstrip("A")))
-        
+        channel_data_list[0].set_data(b'\xff'* (pil_im.width * pil_im.height), pil_im.width, pil_im.height, get_pil_depth(pil_im.mode.rstrip("A")))        
         layer_record.channel_info[0].length = len(channel_data_list[0].data) + 2
         
         for channel_index in range(get_pil_channels(pil_im.mode.rstrip("A"))):
             
             channel_data = ChannelData(compression)
-
             channel_data.set_data(pil_im.getchannel(channel_index).tobytes(), pil_im.width, pil_im.height, get_pil_depth(pil_im.mode.rstrip("A")))
 
             channel_info = ChannelInfo(id = ChannelID(channel_index), length = len(channel_data.data) + 2)
@@ -1069,11 +1108,10 @@ class PixelLayer(Layer):
             layer_record.channel_info.append(channel_info)
 
         if pil_im.has_transparency_data:
-            # Need check for other types of transparency
+            # Need check for other types of transparency, palette for "indexed" mode
             transparency_channel_index = pil_im.getbands().index("A")
             
             channel_data_list[0].set_data(pil_im.getchannel(transparency_channel_index).tobytes(), pil_im.width, pil_im.height, get_pil_depth(pil_im.mode.rstrip("A")))
-
             layer_record.channel_info[0].length = len(channel_data_list[0].data) + 2
 
         self = cls(psd_file, layer_record, channel_data_list, None)

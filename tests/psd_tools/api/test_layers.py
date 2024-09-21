@@ -365,21 +365,21 @@ def test_move_up(group, pixel_layer, type_layer, smartobject_layer, fill_layer, 
 
     test_group.move_up(50)
 
-    assert test_group._parent._index(test_group) == 0
+    assert test_group._parent.index(test_group) == 0
 
     pixel_layer.move_up(2)
 
-    assert test_group._index(smartobject_layer) == 0
-    assert test_group._index(fill_layer) == 1
-    assert test_group._index(pixel_layer) == 2
-    assert test_group._index(adjustment_layer) == 3
+    assert test_group.index(smartobject_layer) == 0
+    assert test_group.index(fill_layer) == 1
+    assert test_group.index(pixel_layer) == 2
+    assert test_group.index(adjustment_layer) == 3
 
     smartobject_layer.move_up(30)
 
-    assert test_group._index(fill_layer) == 0
-    assert test_group._index(pixel_layer) == 1
-    assert test_group._index(adjustment_layer) == 2
-    assert test_group._index(smartobject_layer) == 3
+    assert test_group.index(fill_layer) == 0
+    assert test_group.index(pixel_layer) == 1
+    assert test_group.index(adjustment_layer) == 2
+    assert test_group.index(smartobject_layer) == 3
 
 
 def test_move_down(group, pixel_layer, type_layer, smartobject_layer, fill_layer, adjustment_layer):
@@ -388,42 +388,143 @@ def test_move_down(group, pixel_layer, type_layer, smartobject_layer, fill_layer
 
     test_group.move_up(50)
 
-    assert test_group._parent._index(test_group) == 0
+    assert test_group._parent.index(test_group) == 0
 
     fill_layer.move_down(2)
 
-    assert test_group._index(fill_layer) == 0
-    assert test_group._index(pixel_layer) == 1
-    assert test_group._index(smartobject_layer) == 2
-    assert test_group._index(adjustment_layer) == 3
+    assert test_group.index(fill_layer) == 0
+    assert test_group.index(pixel_layer) == 1
+    assert test_group.index(smartobject_layer) == 2
+    assert test_group.index(adjustment_layer) == 3
 
     smartobject_layer.move_down(30)
 
-    assert test_group._index(smartobject_layer) == 0
-    assert test_group._index(fill_layer) == 1
-    assert test_group._index(pixel_layer) == 2
-    assert test_group._index(adjustment_layer) == 3
+    assert test_group.index(smartobject_layer) == 0
+    assert test_group.index(fill_layer) == 1
+    assert test_group.index(pixel_layer) == 2
+    assert test_group.index(adjustment_layer) == 3
 
 
-def add_layer(group, pixel_layer):
+def test_append(group, pixel_layer):
     
     pix_old_parent = pixel_layer._parent
 
-    group.add_layer(pixel_layer)
+    group.append(pixel_layer)
 
     assert pixel_layer in group
     assert pixel_layer._parent is group
     assert pixel_layer._psd is group._psd
 
-    assert pixel_layer not in pix_old_parent
-
-
-def add_layers(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
     
-    group.add_layers([pixel_layer, type_layer, smartobject_layer, fill_layer])
+def test_extend(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+    
+    group.extend([pixel_layer, type_layer, smartobject_layer, fill_layer])
 
     for layer in [pixel_layer, type_layer, smartobject_layer, fill_layer]:
 
         assert layer in group
         assert layer._parent is group
         assert layer._psd is group._psd
+
+
+def test_insert(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+
+    group.append(pixel_layer)
+
+    group.insert(0, fill_layer)
+    assert group[0] is fill_layer
+
+    group.insert(5, smartobject_layer)
+    assert group[-1] is smartobject_layer
+
+    group.insert(1, type_layer)
+    assert group[1] is type_layer
+
+    group.insert(-1, pixel_layer)
+    assert group[-2] is pixel_layer # Negative index insert the item before the one currently at the given index.
+
+
+def test_remove(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+    
+    group.extend([pixel_layer, type_layer, smartobject_layer]) 
+
+    group.remove(pixel_layer)
+    assert pixel_layer not in group
+
+    group.remove(smartobject_layer)
+    assert smartobject_layer not in group
+
+    with pytest.raises(ValueError, match=r'.* x not in list'):
+        group.remove(pixel_layer)
+
+    with pytest.raises(ValueError, match=r'.* x not in list'):
+        group.remove(fill_layer)
+
+
+def test_pop(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+    
+    group.extend([pixel_layer, type_layer, smartobject_layer, fill_layer]) 
+
+    assert group.pop() is fill_layer
+    assert group.pop(0) is pixel_layer
+    assert group.pop(1) is smartobject_layer
+
+    assert len(group) == 1
+
+    with pytest.raises(IndexError):
+        group.pop(5)
+
+    group.clear()
+
+    with pytest.raises(IndexError):
+        group.pop()
+
+
+def test_clear(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+
+    group.extend([pixel_layer, type_layer, smartobject_layer, fill_layer]) 
+    assert len(group) == 4
+
+    group.clear()
+    assert len(group) == 0
+
+
+def test_index(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+
+    with pytest.raises(ValueError, match=r'.* is not in list'):
+        group.index(pixel_layer)
+
+    group.extend([pixel_layer, type_layer, smartobject_layer, fill_layer])
+
+    assert group.index(pixel_layer) == 0
+    assert group.index(type_layer) == 1
+    assert group.index(smartobject_layer) == 2
+    assert group.index(fill_layer) == 3
+    
+    group.clear()
+
+    with pytest.raises(ValueError, match=r'.* is not in list'):
+        group.index(fill_layer)
+
+
+def test_count(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+    
+    group.extend([pixel_layer, type_layer, smartobject_layer, fill_layer])
+
+    assert group.count(pixel_layer) == 1
+    assert group.count(type_layer) == 1
+    assert group.count(smartobject_layer) == 1
+    assert group.count(fill_layer) == 1
+
+    group.clear()
+
+    assert group.count(pixel_layer) == 0
+    assert group.count(type_layer) == 0
+    assert group.count(smartobject_layer) == 0
+    assert group.count(fill_layer) == 0
+
+    group.append(pixel_layer)
+    group.append(pixel_layer)
+    group.append(pixel_layer)
+
+    assert group.count(pixel_layer) == 3

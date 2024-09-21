@@ -136,9 +136,9 @@ def test_update_record(fixture):
     type_layer = PSDImage.open(full_name("layers/type-layer.psd"))[0]
     group_layer = PSDImage.open(full_name("layers/group.psd"))[0]
 
-    group_layer.add_layers([pixel_layer, fill_layer, shape_layer, smart_layer, type_layer])
+    group_layer.extend([pixel_layer, fill_layer, shape_layer, smart_layer, type_layer])
 
-    fixture.add_layer(group_layer)
+    fixture.append(group_layer)
 
     fixture._update_record()
 

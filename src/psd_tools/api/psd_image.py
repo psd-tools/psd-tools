@@ -644,7 +644,8 @@ class PSDImage(GroupMixin):
                 divider.kind is not SectionDivider.OTHER
             ):
                 if divider.kind == SectionDivider.BOUNDING_SECTION_DIVIDER:
-                    layer = Group(self, None, None, current_group, record, channels)
+                    layer = Group(self, None, None, current_group)
+                    layer._set_bounding_records(record, channels)
                     group_stack.append(layer)
                 elif divider.kind in (
                     SectionDivider.OPEN_FOLDER,
