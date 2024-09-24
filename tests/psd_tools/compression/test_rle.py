@@ -3,7 +3,7 @@ import pytest
 import psd_tools.compression._rle as _rle
 import psd_tools.compression.rle as rle
 
-from .test_compression import RAW_IMAGE_3x3_8bit
+from .test_compression import RAW_IMAGE_3x3_8bit, EDGE_CASE_1
 
 
 def test_identical():
@@ -16,6 +16,14 @@ def test_identical():
     assert decoded == RAW_IMAGE_3x3_8bit
     assert decoded_c == RAW_IMAGE_3x3_8bit
 
+    size = len(EDGE_CASE_1)
+    encoded = rle.encode(EDGE_CASE_1)
+    encoded_c = _rle.encode(EDGE_CASE_1)
+    assert encoded == encoded_c
+    decoded = rle.decode(encoded, size)
+    decoded_c = _rle.decode(encoded_c, size)
+    assert decoded == EDGE_CASE_1
+    assert decoded_c == EDGE_CASE_1
 
 @pytest.mark.parametrize(
     ("mod, data, size"),

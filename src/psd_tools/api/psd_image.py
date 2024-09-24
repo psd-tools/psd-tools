@@ -26,7 +26,19 @@ from psd_tools.constants import (
     SectionDivider,
     Tag,
 )
-from psd_tools.psd import PSD, FileHeader, ImageData, ImageResources
+from psd_tools.psd import (
+    PSD, FileHeader, 
+    ImageData, 
+    ImageResources, 
+    LayerAndMaskInformation, 
+    TaggedBlocks, 
+    GlobalLayerMaskInfo, 
+    LayerInfo, 
+    LayerRecords, 
+    ChannelImageData
+)
+
+from psd_tools.api.pil_io import get_pil_channels, get_pil_mode
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +66,7 @@ class PSDImage(GroupMixin):
         self._layers = []
         self._tagged_blocks = None
         self._compatibility_mode = CompatibilityMode.DEFAULT
+        self._updated_layers=False
         self._init()
 
     @classmethod
@@ -126,6 +139,9 @@ class PSDImage(GroupMixin):
             default 'macroman'.
         :param mode: file open mode, default 'wb'.
         """
+
+        self._update_record()
+
         if hasattr(fp, "write"):
             self._record.write(fp, **kwargs)
         else:
@@ -144,6 +160,8 @@ class PSDImage(GroupMixin):
             available.
         """
         from .pil_io import convert_image_data_to_pil
+
+        self._update_record()
 
         if self.has_preview():
             return convert_image_data_to_pil(self, channel, apply_icc)
@@ -216,7 +234,9 @@ class PSDImage(GroupMixin):
         """
         from psd_tools.composite import composite_pil
 
-        if not (ignore_preview or force or layer_filter) and self.has_preview():
+        self._update_record()
+
+        if not (ignore_preview or force or layer_filter) and self.has_preview() and not self._updated_layers:
             return self.topil(apply_icc=apply_icc)
         return composite_pil(
             self, color, alpha, viewport, layer_filter, force, apply_icc=apply_icc
@@ -468,6 +488,13 @@ class PSDImage(GroupMixin):
         """
         return self._compatibility_mode
 
+    @property
+    def pil_mode(self):
+
+        alpha = self.channels - get_pil_channels(get_pil_mode(self.color_mode))
+        
+        return get_pil_mode(self.color_mode, alpha)
+
     @compatibility_mode.setter
     def compatibility_mode(self, value):
         self._compatibility_mode = value
@@ -566,6 +593,9 @@ class PSDImage(GroupMixin):
             layer._has_clip_target = True
 
     def _compute_clipping_layers(self):
+
+        self._update_record()
+
         self._clear_clipping_layers()
 
         def rec_helper(layer):
@@ -615,6 +645,7 @@ class PSDImage(GroupMixin):
             ):
                 if divider.kind == SectionDivider.BOUNDING_SECTION_DIVIDER:
                     layer = Group(self, None, None, current_group)
+                    layer._set_bounding_records(record, channels)
                     group_stack.append(layer)
                 elif divider.kind in (
                     SectionDivider.OPEN_FOLDER,
@@ -672,3 +703,51 @@ class PSDImage(GroupMixin):
                 current_group._layers.append(layer)
 
         self._compute_clipping_layers()
+
+    def _update_record(self, layer_group=None):
+        """
+        Compiles the tree layer structure back into records and channels list recursively
+        """
+
+        if not self._updated_layers:
+            return
+
+        if layer_group is None:
+            layer_group = self
+
+        layer_records = LayerRecords()
+        channel_image_data = ChannelImageData()
+
+        for layer in layer_group:
+            if layer.kind in ["group", "artboard"]:
+                
+                layer_records.append(layer._bounding_record)
+                channel_image_data.append(layer._bounding_channels)
+
+                tmp_layer_records, tmp_channel_image_data = self._update_record(layer)
+
+                layer_records.extend(tmp_layer_records)
+                channel_image_data.extend(tmp_channel_image_data)
+
+            layer_records.append(layer._record)
+            channel_image_data.append(layer._channels)
+            
+        if layer_group == self:
+
+            # PSDImage.frompil doesn't create a LayerInfo attribute to LayerAndMaskInformation 
+            if not self._record.layer_and_mask_information.layer_info:
+                self._record.layer_and_mask_information.layer_info = LayerInfo()
+
+            if not self._record.layer_and_mask_information.global_layer_mask_info:
+                self._record.layer_and_mask_information.global_layer_mask_info = GlobalLayerMaskInfo()
+
+            if not self._record.layer_and_mask_information.tagged_blocks:
+                self._record.layer_and_mask_information.tagged_blocks = TaggedBlocks()
+
+            self._record.layer_and_mask_information.layer_info.layer_records = layer_records
+            self._record.layer_and_mask_information.layer_info.channel_image_data = channel_image_data
+            self._record.layer_and_mask_information.layer_info.layer_count = len(layer_records)
+
+            return
+
+        return (layer_records, channel_image_data) 

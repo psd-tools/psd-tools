@@ -74,8 +74,11 @@ Some of the layer attributes are editable, such as a layer name::
 
     layer.name = 'Updated layer 1'
 
-.. note:: Currently, the package does not support adding or removing of
-    a layer.
+It is possible to create a new PixelLayer from a PIL object,
+the PIL image will be converted to the color mode of the PSD File given in parameter::
+    PixelLayer.frompil(pil_image, psd_file, "Layer name", top_offset, left_offset, Compression.RLE)
+
+See the function documentation for further parameter explanations.
 
 :py:class:`~psd_tools.api.layers.Group` has internal layers::
 
@@ -83,6 +86,11 @@ Some of the layer attributes are editable, such as a layer name::
         print(layer)
 
     first_layer = group[0]
+
+Create a new group object.::
+
+    Group.new("Group name", open_folder=True, parent=parent_group)
+
 
 :py:class:`~psd_tools.api.layers.TypeLayer` is a layer with texts::
 
@@ -110,6 +118,98 @@ via `smart_object` property::
 paint the entire region if there is no associated mask. Sub-classes of
 :py:class:`~psd_tools.api.layers.AdjustmentLayer` represents layer
 adjustment applied to the composed image. See :ref:`adjustment-layers`.
+
+
+Modifying the layer structure
+-----------------------------
+
+The layer structure of a PSD object can be modified through methods emulating a python list.
+
+
+The internal model of the psd layer structure will be automatically updated when saving the psd to a file or a similar operation.
+Moving a layer from a PSD to another will also automatically convert the PixelLayer to the target psd's color mode.
+
+The follwing are valid for both PSDImage and Group objects.
+
+Set an item::
+
+    group[0] = layer
+
+Add a layer to a group::
+    
+    group.append(layer)
+
+Add a list of layers to a group::
+    
+    group.extend(layers)
+
+Insert a layer to a specific index in the group::
+    
+    group.insert(3, layer)
+
+Remove a layer from the a group::
+    
+    group.remove(layer)
+
+Pop a layer from the group::
+    
+    layer = group.pop()
+
+Emptying a layer group::
+    
+    group.clear()
+
+Get the index of a layer in the group::
+    
+    group.index(layer)
+
+Count the occurences of a layer in a group::
+    
+    group.count(layer)
+
+Move a given list of layers in a newly created Group. If no parent group is given in parameter, 
+the new group will replace the first layer of the list in the PSD structure::
+    
+    Group.group_layers(layer_list, "Group Name", parent=parent_group, open_folder=True)
+
+Below an example of such an operation.::
+    
+    - PSDImage
+        - Group 1
+            - PixelLayer
+            - FillLayer
+        - PixelLayer
+        - TypeLayer
+        - SmartObjectLayer
+        - PixelLayer
+        
+    Group.group_layers(PSDImage[:2], "New Group")
+    - PSDImage
+        - New Group
+            - Group 1
+                - PixelLayer
+                - FillLayer
+            - PixelLayer
+            - TypeLayer
+        - SmartObjectLayer
+        - PixelLayer
+
+
+Some operations are available for all Layer objects.
+
+Delete a layer from its layer structure::
+    
+    layer.delete()
+
+Layers can be moved from a group to another::
+    
+    layer.move_to_group(target_group)
+
+Layers can be moved within the group to change their order::
+    
+    layer.move_up(5) # Will send the layer upward in the group
+    layer.move_down(3) # Will send the layer downward in the group
+
 
 Exporting data to PIL
 ---------------------

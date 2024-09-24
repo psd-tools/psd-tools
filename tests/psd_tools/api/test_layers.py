@@ -6,7 +6,9 @@ import pytest
 
 from psd_tools.api.layers import Group, PixelLayer, ShapeLayer
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.constants import BlendMode
+from psd_tools.constants import BlendMode, Tag, SectionDivider
+
+from psd_tools.api.pil_io import get_pil_channels, get_pil_depth
 
 from ..utils import full_name
 
@@ -242,3 +244,287 @@ def test_bbox_updates():
     assert group1.bbox == (0, 0, 0, 0)
     group1.visible = True
     assert group1.bbox == (25, 34, 80, 88)
+
+
+def test_new_group(group):
+    
+    test_group = Group.new("Test Group", parent = group)
+    
+    assert test_group._parent is group
+
+    assert test_group._record.tagged_blocks.get_data(Tag.SECTION_DIVIDER_SETTING).kind is SectionDivider.OPEN_FOLDER
+    assert test_group._bounding_record.tagged_blocks.get_data(Tag.SECTION_DIVIDER_SETTING).kind is SectionDivider.BOUNDING_SECTION_DIVIDER
+
+    assert test_group._record.tagged_blocks.get_data(Tag.UNICODE_LAYER_NAME) == "Test Group"
+    assert test_group._bounding_record.tagged_blocks.get_data(Tag.UNICODE_LAYER_NAME) == "</Layer group>"
+
+    test_group = Group.new("Test Group 2", open_folder = False)
+    
+    assert test_group._parent is None
+
+    assert test_group._record.tagged_blocks.get_data(Tag.SECTION_DIVIDER_SETTING).kind is SectionDivider.CLOSED_FOLDER
+    assert test_group._bounding_record.tagged_blocks.get_data(Tag.SECTION_DIVIDER_SETTING).kind is SectionDivider.BOUNDING_SECTION_DIVIDER
+
+    assert test_group._record.tagged_blocks.get_data(Tag.UNICODE_LAYER_NAME) == "Test Group 2"
+    assert test_group._bounding_record.tagged_blocks.get_data(Tag.UNICODE_LAYER_NAME) == "</Layer group>"
+
+    
+def test_group_layers(group, pixel_layer, smartobject_layer, fill_layer, adjustment_layer):
+    
+    pix_old_parent = pixel_layer._parent
+    pix_old_psd = pixel_layer._psd
+
+    test_group = Group.group_layers([pixel_layer, smartobject_layer, fill_layer, adjustment_layer])
+
+    assert len(test_group) == 4
+
+    assert test_group[0] is pixel_layer
+    assert test_group[1] is smartobject_layer
+    assert test_group[2] is fill_layer
+    assert test_group[3] is adjustment_layer
+
+    assert test_group[0]._parent is test_group
+    assert test_group[1]._parent is test_group
+    assert test_group[2]._parent is test_group
+    assert test_group[3]._parent is test_group
+
+    assert test_group._parent is pix_old_parent
+    assert test_group._psd is pix_old_psd
+
+    assert test_group._psd is not None
+    assert test_group[0]._psd is not None
+
+
+    test_group = Group.group_layers([pixel_layer, smartobject_layer, fill_layer, adjustment_layer], parent = group)
+
+    assert len(test_group) == 4
+
+    assert test_group._parent is group
+    assert test_group._psd is group._psd
+
+    assert test_group._psd is not None
+    assert test_group[0]._psd is not None
+
+
+
+def test_pixel_layer_frompil():
+    import PIL 
+
+    pil_rgb = PIL.Image.new("RGB", (30, 30))
+    pil_rgb_a = PIL.Image.new("RGBA", (30, 30))
+    pil_lab = PIL.Image.new("LAB", (30, 30))
+    pil_grayscale_a = PIL.Image.new("LA", (30, 30))
+    pil_grayscale = PIL.Image.new("L", (30, 30))
+    pil_bitmap = PIL.Image.new("1", (30, 30))
+    pil_cmyk = PIL.Image.new("CMYK", (30, 30))
+
+    images = [pil_rgb, pil_rgb_a, pil_lab, pil_grayscale_a, pil_grayscale, pil_bitmap, pil_cmyk]
+    layers = [PixelLayer.frompil(pil_im, None) for pil_im in images]
+
+    for (layer, image) in zip(layers, images):
+
+        # Bitmap image gets converted to grayscale during layer creation so we have to convert here too
+        if image.mode == "1":
+            image = image.convert("L")
+
+        # CMYK Images needs to be inverted, for some reason
+        if image.mode == "CMYK":
+            from PIL import ImageChops
+            image = ImageChops.invert(image)
+
+        assert len(layer._record.channel_info) == get_pil_channels(image.mode.rstrip("A")) + 1
+        assert len(layer._channels) == get_pil_channels(image.mode.rstrip("A")) + 1
+
+        for channel in range(get_pil_channels(image.mode.rstrip("A"))):
+            
+            assert layer._channels[channel + 1].get_data(image.width, image.height, get_pil_depth(image.mode.rstrip("A"))) == image.getchannel(channel).tobytes()
+    
+
+def test_delete_layer(pixel_layer):    
+    
+    pixel_layer.delete_layer()
+
+    assert pixel_layer not in pixel_layer._parent
+
+
+def test_move_to_group(group, pixel_layer):
+
+    pix_old_parent = pixel_layer._parent
+
+    pixel_layer.move_to_group(group)
+
+    assert pixel_layer in group
+    assert pixel_layer._parent is group
+    assert pixel_layer._psd is group._psd
+
+    assert pixel_layer not in pix_old_parent
+    
+def test_move_up(group, pixel_layer, type_layer, smartobject_layer, fill_layer, adjustment_layer):
+
+    test_group = Group.group_layers([pixel_layer, smartobject_layer, fill_layer, adjustment_layer], parent = group)
+
+    test_group.move_up(50)
+
+    assert test_group._parent.index(test_group) == 0
+
+    pixel_layer.move_up(2)
+
+    assert test_group.index(smartobject_layer) == 0
+    assert test_group.index(fill_layer) == 1
+    assert test_group.index(pixel_layer) == 2
+    assert test_group.index(adjustment_layer) == 3
+
+    smartobject_layer.move_up(30)
+
+    assert test_group.index(fill_layer) == 0
+    assert test_group.index(pixel_layer) == 1
+    assert test_group.index(adjustment_layer) == 2
+    assert test_group.index(smartobject_layer) == 3
+
+
+def test_move_down(group, pixel_layer, type_layer, smartobject_layer, fill_layer, adjustment_layer):
+
+    test_group = Group.group_layers([pixel_layer, smartobject_layer, fill_layer, adjustment_layer], parent = group)
+
+    test_group.move_up(50)
+
+    assert test_group._parent.index(test_group) == 0
+
+    fill_layer.move_down(2)
+
+    assert test_group.index(fill_layer) == 0
+    assert test_group.index(pixel_layer) == 1
+    assert test_group.index(smartobject_layer) == 2
+    assert test_group.index(adjustment_layer) == 3
+
+    smartobject_layer.move_down(30)
+
+    assert test_group.index(smartobject_layer) == 0
+    assert test_group.index(fill_layer) == 1
+    assert test_group.index(pixel_layer) == 2
+    assert test_group.index(adjustment_layer) == 3
+
+
+def test_append(group, pixel_layer):
+    
+    pix_old_parent = pixel_layer._parent
+
+    group.append(pixel_layer)
+
+    assert pixel_layer in group
+    assert pixel_layer._parent is group
+    assert pixel_layer._psd is group._psd
+
+    
+def test_extend(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+    
+    group.extend([pixel_layer, type_layer, smartobject_layer, fill_layer])
+
+    for layer in [pixel_layer, type_layer, smartobject_layer, fill_layer]:
+
+        assert layer in group
+        assert layer._parent is group
+        assert layer._psd is group._psd
+
+
+def test_insert(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+
+    group.append(pixel_layer)
+
+    group.insert(0, fill_layer)
+    assert group[0] is fill_layer
+
+    group.insert(5, smartobject_layer)
+    assert group[-1] is smartobject_layer
+
+    group.insert(1, type_layer)
+    assert group[1] is type_layer
+
+    group.insert(-1, pixel_layer)
+    assert group[-2] is pixel_layer # Negative index insert the item before the one currently at the given index.
+
+
+def test_remove(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+    
+    group.extend([pixel_layer, type_layer, smartobject_layer]) 
+
+    group.remove(pixel_layer)
+    assert pixel_layer not in group
+
+    group.remove(smartobject_layer)
+    assert smartobject_layer not in group
+
+    with pytest.raises(ValueError, match=r'.* x not in list'):
+        group.remove(pixel_layer)
+
+    with pytest.raises(ValueError, match=r'.* x not in list'):
+        group.remove(fill_layer)
+
+
+def test_pop(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+    
+    group.extend([pixel_layer, type_layer, smartobject_layer, fill_layer]) 
+
+    assert group.pop() is fill_layer
+    assert group.pop(0) is pixel_layer
+    assert group.pop(1) is smartobject_layer
+
+    assert len(group) == 1
+
+    with pytest.raises(IndexError):
+        group.pop(5)
+
+    group.clear()
+
+    with pytest.raises(IndexError):
+        group.pop()
+
+
+def test_clear(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+
+    group.extend([pixel_layer, type_layer, smartobject_layer, fill_layer]) 
+    assert len(group) == 4
+
+    group.clear()
+    assert len(group) == 0
+
+
+def test_index(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+
+    with pytest.raises(ValueError, match=r'.* is not in list'):
+        group.index(pixel_layer)
+
+    group.extend([pixel_layer, type_layer, smartobject_layer, fill_layer])
+
+    assert group.index(pixel_layer) == 0
+    assert group.index(type_layer) == 1
+    assert group.index(smartobject_layer) == 2
+    assert group.index(fill_layer) == 3
+    
+    group.clear()
+
+    with pytest.raises(ValueError, match=r'.* is not in list'):
+        group.index(fill_layer)
+
+
+def test_count(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+    
+    group.extend([pixel_layer, type_layer, smartobject_layer, fill_layer])
+
+    assert group.count(pixel_layer) == 1
+    assert group.count(type_layer) == 1
+    assert group.count(smartobject_layer) == 1
+    assert group.count(fill_layer) == 1
+
+    group.clear()
+
+    assert group.count(pixel_layer) == 0
+    assert group.count(type_layer) == 0
+    assert group.count(smartobject_layer) == 0
+    assert group.count(fill_layer) == 0
+
+    group.append(pixel_layer)
+    group.append(pixel_layer)
+    group.append(pixel_layer)
+
+    assert group.count(pixel_layer) == 3

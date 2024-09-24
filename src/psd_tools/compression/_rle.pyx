@@ -50,7 +50,7 @@ def encode(const unsigned char[:] data) -> string:
 
     Apple PackBits RLE encoder.
     """
-
+    
     cdef unsigned char MAX_LEN = 0xFF >> 1
     cdef int length = data.shape[0]
     cdef int i = 0
@@ -87,7 +87,7 @@ def encode(const unsigned char[:] data) -> string:
                 #: could be encoded as either of the following:
                 # +2  A  B  C -1  D +1  E  F -5  G +1  H  I -1  J +0  K
                 # +6  A  B  C  D  D  E  F -5  G +4  H  I  J  J  K
-                elif ((j+2 == length) or (MAX_LEN - (j - i) <= 2)) and (data[j] == data[j+1]):
+                elif ((j+2 == length) or (MAX_LEN - (j - i) <= 2)) and not (j+1 == length) and (data[j] == data[j+1]):
                     break
                 elif j+2 < length and (data[j] == data[j+1] == data[j+2]):
                     break
