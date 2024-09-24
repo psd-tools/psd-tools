@@ -558,6 +558,8 @@ class Layer(object):
     def move_to_group(self, group):
         """
         Moves the layer to the given group, updates the tree metadata as needed.
+
+        :param group: The group the current layer will be moved into.
         """
 
         assert group.kind in ["group", "psdimage", "artboard"]
@@ -576,7 +578,9 @@ class Layer(object):
 
     def move_up(self, offset = 1):
         """
-        Moves the layer up a certain number of offset in the group the layer is in.
+        Moves the layer up a certain offset within the group the layer is in.
+
+        :param offset:
         """
 
         assert self.parent
@@ -597,7 +601,9 @@ class Layer(object):
 
     def move_down(self, offset = 1):
         """
-        Moves the layer down a certain number of offset in the group the layer is in.
+        Moves the layer down a certain offset within the group the layer is in.
+
+        :param offset:
         """
 
         return self.move_up(-1 * offset)
@@ -637,9 +643,41 @@ class GroupMixin(object):
         return self._layers.__getitem__(key)
 
     def __setitem__(self, key, value):
-        return self._layers.__setitem__(key, value)
+
+        assert value is not self, "Cannot add the group {} to itself.".format(self)
+
+        if isinstance(value, list):
+            for layer in value:
+                assert isinstance(layer, Layer)
+                if layer.kind in ["group", "psdimage", "artboard"]: 
+                    assert self not in layer.descendants(), "This operation would create a reference loop within the group between {} and {}.".format(self, layer)
+
+                layer._parent = self    
+        else:
+            assert isinstance(value, Layer)
+            if value.kind in ["group", "psdimage", "artboard"]: 
+                assert self not in value.descendants(), "This operation would create a reference loop within the group between {} and {}.".format(self, value)
+
+            value._parent = self
+        
+        setitem_res = self._layers.__setitem__(key, value)
+
+        _psd = self if self.kind == "psdimage" else self._psd
+
+        for layer in self.descendants():
+            
+            if layer._psd != _psd and _psd is not None:
+                if layer.kind == "pixel":
+                    layer._convert(_psd)
+            
+                layer._psd = _psd
+
+        self._update_psd_record()
+
+        return setitem_res
 
     def __delitem__(self, key):
+        self._update_psd_record()
         return self._layers.__delitem__(key)
 
     def append(self, layer):
@@ -650,10 +688,10 @@ class GroupMixin(object):
         """
 
         assert layer is not self
-
+        
         self.extend([layer])
 
-        return layer
+        return self
 
     def extend(self, layers):
         """
@@ -665,7 +703,9 @@ class GroupMixin(object):
         assert layers
         assert self not in layers, "Cannot add the group {} to itself.".format(self)
         
+    
         for layer in layers:
+            assert isinstance(layer, Layer)
             if layer.kind in ["group", "psdimage", "artboard"]: 
                 assert self not in layer.descendants(), "This operation would create a reference loop within the group between {} and {}.".format(self, layer)
 
@@ -688,8 +728,15 @@ class GroupMixin(object):
         return self
 
     def insert(self, index, layer):
-        
+        """
+        Insert the given layer at the specified index.
+
+        :param index: 
+        :param layer: 
+        """
+
         assert layer is not self
+        assert isinstance(layer, Layer)
         
         if layer.kind in ["group", "psdimage", "artboard"]: 
             assert self not in layer.descendants(), "This operation would create a reference loop within the group between {} and {}.".format(self, layer)
@@ -712,24 +759,52 @@ class GroupMixin(object):
         return self
 
     def remove(self,  layer):
+        """
+        Removes the specified layer from the group
+
+        :param layer:
+        """
+
         self._layers.remove(layer)
         self._update_psd_record()
         return self
 
     def pop(self, index=-1):
+        """
+        Removes the specified layer from the list and returns it.
+
+        :param index:
+        """
+
         popLayer = self._layers.pop(index)
         self._update_psd_record()
         return popLayer
 
     def clear(self):
+        """
+        Clears the group.
+        """
+
         self._layers.clear()
         self._update_psd_record()
         return self
 
     def index(self, layer):
+        """
+        Returns the index of the specified layer in the group.
+        
+        :param layer:
+        """
+
         return self._layers.index(layer)
 
     def count(self, layer):
+        """
+        Counts the number of occurences of a layer in the group.
+        
+        :param layer:
+        """
+
         return self._layers.count(layer)
 
     def _update_psd_record(self):
@@ -908,7 +983,8 @@ class Group(GroupMixin, Layer):
         Create a new Group object with minimal records and data channels and metadata to properly include the group in the PSD file.
 
         :param name: The display name of the group. Default to "Group".
-        :param open_folder: Boolean defining whether the folder will be open or closed. Default to true.
+        :param open_folder: Boolean defining whether the folder will be open or closed in photoshop. Default to True.
+        :param parent: Optional parent folder to move the newly created group into.
 
         :return: A :py:class:`~psd_tools.api.layers.Group` object
         """
@@ -946,14 +1022,14 @@ class Group(GroupMixin, Layer):
     @classmethod
     def group_layers(cls, layers = [], name = "Group", parent = None, open_folder = True):
         """
-        Create a new Group object containing the layers given in parameters.
+        Create a new Group object containing the given layers and moved into the parent folder.
 
-        If parent is none, the group will be placed in place of the first layer in the given list
+        If no parent is provided, the group will be put in place of the first layer in the given list. Example below:
 
         :param layers: The layers to group. Can by any subclass of :py:class:`~psd_tools.api.layers.Layer`
         :param name: The display name of the group. Default to "Group".
         :param parent: The parent group to add the newly created Group object into.
-        :param open_folder: Boolean defining whether the folder will be open or closed. Default to true.
+        :param open_folder: Boolean defining whether the folder will be open or closed in photoshop. Default to True.
 
         :return: A :py:class:`~psd_tools.api.layers.Group`
         """
@@ -1059,7 +1135,7 @@ class PixelLayer(Layer):
     @classmethod
     def frompil(cls, pil_im, psd_file, layer_name = "Layer", top = 0, left = 0, compression = Compression.RLE, **kwargs):
         """
-        Method to create a layer from a PIL Image object, currently tuned for RGBA image.
+        Creates a PixelLayer from a PIL image for a given psd file.
 
         :param pil_im: The :py:class:`~PIL.Image` object to convert to photoshop
         :param psdfile: The psd file the image will be converted for.
