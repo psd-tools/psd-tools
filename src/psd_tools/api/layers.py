@@ -6,7 +6,6 @@ from __future__ import absolute_import, unicode_literals
 
 import logging
 
-from psd_tools.api import deprecated
 from psd_tools.api.effects import Effects
 from psd_tools.api.mask import Mask
 from psd_tools.api.shape import Origination, Stroke, VectorMask
@@ -377,28 +376,6 @@ class Layer(object):
 
         return convert_layer_to_pil(self, channel, apply_icc)
 
-    @deprecated
-    def compose(self, force=False, bbox=None, layer_filter=None):
-        """
-        Deprecated, use :py:func:`~psd_tools.api.layers.PixelLayer.composite`.
-
-        Compose layer and masks (mask, vector mask, and clipping layers).
-
-        Note that the resulting image size is not necessarily equal to the
-        layer size due to different mask dimensions. The offset of the
-        composed image is stored at `.info['offset']` attribute of `PIL.Image`.
-
-        :param bbox: Viewport bounding box specified by (x1, y1, x2, y2) tuple.
-        :return: :py:class:`PIL.Image`, or `None` if the layer has no pixel.
-        """
-        from psd_tools.composer import compose, compose_layer
-
-        if self.bbox == (0, 0, 0, 0):
-            return None
-        if bbox is None:
-            return compose_layer(self, force=force)
-        return compose(self, force=force, bbox=bbox, layer_filter=layer_filter)
-
     def numpy(self, channel=None, real_mask=True):
         """
         Get NumPy array of the layer.
@@ -453,11 +430,6 @@ class Layer(object):
     def clip_layers(self):
         """
         Clip layers associated with this layer.
-
-        To compose clipping layers::
-
-            from psd_tools import compose
-            clip_mask = compose(layer.clip_layers)
 
         :return: list of layers
         """
@@ -813,26 +785,6 @@ class GroupMixin(object):
         elif self._psd is not None:
             self._psd._updated_layers = True
 
-    @deprecated
-    def compose(
-        self, force=False, bbox=None, layer_filter=None, context=None, color=None
-    ):
-        """
-        Compose layer and masks (mask, vector mask, and clipping layers).
-
-        :return: PIL Image object, or None if the layer has no pixels.
-        """
-        from psd_tools.composer import compose
-
-        return compose(
-            self,
-            force=force,
-            context=context,
-            bbox=bbox,
-            layer_filter=layer_filter,
-            color=color,
-        )
-
     def descendants(self, include_clip=True):
         """
         Return a generator to iterate over all descendant layers.
@@ -1052,11 +1004,6 @@ class Group(GroupMixin, Layer):
 class Artboard(Group):
     """
     Artboard is a special kind of group that has a pre-defined viewbox.
-
-    Example::
-
-        artboard = psd[1]
-        image = artboard.compose()
     """
 
     @classmethod
@@ -1104,19 +1051,6 @@ class Artboard(Group):
             )
         return self._bbox
 
-    def compose(self, bbox=None, **kwargs):
-        """
-        Compose the artboard.
-
-        See :py:func:`~psd_tools.compose` for available extra arguments.
-
-        :param bbox: Viewport tuple (left, top, right, bottom).
-        :return: :py:class:`PIL.Image`, or `None` if there is no pixel.
-        """
-        from psd_tools.composer import compose
-
-        return compose(self, bbox=bbox or self.bbox, **kwargs)
-
 
 class PixelLayer(Layer):
     """
@@ -1125,11 +1059,8 @@ class PixelLayer(Layer):
     Example::
 
         assert layer.kind == 'pixel':
-        image = layer.topil()
+        image = layer.composite()
         image.save('layer.png')
-
-        composed_image = layer.compose()
-        composed_image.save('composed-layer.png')
     """
 
     @classmethod
@@ -1408,14 +1339,6 @@ class AdjustmentLayer(Layer):
         self._data = None
         if hasattr(self.__class__, "_KEY"):
             self._data = self.tagged_blocks.get_data(self.__class__._KEY)
-
-    def compose(self, **kwargs):
-        """
-        Adjustment layer is never composed.
-
-        :return: None
-        """
-        return None
 
 
 class FillLayer(Layer):

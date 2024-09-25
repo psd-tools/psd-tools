@@ -6,7 +6,7 @@ from __future__ import absolute_import, unicode_literals
 
 import logging
 
-from psd_tools.api import adjustments, deprecated
+from psd_tools.api import adjustments
 from psd_tools.api.layers import (
     Artboard,
     FillLayer,
@@ -166,32 +166,6 @@ class PSDImage(GroupMixin):
         if self.has_preview():
             return convert_image_data_to_pil(self, channel, apply_icc)
         return None
-
-    @deprecated
-    def compose(self, force=False, bbox=None, layer_filter=None):
-        """
-        Deprecated, use :py:func:`~psd_tools.PSDImage.composite`.
-
-        Compose the PSD image.
-
-        :param bbox: Viewport tuple (left, top, right, bottom).
-        :return: :py:class:`PIL.Image`, or `None` if there is no pixel.
-        """
-        from psd_tools.composer import compose
-
-        image = None
-        if (not force or len(self) == 0) and not bbox and not layer_filter:
-            image = self.topil()
-        if image is None:
-            image = compose(
-                self,
-                bbox=bbox or self.viewbox,
-                force=force,
-                layer_filter=layer_filter,
-            )
-        elif bbox is not None:
-            image = image.crop(bbox)
-        return image
 
     def numpy(self, channel=None):
         """
