@@ -45,7 +45,7 @@ jobs:
       - uses: actions/setup-python@v5
 
       - name: Install cibuildwheel
-        run: python -m pip install cibuildwheel==2.18.1
+        run: python -m pip install cibuildwheel==2.21.1
 
       - name: Set up QEMU
         if: runner.os == 'Linux'
@@ -58,7 +58,7 @@ jobs:
         env:
           CIBW_BUILD: ${{ matrix.build }}-*
           CIBW_ARCHS_LINUX: auto aarch64
-          CIBW_ARCHS_MACOS: x86_64 arm64
+          CIBW_ARCHS_MACOS: universal2
           CIBW_TEST_COMMAND: pytest {project}/tests
           CIBW_TEST_SKIP: "*arm64 *aarch64 *musllinux* *i686 *win32"
 
