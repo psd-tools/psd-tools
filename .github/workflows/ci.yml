@@ -60,7 +60,7 @@ jobs:
           CIBW_ARCHS_LINUX: auto aarch64
           CIBW_ARCHS_MACOS: universal2
           CIBW_TEST_COMMAND: pytest {project}/tests
-          CIBW_TEST_SKIP: "*arm64 *aarch64 *musllinux* *i686 *win32"
+          CIBW_TEST_SKIP: "*linux_aarch64 *-macosx_universal2:x86_64 *musllinux* *i686 *win32"
 
       - uses: actions/upload-artifact@v4
         with:
