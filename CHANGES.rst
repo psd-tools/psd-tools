@@ -1,3 +1,9 @@
+1.10.0 (2024-09-26)
+-------------------
+
+- [api] Support basic layer structure editing (#428)
+- [api] Drop deprecated compose module (#432)
+
 1.9.34 (2024-07-01)
 -------------------
 

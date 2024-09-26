@@ -1,3 +1,17 @@
+Migrating to 1.10
+=================
+
+psd-tools 1.10 has a few breaking changes.
+
+Basic layer structure editing is supported in 1.10. You can add or remove a pixel layer, or change the grouping of layers.
+
+psd-tools 1.10 drops `compose` module. Use `composite` instead.
+
+version 1.10.x::
+
+    image = psd.composite()
+    layer_image = layer.composite()
+
 Migrating to 1.9
 ================
 
