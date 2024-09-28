@@ -616,34 +616,11 @@ class GroupMixin(object):
 
     def __setitem__(self, key, value):
 
-        assert value is not self, "Cannot add the group {} to itself.".format(self)
-
-        if isinstance(value, list):
-            for layer in value:
-                assert isinstance(layer, Layer)
-                if layer.kind in ["group", "psdimage", "artboard"]: 
-                    assert self not in layer.descendants(), "This operation would create a reference loop within the group between {} and {}.".format(self, layer)
-
-                layer._parent = self    
-        else:
-            assert isinstance(value, Layer)
-            if value.kind in ["group", "psdimage", "artboard"]: 
-                assert self not in value.descendants(), "This operation would create a reference loop within the group between {} and {}.".format(self, value)
-
-            value._parent = self
+        self._check_valid_layers(value)
         
         setitem_res = self._layers.__setitem__(key, value)
 
-        _psd = self if self.kind == "psdimage" else self._psd
-
-        for layer in self.descendants():
-            
-            if layer._psd != _psd and _psd is not None:
-                if layer.kind == "pixel":
-                    layer._convert(_psd)
-            
-                layer._psd = _psd
-
+        self._propagate_metadata()
         self._update_psd_record()
 
         return setitem_res
@@ -672,29 +649,12 @@ class GroupMixin(object):
         :param layers: The layers to add
         """
 
-        assert layers
-        assert self not in layers, "Cannot add the group {} to itself.".format(self)
-        
-    
-        for layer in layers:
-            assert isinstance(layer, Layer)
-            if layer.kind in ["group", "psdimage", "artboard"]: 
-                assert self not in layer.descendants(), "This operation would create a reference loop within the group between {} and {}.".format(self, layer)
+        self._check_valid_layers(layers)
 
         for layer in layers:
-            layer._parent = self
             self._layers.append(layer)
 
-        _psd = self if self.kind == "psdimage" else self._psd
-
-        for layer in self.descendants():
-            
-            if layer._psd != _psd and _psd is not None:
-                if layer.kind == "pixel":
-                    layer._convert(_psd)
-            
-                layer._psd = _psd
-
+        self._propagate_metadata()
         self._update_psd_record()
         
         return self
@@ -707,25 +667,11 @@ class GroupMixin(object):
         :param layer: 
         """
 
-        assert layer is not self
-        assert isinstance(layer, Layer)
-        
-        if layer.kind in ["group", "psdimage", "artboard"]: 
-            assert self not in layer.descendants(), "This operation would create a reference loop within the group between {} and {}.".format(self, layer)
+        self._check_valid_layers(layer)
 
         self._layers.insert(index, layer)
-        layer._parent = self
 
-        _psd = self if self.kind == "psdimage" else self._psd
-
-        for layer in self.descendants():
-            
-            if layer._psd != _psd and _psd is not None:
-                if layer.kind == "pixel":
-                    layer._convert(_psd)
-            
-                layer._psd = _psd
-
+        self._propagate_metadata()
         self._update_psd_record()
 
         return self
@@ -778,6 +724,35 @@ class GroupMixin(object):
         """
 
         return self._layers.count(layer)
+
+    def _check_valid_layers(self, layers):
+        
+        assert layers is not self, "Cannot add the group {} to itself.".format(self)
+
+        if isinstance(layers, list):
+            for layer in layers:
+                assert isinstance(layer, Layer)
+                if layer.kind in ["group", "psdimage", "artboard"]: 
+                    assert self not in layer.descendants(), "This operation would create a reference loop within the group between {} and {}.".format(self, layer)
+
+        else:
+            assert isinstance(layers, Layer)
+            if layers.kind in ["group", "psdimage", "artboard"]: 
+                assert self not in layers.descendants(), "This operation would create a reference loop within the group between {} and {}.".format(self, value)
+
+    def _propagate_metadata(self):
+
+        _psd = self if self.kind == "psdimage" else self._psd
+
+        for layer in self.descendants():
+            
+            layer._parent = self
+
+            if layer._psd != _psd and _psd is not None:
+                if layer.kind == "pixel":
+                    layer._convert(_psd)
+            
+                layer._psd = _psd
 
     def _update_psd_record(self):
         if self.kind == "psdimage":
@@ -972,7 +947,7 @@ class Group(GroupMixin, Layer):
         return group
 
     @classmethod
-    def group_layers(cls, layers = [], name = "Group", parent = None, open_folder = True):
+    def group_layers(cls, layers, name = "Group", parent = None, open_folder = True):
         """
         Create a new Group object containing the given layers and moved into the parent folder.
 
@@ -1079,6 +1054,7 @@ class PixelLayer(Layer):
         """
 
         assert pil_im
+        assert psd_file.kind == "psdimage"
 
         if pil_im.mode == "1":
             pil_im = pil_im.convert("L")
@@ -1133,7 +1109,7 @@ class PixelLayer(Layer):
             logger.warning("This layer {} cannot be converted to the target psd".format(self))
             return self
 
-        new_layer = PixelLayer.frompil(self.topil(),
+        new_layer = PixelLayer.frompil(self.composite(),
                                         target_psd,
                                         self.name,
                                         self.top,
