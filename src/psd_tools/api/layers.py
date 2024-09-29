@@ -13,9 +13,10 @@ from psd_tools.api.smart_object import SmartObject
 from psd_tools.api.pil_io import get_pil_channels, get_pil_depth, get_pil_mode
 from psd_tools.constants import BlendMode, Clipping, Tag, TextType, Compression, ChannelID, SectionDivider
 from psd_tools.terminology import Key
+
 from psd_tools.psd.layer_and_mask import LayerRecord, ChannelDataList, ChannelData, ChannelInfo
 from psd_tools.psd.tagged_blocks import TaggedBlocks
-
+from psd_tools.psd.patterns import Patterns
 
 logger = logging.getLogger(__name__)
 
@@ -581,6 +582,37 @@ class Layer(object):
 
         return self.move_up(-1 * offset)
 
+    def _fetch_patterns(self, target_psd):
+        
+        # Retrieve the patterns contained in the layer current ._psd and add them to the target psd
+        _psd = target_psd
+
+        effects = [effect for effect in self.effects if effect.has_patterns()]
+        pattern_ids = [effect.pattern[Key.ID].value.rstrip('\x00') for effect in effects]
+
+        if pattern_ids:
+
+            psd_global_blocks = _psd.tagged_blocks
+
+            if psd_global_blocks is None:
+                psd_global_blocks = TaggedBlocks()
+                _psd._record.layer_and_mask_information.tagged_blocks = psd_global_blocks
+
+            if Tag.PATTERNS1 not in psd_global_blocks.keys():
+                psd_global_blocks.set_data(Tag.PATTERNS1, Patterns())
+
+            sourcePatterns = []
+            for tag in (Tag.PATTERNS1, Tag.PATTERNS2, Tag.PATTERNS3):
+                if tag in self._psd.tagged_blocks:
+                    sourcePatterns.extend(self._psd.tagged_blocks.get(Tag.PATTERNS1).data)
+            
+            psd_global_blocks.get(Tag.PATTERNS1).data.extend(
+                [
+                    pattern for pattern, pattern_id in zip(sourcePatterns, pattern_ids) if 
+                        pattern_id == pattern.pattern_id and 
+                        pattern_id not in [targetPattern.pattern_id for targetPattern in psd_global_blocks.get(Tag.PATTERNS1).data]
+                ]
+            )
 
 class GroupMixin(object):
     @property
@@ -751,38 +783,11 @@ class GroupMixin(object):
                 if layer.kind == "pixel":
                     layer._convert(_psd)
             
-                self._fetch_patterns(layer, _psd)
+                layer._fetch_patterns(_psd)
 
                 layer._psd = _psd
 
             layer._parent = self
-
-    def _fetch_patterns(self, layer, target_psd):
-        
-        _psd = target_psd
-
-        patterns = [effect.pattern for effect in layer.effects if effect.pattern is not None]
-        pattern_ids = [pattern[Key.ID].value.rstrip('\x00') for pattern in patterns]
-
-        if patterns:
-            psd_global_blocks = _psd.tagged_blocks
-
-            if psd_global_blocks is None:
-                psd_global_blocks = TaggedBlocks()
-                _psd._record.layer_and_mask_information.tagged_blocks = psd_global_blocks
-
-            if Tag.PATTERNS1 not in psd_global_blocks.keys():
-                psd_global_blocks.set_data(Tag.PATTERNS1, [])
-                
-            sourcePatterns = layer._psd.tagged_blocks.get(Tag.PATTERNS1).data
-
-            psd_global_blocks.get(Tag.PATTERNS1).data.extend(
-                [
-                    pattern for pattern, pattern_id in zip(sourcePatterns, pattern_ids) if 
-                        pattern_id == pattern.pattern_id and 
-                        pattern_id not in [targetPattern.pattern_id for targetPattern in psd_global_blocks.get(Tag.PATTERNS1).data]
-                ]
-            )
 
     def _update_psd_record(self):
         if self.kind == "psdimage":
@@ -814,6 +819,28 @@ class GroupMixin(object):
             if include_clip and hasattr(layer, "clip_layers"):
                 for clip_layer in layer.clip_layers:
                     yield clip_layer
+
+    def find(self, name):
+        """
+        Returns the first layer found for the given layer name
+        
+        :param name:
+        """
+
+        for layer in self.descendants():
+            if layer.name == name:
+                return layer
+
+    def find_all(self, name):
+        """
+        Return a generator to iterate over all layers with the given name.
+
+        :param name:
+        """
+
+        for layer in self.descendants():
+            if layer.name == name:
+                yield layer
 
 
 class Group(GroupMixin, Layer):
@@ -1138,6 +1165,9 @@ class PixelLayer(Layer):
         if self._psd is None:
             logger.warning("This layer {} cannot be converted to the target psd".format(self))
             return self
+
+        if target_psd.pil_mode == self._psd.pil_mode:
+            return
 
         new_layer = PixelLayer.frompil(self.composite(),
                                         target_psd,

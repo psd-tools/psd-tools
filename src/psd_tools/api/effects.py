@@ -119,6 +119,9 @@ class _Effect(object):
         """Layer effect opacity in percentage."""
         return self.value.get(Key.Opacity).value
 
+    def has_patterns(self):
+        return isinstance(self, _PatternMixin) and self.pattern is not None
+
     def __repr__(self):
         return self.__class__.__name__
 
