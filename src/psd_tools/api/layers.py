@@ -12,6 +12,7 @@ from psd_tools.api.shape import Origination, Stroke, VectorMask
 from psd_tools.api.smart_object import SmartObject
 from psd_tools.api.pil_io import get_pil_channels, get_pil_depth, get_pil_mode
 from psd_tools.constants import BlendMode, Clipping, Tag, TextType, Compression, ChannelID, SectionDivider
+from psd_tools.terminology import Key
 from psd_tools.psd.layer_and_mask import LayerRecord, ChannelDataList, ChannelData, ChannelInfo
 from psd_tools.psd.tagged_blocks import TaggedBlocks
 
@@ -620,7 +621,7 @@ class GroupMixin(object):
         
         setitem_res = self._layers.__setitem__(key, value)
 
-        self._propagate_metadata()
+        self._update_layer_metadata()
         self._update_psd_record()
 
         return setitem_res
@@ -654,7 +655,7 @@ class GroupMixin(object):
         for layer in layers:
             self._layers.append(layer)
 
-        self._propagate_metadata()
+        self._update_layer_metadata()
         self._update_psd_record()
         
         return self
@@ -671,7 +672,7 @@ class GroupMixin(object):
 
         self._layers.insert(index, layer)
 
-        self._propagate_metadata()
+        self._update_layer_metadata()
         self._update_psd_record()
 
         return self
@@ -740,19 +741,48 @@ class GroupMixin(object):
             if layers.kind in ["group", "psdimage", "artboard"]: 
                 assert self not in layers.descendants(), "This operation would create a reference loop within the group between {} and {}.".format(self, value)
 
-    def _propagate_metadata(self):
+    def _update_layer_metadata(self):
 
         _psd = self if self.kind == "psdimage" else self._psd
 
         for layer in self.descendants():
             
-            layer._parent = self
-
             if layer._psd != _psd and _psd is not None:
                 if layer.kind == "pixel":
                     layer._convert(_psd)
             
+                self._fetch_patterns(layer, _psd)
+
                 layer._psd = _psd
+
+            layer._parent = self
+
+    def _fetch_patterns(self, layer, target_psd):
+        
+        _psd = target_psd
+
+        patterns = [effect.pattern for effect in layer.effects if effect.pattern is not None]
+        pattern_ids = [pattern[Key.ID].value.rstrip('\x00') for pattern in patterns]
+
+        if patterns:
+            psd_global_blocks = _psd.tagged_blocks
+
+            if psd_global_blocks is None:
+                psd_global_blocks = TaggedBlocks()
+                _psd._record.layer_and_mask_information.tagged_blocks = psd_global_blocks
+
+            if Tag.PATTERNS1 not in psd_global_blocks.keys():
+                psd_global_blocks.set_data(Tag.PATTERNS1, [])
+                
+            sourcePatterns = layer._psd.tagged_blocks.get(Tag.PATTERNS1).data
+
+            psd_global_blocks.get(Tag.PATTERNS1).data.extend(
+                [
+                    pattern for pattern, pattern_id in zip(sourcePatterns, pattern_ids) if 
+                        pattern_id == pattern.pattern_id and 
+                        pattern_id not in [targetPattern.pattern_id for targetPattern in psd_global_blocks.get(Tag.PATTERNS1).data]
+                ]
+            )
 
     def _update_psd_record(self):
         if self.kind == "psdimage":
