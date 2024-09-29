@@ -569,8 +569,6 @@ class Layer(object):
         self.parent.remove(self)
         self.parent.insert(newindex, self)
 
-        self.parent._update_psd_record()
-
         return self
 
     def move_down(self, offset = 1):
@@ -608,11 +606,12 @@ class Layer(object):
             
             psd_global_blocks.get(Tag.PATTERNS1).data.extend(
                 [
-                    pattern for pattern, pattern_id in zip(sourcePatterns, pattern_ids) if 
-                        pattern_id == pattern.pattern_id and 
-                        pattern_id not in [targetPattern.pattern_id for targetPattern in psd_global_blocks.get(Tag.PATTERNS1).data]
+                    pattern for pattern in sourcePatterns if 
+                        pattern.pattern_id in pattern_ids and 
+                        pattern.pattern_id not in [targetPattern.pattern_id for targetPattern in psd_global_blocks.get(Tag.PATTERNS1).data]
                 ]
             )
+
 
 class GroupMixin(object):
     @property
@@ -787,6 +786,7 @@ class GroupMixin(object):
 
                 layer._psd = _psd
 
+        for layer in self._layers[:]:
             layer._parent = self
 
     def _update_psd_record(self):
@@ -1111,7 +1111,6 @@ class PixelLayer(Layer):
         """
 
         assert pil_im
-        assert psd_file.kind == "psdimage"
 
         if pil_im.mode == "1":
             pil_im = pil_im.convert("L")
