@@ -603,7 +603,7 @@ class Layer(object):
             for tag in (Tag.PATTERNS1, Tag.PATTERNS2, Tag.PATTERNS3):
                 if tag in self._psd.tagged_blocks:
                     sourcePatterns.extend(self._psd.tagged_blocks.get(Tag.PATTERNS1).data)
-            
+                        
             psd_global_blocks.get(Tag.PATTERNS1).data.extend(
                 [
                     pattern for pattern in sourcePatterns if 
@@ -612,7 +612,7 @@ class Layer(object):
                 ]
             )
 
-
+            
 class GroupMixin(object):
     @property
     def left(self):
@@ -831,7 +831,7 @@ class GroupMixin(object):
             if layer.name == name:
                 return layer
 
-    def find_all(self, name):
+    def findall(self, name):
         """
         Return a generator to iterate over all layers with the given name.
 
