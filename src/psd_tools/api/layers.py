@@ -12,9 +12,11 @@ from psd_tools.api.shape import Origination, Stroke, VectorMask
 from psd_tools.api.smart_object import SmartObject
 from psd_tools.api.pil_io import get_pil_channels, get_pil_depth, get_pil_mode
 from psd_tools.constants import BlendMode, Clipping, Tag, TextType, Compression, ChannelID, SectionDivider
+from psd_tools.terminology import Key
+
 from psd_tools.psd.layer_and_mask import LayerRecord, ChannelDataList, ChannelData, ChannelInfo
 from psd_tools.psd.tagged_blocks import TaggedBlocks
-
+from psd_tools.psd.patterns import Patterns
 
 logger = logging.getLogger(__name__)
 
@@ -567,8 +569,6 @@ class Layer(object):
         self.parent.remove(self)
         self.parent.insert(newindex, self)
 
-        self.parent._update_psd_record()
-
         return self
 
     def move_down(self, offset = 1):
@@ -580,7 +580,39 @@ class Layer(object):
 
         return self.move_up(-1 * offset)
 
+    def _fetch_tagged_blocks(self, target_psd):
+        
+        # Retrieve the patterns contained in the layer current ._psd and add them to the target psd
+        _psd = target_psd
 
+        effects = [effect for effect in self.effects if effect.has_patterns()]
+        pattern_ids = [effect.pattern[Key.ID].value.rstrip('\x00') for effect in effects]
+
+        if pattern_ids:
+
+            psd_global_blocks = _psd.tagged_blocks
+
+            if psd_global_blocks is None:
+                psd_global_blocks = TaggedBlocks()
+                _psd._record.layer_and_mask_information.tagged_blocks = psd_global_blocks
+
+            if Tag.PATTERNS1 not in psd_global_blocks.keys():
+                psd_global_blocks.set_data(Tag.PATTERNS1, Patterns())
+
+            sourcePatterns = []
+            for tag in (Tag.PATTERNS1, Tag.PATTERNS2, Tag.PATTERNS3):
+                if tag in self._psd.tagged_blocks:
+                    sourcePatterns.extend(self._psd.tagged_blocks.get(Tag.PATTERNS1).data)
+                        
+            psd_global_blocks.get(Tag.PATTERNS1).data.extend(
+                [
+                    pattern for pattern in sourcePatterns if 
+                        pattern.pattern_id in pattern_ids and 
+                        pattern.pattern_id not in [targetPattern.pattern_id for targetPattern in psd_global_blocks.get(Tag.PATTERNS1).data]
+                ]
+            )
+
+            
 class GroupMixin(object):
     @property
     def left(self):
@@ -616,34 +648,11 @@ class GroupMixin(object):
 
     def __setitem__(self, key, value):
 
-        assert value is not self, "Cannot add the group {} to itself.".format(self)
-
-        if isinstance(value, list):
-            for layer in value:
-                assert isinstance(layer, Layer)
-                if layer.kind in ["group", "psdimage", "artboard"]: 
-                    assert self not in layer.descendants(), "This operation would create a reference loop within the group between {} and {}.".format(self, layer)
-
-                layer._parent = self    
-        else:
-            assert isinstance(value, Layer)
-            if value.kind in ["group", "psdimage", "artboard"]: 
-                assert self not in value.descendants(), "This operation would create a reference loop within the group between {} and {}.".format(self, value)
-
-            value._parent = self
+        self._check_valid_layers(value)
         
         setitem_res = self._layers.__setitem__(key, value)
 
-        _psd = self if self.kind == "psdimage" else self._psd
-
-        for layer in self.descendants():
-            
-            if layer._psd != _psd and _psd is not None:
-                if layer.kind == "pixel":
-                    layer._convert(_psd)
-            
-                layer._psd = _psd
-
+        self._update_layer_metadata()
         self._update_psd_record()
 
         return setitem_res
@@ -672,29 +681,12 @@ class GroupMixin(object):
         :param layers: The layers to add
         """
 
-        assert layers
-        assert self not in layers, "Cannot add the group {} to itself.".format(self)
-        
-    
-        for layer in layers:
-            assert isinstance(layer, Layer)
-            if layer.kind in ["group", "psdimage", "artboard"]: 
-                assert self not in layer.descendants(), "This operation would create a reference loop within the group between {} and {}.".format(self, layer)
+        self._check_valid_layers(layers)
 
         for layer in layers:
-            layer._parent = self
             self._layers.append(layer)
 
-        _psd = self if self.kind == "psdimage" else self._psd
-
-        for layer in self.descendants():
-            
-            if layer._psd != _psd and _psd is not None:
-                if layer.kind == "pixel":
-                    layer._convert(_psd)
-            
-                layer._psd = _psd
-
+        self._update_layer_metadata()
         self._update_psd_record()
         
         return self
@@ -707,25 +699,11 @@ class GroupMixin(object):
         :param layer: 
         """
 
-        assert layer is not self
-        assert isinstance(layer, Layer)
-        
-        if layer.kind in ["group", "psdimage", "artboard"]: 
-            assert self not in layer.descendants(), "This operation would create a reference loop within the group between {} and {}.".format(self, layer)
+        self._check_valid_layers(layer)
 
         self._layers.insert(index, layer)
-        layer._parent = self
 
-        _psd = self if self.kind == "psdimage" else self._psd
-
-        for layer in self.descendants():
-            
-            if layer._psd != _psd and _psd is not None:
-                if layer.kind == "pixel":
-                    layer._convert(_psd)
-            
-                layer._psd = _psd
-
+        self._update_layer_metadata()
         self._update_psd_record()
 
         return self
@@ -779,6 +757,38 @@ class GroupMixin(object):
 
         return self._layers.count(layer)
 
+    def _check_valid_layers(self, layers):
+        
+        assert layers is not self, "Cannot add the group {} to itself.".format(self)
+
+        if isinstance(layers, list):
+            for layer in layers:
+                assert isinstance(layer, Layer)
+                if layer.kind in ["group", "psdimage", "artboard"]: 
+                    assert self not in layer.descendants(), "This operation would create a reference loop within the group between {} and {}.".format(self, layer)
+
+        else:
+            assert isinstance(layers, Layer)
+            if layers.kind in ["group", "psdimage", "artboard"]: 
+                assert self not in layers.descendants(), "This operation would create a reference loop within the group between {} and {}.".format(self, value)
+
+    def _update_layer_metadata(self):
+
+        _psd = self if self.kind == "psdimage" else self._psd
+
+        for layer in self.descendants():
+            
+            if layer._psd != _psd and _psd is not None:
+                if layer.kind == "pixel":
+                    layer._convert(_psd)
+            
+                layer._fetch_tagged_blocks(_psd)
+
+                layer._psd = _psd
+
+        for layer in self._layers[:]:
+            layer._parent = self
+
     def _update_psd_record(self):
         if self.kind == "psdimage":
             self._updated_layers = True
@@ -809,6 +819,27 @@ class GroupMixin(object):
             if include_clip and hasattr(layer, "clip_layers"):
                 for clip_layer in layer.clip_layers:
                     yield clip_layer
+
+    def find(self, name):
+        """
+        Returns the first layer found for the given layer name
+        
+        :param name:
+        """
+
+        for layer in self.findall(name):
+            return layer
+
+    def findall(self, name):
+        """
+        Return a generator to iterate over all layers with the given name.
+
+        :param name:
+        """
+
+        for layer in self.descendants():
+            if layer.name == name:
+                yield layer
 
 
 class Group(GroupMixin, Layer):
@@ -972,7 +1003,7 @@ class Group(GroupMixin, Layer):
         return group
 
     @classmethod
-    def group_layers(cls, layers = [], name = "Group", parent = None, open_folder = True):
+    def group_layers(cls, layers, name = "Group", parent = None, open_folder = True):
         """
         Create a new Group object containing the given layers and moved into the parent folder.
 
@@ -1133,7 +1164,10 @@ class PixelLayer(Layer):
             logger.warning("This layer {} cannot be converted to the target psd".format(self))
             return self
 
-        new_layer = PixelLayer.frompil(self.topil(),
+        if target_psd.pil_mode == self._psd.pil_mode:
+            return
+
+        new_layer = PixelLayer.frompil(self.composite(),
                                         target_psd,
                                         self.name,
                                         self.top,
