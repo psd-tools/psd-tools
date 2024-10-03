@@ -580,7 +580,7 @@ class Layer(object):
 
         return self.move_up(-1 * offset)
 
-    def _fetch_patterns(self, target_psd):
+    def _fetch_tagged_blocks(self, target_psd):
         
         # Retrieve the patterns contained in the layer current ._psd and add them to the target psd
         _psd = target_psd
@@ -782,7 +782,7 @@ class GroupMixin(object):
                 if layer.kind == "pixel":
                     layer._convert(_psd)
             
-                layer._fetch_patterns(_psd)
+                layer._fetch_tagged_blocks(_psd)
 
                 layer._psd = _psd
 
@@ -827,9 +827,8 @@ class GroupMixin(object):
         :param name:
         """
 
-        for layer in self.descendants():
-            if layer.name == name:
-                return layer
+        for layer in self.findall(name):
+            return layer
 
     def findall(self, name):
         """
