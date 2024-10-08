@@ -1041,6 +1041,7 @@ class Artboard(Group):
     def _move(kls, group):
         self = kls(group._psd, group._record, group._channels, group._parent)
         self._layers = group._layers
+        self._set_bounding_records(group._bounding_record, group._bounding_channels)
         for layer in self._layers:
             layer._parent = self
         for index in range(len(self.parent)):
