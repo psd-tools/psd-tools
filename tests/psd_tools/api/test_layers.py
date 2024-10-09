@@ -4,7 +4,7 @@ import logging
 
 import pytest
 
-from psd_tools.api.layers import Group, PixelLayer, ShapeLayer
+from psd_tools.api.layers import Group, PixelLayer, ShapeLayer, Artboard
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.constants import BlendMode, Tag, SectionDivider
 
@@ -528,3 +528,12 @@ def test_count(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
     group.append(pixel_layer)
 
     assert group.count(pixel_layer) == 3
+
+def test_artboard_move(group):
+
+    artboard = Artboard._move(group)
+
+    assert artboard._channels is group._channels
+    assert artboard._record is group._record
+    assert artboard._bounding_channels is group._bounding_channels
+    assert artboard._bounding_record is group._bounding_record
