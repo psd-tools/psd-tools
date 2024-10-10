@@ -1,3 +1,9 @@
+1.10.1 (2024-10-10)
+-------------------
+
+- [api] Fix artboard creation (#438)
+- [api] Fix layer conversion issue (#435)
+
 1.10.0 (2024-09-26)
 -------------------
 
