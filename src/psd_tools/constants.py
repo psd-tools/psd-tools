@@ -516,3 +516,15 @@ class TextType(IntEnum):
 
     POINT = 0
     PARAGRAPH = 1
+
+
+class ProtectedFlags(IntEnum):
+    """
+    Flags for layer locking
+    """
+    TRANSPARENCY = 0x01
+    COMPOSITE = 0x02
+    POSITION = 0x04
+    IMBRICATE = 0x08
+
+    COMPLETE = 2147483648

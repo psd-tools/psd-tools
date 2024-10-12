@@ -15,7 +15,7 @@ from psd_tools.constants import BlendMode, Clipping, Tag, TextType, Compression,
 from psd_tools.terminology import Key
 
 from psd_tools.psd.layer_and_mask import LayerRecord, ChannelDataList, ChannelData, ChannelInfo
-from psd_tools.psd.tagged_blocks import TaggedBlocks
+from psd_tools.psd.tagged_blocks import TaggedBlocks, ProtectedSetting
 from psd_tools.psd.patterns import Patterns
 
 logger = logging.getLogger(__name__)
@@ -351,6 +351,34 @@ class Layer(object):
             if stroke:
                 self._stroke = Stroke(stroke)
         return self._stroke
+
+    def lock(self, lock_flags):
+        """
+        Locks a layer accordind to the combination of flags.
+
+        :param lockflags: An integer representing the locking state
+
+        Example using the constants of ProtectedFlags and bitwise or operation to lock both pixels and positions::
+
+            layer.lock(ProtectedFlags.COMPOSITE | ProtectedFlags.POSITION)
+        """
+
+        locks = self.locks
+
+        if locks is None:
+            locks = ProtectedSetting(0)
+            self.tagged_blocks.set(Tag.PROTECTED_SETTING, locks)
+
+        locks.lock(lock_flags)
+
+    @property
+    def locks(self):
+        protected_settings_block = self.tagged_blocks.get(Tag.PROTECTED_SETTING)
+        
+        if protected_settings_block is not None:
+            return protected_settings_block.data
+
+        return None
 
     def topil(self, channel=None, apply_icc=False):
         """

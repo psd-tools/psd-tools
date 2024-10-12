@@ -633,6 +633,17 @@ class ProtectedSetting(IntegerElement):
     def position(self):
         return bool(self.value & 0x04)
 
+    @property
+    def imbricate(self):
+        return bool(self.value & 0x08)
+
+    @property
+    def complete(self):
+        return self.value == 2147483648
+
+    def lock(self, lock_flags):
+        self.value = lock_flags
+
 
 @register(Tag.REFERENCE_POINT)
 @attr.s(repr=False, slots=True)
