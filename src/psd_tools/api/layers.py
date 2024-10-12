@@ -371,6 +371,9 @@ class Layer(object):
 
         locks.lock(lock_flags)
 
+    def unlock(self):
+        self.lock(0)
+
     @property
     def locks(self):
         protected_settings_block = self.tagged_blocks.get(Tag.PROTECTED_SETTING)
