@@ -642,7 +642,7 @@ class ProtectedSetting(IntegerElement):
         return self.value == 2147483648
 
     def lock(self, lock_flags):
-        self.value = lock_flags
+        self.value = int(lock_flags)
 
 
 @register(Tag.REFERENCE_POINT)
