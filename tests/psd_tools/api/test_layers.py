@@ -6,7 +6,7 @@ import pytest
 
 from psd_tools.api.layers import Group, PixelLayer, ShapeLayer, Artboard
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.constants import BlendMode, Tag, SectionDivider
+from psd_tools.constants import BlendMode, Tag, SectionDivider, ProtectedFlags
 
 from psd_tools.api.pil_io import get_pil_channels, get_pil_depth
 
@@ -537,3 +537,27 @@ def test_artboard_move(group):
     assert artboard._record is group._record
     assert artboard._bounding_channels is group._bounding_channels
     assert artboard._bounding_record is group._bounding_record
+
+def test_lock_layer(pixel_layer):
+
+    pixel_layer.lock(ProtectedFlags.TRANSPARENCY | ProtectedFlags.COMPOSITE | ProtectedFlags.POSITION)
+
+    assert pixel_layer.locks.transparency
+    assert pixel_layer.locks.composite
+    assert pixel_layer.locks.position
+    assert not pixel_layer.locks.nesting
+
+    pixel_layer.lock(ProtectedFlags.NESTING)
+
+    assert not pixel_layer.locks.transparency
+    assert not pixel_layer.locks.composite
+    assert not pixel_layer.locks.position
+    assert pixel_layer.locks.nesting
+
+    pixel_layer.unlock()
+
+    assert pixel_layer.locks.value == 0
+
+    pixel_layer.lock()
+
+    assert pixel_layer.locks.complete
