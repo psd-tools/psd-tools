@@ -634,7 +634,7 @@ class ProtectedSetting(IntegerElement):
         return bool(self.value & 0x04)
 
     @property
-    def imbricate(self):
+    def nesting(self):
         return bool(self.value & 0x08)
 
     @property

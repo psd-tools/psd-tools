@@ -11,7 +11,7 @@ from psd_tools.api.mask import Mask
 from psd_tools.api.shape import Origination, Stroke, VectorMask
 from psd_tools.api.smart_object import SmartObject
 from psd_tools.api.pil_io import get_pil_channels, get_pil_depth, get_pil_mode
-from psd_tools.constants import BlendMode, Clipping, Tag, TextType, Compression, ChannelID, SectionDivider
+from psd_tools.constants import BlendMode, Clipping, Tag, TextType, Compression, ChannelID, SectionDivider, ProtectedFlags
 from psd_tools.terminology import Key
 
 from psd_tools.psd.layer_and_mask import LayerRecord, ChannelDataList, ChannelData, ChannelInfo
@@ -352,7 +352,7 @@ class Layer(object):
                 self._stroke = Stroke(stroke)
         return self._stroke
 
-    def lock(self, lock_flags):
+    def lock(self, lock_flags = ProtectedFlags.COMPLETE):
         """
         Locks a layer accordind to the combination of flags.
 

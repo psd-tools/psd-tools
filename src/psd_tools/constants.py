@@ -525,6 +525,6 @@ class ProtectedFlags(IntEnum):
     TRANSPARENCY = 0x01
     COMPOSITE = 0x02
     POSITION = 0x04
-    IMBRICATE = 0x08
+    NESTING = 0x08
 
     COMPLETE = 2147483648
