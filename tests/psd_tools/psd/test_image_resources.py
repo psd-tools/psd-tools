@@ -5,8 +5,14 @@ import os
 import pytest
 from IPython.display import display
 
-from psd_tools.constants import Resource
-from psd_tools.psd.image_resources import ImageResource, ImageResources, Slices
+from psd_tools.psd import PSD
+from psd_tools.constants import Resource, ColorMode
+from psd_tools.psd.image_resources import (
+    ImageResource,
+    ImageResources,
+    Slices,
+    AlphaChannelMode,
+)
 
 from ..utils import TEST_ROOT, check_read_write, check_write_read
 
@@ -55,3 +61,36 @@ def test_image_resource_rw(kls, filename):
     with open(filepath, "rb") as f:
         fixture = f.read()
     check_read_write(kls, fixture)
+
+
+def test_display_info():
+    filepath = os.path.join(TEST_ROOT, "psd_files", "cmyk-spot.psd")
+    with open(filepath, "rb") as f:
+        psd = PSD.read(f)
+    assert psd.header.color_mode == ColorMode.CMYK
+    info = psd.image_resources[Resource.DISPLAY_INFO].data
+    print(display(info))
+    assert len(info.alpha_channels) == 3
+    expected_colors = [
+        # RGB in uint16, with an extra zero because the color space can be CMYK
+        [0, 30840, 49087, 0],
+        [65535, 18504, 45232, 0],
+        [65535, 59624, 0, 0],
+    ]
+    for i, c in enumerate(info.alpha_channels):
+        assert c.mode == AlphaChannelMode.SPOT
+        assert c.color_space == 0  # RGB color space
+        assert [c.c1, c.c2, c.c3, c.c4] == expected_colors[i]
+
+
+def test_display_info_channel_type():
+    filepath = os.path.join(TEST_ROOT, "psd_files", "cmyk-alpha-spot.psd")
+    with open(filepath, "rb") as f:
+        psd = PSD.read(f)
+
+    assert psd.header.color_mode == ColorMode.CMYK
+    info = psd.image_resources[Resource.DISPLAY_INFO].data
+    print(display(info))
+    assert len(info.alpha_channels) == 2
+    assert info.alpha_channels[0].mode == AlphaChannelMode.SPOT
+    assert info.alpha_channels[1].mode == AlphaChannelMode.INVERTED_ALPHA
