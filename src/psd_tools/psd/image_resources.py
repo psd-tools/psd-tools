@@ -67,7 +67,7 @@ import logging
 
 import attr
 
-from psd_tools.constants import PrintScaleStyle, Resource
+from psd_tools.constants import PrintScaleStyle, Resource, AlphaChannelMode
 from psd_tools.psd.base import (
     BaseElement,
     ByteElement,
@@ -341,6 +341,55 @@ class AlphaNamesUnicode(ListElement):
 
     def write(self, fp, **kwargs):
         return sum(write_unicode_string(fp, item) for item in self)
+
+
+@register(Resource.DISPLAY_INFO)
+@attr.s(repr=False, slots=True)
+class DisplayInfo(BaseElement):
+    """
+    DisplayInfo is a list of AlphaChannels
+    """
+
+    version = attr.ib(default=1, type=int)
+    alpha_channels = attr.ib(factory=list, converter=list)
+
+    @classmethod
+    def read(cls, fp, **kwargs):
+        # ref: https://github.com/MolecularMatters/psd_sdk/blob/311b5c2e3fe04c8cc6a563665e66b19b3fcf8116/src/Psd/PsdParseImageResourcesSection.cpp#L83
+        version = read_fmt("I", fp)[0]
+        items = []
+        while is_readable(fp, 13):
+            items.append(AlphaChannel.read(fp))
+        return cls(version, items)
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(fp, "I", self.version)
+        written += sum(item.write(fp) for item in self.alpha_channels)
+        return written
+
+
+@attr.s(repr=False, slots=True)
+class AlphaChannel(BaseElement):
+    color_space = attr.ib(default=0, type=int)
+    c1 = attr.ib(default=0, type=int)
+    c2 = attr.ib(default=0, type=int)
+    c3 = attr.ib(default=0, type=int)
+    c4 = attr.ib(default=0, type=int)
+    opacity = attr.ib(default=0, type=int)
+    mode = attr.ib(default=0, type=AlphaChannelMode)
+
+    @classmethod
+    def read(cls, fp):
+        vals = read_fmt("6H", fp)
+        mode = AlphaChannelMode(read_fmt("B", fp)[0])
+        return cls(*vals, mode)
+
+    def write(self, fp, **kwargs):
+        written = write_fmt(
+            fp, "6H", self.color_space, self.c1, self.c2, self.c3, self.c4, self.opacity
+        )
+        written += write_fmt(fp, "B", self.mode)
+        return written
 
 
 @register(Resource.ICC_UNTAGGED_PROFILE)
