@@ -528,3 +528,15 @@ class ProtectedFlags(IntEnum):
     NESTING = 0x08
 
     COMPLETE = 2147483648
+
+    
+class AlphaChannelMode(IntEnum):
+    """
+    alpha channel types.
+    """
+
+    # ref: https://github.com/MolecularMatters/psd_sdk/blob/311b5c2e3fe04c8cc6a563665e66b19b3fcf8116/src/Psd/PsdAlphaChannel.h#L16
+
+    ALPHA = 0  # The channel stores alpha data.
+    INVERTED_ALPHA = 1  # The channel stores inverted alpha data.
+    SPOT = 2  #  The channel stores spot color data.
