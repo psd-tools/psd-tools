@@ -1,3 +1,10 @@
+1.10.2 (2024-10-23)
+-------------------
+
+- [api] Add channel info via DisplayInfo (#443)
+- [api] Support layer locking (#442)
+
+
 1.10.1 (2024-10-10)
 -------------------
 
