@@ -7,11 +7,24 @@ live shape properties and :py:class:`Stroke` to specify how outline is
 stylized.
 """
 
-from __future__ import absolute_import
+from __future__ import annotations
 
 import logging
+from typing import Literal
 
-from psd_tools.psd.vector import ClipboardRecord, InitialFillRule, Subpath
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
+
+from psd_tools.psd.descriptor import Descriptor, DescriptorBlock2
+from psd_tools.psd.vector import (
+    ClipboardRecord,
+    InitialFillRule,
+    Subpath,
+    VectorMaskSetting,
+    VectorStrokeContentSetting,
+)
 from psd_tools.terminology import Event
 
 logger = logging.getLogger(__name__)
@@ -27,7 +40,7 @@ class VectorMask(object):
     property for how to deal with path objects.
     """
 
-    def __init__(self, data):
+    def __init__(self, data: VectorMaskSetting):
         self._data = data
         self._build()
 
@@ -44,22 +57,22 @@ class VectorMask(object):
                 self._paths.append(x)
 
     @property
-    def inverted(self):
+    def inverted(self) -> bool:
         """Invert the mask."""
         return self._data.invert
 
     @property
-    def not_linked(self):
+    def not_linked(self) -> bool:
         """If the knots are not linked."""
         return self._data.not_link
 
     @property
-    def disabled(self):
+    def disabled(self) -> bool:
         """If the mask is disabled."""
         return self._data.disable
 
     @property
-    def paths(self):
+    def paths(self) -> list[Subpath]:
         """
         List of :py:class:`~psd_tools.psd.vector.Subpath`. Subpath is a
         list-like structure that contains one or more
@@ -85,7 +98,7 @@ class VectorMask(object):
         return self._paths
 
     @property
-    def initial_fill_rule(self):
+    def initial_fill_rule(self) -> int:
         """
         Initial fill rule.
 
@@ -96,12 +109,12 @@ class VectorMask(object):
         return self._initial_fill_rule.value
 
     @initial_fill_rule.setter
-    def initial_fill_rule(self, value):
+    def initial_fill_rule(self, value: Literal[0, 1]) -> None:
         assert value in (0, 1)
         self._initial_fill_rule.value = value
 
     @property
-    def clipboard_record(self):
+    def clipboard_record(self) -> ClipboardRecord | None:
         """
         Clipboard record containing bounding box information.
 
@@ -110,7 +123,7 @@ class VectorMask(object):
         return self._clipboard_record
 
     @property
-    def bbox(self):
+    def bbox(self) -> tuple[float, float, float, float]:
         """
         Bounding box tuple (left, top, right, bottom) in relative coordinates,
         where top-left corner is (0., 0.) and bottom-right corner is (1., 1.).
@@ -127,7 +140,7 @@ class VectorMask(object):
         x, y = zip(*knots)
         return (min(x), min(y), max(x), max(y))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         bbox = self.bbox
         return "%s(bbox=(%g, %g, %g, %g) paths=%d%s)" % (
             self.__class__.__name__,
@@ -167,28 +180,28 @@ class Stroke(object):
         b"strokeStyleAlignCenter": "center",
     }
 
-    def __init__(self, data):
+    def __init__(self, data: VectorStrokeContentSetting):
         self._data = data
         if self._data.classID not in (b"strokeStyle", Event.Stroke):
-            logger.warning("Unknown class ID found: {}".format(self._data.classID))
+            logger.warning("Unknown class ID found: {!r}".format(self._data.classID))
 
     @property
-    def enabled(self):
+    def enabled(self) -> bool:
         """If the stroke is enabled."""
         return bool(self._data.get(b"strokeEnabled"))
 
     @property
-    def fill_enabled(self):
+    def fill_enabled(self) -> bool:
         """If the stroke fill is enabled."""
         return bool(self._data.get(b"fillEnabled"))
 
     @property
-    def line_width(self):
+    def line_width(self) -> float:
         """Stroke width in float."""
-        return self._data.get(b"strokeStyleLineWidth")
+        return float(self._data.get(b"strokeStyleLineWidth"))
 
     @property
-    def line_dash_set(self):
+    def line_dash_set(self) -> list:
         """
         Line dash set in list of
         :py:class:`~psd_tools.decoder.actions.UnitFloat`.
@@ -198,7 +211,7 @@ class Stroke(object):
         return self._data.get(b"strokeStyleLineDashSet")
 
     @property
-    def line_dash_offset(self):
+    def line_dash_offset(self) -> float:
         """
         Line dash offset in float.
 
@@ -212,19 +225,19 @@ class Stroke(object):
         return self._data.get(b"strokeStyleMiterLimit")
 
     @property
-    def line_cap_type(self):
+    def line_cap_type(self) -> str:
         """Cap type, one of `butt`, `round`, `square`."""
         key = self._data.get(b"strokeStyleLineCapType").enum
         return self.STROKE_STYLE_LINE_CAP_TYPES.get(key, str(key))
 
     @property
-    def line_join_type(self):
+    def line_join_type(self) -> str:
         """Join type, one of `miter`, `round`, `bevel`."""
         key = self._data.get(b"strokeStyleLineJoinType").enum
         return self.STROKE_STYLE_LINE_JOIN_TYPES.get(key, str(key))
 
     @property
-    def line_alignment(self):
+    def line_alignment(self) -> str:
         """Alignment, one of `inner`, `outer`, `center`."""
         key = self._data.get(b"strokeStyleLineAlignment").enum
         return self.STROKE_STYLE_LINE_ALIGNMENTS.get(key, str(key))
@@ -255,7 +268,7 @@ class Stroke(object):
         """
         return self._data.get(b"strokeStyleContent")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "%s(width=%g)" % (self.__class__.__name__, self.line_width)
 
 
@@ -268,18 +281,20 @@ class Origination(object):
     """
 
     @classmethod
-    def create(kls, data):
+    def create(
+        kls, data: DescriptorBlock2
+    ) -> Invalidated | Rectangle | RoundedRectangle | Line | Ellipse:
         if data.get(b"keyShapeInvalidated"):
             return Invalidated(data)
         origin_type = data.get(b"keyOriginType")
         types = {1: Rectangle, 2: RoundedRectangle, 4: Line, 5: Ellipse}
-        return types.get(origin_type, kls)(data)
+        return types.get(origin_type, kls)(data)  # type: ignore
 
     def __init__(self, data):
         self._data = data
 
     @property
-    def origin_type(self):
+    def origin_type(self) -> int:
         """
         Type of the vector shape.
 
@@ -293,7 +308,7 @@ class Origination(object):
         return int(self._data.get(b"keyOriginType"))
 
     @property
-    def resolution(self):
+    def resolution(self) -> float:
         """Resolution.
 
         :return: `float`
@@ -301,7 +316,7 @@ class Origination(object):
         return float(self._data.get(b"keyOriginResolution"))
 
     @property
-    def bbox(self):
+    def bbox(self) -> tuple[float, float, float, float]:
         """
         Bounding box of the live shape.
 
@@ -310,15 +325,15 @@ class Origination(object):
         bbox = self._data.get(b"keyOriginShapeBBox")
         if bbox:
             return (
-                bbox.get(b"Left").value,
-                bbox.get(b"Top ").value,
-                bbox.get(b"Rght").value,
-                bbox.get(b"Btom").value,
+                float(bbox.get(b"Left").value),
+                float(bbox.get(b"Top ").value),
+                float(bbox.get(b"Rght").value),
+                float(bbox.get(b"Btom").value),
             )
-        return (0, 0, 0, 0)
+        return (0.0, 0.0, 0.0, 0.0)
 
     @property
-    def index(self):
+    def index(self) -> int:
         """
         Origination item index.
 
@@ -327,13 +342,13 @@ class Origination(object):
         return self._data.get(b"keyOriginIndex")
 
     @property
-    def invalidated(self):
+    def invalidated(self) -> bool:
         """
         :return: `bool`
         """
         return False
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         bbox = self.bbox
         return "%s(bbox=(%g, %g, %g, %g))" % (
             self.__class__.__name__,
@@ -354,10 +369,10 @@ class Invalidated(Origination):
     """
 
     @property
-    def invalidated(self):
+    def invalidated(self) -> bool:
         return True
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "%s()" % (self.__class__.__name__)
 
 
@@ -391,7 +406,7 @@ class Line(Origination):
     """Line live shape."""
 
     @property
-    def line_end(self):
+    def line_end(self) -> Descriptor:
         """
         Line end.
 
@@ -400,7 +415,7 @@ class Line(Origination):
         return self._data.get(b"keyOriginLineEnd")
 
     @property
-    def line_start(self):
+    def line_start(self) -> Descriptor:
         """
         Line start.
 
@@ -409,16 +424,16 @@ class Line(Origination):
         return self._data.get(b"keyOriginLineStart")
 
     @property
-    def line_weight(self):
+    def line_weight(self) -> float:
         """
         Line weight
 
         :return: `float`
         """
-        return self._data.get(b"keyOriginLineWeight")
+        return float(self._data.get(b"keyOriginLineWeight"))
 
     @property
-    def arrow_start(self):
+    def arrow_start(self) -> bool:
         """Line arrow start.
 
         :return: `bool`
@@ -426,7 +441,7 @@ class Line(Origination):
         return bool(self._data.get(b"keyOriginLineArrowSt"))
 
     @property
-    def arrow_end(self):
+    def arrow_end(self) -> bool:
         """
         Line arrow end.
 
@@ -435,25 +450,25 @@ class Line(Origination):
         return bool(self._data.get(b"keyOriginLineArrowEnd"))
 
     @property
-    def arrow_width(self):
+    def arrow_width(self) -> float:
         """Line arrow width.
 
         :return: `float`
         """
-        return self._data.get(b"keyOriginLineArrWdth")
+        return float(self._data.get(b"keyOriginLineArrWdth"))
 
     @property
-    def arrow_length(self):
+    def arrow_length(self) -> float:
         """Line arrow length.
 
         :return: `float`
         """
-        return self._data.get(b"keyOriginLineArrLngth")
+        return float(self._data.get(b"keyOriginLineArrLngth"))
 
     @property
-    def arrow_conc(self):
+    def arrow_conc(self) -> int:
         """
 
         :return: `int`
         """
-        return self._data.get(b"keyOriginLineArrConc")
+        return int(self._data.get(b"keyOriginLineArrConc"))

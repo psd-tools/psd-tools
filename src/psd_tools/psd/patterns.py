@@ -2,7 +2,7 @@
 Patterns structure.
 """
 
-from __future__ import absolute_import, unicode_literals
+from __future__ import annotations
 
 import io
 import logging
@@ -84,7 +84,7 @@ class Pattern(BaseElement):
 
     version = attr.ib(default=1, type=int)
     image_mode = attr.ib(
-        default=ColorMode, converter=ColorMode, validator=in_(ColorMode)
+        default=ColorMode.RGB, converter=ColorMode, validator=in_(ColorMode)
     )
     point = attr.ib(default=None)
     name = attr.ib(default="", type=str)

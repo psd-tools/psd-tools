@@ -2,6 +2,8 @@
 Blend mode implementations.
 """
 
+from __future__ import annotations
+
 import functools
 import logging
 
@@ -14,31 +16,31 @@ logger = logging.getLogger(__name__)
 
 
 # Separable blend functions
-def normal(Cb, Cs):
+def normal(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     return Cs
 
 
-def multiply(Cb, Cs):
+def multiply(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     return Cb * Cs
 
 
-def screen(Cb, Cs):
+def screen(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     return Cb + Cs - (Cb * Cs)
 
 
-def overlay(Cb, Cs):
+def overlay(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     return hard_light(Cs, Cb)
 
 
-def darken(Cb, Cs):
+def darken(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     return np.minimum(Cb, Cs)
 
 
-def lighten(Cb, Cs):
+def lighten(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     return np.maximum(Cb, Cs)
 
 
-def color_dodge(Cb, Cs, s=1.0):
+def color_dodge(Cb: np.ndarray, Cs: np.ndarray, s: float = 1.0) -> np.ndarray:
     B = np.zeros_like(Cb, dtype=np.float32)
     B[Cs == 1] = 1
     B[Cb == 0] = 0
@@ -47,7 +49,7 @@ def color_dodge(Cb, Cs, s=1.0):
     return B
 
 
-def color_burn(Cb, Cs, s=1.0):
+def color_burn(Cb: np.ndarray, Cs: np.ndarray, s: float = 1.0) -> np.ndarray:
     B = np.zeros_like(Cb, dtype=np.float32)
     B[Cb == 1] = 1
     index = (Cb != 1) & (Cs != 0)
@@ -55,22 +57,22 @@ def color_burn(Cb, Cs, s=1.0):
     return B
 
 
-def linear_dodge(Cb, Cs):
+def linear_dodge(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     return np.minimum(1, Cb + Cs)
 
 
-def linear_burn(Cb, Cs):
+def linear_burn(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     return np.maximum(0, Cb + Cs - 1)
 
 
-def hard_light(Cb, Cs):
+def hard_light(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     index = Cs > 0.5
     B = multiply(Cb, 2 * Cs)
     B[index] = screen(Cb, 2 * Cs - 1)[index]
     return B
 
 
-def soft_light(Cb, Cs):
+def soft_light(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     index = Cs <= 0.25
     index_not = ~index
     D = np.zeros_like(Cb, dtype=np.float32)
@@ -87,7 +89,7 @@ def soft_light(Cb, Cs):
     return B
 
 
-def vivid_light(Cb, Cs):
+def vivid_light(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     """
     Burns or dodges the colors by increasing or decreasing the contrast,
     depending on the blend color. If the blend color (light source) is lighter
@@ -104,7 +106,7 @@ def vivid_light(Cb, Cs):
     return B
 
 
-def linear_light(Cb, Cs):
+def linear_light(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     """
     Burns or dodges the colors by decreasing or increasing the brightness,
     depending on the blend color. If the blend color (light source) is lighter
@@ -118,7 +120,7 @@ def linear_light(Cb, Cs):
     return B
 
 
-def pin_light(Cb, Cs):
+def pin_light(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     """
     Replaces the colors, depending on the blend color. If the blend color
     (light source) is lighter than 50% gray, pixels darker than the blend color
@@ -133,19 +135,19 @@ def pin_light(Cb, Cs):
     return B
 
 
-def difference(Cb, Cs):
+def difference(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     return np.abs(Cb - Cs)
 
 
-def exclusion(Cb, Cs):
+def exclusion(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     return Cb + Cs - 2 * Cb * Cs
 
 
-def subtract(Cb, Cs):
+def subtract(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     return np.maximum(0, Cb - Cs)
 
 
-def hard_mix(Cb, Cs):
+def hard_mix(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     """
     Adds the red, green and blue channel values of the blend color to the RGB
     values of the base color. If the resulting sum for a channel is 255 or
@@ -159,7 +161,7 @@ def hard_mix(Cb, Cs):
     return B
 
 
-def divide(Cb, Cs):
+def divide(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     """
     Looks at the color information in each channel and divides the blend color
     from the base color.
@@ -173,7 +175,7 @@ def divide(Cb, Cs):
 # blended, then CMY components should be retrieved from RGB results. K
 # component is K of Cb for hue, saturation, and color blending, and K of Cs for
 # luminosity.
-def non_separable(k="s"):
+def non_separable(k: str = "s"):
     """Wrap non-separable blending function for CMYK handling.
 
     .. note: This implementation is still inaccurate.
@@ -193,11 +195,11 @@ def non_separable(k="s"):
     return decorator
 
 
-def _cmyk2rgb(C):
+def _cmyk2rgb(C: np.ndarray) -> np.ndarray:
     return np.stack([(1.0 - C[:, :, i]) * (1.0 - C[:, :, 3]) for i in range(3)], axis=2)
 
 
-def _rgb2cmy(C, K):
+def _rgb2cmy(C: np.ndarray, K: np.ndarray) -> np.ndarray:
     K = np.repeat(K, 3, axis=2)
     color = np.zeros((C.shape[0], C.shape[1], 3))
     index = K < 1.0
@@ -206,27 +208,27 @@ def _rgb2cmy(C, K):
 
 
 @non_separable()
-def hue(Cb, Cs):
+def hue(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     return _set_lum(_set_sat(Cs, _sat(Cb)), _lum(Cb))
 
 
 @non_separable()
-def saturation(Cb, Cs):
+def saturation(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     return _set_lum(_set_sat(Cb, _sat(Cs)), _lum(Cb))
 
 
 @non_separable()
-def color(Cb, Cs):
+def color(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     return _set_lum(Cs, _lum(Cb))
 
 
 @non_separable("s")
-def luminosity(Cb, Cs):
+def luminosity(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     return _set_lum(Cb, _lum(Cs))
 
 
 @non_separable()
-def darker_color(Cb, Cs):
+def darker_color(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     index = np.repeat(_lum(Cs) < _lum(Cb), 3, axis=2)
     B = Cb.copy()
     B[index] = Cs[index]
@@ -234,30 +236,30 @@ def darker_color(Cb, Cs):
 
 
 @non_separable()
-def lighter_color(Cb, Cs):
+def lighter_color(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     index = np.repeat(_lum(Cs) > _lum(Cb), 3, axis=2)
     B = Cb.copy()
     B[index] = Cs[index]
     return B
 
 
-def dissolve(Cb, Cs):
+def dissolve(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     # TODO: Implement me!
     logger.debug("Dissolve blend is not implemented")
     return normal(Cb, Cs)
 
 
 # Helper functions from PDF reference.
-def _lum(C):
+def _lum(C: np.ndarray) -> np.ndarray:
     return 0.3 * C[:, :, 0:1] + 0.59 * C[:, :, 1:2] + 0.11 * C[:, :, 2:3]
 
 
-def _set_lum(C, L):
+def _set_lum(C: np.ndarray, L: np.ndarray) -> np.ndarray:
     d = L - _lum(C)
     return _clip_color(C + d)
 
 
-def _clip_color(C):
+def _clip_color(C: np.ndarray) -> np.ndarray:
     L = np.repeat(_lum(C), 3, axis=2)
     C_min = np.repeat(np.min(C, axis=2, keepdims=True), 3, axis=2)
     C_max = np.repeat(np.max(C, axis=2, keepdims=True), 3, axis=2)
@@ -280,7 +282,7 @@ def _sat(C):
     return np.max(C, axis=2, keepdims=True) - np.min(C, axis=2, keepdims=True)
 
 
-def _set_sat(C, s):
+def _set_sat(C: np.ndarray, s: np.ndarray) -> np.ndarray:
     s = np.repeat(s, 3, axis=2)
 
     C_max = np.repeat(np.max(C, axis=2, keepdims=True), 3, axis=2)

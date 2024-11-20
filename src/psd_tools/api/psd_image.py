@@ -2,9 +2,18 @@
 PSD Image module.
 """
 
-from __future__ import absolute_import, unicode_literals
+from __future__ import annotations
 
 import logging
+from typing import Any, BinaryIO, Callable, Literal
+
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
+
+import numpy as np
+from PIL.Image import Image as PILImage
 
 from psd_tools.api import adjustments
 from psd_tools.api.layers import (
@@ -17,8 +26,10 @@ from psd_tools.api.layers import (
     SmartObjectLayer,
     TypeLayer,
 )
+from psd_tools.api.pil_io import get_pil_channels, get_pil_mode
 from psd_tools.constants import (
     BlendMode,
+    ChannelID,
     ColorMode,
     CompatibilityMode,
     Compression,
@@ -27,18 +38,16 @@ from psd_tools.constants import (
     Tag,
 )
 from psd_tools.psd import (
-    PSD, FileHeader, 
-    ImageData, 
-    ImageResources, 
-    LayerAndMaskInformation, 
-    TaggedBlocks, 
-    GlobalLayerMaskInfo, 
-    LayerInfo, 
-    LayerRecords, 
-    ChannelImageData
+    PSD,
+    ChannelImageData,
+    FileHeader,
+    GlobalLayerMaskInfo,
+    ImageData,
+    ImageResources,
+    LayerInfo,
+    LayerRecords,
+    TaggedBlocks,
 )
-
-from psd_tools.api.pil_io import get_pil_channels, get_pil_mode
 
 logger = logging.getLogger(__name__)
 
@@ -60,17 +69,25 @@ class PSDImage(GroupMixin):
             layer_image = layer.compose()
     """
 
-    def __init__(self, data):
+    def __init__(self, data: PSD):
+        from psd_tools.api.layers import Layer
+
         assert isinstance(data, PSD)
         self._record = data
-        self._layers = []
-        self._tagged_blocks = None
+        self._layers: list[Layer] = []
         self._compatibility_mode = CompatibilityMode.DEFAULT
-        self._updated_layers=False
+        self._updated_layers = False  # Flag to check if the layer tree is edited.
         self._init()
 
     @classmethod
-    def new(cls, mode, size, color=0, depth=8, **kwargs):
+    def new(
+        cls,
+        mode: str,
+        size: tuple[int, int],
+        color: int = 0,
+        depth: Literal[8, 16, 32] = 8,
+        **kwargs: Any,
+    ):
         """
         Create a new PSD document.
 
@@ -91,7 +108,7 @@ class PSDImage(GroupMixin):
         )
 
     @classmethod
-    def frompil(cls, image, compression=Compression.RLE):
+    def frompil(cls, image: PILImage, compression=Compression.RLE) -> Self:
         """
         Create a new PSD document from PIL Image.
 
@@ -114,7 +131,7 @@ class PSDImage(GroupMixin):
         )
 
     @classmethod
-    def open(cls, fp, **kwargs):
+    def open(cls, fp: BinaryIO | str, **kwargs: Any) -> Self:
         """
         Open a PSD document.
 
@@ -123,14 +140,14 @@ class PSDImage(GroupMixin):
             default 'macroman'. Some psd files need explicit encoding option.
         :return: A :py:class:`~psd_tools.api.psd_image.PSDImage` object.
         """
-        if hasattr(fp, "read"):
-            self = cls(PSD.read(fp, **kwargs))
-        else:
+        if isinstance(fp, str):
             with open(fp, "rb") as f:
                 self = cls(PSD.read(f, **kwargs))
+        else:
+            self = cls(PSD.read(fp, **kwargs))
         return self
 
-    def save(self, fp, mode="wb", **kwargs):
+    def save(self, fp: BinaryIO | str, mode: str = "wb", **kwargs: Any) -> None:
         """
         Save the PSD file.
 
@@ -142,13 +159,15 @@ class PSDImage(GroupMixin):
 
         self._update_record()
 
-        if hasattr(fp, "write"):
-            self._record.write(fp, **kwargs)
-        else:
+        if isinstance(fp, str):
             with open(fp, mode) as f:
                 self._record.write(f, **kwargs)
+        else:
+            self._record.write(fp, **kwargs)
 
-    def topil(self, channel=None, apply_icc=False):
+    def topil(
+        self, channel: int | ChannelID | None = None, apply_icc: bool = True
+    ) -> PILImage | None:
         """
         Get PIL Image.
 
@@ -167,7 +186,9 @@ class PSDImage(GroupMixin):
             return convert_image_data_to_pil(self, channel, apply_icc)
         return None
 
-    def numpy(self, channel=None):
+    def numpy(
+        self, channel: Literal["color", "shape", "alpha", "mask"] | None = None
+    ) -> np.ndarray:
         """
         Get NumPy array of the layer.
 
@@ -181,13 +202,13 @@ class PSDImage(GroupMixin):
 
     def composite(
         self,
-        viewport=None,
-        force=False,
-        color=1.0,
-        alpha=0.0,
-        layer_filter=None,
-        ignore_preview=False,
-        apply_icc=False,
+        viewport: tuple[int, int, int, int] | None = None,
+        force: bool = False,
+        color: float | tuple[float, ...] = 1.0,
+        alpha: float = 0.0,
+        layer_filter: Callable | None = None,
+        ignore_preview: bool = False,
+        apply_icc: bool = True,
     ):
         """
         Composite the PSD image.
@@ -210,13 +231,17 @@ class PSDImage(GroupMixin):
 
         self._update_record()
 
-        if not (ignore_preview or force or layer_filter) and self.has_preview() and not self._updated_layers:
+        if (
+            not (ignore_preview or force or layer_filter)
+            and self.has_preview()
+            and not self._updated_layers
+        ):
             return self.topil(apply_icc=apply_icc)
         return composite_pil(
             self, color, alpha, viewport, layer_filter, force, apply_icc=apply_icc
         )
 
-    def is_visible(self):
+    def is_visible(self) -> bool:
         """
         Returns visibility of the element.
 
@@ -225,11 +250,11 @@ class PSDImage(GroupMixin):
         return self.visible
 
     @property
-    def parent(self):
+    def parent(self) -> None:
         """Parent of this layer."""
         return None
 
-    def is_group(self):
+    def is_group(self) -> bool:
         """
         Return True if the layer is a group.
 
@@ -237,7 +262,7 @@ class PSDImage(GroupMixin):
         """
         return isinstance(self, GroupMixin)
 
-    def has_preview(self):
+    def has_preview(self) -> bool:
         """
         Returns if the document has real merged data. When True, `topil()`
         returns pre-composed data.
@@ -248,7 +273,7 @@ class PSDImage(GroupMixin):
         return True  # Assuming the image data is valid by default.
 
     @property
-    def name(self):
+    def name(self) -> str:
         """
         Element name.
 
@@ -257,7 +282,7 @@ class PSDImage(GroupMixin):
         return "Root"
 
     @property
-    def kind(self):
+    def kind(self) -> str:
         """
         Kind.
 
@@ -266,7 +291,7 @@ class PSDImage(GroupMixin):
         return self.__class__.__name__.lower()
 
     @property
-    def visible(self):
+    def visible(self) -> bool:
         """
         Visibility.
 
@@ -275,7 +300,7 @@ class PSDImage(GroupMixin):
         return True
 
     @property
-    def left(self):
+    def left(self) -> int:
         """
         Left coordinate.
 
@@ -284,7 +309,7 @@ class PSDImage(GroupMixin):
         return 0
 
     @property
-    def top(self):
+    def top(self) -> int:
         """
         Top coordinate.
 
@@ -293,7 +318,7 @@ class PSDImage(GroupMixin):
         return 0
 
     @property
-    def right(self):
+    def right(self) -> int:
         """
         Right coordinate.
 
@@ -302,7 +327,7 @@ class PSDImage(GroupMixin):
         return self.width
 
     @property
-    def bottom(self):
+    def bottom(self) -> int:
         """
         Bottom coordinate.
 
@@ -311,7 +336,7 @@ class PSDImage(GroupMixin):
         return self.height
 
     @property
-    def width(self):
+    def width(self) -> int:
         """
         Document width.
 
@@ -320,7 +345,7 @@ class PSDImage(GroupMixin):
         return self._record.header.width
 
     @property
-    def height(self):
+    def height(self) -> int:
         """
         Document height.
 
@@ -329,7 +354,7 @@ class PSDImage(GroupMixin):
         return self._record.header.height
 
     @property
-    def size(self):
+    def size(self) -> tuple[int, int]:
         """
         (width, height) tuple.
 
@@ -338,7 +363,7 @@ class PSDImage(GroupMixin):
         return self.width, self.height
 
     @property
-    def offset(self):
+    def offset(self) -> tuple[int, int]:
         """
         (left, top) tuple.
 
@@ -347,7 +372,7 @@ class PSDImage(GroupMixin):
         return self.left, self.top
 
     @property
-    def bbox(self):
+    def bbox(self) -> tuple[int, int, int, int]:
         """
         Minimal bounding box that contains all the visible layers.
 
@@ -363,7 +388,7 @@ class PSDImage(GroupMixin):
         return bbox
 
     @property
-    def viewbox(self):
+    def viewbox(self) -> tuple[int, int, int, int]:
         """
         Return bounding box of the viewport.
 
@@ -372,7 +397,7 @@ class PSDImage(GroupMixin):
         return self.left, self.top, self.right, self.bottom
 
     @property
-    def color_mode(self):
+    def color_mode(self) -> ColorMode:
         """
         Document color mode, such as 'RGB' or 'GRAYSCALE'. See
         :py:class:`~psd_tools.constants.ColorMode`.
@@ -382,7 +407,7 @@ class PSDImage(GroupMixin):
         return self._record.header.color_mode
 
     @property
-    def channels(self):
+    def channels(self) -> int:
         """
         Number of color channels.
 
@@ -391,7 +416,7 @@ class PSDImage(GroupMixin):
         return self._record.header.channels
 
     @property
-    def depth(self):
+    def depth(self) -> int:
         """
         Pixel depth bits.
 
@@ -400,7 +425,7 @@ class PSDImage(GroupMixin):
         return self._record.header.depth
 
     @property
-    def version(self):
+    def version(self) -> int:
         """
         Document version. PSD file is 1, and PSB file is 2.
 
@@ -409,7 +434,7 @@ class PSDImage(GroupMixin):
         return self._record.header.version
 
     @property
-    def image_resources(self):
+    def image_resources(self) -> ImageResources:
         """
         Document image resources.
         :py:class:`~psd_tools.psd.image_resources.ImageResources` is a
@@ -436,7 +461,7 @@ class PSDImage(GroupMixin):
         return self._record.image_resources
 
     @property
-    def tagged_blocks(self):
+    def tagged_blocks(self) -> TaggedBlocks | None:
         """
         Document tagged blocks that is a dict-like container of settings.
 
@@ -454,7 +479,7 @@ class PSDImage(GroupMixin):
         return self._record.layer_and_mask_information.tagged_blocks
 
     @property
-    def compatibility_mode(self):
+    def compatibility_mode(self) -> CompatibilityMode:
         """
         Set the compositing and layer organization compatibility mode. Writable.
 
@@ -462,26 +487,24 @@ class PSDImage(GroupMixin):
         """
         return self._compatibility_mode
 
-    @property
-    def pil_mode(self):
-
-        alpha = self.channels - get_pil_channels(get_pil_mode(self.color_mode))
-        
-        return get_pil_mode(self.color_mode, alpha)
-
     @compatibility_mode.setter
-    def compatibility_mode(self, value):
+    def compatibility_mode(self, value: CompatibilityMode) -> None:
         self._compatibility_mode = value
         self._compute_clipping_layers()
 
-    def has_thumbnail(self):
+    @property
+    def pil_mode(self) -> str:
+        alpha = self.channels - get_pil_channels(get_pil_mode(self.color_mode))
+        return get_pil_mode(self.color_mode, alpha > 0)
+
+    def has_thumbnail(self) -> bool:
         """True if the PSDImage has a thumbnail resource."""
         return (
             Resource.THUMBNAIL_RESOURCE in self.image_resources
             or Resource.THUMBNAIL_RESOURCE_PS4 in self.image_resources
         )
 
-    def thumbnail(self):
+    def thumbnail(self) -> PILImage | None:
         """
         Returns a thumbnail image in PIL.Image. When the file does not
         contain an embedded thumbnail image, returns None.
@@ -494,11 +517,11 @@ class PSDImage(GroupMixin):
             )
         elif Resource.THUMBNAIL_RESOURCE_PS4 in self.image_resources:
             return convert_thumbnail_to_pil(
-                self.image_resources.get_data(Resource.THUMBNAIL_RESOURCE_PS4), "BGR"
+                self.image_resources.get_data(Resource.THUMBNAIL_RESOURCE_PS4)
             )
         return None
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return ("%s(mode=%s size=%dx%d depth=%d channels=%d)") % (
             self.__class__.__name__,
             self.color_mode,
@@ -529,7 +552,9 @@ class PSDImage(GroupMixin):
         _pretty(self, p)
 
     @classmethod
-    def _make_header(cls, mode, size, depth=8):
+    def _make_header(
+        cls, mode: str, size: tuple[int, int], depth: Literal[8, 16, 32] = 8
+    ) -> FileHeader:
         from .pil_io import get_color_mode
 
         assert depth in (8, 16, 32), "Invalid depth: %d" % (depth)
@@ -561,13 +586,12 @@ class PSDImage(GroupMixin):
                         return pattern
         return None
 
-    def _clear_clipping_layers(self):
+    def _clear_clipping_layers(self) -> None:
         for layer in self.descendants():
             layer._clip_layers = []
             layer._has_clip_target = True
 
-    def _compute_clipping_layers(self):
-
+    def _compute_clipping_layers(self) -> None:
         self._update_record()
 
         self._clear_clipping_layers()
@@ -597,16 +621,18 @@ class PSDImage(GroupMixin):
 
         rec_helper(self)
 
-    def _init(self):
+    def _init(self) -> None:
         """Initialize layer structure."""
-        group_stack = [self]
+        from psd_tools.api.layers import Layer
+
+        group_stack: list[Group | Artboard | PSDImage] = [self]
 
         for record, channels in self._record._iter_layers():
             current_group = group_stack[-1]
 
             blocks = record.tagged_blocks
             end_of_group = False
-            layer = None
+            layer: Layer | Group | Artboard | PSDImage | None = None
             divider = blocks.get_data(Tag.SECTION_DIVIDER_SETTING, None)
             divider = blocks.get_data(Tag.NESTED_SECTION_DIVIDER_SETTING, divider)
             if (
@@ -618,7 +644,12 @@ class PSDImage(GroupMixin):
                 divider.kind is not SectionDivider.OTHER
             ):
                 if divider.kind == SectionDivider.BOUNDING_SECTION_DIVIDER:
-                    layer = Group(self, None, None, current_group)
+                    layer = Group(  # type: ignore
+                        psd=self,
+                        record=None,  # type: ignore
+                        channels=None,  # type: ignore
+                        parent=current_group,
+                    )
                     layer._set_bounding_records(record, channels)
                     group_stack.append(layer)
                 elif divider.kind in (
@@ -626,7 +657,7 @@ class PSDImage(GroupMixin):
                     SectionDivider.CLOSED_FOLDER,
                 ):
                     layer = group_stack.pop()
-                    assert layer is not self
+                    assert not isinstance(layer, PSDImage)
 
                     layer._record = record
                     layer._channels = channels
@@ -674,54 +705,61 @@ class PSDImage(GroupMixin):
             assert layer is not None
 
             if not end_of_group:
+                assert not isinstance(layer, PSDImage)
                 current_group._layers.append(layer)
 
         self._compute_clipping_layers()
 
-    def _update_record(self, layer_group=None):
+    def _update_record(self) -> None:
         """
         Compiles the tree layer structure back into records and channels list recursively
         """
 
         if not self._updated_layers:
+            # Skip if nothing is changed.
             return
 
-        if layer_group is None:
-            layer_group = self
+        layer_records, channel_image_data = _build_record_tree(self)
 
-        layer_records = LayerRecords()
-        channel_image_data = ChannelImageData()
+        # PSDImage.frompil doesn't create a LayerInfo attribute to LayerAndMaskInformation
+        if not self._record.layer_and_mask_information.layer_info:
+            self._record.layer_and_mask_information.layer_info = LayerInfo()
 
-        for layer in layer_group:
-            if layer.kind in ["group", "artboard"]:
-                
-                layer_records.append(layer._bounding_record)
-                channel_image_data.append(layer._bounding_channels)
+        if not self._record.layer_and_mask_information.global_layer_mask_info:
+            self._record.layer_and_mask_information.global_layer_mask_info = (
+                GlobalLayerMaskInfo()
+            )
 
-                tmp_layer_records, tmp_channel_image_data = self._update_record(layer)
+        if not self._record.layer_and_mask_information.tagged_blocks:
+            self._record.layer_and_mask_information.tagged_blocks = TaggedBlocks()
 
-                layer_records.extend(tmp_layer_records)
-                channel_image_data.extend(tmp_channel_image_data)
+        layer_info = self._record.layer_and_mask_information.layer_info
+        layer_info.layer_records = layer_records
+        layer_info.channel_image_data = channel_image_data
+        layer_info.layer_count = len(layer_records)
 
-            layer_records.append(layer._record)
-            channel_image_data.append(layer._channels)
-            
-        if layer_group == self:
 
-            # PSDImage.frompil doesn't create a LayerInfo attribute to LayerAndMaskInformation 
-            if not self._record.layer_and_mask_information.layer_info:
-                self._record.layer_and_mask_information.layer_info = LayerInfo()
+def _build_record_tree(
+    layer_group: GroupMixin,
+) -> tuple[LayerRecords, ChannelImageData]:
+    """
+    Builds the layer tree structure from records and channels list recursively
+    """
 
-            if not self._record.layer_and_mask_information.global_layer_mask_info:
-                self._record.layer_and_mask_information.global_layer_mask_info = GlobalLayerMaskInfo()
+    layer_records = LayerRecords()
+    channel_image_data = ChannelImageData()
 
-            if not self._record.layer_and_mask_information.tagged_blocks:
-                self._record.layer_and_mask_information.tagged_blocks = TaggedBlocks()
+    for layer in layer_group:
+        if isinstance(layer, (Group, Artboard)):
+            layer_records.append(layer._bounding_record)
+            channel_image_data.append(layer._bounding_channels)
 
-            self._record.layer_and_mask_information.layer_info.layer_records = layer_records
-            self._record.layer_and_mask_information.layer_info.channel_image_data = channel_image_data
-            self._record.layer_and_mask_information.layer_info.layer_count = len(layer_records)
+            tmp_layer_records, tmp_channel_image_data = _build_record_tree(layer)
 
-            return
+            layer_records.extend(tmp_layer_records)
+            channel_image_data.extend(tmp_channel_image_data)
 
-        return (layer_records, channel_image_data) 
+        layer_records.append(layer._record)
+        channel_image_data.append(layer._channels)
+
+    return (layer_records, channel_image_data)

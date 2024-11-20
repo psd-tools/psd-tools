@@ -2,7 +2,7 @@
 Layer and mask data structure.
 """
 
-from __future__ import absolute_import, unicode_literals
+from __future__ import annotations
 
 import io
 import logging
@@ -431,7 +431,7 @@ class LayerRecord(BaseElement):
     left = attr.ib(default=0, type=int)
     bottom = attr.ib(default=0, type=int)
     right = attr.ib(default=0, type=int)
-    channel_info = attr.ib(factory=list)
+    channel_info: list[ChannelInfo] = attr.ib(factory=list)
     signature = attr.ib(
         default=b"8BIM", repr=False, type=bytes, validator=in_((b"8BIM",))
     )
@@ -446,7 +446,7 @@ class LayerRecord(BaseElement):
     mask_data = attr.ib(default=None)
     blending_ranges = attr.ib(factory=LayerBlendingRanges)
     name = attr.ib(default="", type=str)
-    tagged_blocks = attr.ib(factory=TaggedBlocks)
+    tagged_blocks: TaggedBlocks = attr.ib(factory=TaggedBlocks)
 
     @classmethod
     def read(cls, fp, encoding="macroman", version=1):

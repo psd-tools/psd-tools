@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import logging
+from typing import Any, Literal
 
 import numpy as np
 
@@ -18,15 +21,15 @@ EXPECTED_CHANNELS = {
 }
 
 
-def get_array(layer, channel, **kwargs):
+def get_array(
+    layer: Any, channel: str | None, **kwargs: Any
+) -> np.ndarray:  # TODO: Circular import
     if layer.kind == "psdimage":
         return get_image_data(layer, channel)
-    else:
-        return get_layer_data(layer, channel, **kwargs)
-    return None
+    return get_layer_data(layer, channel, **kwargs)
 
 
-def get_image_data(psd, channel):
+def get_image_data(psd: Any, channel: str | None) -> np.ndarray:  # TODO: Circular import
     if (channel == "mask") or (channel == "shape" and not has_transparency(psd)):
         return np.ones((psd.height, psd.width, 1), dtype=np.float32)
 
@@ -53,7 +56,7 @@ def get_image_data(psd, channel):
     return data
 
 
-def get_layer_data(layer, channel, real_mask=True):
+def get_layer_data(layer: Any, channel: str | None, real_mask: bool = True) -> np.ndarray:
     def _find_channel(layer, width, height, condition):
         depth, version = layer._psd.depth, layer._psd.version
         iterator = zip(layer._record.channel_info, layer._channels)
@@ -98,7 +101,7 @@ def get_layer_data(layer, channel, real_mask=True):
     return np.concatenate([color, shape], axis=2)
 
 
-def get_pattern(pattern):
+def get_pattern(pattern) -> np.ndarray:
     """Get pattern array."""
     height, width = pattern.data.rectangle[2], pattern.data.rectangle[3]
     return np.stack(
@@ -111,7 +114,7 @@ def get_pattern(pattern):
     ).reshape((height, width, -1))
 
 
-def has_transparency(psd):
+def has_transparency(psd: Any) -> bool:
     keys = (
         Tag.SAVING_MERGED_TRANSPARENCY,
         Tag.SAVING_MERGED_TRANSPARENCY16,
@@ -132,7 +135,7 @@ def has_transparency(psd):
     return False
 
 
-def get_transparency_index(psd):
+def get_transparency_index(psd: Any) -> int:
     alpha_ids = psd.image_resources.get_data(Resource.ALPHA_IDENTIFIERS)
     if alpha_ids:
         try:
@@ -143,7 +146,9 @@ def get_transparency_index(psd):
     return -1  # Assume the last channel is the transparency
 
 
-def _parse_array(data, depth, lut=None):
+def _parse_array(
+    data: bytes | bytearray, depth: Literal[1, 8, 16, 32], lut: np.ndarray | None = None
+) -> np.ndarray:
     if depth == 8:
         parsed = np.frombuffer(data, ">u1")
         if lut is not None:
@@ -159,7 +164,7 @@ def _parse_array(data, depth, lut=None):
         raise ValueError("Unsupported depth: %g" % depth)
 
 
-def _remove_background(data, psd):
+def _remove_background(data: np.ndarray, psd: Any) -> np.ndarray:
     """ImageData preview is rendered on a white background."""
     if psd.color_mode == ColorMode.RGB and data.shape[2] > 3:
         color = data[:, :, :3]
