@@ -6,13 +6,16 @@ from skimage.morphology import disk
 
 import psd_tools.composite
 from psd_tools.terminology import Enum, Key
+from psd_tools.psd.descriptor import Descriptor
 
 from .vector import draw_gradient_fill, draw_pattern_fill, draw_solid_color_fill
 
 logger = logging.getLogger(__name__)
 
 
-def draw_stroke_effect(viewport, shape, desc, psd):
+def draw_stroke_effect(
+    viewport: tuple[int, int, int, int], shape: np.ndarray, desc: Descriptor, psd
+) -> tuple[np.ndarray, np.ndarray]:
     logger.debug("Stroke effect has limited support")
     height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
     if not isinstance(shape, np.ndarray):

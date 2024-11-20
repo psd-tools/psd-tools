@@ -1,9 +1,10 @@
 import logging
+from typing import Callable
 
 import numpy as np
 from PIL import Image
 
-from psd_tools.api.layers import AdjustmentLayer, Layer
+from psd_tools.api.layers import AdjustmentLayer, Layer, Group
 from psd_tools.api.numpy_io import EXPECTED_CHANNELS, has_transparency
 from psd_tools.api.pil_io import get_pil_mode, post_process
 from psd_tools.api.psd_image import PSDImage
@@ -24,8 +25,15 @@ logger = logging.getLogger(__name__)
 
 
 def composite_pil(
-    layer, color, alpha, viewport, layer_filter, force, as_layer=False, apply_icc=False
-):
+    layer: Layer,
+    color: np.ndarray,
+    alpha: np.ndarray,
+    viewport: tuple[int, int, int, int] | None,
+    layer_filter: Callable | None,
+    force: bool,
+    as_layer: bool = False,
+    apply_icc: bool = True,
+) -> Image.Image:
     UNSUPPORTED_MODES = {
         ColorMode.DUOTONE,
         ColorMode.LAB,
@@ -83,14 +91,14 @@ def composite_pil(
 
 
 def composite(
-    group,
-    color=1.0,
-    alpha=0.0,
-    viewport=None,
-    layer_filter=None,
-    force=False,
-    as_layer=False,
-):
+    group: Group | PSDImage,
+    color: float | tuple[float, ...] | np.ndarray = 1.0,
+    alpha: float | np.ndarray = 0.0,
+    viewport: tuple[int, int, int, int] | None = None,
+    layer_filter: Callable | None = None,
+    force: bool = False,
+    as_layer: bool = False,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Composite the given group of layers.
     """
@@ -122,7 +130,12 @@ def composite(
     return compositor.finish()
 
 
-def paste(viewport, bbox, values, background=None):
+def paste(
+    viewport: tuple[int, int, int, int],
+    bbox: tuple[int, int, int, int],
+    values: np.ndarray,
+    background: float | None = None,
+) -> np.ndarray:
     """Change to the specified viewport."""
     shape = (viewport[3] - viewport[1], viewport[2] - viewport[0], values.shape[2])
     view = (
@@ -158,12 +171,12 @@ class Compositor(object):
 
     def __init__(
         self,
-        viewport,
-        color=1.0,
-        alpha=0.0,
-        isolated=False,
-        layer_filter=None,
-        force=False,
+        viewport: tuple[int, int, int, int],
+        color: float | tuple[float, ...] | np.ndarray = 1.0,
+        alpha: float | np.ndarray = 0.0,
+        isolated: bool = False,
+        layer_filter: Callable | None = None,
+        force: bool = False,
     ):
         self._viewport = viewport
         self._layer_filter = layer_filter
@@ -192,7 +205,7 @@ class Compositor(object):
         self._color = self._color_0
         self._alpha = self._alpha_0
 
-    def apply(self, layer, clip_compositing=False):
+    def apply(self, layer: Layer, clip_compositing: bool = False) -> None:
         logger.debug("Compositing %s" % layer)
 
         if not self._layer_filter(layer):
@@ -238,7 +251,14 @@ class Compositor(object):
         else:
             self._apply_stroke_effect(layer, color, shape, alpha)
 
-    def _apply_source(self, color, shape, alpha, blend_mode, knockout=False):
+    def _apply_source(
+        self,
+        color: np.ndarray,
+        shape: np.ndarray,
+        alpha: np.ndarray,
+        blend_mode: BlendMode,
+        knockout: bool = False,
+    ) -> None:
         if self._color_0.shape[2] == 1 and 1 < color.shape[2]:
             self._color_0 = np.repeat(self._color_0, color.shape[2], axis=2)
         if self._color.shape[2] == 1 and 1 < color.shape[2]:
@@ -265,23 +285,23 @@ class Compositor(object):
             _divide((1.0 - shape) * alpha_previous * self._color + color_t, self._alpha)
         )
 
-    def finish(self):
+    def finish(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         return self.color, self.shape, self.alpha
 
     @property
-    def viewport(self):
+    def viewport(self) -> tuple[int, int, int, int]:
         return self._viewport
 
     @property
-    def width(self):
+    def width(self) -> int:
         return self._viewport[2] - self._viewport[0]
 
     @property
-    def height(self):
+    def height(self) -> int:
         return self._viewport[3] - self._viewport[1]
 
     @property
-    def color(self):
+    def color(self) -> np.ndarray:
         return _clip(
             self._color
             + (self._color - self._color_0)
@@ -289,14 +309,16 @@ class Compositor(object):
         )
 
     @property
-    def shape(self):
+    def shape(self) -> np.ndarray:
         return self._shape_g
 
     @property
-    def alpha(self):
+    def alpha(self) -> np.ndarray:
         return self._alpha_g
 
-    def _get_group(self, layer, knockout):
+    def _get_group(
+        self, layer: Layer, knockout: bool
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         viewport = _intersect(self._viewport, layer.bbox)
         if knockout:
             color_b = self._color_0
@@ -326,7 +348,7 @@ class Compositor(object):
         assert alpha is not None
         return color, shape, alpha
 
-    def _get_object(self, layer):
+    def _get_object(self, layer: Layer) -> tuple[np.ndarray : np.ndarray, np.ndarray]:
         """Get object attributes."""
         color, shape = layer.numpy("color"), layer.numpy("shape")
         if (self._force or not layer.has_pixels()) and has_fill(layer):
@@ -366,7 +388,9 @@ class Compositor(object):
         assert alpha is not None
         return color, shape, alpha
 
-    def _apply_clip_layers(self, layer, color, alpha):
+    def _apply_clip_layers(
+        self, layer: Layer, color: np.ndarray, alpha: np.ndarray
+    ) -> np.ndarray:
         # TODO: Consider Tag.BLEND_CLIPPING_ELEMENTS.
         compositor = Compositor(
             self._viewport,
@@ -379,7 +403,7 @@ class Compositor(object):
             compositor.apply(clip_layer, clip_compositing=True)
         return compositor._color
 
-    def _get_mask(self, layer):
+    def _get_mask(self, layer: Layer) -> tuple[np.ndarray, float]:
         """Get mask attributes."""
         shape = 1.0
         opacity = 1.0
@@ -422,13 +446,13 @@ class Compositor(object):
         assert opacity is not None
         return shape, opacity
 
-    def _get_const(self, layer):
+    def _get_const(self, layer: Layer) -> tuple[float, float]:
         """Get constant attributes."""
         shape = layer.tagged_blocks.get_data(Tag.BLEND_FILL_OPACITY, 255) / 255.0
         opacity = layer.opacity / 255.0
         assert shape is not None
         assert opacity is not None
-        return shape, opacity
+        return float(shape), opacity
 
     def _get_stroke(self, layer):
         """Get stroke source."""
@@ -516,7 +540,7 @@ def _intersect(a, b):
     return inter
 
 
-def has_fill(layer):
+def has_fill(layer: Layer):
     FILL_TAGS = (
         Tag.SOLID_COLOR_SHEET_SETTING,
         Tag.PATTERN_FILL_SETTING,

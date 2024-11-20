@@ -2,12 +2,11 @@
 Smart object module.
 """
 
-from __future__ import absolute_import, unicode_literals
-
 import contextlib
 import io
 import logging
 import os
+from typing import Iterator
 
 from psd_tools.constants import Tag
 
@@ -22,7 +21,7 @@ class SmartObject(object):
     :py:class:`~psd_tools.api.layers.SmartObjectLayer`.
     """
 
-    def __init__(self, layer):
+    def __init__(self, layer):  # TODO: Circular import
         self._config = None
         for key in (Tag.SMART_OBJECT_LAYER_DATA1, Tag.SMART_OBJECT_LAYER_DATA2):
             if key in layer.tagged_blocks:
@@ -52,17 +51,17 @@ class SmartObject(object):
                     break
 
     @property
-    def kind(self):
+    def kind(self) -> str:
         """Kind of the link, 'data', 'alias', or 'external'."""
         return self._data.kind.name.lower()
 
     @property
-    def filename(self):
+    def filename(self) -> str:
         """Original file name of the object."""
         return self._data.filename.strip("\x00")
 
     @contextlib.contextmanager
-    def open(self, external_dir=None):
+    def open(self, external_dir: str | None = None) -> Iterator[io.BytesIO]:
         """
         Open the smart object as binary IO.
 
@@ -84,13 +83,15 @@ class SmartObject(object):
                 filepath = filepath.replace("\x00", "")
                 if external_dir is not None:
                     filepath = os.path.join(external_dir, filepath)
+                if not os.path.exists(filepath):
+                    raise FileNotFoundError(f"Smart object file not found: {filepath}")
             with open(filepath, "rb") as f:
                 yield f
         else:
             raise NotImplementedError("alias is not supported.")
 
     @property
-    def data(self):
+    def data(self) -> bytes:
         """Embedded file content, or empty if kind is `external` or `alias`"""
         if self.kind == "data":
             return self._data.data
@@ -99,23 +100,23 @@ class SmartObject(object):
                 return f.read()
 
     @property
-    def unique_id(self):
+    def unique_id(self) -> str:
         """UUID of the object."""
         return self._config.data.get(b"Idnt").value.strip("\x00")
 
     @property
-    def filesize(self):
+    def filesize(self) -> int:
         """File size of the object."""
         if self.kind == "data":
             return len(self._data.data)
         return self._data.filesize
 
     @property
-    def filetype(self):
+    def filetype(self) -> str:
         """Preferred file extension, such as `jpg`."""
         return self._data.filetype.lower().strip().decode("ascii")
 
-    def is_psd(self):
+    def is_psd(self) -> bool:
         """Return True if the file is embedded PSD/PSB."""
         return self.filetype in ("8bpb", "8bps")
 
@@ -144,7 +145,7 @@ class SmartObject(object):
         else:
             return None
 
-    def save(self, filename=None):
+    def save(self, filename: str | None = None) -> None:
         """
         Save the smart object to a file.
 
@@ -155,7 +156,7 @@ class SmartObject(object):
         with open(filename, "wb") as f:
             f.write(self.data)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "SmartObject(%r kind=%r type=%r size=%s)" % (
             self.filename,
             self.kind,

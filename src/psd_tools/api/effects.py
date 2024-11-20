@@ -2,12 +2,12 @@
 Effects module.
 """
 
-from __future__ import absolute_import, unicode_literals
-
 import logging
+from typing import Any, Iterator
 
 from psd_tools.constants import Resource, Tag
 from psd_tools.psd.descriptor import Descriptor, List
+from psd_tools.psd.image_resources import ImageResources
 from psd_tools.terminology import Key, Klass
 from psd_tools.utils import new_registry
 
@@ -21,7 +21,7 @@ class Effects(object):
     List-like effects.
     """
 
-    def __init__(self, layer):
+    def __init__(self, layer: Any):  # TODO: Circular import
         self._data = None
         for tag in (
             Tag.OBJECT_BASED_EFFECTS_LAYER_INFO,
@@ -32,7 +32,7 @@ class Effects(object):
                 self._data = layer.tagged_blocks.get_data(tag)
                 break
 
-        self._items = []
+        self._items: list["_Effect"] = []
         for key in self._data or []:
             value = self._data[key]
             if not isinstance(value, List):
@@ -50,7 +50,7 @@ class Effects(object):
         return self._data.get(Key.Scale).value if self._data else None
 
     @property
-    def enabled(self):
+    def enabled(self) -> bool:
         """Whether if all the effects are enabled.
 
         :rtype: bool
@@ -61,7 +61,7 @@ class Effects(object):
     def items(self):
         return self._items
 
-    def find(self, name):
+    def find(self, name: str) -> Iterator["_Effect"]:
         """Iterate effect items by name."""
         if not self.enabled:
             return
@@ -70,13 +70,13 @@ class Effects(object):
             if isinstance(item, KLASS.get(name.lower(), None)):
                 yield item
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self._items.__len__()
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator["_Effect"]:
         return self._items.__iter__()
 
-    def __getitem__(self, key):
+    def __getitem__(self, key) -> "_Effect":
         return self._items.__getitem__(key)
 
     # def __setitem__(self, key, value):
@@ -85,7 +85,7 @@ class Effects(object):
     # def __delitem__(self, key):
     #     return self._items.__delitem__(key)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "%s(%s)" % (
             self.__class__.__name__,
             " ".join(x.__class__.__name__.lower() for x in self) if self._data else "",
@@ -95,34 +95,34 @@ class Effects(object):
 class _Effect(object):
     """Base Effect class."""
 
-    def __init__(self, value, image_resources):
+    def __init__(self, value: Descriptor, image_resources: ImageResources):
         self.value = value
         self._image_resources = image_resources
 
     @property
-    def enabled(self):
+    def enabled(self) -> bool:
         """Whether if the effect is enabled."""
         return bool(self.value.get(Key.Enabled))
 
     @property
-    def present(self):
+    def present(self) -> bool:
         """Whether if the effect is present in Photoshop UI."""
         return bool(self.value.get(b"present"))
 
     @property
-    def shown(self):
+    def shown(self) -> bool:
         """Whether if the effect is shown in dialog."""
         return bool(self.value.get(b"showInDialog"))
 
     @property
-    def opacity(self):
+    def opacity(self) -> float:
         """Layer effect opacity in percentage."""
-        return self.value.get(Key.Opacity).value
+        return float(self.value.get(Key.Opacity).value)
 
-    def has_patterns(self):
+    def has_patterns(self) -> bool:
         return isinstance(self, _PatternMixin) and self.pattern is not None
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__class__.__name__
 
     def _repr_pretty_(self, p, cycle):
@@ -160,7 +160,7 @@ class _ChokeNoiseMixin(_ColorMixin):
         return self.value.get(Key.Noise).value
 
     @property
-    def anti_aliased(self):
+    def anti_aliased(self) -> bool:
         """Angi-aliased."""
         return bool(self.value.get(Key.AntiAlias))
 
@@ -172,7 +172,7 @@ class _ChokeNoiseMixin(_ColorMixin):
 
 class _AngleMixin(object):
     @property
-    def use_global_light(self):
+    def use_global_light(self) -> bool:
         """Using global light."""
         return bool(self.value.get(Key.UseGlobalAngle))
 
@@ -286,7 +286,7 @@ class _AlignScaleMixin(object):
         return self.value.get(Key.Scale).value
 
     @property
-    def aligned(self):
+    def aligned(self) -> bool:
         """Aligned."""
         return bool(self.value.get(Key.Alignment))
 
@@ -294,7 +294,7 @@ class _AlignScaleMixin(object):
 @register(Klass.DropShadow.value)
 class DropShadow(_ShadowEffect):
     @property
-    def layer_knocks_out(self):
+    def layer_knocks_out(self) -> bool:
         """Layers are knocking out."""
         return bool(self.value.get(b"layerConceals"))
 
@@ -430,7 +430,7 @@ class BevelEmboss(_Effect, _AngleMixin):
         return self.value.get(Key.TransferSpec)
 
     @property
-    def anti_aliased(self):
+    def anti_aliased(self) -> bool:
         """Anti-aliased."""
         return bool(self.value.get(b"antialiasGloss"))
 
@@ -440,12 +440,12 @@ class BevelEmboss(_Effect, _AngleMixin):
         return self.value.get(Key.Softness).value
 
     @property
-    def use_shape(self):
+    def use_shape(self) -> bool:
         """Using shape."""
         return bool(self.value.get(b"useShape"))
 
     @property
-    def use_texture(self):
+    def use_texture(self) -> bool:
         """Using texture."""
         return bool(self.value.get(b"useTexture"))
 
@@ -455,12 +455,12 @@ class Satin(_Effect, _ColorMixin):
     """Satin effect"""
 
     @property
-    def anti_aliased(self):
+    def anti_aliased(self) -> bool:
         """Anti-aliased."""
         return bool(self.value.get(Key.AntiAlias))
 
     @property
-    def inverted(self):
+    def inverted(self) -> bool:
         """Inverted."""
         return bool(self.value.get(Key.Invert))
 

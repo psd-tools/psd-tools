@@ -2,15 +2,14 @@
 Image compression utils.
 """
 
-from __future__ import absolute_import, unicode_literals
+from typing import Iterator
 
 import array
 import io
-import zlib
-from PIL import Image
 import logging
+import zlib
 
-logger = logging.getLogger(__name__)
+from PIL import Image
 
 from psd_tools.constants import Compression
 from psd_tools.utils import (
@@ -25,8 +24,17 @@ try:
 except ImportError:
     from . import rle as rle_impl
 
+logger = logging.getLogger(__name__)
 
-def compress(data, compression, width, height, depth, version=1):
+
+def compress(
+    data: bytes,
+    compression: Compression,
+    width: int,
+    height: int,
+    depth: int,
+    version: int = 1,
+) -> bytes:
     """Compress raw data.
 
     :param data: raw data bytes to write.
@@ -50,7 +58,14 @@ def compress(data, compression, width, height, depth, version=1):
     return result
 
 
-def decompress(data, compression, width, height, depth, version=1):
+def decompress(
+    data: bytes,
+    compression: Compression,
+    width: int,
+    height: int,
+    depth: int,
+    version: int = 1,
+) -> bytes:
     """Decompress raw data.
 
     :param data: compressed data bytes.
@@ -77,7 +92,7 @@ def decompress(data, compression, width, height, depth, version=1):
 
     if depth >= 8:
         if result is None:
-            mode = 'L' if depth == 8 else 'RGB' if depth == 24 else 'RGBA'
+            mode = "L" if depth == 8 else "RGB" if depth == 24 else "RGBA"
             result = Image.new(mode, (width, height), color=0).tobytes()
             logger.warning("Failed channel has been replaced by black")
         else:
@@ -86,7 +101,7 @@ def decompress(data, compression, width, height, depth, version=1):
     return result
 
 
-def encode_rle(data, width, height, depth, version):
+def encode_rle(data: bytes, width: int, height: int, depth: int, version: int) -> bytes:
     row_size = width * depth // 8
     with io.BytesIO(data) as fp:
         rows = [rle_impl.encode(fp.read(row_size)) for _ in range(height)]
@@ -101,7 +116,7 @@ def encode_rle(data, width, height, depth, version):
     return result
 
 
-def decode_rle(data, width, height, depth, version):
+def decode_rle(data: bytes, width: int, height: int, depth: int, version: int) -> bytes:
     try:
         row_size = max(width * depth // 8, 1)
         with io.BytesIO(data) as fp:
@@ -111,11 +126,14 @@ def decode_rle(data, width, height, depth, version):
             )
     except ValueError as e:
         logger.error(f"An error occurred during RLE decoding: {e}")
-        logger.info(f"Decompression of RLE data failed: {width=} {height=} {depth=} {version=} size={len(data)}", exc_info=True)
-        return None
+        logger.info(
+            f"Decompression of RLE data failed: {width=} {height=} {depth=} {version=} size={len(data)}",
+            exc_info=True,
+        )
+        raise
 
 
-def encode_prediction(data, w, h, depth):
+def encode_prediction(data: bytes | bytearray, w: int, h: int, depth: int) -> bytes:
     if depth == 8:
         arr = array.array("B", data)
         arr = _delta_encode(arr, 0x100, w, h)
@@ -133,7 +151,7 @@ def encode_prediction(data, w, h, depth):
         raise ValueError("Invalid pixel size %d" % (depth))
 
 
-def decode_prediction(data, w, h, depth):
+def decode_prediction(data: bytes, w: int, h: int, depth: int) -> array.array:
     if depth == 8:
         arr = be_array_from_bytes("B", data)
         arr = _delta_decode(arr, 0x100, w, h)
@@ -150,7 +168,7 @@ def decode_prediction(data, w, h, depth):
     return getattr(arr, "tobytes", getattr(arr, "tostring", None))()
 
 
-def _delta_encode(arr, mod, w, h):
+def _delta_encode(arr: array.array, mod: int, w: int, h: int) -> array.array:
     arr.byteswap()
     for y in reversed(range(h)):
         offset = y * w
@@ -161,7 +179,7 @@ def _delta_encode(arr, mod, w, h):
     return arr
 
 
-def _delta_decode(arr, mod, w, h):
+def _delta_decode(arr: array.array, mod: int, w: int, h: int) -> array.array:
     for y in range(h):
         offset = y * w
         for x in range(w - 1):
@@ -172,7 +190,7 @@ def _delta_decode(arr, mod, w, h):
     return arr
 
 
-def _shuffled_order(w, h):
+def _shuffled_order(w: int, h: int) -> Iterator[int]:
     """
     Generator for the order of 4-byte values.
 
@@ -194,14 +212,14 @@ def _shuffled_order(w, h):
                 yield x
 
 
-def _shuffle_byte_order(bytes_array, w, h):
+def _shuffle_byte_order(bytes_array: array.array, w: int, h: int) -> array.array:
     arr = bytes_array[:]
     for src, dst in enumerate(_shuffled_order(w, h)):
         arr[dst] = bytes_array[src]
     return arr
 
 
-def _restore_byte_order(bytes_array, w, h):
+def _restore_byte_order(bytes_array: array.array, w: int, h: int) -> array.array:
     arr = bytes_array[:]
     for dst, src in enumerate(_shuffled_order(w, h)):
         arr[dst] = bytes_array[src]

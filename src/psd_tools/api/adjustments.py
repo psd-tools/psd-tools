@@ -10,12 +10,12 @@ Example::
         print(layer.gradient_kind)
 """
 
-from __future__ import absolute_import
-
 import logging
 
 from psd_tools.api.layers import AdjustmentLayer, FillLayer
 from psd_tools.constants import Tag
+from psd_tools.psd.adjustments import Curves, Levels, LevelRecord
+from psd_tools.psd.descriptor import DescriptorBlock
 from psd_tools.utils import new_registry
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ class SolidColorFill(FillLayer):
     """Solid color fill."""
 
     @property
-    def data(self):
+    def data(self) -> DescriptorBlock:
         """Color in Descriptor(RGB)."""
         return self._data.get(b"Clr ")
 
@@ -38,7 +38,7 @@ class PatternFill(FillLayer):
     """Pattern fill."""
 
     @property
-    def data(self):
+    def data(self) -> DescriptorBlock:
         """Pattern in Descriptor(PATTERN)."""
         return self._data.get(b"Ptrn")
 
@@ -48,11 +48,11 @@ class GradientFill(FillLayer):
     """Gradient fill."""
 
     @property
-    def angle(self):
+    def angle(self) -> float:
         return float(self._data.get(b"Angl"))
 
     @property
-    def gradient_kind(self):
+    def gradient_kind(self) -> str:
         """
         Kind of the gradient, one of the following:
 
@@ -65,7 +65,7 @@ class GradientFill(FillLayer):
         return self._data.get(b"Type").get_name()
 
     @property
-    def data(self):
+    def data(self) -> DescriptorBlock:
         """Gradient in Descriptor(GRADIENT)."""
         return self._data.get(b"Grad")
 
@@ -77,31 +77,31 @@ class BrightnessContrast(AdjustmentLayer):
     # Tag.BRIGHTNESS_AND_CONTRAST is obsolete.
 
     @property
-    def brightness(self):
+    def brightness(self) -> int:
         return int(self._data.get(b"Brgh", 0))
 
     @property
-    def contrast(self):
+    def contrast(self) -> int:
         return int(self._data.get(b"Cntr", 0))
 
     @property
-    def mean(self):
+    def mean(self) -> int:
         return int(self._data.get(b"means", 0))
 
     @property
-    def lab(self):
+    def lab(self) -> bool:
         return bool(self._data.get(b"Lab ", False))
 
     @property
-    def use_legacy(self):
+    def use_legacy(self) -> bool:
         return bool(self._data.get(b"useLegacy", False))
 
     @property
-    def vrsn(self):
+    def vrsn(self) -> int:
         return int(self._data.get(b"Vrsn", 1))
 
     @property
-    def automatic(self):
+    def automatic(self) -> bool:
         return bool(self._data.get(b"auto", False))
 
 
@@ -112,7 +112,7 @@ class Curves(AdjustmentLayer):
     """
 
     @property
-    def data(self):
+    def data(self) -> Curves:
         """
         Raw data.
 
@@ -132,7 +132,7 @@ class Exposure(AdjustmentLayer):
     """
 
     @property
-    def exposure(self):
+    def exposure(self) -> float:
         """Exposure.
 
         :return: `float`
@@ -140,7 +140,7 @@ class Exposure(AdjustmentLayer):
         return float(self._data.exposure)
 
     @property
-    def offset(self):
+    def offset(self) -> float:
         """Offset.
 
         :return: `float`
@@ -148,7 +148,7 @@ class Exposure(AdjustmentLayer):
         return float(self._data.offset)
 
     @property
-    def gamma(self):
+    def gamma(self) -> float:
         """Gamma.
 
         :return: `float`
@@ -166,7 +166,7 @@ class Levels(AdjustmentLayer):
     """
 
     @property
-    def data(self):
+    def data(self) -> Levels:
         """
         List of level records. The first record is the master.
 
@@ -175,7 +175,7 @@ class Levels(AdjustmentLayer):
         return self._data
 
     @property
-    def master(self):
+    def master(self) -> LevelRecord:
         """Master record."""
         return self.data[0]
 
@@ -185,7 +185,7 @@ class Vibrance(AdjustmentLayer):
     """Vibrance adjustment."""
 
     @property
-    def vibrance(self):
+    def vibrance(self) -> int:
         """Vibrance.
 
         :return: `int`
@@ -193,7 +193,7 @@ class Vibrance(AdjustmentLayer):
         return int(self._data.get(b"vibrance", 0))
 
     @property
-    def saturation(self):
+    def saturation(self) -> int:
         """Saturation.
 
         :return: `int`
@@ -210,7 +210,7 @@ class HueSaturation(AdjustmentLayer):
     """
 
     @property
-    def data(self):
+    def data(self) -> list:
         """
         List of Hue/Saturation records.
 
@@ -219,7 +219,7 @@ class HueSaturation(AdjustmentLayer):
         return self._data.items
 
     @property
-    def enable_colorization(self):
+    def enable_colorization(self) -> int:
         """Enable colorization.
 
         :return: `int`
@@ -227,7 +227,7 @@ class HueSaturation(AdjustmentLayer):
         return int(self._data.enable)
 
     @property
-    def colorization(self):
+    def colorization(self) -> tuple:
         """Colorization.
 
         :return: `tuple`
@@ -235,7 +235,7 @@ class HueSaturation(AdjustmentLayer):
         return self._data.colorization
 
     @property
-    def master(self):
+    def master(self) -> tuple:
         """Master record.
 
         :return: `tuple`
@@ -248,7 +248,7 @@ class ColorBalance(AdjustmentLayer):
     """Color balance adjustment."""
 
     @property
-    def shadows(self):
+    def shadows(self) -> tuple:
         """Shadows.
 
         :return: `tuple`
@@ -256,7 +256,7 @@ class ColorBalance(AdjustmentLayer):
         return self._data.shadows
 
     @property
-    def midtones(self):
+    def midtones(self) -> tuple:
         """Mid-tones.
 
         :return: `tuple`
@@ -264,7 +264,7 @@ class ColorBalance(AdjustmentLayer):
         return self._data.midtones
 
     @property
-    def highlights(self):
+    def highlights(self) -> tuple:
         """Highlights.
 
         :return: `tuple`
@@ -272,7 +272,7 @@ class ColorBalance(AdjustmentLayer):
         return self._data.highlights
 
     @property
-    def luminosity(self):
+    def luminosity(self) -> int:
         """Luminosity.
 
         :return: `int`
@@ -285,31 +285,31 @@ class BlackAndWhite(AdjustmentLayer):
     """Black and white adjustment."""
 
     @property
-    def red(self):
+    def red(self) -> int:
         return self._data.get(b"Rd  ", 40)
 
     @property
-    def yellow(self):
+    def yellow(self) -> int:
         return self._data.get(b"Yllw", 60)
 
     @property
-    def green(self):
+    def green(self) -> int:
         return self._data.get(b"Grn ", 40)
 
     @property
-    def cyan(self):
+    def cyan(self) -> int:
         return self._data.get(b"Cyn ", 60)
 
     @property
-    def blue(self):
+    def blue(self) -> int:
         return self._data.get(b"Bl  ", 20)
 
     @property
-    def magenta(self):
+    def magenta(self) -> int:
         return self._data.get(b"Mgnt", 80)
 
     @property
-    def use_tint(self):
+    def use_tint(self) -> bool:
         return bool(self._data.get(b"useTint", False))
 
     @property
@@ -317,11 +317,11 @@ class BlackAndWhite(AdjustmentLayer):
         return self._data.get(b"tintColor")
 
     @property
-    def preset_kind(self):
+    def preset_kind(self) -> int:
         return self._data.get(b"bwPresetKind", 1)
 
     @property
-    def preset_file_name(self):
+    def preset_file_name(self) -> str:
         value = self._data.get(b"blackAndWhitePresetFileName", "") + ""
         return value.strip("\x00")
 
@@ -331,7 +331,7 @@ class PhotoFilter(AdjustmentLayer):
     """Photo filter adjustment."""
 
     @property
-    def xyz(self):
+    def xyz(self) -> bool:
         """xyz.
 
         :return: `bool`
@@ -387,7 +387,7 @@ class Posterize(AdjustmentLayer):
     """Posterize adjustment."""
 
     @property
-    def posterize(self):
+    def posterize(self) -> int:
         """Posterize value.
 
         :return: `int`
@@ -400,7 +400,7 @@ class Threshold(AdjustmentLayer):
     """Threshold adjustment."""
 
     @property
-    def threshold(self):
+    def threshold(self) -> int:
         """Threshold value.
 
         :return: `int`
@@ -450,7 +450,7 @@ class GradientMap(AdjustmentLayer):
         return self._data.expansion
 
     @property
-    def interpolation(self):
+    def interpolation(self) -> float:
         """Interpolation between 0.0 and 1.0."""
         return self._data.interpolation / 4096.0
 
