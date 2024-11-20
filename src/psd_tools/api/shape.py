@@ -7,8 +7,15 @@ live shape properties and :py:class:`Stroke` to specify how outline is
 stylized.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Literal
+
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
 
 from psd_tools.psd.descriptor import Descriptor, DescriptorBlock2
 from psd_tools.psd.vector import (
@@ -176,7 +183,7 @@ class Stroke(object):
     def __init__(self, data: VectorStrokeContentSetting):
         self._data = data
         if self._data.classID not in (b"strokeStyle", Event.Stroke):
-            logger.warning("Unknown class ID found: {}".format(self._data.classID))
+            logger.warning("Unknown class ID found: {!r}".format(self._data.classID))
 
     @property
     def enabled(self) -> bool:
@@ -276,12 +283,12 @@ class Origination(object):
     @classmethod
     def create(
         kls, data: DescriptorBlock2
-    ) -> Literal["Invalidated", "Rectangle", "RoundedRectangle", "Line", "Ellipse"]:
+    ) -> Invalidated | Rectangle | RoundedRectangle | Line | Ellipse:
         if data.get(b"keyShapeInvalidated"):
             return Invalidated(data)
         origin_type = data.get(b"keyOriginType")
         types = {1: Rectangle, 2: RoundedRectangle, 4: Line, 5: Ellipse}
-        return types.get(origin_type, kls)(data)
+        return types.get(origin_type, kls)(data)  # type: ignore
 
     def __init__(self, data):
         self._data = data

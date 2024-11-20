@@ -60,7 +60,7 @@ The following resources are plain bytes::
     Resource.LIGHTROOM_WORKFLOW: 8000
 """
 
-from __future__ import absolute_import, unicode_literals
+from __future__ import annotations
 
 import io
 import logging
@@ -969,29 +969,6 @@ class ThumbnailResource(BaseElement):
         )
         written += write_bytes(fp, self.data)
         return written
-
-    def topil(self):
-        """
-        Get PIL Image.
-
-        :return: PIL Image object.
-        """
-        from PIL import Image
-
-        if self.fmt == 1:
-            with io.BytesIO(self.data) as f:
-                image = Image.open(f)
-                image.load()
-        else:
-            image = Image.frombytes(
-                "RGB",
-                (self.width, self.height),
-                self.data,
-                "raw",
-                self._RAW_MODE,
-                self.row,
-            )
-        return image
 
 
 @register(Resource.THUMBNAIL_RESOURCE_PS4)

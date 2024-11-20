@@ -7,7 +7,7 @@ Tagged block data structure.
 
 """
 
-from __future__ import absolute_import, unicode_literals
+from __future__ import annotations
 
 import io
 import logging
@@ -714,7 +714,9 @@ class SheetColorSetting(ValueElement):
     .. py:attribute:: value
     """
 
-    value = attr.ib(default=0, converter=SheetColorType, type=SheetColorType)
+    value = attr.ib(
+        default=SheetColorType.NO_COLOR, converter=SheetColorType, type=SheetColorType
+    )
 
     @classmethod
     def read(cls, fp, **kwargs):

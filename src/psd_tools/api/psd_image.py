@@ -2,8 +2,15 @@
 PSD Image module.
 """
 
+from __future__ import annotations
+
 import logging
-from typing import IO, Any, Callable, Literal
+from typing import Any, BinaryIO, Callable, Literal
+
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
 
 import numpy as np
 from PIL.Image import Image as PILImage
@@ -22,6 +29,7 @@ from psd_tools.api.layers import (
 from psd_tools.api.pil_io import get_pil_channels, get_pil_mode
 from psd_tools.constants import (
     BlendMode,
+    ChannelID,
     ColorMode,
     CompatibilityMode,
     Compression,
@@ -62,12 +70,13 @@ class PSDImage(GroupMixin):
     """
 
     def __init__(self, data: PSD):
+        from psd_tools.api.layers import Layer
+
         assert isinstance(data, PSD)
         self._record = data
-        self._layers = []
-        self._tagged_blocks = None
+        self._layers: list[Layer] = []
         self._compatibility_mode = CompatibilityMode.DEFAULT
-        self._updated_layers = False
+        self._updated_layers = False  # Flag to check if the layer tree is edited.
         self._init()
 
     @classmethod
@@ -99,7 +108,7 @@ class PSDImage(GroupMixin):
         )
 
     @classmethod
-    def frompil(cls, image: PILImage, compression=Compression.RLE) -> "PSDImage":
+    def frompil(cls, image: PILImage, compression=Compression.RLE) -> Self:
         """
         Create a new PSD document from PIL Image.
 
@@ -122,7 +131,7 @@ class PSDImage(GroupMixin):
         )
 
     @classmethod
-    def open(cls, fp: IO, **kwargs: Any) -> "PSDImage":
+    def open(cls, fp: BinaryIO | str, **kwargs: Any) -> Self:
         """
         Open a PSD document.
 
@@ -131,14 +140,14 @@ class PSDImage(GroupMixin):
             default 'macroman'. Some psd files need explicit encoding option.
         :return: A :py:class:`~psd_tools.api.psd_image.PSDImage` object.
         """
-        if hasattr(fp, "read"):
-            self = cls(PSD.read(fp, **kwargs))
-        else:
+        if isinstance(fp, str):
             with open(fp, "rb") as f:
                 self = cls(PSD.read(f, **kwargs))
+        else:
+            self = cls(PSD.read(fp, **kwargs))
         return self
 
-    def save(self, fp: IO, mode: str = "wb", **kwargs: Any) -> None:
+    def save(self, fp: BinaryIO | str, mode: str = "wb", **kwargs: Any) -> None:
         """
         Save the PSD file.
 
@@ -150,13 +159,15 @@ class PSDImage(GroupMixin):
 
         self._update_record()
 
-        if hasattr(fp, "write"):
-            self._record.write(fp, **kwargs)
-        else:
+        if isinstance(fp, str):
             with open(fp, mode) as f:
                 self._record.write(f, **kwargs)
+        else:
+            self._record.write(fp, **kwargs)
 
-    def topil(self, channel: str | None = None, apply_icc: bool = True) -> PILImage:
+    def topil(
+        self, channel: int | ChannelID | None = None, apply_icc: bool = True
+    ) -> PILImage | None:
         """
         Get PIL Image.
 
@@ -405,7 +416,7 @@ class PSDImage(GroupMixin):
         return self._record.header.channels
 
     @property
-    def depth(self) -> Literal[8, 16, 32]:
+    def depth(self) -> int:
         """
         Pixel depth bits.
 
@@ -476,16 +487,15 @@ class PSDImage(GroupMixin):
         """
         return self._compatibility_mode
 
-    @property
-    def pil_mode(self) -> str:
-        alpha = self.channels - get_pil_channels(get_pil_mode(self.color_mode))
-
-        return get_pil_mode(self.color_mode, alpha)
-
     @compatibility_mode.setter
     def compatibility_mode(self, value: CompatibilityMode) -> None:
         self._compatibility_mode = value
         self._compute_clipping_layers()
+
+    @property
+    def pil_mode(self) -> str:
+        alpha = self.channels - get_pil_channels(get_pil_mode(self.color_mode))
+        return get_pil_mode(self.color_mode, alpha > 0)
 
     def has_thumbnail(self) -> bool:
         """True if the PSDImage has a thumbnail resource."""
@@ -507,7 +517,7 @@ class PSDImage(GroupMixin):
             )
         elif Resource.THUMBNAIL_RESOURCE_PS4 in self.image_resources:
             return convert_thumbnail_to_pil(
-                self.image_resources.get_data(Resource.THUMBNAIL_RESOURCE_PS4), "BGR"
+                self.image_resources.get_data(Resource.THUMBNAIL_RESOURCE_PS4)
             )
         return None
 
@@ -613,14 +623,16 @@ class PSDImage(GroupMixin):
 
     def _init(self) -> None:
         """Initialize layer structure."""
-        group_stack = [self]
+        from psd_tools.api.layers import Layer
+
+        group_stack: list[Group | Artboard | PSDImage] = [self]
 
         for record, channels in self._record._iter_layers():
             current_group = group_stack[-1]
 
             blocks = record.tagged_blocks
             end_of_group = False
-            layer = None
+            layer: Layer | Group | Artboard | PSDImage | None = None
             divider = blocks.get_data(Tag.SECTION_DIVIDER_SETTING, None)
             divider = blocks.get_data(Tag.NESTED_SECTION_DIVIDER_SETTING, divider)
             if (
@@ -632,7 +644,12 @@ class PSDImage(GroupMixin):
                 divider.kind is not SectionDivider.OTHER
             ):
                 if divider.kind == SectionDivider.BOUNDING_SECTION_DIVIDER:
-                    layer = Group(self, None, None, current_group)
+                    layer = Group(  # type: ignore
+                        psd=self,
+                        record=None,  # type: ignore
+                        channels=None,  # type: ignore
+                        parent=current_group,
+                    )
                     layer._set_bounding_records(record, channels)
                     group_stack.append(layer)
                 elif divider.kind in (
@@ -640,7 +657,7 @@ class PSDImage(GroupMixin):
                     SectionDivider.CLOSED_FOLDER,
                 ):
                     layer = group_stack.pop()
-                    assert layer is not self
+                    assert not isinstance(layer, PSDImage)
 
                     layer._record = record
                     layer._channels = channels
@@ -688,60 +705,61 @@ class PSDImage(GroupMixin):
             assert layer is not None
 
             if not end_of_group:
+                assert not isinstance(layer, PSDImage)
                 current_group._layers.append(layer)
 
         self._compute_clipping_layers()
 
-    def _update_record(self, layer_group: GroupMixin | None = None) -> None:
+    def _update_record(self) -> None:
         """
         Compiles the tree layer structure back into records and channels list recursively
         """
 
         if not self._updated_layers:
+            # Skip if nothing is changed.
             return
 
-        if layer_group is None:
-            layer_group = self
+        layer_records, channel_image_data = _build_record_tree(self)
 
-        layer_records = LayerRecords()
-        channel_image_data = ChannelImageData()
+        # PSDImage.frompil doesn't create a LayerInfo attribute to LayerAndMaskInformation
+        if not self._record.layer_and_mask_information.layer_info:
+            self._record.layer_and_mask_information.layer_info = LayerInfo()
 
-        for layer in layer_group:
-            if layer.kind in ["group", "artboard"]:
-                layer_records.append(layer._bounding_record)
-                channel_image_data.append(layer._bounding_channels)
-
-                tmp_layer_records, tmp_channel_image_data = self._update_record(layer)
-
-                layer_records.extend(tmp_layer_records)
-                channel_image_data.extend(tmp_channel_image_data)
-
-            layer_records.append(layer._record)
-            channel_image_data.append(layer._channels)
-
-        if layer_group == self:
-            # PSDImage.frompil doesn't create a LayerInfo attribute to LayerAndMaskInformation
-            if not self._record.layer_and_mask_information.layer_info:
-                self._record.layer_and_mask_information.layer_info = LayerInfo()
-
-            if not self._record.layer_and_mask_information.global_layer_mask_info:
-                self._record.layer_and_mask_information.global_layer_mask_info = (
-                    GlobalLayerMaskInfo()
-                )
-
-            if not self._record.layer_and_mask_information.tagged_blocks:
-                self._record.layer_and_mask_information.tagged_blocks = TaggedBlocks()
-
-            self._record.layer_and_mask_information.layer_info.layer_records = (
-                layer_records
-            )
-            self._record.layer_and_mask_information.layer_info.channel_image_data = (
-                channel_image_data
-            )
-            self._record.layer_and_mask_information.layer_info.layer_count = len(
-                layer_records
+        if not self._record.layer_and_mask_information.global_layer_mask_info:
+            self._record.layer_and_mask_information.global_layer_mask_info = (
+                GlobalLayerMaskInfo()
             )
 
-            return
+        if not self._record.layer_and_mask_information.tagged_blocks:
+            self._record.layer_and_mask_information.tagged_blocks = TaggedBlocks()
 
-        return (layer_records, channel_image_data)
+        layer_info = self._record.layer_and_mask_information.layer_info
+        layer_info.layer_records = layer_records
+        layer_info.channel_image_data = channel_image_data
+        layer_info.layer_count = len(layer_records)
+
+
+def _build_record_tree(
+    layer_group: GroupMixin,
+) -> tuple[LayerRecords, ChannelImageData]:
+    """
+    Builds the layer tree structure from records and channels list recursively
+    """
+
+    layer_records = LayerRecords()
+    channel_image_data = ChannelImageData()
+
+    for layer in layer_group:
+        if isinstance(layer, (Group, Artboard)):
+            layer_records.append(layer._bounding_record)
+            channel_image_data.append(layer._bounding_channels)
+
+            tmp_layer_records, tmp_channel_image_data = _build_record_tree(layer)
+
+            layer_records.extend(tmp_layer_records)
+            channel_image_data.extend(tmp_channel_image_data)
+
+        layer_records.append(layer._record)
+        channel_image_data.append(layer._channels)
+
+    return (layer_records, channel_image_data)

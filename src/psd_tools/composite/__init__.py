@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 import logging
 from typing import Callable
 
 import numpy as np
 from PIL import Image
 
-from psd_tools.api.layers import AdjustmentLayer, Layer, Group
+from psd_tools.api.layers import AdjustmentLayer, Layer, GroupMixin
 from psd_tools.api.numpy_io import EXPECTED_CHANNELS, has_transparency
 from psd_tools.api.pil_io import get_pil_mode, post_process
 from psd_tools.api.psd_image import PSDImage
@@ -25,20 +27,22 @@ logger = logging.getLogger(__name__)
 
 
 def composite_pil(
-    layer: Layer,
-    color: np.ndarray,
-    alpha: np.ndarray,
+    layer: Layer | PSDImage,
+    color: float | tuple[float, ...] | np.ndarray,
+    alpha: float | np.ndarray,
     viewport: tuple[int, int, int, int] | None,
     layer_filter: Callable | None,
     force: bool,
     as_layer: bool = False,
     apply_icc: bool = True,
-) -> Image.Image:
+) -> Image.Image | None:
     UNSUPPORTED_MODES = {
         ColorMode.DUOTONE,
         ColorMode.LAB,
     }
-    color_mode = getattr(layer, "_psd", layer).color_mode
+    psd_image = getattr(layer, "_psd", layer)
+    assert isinstance(psd_image, PSDImage)
+    color_mode = psd_image.color_mode
     if color_mode in UNSUPPORTED_MODES:
         logger.warning("Unsupported blending color space: %s" % (color_mode))
 
@@ -60,7 +64,7 @@ def composite_pil(
     skip_alpha = not force and (
         delay_alpha_application
         or (
-            layer.kind == "psdimage"
+            isinstance(layer, PSDImage)
             and layer.has_preview()
             and not has_transparency(layer)
         )
@@ -69,6 +73,7 @@ def composite_pil(
     if not skip_alpha:
         color = np.concatenate((color, alpha), 2)
         mode += "A"
+    assert isinstance(color, np.ndarray)
     if mode in ("1", "L"):
         color = color[:, :, 0]
     if color.shape[0] == 0 or color.shape[1] == 0:
@@ -80,18 +85,15 @@ def composite_pil(
             (255 * np.squeeze(alpha, axis=2)).astype(np.uint8), "L"
         )
     icc = None
-    image_resources = (
-        layer.image_resources
-        if isinstance(layer, PSDImage)
-        else layer._psd.image_resources
-    )
-    if apply_icc and Resource.ICC_PROFILE in image_resources:
-        icc = image_resources.get_data(Resource.ICC_PROFILE)
+    psd_image = layer if isinstance(layer, PSDImage) else layer._psd
+    assert psd_image is not None
+    if apply_icc and Resource.ICC_PROFILE in psd_image.image_resources:
+        icc = psd_image.image_resources.get_data(Resource.ICC_PROFILE)
     return post_process(image, alpha_as_image, icc)
 
 
 def composite(
-    group: Group | PSDImage,
+    group: Layer | PSDImage,
     color: float | tuple[float, ...] | np.ndarray = 1.0,
     alpha: float | np.ndarray = 0.0,
     viewport: tuple[int, int, int, int] | None = None,
@@ -102,31 +104,40 @@ def composite(
     """
     Composite the given group of layers.
     """
-    viewport = viewport or getattr(group, "viewbox", None) or group.bbox
-    if viewport == (0, 0, 0, 0):
-        viewport = group._psd.viewbox
+    if viewport is None:
+        if isinstance(group, PSDImage):
+            viewport = group.viewbox
+        else:
+            viewport = group.bbox
+            if viewport == (0, 0, 0, 0):
+                assert group._psd is not None
+                viewport = group._psd.viewbox
+    assert viewport is not None
 
-    if getattr(group, "kind", None) == "psdimage" and len(group) == 0:
+    if isinstance(group, PSDImage) and len(group) == 0:
         color, shape = group.numpy("color"), group.numpy("shape")
         if viewport != group.viewbox:
             color = paste(viewport, group.bbox, color, 1.0)
             shape = paste(viewport, group.bbox, shape)
         return color, shape, shape
 
-    if not isinstance(color, np.ndarray) and not hasattr(color, "__iter__"):
-        color_mode = getattr(group, "_psd", group).color_mode
-        color = (color,) * EXPECTED_CHANNELS.get(color_mode)
+    if isinstance(color, float):
+        psd_image = group if isinstance(group, PSDImage) else group._psd
+        assert psd_image is not None
+        color_mode = psd_image.color_mode
+        assert isinstance(color_mode, ColorMode)
+        color = (color,) * EXPECTED_CHANNELS[color_mode]
 
     isolated = False
-    if hasattr(group, "blend_mode"):
+    if not isinstance(group, PSDImage):
         isolated = group.blend_mode != BlendMode.PASS_THROUGH
 
     layer_filter = layer_filter or Layer.is_visible
 
     compositor = Compositor(viewport, color, alpha, isolated, layer_filter, force)
-    for layer in group if hasattr(group, "__iter__") and not as_layer else [group]:
+    target_group = group if isinstance(group, GroupMixin) and not as_layer else [group]
+    for layer in target_group:  # type: ignore
         compositor.apply(layer)
-
     return compositor.finish()
 
 
@@ -195,7 +206,7 @@ class Compositor(object):
         if isinstance(color, np.ndarray):
             self._color_0 = color
         else:
-            channels = len(color) if hasattr(color, "__iter__") else 1
+            channels = 1 if isinstance(color, float) else len(color)
             self._color_0 = np.full(
                 (self.height, self.width, channels), color, dtype=np.float32
             )
@@ -208,7 +219,7 @@ class Compositor(object):
     def apply(self, layer: Layer, clip_compositing: bool = False) -> None:
         logger.debug("Compositing %s" % layer)
 
-        if not self._layer_filter(layer):
+        if self._layer_filter is not None and not self._layer_filter(layer):
             logger.debug("Ignore %s" % layer)
             return
         if isinstance(layer, AdjustmentLayer):
@@ -221,7 +232,7 @@ class Compositor(object):
             return
 
         knockout = bool(layer.tagged_blocks.get_data(Tag.KNOCKOUT_SETTING, 0))
-        if layer.is_group():
+        if isinstance(layer, GroupMixin):
             color, shape, alpha = self._get_group(layer, knockout)
         else:
             color, shape, alpha = self._get_object(layer)
@@ -348,7 +359,7 @@ class Compositor(object):
         assert alpha is not None
         return color, shape, alpha
 
-    def _get_object(self, layer: Layer) -> tuple[np.ndarray : np.ndarray, np.ndarray]:
+    def _get_object(self, layer: Layer) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Get object attributes."""
         color, shape = layer.numpy("color"), layer.numpy("shape")
         if (self._force or not layer.has_pixels()) and has_fill(layer):
@@ -377,7 +388,7 @@ class Compositor(object):
             color = self._apply_clip_layers(layer, color, alpha)
 
         # Apply stroke if any.
-        if layer.has_vector_mask() and layer.has_stroke() and layer.stroke.enabled:
+        if layer.has_vector_mask() and layer.stroke is not None and layer.stroke.enabled:
             color_s, shape_s, alpha_s = self._get_stroke(layer)
             compositor = Compositor(self._viewport, color, alpha)
             compositor._apply_source(color_s, shape_s, alpha_s, layer.stroke.blend_mode)
@@ -403,11 +414,11 @@ class Compositor(object):
             compositor.apply(clip_layer, clip_compositing=True)
         return compositor._color
 
-    def _get_mask(self, layer: Layer) -> tuple[np.ndarray, float]:
+    def _get_mask(self, layer: Layer) -> tuple[float | np.ndarray, float]:
         """Get mask attributes."""
-        shape = 1.0
-        opacity = 1.0
-        if layer.has_mask() and not layer.mask.disabled:
+        shape: float | np.ndarray = 1.0
+        opacity: float = 1.0
+        if layer.mask is not None and not layer.mask.disabled:
             # TODO: When force, ignore real mask.
             mask = layer.numpy("mask", real_mask=not self._force)
             if mask is not None:
@@ -426,14 +437,14 @@ class Compositor(object):
                 opacity = float(density) / 255.0
 
         if (
-            layer.has_vector_mask()
+            layer.vector_mask is not None
             and not layer.vector_mask.disabled
             and (
                 self._force
                 or not layer.has_pixels()
                 or (
                     not has_fill(layer)
-                    and layer.has_mask()
+                    and layer.mask is not None
                     and not layer.mask._has_real()
                 )
             )

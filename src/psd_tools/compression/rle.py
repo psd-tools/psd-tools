@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 def decode(data: bytes, size: int) -> bytes:
     """decode(data, size) -> bytes
 

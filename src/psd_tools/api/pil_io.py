@@ -2,6 +2,8 @@
 PIL IO module.
 """
 
+from __future__ import annotations
+
 import io
 import logging
 from typing import Any
@@ -9,11 +11,10 @@ from typing import Any
 from PIL import Image
 from PIL.Image import Image as PILImage
 
-from psd_tools.psd import PSD
-from psd_tools.psd.patterns import Pattern
+from psd_tools.api.numpy_io import get_transparency_index, has_transparency
 from psd_tools.constants import ChannelID, ColorMode, Resource
-
-from .numpy_io import get_transparency_index, has_transparency
+from psd_tools.psd.image_resources import ThumbnailResource, ThumbnailResourceV4
+from psd_tools.psd.patterns import Pattern
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +75,7 @@ def get_pil_depth(pil_mode: str) -> int:
 
 
 def convert_image_data_to_pil(
-    psd: PSD, channel: int | None, apply_icc: bool
+    psd: Any, channel: int | None, apply_icc: bool
 ) -> PILImage | None:
     """Convert ImageData to PIL Image."""
 
@@ -122,10 +123,11 @@ def convert_image_data_to_pil(
 # TODO: Type hint for layer.
 def convert_layer_to_pil(
     layer: Any, channel: int | None, apply_icc: bool
-) -> PILImage:
+) -> PILImage | None:
     """Convert Layer to PIL Image."""
     alpha = None
     icc = None
+    image = None
     if channel is None:
         image = _merge_channels(layer)
         alpha = _get_channel(layer, ChannelID.TRANSPARENCY_MASK)
@@ -141,7 +143,7 @@ def convert_layer_to_pil(
 
 
 def post_process(
-    image: PILImage, alpha: PILImage, icc_profile: bytes | None = None
+    image: PILImage, alpha: PILImage | None, icc_profile: bytes | None = None
 ) -> PILImage:
     # Fix inverted CMYK.
     if image.mode == "CMYK":
@@ -181,19 +183,29 @@ def convert_pattern_to_pil(pattern: Pattern) -> PILImage:
     return post_process(image, alpha, None)  # TODO: icc support?
 
 
-def convert_thumbnail_to_pil(thumbnail, mode="RGB") -> PILImage:
+def convert_thumbnail_to_pil(
+    thumbnail: ThumbnailResource | ThumbnailResourceV4,
+) -> PILImage:
     """Convert thumbnail resource."""
     if thumbnail.fmt == 0:
-        size = (thumbnail.width, thumbnail.height)
-        stride = thumbnail.widthbytes
-        return Image.frombytes("RGBX", size, thumbnail.data, "raw", mode, stride)
+        image = Image.frombytes(
+            "RGBX",
+            (thumbnail.width, thumbnail.height),
+            thumbnail.data,
+            "raw",
+            thumbnail._RAW_MODE,
+            thumbnail.row,
+        )
     elif thumbnail.fmt == 1:
-        return Image.open(io.BytesIO(thumbnail.data))
+        with io.BytesIO(thumbnail.data) as f:
+            image = Image.open(f)
+            image.load()
     else:
         raise ValueError("Unknown thumbnail format %d" % (thumbnail.fmt))
+    return image
 
 
-def _merge_channels(layer: Any) -> PILImage:
+def _merge_channels(layer: Any) -> PILImage | None:
     mode = get_pil_mode(layer._psd.color_mode)
     channels = [
         _get_channel(layer, info.id)
@@ -203,7 +215,7 @@ def _merge_channels(layer: Any) -> PILImage:
     if any(image is None for image in channels):
         return None
     channels = _check_channels(channels, layer._psd.color_mode)
-    return Image.merge(mode, channels)
+    return Image.merge(mode, channels)  # type: ignore
 
 
 def _get_channel(layer: Any, channel: int) -> PILImage | None:
@@ -223,11 +235,11 @@ def _get_channel(layer: Any, channel: int) -> PILImage | None:
     channel_data = layer._channels[index[channel]]
     if width == 0 or height == 0 or len(channel_data.data) == 0:
         return None
-    channel = channel_data.get_data(width, height, depth, layer._psd.version)
-    return _create_image((width, height), channel, depth)
+    channel_bytes = channel_data.get_data(width, height, depth, layer._psd.version)
+    return _create_image((width, height), channel_bytes, depth)
 
 
-def _create_image(size: int, data: bytes, depth: int) -> PILImage:
+def _create_image(size: tuple[int, int], data: bytes, depth: int) -> PILImage:
     if depth == 8:
         return Image.frombytes("L", size, data, "raw")
     elif depth == 16:
@@ -262,24 +274,28 @@ def _check_channels(channels, color_mode):
 
 def _apply_icc(image: PILImage, icc_profile: bytes) -> PILImage:
     """Apply ICC Color profile."""
-    from io import BytesIO
-
     try:
         from PIL import ImageCms
     except ImportError:
-        logger.debug("ICC profile found but not supported. Install little-cms.")
+        logger.warning("ICC profile found but not supported. Install little-cms.")
         return image
+    
     try:
-        in_profile = ImageCms.ImageCmsProfile(BytesIO(icc_profile))
+        with io.BytesIO(icc_profile) as f:
+            in_profile = ImageCms.ImageCmsProfile(f)
         out_profile = ImageCms.createProfile("sRGB")
         outputMode = image.mode if image.mode in ("L", "LA", "RGBA") else "RGB"
-        return ImageCms.profileToProfile(
+        result = ImageCms.profileToProfile(
             image, in_profile, out_profile, outputMode=outputMode
         )
     except ImageCms.PyCMSError as e:
-        logger.warning("PyCMSError: %s" % (e))
+        logger.warning("Failed to apply ICC profile: %s" % (e))
+        raise
 
-    return image
+    if result is None:
+        raise RuntimeError("Failed to apply ICC profile.")
+
+    return result
 
 
 def _remove_white_background(image: PILImage) -> PILImage:

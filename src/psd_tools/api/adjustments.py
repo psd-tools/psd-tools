@@ -10,6 +10,8 @@ Example::
         print(layer.gradient_kind)
 """
 
+from __future__ import annotations
+
 import logging
 
 from psd_tools.api.layers import AdjustmentLayer, FillLayer
