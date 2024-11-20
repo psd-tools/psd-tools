@@ -1,3 +1,10 @@
+1.10.3 (2024-11-20)
+-------------------
+
+- [psd] Fix data corruption by irregular OSType (#449)
+- [api] Add type annotation to the high-level APIs (#448)
+
+
 1.10.2 (2024-10-23)
 -------------------
 
