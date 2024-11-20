@@ -52,7 +52,7 @@ logger = logging.getLogger(__name__)
 TYPES, register = new_registry(attribute="ostype")
 
 _TERMS = set(
-    item.value for kls in (Klass, Enum, Event, Form, Key, Type, Unit) for item in kls
+    item.value for kls in (Klass, Enum, Event, Form, Key, Type, Unit) for item in kls if len(item.value) == 4
 )
 
 
