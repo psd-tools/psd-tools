@@ -6,12 +6,12 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, BinaryIO, Callable, Literal, TypeAlias
+from typing import Any, BinaryIO, Callable, Literal
 
 try:
-    from typing import Self
+    from typing import Self, TypeAlias
 except ImportError:
-    from typing_extensions import Self
+    from typing_extensions import Self, TypeAlias
 
 import numpy as np
 from PIL.Image import Image as PILImage
