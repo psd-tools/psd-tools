@@ -2,12 +2,12 @@ from __future__ import absolute_import, unicode_literals
 
 import logging
 import os
+from pathlib import Path
 
 import pytest
 from IPython.lib.pretty import pprint
 
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.api.layers import Group
 from psd_tools.constants import ColorMode, Compression
 
 from ..utils import full_name
@@ -46,9 +46,10 @@ def test_frompil_psb():
     "filename",
     [
         "colormodes/4x4_8bit_rgb.psd",
+        Path("colormodes/4x4_8bit_rgb.psd"),
     ],
 )
-def test_open_save(filename, tmpdir):
+def test_open(filename):
     input_path = full_name(filename)
     PSDImage.open(input_path)
     with open(input_path, "rb") as f:
@@ -58,6 +59,7 @@ def test_open_save(filename, tmpdir):
 def test_save(fixture, tmpdir):
     output_path = os.path.join(str(tmpdir), "output.psd")
     fixture.save(output_path)
+    fixture.save(Path(output_path))
     with open(output_path, "wb") as f:
         fixture.save(f)
 
@@ -123,7 +125,7 @@ def test_repr_pretty(fixture):
         os.path.join("third-party-psds", "cactus_top.psd"),
     ],
 )
-def test_open(filename):
+def test_open2(filename):
     assert isinstance(PSDImage.open(full_name(filename)), PSDImage)
 
 
