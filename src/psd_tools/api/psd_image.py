@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, BinaryIO, Callable, Literal
+from typing import Any, BinaryIO, Callable, Literal, Union
 
 try:
     from typing import Self, TypeAlias
@@ -52,7 +52,7 @@ from psd_tools.psd import (
 
 logger = logging.getLogger(__name__)
 
-FileName: TypeAlias = str | bytes | os.PathLike
+FileName: TypeAlias = Union[str, bytes, os.PathLike]
 
 
 class PSDImage(GroupMixin):
