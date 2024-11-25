@@ -5,6 +5,7 @@ PSD Image module.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any, BinaryIO, Callable, Literal
 
 try:
@@ -131,7 +132,7 @@ class PSDImage(GroupMixin):
         )
 
     @classmethod
-    def open(cls, fp: BinaryIO | str, **kwargs: Any) -> Self:
+    def open(cls, fp: BinaryIO | str | bytes | os.PathLike, **kwargs: Any) -> Self:
         """
         Open a PSD document.
 
@@ -140,14 +141,14 @@ class PSDImage(GroupMixin):
             default 'macroman'. Some psd files need explicit encoding option.
         :return: A :py:class:`~psd_tools.api.psd_image.PSDImage` object.
         """
-        if isinstance(fp, str):
+        if isinstance(fp, (str, bytes, os.PathLike)):
             with open(fp, "rb") as f:
                 self = cls(PSD.read(f, **kwargs))
         else:
             self = cls(PSD.read(fp, **kwargs))
         return self
 
-    def save(self, fp: BinaryIO | str, mode: str = "wb", **kwargs: Any) -> None:
+    def save(self, fp: BinaryIO | str | bytes | os.PathLike, mode: str = "wb", **kwargs: Any) -> None:
         """
         Save the PSD file.
 
@@ -159,7 +160,7 @@ class PSDImage(GroupMixin):
 
         self._update_record()
 
-        if isinstance(fp, str):
+        if isinstance(fp, (str, bytes, os.PathLike)):
             with open(fp, mode) as f:
                 self._record.write(f, **kwargs)
         else:
