@@ -160,6 +160,10 @@ class PSDImage(GroupMixin):
 
         self._update_record()
 
+        if self._updated_layers:
+            composited_psd = self.composite(force=True)
+            self._record.image_data.set_data([channel.tobytes() for channel in composited_psd.split()], self._record.header)
+
         if isinstance(fp, (str, bytes, os.PathLike)):
             with open(fp, mode) as f:
                 self._record.write(f, **kwargs)
