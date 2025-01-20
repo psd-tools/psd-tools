@@ -59,6 +59,7 @@ The opened PSD file can be saved::
 
     psd.save('output.psd')
 
+If the PSD File's layer structure was updated, saving it will update the ImagaData section to produce an accurate thumbnail.
 
 Working with Layers
 -------------------
