@@ -150,7 +150,7 @@ class PSDImage(GroupMixin):
 
     def save(self, fp: BinaryIO | str | bytes | os.PathLike, mode: str = "wb", **kwargs: Any) -> None:
         """
-        Save the PSD file.
+        Save the PSD file. Updates the ImageData section if the layer structure has been updated.
 
         :param fp: filename or file-like object.
         :param encoding: charset encoding of the pascal string within the file,
@@ -159,6 +159,10 @@ class PSDImage(GroupMixin):
         """
 
         self._update_record()
+
+        if self._updated_layers:
+            composited_psd = self.composite(force=True)
+            self._record.image_data.set_data([channel.tobytes() for channel in composited_psd.split()], self._record.header)
 
         if isinstance(fp, (str, bytes, os.PathLike)):
             with open(fp, mode) as f:
