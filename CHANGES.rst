@@ -1,6 +1,11 @@
 1.10.5 (2025-02-18)
 -------------------
 
+- [security] Update pillow dependency (#462)
+
+1.10.5 (2025-02-18)
+-------------------
+
 - [security] Update pillow dependency (#461)
 
 1.10.4 (2024-11-25)

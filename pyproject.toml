@@ -17,7 +17,7 @@ dependencies = [
     "typing-extensions;python_version<'3.11'",
     "docopt>=0.6.0",
     "attrs>=23.0.0",
-    "Pillow>=10.0.3",
+    "Pillow>=10.3.0",
     "aggdraw",
     "numpy",
     "scipy",
