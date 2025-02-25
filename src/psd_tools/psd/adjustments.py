@@ -16,6 +16,7 @@ from psd_tools.psd.base import (
     ShortIntegerElement,
 )
 from psd_tools.psd.descriptor import DescriptorBlock, DescriptorBlock2
+from psd_tools.terminology import Enum, Key
 from psd_tools.utils import (
     is_readable,
     new_registry,
@@ -326,8 +327,9 @@ class GradientMap(BaseElement):
         validator=in_(
             (
                 b"Gcls",
-                b"Lnr ",
-                b"Perc",
+                Enum.Linear,
+                Enum.Perceptual,
+                Key.Smooth,
             )
         ),
     )
