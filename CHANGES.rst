@@ -1,4 +1,9 @@
-1.10.5 (2025-02-18)
+1.10.7 (2025-02-25)
+-------------------
+
+- [psd] Fix missing gradient method (#465)
+
+1.10.6 (2025-02-18)
 -------------------
 
 - [security] Update pillow dependency (#462)
