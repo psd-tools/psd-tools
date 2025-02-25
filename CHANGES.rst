@@ -1,7 +1,7 @@
 1.10.7 (2025-02-25)
 -------------------
 
-- [psd] Fix missing gradient method (#464)
+- [psd] Fix missing gradient method (#465)
 
 1.10.6 (2025-02-18)
 -------------------
