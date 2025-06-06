@@ -1,3 +1,10 @@
+1.10.8 (2025-06-06)
+-------------------
+
+- [ci] Update CI configuration (#471)
+- [psd] Workaround levels adjustment layer parsing (#470)
+- [psd] Support CAI, GenI, OCIO tagged blocks (#469)
+
 1.10.7 (2025-02-25)
 -------------------
 
