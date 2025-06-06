@@ -406,6 +406,9 @@ class Tag(bytes, Enum):
 
     # Unknown
     PATT = b"patt"
+    CAI = b"CAI "
+    GENI = b"GenI"
+    OCIO = b"OCIO"
 
 
 TaggedBlockID = Tag  # For backward compatibility.
