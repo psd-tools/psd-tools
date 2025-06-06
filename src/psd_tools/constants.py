@@ -404,8 +404,11 @@ class Tag(bytes, Enum):
     VECTOR_STROKE_CONTENT_DATA = b"vscg"
     VIBRANCE = b"vibA"
 
-    # Unknown
+    # Unknown tags.
     PATT = b"patt"
+    CAI = b"CAI "
+    GENI = b"GenI"
+    OCIO = b"OCIO"
 
 
 TaggedBlockID = Tag  # For backward compatibility.
