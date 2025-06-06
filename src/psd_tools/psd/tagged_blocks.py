@@ -110,7 +110,7 @@ TYPES.update(
         Tag.VECTOR_ORIGINATION_UNKNOWN: IntegerElement,
         Tag.VECTOR_STROKE_DATA: DescriptorBlock,
         Tag.VECTOR_STROKE_CONTENT_DATA: VectorStrokeContentSetting,
-
+        # Unknown tags.
         Tag.CAI: DescriptorBlock2,
         Tag.GENI: DescriptorBlock,
         Tag.OCIO: DescriptorBlock,
