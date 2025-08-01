@@ -73,7 +73,7 @@ class LinkedLayer(BaseElement):
     """
 
     kind = attr.ib(default=LinkedLayerType.ALIAS, validator=in_(LinkedLayerType))
-    version = attr.ib(default=1, validator=range_(1, 7))
+    version = attr.ib(default=1, validator=range_(1, 8))
     uuid = attr.ib(default="", type=str)
     filename = attr.ib(default="", type=str)
     filetype = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
@@ -91,7 +91,7 @@ class LinkedLayer(BaseElement):
     def read(cls, fp, **kwargs):
         kind = LinkedLayerType(read_fmt("4s", fp)[0])
         version = read_fmt("I", fp)[0]
-        assert 1 <= version and version <= 7, "Invalid version %d" % (version)
+        assert 1 <= version and version <= 8, "Invalid version %d" % (version)
         uuid = read_pascal_string(fp, "macroman", padding=1)
         filename = read_unicode_string(fp)
         filetype, creator, datasize, open_file = read_fmt("4s4sQB", fp)
