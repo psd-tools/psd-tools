@@ -306,7 +306,7 @@ def _remove_white_background(image: PILImage) -> PILImage:
         bands = image.split()
         a = bands[3]
         rgb = [
-            ImageMath.eval(
+            ImageMath.lambda_eval(
                 "convert("
                 "float(x + a - 255) * 255.0 / float(max(a, 1)) * "
                 "float(min(a, 1)) + float(x) * float(1 - min(a, 1))"
