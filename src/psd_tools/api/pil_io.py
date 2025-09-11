@@ -312,7 +312,7 @@ def _remove_white_background(image: PILImage) -> PILImage:
                     * 255.0
                     / args["float"](args["max"](args["a"], 1))
                     * args["float"](args["min"](args["a"], 1))
-                    + args["float"](x) * args["float"](1 - args["min"](args["a"], 1)),
+                    + args["float"](args["x"]) * args["float"](1 - args["min"](args["a"], 1)),
                     "L",
                 ),
                 x=x,
