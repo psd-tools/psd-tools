@@ -61,6 +61,10 @@ skip = "cp314t-*"
 test-requires = ["pytest", "pytest-cov", "ipython"]
 test-command = "pytest {project}/tests"
 
+[[tool.cibuildwheel.overrides]]
+select = "cp3{13,14}-{manylinux,musllinux,macos}*"
+before-all = "bash tools/configure_abi3.sh"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--cov=psd_tools"
