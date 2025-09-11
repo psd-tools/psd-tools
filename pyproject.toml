@@ -12,7 +12,7 @@ authors = [
 description = "Python package for working with Adobe Photoshop PSD files"
 readme = "README.rst"
 keywords = ["photoshop", "psd"]
-license = { text = "MIT License" }
+license = "MIT"
 dependencies = [
     "typing-extensions;python_version<'3.11'",
     "docopt>=0.6.0",
@@ -26,11 +26,8 @@ dependencies = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
