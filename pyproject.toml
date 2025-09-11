@@ -55,9 +55,13 @@ psd_tools = ["*.pyx"]
 [tool.setuptools.dynamic]
 version = { attr = "psd_tools.version.__version__" }
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=psd_tools"
+
 [tool.cibuildwheel]
 archs = "auto64"
-skip = "cp314t-*"
+skip = "cp3{9,10}-win_arm64 cp314t-*"
 test-requires = ["pytest", "pytest-cov", "ipython"]
 test-command = "pytest {project}/tests"
 
@@ -65,6 +69,10 @@ test-command = "pytest {project}/tests"
 select = "cp3{13,14}-{manylinux,musllinux,macos}*"
 before-build = "bash tools/configure_abi3.sh"
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "--cov=psd_tools"
+[tool.cibuildwheel.windows]
+repair-wheel-command = ["pipx run delvewheel repair -v -w {dest_dir} {wheel}"]
+
+[[tool.cibuildwheel.overrides]]
+select = "cp3{13,14}-{manylinux,musllinux,macos}*"
+inherit.repair-wheel-command = "append"
+repair-wheel-command = "pipx run abi3audit --strict --report {wheel}"
