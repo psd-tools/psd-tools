@@ -58,14 +58,12 @@ version = { attr = "psd_tools.version.__version__" }
 [tool.cibuildwheel]
 archs = "auto64"
 skip = "cp314t-*"
-before-all = ""
 test-requires = ["pytest", "pytest-cov", "ipython"]
 test-command = "pytest {project}/tests"
 
 [[tool.cibuildwheel.overrides]]
 select = "cp3{13,14}-{manylinux,musllinux,macos}*"
-inherit.before-all = "none"
-before-all = "bash tools/configure_abi3.sh"
+before-build = "bash tools/configure_abi3.sh"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
