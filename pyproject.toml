@@ -57,6 +57,7 @@ version = { attr = "psd_tools.version.__version__" }
 
 [tool.cibuildwheel]
 test-requires = ["pytest", "pytest-cov", "ipython"]
+test-command = "pytest {project}/tests"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

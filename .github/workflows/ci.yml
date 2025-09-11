@@ -9,69 +9,31 @@ on:
     types: [published]
 
 jobs:
-  build_sdist:
-    name: Build source distribution
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        name: Install Python
-
-      - name: Install build dependencies
-        run: python -m pip install build setuptools
-
-      - name: Build sdist
-        run: python -m build --sdist
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: sdist
-          path: dist/*.tar.gz
-
   build_wheels:
-    name: Build wheels on ${{ matrix.os }} (${{ matrix.build }})
+    name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        build: [cp39, cp310, cp311, cp312, cp313]
+        os: [ubuntu-2024, ubuntu-2024-arm, windows-2022, windows-10-arm, macos-13, macos-14]
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-
-      - name: Install cibuildwheel
-        run: python -m pip install cibuildwheel==2.23.3
-
-      - name: Set up QEMU
-        if: runner.os == 'Linux'
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-
       - name: Build wheels
-        run: python -m cibuildwheel --output-dir wheelhouse
-        env:
-          CIBW_BUILD: ${{ matrix.build }}-*
-          CIBW_ARCHS_LINUX: auto aarch64
-          CIBW_ARCHS_MACOS: universal2
-          CIBW_TEST_COMMAND: pytest {project}/tests
-          CIBW_TEST_SKIP: "cp313* *linux_aarch64 *-macosx_universal2:x86_64 *musllinux* *i686 *win32"
+        uses: pypa/cibuildwheel@v3.1.4
 
       - uses: actions/upload-artifact@v4
         with:
-          name: wheel-${{ matrix.os }}-${{ matrix.build }}
+          name: wheel-${{ matrix.os }}
           path: ./wheelhouse/*.whl
 
   publish:
     name: Upload packages to PyPI
-    needs: [build_wheels, build_sdist]
+    needs: build_wheels
     runs-on: ubuntu-latest
     if: github.event_name == 'release' && github.event.action == 'published'
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           merge-multiple: true
           path: dist
