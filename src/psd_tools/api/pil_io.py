@@ -279,7 +279,7 @@ def _apply_icc(image: PILImage, icc_profile: bytes) -> PILImage:
     except ImportError:
         logger.warning("ICC profile found but not supported. Install little-cms.")
         return image
-    
+
     try:
         with io.BytesIO(icc_profile) as f:
             in_profile = ImageCms.ImageCmsProfile(f)
@@ -307,10 +307,14 @@ def _remove_white_background(image: PILImage) -> PILImage:
         a = bands[3]
         rgb = [
             ImageMath.lambda_eval(
-                "convert("
-                "float(x + a - 255) * 255.0 / float(max(a, 1)) * "
-                "float(min(a, 1)) + float(x) * float(1 - min(a, 1))"
-                ', "L")',
+                lambda args: args["convert"](
+                    args["float"](args["x"] + args["a"] - 255)
+                    * 255.0
+                    / args["float"](args["max"](args["a"], 1))
+                    * args["float"](args["min"](args["a"], 1))
+                    + args["float"](x) * args["float"](1 - args["min"](args["a"], 1)),
+                    "L",
+                ),
                 x=x,
                 a=a,
             )
