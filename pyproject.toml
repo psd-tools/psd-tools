@@ -68,7 +68,7 @@ test-command = "pytest {project}/tests"
 
 [[tool.cibuildwheel.overrides]]
 select = "cp3{13,14}-{manylinux,musllinux,macos}*"
-before-build = "bash tools/configure_abi3.sh"
+before-build = "bash tools/configure_abi_tag.sh"
 
 [tool.cibuildwheel.windows]
 repair-wheel-command = ["pipx run delvewheel repair -v -w {dest_dir} {wheel}"]
