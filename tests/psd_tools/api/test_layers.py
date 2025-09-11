@@ -534,7 +534,7 @@ def test_clear(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
 
 
 def test_index(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
-    with pytest.raises(ValueError, match=r".* is not in list"):
+    with pytest.raises(ValueError, match=r".* not in list"):
         group.index(pixel_layer)
 
     group.extend([pixel_layer, type_layer, smartobject_layer, fill_layer])
@@ -546,7 +546,7 @@ def test_index(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
 
     group.clear()
 
-    with pytest.raises(ValueError, match=r".* is not in list"):
+    with pytest.raises(ValueError, match=r".* not in list"):
         group.index(fill_layer)
 
 

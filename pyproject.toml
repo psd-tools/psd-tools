@@ -12,7 +12,7 @@ authors = [
 description = "Python package for working with Adobe Photoshop PSD files"
 readme = "README.rst"
 keywords = ["photoshop", "psd"]
-license = { text = "MIT License" }
+license = "MIT"
 dependencies = [
     "typing-extensions;python_version<'3.11'",
     "docopt>=0.6.0",
@@ -26,14 +26,12 @@ dependencies = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Multimedia :: Graphics",
     "Topic :: Multimedia :: Graphics :: Viewers",
     "Topic :: Multimedia :: Graphics :: Graphics Conversion",
@@ -41,7 +39,7 @@ classifiers = [
 ]
 requires-python = ">=3.9"
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = ["pytest", "pytest-cov", "ipython", "ruff", "types-docopt"]
 docs = ["sphinx", "sphinx_rtd_theme"]
 
@@ -57,9 +55,25 @@ psd_tools = ["*.pyx"]
 [tool.setuptools.dynamic]
 version = { attr = "psd_tools.version.__version__" }
 
-[tool.cibuildwheel]
-test-requires = ["pytest", "pytest-cov", "ipython"]
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--cov=psd_tools"
+
+[tool.cibuildwheel]
+archs = "auto64"
+skip = "cp3{9,10}-win_arm64 cp314t-*"
+test-skip = "cp39-musllinux_aarch64 *-win_arm64"  # SciPy does not provide wheels for these platforms
+test-requires = ["pytest", "pytest-cov", "ipython"]
+test-command = "pytest {project}/tests"
+
+[[tool.cibuildwheel.overrides]]
+select = "cp3{13,14}-{manylinux,musllinux,macos}*"
+before-build = "bash tools/configure_abi_tag.sh"
+
+[tool.cibuildwheel.windows]
+repair-wheel-command = ["pipx run delvewheel repair -v -w {dest_dir} {wheel}"]
+
+[[tool.cibuildwheel.overrides]]
+select = "cp3{13,14}-{manylinux,musllinux,macos}*"
+inherit.repair-wheel-command = "append"
+repair-wheel-command = "pipx run abi3audit --strict --report {wheel}"
