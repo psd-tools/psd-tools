@@ -37,7 +37,7 @@ classifiers = [
     "Topic :: Multimedia :: Graphics :: Graphics Conversion",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.9"
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-cov", "ipython", "ruff", "types-docopt"]
