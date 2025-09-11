@@ -39,7 +39,7 @@ classifiers = [
 ]
 requires-python = ">=3.9"
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = ["pytest", "pytest-cov", "ipython", "ruff", "types-docopt"]
 docs = ["sphinx", "sphinx_rtd_theme"]
 
