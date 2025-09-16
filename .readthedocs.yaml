@@ -10,4 +10,4 @@ build:
   jobs:
     install:
       - pip install -U pip
-      - pip install --group docs
+      - pip install . --group docs
