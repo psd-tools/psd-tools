@@ -289,11 +289,12 @@ def _apply_icc(image: PILImage, icc_profile: bytes) -> PILImage:
             image, in_profile, out_profile, outputMode=outputMode
         )
     except ImageCms.PyCMSError as e:
-        logger.warning("Failed to apply ICC profile: %s" % (e))
-        raise
+        logger.error("Failed to apply ICC profile: %s" % (e))
+        return image
 
     if result is None:
-        raise RuntimeError("Failed to apply ICC profile.")
+        logger.error("Failed to apply ICC profile.")
+        return image
 
     return result
 

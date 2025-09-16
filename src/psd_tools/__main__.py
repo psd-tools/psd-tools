@@ -38,6 +38,7 @@ def main(argv=None):
 
     args = docopt.docopt(main.__doc__, version=__version__, argv=argv)
 
+    logging.basicConfig(level=logging.WARNING)
     if args["--verbose"]:
         logger.setLevel(logging.DEBUG)
     else:
