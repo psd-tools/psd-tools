@@ -9,7 +9,7 @@ extensions = [
         "psd_tools.compression._rle",
         ["src/psd_tools/compression/_rle.pyx"],
         extra_compile_args=["/d2FH4-"] if sys.platform == "win32" else [],
-        define_macros=[("Py_LIMITED_API", 0x03130000)]
+        define_macros=[("Py_LIMITED_API", 0x030D0000)]
         if sys.version_info >= (3, 13)
         else [],
         py_limited_api=True if sys.version_info >= (3, 13) else False,
