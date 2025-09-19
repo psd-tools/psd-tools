@@ -1,3 +1,12 @@
+1.10.10 (2025-09-18)
+--------------------
+
+- [api] Fix clipping with stroke composite (#489)
+- [ci] Fix documentation build (#486, #487)
+- [ci] Introduce ABI3 wheels (#483, #485)
+- [api] Fix PyCMSError in composite (#484)
+- [api] Fix ImageMath deprecation warning (#482)
+
 1.10.9 (2025-08-07)
 -------------------
 
