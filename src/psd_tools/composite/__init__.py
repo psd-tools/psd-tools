@@ -383,16 +383,17 @@ class Compositor(object):
 
         alpha = shape * 1.0  # Constant factor is always 1.
 
-        # Composite clip layers.
-        if layer.has_clip_layers():
-            color = self._apply_clip_layers(layer, color, alpha)
-
+        # TODO: Prepare a test case for clipping mask with stroke to check the order.
         # Apply stroke if any.
         if layer.has_vector_mask() and layer.stroke is not None and layer.stroke.enabled:
             color_s, shape_s, alpha_s = self._get_stroke(layer)
             compositor = Compositor(self._viewport, color, alpha)
             compositor._apply_source(color_s, shape_s, alpha_s, layer.stroke.blend_mode)
             color, _, _ = compositor.finish()
+
+        # Composite clip layers.
+        if layer.has_clip_layers():
+            color = self._apply_clip_layers(layer, color, alpha)
 
         assert color is not None
         assert shape is not None
