@@ -40,7 +40,13 @@ classifiers = [
 requires-python = ">=3.9"
 
 [dependency-groups]
-dev = ["pytest", "pytest-cov", "ipython", "ruff", "types-docopt"]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "ipykernel",
+    "ruff",
+    "types-docopt",
+]
 docs = ["sphinx", "sphinx_rtd_theme"]
 
 [project.scripts]
