@@ -148,7 +148,9 @@ class PSDImage(GroupMixin):
             self = cls(PSD.read(fp, **kwargs))
         return self
 
-    def save(self, fp: BinaryIO | str | bytes | os.PathLike, mode: str = "wb", **kwargs: Any) -> None:
+    def save(
+        self, fp: BinaryIO | str | bytes | os.PathLike, mode: str = "wb", **kwargs: Any
+    ) -> None:
         """
         Save the PSD file. Updates the ImageData section if the layer structure has been updated.
 
@@ -162,7 +164,10 @@ class PSDImage(GroupMixin):
 
         if self._updated_layers:
             composited_psd = self.composite(force=True)
-            self._record.image_data.set_data([channel.tobytes() for channel in composited_psd.split()], self._record.header)
+            self._record.image_data.set_data(
+                [channel.tobytes() for channel in composited_psd.split()],
+                self._record.header,
+            )
 
         if isinstance(fp, (str, bytes, os.PathLike)):
             with open(fp, mode) as f:
@@ -495,7 +500,6 @@ class PSDImage(GroupMixin):
     @compatibility_mode.setter
     def compatibility_mode(self, value: CompatibilityMode) -> None:
         self._compatibility_mode = value
-        self._compute_clipping_layers()
 
     @property
     def pil_mode(self) -> str:
@@ -542,16 +546,13 @@ class PSDImage(GroupMixin):
 
         def _pretty(layer, p):
             p.text(layer.__repr__())
-            if hasattr(layer, "clip_layers"):
-                for clip_layer in layer.clip_layers or []:
-                    p.break_()
-                    p.text(" +  ")
-                    p.pretty(clip_layer)
-            if hasattr(layer, "__iter__"):
+            if isinstance(layer, GroupMixin):
                 with p.indent(2):
                     for idx, child in enumerate(layer):
                         p.break_()
                         p.text("[%d] " % idx)
+                        if child.clipping_layer:
+                            p.text("+")
                         _pretty(child, p)
 
         _pretty(self, p)
@@ -590,41 +591,6 @@ class PSDImage(GroupMixin):
                     if pattern.pattern_id == pattern_id:
                         return pattern
         return None
-
-    def _clear_clipping_layers(self) -> None:
-        for layer in self.descendants():
-            layer._clip_layers = []
-            layer._has_clip_target = True
-
-    def _compute_clipping_layers(self) -> None:
-        self._update_record()
-
-        self._clear_clipping_layers()
-
-        def rec_helper(layer):
-            if not layer.is_group():
-                return
-            stack = []
-            for sublayer in reversed(layer._layers):
-                if sublayer.clipping_layer:
-                    stack.append(sublayer)
-                else:
-                    if sublayer.blend_mode == BlendMode.PASS_THROUGH and (
-                        self.compatibility_mode == CompatibilityMode.PAINT_TOOL_SAI
-                        or self.compatibility_mode
-                        == CompatibilityMode.CLIP_STUDIO_PAINT
-                    ):
-                        for clip_layer in stack:
-                            clip_layer._has_clip_target = False
-                    else:
-                        stack.reverse()
-                        sublayer._clip_layers = stack
-                    stack = []
-                rec_helper(sublayer)
-            for clip_layer in stack:
-                clip_layer._has_clip_target = False
-
-        rec_helper(self)
 
     def _init(self) -> None:
         """Initialize layer structure."""
@@ -712,8 +678,6 @@ class PSDImage(GroupMixin):
             if not end_of_group:
                 assert not isinstance(layer, PSDImage)
                 current_group._layers.append(layer)
-
-        self._compute_clipping_layers()
 
     def _update_record(self) -> None:
         """

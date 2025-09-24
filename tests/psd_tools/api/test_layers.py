@@ -3,11 +3,18 @@ from __future__ import absolute_import, unicode_literals
 import logging
 
 import pytest
+from PIL.Image import Image
 
 from psd_tools.api.layers import Artboard, Group, PixelLayer, ShapeLayer
 from psd_tools.api.pil_io import get_pil_channels, get_pil_depth
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.constants import BlendMode, ProtectedFlags, SectionDivider, Tag
+from psd_tools.constants import (
+    BlendMode,
+    CompatibilityMode,
+    ProtectedFlags,
+    SectionDivider,
+    Tag,
+)
 
 from ..utils import full_name
 
@@ -76,7 +83,7 @@ def test_pixel_layer_properties(pixel_layer):
     assert layer.height == 29
     assert layer.size == (29, 29)
     assert layer.bbox == (1, 1, 30, 30)
-    assert layer.clip_layers == []
+    assert layer.clipping_layer is False
     assert layer.tagged_blocks is not None
     assert layer.layer_id == 3
 
@@ -108,6 +115,9 @@ def test_pixel_layer_writable_properties(pixel_layer):
     layer.offset = (1, 1)
     assert layer.offset == (1, 1)
     assert layer.size == (29, 29)
+
+    layer.clipping_layer = True
+    assert layer.clipping_layer is True
 
 
 def test_layer_is_visible(pixel_layer):
@@ -162,8 +172,6 @@ def topil_args(request):
 
 
 def test_topil(topil_args):
-    from PIL.Image import Image
-
     fixture, is_image = topil_args
     image = fixture.topil()
 
@@ -183,7 +191,22 @@ def test_clip_adjustment():
 
 
 def test_nested_clipping_layers():
+    """Check if the nested clipping layers are correctly identified.
+
+    Structure of the PSD file `clipping-mask.psd` is as follows:
+
+        PSDImage(mode=3 size=360x200 depth=8 channels=3)
+        [0] PixelLayer('Background' size=360x200)
+        [1] Group('Group 2' size=238x219)
+          [0] Group('Group 1' size=185x219)
+            [0] PixelLayer('Shape 3' size=185x72)
+            [1] ShapeLayer('Shape 4' size=157x160)
+          [1] ShapeLayer('Shape 1' size=124x69)
+          [2] +ShapeLayer('Shape 2' size=69x75 clip)
+    """
+
     psd = PSDImage.open(full_name("clipping-mask.psd"))
+    psd.compatibility_mode = CompatibilityMode.CLIP_STUDIO_PAINT
     psd[1].blend_mode = BlendMode.NORMAL
     psd[1].clipping_layer = True
     assert psd[1].clipping_layer is True
@@ -455,8 +478,6 @@ def test_move_down(
 
 
 def test_append(group, pixel_layer):
-    pix_old_parent = pixel_layer._parent
-
     group.append(pixel_layer)
 
     assert pixel_layer in group
