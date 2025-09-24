@@ -1,10 +1,7 @@
-from __future__ import absolute_import, unicode_literals
-
 import logging
 import os
 
 import pytest
-from IPython.display import display
 
 from psd_tools.constants import Tag
 from psd_tools.psd.base import IntegerElement
@@ -13,6 +10,7 @@ from psd_tools.psd.tagged_blocks import (
     Annotations,
     ChannelBlendingRestrictionsSetting,
     DescriptorBlock,
+    DescriptorBlock2,
     MetadataSettings,
     PixelSourceData2,
     ReferencePoint,
@@ -37,7 +35,6 @@ def test_tagged_blocks():
     check_write_read(blocks)
     check_write_read(blocks, version=2)
     check_write_read(blocks, version=2, padding=4)
-    display(blocks)
     assert blocks.get_data(Tag.LAYER_VERSION)
     assert blocks.get_data(Tag.LAYER_ID) is None
     assert len([1 for key in blocks if key == Tag.LAYER_VERSION]) == 1
@@ -93,6 +90,18 @@ def test_channel_blending_restrictions_setting(fixture):
     ],
 )
 def test_tagged_block_rw(kls, filename):
+    filepath = os.path.join(TEST_ROOT, "tagged_blocks", filename)
+    with open(filepath, "rb") as f:
+        fixture = f.read()
+    check_read_write(kls, fixture)
+
+
+@pytest.mark.xfail(reason="Not implemented yet")
+@pytest.mark.parametrize(
+    "kls, filename",
+    [(DescriptorBlock2, "CAI.dat")],
+)
+def test_tagged_block_rw_failure(kls, filename):
     filepath = os.path.join(TEST_ROOT, "tagged_blocks", filename)
     with open(filepath, "rb") as f:
         fixture = f.read()
