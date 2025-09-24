@@ -33,6 +33,7 @@ from psd_tools.constants import (
     BlendMode,
     ChannelID,
     Clipping,
+    CompatibilityMode,
     Compression,
     ProtectedFlags,
     SectionDivider,
@@ -76,8 +77,6 @@ class Layer(object):
         self._record = record
         self._channels = channels
         self._parent: GroupMixin | None = parent
-        self._clip_layers: list[Self] = []
-        self._has_clip_target = True
 
     @property
     def name(self) -> str:
@@ -520,7 +519,25 @@ class Layer(object):
 
         :return: list of layers
         """
-        return self._clip_layers
+        # Look for clipping layers in the parent scope.
+        parent: GroupMixin = self.parent or self._psd  # type: ignore
+        index = parent.index(self)
+
+        # TODO: Cache the result and invalidate when needed.
+        _clip_layers = []
+        for layer in parent[index + 1 :]:  # type: ignore
+            if layer.clipping_layer:
+                if (
+                    isinstance(layer, GroupMixin)
+                    and layer._psd.compatibility_mode == CompatibilityMode.PHOTOSHOP
+                ):
+                    # In Photoshop, clipping groups are not supported.
+                    break
+                _clip_layers.append(layer)
+            else:
+                break
+
+        return _clip_layers
 
     @property
     def clipping_layer(self) -> bool:
@@ -533,9 +550,7 @@ class Layer(object):
 
     @clipping_layer.setter
     def clipping_layer(self, value: bool) -> None:
-        if self._psd:
-            self._record.clipping = Clipping.NON_BASE if value else Clipping.BASE
-            self._psd._compute_clipping_layers()
+        self._record.clipping = Clipping.NON_BASE if value else Clipping.BASE
 
     def has_effects(self) -> bool:
         """
@@ -590,11 +605,12 @@ class Layer(object):
 
     def __repr__(self) -> str:
         has_size = self.width > 0 and self.height > 0
-        return "%s(%r%s%s%s%s)" % (
+        return "%s(%r%s%s%s%s%s)" % (
             self.__class__.__name__,
             self.name,
             " size=%dx%d" % (self.width, self.height) if has_size else "",
             " invisible" if not self.visible else "",
+            " clip" if self.clipping_layer else "",
             " mask" if self.has_mask() else "",
             " effects" if self.has_effects() else "",
         )
@@ -627,9 +643,9 @@ class Layer(object):
         assert group is not self
 
         if isinstance(self, GroupMixin):
-            assert (
-                group not in self.descendants()
-            ), "Cannot move group {} into its descendant {}".format(self, group)
+            assert group not in self.descendants(), (
+                "Cannot move group {} into its descendant {}".format(self, group)
+            )
 
         if self.parent is not None and isinstance(self.parent, GroupMixin):
             if self in self.parent:
@@ -857,10 +873,10 @@ class GroupMixin(Protocol):
         for layer in layers:
             assert isinstance(layer, Layer)
             if isinstance(layer, GroupMixin):
-                assert (
-                    self not in list(layer.descendants())
-                ), "This operation would create a reference loop within the group between {} and {}.".format(
-                    self, layer
+                assert self not in list(layer.descendants()), (
+                    "This operation would create a reference loop within the group between {} and {}.".format(
+                        self, layer
+                    )
                 )
 
     def _update_layer_metadata(self) -> None:
@@ -887,7 +903,7 @@ class GroupMixin(Protocol):
         elif self._psd is not None:
             self._psd._updated_layers = True
 
-    def descendants(self, include_clip: bool = True) -> Iterator[Layer]:
+    def descendants(self) -> Iterator[Layer]:
         """
         Return a generator to iterate over all descendant layers.
 
@@ -900,17 +916,11 @@ class GroupMixin(Protocol):
             # Iterate over all layers in reverse order
             for layer in reversed(list(psd.descendants())):
                 print(layer)
-
-        :param include_clip: include clipping layers.
         """
         for layer in self:
             yield layer
             if isinstance(layer, GroupMixin):
-                for child in layer.descendants(include_clip):
-                    yield child
-            if include_clip and hasattr(layer, "clip_layers"):
-                for clip_layer in layer.clip_layers:
-                    yield clip_layer
+                yield from layer.descendants()
 
     def find(self, name: str) -> Layer | None:
         """
@@ -1013,6 +1023,27 @@ class Group(GroupMixin, Layer):
         setting = self._setting
         if setting is not None:
             setting.blend_mode = _value
+
+    @property
+    def clipping_layer(self) -> bool:
+        """
+        Clipping flag for this layer. Writable.
+
+        :return: `bool`
+        """
+        if self._psd.compatibility_mode == CompatibilityMode.PHOTOSHOP:
+            # In Photoshop, clipping groups are not supported.
+            return False
+        return self._record.clipping == Clipping.NON_BASE
+
+    @clipping_layer.setter
+    def clipping_layer(self, value: bool) -> None:
+        if self._psd.compatibility_mode == CompatibilityMode.PHOTOSHOP:
+            logger.warning(
+                "Cannot set clipping flag on groups in Photoshop compatibility mode."
+            )
+            return
+        self._record.clipping = Clipping.NON_BASE if value else Clipping.BASE
 
     def composite(
         self,
@@ -1499,6 +1530,7 @@ class ShapeLayer(Layer):
     """
     Layer that has drawing in vector mask.
     """
+
     def __init__(self, *args: Any):
         super(ShapeLayer, self).__init__(*args)
         self._bbox: tuple[int, int, int, int] | None = None

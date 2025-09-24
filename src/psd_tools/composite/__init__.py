@@ -45,7 +45,7 @@ def composite_pil(
     color_mode = psd_image.color_mode
     if color_mode in UNSUPPORTED_MODES:
         logger.warning("Unsupported blending color space: %s" % (color_mode))
-
+    
     color, _, alpha = composite(
         layer,
         color=color,
@@ -228,7 +228,7 @@ class Compositor(object):
         if _intersect(self._viewport, layer.bbox) == (0, 0, 0, 0):
             logger.debug("Out of viewport %s" % (layer))
             return
-        if not clip_compositing and layer.clipping_layer and layer._has_clip_target:
+        if not clip_compositing and layer.clipping_layer:
             return
 
         knockout = bool(layer.tagged_blocks.get_data(Tag.KNOCKOUT_SETTING, 0))
@@ -237,6 +237,11 @@ class Compositor(object):
         else:
             color, shape, alpha = self._get_object(layer)
 
+        # Composite clip layers.
+        if layer.has_clip_layers():
+            color = self._apply_clip_layers(layer, color, alpha)
+
+        # Apply masks and opacity.
         shape_mask, opacity_mask = self._get_mask(layer)
         shape_const, opacity_const = self._get_const(layer)
         shape *= shape_mask
@@ -350,10 +355,6 @@ class Compositor(object):
         shape = paste(self._viewport, viewport, shape)
         alpha = paste(self._viewport, viewport, alpha)
 
-        # Composite clip layers.
-        if layer.has_clip_layers():
-            color = self._apply_clip_layers(layer, color, alpha)
-
         assert color is not None
         assert shape is not None
         assert alpha is not None
@@ -390,10 +391,6 @@ class Compositor(object):
             compositor = Compositor(self._viewport, color, alpha)
             compositor._apply_source(color_s, shape_s, alpha_s, layer.stroke.blend_mode)
             color, _, _ = compositor.finish()
-
-        # Composite clip layers.
-        if layer.has_clip_layers():
-            color = self._apply_clip_layers(layer, color, alpha)
 
         assert color is not None
         assert shape is not None

@@ -7,6 +7,8 @@ import pytest
 
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite
+from psd_tools.constants import CompatibilityMode
+from PIL import Image
 
 from ..utils import full_name
 
@@ -227,6 +229,22 @@ def test_composite_clipping_mask():
     reference = composite(psd)
     result = composite(psd, layer_filter=lambda x: x.name != "Shape 3")
     assert _mse(reference[0], result[0]) > 0
+
+
+def test_composite_group_clipping_photoshop():
+    psd = PSDImage.open(full_name("group-clipping/group-clipping.psd"))
+    reference = Image.open(full_name("group-clipping/group-clipping-photoshop.png"))
+    psd.compatibility_mode = CompatibilityMode.PHOTOSHOP
+    result = psd.composite(force=True)
+    assert _mse(np.array(reference, dtype=np.float32), np.array(result, dtype=np.float32)) <= 0.001
+
+
+def test_composite_group_clipping_clip_studio():
+    psd = PSDImage.open(full_name("group-clipping/group-clipping.psd"))
+    reference = Image.open(full_name("group-clipping/group-clipping-clip-studio.png"))
+    psd.compatibility_mode = CompatibilityMode.CLIP_STUDIO_PAINT
+    result = psd.composite(force=True)
+    assert _mse(np.array(reference, dtype=np.float32), np.array(result, dtype=np.float32)) <= 0.001
 
 
 def test_composite_stroke():
