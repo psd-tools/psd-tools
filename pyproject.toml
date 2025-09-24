@@ -67,7 +67,7 @@ addopts = "--cov=psd_tools"
 
 [tool.cibuildwheel]
 archs = "auto64"
-skip = "cp3{9,10}-win_arm64 cp314t-*"
+skip = "cp3{9,10}-win_arm64 cp314t-* cp314-win*"
 test-skip = "cp39-musllinux_aarch64 *-win_arm64"  # SciPy does not provide wheels for these platforms
 test-requires = ["pytest", "pytest-cov", "ipython"]
 test-command = "pytest {project}/tests"
