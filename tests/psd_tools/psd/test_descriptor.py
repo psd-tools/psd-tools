@@ -1,9 +1,6 @@
-from __future__ import absolute_import, unicode_literals
-
 import os
 
 import pytest
-from IPython.display import display
 
 from psd_tools.psd.descriptor import (
     TYPES,
@@ -39,8 +36,7 @@ def test_descriptor_rw(filename):
 def test_descriptor_display(filename):
     filepath = os.path.join(TEST_ROOT, "descriptors", filename)
     with open(filepath, "rb") as f:
-        value = Descriptor.frombytes(f.read())
-    display(value)
+        Descriptor.frombytes(f.read())
 
 
 @pytest.mark.parametrize(
