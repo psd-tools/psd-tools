@@ -111,7 +111,7 @@ TYPES.update(
         Tag.VECTOR_STROKE_DATA: DescriptorBlock,
         Tag.VECTOR_STROKE_CONTENT_DATA: VectorStrokeContentSetting,
         # Unknown tags.
-        Tag.CAI: DescriptorBlock2,
+        # Tag.CAI: DescriptorBlock2,
         Tag.GENI: DescriptorBlock,
         Tag.OCIO: DescriptorBlock,
     }
@@ -265,7 +265,6 @@ class TaggedBlock(BaseElement):
             key = Tag(key)
         except ValueError:
             message = "Unknown key: %r" % (key)
-            warn(message)
             logger.warning(message)
 
         fmt = cls._length_format(key, version)
@@ -280,8 +279,7 @@ class TaggedBlock(BaseElement):
             # )
         else:
             message = "Unknown tagged block: %r, %s" % (key, trimmed_repr(raw_data))
-            warn(message)
-            logger.warning(message)
+            logger.info(message)
             data = raw_data
         return cls(signature, key, data)
 
