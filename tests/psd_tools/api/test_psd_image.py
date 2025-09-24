@@ -1,11 +1,10 @@
-from __future__ import absolute_import, unicode_literals
-
 import logging
 import os
+import pprint
 from pathlib import Path
 
 import pytest
-from IPython.lib.pretty import pprint
+from PIL import Image
 
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.constants import ColorMode, Compression
@@ -35,8 +34,6 @@ def test_new(args):
 
 
 def test_frompil_psb():
-    from PIL import Image
-
     image = Image.new("RGB", (30001, 24))
     psb = PSDImage.frompil(image)
     assert psb.version == 2
@@ -116,21 +113,18 @@ def test_thumnail(fixture):
 
 def test_repr_pretty(fixture):
     fixture.__repr__()
-    pprint(fixture)
+    pprint.pprint(fixture)
 
 
 @pytest.mark.parametrize(
     "filename",
-    [
-        os.path.join("third-party-psds", "cactus_top.psd"),
-    ],
+    [os.path.join("third-party-psds", "cactus_top.psd")],
 )
 def test_open2(filename):
     assert isinstance(PSDImage.open(full_name(filename)), PSDImage)
 
 
 def test_update_record(fixture):
-
     pixel_layer = PSDImage.open(full_name("layers/pixel-layer.psd"))[0]
     fill_layer = PSDImage.open(full_name("layers/solid-color-fill.psd"))[0]
     shape_layer = PSDImage.open(full_name("layers/shape-layer.psd"))[0]

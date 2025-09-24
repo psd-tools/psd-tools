@@ -1,9 +1,6 @@
-from __future__ import absolute_import, unicode_literals
-
 import os
 
 import pytest
-from IPython.display import display
 
 from psd_tools.psd import PSD
 from psd_tools.constants import Resource, ColorMode
@@ -28,7 +25,6 @@ def test_image_resources_exception():
 
 def test_image_resources_dict():
     image_resources = ImageResources.new()
-    display(image_resources)
     assert image_resources.get_data(Resource.VERSION_INFO)
     assert image_resources.get_data(Resource.OBSOLETE1) is None
     assert len([1 for key in image_resources if key == Resource.VERSION_INFO]) == 1
@@ -69,7 +65,6 @@ def test_display_info():
         psd = PSD.read(f)
     assert psd.header.color_mode == ColorMode.CMYK
     info = psd.image_resources[Resource.DISPLAY_INFO].data
-    print(display(info))
     assert len(info.alpha_channels) == 3
     expected_colors = [
         # RGB in uint16, with an extra zero because the color space can be CMYK
@@ -90,7 +85,6 @@ def test_display_info_channel_type():
 
     assert psd.header.color_mode == ColorMode.CMYK
     info = psd.image_resources[Resource.DISPLAY_INFO].data
-    print(display(info))
     assert len(info.alpha_channels) == 2
     assert info.alpha_channels[0].mode == AlphaChannelMode.SPOT
     assert info.alpha_channels[1].mode == AlphaChannelMode.INVERTED_ALPHA
