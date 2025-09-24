@@ -1,3 +1,10 @@
+1.10.11 (2025-09-24)
+--------------------
+
+- [tests] Drop python2 compatibility code (#494)
+- [api] Fix clip layer handling (#493)
+- [psd] Workaround CAI tagged block reconstruction (#492)
+
 1.10.10 (2025-09-18)
 --------------------
 
