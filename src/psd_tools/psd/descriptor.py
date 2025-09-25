@@ -16,8 +16,6 @@ Pretty printing is the best approach to check the descriptor content::
     pprint(descriptor)
 """
 
-from __future__ import absolute_import, unicode_literals
-
 import logging
 
 import attr

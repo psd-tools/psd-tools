@@ -2,8 +2,6 @@
 Smart object module.
 """
 
-from __future__ import annotations
-
 import contextlib
 import io
 import logging

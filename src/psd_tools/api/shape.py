@@ -7,15 +7,8 @@ live shape properties and :py:class:`Stroke` to specify how outline is
 stylized.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import Literal
-
-try:
-    from typing import Self
-except ImportError:
-    from typing_extensions import Self
 
 from psd_tools.psd.descriptor import Descriptor, DescriptorBlock2
 from psd_tools.psd.vector import (

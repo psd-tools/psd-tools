@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 EngineData structure.
 
@@ -29,8 +28,6 @@ EngineData. The format looks like the following::
       >>
     >>
 """
-
-from __future__ import absolute_import, unicode_literals
 
 import codecs
 import logging
