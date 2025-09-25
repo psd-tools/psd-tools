@@ -215,6 +215,17 @@ def test_nested_clipping_layers():
     assert psd[0].has_clip_layers()
 
 
+def test_clip_stack():
+    """Check if consecutive clipping layers are correctly identified."""
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    psd[1][1].clipping_layer = True
+    assert psd[1][0].has_clip_layers()
+    assert psd[1][1].clipping_layer
+    assert psd[1][2].clipping_layer
+    assert not psd[1][1].has_clip_layers()
+    assert not psd[1][2].has_clip_layers()
+
+
 def test_type_layer(type_layer):
     assert type_layer.text == "A"
     assert type_layer.transform == (

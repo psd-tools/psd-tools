@@ -519,6 +519,9 @@ class Layer(object):
 
         :return: list of layers
         """
+        if self.clipping_layer:
+            return []
+        
         # Look for clipping layers in the parent scope.
         parent: GroupMixin = self.parent or self._psd  # type: ignore
         index = parent.index(self)
