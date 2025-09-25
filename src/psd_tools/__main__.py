@@ -1,6 +1,5 @@
+import argparse
 import logging
-
-import docopt
 
 from psd_tools import PSDImage
 from psd_tools.version import __version__
@@ -11,39 +10,43 @@ except ImportError:
     from pprint import pprint
 
 logger = logging.getLogger(__name__)
-logger.addHandler(logging.StreamHandler())
+
+
+def parse_args(argv=None):
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description="psd-tools command line utility.")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Be more verbose.")
+    parser.add_argument("--version", action="version", version=__version__)
+
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    export_parser = subparsers.add_parser("export", help="Export PSD or layer as PNG")
+    export_parser.add_argument(
+        "input_file",
+        help="Input PSD file (optionally with layer index, e.g. file.psd[0])",
+    )
+    export_parser.add_argument("output_file", help="Output image file")
+
+    show_parser = subparsers.add_parser("show", help="Show the file content")
+    show_parser.add_argument("input_file", help="Input PSD file")
+
+    debug_parser = subparsers.add_parser("debug", help="Show debug info for PSD file")
+    debug_parser.add_argument("input_file", help="Input PSD file")
+
+    return parser.parse_args(argv)
 
 
 def main(argv=None):
-    """
-    psd-tools command line utility.
-
-    Usage:
-        psd-tools export <input_file> <output_file> [options]
-        psd-tools show <input_file> [options]
-        psd-tools debug <input_file> [options]
-        psd-tools -h | --help
-        psd-tools --version
-
-    Options:
-        -v --verbose                Be more verbose.
-
-    Example:
-        psd-tools show example.psd  # Show the file content
-        psd-tools export example.psd example.png  # Export as PNG
-        psd-tools export example.psd[0] example-0.png  # Export layer as PNG
-    """
-
-    args = docopt.docopt(main.__doc__, version=__version__, argv=argv)
+    args = parse_args(argv)
 
     logging.basicConfig(level=logging.WARNING)
-    if args["--verbose"]:
+    if args.verbose:
         logger.setLevel(logging.DEBUG)
     else:
         logger.setLevel(logging.INFO)
 
-    if args["export"]:
-        input_parts = args["<input_file>"].split("[")
+    if args.command == "export":
+        input_parts = args.input_file.split("[")
         input_file = input_parts[0]
         if len(input_parts) > 1:
             indices = [int(x.rstrip("]")) for x in input_parts[1:]]
@@ -56,14 +59,14 @@ def main(argv=None):
             image = layer.topil()
         else:
             image = layer.composite()
-        image.save(args["<output_file>"])
+        image.save(args.output_file)
 
-    elif args["show"]:
-        psd = PSDImage.open(args["<input_file>"])
+    elif args.command == "show":
+        psd = PSDImage.open(args.input_file)
         pprint(psd)
 
-    elif args["debug"]:
-        psd = PSDImage.open(args["<input_file>"])
+    elif args.command == "debug":
+        psd = PSDImage.open(args.input_file)
         pprint(psd._record)
 
 
