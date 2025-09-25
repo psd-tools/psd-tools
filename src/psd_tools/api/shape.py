@@ -8,7 +8,7 @@ stylized.
 """
 
 import logging
-from typing import Literal
+from typing import Literal, Union
 
 from psd_tools.psd.descriptor import Descriptor, DescriptorBlock2
 from psd_tools.psd.vector import (
@@ -107,7 +107,7 @@ class VectorMask(object):
         self._initial_fill_rule.value = value
 
     @property
-    def clipboard_record(self) -> ClipboardRecord | None:
+    def clipboard_record(self) -> Union[ClipboardRecord, None]:
         """
         Clipboard record containing bounding box information.
 
@@ -276,7 +276,7 @@ class Origination(object):
     @classmethod
     def create(
         kls, data: DescriptorBlock2
-    ) -> Invalidated | Rectangle | RoundedRectangle | Line | Ellipse:
+    ) -> Union["Invalidated", "Rectangle", "RoundedRectangle", "Line", "Ellipse"]:
         if data.get(b"keyShapeInvalidated"):
             return Invalidated(data)
         origin_type = data.get(b"keyOriginType")

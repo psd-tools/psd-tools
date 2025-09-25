@@ -6,7 +6,7 @@ import contextlib
 import io
 import logging
 import os
-from typing import Iterator
+from typing import BinaryIO, Iterator, Optional
 
 from psd_tools.constants import Tag
 
@@ -61,7 +61,7 @@ class SmartObject(object):
         return self._data.filename.strip("\x00")
 
     @contextlib.contextmanager
-    def open(self, external_dir: str | None = None) -> Iterator[io.BytesIO]:
+    def open(self, external_dir: Optional[str] = None) -> Iterator[BinaryIO]:
         """
         Open the smart object as binary IO.
 
@@ -145,7 +145,7 @@ class SmartObject(object):
         else:
             return None
 
-    def save(self, filename: str | None = None) -> None:
+    def save(self, filename: Optional[str] = None) -> None:
         """
         Save the smart object to a file.
 

@@ -1,10 +1,10 @@
 import logging
-from typing import Callable
+from typing import Callable, Optional, Union
 
 import numpy as np
 from PIL import Image
 
-from psd_tools.api.layers import AdjustmentLayer, Layer, GroupMixin
+from psd_tools.api.layers import AdjustmentLayer, GroupMixin, Layer
 from psd_tools.api.numpy_io import EXPECTED_CHANNELS, has_transparency
 from psd_tools.api.pil_io import get_pil_mode, post_process
 from psd_tools.api.psd_image import PSDImage
@@ -25,15 +25,15 @@ logger = logging.getLogger(__name__)
 
 
 def composite_pil(
-    layer: Layer | PSDImage,
-    color: float | tuple[float, ...] | np.ndarray,
-    alpha: float | np.ndarray,
-    viewport: tuple[int, int, int, int] | None,
-    layer_filter: Callable | None,
+    layer: Union[Layer, PSDImage],
+    color: Union[float, tuple[float, ...], np.ndarray],
+    alpha: Union[float, np.ndarray],
+    viewport: Optional[tuple[int, int, int, int]],
+    layer_filter: Optional[Callable],
     force: bool,
     as_layer: bool = False,
     apply_icc: bool = True,
-) -> Image.Image | None:
+) -> Union[Image.Image, None]:
     UNSUPPORTED_MODES = {
         ColorMode.DUOTONE,
         ColorMode.LAB,
@@ -43,7 +43,7 @@ def composite_pil(
     color_mode = psd_image.color_mode
     if color_mode in UNSUPPORTED_MODES:
         logger.warning("Unsupported blending color space: %s" % (color_mode))
-    
+
     color, _, alpha = composite(
         layer,
         color=color,
@@ -91,11 +91,11 @@ def composite_pil(
 
 
 def composite(
-    group: Layer | PSDImage,
-    color: float | tuple[float, ...] | np.ndarray = 1.0,
-    alpha: float | np.ndarray = 0.0,
-    viewport: tuple[int, int, int, int] | None = None,
-    layer_filter: Callable | None = None,
+    group: Union[Layer, PSDImage],
+    color: Union[float, tuple[float, ...], np.ndarray] = 1.0,
+    alpha: Union[float, np.ndarray] = 0.0,
+    viewport: Optional[tuple[int, int, int, int]] = None,
+    layer_filter: Optional[Callable] = None,
     force: bool = False,
     as_layer: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -143,7 +143,7 @@ def paste(
     viewport: tuple[int, int, int, int],
     bbox: tuple[int, int, int, int],
     values: np.ndarray,
-    background: float | None = None,
+    background: Optional[float] = None,
 ) -> np.ndarray:
     """Change to the specified viewport."""
     shape = (viewport[3] - viewport[1], viewport[2] - viewport[0], values.shape[2])
@@ -181,10 +181,10 @@ class Compositor(object):
     def __init__(
         self,
         viewport: tuple[int, int, int, int],
-        color: float | tuple[float, ...] | np.ndarray = 1.0,
-        alpha: float | np.ndarray = 0.0,
+        color: Union[float, tuple[float, ...], np.ndarray] = 1.0,
+        alpha: Union[float, np.ndarray] = 0.0,
         isolated: bool = False,
-        layer_filter: Callable | None = None,
+        layer_filter: Optional[Callable] = None,
         force: bool = False,
     ):
         self._viewport = viewport
@@ -384,7 +384,11 @@ class Compositor(object):
 
         # TODO: Prepare a test case for clipping mask with stroke to check the order.
         # Apply stroke if any.
-        if layer.has_vector_mask() and layer.stroke is not None and layer.stroke.enabled:
+        if (
+            layer.has_vector_mask()
+            and layer.stroke is not None
+            and layer.stroke.enabled
+        ):
             color_s, shape_s, alpha_s = self._get_stroke(layer)
             compositor = Compositor(self._viewport, color, alpha)
             compositor._apply_source(color_s, shape_s, alpha_s, layer.stroke.blend_mode)
@@ -410,9 +414,9 @@ class Compositor(object):
             compositor.apply(clip_layer, clip_compositing=True)
         return compositor._color
 
-    def _get_mask(self, layer: Layer) -> tuple[float | np.ndarray, float]:
+    def _get_mask(self, layer: Layer) -> tuple[Union[float, np.ndarray], float]:
         """Get mask attributes."""
-        shape: float | np.ndarray = 1.0
+        shape: Union[float, np.ndarray] = 1.0
         opacity: float = 1.0
         if layer.mask is not None and not layer.mask.disabled:
             # TODO: When force, ignore real mask.

@@ -3,7 +3,7 @@ Mask module.
 """
 
 import logging
-from typing import Any
+from typing import Any, Optional
 
 from PIL.Image import Image as PILImage
 
@@ -97,7 +97,7 @@ class Mask(object):
         return self._data.parameters
 
     @property
-    def real_flags(self) -> MaskFlags | None:
+    def real_flags(self) -> Optional[MaskFlags]:
         """Real flag."""
         return self._data.real_flags
 
@@ -105,7 +105,7 @@ class Mask(object):
         """Return True if the mask has real flags."""
         return self.real_flags is not None and self.real_flags.parameters_applied
 
-    def topil(self, real: bool=True, **kwargs: Any) -> PILImage | None:
+    def topil(self, real: bool = True, **kwargs: Any) -> Optional[PILImage]:
         """
         Get PIL Image of the mask.
 

@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Literal
+from typing import Any, Literal, Optional, Union
 
 import numpy as np
 
@@ -20,14 +20,16 @@ EXPECTED_CHANNELS = {
 
 
 def get_array(
-    layer: Any, channel: str | None, **kwargs: Any
+    layer: Any, channel: Optional[str], **kwargs: Any
 ) -> np.ndarray:  # TODO: Circular import
     if layer.kind == "psdimage":
         return get_image_data(layer, channel)
     return get_layer_data(layer, channel, **kwargs)
 
 
-def get_image_data(psd: Any, channel: str | None) -> np.ndarray:  # TODO: Circular import
+def get_image_data(
+    psd: Any, channel: Optional[str]
+) -> np.ndarray:  # TODO: Circular import
     if (channel == "mask") or (channel == "shape" and not has_transparency(psd)):
         return np.ones((psd.height, psd.width, 1), dtype=np.float32)
 
@@ -54,7 +56,9 @@ def get_image_data(psd: Any, channel: str | None) -> np.ndarray:  # TODO: Circul
     return data
 
 
-def get_layer_data(layer: Any, channel: str | None, real_mask: bool = True) -> np.ndarray:
+def get_layer_data(
+    layer: Any, channel: Optional[str], real_mask: bool = True
+) -> np.ndarray:
     def _find_channel(layer, width, height, condition):
         depth, version = layer._psd.depth, layer._psd.version
         iterator = zip(layer._record.channel_info, layer._channels)
@@ -145,7 +149,9 @@ def get_transparency_index(psd: Any) -> int:
 
 
 def _parse_array(
-    data: bytes | bytearray, depth: Literal[1, 8, 16, 32], lut: np.ndarray | None = None
+    data: Union[bytes, bytearray],
+    depth: Literal[1, 8, 16, 32],
+    lut: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     if depth == 8:
         parsed = np.frombuffer(data, ">u1")
