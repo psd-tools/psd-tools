@@ -1,3 +1,10 @@
+1.10.12 (2025-09-25)
+--------------------
+
+- [api] Drop docopt dependency (#498)
+- [api] Remove unused imports (#497)
+- [api] Fix stacked clip layer handling (#496)
+
 1.10.11 (2025-09-24)
 --------------------
 
