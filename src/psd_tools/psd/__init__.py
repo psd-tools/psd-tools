@@ -5,8 +5,6 @@ All the data structure in this subpackage inherits from one of the object
 defined in :py:mod:`psd_tools.psd.base` module.
 """
 
-from __future__ import absolute_import, unicode_literals
-
 import logging
 
 import attr

@@ -60,8 +60,6 @@ The following resources are plain bytes::
     Resource.LIGHTROOM_WORKFLOW: 8000
 """
 
-from __future__ import annotations
-
 import io
 import logging
 

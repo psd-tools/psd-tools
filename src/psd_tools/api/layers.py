@@ -2,16 +2,16 @@
 Layer module.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import (
     Any,
     Callable,
     Iterable,
     Iterator,
+    Optional,
     Protocol,
     TypeVar,
+    Union,
     runtime_checkable,
 )
 
@@ -67,16 +67,16 @@ class Layer(object):
         psd: Any,
         record: LayerRecord,
         channels: ChannelDataList,
-        parent: TGroupMixin | None,
+        parent: Optional[TGroupMixin],
     ):
         from psd_tools.api.psd_image import PSDImage  # Circular import
 
         assert isinstance(psd, PSDImage) or psd is None
 
-        self._psd: PSDImage | None = psd
+        self._psd: Optional[PSDImage] = psd
         self._record = record
         self._channels = channels
-        self._parent: GroupMixin | None = parent
+        self._parent: Optional[GroupMixin] = parent
 
     @property
     def name(self) -> str:
@@ -123,7 +123,7 @@ class Layer(object):
         Invalidate this layer's _bbox and any parents recursively to the root.
         """
         if isinstance(self, (GroupMixin, ShapeLayer)):
-            self._bbox: tuple[int, int, int, int] | None = None
+            self._bbox: Optional[tuple[int, int, int, int]] = None
         if isinstance(self.parent, (Group, Artboard)):
             self.parent._invalidate_bbox()
 
@@ -164,7 +164,7 @@ class Layer(object):
         self._record.opacity = int(value)
 
     @property
-    def parent(self) -> TGroupMixin | None:
+    def parent(self) -> Optional[TGroupMixin]:
         """Parent of this layer."""
         return self._parent  # type: ignore
 
@@ -192,7 +192,7 @@ class Layer(object):
         return self._record.blend_mode
 
     @blend_mode.setter
-    def blend_mode(self, value: bytes | str | BlendMode) -> None:
+    def blend_mode(self, value: Union[bytes, str, BlendMode]) -> None:
         if isinstance(value, str):
             value = value.encode("ascii")
         self._record.blend_mode = BlendMode(value)
@@ -313,7 +313,7 @@ class Layer(object):
         return self._record.mask_data is not None
 
     @property
-    def mask(self) -> Mask | None:
+    def mask(self) -> Optional[Mask]:
         """
         Returns mask associated with this layer.
 
@@ -335,7 +335,7 @@ class Layer(object):
         )
 
     @property
-    def vector_mask(self) -> VectorMask | None:
+    def vector_mask(self) -> Optional[VectorMask]:
         """
         Returns vector mask associated with this layer.
 
@@ -392,7 +392,7 @@ class Layer(object):
         return Tag.VECTOR_STROKE_DATA in self.tagged_blocks
 
     @property
-    def stroke(self) -> Stroke | None:
+    def stroke(self) -> Optional[Stroke]:
         """Property for strokes."""
         if not hasattr(self, "_stroke"):
             self._stroke = None
@@ -424,7 +424,7 @@ class Layer(object):
         self.lock(0)
 
     @property
-    def locks(self) -> ProtectedSetting | None:
+    def locks(self) -> Optional[ProtectedSetting]:
         protected_settings_block = self.tagged_blocks.get(Tag.PROTECTED_SETTING)
 
         if protected_settings_block is not None:
@@ -433,8 +433,8 @@ class Layer(object):
         return None
 
     def topil(
-        self, channel: int | None = None, apply_icc: bool = True
-    ) -> PILImage | None:
+        self, channel: Optional[int] = None, apply_icc: bool = True
+    ) -> Optional[PILImage]:
         """
         Get PIL Image of the layer.
 
@@ -461,8 +461,8 @@ class Layer(object):
         return convert_layer_to_pil(self, channel, apply_icc)
 
     def numpy(
-        self, channel: str | None = None, real_mask: bool = True
-    ) -> np.ndarray | None:
+        self, channel: Optional[str] = None, real_mask: bool = True
+    ) -> Optional[np.ndarray]:
         """
         Get NumPy array of the layer.
 
@@ -476,13 +476,13 @@ class Layer(object):
 
     def composite(
         self,
-        viewport: tuple[int, int, int, int] | None = None,
+        viewport: Optional[tuple[int, int, int, int]] = None,
         force: bool = False,
-        color: float | tuple[float, ...] | np.ndarray = 1.0,
-        alpha: float | np.ndarray = 0.0,
-        layer_filter: Callable | None = None,
+        color: Union[float, tuple[float, ...], np.ndarray] = 1.0,
+        alpha: Union[float, np.ndarray] = 0.0,
+        layer_filter: Optional[Callable] = None,
         apply_icc: bool = True,
-    ) -> PILImage | None:
+    ) -> Optional[PILImage]:
         """
         Composite layer and masks (mask, vector mask, and clipping layers).
 
@@ -521,7 +521,7 @@ class Layer(object):
         """
         if self.clipping_layer:
             return []
-        
+
         # Look for clipping layers in the parent scope.
         parent: GroupMixin = self.parent or self._psd  # type: ignore
         index = parent.index(self)
@@ -736,7 +736,7 @@ class Layer(object):
 
 @runtime_checkable
 class GroupMixin(Protocol):
-    _bbox: tuple[int, int, int, int] | None = None
+    _bbox: Optional[tuple[int, int, int, int]] = None
     _layers: list[Layer]
     _psd: Any  # TODO: Circular import
 
@@ -867,7 +867,7 @@ class GroupMixin(Protocol):
 
         return self._layers.count(layer)
 
-    def _check_valid_layers(self, layers: Layer | Iterable[Layer]) -> None:
+    def _check_valid_layers(self, layers: Union[Layer, Iterable[Layer]]) -> None:
         assert layers is not self, "Cannot add the group {} to itself.".format(self)
 
         if isinstance(layers, Layer):
@@ -885,7 +885,7 @@ class GroupMixin(Protocol):
     def _update_layer_metadata(self) -> None:
         from psd_tools.api.psd_image import PSDImage  # Circular import
 
-        _psd: PSDImage | None = self if isinstance(self, PSDImage) else self._psd
+        _psd: Optional[PSDImage] = self if isinstance(self, PSDImage) else self._psd
 
         for layer in self.descendants():
             if layer._psd != _psd and _psd is not None:
@@ -925,7 +925,7 @@ class GroupMixin(Protocol):
             if isinstance(layer, GroupMixin):
                 yield from layer.descendants()
 
-    def find(self, name: str) -> Layer | None:
+    def find(self, name: str) -> Optional[Layer]:
         """
         Returns the first layer found for the given layer name
 
@@ -997,7 +997,7 @@ class Group(GroupMixin, Layer):
         psd: Any,
         record: LayerRecord,
         channels: ChannelDataList,
-        parent: TGroupMixin | None,
+        parent: Optional[TGroupMixin],
     ):
         self._layers = []
         self._bounding_record = None
@@ -1005,7 +1005,7 @@ class Group(GroupMixin, Layer):
         Layer.__init__(self, psd, record, channels, parent)
 
     @property
-    def _setting(self) -> SectionDividerSetting | None:
+    def _setting(self) -> Optional[SectionDividerSetting]:
         # Can be None.
         return self.tagged_blocks.get_data(Tag.SECTION_DIVIDER_SETTING)
 
@@ -1017,7 +1017,7 @@ class Group(GroupMixin, Layer):
         return super(Group, self).blend_mode
 
     @blend_mode.setter
-    def blend_mode(self, value: str | bytes | BlendMode) -> None:
+    def blend_mode(self, value: Union[str, bytes, BlendMode]) -> None:
         _value = BlendMode(value.encode("ascii") if isinstance(value, str) else value)
         if _value == BlendMode.PASS_THROUGH:
             self._record.blend_mode = BlendMode.NORMAL
@@ -1050,11 +1050,11 @@ class Group(GroupMixin, Layer):
 
     def composite(
         self,
-        viewport: tuple[int, int, int, int] | None = None,
+        viewport: Optional[tuple[int, int, int, int]] = None,
         force: bool = False,
-        color: float | tuple[float, ...] | np.ndarray = 1.0,
-        alpha: float | np.ndarray = 0.0,
-        layer_filter: Callable | None = None,
+        color: Union[float, tuple[float, ...], np.ndarray] = 1.0,
+        alpha: Union[float, np.ndarray] = 0.0,
+        layer_filter: Optional[Callable] = None,
         apply_icc: bool = True,
     ):
         """
@@ -1099,7 +1099,7 @@ class Group(GroupMixin, Layer):
         cls,
         name: str = "Group",
         open_folder: bool = True,
-        parent: GroupMixin | None = None,
+        parent: Optional[GroupMixin] = None,
     ) -> Self:
         """
         Create a new Group object with minimal records and data channels and metadata to properly include the group in the PSD file.
@@ -1157,7 +1157,7 @@ class Group(GroupMixin, Layer):
         cls,
         layers: list[Layer],
         name: str = "Group",
-        parent: GroupMixin | None = None,
+        parent: Optional[GroupMixin] = None,
         open_folder: bool = True,
     ):
         """
@@ -1266,7 +1266,7 @@ class PixelLayer(Layer):
     def frompil(
         cls,
         pil_im: PILImage,
-        psd_file: Any | None = None,  # TODO: Fix circular import
+        psd_file: Optional[Any] = None,  # TODO: Fix circular import
         layer_name: str = "Layer",
         top: int = 0,
         left: int = 0,
@@ -1461,7 +1461,7 @@ class TypeLayer(Layer):
         return self._data.text_data.get(b"Txt ").value.rstrip("\x00")
 
     @property
-    def text_type(self) -> TextType | None:
+    def text_type(self) -> Optional[TextType]:
         """
         Text type. Read-only.
 
@@ -1504,7 +1504,7 @@ class TypeLayer(Layer):
         return self._data.transform
 
     @property
-    def _engine_data(self) -> engine_data.EngineData | engine_data.EngineData2:
+    def _engine_data(self) -> Union[engine_data.EngineData, engine_data.EngineData2]:
         """Styling and resource information."""
         return self._data.text_data.get(b"EngineData").value
 
@@ -1524,7 +1524,7 @@ class TypeLayer(Layer):
         return self._engine_data.get("DocumentResources")
 
     @property
-    def warp(self) -> DescriptorBlock | None:
+    def warp(self) -> Optional[DescriptorBlock]:
         """Warp configuration."""
         return self._data.warp
 
@@ -1536,7 +1536,7 @@ class ShapeLayer(Layer):
 
     def __init__(self, *args: Any):
         super(ShapeLayer, self).__init__(*args)
-        self._bbox: tuple[int, int, int, int] | None = None
+        self._bbox: Optional[tuple[int, int, int, int]] = None
 
     @property
     def left(self) -> int:

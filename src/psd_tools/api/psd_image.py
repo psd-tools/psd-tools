@@ -2,11 +2,9 @@
 PSD Image module.
 """
 
-from __future__ import annotations
-
 import logging
 import os
-from typing import Any, BinaryIO, Callable, Literal
+from typing import Any, BinaryIO, Callable, Literal, Optional, Union
 
 try:
     from typing import Self
@@ -29,7 +27,6 @@ from psd_tools.api.layers import (
 )
 from psd_tools.api.pil_io import get_pil_channels, get_pil_mode
 from psd_tools.constants import (
-    BlendMode,
     ChannelID,
     ColorMode,
     CompatibilityMode,
@@ -132,7 +129,7 @@ class PSDImage(GroupMixin):
         )
 
     @classmethod
-    def open(cls, fp: BinaryIO | str | bytes | os.PathLike, **kwargs: Any) -> Self:
+    def open(cls, fp: Union[BinaryIO, str, bytes, os.PathLike], **kwargs: Any) -> Self:
         """
         Open a PSD document.
 
@@ -149,7 +146,10 @@ class PSDImage(GroupMixin):
         return self
 
     def save(
-        self, fp: BinaryIO | str | bytes | os.PathLike, mode: str = "wb", **kwargs: Any
+        self,
+        fp: Union[BinaryIO, str, bytes, os.PathLike],
+        mode: str = "wb",
+        **kwargs: Any,
     ) -> None:
         """
         Save the PSD file. Updates the ImageData section if the layer structure has been updated.
@@ -176,8 +176,8 @@ class PSDImage(GroupMixin):
             self._record.write(fp, **kwargs)
 
     def topil(
-        self, channel: int | ChannelID | None = None, apply_icc: bool = True
-    ) -> PILImage | None:
+        self, channel: Union[int, ChannelID, None] = None, apply_icc: bool = True
+    ) -> Union[PILImage, None]:
         """
         Get PIL Image.
 
@@ -197,7 +197,7 @@ class PSDImage(GroupMixin):
         return None
 
     def numpy(
-        self, channel: Literal["color", "shape", "alpha", "mask"] | None = None
+        self, channel: Optional[Literal["color", "shape", "alpha", "mask"]] = None
     ) -> np.ndarray:
         """
         Get NumPy array of the layer.
@@ -212,11 +212,11 @@ class PSDImage(GroupMixin):
 
     def composite(
         self,
-        viewport: tuple[int, int, int, int] | None = None,
+        viewport: Optional[tuple[int, int, int, int]] = None,
         force: bool = False,
-        color: float | tuple[float, ...] = 1.0,
+        color: Optional[Union[float, tuple[float, ...]]] = 1.0,
         alpha: float = 0.0,
-        layer_filter: Callable | None = None,
+        layer_filter: Optional[Callable] = None,
         ignore_preview: bool = False,
         apply_icc: bool = True,
     ):
@@ -471,7 +471,7 @@ class PSDImage(GroupMixin):
         return self._record.image_resources
 
     @property
-    def tagged_blocks(self) -> TaggedBlocks | None:
+    def tagged_blocks(self) -> Optional[TaggedBlocks]:
         """
         Document tagged blocks that is a dict-like container of settings.
 
@@ -513,7 +513,7 @@ class PSDImage(GroupMixin):
             or Resource.THUMBNAIL_RESOURCE_PS4 in self.image_resources
         )
 
-    def thumbnail(self) -> PILImage | None:
+    def thumbnail(self) -> Optional[PILImage]:
         """
         Returns a thumbnail image in PIL.Image. When the file does not
         contain an embedded thumbnail image, returns None.
@@ -596,14 +596,14 @@ class PSDImage(GroupMixin):
         """Initialize layer structure."""
         from psd_tools.api.layers import Layer
 
-        group_stack: list[Group | Artboard | PSDImage] = [self]
+        group_stack: list[Union[Group, Artboard, PSDImage]] = [self]
 
         for record, channels in self._record._iter_layers():
             current_group = group_stack[-1]
 
             blocks = record.tagged_blocks
             end_of_group = False
-            layer: Layer | Group | Artboard | PSDImage | None = None
+            layer: Union[Layer, Group, Artboard, PSDImage, None] = None
             divider = blocks.get_data(Tag.SECTION_DIVIDER_SETTING, None)
             divider = blocks.get_data(Tag.NESTED_SECTION_DIVIDER_SETTING, divider)
             if (

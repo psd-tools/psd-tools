@@ -2,11 +2,9 @@
 PIL IO module.
 """
 
-from __future__ import annotations
-
 import io
 import logging
-from typing import Any
+from typing import Any, Optional, Union
 
 from PIL import Image
 from PIL.Image import Image as PILImage
@@ -75,8 +73,8 @@ def get_pil_depth(pil_mode: str) -> int:
 
 
 def convert_image_data_to_pil(
-    psd: Any, channel: int | None, apply_icc: bool
-) -> PILImage | None:
+    psd: Any, channel: Optional[int], apply_icc: bool
+) -> Optional[PILImage]:
     """Convert ImageData to PIL Image."""
 
     assert channel is None or channel < psd.channels, (
@@ -122,8 +120,8 @@ def convert_image_data_to_pil(
 
 # TODO: Type hint for layer.
 def convert_layer_to_pil(
-    layer: Any, channel: int | None, apply_icc: bool
-) -> PILImage | None:
+    layer: Any, channel: Optional[int], apply_icc: bool
+) -> Optional[PILImage]:
     """Convert Layer to PIL Image."""
     alpha = None
     icc = None
@@ -143,7 +141,7 @@ def convert_layer_to_pil(
 
 
 def post_process(
-    image: PILImage, alpha: PILImage | None, icc_profile: bytes | None = None
+    image: PILImage, alpha: Optional[PILImage], icc_profile: Optional[bytes] = None
 ) -> PILImage:
     # Fix inverted CMYK.
     if image.mode == "CMYK":
@@ -184,7 +182,7 @@ def convert_pattern_to_pil(pattern: Pattern) -> PILImage:
 
 
 def convert_thumbnail_to_pil(
-    thumbnail: ThumbnailResource | ThumbnailResourceV4,
+    thumbnail: Union[ThumbnailResource, ThumbnailResourceV4],
 ) -> PILImage:
     """Convert thumbnail resource."""
     if thumbnail.fmt == 0:
@@ -205,7 +203,7 @@ def convert_thumbnail_to_pil(
     return image
 
 
-def _merge_channels(layer: Any) -> PILImage | None:
+def _merge_channels(layer: Any) -> Optional[PILImage]:
     mode = get_pil_mode(layer._psd.color_mode)
     channels = [
         _get_channel(layer, info.id)
@@ -218,7 +216,7 @@ def _merge_channels(layer: Any) -> PILImage | None:
     return Image.merge(mode, channels)  # type: ignore
 
 
-def _get_channel(layer: Any, channel: int) -> PILImage | None:
+def _get_channel(layer: Any, channel: int) -> Optional[PILImage]:
     if channel == ChannelID.USER_LAYER_MASK:
         width = layer.mask._data.right - layer.mask._data.left
         height = layer.mask._data.bottom - layer.mask._data.top
@@ -313,7 +311,8 @@ def _remove_white_background(image: PILImage) -> PILImage:
                     * 255.0
                     / args["float"](args["max"](args["a"], 1))
                     * args["float"](args["min"](args["a"], 1))
-                    + args["float"](args["x"]) * args["float"](1 - args["min"](args["a"], 1)),
+                    + args["float"](args["x"])
+                    * args["float"](1 - args["min"](args["a"], 1)),
                     "L",
                 ),
                 x=x,

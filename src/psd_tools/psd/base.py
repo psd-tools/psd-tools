@@ -12,8 +12,6 @@ gets attrs_ decoration to have data fields.
 .. _attrs: https://www.attrs.org/en/stable/index.html
 """
 
-from __future__ import absolute_import, division, unicode_literals
-
 import io
 import logging
 from collections import OrderedDict
