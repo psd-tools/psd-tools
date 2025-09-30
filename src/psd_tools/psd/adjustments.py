@@ -566,7 +566,7 @@ class Levels(ListElement):
                 logger.warning(
                     "Invalid signature %r, assuming b'Lvls'." % (signature)
                 )
-                count = extra_version
+                count = 0
             elif signature != b"Lvls":
                 raise ValueError("Invalid signature %r" % (signature))
             elif extra_version != 3:
