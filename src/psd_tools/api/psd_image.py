@@ -162,8 +162,9 @@ class PSDImage(GroupMixin):
 
         self._update_record()
 
-        if self._updated_layers:
-            composited_psd = self.composite(force=True)
+        if self.is_updated():
+            # Update the preview image if the layer structure has been changed.
+            composited_psd = self.composite()
             self._record.image_data.set_data(
                 [channel.tobytes() for channel in composited_psd.split()],
                 self._record.header,
@@ -244,12 +245,24 @@ class PSDImage(GroupMixin):
         if (
             not (ignore_preview or force or layer_filter)
             and self.has_preview()
-            and not self._updated_layers
+            and not self.is_updated()
         ):
             return self.topil(apply_icc=apply_icc)
         return composite_pil(
             self, color, alpha, viewport, layer_filter, force, apply_icc=apply_icc
         )
+
+    def _mark_updated(self) -> None:
+        """Mark the layer tree as updated."""
+        self._updated_layers = True
+
+    def is_updated(self) -> bool:
+        """
+        Returns whether the layer tree has been updated.
+
+        :return: `bool`
+        """
+        return self._updated_layers
 
     def is_visible(self) -> bool:
         """
@@ -499,6 +512,8 @@ class PSDImage(GroupMixin):
 
     @compatibility_mode.setter
     def compatibility_mode(self, value: CompatibilityMode) -> None:
+        if self._compatibility_mode != value:
+            self._mark_updated()
         self._compatibility_mode = value
 
     @property
@@ -684,7 +699,7 @@ class PSDImage(GroupMixin):
         Compiles the tree layer structure back into records and channels list recursively
         """
 
-        if not self._updated_layers:
+        if not self.is_updated():
             # Skip if nothing is changed.
             return
 

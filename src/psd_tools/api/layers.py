@@ -138,6 +138,8 @@ class Layer(object):
 
     @visible.setter
     def visible(self, value: bool) -> None:
+        if self.visible != value and self._psd is not None:
+            self._psd._mark_updated()
         self._invalidate_bbox()
         self._record.flags.visible = bool(value)
 
@@ -161,6 +163,8 @@ class Layer(object):
     @opacity.setter
     def opacity(self, value: int) -> None:
         assert 0 <= value and value <= 255
+        if self.opacity != value and self._psd is not None:
+            self._psd._mark_updated()
         self._record.opacity = int(value)
 
     @property
@@ -215,7 +219,10 @@ class Layer(object):
     def blend_mode(self, value: Union[bytes, str, BlendMode]) -> None:
         if isinstance(value, str):
             value = value.encode("ascii")
-        self._record.blend_mode = BlendMode(value)
+        blend_mode = BlendMode(value)
+        if self.blend_mode != blend_mode and self._psd is not None:
+            self._psd._mark_updated()
+        self._record.blend_mode = blend_mode
 
     @property
     def left(self) -> int:
@@ -228,6 +235,8 @@ class Layer(object):
 
     @left.setter
     def left(self, value: int) -> None:
+        if self.left != value and self._psd is not None:
+            self._psd._mark_updated()
         self._invalidate_bbox()
         w = self.width
         self._record.left = int(value)
@@ -244,6 +253,8 @@ class Layer(object):
 
     @top.setter
     def top(self, value: int) -> None:
+        if self.top != value and self._psd is not None:
+            self._psd._mark_updated()
         self._invalidate_bbox()
         h = self.height
         self._record.top = int(value)
@@ -296,6 +307,7 @@ class Layer(object):
 
     @offset.setter
     def offset(self, value: tuple[int, int]) -> None:
+        assert len(value) == 2
         self.left, self.top = tuple(int(x) for x in value)
 
     @property
@@ -520,6 +532,9 @@ class Layer(object):
         """
         from psd_tools.composite import composite_pil
 
+        if self._psd is not None and self._psd.is_updated():
+            force = True
+
         return composite_pil(
             self, color, alpha, viewport, layer_filter, force, apply_icc=apply_icc
         )
@@ -576,7 +591,10 @@ class Layer(object):
 
     @clipping.setter
     def clipping(self, value: bool) -> None:
-        self._record.clipping = Clipping.NON_BASE if value else Clipping.BASE
+        clipping = Clipping.NON_BASE if value else Clipping.BASE
+        if self._record.clipping != clipping and self._psd is not None:
+            self._psd._mark_updated()
+        self._record.clipping = clipping
 
     @property
     def clipping_layer(self) -> bool:
@@ -947,9 +965,9 @@ class GroupMixin(Protocol):
         from psd_tools.api.psd_image import PSDImage  # Circular import
 
         if isinstance(self, PSDImage):
-            self._updated_layers = True  # type: ignore
+            self._mark_updated()
         elif self._psd is not None:
-            self._psd._updated_layers = True
+            self._psd._mark_updated()
 
     def descendants(self) -> Iterator[Layer]:
         """
@@ -1064,6 +1082,8 @@ class Group(GroupMixin, Layer):
     @blend_mode.setter
     def blend_mode(self, value: Union[str, bytes, BlendMode]) -> None:
         _value = BlendMode(value.encode("ascii") if isinstance(value, str) else value)
+        if self.blend_mode != _value and self._psd is not None:
+            self._psd._mark_updated()            
         if _value == BlendMode.PASS_THROUGH:
             self._record.blend_mode = BlendMode.NORMAL
         else:
@@ -1091,7 +1111,10 @@ class Group(GroupMixin, Layer):
                 "Cannot set clipping flag on groups in Photoshop compatibility mode."
             )
             return
-        self._record.clipping = Clipping.NON_BASE if value else Clipping.BASE
+        clipping = Clipping.NON_BASE if value else Clipping.BASE
+        if self._record.clipping != clipping and self._psd is not None:
+            self._psd._mark_updated()
+        self._record.clipping = clipping
 
     def composite(
         self,

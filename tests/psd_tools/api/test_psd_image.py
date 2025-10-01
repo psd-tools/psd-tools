@@ -163,3 +163,15 @@ def test_update_record(fixture):
     assert layer_info.channel_image_data[6] is smart_layer._channels
     assert layer_info.channel_image_data[7] is type_layer._channels
     assert layer_info.channel_image_data[8] is group_layer._channels
+
+
+def test_is_updated():
+    psd = PSDImage.open(full_name("hidden-groups.psd"))
+    assert not psd.is_updated()
+    psd[0].visible = False
+    assert psd.is_updated()
+
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    assert not psd.is_updated()
+    psd[1][2].clipping = False
+    assert psd.is_updated()
