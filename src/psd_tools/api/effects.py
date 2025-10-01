@@ -19,6 +19,8 @@ _TYPES, register = new_registry()
 class Effects(object):
     """
     List-like effects.
+
+    Only present effects are kept.
     """
 
     def __init__(self, layer: Any):  # TODO: Circular import
@@ -38,7 +40,8 @@ class Effects(object):
             if not isinstance(value, List):
                 value = [value]
             for item in value:
-                if not (isinstance(item, Descriptor) and item.get(Key.Enabled)):
+                # Keep only present effects.
+                if not (isinstance(item, Descriptor) and item.get(b"present")):
                     continue
                 kls = _TYPES.get(item.classID)
                 assert kls is not None, "kls not found for %r" % item.classID

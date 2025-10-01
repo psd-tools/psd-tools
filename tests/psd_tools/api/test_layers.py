@@ -264,8 +264,15 @@ def test_has_effects():
     psd = PSDImage.open(full_name("effects/effects-enabled.psd"))
     assert not psd[0].has_effects()
     assert psd[1].has_effects()
+    assert psd[1].has_effects(name="ColorOverlay")
+    assert not psd[1].has_effects(name="DropShadow")
     assert not psd[2].has_effects()
+    assert psd[2].has_effects(enabled=False)
     assert not psd[3].has_effects()
+    assert psd[3].has_effects(enabled=False)
+    logger.error("Checking disabled effects")
+    assert psd[3].has_effects(enabled=False, name="ColorOverlay")
+    assert not psd[3].has_effects(enabled=False, name="DropShadow")
 
 
 def test_bbox_updates():

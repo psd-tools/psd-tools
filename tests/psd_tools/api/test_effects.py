@@ -4,20 +4,20 @@ import pytest
 
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.terminology import Enum
+from psd_tools.api import effects
 
 from ..utils import full_name
 
 logger = logging.getLogger(__name__)
 
-LAYER_EFFECTS = PSDImage.open(full_name("layer_effects.psd"))
-
 
 @pytest.fixture
 def fixture():
-    yield LAYER_EFFECTS
+    yield PSDImage.open(full_name("layer_effects.psd"))
 
 
 def test_effects(fixture):
+    assert isinstance(fixture[0].effects, effects.Effects)
     assert isinstance(fixture[0].effects.scale, float)
     assert fixture[0].effects.enabled is True
     for layer in fixture:
@@ -28,6 +28,7 @@ def test_effects(fixture):
 
 def test_bevel(fixture):
     effect = fixture[1].effects[0]
+    assert isinstance(effect, effects.BevelEmboss)
     assert not hasattr(effect, "blend_mode")
     assert effect.altitude == 30.0
     assert effect.angle == 90.0
@@ -53,6 +54,7 @@ def test_bevel(fixture):
 
 def test_emboss(fixture):
     effect = fixture[2].effects[0]
+    assert isinstance(effect, effects.BevelEmboss)
     assert not hasattr(effect, "blend_mode")
     assert effect.altitude == 30.0
     assert effect.angle == 90.0
@@ -78,6 +80,7 @@ def test_emboss(fixture):
 
 def test_outer_glow(fixture):
     effect = fixture[3].effects[0]
+    assert isinstance(effect, effects.OuterGlow)
     assert effect.anti_aliased is False
     assert effect.blend_mode == Enum.Screen
     assert effect.choke == 0.0
@@ -95,6 +98,7 @@ def test_outer_glow(fixture):
 
 def test_inner_glow(fixture):
     effect = fixture[4].effects[0]
+    assert isinstance(effect, effects.InnerGlow)
     assert effect.anti_aliased is False
     assert effect.blend_mode == Enum.Screen
     assert effect.choke == 0.0
@@ -112,6 +116,7 @@ def test_inner_glow(fixture):
 
 def test_inner_shadow(fixture):
     effect = fixture[5].effects[0]
+    assert isinstance(effect, effects.InnerShadow)
     assert effect.angle == 90.0
     assert effect.anti_aliased is False
     assert effect.blend_mode == Enum.Multiply
@@ -127,6 +132,7 @@ def test_inner_shadow(fixture):
 
 def test_color_overlay(fixture):
     effect = fixture[6].effects[0]
+    assert isinstance(effect, effects.ColorOverlay)
     assert effect.blend_mode == Enum.Normal
     assert effect.color
     assert effect.opacity == 100.0
@@ -134,6 +140,7 @@ def test_color_overlay(fixture):
 
 def test_drop_shadow(fixture):
     effect = fixture[7].effects[0]
+    assert isinstance(effect, effects.DropShadow)
     assert effect.angle == 90.0
     assert effect.anti_aliased is False
     assert effect.blend_mode == Enum.Multiply
@@ -150,6 +157,7 @@ def test_drop_shadow(fixture):
 
 def test_gradient_overlay(fixture):
     effect = fixture[8].effects[0]
+    assert isinstance(effect, effects.GradientOverlay)
     assert effect.aligned is True
     assert effect.angle == 87.0
     assert effect.blend_mode == Enum.Normal
@@ -164,6 +172,7 @@ def test_gradient_overlay(fixture):
 
 def test_pattern_overlay(fixture):
     effect = fixture[9].effects[0]
+    assert isinstance(effect, effects.PatternOverlay)
     assert effect.aligned is True
     assert effect.blend_mode == Enum.Normal
     assert effect.opacity == 100.0
@@ -174,6 +183,7 @@ def test_pattern_overlay(fixture):
 
 def test_stroke(fixture):
     effect = fixture[10].effects[0]
+    assert isinstance(effect, effects.Stroke)
     assert effect.blend_mode == Enum.Normal
     assert effect.fill_type == Enum.SolidColor
     assert effect.opacity == 100.0
@@ -186,7 +196,8 @@ def test_stroke(fixture):
 
 
 def test_satin(fixture):
-    effect = fixture[11].effects[0]
+    effect = fixture[11].effects[1]
+    assert isinstance(effect, effects.Satin)
     assert effect.angle == -60.0
     assert effect.anti_aliased is True
     assert effect.blend_mode == Enum.Multiply
