@@ -168,6 +168,26 @@ class Layer(object):
         """Parent of this layer."""
         return self._parent  # type: ignore
 
+    def next_sibling(self, visible: bool = False) -> Optional[Self]:
+        """Next sibling of this layer."""
+        if self.parent is None:
+            return None
+        index = self.parent.index(self)
+        for i in range(index + 1, len(self.parent)):
+            if not visible or self.parent[i].visible:
+                return self.parent[i]
+        return None
+
+    def previous_sibling(self, visible: bool = False) -> Optional[Self]:
+        """Previous sibling of this layer."""
+        if self.parent is None:
+            return None
+        index = self.parent.index(self)
+        for i in range(index - 1, -1, -1):
+            if not visible or self.parent[i].visible:
+                return self.parent[i]
+        return None
+
     def is_group(self) -> bool:
         """
         Return True if the layer is a group.

@@ -252,6 +252,16 @@ def test_group_extract_bbox():
     assert Group.extract_bbox(psd[1:], True) == (25, 34, 83, 134)
 
 
+def test_sibling_layers():
+    psd = PSDImage.open(full_name("hidden-groups.psd"))
+    assert psd[0].next_sibling() is psd[1]
+    assert psd[1].previous_sibling() is psd[0]
+    assert psd[0].next_sibling(visible=True) is psd[2]
+    assert psd[2].previous_sibling(visible=True) is psd[0]
+    assert psd[1][0].next_sibling() is None
+    assert psd[1][0].previous_sibling() is None
+
+
 def test_shape_and_fill_layer():
     psd = PSDImage.open(full_name("vector-mask2.psd"))
     for i in range(8):
