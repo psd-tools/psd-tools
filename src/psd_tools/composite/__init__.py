@@ -226,7 +226,7 @@ class Compositor(object):
         if _intersect(self._viewport, layer.bbox) == (0, 0, 0, 0):
             logger.debug("Out of viewport %s" % (layer))
             return
-        if not clip_compositing and layer.clipping_layer:
+        if not clip_compositing and layer.clipping:
             return
 
         knockout = bool(layer.tagged_blocks.get_data(Tag.KNOCKOUT_SETTING, 0))

@@ -81,7 +81,7 @@ def test_pixel_layer_properties(pixel_layer):
     assert layer.height == 29
     assert layer.size == (29, 29)
     assert layer.bbox == (1, 1, 30, 30)
-    assert layer.clipping_layer is False
+    assert layer.clipping is False
     assert layer.tagged_blocks is not None
     assert layer.layer_id == 3
 
@@ -114,8 +114,8 @@ def test_pixel_layer_writable_properties(pixel_layer):
     assert layer.offset == (1, 1)
     assert layer.size == (29, 29)
 
-    layer.clipping_layer = True
-    assert layer.clipping_layer is True
+    layer.clipping = True
+    assert layer.clipping is True
 
 
 def test_layer_is_visible(pixel_layer):
@@ -188,7 +188,7 @@ def test_clip_adjustment():
     assert len(layer.clip_layers) == 1
 
 
-def test_nested_clipping_layers():
+def test_nested_clipping():
     """Check if the nested clipping layers are correctly identified.
 
     Structure of the PSD file `clipping-mask.psd` is as follows:
@@ -206,20 +206,20 @@ def test_nested_clipping_layers():
     psd = PSDImage.open(full_name("clipping-mask.psd"))
     psd.compatibility_mode = CompatibilityMode.CLIP_STUDIO_PAINT
     psd[1].blend_mode = BlendMode.NORMAL
-    psd[1].clipping_layer = True
-    assert psd[1].clipping_layer is True
+    psd[1].clipping = True
+    assert psd[1].clipping is True
     assert psd[1][1].has_clip_layers()
-    assert psd[1][2].clipping_layer
+    assert psd[1][2].clipping
     assert psd[0].has_clip_layers()
 
 
 def test_clip_stack():
     """Check if consecutive clipping layers are correctly identified."""
     psd = PSDImage.open(full_name("clipping-mask.psd"))
-    psd[1][1].clipping_layer = True
+    psd[1][1].clipping = True
     assert psd[1][0].has_clip_layers()
-    assert psd[1][1].clipping_layer
-    assert psd[1][2].clipping_layer
+    assert psd[1][1].clipping
+    assert psd[1][2].clipping
     assert not psd[1][1].has_clip_layers()
     assert not psd[1][2].has_clip_layers()
 

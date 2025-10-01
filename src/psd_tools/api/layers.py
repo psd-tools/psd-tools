@@ -504,12 +504,15 @@ class Layer(object):
             self, color, alpha, viewport, layer_filter, force, apply_icc=apply_icc
         )
 
-    def has_clip_layers(self) -> bool:
+    def has_clip_layers(self, visible: bool = False) -> bool:
         """
         Returns True if the layer has associated clipping.
 
+        :param visible: If True, check for visible clipping layers.
         :return: `bool`
         """
+        if visible:
+            return any(layer.is_visible() for layer in self.clip_layers)
         return len(self.clip_layers) > 0
 
     @property
@@ -519,7 +522,7 @@ class Layer(object):
 
         :return: list of layers
         """
-        if self.clipping_layer:
+        if self.clipping:
             return []
 
         # Look for clipping layers in the parent scope.
@@ -529,7 +532,7 @@ class Layer(object):
         # TODO: Cache the result and invalidate when needed.
         _clip_layers = []
         for layer in parent[index + 1 :]:  # type: ignore
-            if layer.clipping_layer:
+            if layer.clipping:
                 if (
                     isinstance(layer, GroupMixin)
                     and layer._psd.compatibility_mode == CompatibilityMode.PHOTOSHOP
@@ -543,7 +546,7 @@ class Layer(object):
         return _clip_layers
 
     @property
-    def clipping_layer(self) -> bool:
+    def clipping(self) -> bool:
         """
         Clipping flag for this layer. Writable.
 
@@ -551,9 +554,21 @@ class Layer(object):
         """
         return self._record.clipping == Clipping.NON_BASE
 
+    @clipping.setter
+    def clipping(self, value: bool) -> None:
+        self._record.clipping = Clipping.NON_BASE if value else Clipping.BASE
+
+    @property
+    def clipping_layer(self) -> bool:
+        """Deprecated. Use clipping property instead."""
+        logger.warning("clipping_layer property is deprecated. Use clipping property instead.")
+        return self.clipping
+    
     @clipping_layer.setter
     def clipping_layer(self, value: bool) -> None:
-        self._record.clipping = Clipping.NON_BASE if value else Clipping.BASE
+        """Deprecated. Use clipping property instead."""
+        logger.warning("clipping_layer property is deprecated. Use clipping property instead.")
+        self.clipping = value
 
     def has_effects(self) -> bool:
         """
@@ -613,7 +628,7 @@ class Layer(object):
             self.name,
             " size=%dx%d" % (self.width, self.height) if has_size else "",
             " invisible" if not self.visible else "",
-            " clip" if self.clipping_layer else "",
+            " clip" if self.clipping else "",
             " mask" if self.has_mask() else "",
             " effects" if self.has_effects() else "",
         )
@@ -646,7 +661,7 @@ class Layer(object):
         assert group is not self
 
         if isinstance(self, GroupMixin):
-            assert group not in self.descendants(), (
+            assert group not in list(self.descendants()), (
                 "Cannot move group {} into its descendant {}".format(self, group)
             )
 
@@ -1028,7 +1043,7 @@ class Group(GroupMixin, Layer):
             setting.blend_mode = _value
 
     @property
-    def clipping_layer(self) -> bool:
+    def clipping(self) -> bool:
         """
         Clipping flag for this layer. Writable.
 
@@ -1039,8 +1054,8 @@ class Group(GroupMixin, Layer):
             return False
         return self._record.clipping == Clipping.NON_BASE
 
-    @clipping_layer.setter
-    def clipping_layer(self, value: bool) -> None:
+    @clipping.setter
+    def clipping(self, value: bool) -> None:
         if self._psd.compatibility_mode == CompatibilityMode.PHOTOSHOP:
             logger.warning(
                 "Cannot set clipping flag on groups in Photoshop compatibility mode."
