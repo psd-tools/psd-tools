@@ -3,7 +3,7 @@ import os
 
 import pytest
 
-from psd_tools.psd.adjustments import Curves, CurvesExtraItem, CurvesExtraMarker
+from psd_tools.psd.adjustments import Curves, CurvesExtraItem, CurvesExtraMarker, Levels
 
 from ..utils import TEST_ROOT, check_read_write, check_write_read
 
@@ -70,3 +70,10 @@ def test_curves_r(filename):
     filepath = os.path.join(TEST_ROOT, "tagged_blocks", filename)
     with open(filepath, "rb") as f:
         Curves.read(f)
+
+
+@pytest.mark.parametrize("filename", ["levels_clipstudio_1.dat", "levels_photoshop_1.dat"])
+def test_levels_r(filename):
+    filepath = os.path.join(TEST_ROOT, "tagged_blocks", filename)
+    with open(filepath, "rb") as f:
+        assert isinstance(Levels.read(f), Levels)

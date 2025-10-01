@@ -555,24 +555,29 @@ class Levels(ListElement):
     @classmethod
     def read(cls, fp, **kwargs):
         version = read_fmt("H", fp)[0]
-        assert version == 2, "Invalid version %d" % (version)
+        if version != 2:
+            raise ValueError("Invalid version %d" % (version))
         items = [LevelRecord.read(fp) for _ in range(29)]
 
         extra_version = None
         if is_readable(fp, 6):
             signature, extra_version = read_fmt("4sH", fp)
             if signature == b"ls\x00\x03":
-                # Clip Studio Paint has a buggy signature.
+                # Clip Studio Paint has an incorrect signature.
                 logger.warning(
                     "Invalid signature %r, assuming b'Lvls'." % (signature)
                 )
-                count = extra_version
+                # Clip Studio Paint seems to incorrectly trim the last record.
+                count = extra_version - 1
+                extra_version = 3
+                logger.debug("Levels extra version %d, count %d" % (extra_version, count))
             elif signature != b"Lvls":
                 raise ValueError("Invalid signature %r" % (signature))
             elif extra_version != 3:
                 raise ValueError("Invalid extra version %d" % (extra_version))
             else:
                 count = read_fmt("H", fp)[0]
+
             items += [LevelRecord.read(fp) for _ in range(count - 29)]
 
         return cls(version=version, extra_version=extra_version, items=items)
