@@ -551,7 +551,7 @@ class PSDImage(GroupMixin):
                     for idx, child in enumerate(layer):
                         p.break_()
                         p.text("[%d] " % idx)
-                        if child.clipping_layer:
+                        if child.clipping:
                             p.text("+")
                         _pretty(child, p)
 
