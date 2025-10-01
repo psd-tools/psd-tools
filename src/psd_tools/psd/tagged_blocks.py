@@ -268,12 +268,13 @@ class TaggedBlock(BaseElement):
         raw_data = read_length_block(fp, fmt=fmt, padding=padding)
         kls = TYPES.get(key)
         if kls:
-            data = kls.frombytes(raw_data, version=version)
-            # _raw_data = data.tobytes(version=version,
-            #                          padding=1 if padding == 4 else 4)
-            # assert raw_data == _raw_data, '%r: %s vs %s' % (
-            #     kls, trimmed_repr(raw_data), trimmed_repr(_raw_data)
-            # )
+            try:
+                data = kls.frombytes(raw_data, version=version)
+            except (OSError, ValueError) as e:
+                # Fallback to raw data.
+                message = "Failed to read tagged block %r: %s" % (key, e)
+                logger.error(message)
+                data = raw_data
         else:
             message = "Unknown tagged block: %r, %s" % (key, trimmed_repr(raw_data))
             logger.info(message)
