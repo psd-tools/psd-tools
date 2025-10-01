@@ -61,14 +61,24 @@ class Effects(object):
     def items(self):
         return self._items
 
-    def find(self, name: str) -> Iterator["_Effect"]:
-        """Iterate effect items by name."""
-        if not self.enabled:
+    def find(self, name: str, enabled: bool = True) -> Iterator["_Effect"]:
+        """Iterate effect items by name.
+        
+        :param name: Effect name, e.g. `DropShadow`, `InnerShadow`, `OuterGlow`,
+            `InnerGlow`, `ColorOverlay`, `GradientOverlay`, `PatternOverlay`,
+            `Stroke`, `BevelEmboss`, or `Satin`.
+        :param enabled: If true, only return enabled effects.
+        :rtype: Iterator[Effect]
+        """
+        if enabled and not self.enabled:
             return
         KLASS = {kls.__name__.lower(): kls for kls in _TYPES.values()}
         for item in self:
             if isinstance(item, KLASS.get(name.lower(), None)):
-                yield item
+                if enabled and item.enabled:
+                    yield item
+                elif not enabled:
+                    yield item
 
     def __len__(self) -> int:
         return self._items.__len__()
@@ -121,9 +131,14 @@ class _Effect(object):
 
     def has_patterns(self) -> bool:
         return isinstance(self, _PatternMixin) and self.pattern is not None
+    
+    @property
+    def name(self) -> str:
+        """Effect name."""
+        return self.__class__.__name__
 
     def __repr__(self) -> str:
-        return self.__class__.__name__
+        return self.name
 
     def _repr_pretty_(self, p, cycle):
         if cycle:

@@ -570,10 +570,12 @@ class Layer(object):
         logger.warning("clipping_layer property is deprecated. Use clipping property instead.")
         self.clipping = value
 
-    def has_effects(self) -> bool:
+    def has_effects(self, enabled: bool = True, name: Optional[str] = None) -> bool:
         """
         Returns True if the layer has effects.
 
+        :param enabled: If True, check for enabled effects.
+        :param name: If given, check for specific effect type.
         :return: `bool`
         """
         has_effect_tag = any(
@@ -584,14 +586,22 @@ class Layer(object):
                 Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V1,
             )
         )
+        # No effects tag.
         if not has_effect_tag:
             return False
-        if not self.effects.enabled:
+        
+        # Global enable flag check.
+        if enabled and not self.effects.enabled:
             return False
-        for effect in self.effects:
-            if effect.enabled:
-                return True
-        return False
+        
+        # No specific effect type, check for any effect.
+        if name is None:
+            if enabled:
+                return any(effect.enabled for effect in self.effects)
+            return True
+        
+        # Check for specific effect type and enabled state.
+        return any(self.effects.find(name, enabled))
 
     @property
     def effects(self) -> Effects:
