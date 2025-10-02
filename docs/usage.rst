@@ -200,7 +200,7 @@ Some operations are available for all Layer objects.
 
 Delete a layer from its layer structure::
     
-    layer.delete()
+    layer.delete_layer()
 
 Layers can be moved from a group to another::
     
