@@ -1,3 +1,11 @@
+1.10.13 (2025-10-02)
+--------------------
+
+- [docs] Fix incorrect method name in the usage (#504)
+- [api] Fix updated status flag (#503)
+- [api] Add tree traversal API (#502)
+- [psd] Fix crash when reading malformed Levels record (#501)
+
 1.10.12 (2025-09-25)
 --------------------
 
