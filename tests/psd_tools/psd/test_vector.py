@@ -1,6 +1,6 @@
 import pytest
 
-from psd_tools.psd.vector import Path
+from psd_tools.psd.vector import Path, ClosedPath, OpenPath
 
 from ..utils import check_read_write
 
@@ -22,3 +22,10 @@ from ..utils import check_read_write
 )
 def test_path_rw(fixture):
     check_read_write(Path, fixture)
+
+
+def test_subpath_repr():
+    closedpath = ClosedPath()
+    assert repr(closedpath) == "ClosedPath(index=0, operation=1)"
+    openpath = OpenPath()
+    assert repr(openpath) == "OpenPath(index=0, operation=1)"
