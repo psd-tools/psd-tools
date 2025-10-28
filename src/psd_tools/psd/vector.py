@@ -126,8 +126,20 @@ class Subpath(ListElement):
         """
         raise NotImplementedError
 
-    # TODO: Make subpath repr better.
-    # def __repr__(self):
+    def __repr__(self) -> str:
+        """Return a string representation of the subpath."""
+        return "%s(index=%d, operation=%d)" % (
+            self.__class__.__name__,
+            self.index,
+            self.operation,
+        )
+
+    def _repr_pretty_(self, p, cycle):
+        if cycle:
+            p.text(f"({self.__class__.__name__} ...)")
+            return
+        p.text(self.__repr__())
+        super()._repr_pretty_(p, cycle)
 
 
 @attr.s(repr=False, slots=True)
