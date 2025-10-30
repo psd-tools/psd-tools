@@ -443,6 +443,19 @@ def test_layer_fill_opacity(pixel_layer):
     assert pixel_layer.fill_opacity == 0
 
 
+def test_layer_reference_point(pixel_layer):
+    assert pixel_layer.reference_point == (15.0, 15.0)
+
+    pixel_layer.reference_point = (10.5, 20.5)
+    assert pixel_layer.reference_point == (10.5, 20.5)
+
+    with pytest.raises(ValueError, match=r".* sequence of two floats.*"):
+        pixel_layer.reference_point = (10.5,)
+
+    with pytest.raises(ValueError, match=r".* sequence of two floats.*"):
+        pixel_layer.reference_point = (10.5, 20.5, 30.5)
+
+
 def test_delete_layer(pixel_layer):
     pixel_layer.delete_layer()
 

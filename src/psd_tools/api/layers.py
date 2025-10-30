@@ -10,6 +10,7 @@ from typing import (
     Iterator,
     Optional,
     Protocol,
+    Sequence,
     TypeVar,
     Union,
     runtime_checkable,
@@ -599,13 +600,17 @@ class Layer(object):
     @property
     def clipping_layer(self) -> bool:
         """Deprecated. Use clipping property instead."""
-        logger.warning("clipping_layer property is deprecated. Use clipping property instead.")
+        logger.warning(
+            "clipping_layer property is deprecated. Use clipping property instead."
+        )
         return self.clipping
-    
+
     @clipping_layer.setter
     def clipping_layer(self, value: bool) -> None:
         """Deprecated. Use clipping property instead."""
-        logger.warning("clipping_layer property is deprecated. Use clipping property instead.")
+        logger.warning(
+            "clipping_layer property is deprecated. Use clipping property instead."
+        )
         self.clipping = value
 
     def has_effects(self, enabled: bool = True, name: Optional[str] = None) -> bool:
@@ -627,17 +632,17 @@ class Layer(object):
         # No effects tag.
         if not has_effect_tag:
             return False
-        
+
         # Global enable flag check.
         if enabled and not self.effects.enabled:
             return False
-        
+
         # No specific effect type, check for any effect.
         if name is None:
             if enabled:
                 return any(effect.enabled for effect in self.effects)
             return True
-        
+
         # Check for specific effect type and enabled state.
         return any(self.effects.find(name, enabled))
 
@@ -668,7 +673,7 @@ class Layer(object):
             metadata = layer.tagged_blocks.get_data(Tag.METADATA_SETTING)
         """
         return self._record.tagged_blocks
-    
+
     @property
     def fill_opacity(self) -> int:
         """
@@ -677,7 +682,7 @@ class Layer(object):
         :return: int
         """
         return self.tagged_blocks.get_data(Tag.BLEND_FILL_OPACITY, 255)
-    
+
     @fill_opacity.setter
     def fill_opacity(self, value: int) -> None:
         if value < 0 or value > 255:
@@ -685,6 +690,27 @@ class Layer(object):
         if self.fill_opacity != value and self._psd is not None:
             self._psd._mark_updated()
         self.tagged_blocks.set_data(Tag.BLEND_FILL_OPACITY, int(value))
+
+    @property
+    def reference_point(self) -> tuple[float, float]:
+        """
+        Reference point of this layer as (x, y) tuple in the canvas coordinates. Writable.
+
+        Reference point is used for transformations such as rotation and scaling.
+
+        :return: (x, y) tuple
+        """
+        return tuple(self.tagged_blocks.get_data(Tag.REFERENCE_POINT, (0.0, 0.0)))
+
+    @reference_point.setter
+    def reference_point(self, value: Sequence[float]) -> None:
+        if len(value) != 2:
+            raise ValueError("Reference point must be a sequence of two floats.")
+        if self.reference_point != value and self._psd is not None:
+            self._psd._mark_updated()
+        self.tagged_blocks.set_data(
+            Tag.REFERENCE_POINT, [float(value[0]), float(value[1])]
+        )
 
     def __repr__(self) -> str:
         has_size = self.width > 0 and self.height > 0
@@ -1100,7 +1126,7 @@ class Group(GroupMixin, Layer):
     def blend_mode(self, value: Union[str, bytes, BlendMode]) -> None:
         _value = BlendMode(value.encode("ascii") if isinstance(value, str) else value)
         if self.blend_mode != _value and self._psd is not None:
-            self._psd._mark_updated()            
+            self._psd._mark_updated()
         if _value == BlendMode.PASS_THROUGH:
             self._record.blend_mode = BlendMode.NORMAL
         else:
