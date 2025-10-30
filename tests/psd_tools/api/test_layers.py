@@ -433,6 +433,16 @@ def test_pixel_layer_frompil():
             )
 
 
+def test_layer_fill_opacity(pixel_layer):
+    assert pixel_layer.fill_opacity == 255
+
+    pixel_layer.fill_opacity = 128
+    assert pixel_layer.fill_opacity == 128
+
+    pixel_layer.fill_opacity = 0
+    assert pixel_layer.fill_opacity == 0
+
+
 def test_delete_layer(pixel_layer):
     pixel_layer.delete_layer()
 
