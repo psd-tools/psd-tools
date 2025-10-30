@@ -668,6 +668,23 @@ class Layer(object):
             metadata = layer.tagged_blocks.get_data(Tag.METADATA_SETTING)
         """
         return self._record.tagged_blocks
+    
+    @property
+    def fill_opacity(self) -> int:
+        """
+        Fill opacity of this layer in [0, 255] range. Writable.
+
+        :return: int
+        """
+        return self.tagged_blocks.get_data(Tag.BLEND_FILL_OPACITY, 255)
+    
+    @fill_opacity.setter
+    def fill_opacity(self, value: int) -> None:
+        if value < 0 or value > 255:
+            raise ValueError("Fill opacity must be between 0 and 255.")
+        if self.fill_opacity != value and self._psd is not None:
+            self._psd._mark_updated()
+        self.tagged_blocks.set_data(Tag.BLEND_FILL_OPACITY, int(value))
 
     def __repr__(self) -> str:
         has_size = self.width > 0 and self.height > 0
