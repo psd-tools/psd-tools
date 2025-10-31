@@ -120,7 +120,6 @@ class _Effect(_EffectProtocol):
     @property
     def value(self) -> Descriptor:
         """Deprecated
-        
         Effect descriptor value. Use `descriptor` property instead.
         """
         logger.debug("Deprecated, use 'descriptor' property instead.")
