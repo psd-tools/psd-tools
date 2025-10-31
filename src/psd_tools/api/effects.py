@@ -8,12 +8,32 @@ from typing import Any, Iterator, Optional, Protocol
 from psd_tools.constants import Resource, Tag
 from psd_tools.psd.descriptor import Descriptor, List
 from psd_tools.psd.image_resources import ImageResources
-from psd_tools.terminology import Key, Klass
+from psd_tools.terminology import Enum, Key, Klass
 from psd_tools.utils import new_registry
 
 logger = logging.getLogger(__name__)
 
 _TYPES, register = new_registry()
+
+
+def _get_value(descriptor: Descriptor, key: bytes, default: Any = None) -> Any:
+    """
+    Get a value from a descriptor, extracting the .value attribute if present.
+
+    This helper ensures we correctly handle descriptor objects that have a .value
+    attribute (like NumericElement, BooleanElement, etc.) while also supporting
+    cases where a default value is returned when the key is missing.
+
+    Args:
+        descriptor: The descriptor to get the value from
+        key: The key to look up
+        default: The default value if the key is not found
+
+    Returns:
+        The extracted value, either from obj.value or the object itself
+    """
+    result = descriptor.get(key, default)
+    return getattr(result, "value", result)
 
 
 class Effects:
@@ -53,7 +73,7 @@ class Effects:
     def scale(self) -> float:
         """Scale value."""
         assert self._data is not None
-        return float(self._data.get(Key.Scale, 100.0))
+        return float(_get_value(self._data, Key.Scale, 100.0))
 
     @property
     def enabled(self) -> bool:
@@ -120,6 +140,7 @@ class _Effect(_EffectProtocol):
     @property
     def value(self) -> Descriptor:
         """Deprecated
+
         Effect descriptor value. Use `descriptor` property instead.
         """
         logger.debug("Deprecated, use 'descriptor' property instead.")
@@ -143,7 +164,7 @@ class _Effect(_EffectProtocol):
     @property
     def opacity(self) -> float:
         """Layer effect opacity in percentage."""
-        return float(self.descriptor.get(Key.Opacity, 100.0))
+        return float(_get_value(self.descriptor, Key.Opacity, 100.0))
 
     def has_patterns(self) -> bool:
         return isinstance(self, _PatternMixin) and self.pattern is not None
@@ -171,24 +192,25 @@ class _ColorMixin(_EffectProtocol):
     @property
     def blend_mode(self) -> bytes:
         """Effect blending mode."""
-        return self.descriptor.get(Key.Mode).enum
+        mode = self.descriptor.get(Key.Mode)
+        return getattr(mode, "enum", Enum.Normal) if mode is not None else Enum.Normal
 
 
 class _ChokeNoiseMixin(_ColorMixin):
     @property
     def choke(self) -> float:
         """Choke level in pixels."""
-        return float(self.descriptor.get(Key.ChokeMatte, 0.0))
+        return float(_get_value(self.descriptor, Key.ChokeMatte, 0.0))
 
     @property
     def size(self) -> float:
         """Size in pixels."""
-        return float(self.descriptor.get(Key.Blur, 0.0))
+        return float(_get_value(self.descriptor, Key.Blur, 0.0))
 
     @property
     def noise(self) -> float:
         """Noise level in percent."""
-        return float(self.descriptor.get(Key.Noise, 0.0))
+        return float(_get_value(self.descriptor, Key.Noise, 0.0))
 
     @property
     def anti_aliased(self) -> bool:
@@ -212,7 +234,7 @@ class _AngleMixin(_EffectProtocol):
         """Angle value."""
         if self.use_global_light:
             return self._image_resources.get_data(Resource.GLOBAL_ANGLE, 30.0)
-        return float(self.descriptor.get(Key.LocalLightingAngle, 0.0))
+        return float(_get_value(self.descriptor, Key.LocalLightingAngle, 0.0))
 
 
 class _GradientMixin(_EffectProtocol):
@@ -224,7 +246,7 @@ class _GradientMixin(_EffectProtocol):
     @property
     def angle(self) -> float:
         """Angle value."""
-        return float(self.descriptor.get(Key.Angle, 0.0))
+        return float(_get_value(self.descriptor, Key.Angle, 0.0))
 
     @property
     def type(self) -> bytes:
@@ -232,7 +254,8 @@ class _GradientMixin(_EffectProtocol):
         Gradient type, one of `linear`, `radial`, `angle`, `reflected`, or
         `diamond`.
         """
-        return self.descriptor.get(Key.Type).enum
+        type_value = self.descriptor.get(Key.Type)
+        return getattr(type_value, "enum", b"Lnr ") if type_value is not None else b"Lnr "
 
     @property
     def reversed(self) -> bool:
@@ -265,7 +288,7 @@ class _PatternMixin(_EffectProtocol):
     @property
     def angle(self) -> float:
         """Angle value."""
-        return float(self.descriptor.get(Key.Angle, 0.0))
+        return float(_get_value(self.descriptor, Key.Angle, 0.0))
 
     @property
     def phase(self) -> Descriptor:
@@ -279,7 +302,7 @@ class _ShadowEffect(_Effect, _ChokeNoiseMixin, _AngleMixin):
     @property
     def distance(self) -> float:
         """Distance in pixels."""
-        return float(self.descriptor.get(Key.Distance, 0.0))
+        return float(_get_value(self.descriptor, Key.Distance, 0.0))
 
 
 class _GlowEffect(_Effect, _ChokeNoiseMixin, _GradientMixin):
@@ -288,17 +311,18 @@ class _GlowEffect(_Effect, _ChokeNoiseMixin, _GradientMixin):
     @property
     def glow_type(self) -> bytes:
         """Glow type."""
-        return self.descriptor.get(Key.GlowTechnique).enum
+        glow_technique = self.descriptor.get(Key.GlowTechnique)
+        return getattr(glow_technique, "enum", b"SfBL") if glow_technique is not None else b"SfBL"
 
     @property
     def quality_range(self) -> float:
         """Quality range in percent."""
-        return float(self.descriptor.get(Key.InputRange, 0.0))
+        return float(_get_value(self.descriptor, Key.InputRange, 0.0))
 
     @property
     def quality_jitter(self) -> float:
         """Quality jitter in percent."""
-        return float(self.descriptor.get(Key.ShadingNoise, 0.0))
+        return float(_get_value(self.descriptor, Key.ShadingNoise, 0.0))
 
 
 class _OverlayEffect(_Effect):
@@ -309,12 +333,13 @@ class _AlignScaleMixin(_EffectProtocol):
     @property
     def blend_mode(self) -> bytes:
         """Effect blending mode."""
-        return self.descriptor.get(Key.Mode).enum
+        mode = self.descriptor.get(Key.Mode)
+        return getattr(mode, "enum", Enum.Normal) if mode is not None else Enum.Normal
 
     @property
     def scale(self) -> float:
         """Scale value."""
-        return float(self.descriptor.get(Key.Scale, 1.0))
+        return float(_get_value(self.descriptor, Key.Scale, 1.0))
 
     @property
     def aligned(self) -> bool:
@@ -340,7 +365,7 @@ class OuterGlow(_GlowEffect):
     @property
     def spread(self) -> float:
         """Spread level in percent."""
-        return float(self.descriptor.get(Key.ShadingNoise, 0.0))
+        return float(_get_value(self.descriptor, Key.ShadingNoise, 0.0))
 
 
 @register(Klass.InnerGlow.value)
@@ -348,7 +373,8 @@ class InnerGlow(_GlowEffect):
     @property
     def glow_source(self) -> bytes:
         """Elements source."""
-        return self.descriptor.get(Key.InnerGlowSource).enum
+        source = self.descriptor.get(Key.InnerGlowSource)
+        return getattr(source, "enum", b"SrcE") if source is not None else b"SrcE"
 
 
 @register(Klass.SolidFill.value)
@@ -373,17 +399,19 @@ class Stroke(_Effect, _ColorMixin, _PatternMixin, _GradientMixin):
         """
         Position of the stroke, InsetFrame, OutsetFrame, or CenteredFrame.
         """
-        return self.descriptor.get(Key.Style).enum
+        style = self.descriptor.get(Key.Style)
+        return getattr(style, "enum", b"OutF") if style is not None else b"OutF"
 
     @property
     def fill_type(self) -> bytes:
         """Fill type, SolidColor, Gradient, or Pattern."""
-        return self.descriptor.get(Key.PaintType).enum
+        paint_type = self.descriptor.get(Key.PaintType)
+        return getattr(paint_type, "enum", b"SClr") if paint_type is not None else b"SClr"
 
     @property
     def size(self) -> float:
         """Size value."""
-        return float(self.descriptor.get(Key.SizeKey, 0.0))
+        return float(_get_value(self.descriptor, Key.SizeKey, 0.0))
 
     @property
     def overprint(self) -> bool:
@@ -396,7 +424,8 @@ class BevelEmboss(_Effect, _AngleMixin):
     @property
     def highlight_mode(self) -> bytes:
         """Highlight blending mode."""
-        return self.descriptor.get(Key.HighlightMode).enum
+        mode = self.descriptor.get(Key.HighlightMode)
+        return getattr(mode, "enum", Enum.Normal) if mode is not None else Enum.Normal
 
     @property
     def highlight_color(self) -> Descriptor:
@@ -406,12 +435,13 @@ class BevelEmboss(_Effect, _AngleMixin):
     @property
     def highlight_opacity(self) -> float:
         """Highlight opacity value in percentage."""
-        return float(self.descriptor.get(Key.HighlightOpacity, 50.0))
+        return float(_get_value(self.descriptor, Key.HighlightOpacity, 50.0))
 
     @property
     def shadow_mode(self) -> bytes:
         """Shadow blending mode."""
-        return self.descriptor.get(Key.ShadowMode).enum
+        mode = self.descriptor.get(Key.ShadowMode)
+        return getattr(mode, "enum", Enum.Normal) if mode is not None else Enum.Normal
 
     @property
     def shadow_color(self) -> Descriptor:
@@ -421,12 +451,13 @@ class BevelEmboss(_Effect, _AngleMixin):
     @property
     def shadow_opacity(self) -> float:
         """Shadow opacity value in percentage."""
-        return float(self.descriptor.get(Key.ShadowOpacity, 50.0))
+        return float(_get_value(self.descriptor, Key.ShadowOpacity, 50.0))
 
     @property
     def bevel_type(self) -> bytes:
         """Bevel type, one of `SoftMatte`, `HardLight`, `SoftLight`."""
-        return self.descriptor.get(Key.BevelTechnique).enum
+        technique = self.descriptor.get(Key.BevelTechnique)
+        return getattr(technique, "enum", b"SfBL") if technique is not None else b"SfBL"
 
     @property
     def bevel_style(self) -> bytes:
@@ -434,27 +465,29 @@ class BevelEmboss(_Effect, _AngleMixin):
         Bevel style, one of `OuterBevel`, `InnerBevel`, `Emboss`,
         `PillowEmboss`, or `StrokeEmboss`.
         """
-        return self.descriptor.get(Key.BevelStyle).enum
+        style = self.descriptor.get(Key.BevelStyle)
+        return getattr(style, "enum", b"OtrB") if style is not None else b"OtrB"
 
     @property
     def altitude(self) -> float:
         """Altitude value in angle."""
-        return float(self.descriptor.get(Key.LocalLightingAltitude, 30.0))
+        return float(_get_value(self.descriptor, Key.LocalLightingAltitude, 30.0))
 
     @property
     def depth(self) -> float:
         """Depth value in percentage."""
-        return float(self.descriptor.get(Key.StrengthRatio, 0.0))
+        return float(_get_value(self.descriptor, Key.StrengthRatio, 0.0))
 
     @property
     def size(self) -> float:
         """Size value in pixel."""
-        return float(self.descriptor.get(Key.Blur, 0.0))
+        return float(_get_value(self.descriptor, Key.Blur, 0.0))
 
     @property
     def direction(self) -> bytes:
         """Direction, either `StampIn` or `StampOut`."""
-        return self.descriptor.get(Key.BevelDirection).enum
+        direction = self.descriptor.get(Key.BevelDirection)
+        return getattr(direction, "enum", b"In  ") if direction is not None else b"In  "
 
     @property
     def contour(self) -> Descriptor:
@@ -469,7 +502,7 @@ class BevelEmboss(_Effect, _AngleMixin):
     @property
     def soften(self) -> float:
         """Soften value in pixels."""
-        return float(self.descriptor.get(Key.Softness, 0.0))
+        return float(_get_value(self.descriptor, Key.Softness, 0.0))
 
     @property
     def use_shape(self) -> bool:
@@ -499,17 +532,17 @@ class Satin(_Effect, _ColorMixin):
     @property
     def angle(self) -> float:
         """Angle value in degrees."""
-        return float(self.descriptor.get(Key.LocalLightingAngle, 0.0))
+        return float(_get_value(self.descriptor, Key.LocalLightingAngle, 0.0))
 
     @property
     def distance(self) -> float:
         """Distance value in pixels."""
-        return float(self.descriptor.get(Key.Distance, 120.0))
+        return float(_get_value(self.descriptor, Key.Distance, 120.0))
 
     @property
     def size(self) -> float:
         """Size value in pixel."""
-        return float(self.descriptor.get(Key.Blur, 120.0))
+        return float(_get_value(self.descriptor, Key.Blur, 120.0))
 
     @property
     def contour(self) -> Descriptor:
