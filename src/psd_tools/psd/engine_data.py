@@ -71,7 +71,7 @@ class EngineToken(Enum):
     UNKNOWN_TAG2 = compile_re(r"^--\(\.-0$")
 
 
-class Tokenizer(object):
+class Tokenizer:
     """
     Tokenize engine data.
 

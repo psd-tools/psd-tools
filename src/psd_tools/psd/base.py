@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T", bound="BaseElement")
 
 
-class BaseElement(object):
+class BaseElement:
     """
     Base element of various PSD file structs. All the data objects in
     :py:mod:`psd_tools.psd` subpackage inherit from this class.
