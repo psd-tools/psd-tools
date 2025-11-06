@@ -44,7 +44,7 @@ dev = [
     "pytest-cov",
     "ipykernel",
     "ruff",
-    "types-docopt",
+    "mypy",
 ]
 docs = ["sphinx", "sphinx_rtd_theme"]
 
