@@ -4,7 +4,7 @@ Color structure and conversion methods.
 
 import logging
 
-import attr
+from attrs import define, field
 
 from psd_tools.constants import ColorSpaceID
 from psd_tools.psd.base import BaseElement
@@ -13,7 +13,7 @@ from psd_tools.utils import read_fmt, write_fmt
 logger = logging.getLogger(__name__)
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class Color(BaseElement):
     """
     Color structure.
@@ -27,8 +27,8 @@ class Color(BaseElement):
         List of `int` values.
     """
 
-    id = attr.ib(default=ColorSpaceID.RGB)
-    values = attr.ib(factory=lambda: [0, 0, 0, 0])
+    id: ColorSpaceID = ColorSpaceID.RGB
+    values: list = field(factory=lambda: [0, 0, 0, 0])
 
     @classmethod
     def read(cls, fp, **kwargs):

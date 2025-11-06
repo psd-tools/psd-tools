@@ -63,7 +63,7 @@ The following resources are plain bytes::
 import io
 import logging
 
-import attr
+from attrs import define, field, astuple
 
 from psd_tools.constants import PrintScaleStyle, Resource, AlphaChannelMode
 from psd_tools.psd.base import (
@@ -120,7 +120,7 @@ TYPES.update(
 )
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class ImageResources(DictElement):
     """
     Image resources section of the PSD file. Dict of
@@ -217,7 +217,7 @@ class ImageResources(DictElement):
             p.breakable("")
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class ImageResource(BaseElement):
     """
     Image resource block.
@@ -237,15 +237,14 @@ class ImageResource(BaseElement):
         The resource data.
     """
 
-    signature = attr.ib(
+    signature: bytes = field(
         default=b"8BIM",
-        type=bytes,
         repr=False,
         validator=in_({b"8BIM", b"MeSa", b"AgHg", b"PHUT", b"DCSR"}),
     )
-    key = attr.ib(default=1000, type=int)
-    name = attr.ib(default="", type=str)
-    data = attr.ib(default=b"", type=bytes, repr=False)
+    key: int = 1000
+    name: str = ""
+    data: bytes = field(default=b"", repr=False)
 
     @classmethod
     def read(cls, fp, encoding="macroman"):
@@ -342,14 +341,14 @@ class AlphaNamesUnicode(ListElement):
 
 
 @register(Resource.DISPLAY_INFO)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class DisplayInfo(BaseElement):
     """
     DisplayInfo is a list of AlphaChannels
     """
 
-    version = attr.ib(default=1, type=int)
-    alpha_channels = attr.ib(factory=list, converter=list)
+    version: int = 1
+    alpha_channels = field(factory=list, converter=list)
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -366,15 +365,15 @@ class DisplayInfo(BaseElement):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class AlphaChannel(BaseElement):
-    color_space = attr.ib(default=0, type=int)
-    c1 = attr.ib(default=0, type=int)
-    c2 = attr.ib(default=0, type=int)
-    c3 = attr.ib(default=0, type=int)
-    c4 = attr.ib(default=0, type=int)
-    opacity = attr.ib(default=0, type=int)
-    mode = attr.ib(default=0, type=AlphaChannelMode)
+    color_space: int = 0
+    c1: int = 0
+    c2: int = 0
+    c3: int = 0
+    c4: int = 0
+    opacity: int = 0
+    mode: AlphaChannelMode = 0
 
     @classmethod
     def read(cls, fp):
@@ -408,7 +407,7 @@ class Byte(ByteElement):
 
 
 @register(Resource.GRID_AND_GUIDES_INFO)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class GridGuidesInfo(BaseElement):
     """
     Grid and guides info structure.
@@ -416,10 +415,10 @@ class GridGuidesInfo(BaseElement):
     .. py:attribute: version
     """
 
-    version = attr.ib(default=1, type=int)
-    horizontal = attr.ib(default=0, type=int)
-    vertical = attr.ib(default=0, type=int)
-    data = attr.ib(factory=list, converter=list)
+    version: int = 1
+    horizontal: int = 0
+    vertical: int = 0
+    data = field(factory=list, converter=list)
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -456,7 +455,7 @@ class HalftoneScreens(ListElement):
         return sum(item.write(fp) for item in self)
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class HalftoneScreen(BaseElement):
     """
     Halftone screen.
@@ -469,12 +468,12 @@ class HalftoneScreen(BaseElement):
     .. py:attribute:: use_printer
     """
 
-    freq = attr.ib(default=0, type=int)
-    unit = attr.ib(default=0, type=int)
-    angle = attr.ib(default=0, type=int)
-    shape = attr.ib(default=0, type=int)
-    use_accurate = attr.ib(default=False, type=bool)
-    use_printer = attr.ib(default=False, type=bool)
+    freq: int = 0
+    unit: int = 0
+    angle: int = 0
+    shape: int = 0
+    use_accurate: bool = False
+    use_printer: bool = False
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -593,7 +592,7 @@ class PascalString(ValueElement):
 
 
 @register(Resource.PIXEL_ASPECT_RATIO)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class PixelAspectRatio(NumericElement):
     """
     Pixel aspect ratio.
@@ -601,7 +600,7 @@ class PixelAspectRatio(NumericElement):
     .. py:attribute: version
     """
 
-    version = attr.ib(default=1, type=int)
+    version: int = 1
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -613,7 +612,7 @@ class PixelAspectRatio(NumericElement):
 
 
 @register(Resource.PRINT_FLAGS)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class PrintFlags(BaseElement):
     """
     Print flags.
@@ -629,15 +628,15 @@ class PrintFlags(BaseElement):
     .. py:attribute: print_flags
     """
 
-    labels = attr.ib(default=False, type=bool)
-    crop_marks = attr.ib(default=False, type=bool)
-    colorbars = attr.ib(default=False, type=bool)
-    registration_marks = attr.ib(default=False, type=bool)
-    negative = attr.ib(default=False, type=bool)
-    flip = attr.ib(default=False, type=bool)
-    interpolate = attr.ib(default=False, type=bool)
-    caption = attr.ib(default=False, type=bool)
-    print_flags = attr.ib(default=None)  # Not existing for old versions.
+    labels: bool = False
+    crop_marks: bool = False
+    colorbars: bool = False
+    registration_marks: bool = False
+    negative: bool = False
+    flip: bool = False
+    interpolate: bool = False
+    caption: bool = False
+    print_flags = None  # Not existing for old versions.
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -647,14 +646,14 @@ class PrintFlags(BaseElement):
         return cls(*values)
 
     def write(self, fp, **kwargs):
-        values = attr.astuple(self)
+        values = astuple(self)
         if self.print_flags is None:
             values = values[:-1]
         return write_fmt(fp, "%d?" % len(values), *values)
 
 
 @register(Resource.PRINT_FLAGS_INFO)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class PrintFlagsInfo(BaseElement):
     """
     Print flags info structure.
@@ -665,21 +664,21 @@ class PrintFlagsInfo(BaseElement):
     .. py:attribute:: bleed_width_scale
     """
 
-    version = attr.ib(default=0, type=int)
-    center_crop = attr.ib(default=0, type=int)
-    bleed_width_value = attr.ib(default=0, type=int)
-    bleed_width_scale = attr.ib(default=0, type=int)
+    version: int = 0
+    center_crop: int = 0
+    bleed_width_value: int = 0
+    bleed_width_scale: int = 0
 
     @classmethod
     def read(cls, fp, **kwargs):
         return cls(*read_fmt("HBxIH", fp))
 
     def write(self, fp, **kwargs):
-        return write_fmt(fp, "HBxIH", *attr.astuple(self))
+        return write_fmt(fp, "HBxIH", *astuple(self))
 
 
 @register(Resource.PRINT_SCALE)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class PrintScale(BaseElement):
     """
     Print scale structure.
@@ -690,14 +689,12 @@ class PrintScale(BaseElement):
     .. py:attribute:: scale
     """
 
-    style = attr.ib(
-        default=PrintScaleStyle.CENTERED,
+    style: PrintScaleStyle = field(default=PrintScaleStyle.CENTERED,
         converter=PrintScaleStyle,
-        validator=in_(PrintScaleStyle),
-    )
-    x = attr.ib(default=0.0, type=float)
-    y = attr.ib(default=0.0, type=float)
-    scale = attr.ib(default=0.0, type=float)
+        validator=in_(PrintScaleStyle))
+    x: float = 0.0
+    y: float = 0.0
+    scale: float = 0.0
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -708,7 +705,7 @@ class PrintScale(BaseElement):
 
 
 @register(Resource.RESOLUTION_INFO)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class ResoulutionInfo(BaseElement):
     """
     Resoulution info structure.
@@ -721,23 +718,23 @@ class ResoulutionInfo(BaseElement):
     .. py:attribute:: height_unit
     """
 
-    horizontal = attr.ib(default=0, type=int)
-    horizontal_unit = attr.ib(default=0, type=int)
-    width_unit = attr.ib(default=0, type=int)
-    vertical = attr.ib(default=0, type=int)
-    vertical_unit = attr.ib(default=0, type=int)
-    height_unit = attr.ib(default=0, type=int)
+    horizontal: int = 0
+    horizontal_unit: int = 0
+    width_unit: int = 0
+    vertical: int = 0
+    vertical_unit: int = 0
+    height_unit: int = 0
 
     @classmethod
     def read(cls, fp, **kwargs):
         return cls(*read_fmt("I2HI2H", fp))
 
     def write(self, fp, **kwargs):
-        return write_fmt(fp, "I2HI2H", *attr.astuple(self))
+        return write_fmt(fp, "I2HI2H", *astuple(self))
 
 
 @register(Resource.SLICES)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class Slices(BaseElement):
     """
     Slices resource.
@@ -746,8 +743,8 @@ class Slices(BaseElement):
     .. py:attribute:: data
     """
 
-    version = attr.ib(default=0, type=int, validator=in_((6, 7, 8)))
-    data = attr.ib(default=None)
+    version: int = field(default=0, validator=in_((6, 7, 8)))
+    data = None
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -763,7 +760,7 @@ class Slices(BaseElement):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class SlicesV6(BaseElement):
     """
     Slices resource version 6.
@@ -773,9 +770,9 @@ class SlicesV6(BaseElement):
     .. py:attribute:: items
     """
 
-    bbox = attr.ib(factory=lambda: [0, 0, 0, 0], converter=list)
-    name = attr.ib(default="", type=str)
-    items = attr.ib(factory=list, converter=list)
+    bbox = field(factory=lambda: [0, 0, 0, 0], converter=list)
+    name: str = ""
+    items = field(factory=list, converter=list)
 
     @classmethod
     def read(cls, fp):
@@ -793,7 +790,7 @@ class SlicesV6(BaseElement):
         return written
 
 
-@attr.s(repr=False)
+@define(repr=False)
 class SliceV6(BaseElement):
     """
     Slice element for version 6.
@@ -820,26 +817,26 @@ class SliceV6(BaseElement):
     .. py:attribute:: data
     """
 
-    slice_id = attr.ib(default=0, type=int)
-    group_id = attr.ib(default=0, type=int)
-    origin = attr.ib(default=0, type=int)
-    associated_id = attr.ib(default=None)
-    name = attr.ib(default="", type=str)
-    slice_type = attr.ib(default=0, type=int)
-    bbox = attr.ib(factory=lambda: [0, 0, 0, 0], converter=list)
-    url = attr.ib(default="", type=str)
-    target = attr.ib(default="", type=str)
-    message = attr.ib(default="", type=str)
-    alt_tag = attr.ib(default="", type=str)
-    cell_is_html = attr.ib(default=False, type=bool)
-    cell_text = attr.ib(default="", type=str)
-    horizontal_align = attr.ib(default=0, type=int)
-    vertical_align = attr.ib(default=0, type=int)
-    alpha = attr.ib(default=0, type=int)
-    red = attr.ib(default=0, type=int)
-    green = attr.ib(default=0, type=int)
-    blue = attr.ib(default=0, type=int)
-    data = attr.ib(default=None)
+    slice_id: int = 0
+    group_id: int = 0
+    origin: int = 0
+    associated_id = None
+    name: str = ""
+    slice_type: int = 0
+    bbox = field(factory=lambda: [0, 0, 0, 0], converter=list)
+    url: str = ""
+    target: str = ""
+    message: str = ""
+    alt_tag: str = ""
+    cell_is_html: bool = False
+    cell_text: str = ""
+    horizontal_align: int = 0
+    vertical_align: int = 0
+    alpha: int = 0
+    red: int = 0
+    green: int = 0
+    blue: int = 0
+    data = None
 
     @classmethod
     def read(cls, fp):
@@ -919,7 +916,7 @@ class SliceV6(BaseElement):
 
 
 @register(Resource.THUMBNAIL_RESOURCE)
-@attr.s(repr=False)
+@define(repr=False)
 class ThumbnailResource(BaseElement):
     """
     Thumbnail resource structure.
@@ -937,14 +934,14 @@ class ThumbnailResource(BaseElement):
 
     _RAW_MODE = "RGB"
 
-    fmt = attr.ib(default=0, type=int)
-    width = attr.ib(default=0, type=int)
-    height = attr.ib(default=0, type=int)
-    row = attr.ib(default=0, type=int)
-    total_size = attr.ib(default=0, type=int)
-    bits = attr.ib(default=0, type=int)
-    planes = attr.ib(default=0, type=int)
-    data = attr.ib(default=b"", type=bytes)
+    fmt: int = 0
+    width: int = 0
+    height: int = 0
+    row: int = 0
+    total_size: int = 0
+    bits: int = 0
+    planes: int = 0
+    data: bytes = b""
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -993,14 +990,14 @@ class TransferFunctions(ListElement):
         return sum(item.write(fp) for item in self)
 
 
-@attr.s(repr=False)
+@define(repr=False)
 class TransferFunction(BaseElement):
     """
     Transfer function
     """
 
-    curve = attr.ib(factory=list, converter=list)
-    override = attr.ib(default=False, type=bool)
+    curve = field(factory=list, converter=list)
+    override: bool = False
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -1034,7 +1031,7 @@ class URLList(ListElement):
         return written
 
 
-@attr.s(repr=False)
+@define(repr=False)
 class URLItem(BaseElement):
     """
     URL item.
@@ -1044,9 +1041,9 @@ class URLItem(BaseElement):
     .. py:attribute:: name
     """
 
-    number = attr.ib(default=0, type=int)
-    id = attr.ib(default=0, type=int)
-    name = attr.ib(default="", type=str)
+    number: int = 0
+    id: int = 0
+    name: str = ""
 
     @classmethod
     def read(cls, fp):
@@ -1061,7 +1058,7 @@ class URLItem(BaseElement):
 
 
 @register(Resource.VERSION_INFO)
-@attr.s(repr=False)
+@define(repr=False)
 class VersionInfo(BaseElement):
     """
     Version info structure.
@@ -1073,11 +1070,11 @@ class VersionInfo(BaseElement):
     .. py:attribute:: file_version
     """
 
-    version = attr.ib(default=1, type=int)
-    has_composite = attr.ib(default=False, type=bool)
-    writer = attr.ib(default="", type=str)
-    reader = attr.ib(default="", type=str)
-    file_version = attr.ib(default=1, type=int)
+    version: int = 1
+    has_composite: bool = False
+    writer: str = ""
+    reader: str = ""
+    file_version: int = 1
 
     @classmethod
     def read(cls, fp, **kwargs):

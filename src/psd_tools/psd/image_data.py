@@ -9,7 +9,7 @@ this is the only place pixels are saved.
 import io
 import logging
 
-import attr
+from attrs import define, field
 
 from psd_tools.compression import compress, decompress
 from psd_tools.constants import Compression
@@ -20,7 +20,7 @@ from psd_tools.validators import in_
 logger = logging.getLogger(__name__)
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class ImageData(BaseElement):
     """
     Merged channel image data.
@@ -34,10 +34,10 @@ class ImageData(BaseElement):
         `bytes` as compressed in the `compression` flag.
     """
 
-    compression = attr.ib(
+    compression: Compression = field(
         default=Compression.RAW, converter=Compression, validator=in_(Compression)
     )
-    data = attr.ib(default=b"", type=bytes)
+    data: bytes = b""
 
     @classmethod
     def read(cls, fp):

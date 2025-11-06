@@ -5,7 +5,7 @@ Filter effects structure.
 import io
 import logging
 
-import attr
+from attrs import define, field
 
 from psd_tools.psd.base import BaseElement, ListElement
 from psd_tools.utils import (
@@ -22,7 +22,7 @@ from psd_tools.utils import (
 logger = logging.getLogger(__name__)
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class FilterEffects(ListElement):
     """
     List-like FilterEffects structure. See :py:class:`FilterEffect`.
@@ -30,7 +30,7 @@ class FilterEffects(ListElement):
     .. py:attribute:: version
     """
 
-    version = attr.ib(default=1, type=int)
+    version: int = 1
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -49,7 +49,7 @@ class FilterEffects(ListElement):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class FilterEffect(BaseElement):
     """
     FilterEffect structure.
@@ -68,13 +68,13 @@ class FilterEffect(BaseElement):
         See :py:class:`FilterEffectExtra`.
     """
 
-    uuid = attr.ib(default=None)
-    version = attr.ib(default=None)
-    rectangle = attr.ib(default=None)
-    depth = attr.ib(default=None)
-    max_channels = attr.ib(default=None)
-    channels = attr.ib(default=None)
-    extra = attr.ib(default=None)
+    uuid = None
+    version = None
+    rectangle = None
+    depth = None
+    max_channels = None
+    channels = None
+    extra = None
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -117,7 +117,7 @@ class FilterEffect(BaseElement):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class FilterEffectChannel(BaseElement):
     """
     FilterEffectChannel structure.
@@ -127,9 +127,9 @@ class FilterEffectChannel(BaseElement):
     .. py:attribute:: data
     """
 
-    is_written = attr.ib(default=0)
-    compression = attr.ib(default=None)
-    data = attr.ib(default=b"")
+    is_written = 0
+    compression = None
+    data = b""
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -160,7 +160,7 @@ class FilterEffectChannel(BaseElement):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class FilterEffectExtra(BaseElement):
     """
     FilterEffectExtra structure.
@@ -171,10 +171,10 @@ class FilterEffectExtra(BaseElement):
     .. py:attribute:: data
     """
 
-    is_written = attr.ib(default=0)
-    rectangle = attr.ib(factory=lambda: [0, 0, 0, 0], converter=list)
-    compression = attr.ib(default=0, type=int)
-    data = attr.ib(default=b"", type=bytes)
+    is_written = 0
+    rectangle = field(factory=lambda: [0, 0, 0, 0], converter=list)
+    compression: int = 0
+    data: bytes = b""
 
     @classmethod
     def read(cls, fp):

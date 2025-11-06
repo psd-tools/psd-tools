@@ -34,7 +34,7 @@ import logging
 import re
 from enum import Enum
 
-import attr
+from attrs import frozen
 
 from psd_tools.psd.base import (
     BooleanElement,
@@ -388,7 +388,7 @@ class Float(NumericElement):
 
 
 @register(EngineToken.PROPERTY)
-@attr.s(repr=False, frozen=True, eq=False, order=False)
+@frozen(repr=False, eq=False, order=False)
 class Property(ValueElement):
     """
     Property element.

@@ -7,7 +7,7 @@ are stored in tagged blocks.
 
 import logging
 
-import attr
+from attrs import define, field, astuple
 
 from psd_tools.constants import BlendMode, EffectOSType
 from psd_tools.psd.base import BaseElement, DictElement
@@ -24,7 +24,7 @@ from psd_tools.validators import in_
 logger = logging.getLogger(__name__)
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class CommonStateInfo(BaseElement):
     """
     Effects layer common state info.
@@ -33,18 +33,18 @@ class CommonStateInfo(BaseElement):
     .. py:attribute:: visible
     """
 
-    version = attr.ib(default=0, type=int)
-    visible = attr.ib(default=1, type=int)
+    version: int = 0
+    visible: int = 1
 
     @classmethod
     def read(cls, fp):
         return cls(*read_fmt("IB2x", fp))
 
     def write(self, fp):
-        return write_fmt(fp, "IB2x", *attr.astuple(self))
+        return write_fmt(fp, "IB2x", *astuple(self))
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class ShadowInfo(BaseElement):
     """
     Effects layer shadow info.
@@ -62,19 +62,17 @@ class ShadowInfo(BaseElement):
     .. py:attribute:: native_color
     """
 
-    version = attr.ib(default=0, type=int)
-    blur = attr.ib(default=0, type=int)
-    intensity = attr.ib(default=0, type=int)
-    angle = attr.ib(default=0, type=int)
-    distance = attr.ib(default=0, type=int)
-    color = attr.ib(factory=Color)
-    blend_mode = attr.ib(
-        default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode)
-    )
-    enabled = attr.ib(default=0, type=int)
-    use_global_angle = attr.ib(default=0, type=int)
-    opacity = attr.ib(default=0, type=int)
-    native_color = attr.ib(factory=Color)
+    version: int = 0
+    blur: int = 0
+    intensity: int = 0
+    angle: int = 0
+    distance: int = 0
+    color = field(factory=Color)
+    blend_mode = field(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
+    enabled: int = 0
+    use_global_angle: int = 0
+    opacity: int = 0
+    native_color = field(factory=Color)
 
     @classmethod
     def read(cls, fp):
@@ -145,7 +143,7 @@ class _GlowInfo(object):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class OuterGlowInfo(BaseElement, _GlowInfo):
     """
     Effects layer outer glow info.
@@ -160,16 +158,14 @@ class OuterGlowInfo(BaseElement, _GlowInfo):
     .. py:attribute:: native_color
     """
 
-    version = attr.ib(default=0, type=int)
-    blur = attr.ib(default=0, type=int)
-    intensity = attr.ib(default=0, type=int)
-    color = attr.ib(factory=Color)
-    blend_mode = attr.ib(
-        default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode)
-    )
-    enabled = attr.ib(default=0, type=int)
-    opacity = attr.ib(default=0, type=int)
-    native_color = attr.ib(default=None)
+    version: int = 0
+    blur: int = 0
+    intensity: int = 0
+    color = field(factory=Color)
+    blend_mode = field(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
+    enabled: int = 0
+    opacity: int = 0
+    native_color = None
 
     @classmethod
     def read(cls, fp):
@@ -190,7 +186,7 @@ class OuterGlowInfo(BaseElement, _GlowInfo):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class InnerGlowInfo(BaseElement, _GlowInfo):
     """
     Effects layer inner glow info.
@@ -206,17 +202,15 @@ class InnerGlowInfo(BaseElement, _GlowInfo):
     .. py:attribute:: native_color
     """
 
-    version = attr.ib(default=0, type=int)
-    blur = attr.ib(default=0, type=int)
-    intensity = attr.ib(default=0, type=int)
-    color = attr.ib(factory=Color)
-    blend_mode = attr.ib(
-        default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode)
-    )
-    enabled = attr.ib(default=0, type=int)
-    opacity = attr.ib(default=0, type=int)
-    invert = attr.ib(default=None)
-    native_color = attr.ib(default=None)
+    version: int = 0
+    blur: int = 0
+    intensity: int = 0
+    color = field(factory=Color)
+    blend_mode = field(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
+    enabled: int = 0
+    opacity: int = 0
+    invert = None
+    native_color = None
 
     @classmethod
     def read(cls, fp):
@@ -247,7 +241,7 @@ class InnerGlowInfo(BaseElement, _GlowInfo):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class BevelInfo(BaseElement):
     """
     Effects layer bevel info.
@@ -269,26 +263,22 @@ class BevelInfo(BaseElement):
     .. py:attribute:: real_shadow_color
     """
 
-    version = attr.ib(default=0, type=int)
-    angle = attr.ib(default=0, type=int)
-    depth = attr.ib(default=0, type=int)
-    blur = attr.ib(default=0, type=int)
-    highlight_blend_mode = attr.ib(
-        default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode)
-    )
-    shadow_blend_mode = attr.ib(
-        default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode)
-    )
-    highlight_color = attr.ib(factory=Color)
-    shadow_color = attr.ib(factory=Color)
-    bevel_style = attr.ib(default=0, type=int)
-    highlight_opacity = attr.ib(default=0, type=int)
-    shadow_opacity = attr.ib(default=0, type=int)
-    enabled = attr.ib(default=0, type=int)
-    use_global_angle = attr.ib(default=0, type=int)
-    direction = attr.ib(default=0, type=int)
-    real_highlight_color = attr.ib(default=None)
-    real_shadow_color = attr.ib(default=None)
+    version: int = 0
+    angle: int = 0
+    depth: int = 0
+    blur: int = 0
+    highlight_blend_mode = field(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
+    shadow_blend_mode = field(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
+    highlight_color = field(factory=Color)
+    shadow_color = field(factory=Color)
+    bevel_style: int = 0
+    highlight_opacity: int = 0
+    shadow_opacity: int = 0
+    enabled: int = 0
+    use_global_angle: int = 0
+    direction: int = 0
+    real_highlight_color = None
+    real_shadow_color = None
 
     @classmethod
     def read(cls, fp):
@@ -353,7 +343,7 @@ class BevelInfo(BaseElement):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class SolidFillInfo(BaseElement):
     """
     Effects layer inner glow info.
@@ -366,14 +356,12 @@ class SolidFillInfo(BaseElement):
     .. py:attribute:: native_color
     """
 
-    version = attr.ib(default=2, type=int)
-    blend_mode = attr.ib(
-        default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode)
-    )
-    color = attr.ib(factory=Color)
-    opacity = attr.ib(default=0, type=int)
-    enabled = attr.ib(default=0, type=int)
-    native_color = attr.ib(factory=Color)
+    version: int = 2
+    blend_mode = field(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
+    color = field(factory=Color)
+    opacity: int = 0
+    enabled: int = 0
+    native_color = field(factory=Color)
 
     @classmethod
     def read(cls, fp):
@@ -393,7 +381,7 @@ class SolidFillInfo(BaseElement):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class EffectsLayer(DictElement):
     """
     Dict-like EffectsLayer structure. See
@@ -402,7 +390,7 @@ class EffectsLayer(DictElement):
     .. py:attribute:: version
     """
 
-    version = attr.ib(default=0, type=int)
+    version: int = 0
 
     EFFECT_TYPES = {
         EffectOSType.COMMON_STATE: CommonStateInfo,

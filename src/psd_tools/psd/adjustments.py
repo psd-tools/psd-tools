@@ -4,7 +4,7 @@ Adjustment layer structure.
 
 import logging
 
-import attr
+from attrs import define, field, astuple
 
 from psd_tools.constants import Tag
 from psd_tools.psd.base import (
@@ -46,7 +46,7 @@ ADJUSTMENT_TYPES.update(
 
 
 @register(Tag.BRIGHTNESS_AND_CONTRAST)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class BrightnessContrast(BaseElement):
     """
     BrightnessContrast structure.
@@ -57,21 +57,21 @@ class BrightnessContrast(BaseElement):
     .. py:attribute:: lab_only
     """
 
-    brightness = attr.ib(default=0, type=int)
-    contrast = attr.ib(default=0, type=int)
-    mean = attr.ib(default=0, type=int)
-    lab_only = attr.ib(default=0, type=int)
+    brightness: int = 0
+    contrast: int = 0
+    mean: int = 0
+    lab_only: int = 0
 
     @classmethod
     def read(cls, fp, **kwargs):
         return cls(*read_fmt("3HBx", fp))
 
     def write(self, fp, **kwargs):
-        return write_fmt(fp, "3HBx", *attr.astuple(self))
+        return write_fmt(fp, "3HBx", *astuple(self))
 
 
 @register(Tag.COLOR_BALANCE)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class ColorBalance(BaseElement):
     """
     ColorBalance structure.
@@ -82,10 +82,10 @@ class ColorBalance(BaseElement):
     .. py:attribute:: luminosity
     """
 
-    shadows = attr.ib(default=(0,) * 3, type=tuple)
-    midtones = attr.ib(default=(0,) * 3, type=tuple)
-    highlights = attr.ib(default=(0,) * 3, type=tuple)
-    luminosity = attr.ib(default=False, type=bool)
+    shadows: tuple = (0,) * 3
+    midtones: tuple = (0,) * 3
+    highlights: tuple = (0,) * 3
+    luminosity: bool = False
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -127,7 +127,7 @@ class ColorLookup(DescriptorBlock2):
 
 
 @register(Tag.CHANNEL_MIXER)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class ChannelMixer(BaseElement):
     """
     ChannelMixer structure.
@@ -137,10 +137,10 @@ class ChannelMixer(BaseElement):
     .. py:attribute:: data
     """
 
-    version = attr.ib(default=1, type=int, validator=in_((1,)))
-    monochrome = attr.ib(default=0, type=int)
-    data = attr.ib(factory=list, converter=list)
-    unknown = attr.ib(default=b"", type=bytes, repr=False)
+    version: int = field(default=1, validator=in_((1,)))
+    monochrome: int = 0
+    data = field(factory=list, converter=list)
+    unknown: bytes = field(default=b"", repr=False)
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -157,7 +157,7 @@ class ChannelMixer(BaseElement):
 
 
 @register(Tag.CURVES)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class Curves(BaseElement):
     """
     Curves structure.
@@ -169,11 +169,11 @@ class Curves(BaseElement):
     .. py:attribute:: extra
     """
 
-    is_map = attr.ib(default=False, type=bool, converter=bool)
-    version = attr.ib(default=0, type=int)
-    count_map = attr.ib(default=0, type=int)
-    data = attr.ib(factory=list, converter=list)
-    extra = attr.ib(default=None)
+    is_map: bool = field(default=False, converter=bool)
+    version: int = 0
+    count_map: int = 0
+    data = field(factory=list, converter=list)
+    extra = None
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -224,7 +224,7 @@ class Curves(BaseElement):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class CurvesExtraMarker(ListElement):
     """
     Curves extra marker structure.
@@ -232,7 +232,7 @@ class CurvesExtraMarker(ListElement):
     .. py:attribute:: version
     """
 
-    version = attr.ib(default=4, type=int, validator=in_((3, 4)))
+    version: int = field(default=4, validator=in_((3, 4)))
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -249,7 +249,7 @@ class CurvesExtraMarker(ListElement):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class CurvesExtraItem(BaseElement):
     """
     Curves extra item.
@@ -258,8 +258,8 @@ class CurvesExtraItem(BaseElement):
     .. py:attribute:: points
     """
 
-    channel_id = attr.ib(default=0, type=int)
-    points = attr.ib(factory=list, converter=list)
+    channel_id: int = 0
+    points = field(factory=list, converter=list)
 
     @classmethod
     def read(cls, fp, is_map=False, **kwargs):
@@ -282,7 +282,7 @@ class CurvesExtraItem(BaseElement):
 
 
 @register(Tag.GRADIENT_MAP)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class GradientMap(BaseElement):
     """
     GradientMap structure.
@@ -306,44 +306,38 @@ class GradientMap(BaseElement):
     .. py:attribute:: maximum_color
     """
 
-    version = attr.ib(
-        default=1,
-        type=int,
+    version: int = field(default=1,
         validator=in_(
             (
                 1,
                 3,
-            )
-        ),
+            )),
     )
-    is_reversed = attr.ib(default=0, type=int)
-    is_dithered = attr.ib(default=0, type=int)
-    name = attr.ib(default="", type=str)
-    method = attr.ib(
-        default=b"Gcls",
-        type=bytes,
+    is_reversed: int = 0
+    is_dithered: int = 0
+    name: str = ""
+    method: bytes = field(default=b"Gcls",
         validator=in_(
             (
                 b"Gcls",
                 Enum.Linear,
                 Enum.Perceptual,
                 Key.Smooth,
-            )
-        ),
+            )),
     )
-    color_stops = attr.ib(factory=list, converter=list)
-    transparency_stops = attr.ib(factory=list, converter=list)
-    expansion = attr.ib(default=2, type=int, validator=in_((2,)))
-    interpolation = attr.ib(default=0, type=int)
-    length = attr.ib(default=32, type=int, validator=in_((32,)))
-    mode = attr.ib(default=0, type=int)
-    random_seed = attr.ib(default=0, type=int)
-    show_transparency = attr.ib(default=0, type=int)
-    use_vector_color = attr.ib(default=0, type=int)
-    roughness = attr.ib(default=0, type=int)
-    color_model = attr.ib(default=0, type=int)
-    minimum_color = attr.ib(factory=list, converter=list)
-    maximum_color = attr.ib(factory=list, converter=list)
+    color_stops = field(factory=list, converter=list)
+    transparency_stops = field(factory=list, converter=list)
+    expansion: int = field(default=2, validator=in_((2,)))
+    interpolation: int = 0
+    length: int = field(default=32, validator=in_((32,)))
+    mode: int = 0
+    random_seed: int = 0
+    show_transparency: int = 0
+    use_vector_color: int = 0
+    roughness: int = 0
+    color_model: int = 0
+    minimum_color = field(factory=list, converter=list)
+    maximum_color = field(factory=list, converter=list)
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -412,7 +406,7 @@ class GradientMap(BaseElement):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class ColorStop(BaseElement):
     """
     ColorStop of GradientMap.
@@ -423,10 +417,10 @@ class ColorStop(BaseElement):
     .. py:attribute:: color
     """
 
-    location = attr.ib(default=0, type=int)
-    midpoint = attr.ib(default=0, type=int)
-    mode = attr.ib(default=0, type=int)
-    color = attr.ib(default=(0, 0, 0, 0), type=tuple)
+    location: int = 0
+    midpoint: int = 0
+    mode: int = 0
+    color: tuple = (0,)
 
     @classmethod
     def read(cls, fp):
@@ -440,7 +434,7 @@ class ColorStop(BaseElement):
         )
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class TransparencyStop(BaseElement):
     """
     TransparencyStop of GradientMap.
@@ -450,20 +444,20 @@ class TransparencyStop(BaseElement):
     .. py:attribute:: opacity
     """
 
-    location = attr.ib(default=0, type=int)
-    midpoint = attr.ib(default=0, type=int)
-    opacity = attr.ib(default=0, type=int)
+    location: int = 0
+    midpoint: int = 0
+    opacity: int = 0
 
     @classmethod
     def read(cls, fp):
         return cls(*read_fmt("2IH", fp))
 
     def write(self, fp):
-        return write_fmt(fp, "2IH", *attr.astuple(self))
+        return write_fmt(fp, "2IH", *astuple(self))
 
 
 @register(Tag.EXPOSURE)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class Exposure(BaseElement):
     """
     Exposure structure.
@@ -474,24 +468,24 @@ class Exposure(BaseElement):
     .. py:attribute:: gamma
     """
 
-    version = attr.ib(default=0, type=int)
-    exposure = attr.ib(default=0.0, type=float)
-    offset = attr.ib(default=0.0, type=float)
-    gamma = attr.ib(default=0.0, type=float)
+    version: int = 0
+    exposure: float = 0.0
+    offset: float = 0.0
+    gamma: float = 0.0
 
     @classmethod
     def read(cls, fp, **kwargs):
         return cls(*read_fmt("H3f", fp))
 
     def write(self, fp, padding=4, **kwargs):
-        written = write_fmt(fp, "H3f", *attr.astuple(self))
+        written = write_fmt(fp, "H3f", *astuple(self))
         written += write_padding(fp, written, padding)
         return written
 
 
 @register(Tag.HUE_SATURATION_V4)
 @register(Tag.HUE_SATURATION)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class HueSaturation(BaseElement):
     """
     HueSaturation structure.
@@ -503,11 +497,11 @@ class HueSaturation(BaseElement):
     .. py:attribute:: items
     """
 
-    version = attr.ib(default=2, type=int)
-    enable = attr.ib(default=1, type=int)
-    colorization = attr.ib(default=(0, 0, 0), type=tuple)
-    master = attr.ib(default=(0, 0, 0), type=tuple)
-    items = attr.ib(factory=list, converter=list)
+    version: int = 2
+    enable: int = 1
+    colorization: tuple = (0,)
+    master: tuple = (0,)
+    items = field(factory=list, converter=list)
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -534,7 +528,7 @@ class HueSaturation(BaseElement):
 
 
 @register(Tag.LEVELS)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class Levels(ListElement):
     """
     List of level records. See :py:class:
@@ -549,8 +543,8 @@ class Levels(ListElement):
         Version of the extra field.
     """
 
-    version = attr.ib(default=0, type=int, validator=in_((2,)))
-    extra_version = attr.ib(default=None)
+    version: int = field(default=0, validator=in_((2,)))
+    extra_version = None
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -597,7 +591,7 @@ class Levels(ListElement):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class LevelRecord(BaseElement):
     """
     Level record.
@@ -624,22 +618,22 @@ class LevelRecord(BaseElement):
         to all image data.
     """
 
-    input_floor = attr.ib(default=0, type=int)
-    input_ceiling = attr.ib(default=0, type=int)
-    output_floor = attr.ib(default=0, type=int)
-    output_ceiling = attr.ib(default=0, type=int)
-    gamma = attr.ib(default=0, type=int)
+    input_floor: int = 0
+    input_ceiling: int = 0
+    output_floor: int = 0
+    output_ceiling: int = 0
+    gamma: int = 0
 
     @classmethod
     def read(cls, fp):
         return cls(*read_fmt("5H", fp))
 
     def write(self, fp):
-        return write_fmt(fp, "5H", *attr.astuple(self))
+        return write_fmt(fp, "5H", *astuple(self))
 
 
 @register(Tag.PHOTO_FILTER)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class PhotoFilter(BaseElement):
     """
     PhotoFilter structure.
@@ -652,12 +646,12 @@ class PhotoFilter(BaseElement):
     .. py:attribute:: luminosity
     """
 
-    version = attr.ib(default=0, type=int, validator=in_((2, 3)))
-    xyz = attr.ib(default=(0, 0, 0), type=tuple)
-    color_space = attr.ib(default=None)
-    color_components = attr.ib(default=None)
-    density = attr.ib(default=None)
-    luminosity = attr.ib(default=None)
+    version: int = field(default=0, validator=in_((2, 3)))
+    xyz: tuple = (0,)
+    color_space = None
+    color_components = None
+    density = None
+    luminosity = None
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -686,7 +680,7 @@ class PhotoFilter(BaseElement):
 
 
 @register(Tag.SELECTIVE_COLOR)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class SelectiveColor(BaseElement):
     """
     SelectiveColor structure.
@@ -696,9 +690,9 @@ class SelectiveColor(BaseElement):
     .. py:attribute:: data
     """
 
-    version = attr.ib(default=1, type=int, validator=in_((1,)))
-    method = attr.ib(default=0, type=int)
-    data = attr.ib(factory=list, converter=list)
+    version: int = field(default=1, validator=in_((1,)))
+    method: int = 0
+    data = field(factory=list, converter=list)
 
     @classmethod
     def read(cls, fp, **kwargs):

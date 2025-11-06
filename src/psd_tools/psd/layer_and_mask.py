@@ -5,7 +5,7 @@ Layer and mask data structure.
 import io
 import logging
 
-import attr
+from attrs import define, field, astuple
 
 from psd_tools.compression import compress, decompress
 from psd_tools.constants import (
@@ -34,7 +34,7 @@ from psd_tools.validators import in_, range_
 logger = logging.getLogger(__name__)
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class LayerAndMaskInformation(BaseElement):
     """
     Layer and mask information section.
@@ -52,9 +52,9 @@ class LayerAndMaskInformation(BaseElement):
         See :py:class:`.TaggedBlocks`.
     """
 
-    layer_info = attr.ib(default=None)
-    global_layer_mask_info = attr.ib(default=None)
-    tagged_blocks = attr.ib(default=None)
+    layer_info = None
+    global_layer_mask_info = None
+    tagged_blocks = None
 
     @classmethod
     def read(cls, fp, encoding="macroman", version=1):
@@ -113,7 +113,7 @@ class LayerAndMaskInformation(BaseElement):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class LayerInfo(BaseElement):
     """
     High-level organization of the layer information.
@@ -133,9 +133,9 @@ class LayerInfo(BaseElement):
         Channel image data. See :py:class:`.ChannelImageData`.
     """
 
-    layer_count = attr.ib(default=0, type=int)
-    layer_records = attr.ib(default=None)
-    channel_image_data = attr.ib(default=None)
+    layer_count: int = 0
+    layer_records = None
+    channel_image_data = None
 
     @classmethod
     def read(cls, fp, encoding="macroman", version=1):
@@ -194,7 +194,7 @@ class LayerInfo(BaseElement):
 
 @register(Tag.LAYER_16)
 @register(Tag.LAYER_32)
-@attr.s(repr=False)
+@define(repr=False)
 class LayerInfoBlock(LayerInfo):
     """ """
 
@@ -206,7 +206,7 @@ class LayerInfoBlock(LayerInfo):
         return self._write_body(fp, encoding, version, padding)
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class ChannelInfo(BaseElement):
     """
     Channel information.
@@ -223,20 +223,18 @@ class ChannelInfo(BaseElement):
         Length of the corresponding channel data.
     """
 
-    id = attr.ib(
-        default=ChannelID.CHANNEL_0, converter=ChannelID, validator=in_(ChannelID)
-    )
-    length = attr.ib(default=0, type=int)
+    id = field(default=ChannelID.CHANNEL_0, converter=ChannelID, validator=in_(ChannelID))
+    length: int = 0
 
     @classmethod
     def read(cls, fp, version=1):
         return cls(*read_fmt(("hI", "hQ")[version - 1], fp))
 
     def write(self, fp, version=1):
-        return write_fmt(fp, ("hI", "hQ")[version - 1], *attr.astuple(self))
+        return write_fmt(fp, ("hI", "hQ")[version - 1], *astuple(self))
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class LayerFlags(BaseElement):
     """
     Layer flags.
@@ -248,14 +246,14 @@ class LayerFlags(BaseElement):
     .. py:attribute:: pixel_data_irrelevant
     """
 
-    transparency_protected = attr.ib(default=False, type=bool)
-    visible = attr.ib(default=True, type=bool)
-    obsolete = attr.ib(default=False, type=bool, repr=False)
-    photoshop_v5_later = attr.ib(default=True, type=bool, repr=False)
-    pixel_data_irrelevant = attr.ib(default=False, type=bool)
-    undocumented_1 = attr.ib(default=False, type=bool, repr=False)
-    undocumented_2 = attr.ib(default=False, type=bool, repr=False)
-    undocumented_3 = attr.ib(default=False, type=bool, repr=False)
+    transparency_protected: bool = False
+    visible: bool = True
+    obsolete: bool = field(default=False, repr=False)
+    photoshop_v5_later: bool = field(default=True, repr=False)
+    pixel_data_irrelevant: bool = False
+    undocumented_1: bool = field(default=False, repr=False)
+    undocumented_2: bool = field(default=False, repr=False)
+    undocumented_3: bool = field(default=False, repr=False)
 
     @classmethod
     def read(cls, fp):
@@ -285,7 +283,7 @@ class LayerFlags(BaseElement):
         return write_fmt(fp, "B", flags)
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class LayerBlendingRanges(BaseElement):
     """
     Layer blending ranges.
@@ -301,17 +299,13 @@ class LayerBlendingRanges(BaseElement):
         List of channel source and destination ranges.
     """
 
-    composite_ranges = attr.ib(
-        factory=lambda: [(0, 65535), (0, 65535)],
-    )
-    channel_ranges = attr.ib(
-        factory=lambda: [
+    composite_ranges = field(factory=lambda: [(0, 65535), (0, 65535)])
+    channel_ranges = field(factory=lambda: [
             [(0, 65535), (0, 65535)],
             [(0, 65535), (0, 65535)],
             [(0, 65535), (0, 65535)],
             [(0, 65535), (0, 65535)],
-        ],
-    )
+        ])
 
     @classmethod
     def read(cls, fp):
@@ -362,7 +356,7 @@ class LayerRecords(ListElement):
         return cls(items)
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class LayerRecord(BaseElement):
     """
     Layer record.
@@ -425,26 +419,21 @@ class LayerRecord(BaseElement):
         See :py:class:`.TaggedBlocks`.
     """
 
-    top = attr.ib(default=0, type=int)
-    left = attr.ib(default=0, type=int)
-    bottom = attr.ib(default=0, type=int)
-    right = attr.ib(default=0, type=int)
-    channel_info: list[ChannelInfo] = attr.ib(factory=list)
-    signature = attr.ib(
-        default=b"8BIM", repr=False, type=bytes, validator=in_((b"8BIM",))
+    top: int = 0
+    left: int = 0
+    bottom: int = 0
+    right: int = 0
+    channel_info: list[ChannelInfo] = field(factory=list)
+    signature: bytes = field(default=b"8BIM", repr=False, validator=in_((b"8BIM",))
     )
-    blend_mode = attr.ib(
-        default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode)
-    )
-    opacity = attr.ib(default=255, type=int, validator=range_(0, 255))
-    clipping = attr.ib(
-        default=Clipping.BASE, converter=Clipping, validator=in_(Clipping)
-    )
-    flags = attr.ib(factory=LayerFlags)
-    mask_data = attr.ib(default=None)
-    blending_ranges = attr.ib(factory=LayerBlendingRanges)
-    name = attr.ib(default="", type=str)
-    tagged_blocks: TaggedBlocks = attr.ib(factory=TaggedBlocks)
+    blend_mode = field(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
+    opacity: int = field(default=255, validator=range_(0, 255))
+    clipping = field(default=Clipping.BASE, converter=Clipping, validator=in_(Clipping))
+    flags = field(factory=LayerFlags)
+    mask_data = None
+    blending_ranges = field(factory=LayerBlendingRanges)
+    name: str = ""
+    tagged_blocks: TaggedBlocks = field(factory=TaggedBlocks)
 
     @classmethod
     def read(cls, fp, encoding="macroman", version=1):
@@ -552,7 +541,7 @@ class LayerRecord(BaseElement):
         return sizes
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class MaskFlags(BaseElement):
     """
     Mask flags.
@@ -578,14 +567,14 @@ class MaskFlags(BaseElement):
         The user and/or vector masks have parameters applied to them.
     """
 
-    pos_relative_to_layer = attr.ib(default=False, type=bool)
-    mask_disabled = attr.ib(default=False, type=bool)
-    invert_mask = attr.ib(default=False, type=bool)
-    user_mask_from_render = attr.ib(default=False, type=bool)
-    parameters_applied = attr.ib(default=False, type=bool)
-    undocumented_1 = attr.ib(default=False, type=bool, repr=False)
-    undocumented_2 = attr.ib(default=False, type=bool, repr=False)
-    undocumented_3 = attr.ib(default=False, type=bool, repr=False)
+    pos_relative_to_layer: bool = False
+    mask_disabled: bool = False
+    invert_mask: bool = False
+    user_mask_from_render: bool = False
+    parameters_applied: bool = False
+    undocumented_1: bool = field(default=False, repr=False)
+    undocumented_2: bool = field(default=False, repr=False)
+    undocumented_3: bool = field(default=False, repr=False)
 
     @classmethod
     def read(cls, fp):
@@ -615,7 +604,7 @@ class MaskFlags(BaseElement):
         return write_fmt(fp, "B", flags)
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class MaskData(BaseElement):
     """
     Mask data.
@@ -675,19 +664,19 @@ class MaskData(BaseElement):
         Right position of real user mask.
     """
 
-    top = attr.ib(default=0, type=int)
-    left = attr.ib(default=0, type=int)
-    bottom = attr.ib(default=0, type=int)
-    right = attr.ib(default=0, type=int)
-    background_color = attr.ib(default=0, type=int)
-    flags = attr.ib(factory=MaskFlags)
-    parameters = attr.ib(default=None)
-    real_flags = attr.ib(default=None)
-    real_background_color = attr.ib(default=None)
-    real_top = attr.ib(default=None)
-    real_left = attr.ib(default=None)
-    real_bottom = attr.ib(default=None)
-    real_right = attr.ib(default=None)
+    top: int = 0
+    left: int = 0
+    bottom: int = 0
+    right: int = 0
+    background_color: int = 0
+    flags = field(factory=MaskFlags)
+    parameters = None
+    real_flags = None
+    real_background_color = None
+    real_top = None
+    real_left = None
+    real_bottom = None
+    real_right = None
 
     @classmethod
     def read(cls, fp):
@@ -795,7 +784,7 @@ class MaskData(BaseElement):
         return max(self.real_bottom - self.real_top, 0)
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class MaskParameters(BaseElement):
     """
     Mask parameters.
@@ -806,10 +795,10 @@ class MaskParameters(BaseElement):
     .. py:attribute:: vector_mask_feather
     """
 
-    user_mask_density = attr.ib(default=None)
-    user_mask_feather = attr.ib(default=None)
-    vector_mask_density = attr.ib(default=None)
-    vector_mask_feather = attr.ib(default=None)
+    user_mask_density = None
+    user_mask_feather = None
+    vector_mask_density = None
+    vector_mask_feather = None
 
     @classmethod
     def read(cls, fp):
@@ -896,7 +885,7 @@ class ChannelDataList(ListElement):
         return [item._length for item in self]
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class ChannelData(BaseElement):
     """
     Channel data.
@@ -910,10 +899,8 @@ class ChannelData(BaseElement):
         Data.
     """
 
-    compression = attr.ib(
-        default=Compression.RAW, converter=Compression, validator=in_(Compression)
-    )
-    data = attr.ib(default=b"", type=bytes)
+    compression = field(default=Compression.RAW, converter=Compression, validator=in_(Compression))
+    data: bytes = b""
 
     @classmethod
     def read(cls, fp, length=0, **kwargs):
@@ -958,7 +945,7 @@ class ChannelData(BaseElement):
         return 2 + len(self.data)
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class GlobalLayerMaskInfo(BaseElement):
     """
     Global mask information.
@@ -980,13 +967,11 @@ class GlobalLayerMaskInfo(BaseElement):
         are for backward compatibility with beta versions.
     """
 
-    overlay_color = attr.ib(default=None)
-    opacity = attr.ib(default=0, type=int)
-    kind = attr.ib(
-        default=GlobalLayerMaskKind.PER_LAYER,
+    overlay_color = None
+    opacity: int = 0
+    kind = field(default=GlobalLayerMaskKind.PER_LAYER,
         converter=GlobalLayerMaskKind,
-        validator=in_(GlobalLayerMaskKind),
-    )
+        validator=in_(GlobalLayerMaskKind))
 
     @classmethod
     def read(cls, fp):

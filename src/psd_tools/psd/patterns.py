@@ -5,7 +5,7 @@ Patterns structure.
 import io
 import logging
 
-import attr
+from attrs import define, field
 
 from psd_tools.compression import compress, decompress
 from psd_tools.constants import ColorMode, Compression
@@ -49,7 +49,7 @@ class Patterns(ListElement):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class Pattern(BaseElement):
     """
     Pattern structure.
@@ -80,15 +80,13 @@ class Pattern(BaseElement):
         See :py:class:`VirtualMemoryArrayList`
     """
 
-    version = attr.ib(default=1, type=int)
-    image_mode = attr.ib(
-        default=ColorMode.RGB, converter=ColorMode, validator=in_(ColorMode)
-    )
-    point = attr.ib(default=None)
-    name = attr.ib(default="", type=str)
-    pattern_id = attr.ib(default="", type=str)
-    color_table = attr.ib(default=None)
-    data = attr.ib(default=None)
+    version: int = 1
+    image_mode = field(default=ColorMode.RGB, converter=ColorMode, validator=in_(ColorMode))
+    point = None
+    name: str = ""
+    pattern_id: str = ""
+    color_table = None
+    data = None
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -119,7 +117,7 @@ class Pattern(BaseElement):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class VirtualMemoryArrayList(BaseElement):
     """
     VirtualMemoryArrayList structure. Container of channels.
@@ -134,9 +132,9 @@ class VirtualMemoryArrayList(BaseElement):
         List of :py:class:`VirtualMemoryArray`
     """
 
-    version = attr.ib(default=3, type=int)
-    rectangle = attr.ib(default=None)
-    channels = attr.ib(default=None)
+    version: int = 3
+    rectangle = None
+    channels = None
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -165,7 +163,7 @@ class VirtualMemoryArrayList(BaseElement):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class VirtualMemoryArray(BaseElement):
     """
     VirtualMemoryArrayList structure, corresponding to each channel.
@@ -178,14 +176,12 @@ class VirtualMemoryArray(BaseElement):
     .. py:attribute:: data
     """
 
-    is_written = attr.ib(default=0)
-    depth = attr.ib(default=None)
-    rectangle = attr.ib(default=None)
-    pixel_depth = attr.ib(default=None)
-    compression = attr.ib(
-        default=Compression.RAW, converter=Compression, validator=in_(Compression)
-    )
-    data = attr.ib(default=b"")
+    is_written = 0
+    depth = None
+    rectangle = None
+    pixel_depth = None
+    compression = field(default=Compression.RAW, converter=Compression, validator=in_(Compression))
+    data = b""
 
     @classmethod
     def read(cls, fp, **kwargs):

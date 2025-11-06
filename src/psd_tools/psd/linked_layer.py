@@ -5,7 +5,7 @@ Linked layer structure.
 import io
 import logging
 
-import attr
+from attrs import define, field
 
 from psd_tools.constants import LinkedLayerType
 from psd_tools.psd.base import BaseElement, ListElement
@@ -49,7 +49,7 @@ class LinkedLayers(ListElement):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class LinkedLayer(BaseElement):
     """
     LinkedLayer structure.
@@ -70,20 +70,20 @@ class LinkedLayer(BaseElement):
     .. py:attribute:: lock_state
     """
 
-    kind = attr.ib(default=LinkedLayerType.ALIAS, validator=in_(LinkedLayerType))
-    version = attr.ib(default=1, validator=range_(1, 8))
-    uuid = attr.ib(default="", type=str)
-    filename = attr.ib(default="", type=str)
-    filetype = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
-    creator = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
-    filesize = attr.ib(default=None)
-    open_file = attr.ib(default=None)
-    linked_file = attr.ib(default=None)
-    timestamp = attr.ib(default=None)
-    data = attr.ib(default=None)
-    child_id = attr.ib(default=None)
-    mod_time = attr.ib(default=None)
-    lock_state = attr.ib(default=None)
+    kind = field(default=LinkedLayerType.ALIAS, validator=in_(LinkedLayerType))
+    version = field(default=1, validator=range_(1, 8))
+    uuid: str = ""
+    filename: str = ""
+    filetype: bytes = b"\x00\x00\x00\x00"
+    creator: bytes = b"\x00\x00\x00\x00"
+    filesize = None
+    open_file = None
+    linked_file = None
+    timestamp = None
+    data = None
+    child_id = None
+    mod_time = None
+    lock_state = None
 
     @classmethod
     def read(cls, fp, **kwargs):

@@ -10,7 +10,7 @@ Tagged block data structure.
 import io
 import logging
 
-import attr
+from attrs import define, field
 
 from psd_tools.constants import (
     BlendMode,
@@ -115,7 +115,7 @@ TYPES.update(
 )
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class TaggedBlocks(DictElement):
     """
     Dict of tagged block items.
@@ -205,7 +205,7 @@ class TaggedBlocks(DictElement):
             p.breakable("")
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class TaggedBlock(BaseElement):
     """
     Layer tagged block with extra info.
@@ -245,9 +245,9 @@ class TaggedBlock(BaseElement):
         Tag.ARTBOARD_DATA2,
     }
 
-    signature = attr.ib(default=b"8BIM", repr=False, validator=in_(_SIGNATURES))
-    key = attr.ib(default=b"")
-    data = attr.ib(default=b"", repr=True)
+    signature: bytes = field(default=b"8BIM", repr=False, validator=in_(_SIGNATURES))
+    key: bytes = b""
+    data: bytes = field(default=b"", repr=True)
 
     @classmethod
     def read(cls, fp, version=1, padding=1):
@@ -302,7 +302,7 @@ class TaggedBlock(BaseElement):
 
 
 @register(Tag.ANNOTATIONS)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class Annotations(ListElement):
     """
     List of Annotation, see :py:class: `.Annotation`.
@@ -311,8 +311,8 @@ class Annotations(ListElement):
     .. py:attribute:: minor_version
     """
 
-    major_version = attr.ib(default=2, type=int)
-    minor_version = attr.ib(default=1, type=int)
+    major_version: int = 2
+    minor_version: int = 1
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -339,7 +339,7 @@ class Annotations(ListElement):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class Annotation(BaseElement):
     """
     Annotation structure.
@@ -348,18 +348,18 @@ class Annotation(BaseElement):
     .. py:attribute:: is_open
     """
 
-    kind = attr.ib(default=b"txtA", type=bytes, validator=in_((b"txtA", b"sndM")))
-    is_open = attr.ib(default=0, type=int)
-    flags = attr.ib(default=0, type=int)
-    optional_blocks = attr.ib(default=1, type=int)
-    icon_location = attr.ib(factory=lambda: [0, 0, 0, 0], converter=list)
-    popup_location = attr.ib(factory=lambda: [0, 0, 0, 0], converter=list)
-    color = attr.ib(factory=Color)
-    author = attr.ib(default="", type=str)
-    name = attr.ib(default="", type=str)
-    mod_date = attr.ib(default="", type=str)
-    marker = attr.ib(default=b"txtC", type=bytes, validator=in_((b"txtC", b"sndM")))
-    data = attr.ib(default=b"", type=bytes)
+    kind: bytes = field(default=b"txtA", validator=in_((b"txtA", b"sndM")))
+    is_open: int = 0
+    flags: int = 0
+    optional_blocks: int = 1
+    icon_location = field(factory=lambda: [0, 0, 0, 0], converter=list)
+    popup_location = field(factory=lambda: [0, 0, 0, 0], converter=list)
+    color = field(factory=Color)
+    author: str = ""
+    name: str = ""
+    mod_date: str = ""
+    marker: bytes = field(default=b"txtC", validator=in_((b"txtC", b"sndM")))
+    data: bytes = b""
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -404,7 +404,7 @@ class Annotation(BaseElement):
 
 @register(Tag.FOREIGN_EFFECT_ID)
 @register(Tag.LAYER_NAME_SOURCE_SETTING)
-@attr.s(repr=False, slots=True, eq=False, order=False)
+@define(repr=False, eq=False, order=False)
 class Bytes(ValueElement):
     """
     Bytes structure.
@@ -412,7 +412,7 @@ class Bytes(ValueElement):
     .. py:attribute:: value
     """
 
-    value = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
+    value: bytes = b"\x00\x00\x00\x00"
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -423,7 +423,7 @@ class Bytes(ValueElement):
 
 
 @register(Tag.CHANNEL_BLENDING_RESTRICTIONS_SETTING)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class ChannelBlendingRestrictionsSetting(ListElement):
     """
     ChannelBlendingRestrictionsSetting structure.
@@ -443,7 +443,7 @@ class ChannelBlendingRestrictionsSetting(ListElement):
 
 
 @register(Tag.FILTER_MASK)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class FilterMask(BaseElement):
     """
     FilterMask structure.
@@ -452,8 +452,8 @@ class FilterMask(BaseElement):
     .. py:attribute:: opacity
     """
 
-    color = attr.ib(default=None)
-    opacity = attr.ib(default=0, type=int)
+    color = None
+    opacity: int = 0
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -487,7 +487,7 @@ class MetadataSettings(ListElement):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class MetadataSetting(BaseElement):
     """
     MetadataSetting structure.
@@ -495,12 +495,10 @@ class MetadataSetting(BaseElement):
 
     _KNOWN_KEYS = {b"cust", b"cmls", b"extn", b"mlst", b"tmln", b"sgrp"}
     _KNOWN_SIGNATURES = (b"8BIM", b"8ELE")
-    signature = attr.ib(
-        default=b"8BIM", type=bytes, repr=False, validator=in_(_KNOWN_SIGNATURES)
-    )
-    key = attr.ib(default=b"", type=bytes)
-    copy_on_sheet = attr.ib(default=False, type=bool)
-    data = attr.ib(default=b"", type=bytes)
+    signature: bytes = field(default=b"8BIM", repr=False, validator=in_(_KNOWN_SIGNATURES))
+    key: bytes = b""
+    copy_on_sheet: bool = False
+    data: bytes = b""
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -534,7 +532,7 @@ class MetadataSetting(BaseElement):
 
 
 @register(Tag.PIXEL_SOURCE_DATA2)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class PixelSourceData2(ListElement):
     """
     PixelSourceData2 structure.
@@ -559,25 +557,23 @@ class PixelSourceData2(ListElement):
 
 @register(Tag.PLACED_LAYER1)
 @register(Tag.PLACED_LAYER2)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class PlacedLayerData(BaseElement):
     """
     PlacedLayerData structure.
     """
 
-    kind = attr.ib(default=b"plcL", type=bytes)
-    version = attr.ib(default=3, type=int, validator=in_((3,)))
-    uuid = attr.ib(default=b"", type=bytes)
-    page = attr.ib(default=0, type=int)
-    total_pages = attr.ib(default=0, type=int)
-    anti_alias = attr.ib(default=0, type=int)
-    layer_type = attr.ib(
-        default=PlacedLayerType.UNKNOWN,
+    kind: bytes = b"plcL"
+    version: int = field(default=3, validator=in_((3,)))
+    uuid: bytes = b""
+    page: int = 0
+    total_pages: int = 0
+    anti_alias: int = 0
+    layer_type: PlacedLayerType = field(default=PlacedLayerType.UNKNOWN,
         converter=PlacedLayerType,
-        validator=in_(PlacedLayerType),
-    )
-    transform = attr.ib(default=(0.0,) * 8, type=tuple)
-    warp = attr.ib(default=None)
+        validator=in_(PlacedLayerType))
+    transform: tuple = (0.0,) * 8
+    warp: object = None
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -646,7 +642,7 @@ class ProtectedSetting(IntegerElement):
 
 
 @register(Tag.REFERENCE_POINT)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class ReferencePoint(ListElement):
     """
     ReferencePoint structure.
@@ -662,7 +658,7 @@ class ReferencePoint(ListElement):
 
 @register(Tag.SECTION_DIVIDER_SETTING)
 @register(Tag.NESTED_SECTION_DIVIDER_SETTING)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class SectionDividerSetting(BaseElement):
     """
     SectionDividerSetting structure.
@@ -672,14 +668,12 @@ class SectionDividerSetting(BaseElement):
     .. py:attribute:: sub_type
     """
 
-    kind = attr.ib(
-        default=SectionDivider.OTHER,
+    kind = field(default=SectionDivider.OTHER,
         converter=SectionDivider,
-        validator=in_(SectionDivider),
-    )
-    signature = attr.ib(default=None, repr=False)
-    blend_mode = attr.ib(default=None)
-    sub_type = attr.ib(default=None)
+        validator=in_(SectionDivider))
+    signature = field(default=None, repr=False)
+    blend_mode = None
+    sub_type = None
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -704,7 +698,7 @@ class SectionDividerSetting(BaseElement):
 
 
 @register(Tag.SHEET_COLOR_SETTING)
-@attr.s(repr=False, slots=True, eq=False, order=False)
+@define(repr=False, eq=False, order=False)
 class SheetColorSetting(ValueElement):
     """
     SheetColorSetting value.
@@ -714,9 +708,7 @@ class SheetColorSetting(ValueElement):
     .. py:attribute:: value
     """
 
-    value = attr.ib(
-        default=SheetColorType.NO_COLOR, converter=SheetColorType, type=SheetColorType
-    )
+    value: SheetColorType = field(default=SheetColorType.NO_COLOR, converter=SheetColorType)
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -728,7 +720,7 @@ class SheetColorSetting(ValueElement):
 
 @register(Tag.SMART_OBJECT_LAYER_DATA1)
 @register(Tag.SMART_OBJECT_LAYER_DATA2)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class SmartObjectLayerData(BaseElement):
     """
     VersionedDescriptorBlock structure.
@@ -738,9 +730,9 @@ class SmartObjectLayerData(BaseElement):
     .. py:attribute:: data
     """
 
-    kind = attr.ib(default=b"soLD", type=bytes, validator=in_((b"soLD",)))
-    version = attr.ib(default=5, type=int, validator=in_((4, 5)))
-    data = attr.ib(default=None, type=DescriptorBlock)
+    kind: bytes = field(default=b"soLD", validator=in_((b"soLD",)))
+    version: int = field(default=5, validator=in_((4, 5)))
+    data: DescriptorBlock = None
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -756,7 +748,7 @@ class SmartObjectLayerData(BaseElement):
 
 
 @register(Tag.TYPE_TOOL_OBJECT_SETTING)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class TypeToolObjectSetting(BaseElement):
     """
     TypeToolObjectSetting structure.
@@ -776,16 +768,16 @@ class TypeToolObjectSetting(BaseElement):
     .. py:attribute:: bottom
     """
 
-    version = attr.ib(default=1, type=int)
-    transform = attr.ib(default=(0.0,) * 6, type=tuple)
-    text_version = attr.ib(default=1, type=int, validator=in_((50,)))
-    text_data = attr.ib(default=None, type=DescriptorBlock)
-    warp_version = attr.ib(default=1, type=int, validator=in_((1,)))
-    warp = attr.ib(default=None, type=DescriptorBlock)
-    left = attr.ib(default=0, type=int)
-    top = attr.ib(default=0, type=int)
-    right = attr.ib(default=0, type=int)
-    bottom = attr.ib(default=0, type=int)
+    version: int = 1
+    transform: tuple = (0.0,) * 6
+    text_version: int = field(default=1, validator=in_((50,)))
+    text_data: DescriptorBlock = None
+    warp_version: int = field(default=1, validator=in_((1,)))
+    warp: DescriptorBlock = None
+    left: int = 0
+    top: int = 0
+    right: int = 0
+    bottom: int = 0
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -829,7 +821,7 @@ class TypeToolObjectSetting(BaseElement):
 
 
 @register(Tag.USER_MASK)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class UserMask(BaseElement):
     """
     UserMask structure.
@@ -839,9 +831,9 @@ class UserMask(BaseElement):
     .. py:attribute:: flag
     """
 
-    color = attr.ib(default=None)
-    opacity = attr.ib(default=0, type=int)
-    flag = attr.ib(default=128, type=int)
+    color = None
+    opacity: int = 0
+    flag: int = 128
 
     @classmethod
     def read(cls, fp, **kwargs):

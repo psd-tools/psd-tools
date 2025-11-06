@@ -17,7 +17,7 @@ import logging
 from collections import OrderedDict
 from enum import Enum
 
-import attr
+from attrs import define, field, fields, has, validate
 
 from psd_tools.utils import (
     read_fmt,
@@ -75,7 +75,7 @@ class BaseElement(object):
             return f.getvalue()
 
     def validate(self):
-        return attr.validate(self)
+        return validate(self)
 
     def _repr_pretty_(self, p, cycle):
         if cycle:
@@ -83,13 +83,13 @@ class BaseElement(object):
 
         with p.group(2, "{name}(".format(name=self.__class__.__name__), ")"):
             p.breakable("")
-            fields = [f for f in attr.fields(self.__class__) if f.repr]
-            for idx, field in enumerate(fields):
+            field_list = [f for f in fields(self.__class__) if f.repr]
+            for idx, field_item in enumerate(field_list):
                 if idx:
                     p.text(",")
                     p.breakable()
-                p.text("{field}=".format(field=field.name))
-                value = getattr(self, field.name)
+                p.text("{field}=".format(field=field_item.name))
+                value = getattr(self, field_item.name)
                 if isinstance(value, bytes):
                     p.text(trimmed_repr(value))
                 elif isinstance(value, Enum):
@@ -120,14 +120,14 @@ class BaseElement(object):
             for child in element:
                 for _ in BaseElement._traverse(child, condition):
                     yield _
-        elif attr.has(element.__class__):
-            for field in attr.fields(element.__class__):
-                child = getattr(element, field.name)
+        elif has(element.__class__):
+            for field_item in fields(element.__class__):
+                child = getattr(element, field_item.name)
                 for _ in BaseElement._traverse(child, condition):
                     yield _
 
 
-@attr.s(slots=True)
+@define
 class EmptyElement(BaseElement):
     """
     Empty element that does not have a value.
@@ -141,20 +141,20 @@ class EmptyElement(BaseElement):
         return 0
 
 
-@attr.s(repr=False, eq=False, order=False)
+@define(repr=False, eq=False, order=False)
 class ValueElement(BaseElement):
     """
     Single value wrapper that has a `value` attribute.
 
     Pretty printing shows the internal value by default. Inherit with
-    `@attr.s(repr=False)` decorator to keep this behavior.
+    `@define(repr=False)` decorator to keep this behavior.
 
     .. py:attribute:: value
 
         Internal value.
     """
 
-    value = attr.ib(default=None)
+    value: object = None
 
     def __lt__(self, other):
         return self.value < other
@@ -210,13 +210,13 @@ class ValueElement(BaseElement):
             p.pretty(self.value)
 
 
-@attr.s(repr=False, eq=False, order=False)
+@define(repr=False, eq=False, order=False)
 class NumericElement(ValueElement):
     """
     Single value element that has a numeric `value` attribute.
     """
 
-    value = attr.ib(default=0.0, type=float, converter=float)
+    value: float = field(default=0.0, converter=float)
 
     def __floordiv__(self, other):
         return self.value.__floordiv__(other)
@@ -286,15 +286,15 @@ class NumericElement(ValueElement):
         return write_fmt(fp, "d", self.value)
 
 
-@attr.s(repr=False, eq=False, order=False)
+@define(repr=False, eq=False, order=False)
 class IntegerElement(NumericElement):
     """
     Single integer value element that has a `value` attribute.
 
-    Use with `@attr.s(repr=False)` decorator.
+    Use with `@define(repr=False)` decorator.
     """
 
-    value = attr.ib(default=0, type=int, converter=int)
+    value: int = field(default=0, converter=int)
 
     def __cmp__(self, other):
         return self.value.__cmp__(other)
@@ -349,12 +349,12 @@ class IntegerElement(NumericElement):
         return write_fmt(fp, "I", self.value)
 
 
-@attr.s(repr=False, eq=False, order=False)
+@define(repr=False, eq=False, order=False)
 class ShortIntegerElement(IntegerElement):
     """
     Single short integer element that has a `value` attribute.
 
-    Use with `@attr.s(repr=False)` decorator.
+    Use with `@define(repr=False)` decorator.
     """
 
     @classmethod
@@ -369,12 +369,12 @@ class ShortIntegerElement(IntegerElement):
         return write_fmt(fp, "H2x", self.value)
 
 
-@attr.s(repr=False, eq=False, order=False)
+@define(repr=False, eq=False, order=False)
 class ByteElement(IntegerElement):
     """
     Single 1-byte integer element that has a `value` attribute.
 
-    Use with `@attr.s(repr=False)` decorator.
+    Use with `@define(repr=False)` decorator.
     """
 
     @classmethod
@@ -389,15 +389,15 @@ class ByteElement(IntegerElement):
         return write_fmt(fp, "B3x", self.value)
 
 
-@attr.s(repr=False, eq=False, order=False)
+@define(repr=False, eq=False, order=False)
 class BooleanElement(IntegerElement):
     """
     Single bool value element that has a `value` attribute.
 
-    Use with `@attr.s(repr=False)` decorator.
+    Use with `@define(repr=False)` decorator.
     """
 
-    value = attr.ib(default=False, type=bool, converter=bool)
+    value: bool = field(default=False, converter=bool)
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -411,7 +411,7 @@ class BooleanElement(IntegerElement):
         return write_fmt(fp, "?3x", self.value)
 
 
-@attr.s(repr=False, slots=True, eq=False, order=False)
+@define(repr=False, eq=False, order=False)
 class StringElement(ValueElement):
     """
     Single unicode string.
@@ -421,7 +421,7 @@ class StringElement(ValueElement):
         `str` value
     """
 
-    value = attr.ib(default="", type=str)
+    value: str = ""
 
     @classmethod
     def read(cls, fp, padding=1, **kwargs):
@@ -431,13 +431,13 @@ class StringElement(ValueElement):
         return write_unicode_string(fp, self.value, padding=padding)
 
 
-@attr.s(repr=False)
+@define(repr=False)
 class ListElement(BaseElement):
     """
     List-like element that has `items` list.
     """
 
-    _items = attr.ib(factory=list, converter=list)
+    _items: list = field(factory=list, converter=list)
 
     def append(self, x):
         return self._items.append(x)
@@ -510,13 +510,13 @@ class ListElement(BaseElement):
         return written
 
 
-@attr.s(repr=False)
+@define(repr=False)
 class DictElement(BaseElement):
     """
     Dict-like element that has `items` OrderedDict.
     """
 
-    _items = attr.ib(factory=OrderedDict, converter=OrderedDict)
+    _items: OrderedDict = field(factory=OrderedDict, converter=OrderedDict)
 
     def clear(self):
         return self._items.clear()

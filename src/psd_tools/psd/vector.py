@@ -4,7 +4,7 @@ Vector mask, path, and stroke structure.
 
 import logging
 
-import attr
+from attrs import define, field, astuple
 
 from psd_tools.constants import PathResourceID
 from psd_tools.psd.base import BaseElement, ListElement, ValueElement
@@ -30,7 +30,7 @@ def encode_fixed_point(numbers):
     return tuple(int(x * 0x01000000) for x in numbers)
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class Path(ListElement):
     """
     List-like Path structure. Elements are either PathFillRule,
@@ -55,7 +55,7 @@ class Path(ListElement):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class Subpath(ListElement):
     """
     Subpath element. This is a list of Knot objects.
@@ -77,11 +77,11 @@ class Subpath(ListElement):
     """
 
     # Undocumented data that seem to contain path operation info.
-    operation = attr.ib(default=1, type=int)  # Type of shape operation.
-    _unknown1 = attr.ib(default=1, type=int)
-    _unknown2 = attr.ib(default=0, type=int)
-    index = attr.ib(default=0, type=int)  # Origination index.
-    _unknown3 = attr.ib(default=b"\x00" * 10, type=bytes, repr=False)
+    operation: int = 1  # Type of shape operation.
+    _unknown1: int = 1
+    _unknown2: int = 0
+    index: int = 0  # Origination index.
+    _unknown3: bytes = field(default=b"\x00" * 10, repr=False)
 
     @classmethod
     def read(cls, fp):
@@ -142,7 +142,7 @@ class Subpath(ListElement):
         super()._repr_pretty_(p, cycle)
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class Knot(BaseElement):
     """
     Knot element consisting of 3 control points for Bezier curves.
@@ -161,9 +161,9 @@ class Knot(BaseElement):
 
     """
 
-    preceding = attr.ib(default=(0.0, 0.0), type=tuple)
-    anchor = attr.ib(default=(0.0, 0.0), type=tuple)
-    leaving = attr.ib(default=(0.0, 0.0), type=tuple)
+    preceding: tuple = (0.0,)
+    anchor: tuple = (0.0,)
+    leaving: tuple = (0.0,)
 
     @classmethod
     def read(cls, fp):
@@ -210,7 +210,7 @@ class OpenKnotUnlinked(Knot):
 
 
 @register(PathResourceID.PATH_FILL)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class PathFillRule(BaseElement):
     """
     Path fill rule record, empty.
@@ -226,7 +226,7 @@ class PathFillRule(BaseElement):
 
 
 @register(PathResourceID.CLIPBOARD)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class ClipboardRecord(BaseElement):
     """
     Clipboard record.
@@ -252,22 +252,22 @@ class ClipboardRecord(BaseElement):
         Resolution in `int`
     """
 
-    top = attr.ib(default=0, type=int)
-    left = attr.ib(default=0, type=int)
-    bottom = attr.ib(default=0, type=int)
-    right = attr.ib(default=0, type=int)
-    resolution = attr.ib(default=0, type=int)
+    top: int = 0
+    left: int = 0
+    bottom: int = 0
+    right: int = 0
+    resolution: int = 0
 
     @classmethod
     def read(cls, fp):
         return cls(*decode_fixed_point(read_fmt("5i4x", fp)))
 
     def write(self, fp):
-        return write_fmt(fp, "5i4x", *encode_fixed_point(attr.astuple(self)))
+        return write_fmt(fp, "5i4x", *encode_fixed_point(astuple(self)))
 
 
 @register(PathResourceID.INITIAL_FILL)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class InitialFillRule(ValueElement):
     """
     Initial fill rule record.
@@ -278,17 +278,17 @@ class InitialFillRule(ValueElement):
         will be either 0 or 1.
     """
 
-    value = attr.ib(default=0, converter=int, type=int)
+    value: int = field(default=0, converter=int)
 
     @classmethod
     def read(cls, fp):
         return cls(*read_fmt("H22x", fp))
 
     def write(self, fp):
-        return write_fmt(fp, "H22x", *attr.astuple(self))
+        return write_fmt(fp, "H22x", *astuple(self))
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class VectorMaskSetting(BaseElement):
     """
     VectorMaskSetting structure.
@@ -299,9 +299,9 @@ class VectorMaskSetting(BaseElement):
         List of :py:class:`~psd_tools.psd.vector.Subpath` objects.
     """
 
-    version = attr.ib(default=3, type=int)
-    flags = attr.ib(default=0, type=int)
-    path = attr.ib(default=None)
+    version: int = 3
+    flags: int = 0
+    path = None
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -331,7 +331,7 @@ class VectorMaskSetting(BaseElement):
         return bool(self.flags & 4)
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class VectorStrokeContentSetting(Descriptor):
     """
     Dict-like Descriptor-based structure. See
@@ -341,8 +341,8 @@ class VectorStrokeContentSetting(Descriptor):
     .. py:attribute:: version
     """
 
-    key = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
-    version = attr.ib(default=1, type=int)
+    key: bytes = b"\x00\x00\x00\x00"
+    version: int = 1
 
     @classmethod
     def read(cls, fp, **kwargs):

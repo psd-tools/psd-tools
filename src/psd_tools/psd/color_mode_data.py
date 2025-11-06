@@ -4,7 +4,7 @@ Color mode data structure.
 
 import logging
 
-import attr
+from attrs import define
 
 from psd_tools.psd.base import ValueElement
 from psd_tools.utils import read_length_block, write_bytes, write_length_block
@@ -12,7 +12,7 @@ from psd_tools.utils import read_length_block, write_bytes, write_length_block
 logger = logging.getLogger(__name__)
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class ColorModeData(ValueElement):
     """
     Color mode data section of the PSD file.
@@ -23,7 +23,7 @@ class ColorModeData(ValueElement):
     Duotone images also have this data, but the data format is undocumented.
     """
 
-    value = attr.ib(default=b"", type=bytes)
+    value: bytes = b""
 
     @classmethod
     def read(cls, fp):

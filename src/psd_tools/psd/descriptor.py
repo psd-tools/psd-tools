@@ -18,7 +18,7 @@ Pretty printing is the best approach to check the descriptor content::
 
 import logging
 
-import attr
+from attrs import define, field
 
 from psd_tools.constants import OSType
 from psd_tools.psd.base import (
@@ -132,7 +132,7 @@ class _DescriptorMixin(DictElement):
 
 
 @register(OSType.DESCRIPTOR)
-@attr.s(repr=False)
+@define(repr=False)
 class Descriptor(_DescriptorMixin):
     """
     Dict-like descriptor structure.
@@ -159,8 +159,8 @@ class Descriptor(_DescriptorMixin):
         bytes in :py:class:`~psd_tools.terminology.Klass`
     """
 
-    name = attr.ib(default="", type=str)
-    classID = attr.ib(default=Klass.Null.value)
+    name: str = ""
+    classID: bytes = Klass.Null.value
 
     @classmethod
     def read(cls, fp):
@@ -171,7 +171,7 @@ class Descriptor(_DescriptorMixin):
 
 
 @register(OSType.OBJECT_ARRAY)
-@attr.s(repr=False)
+@define(repr=False)
 class ObjectArray(_DescriptorMixin):
     """
     Object array structure almost equivalent to
@@ -190,9 +190,9 @@ class ObjectArray(_DescriptorMixin):
         bytes in :py:class:`~psd_tools.terminology.Klass`
     """
 
-    items_count = attr.ib(default=0, type=int)
-    name = attr.ib(default="", type=str)
-    classID = attr.ib(default=Klass.Null.value)
+    items_count: int = 0
+    name: str = ""
+    classID: bytes = Klass.Null.value
 
     @classmethod
     def read(cls, fp):
@@ -206,7 +206,7 @@ class ObjectArray(_DescriptorMixin):
 
 
 @register(OSType.LIST)
-@attr.s(repr=False)
+@define(repr=False)
 class List(ListElement):
     """
     List structure.
@@ -237,7 +237,7 @@ class List(ListElement):
 
 
 @register(OSType.PROPERTY)
-@attr.s(repr=False)
+@define(repr=False)
 class Property(BaseElement):
     """
     Property structure.
@@ -255,9 +255,9 @@ class Property(BaseElement):
         bytes in :py:class:`~psd_tools.terminology.Key`
     """
 
-    name = attr.ib(default="", type=str)
-    classID = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
-    keyID = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
+    name: str = ""
+    classID: bytes = b"\x00\x00\x00\x00"
+    keyID: bytes = b"\x00\x00\x00\x00"
 
     @classmethod
     def read(cls, fp):
@@ -274,7 +274,7 @@ class Property(BaseElement):
 
 
 @register(OSType.UNIT_FLOAT)
-@attr.s(slots=True, repr=False, eq=False, order=False)
+@define(repr=False, eq=False, order=False)
 class UnitFloat(NumericElement):
     """
     Unit float structure.
@@ -288,8 +288,8 @@ class UnitFloat(NumericElement):
         `float` value
     """
 
-    value = attr.ib(default=0.0, type=float)
-    unit = attr.ib(default=Unit._None)
+    value: float = 0.0
+    unit: Unit = Unit._None
 
     @classmethod
     def read(cls, fp):
@@ -313,7 +313,7 @@ class UnitFloat(NumericElement):
 
 
 @register(OSType.UNIT_FLOATS)
-@attr.s(repr=False)
+@define(repr=False)
 class UnitFloats(BaseElement):
     """
     Unit floats structure.
@@ -327,8 +327,8 @@ class UnitFloats(BaseElement):
         List of `float` values
     """
 
-    unit = attr.ib(default=Unit._None)
-    values = attr.ib(factory=list)
+    unit = Unit._None
+    values = field(factory=list)
 
     @classmethod
     def read(cls, fp):
@@ -379,7 +379,7 @@ class Double(NumericElement):
         return write_fmt(fp, "d", self.value)
 
 
-@attr.s(repr=False)
+@define(repr=False)
 class Class(BaseElement):
     """
     Class structure.
@@ -393,8 +393,8 @@ class Class(BaseElement):
         bytes in :py:class:`~psd_tools.terminology.Klass`
     """
 
-    name = attr.ib(default="", type=str)
-    classID = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
+    name: str = ""
+    classID: bytes = b"\x00\x00\x00\x00"
 
     @classmethod
     def read(cls, fp):
@@ -422,7 +422,7 @@ class String(StringElement):
 
 
 @register(OSType.ENUMERATED_REFERENCE)
-@attr.s(repr=False)
+@define(repr=False)
 class EnumeratedReference(BaseElement):
     """
     Enumerated reference structure.
@@ -444,10 +444,10 @@ class EnumeratedReference(BaseElement):
         bytes in :py:class:`~psd_tools.terminology.Enum`
     """
 
-    name = attr.ib(default="", type=str)
-    classID = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
-    typeID = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
-    enum = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
+    name: str = ""
+    classID: bytes = b"\x00\x00\x00\x00"
+    typeID: bytes = b"\x00\x00\x00\x00"
+    enum: bytes = b"\x00\x00\x00\x00"
 
     @classmethod
     def read(cls, fp):
@@ -466,7 +466,7 @@ class EnumeratedReference(BaseElement):
 
 
 @register(OSType.OFFSET)
-@attr.s(repr=False)
+@define(repr=False)
 class Offset(BaseElement):
     """
     Offset structure.
@@ -484,9 +484,9 @@ class Offset(BaseElement):
         `int` value
     """
 
-    name = attr.ib(default="", type=str)
-    classID = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
-    value = attr.ib(default=0)
+    name: str = ""
+    classID: bytes = b"\x00\x00\x00\x00"
+    value: int = 0
 
     @classmethod
     def read(cls, fp):
@@ -557,7 +557,7 @@ class Integer(IntegerElement):
 
 
 @register(OSType.ENUMERATED)
-@attr.s(repr=False)
+@define(repr=False)
 class Enumerated(BaseElement):
     """
     Enum structure.
@@ -571,8 +571,8 @@ class Enumerated(BaseElement):
         bytes in :py:class:`~psd_tools.terminology.Enum`
     """
 
-    typeID = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
-    enum = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
+    typeID: bytes = b"\x00\x00\x00\x00"
+    enum: bytes = b"\x00\x00\x00\x00"
 
     @classmethod
     def read(cls, fp):
@@ -605,7 +605,7 @@ class Enumerated(BaseElement):
 
 
 @register(OSType.RAW_DATA)
-@attr.s(repr=False)
+@define(repr=False)
 class RawData(BaseElement):
     """
     RawData structure.
@@ -615,7 +615,7 @@ class RawData(BaseElement):
         `bytes` value
     """
 
-    value = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
+    value: bytes = b"\x00\x00\x00\x00"
 
     @classmethod
     def read(cls, fp):
@@ -720,7 +720,7 @@ class Index(Integer):
 
 
 @register(OSType.NAME)
-@attr.s(repr=False)
+@define(repr=False)
 class Name(BaseElement):
     """
     Name structure (Undocumented).
@@ -738,9 +738,9 @@ class Name(BaseElement):
         str
     """
 
-    name = attr.ib(default="", type=str)
-    classID = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
-    value = attr.ib(default="", type=str)
+    name: str = ""
+    classID: bytes = b"\x00\x00\x00\x00"
+    value: str = ""
 
     @classmethod
     def read(cls, fp):
@@ -756,7 +756,7 @@ class Name(BaseElement):
         return written
 
 
-@attr.s(repr=False)
+@define(repr=False)
 class DescriptorBlock(Descriptor):
     """
     Dict-like Descriptor-based structure that has `version` field. See
@@ -765,7 +765,7 @@ class DescriptorBlock(Descriptor):
     .. py:attribute:: version
     """
 
-    version = attr.ib(default=16, type=int, validator=in_((16,)))
+    version: int = field(default=16, validator=in_((16,)))
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -779,7 +779,7 @@ class DescriptorBlock(Descriptor):
         return written
 
 
-@attr.s(repr=False)
+@define(repr=False)
 class DescriptorBlock2(Descriptor):
     """
     Dict-like Descriptor-based structure that has `version` and
@@ -790,8 +790,8 @@ class DescriptorBlock2(Descriptor):
     .. py:attribute:: data_version
     """
 
-    version = attr.ib(default=1, type=int)
-    data_version = attr.ib(default=16, type=int, validator=in_((16,)))
+    version: int = 1
+    data_version: int = field(default=16, validator=in_((16,)))
 
     @classmethod
     def read(cls, fp, **kwargs):
