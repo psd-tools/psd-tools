@@ -127,9 +127,9 @@ class FilterEffectChannel(BaseElement):
     .. py:attribute:: data
     """
 
-    is_written = 0
-    compression = None
-    data = b""
+    is_written: int = 0
+    compression: int = None
+    data: bytes = b""
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -171,8 +171,8 @@ class FilterEffectExtra(BaseElement):
     .. py:attribute:: data
     """
 
-    is_written = 0
-    rectangle = field(factory=lambda: [0, 0, 0, 0], converter=list)
+    is_written: int = 0
+    rectangle: list = field(factory=lambda: [0, 0, 0, 0], converter=list)
     compression: int = 0
     data: bytes = b""
 
@@ -189,7 +189,7 @@ class FilterEffectExtra(BaseElement):
             compression = read_fmt("H", f)[0]
             data = f.read()
 
-        return cls(is_written, rectangle, compression, data)
+        return cls(is_written=is_written, rectangle=rectangle, compression=compression, data=data)
 
     def write(self, fp):
         written = write_fmt(fp, "B", self.is_written)

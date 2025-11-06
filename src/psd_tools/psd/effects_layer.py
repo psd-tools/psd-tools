@@ -67,12 +67,12 @@ class ShadowInfo(BaseElement):
     intensity: int = 0
     angle: int = 0
     distance: int = 0
-    color = field(factory=Color)
-    blend_mode = field(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
+    color: Color = field(factory=Color)
+    blend_mode: BlendMode = field(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
     enabled: int = 0
     use_global_angle: int = 0
     opacity: int = 0
-    native_color = field(factory=Color)
+    native_color: Color = field(factory=Color)
 
     @classmethod
     def read(cls, fp):
@@ -85,17 +85,17 @@ class ShadowInfo(BaseElement):
         enabled, use_global_angle, opacity = read_fmt("3B", fp)
         native_color = Color.read(fp)
         return cls(
-            version,
-            blur,
-            intensity,
-            angle,
-            distance,
-            color,
-            blend_mode,
-            enabled,
-            use_global_angle,
-            opacity,
-            native_color,
+            version=version,
+            blur=blur,
+            intensity=intensity,
+            angle=angle,
+            distance=distance,
+            color=color,
+            blend_mode=blend_mode,
+            enabled=enabled,
+            use_global_angle=use_global_angle,
+            opacity=opacity,
+            native_color=native_color,
         )
 
     def write(self, fp):
@@ -161,11 +161,11 @@ class OuterGlowInfo(BaseElement, _GlowInfo):
     version: int = 0
     blur: int = 0
     intensity: int = 0
-    color = field(factory=Color)
-    blend_mode = field(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
+    color: Color = field(factory=Color)
+    blend_mode: BlendMode = field(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
     enabled: int = 0
     opacity: int = 0
-    native_color = None
+    native_color: object = None
 
     @classmethod
     def read(cls, fp):
@@ -176,7 +176,14 @@ class OuterGlowInfo(BaseElement, _GlowInfo):
         if version >= 2:
             native_color = Color.read(fp)
         return cls(
-            version, blur, intensity, color, blend_mode, enabled, opacity, native_color
+            version=version,
+            blur=blur,
+            intensity=intensity,
+            color=color,
+            blend_mode=blend_mode,
+            enabled=enabled,
+            opacity=opacity,
+            native_color=native_color
         )
 
     def write(self, fp):
@@ -205,12 +212,12 @@ class InnerGlowInfo(BaseElement, _GlowInfo):
     version: int = 0
     blur: int = 0
     intensity: int = 0
-    color = field(factory=Color)
-    blend_mode = field(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
+    color: Color = field(factory=Color)
+    blend_mode: BlendMode = field(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
     enabled: int = 0
     opacity: int = 0
-    invert = None
-    native_color = None
+    invert: int = None
+    native_color: object = None
 
     @classmethod
     def read(cls, fp):
@@ -222,15 +229,15 @@ class InnerGlowInfo(BaseElement, _GlowInfo):
             invert = read_fmt("B", fp)[0]
             native_color = Color.read(fp)
         return cls(
-            version,
-            blur,
-            intensity,
-            color,
-            blend_mode,
-            enabled,
-            opacity,
-            invert,
-            native_color,
+            version=version,
+            blur=blur,
+            intensity=intensity,
+            color=color,
+            blend_mode=blend_mode,
+            enabled=enabled,
+            opacity=opacity,
+            invert=invert,
+            native_color=native_color,
         )
 
     def write(self, fp):
@@ -267,18 +274,18 @@ class BevelInfo(BaseElement):
     angle: int = 0
     depth: int = 0
     blur: int = 0
-    highlight_blend_mode = field(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
-    shadow_blend_mode = field(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
-    highlight_color = field(factory=Color)
-    shadow_color = field(factory=Color)
+    highlight_blend_mode: BlendMode = field(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
+    shadow_blend_mode: BlendMode = field(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
+    highlight_color: Color = field(factory=Color)
+    shadow_color: Color = field(factory=Color)
     bevel_style: int = 0
     highlight_opacity: int = 0
     shadow_opacity: int = 0
     enabled: int = 0
     use_global_angle: int = 0
     direction: int = 0
-    real_highlight_color = None
-    real_shadow_color = None
+    real_highlight_color: object = None
+    real_shadow_color: object = None
 
     @classmethod
     def read(cls, fp):
@@ -297,22 +304,22 @@ class BevelInfo(BaseElement):
             real_highlight_color = Color.read(fp)
             real_shadow_color = Color.read(fp)
         return cls(
-            version,
-            angle,
-            depth,
-            blur,
-            highlight_blend_mode,
-            shadow_blend_mode,
-            highlight_color,
-            shadow_color,
-            bevel_style,
-            highlight_opacity,
-            shadow_opacity,
-            enabled,
-            use_global_angle,
-            direction,
-            real_highlight_color,
-            real_shadow_color,
+            version=version,
+            angle=angle,
+            depth=depth,
+            blur=blur,
+            highlight_blend_mode=highlight_blend_mode,
+            shadow_blend_mode=shadow_blend_mode,
+            highlight_color=highlight_color,
+            shadow_color=shadow_color,
+            bevel_style=bevel_style,
+            highlight_opacity=highlight_opacity,
+            shadow_opacity=shadow_opacity,
+            enabled=enabled,
+            use_global_angle=use_global_angle,
+            direction=direction,
+            real_highlight_color=real_highlight_color,
+            real_shadow_color=real_shadow_color,
         )
 
     def write(self, fp):
@@ -357,11 +364,11 @@ class SolidFillInfo(BaseElement):
     """
 
     version: int = 2
-    blend_mode = field(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
-    color = field(factory=Color)
+    blend_mode: BlendMode = field(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
+    color: Color = field(factory=Color)
     opacity: int = 0
     enabled: int = 0
-    native_color = field(factory=Color)
+    native_color: Color = field(factory=Color)
 
     @classmethod
     def read(cls, fp):
@@ -371,7 +378,7 @@ class SolidFillInfo(BaseElement):
         color = Color.read(fp)
         opacity, enabled = read_fmt("2B", fp)
         native_color = Color.read(fp)
-        return cls(version, blend_mode, color, opacity, enabled, native_color)
+        return cls(version=version, blend_mode=blend_mode, color=color, opacity=opacity, enabled=enabled, native_color=native_color)
 
     def write(self, fp):
         written = write_fmt(fp, "I4s4s", self.version, b"8BIM", self.blend_mode.value)

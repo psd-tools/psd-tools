@@ -172,8 +172,8 @@ class Curves(BaseElement):
     is_map: bool = field(default=False, converter=bool)
     version: int = 0
     count_map: int = 0
-    data = field(factory=list, converter=list)
-    extra = None
+    data: list = field(factory=list, converter=list)
+    extra: object = None
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -259,7 +259,7 @@ class CurvesExtraItem(BaseElement):
     """
 
     channel_id: int = 0
-    points = field(factory=list, converter=list)
+    points: list = field(factory=list, converter=list)
 
     @classmethod
     def read(cls, fp, is_map=False, **kwargs):
@@ -501,7 +501,7 @@ class HueSaturation(BaseElement):
     enable: int = 1
     colorization: tuple = (0,)
     master: tuple = (0,)
-    items = field(factory=list, converter=list)
+    items: list = field(factory=list, converter=list)
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -514,7 +514,7 @@ class HueSaturation(BaseElement):
             range_values = read_fmt("4h", fp)
             settings_values = read_fmt("3h", fp)
             items.append([range_values, settings_values])
-        return cls(version, enable, colorization, master, items)
+        return cls(version=version, enable=enable, colorization=colorization, master=master, items=items)
 
     def write(self, fp, **kwargs):
         written = write_fmt(fp, "HBx", self.version, self.enable)
@@ -544,7 +544,7 @@ class Levels(ListElement):
     """
 
     version: int = field(default=0, validator=in_((2,)))
-    extra_version = None
+    extra_version: int = None
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -648,10 +648,10 @@ class PhotoFilter(BaseElement):
 
     version: int = field(default=0, validator=in_((2, 3)))
     xyz: tuple = (0,)
-    color_space = None
-    color_components = None
-    density = None
-    luminosity = None
+    color_space: int = None
+    color_components: tuple = None
+    density: int = None
+    luminosity: int = None
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -666,7 +666,7 @@ class PhotoFilter(BaseElement):
             color_space = read_fmt("H", fp)[0]
             color_components = read_fmt("4H", fp)
         density, luminosity = read_fmt("IB", fp)
-        return cls(version, xyz, color_space, color_components, density, luminosity)
+        return cls(version=version, xyz=xyz, color_space=color_space, color_components=color_components, density=density, luminosity=luminosity)
 
     def write(self, fp, **kwargs):
         written = write_fmt(fp, "H", self.version)

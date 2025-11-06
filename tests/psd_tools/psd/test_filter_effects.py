@@ -25,11 +25,11 @@ logger = logging.getLogger(__name__)
             8,
             3,
             [
-                FilterEffectChannel(1, 0, b"\x00"),
-                FilterEffectChannel(1, 0, b"\x00"),
-                FilterEffectChannel(1, 0, b"\x00"),
-                FilterEffectChannel(1, 0, b"\x00"),
-                FilterEffectChannel(1, 0, b"\x00"),
+                FilterEffectChannel(is_written=1, compression=0, data=b"\x00"),
+                FilterEffectChannel(is_written=1, compression=0, data=b"\x00"),
+                FilterEffectChannel(is_written=1, compression=0, data=b"\x00"),
+                FilterEffectChannel(is_written=1, compression=0, data=b"\x00"),
+                FilterEffectChannel(is_written=1, compression=0, data=b"\x00"),
             ],
             None,
         ),
@@ -40,13 +40,13 @@ logger = logging.getLogger(__name__)
             8,
             3,
             [
-                FilterEffectChannel(1, 0, b"\x00"),
-                FilterEffectChannel(1, 0, b"\x00"),
-                FilterEffectChannel(1, 0, b"\x00"),
-                FilterEffectChannel(1, 0, b"\x00"),
-                FilterEffectChannel(1, 0, b"\x00"),
+                FilterEffectChannel(is_written=1, compression=0, data=b"\x00"),
+                FilterEffectChannel(is_written=1, compression=0, data=b"\x00"),
+                FilterEffectChannel(is_written=1, compression=0, data=b"\x00"),
+                FilterEffectChannel(is_written=1, compression=0, data=b"\x00"),
+                FilterEffectChannel(is_written=1, compression=0, data=b"\x00"),
             ],
-            FilterEffectExtra(1, [0, 0, 512, 512], 0, b"\x00"),
+            FilterEffectExtra(is_written=1, rectangle=[0, 0, 512, 512], compression=0, data=b"\x00"),
         ),
         (
             "uuid",
@@ -55,13 +55,13 @@ logger = logging.getLogger(__name__)
             8,
             3,
             [
-                FilterEffectChannel(1, 0, b"\x00"),
-                FilterEffectChannel(1, 0, b"\x00"),
-                FilterEffectChannel(1, 0, b"\x00"),
-                FilterEffectChannel(1, 0, b"\x00"),
-                FilterEffectChannel(1, 0, b"\x00"),
+                FilterEffectChannel(is_written=1, compression=0, data=b"\x00"),
+                FilterEffectChannel(is_written=1, compression=0, data=b"\x00"),
+                FilterEffectChannel(is_written=1, compression=0, data=b"\x00"),
+                FilterEffectChannel(is_written=1, compression=0, data=b"\x00"),
+                FilterEffectChannel(is_written=1, compression=0, data=b"\x00"),
             ],
-            FilterEffectExtra(0),
+            FilterEffectExtra(is_written=0),
         ),
     ],
 )
@@ -79,7 +79,7 @@ def test_filter_effect(args):
     ],
 )
 def test_filter_effect_channel(is_written, compression, data):
-    check_write_read(FilterEffectChannel(is_written, compression, data))
+    check_write_read(FilterEffectChannel(is_written=is_written, compression=compression, data=data))
 
 
 @pytest.mark.parametrize(

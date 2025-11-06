@@ -327,8 +327,8 @@ class UnitFloats(BaseElement):
         List of `float` values
     """
 
-    unit = Unit._None
-    values = field(factory=list)
+    unit: Unit = Unit._None
+    values: list = field(factory=list)
 
     @classmethod
     def read(cls, fp):

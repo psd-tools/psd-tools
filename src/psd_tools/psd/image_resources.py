@@ -348,7 +348,7 @@ class DisplayInfo(BaseElement):
     """
 
     version: int = 1
-    alpha_channels = field(factory=list, converter=list)
+    alpha_channels: list = field(factory=list, converter=list)
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -357,7 +357,7 @@ class DisplayInfo(BaseElement):
         items = []
         while is_readable(fp, 13):
             items.append(AlphaChannel.read(fp))
-        return cls(version, items)
+        return cls(version=version, alpha_channels=items)
 
     def write(self, fp, **kwargs):
         written = write_fmt(fp, "I", self.version)
@@ -418,7 +418,7 @@ class GridGuidesInfo(BaseElement):
     version: int = 1
     horizontal: int = 0
     vertical: int = 0
-    data = field(factory=list, converter=list)
+    data: list = field(factory=list, converter=list)
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -426,7 +426,7 @@ class GridGuidesInfo(BaseElement):
         items = []
         for _ in range(count):
             items.append(read_fmt("IB", fp))
-        return cls(version, horizontal, vertical, items)
+        return cls(version=version, horizontal=horizontal, vertical=vertical, data=items)
 
     def write(self, fp, **kwargs):
         written = write_fmt(
@@ -636,14 +636,23 @@ class PrintFlags(BaseElement):
     flip: bool = False
     interpolate: bool = False
     caption: bool = False
-    print_flags = None  # Not existing for old versions.
+    print_flags: bool = None  # Not existing for old versions.
 
     @classmethod
     def read(cls, fp, **kwargs):
         values = read_fmt("8?", fp)
-        if is_readable(fp):
-            values += read_fmt("?", fp)
-        return cls(*values)
+        print_flags_value = read_fmt("?", fp)[0] if is_readable(fp) else None
+        return cls(
+            labels=values[0],
+            crop_marks=values[1],
+            colorbars=values[2],
+            registration_marks=values[3],
+            negative=values[4],
+            flip=values[5],
+            interpolate=values[6],
+            caption=values[7],
+            print_flags=print_flags_value
+        )
 
     def write(self, fp, **kwargs):
         values = astuple(self)
@@ -744,7 +753,7 @@ class Slices(BaseElement):
     """
 
     version: int = field(default=0, validator=in_((6, 7, 8)))
-    data = None
+    data: object = None
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -770,9 +779,9 @@ class SlicesV6(BaseElement):
     .. py:attribute:: items
     """
 
-    bbox = field(factory=lambda: [0, 0, 0, 0], converter=list)
+    bbox: list = field(factory=lambda: [0, 0, 0, 0], converter=list)
     name: str = ""
-    items = field(factory=list, converter=list)
+    items: list = field(factory=list, converter=list)
 
     @classmethod
     def read(cls, fp):
@@ -780,7 +789,7 @@ class SlicesV6(BaseElement):
         name = read_unicode_string(fp)
         count = read_fmt("I", fp)[0]
         items = [SliceV6.read(fp) for _ in range(count)]
-        return cls(bbox, name, items)
+        return cls(bbox=bbox, name=name, items=items)
 
     def write(self, fp, **kwargs):
         written = write_fmt(fp, "4I", *self.bbox)
@@ -820,10 +829,10 @@ class SliceV6(BaseElement):
     slice_id: int = 0
     group_id: int = 0
     origin: int = 0
-    associated_id = None
+    associated_id: int = None
     name: str = ""
     slice_type: int = 0
-    bbox = field(factory=lambda: [0, 0, 0, 0], converter=list)
+    bbox: list = field(factory=lambda: [0, 0, 0, 0], converter=list)
     url: str = ""
     target: str = ""
     message: str = ""
@@ -836,7 +845,7 @@ class SliceV6(BaseElement):
     red: int = 0
     green: int = 0
     blue: int = 0
-    data = None
+    data: object = None
 
     @classmethod
     def read(cls, fp):
@@ -870,26 +879,26 @@ class SliceV6(BaseElement):
                     logger.debug("Failed to read DescriptorBlock")
                     fp.seek(current_position)
         return cls(
-            slice_id,
-            group_id,
-            origin,
-            associated_id,
-            name,
-            slice_type,
-            bbox,
-            url,
-            target,
-            message,
-            alt_tag,
-            cell_is_html,
-            cell_text,
-            horizontal_align,
-            vertical_align,
-            alpha,
-            red,
-            green,
-            blue,
-            data,
+            slice_id=slice_id,
+            group_id=group_id,
+            origin=origin,
+            associated_id=associated_id,
+            name=name,
+            slice_type=slice_type,
+            bbox=bbox,
+            url=url,
+            target=target,
+            message=message,
+            alt_tag=alt_tag,
+            cell_is_html=cell_is_html,
+            cell_text=cell_text,
+            horizontal_align=horizontal_align,
+            vertical_align=vertical_align,
+            alpha=alpha,
+            red=red,
+            green=green,
+            blue=blue,
+            data=data,
         )
 
     def write(self, fp):
@@ -996,14 +1005,14 @@ class TransferFunction(BaseElement):
     Transfer function
     """
 
-    curve = field(factory=list, converter=list)
+    curve: list = field(factory=list, converter=list)
     override: bool = False
 
     @classmethod
     def read(cls, fp, **kwargs):
         curve = read_fmt("13H", fp)
         override = read_fmt("H", fp)[0]
-        return cls(curve, override)
+        return cls(curve=curve, override=override)
 
     def write(self, fp, **kwargs):
         written = write_fmt(fp, "13H", *self.curve)

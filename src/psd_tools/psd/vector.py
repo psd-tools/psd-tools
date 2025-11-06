@@ -301,14 +301,14 @@ class VectorMaskSetting(BaseElement):
 
     version: int = 3
     flags: int = 0
-    path = None
+    path: object = None
 
     @classmethod
     def read(cls, fp, **kwargs):
         version, flags = read_fmt("2I", fp)
         assert version == 3, "Unknown vector mask version %d" % version
         path = Path.read(fp)
-        return cls(version, flags, path)
+        return cls(version=version, flags=flags, path=path)
 
     def write(self, fp, **kwargs):
         written = write_fmt(fp, "2I", self.version, self.flags)

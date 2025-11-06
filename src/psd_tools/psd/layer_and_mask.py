@@ -223,12 +223,13 @@ class ChannelInfo(BaseElement):
         Length of the corresponding channel data.
     """
 
-    id = field(default=ChannelID.CHANNEL_0, converter=ChannelID, validator=in_(ChannelID))
+    id: ChannelID = field(default=ChannelID.CHANNEL_0, converter=ChannelID, validator=in_(ChannelID))
     length: int = 0
 
     @classmethod
     def read(cls, fp, version=1):
-        return cls(*read_fmt(("hI", "hQ")[version - 1], fp))
+        values = read_fmt(("hI", "hQ")[version - 1], fp)
+        return cls(id=values[0], length=values[1])
 
     def write(self, fp, version=1):
         return write_fmt(fp, ("hI", "hQ")[version - 1], *astuple(self))
@@ -426,12 +427,12 @@ class LayerRecord(BaseElement):
     channel_info: list[ChannelInfo] = field(factory=list)
     signature: bytes = field(default=b"8BIM", repr=False, validator=in_((b"8BIM",))
     )
-    blend_mode = field(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
+    blend_mode: BlendMode = field(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
     opacity: int = field(default=255, validator=range_(0, 255))
-    clipping = field(default=Clipping.BASE, converter=Clipping, validator=in_(Clipping))
-    flags = field(factory=LayerFlags)
-    mask_data = None
-    blending_ranges = field(factory=LayerBlendingRanges)
+    clipping: Clipping = field(default=Clipping.BASE, converter=Clipping, validator=in_(Clipping))
+    flags: LayerFlags = field(factory=LayerFlags)
+    mask_data: object = None
+    blending_ranges: LayerBlendingRanges = field(factory=LayerBlendingRanges)
     name: str = ""
     tagged_blocks: TaggedBlocks = field(factory=TaggedBlocks)
 
@@ -446,18 +447,22 @@ class LayerRecord(BaseElement):
         data = read_length_block(fp, fmt="xI")
         logger.debug("  read layer record, len=%d" % (fp.tell() - start_pos))
         with io.BytesIO(data) as f:
+            mask_data, blending_ranges, name, tagged_blocks = cls._read_extra(f, encoding, version)
             self = cls(
-                top,
-                left,
-                bottom,
-                right,
-                channel_info,
-                signature,
-                blend_mode,
-                opacity,
-                clipping,
-                flags,
-                *cls._read_extra(f, encoding, version),
+                top=top,
+                left=left,
+                bottom=bottom,
+                right=right,
+                channel_info=channel_info,
+                signature=signature,
+                blend_mode=blend_mode,
+                opacity=opacity,
+                clipping=clipping,
+                flags=flags,
+                mask_data=mask_data,
+                blending_ranges=blending_ranges,
+                name=name,
+                tagged_blocks=tagged_blocks,
             )
 
         # with io.BytesIO() as f:
@@ -669,14 +674,14 @@ class MaskData(BaseElement):
     bottom: int = 0
     right: int = 0
     background_color: int = 0
-    flags = field(factory=MaskFlags)
-    parameters = None
-    real_flags = None
-    real_background_color = None
-    real_top = None
-    real_left = None
-    real_bottom = None
-    real_right = None
+    flags: MaskFlags = field(factory=MaskFlags)
+    parameters: object = None
+    real_flags: object = None
+    real_background_color: int = None
+    real_top: int = None
+    real_left: int = None
+    real_bottom: int = None
+    real_right: int = None
 
     @classmethod
     def read(cls, fp):
@@ -711,19 +716,19 @@ class MaskData(BaseElement):
 
         # logger.debug('    skipping %d' % (len(fp.read())))
         return cls(
-            top,
-            left,
-            bottom,
-            right,
-            background_color,
-            flags,
-            parameters,
-            real_flags,
-            real_background_color,
-            real_top,
-            real_left,
-            real_bottom,
-            real_right,
+            top=top,
+            left=left,
+            bottom=bottom,
+            right=right,
+            background_color=background_color,
+            flags=flags,
+            parameters=parameters,
+            real_flags=real_flags,
+            real_background_color=real_background_color,
+            real_top=real_top,
+            real_left=real_left,
+            real_bottom=real_bottom,
+            real_right=real_right,
         )
 
     def write(self, fp):
@@ -795,10 +800,10 @@ class MaskParameters(BaseElement):
     .. py:attribute:: vector_mask_feather
     """
 
-    user_mask_density = None
-    user_mask_feather = None
-    vector_mask_density = None
-    vector_mask_feather = None
+    user_mask_density: int = None
+    user_mask_feather: float = None
+    vector_mask_density: int = None
+    vector_mask_feather: float = None
 
     @classmethod
     def read(cls, fp):
