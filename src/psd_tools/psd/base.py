@@ -16,6 +16,7 @@ import io
 import logging
 from collections import OrderedDict
 from enum import Enum
+from typing import Any, BinaryIO, Callable, Generator, Optional, TypeVar
 
 from attrs import define, field, fields, has, validate
 
@@ -29,6 +30,8 @@ from psd_tools.utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T", bound="BaseElement")
 
 
 class BaseElement(object):
@@ -58,23 +61,23 @@ class BaseElement(object):
     """
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         raise NotImplementedError()
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         raise NotImplementedError()
 
     @classmethod
-    def frombytes(self, data, *args, **kwargs):
+    def frombytes(cls: type[T], data: bytes, *args: Any, **kwargs: Any) -> T:
         with io.BytesIO(data) as f:
-            return self.read(f, *args, **kwargs)
+            return cls.read(f, *args, **kwargs)
 
-    def tobytes(self, *args, **kwargs):
+    def tobytes(self, *args: Any, **kwargs: Any) -> bytes:
         with io.BytesIO() as f:
             self.write(f, *args, **kwargs)
             return f.getvalue()
 
-    def validate(self):
+    def validate(self) -> None:
         return validate(self)
 
     def _repr_pretty_(self, p, cycle):
@@ -98,7 +101,9 @@ class BaseElement(object):
                     p.pretty(value)
             p.breakable("")
 
-    def _find(self, condition=None):
+    def _find(
+        self, condition: Optional[Callable[[Any], bool]] = None
+    ) -> Generator[Any, None, None]:
         """
         Traversal API intended for debugging.
         """
@@ -106,7 +111,9 @@ class BaseElement(object):
             yield _
 
     @staticmethod
-    def _traverse(element, condition=None):
+    def _traverse(
+        element: Any, condition: Optional[Callable[[Any], bool]] = None
+    ) -> Generator[Any, None, None]:
         """
         Traversal API intended for debugging.
         """
@@ -134,10 +141,10 @@ class EmptyElement(BaseElement):
     """
 
     @classmethod
-    def read(cls, fp, *args, **kwargs):
+    def read(cls: type[T], fp: BinaryIO, *args: Any, **kwargs: Any) -> T:
         return cls()
 
-    def write(self, fp, *args, **kwargs):
+    def write(self, fp: BinaryIO, *args: Any, **kwargs: Any) -> int:
         return 0
 
 
@@ -279,10 +286,10 @@ class NumericElement(ValueElement):
         return self.value.__coerce__(other)
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         return cls(read_fmt("d", fp)[0])
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, "d", self.value)
 
 
@@ -342,10 +349,10 @@ class IntegerElement(NumericElement):
         return self.value.__index__()
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         return cls(read_fmt("I", fp)[0])
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, "I", self.value)
 
 
@@ -358,14 +365,14 @@ class ShortIntegerElement(IntegerElement):
     """
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         try:
             return cls(read_fmt("H2x", fp)[0])
         except IOError as e:
             logger.error(e)
         return cls(read_fmt("H", fp)[0])
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, "H2x", self.value)
 
 
@@ -378,14 +385,14 @@ class ByteElement(IntegerElement):
     """
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         try:
             return cls(read_fmt("B3x", fp)[0])
         except IOError as e:
             logger.error(e)
         return cls(read_fmt("B", fp)[0])
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, "B3x", self.value)
 
 
@@ -400,14 +407,14 @@ class BooleanElement(IntegerElement):
     value: bool = field(default=False, converter=bool)
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         try:
             return cls(read_fmt("?3x", fp)[0])
         except IOError as e:
             logger.error(e)
         return cls(read_fmt("?", fp)[0])
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, "?3x", self.value)
 
 
@@ -424,10 +431,10 @@ class StringElement(ValueElement):
     value: str = ""
 
     @classmethod
-    def read(cls, fp, padding=1, **kwargs):
+    def read(cls: type[T], fp: BinaryIO, padding: int = 1, **kwargs: Any) -> T:
         return cls(read_unicode_string(fp, padding=padding))
 
-    def write(self, fp, padding=1, **kwargs):
+    def write(self, fp: BinaryIO, padding: int = 1, **kwargs: Any) -> int:
         return write_unicode_string(fp, self.value, padding=padding)
 
 
@@ -500,7 +507,7 @@ class ListElement(BaseElement):
                 p.pretty(value)
             p.breakable("")
 
-    def write(self, fp, *args, **kwargs):
+    def write(self, fp: BinaryIO, *args: Any, **kwargs: Any) -> int:
         written = 0
         for item in self:
             if hasattr(item, "write"):
@@ -603,10 +610,10 @@ class DictElement(BaseElement):
         return key
 
     @classmethod
-    def read(cls, fp, *args, **kwargs):
+    def read(cls: type[T], fp: BinaryIO, *args: Any, **kwargs: Any) -> T:
         raise NotImplementedError
 
-    def write(self, fp, *args, **kwargs):
+    def write(self, fp: BinaryIO, *args: Any, **kwargs: Any) -> int:
         written = 0
         for key in self:
             value = self[key]

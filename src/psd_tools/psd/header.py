@@ -3,6 +3,7 @@ File header structure.
 """
 
 import logging
+from typing import Any, BinaryIO, TypeVar
 
 from attrs import define, field, astuple
 
@@ -12,6 +13,8 @@ from psd_tools.utils import read_fmt, write_fmt
 from psd_tools.validators import in_, range_
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T", bound="FileHeader")
 
 
 @define(repr=True)
@@ -76,8 +79,8 @@ class FileHeader(BaseElement):
             raise ValueError("This is not a PSD or PSB file")
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         return cls(*read_fmt(cls._FORMAT, fp))
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, self._FORMAT, *astuple(self))

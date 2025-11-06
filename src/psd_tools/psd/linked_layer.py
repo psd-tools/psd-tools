@@ -4,7 +4,7 @@ Linked layer structure.
 
 import io
 import logging
-from typing import Optional
+from typing import Any, BinaryIO, Optional, TypeVar
 
 from attrs import define, field
 
@@ -28,6 +28,9 @@ from psd_tools.validators import in_, range_
 
 logger = logging.getLogger(__name__)
 
+T_LinkedLayers = TypeVar("T_LinkedLayers", bound="LinkedLayers")
+T_LinkedLayer = TypeVar("T_LinkedLayer", bound="LinkedLayer")
+
 
 class LinkedLayers(ListElement):
     """
@@ -35,7 +38,7 @@ class LinkedLayers(ListElement):
     """
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T_LinkedLayers], fp: BinaryIO, **kwargs: Any) -> T_LinkedLayers:
         items = []
         while is_readable(fp, 8):
             data = read_length_block(fp, fmt="Q", padding=4)
@@ -43,7 +46,7 @@ class LinkedLayers(ListElement):
                 items.append(LinkedLayer.read(f))
         return cls(items)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = 0
         for item in self:
             written += write_length_block(fp, item.write, fmt="Q", padding=4)
@@ -89,7 +92,7 @@ class LinkedLayer(BaseElement):
     lock_state: Optional[int] = None
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T_LinkedLayer], fp: BinaryIO, **kwargs: Any) -> T_LinkedLayer:
         kind = LinkedLayerType(read_fmt("4s", fp)[0])
         version = read_fmt("I", fp)[0]
         assert 1 <= version and version <= 8, "Invalid version %d" % (version)
@@ -149,7 +152,7 @@ class LinkedLayer(BaseElement):
             lock_state,
         )
 
-    def write(self, fp, padding=1, **kwargs):
+    def write(self, fp: BinaryIO, padding: int = 1, **kwargs: Any) -> int:
         written = write_fmt(fp, "4sI", self.kind.value, self.version)
         written += write_pascal_string(fp, self.uuid, "macroman", padding=1)
         written += write_unicode_string(fp, self.filename)

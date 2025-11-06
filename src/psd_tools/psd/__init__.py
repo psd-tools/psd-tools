@@ -6,6 +6,7 @@ defined in :py:mod:`psd_tools.psd.base` module.
 """
 
 import logging
+from typing import Any, BinaryIO, TypeVar
 
 from attrs import define, field
 
@@ -24,6 +25,8 @@ from .layer_and_mask import (
 )
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T", bound="PSD")
 
 
 @define(repr=False)
@@ -74,7 +77,7 @@ class PSD(BaseElement):
     image_data: ImageData = field(factory=ImageData)
 
     @classmethod
-    def read(cls, fp, encoding="macroman", **kwargs):
+    def read(cls: type[T], fp: BinaryIO, encoding: str = "macroman", **kwargs: Any) -> T:
         header = FileHeader.read(fp)
         logger.debug("read %s" % header)
         return cls(
@@ -85,7 +88,7 @@ class PSD(BaseElement):
             ImageData.read(fp),
         )
 
-    def write(self, fp, encoding="macroman", **kwargs):
+    def write(self, fp: BinaryIO, encoding: str = "macroman", **kwargs: Any) -> int:
         logger.debug("writing %s" % self.header)
         written = self.header.write(fp)
         written += self.color_mode_data.write(fp)

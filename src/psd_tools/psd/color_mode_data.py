@@ -4,6 +4,7 @@ Color mode data structure.
 
 import array
 import logging
+from typing import Any, BinaryIO, TypeVar
 
 from attrs import define
 
@@ -11,6 +12,8 @@ from psd_tools.psd.base import ValueElement
 from psd_tools.utils import read_length_block, write_bytes, write_length_block
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T", bound="ColorModeData")
 
 
 @define(repr=False)
@@ -27,20 +30,20 @@ class ColorModeData(ValueElement):
     value: bytes = b""
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         value = read_length_block(fp)
         logger.debug("reading color mode data, len=%d" % (len(value)))
         # TODO: Parse color table.
         return cls(value)
 
-    def write(self, fp):
-        def writer(f):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+        def writer(f: BinaryIO) -> int:
             return write_bytes(f, self.value)
 
         logger.debug("writing color mode data, len=%d" % (len(self.value)))
         return write_length_block(fp, writer)
 
-    def interleave(self):
+    def interleave(self) -> bytes:
         """
         Returns interleaved color table in bytes.
         """

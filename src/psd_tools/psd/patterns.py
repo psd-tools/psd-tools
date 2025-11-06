@@ -4,7 +4,7 @@ Patterns structure.
 
 import io
 import logging
-from typing import Optional
+from typing import Any, BinaryIO, Optional, TypeVar
 
 from attrs import define, field
 
@@ -27,6 +27,9 @@ from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
 
+T_Patterns = TypeVar("T_Patterns", bound="Patterns")
+T_Pattern = TypeVar("T_Pattern", bound="Pattern")
+
 
 class Patterns(ListElement):
     """
@@ -35,7 +38,7 @@ class Patterns(ListElement):
     """
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T_Patterns], fp: BinaryIO, **kwargs: Any) -> T_Patterns:
         items = []
         while is_readable(fp, 4):
             data = read_length_block(fp, padding=4)
@@ -43,7 +46,7 @@ class Patterns(ListElement):
                 items.append(Pattern.read(f))
         return cls(items)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = 0
         for item in self:
             written += write_length_block(fp, item.write, padding=4)
@@ -92,7 +95,7 @@ class Pattern(BaseElement):
     data: "VirtualMemoryArrayList" = field(default=None)
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T_Pattern], fp: BinaryIO, **kwargs: Any) -> T_Pattern:
         version = read_fmt("I", fp)[0]
         assert version == 1, "Invalid version %d" % (version)
         image_mode = ColorMode(read_fmt("I", fp)[0])
@@ -107,7 +110,7 @@ class Pattern(BaseElement):
         data = VirtualMemoryArrayList.read(fp)
         return cls(version, image_mode, point, name, pattern_id, color_table, data)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "2I", self.version, self.image_mode.value)
         written += write_fmt(fp, "2h", *self.point)
         written += write_unicode_string(fp, self.name)

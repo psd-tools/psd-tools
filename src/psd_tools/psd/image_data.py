@@ -8,6 +8,7 @@ this is the only place pixels are saved.
 
 import io
 import logging
+from typing import Any, BinaryIO, TypeVar
 
 from attrs import define, field
 
@@ -18,6 +19,8 @@ from psd_tools.utils import pack, read_fmt, write_bytes, write_fmt
 from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T", bound="ImageData")
 
 
 @define(repr=False)
@@ -40,14 +43,14 @@ class ImageData(BaseElement):
     data: bytes = b""
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         start_pos = fp.tell()
         compression = Compression(read_fmt("H", fp)[0])
         data = fp.read()  # TODO: Parse data here. Need header.
         logger.debug("  read image data, len=%d" % (fp.tell() - start_pos))
         return cls(compression, data)
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         start_pos = fp.tell()
         written = write_fmt(fp, "H", self.compression.value)
         written += write_bytes(fp, self.data)

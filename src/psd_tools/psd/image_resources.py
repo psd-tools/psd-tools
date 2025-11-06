@@ -62,6 +62,7 @@ The following resources are plain bytes::
 
 import io
 import logging
+from typing import Any, BinaryIO, TypeVar
 
 from attrs import define, field, astuple
 
@@ -97,6 +98,9 @@ from psd_tools.validators import in_
 from psd_tools.version import __version__
 
 logger = logging.getLogger(__name__)
+
+T_ImageResources = TypeVar("T_ImageResources", bound="ImageResources")
+T_ImageResource = TypeVar("T_ImageResource", bound="ImageResource")
 
 TYPES, register = new_registry()
 
@@ -168,7 +172,7 @@ class ImageResources(DictElement):
         )
 
     @classmethod
-    def read(cls, fp, encoding="macroman"):
+    def read(cls: type[T_ImageResources], fp: BinaryIO, encoding: str = "macroman", **kwargs: Any) -> T_ImageResources:
         data = read_length_block(fp)
         logger.debug("reading image resources, len=%d" % (len(data)))
         with io.BytesIO(data) as f:
@@ -182,7 +186,7 @@ class ImageResources(DictElement):
             items.append((item.key, item))
         return cls(items)
 
-    def write(self, fp, encoding="macroman"):
+    def write(self, fp: BinaryIO, encoding: str = "macroman", **kwargs: Any) -> int:
         def writer(f):
             written = sum(self[key].write(f, encoding) for key in self)
             logger.debug("writing image resources, len=%d" % (written))
@@ -247,7 +251,7 @@ class ImageResource(BaseElement):
     data: bytes = field(default=b"", repr=False)
 
     @classmethod
-    def read(cls, fp, encoding="macroman"):
+    def read(cls: type[T_ImageResource], fp: BinaryIO, encoding: str = "macroman", **kwargs: Any) -> T_ImageResource:
         signature, key = read_fmt("4sH", fp)
         try:
             key = Resource(key)
@@ -274,7 +278,7 @@ class ImageResource(BaseElement):
             data = raw_data
         return cls(signature, key, name, data)
 
-    def write(self, fp, encoding="macroman"):
+    def write(self, fp: BinaryIO, encoding: str = "macroman", **kwargs: Any) -> int:
         written = write_fmt(
             fp, "4sH", self.signature, getattr(self.key, "value", self.key)
         )

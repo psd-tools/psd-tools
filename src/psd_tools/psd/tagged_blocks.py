@@ -9,7 +9,7 @@ Tagged block data structure.
 
 import io
 import logging
-from typing import Optional
+from typing import Any, BinaryIO, Optional, TypeVar
 
 from attrs import define, field
 
@@ -55,6 +55,9 @@ from psd_tools.utils import (
 from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
+
+T_TaggedBlocks = TypeVar("T_TaggedBlocks", bound="TaggedBlocks")
+T_TaggedBlock = TypeVar("T_TaggedBlock", bound="TaggedBlock")
 
 TYPES, register = new_registry()
 
@@ -168,7 +171,7 @@ class TaggedBlocks(DictElement):
         self[key] = TaggedBlock(key=key, data=kls(*args, **kwargs))
 
     @classmethod
-    def read(cls, fp, version=1, padding=1, end_pos=None):
+    def read(cls: type[T_TaggedBlocks], fp: BinaryIO, version: int = 1, padding: int = 1, end_pos=None, **kwargs: Any) -> T_TaggedBlocks:
         items = []
         while is_readable(fp, 8):  # len(signature) + len(key) = 8
             if end_pos is not None and fp.tell() >= end_pos:
@@ -251,7 +254,7 @@ class TaggedBlock(BaseElement):
     data: bytes = field(default=b"", repr=True)
 
     @classmethod
-    def read(cls, fp, version=1, padding=1):
+    def read(cls: type[T_TaggedBlock], fp: BinaryIO, version: int = 1, padding: int = 1, **kwargs: Any) -> T_TaggedBlock:
         signature = read_fmt("4s", fp)[0]
         if signature not in cls._SIGNATURES:
             logger.warning("Invalid signature (%r)" % (signature))
@@ -282,7 +285,7 @@ class TaggedBlock(BaseElement):
             data = raw_data
         return cls(signature, key, data)
 
-    def write(self, fp, version=1, padding=1):
+    def write(self, fp: BinaryIO, version: int = 1, padding: int = 1, **kwargs: Any) -> int:
         key = self.key if isinstance(self.key, bytes) else self.key.value
         written = write_fmt(fp, "4s4s", self.signature, key)
 
