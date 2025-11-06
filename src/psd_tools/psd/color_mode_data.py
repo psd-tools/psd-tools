@@ -2,6 +2,7 @@
 Color mode data structure.
 """
 
+import array
 import logging
 
 from attrs import define
@@ -43,24 +44,10 @@ class ColorModeData(ValueElement):
         """
         Returns interleaved color table in bytes.
         """
-        import array
 
-        if bytes == str:
-            return b"".join(
-                array.array(
-                    "B",
-                    [
-                        ord(self.value[i]),
-                        ord(self.value[i + 256]),
-                        ord(self.value[i + 512]),
-                    ],
-                ).tostring()
-                for i in range(256)
-            )
-        else:
-            return b"".join(
-                array.array(
-                    "B", [(self.value[i]), (self.value[i + 256]), (self.value[i + 512])]
-                ).tobytes()
-                for i in range(256)
-            )
+        return b"".join(
+            array.array(
+                "B", [(self.value[i]), (self.value[i + 256]), (self.value[i + 512])]
+            ).tobytes()
+            for i in range(256)
+        )
