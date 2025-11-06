@@ -71,7 +71,9 @@ class LinkedLayer(BaseElement):
     .. py:attribute:: lock_state
     """
 
-    kind: LinkedLayerType = field(default=LinkedLayerType.ALIAS, validator=in_(LinkedLayerType))
+    kind: LinkedLayerType = field(
+        default=LinkedLayerType.ALIAS, validator=in_(LinkedLayerType)
+    )
     version: int = field(default=1, validator=range_(1, 8))
     uuid: str = ""
     filename: str = ""

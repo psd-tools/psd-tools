@@ -85,7 +85,15 @@ class FilterEffect(BaseElement):
             rectangle, depth, max_channels, channels = cls._read_body(f)
         # Documentation is incorrect here.
         extra = FilterEffectExtra.read(fp) if is_readable(fp) else None
-        return cls(uuid=uuid, version=version, rectangle=rectangle, depth=depth, max_channels=max_channels, channels=channels, extra=extra)
+        return cls(
+            uuid=uuid,
+            version=version,
+            rectangle=rectangle,
+            depth=depth,
+            max_channels=max_channels,
+            channels=channels,
+            extra=extra,
+        )
 
     @classmethod
     def _read_body(cls, fp):
@@ -189,7 +197,12 @@ class FilterEffectExtra(BaseElement):
             compression = read_fmt("H", f)[0]
             data = f.read()
 
-        return cls(is_written=is_written, rectangle=rectangle, compression=compression, data=data)
+        return cls(
+            is_written=is_written,
+            rectangle=rectangle,
+            compression=compression,
+            data=data,
+        )
 
     def write(self, fp):
         written = write_fmt(fp, "B", self.is_written)

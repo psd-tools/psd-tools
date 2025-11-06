@@ -426,7 +426,9 @@ class GridGuidesInfo(BaseElement):
         items = []
         for _ in range(count):
             items.append(read_fmt("IB", fp))
-        return cls(version=version, horizontal=horizontal, vertical=vertical, data=items)
+        return cls(
+            version=version, horizontal=horizontal, vertical=vertical, data=items
+        )
 
     def write(self, fp, **kwargs):
         written = write_fmt(
@@ -651,7 +653,7 @@ class PrintFlags(BaseElement):
             flip=values[5],
             interpolate=values[6],
             caption=values[7],
-            print_flags=print_flags_value
+            print_flags=print_flags_value,
         )
 
     def write(self, fp, **kwargs):
@@ -698,9 +700,11 @@ class PrintScale(BaseElement):
     .. py:attribute:: scale
     """
 
-    style: PrintScaleStyle = field(default=PrintScaleStyle.CENTERED,
+    style: PrintScaleStyle = field(
+        default=PrintScaleStyle.CENTERED,
         converter=PrintScaleStyle,
-        validator=in_(PrintScaleStyle))
+        validator=in_(PrintScaleStyle),
+    )
     x: float = 0.0
     y: float = 0.0
     scale: float = 0.0

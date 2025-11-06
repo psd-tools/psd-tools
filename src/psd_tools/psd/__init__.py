@@ -68,7 +68,9 @@ class PSD(BaseElement):
     header: FileHeader = field(factory=FileHeader)
     color_mode_data: ColorModeData = field(factory=ColorModeData)
     image_resources: ImageResources = field(factory=ImageResources)
-    layer_and_mask_information: LayerAndMaskInformation = field(factory=LayerAndMaskInformation)
+    layer_and_mask_information: LayerAndMaskInformation = field(
+        factory=LayerAndMaskInformation
+    )
     image_data: ImageData = field(factory=ImageData)
 
     @classmethod

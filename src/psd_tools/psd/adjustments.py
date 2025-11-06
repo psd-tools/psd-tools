@@ -194,9 +194,9 @@ class Curves(BaseElement):
             data = []
             for _ in range(count):
                 point_count = read_fmt("H", fp)[0]
-                assert (
-                    2 <= point_count and point_count <= 19
-                ), "Curves point count not in [2, 19]"
+                assert 2 <= point_count and point_count <= 19, (
+                    "Curves point count not in [2, 19]"
+                )
                 points = [read_fmt("2H", fp) for i in range(point_count)]
                 data.append(points)
 
@@ -307,24 +307,28 @@ class GradientMap(BaseElement):
     .. py:attribute:: maximum_color
     """
 
-    version: int = field(default=1,
+    version: int = field(
+        default=1,
         validator=in_(
             (
                 1,
                 3,
-            )),
+            )
+        ),
     )
     is_reversed: int = 0
     is_dithered: int = 0
     name: str = ""
-    method: bytes = field(default=b"Gcls",
+    method: bytes = field(
+        default=b"Gcls",
         validator=in_(
             (
                 b"Gcls",
                 Enum.Linear,
                 Enum.Perceptual,
                 Key.Smooth,
-            )),
+            )
+        ),
     )
     color_stops: list = field(factory=list, converter=list)
     transparency_stops: list = field(factory=list, converter=list)
@@ -515,7 +519,13 @@ class HueSaturation(BaseElement):
             range_values = read_fmt("4h", fp)
             settings_values = read_fmt("3h", fp)
             items.append([range_values, settings_values])
-        return cls(version=version, enable=enable, colorization=colorization, master=master, items=items)
+        return cls(
+            version=version,
+            enable=enable,
+            colorization=colorization,
+            master=master,
+            items=items,
+        )
 
     def write(self, fp, **kwargs):
         written = write_fmt(fp, "HBx", self.version, self.enable)
@@ -559,13 +569,13 @@ class Levels(ListElement):
             signature, extra_version = read_fmt("4sH", fp)
             if signature == b"ls\x00\x03":
                 # Clip Studio Paint has an incorrect signature.
-                logger.warning(
-                    "Invalid signature %r, assuming b'Lvls'." % (signature)
-                )
+                logger.warning("Invalid signature %r, assuming b'Lvls'." % (signature))
                 # Clip Studio Paint seems to incorrectly trim the last record.
                 count = extra_version - 1
                 extra_version = 3
-                logger.debug("Levels extra version %d, count %d" % (extra_version, count))
+                logger.debug(
+                    "Levels extra version %d, count %d" % (extra_version, count)
+                )
             elif signature != b"Lvls":
                 raise ValueError("Invalid signature %r" % (signature))
             elif extra_version != 3:
@@ -667,7 +677,14 @@ class PhotoFilter(BaseElement):
             color_space = read_fmt("H", fp)[0]
             color_components = read_fmt("4H", fp)
         density, luminosity = read_fmt("IB", fp)
-        return cls(version=version, xyz=xyz, color_space=color_space, color_components=color_components, density=density, luminosity=luminosity)
+        return cls(
+            version=version,
+            xyz=xyz,
+            color_space=color_space,
+            color_components=color_components,
+            density=density,
+            luminosity=luminosity,
+        )
 
     def write(self, fp, **kwargs):
         written = write_fmt(fp, "H", self.version)
