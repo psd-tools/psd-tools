@@ -4,6 +4,7 @@ Filter effects structure.
 
 import io
 import logging
+from typing import Optional
 
 from attrs import define, field
 
@@ -68,13 +69,13 @@ class FilterEffect(BaseElement):
         See :py:class:`FilterEffectExtra`.
     """
 
-    uuid: str = None
-    version: int = None
-    rectangle: tuple = None
-    depth: int = None
-    max_channels: int = None
-    channels: list = None
-    extra: object = None
+    uuid: Optional[str] = None
+    version: Optional[int] = None
+    rectangle: Optional[tuple] = None
+    depth: Optional[int] = None
+    max_channels: Optional[int] = None
+    channels: Optional[list] = None
+    extra: Optional[object] = None
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -136,7 +137,7 @@ class FilterEffectChannel(BaseElement):
     """
 
     is_written: int = 0
-    compression: int = None
+    compression: Optional[int] = None
     data: bytes = b""
 
     @classmethod

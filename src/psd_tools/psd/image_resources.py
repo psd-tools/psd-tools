@@ -62,7 +62,7 @@ The following resources are plain bytes::
 
 import io
 import logging
-from typing import Any, BinaryIO, TypeVar
+from typing import Any, BinaryIO, Optional, TypeVar
 
 from attrs import define, field, astuple
 
@@ -377,7 +377,7 @@ class AlphaChannel(BaseElement):
     c3: int = 0
     c4: int = 0
     opacity: int = 0
-    mode: AlphaChannelMode = 0
+    mode: AlphaChannelMode = AlphaChannelMode.ALPHA  # type: ignore[assignment]
 
     @classmethod
     def read(cls, fp):
@@ -642,7 +642,7 @@ class PrintFlags(BaseElement):
     flip: bool = False
     interpolate: bool = False
     caption: bool = False
-    print_flags: bool = None  # Not existing for old versions.
+    print_flags: Optional[bool] = None  # Not existing for old versions.
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -837,7 +837,7 @@ class SliceV6(BaseElement):
     slice_id: int = 0
     group_id: int = 0
     origin: int = 0
-    associated_id: int = None
+    associated_id: Optional[int] = None
     name: str = ""
     slice_type: int = 0
     bbox: list = field(factory=lambda: [0, 0, 0, 0], converter=list)

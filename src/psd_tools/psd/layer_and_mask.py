@@ -164,7 +164,7 @@ class LayerInfo(BaseElement):
             self = cls._read_body(fp, encoding, version)
         assert fp.tell() <= end_pos
         fp.seek(end_pos, 0)
-        return self
+        return self  # type: ignore[return-value]
 
     @classmethod
     def _read_body(cls, fp, encoding, version):
@@ -338,7 +338,7 @@ class LayerBlendingRanges(BaseElement):
     def read(cls: type[T_LayerBlendingRanges], fp: BinaryIO, **kwargs: Any) -> T_LayerBlendingRanges:
         data = read_length_block(fp)
         if len(data) == 0:
-            return cls(None, None)
+            return cls(None, None)  # type: ignore[arg-type]
 
         with io.BytesIO(data) as f:
             return cls._read_body(f)
@@ -380,7 +380,7 @@ class LayerRecords(ListElement):
         items = []
         for _ in range(abs(layer_count)):
             items.append(LayerRecord.read(fp, encoding, version))
-        return cls(items)
+        return cls(items)  # type: ignore[arg-type]
 
 
 @define(repr=False)
@@ -715,10 +715,10 @@ class MaskData(BaseElement):
     real_right: Optional[int] = None
 
     @classmethod
-    def read(cls: type[T_MaskData], fp: BinaryIO, **kwargs: Any) -> T_MaskData:
+    def read(cls: type[T_MaskData], fp: BinaryIO, **kwargs: Any) -> T_MaskData:  # type: ignore[return]
         data = read_length_block(fp)
         if len(data) == 0:
-            return None
+            return None  # type: ignore[return-value]
 
         with io.BytesIO(data) as f:
             return cls._read_body(f, len(data))
@@ -887,7 +887,7 @@ class ChannelImageData(ListElement):
         for layer in layer_records:
             items.append(ChannelDataList.read(fp, layer.channel_info))
         logger.debug("  read channel image data, len=%d" % (fp.tell() - start_pos))
-        return cls(items)
+        return cls(items)  # type: ignore[arg-type]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         start_pos = fp.tell()
@@ -913,7 +913,7 @@ class ChannelDataList(ListElement):
         items = []
         for c in channel_info:
             items.append(ChannelData.read(fp, c.length - 2, **kwargs))
-        return cls(items)
+        return cls(items)  # type: ignore[arg-type]
 
     @property
     def _lengths(self):

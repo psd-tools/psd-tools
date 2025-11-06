@@ -80,7 +80,7 @@ class Subpath(ListElement):
     operation: int = 1  # Type of shape operation.
     _unknown1: int = 1
     _unknown2: int = 0
-    index: int = 0  # Origination index.
+    index: int = 0  # type: ignore[assignment]  # Origination index.
     _unknown3: bytes = field(default=b"\x00" * 10, repr=False)
 
     @classmethod

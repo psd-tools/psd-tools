@@ -44,7 +44,7 @@ class LinkedLayers(ListElement):
             data = read_length_block(fp, fmt="Q", padding=4)
             with io.BytesIO(data) as f:
                 items.append(LinkedLayer.read(f))
-        return cls(items)
+        return cls(items)  # type: ignore[arg-type]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = 0
@@ -168,9 +168,9 @@ class LinkedLayer(BaseElement):
             written += self.open_file.write(fp, padding=1)
 
         if self.kind == LinkedLayerType.EXTERNAL:
-            written += self.linked_file.write(fp, padding=1)
+            written += self.linked_file.write(fp, padding=1)  # type: ignore[union-attr]
             if self.version > 3:
-                written += write_fmt(fp, "I4Bd", *self.timestamp)
+                written += write_fmt(fp, "I4Bd", *self.timestamp)  # type: ignore[misc]
             written += write_fmt(fp, "Q", self.filesize)
             if self.version > 2:
                 written += write_bytes(fp, self.data)

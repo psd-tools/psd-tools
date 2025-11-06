@@ -78,7 +78,7 @@ class BaseElement:
             return f.getvalue()
 
     def validate(self) -> None:
-        return validate(self)
+        return validate(self)  # type: ignore[arg-type]
 
     def _repr_pretty_(self, p, cycle):
         if cycle:
@@ -287,7 +287,7 @@ class NumericElement(ValueElement):
 
     @classmethod
     def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
-        return cls(read_fmt("d", fp)[0])
+        return cls(read_fmt("d", fp)[0])  # type: ignore[call-arg]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, "d", self.value)
@@ -350,7 +350,7 @@ class IntegerElement(NumericElement):
 
     @classmethod
     def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
-        return cls(read_fmt("I", fp)[0])
+        return cls(read_fmt("I", fp)[0])  # type: ignore[call-arg]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, "I", self.value)
@@ -367,10 +367,10 @@ class ShortIntegerElement(IntegerElement):
     @classmethod
     def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         try:
-            return cls(read_fmt("H2x", fp)[0])
+            return cls(read_fmt("H2x", fp)[0])  # type: ignore[call-arg]
         except IOError as e:
             logger.error(e)
-        return cls(read_fmt("H", fp)[0])
+        return cls(read_fmt("H", fp)[0])  # type: ignore[call-arg]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, "H2x", self.value)
@@ -387,10 +387,10 @@ class ByteElement(IntegerElement):
     @classmethod
     def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         try:
-            return cls(read_fmt("B3x", fp)[0])
+            return cls(read_fmt("B3x", fp)[0])  # type: ignore[call-arg]
         except IOError as e:
             logger.error(e)
-        return cls(read_fmt("B", fp)[0])
+        return cls(read_fmt("B", fp)[0])  # type: ignore[call-arg]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, "B3x", self.value)
@@ -409,10 +409,10 @@ class BooleanElement(IntegerElement):
     @classmethod
     def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         try:
-            return cls(read_fmt("?3x", fp)[0])
+            return cls(read_fmt("?3x", fp)[0])  # type: ignore[call-arg]
         except IOError as e:
             logger.error(e)
-        return cls(read_fmt("?", fp)[0])
+        return cls(read_fmt("?", fp)[0])  # type: ignore[call-arg]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, "?3x", self.value)
@@ -432,7 +432,7 @@ class StringElement(ValueElement):
 
     @classmethod
     def read(cls: type[T], fp: BinaryIO, padding: int = 1, **kwargs: Any) -> T:
-        return cls(read_unicode_string(fp, padding=padding))
+        return cls(read_unicode_string(fp, padding=padding))  # type: ignore[call-arg]
 
     def write(self, fp: BinaryIO, padding: int = 1, **kwargs: Any) -> int:
         return write_unicode_string(fp, self.value, padding=padding)

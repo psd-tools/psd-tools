@@ -180,7 +180,7 @@ class TaggedBlocks(DictElement):
             if block is None:
                 break
             items.append((block.key, block))
-        return cls(items)
+        return cls(items)  # type: ignore[arg-type]
 
     @classmethod
     def _key_converter(self, key):
@@ -254,12 +254,12 @@ class TaggedBlock(BaseElement):
     data: bytes = field(default=b"", repr=True)
 
     @classmethod
-    def read(cls: type[T_TaggedBlock], fp: BinaryIO, version: int = 1, padding: int = 1, **kwargs: Any) -> T_TaggedBlock:
+    def read(cls: type[T_TaggedBlock], fp: BinaryIO, version: int = 1, padding: int = 1, **kwargs: Any) -> T_TaggedBlock:  # type: ignore[return]
         signature = read_fmt("4s", fp)[0]
         if signature not in cls._SIGNATURES:
             logger.warning("Invalid signature (%r)" % (signature))
             fp.seek(-4, 1)
-            return None
+            return None  # type: ignore[return-value]
 
         key = read_fmt("4s", fp)[0]
         try:

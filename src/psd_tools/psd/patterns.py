@@ -44,7 +44,7 @@ class Patterns(ListElement):
             data = read_length_block(fp, padding=4)
             with io.BytesIO(data) as f:
                 items.append(Pattern.read(f))
-        return cls(items)
+        return cls(items)  # type: ignore[arg-type]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = 0
@@ -108,7 +108,7 @@ class Pattern(BaseElement):
             read_fmt("4x", fp)
 
         data = VirtualMemoryArrayList.read(fp)
-        return cls(version, image_mode, point, name, pattern_id, color_table, data)
+        return cls(version, image_mode, point, name, pattern_id, color_table, data)  # type: ignore[arg-type]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "2I", self.version, self.image_mode.value)
