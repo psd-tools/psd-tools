@@ -6,26 +6,24 @@ import array
 import logging
 import struct
 import sys
-
-try:
-    unichr = unichr
-except NameError:
-    unichr = chr
+from typing import Any, BinaryIO, Callable, Tuple, TypeVar, Union
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T")
 
-def pack(fmt, *args):
+
+def pack(fmt: str, *args: Any) -> bytes:
     fmt = str(">" + fmt)
     return struct.pack(fmt, *args)
 
 
-def unpack(fmt, data):
+def unpack(fmt: str, data: bytes) -> Tuple[Any, ...]:
     fmt = str(">" + fmt)
     return struct.unpack(fmt, data)
 
 
-def read_fmt(fmt, fp):
+def read_fmt(fmt: str, fp: BinaryIO) -> Tuple[Any, ...]:
     """
     Reads data from ``fp`` according to ``fmt``.
     """
@@ -41,7 +39,7 @@ def read_fmt(fmt, fp):
     return struct.unpack(fmt, data)
 
 
-def write_fmt(fp, fmt, *args):
+def write_fmt(fp: BinaryIO, fmt: str, *args: Any) -> int:
     """
     Writes data to ``fp`` according to ``fmt``.
     """
@@ -56,7 +54,7 @@ def write_fmt(fp, fmt, *args):
     return written
 
 
-def write_bytes(fp, data):
+def write_bytes(fp: BinaryIO, data: bytes) -> int:
     """
     Write bytes to the file object and returns bytes written.
 
@@ -72,7 +70,7 @@ def write_bytes(fp, data):
     return written
 
 
-def read_length_block(fp, fmt="I", padding=1):
+def read_length_block(fp: BinaryIO, fmt: str = "I", padding: int = 1) -> bytes:
     """
     Read a block of data with a length marker at the beginning.
 
@@ -91,7 +89,13 @@ def read_length_block(fp, fmt="I", padding=1):
     return data
 
 
-def write_length_block(fp, writer, fmt="I", padding=1, **kwargs):
+def write_length_block(
+    fp: BinaryIO,
+    writer: Callable[..., int],
+    fmt: str = "I",
+    padding: int = 1,
+    **kwargs: Any,
+) -> int:
     """
     Writes a block of data with a length marker at the beginning.
 
@@ -113,7 +117,7 @@ def write_length_block(fp, writer, fmt="I", padding=1, **kwargs):
     return written
 
 
-def reserve_position(fp, fmt="I"):
+def reserve_position(fp: BinaryIO, fmt: str = "I") -> int:
     """
     Reserves the current position for write.
 
@@ -128,7 +132,7 @@ def reserve_position(fp, fmt="I"):
     return position
 
 
-def write_position(fp, position, value, fmt="I"):
+def write_position(fp: BinaryIO, position: int, value: int, fmt: str = "I") -> int:
     """
     Writes a value to the specified position.
 
@@ -145,7 +149,7 @@ def write_position(fp, position, value, fmt="I"):
     return written
 
 
-def read_padding(fp, size, divisor=2):
+def read_padding(fp: BinaryIO, size: int, divisor: int = 2) -> bytes:
     """
     Read padding bytes for the given byte size.
 
@@ -159,7 +163,7 @@ def read_padding(fp, size, divisor=2):
     return b""
 
 
-def write_padding(fp, size, divisor=2):
+def write_padding(fp: BinaryIO, size: int, divisor: int = 2) -> int:
     """
     Writes padding bytes given the currently written size.
 
@@ -173,7 +177,7 @@ def write_padding(fp, size, divisor=2):
     return 0
 
 
-def is_readable(fp, size=1):
+def is_readable(fp: BinaryIO, size: int = 1) -> bool:
     """
     Check if the file-like object is readable.
 
@@ -186,13 +190,15 @@ def is_readable(fp, size=1):
     return read_size == size
 
 
-def pad(number, divisor):
+def pad(number: int, divisor: int) -> int:
     if number % divisor:
         number = (number // divisor + 1) * divisor
     return number
 
 
-def read_pascal_string(fp, encoding="macroman", padding=2):
+def read_pascal_string(
+    fp: BinaryIO, encoding: str = "macroman", padding: int = 2
+) -> str:
     """
     Reads pascal string (length + bytes).
 
@@ -210,7 +216,9 @@ def read_pascal_string(fp, encoding="macroman", padding=2):
     return data.decode(encoding)
 
 
-def write_pascal_string(fp, value, encoding="macroman", padding=2):
+def write_pascal_string(
+    fp: BinaryIO, value: str, encoding: str = "macroman", padding: int = 2
+) -> int:
     data = value.encode(encoding)
     written = write_fmt(fp, "B", len(data))
     written += write_bytes(fp, data)
@@ -218,14 +226,14 @@ def write_pascal_string(fp, value, encoding="macroman", padding=2):
     return written
 
 
-def read_unicode_string(fp, padding=1):
+def read_unicode_string(fp: BinaryIO, padding: int = 1) -> str:
     num_chars = read_fmt("I", fp)[0]
     chars = be_array_from_bytes("H", fp.read(num_chars * 2))
     read_padding(fp, struct.calcsize("I") + num_chars * 2, padding)
-    return "".join(unichr(num) for num in chars)
+    return "".join(chr(num) for num in chars)
 
 
-def write_unicode_string(fp, value, padding=1):
+def write_unicode_string(fp: BinaryIO, value: str, padding: int = 1) -> int:
     arr = array.array(str("H"), [ord(x) for x in value])
     written = write_fmt(fp, "I", len(arr))
     written += write_bytes(fp, be_array_to_bytes(arr))
@@ -233,26 +241,23 @@ def write_unicode_string(fp, value, padding=1):
     return written
 
 
-def read_be_array(fmt, count, fp):
+def read_be_array(fmt: str, count: int, fp: BinaryIO) -> array.array:
     """
     Reads an array from a file with big-endian data.
     """
     arr = array.array(str(fmt))
-    if hasattr(arr, "frombytes"):
-        arr.frombytes(fp.read(count * arr.itemsize))
-    else:
-        arr.fromstring(fp.read(count * arr.itemsize))
+    arr.frombytes(fp.read(count * arr.itemsize))
     return fix_byteorder(arr)
 
 
-def write_be_array(fp, arr):
+def write_be_array(fp: BinaryIO, arr: array.array) -> int:
     """
     Writes an array to a file with big-endian data.
     """
     return write_bytes(fp, be_array_to_bytes(arr))
 
 
-def fix_byteorder(arr):
+def fix_byteorder(arr: array.array) -> array.array:
     """
     Fixes the byte order of the array (assuming it was read
     from a Big Endian data).
@@ -262,7 +267,7 @@ def fix_byteorder(arr):
     return arr
 
 
-def be_array_from_bytes(fmt, data):
+def be_array_from_bytes(fmt: str, data: bytes) -> array.array:
     """
     Reads an array from bytestring with big-endian data.
     """
@@ -270,7 +275,7 @@ def be_array_from_bytes(fmt, data):
     return fix_byteorder(arr)
 
 
-def be_array_to_bytes(arr):
+def be_array_to_bytes(arr: array.array) -> bytes:
     """
     Writes an array to bytestring with big-endian data.
     """
@@ -278,17 +283,17 @@ def be_array_to_bytes(arr):
     if hasattr(arr, "tobytes"):
         return data.tobytes()
     else:
-        return data.tostring()
+        return data.tostring()  # type: ignore[attr-defined]
 
 
-def trimmed_repr(data, trim_length=16):
+def trimmed_repr(data: Any, trim_length: int = 16) -> str:
     if isinstance(data, bytes):
         if len(data) > trim_length:
             return repr(data[:trim_length] + b" ... =" + str(len(data)).encode("ascii"))
     return repr(data)
 
 
-def decode_fixed_point_32bit(data):
+def decode_fixed_point_32bit(data: bytes) -> float:
     """
     Decodes ``data`` as an unsigned 4-byte fixed-point number.
     """
@@ -297,14 +302,14 @@ def decode_fixed_point_32bit(data):
     return lo + hi / (2**16 - 1)
 
 
-def new_registry(attribute=None):
+def new_registry(attribute: Union[str, None] = None) -> Tuple[dict, Callable]:
     """
     Returns an empty dict and a @register decorator.
     """
     registry = {}
 
-    def register(key):
-        def decorator(func):
+    def register(key: Any) -> Callable[[Callable[..., T]], Callable[..., T]]:
+        def decorator(func: Callable[..., T]) -> Callable[..., T]:
             registry[key] = func
             if attribute:
                 setattr(func, attribute, key)

@@ -4,8 +4,9 @@ Patterns structure.
 
 import io
 import logging
+from typing import Any, BinaryIO, Optional, TypeVar
 
-import attr
+from attrs import define, field
 
 from psd_tools.compression import compress, decompress
 from psd_tools.constants import ColorMode, Compression
@@ -26,6 +27,9 @@ from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
 
+T_Patterns = TypeVar("T_Patterns", bound="Patterns")
+T_Pattern = TypeVar("T_Pattern", bound="Pattern")
+
 
 class Patterns(ListElement):
     """
@@ -34,22 +38,22 @@ class Patterns(ListElement):
     """
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T_Patterns], fp: BinaryIO, **kwargs: Any) -> T_Patterns:
         items = []
         while is_readable(fp, 4):
             data = read_length_block(fp, padding=4)
             with io.BytesIO(data) as f:
                 items.append(Pattern.read(f))
-        return cls(items)
+        return cls(items)  # type: ignore[arg-type]
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = 0
         for item in self:
             written += write_length_block(fp, item.write, padding=4)
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class Pattern(BaseElement):
     """
     Pattern structure.
@@ -80,18 +84,18 @@ class Pattern(BaseElement):
         See :py:class:`VirtualMemoryArrayList`
     """
 
-    version = attr.ib(default=1, type=int)
-    image_mode = attr.ib(
+    version: int = 1
+    image_mode: ColorMode = field(
         default=ColorMode.RGB, converter=ColorMode, validator=in_(ColorMode)
     )
-    point = attr.ib(default=None)
-    name = attr.ib(default="", type=str)
-    pattern_id = attr.ib(default="", type=str)
-    color_table = attr.ib(default=None)
-    data = attr.ib(default=None)
+    point: tuple[int, int] = field(default=(0, 0))
+    name: str = ""
+    pattern_id: str = ""
+    color_table: list[tuple[int, int, int]] = field(factory=list)
+    data: "VirtualMemoryArrayList" = field(default=None)
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T_Pattern], fp: BinaryIO, **kwargs: Any) -> T_Pattern:
         version = read_fmt("I", fp)[0]
         assert version == 1, "Invalid version %d" % (version)
         image_mode = ColorMode(read_fmt("I", fp)[0])
@@ -104,9 +108,9 @@ class Pattern(BaseElement):
             read_fmt("4x", fp)
 
         data = VirtualMemoryArrayList.read(fp)
-        return cls(version, image_mode, point, name, pattern_id, color_table, data)
+        return cls(version, image_mode, point, name, pattern_id, color_table, data)  # type: ignore[arg-type]
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "2I", self.version, self.image_mode.value)
         written += write_fmt(fp, "2h", *self.point)
         written += write_unicode_string(fp, self.name)
@@ -119,7 +123,7 @@ class Pattern(BaseElement):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class VirtualMemoryArrayList(BaseElement):
     """
     VirtualMemoryArrayList structure. Container of channels.
@@ -134,12 +138,12 @@ class VirtualMemoryArrayList(BaseElement):
         List of :py:class:`VirtualMemoryArray`
     """
 
-    version = attr.ib(default=3, type=int)
-    rectangle = attr.ib(default=None)
-    channels = attr.ib(default=None)
+    version: int = 3
+    rectangle: tuple[int, int, int, int] = field(default=(0, 0, 0, 0))
+    channels: list["VirtualMemoryArray"] = field(factory=list)
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any):
         version = read_fmt("I", fp)[0]
         assert version == 3, "Invalid version %d" % (version)
 
@@ -153,11 +157,11 @@ class VirtualMemoryArrayList(BaseElement):
 
         return cls(version, rectangle, channels)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "I", self.version)
         return written + write_length_block(fp, lambda f: self._write_body(f))
 
-    def _write_body(self, fp):
+    def _write_body(self, fp: BinaryIO) -> int:
         written = write_fmt(fp, "4I", *self.rectangle)
         written += write_fmt(fp, "I", len(self.channels) - 2)
         for channel in self.channels:
@@ -165,7 +169,7 @@ class VirtualMemoryArrayList(BaseElement):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class VirtualMemoryArray(BaseElement):
     """
     VirtualMemoryArrayList structure, corresponding to each channel.
@@ -178,17 +182,17 @@ class VirtualMemoryArray(BaseElement):
     .. py:attribute:: data
     """
 
-    is_written = attr.ib(default=0)
-    depth = attr.ib(default=None)
-    rectangle = attr.ib(default=None)
-    pixel_depth = attr.ib(default=None)
-    compression = attr.ib(
+    is_written: int = 0
+    depth: Optional[int] = None
+    rectangle: Optional[tuple[int, int, int, int]] = None
+    pixel_depth: Optional[int] = None
+    compression: Compression = field(
         default=Compression.RAW, converter=Compression, validator=in_(Compression)
     )
-    data = attr.ib(default=b"")
+    data: bytes = b""
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any):
         is_written = read_fmt("I", fp)[0]
         if is_written == 0:
             return cls(is_written=is_written)
@@ -201,7 +205,7 @@ class VirtualMemoryArray(BaseElement):
         data = fp.read(length - 23)
         return cls(is_written, depth, rectangle, pixel_depth, compression, data)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "I", self.is_written)
         if self.is_written == 0:
             return written
@@ -211,14 +215,14 @@ class VirtualMemoryArray(BaseElement):
 
         return written + write_length_block(fp, lambda f: self._write_body(f))
 
-    def _write_body(self, fp):
+    def _write_body(self, fp: BinaryIO) -> int:
         written = write_fmt(fp, "I", self.depth)
         written += write_fmt(fp, "4I", *self.rectangle)
         written += write_fmt(fp, "HB", self.pixel_depth, self.compression.value)
         written += write_bytes(fp, self.data)
         return written
 
-    def get_data(self):
+    def get_data(self) -> Optional[bytes]:
         """Get decompressed bytes."""
         if not self.is_written:
             return None
@@ -227,7 +231,9 @@ class VirtualMemoryArray(BaseElement):
             self.data, self.compression, width, height, self.depth, version=1
         )
 
-    def set_data(self, size, data, depth, compression=0):
+    def set_data(
+        self, size: tuple[int, int], data: bytes, depth: int, compression: int = 0
+    ) -> None:
         """Set bytes."""
         self.data = compress(data, compression, size[0], size[1], depth, version=1)
         self.depth = int(depth)

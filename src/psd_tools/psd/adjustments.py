@@ -3,8 +3,9 @@ Adjustment layer structure.
 """
 
 import logging
+from typing import Any, BinaryIO, Optional, TypeVar
 
-import attr
+from attrs import define, field, astuple
 
 from psd_tools.constants import Tag
 from psd_tools.psd.base import (
@@ -29,6 +30,8 @@ from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T", bound="BaseElement")
+
 ADJUSTMENT_TYPES, register = new_registry()
 
 ADJUSTMENT_TYPES.update(
@@ -46,7 +49,7 @@ ADJUSTMENT_TYPES.update(
 
 
 @register(Tag.BRIGHTNESS_AND_CONTRAST)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class BrightnessContrast(BaseElement):
     """
     BrightnessContrast structure.
@@ -57,21 +60,21 @@ class BrightnessContrast(BaseElement):
     .. py:attribute:: lab_only
     """
 
-    brightness = attr.ib(default=0, type=int)
-    contrast = attr.ib(default=0, type=int)
-    mean = attr.ib(default=0, type=int)
-    lab_only = attr.ib(default=0, type=int)
+    brightness: int = 0
+    contrast: int = 0
+    mean: int = 0
+    lab_only: int = 0
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         return cls(*read_fmt("3HBx", fp))
 
-    def write(self, fp, **kwargs):
-        return write_fmt(fp, "3HBx", *attr.astuple(self))
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+        return write_fmt(fp, "3HBx", *astuple(self))
 
 
 @register(Tag.COLOR_BALANCE)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class ColorBalance(BaseElement):
     """
     ColorBalance structure.
@@ -82,20 +85,20 @@ class ColorBalance(BaseElement):
     .. py:attribute:: luminosity
     """
 
-    shadows = attr.ib(default=(0,) * 3, type=tuple)
-    midtones = attr.ib(default=(0,) * 3, type=tuple)
-    highlights = attr.ib(default=(0,) * 3, type=tuple)
-    luminosity = attr.ib(default=False, type=bool)
+    shadows: tuple = (0,) * 3
+    midtones: tuple = (0,) * 3
+    highlights: tuple = (0,) * 3
+    luminosity: bool = False
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         shadows = read_fmt("3h", fp)
         midtones = read_fmt("3h", fp)
         highlights = read_fmt("3h", fp)
         luminosity = read_fmt("B", fp)[0]
         return cls(shadows, midtones, highlights, luminosity)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "3h", *self.shadows)
         written += write_fmt(fp, "3h", *self.midtones)
         written += write_fmt(fp, "3h", *self.highlights)
@@ -115,11 +118,11 @@ class ColorLookup(DescriptorBlock2):
     """
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         version, data_version = read_fmt("HI", fp)
         return cls(version=version, data_version=data_version, **cls._read_body(fp))
 
-    def write(self, fp, padding=4, **kwargs):
+    def write(self, fp: BinaryIO, padding: int = 4, **kwargs: Any) -> int:
         written = write_fmt(fp, "HI", self.version, self.data_version)
         written += self._write_body(fp)
         written += write_padding(fp, written, padding)
@@ -127,7 +130,7 @@ class ColorLookup(DescriptorBlock2):
 
 
 @register(Tag.CHANNEL_MIXER)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class ChannelMixer(BaseElement):
     """
     ChannelMixer structure.
@@ -137,19 +140,19 @@ class ChannelMixer(BaseElement):
     .. py:attribute:: data
     """
 
-    version = attr.ib(default=1, type=int, validator=in_((1,)))
-    monochrome = attr.ib(default=0, type=int)
-    data = attr.ib(factory=list, converter=list)
-    unknown = attr.ib(default=b"", type=bytes, repr=False)
+    version: int = field(default=1, validator=in_((1,)))
+    monochrome: int = 0
+    data: list = field(factory=list, converter=list)
+    unknown: bytes = field(default=b"", repr=False)
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         version, monochrome = read_fmt("2H", fp)
         data = list(read_fmt("5h", fp))
         unknown = fp.read()
-        return cls(version, monochrome, data, unknown)
+        return cls(version=version, monochrome=monochrome, data=data, unknown=unknown)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "2H", self.version, self.monochrome)
         written += write_fmt(fp, "5h", *self.data)
         written += write_bytes(fp, self.unknown)
@@ -157,7 +160,7 @@ class ChannelMixer(BaseElement):
 
 
 @register(Tag.CURVES)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class Curves(BaseElement):
     """
     Curves structure.
@@ -169,14 +172,14 @@ class Curves(BaseElement):
     .. py:attribute:: extra
     """
 
-    is_map = attr.ib(default=False, type=bool, converter=bool)
-    version = attr.ib(default=0, type=int)
-    count_map = attr.ib(default=0, type=int)
-    data = attr.ib(factory=list, converter=list)
-    extra = attr.ib(default=None)
+    is_map: bool = field(default=False, converter=bool)
+    version: int = 0
+    count_map: int = 0
+    data: list = field(factory=list, converter=list)
+    extra: object = None
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         # NOTE: This is highly experimental and unstable.
         is_map, version, count_map = read_fmt("BHI", fp)
         assert version in (1, 4), "Invalid version %d" % (version)
@@ -193,9 +196,9 @@ class Curves(BaseElement):
             data = []
             for _ in range(count):
                 point_count = read_fmt("H", fp)[0]
-                assert (
-                    2 <= point_count and point_count <= 19
-                ), "Curves point count not in [2, 19]"
+                assert 2 <= point_count and point_count <= 19, (
+                    "Curves point count not in [2, 19]"
+                )
                 points = [read_fmt("2H", fp) for i in range(point_count)]
                 data.append(points)
 
@@ -208,7 +211,7 @@ class Curves(BaseElement):
 
         return cls(is_map, version, count_map, data, extra)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "BHI", self.is_map, self.version, self.count_map)
         if self.is_map:
             written += sum(write_fmt(fp, "256B", *item) for item in self.data)
@@ -224,7 +227,7 @@ class Curves(BaseElement):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class CurvesExtraMarker(ListElement):
     """
     Curves extra marker structure.
@@ -232,10 +235,10 @@ class CurvesExtraMarker(ListElement):
     .. py:attribute:: version
     """
 
-    version = attr.ib(default=4, type=int, validator=in_((3, 4)))
+    version: int = field(default=4, validator=in_((3, 4)))
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         signature, version, count = read_fmt("4sHI", fp)
         assert signature == b"Crv ", "Invalid signature %r" % (signature)
         items = []
@@ -243,13 +246,13 @@ class CurvesExtraMarker(ListElement):
             items.append(CurvesExtraItem.read(fp, **kwargs))
         return cls(version=version, items=items)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "4sHI", b"Crv ", self.version, len(self))
         written += sum(item.write(fp) for item in self)
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class CurvesExtraItem(BaseElement):
     """
     Curves extra item.
@@ -258,11 +261,11 @@ class CurvesExtraItem(BaseElement):
     .. py:attribute:: points
     """
 
-    channel_id = attr.ib(default=0, type=int)
-    points = attr.ib(factory=list, converter=list)
+    channel_id: int = 0
+    points: list = field(factory=list, converter=list)
 
     @classmethod
-    def read(cls, fp, is_map=False, **kwargs):
+    def read(cls: type[T], fp: BinaryIO, is_map: bool = False, **kwargs: Any) -> T:
         if is_map:
             channel_id = read_fmt("H", fp)[0]
             points = list(read_fmt("256B", fp))
@@ -271,7 +274,7 @@ class CurvesExtraItem(BaseElement):
             points = [read_fmt("2H", fp) for c in range(point_count)]
         return cls(channel_id, points)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "H", self.channel_id)
         if len(self.points) > 0 and isinstance(self.points[0], int):
             written += write_fmt(fp, "256B", *self.points)
@@ -282,7 +285,7 @@ class CurvesExtraItem(BaseElement):
 
 
 @register(Tag.GRADIENT_MAP)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class GradientMap(BaseElement):
     """
     GradientMap structure.
@@ -306,9 +309,8 @@ class GradientMap(BaseElement):
     .. py:attribute:: maximum_color
     """
 
-    version = attr.ib(
+    version: int = field(
         default=1,
-        type=int,
         validator=in_(
             (
                 1,
@@ -316,12 +318,11 @@ class GradientMap(BaseElement):
             )
         ),
     )
-    is_reversed = attr.ib(default=0, type=int)
-    is_dithered = attr.ib(default=0, type=int)
-    name = attr.ib(default="", type=str)
-    method = attr.ib(
+    is_reversed: int = 0
+    is_dithered: int = 0
+    name: str = ""
+    method: bytes = field(
         default=b"Gcls",
-        type=bytes,
         validator=in_(
             (
                 b"Gcls",
@@ -331,22 +332,22 @@ class GradientMap(BaseElement):
             )
         ),
     )
-    color_stops = attr.ib(factory=list, converter=list)
-    transparency_stops = attr.ib(factory=list, converter=list)
-    expansion = attr.ib(default=2, type=int, validator=in_((2,)))
-    interpolation = attr.ib(default=0, type=int)
-    length = attr.ib(default=32, type=int, validator=in_((32,)))
-    mode = attr.ib(default=0, type=int)
-    random_seed = attr.ib(default=0, type=int)
-    show_transparency = attr.ib(default=0, type=int)
-    use_vector_color = attr.ib(default=0, type=int)
-    roughness = attr.ib(default=0, type=int)
-    color_model = attr.ib(default=0, type=int)
-    minimum_color = attr.ib(factory=list, converter=list)
-    maximum_color = attr.ib(factory=list, converter=list)
+    color_stops: list = field(factory=list, converter=list)
+    transparency_stops: list = field(factory=list, converter=list)
+    expansion: int = field(default=2, validator=in_((2,)))
+    interpolation: int = 0
+    length: int = field(default=32, validator=in_((32,)))
+    mode: int = 0
+    random_seed: int = 0
+    show_transparency: int = 0
+    use_vector_color: int = 0
+    roughness: int = 0
+    color_model: int = 0
+    minimum_color: list = field(factory=list, converter=list)
+    maximum_color: list = field(factory=list, converter=list)
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         version, is_reversed, is_dithered = read_fmt("H2B", fp)
         assert version in (1, 3), "Invalid version %s" % (version)
         method = read_fmt("4s", fp)[0] if version == 3 else b"Gcls"
@@ -383,7 +384,7 @@ class GradientMap(BaseElement):
             maximum_color,
         )
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "H2B", self.version, self.is_reversed, self.is_dithered)
         if self.version == 3:
             written += write_fmt(fp, "4s", self.method)
@@ -412,7 +413,7 @@ class GradientMap(BaseElement):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class ColorStop(BaseElement):
     """
     ColorStop of GradientMap.
@@ -423,24 +424,24 @@ class ColorStop(BaseElement):
     .. py:attribute:: color
     """
 
-    location = attr.ib(default=0, type=int)
-    midpoint = attr.ib(default=0, type=int)
-    mode = attr.ib(default=0, type=int)
-    color = attr.ib(default=(0, 0, 0, 0), type=tuple)
+    location: int = 0
+    midpoint: int = 0
+    mode: int = 0
+    color: tuple = (0,)
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T], fp: BinaryIO) -> T:
         location, midpoint, mode = read_fmt("2IH", fp)
         color = read_fmt("4H2x", fp)
         return cls(location, midpoint, mode, color)
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO) -> int:
         return write_fmt(
             fp, "2I5H2x", self.location, self.midpoint, self.mode, *self.color
         )
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class TransparencyStop(BaseElement):
     """
     TransparencyStop of GradientMap.
@@ -450,20 +451,20 @@ class TransparencyStop(BaseElement):
     .. py:attribute:: opacity
     """
 
-    location = attr.ib(default=0, type=int)
-    midpoint = attr.ib(default=0, type=int)
-    opacity = attr.ib(default=0, type=int)
+    location: int = 0
+    midpoint: int = 0
+    opacity: int = 0
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T], fp: BinaryIO) -> T:
         return cls(*read_fmt("2IH", fp))
 
-    def write(self, fp):
-        return write_fmt(fp, "2IH", *attr.astuple(self))
+    def write(self, fp: BinaryIO) -> int:
+        return write_fmt(fp, "2IH", *astuple(self))
 
 
 @register(Tag.EXPOSURE)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class Exposure(BaseElement):
     """
     Exposure structure.
@@ -474,24 +475,24 @@ class Exposure(BaseElement):
     .. py:attribute:: gamma
     """
 
-    version = attr.ib(default=0, type=int)
-    exposure = attr.ib(default=0.0, type=float)
-    offset = attr.ib(default=0.0, type=float)
-    gamma = attr.ib(default=0.0, type=float)
+    version: int = 0
+    exposure: float = 0.0
+    offset: float = 0.0
+    gamma: float = 0.0
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         return cls(*read_fmt("H3f", fp))
 
-    def write(self, fp, padding=4, **kwargs):
-        written = write_fmt(fp, "H3f", *attr.astuple(self))
+    def write(self, fp: BinaryIO, padding: int = 4, **kwargs: Any) -> int:
+        written = write_fmt(fp, "H3f", *astuple(self))
         written += write_padding(fp, written, padding)
         return written
 
 
 @register(Tag.HUE_SATURATION_V4)
 @register(Tag.HUE_SATURATION)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class HueSaturation(BaseElement):
     """
     HueSaturation structure.
@@ -503,14 +504,14 @@ class HueSaturation(BaseElement):
     .. py:attribute:: items
     """
 
-    version = attr.ib(default=2, type=int)
-    enable = attr.ib(default=1, type=int)
-    colorization = attr.ib(default=(0, 0, 0), type=tuple)
-    master = attr.ib(default=(0, 0, 0), type=tuple)
-    items = attr.ib(factory=list, converter=list)
+    version: int = 2
+    enable: int = 1
+    colorization: tuple = (0,)
+    master: tuple = (0,)
+    items: list = field(factory=list, converter=list)
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         version, enable = read_fmt("HBx", fp)
         assert version == 2, "Invalid version %d" % (version)
         colorization = read_fmt("3h", fp)
@@ -520,9 +521,15 @@ class HueSaturation(BaseElement):
             range_values = read_fmt("4h", fp)
             settings_values = read_fmt("3h", fp)
             items.append([range_values, settings_values])
-        return cls(version, enable, colorization, master, items)
+        return cls(
+            version=version,
+            enable=enable,
+            colorization=colorization,
+            master=master,
+            items=items,
+        )
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "HBx", self.version, self.enable)
         written += write_fmt(fp, "3h", *self.colorization)
         written += write_fmt(fp, "3h", *self.master)
@@ -534,7 +541,7 @@ class HueSaturation(BaseElement):
 
 
 @register(Tag.LEVELS)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class Levels(ListElement):
     """
     List of level records. See :py:class:
@@ -549,11 +556,11 @@ class Levels(ListElement):
         Version of the extra field.
     """
 
-    version = attr.ib(default=0, type=int, validator=in_((2,)))
-    extra_version = attr.ib(default=None)
+    version: int = field(default=0, validator=in_((2,)))
+    extra_version: Optional[int] = None
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         version = read_fmt("H", fp)[0]
         if version != 2:
             raise ValueError("Invalid version %d" % (version))
@@ -564,13 +571,13 @@ class Levels(ListElement):
             signature, extra_version = read_fmt("4sH", fp)
             if signature == b"ls\x00\x03":
                 # Clip Studio Paint has an incorrect signature.
-                logger.warning(
-                    "Invalid signature %r, assuming b'Lvls'." % (signature)
-                )
+                logger.warning("Invalid signature %r, assuming b'Lvls'." % (signature))
                 # Clip Studio Paint seems to incorrectly trim the last record.
                 count = extra_version - 1
                 extra_version = 3
-                logger.debug("Levels extra version %d, count %d" % (extra_version, count))
+                logger.debug(
+                    "Levels extra version %d, count %d" % (extra_version, count)
+                )
             elif signature != b"Lvls":
                 raise ValueError("Invalid signature %r" % (signature))
             elif extra_version != 3:
@@ -582,7 +589,7 @@ class Levels(ListElement):
 
         return cls(version=version, extra_version=extra_version, items=items)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "H", self.version)
         for index in range(29):
             written += self[index].write(fp)
@@ -597,7 +604,7 @@ class Levels(ListElement):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class LevelRecord(BaseElement):
     """
     Level record.
@@ -624,22 +631,22 @@ class LevelRecord(BaseElement):
         to all image data.
     """
 
-    input_floor = attr.ib(default=0, type=int)
-    input_ceiling = attr.ib(default=0, type=int)
-    output_floor = attr.ib(default=0, type=int)
-    output_ceiling = attr.ib(default=0, type=int)
-    gamma = attr.ib(default=0, type=int)
+    input_floor: int = 0
+    input_ceiling: int = 0
+    output_floor: int = 0
+    output_ceiling: int = 0
+    gamma: int = 0
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T], fp: BinaryIO) -> T:
         return cls(*read_fmt("5H", fp))
 
-    def write(self, fp):
-        return write_fmt(fp, "5H", *attr.astuple(self))
+    def write(self, fp: BinaryIO) -> int:
+        return write_fmt(fp, "5H", *astuple(self))
 
 
 @register(Tag.PHOTO_FILTER)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class PhotoFilter(BaseElement):
     """
     PhotoFilter structure.
@@ -652,15 +659,15 @@ class PhotoFilter(BaseElement):
     .. py:attribute:: luminosity
     """
 
-    version = attr.ib(default=0, type=int, validator=in_((2, 3)))
-    xyz = attr.ib(default=(0, 0, 0), type=tuple)
-    color_space = attr.ib(default=None)
-    color_components = attr.ib(default=None)
-    density = attr.ib(default=None)
-    luminosity = attr.ib(default=None)
+    version: int = field(default=0, validator=in_((2, 3)))
+    xyz: tuple = (0,)
+    color_space: Optional[int] = None
+    color_components: Optional[tuple] = None
+    density: Optional[int] = None
+    luminosity: Optional[int] = None
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         version = read_fmt("H", fp)[0]
         assert version in (2, 3), "Invalid version %d" % (version)
         if version == 3:
@@ -672,9 +679,16 @@ class PhotoFilter(BaseElement):
             color_space = read_fmt("H", fp)[0]
             color_components = read_fmt("4H", fp)
         density, luminosity = read_fmt("IB", fp)
-        return cls(version, xyz, color_space, color_components, density, luminosity)
+        return cls(
+            version=version,
+            xyz=xyz,
+            color_space=color_space,
+            color_components=color_components,
+            density=density,
+            luminosity=luminosity,
+        )
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "H", self.version)
         if self.version == 3:
             written += write_fmt(fp, "3I", *self.xyz)
@@ -686,7 +700,7 @@ class PhotoFilter(BaseElement):
 
 
 @register(Tag.SELECTIVE_COLOR)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class SelectiveColor(BaseElement):
     """
     SelectiveColor structure.
@@ -696,17 +710,17 @@ class SelectiveColor(BaseElement):
     .. py:attribute:: data
     """
 
-    version = attr.ib(default=1, type=int, validator=in_((1,)))
-    method = attr.ib(default=0, type=int)
-    data = attr.ib(factory=list, converter=list)
+    version: int = field(default=1, validator=in_((1,)))
+    method: int = 0
+    data: list = field(factory=list, converter=list)
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         version, method = read_fmt("2H", fp)
         data = [read_fmt("4h", fp) for i in range(10)]
-        return cls(version, method, data)
+        return cls(version=version, method=method, data=data)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "2H", self.version, self.method)
         for plate in self.data:
             written += write_fmt(fp, "4h", *plate)

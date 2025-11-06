@@ -525,6 +525,7 @@ class ProtectedFlags(IntEnum):
     """
     Flags for layer locking
     """
+
     TRANSPARENCY = 0x01
     COMPOSITE = 0x02
     POSITION = 0x04
@@ -532,7 +533,7 @@ class ProtectedFlags(IntEnum):
 
     COMPLETE = 2147483648
 
-    
+
 class AlphaChannelMode(IntEnum):
     """
     alpha channel types.

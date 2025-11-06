@@ -20,14 +20,14 @@ logger = logging.getLogger(__name__)
             1,
             1,
             [[(0, 0), (255, 255)]],
-            CurvesExtraMarker([CurvesExtraItem(0, [(0, 0), (255, 255)])]),
+            CurvesExtraMarker(items=[CurvesExtraItem(channel_id=0, points=[(0, 0), (255, 255)])]),
         ),
         (
             True,
             1,
             1,
             [list(range(256))],
-            CurvesExtraMarker([CurvesExtraItem(0, list(range(256)))]),
+            CurvesExtraMarker(items=[CurvesExtraItem(channel_id=0, points=list(range(256)))]),
         ),
     ],
 )
@@ -43,7 +43,7 @@ def test_curves(is_map, version, count_map, data, extra):
     ],
 )
 def test_curves_extra_item_wr(channel_id, points, is_map):
-    check_write_read(CurvesExtraItem(channel_id, points), is_map=is_map)
+    check_write_read(CurvesExtraItem(channel_id=channel_id, points=points), is_map=is_map)
 
 
 @pytest.mark.parametrize(

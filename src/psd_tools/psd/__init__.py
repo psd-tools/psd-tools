@@ -6,20 +6,30 @@ defined in :py:mod:`psd_tools.psd.base` module.
 """
 
 import logging
+from typing import Any, BinaryIO, Generator, Optional, TypeVar
 
-import attr
+from attrs import define, field
 
 from .base import BaseElement
 from .color_mode_data import ColorModeData
 from .header import FileHeader
 from .image_data import ImageData
 from .image_resources import ImageResources
-from .layer_and_mask import LayerAndMaskInformation, LayerInfo, LayerRecords, ChannelImageData, TaggedBlocks, GlobalLayerMaskInfo
+from .layer_and_mask import (
+    LayerAndMaskInformation,
+    LayerInfo as LayerInfo,
+    LayerRecords as LayerRecords,
+    ChannelImageData as ChannelImageData,
+    TaggedBlocks as TaggedBlocks,
+    GlobalLayerMaskInfo as GlobalLayerMaskInfo,
+)
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T", bound="PSD")
 
-@attr.s(repr=False, slots=True)
+
+@define(repr=False)
 class PSD(BaseElement):
     """
     Low-level PSD file structure that resembles the specification_.
@@ -58,14 +68,18 @@ class PSD(BaseElement):
         See :py:class:`.ImageData`.
     """
 
-    header = attr.ib(factory=FileHeader)
-    color_mode_data = attr.ib(factory=ColorModeData)
-    image_resources = attr.ib(factory=ImageResources)
-    layer_and_mask_information = attr.ib(factory=LayerAndMaskInformation)
-    image_data = attr.ib(factory=ImageData)
+    header: FileHeader = field(factory=FileHeader)
+    color_mode_data: ColorModeData = field(factory=ColorModeData)
+    image_resources: ImageResources = field(factory=ImageResources)
+    layer_and_mask_information: LayerAndMaskInformation = field(
+        factory=LayerAndMaskInformation
+    )
+    image_data: ImageData = field(factory=ImageData)
 
     @classmethod
-    def read(cls, fp, encoding="macroman", **kwargs):
+    def read(
+        cls: type[T], fp: BinaryIO, encoding: str = "macroman", **kwargs: Any
+    ) -> T:
         header = FileHeader.read(fp)
         logger.debug("read %s" % header)
         return cls(
@@ -76,7 +90,7 @@ class PSD(BaseElement):
             ImageData.read(fp),
         )
 
-    def write(self, fp, encoding="macroman", **kwargs):
+    def write(self, fp: BinaryIO, encoding: str = "macroman", **kwargs: Any) -> int:
         logger.debug("writing %s" % self.header)
         written = self.header.write(fp)
         written += self.color_mode_data.write(fp)
@@ -87,7 +101,7 @@ class PSD(BaseElement):
         written += self.image_data.write(fp)
         return written
 
-    def _iter_layers(self):
+    def _iter_layers(self) -> Generator[tuple[Any, Any], None, None]:
         """
         Iterate over (layer_record, channel_data) pairs.
         """
@@ -99,7 +113,7 @@ class PSD(BaseElement):
                 for record, channels in zip(records, channel_data):
                     yield record, channels
 
-    def _get_layer_info(self):
+    def _get_layer_info(self) -> Optional[LayerInfo]:
         from psd_tools.constants import Tag
 
         tagged_blocks = self.layer_and_mask_information.tagged_blocks

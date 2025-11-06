@@ -3,8 +3,9 @@ Vector mask, path, and stroke structure.
 """
 
 import logging
+from typing import Any, BinaryIO, Sequence, TypeVar
 
-import attr
+from attrs import define, field, astuple
 
 from psd_tools.constants import PathResourceID
 from psd_tools.psd.base import BaseElement, ListElement, ValueElement
@@ -21,16 +22,27 @@ logger = logging.getLogger(__name__)
 
 TYPES, register = new_registry(attribute="selector")  # Path item types.
 
+T_Path = TypeVar("T_Path", bound="Path")
+T_Subpath = TypeVar("T_Subpath", bound="Subpath")
+T_Knot = TypeVar("T_Knot", bound="Knot")
+T_PathFillRule = TypeVar("T_PathFillRule", bound="PathFillRule")
+T_ClipboardRecord = TypeVar("T_ClipboardRecord", bound="ClipboardRecord")
+T_InitialFillRule = TypeVar("T_InitialFillRule", bound="InitialFillRule")
+T_VectorMaskSetting = TypeVar("T_VectorMaskSetting", bound="VectorMaskSetting")
+T_VectorStrokeContentSetting = TypeVar(
+    "T_VectorStrokeContentSetting", bound="VectorStrokeContentSetting"
+)
 
-def decode_fixed_point(numbers):
+
+def decode_fixed_point(numbers: Sequence[int]) -> tuple[float, ...]:
     return tuple(float(x) / 0x01000000 for x in numbers)
 
 
-def encode_fixed_point(numbers):
+def encode_fixed_point(numbers: Sequence[float]) -> tuple[int, ...]:
     return tuple(int(x * 0x01000000) for x in numbers)
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class Path(ListElement):
     """
     List-like Path structure. Elements are either PathFillRule,
@@ -38,7 +50,7 @@ class Path(ListElement):
     """
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T_Path], fp: BinaryIO, **kwargs: Any) -> T_Path:
         items = []
         while is_readable(fp, 26):
             selector = PathResourceID(read_fmt("H", fp)[0])
@@ -46,7 +58,7 @@ class Path(ListElement):
             items.append(kls.read(fp))
         return cls(items)
 
-    def write(self, fp, padding=4):
+    def write(self, fp: BinaryIO, padding: int = 4, **kwargs: Any) -> int:
         written = 0
         for item in self:
             written += write_fmt(fp, "H", item.selector.value)
@@ -55,7 +67,7 @@ class Path(ListElement):
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class Subpath(ListElement):
     """
     Subpath element. This is a list of Knot objects.
@@ -77,14 +89,14 @@ class Subpath(ListElement):
     """
 
     # Undocumented data that seem to contain path operation info.
-    operation = attr.ib(default=1, type=int)  # Type of shape operation.
-    _unknown1 = attr.ib(default=1, type=int)
-    _unknown2 = attr.ib(default=0, type=int)
-    index = attr.ib(default=0, type=int)  # Origination index.
-    _unknown3 = attr.ib(default=b"\x00" * 10, type=bytes, repr=False)
+    operation: int = 1  # Type of shape operation.
+    _unknown1: int = 1
+    _unknown2: int = 0
+    index: int = 0  # type: ignore[assignment]  # Origination index.
+    _unknown3: bytes = field(default=b"\x00" * 10, repr=False)
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T_Subpath], fp: BinaryIO, **kwargs: Any) -> T_Subpath:
         items = []
         length, operation, _unknown1, _unknown2, index, _unknown3 = read_fmt(
             "HhH2I10s", fp
@@ -102,7 +114,7 @@ class Subpath(ListElement):
             unknown3=_unknown3,
         )
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(
             fp,
             "HhH2I10s",
@@ -118,7 +130,7 @@ class Subpath(ListElement):
             written += item.write(fp)
         return written
 
-    def is_closed(self):
+    def is_closed(self) -> bool:
         """
         Returns whether if the path is closed or not.
 
@@ -134,7 +146,7 @@ class Subpath(ListElement):
             self.operation,
         )
 
-    def _repr_pretty_(self, p, cycle):
+    def _repr_pretty_(self, p: Any, cycle: bool) -> None:
         if cycle:
             p.text(f"({self.__class__.__name__} ...)")
             return
@@ -142,7 +154,7 @@ class Subpath(ListElement):
         super()._repr_pretty_(p, cycle)
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class Knot(BaseElement):
     """
     Knot element consisting of 3 control points for Bezier curves.
@@ -161,31 +173,31 @@ class Knot(BaseElement):
 
     """
 
-    preceding = attr.ib(default=(0.0, 0.0), type=tuple)
-    anchor = attr.ib(default=(0.0, 0.0), type=tuple)
-    leaving = attr.ib(default=(0.0, 0.0), type=tuple)
+    preceding: tuple = (0.0,)
+    anchor: tuple = (0.0,)
+    leaving: tuple = (0.0,)
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T_Knot], fp: BinaryIO, **kwargs: Any) -> T_Knot:
         preceding = decode_fixed_point(read_fmt("2i", fp))
         anchor = decode_fixed_point(read_fmt("2i", fp))
         leaving = decode_fixed_point(read_fmt("2i", fp))
         return cls(preceding, anchor, leaving)
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         values = self.preceding + self.anchor + self.leaving
         return write_fmt(fp, "6i", *encode_fixed_point(values))
 
 
 @register(PathResourceID.CLOSED_LENGTH)
 class ClosedPath(Subpath):
-    def is_closed(self):
+    def is_closed(self) -> bool:
         return True
 
 
 @register(PathResourceID.OPEN_LENGTH)
 class OpenPath(Subpath):
-    def is_closed(self):
+    def is_closed(self) -> bool:
         return False
 
 
@@ -210,23 +222,23 @@ class OpenKnotUnlinked(Knot):
 
 
 @register(PathResourceID.PATH_FILL)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class PathFillRule(BaseElement):
     """
     Path fill rule record, empty.
     """
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T_PathFillRule], fp: BinaryIO, **kwargs: Any) -> T_PathFillRule:
         read_fmt("24x", fp)
         return cls()
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, "24x")
 
 
 @register(PathResourceID.CLIPBOARD)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class ClipboardRecord(BaseElement):
     """
     Clipboard record.
@@ -252,22 +264,24 @@ class ClipboardRecord(BaseElement):
         Resolution in `int`
     """
 
-    top = attr.ib(default=0, type=int)
-    left = attr.ib(default=0, type=int)
-    bottom = attr.ib(default=0, type=int)
-    right = attr.ib(default=0, type=int)
-    resolution = attr.ib(default=0, type=int)
+    top: int = 0
+    left: int = 0
+    bottom: int = 0
+    right: int = 0
+    resolution: int = 0
 
     @classmethod
-    def read(cls, fp):
+    def read(
+        cls: type[T_ClipboardRecord], fp: BinaryIO, **kwargs: Any
+    ) -> T_ClipboardRecord:
         return cls(*decode_fixed_point(read_fmt("5i4x", fp)))
 
-    def write(self, fp):
-        return write_fmt(fp, "5i4x", *encode_fixed_point(attr.astuple(self)))
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+        return write_fmt(fp, "5i4x", *encode_fixed_point(astuple(self)))
 
 
 @register(PathResourceID.INITIAL_FILL)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class InitialFillRule(ValueElement):
     """
     Initial fill rule record.
@@ -278,17 +292,17 @@ class InitialFillRule(ValueElement):
         will be either 0 or 1.
     """
 
-    value = attr.ib(default=0, converter=int, type=int)
+    value: int = field(default=0, converter=int)
 
     @classmethod
-    def read(cls, fp):
+    def read(cls, fp: BinaryIO):
         return cls(*read_fmt("H22x", fp))
 
-    def write(self, fp):
-        return write_fmt(fp, "H22x", *attr.astuple(self))
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+        return write_fmt(fp, "H22x", *astuple(self))
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class VectorMaskSetting(BaseElement):
     """
     VectorMaskSetting structure.
@@ -299,16 +313,16 @@ class VectorMaskSetting(BaseElement):
         List of :py:class:`~psd_tools.psd.vector.Subpath` objects.
     """
 
-    version = attr.ib(default=3, type=int)
-    flags = attr.ib(default=0, type=int)
-    path = attr.ib(default=None)
+    version: int = 3
+    flags: int = 0
+    path: object = None
 
     @classmethod
     def read(cls, fp, **kwargs):
         version, flags = read_fmt("2I", fp)
         assert version == 3, "Unknown vector mask version %d" % version
         path = Path.read(fp)
-        return cls(version, flags, path)
+        return cls(version=version, flags=flags, path=path)
 
     def write(self, fp, **kwargs):
         written = write_fmt(fp, "2I", self.version, self.flags)
@@ -331,7 +345,7 @@ class VectorMaskSetting(BaseElement):
         return bool(self.flags & 4)
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class VectorStrokeContentSetting(Descriptor):
     """
     Dict-like Descriptor-based structure. See
@@ -341,8 +355,8 @@ class VectorStrokeContentSetting(Descriptor):
     .. py:attribute:: version
     """
 
-    key = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
-    version = attr.ib(default=1, type=int)
+    key: bytes = b"\x00\x00\x00\x00"
+    version: int = 1
 
     @classmethod
     def read(cls, fp, **kwargs):

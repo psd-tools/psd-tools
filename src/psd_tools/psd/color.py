@@ -3,8 +3,9 @@ Color structure and conversion methods.
 """
 
 import logging
+from typing import Any, BinaryIO, TypeVar
 
-import attr
+from attrs import define, field
 
 from psd_tools.constants import ColorSpaceID
 from psd_tools.psd.base import BaseElement
@@ -12,8 +13,10 @@ from psd_tools.utils import read_fmt, write_fmt
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T", bound="Color")
 
-@attr.s(repr=False, slots=True)
+
+@define(repr=False)
 class Color(BaseElement):
     """
     Color structure.
@@ -27,11 +30,11 @@ class Color(BaseElement):
         List of `int` values.
     """
 
-    id = attr.ib(default=ColorSpaceID.RGB)
-    values = attr.ib(factory=lambda: [0, 0, 0, 0])
+    id: ColorSpaceID = ColorSpaceID.RGB
+    values: list = field(factory=lambda: [0, 0, 0, 0])
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         id = read_fmt("H", fp)[0]
         try:
             id = ColorSpaceID(id)
@@ -43,7 +46,7 @@ class Color(BaseElement):
             values = read_fmt("4H", fp)
         return cls(id, list(values))
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         id = getattr(self.id, "value", self.id)
         written = write_fmt(fp, "H", id)
         if self.id == ColorSpaceID.LAB:
@@ -52,7 +55,7 @@ class Color(BaseElement):
             written += write_fmt(fp, "4H", *self.values)
         return written
 
-    def _repr_pretty_(self, p, cycle):
+    def _repr_pretty_(self, p: Any, cycle: bool) -> None:
         if cycle:
             return "{name}(...)".format(name=self.__class__.__name__)
 

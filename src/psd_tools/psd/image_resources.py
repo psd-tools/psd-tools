@@ -62,8 +62,9 @@ The following resources are plain bytes::
 
 import io
 import logging
+from typing import Any, BinaryIO, Optional, TypeVar
 
-import attr
+from attrs import define, field, astuple
 
 from psd_tools.constants import PrintScaleStyle, Resource, AlphaChannelMode
 from psd_tools.psd.base import (
@@ -98,6 +99,9 @@ from psd_tools.version import __version__
 
 logger = logging.getLogger(__name__)
 
+T_ImageResources = TypeVar("T_ImageResources", bound="ImageResources")
+T_ImageResource = TypeVar("T_ImageResource", bound="ImageResource")
+
 TYPES, register = new_registry()
 
 TYPES.update(
@@ -120,14 +124,14 @@ TYPES.update(
 )
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class ImageResources(DictElement):
     """
     Image resources section of the PSD file. Dict of
     :py:class:`.ImageResource`.
     """
 
-    def get_data(self, key, default=None):
+    def get_data(self, key: Any, default: Any = None) -> Any:
         """
         Get data from the image resources.
 
@@ -145,7 +149,7 @@ class ImageResources(DictElement):
         return default
 
     @classmethod
-    def new(cls, **kwargs):
+    def new(cls: type[T_ImageResources], **kwargs: Any) -> T_ImageResources:
         """
         Create a new default image resouces.
 
@@ -168,22 +172,29 @@ class ImageResources(DictElement):
         )
 
     @classmethod
-    def read(cls, fp, encoding="macroman"):
+    def read(
+        cls: type[T_ImageResources],
+        fp: BinaryIO,
+        encoding: str = "macroman",
+        **kwargs: Any,
+    ) -> T_ImageResources:
         data = read_length_block(fp)
         logger.debug("reading image resources, len=%d" % (len(data)))
         with io.BytesIO(data) as f:
             return cls._read_body(f, encoding=encoding)
 
     @classmethod
-    def _read_body(cls, fp, *args, **kwargs):
+    def _read_body(
+        cls: type[T_ImageResources], fp: BinaryIO, *args: Any, **kwargs: Any
+    ) -> T_ImageResources:
         items = []
         while is_readable(fp, 4):
             item = ImageResource.read(fp, *args, **kwargs)
             items.append((item.key, item))
         return cls(items)
 
-    def write(self, fp, encoding="macroman"):
-        def writer(f):
+    def write(self, fp: BinaryIO, encoding: str = "macroman", **kwargs: Any) -> int:
+        def writer(f: BinaryIO) -> int:
             written = sum(self[key].write(f, encoding) for key in self)
             logger.debug("writing image resources, len=%d" % (written))
             return written
@@ -191,12 +202,12 @@ class ImageResources(DictElement):
         return write_length_block(fp, writer)
 
     @classmethod
-    def _key_converter(self, key):
+    def _key_converter(cls, key: Any) -> Any:
         return getattr(key, "value", key)
 
-    def _repr_pretty_(self, p, cycle):
+    def _repr_pretty_(self, p: Any, cycle: bool) -> None:
         if cycle:
-            return "{{...}"
+            return p.text("{{...}")
 
         with p.group(2, "{", "}"):
             p.breakable("")
@@ -217,7 +228,7 @@ class ImageResources(DictElement):
             p.breakable("")
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class ImageResource(BaseElement):
     """
     Image resource block.
@@ -237,18 +248,22 @@ class ImageResource(BaseElement):
         The resource data.
     """
 
-    signature = attr.ib(
+    signature: bytes = field(
         default=b"8BIM",
-        type=bytes,
         repr=False,
         validator=in_({b"8BIM", b"MeSa", b"AgHg", b"PHUT", b"DCSR"}),
     )
-    key = attr.ib(default=1000, type=int)
-    name = attr.ib(default="", type=str)
-    data = attr.ib(default=b"", type=bytes, repr=False)
+    key: int = 1000
+    name: str = ""
+    data: bytes = field(default=b"", repr=False)
 
     @classmethod
-    def read(cls, fp, encoding="macroman"):
+    def read(
+        cls: type[T_ImageResource],
+        fp: BinaryIO,
+        encoding: str = "macroman",
+        **kwargs: Any,
+    ) -> T_ImageResource:
         signature, key = read_fmt("4sH", fp)
         try:
             key = Resource(key)
@@ -275,13 +290,13 @@ class ImageResource(BaseElement):
             data = raw_data
         return cls(signature, key, name, data)
 
-    def write(self, fp, encoding="macroman"):
+    def write(self, fp: BinaryIO, encoding: str = "macroman", **kwargs: Any) -> int:
         written = write_fmt(
             fp, "4sH", self.signature, getattr(self.key, "value", self.key)
         )
         written += write_pascal_string(fp, self.name, encoding, 2)
 
-        def writer(f):
+        def writer(f: BinaryIO) -> int:
             if hasattr(self.data, "write"):
                 return self.data.write(f, padding=1)
             return write_bytes(f, self.data)
@@ -297,13 +312,13 @@ class AlphaIdentifiers(ListElement):
     """
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "AlphaIdentifiers":
         items = []
         while is_readable(fp, 4):
             items.append(read_fmt("I", fp)[0])
         return cls(items)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return sum(write_fmt(fp, "I", item) for item in self)
 
 
@@ -314,13 +329,13 @@ class AlphaNamesPascal(ListElement):
     """
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "AlphaNamesPascal":
         items = []
         while is_readable(fp):
             items.append(read_pascal_string(fp, "macroman", padding=1))
         return cls(items)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return sum(write_pascal_string(fp, item, padding=1) for item in self)
 
 
@@ -331,58 +346,58 @@ class AlphaNamesUnicode(ListElement):
     """
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "AlphaNamesUnicode":
         items = []
         while is_readable(fp):
             items.append(read_unicode_string(fp))
         return cls(items)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return sum(write_unicode_string(fp, item) for item in self)
 
 
 @register(Resource.DISPLAY_INFO)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class DisplayInfo(BaseElement):
     """
     DisplayInfo is a list of AlphaChannels
     """
 
-    version = attr.ib(default=1, type=int)
-    alpha_channels = attr.ib(factory=list, converter=list)
+    version: int = 1
+    alpha_channels: list = field(factory=list, converter=list)
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "DisplayInfo":
         # ref: https://github.com/MolecularMatters/psd_sdk/blob/311b5c2e3fe04c8cc6a563665e66b19b3fcf8116/src/Psd/PsdParseImageResourcesSection.cpp#L83
         version = read_fmt("I", fp)[0]
         items = []
         while is_readable(fp, 13):
             items.append(AlphaChannel.read(fp))
-        return cls(version, items)
+        return cls(version=version, alpha_channels=items)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "I", self.version)
         written += sum(item.write(fp) for item in self.alpha_channels)
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class AlphaChannel(BaseElement):
-    color_space = attr.ib(default=0, type=int)
-    c1 = attr.ib(default=0, type=int)
-    c2 = attr.ib(default=0, type=int)
-    c3 = attr.ib(default=0, type=int)
-    c4 = attr.ib(default=0, type=int)
-    opacity = attr.ib(default=0, type=int)
-    mode = attr.ib(default=0, type=AlphaChannelMode)
+    color_space: int = 0
+    c1: int = 0
+    c2: int = 0
+    c3: int = 0
+    c4: int = 0
+    opacity: int = 0
+    mode: AlphaChannelMode = AlphaChannelMode.ALPHA  # type: ignore[assignment]
 
     @classmethod
-    def read(cls, fp):
+    def read(cls, fp: BinaryIO) -> "AlphaChannel":
         vals = read_fmt("6H", fp)
         mode = AlphaChannelMode(read_fmt("B", fp)[0])
         return cls(*vals, mode)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(
             fp, "6H", self.color_space, self.c1, self.c2, self.c3, self.c4, self.opacity
         )
@@ -400,15 +415,15 @@ class Byte(ByteElement):
     """
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "Byte":
         return cls(*read_fmt("B", fp))
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, "B", self.value)
 
 
 @register(Resource.GRID_AND_GUIDES_INFO)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class GridGuidesInfo(BaseElement):
     """
     Grid and guides info structure.
@@ -416,20 +431,22 @@ class GridGuidesInfo(BaseElement):
     .. py:attribute: version
     """
 
-    version = attr.ib(default=1, type=int)
-    horizontal = attr.ib(default=0, type=int)
-    vertical = attr.ib(default=0, type=int)
-    data = attr.ib(factory=list, converter=list)
+    version: int = 1
+    horizontal: int = 0
+    vertical: int = 0
+    data: list = field(factory=list, converter=list)
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "GridGuidesInfo":
         version, horizontal, vertical, count = read_fmt("4I", fp)
         items = []
         for _ in range(count):
             items.append(read_fmt("IB", fp))
-        return cls(version, horizontal, vertical, items)
+        return cls(
+            version=version, horizontal=horizontal, vertical=vertical, data=items
+        )
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(
             fp, "4I", self.version, self.horizontal, self.vertical, len(self.data)
         )
@@ -446,17 +463,17 @@ class HalftoneScreens(ListElement):
     """
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "HalftoneScreens":
         items = []
         while is_readable(fp, 18):
             items.append(HalftoneScreen.read(fp))
         return cls(items)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return sum(item.write(fp) for item in self)
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class HalftoneScreen(BaseElement):
     """
     Halftone screen.
@@ -469,22 +486,22 @@ class HalftoneScreen(BaseElement):
     .. py:attribute:: use_printer
     """
 
-    freq = attr.ib(default=0, type=int)
-    unit = attr.ib(default=0, type=int)
-    angle = attr.ib(default=0, type=int)
-    shape = attr.ib(default=0, type=int)
-    use_accurate = attr.ib(default=False, type=bool)
-    use_printer = attr.ib(default=False, type=bool)
+    freq: int = 0
+    unit: int = 0
+    angle: int = 0
+    shape: int = 0
+    use_accurate: bool = False
+    use_printer: bool = False
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "HalftoneScreen":
         freq = float(read_fmt("I", fp)[0]) / 0x10000
         unit = read_fmt("H", fp)[0]
         angle = float(read_fmt("i", fp)[0]) / 0x10000
         shape, use_accurate, use_printer = read_fmt("H4x2?", fp)
         return cls(freq, unit, angle, shape, use_accurate, use_printer)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "I", int(self.freq * 0x10000))
         written += write_fmt(fp, "H", self.unit)
         written += write_fmt(fp, "i", int(self.angle * 0x10000))
@@ -503,10 +520,10 @@ class Integer(IntegerElement):
     """
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "Integer":
         return cls(*read_fmt("i", fp))
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, "i", self.value)
 
 
@@ -517,13 +534,13 @@ class LayerGroupEnabledIDs(ListElement):
     """
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "LayerGroupEnabledIDs":
         items = []
         while is_readable(fp, 1):
             items.append(read_fmt("B", fp)[0])
         return cls(items)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return sum(write_fmt(fp, "B", item) for item in self)
 
 
@@ -534,13 +551,13 @@ class LayerGroupInfo(ListElement):
     """
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "LayerGroupInfo":
         items = []
         while is_readable(fp, 2):
             items.append(read_fmt("H", fp)[0])
         return cls(items)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return sum(write_fmt(fp, "H", item) for item in self)
 
 
@@ -551,11 +568,11 @@ class LayerSelectionIDs(ListElement):
     """
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "LayerSelectionIDs":
         count = read_fmt("H", fp)[0]
         return cls(read_fmt("I", fp)[0] for _ in range(count))
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "H", len(self))
         written += sum(write_fmt(fp, "I", item) for item in self)
         return written
@@ -570,10 +587,10 @@ class ShortInteger(ShortIntegerElement):
     """
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "ShortInteger":
         return cls(*read_fmt("H", fp))
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, "H", self.value)
 
 
@@ -585,15 +602,15 @@ class PascalString(ValueElement):
     """
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "PascalString":
         return cls(read_pascal_string(fp, "macroman"))
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_pascal_string(fp, self.value, "macroman", padding=1)
 
 
 @register(Resource.PIXEL_ASPECT_RATIO)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class PixelAspectRatio(NumericElement):
     """
     Pixel aspect ratio.
@@ -601,19 +618,19 @@ class PixelAspectRatio(NumericElement):
     .. py:attribute: version
     """
 
-    version = attr.ib(default=1, type=int)
+    version: int = 1
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "PixelAspectRatio":
         version, value = read_fmt("Id", fp)
         return cls(version=version, value=value)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, "Id", self.version, self.value)
 
 
 @register(Resource.PRINT_FLAGS)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class PrintFlags(BaseElement):
     """
     Print flags.
@@ -629,32 +646,41 @@ class PrintFlags(BaseElement):
     .. py:attribute: print_flags
     """
 
-    labels = attr.ib(default=False, type=bool)
-    crop_marks = attr.ib(default=False, type=bool)
-    colorbars = attr.ib(default=False, type=bool)
-    registration_marks = attr.ib(default=False, type=bool)
-    negative = attr.ib(default=False, type=bool)
-    flip = attr.ib(default=False, type=bool)
-    interpolate = attr.ib(default=False, type=bool)
-    caption = attr.ib(default=False, type=bool)
-    print_flags = attr.ib(default=None)  # Not existing for old versions.
+    labels: bool = False
+    crop_marks: bool = False
+    colorbars: bool = False
+    registration_marks: bool = False
+    negative: bool = False
+    flip: bool = False
+    interpolate: bool = False
+    caption: bool = False
+    print_flags: Optional[bool] = None  # Not existing for old versions.
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "PrintFlags":
         values = read_fmt("8?", fp)
-        if is_readable(fp):
-            values += read_fmt("?", fp)
-        return cls(*values)
+        print_flags_value = read_fmt("?", fp)[0] if is_readable(fp) else None
+        return cls(
+            labels=values[0],
+            crop_marks=values[1],
+            colorbars=values[2],
+            registration_marks=values[3],
+            negative=values[4],
+            flip=values[5],
+            interpolate=values[6],
+            caption=values[7],
+            print_flags=print_flags_value,
+        )
 
-    def write(self, fp, **kwargs):
-        values = attr.astuple(self)
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+        values = astuple(self)
         if self.print_flags is None:
             values = values[:-1]
         return write_fmt(fp, "%d?" % len(values), *values)
 
 
 @register(Resource.PRINT_FLAGS_INFO)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class PrintFlagsInfo(BaseElement):
     """
     Print flags info structure.
@@ -665,21 +691,21 @@ class PrintFlagsInfo(BaseElement):
     .. py:attribute:: bleed_width_scale
     """
 
-    version = attr.ib(default=0, type=int)
-    center_crop = attr.ib(default=0, type=int)
-    bleed_width_value = attr.ib(default=0, type=int)
-    bleed_width_scale = attr.ib(default=0, type=int)
+    version: int = 0
+    center_crop: int = 0
+    bleed_width_value: int = 0
+    bleed_width_scale: int = 0
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "PrintFlagsInfo":
         return cls(*read_fmt("HBxIH", fp))
 
-    def write(self, fp, **kwargs):
-        return write_fmt(fp, "HBxIH", *attr.astuple(self))
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+        return write_fmt(fp, "HBxIH", *astuple(self))
 
 
 @register(Resource.PRINT_SCALE)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class PrintScale(BaseElement):
     """
     Print scale structure.
@@ -690,25 +716,25 @@ class PrintScale(BaseElement):
     .. py:attribute:: scale
     """
 
-    style = attr.ib(
+    style: PrintScaleStyle = field(
         default=PrintScaleStyle.CENTERED,
         converter=PrintScaleStyle,
         validator=in_(PrintScaleStyle),
     )
-    x = attr.ib(default=0.0, type=float)
-    y = attr.ib(default=0.0, type=float)
-    scale = attr.ib(default=0.0, type=float)
+    x: float = 0.0
+    y: float = 0.0
+    scale: float = 0.0
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "PrintScale":
         return cls(*read_fmt("H3f", fp))
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, "H3f", self.style.value, self.x, self.y, self.scale)
 
 
 @register(Resource.RESOLUTION_INFO)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class ResoulutionInfo(BaseElement):
     """
     Resoulution info structure.
@@ -721,23 +747,23 @@ class ResoulutionInfo(BaseElement):
     .. py:attribute:: height_unit
     """
 
-    horizontal = attr.ib(default=0, type=int)
-    horizontal_unit = attr.ib(default=0, type=int)
-    width_unit = attr.ib(default=0, type=int)
-    vertical = attr.ib(default=0, type=int)
-    vertical_unit = attr.ib(default=0, type=int)
-    height_unit = attr.ib(default=0, type=int)
+    horizontal: int = 0
+    horizontal_unit: int = 0
+    width_unit: int = 0
+    vertical: int = 0
+    vertical_unit: int = 0
+    height_unit: int = 0
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "ResoulutionInfo":
         return cls(*read_fmt("I2HI2H", fp))
 
-    def write(self, fp, **kwargs):
-        return write_fmt(fp, "I2HI2H", *attr.astuple(self))
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+        return write_fmt(fp, "I2HI2H", *astuple(self))
 
 
 @register(Resource.SLICES)
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class Slices(BaseElement):
     """
     Slices resource.
@@ -746,24 +772,24 @@ class Slices(BaseElement):
     .. py:attribute:: data
     """
 
-    version = attr.ib(default=0, type=int, validator=in_((6, 7, 8)))
-    data = attr.ib(default=None)
+    version: int = field(default=0, validator=in_((6, 7, 8)))
+    data: object = None
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "Slices":
         version = read_fmt("I", fp)[0]
         assert version in (6, 7, 8), "Invalid version %d" % (version)
         if version == 6:
             return cls(version=version, data=SlicesV6.read(fp))
         return cls(version=version, data=DescriptorBlock.read(fp))
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "I", self.version)
         written += self.data.write(fp, padding=1)
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class SlicesV6(BaseElement):
     """
     Slices resource version 6.
@@ -773,19 +799,19 @@ class SlicesV6(BaseElement):
     .. py:attribute:: items
     """
 
-    bbox = attr.ib(factory=lambda: [0, 0, 0, 0], converter=list)
-    name = attr.ib(default="", type=str)
-    items = attr.ib(factory=list, converter=list)
+    bbox: list = field(factory=lambda: [0, 0, 0, 0], converter=list)
+    name: str = ""
+    items: list = field(factory=list, converter=list)
 
     @classmethod
-    def read(cls, fp):
+    def read(cls, fp: BinaryIO) -> "SlicesV6":
         bbox = read_fmt("4I", fp)
         name = read_unicode_string(fp)
         count = read_fmt("I", fp)[0]
         items = [SliceV6.read(fp) for _ in range(count)]
-        return cls(bbox, name, items)
+        return cls(bbox=bbox, name=name, items=items)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "4I", *self.bbox)
         written += write_unicode_string(fp, self.name)
         written += write_fmt(fp, "I", len(self.items))
@@ -793,7 +819,7 @@ class SlicesV6(BaseElement):
         return written
 
 
-@attr.s(repr=False)
+@define(repr=False)
 class SliceV6(BaseElement):
     """
     Slice element for version 6.
@@ -820,29 +846,29 @@ class SliceV6(BaseElement):
     .. py:attribute:: data
     """
 
-    slice_id = attr.ib(default=0, type=int)
-    group_id = attr.ib(default=0, type=int)
-    origin = attr.ib(default=0, type=int)
-    associated_id = attr.ib(default=None)
-    name = attr.ib(default="", type=str)
-    slice_type = attr.ib(default=0, type=int)
-    bbox = attr.ib(factory=lambda: [0, 0, 0, 0], converter=list)
-    url = attr.ib(default="", type=str)
-    target = attr.ib(default="", type=str)
-    message = attr.ib(default="", type=str)
-    alt_tag = attr.ib(default="", type=str)
-    cell_is_html = attr.ib(default=False, type=bool)
-    cell_text = attr.ib(default="", type=str)
-    horizontal_align = attr.ib(default=0, type=int)
-    vertical_align = attr.ib(default=0, type=int)
-    alpha = attr.ib(default=0, type=int)
-    red = attr.ib(default=0, type=int)
-    green = attr.ib(default=0, type=int)
-    blue = attr.ib(default=0, type=int)
-    data = attr.ib(default=None)
+    slice_id: int = 0
+    group_id: int = 0
+    origin: int = 0
+    associated_id: Optional[int] = None
+    name: str = ""
+    slice_type: int = 0
+    bbox: list = field(factory=lambda: [0, 0, 0, 0], converter=list)
+    url: str = ""
+    target: str = ""
+    message: str = ""
+    alt_tag: str = ""
+    cell_is_html: bool = False
+    cell_text: str = ""
+    horizontal_align: int = 0
+    vertical_align: int = 0
+    alpha: int = 0
+    red: int = 0
+    green: int = 0
+    blue: int = 0
+    data: object = None
 
     @classmethod
-    def read(cls, fp):
+    def read(cls, fp: BinaryIO) -> "SliceV6":
         slice_id, group_id, origin = read_fmt("3I", fp)
         associated_id = read_fmt("I", fp)[0] if origin == 1 else None
         name = read_unicode_string(fp)
@@ -873,29 +899,29 @@ class SliceV6(BaseElement):
                     logger.debug("Failed to read DescriptorBlock")
                     fp.seek(current_position)
         return cls(
-            slice_id,
-            group_id,
-            origin,
-            associated_id,
-            name,
-            slice_type,
-            bbox,
-            url,
-            target,
-            message,
-            alt_tag,
-            cell_is_html,
-            cell_text,
-            horizontal_align,
-            vertical_align,
-            alpha,
-            red,
-            green,
-            blue,
-            data,
+            slice_id=slice_id,
+            group_id=group_id,
+            origin=origin,
+            associated_id=associated_id,
+            name=name,
+            slice_type=slice_type,
+            bbox=bbox,
+            url=url,
+            target=target,
+            message=message,
+            alt_tag=alt_tag,
+            cell_is_html=cell_is_html,
+            cell_text=cell_text,
+            horizontal_align=horizontal_align,
+            vertical_align=vertical_align,
+            alpha=alpha,
+            red=red,
+            green=green,
+            blue=blue,
+            data=data,
         )
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO) -> int:
         written = write_fmt(fp, "3I", self.slice_id, self.group_id, self.origin)
         if self.origin == 1 and self.associated_id is not None:
             written += write_fmt(fp, "I", self.associated_id)
@@ -919,7 +945,7 @@ class SliceV6(BaseElement):
 
 
 @register(Resource.THUMBNAIL_RESOURCE)
-@attr.s(repr=False)
+@define(repr=False)
 class ThumbnailResource(BaseElement):
     """
     Thumbnail resource structure.
@@ -937,22 +963,22 @@ class ThumbnailResource(BaseElement):
 
     _RAW_MODE = "RGB"
 
-    fmt = attr.ib(default=0, type=int)
-    width = attr.ib(default=0, type=int)
-    height = attr.ib(default=0, type=int)
-    row = attr.ib(default=0, type=int)
-    total_size = attr.ib(default=0, type=int)
-    bits = attr.ib(default=0, type=int)
-    planes = attr.ib(default=0, type=int)
-    data = attr.ib(default=b"", type=bytes)
+    fmt: int = 0
+    width: int = 0
+    height: int = 0
+    row: int = 0
+    total_size: int = 0
+    bits: int = 0
+    planes: int = 0
+    data: bytes = b""
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "ThumbnailResource":
         fmt, width, height, row, total_size, size, bits, planes = read_fmt("6I2H", fp)
         data = fp.read(size)
         return cls(fmt, width, height, row, total_size, bits, planes, data)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(
             fp,
             "6I2H",
@@ -983,32 +1009,32 @@ class TransferFunctions(ListElement):
     """
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "TransferFunctions":
         items = []
         while is_readable(fp, 28):
             items.append(TransferFunction.read(fp))
         return cls(items)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return sum(item.write(fp) for item in self)
 
 
-@attr.s(repr=False)
+@define(repr=False)
 class TransferFunction(BaseElement):
     """
     Transfer function
     """
 
-    curve = attr.ib(factory=list, converter=list)
-    override = attr.ib(default=False, type=bool)
+    curve: list = field(factory=list, converter=list)
+    override: bool = False
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "TransferFunction":
         curve = read_fmt("13H", fp)
         override = read_fmt("H", fp)[0]
-        return cls(curve, override)
+        return cls(curve=curve, override=override)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "13H", *self.curve)
         written += write_fmt(fp, "H", self.override)
         return written
@@ -1021,20 +1047,20 @@ class URLList(ListElement):
     """
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "URLList":
         count = read_fmt("I", fp)[0]
         items = []
         for _ in range(count):
             items.append(URLItem.read(fp))
         return cls(items)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "I", len(self))
         written += sum(item.write(fp) for item in self)
         return written
 
 
-@attr.s(repr=False)
+@define(repr=False)
 class URLItem(BaseElement):
     """
     URL item.
@@ -1044,24 +1070,24 @@ class URLItem(BaseElement):
     .. py:attribute:: name
     """
 
-    number = attr.ib(default=0, type=int)
-    id = attr.ib(default=0, type=int)
-    name = attr.ib(default="", type=str)
+    number: int = 0
+    id: int = 0
+    name: str = ""
 
     @classmethod
-    def read(cls, fp):
+    def read(cls, fp: BinaryIO) -> "URLItem":
         number, id = read_fmt("2I", fp)
         name = read_unicode_string(fp)
         return cls(number, id, name)
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO) -> int:
         written = write_fmt(fp, "2I", self.number, self.id)
         written += write_unicode_string(fp, self.name)
         return written
 
 
 @register(Resource.VERSION_INFO)
-@attr.s(repr=False)
+@define(repr=False)
 class VersionInfo(BaseElement):
     """
     Version info structure.
@@ -1073,21 +1099,21 @@ class VersionInfo(BaseElement):
     .. py:attribute:: file_version
     """
 
-    version = attr.ib(default=1, type=int)
-    has_composite = attr.ib(default=False, type=bool)
-    writer = attr.ib(default="", type=str)
-    reader = attr.ib(default="", type=str)
-    file_version = attr.ib(default=1, type=int)
+    version: int = 1
+    has_composite: bool = False
+    writer: str = ""
+    reader: str = ""
+    file_version: int = 1
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "VersionInfo":
         version, has_composite = read_fmt("I?", fp)
         writer = read_unicode_string(fp)
         reader = read_unicode_string(fp)
         file_version = read_fmt("I", fp)[0]
         return cls(version, has_composite, writer, reader, file_version)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "I?", self.version, self.has_composite)
         written += write_unicode_string(fp, self.writer)
         written += write_unicode_string(fp, self.reader)

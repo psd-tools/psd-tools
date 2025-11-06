@@ -3,8 +3,9 @@ File header structure.
 """
 
 import logging
+from typing import Any, BinaryIO, TypeVar
 
-import attr
+from attrs import define, field, astuple
 
 from psd_tools.constants import ColorMode
 from psd_tools.psd.base import BaseElement
@@ -13,8 +14,10 @@ from psd_tools.validators import in_, range_
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T", bound="FileHeader")
 
-@attr.s(repr=True, slots=True)
+
+@define(repr=True)
 class FileHeader(BaseElement):
     """
     Header section of the PSD file.
@@ -60,24 +63,24 @@ class FileHeader(BaseElement):
 
     _FORMAT = "4sH6xHIIHH"
 
-    signature = attr.ib(default=b"8BPS", type=bytes, repr=False)
-    version = attr.ib(default=1, type=int, validator=in_((1, 2)))
-    channels = attr.ib(default=4, type=int, validator=range_(1, 57))
-    height = attr.ib(default=64, type=int, validator=range_(1, 300001))
-    width = attr.ib(default=64, type=int, validator=range_(1, 300001))
-    depth = attr.ib(default=8, type=int, validator=in_((1, 8, 16, 32)))
-    color_mode = attr.ib(
+    signature: bytes = field(default=b"8BPS", repr=False)
+    version: int = field(default=1, validator=in_((1, 2)))
+    channels: int = field(default=4, validator=range_(1, 57))
+    height: int = field(default=64, validator=range_(1, 300001))
+    width: int = field(default=64, validator=range_(1, 300001))
+    depth: int = field(default=8, validator=in_((1, 8, 16, 32)))
+    color_mode: ColorMode = field(
         default=ColorMode.RGB, converter=ColorMode, validator=in_(ColorMode)
     )
 
     @signature.validator
-    def _validate_signature(self, attribute, value):
+    def _validate_signature(self, attribute: Any, value: bytes) -> None:
         if value != b"8BPS":
             raise ValueError("This is not a PSD or PSB file")
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         return cls(*read_fmt(cls._FORMAT, fp))
 
-    def write(self, fp):
-        return write_fmt(fp, self._FORMAT, *attr.astuple(self))
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+        return write_fmt(fp, self._FORMAT, *astuple(self))

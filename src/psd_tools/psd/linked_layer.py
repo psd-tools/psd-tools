@@ -4,8 +4,9 @@ Linked layer structure.
 
 import io
 import logging
+from typing import Any, BinaryIO, Optional, TypeVar
 
-import attr
+from attrs import define, field
 
 from psd_tools.constants import LinkedLayerType
 from psd_tools.psd.base import BaseElement, ListElement
@@ -27,6 +28,9 @@ from psd_tools.validators import in_, range_
 
 logger = logging.getLogger(__name__)
 
+T_LinkedLayers = TypeVar("T_LinkedLayers", bound="LinkedLayers")
+T_LinkedLayer = TypeVar("T_LinkedLayer", bound="LinkedLayer")
+
 
 class LinkedLayers(ListElement):
     """
@@ -34,22 +38,22 @@ class LinkedLayers(ListElement):
     """
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T_LinkedLayers], fp: BinaryIO, **kwargs: Any) -> T_LinkedLayers:
         items = []
         while is_readable(fp, 8):
             data = read_length_block(fp, fmt="Q", padding=4)
             with io.BytesIO(data) as f:
                 items.append(LinkedLayer.read(f))
-        return cls(items)
+        return cls(items)  # type: ignore[arg-type]
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = 0
         for item in self:
             written += write_length_block(fp, item.write, fmt="Q", padding=4)
         return written
 
 
-@attr.s(repr=False, slots=True)
+@define(repr=False)
 class LinkedLayer(BaseElement):
     """
     LinkedLayer structure.
@@ -70,23 +74,25 @@ class LinkedLayer(BaseElement):
     .. py:attribute:: lock_state
     """
 
-    kind = attr.ib(default=LinkedLayerType.ALIAS, validator=in_(LinkedLayerType))
-    version = attr.ib(default=1, validator=range_(1, 8))
-    uuid = attr.ib(default="", type=str)
-    filename = attr.ib(default="", type=str)
-    filetype = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
-    creator = attr.ib(default=b"\x00\x00\x00\x00", type=bytes)
-    filesize = attr.ib(default=None)
-    open_file = attr.ib(default=None)
-    linked_file = attr.ib(default=None)
-    timestamp = attr.ib(default=None)
-    data = attr.ib(default=None)
-    child_id = attr.ib(default=None)
-    mod_time = attr.ib(default=None)
-    lock_state = attr.ib(default=None)
+    kind: LinkedLayerType = field(
+        default=LinkedLayerType.ALIAS, validator=in_(LinkedLayerType)
+    )
+    version: int = field(default=1, validator=range_(1, 8))
+    uuid: str = ""
+    filename: str = ""
+    filetype: bytes = b"\x00\x00\x00\x00"
+    creator: bytes = b"\x00\x00\x00\x00"
+    filesize: Optional[int] = None
+    open_file: Optional[DescriptorBlock] = None
+    linked_file: Optional[DescriptorBlock] = None
+    timestamp: Optional[tuple] = None
+    data: Optional[bytes] = None
+    child_id: Optional[str] = None
+    mod_time: Optional[float] = None
+    lock_state: Optional[int] = None
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T_LinkedLayer], fp: BinaryIO, **kwargs: Any) -> T_LinkedLayer:
         kind = LinkedLayerType(read_fmt("4s", fp)[0])
         version = read_fmt("I", fp)[0]
         assert 1 <= version and version <= 8, "Invalid version %d" % (version)
@@ -146,7 +152,7 @@ class LinkedLayer(BaseElement):
             lock_state,
         )
 
-    def write(self, fp, padding=1, **kwargs):
+    def write(self, fp: BinaryIO, padding: int = 1, **kwargs: Any) -> int:
         written = write_fmt(fp, "4sI", self.kind.value, self.version)
         written += write_pascal_string(fp, self.uuid, "macroman", padding=1)
         written += write_unicode_string(fp, self.filename)
@@ -162,15 +168,17 @@ class LinkedLayer(BaseElement):
             written += self.open_file.write(fp, padding=1)
 
         if self.kind == LinkedLayerType.EXTERNAL:
-            written += self.linked_file.write(fp, padding=1)
+            written += self.linked_file.write(fp, padding=1)  # type: ignore[union-attr]
             if self.version > 3:
-                written += write_fmt(fp, "I4Bd", *self.timestamp)
+                written += write_fmt(fp, "I4Bd", *self.timestamp)  # type: ignore[misc]
             written += write_fmt(fp, "Q", self.filesize)
             if self.version > 2:
+                assert self.data is not None
                 written += write_bytes(fp, self.data)
         elif self.kind == LinkedLayerType.ALIAS:
             written += write_fmt(fp, "8x")
         if self.kind == LinkedLayerType.DATA:
+            assert self.data is not None
             written += write_bytes(fp, self.data)
 
         if self.child_id is not None:
@@ -181,6 +189,7 @@ class LinkedLayer(BaseElement):
             written += write_fmt(fp, "B", self.lock_state)
 
         if self.kind == LinkedLayerType.EXTERNAL and self.version == 2:
+            assert self.data is not None
             written += write_bytes(fp, self.data)
 
         written += write_padding(fp, written, padding)

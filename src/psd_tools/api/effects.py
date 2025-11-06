@@ -56,7 +56,7 @@ class Effects:
 
         self._items: list["_Effect"] = []
         if self._data is None:
-            return        
+            return
         for key in self._data:
             value = self._data[key]
             if not isinstance(value, List):
@@ -91,7 +91,7 @@ class Effects:
 
     def find(self, name: str, enabled: bool = True) -> Iterator["_Effect"]:
         """Iterate effect items by name.
-        
+
         :param name: Effect name, e.g. `DropShadow`, `InnerShadow`, `OuterGlow`,
             `InnerGlow`, `ColorOverlay`, `GradientOverlay`, `PatternOverlay`,
             `Stroke`, `BevelEmboss`, or `Satin`.
@@ -126,6 +126,7 @@ class Effects:
 
 class _EffectProtocol(Protocol):
     """Effect protocol."""
+
     descriptor: Descriptor
     _image_resources: ImageResources
 
@@ -168,7 +169,7 @@ class _Effect(_EffectProtocol):
 
     def has_patterns(self) -> bool:
         return isinstance(self, _PatternMixin) and self.pattern is not None
-    
+
     @property
     def name(self) -> str:
         """Effect name."""
@@ -255,7 +256,9 @@ class _GradientMixin(_EffectProtocol):
         `diamond`.
         """
         type_value = self.descriptor.get(Key.Type)
-        return getattr(type_value, "enum", b"Lnr ") if type_value is not None else b"Lnr "
+        return (
+            getattr(type_value, "enum", b"Lnr ") if type_value is not None else b"Lnr "
+        )
 
     @property
     def reversed(self) -> bool:
@@ -312,7 +315,11 @@ class _GlowEffect(_Effect, _ChokeNoiseMixin, _GradientMixin):
     def glow_type(self) -> bytes:
         """Glow type."""
         glow_technique = self.descriptor.get(Key.GlowTechnique)
-        return getattr(glow_technique, "enum", b"SfBL") if glow_technique is not None else b"SfBL"
+        return (
+            getattr(glow_technique, "enum", b"SfBL")
+            if glow_technique is not None
+            else b"SfBL"
+        )
 
     @property
     def quality_range(self) -> float:
@@ -406,7 +413,9 @@ class Stroke(_Effect, _ColorMixin, _PatternMixin, _GradientMixin):
     def fill_type(self) -> bytes:
         """Fill type, SolidColor, Gradient, or Pattern."""
         paint_type = self.descriptor.get(Key.PaintType)
-        return getattr(paint_type, "enum", b"SClr") if paint_type is not None else b"SClr"
+        return (
+            getattr(paint_type, "enum", b"SClr") if paint_type is not None else b"SClr"
+        )
 
     @property
     def size(self) -> float:
