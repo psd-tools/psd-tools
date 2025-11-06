@@ -4,6 +4,7 @@ Linked layer structure.
 
 import io
 import logging
+from typing import Optional
 
 from attrs import define, field
 
@@ -70,20 +71,20 @@ class LinkedLayer(BaseElement):
     .. py:attribute:: lock_state
     """
 
-    kind = field(default=LinkedLayerType.ALIAS, validator=in_(LinkedLayerType))
-    version = field(default=1, validator=range_(1, 8))
+    kind: LinkedLayerType = field(default=LinkedLayerType.ALIAS, validator=in_(LinkedLayerType))
+    version: int = field(default=1, validator=range_(1, 8))
     uuid: str = ""
     filename: str = ""
     filetype: bytes = b"\x00\x00\x00\x00"
     creator: bytes = b"\x00\x00\x00\x00"
-    filesize = None
-    open_file = None
-    linked_file = None
-    timestamp = None
-    data = None
-    child_id = None
-    mod_time = None
-    lock_state = None
+    filesize: Optional[int] = None
+    open_file: Optional[DescriptorBlock] = None
+    linked_file: Optional[DescriptorBlock] = None
+    timestamp: Optional[tuple] = None
+    data: Optional[bytes] = None
+    child_id: Optional[str] = None
+    mod_time: Optional[float] = None
+    lock_state: Optional[int] = None
 
     @classmethod
     def read(cls, fp, **kwargs):

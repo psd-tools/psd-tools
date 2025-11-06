@@ -3,6 +3,7 @@ Adjustment layer structure.
 """
 
 import logging
+from typing import Optional
 
 from attrs import define, field, astuple
 
@@ -325,8 +326,8 @@ class GradientMap(BaseElement):
                 Key.Smooth,
             )),
     )
-    color_stops = field(factory=list, converter=list)
-    transparency_stops = field(factory=list, converter=list)
+    color_stops: list = field(factory=list, converter=list)
+    transparency_stops: list = field(factory=list, converter=list)
     expansion: int = field(default=2, validator=in_((2,)))
     interpolation: int = 0
     length: int = field(default=32, validator=in_((32,)))
@@ -336,8 +337,8 @@ class GradientMap(BaseElement):
     use_vector_color: int = 0
     roughness: int = 0
     color_model: int = 0
-    minimum_color = field(factory=list, converter=list)
-    maximum_color = field(factory=list, converter=list)
+    minimum_color: list = field(factory=list, converter=list)
+    maximum_color: list = field(factory=list, converter=list)
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -544,7 +545,7 @@ class Levels(ListElement):
     """
 
     version: int = field(default=0, validator=in_((2,)))
-    extra_version: int = None
+    extra_version: Optional[int] = None
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -648,10 +649,10 @@ class PhotoFilter(BaseElement):
 
     version: int = field(default=0, validator=in_((2, 3)))
     xyz: tuple = (0,)
-    color_space: int = None
-    color_components: tuple = None
-    density: int = None
-    luminosity: int = None
+    color_space: Optional[int] = None
+    color_components: Optional[tuple] = None
+    density: Optional[int] = None
+    luminosity: Optional[int] = None
 
     @classmethod
     def read(cls, fp, **kwargs):

@@ -4,6 +4,7 @@ Patterns structure.
 
 import io
 import logging
+from typing import Optional
 
 from attrs import define, field
 
@@ -81,12 +82,14 @@ class Pattern(BaseElement):
     """
 
     version: int = 1
-    image_mode = field(default=ColorMode.RGB, converter=ColorMode, validator=in_(ColorMode))
-    point = None
+    image_mode: ColorMode = field(
+        default=ColorMode.RGB, converter=ColorMode, validator=in_(ColorMode)
+    )
+    point: tuple[int, int] = field(default=(0, 0))
     name: str = ""
     pattern_id: str = ""
-    color_table = None
-    data = None
+    color_table: list[tuple[int, int, int]] = field(factory=list)
+    data: "VirtualMemoryArrayList" = field(default=None)
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -133,8 +136,8 @@ class VirtualMemoryArrayList(BaseElement):
     """
 
     version: int = 3
-    rectangle = None
-    channels = None
+    rectangle: tuple[int, int, int, int] = field(default=(0, 0, 0, 0))
+    channels: list["VirtualMemoryArray"] = field(factory=list)
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -176,12 +179,14 @@ class VirtualMemoryArray(BaseElement):
     .. py:attribute:: data
     """
 
-    is_written = 0
-    depth = None
-    rectangle = None
-    pixel_depth = None
-    compression = field(default=Compression.RAW, converter=Compression, validator=in_(Compression))
-    data = b""
+    is_written: int = 0
+    depth: Optional[int] = None
+    rectangle: Optional[tuple[int, int, int, int]] = None
+    pixel_depth: Optional[int] = None
+    compression: Compression = field(
+        default=Compression.RAW, converter=Compression, validator=in_(Compression)
+    )
+    data: bytes = b""
 
     @classmethod
     def read(cls, fp, **kwargs):

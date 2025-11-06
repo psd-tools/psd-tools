@@ -9,6 +9,7 @@ Tagged block data structure.
 
 import io
 import logging
+from typing import Optional
 
 from attrs import define, field
 
@@ -352,9 +353,9 @@ class Annotation(BaseElement):
     is_open: int = 0
     flags: int = 0
     optional_blocks: int = 1
-    icon_location = field(factory=lambda: [0, 0, 0, 0], converter=list)
-    popup_location = field(factory=lambda: [0, 0, 0, 0], converter=list)
-    color = field(factory=Color)
+    icon_location: list[int] = field(factory=lambda: [0, 0, 0, 0], converter=list)
+    popup_location: list[int] = field(factory=lambda: [0, 0, 0, 0], converter=list)
+    color: Color = field(factory=Color)
     author: str = ""
     name: str = ""
     mod_date: str = ""
@@ -452,7 +453,7 @@ class FilterMask(BaseElement):
     .. py:attribute:: opacity
     """
 
-    color = None
+    color: Color = field(factory=Color)
     opacity: int = 0
 
     @classmethod
@@ -495,7 +496,9 @@ class MetadataSetting(BaseElement):
 
     _KNOWN_KEYS = {b"cust", b"cmls", b"extn", b"mlst", b"tmln", b"sgrp"}
     _KNOWN_SIGNATURES = (b"8BIM", b"8ELE")
-    signature: bytes = field(default=b"8BIM", repr=False, validator=in_(_KNOWN_SIGNATURES))
+    signature: bytes = field(
+        default=b"8BIM", repr=False, validator=in_(_KNOWN_SIGNATURES)
+    )
     key: bytes = b""
     copy_on_sheet: bool = False
     data: bytes = b""
@@ -569,9 +572,11 @@ class PlacedLayerData(BaseElement):
     page: int = 0
     total_pages: int = 0
     anti_alias: int = 0
-    layer_type: PlacedLayerType = field(default=PlacedLayerType.UNKNOWN,
+    layer_type: PlacedLayerType = field(
+        default=PlacedLayerType.UNKNOWN,
         converter=PlacedLayerType,
-        validator=in_(PlacedLayerType))
+        validator=in_(PlacedLayerType),
+    )
     transform: tuple = (0.0,) * 8
     warp: object = None
 
@@ -668,12 +673,14 @@ class SectionDividerSetting(BaseElement):
     .. py:attribute:: sub_type
     """
 
-    kind = field(default=SectionDivider.OTHER,
+    kind: SectionDivider = field(
+        default=SectionDivider.OTHER,
         converter=SectionDivider,
-        validator=in_(SectionDivider))
-    signature = field(default=None, repr=False)
-    blend_mode = None
-    sub_type = None
+        validator=in_(SectionDivider),
+    )
+    signature: Optional[bytes] = field(default=None, repr=False)
+    blend_mode: Optional[BlendMode] = None
+    sub_type: Optional[int] = None
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -708,7 +715,9 @@ class SheetColorSetting(ValueElement):
     .. py:attribute:: value
     """
 
-    value: SheetColorType = field(default=SheetColorType.NO_COLOR, converter=SheetColorType)
+    value: SheetColorType = field(
+        default=SheetColorType.NO_COLOR, converter=SheetColorType
+    )
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -732,7 +741,7 @@ class SmartObjectLayerData(BaseElement):
 
     kind: bytes = field(default=b"soLD", validator=in_((b"soLD",)))
     version: int = field(default=5, validator=in_((4, 5)))
-    data: DescriptorBlock = None
+    data: DescriptorBlock = field(factory=DescriptorBlock)
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -771,9 +780,9 @@ class TypeToolObjectSetting(BaseElement):
     version: int = 1
     transform: tuple = (0.0,) * 6
     text_version: int = field(default=1, validator=in_((50,)))
-    text_data: DescriptorBlock = None
+    text_data: DescriptorBlock = field(factory=DescriptorBlock)
     warp_version: int = field(default=1, validator=in_((1,)))
-    warp: DescriptorBlock = None
+    warp: DescriptorBlock = field(factory=DescriptorBlock)
     left: int = 0
     top: int = 0
     right: int = 0
@@ -831,7 +840,7 @@ class UserMask(BaseElement):
     .. py:attribute:: flag
     """
 
-    color = None
+    color: Color = field(factory=Color)
     opacity: int = 0
     flag: int = 128
 

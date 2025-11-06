@@ -4,6 +4,7 @@ Layer and mask data structure.
 
 import io
 import logging
+from typing import Optional
 
 from attrs import define, field, astuple
 
@@ -52,9 +53,9 @@ class LayerAndMaskInformation(BaseElement):
         See :py:class:`.TaggedBlocks`.
     """
 
-    layer_info = None
-    global_layer_mask_info = None
-    tagged_blocks = None
+    layer_info: Optional["LayerInfo"] = None
+    global_layer_mask_info: Optional["GlobalLayerMaskInfo"] = None
+    tagged_blocks: Optional["TaggedBlocks"] = None
 
     @classmethod
     def read(cls, fp, encoding="macroman", version=1):
@@ -134,8 +135,8 @@ class LayerInfo(BaseElement):
     """
 
     layer_count: int = 0
-    layer_records: object = None
-    channel_image_data: object = None
+    layer_records: "LayerRecords" = field(factory=lambda: LayerRecords())
+    channel_image_data: "ChannelImageData" = field(factory=lambda: ChannelImageData())
 
     @classmethod
     def read(cls, fp, encoding="macroman", version=1):
@@ -157,7 +158,11 @@ class LayerInfo(BaseElement):
         layer_records = LayerRecords.read(fp, layer_count, encoding, version)
         logger.debug("  read layer records, len=%d" % (fp.tell() - start_pos))
         channel_image_data = ChannelImageData.read(fp, layer_records)
-        return cls(layer_count=layer_count, layer_records=layer_records, channel_image_data=channel_image_data)
+        return cls(
+            layer_count=layer_count,
+            layer_records=layer_records,
+            channel_image_data=channel_image_data,
+        )
 
     def write(self, fp, encoding="macroman", version=1, padding=4):
         def writer(f):
@@ -223,7 +228,9 @@ class ChannelInfo(BaseElement):
         Length of the corresponding channel data.
     """
 
-    id: ChannelID = field(default=ChannelID.CHANNEL_0, converter=ChannelID, validator=in_(ChannelID))
+    id: ChannelID = field(
+        default=ChannelID.CHANNEL_0, converter=ChannelID, validator=in_(ChannelID)
+    )
     length: int = 0
 
     @classmethod
@@ -300,13 +307,17 @@ class LayerBlendingRanges(BaseElement):
         List of channel source and destination ranges.
     """
 
-    composite_ranges = field(factory=lambda: [(0, 65535), (0, 65535)])
-    channel_ranges = field(factory=lambda: [
+    composite_ranges: list[tuple[int, int]] = field(
+        factory=lambda: [(0, 65535), (0, 65535)]
+    )
+    channel_ranges: list[list[tuple[int, int]]] = field(
+        factory=lambda: [
             [(0, 65535), (0, 65535)],
             [(0, 65535), (0, 65535)],
             [(0, 65535), (0, 65535)],
             [(0, 65535), (0, 65535)],
-        ])
+        ]
+    )
 
     @classmethod
     def read(cls, fp):
@@ -425,11 +436,14 @@ class LayerRecord(BaseElement):
     bottom: int = 0
     right: int = 0
     channel_info: list[ChannelInfo] = field(factory=list)
-    signature: bytes = field(default=b"8BIM", repr=False, validator=in_((b"8BIM",))
+    signature: bytes = field(default=b"8BIM", repr=False, validator=in_((b"8BIM",)))
+    blend_mode: BlendMode = field(
+        default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode)
     )
-    blend_mode: BlendMode = field(default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode))
     opacity: int = field(default=255, validator=range_(0, 255))
-    clipping: Clipping = field(default=Clipping.BASE, converter=Clipping, validator=in_(Clipping))
+    clipping: Clipping = field(
+        default=Clipping.BASE, converter=Clipping, validator=in_(Clipping)
+    )
     flags: LayerFlags = field(factory=LayerFlags)
     mask_data: object = None
     blending_ranges: LayerBlendingRanges = field(factory=LayerBlendingRanges)
@@ -447,7 +461,9 @@ class LayerRecord(BaseElement):
         data = read_length_block(fp, fmt="xI")
         logger.debug("  read layer record, len=%d" % (fp.tell() - start_pos))
         with io.BytesIO(data) as f:
-            mask_data, blending_ranges, name, tagged_blocks = cls._read_extra(f, encoding, version)
+            mask_data, blending_ranges, name, tagged_blocks = cls._read_extra(
+                f, encoding, version
+            )
             self = cls(
                 top=top,
                 left=left,
@@ -677,11 +693,11 @@ class MaskData(BaseElement):
     flags: MaskFlags = field(factory=MaskFlags)
     parameters: object = None
     real_flags: object = None
-    real_background_color: int = None
-    real_top: int = None
-    real_left: int = None
-    real_bottom: int = None
-    real_right: int = None
+    real_background_color: Optional[int] = None
+    real_top: Optional[int] = None
+    real_left: Optional[int] = None
+    real_bottom: Optional[int] = None
+    real_right: Optional[int] = None
 
     @classmethod
     def read(cls, fp):
@@ -800,10 +816,10 @@ class MaskParameters(BaseElement):
     .. py:attribute:: vector_mask_feather
     """
 
-    user_mask_density: int = None
-    user_mask_feather: float = None
-    vector_mask_density: int = None
-    vector_mask_feather: float = None
+    user_mask_density: Optional[int] = None
+    user_mask_feather: Optional[float] = None
+    vector_mask_density: Optional[int] = None
+    vector_mask_feather: Optional[float] = None
 
     @classmethod
     def read(cls, fp):
@@ -904,7 +920,9 @@ class ChannelData(BaseElement):
         Data.
     """
 
-    compression: Compression = field(default=Compression.RAW, converter=Compression, validator=in_(Compression))
+    compression: Compression = field(
+        default=Compression.RAW, converter=Compression, validator=in_(Compression)
+    )
     data: bytes = b""
 
     @classmethod
@@ -972,11 +990,13 @@ class GlobalLayerMaskInfo(BaseElement):
         are for backward compatibility with beta versions.
     """
 
-    overlay_color = None
+    overlay_color: Optional[list[int]] = None
     opacity: int = 0
-    kind = field(default=GlobalLayerMaskKind.PER_LAYER,
+    kind: GlobalLayerMaskKind = field(
+        default=GlobalLayerMaskKind.PER_LAYER,
         converter=GlobalLayerMaskKind,
-        validator=in_(GlobalLayerMaskKind))
+        validator=in_(GlobalLayerMaskKind),
+    )
 
     @classmethod
     def read(cls, fp):
