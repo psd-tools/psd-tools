@@ -168,7 +168,8 @@ class TaggedBlocks(DictElement):
         """
         key = self._key_converter(key)
         kls = TYPES.get(key)
-        self[key] = TaggedBlock(key=key, data=kls(*args, **kwargs))
+        if kls is not None:
+            self[key] = TaggedBlock(key=key, data=kls(*args, **kwargs))
 
     @classmethod
     def read(
@@ -343,7 +344,7 @@ class Annotations(ListElement):
                 with io.BytesIO(fp.read(length)) as f:
                     items.append(Annotation.read(f))
         return cls(
-            major_version=major_version, minor_version=minor_version, items=items
+            major_version=major_version, minor_version=minor_version, items=items  # type: ignore[arg-type]
         )
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
@@ -498,7 +499,7 @@ class MetadataSettings(ListElement):
         items = []
         for _ in range(count):
             items.append(MetadataSetting.read(fp))
-        return cls(items)
+        return cls(items)  # type: ignore[arg-type]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "I", len(self))
@@ -526,7 +527,7 @@ class MetadataSetting(BaseElement):
         signature = read_fmt("4s", fp)[0]
         assert signature in cls._KNOWN_SIGNATURES, "Invalid signature %r" % signature
         key, copy_on_sheet = read_fmt("4s?3x", fp)
-        data = read_length_block(fp)
+        data: Any = read_length_block(fp)
         if key in (b"mdyn", b"sgrp"):
             with io.BytesIO(data) as f:
                 data = read_fmt("I", f)[0]
@@ -564,7 +565,7 @@ class PixelSourceData2(ListElement):
         items = []
         while is_readable(fp, 8):
             items.append(read_length_block(fp, fmt="Q"))
-        return cls(items)
+        return cls(items)  # type: ignore[arg-type]
 
     def write(self, fp: BinaryIO, padding: int = 4, **kwargs: Any) -> int:
         written = 0
@@ -601,14 +602,14 @@ class PlacedLayerData(BaseElement):
     @classmethod
     def read(cls, fp: BinaryIO, **kwargs: Any) -> "PlacedLayerData":
         kind, version = read_fmt("4sI", fp)
-        uuid = read_pascal_string(fp, "macroman", padding=1)
+        uuid_str = read_pascal_string(fp, "macroman", padding=1)
         page, total_pages, anti_alias, layer_type = read_fmt("4I", fp)
         transform = read_fmt("8d", fp)
         warp = DescriptorBlock2.read(fp, padding=1)
         return cls(
             kind,
             version,
-            uuid,
+            uuid_str.encode("macroman") if isinstance(uuid_str, str) else uuid_str,
             page,
             total_pages,
             anti_alias,
@@ -619,7 +620,8 @@ class PlacedLayerData(BaseElement):
 
     def write(self, fp: BinaryIO, padding: int = 4, **kwargs: Any) -> int:
         written = write_fmt(fp, "4sI", self.kind, self.version)
-        written += write_pascal_string(fp, self.uuid, "macroman", padding=1)
+        uuid_str = self.uuid.decode("macroman") if isinstance(self.uuid, bytes) else self.uuid
+        written += write_pascal_string(fp, uuid_str, "macroman", padding=1)
         written += write_fmt(
             fp,
             "4I",
@@ -629,7 +631,7 @@ class PlacedLayerData(BaseElement):
             self.layer_type.value,
         )
         written += write_fmt(fp, "8d", *self.transform)
-        written += self.warp.write(fp, padding=1)
+        written += self.warp.write(fp, padding=1)  # type: ignore[attr-defined]
         written += write_padding(fp, written, padding)
         return written
 

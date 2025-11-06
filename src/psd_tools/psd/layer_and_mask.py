@@ -435,7 +435,7 @@ class LayerRecords(ListElement):
     """
 
     @classmethod
-    def read(
+    def read(  # type: ignore[override]
         cls: type[T_LayerRecords],
         fp: BinaryIO,
         layer_count: int,
@@ -618,8 +618,8 @@ class LayerRecord(BaseElement):
 
     def _write_extra(self, fp: BinaryIO, encoding: str, version: int) -> int:
         written = 0
-        if self.mask_data:
-            written += self.mask_data.write(fp)
+        if self.mask_data and hasattr(self.mask_data, 'write'):
+            written += self.mask_data.write(fp)  # type: ignore[attr-defined]
         else:
             written += write_fmt(fp, "I", 0)
 
@@ -645,9 +645,9 @@ class LayerRecord(BaseElement):
         sizes = []
         for channel in self.channel_info:
             if channel.id == ChannelID.USER_LAYER_MASK:
-                sizes.append((self.mask_data.width, self.mask_data.height))
+                sizes.append((self.mask_data.width, self.mask_data.height))  # type: ignore[attr-defined]
             elif channel.id == ChannelID.REAL_USER_LAYER_MASK:
-                sizes.append((self.mask_data.real_width, self.mask_data.real_height))
+                sizes.append((self.mask_data.real_width, self.mask_data.real_height))  # type: ignore[attr-defined]
             else:
                 sizes.append((self.width, self.height))
         return sizes
@@ -857,8 +857,8 @@ class MaskData(BaseElement):
         #     written += write_fmt(fp, '2x')
         #     assert written == 20
 
-        if self.real_flags:
-            written += self.real_flags.write(fp)
+        if self.real_flags and hasattr(self.real_flags, 'write'):
+            written += self.real_flags.write(fp)  # type: ignore[attr-defined]
             written += write_fmt(
                 fp,
                 "B4i",
@@ -869,8 +869,8 @@ class MaskData(BaseElement):
                 self.real_right,
             )
 
-        if self.flags.parameters_applied and self.parameters:
-            written += self.parameters.write(fp)
+        if self.flags.parameters_applied and self.parameters and hasattr(self.parameters, 'write'):
+            written += self.parameters.write(fp)  # type: ignore[attr-defined]
 
         written += write_padding(fp, written, 4)
         return written
@@ -888,12 +888,12 @@ class MaskData(BaseElement):
     @property
     def real_width(self) -> int:
         """Width of real user mask."""
-        return max(self.real_right - self.real_left, 0)
+        return max((self.real_right or 0) - (self.real_left or 0), 0)
 
     @property
     def real_height(self) -> int:
         """Height of real user mask."""
-        return max(self.real_bottom - self.real_top, 0)
+        return max((self.real_bottom or 0) - (self.real_top or 0), 0)
 
 
 @define(repr=False)
@@ -989,9 +989,9 @@ class ChannelDataList(ListElement):
     """
 
     @classmethod
-    def read(
+    def read(  # type: ignore[override]
         cls: type[T_ChannelDataList], fp: BinaryIO, channel_info, **kwargs: Any
-    ) -> T_ChannelDataList:  # type: ignore[override]
+    ) -> T_ChannelDataList:
         items = []
         for c in channel_info:
             items.append(ChannelData.read(fp, c.length - 2, **kwargs))
