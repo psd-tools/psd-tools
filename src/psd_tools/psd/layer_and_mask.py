@@ -376,7 +376,7 @@ class LayerRecords(ListElement):
     """
 
     @classmethod
-    def read(cls: type[T_LayerRecords], fp: BinaryIO, layer_count: int, encoding: str = "macroman", version: int = 1, **kwargs: Any) -> T_LayerRecords:
+    def read(cls: type[T_LayerRecords], fp: BinaryIO, layer_count: int, encoding: str = "macroman", version: int = 1, **kwargs: Any) -> T_LayerRecords:  # type: ignore[override]
         items = []
         for _ in range(abs(layer_count)):
             items.append(LayerRecord.read(fp, encoding, version))
@@ -909,7 +909,7 @@ class ChannelDataList(ListElement):
     """
 
     @classmethod
-    def read(cls: type[T_ChannelDataList], fp: BinaryIO, channel_info, **kwargs: Any) -> T_ChannelDataList:
+    def read(cls: type[T_ChannelDataList], fp: BinaryIO, channel_info, **kwargs: Any) -> T_ChannelDataList:  # type: ignore[override]
         items = []
         for c in channel_info:
             items.append(ChannelData.read(fp, c.length - 2, **kwargs))
