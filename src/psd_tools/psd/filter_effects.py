@@ -68,13 +68,13 @@ class FilterEffect(BaseElement):
         See :py:class:`FilterEffectExtra`.
     """
 
-    uuid = None
-    version = None
-    rectangle = None
-    depth = None
-    max_channels = None
-    channels = None
-    extra = None
+    uuid: str = None
+    version: int = None
+    rectangle: tuple = None
+    depth: int = None
+    max_channels: int = None
+    channels: list = None
+    extra: object = None
 
     @classmethod
     def read(cls, fp, **kwargs):
@@ -85,7 +85,7 @@ class FilterEffect(BaseElement):
             rectangle, depth, max_channels, channels = cls._read_body(f)
         # Documentation is incorrect here.
         extra = FilterEffectExtra.read(fp) if is_readable(fp) else None
-        return cls(uuid, version, rectangle, depth, max_channels, channels, extra)
+        return cls(uuid=uuid, version=version, rectangle=rectangle, depth=depth, max_channels=max_channels, channels=channels, extra=extra)
 
     @classmethod
     def _read_body(cls, fp):

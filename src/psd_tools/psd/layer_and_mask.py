@@ -134,8 +134,8 @@ class LayerInfo(BaseElement):
     """
 
     layer_count: int = 0
-    layer_records = None
-    channel_image_data = None
+    layer_records: object = None
+    channel_image_data: object = None
 
     @classmethod
     def read(cls, fp, encoding="macroman", version=1):
@@ -157,7 +157,7 @@ class LayerInfo(BaseElement):
         layer_records = LayerRecords.read(fp, layer_count, encoding, version)
         logger.debug("  read layer records, len=%d" % (fp.tell() - start_pos))
         channel_image_data = ChannelImageData.read(fp, layer_records)
-        return cls(layer_count, layer_records, channel_image_data)
+        return cls(layer_count=layer_count, layer_records=layer_records, channel_image_data=channel_image_data)
 
     def write(self, fp, encoding="macroman", version=1, padding=4):
         def writer(f):
@@ -904,14 +904,14 @@ class ChannelData(BaseElement):
         Data.
     """
 
-    compression = field(default=Compression.RAW, converter=Compression, validator=in_(Compression))
+    compression: Compression = field(default=Compression.RAW, converter=Compression, validator=in_(Compression))
     data: bytes = b""
 
     @classmethod
     def read(cls, fp, length=0, **kwargs):
         compression = Compression(read_fmt("H", fp)[0])
         data = fp.read(length)
-        return cls(compression, data)
+        return cls(compression=compression, data=data)
 
     def write(self, fp, **kwargs):
         written = write_fmt(fp, "H", self.compression.value)

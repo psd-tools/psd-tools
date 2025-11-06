@@ -139,7 +139,7 @@ class ChannelMixer(BaseElement):
 
     version: int = field(default=1, validator=in_((1,)))
     monochrome: int = 0
-    data = field(factory=list, converter=list)
+    data: list = field(factory=list, converter=list)
     unknown: bytes = field(default=b"", repr=False)
 
     @classmethod
@@ -147,7 +147,7 @@ class ChannelMixer(BaseElement):
         version, monochrome = read_fmt("2H", fp)
         data = list(read_fmt("5h", fp))
         unknown = fp.read()
-        return cls(version, monochrome, data, unknown)
+        return cls(version=version, monochrome=monochrome, data=data, unknown=unknown)
 
     def write(self, fp, **kwargs):
         written = write_fmt(fp, "2H", self.version, self.monochrome)
@@ -692,13 +692,13 @@ class SelectiveColor(BaseElement):
 
     version: int = field(default=1, validator=in_((1,)))
     method: int = 0
-    data = field(factory=list, converter=list)
+    data: list = field(factory=list, converter=list)
 
     @classmethod
     def read(cls, fp, **kwargs):
         version, method = read_fmt("2H", fp)
         data = [read_fmt("4h", fp) for i in range(10)]
-        return cls(version, method, data)
+        return cls(version=version, method=method, data=data)
 
     def write(self, fp, **kwargs):
         written = write_fmt(fp, "2H", self.version, self.method)
