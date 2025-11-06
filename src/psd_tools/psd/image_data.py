@@ -8,12 +8,13 @@ this is the only place pixels are saved.
 
 import io
 import logging
-from typing import Any, BinaryIO, TypeVar
+from typing import Any, BinaryIO, Sequence, TypeVar, Union
 
 from attrs import define, field
 
 from psd_tools.compression import compress, decompress
 from psd_tools.constants import Compression
+from psd_tools.psd.header import FileHeader
 from psd_tools.psd.base import BaseElement
 from psd_tools.utils import pack, read_fmt, write_bytes, write_fmt
 from psd_tools.validators import in_
@@ -57,7 +58,9 @@ class ImageData(BaseElement):
         logger.debug("  wrote image data, len=%d" % (fp.tell() - start_pos))
         return written
 
-    def get_data(self, header, split=True):
+    def get_data(
+        self, header: FileHeader, split: bool = True
+    ) -> Union[list[bytes], bytes]:
         """
         Get decompressed data.
 
@@ -78,7 +81,7 @@ class ImageData(BaseElement):
                 return [f.read(plane_size) for _ in range(header.channels)]
         return data
 
-    def set_data(self, data, header):
+    def set_data(self, data: Sequence[bytes], header: FileHeader) -> int:
         """
         Set raw data and compress.
 
@@ -99,7 +102,12 @@ class ImageData(BaseElement):
         return len(self.data)
 
     @classmethod
-    def new(cls, header, color=0, compression=Compression.RAW):
+    def new(
+        cls: type[T],
+        header: FileHeader,
+        color: Union[int, Sequence[int]] = 0,
+        compression: Compression = Compression.RAW,
+    ) -> T:
         """
         Create a new image data object.
 
@@ -115,7 +123,7 @@ class ImageData(BaseElement):
                 "Invalid color %s for channel size %d" % (color, header.channels)
             )
         # Bitmap is not supported here.
-        fmt = {8: "B", 16: "H", 32: "I"}.get(header.depth)
+        fmt = {8: "B", 16: "H", 32: "I"}[header.depth]
         data = []
         for i in range(header.channels):
             data.append(pack(fmt, color[i]) * plane_size)

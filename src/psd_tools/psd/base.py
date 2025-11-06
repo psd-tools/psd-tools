@@ -80,7 +80,7 @@ class BaseElement:
     def validate(self) -> None:
         return validate(self)  # type: ignore[arg-type]
 
-    def _repr_pretty_(self, p, cycle):
+    def _repr_pretty_(self, p: Any, cycle: bool) -> None:
         if cycle:
             return "{name}(...)".format(name=self.__class__.__name__)
 
@@ -163,52 +163,52 @@ class ValueElement(BaseElement):
 
     value: object = None
 
-    def __lt__(self, other):
+    def __lt__(self, other: Any) -> bool:
         return self.value < other
 
-    def __le__(self, other):
+    def __le__(self, other: Any) -> bool:
         return self.value <= other
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         return self.value == other
 
-    def __ne__(self, other):
+    def __ne__(self, other: Any) -> bool:
         return self.value != other
 
-    def __gt__(self, other):
+    def __gt__(self, other: Any) -> bool:
         return self.value > other
 
-    def __ge__(self, other):
+    def __ge__(self, other: Any) -> bool:
         return self.value >= other
 
-    def __add__(self, other):
+    def __add__(self, other: Any) -> Any:
         return self.value + other
 
-    def __sub__(self, other):
+    def __sub__(self, other: Any) -> Any:
         return self.value - other
 
-    def __mul__(self, other):
+    def __mul__(self, other: Any) -> Any:
         return self.value * other
 
-    def __mod__(self, other):
+    def __mod__(self, other: Any) -> Any:
         return self.value % other
 
-    def __rmul__(self, other):
+    def __rmul__(self, other: Any) -> Any:
         return self.value.__rmul__(other)
 
-    def __rmod__(self, other):
+    def __rmod__(self, other: Any) -> Any:
         return self.value.__rmod__(other)
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return self.value.__hash__()
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return self.value.__bool__()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.value.__repr__()
 
-    def _repr_pretty_(self, p, cycle):
+    def _repr_pretty_(self, p: Any, cycle: bool) -> None:
         if cycle:
             return self.__repr__()
         if isinstance(self.value, bytes):
@@ -225,64 +225,64 @@ class NumericElement(ValueElement):
 
     value: float = field(default=0.0, converter=float)
 
-    def __floordiv__(self, other):
+    def __floordiv__(self, other: Any) -> Any:
         return self.value.__floordiv__(other)
 
-    def __div__(self, other):
+    def __div__(self, other: Any) -> Any:
         return self.value.__div__(other)
 
-    def __truediv__(self, other):
+    def __truediv__(self, other: Any) -> Any:
         return self.value.__truediv__(other)
 
-    def __divmod__(self, other):
+    def __divmod__(self, other: Any) -> Any:
         return self.value.__divmod__(other)
 
-    def __pow__(self, other):
+    def __pow__(self, other: Any) -> Any:
         return self.value.__pow__(other)
 
-    def __radd__(self, other):
+    def __radd__(self, other: Any) -> Any:
         return self.value.__radd__(other)
 
-    def __rsub__(self, other):
+    def __rsub__(self, other: Any) -> Any:
         return self.value.__rsub__(other)
 
-    def __rfloordiv__(self, other):
+    def __rfloordiv__(self, other: Any) -> Any:
         return self.value.__rfloordiv__(other)
 
-    def __rdiv__(self, other):
+    def __rdiv__(self, other: Any) -> Any:
         return self.value.__rdiv__(other)
 
-    def __rtruediv__(self, other):
+    def __rtruediv__(self, other: Any) -> Any:
         return self.value.__rtruediv__(other)
 
-    def __rdivmod__(self, other):
+    def __rdivmod__(self, other: Any) -> Any:
         return self.value.__rdivmod__(other)
 
-    def __rpow__(self, other):
+    def __rpow__(self, other: Any) -> Any:
         return self.value.__rpow__(other)
 
-    def __nonzero__(self):
+    def __nonzero__(self) -> bool:
         return self.value.__nonzero__()
 
-    def __neg__(self):
+    def __neg__(self) -> Any:
         return self.value.__neg__()
 
-    def __pos__(self):
+    def __pos__(self) -> Any:
         return self.value.__pos__()
 
-    def __abs__(self):
+    def __abs__(self) -> Any:
         return self.value.__abs__()
 
-    def __int__(self):
+    def __int__(self) -> int:
         return self.value.__int__()
 
-    def __long__(self):
+    def __long__(self) -> int:
         return self.value.__long__()
 
-    def __float__(self):
+    def __float__(self) -> float:
         return self.value.__float__()
 
-    def __coerce__(self, other):
+    def __coerce__(self, other: Any) -> Any:
         return self.value.__coerce__(other)
 
     @classmethod
@@ -303,49 +303,49 @@ class IntegerElement(NumericElement):
 
     value: int = field(default=0, converter=int)
 
-    def __cmp__(self, other):
+    def __cmp__(self, other: Any) -> int:
         return self.value.__cmp__(other)
 
-    def __lshift__(self, other):
+    def __lshift__(self, other: Any) -> int:
         return self.value.__lshift__(other)
 
-    def __rshift__(self, other):
+    def __rshift__(self, other: Any) -> int:
         return self.value.__rshift__(other)
 
-    def __and__(self, other):
+    def __and__(self, other: Any) -> int:
         return self.value.__and__(other)
 
-    def __xor__(self, other):
+    def __xor__(self, other: Any) -> int:
         return self.value.__xor__(other)
 
-    def __or__(self, other):
+    def __or__(self, other: Any) -> int:
         return self.value.__or__(other)
 
-    def __rlshift__(self, other):
+    def __rlshift__(self, other: Any) -> int:
         return self.value.__rlshift__(other)
 
-    def __rrshift__(self, other):
+    def __rrshift__(self, other: Any) -> int:
         return self.value.__rrshift__(other)
 
-    def __rand__(self, other):
+    def __rand__(self, other: Any) -> int:
         return self.value.__rand__(other)
 
-    def __rxor__(self, other):
+    def __rxor__(self, other: Any) -> int:
         return self.value.__rxor__(other)
 
-    def __ror__(self, other):
+    def __ror__(self, other: Any) -> int:
         return self.value.__ror__(other)
 
-    def __invert__(self):
+    def __invert__(self) -> int:
         return self.value.__invert__()
 
-    def __oct__(self):
+    def __oct__(self) -> str:
         return self.value.__oct__()
 
-    def __hex__(self):
+    def __hex__(self) -> str:
         return self.value.__hex__()
 
-    def __index__(self):
+    def __index__(self) -> int:
         return self.value.__index__()
 
     @classmethod
@@ -446,52 +446,52 @@ class ListElement(BaseElement):
 
     _items: list = field(factory=list, converter=list)
 
-    def append(self, x):
+    def append(self, x: Any) -> None:
         return self._items.append(x)
 
-    def extend(self, L):
+    def extend(self, L: Any) -> None:
         return self._items.extend(L)
 
-    def insert(self, i, x):
+    def insert(self, i: int, x: Any) -> None:
         return self._items.insert(i, x)
 
-    def remove(self, x):
+    def remove(self, x: Any) -> None:
         return self._items.remove(x)
 
-    def pop(self, *args):
+    def pop(self, *args: Any) -> Any:
         return self._items.pop(*args)
 
-    def index(self, x):
+    def index(self, x: Any) -> int:
         return self._items.index(x)
 
-    def count(self, x):
+    def count(self, x: Any) -> int:
         return self._items.count(x)
 
-    def sort(self, *args, **kwargs):
+    def sort(self, *args: Any, **kwargs: Any) -> None:
         return self._items.sort(*args, **kwargs)
 
-    def reverse(self):
+    def reverse(self) -> None:
         return self._items.reverse()
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self._items.__len__()
 
-    def __iter__(self):
+    def __iter__(self) -> Any:
         return self._items.__iter__()
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Any) -> Any:
         return self._items.__getitem__(key)
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: Any, value: Any) -> None:
         return self._items.__setitem__(key, value)
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: Any) -> None:
         return self._items.__delitem__(key)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self._items.__repr__()
 
-    def _repr_pretty_(self, p, cycle):
+    def _repr_pretty_(self, p: Any, cycle: bool) -> None:
         if cycle:
             return "[...]"
 
@@ -525,69 +525,69 @@ class DictElement(BaseElement):
 
     _items: OrderedDict = field(factory=OrderedDict, converter=OrderedDict)
 
-    def clear(self):
+    def clear(self) -> None:
         return self._items.clear()
 
-    def copy(self):
+    def copy(self) -> OrderedDict:
         return self._items.copy()
 
     @classmethod
-    def fromkeys(cls, seq, *args):
+    def fromkeys(cls, seq: Any, *args: Any) -> "DictElement":
         return cls(OrderedDict.fromkeys(seq, *args))
 
-    def get(self, key, *args):
+    def get(self, key: Any, *args: Any) -> Any:
         key = self._key_converter(key)
         return self._items.get(key, *args)
 
-    def items(self):
+    def items(self) -> Any:
         return self._items.items()
 
-    def keys(self):
+    def keys(self) -> Any:
         return self._items.keys()
 
-    def pop(self, key, *args):
+    def pop(self, key: Any, *args: Any) -> Any:
         key = self._key_converter(key)
         return self._items.pop(key, *args)
 
-    def popitem(self):
+    def popitem(self) -> Any:
         return self._items.popitem()
 
-    def setdefault(self, key, *args):
+    def setdefault(self, key: Any, *args: Any) -> Any:
         key = self._key_converter(key)
         return self._items.setdefault(key, *args)
 
-    def update(self, *args):
+    def update(self, *args: Any) -> None:
         return self._items.update(*args)
 
-    def values(self):
+    def values(self) -> Any:
         return self._items.values()
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self._items.__len__()
 
-    def __iter__(self):
+    def __iter__(self) -> Any:
         return self._items.__iter__()
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Any) -> Any:
         key = self._key_converter(key)
         return self._items.__getitem__(key)
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: Any, value: Any) -> None:
         key = self._key_converter(key)
         return self._items.__setitem__(key, value)
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: Any) -> None:
         key = self._key_converter(key)
         return self._items.__delitem__(key)
 
-    def __contains__(self, key):
+    def __contains__(self, key: Any) -> bool:
         key = self._key_converter(key)
         return self._items.__contains__(key)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return dict.__repr__(self._items)
 
-    def _repr_pretty_(self, p, cycle):
+    def _repr_pretty_(self, p: Any, cycle: bool) -> None:
         if cycle:
             return "{{...}"
 
@@ -606,7 +606,7 @@ class DictElement(BaseElement):
             p.breakable("")
 
     @classmethod
-    def _key_converter(cls, key):
+    def _key_converter(cls, key: Any) -> Any:
         return key
 
     @classmethod

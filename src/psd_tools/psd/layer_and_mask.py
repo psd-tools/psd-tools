@@ -101,7 +101,13 @@ class LayerAndMaskInformation(BaseElement):
         return self
 
     @classmethod
-    def _read_body(cls, fp, end_pos, encoding, version):
+    def _read_body(
+        cls: type[T_LayerAndMaskInformation],
+        fp: BinaryIO,
+        end_pos: int,
+        encoding: str,
+        version: int,
+    ) -> T_LayerAndMaskInformation:
         layer_info = LayerInfo.read(fp, encoding, version)
 
         global_layer_mask_info = None
@@ -125,7 +131,7 @@ class LayerAndMaskInformation(BaseElement):
         padding: int = 4,
         **kwargs: Any,
     ) -> int:
-        def writer(f):
+        def writer(f: BinaryIO) -> int:
             written = self._write_body(f, encoding, version, padding)
             logger.debug("writing layer and mask info, len=%d" % (written))
             return written
@@ -133,7 +139,9 @@ class LayerAndMaskInformation(BaseElement):
         fmt = ("I", "Q")[version - 1]
         return write_length_block(fp, writer, fmt=fmt)
 
-    def _write_body(self, fp, encoding, version, padding):
+    def _write_body(
+        self, fp: BinaryIO, encoding: str, version: int, padding: int
+    ) -> int:
         written = 0
         if self.layer_info:
             written += self.layer_info.write(fp, encoding, version, padding)
@@ -188,7 +196,9 @@ class LayerInfo(BaseElement):
         return self  # type: ignore[return-value]
 
     @classmethod
-    def _read_body(cls, fp, encoding, version):
+    def _read_body(
+        cls: type[T_LayerInfo], fp: BinaryIO, encoding: str, version: int
+    ) -> T_LayerInfo:
         start_pos = fp.tell()
         layer_count = read_fmt("h", fp)[0]
         layer_records = LayerRecords.read(fp, layer_count, encoding, version)
@@ -208,7 +218,7 @@ class LayerInfo(BaseElement):
         padding: int = 4,
         **kwargs: Any,
     ) -> int:
-        def writer(f):
+        def writer(f: BinaryIO) -> int:
             written = self._write_body(f, encoding, version, padding)
             logger.debug("writing layer info, len=%d" % (written))
             return written
@@ -218,7 +228,9 @@ class LayerInfo(BaseElement):
             return write_fmt(fp, fmt, 0)
         return write_length_block(fp, writer, fmt=fmt)
 
-    def _write_body(self, fp, encoding, version, padding):
+    def _write_body(
+        self, fp: BinaryIO, encoding: str, version: int, padding: int
+    ) -> int:
         start_pos = fp.tell()
         written = write_fmt(fp, "h", self.layer_count)
         if self.layer_records:
@@ -231,7 +243,7 @@ class LayerInfo(BaseElement):
         written += write_padding(fp, written, padding)
         return written
 
-    def _update_channel_length(self):
+    def _update_channel_length(self) -> None:
         if not self.layer_records or not self.channel_image_data:
             return
 
@@ -247,10 +259,23 @@ class LayerInfoBlock(LayerInfo):
     """ """
 
     @classmethod
-    def read(cls, fp, encoding="macroman", version=1, **kwargs):
+    def read(
+        cls: type[T_LayerInfo],
+        fp: BinaryIO,
+        encoding: str = "macroman",
+        version: int = 1,
+        **kwargs: Any,
+    ) -> T_LayerInfo:
         return cls._read_body(fp, encoding, version)
 
-    def write(self, fp, encoding="macroman", version=1, padding=4, **kwargs):
+    def write(
+        self,
+        fp: BinaryIO,
+        encoding: str = "macroman",
+        version: int = 1,
+        padding: int = 4,
+        **kwargs: Any,
+    ) -> int:
         return self._write_body(fp, encoding, version, padding)
 
 
@@ -376,21 +401,23 @@ class LayerBlendingRanges(BaseElement):
             return cls._read_body(f)
 
     @classmethod
-    def _read_body(cls, fp):
-        def read_channel_range(f):
+    def _read_body(
+        cls: type[T_LayerBlendingRanges], fp: BinaryIO
+    ) -> T_LayerBlendingRanges:
+        def read_channel_range(f: BinaryIO) -> list[tuple[int, int]]:
             values = read_fmt("4H", f)
-            return [values[0:2], values[2:4]]
+            return [values[0:2], values[2:4]]  # type: ignore[return-value]
 
         composite_ranges = read_channel_range(fp)
         channel_ranges = []
         while is_readable(fp, 8):
             channel_ranges.append(read_channel_range(fp))
-        return cls(composite_ranges, channel_ranges)
+        return cls(composite_ranges, channel_ranges)  # type: ignore[arg-type]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_length_block(fp, lambda f: self._write_body(f))
 
-    def _write_body(self, fp):
+    def _write_body(self, fp: BinaryIO) -> int:
         written = 0
         if self.composite_ranges is not None:
             for x in self.composite_ranges:
@@ -548,7 +575,9 @@ class LayerRecord(BaseElement):
         return self
 
     @classmethod
-    def _read_extra(cls, fp, encoding, version):
+    def _read_extra(
+        cls, fp: BinaryIO, encoding: str, version: int
+    ) -> tuple[Optional["MaskData"], LayerBlendingRanges, str, TaggedBlocks]:
         mask_data = MaskData.read(fp)
         blending_ranges = LayerBlendingRanges.read(fp)
         name = read_pascal_string(fp, encoding, padding=4)
@@ -579,7 +608,7 @@ class LayerRecord(BaseElement):
         )
         written += self.flags.write(fp)
 
-        def writer(f):
+        def writer(f: BinaryIO) -> int:
             written = self._write_extra(f, encoding, version)
             logger.debug("  wrote layer record, len=%d" % (fp.tell() - start_pos))
             return written
@@ -587,7 +616,7 @@ class LayerRecord(BaseElement):
         written += write_length_block(fp, writer, fmt="xI")
         return written
 
-    def _write_extra(self, fp, encoding, version):
+    def _write_extra(self, fp: BinaryIO, encoding: str, version: int) -> int:
         written = 0
         if self.mask_data:
             written += self.mask_data.write(fp)
@@ -601,17 +630,17 @@ class LayerRecord(BaseElement):
         return written
 
     @property
-    def width(self):
+    def width(self) -> int:
         """Width of the layer."""
         return max(self.right - self.left, 0)
 
     @property
-    def height(self):
+    def height(self) -> int:
         """Height of the layer."""
         return max(self.bottom - self.top, 0)
 
     @property
-    def channel_sizes(self):
+    def channel_sizes(self) -> list[tuple[int, int]]:
         """List of channel sizes: [(width, height)]."""
         sizes = []
         for channel in self.channel_info:
@@ -771,7 +800,7 @@ class MaskData(BaseElement):
             return cls._read_body(f, len(data))
 
     @classmethod
-    def _read_body(cls, fp, length):
+    def _read_body(cls: type[T_MaskData], fp: BinaryIO, length: int) -> T_MaskData:
         top, left, bottom, right, background_color = read_fmt("4iB", fp)
         flags = MaskFlags.read(fp)
 
@@ -812,7 +841,7 @@ class MaskData(BaseElement):
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_length_block(fp, lambda f: self._write_body(f))
 
-    def _write_body(self, fp):
+    def _write_body(self, fp: BinaryIO) -> int:
         written = write_fmt(
             fp,
             "4iB",
@@ -847,22 +876,22 @@ class MaskData(BaseElement):
         return written
 
     @property
-    def width(self):
+    def width(self) -> int:
         """Width of the mask."""
         return max(self.right - self.left, 0)
 
     @property
-    def height(self):
+    def height(self) -> int:
         """Height of the mask."""
         return max(self.bottom - self.top, 0)
 
     @property
-    def real_width(self):
+    def real_width(self) -> int:
         """Width of real user mask."""
         return max(self.real_right - self.real_left, 0)
 
     @property
-    def real_height(self):
+    def real_height(self) -> int:
         """Height of real user mask."""
         return max(self.real_bottom - self.real_top, 0)
 
@@ -947,7 +976,7 @@ class ChannelImageData(ListElement):
         return written
 
     @property
-    def _lengths(self):
+    def _lengths(self) -> list[list[int]]:
         """List of layer channel lengths."""
         return [item._lengths for item in self]
 
@@ -969,7 +998,7 @@ class ChannelDataList(ListElement):
         return cls(items)  # type: ignore[arg-type]
 
     @property
-    def _lengths(self):
+    def _lengths(self) -> list[int]:
         """List of channel lengths."""
         return [item._length for item in self]
 
@@ -1007,7 +1036,7 @@ class ChannelData(BaseElement):
         # written += write_padding(fp, written, 2)  # Seems no padding here.
         return written
 
-    def get_data(self, width, height, depth, version=1):
+    def get_data(self, width: int, height: int, depth: int, version: int = 1) -> bytes:
         """Get decompressed channel data.
 
         :param width: width.
@@ -1018,7 +1047,9 @@ class ChannelData(BaseElement):
         """
         return decompress(self.data, self.compression, width, height, depth, version)
 
-    def set_data(self, data, width, height, depth, version=1):
+    def set_data(
+        self, data: bytes, width: int, height: int, depth: int, version: int = 1
+    ) -> int:
         """Set raw channel data and compress to store.
 
         :param data: raw data bytes to write.
@@ -1033,7 +1064,7 @@ class ChannelData(BaseElement):
         return len(self.data)
 
     @property
-    def _length(self):
+    def _length(self) -> int:
         """Length of channel data block."""
         return 2 + len(self.data)
 
@@ -1089,7 +1120,9 @@ class GlobalLayerMaskInfo(BaseElement):
             return cls._read_body(f)
 
     @classmethod
-    def _read_body(cls, fp):
+    def _read_body(
+        cls: type[T_GlobalLayerMaskInfo], fp: BinaryIO
+    ) -> T_GlobalLayerMaskInfo:
         overlay_color = list(read_fmt("5H", fp))
         opacity, kind = read_fmt("HB", fp)
         return cls(overlay_color, opacity, kind)
@@ -1097,7 +1130,7 @@ class GlobalLayerMaskInfo(BaseElement):
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_length_block(fp, lambda f: self._write_body(f))
 
-    def _write_body(self, fp):
+    def _write_body(self, fp: BinaryIO) -> int:
         written = 0
         if self.overlay_color is not None:
             written = write_fmt(fp, "5H", *self.overlay_color)

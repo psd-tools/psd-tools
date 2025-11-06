@@ -33,6 +33,7 @@ import codecs
 import logging
 import re
 from enum import Enum
+from typing import Any, Iterator, Optional, Tuple, Union
 
 from attrs import frozen
 
@@ -51,7 +52,7 @@ logger = logging.getLogger(__name__)
 TOKEN_CLASSES, register = new_registry()
 
 
-def compile_re(pattern):
+def compile_re(pattern: str) -> re.Pattern[bytes]:
     return re.compile(pattern.encode("macroman"), re.S)
 
 
@@ -86,20 +87,20 @@ class Tokenizer:
     UTF16_START = b"(\xfe\xff"
     UTF16_END = compile_re(r"[^\\]\)")
 
-    def __init__(self, data):
+    def __init__(self, data: bytes) -> None:
         self.data = data
         self.index = 0
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Tuple[bytes, EngineToken]]:
         return self
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.data) - self.index
 
-    def next(self):
+    def next(self) -> Tuple[bytes, EngineToken]:
         return self.__next__()
 
-    def __next__(self):
+    def __next__(self) -> Tuple[bytes, EngineToken]:
         if len(self) == 0:
             raise StopIteration
 
@@ -135,11 +136,11 @@ class Dict(DictElement):
     """
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: Any, **kwargs: Any) -> "Dict":
         return cls.frombytes(fp.read())
 
     @classmethod
-    def frombytes(cls, data, **kwargs):
+    def frombytes(cls, data: Union[bytes, Tokenizer], **kwargs: Any) -> "Dict":
         tokenizer = data if isinstance(data, Tokenizer) else Tokenizer(data)
         self = cls()
         for k_token, k_token_type in tokenizer:
@@ -158,7 +159,9 @@ class Dict(DictElement):
                 return self
         return self
 
-    def write(self, fp, indent=0, write_container=True):
+    def write(
+        self, fp: Any, indent: Optional[int] = 0, write_container: bool = True
+    ) -> int:
         inner_indent = indent if indent is None else indent + 1
         written = 0
         if write_container:
@@ -191,33 +194,35 @@ class Dict(DictElement):
             written += write_bytes(fp, b">>")
         return written
 
-    def _write_indent(self, fp, indent, default=b" "):
+    def _write_indent(
+        self, fp: Any, indent: Optional[int], default: bytes = b" "
+    ) -> int:
         if indent is None:
             return write_bytes(fp, default)
         return write_bytes(fp, b"\t" * (indent))
 
-    def _write_newline(self, fp, indent):
+    def _write_newline(self, fp: Any, indent: Optional[int]) -> int:
         if indent is None:
             return 0
         return write_bytes(fp, b"\n")
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Union[str, "Property"]) -> Any:
         key = key if isinstance(key, Property) else Property(key)
         return super(Dict, self).__getitem__(key)
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: Union[str, "Property"], value: Any) -> None:
         key = key if isinstance(key, Property) else Property(key)
         super(Dict, self).__setitem__(key, value)
 
-    def __detitem__(self, key):
+    def __detitem__(self, key: Union[str, "Property"]) -> None:
         key = key if isinstance(key, Property) else Property(key)
         super(Dict, self).__delitem__(key)
 
-    def __contains__(self, key):
+    def __contains__(self, key: Union[str, "Property"]) -> bool:  # type: ignore[override]
         key = key if isinstance(key, Property) else Property(key)
         return self._items.__contains__(key)
 
-    def get(self, key, *args):
+    def get(self, key: Union[str, "Property"], *args: Any) -> Any:
         key = key if isinstance(key, Property) else Property(key)
         return super(Dict, self).get(key, *args)
 
@@ -240,7 +245,13 @@ class EngineData2(Dict):
     TEXT_ENGINE_DATA tagged block has this object.
     """
 
-    def write(self, fp, indent=None, write_container=False, **kwargs):
+    def write(
+        self,
+        fp: Any,
+        indent: Optional[int] = None,
+        write_container: bool = False,
+        **kwargs: Any,
+    ) -> int:
         return super(EngineData2, self).write(
             fp, indent=indent, write_container=write_container
         )
@@ -253,11 +264,11 @@ class List(ListElement):
     """
 
     @classmethod
-    def read(cls, fp):
+    def read(cls, fp: Any) -> "List":
         return cls.frombytes(fp.read())
 
     @classmethod
-    def frombytes(cls, data):
+    def frombytes(cls, data: Union[bytes, Tokenizer]) -> "List":
         tokenizer = data if isinstance(data, Tokenizer) else Tokenizer(data)
         self = cls()
         for token, token_type in tokenizer:
@@ -273,7 +284,7 @@ class List(ListElement):
 
         return self
 
-    def write(self, fp, indent=None):
+    def write(self, fp: Any, indent: Optional[int] = None) -> int:
         written = write_bytes(fp, b"[")
         if indent is None:
             for item in self:
@@ -291,12 +302,12 @@ class List(ListElement):
         written += write_bytes(fp, b"]")
         return written
 
-    def _write_indent(self, fp, indent):
+    def _write_indent(self, fp: Any, indent: Optional[int]) -> int:
         if indent is None:
             return write_bytes(fp, b" ")
         return write_bytes(fp, b"\t" * (indent))
 
-    def _write_newline(self, fp, indent):
+    def _write_newline(self, fp: Any, indent: Optional[int]) -> int:
         if indent is None:
             return 0
         return write_bytes(fp, b"\n")
@@ -311,17 +322,17 @@ class String(ValueElement):
     _ESCAPED_CHARS = (b"\\", b"(", b")")
 
     @classmethod
-    def read(cls, fp):
+    def read(cls, fp: Any) -> "String":
         return cls.frombytes(fp.read())
 
     @classmethod
-    def frombytes(cls, data):
+    def frombytes(cls, data: bytes) -> "String":
         value = data[1:-1]
         for c in cls._ESCAPED_CHARS:
             value = value.replace(b"\\" + c, c)
         return cls(value.decode("utf-16"))
 
-    def write(self, fp):
+    def write(self, fp: Any) -> int:
         value = self.value.encode("utf-16-be")
         for c in self._ESCAPED_CHARS:
             value = value.replace(c, b"\\" + c)
@@ -335,14 +346,14 @@ class Bool(BooleanElement):
     """
 
     @classmethod
-    def read(cls, fp):
+    def read(cls, fp: Any) -> "Bool":
         return cls.frombytes(fp.read())
 
     @classmethod
-    def frombytes(cls, data):
+    def frombytes(cls, data: bytes) -> "Bool":
         return cls(data == b"true")
 
-    def write(self, fp, indent=0):
+    def write(self, fp: Any, indent: int = 0) -> int:
         return write_bytes(fp, b"true" if self.value else b"false")
 
 
@@ -353,14 +364,14 @@ class Integer(IntegerElement):
     """
 
     @classmethod
-    def read(cls, fp):
+    def read(cls, fp: Any) -> "Integer":
         return cls.frombytes(fp.read())
 
     @classmethod
-    def frombytes(cls, data):
+    def frombytes(cls, data: bytes) -> "Integer":
         return cls(int(data))
 
-    def write(self, fp, indent=0):
+    def write(self, fp: Any, indent: int = 0) -> int:
         return write_bytes(fp, b"%d" % (self.value))
 
 
@@ -371,14 +382,14 @@ class Float(NumericElement):
     """
 
     @classmethod
-    def read(cls, fp):
+    def read(cls, fp: Any) -> "Float":
         return cls.frombytes(fp.read())
 
     @classmethod
-    def frombytes(cls, data):
+    def frombytes(cls, data: bytes) -> "Float":
         return cls(float(data))
 
-    def write(self, fp):
+    def write(self, fp: Any) -> int:
         value = b"%.8f" % (self.value)
         value = value.rstrip(b"0")
         value = value + b"0" if value.endswith(b".") else value
@@ -395,14 +406,14 @@ class Property(ValueElement):
     """
 
     @classmethod
-    def read(cls, fp):
+    def read(cls, fp: Any) -> "Property":
         return cls.frombytes(fp.read())
 
     @classmethod
-    def frombytes(cls, data):
+    def frombytes(cls, data: bytes) -> "Property":
         return cls(data.replace(b"/", b"").decode("macroman"))
 
-    def write(self, fp):
+    def write(self, fp: Any) -> int:
         return write_bytes(fp, b"/" + self.value.encode("macroman"))
 
 
@@ -414,8 +425,8 @@ class Tag(ValueElement):
     """
 
     @classmethod
-    def read(cls, fp):
+    def read(cls, fp: Any) -> "Tag":
         return cls(fp.read())
 
-    def write(self, fp):
+    def write(self, fp: Any) -> int:
         return write_bytes(fp, self.value)

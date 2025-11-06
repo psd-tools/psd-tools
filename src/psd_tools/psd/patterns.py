@@ -143,7 +143,7 @@ class VirtualMemoryArrayList(BaseElement):
     channels: list["VirtualMemoryArray"] = field(factory=list)
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any):
         version = read_fmt("I", fp)[0]
         assert version == 3, "Invalid version %d" % (version)
 
@@ -157,11 +157,11 @@ class VirtualMemoryArrayList(BaseElement):
 
         return cls(version, rectangle, channels)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "I", self.version)
         return written + write_length_block(fp, lambda f: self._write_body(f))
 
-    def _write_body(self, fp):
+    def _write_body(self, fp: BinaryIO) -> int:
         written = write_fmt(fp, "4I", *self.rectangle)
         written += write_fmt(fp, "I", len(self.channels) - 2)
         for channel in self.channels:
@@ -192,7 +192,7 @@ class VirtualMemoryArray(BaseElement):
     data: bytes = b""
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any):
         is_written = read_fmt("I", fp)[0]
         if is_written == 0:
             return cls(is_written=is_written)
@@ -205,7 +205,7 @@ class VirtualMemoryArray(BaseElement):
         data = fp.read(length - 23)
         return cls(is_written, depth, rectangle, pixel_depth, compression, data)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "I", self.is_written)
         if self.is_written == 0:
             return written
@@ -215,14 +215,14 @@ class VirtualMemoryArray(BaseElement):
 
         return written + write_length_block(fp, lambda f: self._write_body(f))
 
-    def _write_body(self, fp):
+    def _write_body(self, fp: BinaryIO) -> int:
         written = write_fmt(fp, "I", self.depth)
         written += write_fmt(fp, "4I", *self.rectangle)
         written += write_fmt(fp, "HB", self.pixel_depth, self.compression.value)
         written += write_bytes(fp, self.data)
         return written
 
-    def get_data(self):
+    def get_data(self) -> Optional[bytes]:
         """Get decompressed bytes."""
         if not self.is_written:
             return None
@@ -231,7 +231,9 @@ class VirtualMemoryArray(BaseElement):
             self.data, self.compression, width, height, self.depth, version=1
         )
 
-    def set_data(self, size, data, depth, compression=0):
+    def set_data(
+        self, size: tuple[int, int], data: bytes, depth: int, compression: int = 0
+    ) -> None:
         """Set bytes."""
         self.data = compress(data, compression, size[0], size[1], depth, version=1)
         self.depth = int(depth)

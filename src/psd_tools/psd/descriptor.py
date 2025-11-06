@@ -17,6 +17,7 @@ Pretty printing is the best approach to check the descriptor content::
 """
 
 import logging
+from typing import Any, BinaryIO, Dict, Iterator, TypeVar
 
 from attrs import define, field
 
@@ -49,6 +50,8 @@ logger = logging.getLogger(__name__)
 
 TYPES, register = new_registry(attribute="ostype")
 
+T = TypeVar("T")
+
 _TERMS = set(
     item.value
     for kls in (Klass, Enum, Event, Form, Key, Type, Unit)
@@ -57,7 +60,7 @@ _TERMS = set(
 )
 
 
-def read_length_and_key(fp):
+def read_length_and_key(fp: BinaryIO) -> bytes:
     """
     Helper to read descriptor key.
     """
@@ -69,7 +72,7 @@ def read_length_and_key(fp):
     return key
 
 
-def write_length_and_key(fp, value):
+def write_length_and_key(fp: BinaryIO, value: bytes) -> int:
     """
     Helper to write descriptor key.
     """
@@ -80,7 +83,7 @@ def write_length_and_key(fp, value):
 
 class _DescriptorMixin(DictElement):
     @classmethod
-    def _read_body(cls, fp):
+    def _read_body(cls, fp: BinaryIO) -> Dict[str, Any]:
         name = read_unicode_string(fp, padding=1)
         classID = read_length_and_key(fp)
         items = []
@@ -94,7 +97,7 @@ class _DescriptorMixin(DictElement):
 
         return dict(name=name, classID=classID, items=items)
 
-    def _write_body(self, fp):
+    def _write_body(self, fp: BinaryIO) -> int:
         written = write_unicode_string(fp, self.name, padding=1)
         written += write_length_and_key(fp, self.classID)
         written += write_fmt(fp, "I", len(self))
@@ -105,12 +108,12 @@ class _DescriptorMixin(DictElement):
         return written
 
     @classmethod
-    def _key_converter(cls, key):
+    def _key_converter(cls, key: Any) -> bytes:
         if hasattr(key, "encode"):
             return key.encode("ascii")
         return getattr(key, "value", key)
 
-    def _repr_pretty_(self, p, cycle):
+    def _repr_pretty_(self, p: Any, cycle: bool) -> None:
         if cycle:
             return "(...)"
 
@@ -166,10 +169,10 @@ class Descriptor(_DescriptorMixin):
     classID: bytes = Klass.Null.value
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T], fp: BinaryIO) -> T:
         return cls(**cls._read_body(fp))
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO) -> int:
         return self._write_body(fp)
 
 
@@ -198,11 +201,11 @@ class ObjectArray(_DescriptorMixin):
     classID: bytes = Klass.Null.value
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T], fp: BinaryIO) -> T:
         items_count = read_fmt("I", fp)[0]
         return cls(items_count=items_count, **cls._read_body(fp))
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO) -> int:
         written = write_fmt(fp, "I", self.items_count)
         written += self._write_body(fp)
         return written
@@ -221,7 +224,7 @@ class List(ListElement):
     """
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T], fp: BinaryIO) -> T:
         items = []
         count = read_fmt("I", fp)[0]
         for _ in range(count):
@@ -231,7 +234,7 @@ class List(ListElement):
             items.append(value)
         return cls(items)
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO) -> int:
         written = write_fmt(fp, "I", len(self))
         for item in self:
             written += write_bytes(fp, item.ostype.value)
@@ -263,13 +266,13 @@ class Property(BaseElement):
     keyID: bytes = b"\x00\x00\x00\x00"
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T], fp: BinaryIO) -> T:
         name = read_unicode_string(fp)
         classID = read_length_and_key(fp)
         keyID = read_length_and_key(fp)
         return cls(name, classID, keyID)
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO) -> int:
         written = write_unicode_string(fp, self.name)
         written += write_length_and_key(fp, self.classID)
         written += write_length_and_key(fp, self.keyID)
@@ -295,7 +298,7 @@ class UnitFloat(NumericElement):
     unit: Unit = Unit._None
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T], fp: BinaryIO) -> T:
         unit, value = read_fmt("4sd", fp)
         try:
             unit = Unit(unit)
@@ -304,10 +307,10 @@ class UnitFloat(NumericElement):
             unit = Enum(unit)
         return cls(unit=unit, value=value)
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO) -> int:
         return write_fmt(fp, "4sd", self.unit.value, self.value)
 
-    def _repr_pretty_(self, p, cycle):
+    def _repr_pretty_(self, p: Any, cycle: bool) -> None:
         if cycle:
             return self.__repr__()
         p.pretty(self.value)
@@ -334,7 +337,7 @@ class UnitFloats(BaseElement):
     values: list = field(factory=list)
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T], fp: BinaryIO) -> T:
         unit, count = read_fmt("4sI", fp)
         try:
             unit = Unit(unit)
@@ -344,7 +347,7 @@ class UnitFloats(BaseElement):
         values = list(read_fmt("%dd" % count, fp))
         return cls(unit=unit, values=values)
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO) -> int:
         return write_fmt(
             fp,
             "4sI%dd" % len(self.values),
@@ -353,14 +356,14 @@ class UnitFloats(BaseElement):
             *self.values,
         )
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[float]:
         for value in self.values:
             yield value
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> float:
         return self.values[index]
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.values)
 
 
@@ -375,10 +378,10 @@ class Double(NumericElement):
     """
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T], fp: BinaryIO) -> T:
         return cls(*read_fmt("d", fp))
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO) -> int:
         return write_fmt(fp, "d", self.value)
 
 
@@ -400,12 +403,12 @@ class Class(BaseElement):
     classID: bytes = b"\x00\x00\x00\x00"
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T], fp: BinaryIO) -> T:
         name = read_unicode_string(fp)
         classID = read_length_and_key(fp)
         return cls(name, classID)
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO) -> int:
         written = write_unicode_string(fp, self.name)
         written += write_length_and_key(fp, self.classID)
         return written
@@ -453,14 +456,14 @@ class EnumeratedReference(BaseElement):
     enum: bytes = b"\x00\x00\x00\x00"
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T], fp: BinaryIO) -> T:
         name = read_unicode_string(fp)
         classID = read_length_and_key(fp)
         typeID = read_length_and_key(fp)
         enum = read_length_and_key(fp)
         return cls(name, classID, typeID, enum)
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO) -> int:
         written = write_unicode_string(fp, self.name)
         written += write_length_and_key(fp, self.classID)
         written += write_length_and_key(fp, self.typeID)
@@ -492,13 +495,13 @@ class Offset(BaseElement):
     value: int = 0
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T], fp: BinaryIO) -> T:
         name = read_unicode_string(fp)
         classID = read_length_and_key(fp)
         offset = read_fmt("I", fp)[0]
         return cls(name, classID, offset)
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO) -> int:
         written = write_unicode_string(fp, self.name)
         written += write_length_and_key(fp, self.classID)
         written += write_fmt(fp, "I", self.value)
@@ -516,10 +519,10 @@ class Bool(BooleanElement):
     """
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T], fp: BinaryIO) -> T:
         return cls(read_fmt("?", fp)[0])
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO) -> int:
         return write_fmt(fp, "?", self.value)
 
 
@@ -534,10 +537,10 @@ class LargeInteger(IntegerElement):
     """
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T], fp: BinaryIO) -> T:
         return cls(read_fmt("q", fp)[0])
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO) -> int:
         return write_fmt(fp, "q", self.value)
 
 
@@ -552,10 +555,10 @@ class Integer(IntegerElement):
     """
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T], fp: BinaryIO) -> T:
         return cls(read_fmt("i", fp)[0])
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO) -> int:
         return write_fmt(fp, "i", self.value)
 
 
@@ -578,17 +581,17 @@ class Enumerated(BaseElement):
     enum: bytes = b"\x00\x00\x00\x00"
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T], fp: BinaryIO) -> T:
         typeID = read_length_and_key(fp)
         enum = read_length_and_key(fp)
         return cls(typeID, enum)
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO) -> int:
         written = write_length_and_key(fp, self.typeID)
         written += write_length_and_key(fp, self.enum)
         return written
 
-    def _repr_pretty_(self, p, cycle):
+    def _repr_pretty_(self, p: Any, cycle: bool) -> None:
         if cycle:
             return self.__repr__()
         p.text("(")
@@ -597,7 +600,7 @@ class Enumerated(BaseElement):
         p.pretty(getattr(self.enum, "name", self.enum))
         p.text(")")
 
-    def get_name(self):
+    def get_name(self) -> str:
         """Get enum name."""
         if len(self.enum) == 4:
             try:
@@ -621,11 +624,11 @@ class RawData(BaseElement):
     value: bytes = b"\x00\x00\x00\x00"
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T], fp: BinaryIO) -> T:
         return cls(read_length_block(fp))
 
-    def write(self, fp):
-        def writer(f):
+    def write(self, fp: BinaryIO) -> int:
+        def writer(f: BinaryIO) -> int:
             if hasattr(self.value, "write"):
                 return self.value.write(f)
             return write_bytes(f, self.value)
@@ -746,13 +749,13 @@ class Name(BaseElement):
     value: str = ""
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T], fp: BinaryIO) -> T:
         name = read_unicode_string(fp)
         classID = read_length_and_key(fp)
         value = read_unicode_string(fp)
         return cls(name, classID, value)
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO) -> int:
         written = write_unicode_string(fp, self.name)
         written += write_length_and_key(fp, self.classID)
         written += write_unicode_string(fp, self.value)
@@ -771,11 +774,11 @@ class DescriptorBlock(Descriptor):
     version: int = field(default=16, validator=in_((16,)))
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         version = read_fmt("I", fp)[0]
         return cls(version=version, **cls._read_body(fp))
 
-    def write(self, fp, padding=4, **kwargs):
+    def write(self, fp: BinaryIO, padding: int = 4, **kwargs: Any) -> int:
         written = write_fmt(fp, "I", self.version)
         written += self._write_body(fp)
         written += write_padding(fp, written, padding)
@@ -797,11 +800,11 @@ class DescriptorBlock2(Descriptor):
     data_version: int = field(default=16, validator=in_((16,)))
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         version, data_version = read_fmt("2I", fp)
         return cls(version=version, data_version=data_version, **cls._read_body(fp))
 
-    def write(self, fp, padding=4, **kwargs):
+    def write(self, fp: BinaryIO, padding: int = 4, **kwargs: Any) -> int:
         written = write_fmt(fp, "2I", self.version, self.data_version)
         written += self._write_body(fp)
         written += write_padding(fp, written, padding)

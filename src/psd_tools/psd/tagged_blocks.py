@@ -138,7 +138,7 @@ class TaggedBlocks(DictElement):
         value = tagged_blocks.get_data(Tag.TYPE_TOOL_OBJECT_SETTING)
     """
 
-    def get_data(self, key, default=None):
+    def get_data(self, key: Any, default: Any = None) -> Any:
         """
         Get data from the tagged blocks.
 
@@ -155,7 +155,7 @@ class TaggedBlocks(DictElement):
                 return value
         return default
 
-    def set_data(self, key, *args, **kwargs):
+    def set_data(self, key: Any, *args: Any, **kwargs: Any) -> None:
         """
         Set data for the given key.
 
@@ -176,7 +176,7 @@ class TaggedBlocks(DictElement):
         fp: BinaryIO,
         version: int = 1,
         padding: int = 1,
-        end_pos=None,
+        end_pos: Optional[int] = None,
         **kwargs: Any,
     ) -> T_TaggedBlocks:
         items = []
@@ -190,12 +190,12 @@ class TaggedBlocks(DictElement):
         return cls(items)  # type: ignore[arg-type]
 
     @classmethod
-    def _key_converter(self, key):
+    def _key_converter(cls, key: Any) -> Any:
         return getattr(key, "value", key)
 
-    def _repr_pretty_(self, p, cycle):
+    def _repr_pretty_(self, p: Any, cycle: bool) -> None:
         if cycle:
-            return "{{...}"
+            return
 
         with p.group(2, "{", "}"):
             p.breakable("")
@@ -304,7 +304,7 @@ class TaggedBlock(BaseElement):
         key = self.key if isinstance(self.key, bytes) else self.key.value
         written = write_fmt(fp, "4s4s", self.signature, key)
 
-        def writer(f):
+        def writer(f: BinaryIO) -> int:
             if hasattr(self.data, "write"):
                 # It seems padding size applies at the block level here.
                 inner_padding = 1 if padding == 4 else 4
@@ -316,7 +316,7 @@ class TaggedBlock(BaseElement):
         return written
 
     @classmethod
-    def _length_format(cls, key, version):
+    def _length_format(cls, key: Any, version: int) -> str:
         return ("I", "Q")[int(version == 2 and key in cls._BIG_KEYS)]
 
 
@@ -334,7 +334,7 @@ class Annotations(ListElement):
     minor_version: int = 1
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "Annotations":
         major_version, minor_version, count = read_fmt("2HI", fp)
         items = []
         for _ in range(count):
@@ -346,7 +346,7 @@ class Annotations(ListElement):
             major_version=major_version, minor_version=minor_version, items=items
         )
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(
             fp, "2HI", self.major_version, self.minor_version, len(self)
         )
@@ -381,7 +381,7 @@ class Annotation(BaseElement):
     data: bytes = b""
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "Annotation":
         kind, is_open, flags, optional_blocks = read_fmt("4s2BH", fp)
         icon_location = read_fmt("4i", fp)
         popup_location = read_fmt("4i", fp)
@@ -406,7 +406,7 @@ class Annotation(BaseElement):
             data,
         )
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(
             fp, "4s2BH", self.kind, self.is_open, self.flags, self.optional_blocks
         )
@@ -434,10 +434,10 @@ class Bytes(ValueElement):
     value: bytes = b"\x00\x00\x00\x00"
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "Bytes":
         return cls(fp.read(4))
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_bytes(fp, self.value)
 
 
@@ -451,13 +451,13 @@ class ChannelBlendingRestrictionsSetting(ListElement):
     """
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "ChannelBlendingRestrictionsSetting":
         items = []
         while is_readable(fp, 4):
             items.append(read_fmt("I", fp)[0])
         return cls(items)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, "%dI" % len(self), *self._items)
 
 
@@ -475,12 +475,12 @@ class FilterMask(BaseElement):
     opacity: int = 0
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "FilterMask":
         color = Color.read(fp)
         opacity = read_fmt("H", fp)[0]
         return cls(color, opacity)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = self.color.write(fp)
         written += write_fmt(fp, "H", self.opacity)
         return written
@@ -493,14 +493,14 @@ class MetadataSettings(ListElement):
     """
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "MetadataSettings":
         count = read_fmt("I", fp)[0]
         items = []
         for _ in range(count):
             items.append(MetadataSetting.read(fp))
         return cls(items)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "I", len(self))
         written += sum(item.write(fp) for item in self)
         return written
@@ -522,7 +522,7 @@ class MetadataSetting(BaseElement):
     data: bytes = b""
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "MetadataSetting":
         signature = read_fmt("4s", fp)[0]
         assert signature in cls._KNOWN_SIGNATURES, "Invalid signature %r" % signature
         key, copy_on_sheet = read_fmt("4s?3x", fp)
@@ -538,10 +538,10 @@ class MetadataSetting(BaseElement):
             data = data
         return cls(signature, key, copy_on_sheet, data)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "4s4s?3x", self.signature, self.key, self.copy_on_sheet)
 
-        def writer(f):
+        def writer(f: BinaryIO) -> int:
             if hasattr(self.data, "write"):
                 return self.data.write(f, padding=4)
             elif isinstance(self.data, int):
@@ -560,13 +560,13 @@ class PixelSourceData2(ListElement):
     """
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "PixelSourceData2":
         items = []
         while is_readable(fp, 8):
             items.append(read_length_block(fp, fmt="Q"))
         return cls(items)
 
-    def write(self, fp, padding=4, **kwargs):
+    def write(self, fp: BinaryIO, padding: int = 4, **kwargs: Any) -> int:
         written = 0
         for item in self:
             written += write_length_block(
@@ -599,7 +599,7 @@ class PlacedLayerData(BaseElement):
     warp: object = None
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "PlacedLayerData":
         kind, version = read_fmt("4sI", fp)
         uuid = read_pascal_string(fp, "macroman", padding=1)
         page, total_pages, anti_alias, layer_type = read_fmt("4I", fp)
@@ -617,7 +617,7 @@ class PlacedLayerData(BaseElement):
             warp,
         )
 
-    def write(self, fp, padding=4, **kwargs):
+    def write(self, fp: BinaryIO, padding: int = 4, **kwargs: Any) -> int:
         written = write_fmt(fp, "4sI", self.kind, self.version)
         written += write_pascal_string(fp, self.uuid, "macroman", padding=1)
         written += write_fmt(
@@ -641,26 +641,26 @@ class ProtectedSetting(IntegerElement):
     """
 
     @property
-    def transparency(self):
+    def transparency(self) -> bool:
         return bool(self.value & 0x01)
 
     @property
-    def composite(self):
+    def composite(self) -> bool:
         return bool(self.value & 0x02)
 
     @property
-    def position(self):
+    def position(self) -> bool:
         return bool(self.value & 0x04)
 
     @property
-    def nesting(self):
+    def nesting(self) -> bool:
         return bool(self.value & 0x08)
 
     @property
-    def complete(self):
+    def complete(self) -> bool:
         return self.value == 2147483648
 
-    def lock(self, lock_flags):
+    def lock(self, lock_flags: Any) -> None:
         self.value = int(lock_flags)
 
 
@@ -672,10 +672,10 @@ class ReferencePoint(ListElement):
     """
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "ReferencePoint":
         return cls(list(read_fmt("2d", fp)))
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, "2d", *self._items)
 
 
@@ -701,7 +701,7 @@ class SectionDividerSetting(BaseElement):
     sub_type: Optional[int] = None
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "SectionDividerSetting":
         kind = SectionDivider(read_fmt("I", fp)[0])
         signature, blend_mode = None, None
         if is_readable(fp, 8):
@@ -713,7 +713,7 @@ class SectionDividerSetting(BaseElement):
             sub_type = read_fmt("I", fp)[0]
         return cls(kind, signature=signature, blend_mode=blend_mode, sub_type=sub_type)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "I", self.kind.value)
         if self.signature and self.blend_mode:
             written += write_fmt(fp, "4s4s", self.signature, self.blend_mode.value)
@@ -738,10 +738,10 @@ class SheetColorSetting(ValueElement):
     )
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "SheetColorSetting":
         return cls(SheetColorType(*read_fmt("H6x", fp)))
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, "H6x", self.value.value)
 
 
@@ -762,12 +762,12 @@ class SmartObjectLayerData(BaseElement):
     data: DescriptorBlock = field(factory=DescriptorBlock)
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "SmartObjectLayerData":
         kind, version = read_fmt("4sI", fp)
         data = DescriptorBlock.read(fp)
         return cls(kind, version, data)
 
-    def write(self, fp, padding=4, **kwargs):
+    def write(self, fp: BinaryIO, padding: int = 4, **kwargs: Any) -> int:
         written = write_fmt(fp, "4sI", self.kind, self.version)
         written += self.data.write(fp, padding=1)
         written += write_padding(fp, written, padding)
@@ -807,7 +807,7 @@ class TypeToolObjectSetting(BaseElement):
     bottom: int = 0
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "TypeToolObjectSetting":
         version = read_fmt("H", fp)[0]
         transform = read_fmt("6d", fp)
         text_version = read_fmt("H", fp)[0]
@@ -836,7 +836,7 @@ class TypeToolObjectSetting(BaseElement):
             bottom,
         )
 
-    def write(self, fp, padding=4, **kwargs):
+    def write(self, fp: BinaryIO, padding: int = 4, **kwargs: Any) -> int:
         written = write_fmt(fp, "H6d", self.version, *self.transform)
         written += write_fmt(fp, "H", self.text_version)
         written += self.text_data.write(fp, padding=1)
@@ -863,12 +863,12 @@ class UserMask(BaseElement):
     flag: int = 128
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "UserMask":
         color = Color.read(fp)
         opacity, flag = read_fmt("HBx", fp)
         return cls(color, opacity, flag)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = self.color.write(fp)
         written += write_fmt(fp, "HBx", self.opacity, self.flag)
         return written

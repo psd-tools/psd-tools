@@ -55,7 +55,7 @@ class Color(BaseElement):
             written += write_fmt(fp, "4H", *self.values)
         return written
 
-    def _repr_pretty_(self, p, cycle):
+    def _repr_pretty_(self, p: Any, cycle: bool) -> None:
         if cycle:
             return "{name}(...)".format(name=self.__class__.__name__)
 

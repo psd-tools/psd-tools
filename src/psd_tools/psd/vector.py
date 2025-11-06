@@ -3,6 +3,7 @@ Vector mask, path, and stroke structure.
 """
 
 import logging
+from typing import Any, BinaryIO, Sequence, TypeVar
 
 from attrs import define, field, astuple
 
@@ -21,12 +22,23 @@ logger = logging.getLogger(__name__)
 
 TYPES, register = new_registry(attribute="selector")  # Path item types.
 
+T_Path = TypeVar("T_Path", bound="Path")
+T_Subpath = TypeVar("T_Subpath", bound="Subpath")
+T_Knot = TypeVar("T_Knot", bound="Knot")
+T_PathFillRule = TypeVar("T_PathFillRule", bound="PathFillRule")
+T_ClipboardRecord = TypeVar("T_ClipboardRecord", bound="ClipboardRecord")
+T_InitialFillRule = TypeVar("T_InitialFillRule", bound="InitialFillRule")
+T_VectorMaskSetting = TypeVar("T_VectorMaskSetting", bound="VectorMaskSetting")
+T_VectorStrokeContentSetting = TypeVar(
+    "T_VectorStrokeContentSetting", bound="VectorStrokeContentSetting"
+)
 
-def decode_fixed_point(numbers):
+
+def decode_fixed_point(numbers: Sequence[int]) -> tuple[float, ...]:
     return tuple(float(x) / 0x01000000 for x in numbers)
 
 
-def encode_fixed_point(numbers):
+def encode_fixed_point(numbers: Sequence[float]) -> tuple[int, ...]:
     return tuple(int(x * 0x01000000) for x in numbers)
 
 
@@ -38,7 +50,7 @@ class Path(ListElement):
     """
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T_Path], fp: BinaryIO, **kwargs: Any) -> T_Path:
         items = []
         while is_readable(fp, 26):
             selector = PathResourceID(read_fmt("H", fp)[0])
@@ -46,7 +58,7 @@ class Path(ListElement):
             items.append(kls.read(fp))
         return cls(items)
 
-    def write(self, fp, padding=4):
+    def write(self, fp: BinaryIO, padding: int = 4, **kwargs: Any) -> int:
         written = 0
         for item in self:
             written += write_fmt(fp, "H", item.selector.value)
@@ -84,7 +96,7 @@ class Subpath(ListElement):
     _unknown3: bytes = field(default=b"\x00" * 10, repr=False)
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T_Subpath], fp: BinaryIO, **kwargs: Any) -> T_Subpath:
         items = []
         length, operation, _unknown1, _unknown2, index, _unknown3 = read_fmt(
             "HhH2I10s", fp
@@ -102,7 +114,7 @@ class Subpath(ListElement):
             unknown3=_unknown3,
         )
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(
             fp,
             "HhH2I10s",
@@ -118,7 +130,7 @@ class Subpath(ListElement):
             written += item.write(fp)
         return written
 
-    def is_closed(self):
+    def is_closed(self) -> bool:
         """
         Returns whether if the path is closed or not.
 
@@ -134,7 +146,7 @@ class Subpath(ListElement):
             self.operation,
         )
 
-    def _repr_pretty_(self, p, cycle):
+    def _repr_pretty_(self, p: Any, cycle: bool) -> None:
         if cycle:
             p.text(f"({self.__class__.__name__} ...)")
             return
@@ -166,26 +178,26 @@ class Knot(BaseElement):
     leaving: tuple = (0.0,)
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T_Knot], fp: BinaryIO, **kwargs: Any) -> T_Knot:
         preceding = decode_fixed_point(read_fmt("2i", fp))
         anchor = decode_fixed_point(read_fmt("2i", fp))
         leaving = decode_fixed_point(read_fmt("2i", fp))
         return cls(preceding, anchor, leaving)
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         values = self.preceding + self.anchor + self.leaving
         return write_fmt(fp, "6i", *encode_fixed_point(values))
 
 
 @register(PathResourceID.CLOSED_LENGTH)
 class ClosedPath(Subpath):
-    def is_closed(self):
+    def is_closed(self) -> bool:
         return True
 
 
 @register(PathResourceID.OPEN_LENGTH)
 class OpenPath(Subpath):
-    def is_closed(self):
+    def is_closed(self) -> bool:
         return False
 
 
@@ -217,11 +229,11 @@ class PathFillRule(BaseElement):
     """
 
     @classmethod
-    def read(cls, fp):
+    def read(cls: type[T_PathFillRule], fp: BinaryIO, **kwargs: Any) -> T_PathFillRule:
         read_fmt("24x", fp)
         return cls()
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, "24x")
 
 
@@ -259,10 +271,12 @@ class ClipboardRecord(BaseElement):
     resolution: int = 0
 
     @classmethod
-    def read(cls, fp):
+    def read(
+        cls: type[T_ClipboardRecord], fp: BinaryIO, **kwargs: Any
+    ) -> T_ClipboardRecord:
         return cls(*decode_fixed_point(read_fmt("5i4x", fp)))
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, "5i4x", *encode_fixed_point(astuple(self)))
 
 
@@ -281,10 +295,10 @@ class InitialFillRule(ValueElement):
     value: int = field(default=0, converter=int)
 
     @classmethod
-    def read(cls, fp):
+    def read(cls, fp: BinaryIO):
         return cls(*read_fmt("H22x", fp))
 
-    def write(self, fp):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, "H22x", *astuple(self))
 
 

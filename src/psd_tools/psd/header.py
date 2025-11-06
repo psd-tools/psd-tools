@@ -74,7 +74,7 @@ class FileHeader(BaseElement):
     )
 
     @signature.validator
-    def _validate_signature(self, attribute, value):
+    def _validate_signature(self, attribute: Any, value: bytes) -> None:
         if value != b"8BPS":
             raise ValueError("This is not a PSD or PSB file")
 

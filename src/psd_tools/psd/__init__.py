@@ -6,7 +6,7 @@ defined in :py:mod:`psd_tools.psd.base` module.
 """
 
 import logging
-from typing import Any, BinaryIO, TypeVar
+from typing import Any, BinaryIO, Generator, Optional, TypeVar
 
 from attrs import define, field
 
@@ -101,7 +101,7 @@ class PSD(BaseElement):
         written += self.image_data.write(fp)
         return written
 
-    def _iter_layers(self):
+    def _iter_layers(self) -> Generator[tuple[Any, Any], None, None]:
         """
         Iterate over (layer_record, channel_data) pairs.
         """
@@ -113,7 +113,7 @@ class PSD(BaseElement):
                 for record, channels in zip(records, channel_data):
                     yield record, channels
 
-    def _get_layer_info(self):
+    def _get_layer_info(self) -> Optional[LayerInfo]:
         from psd_tools.constants import Tag
 
         tagged_blocks = self.layer_and_mask_information.tagged_blocks
