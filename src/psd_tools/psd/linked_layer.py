@@ -173,10 +173,12 @@ class LinkedLayer(BaseElement):
                 written += write_fmt(fp, "I4Bd", *self.timestamp)  # type: ignore[misc]
             written += write_fmt(fp, "Q", self.filesize)
             if self.version > 2:
+                assert self.data is not None
                 written += write_bytes(fp, self.data)
         elif self.kind == LinkedLayerType.ALIAS:
             written += write_fmt(fp, "8x")
         if self.kind == LinkedLayerType.DATA:
+            assert self.data is not None
             written += write_bytes(fp, self.data)
 
         if self.child_id is not None:
@@ -187,6 +189,7 @@ class LinkedLayer(BaseElement):
             written += write_fmt(fp, "B", self.lock_state)
 
         if self.kind == LinkedLayerType.EXTERNAL and self.version == 2:
+            assert self.data is not None
             written += write_bytes(fp, self.data)
 
         written += write_padding(fp, written, padding)

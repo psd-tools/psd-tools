@@ -172,7 +172,12 @@ class ImageResources(DictElement):
         )
 
     @classmethod
-    def read(cls: type[T_ImageResources], fp: BinaryIO, encoding: str = "macroman", **kwargs: Any) -> T_ImageResources:
+    def read(
+        cls: type[T_ImageResources],
+        fp: BinaryIO,
+        encoding: str = "macroman",
+        **kwargs: Any,
+    ) -> T_ImageResources:
         data = read_length_block(fp)
         logger.debug("reading image resources, len=%d" % (len(data)))
         with io.BytesIO(data) as f:
@@ -251,7 +256,12 @@ class ImageResource(BaseElement):
     data: bytes = field(default=b"", repr=False)
 
     @classmethod
-    def read(cls: type[T_ImageResource], fp: BinaryIO, encoding: str = "macroman", **kwargs: Any) -> T_ImageResource:
+    def read(
+        cls: type[T_ImageResource],
+        fp: BinaryIO,
+        encoding: str = "macroman",
+        **kwargs: Any,
+    ) -> T_ImageResource:
         signature, key = read_fmt("4sH", fp)
         try:
             key = Resource(key)

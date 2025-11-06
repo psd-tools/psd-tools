@@ -77,7 +77,9 @@ class PSD(BaseElement):
     image_data: ImageData = field(factory=ImageData)
 
     @classmethod
-    def read(cls: type[T], fp: BinaryIO, encoding: str = "macroman", **kwargs: Any) -> T:
+    def read(
+        cls: type[T], fp: BinaryIO, encoding: str = "macroman", **kwargs: Any
+    ) -> T:
         header = FileHeader.read(fp)
         logger.debug("read %s" % header)
         return cls(

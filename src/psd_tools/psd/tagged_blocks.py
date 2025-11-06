@@ -171,7 +171,14 @@ class TaggedBlocks(DictElement):
         self[key] = TaggedBlock(key=key, data=kls(*args, **kwargs))
 
     @classmethod
-    def read(cls: type[T_TaggedBlocks], fp: BinaryIO, version: int = 1, padding: int = 1, end_pos=None, **kwargs: Any) -> T_TaggedBlocks:
+    def read(
+        cls: type[T_TaggedBlocks],
+        fp: BinaryIO,
+        version: int = 1,
+        padding: int = 1,
+        end_pos=None,
+        **kwargs: Any,
+    ) -> T_TaggedBlocks:
         items = []
         while is_readable(fp, 8):  # len(signature) + len(key) = 8
             if end_pos is not None and fp.tell() >= end_pos:
@@ -254,7 +261,13 @@ class TaggedBlock(BaseElement):
     data: bytes = field(default=b"", repr=True)
 
     @classmethod
-    def read(cls: type[T_TaggedBlock], fp: BinaryIO, version: int = 1, padding: int = 1, **kwargs: Any) -> T_TaggedBlock:  # type: ignore[return]
+    def read(
+        cls: type[T_TaggedBlock],
+        fp: BinaryIO,
+        version: int = 1,
+        padding: int = 1,
+        **kwargs: Any,
+    ) -> T_TaggedBlock:  # type: ignore[return]
         signature = read_fmt("4s", fp)[0]
         if signature not in cls._SIGNATURES:
             logger.warning("Invalid signature (%r)" % (signature))
@@ -285,7 +298,9 @@ class TaggedBlock(BaseElement):
             data = raw_data
         return cls(signature, key, data)
 
-    def write(self, fp: BinaryIO, version: int = 1, padding: int = 1, **kwargs: Any) -> int:
+    def write(
+        self, fp: BinaryIO, version: int = 1, padding: int = 1, **kwargs: Any
+    ) -> int:
         key = self.key if isinstance(self.key, bytes) else self.key.value
         written = write_fmt(fp, "4s4s", self.signature, key)
 
