@@ -149,6 +149,7 @@ class Dict(DictElement):
                 v_token, v_token_type = next(tokenizer)
                 kls = TOKEN_CLASSES.get(v_token_type)
                 if v_token_type in (EngineToken.ARRAY_START, EngineToken.DICT_START):
+                    assert kls is not None
                     value = kls.frombytes(tokenizer)
                 elif kls:
                     value = kls.frombytes(v_token)
@@ -160,7 +161,7 @@ class Dict(DictElement):
         return self
 
     def write(
-        self, fp: Any, indent: Optional[int] = 0, write_container: bool = True
+        self, fp: Any, indent: Optional[int] = 0, write_container: bool = True, **kwargs: Any
     ) -> int:
         inner_indent = indent if indent is None else indent + 1
         written = 0
@@ -264,11 +265,11 @@ class List(ListElement):
     """
 
     @classmethod
-    def read(cls, fp: Any) -> "List":
+    def read(cls, fp: Any, **kwargs: Any) -> "List":
         return cls.frombytes(fp.read())
 
     @classmethod
-    def frombytes(cls, data: Union[bytes, Tokenizer]) -> "List":
+    def frombytes(cls, data: Union[bytes, Tokenizer], **kwargs: Any) -> "List":
         tokenizer = data if isinstance(data, Tokenizer) else Tokenizer(data)
         self = cls()
         for token, token_type in tokenizer:
@@ -277,14 +278,16 @@ class List(ListElement):
 
             kls = TOKEN_CLASSES.get(token_type)
             if token_type in (EngineToken.ARRAY_START, EngineToken.DICT_START):
+                assert kls is not None
                 value = kls.frombytes(tokenizer)
             else:
+                assert kls is not None
                 value = kls.frombytes(token)
             self.append(value)
 
         return self
 
-    def write(self, fp: Any, indent: Optional[int] = None) -> int:
+    def write(self, fp: Any, indent: Optional[int] = None, **kwargs: Any) -> int:
         written = write_bytes(fp, b"[")
         if indent is None:
             for item in self:
@@ -322,17 +325,18 @@ class String(ValueElement):
     _ESCAPED_CHARS = (b"\\", b"(", b")")
 
     @classmethod
-    def read(cls, fp: Any) -> "String":
+    def read(cls, fp: Any, **kwargs: Any) -> "String":
         return cls.frombytes(fp.read())
 
     @classmethod
-    def frombytes(cls, data: bytes) -> "String":
+    def frombytes(cls, data: bytes, **kwargs: Any) -> "String":
         value = data[1:-1]
         for c in cls._ESCAPED_CHARS:
             value = value.replace(b"\\" + c, c)
         return cls(value.decode("utf-16"))
 
-    def write(self, fp: Any) -> int:
+    def write(self, fp: Any, **kwargs: Any) -> int:
+        assert isinstance(self.value, str)
         value = self.value.encode("utf-16-be")
         for c in self._ESCAPED_CHARS:
             value = value.replace(c, b"\\" + c)
@@ -346,14 +350,14 @@ class Bool(BooleanElement):
     """
 
     @classmethod
-    def read(cls, fp: Any) -> "Bool":
+    def read(cls, fp: Any, **kwargs: Any) -> "Bool":
         return cls.frombytes(fp.read())
 
     @classmethod
-    def frombytes(cls, data: bytes) -> "Bool":
+    def frombytes(cls, data: bytes, **kwargs: Any) -> "Bool":
         return cls(data == b"true")
 
-    def write(self, fp: Any, indent: int = 0) -> int:
+    def write(self, fp: Any, indent: int = 0, **kwargs: Any) -> int:
         return write_bytes(fp, b"true" if self.value else b"false")
 
 
@@ -364,14 +368,14 @@ class Integer(IntegerElement):
     """
 
     @classmethod
-    def read(cls, fp: Any) -> "Integer":
+    def read(cls, fp: Any, **kwargs: Any) -> "Integer":
         return cls.frombytes(fp.read())
 
     @classmethod
-    def frombytes(cls, data: bytes) -> "Integer":
+    def frombytes(cls, data: bytes, **kwargs: Any) -> "Integer":
         return cls(int(data))
 
-    def write(self, fp: Any, indent: int = 0) -> int:
+    def write(self, fp: Any, indent: int = 0, **kwargs: Any) -> int:
         return write_bytes(fp, b"%d" % (self.value))
 
 
@@ -382,14 +386,14 @@ class Float(NumericElement):
     """
 
     @classmethod
-    def read(cls, fp: Any) -> "Float":
+    def read(cls, fp: Any, **kwargs: Any) -> "Float":
         return cls.frombytes(fp.read())
 
     @classmethod
-    def frombytes(cls, data: bytes) -> "Float":
+    def frombytes(cls, data: bytes, **kwargs: Any) -> "Float":
         return cls(float(data))
 
-    def write(self, fp: Any) -> int:
+    def write(self, fp: Any, **kwargs: Any) -> int:
         value = b"%.8f" % (self.value)
         value = value.rstrip(b"0")
         value = value + b"0" if value.endswith(b".") else value
@@ -406,14 +410,15 @@ class Property(ValueElement):
     """
 
     @classmethod
-    def read(cls, fp: Any) -> "Property":
+    def read(cls, fp: Any, **kwargs: Any) -> "Property":
         return cls.frombytes(fp.read())
 
     @classmethod
-    def frombytes(cls, data: bytes) -> "Property":
+    def frombytes(cls, data: bytes, **kwargs: Any) -> "Property":
         return cls(data.replace(b"/", b"").decode("macroman"))
 
-    def write(self, fp: Any) -> int:
+    def write(self, fp: Any, **kwargs: Any) -> int:
+        assert isinstance(self.value, str)
         return write_bytes(fp, b"/" + self.value.encode("macroman"))
 
 
@@ -425,8 +430,8 @@ class Tag(ValueElement):
     """
 
     @classmethod
-    def read(cls, fp: Any) -> "Tag":
+    def read(cls, fp: Any, **kwargs: Any) -> "Tag":
         return cls(fp.read())
 
-    def write(self, fp: Any) -> int:
-        return write_bytes(fp, self.value)
+    def write(self, fp: Any, **kwargs: Any) -> int:
+        return write_bytes(fp, self.value)  # type: ignore[arg-type]

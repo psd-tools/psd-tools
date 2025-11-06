@@ -155,13 +155,13 @@ class ImageResources(DictElement):
 
         :return: ImageResources
         """
-        return cls(
+        return cls(  # type: ignore[arg-type]
             [
                 (
                     Resource.VERSION_INFO,
                     ImageResource(
                         key=Resource.VERSION_INFO,
-                        data=VersionInfo(
+                        data=VersionInfo(  # type: ignore[arg-type]
                             has_composite=True,
                             writer="psd-tools %s" % __version__,
                             reader="psd-tools %s" % __version__,
@@ -191,7 +191,7 @@ class ImageResources(DictElement):
         while is_readable(fp, 4):
             item = ImageResource.read(fp, *args, **kwargs)
             items.append((item.key, item))
-        return cls(items)
+        return cls(items)  # type: ignore[arg-type]
 
     def write(self, fp: BinaryIO, encoding: str = "macroman", **kwargs: Any) -> int:
         def writer(f: BinaryIO) -> int:
@@ -333,7 +333,7 @@ class AlphaNamesPascal(ListElement):
         items = []
         while is_readable(fp):
             items.append(read_pascal_string(fp, "macroman", padding=1))
-        return cls(items)
+        return cls(items)  # type: ignore[arg-type]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return sum(write_pascal_string(fp, item, padding=1) for item in self)
@@ -350,7 +350,7 @@ class AlphaNamesUnicode(ListElement):
         items = []
         while is_readable(fp):
             items.append(read_unicode_string(fp))
-        return cls(items)
+        return cls(items)  # type: ignore[arg-type]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return sum(write_unicode_string(fp, item) for item in self)
@@ -373,7 +373,7 @@ class DisplayInfo(BaseElement):
         items = []
         while is_readable(fp, 13):
             items.append(AlphaChannel.read(fp))
-        return cls(version=version, alpha_channels=items)
+        return cls(version=version, alpha_channels=items)  # type: ignore[arg-type]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "I", self.version)
@@ -392,10 +392,10 @@ class AlphaChannel(BaseElement):
     mode: AlphaChannelMode = AlphaChannelMode.ALPHA  # type: ignore[assignment]
 
     @classmethod
-    def read(cls, fp: BinaryIO) -> "AlphaChannel":
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "AlphaChannel":
         vals = read_fmt("6H", fp)
         mode = AlphaChannelMode(read_fmt("B", fp)[0])
-        return cls(*vals, mode)
+        return cls(*vals, mode)  # type: ignore[call-arg]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(
@@ -443,7 +443,7 @@ class GridGuidesInfo(BaseElement):
         for _ in range(count):
             items.append(read_fmt("IB", fp))
         return cls(
-            version=version, horizontal=horizontal, vertical=vertical, data=items
+            version=version, horizontal=horizontal, vertical=vertical, data=items  # type: ignore[arg-type]
         )
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
@@ -467,7 +467,7 @@ class HalftoneScreens(ListElement):
         items = []
         while is_readable(fp, 18):
             items.append(HalftoneScreen.read(fp))
-        return cls(items)
+        return cls(items)  # type: ignore[arg-type]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return sum(item.write(fp) for item in self)
@@ -499,7 +499,7 @@ class HalftoneScreen(BaseElement):
         unit = read_fmt("H", fp)[0]
         angle = float(read_fmt("i", fp)[0]) / 0x10000
         shape, use_accurate, use_printer = read_fmt("H4x2?", fp)
-        return cls(freq, unit, angle, shape, use_accurate, use_printer)
+        return cls(freq, unit, angle, shape, use_accurate, use_printer)  # type: ignore[arg-type]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "I", int(self.freq * 0x10000))
@@ -606,7 +606,7 @@ class PascalString(ValueElement):
         return cls(read_pascal_string(fp, "macroman"))
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
-        return write_pascal_string(fp, self.value, "macroman", padding=1)
+        return write_pascal_string(fp, self.value, "macroman", padding=1)  # type: ignore[arg-type]
 
 
 @register(Resource.PIXEL_ASPECT_RATIO)
@@ -785,7 +785,8 @@ class Slices(BaseElement):
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "I", self.version)
-        written += self.data.write(fp, padding=1)
+        if hasattr(self.data, "write"):
+            written += self.data.write(fp, padding=1)
         return written
 
 
@@ -804,12 +805,12 @@ class SlicesV6(BaseElement):
     items: list = field(factory=list, converter=list)
 
     @classmethod
-    def read(cls, fp: BinaryIO) -> "SlicesV6":
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "SlicesV6":
         bbox = read_fmt("4I", fp)
         name = read_unicode_string(fp)
         count = read_fmt("I", fp)[0]
         items = [SliceV6.read(fp) for _ in range(count)]
-        return cls(bbox=bbox, name=name, items=items)
+        return cls(bbox=bbox, name=name, items=items)  # type: ignore[arg-type]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "4I", *self.bbox)
@@ -868,7 +869,7 @@ class SliceV6(BaseElement):
     data: object = None
 
     @classmethod
-    def read(cls, fp: BinaryIO) -> "SliceV6":
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "SliceV6":
         slice_id, group_id, origin = read_fmt("3I", fp)
         associated_id = read_fmt("I", fp)[0] if origin == 1 else None
         name = read_unicode_string(fp)
@@ -921,7 +922,7 @@ class SliceV6(BaseElement):
             data=data,
         )
 
-    def write(self, fp: BinaryIO) -> int:
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "3I", self.slice_id, self.group_id, self.origin)
         if self.origin == 1 and self.associated_id is not None:
             written += write_fmt(fp, "I", self.associated_id)
@@ -940,7 +941,7 @@ class SliceV6(BaseElement):
             if hasattr(self.data, "write"):
                 written += self.data.write(fp, padding=1)
             elif self.data:
-                written += write_bytes(fp, self.data)
+                written += write_bytes(fp, self.data)  # type: ignore[arg-type]
         return written
 
 
@@ -1013,7 +1014,7 @@ class TransferFunctions(ListElement):
         items = []
         while is_readable(fp, 28):
             items.append(TransferFunction.read(fp))
-        return cls(items)
+        return cls(items)  # type: ignore[arg-type]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return sum(item.write(fp) for item in self)
@@ -1052,7 +1053,7 @@ class URLList(ListElement):
         items = []
         for _ in range(count):
             items.append(URLItem.read(fp))
-        return cls(items)
+        return cls(items)  # type: ignore[arg-type]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "I", len(self))
@@ -1075,12 +1076,12 @@ class URLItem(BaseElement):
     name: str = ""
 
     @classmethod
-    def read(cls, fp: BinaryIO) -> "URLItem":
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> "URLItem":
         number, id = read_fmt("2I", fp)
         name = read_unicode_string(fp)
         return cls(number, id, name)
 
-    def write(self, fp: BinaryIO) -> int:
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "2I", self.number, self.id)
         written += write_unicode_string(fp, self.name)
         return written

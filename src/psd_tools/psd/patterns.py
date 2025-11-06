@@ -216,6 +216,8 @@ class VirtualMemoryArray(BaseElement):
         return written + write_length_block(fp, lambda f: self._write_body(f))
 
     def _write_body(self, fp: BinaryIO) -> int:
+        assert self.depth is not None
+        assert self.rectangle is not None
         written = write_fmt(fp, "I", self.depth)
         written += write_fmt(fp, "4I", *self.rectangle)
         written += write_fmt(fp, "HB", self.pixel_depth, self.compression.value)
@@ -226,6 +228,8 @@ class VirtualMemoryArray(BaseElement):
         """Get decompressed bytes."""
         if not self.is_written:
             return None
+        assert self.rectangle is not None
+        assert self.depth is not None
         width, height = self.rectangle[3], self.rectangle[2]
         return decompress(
             self.data, self.compression, width, height, self.depth, version=1
@@ -235,7 +239,8 @@ class VirtualMemoryArray(BaseElement):
         self, size: tuple[int, int], data: bytes, depth: int, compression: int = 0
     ) -> None:
         """Set bytes."""
-        self.data = compress(data, compression, size[0], size[1], depth, version=1)
+        from psd_tools.constants import Compression as CompressionEnum
+        self.data = compress(data, CompressionEnum(compression), size[0], size[1], depth, version=1)
         self.depth = int(depth)
         self.pixel_depth = int(depth)
         self.rectangle = (0, 0, int(size[1]), int(size[0]))

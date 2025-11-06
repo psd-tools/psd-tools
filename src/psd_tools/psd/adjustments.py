@@ -96,7 +96,7 @@ class ColorBalance(BaseElement):
         midtones = read_fmt("3h", fp)
         highlights = read_fmt("3h", fp)
         luminosity = read_fmt("B", fp)[0]
-        return cls(shadows, midtones, highlights, luminosity)
+        return cls(shadows, midtones, highlights, luminosity)  # type: ignore[call-arg]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "3h", *self.shadows)
@@ -120,7 +120,7 @@ class ColorLookup(DescriptorBlock2):
     @classmethod
     def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         version, data_version = read_fmt("HI", fp)
-        return cls(version=version, data_version=data_version, **cls._read_body(fp))
+        return cls(version=version, data_version=data_version, **cls._read_body(fp))  # type: ignore[call-arg, attr-defined]
 
     def write(self, fp: BinaryIO, padding: int = 4, **kwargs: Any) -> int:
         written = write_fmt(fp, "HI", self.version, self.data_version)
@@ -150,7 +150,7 @@ class ChannelMixer(BaseElement):
         version, monochrome = read_fmt("2H", fp)
         data = list(read_fmt("5h", fp))
         unknown = fp.read()
-        return cls(version=version, monochrome=monochrome, data=data, unknown=unknown)
+        return cls(version=version, monochrome=monochrome, data=data, unknown=unknown)  # type: ignore[call-arg]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "2H", self.version, self.monochrome)
@@ -209,7 +209,7 @@ class Curves(BaseElement):
             except IOError:
                 logger.warning("Failed to read CurvesExtraMarker")
 
-        return cls(is_map, version, count_map, data, extra)
+        return cls(is_map, version, count_map, data, extra)  # type: ignore[call-arg]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "BHI", self.is_map, self.version, self.count_map)
@@ -221,7 +221,7 @@ class Curves(BaseElement):
                 written += sum(write_fmt(fp, "2H", *item) for item in points)
 
         if self.extra is not None:
-            written += self.extra.write(fp)
+            written += self.extra.write(fp)  # type: ignore[attr-defined]
 
         written += write_padding(fp, written, 4)
         return written
@@ -244,7 +244,7 @@ class CurvesExtraMarker(ListElement):
         items = []
         for _ in range(count):
             items.append(CurvesExtraItem.read(fp, **kwargs))
-        return cls(version=version, items=items)
+        return cls(version=version, items=items)  # type: ignore[call-arg]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "4sHI", b"Crv ", self.version, len(self))
@@ -272,7 +272,7 @@ class CurvesExtraItem(BaseElement):
         else:
             channel_id, point_count = read_fmt("2H", fp)
             points = [read_fmt("2H", fp) for c in range(point_count)]
-        return cls(channel_id, points)
+        return cls(channel_id, points)  # type: ignore[call-arg]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "H", self.channel_id)
@@ -382,7 +382,7 @@ class GradientMap(BaseElement):
             color_model,
             minimum_color,
             maximum_color,
-        )
+        )  # type: ignore[call-arg]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "H2B", self.version, self.is_reversed, self.is_dithered)
@@ -430,12 +430,12 @@ class ColorStop(BaseElement):
     color: tuple = (0,)
 
     @classmethod
-    def read(cls: type[T], fp: BinaryIO) -> T:
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         location, midpoint, mode = read_fmt("2IH", fp)
         color = read_fmt("4H2x", fp)
-        return cls(location, midpoint, mode, color)
+        return cls(location, midpoint, mode, color)  # type: ignore[call-arg]
 
-    def write(self, fp: BinaryIO) -> int:
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(
             fp, "2I5H2x", self.location, self.midpoint, self.mode, *self.color
         )
@@ -456,10 +456,10 @@ class TransparencyStop(BaseElement):
     opacity: int = 0
 
     @classmethod
-    def read(cls: type[T], fp: BinaryIO) -> T:
-        return cls(*read_fmt("2IH", fp))
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
+        return cls(*read_fmt("2IH", fp))  # type: ignore[call-arg]
 
-    def write(self, fp: BinaryIO) -> int:
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, "2IH", *astuple(self))
 
 
@@ -527,7 +527,7 @@ class HueSaturation(BaseElement):
             colorization=colorization,
             master=master,
             items=items,
-        )
+        )  # type: ignore[call-arg]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "HBx", self.version, self.enable)
@@ -587,7 +587,7 @@ class Levels(ListElement):
 
             items += [LevelRecord.read(fp) for _ in range(count - 29)]
 
-        return cls(version=version, extra_version=extra_version, items=items)
+        return cls(version=version, extra_version=extra_version, items=items)  # type: ignore[call-arg]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "H", self.version)
@@ -638,10 +638,10 @@ class LevelRecord(BaseElement):
     gamma: int = 0
 
     @classmethod
-    def read(cls: type[T], fp: BinaryIO) -> T:
-        return cls(*read_fmt("5H", fp))
+    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
+        return cls(*read_fmt("5H", fp))  # type: ignore[call-arg]
 
-    def write(self, fp: BinaryIO) -> int:
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, "5H", *astuple(self))
 
 
@@ -686,14 +686,14 @@ class PhotoFilter(BaseElement):
             color_components=color_components,
             density=density,
             luminosity=luminosity,
-        )
+        )  # type: ignore[call-arg]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "H", self.version)
         if self.version == 3:
-            written += write_fmt(fp, "3I", *self.xyz)
+            written += write_fmt(fp, "3I", *self.xyz)  # type: ignore[misc]
         else:
-            written += write_fmt(fp, "H4H", self.color_space, *self.color_components)
+            written += write_fmt(fp, "H4H", self.color_space, *self.color_components)  # type: ignore[misc]
         written += write_fmt(fp, "IB", self.density, self.luminosity)
         written += write_padding(fp, written, 4)
         return written
@@ -718,7 +718,7 @@ class SelectiveColor(BaseElement):
     def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
         version, method = read_fmt("2H", fp)
         data = [read_fmt("4h", fp) for i in range(10)]
-        return cls(version=version, method=method, data=data)
+        return cls(version=version, method=method, data=data)  # type: ignore[call-arg]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "2H", self.version, self.method)

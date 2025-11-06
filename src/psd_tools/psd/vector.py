@@ -55,6 +55,7 @@ class Path(ListElement):
         while is_readable(fp, 26):
             selector = PathResourceID(read_fmt("H", fp)[0])
             kls = TYPES.get(selector)
+            assert kls is not None
             items.append(kls.read(fp))
         return cls(items)
 
@@ -104,6 +105,7 @@ class Subpath(ListElement):
         for _ in range(length):
             selector = PathResourceID(read_fmt("H", fp)[0])
             kls = TYPES.get(selector)
+            assert kls is not None
             items.append(kls.read(fp))
         return cls(
             items=items,
@@ -274,7 +276,7 @@ class ClipboardRecord(BaseElement):
     def read(
         cls: type[T_ClipboardRecord], fp: BinaryIO, **kwargs: Any
     ) -> T_ClipboardRecord:
-        return cls(*decode_fixed_point(read_fmt("5i4x", fp)))
+        return cls(*decode_fixed_point(read_fmt("5i4x", fp)))  # type: ignore[arg-type]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         return write_fmt(fp, "5i4x", *encode_fixed_point(astuple(self)))
@@ -295,7 +297,7 @@ class InitialFillRule(ValueElement):
     value: int = field(default=0, converter=int)
 
     @classmethod
-    def read(cls, fp: BinaryIO):
+    def read(cls, fp: BinaryIO, **kwargs: Any):
         return cls(*read_fmt("H22x", fp))
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:

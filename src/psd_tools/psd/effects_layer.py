@@ -136,6 +136,15 @@ class ShadowInfo(BaseElement):
 
 
 class _GlowInfo:
+    # Type hints for mixin attributes (defined in subclasses)
+    version: int
+    blur: int
+    intensity: int
+    color: Color
+    blend_mode: BlendMode
+    enabled: int
+    opacity: int
+
     @classmethod
     def _read_body(
         cls, fp: BinaryIO
@@ -207,8 +216,8 @@ class OuterGlowInfo(BaseElement, _GlowInfo):
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = self._write_body(fp)
-        if self.native_color:
-            written += self.native_color.write(fp)
+        if self.native_color and hasattr(self.native_color, 'write'):
+            written += self.native_color.write(fp)  # type: ignore[attr-defined]
         return written
 
 
@@ -267,7 +276,8 @@ class InnerGlowInfo(BaseElement, _GlowInfo):
         written = self._write_body(fp)
         if self.version >= 2:
             written += write_fmt(fp, "B", self.invert)
-            written += self.native_color.write(fp)
+            if hasattr(self.native_color, 'write'):
+                written += self.native_color.write(fp)  # type: ignore[attr-defined]
         return written
 
 
@@ -456,8 +466,9 @@ class EffectsLayer(DictElement):
             assert signature == b"8BIM", "Invalid signature %r" % (signature)
             ostype = EffectOSType(read_fmt("4s", fp)[0])
             kls = cls.EFFECT_TYPES.get(ostype)
-            items.append((ostype, kls.frombytes(read_length_block(fp))))
-        return cls(version=version, items=items)
+            assert kls is not None
+            items.append((ostype, kls.frombytes(read_length_block(fp))))  # type: ignore[attr-defined]
+        return cls(version=version, items=items)  # type: ignore[arg-type]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "2H", self.version, len(self))

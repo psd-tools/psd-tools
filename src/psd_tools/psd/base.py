@@ -82,11 +82,12 @@ class BaseElement:
 
     def _repr_pretty_(self, p: Any, cycle: bool) -> None:
         if cycle:
-            return "{name}(...)".format(name=self.__class__.__name__)
+            p.text("{name}(...)".format(name=self.__class__.__name__))
+            return
 
         with p.group(2, "{name}(".format(name=self.__class__.__name__), ")"):
             p.breakable("")
-            field_list = [f for f in fields(self.__class__) if f.repr]
+            field_list = [f for f in fields(self.__class__) if f.repr]  # type: ignore[arg-type]
             for idx, field_item in enumerate(field_list):
                 if idx:
                     p.text(",")
@@ -194,23 +195,24 @@ class ValueElement(BaseElement):
         return self.value % other
 
     def __rmul__(self, other: Any) -> Any:
-        return self.value.__rmul__(other)
+        return other * self.value  # type: ignore[no-any-return]
 
     def __rmod__(self, other: Any) -> Any:
-        return self.value.__rmod__(other)
+        return other % self.value  # type: ignore[no-any-return]
 
     def __hash__(self) -> int:
-        return self.value.__hash__()
+        return hash(self.value)
 
     def __bool__(self) -> bool:
-        return self.value.__bool__()
+        return bool(self.value)
 
     def __repr__(self) -> str:
         return self.value.__repr__()
 
     def _repr_pretty_(self, p: Any, cycle: bool) -> None:
         if cycle:
-            return self.__repr__()
+            p.text(self.__repr__())
+            return
         if isinstance(self.value, bytes):
             p.text(trimmed_repr(self.value))
         else:
@@ -227,9 +229,6 @@ class NumericElement(ValueElement):
 
     def __floordiv__(self, other: Any) -> Any:
         return self.value.__floordiv__(other)
-
-    def __div__(self, other: Any) -> Any:
-        return self.value.__div__(other)
 
     def __truediv__(self, other: Any) -> Any:
         return self.value.__truediv__(other)
@@ -249,9 +248,6 @@ class NumericElement(ValueElement):
     def __rfloordiv__(self, other: Any) -> Any:
         return self.value.__rfloordiv__(other)
 
-    def __rdiv__(self, other: Any) -> Any:
-        return self.value.__rdiv__(other)
-
     def __rtruediv__(self, other: Any) -> Any:
         return self.value.__rtruediv__(other)
 
@@ -260,9 +256,6 @@ class NumericElement(ValueElement):
 
     def __rpow__(self, other: Any) -> Any:
         return self.value.__rpow__(other)
-
-    def __nonzero__(self) -> bool:
-        return self.value.__nonzero__()
 
     def __neg__(self) -> Any:
         return self.value.__neg__()
@@ -274,16 +267,10 @@ class NumericElement(ValueElement):
         return self.value.__abs__()
 
     def __int__(self) -> int:
-        return self.value.__int__()
-
-    def __long__(self) -> int:
-        return self.value.__long__()
+        return int(self.value)
 
     def __float__(self) -> float:
-        return self.value.__float__()
-
-    def __coerce__(self, other: Any) -> Any:
-        return self.value.__coerce__(other)
+        return float(self.value)
 
     @classmethod
     def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
@@ -302,9 +289,6 @@ class IntegerElement(NumericElement):
     """
 
     value: int = field(default=0, converter=int)
-
-    def __cmp__(self, other: Any) -> int:
-        return self.value.__cmp__(other)
 
     def __lshift__(self, other: Any) -> int:
         return self.value.__lshift__(other)
@@ -338,12 +322,6 @@ class IntegerElement(NumericElement):
 
     def __invert__(self) -> int:
         return self.value.__invert__()
-
-    def __oct__(self) -> str:
-        return self.value.__oct__()
-
-    def __hex__(self) -> str:
-        return self.value.__hex__()
 
     def __index__(self) -> int:
         return self.value.__index__()
@@ -493,7 +471,8 @@ class ListElement(BaseElement):
 
     def _repr_pretty_(self, p: Any, cycle: bool) -> None:
         if cycle:
-            return "[...]"
+            p.text("[...]")
+            return
 
         with p.group(2, "[", "]"):
             p.breakable("")
@@ -589,7 +568,8 @@ class DictElement(BaseElement):
 
     def _repr_pretty_(self, p: Any, cycle: bool) -> None:
         if cycle:
-            return "{{...}"
+            p.text("{...}")
+            return
 
         with p.group(2, "{", "}"):
             p.breakable("")

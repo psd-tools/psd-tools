@@ -48,7 +48,7 @@ class FilterEffects(ListElement):
         while is_readable(fp, 8):
             with io.BytesIO(read_length_block(fp, fmt="Q", padding=4)) as f:
                 items.append(FilterEffect.read(f))
-        return cls(version=version, items=items)
+        return cls(version=version, items=items)  # type: ignore[arg-type]
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "I", self.version)
@@ -113,7 +113,7 @@ class FilterEffect(BaseElement):
         return rectangle, depth, max_channels, channels
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
-        written = write_pascal_string(fp, self.uuid, encoding="ascii", padding=1)
+        written = write_pascal_string(fp, self.uuid or "", encoding="ascii", padding=1)
         written += write_fmt(fp, "I", self.version)
 
         def writer(f: BinaryIO) -> int:
@@ -121,11 +121,15 @@ class FilterEffect(BaseElement):
 
         written += write_length_block(fp, writer, fmt="Q")
 
-        if self.extra is not None:
-            written += self.extra.write(fp)
+        if self.extra is not None and hasattr(self.extra, 'write'):
+            written += self.extra.write(fp)  # type: ignore[attr-defined]
         return written
 
     def _write_body(self, fp: BinaryIO) -> int:
+        assert self.rectangle is not None
+        assert self.depth is not None
+        assert self.max_channels is not None
+        assert self.channels is not None
         written = write_fmt(fp, "4i", *self.rectangle)
         written += write_fmt(fp, "2I", self.depth, self.max_channels)
         for channel in self.channels:
