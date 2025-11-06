@@ -142,6 +142,8 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
+# Ruff
+.ruff_cache/
 
 ### https://raw.github.com/github/gitignore/b2ccc4644b997fa2e86da5ae37f3b053c39f3d7b/Global/macOS.gitignore
 
@@ -152,7 +154,6 @@ cython_debug/
 
 # Icon must end with two \r
 Icon
-
 
 # Thumbnails
 ._*
@@ -172,5 +173,11 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# Agents
+CLAUDE.local.md
+.claude
+
+# Project-specific
 uv.lock
 tmp/
