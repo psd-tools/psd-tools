@@ -4,32 +4,19 @@ PSD Image module.
 
 import logging
 import os
-from typing import TYPE_CHECKING, Any, BinaryIO, Callable, Literal, Optional, Union
+from typing import Any, BinaryIO, Callable, Literal, Optional, Union
 
 try:
-    from typing import Self
+    from typing import Self  # type: ignore[attr-defined]
 except ImportError:
     from typing_extensions import Self
 
 import numpy as np
 from PIL.Image import Image as PILImage
 
-from psd_tools.api import adjustments
-
-if TYPE_CHECKING:
-    from psd_tools.api.layers import Layer
-
-from psd_tools.api.layers import (
-    Artboard,
-    FillLayer,
-    Group,
-    GroupMixin,
-    PixelLayer,
-    ShapeLayer,
-    SmartObjectLayer,
-    TypeLayer,
-)
+from psd_tools.api import adjustments, layers
 from psd_tools.api.pil_io import get_pil_channels, get_pil_mode
+from psd_tools.api.protocols import PSDProtocol
 from psd_tools.constants import (
     ChannelID,
     ColorMode,
@@ -50,11 +37,12 @@ from psd_tools.psd import (
     LayerRecords,
     TaggedBlocks,
 )
+from psd_tools.psd.patterns import Patterns
 
 logger = logging.getLogger(__name__)
 
 
-class PSDImage(GroupMixin):
+class PSDImage(layers.GroupMixin, PSDProtocol):
     """
     Photoshop PSD/PSB file object.
 
@@ -72,11 +60,14 @@ class PSDImage(GroupMixin):
     """
 
     def __init__(self, data: PSD):
-        assert isinstance(data, PSD)
+        if not isinstance(data, PSD):
+            raise TypeError(f"Expected PSD instance, got {type(data).__name__}")
         self._record = data
-        self._layers: list["Layer"] = []
+        self._layers: list[layers.Layer] = []
         self._compatibility_mode = CompatibilityMode.DEFAULT
-        self._updated_layers = False  # Flag to check if the layer tree is edited.
+        self._updated: bool = False  # Flag to check if the layer tree is edited.
+
+        self._psd = self  # For GroupMixin protocol compatibility.
         self._init()
 
     @classmethod
@@ -174,9 +165,9 @@ class PSDImage(GroupMixin):
 
         if isinstance(fp, (str, bytes, os.PathLike)):
             with open(fp, mode) as f:
-                self._record.write(f, **kwargs)
+                self._record.write(f, **kwargs)  # type: ignore[arg-type]
         else:
-            self._record.write(fp, **kwargs)
+            self._record.write(fp, **kwargs)  # type: ignore[arg-type]
 
     def topil(
         self, channel: Union[int, ChannelID, None] = None, apply_icc: bool = True
@@ -217,12 +208,12 @@ class PSDImage(GroupMixin):
         self,
         viewport: Optional[tuple[int, int, int, int]] = None,
         force: bool = False,
-        color: Optional[Union[float, tuple[float, ...]]] = 1.0,
-        alpha: float = 0.0,
+        color: Union[float, tuple[float, ...], np.ndarray, None] = 1.0,
+        alpha: Union[float, np.ndarray] = 0.0,
         layer_filter: Optional[Callable] = None,
         ignore_preview: bool = False,
         apply_icc: bool = True,
-    ):
+    ) -> PILImage:
         """
         Composite the PSD image.
 
@@ -249,14 +240,26 @@ class PSDImage(GroupMixin):
             and self.has_preview()
             and not self.is_updated()
         ):
-            return self.topil(apply_icc=apply_icc)
-        return composite_pil(
-            self, color, alpha, viewport, layer_filter, force, apply_icc=apply_icc
+            result = self.topil(apply_icc=apply_icc)
+            if result is None:
+                raise ValueError("Failed to composite PSD image from preview")
+            return result
+        result = composite_pil(
+            self,
+            color if color is not None else 1.0,
+            alpha,
+            viewport,
+            layer_filter,
+            force,
+            apply_icc=apply_icc,
         )
+        if result is None:
+            raise ValueError("Failed to composite PSD image")
+        return result
 
     def _mark_updated(self) -> None:
         """Mark the layer tree as updated."""
-        self._updated_layers = True
+        self._updated = True
 
     def is_updated(self) -> bool:
         """
@@ -264,28 +267,12 @@ class PSDImage(GroupMixin):
 
         :return: `bool`
         """
-        return self._updated_layers
-
-    def is_visible(self) -> bool:
-        """
-        Returns visibility of the element.
-
-        :return: `bool`
-        """
-        return self.visible
+        return self._updated
 
     @property
     def parent(self) -> None:
         """Parent of this layer."""
         return None
-
-    def is_group(self) -> bool:
-        """
-        Return True if the layer is a group.
-
-        :return: `bool`
-        """
-        return isinstance(self, GroupMixin)
 
     def has_preview(self) -> bool:
         """
@@ -508,6 +495,12 @@ class PSDImage(GroupMixin):
         """
         Set the compositing and layer organization compatibility mode. Writable.
 
+        This property checks whether the PSD file is compatible with
+        specific authoring tools, such as Photoshop or CLIP Studio Paint.
+        Different authoring tools may have different ways of handling layers,
+        such as the use of clipping masks for groups.
+        Default is Photoshop compatibility mode.
+
         :return: :py:class:`~psd_tools.constants.CompatibilityMode`
         """
         return self._compatibility_mode
@@ -557,13 +550,14 @@ class PSDImage(GroupMixin):
             self._record.header.channels,
         )
 
-    def _repr_pretty_(self, p, cycle):
+    def _repr_pretty_(self, p, cycle) -> None:
         if cycle:
-            return self.__repr__()
+            p.text(self.__repr__())
+            return
 
         def _pretty(layer, p):
             p.text(layer.__repr__())
-            if isinstance(layer, GroupMixin):
+            if isinstance(layer, layers.GroupMixin):
                 with p.indent(2):
                     for idx, child in enumerate(layer):
                         p.break_()
@@ -580,9 +574,12 @@ class PSDImage(GroupMixin):
     ) -> FileHeader:
         from .pil_io import get_color_mode
 
-        assert depth in (8, 16, 32), "Invalid depth: %d" % (depth)
-        assert size[0] <= 300000, "Width too large > 300,000"
-        assert size[1] <= 300000, "Height too large > 300,000"
+        if depth not in (8, 16, 32):
+            raise ValueError(f"Invalid depth: {depth}. Must be 8, 16, or 32")
+        if size[0] > 300000:
+            raise ValueError(f"Width too large: {size[0]} > 300,000")
+        if size[1] > 300000:
+            raise ValueError(f"Height too large: {size[1]} > 300,000")
         version = 1
         if size[0] > 30000 or size[1] > 30000:
             logger.debug("Width or height larger than 30,000 pixels")
@@ -611,14 +608,16 @@ class PSDImage(GroupMixin):
 
     def _init(self) -> None:
         """Initialize layer structure."""
-        group_stack: list[Union[Group, Artboard, PSDImage]] = [self]
+        from psd_tools.api import layers
+
+        group_stack: list[Union[layers.Group, PSDImage]] = [self]
 
         for record, channels in self._record._iter_layers():
             current_group = group_stack[-1]
 
             blocks = record.tagged_blocks
             end_of_group = False
-            layer: Union["Layer", Group, Artboard, PSDImage, None] = None
+            layer: Union[layers.Layer, PSDImage, None] = None
             divider = blocks.get_data(Tag.SECTION_DIVIDER_SETTING, None)
             divider = blocks.get_data(Tag.NESTED_SECTION_DIVIDER_SETTING, divider)
             if (
@@ -630,11 +629,11 @@ class PSDImage(GroupMixin):
                 divider.kind is not SectionDivider.OTHER
             ):
                 if divider.kind == SectionDivider.BOUNDING_SECTION_DIVIDER:
-                    layer = Group(  # type: ignore
-                        psd=self,
+                    layer = layers.Group(  # type: ignore
+                        parent=current_group,
+                        # We need to fill in the record and channels later.
                         record=None,  # type: ignore
                         channels=None,  # type: ignore
-                        parent=current_group,
                     )
                     layer._set_bounding_records(record, channels)
                     group_stack.append(layer)
@@ -643,35 +642,38 @@ class PSDImage(GroupMixin):
                     SectionDivider.CLOSED_FOLDER,
                 ):
                     layer = group_stack.pop()
-                    assert not isinstance(layer, PSDImage)
-
+                    if not isinstance(layer, layers.Group):
+                        raise TypeError(
+                            f"Expected Group layer, got {type(layer).__name__}"
+                        )
+                    # Set the record and channels now.
                     layer._record = record
                     layer._channels = channels
+
+                    # If the group is an artboard, convert it.
                     for key in (
                         Tag.ARTBOARD_DATA1,
                         Tag.ARTBOARD_DATA2,
                         Tag.ARTBOARD_DATA3,
                     ):
                         if key in blocks:
-                            layer = Artboard._move(layer)
+                            layer = layers.Artboard._move(layer)
                     end_of_group = True
                 else:
                     logger.warning("Divider %s found." % divider.kind)
             elif Tag.TYPE_TOOL_OBJECT_SETTING in blocks or Tag.TYPE_TOOL_INFO in blocks:
-                layer = TypeLayer(self, record, channels, current_group)
+                layer = layers.TypeLayer(current_group, record, channels)
             elif (
                 Tag.SMART_OBJECT_LAYER_DATA1 in blocks
                 or Tag.SMART_OBJECT_LAYER_DATA2 in blocks
                 or Tag.PLACED_LAYER1 in blocks
                 or Tag.PLACED_LAYER2 in blocks
             ):
-                layer = SmartObjectLayer(self, record, channels, current_group)
+                layer = layers.SmartObjectLayer(current_group, record, channels)
             else:
                 for key in adjustments.TYPES.keys():
                     if key in blocks:
-                        layer = adjustments.TYPES[key](
-                            self, record, channels, current_group
-                        )
+                        layer = adjustments.TYPES[key](current_group, record, channels)
                         break
 
             # If nothing applies, this is either a shape or pixel layer.
@@ -682,59 +684,88 @@ class PSDImage(GroupMixin):
                 or Tag.VECTOR_STROKE_DATA in blocks
                 or Tag.VECTOR_STROKE_CONTENT_DATA in blocks
             )
-            if isinstance(layer, (type(None), FillLayer)) and shape_condition:
-                layer = ShapeLayer(self, record, channels, current_group)
+            if isinstance(layer, (type(None), layers.FillLayer)) and shape_condition:
+                layer = layers.ShapeLayer(current_group, record, channels)
 
             if layer is None:
-                layer = PixelLayer(self, record, channels, current_group)
+                layer = layers.PixelLayer(current_group, record, channels)
 
-            assert layer is not None
+            if layer is None:
+                raise ValueError("Failed to create layer from record")
 
             if not end_of_group:
-                assert not isinstance(layer, PSDImage)
+                if isinstance(layer, PSDImage):
+                    raise TypeError("Cannot add PSDImage as a layer")
                 current_group._layers.append(layer)
 
     def _update_record(self) -> None:
         """
         Compiles the tree layer structure back into records and channels list recursively
         """
-
         if not self.is_updated():
             # Skip if nothing is changed.
             return
 
-        layer_records, channel_image_data = _build_record_tree(self)
-
-        # PSDImage.frompil doesn't create a LayerInfo attribute to LayerAndMaskInformation
-        if not self._record.layer_and_mask_information.layer_info:
+        # Initialize the layer structure information if not present.
+        if self._record.layer_and_mask_information.layer_info is None:
             self._record.layer_and_mask_information.layer_info = LayerInfo()
-
-        if not self._record.layer_and_mask_information.global_layer_mask_info:
+        if self._record.layer_and_mask_information.global_layer_mask_info is None:
             self._record.layer_and_mask_information.global_layer_mask_info = (
                 GlobalLayerMaskInfo()
             )
-
-        if not self._record.layer_and_mask_information.tagged_blocks:
+        if self._record.layer_and_mask_information.tagged_blocks is None:
             self._record.layer_and_mask_information.tagged_blocks = TaggedBlocks()
 
+        # Set layer records and channel image data.
+        layer_records, channel_image_data = _build_record_tree(self)
         layer_info = self._record.layer_and_mask_information.layer_info
         layer_info.layer_records = layer_records
         layer_info.channel_image_data = channel_image_data
         layer_info.layer_count = len(layer_records)
 
+        # TODO: Check if we can safely reset the updated flag here.
+        # self._updated = False
+
+    def _copy_patterns(self, psdimage: PSDProtocol) -> None:
+        """Copy patterns from this psdimage to the target psdimage."""
+        if self.tagged_blocks is None:
+            # Nothing to copy.
+            return
+
+        if psdimage.tagged_blocks is None:
+            logger.debug("Creating tagged blocks for psdimage.")
+            psdimage._record.layer_and_mask_information.tagged_blocks = TaggedBlocks()
+        if psdimage.tagged_blocks is None:
+            raise ValueError("Failed to create tagged blocks for psdimage")
+
+        for tag in self.tagged_blocks.keys():
+            if not isinstance(tag, Tag):
+                raise TypeError(f"Expected Tag instance, got {type(tag).__name__}")
+            if tag in (Tag.PATTERNS1, Tag.PATTERNS2, Tag.PATTERNS3):
+                logger.debug("Copying patterns for tag %s", tag)
+                source_patterns: Patterns = self.tagged_blocks.get_data(tag)
+                target_patterns: Patterns = psdimage.tagged_blocks.get_data(tag)
+                if target_patterns is None:
+                    target_patterns = Patterns()
+                    psdimage.tagged_blocks.set_data(tag, target_patterns)
+
+                target_pattern_ids = {p.pattern_id for p in target_patterns}
+                for pattern in source_patterns:
+                    if pattern.pattern_id not in target_pattern_ids:
+                        target_patterns.append(pattern)
+
 
 def _build_record_tree(
-    layer_group: GroupMixin,
+    layer_group: layers.GroupMixin,
 ) -> tuple[LayerRecords, ChannelImageData]:
     """
     Builds the layer tree structure from records and channels list recursively
     """
-
     layer_records = LayerRecords()
     channel_image_data = ChannelImageData()
 
     for layer in layer_group:
-        if isinstance(layer, (Group, Artboard)):
+        if isinstance(layer, (layers.Group, layers.Artboard)):
             layer_records.append(layer._bounding_record)
             channel_image_data.append(layer._bounding_channels)
 

@@ -445,7 +445,7 @@ class Compositor(object):
                 or (
                     not has_fill(layer)
                     and layer.mask is not None
-                    and not layer.mask._has_real()
+                    and not layer.mask.has_real()
                 )
             )
         ):

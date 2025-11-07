@@ -11,16 +11,29 @@ Example::
 """
 
 import logging
+from typing import Any
 
 from psd_tools.api.layers import AdjustmentLayer, FillLayer
 from psd_tools.constants import Tag
-from psd_tools.psd.adjustments import Curves, LevelRecord, Levels
+from psd_tools.psd.adjustments import Curves as CurvesData
+from psd_tools.psd.adjustments import LevelRecord
+from psd_tools.psd.adjustments import Levels as LevelsData
 from psd_tools.psd.descriptor import DescriptorBlock
 from psd_tools.utils import new_registry
 
 logger = logging.getLogger(__name__)
 
 TYPES, register = new_registry(attribute="_KEY")
+
+
+def _assert_data(data: Any) -> Any:
+    """Validate that data is not None and return it.
+
+    :raises ValueError: If data is None
+    """
+    if data is None:
+        raise ValueError("Adjustment layer data is None")
+    return data
 
 
 @register(Tag.SOLID_COLOR_SHEET_SETTING)
@@ -30,7 +43,7 @@ class SolidColorFill(FillLayer):
     @property
     def data(self) -> DescriptorBlock:
         """Color in Descriptor(RGB)."""
-        return self._data.get(b"Clr ")
+        return _assert_data(self._data).get(b"Clr ")
 
 
 @register(Tag.PATTERN_FILL_SETTING)
@@ -40,7 +53,7 @@ class PatternFill(FillLayer):
     @property
     def data(self) -> DescriptorBlock:
         """Pattern in Descriptor(PATTERN)."""
-        return self._data.get(b"Ptrn")
+        return _assert_data(self._data).get(b"Ptrn")
 
 
 @register(Tag.GRADIENT_FILL_SETTING)
@@ -49,7 +62,7 @@ class GradientFill(FillLayer):
 
     @property
     def angle(self) -> float:
-        return float(self._data.get(b"Angl"))
+        return float(_assert_data(self._data).get(b"Angl"))
 
     @property
     def gradient_kind(self) -> str:
@@ -62,12 +75,12 @@ class GradientFill(FillLayer):
          - `Reflected`
          - `Diamond`
         """
-        return self._data.get(b"Type").get_name()
+        return _assert_data(self._data).get(b"Type").get_name()
 
     @property
     def data(self) -> DescriptorBlock:
         """Gradient in Descriptor(GRADIENT)."""
-        return self._data.get(b"Grad")
+        return _assert_data(self._data).get(b"Grad")
 
 
 @register(Tag.CONTENT_GENERATOR_EXTRA_DATA)
@@ -78,31 +91,31 @@ class BrightnessContrast(AdjustmentLayer):
 
     @property
     def brightness(self) -> int:
-        return int(self._data.get(b"Brgh", 0))
+        return int(_assert_data(self._data).get(b"Brgh", 0))
 
     @property
     def contrast(self) -> int:
-        return int(self._data.get(b"Cntr", 0))
+        return int(_assert_data(self._data).get(b"Cntr", 0))
 
     @property
     def mean(self) -> int:
-        return int(self._data.get(b"means", 0))
+        return int(_assert_data(self._data).get(b"means", 0))
 
     @property
     def lab(self) -> bool:
-        return bool(self._data.get(b"Lab ", False))
+        return bool(_assert_data(self._data).get(b"Lab ", False))
 
     @property
     def use_legacy(self) -> bool:
-        return bool(self._data.get(b"useLegacy", False))
+        return bool(_assert_data(self._data).get(b"useLegacy", False))
 
     @property
     def vrsn(self) -> int:
-        return int(self._data.get(b"Vrsn", 1))
+        return int(_assert_data(self._data).get(b"Vrsn", 1))
 
     @property
     def automatic(self) -> bool:
-        return bool(self._data.get(b"auto", False))
+        return bool(_assert_data(self._data).get(b"auto", False))
 
 
 @register(Tag.CURVES)
@@ -112,17 +125,17 @@ class Curves(AdjustmentLayer):
     """
 
     @property
-    def data(self) -> Curves:
+    def data(self) -> CurvesData:
         """
         Raw data.
 
         :return: :py:class:`~psd_tools.psd.adjustments.Curves`
         """
-        return self._data
+        return _assert_data(self._data)
 
     @property
     def extra(self):
-        return self._data.extra
+        return self.data.extra
 
 
 @register(Tag.EXPOSURE)
@@ -137,15 +150,15 @@ class Exposure(AdjustmentLayer):
 
         :return: `float`
         """
-        return float(self._data.exposure)
+        return float(_assert_data(self._data).exposure)
 
     @property
-    def offset(self) -> float:
-        """Offset.
+    def exposure_offset(self) -> float:
+        """Exposure offset.
 
         :return: `float`
         """
-        return float(self._data.offset)
+        return float(_assert_data(self._data).offset)
 
     @property
     def gamma(self) -> float:
@@ -153,7 +166,7 @@ class Exposure(AdjustmentLayer):
 
         :return: `float`
         """
-        return float(self._data.gamma)
+        return float(_assert_data(self._data).gamma)
 
 
 @register(Tag.LEVELS)
@@ -166,13 +179,13 @@ class Levels(AdjustmentLayer):
     """
 
     @property
-    def data(self) -> Levels:
+    def data(self) -> LevelsData:
         """
         List of level records. The first record is the master.
 
         :return: :py:class:`~psd_tools.psd.adjustments.Levels`.
         """
-        return self._data
+        return _assert_data(self._data)
 
     @property
     def master(self) -> LevelRecord:
@@ -190,7 +203,7 @@ class Vibrance(AdjustmentLayer):
 
         :return: `int`
         """
-        return int(self._data.get(b"vibrance", 0))
+        return int(_assert_data(self._data).get(b"vibrance", 0))
 
     @property
     def saturation(self) -> int:
@@ -198,7 +211,7 @@ class Vibrance(AdjustmentLayer):
 
         :return: `int`
         """
-        return int(self._data.get(b"Strt", 0))
+        return int(_assert_data(self._data).get(b"Strt", 0))
 
 
 @register(Tag.HUE_SATURATION)
@@ -216,7 +229,7 @@ class HueSaturation(AdjustmentLayer):
 
         :return: `list`
         """
-        return self._data.items
+        return _assert_data(self._data).items
 
     @property
     def enable_colorization(self) -> int:
@@ -224,7 +237,7 @@ class HueSaturation(AdjustmentLayer):
 
         :return: `int`
         """
-        return int(self._data.enable)
+        return int(_assert_data(self._data).enable)
 
     @property
     def colorization(self) -> tuple:
@@ -232,7 +245,7 @@ class HueSaturation(AdjustmentLayer):
 
         :return: `tuple`
         """
-        return self._data.colorization
+        return _assert_data(self._data).colorization
 
     @property
     def master(self) -> tuple:
@@ -240,7 +253,7 @@ class HueSaturation(AdjustmentLayer):
 
         :return: `tuple`
         """
-        return self._data.master
+        return _assert_data(self._data).master
 
 
 @register(Tag.COLOR_BALANCE)
@@ -253,7 +266,7 @@ class ColorBalance(AdjustmentLayer):
 
         :return: `tuple`
         """
-        return self._data.shadows
+        return _assert_data(self._data).shadows
 
     @property
     def midtones(self) -> tuple:
@@ -261,7 +274,7 @@ class ColorBalance(AdjustmentLayer):
 
         :return: `tuple`
         """
-        return self._data.midtones
+        return _assert_data(self._data).midtones
 
     @property
     def highlights(self) -> tuple:
@@ -269,7 +282,7 @@ class ColorBalance(AdjustmentLayer):
 
         :return: `tuple`
         """
-        return self._data.highlights
+        return _assert_data(self._data).highlights
 
     @property
     def luminosity(self) -> int:
@@ -277,7 +290,7 @@ class ColorBalance(AdjustmentLayer):
 
         :return: `int`
         """
-        return int(self._data.luminosity)
+        return int(_assert_data(self._data).luminosity)
 
 
 @register(Tag.BLACK_AND_WHITE)
@@ -286,43 +299,43 @@ class BlackAndWhite(AdjustmentLayer):
 
     @property
     def red(self) -> int:
-        return self._data.get(b"Rd  ", 40)
+        return _assert_data(self._data).get(b"Rd  ", 40)
 
     @property
     def yellow(self) -> int:
-        return self._data.get(b"Yllw", 60)
+        return _assert_data(self._data).get(b"Yllw", 60)
 
     @property
     def green(self) -> int:
-        return self._data.get(b"Grn ", 40)
+        return _assert_data(self._data).get(b"Grn ", 40)
 
     @property
     def cyan(self) -> int:
-        return self._data.get(b"Cyn ", 60)
+        return _assert_data(self._data).get(b"Cyn ", 60)
 
     @property
     def blue(self) -> int:
-        return self._data.get(b"Bl  ", 20)
+        return _assert_data(self._data).get(b"Bl  ", 20)
 
     @property
     def magenta(self) -> int:
-        return self._data.get(b"Mgnt", 80)
+        return _assert_data(self._data).get(b"Mgnt", 80)
 
     @property
     def use_tint(self) -> bool:
-        return bool(self._data.get(b"useTint", False))
+        return bool(_assert_data(self._data).get(b"useTint", False))
 
     @property
     def tint_color(self):
-        return self._data.get(b"tintColor")
+        return _assert_data(self._data).get(b"tintColor")
 
     @property
     def preset_kind(self) -> int:
-        return self._data.get(b"bwPresetKind", 1)
+        return _assert_data(self._data).get(b"bwPresetKind", 1)
 
     @property
     def preset_file_name(self) -> str:
-        value = self._data.get(b"blackAndWhitePresetFileName", "") + ""
+        value = _assert_data(self._data).get(b"blackAndWhitePresetFileName", "") + ""
         return value.strip("\x00")
 
 
@@ -336,23 +349,23 @@ class PhotoFilter(AdjustmentLayer):
 
         :return: `bool`
         """
-        return self._data.xyz
+        return _assert_data(self._data).xyz
 
     @property
     def color_space(self):
-        return self._data.color_space
+        return _assert_data(self._data).color_space
 
     @property
     def color_components(self):
-        return self._data.color_components
+        return _assert_data(self._data).color_components
 
     @property
     def density(self):
-        return self._data.density
+        return _assert_data(self._data).density
 
     @property
     def luminosity(self):
-        return self._data.luminosity
+        return _assert_data(self._data).luminosity
 
 
 @register(Tag.CHANNEL_MIXER)
@@ -361,11 +374,11 @@ class ChannelMixer(AdjustmentLayer):
 
     @property
     def monochrome(self):
-        return self._data.monochrome
+        return _assert_data(self._data).monochrome
 
     @property
     def data(self):
-        return self._data.data
+        return _assert_data(self._data).data
 
 
 @register(Tag.COLOR_LOOKUP)
@@ -392,7 +405,7 @@ class Posterize(AdjustmentLayer):
 
         :return: `int`
         """
-        return self._data
+        return _assert_data(self._data)
 
 
 @register(Tag.THRESHOLD)
@@ -405,7 +418,7 @@ class Threshold(AdjustmentLayer):
 
         :return: `int`
         """
-        return self._data
+        return _assert_data(self._data)
 
 
 @register(Tag.SELECTIVE_COLOR)
@@ -414,11 +427,11 @@ class SelectiveColor(AdjustmentLayer):
 
     @property
     def method(self):
-        return self._data.method
+        return _assert_data(self._data).method
 
     @property
     def data(self):
-        return self._data.data
+        return _assert_data(self._data).data
 
 
 @register(Tag.GRADIENT_MAP)
@@ -427,65 +440,65 @@ class GradientMap(AdjustmentLayer):
 
     @property
     def reversed(self):
-        return self._data.is_reversed
+        return _assert_data(self._data).is_reversed
 
     @property
     def dithered(self):
-        return self._data.is_dithered
+        return _assert_data(self._data).is_dithered
 
     @property
     def gradient_name(self):
-        return self._data.name.strip("\x00")
+        return _assert_data(self._data).name.strip("\x00")
 
     @property
     def color_stops(self):
-        return self._data.color_stops
+        return _assert_data(self._data).color_stops
 
     @property
     def transparency_stops(self):
-        return self._data.transparency_stops
+        return _assert_data(self._data).transparency_stops
 
     @property
     def expansion(self):
-        return self._data.expansion
+        return _assert_data(self._data).expansion
 
     @property
     def interpolation(self) -> float:
         """Interpolation between 0.0 and 1.0."""
-        return self._data.interpolation / 4096.0
+        return _assert_data(self._data).interpolation / 4096.0
 
     @property
     def length(self):
-        return self._data.length
+        return _assert_data(self._data).length
 
     @property
     def mode(self):
-        return self._data.mode
+        return _assert_data(self._data).mode
 
     @property
     def random_seed(self):
-        return self._data.random_seed
+        return _assert_data(self._data).random_seed
 
     @property
     def show_transparency(self):
-        return self._data.show_transparency
+        return _assert_data(self._data).show_transparency
 
     @property
     def use_vector_color(self):
-        return self._data.use_vector_color
+        return _assert_data(self._data).use_vector_color
 
     @property
     def roughness(self):
-        return self._data.roughness
+        return _assert_data(self._data).roughness
 
     @property
     def color_model(self):
-        return self._data.color_model
+        return _assert_data(self._data).color_model
 
     @property
     def min_color(self):
-        return self._data.minimum_color
+        return _assert_data(self._data).minimum_color
 
     @property
     def max_color(self):
-        return self._data.maximum_color
+        return _assert_data(self._data).maximum_color

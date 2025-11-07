@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
+from psd_tools.api import layers
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.constants import ColorMode, Compression
 
@@ -175,3 +176,14 @@ def test_is_updated():
     assert not psd.is_updated()
     psd[1][2].clipping = False
     assert psd.is_updated()
+
+
+def test_frompil_layers():
+    psdimage = PSDImage.new(mode="RGB", size=(30, 30), color=(255, 255, 255))
+    image = Image.new("RGB", size=(30, 30), color=(255, 0, 0))
+    layers.PixelLayer.frompil(image, psdimage, name="Test Layer")
+    assert len(psdimage) == 1
+    assert psdimage[0].name == "Test Layer"
+    rendered = psdimage.composite()
+    assert isinstance(rendered, Image.Image)
+    assert rendered.getpixel((0, 0)) == (255, 0, 0)

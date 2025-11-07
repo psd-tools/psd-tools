@@ -216,7 +216,7 @@ class OuterGlowInfo(BaseElement, _GlowInfo):
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = self._write_body(fp)
-        if self.native_color and hasattr(self.native_color, 'write'):
+        if self.native_color and hasattr(self.native_color, "write"):
             written += self.native_color.write(fp)  # type: ignore[attr-defined]
         return written
 
@@ -276,7 +276,7 @@ class InnerGlowInfo(BaseElement, _GlowInfo):
         written = self._write_body(fp)
         if self.version >= 2:
             written += write_fmt(fp, "B", self.invert)
-            if hasattr(self.native_color, 'write'):
+            if hasattr(self.native_color, "write"):
                 written += self.native_color.write(fp)  # type: ignore[attr-defined]
         return written
 

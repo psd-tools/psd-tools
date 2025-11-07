@@ -618,7 +618,7 @@ class LayerRecord(BaseElement):
 
     def _write_extra(self, fp: BinaryIO, encoding: str, version: int) -> int:
         written = 0
-        if self.mask_data and hasattr(self.mask_data, 'write'):
+        if self.mask_data and hasattr(self.mask_data, "write"):
             written += self.mask_data.write(fp)  # type: ignore[attr-defined]
         else:
             written += write_fmt(fp, "I", 0)
@@ -857,7 +857,7 @@ class MaskData(BaseElement):
         #     written += write_fmt(fp, '2x')
         #     assert written == 20
 
-        if self.real_flags and hasattr(self.real_flags, 'write'):
+        if self.real_flags and hasattr(self.real_flags, "write"):
             written += self.real_flags.write(fp)  # type: ignore[attr-defined]
             written += write_fmt(
                 fp,
@@ -869,7 +869,11 @@ class MaskData(BaseElement):
                 self.real_right,
             )
 
-        if self.flags.parameters_applied and self.parameters and hasattr(self.parameters, 'write'):
+        if (
+            self.flags.parameters_applied
+            and self.parameters
+            and hasattr(self.parameters, "write")
+        ):
             written += self.parameters.write(fp)  # type: ignore[attr-defined]
 
         written += write_padding(fp, written, 4)

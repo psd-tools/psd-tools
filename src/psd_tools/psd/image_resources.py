@@ -443,7 +443,10 @@ class GridGuidesInfo(BaseElement):
         for _ in range(count):
             items.append(read_fmt("IB", fp))
         return cls(
-            version=version, horizontal=horizontal, vertical=vertical, data=items  # type: ignore[arg-type]
+            version=version,
+            horizontal=horizontal,
+            vertical=vertical,
+            data=items,  # type: ignore[arg-type]
         )
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:

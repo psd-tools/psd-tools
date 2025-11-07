@@ -1,5 +1,5 @@
 import logging
-from typing import TYPE_CHECKING, Any, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
 
 import numpy as np
 
@@ -38,28 +38,30 @@ def get_image_data(psd: "PSDProtocol", channel: Optional[str]) -> np.ndarray:
     if psd.color_mode == ColorMode.INDEXED:
         lut = np.frombuffer(psd._record.color_mode_data.value, np.uint8)
         lut = lut.reshape((3, -1)).transpose()
-    data = psd._record.image_data.get_data(psd._record.header, False)
-    data = _parse_array(data, psd.depth, lut=lut)
+    image_bytes = psd._record.image_data.get_data(psd._record.header, False)
+    if not isinstance(image_bytes, bytes):
+        raise TypeError(f"Expected bytes, got {type(image_bytes).__name__}")
+    array = _parse_array(image_bytes, cast(Literal[1, 8, 16, 32], psd.depth), lut=lut)
     if lut is not None:
-        data = data.reshape((psd.height, psd.width, -1))
+        array = array.reshape((psd.height, psd.width, -1))
     else:
-        data = data.reshape((-1, psd.height, psd.width)).transpose((1, 2, 0))
-    data = _remove_background(data, psd)
+        array = array.reshape((-1, psd.height, psd.width)).transpose((1, 2, 0))
+    array = _remove_background(array, psd)
 
     if channel == "shape":
-        return np.expand_dims(data[:, :, get_transparency_index(psd)], 2)
+        return np.expand_dims(array[:, :, get_transparency_index(psd)], 2)
     elif channel == "color":
         if psd.color_mode == ColorMode.MULTICHANNEL:
-            return data
+            return array
         # TODO: psd.color_mode == ColorMode.INDEXED --> Convert?
-        return data[:, :, : EXPECTED_CHANNELS[psd.color_mode]]
+        return array[:, :, : EXPECTED_CHANNELS[psd.color_mode]]
 
-    return data
+    return array
 
 
 def get_layer_data(
     layer: "LayerProtocol", channel: Optional[str], real_mask: bool = True
-) -> np.ndarray:
+) -> Optional[np.ndarray]:
     def _find_channel(layer, width, height, condition):
         depth, version = layer._psd.depth, layer._psd.version
         iterator = zip(layer._record.channel_info, layer._channels)
@@ -87,7 +89,9 @@ def get_layer_data(
             lambda x: x.id == ChannelID.TRANSPARENCY_MASK,
         )
     elif channel == "mask":
-        if layer.mask._has_real() and real_mask:
+        if layer.mask is None:
+            return None
+        if layer.mask.has_real() and real_mask:
             channel_id = ChannelID.REAL_USER_LAYER_MASK
         else:
             channel_id = ChannelID.USER_LAYER_MASK

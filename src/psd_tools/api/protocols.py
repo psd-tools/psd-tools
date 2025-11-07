@@ -6,14 +6,73 @@ PSDImage without requiring concrete imports. These protocols allow other modules
 to properly type hint their parameters while avoiding circular dependency issues.
 """
 
-from typing import Any, Callable, Iterator, Literal, Optional, Protocol, Union
+from typing import Callable, Iterator, Literal, Optional, Protocol, Union
 
 import numpy as np
 from PIL.Image import Image as PILImage
 
-from psd_tools.constants import BlendMode, ChannelID
-from psd_tools.psd.layer_and_mask import ChannelDataList, LayerRecord
-from psd_tools.psd.tagged_blocks import TaggedBlocks
+from psd_tools.constants import BlendMode, ChannelID, ColorMode, CompatibilityMode
+from psd_tools.psd.layer_and_mask import ChannelDataList, LayerRecord, MaskData
+from psd_tools.psd import PSD, ImageResources, TaggedBlocks
+
+
+class MaskProtocol(Protocol):
+    """
+    Protocol defining the Mask interface for type checking.
+
+    This protocol specifies the public interface that Mask objects must
+    implement. It's used by other modules to properly type hint their mask
+    parameters without importing the concrete Mask class.
+    """
+
+    @property
+    def background_color(self) -> int:
+        """Background color."""
+        ...
+
+    @property
+    def bbox(self) -> tuple[int, int, int, int]:
+        """BBox"""
+        ...
+
+    @property
+    def left(self) -> int:
+        """Left coordinate."""
+        ...
+
+    @property
+    def right(self) -> int:
+        """Right coordinate."""
+        ...
+
+    @property
+    def top(self) -> int:
+        """Top coordinate."""
+        ...
+
+    @property
+    def bottom(self) -> int:
+        """Bottom coordinate."""
+        ...
+
+    @property
+    def width(self) -> int:
+        """Width of the mask."""
+        ...
+
+    @property
+    def height(self) -> int:
+        """Height of the mask."""
+        ...
+
+    def has_real(self) -> bool:
+        """Return True if the mask has real flags."""
+        ...
+
+    @property
+    def data(self) -> MaskData:
+        """Return raw mask data, or None if no data."""
+        ...
 
 
 class LayerProtocol(Protocol):
@@ -30,7 +89,7 @@ class LayerProtocol(Protocol):
     # Note: _psd uses Any to allow both PSDImage and PSDProtocol without conflicts
     _record: LayerRecord
     _channels: ChannelDataList
-    _psd: Optional[Any]
+    _psd: "PSDProtocol"
 
     @property
     def name(self) -> str:
@@ -74,7 +133,7 @@ class LayerProtocol(Protocol):
     def opacity(self, value: int) -> None: ...
 
     @property
-    def parent(self) -> Optional[Any]:
+    def parent(self) -> Optional["GroupMixinProtocol"]:
         """Parent of this layer (GroupMixin-like object)."""
         ...
 
@@ -158,7 +217,7 @@ class LayerProtocol(Protocol):
         ...
 
     @property
-    def mask(self) -> Optional[Any]:
+    def mask(self) -> Optional[MaskProtocol]:
         """
         Returns mask associated with this layer.
 
@@ -245,11 +304,6 @@ class GroupMixinProtocol(Protocol):
         """Return True if this is a group."""
         ...
 
-    @property
-    def parent(self) -> Optional[Any]:
-        """Parent of this group (GroupMixin-like object or None)."""
-        ...
-
     def descendants(self, include_clip: bool = True) -> Iterator[LayerProtocol]:
         """
         Return a generator to iterate over all descendant layers.
@@ -273,7 +327,7 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
     """
 
     # Internal attributes accessed by related classes
-    _record: Any  # psd_tools.psd.PSD
+    _record: PSD  # psd_tools.psd.PSD
 
     @property
     def name(self) -> str:
@@ -311,8 +365,13 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
         ...
 
     @property
-    def color_mode(self) -> Any:  # ColorMode enum
+    def color_mode(self) -> ColorMode:
         """Color mode of the document."""
+        ...
+
+    @property
+    def pil_mode(self) -> str:
+        """PIL mode of the document."""
         ...
 
     @property
@@ -321,18 +380,23 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
         ...
 
     @property
-    def image_resources(self) -> Any:  # ImageResources
+    def image_resources(self) -> ImageResources:  # ImageResources
         """Image resources section."""
         ...
 
     @property
-    def tagged_blocks(self) -> TaggedBlocks:
+    def tagged_blocks(self) -> Optional[TaggedBlocks]:
         """Tagged blocks associated with the document."""
         ...
 
     @property
     def visible(self) -> bool:
         """Visibility of the document."""
+        ...
+
+    @property
+    def compatibility_mode(self) -> CompatibilityMode:
+        """Compatibility mode of the document."""
         ...
 
     def has_preview(self) -> bool:
@@ -392,4 +456,8 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
         :param apply_icc: Whether to apply ICC profile conversion.
         :return: PIL Image.
         """
+        ...
+
+    def _copy_patterns(self, psdimage: "PSDProtocol") -> None:
+        """Copy patterns from this psdimage to the target psdimage."""
         ...

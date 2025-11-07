@@ -4,7 +4,6 @@ Layer module.
 
 import logging
 from typing import (
-    TYPE_CHECKING,
     Any,
     Callable,
     Iterable,
@@ -18,19 +17,18 @@ from typing import (
 )
 
 try:
-    from typing import Self
+    from typing import Self  # type: ignore[attr-defined]
 except ImportError:
     from typing_extensions import Self
 
-if TYPE_CHECKING:
-    from psd_tools.api.psd_image import PSDImage
-
 import numpy as np
+from PIL import ImageChops
 from PIL.Image import Image as PILImage
 
 import psd_tools.psd.engine_data as engine_data
 from psd_tools.api.effects import Effects
 from psd_tools.api.mask import Mask
+from psd_tools.api.protocols import LayerProtocol, GroupMixinProtocol, PSDProtocol
 from psd_tools.api.pil_io import get_pil_channels, get_pil_depth
 from psd_tools.api.shape import Origination, Stroke, VectorMask
 from psd_tools.api.smart_object import SmartObject
@@ -52,13 +50,11 @@ from psd_tools.psd.layer_and_mask import (
     ChannelInfo,
     LayerRecord,
 )
-from psd_tools.psd.patterns import Patterns
 from psd_tools.psd.tagged_blocks import (
     ProtectedSetting,
     SectionDividerSetting,
     TaggedBlocks,
 )
-from psd_tools.terminology import Key
 
 logger = logging.getLogger(__name__)
 
@@ -66,18 +62,17 @@ logger = logging.getLogger(__name__)
 TGroupMixin = TypeVar("TGroupMixin", bound="GroupMixin")
 
 
-class Layer:
+class Layer(LayerProtocol):
     def __init__(
         self,
-        psd: Optional["PSDImage"],
+        parent: "GroupMixin",
         record: LayerRecord,
         channels: ChannelDataList,
-        parent: Optional[TGroupMixin],
     ):
-        self._psd: Optional["PSDImage"] = psd
+        self._psd = parent._psd
+        self._parent = parent
         self._record = record
         self._channels = channels
-        self._parent: Optional[GroupMixin] = parent
 
     @property
     def name(self) -> str:
@@ -92,7 +87,10 @@ class Layer:
 
     @name.setter
     def name(self, value: str) -> None:
-        assert len(value) < 256, "Layer name too long (%d) %s" % (len(value), value)
+        if len(value) >= 256:
+            raise ValueError(
+                "Layer name too long (%d characters, max 255): %s" % (len(value), value)
+            )
         try:
             value.encode("macroman")
             self._record.name = value
@@ -150,7 +148,11 @@ class Layer:
 
         :return: `bool`
         """
-        return self.visible and self.parent is not None and self.parent.is_visible()  # type: ignore
+        if not self.visible:
+            return False
+        elif self.parent is not None:
+            return self.parent.is_visible()
+        return True
 
     @property
     def opacity(self) -> int:
@@ -163,13 +165,14 @@ class Layer:
 
     @opacity.setter
     def opacity(self, value: int) -> None:
-        assert 0 <= value and value <= 255
+        if not (0 <= value <= 255):
+            raise ValueError(f"Opacity must be in range [0, 255], got {value}")
         if self.opacity != value and self._psd is not None:
             self._psd._mark_updated()
         self._record.opacity = int(value)
 
     @property
-    def parent(self) -> Optional[TGroupMixin]:
+    def parent(self) -> Optional[GroupMixinProtocol]:
         """Parent of this layer."""
         return self._parent  # type: ignore
 
@@ -177,7 +180,7 @@ class Layer:
         """Next sibling of this layer."""
         if self.parent is None:
             return None
-        index = self.parent.index(self)
+        index = self.parent.index(self)  # type: ignore
         for i in range(index + 1, len(self.parent)):
             if not visible or self.parent[i].visible:
                 return self.parent[i]
@@ -187,7 +190,7 @@ class Layer:
         """Previous sibling of this layer."""
         if self.parent is None:
             return None
-        index = self.parent.index(self)
+        index = self.parent.index(self)  # type: ignore
         for i in range(index - 1, -1, -1):
             if not visible or self.parent[i].visible:
                 return self.parent[i]
@@ -199,7 +202,7 @@ class Layer:
 
         :return: `bool`
         """
-        return isinstance(self, GroupMixin)
+        return False
 
     @property
     def blend_mode(self) -> BlendMode:
@@ -308,7 +311,10 @@ class Layer:
 
     @offset.setter
     def offset(self, value: tuple[int, int]) -> None:
-        assert len(value) == 2
+        if len(value) != 2:
+            raise ValueError(
+                f"Offset must be a tuple of 2 integers, got {len(value)} elements"
+            )
         self.left, self.top = tuple(int(x) for x in value)
 
     @property
@@ -733,7 +739,7 @@ class Layer:
         if self.parent is not None and isinstance(self.parent, GroupMixin):
             if self in self.parent:
                 self.parent.remove(self)
-            self.parent._update_psd_record()
+            self.parent._psd._mark_updated()
         else:
             logger.warning(
                 "Cannot delete layer {} because there is no parent.".format(self)
@@ -746,15 +752,20 @@ class Layer:
         Moves the layer to the given group, updates the tree metadata as needed.
 
         :param group: The group the current layer will be moved into.
+        :raises TypeError: If group is not a GroupMixin instance
+        :raises ValueError: If attempting to move a group into itself or its descendants
         """
 
-        assert isinstance(group, GroupMixin)
-        assert group is not self
+        if not isinstance(group, GroupMixin):
+            raise TypeError(f"Expected GroupMixin, got {type(group).__name__}")
+        if group is self:
+            raise ValueError("Cannot move a layer into itself")
 
         if isinstance(self, GroupMixin):
-            assert group not in list(self.descendants()), (
-                "Cannot move group {} into its descendant {}".format(self, group)
-            )
+            if group in list(self.descendants()):
+                raise ValueError(
+                    f"Cannot move group {self} into its descendant {group}"
+                )
 
         if self.parent is not None and isinstance(self.parent, GroupMixin):
             if self in self.parent:
@@ -769,9 +780,15 @@ class Layer:
         Moves the layer up a certain offset within the group the layer is in.
 
         :param offset:
+        :raises ValueError: If layer has no parent or parent is not a group
         """
 
-        assert self.parent is not None and isinstance(self.parent, GroupMixin)
+        if self.parent is None:
+            raise ValueError(f"Cannot move layer {self} without a parent")
+        if not isinstance(self.parent, GroupMixin):
+            raise TypeError(
+                f"Parent must be a GroupMixin, got {type(self.parent).__name__}"
+            )
 
         newindex = self.parent.index(self) + offset
 
@@ -794,77 +811,19 @@ class Layer:
 
         return self.move_up(-1 * offset)
 
-    def _fetch_tagged_blocks(self, target_psd: "PSDImage") -> None:
-        # Retrieve the patterns contained in the layer current ._psd and add them to the target psd
-        _psd = target_psd
-
-        effects = [effect for effect in self.effects if effect.has_patterns()]
-        pattern_ids = [
-            effect.pattern[Key.ID].value.rstrip("\x00")  # type: ignore
-            for effect in effects
-        ]
-
-        if pattern_ids:
-            psd_global_blocks = _psd.tagged_blocks
-
-            if psd_global_blocks is None:
-                psd_global_blocks = TaggedBlocks()
-                _psd._record.layer_and_mask_information.tagged_blocks = (
-                    psd_global_blocks
-                )
-
-            if Tag.PATTERNS1 not in psd_global_blocks.keys():
-                psd_global_blocks.set_data(Tag.PATTERNS1, Patterns())
-
-            sourcePatterns = []
-            for tag in (Tag.PATTERNS1, Tag.PATTERNS2, Tag.PATTERNS3):
-                if (
-                    self._psd is not None
-                    and self._psd.tagged_blocks is not None
-                    and tag in self._psd.tagged_blocks
-                ):
-                    sourcePatterns.extend(self._psd.tagged_blocks.get_data(tag))
-
-            # TODO: Use the exact tag.
-            psd_global_blocks.get(Tag.PATTERNS1).data.extend(
-                [
-                    pattern
-                    for pattern in sourcePatterns
-                    if pattern.pattern_id in pattern_ids
-                    and pattern.pattern_id
-                    not in [
-                        targetPattern.pattern_id
-                        for targetPattern in psd_global_blocks.get(Tag.PATTERNS1).data
-                    ]
-                ]
-            )
-
 
 @runtime_checkable
-class GroupMixin(Protocol):
+class GroupMixin(GroupMixinProtocol, Protocol):
+    _psd: PSDProtocol
     _bbox: Optional[tuple[int, int, int, int]] = None
     _layers: list[Layer]
-    _psd: Optional["PSDImage"]
 
-    @property
-    def left(self) -> int:
-        return self.bbox[0]
-
-    @property
-    def top(self) -> int:
-        return self.bbox[1]
-
-    @property
-    def right(self) -> int:
-        return self.bbox[2]
-
-    @property
-    def bottom(self) -> int:
-        return self.bbox[3]
+    # Note: left, top, right, bottom properties are inherited from Layer
+    # and computed via bbox. Groups compute bbox from children, not from _record.
 
     @property
     def bbox(self) -> tuple[int, int, int, int]:
-        """(left, top, right, bottom) tuple."""
+        """(left, top, right, bottom) tuple computed from children."""
         if self._bbox is None:
             self._bbox = Group.extract_bbox(self)
         return self._bbox
@@ -880,14 +839,12 @@ class GroupMixin(Protocol):
 
     def __setitem__(self, key, value) -> None:
         self._check_valid_layers(value)
-
         self._layers.__setitem__(key, value)
-
-        self._update_layer_metadata()
-        self._update_psd_record()
+        self._update_children()
+        self._psd._mark_updated()
 
     def __delitem__(self, key) -> None:
-        self._update_psd_record()
+        self._psd._mark_updated()
         self._layers.__delitem__(key)
 
     def append(self, layer: Layer) -> None:
@@ -895,9 +852,10 @@ class GroupMixin(Protocol):
         Add a layer to the end (top) of the group
 
         :param layer: The layer to add
+        :raises ValueError: If attempting to add a group to itself
         """
-
-        assert layer is not self
+        if layer is self:
+            raise ValueError("Cannot add a group to itself")
         self.extend([layer])
 
     def extend(self, layers: Iterable[Layer]) -> None:
@@ -909,8 +867,8 @@ class GroupMixin(Protocol):
 
         self._check_valid_layers(layers)
         self._layers.extend(layers)
-        self._update_layer_metadata()
-        self._update_psd_record()
+        self._update_children()
+        self._psd._mark_updated()
 
     def insert(self, index: int, layer: Layer) -> None:
         """
@@ -922,8 +880,8 @@ class GroupMixin(Protocol):
 
         self._check_valid_layers(layer)
         self._layers.insert(index, layer)
-        self._update_layer_metadata()
-        self._update_psd_record()
+        self._update_children()
+        self._psd._mark_updated()
 
     def remove(self, layer: Layer) -> Self:
         """
@@ -933,7 +891,7 @@ class GroupMixin(Protocol):
         """
 
         self._layers.remove(layer)
-        self._update_psd_record()
+        self._psd._mark_updated()
         return self
 
     def pop(self, index: int = -1) -> Layer:
@@ -944,7 +902,7 @@ class GroupMixin(Protocol):
         """
 
         popLayer = self._layers.pop(index)
-        self._update_psd_record()
+        self._psd._mark_updated()
         return popLayer
 
     def clear(self) -> None:
@@ -953,7 +911,7 @@ class GroupMixin(Protocol):
         """
 
         self._layers.clear()
-        self._update_psd_record()
+        self._psd._mark_updated()
 
     def index(self, layer: Layer) -> int:
         """
@@ -961,7 +919,6 @@ class GroupMixin(Protocol):
 
         :param layer:
         """
-
         return self._layers.index(layer)
 
     def count(self, layer: Layer) -> int:
@@ -970,51 +927,56 @@ class GroupMixin(Protocol):
 
         :param layer:
         """
-
         return self._layers.count(layer)
 
     def _check_valid_layers(self, layers: Union[Layer, Iterable[Layer]]) -> None:
-        assert layers is not self, "Cannot add the group {} to itself.".format(self)
+        """Check that the given layers can be added to this group.
+
+        :raises ValueError: If attempting to add a group to itself or create a reference loop
+        :raises TypeError: If the provided object is not a Layer instance
+        """
+        if layers is self:
+            raise ValueError(f"Cannot add the group {self} to itself")
 
         if isinstance(layers, Layer):
             layers = [layers]
 
         for layer in layers:
-            assert isinstance(layer, Layer)
+            if not isinstance(layer, Layer):
+                raise TypeError(f"Expected Layer instance, got {type(layer).__name__}")
             if isinstance(layer, GroupMixin):
-                assert self not in list(layer.descendants()), (
-                    "This operation would create a reference loop within the group between {} and {}.".format(
-                        self, layer
+                if self in list(layer.descendants()):
+                    raise ValueError(
+                        f"This operation would create a reference loop within the group between {self} and {layer}"
                     )
-                )
 
-    def _update_layer_metadata(self) -> None:
-        from psd_tools.api.psd_image import PSDImage
-
-        _psd: Optional["PSDImage"] = self if isinstance(self, PSDImage) else self._psd  # type: ignore
-
-        for layer in self.descendants():
-            if layer._psd != _psd and _psd is not None:
+    def _update_children(self) -> None:
+        """Update children's _psd and _parent references."""
+        for layer in self:
+            # Update PSD reference
+            if layer._psd != self._psd:
                 if isinstance(layer, PixelLayer):
-                    layer._convert(_psd)
-
-                layer._fetch_tagged_blocks(_psd)  # type: ignore
-                layer._psd = _psd
-
-        for layer in self._layers[:]:
+                    layer._convert_mode(self)
+                layer._psd._copy_patterns(self._psd)  # TODO: optimize
+                layer._psd = self._psd
+            # Update parent reference
             layer._parent = self
+            if isinstance(layer, GroupMixin):
+                layer._update_children()
 
-    def _update_psd_record(self) -> None:
-        from psd_tools.api.psd_image import PSDImage
+    def is_visible(self) -> bool:
+        """Returns visibility of the element."""
+        return Layer.is_visible(self)  # type: ignore
 
-        if isinstance(self, PSDImage):
-            self._mark_updated()
-        elif self._psd is not None:
-            self._psd._mark_updated()
+    def is_group(self) -> bool:
+        """Return True if this is a group."""
+        return True
 
-    def descendants(self) -> Iterator[Layer]:
+    def descendants(self, include_clip: bool = True) -> Iterator[Layer]:
         """
         Return a generator to iterate over all descendant layers.
+
+        :param include_clip: Whether to include clipping layers. Default is True.
 
         Example::
 
@@ -1027,9 +989,11 @@ class GroupMixin(Protocol):
                 print(layer)
         """
         for layer in self:
+            if not include_clip and hasattr(layer, "clipping") and layer.clipping:
+                continue
             yield layer
             if isinstance(layer, GroupMixin):
-                yield from layer.descendants()
+                yield from layer.descendants(include_clip=include_clip)
 
     def find(self, name: str) -> Optional[Layer]:
         """
@@ -1066,57 +1030,26 @@ class Group(GroupMixin, Layer):
                 print(layer.name)
     """
 
-    @staticmethod
-    def extract_bbox(
-        layers, include_invisible: bool = False
-    ) -> tuple[int, int, int, int]:
-        """
-        Returns a bounding box for ``layers`` or (0, 0, 0, 0) if the layers
-        have no bounding box.
-
-        :param include_invisible: include invisible layers in calculation.
-        :return: tuple of four int
-        """
-
-        def _get_bbox(layer, **kwargs):
-            if layer.is_group():
-                return Group.extract_bbox(layer, **kwargs)
-            else:
-                return layer.bbox
-
-        if not hasattr(layers, "__iter__"):
-            layers = [layers]
-
-        bboxes = [
-            _get_bbox(layer, include_invisible=include_invisible)
-            for layer in layers
-            if include_invisible or layer.is_visible()
-        ]
-        bboxes = [bbox for bbox in bboxes if bbox != (0, 0, 0, 0)]
-        if len(bboxes) == 0:  # Empty bounding box.
-            return (0, 0, 0, 0)
-        lefts, tops, rights, bottoms = zip(*bboxes)
-        return (min(lefts), min(tops), max(rights), max(bottoms))
-
     def __init__(
         self,
-        psd: Optional["PSDImage"],
+        parent: GroupMixin,
         record: LayerRecord,
         channels: ChannelDataList,
-        parent: Optional[TGroupMixin],
     ):
         self._layers = []
         self._bounding_record = None
         self._bounding_channels = None
-        Layer.__init__(self, psd, record, channels, parent)
+        Layer.__init__(self, parent, record, channels)
 
     @property
     def _setting(self) -> Optional[SectionDividerSetting]:
+        """Low-level section divider setting."""
         # Can be None.
         return self.tagged_blocks.get_data(Tag.SECTION_DIVIDER_SETTING)
 
     @property
     def blend_mode(self) -> BlendMode:
+        """Blend mode of this layer. Writable."""
         setting = self._setting
         # Use the blend mode from the section divider setting if present.
         if setting is not None and setting.blend_mode is not None:
@@ -1135,6 +1068,39 @@ class Group(GroupMixin, Layer):
         setting = self._setting
         if setting is not None:
             setting.blend_mode = _value
+
+    # Override Layer's writable position properties with read-only computed ones
+    @property
+    def left(self) -> int:
+        """Left coordinate (computed from children, read-only)."""
+        return self.bbox[0]
+
+    @left.setter
+    def left(self, value: int) -> None:
+        raise NotImplementedError(
+            "Cannot set position on Group directly. Position is computed from children."
+        )
+
+    @property
+    def top(self) -> int:
+        """Top coordinate (computed from children, read-only)."""
+        return self.bbox[1]
+
+    @top.setter
+    def top(self, value: int) -> None:
+        raise NotImplementedError(
+            "Cannot set position on Group directly. Position is computed from children."
+        )
+
+    @property
+    def right(self) -> int:
+        """Right coordinate (computed from children, read-only)."""
+        return self.bbox[2]
+
+    @property
+    def bottom(self) -> int:
+        """Bottom coordinate (computed from children, read-only)."""
+        return self.bbox[3]
 
     @property
     def clipping(self) -> bool:
@@ -1156,9 +1122,17 @@ class Group(GroupMixin, Layer):
             )
             return
         clipping = Clipping.NON_BASE if value else Clipping.BASE
-        if self._record.clipping != clipping and self._psd is not None:
+        if self._record.clipping != clipping:
             self._psd._mark_updated()
         self._record.clipping = clipping
+
+    def is_group(self) -> bool:
+        """
+        Return True if the layer is a group.
+
+        :return: `bool`
+        """
+        return True
 
     def composite(
         self,
@@ -1197,21 +1171,51 @@ class Group(GroupMixin, Layer):
             apply_icc=apply_icc,
         )
 
+    @staticmethod
+    def extract_bbox(
+        layers: Union[Sequence[Layer], GroupMixin], include_invisible: bool = False
+    ) -> tuple[int, int, int, int]:
+        """
+        Returns a bounding box for ``layers`` or (0, 0, 0, 0) if the layers
+        have no bounding box.
+
+        :param layers: sequence of layers or a group.
+        :param include_invisible: include invisible layers in calculation.
+        :return: tuple of four int
+        """
+
+        def _get_bbox(layer, **kwargs):
+            if layer.is_group():
+                return Group.extract_bbox(layer, **kwargs)
+            else:
+                return layer.bbox
+
+        bboxes = [
+            _get_bbox(layer, include_invisible=include_invisible)
+            for layer in layers
+            if include_invisible or layer.is_visible()
+        ]
+        bboxes = [bbox for bbox in bboxes if bbox != (0, 0, 0, 0)]
+        if len(bboxes) == 0:  # Empty bounding box.
+            logger.info("No bounding box could be extracted from the given layers.")
+            return (0, 0, 0, 0)
+        lefts, tops, rights, bottoms = zip(*bboxes)
+        return (min(lefts), min(tops), max(rights), max(bottoms))
+
     def _set_bounding_records(self, _bounding_record, _bounding_channels) -> None:
         # Attributes that store the record for the folder divider.
         # Used when updating the record so that we don't need to recompute
         # Them from the ending layer
         self._bounding_record = _bounding_record
         self._bounding_channels = _bounding_channels
-
         return
 
     @classmethod
     def new(
         cls,
+        parent: GroupMixin,
         name: str = "Group",
         open_folder: bool = True,
-        parent: Optional[GroupMixin] = None,
     ) -> Self:
         """
         Create a new Group object with minimal records and data channels and metadata to properly include the group in the PSD file.
@@ -1221,83 +1225,69 @@ class Group(GroupMixin, Layer):
         :param parent: Optional parent folder to move the newly created group into.
 
         :return: A :py:class:`~psd_tools.api.layers.Group` object
+        :raises ValueError: If parent is None
         """
+        if parent is None:
+            raise ValueError("Parent cannot be None")
 
+        # Create the layer record for the group.
         record = LayerRecord(top=0, left=0, bottom=0, right=0, name=name)
         record.tagged_blocks = TaggedBlocks()
-
         record.tagged_blocks.set_data(
             Tag.SECTION_DIVIDER_SETTING,
             SectionDivider.OPEN_FOLDER if open_folder else SectionDivider.CLOSED_FOLDER,
         )
         record.tagged_blocks.set_data(Tag.UNICODE_LAYER_NAME, name)
+        record.channel_info = [ChannelInfo(id=i - 1, length=2) for i in range(4)]
 
-        _bounding_record = LayerRecord(
+        # Create the bounding layer record.
+        bounding_record = LayerRecord(
             top=0, left=0, bottom=0, right=0, name="</Layer group>"
         )
-        _bounding_record.tagged_blocks = TaggedBlocks()
-
-        _bounding_record.tagged_blocks.set_data(
+        bounding_record.tagged_blocks = TaggedBlocks()
+        bounding_record.tagged_blocks.set_data(
             Tag.SECTION_DIVIDER_SETTING, SectionDivider.BOUNDING_SECTION_DIVIDER
         )
-        _bounding_record.tagged_blocks.set_data(
-            Tag.UNICODE_LAYER_NAME, "</Layer group>"
-        )
-
-        record.channel_info = [ChannelInfo(id=i - 1, length=2) for i in range(4)]
-        _bounding_record.channel_info = [
+        bounding_record.tagged_blocks.set_data(Tag.UNICODE_LAYER_NAME, "</Layer group>")
+        bounding_record.channel_info = [
             ChannelInfo(id=i - 1, length=2) for i in range(4)
         ]
 
         channels = ChannelDataList()
         for i in range(4):
             channels.append(ChannelData(compression=Compression.RAW, data=b""))
+        bounding_channels = channels
 
-        _bounding_channels = channels
-
-        group = cls(None, record, channels, None)
-
-        group._set_bounding_records(_bounding_record, _bounding_channels)
-
-        if parent is not None and isinstance(parent, GroupMixin):
-            group.move_to_group(parent)
+        group = cls(parent, record, channels)
+        group._set_bounding_records(bounding_record, bounding_channels)
 
         return group
 
     @classmethod
     def group_layers(
         cls,
-        layers: list[Layer],
+        parent: GroupMixin,
+        layers: Sequence[Layer],
         name: str = "Group",
-        parent: Optional[GroupMixin] = None,
         open_folder: bool = True,
     ):
         """
         Create a new Group object containing the given layers and moved into the parent folder.
 
-        If no parent is provided, the group will be put in place of the first layer in the given list. Example below:
-
+        :param parent: The parent group to add the newly created Group object into.
         :param layers: The layers to group. Can by any subclass of :py:class:`~psd_tools.api.layers.Layer`
         :param name: The display name of the group. Default to "Group".
-        :param parent: The parent group to add the newly created Group object into.
         :param open_folder: Boolean defining whether the folder will be open or closed in photoshop. Default to True.
 
         :return: A :py:class:`~psd_tools.api.layers.Group`
+        :raises ValueError: If layers is empty
         """
-
-        assert len(layers) > 0
-
-        if parent is None and isinstance(layers[0]._parent, GroupMixin):
-            parent = layers[0]._parent
-        else:
-            # Newly created groups do not have a parent yet.
-            logger.debug("Failed to find a parent for the new group.")
-
-        group = cls.new(name, open_folder)
+        if len(layers) == 0:
+            raise ValueError("Cannot create a group from an empty list of layers")
+        group = cls.new(parent, name, open_folder)
         for layer in layers:
             layer.move_to_group(group)
-        if isinstance(parent, GroupMixin):
-            parent.append(group)
+        parent.append(group)
         return group
 
 
@@ -1308,15 +1298,25 @@ class Artboard(Group):
 
     @classmethod
     def _move(kls, group: Group) -> "Artboard":
-        assert group.parent is not None
-        self = kls(group._psd, group._record, group._channels, group.parent)  # type: ignore
+        """Converts a Group into an Artboard, updating all references as needed.
+
+        :raises ValueError: If group has no parent
+        """
+        if group.parent is None:
+            raise ValueError("Cannot convert a group without a parent to an Artboard")
+        self = kls(group.parent, group._record, group._channels)  # type: ignore
         self._layers = group._layers
         self._set_bounding_records(group._bounding_record, group._bounding_channels)
         for layer in self._layers:
             layer._parent = self
-        assert self.parent is not None
+        if self.parent is None:
+            raise ValueError("Artboard parent is None after conversion")
         for index in range(len(self.parent)):
             if group == self.parent[index]:
+                if not isinstance(self.parent, GroupMixin):
+                    raise TypeError(
+                        f"Parent must be GroupMixin, got {type(self.parent).__name__}"
+                    )
                 self.parent._layers[index] = self
         return self
 
@@ -1352,7 +1352,8 @@ class Artboard(Group):
             for key in (Tag.ARTBOARD_DATA1, Tag.ARTBOARD_DATA2, Tag.ARTBOARD_DATA3):
                 if key in self.tagged_blocks:
                     data = self.tagged_blocks.get_data(key)
-            assert data is not None
+            if data is None:
+                raise ValueError("Artboard data not found in tagged blocks")
             rect = data.get(b"artboardRect")
             self._bbox = (
                 int(rect.get(b"Left")),
@@ -1377,9 +1378,9 @@ class PixelLayer(Layer):
     @classmethod
     def frompil(
         cls,
-        pil_im: PILImage,
-        psd_file: Optional["PSDImage"] = None,
-        layer_name: str = "Layer",
+        image: PILImage,
+        parent: GroupMixin,
+        name: str = "Layer",
         top: int = 0,
         left: int = 0,
         compression: Compression = Compression.RLE,
@@ -1388,116 +1389,122 @@ class PixelLayer(Layer):
         """
         Creates a PixelLayer from a PIL image for a given psd file.
 
-        :param pil_im: The :py:class:`~PIL.Image` object to convert to photoshop
-        :param psdfile: The psd file the image will be converted for.
-        :param layer_name: The name of the layer. Defaults to "Layer"
+        :param image: The :py:class:`~PIL.Image` object to convert to photoshop
+        :param psdimage: The target psdimage the image will be converted for.
+        :param name: The name of the layer. Defaults to "Layer"
         :param top: Pixelwise offset from the top of the canvas for the new layer.
         :param left: Pixelwise offset from the left of the canvas for the new layer.
         :param compression: Compression algorithm to use for the data.
 
         :return: A :py:class:`~psd_tools.api.layers.PixelLayer` object
+        :raises TypeError: If image is not a PIL Image or parent is None
         """
+        if not isinstance(image, PILImage):
+            raise TypeError(f"Expected PIL Image, got {type(image).__name__}")
+        if parent is None:
+            raise ValueError("Parent cannot be None")
 
-        assert pil_im
+        # Convert 1-bit images to 8-bit grayscale
+        if image.mode == "1":
+            image = image.convert("L")
+        image = image.convert(parent._psd.pil_mode)
+        if image.mode == "CMYK":
+            image = ImageChops.invert(image)
 
-        if pil_im.mode == "1":
-            pil_im = pil_im.convert("L")
+        # Build layer record and channel data list.
+        layer_record, channel_data_list = cls._build_layer_record_and_channels(
+            image,
+            name,
+            left,
+            top,
+            compression,
+        )
+        self = cls(parent, layer_record, channel_data_list)
+        # TODO: We should have an API in PSDImage to add layers.
+        parent.append(self)
+        return self
 
-        if psd_file is not None:
-            pil_im = pil_im.convert(psd_file.pil_mode)
-        else:
-            logger.warning(
-                "No psd file was provided, it will not be possible to convert it when moving to another psd. Might create corrupted psds."
-            )
+    def _convert_mode(self, parent: GroupMixin) -> "PixelLayer":
+        """Convert the image format to match the given group."""
+        if parent._psd.pil_mode == self._psd.pil_mode:
+            return self
 
-        if pil_im.mode == "CMYK":
-            from PIL import ImageChops
+        # Get the current layer image.
+        image = self.topil()
+        if not isinstance(image, PILImage):
+            raise ValueError("Failed to render the image for mode conversion.")
+        # Rebuild layer record and channels.
+        layer_record, channel_data_list = self._build_layer_record_and_channels(
+            image.convert(parent._psd.pil_mode),
+            self.name,
+            self.left,
+            self.top,
+            Compression.RLE,
+        )
+        self._record = layer_record
+        self._channels = channel_data_list
+        return self
 
-            pil_im = ImageChops.invert(pil_im)
+    @staticmethod
+    def _build_layer_record_and_channels(
+        image: PILImage,
+        name: str,
+        left: int,
+        top: int,
+        compression: Compression,
+        **kwargs: Any,
+    ) -> tuple[LayerRecord, ChannelDataList]:
+        """Build layer record and channel data list from a PIL image."""
 
+        # Initialize the layer record and channel data list.
         layer_record = LayerRecord(
             top=top,
             left=left,
-            bottom=top + pil_im.height,
-            right=left + pil_im.width,
+            bottom=top + image.height,
+            right=left + image.width,
+            channel_info=[],
             **kwargs,
         )
         channel_data_list = ChannelDataList()
 
-        layer_record.name = layer_name
-        layer_record.channel_info = [ChannelInfo(ChannelID.TRANSPARENCY_MASK, 2)]
+        # Set layer name.
+        layer_record.name = name
 
-        # Initialize the alpha channel to full opacity, photoshop sometimes didn't handle the file when not done
-        channel_data_list.append(ChannelData(compression))
-        channel_data_list[0].set_data(
-            b"\xff" * (pil_im.width * pil_im.height),
-            pil_im.width,
-            pil_im.height,
-            get_pil_depth(pil_im.mode.rstrip("A")),
+        # Transparency channel.
+        transparency_data = ChannelData(compression)
+        if image.has_transparency_data:
+            # TODO: Need check for other types of transparency, palette for "indexed" mode
+            image_bytes = image.getchannel(image.getbands().index("A")).tobytes()
+        else:
+            image_bytes = b"\xff" * (image.width * image.height)
+        transparency_data.set_data(
+            image_bytes,
+            image.width,
+            image.height,
+            get_pil_depth(image.mode.rstrip("A")),
         )
-        layer_record.channel_info[0].length = len(channel_data_list[0].data) + 2
+        transparency_info = ChannelInfo(
+            ChannelID.TRANSPARENCY_MASK, len(transparency_data.data) + 2
+        )
+        layer_record.channel_info.append(transparency_info)
+        channel_data_list.append(transparency_data)
 
-        for channel_index in range(get_pil_channels(pil_im.mode.rstrip("A"))):
+        # Color channels.
+        for channel_index in range(get_pil_channels(image.mode.rstrip("A"))):
             channel_data = ChannelData(compression)
             channel_data.set_data(
-                pil_im.getchannel(channel_index).tobytes(),
-                pil_im.width,
-                pil_im.height,
-                get_pil_depth(pil_im.mode.rstrip("A")),
+                image.getchannel(channel_index).tobytes(),
+                image.width,
+                image.height,
+                get_pil_depth(image.mode.rstrip("A")),
             )
-
             channel_info = ChannelInfo(
                 id=ChannelID(channel_index), length=len(channel_data.data) + 2
             )
-
             channel_data_list.append(channel_data)
             layer_record.channel_info.append(channel_info)
 
-        if pil_im.has_transparency_data:
-            # Need check for other types of transparency, palette for "indexed" mode
-            transparency_channel_index = pil_im.getbands().index("A")
-
-            channel_data_list[0].set_data(
-                pil_im.getchannel(transparency_channel_index).tobytes(),
-                pil_im.width,
-                pil_im.height,
-                get_pil_depth(pil_im.mode.rstrip("A")),
-            )
-            layer_record.channel_info[0].length = len(channel_data_list[0].data) + 2
-
-        self = cls(psd_file, layer_record, channel_data_list, None)
-
-        return self
-
-    def _convert(self, target_psd: "PSDImage") -> "PixelLayer":
-        # assert self._psd is not None, "This layer cannot be converted because it has no psd file linked."
-
-        if self._psd is None:
-            logger.warning(
-                "This layer {} cannot be converted to the target psd".format(self)
-            )
-            return self
-
-        if target_psd.pil_mode == self._psd.pil_mode:
-            return self
-
-        rendered_image = self.composite()
-        if not isinstance(rendered_image, PILImage):
-            raise ValueError("Failed to render the image for conversion.")
-
-        new_layer = PixelLayer.frompil(
-            rendered_image,
-            target_psd,
-            self.name,
-            self.top,
-            self.left,
-            self._channels[0].compression,
-        )
-
-        self._record.channel_info = new_layer._record.channel_info
-        self._channels = new_layer._channels
-
-        return self
+        return layer_record, channel_data_list
 
 
 class SmartObjectLayer(Layer):
@@ -1696,9 +1703,13 @@ class ShapeLayer(Layer):
                     int(max(bottoms)),
                 )
             elif self.has_vector_mask():
-                assert self.vector_mask is not None
+                if self.vector_mask is None:
+                    raise ValueError(
+                        "Vector mask is None despite has_vector_mask() returning True"
+                    )
                 bbox = self.vector_mask.bbox
-                assert self._psd is not None
+                if self._psd is None:
+                    raise ValueError("PSD is None for shape layer")
                 self._bbox = (
                     int(round(bbox[0] * self._psd.width)),
                     int(round(bbox[1] * self._psd.height)),
@@ -1707,7 +1718,8 @@ class ShapeLayer(Layer):
                 )
             else:
                 self._bbox = (0, 0, 0, 0)
-            assert self._bbox is not None
+            if self._bbox is None:
+                raise ValueError("Failed to compute bbox for shape layer")
         return self._bbox
 
 

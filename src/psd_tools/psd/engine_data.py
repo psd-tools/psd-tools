@@ -161,7 +161,11 @@ class Dict(DictElement):
         return self
 
     def write(
-        self, fp: Any, indent: Optional[int] = 0, write_container: bool = True, **kwargs: Any
+        self,
+        fp: Any,
+        indent: Optional[int] = 0,
+        write_container: bool = True,
+        **kwargs: Any,
     ) -> int:
         inner_indent = indent if indent is None else indent + 1
         written = 0
