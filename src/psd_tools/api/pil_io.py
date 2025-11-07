@@ -4,7 +4,7 @@ PIL IO module.
 
 import io
 import logging
-from typing import Any, Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 from PIL import Image
 from PIL.Image import Image as PILImage
@@ -13,6 +13,9 @@ from psd_tools.api.numpy_io import get_transparency_index, has_transparency
 from psd_tools.constants import ChannelID, ColorMode, Resource
 from psd_tools.psd.image_resources import ThumbnailResource, ThumbnailResourceV4
 from psd_tools.psd.patterns import Pattern
+
+if TYPE_CHECKING:
+    from psd_tools.api.protocols import LayerProtocol, PSDProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +76,7 @@ def get_pil_depth(pil_mode: str) -> int:
 
 
 def convert_image_data_to_pil(
-    psd: Any, channel: Optional[int], apply_icc: bool
+    psd: "PSDProtocol", channel: Optional[int], apply_icc: bool
 ) -> Optional[PILImage]:
     """Convert ImageData to PIL Image."""
 
@@ -118,9 +121,8 @@ def convert_image_data_to_pil(
     return _remove_white_background(image)
 
 
-# TODO: Type hint for layer.
 def convert_layer_to_pil(
-    layer: Any, channel: Optional[int], apply_icc: bool
+    layer: "LayerProtocol", channel: Optional[int], apply_icc: bool
 ) -> Optional[PILImage]:
     """Convert Layer to PIL Image."""
     alpha = None
@@ -203,7 +205,7 @@ def convert_thumbnail_to_pil(
     return image
 
 
-def _merge_channels(layer: Any) -> Optional[PILImage]:
+def _merge_channels(layer: "LayerProtocol") -> Optional[PILImage]:
     mode = get_pil_mode(layer._psd.color_mode)
     channels = [
         _get_channel(layer, info.id)
@@ -216,7 +218,7 @@ def _merge_channels(layer: Any) -> Optional[PILImage]:
     return Image.merge(mode, channels)  # type: ignore
 
 
-def _get_channel(layer: Any, channel: int) -> Optional[PILImage]:
+def _get_channel(layer: "LayerProtocol", channel: int) -> Optional[PILImage]:
     if channel == ChannelID.USER_LAYER_MASK:
         width = layer.mask._data.right - layer.mask._data.left
         height = layer.mask._data.bottom - layer.mask._data.top

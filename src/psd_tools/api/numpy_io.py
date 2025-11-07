@@ -1,9 +1,12 @@
 import logging
-from typing import Any, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Literal, Optional, Union
 
 import numpy as np
 
 from psd_tools.constants import ChannelID, ColorMode, Resource, Tag
+
+if TYPE_CHECKING:
+    from psd_tools.api.protocols import LayerProtocol, PSDProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -20,16 +23,16 @@ EXPECTED_CHANNELS = {
 
 
 def get_array(
-    layer: Any, channel: Optional[str], **kwargs: Any
-) -> np.ndarray:  # TODO: Circular import
+    layer: Union["LayerProtocol", "PSDProtocol"], channel: Optional[str], **kwargs: Any
+) -> np.ndarray:
     if layer.kind == "psdimage":
-        return get_image_data(layer, channel)
-    return get_layer_data(layer, channel, **kwargs)
+        return get_image_data(layer, channel)  # type: ignore
+    return get_layer_data(layer, channel, **kwargs)  # type: ignore
 
 
 def get_image_data(
-    psd: Any, channel: Optional[str]
-) -> np.ndarray:  # TODO: Circular import
+    psd: "PSDProtocol", channel: Optional[str]
+) -> np.ndarray:
     if (channel == "mask") or (channel == "shape" and not has_transparency(psd)):
         return np.ones((psd.height, psd.width, 1), dtype=np.float32)
 
@@ -57,7 +60,7 @@ def get_image_data(
 
 
 def get_layer_data(
-    layer: Any, channel: Optional[str], real_mask: bool = True
+    layer: "LayerProtocol", channel: Optional[str], real_mask: bool = True
 ) -> np.ndarray:
     def _find_channel(layer, width, height, condition):
         depth, version = layer._psd.depth, layer._psd.version

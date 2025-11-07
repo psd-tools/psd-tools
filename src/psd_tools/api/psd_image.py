@@ -4,7 +4,7 @@ PSD Image module.
 
 import logging
 import os
-from typing import Any, BinaryIO, Callable, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, BinaryIO, Callable, Literal, Optional, Union
 
 try:
     from typing import Self
@@ -15,6 +15,10 @@ import numpy as np
 from PIL.Image import Image as PILImage
 
 from psd_tools.api import adjustments
+
+if TYPE_CHECKING:
+    from psd_tools.api.layers import Layer
+
 from psd_tools.api.layers import (
     Artboard,
     FillLayer,
@@ -68,11 +72,9 @@ class PSDImage(GroupMixin):
     """
 
     def __init__(self, data: PSD):
-        from psd_tools.api.layers import Layer
-
         assert isinstance(data, PSD)
         self._record = data
-        self._layers: list[Layer] = []
+        self._layers: list["Layer"] = []
         self._compatibility_mode = CompatibilityMode.DEFAULT
         self._updated_layers = False  # Flag to check if the layer tree is edited.
         self._init()
@@ -609,8 +611,6 @@ class PSDImage(GroupMixin):
 
     def _init(self) -> None:
         """Initialize layer structure."""
-        from psd_tools.api.layers import Layer
-
         group_stack: list[Union[Group, Artboard, PSDImage]] = [self]
 
         for record, channels in self._record._iter_layers():
@@ -618,7 +618,7 @@ class PSDImage(GroupMixin):
 
             blocks = record.tagged_blocks
             end_of_group = False
-            layer: Union[Layer, Group, Artboard, PSDImage, None] = None
+            layer: Union["Layer", Group, Artboard, PSDImage, None] = None
             divider = blocks.get_data(Tag.SECTION_DIVIDER_SETTING, None)
             divider = blocks.get_data(Tag.NESTED_SECTION_DIVIDER_SETTING, divider)
             if (

@@ -8,6 +8,7 @@ import logging
 import os
 from typing import BinaryIO, Iterator, Optional
 
+from psd_tools.api.protocols import LayerProtocol
 from psd_tools.constants import Tag
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ class SmartObject(object):
     :py:class:`~psd_tools.api.layers.SmartObjectLayer`.
     """
 
-    def __init__(self, layer):  # TODO: Circular import
+    def __init__(self, layer: LayerProtocol):
         self._config = None
         for key in (Tag.SMART_OBJECT_LAYER_DATA1, Tag.SMART_OBJECT_LAYER_DATA2):
             if key in layer.tagged_blocks:
