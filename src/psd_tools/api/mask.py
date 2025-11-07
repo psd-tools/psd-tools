@@ -3,18 +3,18 @@ Mask module.
 """
 
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 from PIL.Image import Image as PILImage
 
-from psd_tools.api.protocols import LayerProtocol
+from psd_tools.api.protocols import LayerProtocol, MaskProtocol
 from psd_tools.constants import ChannelID
 from psd_tools.psd.layer_and_mask import MaskData, MaskFlags
 
 logger = logging.getLogger(__name__)
 
 
-class Mask:
+class Mask(MaskProtocol):
     """Mask data attached to a layer.
 
     There are two distinct internal mask data: user mask and vector mask.
@@ -25,13 +25,13 @@ class Mask:
 
     def __init__(self, layer: LayerProtocol):
         self._layer = layer
-        self._data: MaskData = layer._record.mask_data
+        self._data: MaskData = cast(MaskData, layer._record.mask_data)
 
     @property
     def background_color(self) -> int:
         """Background color."""
-        if self._has_real():
-            return self._data.real_background_color
+        if self.has_real():
+            return self._data.real_background_color or self._data.background_color
         return self._data.background_color
 
     @property
@@ -42,29 +42,29 @@ class Mask:
     @property
     def left(self) -> int:
         """Left coordinate."""
-        if self._has_real():
-            return self._data.real_left
+        if self.has_real():
+            return self._data.real_left or self._data.left
         return self._data.left
 
     @property
     def right(self) -> int:
         """Right coordinate."""
-        if self._has_real():
-            return self._data.real_right
+        if self.has_real():
+            return self._data.real_right or self._data.right
         return self._data.right
 
     @property
     def top(self) -> int:
         """Top coordinate."""
-        if self._has_real():
-            return self._data.real_top
+        if self.has_real():
+            return self._data.real_top or self._data.top
         return self._data.top
 
     @property
     def bottom(self) -> int:
         """Bottom coordinate."""
-        if self._has_real():
-            return self._data.real_bottom
+        if self.has_real():
+            return self._data.real_bottom or self._data.bottom
         return self._data.bottom
 
     @property
@@ -100,9 +100,14 @@ class Mask:
     @property
     def real_flags(self) -> Optional[MaskFlags]:
         """Real flag."""
-        return self._data.real_flags
+        return cast(Optional[MaskFlags], self._data.real_flags)
 
-    def _has_real(self) -> bool:
+    @property
+    def data(self) -> MaskData:
+        """Return raw mask data, or None if no data."""
+        return self._data
+
+    def has_real(self) -> bool:
         """Return True if the mask has real flags."""
         return self.real_flags is not None and self.real_flags.parameters_applied
 
@@ -113,7 +118,7 @@ class Mask:
         :param real: When True, returns pixel + vector mask combined.
         :return: PIL Image object, or None if the mask is empty.
         """
-        if real and self._has_real():
+        if real and self.has_real():
             channel = ChannelID.REAL_USER_LAYER_MASK
         else:
             channel = ChannelID.USER_LAYER_MASK

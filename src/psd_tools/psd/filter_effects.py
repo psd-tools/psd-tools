@@ -121,7 +121,7 @@ class FilterEffect(BaseElement):
 
         written += write_length_block(fp, writer, fmt="Q")
 
-        if self.extra is not None and hasattr(self.extra, 'write'):
+        if self.extra is not None and hasattr(self.extra, "write"):
             written += self.extra.write(fp)  # type: ignore[attr-defined]
         return written
 

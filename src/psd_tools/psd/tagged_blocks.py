@@ -344,7 +344,9 @@ class Annotations(ListElement):
                 with io.BytesIO(fp.read(length)) as f:
                     items.append(Annotation.read(f))
         return cls(
-            major_version=major_version, minor_version=minor_version, items=items  # type: ignore[arg-type]
+            major_version=major_version,
+            minor_version=minor_version,
+            items=items,  # type: ignore[arg-type]
         )
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
@@ -620,7 +622,9 @@ class PlacedLayerData(BaseElement):
 
     def write(self, fp: BinaryIO, padding: int = 4, **kwargs: Any) -> int:
         written = write_fmt(fp, "4sI", self.kind, self.version)
-        uuid_str = self.uuid.decode("macroman") if isinstance(self.uuid, bytes) else self.uuid
+        uuid_str = (
+            self.uuid.decode("macroman") if isinstance(self.uuid, bytes) else self.uuid
+        )
         written += write_pascal_string(fp, uuid_str, "macroman", padding=1)
         written += write_fmt(
             fp,

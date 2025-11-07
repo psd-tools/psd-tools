@@ -1,3 +1,23 @@
+Migrating to 1.11
+=================
+
+psd-tools 1.11 introduces stronger type-safety via annotation.
+
+psd-tools 1.11 has a few breaking changes.
+
+Experimental layer creation now disables orphaned layers.
+They must be given a valid PSDImage object.
+
+version 1.11.x::
+
+    image = Image.new("RGBA", (width, height))
+    PixelLayer.frompil(psdimage, image)
+
+version 1.10.x::
+
+    image = Image.new("RGBA", (width, height))
+    PixelLayer.frompil(None, image, parent=None)
+
 Migrating to 1.10
 =================
 

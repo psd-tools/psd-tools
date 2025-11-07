@@ -36,29 +36,34 @@ class SmartObject:
                 break
 
         self._data = None
-        for key in (
-            Tag.LINKED_LAYER1,
-            Tag.LINKED_LAYER2,
-            Tag.LINKED_LAYER3,
-            Tag.LINKED_LAYER_EXTERNAL,
-        ):
-            if key in layer._psd.tagged_blocks:
-                data = layer._psd.tagged_blocks.get_data(key)
-                for item in data:
-                    if item.uuid == self.unique_id:
-                        self._data = item
+        if layer._psd is not None and layer._psd.tagged_blocks is not None:
+            for key in (
+                Tag.LINKED_LAYER1,
+                Tag.LINKED_LAYER2,
+                Tag.LINKED_LAYER3,
+                Tag.LINKED_LAYER_EXTERNAL,
+            ):
+                if key in layer._psd.tagged_blocks:
+                    data = layer._psd.tagged_blocks.get_data(key)
+                    for item in data:
+                        if item.uuid == self.unique_id:
+                            self._data = item
+                            break
+                    if self._data:
                         break
-                if self._data:
-                    break
 
     @property
     def kind(self) -> str:
         """Kind of the link, 'data', 'alias', or 'external'."""
+        if self._data is None:
+            raise ValueError("Smart object data not found")
         return self._data.kind.name.lower()
 
     @property
     def filename(self) -> str:
         """Original file name of the object."""
+        if self._data is None:
+            raise ValueError("Smart object data not found")
         return self._data.filename.strip("\x00")
 
     @contextlib.contextmanager
@@ -73,6 +78,8 @@ class SmartObject:
             with layer.smart_object.open() as f:
                 data = f.read()
         """
+        if self._data is None:
+            raise ValueError("Smart object data not found")
         if self.kind == "data":
             with io.BytesIO(self._data.data) as f:
                 yield f
@@ -94,6 +101,8 @@ class SmartObject:
     @property
     def data(self) -> bytes:
         """Embedded file content, or empty if kind is `external` or `alias`"""
+        if self._data is None:
+            raise ValueError("Smart object data not found")
         if self.kind == "data":
             return self._data.data
         else:
@@ -103,11 +112,15 @@ class SmartObject:
     @property
     def unique_id(self) -> str:
         """UUID of the object."""
+        if self._config is None:
+            raise ValueError("Smart object config not found")
         return self._config.data.get(b"Idnt").value.strip("\x00")
 
     @property
     def filesize(self) -> int:
         """File size of the object."""
+        if self._data is None:
+            raise ValueError("Smart object data not found")
         if self.kind == "data":
             return len(self._data.data)
         return self._data.filesize
@@ -115,6 +128,8 @@ class SmartObject:
     @property
     def filetype(self) -> str:
         """Preferred file extension, such as `jpg`."""
+        if self._data is None:
+            raise ValueError("Smart object data not found")
         return self._data.filetype.lower().strip().decode("ascii")
 
     def is_psd(self) -> bool:
@@ -124,11 +139,15 @@ class SmartObject:
     @property
     def warp(self):
         """Warp parameters."""
+        if self._config is None:
+            raise ValueError("Smart object config not found")
         return self._config.data.get(b"warp")
 
     @property
     def resolution(self):
         """Resolution of the object."""
+        if self._config is None:
+            raise ValueError("Smart object config not found")
         return self._config.data.get(b"Rslt").value
 
     @property

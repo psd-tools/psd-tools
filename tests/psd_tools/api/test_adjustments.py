@@ -61,7 +61,7 @@ def test_exposure(psd):
     layer = psd[7]
     assert isinstance(layer, adjustments.Exposure)
     assert pytest.approx(layer.exposure) == -0.39
-    assert pytest.approx(layer.offset) == 0.0168
+    assert pytest.approx(layer.exposure_offset) == 0.0168
     assert pytest.approx(layer.gamma) == 0.91
 
 

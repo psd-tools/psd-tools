@@ -103,7 +103,8 @@ class VectorMask(object):
 
     @initial_fill_rule.setter
     def initial_fill_rule(self, value: Literal[0, 1]) -> None:
-        assert value in (0, 1)
+        if value not in (0, 1):
+            raise ValueError(f"Initial fill rule must be 0 or 1, got {value}")
         self._initial_fill_rule.value = value
 
     @property

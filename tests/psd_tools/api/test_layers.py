@@ -1,7 +1,7 @@
 import logging
 
 import pytest
-from PIL.Image import Image
+from PIL import Image
 
 from psd_tools.api.layers import Artboard, Group, PixelLayer, ShapeLayer
 from psd_tools.api.pil_io import get_pil_channels, get_pil_depth
@@ -177,7 +177,7 @@ def test_topil(topil_args):
     for channel in channel_ids:
         fixture.topil(channel)
 
-    assert isinstance(image, Image) if is_image else image is None
+    assert isinstance(image, Image.Image) if is_image else image is None
 
 
 def test_clip_adjustment():
@@ -250,6 +250,8 @@ def test_group_extract_bbox():
     psd = PSDImage.open(full_name("hidden-groups.psd"))
     assert Group.extract_bbox(psd[1:], False) == (40, 72, 83, 134)
     assert Group.extract_bbox(psd[1:], True) == (25, 34, 83, 134)
+    with pytest.raises(TypeError):
+        Group.extract_bbox(psd[1][0])
 
 
 def test_group_blend_mode():
@@ -305,10 +307,8 @@ def test_bbox_updates():
 
 
 def test_new_group(group):
-    test_group = Group.new("Test Group", parent=group)
-
+    test_group = Group.new(group, "Test Group")
     assert test_group._parent is group
-
     assert (
         test_group._record.tagged_blocks.get_data(Tag.SECTION_DIVIDER_SETTING).kind
         is SectionDivider.OPEN_FOLDER
@@ -319,7 +319,6 @@ def test_new_group(group):
         ).kind
         is SectionDivider.BOUNDING_SECTION_DIVIDER
     )
-
     assert (
         test_group._record.tagged_blocks.get_data(Tag.UNICODE_LAYER_NAME)
         == "Test Group"
@@ -329,41 +328,13 @@ def test_new_group(group):
         == "</Layer group>"
     )
 
-    test_group = Group.new("Test Group 2", open_folder=False)
 
-    assert test_group._parent is None
-
-    assert (
-        test_group._record.tagged_blocks.get_data(Tag.SECTION_DIVIDER_SETTING).kind
-        is SectionDivider.CLOSED_FOLDER
-    )
-    assert (
-        test_group._bounding_record.tagged_blocks.get_data(
-            Tag.SECTION_DIVIDER_SETTING
-        ).kind
-        is SectionDivider.BOUNDING_SECTION_DIVIDER
-    )
-
-    assert (
-        test_group._record.tagged_blocks.get_data(Tag.UNICODE_LAYER_NAME)
-        == "Test Group 2"
-    )
-    assert (
-        test_group._bounding_record.tagged_blocks.get_data(Tag.UNICODE_LAYER_NAME)
-        == "</Layer group>"
-    )
-
-
-def test_group_layers(
-    group, pixel_layer, smartobject_layer, fill_layer, adjustment_layer
-):
-    pix_old_parent = pixel_layer._parent
-    pix_old_psd = pixel_layer._psd
-
+def test_group_layers(pixel_layer, smartobject_layer, fill_layer, adjustment_layer):
+    psdimage = pixel_layer._psd
     test_group = Group.group_layers(
-        [pixel_layer, smartobject_layer, fill_layer, adjustment_layer]
+        parent=psdimage,
+        layers=[pixel_layer, smartobject_layer, fill_layer, adjustment_layer],
     )
-
     assert len(test_group) == 4
 
     assert test_group[0] is pixel_layer
@@ -371,76 +342,40 @@ def test_group_layers(
     assert test_group[2] is fill_layer
     assert test_group[3] is adjustment_layer
 
-    assert test_group[0]._parent is test_group
-    assert test_group[1]._parent is test_group
-    assert test_group[2]._parent is test_group
-    assert test_group[3]._parent is test_group
+    for child in test_group:
+        assert child in test_group
+        assert child._parent is test_group
+        assert child._psd is psdimage
 
-    assert test_group._parent is pix_old_parent
-    assert test_group._psd is pix_old_psd
+    assert test_group._parent is psdimage
+    assert test_group._psd is psdimage
 
-    assert test_group._psd is not None
-    assert test_group[0]._psd is not None
 
-    test_group = Group.group_layers(
-        [pixel_layer, smartobject_layer, fill_layer, adjustment_layer], parent=group
+@pytest.mark.parametrize(
+    "mode", ["RGB", "RGBA", "L", "LA", "CMYK", "1", "LAB"],
+)
+def test_pixel_layer_frompil(mode):
+    # Create a PixelLayer from a PIL image and verify channel data
+    target_mode = "RGB"
+    psdimage = PSDImage.new(mode=target_mode, size=(30, 30))
+    image = Image.new(mode, (30, 30))
+    layer = PixelLayer.frompil(image, psdimage, name="Test Layer")
+    assert len(psdimage) == 1
+
+    image = image.convert(psdimage.pil_mode)
+    assert (
+        len(layer._record.channel_info)
+        == get_pil_channels(image.mode.rstrip("A")) + 1
     )
+    assert len(layer._channels) == get_pil_channels(image.mode.rstrip("A")) + 1
 
-    assert len(test_group) == 4
-
-    assert test_group._parent is group
-    assert test_group._psd is group._psd
-
-    assert test_group._psd is not None
-    assert test_group[0]._psd is not None
-
-
-def test_pixel_layer_frompil():
-    import PIL
-
-    pil_rgb = PIL.Image.new("RGB", (30, 30))
-    pil_rgb_a = PIL.Image.new("RGBA", (30, 30))
-    pil_lab = PIL.Image.new("LAB", (30, 30))
-    pil_grayscale_a = PIL.Image.new("LA", (30, 30))
-    pil_grayscale = PIL.Image.new("L", (30, 30))
-    pil_bitmap = PIL.Image.new("1", (30, 30))
-    pil_cmyk = PIL.Image.new("CMYK", (30, 30))
-
-    images = [
-        pil_rgb,
-        pil_rgb_a,
-        pil_lab,
-        pil_grayscale_a,
-        pil_grayscale,
-        pil_bitmap,
-        pil_cmyk,
-    ]
-    layers = [PixelLayer.frompil(pil_im, None) for pil_im in images]
-
-    for layer, image in zip(layers, images):
-        # Bitmap image gets converted to grayscale during layer creation so we have to convert here too
-        if image.mode == "1":
-            image = image.convert("L")
-
-        # CMYK Images needs to be inverted, for some reason
-        if image.mode == "CMYK":
-            from PIL import ImageChops
-
-            image = ImageChops.invert(image)
-
+    for channel in range(get_pil_channels(image.mode.rstrip("A"))):
         assert (
-            len(layer._record.channel_info)
-            == get_pil_channels(image.mode.rstrip("A")) + 1
-        )
-        assert len(layer._channels) == get_pil_channels(image.mode.rstrip("A")) + 1
-
-        for channel in range(get_pil_channels(image.mode.rstrip("A"))):
-            assert (
-                layer._channels[channel + 1].get_data(
-                    image.width, image.height, get_pil_depth(image.mode.rstrip("A"))
-                )
-                == image.getchannel(channel).tobytes()
+            layer._channels[channel + 1].get_data(
+                image.width, image.height, get_pil_depth(image.mode.rstrip("A"))
             )
+            == image.getchannel(channel).tobytes()
+        )
 
 
 def test_layer_fill_opacity(pixel_layer):
@@ -484,11 +419,10 @@ def test_move_to_group(group, pixel_layer):
     assert pixel_layer not in pix_old_parent
 
 
-def test_move_up(
-    group, pixel_layer, type_layer, smartobject_layer, fill_layer, adjustment_layer
-):
+def test_move_up(group, pixel_layer, smartobject_layer, fill_layer, adjustment_layer):
     test_group = Group.group_layers(
-        [pixel_layer, smartobject_layer, fill_layer, adjustment_layer], parent=group
+        parent=group,
+        layers=[pixel_layer, smartobject_layer, fill_layer, adjustment_layer],
     )
 
     test_group.move_up(50)
@@ -510,11 +444,10 @@ def test_move_up(
     assert test_group.index(smartobject_layer) == 3
 
 
-def test_move_down(
-    group, pixel_layer, type_layer, smartobject_layer, fill_layer, adjustment_layer
-):
+def test_move_down(group, pixel_layer, smartobject_layer, fill_layer, adjustment_layer):
     test_group = Group.group_layers(
-        [pixel_layer, smartobject_layer, fill_layer, adjustment_layer], parent=group
+        parent=group,
+        layers=[pixel_layer, smartobject_layer, fill_layer, adjustment_layer],
     )
 
     test_group.move_up(50)

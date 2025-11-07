@@ -67,13 +67,15 @@ class Effects:
                 if not (isinstance(item, Descriptor) and item.get(b"present")):
                     continue
                 kls = _TYPES.get(item.classID)
-                assert kls is not None, "kls not found for %r" % item.classID
+                if kls is None:
+                    raise ValueError(f"Effect class not found for {item.classID!r}")
                 self._items.append(kls(item, layer._psd.image_resources))
 
     @property
     def scale(self) -> float:
         """Scale value."""
-        assert self._data is not None
+        if self._data is None:
+            raise ValueError("Effects data is None")
         return float(_get_value(self._data, Key.Scale, 100.0))
 
     @property
@@ -102,8 +104,12 @@ class Effects:
         if enabled and not self.enabled:
             return
         KLASS = {kls.__name__.lower(): kls for kls in _TYPES.values()}
+        target_kls = KLASS.get(name.lower())
+        if target_kls is None:
+            logger.debug("Effect class not found for name=%r", name)
+            return
         for item in self:
-            if isinstance(item, KLASS.get(name.lower(), None)):
+            if isinstance(item, target_kls):
                 if enabled and item.enabled:
                     yield item
                 elif not enabled:

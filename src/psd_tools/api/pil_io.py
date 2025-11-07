@@ -4,7 +4,7 @@ PIL IO module.
 
 import io
 import logging
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Optional, Union, cast
 
 from PIL import Image
 from PIL.Image import Image as PILImage
@@ -78,11 +78,15 @@ def get_pil_depth(pil_mode: str) -> int:
 def convert_image_data_to_pil(
     psd: "PSDProtocol", channel: Optional[int], apply_icc: bool
 ) -> Optional[PILImage]:
-    """Convert ImageData to PIL Image."""
+    """Convert ImageData to PIL Image.
 
-    assert channel is None or channel < psd.channels, (
-        "Invalid channel specified: %s" % channel
-    )
+    :raises ValueError: If an invalid channel is specified
+    """
+
+    if channel is not None and channel >= psd.channels:
+        raise ValueError(
+            f"Invalid channel specified: {channel} (max {psd.channels - 1})"
+        )
 
     # Support alpha channel via ChannelID enum.
     if channel == ChannelID.TRANSPARENCY_MASK:
@@ -95,6 +99,10 @@ def convert_image_data_to_pil(
     channel_data = psd._record.image_data.get_data(psd._record.header)
     size = (psd.width, psd.height)
     if channel is None:
+        if not isinstance(channel_data, list):
+            raise TypeError(
+                f"Expected list of channel data, got {type(channel_data).__name__}"
+            )
         channels = [_create_image(size, c, psd.depth) for c in channel_data]
 
         if has_transparency(psd):
@@ -112,6 +120,10 @@ def convert_image_data_to_pil(
         if apply_icc and (Resource.ICC_PROFILE in psd.image_resources):
             icc = psd.image_resources.get_data(Resource.ICC_PROFILE)
     else:
+        if not isinstance(channel_data, list):
+            raise TypeError(
+                f"Expected list of channel data, got {type(channel_data).__name__}"
+            )
         image = _create_image(size, channel_data[channel], psd.depth)
 
     if not image:
@@ -131,7 +143,11 @@ def convert_layer_to_pil(
     if channel is None:
         image = _merge_channels(layer)
         alpha = _get_channel(layer, ChannelID.TRANSPARENCY_MASK)
-        if apply_icc and (Resource.ICC_PROFILE in layer._psd.image_resources):
+        if (
+            apply_icc
+            and layer._psd is not None
+            and (Resource.ICC_PROFILE in layer._psd.image_resources)
+        ):
             icc = layer._psd.image_resources.get_data(Resource.ICC_PROFILE)
     else:
         image = _get_channel(layer, channel)
@@ -166,7 +182,7 @@ def convert_pattern_to_pil(pattern: Pattern) -> PILImage:
     # The order is different here.
     size = pattern.data.rectangle[3], pattern.data.rectangle[2]
     channels = [
-        _create_image(size, c.get_data(), c.pixel_depth).convert("L")
+        _create_image(size, c.get_data() or b"", c.pixel_depth or 8).convert("L")
         for c in pattern.data.channels
         if c.is_written
     ]
@@ -206,6 +222,8 @@ def convert_thumbnail_to_pil(
 
 
 def _merge_channels(layer: "LayerProtocol") -> Optional[PILImage]:
+    if layer._psd is None:
+        return None
     mode = get_pil_mode(layer._psd.color_mode)
     channels = [
         _get_channel(layer, info.id)
@@ -219,12 +237,20 @@ def _merge_channels(layer: "LayerProtocol") -> Optional[PILImage]:
 
 
 def _get_channel(layer: "LayerProtocol", channel: int) -> Optional[PILImage]:
+    if layer._psd is None:
+        return None
     if channel == ChannelID.USER_LAYER_MASK:
-        width = layer.mask._data.right - layer.mask._data.left
-        height = layer.mask._data.bottom - layer.mask._data.top
+        if layer.mask is None:
+            logger.info("Layer has no mask.")
+            return None
+        width = layer.mask.data.width
+        height = layer.mask.data.height
     elif channel == ChannelID.REAL_USER_LAYER_MASK:
-        width = layer.mask._data.real_right - layer.mask._data.real_left
-        height = layer.mask._data.real_bottom - layer.mask._data.real_top
+        if layer.mask is None:
+            logger.info("Layer has no real mask.")
+            return None
+        width = layer.mask.data.real_width
+        height = layer.mask.data.real_height
     else:
         width, height = layer.width, layer.height
 
@@ -232,7 +258,7 @@ def _get_channel(layer: "LayerProtocol", channel: int) -> Optional[PILImage]:
     if channel not in index:
         return None
     depth = layer._psd.depth
-    channel_data = layer._channels[index[channel]]
+    channel_data = layer._channels[index[cast(ChannelID, channel)]]
     if width == 0 or height == 0 or len(channel_data.data) == 0:
         return None
     channel_bytes = channel_data.get_data(width, height, depth, layer._psd.version)
