@@ -14,7 +14,7 @@ from psd_tools.psd.layer_and_mask import MaskData, MaskFlags
 logger = logging.getLogger(__name__)
 
 
-class Mask(object):
+class Mask:
     """Mask data attached to a layer.
 
     There are two distinct internal mask data: user mask and vector mask.

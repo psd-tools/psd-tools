@@ -66,7 +66,7 @@ logger = logging.getLogger(__name__)
 TGroupMixin = TypeVar("TGroupMixin", bound="GroupMixin")
 
 
-class Layer(object):
+class Layer:
     def __init__(
         self,
         psd: Optional["PSDImage"],

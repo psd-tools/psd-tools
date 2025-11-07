@@ -14,7 +14,7 @@ from psd_tools.constants import Tag
 logger = logging.getLogger(__name__)
 
 
-class SmartObject(object):
+class SmartObject:
     """
     Smart object that represents embedded or external file.
 
