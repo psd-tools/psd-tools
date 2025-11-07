@@ -14,7 +14,7 @@ import logging
 
 from psd_tools.api.layers import AdjustmentLayer, FillLayer
 from psd_tools.constants import Tag
-from psd_tools.psd.adjustments import Curves, Levels, LevelRecord
+from psd_tools.psd.adjustments import Curves, LevelRecord, Levels
 from psd_tools.psd.descriptor import DescriptorBlock
 from psd_tools.utils import new_registry
 

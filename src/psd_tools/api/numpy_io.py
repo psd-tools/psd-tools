@@ -30,9 +30,7 @@ def get_array(
     return get_layer_data(layer, channel, **kwargs)  # type: ignore
 
 
-def get_image_data(
-    psd: "PSDProtocol", channel: Optional[str]
-) -> np.ndarray:
+def get_image_data(psd: "PSDProtocol", channel: Optional[str]) -> np.ndarray:
     if (channel == "mask") or (channel == "shape" and not has_transparency(psd)):
         return np.ones((psd.height, psd.width, 1), dtype=np.float32)
 

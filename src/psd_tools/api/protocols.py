@@ -8,16 +8,11 @@ to properly type hint their parameters while avoiding circular dependency issues
 
 from typing import Any, Callable, Iterator, Literal, Optional, Protocol, Union
 
-try:
-    from typing import Self
-except ImportError:
-    from typing_extensions import Self
-
 import numpy as np
 from PIL.Image import Image as PILImage
 
 from psd_tools.constants import BlendMode, ChannelID
-from psd_tools.psd.layer_and_mask import ChannelDataList, ChannelInfo, LayerRecord
+from psd_tools.psd.layer_and_mask import ChannelDataList, LayerRecord
 from psd_tools.psd.tagged_blocks import TaggedBlocks
 
 
@@ -43,8 +38,7 @@ class LayerProtocol(Protocol):
         ...
 
     @name.setter
-    def name(self, value: str) -> None:
-        ...
+    def name(self, value: str) -> None: ...
 
     @property
     def kind(self) -> str:
@@ -65,8 +59,7 @@ class LayerProtocol(Protocol):
         ...
 
     @visible.setter
-    def visible(self, value: bool) -> None:
-        ...
+    def visible(self, value: bool) -> None: ...
 
     def is_visible(self) -> bool:
         """Layer visibility. Takes group visibility into account."""
@@ -78,8 +71,7 @@ class LayerProtocol(Protocol):
         ...
 
     @opacity.setter
-    def opacity(self, value: int) -> None:
-        ...
+    def opacity(self, value: int) -> None: ...
 
     @property
     def parent(self) -> Optional[Any]:
@@ -96,8 +88,7 @@ class LayerProtocol(Protocol):
         ...
 
     @blend_mode.setter
-    def blend_mode(self, value: Union[bytes, str, BlendMode]) -> None:
-        ...
+    def blend_mode(self, value: Union[bytes, str, BlendMode]) -> None: ...
 
     @property
     def left(self) -> int:
@@ -105,8 +96,7 @@ class LayerProtocol(Protocol):
         ...
 
     @left.setter
-    def left(self, value: int) -> None:
-        ...
+    def left(self, value: int) -> None: ...
 
     @property
     def top(self) -> int:
@@ -114,8 +104,7 @@ class LayerProtocol(Protocol):
         ...
 
     @top.setter
-    def top(self, value: int) -> None:
-        ...
+    def top(self, value: int) -> None: ...
 
     @property
     def right(self) -> int:
@@ -143,8 +132,7 @@ class LayerProtocol(Protocol):
         ...
 
     @offset.setter
-    def offset(self, value: tuple[int, int]) -> None:
-        ...
+    def offset(self, value: tuple[int, int]) -> None: ...
 
     @property
     def size(self) -> tuple[int, int]:
@@ -262,9 +250,7 @@ class GroupMixinProtocol(Protocol):
         """Parent of this group (GroupMixin-like object or None)."""
         ...
 
-    def descendants(
-        self, include_clip: bool = True
-    ) -> Iterator[LayerProtocol]:
+    def descendants(self, include_clip: bool = True) -> Iterator[LayerProtocol]:
         """
         Return a generator to iterate over all descendant layers.
 
