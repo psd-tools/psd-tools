@@ -1118,7 +1118,8 @@ class Group(GroupMixin, Layer):
     @property
     def blend_mode(self) -> BlendMode:
         setting = self._setting
-        if setting is not None:
+        # Use the blend mode from the section divider setting if present.
+        if setting is not None and setting.blend_mode is not None:
             return setting.blend_mode
         return super(Group, self).blend_mode
 
