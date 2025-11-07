@@ -168,6 +168,15 @@ class LayerProtocol(Protocol):
         """Returns True if the layer has a mask."""
         ...
 
+    @property
+    def mask(self) -> Optional[Any]:
+        """
+        Returns mask associated with this layer.
+
+        :return: Mask object or None
+        """
+        ...
+
     def has_vector_mask(self) -> bool:
         """Returns True if the layer has a vector mask."""
         ...
