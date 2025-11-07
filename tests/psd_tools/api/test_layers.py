@@ -252,6 +252,16 @@ def test_group_extract_bbox():
     assert Group.extract_bbox(psd[1:], True) == (25, 34, 83, 134)
 
 
+def test_group_blend_mode():
+    psd = PSDImage.open(full_name("blend-modes/group-divider-blend-mode.psd"))
+    assert psd[0].blend_mode is not None
+    blend_mode = psd[0].blend_mode
+    psd[0].blend_mode = BlendMode.NORMAL
+    assert psd[0].blend_mode == BlendMode.NORMAL
+    psd[0].blend_mode = blend_mode
+    assert psd[0].blend_mode == blend_mode
+
+
 def test_sibling_layers():
     psd = PSDImage.open(full_name("hidden-groups.psd"))
     assert psd[0].next_sibling() is psd[1]
