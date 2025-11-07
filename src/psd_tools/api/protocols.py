@@ -32,9 +32,10 @@ class LayerProtocol(Protocol):
     """
 
     # Internal attributes accessed by related classes
+    # Note: _psd uses Any to allow both PSDImage and PSDProtocol without conflicts
     _record: LayerRecord
     _channels: ChannelDataList
-    _psd: Optional["PSDProtocol"]
+    _psd: Optional[Any]
 
     @property
     def name(self) -> str:
@@ -81,8 +82,8 @@ class LayerProtocol(Protocol):
         ...
 
     @property
-    def parent(self) -> Optional["GroupMixinProtocol"]:
-        """Parent of this layer."""
+    def parent(self) -> Optional[Any]:
+        """Parent of this layer (GroupMixin-like object)."""
         ...
 
     def is_group(self) -> bool:
@@ -209,19 +210,21 @@ class LayerProtocol(Protocol):
         self,
         viewport: Optional[tuple[int, int, int, int]] = None,
         force: bool = False,
-        color: Optional[Union[float, tuple[float, ...]]] = 1.0,
-        alpha: float = 0.0,
+        color: Union[float, tuple[float, ...], np.ndarray] = 1.0,
+        alpha: Union[float, np.ndarray] = 0.0,
         layer_filter: Optional[Callable] = None,
-    ) -> PILImage:
+        apply_icc: bool = True,
+    ) -> Optional[PILImage]:
         """
         Composite the layer.
 
         :param viewport: Viewport bounding box.
         :param force: Force vector drawing.
-        :param color: Backdrop color.
-        :param alpha: Backdrop alpha.
+        :param color: Backdrop color (float, tuple, or ndarray).
+        :param alpha: Backdrop alpha (float or ndarray).
         :param layer_filter: Layer filter callable.
-        :return: PIL Image.
+        :param apply_icc: Whether to apply ICC profile conversion.
+        :return: PIL Image, or None if composition not available.
         """
         ...
 
@@ -255,8 +258,8 @@ class GroupMixinProtocol(Protocol):
         ...
 
     @property
-    def parent(self) -> Optional["GroupMixinProtocol"]:
-        """Parent of this group."""
+    def parent(self) -> Optional[Any]:
+        """Parent of this group (GroupMixin-like object or None)."""
         ...
 
     def descendants(
@@ -385,8 +388,8 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
         self,
         viewport: Optional[tuple[int, int, int, int]] = None,
         force: bool = False,
-        color: Optional[Union[float, tuple[float, ...]]] = 1.0,
-        alpha: float = 0.0,
+        color: Union[float, tuple[float, ...], np.ndarray, None] = 1.0,
+        alpha: Union[float, np.ndarray] = 0.0,
         layer_filter: Optional[Callable] = None,
         ignore_preview: bool = False,
         apply_icc: bool = True,
