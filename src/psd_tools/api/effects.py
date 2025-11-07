@@ -5,6 +5,7 @@ Effects module.
 import logging
 from typing import Any, Iterator, Optional, Protocol
 
+from psd_tools.api.protocols import LayerProtocol
 from psd_tools.constants import Resource, Tag
 from psd_tools.psd.descriptor import Descriptor, List
 from psd_tools.psd.image_resources import ImageResources
@@ -43,7 +44,7 @@ class Effects:
     Only present effects are kept.
     """
 
-    def __init__(self, layer: Any):  # TODO: Circular import
+    def __init__(self, layer: LayerProtocol):
         self._data: Optional[Descriptor] = None
         for tag in (
             Tag.OBJECT_BASED_EFFECTS_LAYER_INFO,

@@ -4,6 +4,7 @@ Layer module.
 
 import logging
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Iterable,
@@ -20,6 +21,9 @@ try:
     from typing import Self
 except ImportError:
     from typing_extensions import Self
+
+if TYPE_CHECKING:
+    from psd_tools.api.psd_image import PSDImage
 
 import numpy as np
 from PIL.Image import Image as PILImage
@@ -62,19 +66,15 @@ logger = logging.getLogger(__name__)
 TGroupMixin = TypeVar("TGroupMixin", bound="GroupMixin")
 
 
-class Layer(object):
+class Layer:
     def __init__(
         self,
-        psd: Any,
+        psd: Optional["PSDImage"],
         record: LayerRecord,
         channels: ChannelDataList,
         parent: Optional[TGroupMixin],
     ):
-        from psd_tools.api.psd_image import PSDImage  # Circular import
-
-        assert isinstance(psd, PSDImage) or psd is None
-
-        self._psd: Optional[PSDImage] = psd
+        self._psd: Optional["PSDImage"] = psd
         self._record = record
         self._channels = channels
         self._parent: Optional[GroupMixin] = parent
@@ -794,7 +794,7 @@ class Layer(object):
 
         return self.move_up(-1 * offset)
 
-    def _fetch_tagged_blocks(self, target_psd: Any) -> None:  # Circular import
+    def _fetch_tagged_blocks(self, target_psd: "PSDImage") -> None:
         # Retrieve the patterns contained in the layer current ._psd and add them to the target psd
         _psd = target_psd
 
@@ -844,7 +844,7 @@ class Layer(object):
 class GroupMixin(Protocol):
     _bbox: Optional[tuple[int, int, int, int]] = None
     _layers: list[Layer]
-    _psd: Any  # TODO: Circular import
+    _psd: Optional["PSDImage"]
 
     @property
     def left(self) -> int:
@@ -989,9 +989,9 @@ class GroupMixin(Protocol):
                 )
 
     def _update_layer_metadata(self) -> None:
-        from psd_tools.api.psd_image import PSDImage  # Circular import
+        from psd_tools.api.psd_image import PSDImage
 
-        _psd: Optional[PSDImage] = self if isinstance(self, PSDImage) else self._psd
+        _psd: Optional["PSDImage"] = self if isinstance(self, PSDImage) else self._psd  # type: ignore
 
         for layer in self.descendants():
             if layer._psd != _psd and _psd is not None:
@@ -1005,7 +1005,7 @@ class GroupMixin(Protocol):
             layer._parent = self
 
     def _update_psd_record(self) -> None:
-        from psd_tools.api.psd_image import PSDImage  # Circular import
+        from psd_tools.api.psd_image import PSDImage
 
         if isinstance(self, PSDImage):
             self._mark_updated()
@@ -1100,7 +1100,7 @@ class Group(GroupMixin, Layer):
 
     def __init__(
         self,
-        psd: Any,
+        psd: Optional["PSDImage"],
         record: LayerRecord,
         channels: ChannelDataList,
         parent: Optional[TGroupMixin],
@@ -1378,7 +1378,7 @@ class PixelLayer(Layer):
     def frompil(
         cls,
         pil_im: PILImage,
-        psd_file: Optional[Any] = None,  # TODO: Fix circular import
+        psd_file: Optional["PSDImage"] = None,
         layer_name: str = "Layer",
         top: int = 0,
         left: int = 0,
@@ -1469,7 +1469,7 @@ class PixelLayer(Layer):
 
         return self
 
-    def _convert(self, target_psd: Any) -> "PixelLayer":
+    def _convert(self, target_psd: "PSDImage") -> "PixelLayer":
         # assert self._psd is not None, "This layer cannot be converted because it has no psd file linked."
 
         if self._psd is None:

@@ -7,13 +7,14 @@ from typing import Any, Optional
 
 from PIL.Image import Image as PILImage
 
+from psd_tools.api.protocols import LayerProtocol
 from psd_tools.constants import ChannelID
 from psd_tools.psd.layer_and_mask import MaskData, MaskFlags
 
 logger = logging.getLogger(__name__)
 
 
-class Mask(object):
+class Mask:
     """Mask data attached to a layer.
 
     There are two distinct internal mask data: user mask and vector mask.
@@ -22,7 +23,7 @@ class Mask(object):
     real mask.
     """
 
-    def __init__(self, layer: Any):  # TODO: Circular import
+    def __init__(self, layer: LayerProtocol):
         self._layer = layer
         self._data: MaskData = layer._record.mask_data
 
