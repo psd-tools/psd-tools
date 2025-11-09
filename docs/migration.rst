@@ -1,22 +1,37 @@
 Migrating to 1.11
 =================
 
-psd-tools 1.11 introduces stronger type-safety via annotation.
+psd-tools 1.11 introduces stronger type-safety via annotation and new public APIs for layer creation.
+Now the following approach is possible to create a new layered document::
 
-psd-tools 1.11 has a few breaking changes.
+    from PIL import Image
+    from psd_tools import PSDImage
 
-Experimental layer creation now disables orphaned layers.
-They must be given a valid PSDImage object.
+    image = Image.new("RGBA", (width, height))
+    psdimage = PSDImage.new(mode='RGB', size=(640, 480), depth=8)
+    layer = psdimage.create_pixel_layer(image, name="Layer 1", top=0, left=0, opacity=255)
+    psdimage.save('new_image.psd')
+
+Version 1.11 introduces some breaking changes.
+
+Layer creation now disables orphaned layers. They must be given a valid PSDImage object.
 
 version 1.11.x::
 
     image = Image.new("RGBA", (width, height))
-    PixelLayer.frompil(psdimage, image)
+    psdimage.create_pixel_layer(psdimage, image)
 
 version 1.10.x::
 
     image = Image.new("RGBA", (width, height))
     PixelLayer.frompil(None, image, parent=None)
+
+The same layer cannot be shared between multiple container objects.
+
+version 1.11.x::
+
+    layer = psdimage.create_pixel_layer(group, image)
+    psdimage.append(layer)  # This won't duplicate the layer.
 
 Migrating to 1.10
 =================

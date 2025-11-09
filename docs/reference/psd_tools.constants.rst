@@ -38,6 +38,13 @@ ColorSpaceID
     :members:
     :undoc-members:
 
+CompatibilityMode
+-----------------
+
+.. autoclass:: psd_tools.constants.CompatibilityMode
+    :members:
+    :undoc-members:
+
 Compression
 -----------
 
