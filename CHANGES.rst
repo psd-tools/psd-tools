@@ -1,3 +1,15 @@
+1.11.0 (2025-11-09)
+-------------------
+
+- [api] Add public APIs for layer and group creation (#517)
+- [api] Type safety improvements (#516)
+- [api] Refactor ``psd_tools.api`` import dependencies (#515)
+- [api] Fix group blend mode returning None (#514)
+- [dev] Add Claude Code support (#511)
+- [api] Add type annotation to more APIs (#509, #510, #512)
+- [api] Add ``fill_opacity`` and ``reference_point`` attributes (#507, #508)
+- [psd] Improve pretty print of Subpath (#506)
+
 1.10.13 (2025-10-02)
 --------------------
 

@@ -1305,7 +1305,7 @@ class Group(GroupMixin, Layer):
         open_folder: bool = True,
     ):
         """
-        Create a new Group object containing the given layers and moved into the parent folder.
+        Deprecated: Use ``psdimage.create_group(layer_list, name)`` instead.
 
         :param parent: The parent group to add the newly created Group object into.
         :param layers: The layers to group. Can by any subclass of
@@ -1320,9 +1320,7 @@ class Group(GroupMixin, Layer):
         if len(layers) == 0:
             raise ValueError("Cannot create a group from an empty list of layers")
         group = cls.new(parent, name, open_folder)
-        for layer in layers:
-            layer.move_to_group(group)
-        parent.append(group)
+        group.extend(layers)
         return group
 
 

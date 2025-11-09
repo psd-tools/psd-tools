@@ -28,7 +28,7 @@ with PSD files.
 Open an image::
 
     from psd_tools import PSDImage
-    psd = PSDImage.open('my_image.psd')
+    psdimage = PSDImage.open('my_image.psd')
 
 Most of the data structure in the :py:mod:`psd-tools` suppports pretty
 printing in IPython environment.
@@ -43,23 +43,25 @@ printing in IPython environment.
 
 Internal layers are accessible by iterator or indexing::
 
-    for layer in psd:
+    for layer in psdimage:
         print(layer)
         if layer.is_group():
             for child in layer:
                 print(child)
 
-    child = psd[0][0]
+    child = psdimage[0][0]
 
 .. note:: The iteration order is from background to foreground, which is
-    reversed from version prior to 1.7.x. Use ``reversed(list(psd))`` to
+    reversed from version prior to 1.7.x. Use ``reversed(psd)`` to
     iterate from foreground to background.
 
 The opened PSD file can be saved::
 
-    psd.save('output.psd')
+    psdimage.save('output.psd')
 
-If the PSD File's layer structure was updated, saving it will update the ImagaData section to produce an accurate thumbnail.
+If the PSD File's layer structure was updated, saving it will update the ImageData section.
+However, the rendered image is likely different from the Photoshop's rendering due to the
+limited rendering support in psd_tools.
 
 Working with Layers
 -------------------
@@ -77,13 +79,15 @@ Some of the layer attributes are editable, such as a layer name::
 
 psd_tools experimentally supports the creation of a new PixelLayer from a PIL object,
 the PIL image will be converted to the color mode of the PSD File given in parameter::
-    
+
     psdimage.create_pixel_layer(pil_image, name="Layer name")
 
 To construct a layered PSD file from scratch::
 
     psdimage = PSDImage.new(mode='RGB', size=(640, 480), depth=8)
-    layer = psdimage.create_pixel_layer(pil_image, name="Layer 1")
+    layer = psdimage.create_pixel_layer(pil_image, name="Layer 1", top=0, left=0, opacity=255)
+    group = psdimage.create_group(name="Group 1")
+    group.append(layer)
     psdimage.save('new_image.psd')
 
 See the function documentation for further parameter explanations.
@@ -133,8 +137,7 @@ Modifying the layer structure
 
 The layer structure of a PSD object can be modified through methods emulating a python list.
 
-
-The internal model of the psd layer structure will be automatically updated when saving the psd to a file or a similar operation.
+The internal model of the psd layer structure will be automatically updated.
 Moving a layer from a PSD to another will also automatically convert the PixelLayer to the target psd's color mode.
 
 The follwing are valid for both PSDImage and Group objects.
@@ -143,80 +146,54 @@ Set an item::
 
     group[0] = layer
 
-Add a layer to a group::
-    
-    group.append(layer)
+Add a layer or layers to a group::
 
-Add a list of layers to a group::
-    
+    group.append(layer)
     group.extend(layers)
 
 Insert a layer to a specific index in the group::
-    
+
     group.insert(3, layer)
 
 Remove a layer from the a group::
-    
+
     group.remove(layer)
 
 Pop a layer from the group::
-    
+
     layer = group.pop()
 
 Emptying a layer group::
-    
+
     group.clear()
 
 Get the index of a layer in the group::
-    
-    group.index(layer)
 
-Count the occurences of a layer in a group::
-    
-    group.count(layer)
+    index = group.index(layer)
+
+Count the occurrences of a layer in a group::
+
+    count = group.count(layer)
 
 Move a given list of layers in a newly created Group. If no parent group is given in parameter, 
 the new group will replace the first layer of the list in the PSD structure::
-    
-    Group.group_layers(layer_list, "Group Name", parent=parent_group, open_folder=True)
 
-Below an example of such an operation.::
-    
-    - PSDImage
-        - Group 1
-            - PixelLayer
-            - FillLayer
-        - PixelLayer
-        - TypeLayer
-        - SmartObjectLayer
-        - PixelLayer
-        
-    Group.group_layers(PSDImage[:2], "New Group")
-    - PSDImage
-        - New Group
-            - Group 1
-                - PixelLayer
-                - FillLayer
-            - PixelLayer
-            - TypeLayer
-        - SmartObjectLayer
-        - PixelLayer
+    group = psdimage.create_group(layer_list=[layer1, layer2, ...], name="New Group")
 
-
-Some operations are available for all Layer objects.
+Some operations are available for all ``Layer`` objects.
 
 Delete a layer from its layer structure::
-    
-    layer.delete_layer()
+
+    group.remove(layer)
 
 Layers can be moved from a group to another::
-    
-    layer.move_to_group(target_group)
+
+    target_group.append(layer)
 
 Layers can be moved within the group to change their order::
     
-    layer.move_up(5) # Will send the layer upward in the group
-    layer.move_down(3) # Will send the layer downward in the group
+    layer.move_up() # Will send the layer upward in the group
+    layer.move_down() # Will send the layer downward in the group
 
 
 Exporting data to PIL
