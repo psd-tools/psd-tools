@@ -22,14 +22,13 @@ except ImportError:
     from typing_extensions import Self
 
 import numpy as np
-from PIL import ImageChops
-from PIL.Image import Image as PILImage
+from PIL import Image, ImageChops
 
 import psd_tools.psd.engine_data as engine_data
+from psd_tools.api import pil_io
 from psd_tools.api.effects import Effects
 from psd_tools.api.mask import Mask
-from psd_tools.api.protocols import LayerProtocol, GroupMixinProtocol, PSDProtocol
-from psd_tools.api.pil_io import get_pil_channels, get_pil_depth
+from psd_tools.api.protocols import GroupMixinProtocol, LayerProtocol, PSDProtocol
 from psd_tools.api.shape import Origination, Stroke, VectorMask
 from psd_tools.api.smart_object import SmartObject
 from psd_tools.constants import (
@@ -334,7 +333,7 @@ class Layer(LayerProtocol):
     def has_pixels(self) -> bool:
         """
         Returns True if the layer has associated pixels. When this is True,
-        `topil` method returns :py:class:`PIL.Image`.
+        `topil` method returns :py:class:`PIL.Image.Image`.
 
         :return: `bool`
         """
@@ -473,7 +472,7 @@ class Layer(LayerProtocol):
 
     def topil(
         self, channel: Optional[int] = None, apply_icc: bool = True
-    ) -> Optional[PILImage]:
+    ) -> Optional[Image.Image]:
         """
         Get PIL Image of the layer.
 
@@ -481,7 +480,7 @@ class Layer(LayerProtocol):
             image. See :py:class:`~psd_tools.constants.ChannelID`. When `None`,
             the method returns all the channels supported by PIL modes.
         :param apply_icc: Whether to apply ICC profile conversion to sRGB.
-        :return: :py:class:`PIL.Image`, or `None` if the layer has no pixels.
+        :return: :py:class:`PIL.Image.Image`, or `None` if the layer has no pixels.
 
         Example::
 
@@ -492,7 +491,7 @@ class Layer(LayerProtocol):
             alpha = layer.topil(ChannelID.TRANSPARENCY_MASK)
 
         .. note:: Not all of the PSD image modes are supported in
-            :py:class:`PIL.Image`. For example, 'CMYK' mode cannot include
+            :py:class:`PIL.Image.Image`. For example, 'CMYK' mode cannot include
             alpha channel in PIL. In this case, topil drops alpha channel.
         """
         from .pil_io import convert_layer_to_pil
@@ -521,7 +520,7 @@ class Layer(LayerProtocol):
         alpha: Union[float, np.ndarray] = 0.0,
         layer_filter: Optional[Callable] = None,
         apply_icc: bool = True,
-    ) -> Optional[PILImage]:
+    ) -> Optional[Image.Image]:
         """
         Composite layer and masks (mask, vector mask, and clipping layers).
 
@@ -535,7 +534,7 @@ class Layer(LayerProtocol):
         :param layer_filter: Callable that takes a layer as argument and
             returns whether if the layer is composited. Default is
             :py:func:`~psd_tools.api.layers.PixelLayer.is_visible`.
-        :return: :py:class:`PIL.Image` or `None`.
+        :return: :py:class:`PIL.Image.Image` or `None`.
         """
         from psd_tools.composite import composite_pil
 
@@ -1156,7 +1155,7 @@ class Group(GroupMixin, Layer):
         :param layer_filter: Callable that takes a layer as argument and
             returns whether if the layer is composited. Default is
             :py:func:`~psd_tools.api.layers.PixelLayer.is_visible`.
-        :return: :py:class:`PIL.Image`.
+        :return: :py:class:`PIL.Image.Image`.
         """
         from psd_tools.composite import composite_pil
 
@@ -1378,7 +1377,7 @@ class PixelLayer(Layer):
     @classmethod
     def frompil(
         cls,
-        image: PILImage,
+        image: Image.Image,
         parent: GroupMixin,
         name: str = "Layer",
         top: int = 0,
@@ -1389,7 +1388,7 @@ class PixelLayer(Layer):
         """
         Creates a PixelLayer from a PIL image for a given psd file.
 
-        :param image: The :py:class:`~PIL.Image` object to convert to photoshop
+        :param image: The :py:class:`~PIL.Image.Image` object to convert to photoshop
         :param psdimage: The target psdimage the image will be converted for.
         :param name: The name of the layer. Defaults to "Layer"
         :param top: Pixelwise offset from the top of the canvas for the new layer.
@@ -1399,7 +1398,7 @@ class PixelLayer(Layer):
         :return: A :py:class:`~psd_tools.api.layers.PixelLayer` object
         :raises TypeError: If image is not a PIL Image or parent is None
         """
-        if not isinstance(image, PILImage):
+        if not isinstance(image, Image.Image):
             raise TypeError(f"Expected PIL Image, got {type(image).__name__}")
         if parent is None:
             raise ValueError("Parent cannot be None")
@@ -1431,7 +1430,7 @@ class PixelLayer(Layer):
 
         # Get the current layer image.
         image = self.topil()
-        if not isinstance(image, PILImage):
+        if not isinstance(image, Image.Image):
             raise ValueError("Failed to render the image for mode conversion.")
         # Rebuild layer record and channels.
         layer_record, channel_data_list = self._build_layer_record_and_channels(
@@ -1447,7 +1446,7 @@ class PixelLayer(Layer):
 
     @staticmethod
     def _build_layer_record_and_channels(
-        image: PILImage,
+        image: Image.Image,
         name: str,
         left: int,
         top: int,
@@ -1481,7 +1480,7 @@ class PixelLayer(Layer):
             image_bytes,
             image.width,
             image.height,
-            get_pil_depth(image.mode.rstrip("A")),
+            pil_io.get_pil_depth(image.mode.rstrip("A")),
         )
         transparency_info = ChannelInfo(
             ChannelID.TRANSPARENCY_MASK, len(transparency_data.data) + 2
@@ -1490,13 +1489,13 @@ class PixelLayer(Layer):
         channel_data_list.append(transparency_data)
 
         # Color channels.
-        for channel_index in range(get_pil_channels(image.mode.rstrip("A"))):
+        for channel_index in range(pil_io.get_pil_channels(image.mode.rstrip("A"))):
             channel_data = ChannelData(compression)
             channel_data.set_data(
                 image.getchannel(channel_index).tobytes(),
                 image.width,
                 image.height,
-                get_pil_depth(image.mode.rstrip("A")),
+                pil_io.get_pil_depth(image.mode.rstrip("A")),
             )
             channel_info = ChannelInfo(
                 id=ChannelID(channel_index), length=len(channel_data.data) + 2

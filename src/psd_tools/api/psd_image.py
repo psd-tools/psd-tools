@@ -14,8 +14,7 @@ except ImportError:
 import numpy as np
 from PIL.Image import Image as PILImage
 
-from psd_tools.api import adjustments, layers
-from psd_tools.api.pil_io import get_pil_channels, get_pil_mode
+from psd_tools.api import adjustments, layers, numpy_io, pil_io
 from psd_tools.api.protocols import PSDProtocol
 from psd_tools.constants import (
     ChannelID,
@@ -44,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 class PSDImage(layers.GroupMixin, PSDProtocol):
     """
-    Photoshop PSD/PSB file object.
+    Photoshop PSD/PSB document.
 
     The low-level data structure is accessible at :py:attr:`PSDImage._record`.
 
@@ -52,11 +51,11 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
         from psd_tools import PSDImage
 
-        psd = PSDImage.open('example.psd')
-        image = psd.compose()
+        psdimage = PSDImage.open('example.psd')
+        image = psdimage.composite()
 
-        for layer in psd:
-            layer_image = layer.compose()
+        for layer in psdimage:
+            layer_image = layer.composite()
     """
 
     def __init__(self, data: PSD):
@@ -101,7 +100,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
     @classmethod
     def frompil(cls, image: PILImage, compression=Compression.RLE) -> Self:
         """
-        Create a new PSD document from PIL Image.
+        Create a new layer-less PSD document from PIL Image.
 
         :param image: PIL Image object.
         :param compression: ImageData compression option. See
@@ -182,12 +181,10 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         :return: :py:class:`PIL.Image`, or `None` if the composed image is not
             available.
         """
-        from .pil_io import convert_image_data_to_pil
-
         self._update_record()
 
         if self.has_preview():
-            return convert_image_data_to_pil(self, channel, apply_icc)
+            return pil_io.convert_image_data_to_pil(self, channel, apply_icc)
         return None
 
     def numpy(
@@ -200,9 +197,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             'shape', 'alpha', or 'mask'. Default is 'color+alpha'.
         :return: :py:class:`numpy.ndarray`
         """
-        from .numpy_io import get_array
-
-        return get_array(self, channel)
+        return numpy_io.get_array(self, channel)
 
     def composite(
         self,
@@ -513,8 +508,11 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
     @property
     def pil_mode(self) -> str:
-        alpha = self.channels - get_pil_channels(get_pil_mode(self.color_mode))
-        return get_pil_mode(self.color_mode, alpha > 0)
+        alpha = self.channels - pil_io.get_pil_channels(
+            pil_io.get_pil_mode(self.color_mode)
+        )
+        # TODO: Check when alpha > 1; Photoshop allows multiple alpha channels.
+        return pil_io.get_pil_mode(self.color_mode, alpha > 0)
 
     def has_thumbnail(self) -> bool:
         """True if the PSDImage has a thumbnail resource."""
@@ -528,14 +526,12 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         Returns a thumbnail image in PIL.Image. When the file does not
         contain an embedded thumbnail image, returns None.
         """
-        from .pil_io import convert_thumbnail_to_pil
-
         if Resource.THUMBNAIL_RESOURCE in self.image_resources:
-            return convert_thumbnail_to_pil(
+            return pil_io.convert_thumbnail_to_pil(
                 self.image_resources.get_data(Resource.THUMBNAIL_RESOURCE)
             )
         elif Resource.THUMBNAIL_RESOURCE_PS4 in self.image_resources:
-            return convert_thumbnail_to_pil(
+            return pil_io.convert_thumbnail_to_pil(
                 self.image_resources.get_data(Resource.THUMBNAIL_RESOURCE_PS4)
             )
         return None
@@ -572,8 +568,6 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
     def _make_header(
         cls, mode: str, size: tuple[int, int], depth: Literal[8, 16, 32] = 8
     ) -> FileHeader:
-        from .pil_io import get_color_mode
-
         if depth not in (8, 16, 32):
             raise ValueError(f"Invalid depth: {depth}. Must be 8, 16, or 32")
         if size[0] > 300000:
@@ -584,7 +578,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         if size[0] > 30000 or size[1] > 30000:
             logger.debug("Width or height larger than 30,000 pixels")
             version = 2
-        color_mode = get_color_mode(mode)
+        color_mode = pil_io.get_color_mode(mode)
         alpha = int(mode.upper().endswith("A"))
         channels = ColorMode.channels(color_mode, alpha)
         return FileHeader(
