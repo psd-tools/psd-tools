@@ -721,10 +721,19 @@ class SectionDividerSetting(BaseElement):
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "I", self.kind.value)
-        if self.signature and self.blend_mode:
+        if self.blend_mode:
+            if self.signature is None:
+                logger.debug(
+                    "Signature is missing in SectionDividerSetting, overriding"
+                )
+                self.signature = b"8BIM"
             written += write_fmt(fp, "4s4s", self.signature, self.blend_mode.value)
             if self.sub_type is not None:
                 written += write_fmt(fp, "I", self.sub_type)
+        elif self.sub_type is not None:
+            logger.debug(
+                "Blend mode is missing in SectionDividerSetting, ignoring sub_type"
+            )
         return written
 
 

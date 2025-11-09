@@ -352,7 +352,8 @@ def test_group_layers(pixel_layer, smartobject_layer, fill_layer, adjustment_lay
 
 
 @pytest.mark.parametrize(
-    "mode", ["RGB", "RGBA", "L", "LA", "CMYK", "1", "LAB"],
+    "mode",
+    ["RGB", "RGBA", "L", "LA", "CMYK", "1", "LAB"],
 )
 def test_pixel_layer_frompil(mode):
     # Create a PixelLayer from a PIL image and verify channel data
@@ -364,8 +365,7 @@ def test_pixel_layer_frompil(mode):
 
     image = image.convert(psdimage.pil_mode)
     assert (
-        len(layer._record.channel_info)
-        == get_pil_channels(image.mode.rstrip("A")) + 1
+        len(layer._record.channel_info) == get_pil_channels(image.mode.rstrip("A")) + 1
     )
     assert len(layer._channels) == get_pil_channels(image.mode.rstrip("A")) + 1
 
@@ -401,83 +401,64 @@ def test_layer_reference_point(pixel_layer):
         pixel_layer.reference_point = (10.5, 20.5, 30.5)
 
 
-def test_delete_layer(pixel_layer):
-    pixel_layer.delete_layer()
-
-    assert pixel_layer not in pixel_layer._parent
-
-
-def test_move_to_group(group, pixel_layer):
-    pix_old_parent = pixel_layer._parent
-
-    pixel_layer.move_to_group(group)
-
-    assert pixel_layer in group
-    assert pixel_layer._parent is group
-    assert pixel_layer._psd is group._psd
-
-    assert pixel_layer not in pix_old_parent
-
-
-def test_move_up(group, pixel_layer, smartobject_layer, fill_layer, adjustment_layer):
+def test_layer_move_up(
+    group, pixel_layer, smartobject_layer, fill_layer, adjustment_layer
+):
+    group.extend([pixel_layer])
     test_group = Group.group_layers(
         parent=group,
-        layers=[pixel_layer, smartobject_layer, fill_layer, adjustment_layer],
+        layers=[smartobject_layer, fill_layer, adjustment_layer],
     )
-
-    test_group.move_up(50)
-
+    with pytest.raises(IndexError):
+        test_group.move_up(1)
+    assert test_group._parent.index(test_group) == 1
+    pixel_layer.move_up(1)
     assert test_group._parent.index(test_group) == 0
 
-    pixel_layer.move_up(2)
-
-    assert test_group.index(smartobject_layer) == 0
-    assert test_group.index(fill_layer) == 1
-    assert test_group.index(pixel_layer) == 2
-    assert test_group.index(adjustment_layer) == 3
-
-    smartobject_layer.move_up(30)
-
+    smartobject_layer.move_up(1)
     assert test_group.index(fill_layer) == 0
-    assert test_group.index(pixel_layer) == 1
+    assert test_group.index(smartobject_layer) == 1
     assert test_group.index(adjustment_layer) == 2
-    assert test_group.index(smartobject_layer) == 3
+
+    fill_layer.move_up(2)
+    assert test_group.index(smartobject_layer) == 0
+    assert test_group.index(adjustment_layer) == 1
+    assert test_group.index(fill_layer) == 2
 
 
-def test_move_down(group, pixel_layer, smartobject_layer, fill_layer, adjustment_layer):
+def test_layer_move_down(
+    group, pixel_layer, smartobject_layer, fill_layer, adjustment_layer
+):
+    group.extend([pixel_layer])
     test_group = Group.group_layers(
         parent=group,
-        layers=[pixel_layer, smartobject_layer, fill_layer, adjustment_layer],
+        layers=[smartobject_layer, fill_layer, adjustment_layer],
     )
-
-    test_group.move_up(50)
-
+    with pytest.raises(IndexError):
+        pixel_layer.move_down(1)
+    assert test_group._parent.index(test_group) == 1
+    test_group.move_down(1)
     assert test_group._parent.index(test_group) == 0
 
-    fill_layer.move_down(2)
-
+    fill_layer.move_down(1)
     assert test_group.index(fill_layer) == 0
-    assert test_group.index(pixel_layer) == 1
-    assert test_group.index(smartobject_layer) == 2
-    assert test_group.index(adjustment_layer) == 3
+    assert test_group.index(smartobject_layer) == 1
+    assert test_group.index(adjustment_layer) == 2
 
-    smartobject_layer.move_down(30)
-
-    assert test_group.index(smartobject_layer) == 0
+    adjustment_layer.move_down(2)
+    assert test_group.index(adjustment_layer) == 0
     assert test_group.index(fill_layer) == 1
-    assert test_group.index(pixel_layer) == 2
-    assert test_group.index(adjustment_layer) == 3
+    assert test_group.index(smartobject_layer) == 2
 
 
-def test_append(group, pixel_layer):
+def test_group_append(group, pixel_layer):
     group.append(pixel_layer)
-
     assert pixel_layer in group
     assert pixel_layer._parent is group
     assert pixel_layer._psd is group._psd
 
 
-def test_extend(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+def test_group_extend(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
     group.extend([pixel_layer, type_layer, smartobject_layer, fill_layer])
 
     for layer in [pixel_layer, type_layer, smartobject_layer, fill_layer]:
@@ -486,7 +467,7 @@ def test_extend(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
         assert layer._psd is group._psd
 
 
-def test_insert(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+def test_group_insert(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
     group.append(pixel_layer)
 
     group.insert(0, fill_layer)
@@ -504,7 +485,7 @@ def test_insert(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
     )  # Negative index insert the item before the one currently at the given index.
 
 
-def test_remove(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+def test_group_remove(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
     group.extend([pixel_layer, type_layer, smartobject_layer])
 
     group.remove(pixel_layer)
@@ -513,14 +494,14 @@ def test_remove(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
     group.remove(smartobject_layer)
     assert smartobject_layer not in group
 
-    with pytest.raises(ValueError, match=r".* x not in list"):
+    with pytest.raises(ValueError, match=r".* not found in group"):
         group.remove(pixel_layer)
 
-    with pytest.raises(ValueError, match=r".* x not in list"):
+    with pytest.raises(ValueError, match=r".* not found in group"):
         group.remove(fill_layer)
 
 
-def test_pop(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+def test_group_pop(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
     group.extend([pixel_layer, type_layer, smartobject_layer, fill_layer])
 
     assert group.pop() is fill_layer
@@ -538,7 +519,7 @@ def test_pop(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
         group.pop()
 
 
-def test_clear(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+def test_group_clear(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
     group.extend([pixel_layer, type_layer, smartobject_layer, fill_layer])
     assert len(group) == 4
 
@@ -546,7 +527,7 @@ def test_clear(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
     assert len(group) == 0
 
 
-def test_index(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+def test_group_index(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
     with pytest.raises(ValueError, match=r".* not in list"):
         group.index(pixel_layer)
 
@@ -563,7 +544,7 @@ def test_index(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
         group.index(fill_layer)
 
 
-def test_count(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+def test_group_count(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
     group.extend([pixel_layer, type_layer, smartobject_layer, fill_layer])
 
     assert group.count(pixel_layer) == 1
@@ -578,11 +559,11 @@ def test_count(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
     assert group.count(smartobject_layer) == 0
     assert group.count(fill_layer) == 0
 
-    group.append(pixel_layer)
+    # Append the pixel_layer twice, but we do not allow duplicates.
     group.append(pixel_layer)
     group.append(pixel_layer)
 
-    assert group.count(pixel_layer) == 3
+    assert group.count(pixel_layer) == 1
 
 
 def test_artboard_move(group):
@@ -618,3 +599,27 @@ def test_lock_layer(pixel_layer):
     pixel_layer.lock()
 
     assert pixel_layer.locks.complete
+
+
+def test_group_move_between_psdimages():
+    psdimage = PSDImage.new(mode="RGB", size=(100, 100))
+    layer = psdimage.create_pixel_layer(
+        Image.new("RGB", (50, 50), (255, 0, 0)),
+        name="Red Layer",
+    )
+    assert layer._psd is psdimage
+    assert len(psdimage) == 1
+    psdimage2 = PSDImage.new(mode="RGB", size=(200, 200))
+    group = psdimage2.create_group(
+        [],
+        name="Empty Group",
+    )
+    assert len(psdimage2) == 1
+    assert len(group) == 0
+
+    group.append(layer)
+    assert layer._psd is psdimage2
+    assert len(psdimage) == 0
+    assert len(psdimage2) == 1
+    assert len(group) == 1
+    assert layer.parent is group

@@ -234,7 +234,10 @@ def test_composite_group_clipping_photoshop():
     reference = Image.open(full_name("group-clipping/group-clipping-photoshop.png"))
     psd.compatibility_mode = CompatibilityMode.PHOTOSHOP
     result = psd.composite(force=True)
-    assert _mse(np.array(reference, dtype=np.float32), np.array(result, dtype=np.float32)) <= 0.001
+    assert (
+        _mse(np.array(reference, dtype=np.float32), np.array(result, dtype=np.float32))
+        <= 0.001
+    )
 
 
 def test_composite_group_clipping_clip_studio():
@@ -242,7 +245,10 @@ def test_composite_group_clipping_clip_studio():
     reference = Image.open(full_name("group-clipping/group-clipping-clip-studio.png"))
     psd.compatibility_mode = CompatibilityMode.CLIP_STUDIO_PAINT
     result = psd.composite(force=True)
-    assert _mse(np.array(reference, dtype=np.float32), np.array(result, dtype=np.float32)) <= 0.001
+    assert (
+        _mse(np.array(reference, dtype=np.float32), np.array(result, dtype=np.float32))
+        <= 0.001
+    )
 
 
 def test_composite_stroke():

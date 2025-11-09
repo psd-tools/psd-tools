@@ -46,7 +46,9 @@ logger = logging.getLogger(__name__)
                 FilterEffectChannel(is_written=1, compression=0, data=b"\x00"),
                 FilterEffectChannel(is_written=1, compression=0, data=b"\x00"),
             ],
-            FilterEffectExtra(is_written=1, rectangle=[0, 0, 512, 512], compression=0, data=b"\x00"),
+            FilterEffectExtra(
+                is_written=1, rectangle=[0, 0, 512, 512], compression=0, data=b"\x00"
+            ),
         ),
         (
             "uuid",
@@ -79,7 +81,9 @@ def test_filter_effect(args):
     ],
 )
 def test_filter_effect_channel(is_written, compression, data):
-    check_write_read(FilterEffectChannel(is_written=is_written, compression=compression, data=data))
+    check_write_read(
+        FilterEffectChannel(is_written=is_written, compression=compression, data=data)
+    )
 
 
 @pytest.mark.parametrize(

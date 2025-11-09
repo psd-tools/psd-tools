@@ -29,6 +29,10 @@ The package consists of two major subpackages:
     easy-to-use methods that manipulate low-level :py:mod:`psd_tools.psd` data
     structures.
 
+In the future, it might be good to implement the `Photoshop API`_ on top of the existing `psd-tools` API.
+
+.. _Photoshop API: https://developer.adobe.com/photoshop/uxp/2022/ps_reference/
+
 Testing
 -------
 

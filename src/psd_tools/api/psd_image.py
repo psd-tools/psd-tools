@@ -4,7 +4,7 @@ PSD Image module.
 
 import logging
 import os
-from typing import Any, BinaryIO, Callable, Literal, Optional, Union
+from typing import Any, BinaryIO, Callable, Iterable, Literal, Optional, Union
 
 try:
     from typing import Self  # type: ignore[attr-defined]
@@ -12,12 +12,12 @@ except ImportError:
     from typing_extensions import Self
 
 import numpy as np
-from PIL.Image import Image as PILImage
+from PIL import Image
 
-from psd_tools.api import adjustments, layers
-from psd_tools.api.pil_io import get_pil_channels, get_pil_mode
+from psd_tools.api import adjustments, layers, numpy_io, pil_io
 from psd_tools.api.protocols import PSDProtocol
 from psd_tools.constants import (
+    BlendMode,
     ChannelID,
     ColorMode,
     CompatibilityMode,
@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 class PSDImage(layers.GroupMixin, PSDProtocol):
     """
-    Photoshop PSD/PSB file object.
+    Photoshop PSD/PSB document.
 
     The low-level data structure is accessible at :py:attr:`PSDImage._record`.
 
@@ -52,11 +52,11 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
         from psd_tools import PSDImage
 
-        psd = PSDImage.open('example.psd')
-        image = psd.compose()
+        psdimage = PSDImage.open('example.psd')
+        image = psdimage.composite()
 
-        for layer in psd:
-            layer_image = layer.compose()
+        for layer in psdimage:
+            layer_image = layer.composite()
     """
 
     def __init__(self, data: PSD):
@@ -99,9 +99,9 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         )
 
     @classmethod
-    def frompil(cls, image: PILImage, compression=Compression.RLE) -> Self:
+    def frompil(cls, image: Image.Image, compression=Compression.RLE) -> Self:
         """
-        Create a new PSD document from PIL Image.
+        Create a new layer-less PSD document from PIL Image.
 
         :param image: PIL Image object.
         :param compression: ImageData compression option. See
@@ -152,9 +152,6 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             default 'macroman'.
         :param mode: file open mode, default 'wb'.
         """
-
-        self._update_record()
-
         if self.is_updated():
             # Update the preview image if the layer structure has been changed.
             composited_psd = self.composite()
@@ -171,7 +168,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
     def topil(
         self, channel: Union[int, ChannelID, None] = None, apply_icc: bool = True
-    ) -> Union[PILImage, None]:
+    ) -> Union[Image.Image, None]:
         """
         Get PIL Image.
 
@@ -182,12 +179,8 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         :return: :py:class:`PIL.Image`, or `None` if the composed image is not
             available.
         """
-        from .pil_io import convert_image_data_to_pil
-
-        self._update_record()
-
         if self.has_preview():
-            return convert_image_data_to_pil(self, channel, apply_icc)
+            return pil_io.convert_image_data_to_pil(self, channel, apply_icc)
         return None
 
     def numpy(
@@ -200,9 +193,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             'shape', 'alpha', or 'mask'. Default is 'color+alpha'.
         :return: :py:class:`numpy.ndarray`
         """
-        from .numpy_io import get_array
-
-        return get_array(self, channel)
+        return numpy_io.get_array(self, channel)
 
     def composite(
         self,
@@ -213,7 +204,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         layer_filter: Optional[Callable] = None,
         ignore_preview: bool = False,
         apply_icc: bool = True,
-    ) -> PILImage:
+    ) -> Image.Image:
         """
         Composite the PSD image.
 
@@ -232,8 +223,6 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         :return: :py:class:`PIL.Image`.
         """
         from psd_tools.composite import composite_pil
-
-        self._update_record()
 
         if (
             not (ignore_preview or force or layer_filter)
@@ -513,8 +502,11 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
     @property
     def pil_mode(self) -> str:
-        alpha = self.channels - get_pil_channels(get_pil_mode(self.color_mode))
-        return get_pil_mode(self.color_mode, alpha > 0)
+        alpha = self.channels - pil_io.get_pil_channels(
+            pil_io.get_pil_mode(self.color_mode)
+        )
+        # TODO: Check when alpha > 1; Photoshop allows multiple alpha channels.
+        return pil_io.get_pil_mode(self.color_mode, alpha > 0)
 
     def has_thumbnail(self) -> bool:
         """True if the PSDImage has a thumbnail resource."""
@@ -523,23 +515,91 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             or Resource.THUMBNAIL_RESOURCE_PS4 in self.image_resources
         )
 
-    def thumbnail(self) -> Optional[PILImage]:
+    def thumbnail(self) -> Optional[Image.Image]:
         """
         Returns a thumbnail image in PIL.Image. When the file does not
         contain an embedded thumbnail image, returns None.
         """
-        from .pil_io import convert_thumbnail_to_pil
-
         if Resource.THUMBNAIL_RESOURCE in self.image_resources:
-            return convert_thumbnail_to_pil(
+            return pil_io.convert_thumbnail_to_pil(
                 self.image_resources.get_data(Resource.THUMBNAIL_RESOURCE)
             )
         elif Resource.THUMBNAIL_RESOURCE_PS4 in self.image_resources:
-            return convert_thumbnail_to_pil(
+            return pil_io.convert_thumbnail_to_pil(
                 self.image_resources.get_data(Resource.THUMBNAIL_RESOURCE_PS4)
             )
         return None
 
+    # Editing API
+    def create_pixel_layer(
+        self,
+        image: Image.Image,
+        name: str = "Layer",
+        top: int = 0,
+        left: int = 0,
+        compression: Compression = Compression.RLE,
+        opacity: int = 255,
+        blend_mode: BlendMode = BlendMode.NORMAL,
+    ) -> layers.PixelLayer:
+        """
+        Create a new pixel layer and add it to the PSDImage.
+
+        Example::
+
+            psdimage = PSDImage.new("RGB", (640, 480))
+            layer = psdimage.create_pixel_layer(image, name='Layer 1')
+
+        :param name: Name of the new layer.
+        :param image: PIL Image object.
+        :param top: Top coordinate of the new layer.
+        :param left: Left coordinate of the new layer.
+        :param compression: Compression method for the layer image data.
+        :param opacity: Opacity of the new layer (0-255).
+        :param blend_mode: Blend mode of the new layer, default is ``BlendMode.NORMAL``.
+        :return: The created :py:class:`~psd_tools.api.layers.PixelLayer` object.
+        """
+        layer = layers.PixelLayer.frompil(
+            image, parent=self, name=name, top=top, left=left, compression=compression
+        )
+        layer.opacity = opacity
+        layer.blend_mode = blend_mode
+        self._mark_updated()
+        return layer
+
+    def create_group(
+        self,
+        layer_list: Optional[Iterable[layers.Layer]] = None,
+        name: str = "Group",
+        opacity: int = 255,
+        blend_mode: BlendMode = BlendMode.PASS_THROUGH,
+        open_folder: bool = True,
+    ) -> layers.Group:
+        """
+        Create a new group layer and add it to the PSDImage.
+
+        Example::
+
+            group = psdimage.create_group(name='New Group')
+            group.append(psdimage.create_pixel_layer(image, name='Layer in Group'))
+
+        :param layer_list: Optional list of layers to add to the group.
+        :param name: Name of the new group.
+        :param opacity: Opacity of the new layer (0-255).
+        :param blend_mode: Blend mode of the new layer, default is ``BlendMode.PASS_THROUGH``.
+        :param open_folder: Whether the group is an open folder in the Photoshop UI.
+        :return: The created :py:class:`~psd_tools.api.layers.Group` object.
+        """
+        group = layers.Group.new(parent=self, name=name, open_folder=open_folder)
+        if layer_list:
+            group.extend(layer_list)
+        group.opacity = opacity
+        group.blend_mode = blend_mode
+        self._mark_updated()
+        return group
+
+    # TODO: Add more editing APIs, such as duplicate_layers, resize_canvas, etc.
+
+    # Private methods
     def __repr__(self) -> str:
         return ("%s(mode=%s size=%dx%d depth=%d channels=%d)") % (
             self.__class__.__name__,
@@ -572,8 +632,6 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
     def _make_header(
         cls, mode: str, size: tuple[int, int], depth: Literal[8, 16, 32] = 8
     ) -> FileHeader:
-        from .pil_io import get_color_mode
-
         if depth not in (8, 16, 32):
             raise ValueError(f"Invalid depth: {depth}. Must be 8, 16, or 32")
         if size[0] > 300000:
@@ -584,7 +642,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         if size[0] > 30000 or size[1] > 30000:
             logger.debug("Width or height larger than 30,000 pixels")
             version = 2
-        color_mode = get_color_mode(mode)
+        color_mode = pil_io.get_color_mode(mode)
         alpha = int(mode.upper().endswith("A"))
         channels = ColorMode.channels(color_mode, alpha)
         return FileHeader(
@@ -700,12 +758,9 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
     def _update_record(self) -> None:
         """
-        Compiles the tree layer structure back into records and channels list recursively
+        Compiles the tree layer structure back into records and channels list
+        recursively from the API layer structure.
         """
-        if not self.is_updated():
-            # Skip if nothing is changed.
-            return
-
         # Initialize the layer structure information if not present.
         if self._record.layer_and_mask_information.layer_info is None:
             self._record.layer_and_mask_information.layer_info = LayerInfo()
@@ -723,8 +778,8 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         layer_info.channel_image_data = channel_image_data
         layer_info.layer_count = len(layer_records)
 
-        # TODO: Check if we can safely reset the updated flag here.
-        # self._updated = False
+        # Flag as updated.
+        self._mark_updated()
 
     def _copy_patterns(self, psdimage: PSDProtocol) -> None:
         """Copy patterns from this psdimage to the target psdimage."""
