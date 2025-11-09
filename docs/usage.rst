@@ -78,12 +78,12 @@ Some of the layer attributes are editable, such as a layer name::
 psd_tools experimentally supports the creation of a new PixelLayer from a PIL object,
 the PIL image will be converted to the color mode of the PSD File given in parameter::
     
-    PixelLayer.frompil(pil_image, psdimage, "Layer name", top_offset, left_offset, Compression.RLE)
+    psdimage.create_pixel_layer(pil_image, name="Layer name")
 
 To construct a layered PSD file from scratch::
 
     psdimage = PSDImage.new(mode='RGB', size=(640, 480), depth=8)
-    layer = PixelLayer.frompil(pil_image, psdimage, "Layer 1")
+    layer = psdimage.create_pixel_layer(pil_image, name="Layer 1")
     psdimage.save('new_image.psd')
 
 See the function documentation for further parameter explanations.
@@ -97,7 +97,8 @@ See the function documentation for further parameter explanations.
 
 Create a new group object.::
 
-    Group.new(parent=psdimage, name="Group name", open_folder=True)
+    group = psdimage.create_group(name="Group name")
+    group.append(layer)
 
 :py:class:`~psd_tools.api.layers.TypeLayer` is a layer with texts::
 

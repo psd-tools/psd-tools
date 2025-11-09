@@ -296,6 +296,10 @@ class GroupMixinProtocol(Protocol):
         """Get child layer by index."""
         ...
 
+    def __delitem__(self, key: int) -> None:
+        """Delete child layer by index."""
+        ...
+
     def is_visible(self) -> bool:
         """Returns visibility of the element."""
         ...
@@ -404,11 +408,18 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
         ...
 
     def is_updated(self) -> bool:
-        """Returns whether the layer tree has been updated."""
+        """Returns whether the PSD document has been updated."""
         ...
 
     def _mark_updated(self) -> None:
-        """Mark the layer tree as updated."""
+        """Mark the PSD document as updated."""
+        ...
+
+    def _update_record(self) -> None:
+        """
+        Compiles the low-level tree layer structure back into records and channels list
+        recursively from the API layer structure.
+        """
         ...
 
     def topil(

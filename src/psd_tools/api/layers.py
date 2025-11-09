@@ -69,7 +69,7 @@ class Layer(LayerProtocol):
         channels: ChannelDataList,
     ):
         self._psd = parent._psd
-        self._parent = parent
+        self._parent: Optional["GroupMixinProtocol"] = parent
         self._record = record
         self._channels = channels
 
@@ -223,7 +223,7 @@ class Layer(LayerProtocol):
         if isinstance(value, str):
             value = value.encode("ascii")
         blend_mode = BlendMode(value)
-        if self.blend_mode != blend_mode and self._psd is not None:
+        if self.blend_mode != blend_mode:
             self._psd._mark_updated()
         self._record.blend_mode = blend_mode
 
@@ -238,7 +238,7 @@ class Layer(LayerProtocol):
 
     @left.setter
     def left(self, value: int) -> None:
-        if self.left != value and self._psd is not None:
+        if self.left != value:
             self._psd._mark_updated()
         self._invalidate_bbox()
         w = self.width
@@ -445,7 +445,8 @@ class Layer(LayerProtocol):
 
         :param lockflags: An integer representing the locking state
 
-        Example using the constants of ProtectedFlags and bitwise or operation to lock both pixels and positions::
+        Example using the constants of ProtectedFlags and bitwise or operation
+        to lock both pixels and positions::
 
             layer.lock(ProtectedFlags.COMPOSITE | ProtectedFlags.POSITION)
         """
@@ -729,59 +730,33 @@ class Layer(LayerProtocol):
             " effects" if self.has_effects() else "",
         )
 
-    # Structure operations, supposes unique references to layers, deep copy might be needed in the future
+    # Structure operations
     def delete_layer(self) -> Self:
         """
-        Deletes the layer and all its child layers if the layer is a group from its parent (group or psdimage).
+        Deprecated: Use layer.parent.remove(layer) instead.
         """
-
         if self.parent is not None and isinstance(self.parent, GroupMixin):
-            if self in self.parent:
-                self.parent.remove(self)
-            self.parent._psd._mark_updated()
-        else:
-            logger.warning(
-                "Cannot delete layer {} because there is no parent.".format(self)
-            )
-
+            self.parent.remove(self)
         return self
 
     def move_to_group(self, group: "GroupMixin") -> Self:
         """
-        Moves the layer to the given group, updates the tree metadata as needed.
+        Deprecated: Use group.append(layer) instead.
 
         :param group: The group the current layer will be moved into.
-        :raises TypeError: If group is not a GroupMixin instance
-        :raises ValueError: If attempting to move a group into itself or its descendants
         """
-
-        if not isinstance(group, GroupMixin):
-            raise TypeError(f"Expected GroupMixin, got {type(group).__name__}")
-        if group is self:
-            raise ValueError("Cannot move a layer into itself")
-
-        if isinstance(self, GroupMixin):
-            if group in list(self.descendants()):
-                raise ValueError(
-                    f"Cannot move group {self} into its descendant {group}"
-                )
-
-        if self.parent is not None and isinstance(self.parent, GroupMixin):
-            if self in self.parent:
-                self.parent.remove(self)
-
         group.append(self)
-
         return self
 
     def move_up(self, offset: int = 1) -> Self:
         """
         Moves the layer up a certain offset within the group the layer is in.
 
-        :param offset:
+        :param offset: The number of positions to move the layer up (can be negative).
         :raises ValueError: If layer has no parent or parent is not a group
+        :raises IndexError: If the new index is out of bounds
+        :return: self
         """
-
         if self.parent is None:
             raise ValueError(f"Cannot move layer {self} without a parent")
         if not isinstance(self.parent, GroupMixin):
@@ -790,24 +765,24 @@ class Layer(LayerProtocol):
             )
 
         newindex = self.parent.index(self) + offset
-
         if newindex < 0:
-            newindex = 0
+            raise IndexError("Cannot move layer beyond the bottom of the group")
         elif newindex >= len(self.parent):
-            newindex = len(self.parent) - 1
-
-        self.parent.remove(self)
-        self.parent.insert(newindex, self)
-
+            raise IndexError("Cannot move layer beyond the top of the group")
+        parent = self.parent
+        parent.remove(self)
+        parent.insert(newindex, self)
         return self
 
     def move_down(self, offset: int = 1) -> Self:
         """
         Moves the layer down a certain offset within the group the layer is in.
 
-        :param offset:
+        :param offset: The number of positions to move the layer down (can be negative).
+        :raises ValueError: If layer has no parent or parent is not a group
+        :raises IndexError: If the new index is out of bounds
+        :return: self
         """
-
         return self.move_up(-1 * offset)
 
 
@@ -833,126 +808,156 @@ class GroupMixin(GroupMixinProtocol, Protocol):
     def __iter__(self) -> Iterator[Layer]:
         return self._layers.__iter__()
 
+    def __reversed__(self) -> Iterator[Layer]:
+        return self._layers.__reversed__()
+
+    def __contains__(self, item: object) -> bool:
+        return item in self._layers
+
     def __getitem__(self, key) -> Layer:
         return self._layers.__getitem__(key)
 
-    def __setitem__(self, key, value) -> None:
-        self._check_valid_layers(value)
-        self._layers.__setitem__(key, value)
-        self._update_children()
-        self._psd._mark_updated()
+    def __setitem__(self, key: int, value: Layer) -> None:
+        self.insert(key, value)
 
-    def __delitem__(self, key) -> None:
-        self._psd._mark_updated()
-        self._layers.__delitem__(key)
+    def __delitem__(self, key: int) -> None:
+        self.remove(self._layers[key])
 
     def append(self, layer: Layer) -> None:
         """
-        Add a layer to the end (top) of the group
+        Add a layer to the end (top) of the group.
 
-        :param layer: The layer to add
-        :raises ValueError: If attempting to add a group to itself
+        This operation rewrites the internal references of the layer.
+        Adding the same layer will not create a duplicate.
+
+        :param layer: The layer to add.
+        :raises TypeError: If the provided object is not a Layer instance.
+        :raises ValueError: If attempting to add a group to itself.
         """
-        if layer is self:
-            raise ValueError("Cannot add a group to itself")
         self.extend([layer])
 
     def extend(self, layers: Iterable[Layer]) -> None:
         """
-        Add a list of layers to the end (top) of the group
+        Add a list of layers to the end (top) of the group.
 
-        :param layers: The layers to add
+        This operation rewrites the internal references of the layers.
+        Adding the same layer will not create a duplicate.
+
+        :param layers: The layers to add.
+        :raises TypeError: If the provided object is not a Layer instance.
+        :raises ValueError: If attempting to add a group to itself.
         """
-
-        self._check_valid_layers(layers)
+        self._check_insertion(layers)
+        # Remove parent's reference to the layers.
+        for layer in layers:
+            # NOTE: New or removed layers may not be in the parent container.
+            if isinstance(layer.parent, GroupMixin) and layer in layer.parent:
+                layer.parent._layers.remove(layer)  # Skip checks for performance
         self._layers.extend(layers)
         self._update_children()
-        self._psd._mark_updated()
+        self._psd._update_record()
 
     def insert(self, index: int, layer: Layer) -> None:
         """
         Insert the given layer at the specified index.
 
-        :param index:
-        :param layer:
-        """
+        This operation rewrites the internal references of the layer.
 
-        self._check_valid_layers(layer)
+        :param index: The index to insert the layer at.
+        :param layer: The layer to insert.
+        :raises TypeError: If the provided object is not a Layer instance.
+        :raises ValueError: If attempting to add a group to itself.
+        """
+        self._check_insertion([layer])
+        # Remove parent's reference to the layer.
+        if isinstance(layer.parent, GroupMixin) and layer in layer.parent:
+            layer.parent._layers.remove(layer)  # Skip checks for performance
         self._layers.insert(index, layer)
         self._update_children()
-        self._psd._mark_updated()
+        self._psd._update_record()
 
     def remove(self, layer: Layer) -> Self:
         """
-        Removes the specified layer from the group
+        Removes the specified layer from the group.
 
-        :param layer:
+        This operation rewrites the internal references of the layer.
+
+        :param layer: The layer to remove.
+        :raises ValueError: If the layer is not found in the group.
+        :return: self
         """
-
+        if layer not in self:
+            raise ValueError(f"Layer {layer} not found in group {self}")
         self._layers.remove(layer)
-        self._psd._mark_updated()
+        layer._parent = None
+        self._psd._update_record()
         return self
 
     def pop(self, index: int = -1) -> Layer:
         """
         Removes the specified layer from the list and returns it.
 
-        :param index:
-        """
+        This operation rewrites the internal references of the layer.
 
-        popLayer = self._layers.pop(index)
-        self._psd._mark_updated()
-        return popLayer
+        :param index: The index of the layer to remove. Default is -1 (the last layer).
+        :raises IndexError: If the index is out of range.
+        :return: The removed layer.
+        """
+        layer = self[index]
+        self.remove(layer)
+        return layer
 
     def clear(self) -> None:
         """
         Clears the group.
-        """
 
+        This operation rewrites the internal references of the layers.
+
+        :return: None
+        """
+        for layer in self._layers:
+            layer._parent = None
         self._layers.clear()
-        self._psd._mark_updated()
+        self._psd._update_record()
 
     def index(self, layer: Layer) -> int:
         """
         Returns the index of the specified layer in the group.
 
-        :param layer:
+        :param layer: The layer to find.
         """
         return self._layers.index(layer)
 
     def count(self, layer: Layer) -> int:
         """
-        Counts the number of occurences of a layer in the group.
+        Counts the number of occurrences of a layer in the group.
 
-        :param layer:
+        :param layer: The layer to count.
         """
         return self._layers.count(layer)
 
-    def _check_valid_layers(self, layers: Union[Layer, Iterable[Layer]]) -> None:
+    def _check_insertion(self, layers: Iterable[Layer]) -> None:
         """Check that the given layers can be added to this group.
 
         :raises ValueError: If attempting to add a group to itself or create a reference loop
         :raises TypeError: If the provided object is not a Layer instance
         """
-        if layers is self:
-            raise ValueError(f"Cannot add the group {self} to itself")
-
-        if isinstance(layers, Layer):
-            layers = [layers]
-
         for layer in layers:
             if not isinstance(layer, Layer):
                 raise TypeError(f"Expected Layer instance, got {type(layer).__name__}")
+            if layer is self:
+                raise ValueError(f"Cannot add the group {self} to itself")
             if isinstance(layer, GroupMixin):
                 if self in list(layer.descendants()):
                     raise ValueError(
-                        f"This operation would create a reference loop within the group between {self} and {layer}"
+                        "This operation would create a reference loop "
+                        f"within the group between {self} and {layer}"
                     )
 
     def _update_children(self) -> None:
         """Update children's _psd and _parent references."""
         for layer in self:
-            # Update PSD reference
+            # Update PSD reference if needed
             if layer._psd != self._psd:
                 if isinstance(layer, PixelLayer):
                     layer._convert_mode(self)
@@ -1125,6 +1130,32 @@ class Group(GroupMixin, Layer):
             self._psd._mark_updated()
         self._record.clipping = clipping
 
+    @property
+    def open_folder(self) -> bool:
+        """
+        Returns True if the group is an open folder.
+
+        :return: `bool`
+        """
+        if self._setting is None:
+            raise ValueError("Section divider setting is missing.")
+        return self._setting.kind == SectionDivider.OPEN_FOLDER
+
+    @open_folder.setter
+    def open_folder(self, value: bool) -> None:
+        """
+        Sets whether the group is an open folder.
+
+        :param value: `bool`
+        """
+        if self._setting is None:
+            raise ValueError("Section divider setting is missing.")
+        kind = SectionDivider.OPEN_FOLDER if value else SectionDivider.CLOSED_FOLDER
+        current_kind = self._setting.kind
+        if current_kind != kind:
+            self._setting.kind = kind
+            # This change does not affect pixel data, so no need to mark PSD as updated.
+
     def is_group(self) -> bool:
         """
         Return True if the layer is a group.
@@ -1217,10 +1248,12 @@ class Group(GroupMixin, Layer):
         open_folder: bool = True,
     ) -> Self:
         """
-        Create a new Group object with minimal records and data channels and metadata to properly include the group in the PSD file.
+        Create a new Group object with minimal records and data channels and metadata
+        to properly include the group in the PSD file.
 
         :param name: The display name of the group. Default to "Group".
-        :param open_folder: Boolean defining whether the folder will be open or closed in photoshop. Default to True.
+        :param open_folder: Boolean defining whether the folder will be open or closed
+            in photoshop. Default to True.
         :param parent: Optional parent folder to move the newly created group into.
 
         :return: A :py:class:`~psd_tools.api.layers.Group` object
@@ -1232,11 +1265,12 @@ class Group(GroupMixin, Layer):
         # Create the layer record for the group.
         record = LayerRecord(top=0, left=0, bottom=0, right=0, name=name)
         record.tagged_blocks = TaggedBlocks()
-        record.tagged_blocks.set_data(
-            Tag.SECTION_DIVIDER_SETTING,
-            SectionDivider.OPEN_FOLDER if open_folder else SectionDivider.CLOSED_FOLDER,
+        kind = (
+            SectionDivider.OPEN_FOLDER if open_folder else SectionDivider.CLOSED_FOLDER
         )
+        record.tagged_blocks.set_data(Tag.SECTION_DIVIDER_SETTING, kind=kind)
         record.tagged_blocks.set_data(Tag.UNICODE_LAYER_NAME, name)
+        # TODO: Check the number of channels needed
         record.channel_info = [ChannelInfo(id=i - 1, length=2) for i in range(4)]
 
         # Create the bounding layer record.
@@ -1253,13 +1287,13 @@ class Group(GroupMixin, Layer):
         ]
 
         channels = ChannelDataList()
-        for i in range(4):
+        for _ in range(4):  # TODO: Check the number of channels needed
             channels.append(ChannelData(compression=Compression.RAW, data=b""))
         bounding_channels = channels
 
         group = cls(parent, record, channels)
         group._set_bounding_records(bounding_record, bounding_channels)
-
+        parent.append(group)
         return group
 
     @classmethod
@@ -1274,9 +1308,11 @@ class Group(GroupMixin, Layer):
         Create a new Group object containing the given layers and moved into the parent folder.
 
         :param parent: The parent group to add the newly created Group object into.
-        :param layers: The layers to group. Can by any subclass of :py:class:`~psd_tools.api.layers.Layer`
+        :param layers: The layers to group. Can by any subclass of
+            :py:class:`~psd_tools.api.layers.Layer`
         :param name: The display name of the group. Default to "Group".
-        :param open_folder: Boolean defining whether the folder will be open or closed in photoshop. Default to True.
+        :param open_folder: Boolean defining whether the folder will be open or closed in
+            photoshop. Default to True.
 
         :return: A :py:class:`~psd_tools.api.layers.Group`
         :raises ValueError: If layers is empty
@@ -1386,7 +1422,7 @@ class PixelLayer(Layer):
         **kwargs: Any,
     ) -> "PixelLayer":
         """
-        Creates a PixelLayer from a PIL image for a given psd file.
+        Create a PixelLayer from a PIL image for a given psd file.
 
         :param image: The :py:class:`~PIL.Image.Image` object to convert to photoshop
         :param psdimage: The target psdimage the image will be converted for.
@@ -1419,7 +1455,6 @@ class PixelLayer(Layer):
             compression,
         )
         self = cls(parent, layer_record, channel_data_list)
-        # TODO: We should have an API in PSDImage to add layers.
         parent.append(self)
         return self
 
@@ -1584,8 +1619,10 @@ class TypeLayer(Layer):
         Text type. Read-only.
 
         :return:
-         - :py:attr:`psd_tools.constants.TextType.POINT` for point type text (also known as character type)
-         - :py:attr:`psd_tools.constants.TextType.PARAGRAPH` for paragraph type text (also known as area type)
+         - :py:attr:`psd_tools.constants.TextType.POINT` for point type text
+            (also known as character type)
+         - :py:attr:`psd_tools.constants.TextType.PARAGRAPH` for paragraph type text
+            (also known as area type)
          - `None` if text type cannot be determined or information is unavailable
 
         See :py:class:`psd_tools.constants.TextType`.
@@ -1604,15 +1641,18 @@ class TypeLayer(Layer):
                 return TextType.POINT if text_type == 0 else TextType.PARAGRAPH
             else:
                 logger.warning(
-                    f"Cannot determine text_type of layer '{self.name}' because information inside ShapeType was not found."
+                    f"Cannot determine text_type of layer '{self.name}' "
+                    "because information inside ShapeType was not found."
                 )
         elif not shapes:
             logger.warning(
-                f"Cannot determine text_type of layer '{self.name}' because information inside EngineDict was not found."
+                f"Cannot determine text_type of layer '{self.name}' "
+                "because information inside EngineDict was not found."
             )
         elif len(shapes) > 1:
             logger.warning(
-                f"Cannot determine text_type of layer '{self.name}' because EngineDict has {len(shapes)} shapes."
+                f"Cannot determine text_type of layer '{self.name}' "
+                "because EngineDict has {len(shapes)} shapes."
             )
         return None
 

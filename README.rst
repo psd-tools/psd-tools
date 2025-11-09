@@ -41,6 +41,7 @@ Limited support:
 Not supported:
 
 * Editing of various layers such as type layers, shape layers, smart objects, etc.
+* Editing of texts in type layers
 * Composition of adjustment layers
 * Composition of many layer effects
 * Font rendering

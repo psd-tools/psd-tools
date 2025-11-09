@@ -25,6 +25,7 @@ def test_identical():
     assert decoded == EDGE_CASE_1
     assert decoded_c == EDGE_CASE_1
 
+
 @pytest.mark.parametrize(
     ("mod, data, size"),
     [

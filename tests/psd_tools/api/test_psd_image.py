@@ -6,9 +6,8 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from psd_tools.api import layers
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.constants import ColorMode, Compression
+from psd_tools.constants import BlendMode, ColorMode, Compression
 
 from ..utils import full_name
 
@@ -125,6 +124,51 @@ def test_open2(filename):
     assert isinstance(PSDImage.open(full_name(filename)), PSDImage)
 
 
+def test_create_pixel_layer():
+    psdimage = PSDImage.new(mode="RGB", size=(100, 100))
+    layer = psdimage.create_pixel_layer(
+        Image.new("RGB", (50, 50), (255, 0, 0)),
+        name="Red Layer",
+        top=10,
+        left=20,
+        compression=Compression.RLE,
+        opacity=128,
+        blend_mode=BlendMode.MULTIPLY,
+    )
+    assert layer.name == "Red Layer"
+    assert layer.top == 10
+    assert layer.left == 20
+    assert layer.opacity == 128
+    assert layer.blend_mode == BlendMode.MULTIPLY
+    assert len(psdimage) == 1
+    assert psdimage[0] is layer
+
+
+def test_create_group():
+    psdimage = PSDImage.new(mode="RGB", size=(100, 100))
+    layer_list = [
+        psdimage.create_pixel_layer(
+            Image.new("RGB", (50, 50), (0, 255, 0)),
+            name="Green Layer",
+        ),
+    ]
+    group = psdimage.create_group(
+        layer_list,
+        name="My Group",
+        open_folder=False,
+        opacity=128,
+        blend_mode=BlendMode.SCREEN,
+    )
+    assert group.name == "My Group"
+    assert group.open_folder is False
+    assert len(psdimage) == 1
+    assert psdimage[0] is group
+    assert len(group) == 1
+    assert group[0] is layer_list[0]
+    assert group.opacity == 128
+    assert group.blend_mode == BlendMode.SCREEN
+
+
 def test_update_record(fixture):
     pixel_layer = PSDImage.open(full_name("layers/pixel-layer.psd"))[0]
     fill_layer = PSDImage.open(full_name("layers/solid-color-fill.psd"))[0]
@@ -134,11 +178,7 @@ def test_update_record(fixture):
     group_layer = PSDImage.open(full_name("layers/group.psd"))[0]
 
     group_layer.extend([pixel_layer, fill_layer, shape_layer, smart_layer, type_layer])
-
     fixture.append(group_layer)
-
-    fixture._update_record()
-
     layer_info = fixture._record.layer_and_mask_information.layer_info
 
     assert layer_info.layer_count == 9
@@ -176,14 +216,3 @@ def test_is_updated():
     assert not psd.is_updated()
     psd[1][2].clipping = False
     assert psd.is_updated()
-
-
-def test_frompil_layers():
-    psdimage = PSDImage.new(mode="RGB", size=(30, 30), color=(255, 255, 255))
-    image = Image.new("RGB", size=(30, 30), color=(255, 0, 0))
-    layers.PixelLayer.frompil(image, psdimage, name="Test Layer")
-    assert len(psdimage) == 1
-    assert psdimage[0].name == "Test Layer"
-    rendered = psdimage.composite()
-    assert isinstance(rendered, Image.Image)
-    assert rendered.getpixel((0, 0)) == (255, 0, 0)
