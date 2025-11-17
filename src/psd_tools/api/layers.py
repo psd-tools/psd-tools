@@ -589,9 +589,9 @@ class Layer(LayerProtocol):
             'shape', 'alpha', or 'mask'. Default is 'color+alpha'.
         :return: :py:class:`numpy.ndarray` or None if there is no pixel.
         """
-        from .numpy_io import get_array
+        from . import numpy_io
 
-        return get_array(self, channel, real_mask=real_mask)
+        return numpy_io.get_array(self, channel, real_mask=real_mask)
 
     def composite(
         self,

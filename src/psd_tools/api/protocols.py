@@ -9,12 +9,12 @@ to properly type hint their parameters while avoiding circular dependency issues
 from typing import Callable, Iterator, Literal, Optional, Protocol, Union
 
 import numpy as np
-from PIL.Image import Image as PILImage
+from PIL import Image
 
 from psd_tools.constants import BlendMode, ChannelID, ColorMode, CompatibilityMode
-from psd_tools.psd.layer_and_mask import ChannelDataList, LayerRecord, MaskData
 from psd_tools.psd.document import PSD
 from psd_tools.psd.image_resources import ImageResources
+from psd_tools.psd.layer_and_mask import ChannelDataList, LayerRecord, MaskData
 from psd_tools.psd.tagged_blocks import TaggedBlocks
 
 
@@ -233,7 +233,7 @@ class LayerProtocol(Protocol):
 
     def topil(
         self, channel: Optional[int] = None, apply_icc: bool = True
-    ) -> Optional[PILImage]:
+    ) -> Optional[Image.Image]:
         """
         Get PIL Image of the layer.
 
@@ -263,7 +263,7 @@ class LayerProtocol(Protocol):
         alpha: Union[float, np.ndarray] = 0.0,
         layer_filter: Optional[Callable] = None,
         apply_icc: bool = True,
-    ) -> Optional[PILImage]:
+    ) -> Optional[Image.Image]:
         """
         Composite the layer.
 
@@ -436,7 +436,7 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
 
     def topil(
         self, channel: Union[int, ChannelID, None] = None, apply_icc: bool = True
-    ) -> Optional[PILImage]:
+    ) -> Optional[Image.Image]:
         """
         Get PIL Image of the document.
 
@@ -466,7 +466,7 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
         layer_filter: Optional[Callable] = None,
         ignore_preview: bool = False,
         apply_icc: bool = True,
-    ) -> PILImage:
+    ) -> Image.Image:
         """
         Composite the PSD document.
 

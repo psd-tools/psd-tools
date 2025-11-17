@@ -5,7 +5,7 @@ Mask module.
 import logging
 from typing import Any, Optional, cast
 
-from PIL.Image import Image as PILImage
+from PIL import Image
 
 from psd_tools.api.protocols import LayerProtocol, MaskProtocol
 from psd_tools.constants import ChannelID
@@ -111,7 +111,7 @@ class Mask(MaskProtocol):
         """Return True if the mask has real flags."""
         return self.real_flags is not None and self.real_flags.parameters_applied
 
-    def topil(self, real: bool = True, **kwargs: Any) -> Optional[PILImage]:
+    def topil(self, real: bool = True, **kwargs: Any) -> Optional[Image.Image]:
         """
         Get PIL Image of the mask.
 

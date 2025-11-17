@@ -75,17 +75,17 @@ from psd_tools.constants import (
     Tag,
 )
 from psd_tools.psd.document import PSD
+from psd_tools.psd.header import FileHeader
+from psd_tools.psd.image_data import ImageData
+from psd_tools.psd.image_resources import ImageResources
 from psd_tools.psd.layer_and_mask import (
     ChannelImageData,
     GlobalLayerMaskInfo,
     LayerInfo,
     LayerRecords,
 )
-from psd_tools.psd.header import FileHeader
-from psd_tools.psd.image_data import ImageData
-from psd_tools.psd.image_resources import ImageResources
-from psd_tools.psd.tagged_blocks import TaggedBlocks
 from psd_tools.psd.patterns import Patterns
+from psd_tools.psd.tagged_blocks import TaggedBlocks
 
 logger = logging.getLogger(__name__)
 
@@ -252,7 +252,9 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             'shape', 'alpha', or 'mask'. Default is 'color+alpha'.
         :return: :py:class:`numpy.ndarray`
         """
-        return numpy_io.get_array(self, channel)
+        array = numpy_io.get_array(self, channel)
+        assert array is not None
+        return array
 
     def composite(
         self,
