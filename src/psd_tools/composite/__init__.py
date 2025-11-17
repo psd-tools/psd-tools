@@ -135,7 +135,7 @@ def composite(
     compositor = Compositor(viewport, color, alpha, isolated, layer_filter, force)
     target_group = group if isinstance(group, GroupMixin) and not as_layer else [group]
     for layer in target_group:  # type: ignore
-        compositor.apply(layer)
+        compositor.apply(layer)  # type: ignore[arg-type]
     return compositor.finish()
 
 

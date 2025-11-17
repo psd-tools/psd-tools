@@ -170,7 +170,7 @@ class LinkedLayer(BaseElement):
         if self.kind == LinkedLayerType.EXTERNAL:
             written += self.linked_file.write(fp, padding=1)  # type: ignore[union-attr]
             if self.version > 3:
-                written += write_fmt(fp, "I4Bd", *self.timestamp)  # type: ignore[misc]
+                written += write_fmt(fp, "I4Bd", *self.timestamp)  # type: ignore[misc,operator]
             written += write_fmt(fp, "Q", self.filesize)
             if self.version > 2:
                 assert self.data is not None

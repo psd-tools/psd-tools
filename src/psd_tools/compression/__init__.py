@@ -19,7 +19,7 @@ from psd_tools.utils import (
 )
 
 try:
-    from . import _rle as rle_impl
+    from . import _rle as rle_impl  # type: ignore[import-not-found,attr-defined]
 except ImportError:
     from . import rle as rle_impl
 
@@ -78,7 +78,7 @@ def decompress(
     """
     length = width * height * max(1, depth // 8)
 
-    result = None
+    result: bytes | None = None
     if compression == Compression.RAW:
         result = data[:length]
     elif compression == Compression.RLE:
@@ -97,6 +97,7 @@ def decompress(
         else:
             assert len(result) == length, "len=%d, expected=%d" % (len(result), length)
 
+    assert result is not None
     return result
 
 
@@ -147,12 +148,12 @@ def encode_prediction(
         arr = array.array("B", data)
         arr = _shuffle_byte_order(arr, w, h)
         arr = _delta_encode(arr, 0x100, w * 4, h)
-        return getattr(arr, "tobytes", getattr(arr, "tostring", None))()
+        return arr.tobytes()
     else:
         raise ValueError("Invalid pixel size %d" % (depth))
 
 
-def decode_prediction(data: bytes, w: int, h: int, depth: int) -> array.array:
+def decode_prediction(data: bytes, w: int, h: int, depth: int) -> bytes:
     if depth == 8:
         arr = be_array_from_bytes("B", data)
         arr = _delta_decode(arr, 0x100, w, h)
@@ -166,7 +167,7 @@ def decode_prediction(data: bytes, w: int, h: int, depth: int) -> array.array:
     else:
         raise ValueError("Invalid pixel size %d" % (depth))
 
-    return getattr(arr, "tobytes", getattr(arr, "tostring", None))()
+    return arr.tobytes()
 
 
 def _delta_encode(arr: array.array, mod: int, w: int, h: int) -> array.array:

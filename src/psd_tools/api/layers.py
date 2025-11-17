@@ -182,7 +182,7 @@ class Layer(LayerProtocol):
         index = self.parent.index(self)  # type: ignore
         for i in range(index + 1, len(self.parent)):
             if not visible or self.parent[i].visible:
-                return self.parent[i]
+                return self.parent[i]  # type: ignore[return-value]
         return None
 
     def previous_sibling(self, visible: bool = False) -> Optional[Self]:
@@ -192,7 +192,7 @@ class Layer(LayerProtocol):
         index = self.parent.index(self)  # type: ignore
         for i in range(index - 1, -1, -1):
             if not visible or self.parent[i].visible:
-                return self.parent[i]
+                return self.parent[i]  # type: ignore[return-value]
         return None
 
     def is_group(self) -> bool:

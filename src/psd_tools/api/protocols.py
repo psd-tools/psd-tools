@@ -403,6 +403,16 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
         """Compatibility mode of the document."""
         ...
 
+    @property
+    def viewbox(self) -> tuple[int, int, int, int]:
+        """Bounding box of the document."""
+        ...
+
+    @property
+    def bbox(self) -> tuple[int, int, int, int]:
+        """Bounding box of the document (same as viewbox)."""
+        ...
+
     def has_preview(self) -> bool:
         """Returns if the document has real merged data."""
         ...
