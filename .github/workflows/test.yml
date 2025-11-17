@@ -25,16 +25,16 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv pip install --system -e .[dev] -p ${{ matrix.python-version }}
+        run: uv sync -p ${{ matrix.python-version }} --group dev
 
       - name: Run tests
-        run: uv run pytest -p ${{ matrix.python-version }}
+        run: uv run pytest
 
       - name: Run linter
-        run: uv run ruff check src/ -p ${{ matrix.python-version }}
+        run: uv run ruff check src/
 
       - name: Run type checker
-        run: uv run mypy src/psd_tools -p ${{ matrix.python-version }}
+        run: uv run mypy src/psd_tools
 
   test-summary:
     name: Test Summary
