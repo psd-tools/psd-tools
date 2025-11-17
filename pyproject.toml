@@ -10,7 +10,7 @@ authors = [
     { name = "Kota Yamaguchi", email = "KotaYamaguchi1984@gmail.com" },
 ]
 description = "Python package for working with Adobe Photoshop PSD files"
-readme = "README.rst"
+readme = "README.md"
 keywords = ["photoshop", "psd"]
 license = "MIT"
 dependencies = [
