@@ -216,3 +216,41 @@ def test_is_updated():
     assert not psd.is_updated()
     psd[1][2].clipping = False
     assert psd.is_updated()
+
+
+def test_save_without_composite_dependencies(tmpdir, caplog):
+    """Test that save works gracefully without composite dependencies."""
+    from unittest.mock import patch
+
+    # Create a simple PSD and modify it
+    psdimage = PSDImage.new(mode="RGB", size=(100, 100))
+    layer = psdimage.create_pixel_layer(
+        Image.new("RGB", (50, 50), (255, 0, 0)),
+        name="Test Layer",
+    )
+
+    # Mark as updated
+    assert psdimage.is_updated()
+
+    output_path = os.path.join(str(tmpdir), "test_no_composite.psd")
+
+    # Mock composite() to raise ImportError (simulating missing dependencies)
+    def mock_composite(*args, **kwargs):
+        raise ImportError("No module named 'scipy'")
+
+    with patch.object(psdimage, "composite", side_effect=mock_composite):
+        # Should not raise, should log warning
+        with caplog.at_level(logging.WARNING):
+            psdimage.save(output_path)
+
+    # Verify file was saved
+    assert os.path.exists(output_path)
+
+    # Verify warning was logged
+    assert "Failed to update preview image" in caplog.text
+    assert "pip install 'psd-tools[composite]'" in caplog.text
+
+    # Verify saved file can be read back
+    loaded = PSDImage.open(output_path)
+    assert len(loaded) == 1
+    assert loaded[0].name == "Test Layer"

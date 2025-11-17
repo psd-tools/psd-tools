@@ -40,15 +40,46 @@ jobs:
       - name: Run type checker
         run: uv run mypy src/psd_tools
 
+  test-no-composite:
+    name: Test without composite dependencies - Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.14']  # Test min and max versions
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Install dependencies without composite extra
+        run: |
+          # Install core dependencies only (no composite extra)
+          uv sync -p ${{ matrix.python-version }} --no-group dev
+          # Install test dependencies manually
+          uv pip install pytest pytest-cov
+
+      - name: Run core tests (excluding composite-dependent tests)
+        run: |
+          uv run pytest \
+            --ignore=tests/psd_tools/composite/ \
+            --ignore=tests/psd_tools/api/test_numpy_io.py \
+            -m "not composite" \
+            -v
+
   test-summary:
     name: Test Summary
-    needs: test
+    needs: [test, test-no-composite]
     runs-on: ubuntu-latest
     if: always()
     steps:
       - name: Check test results
         run: |
-          if [ "${{ needs.test.result }}" != "success" ]; then
+          if [ "${{ needs.test.result }}" != "success" ] || [ "${{ needs.test-no-composite.result }}" != "success" ]; then
             echo "Tests failed"
             exit 1
           fi

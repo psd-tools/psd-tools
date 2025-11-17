@@ -72,6 +72,9 @@ version = { attr = "psd_tools.version.__version__" }
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--cov=psd_tools"
+markers = [
+    "composite: marks tests as requiring composite dependencies (aggdraw, scipy, scikit-image)",
+]
 
 [tool.cibuildwheel]
 archs = "auto64"
