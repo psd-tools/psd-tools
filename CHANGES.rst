@@ -1,3 +1,8 @@
+1.11.1 (2025-11-17)
+-------------------
+
+- [ci] Disable Python 3.14 on Windows due to aggdraw unavailability (#521)
+
 1.11.0 (2025-11-09)
 -------------------
 
