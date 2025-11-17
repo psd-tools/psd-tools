@@ -4,13 +4,29 @@ Changelog
 1.12.0 (2025-11-17)
 -------------------
 
-- [packaging] Make composite dependencies optional via ``psd-tools[composite]`` extra
+- [packaging] Make composite dependencies optional via ``psd-tools[composite]`` extra (#525)
 - [api] Lazy-load advanced composite features (vector masks, gradients, effects) to avoid importing optional dependencies unless needed
 - [api] Basic numpy-based compositing works without ``scipy``, ``scikit-image``, or ``aggdraw``
 - [api] Composite functionality raises ``ImportError`` with installation instructions only when advanced features are used
+- [api] Handle missing composite dependencies gracefully in ``PSDImage.save()`` (#532)
 - [packaging] Move ``aggdraw``, ``scipy``, and ``scikit-image`` to optional dependencies
 - [packaging] Keep ``numpy`` as core dependency for raw pixel data access
-- [docs] Update installation instructions for optional composite support
+- [refactor] Move ``PSD`` class to dedicated ``document`` module (#530)
+- [refactor] Reorganize composite module structure and add type safety (#524)
+- [refactor] Split utils module into registry and bin_utils (#537)
+- [refactor] Create shared API utils module (#538)
+- [refactor] Improve type annotations and standardize imports (#539)
+- [api] Add comprehensive type annotations to psd_tools package (#536)
+- [tests] Add comprehensive type annotations to test suite (#534, #535)
+- [tests] Add CI testing without composite dependencies (#533)
+- [docs] Enhance package and module docstrings with comprehensive documentation (#531)
+- [docs] Update installation instructions for optional composite support (#527)
+- [docs] Convert README to Markdown (#527)
+- [ci] Fix CI status badge in README (#523)
+- [ci] Fix ReadTheDocs build by adding Self import fallback
+- [ci] Fix Python 3.10 mypy compatibility (#526)
+- [chore] Remove unused deprecated decorator (#529)
+- [chore] Remove redundant MANIFEST.in file (#528)
 
 **Breaking change**: Users who rely on advanced composite features (vector masks, gradient fills,
 pattern fills, stroke effects) must now install with ``pip install 'psd-tools[composite]'`` or

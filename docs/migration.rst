@@ -1,3 +1,75 @@
+Migrating to 1.12
+=================
+
+psd-tools 1.12 makes composite dependencies optional to support more platforms and Python versions.
+
+Breaking Change: Optional Composite Dependencies
+-------------------------------------------------
+
+The main breaking change in version 1.12 is that advanced compositing features now require
+optional dependencies that must be explicitly installed.
+
+**What changed:**
+
+- Dependencies ``aggdraw``, ``scipy``, and ``scikit-image`` are now optional
+- Basic compositing with NumPy continues to work without these dependencies
+- Advanced features (vector masks, gradients, patterns, effects) require the composite extra
+
+**Migration steps:**
+
+If you use advanced compositing features, install with the composite extra::
+
+    pip install 'psd-tools[composite]'
+
+Or install the dependencies separately::
+
+    pip install psd-tools aggdraw scipy scikit-image
+
+**What works without composite dependencies:**
+
+- Reading and writing PSD files
+- Accessing layer information (names, dimensions, etc.)
+- Extracting raw pixel data with NumPy
+- Basic pixel layer compositing
+- Using cached layer previews
+
+**What requires composite dependencies:**
+
+- Vector shape and stroke rendering
+- Gradient fills
+- Pattern fills
+- Layer effects rendering (drop shadows, strokes, etc.)
+
+**Error handling:**
+
+If you try to use advanced features without the dependencies installed, you'll see a clear error::
+
+    ImportError: Advanced compositing features require optional dependencies.
+    Install with: pip install 'psd-tools[composite]'
+
+**Why this change:**
+
+This change enables psd-tools to run on platforms where some composite dependencies
+are unavailable, particularly Python 3.14 on Windows where ``aggdraw`` is not yet available.
+
+Module Structure Changes
+------------------------
+
+Version 1.12 includes some internal refactoring that generally doesn't affect public APIs:
+
+- The ``PSD`` class moved from ``psd_tools.psd`` to ``psd_tools.psd.document`` (still importable from ``psd_tools.psd``)
+- Utils module split into ``registry`` and ``bin_utils`` (internal change)
+- Composite module reorganized for better type safety (internal change)
+
+These changes maintain backward compatibility for public imports.
+
+Type Annotations
+----------------
+
+Version 1.12 adds comprehensive type annotations throughout the codebase. If you use
+type checkers like mypy, you may discover type errors in your code that were previously
+undetected. This is a good thing - the annotations help catch bugs earlier!
+
 Migrating to 1.11
 =================
 

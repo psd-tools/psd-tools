@@ -80,12 +80,14 @@ Limited support:
 * Composition of fill layer effects
 * Vector masks
 * Editing of some layer attributes such as layer name
+* Basic editing of pixel layers and groups, such as adding or removing a layer
 * Blending modes except for dissolve
 * Drawing of bezier curves
 
 Not supported:
 
-* Editing of layer structure, such as adding or removing a layer
+* Editing of various layers such as type layers, shape layers, smart objects, etc.
+* Editing of texts in type layers
 * Composition of adjustment layers
 * Composition of many layer effects
 * Font rendering
