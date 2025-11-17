@@ -2,7 +2,7 @@ import logging
 from typing import Tuple
 
 import numpy as np
-from scipy import interpolate
+from scipy import interpolate  # type: ignore[import-untyped]
 
 from psd_tools.api.numpy_io import EXPECTED_CHANNELS, get_pattern
 from psd_tools.constants import ColorMode, Tag
@@ -67,6 +67,7 @@ def _get_color(color_mode, desc) -> Tuple[float, ...]:
                 return (t, w, v)
             if i == 5:
                 return (v, w, q)
+            return (v, v, v)  # fallback for unexpected i values
         else:
             return (v, v, v)
 
@@ -207,7 +208,7 @@ def _draw_subpath(subpath_list, width, height, brush, pen):
 
     TODO: Replace aggdraw implementation with skimage.draw.
     """
-    import aggdraw
+    import aggdraw  # type: ignore[import-not-found]
     from PIL import Image
 
     mask = Image.new("L", (width, height), 0)
@@ -498,7 +499,7 @@ def _make_noise_gradient_color(grad):
             'Mxm ': [0, 100, 100, 100]
         }
     """
-    from scipy.ndimage import maximum_filter1d, uniform_filter1d
+    from scipy.ndimage import maximum_filter1d, uniform_filter1d  # type: ignore[import-untyped]
 
     logger.debug("Noise gradient is not accurate.")
     roughness = grad.get(Key.Smoothness).value / 4096.0  # Larger is sharper.
