@@ -10,7 +10,7 @@ from psd_tools.constants import Resource, Tag
 from psd_tools.psd.descriptor import Descriptor, List
 from psd_tools.psd.image_resources import ImageResources
 from psd_tools.terminology import Enum, Key, Klass
-from psd_tools.utils import new_registry
+from psd_tools.registry import new_registry
 
 logger = logging.getLogger(__name__)
 

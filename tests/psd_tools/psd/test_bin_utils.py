@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from psd_tools.utils import (
+from psd_tools.psd.bin_utils import (
     pack,
     read_length_block,
     read_pascal_string,

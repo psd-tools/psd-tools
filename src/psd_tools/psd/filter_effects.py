@@ -9,7 +9,7 @@ from typing import Any, BinaryIO, Optional, TypeVar
 from attrs import define, field
 
 from psd_tools.psd.base import BaseElement, ListElement
-from psd_tools.utils import (
+from psd_tools.psd.bin_utils import (
     is_readable,
     read_fmt,
     read_length_block,

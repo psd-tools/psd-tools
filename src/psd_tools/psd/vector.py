@@ -15,13 +15,13 @@ from attrs import define, field, astuple
 from psd_tools.constants import PathResourceID
 from psd_tools.psd.base import BaseElement, ListElement, ValueElement
 from psd_tools.psd.descriptor import Descriptor
-from psd_tools.utils import (
+from psd_tools.psd.bin_utils import (
     is_readable,
-    new_registry,
     read_fmt,
     write_fmt,
     write_padding,
 )
+from psd_tools.registry import new_registry
 
 logger = logging.getLogger(__name__)
 

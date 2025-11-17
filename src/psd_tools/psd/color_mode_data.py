@@ -9,7 +9,7 @@ from typing import Any, BinaryIO, TypeVar
 from attrs import define
 
 from psd_tools.psd.base import ValueElement
-from psd_tools.utils import read_length_block, write_bytes, write_length_block
+from psd_tools.psd.bin_utils import read_length_block, write_bytes, write_length_block
 
 logger = logging.getLogger(__name__)
 
