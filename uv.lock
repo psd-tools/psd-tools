@@ -1085,24 +1085,32 @@ wheels = [
 name = "psd-tools"
 source = { editable = "." }
 dependencies = [
-    { name = "aggdraw" },
     { name = "attrs" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pillow" },
+    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
+]
+
+[package.optional-dependencies]
+composite = [
+    { name = "aggdraw" },
     { name = "scikit-image" },
     { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "scipy", version = "1.16.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
 
 [package.dev-dependencies]
 dev = [
+    { name = "aggdraw" },
     { name = "ipykernel" },
     { name = "mypy" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
+    { name = "scikit-image" },
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.16.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
 docs = [
     { name = "sphinx", version = "8.1.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -1112,22 +1120,26 @@ docs = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aggdraw" },
+    { name = "aggdraw", marker = "extra == 'composite'" },
     { name = "attrs", specifier = ">=23.0.0" },
     { name = "numpy" },
     { name = "pillow", specifier = ">=10.3.0" },
-    { name = "scikit-image" },
-    { name = "scipy" },
+    { name = "scikit-image", marker = "extra == 'composite'" },
+    { name = "scipy", marker = "extra == 'composite'" },
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
+provides-extras = ["composite"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "aggdraw" },
     { name = "ipykernel" },
     { name = "mypy" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
+    { name = "scikit-image" },
+    { name = "scipy" },
 ]
 docs = [
     { name = "sphinx" },

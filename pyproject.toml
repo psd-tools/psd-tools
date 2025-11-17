@@ -17,10 +17,7 @@ dependencies = [
     "typing-extensions;python_version<'3.11'",
     "attrs>=23.0.0",
     "Pillow>=10.3.0",
-    "aggdraw",
     "numpy",
-    "scipy",
-    "scikit-image",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -39,6 +36,13 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 
+[project.optional-dependencies]
+composite = [
+    "aggdraw",
+    "scipy",
+    "scikit-image",
+]
+
 [dependency-groups]
 dev = [
     "pytest",
@@ -46,6 +50,10 @@ dev = [
     "ipykernel",
     "ruff",
     "mypy",
+    # Include composite dependencies for testing
+    "aggdraw",
+    "scipy",
+    "scikit-image",
 ]
 docs = ["sphinx", "sphinx_rtd_theme"]
 

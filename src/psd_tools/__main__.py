@@ -58,7 +58,11 @@ def main(argv=None):
         if isinstance(layer, PSDImage) and layer.has_preview():
             image = layer.topil()
         else:
-            image = layer.composite()
+            try:
+                image = layer.composite()
+            except ImportError as e:
+                logger.error(str(e))
+                return 1
         image.save(args.output_file)
 
     elif args.command == "show":
