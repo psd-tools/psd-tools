@@ -65,9 +65,7 @@ jobs:
         run: |
           uv run --no-dev pytest \
             --ignore=tests/psd_tools/composite/ \
-            --ignore=tests/psd_tools/api/test_numpy_io.py \
-            -m "not composite" \
-            -v
+            -m "not composite"
 
   test-summary:
     name: Test Summary
