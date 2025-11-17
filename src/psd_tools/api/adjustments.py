@@ -134,7 +134,7 @@ class Curves(AdjustmentLayer):
         return _assert_data(self._data)
 
     @property
-    def extra(self):
+    def extra(self) -> Any:
         return self.data.extra
 
 
@@ -326,7 +326,7 @@ class BlackAndWhite(AdjustmentLayer):
         return bool(_assert_data(self._data).get(b"useTint", False))
 
     @property
-    def tint_color(self):
+    def tint_color(self) -> Any:
         return _assert_data(self._data).get(b"tintColor")
 
     @property
@@ -352,19 +352,19 @@ class PhotoFilter(AdjustmentLayer):
         return _assert_data(self._data).xyz
 
     @property
-    def color_space(self):
+    def color_space(self) -> Any:
         return _assert_data(self._data).color_space
 
     @property
-    def color_components(self):
+    def color_components(self) -> Any:
         return _assert_data(self._data).color_components
 
     @property
-    def density(self):
+    def density(self) -> Any:
         return _assert_data(self._data).density
 
     @property
-    def luminosity(self):
+    def luminosity(self) -> Any:
         return _assert_data(self._data).luminosity
 
 
@@ -373,11 +373,11 @@ class ChannelMixer(AdjustmentLayer):
     """Channel mixer adjustment."""
 
     @property
-    def monochrome(self):
+    def monochrome(self) -> Any:
         return _assert_data(self._data).monochrome
 
     @property
-    def data(self):
+    def data(self) -> Any:
         return _assert_data(self._data).data
 
 
@@ -426,11 +426,11 @@ class SelectiveColor(AdjustmentLayer):
     """Selective color adjustment."""
 
     @property
-    def method(self):
+    def method(self) -> Any:
         return _assert_data(self._data).method
 
     @property
-    def data(self):
+    def data(self) -> Any:
         return _assert_data(self._data).data
 
 
@@ -439,27 +439,27 @@ class GradientMap(AdjustmentLayer):
     """Gradient map adjustment."""
 
     @property
-    def reversed(self):
+    def reversed(self) -> Any:
         return _assert_data(self._data).is_reversed
 
     @property
-    def dithered(self):
+    def dithered(self) -> Any:
         return _assert_data(self._data).is_dithered
 
     @property
-    def gradient_name(self):
+    def gradient_name(self) -> Any:
         return _assert_data(self._data).name.strip("\x00")
 
     @property
-    def color_stops(self):
+    def color_stops(self) -> Any:
         return _assert_data(self._data).color_stops
 
     @property
-    def transparency_stops(self):
+    def transparency_stops(self) -> Any:
         return _assert_data(self._data).transparency_stops
 
     @property
-    def expansion(self):
+    def expansion(self) -> Any:
         return _assert_data(self._data).expansion
 
     @property
@@ -468,37 +468,37 @@ class GradientMap(AdjustmentLayer):
         return _assert_data(self._data).interpolation / 4096.0
 
     @property
-    def length(self):
+    def length(self) -> Any:
         return _assert_data(self._data).length
 
     @property
-    def mode(self):
+    def mode(self) -> Any:
         return _assert_data(self._data).mode
 
     @property
-    def random_seed(self):
+    def random_seed(self) -> Any:
         return _assert_data(self._data).random_seed
 
     @property
-    def show_transparency(self):
+    def show_transparency(self) -> Any:
         return _assert_data(self._data).show_transparency
 
     @property
-    def use_vector_color(self):
+    def use_vector_color(self) -> Any:
         return _assert_data(self._data).use_vector_color
 
     @property
-    def roughness(self):
+    def roughness(self) -> Any:
         return _assert_data(self._data).roughness
 
     @property
-    def color_model(self):
+    def color_model(self) -> Any:
         return _assert_data(self._data).color_model
 
     @property
-    def min_color(self):
+    def min_color(self) -> Any:
         return _assert_data(self._data).minimum_color
 
     @property
-    def max_color(self):
+    def max_color(self) -> Any:
         return _assert_data(self._data).maximum_color

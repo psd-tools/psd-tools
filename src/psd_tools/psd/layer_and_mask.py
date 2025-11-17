@@ -1020,12 +1020,16 @@ class ChannelImageData(ListElement):
 
     @classmethod
     def read(
-        cls: type[T_ChannelImageData], fp: BinaryIO, layer_records=None, **kwargs: Any
+        cls: type[T_ChannelImageData],
+        fp: BinaryIO,
+        layer_records: Optional["LayerRecords"] = None,
+        **kwargs: Any,
     ) -> T_ChannelImageData:
         start_pos = fp.tell()
         items = []
-        for layer in layer_records:
-            items.append(ChannelDataList.read(fp, layer.channel_info))
+        if layer_records:
+            for layer in layer_records:
+                items.append(ChannelDataList.read(fp, layer.channel_info))
         logger.debug("  read channel image data, len=%d" % (fp.tell() - start_pos))
         return cls(items)  # type: ignore[arg-type]
 
@@ -1050,7 +1054,10 @@ class ChannelDataList(ListElement):
 
     @classmethod
     def read(  # type: ignore[override]
-        cls: type[T_ChannelDataList], fp: BinaryIO, channel_info, **kwargs: Any
+        cls: type[T_ChannelDataList],
+        fp: BinaryIO,
+        channel_info: list["ChannelInfo"],
+        **kwargs: Any,
     ) -> T_ChannelDataList:
         items = []
         for c in channel_info:

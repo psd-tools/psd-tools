@@ -1,7 +1,9 @@
 import argparse
 import logging
+from typing import Optional, Union
 
 from psd_tools import PSDImage
+from psd_tools.api.layers import Layer
 from psd_tools.version import __version__
 
 try:
@@ -12,7 +14,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-def parse_args(argv=None):
+def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="psd-tools command line utility.")
     parser.add_argument("-v", "--verbose", action="store_true", help="Be more verbose.")
@@ -36,7 +38,7 @@ def parse_args(argv=None):
     return parser.parse_args(argv)
 
 
-def main(argv=None):
+def main(argv: Optional[list[str]] = None) -> Optional[int]:
     args = parse_args(argv)
 
     logging.basicConfig(level=logging.WARNING)
@@ -52,9 +54,10 @@ def main(argv=None):
             indices = [int(x.rstrip("]")) for x in input_parts[1:]]
         else:
             indices = []
-        layer = PSDImage.open(input_file)
+        layer: Union[PSDImage, Layer] = PSDImage.open(input_file)
         for index in indices:
-            layer = layer[index]
+            # PSDImage and Group both support indexing
+            layer = layer[index]  # type: ignore[index]
         if isinstance(layer, PSDImage) and layer.has_preview():
             image = layer.topil()
         else:
@@ -63,7 +66,8 @@ def main(argv=None):
             except ImportError as e:
                 logger.error(str(e))
                 return 1
-        image.save(args.output_file)
+        if image:
+            image.save(args.output_file)
 
     elif args.command == "show":
         psd = PSDImage.open(args.input_file)
@@ -72,6 +76,8 @@ def main(argv=None):
     elif args.command == "debug":
         psd = PSDImage.open(args.input_file)
         pprint(psd._record)
+
+    return None
 
 
 if __name__ == "__main__":

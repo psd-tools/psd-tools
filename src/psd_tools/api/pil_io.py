@@ -225,14 +225,16 @@ def _merge_channels(layer: "LayerProtocol") -> Optional[PILImage]:
     if layer._psd is None:
         return None
     mode = get_pil_mode(layer._psd.color_mode)
-    channels = [
+    channel_images = [
         _get_channel(layer, info.id)
         for info in layer._record.channel_info
         if info.id >= 0
     ]
-    if any(image is None for image in channels):
+    if any(image is None for image in channel_images):
         return None
-    channels = _check_channels(channels, layer._psd.color_mode)
+    channels = _check_channels(
+        [img for img in channel_images if img is not None], layer._psd.color_mode
+    )
     return Image.merge(mode, channels)  # type: ignore
 
 
@@ -281,7 +283,7 @@ def _create_image(size: tuple[int, int], data: bytes, depth: int) -> PILImage:
         raise ValueError("Unsupported depth: %g" % depth)
 
 
-def _check_channels(channels, color_mode):
+def _check_channels(channels: list[PILImage], color_mode: ColorMode) -> list[PILImage]:
     expected_channels = ColorMode.channels(color_mode)
     if len(channels) > expected_channels:
         # Seems possible when FilterMask is attached.

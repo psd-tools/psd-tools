@@ -3,7 +3,12 @@ Vector mask, path, and stroke structure.
 """
 
 import logging
-from typing import Any, BinaryIO, Sequence, TypeVar
+from typing import Any, BinaryIO, Optional, Sequence, TypeVar
+
+try:
+    from typing import Self  # type: ignore[attr-defined]
+except ImportError:
+    from typing_extensions import Self
 
 from attrs import define, field, astuple
 
@@ -297,7 +302,7 @@ class InitialFillRule(ValueElement):
     value: int = field(default=0, converter=int)
 
     @classmethod
-    def read(cls, fp: BinaryIO, **kwargs: Any):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> Self:
         return cls(*read_fmt("H22x", fp))
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
@@ -317,32 +322,33 @@ class VectorMaskSetting(BaseElement):
 
     version: int = 3
     flags: int = 0
-    path: object = None
+    path: Optional["Path"] = None
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> Self:
         version, flags = read_fmt("2I", fp)
         assert version == 3, "Unknown vector mask version %d" % version
         path = Path.read(fp)
         return cls(version=version, flags=flags, path=path)
 
-    def write(self, fp, **kwargs):
+    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
         written = write_fmt(fp, "2I", self.version, self.flags)
-        written += self.path.write(fp)
+        if self.path:
+            written += self.path.write(fp)
         return written
 
     @property
-    def invert(self):
+    def invert(self) -> bool:
         """Flag to indicate that the vector mask is inverted."""
         return bool(self.flags & 1)
 
     @property
-    def not_link(self):
+    def not_link(self) -> bool:
         """Flag to indicate that the vector mask is not linked."""
         return bool(self.flags & 2)
 
     @property
-    def disable(self):
+    def disable(self) -> bool:
         """Flag to indicate that the vector mask is disabled."""
         return bool(self.flags & 4)
 
@@ -361,11 +367,11 @@ class VectorStrokeContentSetting(Descriptor):
     version: int = 1
 
     @classmethod
-    def read(cls, fp, **kwargs):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> Self:
         key, version = read_fmt("4sI", fp)
         return cls(key=key, version=version, **cls._read_body(fp))
 
-    def write(self, fp, padding=4, **kwargs):
+    def write(self, fp: BinaryIO, padding: int = 4, **kwargs: Any) -> int:
         written = write_fmt(fp, "4sI", self.key, self.version)
         written += self._write_body(fp)
         written += write_padding(fp, written, padding)

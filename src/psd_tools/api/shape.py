@@ -8,7 +8,7 @@ stylized.
 """
 
 import logging
-from typing import Literal, Union
+from typing import Any, Literal, Union
 
 from psd_tools.psd.descriptor import Descriptor, DescriptorBlock2
 from psd_tools.psd.vector import (
@@ -37,17 +37,18 @@ class VectorMask(object):
         self._data = data
         self._build()
 
-    def _build(self):
+    def _build(self) -> None:
         self._paths = []
         self._clipboard_record = None
         self._initial_fill_rule = None
-        for x in self._data.path:
-            if isinstance(x, InitialFillRule):
-                self._initial_fill_rule = x
-            elif isinstance(x, ClipboardRecord):
-                self._clipboard_record = x
-            elif isinstance(x, Subpath):
-                self._paths.append(x)
+        if self._data.path:
+            for x in self._data.path:
+                if isinstance(x, InitialFillRule):
+                    self._initial_fill_rule = x
+                elif isinstance(x, ClipboardRecord):
+                    self._clipboard_record = x
+                elif isinstance(x, Subpath):
+                    self._paths.append(x)
 
     @property
     def inverted(self) -> bool:
@@ -99,13 +100,16 @@ class VectorMask(object):
 
         :return: `int`
         """
+        if self._initial_fill_rule is None:
+            return 0
         return self._initial_fill_rule.value
 
     @initial_fill_rule.setter
     def initial_fill_rule(self, value: Literal[0, 1]) -> None:
         if value not in (0, 1):
             raise ValueError(f"Initial fill rule must be 0 or 1, got {value}")
-        self._initial_fill_rule.value = value
+        if self._initial_fill_rule is not None:
+            self._initial_fill_rule.value = value
 
     @property
     def clipboard_record(self) -> Union[ClipboardRecord, None]:
@@ -214,7 +218,7 @@ class Stroke(object):
         return self._data.get(b"strokeStyleLineDashOffset")
 
     @property
-    def miter_limit(self):
+    def miter_limit(self) -> Any:
         """Miter limit in float."""
         return self._data.get(b"strokeStyleMiterLimit")
 
@@ -237,26 +241,26 @@ class Stroke(object):
         return self.STROKE_STYLE_LINE_ALIGNMENTS.get(key, str(key))
 
     @property
-    def scale_lock(self):
+    def scale_lock(self) -> Any:
         return self._data.get(b"strokeStyleScaleLock")
 
     @property
-    def stroke_adjust(self):
+    def stroke_adjust(self) -> Any:
         """Stroke adjust"""
         return self._data.get(b"strokeStyleStrokeAdjust")
 
     @property
-    def blend_mode(self):
+    def blend_mode(self) -> Any:
         """Blend mode."""
         return self._data.get(b"strokeStyleBlendMode").enum
 
     @property
-    def opacity(self):
+    def opacity(self) -> Any:
         """Opacity value."""
         return self._data.get(b"strokeStyleOpacity")
 
     @property
-    def content(self):
+    def content(self) -> Any:
         """
         Fill effect.
         """
@@ -284,7 +288,7 @@ class Origination(object):
         types = {1: Rectangle, 2: RoundedRectangle, 4: Line, 5: Ellipse}
         return types.get(origin_type, kls)(data)  # type: ignore
 
-    def __init__(self, data):
+    def __init__(self, data: Descriptor) -> None:
         self._data = data
 
     @property
@@ -386,7 +390,7 @@ class RoundedRectangle(Origination):
     """Rounded rectangle live shape."""
 
     @property
-    def radii(self):
+    def radii(self) -> Any:
         """
         Corner radii of rounded rectangles.
         The order is top-left, top-right, bottom-left, bottom-right.

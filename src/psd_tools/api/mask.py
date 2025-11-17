@@ -93,7 +93,7 @@ class Mask(MaskProtocol):
         return self._data.flags
 
     @property
-    def parameters(self):
+    def parameters(self) -> Any:
         """Parameters."""
         return self._data.parameters
 
