@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
-def layer_mask_data():
+def layer_mask_data() -> PSDImage:
     return PSDImage.open(full_name("layer_mask_data.psd"))
 
 

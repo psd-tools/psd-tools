@@ -1,4 +1,5 @@
 import logging
+from typing import Any, Optional
 
 import numpy as np
 import pytest
@@ -13,11 +14,11 @@ from ..utils import full_name
 logger = logging.getLogger(__name__)
 
 
-def _mse(x, y):
+def _mse(x: Any, y: Any) -> Any:
     return np.nanmean((x - y) ** 2)
 
 
-def composite_error(layer, threshold, force=True, channel=None):
+def composite_error(layer: Any, threshold: float, force: bool = True, channel: Optional[str] = None) -> Any:
     reference = layer.numpy(channel)
     color, _, alpha = composite(layer, force=force)
     result = color
@@ -28,7 +29,7 @@ def composite_error(layer, threshold, force=True, channel=None):
     return error
 
 
-def check_composite_quality(filename, threshold=0.1, force=False):
+def check_composite_quality(filename: str, threshold: float = 0.1, force: bool = False) -> None:
     psd = PSDImage.open(full_name(filename))
     composite_error(psd, threshold, force)
 

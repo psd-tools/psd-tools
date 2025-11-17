@@ -1,5 +1,5 @@
 import logging
-from typing import Type
+from typing import Iterator, Type
 
 import pytest
 
@@ -14,11 +14,11 @@ VECTOR_MASK2 = PSDImage.open(full_name("vector-mask2.psd"))
 
 
 @pytest.fixture
-def psd():
-    return VECTOR_MASK2
+def psd() -> Iterator[PSDImage]:
+    yield VECTOR_MASK2
 
 
-def test_layer_properties(psd) -> None:
+def test_layer_properties(psd: PSDImage) -> None:
     for index in range(len(psd)):
         layer = psd[index]
         assert layer.has_vector_mask() is True
@@ -38,8 +38,9 @@ def test_layer_properties(psd) -> None:
                 assert layer.stroke is None
 
 
-def test_vector_mask(psd) -> None:
+def test_vector_mask(psd: PSDImage) -> None:
     vector_mask = psd[7].vector_mask
+    assert vector_mask is not None
     assert vector_mask.inverted == 0
     assert vector_mask.not_linked == 0
     assert vector_mask.disabled == 0

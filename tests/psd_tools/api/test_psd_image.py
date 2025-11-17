@@ -1,9 +1,7 @@
 import logging
-import os
 import pprint
 from pathlib import Path
 from typing import Any, Tuple, Union
-
 
 import pytest
 from PIL import Image
@@ -55,10 +53,10 @@ def test_open(filename: Union[str, Path]) -> None:
         PSDImage.open(f)
 
 
-def test_save(fixture: PSDImage, tmpdir: Any) -> None:
-    output_path = os.path.join(str(tmpdir), "output.psd")
+def test_save(fixture: PSDImage, tmp_path: Path) -> None:
+    output_path = tmp_path / "output.psd"
+    fixture.save(str(output_path))
     fixture.save(output_path)
-    fixture.save(Path(output_path))
     with open(output_path, "wb") as f:
         fixture.save(f)
 
@@ -121,7 +119,7 @@ def test_repr_pretty(fixture: PSDImage) -> None:
 
 @pytest.mark.parametrize(
     "filename",
-    [os.path.join("third-party-psds", "cactus_top.psd")],
+    [str(Path("third-party-psds") / "cactus_top.psd")],
 )
 def test_open2(filename: str) -> None:
     assert isinstance(PSDImage.open(full_name(filename)), PSDImage)
@@ -222,7 +220,7 @@ def test_is_updated() -> None:
     assert psd.is_updated()
 
 
-def test_save_without_composite_dependencies(tmpdir: Any, caplog: Any) -> None:
+def test_save_without_composite_dependencies(tmp_path: Path, caplog: Any) -> None:
     """Test that save works gracefully without composite dependencies."""
     from unittest.mock import patch
 
@@ -236,19 +234,19 @@ def test_save_without_composite_dependencies(tmpdir: Any, caplog: Any) -> None:
     # Mark as updated
     assert psdimage.is_updated()
 
-    output_path = os.path.join(str(tmpdir), "test_no_composite.psd")
+    output_path = tmp_path / "test_no_composite.psd"
 
     # Mock composite() to raise ImportError (simulating missing dependencies)
-    def mock_composite(*args, **kwargs):
+    def mock_composite(*args: Any, **kwargs: Any) -> None:
         raise ImportError("No module named 'scipy'")
 
     with patch.object(psdimage, "composite", side_effect=mock_composite):
         # Should not raise, should log warning
         with caplog.at_level(logging.WARNING):
-            psdimage.save(output_path)
+            psdimage.save(str(output_path))
 
     # Verify file was saved
-    assert os.path.exists(output_path)
+    assert output_path.exists()
 
     # Verify warning was logged
     assert "Failed to update preview image" in caplog.text
