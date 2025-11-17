@@ -6,6 +6,7 @@ from typing import Optional, Tuple
 import numpy as np
 
 from psd_tools.api import numpy_io
+from psd_tools.api.utils import EXPECTED_CHANNELS
 from psd_tools.composite._compat import require_scipy, require_skimage
 from psd_tools.constants import ColorMode, Tag
 from psd_tools.terminology import Enum, Key, Klass, Type
@@ -228,7 +229,7 @@ def draw_pattern_fill(
         int(np.ceil(float(width) / panel.shape[1])),
         1,
     )
-    channels = numpy_io.EXPECTED_CHANNELS.get(pattern.image_mode)
+    channels = EXPECTED_CHANNELS.get(pattern.image_mode)
     pixels = np.tile(panel, reps)[:height, :width, :]
     if channels is not None and pixels.shape[2] > channels:
         return pixels[:, :, :channels], pixels[:, :, -1:]
