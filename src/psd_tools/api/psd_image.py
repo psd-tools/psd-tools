@@ -202,11 +202,20 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         """
         if self.is_updated():
             # Update the preview image if the layer structure has been changed.
-            composited_psd = self.composite()
-            self._record.image_data.set_data(
-                [channel.tobytes() for channel in composited_psd.split()],
-                self._record.header,
-            )
+            # TODO: Fill in a white background for the given color mode on failure.
+            # TODO: Set a `has_composite` flag in VersionInfo resource.
+            try:
+                composited_psd = self.composite()
+                self._record.image_data.set_data(
+                    [channel.tobytes() for channel in composited_psd.split()],
+                    self._record.header,
+                )
+            except ImportError as e:
+                logger.warning(
+                    "Failed to update preview image: %s. "
+                    "Install composite dependencies with: pip install 'psd-tools[composite]'",
+                    e,
+                )
 
         if isinstance(fp, (str, bytes, os.PathLike)):
             with open(fp, mode) as f:
