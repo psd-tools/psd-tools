@@ -219,6 +219,22 @@ option::
     image = psd.composite(
         layer_filter=lambda layer: layer.is_visible() and layer.kind != 'type')
 
+.. note::
+
+    Advanced compositing features require optional dependencies. Install with::
+
+        pip install psd-tools[composite]
+
+    These dependencies (``aggdraw``, ``scipy``, ``scikit-image``) are needed for:
+
+    - Vector shapes and strokes
+    - Gradient and pattern fills
+    - Layer effects
+
+    Basic compositing works without them by using cached previews or simple
+    pixel-based operations. If a feature requires missing dependencies, an
+    ``ImportError`` with installation instructions will be raised.
+
 Note that most of the layer effects and adjustment layers are not supported.
 The compositing result may look different from Photoshop.
 

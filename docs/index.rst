@@ -14,6 +14,25 @@ Use `pip` to install the package::
 
     pip install psd-tools
 
+For advanced layer compositing features, install with the ``composite`` extra::
+
+    pip install psd-tools[composite]
+
+This installs optional dependencies (``aggdraw``, ``scipy``, ``scikit-image``)
+required for:
+
+- Vector shape and stroke rendering
+- Gradient and pattern fills
+- Layer effects rendering
+
+Basic compositing operations work without these dependencies by using cached
+previews or simple NumPy-based operations.
+
+.. note::
+
+    The ``composite`` extra may not be available on all platforms.
+    Notably, Python 3.14 on Windows currently lacks ``aggdraw`` support.
+
 .. note::
 
     In order to extract images from 32bit PSD files PIL/Pillow must be built
@@ -44,6 +63,7 @@ Check out the :doc:`usage` documentation for more examples.
 
     usage
     migration
+    changelog
     contributing
 
 Features
