@@ -1,6 +1,6 @@
 import argparse
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from psd_tools import PSDImage
 from psd_tools.version import __version__
@@ -53,7 +53,7 @@ def main(argv: Optional[list[str]] = None) -> Optional[int]:
             indices = [int(x.rstrip("]")) for x in input_parts[1:]]
         else:
             indices = []
-        layer = PSDImage.open(input_file)
+        layer: Any = PSDImage.open(input_file)
         for index in indices:
             layer = layer[index]
         if isinstance(layer, PSDImage) and layer.has_preview():
