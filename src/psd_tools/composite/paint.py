@@ -229,7 +229,7 @@ def draw_pattern_fill(
     )
     channels = numpy_io.EXPECTED_CHANNELS.get(pattern.image_mode)
     pixels = np.tile(panel, reps)[:height, :width, :]
-    if pixels.shape[2] > channels:
+    if channels is not None and pixels.shape[2] > channels:
         return pixels[:, :, :channels], pixels[:, :, -1:]
     return pixels, None
 
