@@ -137,21 +137,23 @@ class SmartObject:
         return self.filetype in ("8bpb", "8bps")
 
     @property
-    def warp(self):
+    def warp(self) -> Optional[object]:
         """Warp parameters."""
         if self._config is None:
             raise ValueError("Smart object config not found")
         return self._config.data.get(b"warp")
 
     @property
-    def resolution(self):
+    def resolution(self) -> float:
         """Resolution of the object."""
         if self._config is None:
             raise ValueError("Smart object config not found")
         return self._config.data.get(b"Rslt").value
 
     @property
-    def transform_box(self):
+    def transform_box(
+        self,
+    ) -> Optional[tuple[float, float, float, float, float, float, float, float]]:
         """
         A tuple representing the coordinates of the smart objects's transformed box. This box is the result of one or more transformations such as scaling, rotation, translation, or skewing to the original bounding box of the smart object.
 

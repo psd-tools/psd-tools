@@ -6,6 +6,8 @@ import io
 import logging
 from typing import Any, BinaryIO, Optional, TypeVar
 
+from typing_extensions import Self
+
 from attrs import define, field
 
 from psd_tools.compression import compress, decompress
@@ -143,7 +145,7 @@ class VirtualMemoryArrayList(BaseElement):
     channels: list["VirtualMemoryArray"] = field(factory=list)
 
     @classmethod
-    def read(cls, fp: BinaryIO, **kwargs: Any):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> Self:
         version = read_fmt("I", fp)[0]
         assert version == 3, "Invalid version %d" % (version)
 
@@ -192,7 +194,7 @@ class VirtualMemoryArray(BaseElement):
     data: bytes = b""
 
     @classmethod
-    def read(cls, fp: BinaryIO, **kwargs: Any):
+    def read(cls, fp: BinaryIO, **kwargs: Any) -> Self:
         is_written = read_fmt("I", fp)[0]
         if is_written == 0:
             return cls(is_written=is_written)

@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Literal, Optional, Union, cast
+from typing import Any, Callable, Literal, Optional, Union, cast
 
 import numpy as np
 
@@ -60,18 +60,26 @@ def get_image_data(psd: "PSDProtocol", channel: Optional[str]) -> np.ndarray:
 def get_layer_data(
     layer: "LayerProtocol", channel: Optional[str], real_mask: bool = True
 ) -> Optional[np.ndarray]:
-    def _find_channel(layer, width, height, condition):
+    def _find_channel(
+        layer: "LayerProtocol",
+        width: int,
+        height: int,
+        condition: Callable[[Any], bool],
+    ) -> Optional[np.ndarray]:
         depth, version = layer._psd.depth, layer._psd.version
         iterator = zip(layer._record.channel_info, layer._channels)
         channels = [
-            _parse_array(data.get_data(width, height, depth, version), depth)
+            _parse_array(
+                data.get_data(width, height, depth, version),
+                cast(Literal[1, 8, 16, 32], depth),
+            )
             for info, data in iterator
             if condition(info) and len(data.data) > 0
         ]
         if len(channels) and channels[0].size > 0:
             result = np.stack(channels, axis=1).reshape((height, width, -1))
             expected_channels = EXPECTED_CHANNELS.get(layer._psd.color_mode)
-            if result.shape[2] > expected_channels:
+            if expected_channels is not None and result.shape[2] > expected_channels:
                 logger.debug("Extra channel found")
                 return result[:, :, :expected_channels]
             return result
@@ -106,7 +114,7 @@ def get_layer_data(
     return np.concatenate([color, shape], axis=2)
 
 
-def get_pattern(pattern) -> np.ndarray:
+def get_pattern(pattern: Any) -> np.ndarray:
     """Get pattern array."""
     height, width = pattern.data.rectangle[2], pattern.data.rectangle[3]
     return np.stack(
@@ -119,7 +127,7 @@ def get_pattern(pattern) -> np.ndarray:
     ).reshape((height, width, -1))
 
 
-def has_transparency(psd: Any) -> bool:
+def has_transparency(psd: "PSDProtocol") -> bool:
     keys = (
         Tag.SAVING_MERGED_TRANSPARENCY,
         Tag.SAVING_MERGED_TRANSPARENCY16,
@@ -127,7 +135,8 @@ def has_transparency(psd: Any) -> bool:
     )
     if psd.tagged_blocks and any(key in psd.tagged_blocks for key in keys):
         return True
-    if psd.channels > EXPECTED_CHANNELS.get(psd.color_mode):
+    expected = EXPECTED_CHANNELS.get(psd.color_mode)
+    if expected is not None and psd.channels > expected:
         alpha_ids = psd.image_resources.get_data(Resource.ALPHA_IDENTIFIERS)
         if alpha_ids and all(x > 0 for x in alpha_ids):
             return False
@@ -140,7 +149,7 @@ def has_transparency(psd: Any) -> bool:
     return False
 
 
-def get_transparency_index(psd: Any) -> int:
+def get_transparency_index(psd: "PSDProtocol") -> int:
     alpha_ids = psd.image_resources.get_data(Resource.ALPHA_IDENTIFIERS)
     if alpha_ids:
         try:
@@ -171,7 +180,7 @@ def _parse_array(
         raise ValueError("Unsupported depth: %g" % depth)
 
 
-def _remove_background(data: np.ndarray, psd: Any) -> np.ndarray:
+def _remove_background(data: np.ndarray, psd: "PSDProtocol") -> np.ndarray:
     """ImageData preview is rendered on a white background."""
     if psd.color_mode == ColorMode.RGB and data.shape[2] > 3:
         color = data[:, :, :3]

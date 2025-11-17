@@ -35,7 +35,7 @@ class ColorMode(IntEnum):
     LAB = 9
 
     @staticmethod
-    def channels(value, alpha=False):
+    def channels(value: "ColorMode", alpha: bool = False) -> int:
         return {
             ColorMode.BITMAP: 1,
             ColorMode.GRAYSCALE: 1,
@@ -45,7 +45,7 @@ class ColorMode(IntEnum):
             ColorMode.MULTICHANNEL: 1,
             ColorMode.DUOTONE: 1,
             ColorMode.LAB: 3,
-        }.get(value) + alpha
+        }.get(value, 0) + alpha
 
 
 class ColorSpaceID(IntEnum):
@@ -204,11 +204,11 @@ class Resource(IntEnum):
     PRINT_FLAGS_INFO = 10000
 
     @staticmethod
-    def is_path_info(value):
+    def is_path_info(value: int) -> bool:
         return 2000 <= value and value <= 2997
 
     @staticmethod
-    def is_plugin_resource(value):
+    def is_plugin_resource(value: int) -> bool:
         return 4000 <= value and value <= 4999
 
 

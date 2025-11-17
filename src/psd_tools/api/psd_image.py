@@ -126,7 +126,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         color: int = 0,
         depth: Literal[8, 16, 32] = 8,
         **kwargs: Any,
-    ):
+    ) -> Self:
         """
         Create a new PSD document.
 
@@ -147,7 +147,9 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         )
 
     @classmethod
-    def frompil(cls, image: Image.Image, compression=Compression.RLE) -> Self:
+    def frompil(
+        cls, image: Image.Image, compression: Compression = Compression.RLE
+    ) -> Self:
         """
         Create a new layer-less PSD document from PIL Image.
 
@@ -667,12 +669,12 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             self._record.header.channels,
         )
 
-    def _repr_pretty_(self, p, cycle) -> None:
+    def _repr_pretty_(self, p: Any, cycle: bool) -> None:
         if cycle:
             p.text(self.__repr__())
             return
 
-        def _pretty(layer, p):
+        def _pretty(layer: Union[layers.Layer, "PSDImage"], p: Any) -> None:
             p.text(layer.__repr__())
             if isinstance(layer, layers.GroupMixin):
                 with p.indent(2):
@@ -700,7 +702,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             logger.debug("Width or height larger than 30,000 pixels")
             version = 2
         color_mode = pil_io.get_color_mode(mode)
-        alpha = int(mode.upper().endswith("A"))
+        alpha = mode.upper().endswith("A")
         channels = ColorMode.channels(color_mode, alpha)
         return FileHeader(
             version=version,
@@ -711,8 +713,10 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             color_mode=color_mode,
         )
 
-    def _get_pattern(self, pattern_id):
+    def _get_pattern(self, pattern_id: str) -> Optional[Any]:
         """Get pattern item by id."""
+        if self.tagged_blocks is None:
+            return None
         for key in (Tag.PATTERNS1, Tag.PATTERNS2, Tag.PATTERNS3):
             if key in self.tagged_blocks:
                 data = self.tagged_blocks.get_data(key)

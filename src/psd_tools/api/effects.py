@@ -121,7 +121,7 @@ class Effects:
     def __iter__(self) -> Iterator["_Effect"]:
         return self._items.__iter__()
 
-    def __getitem__(self, key) -> "_Effect":
+    def __getitem__(self, key: int) -> "_Effect":
         return self._items.__getitem__(key)
 
     def __repr__(self) -> str:
@@ -185,9 +185,9 @@ class _Effect(_EffectProtocol):
     def __repr__(self) -> str:
         return self.name
 
-    def _repr_pretty_(self, p, cycle):
+    def _repr_pretty_(self, p: Any, cycle: bool) -> None:
         if cycle:
-            return self.__repr__()
+            return
         p.text(self.__repr__())
 
 

@@ -2,6 +2,8 @@
 Validation functions for attr.
 """
 
+from typing import Any
+
 import attr
 from attr.validators import in_
 
@@ -10,10 +12,10 @@ __all__ = ["in_", "range_"]
 
 @attr.s(repr=False, slots=True, hash=True)
 class _RangeValidator(object):
-    minimum = attr.ib()
-    maximum = attr.ib()
+    minimum: Any = attr.ib()
+    maximum: Any = attr.ib()
 
-    def __call__(self, inst, attr, value):
+    def __call__(self, inst: Any, attr: Any, value: Any) -> None:
         try:
             range_options = self.minimum <= value and value <= self.maximum
         except TypeError:
@@ -22,13 +24,13 @@ class _RangeValidator(object):
         if not range_options:
             raise ValueError("'{name}' must be in range []")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "<range_ validator with [{minimum!r}, {maximum!r}]".format(
             minimum=self.minimum, maximum=self.maximum
         )
 
 
-def range_(minimum, maximum):
+def range_(minimum: Any, maximum: Any) -> _RangeValidator:
     """
     A validator that raises a :exc:`ValueError` if the initializer is called
     with a value that does not belong in the [minimum, maximum] range. The

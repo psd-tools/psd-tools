@@ -894,7 +894,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
     def __contains__(self, item: object) -> bool:
         return item in self._layers
 
-    def __getitem__(self, key) -> Layer:
+    def __getitem__(self, key: int) -> Layer:
         return self._layers.__getitem__(key)
 
     def __setitem__(self, key: int, value: Layer) -> None:
@@ -1121,8 +1121,8 @@ class Group(GroupMixin, Layer):
         channels: ChannelDataList,
     ):
         self._layers = []
-        self._bounding_record = None
-        self._bounding_channels = None
+        self._bounding_record: Optional[LayerRecord] = None
+        self._bounding_channels: Optional[ChannelDataList] = None
         Layer.__init__(self, parent, record, channels)
 
     @property
@@ -1252,7 +1252,7 @@ class Group(GroupMixin, Layer):
         alpha: Union[float, np.ndarray] = 0.0,
         layer_filter: Optional[Callable] = None,
         apply_icc: bool = True,
-    ):
+    ) -> Optional[Image.Image]:
         """
         Composite layer and masks (mask, vector mask, and clipping layers).
 
@@ -1294,8 +1294,8 @@ class Group(GroupMixin, Layer):
         :return: tuple of four int
         """
 
-        def _get_bbox(layer, **kwargs):
-            if layer.is_group():
+        def _get_bbox(layer: Layer, **kwargs: Any) -> tuple[int, int, int, int]:
+            if layer.is_group() and isinstance(layer, GroupMixin):
                 return Group.extract_bbox(layer, **kwargs)
             else:
                 return layer.bbox
@@ -1312,7 +1312,9 @@ class Group(GroupMixin, Layer):
         lefts, tops, rights, bottoms = zip(*bboxes)
         return (min(lefts), min(tops), max(rights), max(bottoms))
 
-    def _set_bounding_records(self, _bounding_record, _bounding_channels) -> None:
+    def _set_bounding_records(
+        self, _bounding_record: LayerRecord, _bounding_channels: ChannelDataList
+    ) -> None:
         # Attributes that store the record for the folder divider.
         # Used when updating the record so that we don't need to recompute
         # Them from the ending layer
@@ -1383,7 +1385,7 @@ class Group(GroupMixin, Layer):
         layers: Sequence[Layer],
         name: str = "Group",
         open_folder: bool = True,
-    ):
+    ) -> Self:
         """
         Deprecated: Use ``psdimage.create_group(layer_list, name)`` instead.
 
@@ -1419,7 +1421,8 @@ class Artboard(Group):
             raise ValueError("Cannot convert a group without a parent to an Artboard")
         self = kls(group.parent, group._record, group._channels)  # type: ignore
         self._layers = group._layers
-        self._set_bounding_records(group._bounding_record, group._bounding_channels)
+        if group._bounding_record is not None and group._bounding_channels is not None:
+            self._set_bounding_records(group._bounding_record, group._bounding_channels)
         for layer in self._layers:
             layer._parent = self
         if self.parent is None:
