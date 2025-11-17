@@ -1,5 +1,85 @@
 """
 Layer module.
+
+This module implements the high-level layer API for psd-tools, providing
+Pythonic interfaces for working with Photoshop layers. It defines the layer
+type hierarchy and common operations.
+
+Key classes:
+
+- :py:class:`Layer`: Base class for all layer types
+- :py:class:`GroupMixin`: Mixin for layers that contain children (groups, documents)
+- :py:class:`Group`: Folder/group layer containing other layers
+- :py:class:`PixelLayer`: Regular raster layer with pixel data
+- :py:class:`TypeLayer`: Text layer with typography information
+- :py:class:`ShapeLayer`: Vector shape layer
+- :py:class:`SmartObjectLayer`: Embedded or linked smart object
+- :py:class:`AdjustmentLayer`: Non-destructive adjustment (curves, levels, etc.)
+
+Layer hierarchy:
+
+Layers are organized in a tree structure where groups can contain child layers.
+The :py:class:`GroupMixin` provides iteration, indexing, and search capabilities::
+
+    # Iterate through all layers
+    for layer in psd:
+        print(layer.name)
+
+    # Access by index
+    first_layer = psd[0]
+
+    # Check if layer is a specific type
+    if layer.kind == 'pixel':
+        pixels = layer.numpy()
+
+Common layer properties:
+
+- ``name``: Layer name
+- ``visible``: Visibility flag
+- ``opacity``: Opacity (0-255)
+- ``blend_mode``: Blend mode enum
+- ``bbox``: Bounding box (left, top, right, bottom)
+- ``width``, ``height``: Dimensions
+- ``kind``: Layer type string ('pixel', 'group', 'type', etc.)
+- ``parent``: Parent layer or document
+
+Layer operations:
+
+- :py:meth:`~Layer.composite`: Render layer to PIL Image
+- :py:meth:`~Layer.numpy`: Get pixel data as NumPy array
+- :py:meth:`~Layer.topil`: Convert to PIL Image
+- :py:meth:`~Layer.has_mask`: Check if layer has a mask
+- :py:meth:`~Layer.has_clip_layers`: Check if layer has clipping mask
+
+Example usage::
+
+    from psd_tools import PSDImage
+
+    psd = PSDImage.open('document.psd')
+
+    # Access first layer
+    layer = psd[0]
+
+    # Modify layer properties
+    layer.visible = False
+    layer.opacity = 128
+    layer.name = "New Name"
+
+    # Get pixel data
+    pixels = layer.numpy()  # NumPy array
+    image = layer.topil()   # PIL Image
+
+    # Work with groups
+    for group in psd.descendants():
+        if group.kind == 'group':
+            print(f"Group: {group.name} with {len(group)} layers")
+
+    # Composite specific layer
+    rendered = layer.composite()
+    rendered.save('layer.png')
+
+Layer types are automatically determined from the underlying PSD structures
+and exposed through the ``kind`` property for easy type checking.
 """
 
 import logging

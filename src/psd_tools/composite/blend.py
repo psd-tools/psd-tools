@@ -1,5 +1,73 @@
 """
 Blend mode implementations.
+
+This module implements Photoshop's blend modes for compositing layers. Blend modes
+determine how a layer's colors interact with the layers beneath it. Each function
+implements the mathematical formula for a specific blend mode.
+
+The blend functions operate on NumPy arrays with normalized float32 values (0.0-1.0)
+representing pixel color channels. They follow Adobe's PDF Blend Mode specification.
+
+Blend mode categories:
+
+**Normal modes:**
+- ``normal``: Source replaces backdrop (no blending)
+
+**Darken modes:**
+- ``darken``: Selects darker of source and backdrop
+- ``multiply``: Multiplies colors (darkens)
+- ``color_burn``: Darkens backdrop to reflect source
+- ``linear_burn``: Similar to multiply but more extreme
+- ``darker_color``: Selects darker color (non-separable)
+
+**Lighten modes:**
+- ``lighten``: Selects lighter of source and backdrop
+- ``screen``: Inverted multiply (lightens)
+- ``color_dodge``: Brightens backdrop to reflect source
+- ``linear_dodge``: Same as addition (Add blend mode)
+- ``lighter_color``: Selects lighter color (non-separable)
+
+**Contrast modes:**
+- ``overlay``: Combination of multiply and screen
+- ``soft_light``: Soft version of overlay
+- ``hard_light``: Hard version of overlay
+- ``vivid_light``: Combination of color dodge and burn
+- ``linear_light``: Combination of linear dodge and burn
+- ``pin_light``: Replaces colors based on brightness
+- ``hard_mix``: Posterizes to primary colors
+
+**Inversion modes:**
+- ``difference``: Absolute difference between colors
+- ``exclusion``: Similar to difference but lower contrast
+
+**Component modes (non-separable):**
+- ``hue``: Preserves luminosity and saturation, replaces hue
+- ``saturation``: Preserves luminosity and hue, replaces saturation
+- ``color``: Preserves luminosity, replaces hue and saturation
+- ``luminosity``: Preserves hue and saturation, replaces luminosity
+
+Implementation details:
+
+- Separable blend modes process each color channel independently
+- Non-separable modes convert to HSL color space first
+- All functions expect normalized float32 arrays (0.0-1.0 range)
+- Division by zero is protected with small epsilon values
+
+Example usage::
+
+    import numpy as np
+    from psd_tools.composite.blend import multiply, screen
+
+    # Create backdrop and source colors (normalized)
+    backdrop = np.array([0.5, 0.3, 0.8], dtype=np.float32)
+    source = np.array([0.7, 0.6, 0.2], dtype=np.float32)
+
+    # Apply blend mode
+    result = multiply(backdrop, source)
+    # Result: [0.35, 0.18, 0.16]
+
+The ``BLEND_FUNC`` dictionary maps :py:class:`~psd_tools.constants.BlendMode`
+enums to their corresponding functions for easy lookup during compositing.
 """
 
 import functools

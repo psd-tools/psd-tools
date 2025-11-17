@@ -1,5 +1,61 @@
 """
-Layer and mask data structure.
+Layer and mask data structures.
+
+This module implements the low-level binary structures for PSD layers and masks,
+corresponding to the "Layer and Mask Information" section of PSD files. This is
+one of the most complex parts of the PSD format.
+
+Key classes:
+
+- :py:class:`LayerAndMaskInformation`: Top-level container for all layer data
+- :py:class:`LayerInfo`: Contains layer records and channel image data
+- :py:class:`LayerRecords`: List of individual layer records
+- :py:class:`LayerRecord`: Single layer metadata (name, bounds, blend mode, etc.)
+- :py:class:`ChannelInfo`: Channel metadata within a layer record
+- :py:class:`ChannelImageData`: Compressed pixel data for all channels
+- :py:class:`ChannelData`: Single channel's compressed pixel data
+- :py:class:`MaskData`: Layer mask parameters
+- :py:class:`GlobalLayerMaskInfo`: Document-wide mask settings
+- :py:class:`TaggedBlocks`: Extended layer metadata (see :py:mod:`psd_tools.psd.tagged_blocks`)
+
+The layer structure in PSD files is stored as a flat list with implicit hierarchy.
+Group boundaries are marked by special layers with ``SectionDivider`` tagged blocks:
+
+- ``BOUNDING_SECTION_DIVIDER``: Marks the start of a group (the layer that opens the group)
+- ``OPEN_FOLDER`` or ``CLOSED_FOLDER``: Marks the end of a group (the closing divider layer)
+  - ``OPEN_FOLDER``: Group was open in Photoshop UI
+  - ``CLOSED_FOLDER``: Group was closed in Photoshop UI
+
+The high-level API (:py:mod:`psd_tools.api`) reconstructs this into a proper
+tree structure with parent-child relationships.
+
+Each layer record contains:
+
+1. **Metadata**: Rectangle bounds, blend mode, opacity, flags
+2. **Channel info**: List of channels (R, G, B, A, masks, etc.) with byte offsets
+3. **Blend ranges**: Advanced blending parameters
+4. **Layer name**: Pascal string (legacy, inaccurate for Unicode names)
+5. **Tagged blocks**: Extended metadata in key-value format
+
+The channel image data section follows all layer records and contains the actual
+compressed pixel data for each channel, referenced by the channel info structures.
+
+Example of reading layer metadata::
+
+    from psd_tools.psd import PSD
+
+    with open('file.psd', 'rb') as f:
+        psd = PSD.read(f)
+
+    layer_info = psd.layer_and_mask_information.layer_info
+    for record in layer_info.layer_records:
+        print(f"Layer: {record.name}")
+        print(f"  Bounds: {record.top}, {record.left}, {record.bottom}, {record.right}")
+        print(f"  Blend mode: {record.blend_mode}")
+        print(f"  Channels: {len(record.channel_info)}")
+
+For most use cases, prefer the high-level :py:class:`~psd_tools.api.layers.Layer`
+API which provides easier access to this data.
 """
 
 import io

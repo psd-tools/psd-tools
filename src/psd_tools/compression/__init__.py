@@ -1,5 +1,64 @@
 """
-Image compression utils.
+Image compression utilities for PSD channel data.
+
+This subpackage provides compression and decompression codecs for raw pixel
+data in PSD files. Adobe Photoshop supports multiple compression methods for
+channel data to reduce file size.
+
+Supported compression methods:
+
+- **RAW** (``Compression.RAW``): Uncompressed raw pixel data
+- **RLE** (``Compression.RLE``): Apple PackBits run-length encoding
+- **ZIP** (``Compression.ZIP``): ZIP/Deflate compression without prediction
+- **ZIP_WITH_PREDICTION** (``Compression.ZIP_WITH_PREDICTION``): ZIP with delta encoding
+
+The RLE codec includes both a pure Python implementation and a Cython-optimized
+version (``_rle.pyx``) that provides significant performance improvements. The
+Cython version is used automatically when available, with graceful fallback to
+pure Python.
+
+Key functions:
+
+- :py:func:`compress`: Compress raw pixel data using specified method
+- :py:func:`decompress`: Decompress pixel data back to raw bytes
+- :py:func:`encode_rle`: RLE encoding for a single channel
+- :py:func:`decode_rle`: RLE decoding for a single channel
+
+Example usage::
+
+    from psd_tools.compression import compress, decompress
+    from psd_tools.constants import Compression
+
+    # Compress raw channel data
+    compressed = compress(
+        data=raw_pixels,
+        compression=Compression.RLE,
+        width=100,
+        height=100,
+        depth=8,
+        version=1
+    )
+
+    # Decompress back to raw data
+    raw_pixels = decompress(
+        data=compressed,
+        compression=Compression.RLE,
+        width=100,
+        height=100,
+        depth=8,
+        version=1
+    )
+
+Performance notes:
+
+- RLE is most effective for images with large uniform areas
+- ZIP with prediction works well for continuous-tone images
+- The Cython RLE codec can be 10-100x faster than pure Python
+- Compression method is chosen per-channel when saving PSD files
+
+The compression module handles various bit depths (8, 16, 32-bit per channel)
+and implements delta encoding for improved compression ratios on certain
+image types.
 """
 
 import array

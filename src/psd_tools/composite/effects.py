@@ -1,4 +1,55 @@
 # mypy: disable-error-code="assignment"
+"""
+Layer effects rendering.
+
+This module implements rendering for Photoshop layer effects (also known as
+layer styles). Effects are non-destructive visual enhancements applied to layers
+such as strokes, shadows, glows, and overlays.
+
+**Note**: Effects rendering requires scikit-image. Install with::
+
+    pip install 'psd-tools[composite]'
+
+Currently supported effects:
+
+- **Stroke**: Outline around layer shape or pixels
+  - Supports solid color, gradient, and pattern fills
+  - Position: inside, outside, or centered
+  - Limited compared to Photoshop's full implementation
+
+Partially supported or limited effects:
+
+- Drop shadow, inner shadow, outer glow, inner glow
+- These may render but with reduced accuracy
+
+The main function :py:func:`draw_stroke_effect` handles stroke rendering by:
+
+1. Extracting the layer's alpha channel or shape mask
+2. Applying morphological operations (dilation/erosion) based on stroke size and position
+3. Filling the stroke region with the specified paint (solid color, gradient, pattern)
+4. Returning the rendered stroke as a NumPy array
+
+Implementation notes:
+
+- Effects are image-based rather than vector-based, which may differ from Photoshop
+- For layers with vector paths, ideally strokes should be drawn geometrically
+- Some effect parameters may not be fully supported
+- Complex effect combinations may not render identically to Photoshop
+
+Example usage (internal)::
+
+    from psd_tools.composite.effects import draw_stroke_effect
+
+    # Called during layer compositing
+    viewport = (0, 0, 100, 100)  # Region to render
+    shape = layer_alpha_channel    # NumPy array
+    desc = stroke_descriptor       # Effect parameters
+
+    color, alpha = draw_stroke_effect(viewport, shape, desc, psd)
+
+The effects system integrates with the main compositing pipeline and is
+automatically applied when rendering layers that have effects enabled.
+"""
 import logging
 from typing import Tuple
 
