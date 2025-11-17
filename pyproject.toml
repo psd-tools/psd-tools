@@ -44,13 +44,17 @@ composite = [
 ]
 
 [dependency-groups]
+test = [
+    "pytest",
+    "pytest-cov",
+]
 dev = [
     "pytest",
     "pytest-cov",
     "ipykernel",
     "ruff",
     "mypy",
-    # Include composite dependencies for testing
+    # Include composite dependencies for full development
     "aggdraw",
     "scipy",
     "scikit-image",
