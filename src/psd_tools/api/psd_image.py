@@ -1,5 +1,53 @@
 """
 PSD Image module.
+
+This module provides the main :py:class:`PSDImage` class, which is the primary
+entry point for users of psd-tools. It represents a complete Photoshop document
+and provides high-level methods for reading, manipulating, and saving PSD/PSB files.
+
+The :py:class:`PSDImage` class wraps the low-level :py:class:`~psd_tools.psd.PSD`
+structure and reconstructs the layer tree from the flat layer list, making it much
+easier to work with layers and groups.
+
+Key functionality:
+
+- **Opening files**: :py:meth:`PSDImage.open` and :py:meth:`PSDImage.new`
+- **Layer access**: Iterate, index, and search layers
+- **Compositing**: Render layers to PIL Images via :py:meth:`~PSDImage.composite`
+- **Saving**: Write modified documents back to PSD format
+- **Metadata access**: Document properties, ICC profiles, resolution, etc.
+
+Example usage::
+
+    from psd_tools import PSDImage
+
+    # Open a PSD file
+    psd = PSDImage.open('document.psd')
+
+    # Access document properties
+    print(f"Size: {psd.width}x{psd.height}")
+    print(f"Color mode: {psd.color_mode}")
+
+    # Iterate through layers
+    for layer in psd:
+        print(f"{layer.name}: {layer.kind}")
+
+    # Access layers by index
+    layer = psd[0]  # First layer
+
+    # Modify layers
+    layer.visible = False
+    layer.opacity = 128
+
+    # Composite to image
+    image = psd.composite()
+    image.save('output.png')
+
+    # Save changes
+    psd.save('modified.psd')
+
+The class inherits from :py:class:`~psd_tools.api.layers.GroupMixin`, providing
+group-like behavior for accessing child layers.
 """
 
 import logging

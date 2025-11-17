@@ -1,3 +1,59 @@
+"""
+Pure Python RLE (Run-Length Encoding) codec implementation.
+
+This module provides pure Python implementations of Apple PackBits RLE encoding
+and decoding. PackBits is a simple byte-oriented run-length compression scheme
+used in PSD files for channel data compression.
+
+**Note**: This is the fallback implementation. A faster Cython version is available
+in ``_rle.pyx`` and will be used automatically if compiled. The Cython version can
+be 10-100x faster, especially for large images.
+
+Algorithm overview:
+
+The PackBits algorithm uses a single header byte to indicate:
+- Values 0-127: Copy the next (n+1) literal bytes
+- Values 129-255: Repeat the next byte (257-n) times
+- Value 128: No-op (typically not used)
+
+Encoding example::
+    Input:  [A, A, A, B, C, C, C, C]
+    Output: [130, A, 1, B, 131, C]
+            (repeat A 3x, copy B 1x, repeat C 4x)
+
+The encoder analyzes the input stream to find runs of identical bytes (for RLE
+compression) and sequences of varying bytes (stored literally). It balances
+between these modes to achieve optimal compression.
+
+Functions:
+
+- :py:func:`decode`: Decompress RLE-encoded data to raw bytes
+- :py:func:`encode`: Compress raw bytes using RLE encoding
+
+Example usage::
+
+    from psd_tools.compression.rle import encode, decode
+
+    # Encode raw data
+    raw_data = b'\x00' * 100 + b'\xFF' * 50
+    compressed = encode(raw_data)
+
+    # Decode back to raw
+    decompressed = decode(compressed, len(raw_data))
+    assert decompressed == raw_data
+
+Performance notes:
+
+- RLE works best for images with large uniform areas (solid colors, gradients)
+- Worst case: file size can increase by ~0.4% for random data
+- Best case: massive compression for solid colors (100:1 or better)
+
+The pure Python implementation is used as a reference and fallback. For
+production use with large files, ensure the Cython version is compiled by
+installing with build tools available.
+"""
+
+
 def decode(data: bytes, size: int) -> bytes:
     """decode(data, size) -> bytes
 
