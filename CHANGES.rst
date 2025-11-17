@@ -1,3 +1,20 @@
+1.12.0 (2025-11-17)
+-------------------
+
+- [packaging] Make composite dependencies optional via ``psd-tools[composite]`` extra
+- [api] Lazy-load advanced composite features (vector masks, gradients, effects) to avoid importing optional dependencies unless needed
+- [api] Basic numpy-based compositing works without ``scipy``, ``scikit-image``, or ``aggdraw``
+- [api] Composite functionality raises ``ImportError`` with installation instructions only when advanced features are used
+- [packaging] Move ``aggdraw``, ``scipy``, and ``scikit-image`` to optional dependencies
+- [packaging] Keep ``numpy`` as core dependency for raw pixel data access
+- [docs] Update installation instructions for optional composite support
+
+**Breaking change**: Users who rely on advanced composite features (vector masks, gradient fills,
+pattern fills, stroke effects) must now install with ``pip install 'psd-tools[composite]'`` or
+install the optional dependencies separately. Basic pixel layer compositing continues to work
+with just numpy. This change enables support for Python 3.14 on Windows and other platforms
+where composite dependencies may not be available.
+
 1.11.1 (2025-11-17)
 -------------------
 

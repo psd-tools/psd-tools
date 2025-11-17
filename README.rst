@@ -53,6 +53,13 @@ Use ``pip`` to install the package::
 
     pip install psd-tools
 
+For layer compositing support (rendering), install with the ``composite`` extra::
+
+    pip install 'psd-tools[composite]'
+
+The composite feature requires ``aggdraw``, ``scipy``, and ``scikit-image``, which
+may not be available on all platforms (notably Python 3.14 on Windows).
+
 Getting started
 ---------------
 

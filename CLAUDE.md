@@ -10,15 +10,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install dependencies
 uv sync
 
+# Install with composite support (required for rendering/compositing)
+uv sync --extra composite
+
 # Install with development dependencies using uv
 uv sync --group dev
 
 # Install with docs dependencies using uv
 uv sync --group docs
 
-# Install with all groups (dev and docs)
-uv sync --all-groups
+# Install with all groups (dev and docs) and composite extra
+uv sync --all-groups --extra composite
 ```
+
+**Note**: The `composite` extra includes `aggdraw`, `scipy`, and `scikit-image` dependencies
+required for layer compositing (rendering). These are optional since they may not be available
+on all platforms (notably Python 3.14 on Windows).
 
 ### Testing
 
@@ -206,6 +213,8 @@ psd.save('modified.psd')  # Automatically marks as dirty
 
 ### Compositing
 
+**Note**: Compositing requires optional dependencies. Install with `pip install 'psd-tools[composite]'`
+
 ```python
 # Composite entire document
 image = psd.composite()  # Returns PIL Image
@@ -214,6 +223,9 @@ image.save('output.png')
 # Composite specific layer
 layer_image = layer.composite()
 ```
+
+If composite dependencies are not installed, calling `.composite()` will raise an `ImportError`
+with instructions on how to install the required packages.
 
 ## Testing Conventions
 
@@ -241,8 +253,10 @@ Recent work has added comprehensive type annotations throughout the codebase. Wh
 
 ## Dependencies
 
-Core: `attrs`, `Pillow`, `numpy`, `scipy`, `scikit-image`, `aggdraw`
+**Core**: `attrs`, `Pillow`, `numpy`
 
-Dev: `pytest`, `pytest-cov`, `ruff`, `mypy`
+**Optional (composite extra)**: `scipy`, `scikit-image`, `aggdraw` - Required for layer compositing/rendering
 
-Optional: `Cython` (for RLE optimization)
+**Dev**: `pytest`, `pytest-cov`, `ruff`, `mypy`, plus composite dependencies for testing
+
+**Build-time optional**: `Cython` (for RLE optimization)
