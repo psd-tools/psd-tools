@@ -5,20 +5,15 @@ import numpy as np
 
 if TYPE_CHECKING:
     from psd_tools.api.protocols import LayerProtocol, PSDProtocol
-from psd_tools.constants import ChannelID, ColorMode, Resource, Tag
+from psd_tools.api.utils import (
+    EXPECTED_CHANNELS,
+    get_transparency_index,
+    has_transparency,
+)
+from psd_tools.constants import ChannelID, ColorMode
+from psd_tools.psd.patterns import Pattern
 
 logger = logging.getLogger(__name__)
-
-EXPECTED_CHANNELS = {
-    ColorMode.BITMAP: 1,
-    ColorMode.GRAYSCALE: 1,
-    ColorMode.INDEXED: 3,
-    ColorMode.RGB: 3,
-    ColorMode.CMYK: 4,
-    ColorMode.MULTICHANNEL: 64,
-    ColorMode.DUOTONE: 2,
-    ColorMode.LAB: 3,
-}
 
 
 def get_array(
@@ -115,50 +110,17 @@ def get_layer_data(
     return np.concatenate([color, shape], axis=2)
 
 
-def get_pattern(pattern: Any) -> np.ndarray:
+def get_pattern(pattern: Pattern) -> np.ndarray:
     """Get pattern array."""
     height, width = pattern.data.rectangle[2], pattern.data.rectangle[3]
     return np.stack(
         [
-            _parse_array(c.get_data(), c.pixel_depth)
+            _parse_array(c.get_data(), c.pixel_depth)  # type: ignore
             for c in pattern.data.channels
             if c.is_written
         ],
         axis=1,
     ).reshape((height, width, -1))
-
-
-def has_transparency(psd: "PSDProtocol") -> bool:
-    keys = (
-        Tag.SAVING_MERGED_TRANSPARENCY,
-        Tag.SAVING_MERGED_TRANSPARENCY16,
-        Tag.SAVING_MERGED_TRANSPARENCY32,
-    )
-    if psd.tagged_blocks and any(key in psd.tagged_blocks for key in keys):
-        return True
-    expected = EXPECTED_CHANNELS.get(psd.color_mode)
-    if expected is not None and psd.channels > expected:
-        alpha_ids = psd.image_resources.get_data(Resource.ALPHA_IDENTIFIERS)
-        if alpha_ids and all(x > 0 for x in alpha_ids):
-            return False
-        if (
-            psd._record.layer_and_mask_information.layer_info is not None
-            and psd._record.layer_and_mask_information.layer_info.layer_count > 0
-        ):
-            return False
-        return True
-    return False
-
-
-def get_transparency_index(psd: "PSDProtocol") -> int:
-    alpha_ids = psd.image_resources.get_data(Resource.ALPHA_IDENTIFIERS)
-    if alpha_ids:
-        try:
-            offset = alpha_ids.index(0)
-            return psd.channels - len(alpha_ids) + offset
-        except ValueError:
-            pass
-    return -1  # Assume the last channel is the transparency
 
 
 def _parse_array(

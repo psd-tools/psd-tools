@@ -9,6 +9,7 @@ from PIL import Image
 from psd_tools.api import numpy_io, pil_io
 from psd_tools.api.layers import AdjustmentLayer, GroupMixin, Layer
 from psd_tools.api.psd_image import PSDImage
+from psd_tools.api.utils import EXPECTED_CHANNELS
 from psd_tools.composite import paint, utils, vector
 from psd_tools.composite.blend import BLEND_FUNC, normal
 from psd_tools.composite.effects import draw_stroke_effect
@@ -182,7 +183,7 @@ def composite(
         assert psd_image is not None
         color_mode = psd_image.color_mode
         assert isinstance(color_mode, ColorMode)
-        color = (color,) * numpy_io.EXPECTED_CHANNELS[color_mode]
+        color = (color,) * EXPECTED_CHANNELS[color_mode]
 
     isolated = False
     if not isinstance(group, PSDImage):
