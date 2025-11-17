@@ -4,7 +4,7 @@ import pytest
 
 from psd_tools import PSDImage
 from psd_tools.composite import composite
-from psd_tools.composite.vector import (
+from psd_tools.composite.paint import (
     draw_gradient_fill,
     draw_pattern_fill,
     draw_solid_color_fill,
