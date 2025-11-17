@@ -9,7 +9,7 @@ from attrs import define, field
 
 from psd_tools.constants import ColorSpaceID
 from psd_tools.psd.base import BaseElement
-from psd_tools.utils import read_fmt, write_fmt
+from psd_tools.psd.bin_utils import read_fmt, write_fmt
 
 logger = logging.getLogger(__name__)
 

@@ -19,7 +19,7 @@ from psd_tools.psd.adjustments import Curves as CurvesData
 from psd_tools.psd.adjustments import LevelRecord
 from psd_tools.psd.adjustments import Levels as LevelsData
 from psd_tools.psd.descriptor import DescriptorBlock
-from psd_tools.utils import new_registry
+from psd_tools.registry import new_registry
 
 logger = logging.getLogger(__name__)
 

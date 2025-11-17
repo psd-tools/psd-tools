@@ -20,7 +20,7 @@ from typing import Any, BinaryIO, Callable, Generator, Optional, TypeVar
 
 from attrs import define, field, fields, has, validate
 
-from psd_tools.utils import (
+from psd_tools.psd.bin_utils import (
     read_fmt,
     read_unicode_string,
     trimmed_repr,

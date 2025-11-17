@@ -45,7 +45,8 @@ from psd_tools.psd.base import (
     NumericElement,
     ValueElement,
 )
-from psd_tools.utils import new_registry, write_bytes
+from psd_tools.psd.bin_utils import write_bytes
+from psd_tools.registry import new_registry
 
 logger = logging.getLogger(__name__)
 

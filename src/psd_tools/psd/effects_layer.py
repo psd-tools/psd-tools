@@ -13,7 +13,7 @@ from attrs import define, field, astuple
 from psd_tools.constants import BlendMode, EffectOSType
 from psd_tools.psd.base import BaseElement, DictElement
 from psd_tools.psd.color import Color
-from psd_tools.utils import (
+from psd_tools.psd.bin_utils import (
     read_fmt,
     read_length_block,
     write_fmt,

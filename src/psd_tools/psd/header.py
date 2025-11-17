@@ -9,7 +9,7 @@ from attrs import define, field, astuple
 
 from psd_tools.constants import ColorMode
 from psd_tools.psd.base import BaseElement
-from psd_tools.utils import read_fmt, write_fmt
+from psd_tools.psd.bin_utils import read_fmt, write_fmt
 from psd_tools.validators import in_, range_
 
 logger = logging.getLogger(__name__)

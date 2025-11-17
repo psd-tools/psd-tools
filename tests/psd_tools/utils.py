@@ -5,7 +5,7 @@ import tempfile
 from typing import Any, Generator, List, Type, TypeVar
 
 from psd_tools.psd.base import BaseElement
-from psd_tools.utils import trimmed_repr
+from psd_tools.psd.bin_utils import trimmed_repr
 
 T = TypeVar("T", bound=BaseElement)
 

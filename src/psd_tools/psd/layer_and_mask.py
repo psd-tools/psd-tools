@@ -75,7 +75,7 @@ from psd_tools.constants import (
 )
 from psd_tools.psd.base import BaseElement, ListElement
 from psd_tools.psd.tagged_blocks import TaggedBlocks, register
-from psd_tools.utils import (
+from psd_tools.psd.bin_utils import (
     is_readable,
     read_fmt,
     read_length_block,

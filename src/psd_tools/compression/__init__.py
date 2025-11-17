@@ -70,7 +70,7 @@ from typing import Iterator, Union
 from PIL import Image
 
 from psd_tools.constants import Compression
-from psd_tools.utils import (
+from psd_tools.psd.bin_utils import (
     be_array_from_bytes,
     be_array_to_bytes,
     read_be_array,

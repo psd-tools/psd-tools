@@ -39,9 +39,8 @@ from psd_tools.psd.filter_effects import FilterEffects
 from psd_tools.psd.linked_layer import LinkedLayers
 from psd_tools.psd.patterns import Patterns
 from psd_tools.psd.vector import VectorMaskSetting, VectorStrokeContentSetting
-from psd_tools.utils import (
+from psd_tools.psd.bin_utils import (
     is_readable,
-    new_registry,
     read_fmt,
     read_length_block,
     read_pascal_string,
@@ -52,6 +51,7 @@ from psd_tools.utils import (
     write_padding,
     write_pascal_string,
 )
+from psd_tools.registry import new_registry
 from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
