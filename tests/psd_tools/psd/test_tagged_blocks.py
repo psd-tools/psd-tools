@@ -26,10 +26,10 @@ logger = logging.getLogger(__name__)
 
 def test_tagged_blocks() -> None:
     blocks = TaggedBlocks(
-        [
+        [  # type: ignore[arg-type]
             (
                 Tag.LAYER_VERSION,
-                TaggedBlock(key=Tag.LAYER_VERSION, data=IntegerElement(1)),
+                TaggedBlock(key=Tag.LAYER_VERSION, data=IntegerElement(1)),  # type: ignore[arg-type]
             )
         ]
     )
@@ -61,11 +61,11 @@ def test_tagged_blocks_v2() -> None:
 def test_tagged_block(
     key: Tag, data: IntegerElement, version: int, padding: int
 ) -> None:
-    check_write_read(TaggedBlock(key=key, data=data), version=version, padding=padding)
+    check_write_read(TaggedBlock(key=key, data=data), version=version, padding=padding)  # type: ignore[arg-type]
 
 
 def test_annotations() -> None:
-    check_write_read(Annotations([Annotation(data=b"\x05"), Annotation(data=b"\x03")]))
+    check_write_read(Annotations([Annotation(data=b"\x05"), Annotation(data=b"\x03")]))  # type: ignore[list-item]
 
 
 @pytest.mark.parametrize(
@@ -77,7 +77,7 @@ def test_annotations() -> None:
     ],
 )
 def test_channel_blending_restrictions_setting(fixture: List[int]) -> None:
-    check_write_read(ChannelBlendingRestrictionsSetting(fixture))
+    check_write_read(ChannelBlendingRestrictionsSetting(fixture))  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize(
@@ -112,4 +112,4 @@ def test_tagged_block_rw_failure(kls: Type[Any], filename: str) -> None:
 
 
 def test_reference_point() -> None:
-    check_write_read(ReferencePoint([3, 5]))
+    check_write_read(ReferencePoint([3, 5]))  # type: ignore[list-item]

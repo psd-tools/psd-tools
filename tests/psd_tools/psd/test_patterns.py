@@ -39,6 +39,9 @@ def test_virtual_memory_array_rw(fixture: bytes) -> None:
 def test_virtual_memory_array_data(fixture: bytes) -> None:
     value = VirtualMemoryArray.frombytes(fixture)
     data = value.get_data()
+    assert value.rectangle is not None
+    assert data is not None
+    assert value.pixel_depth is not None
     width, height = value.rectangle[3], value.rectangle[2]
     value.set_data((width, height), data, value.pixel_depth, value.compression)
     assert value.tobytes() == fixture

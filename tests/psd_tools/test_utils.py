@@ -130,7 +130,7 @@ def test_unicode_string_wr(fixture: str, padding: int) -> None:
         (b"\x00\x00\x00\x07\x00L\x00a\x00y\x00e\x00r\x00 \x001\x00\x00", 4),
     ],
 )
-def test_unicode_stringrw(fixture: str, padding: int) -> None:
+def test_unicode_stringrw(fixture: bytes, padding: int) -> None:
     with io.BytesIO(fixture) as f:
         data = read_unicode_string(f, padding=padding)
         print(len(fixture), f.tell())

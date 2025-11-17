@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, List
 
 import pytest
 
@@ -67,7 +67,7 @@ def test_image_data() -> None:
         ),
     ],
 )
-def test_image_data_data(compression: int, data: bytes, header: Any) -> None:
+def test_image_data_data(compression: int, data: List[bytes], header: Any) -> None:
     image_data = ImageData(compression)
     image_data.set_data(data, header)
     output = image_data.get_data(header)

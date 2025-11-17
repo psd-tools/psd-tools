@@ -17,6 +17,8 @@ def layer_mask_data():
 @pytest.mark.parametrize("real", [True, False])
 def test_layer_mask(layer_mask_data: PSDImage, real: bool) -> None:
     mask = layer_mask_data[4].mask
+    assert mask is not None
+    assert mask.real_flags is not None
     mask.real_flags.parameters_applied = real
     mask.background_color
     mask.bbox

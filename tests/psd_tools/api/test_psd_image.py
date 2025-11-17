@@ -32,7 +32,7 @@ def fixture() -> PSDImage:
     ],
 )
 def test_new(args: Tuple[str, Tuple[int, int], Tuple[int, ...]]) -> None:
-    PSDImage.new(*args)
+    PSDImage.new(*args)  # type: ignore[arg-type]
 
 
 def test_frompil_psb() -> None:
@@ -49,7 +49,7 @@ def test_frompil_psb() -> None:
     ],
 )
 def test_open(filename: Union[str, Path]) -> None:
-    input_path = full_name(filename)
+    input_path = full_name(str(filename))
     PSDImage.open(input_path)
     with open(input_path, "rb") as f:
         PSDImage.open(f)
@@ -67,6 +67,7 @@ def test_pilio(fixture: PSDImage) -> None:
     image = fixture.topil()
     for i in range(fixture.channels):
         fixture.topil(channel=i)
+    assert image is not None
     psd = PSDImage.frompil(image, compression=Compression.RAW)
     assert psd._record.header == fixture._record.header
     assert psd._record.image_data == fixture._record.image_data
@@ -182,6 +183,7 @@ def test_update_record(fixture: PSDImage) -> None:
     group_layer.extend([pixel_layer, fill_layer, shape_layer, smart_layer, type_layer])
     fixture.append(group_layer)
     layer_info = fixture._record.layer_and_mask_information.layer_info
+    assert layer_info is not None
 
     assert layer_info.layer_count == 9
 

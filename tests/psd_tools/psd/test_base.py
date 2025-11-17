@@ -83,7 +83,7 @@ def test_boolean() -> None:
 
 
 def test_list() -> None:
-    value = ListElement(range(10))
+    value = ListElement(list(range(10)))  # type: ignore[arg-type]
     value.append(10)
     value.extend([11])
     value.insert(0, -1)

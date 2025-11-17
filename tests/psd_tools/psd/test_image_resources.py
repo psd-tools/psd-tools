@@ -38,7 +38,7 @@ def test_image_resources_dict() -> None:
         (ImageResource(name="foo", data=b"\x01\x04\x02"),),
     ],
 )
-def test_image_resource_from_to(fixture: bytes) -> None:
+def test_image_resource_from_to(fixture: ImageResource) -> None:
     check_write_read(fixture)
 
 

@@ -75,7 +75,7 @@ def test_value_elements(kls: Type[Any], value: Any) -> None:
         (Unit.Points, 0.0),
     ],
 )
-def test_unit_float(unit: int, value: float) -> None:
+def test_unit_float(unit: Unit, value: float) -> None:
     fixture = UnitFloat(unit=unit, value=value)
     assert fixture == value
     assert fixture + 1.0

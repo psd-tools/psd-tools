@@ -81,13 +81,13 @@ def test_origination(
     assert origination.bbox
     assert origination.index == 0
     if kls == RoundedRectangle:
-        assert origination.radii
+        assert origination.radii  # type: ignore[attr-defined]
     elif kls == Line:
-        assert origination.line_end
-        assert origination.line_start
-        assert origination.line_weight == 1.0
-        assert origination.arrow_start is False
-        assert origination.arrow_end is False
-        assert origination.arrow_width == 0.0
-        assert origination.arrow_length == 0.0
-        assert origination.arrow_conc == 0
+        assert origination.line_end  # type: ignore[attr-defined]
+        assert origination.line_start  # type: ignore[attr-defined]
+        assert origination.line_weight == 1.0  # type: ignore[attr-defined]
+        assert origination.arrow_start is False  # type: ignore[attr-defined]
+        assert origination.arrow_end is False  # type: ignore[attr-defined]
+        assert origination.arrow_width == 0.0  # type: ignore[attr-defined]
+        assert origination.arrow_length == 0.0  # type: ignore[attr-defined]
+        assert origination.arrow_conc == 0  # type: ignore[attr-defined]

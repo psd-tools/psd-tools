@@ -41,5 +41,5 @@ def test_effects_layer_empty_wr(kls: Type[Any]) -> None:
         ),
     ],
 )
-def test_solid_fill_info(fixture: Tuple[int, int, int, int, int]) -> None:
+def test_solid_fill_info(fixture: bytes) -> None:
     check_read_write(SolidFillInfo, fixture)

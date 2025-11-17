@@ -15,8 +15,8 @@ def pytest_configure(config: Any) -> None:
 
 # Check if composite dependencies are available
 try:
-    import aggdraw  # noqa: F401
-    import scipy  # noqa: F401
+    import aggdraw  # noqa: F401 # type: ignore
+    import scipy  # noqa: F401 # type: ignore
     import skimage  # noqa: F401
 
     HAS_COMPOSITE = True

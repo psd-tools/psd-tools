@@ -346,7 +346,7 @@ def test_group_layers(
 ) -> None:
     psdimage = pixel_layer._psd
     test_group = Group.group_layers(
-        parent=psdimage,
+        parent=psdimage,  # type: ignore[arg-type]
         layers=[pixel_layer, smartobject_layer, fill_layer, adjustment_layer],
     )
     assert len(test_group) == 4
@@ -643,26 +643,34 @@ def test_lock_layer(pixel_layer: PixelLayer) -> None:
     pixel_layer.lock(
         ProtectedFlags.TRANSPARENCY | ProtectedFlags.COMPOSITE | ProtectedFlags.POSITION
     )
+    locks = pixel_layer.locks
+    assert locks is not None
 
-    assert pixel_layer.locks.transparency
-    assert pixel_layer.locks.composite
-    assert pixel_layer.locks.position
-    assert not pixel_layer.locks.nesting
+    assert locks.transparency
+    assert locks.composite
+    assert locks.position
+    assert not locks.nesting
 
     pixel_layer.lock(ProtectedFlags.NESTING)
+    locks = pixel_layer.locks
+    assert locks is not None
 
-    assert not pixel_layer.locks.transparency
-    assert not pixel_layer.locks.composite
-    assert not pixel_layer.locks.position
-    assert pixel_layer.locks.nesting
+    assert not locks.transparency
+    assert not locks.composite
+    assert not locks.position
+    assert locks.nesting
 
     pixel_layer.unlock()
+    locks = pixel_layer.locks
+    assert locks is not None
 
-    assert pixel_layer.locks.value == 0
+    assert locks.value == 0
 
     pixel_layer.lock()
+    locks = pixel_layer.locks
+    assert locks is not None
 
-    assert pixel_layer.locks.complete
+    assert locks.complete
 
 
 def test_group_move_between_psdimages() -> None:

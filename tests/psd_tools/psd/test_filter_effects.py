@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
                 FilterEffectChannel(is_written=1, compression=0, data=b"\x00"),
             ],
             FilterEffectExtra(
-                is_written=1, rectangle=[0, 0, 512, 512], compression=0, data=b"\x00"
+                is_written=1, rectangle=[0, 0, 512, 512], compression=0, data=b"\x00"  # type: ignore[list-item]
             ),
         ),
         (
