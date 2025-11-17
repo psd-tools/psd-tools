@@ -1,3 +1,4 @@
+from typing import Any, Type
 import logging
 from enum import Enum
 
@@ -33,7 +34,7 @@ def test_empty() -> None:
         "\u0034\u0035\u0036",
     ],
 )
-def test_string(fixture) -> None:
+def test_string(fixture: str) -> None:
     value = StringElement(fixture)
     check_write_read(value)
     assert value == fixture
@@ -51,7 +52,7 @@ def test_string(fixture) -> None:
         (NumericElement, 1.0),
     ],
 )
-def test_numbers(kls, fixture) -> None:
+def test_numbers(kls: Type[Any], fixture: int) -> None:
     value = kls(fixture)
     check_write_read(value)
     assert value == fixture
@@ -68,7 +69,7 @@ def test_numbers(kls, fixture) -> None:
         (BooleanElement, b"\x00\x01"),
     ],
 )
-def test_malformed_numbers(kls, fixture) -> None:
+def test_malformed_numbers(kls: Type[Any], fixture: bytes) -> None:
     kls.frombytes(fixture)
 
 

@@ -1,3 +1,4 @@
+from typing import Any, Tuple
 import logging
 
 import pytest
@@ -69,7 +70,7 @@ def test_channel_info() -> None:
         ((True, True, True, True, True),),
     ],
 )
-def test_layer_flags_wr(args) -> None:
+def test_layer_flags_wr(args: Tuple[bool, ...]) -> None:
     check_write_read(LayerFlags(*args))
 
 
@@ -80,7 +81,7 @@ def test_layer_flags_wr(args) -> None:
         (b"\t",),
     ],
 )
-def test_layer_flags_rw(fixture) -> None:
+def test_layer_flags_rw(fixture: bytes) -> None:
     check_read_write(LayerFlags, fixture)
 
 
@@ -153,7 +154,7 @@ def test_mask_flags_wr() -> None:
         (b"\t",),
     ],
 )
-def test_mask_flags_rw(fixture) -> None:
+def test_mask_flags_rw(fixture: bytes) -> None:
     check_read_write(MaskFlags, fixture)
 
 
@@ -191,7 +192,7 @@ def test_mask_flags_rw(fixture) -> None:
         ),
     ],
 )
-def test_mask_data(args) -> None:
+def test_mask_data(args: Tuple[Any, ...]) -> None:
     check_write_read(MaskData(**args))
 
 
@@ -214,7 +215,7 @@ def test_mask_data(args) -> None:
         ),
     ],
 )
-def test_mask_data_failure(args) -> None:
+def test_mask_data_failure(args: Tuple[Any, ...]) -> None:
     check_write_read(MaskData(**args))
 
 
@@ -227,7 +228,7 @@ def test_mask_data_failure(args) -> None:
         ),
     ],
 )
-def test_mask_data_rw(fixture) -> None:
+def test_mask_data_rw(fixture: bytes) -> None:
     check_read_write(MaskData, fixture)
 
 
@@ -305,7 +306,7 @@ RAW_IMAGE_2x2_16bit = b"\x00\x01\x00\x02\x00\x03\x00\x04"
         (Compression.ZIP, RAW_IMAGE_2x2_16bit, 2, 2, 16, 2),
     ],
 )
-def test_channel_data_data(compression, data, width, height, depth, version) -> None:
+def test_channel_data_data(compression: int, data: bytes, width: int, height: int, depth: int, version: int) -> None:
     channel = ChannelData(compression)
     channel.set_data(data, width, height, depth, version)
     output = channel.get_data(width, height, depth, version)

@@ -1,3 +1,4 @@
+from typing import Any, Tuple, Type
 import logging
 
 import pytest
@@ -27,7 +28,7 @@ logger = logging.getLogger(__name__)
         SolidFillInfo,
     ],
 )
-def test_effects_layer_empty_wr(kls) -> None:
+def test_effects_layer_empty_wr(kls: Type[Any]) -> None:
     check_write_read(kls())
 
 
@@ -40,5 +41,5 @@ def test_effects_layer_empty_wr(kls) -> None:
         ),
     ],
 )
-def test_solid_fill_info(fixture) -> None:
+def test_solid_fill_info(fixture: Tuple[int, int, int, int, int]) -> None:
     check_read_write(SolidFillInfo, fixture)

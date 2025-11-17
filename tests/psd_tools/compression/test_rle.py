@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 
 import psd_tools.compression._rle as _rle
@@ -41,6 +43,6 @@ def test_identical() -> None:
         (_rle, b"\x02\x01\x02\x03", 4),
     ],
 )
-def test_malicious(mod, data, size) -> None:
+def test_malicious(mod: Any, data: bytes, size: int) -> None:
     with pytest.raises(ValueError):
         mod.decode(data, size)

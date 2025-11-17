@@ -1,4 +1,5 @@
 import io
+from typing import Any
 
 import pytest
 
@@ -22,7 +23,7 @@ from psd_tools.utils import (
         ("I", 1, b"\x00\x00\x00\x01"),
     ],
 )
-def test_pack(fmt, value, expected) -> None:
+def test_pack(fmt: str, value: Any, expected: bytes) -> None:
     assert pack(fmt, value) == expected
 
 
@@ -34,7 +35,7 @@ def test_pack(fmt, value, expected) -> None:
         ("I", b"\x00\x00\x00\x01", 1),
     ],
 )
-def test_unpack(fmt, value, expected) -> None:
+def test_unpack(fmt: str, value: bytes, expected: Any) -> None:
     assert unpack(fmt, value)[0] == expected
 
 
@@ -79,7 +80,7 @@ def test_write_length_block() -> None:
         ("abc", 4),
     ],
 )
-def test_pascal_string(fixture, padding) -> None:
+def test_pascal_string(fixture: str, padding: int) -> None:
     with io.BytesIO() as f:
         write_pascal_string(f, fixture, padding=padding)
         data = f.getvalue()
@@ -96,7 +97,7 @@ def test_pascal_string(fixture, padding) -> None:
         ("", b"\x00\x00\x00\x00", 4),
     ],
 )
-def test_pascal_string_format(input, expected, padding) -> None:
+def test_pascal_string_format(input: str, expected: str, padding: int) -> None:
     with io.BytesIO() as f:
         write_pascal_string(f, input, padding=padding)
         assert f.getvalue() == expected
@@ -113,7 +114,7 @@ def test_pascal_string_format(input, expected, padding) -> None:
         ("\u3042\u3044\u3046\u3048\u304a", 4),
     ],
 )
-def test_unicode_string_wr(fixture, padding) -> None:
+def test_unicode_string_wr(fixture: str, padding: int) -> None:
     with io.BytesIO() as f:
         write_unicode_string(f, fixture, padding=padding)
         data = f.getvalue()
@@ -129,7 +130,7 @@ def test_unicode_string_wr(fixture, padding) -> None:
         (b"\x00\x00\x00\x07\x00L\x00a\x00y\x00e\x00r\x00 \x001\x00\x00", 4),
     ],
 )
-def test_unicode_stringrw(fixture, padding) -> None:
+def test_unicode_stringrw(fixture: str, padding: int) -> None:
     with io.BytesIO(fixture) as f:
         data = read_unicode_string(f, padding=padding)
         print(len(fixture), f.tell())

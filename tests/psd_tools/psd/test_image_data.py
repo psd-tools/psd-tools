@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 
 from psd_tools.constants import Compression
@@ -65,7 +67,7 @@ def test_image_data() -> None:
         ),
     ],
 )
-def test_image_data_data(compression, data, header) -> None:
+def test_image_data_data(compression: int, data: bytes, header: Any) -> None:
     image_data = ImageData(compression)
     image_data.set_data(data, header)
     output = image_data.get_data(header)

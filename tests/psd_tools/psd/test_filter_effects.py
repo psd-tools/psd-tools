@@ -1,3 +1,4 @@
+from typing import Any, Tuple
 import logging
 import os
 
@@ -67,7 +68,7 @@ logger = logging.getLogger(__name__)
         ),
     ],
 )
-def test_filter_effect(args) -> None:
+def test_filter_effect(args: Tuple[Any, ...]) -> None:
     check_write_read(FilterEffect(*args))
 
 
@@ -80,7 +81,7 @@ def test_filter_effect(args) -> None:
         (1, 0, b"\x00"),
     ],
 )
-def test_filter_effect_channel(is_written, compression, data) -> None:
+def test_filter_effect_channel(is_written: int, compression: int, data: bytes) -> None:
     check_write_read(
         FilterEffectChannel(is_written=is_written, compression=compression, data=data)
     )
@@ -93,7 +94,7 @@ def test_filter_effect_channel(is_written, compression, data) -> None:
         "filter_effects_2.dat",
     ],
 )
-def test_filter_effects_rw(filename) -> None:
+def test_filter_effects_rw(filename: str) -> None:
     filepath = os.path.join(TEST_ROOT, "tagged_blocks", filename)
     with open(filepath, "rb") as f:
         fixture = f.read()

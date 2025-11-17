@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
         "1",
     ],
 )
-def test_get_color_mode(mode) -> None:
+def test_get_color_mode(mode: str) -> None:
     assert isinstance(pil_io.get_color_mode(mode), ColorMode)
 
 
@@ -43,7 +43,7 @@ def test_get_color_mode(mode) -> None:
         (ColorMode.LAB, False, "LAB"),
     ],
 )
-def test_get_pil_mode(mode, alpha, expected) -> None:
+def test_get_pil_mode(mode: ColorMode, alpha: bool, expected: str) -> None:
     assert pil_io.get_pil_mode(mode, alpha) == expected
 
 

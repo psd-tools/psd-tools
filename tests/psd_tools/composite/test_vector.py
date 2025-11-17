@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
         ("path-operations/subtract-group.psd",),
     ],
 )
-def test_path_operations(filename) -> None:
+def test_path_operations(filename: str) -> None:
     check_composite_quality(filename, 0.02)
 
 
@@ -46,7 +46,7 @@ def test_path_operations(filename) -> None:
         ("stroke.psd",),
     ],
 )
-def test_draw_stroke(filename) -> None:
+def test_draw_stroke(filename: str) -> None:
     check_composite_quality(filename, 0.01, force=True)
 
 
@@ -57,7 +57,7 @@ def test_draw_stroke(filename) -> None:
     ],
 )
 @pytest.mark.xfail
-def test_draw_stroke_fail(filename) -> None:
+def test_draw_stroke_fail(filename: str) -> None:
     check_composite_quality(filename, 0.01, force=True)
 
 
@@ -70,7 +70,7 @@ def test_draw_solid_color_fill() -> None:
 @pytest.mark.parametrize(
     "filename", ["layers-minimal/pattern-fill.psd", "layers/pattern-fill.psb"]
 )
-def test_draw_pattern_fill(filename) -> None:
+def test_draw_pattern_fill(filename: str) -> None:
     psd = PSDImage.open(full_name(filename))
     desc = psd[0].tagged_blocks.get_data(Tag.PATTERN_FILL_SETTING)
     draw_pattern_fill(psd.viewbox, psd, desc)
@@ -97,7 +97,7 @@ def test_draw_gradient_fill() -> None:
         ("gradient-sizes.psd",),
     ],
 )
-def test_gradient_styles(filename) -> None:
+def test_gradient_styles(filename: str) -> None:
     psd = PSDImage.open(full_name(filename))
     for artboard in psd:
         for layer in artboard:
@@ -121,5 +121,5 @@ def test_gradient_styles(filename) -> None:
         ("descriptors/stroke-color-descriptors-hsb-with-rgb-mode.psd",),
     ],
 )
-def test_stroke_color(filename) -> None:
+def test_stroke_color(filename: str) -> None:
     check_composite_quality(filename, 0.05, force=True)

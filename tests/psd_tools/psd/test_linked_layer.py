@@ -1,3 +1,4 @@
+from typing import Any, Dict
 import logging
 
 import pytest
@@ -52,7 +53,7 @@ logger = logging.getLogger(__name__)
         ),
     ],
 )
-def test_linked_layer_wr(kwargs) -> None:
+def test_linked_layer_wr(kwargs: Dict[str, Any]) -> None:
     check_write_read(LinkedLayer(**kwargs))
 
 

@@ -1,3 +1,4 @@
+from typing import Any, Type
 import os
 
 import pytest
@@ -21,19 +22,19 @@ DESCRIPTOR_DATA = ["0.dat", "1.dat"]
 
 
 @pytest.mark.parametrize("cls", [TYPES[key] for key in TYPES])
-def test_empty_wr(cls) -> None:
+def test_empty_wr(cls: Type[Any]) -> None:
     check_write_read(cls())
 
 
 @pytest.mark.parametrize("filename", DESCRIPTOR_DATA)
-def test_descriptor_rw(filename) -> None:
+def test_descriptor_rw(filename: str) -> None:
     filepath = os.path.join(TEST_ROOT, "descriptors", filename)
     with open(filepath, "rb") as f:
         check_read_write(Descriptor, f.read())
 
 
 @pytest.mark.parametrize("filename", DESCRIPTOR_DATA)
-def test_descriptor_display(filename) -> None:
+def test_descriptor_display(filename: str) -> None:
     filepath = os.path.join(TEST_ROOT, "descriptors", filename)
     with open(filepath, "rb") as f:
         Descriptor.frombytes(f.read())
@@ -48,7 +49,7 @@ def test_descriptor_display(filename) -> None:
         )
     ],
 )
-def test_reference_rw(fixture) -> None:
+def test_reference_rw(fixture: bytes) -> None:
     check_read_write(Reference, fixture)
 
 
@@ -62,7 +63,7 @@ def test_reference_rw(fixture) -> None:
         (Integer, 1),
     ],
 )
-def test_value_elements(kls, value) -> None:
+def test_value_elements(kls: Type[Any], value: Any) -> None:
     fixture = kls(value)
     assert fixture == value
 
@@ -74,7 +75,7 @@ def test_value_elements(kls, value) -> None:
         (Unit.Points, 0.0),
     ],
 )
-def test_unit_float(unit, value) -> None:
+def test_unit_float(unit: int, value: float) -> None:
     fixture = UnitFloat(unit=unit, value=value)
     assert fixture == value
     assert fixture + 1.0
@@ -88,5 +89,5 @@ def test_unit_float(unit, value) -> None:
         b"#Pxl\x00\x00\x00\x00\x00\x00\x00\x00",
     ],
 )
-def test_unit_float_enum(fixture) -> None:
+def test_unit_float_enum(fixture: bytes) -> None:
     UnitFloat.frombytes(fixture)

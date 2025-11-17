@@ -1,4 +1,5 @@
 import logging
+from typing import Type
 
 import pytest
 
@@ -65,7 +66,11 @@ def test_vector_mask(psd) -> None:
         (5, Line),
     ],
 )
-def test_origination(psd, index, kls) -> None:
+def test_origination(
+    psd: PSDImage,
+    index: int,
+    kls: Type[Rectangle | RoundedRectangle | Ellipse | Invalidated | Line],
+) -> None:
     origination = psd[index].origination[0]
     assert isinstance(origination, kls)
     if kls == Invalidated:

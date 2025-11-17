@@ -22,7 +22,7 @@ BAD_UNICODE_PADDINGS = {
 
 
 @pytest.mark.parametrize("filename", all_files())
-def test_psd_read_write(filename) -> None:
+def test_psd_read_write(filename: str) -> None:
     if os.path.basename(filename) == "group-clipping.psd":
         pytest.xfail("Known broken file")
 
@@ -46,7 +46,7 @@ def test_psd_read_write(filename) -> None:
 
 
 @pytest.mark.parametrize("filename", all_files())
-def test_psd_write_read(filename) -> None:
+def test_psd_write_read(filename: str) -> None:
     with open(filename, "rb") as f:
         psd = PSD.read(f)
     check_write_read(psd)
@@ -66,7 +66,7 @@ def test_psd_from_error() -> None:
         ("colormodes/4x4_32bit_rgb.psd", 2),
     ],
 )
-def test_psd__iter_layers(filename, length) -> None:
+def test_psd__iter_layers(filename: str, length: int) -> None:
     with open(os.path.join(TEST_ROOT, "psd_files", filename), "rb") as f:
         psd = PSD.read(f)
     assert len(list(psd._iter_layers())) == length

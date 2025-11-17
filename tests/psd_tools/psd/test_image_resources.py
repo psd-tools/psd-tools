@@ -1,3 +1,4 @@
+from typing import Any, Type
 import os
 
 import pytest
@@ -37,7 +38,7 @@ def test_image_resources_dict() -> None:
         (ImageResource(name="foo", data=b"\x01\x04\x02"),),
     ],
 )
-def test_image_resource_from_to(fixture) -> None:
+def test_image_resource_from_to(fixture: bytes) -> None:
     check_write_read(fixture)
 
 
@@ -52,7 +53,7 @@ def test_image_resource_exception() -> None:
         (Slices, "slices_0.dat"),
     ],
 )
-def test_image_resource_rw(kls, filename) -> None:
+def test_image_resource_rw(kls: Type[Any], filename: str) -> None:
     filepath = os.path.join(TEST_ROOT, "image_resources", filename)
     with open(filepath, "rb") as f:
         fixture = f.read()

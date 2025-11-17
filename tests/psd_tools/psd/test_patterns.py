@@ -1,3 +1,4 @@
+from typing import Any, Tuple
 import logging
 
 import pytest
@@ -25,17 +26,17 @@ VIRTUAL_MEMORY_ARRAY = (
         (1, 8, (0, 0, 8, 8), 8, 0, b"\x00" * 64),
     ],
 )
-def test_virtual_memory_array_wr(args) -> None:
+def test_virtual_memory_array_wr(args: Tuple[Any, ...]) -> None:
     check_write_read(VirtualMemoryArray(*args))
 
 
 @pytest.mark.parametrize("fixture", [VIRTUAL_MEMORY_ARRAY])
-def test_virtual_memory_array_rw(fixture) -> None:
+def test_virtual_memory_array_rw(fixture: bytes) -> None:
     check_read_write(VirtualMemoryArray, fixture)
 
 
 @pytest.mark.parametrize("fixture", [VIRTUAL_MEMORY_ARRAY])
-def test_virtual_memory_array_data(fixture) -> None:
+def test_virtual_memory_array_data(fixture: bytes) -> None:
     value = VirtualMemoryArray.frombytes(fixture)
     data = value.get_data()
     width, height = value.rectangle[3], value.rectangle[2]

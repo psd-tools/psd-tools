@@ -1,3 +1,4 @@
+from typing import Any, List
 import logging
 import sys
 
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
         ["--version"],
     ],
 )
-def test_main(argv, tmpdir) -> None:
+def test_main(argv: List[str], tmpdir: Any) -> None:
     if argv[0] == "export":
         argv.append(tmpdir.join("output.png").strpath)
 

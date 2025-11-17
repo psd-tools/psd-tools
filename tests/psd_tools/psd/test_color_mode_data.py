@@ -85,7 +85,7 @@ DUOTONE_DATA = (
         pack("I", len(DUOTONE_DATA)) + DUOTONE_DATA,
     ],
 )
-def test_color_mode_data(fixture) -> None:
+def test_color_mode_data(fixture: bytes) -> None:
     check_read_write(ColorModeData, fixture)
 
 
