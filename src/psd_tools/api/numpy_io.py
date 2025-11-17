@@ -5,6 +5,7 @@ import numpy as np
 
 if TYPE_CHECKING:
     from psd_tools.api.protocols import LayerProtocol, PSDProtocol
+
 from psd_tools.api.utils import (
     EXPECTED_CHANNELS,
     get_transparency_index,
@@ -18,37 +19,49 @@ logger = logging.getLogger(__name__)
 
 def get_array(
     layer: Union["LayerProtocol", "PSDProtocol"], channel: Optional[str], **kwargs: Any
-) -> np.ndarray:
-    if layer.kind == "psdimage":
-        return get_image_data(layer, channel)  # type: ignore
-    return get_layer_data(layer, channel, **kwargs)  # type: ignore
+) -> Optional[np.ndarray]:
+    # Import at runtime to avoid circular imports
+    from psd_tools.api.layers import Layer
+    from psd_tools.api.psd_image import PSDImage
+
+    if isinstance(layer, PSDImage):
+        return get_image_data(layer, channel)
+    elif isinstance(layer, Layer):
+        return get_layer_data(layer, channel, **kwargs)
+    raise TypeError(
+        f"Expected LayerProtocol or PSDProtocol, got {type(layer).__name__}"
+    )
 
 
-def get_image_data(psd: "PSDProtocol", channel: Optional[str]) -> np.ndarray:
-    if (channel == "mask") or (channel == "shape" and not has_transparency(psd)):
-        return np.ones((psd.height, psd.width, 1), dtype=np.float32)
+def get_image_data(psdimage: "PSDProtocol", channel: Optional[str]) -> np.ndarray:
+    if (channel == "mask") or (channel == "shape" and not has_transparency(psdimage)):
+        return np.ones((psdimage.height, psdimage.width, 1), dtype=np.float32)
 
     lut = None
-    if psd.color_mode == ColorMode.INDEXED:
-        lut = np.frombuffer(psd._record.color_mode_data.value, np.uint8)
+    if psdimage.color_mode == ColorMode.INDEXED:
+        lut = np.frombuffer(psdimage._record.color_mode_data.value, np.uint8)
         lut = lut.reshape((3, -1)).transpose()
-    image_bytes = psd._record.image_data.get_data(psd._record.header, False)
+    image_bytes = psdimage._record.image_data.get_data(psdimage._record.header, False)
     if not isinstance(image_bytes, bytes):
         raise TypeError(f"Expected bytes, got {type(image_bytes).__name__}")
-    array = _parse_array(image_bytes, cast(Literal[1, 8, 16, 32], psd.depth), lut=lut)
+    array = _parse_array(
+        image_bytes, cast(Literal[1, 8, 16, 32], psdimage.depth), lut=lut
+    )
     if lut is not None:
-        array = array.reshape((psd.height, psd.width, -1))
+        array = array.reshape((psdimage.height, psdimage.width, -1))
     else:
-        array = array.reshape((-1, psd.height, psd.width)).transpose((1, 2, 0))
-    array = _remove_background(array, psd)
+        array = array.reshape((-1, psdimage.height, psdimage.width)).transpose(
+            (1, 2, 0)
+        )
+    array = _remove_background(array, psdimage)
 
     if channel == "shape":
-        return np.expand_dims(array[:, :, get_transparency_index(psd)], 2)
+        return np.expand_dims(array[:, :, get_transparency_index(psdimage)], 2)
     elif channel == "color":
-        if psd.color_mode == ColorMode.MULTICHANNEL:
+        if psdimage.color_mode == ColorMode.MULTICHANNEL:
             return array
         # TODO: psd.color_mode == ColorMode.INDEXED --> Convert?
-        return array[:, :, : EXPECTED_CHANNELS[psd.color_mode]]
+        return array[:, :, : EXPECTED_CHANNELS[psdimage.color_mode]]
 
     return array
 
@@ -143,9 +156,9 @@ def _parse_array(
         raise ValueError("Unsupported depth: %g" % depth)
 
 
-def _remove_background(data: np.ndarray, psd: "PSDProtocol") -> np.ndarray:
+def _remove_background(data: np.ndarray, psdimage: "PSDProtocol") -> np.ndarray:
     """ImageData preview is rendered on a white background."""
-    if psd.color_mode == ColorMode.RGB and data.shape[2] > 3:
+    if psdimage.color_mode == ColorMode.RGB and data.shape[2] > 3:
         color = data[:, :, :3]
         alpha = data[:, :, 3:4]
         a = np.repeat(alpha, color.shape[2], axis=2)
