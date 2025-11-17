@@ -60,6 +60,39 @@ Once installed, use `Makefile`::
 
     make docs
 
+Release Process
+---------------
+
+Releases are automated via GitHub Actions. To create a new release:
+
+1. **Ensure all changes are committed and pushed to main**::
+
+    git checkout main
+    git pull origin main
+
+2. **Create and push a version tag**::
+
+    git tag v1.x.x
+    git push origin v1.x.x
+
+3. **Automated workflow**:
+
+   Once the tag is pushed, the release workflow automatically:
+
+   - Builds wheels for all supported platforms (Linux, Windows, macOS including ARM)
+   - Generates release notes from git commits since the previous tag
+   - Creates a GitHub release with the auto-generated changelog
+   - Publishes the package to PyPI
+
+4. **Verify the release**:
+
+   - Check the `Actions tab <https://github.com/psd-tools/psd-tools/actions>`_ for workflow status
+   - Verify the `release on GitHub <https://github.com/psd-tools/psd-tools/releases>`_
+   - Confirm the package is available on `PyPI <https://pypi.org/project/psd-tools/>`_
+
+**Note**: Only maintainers with appropriate repository permissions can push tags
+and trigger releases. PyPI credentials are stored as repository secrets.
+
 Acknowledgments
 ---------------
 
