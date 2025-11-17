@@ -83,9 +83,9 @@ markers = [
 [tool.cibuildwheel]
 archs = "auto64"
 skip = "cp310-win_arm64 cp314t-* cp314-win*"
-test-skip = "*-win_arm64"  # SciPy does not provide wheels for these platforms
-test-requires = ["pytest", "pytest-cov", "ipython"]
-test-command = "pytest {project}/tests"
+# Skip testing during wheel builds - tests are already run in CI test workflow
+# Testing here would require composite dependencies which aren't available on all platforms
+test-skip = "*"
 
 [[tool.cibuildwheel.overrides]]
 select = "cp3{13,14}-{manylinux,musllinux,macos}*"
