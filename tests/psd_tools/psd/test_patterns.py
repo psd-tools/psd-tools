@@ -25,17 +25,17 @@ VIRTUAL_MEMORY_ARRAY = (
         (1, 8, (0, 0, 8, 8), 8, 0, b"\x00" * 64),
     ],
 )
-def test_virtual_memory_array_wr(args):
+def test_virtual_memory_array_wr(args) -> None:
     check_write_read(VirtualMemoryArray(*args))
 
 
 @pytest.mark.parametrize("fixture", [VIRTUAL_MEMORY_ARRAY])
-def test_virtual_memory_array_rw(fixture):
+def test_virtual_memory_array_rw(fixture) -> None:
     check_read_write(VirtualMemoryArray, fixture)
 
 
 @pytest.mark.parametrize("fixture", [VIRTUAL_MEMORY_ARRAY])
-def test_virtual_memory_array_data(fixture):
+def test_virtual_memory_array_data(fixture) -> None:
     value = VirtualMemoryArray.frombytes(fixture)
     data = value.get_data()
     width, height = value.rectangle[3], value.rectangle[2]

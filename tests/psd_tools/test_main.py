@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
         ["--version"],
     ],
 )
-def test_main(argv, tmpdir):
+def test_main(argv, tmpdir) -> None:
     if argv[0] == "export":
         argv.append(tmpdir.join("output.png").strpath)
 

@@ -22,7 +22,7 @@ from psd_tools.utils import (
         ("I", 1, b"\x00\x00\x00\x01"),
     ],
 )
-def test_pack(fmt, value, expected):
+def test_pack(fmt, value, expected) -> None:
     assert pack(fmt, value) == expected
 
 
@@ -34,11 +34,11 @@ def test_pack(fmt, value, expected):
         ("I", b"\x00\x00\x00\x01", 1),
     ],
 )
-def test_unpack(fmt, value, expected):
+def test_unpack(fmt, value, expected) -> None:
     assert unpack(fmt, value)[0] == expected
 
 
-def test_read_length_block():
+def test_read_length_block() -> None:
     data = b"\x00\x00\x00\x07\x01\x01\x01\x01\x01\x01\x01\x00"
     body = data[4:11]
     with io.BytesIO(data) as f:
@@ -49,7 +49,7 @@ def test_read_length_block():
         assert f.tell() == 12
 
 
-def test_write_length_block():
+def test_write_length_block() -> None:
     data = b"\x00\x00\x00\x07\x01\x01\x01\x01\x01\x01\x01\x00"
     body = data[4:11]
     with io.BytesIO() as f:
@@ -79,7 +79,7 @@ def test_write_length_block():
         ("abc", 4),
     ],
 )
-def test_pascal_string(fixture, padding):
+def test_pascal_string(fixture, padding) -> None:
     with io.BytesIO() as f:
         write_pascal_string(f, fixture, padding=padding)
         data = f.getvalue()
@@ -96,7 +96,7 @@ def test_pascal_string(fixture, padding):
         ("", b"\x00\x00\x00\x00", 4),
     ],
 )
-def test_pascal_string_format(input, expected, padding):
+def test_pascal_string_format(input, expected, padding) -> None:
     with io.BytesIO() as f:
         write_pascal_string(f, input, padding=padding)
         assert f.getvalue() == expected
@@ -113,7 +113,7 @@ def test_pascal_string_format(input, expected, padding):
         ("\u3042\u3044\u3046\u3048\u304a", 4),
     ],
 )
-def test_unicode_string_wr(fixture, padding):
+def test_unicode_string_wr(fixture, padding) -> None:
     with io.BytesIO() as f:
         write_unicode_string(f, fixture, padding=padding)
         data = f.getvalue()
@@ -129,7 +129,7 @@ def test_unicode_string_wr(fixture, padding):
         (b"\x00\x00\x00\x07\x00L\x00a\x00y\x00e\x00r\x00 \x001\x00\x00", 4),
     ],
 )
-def test_unicode_stringrw(fixture, padding):
+def test_unicode_stringrw(fixture, padding) -> None:
     with io.BytesIO(fixture) as f:
         data = read_unicode_string(f, padding=padding)
         print(len(fixture), f.tell())

@@ -2,6 +2,8 @@ import logging
 import os
 import pprint
 from pathlib import Path
+from typing import Any, Tuple, Union
+
 
 import pytest
 from PIL import Image
@@ -15,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
-def fixture():
+def fixture() -> PSDImage:
     return PSDImage.open(full_name("colormodes/4x4_8bit_rgb.psd"))
 
 
@@ -29,11 +31,11 @@ def fixture():
         ("CMYK", (16, 24), (255, 128, 64, 128)),
     ],
 )
-def test_new(args):
+def test_new(args: Tuple[str, Tuple[int, int], Tuple[int, ...]]) -> None:
     PSDImage.new(*args)
 
 
-def test_frompil_psb():
+def test_frompil_psb() -> None:
     image = Image.new("RGB", (30001, 24))
     psb = PSDImage.frompil(image)
     assert psb.version == 2
@@ -46,14 +48,14 @@ def test_frompil_psb():
         Path("colormodes/4x4_8bit_rgb.psd"),
     ],
 )
-def test_open(filename):
+def test_open(filename: Union[str, Path]) -> None:
     input_path = full_name(filename)
     PSDImage.open(input_path)
     with open(input_path, "rb") as f:
         PSDImage.open(f)
 
 
-def test_save(fixture, tmpdir):
+def test_save(fixture: PSDImage, tmpdir: Any) -> None:
     output_path = os.path.join(str(tmpdir), "output.psd")
     fixture.save(output_path)
     fixture.save(Path(output_path))
@@ -61,7 +63,7 @@ def test_save(fixture, tmpdir):
         fixture.save(f)
 
 
-def test_pilio(fixture):
+def test_pilio(fixture: PSDImage) -> None:
     image = fixture.topil()
     for i in range(fixture.channels):
         fixture.topil(channel=i)
@@ -70,7 +72,7 @@ def test_pilio(fixture):
     assert psd._record.image_data == fixture._record.image_data
 
 
-def test_properties(fixture):
+def test_properties(fixture: PSDImage) -> None:
     assert fixture.name == "Root"
     assert fixture.kind == "psdimage"
     assert fixture.visible is True
@@ -90,28 +92,28 @@ def test_properties(fixture):
     assert fixture.version == 1
 
 
-def test_version():
+def test_version() -> None:
     assert PSDImage.open(full_name("gray0.psb")).version == 2
 
 
-def test_is_visible(fixture):
+def test_is_visible(fixture: PSDImage) -> None:
     assert fixture.is_visible() is True
 
 
-def test_is_group(fixture):
+def test_is_group(fixture: PSDImage) -> None:
     assert fixture.is_group() is True
 
 
-def test_has_preview(fixture):
+def test_has_preview(fixture: PSDImage) -> None:
     assert fixture.has_preview() is True
 
 
-def test_thumnail(fixture):
+def test_thumnail(fixture: PSDImage) -> None:
     assert fixture.has_thumbnail() is True
     assert fixture.thumbnail()
 
 
-def test_repr_pretty(fixture):
+def test_repr_pretty(fixture: PSDImage) -> None:
     fixture.__repr__()
     pprint.pprint(fixture)
 
@@ -120,11 +122,11 @@ def test_repr_pretty(fixture):
     "filename",
     [os.path.join("third-party-psds", "cactus_top.psd")],
 )
-def test_open2(filename):
+def test_open2(filename: str) -> None:
     assert isinstance(PSDImage.open(full_name(filename)), PSDImage)
 
 
-def test_create_pixel_layer():
+def test_create_pixel_layer() -> None:
     psdimage = PSDImage.new(mode="RGB", size=(100, 100))
     layer = psdimage.create_pixel_layer(
         Image.new("RGB", (50, 50), (255, 0, 0)),
@@ -144,7 +146,7 @@ def test_create_pixel_layer():
     assert psdimage[0] is layer
 
 
-def test_create_group():
+def test_create_group() -> None:
     psdimage = PSDImage.new(mode="RGB", size=(100, 100))
     layer_list = [
         psdimage.create_pixel_layer(
@@ -169,7 +171,7 @@ def test_create_group():
     assert group.blend_mode == BlendMode.SCREEN
 
 
-def test_update_record(fixture):
+def test_update_record(fixture: PSDImage) -> None:
     pixel_layer = PSDImage.open(full_name("layers/pixel-layer.psd"))[0]
     fill_layer = PSDImage.open(full_name("layers/solid-color-fill.psd"))[0]
     shape_layer = PSDImage.open(full_name("layers/shape-layer.psd"))[0]
@@ -206,7 +208,7 @@ def test_update_record(fixture):
     assert layer_info.channel_image_data[8] is group_layer._channels
 
 
-def test_is_updated():
+def test_is_updated() -> None:
     psd = PSDImage.open(full_name("hidden-groups.psd"))
     assert not psd.is_updated()
     psd[0].visible = False
@@ -218,13 +220,13 @@ def test_is_updated():
     assert psd.is_updated()
 
 
-def test_save_without_composite_dependencies(tmpdir, caplog):
+def test_save_without_composite_dependencies(tmpdir: Any, caplog: Any) -> None:
     """Test that save works gracefully without composite dependencies."""
     from unittest.mock import patch
 
     # Create a simple PSD and modify it
     psdimage = PSDImage.new(mode="RGB", size=(100, 100))
-    layer = psdimage.create_pixel_layer(
+    psdimage.create_pixel_layer(
         Image.new("RGB", (50, 50), (255, 0, 0)),
         name="Test Layer",
     )

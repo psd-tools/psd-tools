@@ -30,7 +30,7 @@ EDGE_CASE_1 = b"\xf9\xfa\xf4\xff\xff\xb8\xbc\xff\x96-\xe5\xf5\xb5\xd4\xff\xc2?\x
         (bytes(bytearray(range(256))), 32, 2, 32),
     ],
 )
-def test_prediction(fixture, width, height, depth):
+def test_prediction(fixture, width, height, depth) -> None:
     encoded = encode_prediction(fixture, width, height, depth)
     decoded = decode_prediction(encoded, width, height, depth)
     assert fixture == decoded
@@ -43,7 +43,7 @@ def test_prediction(fixture, width, height, depth):
         (bytes(bytearray(range(256))), 128, 2, 8, 2),
     ],
 )
-def test_rle(fixture, width, height, depth, version):
+def test_rle(fixture, width, height, depth, version) -> None:
     encoded = encode_rle(fixture, width, height, depth, version)
     decoded = decode_rle(encoded, width, height, depth, version)
     assert fixture == decoded
@@ -69,7 +69,7 @@ def test_rle(fixture, width, height, depth, version):
         (RAW_IMAGE_2x2_32bit, Compression.ZIP_WITH_PREDICTION, 2, 2, 32, 1),
     ],
 )
-def test_compress_decompress(data, kind, width, height, depth, version):
+def test_compress_decompress(data, kind, width, height, depth, version) -> None:
     compressed = compress(data, kind, width, height, depth, version)
     output = decompress(compressed, kind, width, height, depth, version)
     assert output == data, "output=%r, expected=%r" % (output, data)
@@ -91,7 +91,7 @@ def test_compress_decompress(data, kind, width, height, depth, version):
         )
     ],
 )
-def test_compress_decompress_fail(data, width, height, depth):
+def test_compress_decompress_fail(data, width, height, depth) -> None:
     decoded = decompress(data, Compression.ZIP_WITH_PREDICTION, width, height, depth)
     encoded = compress(decoded, Compression.ZIP_WITH_PREDICTION, width, height, depth)
     assert data == encoded

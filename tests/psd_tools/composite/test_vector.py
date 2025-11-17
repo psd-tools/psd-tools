@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
         ("path-operations/subtract-group.psd",),
     ],
 )
-def test_path_operations(filename):
+def test_path_operations(filename) -> None:
     check_composite_quality(filename, 0.02)
 
 
@@ -46,7 +46,7 @@ def test_path_operations(filename):
         ("stroke.psd",),
     ],
 )
-def test_draw_stroke(filename):
+def test_draw_stroke(filename) -> None:
     check_composite_quality(filename, 0.01, force=True)
 
 
@@ -57,11 +57,11 @@ def test_draw_stroke(filename):
     ],
 )
 @pytest.mark.xfail
-def test_draw_stroke_fail(filename):
+def test_draw_stroke_fail(filename) -> None:
     check_composite_quality(filename, 0.01, force=True)
 
 
-def test_draw_solid_color_fill():
+def test_draw_solid_color_fill() -> None:
     psd = PSDImage.open(full_name("layers-minimal/solid-color-fill.psd"))
     desc = psd[0].tagged_blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING)
     draw_solid_color_fill(psd.viewbox, psd.color_mode, desc)
@@ -70,7 +70,7 @@ def test_draw_solid_color_fill():
 @pytest.mark.parametrize(
     "filename", ["layers-minimal/pattern-fill.psd", "layers/pattern-fill.psb"]
 )
-def test_draw_pattern_fill(filename):
+def test_draw_pattern_fill(filename) -> None:
     psd = PSDImage.open(full_name(filename))
     desc = psd[0].tagged_blocks.get_data(Tag.PATTERN_FILL_SETTING)
     draw_pattern_fill(psd.viewbox, psd, desc)
@@ -79,7 +79,7 @@ def test_draw_pattern_fill(filename):
     draw_pattern_fill(psd.viewbox, psd, desc)
 
 
-def test_draw_gradient_fill():
+def test_draw_gradient_fill() -> None:
     psd = PSDImage.open(full_name("layers-minimal/gradient-fill.psd"))
     desc = psd[0].tagged_blocks.get_data(Tag.GRADIENT_FILL_SETTING)
     draw_gradient_fill(psd.viewbox, psd.color_mode, desc)
@@ -97,7 +97,7 @@ def test_draw_gradient_fill():
         ("gradient-sizes.psd",),
     ],
 )
-def test_gradient_styles(filename):
+def test_gradient_styles(filename) -> None:
     psd = PSDImage.open(full_name(filename))
     for artboard in psd:
         for layer in artboard:
@@ -121,5 +121,5 @@ def test_gradient_styles(filename):
         ("descriptors/stroke-color-descriptors-hsb-with-rgb-mode.psd",),
     ],
 )
-def test_stroke_color(filename):
+def test_stroke_color(filename) -> None:
     check_composite_quality(filename, 0.05, force=True)

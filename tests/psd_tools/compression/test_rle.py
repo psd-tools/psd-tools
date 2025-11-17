@@ -6,7 +6,7 @@ import psd_tools.compression.rle as rle
 from .test_compression import RAW_IMAGE_3x3_8bit, EDGE_CASE_1
 
 
-def test_identical():
+def test_identical() -> None:
     size = len(RAW_IMAGE_3x3_8bit)
     encoded = rle.encode(RAW_IMAGE_3x3_8bit)
     encoded_c = _rle.encode(RAW_IMAGE_3x3_8bit)
@@ -41,6 +41,6 @@ def test_identical():
         (_rle, b"\x02\x01\x02\x03", 4),
     ],
 )
-def test_malicious(mod, data, size):
+def test_malicious(mod, data, size) -> None:
     with pytest.raises(ValueError):
         mod.decode(data, size)

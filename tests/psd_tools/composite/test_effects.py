@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
     ],
 )
 @pytest.mark.xfail
-def test_stroke_effects_xfail(filename):
+def test_stroke_effects_xfail(filename) -> None:
     check_composite_quality(filename, threshold=0.01)
 
 
@@ -27,5 +27,5 @@ def test_stroke_effects_xfail(filename):
         ("effects/shape-fx.psd",),
     ],
 )
-def test_effects_disabled(filename):
+def test_effects_disabled(filename) -> None:
     check_composite_quality(filename, threshold=0.01)

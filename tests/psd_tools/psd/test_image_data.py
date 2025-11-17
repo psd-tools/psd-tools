@@ -10,7 +10,7 @@ RAW_IMAGE_3x3_8bit = b"\x00\x01\x02\x01\x01\x01\x01\x00\x00"
 RAW_IMAGE_2x2_16bit = b"\x00\x01\x00\x02\x00\x03\x00\x04"
 
 
-def test_image_data():
+def test_image_data() -> None:
     check_write_read(ImageData())
     check_write_read(ImageData(data=b"\x00"))
 
@@ -65,7 +65,7 @@ def test_image_data():
         ),
     ],
 )
-def test_image_data_data(compression, data, header):
+def test_image_data_data(compression, data, header) -> None:
     image_data = ImageData(compression)
     image_data.set_data(data, header)
     output = image_data.get_data(header)

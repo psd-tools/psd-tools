@@ -26,11 +26,11 @@ from ..utils import check_read_write, check_write_read
 logger = logging.getLogger(__name__)
 
 
-def test_layer_and_mask_information():
+def test_layer_and_mask_information() -> None:
     check_write_read(LayerAndMaskInformation())
 
 
-def test_layer_info():
+def test_layer_info() -> None:
     check_write_read(LayerInfo())
 
     layer_records = LayerRecords(
@@ -57,7 +57,7 @@ def test_layer_info():
     check_write_read(LayerInfo(1, layer_records, channel_image_data))
 
 
-def test_channel_info():
+def test_channel_info() -> None:
     check_write_read(ChannelInfo(id=0, length=1), version=1)
     check_write_read(ChannelInfo(id=0, length=1), version=2)
 
@@ -69,7 +69,7 @@ def test_channel_info():
         ((True, True, True, True, True),),
     ],
 )
-def test_layer_flags_wr(args):
+def test_layer_flags_wr(args) -> None:
     check_write_read(LayerFlags(*args))
 
 
@@ -80,11 +80,11 @@ def test_layer_flags_wr(args):
         (b"\t",),
     ],
 )
-def test_layer_flags_rw(fixture):
+def test_layer_flags_rw(fixture) -> None:
     check_read_write(LayerFlags, fixture)
 
 
-def test_layer_blending_ranges():
+def test_layer_blending_ranges() -> None:
     check_write_read(LayerBlendingRanges())
     check_write_read(
         LayerBlendingRanges(
@@ -98,7 +98,7 @@ def test_layer_blending_ranges():
     )
 
 
-def test_layer_record():
+def test_layer_record() -> None:
     tagged_blocks = TaggedBlocks(
         [
             (
@@ -112,7 +112,7 @@ def test_layer_record():
     check_write_read(LayerRecord(tagged_blocks=tagged_blocks), version=2)
 
 
-def test_layer_record_channel_sizes():
+def test_layer_record_channel_sizes() -> None:
     layer_record = LayerRecord(
         left=0,
         top=0,
@@ -141,7 +141,7 @@ def test_layer_record_channel_sizes():
     assert channel_sizes[2] == (80, 90)
 
 
-def test_mask_flags_wr():
+def test_mask_flags_wr() -> None:
     check_write_read(MaskFlags())
     check_write_read(MaskFlags(True, True, True, True, True))
 
@@ -153,7 +153,7 @@ def test_mask_flags_wr():
         (b"\t",),
     ],
 )
-def test_mask_flags_rw(fixture):
+def test_mask_flags_rw(fixture) -> None:
     check_read_write(MaskFlags, fixture)
 
 
@@ -191,7 +191,7 @@ def test_mask_flags_rw(fixture):
         ),
     ],
 )
-def test_mask_data(args):
+def test_mask_data(args) -> None:
     check_write_read(MaskData(**args))
 
 
@@ -214,7 +214,7 @@ def test_mask_data(args):
         ),
     ],
 )
-def test_mask_data_failure(args):
+def test_mask_data_failure(args) -> None:
     check_write_read(MaskData(**args))
 
 
@@ -227,11 +227,11 @@ def test_mask_data_failure(args):
         ),
     ],
 )
-def test_mask_data_rw(fixture):
+def test_mask_data_rw(fixture) -> None:
     check_read_write(MaskData, fixture)
 
 
-def test_mask_parameters():
+def test_mask_parameters() -> None:
     check_write_read(MaskParameters())
     check_write_read(MaskParameters(None, None, None, 1.0))
     check_write_read(MaskParameters(255, None, None, 1.0))
@@ -241,7 +241,7 @@ def test_mask_parameters():
     assert len(MaskParameters(255, 1.0, 255, 1.0).tobytes()) == 19
 
 
-def test_channel_image_data():
+def test_channel_image_data() -> None:
     check_write_read(ChannelImageData(), layer_records=LayerRecords())
 
     layer_records = LayerRecords(
@@ -263,7 +263,7 @@ def test_channel_image_data():
     check_write_read(ChannelImageData([channel_data_list]), layer_records=layer_records)
 
 
-def test_channel_data_list():
+def test_channel_data_list() -> None:
     channel_info = [
         ChannelInfo(id=0, length=20),
         ChannelInfo(id=1, length=20),
@@ -279,7 +279,7 @@ def test_channel_data_list():
     check_write_read(ChannelDataList(channel_items), channel_info=channel_info)
 
 
-def test_channel_data():
+def test_channel_data() -> None:
     check_write_read(ChannelData(data=b""), length=0)
     check_write_read(ChannelData(data=b"\xff" * 8), length=8)
 
@@ -305,12 +305,12 @@ RAW_IMAGE_2x2_16bit = b"\x00\x01\x00\x02\x00\x03\x00\x04"
         (Compression.ZIP, RAW_IMAGE_2x2_16bit, 2, 2, 16, 2),
     ],
 )
-def test_channel_data_data(compression, data, width, height, depth, version):
+def test_channel_data_data(compression, data, width, height, depth, version) -> None:
     channel = ChannelData(compression)
     channel.set_data(data, width, height, depth, version)
     output = channel.get_data(width, height, depth, version)
     assert output == data, "output=%r, expected=%r" % (output, data)
 
 
-def test_global_layer_mask_info():
+def test_global_layer_mask_info() -> None:
     check_write_read(GlobalLayerMaskInfo())

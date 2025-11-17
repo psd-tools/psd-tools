@@ -15,7 +15,7 @@ from ..utils import TEST_ROOT, check_read_write
         (b"(\xfe\xff) <<", 2),
     ],
 )
-def test_tokenizer(fixture, length):
+def test_tokenizer(fixture, length) -> None:
     tokenizer = Tokenizer(fixture)
     tokens = list(tokenizer)
     assert len(tokens) == length
@@ -27,7 +27,7 @@ def test_tokenizer(fixture, length):
         (b"(\xfe\xff0\n0\n)", EngineToken.STRING),
     ],
 )
-def test_tokenizer_item(fixture, token_type):
+def test_tokenizer_item(fixture, token_type) -> None:
     tokenizer = Tokenizer(fixture)
     token, o_token_type = next(tokenizer)
     assert o_token_type == token_type
@@ -43,7 +43,7 @@ def test_tokenizer_item(fixture, token_type):
         ("Txt2_4.dat", None, False),
     ],
 )
-def test_engine_data(filename, indent, write):
+def test_engine_data(filename, indent, write) -> None:
     filepath = os.path.join(TEST_ROOT, "engine_data", filename)
     with open(filepath, "rb") as f:
         fixture = f.read()
@@ -59,7 +59,7 @@ def test_engine_data(filename, indent, write):
         "TySh_2.dat",
     ],
 )
-def test_engine_data_parse(filename):
+def test_engine_data_parse(filename) -> None:
     filepath = os.path.join(TEST_ROOT, "engine_data", filename)
     with open(filepath, "rb") as f:
         assert isinstance(EngineData.read(f), EngineData)
@@ -76,7 +76,7 @@ def test_engine_data_parse(filename):
         b"-47.55428",
     ],
 )
-def test_float(fixture):
+def test_float(fixture) -> None:
     check_read_write(Float, fixture)
 
 
@@ -89,5 +89,5 @@ def test_float(fixture):
         b"(\xfe\xffb\x10\\\\1\x00\r)",
     ],
 )
-def test_string(fixture):
+def test_string(fixture) -> None:
     check_read_write(String, fixture)
