@@ -1,7 +1,7 @@
 """Composite implementation for layer rendering and blending."""
 
 import logging
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Union, cast
 
 import numpy as np
 from PIL import Image
@@ -336,15 +336,15 @@ class Compositor(object):
         if self._color.shape[2] == 1 and 1 < color.shape[2]:
             self._color = np.repeat(self._color, color.shape[2], axis=2)
 
-        self._shape_g = utils.union(self._shape_g, shape)
+        self._shape_g = cast(np.ndarray, utils.union(self._shape_g, shape))
         if knockout:
             self._alpha_g = (
                 (1.0 - shape) * self._alpha_g + (shape - alpha) * self._alpha_0 + alpha
             )
         else:
-            self._alpha_g = utils.union(self._alpha_g, alpha)
+            self._alpha_g = cast(np.ndarray, utils.union(self._alpha_g, alpha))
         alpha_previous = self._alpha
-        self._alpha = utils.union(self._alpha_0, self._alpha_g)
+        self._alpha = cast(np.ndarray, utils.union(self._alpha_0, self._alpha_g))
 
         alpha_b = self._alpha_0 if knockout else alpha_previous
         color_b = self._color_0 if knockout else self._color
