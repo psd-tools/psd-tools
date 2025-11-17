@@ -1,8 +1,9 @@
 import argparse
 import logging
-from typing import Any, Optional
+from typing import Optional, Union
 
 from psd_tools import PSDImage
+from psd_tools.api.layers import Layer
 from psd_tools.version import __version__
 
 try:
@@ -53,9 +54,10 @@ def main(argv: Optional[list[str]] = None) -> Optional[int]:
             indices = [int(x.rstrip("]")) for x in input_parts[1:]]
         else:
             indices = []
-        layer: Any = PSDImage.open(input_file)
+        layer: Union[PSDImage, Layer] = PSDImage.open(input_file)
         for index in indices:
-            layer = layer[index]
+            # PSDImage and Group both support indexing
+            layer = layer[index]  # type: ignore[index]
         if isinstance(layer, PSDImage) and layer.has_preview():
             image = layer.topil()
         else:
