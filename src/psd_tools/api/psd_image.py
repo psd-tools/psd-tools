@@ -26,17 +26,17 @@ from psd_tools.constants import (
     SectionDivider,
     Tag,
 )
-from psd_tools.psd import (
-    PSD,
+from psd_tools.psd.document import PSD
+from psd_tools.psd.layer_and_mask import (
     ChannelImageData,
-    FileHeader,
     GlobalLayerMaskInfo,
-    ImageData,
-    ImageResources,
     LayerInfo,
     LayerRecords,
-    TaggedBlocks,
 )
+from psd_tools.psd.header import FileHeader
+from psd_tools.psd.image_data import ImageData
+from psd_tools.psd.image_resources import ImageResources
+from psd_tools.psd.tagged_blocks import TaggedBlocks
 from psd_tools.psd.patterns import Patterns
 
 logger = logging.getLogger(__name__)
