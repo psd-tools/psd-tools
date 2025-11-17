@@ -27,6 +27,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -36,7 +37,7 @@ classifiers = [
     "Topic :: Multimedia :: Graphics :: Graphics Conversion",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 
 [dependency-groups]
 dev = [
@@ -66,8 +67,8 @@ addopts = "--cov=psd_tools"
 
 [tool.cibuildwheel]
 archs = "auto64"
-skip = "cp3{9,10}-win_arm64 cp314t-* cp314-win*"
-test-skip = "cp39-musllinux_aarch64 *-win_arm64"  # SciPy does not provide wheels for these platforms
+skip = "cp310-win_arm64 cp314t-* cp314-win*"
+test-skip = "*-win_arm64"  # SciPy does not provide wheels for these platforms
 test-requires = ["pytest", "pytest-cov", "ipython"]
 test-command = "pytest {project}/tests"
 
