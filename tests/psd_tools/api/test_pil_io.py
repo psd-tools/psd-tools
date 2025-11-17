@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
         "1",
     ],
 )
-def test_get_color_mode(mode):
+def test_get_color_mode(mode) -> None:
     assert isinstance(pil_io.get_color_mode(mode), ColorMode)
 
 
@@ -43,11 +43,11 @@ def test_get_color_mode(mode):
         (ColorMode.LAB, False, "LAB"),
     ],
 )
-def test_get_pil_mode(mode, alpha, expected):
+def test_get_pil_mode(mode, alpha, expected) -> None:
     assert pil_io.get_pil_mode(mode, alpha) == expected
 
 
-def test_convert_pattern_to_pil():
+def test_convert_pattern_to_pil() -> None:
     filepath = os.path.join(TEST_ROOT, "tagged_blocks", "Patt_1.dat")
     with open(filepath, "rb") as f:
         pattern = Pattern.read(f)
@@ -55,7 +55,7 @@ def test_convert_pattern_to_pil():
     assert pil_io.convert_pattern_to_pil(pattern)
 
 
-def test_apply_icc_profile():
+def test_apply_icc_profile() -> None:
     filepath = full_name("colorprofiles/north_america_newspaper.psd")
     psd = PSDImage.open(filepath)
     no_icc = psd.topil(apply_icc=False)

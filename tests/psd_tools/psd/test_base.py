@@ -20,7 +20,7 @@ from ..utils import check_write_read
 logger = logging.getLogger(__name__)
 
 
-def test_empty():
+def test_empty() -> None:
     check_write_read(EmptyElement())
 
 
@@ -33,7 +33,7 @@ def test_empty():
         "\u0034\u0035\u0036",
     ],
 )
-def test_string(fixture):
+def test_string(fixture) -> None:
     value = StringElement(fixture)
     check_write_read(value)
     assert value == fixture
@@ -51,7 +51,7 @@ def test_string(fixture):
         (NumericElement, 1.0),
     ],
 )
-def test_numbers(kls, fixture):
+def test_numbers(kls, fixture) -> None:
     value = kls(fixture)
     check_write_read(value)
     assert value == fixture
@@ -68,11 +68,11 @@ def test_numbers(kls, fixture):
         (BooleanElement, b"\x00\x01"),
     ],
 )
-def test_malformed_numbers(kls, fixture):
+def test_malformed_numbers(kls, fixture) -> None:
     kls.frombytes(fixture)
 
 
-def test_boolean():
+def test_boolean() -> None:
     value = BooleanElement(True)
     assert value.value is True
     assert value
@@ -81,7 +81,7 @@ def test_boolean():
     assert not value
 
 
-def test_list():
+def test_list() -> None:
     value = ListElement(range(10))
     value.append(10)
     value.extend([11])
@@ -101,7 +101,7 @@ class Dummy(bytes, Enum):
     C = b"x"
 
 
-def test_dict():
+def test_dict() -> None:
     value = DictElement()
     value[Dummy.A] = "foo"
     assert value.get(Dummy.A) == value.get(b"x")

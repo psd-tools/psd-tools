@@ -14,16 +14,16 @@ from psd_tools.psd.image_resources import (
 from ..utils import TEST_ROOT, check_read_write, check_write_read
 
 
-def test_image_resources_from_to():
+def test_image_resources_from_to() -> None:
     check_read_write(ImageResources, b"\x00\x00\x00\x00")
 
 
-def test_image_resources_exception():
+def test_image_resources_exception() -> None:
     with pytest.raises(IOError):
         ImageResources.frombytes(b"\x00\x00\x00\x01")
 
 
-def test_image_resources_dict():
+def test_image_resources_dict() -> None:
     image_resources = ImageResources.new()
     assert image_resources.get_data(Resource.VERSION_INFO)
     assert image_resources.get_data(Resource.OBSOLETE1) is None
@@ -37,11 +37,11 @@ def test_image_resources_dict():
         (ImageResource(name="foo", data=b"\x01\x04\x02"),),
     ],
 )
-def test_image_resource_from_to(fixture):
+def test_image_resource_from_to(fixture) -> None:
     check_write_read(fixture)
 
 
-def test_image_resource_exception():
+def test_image_resource_exception() -> None:
     with pytest.raises(IOError):
         ImageResource.frombytes(b"\x00\x00\x00\x01")
 
@@ -52,14 +52,14 @@ def test_image_resource_exception():
         (Slices, "slices_0.dat"),
     ],
 )
-def test_image_resource_rw(kls, filename):
+def test_image_resource_rw(kls, filename) -> None:
     filepath = os.path.join(TEST_ROOT, "image_resources", filename)
     with open(filepath, "rb") as f:
         fixture = f.read()
     check_read_write(kls, fixture)
 
 
-def test_display_info():
+def test_display_info() -> None:
     filepath = os.path.join(TEST_ROOT, "psd_files", "cmyk-spot.psd")
     with open(filepath, "rb") as f:
         psd = PSD.read(f)
@@ -78,7 +78,7 @@ def test_display_info():
         assert [c.c1, c.c2, c.c3, c.c4] == expected_colors[i]
 
 
-def test_display_info_channel_type():
+def test_display_info_channel_type() -> None:
     filepath = os.path.join(TEST_ROOT, "psd_files", "cmyk-alpha-spot.psd")
     with open(filepath, "rb") as f:
         psd = PSD.read(f)

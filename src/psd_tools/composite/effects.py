@@ -50,6 +50,7 @@ Example usage (internal)::
 The effects system integrates with the main compositing pipeline and is
 automatically applied when rendering layers that have effects enabled.
 """
+
 import logging
 from typing import Tuple
 

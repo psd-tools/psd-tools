@@ -204,6 +204,7 @@ def draw_pattern_fill(
     .. todo:: Test this.
     """
     from skimage.transform import resize
+
     pattern_id = desc[Enum.Pattern][Key.ID].value.rstrip("\x00")
     pattern = psd._get_pattern(pattern_id)
     if not pattern:

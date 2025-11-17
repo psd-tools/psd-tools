@@ -54,7 +54,7 @@ def check_composite_quality(filename, threshold=0.1, force=False):
         ("vector-mask3.psd",),
     ],
 )
-def test_composite_quality(filename):
+def test_composite_quality(filename) -> None:
     check_composite_quality(filename, 0.01, False)
 
 
@@ -66,7 +66,7 @@ def test_composite_quality(filename):
     ],
 )
 @pytest.mark.xfail
-def test_composite_quality_xfail(filename):
+def test_composite_quality_xfail(filename) -> None:
     check_composite_quality(filename, 0.01, False)
 
 
@@ -82,7 +82,7 @@ def test_composite_quality_xfail(filename):
         "pattern-fill.psd",
     ],
 )
-def test_composite_minimal(filename):
+def test_composite_minimal(filename) -> None:
     source = PSDImage.open(full_name("layers-minimal/" + filename))
     reference = PSDImage.open(full_name("layers/" + filename)).numpy()
     color, _, alpha = composite(source, force=True)
@@ -106,7 +106,7 @@ def test_composite_minimal(filename):
         ("multichannel", 16),
     ],
 )
-def test_composite_colormodes(colormode, depth):
+def test_composite_colormodes(colormode, depth) -> None:
     filename = "colormodes/4x4_%gbit_%s.psd" % (depth, colormode)
     psd = PSDImage.open(full_name(filename))
     composite_error(psd, 0.01, False, "color")
@@ -125,13 +125,13 @@ def test_composite_colormodes(colormode, depth):
     ],
 )
 @pytest.mark.xfail
-def test_composite_colormodes_xfail(colormode, depth):
+def test_composite_colormodes_xfail(colormode, depth) -> None:
     filename = "colormodes/4x4_%gbit_%s.psd" % (depth, colormode)
     psd = PSDImage.open(full_name(filename))
     composite_error(psd, 0.01, False, "color")
 
 
-def test_composite_artboard():
+def test_composite_artboard() -> None:
     psd = PSDImage.open(full_name("artboard.psd"))
     document_image = psd.numpy()
     assert document_image.shape[:2] == (psd.height, psd.width)
@@ -140,7 +140,7 @@ def test_composite_artboard():
     assert artboard_image.shape[:2] == (artboard.height, artboard.width)
 
 
-def test_composite_viewport():
+def test_composite_viewport() -> None:
     psd = PSDImage.open(full_name("layers/smartobject-layer.psd"))
     bbox = (1, 1, 31, 31)
 
@@ -178,7 +178,7 @@ def test_composite_viewport():
         ("duotone", 8, "L", False, True),
     ],
 )
-def test_composite_pil(colormode, depth, mode, ignore_preview, apply_icc):
+def test_composite_pil(colormode, depth, mode, ignore_preview, apply_icc) -> None:
     from PIL import Image
 
     filename = "colormodes/4x4_%gbit_%s.psd" % (depth, colormode)
@@ -190,7 +190,7 @@ def test_composite_pil(colormode, depth, mode, ignore_preview, apply_icc):
         assert isinstance(layer.composite(apply_icc=apply_icc), Image.Image)
 
 
-def test_composite_layer_filter():
+def test_composite_layer_filter() -> None:
     psd = PSDImage.open(full_name("colormodes/4x4_8bit_rgba.psd"))
     # Check layer_filter.
     rendered = psd.composite(layer_filter=lambda x: False)
@@ -198,7 +198,7 @@ def test_composite_layer_filter():
     assert all(a != b for a, b in zip(rendered.getextrema(), reference.getextrema()))
 
 
-def test_apply_mask():
+def test_apply_mask() -> None:
     from PIL import Image
 
     psd = PSDImage.open(full_name("masks/2.psd"))
@@ -209,27 +209,27 @@ def test_apply_mask():
     assert _mse(reference[:, :, -1], result[:, :, -1]) <= 0.01
 
 
-def test_group_mask():
+def test_group_mask() -> None:
     psd = PSDImage.open(full_name("masks3.psd"))
     reference = psd.numpy()
     result = composite(psd, force=True)[0]
     assert _mse(reference, result) <= 0.01
 
 
-def test_apply_opacity():
+def test_apply_opacity() -> None:
     psd = PSDImage.open(full_name("opacity-fill.psd"))
     result = composite(psd)
     assert _mse(psd.numpy("shape"), result[2]) < 0.01
 
 
-def test_composite_clipping_mask():
+def test_composite_clipping_mask() -> None:
     psd = PSDImage.open(full_name("clipping-mask.psd"))
     reference = composite(psd)
     result = composite(psd, layer_filter=lambda x: x.name != "Shape 3")
     assert _mse(reference[0], result[0]) > 0
 
 
-def test_composite_group_clipping_photoshop():
+def test_composite_group_clipping_photoshop() -> None:
     psd = PSDImage.open(full_name("group-clipping/group-clipping.psd"))
     reference = Image.open(full_name("group-clipping/group-clipping-photoshop.png"))
     psd.compatibility_mode = CompatibilityMode.PHOTOSHOP
@@ -240,7 +240,7 @@ def test_composite_group_clipping_photoshop():
     )
 
 
-def test_composite_group_clipping_clip_studio():
+def test_composite_group_clipping_clip_studio() -> None:
     psd = PSDImage.open(full_name("group-clipping/group-clipping.psd"))
     reference = Image.open(full_name("group-clipping/group-clipping-clip-studio.png"))
     psd.compatibility_mode = CompatibilityMode.CLIP_STUDIO_PAINT
@@ -251,14 +251,14 @@ def test_composite_group_clipping_clip_studio():
     )
 
 
-def test_composite_stroke():
+def test_composite_stroke() -> None:
     psd = PSDImage.open(full_name("stroke.psd"))
     reference = composite(psd, force=True)
     result = composite(psd)
     assert _mse(reference[0], result[0]) > 0
 
 
-def test_composite_pixel_layer_with_vector_stroke():
+def test_composite_pixel_layer_with_vector_stroke() -> None:
     psd = PSDImage.open(full_name("effects/stroke-without-vector-mask.psd"))
     reference = composite(psd, force=True)
     result = composite(psd)

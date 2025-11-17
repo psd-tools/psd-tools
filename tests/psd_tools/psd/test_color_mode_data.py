@@ -85,11 +85,11 @@ DUOTONE_DATA = (
         pack("I", len(DUOTONE_DATA)) + DUOTONE_DATA,
     ],
 )
-def test_color_mode_data(fixture):
+def test_color_mode_data(fixture) -> None:
     check_read_write(ColorModeData, fixture)
 
 
-def test_color_mode_data_exception():
+def test_color_mode_data_exception() -> None:
     with pytest.raises(IOError):
         ColorModeData.frombytes(b"")
     with pytest.raises(IOError):

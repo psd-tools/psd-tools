@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
         ),
     ],
 )
-def test_curves(is_map, version, count_map, data, extra):
+def test_curves(is_map, version, count_map, data, extra) -> None:
     check_write_read(Curves(is_map, version, count_map, data, extra))
 
 
@@ -46,7 +46,7 @@ def test_curves(is_map, version, count_map, data, extra):
         (0, list(range(256)), True),
     ],
 )
-def test_curves_extra_item_wr(channel_id, points, is_map):
+def test_curves_extra_item_wr(channel_id, points, is_map) -> None:
     check_write_read(
         CurvesExtraItem(channel_id=channel_id, points=points), is_map=is_map
     )
@@ -59,12 +59,12 @@ def test_curves_extra_item_wr(channel_id, points, is_map):
         (b"\x00\x00\x00\x02\x00\x00\x00\x00\xff\xff\xff\xff", False),
     ],
 )
-def test_curves_extra_item_rw(fixture, is_map):
+def test_curves_extra_item_rw(fixture, is_map) -> None:
     check_read_write(CurvesExtraItem, fixture, is_map=is_map)
 
 
 @pytest.mark.parametrize("filename", ["curves.dat"])
-def test_curves_rw(filename):
+def test_curves_rw(filename) -> None:
     filepath = os.path.join(TEST_ROOT, "tagged_blocks", filename)
     with open(filepath, "rb") as f:
         fixture = f.read()
@@ -72,7 +72,7 @@ def test_curves_rw(filename):
 
 
 @pytest.mark.parametrize("filename", ["curves_2.dat"])
-def test_curves_r(filename):
+def test_curves_r(filename) -> None:
     filepath = os.path.join(TEST_ROOT, "tagged_blocks", filename)
     with open(filepath, "rb") as f:
         Curves.read(f)
@@ -81,7 +81,7 @@ def test_curves_r(filename):
 @pytest.mark.parametrize(
     "filename", ["levels_clipstudio_1.dat", "levels_photoshop_1.dat"]
 )
-def test_levels_r(filename):
+def test_levels_r(filename) -> None:
     filepath = os.path.join(TEST_ROOT, "tagged_blocks", filename)
     with open(filepath, "rb") as f:
         assert isinstance(Levels.read(f), Levels)

@@ -1,9 +1,11 @@
 """Pytest configuration for psd-tools tests."""
 
+from typing import Any
+
 import pytest
 
 
-def pytest_configure(config):
+def pytest_configure(config: Any) -> None:
     """Register custom markers."""
     config.addinivalue_line(
         "markers",

@@ -52,11 +52,11 @@ logger = logging.getLogger(__name__)
         ),
     ],
 )
-def test_linked_layer_wr(kwargs):
+def test_linked_layer_wr(kwargs) -> None:
     check_write_read(LinkedLayer(**kwargs))
 
 
-def test_linked_layers_wr():
+def test_linked_layers_wr() -> None:
     linked_layers = LinkedLayers(
         [
             LinkedLayer(),

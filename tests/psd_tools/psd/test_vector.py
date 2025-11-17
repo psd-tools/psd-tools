@@ -20,11 +20,11 @@ from ..utils import check_read_write
         b"\x00B\x8f\\\x00\x00"
     ],
 )
-def test_path_rw(fixture):
+def test_path_rw(fixture) -> None:
     check_read_write(Path, fixture)
 
 
-def test_subpath_repr():
+def test_subpath_repr() -> None:
     closedpath = ClosedPath()
     assert repr(closedpath) == "ClosedPath(index=0, operation=1)"
     openpath = OpenPath()

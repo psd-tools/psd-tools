@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
         SolidFillInfo,
     ],
 )
-def test_effects_layer_empty_wr(kls):
+def test_effects_layer_empty_wr(kls) -> None:
     check_write_read(kls())
 
 
@@ -40,5 +40,5 @@ def test_effects_layer_empty_wr(kls):
         ),
     ],
 )
-def test_solid_fill_info(fixture):
+def test_solid_fill_info(fixture) -> None:
     check_read_write(SolidFillInfo, fixture)

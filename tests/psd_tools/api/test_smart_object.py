@@ -28,7 +28,7 @@ def linked_layer_png():
         yield f.read()
 
 
-def test_smart_object_data(embedded_object, linked_layer_png, tmpdir):
+def test_smart_object_data(embedded_object, linked_layer_png, tmpdir) -> None:
     assert embedded_object.kind in "data"
     assert embedded_object.filename == "linked-layer.png"
     assert embedded_object.filetype == "png"
@@ -44,7 +44,7 @@ def test_smart_object_data(embedded_object, linked_layer_png, tmpdir):
     embedded_object.save(tmppath)
 
 
-def test_smart_object_external(external_object, linked_layer_png):
+def test_smart_object_external(external_object, linked_layer_png) -> None:
     assert external_object.kind in "external"
     assert external_object.filename == "linked-layer.png"
     assert external_object.filetype == "png"

@@ -11,11 +11,11 @@ def fixture():
     )
 
 
-def test_header_from_to(fixture):
+def test_header_from_to(fixture) -> None:
     header = FileHeader.frombytes(fixture)
     assert header.tobytes() == fixture
 
 
-def test_header_exception(fixture):
+def test_header_exception(fixture) -> None:
     with pytest.raises(ValueError):
         FileHeader.frombytes(b" " + fixture)

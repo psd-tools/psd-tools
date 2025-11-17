@@ -1,9 +1,18 @@
 import logging
+from typing import Any, Optional, Tuple
 
 import pytest
 from PIL import Image
 
-from psd_tools.api.layers import Artboard, Group, PixelLayer, ShapeLayer
+from psd_tools.api.layers import (
+    AdjustmentLayer,
+    Artboard,
+    Group,
+    PixelLayer,
+    ShapeLayer,
+    SmartObjectLayer,
+    TypeLayer,
+)
 from psd_tools.api.pil_io import get_pil_channels, get_pil_depth
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.constants import (
@@ -20,38 +29,38 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
-def pixel_layer():
-    return PSDImage.open(full_name("layers/pixel-layer.psd"))[0]
+def pixel_layer() -> PixelLayer:
+    return PSDImage.open(full_name("layers/pixel-layer.psd"))[0]  # type: ignore[return-value]
 
 
 @pytest.fixture
-def adjustment_layer():
-    return PSDImage.open(full_name("layers/brightness-contrast.psd"))[0]
+def adjustment_layer() -> AdjustmentLayer:
+    return PSDImage.open(full_name("layers/brightness-contrast.psd"))[0]  # type: ignore[return-value]
 
 
 @pytest.fixture
-def fill_layer():
-    return PSDImage.open(full_name("layers/solid-color-fill.psd"))[0]
+def fill_layer() -> AdjustmentLayer:
+    return PSDImage.open(full_name("layers/solid-color-fill.psd"))[0]  # type: ignore[return-value]
 
 
 @pytest.fixture
-def shape_layer():
-    return PSDImage.open(full_name("layers/shape-layer.psd"))[0]
+def shape_layer() -> ShapeLayer:
+    return PSDImage.open(full_name("layers/shape-layer.psd"))[0]  # type: ignore[return-value]
 
 
 @pytest.fixture
-def smartobject_layer():
-    return PSDImage.open(full_name("layers/smartobject-layer.psd"))[0]
+def smartobject_layer() -> SmartObjectLayer:
+    return PSDImage.open(full_name("layers/smartobject-layer.psd"))[0]  # type: ignore[return-value]
 
 
 @pytest.fixture
-def type_layer():
-    return PSDImage.open(full_name("layers/type-layer.psd"))[0]
+def type_layer() -> TypeLayer:
+    return PSDImage.open(full_name("layers/type-layer.psd"))[0]  # type: ignore[return-value]
 
 
 @pytest.fixture
-def group():
-    return PSDImage.open(full_name("layers/group.psd"))[0]
+def group() -> Group:
+    return PSDImage.open(full_name("layers/group.psd"))[0]  # type: ignore[return-value]
 
 
 ALL_FIXTURES = [
@@ -65,7 +74,7 @@ ALL_FIXTURES = [
 ]
 
 
-def test_pixel_layer_properties(pixel_layer):
+def test_pixel_layer_properties(pixel_layer: PixelLayer) -> None:
     layer = pixel_layer
     assert layer.name == "Pixel", "layer.name = %s" % type(layer.name)
     assert layer.kind == "pixel"
@@ -86,7 +95,7 @@ def test_pixel_layer_properties(pixel_layer):
     assert layer.layer_id == 3
 
 
-def test_pixel_layer_writable_properties(pixel_layer):
+def test_pixel_layer_writable_properties(pixel_layer: PixelLayer) -> None:
     layer = pixel_layer
     layer.name = "foo"
     assert layer.name == "foo"
@@ -118,47 +127,47 @@ def test_pixel_layer_writable_properties(pixel_layer):
     assert layer.clipping is True
 
 
-def test_layer_is_visible(pixel_layer):
+def test_layer_is_visible(pixel_layer: PixelLayer) -> None:
     assert pixel_layer.is_visible()
 
 
 @pytest.fixture(params=["pixel_layer", "group"])
-def is_group_args(request):
+def is_group_args(request: Any) -> Tuple[Any, Optional[bool]]:
     return (
         request.getfixturevalue(request.param),
         {"pixel_layer": False, "group": True}.get(request.param),
     )
 
 
-def test_layer_is_group(is_group_args):
+def test_layer_is_group(is_group_args: Tuple[Any, bool]) -> None:
     layer, expected = is_group_args
     assert layer.is_group() == expected
 
 
-def test_layer_has_mask(pixel_layer):
+def test_layer_has_mask(pixel_layer: PixelLayer) -> None:
     assert pixel_layer.has_mask() is False
 
 
 @pytest.fixture(params=ALL_FIXTURES)
-def kind_args(request):
+def kind_args(request: Any) -> Tuple[Any, str]:
     expected = request.param.replace("_layer", "")
     expected = expected.replace("fill", "solidcolorfill")
     expected = expected.replace("adjustment", "brightnesscontrast")
     return (request.getfixturevalue(request.param), expected)
 
 
-def test_layer_kind(kind_args):
+def test_layer_kind(kind_args: Tuple[Any, str]) -> None:
     layer, expected = kind_args
     assert layer.kind == expected
 
 
-def test_curves_with_vectormask():
+def test_curves_with_vectormask() -> None:
     layer = PSDImage.open(full_name("layers/curves-with-vectormask.psd"))[0]
     assert layer.kind == "curves"
 
 
 @pytest.fixture(params=ALL_FIXTURES)
-def topil_args(request):
+def topil_args(request: Any) -> Tuple[Any, bool]:
     is_image = request.param in {
         "pixel_layer",
         "smartobject_layer",
@@ -169,7 +178,7 @@ def topil_args(request):
     return (request.getfixturevalue(request.param), is_image)
 
 
-def test_topil(topil_args):
+def test_topil(topil_args: Tuple[Any, bool]) -> None:
     fixture, is_image = topil_args
     image = fixture.topil()
 
@@ -180,7 +189,7 @@ def test_topil(topil_args):
     assert isinstance(image, Image.Image) if is_image else image is None
 
 
-def test_clip_adjustment():
+def test_clip_adjustment() -> None:
     psd = PSDImage.open(full_name("clip-adjustment.psd"))
     assert len(psd) == 2
     layer = psd[0]
@@ -188,7 +197,7 @@ def test_clip_adjustment():
     assert len(layer.clip_layers) == 1
 
 
-def test_nested_clipping():
+def test_nested_clipping() -> None:
     """Check if the nested clipping layers are correctly identified.
 
     Structure of the PSD file `clipping-mask.psd` is as follows:
@@ -213,7 +222,7 @@ def test_nested_clipping():
     assert psd[0].has_clip_layers()
 
 
-def test_clip_stack():
+def test_clip_stack() -> None:
     """Check if consecutive clipping layers are correctly identified."""
     psd = PSDImage.open(full_name("clipping-mask.psd"))
     psd[1][1].clipping = True
@@ -224,7 +233,7 @@ def test_clip_stack():
     assert not psd[1][2].has_clip_layers()
 
 
-def test_type_layer(type_layer):
+def test_type_layer(type_layer: TypeLayer) -> None:
     assert type_layer.text == "A"
     assert type_layer.transform == (
         1.0000000000000002,
@@ -240,13 +249,13 @@ def test_type_layer(type_layer):
     assert type_layer.warp
 
 
-def test_group_writable_properties(group):
+def test_group_writable_properties(group: Group) -> None:
     assert group.blend_mode == BlendMode.PASS_THROUGH
     group.blend_mode = BlendMode.SCREEN
     assert group.blend_mode == BlendMode.SCREEN
 
 
-def test_group_extract_bbox():
+def test_group_extract_bbox() -> None:
     psd = PSDImage.open(full_name("hidden-groups.psd"))
     assert Group.extract_bbox(psd[1:], False) == (40, 72, 83, 134)
     assert Group.extract_bbox(psd[1:], True) == (25, 34, 83, 134)
@@ -254,7 +263,7 @@ def test_group_extract_bbox():
         Group.extract_bbox(psd[1][0])
 
 
-def test_group_blend_mode():
+def test_group_blend_mode() -> None:
     psd = PSDImage.open(full_name("blend-modes/group-divider-blend-mode.psd"))
     assert psd[0].blend_mode is not None
     blend_mode = psd[0].blend_mode
@@ -264,7 +273,7 @@ def test_group_blend_mode():
     assert psd[0].blend_mode == blend_mode
 
 
-def test_sibling_layers():
+def test_sibling_layers() -> None:
     psd = PSDImage.open(full_name("hidden-groups.psd"))
     assert psd[0].next_sibling() is psd[1]
     assert psd[1].previous_sibling() is psd[0]
@@ -274,7 +283,7 @@ def test_sibling_layers():
     assert psd[1][0].previous_sibling() is None
 
 
-def test_shape_and_fill_layer():
+def test_shape_and_fill_layer() -> None:
     psd = PSDImage.open(full_name("vector-mask2.psd"))
     for i in range(8):
         assert isinstance(psd[i], ShapeLayer)
@@ -282,7 +291,7 @@ def test_shape_and_fill_layer():
         assert isinstance(psd[i], PixelLayer)
 
 
-def test_has_effects():
+def test_has_effects() -> None:
     psd = PSDImage.open(full_name("effects/effects-enabled.psd"))
     assert not psd[0].has_effects()
     assert psd[1].has_effects()
@@ -297,7 +306,7 @@ def test_has_effects():
     assert not psd[3].has_effects(enabled=False, name="DropShadow")
 
 
-def test_bbox_updates():
+def test_bbox_updates() -> None:
     psd = PSDImage.open(full_name("hidden-groups.psd"))
     group1 = psd[1]
     group1.visible = False
@@ -306,7 +315,7 @@ def test_bbox_updates():
     assert group1.bbox == (25, 34, 80, 88)
 
 
-def test_new_group(group):
+def test_new_group(group: Group) -> None:
     test_group = Group.new(group, "Test Group")
     assert test_group._parent is group
     assert (
@@ -329,7 +338,12 @@ def test_new_group(group):
     )
 
 
-def test_group_layers(pixel_layer, smartobject_layer, fill_layer, adjustment_layer):
+def test_group_layers(
+    pixel_layer: PixelLayer,
+    smartobject_layer: SmartObjectLayer,
+    fill_layer: AdjustmentLayer,
+    adjustment_layer: AdjustmentLayer,
+) -> None:
     psdimage = pixel_layer._psd
     test_group = Group.group_layers(
         parent=psdimage,
@@ -355,7 +369,7 @@ def test_group_layers(pixel_layer, smartobject_layer, fill_layer, adjustment_lay
     "mode",
     ["RGB", "RGBA", "L", "LA", "CMYK", "1", "LAB"],
 )
-def test_pixel_layer_frompil(mode):
+def test_pixel_layer_frompil(mode: str) -> None:
     # Create a PixelLayer from a PIL image and verify channel data
     target_mode = "RGB"
     psdimage = PSDImage.new(mode=target_mode, size=(30, 30))
@@ -378,7 +392,7 @@ def test_pixel_layer_frompil(mode):
         )
 
 
-def test_layer_fill_opacity(pixel_layer):
+def test_layer_fill_opacity(pixel_layer: PixelLayer) -> None:
     assert pixel_layer.fill_opacity == 255
 
     pixel_layer.fill_opacity = 128
@@ -388,7 +402,7 @@ def test_layer_fill_opacity(pixel_layer):
     assert pixel_layer.fill_opacity == 0
 
 
-def test_layer_reference_point(pixel_layer):
+def test_layer_reference_point(pixel_layer: PixelLayer) -> None:
     assert pixel_layer.reference_point == (15.0, 15.0)
 
     pixel_layer.reference_point = (10.5, 20.5)
@@ -402,8 +416,12 @@ def test_layer_reference_point(pixel_layer):
 
 
 def test_layer_move_up(
-    group, pixel_layer, smartobject_layer, fill_layer, adjustment_layer
-):
+    group: Group,
+    pixel_layer: PixelLayer,
+    smartobject_layer: SmartObjectLayer,
+    fill_layer: AdjustmentLayer,
+    adjustment_layer: AdjustmentLayer,
+) -> None:
     group.extend([pixel_layer])
     test_group = Group.group_layers(
         parent=group,
@@ -427,8 +445,12 @@ def test_layer_move_up(
 
 
 def test_layer_move_down(
-    group, pixel_layer, smartobject_layer, fill_layer, adjustment_layer
-):
+    group: Group,
+    pixel_layer: PixelLayer,
+    smartobject_layer: SmartObjectLayer,
+    fill_layer: AdjustmentLayer,
+    adjustment_layer: AdjustmentLayer,
+) -> None:
     group.extend([pixel_layer])
     test_group = Group.group_layers(
         parent=group,
@@ -451,14 +473,20 @@ def test_layer_move_down(
     assert test_group.index(smartobject_layer) == 2
 
 
-def test_group_append(group, pixel_layer):
+def test_group_append(group: Group, pixel_layer: PixelLayer) -> None:
     group.append(pixel_layer)
     assert pixel_layer in group
     assert pixel_layer._parent is group
     assert pixel_layer._psd is group._psd
 
 
-def test_group_extend(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+def test_group_extend(
+    group: Group,
+    pixel_layer: PixelLayer,
+    type_layer: TypeLayer,
+    smartobject_layer: SmartObjectLayer,
+    fill_layer: AdjustmentLayer,
+) -> None:
     group.extend([pixel_layer, type_layer, smartobject_layer, fill_layer])
 
     for layer in [pixel_layer, type_layer, smartobject_layer, fill_layer]:
@@ -467,7 +495,13 @@ def test_group_extend(group, pixel_layer, type_layer, smartobject_layer, fill_la
         assert layer._psd is group._psd
 
 
-def test_group_insert(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+def test_group_insert(
+    group: Group,
+    pixel_layer: PixelLayer,
+    type_layer: TypeLayer,
+    smartobject_layer: SmartObjectLayer,
+    fill_layer: AdjustmentLayer,
+) -> None:
     group.append(pixel_layer)
 
     group.insert(0, fill_layer)
@@ -485,7 +519,13 @@ def test_group_insert(group, pixel_layer, type_layer, smartobject_layer, fill_la
     )  # Negative index insert the item before the one currently at the given index.
 
 
-def test_group_remove(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+def test_group_remove(
+    group: Group,
+    pixel_layer: PixelLayer,
+    type_layer: TypeLayer,
+    smartobject_layer: SmartObjectLayer,
+    fill_layer: AdjustmentLayer,
+) -> None:
     group.extend([pixel_layer, type_layer, smartobject_layer])
 
     group.remove(pixel_layer)
@@ -501,7 +541,13 @@ def test_group_remove(group, pixel_layer, type_layer, smartobject_layer, fill_la
         group.remove(fill_layer)
 
 
-def test_group_pop(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+def test_group_pop(
+    group: Group,
+    pixel_layer: PixelLayer,
+    type_layer: TypeLayer,
+    smartobject_layer: SmartObjectLayer,
+    fill_layer: AdjustmentLayer,
+) -> None:
     group.extend([pixel_layer, type_layer, smartobject_layer, fill_layer])
 
     assert group.pop() is fill_layer
@@ -519,7 +565,13 @@ def test_group_pop(group, pixel_layer, type_layer, smartobject_layer, fill_layer
         group.pop()
 
 
-def test_group_clear(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+def test_group_clear(
+    group: Group,
+    pixel_layer: PixelLayer,
+    type_layer: TypeLayer,
+    smartobject_layer: SmartObjectLayer,
+    fill_layer: AdjustmentLayer,
+) -> None:
     group.extend([pixel_layer, type_layer, smartobject_layer, fill_layer])
     assert len(group) == 4
 
@@ -527,7 +579,13 @@ def test_group_clear(group, pixel_layer, type_layer, smartobject_layer, fill_lay
     assert len(group) == 0
 
 
-def test_group_index(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+def test_group_index(
+    group: Group,
+    pixel_layer: PixelLayer,
+    type_layer: TypeLayer,
+    smartobject_layer: SmartObjectLayer,
+    fill_layer: AdjustmentLayer,
+) -> None:
     with pytest.raises(ValueError, match=r".* not in list"):
         group.index(pixel_layer)
 
@@ -544,7 +602,13 @@ def test_group_index(group, pixel_layer, type_layer, smartobject_layer, fill_lay
         group.index(fill_layer)
 
 
-def test_group_count(group, pixel_layer, type_layer, smartobject_layer, fill_layer):
+def test_group_count(
+    group: Group,
+    pixel_layer: PixelLayer,
+    type_layer: TypeLayer,
+    smartobject_layer: SmartObjectLayer,
+    fill_layer: AdjustmentLayer,
+) -> None:
     group.extend([pixel_layer, type_layer, smartobject_layer, fill_layer])
 
     assert group.count(pixel_layer) == 1
@@ -566,7 +630,7 @@ def test_group_count(group, pixel_layer, type_layer, smartobject_layer, fill_lay
     assert group.count(pixel_layer) == 1
 
 
-def test_artboard_move(group):
+def test_artboard_move(group: Group) -> None:
     artboard = Artboard._move(group)
 
     assert artboard._channels is group._channels
@@ -575,7 +639,7 @@ def test_artboard_move(group):
     assert artboard._bounding_record is group._bounding_record
 
 
-def test_lock_layer(pixel_layer):
+def test_lock_layer(pixel_layer: PixelLayer) -> None:
     pixel_layer.lock(
         ProtectedFlags.TRANSPARENCY | ProtectedFlags.COMPOSITE | ProtectedFlags.POSITION
     )
@@ -601,7 +665,7 @@ def test_lock_layer(pixel_layer):
     assert pixel_layer.locks.complete
 
 
-def test_group_move_between_psdimages():
+def test_group_move_between_psdimages() -> None:
     psdimage = PSDImage.new(mode="RGB", size=(100, 100))
     layer = psdimage.create_pixel_layer(
         Image.new("RGB", (50, 50), (255, 0, 0)),

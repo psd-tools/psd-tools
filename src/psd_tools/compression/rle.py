@@ -35,7 +35,7 @@ Example usage::
     from psd_tools.compression.rle import encode, decode
 
     # Encode raw data
-    raw_data = b'\x00' * 100 + b'\xFF' * 50
+    raw_data = b'\x00' * 100 + b'\xff' * 50
     compressed = encode(raw_data)
 
     # Decode back to raw

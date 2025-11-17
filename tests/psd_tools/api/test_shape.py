@@ -17,7 +17,7 @@ def psd():
     return VECTOR_MASK2
 
 
-def test_layer_properties(psd):
+def test_layer_properties(psd) -> None:
     for index in range(len(psd)):
         layer = psd[index]
         assert layer.has_vector_mask() is True
@@ -37,7 +37,7 @@ def test_layer_properties(psd):
                 assert layer.stroke is None
 
 
-def test_vector_mask(psd):
+def test_vector_mask(psd) -> None:
     vector_mask = psd[7].vector_mask
     assert vector_mask.inverted == 0
     assert vector_mask.not_linked == 0
@@ -65,7 +65,7 @@ def test_vector_mask(psd):
         (5, Line),
     ],
 )
-def test_origination(psd, index, kls):
+def test_origination(psd, index, kls) -> None:
     origination = psd[index].origination[0]
     assert isinstance(origination, kls)
     if kls == Invalidated:
