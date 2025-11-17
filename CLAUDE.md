@@ -85,6 +85,9 @@ psd-tools has a clear separation between low-level binary parsing and high-level
 ### Key Subpackages
 
 - **`psd_tools.psd`**: Binary structure parsing (header, layer records, tagged blocks, descriptors, image resources)
+  - The main `PSD` class is defined in `psd_tools.psd.document` but re-exported from `psd_tools.psd.__init__` for convenience
+  - Internal code imports from specific modules (e.g., `from psd_tools.psd.document import PSD`)
+  - Public API uses the package import (e.g., `from psd_tools.psd import PSD`)
 - **`psd_tools.api`**: User-facing API (`PSDImage`, layer types, effects, masks)
 - **`psd_tools.composite`**: Rendering engine (blend modes, effects, vector rasterization)
 - **`psd_tools.compression`**: Compression codecs (Raw, RLE, ZIP). Includes Cython-optimized RLE in `_rle.pyx`
@@ -167,7 +170,8 @@ Registry pattern maps tags to handler classes using `@register(Tag.FOO)`.
 
 ## Important Files
 
-- **`src/psd_tools/psd/__init__.py`**: Main `PSD` class representing the complete file
+- **`src/psd_tools/psd/document.py`**: Main `PSD` class representing the complete file structure
+- **`src/psd_tools/psd/__init__.py`**: Package exports (re-exports `PSD` and other structures)
 - **`src/psd_tools/api/psd_image.py`**: `PSDImage` user-facing API
 - **`src/psd_tools/api/layers.py`**: Layer type hierarchy
 - **`src/psd_tools/psd/layer_and_mask.py`**: Layer records and channel data

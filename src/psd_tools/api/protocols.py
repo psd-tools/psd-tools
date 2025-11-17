@@ -13,7 +13,9 @@ from PIL.Image import Image as PILImage
 
 from psd_tools.constants import BlendMode, ChannelID, ColorMode, CompatibilityMode
 from psd_tools.psd.layer_and_mask import ChannelDataList, LayerRecord, MaskData
-from psd_tools.psd import PSD, ImageResources, TaggedBlocks
+from psd_tools.psd.document import PSD
+from psd_tools.psd.image_resources import ImageResources
+from psd_tools.psd.tagged_blocks import TaggedBlocks
 
 
 class MaskProtocol(Protocol):
