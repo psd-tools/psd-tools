@@ -69,7 +69,9 @@ def test_rle(fixture: bytes, width: int, height: int, depth: int, version: int) 
         (RAW_IMAGE_2x2_32bit, Compression.ZIP_WITH_PREDICTION, 2, 2, 32, 1),
     ],
 )
-def test_compress_decompress(data: bytes, kind: Compression, width: int, height: int, depth: int, version: int) -> None:
+def test_compress_decompress(
+    data: bytes, kind: Compression, width: int, height: int, depth: int, version: int
+) -> None:
     compressed = compress(data, kind, width, height, depth, version)
     output = decompress(compressed, kind, width, height, depth, version)
     assert output == data, "output=%r, expected=%r" % (output, data)
@@ -91,7 +93,9 @@ def test_compress_decompress(data: bytes, kind: Compression, width: int, height:
         )
     ],
 )
-def test_compress_decompress_fail(data: bytes, width: int, height: int, depth: int) -> None:
+def test_compress_decompress_fail(
+    data: bytes, width: int, height: int, depth: int
+) -> None:
     decoded = decompress(data, Compression.ZIP_WITH_PREDICTION, width, height, depth)
     encoded = compress(decoded, Compression.ZIP_WITH_PREDICTION, width, height, depth)
     assert data == encoded

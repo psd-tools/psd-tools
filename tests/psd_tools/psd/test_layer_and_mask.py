@@ -306,7 +306,9 @@ RAW_IMAGE_2x2_16bit = b"\x00\x01\x00\x02\x00\x03\x00\x04"
         (Compression.ZIP, RAW_IMAGE_2x2_16bit, 2, 2, 16, 2),
     ],
 )
-def test_channel_data_data(compression: int, data: bytes, width: int, height: int, depth: int, version: int) -> None:
+def test_channel_data_data(
+    compression: int, data: bytes, width: int, height: int, depth: int, version: int
+) -> None:
     channel = ChannelData(compression)
     channel.set_data(data, width, height, depth, version)
     output = channel.get_data(width, height, depth, version)

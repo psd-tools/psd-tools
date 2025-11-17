@@ -36,7 +36,9 @@ logger = logging.getLogger(__name__)
         ),
     ],
 )
-def test_curves(is_map: bool, version: int, count_map: int, data: bytes, extra: bytes) -> None:
+def test_curves(
+    is_map: bool, version: int, count_map: int, data: bytes, extra: bytes
+) -> None:
     check_write_read(Curves(is_map, version, count_map, data, extra))  # type: ignore[arg-type]
 
 
@@ -47,9 +49,12 @@ def test_curves(is_map: bool, version: int, count_map: int, data: bytes, extra: 
         (0, list(range(256)), True),
     ],
 )
-def test_curves_extra_item_wr(channel_id: int, points: List[Tuple[int, int]], is_map: bool) -> None:
+def test_curves_extra_item_wr(
+    channel_id: int, points: List[Tuple[int, int]], is_map: bool
+) -> None:
     check_write_read(
-        CurvesExtraItem(channel_id=channel_id, points=points), is_map=is_map  # type: ignore[arg-type]
+        CurvesExtraItem(channel_id=channel_id, points=points),
+        is_map=is_map,  # type: ignore[arg-type]
     )
 
 

@@ -18,7 +18,9 @@ def _mse(x: Any, y: Any) -> Any:
     return np.nanmean((x - y) ** 2)
 
 
-def composite_error(layer: Any, threshold: float, force: bool = True, channel: Optional[str] = None) -> Any:
+def composite_error(
+    layer: Any, threshold: float, force: bool = True, channel: Optional[str] = None
+) -> Any:
     reference = layer.numpy(channel)
     color, _, alpha = composite(layer, force=force)
     result = color
@@ -29,7 +31,9 @@ def composite_error(layer: Any, threshold: float, force: bool = True, channel: O
     return error
 
 
-def check_composite_quality(filename: str, threshold: float = 0.1, force: bool = False) -> None:
+def check_composite_quality(
+    filename: str, threshold: float = 0.1, force: bool = False
+) -> None:
     psd = PSDImage.open(full_name(filename))
     composite_error(psd, threshold, force)
 
@@ -179,7 +183,9 @@ def test_composite_viewport() -> None:
         ("duotone", 8, "L", False, True),
     ],
 )
-def test_composite_pil(colormode: str, depth: int, mode: str, ignore_preview: bool, apply_icc: bool) -> None:
+def test_composite_pil(
+    colormode: str, depth: int, mode: str, ignore_preview: bool, apply_icc: bool
+) -> None:
     from PIL import Image
 
     filename = "colormodes/4x4_%gbit_%s.psd" % (depth, colormode)

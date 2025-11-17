@@ -1,9 +1,10 @@
 import logging
-from typing import Any, Callable, Literal, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Union, cast
 
 import numpy as np
 
-from psd_tools.api.protocols import LayerProtocol, PSDProtocol
+if TYPE_CHECKING:
+    from psd_tools.api.protocols import LayerProtocol, PSDProtocol
 from psd_tools.constants import ChannelID, ColorMode, Resource, Tag
 
 logger = logging.getLogger(__name__)
