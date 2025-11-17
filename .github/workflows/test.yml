@@ -58,14 +58,12 @@ jobs:
 
       - name: Install dependencies without composite extra
         run: |
-          # Install core dependencies only (no composite extra)
-          uv sync -p ${{ matrix.python-version }} --no-group dev
-          # Install test dependencies manually
-          uv pip install pytest pytest-cov
+          # Install core dependencies + test group only (no dev group with composite deps)
+          uv sync -p ${{ matrix.python-version }} --group test --no-dev
 
       - name: Run core tests (excluding composite-dependent tests)
         run: |
-          uv run pytest \
+          uv run --no-dev pytest \
             --ignore=tests/psd_tools/composite/ \
             --ignore=tests/psd_tools/api/test_numpy_io.py \
             -m "not composite" \

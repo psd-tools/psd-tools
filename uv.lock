@@ -1117,6 +1117,10 @@ docs = [
     { name = "sphinx", version = "8.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "sphinx-rtd-theme" },
 ]
+test = [
+    { name = "pytest" },
+    { name = "pytest-cov" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -1144,6 +1148,10 @@ dev = [
 docs = [
     { name = "sphinx" },
     { name = "sphinx-rtd-theme" },
+]
+test = [
+    { name = "pytest" },
+    { name = "pytest-cov" },
 ]
 
 [[package]]
