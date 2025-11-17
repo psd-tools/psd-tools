@@ -1,0 +1,94 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm, windows-2022, windows-11-arm, macos-15-intel, macos-15]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v3.3.0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.os }}
+          path: ./wheelhouse/*.whl
+
+  create_release:
+    name: Create GitHub Release
+    needs: build_wheels
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          # Get the previous tag
+          PREVIOUS_TAG=$(git tag --sort=-v:refname | sed -n '2p')
+          CURRENT_TAG=${GITHUB_REF#refs/tags/}
+
+          echo "Generating release notes from $PREVIOUS_TAG to $CURRENT_TAG"
+
+          # Generate changelog
+          if [ -z "$PREVIOUS_TAG" ]; then
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" $CURRENT_TAG)
+          else
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" $PREVIOUS_TAG..$CURRENT_TAG)
+          fi
+
+          # Create release notes
+          cat > release_notes.md << EOF
+          ## What's Changed
+
+          $CHANGELOG
+
+          **Full Changelog**: https://github.com/${{ github.repository }}/compare/$PREVIOUS_TAG...$CURRENT_TAG
+          EOF
+
+          echo "notes_file=release_notes.md" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: Release ${{ github.ref_name }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+
+  publish_pypi:
+    name: Upload packages to PyPI
+    needs: [build_wheels, create_release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          merge-multiple: true
+          path: dist
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          user: ${{ secrets.PYPI_USERNAME }}
+          password: ${{ secrets.PYPI_PASSWORD }}

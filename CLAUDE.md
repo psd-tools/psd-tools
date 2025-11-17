@@ -7,8 +7,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Setup
 
 ```bash
+# Install dependencies
+uv sync
+
 # Install with development dependencies using uv
-uv pip install -e .[dev]
+uv sync --group dev
+
+# Install with docs dependencies using uv
+uv sync --group docs
+
+# Install with all groups (dev and docs)
+uv sync --all-groups
 ```
 
 ### Testing
