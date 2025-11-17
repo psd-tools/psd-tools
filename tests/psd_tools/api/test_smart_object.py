@@ -1,34 +1,43 @@
 import logging
-import os
+from pathlib import Path
+from typing import Iterator
 
 import pytest
 
 from psd_tools.api.psd_image import PSDImage
+from psd_tools.api.layers import SmartObjectLayer
+from psd_tools.api.smart_object import SmartObject
 
 from ..utils import full_name
 
 logger = logging.getLogger(__name__)
 
-PLACED_LAYER = PSDImage.open(full_name("placedLayer.psd"))
+
+@pytest.fixture
+def embedded_object() -> Iterator[SmartObject]:
+    psdimage = PSDImage.open(full_name("placedLayer.psd"))
+    layer = psdimage[3]
+    assert isinstance(layer, SmartObjectLayer)
+    yield layer.smart_object
 
 
 @pytest.fixture
-def embedded_object():
-    yield PLACED_LAYER[3].smart_object
+def external_object() -> Iterator[SmartObject]:
+    psdimage = PSDImage.open(full_name("placedLayer.psd"))
+    layer = psdimage[1]
+    assert isinstance(layer, SmartObjectLayer)
+    yield layer.smart_object
 
 
 @pytest.fixture
-def external_object():
-    yield PLACED_LAYER[1].smart_object
-
-
-@pytest.fixture
-def linked_layer_png():
+def linked_layer_png() -> Iterator[bytes]:
     with open(full_name("linked-layer.png"), "rb") as f:
         yield f.read()
 
 
-def test_smart_object_data(embedded_object, linked_layer_png, tmpdir) -> None:
+def test_smart_object_data(
+    embedded_object: SmartObject, linked_layer_png: bytes, tmp_path: Path
+) -> None:
     assert embedded_object.kind in "data"
     assert embedded_object.filename == "linked-layer.png"
     assert embedded_object.filetype == "png"
@@ -40,11 +49,13 @@ def test_smart_object_data(embedded_object, linked_layer_png, tmpdir) -> None:
     assert embedded_object.data == linked_layer_png
     with embedded_object.open() as f:
         assert f.read() == linked_layer_png
-    tmppath = os.path.join(tmpdir.strpath, embedded_object.filename)
-    embedded_object.save(tmppath)
+    tmppath = tmp_path / embedded_object.filename
+    embedded_object.save(str(tmppath))
 
 
-def test_smart_object_external(external_object, linked_layer_png) -> None:
+def test_smart_object_external(
+    external_object: SmartObject, linked_layer_png: bytes
+) -> None:
     assert external_object.kind in "external"
     assert external_object.filename == "linked-layer.png"
     assert external_object.filetype == "png"

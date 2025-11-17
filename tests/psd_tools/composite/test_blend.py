@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
         ("blend-modes/gray-blend-modes.psd",),
     ],
 )
-def test_blend_quality(filename) -> None:
+def test_blend_quality(filename: str) -> None:
     check_composite_quality(filename, threshold=0.01)
 
 
@@ -55,5 +55,5 @@ def test_blend_quality(filename) -> None:
     ],
 )
 @pytest.mark.xfail
-def test_blend_quality_xfail(filename) -> None:
+def test_blend_quality_xfail(filename: str) -> None:
     check_composite_quality(filename, threshold=0.01)

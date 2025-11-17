@@ -20,7 +20,7 @@ from ..utils import check_read_write
         b"\x00B\x8f\\\x00\x00"
     ],
 )
-def test_path_rw(fixture) -> None:
+def test_path_rw(fixture: bytes) -> None:
     check_read_write(Path, fixture)
 
 

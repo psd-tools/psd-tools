@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.mark.parametrize("filename", ["Patt_1.dat", "Patt_2.dat"])
-def test_get_pattern(filename) -> None:
+def test_get_pattern(filename: str) -> None:
     filepath = os.path.join(TEST_ROOT, "tagged_blocks", filename)
     with open(filepath, "rb") as f:
         pattern = Pattern.read(f)
@@ -36,7 +36,7 @@ def test_get_pattern(filename) -> None:
         ("multichannel", 16),
     ],
 )
-def test_numpy_colormodes(colormode, depth) -> None:
+def test_numpy_colormodes(colormode: str, depth: int) -> None:
     filename = "colormodes/4x4_%gbit_%s.psd" % (depth, colormode)
     psd = PSDImage.open(full_name(filename))
     assert isinstance(psd.numpy(), np.ndarray)

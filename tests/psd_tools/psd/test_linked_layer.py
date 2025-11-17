@@ -1,3 +1,4 @@
+from typing import Any, Dict
 import logging
 
 import pytest
@@ -52,38 +53,38 @@ logger = logging.getLogger(__name__)
         ),
     ],
 )
-def test_linked_layer_wr(kwargs) -> None:
+def test_linked_layer_wr(kwargs: Dict[str, Any]) -> None:
     check_write_read(LinkedLayer(**kwargs))
 
 
 def test_linked_layers_wr() -> None:
     linked_layers = LinkedLayers(
         [
-            LinkedLayer(),
-            LinkedLayer(kind=LinkedLayerType.DATA, data=b"\x01\x02\x03\x04"),
-            LinkedLayer(kind=LinkedLayerType.ALIAS),
-            LinkedLayer(
+            LinkedLayer(),  # type: ignore[list-item]
+            LinkedLayer(kind=LinkedLayerType.DATA, data=b"\x01\x02\x03\x04"),  # type: ignore[list-item]
+            LinkedLayer(kind=LinkedLayerType.ALIAS),  # type: ignore[list-item]
+            LinkedLayer(  # type: ignore[list-item]
                 kind=LinkedLayerType.EXTERNAL,
                 data=None,
                 filesize=4,
                 linked_file=DescriptorBlock(),
                 version=1,
             ),
-            LinkedLayer(
+            LinkedLayer(  # type: ignore[list-item]
                 kind=LinkedLayerType.EXTERNAL,
                 data=b"\x01\x02\x03\x04",
                 filesize=4,
                 linked_file=DescriptorBlock(),
                 version=2,
             ),
-            LinkedLayer(
+            LinkedLayer(  # type: ignore[list-item]
                 kind=LinkedLayerType.EXTERNAL,
                 data=b"\x01\x02\x03\x04",
                 filesize=4,
                 linked_file=DescriptorBlock(),
                 version=3,
             ),
-            LinkedLayer(
+            LinkedLayer(  # type: ignore[list-item]
                 kind=LinkedLayerType.EXTERNAL,
                 data=b"\x01\x02\x03\x04",
                 filesize=4,

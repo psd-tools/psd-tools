@@ -1,9 +1,7 @@
 import logging
-import os
 import pprint
 from pathlib import Path
 from typing import Any, Tuple, Union
-
 
 import pytest
 from PIL import Image
@@ -32,7 +30,7 @@ def fixture() -> PSDImage:
     ],
 )
 def test_new(args: Tuple[str, Tuple[int, int], Tuple[int, ...]]) -> None:
-    PSDImage.new(*args)
+    PSDImage.new(*args)  # type: ignore[arg-type]
 
 
 def test_frompil_psb() -> None:
@@ -49,16 +47,16 @@ def test_frompil_psb() -> None:
     ],
 )
 def test_open(filename: Union[str, Path]) -> None:
-    input_path = full_name(filename)
+    input_path = full_name(str(filename))
     PSDImage.open(input_path)
     with open(input_path, "rb") as f:
         PSDImage.open(f)
 
 
-def test_save(fixture: PSDImage, tmpdir: Any) -> None:
-    output_path = os.path.join(str(tmpdir), "output.psd")
+def test_save(fixture: PSDImage, tmp_path: Path) -> None:
+    output_path = tmp_path / "output.psd"
+    fixture.save(str(output_path))
     fixture.save(output_path)
-    fixture.save(Path(output_path))
     with open(output_path, "wb") as f:
         fixture.save(f)
 
@@ -67,6 +65,7 @@ def test_pilio(fixture: PSDImage) -> None:
     image = fixture.topil()
     for i in range(fixture.channels):
         fixture.topil(channel=i)
+    assert image is not None
     psd = PSDImage.frompil(image, compression=Compression.RAW)
     assert psd._record.header == fixture._record.header
     assert psd._record.image_data == fixture._record.image_data
@@ -120,7 +119,7 @@ def test_repr_pretty(fixture: PSDImage) -> None:
 
 @pytest.mark.parametrize(
     "filename",
-    [os.path.join("third-party-psds", "cactus_top.psd")],
+    [str(Path("third-party-psds") / "cactus_top.psd")],
 )
 def test_open2(filename: str) -> None:
     assert isinstance(PSDImage.open(full_name(filename)), PSDImage)
@@ -182,6 +181,7 @@ def test_update_record(fixture: PSDImage) -> None:
     group_layer.extend([pixel_layer, fill_layer, shape_layer, smart_layer, type_layer])
     fixture.append(group_layer)
     layer_info = fixture._record.layer_and_mask_information.layer_info
+    assert layer_info is not None
 
     assert layer_info.layer_count == 9
 
@@ -220,7 +220,7 @@ def test_is_updated() -> None:
     assert psd.is_updated()
 
 
-def test_save_without_composite_dependencies(tmpdir: Any, caplog: Any) -> None:
+def test_save_without_composite_dependencies(tmp_path: Path, caplog: Any) -> None:
     """Test that save works gracefully without composite dependencies."""
     from unittest.mock import patch
 
@@ -234,19 +234,19 @@ def test_save_without_composite_dependencies(tmpdir: Any, caplog: Any) -> None:
     # Mark as updated
     assert psdimage.is_updated()
 
-    output_path = os.path.join(str(tmpdir), "test_no_composite.psd")
+    output_path = tmp_path / "test_no_composite.psd"
 
     # Mock composite() to raise ImportError (simulating missing dependencies)
-    def mock_composite(*args, **kwargs):
+    def mock_composite(*args: Any, **kwargs: Any) -> None:
         raise ImportError("No module named 'scipy'")
 
     with patch.object(psdimage, "composite", side_effect=mock_composite):
         # Should not raise, should log warning
         with caplog.at_level(logging.WARNING):
-            psdimage.save(output_path)
+            psdimage.save(str(output_path))
 
     # Verify file was saved
-    assert os.path.exists(output_path)
+    assert output_path.exists()
 
     # Verify warning was logged
     assert "Failed to update preview image" in caplog.text

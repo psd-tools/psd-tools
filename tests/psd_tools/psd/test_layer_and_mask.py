@@ -1,3 +1,4 @@
+from typing import Any, Tuple
 import logging
 
 import pytest
@@ -35,7 +36,7 @@ def test_layer_info() -> None:
 
     layer_records = LayerRecords(
         [
-            LayerRecord(
+            LayerRecord(  # type: ignore[list-item]
                 channel_info=[
                     ChannelInfo(id=0, length=18),
                     ChannelInfo(id=-1, length=18),
@@ -45,10 +46,10 @@ def test_layer_info() -> None:
     )
     channel_image_data = ChannelImageData(
         [
-            ChannelDataList(
+            ChannelDataList(  # type: ignore[list-item]
                 [
-                    ChannelData(0, b"\xff" * 16),
-                    ChannelData(0, b"\xff" * 16),
+                    ChannelData(0, b"\xff" * 16),  # type: ignore[list-item]
+                    ChannelData(0, b"\xff" * 16),  # type: ignore[list-item]
                 ]
             )
         ]
@@ -69,7 +70,7 @@ def test_channel_info() -> None:
         ((True, True, True, True, True),),
     ],
 )
-def test_layer_flags_wr(args) -> None:
+def test_layer_flags_wr(args: Tuple[bool, ...]) -> None:
     check_write_read(LayerFlags(*args))
 
 
@@ -80,7 +81,7 @@ def test_layer_flags_wr(args) -> None:
         (b"\t",),
     ],
 )
-def test_layer_flags_rw(fixture) -> None:
+def test_layer_flags_rw(fixture: bytes) -> None:
     check_read_write(LayerFlags, fixture)
 
 
@@ -100,10 +101,10 @@ def test_layer_blending_ranges() -> None:
 
 def test_layer_record() -> None:
     tagged_blocks = TaggedBlocks(
-        [
+        [  # type: ignore[arg-type]
             (
                 Tag.LAYER_VERSION,
-                TaggedBlock(key=Tag.LAYER_VERSION, data=IntegerElement(0)),
+                TaggedBlock(key=Tag.LAYER_VERSION, data=IntegerElement(0)),  # type: ignore[arg-type]
             ),
         ]
     )
@@ -153,7 +154,7 @@ def test_mask_flags_wr() -> None:
         (b"\t",),
     ],
 )
-def test_mask_flags_rw(fixture) -> None:
+def test_mask_flags_rw(fixture: bytes) -> None:
     check_read_write(MaskFlags, fixture)
 
 
@@ -191,8 +192,8 @@ def test_mask_flags_rw(fixture) -> None:
         ),
     ],
 )
-def test_mask_data(args) -> None:
-    check_write_read(MaskData(**args))
+def test_mask_data(args: Tuple[Any, ...]) -> None:
+    check_write_read(MaskData(**args))  # type: ignore[arg-type]
 
 
 # This doesn't work, but is there such a case?
@@ -214,8 +215,8 @@ def test_mask_data(args) -> None:
         ),
     ],
 )
-def test_mask_data_failure(args) -> None:
-    check_write_read(MaskData(**args))
+def test_mask_data_failure(args: Tuple[Any, ...]) -> None:
+    check_write_read(MaskData(**args))  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize(
@@ -227,7 +228,7 @@ def test_mask_data_failure(args) -> None:
         ),
     ],
 )
-def test_mask_data_rw(fixture) -> None:
+def test_mask_data_rw(fixture: bytes) -> None:
     check_read_write(MaskData, fixture)
 
 
@@ -246,7 +247,7 @@ def test_channel_image_data() -> None:
 
     layer_records = LayerRecords(
         [
-            LayerRecord(
+            LayerRecord(  # type: ignore[list-item]
                 channel_info=[
                     ChannelInfo(id=0, length=18),
                     ChannelInfo(id=-1, length=18),
@@ -256,11 +257,11 @@ def test_channel_image_data() -> None:
     )
     channel_data_list = ChannelDataList(
         [
-            ChannelData(0, b"\xff" * 16),
-            ChannelData(0, b"\xff" * 16),
+            ChannelData(0, b"\xff" * 16),  # type: ignore[list-item]
+            ChannelData(0, b"\xff" * 16),  # type: ignore[list-item]
         ]
     )
-    check_write_read(ChannelImageData([channel_data_list]), layer_records=layer_records)
+    check_write_read(ChannelImageData([channel_data_list]), layer_records=layer_records)  # type: ignore[list-item]
 
 
 def test_channel_data_list() -> None:
@@ -276,7 +277,7 @@ def test_channel_data_list() -> None:
         ChannelData(0, b"\x00" * 18),
         ChannelData(0, b"\x00" * 18),
     ]
-    check_write_read(ChannelDataList(channel_items), channel_info=channel_info)
+    check_write_read(ChannelDataList(channel_items), channel_info=channel_info)  # type: ignore[arg-type]
 
 
 def test_channel_data() -> None:
@@ -305,7 +306,7 @@ RAW_IMAGE_2x2_16bit = b"\x00\x01\x00\x02\x00\x03\x00\x04"
         (Compression.ZIP, RAW_IMAGE_2x2_16bit, 2, 2, 16, 2),
     ],
 )
-def test_channel_data_data(compression, data, width, height, depth, version) -> None:
+def test_channel_data_data(compression: int, data: bytes, width: int, height: int, depth: int, version: int) -> None:
     channel = ChannelData(compression)
     channel.set_data(data, width, height, depth, version)
     output = channel.get_data(width, height, depth, version)

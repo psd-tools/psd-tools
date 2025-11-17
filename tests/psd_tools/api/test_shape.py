@@ -1,4 +1,5 @@
 import logging
+from typing import Iterator, Type
 
 import pytest
 
@@ -13,11 +14,11 @@ VECTOR_MASK2 = PSDImage.open(full_name("vector-mask2.psd"))
 
 
 @pytest.fixture
-def psd():
-    return VECTOR_MASK2
+def psd() -> Iterator[PSDImage]:
+    yield VECTOR_MASK2
 
 
-def test_layer_properties(psd) -> None:
+def test_layer_properties(psd: PSDImage) -> None:
     for index in range(len(psd)):
         layer = psd[index]
         assert layer.has_vector_mask() is True
@@ -37,8 +38,9 @@ def test_layer_properties(psd) -> None:
                 assert layer.stroke is None
 
 
-def test_vector_mask(psd) -> None:
+def test_vector_mask(psd: PSDImage) -> None:
     vector_mask = psd[7].vector_mask
+    assert vector_mask is not None
     assert vector_mask.inverted == 0
     assert vector_mask.not_linked == 0
     assert vector_mask.disabled == 0
@@ -65,7 +67,11 @@ def test_vector_mask(psd) -> None:
         (5, Line),
     ],
 )
-def test_origination(psd, index, kls) -> None:
+def test_origination(
+    psd: PSDImage,
+    index: int,
+    kls: Type[Rectangle | RoundedRectangle | Ellipse | Invalidated | Line],
+) -> None:
     origination = psd[index].origination[0]
     assert isinstance(origination, kls)
     if kls == Invalidated:
@@ -76,13 +82,13 @@ def test_origination(psd, index, kls) -> None:
     assert origination.bbox
     assert origination.index == 0
     if kls == RoundedRectangle:
-        assert origination.radii
+        assert origination.radii  # type: ignore[attr-defined]
     elif kls == Line:
-        assert origination.line_end
-        assert origination.line_start
-        assert origination.line_weight == 1.0
-        assert origination.arrow_start is False
-        assert origination.arrow_end is False
-        assert origination.arrow_width == 0.0
-        assert origination.arrow_length == 0.0
-        assert origination.arrow_conc == 0
+        assert origination.line_end  # type: ignore[attr-defined]
+        assert origination.line_start  # type: ignore[attr-defined]
+        assert origination.line_weight == 1.0  # type: ignore[attr-defined]
+        assert origination.arrow_start is False  # type: ignore[attr-defined]
+        assert origination.arrow_end is False  # type: ignore[attr-defined]
+        assert origination.arrow_width == 0.0  # type: ignore[attr-defined]
+        assert origination.arrow_length == 0.0  # type: ignore[attr-defined]
+        assert origination.arrow_conc == 0  # type: ignore[attr-defined]

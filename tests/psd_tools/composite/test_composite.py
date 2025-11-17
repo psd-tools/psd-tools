@@ -1,4 +1,5 @@
 import logging
+from typing import Any, Optional
 
 import numpy as np
 import pytest
@@ -13,11 +14,11 @@ from ..utils import full_name
 logger = logging.getLogger(__name__)
 
 
-def _mse(x, y):
+def _mse(x: Any, y: Any) -> Any:
     return np.nanmean((x - y) ** 2)
 
 
-def composite_error(layer, threshold, force=True, channel=None):
+def composite_error(layer: Any, threshold: float, force: bool = True, channel: Optional[str] = None) -> Any:
     reference = layer.numpy(channel)
     color, _, alpha = composite(layer, force=force)
     result = color
@@ -28,7 +29,7 @@ def composite_error(layer, threshold, force=True, channel=None):
     return error
 
 
-def check_composite_quality(filename, threshold=0.1, force=False):
+def check_composite_quality(filename: str, threshold: float = 0.1, force: bool = False) -> None:
     psd = PSDImage.open(full_name(filename))
     composite_error(psd, threshold, force)
 
@@ -54,7 +55,7 @@ def check_composite_quality(filename, threshold=0.1, force=False):
         ("vector-mask3.psd",),
     ],
 )
-def test_composite_quality(filename) -> None:
+def test_composite_quality(filename: str) -> None:
     check_composite_quality(filename, 0.01, False)
 
 
@@ -66,7 +67,7 @@ def test_composite_quality(filename) -> None:
     ],
 )
 @pytest.mark.xfail
-def test_composite_quality_xfail(filename) -> None:
+def test_composite_quality_xfail(filename: str) -> None:
     check_composite_quality(filename, 0.01, False)
 
 
@@ -82,7 +83,7 @@ def test_composite_quality_xfail(filename) -> None:
         "pattern-fill.psd",
     ],
 )
-def test_composite_minimal(filename) -> None:
+def test_composite_minimal(filename: str) -> None:
     source = PSDImage.open(full_name("layers-minimal/" + filename))
     reference = PSDImage.open(full_name("layers/" + filename)).numpy()
     color, _, alpha = composite(source, force=True)
@@ -106,7 +107,7 @@ def test_composite_minimal(filename) -> None:
         ("multichannel", 16),
     ],
 )
-def test_composite_colormodes(colormode, depth) -> None:
+def test_composite_colormodes(colormode: str, depth: int) -> None:
     filename = "colormodes/4x4_%gbit_%s.psd" % (depth, colormode)
     psd = PSDImage.open(full_name(filename))
     composite_error(psd, 0.01, False, "color")
@@ -125,7 +126,7 @@ def test_composite_colormodes(colormode, depth) -> None:
     ],
 )
 @pytest.mark.xfail
-def test_composite_colormodes_xfail(colormode, depth) -> None:
+def test_composite_colormodes_xfail(colormode: str, depth: int) -> None:
     filename = "colormodes/4x4_%gbit_%s.psd" % (depth, colormode)
     psd = PSDImage.open(full_name(filename))
     composite_error(psd, 0.01, False, "color")
@@ -178,7 +179,7 @@ def test_composite_viewport() -> None:
         ("duotone", 8, "L", False, True),
     ],
 )
-def test_composite_pil(colormode, depth, mode, ignore_preview, apply_icc) -> None:
+def test_composite_pil(colormode: str, depth: int, mode: str, ignore_preview: bool, apply_icc: bool) -> None:
     from PIL import Image
 
     filename = "colormodes/4x4_%gbit_%s.psd" % (depth, colormode)

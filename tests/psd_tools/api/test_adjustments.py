@@ -9,12 +9,10 @@ from ..utils import full_name
 
 logger = logging.getLogger(__name__)
 
-FILL_ADJUSTMENTS = PSDImage.open(full_name("fill_adjustments.psd"))
-
 
 @pytest.fixture(scope="module")
-def psd():
-    return FILL_ADJUSTMENTS
+def psd() -> PSDImage:
+    return PSDImage.open(full_name("fill_adjustments.psd"))
 
 
 def test_solid_color_fill() -> None:
@@ -34,7 +32,7 @@ def test_pattern_fill() -> None:
     assert layer.data
 
 
-def test_brightness_contrast(psd) -> None:
+def test_brightness_contrast(psd: PSDImage) -> None:
     layer = psd[4]
     assert isinstance(layer, adjustments.BrightnessContrast)
     assert layer.brightness == 34
@@ -44,20 +42,20 @@ def test_brightness_contrast(psd) -> None:
     assert layer.automatic is False
 
 
-def test_levels(psd) -> None:
+def test_levels(psd: PSDImage) -> None:
     layer = psd[5]
     assert isinstance(layer, adjustments.Levels)
     assert layer.master
 
 
-def test_curves(psd) -> None:
+def test_curves(psd: PSDImage) -> None:
     layer = psd[6]
     assert isinstance(layer, adjustments.Curves)
     assert layer.data
     assert layer.extra
 
 
-def test_exposure(psd) -> None:
+def test_exposure(psd: PSDImage) -> None:
     layer = psd[7]
     assert isinstance(layer, adjustments.Exposure)
     assert pytest.approx(layer.exposure) == -0.39
@@ -65,14 +63,14 @@ def test_exposure(psd) -> None:
     assert pytest.approx(layer.gamma) == 0.91
 
 
-def test_vibrance(psd) -> None:
+def test_vibrance(psd: PSDImage) -> None:
     layer = psd[8]
     assert isinstance(layer, adjustments.Vibrance)
     assert layer.vibrance == -6
     assert layer.saturation == 2
 
 
-def test_hue_saturation(psd) -> None:
+def test_hue_saturation(psd: PSDImage) -> None:
     layer = psd[9]
     assert isinstance(layer, adjustments.HueSaturation)
     assert layer.enable_colorization == 0
@@ -81,7 +79,7 @@ def test_hue_saturation(psd) -> None:
     assert len(layer.data) == 6
 
 
-def test_color_balance(psd) -> None:
+def test_color_balance(psd: PSDImage) -> None:
     layer = psd[10]
     assert isinstance(layer, adjustments.ColorBalance)
     assert layer.shadows == (-4, 2, -5)
@@ -90,7 +88,7 @@ def test_color_balance(psd) -> None:
     assert layer.luminosity == 1
 
 
-def test_black_and_white(psd) -> None:
+def test_black_and_white(psd: PSDImage) -> None:
     layer = psd[11]
     assert isinstance(layer, adjustments.BlackAndWhite)
     assert layer.red == 40
@@ -105,7 +103,7 @@ def test_black_and_white(psd) -> None:
     assert layer.preset_file_name == ""
 
 
-def test_photo_filter(psd) -> None:
+def test_photo_filter(psd: PSDImage) -> None:
     layer = psd[12]
     assert isinstance(layer, adjustments.PhotoFilter)
     assert layer.xyz is None
@@ -115,44 +113,43 @@ def test_photo_filter(psd) -> None:
     assert layer.luminosity == 1
 
 
-def test_channel_mixer(psd) -> None:
+def test_channel_mixer(psd: PSDImage) -> None:
     layer = psd[13]
     assert isinstance(layer, adjustments.ChannelMixer)
     assert layer.monochrome == 0
     assert layer.data == [100, 0, 0, 0, 0]
 
 
-def test_color_lookup(psd) -> None:
+def test_color_lookup(psd: PSDImage) -> None:
     layer = psd[14]
     assert isinstance(layer, adjustments.ColorLookup)
 
 
-def test_invert(psd) -> None:
+def test_invert(psd: PSDImage) -> None:
     layer = psd[15]
     assert isinstance(layer, adjustments.Invert)
 
 
-def test_posterize(psd) -> None:
+def test_posterize(psd: PSDImage) -> None:
     layer = psd[16]
     assert isinstance(layer, adjustments.Posterize)
     assert layer.posterize == 4
 
 
-def test_threshold(psd) -> None:
+def test_threshold(psd: PSDImage) -> None:
     layer = psd[17]
     assert isinstance(layer, adjustments.Threshold)
     assert layer.threshold == 128
 
 
-def test_selective_color(psd) -> None:
+def test_selective_color(psd: PSDImage) -> None:
     layer = psd[18]
     assert isinstance(layer, adjustments.SelectiveColor)
     assert layer.method == 0
     assert len(layer.data) == 10
 
 
-def _test_gradient_map_common(layer, random_seed):
-    assert isinstance(layer, adjustments.GradientMap)
+def _test_gradient_map_common(layer: adjustments.GradientMap, random_seed: int) -> None:
     assert layer.reversed == 0
     assert layer.dithered == 0
     assert layer.gradient_name == "Foreground to Background"
@@ -171,18 +168,21 @@ def _test_gradient_map_common(layer, random_seed):
     assert layer.max_color == [32768, 32768, 32768, 32768]
 
 
-def test_gradient_map(psd) -> None:
+def test_gradient_map(psd: PSDImage) -> None:
     layer = psd[19]
+    assert isinstance(layer, adjustments.GradientMap)
     _test_gradient_map_common(layer, 470415386)
 
 
-def test_gradient_map_v3(psd) -> None:
+def test_gradient_map_v3() -> None:
     for suffix, method in (
         ("classic", b"Gcls"),
         ("linear", b"Lnr "),
         ("perceptual", b"Perc"),
     ):
         layer = PSDImage.open(full_name("layers/gradient-map-v3-" + suffix + ".psd"))[0]
+        assert isinstance(layer, adjustments.GradientMap)
         _test_gradient_map_common(layer, 691687736)
+        assert layer._data is not None
         assert layer._data.version == 3
         assert layer._data.method == method

@@ -1,3 +1,4 @@
+from typing import List, Tuple
 import logging
 import os
 
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
             1,
             [[(0, 0), (255, 255)]],
             CurvesExtraMarker(
-                items=[CurvesExtraItem(channel_id=0, points=[(0, 0), (255, 255)])]
+                items=[CurvesExtraItem(channel_id=0, points=[(0, 0), (255, 255)])]  # type: ignore[list-item]
             ),
         ),
         (
@@ -30,13 +31,13 @@ logger = logging.getLogger(__name__)
             1,
             [list(range(256))],
             CurvesExtraMarker(
-                items=[CurvesExtraItem(channel_id=0, points=list(range(256)))]
+                items=[CurvesExtraItem(channel_id=0, points=list(range(256)))]  # type: ignore[list-item,arg-type]
             ),
         ),
     ],
 )
-def test_curves(is_map, version, count_map, data, extra) -> None:
-    check_write_read(Curves(is_map, version, count_map, data, extra))
+def test_curves(is_map: bool, version: int, count_map: int, data: bytes, extra: bytes) -> None:
+    check_write_read(Curves(is_map, version, count_map, data, extra))  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize(
@@ -46,9 +47,9 @@ def test_curves(is_map, version, count_map, data, extra) -> None:
         (0, list(range(256)), True),
     ],
 )
-def test_curves_extra_item_wr(channel_id, points, is_map) -> None:
+def test_curves_extra_item_wr(channel_id: int, points: List[Tuple[int, int]], is_map: bool) -> None:
     check_write_read(
-        CurvesExtraItem(channel_id=channel_id, points=points), is_map=is_map
+        CurvesExtraItem(channel_id=channel_id, points=points), is_map=is_map  # type: ignore[arg-type]
     )
 
 
@@ -59,12 +60,12 @@ def test_curves_extra_item_wr(channel_id, points, is_map) -> None:
         (b"\x00\x00\x00\x02\x00\x00\x00\x00\xff\xff\xff\xff", False),
     ],
 )
-def test_curves_extra_item_rw(fixture, is_map) -> None:
+def test_curves_extra_item_rw(fixture: bytes, is_map: bool) -> None:
     check_read_write(CurvesExtraItem, fixture, is_map=is_map)
 
 
 @pytest.mark.parametrize("filename", ["curves.dat"])
-def test_curves_rw(filename) -> None:
+def test_curves_rw(filename: str) -> None:
     filepath = os.path.join(TEST_ROOT, "tagged_blocks", filename)
     with open(filepath, "rb") as f:
         fixture = f.read()
@@ -72,7 +73,7 @@ def test_curves_rw(filename) -> None:
 
 
 @pytest.mark.parametrize("filename", ["curves_2.dat"])
-def test_curves_r(filename) -> None:
+def test_curves_r(filename: str) -> None:
     filepath = os.path.join(TEST_ROOT, "tagged_blocks", filename)
     with open(filepath, "rb") as f:
         Curves.read(f)
@@ -81,7 +82,7 @@ def test_curves_r(filename) -> None:
 @pytest.mark.parametrize(
     "filename", ["levels_clipstudio_1.dat", "levels_photoshop_1.dat"]
 )
-def test_levels_r(filename) -> None:
+def test_levels_r(filename: str) -> None:
     filepath = os.path.join(TEST_ROOT, "tagged_blocks", filename)
     with open(filepath, "rb") as f:
         assert isinstance(Levels.read(f), Levels)

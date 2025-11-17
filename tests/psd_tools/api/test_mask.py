@@ -10,13 +10,15 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
-def layer_mask_data():
+def layer_mask_data() -> PSDImage:
     return PSDImage.open(full_name("layer_mask_data.psd"))
 
 
 @pytest.mark.parametrize("real", [True, False])
-def test_layer_mask(layer_mask_data, real) -> None:
+def test_layer_mask(layer_mask_data: PSDImage, real: bool) -> None:
     mask = layer_mask_data[4].mask
+    assert mask is not None
+    assert mask.real_flags is not None
     mask.real_flags.parameters_applied = real
     mask.background_color
     mask.bbox
