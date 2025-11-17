@@ -6,7 +6,10 @@ import io
 import logging
 from typing import Any, BinaryIO, Optional, TypeVar
 
-from typing_extensions import Self
+try:
+    from typing import Self  # type: ignore[attr-defined]
+except ImportError:
+    from typing_extensions import Self
 
 from attrs import define, field
 
