@@ -256,3 +256,13 @@ def test_save_without_composite_dependencies(tmp_path: Path, caplog: Any) -> Non
     loaded = PSDImage.open(output_path)
     assert len(loaded) == 1
     assert loaded[0].name == "Test Layer"
+
+
+def test_save_rgba_pixel_layer(tmp_path: Path):
+    # create an RGBA PSD with a layer
+    psd = PSDImage.new("RGBA", (32, 48))
+    psd.create_pixel_layer(Image.linear_gradient("L").resize(psd.size), "layer1")
+    psd.save(tmp_path / "tmp.psd")
+
+    # check that the updated preview image has the expected number of channels
+    assert len(psd._record.image_data.get_data(psd._record.header)) == 4
