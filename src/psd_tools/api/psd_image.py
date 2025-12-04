@@ -207,7 +207,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             # TODO: Fill in a white background for the given color mode on failure.
             # TODO: Set a `has_composite` flag in VersionInfo resource.
             try:
-                composited_psd = self.composite()
+                composited_psd = self.composite().convert(self.pil_mode)
                 self._record.image_data.set_data(
                     [channel.tobytes() for channel in composited_psd.split()],
                     self._record.header,
