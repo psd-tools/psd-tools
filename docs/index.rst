@@ -18,7 +18,7 @@ For advanced layer compositing features, install with the ``composite`` extra::
 
     pip install psd-tools[composite]
 
-This installs optional dependencies (``aggdraw``, ``scipy``, ``scikit-image``)
+This installs optional dependencies (``aggdraw>=1.4.1``, ``scipy``, ``scikit-image``)
 required for:
 
 - Vector shape and stroke rendering
@@ -27,11 +27,6 @@ required for:
 
 Basic compositing operations work without these dependencies by using cached
 previews or simple NumPy-based operations.
-
-.. note::
-
-    The ``composite`` extra may not be available on all platforms.
-    Notably, Python 3.14 on Windows currently lacks ``aggdraw`` support.
 
 .. note::
 
