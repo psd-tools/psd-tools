@@ -30,11 +30,6 @@ previews or simple NumPy-based operations.
 
 .. note::
 
-    The ``composite`` extra may not be available on all platforms.
-    Notably, Python 3.14 on Windows currently lacks ``aggdraw`` support.
-
-.. note::
-
     In order to extract images from 32bit PSD files PIL/Pillow must be built
     with LITTLECMS or LITTLECMS2 support (``apt-get install liblcms2-2`` or
     ``brew install little-cms2``)

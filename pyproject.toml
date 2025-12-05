@@ -38,7 +38,9 @@ requires-python = ">=3.10"
 
 [project.optional-dependencies]
 composite = [
-    "aggdraw",
+    "aggdraw>=1.3.16;sys_platform!='win32'",
+    "aggdraw>=1.3.16,<1.4.1;sys_platform=='win32' and python_version<'3.11'",
+    "aggdraw>=1.4.1;sys_platform=='win32' and python_version>='3.11'",
     "scipy",
     "scikit-image",
 ]
@@ -55,7 +57,9 @@ dev = [
     "ruff",
     "mypy",
     # Include composite dependencies for full development
-    "aggdraw",
+    "aggdraw>=1.3.16;sys_platform!='win32'",
+    "aggdraw>=1.3.16,<1.4.1;sys_platform=='win32' and python_version<'3.11'",
+    "aggdraw>=1.4.1;sys_platform=='win32' and python_version>='3.11'",
     "scipy",
     "scikit-image",
 ]
@@ -82,7 +86,7 @@ markers = [
 
 [tool.cibuildwheel]
 archs = "auto64"
-skip = "cp310-win_arm64 cp314t-* cp314-win*"
+skip = "cp310-win_arm64 cp314t-*"
 # Skip testing during wheel builds - tests are already run in CI test workflow
 # Testing here would require composite dependencies which aren't available on all platforms
 test-skip = "*"
