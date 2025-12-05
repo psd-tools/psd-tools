@@ -1,6 +1,12 @@
 Changelog
 =========
 
+1.12.1 (2025-12-05)
+-------------------
+
+- [api] Fix preview image mode when saving PSD files (#542)
+- [packaging] Upgrade aggdraw to >=1.4.1 for Python 3.14 Windows support (#543)
+
 1.12.0 (2025-11-17)
 -------------------
 
