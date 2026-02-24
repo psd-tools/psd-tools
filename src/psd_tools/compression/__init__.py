@@ -220,7 +220,9 @@ def decompress(
             decompressed = _safe_zlib_decompress(data, length)
             result = decode_prediction(decompressed, width, height, depth)
         except (ValueError, zlib.error) as e:
-            _warn_decompress_failure("ZIP_WITH_PREDICTION", e, width, height, depth, version)
+            _warn_decompress_failure(
+                "ZIP_WITH_PREDICTION", e, width, height, depth, version
+            )
             result = None
 
     if depth >= 8:
