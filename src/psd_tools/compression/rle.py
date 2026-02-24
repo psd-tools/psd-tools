@@ -58,36 +58,36 @@ def decode(data: bytes, size: int) -> bytes:
     """decode(data, size) -> bytes
 
     Apple PackBits RLE decoder.
+
+    Tolerant implementation: runs that would exceed *size* are clipped at the
+    row boundary, runs whose input is truncated copy what is available, and any
+    remaining bytes are zero-padded.  The function always returns exactly *size*
+    bytes without raising.
     """
 
     i, j = 0, 0
     length = len(data)
     data = bytearray(data)
-    result = bytearray()
+    result = bytearray(size)  # pre-allocated and zero-filled
 
-    if length == 1:
-        if data[0] != 128:
-            raise ValueError("Invalid RLE compression")
-        return result
-
-    while i < length:
+    while i < length and j < size:
         i, bit = i + 1, data[i]
         if bit > 128:
             bit = 256 - bit
-            if j + 1 + bit > size:
-                raise ValueError("Invalid RLE compression")
-            result.extend((data[i : i + 1]) * (1 + bit))
-            j += 1 + bit
+            if i >= length:  # lone repeat header at end of stream — stop
+                break
+            actual = min(1 + bit, size - j)  # clip at remaining output space
+            result[j : j + actual] = bytes([data[i]]) * actual
+            j += actual
             i += 1
         elif bit < 128:
-            if i + 1 + bit > length or (j + 1 + bit > size):
-                raise ValueError("Invalid RLE compression")
-            result.extend(data[i : i + 1 + bit])
-            j += 1 + bit
-            i += 1 + bit
-
-    if size and (len(result) != size):
-        raise ValueError("Expected %d bytes but decoded %d bytes" % (size, j))
+            copy_count = 1 + bit
+            available = length - i
+            actual = min(copy_count, available, size - j)  # clip to input and output
+            result[j : j + actual] = data[i : i + actual]
+            j += actual
+            i += min(copy_count, available)  # advance by declared amount or to end
+        # bit == 128: no-op
 
     return bytes(result)
 

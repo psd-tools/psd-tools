@@ -143,7 +143,17 @@ def decompress(
     elif compression == Compression.RLE:
         try:
             result = decode_rle(data, width, height, depth, version)
-        except ValueError:
+        except (ValueError, IndexError) as e:
+            logger.warning(
+                "RLE decode failed (%s: %s); channel replaced with black. "
+                "width=%d height=%d depth=%d version=%d",
+                type(e).__name__,
+                e,
+                width,
+                height,
+                depth,
+                version,
+            )
             result = None
     elif compression == Compression.ZIP:
         result = zlib.decompress(data)
