@@ -53,7 +53,7 @@ def test_curves_extra_item_wr(
     channel_id: int, points: List[Tuple[int, int]], is_map: bool
 ) -> None:
     check_write_read(
-        CurvesExtraItem(channel_id=channel_id, points=points),
+        CurvesExtraItem(channel_id=channel_id, points=points),  # type: ignore[arg-type]
         is_map=is_map,  # type: ignore[arg-type]
     )
 

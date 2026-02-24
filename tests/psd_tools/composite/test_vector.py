@@ -3,6 +3,7 @@ import logging
 import pytest
 
 from psd_tools import PSDImage
+from psd_tools.api.layers import Group
 from psd_tools.composite import composite
 from psd_tools.composite.paint import (
     draw_gradient_fill,
@@ -100,6 +101,7 @@ def test_draw_gradient_fill() -> None:
 def test_gradient_styles(filename: str) -> None:
     psd = PSDImage.open(full_name(filename))
     for artboard in psd:
+        assert isinstance(artboard, Group)
         for layer in artboard:
             desc = layer.tagged_blocks.get_data(Tag.GRADIENT_FILL_SETTING)
             form = desc.get(Key.Gradient).get(Type.GradientForm).enum

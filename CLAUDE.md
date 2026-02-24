@@ -45,13 +45,13 @@ uv run pytest --no-cov
 
 ```bash
 # Run ruff linter
-uv run ruff check src/
-
-# Run mypy type checker
-uv run mypy src/psd_tools
+uv run ruff check
 
 # Format with ruff
-uv run ruff format src/
+uv run ruff format
+
+# Run mypy type checker
+uv run mypy
 ```
 
 ### Documentation

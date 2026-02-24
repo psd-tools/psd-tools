@@ -202,6 +202,7 @@ def test_composite_layer_filter() -> None:
     # Check layer_filter.
     rendered = psd.composite(layer_filter=lambda x: False)
     reference = psd.topil()
+    assert reference is not None
     assert all(a != b for a, b in zip(rendered.getextrema(), reference.getextrema()))
 
 

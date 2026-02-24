@@ -84,6 +84,12 @@ markers = [
     "composite: marks tests as requiring composite dependencies (aggdraw, scipy, scikit-image)",
 ]
 
+[tool.ruff]
+src = ["src"]
+
+[tool.mypy]
+files = ["src/psd_tools", "tests"]
+
 [tool.cibuildwheel]
 archs = "auto64"
 skip = "cp310-win_arm64 cp314t-*"

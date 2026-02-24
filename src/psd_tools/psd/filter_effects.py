@@ -194,7 +194,7 @@ class FilterEffectExtra(BaseElement):
     """
 
     is_written: int = 0
-    rectangle: list = field(factory=lambda: [0, 0, 0, 0], converter=list)
+    rectangle: list[int] = field(factory=lambda: [0, 0, 0, 0], converter=list)
     compression: int = 0
     data: bytes = b""
 

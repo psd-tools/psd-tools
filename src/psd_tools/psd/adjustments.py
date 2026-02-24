@@ -262,7 +262,7 @@ class CurvesExtraItem(BaseElement):
     """
 
     channel_id: int = 0
-    points: list = field(factory=list, converter=list)
+    points: list[Any] = field(factory=list, converter=list)
 
     @classmethod
     def read(cls: type[T], fp: BinaryIO, is_map: bool = False, **kwargs: Any) -> T:

@@ -33,24 +33,14 @@ jobs:
       - name: Run tests
         run: uv run pytest
 
-      - name: Run linter on source
-        run: uv run ruff check src/
+      - name: Run linter
+        run: uv run ruff check
 
-      - name: Run linter on tests
-        run: uv run ruff check tests/
+      - name: Check formatting
+        run: uv run ruff format --check
 
-      - name: Check formatting on source
-        run: uv run ruff format --check src/
-
-      - name: Check formatting on tests
-        run: uv run ruff format --check tests/
-
-      - name: Run type checker on source
-        run: uv run mypy src/psd_tools
-
-      - name: Run type checker on tests
-        run: uv run mypy tests/ || true
-        continue-on-error: true
+      - name: Run type checker
+        run: uv run mypy
 
   test-no-composite:
     name: Test without composite dependencies - Python ${{ matrix.python-version }}

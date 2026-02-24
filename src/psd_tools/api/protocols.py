@@ -6,7 +6,12 @@ PSDImage without requiring concrete imports. These protocols allow other modules
 to properly type hint their parameters while avoiding circular dependency issues.
 """
 
-from typing import Callable, Iterator, Literal, Optional, Protocol, Union
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Callable, Iterator, Literal, Optional, Protocol, Union
+
+if TYPE_CHECKING:
+    from psd_tools.api.layers import Layer
 
 import numpy as np
 from PIL import Image
@@ -317,6 +322,10 @@ class GroupMixinProtocol(Protocol):
         :param include_clip: Whether to include clip layers.
         :return: Iterator of layers.
         """
+        ...
+
+    def index(self, layer: Layer) -> int:
+        """Return the index of a layer in the group."""
         ...
 
 
