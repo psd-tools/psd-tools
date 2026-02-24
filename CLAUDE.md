@@ -1,25 +1,19 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Development Commands
+
+See also [the contributor documentation](docs/contributing.rst) for development workflows.
 
 ### Setup
 
 ```bash
-# Install dependencies
+# Install dependencies (uv includes the dev group by default)
 uv sync
 
 # Install with composite support (required for rendering/compositing)
 uv sync --extra composite
 
-# Install with development dependencies using uv
-uv sync --group dev
-
-# Install with docs dependencies using uv
-uv sync --group docs
-
-# Install with all groups (dev and docs) and composite extra
+# Install with all groups (docs) and composite extra
 uv sync --all-groups --extra composite
 ```
 
@@ -27,14 +21,18 @@ uv sync --all-groups --extra composite
 required for layer compositing (rendering). These are optional since they may not be available
 on all platforms (notably Python 3.14 on Windows).
 
+### Building
+
+```bash
+# Build Cython modules and a wheel
+uv build --wheel
+```
+
 ### Testing
 
 ```bash
 # Run all tests with coverage
 uv run pytest
-
-# Run specific test file
-uv run pytest tests/psd_tools/api/test_layers.py
 
 # Run specific test
 uv run pytest tests/psd_tools/api/test_layers.py::test_layer_name
@@ -60,16 +58,8 @@ uv run ruff format src/
 
 ```bash
 # Build HTML documentation
-cd docs
-make html
+uv run --group docs make -C docs html
 # Output in docs/_build/html/
-```
-
-### Building
-
-```bash
-# Build wheel
-uv build --wheel
 ```
 
 ## Architecture Overview
@@ -183,6 +173,8 @@ Registry pattern maps tags to handler classes using `@register(Tag.FOO)`.
 
 ## Common Patterns
 
+Use `uv run python` to use the development runtime.
+
 ### Reading a PSD File
 
 ```python
@@ -254,13 +246,3 @@ Recent work has added comprehensive type annotations throughout the codebase. Wh
 - **Layer effects**: Only basic effects supported (drop shadow, stroke)
 - **Smart objects**: Can extract/embed but not edit contents
 - **Unknown data**: Preserved as bytes during round-trip but not interpreted
-
-## Dependencies
-
-**Core**: `attrs`, `Pillow`, `numpy`
-
-**Optional (composite extra)**: `scipy`, `scikit-image`, `aggdraw` - Required for layer compositing/rendering
-
-**Dev**: `pytest`, `pytest-cov`, `ruff`, `mypy`, plus composite dependencies for testing
-
-**Build-time optional**: `Cython` (for RLE optimization)
