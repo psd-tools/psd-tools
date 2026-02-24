@@ -97,10 +97,10 @@ psd-tools has a clear separation between low-level binary parsing and high-level
 PSD files consist of five sequential sections:
 
 1. **File Header** (26 bytes): Signature, version, dimensions, color mode
-2. **Color Mode Data**: Palette data for indexed color mode
-3. **Image Resources**: Document metadata (color profiles, guides, thumbnails)
-4. **Layer and Mask Information**: Layer records + channel image data + tagged blocks
-5. **Image Data**: Flattened composite image
+1. **Color Mode Data**: Palette data for indexed color mode
+1. **Image Resources**: Document metadata (color profiles, guides, thumbnails)
+1. **Layer and Mask Information**: Layer records + channel image data + tagged blocks
+1. **Image Data**: Flattened composite image
 
 ### Layer Tree Reconstruction
 
@@ -164,9 +164,9 @@ Registry pattern maps tags to handler classes using `@register(Tag.FOO)`.
 
 1. **Cython RLE Codec** (`compression/_rle.pyx`): C++ implementation for fast RLE compression/decompression. Falls back to pure Python if not compiled.
 
-2. **Lazy Loading**: API layer only parses data on access (masks, effects, channel data).
+1. **Lazy Loading**: API layer only parses data on access (masks, effects, channel data).
 
-3. **NumPy Vectorization**: Compositing engine uses NumPy arrays for efficient blend mode calculations.
+1. **NumPy Vectorization**: Compositing engine uses NumPy arrays for efficient blend mode calculations.
 
 ## Important Files
 
