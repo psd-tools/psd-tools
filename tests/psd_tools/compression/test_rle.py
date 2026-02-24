@@ -29,20 +29,26 @@ def test_identical() -> None:
 
 
 @pytest.mark.parametrize(
-    ("mod, data, size"),
+    ("mod, data, size, expected"),
     [
-        # b'\x01\x01\x01\x01'
-        (rle, b"\xfd\x01", 3),
-        (rle, b"\xfd\x01", 5),
-        (_rle, b"\xfd\x01", 3),
-        (_rle, b"\xfd\x01", 5),
-        # b'\x01\x02\x03'
-        (rle, b"\x02\x01\x02\x03", 2),
-        (rle, b"\x02\x01\x02\x03", 4),
-        (_rle, b"\x02\x01\x02\x03", 2),
-        (_rle, b"\x02\x01\x02\x03", 4),
+        # 0xfd = repeat-run: 256-253=3, so repeat 4× byte 0x01.
+        # size=3 → overflow clipped: b'\x01\x01\x01'
+        (rle, b"\xfd\x01", 3, b"\x01\x01\x01"),
+        (_rle, b"\xfd\x01", 3, b"\x01\x01\x01"),
+        # size=5 → 4 real bytes + 1 zero-padded: b'\x01\x01\x01\x01\x00'
+        (rle, b"\xfd\x01", 5, b"\x01\x01\x01\x01\x00"),
+        (_rle, b"\xfd\x01", 5, b"\x01\x01\x01\x01\x00"),
+        # 0x02 = copy-run: copy 3 bytes (0x01 0x02 0x03).
+        # size=2 → overflow clipped: b'\x01\x02'
+        (rle, b"\x02\x01\x02\x03", 2, b"\x01\x02"),
+        (_rle, b"\x02\x01\x02\x03", 2, b"\x01\x02"),
+        # size=4 → 3 real bytes + 1 zero-padded: b'\x01\x02\x03\x00'
+        (rle, b"\x02\x01\x02\x03", 4, b"\x01\x02\x03\x00"),
+        (_rle, b"\x02\x01\x02\x03", 4, b"\x01\x02\x03\x00"),
     ],
 )
-def test_malicious(mod: Any, data: bytes, size: int) -> None:
-    with pytest.raises(ValueError):
-        mod.decode(data, size)
+def test_tolerant_decode(mod: Any, data: bytes, size: int, expected: bytes) -> None:
+    # The decoder must never raise; it clips overflow runs and zero-pads short output.
+    result = mod.decode(data, size)
+    assert result == expected
+    assert len(result) == size

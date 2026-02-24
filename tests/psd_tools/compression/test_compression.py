@@ -1,14 +1,18 @@
 import logging
+import warnings
+import zlib
 
 import pytest
 
 from psd_tools.compression import (
+    PSDDecompressionWarning,
     compress,
     decode_prediction,
     decode_rle,
     decompress,
     encode_prediction,
     encode_rle,
+    rle_impl,
 )
 from psd_tools.constants import Compression
 
@@ -77,6 +81,54 @@ def test_compress_decompress(
     assert output == data, "output=%r, expected=%r" % (output, data)
 
 
+def test_decompress_rle_overflow_clips() -> None:
+    # Header: 1 row of 4 compressed bytes (\x00\x04).
+    # Row data: literal run header 0x02 = copy 3 bytes, but row_size is 2.
+    # Tolerant decoder clips to 2 bytes → correct decoded output, no fallback.
+    rle_data = b"\x00\x04\x02\x00\x00\x00"
+    width, height, depth = 2, 1, 8
+    result = decompress(rle_data, Compression.RLE, width, height, depth)
+    assert result == b"\x00\x00"
+
+
+# --- Low-level decode() tolerance tests (exercise both Python and Cython impls) ---
+
+
+def test_decode_rle_repeat_overflow() -> None:
+    # 0x82 = repeat-run header: 256 - 0x82 = 126, so repeat 127× next byte.
+    # row_size=3 → decoder should clip to 3 repetitions of 0xAA.
+    data = bytes([0x82, 0xAA])
+    assert rle_impl.decode(data, 3) == b"\xaa\xaa\xaa"
+
+
+def test_decode_rle_copy_overflow() -> None:
+    # 0x02 = copy-run header: copy 3 bytes, but row_size=2.
+    # Decoder should clip to 2 bytes.
+    data = bytes([0x02, 0x01, 0x02, 0x03])
+    assert rle_impl.decode(data, 2) == b"\x01\x02"
+
+
+def test_decode_rle_copy_truncated_input() -> None:
+    # 0x04 = copy-run header: copy 5 bytes, but only 3 bytes follow in the stream.
+    # Decoder should copy 3 available bytes and zero-pad the remaining 2.
+    data = bytes([0x04, 0x01, 0x02, 0x03])
+    assert rle_impl.decode(data, 5) == b"\x01\x02\x03\x00\x00"
+
+
+def test_decode_rle_lone_repeat_header() -> None:
+    # 0x82 = repeat-run header with no following pixel byte (stream ends).
+    # Should not raise (previously caused IndexError in Cython); returns zeros.
+    data = bytes([0x82])
+    assert rle_impl.decode(data, 4) == b"\x00\x00\x00\x00"
+
+
+def test_decode_rle_short_output() -> None:
+    # Stream is valid but encodes fewer bytes than row_size (zero-padded remainder).
+    # 0x00 = copy 1 byte (0xFF); row_size=4 → b"\xff\x00\x00\x00"
+    data = bytes([0x00, 0xFF])
+    assert rle_impl.decode(data, 4) == b"\xff\x00\x00\x00"
+
+
 # This will fail due to irreversible zlib compression.
 @pytest.mark.xfail
 @pytest.mark.parametrize(
@@ -99,3 +151,64 @@ def test_compress_decompress_fail(
     decoded = decompress(data, Compression.ZIP_WITH_PREDICTION, width, height, depth)
     encoded = compress(decoded, Compression.ZIP_WITH_PREDICTION, width, height, depth)
     assert data == encoded
+
+
+# ---------------------------------------------------------------------------
+# Security fix tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [Compression.ZIP, Compression.ZIP_WITH_PREDICTION],
+)
+def test_decompress_zip_bomb_falls_back_to_black(kind: Compression) -> None:
+    """A zlib payload that expands beyond the declared channel size must not
+    exhaust memory; it should fall back to a black channel."""
+    oversized = zlib.compress(b"\x00" * 10_000)
+    result = decompress(oversized, kind, width=2, height=2, depth=8)
+    assert result == b"\x00" * 4  # black fallback for 2×2 8-bit
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [Compression.ZIP, Compression.ZIP_WITH_PREDICTION],
+)
+def test_decompress_zip_bomb_emits_psd_warning(kind: Compression) -> None:
+    """ZIP bomb fallback must emit PSDDecompressionWarning."""
+    oversized = zlib.compress(b"\x00" * 10_000)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        decompress(oversized, kind, width=2, height=2, depth=8)
+    assert any(issubclass(w.category, PSDDecompressionWarning) for w in caught)
+
+
+def test_decompress_rle_failure_emits_psd_warning() -> None:
+    """An undecodable RLE channel must emit PSDDecompressionWarning."""
+    # version=1 row byte-count table needs height*2 bytes (unsigned short each).
+    # Providing only 1 byte forces array.frombytes to raise ValueError (not a
+    # multiple of 2), which is the path that triggers the warning.
+    bad_rle = b"\x00"
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        decompress(bad_rle, Compression.RLE, width=4, height=1, depth=8, version=1)
+    assert any(issubclass(w.category, PSDDecompressionWarning) for w in caught)
+
+
+@pytest.mark.parametrize(
+    "bad_kwarg",
+    [
+        {"width": 0},
+        {"width": 300_001},
+        {"height": 0},
+        {"height": 300_001},
+        {"depth": 7},
+        {"depth": 0},
+    ],
+)
+def test_decompress_invalid_dimensions_raises(bad_kwarg: dict) -> None:
+    """Out-of-spec dimensions must raise ValueError immediately."""
+    params: dict = dict(width=4, height=4, depth=8, version=1)
+    params.update(bad_kwarg)
+    with pytest.raises(ValueError):
+        decompress(b"\x00" * 16, Compression.RAW, **params)

@@ -8,39 +8,45 @@ def decode(const unsigned char[:] data, Py_ssize_t size) -> string:
     """decode(data, size) -> bytes
 
     Apple PackBits RLE decoder.
+
+    Tolerant implementation: runs that would exceed *size* are clipped at the
+    row boundary, runs whose input is truncated copy what is available, and any
+    remaining bytes are zero-padded (std::string::resize zero-initialises).
+    The function always returns exactly *size* bytes without raising.
     """
 
-    cdef int i = 0
-    cdef int j = 0
-    cdef int length = data.shape[0]
+    cdef Py_ssize_t i = 0
+    cdef Py_ssize_t j = 0
+    cdef Py_ssize_t length = data.shape[0]
+    cdef Py_ssize_t actual, available
     cdef unsigned char bit
     cdef string result
 
+    result.resize(size)  # zero-initialised by std::string::resize
+
     if length == 1:
-        if data[0] != 128:
-            raise ValueError('Invalid RLE compression')
+        # Single byte: either a no-op (128) or a stray header — return zeros
         return result
 
-    result.resize(size)
-
-    while i < length:
+    while i < length and j < size:
         i, bit = i+1, data[i]
         if bit > 128:
             bit = 256 - bit
-            if j+1+bit > size:
-                raise ValueError('Invalid RLE compression')
-            fill_n(result.begin()+j, 1+bit, <char>data[i])
-            j += 1+bit
+            if i >= length:  # lone repeat header at end of stream — stop
+                break
+            actual = min(1+bit, size-j)  # clip at remaining output space
+            fill_n(result.begin()+j, actual, <char>data[i])
+            j += actual
             i += 1
         elif bit < 128:
-            if i+1+bit > length or (j+1+bit > size):
-                raise ValueError('Invalid RLE compression')
-            copy_n(&data[i], 1+bit, result.begin()+j)
-            j += 1+bit
-            i += 1+bit
-
-    if size and (j != size):
-        raise ValueError('Expected %d bytes but decoded %d bytes' % (size, j))
+            if i >= length:  # copy header is the last byte; nothing to copy
+                break
+            available = min(length-i, 1+bit)
+            actual = min(available, size-j)  # clip to input and output
+            copy_n(&data[i], actual, result.begin()+j)
+            j += actual
+            i += available  # advance by declared amount or to end
+        # bit == 128: no-op
 
     return result
 
@@ -58,7 +64,7 @@ def encode(const unsigned char[:] data) -> string:
     cdef string result
 
     if length == 0:
-        return data
+        return result
     if length == 1:
         result.push_back(0)
         result.push_back(data[0])
