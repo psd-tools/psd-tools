@@ -1,6 +1,20 @@
 Changelog
 =========
 
+1.12.2 (2026-02-24)
+-------------------
+
+- [api] Fix bbox to exclude clipping layers by default; add ``include_clipping`` parameter to ``Group.extract_bbox()`` (#566, fixes #547)
+- [api] Fix UTF-16 surrogate pair handling for emoji in text layers (#551)
+- [security] Fix compression security issues (GHSA-24p2-j2jr-386w) (#549)
+- [ci] Fix least-privilege permissions in CI workflows (#550)
+- [ci] Add pre-commit hooks for linting, formatting, and type checking (#552)
+- [ci] Add Dependabot configuration for automated dependency updates (#555)
+- [dev] Extend mypy and ruff coverage to the tests directory (#554)
+- [docs] Clean up developer setup documentation (#553)
+- [chore] Bump Pillow from 11.3.0 to 12.1.1 (#563)
+- [chore] Bump attrs, ipykernel, mypy, pytest, and various GitHub Actions
+
 1.12.1 (2025-12-05)
 -------------------
 
