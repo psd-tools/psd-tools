@@ -12,6 +12,7 @@ Usage:
     software. Therefore, psd-tools does not bundle the official header files.
     https://www.adobe.com/devnet/photoshop/sdk/eula.html
 """
+
 from __future__ import print_function
 
 import re
