@@ -15,10 +15,10 @@ def decode(const unsigned char[:] data, Py_ssize_t size) -> string:
     The function always returns exactly *size* bytes without raising.
     """
 
-    cdef int i = 0
-    cdef int j = 0
-    cdef int length = data.shape[0]
-    cdef int actual, available
+    cdef Py_ssize_t i = 0
+    cdef Py_ssize_t j = 0
+    cdef Py_ssize_t length = data.shape[0]
+    cdef Py_ssize_t actual, available
     cdef unsigned char bit
     cdef string result
 
@@ -64,7 +64,7 @@ def encode(const unsigned char[:] data) -> string:
     cdef string result
 
     if length == 0:
-        return data
+        return result
     if length == 1:
         result.push_back(0)
         result.push_back(data[0])

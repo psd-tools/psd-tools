@@ -1,8 +1,11 @@
 import logging
+import warnings
+import zlib
 
 import pytest
 
 from psd_tools.compression import (
+    PSDDecompressionWarning,
     compress,
     decode_prediction,
     decode_rle,
@@ -148,3 +151,64 @@ def test_compress_decompress_fail(
     decoded = decompress(data, Compression.ZIP_WITH_PREDICTION, width, height, depth)
     encoded = compress(decoded, Compression.ZIP_WITH_PREDICTION, width, height, depth)
     assert data == encoded
+
+
+# ---------------------------------------------------------------------------
+# Security fix tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [Compression.ZIP, Compression.ZIP_WITH_PREDICTION],
+)
+def test_decompress_zip_bomb_falls_back_to_black(kind: Compression) -> None:
+    """A zlib payload that expands beyond the declared channel size must not
+    exhaust memory; it should fall back to a black channel."""
+    oversized = zlib.compress(b"\x00" * 10_000)
+    result = decompress(oversized, kind, width=2, height=2, depth=8)
+    assert result == b"\x00" * 4  # black fallback for 2×2 8-bit
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [Compression.ZIP, Compression.ZIP_WITH_PREDICTION],
+)
+def test_decompress_zip_bomb_emits_psd_warning(kind: Compression) -> None:
+    """ZIP bomb fallback must emit PSDDecompressionWarning."""
+    oversized = zlib.compress(b"\x00" * 10_000)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        decompress(oversized, kind, width=2, height=2, depth=8)
+    assert any(issubclass(w.category, PSDDecompressionWarning) for w in caught)
+
+
+def test_decompress_rle_failure_emits_psd_warning() -> None:
+    """An undecodable RLE channel must emit PSDDecompressionWarning."""
+    # version=1 row byte-count table needs height*2 bytes (unsigned short each).
+    # Providing only 1 byte forces array.frombytes to raise ValueError (not a
+    # multiple of 2), which is the path that triggers the warning.
+    bad_rle = b"\x00"
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        decompress(bad_rle, Compression.RLE, width=4, height=1, depth=8, version=1)
+    assert any(issubclass(w.category, PSDDecompressionWarning) for w in caught)
+
+
+@pytest.mark.parametrize(
+    "bad_kwarg",
+    [
+        {"width": 0},
+        {"width": 300_001},
+        {"height": 0},
+        {"height": 300_001},
+        {"depth": 7},
+        {"depth": 0},
+    ],
+)
+def test_decompress_invalid_dimensions_raises(bad_kwarg: dict) -> None:
+    """Out-of-spec dimensions must raise ValueError immediately."""
+    params: dict = dict(width=4, height=4, depth=8, version=1)
+    params.update(bad_kwarg)
+    with pytest.raises(ValueError):
+        decompress(b"\x00" * 16, Compression.RAW, **params)

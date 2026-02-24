@@ -64,6 +64,7 @@ image types.
 import array
 import io
 import logging
+import warnings
 import zlib
 from typing import Iterator, Union
 
@@ -83,6 +84,60 @@ except ImportError:
     from . import rle as rle_impl
 
 logger = logging.getLogger(__name__)
+
+
+class PSDDecompressionWarning(UserWarning):
+    """Issued when channel data cannot be fully decompressed.
+
+    The affected channel is replaced with black pixels.  Catch or filter this
+    warning to detect silently degraded images::
+
+        import warnings
+        from psd_tools.compression import PSDDecompressionWarning
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", PSDDecompressionWarning)
+            psd = PSDImage.open("file.psd")
+    """
+
+
+_VALID_DEPTHS: frozenset[int] = frozenset((1, 8, 16, 32))
+_MAX_DIMENSION: int = 300_000  # PSD/PSB hard limit per the Adobe spec
+
+
+def _warn_decompress_failure(
+    codec: str,
+    exc: Exception,
+    width: int,
+    height: int,
+    depth: int,
+    version: int,
+) -> None:
+    """Log and emit a PSDDecompressionWarning for a failed channel decode."""
+    msg = (
+        "%s decode failed (%s: %s); channel replaced with black. "
+        "width=%d height=%d depth=%d version=%d"
+        % (codec, type(exc).__name__, exc, width, height, depth, version)
+    )
+    logger.warning(msg)
+    warnings.warn(msg, PSDDecompressionWarning, stacklevel=3)
+
+
+def _safe_zlib_decompress(data: bytes, max_length: int) -> bytes:
+    """Decompress *data* with a hard upper bound on output size.
+
+    Unlike :func:`zlib.decompress`, this function raises :exc:`ValueError`
+    if the decompressed output would exceed *max_length* bytes, preventing
+    memory exhaustion from crafted ZIP-bomb payloads.
+    """
+    d = zlib.decompressobj()
+    out = d.decompress(data, max_length + 1)
+    if d.unconsumed_tail:
+        raise ValueError(
+            "Decompressed size exceeds expected maximum of %d bytes" % max_length
+        )
+    out += d.flush()
+    return out
 
 
 def compress(
@@ -129,12 +184,20 @@ def decompress(
     :param data: compressed data bytes.
     :param compression: compression type,
             see :py:class:`~psd_tools.constants.Compression`.
-    :param width: width.
-    :param height: height.
-    :param depth: bit depth of the pixel.
+    :param width: width in pixels; must be in [1, 300000].
+    :param height: height in pixels; must be in [1, 300000].
+    :param depth: bit depth of the pixel; must be one of 1, 8, 16, 32.
     :param version: psd file version.
     :return: decompressed data bytes.
+    :raises ValueError: if *width*, *height*, or *depth* are out of range.
     """
+    if width < 1 or width > _MAX_DIMENSION:
+        raise ValueError("width %d out of range [1, %d]" % (width, _MAX_DIMENSION))
+    if height < 1 or height > _MAX_DIMENSION:
+        raise ValueError("height %d out of range [1, %d]" % (height, _MAX_DIMENSION))
+    if depth not in _VALID_DEPTHS:
+        raise ValueError("depth %d not in %s" % (depth, sorted(_VALID_DEPTHS)))
+
     length = width * height * max(1, depth // 8)
 
     result: bytes | None = None
@@ -144,22 +207,21 @@ def decompress(
         try:
             result = decode_rle(data, width, height, depth, version)
         except (ValueError, IndexError) as e:
-            logger.warning(
-                "RLE decode failed (%s: %s); channel replaced with black. "
-                "width=%d height=%d depth=%d version=%d",
-                type(e).__name__,
-                e,
-                width,
-                height,
-                depth,
-                version,
-            )
+            _warn_decompress_failure("RLE", e, width, height, depth, version)
             result = None
     elif compression == Compression.ZIP:
-        result = zlib.decompress(data)
+        try:
+            result = _safe_zlib_decompress(data, length)
+        except (ValueError, zlib.error) as e:
+            _warn_decompress_failure("ZIP", e, width, height, depth, version)
+            result = None
     else:
-        decompressed = zlib.decompress(data)
-        result = decode_prediction(decompressed, width, height, depth)
+        try:
+            decompressed = _safe_zlib_decompress(data, length)
+            result = decode_prediction(decompressed, width, height, depth)
+        except (ValueError, zlib.error) as e:
+            _warn_decompress_failure("ZIP_WITH_PREDICTION", e, width, height, depth, version)
+            result = None
 
     if depth >= 8:
         if result is None:
@@ -167,9 +229,14 @@ def decompress(
             result = Image.new(mode, (width, height), color=0).tobytes()
             logger.warning("Failed channel has been replaced by black")
         else:
-            assert len(result) == length, "len=%d, expected=%d" % (len(result), length)
+            if len(result) != length:
+                raise ValueError(
+                    "Decompressed length mismatch: got %d, expected %d"
+                    % (len(result), length)
+                )
 
-    assert result is not None
+    if result is None:
+        raise RuntimeError("decompress() produced no result for depth=%d" % depth)
     return result
 
 

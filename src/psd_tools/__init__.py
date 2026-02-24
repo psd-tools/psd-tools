@@ -30,6 +30,7 @@ Advanced users can access low-level structures via the ``_record`` attribute.
 """
 
 from psd_tools.api.psd_image import PSDImage
+from psd_tools.compression import PSDDecompressionWarning
 from psd_tools.version import __version__
 
-__all__ = ["PSDImage", "__version__"]
+__all__ = ["PSDImage", "PSDDecompressionWarning", "__version__"]
