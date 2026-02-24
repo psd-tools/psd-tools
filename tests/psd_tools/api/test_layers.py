@@ -323,6 +323,48 @@ def test_bbox_updates() -> None:
     assert group1.bbox == (25, 34, 80, 88)
 
 
+def test_extract_bbox_excludes_clipping() -> None:
+    """Clipping layers should be excluded from bbox by default (issue #547)."""
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    group2 = psd[1]
+    assert isinstance(group2, Group)
+    shape1 = group2[1]  # Shape 1, clipping=False, bbox=(50, 44, 174, 113)
+    shape2 = group2[2]  # Shape 2, clipping=True,  bbox=(141, 17, 210, 92)
+
+    # With include_clipping=True (old behavior): Shape 2 extends the top and right bounds
+    assert Group.extract_bbox([shape1, shape2], include_clipping=True) == (
+        50,
+        17,
+        210,
+        113,
+    )
+
+    # Default (include_clipping=False, new behavior): only shape1 contributes
+    assert Group.extract_bbox([shape1, shape2]) == (50, 44, 174, 113)
+    assert Group.extract_bbox([shape1, shape2], include_clipping=False) == (
+        50,
+        44,
+        174,
+        113,
+    )
+
+
+def test_bbox_invalidated_on_clipping_change() -> None:
+    """Changing a layer's clipping flag should invalidate the parent group's bbox cache."""
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    group2 = psd[1]
+    assert isinstance(group2, Group)
+    initial_bbox = group2.bbox
+
+    # Make Shape 1 a clipping layer; it should be excluded from group bbox
+    group2[1].clipping = True
+    assert group2._bbox is None  # cache was invalidated
+
+    # Restore and confirm the bbox is recomputed to original value
+    group2[1].clipping = False
+    assert group2.bbox == initial_bbox
+
+
 def test_new_group(group: Group) -> None:
     test_group = Group.new(group, "Test Group")
     assert test_group._parent is group

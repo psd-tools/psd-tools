@@ -682,6 +682,7 @@ class Layer(LayerProtocol):
         if self._record.clipping != clipping and self._psd is not None:
             self._psd._mark_updated()
         self._record.clipping = clipping
+        self._invalidate_bbox()
 
     @property
     def clipping_layer(self) -> bool:
@@ -877,7 +878,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
 
     @property
     def bbox(self) -> tuple[int, int, int, int]:
-        """(left, top, right, bottom) tuple computed from children."""
+        """(left, top, right, bottom) tuple computed from visible, non-clipping children."""
         if self._bbox is None:
             self._bbox = Group.extract_bbox(self)
         return self._bbox
@@ -1209,6 +1210,7 @@ class Group(GroupMixin, Layer):
         if self._record.clipping != clipping:
             self._psd._mark_updated()
         self._record.clipping = clipping
+        self._invalidate_bbox()
 
     @property
     def open_folder(self) -> bool:
@@ -1283,7 +1285,9 @@ class Group(GroupMixin, Layer):
 
     @staticmethod
     def extract_bbox(
-        layers: Union[Sequence[Layer], GroupMixin], include_invisible: bool = False
+        layers: Union[Sequence[Layer], GroupMixin],
+        include_invisible: bool = False,
+        include_clipping: bool = False,
     ) -> tuple[int, int, int, int]:
         """
         Returns a bounding box for ``layers`` or (0, 0, 0, 0) if the layers
@@ -1291,6 +1295,8 @@ class Group(GroupMixin, Layer):
 
         :param layers: sequence of layers or a group.
         :param include_invisible: include invisible layers in calculation.
+        :param include_clipping: include clipping layers in calculation.
+            Defaults to False to match visible pixel bounds.
         :return: tuple of four int
         """
 
@@ -1301,9 +1307,14 @@ class Group(GroupMixin, Layer):
                 return layer.bbox
 
         bboxes = [
-            _get_bbox(layer, include_invisible=include_invisible)
+            _get_bbox(
+                layer,
+                include_invisible=include_invisible,
+                include_clipping=include_clipping,
+            )
             for layer in layers
-            if include_invisible or layer.is_visible()
+            if (include_invisible or layer.is_visible())
+            and (include_clipping or not layer.clipping)
         ]
         bboxes = [bbox for bbox in bboxes if bbox != (0, 0, 0, 0)]
         if len(bboxes) == 0:  # Empty bounding box.
