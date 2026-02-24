@@ -623,6 +623,18 @@ def test_layer_reference_point(pixel_layer: PixelLayer) -> None:
         pixel_layer.reference_point = (10.5, 20.5, 30.5)
 
 
+def test_layer_sheet_color(pixel_layer: PixelLayer) -> None:
+    from psd_tools.constants import SheetColorType
+
+    assert pixel_layer.sheet_color == SheetColorType.NO_COLOR
+
+    pixel_layer.sheet_color = SheetColorType.RED
+    assert pixel_layer.sheet_color == SheetColorType.RED
+
+    pixel_layer.sheet_color = SheetColorType.NO_COLOR
+    assert pixel_layer.sheet_color == SheetColorType.NO_COLOR
+
+
 def test_layer_move_up(
     group: Group,
     pixel_layer: PixelLayer,
