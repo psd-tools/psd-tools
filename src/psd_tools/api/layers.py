@@ -120,6 +120,7 @@ from psd_tools.constants import (
     Compression,
     ProtectedFlags,
     SectionDivider,
+    SheetColorType,
     Tag,
     TextType,
 )
@@ -946,6 +947,24 @@ class Layer(LayerProtocol):
         self.tagged_blocks.set_data(
             Tag.REFERENCE_POINT, [float(value[0]), float(value[1])]
         )
+
+    @property
+    def sheet_color(self) -> SheetColorType:
+        """
+        Color label of this layer in the Photoshop layers panel. Writable.
+
+        :return: :py:class:`~psd_tools.constants.SheetColorType`
+        """
+        return self.tagged_blocks.get_data(
+            Tag.SHEET_COLOR_SETTING, SheetColorType.NO_COLOR
+        )
+
+    @sheet_color.setter
+    def sheet_color(self, value: SheetColorType) -> None:
+        value = SheetColorType(value)
+        if self.sheet_color != value and self._psd is not None:
+            self._psd._mark_updated()
+        self.tagged_blocks.set_data(Tag.SHEET_COLOR_SETTING, value)
 
     def __repr__(self) -> str:
         has_size = self.width > 0 and self.height > 0
