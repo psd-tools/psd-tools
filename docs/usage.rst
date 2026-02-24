@@ -175,7 +175,7 @@ Count the occurrences of a layer in a group::
 
     count = group.count(layer)
 
-Move a given list of layers in a newly created Group. If no parent group is given in parameter, 
+Move a given list of layers in a newly created Group. If no parent group is given in parameter,
 the new group will replace the first layer of the list in the PSD structure::
 
     group = psdimage.create_group(layer_list=[layer1, layer2, ...], name="New Group")
@@ -191,7 +191,7 @@ Layers can be moved from a group to another::
     target_group.append(layer)
 
 Layers can be moved within the group to change their order::
-    
+
     layer.move_up() # Will send the layer upward in the group
     layer.move_down() # Will send the layer downward in the group
 

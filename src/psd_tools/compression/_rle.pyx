@@ -56,7 +56,7 @@ def encode(const unsigned char[:] data) -> string:
 
     Apple PackBits RLE encoder.
     """
-    
+
     cdef unsigned char MAX_LEN = 0xFF >> 1
     cdef int length = data.shape[0]
     cdef int i = 0

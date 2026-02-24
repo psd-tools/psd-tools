@@ -56,6 +56,7 @@ dev = [
     "ipykernel",
     "ruff",
     "mypy",
+    "pre-commit",
     # Include composite dependencies for full development
     "aggdraw>=1.3.16;sys_platform!='win32'",
     "aggdraw>=1.3.16,<1.4.1;sys_platform=='win32' and python_version<'3.11'",

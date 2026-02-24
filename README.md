@@ -11,26 +11,26 @@ as described in [specification](https://www.adobe.com/devnet-apps/photoshop/file
 
 ### Supported
 
-* Read and write of the low-level PSD/PSB file structure
-* Raw layer image export in NumPy and PIL format
+- Read and write of the low-level PSD/PSB file structure
+- Raw layer image export in NumPy and PIL format
 
 ### Limited support
 
-* Composition of basic pixel-based layers
-* Composition of fill layer effects
-* Vector masks
-* Editing of some layer attributes such as layer name
-* Basic editing of pixel layers and groups, such as adding or removing a layer
-* Blending modes except for dissolve
-* Drawing of bezier curves
+- Composition of basic pixel-based layers
+- Composition of fill layer effects
+- Vector masks
+- Editing of some layer attributes such as layer name
+- Basic editing of pixel layers and groups, such as adding or removing a layer
+- Blending modes except for dissolve
+- Drawing of bezier curves
 
 ### Not supported
 
-* Editing of various layers such as type layers, shape layers, smart objects, etc.
-* Editing of texts in type layers
-* Composition of adjustment layers
-* Composition of many layer effects
-* Font rendering
+- Editing of various layers such as type layers, shape layers, smart objects, etc.
+- Editing of texts in type layers
+- Composition of adjustment layers
+- Composition of many layer effects
+- Font rendering
 
 ## Installation
 
@@ -49,9 +49,9 @@ pip install 'psd-tools[composite]'
 The composite extra provides optional dependencies (`aggdraw`, `scipy`, `scikit-image`)
 for advanced rendering features:
 
-* Vector shape and stroke rendering
-* Gradient and pattern fills
-* Layer effects rendering
+- Vector shape and stroke rendering
+- Gradient and pattern fills
+- Layer effects rendering
 
 Basic compositing works without these dependencies using cached previews or simple
 pixel-based operations. Note that the composite extra may not be available on all

@@ -1,0 +1,78 @@
+# Run `pre-commit run --all-files` for a full check.
+# Run `pre-commit autoupdate` periodically to refresh pinned versions.
+
+default_language_version:
+  python: python3.10  # minimum supported version per pyproject.toml
+
+repos:
+  # ---------------------------------------------------------------------------
+  # General file hygiene
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: debug-statements
+
+  # ---------------------------------------------------------------------------
+  # Python: ruff linting + formatting (mirrors CI scope: src/ and tests/)
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.2
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+        files: ^(src|tests)/
+      - id: ruff-format
+        files: ^(src|tests)/
+
+  # ---------------------------------------------------------------------------
+  # Python: mypy type checking (mirrors CI: `uv run mypy src/psd_tools`)
+  #
+  # Uses repo:local + language:system so mypy runs in the project's own venv
+  # and has access to all installed stubs/dependencies (attrs, numpy, Pillow,
+  # etc.). pass_filenames:false ensures the full package is checked for
+  # accurate cross-module type inference, not just the changed files.
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: uv run mypy
+        language: system
+        types: [python]
+        files: ^src/
+        args: [src/psd_tools]
+        pass_filenames: false
+
+  # ---------------------------------------------------------------------------
+  # Markdown formatting (pure Python, no Node.js required)
+  # mdformat-gfm adds GitHub-Flavored Markdown support (tables, task lists)
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/hukkin/mdformat
+    rev: 1.0.0
+    hooks:
+      - id: mdformat
+        additional_dependencies:
+          - mdformat-gfm==1.0.0
+        # Exclude GitHub issue/PR templates — they use YAML front matter
+        # delimited by `---` which mdformat incorrectly treats as a thematic break.
+        files: ^(?!\.venv/|build/|dist/|\.github/ISSUE_TEMPLATE/).*\.md$
+
+  # ---------------------------------------------------------------------------
+  # RST: sphinx-lint (linter — no mature RST formatter exists)
+  # Checks for mismatched backticks, bad cross-reference syntax, malformed
+  # directives, and other Sphinx RST issues.
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/sphinx-contrib/sphinx-lint
+    rev: v1.0.2
+    hooks:
+      - id: sphinx-lint
+        files: ^docs/.*\.rst$
