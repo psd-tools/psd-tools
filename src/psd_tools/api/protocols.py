@@ -77,6 +77,14 @@ class MaskProtocol(Protocol):
         ...
 
     @property
+    def disabled(self) -> bool:
+        """Disabled."""
+        ...
+
+    @disabled.setter
+    def disabled(self, value: bool) -> None: ...
+
+    @property
     def data(self) -> MaskData:
         """Return raw mask data, or None if no data."""
         ...

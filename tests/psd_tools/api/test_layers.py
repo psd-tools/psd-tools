@@ -514,6 +514,92 @@ def test_create_mask_round_trip(tmp_path: Any) -> None:
     assert mask_pil.tobytes() == mask_img.tobytes()
 
 
+def test_remove_mask() -> None:
+    psdimage = PSDImage.new(mode="RGB", size=(30, 30))
+    layer = PixelLayer.frompil(Image.new("RGB", (30, 30)), psdimage)
+    layer.create_mask(Image.new("L", (30, 30), 200))
+    assert layer.has_mask()
+
+    layer.remove_mask()
+
+    assert not layer.has_mask()
+    assert layer.mask is None
+
+
+def test_remove_mask_raises_if_no_mask() -> None:
+    psdimage = PSDImage.new(mode="RGB", size=(30, 30))
+    layer = PixelLayer.frompil(Image.new("RGB", (30, 30)), psdimage)
+    with pytest.raises(ValueError, match="does not have a mask"):
+        layer.remove_mask()
+
+
+def test_remove_mask_round_trip(tmp_path: Any) -> None:
+    psdimage = PSDImage.new(mode="RGB", size=(30, 30))
+    layer = PixelLayer.frompil(Image.new("RGB", (30, 30)), psdimage)
+    layer.create_mask(Image.new("L", (30, 30), 200))
+    layer.remove_mask()
+
+    out = tmp_path / "test_remove_mask.psd"
+    psdimage.save(str(out))
+
+    psdimage2 = PSDImage.open(str(out))
+    assert not psdimage2[0].has_mask()
+
+
+def test_update_mask() -> None:
+    psdimage = PSDImage.new(mode="RGB", size=(30, 30))
+    layer = PixelLayer.frompil(Image.new("RGB", (30, 30)), psdimage)
+    layer.create_mask(Image.new("L", (30, 30), 100))
+
+    new_mask_img = Image.new("L", (30, 30), 200)
+    mask = layer.update_mask(new_mask_img)
+
+    assert layer.has_mask()
+    mask_pil = mask.topil()
+    assert mask_pil is not None
+    assert mask_pil.tobytes() == new_mask_img.tobytes()
+
+
+def test_update_mask_raises_if_no_mask() -> None:
+    psdimage = PSDImage.new(mode="RGB", size=(30, 30))
+    layer = PixelLayer.frompil(Image.new("RGB", (30, 30)), psdimage)
+    with pytest.raises(ValueError, match="does not have a mask"):
+        layer.update_mask(Image.new("L", (30, 30), 255))
+
+
+def test_update_mask_changes_size() -> None:
+    psdimage = PSDImage.new(mode="RGB", size=(40, 40))
+    layer = PixelLayer.frompil(Image.new("RGB", (40, 40)), psdimage)
+    layer.create_mask(Image.new("L", (40, 40), 100))
+
+    small_mask = Image.new("L", (20, 15), 255)
+    mask = layer.update_mask(small_mask, top=5, left=5)
+
+    assert mask.width == 20
+    assert mask.height == 15
+    assert mask.top == 5
+    assert mask.left == 5
+
+
+def test_update_mask_round_trip(tmp_path: Any) -> None:
+    psdimage = PSDImage.new(mode="RGB", size=(30, 30))
+    layer = PixelLayer.frompil(Image.new("RGB", (30, 30)), psdimage)
+    layer.create_mask(Image.new("L", (30, 30), 100))
+    updated_mask = Image.new("L", (30, 30), 42)
+    layer.update_mask(updated_mask)
+
+    out = tmp_path / "test_update_mask.psd"
+    psdimage.save(str(out))
+
+    psdimage2 = PSDImage.open(str(out))
+    layer2 = psdimage2[0]
+    assert layer2.has_mask()
+    assert layer2.mask is not None
+    mask_pil = layer2.mask.topil()
+    assert mask_pil is not None
+    assert mask_pil.tobytes() == updated_mask.tobytes()
+
+
 def test_layer_fill_opacity(pixel_layer: PixelLayer) -> None:
     assert pixel_layer.fill_opacity == 255
 

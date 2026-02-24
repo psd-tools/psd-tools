@@ -87,6 +87,11 @@ class Mask(MaskProtocol):
         """Disabled."""
         return self._data.flags.mask_disabled
 
+    @disabled.setter
+    def disabled(self, value: bool) -> None:
+        self._data.flags.mask_disabled = value
+        self._layer._psd._mark_updated()
+
     @property
     def flags(self) -> MaskFlags:
         """Flags."""

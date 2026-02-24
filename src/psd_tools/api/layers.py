@@ -93,6 +93,7 @@ from typing import (
     Sequence,
     TypeVar,
     Union,
+    cast,
     runtime_checkable,
 )
 
@@ -443,6 +444,29 @@ class Layer(LayerProtocol):
             self._mask = Mask(self) if self.has_mask() else None
         return self._mask
 
+    def _make_mask_channel_data(
+        self,
+        image: Image.Image,
+        compression: Compression,
+    ) -> tuple[ChannelData, int, int]:
+        """Return ``(channel_data, width, height)`` for a mask image.
+
+        If the image has an alpha channel the alpha channel is used as the
+        mask data; otherwise the image is converted to grayscale (``L`` mode).
+        Layer masks in PSD are always 8-bit regardless of document depth.
+        """
+        if "A" in image.getbands():
+            mask_pixels = image.getchannel("A")
+        else:
+            mask_pixels = image.convert("L")
+
+        width, height = mask_pixels.size
+        version = self._psd._record.header.version
+
+        channel_data = ChannelData(compression)
+        channel_data.set_data(mask_pixels.tobytes(), width, height, 8, version)
+        return channel_data, width, height
+
     def create_mask(
         self,
         image: Image.Image,
@@ -473,14 +497,7 @@ class Layer(LayerProtocol):
         if left is None:
             left = self._record.left
 
-        if "A" in image.getbands():
-            mask_pixels = image.getchannel("A")
-        else:
-            mask_pixels = image.convert("L")
-
-        width, height = mask_pixels.size
-        depth = self._psd._record.header.depth
-        version = self._psd._record.header.version
+        channel_data, width, height = self._make_mask_channel_data(image, compression)
 
         mask_data = MaskData(
             top=top,
@@ -491,9 +508,6 @@ class Layer(LayerProtocol):
             flags=MaskFlags(),
         )
 
-        channel_data = ChannelData(compression)
-        channel_data.set_data(mask_pixels.tobytes(), width, height, depth, version)
-
         channel_info = ChannelInfo(
             id=ChannelID.USER_LAYER_MASK,
             length=channel_data._length,
@@ -502,6 +516,73 @@ class Layer(LayerProtocol):
         self._record.mask_data = mask_data
         self._record.channel_info.append(channel_info)
         self._channels.append(channel_data)
+
+        if hasattr(self, "_mask"):
+            del self._mask
+        self._psd._mark_updated()
+        return self.mask  # type: ignore[return-value]
+
+    def remove_mask(self) -> None:
+        """
+        Remove the pixel mask from this layer.
+
+        :raises ValueError: If the layer does not have a mask.
+        """
+        if not self.has_mask():
+            raise ValueError("Layer does not have a mask.")
+
+        for i, ci in enumerate(self._record.channel_info):
+            if ci.id == ChannelID.USER_LAYER_MASK:
+                self._record.channel_info.pop(i)
+                self._channels.pop(i)
+                break
+
+        self._record.mask_data = None
+
+        if hasattr(self, "_mask"):
+            del self._mask
+        self._psd._mark_updated()
+
+    def update_mask(
+        self,
+        image: Image.Image,
+        top: Optional[int] = None,
+        left: Optional[int] = None,
+        compression: Compression = Compression.RLE,
+    ) -> Mask:
+        """
+        Update the pixel mask of this layer with a new image.
+
+        If the image has an alpha channel (e.g. RGBA, LA), the alpha channel
+        is used as the mask data. Otherwise the image is converted to
+        grayscale (``L`` mode). White (255) means fully unmasked, black (0)
+        means fully masked.
+
+        :param image: New source :py:class:`~PIL.Image.Image` for the mask.
+        :param top: New top offset of the mask. Defaults to current mask top.
+        :param left: New left offset of the mask. Defaults to current mask left.
+        :param compression: Compression algorithm for the mask data.
+        :return: The updated :py:class:`~psd_tools.api.mask.Mask`.
+        :raises ValueError: If the layer does not have a mask.
+        """
+        if not self.has_mask():
+            raise ValueError("Layer does not have a mask. Use create_mask() first.")
+
+        channel_data, width, height = self._make_mask_channel_data(image, compression)
+
+        mask_data = cast(MaskData, self._record.mask_data)
+        new_top = top if top is not None else mask_data.top
+        new_left = left if left is not None else mask_data.left
+        mask_data.top = new_top
+        mask_data.left = new_left
+        mask_data.bottom = new_top + height
+        mask_data.right = new_left + width
+
+        for i, ci in enumerate(self._record.channel_info):
+            if ci.id == ChannelID.USER_LAYER_MASK:
+                self._channels[i] = channel_data
+                self._record.channel_info[i].length = channel_data._length
+                break
 
         if hasattr(self, "_mask"):
             del self._mask
@@ -1615,6 +1696,7 @@ class PixelLayer(Layer):
             left,
             top,
             compression,
+            version=parent._psd._record.header.version,
         )
         self = cls(parent, layer_record, channel_data_list)
         parent.append(self)
@@ -1643,6 +1725,7 @@ class PixelLayer(Layer):
             self.left,
             self.top,
             Compression.RLE,
+            version=self._psd._record.header.version,
         )
         self._record = layer_record
         self._channels = channel_data_list
@@ -1655,6 +1738,7 @@ class PixelLayer(Layer):
         left: int,
         top: int,
         compression: Compression,
+        version: int = 1,
         **kwargs: Any,
     ) -> tuple[LayerRecord, ChannelDataList]:
         """Build layer record and channel data list from a PIL image."""
@@ -1673,6 +1757,8 @@ class PixelLayer(Layer):
         # Set layer name.
         layer_record.name = name
 
+        depth = pil_io.get_pil_depth(image.mode.rstrip("A"))
+
         # Transparency channel.
         transparency_data = ChannelData(compression)
         if image.has_transparency_data:
@@ -1684,7 +1770,8 @@ class PixelLayer(Layer):
             image_bytes,
             image.width,
             image.height,
-            pil_io.get_pil_depth(image.mode.rstrip("A")),
+            depth,
+            version,
         )
         transparency_info = ChannelInfo(
             ChannelID.TRANSPARENCY_MASK, len(transparency_data.data) + 2
@@ -1699,7 +1786,8 @@ class PixelLayer(Layer):
                 image.getchannel(channel_index).tobytes(),
                 image.width,
                 image.height,
-                pil_io.get_pil_depth(image.mode.rstrip("A")),
+                depth,
+                version,
             )
             channel_info = ChannelInfo(
                 id=ChannelID(channel_index), length=len(channel_data.data) + 2
