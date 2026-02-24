@@ -17,7 +17,7 @@ jobs:
         os: [ubuntu-24.04, ubuntu-24.04-arm, windows-2022, windows-11-arm, macos-15-intel, macos-15]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.3.0
@@ -36,7 +36,7 @@ jobs:
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
