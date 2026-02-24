@@ -51,8 +51,7 @@ test = [
     "pytest-cov",
 ]
 dev = [
-    "pytest",
-    "pytest-cov",
+    {include-group = "test"},
     "ipykernel",
     "ruff",
     "mypy",
@@ -63,8 +62,6 @@ dev = [
     "aggdraw>=1.4.1;sys_platform=='win32' and python_version>='3.11'",
     "scipy",
     "scikit-image",
-    "cython>=3.2.4",
-    "setuptools>=82.0.0",
 ]
 docs = ["sphinx", "sphinx_rtd_theme"]
 
