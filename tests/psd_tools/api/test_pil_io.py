@@ -60,4 +60,6 @@ def test_apply_icc_profile() -> None:
     psd = PSDImage.open(filepath)
     no_icc = psd.topil(apply_icc=False)
     with_icc = psd.topil(apply_icc=True)
+    assert no_icc is not None
+    assert with_icc is not None
     assert no_icc.getextrema() != with_icc.getextrema()

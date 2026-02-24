@@ -49,9 +49,9 @@ logger = logging.getLogger(__name__)
             ],
             FilterEffectExtra(
                 is_written=1,
-                rectangle=[0, 0, 512, 512],
+                rectangle=[0, 0, 512, 512],  # type: ignore[list-item]
                 compression=0,
-                data=b"\x00",  # type: ignore[list-item]
+                data=b"\x00",
             ),
         ),
         (

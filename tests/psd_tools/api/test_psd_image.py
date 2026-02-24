@@ -6,6 +6,7 @@ from typing import Any, Tuple, Union
 import pytest
 from PIL import Image
 
+from psd_tools.api.layers import Group
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.constants import BlendMode, ColorMode, Compression
 
@@ -177,6 +178,7 @@ def test_update_record(fixture: PSDImage) -> None:
     smart_layer = PSDImage.open(full_name("layers/smartobject-layer.psd"))[0]
     type_layer = PSDImage.open(full_name("layers/type-layer.psd"))[0]
     group_layer = PSDImage.open(full_name("layers/group.psd"))[0]
+    assert isinstance(group_layer, Group)
 
     group_layer.extend([pixel_layer, fill_layer, shape_layer, smart_layer, type_layer])
     fixture.append(group_layer)
@@ -216,7 +218,9 @@ def test_is_updated() -> None:
 
     psd = PSDImage.open(full_name("clipping-mask.psd"))
     assert not psd.is_updated()
-    psd[1][2].clipping = False
+    layer_1 = psd[1]
+    assert isinstance(layer_1, Group)
+    layer_1[2].clipping = False
     assert psd.is_updated()
 
 

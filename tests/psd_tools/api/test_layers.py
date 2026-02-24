@@ -217,20 +217,24 @@ def test_nested_clipping() -> None:
     psd[1].blend_mode = BlendMode.NORMAL
     psd[1].clipping = True
     assert psd[1].clipping is True
-    assert psd[1][1].has_clip_layers()
-    assert psd[1][2].clipping
+    group_1 = psd[1]
+    assert isinstance(group_1, Group)
+    assert group_1[1].has_clip_layers()
+    assert group_1[2].clipping
     assert psd[0].has_clip_layers()
 
 
 def test_clip_stack() -> None:
     """Check if consecutive clipping layers are correctly identified."""
     psd = PSDImage.open(full_name("clipping-mask.psd"))
-    psd[1][1].clipping = True
-    assert psd[1][0].has_clip_layers()
-    assert psd[1][1].clipping
-    assert psd[1][2].clipping
-    assert not psd[1][1].has_clip_layers()
-    assert not psd[1][2].has_clip_layers()
+    group_1 = psd[1]
+    assert isinstance(group_1, Group)
+    group_1[1].clipping = True
+    assert group_1[0].has_clip_layers()
+    assert group_1[1].clipping
+    assert group_1[2].clipping
+    assert not group_1[1].has_clip_layers()
+    assert not group_1[2].has_clip_layers()
 
 
 def test_type_layer(type_layer: TypeLayer) -> None:
@@ -257,10 +261,12 @@ def test_group_writable_properties(group: Group) -> None:
 
 def test_group_extract_bbox() -> None:
     psd = PSDImage.open(full_name("hidden-groups.psd"))
-    assert Group.extract_bbox(psd[1:], False) == (40, 72, 83, 134)
-    assert Group.extract_bbox(psd[1:], True) == (25, 34, 83, 134)
+    assert Group.extract_bbox(list(psd)[1:], False) == (40, 72, 83, 134)
+    assert Group.extract_bbox(list(psd)[1:], True) == (25, 34, 83, 134)
+    group_1 = psd[1]
+    assert isinstance(group_1, Group)
     with pytest.raises(TypeError):
-        Group.extract_bbox(psd[1][0])
+        Group.extract_bbox(group_1[0])  # type: ignore[arg-type]
 
 
 def test_group_blend_mode() -> None:
@@ -279,8 +285,10 @@ def test_sibling_layers() -> None:
     assert psd[1].previous_sibling() is psd[0]
     assert psd[0].next_sibling(visible=True) is psd[2]
     assert psd[2].previous_sibling(visible=True) is psd[0]
-    assert psd[1][0].next_sibling() is None
-    assert psd[1][0].previous_sibling() is None
+    group_1 = psd[1]
+    assert isinstance(group_1, Group)
+    assert group_1[0].next_sibling() is None
+    assert group_1[0].previous_sibling() is None
 
 
 def test_shape_and_fill_layer() -> None:
@@ -322,6 +330,7 @@ def test_new_group(group: Group) -> None:
         test_group._record.tagged_blocks.get_data(Tag.SECTION_DIVIDER_SETTING).kind
         is SectionDivider.OPEN_FOLDER
     )
+    assert test_group._bounding_record is not None
     assert (
         test_group._bounding_record.tagged_blocks.get_data(
             Tag.SECTION_DIVIDER_SETTING
@@ -429,6 +438,7 @@ def test_layer_move_up(
     )
     with pytest.raises(IndexError):
         test_group.move_up(1)
+    assert test_group._parent is not None
     assert test_group._parent.index(test_group) == 1
     pixel_layer.move_up(1)
     assert test_group._parent.index(test_group) == 0
@@ -458,6 +468,7 @@ def test_layer_move_down(
     )
     with pytest.raises(IndexError):
         pixel_layer.move_down(1)
+    assert test_group._parent is not None
     assert test_group._parent.index(test_group) == 1
     test_group.move_down(1)
     assert test_group._parent.index(test_group) == 0

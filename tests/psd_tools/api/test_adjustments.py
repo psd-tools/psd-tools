@@ -3,6 +3,7 @@ import logging
 import pytest
 
 from psd_tools.api import adjustments
+from psd_tools.api.adjustments import GradientFill, PatternFill, SolidColorFill
 from psd_tools.api.psd_image import PSDImage
 
 from ..utils import full_name
@@ -17,11 +18,13 @@ def psd() -> PSDImage:
 
 def test_solid_color_fill() -> None:
     layer = PSDImage.open(full_name("layers/solid-color-fill.psd"))[0]
+    assert isinstance(layer, SolidColorFill)
     assert layer.data
 
 
 def test_gradient_fill() -> None:
     layer = PSDImage.open(full_name("layers/gradient-fill.psd"))[0]
+    assert isinstance(layer, GradientFill)
     assert layer.angle
     assert layer.gradient_kind
     assert layer.data
@@ -29,6 +32,7 @@ def test_gradient_fill() -> None:
 
 def test_pattern_fill() -> None:
     layer = PSDImage.open(full_name("layers/pattern-fill.psd"))[0]
+    assert isinstance(layer, PatternFill)
     assert layer.data
 
 
