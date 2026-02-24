@@ -1,7 +1,7 @@
 import fnmatch
+import io
 import logging
 import os
-import tempfile
 from typing import Any, Generator, List, Type, TypeVar
 
 from psd_tools.psd.base import BaseElement
@@ -52,11 +52,10 @@ def all_files() -> List[str]:
 
 
 def check_write_read(element: T, *args: Any, **kwargs: Any) -> None:
-    with tempfile.TemporaryFile() as f:
-        element.write(f, *args, **kwargs)
-        f.flush()
-        f.seek(0)
-        new_element = element.read(f, *args, **kwargs)
+    f = io.BytesIO()
+    element.write(f, *args, **kwargs)
+    f.seek(0)
+    new_element = element.read(f, *args, **kwargs)
     assert element == new_element, "%s vs %s" % (element, new_element)
 
 
