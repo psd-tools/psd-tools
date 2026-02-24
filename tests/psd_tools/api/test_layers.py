@@ -424,15 +424,19 @@ def test_pixel_layer_frompil(mode: str) -> None:
     # Create a PixelLayer from a PIL image and verify channel data
     target_mode = "RGB"
     psdimage = PSDImage.new(mode=target_mode, size=(30, 30))
-    image = Image.new(mode, (30, 30))
-    layer = PixelLayer.frompil(image, psdimage, name="Test Layer")
+    original_image = Image.new(mode, (30, 30))
+    layer = PixelLayer.frompil(original_image, psdimage, name="Test Layer")
     assert len(psdimage) == 1
 
-    image = image.convert(psdimage.pil_mode)
-    assert (
-        len(layer._record.channel_info) == get_pil_channels(image.mode.rstrip("A")) + 1
+    image = original_image.convert(psdimage.pil_mode)
+    # Alpha-bearing modes automatically gain a mask channel.
+    has_alpha = "A" in original_image.getbands()
+    expected_channels = (
+        get_pil_channels(image.mode.rstrip("A")) + 1 + (1 if has_alpha else 0)
     )
-    assert len(layer._channels) == get_pil_channels(image.mode.rstrip("A")) + 1
+    assert len(layer._record.channel_info) == expected_channels
+    assert len(layer._channels) == expected_channels
+    assert layer.has_mask() == has_alpha
 
     for channel in range(get_pil_channels(image.mode.rstrip("A"))):
         assert (
@@ -441,6 +445,73 @@ def test_pixel_layer_frompil(mode: str) -> None:
             )
             == image.getchannel(channel).tobytes()
         )
+
+
+def test_create_mask() -> None:
+    psdimage = PSDImage.new(mode="RGB", size=(30, 30))
+    layer = PixelLayer.frompil(Image.new("RGB", (30, 30)), psdimage, name="Test Layer")
+    assert not layer.has_mask()
+
+    mask_img = Image.new("L", (30, 30), 128)
+    mask = layer.create_mask(mask_img)
+
+    assert layer.has_mask()
+    assert mask.width == 30
+    assert mask.height == 30
+    mask_pil = mask.topil()
+    assert mask_pil is not None
+    assert mask_pil.tobytes() == mask_img.tobytes()
+
+
+def test_create_mask_raises_if_already_has_mask() -> None:
+    psdimage = PSDImage.new(mode="RGB", size=(30, 30))
+    layer = PixelLayer.frompil(Image.new("RGB", (30, 30)), psdimage)
+    layer.create_mask(Image.new("L", (30, 30), 255))
+    with pytest.raises(ValueError, match="already has a mask"):
+        layer.create_mask(Image.new("L", (30, 30), 0))
+
+
+def test_create_mask_uses_alpha_channel() -> None:
+    psdimage = PSDImage.new(mode="RGB", size=(30, 30))
+    layer = PixelLayer.frompil(Image.new("RGB", (30, 30)), psdimage)
+    rgba_img = Image.new("RGBA", (30, 30), (255, 0, 0, 64))
+    layer.create_mask(rgba_img)
+
+    assert layer.has_mask()
+    assert layer.mask is not None
+    mask_pil = layer.mask.topil()
+    assert mask_pil is not None
+    assert mask_pil.getpixel((0, 0)) == 64
+
+
+def test_frompil_auto_mask_from_rgba() -> None:
+    psdimage = PSDImage.new(mode="RGB", size=(30, 30))
+    rgba_img = Image.new("RGBA", (30, 30), (255, 0, 0, 200))
+    layer = PixelLayer.frompil(rgba_img, psdimage)
+
+    assert layer.has_mask()
+    assert layer.mask is not None
+    mask_pil = layer.mask.topil()
+    assert mask_pil is not None
+    assert mask_pil.getpixel((0, 0)) == 200
+
+
+def test_create_mask_round_trip(tmp_path: Any) -> None:
+    psdimage = PSDImage.new(mode="RGB", size=(30, 30))
+    layer = PixelLayer.frompil(Image.new("RGB", (30, 30)), psdimage)
+    mask_img = Image.new("L", (30, 30), 77)
+    layer.create_mask(mask_img)
+
+    out = tmp_path / "test_mask.psd"
+    psdimage.save(str(out))
+
+    psdimage2 = PSDImage.open(str(out))
+    layer2 = psdimage2[0]
+    assert layer2.has_mask()
+    assert layer2.mask is not None
+    mask_pil = layer2.mask.topil()
+    assert mask_pil is not None
+    assert mask_pil.tobytes() == mask_img.tobytes()
 
 
 def test_layer_fill_opacity(pixel_layer: PixelLayer) -> None:

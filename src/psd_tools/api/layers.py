@@ -128,6 +128,8 @@ from psd_tools.psd.layer_and_mask import (
     ChannelDataList,
     ChannelInfo,
     LayerRecord,
+    MaskData,
+    MaskFlags,
 )
 from psd_tools.psd.tagged_blocks import (
     ProtectedSetting,
@@ -440,6 +442,71 @@ class Layer(LayerProtocol):
         if not hasattr(self, "_mask"):
             self._mask = Mask(self) if self.has_mask() else None
         return self._mask
+
+    def create_mask(
+        self,
+        image: Image.Image,
+        top: Optional[int] = None,
+        left: Optional[int] = None,
+        compression: Compression = Compression.RLE,
+    ) -> Mask:
+        """
+        Create a pixel mask on this layer from a PIL Image.
+
+        If the image has an alpha channel (e.g. RGBA, LA), the alpha channel
+        is used as the mask data. Otherwise the image is converted to
+        grayscale (``L`` mode). White (255) means fully unmasked, black (0)
+        means fully masked.
+
+        :param image: Source :py:class:`~PIL.Image.Image` for the mask.
+        :param top: Top offset of the mask. Defaults to the layer's top.
+        :param left: Left offset of the mask. Defaults to the layer's left.
+        :param compression: Compression algorithm for the mask data.
+        :return: The new :py:class:`~psd_tools.api.mask.Mask`.
+        :raises ValueError: If the layer already has a mask.
+        """
+        if self.has_mask():
+            raise ValueError("Layer already has a mask. Remove it first.")
+
+        if top is None:
+            top = self._record.top
+        if left is None:
+            left = self._record.left
+
+        if "A" in image.getbands():
+            mask_pixels = image.getchannel("A")
+        else:
+            mask_pixels = image.convert("L")
+
+        width, height = mask_pixels.size
+        depth = self._psd._record.header.depth
+        version = self._psd._record.header.version
+
+        mask_data = MaskData(
+            top=top,
+            left=left,
+            bottom=top + height,
+            right=left + width,
+            background_color=0,
+            flags=MaskFlags(),
+        )
+
+        channel_data = ChannelData(compression)
+        channel_data.set_data(mask_pixels.tobytes(), width, height, depth, version)
+
+        channel_info = ChannelInfo(
+            id=ChannelID.USER_LAYER_MASK,
+            length=channel_data._length,
+        )
+
+        self._record.mask_data = mask_data
+        self._record.channel_info.append(channel_info)
+        self._channels.append(channel_data)
+
+        if hasattr(self, "_mask"):
+            del self._mask
+        self._psd._mark_updated()
+        return self.mask  # type: ignore[return-value]
 
     def has_vector_mask(self) -> bool:
         """
@@ -1531,6 +1598,9 @@ class PixelLayer(Layer):
         if parent is None:
             raise ValueError("Parent cannot be None")
 
+        # Preserve original image to extract alpha for mask creation later.
+        original_image = image
+
         # Convert 1-bit images to 8-bit grayscale
         if image.mode == "1":
             image = image.convert("L")
@@ -1548,6 +1618,13 @@ class PixelLayer(Layer):
         )
         self = cls(parent, layer_record, channel_data_list)
         parent.append(self)
+
+        # Automatically create a mask from the alpha channel if present.
+        if "A" in original_image.getbands():
+            self.create_mask(
+                original_image, top=top, left=left, compression=compression
+            )
+
         return self
 
     def _convert_mode(self, parent: GroupMixin) -> "PixelLayer":
