@@ -100,8 +100,8 @@ def test_pixel_layer_writable_properties(pixel_layer: PixelLayer) -> None:
     layer.name = "foo"
     assert layer.name == "foo"
     layer._record.tobytes()
-    layer.name = "\ud83d\udc7d"
-    assert layer.name == "\ud83d\udc7d"
+    layer.name = "👽"
+    assert layer.name == "👽"
     layer._record.tobytes()
 
     layer.visible = False

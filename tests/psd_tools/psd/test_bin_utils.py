@@ -109,6 +109,8 @@ def test_pascal_string_format(input: str, expected: str, padding: int) -> None:
         ("", 1),
         ("abc", 1),
         ("\u3042\u3044\u3046\u3048\u304a", 1),
+        ("😈", 1),
+        ("Hello 😈!", 1),
         ("", 4),
         ("abc", 4),
         ("\u3042\u3044\u3046\u3048\u304a", 4),
