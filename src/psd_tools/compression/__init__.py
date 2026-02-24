@@ -141,7 +141,10 @@ def decompress(
     if compression == Compression.RAW:
         result = data[:length]
     elif compression == Compression.RLE:
-        result = decode_rle(data, width, height, depth, version)
+        try:
+            result = decode_rle(data, width, height, depth, version)
+        except ValueError:
+            result = None
     elif compression == Compression.ZIP:
         result = zlib.decompress(data)
     else:

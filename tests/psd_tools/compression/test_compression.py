@@ -77,6 +77,15 @@ def test_compress_decompress(
     assert output == data, "output=%r, expected=%r" % (output, data)
 
 
+def test_decompress_invalid_rle_fallback_to_black() -> None:
+    # Header: 1 row of 4 compressed bytes (\x00\x04).
+    # Row data: literal run header 0x02 = copy 3 bytes, but row_size is 2 → overflow.
+    invalid_rle = b"\x00\x04\x02\x00\x00\x00"
+    width, height, depth = 2, 1, 8
+    result = decompress(invalid_rle, Compression.RLE, width, height, depth)
+    assert result == bytes(width * height)
+
+
 # This will fail due to irreversible zlib compression.
 @pytest.mark.xfail
 @pytest.mark.parametrize(
