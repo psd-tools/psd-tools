@@ -2,14 +2,21 @@ version = 1
 revision = 3
 requires-python = ">=3.10"
 resolution-markers = [
-    "python_full_version >= '3.11'",
-    "python_full_version < '3.11'",
+    "python_full_version >= '3.11' and sys_platform != 'win32'",
+    "python_full_version >= '3.11' and sys_platform == 'win32'",
+    "python_full_version < '3.11' and sys_platform == 'win32'",
+    "python_full_version < '3.11' and sys_platform != 'win32'",
 ]
 
 [[package]]
 name = "aggdraw"
 version = "1.3.19"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.11' and sys_platform != 'win32'",
+    "python_full_version < '3.11' and sys_platform == 'win32'",
+    "python_full_version < '3.11' and sys_platform != 'win32'",
+]
 sdist = { url = "https://files.pythonhosted.org/packages/03/f1/031b1205f1f580c41566a509166f7097cbff13adffd0c1080b0b3e0ea4ae/aggdraw-1.3.19.tar.gz", hash = "sha256:e78a23b29fb66a079832bae5604f082bfa4ff9d5d469c77506a67253d7fee7db", size = 260414, upload-time = "2024-09-11T16:59:53.445Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0e/69/2a44b9be67e0446b3b72f8d1d7f8b0ea944dfc8e25df9063c2f6d4b54b1a/aggdraw-1.3.19-cp310-cp310-macosx_14_0_arm64.whl", hash = "sha256:cfbb072ee0a6de6cb6a782724df6e8ab9648d9566fb033118dcebbe9dc06326e", size = 479545, upload-time = "2024-09-11T16:59:16.958Z" },
@@ -32,6 +39,27 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/83/46/c5b9094701787d11e40c7bfced2c081fb59e9afc740722bb0d71f5e0335d/aggdraw-1.3.19-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:981210dbcbb649d80763a8ae32b845ff517103718c6bb0a95bae5b9d5d1c8cd2", size = 999932, upload-time = "2024-09-11T16:59:42.576Z" },
     { url = "https://files.pythonhosted.org/packages/fa/11/a0d24b499e4f5800817e4760ad0be3c51713a458b1030df0e5192fae5d57/aggdraw-1.3.19-cp313-cp313-win_amd64.whl", hash = "sha256:41e09faf469cae11339f5d1b0680dba7ec02502efebc10086f1a142a8a39afb8", size = 45067, upload-time = "2024-09-11T16:59:43.789Z" },
     { url = "https://files.pythonhosted.org/packages/bf/1f/fe05b249ee116ba5c659b6e312ddc2a22dc1490f8869c2478404be220b23/aggdraw-1.3.19-cp313-cp313-win_arm64.whl", hash = "sha256:e5552ac136225692a774d481a9baa0736c68739f64b7a7ec9f4cc5f69c8a789a", size = 34185, upload-time = "2024-09-11T16:59:44.859Z" },
+]
+
+[[package]]
+name = "aggdraw"
+version = "1.4.1"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.11' and sys_platform == 'win32'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/05/bf/4876fb82a906e9303392235e9fe382130b649c0ee4faa7fdb25596c26dff/aggdraw-1.4.1.tar.gz", hash = "sha256:e21d6b77afeeffa259b898d652295757fd35f15a9e11a24823c0d7ca63385c83", size = 263051, upload-time = "2025-12-03T16:33:17.818Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7c/b1/6c4aabf386c89a7cf497d043efaa8d381e5b1e4a07fdf4b79f321b65d738/aggdraw-1.4.1-cp311-cp311-win_amd64.whl", hash = "sha256:0f08e49b256d1dd81b19b2dcf3b1ddb4e811491a1f8f6eb8bf70d5c684094e19", size = 47198, upload-time = "2025-12-03T16:32:45.913Z" },
+    { url = "https://files.pythonhosted.org/packages/bc/da/7dd4284403ecc2f345f4cc25c9296182b660ad21d653f76700465429c803/aggdraw-1.4.1-cp311-cp311-win_arm64.whl", hash = "sha256:a0fd3732374aa93a74d213a155e2eb7a7abb895e6fc047ed36cb2e05c7ef7415", size = 38152, upload-time = "2025-12-03T16:32:47.164Z" },
+    { url = "https://files.pythonhosted.org/packages/44/1b/4169f561f88ee7c514673172f1c5625af62face5469bbd230a5d6453d068/aggdraw-1.4.1-cp312-cp312-win_amd64.whl", hash = "sha256:1d2be7c3acfc47866041886c849a1812ffe6bb95d9fc853eae1034ada86d8f32", size = 47358, upload-time = "2025-12-03T16:32:54.888Z" },
+    { url = "https://files.pythonhosted.org/packages/70/65/dca9e522892931ce2d24d753ae0442b6a6f39450448475525df90120ae0a/aggdraw-1.4.1-cp312-cp312-win_arm64.whl", hash = "sha256:f666ffbf8c2352f0c4d4f25f4da33f41e55fc694f2263e5f891fd4cda5723b65", size = 38248, upload-time = "2025-12-03T16:32:56.121Z" },
+    { url = "https://files.pythonhosted.org/packages/4e/3d/192425568971d7b79ccbb28fa8613d5787878d8f002d29d497e54e6198b0/aggdraw-1.4.1-cp313-cp313-win_amd64.whl", hash = "sha256:a746d521c21855348446036797c0174b5947621b1a76ff849f4fbcfec37973f9", size = 47343, upload-time = "2025-12-03T16:33:02.215Z" },
+    { url = "https://files.pythonhosted.org/packages/66/39/2682d92963201f00f196fdff9530d51614fe9b5991e4b61ac649722ca1f3/aggdraw-1.4.1-cp313-cp313-win_arm64.whl", hash = "sha256:eba61c51f16ee097793b1e67dc3b83090e4582f063706b7f2d6afbf6ee854be3", size = 38235, upload-time = "2025-12-03T16:33:03.114Z" },
+    { url = "https://files.pythonhosted.org/packages/72/72/69f86def3a3d5e754937c226997fc131d6c2ac5a967682447f3e920fce33/aggdraw-1.4.1-cp314-cp314-win_amd64.whl", hash = "sha256:7c5f4314144abb1ebbb7af1e70fad4742e07303ee4cefde90a06d3313baba81e", size = 48959, upload-time = "2025-12-03T16:33:09.417Z" },
+    { url = "https://files.pythonhosted.org/packages/b6/b0/16d44c1778b09e22efca7cdaa77296221690799e4b0a45185a66c8d01537/aggdraw-1.4.1-cp314-cp314-win_arm64.whl", hash = "sha256:2d3b3a83c11521f0c118c35e82b3eafc6eba274cba23580b8e889d913de0d3b4", size = 39937, upload-time = "2025-12-03T16:33:10.21Z" },
+    { url = "https://files.pythonhosted.org/packages/94/07/a5737fbceae13c127d6dd352592c1d1b3d88e3bda818efba23f2d9a1a0d2/aggdraw-1.4.1-cp314-cp314t-win_amd64.whl", hash = "sha256:3fa04a12b355e1697719369289d6e87f7b8eddeadf0bc27e3a0561162daf45eb", size = 49772, upload-time = "2025-12-03T16:33:15.936Z" },
+    { url = "https://files.pythonhosted.org/packages/7e/c3/92f79733ec52f2d64a7ba88c14c5c21ad30347b335e06b4b7004414ed06d/aggdraw-1.4.1-cp314-cp314t-win_arm64.whl", hash = "sha256:8016cf9d04b18060ec40da6040a467fd5001e2c6b7496b18503db96d0c8e9d4a", size = 40327, upload-time = "2025-12-03T16:33:16.847Z" },
 ]
 
 [[package]]
@@ -481,7 +509,8 @@ name = "ipython"
 version = "8.37.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.11'",
+    "python_full_version < '3.11' and sys_platform == 'win32'",
+    "python_full_version < '3.11' and sys_platform != 'win32'",
 ]
 dependencies = [
     { name = "colorama", marker = "python_full_version < '3.11' and sys_platform == 'win32'" },
@@ -506,7 +535,8 @@ name = "ipython"
 version = "9.5.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version >= '3.11'",
+    "python_full_version >= '3.11' and sys_platform != 'win32'",
+    "python_full_version >= '3.11' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "colorama", marker = "python_full_version >= '3.11' and sys_platform == 'win32'" },
@@ -742,7 +772,8 @@ name = "networkx"
 version = "3.4.2"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.11'",
+    "python_full_version < '3.11' and sys_platform == 'win32'",
+    "python_full_version < '3.11' and sys_platform != 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/fd/1d/06475e1cd5264c0b870ea2cc6fdb3e37177c1e565c43f56ff17a10e3937f/networkx-3.4.2.tar.gz", hash = "sha256:307c3669428c5362aab27c8a1260aa8f47c4e91d3891f48be0141738d8d053e1", size = 2151368, upload-time = "2024-10-21T12:39:38.695Z" }
 wheels = [
@@ -754,7 +785,8 @@ name = "networkx"
 version = "3.5"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version >= '3.11'",
+    "python_full_version >= '3.11' and sys_platform != 'win32'",
+    "python_full_version >= '3.11' and sys_platform == 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/6c/4f/ccdb8ad3a38e583f214547fd2f7ff1fc160c43a75af88e6aec213404b96a/networkx-3.5.tar.gz", hash = "sha256:d4c6f9cf81f52d69230866796b82afbccdec3db7ae4fbd1b65ea750feed50037", size = 2471065, upload-time = "2025-05-29T11:35:07.804Z" }
 wheels = [
@@ -766,7 +798,8 @@ name = "numpy"
 version = "2.2.6"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.11'",
+    "python_full_version < '3.11' and sys_platform == 'win32'",
+    "python_full_version < '3.11' and sys_platform != 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/76/21/7d2a95e4bba9dc13d043ee156a356c0a8f0c6309dff6b21b4d71a073b8a8/numpy-2.2.6.tar.gz", hash = "sha256:e29554e2bef54a90aa5cc07da6ce955accb83f21ab5de01a62c8478897b264fd", size = 20276440, upload-time = "2025-05-17T22:38:04.611Z" }
 wheels = [
@@ -831,7 +864,8 @@ name = "numpy"
 version = "2.3.3"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version >= '3.11'",
+    "python_full_version >= '3.11' and sys_platform != 'win32'",
+    "python_full_version >= '3.11' and sys_platform == 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d0/19/95b3d357407220ed24c139018d2518fab0a61a948e68286a25f1a4d049ff/numpy-2.3.3.tar.gz", hash = "sha256:ddc7c39727ba62b80dfdbedf400d1c10ddfa8eefbd7ec8dcb118be8b56d31029", size = 20576648, upload-time = "2025-09-09T16:54:12.543Z" }
 wheels = [
@@ -942,7 +976,7 @@ name = "pexpect"
 version = "4.9.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "ptyprocess" },
+    { name = "ptyprocess", marker = "sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/42/92/cc564bf6381ff43ce1f4d06852fc19a2f11d180f23dc32d9588bee2f149d/pexpect-4.9.0.tar.gz", hash = "sha256:ee7d41123f3c9911050ea2c2dac107568dc43b2d3b0c7557a33212c398ead30f", size = 166450, upload-time = "2023-11-25T09:07:26.339Z" }
 wheels = [
@@ -1094,7 +1128,8 @@ dependencies = [
 
 [package.optional-dependencies]
 composite = [
-    { name = "aggdraw" },
+    { name = "aggdraw", version = "1.3.19", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11' or sys_platform != 'win32'" },
+    { name = "aggdraw", version = "1.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11' and sys_platform == 'win32'" },
     { name = "scikit-image" },
     { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "scipy", version = "1.16.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
@@ -1102,7 +1137,8 @@ composite = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "aggdraw" },
+    { name = "aggdraw", version = "1.3.19", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11' or sys_platform != 'win32'" },
+    { name = "aggdraw", version = "1.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11' and sys_platform == 'win32'" },
     { name = "ipykernel" },
     { name = "mypy" },
     { name = "pytest" },
@@ -1124,7 +1160,9 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aggdraw", marker = "extra == 'composite'" },
+    { name = "aggdraw", marker = "python_full_version >= '3.11' and sys_platform == 'win32' and extra == 'composite'", specifier = ">=1.4.1" },
+    { name = "aggdraw", marker = "python_full_version < '3.11' and sys_platform == 'win32' and extra == 'composite'", specifier = ">=1.3.16,<1.4.1" },
+    { name = "aggdraw", marker = "sys_platform != 'win32' and extra == 'composite'", specifier = ">=1.3.16" },
     { name = "attrs", specifier = ">=23.0.0" },
     { name = "numpy" },
     { name = "pillow", specifier = ">=10.3.0" },
@@ -1136,7 +1174,9 @@ provides-extras = ["composite"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "aggdraw" },
+    { name = "aggdraw", marker = "sys_platform != 'win32'", specifier = ">=1.3.16" },
+    { name = "aggdraw", marker = "python_full_version < '3.11' and sys_platform == 'win32'", specifier = ">=1.3.16,<1.4.1" },
+    { name = "aggdraw", marker = "python_full_version >= '3.11' and sys_platform == 'win32'", specifier = ">=1.4.1" },
     { name = "ipykernel" },
     { name = "mypy" },
     { name = "pytest" },
@@ -1443,7 +1483,8 @@ name = "scipy"
 version = "1.15.3"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.11'",
+    "python_full_version < '3.11' and sys_platform == 'win32'",
+    "python_full_version < '3.11' and sys_platform != 'win32'",
 ]
 dependencies = [
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -1502,7 +1543,8 @@ name = "scipy"
 version = "1.16.1"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version >= '3.11'",
+    "python_full_version >= '3.11' and sys_platform != 'win32'",
+    "python_full_version >= '3.11' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "numpy", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
@@ -1588,7 +1630,8 @@ name = "sphinx"
 version = "8.1.3"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.11'",
+    "python_full_version < '3.11' and sys_platform == 'win32'",
+    "python_full_version < '3.11' and sys_platform != 'win32'",
 ]
 dependencies = [
     { name = "alabaster", marker = "python_full_version < '3.11'" },
@@ -1619,7 +1662,8 @@ name = "sphinx"
 version = "8.2.3"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version >= '3.11'",
+    "python_full_version >= '3.11' and sys_platform != 'win32'",
+    "python_full_version >= '3.11' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "alabaster", marker = "python_full_version >= '3.11'" },
@@ -1746,7 +1790,8 @@ name = "tifffile"
 version = "2025.5.10"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.11'",
+    "python_full_version < '3.11' and sys_platform == 'win32'",
+    "python_full_version < '3.11' and sys_platform != 'win32'",
 ]
 dependencies = [
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -1761,7 +1806,8 @@ name = "tifffile"
 version = "2025.9.9"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version >= '3.11'",
+    "python_full_version >= '3.11' and sys_platform != 'win32'",
+    "python_full_version >= '3.11' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "numpy", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
