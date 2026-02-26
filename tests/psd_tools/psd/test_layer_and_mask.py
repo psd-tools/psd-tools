@@ -1,4 +1,5 @@
 from typing import Any, Tuple
+import io
 import logging
 
 import pytest
@@ -230,6 +231,29 @@ def test_mask_data_failure(args: Tuple[Any, ...]) -> None:
 )
 def test_mask_data_rw(fixture: bytes) -> None:
     check_read_write(MaskData, fixture)
+
+
+def test_mask_data_truncated_parameters() -> None:
+    """Regression test: MaskData with truncated MaskParameters should not crash.
+
+    Some third-party PSD writers (e.g. game asset exporters on Windows) write a
+    MaskData block with parameters_applied=True but only a partial MaskParameters
+    payload, filling the remainder with uninitialized memory (MSVC debug patterns
+    0xCC/0xCD). psd-tools should tolerate this rather than raising OSError.
+    """
+    fixture = (
+        b"\x00\x00\x00\x26"
+        b"\x00\x00\x03\x8b\x00\x00\x00\xdb\x00\x00\x03\xad\x00\x00\x02\x8c"
+        b"\x00\x18\x0f\xff\x00\x00\x00\x00\x00\x00\x00\x00\xff\x40\x36\xcc"
+        b"\xcc\xcc\xcc\xcc\xcd\x00"
+    )
+    with io.BytesIO(fixture) as f:
+        mask_data = MaskData.read(f)
+    assert mask_data is not None
+    assert mask_data.flags.parameters_applied
+    assert mask_data.parameters is not None
+    assert mask_data.parameters.user_mask_density == 0
+    assert mask_data.parameters.vector_mask_density is None
 
 
 def test_mask_parameters() -> None:
