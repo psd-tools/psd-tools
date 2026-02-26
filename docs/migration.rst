@@ -1,14 +1,13 @@
-===============
 Migration Guide
 ===============
 
 v1.12
-=====
+-----
 
 psd-tools 1.12 makes composite dependencies optional to support more platforms and Python versions.
 
 Breaking Change: Optional Composite Dependencies
--------------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The main breaking change in version 1.12 is that advanced compositing features now require
 optional dependencies that must be explicitly installed.
@@ -57,7 +56,7 @@ This change enables psd-tools to run on platforms where some composite dependenc
 are unavailable, particularly Python 3.14 on Windows where ``aggdraw`` is not yet available.
 
 Module Structure Changes
-------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 Version 1.12 includes some internal refactoring that generally doesn't affect public APIs:
 
@@ -68,14 +67,14 @@ Version 1.12 includes some internal refactoring that generally doesn't affect pu
 These changes maintain backward compatibility for public imports.
 
 Type Annotations
-----------------
+~~~~~~~~~~~~~~~~
 
 Version 1.12 adds comprehensive type annotations throughout the codebase. If you use
 type checkers like mypy, you may discover type errors in your code that were previously
 undetected. This is a good thing - the annotations help catch bugs earlier!
 
 v1.11
-=====
+-----
 
 psd-tools 1.11 introduces stronger type-safety via annotation and new public APIs for layer creation.
 Now the following approach is possible to create a new layered document::
@@ -110,7 +109,7 @@ version 1.11.x::
     psdimage.append(layer)  # This won't duplicate the layer.
 
 v1.10
-=====
+-----
 
 psd-tools 1.10 has a few breaking changes.
 
@@ -124,7 +123,7 @@ version 1.10.x::
     layer_image = layer.composite()
 
 v1.9
-====
+----
 
 psd-tools 1.9 switches to NumPy based compositing.
 
@@ -148,14 +147,14 @@ NumPy array API is introduced::
     layer_image = layer.numpy()
 
 v1.8
-====
+----
 
 There are major API changes in version 1.8.x.
 
 .. note:: In version 1.8.0 - 1.8.7, the package name was `psd_tools2`.
 
 PSDImage
---------
+~~~~~~~~
 
 File open method is changed from `load` to
 :py:meth:`~psd_tools.PSDImage.open`.
@@ -173,7 +172,7 @@ version 1.8.x::
         psd = PSDImage.open(f)
 
 Layers
-------
+~~~~~~
 
 Children of PSDImage or Group is directly accessible by iterator or indexing.
 
@@ -196,7 +195,7 @@ In version 1.8.x, the order of layers is reversed to reflect that the index
 should not change when a new layer is added on top.
 
 PIL export
-----------
+~~~~~~~~~~
 
 Primary PIL export method is :py:func:`~psd_tools.compose`.
 
@@ -216,7 +215,7 @@ version 1.8.x::
 
 
 Low-level data structure
-------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 Data structures are completely rewritten to support writing functionality.
 See :py:mod:`psd_tools.psd` subpackage.
@@ -230,6 +229,6 @@ version 1.8.x::
     psd._record
 
 Drop pymaging support
----------------------
+~~~~~~~~~~~~~~~~~~~~~
 
 Pymaging support is dropped.
