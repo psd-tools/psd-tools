@@ -29,6 +29,8 @@ EngineData. The format looks like the following::
     >>
 """
 
+from __future__ import annotations
+
 import codecs
 import logging
 import re
@@ -210,23 +212,23 @@ class Dict(DictElement):
             return 0
         return write_bytes(fp, b"\n")
 
-    def __getitem__(self, key: str | "Property") -> Any:
+    def __getitem__(self, key: str | Property) -> Any:
         key = key if isinstance(key, Property) else Property(key)
         return super(Dict, self).__getitem__(key)
 
-    def __setitem__(self, key: str | "Property", value: Any) -> None:
+    def __setitem__(self, key: str | Property, value: Any) -> None:
         key = key if isinstance(key, Property) else Property(key)
         super(Dict, self).__setitem__(key, value)
 
-    def __detitem__(self, key: str | "Property") -> None:
+    def __detitem__(self, key: str | Property) -> None:
         key = key if isinstance(key, Property) else Property(key)
         super(Dict, self).__delitem__(key)
 
-    def __contains__(self, key: str | "Property") -> bool:  # type: ignore[override]
+    def __contains__(self, key: str | Property) -> bool:  # type: ignore[override]
         key = key if isinstance(key, Property) else Property(key)
         return self._items.__contains__(key)
 
-    def get(self, key: str | "Property", *args: Any) -> Any:
+    def get(self, key: str | Property, *args: Any) -> Any:
         key = key if isinstance(key, Property) else Property(key)
         return super(Dict, self).get(key, *args)
 

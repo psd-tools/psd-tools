@@ -50,6 +50,8 @@ The class inherits from :py:class:`~psd_tools.api.layers.GroupMixin`, providing
 group-like behavior for accessing child layers.
 """
 
+from __future__ import annotations
+
 import logging
 import os
 from typing import Any, BinaryIO, Callable, Iterable, Literal
@@ -673,7 +675,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             p.text(self.__repr__())
             return
 
-        def _pretty(layer: layers.Layer | "PSDImage", p: Any) -> None:
+        def _pretty(layer: layers.Layer | PSDImage, p: Any) -> None:
             p.text(layer.__repr__())
             if isinstance(layer, layers.GroupMixin):
                 with p.indent(2):
