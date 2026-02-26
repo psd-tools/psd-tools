@@ -3,7 +3,7 @@ Vector mask, path, and stroke structure.
 """
 
 import logging
-from typing import Any, BinaryIO, Optional, Sequence, TypeVar
+from typing import Any, BinaryIO, Sequence, TypeVar
 
 from typing_extensions import Self
 
@@ -319,7 +319,7 @@ class VectorMaskSetting(BaseElement):
 
     version: int = 3
     flags: int = 0
-    path: Optional["Path"] = None
+    path: Path | None = None
 
     @classmethod
     def read(cls, fp: BinaryIO, **kwargs: Any) -> Self:
