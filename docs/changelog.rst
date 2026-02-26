@@ -1,6 +1,14 @@
 Changelog
 =========
 
+1.13.0 (2026-02-26)
+-------------------
+
+- [api] Add ``Layer.sheet_color`` property for reading and writing Photoshop layer color labels (#546)
+- [api] Add ``Layer.create_mask()``, ``remove_mask()``, and ``update_mask()`` for pixel mask CRUD operations (#568)
+- [api] Auto-create layer masks from alpha channel in ``PixelLayer.frompil()`` (#568)
+- [api] Add ``Mask.disabled`` setter for toggling layer mask visibility (#568)
+
 1.12.2 (2026-02-24)
 -------------------
 
