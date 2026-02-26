@@ -986,8 +986,12 @@ class MaskParameters(BaseElement):
                 vector_mask_density = read_fmt("B", fp)[0]
             if bool(parameters & 8):
                 vector_mask_feather = read_fmt("d", fp)[0]
-        except OSError:
-            logger.warning("Truncated MaskParameters data; some fields will be missing")
+        except OSError as exc:
+            logger.warning(
+                "Truncated MaskParameters data (parameters=0x%02x); some fields will be missing: %s",
+                parameters,
+                exc,
+            )
         return cls(
             user_mask_density,
             user_mask_feather,

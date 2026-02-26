@@ -233,7 +233,7 @@ def test_mask_data_rw(fixture: bytes) -> None:
     check_read_write(MaskData, fixture)
 
 
-def test_mask_data_truncated_parameters() -> None:
+def test_mask_data_truncated_parameters(caplog: pytest.LogCaptureFixture) -> None:
     """Regression test: MaskData with truncated MaskParameters should not crash.
 
     Some third-party PSD writers (e.g. game asset exporters on Windows) write a
@@ -247,13 +247,15 @@ def test_mask_data_truncated_parameters() -> None:
         b"\x00\x18\x0f\xff\x00\x00\x00\x00\x00\x00\x00\x00\xff\x40\x36\xcc"
         b"\xcc\xcc\xcc\xcc\xcd\x00"
     )
-    with io.BytesIO(fixture) as f:
-        mask_data = MaskData.read(f)
+    with caplog.at_level(logging.WARNING):
+        with io.BytesIO(fixture) as f:
+            mask_data = MaskData.read(f)
     assert mask_data is not None
     assert mask_data.flags.parameters_applied
     assert mask_data.parameters is not None
     assert mask_data.parameters.user_mask_density == 0
     assert mask_data.parameters.vector_mask_density is None
+    assert "Truncated MaskParameters" in caplog.text
 
 
 def test_mask_parameters() -> None:
