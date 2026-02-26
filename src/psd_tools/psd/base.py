@@ -16,7 +16,7 @@ import io
 import logging
 from collections import OrderedDict
 from enum import Enum
-from typing import Any, BinaryIO, Callable, Generator, Optional, TypeVar
+from typing import Any, BinaryIO, Callable, Generator, TypeVar
 
 from attrs import define, field, fields, has, validate
 
@@ -103,7 +103,7 @@ class BaseElement:
             p.breakable("")
 
     def _find(
-        self, condition: Optional[Callable[[Any], bool]] = None
+        self, condition: Callable[[Any], bool] | None = None
     ) -> Generator[Any, None, None]:
         """
         Traversal API intended for debugging.
@@ -113,7 +113,7 @@ class BaseElement:
 
     @staticmethod
     def _traverse(
-        element: Any, condition: Optional[Callable[[Any], bool]] = None
+        element: Any, condition: Callable[[Any], bool] | None = None
     ) -> Generator[Any, None, None]:
         """
         Traversal API intended for debugging.

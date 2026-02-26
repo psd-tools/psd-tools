@@ -9,7 +9,7 @@ Tagged block data structure.
 
 import io
 import logging
-from typing import Any, BinaryIO, Optional, TypeVar
+from typing import Any, BinaryIO, TypeVar
 
 from attrs import define, field
 
@@ -177,7 +177,7 @@ class TaggedBlocks(DictElement):
         fp: BinaryIO,
         version: int = 1,
         padding: int = 1,
-        end_pos: Optional[int] = None,
+        end_pos: int | None = None,
         **kwargs: Any,
     ) -> T_TaggedBlocks:
         items = []
@@ -702,9 +702,9 @@ class SectionDividerSetting(BaseElement):
         converter=SectionDivider,
         validator=in_(SectionDivider),
     )
-    signature: Optional[bytes] = field(default=None, repr=False)
-    blend_mode: Optional[BlendMode] = None
-    sub_type: Optional[int] = None
+    signature: bytes | None = field(default=None, repr=False)
+    blend_mode: BlendMode | None = None
+    sub_type: int | None = None
 
     @classmethod
     def read(cls, fp: BinaryIO, **kwargs: Any) -> "SectionDividerSetting":

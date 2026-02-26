@@ -60,7 +60,7 @@ API which provides easier access to this data.
 
 import io
 import logging
-from typing import Any, BinaryIO, Optional, TypeVar
+from typing import Any, BinaryIO, TypeVar
 
 from attrs import define, field, astuple
 
@@ -126,9 +126,9 @@ class LayerAndMaskInformation(BaseElement):
         See :py:class:`.TaggedBlocks`.
     """
 
-    layer_info: Optional["LayerInfo"] = None
-    global_layer_mask_info: Optional["GlobalLayerMaskInfo"] = None
-    tagged_blocks: Optional["TaggedBlocks"] = None
+    layer_info: "LayerInfo | None" = None
+    global_layer_mask_info: "GlobalLayerMaskInfo | None" = None
+    tagged_blocks: "TaggedBlocks | None" = None
 
     @classmethod
     def read(
@@ -633,7 +633,7 @@ class LayerRecord(BaseElement):
     @classmethod
     def _read_extra(
         cls, fp: BinaryIO, encoding: str, version: int
-    ) -> tuple[Optional["MaskData"], LayerBlendingRanges, str, TaggedBlocks]:
+    ) -> tuple["MaskData | None", LayerBlendingRanges, str, TaggedBlocks]:
         mask_data = MaskData.read(fp)
         blending_ranges = LayerBlendingRanges.read(fp)
         name = read_pascal_string(fp, encoding, padding=4)
@@ -838,13 +838,13 @@ class MaskData(BaseElement):
     right: int = 0
     background_color: int = 0
     flags: MaskFlags = field(factory=MaskFlags)
-    parameters: Optional["MaskParameters"] = None
-    real_flags: Optional[MaskFlags] = None
-    real_background_color: Optional[int] = None
-    real_top: Optional[int] = None
-    real_left: Optional[int] = None
-    real_bottom: Optional[int] = None
-    real_right: Optional[int] = None
+    parameters: "MaskParameters | None" = None
+    real_flags: MaskFlags | None = None
+    real_background_color: int | None = None
+    real_top: int | None = None
+    real_left: int | None = None
+    real_bottom: int | None = None
+    real_right: int | None = None
 
     @classmethod
     def read(cls: type[T_MaskData], fp: BinaryIO, **kwargs: Any) -> T_MaskData:  # type: ignore[return]
@@ -963,10 +963,10 @@ class MaskParameters(BaseElement):
     .. py:attribute:: vector_mask_feather
     """
 
-    user_mask_density: Optional[int] = None
-    user_mask_feather: Optional[float] = None
-    vector_mask_density: Optional[int] = None
-    vector_mask_feather: Optional[float] = None
+    user_mask_density: int | None = None
+    user_mask_feather: float | None = None
+    vector_mask_density: int | None = None
+    vector_mask_feather: float | None = None
 
     @classmethod
     def read(
@@ -1037,7 +1037,7 @@ class ChannelImageData(ListElement):
     def read(
         cls: type[T_ChannelImageData],
         fp: BinaryIO,
-        layer_records: Optional["LayerRecords"] = None,
+        layer_records: "LayerRecords | None" = None,
         **kwargs: Any,
     ) -> T_ChannelImageData:
         start_pos = fp.tell()
@@ -1173,7 +1173,7 @@ class GlobalLayerMaskInfo(BaseElement):
         are for backward compatibility with beta versions.
     """
 
-    overlay_color: Optional[list[int]] = None
+    overlay_color: list[int] | None = None
     opacity: int = 0
     kind: GlobalLayerMaskKind = field(
         default=GlobalLayerMaskKind.PER_LAYER,

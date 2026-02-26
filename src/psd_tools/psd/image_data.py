@@ -8,7 +8,7 @@ this is the only place pixels are saved.
 
 import io
 import logging
-from typing import Any, BinaryIO, Sequence, TypeVar, Union
+from typing import Any, BinaryIO, Sequence, TypeVar
 
 from attrs import define, field
 
@@ -58,9 +58,7 @@ class ImageData(BaseElement):
         logger.debug("  wrote image data, len=%d" % (fp.tell() - start_pos))
         return written
 
-    def get_data(
-        self, header: FileHeader, split: bool = True
-    ) -> Union[list[bytes], bytes]:
+    def get_data(self, header: FileHeader, split: bool = True) -> list[bytes] | bytes:
         """
         Get decompressed data.
 
@@ -105,7 +103,7 @@ class ImageData(BaseElement):
     def new(
         cls: type[T],
         header: FileHeader,
-        color: Union[int, Sequence[int]] = 0,
+        color: int | Sequence[int] = 0,
         compression: Compression = Compression.RAW,
     ) -> T:
         """

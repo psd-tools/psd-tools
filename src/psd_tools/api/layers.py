@@ -88,19 +88,14 @@ from typing import (
     Callable,
     Iterable,
     Iterator,
-    Optional,
     Protocol,
     Sequence,
     TypeVar,
-    Union,
     cast,
     runtime_checkable,
 )
 
-try:
-    from typing import Self  # type: ignore[attr-defined]
-except ImportError:
-    from typing_extensions import Self
+from typing_extensions import Self
 
 import numpy as np
 from PIL import Image, ImageChops
@@ -153,7 +148,7 @@ class Layer(LayerProtocol):
         channels: ChannelDataList,
     ):
         self._psd = parent._psd
-        self._parent: Optional["GroupMixinProtocol"] = parent
+        self._parent: "GroupMixinProtocol | None" = parent
         self._record = record
         self._channels = channels
 
@@ -205,7 +200,7 @@ class Layer(LayerProtocol):
         Invalidate this layer's _bbox and any parents recursively to the root.
         """
         if isinstance(self, (GroupMixin, ShapeLayer)):
-            self._bbox: Optional[tuple[int, int, int, int]] = None
+            self._bbox: tuple[int, int, int, int] | None = None
         if isinstance(self.parent, (Group, Artboard)):
             self.parent._invalidate_bbox()
 
@@ -255,11 +250,11 @@ class Layer(LayerProtocol):
         self._record.opacity = int(value)
 
     @property
-    def parent(self) -> Optional[GroupMixinProtocol]:
+    def parent(self) -> GroupMixinProtocol | None:
         """Parent of this layer."""
         return self._parent  # type: ignore
 
-    def next_sibling(self, visible: bool = False) -> Optional[Self]:
+    def next_sibling(self, visible: bool = False) -> Self | None:
         """Next sibling of this layer."""
         if self.parent is None:
             return None
@@ -269,7 +264,7 @@ class Layer(LayerProtocol):
                 return self.parent[i]  # type: ignore[return-value]
         return None
 
-    def previous_sibling(self, visible: bool = False) -> Optional[Self]:
+    def previous_sibling(self, visible: bool = False) -> Self | None:
         """Previous sibling of this layer."""
         if self.parent is None:
             return None
@@ -303,7 +298,7 @@ class Layer(LayerProtocol):
         return self._record.blend_mode
 
     @blend_mode.setter
-    def blend_mode(self, value: Union[bytes, str, BlendMode]) -> None:
+    def blend_mode(self, value: bytes | str | BlendMode) -> None:
         if isinstance(value, str):
             value = value.encode("ascii")
         blend_mode = BlendMode(value)
@@ -435,7 +430,7 @@ class Layer(LayerProtocol):
         return self._record.mask_data is not None
 
     @property
-    def mask(self) -> Optional[Mask]:
+    def mask(self) -> Mask | None:
         """
         Returns mask associated with this layer.
 
@@ -471,8 +466,8 @@ class Layer(LayerProtocol):
     def create_mask(
         self,
         image: Image.Image,
-        top: Optional[int] = None,
-        left: Optional[int] = None,
+        top: int | None = None,
+        left: int | None = None,
         compression: Compression = Compression.RLE,
     ) -> Mask:
         """
@@ -547,8 +542,8 @@ class Layer(LayerProtocol):
     def update_mask(
         self,
         image: Image.Image,
-        top: Optional[int] = None,
-        left: Optional[int] = None,
+        top: int | None = None,
+        left: int | None = None,
         compression: Compression = Compression.RLE,
     ) -> Mask:
         """
@@ -602,7 +597,7 @@ class Layer(LayerProtocol):
         )
 
     @property
-    def vector_mask(self) -> Optional[VectorMask]:
+    def vector_mask(self) -> VectorMask | None:
         """
         Returns vector mask associated with this layer.
 
@@ -659,7 +654,7 @@ class Layer(LayerProtocol):
         return Tag.VECTOR_STROKE_DATA in self.tagged_blocks
 
     @property
-    def stroke(self) -> Optional[Stroke]:
+    def stroke(self) -> Stroke | None:
         """Property for strokes."""
         if not hasattr(self, "_stroke"):
             self._stroke = None
@@ -692,7 +687,7 @@ class Layer(LayerProtocol):
         self.lock(0)
 
     @property
-    def locks(self) -> Optional[ProtectedSetting]:
+    def locks(self) -> ProtectedSetting | None:
         protected_settings_block = self.tagged_blocks.get(Tag.PROTECTED_SETTING)
 
         if protected_settings_block is not None:
@@ -701,8 +696,8 @@ class Layer(LayerProtocol):
         return None
 
     def topil(
-        self, channel: Optional[int] = None, apply_icc: bool = True
-    ) -> Optional[Image.Image]:
+        self, channel: int | None = None, apply_icc: bool = True
+    ) -> Image.Image | None:
         """
         Get PIL Image of the layer.
 
@@ -729,8 +724,8 @@ class Layer(LayerProtocol):
         return convert_layer_to_pil(self, channel, apply_icc)
 
     def numpy(
-        self, channel: Optional[str] = None, real_mask: bool = True
-    ) -> Optional[np.ndarray]:
+        self, channel: str | None = None, real_mask: bool = True
+    ) -> np.ndarray | None:
         """
         Get NumPy array of the layer.
 
@@ -744,13 +739,13 @@ class Layer(LayerProtocol):
 
     def composite(
         self,
-        viewport: Optional[tuple[int, int, int, int]] = None,
+        viewport: tuple[int, int, int, int] | None = None,
         force: bool = False,
-        color: Union[float, tuple[float, ...], np.ndarray] = 1.0,
-        alpha: Union[float, np.ndarray] = 0.0,
-        layer_filter: Optional[Callable] = None,
+        color: float | tuple[float, ...] | np.ndarray = 1.0,
+        alpha: float | np.ndarray = 0.0,
+        layer_filter: Callable | None = None,
         apply_icc: bool = True,
-    ) -> Optional[Image.Image]:
+    ) -> Image.Image | None:
         """
         Composite layer and masks (mask, vector mask, and clipping layers).
 
@@ -849,7 +844,7 @@ class Layer(LayerProtocol):
         )
         self.clipping = value
 
-    def has_effects(self, enabled: bool = True, name: Optional[str] = None) -> bool:
+    def has_effects(self, enabled: bool = True, name: str | None = None) -> bool:
         """
         Returns True if the layer has effects.
 
@@ -1037,7 +1032,7 @@ class Layer(LayerProtocol):
 @runtime_checkable
 class GroupMixin(GroupMixinProtocol, Protocol):
     _psd: PSDProtocol
-    _bbox: Optional[tuple[int, int, int, int]] = None
+    _bbox: tuple[int, int, int, int] | None = None
     _layers: list[Layer]
 
     # Note: left, top, right, bottom properties are inherited from Layer
@@ -1247,7 +1242,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
             if isinstance(layer, GroupMixin):
                 yield from layer.descendants(include_clip=include_clip)
 
-    def find(self, name: str) -> Optional[Layer]:
+    def find(self, name: str) -> Layer | None:
         """
         Returns the first layer found for the given layer name
 
@@ -1289,12 +1284,12 @@ class Group(GroupMixin, Layer):
         channels: ChannelDataList,
     ):
         self._layers = []
-        self._bounding_record: Optional[LayerRecord] = None
-        self._bounding_channels: Optional[ChannelDataList] = None
+        self._bounding_record: LayerRecord | None = None
+        self._bounding_channels: ChannelDataList | None = None
         Layer.__init__(self, parent, record, channels)
 
     @property
-    def _setting(self) -> Optional[SectionDividerSetting]:
+    def _setting(self) -> SectionDividerSetting | None:
         """Low-level section divider setting."""
         # Can be None.
         return self.tagged_blocks.get_data(Tag.SECTION_DIVIDER_SETTING)
@@ -1309,7 +1304,7 @@ class Group(GroupMixin, Layer):
         return super(Group, self).blend_mode
 
     @blend_mode.setter
-    def blend_mode(self, value: Union[str, bytes, BlendMode]) -> None:
+    def blend_mode(self, value: str | bytes | BlendMode) -> None:
         _value = BlendMode(value.encode("ascii") if isinstance(value, str) else value)
         if self.blend_mode != _value and self._psd is not None:
             self._psd._mark_updated()
@@ -1415,13 +1410,13 @@ class Group(GroupMixin, Layer):
 
     def composite(
         self,
-        viewport: Optional[tuple[int, int, int, int]] = None,
+        viewport: tuple[int, int, int, int] | None = None,
         force: bool = False,
-        color: Union[float, tuple[float, ...], np.ndarray] = 1.0,
-        alpha: Union[float, np.ndarray] = 0.0,
-        layer_filter: Optional[Callable] = None,
+        color: float | tuple[float, ...] | np.ndarray = 1.0,
+        alpha: float | np.ndarray = 0.0,
+        layer_filter: Callable | None = None,
         apply_icc: bool = True,
-    ) -> Optional[Image.Image]:
+    ) -> Image.Image | None:
         """
         Composite layer and masks (mask, vector mask, and clipping layers).
 
@@ -1452,7 +1447,7 @@ class Group(GroupMixin, Layer):
 
     @staticmethod
     def extract_bbox(
-        layers: Union[Sequence[Layer], GroupMixin],
+        layers: Sequence[Layer] | GroupMixin,
         include_invisible: bool = False,
         include_clipping: bool = False,
     ) -> tuple[int, int, int, int]:
@@ -1890,7 +1885,7 @@ class TypeLayer(Layer):
         return self._data.text_data.get(b"Txt ").value.rstrip("\x00")
 
     @property
-    def text_type(self) -> Optional[TextType]:
+    def text_type(self) -> TextType | None:
         """
         Text type. Read-only.
 
@@ -1938,7 +1933,7 @@ class TypeLayer(Layer):
         return self._data.transform
 
     @property
-    def _engine_data(self) -> Union[engine_data.EngineData, engine_data.EngineData2]:
+    def _engine_data(self) -> engine_data.EngineData | engine_data.EngineData2:
         """Styling and resource information."""
         return self._data.text_data.get(b"EngineData").value
 
@@ -1958,7 +1953,7 @@ class TypeLayer(Layer):
         return self._engine_data.get("DocumentResources")
 
     @property
-    def warp(self) -> Optional[DescriptorBlock]:
+    def warp(self) -> DescriptorBlock | None:
         """Warp configuration."""
         return self._data.warp
 
@@ -1970,7 +1965,7 @@ class ShapeLayer(Layer):
 
     def __init__(self, *args: Any):
         super(ShapeLayer, self).__init__(*args)
-        self._bbox: Optional[tuple[int, int, int, int]] = None
+        self._bbox: tuple[int, int, int, int] | None = None
 
     @property
     def left(self) -> int:

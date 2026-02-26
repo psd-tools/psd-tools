@@ -5,10 +5,7 @@ Vector mask, path, and stroke structure.
 import logging
 from typing import Any, BinaryIO, Optional, Sequence, TypeVar
 
-try:
-    from typing import Self  # type: ignore[attr-defined]
-except ImportError:
-    from typing_extensions import Self
+from typing_extensions import Self
 
 from attrs import define, field, astuple
 

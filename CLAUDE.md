@@ -236,7 +236,6 @@ Recent work has added comprehensive type annotations throughout the codebase. Wh
 
 - Use proper type hints for all function signatures
 - Use `typing_extensions.Self` for methods returning instances of the same class
-- Use `typing.Optional` for nullable fields
 - Attrs validators should match type hints
 
 ## Known Limitations

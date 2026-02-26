@@ -3,7 +3,7 @@ Effects module.
 """
 
 import logging
-from typing import Any, Iterator, Optional, Protocol
+from typing import Any, Iterator, Protocol
 
 from psd_tools.api.protocols import LayerProtocol
 from psd_tools.constants import Resource, Tag
@@ -45,7 +45,7 @@ class Effects:
     """
 
     def __init__(self, layer: LayerProtocol):
-        self._data: Optional[Descriptor] = None
+        self._data: Descriptor | None = None
         for tag in (
             Tag.OBJECT_BASED_EFFECTS_LAYER_INFO,
             Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V0,

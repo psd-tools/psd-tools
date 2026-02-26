@@ -52,7 +52,6 @@ automatically applied when rendering layers that have effects enabled.
 """
 
 import logging
-from typing import Tuple
 
 import numpy as np
 
@@ -66,8 +65,8 @@ logger = logging.getLogger(__name__)
 
 @require_skimage
 def draw_stroke_effect(
-    viewport: Tuple[int, int, int, int], shape: np.ndarray, desc: Descriptor, psd
-) -> Tuple[np.ndarray, np.ndarray]:
+    viewport: tuple[int, int, int, int], shape: np.ndarray, desc: Descriptor, psd
+) -> tuple[np.ndarray, np.ndarray]:
     # Import here after checking dependencies
     from skimage import filters
     from skimage.morphology import disk

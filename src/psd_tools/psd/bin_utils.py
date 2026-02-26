@@ -13,7 +13,7 @@ import array
 import logging
 import struct
 import sys
-from typing import Any, BinaryIO, Callable, Tuple
+from typing import Any, BinaryIO, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -23,12 +23,12 @@ def pack(fmt: str, *args: Any) -> bytes:
     return struct.pack(fmt, *args)
 
 
-def unpack(fmt: str, data: bytes) -> Tuple[Any, ...]:
+def unpack(fmt: str, data: bytes) -> tuple[Any, ...]:
     fmt = str(">" + fmt)
     return struct.unpack(fmt, data)
 
 
-def read_fmt(fmt: str, fp: BinaryIO) -> Tuple[Any, ...]:
+def read_fmt(fmt: str, fp: BinaryIO) -> tuple[Any, ...]:
     """
     Reads data from ``fp`` according to ``fmt``.
     """

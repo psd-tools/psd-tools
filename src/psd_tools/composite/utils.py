@@ -1,6 +1,6 @@
 """Utility functions for composite operations."""
 
-from typing import Union, overload
+from typing import overload
 
 import numpy as np
 from numpy.typing import NDArray
@@ -57,9 +57,9 @@ def union(backdrop: NDArray[np.floating], source: float) -> NDArray[np.floating]
 
 
 def union(
-    backdrop: Union[float, NDArray[np.floating]],
-    source: Union[float, NDArray[np.floating]],
-) -> Union[float, NDArray[np.floating]]:
+    backdrop: float | NDArray[np.floating],
+    source: float | NDArray[np.floating],
+) -> float | NDArray[np.floating]:
     """Generalized union of shape."""
     return backdrop + source - (backdrop * source)
 
