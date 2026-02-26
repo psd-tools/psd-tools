@@ -838,8 +838,8 @@ class MaskData(BaseElement):
     right: int = 0
     background_color: int = 0
     flags: MaskFlags = field(factory=MaskFlags)
-    parameters: object = None
-    real_flags: object = None
+    parameters: Optional["MaskParameters"] = None
+    real_flags: Optional[MaskFlags] = None
     real_background_color: Optional[int] = None
     real_top: Optional[int] = None
     real_left: Optional[int] = None
@@ -913,8 +913,8 @@ class MaskData(BaseElement):
         #     written += write_fmt(fp, '2x')
         #     assert written == 20
 
-        if self.real_flags and hasattr(self.real_flags, "write"):
-            written += self.real_flags.write(fp)  # type: ignore[attr-defined]
+        if self.real_flags is not None:
+            written += self.real_flags.write(fp)
             written += write_fmt(
                 fp,
                 "B4i",
@@ -925,12 +925,8 @@ class MaskData(BaseElement):
                 self.real_right,
             )
 
-        if (
-            self.flags.parameters_applied
-            and self.parameters
-            and hasattr(self.parameters, "write")
-        ):
-            written += self.parameters.write(fp)  # type: ignore[attr-defined]
+        if self.flags.parameters_applied and self.parameters is not None:
+            written += self.parameters.write(fp)
 
         written += write_padding(fp, written, 4)
         return written
@@ -977,11 +973,30 @@ class MaskParameters(BaseElement):
         cls: type[T_MaskParameters], fp: BinaryIO, **kwargs: Any
     ) -> T_MaskParameters:
         parameters = read_fmt("B", fp)[0]
+        user_mask_density = None
+        user_mask_feather = None
+        vector_mask_density = None
+        vector_mask_feather = None
+        try:
+            if bool(parameters & 1):
+                user_mask_density = read_fmt("B", fp)[0]
+            if bool(parameters & 2):
+                user_mask_feather = read_fmt("d", fp)[0]
+            if bool(parameters & 4):
+                vector_mask_density = read_fmt("B", fp)[0]
+            if bool(parameters & 8):
+                vector_mask_feather = read_fmt("d", fp)[0]
+        except OSError as exc:
+            logger.warning(
+                "Truncated MaskParameters data (parameters=0x%02x); some fields will be missing: %s",
+                parameters,
+                exc,
+            )
         return cls(
-            read_fmt("B", fp)[0] if bool(parameters & 1) else None,
-            read_fmt("d", fp)[0] if bool(parameters & 2) else None,
-            read_fmt("B", fp)[0] if bool(parameters & 4) else None,
-            read_fmt("d", fp)[0] if bool(parameters & 8) else None,
+            user_mask_density,
+            user_mask_feather,
+            vector_mask_density,
+            vector_mask_feather,
         )
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
