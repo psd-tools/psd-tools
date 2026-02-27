@@ -75,7 +75,7 @@ Check out the [documentation](https://psd-tools.readthedocs.io/) for features an
 
 ## Contributing
 
-See [contributing](https://github.com/psd-tools/psd-tools/blob/master/docs/contributing.rst) page.
+See [contributing](https://github.com/psd-tools/psd-tools/blob/main/docs/contributing.rst) page.
 
 > **Note**
 >
