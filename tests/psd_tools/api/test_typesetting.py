@@ -14,9 +14,7 @@ from psd_tools.api.typesetting import (
 )
 from psd_tools.constants import FontBaseline, FontCaps, Justification
 
-
-def full_name(name: str) -> str:
-    return f"tests/psd_files/{name}"
+from ..utils import full_name
 
 
 @pytest.fixture

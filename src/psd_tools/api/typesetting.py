@@ -32,10 +32,23 @@ import logging
 from itertools import groupby
 from typing import Any, Iterator
 
+from enum import IntEnum
+
 from psd_tools.constants import FontBaseline, FontCaps, Justification, WritingDirection
 from psd_tools.psd import engine_data
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_enum(
+    enum_cls: type[IntEnum], value: Any, default: IntEnum | None = None
+) -> Any:
+    """Convert a value to an IntEnum member, returning *default* on failure."""
+    try:
+        return enum_cls(int(value))
+    except (ValueError, KeyError):
+        logger.debug("Unknown %s value: %r", enum_cls.__name__, value)
+        return default
 
 
 def _val(obj: Any) -> Any:
@@ -138,7 +151,7 @@ class CharacterStyle:
         if value is not None:
             return _val(value)
         if self._default:
-            value = self._default.get(key) if self._default else None
+            value = self._default.get(key)
             if value is not None:
                 return _val(value)
         return fallback
@@ -225,12 +238,14 @@ class CharacterStyle:
     @property
     def font_caps(self) -> FontCaps:
         """Font capitalization style."""
-        return FontCaps(self._get("FontCaps", 0))
+        return _safe_enum(FontCaps, self._get("FontCaps", 0), FontCaps.NORMAL)
 
     @property
     def font_baseline(self) -> FontBaseline:
         """Font baseline position."""
-        return FontBaseline(self._get("FontBaseline", 0))
+        return _safe_enum(
+            FontBaseline, self._get("FontBaseline", 0), FontBaseline.NORMAL
+        )
 
     @property
     def tracking(self) -> int:
@@ -315,7 +330,7 @@ class ParagraphStyle:
         if value is not None:
             return _val(value)
         if self._default:
-            value = self._default.get(key) if self._default else None
+            value = self._default.get(key)
             if value is not None:
                 return _val(value)
         return fallback
@@ -323,7 +338,9 @@ class ParagraphStyle:
     @property
     def justification(self) -> Justification:
         """Text justification / alignment."""
-        return Justification(self._get("Justification", 0))
+        return _safe_enum(
+            Justification, self._get("Justification", 0), Justification.LEFT
+        )
 
     @property
     def first_line_indent(self) -> float:
@@ -581,6 +598,7 @@ class TypeSetting:
         self._engine_dict = engine_dict
         self._resource_dict = resource_dict
         self._build()
+        del self._engine_dict, self._resource_dict
 
     def _build(self) -> None:
         # Step 1: Build font list
@@ -724,12 +742,8 @@ class TypeSetting:
         shapes = rendered.get("Shapes", {}) if rendered else {}
         wd = shapes.get("WritingDirection") if shapes else None
         if wd is not None:
-            try:
-                self._writing_direction: WritingDirection | None = WritingDirection(
-                    int(_val(wd))
-                )
-            except (ValueError, KeyError):
-                self._writing_direction = None
+            result = _safe_enum(WritingDirection, _val(wd), None)
+            self._writing_direction: WritingDirection | None = result
         else:
             self._writing_direction = None
 
