@@ -34,7 +34,6 @@ previews or simple NumPy-based operations.
     with LITTLECMS or LITTLECMS2 support (``apt-get install liblcms2-2`` or
     ``brew install little-cms2``)
 
-
 Getting started
 ---------------
 
@@ -50,16 +49,6 @@ Getting started
         image = layer.composite()
 
 Check out the :doc:`usage` documentation for more examples.
-
-
-.. toctree::
-    :caption: Notes
-    :maxdepth: 1
-
-    usage
-    migration
-    changelog
-    contributing
 
 Features
 --------
@@ -86,6 +75,15 @@ Not supported:
 * Composition of adjustment layers
 * Composition of many layer effects
 * Font rendering
+
+.. toctree::
+    :caption: Notes
+    :maxdepth: 1
+
+    usage
+    migration
+    changelog
+    contributing
 
 .. toctree::
     :caption: Package reference
