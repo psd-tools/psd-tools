@@ -1026,20 +1026,34 @@ class TransferFunctions(ListElement):
 @define(repr=False)
 class TransferFunction(BaseElement):
     """
-    Transfer function
+    Transfer function for a single plate.
+
+    Contains 13 signed short integers representing curve control points in the
+    range 0...1000 (corresponding to 0.0%...100.0%). The first and last values
+    are always present; any intermediate value may be -1 to indicate that no
+    control point exists at that position. A NULL (identity) transfer curve has
+    the form::
+
+        [0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1000]
+
+    Followed by one unsigned short ``override`` flag (non-zero means the
+    transfer function overrides the default).
+
+    See `Adobe PSD spec §Transfer Functions
+    <https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/#50577411_pgfId-1071095>`_.
     """
 
-    curve: list = field(factory=list, converter=list)
-    override: bool = False
+    curve: list[int] = field(factory=list, converter=list)
+    override: int = 0
 
     @classmethod
     def read(cls, fp: BinaryIO, **kwargs: Any) -> "TransferFunction":
-        curve = read_fmt("13H", fp)
+        curve = read_fmt("13h", fp)
         override = read_fmt("H", fp)[0]
         return cls(curve=curve, override=override)
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
-        written = write_fmt(fp, "13H", *self.curve)
+        written = write_fmt(fp, "13h", *self.curve)
         written += write_fmt(fp, "H", self.override)
         return written
 
