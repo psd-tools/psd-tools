@@ -21,9 +21,6 @@ Example::
                 for run in paragraph:
                     s = run.style
                     print(f"'{run.text}': {s.font_name} {s.font_size}pt")
-
-Inspired by the `psd2svg TypeSetting module
-<https://github.com/CyberAgent/psd2svg>`_.
 """
 
 from __future__ import annotations
