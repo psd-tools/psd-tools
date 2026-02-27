@@ -108,6 +108,15 @@ Create a new group object.::
 
     print(layer.text)
 
+Typographic details such as fonts, character styles, and paragraph styles are
+available via the :py:attr:`~psd_tools.api.layers.TypeLayer.typesetting`
+property. See :py:mod:`~psd_tools.api.typesetting` for full API reference::
+
+    for paragraph in layer.typesetting:
+        print(paragraph.style.justification)
+        for run in paragraph:
+            print(run.text, run.style.font_name, run.style.font_size)
+
 :py:class:`~psd_tools.api.layers.ShapeLayer` draws a vector shape, and the
 shape information is stored in `vector_mask` and `origination` property.
 Other layers can also have shape information as a mask::
