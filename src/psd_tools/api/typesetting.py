@@ -25,6 +25,7 @@ Example::
 
 from __future__ import annotations
 
+import bisect
 import logging
 from itertools import groupby
 from typing import Any, Iterator
@@ -158,8 +159,12 @@ class CharacterStyle:
         """The :py:class:`FontInfo` object for this run's font."""
         idx = self._get("Font")
         if idx is None:
-            return self._fonts[0] if self._fonts else None
-        idx = int(idx)
+            return None
+        try:
+            idx = int(idx)
+        except (TypeError, ValueError):
+            logger.debug("Invalid font index %r in CharacterStyle.", idx)
+            return None
         if 0 <= idx < len(self._fonts):
             return self._fonts[idx]
         return None
@@ -553,11 +558,8 @@ class _RunLengthIndex:
 
     def __call__(self, index: int) -> int:
         """Get the run index for the given character index."""
-        for run_index, boundary in enumerate(self._boundaries):
-            if index < boundary:
-                return run_index
-        # Return last run index if out of range
-        return max(0, len(self._boundaries) - 1)
+        i = bisect.bisect_right(self._boundaries, index)
+        return min(i, max(0, len(self._boundaries) - 1))
 
 
 class TypeSetting:
@@ -654,6 +656,13 @@ class TypeSetting:
         run_lengths = style_run.get("RunLengthArray", [])
         run_array = style_run.get("RunArray", [])
 
+        if not run_lengths:
+            # No style run data; synthesize a single run with default style
+            if not text:
+                return ()
+            style = CharacterStyle({}, self._fonts, default_char_data)
+            return (TextRun(text, 0, len(text), style),)
+
         runs: list[TextRun] = []
         pos = 0
         for i in range(len(run_lengths)):
@@ -685,17 +694,17 @@ class TypeSetting:
         para_array = para_run.get("RunArray", [])
 
         if not (para_lengths and para_array):
-            if self._runs:
-                return (
-                    Paragraph(
-                        text,
-                        0,
-                        len(text),
-                        self._default_paragraph_style,
-                        self._runs,
-                    ),
-                )
-            return ()
+            if not text:
+                return ()
+            return (
+                Paragraph(
+                    text,
+                    0,
+                    len(text),
+                    self._default_paragraph_style,
+                    self._runs,
+                ),
+            )
 
         # Use RunLengthIndex approach to group style runs into paragraphs
         para_index = _RunLengthIndex(para_lengths)
@@ -706,7 +715,10 @@ class TypeSetting:
         )
 
         stops = sorted(set(para_index.boundaries) | set(style_index.boundaries))
-        stops = sorted({min(s, len(text)) for s in stops if s > 0})
+        stops = sorted(
+            {min(s, len(text)) for s in stops if s > 0}
+            | ({len(text)} if text else set())
+        )
 
         paragraphs: list[Paragraph] = []
         pairs = list(zip([0] + stops, stops))
