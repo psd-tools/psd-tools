@@ -1,6 +1,14 @@
 Changelog
 =========
 
+1.13.1 (2026-02-27)
+-------------------
+
+- [psd] Fix ``TransferFunction`` curve values parsed as unsigned instead of signed shorts (#577)
+- [psd] Handle truncated ``MaskParameters`` data gracefully (#574, fixes #573)
+- [refactor] Drop Python <3.11 typing compatibility guards (#575)
+- [docs] Improve mask module documentation and index layout (#576)
+
 1.13.0 (2026-02-26)
 -------------------
 
