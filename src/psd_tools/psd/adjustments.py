@@ -3,7 +3,7 @@ Adjustment layer structure.
 """
 
 import logging
-from typing import Any, BinaryIO, Optional, TypeVar
+from typing import Any, BinaryIO, TypeVar
 
 from attrs import define, field, astuple
 
@@ -557,7 +557,7 @@ class Levels(ListElement):
     """
 
     version: int = field(default=0, validator=in_((2,)))
-    extra_version: Optional[int] = None
+    extra_version: int | None = None
 
     @classmethod
     def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
@@ -661,10 +661,10 @@ class PhotoFilter(BaseElement):
 
     version: int = field(default=0, validator=in_((2, 3)))
     xyz: tuple = (0,)
-    color_space: Optional[int] = None
-    color_components: Optional[tuple] = None
-    density: Optional[int] = None
-    luminosity: Optional[int] = None
+    color_space: int | None = None
+    color_components: tuple | None = None
+    density: int | None = None
+    luminosity: int | None = None
 
     @classmethod
     def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:

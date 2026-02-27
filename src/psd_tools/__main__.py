@@ -1,7 +1,5 @@
 import argparse
 import logging
-from typing import Optional, Union
-
 from psd_tools import PSDImage
 from psd_tools.api.layers import Layer
 from psd_tools.version import __version__
@@ -14,7 +12,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="psd-tools command line utility.")
     parser.add_argument("-v", "--verbose", action="store_true", help="Be more verbose.")
@@ -38,7 +36,7 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: Optional[list[str]] = None) -> Optional[int]:
+def main(argv: list[str] | None = None) -> int | None:
     args = parse_args(argv)
 
     logging.basicConfig(level=logging.WARNING)
@@ -54,7 +52,7 @@ def main(argv: Optional[list[str]] = None) -> Optional[int]:
             indices = [int(x.rstrip("]")) for x in input_parts[1:]]
         else:
             indices = []
-        layer: Union[PSDImage, Layer] = PSDImage.open(input_file)
+        layer: PSDImage | Layer = PSDImage.open(input_file)
         for index in indices:
             # PSDImage and Group both support indexing
             layer = layer[index]  # type: ignore[index]

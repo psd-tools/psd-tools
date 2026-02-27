@@ -6,7 +6,7 @@ import contextlib
 import io
 import logging
 import os
-from typing import BinaryIO, Iterator, Optional
+from typing import BinaryIO, Iterator
 
 from psd_tools.api.protocols import LayerProtocol
 from psd_tools.constants import Tag
@@ -67,7 +67,7 @@ class SmartObject:
         return self._data.filename.strip("\x00")
 
     @contextlib.contextmanager
-    def open(self, external_dir: Optional[str] = None) -> Iterator[BinaryIO]:
+    def open(self, external_dir: str | None = None) -> Iterator[BinaryIO]:
         """
         Open the smart object as binary IO.
 
@@ -137,7 +137,7 @@ class SmartObject:
         return self.filetype in ("8bpb", "8bps")
 
     @property
-    def warp(self) -> Optional[object]:
+    def warp(self) -> object | None:
         """Warp parameters."""
         if self._config is None:
             raise ValueError("Smart object config not found")
@@ -153,7 +153,7 @@ class SmartObject:
     @property
     def transform_box(
         self,
-    ) -> Optional[tuple[float, float, float, float, float, float, float, float]]:
+    ) -> tuple[float, float, float, float, float, float, float, float] | None:
         """
         A tuple representing the coordinates of the smart objects's transformed box. This box is the result of one or more transformations such as scaling, rotation, translation, or skewing to the original bounding box of the smart object.
 
@@ -167,7 +167,7 @@ class SmartObject:
         else:
             return None
 
-    def save(self, filename: Optional[str] = None) -> None:
+    def save(self, filename: str | None = None) -> None:
         """
         Save the smart object to a file.
 

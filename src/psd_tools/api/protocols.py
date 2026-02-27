@@ -6,9 +6,7 @@ PSDImage without requiring concrete imports. These protocols allow other modules
 to properly type hint their parameters while avoiding circular dependency issues.
 """
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING, Callable, Iterator, Literal, Optional, Protocol, Union
+from typing import TYPE_CHECKING, Callable, Iterator, Literal, Protocol
 
 if TYPE_CHECKING:
     from psd_tools.api.layers import Layer
@@ -148,7 +146,7 @@ class LayerProtocol(Protocol):
     def opacity(self, value: int) -> None: ...
 
     @property
-    def parent(self) -> Optional["GroupMixinProtocol"]:
+    def parent(self) -> "GroupMixinProtocol | None":
         """Parent of this layer (GroupMixin-like object)."""
         ...
 
@@ -162,7 +160,7 @@ class LayerProtocol(Protocol):
         ...
 
     @blend_mode.setter
-    def blend_mode(self, value: Union[bytes, str, BlendMode]) -> None: ...
+    def blend_mode(self, value: bytes | str | BlendMode) -> None: ...
 
     @property
     def left(self) -> int:
@@ -232,7 +230,7 @@ class LayerProtocol(Protocol):
         ...
 
     @property
-    def mask(self) -> Optional[MaskProtocol]:
+    def mask(self) -> MaskProtocol | None:
         """
         Returns mask associated with this layer.
 
@@ -245,8 +243,8 @@ class LayerProtocol(Protocol):
         ...
 
     def topil(
-        self, channel: Optional[int] = None, apply_icc: bool = True
-    ) -> Optional[Image.Image]:
+        self, channel: int | None = None, apply_icc: bool = True
+    ) -> Image.Image | None:
         """
         Get PIL Image of the layer.
 
@@ -257,8 +255,8 @@ class LayerProtocol(Protocol):
         ...
 
     def numpy(
-        self, channel: Optional[str] = None, real_mask: bool = True
-    ) -> Optional[np.ndarray]:
+        self, channel: str | None = None, real_mask: bool = True
+    ) -> np.ndarray | None:
         """
         Get NumPy array of the layer.
 
@@ -270,13 +268,13 @@ class LayerProtocol(Protocol):
 
     def composite(
         self,
-        viewport: Optional[tuple[int, int, int, int]] = None,
+        viewport: tuple[int, int, int, int] | None = None,
         force: bool = False,
-        color: Union[float, tuple[float, ...], np.ndarray] = 1.0,
-        alpha: Union[float, np.ndarray] = 0.0,
-        layer_filter: Optional[Callable] = None,
+        color: float | tuple[float, ...] | np.ndarray = 1.0,
+        alpha: float | np.ndarray = 0.0,
+        layer_filter: Callable | None = None,
         apply_icc: bool = True,
-    ) -> Optional[Image.Image]:
+    ) -> Image.Image | None:
         """
         Composite the layer.
 
@@ -332,7 +330,7 @@ class GroupMixinProtocol(Protocol):
         """
         ...
 
-    def index(self, layer: Layer) -> int:
+    def index(self, layer: "Layer") -> int:
         """Return the index of a layer in the group."""
         ...
 
@@ -408,7 +406,7 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
         ...
 
     @property
-    def tagged_blocks(self) -> Optional[TaggedBlocks]:
+    def tagged_blocks(self) -> TaggedBlocks | None:
         """Tagged blocks associated with the document."""
         ...
 
@@ -452,8 +450,8 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
         ...
 
     def topil(
-        self, channel: Union[int, ChannelID, None] = None, apply_icc: bool = True
-    ) -> Optional[Image.Image]:
+        self, channel: int | ChannelID | None = None, apply_icc: bool = True
+    ) -> Image.Image | None:
         """
         Get PIL Image of the document.
 
@@ -464,7 +462,7 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
         ...
 
     def numpy(
-        self, channel: Optional[Literal["color", "shape", "alpha", "mask"]] = None
+        self, channel: Literal["color", "shape", "alpha", "mask"] | None = None
     ) -> np.ndarray:
         """
         Get NumPy array of the document.
@@ -476,11 +474,11 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
 
     def composite(
         self,
-        viewport: Optional[tuple[int, int, int, int]] = None,
+        viewport: tuple[int, int, int, int] | None = None,
         force: bool = False,
-        color: Union[float, tuple[float, ...], np.ndarray, None] = 1.0,
-        alpha: Union[float, np.ndarray] = 0.0,
-        layer_filter: Optional[Callable] = None,
+        color: float | tuple[float, ...] | np.ndarray | None = 1.0,
+        alpha: float | np.ndarray = 0.0,
+        layer_filter: Callable | None = None,
         ignore_preview: bool = False,
         apply_icc: bool = True,
     ) -> Image.Image:

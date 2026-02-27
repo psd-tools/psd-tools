@@ -66,7 +66,7 @@ import io
 import logging
 import warnings
 import zlib
-from typing import Iterator, Union
+from typing import Iterator
 
 from PIL import Image
 
@@ -274,9 +274,7 @@ def decode_rle(data: bytes, width: int, height: int, depth: int, version: int) -
         raise
 
 
-def encode_prediction(
-    data: Union[bytes, bytearray], w: int, h: int, depth: int
-) -> bytes:
+def encode_prediction(data: bytes | bytearray, w: int, h: int, depth: int) -> bytes:
     if depth == 8:
         arr = array.array("B", data)
         arr = _delta_encode(arr, 0x100, w, h)

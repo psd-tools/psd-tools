@@ -17,7 +17,7 @@ Pretty printing is the best approach to check the descriptor content::
 """
 
 import logging
-from typing import Any, BinaryIO, Dict, Iterator, TypeVar
+from typing import Any, BinaryIO, Iterator, TypeVar
 
 from attrs import define, field
 
@@ -86,7 +86,7 @@ class _DescriptorMixin(DictElement):
     classID: bytes = b"\x00\x00\x00\x00"
 
     @classmethod
-    def _read_body(cls, fp: BinaryIO) -> Dict[str, Any]:
+    def _read_body(cls, fp: BinaryIO) -> dict[str, Any]:
         name = read_unicode_string(fp, padding=1)
         classID = read_length_and_key(fp)
         items = []

@@ -1,7 +1,6 @@
 """Paint and fill operations for compositing."""
 
 import logging
-from typing import Optional, Tuple
 
 import numpy as np
 
@@ -14,7 +13,7 @@ from psd_tools.terminology import Enum, Key, Klass, Type
 logger = logging.getLogger(__name__)
 
 
-def _get_color(color_mode, desc) -> Tuple[float, ...]:
+def _get_color(color_mode, desc) -> tuple[float, ...]:
     """Return color tuple from descriptor.
 
     Example descriptor::
@@ -47,7 +46,7 @@ def _get_color(color_mode, desc) -> Tuple[float, ...]:
     def _get_invert_color(color_desc, keys):
         return tuple((100.0 - float(color_desc[key])) / 100.0 for key in keys)
 
-    def hsb_to_rgb(h: float, s: float, v: float) -> Tuple[float, ...]:
+    def hsb_to_rgb(h: float, s: float, v: float) -> tuple[float, ...]:
         if s:
             if h == 1.0:
                 h = 0.0
@@ -74,7 +73,7 @@ def _get_color(color_mode, desc) -> Tuple[float, ...]:
         else:
             return (v, v, v)
 
-    def rgb_to_cmyk(r, g, b) -> Tuple[float, ...]:
+    def rgb_to_cmyk(r, g, b) -> tuple[float, ...]:
         if (r, g, b) == (0, 0, 0):
             # black
             return (0.0, 0.0, 0.0)
@@ -166,8 +165,8 @@ def create_fill(layer, viewport):
 
 
 def draw_solid_color_fill(
-    viewport: Tuple[int, int, int, int], color_mode: ColorMode, desc
-) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+    viewport: tuple[int, int, int, int], color_mode: ColorMode, desc
+) -> tuple[np.ndarray, np.ndarray | None]:
     """
     Create a solid color fill.
     """
@@ -179,8 +178,8 @@ def draw_solid_color_fill(
 
 @require_skimage
 def draw_pattern_fill(
-    viewport: Tuple[int, int, int, int], psd, desc
-) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    viewport: tuple[int, int, int, int], psd, desc
+) -> tuple[np.ndarray | None, np.ndarray | None]:
     """
     Create a pattern fill.
 
@@ -238,8 +237,8 @@ def draw_pattern_fill(
 
 @require_scipy
 def draw_gradient_fill(
-    viewport: Tuple[int, int, int, int], color_mode: ColorMode, desc
-) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    viewport: tuple[int, int, int, int], color_mode: ColorMode, desc
+) -> tuple[np.ndarray | None, np.ndarray | None]:
     """
     Create a gradient fill image.
 

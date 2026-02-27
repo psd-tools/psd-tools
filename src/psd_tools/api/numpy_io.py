@@ -1,5 +1,5 @@
 import logging
-from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, Literal, cast
 
 import numpy as np
 
@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 
 def get_array(
-    layer: Union["LayerProtocol", "PSDProtocol"], channel: Optional[str], **kwargs: Any
-) -> Optional[np.ndarray]:
+    layer: "LayerProtocol | PSDProtocol", channel: str | None, **kwargs: Any
+) -> np.ndarray | None:
     # Import at runtime to avoid circular imports
     from psd_tools.api.layers import Layer
     from psd_tools.api.psd_image import PSDImage
@@ -33,7 +33,7 @@ def get_array(
     )
 
 
-def get_image_data(psdimage: "PSDProtocol", channel: Optional[str]) -> np.ndarray:
+def get_image_data(psdimage: "PSDProtocol", channel: str | None) -> np.ndarray:
     if (channel == "mask") or (channel == "shape" and not has_transparency(psdimage)):
         return np.ones((psdimage.height, psdimage.width, 1), dtype=np.float32)
 
@@ -67,14 +67,14 @@ def get_image_data(psdimage: "PSDProtocol", channel: Optional[str]) -> np.ndarra
 
 
 def get_layer_data(
-    layer: "LayerProtocol", channel: Optional[str], real_mask: bool = True
-) -> Optional[np.ndarray]:
+    layer: "LayerProtocol", channel: str | None, real_mask: bool = True
+) -> np.ndarray | None:
     def _find_channel(
         layer: "LayerProtocol",
         width: int,
         height: int,
         condition: Callable[[Any], bool],
-    ) -> Optional[np.ndarray]:
+    ) -> np.ndarray | None:
         depth, version = layer._psd.depth, layer._psd.version
         iterator = zip(layer._record.channel_info, layer._channels)
         channels = [
@@ -137,9 +137,9 @@ def get_pattern(pattern: Pattern) -> np.ndarray:
 
 
 def _parse_array(
-    data: Union[bytes, bytearray],
+    data: bytes | bytearray,
     depth: Literal[1, 8, 16, 32],
-    lut: Optional[np.ndarray] = None,
+    lut: np.ndarray | None = None,
 ) -> np.ndarray:
     if depth == 8:
         parsed = np.frombuffer(data, ">u1")

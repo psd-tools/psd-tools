@@ -14,7 +14,7 @@ readme = "README.md"
 keywords = ["photoshop", "psd"]
 license = "MIT"
 dependencies = [
-    "typing-extensions;python_version<'3.11'",
+    "typing-extensions>=4.0",
     "attrs>=23.0.0",
     "Pillow>=10.3.0",
     "numpy",

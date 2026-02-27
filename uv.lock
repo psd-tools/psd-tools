@@ -1266,7 +1266,7 @@ dependencies = [
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pillow" },
-    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
+    { name = "typing-extensions" },
 ]
 
 [package.optional-dependencies]
@@ -1312,7 +1312,7 @@ requires-dist = [
     { name = "pillow", specifier = ">=10.3.0" },
     { name = "scikit-image", marker = "extra == 'composite'" },
     { name = "scipy", marker = "extra == 'composite'" },
-    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
+    { name = "typing-extensions", specifier = ">=4.0" },
 ]
 provides-extras = ["composite"]
 

@@ -29,11 +29,13 @@ EngineData. The format looks like the following::
     >>
 """
 
+from __future__ import annotations
+
 import codecs
 import logging
 import re
 from enum import Enum
-from typing import Any, Iterator, Optional, Tuple, Union
+from typing import Any, Iterator
 
 from attrs import frozen
 
@@ -92,16 +94,16 @@ class Tokenizer:
         self.data = data
         self.index = 0
 
-    def __iter__(self) -> Iterator[Tuple[bytes, EngineToken]]:
+    def __iter__(self) -> Iterator[tuple[bytes, EngineToken]]:
         return self
 
     def __len__(self) -> int:
         return len(self.data) - self.index
 
-    def next(self) -> Tuple[bytes, EngineToken]:
+    def next(self) -> tuple[bytes, EngineToken]:
         return self.__next__()
 
-    def __next__(self) -> Tuple[bytes, EngineToken]:
+    def __next__(self) -> tuple[bytes, EngineToken]:
         if len(self) == 0:
             raise StopIteration
 
@@ -141,7 +143,7 @@ class Dict(DictElement):
         return cls.frombytes(fp.read())
 
     @classmethod
-    def frombytes(cls, data: Union[bytes, Tokenizer], **kwargs: Any) -> "Dict":
+    def frombytes(cls, data: bytes | Tokenizer, **kwargs: Any) -> "Dict":
         tokenizer = data if isinstance(data, Tokenizer) else Tokenizer(data)
         self = cls()
         for k_token, k_token_type in tokenizer:
@@ -164,7 +166,7 @@ class Dict(DictElement):
     def write(
         self,
         fp: Any,
-        indent: Optional[int] = 0,
+        indent: int | None = 0,
         write_container: bool = True,
         **kwargs: Any,
     ) -> int:
@@ -200,35 +202,33 @@ class Dict(DictElement):
             written += write_bytes(fp, b">>")
         return written
 
-    def _write_indent(
-        self, fp: Any, indent: Optional[int], default: bytes = b" "
-    ) -> int:
+    def _write_indent(self, fp: Any, indent: int | None, default: bytes = b" ") -> int:
         if indent is None:
             return write_bytes(fp, default)
         return write_bytes(fp, b"\t" * (indent))
 
-    def _write_newline(self, fp: Any, indent: Optional[int]) -> int:
+    def _write_newline(self, fp: Any, indent: int | None) -> int:
         if indent is None:
             return 0
         return write_bytes(fp, b"\n")
 
-    def __getitem__(self, key: Union[str, "Property"]) -> Any:
+    def __getitem__(self, key: str | Property) -> Any:
         key = key if isinstance(key, Property) else Property(key)
         return super(Dict, self).__getitem__(key)
 
-    def __setitem__(self, key: Union[str, "Property"], value: Any) -> None:
+    def __setitem__(self, key: str | Property, value: Any) -> None:
         key = key if isinstance(key, Property) else Property(key)
         super(Dict, self).__setitem__(key, value)
 
-    def __detitem__(self, key: Union[str, "Property"]) -> None:
+    def __detitem__(self, key: str | Property) -> None:
         key = key if isinstance(key, Property) else Property(key)
         super(Dict, self).__delitem__(key)
 
-    def __contains__(self, key: Union[str, "Property"]) -> bool:  # type: ignore[override]
+    def __contains__(self, key: str | Property) -> bool:  # type: ignore[override]
         key = key if isinstance(key, Property) else Property(key)
         return self._items.__contains__(key)
 
-    def get(self, key: Union[str, "Property"], *args: Any) -> Any:
+    def get(self, key: str | Property, *args: Any) -> Any:
         key = key if isinstance(key, Property) else Property(key)
         return super(Dict, self).get(key, *args)
 
@@ -254,7 +254,7 @@ class EngineData2(Dict):
     def write(
         self,
         fp: Any,
-        indent: Optional[int] = None,
+        indent: int | None = None,
         write_container: bool = False,
         **kwargs: Any,
     ) -> int:
@@ -274,7 +274,7 @@ class List(ListElement):
         return cls.frombytes(fp.read())
 
     @classmethod
-    def frombytes(cls, data: Union[bytes, Tokenizer], **kwargs: Any) -> "List":
+    def frombytes(cls, data: bytes | Tokenizer, **kwargs: Any) -> "List":
         tokenizer = data if isinstance(data, Tokenizer) else Tokenizer(data)
         self = cls()
         for token, token_type in tokenizer:
@@ -292,7 +292,7 @@ class List(ListElement):
 
         return self
 
-    def write(self, fp: Any, indent: Optional[int] = None, **kwargs: Any) -> int:
+    def write(self, fp: Any, indent: int | None = None, **kwargs: Any) -> int:
         written = write_bytes(fp, b"[")
         if indent is None:
             for item in self:
@@ -310,12 +310,12 @@ class List(ListElement):
         written += write_bytes(fp, b"]")
         return written
 
-    def _write_indent(self, fp: Any, indent: Optional[int]) -> int:
+    def _write_indent(self, fp: Any, indent: int | None) -> int:
         if indent is None:
             return write_bytes(fp, b" ")
         return write_bytes(fp, b"\t" * (indent))
 
-    def _write_newline(self, fp: Any, indent: Optional[int]) -> int:
+    def _write_newline(self, fp: Any, indent: int | None) -> int:
         if indent is None:
             return 0
         return write_bytes(fp, b"\n")

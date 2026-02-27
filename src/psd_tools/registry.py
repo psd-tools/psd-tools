@@ -21,12 +21,12 @@ Usage example::
     handler = TYPES['foo']()
 """
 
-from typing import Any, Callable, Tuple, TypeVar, Union
+from typing import Any, Callable, TypeVar
 
 T = TypeVar("T")
 
 
-def new_registry(attribute: Union[str, None] = None) -> Tuple[dict, Callable]:
+def new_registry(attribute: str | None = None) -> tuple[dict, Callable]:
     """
     Returns an empty dict and a @register decorator.
 

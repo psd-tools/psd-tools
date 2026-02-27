@@ -50,14 +50,13 @@ The class inherits from :py:class:`~psd_tools.api.layers.GroupMixin`, providing
 group-like behavior for accessing child layers.
 """
 
+from __future__ import annotations
+
 import logging
 import os
-from typing import Any, BinaryIO, Callable, Iterable, Literal, Optional, Union
+from typing import Any, BinaryIO, Callable, Iterable, Literal
 
-try:
-    from typing import Self  # type: ignore[attr-defined]
-except ImportError:
-    from typing_extensions import Self
+from typing_extensions import Self
 
 import numpy as np
 from PIL import Image
@@ -172,7 +171,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         )
 
     @classmethod
-    def open(cls, fp: Union[BinaryIO, str, bytes, os.PathLike], **kwargs: Any) -> Self:
+    def open(cls, fp: BinaryIO | str | bytes | os.PathLike, **kwargs: Any) -> Self:
         """
         Open a PSD document.
 
@@ -190,7 +189,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
     def save(
         self,
-        fp: Union[BinaryIO, str, bytes, os.PathLike],
+        fp: BinaryIO | str | bytes | os.PathLike,
         mode: str = "wb",
         **kwargs: Any,
     ) -> None:
@@ -226,8 +225,8 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             self._record.write(fp, **kwargs)  # type: ignore[arg-type]
 
     def topil(
-        self, channel: Union[int, ChannelID, None] = None, apply_icc: bool = True
-    ) -> Union[Image.Image, None]:
+        self, channel: int | ChannelID | None = None, apply_icc: bool = True
+    ) -> Image.Image | None:
         """
         Get PIL Image.
 
@@ -243,7 +242,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         return None
 
     def numpy(
-        self, channel: Optional[Literal["color", "shape", "alpha", "mask"]] = None
+        self, channel: Literal["color", "shape", "alpha", "mask"] | None = None
     ) -> np.ndarray:
         """
         Get NumPy array of the layer.
@@ -258,11 +257,11 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
     def composite(
         self,
-        viewport: Optional[tuple[int, int, int, int]] = None,
+        viewport: tuple[int, int, int, int] | None = None,
         force: bool = False,
-        color: Union[float, tuple[float, ...], np.ndarray, None] = 1.0,
-        alpha: Union[float, np.ndarray] = 0.0,
-        layer_filter: Optional[Callable] = None,
+        color: float | tuple[float, ...] | np.ndarray | None = 1.0,
+        alpha: float | np.ndarray = 0.0,
+        layer_filter: Callable | None = None,
         ignore_preview: bool = False,
         apply_icc: bool = True,
     ) -> Image.Image:
@@ -523,7 +522,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         return self._record.image_resources
 
     @property
-    def tagged_blocks(self) -> Optional[TaggedBlocks]:
+    def tagged_blocks(self) -> TaggedBlocks | None:
         """
         Document tagged blocks that is a dict-like container of settings.
 
@@ -576,7 +575,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             or Resource.THUMBNAIL_RESOURCE_PS4 in self.image_resources
         )
 
-    def thumbnail(self) -> Optional[Image.Image]:
+    def thumbnail(self) -> Image.Image | None:
         """
         Returns a thumbnail image in PIL.Image. When the file does not
         contain an embedded thumbnail image, returns None.
@@ -629,7 +628,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
     def create_group(
         self,
-        layer_list: Optional[Iterable[layers.Layer]] = None,
+        layer_list: Iterable[layers.Layer] | None = None,
         name: str = "Group",
         opacity: int = 255,
         blend_mode: BlendMode = BlendMode.PASS_THROUGH,
@@ -676,7 +675,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             p.text(self.__repr__())
             return
 
-        def _pretty(layer: Union[layers.Layer, "PSDImage"], p: Any) -> None:
+        def _pretty(layer: layers.Layer | PSDImage, p: Any) -> None:
             p.text(layer.__repr__())
             if isinstance(layer, layers.GroupMixin):
                 with p.indent(2):
@@ -715,7 +714,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             color_mode=color_mode,
         )
 
-    def _get_pattern(self, pattern_id: str) -> Optional[Any]:
+    def _get_pattern(self, pattern_id: str) -> Any | None:
         """Get pattern item by id."""
         if self.tagged_blocks is None:
             return None
@@ -731,14 +730,14 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         """Initialize layer structure."""
         from psd_tools.api import layers
 
-        group_stack: list[Union[layers.Group, PSDImage]] = [self]
+        group_stack: list[layers.Group | PSDImage] = [self]
 
         for record, channels in self._record._iter_layers():
             current_group = group_stack[-1]
 
             blocks = record.tagged_blocks
             end_of_group = False
-            layer: Union[layers.Layer, PSDImage, None] = None
+            layer: layers.Layer | PSDImage | None = None
             divider = blocks.get_data(Tag.SECTION_DIVIDER_SETTING, None)
             divider = blocks.get_data(Tag.NESTED_SECTION_DIVIDER_SETTING, divider)
             if (

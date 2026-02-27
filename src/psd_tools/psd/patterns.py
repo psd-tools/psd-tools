@@ -4,12 +4,9 @@ Patterns structure.
 
 import io
 import logging
-from typing import Any, BinaryIO, Optional, TypeVar
+from typing import Any, BinaryIO, TypeVar
 
-try:
-    from typing import Self  # type: ignore[attr-defined]
-except ImportError:
-    from typing_extensions import Self
+from typing_extensions import Self
 
 from attrs import define, field
 
@@ -188,9 +185,9 @@ class VirtualMemoryArray(BaseElement):
     """
 
     is_written: int = 0
-    depth: Optional[int] = None
-    rectangle: Optional[tuple[int, int, int, int]] = None
-    pixel_depth: Optional[int] = None
+    depth: int | None = None
+    rectangle: tuple[int, int, int, int] | None = None
+    pixel_depth: int | None = None
     compression: Compression = field(
         default=Compression.RAW, converter=Compression, validator=in_(Compression)
     )
@@ -229,7 +226,7 @@ class VirtualMemoryArray(BaseElement):
         written += write_bytes(fp, self.data)
         return written
 
-    def get_data(self) -> Optional[bytes]:
+    def get_data(self) -> bytes | None:
         """Get decompressed bytes."""
         if not self.is_written:
             return None

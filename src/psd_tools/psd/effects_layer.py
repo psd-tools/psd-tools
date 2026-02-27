@@ -6,7 +6,7 @@ are stored in tagged blocks.
 """
 
 import logging
-from typing import Any, BinaryIO, Optional, TypeVar
+from typing import Any, BinaryIO, TypeVar
 
 from attrs import define, field, astuple
 
@@ -246,8 +246,8 @@ class InnerGlowInfo(BaseElement, _GlowInfo):
     )
     enabled: int = 0
     opacity: int = 0
-    invert: Optional[int] = None
-    native_color: Optional[object] = None
+    invert: int | None = None
+    native_color: object | None = None
 
     @classmethod
     def read(

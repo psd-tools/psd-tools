@@ -4,7 +4,7 @@ Linked layer structure.
 
 import io
 import logging
-from typing import Any, BinaryIO, Optional, TypeVar
+from typing import Any, BinaryIO, TypeVar
 
 from attrs import define, field
 
@@ -82,14 +82,14 @@ class LinkedLayer(BaseElement):
     filename: str = ""
     filetype: bytes = b"\x00\x00\x00\x00"
     creator: bytes = b"\x00\x00\x00\x00"
-    filesize: Optional[int] = None
-    open_file: Optional[DescriptorBlock] = None
-    linked_file: Optional[DescriptorBlock] = None
-    timestamp: Optional[tuple] = None
-    data: Optional[bytes] = None
-    child_id: Optional[str] = None
-    mod_time: Optional[float] = None
-    lock_state: Optional[int] = None
+    filesize: int | None = None
+    open_file: DescriptorBlock | None = None
+    linked_file: DescriptorBlock | None = None
+    timestamp: tuple | None = None
+    data: bytes | None = None
+    child_id: str | None = None
+    mod_time: float | None = None
+    lock_state: int | None = None
 
     @classmethod
     def read(cls: type[T_LinkedLayer], fp: BinaryIO, **kwargs: Any) -> T_LinkedLayer:

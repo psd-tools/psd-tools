@@ -4,7 +4,7 @@ PIL IO module.
 
 import io
 import logging
-from typing import TYPE_CHECKING, Optional, Union, cast
+from typing import TYPE_CHECKING, cast
 
 from PIL import Image
 
@@ -75,8 +75,8 @@ def get_pil_depth(pil_mode: str) -> int:
 
 
 def convert_image_data_to_pil(
-    psd: "PSDProtocol", channel: Optional[int], apply_icc: bool
-) -> Optional[Image.Image]:
+    psd: "PSDProtocol", channel: int | None, apply_icc: bool
+) -> Image.Image | None:
     """Convert ImageData to PIL Image.
 
     :raises ValueError: If an invalid channel is specified
@@ -133,8 +133,8 @@ def convert_image_data_to_pil(
 
 
 def convert_layer_to_pil(
-    layer: "LayerProtocol", channel: Optional[int], apply_icc: bool
-) -> Optional[Image.Image]:
+    layer: "LayerProtocol", channel: int | None, apply_icc: bool
+) -> Image.Image | None:
     """Convert Layer to PIL Image."""
     alpha = None
     icc = None
@@ -159,8 +159,8 @@ def convert_layer_to_pil(
 
 def post_process(
     image: Image.Image,
-    alpha: Optional[Image.Image],
-    icc_profile: Optional[bytes] = None,
+    alpha: Image.Image | None,
+    icc_profile: bytes | None = None,
 ) -> Image.Image:
     # Fix inverted CMYK.
     if image.mode == "CMYK":
@@ -201,7 +201,7 @@ def convert_pattern_to_pil(pattern: Pattern) -> Image.Image:
 
 
 def convert_thumbnail_to_pil(
-    thumbnail: Union[ThumbnailResource, ThumbnailResourceV4],
+    thumbnail: ThumbnailResource | ThumbnailResourceV4,
 ) -> Image.Image:
     """Convert thumbnail resource."""
     if thumbnail.fmt == 0:
@@ -222,7 +222,7 @@ def convert_thumbnail_to_pil(
     return image
 
 
-def _merge_channels(layer: "LayerProtocol") -> Optional[Image.Image]:
+def _merge_channels(layer: "LayerProtocol") -> Image.Image | None:
     if layer._psd is None:
         return None
     mode = get_pil_mode(layer._psd.color_mode)
@@ -239,7 +239,7 @@ def _merge_channels(layer: "LayerProtocol") -> Optional[Image.Image]:
     return Image.merge(mode, channels)  # type: ignore
 
 
-def _get_channel(layer: "LayerProtocol", channel: int) -> Optional[Image.Image]:
+def _get_channel(layer: "LayerProtocol", channel: int) -> Image.Image | None:
     if layer._psd is None:
         return None
     if channel == ChannelID.USER_LAYER_MASK:
