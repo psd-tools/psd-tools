@@ -16,7 +16,7 @@ Masks are accessible from the layer's `mask` property::
     print(mask.bbox)  # (left, top, right, bottom)
 
     mask_image = mask.topil()  # Show the mask as a PIL Image.
-    if mask_image:
+    if mask_image is not None:
         mask_image.save("mask.png")
 
 To create a new mask, use the layer's :py:func:`~psd_tools.api.layers.Layer.create_mask` method::
