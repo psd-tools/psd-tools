@@ -711,7 +711,15 @@ class TypeSetting:
         else:
             self._paragraphs = ()
 
-        # Step 5: Writing direction
+        # Step 5: Collect used font indices
+        used_indices: set[int] = set()
+        for run in runs:
+            font = run.style.font
+            if font is not None:
+                used_indices.add(font.index)
+        self._used_fonts = tuple(f for f in self._fonts if f.index in used_indices)
+
+        # Step 6: Writing direction
         rendered = self._engine_dict.get("Rendered", {})
         shapes = rendered.get("Shapes", {}) if rendered else {}
         wd = shapes.get("WritingDirection") if shapes else None
@@ -732,7 +740,16 @@ class TypeSetting:
 
     @property
     def fonts(self) -> tuple[FontInfo, ...]:
-        """All fonts in the font set."""
+        """Fonts actually used by text runs in this layer.
+
+        To access the full font set (including unused entries like
+        ``AdobeInvisFont``), use :py:attr:`all_fonts`.
+        """
+        return self._used_fonts
+
+    @property
+    def all_fonts(self) -> tuple[FontInfo, ...]:
+        """All fonts in the font set, including unused entries."""
         return self._fonts
 
     @property

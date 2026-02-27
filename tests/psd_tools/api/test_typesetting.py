@@ -47,6 +47,19 @@ class TestTypeSetting:
         assert len(fonts) > 0
         assert all(isinstance(f, FontInfo) for f in fonts)
 
+    def test_fonts_excludes_unused(self, type_layer: TypeLayer) -> None:
+        ts = type_layer.typesetting
+        used_names = {f.postscript_name for f in ts.fonts}
+        all_names = {f.postscript_name for f in ts.all_fonts}
+        assert "AdobeInvisFont" not in used_names
+        assert "AdobeInvisFont" in all_names
+        assert len(ts.fonts) < len(ts.all_fonts)
+
+    def test_all_fonts(self, type_layer: TypeLayer) -> None:
+        all_fonts = type_layer.typesetting.all_fonts
+        assert len(all_fonts) >= 2
+        assert all(isinstance(f, FontInfo) for f in all_fonts)
+
     def test_font_postscript_name(self, type_layer: TypeLayer) -> None:
         fonts = type_layer.typesetting.fonts
         assert fonts[0].postscript_name == "ArialMT"
