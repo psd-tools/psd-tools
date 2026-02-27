@@ -617,10 +617,10 @@ def test_layer_reference_point(pixel_layer: PixelLayer) -> None:
     assert pixel_layer.reference_point == (10.5, 20.5)
 
     with pytest.raises(ValueError, match=r".* sequence of two floats.*"):
-        pixel_layer.reference_point = (10.5,)  # type: ignore
+        pixel_layer.reference_point = (10.5,)  # type: ignore[assignment]
 
     with pytest.raises(ValueError, match=r".* sequence of two floats.*"):
-        pixel_layer.reference_point = (10.5, 20.5, 30.5)  # type: ignore
+        pixel_layer.reference_point = (10.5, 20.5, 30.5)  # type: ignore[assignment]
 
 
 def test_layer_sheet_color(pixel_layer: PixelLayer) -> None:
