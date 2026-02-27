@@ -598,16 +598,26 @@ class TypeSetting:
         del self._engine_dict, self._resource_dict
 
     def _build(self) -> None:
-        # Step 1: Build font list
-        font_set_data = self._resource_dict.get("FontSet")
-        if font_set_data:
-            self._fonts = tuple(
-                FontInfo(i, font_set_data[i]) for i in range(len(font_set_data))
-            )
-        else:
-            self._fonts = ()
+        self._fonts = self._build_fonts()
+        default_char_data, default_para_data = self._build_default_styles()
+        self._runs = self._build_runs(default_char_data)
+        self._paragraphs = self._build_paragraphs(default_char_data, default_para_data)
+        self._used_fonts = self._collect_used_fonts()
+        self._writing_direction = self._parse_writing_direction()
 
-        # Step 2: Build default styles
+    def _build_fonts(self) -> tuple[FontInfo, ...]:
+        font_set_data = self._resource_dict.get("FontSet")
+        if not font_set_data:
+            return ()
+        return tuple(FontInfo(i, font_set_data[i]) for i in range(len(font_set_data)))
+
+    def _build_default_styles(
+        self,
+    ) -> tuple[engine_data.Dict | dict[str, Any], engine_data.Dict | dict[str, Any]]:
+        """Build default character and paragraph styles.
+
+        Returns (default_char_data, default_para_data) for use by run builders.
+        """
         # Character default: resolve via StyleSheetSet + TheNormalStyleSheet index
         style_sheet_set = self._resource_dict.get("StyleSheetSet")
         normal_ss_index = self._resource_dict.get("TheNormalStyleSheet")
@@ -634,7 +644,11 @@ class TypeSetting:
             default_para_data = {}
         self._default_paragraph_style = ParagraphStyle(default_para_data)
 
-        # Step 3: Build text runs from StyleRun
+        return default_char_data, default_para_data
+
+    def _build_runs(
+        self, default_char_data: engine_data.Dict | dict[str, Any]
+    ) -> tuple[TextRun, ...]:
         text = self._text
         style_run = self._engine_dict.get("StyleRun", {})
         run_lengths = style_run.get("RunLengthArray", [])
@@ -654,95 +668,99 @@ class TypeSetting:
             style = CharacterStyle(ss_data, self._fonts, default_char_data)
             runs.append(TextRun(text[pos:end], pos, end, style))
             pos = end
-        self._runs = tuple(runs)
+        return tuple(runs)
 
-        # Step 4: Build paragraphs from ParagraphRun
+    def _build_paragraphs(
+        self,
+        default_char_data: engine_data.Dict | dict[str, Any],
+        default_para_data: engine_data.Dict | dict[str, Any],
+    ) -> tuple[Paragraph, ...]:
+        text = self._text
+        style_run = self._engine_dict.get("StyleRun", {})
+        run_lengths = style_run.get("RunLengthArray", [])
+        run_array = style_run.get("RunArray", [])
+
         para_run = self._engine_dict.get("ParagraphRun", {})
         para_lengths = para_run.get("RunLengthArray", [])
         para_array = para_run.get("RunArray", [])
 
-        if para_lengths and para_array:
-            # Use RunLengthIndex approach to group style runs into paragraphs
-            para_index = _RunLengthIndex(para_lengths)
-            style_index = (
-                _RunLengthIndex(run_lengths)
-                if run_lengths
-                else _RunLengthIndex([len(text)])
-            )
-
-            stops = sorted(set(para_index.boundaries) | set(style_index.boundaries))
-            # Clamp stops to text length
-            stops = [min(s, len(text)) for s in stops if s > 0]
-            stops = sorted(set(stops))
-
-            paragraphs: list[Paragraph] = []
-            pairs = list(zip([0] + stops, stops))
-
-            for idx, group in groupby(pairs, key=lambda pair: para_index(pair[0])):
-                group_list = list(group)
-                para_start = group_list[0][0]
-                para_end = group_list[-1][1]
-
-                # Get paragraph style with default merging
-                pd = para_array[idx] if idx < len(para_array) else {}
-                ps = pd.get("ParagraphSheet", {}) if pd else {}
-                ps_props = ps.get("Properties", {}) if ps else {}
-                para_style = ParagraphStyle(ps_props, default_para_data)
-
-                # Collect style runs for this paragraph
-                para_runs: list[TextRun] = []
-                for start, stop in group_list:
-                    if start >= len(text):
-                        break
-                    stop = min(stop, len(text))
-                    si = style_index(start)
-                    rd = run_array[si] if si < len(run_array) else {}
-                    ss = rd.get("StyleSheet", {}) if rd else {}
-                    ss_data = ss.get("StyleSheetData", {}) if ss else {}
-                    cs = CharacterStyle(ss_data, self._fonts, default_char_data)
-                    para_runs.append(TextRun(text[start:stop], start, stop, cs))
-
-                paragraphs.append(
+        if not (para_lengths and para_array):
+            if self._runs:
+                return (
                     Paragraph(
-                        text[para_start:para_end],
-                        para_start,
-                        para_end,
-                        para_style,
-                        tuple(para_runs),
-                    )
+                        text,
+                        0,
+                        len(text),
+                        self._default_paragraph_style,
+                        self._runs,
+                    ),
                 )
-            self._paragraphs = tuple(paragraphs)
-        elif self._runs:
-            # No paragraph data — wrap all runs in one paragraph
-            self._paragraphs = (
-                Paragraph(
-                    text,
-                    0,
-                    len(text),
-                    self._default_paragraph_style,
-                    self._runs,
-                ),
-            )
-        else:
-            self._paragraphs = ()
+            return ()
 
-        # Step 5: Collect used font indices
+        # Use RunLengthIndex approach to group style runs into paragraphs
+        para_index = _RunLengthIndex(para_lengths)
+        style_index = (
+            _RunLengthIndex(run_lengths)
+            if run_lengths
+            else _RunLengthIndex([len(text)])
+        )
+
+        stops = sorted(set(para_index.boundaries) | set(style_index.boundaries))
+        stops = sorted({min(s, len(text)) for s in stops if s > 0})
+
+        paragraphs: list[Paragraph] = []
+        pairs = list(zip([0] + stops, stops))
+
+        for idx, group in groupby(pairs, key=lambda pair: para_index(pair[0])):
+            group_list = list(group)
+            para_start = group_list[0][0]
+            para_end = group_list[-1][1]
+
+            # Get paragraph style with default merging
+            pd = para_array[idx] if idx < len(para_array) else {}
+            ps = pd.get("ParagraphSheet", {}) if pd else {}
+            ps_props = ps.get("Properties", {}) if ps else {}
+            para_style = ParagraphStyle(ps_props, default_para_data)
+
+            # Collect style runs for this paragraph
+            para_runs: list[TextRun] = []
+            for start, stop in group_list:
+                if start >= len(text):
+                    break
+                stop = min(stop, len(text))
+                si = style_index(start)
+                rd = run_array[si] if si < len(run_array) else {}
+                ss = rd.get("StyleSheet", {}) if rd else {}
+                ss_data = ss.get("StyleSheetData", {}) if ss else {}
+                cs = CharacterStyle(ss_data, self._fonts, default_char_data)
+                para_runs.append(TextRun(text[start:stop], start, stop, cs))
+
+            paragraphs.append(
+                Paragraph(
+                    text[para_start:para_end],
+                    para_start,
+                    para_end,
+                    para_style,
+                    tuple(para_runs),
+                )
+            )
+        return tuple(paragraphs)
+
+    def _collect_used_fonts(self) -> tuple[FontInfo, ...]:
         used_indices: set[int] = set()
-        for run in runs:
+        for run in self._runs:
             font = run.style.font
             if font is not None:
                 used_indices.add(font.index)
-        self._used_fonts = tuple(f for f in self._fonts if f.index in used_indices)
+        return tuple(f for f in self._fonts if f.index in used_indices)
 
-        # Step 6: Writing direction
+    def _parse_writing_direction(self) -> WritingDirection | None:
         rendered = self._engine_dict.get("Rendered", {})
         shapes = rendered.get("Shapes", {}) if rendered else {}
         wd = shapes.get("WritingDirection") if shapes else None
         if wd is not None:
-            result = _safe_enum(WritingDirection, _val(wd), None)
-            self._writing_direction: WritingDirection | None = result
-        else:
-            self._writing_direction = None
+            return _safe_enum(WritingDirection, _val(wd), None)
+        return None
 
     @property
     def text(self) -> str:
