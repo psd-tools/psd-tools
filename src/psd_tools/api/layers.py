@@ -84,6 +84,7 @@ and exposed through the ``kind`` property for easy type checking.
 
 import logging
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Iterable,
@@ -96,6 +97,9 @@ from typing import (
 )
 
 from typing_extensions import Self
+
+if TYPE_CHECKING:
+    from psd_tools.api.typesetting import TypeSetting
 
 import numpy as np
 from PIL import Image, ImageChops
@@ -1956,6 +1960,46 @@ class TypeLayer(Layer):
     def warp(self) -> DescriptorBlock | None:
         """Warp configuration."""
         return self._data.warp
+
+    @property
+    def typesetting(self) -> "TypeSetting":
+        """
+        Structured typographic data.
+
+        Returns a :py:class:`~psd_tools.api.typesetting.TypeSetting` object
+        that provides Pythonic access to fonts, paragraphs, styled runs,
+        and default styles without navigating raw engine data dicts.
+
+        Example::
+
+            ts = layer.typesetting
+            for paragraph in ts:
+                print(paragraph.style.justification)
+                for run in paragraph.runs:
+                    print(run.text, run.style.font_name, run.style.font_size)
+
+        See also: :py:attr:`engine_dict`, :py:attr:`resource_dict` for raw data.
+        """
+        if not hasattr(self, "_typesetting"):
+            from psd_tools.api.typesetting import TypeSetting
+
+            self._typesetting = TypeSetting(
+                self.text,
+                self.engine_dict,
+                self.resource_dict,
+            )
+        return self._typesetting
+
+    @property
+    def font_names(self) -> list[str]:
+        """
+        List of PostScript font names used in this text layer.
+
+        Convenience shortcut for::
+
+            [font.postscript_name for font in layer.typesetting.fonts]
+        """
+        return [font.postscript_name for font in self.typesetting.fonts]
 
 
 class ShapeLayer(Layer):

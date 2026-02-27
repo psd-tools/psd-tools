@@ -521,6 +521,41 @@ class TextType(IntEnum):
     PARAGRAPH = 1
 
 
+class Justification(IntEnum):
+    """Text justification / paragraph alignment."""
+
+    LEFT = 0
+    RIGHT = 1
+    CENTER = 2
+    JUSTIFY_LAST_LEFT = 3
+    JUSTIFY_LAST_RIGHT = 4
+    JUSTIFY_LAST_CENTER = 5
+    JUSTIFY_ALL = 6
+
+
+class FontCaps(IntEnum):
+    """Font capitalization style."""
+
+    NORMAL = 0
+    SMALL_CAPS = 1
+    ALL_CAPS = 2
+
+
+class FontBaseline(IntEnum):
+    """Font baseline position."""
+
+    NORMAL = 0
+    SUPERSCRIPT = 1
+    SUBSCRIPT = 2
+
+
+class WritingDirection(IntEnum):
+    """Text writing direction."""
+
+    HORIZONTAL_TB = 0
+    VERTICAL_RL = 2
+
+
 class ProtectedFlags(IntEnum):
     """
     Flags for layer locking
