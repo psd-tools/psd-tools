@@ -1,5 +1,38 @@
 """
 Mask module.
+
+Masks are used to determine the visible area of a layer.
+There are two types of masks: user mask and vector mask.
+User mask refers to any pixel-based mask, whereas vector mask refers to a mask from a shape path.
+
+Masks are accessible from the layer's `mask` property::
+
+    from psd_tools import PSDImage
+
+    psdimage = PSDImage.open('example.psd')
+    layer = psdimage[0]
+    mask = layer.mask
+    assert mask is not None
+    print(mask.bbox)  # (left, top, right, bottom)
+
+    mask_image = mask.topil()  # Show the mask as a PIL Image.
+    if mask_image:
+        mask_image.save("mask.png")
+
+To create a new mask, use the layer's :py:func:`~psd_tools.api.layers.Layer.create_mask` method::
+
+    from psd_tools import PSDImage
+    from PIL import Image
+
+    psdimage = PSDImage.new(mode="RGB", size=(128, 128))
+    layer = psdimage.create_pixel_layer(Image.new("RGB", (128, 128)))
+    layer.create_mask(Image.new("L", (128, 128), 255))
+
+Note that creating a pixel layer from RGBA image will automatically create a user mask::
+
+    psdimage = PSDImage.new(mode="RGB", size=(128, 128))
+    layer = psdimage.create_pixel_layer(Image.new("RGBA", (128, 128)))
+
 """
 
 import logging
