@@ -425,7 +425,7 @@ def test_pixel_layer_frompil(mode: str) -> None:
     target_mode = "RGB"
     psdimage = PSDImage.new(mode=target_mode, size=(30, 30))
     original_image = Image.new(mode, (30, 30))
-    layer = PixelLayer.frompil(original_image, psdimage, name="Test Layer")
+    layer = psdimage.create_pixel_layer(original_image, name="Test Layer")
     assert len(psdimage) == 1
 
     image = original_image.convert(psdimage.pil_mode)
@@ -449,7 +449,7 @@ def test_pixel_layer_frompil(mode: str) -> None:
 
 def test_create_mask() -> None:
     psdimage = PSDImage.new(mode="RGB", size=(30, 30))
-    layer = PixelLayer.frompil(Image.new("RGB", (30, 30)), psdimage, name="Test Layer")
+    layer = psdimage.create_pixel_layer(Image.new("RGB", (30, 30)), name="Test Layer")
     assert not layer.has_mask()
 
     mask_img = Image.new("L", (30, 30), 128)
@@ -465,7 +465,7 @@ def test_create_mask() -> None:
 
 def test_create_mask_raises_if_already_has_mask() -> None:
     psdimage = PSDImage.new(mode="RGB", size=(30, 30))
-    layer = PixelLayer.frompil(Image.new("RGB", (30, 30)), psdimage)
+    layer = psdimage.create_pixel_layer(Image.new("RGB", (30, 30)))
     layer.create_mask(Image.new("L", (30, 30), 255))
     with pytest.raises(ValueError, match="already has a mask"):
         layer.create_mask(Image.new("L", (30, 30), 0))
@@ -473,7 +473,7 @@ def test_create_mask_raises_if_already_has_mask() -> None:
 
 def test_create_mask_uses_alpha_channel() -> None:
     psdimage = PSDImage.new(mode="RGB", size=(30, 30))
-    layer = PixelLayer.frompil(Image.new("RGB", (30, 30)), psdimage)
+    layer = psdimage.create_pixel_layer(Image.new("RGB", (30, 30)))
     rgba_img = Image.new("RGBA", (30, 30), (255, 0, 0, 64))
     layer.create_mask(rgba_img)
 
@@ -487,7 +487,7 @@ def test_create_mask_uses_alpha_channel() -> None:
 def test_frompil_auto_mask_from_rgba() -> None:
     psdimage = PSDImage.new(mode="RGB", size=(30, 30))
     rgba_img = Image.new("RGBA", (30, 30), (255, 0, 0, 200))
-    layer = PixelLayer.frompil(rgba_img, psdimage)
+    layer = psdimage.create_pixel_layer(rgba_img)
 
     assert layer.has_mask()
     assert layer.mask is not None
@@ -498,7 +498,7 @@ def test_frompil_auto_mask_from_rgba() -> None:
 
 def test_create_mask_round_trip(tmp_path: Any) -> None:
     psdimage = PSDImage.new(mode="RGB", size=(30, 30))
-    layer = PixelLayer.frompil(Image.new("RGB", (30, 30)), psdimage)
+    layer = psdimage.create_pixel_layer(Image.new("RGB", (30, 30)))
     mask_img = Image.new("L", (30, 30), 77)
     layer.create_mask(mask_img)
 
@@ -516,7 +516,7 @@ def test_create_mask_round_trip(tmp_path: Any) -> None:
 
 def test_remove_mask() -> None:
     psdimage = PSDImage.new(mode="RGB", size=(30, 30))
-    layer = PixelLayer.frompil(Image.new("RGB", (30, 30)), psdimage)
+    layer = psdimage.create_pixel_layer(Image.new("RGB", (30, 30)))
     layer.create_mask(Image.new("L", (30, 30), 200))
     assert layer.has_mask()
 
@@ -528,14 +528,14 @@ def test_remove_mask() -> None:
 
 def test_remove_mask_raises_if_no_mask() -> None:
     psdimage = PSDImage.new(mode="RGB", size=(30, 30))
-    layer = PixelLayer.frompil(Image.new("RGB", (30, 30)), psdimage)
+    layer = psdimage.create_pixel_layer(Image.new("RGB", (30, 30)))
     with pytest.raises(ValueError, match="does not have a mask"):
         layer.remove_mask()
 
 
 def test_remove_mask_round_trip(tmp_path: Any) -> None:
     psdimage = PSDImage.new(mode="RGB", size=(30, 30))
-    layer = PixelLayer.frompil(Image.new("RGB", (30, 30)), psdimage)
+    layer = psdimage.create_pixel_layer(Image.new("RGB", (30, 30)))
     layer.create_mask(Image.new("L", (30, 30), 200))
     layer.remove_mask()
 
@@ -548,7 +548,7 @@ def test_remove_mask_round_trip(tmp_path: Any) -> None:
 
 def test_update_mask() -> None:
     psdimage = PSDImage.new(mode="RGB", size=(30, 30))
-    layer = PixelLayer.frompil(Image.new("RGB", (30, 30)), psdimage)
+    layer = psdimage.create_pixel_layer(Image.new("RGB", (30, 30)))
     layer.create_mask(Image.new("L", (30, 30), 100))
 
     new_mask_img = Image.new("L", (30, 30), 200)
@@ -562,14 +562,14 @@ def test_update_mask() -> None:
 
 def test_update_mask_raises_if_no_mask() -> None:
     psdimage = PSDImage.new(mode="RGB", size=(30, 30))
-    layer = PixelLayer.frompil(Image.new("RGB", (30, 30)), psdimage)
+    layer = psdimage.create_pixel_layer(Image.new("RGB", (30, 30)))
     with pytest.raises(ValueError, match="does not have a mask"):
         layer.update_mask(Image.new("L", (30, 30), 255))
 
 
 def test_update_mask_changes_size() -> None:
     psdimage = PSDImage.new(mode="RGB", size=(40, 40))
-    layer = PixelLayer.frompil(Image.new("RGB", (40, 40)), psdimage)
+    layer = psdimage.create_pixel_layer(Image.new("RGB", (40, 40)))
     layer.create_mask(Image.new("L", (40, 40), 100))
 
     small_mask = Image.new("L", (20, 15), 255)
@@ -583,7 +583,7 @@ def test_update_mask_changes_size() -> None:
 
 def test_update_mask_round_trip(tmp_path: Any) -> None:
     psdimage = PSDImage.new(mode="RGB", size=(30, 30))
-    layer = PixelLayer.frompil(Image.new("RGB", (30, 30)), psdimage)
+    layer = psdimage.create_pixel_layer(Image.new("RGB", (30, 30)))
     layer.create_mask(Image.new("L", (30, 30), 100))
     updated_mask = Image.new("L", (30, 30), 42)
     layer.update_mask(updated_mask)
@@ -617,10 +617,10 @@ def test_layer_reference_point(pixel_layer: PixelLayer) -> None:
     assert pixel_layer.reference_point == (10.5, 20.5)
 
     with pytest.raises(ValueError, match=r".* sequence of two floats.*"):
-        pixel_layer.reference_point = (10.5,)
+        pixel_layer.reference_point = (10.5,)  # type: ignore
 
     with pytest.raises(ValueError, match=r".* sequence of two floats.*"):
-        pixel_layer.reference_point = (10.5, 20.5, 30.5)
+        pixel_layer.reference_point = (10.5, 20.5, 30.5)  # type: ignore
 
 
 def test_layer_sheet_color(pixel_layer: PixelLayer) -> None:
