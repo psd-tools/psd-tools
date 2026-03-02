@@ -54,6 +54,7 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Sequence
 from typing import Any, BinaryIO, Callable, Iterable, Literal
 
 from typing_extensions import Self
@@ -63,7 +64,12 @@ from PIL import Image
 
 from psd_tools.api import adjustments, layers, numpy_io, pil_io
 from psd_tools.api.protocols import PSDProtocol
-from psd_tools.api.utils import ColorInput, denormalize_color, normalize_color
+from psd_tools.api.utils import (
+    EXPECTED_CHANNELS,
+    ColorInput,
+    denormalize_color,
+    normalize_color,
+)
 from psd_tools.constants import (
     BlendMode,
     ChannelID,
@@ -145,7 +151,14 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         :return: A :py:class:`~psd_tools.api.psd_image.PSDImage` object.
         """
         header = cls._make_header(mode, size, depth)
-        bg_color = normalize_color(color, depth)
+        # Strip alpha channel(s) from color for background_color since
+        # composite() only expects color channels (alpha is separate).
+        bg_input: ColorInput = color
+        if isinstance(color, Sequence):
+            expected = EXPECTED_CHANNELS.get(header.color_mode)
+            if expected is not None and len(color) > expected:
+                bg_input = tuple(color[:expected])
+        bg_color = normalize_color(bg_input, depth, header.color_mode)
         fill_color = denormalize_color(color, depth)
         image_data = ImageData.new(header, color=fill_color, **kwargs)
         # TODO: Add default metadata.
@@ -192,9 +205,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             )
         )
         if color is not None:
-            psdimage._background_color = normalize_color(
-                color, header.depth, header.color_mode
-            )
+            psdimage.background_color = color
         return psdimage
 
     @classmethod
