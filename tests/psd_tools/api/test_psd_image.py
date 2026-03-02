@@ -397,11 +397,24 @@ def test_new_with_int_color() -> None:
         assert all(b == 128 for b in ch)
 
 
-def test_frompil_with_color() -> None:
-    """frompil() with color stores background_color on the instance."""
+def test_frompil_with_color(tmp_path: Path) -> None:
+    """frompil() with color stores background_color and affects save() composite."""
     image = Image.new("RGB", (16, 16), (128, 128, 128))
     psdimage = PSDImage.frompil(image, color=0.5)
     assert psdimage.background_color == 0.5
+
+    # Round-trip: fully transparent RGBA image with white backdrop.
+    rgba = Image.new("RGBA", (4, 4), (0, 0, 0, 0))
+    psdimage = PSDImage.frompil(rgba, color=1.0)
+    output = tmp_path / "frompil_bg.psd"
+    psdimage.save(str(output))
+    reloaded = PSDImage.open(output)
+    channels = reloaded._record.image_data.get_data(reloaded._record.header)
+    assert len(channels) == 4  # RGBA
+    # Transparent pixels blended over white backdrop -> all white, fully opaque.
+    for ch in channels:
+        assert isinstance(ch, bytes)
+        assert ch[0] == 255
 
 
 def test_save_with_float_color_rgb(tmp_path: Path) -> None:

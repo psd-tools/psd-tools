@@ -172,10 +172,16 @@ def composite(
     assert viewport is not None
 
     if isinstance(group, PSDImage) and len(group) == 0:
+        backdrop_color = color
+        backdrop_alpha = alpha
         color, shape = group.numpy("color"), group.numpy("shape")
         if viewport != group.viewbox:
             color = paste(viewport, group.bbox, color, 1.0)
             shape = paste(viewport, group.bbox, shape)
+        if not (isinstance(backdrop_alpha, (int, float)) and backdrop_alpha == 0.0):
+            color, shape = _blend_backdrop(
+                color, shape, backdrop_color, backdrop_alpha, group.color_mode
+            )
         return color, shape, shape
 
     if isinstance(color, float):
@@ -224,6 +230,32 @@ def paste(
     b = (inter[0] - bbox[0], inter[1] - bbox[1], inter[2] - bbox[0], inter[3] - bbox[1])
     view[v[1] : v[3], v[0] : v[2], :] = values[b[1] : b[3], b[0] : b[2], :]
     return view
+
+
+def _blend_backdrop(
+    color: np.ndarray,
+    shape: np.ndarray,
+    backdrop_color: float | tuple[float, ...] | np.ndarray,
+    backdrop_alpha: float | np.ndarray,
+    color_mode: ColorMode,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Blend foreground color/shape over a backdrop using standard "over" compositing."""
+    if isinstance(backdrop_color, float):
+        backdrop_color = (backdrop_color,) * EXPECTED_CHANNELS[color_mode]
+    if isinstance(backdrop_color, tuple):
+        backdrop_color = np.broadcast_to(
+            np.array(backdrop_color, dtype=np.float32), color.shape
+        )
+    if isinstance(backdrop_alpha, (int, float)):
+        backdrop_alpha = np.full_like(shape, backdrop_alpha)
+    result_alpha = utils.union(shape, backdrop_alpha)
+    result_color = utils.clip(
+        utils.divide(
+            color * shape + backdrop_color * backdrop_alpha * (1.0 - shape),
+            result_alpha,
+        )
+    )
+    return result_color, result_alpha
 
 
 class Compositor(object):
