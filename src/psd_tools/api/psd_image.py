@@ -617,27 +617,18 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         return self._background_color
 
     @background_color.setter
-    def background_color(self, value: float | tuple[float, ...] | None) -> None:
+    def background_color(
+        self,
+        value: int | float | tuple[int | float, ...] | None,
+    ) -> None:
         if value is not None:
-            if isinstance(value, (int, float)):
-                value = float(value)
-                if not 0.0 <= value <= 1.0:
-                    raise ValueError(
-                        f"background_color {value!r} out of range. Expected [0.0, 1.0]."
-                    )
-            elif isinstance(value, tuple):
-                value = tuple(float(v) for v in value)
-                for i, v in enumerate(value):
-                    if not 0.0 <= v <= 1.0:
-                        raise ValueError(
-                            f"background_color component at index {i} ({v!r}) "
-                            "out of range. Expected [0.0, 1.0]."
-                        )
-            else:
+            if not isinstance(value, (int, float, tuple)):
                 raise TypeError(
-                    f"background_color must be float, tuple of floats, or None, "
+                    f"background_color must be int, float, tuple, or None, "
                     f"got {type(value).__name__}"
                 )
+            bg, _ = self._parse_color(value, self._record.header.depth)
+            value = bg
         if self._background_color != value:
             self._mark_updated()
         self._background_color = value

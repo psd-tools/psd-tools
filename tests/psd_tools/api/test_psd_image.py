@@ -282,7 +282,7 @@ def test_background_color_default() -> None:
 
 
 def test_background_color_setter() -> None:
-    """background_color setter accepts float, tuple, int (in range), and None."""
+    """background_color setter accepts float, tuple, int, and None."""
     psdimage = PSDImage.new("RGB", (16, 16))
 
     psdimage.background_color = 1.0
@@ -294,13 +294,15 @@ def test_background_color_setter() -> None:
     psdimage.background_color = None
     assert psdimage.background_color is None
 
-    # int 0/1 coerced to float (within [0.0, 1.0])
-    psdimage.background_color = 1
+    # int is normalized as pixel value via document depth (8-bit: /255)
+    psdimage.background_color = 255
     assert psdimage.background_color == 1.0
-    assert isinstance(psdimage.background_color, float)
 
     psdimage.background_color = 0
     assert psdimage.background_color == 0.0
+
+    psdimage.background_color = 128
+    assert abs(psdimage.background_color - 128 / 255) < 1e-9  # type: ignore[operator]
 
 
 def test_background_color_setter_invalid() -> None:
@@ -313,9 +315,9 @@ def test_background_color_setter_invalid() -> None:
     # Out-of-range float
     with pytest.raises(ValueError):
         psdimage.background_color = 2.0
-    # Out-of-range int (raw pixel value, not normalized)
+    # Out-of-range int for 8-bit depth
     with pytest.raises(ValueError):
-        psdimage.background_color = 255  # type: ignore[assignment]
+        psdimage.background_color = 256  # type: ignore[assignment]
     # Out-of-range tuple component
     with pytest.raises(ValueError):
         psdimage.background_color = (1.0, 1.5, 0.0)
