@@ -621,8 +621,18 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         if value is not None:
             if isinstance(value, (int, float)):
                 value = float(value)
+                if not 0.0 <= value <= 1.0:
+                    raise ValueError(
+                        f"background_color {value!r} out of range. Expected [0.0, 1.0]."
+                    )
             elif isinstance(value, tuple):
                 value = tuple(float(v) for v in value)
+                for i, v in enumerate(value):
+                    if not 0.0 <= v <= 1.0:
+                        raise ValueError(
+                            f"background_color component at index {i} ({v!r}) "
+                            "out of range. Expected [0.0, 1.0]."
+                        )
             else:
                 raise TypeError(
                     f"background_color must be float, tuple of floats, or None, "
