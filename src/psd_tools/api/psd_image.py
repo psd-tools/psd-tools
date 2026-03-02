@@ -54,7 +54,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, BinaryIO, Callable, Iterable, Literal
+from typing import Any, BinaryIO, Callable, Iterable, Literal, Sequence, cast
 
 from typing_extensions import Self
 
@@ -112,6 +112,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         self._record = data
         self._layers: list[layers.Layer] = []
         self._compatibility_mode = CompatibilityMode.DEFAULT
+        self._background_color: float | tuple[float, ...] | None = None
         self._updated: bool = False  # Flag to check if the layer tree is edited.
 
         self._psd = self  # For GroupMixin protocol compatibility.
@@ -122,7 +123,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         cls,
         mode: str,
         size: tuple[int, int],
-        color: int = 0,
+        color: int | Sequence[int] | float | tuple[float, ...] = 0,
         depth: Literal[8, 16, 32] = 8,
         **kwargs: Any,
     ) -> Self:
@@ -132,22 +133,33 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         :param mode: The color mode to use for the new image.
         :param size: A tuple containing (width, height) in pixels.
         :param color: What color to use for the image. Default is black.
+            Accepts integer values (0-255 for 8-bit) or float values in
+            [0.0, 1.0] range. The color is used both as the initial image
+            data fill and as the :py:attr:`~PSDImage.background_color`
+            compositing backdrop when saving.
+        :param depth: Bit depth (8, 16, or 32).
         :return: A :py:class:`~psd_tools.api.psd_image.PSDImage` object.
         """
         header = cls._make_header(mode, size, depth)
-        image_data = ImageData.new(header, color=color, **kwargs)
+        bg_color, fill_color = cls._parse_color(color, depth)
+        image_data = ImageData.new(header, color=fill_color, **kwargs)
         # TODO: Add default metadata.
-        return cls(
+        psdimage = cls(
             PSD(
                 header=header,
                 image_data=image_data,
                 image_resources=ImageResources.new(),
             )
         )
+        psdimage._background_color = bg_color
+        return psdimage
 
     @classmethod
     def frompil(
-        cls, image: Image.Image, compression: Compression = Compression.RLE
+        cls,
+        image: Image.Image,
+        compression: Compression = Compression.RLE,
+        color: int | Sequence[int] | float | tuple[float, ...] | None = None,
     ) -> Self:
         """
         Create a new layer-less PSD document from PIL Image.
@@ -155,6 +167,11 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         :param image: PIL Image object.
         :param compression: ImageData compression option. See
             :py:class:`~psd_tools.constants.Compression`.
+        :param color: Background color for the compositing backdrop when
+            saving. Accepts the same types as
+            :py:meth:`~PSDImage.new` ``color``. When set,
+            :py:meth:`~PSDImage.save` will composite layers against an
+            opaque backdrop of this color.
         :return: A :py:class:`~psd_tools.api.psd_image.PSDImage` object.
         """
         header = cls._make_header(image.mode, image.size)
@@ -162,13 +179,17 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         # TODO: Perhaps make this smart object.
         image_data = ImageData(compression=compression)
         image_data.set_data([channel.tobytes() for channel in image.split()], header)
-        return cls(
+        psdimage = cls(
             PSD(
                 header=header,
                 image_data=image_data,
                 image_resources=ImageResources.new(),
             )
         )
+        if color is not None:
+            bg_color, _ = cls._parse_color(color, header.depth)
+            psdimage._background_color = bg_color
+        return psdimage
 
     @classmethod
     def open(cls, fp: BinaryIO | str | bytes | os.PathLike, **kwargs: Any) -> Self:
@@ -203,10 +224,14 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         """
         if self.is_updated():
             # Update the preview image if the layer structure has been changed.
-            # TODO: Fill in a white background for the given color mode on failure.
             # TODO: Set a `has_composite` flag in VersionInfo resource.
             try:
-                composited_psd = self.composite().convert(self.pil_mode)
+                if self._background_color is not None:
+                    composited_psd = self.composite(
+                        color=self._background_color, alpha=1.0
+                    ).convert(self.pil_mode)
+                else:
+                    composited_psd = self.composite().convert(self.pil_mode)
                 self._record.image_data.set_data(
                     [channel.tobytes() for channel in composited_psd.split()],
                     self._record.header,
@@ -561,6 +586,48 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         self._compatibility_mode = value
 
     @property
+    def background_color(self) -> float | tuple[float, ...] | None:
+        """
+        Background color for the merged composite image. Writable.
+
+        When set, :py:meth:`~PSDImage.save` composites layers against an
+        opaque backdrop of this color instead of a transparent one. This is
+        useful for creating RGB-mode PSD files where transparent areas should
+        appear as a specific color (e.g., white) in the merged composite.
+
+        Values are in [0.0, 1.0] range, matching the
+        :py:meth:`~PSDImage.composite` ``color`` parameter:
+
+        - **RGB / Grayscale**: ``1.0`` = white, ``0.0`` = black
+        - **CMYK**: ``(0.0, 0.0, 0.0, 0.0)`` = white (no ink)
+
+        Use a scalar for uniform color or a tuple for per-channel values.
+        Default is ``None`` (transparent backdrop, current behavior).
+
+        :return: `float`, `tuple[float, ...]`, or `None`
+
+        Example::
+
+            psd = PSDImage.new('RGB', (640, 480), background_color=1.0)
+            psd.save('output.psd')  # White background, 3 channels (no alpha)
+        """
+        return self._background_color
+
+    @background_color.setter
+    def background_color(self, value: float | tuple[float, ...] | None) -> None:
+        if value is not None:
+            if isinstance(value, (int, float)):
+                value = float(value)
+            elif isinstance(value, tuple):
+                value = tuple(float(v) for v in value)
+            else:
+                raise TypeError(
+                    f"background_color must be float, tuple of floats, or None, "
+                    f"got {type(value).__name__}"
+                )
+        self._background_color = value
+
+    @property
     def pil_mode(self) -> str:
         alpha = self.channels - pil_io.get_pil_channels(
             pil_io.get_pil_mode(self.color_mode)
@@ -713,6 +780,32 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             channels=channels,
             color_mode=color_mode,
         )
+
+    @staticmethod
+    def _parse_color(
+        color: int | Sequence[int] | float | tuple[float, ...],
+        depth: int,
+    ) -> tuple[float | tuple[float, ...], int | Sequence[int]]:
+        """Parse color into (background_color, fill_color).
+
+        Returns a normalized float background_color for compositing and an
+        integer fill_color for ImageData, regardless of input type.
+
+        Float input is scaled to integer fill. Integer input is normalized to
+        [0.0, 1.0] float for the compositing backdrop.
+        """
+        max_val = {8: 255, 16: 65535, 32: 4294967295}[depth]
+        if isinstance(color, float):
+            return color, int(color * max_val)
+        if isinstance(color, tuple) and color and isinstance(color[0], float):
+            bg = tuple(float(c) for c in color)
+            fill: Sequence[int] = tuple(int(float(c) * max_val) for c in color)
+            return bg, fill
+        if isinstance(color, int):
+            return color / max_val, color
+        # Sequence[int] path
+        seq = cast("Sequence[int]", color)
+        return tuple(c / max_val for c in seq), seq
 
     def _get_pattern(self, pattern_id: str) -> Any | None:
         """Get pattern item by id."""
