@@ -602,13 +602,16 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         - **CMYK**: ``(0.0, 0.0, 0.0, 0.0)`` = white (no ink)
 
         Use a scalar for uniform color or a tuple for per-channel values.
-        Default is ``None`` (transparent backdrop, current behavior).
+        Set to ``None`` for transparent backdrop (legacy behavior).
+
+        Documents created via :py:meth:`~PSDImage.new` have this set
+        automatically from the ``color`` parameter.
 
         :return: `float`, `tuple[float, ...]`, or `None`
 
         Example::
 
-            psd = PSDImage.new('RGB', (640, 480), background_color=1.0)
+            psd = PSDImage.new('RGB', (640, 480), color=1.0)
             psd.save('output.psd')  # White background, 3 channels (no alpha)
         """
         return self._background_color
@@ -625,6 +628,8 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
                     f"background_color must be float, tuple of floats, or None, "
                     f"got {type(value).__name__}"
                 )
+        if self._background_color != value:
+            self._mark_updated()
         self._background_color = value
 
     @property
@@ -796,15 +801,35 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         """
         max_val = {8: 255, 16: 65535, 32: 4294967295}[depth]
         if isinstance(color, float):
-            return color, int(color * max_val)
+            if not 0.0 <= color <= 1.0:
+                raise ValueError(
+                    f"Float color {color!r} out of range. Expected [0.0, 1.0]."
+                )
+            return color, round(color * max_val)
         if isinstance(color, tuple) and color and isinstance(color[0], float):
             bg = tuple(float(c) for c in color)
-            fill: Sequence[int] = tuple(int(float(c) * max_val) for c in color)
+            for i, c in enumerate(bg):
+                if not 0.0 <= c <= 1.0:
+                    raise ValueError(
+                        f"Float color component at index {i} ({c!r}) out of "
+                        "range. Expected [0.0, 1.0]."
+                    )
+            fill: Sequence[int] = tuple(round(c * max_val) for c in bg)
             return bg, fill
         if isinstance(color, int):
+            if not 0 <= color <= max_val:
+                raise ValueError(
+                    f"Integer color {color!r} out of range. Expected [0, {max_val}]."
+                )
             return color / max_val, color
         # Sequence[int] path
         seq = cast("Sequence[int]", color)
+        for i, c in enumerate(seq):
+            if not 0 <= c <= max_val:
+                raise ValueError(
+                    f"Integer color component at index {i} ({c!r}) out of "
+                    f"range. Expected [0, {max_val}]."
+                )
         return tuple(c / max_val for c in seq), seq
 
     def _get_pattern(self, pattern_id: str) -> Any | None:
