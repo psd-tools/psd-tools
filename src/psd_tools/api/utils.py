@@ -2,15 +2,17 @@
 Utility functions for the API layer.
 """
 
+from __future__ import annotations
+
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from psd_tools.api.protocols import PSDProtocol
 
 from psd_tools.constants import ColorMode, Resource, Tag
 
-ColorInput = Union[int, float, Sequence[Union[int, float]]]
+ColorInput = int | float | Sequence[int | float]
 
 _DEPTH_MAX: dict[int, int] = {8: 255, 16: 65535, 32: 4294967295}
 
@@ -112,6 +114,8 @@ def _normalize_scalar(
     *float* values are expected to already be in ``[0.0, 1.0]``.
     """
     ctx = f" at index {index}" if index is not None else ""
+    if isinstance(value, bool):
+        raise TypeError(f"Bool color component{ctx} {value!r} is not supported.")
     if isinstance(value, float):
         if not 0.0 <= value <= 1.0:
             raise ValueError(
@@ -140,6 +144,8 @@ def _denormalize_scalar(
     *int* values are expected to already be in ``[0, max_val]``.
     """
     ctx = f" at index {index}" if index is not None else ""
+    if isinstance(value, bool):
+        raise TypeError(f"Bool color component{ctx} {value!r} is not supported.")
     if isinstance(value, float):
         if not 0.0 <= value <= 1.0:
             raise ValueError(

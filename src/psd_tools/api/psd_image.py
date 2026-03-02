@@ -134,10 +134,13 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         :param mode: The color mode to use for the new image.
         :param size: A tuple containing (width, height) in pixels.
         :param color: What color to use for the image. Default is black.
-            Accepts integer values (0-255 for 8-bit) or float values in
-            [0.0, 1.0] range. The color is used both as the initial image
-            data fill and as the :py:attr:`~PSDImage.background_color`
-            compositing backdrop when saving.
+            Accepts a single integer (0-255 for 8-bit) or float in the
+            [0.0, 1.0] range, or a sequence of per-channel values using
+            the same ranges (e.g., 3 values for ``"RGB"``, 4 for
+            ``"CMYK"``). Mixed int/float sequences are allowed. The color
+            is used both as the initial image data fill and as the
+            :py:attr:`~PSDImage.background_color` compositing backdrop
+            when saving.
         :param depth: Bit depth (8, 16, or 32).
         :return: A :py:class:`~psd_tools.api.psd_image.PSDImage` object.
         """

@@ -90,6 +90,10 @@ class TestNormalizeColor:
         with pytest.raises(TypeError, match="Bool"):
             normalize_color(True, 8)  # type: ignore[arg-type]
 
+    def test_bool_in_sequence_rejected(self) -> None:
+        with pytest.raises(TypeError, match="Bool"):
+            normalize_color((True, 0.5, 0.0), 8)
+
     def test_empty_sequence(self) -> None:
         with pytest.raises(ValueError, match="empty"):
             normalize_color((), 8)
@@ -170,6 +174,10 @@ class TestDenormalizeColor:
     def test_bool_rejected(self) -> None:
         with pytest.raises(TypeError, match="Bool"):
             denormalize_color(True, 8)  # type: ignore[arg-type]
+
+    def test_bool_in_sequence_rejected(self) -> None:
+        with pytest.raises(TypeError, match="Bool"):
+            denormalize_color((True, False, True), 8)
 
     def test_returns_tuple_for_sequence(self) -> None:
         result = denormalize_color([128], 8)
