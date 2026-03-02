@@ -304,14 +304,22 @@ def test_background_color_setter() -> None:
     psdimage.background_color = 128
     assert abs(psdimage.background_color - 128 / 255) < 1e-9  # type: ignore[operator]
 
+    # Mixed int/float sequence: each element dispatched by type
+    psdimage.background_color = (1.0, 128, 0.5)
+    expected = (1.0, 128 / 255, 0.5)
+    assert psdimage.background_color is not None
+    for a, b in zip(psdimage.background_color, expected):  # type: ignore[arg-type]
+        assert abs(a - b) < 1e-9
+
 
 def test_background_color_setter_invalid() -> None:
     """background_color setter rejects invalid types and out-of-range values."""
     psdimage = PSDImage.new("RGB", (16, 16))
     with pytest.raises(TypeError):
         psdimage.background_color = "white"  # type: ignore[assignment]
-    with pytest.raises(TypeError):
-        psdimage.background_color = [1.0, 0.5, 0.0]  # type: ignore[assignment]
+    # list input is now accepted (any Sequence works)
+    psdimage.background_color = [1.0, 0.5, 0.0]
+    assert psdimage.background_color == (1.0, 0.5, 0.0)
     # Out-of-range float
     with pytest.raises(ValueError):
         psdimage.background_color = 2.0

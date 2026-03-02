@@ -54,7 +54,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, BinaryIO, Callable, Iterable, Literal, Sequence, cast
+from typing import Any, BinaryIO, Callable, Iterable, Literal
 
 from typing_extensions import Self
 
@@ -63,6 +63,7 @@ from PIL import Image
 
 from psd_tools.api import adjustments, layers, numpy_io, pil_io
 from psd_tools.api.protocols import PSDProtocol
+from psd_tools.api.utils import ColorInput, denormalize_color, normalize_color
 from psd_tools.constants import (
     BlendMode,
     ChannelID,
@@ -123,7 +124,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         cls,
         mode: str,
         size: tuple[int, int],
-        color: int | Sequence[int] | float | tuple[float, ...] = 0,
+        color: ColorInput = 0,
         depth: Literal[8, 16, 32] = 8,
         **kwargs: Any,
     ) -> Self:
@@ -141,7 +142,8 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         :return: A :py:class:`~psd_tools.api.psd_image.PSDImage` object.
         """
         header = cls._make_header(mode, size, depth)
-        bg_color, fill_color = cls._parse_color(color, depth)
+        bg_color = normalize_color(color, depth)
+        fill_color = denormalize_color(color, depth)
         image_data = ImageData.new(header, color=fill_color, **kwargs)
         # TODO: Add default metadata.
         psdimage = cls(
@@ -159,7 +161,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         cls,
         image: Image.Image,
         compression: Compression = Compression.RLE,
-        color: int | Sequence[int] | float | tuple[float, ...] | None = None,
+        color: ColorInput | None = None,
     ) -> Self:
         """
         Create a new layer-less PSD document from PIL Image.
@@ -187,8 +189,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             )
         )
         if color is not None:
-            bg_color, _ = cls._parse_color(color, header.depth)
-            psdimage._background_color = bg_color
+            psdimage._background_color = normalize_color(color, header.depth)
         return psdimage
 
     @classmethod
@@ -619,16 +620,10 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
     @background_color.setter
     def background_color(
         self,
-        value: int | float | tuple[int | float, ...] | None,
+        value: ColorInput | None,
     ) -> None:
         if value is not None:
-            if not isinstance(value, (int, float, tuple)):
-                raise TypeError(
-                    f"background_color must be int, float, tuple, or None, "
-                    f"got {type(value).__name__}"
-                )
-            bg, _ = self._parse_color(value, self._record.header.depth)
-            value = bg
+            value = normalize_color(value, self._record.header.depth)
         if self._background_color != value:
             self._mark_updated()
         self._background_color = value
@@ -786,52 +781,6 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             channels=channels,
             color_mode=color_mode,
         )
-
-    @staticmethod
-    def _parse_color(
-        color: int | Sequence[int] | float | tuple[float, ...],
-        depth: int,
-    ) -> tuple[float | tuple[float, ...], int | Sequence[int]]:
-        """Parse color into (background_color, fill_color).
-
-        Returns a normalized float background_color for compositing and an
-        integer fill_color for ImageData, regardless of input type.
-
-        Float input is scaled to integer fill. Integer input is normalized to
-        [0.0, 1.0] float for the compositing backdrop.
-        """
-        max_val = {8: 255, 16: 65535, 32: 4294967295}[depth]
-        if isinstance(color, float):
-            if not 0.0 <= color <= 1.0:
-                raise ValueError(
-                    f"Float color {color!r} out of range. Expected [0.0, 1.0]."
-                )
-            return color, round(color * max_val)
-        if isinstance(color, tuple) and color and isinstance(color[0], float):
-            bg = tuple(float(c) for c in color)
-            for i, c in enumerate(bg):
-                if not 0.0 <= c <= 1.0:
-                    raise ValueError(
-                        f"Float color component at index {i} ({c!r}) out of "
-                        "range. Expected [0.0, 1.0]."
-                    )
-            fill: Sequence[int] = tuple(round(c * max_val) for c in bg)
-            return bg, fill
-        if isinstance(color, int):
-            if not 0 <= color <= max_val:
-                raise ValueError(
-                    f"Integer color {color!r} out of range. Expected [0, {max_val}]."
-                )
-            return color / max_val, color
-        # Sequence[int] path
-        seq = cast("Sequence[int]", color)
-        for i, c in enumerate(seq):
-            if not 0 <= c <= max_val:
-                raise ValueError(
-                    f"Integer color component at index {i} ({c!r}) out of "
-                    f"range. Expected [0, {max_val}]."
-                )
-        return tuple(c / max_val for c in seq), seq
 
     def _get_pattern(self, pattern_id: str) -> Any | None:
         """Get pattern item by id."""
