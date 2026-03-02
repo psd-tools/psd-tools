@@ -81,12 +81,14 @@ def get_transparency_index(psdimage: "PSDProtocol") -> int:
 # ---------------------------------------------------------------------------
 
 
-def _validate_color_input(color: ColorInput, depth: int) -> int:
+def _validate_color_input(
+    color: ColorInput, depth: int, color_mode: ColorMode | None = None
+) -> int:
     """Validate common preconditions and return max pixel value for *depth*.
 
     Raises :class:`TypeError` for ``bool``, ``str``, or other unsupported
-    types.  Raises :class:`ValueError` for unsupported *depth* or empty
-    sequences.
+    types.  Raises :class:`ValueError` for unsupported *depth*, empty
+    sequences, or wrong number of channels for *color_mode*.
     """
     if isinstance(color, bool):
         raise TypeError(f"Bool color {color!r} is not supported. Use int or float.")
@@ -98,8 +100,16 @@ def _validate_color_input(color: ColorInput, depth: int) -> int:
         raise ValueError(
             f"Unsupported bit depth {depth}. Expected one of {sorted(_DEPTH_MAX)}."
         ) from None
-    if isinstance(color, Sequence) and len(color) == 0:
-        raise ValueError("Color sequence must not be empty.")
+    if isinstance(color, Sequence):
+        if len(color) == 0:
+            raise ValueError("Color sequence must not be empty.")
+        if color_mode is not None:
+            expected = EXPECTED_CHANNELS.get(color_mode)
+            if expected is not None and len(color) != expected:
+                raise ValueError(
+                    f"Expected {expected} color channel(s) for {color_mode.name}, "
+                    f"got {len(color)}."
+                )
     return max_val
 
 
@@ -166,6 +176,7 @@ def _denormalize_scalar(
 def normalize_color(
     color: ColorInput,
     depth: int,
+    color_mode: ColorMode | None = None,
 ) -> float | tuple[float, ...]:
     """Convert *color* to normalized ``[0.0, 1.0]`` float(s).
 
@@ -178,7 +189,7 @@ def normalize_color(
     ``list``, or any :class:`~collections.abc.Sequence`) returns a
     ``tuple[float, ...]``.  Mixed int/float sequences are supported.
     """
-    max_val = _validate_color_input(color, depth)
+    max_val = _validate_color_input(color, depth, color_mode)
     if isinstance(color, (int, float)):
         return _normalize_scalar(color, max_val)
     return tuple(_normalize_scalar(c, max_val, i) for i, c in enumerate(color))
@@ -187,6 +198,7 @@ def normalize_color(
 def denormalize_color(
     color: ColorInput,
     depth: int,
+    color_mode: ColorMode | None = None,
 ) -> int | tuple[int, ...]:
     """Convert *color* to raw pixel integer(s).
 
@@ -199,7 +211,7 @@ def denormalize_color(
     ``list``, or any :class:`~collections.abc.Sequence`) returns a
     ``tuple[int, ...]``.  Mixed int/float sequences are supported.
     """
-    max_val = _validate_color_input(color, depth)
+    max_val = _validate_color_input(color, depth, color_mode)
     if isinstance(color, (int, float)):
         return _denormalize_scalar(color, max_val)
     return tuple(_denormalize_scalar(c, max_val, i) for i, c in enumerate(color))

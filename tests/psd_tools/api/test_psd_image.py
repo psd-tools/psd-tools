@@ -332,6 +332,39 @@ def test_background_color_setter_invalid() -> None:
         psdimage.background_color = (1.0, 1.5, 0.0)
 
 
+def test_background_color_setter_invalid_channel_count() -> None:
+    """background_color setter rejects sequences with wrong channel count."""
+    rgb = PSDImage.new("RGB", (16, 16))
+    # Too few channels for RGB (expects 3)
+    with pytest.raises(ValueError, match="Expected 3 color channel"):
+        rgb.background_color = (1.0, 0.5)
+    # Too many channels for RGB
+    with pytest.raises(ValueError, match="Expected 3 color channel"):
+        rgb.background_color = (1.0, 0.5, 0.3, 0.2)
+
+    cmyk = PSDImage.new("CMYK", (16, 16))
+    # Wrong count for CMYK (expects 4)
+    with pytest.raises(ValueError, match="Expected 4 color channel"):
+        cmyk.background_color = (0.0, 0.0, 0.0)
+
+    gray = PSDImage.new("L", (16, 16))
+    # Wrong count for Grayscale (expects 1)
+    with pytest.raises(ValueError, match="Expected 1 color channel"):
+        gray.background_color = (0.5, 0.5)
+
+    # Scalar input is always valid regardless of color mode
+    rgb.background_color = 1.0
+    assert rgb.background_color == 1.0
+
+    # Correct channel counts are accepted
+    rgb.background_color = (1.0, 0.5, 0.0)
+    assert rgb.background_color == (1.0, 0.5, 0.0)
+    cmyk.background_color = (0.0, 0.0, 0.0, 0.0)
+    assert cmyk.background_color == (0.0, 0.0, 0.0, 0.0)
+    gray.background_color = (0.5,)
+    assert gray.background_color == (0.5,)
+
+
 def test_new_with_float_color() -> None:
     """new() with float color fills ImageData and sets background_color."""
     psdimage = PSDImage.new("RGB", (4, 4), color=1.0)

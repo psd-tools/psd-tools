@@ -192,7 +192,9 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             )
         )
         if color is not None:
-            psdimage._background_color = normalize_color(color, header.depth)
+            psdimage._background_color = normalize_color(
+                color, header.depth, header.color_mode
+            )
         return psdimage
 
     @classmethod
@@ -626,7 +628,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         value: ColorInput | None,
     ) -> None:
         if value is not None:
-            value = normalize_color(value, self._record.header.depth)
+            value = normalize_color(value, self._record.header.depth, self.color_mode)
         if self._background_color != value:
             self._mark_updated()
         self._background_color = value
