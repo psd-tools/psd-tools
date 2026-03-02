@@ -385,7 +385,13 @@ def test_save_with_float_color_rgb(tmp_path: Path) -> None:
     loaded = PSDImage.open(output)
     assert loaded.channels == 3
     channels = loaded._record.image_data.get_data(loaded._record.header)
+    assert isinstance(channels, list)
     assert len(channels) == 3
+    # Corner pixel (31,31) is outside the 16x16 layer → pure white background
+    corner = 31 * 32 + 31
+    for ch in channels:
+        assert isinstance(ch, bytes)
+        assert ch[corner] == 255
 
 
 def test_save_with_float_color_grayscale(tmp_path: Path) -> None:
@@ -402,7 +408,12 @@ def test_save_with_float_color_grayscale(tmp_path: Path) -> None:
     loaded = PSDImage.open(output)
     assert loaded.channels == 1
     channels = loaded._record.image_data.get_data(loaded._record.header)
+    assert isinstance(channels, list)
     assert len(channels) == 1
+    # Corner pixel (31,31) is outside the 16x16 layer → pure white background
+    corner = 31 * 32 + 31
+    assert isinstance(channels[0], bytes)
+    assert channels[0][corner] == 255
 
 
 def test_save_with_float_color_cmyk(tmp_path: Path) -> None:
@@ -420,7 +431,14 @@ def test_save_with_float_color_cmyk(tmp_path: Path) -> None:
     assert loaded.channels == 4
     assert loaded.color_mode == ColorMode.CMYK
     channels = loaded._record.image_data.get_data(loaded._record.header)
+    assert isinstance(channels, list)
     assert len(channels) == 4
+    # Corner pixel (31,31) is outside the 16x16 layer → white backdrop.
+    # PSD stores CMYK inverted: 255 = no ink = white.
+    corner = 31 * 32 + 31
+    for ch in channels:
+        assert isinstance(ch, bytes)
+        assert ch[corner] == 255
 
 
 def test_save_with_float_color_rgba(tmp_path: Path) -> None:
