@@ -1,6 +1,15 @@
 Changelog
 =========
 
+1.14.0 (2026-03-03)
+-------------------
+
+- [api] Add ``PSDImage.background_color`` property for reading and writing document background color (#586)
+- [api] Add high-level typesetting API for ``TypeLayer`` text manipulation (#579)
+- [fix] Update contributing link from master to main branch (#580)
+- [chore] Bump sphinx-rtd-theme from 3.0.2 to 3.1.0, ruff from 0.15.2 to 0.15.4
+- [ci] Bump actions/upload-artifact from 6 to 7, actions/download-artifact from 7 to 8
+
 1.13.1 (2026-02-27)
 -------------------
 
