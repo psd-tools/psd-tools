@@ -270,3 +270,238 @@ def test_save_rgba_pixel_layer(tmp_path: Path):
 
     # check that the updated preview image has the expected number of channels
     assert len(psd._record.image_data.get_data(psd._record.header)) == 4
+
+
+# --- background_color tests ---
+
+
+def test_background_color_default() -> None:
+    """background_color defaults to 0.0 (black) matching the default color=0."""
+    psdimage = PSDImage.new("RGB", (16, 16))
+    assert psdimage.background_color == 0.0
+
+
+def test_background_color_setter() -> None:
+    """background_color setter accepts float, tuple, int, and None."""
+    psdimage = PSDImage.new("RGB", (16, 16))
+
+    psdimage.background_color = 1.0
+    assert psdimage.background_color == 1.0
+
+    psdimage.background_color = (1.0, 0.5, 0.0)
+    assert psdimage.background_color == (1.0, 0.5, 0.0)
+
+    psdimage.background_color = None
+    assert psdimage.background_color is None
+
+    # int is normalized as pixel value via document depth (8-bit: /255)
+    psdimage.background_color = 255
+    assert psdimage.background_color == 1.0
+
+    psdimage.background_color = 0
+    assert psdimage.background_color == 0.0
+
+    psdimage.background_color = 128
+    assert abs(psdimage.background_color - 128 / 255) < 1e-9  # type: ignore[operator]
+
+    # Mixed int/float sequence: each element dispatched by type
+    psdimage.background_color = (1.0, 128, 0.5)
+    expected = (1.0, 128 / 255, 0.5)
+    assert psdimage.background_color is not None
+    for a, b in zip(psdimage.background_color, expected):  # type: ignore[arg-type]
+        assert abs(a - b) < 1e-9
+
+    # list input accepted (any Sequence works)
+    psdimage.background_color = [1.0, 0.5, 0.0]
+    assert psdimage.background_color == (1.0, 0.5, 0.0)
+
+
+def test_background_color_setter_invalid() -> None:
+    """background_color setter rejects invalid types and out-of-range values."""
+    psdimage = PSDImage.new("RGB", (16, 16))
+    with pytest.raises(TypeError):
+        psdimage.background_color = "white"  # type: ignore[assignment]
+    # Out-of-range float
+    with pytest.raises(ValueError):
+        psdimage.background_color = 2.0
+    # Out-of-range int for 8-bit depth
+    with pytest.raises(ValueError):
+        psdimage.background_color = 256  # type: ignore[assignment]
+    # Out-of-range tuple component
+    with pytest.raises(ValueError):
+        psdimage.background_color = (1.0, 1.5, 0.0)
+
+
+def test_background_color_setter_invalid_channel_count() -> None:
+    """background_color setter rejects sequences with wrong channel count."""
+    rgb = PSDImage.new("RGB", (16, 16))
+    # Too few channels for RGB (expects 3)
+    with pytest.raises(ValueError, match="Expected 3 color channel"):
+        rgb.background_color = (1.0, 0.5)
+    # Too many channels for RGB
+    with pytest.raises(ValueError, match="Expected 3 color channel"):
+        rgb.background_color = (1.0, 0.5, 0.3, 0.2)
+
+    cmyk = PSDImage.new("CMYK", (16, 16))
+    # Wrong count for CMYK (expects 4)
+    with pytest.raises(ValueError, match="Expected 4 color channel"):
+        cmyk.background_color = (0.0, 0.0, 0.0)
+
+    gray = PSDImage.new("L", (16, 16))
+    # Wrong count for Grayscale (expects 1)
+    with pytest.raises(ValueError, match="Expected 1 color channel"):
+        gray.background_color = (0.5, 0.5)
+
+    # Scalar input is always valid regardless of color mode
+    rgb.background_color = 1.0
+    assert rgb.background_color == 1.0
+
+    # Correct channel counts are accepted
+    rgb.background_color = (1.0, 0.5, 0.0)
+    assert rgb.background_color == (1.0, 0.5, 0.0)
+    cmyk.background_color = (0.0, 0.0, 0.0, 0.0)
+    assert cmyk.background_color == (0.0, 0.0, 0.0, 0.0)
+    gray.background_color = (0.5,)
+    assert gray.background_color == (0.5,)
+
+
+def test_new_with_float_color() -> None:
+    """new() with float color fills ImageData and sets background_color."""
+    psdimage = PSDImage.new("RGB", (4, 4), color=1.0)
+    assert psdimage.background_color == 1.0
+    channels = psdimage._record.image_data.get_data(psdimage._record.header)
+    assert isinstance(channels, list)
+    # All 3 RGB channels should be filled with 255 (white)
+    for ch in channels:
+        assert all(b == 255 for b in ch)
+
+
+def test_new_with_float_color_tuple() -> None:
+    """new() with float tuple color fills per-channel and sets background_color."""
+    psdimage = PSDImage.new("RGB", (4, 4), color=(1.0, 0.0, 0.0))
+    assert psdimage.background_color == (1.0, 0.0, 0.0)
+    channels = psdimage._record.image_data.get_data(psdimage._record.header)
+    assert isinstance(channels, list)
+    assert all(b == 255 for b in channels[0])  # R = 255
+    assert all(b == 0 for b in channels[1])  # G = 0
+    assert all(b == 0 for b in channels[2])  # B = 0
+
+
+def test_new_with_int_color() -> None:
+    """new() with int color sets background_color (normalized to float)."""
+    psdimage = PSDImage.new("RGB", (4, 4), color=128)
+    assert abs(psdimage.background_color - 128 / 255) < 1e-9  # type: ignore[operator]
+    channels = psdimage._record.image_data.get_data(psdimage._record.header)
+    assert isinstance(channels, list)
+    for ch in channels:
+        assert all(b == 128 for b in ch)
+
+
+def test_frompil_with_color(tmp_path: Path) -> None:
+    """frompil() with color stores background_color and affects save() composite."""
+    image = Image.new("RGB", (16, 16), (128, 128, 128))
+    psdimage = PSDImage.frompil(image, color=0.5)
+    assert psdimage.background_color == 0.5
+
+    # Round-trip: fully transparent RGBA image with white backdrop.
+    rgba = Image.new("RGBA", (4, 4), (0, 0, 0, 0))
+    psdimage = PSDImage.frompil(rgba, color=1.0)
+    output = tmp_path / "frompil_bg.psd"
+    psdimage.save(str(output))
+    reloaded = PSDImage.open(output)
+    channels = reloaded._record.image_data.get_data(reloaded._record.header)
+    assert len(channels) == 4  # RGBA
+    # Transparent pixels blended over white backdrop -> all white, fully opaque.
+    for ch in channels:
+        assert isinstance(ch, bytes)
+        assert ch[0] == 255
+
+
+def test_save_with_float_color_rgb(tmp_path: Path) -> None:
+    """Save RGB PSD with white float color produces correct output."""
+    psdimage = PSDImage.new("RGB", (32, 32), color=1.0)
+    psdimage.create_pixel_layer(
+        Image.new("RGBA", (16, 16), (255, 0, 0, 128)),
+        name="Red Layer",
+    )
+
+    output = tmp_path / "bg_white_rgb.psd"
+    psdimage.save(str(output))
+
+    loaded = PSDImage.open(output)
+    assert loaded.channels == 3
+    channels = loaded._record.image_data.get_data(loaded._record.header)
+    assert isinstance(channels, list)
+    assert len(channels) == 3
+    # Corner pixel (31,31) is outside the 16x16 layer → pure white background
+    corner = 31 * 32 + 31
+    for ch in channels:
+        assert isinstance(ch, bytes)
+        assert ch[corner] == 255
+
+
+def test_save_with_float_color_grayscale(tmp_path: Path) -> None:
+    """Save Grayscale PSD with white float color."""
+    psdimage = PSDImage.new("L", (32, 32), color=1.0)
+    psdimage.create_pixel_layer(
+        Image.new("LA", (16, 16), (0, 128)),
+        name="Dark Layer",
+    )
+
+    output = tmp_path / "bg_white_gray.psd"
+    psdimage.save(str(output))
+
+    loaded = PSDImage.open(output)
+    assert loaded.channels == 1
+    channels = loaded._record.image_data.get_data(loaded._record.header)
+    assert isinstance(channels, list)
+    assert len(channels) == 1
+    # Corner pixel (31,31) is outside the 16x16 layer → pure white background
+    corner = 31 * 32 + 31
+    assert isinstance(channels[0], bytes)
+    assert channels[0][corner] == 255
+
+
+def test_save_with_float_color_cmyk(tmp_path: Path) -> None:
+    """Save CMYK PSD with white background (no ink)."""
+    psdimage = PSDImage.new("CMYK", (32, 32), color=(0.0, 0.0, 0.0, 0.0))
+    psdimage.create_pixel_layer(
+        Image.new("CMYK", (16, 16), (255, 0, 0, 0)),
+        name="Cyan Layer",
+    )
+
+    output = tmp_path / "bg_white_cmyk.psd"
+    psdimage.save(str(output))
+
+    loaded = PSDImage.open(output)
+    assert loaded.channels == 4
+    assert loaded.color_mode == ColorMode.CMYK
+    channels = loaded._record.image_data.get_data(loaded._record.header)
+    assert isinstance(channels, list)
+    assert len(channels) == 4
+    # Corner pixel (31,31) is outside the 16x16 layer → white backdrop.
+    # PSD stores CMYK inverted: 255 = no ink = white.
+    corner = 31 * 32 + 31
+    for ch in channels:
+        assert isinstance(ch, bytes)
+        assert ch[corner] == 255
+
+
+def test_save_with_float_color_rgba(tmp_path: Path) -> None:
+    """Save RGBA PSD with float color produces all-opaque alpha."""
+    psdimage = PSDImage.new("RGBA", (32, 32), color=1.0)
+    psdimage.create_pixel_layer(
+        Image.new("RGBA", (16, 16), (255, 0, 0, 128)),
+        name="Red Layer",
+    )
+
+    output = tmp_path / "bg_white_rgba.psd"
+    psdimage.save(str(output))
+
+    loaded = PSDImage.open(output)
+    assert loaded.channels == 4
+    channels = loaded._record.image_data.get_data(loaded._record.header)
+    assert isinstance(channels, list)
+    assert len(channels) == 4
+    # Alpha channel (index 3) should be all 255 (fully opaque)
+    assert all(b == 255 for b in channels[3])

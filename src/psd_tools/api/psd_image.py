@@ -54,6 +54,7 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Sequence
 from typing import Any, BinaryIO, Callable, Iterable, Literal
 
 from typing_extensions import Self
@@ -63,6 +64,12 @@ from PIL import Image
 
 from psd_tools.api import adjustments, layers, numpy_io, pil_io
 from psd_tools.api.protocols import PSDProtocol
+from psd_tools.api.utils import (
+    EXPECTED_CHANNELS,
+    ColorInput,
+    denormalize_color,
+    normalize_color,
+)
 from psd_tools.constants import (
     BlendMode,
     ChannelID,
@@ -112,6 +119,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         self._record = data
         self._layers: list[layers.Layer] = []
         self._compatibility_mode = CompatibilityMode.DEFAULT
+        self._background_color: float | tuple[float, ...] | None = None
         self._updated: bool = False  # Flag to check if the layer tree is edited.
 
         self._psd = self  # For GroupMixin protocol compatibility.
@@ -122,7 +130,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         cls,
         mode: str,
         size: tuple[int, int],
-        color: int = 0,
+        color: ColorInput = 0,
         depth: Literal[8, 16, 32] = 8,
         **kwargs: Any,
     ) -> Self:
@@ -132,22 +140,44 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         :param mode: The color mode to use for the new image.
         :param size: A tuple containing (width, height) in pixels.
         :param color: What color to use for the image. Default is black.
+            Accepts a single integer (0-255 for 8-bit) or float in the
+            [0.0, 1.0] range, or a sequence of per-channel values using
+            the same ranges (e.g., 3 values for ``"RGB"``, 4 for
+            ``"CMYK"``). Mixed int/float sequences are allowed. The color
+            is used both as the initial image data fill and as the
+            :py:attr:`~PSDImage.background_color` compositing backdrop
+            when saving.
+        :param depth: Bit depth (8, 16, or 32).
         :return: A :py:class:`~psd_tools.api.psd_image.PSDImage` object.
         """
         header = cls._make_header(mode, size, depth)
-        image_data = ImageData.new(header, color=color, **kwargs)
+        # Strip alpha channel(s) from color for background_color since
+        # composite() only expects color channels (alpha is separate).
+        bg_input: ColorInput = color
+        if isinstance(color, Sequence):
+            expected = EXPECTED_CHANNELS.get(header.color_mode)
+            if expected is not None and len(color) > expected:
+                bg_input = tuple(color[:expected])
+        bg_color = normalize_color(bg_input, depth, header.color_mode)
+        fill_color = denormalize_color(color, depth)
+        image_data = ImageData.new(header, color=fill_color, **kwargs)
         # TODO: Add default metadata.
-        return cls(
+        psdimage = cls(
             PSD(
                 header=header,
                 image_data=image_data,
                 image_resources=ImageResources.new(),
             )
         )
+        psdimage._background_color = bg_color
+        return psdimage
 
     @classmethod
     def frompil(
-        cls, image: Image.Image, compression: Compression = Compression.RLE
+        cls,
+        image: Image.Image,
+        compression: Compression = Compression.RLE,
+        color: ColorInput | None = None,
     ) -> Self:
         """
         Create a new layer-less PSD document from PIL Image.
@@ -155,6 +185,11 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         :param image: PIL Image object.
         :param compression: ImageData compression option. See
             :py:class:`~psd_tools.constants.Compression`.
+        :param color: Background color for the compositing backdrop when
+            saving. Accepts the same types as
+            :py:meth:`~PSDImage.new` ``color``. When set,
+            :py:meth:`~PSDImage.save` will composite layers against an
+            opaque backdrop of this color.
         :return: A :py:class:`~psd_tools.api.psd_image.PSDImage` object.
         """
         header = cls._make_header(image.mode, image.size)
@@ -162,13 +197,16 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         # TODO: Perhaps make this smart object.
         image_data = ImageData(compression=compression)
         image_data.set_data([channel.tobytes() for channel in image.split()], header)
-        return cls(
+        psdimage = cls(
             PSD(
                 header=header,
                 image_data=image_data,
                 image_resources=ImageResources.new(),
             )
         )
+        if color is not None:
+            psdimage.background_color = color
+        return psdimage
 
     @classmethod
     def open(cls, fp: BinaryIO | str | bytes | os.PathLike, **kwargs: Any) -> Self:
@@ -203,10 +241,14 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         """
         if self.is_updated():
             # Update the preview image if the layer structure has been changed.
-            # TODO: Fill in a white background for the given color mode on failure.
             # TODO: Set a `has_composite` flag in VersionInfo resource.
             try:
-                composited_psd = self.composite().convert(self.pil_mode)
+                if self._background_color is not None:
+                    composited_psd = self.composite(
+                        color=self._background_color, alpha=1.0
+                    ).convert(self.pil_mode)
+                else:
+                    composited_psd = self.composite().convert(self.pil_mode)
                 self._record.image_data.set_data(
                     [channel.tobytes() for channel in composited_psd.split()],
                     self._record.header,
@@ -559,6 +601,48 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         if self._compatibility_mode != value:
             self._mark_updated()
         self._compatibility_mode = value
+
+    @property
+    def background_color(self) -> float | tuple[float, ...] | None:
+        """
+        Background color for the merged composite image. Writable.
+
+        When set, :py:meth:`~PSDImage.save` composites layers against an
+        opaque backdrop of this color instead of a transparent one. This is
+        useful for creating RGB-mode PSD files where transparent areas should
+        appear as a specific color (e.g., white) in the merged composite.
+
+        Values are in [0.0, 1.0] range, matching the
+        :py:meth:`~PSDImage.composite` ``color`` parameter:
+
+        - **RGB / Grayscale**: ``1.0`` = white, ``0.0`` = black
+        - **CMYK**: ``(0.0, 0.0, 0.0, 0.0)`` = white (no ink)
+
+        Use a scalar for uniform color or a tuple for per-channel values.
+        Set to ``None`` for transparent backdrop (legacy behavior).
+
+        Documents created via :py:meth:`~PSDImage.new` have this set
+        automatically from the ``color`` parameter.
+
+        :return: `float`, `tuple[float, ...]`, or `None`
+
+        Example::
+
+            psd = PSDImage.new('RGB', (640, 480), color=1.0)
+            psd.save('output.psd')  # White background, 3 channels (no alpha)
+        """
+        return self._background_color
+
+    @background_color.setter
+    def background_color(
+        self,
+        value: ColorInput | None,
+    ) -> None:
+        if value is not None:
+            value = normalize_color(value, self._record.header.depth, self.color_mode)
+        if self._background_color != value:
+            self._mark_updated()
+        self._background_color = value
 
     @property
     def pil_mode(self) -> str:
