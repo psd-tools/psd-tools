@@ -80,10 +80,11 @@ def composite_pil(
     # when the backdrop is fully opaque (the result is guaranteed opaque).
     delay_alpha_application = color_mode not in (ColorMode.GRAYSCALE, ColorMode.RGB)
     has_opaque_backdrop = (
-        isinstance(backdrop_alpha, (int, float)) and backdrop_alpha >= 1.0
+        isinstance(backdrop_alpha, (int, float, np.integer, np.floating))
+        and backdrop_alpha >= 1.0
     )
     skip_alpha = not force and (delay_alpha_application or has_opaque_backdrop)
-    logger.debug("Skipping alpha: %g" % skip_alpha)
+    logger.debug("Skipping alpha: %s", skip_alpha)
     if not skip_alpha:
         color = np.concatenate((color, alpha), 2)
         mode += "A"
