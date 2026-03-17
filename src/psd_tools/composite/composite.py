@@ -125,11 +125,9 @@ def composite(
 
     Args:
         group: Layer or PSDImage to composite
-        color: Initial backdrop color (0.0-1.0, default: 1.0). Can be:
-            - Scalar (float): Applied to all channels
-            - Tuple: Per-channel values (R,G,B or C,M,Y,K)
-            - ndarray: Full backdrop image
-        alpha: Initial backdrop alpha (0.0-1.0, default: 0.0). Can be scalar or ndarray
+        color: Initial backdrop color (0.0-1.0, default: 1.0). Can be a scalar
+            float applied to all channels, a tuple of per-channel values, or an ndarray.
+        alpha: Initial backdrop alpha (0.0-1.0, default: 0.0). Can be scalar or ndarray.
         viewport: Bounding box (left, top, right, bottom) to composite. If None, uses layer bounds
         layer_filter: Optional callable(layer) -> bool to filter which layers to composite
         force: If True, force re-rendering of all layers including vector shapes and fills
@@ -153,12 +151,10 @@ def composite(
         >>> color, shape, alpha = composite(psd, layer_filter=lambda l: l.visible)
 
     Note:
-        - Requires optional composite dependencies (aggdraw, scipy, scikit-image) for:
-            - Vector shape rendering (aggdraw)
-            - Gradient fills (scipy)
-            - Layer effects (scikit-image)
-        - Adjustment layers have limited support
-        - Text rendering is not supported (text layers show as raster if available)
+        - Requires optional composite dependencies (aggdraw, scipy, scikit-image)
+          for vector shape rendering, gradient fills, and layer effects.
+        - Adjustment layers have limited support.
+        - Text rendering is not supported (text layers show as raster if available).
     """
     if viewport is None:
         if isinstance(group, PSDImage):
