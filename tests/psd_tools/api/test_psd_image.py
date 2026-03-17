@@ -505,3 +505,27 @@ def test_save_with_float_color_rgba(tmp_path: Path) -> None:
     assert len(channels) == 4
     # Alpha channel (index 3) should be all 255 (fully opaque)
     assert all(b == 255 for b in channels[3])
+
+
+def test_composite_preserves_alpha_for_transparent_psd(tmp_path: Path) -> None:
+    """composite() should return RGBA when re-compositing a transparent PSD.
+
+    Regression test for https://github.com/psd-tools/psd-tools/issues/592
+    """
+    psd = PSDImage.new("RGBA", (16, 16))
+    psd.create_pixel_layer(
+        Image.new("RGBA", (16, 16), (255, 0, 0, 128)),
+        name="Red Semi-transparent",
+    )
+    output = tmp_path / "transparent.psd"
+    psd.save(str(output))
+
+    loaded = PSDImage.open(output)
+    # ignore_preview forces compositing from layers instead of using the
+    # stored merged preview, which may lack alpha.
+    result = loaded.composite(ignore_preview=True)
+    assert result.mode == "RGBA"
+
+    # force=True should also produce RGBA
+    result_forced = loaded.composite(force=True)
+    assert result_forced.mode == "RGBA"

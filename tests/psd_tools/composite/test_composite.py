@@ -172,10 +172,10 @@ def test_composite_viewport() -> None:
         ("bitmap", 1, "1", True, False),
         ("cmyk", 8, "CMYK", True, False),
         ("duotone", 8, "LA", True, False),
-        ("grayscale", 8, "L", True, False),
+        ("grayscale", 8, "LA", True, False),
         ("index_color", 8, "RGBA", True, False),
-        ("rgb", 8, "RGB", True, False),
-        ("rgba", 8, "RGB", True, False),  # Extra alpha is not transparency
+        ("rgb", 8, "RGBA", True, False),
+        ("rgba", 8, "RGBA", True, False),
         ("lab", 8, "LAB", True, False),
         ("multichannel", 16, "LA", True, False),
         ("cmyk", 8, "RGBA", True, True),
