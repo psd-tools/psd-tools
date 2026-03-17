@@ -1,6 +1,12 @@
 Changelog
 =========
 
+1.14.1 (2026-03-17)
+-------------------
+
+- [fix] Preserve alpha channel when compositing from layers (#593, fixes #592)
+- [chore] Bump ruff from 0.15.4 to 0.15.6, pypa/cibuildwheel from 3.3.1 to 3.4.0
+
 1.14.0 (2026-03-03)
 -------------------
 
