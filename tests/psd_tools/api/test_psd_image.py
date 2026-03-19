@@ -529,3 +529,88 @@ def test_composite_preserves_alpha_for_transparent_psd(tmp_path: Path) -> None:
     # force=True should also produce RGBA
     result_forced = loaded.composite(force=True)
     assert result_forced.mode == "RGBA"
+
+
+def _save_psd_with_negative_layer_count(
+    tmp_path: Path,
+    size: tuple[int, int] = (16, 16),
+) -> Path:
+    """Create an RGBA PSD with negative layer_count (Photoshop transparency signal).
+
+    Per the PSD spec, a negative layer_count means the first alpha channel
+    in the merged image data contains transparency for the composite.
+    """
+    psd = PSDImage.new("RGBA", size)
+    layer_img = Image.new("RGBA", (8, 8), (255, 0, 0, 128))
+    psd.create_pixel_layer(layer_img, name="partial", top=4, left=4)
+    li = psd._record.layer_and_mask_information.layer_info
+    assert li is not None
+    li.layer_count = -abs(li.layer_count)
+    output = tmp_path / "negative_layer_count.psd"
+    psd.save(str(output))
+    return output
+
+
+def test_has_transparency_negative_layer_count(tmp_path: Path) -> None:
+    """has_transparency() returns True when layer_count is negative."""
+    from psd_tools.api.utils import has_transparency
+
+    output = _save_psd_with_negative_layer_count(tmp_path)
+    loaded = PSDImage.open(output)
+    assert has_transparency(loaded) is True
+
+
+def test_has_transparency_positive_layer_count(tmp_path: Path) -> None:
+    """has_transparency() returns False for a normal PSD without transparency tags."""
+    from psd_tools.api.utils import has_transparency
+
+    psd = PSDImage.new("RGBA", (16, 16))
+    psd.create_pixel_layer(Image.new("RGBA", (16, 16), (255, 0, 0, 255)), name="opaque")
+    output = tmp_path / "positive_layer_count.psd"
+    psd.save(str(output))
+
+    loaded = PSDImage.open(output)
+    li = loaded._record.layer_and_mask_information.layer_info
+    assert li is not None and li.layer_count > 0
+    assert has_transparency(loaded) is False
+
+
+def test_get_transparency_index_negative_layer_count(tmp_path: Path) -> None:
+    """get_transparency_index() returns the first alpha channel index
+    when layer_count is negative."""
+    from psd_tools.api.utils import get_transparency_index
+
+    output = _save_psd_with_negative_layer_count(tmp_path)
+    loaded = PSDImage.open(output)
+    # RGB has 3 expected channels, so the transparency channel is at index 3
+    assert get_transparency_index(loaded) == 3
+
+
+def test_composite_preview_rgba_with_negative_layer_count(tmp_path: Path) -> None:
+    """Default composite() returns RGBA when layer_count is negative.
+
+    This is the user-facing bug from #592: composite() used the stored preview
+    but dropped the alpha channel because has_transparency() returned False.
+    """
+    output = _save_psd_with_negative_layer_count(tmp_path)
+    loaded = PSDImage.open(output)
+
+    # Default path (uses stored preview)
+    result = loaded.composite()
+    assert result.mode == "RGBA"
+
+    # ignore_preview path (re-composites from layers)
+    result_recomp = loaded.composite(ignore_preview=True)
+    assert result_recomp.mode == "RGBA"
+
+
+def test_composite_preview_rgb_with_positive_layer_count(tmp_path: Path) -> None:
+    """Default composite() returns RGB for a normal PSD without transparency."""
+    psd = PSDImage.new("RGBA", (16, 16))
+    psd.create_pixel_layer(Image.new("RGBA", (16, 16), (255, 0, 0, 255)), name="opaque")
+    output = tmp_path / "positive_layer_count.psd"
+    psd.save(str(output))
+
+    loaded = PSDImage.open(output)
+    result = loaded.composite()
+    assert result.mode == "RGB"
