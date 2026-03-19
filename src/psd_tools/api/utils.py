@@ -44,15 +44,17 @@ def has_transparency(psdimage: "PSDProtocol") -> bool:
     )
     if psdimage.tagged_blocks and any(key in psdimage.tagged_blocks for key in keys):
         return True
+    # Per the PSD spec, a negative layer_count means the first alpha channel
+    # in the merged image data contains transparency for the composite.
+    layer_info = psdimage._record.layer_and_mask_information.layer_info
+    if layer_info is not None and layer_info.layer_count < 0:
+        return True
     expected = EXPECTED_CHANNELS.get(psdimage.color_mode)
     if expected is not None and psdimage.channels > expected:
         alpha_ids = psdimage.image_resources.get_data(Resource.ALPHA_IDENTIFIERS)
         if alpha_ids and all(x > 0 for x in alpha_ids):
             return False
-        if (
-            psdimage._record.layer_and_mask_information.layer_info is not None
-            and psdimage._record.layer_and_mask_information.layer_info.layer_count > 0
-        ):
+        if layer_info is not None and layer_info.layer_count > 0:
             return False
         return True
     return False
@@ -66,6 +68,12 @@ def get_transparency_index(psdimage: "PSDProtocol") -> int:
     Returns:
         The index of the transparency channel, or -1 if not found
     """
+    # When layer_count is negative, the first alpha channel is transparency.
+    layer_info = psdimage._record.layer_and_mask_information.layer_info
+    if layer_info is not None and layer_info.layer_count < 0:
+        expected = EXPECTED_CHANNELS.get(psdimage.color_mode)
+        if expected is not None and psdimage.channels > expected:
+            return expected
     alpha_ids = psdimage.image_resources.get_data(Resource.ALPHA_IDENTIFIERS)
     if alpha_ids:
         try:
@@ -73,7 +81,7 @@ def get_transparency_index(psdimage: "PSDProtocol") -> int:
             return psdimage.channels - len(alpha_ids) + offset
         except ValueError:
             pass
-    return -1  # Assume the last channel is the transparency
+    return -1
 
 
 # ---------------------------------------------------------------------------
