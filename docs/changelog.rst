@@ -1,6 +1,11 @@
 Changelog
 =========
 
+1.14.2 (2026-03-19)
+-------------------
+
+- [fix] Detect transparency from negative ``layer_count`` in preview path (#595)
+
 1.14.1 (2026-03-17)
 -------------------
 
