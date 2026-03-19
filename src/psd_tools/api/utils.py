@@ -47,9 +47,14 @@ def has_transparency(psdimage: "PSDProtocol") -> bool:
     # Per the PSD spec, a negative layer_count means the first alpha channel
     # in the merged image data contains transparency for the composite.
     layer_info = psdimage._record.layer_and_mask_information.layer_info
-    if layer_info is not None and layer_info.layer_count < 0:
-        return True
     expected = EXPECTED_CHANNELS.get(psdimage.color_mode)
+    if (
+        layer_info is not None
+        and layer_info.layer_count < 0
+        and expected is not None
+        and psdimage.channels > expected
+    ):
+        return True
     if expected is not None and psdimage.channels > expected:
         alpha_ids = psdimage.image_resources.get_data(Resource.ALPHA_IDENTIFIERS)
         if alpha_ids and all(x > 0 for x in alpha_ids):

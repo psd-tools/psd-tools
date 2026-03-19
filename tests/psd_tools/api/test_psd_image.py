@@ -533,16 +533,15 @@ def test_composite_preserves_alpha_for_transparent_psd(tmp_path: Path) -> None:
 
 def _save_psd_with_negative_layer_count(
     tmp_path: Path,
-    color_mode: str = "RGBA",
     size: tuple[int, int] = (16, 16),
 ) -> Path:
-    """Create a PSD with negative layer_count (Photoshop transparency signal).
+    """Create an RGBA PSD with negative layer_count (Photoshop transparency signal).
 
     Per the PSD spec, a negative layer_count means the first alpha channel
     in the merged image data contains transparency for the composite.
     """
-    psd = PSDImage.new(color_mode, size)
-    layer_img = Image.new(color_mode, (8, 8), (255, 0, 0, 128))
+    psd = PSDImage.new("RGBA", size)
+    layer_img = Image.new("RGBA", (8, 8), (255, 0, 0, 128))
     psd.create_pixel_layer(layer_img, name="partial", top=4, left=4)
     li = psd._record.layer_and_mask_information.layer_info
     assert li is not None
