@@ -274,20 +274,10 @@ def test_composite_pixel_layer_with_vector_stroke() -> None:
 
 
 def test_composite_mixed_colorspace_stroke() -> None:
-    """Regression test for issue #397: ValueError on vector layer with CMYK stroke + Grayscale fill.
-
-    Fixture is not shipped with the repo (>500 KB). Download ``minimal.zip``
-    from https://github.com/psd-tools/psd-tools/issues/397 and place the
-    extracted PSD at ``tests/psd_files/issues/issue397.psd``.
-    """
-    import os
-
+    """Regression test for issue #397: ValueError on vector layer with CMYK stroke + Grayscale fill."""
     from psd_tools.api.layers import GroupMixin
 
-    fixture = full_name("issues/issue397.psd")
-    if not os.path.exists(fixture):
-        pytest.skip("fixture tests/psd_files/issues/issue397.psd not present")
-    psd = PSDImage.open(fixture)
+    psd = PSDImage.open(full_name("issues/issue397.psd"))
     psd.composite()
     for layer in psd:
         if isinstance(layer, GroupMixin):
