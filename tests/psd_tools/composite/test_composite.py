@@ -271,3 +271,15 @@ def test_composite_pixel_layer_with_vector_stroke() -> None:
     reference = composite(psd, force=True)
     result = composite(psd)
     assert _mse(reference[0], result[0]) <= 0.01
+
+
+def test_composite_mixed_colorspace_stroke() -> None:
+    """Regression test for issue #397: ValueError on vector layer with CMYK stroke + Grayscale fill."""
+    from psd_tools.api.layers import GroupMixin
+
+    psd = PSDImage.open(full_name("issues/issue397.psd"))
+    psd.composite()
+    for layer in psd:
+        if isinstance(layer, GroupMixin):
+            for sublayer in layer:
+                sublayer.composite()

@@ -76,7 +76,7 @@ def _get_color(color_mode, desc) -> tuple[float, ...]:
     def rgb_to_cmyk(r, g, b) -> tuple[float, ...]:
         if (r, g, b) == (0, 0, 0):
             # black
-            return (0.0, 0.0, 0.0)
+            return (0.0, 0.0, 0.0, 1.0)
         c = 1 - r
         m = 1 - g
         y = 1 - b
@@ -90,12 +90,18 @@ def _get_color(color_mode, desc) -> tuple[float, ...]:
 
     def _get_rgb(color_mode, color_desc):
         if Key.Red in color_desc:
-            return _get_int_color(color_desc, (Key.Red, Key.Green, Key.Blue))
+            rgb = _get_int_color(color_desc, (Key.Red, Key.Green, Key.Blue))
         else:
-            return tuple(
+            rgb = tuple(
                 float(color_desc[key])
                 for key in (Key.RedFloat, Key.GreenFloat, Key.BlueFloat)
             )
+        if color_mode == ColorMode.CMYK:
+            return rgb_to_cmyk(*rgb)
+        if color_mode == ColorMode.GRAYSCALE:
+            r, g, b = rgb
+            return (0.299 * r + 0.587 * g + 0.114 * b,)
+        return rgb
 
     def _get_hsb(color_mode, color_desc):
         hue = float(color_desc[Key.Hue]) / 300.0
@@ -109,10 +115,26 @@ def _get_color(color_mode, desc) -> tuple[float, ...]:
         raise ValueError("Unexpected color mode for HSB color %s" % (color_mode))
 
     def _get_gray(color_mode, x):
-        return _get_invert_color(x, (Key.Gray,))
+        (gray,) = _get_invert_color(x, (Key.Gray,))
+        if color_mode == ColorMode.RGB:
+            return (gray, gray, gray)
+        if color_mode == ColorMode.CMYK:
+            return (0.0, 0.0, 0.0, 1.0 - gray)
+        return (gray,)
 
     def _get_cmyk(color_mode, x):
-        return _get_invert_color(x, (Key.Cyan, Key.Magenta, Key.Yellow, Key.Black))
+        c, m, y, k = _get_invert_color(
+            x, (Key.Cyan, Key.Magenta, Key.Yellow, Key.Black)
+        )
+        if color_mode in (ColorMode.RGB, ColorMode.GRAYSCALE):
+            r = (1.0 - c) * (1.0 - k)
+            g = (1.0 - m) * (1.0 - k)
+            b = (1.0 - y) * (1.0 - k)
+        if color_mode == ColorMode.RGB:
+            return (r, g, b)
+        if color_mode == ColorMode.GRAYSCALE:
+            return (0.299 * r + 0.587 * g + 0.114 * b,)
+        return (c, m, y, k)
 
     def _get_lab(color_mode, x):
         return _get_int_color(x, (Key.Luminance, Key.A, Key.B))
