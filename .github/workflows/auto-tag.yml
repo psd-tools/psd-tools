@@ -57,9 +57,9 @@ jobs:
             if git push origin "$VERSION"; then
               echo "Created and pushed tag $VERSION"
             else
-              # Handle race condition: another run may have pushed the tag first
+              # If the tag now exists on origin, treat it as already present and skip.
               if git ls-remote --tags origin "refs/tags/$VERSION" | grep -q .; then
-                echo "Tag $VERSION was already pushed by a concurrent run, skipping."
+                echo "Tag $VERSION already exists on origin, skipping."
               else
                 echo "Failed to push tag $VERSION"
                 exit 1
