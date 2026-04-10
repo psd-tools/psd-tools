@@ -235,7 +235,10 @@ class ImageResource(BaseElement):
 
     .. py:attribute:: signature
 
-        Binary signature, always ``b'8BIM'``.
+        Binary signature. Usually ``b'8BIM'``, but some resources use
+        alternative signatures such as ``b'MeSa'`` (e.g.,
+        :py:attr:`~psd_tools.constants.Resource.IMAGE_READY_VARIABLES`),
+        ``b'AgHg'``, ``b'PHUT'``, or ``b'DCSR'``.
 
     .. py:attribute:: key
 
