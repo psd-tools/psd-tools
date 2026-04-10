@@ -1683,14 +1683,23 @@ class PixelLayer(Layer):
         Create a PixelLayer from a PIL image for a given psd file.
 
         :param image: The :py:class:`~PIL.Image.Image` object to convert to photoshop
-        :param psdimage: The target psdimage the image will be converted for.
+        :param parent: The parent group or PSDImage this layer belongs to.
         :param name: The name of the layer. Defaults to "Layer"
         :param top: Pixelwise offset from the top of the canvas for the new layer.
         :param left: Pixelwise offset from the left of the canvas for the new layer.
         :param compression: Compression algorithm to use for the data.
 
         :return: A :py:class:`~psd_tools.api.layers.PixelLayer` object
-        :raises TypeError: If image is not a PIL Image or parent is None
+        :raises TypeError: If image is not a PIL Image
+        :raises ValueError: If parent is None
+
+        .. note::
+            If the image has an alpha channel and the parent PSD mode supports
+            layer transparency (e.g. RGBA, LA), the alpha is stored as the
+            layer transparency channel and no extra mask is created.  For PSD
+            modes that do not carry a transparency band (e.g. RGB, CMYK), the
+            alpha channel is instead stored as a pixel mask
+            (``USER_LAYER_MASK``).
         """
         if not isinstance(image, Image.Image):
             raise TypeError(f"Expected PIL Image, got {type(image).__name__}")
@@ -1719,8 +1728,11 @@ class PixelLayer(Layer):
         self = cls(parent, layer_record, channel_data_list)
         parent.append(self)
 
-        # Automatically create a mask from the alpha channel if present.
-        if "A" in original_image.getbands():
+        # Only create a mask if alpha was present in the original image but is
+        # NOT preserved in the converted image (e.g. RGB-mode PSD with RGBA
+        # input). For alpha-capable PSD modes (RGBA, LA) the alpha is already
+        # stored as the transparency channel, so no extra mask is needed.
+        if "A" in original_image.getbands() and "A" not in image.getbands():
             self.create_mask(
                 original_image, top=top, left=left, compression=compression
             )

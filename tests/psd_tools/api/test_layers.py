@@ -496,6 +496,33 @@ def test_frompil_auto_mask_from_rgba() -> None:
     assert mask_pil.getpixel((0, 0)) == 200
 
 
+def test_frompil_rgba_psd_no_mask() -> None:
+    # Issue #607: RGBA-mode PSD should store alpha as transparency channel,
+    # not as an extra USER_LAYER_MASK.
+    psdimage = PSDImage.new(mode="RGBA", size=(4, 4))
+    img = Image.new("RGBA", (4, 4), (255, 0, 0, 128))
+    layer = psdimage.create_pixel_layer(img, name="draw")
+    assert not layer.has_mask()
+    # Alpha must be preserved in the layer's transparency channel.
+    layer_pil = layer.topil()
+    assert layer_pil is not None
+    assert layer_pil.mode == "RGBA"
+    assert layer_pil.getchannel("A").getpixel((0, 0)) == 128
+
+
+def test_frompil_la_psd_no_mask() -> None:
+    # Same check for LA-mode PSD.
+    psdimage = PSDImage.new(mode="LA", size=(4, 4))
+    img = Image.new("LA", (4, 4), (200, 128))
+    layer = psdimage.create_pixel_layer(img, name="draw")
+    assert not layer.has_mask()
+    # Alpha must be preserved in the layer's transparency channel.
+    layer_pil = layer.topil()
+    assert layer_pil is not None
+    assert layer_pil.mode == "LA"
+    assert layer_pil.getchannel("A").getpixel((0, 0)) == 128
+
+
 def test_create_mask_round_trip(tmp_path: Any) -> None:
     psdimage = PSDImage.new(mode="RGB", size=(30, 30))
     layer = psdimage.create_pixel_layer(Image.new("RGB", (30, 30)))
