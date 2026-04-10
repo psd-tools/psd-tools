@@ -85,8 +85,12 @@ must be configured:
 - ``PYPI_USERNAME`` / ``PYPI_PASSWORD``: PyPI credentials for publishing.
 
 1. **Decide the version number** following `PEP 440 <https://peps.python.org/pep-0440/>`_
-   based on the changes since the last release (e.g. ``v1.2.3`` or
-   ``v1.2.3.post1`` for post-releases).
+   based on the changes since the last release. The auto-tag workflow
+   recognises these forms:
+
+   - ``v1.2.3`` — standard release
+   - ``v1.2.3a1``, ``v1.2.3b1``, ``v1.2.3rc1`` — pre-releases (alpha, beta, release candidate)
+   - ``v1.2.3.post1`` — post-release
 
 2. **Update the changelog**: Review ``git log`` since the last tag and
    summarize changes in ``docs/changelog.rst`` under the new version heading.
