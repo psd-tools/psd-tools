@@ -142,12 +142,6 @@ from psd_tools.terminology import Key
 
 logger = logging.getLogger(__name__)
 
-# NOTE: _MISSING is a sentinel used by Artboard.composite() to detect when
-# color/alpha were not supplied by the caller. The type: ignore[assignment]
-# on those parameters suppresses the mypy complaint that _MISSING is not a
-# valid float/ndarray — a real contract difference from Group.composite()
-# that would need a widened base signature to resolve cleanly.
-_MISSING = object()
 
 TGroupMixin = TypeVar("TGroupMixin", bound="GroupMixin")
 
@@ -1625,8 +1619,8 @@ class Artboard(Group):
         self,
         viewport: tuple[int, int, int, int] | None = None,
         force: bool = False,
-        color: float | tuple[float, ...] | np.ndarray = _MISSING,  # type: ignore[assignment]
-        alpha: float | np.ndarray = _MISSING,  # type: ignore[assignment]
+        color: float | tuple[float, ...] | np.ndarray | None = None,
+        alpha: float | np.ndarray | None = None,
         layer_filter: Callable | None = None,
         apply_icc: bool = True,
     ) -> Image.Image | None:
@@ -1638,11 +1632,11 @@ class Artboard(Group):
         (``artboardBackgroundType`` and ``Clr`` descriptor) and uses the
         missing value or values as the compositing backdrop.
         """
-        if color is _MISSING or alpha is _MISSING:
+        if color is None or alpha is None:
             artboard_color, artboard_alpha = self._artboard_background_defaults()
-            if color is _MISSING:
+            if color is None:
                 color = artboard_color
-            if alpha is _MISSING:
+            if alpha is None:
                 alpha = artboard_alpha
         # NOTE: The lower-level psd_tools.composite.composite(artboard) function
         # does not inject artboard background.
