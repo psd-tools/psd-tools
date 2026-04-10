@@ -32,7 +32,7 @@ jobs:
 
           # ── Exemptions ────────────────────────────────────────────────────
           exempt-issue-labels: 'bug,enhancement,pinned,security'
-          exempt-pr-labels: 'pinned,security'
+          exempt-pr-labels: 'pinned,security,awaiting-review'
           exempt-draft-pr: true
 
           # ── Messages ──────────────────────────────────────────────────────
