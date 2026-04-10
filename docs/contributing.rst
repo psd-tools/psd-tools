@@ -75,35 +75,35 @@ Once installed, use `Makefile`::
 Release Process
 ---------------
 
-Releases are automated via GitHub Actions. To create a new release:
+Releases are automated via GitHub Actions. Only maintainers with appropriate
+repository permissions can trigger releases. PyPI credentials are stored as
+repository secrets.
 
-1. **Ensure all changes are committed and pushed to main**::
+1. **Decide the version number** following `semver <https://semver.org/>`_
+   based on the changes since the last release.
 
-    git checkout main
-    git pull origin main
+2. **Update the changelog**: Review ``git log`` since the last tag and
+   summarize changes in ``docs/changelog.rst`` under the new version heading.
 
-2. **Create and push a version tag**::
+3. **Create a release PR**: Create a branch named ``release/vX.Y.Z``, commit
+   the changelog update (and any version bumps), and open a PR against
+   ``main``. Merge it once approved.
 
-    git tag v1.x.x
-    git push origin v1.x.x
-
-3. **Automated workflow**:
-
-   Once the tag is pushed, the release workflow automatically:
+4. **Automated tagging and publishing**: Merging the release PR triggers the
+   ``auto-tag`` workflow, which tags the exact merge commit that landed on
+   ``main`` (using ``merge_commit_sha``) and pushes the tag. This in turn
+   triggers the ``release`` workflow, which:
 
    - Builds wheels for all supported platforms (Linux, Windows, macOS including ARM)
    - Generates release notes from git commits since the previous tag
    - Creates a GitHub release with the auto-generated changelog
    - Publishes the package to PyPI
 
-4. **Verify the release**:
+5. **Verify the release**:
 
    - Check the `Actions tab <https://github.com/psd-tools/psd-tools/actions>`_ for workflow status
    - Verify the `release on GitHub <https://github.com/psd-tools/psd-tools/releases>`_
    - Confirm the package is available on `PyPI <https://pypi.org/project/psd-tools/>`_
-
-**Note**: Only maintainers with appropriate repository permissions can push tags
-and trigger releases. PyPI credentials are stored as repository secrets.
 
 Acknowledgments
 ---------------
