@@ -1076,15 +1076,24 @@ class ChannelDataList(ListElement):
     ) -> T_ChannelDataList:
         items = []
         for c in channel_info:
-            if c.length < 2:
-                # length < 2 means no channel data in the standard location
+            if c.length == 0:
+                # length=0 means no channel data in the standard location
                 # (e.g. pixel data is stored in a tagged block). Don't read.
                 # Note: on save, this channel will be written as a minimal
                 # ChannelData (compression header only, length=2), which
                 # differs from the original length=0. This is still a valid
                 # PSD representation per spec; byte-identical round-tripping
                 # is not guaranteed for these channels.
-                logger.debug("  channel %s: length=%d, skipping read", c.id, c.length)
+                logger.debug("  channel %s: length=0, skipping read", c.id)
+                items.append(ChannelData())
+            elif c.length == 1:
+                # length=1 is malformed (spec requires 0 or >=2). Consume the
+                # stray byte to keep the file pointer aligned, then fall back
+                # to an empty ChannelData so parsing can continue.
+                logger.warning(
+                    "  channel %s: length=1 is invalid, skipping 1 byte", c.id
+                )
+                fp.read(1)
                 items.append(ChannelData())
             else:
                 items.append(ChannelData.read(fp, c.length - 2, **kwargs))
@@ -1121,9 +1130,14 @@ class ChannelData(BaseElement):
     ) -> T_ChannelData:
         compression = Compression(read_fmt("H", fp)[0])
         # length is c.length - 2 (the 2-byte compression header is excluded).
-        # Clamp to 0: a negative value would cause fp.read() to consume until
-        # EOF, corrupting the file pointer for subsequent channels.
-        data = fp.read(max(0, length))
+        # A negative value here indicates an upstream logic error; warn and
+        # clamp to 0 rather than letting fp.read(negative) consume until EOF.
+        if length < 0:
+            logger.warning(
+                "ChannelData.read: negative length %d, clamping to 0", length
+            )
+            length = 0
+        data = fp.read(length)
         return cls(compression=compression, data=data)
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:

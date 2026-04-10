@@ -288,6 +288,36 @@ def test_channel_data() -> None:
     check_write_read(ChannelData(data=b"\xff" * 8), length=8)
 
 
+def test_channel_data_list_zero_length_channel() -> None:
+    """Zero-length channel must not advance the file pointer (issue #398).
+
+    Channels with length=0 store their pixel data in a tagged block rather
+    than the standard channel image data section.  The parser must skip them
+    without reading any bytes so subsequent channels are parsed correctly.
+    """
+    # Build a stream containing two normal channels (RAW, 2 bytes each)
+    # preceded by one zero-length channel.  The zero-length entry must be
+    # skipped entirely; if even 1 byte is consumed the stream goes out of
+    # sync and the subsequent reads will fail or return wrong data.
+    normal_data = b"\x00\x00"  # Compression=RAW (0x0000), no payload
+    stream = io.BytesIO(normal_data + normal_data)
+
+    channel_info = [
+        ChannelInfo(id=0, length=0),  # zero-length: no bytes in stream
+        ChannelInfo(id=1, length=2),  # normal: 2 bytes (compression only)
+        ChannelInfo(id=2, length=2),  # normal: 2 bytes (compression only)
+    ]
+    result = ChannelDataList.read(stream, channel_info)
+
+    assert len(result) == 3  # type: ignore[arg-type]
+    assert stream.read() == b"", "file pointer should be at end of stream"
+    # The zero-length channel produces a default ChannelData
+    assert result[0].data == b""  # type: ignore[index]
+    # Subsequent channels were parsed without desync
+    assert result[1].compression == Compression.RAW  # type: ignore[index]
+    assert result[2].compression == Compression.RAW  # type: ignore[index]
+
+
 RAW_IMAGE_3x3_8bit = b"\x00\x01\x02\x01\x01\x01\x01\x00\x00"
 RAW_IMAGE_2x2_16bit = b"\x00\x01\x00\x02\x00\x03\x00\x04"
 
