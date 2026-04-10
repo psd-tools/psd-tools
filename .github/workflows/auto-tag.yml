@@ -9,7 +9,11 @@ on:
 jobs:
   check:
     name: Extract version from branch name
-    if: github.event.pull_request.merged == true
+    # Only run for merged PRs from the same repo (not forks) to prevent
+    # untrusted code from triggering a PyPI publish via a forked PR.
+    if: |
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions: {}
     outputs:
@@ -19,7 +23,10 @@ jobs:
         id: extract
         run: |
           BRANCH="${{ github.event.pull_request.head.ref }}"
-          VERSION=$(echo "$BRANCH" | grep -oP '^release/\K(v\d+\.\d+\.\d+)$' || true)
+          VERSION=""
+          if [[ "$BRANCH" =~ ^release/(v[0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            VERSION="${BASH_REMATCH[1]}"
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
   tag:
@@ -33,6 +40,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.merge_commit_sha }}
+          # A PAT is required because tags pushed with GITHUB_TOKEN do not
+          # trigger downstream workflows (e.g. release.yml).
+          token: ${{ secrets.RELEASE_WORKFLOW_TOKEN }}
 
       - name: Create and push tag
         env:

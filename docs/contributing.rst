@@ -76,8 +76,13 @@ Release Process
 ---------------
 
 Releases are automated via GitHub Actions. Only maintainers with appropriate
-repository permissions can trigger releases. PyPI credentials are stored as
-repository secrets.
+repository permissions can trigger releases. The following repository secrets
+must be configured:
+
+- ``RELEASE_WORKFLOW_TOKEN``: a fine-grained PAT with ``contents: write``,
+  required so that the tag pushed by ``auto-tag.yml`` triggers the downstream
+  ``release.yml`` workflow (the default ``GITHUB_TOKEN`` cannot do this).
+- ``PYPI_USERNAME`` / ``PYPI_PASSWORD``: PyPI credentials for publishing.
 
 1. **Decide the version number** following `semver <https://semver.org/>`_
    based on the changes since the last release.
@@ -85,9 +90,10 @@ repository secrets.
 2. **Update the changelog**: Review ``git log`` since the last tag and
    summarize changes in ``docs/changelog.rst`` under the new version heading.
 
-3. **Create a release PR**: Create a branch named ``release/vX.Y.Z``, commit
-   the changelog update (and any version bumps), and open a PR against
-   ``main``. Merge it once approved.
+3. **Create a release PR**: Create a branch named exactly ``release/vX.Y.Z``
+   (e.g. ``release/v1.15.0``), commit the changelog update (and any version
+   bumps), and open a PR against ``main``. Merge it once approved. The branch
+   name is how the auto-tag workflow identifies the version to tag.
 
 4. **Automated tagging and publishing**: Merging the release PR triggers the
    ``auto-tag`` workflow, which tags the exact merge commit that landed on
