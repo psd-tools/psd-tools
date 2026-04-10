@@ -75,4 +75,4 @@ jobs:
           # Log statistics for each run
           enable-statistics: true
 
-          debug-only: false
+          debug-only: true
