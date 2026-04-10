@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/stale@v9
+      - uses: actions/stale@v10
         with:
           # ── Timing ────────────────────────────────────────────────────────
           days-before-issue-stale: 120
@@ -69,10 +69,7 @@ jobs:
           # Remove stale label when issue/PR receives new activity
           remove-stale-when-updated: true
 
-          # Do not mark bot issues/PRs as stale
-          exempt-all-bots: true
-
           # Log statistics for each run
           enable-statistics: true
 
-          debug-only: true
+          debug-only: false
