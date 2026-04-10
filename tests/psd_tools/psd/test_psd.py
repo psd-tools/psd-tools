@@ -15,7 +15,7 @@ BAD_PADDINGS = {
 
 # Files that do not conform to Adobe's spec (non-standard padding, broken
 # structure) are excluded from byte-for-byte round-trip testing.
-# Semantic round-trip (write → read → assertEqual) is covered for all
+# Semantic round-trip (write → read → equality check) is covered for all
 # files by test_psd_write_read via check_write_read.
 SKIP_BYTE_ROUND_TRIP = {
     "group-clipping.psd",  # Known broken file
