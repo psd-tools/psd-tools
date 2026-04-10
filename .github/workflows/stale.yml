@@ -1,0 +1,78 @@
+name: Mark stale issues and PRs
+
+on:
+  schedule:
+    # Run at 02:00 UTC every Monday
+    - cron: '0 2 * * 1'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    name: Stale issues and pull requests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/stale@v9
+        with:
+          # ── Timing ────────────────────────────────────────────────────────
+          days-before-issue-stale: 120
+          days-before-issue-close: 21
+          days-before-pr-stale: 45
+          days-before-pr-close: 21
+
+          # ── Labels ────────────────────────────────────────────────────────
+          stale-issue-label: 'stale'
+          stale-pr-label: 'stale'
+          close-issue-label: 'auto-closed'
+          close-issue-reason: 'not_planned'
+
+          # ── Exemptions ────────────────────────────────────────────────────
+          exempt-issue-labels: 'bug,enhancement,pinned,security'
+          exempt-pr-labels: 'pinned,security'
+          exempt-draft-pr: true
+
+          # ── Messages ──────────────────────────────────────────────────────
+          stale-issue-message: |
+            This issue has been marked as stale because it has had no activity for 120 days.
+
+            If this is still relevant, please comment with updated details — ideally:
+            - psd-tools version
+            - Python version
+            - a minimal reproducible script
+            - a sample PSD/PSB file or screenshot, if applicable
+
+            Issues that remain inactive for 21 more days will be closed to keep triage manageable.
+
+          stale-pr-message: |
+            This pull request has been marked as stale due to inactivity for 45 days.
+
+            If you plan to continue it, please leave a comment or push an update. If it is waiting on maintainer review, add or request an `awaiting-review` label so it is not auto-closed.
+
+          close-issue-message: |
+            Closing due to inactivity after the stale notice.
+
+            If you can reproduce this on a current release and have updated repro details, feel free to open a new issue and link this one.
+
+          close-pr-message: |
+            Closing this pull request due to inactivity after the stale notice.
+
+            If you would like to continue this work, please open a new PR from a freshly rebased branch and reference this one. Thank you for contributing to psd-tools!
+
+          # ── Operational limits ────────────────────────────────────────────
+          # Limits per run — avoids burst notifications on first run
+          operations-per-run: 50
+
+          # Remove stale label when issue/PR receives new activity
+          remove-stale-when-updated: true
+
+          # Do not mark bot issues/PRs as stale
+          exempt-all-bots: true
+
+          # Log statistics for each run
+          enable-statistics: true
+
+          debug-only: false
