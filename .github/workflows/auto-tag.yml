@@ -11,6 +11,7 @@ jobs:
     name: Extract version from branch name
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+    permissions: {}
     outputs:
       version: ${{ steps.extract.outputs.version }}
     steps:
