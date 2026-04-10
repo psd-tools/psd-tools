@@ -10,22 +10,30 @@ from ..utils import TEST_ROOT, all_files, check_write_read
 BAD_PADDINGS = {
     "1layer.psd": 1,
     "2layers.psd": 2,
-    "broken-groups.psd": 2,
     "transparentbg-gimp.psd": 2,
 }
 
-BAD_UNICODE_PADDINGS = {
-    "broken-groups.psd": 2,  # Unicode aligns 2 byte.
-    "unicode_pathname.psd": 2,  # DescriptorBlock aligns 2 byte.
-    "unicode_pathname.psb": 2,  # DescriptorBlock aligns 2 byte.
+# Files that do not conform to Adobe's spec (non-standard padding, broken
+# structure) are excluded from byte-for-byte round-trip testing.
+# Semantic round-trip (write → read → equality check) is covered for all
+# files by test_psd_write_read via check_write_read.
+SKIP_BYTE_ROUND_TRIP = {
+    "group-clipping.psd",  # Known broken file
+    "broken-groups.psd",  # 2-byte Unicode padding (non-Adobe tool)
+    "unicode_pathname.psd",  # 2-byte DescriptorBlock padding
+    "unicode_pathname.psb",  # 2-byte DescriptorBlock padding
 }
 
 
-@pytest.mark.parametrize("filename", all_files())
+# Verifies byte-for-byte reproduction for spec-conforming files.
+# BAD_PADDINGS handles files from non-Adobe tools that use non-standard
+# padding but are otherwise valid. Non-conforming files are excluded via
+# SKIP_BYTE_ROUND_TRIP and covered semantically by test_psd_write_read.
+@pytest.mark.parametrize(
+    "filename",
+    [f for f in all_files() if os.path.basename(f) not in SKIP_BYTE_ROUND_TRIP],
+)
 def test_psd_read_write(filename: str) -> None:
-    if os.path.basename(filename) == "group-clipping.psd":
-        pytest.xfail("Known broken file")
-
     basename = os.path.basename(filename)
     with open(filename, "rb") as f:
         expected = f.read()
@@ -39,8 +47,6 @@ def test_psd_read_write(filename: str) -> None:
         f.flush()
         output = f.getvalue()
 
-    if basename in BAD_UNICODE_PADDINGS:
-        pytest.xfail("Broken file")
     assert len(output) == len(expected)
     assert output == expected
 
