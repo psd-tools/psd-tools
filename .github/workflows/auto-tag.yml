@@ -1,0 +1,51 @@
+name: Auto Tag Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  auto-tag:
+    name: Tag if release branch was merged
+    # Only run when the PR was actually merged (not just closed)
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from branch name
+        id: extract
+        run: |
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          VERSION=$(echo "$BRANCH" | grep -oP '^release/\K(v\d+\.\d+\.\d+)$' || true)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create and push tag
+        if: steps.extract.outputs.version != ''
+        env:
+          VERSION: ${{ steps.extract.outputs.version }}
+        run: |
+          if git rev-parse "refs/tags/$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists, skipping."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag "$VERSION"
+            if git push origin "$VERSION"; then
+              echo "Created and pushed tag $VERSION"
+            else
+              # Handle race condition: another run may have pushed the tag first
+              if git ls-remote --tags origin "refs/tags/$VERSION" | grep -q .; then
+                echo "Tag $VERSION was already pushed by a concurrent run, skipping."
+              else
+                echo "Failed to push tag $VERSION"
+                exit 1
+              fi
+            fi
+          fi

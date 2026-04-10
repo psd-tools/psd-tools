@@ -62,6 +62,18 @@ uv run --group docs make -C docs html
 # Output in docs/_build/html/
 ```
 
+## Release Workflow
+
+1. **Decide the version number** following [semver](https://semver.org/) based on the changes since the last release.
+
+1. **Update the changelog**: Review `git log` since the last tag and summarize changes in `docs/changelog.rst` under the new version heading.
+
+1. **Create a release PR**: Commit the changelog update (and any version bumps) and open a PR against `main`. Merge it once approved.
+
+1. **Tag and publish**: After the release PR is merged, the `auto-tag` workflow (`.github/workflows/auto-tag.yml`) fires on the `pull_request: closed` event and extracts the version directly from the branch name (`release/vX.Y.Z`). It then creates and pushes the tag, which triggers the `release` workflow to build wheels, create a GitHub release, and publish to PyPI.
+
+   This works for all merge strategies (merge commit, squash, rebase). No manual tagging is needed.
+
 ## Architecture Overview
 
 ### Two-Layer Design
