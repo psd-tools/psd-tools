@@ -24,7 +24,7 @@ jobs:
         run: |
           BRANCH="${{ github.event.pull_request.head.ref }}"
           VERSION=""
-          if [[ "$BRANCH" =~ ^release/(v[0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+          if [[ "$BRANCH" =~ ^release/(v[0-9]+\.[0-9]+\.[0-9]+(\.post[0-9]+)?)$ ]]; then
             VERSION="${BASH_REMATCH[1]}"
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT

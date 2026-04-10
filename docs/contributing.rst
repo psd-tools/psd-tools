@@ -84,8 +84,9 @@ must be configured:
   ``release.yml`` workflow (the default ``GITHUB_TOKEN`` cannot do this).
 - ``PYPI_USERNAME`` / ``PYPI_PASSWORD``: PyPI credentials for publishing.
 
-1. **Decide the version number** following `semver <https://semver.org/>`_
-   based on the changes since the last release.
+1. **Decide the version number** following `PEP 440 <https://peps.python.org/pep-0440/>`_
+   based on the changes since the last release (e.g. ``v1.2.3`` or
+   ``v1.2.3.post1`` for post-releases).
 
 2. **Update the changelog**: Review ``git log`` since the last tag and
    summarize changes in ``docs/changelog.rst`` under the new version heading.
