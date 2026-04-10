@@ -126,17 +126,72 @@ class VectorMask(object):
         Bounding box tuple (left, top, right, bottom) in relative coordinates,
         where top-left corner is (0., 0.) and bottom-right corner is (1., 1.).
 
+        The bounding box accounts for the full extent of all cubic Bezier
+        curves, not just the anchor points.
+
         :return: `tuple`
         """
-        from itertools import chain
+        import math
 
-        knots = [
-            (knot.anchor[1], knot.anchor[0]) for knot in chain.from_iterable(self.paths)
-        ]
-        if len(knots) == 0:
+        def _bezier_extrema(p0: float, p1: float, p2: float, p3: float) -> list[float]:
+            """Return t values in (0, 1) where the cubic Bezier has extrema."""
+            a = -p0 + 3 * p1 - 3 * p2 + p3
+            b = 2 * (p0 - 2 * p1 + p2)
+            c = p1 - p0
+            ts = []
+            if abs(a) < 1e-12:
+                if abs(b) > 1e-12:
+                    t = -c / b
+                    if 0.0 < t < 1.0:
+                        ts.append(t)
+            else:
+                disc = b * b - 4 * a * c
+                if disc >= -1e-12:
+                    sq = math.sqrt(max(0.0, disc))
+                    for t in ((-b + sq) / (2 * a), (-b - sq) / (2 * a)):
+                        if 0.0 < t < 1.0:
+                            ts.append(t)
+            return ts
+
+        def _bezier_eval(p0: float, p1: float, p2: float, p3: float, t: float) -> float:
+            u = 1.0 - t
+            return u**3 * p0 + 3 * u**2 * t * p1 + 3 * u * t**2 * p2 + t**3 * p3
+
+        xs: list[float] = []
+        ys: list[float] = []
+
+        for path in self.paths:
+            knots = list(path)
+            if len(knots) == 0:
+                continue
+            # For a single-knot open path there are no segments, but we still
+            # need to include the anchor point in the bounding box.
+            if len(knots) == 1 and not path.is_closed():
+                xs.append(knots[0].anchor[1])
+                ys.append(knots[0].anchor[0])
+                continue
+            pairs = (
+                zip(knots, knots[1:] + knots[:1])
+                if path.is_closed()
+                else zip(knots, knots[1:])
+            )
+            for k0, k1 in pairs:
+                # anchor = (y, x); leaving/preceding = (y, x)
+                x0, y0 = k0.anchor[1], k0.anchor[0]
+                x1, y1 = k0.leaving[1], k0.leaving[0]
+                x2, y2 = k1.preceding[1], k1.preceding[0]
+                x3, y3 = k1.anchor[1], k1.anchor[0]
+
+                xs.extend([x0, x3])
+                ys.extend([y0, y3])
+                for t in _bezier_extrema(x0, x1, x2, x3):
+                    xs.append(_bezier_eval(x0, x1, x2, x3, t))
+                for t in _bezier_extrema(y0, y1, y2, y3):
+                    ys.append(_bezier_eval(y0, y1, y2, y3, t))
+
+        if not xs:
             return (0.0, 0.0, 1.0, 1.0)
-        x, y = zip(*knots)
-        return (min(x), min(y), max(x), max(y))
+        return (min(xs), min(ys), max(xs), max(ys))
 
     def __repr__(self) -> str:
         bbox = self.bbox
