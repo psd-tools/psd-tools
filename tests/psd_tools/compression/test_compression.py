@@ -212,3 +212,44 @@ def test_decompress_invalid_dimensions_raises(bad_kwarg: dict) -> None:
     params.update(bad_kwarg)
     with pytest.raises(ValueError):
         decompress(b"\x00" * 16, Compression.RAW, **params)
+
+
+# ---------------------------------------------------------------------------
+# Issue #411 — corrupted zlib stream (invalid deflate stream, Error -3)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("kind", [Compression.ZIP, Compression.ZIP_WITH_PREDICTION])
+def test_decompress_corrupted_zlib_falls_back_to_black(kind: Compression) -> None:
+    """Corrupted zlib stream (invalid deflate stream, Issue #411) returns black pixels."""
+    # Valid zlib header (0x78 0x9c) followed by garbage deflate bytes.
+    # zlib raises Error -3 (invalid block type) — not a checksum error.
+    corrupt = b"\x78\x9c" + b"\xff" * 20
+    result = decompress(corrupt, kind, width=2, height=2, depth=8)
+    assert result == b"\x00" * 4
+
+
+@pytest.mark.parametrize("kind", [Compression.ZIP, Compression.ZIP_WITH_PREDICTION])
+def test_decompress_corrupted_zlib_emits_warning(kind: Compression) -> None:
+    """Corrupted zlib stream must emit PSDDecompressionWarning with codec name."""
+    corrupt = b"\x78\x9c" + b"\xff" * 20
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        decompress(corrupt, kind, width=2, height=2, depth=8)
+    psd_warnings = [
+        w for w in caught if issubclass(w.category, PSDDecompressionWarning)
+    ]
+    assert len(psd_warnings) >= 1
+    assert kind.name in str(psd_warnings[0].message)
+
+
+def test_decompress_length_mismatch_raises() -> None:
+    """A decompressed payload of wrong length must raise ValueError (integrity check).
+
+    Only ZIP is tested here: for ZIP_WITH_PREDICTION a short payload crashes
+    inside decode_prediction (IndexError) before reaching the length check.
+    """
+    # Compress 5 bytes but declare a 3×3=9 pixel channel.
+    short_data = zlib.compress(b"\x00" * 5)
+    with pytest.raises(ValueError, match="Decompressed length mismatch"):
+        decompress(short_data, Compression.ZIP, width=3, height=3, depth=8)
