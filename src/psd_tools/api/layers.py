@@ -115,6 +115,7 @@ from psd_tools.constants import (
     BlendMode,
     ChannelID,
     Clipping,
+    ColorMode,
     CompatibilityMode,
     Compression,
     ProtectedFlags,
@@ -137,9 +138,16 @@ from psd_tools.psd.tagged_blocks import (
     SectionDividerSetting,
     TaggedBlocks,
 )
+from psd_tools.terminology import Key
 
 logger = logging.getLogger(__name__)
 
+# NOTE: _MISSING is a sentinel used by Artboard.composite() to detect when
+# color/alpha were not supplied by the caller. The type: ignore[assignment]
+# on those parameters suppresses the mypy complaint that _MISSING is not a
+# valid float/ndarray — a real contract difference from Group.composite()
+# that would need a widened base signature to resolve cleanly.
+_MISSING = object()
 
 TGroupMixin = TypeVar("TGroupMixin", bound="GroupMixin")
 
@@ -1612,6 +1620,106 @@ class Artboard(Group):
                     )
                 self.parent._layers[index] = self
         return self
+
+    def composite(
+        self,
+        viewport: tuple[int, int, int, int] | None = None,
+        force: bool = False,
+        color: float | tuple[float, ...] | np.ndarray = _MISSING,  # type: ignore[assignment]
+        alpha: float | np.ndarray = _MISSING,  # type: ignore[assignment]
+        layer_filter: Callable | None = None,
+        apply_icc: bool = True,
+    ) -> Image.Image | None:
+        """
+        Composite layer, automatically applying the artboard's background color.
+
+        When ``color`` and ``alpha`` are not explicitly provided, reads the
+        artboard background from the ARTBOARD_DATA tagged block
+        (``artboardBackgroundType`` and ``Clr`` descriptor) and uses it as
+        the compositing backdrop.
+        """
+        if color is _MISSING or alpha is _MISSING:
+            artboard_color, artboard_alpha = self._artboard_background_defaults()
+            if color is _MISSING:
+                color = artboard_color
+            if alpha is _MISSING:
+                alpha = artboard_alpha
+        # NOTE: The lower-level psd_tools.composite.composite(artboard) function
+        # does not inject artboard background.
+        return super().composite(
+            viewport=viewport,
+            force=force,
+            color=color,
+            alpha=alpha,
+            layer_filter=layer_filter,
+            apply_icc=apply_icc,
+        )
+
+    def _artboard_background_defaults(
+        self,
+    ) -> tuple[float | tuple[float, ...], float]:
+        """Return (color, alpha) based on artboard background settings.
+
+        Reads artboardBackgroundType from ARTBOARD_DATA1/2/3 tagged blocks
+        (last one found wins, matching the bbox() iteration pattern).
+
+        Background types (Photoshop scripting convention):
+          1 = Transparent, 2 = White, 3 = Black, 4 = Custom color
+
+        Falls back to (1.0, 0.0) — the Group default — on any missing or
+        unsupported data.
+        """
+        data = None
+        for key in (Tag.ARTBOARD_DATA1, Tag.ARTBOARD_DATA2, Tag.ARTBOARD_DATA3):
+            if key in self.tagged_blocks:
+                data = self.tagged_blocks.get_data(key)
+
+        if data is None:
+            return 1.0, 0.0
+
+        bg_type = data.get(b"artboardBackgroundType")
+        if bg_type is None:
+            return 1.0, 0.0
+
+        bg_type = int(bg_type)
+        if bg_type == 1:  # Transparent
+            return 1.0, 0.0
+        elif bg_type == 2:  # White
+            return 1.0, 1.0
+        elif bg_type == 3:  # Black
+            return 0.0, 1.0
+        elif bg_type == 4:  # Custom color (Clr descriptor, RGB 0-255)
+            clr = data.get(Key.Color)
+            if clr is None:
+                return 1.0, 0.0
+            rd = clr.get(Key.Red)
+            gn = clr.get(Key.Green)
+            bl = clr.get(Key.Blue)
+            if rd is None or gn is None or bl is None:
+                return 1.0, 0.0
+            r, g, b_val = float(rd) / 255.0, float(gn) / 255.0, float(bl) / 255.0
+            psd = self._psd
+            color_mode = psd.color_mode if psd is not None else ColorMode.RGB
+            if color_mode == ColorMode.RGB:
+                return (r, g, b_val), 1.0
+            elif color_mode in (
+                ColorMode.GRAYSCALE,
+                ColorMode.BITMAP,
+                ColorMode.DUOTONE,
+            ):
+                lum = 0.299 * r + 0.587 * g + 0.114 * b_val
+                return lum, 1.0
+            else:
+                # NOTE: The Clr descriptor is always RGB regardless of document
+                # color mode. Conversion to CMYK, LAB, etc. is non-trivial and
+                # not implemented; those modes fall back to the transparent default.
+                logger.debug(
+                    "Artboard background color not applied: unsupported color mode %s",
+                    color_mode,
+                )
+                return 1.0, 0.0
+
+        return 1.0, 0.0  # Unknown background type
 
     @property
     def left(self) -> int:
