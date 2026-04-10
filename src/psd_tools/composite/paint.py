@@ -126,12 +126,13 @@ def _get_color(color_mode, desc) -> tuple[float, ...]:
         c, m, y, k = _get_invert_color(
             x, (Key.Cyan, Key.Magenta, Key.Yellow, Key.Black)
         )
-        if color_mode == ColorMode.RGB:
-            return ((1.0 - c) * (1.0 - k), (1.0 - m) * (1.0 - k), (1.0 - y) * (1.0 - k))
-        if color_mode == ColorMode.GRAYSCALE:
+        if color_mode in (ColorMode.RGB, ColorMode.GRAYSCALE):
             r = (1.0 - c) * (1.0 - k)
             g = (1.0 - m) * (1.0 - k)
             b = (1.0 - y) * (1.0 - k)
+        if color_mode == ColorMode.RGB:
+            return (r, g, b)
+        if color_mode == ColorMode.GRAYSCALE:
             return (0.299 * r + 0.587 * g + 0.114 * b,)
         return (c, m, y, k)
 
