@@ -62,6 +62,18 @@ uv run --group docs make -C docs html
 # Output in docs/_build/html/
 ```
 
+## Release Workflow
+
+1. **Decide the version number** following [PEP 440](https://peps.python.org/pep-0440/) based on the changes since the last release. The auto-tag workflow recognises these forms: `v1.2.3` (release), `v1.2.3a1` / `v1.2.3b1` / `v1.2.3rc1` (pre-releases), `v1.2.3.post1` (post-release).
+
+1. **Update the changelog**: Review `git log` since the last tag and summarize changes in `docs/changelog.rst` under the new version heading.
+
+1. **Create a release PR**: Commit the changelog update (and any version bumps) on a branch named exactly `release/vX.Y.Z` and open a PR against `main`. Merge it once approved. The branch name is how the auto-tag workflow identifies the version.
+
+1. **Tag and publish**: After the release PR is merged, the `auto-tag` workflow (`.github/workflows/auto-tag.yml`) fires on the `pull_request: closed` event. It extracts the version from the branch name (`release/vX.Y.Z`) and tags `merge_commit_sha` — the exact commit that landed on `main` — so the tag is correct regardless of merge strategy (merge commit, squash, rebase). The tag push then triggers the `release` workflow to build wheels, create a GitHub release, and publish to PyPI. No manual tagging is needed.
+
+   **Prerequisite**: the repo must have a `RELEASE_WORKFLOW_TOKEN` secret set to a fine-grained PAT with `contents: write`. Tags pushed with the default `GITHUB_TOKEN` do not trigger downstream workflows.
+
 ## Architecture Overview
 
 ### Two-Layer Design
