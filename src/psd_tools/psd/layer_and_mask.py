@@ -1076,7 +1076,18 @@ class ChannelDataList(ListElement):
     ) -> T_ChannelDataList:
         items = []
         for c in channel_info:
-            items.append(ChannelData.read(fp, c.length - 2, **kwargs))
+            if c.length < 2:
+                # length < 2 means no channel data in the standard location
+                # (e.g. pixel data is stored in a tagged block). Don't read.
+                # Note: on save, this channel will be written as a minimal
+                # ChannelData (compression header only, length=2), which
+                # differs from the original length=0. This is still a valid
+                # PSD representation per spec; byte-identical round-tripping
+                # is not guaranteed for these channels.
+                logger.debug("  channel %s: length=%d, skipping read", c.id, c.length)
+                items.append(ChannelData())
+            else:
+                items.append(ChannelData.read(fp, c.length - 2, **kwargs))
         return cls(items)  # type: ignore[arg-type]
 
     @property
@@ -1109,7 +1120,10 @@ class ChannelData(BaseElement):
         cls: type[T_ChannelData], fp: BinaryIO, length: int = 0, **kwargs: Any
     ) -> T_ChannelData:
         compression = Compression(read_fmt("H", fp)[0])
-        data = fp.read(length)
+        # length is c.length - 2 (the 2-byte compression header is excluded).
+        # Clamp to 0: a negative value would cause fp.read() to consume until
+        # EOF, corrupting the file pointer for subsequent channels.
+        data = fp.read(max(0, length))
         return cls(compression=compression, data=data)
 
     def write(self, fp: BinaryIO, **kwargs: Any) -> int:
