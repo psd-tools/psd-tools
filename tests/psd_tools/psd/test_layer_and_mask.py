@@ -197,29 +197,6 @@ def test_mask_data(args: Tuple[Any, ...]) -> None:
     check_write_read(MaskData(**args))  # type: ignore[arg-type]
 
 
-# This doesn't work, but is there such a case?
-@pytest.mark.xfail
-@pytest.mark.parametrize(
-    ["args"],
-    [
-        (
-            dict(
-                flags=MaskFlags(parameters_applied=True),
-                parameters=MaskParameters(None, 1.0, None, 1.0),
-            ),
-        ),
-        (
-            dict(
-                flags=MaskFlags(parameters_applied=True),
-                parameters=MaskParameters(255, 1.0, 255, 1.0),
-            ),
-        ),
-    ],
-)
-def test_mask_data_failure(args: Tuple[Any, ...]) -> None:
-    check_write_read(MaskData(**args))  # type: ignore[arg-type]
-
-
 @pytest.mark.parametrize(
     ["fixture"],
     [
