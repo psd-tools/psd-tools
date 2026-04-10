@@ -95,8 +95,10 @@ must be configured:
 2. **Update the changelog**: Review ``git log`` since the last tag and
    summarize changes in ``docs/changelog.rst`` under the new version heading.
 
-3. **Create a release PR**: Create a branch named exactly ``release/vX.Y.Z``
-   (e.g. ``release/v1.15.0``), commit the changelog update (and any version
+3. **Create a release PR**: Create a branch named ``release/<version>``,
+   where ``<version>`` is one of the supported version forms listed above
+   (e.g. ``release/v1.15.0``, ``release/v1.15.0rc1``, or
+   ``release/v1.15.0.post1``), commit the changelog update (and any version
    bumps), and open a PR against ``main``. Merge it once approved. The branch
    name is how the auto-tag workflow identifies the version to tag.
 
