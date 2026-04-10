@@ -7,29 +7,35 @@ on:
       - main
 
 jobs:
-  auto-tag:
-    name: Tag if release branch was merged
-    # Only run when the PR was actually merged (not just closed)
+  check:
+    name: Extract version from branch name
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    outputs:
+      version: ${{ steps.extract.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Extract version from branch name
+      - name: Extract version
         id: extract
         run: |
           BRANCH="${{ github.event.pull_request.head.ref }}"
           VERSION=$(echo "$BRANCH" | grep -oP '^release/\K(v\d+\.\d+\.\d+)$' || true)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+  tag:
+    name: Create and push release tag
+    needs: check
+    if: needs.check.outputs.version != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
       - name: Create and push tag
-        if: steps.extract.outputs.version != ''
         env:
-          VERSION: ${{ steps.extract.outputs.version }}
+          VERSION: ${{ needs.check.outputs.version }}
         run: |
           if git rev-parse "refs/tags/$VERSION" >/dev/null 2>&1; then
             echo "Tag $VERSION already exists, skipping."

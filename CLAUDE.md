@@ -70,9 +70,7 @@ uv run --group docs make -C docs html
 
 1. **Create a release PR**: Commit the changelog update (and any version bumps) and open a PR against `main`. Merge it once approved.
 
-1. **Tag and publish**: After the release PR is merged, the `auto-tag` workflow (`.github/workflows/auto-tag.yml`) fires on the `pull_request: closed` event and extracts the version directly from the branch name (`release/vX.Y.Z`). It then creates and pushes the tag, which triggers the `release` workflow to build wheels, create a GitHub release, and publish to PyPI.
-
-   This works for all merge strategies (merge commit, squash, rebase). No manual tagging is needed.
+1. **Tag and publish**: After the release PR is merged, the `auto-tag` workflow (`.github/workflows/auto-tag.yml`) fires on the `pull_request: closed` event. It extracts the version from the branch name (`release/vX.Y.Z`) and tags `merge_commit_sha` — the exact commit that landed on `main` — so the tag is correct regardless of merge strategy (merge commit, squash, rebase). The tag push then triggers the `release` workflow to build wheels, create a GitHub release, and publish to PyPI. No manual tagging is needed.
 
 ## Architecture Overview
 
