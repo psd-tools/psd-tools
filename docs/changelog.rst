@@ -1,6 +1,13 @@
 Changelog
 =========
 
+1.14.3 (2026-04-10)
+-------------------
+
+- [security] Upgrade Pygments to 2.20.0 to resolve ReDoS vulnerability (#609)
+- [fix] Don't add ``USER_LAYER_MASK`` when PSD mode already carries transparency (#608)
+- [chore] Bump Pillow from 12.1.1 to 12.2.0, mypy to 1.20.0, ruff to 0.15.9
+
 1.14.2 (2026-03-19)
 -------------------
 
