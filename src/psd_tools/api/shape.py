@@ -132,11 +132,6 @@ class VectorMask(object):
         :return: `tuple`
         """
         import math
-        from itertools import chain
-
-        all_knots = list(chain.from_iterable(self.paths))
-        if len(all_knots) == 0:
-            return (0.0, 0.0, 1.0, 1.0)
 
         def _bezier_extrema(p0: float, p1: float, p2: float, p3: float) -> list[float]:
             """Return t values in (0, 1) where the cubic Bezier has extrema."""

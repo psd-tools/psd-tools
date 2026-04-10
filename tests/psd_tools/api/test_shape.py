@@ -12,7 +12,13 @@ from psd_tools.api.shape import (
     RoundedRectangle,
     VectorMask,
 )
-from psd_tools.psd.vector import ClosedKnotLinked, ClosedPath, OpenKnotLinked, OpenPath
+from psd_tools.psd.vector import (
+    ClosedKnotLinked,
+    ClosedPath,
+    OpenKnotLinked,
+    OpenPath,
+    VectorMaskSetting,
+)
 
 from ..utils import full_name
 
@@ -24,18 +30,9 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-class _FakeVMData:
-    """Minimal stand-in for VectorMaskSetting used in bbox unit tests."""
-
-    path: list = []
-    invert = False
-    not_link = False
-    disable = False
-
-
 def _make_vm(*paths):
     """Return a VectorMask whose _paths list is set directly."""
-    vm = VectorMask(_FakeVMData())
+    vm = VectorMask(VectorMaskSetting())
     vm._paths = list(paths)
     return vm
 
