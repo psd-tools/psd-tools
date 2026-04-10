@@ -1633,10 +1633,10 @@ class Artboard(Group):
         """
         Composite layer, automatically applying the artboard's background color.
 
-        When ``color`` and ``alpha`` are not explicitly provided, reads the
-        artboard background from the ARTBOARD_DATA tagged block
-        (``artboardBackgroundType`` and ``Clr`` descriptor) and uses it as
-        the compositing backdrop.
+        When either ``color`` or ``alpha`` is not explicitly provided, reads
+        the artboard background from the ARTBOARD_DATA tagged block
+        (``artboardBackgroundType`` and ``Clr`` descriptor) and uses the
+        missing value or values as the compositing backdrop.
         """
         if color is _MISSING or alpha is _MISSING:
             artboard_color, artboard_alpha = self._artboard_background_defaults()
@@ -1681,13 +1681,33 @@ class Artboard(Group):
         if bg_type is None:
             return 1.0, 0.0
 
+        psd = self._psd
+        color_mode = psd.color_mode if psd is not None else ColorMode.RGB
+
         bg_type = int(bg_type)
         if bg_type == 1:  # Transparent
             return 1.0, 0.0
-        elif bg_type == 2:  # White
-            return 1.0, 1.0
-        elif bg_type == 3:  # Black
-            return 0.0, 1.0
+        elif bg_type in (2, 3):  # White or Black — color-mode aware
+            white = bg_type == 2
+            if color_mode in (
+                ColorMode.RGB,
+                ColorMode.GRAYSCALE,
+                ColorMode.BITMAP,
+                ColorMode.DUOTONE,
+            ):
+                return (1.0 if white else 0.0), 1.0
+            elif color_mode == ColorMode.LAB:
+                # LAB: L in [0,1]; a and b channels are neutral at 0.5
+                return (1.0 if white else 0.0, 0.5, 0.5), 1.0
+            elif color_mode == ColorMode.CMYK:
+                # CMYK: white = no ink (0,0,0,0); black = full K (0,0,0,1)
+                return ((0.0, 0.0, 0.0, 0.0) if white else (0.0, 0.0, 0.0, 1.0)), 1.0
+            else:
+                logger.debug(
+                    "Artboard background color not applied: unsupported color mode %s",
+                    color_mode,
+                )
+                return 1.0, 0.0
         elif bg_type == 4:  # Custom color (Clr descriptor, RGB 0-255)
             clr = data.get(Key.Color)
             if clr is None:
@@ -1698,8 +1718,6 @@ class Artboard(Group):
             if rd is None or gn is None or bl is None:
                 return 1.0, 0.0
             r, g, b_val = float(rd) / 255.0, float(gn) / 255.0, float(bl) / 255.0
-            psd = self._psd
-            color_mode = psd.color_mode if psd is not None else ColorMode.RGB
             if color_mode == ColorMode.RGB:
                 return (r, g, b_val), 1.0
             elif color_mode in (
