@@ -38,6 +38,17 @@ def check_composite_quality(
     composite_error(psd, threshold, force)
 
 
+def check_icc_composite_quality(
+    filename: str, threshold: float = 0.001, force: bool = False
+) -> None:
+    reference = np.array(Image.open(full_name(filename + ".png")), dtype=np.float32) / 255.0
+    psd = PSDImage.open(full_name(filename + ".psd"))
+    result = np.array(psd.composite(apply_icc=True, layer_filter=lambda l: l.is_visible(), force=force), dtype=np.float32) / 255.0
+
+    assert reference.shape == result.shape
+    assert _mse(reference, result) <= threshold
+
+
 @pytest.mark.parametrize(
     ("filename",),
     [
