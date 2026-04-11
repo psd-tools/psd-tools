@@ -315,10 +315,20 @@ def _apply_icc(image: Image.Image, icc_profile: bytes) -> Image.Image:
         with io.BytesIO(icc_profile) as f:
             in_profile = ImageCms.ImageCmsProfile(f)
         out_profile = ImageCms.createProfile("sRGB")
-        outputMode = image.mode if image.mode in ("L", "LA", "RGBA") else "RGB"
-        result = ImageCms.profileToProfile(
-            image, in_profile, out_profile, outputMode=outputMode
+
+        alpha = None
+        if image.mode in ("RGBA", "LA"):
+            alpha = image.getchannel('A')
+        
+        working_image = (
+            image if "A" not in image.mode else 
+            image.convert(image.mode.replace("A", ""))
         )
+        
+        result = ImageCms.profileToProfile(
+            working_image, in_profile, out_profile, outputMode="RGB"
+        )
+        
     except ImageCms.PyCMSError as e:
         logger.error("Failed to apply ICC profile: %s" % (e))
         return image
@@ -327,6 +337,10 @@ def _apply_icc(image: Image.Image, icc_profile: bytes) -> Image.Image:
         logger.error("Failed to apply ICC profile.")
         return image
 
+    if alpha:
+        result.putalpha(alpha)
+
+    logger.debug(f"input mode: {image.mode}, output mode: {result.mode}")
     return result
 
 
