@@ -75,35 +75,48 @@ Once installed, use `Makefile`::
 Release Process
 ---------------
 
-Releases are automated via GitHub Actions. To create a new release:
+Releases are automated via GitHub Actions. Only maintainers with appropriate
+repository permissions can trigger releases. The following repository secrets
+must be configured:
 
-1. **Ensure all changes are committed and pushed to main**::
+- ``RELEASE_WORKFLOW_TOKEN``: a fine-grained PAT with ``contents: write``,
+  required so that the tag pushed by ``auto-tag.yml`` triggers the downstream
+  ``release.yml`` workflow (the default ``GITHUB_TOKEN`` cannot do this).
+- ``PYPI_USERNAME`` / ``PYPI_PASSWORD``: PyPI credentials for publishing.
 
-    git checkout main
-    git pull origin main
+1. **Decide the version number** following `PEP 440 <https://peps.python.org/pep-0440/>`_
+   based on the changes since the last release. The auto-tag workflow
+   recognises these forms:
 
-2. **Create and push a version tag**::
+   - ``v1.2.3`` — standard release
+   - ``v1.2.3a1``, ``v1.2.3b1``, ``v1.2.3rc1`` — pre-releases (alpha, beta, release candidate)
+   - ``v1.2.3.post1`` — post-release
 
-    git tag v1.x.x
-    git push origin v1.x.x
+2. **Update the changelog**: Review ``git log`` since the last tag and
+   summarize changes in ``docs/changelog.rst`` under the new version heading.
 
-3. **Automated workflow**:
+3. **Create a release PR**: Create a branch named ``release/<version>``,
+   where ``<version>`` is one of the supported version forms listed above
+   (e.g. ``release/v1.15.0``, ``release/v1.15.0rc1``, or
+   ``release/v1.15.0.post1``), commit the changelog update (and any version
+   bumps), and open a PR against ``main``. Merge it once approved. The branch
+   name is how the auto-tag workflow identifies the version to tag.
 
-   Once the tag is pushed, the release workflow automatically:
+4. **Automated tagging and publishing**: Merging the release PR triggers the
+   ``auto-tag`` workflow, which tags the exact merge commit that landed on
+   ``main`` (using ``merge_commit_sha``) and pushes the tag. This in turn
+   triggers the ``release`` workflow, which:
 
    - Builds wheels for all supported platforms (Linux, Windows, macOS including ARM)
    - Generates release notes from git commits since the previous tag
    - Creates a GitHub release with the auto-generated changelog
    - Publishes the package to PyPI
 
-4. **Verify the release**:
+5. **Verify the release**:
 
    - Check the `Actions tab <https://github.com/psd-tools/psd-tools/actions>`_ for workflow status
    - Verify the `release on GitHub <https://github.com/psd-tools/psd-tools/releases>`_
    - Confirm the package is available on `PyPI <https://pypi.org/project/psd-tools/>`_
-
-**Note**: Only maintainers with appropriate repository permissions can push tags
-and trigger releases. PyPI credentials are stored as repository secrets.
 
 Acknowledgments
 ---------------

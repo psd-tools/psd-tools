@@ -64,7 +64,8 @@ class Mask(MaskProtocol):
     def background_color(self) -> int:
         """Background color."""
         if self.has_real():
-            return self._data.real_background_color or self._data.background_color
+            real_bg = self._data.real_background_color
+            return real_bg if real_bg is not None else self._data.background_color
         return self._data.background_color
 
     @property
@@ -76,28 +77,44 @@ class Mask(MaskProtocol):
     def left(self) -> int:
         """Left coordinate."""
         if self.has_real():
-            return self._data.real_left or self._data.left
+            return (
+                self._data.real_left
+                if self._data.real_left is not None
+                else self._data.left
+            )
         return self._data.left
 
     @property
     def right(self) -> int:
         """Right coordinate."""
         if self.has_real():
-            return self._data.real_right or self._data.right
+            return (
+                self._data.real_right
+                if self._data.real_right is not None
+                else self._data.right
+            )
         return self._data.right
 
     @property
     def top(self) -> int:
         """Top coordinate."""
         if self.has_real():
-            return self._data.real_top or self._data.top
+            return (
+                self._data.real_top
+                if self._data.real_top is not None
+                else self._data.top
+            )
         return self._data.top
 
     @property
     def bottom(self) -> int:
         """Bottom coordinate."""
         if self.has_real():
-            return self._data.real_bottom or self._data.bottom
+            return (
+                self._data.real_bottom
+                if self._data.real_bottom is not None
+                else self._data.bottom
+            )
         return self._data.bottom
 
     @property
@@ -149,18 +166,39 @@ class Mask(MaskProtocol):
         """Return True if the mask has real flags."""
         return self.real_flags is not None and self.real_flags.parameters_applied
 
-    def topil(self, real: bool = True, **kwargs: Any) -> Image.Image | None:
+    def topil(
+        self, real: bool = True, layer_sized: bool = False, **kwargs: Any
+    ) -> Image.Image | None:
         """
         Get PIL Image of the mask.
 
         :param real: When True, returns pixel + vector mask combined.
+        :param layer_sized: When True, returns a layer-sized image pre-filled with
+            ``background_color``, with the mask data pasted at the correct position.
+            When False (default), returns the raw stored mask data at mask dimensions.
         :return: PIL Image object, or None if the mask is empty.
         """
         if real and self.has_real():
             channel = ChannelID.REAL_USER_LAYER_MASK
+            offset_left = (self._data.real_left or 0) - self._layer.left
+            offset_top = (self._data.real_top or 0) - self._layer.top
+            real_bg = self._data.real_background_color
+            bg = real_bg if real_bg is not None else self._data.background_color
         else:
             channel = ChannelID.USER_LAYER_MASK
-        return self._layer.topil(channel, **kwargs)
+            offset_left = self._data.left - self._layer.left
+            offset_top = self._data.top - self._layer.top
+            bg = self._data.background_color
+
+        raw = self._layer.topil(channel, **kwargs)
+        if raw is None or not layer_sized:
+            return raw
+
+        # Compose a full layer-sized mask applying background_color outside stored bbox.
+        # Out-of-bounds mask data is clipped naturally by Image.paste.
+        full = Image.new(raw.mode, self._layer.size, bg)
+        full.paste(raw, (offset_left, offset_top))
+        return full
 
     def __repr__(self) -> str:
         return "%s(offset=(%d,%d) size=%dx%d)" % (

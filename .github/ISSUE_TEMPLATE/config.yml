@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question / Support
+    url: https://github.com/psd-tools/psd-tools/discussions
+    about: Ask usage questions and get help from the community in Discussions.
+  - name: Documentation
+    url: https://psd-tools.readthedocs.io
+    about: Check the official documentation before filing an issue.

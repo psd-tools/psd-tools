@@ -1,0 +1,68 @@
+name: Auto Tag Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  check:
+    name: Extract version from branch name
+    # Only run for merged PRs from the same repo (not forks) to prevent
+    # untrusted code from triggering a PyPI publish via a forked PR.
+    if: |
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      version: ${{ steps.extract.outputs.version }}
+    steps:
+      - name: Extract version
+        id: extract
+        run: |
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          VERSION=""
+          if [[ "$BRANCH" =~ ^release/(v[0-9]+\.[0-9]+\.[0-9]+([ab][0-9]+|rc[0-9]+|\.post[0-9]+)?)$ ]]; then
+            VERSION="${BASH_REMATCH[1]}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+  tag:
+    name: Create and push release tag
+    needs: check
+    if: needs.check.outputs.version != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          # A PAT is required because tags pushed with GITHUB_TOKEN do not
+          # trigger downstream workflows (e.g. release.yml).
+          token: ${{ secrets.RELEASE_WORKFLOW_TOKEN }}
+
+      - name: Create and push tag
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          if git rev-parse "refs/tags/$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists, skipping."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag "$VERSION"
+            if git push origin "$VERSION"; then
+              echo "Created and pushed tag $VERSION"
+            else
+              # If the tag now exists on origin, treat it as already present and skip.
+              if git ls-remote --tags origin "refs/tags/$VERSION" | grep -q .; then
+                echo "Tag $VERSION already exists on origin, skipping."
+              else
+                echo "Failed to push tag $VERSION"
+                exit 1
+              fi
+            fi
+          fi

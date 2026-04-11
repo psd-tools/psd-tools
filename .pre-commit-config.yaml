@@ -1,9 +1,6 @@
 # Run `pre-commit run --all-files` for a full check.
 # Run `pre-commit autoupdate` periodically to refresh pinned versions.
 
-default_language_version:
-  python: python3.10  # minimum supported version per pyproject.toml
-
 repos:
   # ---------------------------------------------------------------------------
   # General file hygiene
@@ -25,7 +22,7 @@ repos:
   # Python: ruff linting + formatting (mirrors CI scope: src/ and tests/)
   # ---------------------------------------------------------------------------
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.2
+    rev: v0.15.9
     hooks:
       - id: ruff-check
         args: [--fix]

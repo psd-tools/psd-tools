@@ -156,6 +156,38 @@ def test_composite_artboard() -> None:
     assert artboard_image.shape[:2] == (artboard.height, artboard.width)
 
 
+def test_composite_artboard_bgcolor() -> None:
+    """Regression test for issue #395: artboard background color in compositing."""
+    psd = PSDImage.open(full_name("artboard-bgcolor.psd"))
+
+    # Artboard 0: blue background (18, 108, 200)
+    # Child layer bbox=(79,46,308,234) — pixel (0,0) is guaranteed background-only
+    ab0 = psd[0]
+    assert ab0.kind == "artboard"
+    img0 = ab0.composite()
+    assert img0 is not None
+    pixel0 = img0.getpixel((0, 0))
+    assert isinstance(pixel0, tuple)
+    r, g, b = pixel0[:3]
+    assert abs(r - 18) <= 2 and abs(g - 108) <= 2 and abs(b - 200) <= 2
+    # Opaque backdrop → alpha channel omitted (RGB mode) or fully opaque
+    if len(pixel0) == 4:
+        assert pixel0[3] == 255
+
+    # Artboard 1: orange background (200, 95, 18)
+    # Child layer bbox=(571,59,680,410); local (0,0) is outside child
+    ab1 = psd[1]
+    assert ab1.kind == "artboard"
+    img1 = ab1.composite()
+    assert img1 is not None
+    pixel1 = img1.getpixel((0, 0))
+    assert isinstance(pixel1, tuple)
+    r, g, b = pixel1[:3]
+    assert abs(r - 200) <= 2 and abs(g - 95) <= 2 and abs(b - 18) <= 2
+    if len(pixel1) == 4:
+        assert pixel1[3] == 255
+
+
 def test_composite_viewport() -> None:
     psd = PSDImage.open(full_name("layers/smartobject-layer.psd"))
     bbox = (1, 1, 31, 31)
@@ -282,3 +314,15 @@ def test_composite_pixel_layer_with_vector_stroke() -> None:
     reference = composite(psd, force=True)
     result = composite(psd)
     assert _mse(reference[0], result[0]) <= 0.01
+
+
+def test_composite_mixed_colorspace_stroke() -> None:
+    """Regression test for issue #397: ValueError on vector layer with CMYK stroke + Grayscale fill."""
+    from psd_tools.api.layers import GroupMixin
+
+    psd = PSDImage.open(full_name("issues/issue397.psd"))
+    psd.composite()
+    for layer in psd:
+        if isinstance(layer, GroupMixin):
+            for sublayer in layer:
+                sublayer.composite()
