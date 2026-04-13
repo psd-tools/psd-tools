@@ -8,6 +8,7 @@ stylized.
 """
 
 import logging
+import math
 from typing import Any, Literal
 
 from psd_tools.psd.descriptor import Descriptor, DescriptorBlock2
@@ -131,7 +132,6 @@ class VectorMask(object):
 
         :return: `tuple`
         """
-        import math
 
         def _bezier_extrema(p0: float, p1: float, p2: float, p3: float) -> list[float]:
             """Return t values in (0, 1) where the cubic Bezier has extrema."""

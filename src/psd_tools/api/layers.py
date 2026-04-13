@@ -105,7 +105,7 @@ import numpy as np
 from PIL import Image, ImageChops
 
 import psd_tools.psd.engine_data as engine_data
-from psd_tools.api import pil_io
+from psd_tools.api import numpy_io, pil_io
 from psd_tools.api.effects import Effects
 from psd_tools.api.mask import Mask
 from psd_tools.api.protocols import GroupMixinProtocol, LayerProtocol, PSDProtocol
@@ -725,9 +725,7 @@ class Layer(LayerProtocol):
             :py:class:`PIL.Image.Image`. For example, 'CMYK' mode cannot include
             alpha channel in PIL. In this case, topil drops alpha channel.
         """
-        from .pil_io import convert_layer_to_pil
-
-        return convert_layer_to_pil(self, channel, apply_icc)
+        return pil_io.convert_layer_to_pil(self, channel, apply_icc)
 
     def numpy(
         self, channel: str | None = None, real_mask: bool = True
@@ -739,8 +737,6 @@ class Layer(LayerProtocol):
             'shape', 'alpha', or 'mask'. Default is 'color+alpha'.
         :return: :py:class:`numpy.ndarray` or None if there is no pixel.
         """
-        from . import numpy_io
-
         return numpy_io.get_array(self, channel, real_mask=real_mask)
 
     def composite(
@@ -767,7 +763,7 @@ class Layer(LayerProtocol):
             :py:func:`~psd_tools.api.layers.PixelLayer.is_visible`.
         :return: :py:class:`PIL.Image.Image` or `None`.
         """
-        from psd_tools.composite import composite_pil
+        from psd_tools.composite import composite_pil  # noqa: PLC0415
 
         if self._psd is not None and self._psd.is_updated():
             force = True
@@ -1438,7 +1434,7 @@ class Group(GroupMixin, Layer):
             :py:func:`~psd_tools.api.layers.PixelLayer.is_visible`.
         :return: :py:class:`PIL.Image.Image`.
         """
-        from psd_tools.composite import composite_pil
+        from psd_tools.composite import composite_pil  # noqa: PLC0415
 
         return composite_pil(
             self,
@@ -2113,7 +2109,7 @@ class TypeLayer(Layer):
         See also: :py:attr:`engine_dict`, :py:attr:`resource_dict` for raw data.
         """
         if not hasattr(self, "_typesetting"):
-            from psd_tools.api.typesetting import TypeSetting
+            from psd_tools.api.typesetting import TypeSetting  # noqa: PLC0415
 
             self._typesetting = TypeSetting(
                 self.text,

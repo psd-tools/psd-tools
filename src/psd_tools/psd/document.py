@@ -10,6 +10,7 @@ from typing import Any, BinaryIO, Generator, Optional, TypeVar
 
 from attrs import define, field
 
+from psd_tools.constants import Tag
 from .base import BaseElement
 from .color_mode_data import ColorModeData
 from .header import FileHeader
@@ -110,8 +111,6 @@ class PSD(BaseElement):
                     yield record, channels
 
     def _get_layer_info(self) -> Optional[LayerInfo]:
-        from psd_tools.constants import Tag
-
         tagged_blocks = self.layer_and_mask_information.tagged_blocks
         if tagged_blocks is not None:
             for key in (Tag.LAYER_16, Tag.LAYER_32):

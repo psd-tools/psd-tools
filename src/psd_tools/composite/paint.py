@@ -225,7 +225,7 @@ def draw_pattern_fill(
 
     .. todo:: Test this.
     """
-    from skimage.transform import resize
+    from skimage.transform import resize  # noqa: PLC0415
 
     pattern_id = desc[Enum.Pattern][Key.ID].value.rstrip("\x00")
     pattern = psd._get_pattern(pattern_id)
@@ -350,7 +350,7 @@ def _make_gradient_color(color_mode, grad):
 
 
 def _make_linear_gradient_color(color_mode, grad):
-    from scipy import interpolate  # type: ignore[import-untyped]
+    from scipy import interpolate  # type: ignore[import-untyped]  # noqa: PLC0415
 
     X, Y = [], []
     for stop in grad.get(Key.Colors, []):
@@ -406,8 +406,8 @@ def _make_noise_gradient_color(grad):
             'Mxm ': [0, 100, 100, 100]
         }
     """
-    from scipy import interpolate  # type: ignore[import-untyped]
-    from scipy.ndimage import maximum_filter1d, uniform_filter1d  # type: ignore[import-untyped]
+    from scipy import interpolate  # type: ignore[import-untyped]  # noqa: PLC0415
+    from scipy.ndimage import maximum_filter1d, uniform_filter1d  # type: ignore[import-untyped]  # noqa: PLC0415
 
     logger.debug("Noise gradient is not accurate.")
     roughness = grad.get(Key.Smoothness).value / 4096.0  # Larger is sharper.

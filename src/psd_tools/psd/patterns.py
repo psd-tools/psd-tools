@@ -241,10 +241,8 @@ class VirtualMemoryArray(BaseElement):
         self, size: tuple[int, int], data: bytes, depth: int, compression: int = 0
     ) -> None:
         """Set bytes."""
-        from psd_tools.constants import Compression as CompressionEnum
-
         self.data = compress(
-            data, CompressionEnum(compression), size[0], size[1], depth, version=1
+            data, Compression(compression), size[0], size[1], depth, version=1
         )
         self.depth = int(depth)
         self.pixel_depth = int(depth)

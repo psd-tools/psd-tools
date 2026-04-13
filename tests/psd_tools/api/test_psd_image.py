@@ -2,12 +2,14 @@ import logging
 import pprint
 from pathlib import Path
 from typing import Any, Tuple, Union
+from unittest.mock import patch
 
 import pytest
 from PIL import Image
 
 from psd_tools.api.layers import Group
 from psd_tools.api.psd_image import PSDImage
+from psd_tools.api.utils import get_transparency_index, has_transparency
 from psd_tools.constants import BlendMode, ColorMode, Compression
 
 from ..utils import full_name
@@ -226,8 +228,6 @@ def test_is_updated() -> None:
 
 def test_save_without_composite_dependencies(tmp_path: Path, caplog: Any) -> None:
     """Test that save works gracefully without composite dependencies."""
-    from unittest.mock import patch
-
     # Create a simple PSD and modify it
     psdimage = PSDImage.new(mode="RGB", size=(100, 100))
     psdimage.create_pixel_layer(
@@ -553,8 +553,6 @@ def _save_psd_with_negative_layer_count(
 
 def test_has_transparency_negative_layer_count(tmp_path: Path) -> None:
     """has_transparency() returns True when layer_count is negative."""
-    from psd_tools.api.utils import has_transparency
-
     output = _save_psd_with_negative_layer_count(tmp_path)
     loaded = PSDImage.open(output)
     assert has_transparency(loaded) is True
@@ -562,8 +560,6 @@ def test_has_transparency_negative_layer_count(tmp_path: Path) -> None:
 
 def test_has_transparency_positive_layer_count(tmp_path: Path) -> None:
     """has_transparency() returns False for a normal PSD without transparency tags."""
-    from psd_tools.api.utils import has_transparency
-
     psd = PSDImage.new("RGBA", (16, 16))
     psd.create_pixel_layer(Image.new("RGBA", (16, 16), (255, 0, 0, 255)), name="opaque")
     output = tmp_path / "positive_layer_count.psd"
@@ -578,8 +574,6 @@ def test_has_transparency_positive_layer_count(tmp_path: Path) -> None:
 def test_get_transparency_index_negative_layer_count(tmp_path: Path) -> None:
     """get_transparency_index() returns the first alpha channel index
     when layer_count is negative."""
-    from psd_tools.api.utils import get_transparency_index
-
     output = _save_psd_with_negative_layer_count(tmp_path)
     loaded = PSDImage.open(output)
     # RGB has 3 expected channels, so the transparency channel is at index 3

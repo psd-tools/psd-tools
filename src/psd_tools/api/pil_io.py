@@ -6,7 +6,7 @@ import io
 import logging
 from typing import TYPE_CHECKING, cast
 
-from PIL import Image
+from PIL import Image, ImageChops, ImageCms, ImageMath
 
 from psd_tools.api.utils import get_transparency_index, has_transparency
 from psd_tools.constants import ChannelID, ColorMode, Resource
@@ -164,8 +164,6 @@ def post_process(
 ) -> Image.Image:
     # Fix inverted CMYK.
     if image.mode == "CMYK":
-        from PIL import ImageChops
-
         image = ImageChops.invert(image)
 
     if icc_profile:
@@ -306,12 +304,6 @@ def _check_channels(
 def _apply_icc(image: Image.Image, icc_profile: bytes) -> Image.Image:
     """Apply ICC Color profile."""
     try:
-        from PIL import ImageCms
-    except ImportError:
-        logger.warning("ICC profile found but not supported. Install little-cms.")
-        return image
-
-    try:
         with io.BytesIO(icc_profile) as f:
             in_profile = ImageCms.ImageCmsProfile(f)
         out_profile = ImageCms.createProfile("sRGB")
@@ -332,8 +324,6 @@ def _apply_icc(image: Image.Image, icc_profile: bytes) -> Image.Image:
 
 def _remove_white_background(image: Image.Image) -> Image.Image:
     """Remove white background in the preview image."""
-    from PIL import ImageMath
-
     if image.mode == "RGBA":
         bands = image.split()
         a = bands[3]

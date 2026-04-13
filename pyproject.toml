@@ -85,7 +85,10 @@ markers = [
 ]
 
 [tool.ruff]
-src = ["src"]
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+extend-select = ["PLC0415"]
 
 [tool.mypy]
 files = ["src/psd_tools", "tests"]
