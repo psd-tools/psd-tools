@@ -318,17 +318,18 @@ def _apply_icc(image: Image.Image, icc_profile: bytes) -> Image.Image:
 
         alpha = None
         if image.mode in ("RGBA", "LA"):
-            alpha = image.getchannel('A')
-        
+            alpha = image.getchannel("A")
+
         working_image = (
-            image if "A" not in image.mode else 
-            image.convert(image.mode.replace("A", ""))
+            image
+            if "A" not in image.mode
+            else image.convert(image.mode.replace("A", ""))
         )
-        
+
         result = ImageCms.profileToProfile(
             working_image, in_profile, out_profile, outputMode="RGB"
         )
-        
+
     except ImageCms.PyCMSError as e:
         logger.error("Failed to apply ICC profile: %s" % (e))
         return image

@@ -256,10 +256,7 @@ def _blend_backdrop(
 
 def _is_passthrough(group: Layer) -> bool:
     """Check if group layer will be composed as a pass-through group."""
-    return (
-        group.blend_mode == BlendMode.PASS_THROUGH and
-        not group.has_clip_layers()
-    )
+    return group.blend_mode == BlendMode.PASS_THROUGH and not group.has_clip_layers()
 
 
 class Compositor(object):
@@ -353,7 +350,11 @@ class Compositor(object):
             )
         else:
             self._apply_source(
-                color, shape * shape_const, alpha * shape_const, layer.blend_mode, knockout
+                color,
+                shape * shape_const,
+                alpha * shape_const,
+                layer.blend_mode,
+                knockout,
             )
 
         # TODO: Apply after effects
@@ -370,10 +371,10 @@ class Compositor(object):
             self._apply_stroke_effect(layer, color, shape, alpha)
 
     def _apply_passthrough_source(
-        self, 
-        color: np.ndarray, 
-        shape: np.ndarray, 
-        alpha: np.ndarray, 
+        self,
+        color: np.ndarray,
+        shape: np.ndarray,
+        alpha: np.ndarray,
         mask: float | np.ndarray,
     ) -> None:
         new_shape = utils.union(self._shape_g, shape)
@@ -382,7 +383,7 @@ class Compositor(object):
         color_support = utils.clip(
             utils.divide(
                 color * mask * (1.0 - self._shape_g) + self._color * self._shape_g,
-                new_shape
+                new_shape,
             )
         )
 
@@ -390,9 +391,7 @@ class Compositor(object):
         self._alpha_g = utils.union(self._alpha_g, alpha)
         self._alpha = cast(np.ndarray, utils.union(self._alpha_0, self._alpha_g))
 
-        self._color = utils.clip(
-            (color * mask + (1 - mask) * color_support)
-        )
+        self._color = utils.clip((color * mask + (1 - mask) * color_support))
 
     def _apply_source(
         self,
@@ -435,15 +434,19 @@ class Compositor(object):
         colormode = layer._psd.color_mode
 
         if adjustment_fn is None or colormode not in (
-            ColorMode.CMYK, ColorMode.GRAYSCALE, ColorMode.RGB,
-        ): 
+            ColorMode.CMYK,
+            ColorMode.GRAYSCALE,
+            ColorMode.RGB,
+        ):
             return
 
         backdrop_color = self._color
         transformed_color = adjustment_fn(backdrop_color, colormode, layer)
 
         if layer.has_clip_layers():
-            transformed_color = self._apply_clip_layers(layer, transformed_color, self._alpha)
+            transformed_color = self._apply_clip_layers(
+                layer, transformed_color, self._alpha
+            )
 
         shape_mask, opacity_mask = self._get_mask(layer)
         shape_const, opacity_const = self._get_const(layer)
@@ -456,8 +459,7 @@ class Compositor(object):
 
         if self._adjustment_isolated:
             self._color = utils.clip(
-                backdrop_color
-                + self._shape_g * opacity * (blended - backdrop_color)
+                backdrop_color + self._shape_g * opacity * (blended - backdrop_color)
             )
         else:
             self._color = utils.clip(
@@ -499,7 +501,11 @@ class Compositor(object):
         self, layer: Layer, knockout: bool
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         is_passthrough = _is_passthrough(layer)
-        viewport =  self._viewport if is_passthrough else utils.intersect(self._viewport, layer.bbox)
+        viewport = (
+            self._viewport
+            if is_passthrough
+            else utils.intersect(self._viewport, layer.bbox)
+        )
         if knockout:
             color_b = self._color_0
             alpha_b = self._alpha_0
@@ -519,10 +525,10 @@ class Compositor(object):
             force=self._force,
             adjustment_isolated=self._adjustment_isolated or isolate_adjustments,
         )
-        
-        for sublayer in layer:
+
+        for sublayer in cast(GroupMixin, layer):
             group_compositor.apply(sublayer)
-        
+
         color = group_compositor._color
         shape = group_compositor._shape_g
         alpha = group_compositor._alpha_g
@@ -608,7 +614,11 @@ class Compositor(object):
                 )
             if layer.mask.parameters:
                 density = layer.mask.parameters.user_mask_density
-                density = layer.mask.parameters.vector_mask_density if density is not None else 255
+                density = (
+                    layer.mask.parameters.vector_mask_density
+                    if density is not None
+                    else 255
+                )
                 opacity = float(density) / 255.0
 
         if (

@@ -9,12 +9,12 @@ logger = logging.getLogger(__name__)
 
 # these tests fail because legacy adjustment layers are recognized as PixelLayers with no bounding box
 @pytest.mark.parametrize(
-    "adjustment, colormode", 
+    "adjustment, colormode",
     [
         ("brightnesscontrast_legacy", "rgb"),
         ("brightnesscontrast_legacy", "cmyk"),
         ("brightnesscontrast_legacy", "grayscale"),
-    ]
+    ],
 )
 @pytest.mark.xfail
 def test_legacy_brightnesscontrast(adjustment: str, colormode: str) -> None:
@@ -48,27 +48,33 @@ adjustment_test_list = [
 ]
 
 
-@pytest.mark.parametrize("adjustment, colormode", adjustment_test_list,)
+@pytest.mark.parametrize(
+    "adjustment, colormode",
+    adjustment_test_list,
+)
 def test_adjustment_composite_icc(adjustment: str, colormode: str) -> None:
     filename = f"adjustments/{adjustment}_{colormode}"
     check_icc_composite_quality(filename, threshold=0.0005)
 
 
-@pytest.mark.parametrize("adjustment, colormode", adjustment_test_list,)
+@pytest.mark.parametrize(
+    "adjustment, colormode",
+    adjustment_test_list,
+)
 def test_adjustment_composite_error(adjustment: str, colormode: str) -> None:
     filename = f"adjustments/{adjustment}_{colormode}.psd"
     check_composite_quality(filename, 0.0005, False)
 
 
 @pytest.mark.parametrize(
-    "number", 
+    "number",
     [
         ("1"),
         ("2"),
         ("3"),
         ("4"),
         ("5"),
-    ]
+    ],
 )
 def test_adjustment_nested_composition(number) -> None:
     filename = f"adjustments/adjustment_nested_composition_{number}"

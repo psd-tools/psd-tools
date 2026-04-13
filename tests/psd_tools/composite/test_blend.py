@@ -60,7 +60,7 @@ def test_blend_quality_xfail(filename: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "property", 
+    "property",
     [
         ("opacity"),
         ("fill_adjustment"),
@@ -70,7 +70,7 @@ def test_blend_quality_xfail(filename: str) -> None:
         ("blendmodes1"),
         ("blendmodes2"),
         ("blendmodes3"),
-    ]
+    ],
 )
 def test_passthrough_properties(property) -> None:
     filename = f"passthrough_{property}"
