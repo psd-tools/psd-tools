@@ -4,6 +4,7 @@ from typing import Any, Optional
 import numpy as np
 import pytest
 
+from psd_tools.api.layers import GroupMixin
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite
 from psd_tools.constants import CompatibilityMode
@@ -218,8 +219,6 @@ def test_composite_viewport() -> None:
 def test_composite_pil(
     colormode: str, depth: int, mode: str, ignore_preview: bool, apply_icc: bool
 ) -> None:
-    from PIL import Image
-
     filename = "colormodes/4x4_%gbit_%s.psd" % (depth, colormode)
     psd = PSDImage.open(full_name(filename))
     image = psd.composite(ignore_preview=ignore_preview, apply_icc=apply_icc)
@@ -239,8 +238,6 @@ def test_composite_layer_filter() -> None:
 
 
 def test_apply_mask() -> None:
-    from PIL import Image
-
     psd = PSDImage.open(full_name("masks/2.psd"))
     reference = np.asarray(Image.open(full_name("masks/2.png"))) / 255.0
     result = np.concatenate(composite(psd)[::2], axis=2)
@@ -307,8 +304,6 @@ def test_composite_pixel_layer_with_vector_stroke() -> None:
 
 def test_composite_mixed_colorspace_stroke() -> None:
     """Regression test for issue #397: ValueError on vector layer with CMYK stroke + Grayscale fill."""
-    from psd_tools.api.layers import GroupMixin
-
     psd = PSDImage.open(full_name("issues/issue397.psd"))
     psd.composite()
     for layer in psd:

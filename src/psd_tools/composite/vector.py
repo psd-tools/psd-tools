@@ -105,7 +105,7 @@ def _draw_subpath(subpath_list, width, height, brush, pen):
 
     Note: Callers must be decorated with @needs_aggdraw before calling.
     """
-    import aggdraw  # type: ignore[import-not-found]
+    import aggdraw  # type: ignore[import-not-found]  # noqa: PLC0415
 
     mask = Image.new("L", (width, height), 0)
     draw = aggdraw.Draw(mask)

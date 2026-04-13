@@ -20,6 +20,7 @@ from psd_tools.constants import (
     CompatibilityMode,
     ProtectedFlags,
     SectionDivider,
+    SheetColorType,
     Tag,
 )
 
@@ -651,8 +652,6 @@ def test_layer_reference_point(pixel_layer: PixelLayer) -> None:
 
 
 def test_layer_sheet_color(pixel_layer: PixelLayer) -> None:
-    from psd_tools.constants import SheetColorType
-
     assert pixel_layer.sheet_color == SheetColorType.NO_COLOR
 
     pixel_layer.sheet_color = SheetColorType.RED

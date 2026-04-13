@@ -21,8 +21,8 @@ def get_array(
     layer: "LayerProtocol | PSDProtocol", channel: str | None, **kwargs: Any
 ) -> np.ndarray | None:
     # Import at runtime to avoid circular imports
-    from psd_tools.api.layers import Layer
-    from psd_tools.api.psd_image import PSDImage
+    from psd_tools.api.layers import Layer  # noqa: PLC0415
+    from psd_tools.api.psd_image import PSDImage  # noqa: PLC0415
 
     if isinstance(layer, PSDImage):
         return get_image_data(layer, channel)

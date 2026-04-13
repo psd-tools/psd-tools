@@ -68,8 +68,8 @@ def draw_stroke_effect(
     viewport: tuple[int, int, int, int], shape: np.ndarray, desc: Descriptor, psd
 ) -> tuple[np.ndarray, np.ndarray]:
     # Import here after checking dependencies
-    from skimage import filters
-    from skimage.morphology import disk
+    from skimage import filters  # noqa: PLC0415
+    from skimage.morphology import disk  # noqa: PLC0415
 
     logger.debug("Stroke effect has limited support")
     height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]

@@ -324,7 +324,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             :py:func:`~psd_tools.api.layers.PixelLayer.is_visible`.
         :return: :py:class:`PIL.Image`.
         """
-        from psd_tools.composite import composite_pil
+        from psd_tools.composite import composite_pil  # noqa: PLC0415
 
         if (
             not (ignore_preview or force or layer_filter)
@@ -812,8 +812,6 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
     def _init(self) -> None:
         """Initialize layer structure."""
-        from psd_tools.api import layers
-
         group_stack: list[layers.Group | PSDImage] = [self]
 
         for record, channels in self._record._iter_layers():
