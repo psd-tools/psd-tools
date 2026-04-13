@@ -106,6 +106,7 @@ from PIL import Image, ImageChops
 
 import psd_tools.psd.engine_data as engine_data
 from psd_tools.api import numpy_io, pil_io
+from psd_tools.color_convert import rgb_to_grayscale
 from psd_tools.api.effects import Effects
 from psd_tools.api.mask import Mask
 from psd_tools.api.protocols import GroupMixinProtocol, LayerProtocol, PSDProtocol
@@ -1715,7 +1716,7 @@ class Artboard(Group):
                 ColorMode.BITMAP,
                 ColorMode.DUOTONE,
             ):
-                lum = 0.299 * r + 0.587 * g + 0.114 * b_val
+                lum = rgb_to_grayscale(r, g, b_val)
                 return lum, 1.0
             else:
                 # NOTE: The Clr descriptor is always RGB regardless of document
