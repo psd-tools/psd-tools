@@ -185,7 +185,8 @@ def apply_curves(
     luts: dict[int, NDArray[np.float32]] = {}
 
     for channel_id, points in info_dict.items():
-        if len(points) < 2: continue
+        if len(points) < 2: 
+            continue
         
         x = np.array([p[1] for p in points]) / 255.0
         y = np.array([p[0] for p in points]) / 255.0

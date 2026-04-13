@@ -77,6 +77,6 @@ def test_adjustment_nested_composition(number) -> None:
 
 
 def test_adjustment_clipping() -> None:
-    filename = f"adjustments/adjustment_clipping"
+    filename = "adjustments/adjustment_clipping"
     check_icc_composite_quality(filename, threshold=0.0005)
     check_composite_quality(f"{filename}.psd", 0.0005, False)

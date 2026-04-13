@@ -43,7 +43,7 @@ def check_icc_composite_quality(
 ) -> None:
     reference = np.array(Image.open(full_name(filename + ".png")), dtype=np.float32) / 255.0
     psd = PSDImage.open(full_name(filename + ".psd"))
-    result = np.array(psd.composite(apply_icc=True, layer_filter=lambda l: l.is_visible(), force=force), dtype=np.float32) / 255.0
+    result = np.array(psd.composite(apply_icc=True, layer_filter=lambda layer: layer.is_visible(), force=force), dtype=np.float32) / 255.0
 
     assert reference.shape == result.shape
     assert _mse(reference, result) <= threshold

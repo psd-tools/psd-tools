@@ -436,7 +436,8 @@ class Compositor(object):
 
         if adjustment_fn is None or colormode not in (
             ColorMode.CMYK, ColorMode.GRAYSCALE, ColorMode.RGB,
-        ): return
+        ): 
+            return
 
         backdrop_color = self._color
         transformed_color = adjustment_fn(backdrop_color, colormode, layer)
@@ -454,11 +455,9 @@ class Compositor(object):
         blended = blend_fn(backdrop_color, transformed_color)
 
         if self._adjustment_isolated:
-            alpha_s = self._shape_g
-
             self._color = utils.clip(
                 backdrop_color
-                + alpha_s * opacity * (blended - backdrop_color)
+                + self._shape_g * opacity * (blended - backdrop_color)
             )
         else:
             self._color = utils.clip(
