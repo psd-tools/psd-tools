@@ -6,6 +6,14 @@ import numpy as np
 
 from psd_tools.api import numpy_io
 from psd_tools.api.utils import EXPECTED_CHANNELS
+from psd_tools.color_convert import (
+    cmyk_to_rgb,
+    gray_to_cmyk,
+    gray_to_rgb,
+    hsb_to_rgb,
+    rgb_to_cmyk,
+    rgb_to_grayscale,
+)
 from psd_tools.composite._compat import require_scipy, require_skimage
 from psd_tools.constants import ColorMode, Tag
 from psd_tools.terminology import Enum, Key, Klass, Type
@@ -46,48 +54,6 @@ def _get_color(color_mode, desc) -> tuple[float, ...]:
     def _get_invert_color(color_desc, keys):
         return tuple((100.0 - float(color_desc[key])) / 100.0 for key in keys)
 
-    def hsb_to_rgb(h: float, s: float, v: float) -> tuple[float, ...]:
-        if s:
-            if h == 1.0:
-                h = 0.0
-            i = int(h * 6.0)
-            f = h * 6.0 - i
-
-            w = v * (1.0 - s)
-            q = v * (1.0 - s * f)
-            t = v * (1.0 - s * (1.0 - f))
-
-            if i == 0:
-                return (v, t, w)
-            if i == 1:
-                return (q, v, w)
-            if i == 2:
-                return (w, v, t)
-            if i == 3:
-                return (w, q, v)
-            if i == 4:
-                return (t, w, v)
-            if i == 5:
-                return (v, w, q)
-            return (v, v, v)  # fallback for unexpected i values
-        else:
-            return (v, v, v)
-
-    def rgb_to_cmyk(r, g, b) -> tuple[float, ...]:
-        if (r, g, b) == (0, 0, 0):
-            # black
-            return (0.0, 0.0, 0.0, 1.0)
-        c = 1 - r
-        m = 1 - g
-        y = 1 - b
-
-        min_cmy = min(c, m, y)
-        c = (c - min_cmy) / (1 - min_cmy)
-        m = (m - min_cmy) / (1 - min_cmy)
-        y = (y - min_cmy) / (1 - min_cmy)
-        k = min_cmy
-        return (c, m, y, k)
-
     def _get_rgb(color_mode, color_desc):
         if Key.Red in color_desc:
             rgb = _get_int_color(color_desc, (Key.Red, Key.Green, Key.Blue))
@@ -99,8 +65,7 @@ def _get_color(color_mode, desc) -> tuple[float, ...]:
         if color_mode == ColorMode.CMYK:
             return rgb_to_cmyk(*rgb)
         if color_mode == ColorMode.GRAYSCALE:
-            r, g, b = rgb
-            return (0.299 * r + 0.587 * g + 0.114 * b,)
+            return (rgb_to_grayscale(*rgb),)
         return rgb
 
     def _get_hsb(color_mode, color_desc):
@@ -117,9 +82,9 @@ def _get_color(color_mode, desc) -> tuple[float, ...]:
     def _get_gray(color_mode, x):
         (gray,) = _get_invert_color(x, (Key.Gray,))
         if color_mode == ColorMode.RGB:
-            return (gray, gray, gray)
+            return gray_to_rgb(gray)
         if color_mode == ColorMode.CMYK:
-            return (0.0, 0.0, 0.0, 1.0 - gray)
+            return gray_to_cmyk(gray)
         return (gray,)
 
     def _get_cmyk(color_mode, x):
@@ -127,13 +92,11 @@ def _get_color(color_mode, desc) -> tuple[float, ...]:
             x, (Key.Cyan, Key.Magenta, Key.Yellow, Key.Black)
         )
         if color_mode in (ColorMode.RGB, ColorMode.GRAYSCALE):
-            r = (1.0 - c) * (1.0 - k)
-            g = (1.0 - m) * (1.0 - k)
-            b = (1.0 - y) * (1.0 - k)
+            r, g, b = cmyk_to_rgb(c, m, y, k)
         if color_mode == ColorMode.RGB:
             return (r, g, b)
         if color_mode == ColorMode.GRAYSCALE:
-            return (0.299 * r + 0.587 * g + 0.114 * b,)
+            return (rgb_to_grayscale(r, g, b),)
         return (c, m, y, k)
 
     def _get_lab(color_mode, x):
