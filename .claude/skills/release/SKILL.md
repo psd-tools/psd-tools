@@ -1,7 +1,7 @@
 ---
 name: release
 description: Prepare a psd-tools release: update changelog, open release PR. Use when the user wants to cut a new version.
-allowed-tools: Bash(git:*), Bash(gh:*)
+allowed-tools: Bash(git:*), Bash(gh:*), Bash(date:*)
 ---
 
 Prepare a release for version **$ARGUMENTS**.
@@ -12,13 +12,15 @@ Validate that `$ARGUMENTS` is a valid PEP 440 version string (e.g. `1.2.3`, `1.2
 
 ## Step 1 — Review commits since the last release
 
+Fetch tags and list commits since the last release:
+
+!`git fetch --tags -q 2>/dev/null && echo ""`
+
 Here are the commits since the last tag:
 
-```
-!`git log $(git describe --tags --abbrev=0)..HEAD --oneline`
-```
+!`git log "$(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD)"..HEAD --oneline`
 
-Last tag: !`git describe --tags --abbrev=0`
+Last tag: !`git describe --tags --abbrev=0 2>/dev/null || echo "(none)"`
 
 Today's date: !`date +%Y-%m-%d`
 
@@ -28,10 +30,13 @@ Read `docs/changelog.rst` to understand the current format, then draft a new ent
 
 ```
 $ARGUMENTS (YYYY-MM-DD)
--------------------
+-----------------------
 
 - [category] Description (#PR)
 ```
+
+**Important**: The `-` underline must be at least as long as the title line (RST requirement).
+Count the exact characters in `$ARGUMENTS (YYYY-MM-DD)` and use that many dashes.
 
 Use these categories (pick the most specific one per bullet):
 
@@ -63,27 +68,14 @@ git push -u origin release/v$ARGUMENTS
 
 ## Step 5 — Open a pull request
 
-```bash
-gh pr create \
-  --title "Release v$ARGUMENTS" \
-  --body "$(cat <<'EOF'
-## Release v$ARGUMENTS
+Run `gh pr create` with `--title "Release v$ARGUMENTS"` and a `--body` containing:
 
-### Changelog
-
-<!-- paste the changelog entry here -->
-
-### Release checklist
-
-- [ ] Changelog entry reviewed and accurate
-- [ ] Version follows PEP 440
-
-After this PR is merged, the `auto-tag` workflow will tag the merge commit as `v$ARGUMENTS` and the `release` workflow will build wheels and publish to PyPI automatically.
-EOF
-)"
-```
-
-Fill in the changelog entry in the PR body from Step 2.
+- A `## Release v$ARGUMENTS` heading
+- A `### Changelog` section with the approved entry from Step 2 pasted in
+- A `### Release checklist` section with these items:
+  - `[ ] Changelog entry reviewed and accurate`
+  - `[ ] Version follows PEP 440`
+- A closing note: "After this PR is merged, the `auto-tag` workflow will tag the merge commit as `v$ARGUMENTS` and the `release` workflow will build wheels and publish to PyPI automatically."
 
 ## Step 6 — Done
 
