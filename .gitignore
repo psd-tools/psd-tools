@@ -176,7 +176,8 @@ Temporary Items
 
 # Agents
 CLAUDE.local.md
-.claude
+.claude/*
+!.claude/skills/
 
 # Project-specific
 tmp/
