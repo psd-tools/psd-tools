@@ -38,7 +38,7 @@ Fetch tags and list commits since the last release:
 
 Here are the commits since the last tag:
 
-!`if git tag --list | grep -q .; then git log "$(git describe --tags --abbrev=0)..HEAD" --oneline; else git log "$(git rev-list --max-parents=0 HEAD)..HEAD" --oneline; fi`
+!`LAST_TAG="$(git describe --tags --abbrev=0 2>/dev/null || true)"; if [ -n "$LAST_TAG" ]; then git log "$LAST_TAG..HEAD" --oneline; else git log "$(git rev-list --max-parents=0 HEAD)..HEAD" --oneline; fi`
 
 Last tag: !`git describe --tags --abbrev=0 2>/dev/null || echo "(none)"`
 
