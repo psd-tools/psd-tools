@@ -2,7 +2,7 @@ Changelog
 =========
 
 1.15.0 (2026-04-14)
---------------------
+-------------------
 
 - [api] Add ``layer_sized`` option to ``Mask.topil()`` for correct rendering of inverted masks (#622, fixes #389)
 - [fix] Graceful fallback for zero-length channel data (#621, fixes #398)
