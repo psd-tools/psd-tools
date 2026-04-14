@@ -32,7 +32,7 @@ Store the confirmed version as **VERSION** for all subsequent steps.
 
 ## Step 1 — Review commits since the last release
 
-Fetch tags and list commits since the last release:
+Fetch tags:
 
 !`git fetch --tags -q || echo "Warning: failed to fetch tags — check network/auth and consider retrying."`
 
@@ -40,7 +40,12 @@ Last tag: !`git describe --tags --abbrev=0 2>/dev/null || echo "(none)"`
 
 Today's date: !`date +%Y-%m-%d`
 
-If the "Last tag" output above is `(none)`, do not use `(none)` as a tag name; run `git log --oneline` to list all commits. Otherwise, use the actual tag shown above and run `git log <LAST_TAG>..HEAD --oneline` to list commits since that tag.
+Now list the commits since the last release by running one of these commands:
+
+- If "Last tag" above is `(none)`: run `git log --oneline`
+- Otherwise: run `git log <LAST_TAG>..HEAD --oneline` (substituting the actual tag)
+
+You must run this command and review the output before proceeding to Step 0 or Step 2.
 
 ## Step 2 — Draft changelog entry
 
