@@ -1,7 +1,7 @@
 ---
 name: release
 description: Prepare a psd-tools release: update changelog, open release PR. Use when the user wants to cut a new version.
-allowed-tools: Bash(git:*), Bash(gh:*), Bash(date:*)
+allowed-tools: Bash(git:*), Bash(gh:*), Bash(date:*), Edit
 ---
 
 ## Step 0 — Determine target version
@@ -86,12 +86,26 @@ following blank line, leaving a blank line between the header and the new entry.
 
 ```bash
 git checkout -b release/vVERSION
-git add docs/changelog.rst
+```
+
+Then update `src/psd_tools/version.py` using the Edit tool — replace the existing
+`__version__` line with:
+
+```python
+__version__ = "VERSION"
+```
+
+`VERSION` is the bare PEP 440 string **without** the `v` prefix (e.g. `1.15.0`, not `v1.15.0`).
+
+Then stage both changed files and commit:
+
+```bash
+git add docs/changelog.rst src/psd_tools/version.py
 git commit -m "docs: release vVERSION"
 git push -u origin release/vVERSION
 ```
 
-Replace `VERSION` with the actual version string (e.g. `1.14.4`).
+Replace `VERSION` with the actual version string (e.g. `1.15.0`).
 
 ## Step 5 — Open a pull request
 
