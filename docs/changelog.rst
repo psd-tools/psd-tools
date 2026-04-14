@@ -1,6 +1,21 @@
 Changelog
 =========
 
+1.15.0 (2026-04-14)
+--------------------
+
+- [api] Add ``layer_sized`` option to ``Mask.topil()`` for correct rendering of inverted masks (#622, fixes #389)
+- [fix] Graceful fallback for zero-length channel data (#621, fixes #398)
+- [fix] Make artboard background color color-mode aware (#620, fixes #395)
+- [fix] Normalize color space in composite paint to fix mixed-colorspace stroke error (#618, fixes #397)
+- [fix] Compute ``VectorMask.bbox`` from full Bézier curve extent, not just anchors (#613)
+- [refactor] Extract color conversion math into ``psd_tools.color_convert`` module (#630)
+- [docs] Fix misleading ``ImageResource`` signature docstring (#624, fixes #375)
+- [ci] Add Python 3.14 free-threaded (cp314t) wheel support (#633)
+- [ci] Automate release tagging via ``pull_request`` closed event (#611)
+- [ci] Add stale issue/PR workflow (#615)
+- [chore] Bump pytest to 9.0.3, ruff to 0.15.10, actions/checkout to v6 (#625, #626, #627)
+
 1.14.3 (2026-04-10)
 -------------------
 
