@@ -1,6 +1,11 @@
 Changelog
 =========
 
+1.15.0.post1 (2026-04-14)
+--------------------------
+
+- [ci] Fix release packaging: version.py was not bumped in the v1.15.0 release PR, causing wheels to be built with the wrong version
+
 1.15.0 (2026-04-14)
 -------------------
 
