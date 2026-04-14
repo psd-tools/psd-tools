@@ -7,7 +7,11 @@ from setuptools import Extension, setup
 
 # Free-threaded Python (cp314t) does not support the Limited API / stable ABI.
 # Each cp314t version needs its own version-specific wheel.
-is_free_threaded = bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
+_py_gil_disabled = sysconfig.get_config_var("Py_GIL_DISABLED")
+try:
+    is_free_threaded = int(_py_gil_disabled or 0) != 0
+except (TypeError, ValueError):
+    is_free_threaded = False
 use_limited_api = sys.version_info >= (3, 13) and not is_free_threaded
 
 extensions = [
