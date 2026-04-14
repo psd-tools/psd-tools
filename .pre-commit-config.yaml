@@ -59,9 +59,9 @@ repos:
       - id: mdformat
         additional_dependencies:
           - mdformat-gfm==1.0.0
-        # Exclude GitHub issue/PR templates — they use YAML front matter
+        # Exclude GitHub issue templates and Claude Code skills — they use YAML front matter
         # delimited by `---` which mdformat incorrectly treats as a thematic break.
-        files: ^(?!\.venv/|build/|dist/|\.github/ISSUE_TEMPLATE/).*\.md$
+        files: ^(?!\.venv/|build/|dist/|\.github/ISSUE_TEMPLATE/|\.claude/skills/).*\.md$
 
   # ---------------------------------------------------------------------------
   # RST: sphinx-lint (linter — no mature RST formatter exists)
