@@ -40,7 +40,7 @@ Last tag: !`git describe --tags --abbrev=0 2>/dev/null || echo "(none)"`
 
 Today's date: !`date +%Y-%m-%d`
 
-Using the last tag shown above, run `git log <LAST_TAG>..HEAD --oneline` to list commits since that tag. If there is no last tag, run `git log --oneline` to list all commits.
+If the "Last tag" output above is `(none)`, do not use `(none)` as a tag name; run `git log --oneline` to list all commits. Otherwise, use the actual tag shown above and run `git log <LAST_TAG>..HEAD --oneline` to list commits since that tag.
 
 ## Step 2 — Draft changelog entry
 
