@@ -95,7 +95,7 @@ files = ["src/psd_tools", "tests"]
 
 [tool.cibuildwheel]
 archs = "auto64"
-skip = "cp310-win_arm64 cp314t-*"
+skip = "cp310-win_arm64"
 # Skip testing during wheel builds - tests are already run in CI test workflow
 # Testing here would require composite dependencies which aren't available on all platforms
 test-skip = "*"
