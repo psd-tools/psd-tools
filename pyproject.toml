@@ -95,13 +95,17 @@ files = ["src/psd_tools", "tests"]
 
 [tool.cibuildwheel]
 archs = "auto64"
-skip = "cp310-win_arm64 cp314t-*"
+skip = "cp310-win_arm64"
 # Skip testing during wheel builds - tests are already run in CI test workflow
 # Testing here would require composite dependencies which aren't available on all platforms
 test-skip = "*"
+# Remove any setup.cfg left by a previous build so it cannot bleed into later builds
+# (e.g. a cp314 abi3 setup.cfg must not carry over into a cp314t free-threaded build)
+before-build = "rm -f setup.cfg"
 
 [[tool.cibuildwheel.overrides]]
 select = "cp3{13,14}-{manylinux,musllinux,macos}*"
+inherit.before-build = "append"
 before-build = "bash tools/configure_abi_tag.sh"
 
 [tool.cibuildwheel.windows]
