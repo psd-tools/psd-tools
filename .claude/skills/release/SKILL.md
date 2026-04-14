@@ -36,13 +36,11 @@ Fetch tags and list commits since the last release:
 
 !`git fetch --tags -q || echo "Warning: failed to fetch tags — check network/auth and consider retrying."`
 
-Here are the commits since the last tag:
-
-!`LAST_TAG="$(git describe --tags --abbrev=0 2>/dev/null || true)"; if [ -n "$LAST_TAG" ]; then git log "$LAST_TAG..HEAD" --oneline; else git log "$(git rev-list --max-parents=0 HEAD)..HEAD" --oneline; fi`
-
 Last tag: !`git describe --tags --abbrev=0 2>/dev/null || echo "(none)"`
 
 Today's date: !`date +%Y-%m-%d`
+
+Using the last tag shown above, run `git log <LAST_TAG>..HEAD --oneline` to list commits since that tag. If there is no last tag, run `git log --oneline` to list all commits.
 
 ## Step 2 — Draft changelog entry
 
