@@ -4,11 +4,26 @@ description: Prepare a psd-tools release: update changelog, open release PR. Use
 allowed-tools: Bash(git:*), Bash(gh:*), Bash(date:*)
 ---
 
-Prepare a release for version **$ARGUMENTS**.
+## Step 0 — Determine target version
 
-If `$ARGUMENTS` is empty, ask the user for the target version before proceeding.
+**Provided version**: $ARGUMENTS
 
-Validate that `$ARGUMENTS` is a valid PEP 440 version string (e.g. `1.2.3`, `1.2.3a1`, `1.2.3rc1`, `1.2.3.post1`). If it is not, stop and ask the user to provide a valid version.
+### If a version was provided (above is non-empty)
+
+Validate it as a PEP 440 string (e.g. `1.2.3`, `1.2.3a1`, `1.2.3rc1`, `1.2.3.post1`).
+Stop and ask the user to correct it if invalid. Use it as VERSION for all subsequent steps.
+
+### If no version was provided (above is empty)
+
+Analyze the commits listed in Step 1 to recommend the correct next version.
+Apply these semver rules against the last tag shown in Step 1:
+
+- **Major bump** (`X+1.0.0`) — any commit that breaks a public API or documented behaviour
+- **Minor bump** (`X.Y+1.0`) — any new public feature or API addition, no breaking changes
+- **Patch bump** (`X.Y.Z+1`) — bug fixes, security patches, chores, docs, or refactoring only
+
+Show your reasoning and proposed version to the user, then ask them to confirm or override it.
+Treat the confirmed version as VERSION for all subsequent steps.
 
 ## Step 1 — Review commits since the last release
 
