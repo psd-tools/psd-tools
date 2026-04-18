@@ -614,12 +614,13 @@ class Compositor(object):
                 )
             if layer.mask.parameters:
                 density = layer.mask.parameters.user_mask_density
-                density = (
-                    layer.mask.parameters.vector_mask_density
-                    if density is not None
-                    else 255
-                )
-                opacity = float(density) / 255.0
+                if density is None:
+                    density = layer.mask.parameters.vector_mask_density
+                if density is None:
+                    density = 255
+
+                density = float(density) / 255.0
+                shape = density * shape + (1 - density)
 
         if (
             layer.vector_mask is not None

@@ -77,13 +77,24 @@ def check_icc_composite_quality(
         ("transparency/fill-opacity.psd",),
         ("mask.psd",),
         ("mask-disabled.psd",),
+        ("mask-density-layermask.psd",),
+        ("mask-density-vectormask.psd",),
+        pytest.param(
+            "mask-density-layervectormask.psd",
+            marks=pytest.mark.xfail(
+                reason=(
+                    "usermask carries over layer and vector mask properties"
+                    "(layer and vector masks are not isolated)"
+                )
+            ),
+        ),
         # ('vector-mask.psd', ),  # 32-bit blending not working.
         ("vector-mask-disabled.psd",),
         ("vector-mask3.psd",),
     ],
 )
 def test_composite_quality(filename: str) -> None:
-    check_composite_quality(filename, 0.01, False)
+    check_composite_quality(filename, 0.001, False)
 
 
 @pytest.mark.parametrize(
