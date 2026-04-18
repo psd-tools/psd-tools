@@ -338,7 +338,7 @@ def _apply_icc(image: Image.Image, icc_profile: bytes) -> Image.Image:
         logger.error("Failed to apply ICC profile.")
         return image
 
-    if alpha:
+    if alpha is not None:
         result.putalpha(alpha)
 
     logger.debug(f"input mode: {image.mode}, output mode: {result.mode}")

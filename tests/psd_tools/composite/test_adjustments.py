@@ -10,11 +10,12 @@ LOOSE = 5e-4  # tolerance for approximate adjustment algorithms which can be imp
 ACCURATE = 5e-5  # tolerance for accurate adjustment algorithms (e.g. curves)
 STRICT = 5e-6  # tolerance for precise adjustment algorithms (e.g. threshold)
 
+# Tolerances used for MSE computation over test images (shape (200, 200, C), values in [0,1])
 TOLERANCES = {
     "brightnesscontrast": LOOSE,
     "levels": ACCURATE,
     "curves": ACCURATE,
-    "exposure": LOOSE,
+    "exposure": ACCURATE,
     "invert": ACCURATE,
     "posterize": ACCURATE,
     "threshold": STRICT,
