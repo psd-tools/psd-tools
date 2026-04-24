@@ -1,17 +1,21 @@
 """Vector shapes and path operations for compositing."""
 
 import logging
+from typing import TYPE_CHECKING, Generator
 
 import numpy as np
 from PIL import Image
 
 from psd_tools.composite._compat import require_aggdraw
 
+if TYPE_CHECKING:
+    from psd_tools.api.layers import Layer
+
 logger = logging.getLogger(__name__)
 
 
 @require_aggdraw
-def draw_vector_mask(layer):
+def draw_vector_mask(layer: "Layer") -> np.ndarray:
     """
     Draw a vector mask.
 
@@ -21,12 +25,13 @@ def draw_vector_mask(layer):
 
 
 @require_aggdraw
-def draw_stroke(layer):
+def draw_stroke(layer: "Layer") -> np.ndarray:
     """
     Draw a stroke.
 
     Requires aggdraw for bezier curve rasterization.
     """
+    assert layer.stroke is not None
     desc = layer.stroke._data
     # _CAP = {
     #     'strokeStyleButtCap': 0,
@@ -57,7 +62,12 @@ def draw_stroke(layer):
     )
 
 
-def _draw_path(layer, brush=None, pen=None):
+def _draw_path(
+    layer: "Layer",
+    brush: dict[str, int | float] | None = None,
+    pen: dict[str, int | float] | None = None,
+) -> np.ndarray:
+    assert layer.vector_mask is not None
     height, width = layer._psd.height, layer._psd.width
     color = 0
     if layer.vector_mask.initial_fill_rule and len(layer.vector_mask.paths) == 0:
@@ -65,7 +75,7 @@ def _draw_path(layer, brush=None, pen=None):
     mask = np.full((height, width, 1), color, dtype=np.float32)
 
     # Group merged path components.
-    paths = []
+    paths: list[list] = []
     for subpath in layer.vector_mask.paths:
         if subpath.operation == -1:
             paths[-1].append(subpath)
@@ -97,7 +107,13 @@ def _draw_path(layer, brush=None, pen=None):
     return np.minimum(1, np.maximum(0, mask))
 
 
-def _draw_subpath(subpath_list, width, height, brush, pen):
+def _draw_subpath(
+    subpath_list: list,
+    width: int,
+    height: int,
+    brush: dict[str, int | float] | None,
+    pen: dict[str, int | float] | None,
+) -> np.ndarray:
     """
     Rasterize Bezier curves using aggdraw.
 
@@ -123,7 +139,12 @@ def _draw_subpath(subpath_list, width, height, brush, pen):
     return np.expand_dims(np.array(mask).astype(np.float32) / 255.0, 2)
 
 
-def _generate_symbol(path, width, height, command="C"):
+def _generate_symbol(
+    path,
+    width: int,
+    height: int,
+    command: str = "C",
+) -> Generator[str | float, None, None]:
     """Sequence generator for SVG path."""
     if len(path) == 0:
         return

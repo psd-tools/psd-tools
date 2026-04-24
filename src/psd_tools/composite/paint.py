@@ -1,6 +1,7 @@
 """Paint and fill operations for compositing."""
 
 import logging
+from typing import TYPE_CHECKING, Any, Callable, Sequence, TypeVar
 
 import numpy as np
 
@@ -16,12 +17,16 @@ from psd_tools.color_convert import (
 )
 from psd_tools.composite._compat import require_scipy, require_skimage
 from psd_tools.constants import ColorMode, Tag
+from psd_tools.psd.descriptor import Descriptor
 from psd_tools.terminology import Enum, Key, Klass, Type
+
+if TYPE_CHECKING:
+    from psd_tools.api.layers import Layer
 
 logger = logging.getLogger(__name__)
 
 
-def _get_color(color_mode, desc) -> tuple[float, ...]:
+def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
     """Return color tuple from descriptor.
 
     Example descriptor::
@@ -48,13 +53,13 @@ def _get_color(color_mode, desc) -> tuple[float, ...]:
             }
     """
 
-    def _get_int_color(color_desc, keys):
+    def _get_int_color(color_desc: Descriptor, keys: tuple) -> tuple[float, ...]:
         return tuple(float(color_desc[key]) / 255.0 for key in keys)
 
-    def _get_invert_color(color_desc, keys):
+    def _get_invert_color(color_desc: Descriptor, keys: tuple) -> tuple[float, ...]:
         return tuple((100.0 - float(color_desc[key])) / 100.0 for key in keys)
 
-    def _get_rgb(color_mode, color_desc):
+    def _get_rgb(color_mode: ColorMode, color_desc: Descriptor) -> tuple[float, ...]:
         if Key.Red in color_desc:
             rgb = _get_int_color(color_desc, (Key.Red, Key.Green, Key.Blue))
         else:
@@ -68,7 +73,7 @@ def _get_color(color_mode, desc) -> tuple[float, ...]:
             return (rgb_to_grayscale(*rgb),)
         return rgb
 
-    def _get_hsb(color_mode, color_desc):
+    def _get_hsb(color_mode: ColorMode, color_desc: Descriptor) -> tuple[float, ...]:
         hue = float(color_desc[Key.Hue]) / 300.0
         saturation = float(color_desc[Key.Saturation]) / 100.0
         brightness = float(color_desc[Key.Brightness]) / 100.0
@@ -79,7 +84,7 @@ def _get_color(color_mode, desc) -> tuple[float, ...]:
             return rgb_to_cmyk(rgb_components[0], rgb_components[1], rgb_components[2])
         raise ValueError("Unexpected color mode for HSB color %s" % (color_mode))
 
-    def _get_gray(color_mode, x):
+    def _get_gray(color_mode: ColorMode, x: Descriptor) -> tuple[float, ...]:
         (gray,) = _get_invert_color(x, (Key.Gray,))
         if color_mode == ColorMode.RGB:
             return gray_to_rgb(gray)
@@ -87,7 +92,7 @@ def _get_color(color_mode, desc) -> tuple[float, ...]:
             return gray_to_cmyk(gray)
         return (gray,)
 
-    def _get_cmyk(color_mode, x):
+    def _get_cmyk(color_mode: ColorMode, x: Descriptor) -> tuple[float, ...]:
         c, m, y, k = _get_invert_color(
             x, (Key.Cyan, Key.Magenta, Key.Yellow, Key.Black)
         )
@@ -99,7 +104,7 @@ def _get_color(color_mode, desc) -> tuple[float, ...]:
             return (rgb_to_grayscale(r, g, b),)
         return (c, m, y, k)
 
-    def _get_lab(color_mode, x):
+    def _get_lab(color_mode: ColorMode, x: Descriptor) -> tuple[float, ...]:
         return _get_int_color(x, (Key.Luminance, Key.A, Key.B))
 
     _COLOR_FUNC = {
@@ -114,7 +119,11 @@ def _get_color(color_mode, desc) -> tuple[float, ...]:
     return _COLOR_FUNC[color_desc.classID](color_mode, color_desc)
 
 
-def create_fill_desc(layer, desc, viewport):
+def create_fill_desc(
+    layer: "Layer",
+    desc: Descriptor,
+    viewport: tuple[int, int, int, int],
+) -> tuple[np.ndarray | None, np.ndarray | None]:
     """Create a fill image."""
     if desc.classID == b"solidColorLayer":
         return draw_solid_color_fill(viewport, layer._psd.color_mode, desc)
@@ -125,7 +134,10 @@ def create_fill_desc(layer, desc, viewport):
     return None, None
 
 
-def create_fill(layer, viewport):
+def create_fill(
+    layer: "Layer",
+    viewport: tuple[int, int, int, int],
+) -> tuple[np.ndarray | None, np.ndarray | None]:
     """Create a fill image."""
     if Tag.SOLID_COLOR_SHEET_SETTING in layer.tagged_blocks:
         desc = layer.tagged_blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING)
@@ -150,7 +162,9 @@ def create_fill(layer, viewport):
 
 
 def draw_solid_color_fill(
-    viewport: tuple[int, int, int, int], color_mode: ColorMode, desc
+    viewport: tuple[int, int, int, int],
+    color_mode: ColorMode,
+    desc: Descriptor,
 ) -> tuple[np.ndarray, np.ndarray | None]:
     """
     Create a solid color fill.
@@ -163,7 +177,9 @@ def draw_solid_color_fill(
 
 @require_skimage
 def draw_pattern_fill(
-    viewport: tuple[int, int, int, int], psd, desc
+    viewport: tuple[int, int, int, int],
+    psd: Any,
+    desc: Descriptor,
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
     """
     Create a pattern fill.
@@ -222,7 +238,9 @@ def draw_pattern_fill(
 
 @require_scipy
 def draw_gradient_fill(
-    viewport: tuple[int, int, int, int], color_mode: ColorMode, desc
+    viewport: tuple[int, int, int, int],
+    color_mode: ColorMode,
+    desc: Descriptor,
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
     """
     Create a gradient fill image.
@@ -266,33 +284,33 @@ def draw_gradient_fill(
     return color, shape
 
 
-def _make_linear_gradient(X, Y, angle):
+def _make_linear_gradient(X: np.ndarray, Y: np.ndarray, angle: float) -> np.ndarray:
     """Generates index map for linear gradients."""
     theta = np.radians(angle % 360)
     Z = 0.5 * (np.cos(theta) * X - np.sin(theta) * Y + 1)
     return Z
 
 
-def _make_radial_gradient(X, Y):
+def _make_radial_gradient(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
     """Generates index map for radial gradients."""
     Z = np.sqrt(np.power(X, 2) + np.power(Y, 2))
     return Z
 
 
-def _make_angle_gradient(X, Y, angle):
+def _make_angle_gradient(X: np.ndarray, Y: np.ndarray, angle: float) -> np.ndarray:
     """Generates index map for angle gradients."""
     Z = (((180 * np.arctan2(Y, X) / np.pi) + angle) % 360) / 360
     return Z
 
 
-def _make_reflected_gradient(X, Y, angle):
+def _make_reflected_gradient(X: np.ndarray, Y: np.ndarray, angle: float) -> np.ndarray:
     """Generates index map for reflected gradients."""
     theta = np.radians(angle % 360)
     Z = np.abs((np.cos(theta) * X - np.sin(theta) * Y))
     return Z
 
 
-def _make_diamond_gradient(X, Y, angle):
+def _make_diamond_gradient(X: np.ndarray, Y: np.ndarray, angle: float) -> np.ndarray:
     """Generates index map for diamond gradients."""
     theta = np.radians(angle % 360)
     Z = np.abs(np.cos(theta) * X - np.sin(theta) * Y) + np.abs(
@@ -301,7 +319,9 @@ def _make_diamond_gradient(X, Y, angle):
     return Z
 
 
-def _make_gradient_color(color_mode, grad):
+def _make_gradient_color(
+    color_mode: ColorMode, grad: Descriptor
+) -> tuple[Any | None, Any | None]:
     gradient_form = grad.get(Type.GradientForm).enum
     if gradient_form == Enum.ColorNoise:
         return _make_noise_gradient_color(grad)
@@ -312,44 +332,58 @@ def _make_gradient_color(color_mode, grad):
     return None, None
 
 
-def _make_linear_gradient_color(color_mode, grad):
-    from scipy import interpolate  # type: ignore[import-untyped]  # noqa: PLC0415
+_T = TypeVar("_T")
 
-    X, Y = [], []
-    for stop in grad.get(Key.Colors, []):
+
+def _collect_stops(
+    stops: Sequence[Any], value_fn: Callable[[Any], _T]
+) -> tuple[list[float], list[_T]]:
+    """Collect gradient stop (location, value) pairs, deduplicating co-located stops."""
+    X: list[float] = []
+    Y: list[_T] = []
+    for stop in stops:
         location = float(stop.get(Key.Location)) / 4096.0
-        color = np.array(_get_color(color_mode, stop), dtype=np.float32)
-        if len(X) and X[-1] == location:
+        value = value_fn(stop)
+        if X and X[-1] == location:
             logger.debug("Duplicate stop at %d" % location)
-            X.pop(), Y.pop()
-        X.append(location), Y.append(color)
-    assert len(X) > 0
+            X.pop()
+            Y.pop()
+        X.append(location)
+        Y.append(value)
+    if not X:
+        raise ValueError("Gradient has no stops.")
     if len(X) == 1:
         X = [0.0, 1.0]
         Y = [Y[0], Y[0]]
-    G = interpolate.interp1d(X, Y, axis=0, bounds_error=False, fill_value=(Y[0], Y[-1]))
+    return X, Y
+
+
+def _make_linear_gradient_color(
+    color_mode: ColorMode, grad: Descriptor
+) -> tuple[Any | None, Any | None]:
+    from scipy import interpolate  # type: ignore[import-untyped]  # noqa: PLC0415
+
+    Xc, Yc = _collect_stops(
+        grad.get(Key.Colors, []),
+        lambda stop: np.array(_get_color(color_mode, stop), dtype=np.float32),
+    )
+    G = interpolate.interp1d(
+        Xc, Yc, axis=0, bounds_error=False, fill_value=(Yc[0], Yc[-1])
+    )
     if Key.Transparency not in grad:
         return G, None
 
-    X, Y = [], []
-    for stop in grad.get(Key.Transparency):
-        location = float(stop.get(Key.Location)) / 4096.0
-        opacity = float(stop.get(Key.Opacity)) / 100.0
-        if len(X) and X[-1] == location:
-            logger.debug("Duplicate stop at %d" % location)
-            X.pop(), Y.pop()
-        X.append(location), Y.append(opacity)
-    assert len(X) > 0
-    if len(X) == 1:
-        X = [0.0, 1.0]
-        Y = [Y[0], Y[0]]
+    Xt, Yt = _collect_stops(
+        grad.get(Key.Transparency),
+        lambda stop: float(stop.get(Key.Opacity)) / 100.0,
+    )
     Ga = interpolate.interp1d(
-        X, Y, axis=0, bounds_error=False, fill_value=(Y[0], Y[-1])
+        Xt, Yt, axis=0, bounds_error=False, fill_value=(Yt[0], Yt[-1])
     )
     return G, Ga
 
 
-def _make_noise_gradient_color(grad):
+def _make_noise_gradient_color(grad: Descriptor) -> tuple[Any | None, Any | None]:
     """
     Make a noise gradient color.
 

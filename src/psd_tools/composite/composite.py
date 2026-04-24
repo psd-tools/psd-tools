@@ -24,7 +24,7 @@ def composite_pil(
     color: float | tuple[float, ...] | np.ndarray,
     alpha: float | np.ndarray,
     viewport: tuple[int, int, int, int] | None,
-    layer_filter: Callable | None,
+    layer_filter: Callable[[Layer], bool] | None,
     force: bool,
     as_layer: bool = False,
     apply_icc: bool = True,
@@ -113,7 +113,7 @@ def composite(
     color: float | tuple[float, ...] | np.ndarray = 1.0,
     alpha: float | np.ndarray = 0.0,
     viewport: tuple[int, int, int, int] | None = None,
-    layer_filter: Callable | None = None,
+    layer_filter: Callable[[Layer], bool] | None = None,
     force: bool = False,
     as_layer: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -271,7 +271,7 @@ class Compositor(object):
         color: float | tuple[float, ...] | np.ndarray = 1.0,
         alpha: float | np.ndarray = 0.0,
         isolated: bool = False,
-        layer_filter: Callable | None = None,
+        layer_filter: Callable[[Layer], bool] | None = None,
         force: bool = False,
         adjustment_isolated: bool = False,
     ):
@@ -435,11 +435,13 @@ class Compositor(object):
         adjustment_fn = ADJUSTMENT_FUNC.get(layer.kind)
         colormode = layer._psd.color_mode
 
-        if adjustment_fn is None or colormode not in (
-            ColorMode.CMYK,
-            ColorMode.GRAYSCALE,
-            ColorMode.RGB,
-        ):
+        if adjustment_fn is None:
+            logger.debug("Unsupported adjustment layer: %s", layer.kind)
+            return
+        if colormode not in (ColorMode.CMYK, ColorMode.GRAYSCALE, ColorMode.RGB):
+            logger.debug(
+                "Unsupported color mode for adjustment %s: %s", layer.kind, colormode
+            )
             return
 
         backdrop_color = self._color
@@ -666,16 +668,19 @@ class Compositor(object):
         assert opacity is not None
         return float(shape), opacity
 
-    def _get_stroke(self, layer):
+    def _get_stroke(self, layer: Layer) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Get stroke source."""
+        assert layer.stroke is not None
         desc = layer.stroke._data
         width = int(desc.get("strokeStyleLineWidth", 1.0))
-        viewport = tuple(
-            x + d for x, d in zip(layer.bbox, (-width, -width, width, width))
+        viewport = cast(
+            tuple[int, int, int, int],
+            tuple(x + d for x, d in zip(layer.bbox, (-width, -width, width, width))),
         )
         color, _ = paint.create_fill_desc(
             layer, desc.get("strokeStyleContent"), viewport
         )
+        assert color is not None
         color = paste(self._viewport, viewport, color, 1.0)
         shape = vector.draw_stroke(layer)
         if shape.shape[0] != self.height or shape.shape[1] != self.width:

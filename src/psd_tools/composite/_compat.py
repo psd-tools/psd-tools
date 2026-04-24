@@ -1,7 +1,7 @@
 """Compatibility module for optional composite dependencies."""
 
 import functools
-from typing import Callable, TYPE_CHECKING, TypeVar
+from typing import Any, Callable, TYPE_CHECKING, TypeVar
 
 F = TypeVar("F", bound=Callable)
 
@@ -50,7 +50,7 @@ def require_aggdraw(func: F) -> F:
     """
 
     @functools.wraps(func)
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         if not HAS_AGGDRAW:
             raise ImportError(
                 "Vector shape rendering requires: aggdraw\n\n"
@@ -81,7 +81,7 @@ def require_scipy(func: F) -> F:
     """
 
     @functools.wraps(func)
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         if not HAS_SCIPY:
             raise ImportError(
                 "Gradient fills require: scipy\n\n"
@@ -112,7 +112,7 @@ def require_skimage(func: F) -> F:
     """
 
     @functools.wraps(func)
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         if not HAS_SKIMAGE:
             raise ImportError(
                 "Layer effects require: scikit-image\n\n"
