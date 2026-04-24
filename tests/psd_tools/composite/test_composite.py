@@ -70,6 +70,8 @@ def check_icc_composite_quality(
         ("clipping-mask.psd",),
         ("clipping-mask2.psd",),
         ("clipping-mask3.psd",),
+        ("clipping-mask4.psd",),
+        ("clipping-mask5.psd",),
         ("opacity-fill.psd",),
         ("transparency/transparency-group.psd",),
         ("transparency/knockout-isolated-groups.psd",),

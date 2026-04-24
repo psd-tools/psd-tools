@@ -189,7 +189,7 @@ def composite(
 
     isolated = False
     if not isinstance(group, PSDImage):
-        isolated = not _is_passthrough(group)
+        isolated = group.blend_mode != BlendMode.PASS_THROUGH
 
     layer_filter = layer_filter or Layer.is_visible
 
@@ -252,11 +252,6 @@ def _blend_backdrop(
         )
     )
     return result_color, result_alpha
-
-
-def _is_passthrough(group: Layer) -> bool:
-    """Check if group layer will be composed as a pass-through group."""
-    return group.blend_mode == BlendMode.PASS_THROUGH and not group.has_clip_layers()
 
 
 class Compositor(object):
@@ -322,12 +317,15 @@ class Compositor(object):
         if not clip_compositing and layer.clipping:
             return
 
+        is_adjustment_isolated = None
         knockout = bool(layer.tagged_blocks.get_data(Tag.KNOCKOUT_SETTING, 0))
         if isinstance(layer, AdjustmentLayer):
             self._apply_adjustment(layer)
             return
         elif isinstance(layer, GroupMixin):
-            color, shape, alpha = self._get_group(layer, knockout)
+            color, shape, alpha, is_adjustment_isolated = self._get_group(
+                layer, knockout
+            )
         else:
             color, shape, alpha = self._get_object(layer)
 
@@ -344,7 +342,11 @@ class Compositor(object):
 
         # TODO: Tag.BLEND_INTERIOR_ELEMENTS controls how inner effects apply.
 
-        if _is_passthrough(layer):
+        full_passthrough = (
+            layer.blend_mode == BlendMode.PASS_THROUGH
+            and is_adjustment_isolated is False
+        )  # when adjustments are isolated, passthrough composing fallbacks to over composing
+        if full_passthrough:
             self._apply_passthrough_source(
                 color, shape * shape_const, alpha * shape_const, mask * shape_const
             )
@@ -499,8 +501,8 @@ class Compositor(object):
 
     def _get_group(
         self, layer: Layer, knockout: bool
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        is_passthrough = _is_passthrough(layer)
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, bool]:
+        is_passthrough = layer.blend_mode == BlendMode.PASS_THROUGH
         viewport = (
             self._viewport
             if is_passthrough
@@ -513,8 +515,9 @@ class Compositor(object):
             color_b = self._color
             alpha_b = self._alpha
 
+        # adjustments don't pass-through layers if the group layer has clip layers or its fill attribute is not 100.
         shape_const, _ = self._get_const(layer)
-        isolate_adjustments = is_passthrough and shape_const < 1.0
+        isolate_adjustments = shape_const < 1.0 or layer.has_clip_layers()
 
         group_compositor = Compositor(
             viewport,
@@ -529,7 +532,10 @@ class Compositor(object):
         for sublayer in cast(GroupMixin, layer):
             group_compositor.apply(sublayer)
 
-        color = group_compositor._color
+        if isolate_adjustments:
+            color = group_compositor.color  # prevents backdrop color contamination
+        else:
+            color = group_compositor._color
         shape = group_compositor._shape_g
         alpha = group_compositor._alpha_g
 
@@ -540,7 +546,7 @@ class Compositor(object):
         assert color is not None
         assert shape is not None
         assert alpha is not None
-        return color, shape, alpha
+        return color, shape, alpha, isolate_adjustments
 
     def _get_object(self, layer: Layer) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Get object attributes."""

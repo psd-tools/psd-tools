@@ -129,7 +129,7 @@ def apply_brightnesscontrast(
 
     Requires scipy for cubic spline interpolation.
     """
-    from scipy import interpolate  # type: ignore[import-untyped]
+    from scipy import interpolate  # type: ignore[import-untyped]  # noqa: PLC0415
 
     use_legacy: bool = layer.use_legacy
     b: float = layer.brightness / 150.0
@@ -228,7 +228,7 @@ def apply_curves(
 
     Requires scipy for cubic spline interpolation.
     """
-    from scipy import interpolate  # type: ignore[import-untyped]
+    from scipy import interpolate  # type: ignore[import-untyped]  # noqa: PLC0415
 
     curves_data = layer.extra
     info_dict = {data.channel_id: data.points for data in curves_data}
