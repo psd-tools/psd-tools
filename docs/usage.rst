@@ -244,7 +244,8 @@ option::
     pixel-based operations. If a feature requires missing dependencies, an
     ``ImportError`` with installation instructions will be raised.
 
-Note that most of the layer effects and adjustment layers are not supported.
+Note that most layer effects are not supported. Adjustment layers have limited support
+(BrightnessContrast, Levels, Curves, Exposure, Invert, Posterize, Threshold).
 The compositing result may look different from Photoshop.
 
 Exporting data to NumPy
