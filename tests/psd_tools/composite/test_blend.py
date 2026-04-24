@@ -2,9 +2,17 @@ import logging
 
 import pytest
 
+from psd_tools.composite.blend import BLEND_FUNC, lighter_color, normal
 from .test_composite import check_composite_quality
 
 logger = logging.getLogger(__name__)
+
+
+def test_lighter_color_descriptor_key() -> None:
+    """Regression: b"lighterColor" was previously a typo (b"ligherColor")
+    which silently fell back to the normal blend mode for effects/strokes."""
+    assert BLEND_FUNC.get(b"lighterColor") is lighter_color
+    assert BLEND_FUNC.get(b"lighterColor") is not normal
 
 
 @pytest.mark.parametrize(
