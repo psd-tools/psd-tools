@@ -31,7 +31,8 @@ def draw_stroke(layer: "Layer") -> np.ndarray:
 
     Requires aggdraw for bezier curve rasterization.
     """
-    assert layer.stroke is not None
+    if layer.stroke is None:
+        raise ValueError("Layer stroke is required to draw a stroke.")
     desc = layer.stroke._data
     # _CAP = {
     #     'strokeStyleButtCap': 0,
@@ -67,7 +68,8 @@ def _draw_path(
     brush: dict[str, int | float] | None = None,
     pen: dict[str, int | float] | None = None,
 ) -> np.ndarray:
-    assert layer.vector_mask is not None
+    if layer.vector_mask is None:
+        raise ValueError("Layer does not have a vector mask.")
     height, width = layer._psd.height, layer._psd.width
     color = 0
     if layer.vector_mask.initial_fill_rule and len(layer.vector_mask.paths) == 0:

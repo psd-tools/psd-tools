@@ -115,7 +115,8 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
         Klass.HSBColor: _get_hsb,
     }
     color_desc = desc.get(Key.Color)
-    assert color_desc, f"Could not find a color descriptor {desc}"
+    if not color_desc:
+        raise ValueError(f"Could not find a color descriptor {desc}")
     return _COLOR_FUNC[color_desc.classID](color_mode, color_desc)
 
 

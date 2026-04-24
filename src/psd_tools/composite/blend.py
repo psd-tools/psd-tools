@@ -81,7 +81,7 @@ from psd_tools.terminology import Enum
 logger = logging.getLogger(__name__)
 
 # Small epsilon to prevent division by zero in blend mode calculations.
-# Value is below float32 precision floor and invisible in [0, 1] color space.
+# Chosen to be negligible relative to normalized [0, 1] color values.
 _FLOAT_EPSILON: float = 1e-9
 
 

@@ -670,7 +670,8 @@ class Compositor(object):
 
     def _get_stroke(self, layer: Layer) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Get stroke source."""
-        assert layer.stroke is not None
+        if layer.stroke is None:
+            raise ValueError("Layer does not have stroke data.")
         desc = layer.stroke._data
         width = int(desc.get("strokeStyleLineWidth", 1.0))
         viewport = cast(
