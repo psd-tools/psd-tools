@@ -52,6 +52,7 @@ automatically applied when rendering layers that have effects enabled.
 """
 
 import logging
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -60,12 +61,18 @@ from psd_tools.composite._compat import require_skimage
 from psd_tools.psd.descriptor import Descriptor
 from psd_tools.terminology import Enum, Key
 
+if TYPE_CHECKING:
+    from psd_tools.api.protocols import PSDProtocol
+
 logger = logging.getLogger(__name__)
 
 
 @require_skimage
 def draw_stroke_effect(
-    viewport: tuple[int, int, int, int], shape: np.ndarray, desc: Descriptor, psd
+    viewport: tuple[int, int, int, int],
+    shape: np.ndarray,
+    desc: Descriptor,
+    psd: "PSDProtocol",
 ) -> tuple[np.ndarray, np.ndarray]:
     # Import here after checking dependencies
     from skimage import filters  # noqa: PLC0415

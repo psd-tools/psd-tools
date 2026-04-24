@@ -23,6 +23,34 @@ logger = logging.getLogger(__name__)
 
 F = TypeVar("F", bound=Callable)
 
+# Contrast cubic spline control points (Photoshop empirical values, 0–255 scale).
+# Inner midpoints move ±_CONTRAST_INNER_DELTA per unit of contrast.
+_CONTRAST_CONTROL_X = np.array([0.0, 63.0, 191.0, 255.0]) / 255.0
+_CONTRAST_INNER_DELTA = 25.0 / 255.0
+
+# Brightness polynomial coefficients (reverse-engineered from Photoshop).
+# See: https://www.desmos.com/calculator/4fg6glxzqj
+_BRIGHTNESS_POLY_A: tuple[float, float, float, float, float] = (
+    1.65,
+    -1.0,
+    1.96,
+    1.0,
+    1.00,
+)
+_BRIGHTNESS_POLY_R: tuple[float, float, float, float, float] = (
+    0.35,
+    10.0,
+    0.4,
+    4.0,
+    1.25,
+)
+
+# ICC profile gamma approximations for the exposure adjustment.
+# Dot Gray 20% (Photoshop default grayscale profile) ≈ 1.75.
+# sRGB (simplified power-law approximation) ≈ 2.2.
+_GRAY_COLOR_GAMMA: float = 1.75
+_SRGB_COLOR_GAMMA: float = 2.2
+
 
 def _preserve_alpha(func: F) -> F:
     """
@@ -49,10 +77,13 @@ def _preserve_alpha(func: F) -> F:
             alpha = img[..., color_channels:]
 
             out = func(color, colormode, *args, **kwargs)
-            assert out.shape[2] == color_channels
+            if out.shape[2] != color_channels:
+                raise ValueError(
+                    f"Adjustment function returned {out.shape[2]} channels, "
+                    f"expected {color_channels}."
+                )
             return np.concatenate([out, alpha], axis=2)
 
-        assert img.shape[2] == color_channels
         return func(img, colormode, *args, **kwargs)
 
     return wrapper  # type: ignore[return-value]
@@ -77,7 +108,8 @@ def _lut_domain(lut_size: int) -> np.ndarray:
 def _apply_luts(
     luts: dict[int, NDArray[np.float32]], img: np.ndarray, colormode: ColorMode
 ) -> np.ndarray:
-    assert img.ndim == 3
+    if img.ndim != 3:
+        raise ValueError(f"Expected 3D array (H, W, C), got ndim={img.ndim}.")
     out = img.copy()
     n_channels = ColorMode.channels(colormode)
     channels = range(1, n_channels + 1)
@@ -146,13 +178,15 @@ def apply_brightnesscontrast(
     # check brightness curve: https://www.desmos.com/calculator/4fg6glxzqj
 
     # contrast
-    x = np.array([0.0, 63.0, 191.0, 255.0]) / 255.0
-    y = np.array([0.0, 63.0 - c * 25.0, 191.0 + c * 25.0, 255.0]) / 255.0
+    x = _CONTRAST_CONTROL_X
+    y = np.array(
+        [0.0, x[1] - c * _CONTRAST_INNER_DELTA, x[2] + c * _CONTRAST_INNER_DELTA, 1.0]
+    )
     contrast_spline = interpolate.CubicSpline(x, y, bc_type="natural")(t)
 
     # brightness
-    a1, a2, a3, a4, a5 = 1.65, -1.0, 1.96, 1.0, 1.00
-    r1, r2, r3, r4, r5 = 0.35, 10.0, 0.4, 4.0, 1.25
+    a1, a2, a3, a4, a5 = _BRIGHTNESS_POLY_A
+    r1, r2, r3, r4, r5 = _BRIGHTNESS_POLY_R
 
     def pol(a, x, r):
         return a * np.power(x, r)
@@ -277,7 +311,9 @@ def apply_exposure(
     # color_gamma approximates the TRC of the ICC profile used.
     # Defaults to 2.2 for sRGB (RGB) and 1.75 for Dot Gray 20% (grayscale).
     # TODO: generalize for all ICC profiles.
-    color_gamma = 1.75 if colormode == ColorMode.GRAYSCALE else 2.2
+    color_gamma = (
+        _GRAY_COLOR_GAMMA if colormode == ColorMode.GRAYSCALE else _SRGB_COLOR_GAMMA
+    )
 
     lut = np.power(
         values, color_gamma
@@ -318,6 +354,10 @@ def apply_posterize(
     """Applies a posterize adjustment to an image."""
 
     lut_size = _get_lut_size(layer)
+    # layer.posterize is a 1–255 integer from the PSD spec. The [2, 255] clamp is
+    # intentional: PS minimum is 2. This range is correct for both 8-bit and 16-bit
+    # because correction_factor below compensates for bit depth — the level count
+    # itself does not change with bit depth. Do not widen the upper bound.
     levels = max(2, min(layer.posterize, 255))
     correction_factor = (
         (lut_size - 1) / lut_size

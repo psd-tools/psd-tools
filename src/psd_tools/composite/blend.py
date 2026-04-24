@@ -80,6 +80,10 @@ from psd_tools.terminology import Enum
 
 logger = logging.getLogger(__name__)
 
+# Small epsilon to prevent division by zero in blend mode calculations.
+# Chosen to be negligible relative to normalized [0, 1] color values.
+_FLOAT_EPSILON: float = 1e-9
+
 
 # Separable blend functions
 def normal(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
@@ -111,7 +115,7 @@ def color_dodge(Cb: np.ndarray, Cs: np.ndarray, s: float = 1.0) -> np.ndarray:
     B[Cs == 1] = 1
     B[Cb == 0] = 0
     index = (Cs != 1) & (Cb != 0)
-    B[index] = np.minimum(1, Cb[index] / (s * (1 - Cs[index] + 1e-9)))
+    B[index] = np.minimum(1, Cb[index] / (s * (1 - Cs[index] + _FLOAT_EPSILON)))
     return B
 
 
@@ -119,7 +123,7 @@ def color_burn(Cb: np.ndarray, Cs: np.ndarray, s: float = 1.0) -> np.ndarray:
     B = np.zeros_like(Cb, dtype=np.float32)
     B[Cb == 1] = 1
     index = (Cb != 1) & (Cs != 0)
-    B[index] = 1 - np.minimum(1, (1 - Cb[index]) / (s * Cs[index] + 1e-9))
+    B[index] = 1 - np.minimum(1, (1 - Cb[index]) / (s * Cs[index] + _FLOAT_EPSILON))
     return B
 
 
@@ -232,7 +236,7 @@ def divide(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     Looks at the color information in each channel and divides the blend color
     from the base color.
     """
-    B = Cb / (Cs + 1e-9)
+    B = Cb / (Cs + _FLOAT_EPSILON)
     B[B > 1] = 1
     return B
 
@@ -249,7 +253,7 @@ def non_separable(k: str = "s"):
 
     def decorator(func):
         @functools.wraps(func)
-        def _blend_fn(Cb, Cs):
+        def _blend_fn(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
             if Cs.shape[2] == 4:
                 K = Cs[:, :, 3:4] if k == "s" else Cb[:, :, 3:4]
                 Cb, Cs = _cmyk2rgb(Cb), _cmyk2rgb(Cs)
@@ -267,9 +271,9 @@ def _cmyk2rgb(C: np.ndarray) -> np.ndarray:
 
 def _rgb2cmy(C: np.ndarray, K: np.ndarray) -> np.ndarray:
     K = np.repeat(K, 3, axis=2)
-    color = np.zeros((C.shape[0], C.shape[1], 3))
+    color = np.zeros((C.shape[0], C.shape[1], 3), dtype=np.float32)
     index = K < 1.0
-    color[index] = (1.0 - C[index] - K[index]) / (1.0 - K[index] + 1e-9)
+    color[index] = (1.0 - C[index] - K[index]) / (1.0 - K[index] + _FLOAT_EPSILON)
     return color
 
 
@@ -332,11 +336,13 @@ def _clip_color(C: np.ndarray) -> np.ndarray:
 
     index = C_min < 0.0
     L_i = L[index]
-    C[index] = L_i + (C[index] - L_i) * L_i / (L_i - C_min[index] + 1e-9)
+    C[index] = L_i + (C[index] - L_i) * L_i / (L_i - C_min[index] + _FLOAT_EPSILON)
 
     index = C_max > 1.0
     L_i = L[index]
-    C[index] = L_i + (C[index] - L_i) * (1 - L_i) / (C_max[index] - L_i + 1e-9)
+    C[index] = L_i + (C[index] - L_i) * (1 - L_i) / (
+        C_max[index] - L_i + _FLOAT_EPSILON
+    )
 
     # For numerical stability.
     C[C < 0.0] = 0
@@ -344,7 +350,7 @@ def _clip_color(C: np.ndarray) -> np.ndarray:
     return C
 
 
-def _sat(C):
+def _sat(C: np.ndarray) -> np.ndarray:
     return np.max(C, axis=2, keepdims=True) - np.min(C, axis=2, keepdims=True)
 
 
@@ -364,7 +370,9 @@ def _set_sat(C: np.ndarray, s: np.ndarray) -> np.ndarray:
 
     index = index_mid & index_diff
     B[index] = (
-        (C_mid[index] - C_min[index]) * s[index] / (C_max[index] - C_min[index] + 1e-9)
+        (C_mid[index] - C_min[index])
+        * s[index]
+        / (C_max[index] - C_min[index] + _FLOAT_EPSILON)
     )
     index = index_max & index_diff
     B[index] = s[index]
@@ -433,6 +441,6 @@ BLEND_FUNC = {
     Enum.Color: color,
     Enum.Luminosity: luminosity,
     b"darkerColor": darker_color,
-    b"ligherColor": lighter_color,
+    b"lighterColor": lighter_color,
     Enum.Dissolve: dissolve,
 }
