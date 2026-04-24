@@ -680,7 +680,10 @@ class Compositor(object):
         color, _ = paint.create_fill_desc(
             layer, desc.get("strokeStyleContent"), viewport
         )
-        assert color is not None
+        if color is None:
+            raise ValueError(
+                "Unsupported stroke fill descriptor in layer strokeStyleContent"
+            )
         color = paste(self._viewport, viewport, color, 1.0)
         shape = vector.draw_stroke(layer)
         if shape.shape[0] != self.height or shape.shape[1] != self.width:

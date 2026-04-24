@@ -345,7 +345,7 @@ def _collect_stops(
         location = float(stop.get(Key.Location)) / 4096.0
         value = value_fn(stop)
         if X and X[-1] == location:
-            logger.debug("Duplicate stop at %d" % location)
+            logger.debug("Duplicate stop at %s", location)
             X.pop()
             Y.pop()
         X.append(location)
