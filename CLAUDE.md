@@ -253,7 +253,7 @@ Recent work has added comprehensive type annotations throughout the codebase. Wh
 ## Known Limitations
 
 - **Type layers**: Cannot render text (no font engine)
-- **Adjustment layers**: Limited compositing support
+- **Adjustment layers**: Compositing supported for BrightnessContrast, Levels, Curves, Exposure, Invert, Posterize, and Threshold; other types are not yet supported
 - **Layer effects**: Only basic effects supported (drop shadow, stroke)
 - **Smart objects**: Can extract/embed but not edit contents
 - **Unknown data**: Preserved as bytes during round-trip but not interpreted

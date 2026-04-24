@@ -1,6 +1,15 @@
 Changelog
 =========
 
+1.16.0 (2026-04-24)
+-------------------
+
+- [composite] Add adjustment layer compositing support and fix pass-through compositing logic (#628)
+- [fix] Fix fallback logic and density computation for user masks
+- [refactor] Refactor composite subpackage for type safety and stability (#640)
+- [docs] Update README and usage docs to reflect adjustment layer compositing support
+- [chore] Bump ruff to 0.15.11, mypy to 1.20.1
+
 1.15.0.post1 (2026-04-14)
 --------------------------
 
