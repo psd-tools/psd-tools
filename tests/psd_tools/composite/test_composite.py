@@ -39,6 +39,29 @@ def check_composite_quality(
     composite_error(psd, threshold, force)
 
 
+def check_icc_composite_quality(
+    filename: str, threshold: float = 0.001, force: bool = False
+) -> None:
+    reference = (
+        np.array(Image.open(full_name(filename + ".png")), dtype=np.float32) / 255.0
+    )
+    psd = PSDImage.open(full_name(filename + ".psd"))
+    result = (
+        np.array(
+            psd.composite(
+                apply_icc=True,
+                layer_filter=lambda layer: layer.is_visible(),
+                force=force,
+            ),
+            dtype=np.float32,
+        )
+        / 255.0
+    )
+
+    assert reference.shape == result.shape
+    assert _mse(reference, result) <= threshold
+
+
 @pytest.mark.parametrize(
     ("filename",),
     [
@@ -48,6 +71,8 @@ def check_composite_quality(
         ("clipping-mask.psd",),
         ("clipping-mask2.psd",),
         ("clipping-mask3.psd",),
+        ("clipping-mask4.psd",),
+        ("clipping-mask5.psd",),
         ("opacity-fill.psd",),
         ("transparency/transparency-group.psd",),
         ("transparency/knockout-isolated-groups.psd",),
@@ -55,13 +80,24 @@ def check_composite_quality(
         ("transparency/fill-opacity.psd",),
         ("mask.psd",),
         ("mask-disabled.psd",),
+        ("mask-density-layermask.psd",),
+        ("mask-density-vectormask.psd",),
+        pytest.param(
+            "mask-density-layervectormask.psd",
+            marks=pytest.mark.xfail(
+                reason=(
+                    "usermask carries over layer and vector mask properties"
+                    "(layer and vector masks are not isolated)"
+                )
+            ),
+        ),
         # ('vector-mask.psd', ),  # 32-bit blending not working.
         ("vector-mask-disabled.psd",),
         ("vector-mask3.psd",),
     ],
 )
 def test_composite_quality(filename: str) -> None:
-    check_composite_quality(filename, 0.01, False)
+    check_composite_quality(filename, 0.001, False)
 
 
 @pytest.mark.parametrize(

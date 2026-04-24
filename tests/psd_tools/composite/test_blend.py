@@ -57,3 +57,22 @@ def test_blend_quality(filename: str) -> None:
 @pytest.mark.xfail
 def test_blend_quality_xfail(filename: str) -> None:
     check_composite_quality(filename, threshold=0.01)
+
+
+@pytest.mark.parametrize(
+    "property",
+    [
+        ("opacity"),
+        ("fill_adjustment"),
+        ("fill_blendmode"),
+        ("clipping_mask_adjustment"),
+        ("clipping_mask_blendmode"),
+        ("vector_mask"),
+        ("blendmodes1"),
+        ("blendmodes2"),
+        ("blendmodes3"),
+    ],
+)
+def test_passthrough_properties(property) -> None:
+    filename = f"passthrough_{property}"
+    check_composite_quality(f"{filename}.psd", 0.001, False)

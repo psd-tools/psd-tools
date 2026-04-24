@@ -11,6 +11,7 @@ from psd_tools.api.layers import AdjustmentLayer, GroupMixin, Layer
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.api.utils import EXPECTED_CHANNELS
 from psd_tools.composite import paint, utils, vector
+from psd_tools.composite.adjustments import ADJUSTMENT_FUNC
 from psd_tools.composite.blend import BLEND_FUNC, normal
 from psd_tools.composite.effects import draw_stroke_effect
 from psd_tools.constants import BlendMode, ColorMode, Resource, Tag
@@ -272,11 +273,13 @@ class Compositor(object):
         isolated: bool = False,
         layer_filter: Callable | None = None,
         force: bool = False,
+        adjustment_isolated: bool = False,
     ):
         self._viewport = viewport
         self._layer_filter = layer_filter
         self._force = force
         self._clip_mask = 1.0
+        self._adjustment_isolated = adjustment_isolated
 
         if isolated:
             self._alpha_0 = np.zeros((self.height, self.width, 1), dtype=np.float32)
@@ -306,18 +309,23 @@ class Compositor(object):
         if self._layer_filter is not None and not self._layer_filter(layer):
             logger.debug("Ignore %s" % layer)
             return
-        if isinstance(layer, AdjustmentLayer):
-            logger.debug("Ignore adjustment %s" % layer)
-            return
-        if utils.intersect(self._viewport, layer.bbox) == (0, 0, 0, 0):
+        if (utils.intersect(self._viewport, layer.bbox) == (0, 0, 0, 0)) and not (
+            isinstance(layer, AdjustmentLayer) or isinstance(layer, GroupMixin)
+        ):
             logger.debug("Out of viewport %s" % (layer))
             return
         if not clip_compositing and layer.clipping:
             return
 
+        is_adjustment_isolated = None
         knockout = bool(layer.tagged_blocks.get_data(Tag.KNOCKOUT_SETTING, 0))
-        if isinstance(layer, GroupMixin):
-            color, shape, alpha = self._get_group(layer, knockout)
+        if isinstance(layer, AdjustmentLayer):
+            self._apply_adjustment(layer)
+            return
+        elif isinstance(layer, GroupMixin):
+            color, shape, alpha, is_adjustment_isolated = self._get_group(
+                layer, knockout
+            )
         else:
             color, shape, alpha = self._get_object(layer)
 
@@ -328,15 +336,28 @@ class Compositor(object):
         # Apply masks and opacity.
         shape_mask, opacity_mask = self._get_mask(layer)
         shape_const, opacity_const = self._get_const(layer)
+        mask = shape_mask * opacity_mask * opacity_const
         shape *= shape_mask
-        alpha *= shape_mask * opacity_mask * opacity_const
+        alpha *= mask
 
         # TODO: Tag.BLEND_INTERIOR_ELEMENTS controls how inner effects apply.
 
-        # TODO: Apply before effects
-        self._apply_source(
-            color, shape * shape_const, alpha * shape_const, layer.blend_mode, knockout
-        )
+        full_passthrough = (
+            layer.blend_mode == BlendMode.PASS_THROUGH
+            and is_adjustment_isolated is False
+        )  # when adjustments are isolated, passthrough composing fallbacks to over composing
+        if full_passthrough:
+            self._apply_passthrough_source(
+                color, shape * shape_const, alpha * shape_const, mask * shape_const
+            )
+        else:
+            self._apply_source(
+                color,
+                shape * shape_const,
+                alpha * shape_const,
+                layer.blend_mode,
+                knockout,
+            )
 
         # TODO: Apply after effects
         self._apply_color_overlay(layer, color, shape, alpha)
@@ -350,6 +371,29 @@ class Compositor(object):
             self._apply_stroke_effect(layer, color, shape_mask, alpha)
         else:
             self._apply_stroke_effect(layer, color, shape, alpha)
+
+    def _apply_passthrough_source(
+        self,
+        color: np.ndarray,
+        shape: np.ndarray,
+        alpha: np.ndarray,
+        mask: float | np.ndarray,
+    ) -> None:
+        new_shape = cast(np.ndarray, utils.union(self._shape_g, shape))
+
+        # this step is used to use over composing when no pixels are found in the backdrop, instead of linear interpolation composing
+        color_support = utils.clip(
+            utils.divide(
+                color * mask * (1.0 - self._shape_g) + self._color * self._shape_g,
+                new_shape,
+            )
+        )
+
+        self._shape_g = new_shape
+        self._alpha_g = cast(np.ndarray, utils.union(self._alpha_g, alpha))
+        self._alpha = cast(np.ndarray, utils.union(self._alpha_0, self._alpha_g))
+
+        self._color = utils.clip((color * mask + (1 - mask) * color_support))
 
     def _apply_source(
         self,
@@ -387,6 +431,43 @@ class Compositor(object):
             )
         )
 
+    def _apply_adjustment(self, layer: AdjustmentLayer) -> None:
+        adjustment_fn = ADJUSTMENT_FUNC.get(layer.kind)
+        colormode = layer._psd.color_mode
+
+        if adjustment_fn is None or colormode not in (
+            ColorMode.CMYK,
+            ColorMode.GRAYSCALE,
+            ColorMode.RGB,
+        ):
+            return
+
+        backdrop_color = self._color
+        transformed_color = adjustment_fn(backdrop_color, colormode, layer)
+
+        if layer.has_clip_layers():
+            transformed_color = self._apply_clip_layers(
+                layer, transformed_color, self._alpha
+            )
+
+        shape_mask, opacity_mask = self._get_mask(layer)
+        shape_const, opacity_const = self._get_const(layer)
+
+        shape = shape_mask * shape_const
+        opacity = shape * opacity_mask * opacity_const
+
+        blend_fn = BLEND_FUNC.get(layer.blend_mode, normal)
+        blended = blend_fn(backdrop_color, transformed_color)
+
+        if self._adjustment_isolated:
+            self._color = utils.clip(
+                backdrop_color + self._shape_g * opacity * (blended - backdrop_color)
+            )
+        else:
+            self._color = utils.clip(
+                backdrop_color + opacity * (blended - backdrop_color)
+            )
+
     def finish(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         return self.color, self.shape, self.alpha
 
@@ -420,8 +501,13 @@ class Compositor(object):
 
     def _get_group(
         self, layer: Layer, knockout: bool
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        viewport = utils.intersect(self._viewport, layer.bbox)
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, bool]:
+        is_passthrough = layer.blend_mode == BlendMode.PASS_THROUGH
+        viewport = (
+            self._viewport
+            if is_passthrough
+            else utils.intersect(self._viewport, layer.bbox)
+        )
         if knockout:
             color_b = self._color_0
             alpha_b = self._alpha_0
@@ -429,14 +515,30 @@ class Compositor(object):
             color_b = self._color
             alpha_b = self._alpha
 
-        color, shape, alpha = composite(
-            layer,
-            paste(viewport, self._viewport, color_b, 1.0),
-            paste(viewport, self._viewport, alpha_b),
+        # adjustments don't pass-through layers if the group layer has clip layers or its fill attribute is not 100.
+        shape_const, _ = self._get_const(layer)
+        isolate_adjustments = shape_const < 1.0 or layer.has_clip_layers()
+
+        group_compositor = Compositor(
             viewport,
+            color=paste(viewport, self._viewport, color_b, 1.0),
+            alpha=paste(viewport, self._viewport, alpha_b),
+            isolated=(not is_passthrough),
             layer_filter=self._layer_filter,
             force=self._force,
+            adjustment_isolated=self._adjustment_isolated or isolate_adjustments,
         )
+
+        for sublayer in cast(GroupMixin, layer):
+            group_compositor.apply(sublayer)
+
+        if isolate_adjustments:
+            color = group_compositor.color  # prevents backdrop color contamination
+        else:
+            color = group_compositor._color
+        shape = group_compositor._shape_g
+        alpha = group_compositor._alpha_g
+
         color = paste(self._viewport, viewport, color, 1.0)
         shape = paste(self._viewport, viewport, shape)
         alpha = paste(self._viewport, viewport, alpha)
@@ -444,7 +546,7 @@ class Compositor(object):
         assert color is not None
         assert shape is not None
         assert alpha is not None
-        return color, shape, alpha
+        return color, shape, alpha, isolate_adjustments
 
     def _get_object(self, layer: Layer) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Get object attributes."""
@@ -522,7 +624,9 @@ class Compositor(object):
                     density = layer.mask.parameters.vector_mask_density
                 if density is None:
                     density = 255
-                opacity = float(density) / 255.0
+
+                density = float(density) / 255.0
+                shape = density * shape + (1 - density)
 
         if (
             layer.vector_mask is not None
@@ -540,6 +644,15 @@ class Compositor(object):
             shape_v = vector.draw_vector_mask(layer)
             shape_v = paste(self._viewport, layer._psd.viewbox, shape_v)
             shape *= shape_v
+
+            if layer.mask is not None and layer.mask.parameters:
+                density_v = layer.mask.parameters.vector_mask_density
+            else:
+                density_v = None
+
+            if density_v is not None:
+                d = float(density_v) / 255.0
+                shape = d * shape + (1.0 - d)
 
         assert shape is not None
         assert opacity is not None
