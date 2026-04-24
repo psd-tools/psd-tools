@@ -379,7 +379,7 @@ class Compositor(object):
         alpha: np.ndarray,
         mask: float | np.ndarray,
     ) -> None:
-        new_shape = utils.union(self._shape_g, shape)
+        new_shape = cast(np.ndarray, utils.union(self._shape_g, shape))
 
         # this step is used to use over composing when no pixels are found in the backdrop, instead of linear interpolation composing
         color_support = utils.clip(
@@ -390,7 +390,7 @@ class Compositor(object):
         )
 
         self._shape_g = new_shape
-        self._alpha_g = utils.union(self._alpha_g, alpha)
+        self._alpha_g = cast(np.ndarray, utils.union(self._alpha_g, alpha))
         self._alpha = cast(np.ndarray, utils.union(self._alpha_0, self._alpha_g))
 
         self._color = utils.clip((color * mask + (1 - mask) * color_support))
