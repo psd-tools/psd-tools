@@ -22,6 +22,10 @@ SKIP_BYTE_ROUND_TRIP = {
     "broken-groups.psd",  # 2-byte Unicode padding (non-Adobe tool)
     "unicode_pathname.psd",  # 2-byte DescriptorBlock padding
     "unicode_pathname.psb",  # 2-byte DescriptorBlock padding
+    "huesaturation_rgb.psd",  # Hue/Saturation layers have different padding than expected,
+    "huesaturation_colorize_rgb.psd",  # See issue #645 for more details.
+    "huesaturation_lightness_rgb.psd",
+    "huesaturation_saturation_rgb.psd",
 }
 
 

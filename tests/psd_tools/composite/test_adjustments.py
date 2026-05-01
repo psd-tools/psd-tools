@@ -102,6 +102,35 @@ def test_exposure_composite_error(name: str, colormode: str) -> None:
     check_composite_quality(filename, TOLERANCES["exposure"], False)
 
 
+# Hue/Saturation
+huesaturation_tests = [
+    "huesaturation",
+    "huesaturation_saturation",  # test saturation in isolation
+    "huesaturation_lightness",  # test lightness in isolation
+    "huesaturation_colorize",
+]
+huesaturation_tolerances = {
+    "huesaturation": LOOSE,  # this is due to how _apply_saturation works
+    "huesaturation_saturation": ACCURATE,
+    "huesaturation_lightness": ACCURATE,
+    "huesaturation_colorize": ACCURATE,
+}
+
+
+@pytest.mark.parametrize("name", huesaturation_tests)
+@pytest.mark.parametrize("colormode", ["rgb"])
+def test_huesaturation_composite_icc(name: str, colormode: str) -> None:
+    filename = f"adjustments/{name}_{colormode}"
+    check_icc_composite_quality(filename, huesaturation_tolerances[name])
+
+
+@pytest.mark.parametrize("name", huesaturation_tests)
+@pytest.mark.parametrize("colormode", ["rgb"])
+def test_huesaturation_composite_error(name: str, colormode: str) -> None:
+    filename = f"adjustments/{name}_{colormode}.psd"
+    check_composite_quality(filename, huesaturation_tolerances[name], False)
+
+
 # Invert
 invert_tests = ["invert"]
 
