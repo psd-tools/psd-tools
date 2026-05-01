@@ -385,6 +385,126 @@ def _set_sat(C: np.ndarray, s: np.ndarray) -> np.ndarray:
     return B
 
 
+def rgb2hsl(img: np.ndarray) -> np.ndarray:
+    """Convert a RGB image to HSL space using vectorized arrays."""
+    ch_min = np.min(img, axis=2)
+    ch_max = np.max(img, axis=2)
+
+    delta = ch_max - ch_min
+    total = ch_max + ch_min
+    non_zero = delta > 1e-6
+
+    out = np.empty_like(img)
+    H = out[..., 0]
+    S = out[..., 1]
+    L = out[..., 2]
+
+    # Lightness
+    L[:] = 0.5 * total
+
+    # Saturation
+    S[:] = 0.0
+    den = 1 - np.abs(2 * L - 1)
+    S[non_zero] = delta[non_zero] / den[non_zero]
+
+    # Hue
+    R, G, B = img[..., 0], img[..., 1], img[..., 2]
+    idx_R = (ch_max == R) & non_zero
+    idx_G = (ch_max == G) & non_zero
+    idx_B = (ch_max == B) & non_zero
+
+    H[:] = 0.0
+    H[idx_R] = ((G[idx_R] - B[idx_R]) / delta[idx_R]) % 6.0
+    H[idx_G] = ((B[idx_G] - R[idx_G]) / delta[idx_G]) + 2.0
+    H[idx_B] = ((R[idx_B] - G[idx_B]) / delta[idx_B]) + 4.0
+    H *= 1.0 / 6.0
+
+    return out
+
+
+def hsl2rgb(img: np.ndarray) -> np.ndarray:
+    """Convert an HSL image to RGB space using vectorized arrays."""
+    H, S, L = img[..., 0], img[..., 1], img[..., 2]
+
+    out = np.zeros_like(img)
+    R = out[..., 0]
+    G = out[..., 1]
+    B = out[..., 2]
+
+    C = (1 - np.abs(2 * L - 1)) * S
+    H_ = H * 6.0
+    X = C * (1 - np.abs(H_ % 2 - 1))
+
+    mask0 = H_ < 1
+    mask1 = (1 <= H_) & (H_ < 2)
+    mask2 = (2 <= H_) & (H_ < 3)
+    mask3 = (3 <= H_) & (H_ < 4)
+    mask4 = (4 <= H_) & (H_ < 5)
+    mask5 = 5 <= H_
+
+    R[mask0], G[mask0], B[mask0] = C[mask0], X[mask0], 0
+    R[mask1], G[mask1], B[mask1] = X[mask1], C[mask1], 0
+    R[mask2], G[mask2], B[mask2] = 0, C[mask2], X[mask2]
+    R[mask3], G[mask3], B[mask3] = 0, X[mask3], C[mask3]
+    R[mask4], G[mask4], B[mask4] = X[mask4], 0, C[mask4]
+    R[mask5], G[mask5], B[mask5] = C[mask5], 0, X[mask5]
+
+    m = L - C / 2.0
+
+    R += m
+    G += m
+    B += m
+
+    return out
+
+
+def hsl2hsv(img: np.ndarray) -> np.ndarray:
+    """Convert an HSL image to HSV space using vectorized arrays."""
+    H, SL, L = img[..., 0], img[..., 1], img[..., 2]
+
+    out = np.empty_like(img)
+
+    # Hue
+    out[..., 0] = H
+
+    # Value
+    V = L + SL * np.minimum(L, 1.0 - L)
+    out[..., 2] = V
+
+    # Saturation
+    SV = out[..., 1]
+    SV[:] = 0
+
+    mask = V > 1e-9
+    SV[mask] = 2.0 * (1.0 - L[mask] / V[mask])
+
+    return out
+
+
+def hsv2hsl(img: np.ndarray) -> np.ndarray:
+    """Convert an HSV image to HSL space using vectorized arrays."""
+    H, SV, V = img[..., 0], img[..., 1], img[..., 2]
+
+    out = np.empty_like(img)
+
+    # Hue
+    out[..., 0] = H
+
+    # Lightness
+    L = V * (1.0 - SV * 0.5)
+    out[..., 2] = L
+
+    # Saturation
+    SL = out[..., 1]
+    SL[:] = 0
+
+    denom = np.minimum(L, 1.0 - L)
+    mask = denom > 1e-12
+    SL[mask] = (V[mask] - L[mask]) / denom[mask]
+
+    return out
+
+
 """Blend function table."""
 BLEND_FUNC = {
     # Layer attributes

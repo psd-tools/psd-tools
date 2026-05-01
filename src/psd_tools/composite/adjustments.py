@@ -1,6 +1,6 @@
 import functools
 import logging
-from typing import Literal, Callable, TypeVar
+from typing import Literal, Callable, TypeVar, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -8,12 +8,13 @@ from numpy.typing import NDArray
 from psd_tools.api.layers import Layer
 from psd_tools.constants import ColorMode
 from psd_tools.composite._compat import require_scipy
-from psd_tools.composite.blend import _lum
+from psd_tools.composite.blend import _lum, rgb2hsl, hsl2rgb, hsl2hsv, hsv2hsl
 from psd_tools.api.adjustments import (
     BrightnessContrast,
     Levels,
     Curves,
     Exposure,
+    HueSaturation,
     Invert,
     Posterize,
     Threshold,
@@ -50,6 +51,36 @@ _BRIGHTNESS_POLY_R: tuple[float, float, float, float, float] = (
 # sRGB (simplified power-law approximation) ≈ 2.2.
 _GRAY_COLOR_GAMMA: float = 1.75
 _SRGB_COLOR_GAMMA: float = 2.2
+
+
+# LUT of the f(x,y) function that blends two color range saturation vectors x, y to a new saturation vector
+# Uses empirical values tested using the regular grid (-100, -90, ... , 90, 100)^2
+# See: https://colab.research.google.com/drive/1CGU4kxaVgv01vAMdNKbdTlLAhhQeOEOy?usp=sharing
+# fmt: off
+_SATURATION_RANGE_INTERPOLATION_GRID = np.array([
+    [100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100],
+    [100, 94, 92, 91, 91, 90, 90, 90, 90, 90, 90, 89, 89, 89, 89, 89, 89, 89, 88, 88, 88],
+    [100, 92, 89, 86, 84, 83, 82, 81, 81, 80, 80, 79, 79, 78, 78, 77, 77, 76, 76, 75, 74],
+    [100, 91, 86, 82, 79, 77, 74, 73, 71, 70, 70, 68, 67, 66, 65, 64, 62, 61, 59, 58, 56],
+    [100, 91, 84, 79, 75, 71, 68, 65, 63, 61, 60, 58, 56, 54, 52, 49, 47, 44, 41, 36, 32],
+    [100, 90, 83, 77, 71, 66, 62, 59, 55, 52, 50, 47, 44, 41, 37, 33, 28, 22, 17,  9, -1],
+    [100, 90, 82, 74, 68, 62, 57, 52, 47, 43, 40, 36, 31, 26, 21, 13,  5, -5,-15,-25,-35],
+    [100, 90, 81, 73, 65, 59, 52, 46, 39, 35, 30, 24, 19, 11,  2, -8,-18,-28,-38,-48,-58],
+    [100, 90, 81, 71, 63, 55, 47, 39, 33, 26, 20, 13,  4, -6,-16,-26,-36,-46,-56,-66,-76],
+    [100, 90, 80, 70, 61, 52, 43, 35, 26, 17, 10,  1, -9,-19,-29,-39,-49,-59,-69,-79,-89],
+    [100, 90, 80, 70, 60, 50, 40, 30, 20, 10,  0,-10,-20,-30,-40,-49,-60,-70,-80,-90,-100],
+    [100, 89, 79, 68, 58, 47, 36, 24, 13,  1,-10,-19,-30,-40,-50,-60,-70,-79,-89,-99,-100],
+    [100, 89, 79, 67, 56, 44, 31, 19,  4, -9,-20,-30,-40,-50,-60,-70,-79,-90,-99,-100,-100],
+    [100, 89, 78, 66, 54, 41, 26, 11, -6,-19,-30,-40,-50,-59,-70,-79,-89,-99,-100,-100,-100],
+    [100, 89, 78, 65, 52, 37, 21,  2,-16,-29,-40,-50,-60,-70,-79,-90,-99,-100,-100,-100,-100],
+    [100, 89, 77, 64, 49, 33, 13, -8,-26,-39,-49,-60,-70,-79,-90,-99,-100,-100,-100,-100,-100],
+    [100, 89, 77, 62, 47, 28,  5,-18,-36,-49,-60,-70,-79,-89,-99,-100,-100,-100,-100,-100,-100],
+    [100, 89, 76, 61, 44, 22, -5,-28,-46,-59,-70,-79,-90,-99,-100,-100,-100,-100,-100,-100,-100],
+    [100, 88, 76, 59, 41, 17,-15,-38,-56,-69,-80,-89,-99,-100,-100,-100,-100,-100,-100,-100,-100],
+    [100, 88, 75, 58, 36,  9,-25,-48,-66,-79,-90,-99,-100,-100,-100,-100,-100,-100,-100,-100,-100],
+    [100, 88, 74, 56, 32, -1,-35,-58,-76,-89,-100,-100,-100,-100,-100,-100,-100,-100,-100,-100,-100],
+], dtype=np.float32)[::-1,::-1] / 100.0
+# fmt: on
 
 
 def _preserve_alpha(func: F) -> F:
@@ -334,6 +365,217 @@ def apply_exposure(
     return _apply_luts({channel_id: lut}, img, colormode)
 
 
+@require_scipy
+@_preserve_alpha
+def apply_huesaturation(
+    img: np.ndarray,
+    colormode: Literal[ColorMode.CMYK, ColorMode.GRAYSCALE, ColorMode.RGB],
+    layer: HueSaturation,
+) -> np.ndarray:
+    """Applies a hue/saturation adjustment to an image."""
+    if colormode != ColorMode.RGB:
+        # TODO: add CMYK support
+        return img
+
+    if layer.enable_colorization:
+        hsl_colorize_tuple = _normalize_hsl(layer.colorization)
+        return (
+            _huesaturation_colorize(img, hsl_colorize_tuple)
+            if hsl_colorize_tuple != (0.0, 0.0, 0.0)
+            else img
+        )
+
+    color_ranges = [
+        (hue_range, _normalize_hsl(hsl_tuple))
+        for hue_range, hsl_tuple in layer.data
+        if hsl_tuple != (0, 0, 0)
+    ]
+    hsl_master_tuple = _normalize_hsl(layer.master)
+    return (
+        _huesaturation(img, color_ranges, hsl_master_tuple)
+        if color_ranges or hsl_master_tuple != (0.0, 0.0, 0.0)
+        else img
+    )
+
+
+def _normalize_hsl(color: tuple[int, int, int]) -> tuple[float, float, float]:
+    hue, saturation, lightness = color
+    return (hue / 360.0), saturation / 100.0, lightness / 100.0
+
+
+def _huesaturation_colorize(
+    img: np.ndarray, hsl_colorize_tuple: tuple[float, float, float]
+) -> np.ndarray:
+    hue, saturation, lightness = hsl_colorize_tuple
+    hue = hue % 1.0
+
+    hsl = rgb2hsl(img)
+
+    hsl[..., 0:1] = hue
+    hsl[..., 1:2] = saturation
+    hsl[..., 2:3] = _apply_lightness(hsl[..., 2:3], lightness)
+
+    return hsl2rgb(hsl)
+
+
+def _huesaturation(
+    img: np.ndarray,
+    color_ranges: list[tuple[tuple[int, int, int, int], tuple[float, float, float]]],
+    master_tuple: tuple[float, float, float],
+) -> np.ndarray:
+    # master lightness is applied before converting to hsl
+    master_hue, master_saturation, master_lightness = master_tuple
+    img = _apply_lightness(img, master_lightness)
+
+    hsl = rgb2hsl(img)
+    colorrange_hue, colorrange_saturation, colorrange_lightness = (
+        _get_colorrange_hsl_values(hsl, color_ranges)
+    )
+
+    # color range lightness is applied in HSV space
+    hsl = hsl2hsv(hsl)
+    saturation_channel, value_channel = hsl[..., 1:2], hsl[..., 2:3]
+
+    hsl[..., 2:3] = np.where(
+        colorrange_lightness >= 0,
+        value_channel,
+        value_channel * (1 + colorrange_lightness * saturation_channel),
+    ).clip(0.0, 1.0)
+    hsl[..., 1:2] = _correct_saturation(colorrange_lightness, saturation_channel)
+
+    # hue and saturation are applied in HSL space
+    # master and color range hues are applied simultaneously
+    # master saturation is applied first, then color range saturation follows
+    hsl = hsv2hsl(hsl)
+    hsl[..., 0:1] = (hsl[..., 0:1] + colorrange_hue + master_hue) % 1.0
+    hsl[..., 1:2] = _apply_saturation(
+        _apply_saturation(hsl[..., 1:2], master_saturation), colorrange_saturation
+    )
+
+    return hsl2rgb(hsl)
+
+
+def _apply_lightness(img: np.ndarray, lightness: float) -> np.ndarray:
+    if lightness > 0:
+        return (img * (1.0 - lightness) + lightness).clip(0.0, 1.0)
+    if lightness < 0:
+        return (img * (1.0 + lightness)).clip(0.0, 1.0)
+    return img
+
+
+# TODO: improve saturation algorithm accuracy when saturation nears 1.0
+def _apply_saturation(img: np.ndarray, saturation: float | np.ndarray) -> np.ndarray:
+    out = np.where(
+        saturation > 0,
+        img / (1 - saturation + 1e-2),
+        img * (1 + saturation),
+    )
+    np.clip(out, 0.0, 1.0, out=out)
+    return out
+
+
+def _correct_saturation(
+    colorrange_lightness: np.ndarray, saturation_channel: np.ndarray
+) -> np.ndarray:
+    """Correct saturation values when colorrange lightness is applied to the hsl image."""
+    div = 1 / (saturation_channel + 1e-3)
+    return np.where(
+        colorrange_lightness >= 0,
+        saturation_channel * (1 - colorrange_lightness),
+        1 + (div - 1) / (np.abs(colorrange_lightness) - div + 1e-3),
+    )
+
+
+# TODO: find exact mapping to avoid interpolation
+@functools.lru_cache(maxsize=1)
+def _get_huesaturation_interpolator():
+    from scipy.interpolate import RegularGridInterpolator  # type: ignore[import-untyped]  # noqa: PLC0415
+
+    axis = np.linspace(-1.0, 1.0, 21)
+    return RegularGridInterpolator(
+        (axis, axis),
+        _SATURATION_RANGE_INTERPOLATION_GRID,
+        method="linear",
+    )
+
+
+def _get_colorrange_hsl_values(
+    hsl_img: np.ndarray,
+    color_ranges: list[tuple[tuple[int, int, int, int], tuple[float, float, float]]],
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Compute per-pixel hue, saturation, and lightness values derived from color ranges."""
+    base_hue = hsl_img[..., 0:1]
+
+    colorrange_hue = np.zeros_like(base_hue)
+    colorrange_saturation = np.zeros_like(base_hue)
+    colorrange_lightness = np.zeros_like(base_hue)
+
+    interpolator = _get_huesaturation_interpolator()
+    points = np.empty(
+        (*colorrange_saturation.shape, 2), dtype=colorrange_saturation.dtype
+    )
+
+    # construction of the hue, saturation and lightness color range vectors depends on loop order
+    for color_range_tuple, (hue, saturation, lightness) in color_ranges:
+        range_mask = _get_huesaturation_range_mask(base_hue, color_range_tuple)
+
+        colorrange_hue += hue * range_mask
+        colorrange_lightness += lightness * range_mask
+        np.clip(colorrange_lightness, -1.0, 1.0, out=colorrange_lightness)
+
+        saturation_contribution = saturation * (
+            (1 - (1 - range_mask) ** (1.5 / (1 - saturation**4 + 5e-2)))
+            if saturation > 0
+            else range_mask
+        )
+        # saturation values get mapped using a 3D surface
+        points[..., 0] = colorrange_saturation
+        points[..., 1] = saturation_contribution
+        colorrange_saturation = interpolator(points).clip(-1.0, 1.0)
+
+    return colorrange_hue, colorrange_saturation, colorrange_lightness
+
+
+def _get_huesaturation_range_mask(
+    hue: np.ndarray, color_range: tuple[int, int, int, int]
+) -> np.ndarray:
+    """
+    Compute a trapezoidal hue mask for a Hue/Saturation adjustment.
+
+    The range is defined by four hue control points (in degrees):
+    BL (bottom-left), TL (top-left), TR (top-right), BR (bottom-right).
+
+    The resulting mask:
+    - is 0.0 outside [BL, BR]
+    - rises linearly from 0.0->1.0 in [BL, TL]
+    - is flat (1.0) in [TL, TR]
+    - falls linearly from 1.0->0.0 in [TR, BR]
+    """
+    BL, TL, TR, BR = cast(
+        tuple[float, float, float, float], np.array(color_range) / 360.0
+    )
+
+    # hue is treated circularly (mod 360)
+    centered_hue = (hue - BL) % 1.0
+    left_supp = (TL - BL) % 1.0
+    center_supp = (TR - BL) % 1.0
+    right_supp = (BR - BL) % 1.0
+
+    # values are 0.0 outside the trapezoid support
+    mask = np.zeros_like(centered_hue)
+
+    center = (centered_hue >= left_supp) & (centered_hue <= center_supp)
+    mask[center] = 1.0
+
+    left = (centered_hue >= 0.0) & (centered_hue < left_supp)
+    mask[left] = (centered_hue[left]) / (left_supp)
+
+    right = (centered_hue > center_supp) & (centered_hue <= right_supp)
+    mask[right] = (right_supp - centered_hue[right]) / (right_supp - center_supp)
+
+    return mask
+
+
 @_preserve_alpha
 def apply_invert(
     img: np.ndarray,
@@ -404,6 +646,7 @@ ADJUSTMENT_FUNC: dict[str, AdjustmentFn] = {
     "levels": apply_levels,
     "curves": apply_curves,
     "exposure": apply_exposure,
+    "huesaturation": apply_huesaturation,
     "invert": apply_invert,
     "posterize": apply_posterize,
     "threshold": apply_threshold,
