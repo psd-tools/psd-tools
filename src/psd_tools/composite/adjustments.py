@@ -373,8 +373,13 @@ def apply_huesaturation(
     layer: HueSaturation,
 ) -> np.ndarray:
     """Applies a hue/saturation adjustment to an image."""
-    if colormode != ColorMode.RGB:
-        # TODO: add CMYK support
+    if colormode == ColorMode.GRAYSCALE:
+        logger.info("Hue/Saturation doesn't support grayscale in Photoshop.")
+        return img
+
+    # CMYK requires accurate luminance conversion
+    if colormode == ColorMode.CMYK:
+        logger.info("Hue/Saturation isn't currently supported for CMYK.")
         return img
 
     if layer.enable_colorization:
