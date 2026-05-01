@@ -386,7 +386,7 @@ def _set_sat(C: np.ndarray, s: np.ndarray) -> np.ndarray:
 
 
 def rgb2hsl(img: np.ndarray) -> np.ndarray:
-    """Convert a RGB image to HSL space using vectorized arrays."""
+    """Convert an RGB image to HSL space using vectorized arrays."""
     ch_min = np.min(img, axis=2)
     ch_max = np.max(img, axis=2)
 

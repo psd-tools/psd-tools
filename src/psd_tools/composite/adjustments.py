@@ -457,7 +457,7 @@ def _huesaturation(
         _apply_saturation(hsl[..., 1:2], master_saturation), colorrange_saturation
     )
 
-    return hsl2rgb(hsl)
+    return hsl2rgb(hsl).astype(np.float32, copy=False)
 
 
 def _apply_lightness(img: np.ndarray, lightness: float) -> np.ndarray:
@@ -498,7 +498,7 @@ def _correct_saturation(
 def _get_huesaturation_interpolator():
     from scipy.interpolate import RegularGridInterpolator  # type: ignore[import-untyped]  # noqa: PLC0415
 
-    axis = np.linspace(-1.0, 1.0, 21)
+    axis = np.linspace(-1.0, 1.0, 21, dtype=np.float32)
     return RegularGridInterpolator(
         (axis, axis),
         _SATURATION_RANGE_INTERPOLATION_GRID,
@@ -538,7 +538,9 @@ def _get_colorrange_hsl_values(
         # saturation values get mapped using a 3D surface
         points[..., 0] = colorrange_saturation
         points[..., 1] = saturation_contribution
-        colorrange_saturation = interpolator(points.clip(-1.0, 1.0))
+        colorrange_saturation = interpolator(points.clip(-1.0, 1.0)).astype(
+            colorrange_saturation.dtype, copy=False
+        )
 
     return colorrange_hue, colorrange_saturation, colorrange_lightness
 
