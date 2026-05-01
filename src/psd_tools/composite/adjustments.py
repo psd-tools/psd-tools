@@ -484,11 +484,13 @@ def _correct_saturation(
 ) -> np.ndarray:
     """Correct saturation values when colorrange lightness is applied to the hsl image."""
     div = 1 / (saturation_channel + 1e-3)
-    return np.where(
+    out = np.where(
         colorrange_lightness >= 0,
         saturation_channel * (1 - colorrange_lightness),
         1 + (div - 1) / (np.abs(colorrange_lightness) - div + 1e-3),
     )
+    np.clip(out, 0.0, 1.0, out=out)
+    return out
 
 
 # TODO: find exact mapping to avoid interpolation
@@ -536,7 +538,7 @@ def _get_colorrange_hsl_values(
         # saturation values get mapped using a 3D surface
         points[..., 0] = colorrange_saturation
         points[..., 1] = saturation_contribution
-        colorrange_saturation = interpolator(points).clip(-1.0, 1.0)
+        colorrange_saturation = interpolator(points.clip(-1.0, 1.0))
 
     return colorrange_hue, colorrange_saturation, colorrange_lightness
 
@@ -573,10 +575,20 @@ def _get_huesaturation_range_mask(
     mask[center] = 1.0
 
     left = (centered_hue >= 0.0) & (centered_hue < left_supp)
-    mask[left] = (centered_hue[left]) / (left_supp)
+    mask[left] = np.divide(
+        centered_hue[left],
+        left_supp,
+        out=np.zeros_like(centered_hue[left]),
+        where=left_supp > 1e-9,
+    )
 
     right = (centered_hue > center_supp) & (centered_hue <= right_supp)
-    mask[right] = (right_supp - centered_hue[right]) / (right_supp - center_supp)
+    mask[right] = np.divide(
+        right_supp - centered_hue[right],
+        right_supp - center_supp,
+        out=np.zeros_like(centered_hue[right]),
+        where=(right_supp - center_supp) > 1e-9,
+    )
 
     return mask
 
