@@ -3,7 +3,7 @@ Color structure and conversion methods.
 """
 
 import logging
-from typing import Any, BinaryIO, TypeVar
+from typing import IO, Any, TypeVar
 
 from attrs import define, field
 
@@ -34,7 +34,7 @@ class Color(BaseElement):
     values: list = field(factory=lambda: [0, 0, 0, 0])
 
     @classmethod
-    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
+    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         id = read_fmt("H", fp)[0]
         try:
             id = ColorSpaceID(id)
@@ -46,7 +46,7 @@ class Color(BaseElement):
             values = read_fmt("4H", fp)
         return cls(id, list(values))
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         id = getattr(self.id, "value", self.id)
         written = write_fmt(fp, "H", id)
         if self.id == ColorSpaceID.LAB:

@@ -4,7 +4,7 @@ Color mode data structure.
 
 import array
 import logging
-from typing import Any, BinaryIO, TypeVar
+from typing import IO, Any, TypeVar
 
 from attrs import define
 
@@ -30,14 +30,14 @@ class ColorModeData(ValueElement):
     value: bytes = b""
 
     @classmethod
-    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
+    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         value = read_length_block(fp)
         logger.debug("reading color mode data, len=%d" % (len(value)))
         # TODO: Parse color table.
         return cls(value)
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
-        def writer(f: BinaryIO) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        def writer(f: IO[bytes]) -> int:
             return write_bytes(f, self.value)
 
         logger.debug("writing color mode data, len=%d" % (len(self.value)))

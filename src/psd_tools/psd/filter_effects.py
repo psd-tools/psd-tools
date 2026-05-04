@@ -4,7 +4,7 @@ Filter effects structure.
 
 import io
 import logging
-from typing import Any, BinaryIO, TypeVar
+from typing import IO, Any, TypeVar
 
 from attrs import define, field
 
@@ -40,7 +40,7 @@ class FilterEffects(ListElement):
 
     @classmethod
     def read(
-        cls: type[T_FilterEffects], fp: BinaryIO, **kwargs: Any
+        cls: type[T_FilterEffects], fp: IO[bytes], **kwargs: Any
     ) -> T_FilterEffects:
         version = read_fmt("I", fp)[0]
         assert version in (1, 2, 3), "Invalid version %d" % (version)
@@ -50,7 +50,7 @@ class FilterEffects(ListElement):
                 items.append(FilterEffect.read(f))
         return cls(version=version, items=items)  # type: ignore[arg-type]
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         written = write_fmt(fp, "I", self.version)
         for item in self:
             written += write_length_block(fp, item.write, fmt="Q", padding=4)
@@ -85,7 +85,7 @@ class FilterEffect(BaseElement):
     extra: object | None = None
 
     @classmethod
-    def read(cls: type[T_FilterEffect], fp: BinaryIO, **kwargs: Any) -> T_FilterEffect:
+    def read(cls: type[T_FilterEffect], fp: IO[bytes], **kwargs: Any) -> T_FilterEffect:
         uuid = read_pascal_string(fp, encoding="ascii", padding=1)
         version = read_fmt("I", fp)[0]
         assert version <= 1, "Invalid version %d" % (version)
@@ -104,7 +104,7 @@ class FilterEffect(BaseElement):
         )
 
     @classmethod
-    def _read_body(cls, fp: BinaryIO) -> tuple[tuple, int, int, list]:
+    def _read_body(cls, fp: IO[bytes]) -> tuple[tuple, int, int, list]:
         rectangle = read_fmt("4i", fp)
         depth, max_channels = read_fmt("2I", fp)
         channels = []
@@ -112,11 +112,11 @@ class FilterEffect(BaseElement):
             channels.append(FilterEffectChannel.read(fp))
         return rectangle, depth, max_channels, channels
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         written = write_pascal_string(fp, self.uuid or "", encoding="ascii", padding=1)
         written += write_fmt(fp, "I", self.version)
 
-        def writer(f: BinaryIO) -> int:
+        def writer(f: IO[bytes]) -> int:
             return self._write_body(f)
 
         written += write_length_block(fp, writer, fmt="Q")
@@ -125,7 +125,7 @@ class FilterEffect(BaseElement):
             written += self.extra.write(fp)  # type: ignore[attr-defined]
         return written
 
-    def _write_body(self, fp: BinaryIO) -> int:
+    def _write_body(self, fp: IO[bytes]) -> int:
         assert self.rectangle is not None
         assert self.depth is not None
         assert self.max_channels is not None
@@ -153,7 +153,7 @@ class FilterEffectChannel(BaseElement):
 
     @classmethod
     def read(
-        cls: type[T_FilterEffectChannel], fp: BinaryIO, **kwargs: Any
+        cls: type[T_FilterEffectChannel], fp: IO[bytes], **kwargs: Any
     ) -> T_FilterEffectChannel:
         is_written = read_fmt("I", fp)[0]
         if is_written == 0:
@@ -166,12 +166,12 @@ class FilterEffectChannel(BaseElement):
             data = f.read()
         return cls(is_written, compression, data)
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         written = write_fmt(fp, "I", self.is_written)
         if self.is_written == 0:
             return written
 
-        def writer(f: BinaryIO) -> int:
+        def writer(f: IO[bytes]) -> int:
             if self.compression is None:
                 return 0
             length = write_fmt(f, "H", self.compression)
@@ -200,7 +200,7 @@ class FilterEffectExtra(BaseElement):
 
     @classmethod
     def read(
-        cls: type[T_FilterEffectExtra], fp: BinaryIO, **kwargs: Any
+        cls: type[T_FilterEffectExtra], fp: IO[bytes], **kwargs: Any
     ) -> T_FilterEffectExtra:
         is_written = read_fmt("B", fp)[0]
         if not is_written:
@@ -220,10 +220,10 @@ class FilterEffectExtra(BaseElement):
             data=data,
         )
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         written = write_fmt(fp, "B", self.is_written)
 
-        def writer(f: BinaryIO) -> int:
+        def writer(f: IO[bytes]) -> int:
             length = write_fmt(f, "H", self.compression)
             length += write_bytes(f, self.data)
             return length

@@ -3,7 +3,7 @@ Vector mask, path, and stroke structure.
 """
 
 import logging
-from typing import Any, BinaryIO, Sequence, TypeVar
+from typing import IO, Any, Sequence, TypeVar
 
 from typing_extensions import Self
 
@@ -52,7 +52,7 @@ class Path(ListElement):
     """
 
     @classmethod
-    def read(cls: type[T_Path], fp: BinaryIO, **kwargs: Any) -> T_Path:
+    def read(cls: type[T_Path], fp: IO[bytes], **kwargs: Any) -> T_Path:
         items = []
         while is_readable(fp, 26):
             selector = PathResourceID(read_fmt("H", fp)[0])
@@ -61,7 +61,7 @@ class Path(ListElement):
             items.append(kls.read(fp))
         return cls(items)
 
-    def write(self, fp: BinaryIO, padding: int = 4, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], padding: int = 4, **kwargs: Any) -> int:
         written = 0
         for item in self:
             written += write_fmt(fp, "H", item.selector.value)
@@ -99,7 +99,7 @@ class Subpath(ListElement):
     _unknown3: bytes = field(default=b"\x00" * 10, repr=False)
 
     @classmethod
-    def read(cls: type[T_Subpath], fp: BinaryIO, **kwargs: Any) -> T_Subpath:
+    def read(cls: type[T_Subpath], fp: IO[bytes], **kwargs: Any) -> T_Subpath:
         items = []
         length, operation, _unknown1, _unknown2, index, _unknown3 = read_fmt(
             "HhH2I10s", fp
@@ -118,7 +118,7 @@ class Subpath(ListElement):
             unknown3=_unknown3,
         )
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         written = write_fmt(
             fp,
             "HhH2I10s",
@@ -182,13 +182,13 @@ class Knot(BaseElement):
     leaving: tuple = (0.0,)
 
     @classmethod
-    def read(cls: type[T_Knot], fp: BinaryIO, **kwargs: Any) -> T_Knot:
+    def read(cls: type[T_Knot], fp: IO[bytes], **kwargs: Any) -> T_Knot:
         preceding = decode_fixed_point(read_fmt("2i", fp))
         anchor = decode_fixed_point(read_fmt("2i", fp))
         leaving = decode_fixed_point(read_fmt("2i", fp))
         return cls(preceding, anchor, leaving)
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         values = self.preceding + self.anchor + self.leaving
         return write_fmt(fp, "6i", *encode_fixed_point(values))
 
@@ -233,11 +233,11 @@ class PathFillRule(BaseElement):
     """
 
     @classmethod
-    def read(cls: type[T_PathFillRule], fp: BinaryIO, **kwargs: Any) -> T_PathFillRule:
+    def read(cls: type[T_PathFillRule], fp: IO[bytes], **kwargs: Any) -> T_PathFillRule:
         read_fmt("24x", fp)
         return cls()
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         return write_fmt(fp, "24x")
 
 
@@ -276,11 +276,11 @@ class ClipboardRecord(BaseElement):
 
     @classmethod
     def read(
-        cls: type[T_ClipboardRecord], fp: BinaryIO, **kwargs: Any
+        cls: type[T_ClipboardRecord], fp: IO[bytes], **kwargs: Any
     ) -> T_ClipboardRecord:
         return cls(*decode_fixed_point(read_fmt("5i4x", fp)))  # type: ignore[arg-type]
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         return write_fmt(fp, "5i4x", *encode_fixed_point(astuple(self)))
 
 
@@ -299,10 +299,10 @@ class InitialFillRule(ValueElement):
     value: int = field(default=0, converter=int)
 
     @classmethod
-    def read(cls, fp: BinaryIO, **kwargs: Any) -> Self:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         return cls(*read_fmt("H22x", fp))
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         return write_fmt(fp, "H22x", *astuple(self))
 
 
@@ -322,13 +322,13 @@ class VectorMaskSetting(BaseElement):
     path: Path | None = None
 
     @classmethod
-    def read(cls, fp: BinaryIO, **kwargs: Any) -> Self:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         version, flags = read_fmt("2I", fp)
         assert version == 3, "Unknown vector mask version %d" % version
         path = Path.read(fp)
         return cls(version=version, flags=flags, path=path)
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         written = write_fmt(fp, "2I", self.version, self.flags)
         if self.path:
             written += self.path.write(fp)
@@ -364,11 +364,11 @@ class VectorStrokeContentSetting(Descriptor):
     version: int = 1
 
     @classmethod
-    def read(cls, fp: BinaryIO, **kwargs: Any) -> Self:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         key, version = read_fmt("4sI", fp)
         return cls(key=key, version=version, **cls._read_body(fp))
 
-    def write(self, fp: BinaryIO, padding: int = 4, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], padding: int = 4, **kwargs: Any) -> int:
         written = write_fmt(fp, "4sI", self.key, self.version)
         written += self._write_body(fp)
         written += write_padding(fp, written, padding)
