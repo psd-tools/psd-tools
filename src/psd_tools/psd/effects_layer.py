@@ -6,7 +6,7 @@ are stored in tagged blocks.
 """
 
 import logging
-from typing import Any, BinaryIO, TypeVar
+from typing import IO, Any, TypeVar
 
 from attrs import define, field, astuple
 
@@ -47,11 +47,11 @@ class CommonStateInfo(BaseElement):
 
     @classmethod
     def read(
-        cls: type[T_CommonStateInfo], fp: BinaryIO, **kwargs: Any
+        cls: type[T_CommonStateInfo], fp: IO[bytes], **kwargs: Any
     ) -> T_CommonStateInfo:
         return cls(*read_fmt("IB2x", fp))
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         return write_fmt(fp, "IB2x", *astuple(self))
 
 
@@ -88,7 +88,7 @@ class ShadowInfo(BaseElement):
     native_color: Color = field(factory=Color)
 
     @classmethod
-    def read(cls: type[T_ShadowInfo], fp: BinaryIO, **kwargs: Any) -> T_ShadowInfo:
+    def read(cls: type[T_ShadowInfo], fp: IO[bytes], **kwargs: Any) -> T_ShadowInfo:
         # TODO: Check 4-byte = 2-byte int + 2-byte fraction?
         version, blur, intensity, angle, distance = read_fmt("IIIiI", fp)
         color = Color.read(fp)
@@ -111,7 +111,7 @@ class ShadowInfo(BaseElement):
             native_color=native_color,
         )
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         written = write_fmt(
             fp,
             "IIIiI",
@@ -147,7 +147,7 @@ class _GlowInfo:
 
     @classmethod
     def _read_body(
-        cls, fp: BinaryIO
+        cls, fp: IO[bytes]
     ) -> tuple[int, int, int, Color, BlendMode, int, int]:
         # TODO: Check 4-byte = 2-byte int + 2-byte fraction?
         version, blur, intensity = read_fmt("III", fp)
@@ -158,7 +158,7 @@ class _GlowInfo:
         enabled, opacity = read_fmt("2B", fp)
         return version, blur, intensity, color, blend_mode, enabled, opacity
 
-    def _write_body(self, fp: BinaryIO) -> int:
+    def _write_body(self, fp: IO[bytes]) -> int:
         written = write_fmt(fp, "III", self.version, self.blur, self.intensity)
         written += self.color.write(fp)
         written += write_fmt(
@@ -195,7 +195,7 @@ class OuterGlowInfo(BaseElement, _GlowInfo):
 
     @classmethod
     def read(
-        cls: type[T_OuterGlowInfo], fp: BinaryIO, **kwargs: Any
+        cls: type[T_OuterGlowInfo], fp: IO[bytes], **kwargs: Any
     ) -> T_OuterGlowInfo:
         version, blur, intensity, color, blend_mode, enabled, opacity = cls._read_body(
             fp
@@ -214,7 +214,7 @@ class OuterGlowInfo(BaseElement, _GlowInfo):
             native_color=native_color,
         )
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         written = self._write_body(fp)
         if self.native_color and hasattr(self.native_color, "write"):
             written += self.native_color.write(fp)  # type: ignore[attr-defined]
@@ -251,7 +251,7 @@ class InnerGlowInfo(BaseElement, _GlowInfo):
 
     @classmethod
     def read(
-        cls: type[T_InnerGlowInfo], fp: BinaryIO, **kwargs: Any
+        cls: type[T_InnerGlowInfo], fp: IO[bytes], **kwargs: Any
     ) -> T_InnerGlowInfo:
         version, blur, intensity, color, blend_mode, enabled, opacity = cls._read_body(
             fp
@@ -272,7 +272,7 @@ class InnerGlowInfo(BaseElement, _GlowInfo):
             native_color=native_color,
         )
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         written = self._write_body(fp)
         if self.version >= 2:
             written += write_fmt(fp, "B", self.invert)
@@ -325,7 +325,7 @@ class BevelInfo(BaseElement):
     real_shadow_color: object = None
 
     @classmethod
-    def read(cls: type[T_BevelInfo], fp: BinaryIO, **kwargs: Any) -> T_BevelInfo:
+    def read(cls: type[T_BevelInfo], fp: IO[bytes], **kwargs: Any) -> T_BevelInfo:
         # TODO: Check 4-byte = 2-byte int + 2-byte fraction?
         version, angle, depth, blur = read_fmt("Ii2I", fp)
         signature, highlight_blend_mode = read_fmt("4s4s", fp)
@@ -359,7 +359,7 @@ class BevelInfo(BaseElement):
             real_shadow_color=real_shadow_color,
         )
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         written = write_fmt(fp, "Ii2I", self.version, self.angle, self.depth, self.blur)
         written += write_fmt(
             fp,
@@ -411,7 +411,7 @@ class SolidFillInfo(BaseElement):
 
     @classmethod
     def read(
-        cls: type[T_SolidFillInfo], fp: BinaryIO, **kwargs: Any
+        cls: type[T_SolidFillInfo], fp: IO[bytes], **kwargs: Any
     ) -> T_SolidFillInfo:
         version = read_fmt("I", fp)[0]
         signature, blend_mode = read_fmt("4s4s", fp)
@@ -428,7 +428,7 @@ class SolidFillInfo(BaseElement):
             native_color=native_color,
         )
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         written = write_fmt(fp, "I4s4s", self.version, b"8BIM", self.blend_mode.value)
         written += self.color.write(fp)
         written += write_fmt(fp, "2B", self.opacity, self.enabled)
@@ -458,7 +458,7 @@ class EffectsLayer(DictElement):
     }
 
     @classmethod
-    def read(cls: type[T_EffectsLayer], fp: BinaryIO, **kwargs: Any) -> T_EffectsLayer:
+    def read(cls: type[T_EffectsLayer], fp: IO[bytes], **kwargs: Any) -> T_EffectsLayer:
         version, count = read_fmt("2H", fp)
         items = []
         for _ in range(count):
@@ -470,7 +470,7 @@ class EffectsLayer(DictElement):
             items.append((ostype, kls.frombytes(read_length_block(fp))))  # type: ignore[attr-defined]
         return cls(version=version, items=items)  # type: ignore[arg-type]
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         written = write_fmt(fp, "2H", self.version, len(self))
         for key in self:
             written += write_fmt(fp, "4s4s", b"8BIM", key.value)

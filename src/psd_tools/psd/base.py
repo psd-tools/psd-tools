@@ -16,7 +16,7 @@ import io
 import logging
 from collections import OrderedDict
 from enum import Enum
-from typing import Any, BinaryIO, Callable, Generator, TypeVar
+from typing import IO, Any, Callable, Generator, TypeVar
 
 from attrs import define, field, fields, has, validate
 
@@ -61,10 +61,10 @@ class BaseElement:
     """
 
     @classmethod
-    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
+    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         raise NotImplementedError()
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         raise NotImplementedError()
 
     @classmethod
@@ -142,10 +142,10 @@ class EmptyElement(BaseElement):
     """
 
     @classmethod
-    def read(cls: type[T], fp: BinaryIO, *args: Any, **kwargs: Any) -> T:
+    def read(cls: type[T], fp: IO[bytes], *args: Any, **kwargs: Any) -> T:
         return cls()
 
-    def write(self, fp: BinaryIO, *args: Any, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], *args: Any, **kwargs: Any) -> int:
         return 0
 
 
@@ -273,10 +273,10 @@ class NumericElement(ValueElement):
         return float(self.value)
 
     @classmethod
-    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
+    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         return cls(read_fmt("d", fp)[0])  # type: ignore[call-arg]
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         return write_fmt(fp, "d", self.value)
 
 
@@ -327,10 +327,10 @@ class IntegerElement(NumericElement):
         return self.value.__index__()
 
     @classmethod
-    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
+    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         return cls(read_fmt("I", fp)[0])  # type: ignore[call-arg]
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         return write_fmt(fp, "I", self.value)
 
 
@@ -343,14 +343,14 @@ class ShortIntegerElement(IntegerElement):
     """
 
     @classmethod
-    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
+    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         try:
             return cls(read_fmt("H2x", fp)[0])  # type: ignore[call-arg]
         except IOError as e:
             logger.error(e)
         return cls(read_fmt("H", fp)[0])  # type: ignore[call-arg]
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         return write_fmt(fp, "H2x", self.value)
 
 
@@ -363,14 +363,14 @@ class ByteElement(IntegerElement):
     """
 
     @classmethod
-    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
+    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         try:
             return cls(read_fmt("B3x", fp)[0])  # type: ignore[call-arg]
         except IOError as e:
             logger.error(e)
         return cls(read_fmt("B", fp)[0])  # type: ignore[call-arg]
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         return write_fmt(fp, "B3x", self.value)
 
 
@@ -385,14 +385,14 @@ class BooleanElement(IntegerElement):
     value: bool = field(default=False, converter=bool)
 
     @classmethod
-    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
+    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         try:
             return cls(read_fmt("?3x", fp)[0])  # type: ignore[call-arg]
         except IOError as e:
             logger.error(e)
         return cls(read_fmt("?", fp)[0])  # type: ignore[call-arg]
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         return write_fmt(fp, "?3x", self.value)
 
 
@@ -409,10 +409,10 @@ class StringElement(ValueElement):
     value: str = ""
 
     @classmethod
-    def read(cls: type[T], fp: BinaryIO, padding: int = 1, **kwargs: Any) -> T:
+    def read(cls: type[T], fp: IO[bytes], padding: int = 1, **kwargs: Any) -> T:
         return cls(read_unicode_string(fp, padding=padding))  # type: ignore[call-arg]
 
-    def write(self, fp: BinaryIO, padding: int = 1, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], padding: int = 1, **kwargs: Any) -> int:
         return write_unicode_string(fp, self.value, padding=padding)
 
 
@@ -486,7 +486,7 @@ class ListElement(BaseElement):
                 p.pretty(value)
             p.breakable("")
 
-    def write(self, fp: BinaryIO, *args: Any, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], *args: Any, **kwargs: Any) -> int:
         written = 0
         for item in self:
             if hasattr(item, "write"):
@@ -590,10 +590,10 @@ class DictElement(BaseElement):
         return key
 
     @classmethod
-    def read(cls: type[T], fp: BinaryIO, *args: Any, **kwargs: Any) -> T:
+    def read(cls: type[T], fp: IO[bytes], *args: Any, **kwargs: Any) -> T:
         raise NotImplementedError
 
-    def write(self, fp: BinaryIO, *args: Any, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], *args: Any, **kwargs: Any) -> int:
         written = 0
         for key in self:
             value = self[key]

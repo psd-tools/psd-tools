@@ -8,7 +8,7 @@ this is the only place pixels are saved.
 
 import io
 import logging
-from typing import Any, BinaryIO, Sequence, TypeVar
+from typing import IO, Any, Sequence, TypeVar
 
 from attrs import define, field
 
@@ -44,14 +44,14 @@ class ImageData(BaseElement):
     data: bytes = b""
 
     @classmethod
-    def read(cls: type[T], fp: BinaryIO, **kwargs: Any) -> T:
+    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         start_pos = fp.tell()
         compression = Compression(read_fmt("H", fp)[0])
         data = fp.read()  # TODO: Parse data here. Need header.
         logger.debug("  read image data, len=%d" % (fp.tell() - start_pos))
         return cls(compression, data)
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         start_pos = fp.tell()
         written = write_fmt(fp, "H", self.compression.value)
         written += write_bytes(fp, self.data)

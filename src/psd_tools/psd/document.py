@@ -6,7 +6,7 @@ binary structure of a PSD/PSB file.
 """
 
 import logging
-from typing import Any, BinaryIO, Generator, Optional, TypeVar
+from typing import IO, Any, Generator, Optional, TypeVar
 
 from attrs import define, field
 
@@ -75,7 +75,7 @@ class PSD(BaseElement):
 
     @classmethod
     def read(
-        cls: type[T], fp: BinaryIO, encoding: str = "macroman", **kwargs: Any
+        cls: type[T], fp: IO[bytes], encoding: str = "macroman", **kwargs: Any
     ) -> T:
         header = FileHeader.read(fp)
         logger.debug("read %s" % header)
@@ -87,7 +87,7 @@ class PSD(BaseElement):
             ImageData.read(fp),
         )
 
-    def write(self, fp: BinaryIO, encoding: str = "macroman", **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], encoding: str = "macroman", **kwargs: Any) -> int:
         logger.debug("writing %s" % self.header)
         written = self.header.write(fp)
         written += self.color_mode_data.write(fp)

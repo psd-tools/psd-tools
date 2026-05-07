@@ -55,7 +55,7 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Sequence
-from typing import Any, BinaryIO, Callable, Iterable, Literal
+from typing import IO, Any, Callable, Iterable, Literal
 
 from typing_extensions import Self
 
@@ -209,7 +209,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         return psdimage
 
     @classmethod
-    def open(cls, fp: BinaryIO | str | bytes | os.PathLike, **kwargs: Any) -> Self:
+    def open(cls, fp: IO[bytes] | str | bytes | os.PathLike, **kwargs: Any) -> Self:
         """
         Open a PSD document.
 
@@ -227,7 +227,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
     def save(
         self,
-        fp: BinaryIO | str | bytes | os.PathLike,
+        fp: IO[bytes] | str | bytes | os.PathLike,
         mode: str = "wb",
         **kwargs: Any,
     ) -> None:

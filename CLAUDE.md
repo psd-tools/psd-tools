@@ -124,10 +124,10 @@ All binary structures inherit from `BaseElement` and implement:
 
 ```python
 @classmethod
-def read(cls, fp: BinaryIO, **kwargs) -> Self:
+def read(cls, fp: IO[bytes], **kwargs) -> Self:
     """Read from file pointer"""
 
-def write(self, fp: BinaryIO, **kwargs) -> int:
+def write(self, fp: IO[bytes], **kwargs) -> int:
     """Write to file pointer, return bytes written"""
 ```
 

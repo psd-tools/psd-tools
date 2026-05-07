@@ -4,7 +4,7 @@ Patterns structure.
 
 import io
 import logging
-from typing import Any, BinaryIO, TypeVar
+from typing import IO, Any, TypeVar
 
 from typing_extensions import Self
 
@@ -40,7 +40,7 @@ class Patterns(ListElement):
     """
 
     @classmethod
-    def read(cls: type[T_Patterns], fp: BinaryIO, **kwargs: Any) -> T_Patterns:
+    def read(cls: type[T_Patterns], fp: IO[bytes], **kwargs: Any) -> T_Patterns:
         items = []
         while is_readable(fp, 4):
             data = read_length_block(fp, padding=4)
@@ -48,7 +48,7 @@ class Patterns(ListElement):
                 items.append(Pattern.read(f))
         return cls(items)  # type: ignore[arg-type]
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         written = 0
         for item in self:
             written += write_length_block(fp, item.write, padding=4)
@@ -97,7 +97,7 @@ class Pattern(BaseElement):
     data: "VirtualMemoryArrayList" = field(default=None)
 
     @classmethod
-    def read(cls: type[T_Pattern], fp: BinaryIO, **kwargs: Any) -> T_Pattern:
+    def read(cls: type[T_Pattern], fp: IO[bytes], **kwargs: Any) -> T_Pattern:
         version = read_fmt("I", fp)[0]
         assert version == 1, "Invalid version %d" % (version)
         image_mode = ColorMode(read_fmt("I", fp)[0])
@@ -112,7 +112,7 @@ class Pattern(BaseElement):
         data = VirtualMemoryArrayList.read(fp)
         return cls(version, image_mode, point, name, pattern_id, color_table, data)  # type: ignore[arg-type]
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         written = write_fmt(fp, "2I", self.version, self.image_mode.value)
         written += write_fmt(fp, "2h", *self.point)
         written += write_unicode_string(fp, self.name)
@@ -145,7 +145,7 @@ class VirtualMemoryArrayList(BaseElement):
     channels: list["VirtualMemoryArray"] = field(factory=list)
 
     @classmethod
-    def read(cls, fp: BinaryIO, **kwargs: Any) -> Self:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         version = read_fmt("I", fp)[0]
         assert version == 3, "Invalid version %d" % (version)
 
@@ -159,11 +159,11 @@ class VirtualMemoryArrayList(BaseElement):
 
         return cls(version, rectangle, channels)
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         written = write_fmt(fp, "I", self.version)
         return written + write_length_block(fp, lambda f: self._write_body(f))
 
-    def _write_body(self, fp: BinaryIO) -> int:
+    def _write_body(self, fp: IO[bytes]) -> int:
         written = write_fmt(fp, "4I", *self.rectangle)
         written += write_fmt(fp, "I", len(self.channels) - 2)
         for channel in self.channels:
@@ -194,7 +194,7 @@ class VirtualMemoryArray(BaseElement):
     data: bytes = b""
 
     @classmethod
-    def read(cls, fp: BinaryIO, **kwargs: Any) -> Self:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         is_written = read_fmt("I", fp)[0]
         if is_written == 0:
             return cls(is_written=is_written)
@@ -207,7 +207,7 @@ class VirtualMemoryArray(BaseElement):
         data = fp.read(length - 23)
         return cls(is_written, depth, rectangle, pixel_depth, compression, data)
 
-    def write(self, fp: BinaryIO, **kwargs: Any) -> int:
+    def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         written = write_fmt(fp, "I", self.is_written)
         if self.is_written == 0:
             return written
@@ -217,7 +217,7 @@ class VirtualMemoryArray(BaseElement):
 
         return written + write_length_block(fp, lambda f: self._write_body(f))
 
-    def _write_body(self, fp: BinaryIO) -> int:
+    def _write_body(self, fp: IO[bytes]) -> int:
         assert self.depth is not None
         assert self.rectangle is not None
         written = write_fmt(fp, "I", self.depth)
