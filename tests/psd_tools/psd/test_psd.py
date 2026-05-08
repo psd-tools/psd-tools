@@ -22,8 +22,13 @@ SKIP_BYTE_ROUND_TRIP = {
     "broken-groups.psd",  # 2-byte Unicode padding (non-Adobe tool)
     "unicode_pathname.psd",  # 2-byte DescriptorBlock padding
     "unicode_pathname.psb",  # 2-byte DescriptorBlock padding
-    "huesaturation_rgb.psd",  # Hue/Saturation layers have different padding than expected,
-    "huesaturation_colorize_rgb.psd",  # See issue #645 for more details.
+}
+
+# Hue/Saturation layers have different padding than expected.
+# See issue #645 for more details.
+HUESATURATION_MISMATCH = {
+    "huesaturation_rgb.psd",
+    "huesaturation_colorize_rgb.psd",
     "huesaturation_lightness_rgb.psd",
     "huesaturation_saturation_rgb.psd",
 }
@@ -35,7 +40,18 @@ SKIP_BYTE_ROUND_TRIP = {
 # SKIP_BYTE_ROUND_TRIP and covered semantically by test_psd_write_read.
 @pytest.mark.parametrize(
     "filename",
-    [f for f in all_files() if os.path.basename(f) not in SKIP_BYTE_ROUND_TRIP],
+    [
+        pytest.param(
+            f,
+            marks=pytest.mark.xfail(
+                reason="Known Hue/Saturation padding mismatch (#645)"
+            ),
+        )
+        if os.path.basename(f) in HUESATURATION_MISMATCH
+        else f
+        for f in all_files()
+        if os.path.basename(f) not in SKIP_BYTE_ROUND_TRIP
+    ],
 )
 def test_psd_read_write(filename: str) -> None:
     basename = os.path.basename(filename)
