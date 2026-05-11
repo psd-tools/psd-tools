@@ -25,7 +25,6 @@ repos:
         entry: uv run ruff check --fix
         language: system
         types: [python]
-        files: ^(src|tests)/
       - id: ruff-format
         name: ruff (format)
         entry: uv run ruff format
