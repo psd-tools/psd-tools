@@ -1,6 +1,16 @@
 Changelog
 =========
 
+1.17.0 (2026-05-11)
+-------------------
+
+- [composite] Add Hue/Saturation adjustment layer composite algorithm (#646)
+- [fix] Fix float32 safety in Hue/Saturation composite algorithm (#646)
+- [refactor] Use ``IO[bytes]`` instead of ``BinaryIO`` throughout the codebase (#647)
+- [fix] Fix mypy 2.0 strict-bytes errors in ``rle.py``
+- [ci] Migrate pre-commit hooks to uv-local runners; expand ruff and mypy scope (#650)
+- [chore] Bump mypy to 2.0.0, ruff to 0.15.12, pre-commit to 4.6.0
+
 1.16.0 (2026-04-24)
 -------------------
 
