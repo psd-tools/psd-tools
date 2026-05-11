@@ -80,6 +80,14 @@ from psd_tools.terminology import Enum
 
 logger = logging.getLogger(__name__)
 
+# Float32 constants used throughout blendmodes
+_0 = np.float32(0.0)
+_1 = np.float32(1.0)
+_HALF = np.float32(0.5)
+_2 = np.float32(2.0)
+_4 = np.float32(4.0)
+_6 = np.float32(6.0)
+
 # Small epsilon to prevent division by zero in blend mode calculations.
 # Chosen to be negligible relative to normalized [0, 1] color values.
 _FLOAT_EPSILON: float = 1e-9
@@ -383,6 +391,126 @@ def _set_sat(C: np.ndarray, s: np.ndarray) -> np.ndarray:
     B[index_min] = 0
 
     return B
+
+
+def rgb2hsl(img: np.ndarray) -> np.ndarray:
+    """Convert an RGB image to HSL space using vectorized arrays."""
+    ch_min = np.min(img, axis=2)
+    ch_max = np.max(img, axis=2)
+
+    delta = ch_max - ch_min
+    total = ch_max + ch_min
+    non_zero = delta > _FLOAT_EPSILON
+
+    out = np.empty_like(img)
+    H = out[..., 0]
+    S = out[..., 1]
+    L = out[..., 2]
+
+    # Lightness
+    L[:] = _HALF * total
+
+    # Saturation
+    S[:] = _0
+    den = _1 - np.abs(_2 * L - _1)
+    S[non_zero] = delta[non_zero] / den[non_zero]
+
+    # Hue
+    R, G, B = img[..., 0], img[..., 1], img[..., 2]
+    idx_R = (ch_max == R) & non_zero
+    idx_G = (ch_max == G) & non_zero
+    idx_B = (ch_max == B) & non_zero
+
+    H[:] = _0
+    H[idx_R] = ((G[idx_R] - B[idx_R]) / delta[idx_R]) % _6
+    H[idx_G] = ((B[idx_G] - R[idx_G]) / delta[idx_G]) + _2
+    H[idx_B] = ((R[idx_B] - G[idx_B]) / delta[idx_B]) + _4
+    H *= _1 / _6
+
+    return out
+
+
+def hsl2rgb(img: np.ndarray) -> np.ndarray:
+    """Convert an HSL image to RGB space using vectorized arrays."""
+    H, S, L = img[..., 0], img[..., 1], img[..., 2]
+
+    out = np.zeros_like(img)
+    R = out[..., 0]
+    G = out[..., 1]
+    B = out[..., 2]
+
+    C = (_1 - np.abs(_2 * L - _1)) * S
+    H_ = H * _6
+    X = C * (_1 - np.abs(H_ % _2 - _1))
+
+    mask0 = H_ < 1
+    mask1 = (1 <= H_) & (H_ < 2)
+    mask2 = (2 <= H_) & (H_ < 3)
+    mask3 = (3 <= H_) & (H_ < 4)
+    mask4 = (4 <= H_) & (H_ < 5)
+    mask5 = 5 <= H_
+
+    R[mask0], G[mask0], B[mask0] = C[mask0], X[mask0], _0
+    R[mask1], G[mask1], B[mask1] = X[mask1], C[mask1], _0
+    R[mask2], G[mask2], B[mask2] = _0, C[mask2], X[mask2]
+    R[mask3], G[mask3], B[mask3] = _0, X[mask3], C[mask3]
+    R[mask4], G[mask4], B[mask4] = X[mask4], _0, C[mask4]
+    R[mask5], G[mask5], B[mask5] = C[mask5], _0, X[mask5]
+
+    m = L - C / _2
+
+    R += m
+    G += m
+    B += m
+
+    return out
+
+
+def hsl2hsv(img: np.ndarray) -> np.ndarray:
+    """Convert an HSL image to HSV space using vectorized arrays."""
+    H, SL, L = img[..., 0], img[..., 1], img[..., 2]
+
+    out = np.empty_like(img)
+
+    # Hue
+    out[..., 0] = H
+
+    # Value
+    V = L + SL * np.minimum(L, _1 - L)
+    out[..., 2] = V
+
+    # Saturation
+    SV = out[..., 1]
+    SV[:] = _0
+
+    mask = V > _FLOAT_EPSILON
+    SV[mask] = _2 * (_1 - L[mask] / V[mask])
+
+    return out
+
+
+def hsv2hsl(img: np.ndarray) -> np.ndarray:
+    """Convert an HSV image to HSL space using vectorized arrays."""
+    H, SV, V = img[..., 0], img[..., 1], img[..., 2]
+
+    out = np.empty_like(img)
+
+    # Hue
+    out[..., 0] = H
+
+    # Lightness
+    L = V * (_1 - SV * _HALF)
+    out[..., 2] = L
+
+    # Saturation
+    SL = out[..., 1]
+    SL[:] = _0
+
+    denom = np.minimum(L, _1 - L)
+    mask = denom > _FLOAT_EPSILON
+    SL[mask] = (V[mask] - L[mask]) / denom[mask]
+
+    return out
 
 
 """Blend function table."""
