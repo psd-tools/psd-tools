@@ -88,10 +88,10 @@ markers = [
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-extend-select = ["PLC0415"]
+extend-select = ["PLC0415", "T10"]
 
 [tool.mypy]
-files = ["src/psd_tools", "tests"]
+files = ["src/psd_tools", "tests", "tools", "docs/conf.py"]
 
 [tool.cibuildwheel]
 archs = "auto64"

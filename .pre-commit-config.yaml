@@ -16,37 +16,27 @@ repos:
       - id: check-merge-conflict
       - id: check-added-large-files
         args: [--maxkb=500]
-      - id: debug-statements
 
-  # ---------------------------------------------------------------------------
-  # Python: ruff linting + formatting (mirrors CI scope: src/ and tests/)
-  # ---------------------------------------------------------------------------
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.9
-    hooks:
-      - id: ruff-check
-        args: [--fix]
-        files: ^(src|tests)/
-      - id: ruff-format
-        files: ^(src|tests)/
-
-  # ---------------------------------------------------------------------------
-  # Python: mypy type checking (mirrors CI: `uv run mypy src/psd_tools`)
-  #
-  # Uses repo:local + language:system so mypy runs in the project's own venv
-  # and has access to all installed stubs/dependencies (attrs, numpy, Pillow,
-  # etc.). pass_filenames:false ensures the full package is checked for
-  # accurate cross-module type inference, not just the changed files.
-  # ---------------------------------------------------------------------------
+  # Python tools run via uv so they use the versions pinned in uv.lock.
   - repo: local
     hooks:
+      - id: ruff-check
+        name: ruff (lint)
+        entry: uv run ruff check --fix
+        language: system
+        types: [python]
+      - id: ruff-format
+        name: ruff (format)
+        entry: uv run ruff format
+        language: system
+        types: [python]
       - id: mypy
         name: mypy
         entry: uv run mypy
         language: system
         types: [python]
-        files: ^(src|tests)/
-        args: [src/psd_tools, tests]
+        files: ^(src|tests|tools|docs)/
+        args: [src/psd_tools, tests, tools, docs/conf.py]
         pass_filenames: false
 
   # ---------------------------------------------------------------------------
