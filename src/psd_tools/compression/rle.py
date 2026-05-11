@@ -67,24 +67,24 @@ def decode(data: bytes, size: int) -> bytes:
 
     i, j = 0, 0
     length = len(data)
-    data = bytearray(data)
+    data_arr = bytearray(data)
     result = bytearray(size)  # pre-allocated and zero-filled
 
     while i < length and j < size:
-        i, bit = i + 1, data[i]
+        i, bit = i + 1, data_arr[i]
         if bit > 128:
             bit = 256 - bit
             if i >= length:  # lone repeat header at end of stream — stop
                 break
             actual = min(1 + bit, size - j)  # clip at remaining output space
-            result[j : j + actual] = bytes([data[i]]) * actual
+            result[j : j + actual] = bytes([data_arr[i]]) * actual
             j += actual
             i += 1
         elif bit < 128:
             copy_count = 1 + bit
             available = length - i
             actual = min(copy_count, available, size - j)  # clip to input and output
-            result[j : j + actual] = data[i : i + actual]
+            result[j : j + actual] = data_arr[i : i + actual]
             j += actual
             i += min(copy_count, available)  # advance by declared amount or to end
         # bit == 128: no-op
@@ -108,7 +108,7 @@ def encode(data: bytes) -> bytes:
         return data
     if length == 1:
         result.extend((0, data[0]))
-        return result
+        return bytes(result)
 
     while i < length:
         if j + 1 < length and data[j] == data[j + 1]:
