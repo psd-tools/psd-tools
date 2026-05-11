@@ -35,8 +35,8 @@ repos:
         entry: uv run mypy
         language: system
         types: [python]
-        files: ^(src|tests)/
-        args: [src/psd_tools, tests]
+        files: ^(src|tests|tools|docs)/
+        args: [src/psd_tools, tests, tools, docs/conf.py]
         pass_filenames: false
 
   # ---------------------------------------------------------------------------
