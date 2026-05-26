@@ -119,7 +119,14 @@ class SmartObject:
 
     @property
     def data(self) -> bytes:
-        """Embedded file content, or empty if kind is `external` or `alias`"""
+        """Embedded file content as bytes.
+
+        For ``kind == 'data'`` this returns the bytes stored in the PSD without
+        any filesystem access.  For ``kind == 'external'`` this calls
+        :py:meth:`open` with no ``external_dir`` argument, which trusts
+        ``fullPath`` from the PSD verbatim.  Prefer :py:meth:`open` with an
+        explicit ``external_dir`` when processing untrusted files.
+        """
         if self._data is None:
             raise ValueError("Smart object data not found")
         if self.kind == "data":
@@ -190,6 +197,7 @@ class SmartObject:
         self,
         filename: str | os.PathLike | None = None,
         directory: str | os.PathLike | None = None,
+        external_dir: str | os.PathLike | None = None,
     ) -> None:
         """
         Save the smart object to a file.
@@ -200,12 +208,16 @@ class SmartObject:
             Defaults to the current working directory. The embedded basename is
             written inside this directory; path-traversal sequences in the
             embedded name are stripped automatically.
-        :raises ValueError: If the embedded name contains no safe basename or
-            resolves outside ``directory``.
+        :param external_dir: Passed to :py:meth:`open` when the smart object
+            kind is ``'external'``. Constrains which paths on disk may be read.
+            Strongly recommended when processing untrusted PSD files.
+        :raises ValueError: If the embedded name contains no safe basename,
+            resolves outside ``directory``, or (for external kind) the source
+            path escapes ``external_dir``.
         """
         if filename is None:
             basename = os.path.basename(self.filename)
-            if not basename:
+            if not basename or basename == ".":
                 raise ValueError(
                     f"Embedded smart object filename has no safe basename: {self.filename!r}"
                 )
@@ -213,13 +225,18 @@ class SmartObject:
                 directory if directory is not None else os.getcwd()
             )
             resolved = os.path.realpath(os.path.join(outdir, basename))
-            if not (resolved == outdir or resolved.startswith(outdir + os.sep)):
+            if not resolved.startswith(outdir + os.sep):
                 raise ValueError(
                     f"Embedded filename resolves outside target directory: {self.filename!r}"
                 )
             filename = resolved
+        if self.kind == "external":
+            with self.open(external_dir=external_dir) as f:
+                content = f.read()
+        else:
+            content = self.data
         with open(filename, "wb") as f:
-            f.write(self.data)
+            f.write(content)
 
     def __repr__(self) -> str:
         return "SmartObject(%r kind=%r type=%r size=%s)" % (

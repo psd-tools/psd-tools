@@ -1,4 +1,5 @@
 import logging
+import sys
 from pathlib import Path
 from typing import Iterator
 from unittest.mock import MagicMock
@@ -94,6 +95,29 @@ def _make_data_smart_object(
     return so
 
 
+def _make_external_smart_object(
+    full_path: str, rel_path: str, embedded_filename: str = "linked.png"
+) -> SmartObject:
+    """Build a SmartObject whose _data mimics an EXTERNAL-kind LinkedLayer."""
+    linked_file = {
+        b"fullPath": MagicMock(value=full_path),
+        b"relPath": MagicMock(value=rel_path),
+    }
+    data_mock = MagicMock()
+    data_mock.kind = LinkedLayerType.EXTERNAL
+    data_mock.filename = embedded_filename
+    data_mock.linked_file = linked_file
+
+    config_mock = MagicMock()
+    config_mock.data = {b"Idnt": MagicMock(value="test-uuid\x00")}
+
+    so = object.__new__(SmartObject)
+    so._data = data_mock
+    so._config = config_mock
+    so._placed_layer = None
+    return so
+
+
 class TestSaveSecurity:
     """SmartObject.save() must not write outside the target directory."""
 
@@ -143,38 +167,59 @@ class TestSaveSecurity:
         so.save()
         assert (tmp_path / "output.bin").read_bytes() == b"data"
 
+    def test_dot_basename_raises_value_error(self, tmp_path: Path) -> None:
+        """filename='.' must raise ValueError, not IsADirectoryError."""
+        so = _make_data_smart_object(".", b"data")
+        with pytest.raises(ValueError, match="no safe basename"):
+            so.save(directory=str(tmp_path))
+
+    def test_external_save_malicious_fullpath_with_external_dir_raises(
+        self, tmp_path: Path
+    ) -> None:
+        """Malicious fullPath outside external_dir must not be read."""
+        system_file = (
+            "/etc/hosts"
+            if sys.platform != "win32"
+            else "C:\\Windows\\System32\\drivers\\etc\\hosts"
+        )
+        if not Path(system_file).exists():
+            pytest.skip(f"{system_file} not available on this system")
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+        so = _make_external_smart_object(system_file, "benign.png", "benign.png")
+        # fullPath escapes external_dir; relPath doesn't exist → should not write
+        with pytest.raises((ValueError, FileNotFoundError)):
+            so.save(directory=str(out_dir), external_dir=str(out_dir))
+        assert list(out_dir.iterdir()) == []
+
+    def test_external_save_with_matching_external_dir_succeeds(
+        self, tmp_path: Path
+    ) -> None:
+        """External save works when source is inside external_dir."""
+        source_dir = tmp_path / "sources"
+        source_dir.mkdir()
+        (source_dir / "asset.png").write_bytes(b"asset-bytes")
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+        so = _make_external_smart_object(
+            str(source_dir / "asset.png"), "asset.png", "asset.png"
+        )
+        so.save(directory=str(out_dir), external_dir=str(source_dir))
+        assert (out_dir / "asset.png").read_bytes() == b"asset-bytes"
+
 
 class TestOpenSecurity:
     """SmartObject.open() external kind must not read outside external_dir."""
 
-    def _make_external_smart_object(self, full_path: str, rel_path: str) -> SmartObject:
-        linked_file = {
-            b"fullPath": MagicMock(value=full_path),
-            b"relPath": MagicMock(value=rel_path),
-        }
-        data_mock = MagicMock()
-        data_mock.kind = LinkedLayerType.EXTERNAL
-        data_mock.filename = "linked.png"
-        data_mock.linked_file = linked_file
-
-        config_mock = MagicMock()
-        config_mock.data = {b"Idnt": MagicMock(value="test-uuid\x00")}
-
-        so = object.__new__(SmartObject)
-        so._data = data_mock
-        so._config = config_mock
-        so._placed_layer = None
-        return so
-
     def test_relative_path_inside_external_dir(self, tmp_path: Path) -> None:
         target = tmp_path / "asset.png"
         target.write_bytes(b"asset")
-        so = self._make_external_smart_object("", "asset.png")
+        so = _make_external_smart_object("", "asset.png")
         with so.open(external_dir=str(tmp_path)) as f:
             assert f.read() == b"asset"
 
     def test_relpath_traversal_raises(self, tmp_path: Path) -> None:
-        so = self._make_external_smart_object("", "../../etc/passwd")
+        so = _make_external_smart_object("", "../../etc/passwd")
         with pytest.raises(ValueError, match="escapes external_dir"):
             with so.open(external_dir=str(tmp_path)) as f:
                 f.read()
@@ -185,6 +230,6 @@ class TestOpenSecurity:
         """fullPath outside external_dir is ignored; relPath inside is used."""
         target = tmp_path / "asset.png"
         target.write_bytes(b"asset")
-        so = self._make_external_smart_object("/etc/passwd", "asset.png")
+        so = _make_external_smart_object("/etc/passwd", "asset.png")
         with so.open(external_dir=str(tmp_path)) as f:
             assert f.read() == b"asset"
