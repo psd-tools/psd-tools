@@ -18,7 +18,11 @@ def _is_inside(parent: str, child: str) -> bool:
     """Return True if child is inside parent (or equal to it)."""
     parent = os.path.normcase(parent)
     child = os.path.normcase(child)
-    return os.path.commonpath([parent, child]) == parent
+    try:
+        return os.path.commonpath([parent, child]) == parent
+    except ValueError:
+        # commonpath raises ValueError on Windows when paths span different drives
+        return False
 
 
 class SmartObject:
