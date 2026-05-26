@@ -84,9 +84,11 @@ class SmartObject:
         """
         Open the smart object as binary IO.
 
-        :param external_dir: Directory to resolve relative external paths against.
-            When provided, absolute embedded paths that fall outside this directory
-            are rejected. Strongly recommended when processing untrusted PSD files.
+        :param external_dir: Directory to resolve external paths against.
+            When provided, a ``fullPath`` that resolves outside this directory is
+            silently ignored and ``relPath`` is tried instead. A ``relPath`` that
+            resolves outside this directory raises :py:exc:`ValueError`.
+            Strongly recommended when processing untrusted PSD files.
 
         Example::
 

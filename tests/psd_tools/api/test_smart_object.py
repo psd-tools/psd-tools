@@ -194,8 +194,9 @@ class TestSaveSecurity:
         out_dir = tmp_path / "out"
         out_dir.mkdir()
         so = _make_external_smart_object(system_file, "benign.png", "benign.png")
-        # fullPath escapes external_dir; relPath doesn't exist → should not write
-        with pytest.raises((ValueError, FileNotFoundError)):
+        # fullPath escapes external_dir so it is ignored; relPath "benign.png"
+        # does not exist inside out_dir → FileNotFoundError
+        with pytest.raises(FileNotFoundError):
             so.save(directory=str(out_dir), external_dir=str(out_dir))
         assert list(out_dir.iterdir()) == []
 
