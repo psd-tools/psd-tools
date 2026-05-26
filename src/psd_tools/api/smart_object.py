@@ -14,6 +14,17 @@ from psd_tools.constants import Tag
 logger = logging.getLogger(__name__)
 
 
+def _is_inside(parent: str, child: str) -> bool:
+    """Return True if child is inside parent (or equal to it)."""
+    parent = os.path.normcase(parent)
+    child = os.path.normcase(child)
+    try:
+        return os.path.commonpath([parent, child]) == parent
+    except ValueError:
+        # commonpath raises ValueError on Windows when paths span different drives
+        return False
+
+
 class SmartObject:
     """
     Smart object that represents embedded or external file.
@@ -67,11 +78,17 @@ class SmartObject:
         return self._data.filename.strip("\x00")
 
     @contextlib.contextmanager
-    def open(self, external_dir: str | None = None) -> Iterator[IO[bytes]]:
+    def open(
+        self, external_dir: str | os.PathLike | None = None
+    ) -> Iterator[IO[bytes]]:
         """
         Open the smart object as binary IO.
 
-        :param external_dir: Path to the directory of the external file.
+        :param external_dir: Directory to resolve external paths against.
+            When provided, a ``fullPath`` that resolves outside this directory is
+            silently ignored and ``relPath`` is tried instead. A ``relPath`` that
+            resolves outside this directory raises :py:exc:`ValueError`.
+            Strongly recommended when processing untrusted PSD files.
 
         Example::
 
@@ -86,11 +103,24 @@ class SmartObject:
         elif self.kind == "external":
             filepath = self._data.linked_file[b"fullPath"].value
             filepath = filepath.replace("\x00", "").replace("file://", "")
-            if not os.path.exists(filepath):
-                filepath = self._data.linked_file[b"relPath"].value
-                filepath = filepath.replace("\x00", "")
+            if external_dir is not None:
+                safe_dir = os.path.realpath(external_dir)
+                resolved = os.path.realpath(filepath)
+                if not _is_inside(safe_dir, resolved):
+                    # fullPath escapes external_dir — fall through to relPath
+                    filepath = ""
+            if not filepath or not os.path.exists(filepath):
+                relpath = self._data.linked_file[b"relPath"].value
+                relpath = relpath.replace("\x00", "")
                 if external_dir is not None:
-                    filepath = os.path.join(external_dir, filepath)
+                    safe_dir = os.path.realpath(external_dir)
+                    filepath = os.path.realpath(os.path.join(safe_dir, relpath))
+                    if not _is_inside(safe_dir, filepath):
+                        raise ValueError(
+                            f"External smart object path escapes external_dir: {relpath!r}"
+                        )
+                else:
+                    filepath = relpath
                 if not os.path.exists(filepath):
                     raise FileNotFoundError(f"Smart object file not found: {filepath}")
             with open(filepath, "rb") as f:
@@ -100,7 +130,14 @@ class SmartObject:
 
     @property
     def data(self) -> bytes:
-        """Embedded file content, or empty if kind is `external` or `alias`"""
+        """Embedded file content as bytes.
+
+        For ``kind == 'data'`` this returns the bytes stored in the PSD without
+        any filesystem access.  For ``kind == 'external'`` this calls
+        :py:meth:`open` with no ``external_dir`` argument, which trusts
+        ``fullPath`` from the PSD verbatim.  Prefer :py:meth:`open` with an
+        explicit ``external_dir`` when processing untrusted files.
+        """
         if self._data is None:
             raise ValueError("Smart object data not found")
         if self.kind == "data":
@@ -167,16 +204,50 @@ class SmartObject:
         else:
             return None
 
-    def save(self, filename: str | None = None) -> None:
+    def save(
+        self,
+        filename: str | os.PathLike | None = None,
+        directory: str | os.PathLike | None = None,
+        external_dir: str | os.PathLike | None = None,
+    ) -> None:
         """
         Save the smart object to a file.
 
-        :param filename: File name to export. If None, use the embedded name.
+        :param filename: Explicit destination path. When provided it is used
+            as-is and ``directory`` is ignored.
+        :param directory: Output directory used when ``filename`` is ``None``.
+            Defaults to the current working directory. The embedded basename is
+            written inside this directory; path-traversal sequences in the
+            embedded name are stripped automatically.
+        :param external_dir: Passed to :py:meth:`open` when the smart object
+            kind is ``'external'``. Constrains which paths on disk may be read.
+            Strongly recommended when processing untrusted PSD files.
+        :raises ValueError: If the embedded name contains no safe basename,
+            resolves outside ``directory``, or (for external kind) the source
+            path escapes ``external_dir``.
         """
         if filename is None:
-            filename = self.filename
+            basename = os.path.basename(self.filename)
+            if not basename or basename == ".":
+                raise ValueError(
+                    f"Embedded smart object filename has no safe basename: {self.filename!r}"
+                )
+            outdir = os.path.realpath(
+                directory if directory is not None else os.getcwd()
+            )
+            resolved = os.path.realpath(os.path.join(outdir, basename))
+            if not _is_inside(outdir, resolved):
+                raise ValueError(
+                    f"Embedded filename resolves outside target directory: {self.filename!r}"
+                )
+            filename = resolved
+        if self.kind == "external":
+            with self.open(external_dir=external_dir) as f:
+                content = f.read()
+        else:
+            content = self.data
         with open(filename, "wb") as f:
-            f.write(self.data)
+            f.write(content)
 
     def __repr__(self) -> str:
         return "SmartObject(%r kind=%r type=%r size=%s)" % (
