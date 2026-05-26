@@ -14,6 +14,13 @@ from psd_tools.constants import Tag
 logger = logging.getLogger(__name__)
 
 
+def _is_inside(parent: str, child: str) -> bool:
+    """Return True if child is inside parent (or equal to it)."""
+    parent = os.path.normcase(parent)
+    child = os.path.normcase(child)
+    return os.path.commonpath([parent, child]) == parent
+
+
 class SmartObject:
     """
     Smart object that represents embedded or external file.
@@ -93,7 +100,7 @@ class SmartObject:
             if external_dir is not None:
                 safe_dir = os.path.realpath(external_dir)
                 resolved = os.path.realpath(filepath)
-                if not (resolved == safe_dir or resolved.startswith(safe_dir + os.sep)):
+                if not _is_inside(safe_dir, resolved):
                     # fullPath escapes external_dir — fall through to relPath
                     filepath = ""
             if not filepath or not os.path.exists(filepath):
@@ -102,9 +109,7 @@ class SmartObject:
                 if external_dir is not None:
                     safe_dir = os.path.realpath(external_dir)
                     filepath = os.path.realpath(os.path.join(safe_dir, relpath))
-                    if not (
-                        filepath == safe_dir or filepath.startswith(safe_dir + os.sep)
-                    ):
+                    if not _is_inside(safe_dir, filepath):
                         raise ValueError(
                             f"External smart object path escapes external_dir: {relpath!r}"
                         )
@@ -225,7 +230,7 @@ class SmartObject:
                 directory if directory is not None else os.getcwd()
             )
             resolved = os.path.realpath(os.path.join(outdir, basename))
-            if not resolved.startswith(outdir + os.sep):
+            if not _is_inside(outdir, resolved):
                 raise ValueError(
                     f"Embedded filename resolves outside target directory: {self.filename!r}"
                 )

@@ -135,16 +135,20 @@ class TestSaveSecurity:
         assert not (tmp_path.parent.parent / "escape.bin").exists()
 
     def test_absolute_embedded_path_is_stripped(self, tmp_path: Path) -> None:
-        """An absolute embedded name like /etc/passwd is reduced to its basename."""
-        so = _make_data_smart_object("/etc/passwd", b"data")
-        so.save(directory=str(tmp_path))
-        assert (tmp_path / "passwd").read_bytes() == b"data"
-        # original /etc/passwd untouched
-        assert (
-            not (Path("/etc/passwd").read_bytes() == b"data")
-            if Path("/etc/passwd").exists()
-            else True
-        )
+        """An absolute embedded path is reduced to its basename inside directory."""
+        # Use a sentinel file outside tmp_path as the "absolute" target — hermetic,
+        # no system file reads, works in sandboxed CI.
+        sentinel = tmp_path.parent / "sentinel.bin"
+        sentinel.write_bytes(b"original")
+        try:
+            so = _make_data_smart_object(str(sentinel), b"data")
+            so.save(directory=str(tmp_path))
+            # basename of sentinel is written inside tmp_path
+            assert (tmp_path / "sentinel.bin").read_bytes() == b"data"
+            # the original file outside tmp_path is untouched
+            assert sentinel.read_bytes() == b"original"
+        finally:
+            sentinel.unlink(missing_ok=True)
 
     def test_empty_basename_raises(self, tmp_path: Path) -> None:
         """A name that has no basename (e.g. trailing slash) must raise."""
