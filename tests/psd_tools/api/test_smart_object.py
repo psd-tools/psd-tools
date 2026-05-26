@@ -127,28 +127,31 @@ class TestSaveSecurity:
         assert (tmp_path / "photo.png").read_bytes() == b"data"
 
     def test_traversal_basename_is_stripped(self, tmp_path: Path) -> None:
-        """../../escape.bin should write as escape.bin inside tmp_path."""
+        """../../escape.bin should write as escape.bin inside out_dir, not escape."""
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
         so = _make_data_smart_object("../../escape.bin", b"data")
-        so.save(directory=str(tmp_path))
-        assert (tmp_path / "escape.bin").read_bytes() == b"data"
-        # nothing escaped
-        assert not (tmp_path.parent.parent / "escape.bin").exists()
+        so.save(directory=str(out_dir))
+        assert (out_dir / "escape.bin").read_bytes() == b"data"
+        # nothing escaped to the parent directories within tmp_path
+        assert not (tmp_path / "escape.bin").exists()
 
     def test_absolute_embedded_path_is_stripped(self, tmp_path: Path) -> None:
-        """An absolute embedded path is reduced to its basename inside directory."""
-        # Use a sentinel file outside tmp_path as the "absolute" target — hermetic,
-        # no system file reads, works in sandboxed CI.
-        sentinel = tmp_path.parent / "sentinel.bin"
+        """An absolute embedded path is reduced to its basename inside out_dir."""
+        # Keep sentinel and output dir both inside tmp_path to avoid parallel
+        # test interference when writing to shared parent directories.
+        source_dir = tmp_path / "source"
+        source_dir.mkdir()
+        sentinel = source_dir / "sentinel.bin"
         sentinel.write_bytes(b"original")
-        try:
-            so = _make_data_smart_object(str(sentinel), b"data")
-            so.save(directory=str(tmp_path))
-            # basename of sentinel is written inside tmp_path
-            assert (tmp_path / "sentinel.bin").read_bytes() == b"data"
-            # the original file outside tmp_path is untouched
-            assert sentinel.read_bytes() == b"original"
-        finally:
-            sentinel.unlink(missing_ok=True)
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+        so = _make_data_smart_object(str(sentinel), b"data")
+        so.save(directory=str(out_dir))
+        # basename of sentinel is written inside out_dir
+        assert (out_dir / "sentinel.bin").read_bytes() == b"data"
+        # the original file is untouched
+        assert sentinel.read_bytes() == b"original"
 
     def test_empty_basename_raises(self, tmp_path: Path) -> None:
         """A name that has no basename (e.g. trailing slash) must raise."""
