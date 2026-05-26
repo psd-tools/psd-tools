@@ -1,6 +1,12 @@
 Changelog
 =========
 
+1.17.1 (2026-05-27)
+-------------------
+
+- [security] Fix path traversal in ``SmartObject.save()`` and ``open()`` (GHSA-2rmg-vrx8-9j2f, #657)
+- [chore] Bump ruff to 0.15.14, mypy to 2.1.0
+
 1.17.0 (2026-05-11)
 -------------------
 
