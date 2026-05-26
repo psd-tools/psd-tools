@@ -67,11 +67,15 @@ class SmartObject:
         return self._data.filename.strip("\x00")
 
     @contextlib.contextmanager
-    def open(self, external_dir: str | None = None) -> Iterator[IO[bytes]]:
+    def open(
+        self, external_dir: str | os.PathLike | None = None
+    ) -> Iterator[IO[bytes]]:
         """
         Open the smart object as binary IO.
 
-        :param external_dir: Path to the directory of the external file.
+        :param external_dir: Directory to resolve relative external paths against.
+            When provided, absolute embedded paths that fall outside this directory
+            are rejected. Strongly recommended when processing untrusted PSD files.
 
         Example::
 
@@ -86,11 +90,26 @@ class SmartObject:
         elif self.kind == "external":
             filepath = self._data.linked_file[b"fullPath"].value
             filepath = filepath.replace("\x00", "").replace("file://", "")
-            if not os.path.exists(filepath):
-                filepath = self._data.linked_file[b"relPath"].value
-                filepath = filepath.replace("\x00", "")
+            if external_dir is not None:
+                safe_dir = os.path.realpath(external_dir)
+                resolved = os.path.realpath(filepath)
+                if not (resolved == safe_dir or resolved.startswith(safe_dir + os.sep)):
+                    # fullPath escapes external_dir — fall through to relPath
+                    filepath = ""
+            if not filepath or not os.path.exists(filepath):
+                relpath = self._data.linked_file[b"relPath"].value
+                relpath = relpath.replace("\x00", "")
                 if external_dir is not None:
-                    filepath = os.path.join(external_dir, filepath)
+                    safe_dir = os.path.realpath(external_dir)
+                    filepath = os.path.realpath(os.path.join(safe_dir, relpath))
+                    if not (
+                        filepath == safe_dir or filepath.startswith(safe_dir + os.sep)
+                    ):
+                        raise ValueError(
+                            f"External smart object path escapes external_dir: {relpath!r}"
+                        )
+                else:
+                    filepath = relpath
                 if not os.path.exists(filepath):
                     raise FileNotFoundError(f"Smart object file not found: {filepath}")
             with open(filepath, "rb") as f:
@@ -167,14 +186,38 @@ class SmartObject:
         else:
             return None
 
-    def save(self, filename: str | None = None) -> None:
+    def save(
+        self,
+        filename: str | os.PathLike | None = None,
+        directory: str | os.PathLike | None = None,
+    ) -> None:
         """
         Save the smart object to a file.
 
-        :param filename: File name to export. If None, use the embedded name.
+        :param filename: Explicit destination path. When provided it is used
+            as-is and ``directory`` is ignored.
+        :param directory: Output directory used when ``filename`` is ``None``.
+            Defaults to the current working directory. The embedded basename is
+            written inside this directory; path-traversal sequences in the
+            embedded name are stripped automatically.
+        :raises ValueError: If the embedded name contains no safe basename or
+            resolves outside ``directory``.
         """
         if filename is None:
-            filename = self.filename
+            basename = os.path.basename(self.filename)
+            if not basename:
+                raise ValueError(
+                    f"Embedded smart object filename has no safe basename: {self.filename!r}"
+                )
+            outdir = os.path.realpath(
+                directory if directory is not None else os.getcwd()
+            )
+            resolved = os.path.realpath(os.path.join(outdir, basename))
+            if not (resolved == outdir or resolved.startswith(outdir + os.sep)):
+                raise ValueError(
+                    f"Embedded filename resolves outside target directory: {self.filename!r}"
+                )
+            filename = resolved
         with open(filename, "wb") as f:
             f.write(self.data)
 
