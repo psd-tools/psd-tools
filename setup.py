@@ -12,7 +12,12 @@ try:
     is_free_threaded = int(_py_gil_disabled or 0) != 0
 except (TypeError, ValueError):
     is_free_threaded = False
-use_limited_api = sys.version_info >= (3, 13) and not is_free_threaded
+# On Windows, the stable-ABI extension links against python3.dll which is absent
+# in many embedded Python environments (e.g. Substance Painter). Windows wheels
+# are already built per-version, so there is no benefit to the Limited API there.
+use_limited_api = (
+    sys.version_info >= (3, 13) and not is_free_threaded and sys.platform != "win32"
+)
 
 extensions = [
     Extension(
