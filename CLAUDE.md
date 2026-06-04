@@ -90,7 +90,7 @@ These slash commands are available in Claude Code. Invoke them by typing `/<name
 gh issue view 123 --repo psd-tools/psd-tools --comments
 
 # Post a comment (use --body-file for multiline Markdown to avoid shell escaping issues)
-gh issue comment 123 --repo psd-tools/psd-tools --body-file /tmp/comment.md
+gh issue comment 123 --repo psd-tools/psd-tools --body-file "${TMPDIR:-/tmp}/comment.md"
 
 # View a PR (current branch)
 gh pr view

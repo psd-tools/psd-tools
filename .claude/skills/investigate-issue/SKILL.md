@@ -88,7 +88,7 @@ Omit sections that are not applicable. Keep the tone neutral and technical.
 
 ## Step 4 — Ask before posting
 
-Show the user the draft comment and ask: "Ready to post this as a comment on issue #NUMBER?"
+Show the user the draft comment and ask: "Ready to post this as a comment on issue #ISSUE_NUMBER?"
 
 Do NOT post without explicit user confirmation.
 
@@ -98,10 +98,10 @@ Once the user confirms, write the comment body to a temp file and post via `--bo
 safely handle multiline Markdown, backticks, and special characters:
 
 ```bash
-cat > /tmp/issue_comment.md << 'EOF'
+cat > "${TMPDIR:-/tmp}/issue_comment_ISSUE_NUMBER.md" << 'EOF'
 COMMENT_BODY
 EOF
-gh issue comment ISSUE_NUMBER --repo psd-tools/psd-tools --body-file /tmp/issue_comment.md
+gh issue comment ISSUE_NUMBER --repo psd-tools/psd-tools --body-file "${TMPDIR:-/tmp}/issue_comment_ISSUE_NUMBER.md"
 ```
 
 Print the URL of the posted comment.
