@@ -77,13 +77,16 @@ def test_smart_object_external(
 
 
 def _make_data_smart_object(
-    embedded_filename: str, payload: bytes = b"pwned"
+    embedded_filename: str,
+    payload: bytes = b"pwned",
+    filetype: bytes = b"    ",
 ) -> SmartObject:
     """Build a SmartObject whose _data mimics a DATA-kind LinkedLayer."""
     data_mock = MagicMock()
     data_mock.kind = LinkedLayerType.DATA
     data_mock.filename = embedded_filename
     data_mock.data = payload
+    data_mock.filetype = filetype
 
     config_mock = MagicMock()
     config_mock.data = {b"Idnt": MagicMock(value="test-uuid\x00")}
@@ -96,7 +99,10 @@ def _make_data_smart_object(
 
 
 def _make_external_smart_object(
-    full_path: str, rel_path: str, embedded_filename: str = "linked.png"
+    full_path: str,
+    rel_path: str,
+    embedded_filename: str = "linked.png",
+    filetype: bytes = b"    ",
 ) -> SmartObject:
     """Build a SmartObject whose _data mimics an EXTERNAL-kind LinkedLayer."""
     linked_file = {
@@ -107,6 +113,7 @@ def _make_external_smart_object(
     data_mock.kind = LinkedLayerType.EXTERNAL
     data_mock.filename = embedded_filename
     data_mock.linked_file = linked_file
+    data_mock.filetype = filetype
 
     config_mock = MagicMock()
     config_mock.data = {b"Idnt": MagicMock(value="test-uuid\x00")}
@@ -241,3 +248,181 @@ class TestOpenSecurity:
         so = _make_external_smart_object("/etc/passwd", "asset.png")
         with so.open(external_dir=str(tmp_path)) as f:
             assert f.read() == b"asset"
+
+
+# ---------------------------------------------------------------------------
+# filetype / detected_filetype / is_psd tests — Issue #599
+# ---------------------------------------------------------------------------
+
+
+class TestFiletypeBlank:
+    """filetype returns None for blank stored field; detected_filetype falls back."""
+
+    def test_filetype_returns_none_when_blank(self) -> None:
+        so = _make_data_smart_object("foo.pdf", b"%PDF-1.5 rest", filetype=b"    ")
+        assert so.filetype is None
+
+    def test_filetype_returns_value_when_present(self) -> None:
+        so = _make_data_smart_object("foo.png", b"\x89PNG\r\n\x1a\n", filetype=b"PNG ")
+        assert so.filetype == "png"
+
+    # --- detected_filetype: stored value wins ---
+
+    def test_detected_uses_stored_filetype_when_present(self) -> None:
+        so = _make_data_smart_object("foo.pdf", b"\x89PNG\r\n\x1a\n", filetype=b"PNG ")
+        # stored type is "png" even though filename says .pdf
+        assert so.detected_filetype == "png"
+
+    # --- detected_filetype: filename extension fallback ---
+
+    def test_detected_falls_back_to_extension(self) -> None:
+        so = _make_data_smart_object(
+            "document.pdf", b"not-a-real-pdf", filetype=b"    "
+        )
+        assert so.detected_filetype == "pdf"
+
+    def test_detected_extension_strips_null_bytes(self) -> None:
+        so = _make_data_smart_object("image.png\x00", b"garbage", filetype=b"    ")
+        assert so.detected_filetype == "png"
+
+    def test_detected_trailing_dot_falls_through_to_magic(self) -> None:
+        # "foo." yields ext="." which strips to "" — must not return ""
+        so = _make_data_smart_object("foo.", b"%PDF-1.5 body", filetype=b"    ")
+        assert so.detected_filetype == "pdf"
+
+    def test_detected_psd_extension_returns_psd_not_8bps(self) -> None:
+        # extension path returns the extension string; magic path returns the code.
+        # Documented: detected_filetype is raw-code-oriented (stored value) but
+        # extension-as-is for the filename fallback.
+        so = _make_data_smart_object("file.psd", b"\x00\x01\x02\x03", filetype=b"    ")
+        assert so.detected_filetype == "psd"
+
+    # --- detected_filetype: magic bytes fallback ---
+
+    def test_detected_magic_pdf(self) -> None:
+        so = _make_data_smart_object("unknown", b"%PDF-1.5 body", filetype=b"    ")
+        assert so.detected_filetype == "pdf"
+
+    def test_detected_magic_png(self) -> None:
+        so = _make_data_smart_object(
+            "unknown", b"\x89PNG\r\n\x1a\ndata", filetype=b"    "
+        )
+        assert so.detected_filetype == "png"
+
+    def test_detected_magic_jpeg(self) -> None:
+        so = _make_data_smart_object(
+            "unknown", b"\xff\xd8\xff\xe0data", filetype=b"    "
+        )
+        assert so.detected_filetype == "jpg"
+
+    def test_detected_magic_gif(self) -> None:
+        so = _make_data_smart_object("unknown", b"GIF89a data", filetype=b"    ")
+        assert so.detected_filetype == "gif"
+
+    def test_detected_magic_tiff_le(self) -> None:
+        so = _make_data_smart_object("unknown", b"II*\x00data", filetype=b"    ")
+        assert so.detected_filetype == "tiff"
+
+    def test_detected_magic_tiff_be(self) -> None:
+        so = _make_data_smart_object("unknown", b"MM\x00*data", filetype=b"    ")
+        assert so.detected_filetype == "tiff"
+
+    def test_detected_magic_webp(self) -> None:
+        so = _make_data_smart_object(
+            "unknown", b"RIFFxxxxWEBPVP8 data", filetype=b"    "
+        )
+        assert so.detected_filetype == "webp"
+
+    def test_detected_magic_zip(self) -> None:
+        so = _make_data_smart_object("unknown", b"PK\x03\x04data", filetype=b"    ")
+        assert so.detected_filetype == "zip"
+
+    def test_detected_magic_bmp(self) -> None:
+        so = _make_data_smart_object("unknown", b"BMdata", filetype=b"    ")
+        assert so.detected_filetype == "bmp"
+
+    def test_detected_magic_psd_version1(self) -> None:
+        so = _make_data_smart_object("unknown", b"8BPS\x00\x01rest", filetype=b"    ")
+        assert so.detected_filetype == "8bps"
+
+    def test_detected_magic_psb_version2(self) -> None:
+        so = _make_data_smart_object("unknown", b"8BPS\x00\x02rest", filetype=b"    ")
+        assert so.detected_filetype == "8bpb"
+
+    def test_detected_returns_none_when_all_fallbacks_fail(self) -> None:
+        so = _make_data_smart_object("unknown", b"\x00\x01\x02\x03", filetype=b"    ")
+        assert so.detected_filetype is None
+
+    # --- non-SVG XML must not be misdetected ---
+
+    def test_xml_not_detected_as_svg(self) -> None:
+        so = _make_data_smart_object(
+            "data.xml", b"<?xml version='1.0'?><root/>", filetype=b"    "
+        )
+        # extension fallback kicks in first: "xml", not "svg"
+        assert so.detected_filetype == "xml"
+
+    def test_generic_xml_magic_no_extension_returns_none(self) -> None:
+        # No extension, and magic bytes don't match anything in the table
+        so = _make_data_smart_object(
+            "unknown", b"<?xml version='1.0'?><root/>", filetype=b"    "
+        )
+        assert so.detected_filetype is None
+
+    # --- is_psd ---
+
+    def test_is_psd_true_via_stored_filetype(self) -> None:
+        so = _make_data_smart_object("f.psd", b"8BPS\x00\x01rest", filetype=b"8BPS")
+        assert so.is_psd() is True
+
+    def test_is_psd_true_via_stored_filetype_psb(self) -> None:
+        so = _make_data_smart_object("f.psb", b"8BPS\x00\x02rest", filetype=b"8BPB")
+        assert so.is_psd() is True
+
+    def test_is_psd_true_via_magic_when_filetype_blank(self) -> None:
+        so = _make_data_smart_object("f.psd", b"8BPS\x00\x01rest", filetype=b"    ")
+        assert so.is_psd() is True
+
+    def test_is_psd_false_for_pdf_named_psd(self) -> None:
+        # Extension is intentionally NOT used by is_psd()
+        so = _make_data_smart_object("trick.psd", b"%PDF-1.5", filetype=b"    ")
+        assert so.is_psd() is False
+
+    def test_is_psd_false_for_png(self) -> None:
+        so = _make_data_smart_object(
+            "f.png", b"\x89PNG\r\n\x1a\ndata", filetype=b"    "
+        )
+        assert so.is_psd() is False
+
+    # --- external kind: no filesystem access in detected_filetype ---
+
+    def test_detected_external_uses_extension_not_magic(self, tmp_path: Path) -> None:
+        so = _make_external_smart_object(
+            "", "asset.png", embedded_filename="asset.pdf", filetype=b"    "
+        )
+        # Extension from embedded_filename wins; magic bytes NOT read from disk
+        assert so.detected_filetype == "pdf"
+
+    def test_detected_external_no_filesystem_read(self, tmp_path: Path) -> None:
+        """detected_filetype for external kind must not touch the filesystem."""
+        sentinel = tmp_path / "asset.png"
+        sentinel.write_bytes(b"\x89PNG\r\n\x1a\ndata")
+        so = _make_external_smart_object(
+            str(sentinel), "asset.png", embedded_filename="no-ext", filetype=b"    "
+        )
+        # No extension, no filesystem read → None
+        assert so.detected_filetype is None
+
+    # --- __repr__ shows both raw and detected ---
+
+    def test_repr_shows_type_none_and_detected(self) -> None:
+        so = _make_data_smart_object("foo.pdf", b"%PDF-1.5", filetype=b"    ")
+        r = repr(so)
+        assert "type=None" in r
+        assert "detected='pdf'" in r
+
+    def test_repr_shows_stored_type_when_present(self) -> None:
+        so = _make_data_smart_object("foo.png", b"\x89PNG\r\n\x1a\n", filetype=b"PNG ")
+        r = repr(so)
+        assert "type='png'" in r
+        assert "detected='png'" in r

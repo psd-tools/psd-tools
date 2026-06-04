@@ -1956,7 +1956,7 @@ class SmartObjectLayer(Layer):
     Example::
 
         import io
-        if layer.smart_object.filetype == 'jpg':
+        if layer.smart_object.detected_filetype == 'jpg':
             image = Image.open(io.BytesIO(layer.smart_object.data))
     """
 

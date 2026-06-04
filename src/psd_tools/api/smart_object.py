@@ -13,6 +13,34 @@ from psd_tools.constants import Tag
 
 logger = logging.getLogger(__name__)
 
+# (prefix_bytes, filetype_string) — ordered so longer/more-specific prefixes
+# come first (8BPS+version before bare 8BPS would collide; PSD/PSB checked
+# as 6-byte prefixes including the version field).
+_MAGIC_TABLE: tuple[tuple[bytes, str], ...] = (
+    (b"8BPS\x00\x01", "8bps"),  # PSD  (version 1)
+    (b"8BPS\x00\x02", "8bpb"),  # PSB  (version 2)
+    (b"%PDF-", "pdf"),
+    (b"\x89PNG", "png"),
+    (b"\xff\xd8\xff", "jpg"),
+    (b"GIF8", "gif"),
+    (b"II*\x00", "tiff"),  # TIFF little-endian
+    (b"MM\x00*", "tiff"),  # TIFF big-endian
+    (b"PK\x03\x04", "zip"),  # ZIP / ZIP-based AI
+    (b"BM", "bmp"),
+)
+_MAGIC_PREFIX_LEN = max(len(p) for p, _ in _MAGIC_TABLE)
+
+
+def _detect_filetype_from_magic(data: bytes) -> str | None:
+    """Return a filetype string inferred from *data* magic bytes, or ``None``."""
+    if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "webp"
+    prefix = data[:_MAGIC_PREFIX_LEN]
+    for magic, result in _MAGIC_TABLE:
+        if prefix[: len(magic)] == magic:
+            return result
+    return None
+
 
 def _is_inside(parent: str, child: str) -> bool:
     """Return True if child is inside parent (or equal to it)."""
@@ -163,15 +191,71 @@ class SmartObject:
         return self._data.filesize
 
     @property
-    def filetype(self) -> str:
-        """Preferred file extension, such as `jpg`."""
+    def filetype(self) -> str | None:
+        """4-byte file-type code stored in the PSD, lowercased and stripped.
+
+        Returns ``None`` when the field is absent or blank (e.g. some
+        Adobe Illustrator smart objects store four spaces instead of a real
+        type code).  Use :py:attr:`detected_filetype` for a best-effort
+        guess that falls back to the filename extension and magic bytes.
+        """
         if self._data is None:
             raise ValueError("Smart object data not found")
-        return self._data.filetype.lower().strip().decode("ascii")
+        raw = self._data.filetype.lower().strip().decode("ascii")
+        return raw if raw else None
+
+    @property
+    def detected_filetype(self) -> str | None:
+        """Best-effort file type, falling back when :py:attr:`filetype` is ``None``.
+
+        Resolution order:
+
+        1. :py:attr:`filetype` — the value stored in the PSD.
+        2. Extension taken from :py:attr:`filename` (lower-cased, dot stripped).
+        3. Magic-byte sniffing of the first few embedded bytes
+           (only for ``kind == 'data'``; external objects are not read from
+           disk to keep this property side-effect-free).
+
+        .. warning::
+            Steps 2 and 3 are heuristic.  Do not use the result for
+            security-sensitive decisions (e.g. deciding whether to execute
+            content or trust a type boundary).
+        """
+        ft = self.filetype
+        if ft is not None:
+            return ft
+
+        # Extension from the embedded filename (safe: no filesystem access)
+        clean = self._data.filename.replace("\x00", "").strip() if self._data else ""
+        _, ext = os.path.splitext(clean)
+        suffix = ext.lstrip(".").lower()
+        if suffix:
+            return suffix
+
+        # Magic bytes — only for embedded (data-kind) objects
+        if self._data is not None and self.kind == "data":
+            raw_data = self._data.data
+            if raw_data:
+                return _detect_filetype_from_magic(raw_data)
+
+        return None
 
     def is_psd(self) -> bool:
-        """Return True if the file is embedded PSD/PSB."""
-        return self.filetype in ("8bpb", "8bps")
+        """Return True if the file is embedded PSD/PSB.
+
+        Checks the stored :py:attr:`filetype` first; if that is ``None``
+        (blank field), falls back to inspecting the first four magic bytes of
+        the embedded data.  The filename extension is intentionally *not* used
+        as a fallback to avoid misclassifying non-PSD files named ``*.psd``.
+        """
+        ft = self.filetype
+        if ft in ("8bpb", "8bps"):
+            return True
+        if self._data is not None and self.kind == "data":
+            raw_data = self._data.data
+            if raw_data and len(raw_data) >= 4:
+                return raw_data[:4] == b"8BPS"
+        return False
 
     @property
     def warp(self) -> object | None:
@@ -250,9 +334,10 @@ class SmartObject:
             f.write(content)
 
     def __repr__(self) -> str:
-        return "SmartObject(%r kind=%r type=%r size=%s)" % (
+        return "SmartObject(%r kind=%r type=%r detected=%r size=%s)" % (
             self.filename,
             self.kind,
             self.filetype,
+            self.detected_filetype,
             self.filesize,
         )
