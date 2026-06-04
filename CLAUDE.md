@@ -101,6 +101,9 @@ gh pr checks
 # List open PRs
 gh pr list
 
+# Parse JSON output with jq (more efficient than python3 for simple field extraction)
+gh issue view 123 --repo psd-tools/psd-tools --json title,body,comments | jq '.comments[].body'
+
 # Mark a PR review comment thread as resolved (GraphQL)
 gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: "..."}) { thread { isResolved } } }'
 ```

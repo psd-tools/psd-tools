@@ -1,15 +1,15 @@
 ---
 name: investigate-issue
 description: Investigate a GitHub issue and post structured findings as a comment. Use when the user wants to analyze a bug report, reproduce it, and share findings on the issue thread.
-allowed-tools: Bash(git:*), Bash(gh:*), Bash(uv:*), Bash(grep:*), Bash(find:*), Read, WebFetch(domain:github.com)
+allowed-tools: Bash(git:*), Bash(gh:*), Bash(uv:*), Bash(grep:*), Bash(find:*), Bash(cat:*), Read, WebFetch(domain:github.com)
 ---
 
 ## Step 0 — Identify the issue
 
 **Provided issue**: $ARGUMENTS
 
-If an issue number was provided, continue to Step 1.
-If no issue number was provided, ask the user which issue to investigate.
+If an issue number was provided, store it as **ISSUE_NUMBER** and continue to Step 1.
+If no issue number was provided, ask the user which issue to investigate, then store the answer as **ISSUE_NUMBER**.
 
 ## Step 1 — Fetch the issue
 
