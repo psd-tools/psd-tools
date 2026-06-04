@@ -262,6 +262,20 @@ class TestFiletypeBlank:
         so = _make_data_smart_object("foo.pdf", b"%PDF-1.5 rest", filetype=b"    ")
         assert so.filetype is None
 
+    def test_filetype_returns_none_when_all_nul(self) -> None:
+        # b"\x00\x00\x00\x00" is the LinkedLayer dataclass default and must
+        # be treated as blank, not returned as a string of NUL characters.
+        so = _make_data_smart_object(
+            "foo.pdf", b"%PDF-1.5 rest", filetype=b"\x00\x00\x00\x00"
+        )
+        assert so.filetype is None
+
+    def test_detected_falls_back_when_filetype_all_nul(self) -> None:
+        so = _make_data_smart_object(
+            "foo.pdf", b"%PDF-1.5 rest", filetype=b"\x00\x00\x00\x00"
+        )
+        assert so.detected_filetype == "pdf"
+
     def test_filetype_returns_value_when_present(self) -> None:
         so = _make_data_smart_object("foo.png", b"\x89PNG\r\n\x1a\n", filetype=b"PNG ")
         assert so.filetype == "png"

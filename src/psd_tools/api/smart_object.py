@@ -201,7 +201,7 @@ class SmartObject:
         """
         if self._data is None:
             raise ValueError("Smart object data not found")
-        raw = self._data.filetype.lower().strip().decode("ascii")
+        raw = self._data.filetype.strip(b" \x00").lower().decode("ascii")
         return raw if raw else None
 
     @property
