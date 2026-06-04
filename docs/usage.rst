@@ -130,8 +130,11 @@ external file for non-destructive editing. The file content is accessible
 via `smart_object` property::
 
     import io
-    if layer.smart_object.filetype in ('jpg', 'png'):
-        image = Image.open(io.BytesIO(layer.smart_object.data))
+    so = layer.smart_object
+    if so.detected_filetype in ('jpg', 'png'):
+        # Use open(external_dir=...) when processing untrusted PSD files.
+        with so.open() as f:
+            image = Image.open(io.BytesIO(f.read()))
 
 :py:class:`~psd_tools.api.adjustments.SolidColorFill`,
 :py:class:`~psd_tools.api.adjustments.PatternFill`, and

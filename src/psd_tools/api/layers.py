@@ -1956,8 +1956,11 @@ class SmartObjectLayer(Layer):
     Example::
 
         import io
-        if layer.smart_object.filetype == 'jpg':
-            image = Image.open(io.BytesIO(layer.smart_object.data))
+        so = layer.smart_object
+        if so.detected_filetype == 'jpg':
+            # Use open(external_dir=...) when processing untrusted PSD files.
+            with so.open() as f:
+                image = Image.open(io.BytesIO(f.read()))
     """
 
     @property
