@@ -1,6 +1,12 @@
 Changelog
 =========
 
+1.17.2 (2026-06-04)
+-------------------
+
+- [fix] Disable Limited API for Windows Cython extension (#661)
+- [chore] Bump ruff from 0.15.14 to 0.15.15 (#659)
+
 1.17.1 (2026-05-27)
 -------------------
 
