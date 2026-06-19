@@ -42,6 +42,24 @@ def test_virtual_memory_array_data(fixture: bytes) -> None:
     assert value.rectangle is not None
     assert data is not None
     assert value.pixel_depth is not None
-    width, height = value.rectangle[3], value.rectangle[2]
+    top, left, bottom, right = value.rectangle
+    width = right - left
+    height = bottom - top
     value.set_data((width, height), data, value.pixel_depth, value.compression)
     assert value.tobytes() == fixture
+
+
+def test_virtual_memory_array_get_data_non_zero_origin() -> None:
+    """get_data() must use relative dimensions (right-left, bottom-top), not absolute coords."""
+    # rectangle (top=10, left=20, bottom=18, right=28) => width=8, height=8
+    vma = VirtualMemoryArray(
+        is_written=1,
+        depth=8,
+        rectangle=(10, 20, 18, 28),
+        pixel_depth=8,
+        compression=0,
+        data=b"\x00" * 64,
+    )
+    data = vma.get_data()
+    assert data is not None
+    assert len(data) == 8 * 8  # 64 bytes, not 28*18=504
