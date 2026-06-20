@@ -179,7 +179,8 @@ def convert_pattern_to_pil(pattern: Pattern) -> Image.Image:
     """Convert Pattern to PIL Image."""
     mode = get_pil_mode(pattern.image_mode)
     # The order is different here.
-    size = pattern.data.rectangle[3], pattern.data.rectangle[2]
+    top, left, bottom, right = pattern.data.rectangle
+    size = right - left, bottom - top
     channels = [
         _create_image(size, c.get_data() or b"", c.pixel_depth or 8).convert("L")
         for c in pattern.data.channels
