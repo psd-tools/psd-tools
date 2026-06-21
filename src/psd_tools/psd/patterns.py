@@ -232,7 +232,9 @@ class VirtualMemoryArray(BaseElement):
             return None
         assert self.rectangle is not None
         assert self.depth is not None
-        width, height = self.rectangle[3], self.rectangle[2]
+        top, left, bottom, right = self.rectangle
+        width = right - left
+        height = bottom - top
         return decompress(
             self.data, self.compression, width, height, self.depth, version=1
         )

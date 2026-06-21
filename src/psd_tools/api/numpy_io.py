@@ -125,7 +125,8 @@ def get_layer_data(
 
 def get_pattern(pattern: Pattern) -> np.ndarray:
     """Get pattern array."""
-    height, width = pattern.data.rectangle[2], pattern.data.rectangle[3]
+    top, left, bottom, right = pattern.data.rectangle
+    height, width = bottom - top, right - left
     return np.stack(
         [
             _parse_array(c.get_data(), c.pixel_depth)  # type: ignore
