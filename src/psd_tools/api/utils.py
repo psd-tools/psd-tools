@@ -17,9 +17,9 @@ ColorInput = int | float | Sequence[int | float]
 
 _DEPTH_MAX: dict[int, int] = {8: 255, 16: 65535, 32: 4294967295}
 
-# Soft warning threshold — log a warning when a composite/numpy allocation
-# would exceed this pixel count. Not spec-derived; chosen so that suspiciously
-# large allocations are visible without blocking legitimate work.
+# Soft warning threshold — emit a PSDLargeImageWarning when a composite/numpy
+# allocation would exceed this pixel count. Not spec-derived; chosen so that
+# suspiciously large allocations are visible without blocking legitimate work.
 WARN_PIXELS: int = 256 * 1024 * 1024
 
 # Hard pixel limits derived from the PSD specification.

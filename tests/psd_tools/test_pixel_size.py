@@ -58,7 +58,7 @@ def test_composite_raises_when_psd_v1_exceeds_spec() -> None:
     """PSD v1 composite() must raise ValueError when dimensions exceed the spec."""
     psd = PSDImage.open(_build_psd(_OVER_SPEC_W, _OVER_SPEC_H))
     with pytest.raises(ValueError, match="exceeds"):
-        psd.composite()
+        psd.composite(ignore_preview=True)
 
 
 def test_numpy_raises_when_psd_v1_exceeds_spec() -> None:

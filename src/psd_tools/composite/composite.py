@@ -167,11 +167,9 @@ def composite(
                 viewport = group._psd.viewbox
     assert viewport is not None
 
-    _w = viewport[2] - viewport[0]
-    _h = viewport[3] - viewport[1]
-    check_pixel_size(_w, _h)
-
     if isinstance(group, PSDImage) and len(group) == 0:
+        # group.numpy() applies check_pixel_size(group.width, group.height) internally;
+        # skip the redundant viewport check to avoid duplicate warnings/raises.
         backdrop_color = color
         backdrop_alpha = alpha
         color, shape = group.numpy("color"), group.numpy("shape")
@@ -183,6 +181,10 @@ def composite(
                 color, shape, backdrop_color, backdrop_alpha, group.color_mode
             )
         return color, shape, shape
+
+    _w = viewport[2] - viewport[0]
+    _h = viewport[3] - viewport[1]
+    check_pixel_size(_w, _h)
 
     if isinstance(color, float):
         psd_image = group if isinstance(group, PSDImage) else group._psd
