@@ -51,17 +51,17 @@ def check_pixel_size(width: int, height: int) -> None:
     if width < 1 or height < 1:
         raise ValueError(f"Image dimensions must be positive, got {width}x{height}.")
     pixels = width * height
+    if pixels > MAX_PIXELS_PSD:
+        raise ValueError(
+            f"Image {width}x{height} ({pixels:,} px) exceeds "
+            f"the maximum of {MAX_PIXELS_PSD:,} px."
+        )
     if pixels > WARN_PIXELS:
         warnings.warn(
             f"Image {width}x{height} ({pixels:,} px) exceeds the soft pixel "
             f"limit ({WARN_PIXELS:,} px). Processing may require significant memory.",
             PSDLargeImageWarning,
             stacklevel=3,
-        )
-    if pixels > MAX_PIXELS_PSD:
-        raise ValueError(
-            f"Image {width}x{height} ({pixels:,} px) exceeds "
-            f"the maximum of {MAX_PIXELS_PSD:,} px."
         )
 
 
