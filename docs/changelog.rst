@@ -1,6 +1,14 @@
 Changelog
 =========
 
+1.17.3 (2026-06-22)
+-------------------
+
+- [security] Guard against uncontrolled memory allocation via crafted PSD canvas dimensions (GHSA-8q6g-vjhf-jp8m, #676)
+- [fix] Fix VirtualMemoryArray dimension computation for patterns (#672)
+- [fix] Fix smart object blank filetype field handling (#663)
+- [chore] Bump ruff to 0.15.18, pytest to 9.1.1, actions/checkout to v7
+
 1.17.2 (2026-06-04)
 -------------------
 
