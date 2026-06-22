@@ -2,8 +2,8 @@
 
 A crafted PSD can declare arbitrarily large dimensions in its header and
 trigger multi-GB memory allocations when composite() or numpy() is called.
-The fix caps allocations via _MAX_COMPOSITE_PIXELS / _MAX_NUMPY_PIXELS and
-raises ValueError instead of committing the buffer.
+The fix emits PSDLargeImageWarning above WARN_PIXELS and raises ValueError
+above MAX_PIXELS_PSD instead of committing the buffer silently.
 """
 
 import io
