@@ -48,6 +48,8 @@ def check_pixel_size(width: int, height: int) -> None:
     allow ~90-gigapixel allocations, so it is kept as a reference constant
     only and not enforced here.
     """
+    if width < 1 or height < 1:
+        raise ValueError(f"Image dimensions must be positive, got {width}x{height}.")
     pixels = width * height
     if pixels > WARN_PIXELS:
         warnings.warn(

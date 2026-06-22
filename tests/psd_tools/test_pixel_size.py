@@ -34,15 +34,6 @@ def _build_psd(width: int, height: int, channels: int = 3) -> io.BytesIO:
     return buf
 
 
-# Dimensions that exceed the pixel budget (20000*20000 = 400M > 256M limit).
-_OVERSIZED_W = 20000
-_OVERSIZED_H = 20000
-
-# Dimensions well within the limit.
-_NORMAL_W = 64
-_NORMAL_H = 64
-
-
 def test_constants() -> None:
     """Spec-derived constants must be consistent and sensible."""
     # PSD v1 spec max: 30,000 × 30,000
@@ -95,7 +86,9 @@ def test_large_within_spec_psd_warns_but_does_not_raise() -> None:
             assert "exceeds" not in str(exc), (
                 f"hard pixel-limit guard fired for a within-spec PSD: {exc}"
             )
-        except Exception:
+        except Exception as exc:
+            if isinstance(exc, AssertionError):
+                raise
             pass  # other errors (e.g. empty pixel data) are fine
 
 
@@ -108,5 +101,7 @@ def test_normal_sized_psd_does_not_warn() -> None:
             psd.composite(ignore_preview=True)
         except PSDLargeImageWarning:
             pytest.fail("PSDLargeImageWarning fired for a normal-sized PSD")
-        except Exception:
+        except Exception as exc:
+            if isinstance(exc, AssertionError):
+                raise
             pass  # other errors (e.g. empty pixel data) are fine
