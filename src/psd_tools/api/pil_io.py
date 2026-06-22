@@ -8,7 +8,11 @@ from typing import TYPE_CHECKING, cast
 
 from PIL import Image, ImageChops, ImageMath
 
-from psd_tools.api.utils import get_transparency_index, has_transparency
+from psd_tools.api.utils import (
+    check_pixel_size,
+    get_transparency_index,
+    has_transparency,
+)
 from psd_tools.constants import ChannelID, ColorMode, Resource
 from psd_tools.psd.image_resources import ThumbnailResource, ThumbnailResourceV4
 from psd_tools.psd.patterns import Pattern
@@ -81,6 +85,8 @@ def convert_image_data_to_pil(
 
     :raises ValueError: If an invalid channel is specified
     """
+
+    check_pixel_size(psd.width, psd.height)
 
     if channel is not None and channel >= psd.channels:
         raise ValueError(
