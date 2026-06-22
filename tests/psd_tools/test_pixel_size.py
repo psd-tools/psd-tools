@@ -13,7 +13,12 @@ import warnings
 import pytest
 
 from psd_tools import PSDImage, PSDLargeImageWarning
-from psd_tools.api.utils import MAX_PIXELS_PSD, MAX_PIXELS_PSB, WARN_PIXELS
+from psd_tools.api.utils import (
+    MAX_DIMENSION_PSD,
+    MAX_PIXELS_PSD,
+    MAX_PIXELS_PSB,
+    WARN_PIXELS,
+)
 
 
 def _build_psd(width: int, height: int, channels: int = 3) -> io.BytesIO:
@@ -36,9 +41,10 @@ def _build_psd(width: int, height: int, channels: int = 3) -> io.BytesIO:
 
 def test_constants() -> None:
     """Spec-derived constants must be consistent and sensible."""
-    # PSD v1 spec max: 30,000 × 30,000
-    assert MAX_PIXELS_PSD == 30_000 * 30_000
-    # PSB v2 spec reference — not enforced; check_pixel_size uses MAX_PIXELS_PSD.
+    # PSD v1 spec max: 30,000 px per axis
+    assert MAX_DIMENSION_PSD == 30_000
+    assert MAX_PIXELS_PSD == MAX_DIMENSION_PSD * MAX_DIMENSION_PSD
+    # PSB v2 spec reference — not enforced; check_pixel_size uses MAX_DIMENSION_PSD.
     assert MAX_PIXELS_PSB == 300_000 * 300_000
     # Soft warning threshold must not block legitimate 16 k × 16 k canvases.
     assert WARN_PIXELS >= 16_000 * 16_000
@@ -64,6 +70,21 @@ def test_composite_raises_when_psd_v1_exceeds_spec() -> None:
 def test_numpy_raises_when_psd_v1_exceeds_spec() -> None:
     """PSD v1 numpy() must raise ValueError when dimensions exceed the spec."""
     psd = PSDImage.open(_build_psd(_OVER_SPEC_W, _OVER_SPEC_H))
+    with pytest.raises(ValueError, match="exceeds"):
+        psd.numpy()
+
+
+def test_pil_raises_when_psd_v1_exceeds_spec() -> None:
+    """PSD v1 topil() must raise ValueError when dimensions exceed the spec."""
+    psd = PSDImage.open(_build_psd(_OVER_SPEC_W, _OVER_SPEC_H))
+    with pytest.raises(ValueError, match="exceeds"):
+        psd.topil()
+
+
+def test_per_axis_limit_catches_non_square_oversized() -> None:
+    """A non-square canvas that exceeds one axis but not the pixel count must raise."""
+    # 40,000 × 1 = 40,000 px total — well below MAX_PIXELS_PSD, but 40,000 > MAX_DIMENSION_PSD.
+    psd = PSDImage.open(_build_psd(40_000, 1))
     with pytest.raises(ValueError, match="exceeds"):
         psd.numpy()
 

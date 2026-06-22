@@ -22,13 +22,15 @@ _DEPTH_MAX: dict[int, int] = {8: 255, 16: 65535, 32: 4294967295}
 # suspiciously large allocations are visible without blocking legitimate work.
 WARN_PIXELS: int = 256 * 1024 * 1024
 
-# Hard pixel limits derived from the PSD specification.
-# PSD v1 (classic): maximum canvas size is 30,000 × 30,000 px.
-MAX_PIXELS_PSD: int = 30_000 * 30_000
+# Hard dimension limits derived from the PSD specification.
+# PSD v1 (classic): each axis is capped at 30,000 px (spec §2: "1 to 30,000").
+MAX_DIMENSION_PSD: int = 30_000
+# Pixel-count product for reference (30,000 × 30,000 = 900,000,000 px).
+MAX_PIXELS_PSD: int = MAX_DIMENSION_PSD * MAX_DIMENSION_PSD
 # PSB v2 (large document): the spec allows up to 300,000 × 300,000 px, but
 # enforcing that limit would still permit ~90-gigapixel allocations with no
 # meaningful memory protection. This constant records the spec value for
-# reference only; check_pixel_size applies MAX_PIXELS_PSD to PSB files too.
+# reference only; check_pixel_size applies MAX_DIMENSION_PSD to PSB files too.
 MAX_PIXELS_PSB: int = 300_000 * 300_000
 
 
@@ -37,25 +39,25 @@ class PSDLargeImageWarning(UserWarning):
 
 
 def check_pixel_size(width: int, height: int) -> None:
-    """Warn and/or raise when canvas pixel count exceeds safe thresholds.
+    """Warn and/or raise when canvas dimensions exceed safe thresholds.
 
-    Issues a :class:`PSDLargeImageWarning` for anything above
-    :data:`WARN_PIXELS` and raises :class:`ValueError` when the count
-    exceeds :data:`MAX_PIXELS_PSD`.
+    Raises :class:`ValueError` when either axis exceeds
+    :data:`MAX_DIMENSION_PSD` (the PSD v1 spec limit of 30,000 px per axis).
+    Both PSD (v1) and PSB (v2) files are checked against this limit; PSB's
+    own spec limit (:data:`MAX_PIXELS_PSB`) would allow ~90-gigapixel
+    allocations so it is kept as a reference constant only.
 
-    Both PSD (v1) and PSB (v2) files are checked against MAX_PIXELS_PSD.
-    PSB's own spec limit (MAX_PIXELS_PSB = 300,000 × 300,000) would still
-    allow ~90-gigapixel allocations, so it is kept as a reference constant
-    only and not enforced here.
+    Issues a :class:`PSDLargeImageWarning` for pixel counts above
+    :data:`WARN_PIXELS` that are still within the per-axis spec limit.
     """
     if width < 1 or height < 1:
         raise ValueError(f"Image dimensions must be positive, got {width}x{height}.")
-    pixels = width * height
-    if pixels > MAX_PIXELS_PSD:
+    if width > MAX_DIMENSION_PSD or height > MAX_DIMENSION_PSD:
         raise ValueError(
-            f"Image {width}x{height} ({pixels:,} px) exceeds "
-            f"the maximum of {MAX_PIXELS_PSD:,} px."
+            f"Image {width}x{height} exceeds the PSD maximum of "
+            f"{MAX_DIMENSION_PSD} px per axis."
         )
+    pixels = width * height
     if pixels > WARN_PIXELS:
         warnings.warn(
             f"Image {width}x{height} ({pixels:,} px) exceeds the soft pixel "

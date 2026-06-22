@@ -168,8 +168,9 @@ def composite(
     assert viewport is not None
 
     if isinstance(group, PSDImage) and len(group) == 0:
-        # group.numpy() applies check_pixel_size(group.width, group.height) internally;
-        # skip the redundant viewport check to avoid duplicate warnings/raises.
+        # group.numpy() applies check_pixel_size(group.width, group.height) internally
+        # for each call (color + shape), so skip the viewport-based check here to
+        # avoid an additional warning/raise on top of those already emitted.
         backdrop_color = color
         backdrop_alpha = alpha
         color, shape = group.numpy("color"), group.numpy("shape")
