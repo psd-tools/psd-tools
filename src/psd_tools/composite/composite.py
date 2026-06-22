@@ -9,7 +9,7 @@ from PIL import Image
 from psd_tools.api import pil_io
 from psd_tools.api.layers import AdjustmentLayer, GroupMixin, Layer
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.api.utils import EXPECTED_CHANNELS
+from psd_tools.api.utils import EXPECTED_CHANNELS, check_pixel_size
 from psd_tools.composite import paint, utils, vector
 from psd_tools.composite.adjustments import ADJUSTMENT_FUNC
 from psd_tools.composite.blend import BLEND_FUNC, normal
@@ -166,6 +166,10 @@ def composite(
                 assert group._psd is not None
                 viewport = group._psd.viewbox
     assert viewport is not None
+
+    _w = viewport[2] - viewport[0]
+    _h = viewport[3] - viewport[1]
+    check_pixel_size(_w, _h)
 
     if isinstance(group, PSDImage) and len(group) == 0:
         backdrop_color = color

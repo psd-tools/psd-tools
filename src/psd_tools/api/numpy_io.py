@@ -8,6 +8,7 @@ if TYPE_CHECKING:
 
 from psd_tools.api.utils import (
     EXPECTED_CHANNELS,
+    check_pixel_size,
     get_transparency_index,
     has_transparency,
 )
@@ -34,6 +35,8 @@ def get_array(
 
 
 def get_image_data(psdimage: "PSDProtocol", channel: str | None) -> np.ndarray:
+    check_pixel_size(psdimage.width, psdimage.height)
+
     if (channel == "mask") or (channel == "shape" and not has_transparency(psdimage)):
         return np.ones((psdimage.height, psdimage.width, 1), dtype=np.float32)
 

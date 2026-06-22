@@ -4,6 +4,7 @@ Utility functions for the API layer.
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -15,6 +16,52 @@ from psd_tools.constants import ColorMode, Resource, Tag
 ColorInput = int | float | Sequence[int | float]
 
 _DEPTH_MAX: dict[int, int] = {8: 255, 16: 65535, 32: 4294967295}
+
+# Soft warning threshold — log a warning when a composite/numpy allocation
+# would exceed this pixel count. Not spec-derived; chosen so that suspiciously
+# large allocations are visible without blocking legitimate work.
+WARN_PIXELS: int = 256 * 1024 * 1024
+
+# Hard pixel limits derived from the PSD specification.
+# PSD v1 (classic): maximum canvas size is 30,000 × 30,000 px.
+MAX_PIXELS_PSD: int = 30_000 * 30_000
+# PSB v2 (large document): the spec allows up to 300,000 × 300,000 px, but
+# enforcing that limit would still permit ~90-gigapixel allocations with no
+# meaningful memory protection. This constant records the spec value for
+# reference only; check_pixel_size applies MAX_PIXELS_PSD to PSB files too.
+MAX_PIXELS_PSB: int = 300_000 * 300_000
+
+
+class PSDLargeImageWarning(UserWarning):
+    """Issued when a PSD canvas exceeds the soft pixel limit (:data:`WARN_PIXELS`)."""
+
+
+def check_pixel_size(width: int, height: int) -> None:
+    """Warn and/or raise when canvas pixel count exceeds safe thresholds.
+
+    Issues a :class:`PSDLargeImageWarning` for anything above
+    :data:`WARN_PIXELS` and raises :class:`ValueError` when the count
+    exceeds :data:`MAX_PIXELS_PSD`.
+
+    Both PSD (v1) and PSB (v2) files are checked against MAX_PIXELS_PSD.
+    PSB's own spec limit (MAX_PIXELS_PSB = 300,000 × 300,000) would still
+    allow ~90-gigapixel allocations, so it is kept as a reference constant
+    only and not enforced here.
+    """
+    pixels = width * height
+    if pixels > WARN_PIXELS:
+        warnings.warn(
+            f"Image {width}x{height} ({pixels:,} px) exceeds the soft pixel "
+            f"limit ({WARN_PIXELS:,} px). Processing may require significant memory.",
+            PSDLargeImageWarning,
+            stacklevel=3,
+        )
+    if pixels > MAX_PIXELS_PSD:
+        raise ValueError(
+            f"Image {width}x{height} ({pixels:,} px) exceeds "
+            f"the maximum of {MAX_PIXELS_PSD:,} px."
+        )
+
 
 # Mapping of expected number of channels for each color mode.
 EXPECTED_CHANNELS = {
