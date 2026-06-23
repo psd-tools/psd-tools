@@ -33,12 +33,16 @@ MAX_PIXELS_PSD: int = MAX_DIMENSION_PSD * MAX_DIMENSION_PSD
 # reference only; check_pixel_size applies MAX_DIMENSION_PSD to PSB files too.
 MAX_PIXELS_PSB: int = 300_000 * 300_000
 
+# Opt-in ceiling (bytes) on the estimated float32 allocation, like Pillow's
+# Image.MAX_IMAGE_PIXELS. None disables it; within-spec canvases are never rejected.
+MAX_ALLOC_BYTES: int | None = None
+
 
 class PSDLargeImageWarning(UserWarning):
     """Issued when a PSD canvas exceeds the soft pixel limit (:data:`WARN_PIXELS`)."""
 
 
-def check_pixel_size(width: int, height: int) -> None:
+def check_pixel_size(width: int, height: int, channels: int = 1) -> None:
     """Warn and/or raise when canvas dimensions exceed safe thresholds.
 
     Raises :class:`ValueError` when either axis exceeds
@@ -49,6 +53,9 @@ def check_pixel_size(width: int, height: int) -> None:
 
     Issues a :class:`PSDLargeImageWarning` for pixel counts above
     :data:`WARN_PIXELS` that are still within the per-axis spec limit.
+
+    When :data:`MAX_ALLOC_BYTES` is set, also raises :class:`ValueError` if the
+    estimated allocation (``width * height * channels * 4``) exceeds it.
     """
     if width < 1 or height < 1:
         raise ValueError(f"Image dimensions must be positive, got {width}x{height}.")
@@ -65,6 +72,15 @@ def check_pixel_size(width: int, height: int) -> None:
             PSDLargeImageWarning,
             stacklevel=3,
         )
+    if MAX_ALLOC_BYTES is not None:
+        estimated = pixels * max(1, channels) * 4
+        if estimated > MAX_ALLOC_BYTES:
+            raise ValueError(
+                f"Estimated allocation {estimated:,} bytes for "
+                f"{width}x{height}x{channels} is over the configured budget "
+                f"MAX_ALLOC_BYTES ({MAX_ALLOC_BYTES:,}). Raise "
+                f"psd_tools.api.utils.MAX_ALLOC_BYTES to allow it."
+            )
 
 
 # Mapping of expected number of channels for each color mode.
