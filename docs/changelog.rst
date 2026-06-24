@@ -2,7 +2,8 @@ Changelog
 =========
 
 1.17.4 (2026-06-24)
---------------------
+-------------------
+
 
 - [security] Guard against oversized memory allocation from failed channel
   decompression (CWE-789, related to GHSA-8q6g-vjhf-jp8m)
