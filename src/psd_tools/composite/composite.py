@@ -14,7 +14,11 @@ from psd_tools.api.utils import EXPECTED_CHANNELS, check_pixel_size
 from psd_tools.composite import paint, utils, vector
 from psd_tools.composite.adjustments import ADJUSTMENT_FUNC
 from psd_tools.composite.blend import BLEND_FUNC, normal
-from psd_tools.composite.effects import draw_drop_shadow, draw_stroke_effect
+from psd_tools.composite.effects import (
+    draw_drop_shadow,
+    draw_outer_glow,
+    draw_stroke_effect,
+)
 from psd_tools.constants import BlendMode, ColorMode, Resource, Tag
 
 logger = logging.getLogger(__name__)
@@ -357,6 +361,7 @@ class Compositor(object):
 
         # Outer effects paint behind the layer's own source.
         self._apply_drop_shadow(layer, color, shape, alpha)
+        self._apply_outer_glow(layer, color, shape, alpha)
 
         full_passthrough = (
             layer.blend_mode == BlendMode.PASS_THROUGH
@@ -737,6 +742,29 @@ class Compositor(object):
             mask = paste(self._viewport, bbox, mask)
             opacity = effect.opacity / 100.0
             self._apply_source(shadow_color, mask, mask * opacity, effect.blend_mode)
+
+    def _apply_outer_glow(self, layer, color, shape, alpha):
+        for effect in layer.effects.find("outerglow"):
+            # OuterGlow.spread reads the wrong descriptor key upstream; the Photoshop
+            # "Spread" lives in the choke (ChokeMatte) slot.
+            spread = effect.choke
+            spread_px = spread / 100.0 * effect.size
+            grow = int(math.ceil(effect.size + spread_px + 2))
+            bbox = cast(
+                tuple[int, int, int, int],
+                tuple(x + d for x, d in zip(layer.bbox, (-grow, -grow, grow, grow))),
+            )
+            shape_in_bbox = paste(bbox, self._viewport, shape)
+            mask = draw_outer_glow(bbox, shape_in_bbox, size=effect.size, spread=spread)
+            # Outer glow only shows outside the layer's own coverage.
+            mask = mask * (1.0 - shape_in_bbox)
+            glow_color, _ = paint.draw_solid_color_fill(
+                bbox, layer._psd.color_mode, effect.value
+            )
+            glow_color = paste(self._viewport, bbox, glow_color, 1.0)
+            mask = paste(self._viewport, bbox, mask)
+            opacity = effect.opacity / 100.0
+            self._apply_source(glow_color, mask, mask * opacity, effect.blend_mode)
 
     def _apply_color_overlay(self, layer, color, shape, alpha):
         for effect in layer.effects.find("coloroverlay"):

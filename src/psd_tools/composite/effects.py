@@ -22,10 +22,15 @@ Currently supported effects:
   - The falloff is a gaussian approximation of Photoshop's proprietary blur, so the
     placement is faithful but the shadow intensity can differ — large, soft shadows
     tend to render somewhat darker than Photoshop
+- **Outer glow**: Spread (dilated) and blurred silhouette painted behind the layer,
+  knocked out under the layer's own coverage
+  - Solid color fill; honors size, spread, opacity and blend mode (gradient glow is
+    not yet supported)
+  - Same gaussian-approximation caveat as drop shadow
 
 Partially supported or limited effects:
 
-- Inner shadow, outer glow, inner glow
+- Inner shadow, inner glow
 - These may render but with reduced accuracy
 
 The main function :py:func:`draw_stroke_effect` handles stroke rendering by:
@@ -113,6 +118,34 @@ def draw_drop_shadow(
     dx = -distance * math.cos(theta)
     dy = +distance * math.sin(theta)
     a = ndimage.shift(a, (dy, dx), order=1, mode="constant", cval=0.0)
+    return np.clip(a, 0.0, 1.0)[:, :, None]
+
+
+@require_scipy
+def draw_outer_glow(
+    viewport: tuple[int, int, int, int],
+    shape: np.ndarray,
+    *,
+    size: float,
+    spread: float,
+) -> np.ndarray:
+    """Synthesize an outer-glow coverage mask from a layer silhouette.
+
+    Unlike a drop shadow, an outer glow is centered on the layer (no offset) and grows
+    *outward*: the silhouette is dilated by ``spread`` then blurred by ``size``. Returns
+    an ``(H, W, 1)`` float32 coverage mask; the caller knocks it out under the layer.
+    """
+    from scipy import ndimage  # type: ignore[import-untyped]  # noqa: PLC0415
+
+    a = shape[:, :, 0].astype(np.float32)
+    # Spread expands the glow's solid core before blurring (the inverse of a shadow's
+    # choke). In Photoshop's UI spread is a percentage of size.
+    spread_px = max(0, int(round(spread / 100.0 * size)))
+    if spread_px > 0:
+        a = ndimage.grey_dilation(a, size=2 * spread_px + 1)
+    sigma = max(0.0, size * _SIGMA_PER_SIZE)
+    if sigma > 1e-3:
+        a = ndimage.gaussian_filter(a, sigma)
     return np.clip(a, 0.0, 1.0)[:, :, None]
 
 

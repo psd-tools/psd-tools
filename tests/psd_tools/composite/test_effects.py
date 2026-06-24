@@ -6,7 +6,7 @@ import pytest
 
 from psd_tools import PSDImage
 from psd_tools.composite import composite
-from psd_tools.composite.effects import draw_drop_shadow
+from psd_tools.composite.effects import draw_drop_shadow, draw_outer_glow
 
 from ..utils import full_name
 from .test_composite import _mse, check_composite_quality
@@ -70,6 +70,29 @@ def test_draw_drop_shadow_choke_tightens_matte():
     )
 
 
+def test_draw_outer_glow_spreads_symmetrically_no_offset():
+    """Outer glow has no light/offset — its halo stays centered on the silhouette."""
+    w = h = 200
+    shape = _disc_shape(w, h, 100, 100, 30)
+    mask = draw_outer_glow((0, 0, w, h), shape, size=14, spread=0)
+    cx, cy = _centroid(mask)
+    assert abs(cx - 100) < 2 and abs(cy - 100) < 2, f"glow off-centre: ({cx}, {cy})"
+    assert (mask[:, :, 0] > 0.05).sum() > (shape[:, :, 0] > 0.5).sum() + 200, (
+        "glow did not spread a soft halo beyond the silhouette"
+    )
+
+
+def test_draw_outer_glow_spread_dilates_footprint():
+    """A nonzero spread grows the glow outward (dilation), unlike a shadow's choke."""
+    w = h = 200
+    shape = _disc_shape(w, h, 100, 100, 30)
+    tight = draw_outer_glow((0, 0, w, h), shape, size=14, spread=0)
+    wide = draw_outer_glow((0, 0, w, h), shape, size=14, spread=80)
+    assert (wide[:, :, 0] > 0.5).sum() > (tight[:, :, 0] > 0.5).sum() + 200, (
+        "spread did not dilate the glow outward"
+    )
+
+
 def _shadow_zone_mse(psd, ref):
     """MSE of a force=True recomposite vs the baked preview, restricted to the
     drop-shadow layer's neighbourhood in ``layer_effects.psd``."""
@@ -101,6 +124,38 @@ def test_drop_shadow_improves_composite_fidelity(monkeypatch):
 
     assert mse_real < mse_noop, (
         f"drop shadow did not improve fidelity: real={mse_real:.5f} noop={mse_noop:.5f}"
+    )
+
+
+def _glow_zone_mse(psd, ref):
+    """MSE of a force=True recomposite vs the baked preview, restricted to the
+    outer-glow layer's neighbourhood in ``layer_effects.psd``."""
+    color, _, _ = composite(psd, force=True)
+    # The "Outer Glow" layer sits at bbox (99, 98, 498, 146); crop its body + halo,
+    # clear of the bevel row above (y<81) and the inner-glow demo below (y>=164).
+    crop = (slice(95, 160), slice(55, 545))
+    return _mse(ref[crop], color[crop])
+
+
+def test_outer_glow_improves_composite_fidelity(monkeypatch):
+    """Rendering the outer glow moves the force=True composite closer to Photoshop's
+    baked preview than a no-op renderer does (falsifiable: a zero renderer ties)."""
+    composite_mod = sys.modules["psd_tools.composite.composite"]
+
+    psd = PSDImage.open(full_name("layer_effects.psd"))
+    ref = psd.numpy()[:, :, :3]
+
+    def _noop(viewport, shape, **kwargs):
+        h, w = viewport[3] - viewport[1], viewport[2] - viewport[0]
+        return np.zeros((h, w, 1), dtype=np.float32)
+
+    monkeypatch.setattr(composite_mod, "draw_outer_glow", _noop)
+    mse_noop = _glow_zone_mse(psd, ref)
+    monkeypatch.undo()
+    mse_real = _glow_zone_mse(psd, ref)
+
+    assert mse_real < mse_noop, (
+        f"outer glow did not improve fidelity: real={mse_real:.5f} noop={mse_noop:.5f}"
     )
 
 
