@@ -189,8 +189,8 @@ def composite(
     check_pixel_size(
         _w,
         _h,
-        getattr(_psd, "channels", 1),
-        max_alloc_bytes=getattr(_psd, "_max_alloc_bytes", None),
+        _psd.channels if _psd is not None else 1,
+        max_alloc_bytes=_psd._max_alloc_bytes if _psd is not None else None,
     )
 
     if isinstance(color, float):

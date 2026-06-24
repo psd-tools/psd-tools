@@ -90,7 +90,7 @@ def convert_image_data_to_pil(
         psd.width,
         psd.height,
         psd.channels,
-        max_alloc_bytes=getattr(psd, "_max_alloc_bytes", None),
+        max_alloc_bytes=psd._max_alloc_bytes,
     )
 
     if channel is not None and channel >= psd.channels:

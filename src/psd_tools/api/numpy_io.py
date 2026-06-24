@@ -39,7 +39,7 @@ def get_image_data(psdimage: "PSDProtocol", channel: str | None) -> np.ndarray:
         psdimage.width,
         psdimage.height,
         psdimage.channels,
-        max_alloc_bytes=getattr(psdimage, "_max_alloc_bytes", None),
+        max_alloc_bytes=psdimage._max_alloc_bytes,
     )
 
     if (channel == "mask") or (channel == "shape" and not has_transparency(psdimage)):
