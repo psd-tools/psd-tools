@@ -349,6 +349,7 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
 
     # Internal attributes accessed by related classes
     _record: PSD  # psd_tools.psd.PSD
+    _max_alloc_bytes: int | None  # per-document allocation budget
 
     @property
     def name(self) -> str:

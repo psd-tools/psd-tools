@@ -185,12 +185,17 @@ def composite(
 
     _w = viewport[2] - viewport[0]
     _h = viewport[3] - viewport[1]
-    check_pixel_size(_w, _h)
+    _psd = group if isinstance(group, PSDImage) else group._psd
+    check_pixel_size(
+        _w,
+        _h,
+        _psd.channels if _psd is not None else 1,
+        max_alloc_bytes=_psd._max_alloc_bytes if _psd is not None else None,
+    )
 
     if isinstance(color, float):
-        psd_image = group if isinstance(group, PSDImage) else group._psd
-        assert psd_image is not None
-        color_mode = psd_image.color_mode
+        assert _psd is not None
+        color_mode = _psd.color_mode
         assert isinstance(color_mode, ColorMode)
         color = (color,) * EXPECTED_CHANNELS[color_mode]
 

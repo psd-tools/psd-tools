@@ -104,6 +104,11 @@ class PSDDecompressionWarning(UserWarning):
 _VALID_DEPTHS: frozenset[int] = frozenset((1, 8, 16, 32))
 _MAX_DIMENSION: int = 300_000  # PSD/PSB hard limit per the Adobe spec
 
+# Reject the black-fill fallback when a failed decode dwarfs its input (CWE-789).
+# Set MAX_DEGRADED_BYTES to None to disable the guard (also disables the ratio check).
+MAX_DEGRADED_BYTES: int | None = 16 * 1024 * 1024
+MAX_DEGRADED_RATIO: int = 1000
+
 
 def _warn_decompress_failure(
     codec: str,
@@ -227,6 +232,17 @@ def decompress(
 
     if depth >= 8:
         if result is None:
+            if (
+                MAX_DEGRADED_BYTES is not None
+                and length > MAX_DEGRADED_BYTES
+                and length > len(data) * MAX_DEGRADED_RATIO
+            ):
+                raise ValueError(
+                    "Refusing to allocate %d bytes for a channel that failed to "
+                    "decode from %d input bytes (width=%d height=%d); set "
+                    "psd_tools.compression.MAX_DEGRADED_BYTES = None to allow it."
+                    % (length, len(data), width, height)
+                )
             mode = "L" if depth == 8 else "RGB" if depth == 24 else "RGBA"
             result = Image.new(mode, (width, height), color=0).tobytes()
             logger.warning("Failed channel has been replaced by black")
