@@ -121,6 +121,8 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         self._compatibility_mode = CompatibilityMode.DEFAULT
         self._background_color: float | tuple[float, ...] | None = None
         self._updated: bool = False  # Flag to check if the layer tree is edited.
+        # Per-document allocation budget (bytes); set via open(max_alloc_bytes=...).
+        self._max_alloc_bytes: int | None = None
 
         self._psd = self  # For GroupMixin protocol compatibility.
         self._init()
@@ -209,11 +211,21 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         return psdimage
 
     @classmethod
-    def open(cls, fp: IO[bytes] | str | bytes | os.PathLike, **kwargs: Any) -> Self:
+    def open(
+        cls,
+        fp: IO[bytes] | str | bytes | os.PathLike,
+        max_alloc_bytes: int | None = None,
+        **kwargs: Any,
+    ) -> Self:
         """
         Open a PSD document.
 
         :param fp: filename or file-like object.
+        :param max_alloc_bytes: optional per-document cap (bytes) on the buffer
+            that :py:meth:`composite`/:py:meth:`numpy`/:py:meth:`topil` allocate
+            from the declared geometry; rendering raises :class:`ValueError` if
+            the estimate exceeds it. Defaults to the ``$PSD_TOOLS_MAX_ALLOC_BYTES``
+            env var (or :data:`psd_tools.api.utils.MAX_ALLOC_BYTES`) when ``None``.
         :param encoding: charset encoding of the pascal string within the file,
             default 'macroman'. Some psd files need explicit encoding option.
         :return: A :py:class:`~psd_tools.api.psd_image.PSDImage` object.
@@ -223,6 +235,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
                 self = cls(PSD.read(f, **kwargs))
         else:
             self = cls(PSD.read(fp, **kwargs))
+        self._max_alloc_bytes = max_alloc_bytes
         return self
 
     def save(

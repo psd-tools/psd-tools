@@ -35,7 +35,12 @@ def get_array(
 
 
 def get_image_data(psdimage: "PSDProtocol", channel: str | None) -> np.ndarray:
-    check_pixel_size(psdimage.width, psdimage.height, psdimage.channels)
+    check_pixel_size(
+        psdimage.width,
+        psdimage.height,
+        psdimage.channels,
+        max_alloc_bytes=getattr(psdimage, "_max_alloc_bytes", None),
+    )
 
     if (channel == "mask") or (channel == "shape" and not has_transparency(psdimage)):
         return np.ones((psdimage.height, psdimage.width, 1), dtype=np.float32)

@@ -86,7 +86,12 @@ def convert_image_data_to_pil(
     :raises ValueError: If an invalid channel is specified
     """
 
-    check_pixel_size(psd.width, psd.height, psd.channels)
+    check_pixel_size(
+        psd.width,
+        psd.height,
+        psd.channels,
+        max_alloc_bytes=getattr(psd, "_max_alloc_bytes", None),
+    )
 
     if channel is not None and channel >= psd.channels:
         raise ValueError(

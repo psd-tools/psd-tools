@@ -143,6 +143,16 @@ def test_data_aware_guard_rejects_tiny_file_huge_canvas() -> None:
         psd.numpy()
 
 
+def test_data_aware_guard_rejects_tiny_file_huge_canvas_composite() -> None:
+    """The advisory names both numpy() and composite(); guard the latter too."""
+    pytest.importorskip("aggdraw")
+    pytest.importorskip("scipy")
+    pytest.importorskip("skimage")
+    psd = PSDImage.open(io.BytesIO(base64.b64decode(_POC_B64)))
+    with pytest.raises(ValueError, match="failed to decode"):
+        psd.composite()
+
+
 def test_data_aware_guard_keeps_small_corrupt_channels_lenient() -> None:
     """A small undecodable channel must still warn + black-fill, not raise."""
     with warnings.catch_warnings(record=True) as caught:
@@ -178,3 +188,54 @@ def test_opt_in_byte_budget_disabled_by_default() -> None:
         assert "MAX_ALLOC_BYTES" not in str(exc)
     except Exception:
         pass  # other errors (e.g. empty pixel data) are fine
+
+
+def test_open_max_alloc_bytes_kwarg_bounds_within_spec_canvas() -> None:
+    """open(max_alloc_bytes=...) caps a within-spec canvas without touching globals."""
+    assert _utils.MAX_ALLOC_BYTES is None  # global default stays off
+    psd = PSDImage.open(_build_psd(_NORMAL_W, _NORMAL_H), max_alloc_bytes=1024)
+    assert psd._max_alloc_bytes == 1024
+    with pytest.raises(ValueError, match="1,024 bytes"):
+        psd.numpy()
+
+
+def test_open_max_alloc_bytes_is_per_instance() -> None:
+    """The limit travels with the object; a second document is unaffected."""
+    bounded = PSDImage.open(_build_psd(_NORMAL_W, _NORMAL_H), max_alloc_bytes=1024)
+    unbounded = PSDImage.open(_build_psd(_NORMAL_W, _NORMAL_H))
+    assert unbounded._max_alloc_bytes is None
+    with pytest.raises(ValueError, match="configured budget"):
+        bounded.numpy()
+    try:
+        unbounded.numpy()
+    except ValueError as exc:
+        assert "configured budget" not in str(exc)
+    except Exception:
+        pass  # other errors (e.g. empty pixel data) are fine
+
+
+def test_env_var_seeds_default_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A positive integer in the env var becomes the default budget."""
+    monkeypatch.setenv(_utils.MAX_ALLOC_BYTES_ENV, "1024")
+    assert _utils._env_alloc_budget() == 1024
+
+
+def test_env_var_invalid_is_ignored_with_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Non-integer and non-positive values are ignored (budget stays off)."""
+    monkeypatch.setenv(_utils.MAX_ALLOC_BYTES_ENV, "not-an-int")
+    with pytest.warns(UserWarning, match=_utils.MAX_ALLOC_BYTES_ENV):
+        assert _utils._env_alloc_budget() is None
+    monkeypatch.setenv(_utils.MAX_ALLOC_BYTES_ENV, "-5")
+    with pytest.warns(UserWarning, match=_utils.MAX_ALLOC_BYTES_ENV):
+        assert _utils._env_alloc_budget() is None
+
+
+def test_explicit_kwarg_overrides_env_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A per-document budget takes precedence over the module/env default."""
+    # Simulate the env-seeded default being large; the per-call limit is smaller.
+    monkeypatch.setattr(_utils, "MAX_ALLOC_BYTES", 10**12)
+    psd = PSDImage.open(_build_psd(_NORMAL_W, _NORMAL_H), max_alloc_bytes=1024)
+    with pytest.raises(ValueError, match="1,024 bytes"):
+        psd.numpy()

@@ -104,7 +104,8 @@ class PSDDecompressionWarning(UserWarning):
 _VALID_DEPTHS: frozenset[int] = frozenset((1, 8, 16, 32))
 _MAX_DIMENSION: int = 300_000  # PSD/PSB hard limit per the Adobe spec
 
-# Reject the black-fill fallback when a failed decode would dwarf its input (CWE-789).
+# Reject the black-fill fallback when a failed decode dwarfs its input (CWE-789).
+# Set MAX_DEGRADED_BYTES to None to disable the guard (also disables the ratio check).
 MAX_DEGRADED_BYTES: int | None = 16 * 1024 * 1024
 MAX_DEGRADED_RATIO: int = 1000
 
