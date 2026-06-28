@@ -16,10 +16,16 @@ Currently supported effects:
   - Supports solid color, gradient, and pattern fills
   - Position: inside, outside, or centered
   - Limited compared to Photoshop's full implementation
+- **Drop shadow**: Offset, choked and blurred silhouette painted behind the layer
+  - Solid color fill; honors distance, angle (incl. global light), size, choke,
+    opacity, blend mode and "layer knocks out drop shadow"
+  - The falloff is a gaussian approximation of Photoshop's proprietary blur, so the
+    placement is faithful but the shadow intensity can differ — large, soft shadows
+    tend to render somewhat darker than Photoshop
 
 Partially supported or limited effects:
 
-- Drop shadow, inner shadow, outer glow, inner glow
+- Inner shadow, outer glow, inner glow
 - These may render but with reduced accuracy
 
 The main function :py:func:`draw_stroke_effect` handles stroke rendering by:
@@ -52,12 +58,13 @@ automatically applied when rendering layers that have effects enabled.
 """
 
 import logging
+import math
 from typing import TYPE_CHECKING
 
 import numpy as np
 
 from psd_tools.composite import paint, utils
-from psd_tools.composite._compat import require_skimage
+from psd_tools.composite._compat import require_scipy, require_skimage
 from psd_tools.psd.descriptor import Descriptor
 from psd_tools.terminology import Enum, Key
 
@@ -65,6 +72,48 @@ if TYPE_CHECKING:
     from psd_tools.api.protocols import PSDProtocol
 
 logger = logging.getLogger(__name__)
+
+# Maps Photoshop's "Size" parameter to a gaussian blur sigma. Photoshop's blur is a
+# proprietary approximation; sigma = size / 3 is a close, widely-used heuristic.
+_SIGMA_PER_SIZE = 1.0 / 3.0
+
+
+@require_scipy
+def draw_drop_shadow(
+    viewport: tuple[int, int, int, int],
+    shape: np.ndarray,
+    *,
+    distance: float,
+    angle: float,
+    size: float,
+    choke: float,
+) -> np.ndarray:
+    """Synthesize a drop-shadow coverage mask from a layer silhouette.
+
+    The layer's ``shape`` (silhouette) is offset along the cast direction of a light
+    at ``angle`` degrees. Returns an ``(H, W, 1)`` float32 coverage mask in the same
+    ``viewport`` as ``shape``; the caller tints and blends it behind the layer.
+    """
+    from scipy import ndimage  # type: ignore[import-untyped]  # noqa: PLC0415
+
+    a = shape[:, :, 0].astype(np.float32)
+    # Choke contracts the matte before blurring. In Photoshop's UI choke is a percentage
+    # of size, even though the descriptor stores both in pixels.
+    choke_px = max(0, int(round(choke / 100.0 * size)))
+    if choke_px > 0:
+        a = ndimage.grey_erosion(a, size=2 * choke_px + 1)
+    # Blur. Photoshop "Size" is a soft falloff radius; sigma ~= size / 3 places ~3 sigma
+    # of the gaussian within the stated size (heuristic, see module notes).
+    sigma = max(0.0, size * _SIGMA_PER_SIZE)
+    if sigma > 1e-3:
+        a = ndimage.gaussian_filter(a, sigma)
+    # Photoshop angle is the light direction; the shadow casts in the opposite
+    # direction. Image coordinates are y-down, so a positive sin moves the shadow down.
+    theta = math.radians(angle)
+    dx = -distance * math.cos(theta)
+    dy = +distance * math.sin(theta)
+    a = ndimage.shift(a, (dy, dx), order=1, mode="constant", cval=0.0)
+    return np.clip(a, 0.0, 1.0)[:, :, None]
 
 
 @require_skimage
