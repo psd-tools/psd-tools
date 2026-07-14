@@ -1,6 +1,7 @@
 """Composite implementation for layer rendering and blending."""
 
 import logging
+import math
 from typing import Callable, cast
 
 import numpy as np
@@ -13,7 +14,7 @@ from psd_tools.api.utils import EXPECTED_CHANNELS, check_pixel_size
 from psd_tools.composite import paint, utils, vector
 from psd_tools.composite.adjustments import ADJUSTMENT_FUNC
 from psd_tools.composite.blend import BLEND_FUNC, normal
-from psd_tools.composite.effects import draw_stroke_effect
+from psd_tools.composite.effects import draw_drop_shadow, draw_stroke_effect
 from psd_tools.constants import BlendMode, ColorMode, Resource, Tag
 
 logger = logging.getLogger(__name__)
@@ -353,6 +354,9 @@ class Compositor(object):
         alpha *= mask
 
         # TODO: Tag.BLEND_INTERIOR_ELEMENTS controls how inner effects apply.
+
+        # Outer effects paint behind the layer's own source.
+        self._apply_drop_shadow(layer, color, shape, alpha)
 
         full_passthrough = (
             layer.blend_mode == BlendMode.PASS_THROUGH
@@ -705,6 +709,34 @@ class Compositor(object):
         opacity = desc.get("strokeStyleOpacity", 100.0) / 100.0
         alpha = shape * opacity
         return color, shape, alpha
+
+    def _apply_drop_shadow(self, layer, color, shape, alpha):
+        for effect in layer.effects.find("dropshadow"):
+            # The shadow is blurred/offset beyond the layer, so grow the working viewport.
+            grow = int(math.ceil(effect.distance + effect.size + 2))
+            bbox = cast(
+                tuple[int, int, int, int],
+                tuple(x + d for x, d in zip(layer.bbox, (-grow, -grow, grow, grow))),
+            )
+            shape_in_bbox = paste(bbox, self._viewport, shape)
+            mask = draw_drop_shadow(
+                bbox,
+                shape_in_bbox,
+                distance=effect.distance,
+                angle=effect.angle,
+                size=effect.size,
+                choke=effect.choke,
+            )
+            if effect.layer_knocks_out:
+                # The shadow is concealed under the layer's own coverage.
+                mask = mask * (1.0 - shape_in_bbox)
+            shadow_color, _ = paint.draw_solid_color_fill(
+                bbox, layer._psd.color_mode, effect.value
+            )
+            shadow_color = paste(self._viewport, bbox, shadow_color, 1.0)
+            mask = paste(self._viewport, bbox, mask)
+            opacity = effect.opacity / 100.0
+            self._apply_source(shadow_color, mask, mask * opacity, effect.blend_mode)
 
     def _apply_color_overlay(self, layer, color, shape, alpha):
         for effect in layer.effects.find("coloroverlay"):
