@@ -87,7 +87,16 @@ markers = [
 [tool.ruff]
 src = ["src", "tests"]
 
+[tool.ruff.format]
+# Ruff 0.16 formats Python code blocks inside Markdown by default; opt out to
+# keep the formatter scoped to Python source only.
+exclude = ["*.md"]
+
 [tool.ruff.lint]
+# Ruff 0.16 greatly expanded the default rule set (59 -> 413 rules). Pin the
+# previous defaults so dependency bumps stay behaviour-neutral; adopting the
+# new rules can be done deliberately in a separate change.
+select = ["E4", "E7", "E9", "F"]
 extend-select = ["PLC0415", "T10"]
 
 [tool.mypy]
