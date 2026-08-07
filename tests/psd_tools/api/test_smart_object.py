@@ -251,6 +251,182 @@ class TestOpenSecurity:
 
 
 # ---------------------------------------------------------------------------
+# Security tests — GHSA-r6c8-3pw3-m54g
+# ---------------------------------------------------------------------------
+
+
+class TestExternalReadConfinement:
+    """External reads are confined to the CWD unless a boundary is given.
+
+    Regression tests for GHSA-r6c8-3pw3-m54g: a crafted PSD must not be able to
+    read arbitrary files via an absolute ``fullPath`` when no ``external_dir``
+    is supplied.
+    """
+
+    def test_data_ignores_malicious_absolute_fullpath(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """.data must not disclose an absolute fullPath outside the CWD."""
+        secret = tmp_path / "secret.txt"
+        secret.write_bytes(b"TOP-SECRET")
+        workdir = tmp_path / "work"
+        workdir.mkdir()
+        monkeypatch.chdir(workdir)
+        so = _make_external_smart_object(str(secret), "missing.png")
+        with pytest.raises(FileNotFoundError):
+            _ = so.data
+
+    def test_open_default_confines_to_cwd(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """open() with no external_dir must not read a fullPath outside the CWD."""
+        secret = tmp_path / "secret.txt"
+        secret.write_bytes(b"TOP-SECRET")
+        workdir = tmp_path / "work"
+        workdir.mkdir()
+        monkeypatch.chdir(workdir)
+        so = _make_external_smart_object(str(secret), "missing.png")
+        with pytest.raises(FileNotFoundError):
+            with so.open() as f:
+                f.read()
+
+    def test_open_default_honours_fullpath_inside_cwd(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A fullPath that resolves inside the CWD is still read."""
+        workdir = tmp_path / "work"
+        workdir.mkdir()
+        target = workdir / "asset.png"
+        target.write_bytes(b"asset")
+        monkeypatch.chdir(workdir)
+        so = _make_external_smart_object(str(target), "missing.png")
+        with so.open() as f:
+            assert f.read() == b"asset"
+
+    def test_open_default_falls_back_to_relpath_inside_cwd(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """fullPath outside CWD is ignored; relPath inside CWD is used."""
+        workdir = tmp_path / "work"
+        workdir.mkdir()
+        (workdir / "asset.png").write_bytes(b"asset")
+        monkeypatch.chdir(workdir)
+        so = _make_external_smart_object("/etc/passwd", "asset.png")
+        with so.open() as f:
+            assert f.read() == b"asset"
+
+    def test_open_default_relpath_traversal_raises(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A relPath escaping the CWD raises even without external_dir."""
+        workdir = tmp_path / "work"
+        workdir.mkdir()
+        monkeypatch.chdir(workdir)
+        so = _make_external_smart_object("", "../../etc/passwd")
+        with pytest.raises(ValueError, match="escapes external_dir"):
+            with so.open() as f:
+                f.read()
+
+    def test_trust_full_path_restores_verbatim_read(self, tmp_path: Path) -> None:
+        """trust_full_path=True reads the absolute fullPath verbatim."""
+        secret = tmp_path / "secret.txt"
+        secret.write_bytes(b"TOP-SECRET")
+        so = _make_external_smart_object(str(secret), "missing.png")
+        with so.open(trust_full_path=True) as f:
+            assert f.read() == b"TOP-SECRET"
+
+    def test_trust_full_path_with_external_dir_raises(self, tmp_path: Path) -> None:
+        """Combining external_dir with trust_full_path is rejected."""
+        so = _make_external_smart_object("/etc/passwd", "asset.png")
+        with pytest.raises(ValueError, match="cannot be combined"):
+            with so.open(external_dir=str(tmp_path), trust_full_path=True) as f:
+                f.read()
+
+    def test_trust_full_path_uses_relpath_verbatim(self, tmp_path: Path) -> None:
+        """Under trust mode, a missing fullPath falls back to relPath verbatim."""
+        target = tmp_path / "asset.png"
+        target.write_bytes(b"asset")
+        # Empty fullPath forces the relPath fallback; the absolute relPath is
+        # read verbatim because confinement is disabled.
+        so = _make_external_smart_object("", str(target))
+        with so.open(trust_full_path=True) as f:
+            assert f.read() == b"asset"
+
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="symlink creation needs privileges on Windows"
+    )
+    def test_symlink_escape_via_relpath_raises(self, tmp_path: Path) -> None:
+        """A relPath symlink inside safe_dir pointing outside is rejected."""
+        safe_dir = tmp_path / "safe"
+        safe_dir.mkdir()
+        outside = tmp_path / "outside.txt"
+        outside.write_bytes(b"SECRET")
+        (safe_dir / "link.txt").symlink_to(outside)
+        so = _make_external_smart_object("", "link.txt")
+        with pytest.raises(ValueError, match="escapes external_dir"):
+            with so.open(external_dir=str(safe_dir)) as f:
+                f.read()
+
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="symlink creation needs privileges on Windows"
+    )
+    def test_symlink_escape_via_fullpath_falls_back(self, tmp_path: Path) -> None:
+        """A fullPath symlink whose target escapes safe_dir is ignored."""
+        safe_dir = tmp_path / "safe"
+        safe_dir.mkdir()
+        outside = tmp_path / "outside.txt"
+        outside.write_bytes(b"SECRET")
+        link = safe_dir / "link.txt"
+        link.symlink_to(outside)
+        (safe_dir / "asset.png").write_bytes(b"asset")
+        so = _make_external_smart_object(str(link), "asset.png")
+        with so.open(external_dir=str(safe_dir)) as f:
+            # symlink target escapes safe_dir → ignored, relPath used instead
+            assert f.read() == b"asset"
+
+    def test_save_default_confines_to_cwd(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """save() with no external_dir must not copy a fullPath outside the CWD."""
+        secret = tmp_path / "secret.txt"
+        secret.write_bytes(b"TOP-SECRET")
+        workdir = tmp_path / "work"
+        workdir.mkdir()
+        out_dir = workdir / "out"
+        out_dir.mkdir()
+        monkeypatch.chdir(workdir)
+        so = _make_external_smart_object(str(secret), "missing.png", "missing.png")
+        with pytest.raises(FileNotFoundError):
+            so.save(directory=str(out_dir))
+        assert list(out_dir.iterdir()) == []
+
+    def test_save_trust_full_path_reads_verbatim(self, tmp_path: Path) -> None:
+        """save(trust_full_path=True) copies from the verbatim fullPath source."""
+        source_dir = tmp_path / "source"
+        source_dir.mkdir()
+        (source_dir / "asset.png").write_bytes(b"asset-bytes")
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+        so = _make_external_smart_object(
+            str(source_dir / "asset.png"), "asset.png", "asset.png"
+        )
+        so.save(directory=str(out_dir), trust_full_path=True)
+        assert (out_dir / "asset.png").read_bytes() == b"asset-bytes"
+
+    def test_save_trust_full_path_with_external_dir_raises(
+        self, tmp_path: Path
+    ) -> None:
+        """save() rejects external_dir combined with trust_full_path."""
+        so = _make_external_smart_object("/etc/passwd", "asset.png", "asset.png")
+        with pytest.raises(ValueError, match="cannot be combined"):
+            so.save(
+                directory=str(tmp_path),
+                external_dir=str(tmp_path),
+                trust_full_path=True,
+            )
+
+
+# ---------------------------------------------------------------------------
 # filetype / detected_filetype / is_psd tests — Issue #599
 # ---------------------------------------------------------------------------
 
