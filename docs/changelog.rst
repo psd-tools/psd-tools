@@ -1,10 +1,11 @@
 Changelog
 =========
 
-1.18.0 (unreleased)
+1.18.0 (2026-08-07)
 -------------------
 
 - [security] Confine external smart object reads to a directory by default; add ``trust_full_path`` opt-in to restore the previous behaviour (GHSA-r6c8-3pw3-m54g)
+- [chore] Bump dependencies: ruff to 0.16.0, mypy to 2.3.0, pillow to 12.3.0, typing-extensions to 4.16.0, pre-commit to 4.6.1, cibuildwheel to 4.1.1, actions/stale to 11
 
 1.17.4 (2026-06-24)
 -------------------
