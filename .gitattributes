@@ -12,6 +12,7 @@
 *.webp binary
 *.bmp binary
 *.psd binary
+*.psb binary
 # SVG is XML text, not binary
 *.svg text
 
@@ -82,10 +83,10 @@
 *.webm binary
 *.wmv binary
 
-# Lockfiles
-uv.lock binary
-Pipfile.lock binary
-poetry.lock binary
+# Lockfiles — text with forced LF to keep diffs readable across platforms
+uv.lock text eol=lf
+Pipfile.lock text eol=lf
+poetry.lock text eol=lf
 
 # Python bytecode and data (Python.gitattributes, CPython)
 *.pyc binary
