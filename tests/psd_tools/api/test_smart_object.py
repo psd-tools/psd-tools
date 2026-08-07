@@ -318,11 +318,17 @@ class TestExternalReadConfinement:
     def test_open_default_relpath_traversal_raises(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A relPath escaping the CWD raises even without external_dir."""
+        """A relPath escaping the CWD raises even without external_dir.
+
+        The escape is detected by ``os.path.commonpath`` before any filesystem
+        access, so this is platform independent: the ``..`` segments are
+        resolved (``/`` is a separator on Windows too) to a path above the CWD
+        and no file is ever opened.
+        """
         workdir = tmp_path / "work"
         workdir.mkdir()
         monkeypatch.chdir(workdir)
-        so = _make_external_smart_object("", "../../etc/passwd")
+        so = _make_external_smart_object("", "../../outside.txt")
         with pytest.raises(ValueError, match="escapes external_dir"):
             with so.open() as f:
                 f.read()
@@ -416,8 +422,12 @@ class TestExternalReadConfinement:
     def test_save_trust_full_path_with_external_dir_raises(
         self, tmp_path: Path
     ) -> None:
-        """save() rejects external_dir combined with trust_full_path."""
-        so = _make_external_smart_object("/etc/passwd", "asset.png", "asset.png")
+        """save() rejects external_dir combined with trust_full_path.
+
+        The guard raises before any path is dereferenced, so the paths here are
+        inert placeholders and the behaviour is platform independent.
+        """
+        so = _make_external_smart_object("full-path", "asset.png", "asset.png")
         with pytest.raises(ValueError, match="cannot be combined"):
             so.save(
                 directory=str(tmp_path),

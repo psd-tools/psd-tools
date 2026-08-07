@@ -4,13 +4,7 @@ Changelog
 1.18.0 (unreleased)
 -------------------
 
-- [security] Confine external smart object reads to the current working
-  directory by default. ``SmartObject.open()``, ``SmartObject.data`` and
-  ``SmartObject.save()`` no longer follow an absolute ``fullPath`` stored in the
-  PSD to a location outside the confinement directory, preventing a crafted PSD
-  from reading arbitrary files (GHSA-r6c8-3pw3-m54g). Pass ``external_dir`` to
-  choose the boundary, or ``trust_full_path=True`` to restore the previous
-  unconfined behaviour for fully trusted files.
+- [security] Confine external smart object reads to a directory by default; add ``trust_full_path`` opt-in to restore the previous behaviour (GHSA-r6c8-3pw3-m54g)
 
 1.17.4 (2026-06-24)
 -------------------
