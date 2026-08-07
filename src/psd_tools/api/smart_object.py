@@ -107,16 +107,35 @@ class SmartObject:
 
     @contextlib.contextmanager
     def open(
-        self, external_dir: str | os.PathLike | None = None
+        self,
+        external_dir: str | os.PathLike | None = None,
+        *,
+        trust_full_path: bool = False,
     ) -> Iterator[IO[bytes]]:
         """
         Open the smart object as binary IO.
 
-        :param external_dir: Directory to resolve external paths against.
-            When provided, a ``fullPath`` that resolves outside this directory is
-            silently ignored and ``relPath`` is tried instead. A ``relPath`` that
-            resolves outside this directory raises :py:exc:`ValueError`.
-            Strongly recommended when processing untrusted PSD files.
+        For external smart objects the linked file is read from disk. By default
+        the read is confined to a directory: ``external_dir`` when given,
+        otherwise the current working directory. A ``fullPath`` stored in the PSD
+        is honoured only when it resolves inside that directory; otherwise it is
+        ignored and ``relPath`` (resolved inside the directory) is tried instead.
+        A ``relPath`` that escapes the directory raises :py:exc:`ValueError`. This
+        default prevents a crafted PSD from reading arbitrary files via an
+        absolute ``fullPath``. Note that the confinement directory itself is
+        trusted: a ``relPath`` resolving to a file *inside* it is still read, so
+        point ``external_dir`` at a location that holds only linked assets when
+        processing untrusted files.
+
+        :param external_dir: Directory to resolve and confine external paths
+            against. Defaults to the current working directory. Strongly
+            recommended to set explicitly when processing untrusted PSD files.
+        :param trust_full_path: When ``True``, disable confinement entirely and
+            trust ``fullPath``/``relPath`` from the PSD verbatim (the historical
+            behaviour). Only use this for fully trusted files. Cannot be combined
+            with ``external_dir``.
+        :raises ValueError: If ``trust_full_path`` is combined with
+            ``external_dir``, or a ``relPath`` escapes the confinement directory.
 
         Example::
 
@@ -125,23 +144,39 @@ class SmartObject:
         """
         if self._data is None:
             raise ValueError("Smart object data not found")
+        if trust_full_path and external_dir is not None:
+            raise ValueError(
+                "external_dir cannot be combined with trust_full_path=True; "
+                "trust_full_path disables path confinement entirely"
+            )
         if self.kind == "data":
             with io.BytesIO(self._data.data) as f:
                 yield f
         elif self.kind == "external":
+            # safe_dir is the confinement boundary; None means confinement is
+            # disabled (trust_full_path=True) and paths are used verbatim.
+            safe_dir = (
+                None
+                if trust_full_path
+                else os.path.realpath(
+                    external_dir if external_dir is not None else os.getcwd()
+                )
+            )
             filepath = self._data.linked_file[b"fullPath"].value
             filepath = filepath.replace("\x00", "").replace("file://", "")
-            if external_dir is not None:
-                safe_dir = os.path.realpath(external_dir)
+            if safe_dir is not None and filepath:
                 resolved = os.path.realpath(filepath)
-                if not _is_inside(safe_dir, resolved):
-                    # fullPath escapes external_dir — fall through to relPath
+                if _is_inside(safe_dir, resolved):
+                    # Open the validated, symlink-resolved path rather than the
+                    # raw value, matching the relPath branch below.
+                    filepath = resolved
+                else:
+                    # fullPath escapes safe_dir — fall through to relPath
                     filepath = ""
             if not filepath or not os.path.exists(filepath):
                 relpath = self._data.linked_file[b"relPath"].value
                 relpath = relpath.replace("\x00", "")
-                if external_dir is not None:
-                    safe_dir = os.path.realpath(external_dir)
+                if safe_dir is not None:
                     filepath = os.path.realpath(os.path.join(safe_dir, relpath))
                     if not _is_inside(safe_dir, filepath):
                         raise ValueError(
@@ -162,9 +197,12 @@ class SmartObject:
 
         For ``kind == 'data'`` this returns the bytes stored in the PSD without
         any filesystem access.  For ``kind == 'external'`` this calls
-        :py:meth:`open` with no ``external_dir`` argument, which trusts
-        ``fullPath`` from the PSD verbatim.  Prefer :py:meth:`open` with an
-        explicit ``external_dir`` when processing untrusted files.
+        :py:meth:`open` with default confinement, so the read is restricted to
+        the current working directory and an absolute ``fullPath`` pointing
+        outside it is ignored.  Use :py:meth:`open` with an explicit
+        ``external_dir`` to read linked files from a known location, or
+        ``open(trust_full_path=True)`` to restore the historical unconfined
+        behaviour for fully trusted files.
         """
         if self._data is None:
             raise ValueError("Smart object data not found")
@@ -293,6 +331,8 @@ class SmartObject:
         filename: str | os.PathLike | None = None,
         directory: str | os.PathLike | None = None,
         external_dir: str | os.PathLike | None = None,
+        *,
+        trust_full_path: bool = False,
     ) -> None:
         """
         Save the smart object to a file.
@@ -306,10 +346,20 @@ class SmartObject:
         :param external_dir: Passed to :py:meth:`open` when the smart object
             kind is ``'external'``. Constrains which paths on disk may be read.
             Strongly recommended when processing untrusted PSD files.
+        :param trust_full_path: Passed to :py:meth:`open` when the smart object
+            kind is ``'external'``. When ``True``, disable read confinement and
+            trust the PSD paths verbatim. Cannot be combined with
+            ``external_dir``.
         :raises ValueError: If the embedded name contains no safe basename,
-            resolves outside ``directory``, or (for external kind) the source
-            path escapes ``external_dir``.
+            resolves outside ``directory``, ``trust_full_path`` is combined with
+            ``external_dir``, or (for external kind) the source path escapes
+            ``external_dir``.
         """
+        if trust_full_path and external_dir is not None:
+            raise ValueError(
+                "external_dir cannot be combined with trust_full_path=True; "
+                "trust_full_path disables path confinement entirely"
+            )
         if filename is None:
             basename = os.path.basename(self.filename)
             if not basename or basename == ".":
@@ -326,7 +376,9 @@ class SmartObject:
                 )
             filename = resolved
         if self.kind == "external":
-            with self.open(external_dir=external_dir) as f:
+            with self.open(
+                external_dir=external_dir, trust_full_path=trust_full_path
+            ) as f:
                 content = f.read()
         else:
             content = self.data

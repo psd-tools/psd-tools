@@ -1,6 +1,11 @@
 Changelog
 =========
 
+1.18.0 (unreleased)
+-------------------
+
+- [security] Confine external smart object reads to a directory by default; add ``trust_full_path`` opt-in to restore the previous behaviour (GHSA-r6c8-3pw3-m54g)
+
 1.17.4 (2026-06-24)
 -------------------
 

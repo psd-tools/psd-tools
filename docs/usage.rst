@@ -132,7 +132,10 @@ via `smart_object` property::
     import io
     so = layer.smart_object
     if so.detected_filetype in ('jpg', 'png'):
-        # Use open(external_dir=...) when processing untrusted PSD files.
+        # External links are read from the current working directory by
+        # default; pass open(external_dir=...) to point at the directory that
+        # holds the linked files, or open(trust_full_path=True) for fully
+        # trusted PSDs to follow the absolute path stored in the file.
         with so.open() as f:
             image = Image.open(io.BytesIO(f.read()))
 
