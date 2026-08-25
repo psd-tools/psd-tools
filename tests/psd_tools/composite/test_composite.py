@@ -7,6 +7,7 @@ import pytest
 from psd_tools.api.layers import GroupMixin, PixelLayer
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite
+from psd_tools.composite.composite import Compositor
 from psd_tools.constants import BlendMode, CompatibilityMode, Tag
 from psd_tools.psd.base import ByteElement
 from PIL import Image
@@ -612,6 +613,31 @@ def test_composite_group_clipping_clip_studio() -> None:
         _mse(np.array(reference, dtype=np.float32), np.array(result, dtype=np.float32))
         <= 0.001
     )
+
+
+def test_composite_stroke_effect_over_a_layer_without_a_mask() -> None:
+    """A stroke effect must not require the layer to have a mask (#711).
+
+    ``_get_mask()`` returns a bare 1.0 for a layer with no mask, and
+    ``_apply_stroke_effect`` handed that straight to ``paste()``, which needs a
+    canvas -- ``AttributeError: 'float' object has no attribute 'shape'``. The
+    combination is reachable for a fill layer with no vector mask, and 26 calls
+    in the fixture corpus already pass the scalar; they escape only because
+    those layers have no stroke effect.
+    """
+    psd = PSDImage.open(full_name("effects/stroke-effects.psd"))
+    layer = next(
+        sub
+        for top in psd
+        for sub in (getattr(top, "_layers", None) or [])
+        if list(sub.effects.find("stroke"))
+    )
+    backdrop = np.ones((psd.height, psd.width, 3), dtype=np.float32)
+    alpha = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
+    compositor = Compositor(psd.viewbox, backdrop, alpha)
+    # 1.0 is exactly what _get_mask() yields for an unmasked layer.
+    compositor._apply_stroke_effect(layer, 1.0, np.ones_like(alpha))
+    assert compositor.finish()[0].shape == (psd.height, psd.width, 3)
 
 
 def test_composite_stroke() -> None:

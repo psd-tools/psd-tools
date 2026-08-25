@@ -2,7 +2,7 @@
 
 import logging
 from collections.abc import Sequence
-from typing import Callable, cast
+from typing import Any, Callable, Iterator, Protocol, cast
 
 import numpy as np
 from PIL import Image
@@ -26,6 +26,30 @@ from psd_tools.constants import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class _StyledEffect(Protocol):
+    """What the compositor needs from an overlay or stroke effect.
+
+    ``Effects.find()`` looks effects up by name at runtime and is typed as
+    returning the base ``_Effect``, which does not declare ``blend_mode`` --
+    that lives on the mixins the concrete classes bring in. Every name looked
+    up in this module resolves to a class that has one, so the iterators are
+    narrowed to this rather than each use being cast separately.
+    """
+
+    @property
+    def value(self) -> Any: ...
+
+    @property
+    def opacity(self) -> float: ...
+
+    @property
+    def blend_mode(self) -> BlendMode: ...
+
+
+def _styled(effects: Iterator[Any]) -> Iterator[_StyledEffect]:
+    return cast(Iterator[_StyledEffect], effects)
 
 
 def composite_pil(
@@ -109,8 +133,6 @@ def composite_pil(
             (255 * np.squeeze(alpha, axis=2)).astype(np.uint8), "L"
         )
     icc = None
-    psd_image = layer if isinstance(layer, PSDImage) else layer._psd
-    assert psd_image is not None
     if apply_icc and Resource.ICC_PROFILE in psd_image.image_resources:
         icc = psd_image.image_resources.get_data(Resource.ICC_PROFILE)
     return pil_io.post_process(image, alpha_as_image, icc)
@@ -253,7 +275,7 @@ def paste(
     shape = (viewport[3] - viewport[1], viewport[2] - viewport[0], values.shape[2])
     view = (
         np.full(shape, background, dtype=np.float32)
-        if background
+        if background is not None
         else np.zeros(shape, dtype=np.float32)
     )
     inter = utils.intersect(viewport, bbox)
@@ -495,7 +517,6 @@ class Compositor(object):
         self._viewport = viewport
         self._layer_filter = layer_filter
         self._force = force
-        self._clip_mask = 1.0
         self._adjustment_isolated = adjustment_isolated
         # What Knockout.DEEP knocks out to. Inherited by pass-through
         # sub-compositors and reset at every isolation boundary, so deep
@@ -562,9 +583,9 @@ class Compositor(object):
             color = self._apply_clip_layers(layer, color, alpha)
 
         # Apply masks and opacity.
-        shape_mask, opacity_mask = self._get_mask(layer)
+        shape_mask = self._get_mask(layer)
         shape_const, opacity_const = self._get_const(layer)
-        mask = shape_mask * opacity_mask * opacity_const
+        mask = shape_mask * opacity_const
         shape *= shape_mask
         alpha *= mask
 
@@ -592,17 +613,17 @@ class Compositor(object):
             )
 
         # TODO: Apply after effects
-        self._apply_color_overlay(layer, color, shape, alpha)
+        self._apply_color_overlay(layer, shape, alpha)
         self._apply_pattern_overlay(layer, color, shape, alpha)
-        self._apply_gradient_overlay(layer, color, shape, alpha)
+        self._apply_gradient_overlay(layer, shape, alpha)
         if (
             (self._force and layer.has_vector_mask())
             or (not layer.has_pixels())
             and utils.has_fill(layer)
         ):
-            self._apply_stroke_effect(layer, color, shape_mask, alpha)
+            self._apply_stroke_effect(layer, shape_mask, alpha)
         else:
-            self._apply_stroke_effect(layer, color, shape, alpha)
+            self._apply_stroke_effect(layer, shape, alpha)
 
     def _apply_passthrough_source(
         self,
@@ -745,11 +766,11 @@ class Compositor(object):
                 layer, transformed_color, self._alpha
             )
 
-        shape_mask, opacity_mask = self._get_mask(layer)
+        shape_mask = self._get_mask(layer)
         shape_const, opacity_const = self._get_const(layer)
 
         shape = shape_mask * shape_const
-        opacity = shape * opacity_mask * opacity_const
+        opacity = shape * opacity_const
 
         blend_fn = BLEND_FUNC.get(layer.blend_mode, normal)
         blended = blend_fn(backdrop_color, transformed_color)
@@ -871,9 +892,6 @@ class Compositor(object):
         shape = paste(self._viewport, viewport, shape)
         alpha = paste(self._viewport, viewport, alpha)
 
-        assert color is not None
-        assert shape is not None
-        assert alpha is not None
         return color, shape, alpha, isolate_adjustments
 
     def _get_object(self, layer: Layer) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -912,9 +930,6 @@ class Compositor(object):
             compositor._apply_source(color_s, shape_s, alpha_s, layer.stroke.blend_mode)
             color, _, _ = compositor.finish()
 
-        assert color is not None
-        assert shape is not None
-        assert alpha is not None
         return color, shape, alpha
 
     def _apply_clip_layers(
@@ -932,15 +947,14 @@ class Compositor(object):
             compositor.apply(clip_layer, clip_compositing=True)
         return compositor._color
 
-    def _get_mask(self, layer: Layer) -> tuple[float | np.ndarray, float]:
-        """Get mask attributes.
+    def _get_mask(self, layer: Layer) -> float | np.ndarray:
+        """The layer's mask coverage, with any mask density already folded in.
 
         The scalar 1.0 default is an allocation-avoidance path, not an API
         convenience like the backdrop spellings: most layers have no mask, and
         materializing an all-ones canvas for each of them is pure waste.
         """
         shape: float | np.ndarray = 1.0
-        opacity: float = 1.0
         if layer.mask is not None and not layer.mask.disabled:
             # TODO: When force, ignore real mask.
             mask = layer.numpy("mask", real_mask=not self._force)
@@ -987,16 +1001,12 @@ class Compositor(object):
                 d = float(density_v) / 255.0
                 shape = d * shape + (1.0 - d)
 
-        assert shape is not None
-        assert opacity is not None
-        return shape, opacity
+        return shape
 
     def _get_const(self, layer: Layer) -> tuple[float, float]:
         """Get constant attributes."""
         shape = layer.tagged_blocks.get_data(Tag.BLEND_FILL_OPACITY, 255) / 255.0
         opacity = layer.opacity / 255.0
-        assert shape is not None
-        assert opacity is not None
         return float(shape), opacity
 
     def _get_stroke(self, layer: Layer) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -1025,8 +1035,10 @@ class Compositor(object):
         alpha = shape * opacity
         return color, shape, alpha
 
-    def _apply_color_overlay(self, layer, color, shape, alpha):
-        for effect in layer.effects.find("coloroverlay"):
+    def _apply_color_overlay(
+        self, layer: Layer, shape: np.ndarray, alpha: np.ndarray
+    ) -> None:
+        for effect in _styled(layer.effects.find("coloroverlay")):
             color, shape_e = paint.draw_solid_color_fill(
                 layer.bbox, layer._psd.color_mode, effect.value
             )
@@ -1040,12 +1052,18 @@ class Compositor(object):
                 color, shape * shape_e, alpha * shape_e * opacity, effect.blend_mode
             )
 
-    def _apply_pattern_overlay(self, layer, color, shape, alpha):
+    def _apply_pattern_overlay(
+        self, layer: Layer, color: np.ndarray, shape: np.ndarray, alpha: np.ndarray
+    ) -> None:
         channels = color.shape[-1]
-        for effect in layer.effects.find("patternoverlay"):
-            color, shape_e = paint.draw_pattern_fill(
+        for effect in _styled(layer.effects.find("patternoverlay")):
+            fill, shape_e = paint.draw_pattern_fill(
                 layer.bbox, layer._psd, effect.value
             )
+            if fill is None:
+                logger.debug("Skipping undrawable pattern overlay in %s", layer)
+                continue
+            color = fill
             if color.shape[-1] == 1 and color.shape[-1] < channels:
                 # Pattern has different # color channels here.
                 color = np.full([layer.height, layer.width, channels], color)
@@ -1061,12 +1079,17 @@ class Compositor(object):
                 color, shape * shape_e, alpha * shape_e * opacity, effect.blend_mode
             )
 
-    def _apply_gradient_overlay(self, layer, color, shape, alpha):
-        for effect in layer.effects.find("gradientoverlay"):
-            color, shape_e = paint.draw_gradient_fill(
+    def _apply_gradient_overlay(
+        self, layer: Layer, shape: np.ndarray, alpha: np.ndarray
+    ) -> None:
+        for effect in _styled(layer.effects.find("gradientoverlay")):
+            fill, shape_e = paint.draw_gradient_fill(
                 layer.bbox, layer._psd.color_mode, effect.value
             )
-            color = paste(self._viewport, layer.bbox, color, 1.0)
+            if fill is None:
+                logger.debug("Skipping undrawable gradient overlay in %s", layer)
+                continue
+            color = paste(self._viewport, layer.bbox, fill, 1.0)
             if shape_e is None:
                 shape_e = np.ones((self.height, self.width, 1), dtype=np.float32)
             else:
@@ -1076,8 +1099,15 @@ class Compositor(object):
                 color, shape * shape_e, alpha * shape_e * opacity, effect.blend_mode
             )
 
-    def _apply_stroke_effect(self, layer, color, shape, alpha):
-        for effect in layer.effects.find("stroke"):
+    def _apply_stroke_effect(
+        self, layer: Layer, shape: float | np.ndarray, alpha: np.ndarray
+    ) -> None:
+        for effect in _styled(layer.effects.find("stroke")):
+            # ``shape`` is _get_mask()'s output, which is a bare 1.0 for a layer
+            # with no mask -- and paste() needs a canvas. Materializing it here
+            # is cheap because it only happens once a stroke effect exists.
+            if not isinstance(shape, np.ndarray):
+                shape = np.full((self.height, self.width, 1), shape, dtype=np.float32)
             # Effect must happen at the layer viewport.
             shape_in_bbox = paste(layer.bbox, self._viewport, shape)
             color, shape_in_bbox = draw_stroke_effect(

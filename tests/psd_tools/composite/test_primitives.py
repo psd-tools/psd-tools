@@ -81,11 +81,12 @@ def test_paste_disjoint_bbox_is_all_background() -> None:
 
 @pytest.mark.parametrize("background", [None, 0.0])
 def test_paste_background_none_and_zero_agree(background: float | None) -> None:
-    """``paste`` selects its fill by truthiness, so 0.0 takes the zeros path.
+    """An explicit 0.0 background and no background at all must agree.
 
-    The two are numerically identical today. Pinned so that a change to the
-    guard (``if background`` -> ``if background is not None``) stays a no-op
-    rather than silently altering output. See the checklist in #711.
+    ``paste`` used to select its fill by truthiness, so 0.0 took the ``np.zeros``
+    path -- numerically identical, but it read like a bug. The guard is now
+    ``if background is not None`` (#711); this pins that the change stayed a
+    no-op.
     """
     values = np.ones((1, 1, 1), dtype=np.float32)
     result = paste((0, 0, 3, 3), (0, 0, 1, 1), values, background)
