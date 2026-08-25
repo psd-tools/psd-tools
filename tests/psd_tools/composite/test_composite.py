@@ -295,6 +295,59 @@ def test_apply_opacity() -> None:
     assert _mse(psd.numpy("shape"), result[2]) < 0.01
 
 
+# Photoshop-authored fixtures pinning Knockout semantics; see issue #707.
+#
+# Knockout has no visible effect while fill opacity is 100%, which is why the
+# pre-existing knockout-isolated-groups.psd fixture never exercised it. Every
+# fixture below therefore sets the knockout group's fill opacity to 50%.
+#
+# Each stack is: white Background / red BG / group. The "nested" fixtures put a
+# green sibling next to the knockout group inside an ``Outer`` group, so three
+# outcomes are distinguishable at the sampled pixel:
+#
+#   green  -> no knockout                          (composites over the sibling)
+#   red    -> knocked out to the enclosing group's backdrop
+#   white  -> knocked out to the document backdrop
+#
+# Expected values are Photoshop 2026's own rendering, sampled at (16, 16).
+_KNOCKOUT_XFAIL = pytest.mark.xfail(
+    reason="knockout punch-through is not implemented; see #707",
+    strict=True,
+)
+_KNOCKOUT_CASES = [
+    # No knockout: the group simply composites over what is below it.
+    ("knockout-none-normal", (127, 0, 128)),
+    ("knockout-none-passthrough", (127, 0, 128)),
+    ("knockout-none-nested", (0, 127, 128)),
+    # Deep knockout reaches the document backdrop (the white Background layer).
+    pytest.param("knockout-deep-normal", (127, 127, 255), marks=_KNOCKOUT_XFAIL),
+    # A knockout group renders the same whether or not it is pass-through:
+    # when knockout is set, the pass-through blend mode stops mattering.
+    pytest.param("knockout-deep-passthrough", (127, 127, 255), marks=_KNOCKOUT_XFAIL),
+    # ``Outer`` is pass-through here, so it is not an isolation boundary and
+    # deep knockout escapes it to reach the document backdrop.
+    pytest.param("knockout-deep-nested-pt", (127, 127, 255), marks=_KNOCKOUT_XFAIL),
+    # Shallow knockout stops at the enclosing group's backdrop (the red BG).
+    pytest.param("knockout-shallow-nested", (127, 0, 128), marks=_KNOCKOUT_XFAIL),
+    pytest.param("knockout-shallow-nested-pt", (127, 0, 128), marks=_KNOCKOUT_XFAIL),
+    # An isolated (non pass-through) ``Outer`` bounds deep knockout too, so this
+    # matches the shallow result rather than reaching the document backdrop.
+    pytest.param("knockout-deep-nested", (127, 0, 128), marks=_KNOCKOUT_XFAIL),
+]
+
+
+@pytest.mark.parametrize(("name", "expected"), _KNOCKOUT_CASES)
+def test_composite_knockout(name: str, expected: tuple[int, int, int]) -> None:
+    psd = PSDImage.open(full_name(f"transparency/{name}.psd"))
+    image = psd.composite(ignore_preview=True)
+    assert image is not None
+    pixel = image.convert("RGB").getpixel((16, 16))
+    assert isinstance(pixel, tuple)
+    assert all(abs(a - b) <= 2 for a, b in zip(pixel, expected)), (
+        f"{name}: Photoshop renders {expected}, psd-tools rendered {pixel}"
+    )
+
+
 def test_composite_clipping_mask() -> None:
     psd = PSDImage.open(full_name("clipping-mask.psd"))
     reference = composite(psd)
