@@ -144,6 +144,22 @@ def test_layer_record_channel_sizes() -> None:
     assert channel_sizes[2] == (80, 90)
 
 
+def test_layer_record_channel_sizes_without_mask_data() -> None:
+    """A mask channel with no mask block has no extent, rather than raising."""
+    layer_record = LayerRecord(
+        left=0,
+        top=0,
+        right=100,
+        bottom=120,
+        channel_info=[
+            ChannelInfo(id=ChannelID.CHANNEL_0),
+            ChannelInfo(id=ChannelID.USER_LAYER_MASK),
+            ChannelInfo(id=ChannelID.REAL_USER_LAYER_MASK),
+        ],
+    )
+    assert layer_record.channel_sizes == [(100, 120), (0, 0), (0, 0)]
+
+
 def test_mask_flags_wr() -> None:
     check_write_read(MaskFlags())
     check_write_read(MaskFlags(True, True, True, True, True))
