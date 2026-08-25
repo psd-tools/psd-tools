@@ -391,21 +391,42 @@ class Compositor(object):
         alpha: np.ndarray,
         mask: float | np.ndarray,
     ) -> None:
-        new_shape = cast(np.ndarray, utils.union(self._shape_g, shape))
+        if self._color_0.shape[2] == 1 and 1 < color.shape[2]:
+            self._color_0 = np.repeat(self._color_0, color.shape[2], axis=2)
+        if self._color.shape[2] == 1 and 1 < color.shape[2]:
+            self._color = np.repeat(self._color, color.shape[2], axis=2)
 
-        # this step is used to use over composing when no pixels are found in the backdrop, instead of linear interpolation composing
-        color_support = utils.clip(
-            utils.divide(
-                color * mask * (1.0 - self._shape_g) + self._color * self._shape_g,
-                new_shape,
-            )
-        )
+        # ``color`` is the group already composited over this backdrop, because a
+        # pass-through group is rendered by a non-isolated sub-compositor seeded
+        # with the backdrop. Re-applying the group therefore means interpolating
+        # between the backdrop and that result by the group opacity/mask, which
+        # must happen in premultiplied space so a transparent (or partially
+        # transparent) backdrop does not bleed its color into the result.
+        #
+        # TODO(#707): knockout is ignored here while _get_group() honors it, so
+        # a knockout pass-through group interpolates against a different backdrop
+        # than it was composited over, and the result varies with nesting depth.
+        color_b = self._color
+        alpha_b = self._alpha
 
-        self._shape_g = new_shape
+        self._shape_g = cast(np.ndarray, utils.union(self._shape_g, shape))
         self._alpha_g = cast(np.ndarray, utils.union(self._alpha_g, alpha))
+        # union(alpha_b, alpha) -- ``alpha`` is the group alpha already scaled by
+        # ``mask``, which is what the premultiplied interpolation resolves to.
         self._alpha = cast(np.ndarray, utils.union(self._alpha_0, self._alpha_g))
 
-        self._color = utils.clip((color * mask + (1 - mask) * color_support))
+        color_t = (1.0 - mask) * alpha_b * color_b + (
+            mask * alpha_b + alpha * (1.0 - alpha_b)
+        ) * color
+        self._color = utils.clip(
+            np.where(
+                self._alpha > 0.0,
+                utils.divide(color_t, self._alpha),
+                # Fully transparent, so the color is arbitrary; ``color`` merely
+                # avoids utils.divide()'s 0 / 0 -> 1.0 (white) fallback.
+                color,
+            )
+        )
 
     def _apply_source(
         self,
