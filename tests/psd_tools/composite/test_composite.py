@@ -615,29 +615,62 @@ def test_composite_group_clipping_clip_studio() -> None:
     )
 
 
-def test_composite_pattern_overlay_over_a_single_channel_source() -> None:
-    """A narrow source must not narrow the pattern's target width (#711).
-
-    ``_apply_pattern_overlay`` took its channel count from the layer colour it
-    was handed. A source is allowed to be single-channel inside a multi-channel
-    document -- the blend arithmetic broadcasts it -- so an RGB pattern was
-    compared against 1 and rejected with ``AssertionError: Inconsistent pattern
-    channels.`` even though it matched the canvas exactly.
-    """
-    psd = PSDImage.open(full_name("patterns.psd"))
-    layer = next(
+def _pattern_overlay_layer(psd: PSDImage) -> Any:
+    return next(
         sub
         for top in psd
         for sub in [top] + list(getattr(top, "_layers", None) or [])
         if list(sub.effects.find("patternoverlay"))
     )
-    backdrop = np.ones((psd.height, psd.width, 3), dtype=np.float32)
-    alpha = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
+
+
+def test_composite_pattern_overlay_targets_the_canvas_width() -> None:
+    """The pattern's width comes from the compositor's canvas.
+
+    ``_apply_pattern_overlay`` used to take it from the layer colour it was
+    handed, which #710 allows to be narrower than the document. An RGB pattern
+    was then compared against 1 and rejected with ``AssertionError: Inconsistent
+    pattern channels.`` even though it matched the canvas exactly.
+
+    Dropping that parameter (#711) makes the original mistake unconstructible --
+    there is no longer a layer colour to derive the width from -- so this is a
+    contract pin rather than a regression guard.
+    """
+    psd = PSDImage.open(full_name("patterns.psd"))
+    layer = _pattern_overlay_layer(psd)
     shape = np.ones((psd.height, psd.width, 1), dtype=np.float32)
-    compositor = Compositor(psd.viewbox, backdrop, alpha)
+    compositor = Compositor(
+        psd.viewbox,
+        np.ones((psd.height, psd.width, 3), dtype=np.float32),
+        np.zeros((psd.height, psd.width, 1), dtype=np.float32),
+    )
     assert compositor.channels == 3
     compositor._apply_pattern_overlay(layer, shape, shape)
     assert compositor.finish()[0].shape == (psd.height, psd.width, 3)
+
+
+@pytest.mark.parametrize("channels", [1, 4])
+@pytest.mark.skipif(
+    not __debug__, reason="the consistency check is an assert, stripped under -O"
+)
+def test_composite_pattern_overlay_rejects_a_width_it_cannot_reach(
+    channels: int,
+) -> None:
+    """A pattern must be one channel or exactly the canvas width.
+
+    Widening replicates a single channel, so it can reach 3 from 1 but cannot
+    reach 1 or 4 from 3. That mismatch is a real inconsistency and stays caught.
+    """
+    psd = PSDImage.open(full_name("patterns.psd"))
+    layer = _pattern_overlay_layer(psd)
+    shape = np.ones((psd.height, psd.width, 1), dtype=np.float32)
+    compositor = Compositor(
+        psd.viewbox,
+        np.ones((psd.height, psd.width, channels), dtype=np.float32),
+        np.zeros((psd.height, psd.width, 1), dtype=np.float32),
+    )
+    with pytest.raises(AssertionError, match="Inconsistent pattern channels"):
+        compositor._apply_pattern_overlay(layer, shape, shape)
 
 
 def test_composite_stroke_effect_over_a_layer_without_a_mask() -> None:
