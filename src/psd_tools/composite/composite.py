@@ -403,10 +403,9 @@ class Compositor(object):
         # must happen in premultiplied space so a transparent (or partially
         # transparent) backdrop does not bleed its color into the result.
         #
-        # TODO: knockout is ignored here while _get_group() honors it, so a
-        # knockout pass-through group interpolates against a different backdrop
-        # than it was composited over. Photoshop effectively disables knockout
-        # for pass-through groups, so this combination is left unhandled.
+        # TODO(#707): knockout is ignored here while _get_group() honors it, so
+        # a knockout pass-through group interpolates against a different backdrop
+        # than it was composited over, and the result varies with nesting depth.
         color_b = self._color
         alpha_b = self._alpha
 
