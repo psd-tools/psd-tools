@@ -582,7 +582,7 @@ class LayerRecord(BaseElement):
         default=Clipping.BASE, converter=Clipping, validator=in_(Clipping)
     )
     flags: LayerFlags = field(factory=LayerFlags)
-    mask_data: object = None
+    mask_data: "MaskData | None" = None
     blending_ranges: LayerBlendingRanges = field(factory=LayerBlendingRanges)
     name: str = ""
     tagged_blocks: TaggedBlocks = field(factory=TaggedBlocks)
@@ -681,9 +681,13 @@ class LayerRecord(BaseElement):
 
     def _write_extra(self, fp: IO[bytes], encoding: str, version: int) -> int:
         written = 0
-        if getattr(self.mask_data, "real_flags", None) is not None and not any(
-            channel.id == ChannelID.REAL_USER_LAYER_MASK
-            for channel in self.channel_info
+        if (
+            self.mask_data is not None
+            and self.mask_data.real_flags is not None
+            and not any(
+                channel.id == ChannelID.REAL_USER_LAYER_MASK
+                for channel in self.channel_info
+            )
         ):
             logger.warning(
                 "Layer %r carries real user mask data but no "
@@ -691,8 +695,8 @@ class LayerRecord(BaseElement):
                 "back the same way.",
                 self.name,
             )
-        if self.mask_data and hasattr(self.mask_data, "write"):
-            written += self.mask_data.write(fp)  # type: ignore[attr-defined]
+        if self.mask_data is not None:
+            written += self.mask_data.write(fp)
         else:
             written += write_fmt(fp, "I", 0)
 
@@ -714,13 +718,31 @@ class LayerRecord(BaseElement):
 
     @property
     def channel_sizes(self) -> list[tuple[int, int]]:
-        """List of channel sizes: [(width, height)]."""
+        """
+        List of channel sizes: [(width, height)].
+
+        A mask channel is reported as ``(0, 0)`` whenever its extent is empty
+        or unknown: the record carries no mask block, the rectangle the channel
+        refers to is degenerate, or, for
+        :py:attr:`~psd_tools.constants.ChannelID.REAL_USER_LAYER_MASK`, the
+        record has no real user mask rectangle.
+        """
         sizes = []
         for channel in self.channel_info:
             if channel.id == ChannelID.USER_LAYER_MASK:
-                sizes.append((self.mask_data.width, self.mask_data.height))  # type: ignore[attr-defined]
+                mask_data = self.mask_data
+                sizes.append(
+                    (mask_data.width, mask_data.height)
+                    if mask_data is not None
+                    else (0, 0)
+                )
             elif channel.id == ChannelID.REAL_USER_LAYER_MASK:
-                sizes.append((self.mask_data.real_width, self.mask_data.real_height))  # type: ignore[attr-defined]
+                mask_data = self.mask_data
+                sizes.append(
+                    (mask_data.real_width, mask_data.real_height)
+                    if mask_data is not None
+                    else (0, 0)
+                )
             else:
                 sizes.append((self.width, self.height))
         return sizes
