@@ -149,6 +149,25 @@ def test_passthrough_group_opacity_over_transparent_backdrop(depth: int) -> None
     assert pixel == pytest.approx((0, 0, 255, 64), abs=2)
 
 
+@pytest.mark.parametrize("depth", [1, 2, 3])
+def test_passthrough_group_opacity_over_partial_backdrop(depth: int) -> None:
+    """The interpolation has to happen in premultiplied space, so a partially
+    transparent backdrop contributes in proportion to its own alpha.
+
+    This is the case the pre-#703 code got wrong even without nesting, because
+    it keyed off ``_shape_g`` rather than the backdrop alpha.
+    """
+    psd = _nested_passthrough_psd_with(
+        depth, opacity=128, layer_alpha=128, background_alpha=128
+    )
+    image = psd.composite(ignore_preview=True).convert("RGBA")
+    pixel = tuple(np.array(image, dtype=int)[4, 4])
+    # backdrop 0.5 red, group result 0.25 blue over it, group opacity 0.5:
+    #   alpha = union(0.5, 0.5 * 0.5)   = 0.625  -> 159
+    #   color = (0.375 * red + 0.25 * blue) / 0.625 = 0.6 red + 0.4 blue
+    assert pixel == pytest.approx((153, 0, 102, 159), abs=2)
+
+
 def _flat_psd(alpha: int, background_alpha: int) -> PSDImage:
     """The ungrouped counterpart of :py:func:`_nested_passthrough_psd`."""
     psd = PSDImage.new(mode="RGB", size=(8, 8))

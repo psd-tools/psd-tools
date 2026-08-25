@@ -402,6 +402,11 @@ class Compositor(object):
         # between the backdrop and that result by the group opacity/mask, which
         # must happen in premultiplied space so a transparent (or partially
         # transparent) backdrop does not bleed its color into the result.
+        #
+        # TODO: knockout is ignored here while _get_group() honors it, so a
+        # knockout pass-through group interpolates against a different backdrop
+        # than it was composited over. Photoshop effectively disables knockout
+        # for pass-through groups, so this combination is left unhandled.
         color_b = self._color
         alpha_b = self._alpha
 
@@ -418,7 +423,8 @@ class Compositor(object):
             np.where(
                 self._alpha > 0.0,
                 utils.divide(color_t, self._alpha),
-                # Fully transparent: keep the backdrop that ``color`` carries.
+                # Fully transparent, so the color is arbitrary; ``color`` merely
+                # avoids utils.divide()'s 0 / 0 -> 1.0 (white) fallback.
                 color,
             )
         )
