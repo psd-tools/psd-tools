@@ -4,10 +4,11 @@ from typing import Any, Optional
 import numpy as np
 import pytest
 
-from psd_tools.api.layers import GroupMixin
+from psd_tools.api.layers import GroupMixin, PixelLayer
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite
-from psd_tools.constants import CompatibilityMode
+from psd_tools.constants import BlendMode, CompatibilityMode, Tag
+from psd_tools.psd.base import ByteElement
 from PIL import Image
 
 from ..utils import full_name
@@ -76,6 +77,18 @@ def check_icc_composite_quality(
         ("opacity-fill.psd",),
         ("transparency/transparency-group.psd",),
         ("transparency/knockout-isolated-groups.psd",),
+        ("transparency/knockout-none-normal.psd",),
+        ("transparency/knockout-none-passthrough.psd",),
+        ("transparency/knockout-none-nested.psd",),
+        ("transparency/knockout-none-cyanbg.psd",),
+        ("transparency/knockout-shallow-nested.psd",),
+        ("transparency/knockout-shallow-nested-pt.psd",),
+        ("transparency/knockout-deep-normal.psd",),
+        ("transparency/knockout-deep-passthrough.psd",),
+        ("transparency/knockout-deep-nested.psd",),
+        ("transparency/knockout-deep-nested-pt.psd",),
+        ("transparency/knockout-deep-cyanbg.psd",),
+        ("transparency/knockout-deep-nobg.psd",),
         ("transparency/clip-opacity.psd",),
         ("transparency/fill-opacity.psd",),
         ("mask.psd",),
@@ -293,6 +306,109 @@ def test_apply_opacity() -> None:
     psd = PSDImage.open(full_name("opacity-fill.psd"))
     result = composite(psd)
     assert _mse(psd.numpy("shape"), result[2]) < 0.01
+
+
+# Photoshop-authored fixtures pinning Knockout semantics; see issue #707.
+#
+# Knockout has no visible effect while fill opacity is 100%, which is why the
+# pre-existing knockout-isolated-groups.psd fixture never exercised it. Every
+# fixture below therefore sets the knockout group's fill opacity to 50%.
+#
+# Each stack is: white Background / red BG / group. The "nested" fixtures put a
+# green sibling next to the knockout group inside an ``Outer`` group, so three
+# outcomes are distinguishable at the sampled pixel:
+#
+#   green  -> no knockout                          (composites over the sibling)
+#   red    -> knocked out to the enclosing group's backdrop
+#   white  -> knocked out to the document backdrop
+#
+# Expected values are Photoshop 2026's own rendering, sampled at (16, 16).
+_KNOCKOUT_CASES = [
+    # No knockout: the group simply composites over what is below it.
+    ("knockout-none-normal", (127, 0, 128)),
+    ("knockout-none-passthrough", (127, 0, 128)),
+    ("knockout-none-nested", (0, 127, 128)),
+    ("knockout-none-cyanbg", (127, 0, 128)),
+    # Shallow knockout stops at the enclosing group's backdrop (the red BG).
+    ("knockout-shallow-nested", (127, 0, 128)),
+    ("knockout-shallow-nested-pt", (127, 0, 128)),
+    # An isolated (non pass-through) ``Outer`` bounds deep knockout too, so this
+    # matches the shallow result rather than reaching the document backdrop.
+    ("knockout-deep-nested", (127, 0, 128)),
+    # Deep knockout reaches the document backdrop. The Background layer is part
+    # of that backdrop and is *not* knocked out -- knockout-deep-cyanbg pins
+    # this down, since a white Background cannot be told apart from knocking
+    # through to transparency and flattening onto white.
+    ("knockout-deep-cyanbg", (0, 127, 255)),
+    ("knockout-deep-normal", (127, 127, 255)),
+    # A knockout group renders the same whether or not it is pass-through:
+    # when knockout is set, the pass-through blend mode stops mattering.
+    ("knockout-deep-passthrough", (127, 127, 255)),
+    # ``Outer`` is pass-through here, so it is not an isolation boundary and
+    # deep knockout escapes it to reach the document backdrop.
+    ("knockout-deep-nested-pt", (127, 127, 255)),
+]
+
+
+@pytest.mark.parametrize(("name", "expected"), _KNOCKOUT_CASES)
+def test_composite_knockout(name: str, expected: tuple[int, int, int]) -> None:
+    psd = PSDImage.open(full_name(f"transparency/{name}.psd"))
+    image = psd.composite(ignore_preview=True)
+    assert image is not None
+    pixel = image.convert("RGBA").getpixel((16, 16))
+    assert isinstance(pixel, tuple)
+    # Every fixture has an opaque Background layer, so a correct render is
+    # opaque (254 rather than 255 after the compositor's rounding). Asserting
+    # this matters: knocking through to transparency would otherwise be masked
+    # by dropping the alpha channel before comparing.
+    assert pixel[3] >= 250, f"{name}: expected an opaque result, got alpha={pixel[3]}"
+    assert all(abs(a - b) <= 2 for a, b in zip(pixel[:3], expected)), (
+        f"{name}: Photoshop renders {expected}, psd-tools rendered {pixel[:3]}"
+    )
+
+
+def test_composite_knockout_without_background_layer() -> None:
+    """Deep knockout reaches full transparency when there is no Background layer.
+
+    This is the other half of the semantics pinned by knockout-deep-cyanbg: the
+    Background layer is the canvas, not an ordinary layer. The fixture is the
+    same stack with its Background converted to an ordinary layer, and Photoshop
+    knocks all the way through to transparency, removing both layers beneath.
+    """
+    psd = PSDImage.open(full_name("transparency/knockout-deep-nobg.psd"))
+    image = psd.composite(ignore_preview=True)
+    assert image is not None
+    r, g, b, a = image.convert("RGBA").getpixel((16, 16))  # type: ignore[misc]
+    # Photoshop renders (0, 0, 255, 128): pure blue at half alpha.
+    assert (r, g, b) == (0, 0, 255)
+    assert abs(a - 128) <= 2
+
+
+def test_composite_knockout_undefined_value(tmp_path: Any, caplog: Any) -> None:
+    """An undefined KNOCKOUT_SETTING byte degrades instead of raising.
+
+    The tagged block is a raw byte, so a corrupt or third-party file can carry a
+    value outside the Knockout enum. Compositing must not crash on it.
+    """
+    psd = PSDImage.new(mode="RGB", size=(8, 8))
+    psd.create_pixel_layer(image=Image.new("RGBA", (8, 8), (255, 0, 0, 255)), name="BG")
+    group = psd.create_group(name="G0")
+    group.blend_mode = BlendMode.NORMAL
+    group.tagged_blocks.set_data(Tag.KNOCKOUT_SETTING, ByteElement(7))
+    group.tagged_blocks.set_data(Tag.BLEND_FILL_OPACITY, ByteElement(128))
+    group.append(PixelLayer.frompil(Image.new("RGBA", (8, 8), (0, 0, 255, 255)), psd))
+
+    path = tmp_path / "undefined-knockout.psd"
+    psd.save(str(path))
+
+    with caplog.at_level(logging.WARNING, logger="psd_tools.composite.composite"):
+        image = PSDImage.open(str(path)).composite(ignore_preview=True)
+    assert image is not None
+    # Falls back to Knockout.NONE, i.e. renders as if the setting were absent.
+    assert image.convert("RGB").getpixel((4, 4)) == (127, 0, 128)
+    assert any(
+        "Unknown knockout setting" in record.message for record in caplog.records
+    )
 
 
 def test_composite_clipping_mask() -> None:

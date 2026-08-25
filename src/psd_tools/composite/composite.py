@@ -8,13 +8,21 @@ from PIL import Image
 
 from psd_tools.api import pil_io
 from psd_tools.api.layers import AdjustmentLayer, GroupMixin, Layer
+from psd_tools.api.protocols import LayerProtocol, PSDProtocol
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.api.utils import EXPECTED_CHANNELS, check_pixel_size
 from psd_tools.composite import paint, utils, vector
 from psd_tools.composite.adjustments import ADJUSTMENT_FUNC
 from psd_tools.composite.blend import BLEND_FUNC, normal
 from psd_tools.composite.effects import draw_stroke_effect
-from psd_tools.constants import BlendMode, ColorMode, Resource, Tag
+from psd_tools.constants import (
+    BlendMode,
+    ChannelID,
+    ColorMode,
+    Knockout,
+    Resource,
+    Tag,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -205,7 +213,15 @@ def composite(
 
     layer_filter = layer_filter or Layer.is_visible
 
-    compositor = Compositor(viewport, color, alpha, isolated, layer_filter, force)
+    compositor = Compositor(
+        viewport,
+        color,
+        alpha,
+        isolated,
+        layer_filter,
+        force,
+        document_backdrop=lambda: _document_backdrop(_psd, viewport),
+    )
     target_group = group if isinstance(group, GroupMixin) and not as_layer else [group]
     for layer in target_group:  # type: ignore
         compositor.apply(layer)  # type: ignore[arg-type]
@@ -238,6 +254,68 @@ def paste(
     b = (inter[0] - bbox[0], inter[1] - bbox[1], inter[2] - bbox[0], inter[3] - bbox[1])
     view[v[1] : v[3], v[0] : v[2], :] = values[b[1] : b[3], b[0] : b[2], :]
     return view
+
+
+def _is_background_layer(layer: "LayerProtocol") -> bool:
+    """Whether the layer is Photoshop's Background layer.
+
+    A Background layer is opaque by construction and carries no transparency
+    channel, which is what distinguishes it from an ordinary bottom layer that
+    merely happens to be fully opaque.
+    """
+    record = getattr(layer, "_record", None)
+    if record is None:
+        return False
+    return not any(
+        channel.id == ChannelID.TRANSPARENCY_MASK for channel in record.channel_info
+    )
+
+
+def _read_knockout(layer: Layer) -> Knockout:
+    """Read a layer's knockout setting, tolerating undefined values.
+
+    The tagged block is a raw byte, so a corrupt file -- or one written by a
+    future Photoshop or a third-party tool -- can carry a value outside the
+    enum. Fall back to NONE with a warning rather than raising: compositing a
+    malformed document should degrade, not crash.
+    """
+    value = layer.tagged_blocks.get_data(Tag.KNOCKOUT_SETTING, 0)
+    try:
+        return Knockout(value)
+    except ValueError:
+        logger.warning(
+            "Unknown knockout setting %r in %s; compositing without knockout",
+            value,
+            layer,
+        )
+        return Knockout.NONE
+
+
+def _document_backdrop(
+    psd: "PSDProtocol | None", viewport: tuple[int, int, int, int]
+) -> tuple[np.ndarray, np.ndarray] | None:
+    """The backdrop that deep knockout knocks out to.
+
+    Photoshop treats the Background layer as the canvas rather than as an
+    ordinary layer: deep knockout removes every ordinary layer beneath the
+    knockout group and stops there. Verified against Photoshop 2026 -- with the
+    Background converted to an ordinary layer, the same document knocks all the
+    way through to transparency instead.
+
+    Returns None when the document has no Background layer, in which case deep
+    knockout falls back to the compositor's own initial backdrop.
+    """
+    if psd is None or len(psd) == 0:
+        return None
+    bottom = psd[0]
+    if not _is_background_layer(bottom):
+        return None
+    color = bottom.numpy("color")
+    if color is None:
+        return None
+    color = paste(viewport, bottom.bbox, color, 1.0)
+    alpha = np.ones((color.shape[0], color.shape[1], 1), dtype=np.float32)
+    return color, alpha
 
 
 def _blend_backdrop(
@@ -286,12 +364,24 @@ class Compositor(object):
         layer_filter: Callable[[Layer], bool] | None = None,
         force: bool = False,
         adjustment_isolated: bool = False,
+        document_backdrop: Callable[[], tuple[np.ndarray, np.ndarray] | None]
+        | None = None,
     ):
         self._viewport = viewport
         self._layer_filter = layer_filter
         self._force = force
         self._clip_mask = 1.0
         self._adjustment_isolated = adjustment_isolated
+        # What Knockout.DEEP knocks out to. Inherited by pass-through
+        # sub-compositors and reset at every isolation boundary, so deep
+        # knockout escapes pass-through groups but stops at an isolated one.
+        # None means "this compositor's own initial backdrop".
+        #
+        # Resolved lazily: it decodes the Background layer, and the vast
+        # majority of documents never contain a deep knockout at all.
+        self._document_backdrop_fn = document_backdrop
+        self._document_backdrop_resolved = False
+        self._document_backdrop: tuple[np.ndarray, np.ndarray] | None = None
 
         if isolated:
             self._alpha_0 = np.zeros((self.height, self.width, 1), dtype=np.float32)
@@ -330,7 +420,7 @@ class Compositor(object):
             return
 
         is_adjustment_isolated = None
-        knockout = bool(layer.tagged_blocks.get_data(Tag.KNOCKOUT_SETTING, 0))
+        knockout = _read_knockout(layer)
         if isinstance(layer, AdjustmentLayer):
             self._apply_adjustment(layer)
             return
@@ -363,9 +453,13 @@ class Compositor(object):
                 color, shape * shape_const, alpha * shape_const, mask * shape_const
             )
         else:
+            # Fill opacity (``shape_const``) scales how much the source
+            # contributes, but under knockout the hole is punched by the
+            # source's full coverage -- so ``shape`` stays unscaled there and
+            # ``(1 - shape)`` in _apply_source() removes the whole backdrop.
             self._apply_source(
                 color,
-                shape * shape_const,
+                shape if knockout else shape * shape_const,
                 alpha * shape_const,
                 layer.blend_mode,
                 knockout,
@@ -428,31 +522,59 @@ class Compositor(object):
             )
         )
 
+    def _resolve_document_backdrop(self) -> tuple[np.ndarray, np.ndarray] | None:
+        if not self._document_backdrop_resolved:
+            self._document_backdrop_resolved = True
+            if self._document_backdrop_fn is not None:
+                self._document_backdrop = self._document_backdrop_fn()
+        return self._document_backdrop
+
+    def _knockout_backdrop(
+        self, knockout: Knockout, color: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """The (color, alpha) pair that ``knockout`` knocks out to.
+
+        SHALLOW knocks out to this compositor's own initial backdrop, i.e. the
+        enclosing group's. DEEP knocks out to the document backdrop, which is
+        inherited across pass-through groups and reset at isolation boundaries;
+        where there is none it degrades to the same backdrop as SHALLOW.
+        """
+        if knockout == Knockout.DEEP:
+            resolved = self._resolve_document_backdrop()
+            if resolved is not None:
+                color_b, alpha_b = resolved
+                if color_b.shape[2] == 1 and 1 < color.shape[2]:
+                    color_b = np.repeat(color_b, color.shape[2], axis=2)
+                return color_b, alpha_b
+        return self._color_0, self._alpha_0
+
     def _apply_source(
         self,
         color: np.ndarray,
         shape: np.ndarray,
         alpha: np.ndarray,
         blend_mode: BlendMode,
-        knockout: bool = False,
+        knockout: Knockout = Knockout.NONE,
     ) -> None:
         if self._color_0.shape[2] == 1 and 1 < color.shape[2]:
             self._color_0 = np.repeat(self._color_0, color.shape[2], axis=2)
         if self._color.shape[2] == 1 and 1 < color.shape[2]:
             self._color = np.repeat(self._color, color.shape[2], axis=2)
 
+        knockout_color, knockout_alpha = self._knockout_backdrop(knockout, color)
+
         self._shape_g = cast(np.ndarray, utils.union(self._shape_g, shape))
         if knockout:
             self._alpha_g = (
-                (1.0 - shape) * self._alpha_g + (shape - alpha) * self._alpha_0 + alpha
+                (1.0 - shape) * self._alpha_g + (shape - alpha) * knockout_alpha + alpha
             )
         else:
             self._alpha_g = cast(np.ndarray, utils.union(self._alpha_g, alpha))
         alpha_previous = self._alpha
         self._alpha = cast(np.ndarray, utils.union(self._alpha_0, self._alpha_g))
 
-        alpha_b = self._alpha_0 if knockout else alpha_previous
-        color_b = self._color_0 if knockout else self._color
+        alpha_b = knockout_alpha if knockout else alpha_previous
+        color_b = knockout_color if knockout else self._color
 
         blend_fn = BLEND_FUNC.get(blend_mode, normal)
         color_t = (shape - alpha) * alpha_b * color_b + alpha * (
@@ -535,7 +657,7 @@ class Compositor(object):
         return self._alpha_g
 
     def _get_group(
-        self, layer: Layer, knockout: bool
+        self, layer: Layer, knockout: Knockout
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, bool]:
         is_passthrough = layer.blend_mode == BlendMode.PASS_THROUGH
         viewport = (
@@ -544,8 +666,7 @@ class Compositor(object):
             else utils.intersect(self._viewport, layer.bbox)
         )
         if knockout:
-            color_b = self._color_0
-            alpha_b = self._alpha_0
+            color_b, alpha_b = self._knockout_backdrop(knockout, self._color_0)
         else:
             color_b = self._color
             alpha_b = self._alpha
@@ -553,6 +674,24 @@ class Compositor(object):
         # adjustments don't pass-through layers if the group layer has clip layers or its fill attribute is not 100.
         shape_const, _ = self._get_const(layer)
         isolate_adjustments = shape_const < 1.0 or layer.has_clip_layers()
+
+        # A pass-through group is not an isolation boundary, so deep knockout
+        # inside it still reaches the document backdrop; an isolated group is,
+        # so deep knockout there stops at the group's own backdrop.
+        document_backdrop = None
+        if is_passthrough and self._document_backdrop_fn is not None:
+            parent_viewport = self._viewport
+            resolve_parent = self._resolve_document_backdrop
+
+            def document_backdrop() -> tuple[np.ndarray, np.ndarray] | None:
+                resolved = resolve_parent()
+                if resolved is None:
+                    return None
+                backdrop_color, backdrop_alpha = resolved
+                return (
+                    paste(viewport, parent_viewport, backdrop_color, 1.0),
+                    paste(viewport, parent_viewport, backdrop_alpha),
+                )
 
         group_compositor = Compositor(
             viewport,
@@ -562,6 +701,7 @@ class Compositor(object):
             layer_filter=self._layer_filter,
             force=self._force,
             adjustment_isolated=self._adjustment_isolated or isolate_adjustments,
+            document_backdrop=document_backdrop,
         )
 
         for sublayer in cast(GroupMixin, layer):

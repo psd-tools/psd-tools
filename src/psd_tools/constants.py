@@ -20,6 +20,24 @@ class CompatibilityMode(Enum):
     DEFAULT = PHOTOSHOP
 
 
+class Knockout(IntEnum):
+    """
+    Knockout setting of a layer or group.
+
+    Stored in the :py:attr:`Tag.KNOCKOUT_SETTING` tagged block. Knockout makes a
+    layer punch a hole through what is beneath it, down to a backdrop chosen by
+    this setting. It only becomes visible when the layer's fill opacity is below
+    100%: at 100% the layer's own content exactly refills the hole it punched.
+    """
+
+    NONE = 0
+    SHALLOW = 1
+    """Knock out to the enclosing group's backdrop."""
+    DEEP = 2
+    """Knock out to the document backdrop, passing through any enclosing
+    pass-through groups but stopping at an isolated (non pass-through) one."""
+
+
 class ColorMode(IntEnum):
     """
     Color mode.
