@@ -211,28 +211,46 @@ def test_mask_data_rw(fixture: bytes) -> None:
     check_read_write(MaskData, fixture)
 
 
-def test_mask_data_truncated_parameters(caplog: pytest.LogCaptureFixture) -> None:
-    """Regression test: MaskData with truncated MaskParameters should not crash.
+# Mask data captured from the sample file attached to #573. The layer has
+# channels [-1, 0, 1, 2, -2] and no REAL_USER_LAYER_MASK channel, so the block
+# carries no real mask header and its 19-byte MaskParameters payload fills it
+# exactly: 18 + 19 + 1 byte of padding = 38.
+MASK_DATA_573 = (
+    b"\x00\x00\x00\x26"
+    b"\x00\x00\x03\x8b\x00\x00\x00\xdb\x00\x00\x03\xad\x00\x00\x02\x8c"
+    b"\x00\x18\x0f\xff\x00\x00\x00\x00\x00\x00\x00\x00\xff\x40\x36\xcc"
+    b"\xcc\xcc\xcc\xcc\xcd\x00"
+)
 
-    Some third-party PSD writers (e.g. game asset exporters on Windows) write a
-    MaskData block with parameters_applied=True but only a partial MaskParameters
-    payload, filling the remainder with uninitialized memory (MSVC debug patterns
-    0xCC/0xCD). psd-tools should tolerate this rather than raising OSError.
+
+def test_mask_data_parameters_573_sample() -> None:
+    """The #573 sample is not truncated data, it is the #693 bug.
+
+    The trailing ``cc cc cc cc cc cd`` bytes are the IEEE-754 mantissa of 22.8,
+    not uninitialized memory from a third-party writer. Reading them as part of
+    a real mask header is what made the block look truncated.
     """
-    fixture = (
-        b"\x00\x00\x00\x26"
-        b"\x00\x00\x03\x8b\x00\x00\x00\xdb\x00\x00\x03\xad\x00\x00\x02\x8c"
-        b"\x00\x18\x0f\xff\x00\x00\x00\x00\x00\x00\x00\x00\xff\x40\x36\xcc"
-        b"\xcc\xcc\xcc\xcc\xcd\x00"
-    )
+    with io.BytesIO(MASK_DATA_573) as f:
+        mask_data = MaskData.read(f, has_real_mask=False)
+    assert mask_data is not None
+    assert mask_data.flags.parameters_applied
+    assert mask_data.real_flags is None
+    assert mask_data.parameters == MaskParameters(255, 0.0, 255, 22.8)
+
+
+def test_mask_data_truncated_parameters(caplog: pytest.LogCaptureFixture) -> None:
+    """Without a channel list, the ambiguous length heuristic must not crash.
+
+    Callers that read a MaskData block on its own cannot know whether a real
+    mask header is present, so they fall back to the length heuristic and can
+    still misread a block like this one. That must degrade to a warning rather
+    than raise (#573).
+    """
     with caplog.at_level(logging.WARNING):
-        with io.BytesIO(fixture) as f:
+        with io.BytesIO(MASK_DATA_573) as f:
             mask_data = MaskData.read(f)
     assert mask_data is not None
     assert mask_data.flags.parameters_applied
-    assert mask_data.parameters is not None
-    assert mask_data.parameters.user_mask_density == 0
-    assert mask_data.parameters.vector_mask_density is None
     assert "Truncated MaskParameters" in caplog.text
 
 
@@ -292,6 +310,18 @@ def test_mask_data_real_mask_detection(
     for i, key in enumerate(PARAMETER_FIELDS):
         expected = PARAMETER_VALUES[key] if parameter_bits & (1 << i) else None
         assert getattr(mask_data.parameters, key) == expected
+
+
+def test_mask_data_short_block_ignores_real_mask_flag() -> None:
+    """A -3 channel cannot imply a real mask header the block has no room for."""
+    body = _build_mask_data_body(has_real_mask=False, parameter_bits=0)
+    assert len(body) == 20
+
+    with io.BytesIO(body) as f:
+        mask_data = MaskData._read_body(f, len(body), has_real_mask=True)
+
+    assert mask_data.real_flags is None
+    assert mask_data.parameters is None
 
 
 def test_mask_data_parameters_without_real_mask() -> None:
@@ -361,6 +391,47 @@ def test_layer_record_rw_parameters_without_real_mask() -> None:
     assert isinstance(parsed.mask_data, MaskData)
     assert parsed.mask_data.real_flags is None
     assert parsed.mask_data.parameters == parameters
+
+
+def test_layer_record_rw_parameters_with_real_mask() -> None:
+    """The real mask header round-trips when the -3 channel is present."""
+    parameters = MaskParameters(200, 3.5, 100, 7.25)
+    mask_data = MaskData(
+        top=100,
+        left=100,
+        bottom=500,
+        right=500,
+        background_color=255,
+        flags=MaskFlags(parameters_applied=True),
+        parameters=parameters,
+        real_flags=MaskFlags(parameters_applied=True),
+        real_background_color=255,
+        real_top=90,
+        real_left=90,
+        real_bottom=510,
+        real_right=510,
+    )
+    record = LayerRecord(
+        top=100,
+        left=100,
+        bottom=500,
+        right=500,
+        channel_info=[
+            ChannelInfo(id=ChannelID.CHANNEL_0, length=2),
+            ChannelInfo(id=ChannelID.USER_LAYER_MASK, length=2),
+            ChannelInfo(id=ChannelID.REAL_USER_LAYER_MASK, length=2),
+        ],
+        mask_data=mask_data,
+        name="real mask",
+    )
+    with io.BytesIO() as f:
+        record.write(f)
+        data = f.getvalue()
+    with io.BytesIO(data) as f:
+        parsed = LayerRecord.read(f)
+
+    assert isinstance(parsed.mask_data, MaskData)
+    assert parsed.mask_data == mask_data
 
 
 def test_mask_parameters() -> None:

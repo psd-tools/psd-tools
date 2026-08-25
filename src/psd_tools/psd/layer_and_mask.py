@@ -608,7 +608,7 @@ class LayerRecord(BaseElement):
         )
         with io.BytesIO(data) as f:
             mask_data, blending_ranges, name, tagged_blocks = cls._read_extra(
-                f, encoding, version, has_real_mask
+                f, encoding, version, has_real_mask=has_real_mask
             )
             self = cls(
                 top=top,
@@ -681,6 +681,16 @@ class LayerRecord(BaseElement):
 
     def _write_extra(self, fp: IO[bytes], encoding: str, version: int) -> int:
         written = 0
+        if getattr(self.mask_data, "real_flags", None) is not None and not any(
+            channel.id == ChannelID.REAL_USER_LAYER_MASK
+            for channel in self.channel_info
+        ):
+            logger.warning(
+                "Layer %r carries real user mask data but no "
+                "REAL_USER_LAYER_MASK channel; the mask block will not read "
+                "back the same way.",
+                self.name,
+            )
         if self.mask_data and hasattr(self.mask_data, "write"):
             written += self.mask_data.write(fp)  # type: ignore[attr-defined]
         else:
@@ -785,6 +795,13 @@ class MaskData(BaseElement):
     Mask data.
 
     Real user mask is a final composite mask of vector and pixel masks.
+
+    The real user mask fields (:py:attr:`real_flags`,
+    :py:attr:`real_background_color` and the ``real_*`` rectangle) are present
+    only when the owning :py:class:`.LayerRecord` also carries a
+    :py:attr:`~psd_tools.constants.ChannelID.REAL_USER_LAYER_MASK` channel.
+    Keep the two in sync when building a record by hand, otherwise the written
+    mask block cannot be parsed back.
 
     .. py:attribute:: top
 
@@ -1012,7 +1029,7 @@ class MaskParameters(BaseElement):
     def read(
         cls: type[T_MaskParameters], fp: IO[bytes], **kwargs: Any
     ) -> T_MaskParameters:
-        parameters = 0
+        parameters: int | None = None
         user_mask_density = None
         user_mask_feather = None
         vector_mask_density = None
@@ -1029,8 +1046,8 @@ class MaskParameters(BaseElement):
                 vector_mask_feather = read_fmt("d", fp)[0]
         except OSError as exc:
             logger.warning(
-                "Truncated MaskParameters data (parameters=0x%02x); some fields will be missing: %s",
-                parameters,
+                "Truncated MaskParameters data (parameters=%s); some fields will be missing: %s",
+                "unknown" if parameters is None else "0x%02x" % parameters,
                 exc,
             )
         return cls(
