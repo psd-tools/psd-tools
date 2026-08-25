@@ -1063,10 +1063,8 @@ class Compositor(object):
             if fill is None:
                 logger.debug("Skipping undrawable pattern overlay in %s", layer)
                 continue
-            color = fill
-            if color.shape[-1] == 1 and color.shape[-1] < channels:
-                # Pattern has different # color channels here.
-                color = np.full([layer.height, layer.width, channels], color)
+            # A grayscale pattern over a multi-channel canvas.
+            color = _widen(fill, channels)
             assert color.shape[-1] == channels, "Inconsistent pattern channels."
 
             color = paste(self._viewport, layer.bbox, color, 1.0)
@@ -1104,10 +1102,12 @@ class Compositor(object):
     ) -> None:
         for effect in _styled(layer.effects.find("stroke")):
             # ``shape`` is _get_mask()'s output, which is a bare 1.0 for a layer
-            # with no mask -- and paste() needs a canvas. Materializing it here
-            # is cheap because it only happens once a stroke effect exists.
+            # with no mask -- and paste() needs something with a channel axis.
+            # broadcast_to gives a stride-0 view rather than a canvas: paste()
+            # only reads from it, and the full-viewport array it would otherwise
+            # allocate is discarded by the very next line.
             if not isinstance(shape, np.ndarray):
-                shape = np.full((self.height, self.width, 1), shape, dtype=np.float32)
+                shape = np.broadcast_to(np.float32(shape), (self.height, self.width, 1))
             # Effect must happen at the layer viewport.
             shape_in_bbox = paste(layer.bbox, self._viewport, shape)
             color, shape_in_bbox = draw_stroke_effect(
