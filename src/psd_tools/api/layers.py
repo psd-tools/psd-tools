@@ -744,7 +744,7 @@ class Layer(LayerProtocol):
         self,
         viewport: tuple[int, int, int, int] | None = None,
         force: bool = False,
-        color: float | tuple[float, ...] | np.ndarray = 1.0,
+        color: float | Sequence[float] | np.ndarray = 1.0,
         alpha: float | np.ndarray = 0.0,
         layer_filter: Callable | None = None,
         apply_icc: bool = True,
@@ -755,7 +755,8 @@ class Layer(LayerProtocol):
         :param viewport: Viewport bounding box specified by (x1, y1, x2, y2)
             tuple. Default is the layer's bbox.
         :param force: Boolean flag to force vector drawing.
-        :param color: Backdrop color specified by scalar or tuple of scalar.
+        :param color: Backdrop color, as a scalar, a per-channel sequence, or a
+            full ``(height, width, channels)`` array.
             The color value should be in [0.0, 1.0]. For example, (1., 0., 0.)
             specifies red in RGB color mode.
         :param alpha: Backdrop alpha in [0.0, 1.0].
@@ -1415,7 +1416,7 @@ class Group(GroupMixin, Layer):
         self,
         viewport: tuple[int, int, int, int] | None = None,
         force: bool = False,
-        color: float | tuple[float, ...] | np.ndarray = 1.0,
+        color: float | Sequence[float] | np.ndarray = 1.0,
         alpha: float | np.ndarray = 0.0,
         layer_filter: Callable | None = None,
         apply_icc: bool = True,
@@ -1426,7 +1427,8 @@ class Group(GroupMixin, Layer):
         :param viewport: Viewport bounding box specified by (x1, y1, x2, y2)
             tuple. Default is the layer's bbox.
         :param force: Boolean flag to force vector drawing.
-        :param color: Backdrop color specified by scalar or tuple of scalar.
+        :param color: Backdrop color, as a scalar, a per-channel sequence, or a
+            full ``(height, width, channels)`` array.
             The color value should be in [0.0, 1.0]. For example, (1., 0., 0.)
             specifies red in RGB color mode.
         :param alpha: Backdrop alpha in [0.0, 1.0].
@@ -1616,7 +1618,7 @@ class Artboard(Group):
         self,
         viewport: tuple[int, int, int, int] | None = None,
         force: bool = False,
-        color: float | tuple[float, ...] | np.ndarray | None = None,
+        color: float | Sequence[float] | np.ndarray | None = None,
         alpha: float | np.ndarray | None = None,
         layer_filter: Callable | None = None,
         apply_icc: bool = True,

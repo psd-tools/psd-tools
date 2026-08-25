@@ -12,6 +12,30 @@ Changelog
   record length alone. ``MaskData`` misidentified its presence, so
   ``user_mask_density``, ``user_mask_feather``, ``vector_mask_density`` and
   ``vector_mask_feather`` returned ``None`` for affected files (#693, #704).
+- [fix] Accept every scalar spelling of the composite backdrop. ``color=1`` and
+  ``color=np.float32(1.0)`` raised ``TypeError`` because only ``float`` was
+  recognised as a scalar. The backdrop is now normalised once at the API
+  boundary rather than reinterpreted at each point of use (#708, #709).
+- [fix] Recognise a transparent backdrop given as a NumPy scalar or a 0-d
+  array. Compositing a document with no layers used ``alpha=np.float32(0.0)``
+  as if it were opaque, which whitened every uncovered pixel (#708).
+- [fix] Composite a layerless multichannel document over a backdrop. The
+  backdrop was sized from ``EXPECTED_CHANNELS``, which reports 64 channels for
+  multichannel documents regardless of how many the file actually carries, so
+  the blend raised ``ValueError`` (#708).
+- [api] Widen the ``color`` parameter of ``composite()``, ``composite_pil()``,
+  ``Layer.composite()``, ``Group.composite()``, ``Artboard.composite()`` and
+  ``PSDImage.composite()`` -- and of ``LayerProtocol`` and ``PSDProtocol`` --
+  from ``float | tuple[float, ...] | np.ndarray`` to
+  ``float | Sequence[float] | np.ndarray``, matching what is accepted at
+  runtime. This is a widening; existing calls are unaffected (#708).
+
+  **Backwards incompatible**: a per-channel backdrop whose length disagrees
+  with the document's colour mode now raises ``ValueError`` instead of being
+  silently accepted. ``psd.composite(color=(1.0, 1.0, 1.0))`` against a
+  grayscale or bitmap document previously produced a three-channel result that
+  was then reduced to its first channel; pass a scalar, or a sequence matching
+  ``psd.color_mode``.
 - [fix] Implement Knockout compositing (#707). Groups and layers with Knockout
   enabled previously rendered as if the setting were absent. Shallow knockout
   now punches through to the enclosing group's backdrop, and deep knockout to

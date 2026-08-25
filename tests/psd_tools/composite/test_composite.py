@@ -277,6 +277,121 @@ def test_composite_pil(
         assert isinstance(layer.composite(apply_icc=apply_icc), Image.Image)
 
 
+_BACKDROP_SPELLINGS = [
+    pytest.param(1, id="int"),
+    pytest.param(1.0, id="float"),
+    pytest.param(np.float32(1.0), id="numpy-scalar"),
+    pytest.param(np.int64(1), id="numpy-int"),
+    pytest.param((1.0, 1.0, 1.0), id="tuple"),
+    pytest.param([1.0, 1.0, 1.0], id="list"),
+    pytest.param(np.ones((4, 4, 3), dtype=np.float32), id="ndarray"),
+]
+
+
+@pytest.mark.parametrize("color", _BACKDROP_SPELLINGS)
+def test_composite_backdrop_spellings_agree(color: Any) -> None:
+    """Every accepted spelling of the same white backdrop must composite alike.
+
+    Regression test for #709: ``color=1`` and ``color=np.float32(1.0)`` raised
+    ``TypeError`` because only ``float`` was recognised as a scalar.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_rgb.psd"))
+    reference, _, _ = composite(psd, color=1.0)
+    result, _, _ = composite(psd, color=color)
+    assert result.shape == reference.shape
+    assert np.array_equal(result, reference)
+
+
+@pytest.mark.parametrize("color", [1, 1.0, np.float32(1.0), (1.0,), [1.0]])
+def test_composite_backdrop_spellings_agree_grayscale(color: Any) -> None:
+    """Same as above for a single-channel document."""
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_grayscale.psd"))
+    reference, _, _ = composite(psd, color=1.0)
+    result, _, _ = composite(psd, color=color)
+    assert result.shape == reference.shape
+    assert np.array_equal(result, reference)
+
+
+@pytest.mark.parametrize("alpha", [1, 1.0, np.float32(1.0)])
+def test_composite_backdrop_alpha_spellings_agree(alpha: Any) -> None:
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_rgba.psd"))
+    reference, _, _ = composite(psd, color=0.0, alpha=1.0)
+    result, _, _ = composite(psd, color=0.0, alpha=alpha)
+    assert np.array_equal(result, reference)
+
+
+@pytest.mark.parametrize("alpha", [0, 0.0, np.float32(0.0), np.array(0.0)])
+def test_composite_transparent_backdrop_is_skipped_in_any_spelling(
+    alpha: Any,
+) -> None:
+    """A transparent backdrop must be recognised however it is spelled.
+
+    The zero-layer path skips the blend for a transparent backdrop, because
+    blending it in anyway sends ``utils.divide`` down its 0 / 0 -> 1.0 branch
+    and whitens every uncovered pixel. The old guard tested for ``int`` and
+    ``float`` only, so a NumPy scalar took the blend and came back white.
+    """
+    psd = PSDImage.new("RGBA", (4, 4), color=(0, 0, 0, 0))
+    assert len(psd) == 0
+    result, _, _ = composite(psd, color=1.0, alpha=alpha)
+    assert np.array_equal(result, np.zeros_like(result))
+
+
+def test_composite_backdrop_rejects_a_mismatched_channel_count() -> None:
+    """A wrong-width backdrop is an error rather than a silently odd canvas."""
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_rgb.psd"))
+    with pytest.raises(ValueError, match="cannot be expanded"):
+        composite(psd, color=(1.0, 0.0))
+
+
+def test_composite_backdrop_rejects_a_wrong_width_sequence_for_the_color_mode() -> None:
+    """**Backwards incompatible.** A 3-tuple over a 1-channel document raises.
+
+    This used to produce a three-channel result for a grayscale document,
+    which ``composite_pil`` then silently reduced by taking channel 0. Pinned
+    deliberately: the loud failure is the intent, not an accident.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_grayscale.psd"))
+    with pytest.raises(ValueError, match="cannot be expanded"):
+        composite(psd, color=(1.0, 1.0, 1.0), alpha=1.0)
+
+
+def test_composite_does_not_mutate_a_caller_supplied_backdrop() -> None:
+    """The compositor stores the caller's array; it must never write to it."""
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_rgb.psd"))
+    backdrop = np.full((psd.height, psd.width, 3), 0.25, dtype=np.float32)
+    composite(psd, color=backdrop, alpha=1.0)
+    assert np.array_equal(backdrop, np.full_like(backdrop, 0.25))
+
+
+def test_composite_empty_document_backdrop() -> None:
+    """The zero-layer path normalizes its backdrop like any other.
+
+    It is reached before any layer exists, so it sizes the backdrop from the
+    preview array rather than from the color mode.
+    """
+    psd = PSDImage.new("RGB", (4, 4), color=0)
+    assert len(psd) == 0
+    reference, _, _ = composite(psd, color=1.0, alpha=1.0)
+    spellings: list[Any] = [1, np.float32(1.0), (1.0, 1.0, 1.0)]
+    for color in spellings:
+        result, _, _ = composite(psd, color=color, alpha=1.0)
+        assert np.array_equal(result, reference), color
+
+
+def test_composite_layerless_multichannel_over_a_backdrop() -> None:
+    """A multichannel document has more channels than its color mode predicts.
+
+    ``EXPECTED_CHANNELS[MULTICHANNEL]`` is 64, so sizing the backdrop from the
+    color mode could not be blended against the document's own array and raised
+    ``ValueError``. The zero-layer path sizes from that array instead.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_16bit_multichannel.psd"))
+    assert len(psd) == 0
+    color, _, _ = composite(psd, color=1.0, alpha=1.0)
+    assert color.shape == (psd.height, psd.width, psd.numpy("color").shape[2])
+
+
 def test_composite_layer_filter() -> None:
     psd = PSDImage.open(full_name("colormodes/4x4_8bit_rgba.psd"))
     # Check layer_filter.
