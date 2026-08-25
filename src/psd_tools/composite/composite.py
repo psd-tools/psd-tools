@@ -363,9 +363,13 @@ class Compositor(object):
                 color, shape * shape_const, alpha * shape_const, mask * shape_const
             )
         else:
+            # Fill opacity (``shape_const``) scales how much the source
+            # contributes, but under knockout the hole is punched by the
+            # source's full coverage -- so ``shape`` stays unscaled there and
+            # ``(1 - shape)`` in _apply_source() removes the whole backdrop.
             self._apply_source(
                 color,
-                shape * shape_const,
+                shape if knockout else shape * shape_const,
                 alpha * shape_const,
                 layer.blend_mode,
                 knockout,
