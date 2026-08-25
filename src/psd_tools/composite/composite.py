@@ -345,6 +345,20 @@ def _uniform_alpha(alpha: float | np.ndarray) -> float | None:
     return float(alpha) if np.ndim(alpha) == 0 else None
 
 
+def _widen(color: np.ndarray, channels: int) -> np.ndarray:
+    """Replicate a single-channel canvas across ``channels``.
+
+    A grayscale source inside an RGB document arrives one channel wide.
+    Broadcasting would handle it in the blend arithmetic, but the compositor's
+    own canvases have to be a fixed width for their whole lifetime, so a
+    backdrop is widened once at the point it is handed over rather than
+    repeatedly patched mid-composite.
+    """
+    if color.shape[2] == 1 and 1 < channels:
+        return np.repeat(color, channels, axis=2)
+    return color
+
+
 def _to_canvas(
     value: float | Sequence[float] | np.ndarray,
     shape: tuple[int, int, int],
@@ -353,13 +367,13 @@ def _to_canvas(
 ) -> np.ndarray:
     """Expand a backdrop component to a full ``(height, width, channels)`` array.
 
-    An array that is already per-pixel is taken as given. Its channel count is
-    allowed to differ from the document's, because the compositor widens a
-    single-channel backdrop on demand; ``exact_channels`` withdraws that
-    licence for alpha, which is single-channel by definition and would
-    otherwise reach ``composite_pil()`` and be concatenated into a color array
-    of the wrong width. Anything else (a scalar, a per-channel sequence) is
-    broadcast.
+    An array that is already per-pixel is taken as given, except that a
+    single-channel one is widened to the document's channel count: the
+    compositor's canvases keep a fixed width for their whole lifetime.
+    ``exact_channels`` rejects any mismatch outright instead, for alpha, which
+    is single-channel by definition and would otherwise reach
+    ``composite_pil()`` and be concatenated into a color array of the wrong
+    width. Anything else (a scalar, a per-channel sequence) is broadcast.
     """
     array = np.asarray(value, dtype=np.float32)
     if array.ndim == 3:
@@ -373,6 +387,16 @@ def _to_canvas(
                 "Backdrop %s covers %r, expected %r to match the viewport"
                 % (name, array.shape[:2], shape[:2])
             )
+        elif array.shape[2] not in (1, shape[2]):
+            # A single channel replicates; any other width has no reading, and
+            # left alone it would surface as a broadcast error from inside the
+            # blend arithmetic instead.
+            raise ValueError(
+                "Backdrop %s has %d channels, expected 1 or %d for this "
+                "color mode" % (name, array.shape[2], shape[2])
+            )
+        else:
+            array = _widen(array, shape[2])
         return array
     try:
         return np.full(shape, array, dtype=np.float32)
@@ -443,6 +467,11 @@ class Compositor(object):
     transparent backdrop, which the caller expresses by passing a zero
     ``alpha`` -- so that canvas is never built only to be discarded.
 
+    ``color``'s channel count becomes ``self.channels`` and is fixed for this
+    compositor's lifetime, so a caller handing over a canvas narrower than the
+    document must widen it first (``_widen()``). A narrow *source* is fine --
+    the blend arithmetic broadcasts it -- and must not change the width.
+
     Example::
 
         color, alpha = _normalize_backdrop(1.0, 0.0, height, width, channels)
@@ -479,8 +508,23 @@ class Compositor(object):
         self._document_backdrop_resolved = False
         self._document_backdrop: tuple[np.ndarray, np.ndarray] | None = None
 
+        # Preconditions rather than documentation: the whole point of fixing
+        # the channel count is that nothing downstream has to re-check it.
+        assert color.ndim == 3, "backdrop color must be a (h, w, c) canvas"
+        assert color.shape[:2] == (self.height, self.width), (
+            "backdrop color %r does not cover viewport %r"
+            % (color.shape, self._viewport)
+        )
+        assert alpha.shape == (self.height, self.width, 1), (
+            "backdrop alpha %r must be single-channel over viewport %r"
+            % (alpha.shape, self._viewport)
+        )
+
         self._alpha_0 = alpha
         self._color_0 = color
+        # The channel count is fixed for this compositor's lifetime; every
+        # canvas it hands to or takes from the blend equations is this wide.
+        self._channels = color.shape[2]
 
         self._shape_g = np.zeros((self.height, self.width, 1), dtype=np.float32)
         self._alpha_g = np.zeros((self.height, self.width, 1), dtype=np.float32)
@@ -567,11 +611,7 @@ class Compositor(object):
         alpha: np.ndarray,
         mask: float | np.ndarray,
     ) -> None:
-        if self._color_0.shape[2] == 1 and 1 < color.shape[2]:
-            self._color_0 = np.repeat(self._color_0, color.shape[2], axis=2)
-        if self._color.shape[2] == 1 and 1 < color.shape[2]:
-            self._color = np.repeat(self._color, color.shape[2], axis=2)
-
+        self._assert_source_fits(color)
         # ``color`` is the group already composited over this backdrop, because a
         # pass-through group is rendered by a non-isolated sub-compositor seeded
         # with the backdrop. Re-applying the group therefore means interpolating
@@ -604,16 +644,39 @@ class Compositor(object):
             )
         )
 
+    def _assert_source_fits(self, color: np.ndarray) -> None:
+        """Check the fixed-width invariant where a source meets the canvases.
+
+        The blend arithmetic broadcasts a single-channel source, but a *wider*
+        one would silently widen ``_color`` and leave ``channels`` stale. That
+        is what the deleted ``np.repeat`` fixups used to paper over, so this is
+        the assertion that keeps them deleted: it fires if a caller ever builds
+        a compositor narrower than the sources it will be given.
+        """
+        assert self._color.shape[2] == self._channels, (
+            "canvas widened to %d channels, expected %d"
+            % (self._color.shape[2], self._channels)
+        )
+        assert color.shape[2] in (1, self._channels), (
+            "source has %d channels, expected 1 or %d"
+            % (color.shape[2], self._channels)
+        )
+
     def _resolve_document_backdrop(self) -> tuple[np.ndarray, np.ndarray] | None:
         if not self._document_backdrop_resolved:
             self._document_backdrop_resolved = True
             if self._document_backdrop_fn is not None:
-                self._document_backdrop = self._document_backdrop_fn()
+                resolved = self._document_backdrop_fn()
+                if resolved is not None:
+                    # The Background layer can be narrower than the document
+                    # it sits in; widen once here so knockout hands back a
+                    # backdrop of this compositor's width like any other.
+                    color_b, alpha_b = resolved
+                    resolved = (_widen(color_b, self.channels), alpha_b)
+                self._document_backdrop = resolved
         return self._document_backdrop
 
-    def _knockout_backdrop(
-        self, knockout: Knockout, color: np.ndarray
-    ) -> tuple[np.ndarray, np.ndarray]:
+    def _knockout_backdrop(self, knockout: Knockout) -> tuple[np.ndarray, np.ndarray]:
         """The (color, alpha) pair that ``knockout`` knocks out to.
 
         SHALLOW knocks out to this compositor's own initial backdrop, i.e. the
@@ -624,10 +687,7 @@ class Compositor(object):
         if knockout == Knockout.DEEP:
             resolved = self._resolve_document_backdrop()
             if resolved is not None:
-                color_b, alpha_b = resolved
-                if color_b.shape[2] == 1 and 1 < color.shape[2]:
-                    color_b = np.repeat(color_b, color.shape[2], axis=2)
-                return color_b, alpha_b
+                return resolved
         return self._color_0, self._alpha_0
 
     def _apply_source(
@@ -638,12 +698,8 @@ class Compositor(object):
         blend_mode: BlendMode,
         knockout: Knockout = Knockout.NONE,
     ) -> None:
-        if self._color_0.shape[2] == 1 and 1 < color.shape[2]:
-            self._color_0 = np.repeat(self._color_0, color.shape[2], axis=2)
-        if self._color.shape[2] == 1 and 1 < color.shape[2]:
-            self._color = np.repeat(self._color, color.shape[2], axis=2)
-
-        knockout_color, knockout_alpha = self._knockout_backdrop(knockout, color)
+        self._assert_source_fits(color)
+        knockout_color, knockout_alpha = self._knockout_backdrop(knockout)
 
         self._shape_g = cast(np.ndarray, utils.union(self._shape_g, shape))
         if knockout:
@@ -723,6 +779,11 @@ class Compositor(object):
         return self._viewport[3] - self._viewport[1]
 
     @property
+    def channels(self) -> int:
+        """The channel count every canvas in this compositor carries."""
+        return self._channels
+
+    @property
     def color(self) -> np.ndarray:
         return utils.clip(
             self._color
@@ -748,7 +809,7 @@ class Compositor(object):
             else utils.intersect(self._viewport, layer.bbox)
         )
         if knockout:
-            color_b, alpha_b = self._knockout_backdrop(knockout, self._color_0)
+            color_b, alpha_b = self._knockout_backdrop(knockout)
         else:
             color_b = self._color
             alpha_b = self._alpha
@@ -847,7 +908,7 @@ class Compositor(object):
             and layer.stroke.enabled
         ):
             color_s, shape_s, alpha_s = self._get_stroke(layer)
-            compositor = Compositor(self._viewport, color, alpha)
+            compositor = Compositor(self._viewport, _widen(color, self.channels), alpha)
             compositor._apply_source(color_s, shape_s, alpha_s, layer.stroke.blend_mode)
             color, _, _ = compositor.finish()
 
@@ -862,7 +923,7 @@ class Compositor(object):
         # TODO: Consider Tag.BLEND_CLIPPING_ELEMENTS.
         compositor = Compositor(
             self._viewport,
-            color,
+            _widen(color, self.channels),
             alpha,
             layer_filter=self._layer_filter,
             force=self._force,

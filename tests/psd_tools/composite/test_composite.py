@@ -285,6 +285,7 @@ _BACKDROP_SPELLINGS = [
     pytest.param((1.0, 1.0, 1.0), id="tuple"),
     pytest.param([1.0, 1.0, 1.0], id="list"),
     pytest.param(np.ones((4, 4, 3), dtype=np.float32), id="ndarray"),
+    pytest.param(np.ones((4, 4, 1), dtype=np.float32), id="single-channel-canvas"),
 ]
 
 
@@ -345,6 +346,42 @@ def test_composite_transparent_backdrop_is_skipped_in_any_spelling(
     assert len(psd) == 0
     result, _, _ = composite(psd, color=1.0, alpha=alpha)
     assert np.array_equal(result, np.zeros_like(result))
+
+
+@pytest.mark.parametrize(
+    ("filename", "kwargs"),
+    [
+        # Nothing to composite: every layer filtered out.
+        ("colormodes/4x4_8bit_rgb.psd", {"layer_filter": lambda layer: False}),
+        # Nothing to composite either: the only layer is an adjustment, which
+        # transforms the backdrop rather than applying a source over it.
+        ("layers/curves.psd", {}),
+        ("layers/levels.psd", {}),
+        ("layers/brightness-contrast.psd", {}),
+    ],
+)
+def test_composite_single_channel_backdrop_without_a_source(
+    filename: str, kwargs: Any
+) -> None:
+    """A one-channel backdrop must still produce a document-width image (#710).
+
+    The canvas used to be widened lazily at the first source, so a document
+    with no source to apply kept a one-channel color array and blew up on the
+    way out -- in ``Image.fromarray()``, or in ``_preserve_alpha`` for the
+    adjustment cases.
+    """
+    psd = PSDImage.open(full_name(filename))
+    backdrop = np.full((psd.height, psd.width, 1), 0.25, dtype=np.float32)
+    image = psd.composite(color=backdrop, alpha=1.0, ignore_preview=True, **kwargs)
+    assert image.mode == "RGB"
+    assert image.size == (psd.width, psd.height)
+
+
+def test_composite_backdrop_rejects_an_unresolvable_channel_count() -> None:
+    """Three channels against a four-channel document has no reading (#710)."""
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_cmyk.psd"))
+    with pytest.raises(ValueError, match="has 3 channels, expected 1 or 4"):
+        composite(psd, color=np.ones((4, 4, 3), dtype=np.float32), alpha=1.0)
 
 
 def test_composite_backdrop_rejects_a_mismatched_channel_count() -> None:

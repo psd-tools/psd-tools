@@ -9,6 +9,8 @@ These tests pin the primitives directly, so a change to the compositing maths
 fails with a specific, hand-checkable number. See #715.
 """
 
+from typing import Any, cast
+
 import numpy as np
 import pytest
 
@@ -17,6 +19,7 @@ from psd_tools.composite.composite import (
     Compositor,
     _blend_backdrop,
     _normalize_backdrop,
+    _widen,
     paste,
 )
 from psd_tools.constants import BlendMode, Knockout
@@ -207,14 +210,24 @@ def test_normalize_backdrop_accepts_every_alpha_spelling(alpha: object) -> None:
 
 
 def test_normalize_backdrop_passes_a_per_pixel_array_through() -> None:
-    """A full canvas is taken as given, including a narrower channel count."""
+    """A full canvas of the right width is taken as given."""
     canvas = np.linspace(0.0, 1.0, 12, dtype=np.float32).reshape(2, 2, 3)
     result, _ = _normalize_backdrop(canvas, 0.0, 2, 2, 3)
     assert np.array_equal(result, canvas)
-    # One channel against a three-channel document: the compositor widens this
-    # on demand, so normalization must not force it here.
-    narrow = gray(0.25)
-    result, _ = _normalize_backdrop(narrow, 0.0, 2, 2, 3)
+
+
+def test_normalize_backdrop_widens_a_single_channel_canvas() -> None:
+    """One channel against a three-channel document is replicated (#710).
+
+    The compositor used to widen this lazily at the first source, which left
+    ``_color_0``'s width only eventually correct. Normalization settles it, so
+    the canvas width is fixed for the compositor's whole lifetime.
+    """
+    result, _ = _normalize_backdrop(gray(0.25), 0.0, 2, 2, 3)
+    assert result.shape == (2, 2, 3)
+    assert np.array_equal(result, rgb((0.25, 0.25, 0.25)))
+    # A grayscale document leaves it alone.
+    result, _ = _normalize_backdrop(gray(0.25), 0.0, 2, 2, 1)
     assert result.shape == (2, 2, 1)
 
 
@@ -228,6 +241,12 @@ def test_normalize_backdrop_infers_channels_when_none_is_given() -> None:
     assert _normalize_backdrop(WHITE, 0.0, 2, 2, None)[0].shape == (2, 2, 3)
 
 
+def test_normalize_backdrop_rejects_an_unresolvable_channel_count() -> None:
+    """One channel replicates; any other width has no reading (#710)."""
+    with pytest.raises(ValueError, match="has 3 channels, expected 1 or 4"):
+        _normalize_backdrop(np.ones((2, 2, 3), dtype=np.float32), 0.0, 2, 2, 4)
+
+
 def test_normalize_backdrop_rejects_a_mismatched_backdrop() -> None:
     with pytest.raises(ValueError, match="cannot be expanded"):
         _normalize_backdrop((1.0, 0.0), 0.0, 2, 2, 3)
@@ -238,12 +257,109 @@ def test_normalize_backdrop_rejects_a_mismatched_backdrop() -> None:
 def test_normalize_backdrop_requires_single_channel_alpha() -> None:
     """Color may be narrower than the document; alpha may not be wider than 1.
 
-    The compositor widens a single-channel color on demand, so that stays
-    permissive. A multi-channel alpha has no such meaning (PR #721 review).
+    A narrow color is widened to the document's channel count, because
+    replicating a single channel across three is what compositing a grayscale
+    backdrop in RGB means. A multi-channel alpha has no such reading, so it is
+    rejected rather than reinterpreted (PR #721 review).
     """
-    assert _normalize_backdrop(gray(0.5), 0.0, 2, 2, 3)[0].shape == (2, 2, 1)
+    assert _normalize_backdrop(gray(0.5), 0.0, 2, 2, 3)[0].shape == (2, 2, 3)
     with pytest.raises(ValueError, match=r"alpha has shape"):
         _normalize_backdrop(1.0, np.ones((2, 2, 3), dtype=np.float32), 2, 2, 3)
+
+
+# ---------------------------------------------------------------------------
+# The fixed channel count (#710)
+# ---------------------------------------------------------------------------
+
+
+def test_widen_replicates_a_single_channel() -> None:
+    assert np.array_equal(_widen(gray(0.25), 3), rgb((0.25, 0.25, 0.25)))
+    # Already wide enough, or the document is single-channel: unchanged.
+    canvas = rgb(RED)
+    assert _widen(canvas, 3) is canvas
+    narrow = gray(0.25)
+    assert _widen(narrow, 1) is narrow
+
+
+@pytest.mark.parametrize("channels", [1, 3])
+def test_a_narrow_source_leaves_the_canvas_width_alone(channels: int) -> None:
+    """The blend arithmetic broadcasts a single-channel source (#710).
+
+    Applying one is therefore not a reason to reallocate. Consistency check:
+    this held before the fixups were deleted too.
+    """
+    backdrop = rgb(WHITE) if channels == 3 else gray(1.0)
+    compositor = Compositor((0, 0, 2, 2), backdrop, gray(0.0))
+    assert compositor.channels == channels
+
+    compositor._apply_source(gray(0.5), gray(1.0), gray(1.0), BlendMode.NORMAL)
+    assert compositor.channels == channels
+    assert compositor._color.shape == (2, 2, channels)
+    assert compositor._color_0.shape == (2, 2, channels)
+    assert compositor.finish()[0].shape == (2, 2, channels)
+
+
+def test_a_source_wider_than_the_canvas_is_rejected() -> None:
+    """The invariant is enforced in code, not just documented (#710).
+
+    This is the case the deleted ``np.repeat`` fixups existed for: they widened
+    ``_color_0`` in place. Without them the blend would silently widen
+    ``_color`` and leave ``channels`` stale, so building a compositor narrower
+    than the sources it will be given is now a caught bug rather than a quiet
+    one.
+    """
+    compositor = Compositor((0, 0, 2, 2), gray(1.0), gray(0.0))
+    assert compositor.channels == 1
+    with pytest.raises(AssertionError, match="source has 3 channels"):
+        compositor._apply_source(rgb(BLUE), gray(1.0), gray(1.0), BlendMode.NORMAL)
+
+
+class _ClipStub:
+    """The only attribute ``_apply_clip_layers`` reads off its layer."""
+
+    clip_layers: list = []
+
+
+def test_clip_layers_sub_compositor_uses_the_document_width() -> None:
+    """A grayscale layer in an RGB document seeds a clip sub-compositor.
+
+    Its own color is one channel wide, so it has to be widened before it
+    becomes another compositor's fixed-width canvas (#710).
+    """
+    compositor = Compositor((0, 0, 2, 2), rgb(WHITE), gray(0.0))
+    stub = cast(Any, _ClipStub())
+    result = compositor._apply_clip_layers(stub, gray(0.5), gray(1.0))
+    assert result.shape == (2, 2, 3)
+    assert np.array_equal(result, rgb((0.5, 0.5, 0.5)))
+
+
+def test_document_backdrop_is_widened_to_the_canvas() -> None:
+    """The Background layer can be narrower than the document it sits in.
+
+    Deep knockout hands its color straight to the blend, so it is widened once
+    at resolution rather than at every knockout (#710).
+    """
+    compositor = Compositor(
+        (0, 0, 2, 2),
+        rgb(WHITE),
+        gray(0.0),
+        document_backdrop=lambda: (gray(0.25), gray(1.0)),
+    )
+    color_b, alpha_b = compositor._knockout_backdrop(Knockout.DEEP)
+    assert color_b.shape == (2, 2, 3)
+    assert np.array_equal(color_b, rgb((0.25, 0.25, 0.25)))
+    assert alpha_b.shape == (2, 2, 1)
+
+
+def test_narrow_source_matches_a_pre_widened_one() -> None:
+    """Broadcasting a narrow source is the same as replicating it first."""
+
+    def run(source: np.ndarray) -> np.ndarray:
+        compositor = Compositor((0, 0, 2, 2), rgb(RED), gray(1.0))
+        compositor._apply_source(source, gray(0.5), gray(0.5), BlendMode.MULTIPLY)
+        return compositor.finish()[0]
+
+    assert np.allclose(run(gray(0.5)), run(rgb((0.5, 0.5, 0.5))))
 
 
 # ---------------------------------------------------------------------------
