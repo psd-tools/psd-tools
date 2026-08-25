@@ -13,8 +13,13 @@ import numpy as np
 import pytest
 
 from psd_tools.composite import utils
-from psd_tools.composite.composite import Compositor, _blend_backdrop, paste
-from psd_tools.constants import BlendMode, ColorMode, Knockout
+from psd_tools.composite.composite import (
+    Compositor,
+    _blend_backdrop,
+    _normalize_backdrop,
+    paste,
+)
+from psd_tools.constants import BlendMode, Knockout
 
 RED = (1.0, 0.0, 0.0)
 GREEN = (0.0, 1.0, 0.0)
@@ -149,33 +154,96 @@ def test_intersect() -> None:
 
 
 def test_blend_backdrop_over_opaque_backdrop() -> None:
-    color, alpha = _blend_backdrop(rgb(BLUE), gray(0.5), RED, 1.0, ColorMode.RGB)
+    color, alpha = _blend_backdrop(rgb(BLUE), gray(0.5), rgb(RED), gray(1.0))
     # 50% blue over opaque red.
     assert np.allclose(color[0, 0], (0.5, 0.0, 0.5))
     assert np.allclose(alpha, 1.0)
 
 
-def test_blend_backdrop_accepts_scalar_tuple_and_array_backdrops() -> None:
-    """Equivalent backdrops expressed three ways must agree.
-
-    ``composite()`` accepts a scalar, a per-channel tuple or an ndarray; #708
-    proposes normalising all three at the API boundary. This pins that the
-    three spellings are interchangeable so that refactor stays a no-op.
-    """
-    expected, _ = _blend_backdrop(rgb(BLUE), gray(0.5), WHITE, 1.0, ColorMode.RGB)
-    from_scalar, _ = _blend_backdrop(rgb(BLUE), gray(0.5), 1.0, 1.0, ColorMode.RGB)
-    from_array, _ = _blend_backdrop(
-        rgb(BLUE), gray(0.5), rgb(WHITE), 1.0, ColorMode.RGB
-    )
-    assert np.allclose(expected, from_scalar)
-    assert np.allclose(expected, from_array)
-
-
 def test_blend_backdrop_transparent_backdrop_keeps_source_colour() -> None:
     """A transparent backdrop must not bleed its colour into the result."""
-    color, alpha = _blend_backdrop(rgb(BLUE), gray(1.0), WHITE, 0.0, ColorMode.RGB)
+    color, alpha = _blend_backdrop(rgb(BLUE), gray(1.0), rgb(WHITE), gray(0.0))
     assert np.allclose(color[0, 0], BLUE)
     assert np.allclose(alpha, 1.0)
+
+
+# ---------------------------------------------------------------------------
+# _normalize_backdrop()
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "color",
+    [
+        1,
+        1.0,
+        np.float32(1.0),
+        np.int64(1),
+        WHITE,
+        list(WHITE),
+        np.array(WHITE, dtype=np.float32),
+        np.array(WHITE, dtype=np.float64),
+    ],
+    ids=repr,
+)
+def test_normalize_backdrop_accepts_every_scalar_and_sequence_spelling(
+    color: object,
+) -> None:
+    """Equivalent backdrops expressed any of these ways must agree (#709).
+
+    ``composite()`` accepts a scalar, a per-channel sequence or an ndarray;
+    this is where all of them become the one array the compositor works with.
+    """
+    result, _ = _normalize_backdrop(color, 0.0, 2, 3, 3)  # type: ignore[arg-type]
+    assert result.dtype == np.float32
+    assert np.array_equal(result, rgb(WHITE, size=(2, 3)))
+
+
+@pytest.mark.parametrize("alpha", [1, 1.0, np.float32(1.0)], ids=repr)
+def test_normalize_backdrop_accepts_every_alpha_spelling(alpha: object) -> None:
+    _, result = _normalize_backdrop(1.0, alpha, 2, 3, 3)  # type: ignore[arg-type]
+    assert result.dtype == np.float32
+    assert np.array_equal(result, gray(1.0, size=(2, 3)))
+
+
+def test_normalize_backdrop_passes_a_per_pixel_array_through() -> None:
+    """A full canvas is taken as given, including a narrower channel count."""
+    canvas = np.linspace(0.0, 1.0, 12, dtype=np.float32).reshape(2, 2, 3)
+    result, _ = _normalize_backdrop(canvas, 0.0, 2, 2, 3)
+    assert np.array_equal(result, canvas)
+    # One channel against a three-channel document: the compositor widens this
+    # on demand, so normalization must not force it here.
+    narrow = gray(0.25)
+    result, _ = _normalize_backdrop(narrow, 0.0, 2, 2, 3)
+    assert result.shape == (2, 2, 1)
+
+
+def test_normalize_backdrop_infers_channels_when_none_is_given() -> None:
+    """The defensive fallback for when no document names a color mode.
+
+    ``composite()`` mirrors the ``_psd is not None`` hedge it already makes for
+    ``check_pixel_size``; every current caller supplies a channel count.
+    """
+    assert _normalize_backdrop(1.0, 0.0, 2, 2, None)[0].shape == (2, 2, 1)
+    assert _normalize_backdrop(WHITE, 0.0, 2, 2, None)[0].shape == (2, 2, 3)
+
+
+def test_normalize_backdrop_rejects_a_mismatched_backdrop() -> None:
+    with pytest.raises(ValueError, match="cannot be expanded"):
+        _normalize_backdrop((1.0, 0.0), 0.0, 2, 2, 3)
+    with pytest.raises(ValueError, match="match the viewport"):
+        _normalize_backdrop(np.zeros((4, 4, 3), dtype=np.float32), 0.0, 2, 2, 3)
+
+
+def test_normalize_backdrop_requires_single_channel_alpha() -> None:
+    """Color may be narrower than the document; alpha may not be wider than 1.
+
+    The compositor widens a single-channel color on demand, so that stays
+    permissive. A multi-channel alpha has no such meaning (PR #721 review).
+    """
+    assert _normalize_backdrop(gray(0.5), 0.0, 2, 2, 3)[0].shape == (2, 2, 1)
+    with pytest.raises(ValueError, match=r"alpha has shape"):
+        _normalize_backdrop(1.0, np.ones((2, 2, 3), dtype=np.float32), 2, 2, 3)
 
 
 # ---------------------------------------------------------------------------
@@ -193,7 +261,7 @@ def apply_one(
     knockout: Knockout = Knockout.NONE,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Composite a single uniform source and return ``finish()``."""
-    compositor = Compositor((0, 0, 2, 2), backdrop_color, backdrop_alpha)
+    compositor = Compositor((0, 0, 2, 2), rgb(backdrop_color), gray(backdrop_alpha))
     compositor._apply_source(
         rgb(source_color), gray(shape), gray(alpha), blend_mode, knockout
     )
@@ -245,7 +313,7 @@ def test_apply_source_matches_the_textbook_over_operator(source_alpha: float) ->
     reduce to plain source-over-backdrop compositing.
     """
     backdrop_alpha = 0.75
-    compositor = Compositor((0, 0, 2, 2), WHITE, 0.0)
+    compositor = Compositor((0, 0, 2, 2), rgb(WHITE), gray(0.0))
     compositor._apply_source(
         rgb(RED), gray(backdrop_alpha), gray(backdrop_alpha), BlendMode.NORMAL
     )
@@ -281,7 +349,7 @@ def build_two_layer(knockout: Knockout) -> tuple[np.ndarray, np.ndarray]:
     With knockout the blue punches through the red to the initial backdrop;
     without it, blue composites over red.
     """
-    compositor = Compositor((0, 0, 2, 2), WHITE, 0.0)
+    compositor = Compositor((0, 0, 2, 2), rgb(WHITE), gray(0.0))
     compositor._apply_source(rgb(RED), gray(1.0), gray(1.0), BlendMode.NORMAL)
     compositor._apply_source(
         rgb(BLUE), gray(1.0), gray(0.5), BlendMode.NORMAL, knockout
@@ -314,8 +382,8 @@ def test_deep_knockout_without_a_document_backdrop_matches_shallow() -> None:
 def test_deep_knockout_uses_the_document_backdrop_when_present() -> None:
     compositor = Compositor(
         (0, 0, 2, 2),
-        WHITE,
-        0.0,
+        rgb(WHITE),
+        gray(0.0),
         document_backdrop=lambda: (rgb(GREEN), gray(1.0)),
     )
     compositor._apply_source(rgb(RED), gray(1.0), gray(1.0), BlendMode.NORMAL)
@@ -334,14 +402,14 @@ def test_deep_knockout_uses_the_document_backdrop_when_present() -> None:
 
 
 def test_color_correction_is_a_no_op_for_a_transparent_backdrop() -> None:
-    compositor = Compositor((0, 0, 2, 2), WHITE, 0.0)
+    compositor = Compositor((0, 0, 2, 2), rgb(WHITE), gray(0.0))
     compositor._apply_source(rgb(BLUE), gray(0.5), gray(0.5), BlendMode.NORMAL)
     assert np.allclose(compositor.color, compositor._color)
 
 
 def test_color_correction_removes_an_opaque_backdrop() -> None:
     """Over an opaque backdrop the raw and corrected results differ."""
-    compositor = Compositor((0, 0, 2, 2), RED, 1.0)
+    compositor = Compositor((0, 0, 2, 2), rgb(RED), gray(1.0))
     compositor._apply_source(rgb(BLUE), gray(0.5), gray(0.5), BlendMode.NORMAL)
     # Raw: what the pixel looks like, blue at 50% over red.
     assert np.allclose(compositor._color[0, 0], (0.5, 0.0, 0.5))

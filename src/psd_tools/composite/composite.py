@@ -1,6 +1,7 @@
 """Composite implementation for layer rendering and blending."""
 
 import logging
+from collections.abc import Sequence
 from typing import Callable, cast
 
 import numpy as np
@@ -29,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 def composite_pil(
     layer: Layer | PSDImage,
-    color: float | tuple[float, ...] | np.ndarray,
+    color: float | Sequence[float] | np.ndarray,
     alpha: float | np.ndarray,
     viewport: tuple[int, int, int, int] | None,
     layer_filter: Callable[[Layer], bool] | None,
@@ -45,7 +46,8 @@ def composite_pil(
 
     Args:
         layer: Layer or PSDImage to composite
-        color: Initial backdrop color (0.0-1.0). Can be scalar, tuple, or ndarray
+        color: Initial backdrop color (0.0-1.0). Can be a scalar, a
+            per-channel sequence, or an ndarray
         alpha: Initial backdrop alpha (0.0-1.0). Can be scalar or ndarray
         viewport: Bounding box (left, top, right, bottom) to composite. If None, uses layer bounds
         layer_filter: Optional callable to filter which layers to composite. Should return True to include
@@ -88,10 +90,8 @@ def composite_pil(
     # Skip alpha when the color mode requires deferred alpha handling, or
     # when the backdrop is fully opaque (the result is guaranteed opaque).
     delay_alpha_application = color_mode not in (ColorMode.GRAYSCALE, ColorMode.RGB)
-    has_opaque_backdrop = (
-        isinstance(backdrop_alpha, (int, float, np.integer, np.floating))
-        and backdrop_alpha >= 1.0
-    )
+    uniform_alpha = _uniform_alpha(backdrop_alpha)
+    has_opaque_backdrop = uniform_alpha is not None and uniform_alpha >= 1.0
     skip_alpha = not force and (delay_alpha_application or has_opaque_backdrop)
     logger.debug("Skipping alpha: %s", skip_alpha)
     if not skip_alpha:
@@ -118,7 +118,7 @@ def composite_pil(
 
 def composite(
     group: Layer | PSDImage,
-    color: float | tuple[float, ...] | np.ndarray = 1.0,
+    color: float | Sequence[float] | np.ndarray = 1.0,
     alpha: float | np.ndarray = 0.0,
     viewport: tuple[int, int, int, int] | None = None,
     layer_filter: Callable[[Layer], bool] | None = None,
@@ -135,7 +135,8 @@ def composite(
     Args:
         group: Layer or PSDImage to composite
         color: Initial backdrop color (0.0-1.0, default: 1.0). Can be a scalar
-            float applied to all channels, a tuple of per-channel values, or an ndarray.
+            applied to all channels, a per-channel sequence, or a full
+            (height, width, channels) ndarray.
         alpha: Initial backdrop alpha (0.0-1.0, default: 0.0). Can be scalar or ndarray.
         viewport: Bounding box (left, top, right, bottom) to composite. If None, uses layer bounds
         layer_filter: Optional callable(layer) -> bool to filter which layers to composite
@@ -185,10 +186,18 @@ def composite(
         if viewport != group.viewbox:
             color = paste(viewport, group.bbox, color, 1.0)
             shape = paste(viewport, group.bbox, shape)
-        if not (isinstance(backdrop_alpha, (int, float)) and backdrop_alpha == 0.0):
-            color, shape = _blend_backdrop(
-                color, shape, backdrop_color, backdrop_alpha, group.color_mode
-            )
+        # A wholly transparent backdrop contributes nothing, and blending it
+        # in anyway would turn fully uncovered pixels white via divide()'s
+        # 0 / 0 fallback. np.any() covers every spelling at once -- scalar,
+        # NumPy scalar, or an array of zeros -- and short-circuits on the
+        # first nonzero. Normalize only once past that check, so the backdrop
+        # is not expanded to a full canvas for the common default.
+        if np.any(backdrop_alpha):
+            # Sized from the array in hand rather than from the color mode:
+            # a multichannel document carries a channel count of its own that
+            # EXPECTED_CHANNELS does not predict.
+            backdrop = _normalize_backdrop(backdrop_color, backdrop_alpha, *color.shape)
+            color, shape = _blend_backdrop(color, shape, *backdrop)
         return color, shape, shape
 
     _w = viewport[2] - viewport[0]
@@ -201,23 +210,29 @@ def composite(
         max_alloc_bytes=_psd._max_alloc_bytes if _psd is not None else None,
     )
 
-    if isinstance(color, float):
-        assert _psd is not None
-        color_mode = _psd.color_mode
-        assert isinstance(color_mode, ColorMode)
-        color = (color,) * EXPECTED_CHANNELS[color_mode]
-
     isolated = False
     if not isinstance(group, PSDImage):
         isolated = group.blend_mode != BlendMode.PASS_THROUGH
+
+    # The compositor works exclusively in full-canvas arrays; the scalar and
+    # per-channel spellings are a convenience of the public signature, so they
+    # are resolved here, once, rather than at each point of use. An isolated
+    # group starts transparent, so the caller's alpha is dropped before the
+    # canvas is built rather than after.
+    backdrop_color, backdrop_alpha = _normalize_backdrop(
+        color,
+        0.0 if isolated else alpha,
+        _h,
+        _w,
+        EXPECTED_CHANNELS[_psd.color_mode] if _psd is not None else None,
+    )
 
     layer_filter = layer_filter or Layer.is_visible
 
     compositor = Compositor(
         viewport,
-        color,
-        alpha,
-        isolated,
+        backdrop_color,
+        backdrop_alpha,
         layer_filter,
         force,
         document_backdrop=lambda: _document_backdrop(_psd, viewport),
@@ -318,22 +333,96 @@ def _document_backdrop(
     return color, alpha
 
 
+def _uniform_alpha(alpha: float | np.ndarray) -> float | None:
+    """The backdrop alpha as a plain float when it is a single scalar.
+
+    Returns None for an array-valued backdrop rather than scanning it: the
+    caller decides the output mode from this, and reporting an all-ones array
+    as opaque would drop the alpha channel from images that carry one today.
+    Tested by dimensionality rather than by type so that ``1``, ``1.0``,
+    ``np.float32(1.0)`` and ``np.array(1.0)`` all behave alike.
+    """
+    return float(alpha) if np.ndim(alpha) == 0 else None
+
+
+def _to_canvas(
+    value: float | Sequence[float] | np.ndarray,
+    shape: tuple[int, int, int],
+    name: str,
+    exact_channels: bool = False,
+) -> np.ndarray:
+    """Expand a backdrop component to a full ``(height, width, channels)`` array.
+
+    An array that is already per-pixel is taken as given. Its channel count is
+    allowed to differ from the document's, because the compositor widens a
+    single-channel backdrop on demand; ``exact_channels`` withdraws that
+    licence for alpha, which is single-channel by definition and would
+    otherwise reach ``composite_pil()`` and be concatenated into a color array
+    of the wrong width. Anything else (a scalar, a per-channel sequence) is
+    broadcast.
+    """
+    array = np.asarray(value, dtype=np.float32)
+    if array.ndim == 3:
+        if exact_channels:
+            if array.shape != shape:
+                raise ValueError(
+                    "Backdrop %s has shape %r, expected %r" % (name, array.shape, shape)
+                )
+        elif array.shape[:2] != shape[:2]:
+            raise ValueError(
+                "Backdrop %s covers %r, expected %r to match the viewport"
+                % (name, array.shape[:2], shape[:2])
+            )
+        return array
+    try:
+        return np.full(shape, array, dtype=np.float32)
+    except ValueError:
+        raise ValueError(
+            "Backdrop %s %r cannot be expanded to %r; pass a scalar, a "
+            "per-channel sequence, or a full (height, width, channels) array"
+            % (name, value, shape)
+        ) from None
+
+
+def _normalize_backdrop(
+    color: float | Sequence[float] | np.ndarray,
+    alpha: float | np.ndarray,
+    height: int,
+    width: int,
+    channels: int | None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Resolve a backdrop given in any accepted spelling to a pair of arrays.
+
+    The public entry points accept the backdrop as a scalar, a per-channel
+    sequence or a ready-made array because that is convenient to call; the
+    compositor only ever works with arrays. Converting once here keeps the
+    three spellings from being re-interpreted -- inconsistently -- at each use
+    site.
+
+    This does materialize a full canvas even for a constant backdrop, exactly
+    as ``Compositor`` did before: the scalar spelling is an API convenience,
+    not an allocation-avoidance path. (``_get_mask``/``_get_const`` keep their
+    scalars for that reason instead.)
+
+    ``channels`` is the document's channel count, or None to infer it from
+    ``color`` where no document is available to name a color mode -- the same
+    defensive fallback ``check_pixel_size()`` is given in ``composite()``.
+    """
+    if channels is None:
+        channels = 1 if np.ndim(color) == 0 else int(np.shape(color)[-1])
+    return (
+        _to_canvas(color, (height, width, channels), "color"),
+        _to_canvas(alpha, (height, width, 1), "alpha", exact_channels=True),
+    )
+
+
 def _blend_backdrop(
     color: np.ndarray,
     shape: np.ndarray,
-    backdrop_color: float | tuple[float, ...] | np.ndarray,
-    backdrop_alpha: float | np.ndarray,
-    color_mode: ColorMode,
+    backdrop_color: np.ndarray,
+    backdrop_alpha: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Blend foreground color/shape over a backdrop using standard "over" compositing."""
-    if isinstance(backdrop_color, float):
-        backdrop_color = (backdrop_color,) * EXPECTED_CHANNELS[color_mode]
-    if isinstance(backdrop_color, tuple):
-        backdrop_color = np.broadcast_to(
-            np.array(backdrop_color, dtype=np.float32), color.shape
-        )
-    if isinstance(backdrop_alpha, (int, float)):
-        backdrop_alpha = np.full_like(shape, backdrop_alpha)
     result_alpha = utils.union(shape, backdrop_alpha)
     result_color = utils.clip(
         utils.divide(
@@ -347,9 +436,17 @@ def _blend_backdrop(
 class Compositor(object):
     """Composite context.
 
+    ``color`` and ``alpha`` are the initial backdrop, and must already be
+    ``(height, width, channels)`` arrays covering ``viewport``; the public
+    entry points normalize the spellings they accept via
+    ``_normalize_backdrop()``. An isolated group composites against a
+    transparent backdrop, which the caller expresses by passing a zero
+    ``alpha`` -- so that canvas is never built only to be discarded.
+
     Example::
 
-        compositor = Compositor(group.bbox)
+        color, alpha = _normalize_backdrop(1.0, 0.0, height, width, channels)
+        compositor = Compositor(group.bbox, color, alpha)
         for layer in group:
             compositor.apply(layer)
         color, shape, alpha = compositor.finish()
@@ -358,9 +455,8 @@ class Compositor(object):
     def __init__(
         self,
         viewport: tuple[int, int, int, int],
-        color: float | tuple[float, ...] | np.ndarray = 1.0,
-        alpha: float | np.ndarray = 0.0,
-        isolated: bool = False,
+        color: np.ndarray,
+        alpha: np.ndarray,
         layer_filter: Callable[[Layer], bool] | None = None,
         force: bool = False,
         adjustment_isolated: bool = False,
@@ -383,22 +479,8 @@ class Compositor(object):
         self._document_backdrop_resolved = False
         self._document_backdrop: tuple[np.ndarray, np.ndarray] | None = None
 
-        if isolated:
-            self._alpha_0 = np.zeros((self.height, self.width, 1), dtype=np.float32)
-        elif isinstance(alpha, np.ndarray):
-            self._alpha_0 = alpha
-        else:
-            self._alpha_0 = np.full(
-                (self.height, self.width, 1), alpha, dtype=np.float32
-            )
-
-        if isinstance(color, np.ndarray):
-            self._color_0 = color
-        else:
-            channels = 1 if isinstance(color, float) else len(color)
-            self._color_0 = np.full(
-                (self.height, self.width, channels), color, dtype=np.float32
-            )
+        self._alpha_0 = alpha
+        self._color_0 = color
 
         self._shape_g = np.zeros((self.height, self.width, 1), dtype=np.float32)
         self._alpha_g = np.zeros((self.height, self.width, 1), dtype=np.float32)
@@ -693,11 +775,21 @@ class Compositor(object):
                     paste(viewport, parent_viewport, backdrop_alpha),
                 )
 
+        # Only a pass-through group inherits the enclosing alpha; an isolated
+        # one starts transparent, so that paste is skipped rather than made and
+        # thrown away.
+        group_alpha = (
+            paste(viewport, self._viewport, alpha_b)
+            if is_passthrough
+            else np.zeros(
+                (viewport[3] - viewport[1], viewport[2] - viewport[0], 1),
+                dtype=np.float32,
+            )
+        )
         group_compositor = Compositor(
             viewport,
             color=paste(viewport, self._viewport, color_b, 1.0),
-            alpha=paste(viewport, self._viewport, alpha_b),
-            isolated=(not is_passthrough),
+            alpha=group_alpha,
             layer_filter=self._layer_filter,
             force=self._force,
             adjustment_isolated=self._adjustment_isolated or isolate_adjustments,
@@ -780,7 +872,12 @@ class Compositor(object):
         return compositor._color
 
     def _get_mask(self, layer: Layer) -> tuple[float | np.ndarray, float]:
-        """Get mask attributes."""
+        """Get mask attributes.
+
+        The scalar 1.0 default is an allocation-avoidance path, not an API
+        convenience like the backdrop spellings: most layers have no mask, and
+        materializing an all-ones canvas for each of them is pure waste.
+        """
         shape: float | np.ndarray = 1.0
         opacity: float = 1.0
         if layer.mask is not None and not layer.mask.disabled:

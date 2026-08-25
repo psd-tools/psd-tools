@@ -314,7 +314,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         self,
         viewport: tuple[int, int, int, int] | None = None,
         force: bool = False,
-        color: float | tuple[float, ...] | np.ndarray | None = 1.0,
+        color: float | Sequence[float] | np.ndarray | None = 1.0,
         alpha: float | np.ndarray = 0.0,
         layer_filter: Callable | None = None,
         ignore_preview: bool = False,
@@ -328,7 +328,8 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         :param ignore_preview: Boolean flag to whether skip compositing when a
             pre-composited preview is available.
         :param force: Boolean flag to force vector drawing.
-        :param color: Backdrop color specified by scalar or tuple of scalar.
+        :param color: Backdrop color, as a scalar, a per-channel sequence, or a
+            full ``(height, width, channels)`` array.
             The color value should be in [0.0, 1.0]. For example, (1., 0., 0.)
             specifies red in RGB color mode.
         :param alpha: Backdrop alpha in [0.0, 1.0].

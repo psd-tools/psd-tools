@@ -6,6 +6,7 @@ PSDImage without requiring concrete imports. These protocols allow other modules
 to properly type hint their parameters while avoiding circular dependency issues.
 """
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Callable, Iterator, Literal, Protocol
 
 if TYPE_CHECKING:
@@ -270,7 +271,7 @@ class LayerProtocol(Protocol):
         self,
         viewport: tuple[int, int, int, int] | None = None,
         force: bool = False,
-        color: float | tuple[float, ...] | np.ndarray = 1.0,
+        color: float | Sequence[float] | np.ndarray = 1.0,
         alpha: float | np.ndarray = 0.0,
         layer_filter: Callable | None = None,
         apply_icc: bool = True,
@@ -477,7 +478,7 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
         self,
         viewport: tuple[int, int, int, int] | None = None,
         force: bool = False,
-        color: float | tuple[float, ...] | np.ndarray | None = 1.0,
+        color: float | Sequence[float] | np.ndarray | None = 1.0,
         alpha: float | np.ndarray = 0.0,
         layer_filter: Callable | None = None,
         ignore_preview: bool = False,
