@@ -603,9 +603,12 @@ class LayerRecord(BaseElement):
 
         data = read_length_block(fp, fmt="xI")
         logger.debug("  read layer record, len=%d" % (fp.tell() - start_pos))
+        has_real_mask = any(
+            channel.id == ChannelID.REAL_USER_LAYER_MASK for channel in channel_info
+        )
         with io.BytesIO(data) as f:
             mask_data, blending_ranges, name, tagged_blocks = cls._read_extra(
-                f, encoding, version
+                f, encoding, version, has_real_mask=has_real_mask
             )
             self = cls(
                 top=top,
@@ -632,9 +635,13 @@ class LayerRecord(BaseElement):
 
     @classmethod
     def _read_extra(
-        cls, fp: IO[bytes], encoding: str, version: int
+        cls,
+        fp: IO[bytes],
+        encoding: str,
+        version: int,
+        has_real_mask: bool | None = None,
     ) -> tuple["MaskData | None", LayerBlendingRanges, str, TaggedBlocks]:
-        mask_data = MaskData.read(fp)
+        mask_data = MaskData.read(fp, has_real_mask=has_real_mask)
         blending_ranges = LayerBlendingRanges.read(fp)
         name = read_pascal_string(fp, encoding, padding=4)
         tagged_blocks = TaggedBlocks.read(fp, version=version, padding=1)
@@ -674,6 +681,16 @@ class LayerRecord(BaseElement):
 
     def _write_extra(self, fp: IO[bytes], encoding: str, version: int) -> int:
         written = 0
+        if getattr(self.mask_data, "real_flags", None) is not None and not any(
+            channel.id == ChannelID.REAL_USER_LAYER_MASK
+            for channel in self.channel_info
+        ):
+            logger.warning(
+                "Layer %r carries real user mask data but no "
+                "REAL_USER_LAYER_MASK channel; the mask block will not read "
+                "back the same way.",
+                self.name,
+            )
         if self.mask_data and hasattr(self.mask_data, "write"):
             written += self.mask_data.write(fp)  # type: ignore[attr-defined]
         else:
@@ -779,6 +796,13 @@ class MaskData(BaseElement):
 
     Real user mask is a final composite mask of vector and pixel masks.
 
+    The real user mask fields (:py:attr:`real_flags`,
+    :py:attr:`real_background_color` and the ``real_*`` rectangle) are present
+    only when the owning :py:class:`.LayerRecord` also carries a
+    :py:attr:`~psd_tools.constants.ChannelID.REAL_USER_LAYER_MASK` channel.
+    Keep the two in sync when building a record by hand, otherwise the written
+    mask block cannot be parsed back.
+
     .. py:attribute:: top
 
         Top position.
@@ -847,16 +871,37 @@ class MaskData(BaseElement):
     real_right: int | None = None
 
     @classmethod
-    def read(cls: type[T_MaskData], fp: IO[bytes], **kwargs: Any) -> T_MaskData:  # type: ignore[return]
+    def read(  # type: ignore[return]
+        cls: type[T_MaskData],
+        fp: IO[bytes],
+        has_real_mask: bool | None = None,
+        **kwargs: Any,
+    ) -> T_MaskData:
+        """
+        Read the mask data block.
+
+        :param fp: file-like object.
+        :param has_real_mask: whether the layer stores a
+            :py:attr:`~psd_tools.constants.ChannelID.REAL_USER_LAYER_MASK`
+            channel, which is what determines the presence of the real user
+            mask header. When `None`, presence is guessed from the block
+            length, which is ambiguous for large
+            :py:class:`.MaskParameters` blocks.
+        """
         data = read_length_block(fp)
         if len(data) == 0:
             return None  # type: ignore[return-value]
 
         with io.BytesIO(data) as f:
-            return cls._read_body(f, len(data))
+            return cls._read_body(f, len(data), has_real_mask=has_real_mask)
 
     @classmethod
-    def _read_body(cls: type[T_MaskData], fp: IO[bytes], length: int) -> T_MaskData:
+    def _read_body(
+        cls: type[T_MaskData],
+        fp: IO[bytes],
+        length: int,
+        has_real_mask: bool | None = None,
+    ) -> T_MaskData:
         top, left, bottom, right, background_color = read_fmt("4iB", fp)
         flags = MaskFlags.read(fp)
 
@@ -866,9 +911,21 @@ class MaskData(BaseElement):
         #     read_fmt('2x', fp)
         #     return cls(top, left, bottom, right, background_color, flags)
 
+        # The real user mask header is present only when the layer actually
+        # stores a REAL_USER_LAYER_MASK (-3) channel. The block length alone
+        # cannot tell: a variable-length MaskParameters block can push the
+        # block to 36 bytes or more with no real mask header present at all,
+        # which used to make the parameters be read as a real mask header
+        # (#693). The length check is kept as a guard against malformed files
+        # that advertise a -3 channel but write a short mask block.
+        if has_real_mask is None:
+            read_real_mask = length >= 36
+        else:
+            read_real_mask = has_real_mask and length >= 36
+
         real_flags, real_background_color = None, None
         real_top, real_left, real_bottom, real_right = None, None, None, None
-        if length >= 36:
+        if read_real_mask:
             real_flags = MaskFlags.read(fp)
             real_background_color = read_fmt("B", fp)[0]
             real_top, real_left, real_bottom, real_right = read_fmt("4i", fp)
@@ -972,12 +1029,13 @@ class MaskParameters(BaseElement):
     def read(
         cls: type[T_MaskParameters], fp: IO[bytes], **kwargs: Any
     ) -> T_MaskParameters:
-        parameters = read_fmt("B", fp)[0]
+        parameters: int | None = None
         user_mask_density = None
         user_mask_feather = None
         vector_mask_density = None
         vector_mask_feather = None
         try:
+            parameters = read_fmt("B", fp)[0]
             if bool(parameters & 1):
                 user_mask_density = read_fmt("B", fp)[0]
             if bool(parameters & 2):
@@ -988,8 +1046,8 @@ class MaskParameters(BaseElement):
                 vector_mask_feather = read_fmt("d", fp)[0]
         except OSError as exc:
             logger.warning(
-                "Truncated MaskParameters data (parameters=0x%02x); some fields will be missing: %s",
-                parameters,
+                "Truncated MaskParameters data (parameters=%s); some fields will be missing: %s",
+                "unknown" if parameters is None else "0x%02x" % parameters,
                 exc,
             )
         return cls(
