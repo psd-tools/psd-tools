@@ -186,11 +186,13 @@ def composite(
         if viewport != group.viewbox:
             color = paste(viewport, group.bbox, color, 1.0)
             shape = paste(viewport, group.bbox, shape)
-        # A uniformly transparent backdrop contributes nothing, and blending it
+        # A wholly transparent backdrop contributes nothing, and blending it
         # in anyway would turn fully uncovered pixels white via divide()'s
-        # 0 / 0 fallback. Normalize only once past that check, so the backdrop
+        # 0 / 0 fallback. np.any() covers every spelling at once -- scalar,
+        # NumPy scalar, or an array of zeros -- and short-circuits on the
+        # first nonzero. Normalize only once past that check, so the backdrop
         # is not expanded to a full canvas for the common default.
-        if _uniform_alpha(backdrop_alpha) != 0.0:
+        if np.any(backdrop_alpha):
             # Sized from the array in hand rather than from the color mode:
             # a multichannel document carries a channel count of its own that
             # EXPECTED_CHANNELS does not predict.
@@ -334,9 +336,11 @@ def _document_backdrop(
 def _uniform_alpha(alpha: float | np.ndarray) -> float | None:
     """The backdrop alpha as a plain float when it is a single scalar.
 
-    Returns None for an array-valued backdrop, whose per-pixel alpha cannot be
-    reduced to one number. Tested by dimensionality rather than by type so that
-    ``1``, ``1.0``, ``np.float32(1.0)`` and ``np.array(1.0)`` all behave alike.
+    Returns None for an array-valued backdrop rather than scanning it: the
+    caller decides the output mode from this, and reporting an all-ones array
+    as opaque would drop the alpha channel from images that carry one today.
+    Tested by dimensionality rather than by type so that ``1``, ``1.0``,
+    ``np.float32(1.0)`` and ``np.array(1.0)`` all behave alike.
     """
     return float(alpha) if np.ndim(alpha) == 0 else None
 
@@ -345,16 +349,26 @@ def _to_canvas(
     value: float | Sequence[float] | np.ndarray,
     shape: tuple[int, int, int],
     name: str,
+    exact_channels: bool = False,
 ) -> np.ndarray:
     """Expand a backdrop component to a full ``(height, width, channels)`` array.
 
-    An array that is already per-pixel is taken as given -- including one whose
-    channel count differs from the document's, which the compositor widens on
-    demand. Anything else (a scalar, a per-channel sequence) is broadcast.
+    An array that is already per-pixel is taken as given. Its channel count is
+    allowed to differ from the document's, because the compositor widens a
+    single-channel backdrop on demand; ``exact_channels`` withdraws that
+    licence for alpha, which is single-channel by definition and would
+    otherwise reach ``composite_pil()`` and be concatenated into a color array
+    of the wrong width. Anything else (a scalar, a per-channel sequence) is
+    broadcast.
     """
     array = np.asarray(value, dtype=np.float32)
     if array.ndim == 3:
-        if array.shape[:2] != shape[:2]:
+        if exact_channels:
+            if array.shape != shape:
+                raise ValueError(
+                    "Backdrop %s has shape %r, expected %r" % (name, array.shape, shape)
+                )
+        elif array.shape[:2] != shape[:2]:
             raise ValueError(
                 "Backdrop %s covers %r, expected %r to match the viewport"
                 % (name, array.shape[:2], shape[:2])
@@ -398,7 +412,7 @@ def _normalize_backdrop(
         channels = 1 if np.ndim(color) == 0 else int(np.shape(color)[-1])
     return (
         _to_canvas(color, (height, width, channels), "color"),
-        _to_canvas(alpha, (height, width, 1), "alpha"),
+        _to_canvas(alpha, (height, width, 1), "alpha", exact_channels=True),
     )
 
 

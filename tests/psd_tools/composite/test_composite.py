@@ -320,7 +320,16 @@ def test_composite_backdrop_alpha_spellings_agree(alpha: Any) -> None:
     assert np.array_equal(result, reference)
 
 
-@pytest.mark.parametrize("alpha", [0, 0.0, np.float32(0.0), np.array(0.0)])
+@pytest.mark.parametrize(
+    "alpha",
+    [
+        pytest.param(0, id="int"),
+        pytest.param(0.0, id="float"),
+        pytest.param(np.float32(0.0), id="numpy-scalar"),
+        pytest.param(np.array(0.0), id="0d-array"),
+        pytest.param(np.zeros((4, 4, 1), dtype=np.float32), id="array-of-zeros"),
+    ],
+)
 def test_composite_transparent_backdrop_is_skipped_in_any_spelling(
     alpha: Any,
 ) -> None:
@@ -329,7 +338,8 @@ def test_composite_transparent_backdrop_is_skipped_in_any_spelling(
     The zero-layer path skips the blend for a transparent backdrop, because
     blending it in anyway sends ``utils.divide`` down its 0 / 0 -> 1.0 branch
     and whitens every uncovered pixel. The old guard tested for ``int`` and
-    ``float`` only, so a NumPy scalar took the blend and came back white.
+    ``float`` only, so a NumPy scalar took the blend and came back white; a
+    per-pixel array of zeros did too (PR #721 review).
     """
     psd = PSDImage.new("RGBA", (4, 4), color=(0, 0, 0, 0))
     assert len(psd) == 0
@@ -354,6 +364,18 @@ def test_composite_backdrop_rejects_a_wrong_width_sequence_for_the_color_mode() 
     psd = PSDImage.open(full_name("colormodes/4x4_8bit_grayscale.psd"))
     with pytest.raises(ValueError, match="cannot be expanded"):
         composite(psd, color=(1.0, 1.0, 1.0), alpha=1.0)
+
+
+def test_composite_backdrop_rejects_a_multi_channel_alpha() -> None:
+    """Alpha is single-channel by definition (PR #721 review).
+
+    A wider alpha survived to ``finish()`` on the zero-layer path, where
+    ``composite_pil()`` concatenates it onto the color array and would build an
+    image of the wrong width.
+    """
+    psd = PSDImage.new("RGBA", (4, 4), color=(0, 0, 0, 0))
+    with pytest.raises(ValueError, match=r"alpha has shape"):
+        composite(psd, color=1.0, alpha=np.ones((4, 4, 3), dtype=np.float32))
 
 
 def test_composite_does_not_mutate_a_caller_supplied_backdrop() -> None:

@@ -235,6 +235,17 @@ def test_normalize_backdrop_rejects_a_mismatched_backdrop() -> None:
         _normalize_backdrop(np.zeros((4, 4, 3), dtype=np.float32), 0.0, 2, 2, 3)
 
 
+def test_normalize_backdrop_requires_single_channel_alpha() -> None:
+    """Color may be narrower than the document; alpha may not be wider than 1.
+
+    The compositor widens a single-channel color on demand, so that stays
+    permissive. A multi-channel alpha has no such meaning (PR #721 review).
+    """
+    assert _normalize_backdrop(gray(0.5), 0.0, 2, 2, 3)[0].shape == (2, 2, 1)
+    with pytest.raises(ValueError, match=r"alpha has shape"):
+        _normalize_backdrop(1.0, np.ones((2, 2, 3), dtype=np.float32), 2, 2, 3)
+
+
 # ---------------------------------------------------------------------------
 # Compositor._apply_source() -- the PDF 1.4 union / knockout equations
 # ---------------------------------------------------------------------------

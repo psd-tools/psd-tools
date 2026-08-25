@@ -16,9 +16,14 @@ Changelog
   ``color=np.float32(1.0)`` raised ``TypeError`` because only ``float`` was
   recognised as a scalar. The backdrop is now normalised once at the API
   boundary rather than reinterpreted at each point of use (#708, #709).
-- [fix] Recognise a transparent backdrop given as a NumPy scalar or a 0-d
-  array. Compositing a document with no layers used ``alpha=np.float32(0.0)``
-  as if it were opaque, which whitened every uncovered pixel (#708).
+- [fix] Recognise a transparent backdrop given as a NumPy scalar, a 0-d array,
+  or a per-pixel array of zeros. Compositing a document with no layers used
+  ``alpha=np.float32(0.0)`` as if it were opaque, which whitened every
+  uncovered pixel (#708).
+- [fix] Reject a multi-channel backdrop ``alpha``. Alpha is single-channel by
+  definition, but a wider array was accepted and reached ``composite_pil()``,
+  which concatenates it onto the colour array and built an image of the wrong
+  width (#708).
 - [fix] Composite a layerless multichannel document over a backdrop. The
   backdrop was sized from ``EXPECTED_CHANNELS``, which reports 64 channels for
   multichannel documents regardless of how many the file actually carries, so
