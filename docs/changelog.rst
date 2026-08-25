@@ -51,6 +51,15 @@ Changelog
   grayscale or bitmap document previously produced a three-channel result that
   was then reduced to its first channel; pass a scalar, or a sequence matching
   ``psd.color_mode``.
+- [fix] Apply a pattern overlay effect to a single-channel layer in a
+  multi-channel document. The effect took its target channel count from the
+  layer's own colour rather than from the document, so an RGB pattern over a
+  grayscale layer was rejected with ``AssertionError: Inconsistent pattern
+  channels.`` even though the pattern matched the document (#711).
+- [fix] Apply a stroke layer effect to a layer that has no mask. The mask
+  coverage is a bare scalar in that case, which the stroke effect handed
+  straight to an array routine, raising ``AttributeError: 'float' object has no
+  attribute 'shape'``. Reachable for a fill layer with no vector mask (#711).
 - [fix] Implement Knockout compositing (#707). Groups and layers with Knockout
   enabled previously rendered as if the setting were absent. Shallow knockout
   now punches through to the enclosing group's backdrop, and deep knockout to

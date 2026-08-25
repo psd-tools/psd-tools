@@ -7,6 +7,7 @@ import pytest
 from psd_tools.api.layers import GroupMixin, PixelLayer
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite
+from psd_tools.composite.composite import Compositor
 from psd_tools.constants import BlendMode, CompatibilityMode, Tag
 from psd_tools.psd.base import ByteElement
 from PIL import Image
@@ -612,6 +613,89 @@ def test_composite_group_clipping_clip_studio() -> None:
         _mse(np.array(reference, dtype=np.float32), np.array(result, dtype=np.float32))
         <= 0.001
     )
+
+
+def _pattern_overlay_layer(psd: PSDImage) -> Any:
+    return next(
+        sub
+        for top in psd
+        for sub in [top] + list(getattr(top, "_layers", None) or [])
+        if list(sub.effects.find("patternoverlay"))
+    )
+
+
+def test_composite_pattern_overlay_targets_the_canvas_width() -> None:
+    """The pattern's width comes from the compositor's canvas.
+
+    ``_apply_pattern_overlay`` used to take it from the layer colour it was
+    handed, which #710 allows to be narrower than the document. An RGB pattern
+    was then compared against 1 and rejected with ``AssertionError: Inconsistent
+    pattern channels.`` even though it matched the canvas exactly.
+
+    Dropping that parameter (#711) makes the original mistake unconstructible --
+    there is no longer a layer colour to derive the width from -- so this is a
+    contract pin rather than a regression guard.
+    """
+    psd = PSDImage.open(full_name("patterns.psd"))
+    layer = _pattern_overlay_layer(psd)
+    shape = np.ones((psd.height, psd.width, 1), dtype=np.float32)
+    compositor = Compositor(
+        psd.viewbox,
+        np.ones((psd.height, psd.width, 3), dtype=np.float32),
+        np.zeros((psd.height, psd.width, 1), dtype=np.float32),
+    )
+    assert compositor.channels == 3
+    compositor._apply_pattern_overlay(layer, shape, shape)
+    assert compositor.finish()[0].shape == (psd.height, psd.width, 3)
+
+
+@pytest.mark.parametrize("channels", [1, 4])
+@pytest.mark.skipif(
+    not __debug__, reason="the consistency check is an assert, stripped under -O"
+)
+def test_composite_pattern_overlay_rejects_a_width_it_cannot_reach(
+    channels: int,
+) -> None:
+    """A pattern must be one channel or exactly the canvas width.
+
+    Widening replicates a single channel, so it can reach 3 from 1 but cannot
+    reach 1 or 4 from 3. That mismatch is a real inconsistency and stays caught.
+    """
+    psd = PSDImage.open(full_name("patterns.psd"))
+    layer = _pattern_overlay_layer(psd)
+    shape = np.ones((psd.height, psd.width, 1), dtype=np.float32)
+    compositor = Compositor(
+        psd.viewbox,
+        np.ones((psd.height, psd.width, channels), dtype=np.float32),
+        np.zeros((psd.height, psd.width, 1), dtype=np.float32),
+    )
+    with pytest.raises(AssertionError, match="Inconsistent pattern channels"):
+        compositor._apply_pattern_overlay(layer, shape, shape)
+
+
+def test_composite_stroke_effect_over_a_layer_without_a_mask() -> None:
+    """A stroke effect must not require the layer to have a mask (#711).
+
+    ``_get_mask()`` returns a bare 1.0 for a layer with no mask, and
+    ``_apply_stroke_effect`` handed that straight to ``paste()``, which needs a
+    canvas -- ``AttributeError: 'float' object has no attribute 'shape'``. The
+    combination is reachable for a fill layer with no vector mask, and 26 calls
+    in the fixture corpus already pass the scalar; they escape only because
+    those layers have no stroke effect.
+    """
+    psd = PSDImage.open(full_name("effects/stroke-effects.psd"))
+    layer = next(
+        sub
+        for top in psd
+        for sub in (getattr(top, "_layers", None) or [])
+        if list(sub.effects.find("stroke"))
+    )
+    backdrop = np.ones((psd.height, psd.width, 3), dtype=np.float32)
+    alpha = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
+    compositor = Compositor(psd.viewbox, backdrop, alpha)
+    # 1.0 is exactly what _get_mask() yields for an unmasked layer.
+    compositor._apply_stroke_effect(layer, 1.0, np.ones_like(alpha))
+    assert compositor.finish()[0].shape == (psd.height, psd.width, 3)
 
 
 def test_composite_stroke() -> None:
