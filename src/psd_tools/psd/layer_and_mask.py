@@ -721,8 +721,11 @@ class LayerRecord(BaseElement):
         """
         List of channel sizes: [(width, height)].
 
-        A mask channel is reported as ``(0, 0)`` when the record carries no
-        mask block, which only happens for a malformed record.
+        A mask channel is reported as ``(0, 0)`` whenever its extent is empty
+        or unknown: the record carries no mask block, the rectangle the channel
+        refers to is degenerate, or, for
+        :py:attr:`~psd_tools.constants.ChannelID.REAL_USER_LAYER_MASK`, the
+        record has no real user mask rectangle.
         """
         sizes = []
         for channel in self.channel_info:
