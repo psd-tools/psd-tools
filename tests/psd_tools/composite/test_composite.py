@@ -615,6 +615,31 @@ def test_composite_group_clipping_clip_studio() -> None:
     )
 
 
+def test_composite_pattern_overlay_over_a_single_channel_source() -> None:
+    """A narrow source must not narrow the pattern's target width (#711).
+
+    ``_apply_pattern_overlay`` took its channel count from the layer colour it
+    was handed. A source is allowed to be single-channel inside a multi-channel
+    document -- the blend arithmetic broadcasts it -- so an RGB pattern was
+    compared against 1 and rejected with ``AssertionError: Inconsistent pattern
+    channels.`` even though it matched the canvas exactly.
+    """
+    psd = PSDImage.open(full_name("patterns.psd"))
+    layer = next(
+        sub
+        for top in psd
+        for sub in [top] + list(getattr(top, "_layers", None) or [])
+        if list(sub.effects.find("patternoverlay"))
+    )
+    backdrop = np.ones((psd.height, psd.width, 3), dtype=np.float32)
+    alpha = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
+    shape = np.ones((psd.height, psd.width, 1), dtype=np.float32)
+    compositor = Compositor(psd.viewbox, backdrop, alpha)
+    assert compositor.channels == 3
+    compositor._apply_pattern_overlay(layer, shape, shape)
+    assert compositor.finish()[0].shape == (psd.height, psd.width, 3)
+
+
 def test_composite_stroke_effect_over_a_layer_without_a_mask() -> None:
     """A stroke effect must not require the layer to have a mask (#711).
 

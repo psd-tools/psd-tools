@@ -614,7 +614,7 @@ class Compositor(object):
 
         # TODO: Apply after effects
         self._apply_color_overlay(layer, shape, alpha)
-        self._apply_pattern_overlay(layer, color, shape, alpha)
+        self._apply_pattern_overlay(layer, shape, alpha)
         self._apply_gradient_overlay(layer, shape, alpha)
         if (
             (self._force and layer.has_vector_mask())
@@ -1053,9 +1053,13 @@ class Compositor(object):
             )
 
     def _apply_pattern_overlay(
-        self, layer: Layer, color: np.ndarray, shape: np.ndarray, alpha: np.ndarray
+        self, layer: Layer, shape: np.ndarray, alpha: np.ndarray
     ) -> None:
-        channels = color.shape[-1]
+        # The canvas is the authority on width, not the layer color this was
+        # called with: a source is allowed to be single-channel inside a
+        # multi-channel document, and comparing the pattern against *that*
+        # rejected patterns which in fact matched the canvas exactly.
+        channels = self.channels
         for effect in _styled(layer.effects.find("patternoverlay")):
             fill, shape_e = paint.draw_pattern_fill(
                 layer.bbox, layer._psd, effect.value
