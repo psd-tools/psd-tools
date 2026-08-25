@@ -299,6 +299,9 @@ def test_a_narrow_source_leaves_the_canvas_width_alone(channels: int) -> None:
     assert compositor.finish()[0].shape == (2, 2, channels)
 
 
+@pytest.mark.skipif(
+    not __debug__, reason="the invariant checks are asserts, stripped under -O"
+)
 def test_a_source_wider_than_the_canvas_is_rejected() -> None:
     """The invariant is enforced in code, not just documented (#710).
 
