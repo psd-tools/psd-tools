@@ -1,6 +1,22 @@
 Changelog
 =========
 
+1.19.0 (unreleased)
+-------------------
+
+- [fix] Implement Knockout compositing (#707). Groups and layers with Knockout
+  enabled previously rendered as if the setting were absent. Shallow knockout
+  now punches through to the enclosing group's backdrop, and deep knockout to
+  the document backdrop -- passing through enclosing pass-through groups but
+  stopping at an isolated one, and at the Background layer where the document
+  has one. Also distinguishes shallow from deep, which were read as a single
+  boolean, via the new ``psd_tools.constants.Knockout`` enum.
+
+  **Backwards incompatible**: documents that combine Knockout with a fill
+  opacity below 100% now render differently. Documents without Knockout, or
+  with Knockout at fill opacity 100% -- where it has no visible effect by
+  design -- are unaffected.
+
 1.18.0 (2026-08-07)
 -------------------
 
