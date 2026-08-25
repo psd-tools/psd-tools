@@ -373,6 +373,15 @@ def test_mask_parameters() -> None:
     assert len(MaskParameters(255, 1.0, 255, 1.0).tobytes()) == 19
 
 
+def test_mask_parameters_truncated_flag_byte(caplog: pytest.LogCaptureFixture) -> None:
+    """The truncation guard must also cover the parameter flag byte itself."""
+    with caplog.at_level(logging.WARNING):
+        with io.BytesIO(b"") as f:
+            parameters = MaskParameters.read(f)
+    assert parameters == MaskParameters()
+    assert "Truncated MaskParameters" in caplog.text
+
+
 def test_channel_image_data() -> None:
     check_write_read(ChannelImageData(), layer_records=LayerRecords())
 

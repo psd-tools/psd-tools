@@ -1012,12 +1012,13 @@ class MaskParameters(BaseElement):
     def read(
         cls: type[T_MaskParameters], fp: IO[bytes], **kwargs: Any
     ) -> T_MaskParameters:
-        parameters = read_fmt("B", fp)[0]
+        parameters = 0
         user_mask_density = None
         user_mask_feather = None
         vector_mask_density = None
         vector_mask_feather = None
         try:
+            parameters = read_fmt("B", fp)[0]
             if bool(parameters & 1):
                 user_mask_density = read_fmt("B", fp)[0]
             if bool(parameters & 2):
