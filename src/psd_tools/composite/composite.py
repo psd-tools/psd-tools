@@ -271,6 +271,26 @@ def _is_background_layer(layer: "LayerProtocol") -> bool:
     )
 
 
+def _read_knockout(layer: Layer) -> Knockout:
+    """Read a layer's knockout setting, tolerating undefined values.
+
+    The tagged block is a raw byte, so a corrupt file -- or one written by a
+    future Photoshop or a third-party tool -- can carry a value outside the
+    enum. Fall back to NONE with a warning rather than raising: compositing a
+    malformed document should degrade, not crash.
+    """
+    value = layer.tagged_blocks.get_data(Tag.KNOCKOUT_SETTING, 0)
+    try:
+        return Knockout(value)
+    except ValueError:
+        logger.warning(
+            "Unknown knockout setting %r in %s; compositing without knockout",
+            value,
+            layer,
+        )
+        return Knockout.NONE
+
+
 def _document_backdrop(
     psd: "PSDProtocol | None", viewport: tuple[int, int, int, int]
 ) -> tuple[np.ndarray, np.ndarray] | None:
@@ -400,7 +420,7 @@ class Compositor(object):
             return
 
         is_adjustment_isolated = None
-        knockout = Knockout(layer.tagged_blocks.get_data(Tag.KNOCKOUT_SETTING, 0))
+        knockout = _read_knockout(layer)
         if isinstance(layer, AdjustmentLayer):
             self._apply_adjustment(layer)
             return

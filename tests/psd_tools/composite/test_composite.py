@@ -4,10 +4,11 @@ from typing import Any, Optional
 import numpy as np
 import pytest
 
-from psd_tools.api.layers import GroupMixin
+from psd_tools.api.layers import GroupMixin, PixelLayer
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite
-from psd_tools.constants import CompatibilityMode
+from psd_tools.constants import BlendMode, CompatibilityMode, Tag
+from psd_tools.psd.base import ByteElement
 from PIL import Image
 
 from ..utils import full_name
@@ -381,6 +382,33 @@ def test_composite_knockout_without_background_layer() -> None:
     # Photoshop renders (0, 0, 255, 128): pure blue at half alpha.
     assert (r, g, b) == (0, 0, 255)
     assert abs(a - 128) <= 2
+
+
+def test_composite_knockout_undefined_value(tmp_path: Any, caplog: Any) -> None:
+    """An undefined KNOCKOUT_SETTING byte degrades instead of raising.
+
+    The tagged block is a raw byte, so a corrupt or third-party file can carry a
+    value outside the Knockout enum. Compositing must not crash on it.
+    """
+    psd = PSDImage.new(mode="RGB", size=(8, 8))
+    psd.create_pixel_layer(image=Image.new("RGBA", (8, 8), (255, 0, 0, 255)), name="BG")
+    group = psd.create_group(name="G0")
+    group.blend_mode = BlendMode.NORMAL
+    group.tagged_blocks.set_data(Tag.KNOCKOUT_SETTING, ByteElement(7))
+    group.tagged_blocks.set_data(Tag.BLEND_FILL_OPACITY, ByteElement(128))
+    group.append(PixelLayer.frompil(Image.new("RGBA", (8, 8), (0, 0, 255, 255)), psd))
+
+    path = tmp_path / "undefined-knockout.psd"
+    psd.save(str(path))
+
+    with caplog.at_level(logging.WARNING, logger="psd_tools.composite.composite"):
+        image = PSDImage.open(str(path)).composite(ignore_preview=True)
+    assert image is not None
+    # Falls back to Knockout.NONE, i.e. renders as if the setting were absent.
+    assert image.convert("RGB").getpixel((4, 4)) == (127, 0, 128)
+    assert any(
+        "Unknown knockout setting" in record.message for record in caplog.records
+    )
 
 
 def test_composite_clipping_mask() -> None:
