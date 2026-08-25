@@ -214,14 +214,14 @@ def test_apply_source_fully_transparent_source_leaves_the_backdrop() -> None:
     assert np.allclose(alpha, 0.0)
 
 
-def test_apply_source_half_alpha_over_transparent_backdrop_keeps_source_colour() -> (
-    None
-):
-    """The returned colour is the *isolated* source, not the blended result.
+def test_apply_source_returns_the_isolated_source_not_the_blend() -> None:
+    """Over an *opaque* backdrop, the returned colour is the isolated source.
 
     ``finish()`` returns ``Compositor.color``, which removes the initial
-    backdrop's contribution. Compositing this result over that backdrop is what
-    reproduces the visible pixel -- here 50% blue over red gives (0.5, 0, 0.5).
+    backdrop's contribution. Compositing this result back over that backdrop is
+    what reproduces the visible pixel -- here 50% blue over opaque red gives
+    (0.5, 0, 0.5), which ``test_color_correction_removes_an_opaque_backdrop``
+    checks explicitly.
     """
     color, _, alpha = apply_one(RED, 1.0, BLUE, 0.5, 0.5)
     assert np.allclose(color[0, 0], BLUE)
