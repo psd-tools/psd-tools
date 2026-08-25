@@ -24,6 +24,16 @@ Changelog
   definition, but a wider array was accepted and reached ``composite_pil()``,
   which concatenates it onto the colour array and built an image of the wrong
   width (#708).
+- [fix] Composite over a single-channel backdrop array in a multi-channel
+  document. The compositor's colour canvas was widened lazily at the first
+  source layer, so a document with no source to apply -- every layer filtered
+  out or invisible, or a document whose only layers are adjustments -- kept a
+  one-channel array and raised ``TypeError`` from ``Image.fromarray()`` or
+  ``ValueError: Channel count does not match colormode``. The channel count is
+  now fixed when the compositor is built (#710).
+- [fix] Reject a backdrop whose channel count is neither 1 nor the document's.
+  A three-channel backdrop against a CMYK document used to surface as a NumPy
+  broadcast error from inside the blend arithmetic (#710).
 - [fix] Composite a layerless multichannel document over a backdrop. The
   backdrop was sized from ``EXPECTED_CHANNELS``, which reports 64 channels for
   multichannel documents regardless of how many the file actually carries, so
