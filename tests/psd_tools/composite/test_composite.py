@@ -76,6 +76,18 @@ def check_icc_composite_quality(
         ("opacity-fill.psd",),
         ("transparency/transparency-group.psd",),
         ("transparency/knockout-isolated-groups.psd",),
+        ("transparency/knockout-none-normal.psd",),
+        ("transparency/knockout-none-passthrough.psd",),
+        ("transparency/knockout-none-nested.psd",),
+        ("transparency/knockout-none-cyanbg.psd",),
+        ("transparency/knockout-shallow-nested.psd",),
+        ("transparency/knockout-shallow-nested-pt.psd",),
+        ("transparency/knockout-deep-normal.psd",),
+        ("transparency/knockout-deep-passthrough.psd",),
+        ("transparency/knockout-deep-nested.psd",),
+        ("transparency/knockout-deep-nested-pt.psd",),
+        ("transparency/knockout-deep-cyanbg.psd",),
+        ("transparency/knockout-deep-nobg.psd",),
         ("transparency/clip-opacity.psd",),
         ("transparency/fill-opacity.psd",),
         ("mask.psd",),
@@ -310,13 +322,6 @@ def test_apply_opacity() -> None:
 #   white  -> knocked out to the document backdrop
 #
 # Expected values are Photoshop 2026's own rendering, sampled at (16, 16).
-_KNOCKOUT_DEEP_XFAIL = pytest.mark.xfail(
-    reason=(
-        "deep knockout must stop at the document backdrop (the Background "
-        "layer); psd-tools knocks through to full transparency. See #707"
-    ),
-    strict=True,
-)
 _KNOCKOUT_CASES = [
     # No knockout: the group simply composites over what is below it.
     ("knockout-none-normal", (127, 0, 128)),
@@ -333,18 +338,14 @@ _KNOCKOUT_CASES = [
     # of that backdrop and is *not* knocked out -- knockout-deep-cyanbg pins
     # this down, since a white Background cannot be told apart from knocking
     # through to transparency and flattening onto white.
-    pytest.param("knockout-deep-cyanbg", (0, 127, 255), marks=_KNOCKOUT_DEEP_XFAIL),
-    pytest.param("knockout-deep-normal", (127, 127, 255), marks=_KNOCKOUT_DEEP_XFAIL),
+    ("knockout-deep-cyanbg", (0, 127, 255)),
+    ("knockout-deep-normal", (127, 127, 255)),
     # A knockout group renders the same whether or not it is pass-through:
     # when knockout is set, the pass-through blend mode stops mattering.
-    pytest.param(
-        "knockout-deep-passthrough", (127, 127, 255), marks=_KNOCKOUT_DEEP_XFAIL
-    ),
+    ("knockout-deep-passthrough", (127, 127, 255)),
     # ``Outer`` is pass-through here, so it is not an isolation boundary and
     # deep knockout escapes it to reach the document backdrop.
-    pytest.param(
-        "knockout-deep-nested-pt", (127, 127, 255), marks=_KNOCKOUT_DEEP_XFAIL
-    ),
+    ("knockout-deep-nested-pt", (127, 127, 255)),
 ]
 
 
@@ -363,6 +364,23 @@ def test_composite_knockout(name: str, expected: tuple[int, int, int]) -> None:
     assert all(abs(a - b) <= 2 for a, b in zip(pixel[:3], expected)), (
         f"{name}: Photoshop renders {expected}, psd-tools rendered {pixel[:3]}"
     )
+
+
+def test_composite_knockout_without_background_layer() -> None:
+    """Deep knockout reaches full transparency when there is no Background layer.
+
+    This is the other half of the semantics pinned by knockout-deep-cyanbg: the
+    Background layer is the canvas, not an ordinary layer. The fixture is the
+    same stack with its Background converted to an ordinary layer, and Photoshop
+    knocks all the way through to transparency, removing both layers beneath.
+    """
+    psd = PSDImage.open(full_name("transparency/knockout-deep-nobg.psd"))
+    image = psd.composite(ignore_preview=True)
+    assert image is not None
+    r, g, b, a = image.convert("RGBA").getpixel((16, 16))  # type: ignore[misc]
+    # Photoshop renders (0, 0, 255, 128): pure blue at half alpha.
+    assert (r, g, b) == (0, 0, 255)
+    assert abs(a - 128) <= 2
 
 
 def test_composite_clipping_mask() -> None:
