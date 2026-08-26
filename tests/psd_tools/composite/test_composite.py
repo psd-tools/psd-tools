@@ -4,7 +4,7 @@ from typing import Any, Optional, cast
 import numpy as np
 import pytest
 
-from psd_tools.api.layers import GroupMixin, Layer, PixelLayer
+from psd_tools.api.layers import AdjustmentLayer, GroupMixin, Layer, PixelLayer
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite
 from psd_tools.composite.composite import Compositor
@@ -710,10 +710,15 @@ def test_accepts_rejects_a_layer_outside_the_viewport() -> None:
         np.ones((10, 10, 3), dtype=np.float32),
         np.zeros((10, 10, 1), dtype=np.float32),
     )
-    pixel_layer = next(
-        layer for layer in _descendants(psd) if not isinstance(layer, GroupMixin)
+    # Both exemptions have to be excluded here, not just the group one: an
+    # adjustment layer would legitimately be accepted and the assertion below
+    # would then be pinning the wrong branch.
+    ordinary = next(
+        layer
+        for layer in _descendants(psd)
+        if not isinstance(layer, (GroupMixin, AdjustmentLayer))
     )
-    assert not compositor._accepts(pixel_layer, clip_compositing=False)
+    assert not compositor._accepts(ordinary, clip_compositing=False)
     group = next(layer for layer in _descendants(psd) if isinstance(layer, GroupMixin))
     assert compositor._accepts(cast(Layer, group), clip_compositing=False)
 
