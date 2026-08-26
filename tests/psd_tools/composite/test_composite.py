@@ -1,10 +1,10 @@
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import numpy as np
 import pytest
 
-from psd_tools.api.layers import GroupMixin, PixelLayer
+from psd_tools.api.layers import AdjustmentLayer, GroupMixin, Layer, PixelLayer
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite
 from psd_tools.composite.composite import Compositor
@@ -627,7 +627,7 @@ def _pattern_overlay_layer(psd: PSDImage) -> Any:
 def test_composite_pattern_overlay_targets_the_canvas_width() -> None:
     """The pattern's width comes from the compositor's canvas.
 
-    ``_apply_pattern_overlay`` used to take it from the layer colour it was
+    ``_draw_pattern_overlay`` used to take it from the layer colour it was
     handed, which #710 allows to be narrower than the document. An RGB pattern
     was then compared against 1 and rejected with ``AssertionError: Inconsistent
     pattern channels.`` even though it matched the canvas exactly.
@@ -645,7 +645,7 @@ def test_composite_pattern_overlay_targets_the_canvas_width() -> None:
         np.zeros((psd.height, psd.width, 1), dtype=np.float32),
     )
     assert compositor.channels == 3
-    compositor._apply_pattern_overlay(layer, shape, shape)
+    compositor._apply_overlay(layer, "patternoverlay", shape, shape)
     assert compositor.finish()[0].shape == (psd.height, psd.width, 3)
 
 
@@ -670,7 +670,97 @@ def test_composite_pattern_overlay_rejects_a_width_it_cannot_reach(
         np.zeros((psd.height, psd.width, 1), dtype=np.float32),
     )
     with pytest.raises(AssertionError, match="Inconsistent pattern channels"):
-        compositor._apply_pattern_overlay(layer, shape, shape)
+        compositor._apply_overlay(layer, "patternoverlay", shape, shape)
+
+
+def _descendants(group: Any) -> Any:
+    for layer in group:
+        yield layer
+        if isinstance(layer, GroupMixin):
+            yield from _descendants(layer)
+
+
+def _canvas(psd: PSDImage) -> Compositor:
+    return Compositor(
+        psd.viewbox,
+        np.ones((psd.height, psd.width, 3), dtype=np.float32),
+        np.zeros((psd.height, psd.width, 1), dtype=np.float32),
+    )
+
+
+def test_accepts_defers_a_clipping_layer_to_its_base() -> None:
+    """A clipping layer is composited by the layer it clips to, not on its own.
+
+    ``_apply_clip_layers()`` re-enters ``apply()`` with ``clip_compositing``,
+    which is the only way past this rejection.
+    """
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    clipped = next(layer for layer in _descendants(psd) if layer.clipping)
+    compositor = _canvas(psd)
+    assert not compositor._accepts(clipped, clip_compositing=False)
+    assert compositor._accepts(clipped, clip_compositing=True)
+
+
+def test_accepts_rejects_a_layer_outside_the_viewport() -> None:
+    """Culling applies to ordinary layers; groups and adjustments are exempt."""
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    elsewhere = (1000, 1000, 1010, 1010)
+    compositor = Compositor(
+        elsewhere,
+        np.ones((10, 10, 3), dtype=np.float32),
+        np.zeros((10, 10, 1), dtype=np.float32),
+    )
+    # Both exemptions have to be excluded here, not just the group one: an
+    # adjustment layer would legitimately be accepted and the assertion below
+    # would then be pinning the wrong branch.
+    ordinary = next(
+        layer
+        for layer in _descendants(psd)
+        if not isinstance(layer, (GroupMixin, AdjustmentLayer))
+    )
+    assert not compositor._accepts(ordinary, clip_compositing=False)
+    group = next(layer for layer in _descendants(psd) if isinstance(layer, GroupMixin))
+    assert compositor._accepts(cast(Layer, group), clip_compositing=False)
+
+
+def test_accepts_honours_the_layer_filter() -> None:
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    compositor = Compositor(
+        psd.viewbox,
+        np.ones((psd.height, psd.width, 3), dtype=np.float32),
+        np.zeros((psd.height, psd.width, 1), dtype=np.float32),
+        layer_filter=lambda layer: False,
+    )
+    assert not compositor._accepts(psd[0], clip_compositing=False)
+
+
+def test_resolve_source_reads_the_layer_without_writing_the_canvas() -> None:
+    """The split's contract: resolving is a read, compositing is the write."""
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    compositor = _canvas(psd)
+    before = compositor.result_over_backdrop().copy()
+
+    source = compositor._resolve_source(psd[0])
+    assert source.color.shape == (psd.height, psd.width, 3)
+    assert np.array_equal(compositor.result_over_backdrop(), before)
+
+    compositor._composite_source(source, psd[0].blend_mode)
+    assert not np.array_equal(compositor.result_over_backdrop(), before)
+
+
+def test_resolve_source_folds_the_mask_and_opacity_into_the_operands() -> None:
+    """Opacity reaches ``alpha`` but not ``shape``; fill opacity reaches neither.
+
+    Fill opacity is left to ``_composite_source()`` because knockout applies it
+    to ``alpha`` only, and the source's full coverage punches the hole.
+    """
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    layer = psd[0]
+    layer.opacity = 128
+    compositor = _canvas(psd)
+    source = compositor._resolve_source(layer)
+    assert np.allclose(source.alpha, source.shape * (128 / 255.0))
+    assert source.fill_opacity == 1.0
 
 
 def test_composite_stroke_effect_over_a_layer_without_a_mask() -> None:
