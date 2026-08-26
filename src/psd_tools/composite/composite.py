@@ -12,7 +12,7 @@ from psd_tools.api import pil_io
 from psd_tools.api.layers import AdjustmentLayer, GroupMixin, Layer
 from psd_tools.api.protocols import LayerProtocol, PSDProtocol
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.api.utils import EXPECTED_CHANNELS, check_pixel_size
+from psd_tools.api.utils import check_pixel_size, get_color_channels
 from psd_tools.composite import paint, utils, vector
 from psd_tools.composite.adjustments import ADJUSTMENT_FUNC
 from psd_tools.composite.blend import BLEND_FUNC, normal
@@ -131,6 +131,9 @@ def composite_pil(
         - Requires optional composite dependencies (aggdraw, scipy, scikit-image)
         - LAB and Duotone color modes have limited blending support
         - Alpha channel handling varies by color mode
+        - Multichannel documents come back single-channel. PIL has no
+          multichannel mode, so only the first spot channel survives; use
+          :py:func:`psd_tools.composite.composite` to keep every channel.
     """
     UNSUPPORTED_MODES = {
         ColorMode.DUOTONE,
@@ -232,6 +235,13 @@ def composite(
           for vector shape rendering, gradient fills, and layer effects.
         - Adjustment layers have limited support.
         - Text rendering is not supported (text layers show as raster if available).
+        - Multichannel documents are composited over every spot channel the
+          file declares. That is more than Photoshop does: Photoshop discards
+          the layer records when it opens a multichannel document and displays
+          the merged image data instead, so a multichannel document that has
+          layers does not render here the way it looks there. Use
+          :py:meth:`~psd_tools.api.psd_image.PSDImage.topil` for the merged
+          data.
     """
     if viewport is None:
         if isinstance(group, PSDImage):
@@ -270,10 +280,30 @@ def composite(
     _w = viewport[2] - viewport[0]
     _h = viewport[3] - viewport[1]
     _psd = group if isinstance(group, PSDImage) else group._psd
+    # The width the backdrop canvas is allocated at, read from the document
+    # rather than from its color mode: EXPECTED_CHANNELS reports 64 for a
+    # multichannel document -- the format's maximum, not any file's own count --
+    # so the canvas came out ~21x too wide and the first layer met a canvas it
+    # could not be blended against.
+    _channels = get_color_channels(_psd) if _psd is not None else None
+    # The guard is there to reject a file *before* it allocates, so its estimate
+    # must never fall below what follows it. `_channels` is the backdrop, and
+    # taking the wider of it and the header's own count keeps the modes that
+    # expand covered too -- indexed through its palette, duotone into two --
+    # without loosening the ones whose header count is the larger of the pair.
+    # It bounds the canvas, not everything downstream: per-layer arrays are read
+    # with no guard of their own, and a layer record's channel count is an
+    # unvalidated uint16, so a malformed file can still allocate past this
+    # before `_assert_source_fits` fires.
+    _estimate = (
+        max(_psd.channels, _channels)
+        if _psd is not None and _channels is not None
+        else 1
+    )
     check_pixel_size(
         _w,
         _h,
-        _psd.channels if _psd is not None else 1,
+        _estimate,
         max_alloc_bytes=_psd._max_alloc_bytes if _psd is not None else None,
     )
 
@@ -291,7 +321,7 @@ def composite(
         0.0 if isolated else alpha,
         _h,
         _w,
-        EXPECTED_CHANNELS[_psd.color_mode] if _psd is not None else None,
+        _channels,
     )
 
     layer_filter = layer_filter or Layer.is_visible
@@ -495,9 +525,10 @@ def _normalize_backdrop(
     not an allocation-avoidance path. (``_get_mask``/``_get_const`` keep their
     scalars for that reason instead.)
 
-    ``channels`` is the document's channel count, or None to infer it from
-    ``color`` where no document is available to name a color mode -- the same
-    defensive fallback ``check_pixel_size()`` is given in ``composite()``.
+    ``channels`` is the width of the canvas to build -- the document's own
+    color channel count, per ``get_color_channels()`` -- or None to infer it
+    from ``color`` where no document is available to ask, the same defensive
+    fallback ``check_pixel_size()`` is given in ``composite()``.
     """
     if channels is None:
         channels = 1 if np.ndim(color) == 0 else int(np.shape(color)[-1])
