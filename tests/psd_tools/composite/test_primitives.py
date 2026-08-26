@@ -16,6 +16,7 @@ import pytest
 
 from psd_tools.composite import utils
 from psd_tools.composite.composite import (
+    _OVERLAY_DRAWS,
     Compositor,
     _blend_backdrop,
     _normalize_backdrop,
@@ -40,6 +41,25 @@ def rgb(
 ) -> np.ndarray:
     """A three-channel array filled with ``color``."""
     return np.tile(np.array(color, dtype=np.float32), (size[0], size[1], 1))
+
+
+# ---------------------------------------------------------------------------
+# Overlay effects
+# ---------------------------------------------------------------------------
+
+
+def test_overlays_are_composited_in_a_fixed_order() -> None:
+    """Iteration order of the table is compositing order, so it is behaviour.
+
+    The three overlays used to be three calls in ``apply()``; collapsing them
+    onto one code path (#713) moved that ordering into a dict, where it is
+    easier to disturb by accident.
+    """
+    assert list(_OVERLAY_DRAWS) == [
+        "coloroverlay",
+        "patternoverlay",
+        "gradientoverlay",
+    ]
 
 
 # ---------------------------------------------------------------------------

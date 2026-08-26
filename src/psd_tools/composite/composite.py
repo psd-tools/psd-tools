@@ -2,6 +2,7 @@
 
 import logging
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any, Callable, Iterator, Protocol, cast
 
 import numpy as np
@@ -50,6 +51,50 @@ class _StyledEffect(Protocol):
 
 def _styled(effects: Iterator[Any]) -> Iterator[_StyledEffect]:
     return cast(Iterator[_StyledEffect], effects)
+
+
+# What each overlay effect draws. Only the pattern needs the compositor's
+# channel count, and only the pattern can decline to draw (returning None), but
+# a uniform signature is what lets the three share one application path -- the
+# shape/alpha arithmetic around them is identical.
+_OverlayDraw = Callable[[Layer, Any, int], tuple[np.ndarray | None, np.ndarray | None]]
+
+
+def _draw_color_overlay(
+    layer: Layer, value: Any, channels: int
+) -> tuple[np.ndarray | None, np.ndarray | None]:
+    return paint.draw_solid_color_fill(layer.bbox, layer._psd.color_mode, value)
+
+
+def _draw_pattern_overlay(
+    layer: Layer, value: Any, channels: int
+) -> tuple[np.ndarray | None, np.ndarray | None]:
+    fill, shape = paint.draw_pattern_fill(layer.bbox, layer._psd, value)
+    if fill is None:
+        return None, None
+    # A grayscale pattern over a multi-channel canvas. The canvas is the
+    # authority on width, not the layer color the overlay is drawn against: a
+    # source is allowed to be single-channel inside a multi-channel document,
+    # and comparing the pattern against *that* rejected patterns which in fact
+    # matched the canvas exactly.
+    color = _widen(fill, channels)
+    assert color.shape[-1] == channels, "Inconsistent pattern channels."
+    return color, shape
+
+
+def _draw_gradient_overlay(
+    layer: Layer, value: Any, channels: int
+) -> tuple[np.ndarray | None, np.ndarray | None]:
+    return paint.draw_gradient_fill(layer.bbox, layer._psd.color_mode, value)
+
+
+# Iteration order is the order the overlays are composited in, unchanged from
+# the sequence of calls this replaced.
+_OVERLAY_DRAWS: dict[str, _OverlayDraw] = {
+    "coloroverlay": _draw_color_overlay,
+    "patternoverlay": _draw_pattern_overlay,
+    "gradientoverlay": _draw_gradient_overlay,
+}
 
 
 def composite_pil(
@@ -479,6 +524,37 @@ def _blend_backdrop(
     return result_color, result_alpha
 
 
+@dataclass(frozen=True)
+class _Source:
+    """A layer resolved into the operands the blend equations take.
+
+    All three canvases cover the full viewport, but they carry different
+    factors: ``shape`` has the layer's mask folded in, ``alpha`` has the mask
+    and the layer opacity, and ``color`` has neither -- it is the layer's own
+    color, with any clip layers already composited onto it.
+
+    ``fill_opacity`` is folded into none of them, because the two composite
+    paths apply it differently -- see ``Compositor._composite_source()``.
+    """
+
+    color: np.ndarray
+    shape: np.ndarray
+    alpha: np.ndarray
+    # The mask coverage scaled by the layer opacity: how much of the source
+    # replaces the backdrop along the pass-through path.
+    mask: float | np.ndarray
+    # The mask coverage on its own. A stroke effect on a layer that has no
+    # pixels of its own traces this rather than ``shape``.
+    shape_mask: float | np.ndarray
+    # Tag.BLEND_FILL_OPACITY, as a 0-1 fraction.
+    fill_opacity: float
+    knockout: Knockout
+    # Whether the group isolated its adjustments; None for a layer that is not
+    # a group. Only an explicit False makes a pass-through group composite as
+    # one -- see _composite_source().
+    adjustment_isolated: bool | None
+
+
 class Compositor(object):
     """Composite context.
 
@@ -555,75 +631,116 @@ class Compositor(object):
     def apply(self, layer: Layer, clip_compositing: bool = False) -> None:
         logger.debug("Compositing %s" % layer)
 
+        if not self._accepts(layer, clip_compositing):
+            return
+        if isinstance(layer, AdjustmentLayer):
+            # An adjustment contributes no source of its own; it rewrites the
+            # canvas that is already there.
+            self._apply_adjustment(layer)
+            return
+
+        source = self._resolve_source(layer)
+        self._composite_source(source, layer.blend_mode)
+        self._apply_effects(layer, source)
+
+    def _accepts(self, layer: Layer, clip_compositing: bool) -> bool:
+        """Whether this layer contributes to the composite at all."""
         if self._layer_filter is not None and not self._layer_filter(layer):
             logger.debug("Ignore %s" % layer)
-            return
+            return False
         if (utils.intersect(self._viewport, layer.bbox) == (0, 0, 0, 0)) and not (
             isinstance(layer, AdjustmentLayer) or isinstance(layer, GroupMixin)
         ):
             logger.debug("Out of viewport %s" % (layer))
-            return
+            return False
         if not clip_compositing and layer.clipping:
-            return
+            # Composited by the layer it clips to, through _apply_clip_layers().
+            return False
+        return True
 
-        is_adjustment_isolated = None
+    def _resolve_source(self, layer: Layer) -> _Source:
+        """Resolve a layer into the operands the blend equations take.
+
+        Reads the layer -- group, object, clip layers, mask, opacity -- and
+        reads this compositor's canvases where a group needs a backdrop to
+        stand on, but writes none of them. ``_composite_source()`` is the write.
+        """
         knockout = _read_knockout(layer)
-        if isinstance(layer, AdjustmentLayer):
-            self._apply_adjustment(layer)
-            return
-        elif isinstance(layer, GroupMixin):
-            color, shape, alpha, is_adjustment_isolated = self._get_group(
-                layer, knockout
-            )
+        adjustment_isolated: bool | None = None
+        if isinstance(layer, GroupMixin):
+            color, shape, alpha, adjustment_isolated = self._get_group(layer, knockout)
         else:
             color, shape, alpha = self._get_object(layer)
 
-        # Composite clip layers.
         if layer.has_clip_layers():
             color = self._apply_clip_layers(layer, color, alpha)
 
-        # Apply masks and opacity.
         shape_mask = self._get_mask(layer)
-        shape_const, opacity_const = self._get_const(layer)
-        mask = shape_mask * opacity_const
+        fill_opacity, opacity = self._get_const(layer)
+        mask = shape_mask * opacity
+        # In place: both canvases were built for this layer by the calls above
+        # and are not shared with anything else.
         shape *= shape_mask
         alpha *= mask
 
         # TODO: Tag.BLEND_INTERIOR_ELEMENTS controls how inner effects apply.
 
-        full_passthrough = (
-            layer.blend_mode == BlendMode.PASS_THROUGH
-            and is_adjustment_isolated is False
-        )  # when adjustments are isolated, passthrough composing fallbacks to over composing
-        if full_passthrough:
-            self._apply_passthrough_source(
-                color, shape * shape_const, alpha * shape_const, mask * shape_const
-            )
-        else:
-            # Fill opacity (``shape_const``) scales how much the source
-            # contributes, but under knockout the hole is punched by the
-            # source's full coverage -- so ``shape`` stays unscaled there and
-            # ``(1 - shape)`` in _apply_source() removes the whole backdrop.
-            self._apply_source(
-                color,
-                shape if knockout else shape * shape_const,
-                alpha * shape_const,
-                layer.blend_mode,
-                knockout,
-            )
+        return _Source(
+            color=color,
+            shape=shape,
+            alpha=alpha,
+            mask=mask,
+            shape_mask=shape_mask,
+            fill_opacity=fill_opacity,
+            knockout=knockout,
+            adjustment_isolated=adjustment_isolated,
+        )
 
-        # TODO: Apply after effects
-        self._apply_color_overlay(layer, shape, alpha)
-        self._apply_pattern_overlay(layer, shape, alpha)
-        self._apply_gradient_overlay(layer, shape, alpha)
-        if (
-            (self._force and layer.has_vector_mask())
-            or (not layer.has_pixels())
-            and utils.has_fill(layer)
-        ):
-            self._apply_stroke_effect(layer, shape_mask, alpha)
-        else:
-            self._apply_stroke_effect(layer, shape, alpha)
+    def _composite_source(self, source: _Source, blend_mode: BlendMode) -> None:
+        """Composite a resolved source into this compositor's canvases."""
+        # ``is False`` and not a truth test: when a group isolates its
+        # adjustments, pass-through composing falls back to over composing,
+        # because _get_group() has already handed back the group's isolated
+        # result. None means the layer is not a group at all.
+        if blend_mode == BlendMode.PASS_THROUGH and source.adjustment_isolated is False:
+            self._apply_passthrough_source(
+                source.color,
+                source.shape * source.fill_opacity,
+                source.alpha * source.fill_opacity,
+                source.mask * source.fill_opacity,
+            )
+            return
+
+        # Fill opacity scales how much the source contributes, but under
+        # knockout the hole is punched by the source's full coverage -- so
+        # ``shape`` stays unscaled there and ``(1 - shape)`` in _apply_source()
+        # removes the whole backdrop.
+        self._apply_source(
+            source.color,
+            source.shape if source.knockout else source.shape * source.fill_opacity,
+            source.alpha * source.fill_opacity,
+            blend_mode,
+            source.knockout,
+        )
+
+    def _apply_effects(self, layer: Layer, source: _Source) -> None:
+        """Composite the layer's overlay and stroke effects.
+
+        TODO: Apply after effects. These run once the source is already in the
+        backdrop, so an effect blends against the composite rather than against
+        the layer it belongs to.
+        """
+        for effect_name in _OVERLAY_DRAWS:
+            self._apply_overlay(layer, effect_name, source.shape, source.alpha)
+
+        # A layer drawn from a fill, or force-redrawn from its vector mask, has
+        # no source shape worth tracing -- the stroke follows the mask instead.
+        traces_mask = (self._force and layer.has_vector_mask()) or (
+            not layer.has_pixels() and utils.has_fill(layer)
+        )
+        self._apply_stroke_effect(
+            layer, source.shape_mask if traces_mask else source.shape, source.alpha
+        )
 
     def _apply_passthrough_source(
         self,
@@ -1065,61 +1182,19 @@ class Compositor(object):
         alpha = shape * opacity
         return color, shape, alpha
 
-    def _apply_color_overlay(
-        self, layer: Layer, shape: np.ndarray, alpha: np.ndarray
+    def _apply_overlay(
+        self, layer: Layer, effect_name: str, shape: np.ndarray, alpha: np.ndarray
     ) -> None:
-        for effect in _styled(layer.effects.find("coloroverlay")):
-            color, shape_e = paint.draw_solid_color_fill(
-                layer.bbox, layer._psd.color_mode, effect.value
-            )
-            color = paste(self._viewport, layer.bbox, color, 1.0)
-            if shape_e is None:
-                shape_e = np.ones((self.height, self.width, 1), dtype=np.float32)
-            else:
-                shape_e = paste(self._viewport, layer.bbox, shape_e)
-            opacity = effect.opacity / 100.0
-            self._apply_source(
-                color, shape * shape_e, alpha * shape_e * opacity, effect.blend_mode
-            )
+        """Composite every overlay effect of one kind over the layer.
 
-    def _apply_pattern_overlay(
-        self, layer: Layer, shape: np.ndarray, alpha: np.ndarray
-    ) -> None:
-        # The canvas is the authority on width, not the layer color this was
-        # called with: a source is allowed to be single-channel inside a
-        # multi-channel document, and comparing the pattern against *that*
-        # rejected patterns which in fact matched the canvas exactly.
-        channels = self.channels
-        for effect in _styled(layer.effects.find("patternoverlay")):
-            fill, shape_e = paint.draw_pattern_fill(
-                layer.bbox, layer._psd, effect.value
-            )
+        The three overlay kinds differ only in what they draw, which is what
+        ``_OVERLAY_DRAWS`` holds; the coverage arithmetic below is shared.
+        """
+        draw = _OVERLAY_DRAWS[effect_name]
+        for effect in _styled(layer.effects.find(effect_name)):
+            fill, shape_e = draw(layer, effect.value, self.channels)
             if fill is None:
-                logger.debug("Skipping undrawable pattern overlay in %s", layer)
-                continue
-            # A grayscale pattern over a multi-channel canvas.
-            color = _widen(fill, channels)
-            assert color.shape[-1] == channels, "Inconsistent pattern channels."
-
-            color = paste(self._viewport, layer.bbox, color, 1.0)
-            if shape_e is None:
-                shape_e = np.ones((self.height, self.width, 1), dtype=np.float32)
-            else:
-                shape_e = paste(self._viewport, layer.bbox, shape_e)
-            opacity = effect.opacity / 100.0
-            self._apply_source(
-                color, shape * shape_e, alpha * shape_e * opacity, effect.blend_mode
-            )
-
-    def _apply_gradient_overlay(
-        self, layer: Layer, shape: np.ndarray, alpha: np.ndarray
-    ) -> None:
-        for effect in _styled(layer.effects.find("gradientoverlay")):
-            fill, shape_e = paint.draw_gradient_fill(
-                layer.bbox, layer._psd.color_mode, effect.value
-            )
-            if fill is None:
-                logger.debug("Skipping undrawable gradient overlay in %s", layer)
+                logger.debug("Skipping undrawable %s effect in %s", effect_name, layer)
                 continue
             color = paste(self._viewport, layer.bbox, fill, 1.0)
             if shape_e is None:
