@@ -48,12 +48,32 @@ Changelog
 - [fix] Never let the ``max_alloc_bytes`` estimate in ``composite()`` fall
   below the canvas it guards. The guard is there to reject a hostile file
   *before* it allocates, but it was given the header's channel count alone,
-  which under-counted a duotone document's two-channel canvas by half. It is
-  now given the wider of the header count and the canvas width, so no colour
-  mode under-estimates. This can reject a document that a very tight budget
-  previously admitted. Applies to ``composite()``'s own guard: a document with
-  no layers returns early, before that estimate, and stays covered by the check
-  in ``numpy()`` instead (#720).
+  which under-counted an indexed document's canvas by 3x -- its single stored
+  channel becomes three through the palette. It is now given the wider of the
+  header count and the canvas width, so no colour mode under-estimates. This
+  can reject a document that a very tight budget previously admitted. Applies
+  to ``composite()``'s own guard: a document with no layers returns early,
+  before that estimate, and stays covered by the check in ``numpy()`` instead
+  (#720).
+- [fix] Composite duotone documents at their stored width.
+  ``EXPECTED_CHANNELS`` reported 2 for duotone -- the ink count -- while duotone
+  pixel data is a single grayscale channel, the one to four ink curves living
+  in the colour mode data section. Three consequences, all fixed:
+  ``composite()`` returned a two-channel array whose second channel was not
+  data from the file but the backdrop copied; ``PSDImage.composite(force=True)``
+  returned *wrong pixels*, because the over-wide array was handed to PIL as
+  ``"LA"`` and the planes came out shifted against each other; and the
+  ``ColorDodge``, ``ColorBurn`` and ``VividLight`` blend modes raised
+  ``IndexError`` on any duotone document (#733).
+- [api] ``PSDImage.new("DUOTONE", ...)`` now accepts a colour. It previously
+  rejected every sequence: the constructor demanded two components while the
+  header it built declared one channel, so no value satisfied both (#733).
+
+  **Backwards incompatible**: a per-channel ``background_color`` on a duotone
+  document now takes one component instead of two.
+  ``psd.background_color = (0.5, 0.5)`` raises ``ValueError``; pass ``(0.5,)``
+  or a scalar. The second component was inert -- it had no channel to be
+  written to, and the saved bytes are identical without it (#733).
 - [api] Widen the ``color`` parameter of ``composite()``, ``composite_pil()``,
   ``Layer.composite()``, ``Group.composite()``, ``Artboard.composite()`` and
   ``PSDImage.composite()`` -- and of ``LayerProtocol`` and ``PSDProtocol`` --

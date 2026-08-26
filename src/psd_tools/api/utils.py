@@ -127,9 +127,11 @@ def check_pixel_size(
 #
 # This is not the only such table: :py:meth:`psd_tools.constants.ColorMode.channels`
 # carries a second one, read by ``pil_io._check_channels()`` and
-# ``PSDImage._make_header()``. The two disagree for MULTICHANNEL -- 64 here, 1
-# there -- and neither is any document's real count, which only the file header
-# carries. ``get_color_channels()`` below is the one that asks the header.
+# ``PSDImage._make_header()``. The two still disagree for MULTICHANNEL -- 64
+# here, 1 there -- where neither is any document's real count, which only the
+# file header carries, and for INDEXED -- 3 here, 1 there -- where each is right
+# about a different thing, one stored channel expanding to three through the
+# palette. ``get_color_channels()`` below is the one that asks the header.
 EXPECTED_CHANNELS = {
     ColorMode.BITMAP: 1,
     ColorMode.GRAYSCALE: 1,
@@ -137,7 +139,10 @@ EXPECTED_CHANNELS = {
     ColorMode.RGB: 3,
     ColorMode.CMYK: 4,
     ColorMode.MULTICHANNEL: 64,
-    ColorMode.DUOTONE: 2,
+    # Duotone stores a single grayscale channel; its one to four inks live in
+    # the color mode data section, not in the image data, so no ink count is a
+    # channel count. This read 2 until #733.
+    ColorMode.DUOTONE: 1,
     ColorMode.LAB: 3,
 }
 
