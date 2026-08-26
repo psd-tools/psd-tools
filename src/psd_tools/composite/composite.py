@@ -785,7 +785,7 @@ class Compositor(object):
             )
 
     def finish(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        return self.color, self.shape, self.alpha
+        return self.result_isolated(), self.shape, self.alpha
 
     @property
     def viewport(self) -> tuple[int, int, int, int]:
@@ -804,13 +804,36 @@ class Compositor(object):
         """The channel count every canvas in this compositor carries."""
         return self._channels
 
-    @property
-    def color(self) -> np.ndarray:
+    def result_isolated(self) -> np.ndarray:
+        """The composited color with the initial backdrop's contribution removed.
+
+        Correct when the result is handed back as a *source* in its own right
+        -- a group about to be composited by its parent, or the return value of
+        ``composite()`` -- because the caller will composite it over that same
+        backdrop again, and the backdrop must not be counted twice. Paired with
+        ``alpha``, this is straight (un-premultiplied) color: where the group
+        covers nothing, the backdrop it was seeded with is undone.
+
+        The correction is a no-op for the transparent backdrop an isolated
+        group starts from, and grows with ``_alpha_0``.
+        """
         return utils.clip(
             self._color
             + (self._color - self._color_0)
             * (utils.divide(self._alpha_0, self._alpha_g) - self._alpha_0)
         )
+
+    def result_over_backdrop(self) -> np.ndarray:
+        """The composited color *as it stands over* the initial backdrop.
+
+        Correct when the caller is continuing to composite onto the very
+        backdrop this compositor was seeded with, so that removing it would
+        drop a contribution the caller still wants: the pass-through path,
+        where the sub-compositor was seeded with the parent's own canvas, and
+        the clip-layer path, where the sub-compositor was seeded with the base
+        layer's color.
+        """
+        return self._color
 
     @property
     def shape(self) -> np.ndarray:
@@ -881,12 +904,18 @@ class Compositor(object):
         for sublayer in cast(GroupMixin, layer):
             group_compositor.apply(sublayer)
 
+        # When adjustments are isolated the group is composited as an ordinary
+        # source, so the backdrop it was seeded with has to come back out
+        # first; otherwise it stays in, because _apply_passthrough_source()
+        # interpolates the result against that same backdrop. For a
+        # non-pass-through group the two agree anyway -- it was seeded
+        # transparent, and the correction is a no-op there.
         if isolate_adjustments:
-            color = group_compositor.color  # prevents backdrop color contamination
+            color = group_compositor.result_isolated()
         else:
-            color = group_compositor._color
-        shape = group_compositor._shape_g
-        alpha = group_compositor._alpha_g
+            color = group_compositor.result_over_backdrop()
+        shape = group_compositor.shape
+        alpha = group_compositor.alpha
 
         color = paste(self._viewport, viewport, color, 1.0)
         shape = paste(self._viewport, viewport, shape)
@@ -945,7 +974,9 @@ class Compositor(object):
         )
         for clip_layer in layer.clip_layers:
             compositor.apply(clip_layer, clip_compositing=True)
-        return compositor._color
+        # Seeded with ``color`` itself, so the result is wanted as it stands on
+        # that seed -- the clipped layers paint onto the base layer's color.
+        return compositor.result_over_backdrop()
 
     def _get_mask(self, layer: Layer) -> float | np.ndarray:
         """The layer's mask coverage, with any mask density already folded in.
