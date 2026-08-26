@@ -123,20 +123,43 @@ def test_union_identities(x: float) -> None:
     assert utils.union(x, 1.0) == pytest.approx(1.0)
 
 
-def test_divide_falls_back_to_one_on_non_finite() -> None:
-    """Division by zero yields 1.0, i.e. white in normalised colour space.
+def test_divide_defaults_to_one_where_the_divisor_is_zero() -> None:
+    """Without a ``fill``, a zero divisor yields 1.0.
 
-    This is a deliberate policy rather than an accident, and callers depend on
-    it -- see the ``np.where`` guard in ``_apply_passthrough_source``. #714
-    proposes making the fallback caller-specified; this test is what that
-    change has to consciously update.
+    That is white in normalised colour space and fully opaque read as an
+    alpha; the callers that do not pass ``fill`` rely on one or the other.
     """
     assert np.array_equal(utils.divide(gray(1.0), gray(0.0)), gray(1.0))
     assert np.array_equal(utils.divide(gray(0.0), gray(0.0)), gray(1.0))
 
 
+def test_divide_substitutes_the_callers_fill() -> None:
+    assert np.array_equal(utils.divide(gray(1.0), gray(0.0), fill=0.25), gray(0.25))
+
+
+def test_divide_fill_may_be_a_canvas() -> None:
+    """A per-pixel fill, as ``_apply_passthrough_source`` passes."""
+    divisor = np.array([[[0.0], [2.0]]], dtype=np.float32)
+    result = utils.divide(rgb(WHITE, (1, 2)), divisor, fill=rgb(BLUE, (1, 2)))
+    assert np.allclose(result[0, 0], BLUE)  # divisor 0 -> the fill
+    assert np.allclose(result[0, 1], (0.5, 0.5, 0.5))  # divisor 2 -> the quotient
+
+
+def test_divide_fill_broadcasts_against_a_wider_numerator() -> None:
+    """A three-channel numerator over a single-channel divisor."""
+    result = utils.divide(rgb(RED), gray(0.0), fill=gray(0.5))
+    assert result.shape == (2, 2, 3)
+    assert np.allclose(result, 0.5)
+
+
 def test_divide_is_ordinary_where_the_divisor_is_non_zero() -> None:
     assert np.allclose(utils.divide(gray(1.0), gray(4.0)), gray(0.25))
+    assert np.allclose(utils.divide(gray(1.0), gray(4.0), fill=0.0), gray(0.25))
+
+
+def test_divide_keeps_the_numerator_dtype() -> None:
+    """float32 canvases must not be promoted to float64 by a scalar divisor."""
+    assert utils.divide(gray(1.0), np.float32(2.0)).dtype == np.float32
 
 
 def test_clip_bounds() -> None:
@@ -423,6 +446,18 @@ def test_apply_source_over_transparent_backdrop_is_not_contaminated_toward_white
     color, _, alpha = apply_one(WHITE, 0.0, BLUE, 0.5, 0.5)
     assert np.allclose(color[0, 0], BLUE)
     assert np.allclose(alpha, 0.5)
+
+
+def test_passthrough_over_nothing_keeps_the_group_colour() -> None:
+    """A pass-through group over a transparent backdrop is not whitened.
+
+    With nothing composited anywhere, ``color_t / self._alpha`` is 0 / 0 at
+    every pixel, and the group's own colour is what belongs there instead of
+    ``divide()``'s default white.
+    """
+    compositor = Compositor((0, 0, 2, 2), rgb(WHITE), gray(0.0))
+    compositor._apply_passthrough_source(rgb(BLUE), gray(0.0), gray(0.0), 1.0)
+    assert np.allclose(compositor.result_over_backdrop(), rgb(BLUE))
 
 
 @pytest.mark.parametrize("source_alpha", [0.0, 0.25, 0.5, 0.75, 1.0])
