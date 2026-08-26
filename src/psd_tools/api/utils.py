@@ -152,16 +152,21 @@ def get_color_channels(psdimage: "PSDProtocol") -> int:
     multichannel document is the only one that has to be asked how many
     channels it carries.
 
-    Leaving that 64 in place is deliberate. The one reader for which it is live
-    on a multichannel document is the defensive cap in
-    ``numpy_io._find_channel()``, where a layer record may declare more channels
-    than the header does; 64 never truncates there, which is what keeps a real
-    mismatch visible to the compositor instead of quietly trimmed. The
-    ``psdimage.channels > expected`` thresholds in :func:`has_transparency` and
-    :func:`get_transparency_index` are inert for the mode either way, since
-    ``FileHeader.channels`` is validated to at most 56, and
+    Leaving that 64 in place is deliberate, though not harmless. The reader that
+    genuinely wants it is the defensive cap in ``numpy_io._find_channel()``,
+    where a layer record may declare more channels than the header does; 64
+    never truncates there, which is what keeps a real mismatch visible to the
+    compositor instead of quietly trimmed. Two more are inert rather than
+    correct -- the ``psdimage.channels > expected`` thresholds in
+    :func:`has_transparency` and :func:`get_transparency_index` can never fire,
+    because ``FileHeader.channels`` is validated to at most 56, and
     :func:`~psd_tools.api.numpy_io.get_image_data` special-cases multichannel
-    before it reaches the table at all.
+    before it reaches the table at all. And one is simply wrong:
+    ``_validate_color_input()`` requires a sequence of exactly 64 components, so
+    assigning a sequence to :py:attr:`PSDImage.background_color` on a
+    multichannel document raises. That is a separate bug, filed rather than
+    fixed here -- it takes a bare ``ColorMode`` where this takes a document, and
+    so cannot reach the header at all.
 
     So this is for the callers the constant cannot serve: the ones that must
     *allocate* a canvas as wide as the document's own arrays.
@@ -169,9 +174,12 @@ def get_color_channels(psdimage: "PSDProtocol") -> int:
     Args:
         psdimage: The PSD image protocol object
     Returns:
-        The number of channels the color array carries, excluding transparency.
-        For a multichannel document these are spot channels rather than color
-        components in any colorimetric sense.
+        The width of the document's color array. For every mode but multichannel
+        that is the mode's own color components, with any alpha excluded; for
+        multichannel it is the header's count, whose channels are spot channels.
+        Layer arrays drop their transparency channel and so can be narrower than
+        this in a malformed file -- deliberately, so that the compositor's width
+        assertion still sees the mismatch.
     """
     if psdimage.color_mode == ColorMode.MULTICHANNEL:
         return psdimage.channels

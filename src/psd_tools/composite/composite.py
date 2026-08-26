@@ -277,12 +277,14 @@ def composite(
     # could not be blended against.
     _channels = get_color_channels(_psd) if _psd is not None else None
     # The guard is there to reject a file *before* it allocates, so its estimate
-    # must never fall below what follows it. The wider of the two counts is that
-    # bound: `_channels` is the backdrop, and the header's own count covers the
-    # per-layer arrays read alongside it. Either can be the larger -- the header
-    # wherever a document carries alpha or spot channels beyond its color
-    # channels, `_channels` wherever a mode expands (indexed through its
-    # palette, duotone into two).
+    # must never fall below what follows it. `_channels` is the backdrop, and
+    # taking the wider of it and the header's own count keeps the modes that
+    # expand covered too -- indexed through its palette, duotone into two --
+    # without loosening the ones whose header count is the larger of the pair.
+    # It bounds the canvas, not everything downstream: per-layer arrays are read
+    # with no guard of their own, and a layer record's channel count is an
+    # unvalidated uint16, so a malformed file can still allocate past this
+    # before `_assert_source_fits` fires.
     _estimate = (
         max(_psd.channels, _channels)
         if _psd is not None and _channels is not None

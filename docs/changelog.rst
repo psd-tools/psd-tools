@@ -48,10 +48,12 @@ Changelog
 - [fix] Never let the ``max_alloc_bytes`` estimate in ``composite()`` fall
   below the canvas it guards. The guard is there to reject a hostile file
   *before* it allocates, but it was given the header's channel count alone,
-  which under-counted a duotone document's two-channel canvas by half and an
-  indexed document's palette-expanded canvas by 3x. It is now given the wider
-  of the header count and the canvas width, so no mode under-estimates. This
-  can reject a document that a tight budget previously admitted (#720).
+  which under-counted a duotone document's two-channel canvas by half. It is
+  now given the wider of the header count and the canvas width, so no colour
+  mode under-estimates. This can reject a document that a very tight budget
+  previously admitted. Applies to ``composite()``'s own guard: a document with
+  no layers returns early, before that estimate, and stays covered by the check
+  in ``numpy()`` instead (#720).
 - [api] Widen the ``color`` parameter of ``composite()``, ``composite_pil()``,
   ``Layer.composite()``, ``Group.composite()``, ``Artboard.composite()`` and
   ``PSDImage.composite()`` -- and of ``LayerProtocol`` and ``PSDProtocol`` --

@@ -519,8 +519,8 @@ def test_composite_guard_estimate_covers_a_mode_that_expands() -> None:
         full_name("colormodes/4x4_8bit_duotone.psd"), max_alloc_bytes=100
     )
     assert psd.channels == 1
-    # 4 * 4 * 2 * 4 = 128 bytes, over the budget; the header's own count would
-    # have estimated 64 and let it through.
+    # 4 * 4 * 2 * 4 = 128 bytes, over the budget; the header's own count of one
+    # channel would have estimated 64 bytes and let it through.
     with pytest.raises(ValueError, match="4x4x2"):
         composite(psd)
 
