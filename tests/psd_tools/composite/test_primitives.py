@@ -295,7 +295,7 @@ def test_a_narrow_source_leaves_the_canvas_width_alone(channels: int) -> None:
 
     compositor._apply_source(gray(0.5), gray(1.0), gray(1.0), BlendMode.NORMAL)
     assert compositor.channels == channels
-    assert compositor._color.shape == (2, 2, channels)
+    assert compositor.result_over_backdrop().shape == (2, 2, channels)
     assert compositor._color_0.shape == (2, 2, channels)
     assert compositor.finish()[0].shape == (2, 2, channels)
 
@@ -405,7 +405,7 @@ def test_apply_source_fully_transparent_source_leaves_the_backdrop() -> None:
 def test_apply_source_returns_the_isolated_source_not_the_blend() -> None:
     """Over an *opaque* backdrop, the returned colour is the isolated source.
 
-    ``finish()`` returns ``Compositor.color``, which removes the initial
+    ``finish()`` returns ``Compositor.result_isolated()``, which removes the initial
     backdrop's contribution. Compositing this result back over that backdrop is
     what reproduces the visible pixel -- here 50% blue over opaque red gives
     (0.5, 0, 0.5), which ``test_color_correction_removes_an_opaque_backdrop``
@@ -517,23 +517,25 @@ def test_deep_knockout_uses_the_document_backdrop_when_present() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Compositor.color -- the backdrop-removal correction
+# Compositor.result_isolated() -- the backdrop-removal correction
 # ---------------------------------------------------------------------------
 
 
 def test_color_correction_is_a_no_op_for_a_transparent_backdrop() -> None:
     compositor = Compositor((0, 0, 2, 2), rgb(WHITE), gray(0.0))
     compositor._apply_source(rgb(BLUE), gray(0.5), gray(0.5), BlendMode.NORMAL)
-    assert np.allclose(compositor.color, compositor._color)
+    assert np.allclose(compositor.result_isolated(), compositor.result_over_backdrop())
 
 
 def test_color_correction_removes_an_opaque_backdrop() -> None:
     """Over an opaque backdrop the raw and corrected results differ."""
     compositor = Compositor((0, 0, 2, 2), rgb(RED), gray(1.0))
     compositor._apply_source(rgb(BLUE), gray(0.5), gray(0.5), BlendMode.NORMAL)
-    # Raw: what the pixel looks like, blue at 50% over red.
-    assert np.allclose(compositor._color[0, 0], (0.5, 0.0, 0.5))
-    # Corrected: the isolated source, which re-composites to the raw value.
-    assert np.allclose(compositor.color[0, 0], BLUE)
-    recomposited = compositor.color[0, 0] * 0.5 + np.array(RED) * 0.5
-    assert np.allclose(recomposited, compositor._color[0, 0])
+    # Over the backdrop: what the pixel looks like, blue at 50% over red.
+    over_backdrop = compositor.result_over_backdrop()
+    assert np.allclose(over_backdrop[0, 0], (0.5, 0.0, 0.5))
+    # Isolated: the source on its own, which re-composites to the value above.
+    isolated = compositor.result_isolated()
+    assert np.allclose(isolated[0, 0], BLUE)
+    recomposited = isolated[0, 0] * 0.5 + np.array(RED) * 0.5
+    assert np.allclose(recomposited, over_backdrop[0, 0])
