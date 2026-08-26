@@ -124,6 +124,12 @@ def check_pixel_size(
 
 
 # Mapping of expected number of channels for each color mode.
+#
+# This is not the only such table: :py:meth:`psd_tools.constants.ColorMode.channels`
+# carries a second one, read by ``pil_io._check_channels()`` and
+# ``PSDImage._make_header()``. The two disagree for MULTICHANNEL -- 64 here, 1
+# there -- and neither is any document's real count, which only the file header
+# carries. ``get_color_channels()`` below is the one that asks the header.
 EXPECTED_CHANNELS = {
     ColorMode.BITMAP: 1,
     ColorMode.GRAYSCALE: 1,
@@ -134,6 +140,42 @@ EXPECTED_CHANNELS = {
     ColorMode.DUOTONE: 2,
     ColorMode.LAB: 3,
 }
+
+
+def get_color_channels(psdimage: "PSDProtocol") -> int:
+    """Number of color channels a document's pixel arrays carry.
+
+    :data:`EXPECTED_CHANNELS` names a constant per color mode, which is the
+    right answer for every mode whose channel count the mode itself fixes.
+    Multichannel is the exception: its entry is 64, the *format's maximum*
+    number of channels rather than any document's actual count, so a
+    multichannel document is the only one that has to be asked how many
+    channels it carries.
+
+    Leaving that 64 in place is deliberate. The one reader for which it is live
+    on a multichannel document is the defensive cap in
+    ``numpy_io._find_channel()``, where a layer record may declare more channels
+    than the header does; 64 never truncates there, which is what keeps a real
+    mismatch visible to the compositor instead of quietly trimmed. The
+    ``psdimage.channels > expected`` thresholds in :func:`has_transparency` and
+    :func:`get_transparency_index` are inert for the mode either way, since
+    ``FileHeader.channels`` is validated to at most 56, and
+    :func:`~psd_tools.api.numpy_io.get_image_data` special-cases multichannel
+    before it reaches the table at all.
+
+    So this is for the callers the constant cannot serve: the ones that must
+    *allocate* a canvas as wide as the document's own arrays.
+
+    Args:
+        psdimage: The PSD image protocol object
+    Returns:
+        The number of channels the color array carries, excluding transparency.
+        For a multichannel document these are spot channels rather than color
+        components in any colorimetric sense.
+    """
+    if psdimage.color_mode == ColorMode.MULTICHANNEL:
+        return psdimage.channels
+    return EXPECTED_CHANNELS[psdimage.color_mode]
 
 
 def has_transparency(psdimage: "PSDProtocol") -> bool:

@@ -38,6 +38,20 @@ Changelog
   backdrop was sized from ``EXPECTED_CHANNELS``, which reports 64 channels for
   multichannel documents regardless of how many the file actually carries, so
   the blend raised ``ValueError`` (#708).
+- [fix] Composite a multichannel document that *has* layers. The same
+  ``EXPECTED_CHANNELS`` count of 64 sized the backdrop on the layered path, so
+  the canvas was built 64 channels wide and the first layer met it with an
+  ``AssertionError``. The width now comes from the document header. Note that
+  this fixes the NumPy ``composite()`` entry point; ``PSDImage.composite()``
+  keeps only the first spot channel for multichannel documents, as it already
+  did for layerless ones (#720).
+- [fix] Never let the ``max_alloc_bytes`` estimate in ``composite()`` fall
+  below the canvas it guards. The guard is there to reject a hostile file
+  *before* it allocates, but it was given the header's channel count alone,
+  which under-counted a duotone document's two-channel canvas by half and an
+  indexed document's palette-expanded canvas by 3x. It is now given the wider
+  of the header count and the canvas width, so no mode under-estimates. This
+  can reject a document that a tight budget previously admitted (#720).
 - [api] Widen the ``color`` parameter of ``composite()``, ``composite_pil()``,
   ``Layer.composite()``, ``Group.composite()``, ``Artboard.composite()`` and
   ``PSDImage.composite()`` -- and of ``LayerProtocol`` and ``PSDProtocol`` --

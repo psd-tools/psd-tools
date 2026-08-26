@@ -12,7 +12,7 @@ from psd_tools.api import pil_io
 from psd_tools.api.layers import AdjustmentLayer, GroupMixin, Layer
 from psd_tools.api.protocols import LayerProtocol, PSDProtocol
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.api.utils import EXPECTED_CHANNELS, check_pixel_size
+from psd_tools.api.utils import check_pixel_size, get_color_channels
 from psd_tools.composite import paint, utils, vector
 from psd_tools.composite.adjustments import ADJUSTMENT_FUNC
 from psd_tools.composite.blend import BLEND_FUNC, normal
@@ -270,10 +270,28 @@ def composite(
     _w = viewport[2] - viewport[0]
     _h = viewport[3] - viewport[1]
     _psd = group if isinstance(group, PSDImage) else group._psd
+    # The width the backdrop canvas is allocated at, read from the document
+    # rather than from its color mode: EXPECTED_CHANNELS reports 64 for a
+    # multichannel document -- the format's maximum, not any file's own count --
+    # so the canvas came out ~21x too wide and the first layer met a canvas it
+    # could not be blended against.
+    _channels = get_color_channels(_psd) if _psd is not None else None
+    # The guard is there to reject a file *before* it allocates, so its estimate
+    # must never fall below what follows it. The wider of the two counts is that
+    # bound: `_channels` is the backdrop, and the header's own count covers the
+    # per-layer arrays read alongside it. Either can be the larger -- the header
+    # wherever a document carries alpha or spot channels beyond its color
+    # channels, `_channels` wherever a mode expands (indexed through its
+    # palette, duotone into two).
+    _estimate = (
+        max(_psd.channels, _channels)
+        if _psd is not None and _channels is not None
+        else 1
+    )
     check_pixel_size(
         _w,
         _h,
-        _psd.channels if _psd is not None else 1,
+        _estimate,
         max_alloc_bytes=_psd._max_alloc_bytes if _psd is not None else None,
     )
 
@@ -291,7 +309,7 @@ def composite(
         0.0 if isolated else alpha,
         _h,
         _w,
-        EXPECTED_CHANNELS[_psd.color_mode] if _psd is not None else None,
+        _channels,
     )
 
     layer_filter = layer_filter or Layer.is_visible
@@ -495,9 +513,10 @@ def _normalize_backdrop(
     not an allocation-avoidance path. (``_get_mask``/``_get_const`` keep their
     scalars for that reason instead.)
 
-    ``channels`` is the document's channel count, or None to infer it from
-    ``color`` where no document is available to name a color mode -- the same
-    defensive fallback ``check_pixel_size()`` is given in ``composite()``.
+    ``channels`` is the width of the canvas to build -- the document's own
+    color channel count, per ``get_color_channels()`` -- or None to infer it
+    from ``color`` where no document is available to ask, the same defensive
+    fallback ``check_pixel_size()`` is given in ``composite()``.
     """
     if channels is None:
         channels = 1 if np.ndim(color) == 0 else int(np.shape(color)[-1])

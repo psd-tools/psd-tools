@@ -8,7 +8,7 @@ from psd_tools.api.layers import AdjustmentLayer, GroupMixin, Layer, PixelLayer
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite
 from psd_tools.composite.composite import Compositor
-from psd_tools.constants import BlendMode, CompatibilityMode, Tag
+from psd_tools.constants import BlendMode, ColorMode, CompatibilityMode, Tag
 from psd_tools.psd.base import ByteElement
 from PIL import Image
 
@@ -450,6 +450,101 @@ def test_composite_layerless_multichannel_over_a_backdrop() -> None:
     assert len(psd) == 0
     color, _, _ = composite(psd, color=1.0, alpha=1.0)
     assert color.shape == (psd.height, psd.width, psd.numpy("color").shape[2])
+
+
+def _layered_multichannel(**kwargs: Any) -> PSDImage:
+    """A multichannel document *with* layers, which no fixture provides.
+
+    Photoshop flattens on conversion to Multichannel, so this shape only comes
+    from a hand-built file -- which is exactly the input the allocation guard
+    exists for. Retagging the RGB fixture's color mode in place is the whole of
+    it: that fixture's three document channels and its layers' three color
+    channels already agree, as they would in a multichannel file with three
+    spot channels, so nothing else about the document has to change.
+
+    Built this way rather than with ``PSDImage.new`` + ``PixelLayer.frompil``
+    on purpose. ``frompil`` converts to the document's ``pil_mode``, which is
+    ``"LA"`` for a three-channel multichannel document, so the layer would
+    carry a single color channel against a header declaring three -- and a
+    one-channel source broadcasts, so the test would pass without ever
+    exercising the canvas width it is about.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_rgb.psd"), **kwargs)
+    psd._record.header.color_mode = ColorMode.MULTICHANNEL
+    return psd
+
+
+def test_composite_layered_multichannel_uses_the_header_channel_count() -> None:
+    """A multichannel backdrop is as wide as the document says it is (#720).
+
+    ``EXPECTED_CHANNELS[MULTICHANNEL]`` is 64 -- the format's maximum, not any
+    document's count -- so the backdrop was allocated 64 channels wide and the
+    first three-channel layer met it with an ``AssertionError``. The zero-layer
+    path was fixed in #708 by sizing from the document's own array; the layered
+    path has no such array to consult, so it asks the header instead.
+    """
+    psd = _layered_multichannel()
+    assert psd.channels == 3
+    assert len(psd) > 0
+    color, _, _ = composite(psd)
+    assert color.shape == (psd.height, psd.width, psd.channels)
+    # Its one layer carrying pixel data covers the whole canvas opaquely, so
+    # the composite reproduces the document's own merged preview.
+    assert _mse(color, psd.numpy("color")) <= 1e-6
+
+
+def test_composite_layered_multichannel_within_a_budget() -> None:
+    """A budget that admits the real canvas is no longer overrun (#720).
+
+    The three-channel canvas needs 192 bytes where the 64-channel one needed
+    4096, so this budget sits between the two. It is not the guard that used to
+    reject the document -- the guard was told 3 all along -- it is the canvas
+    that used to be built ~21x wider than the guard was promised.
+    """
+    psd = _layered_multichannel(max_alloc_bytes=1024)
+    color, _, _ = composite(psd)
+    assert color.shape == (psd.height, psd.width, 3)
+
+
+def test_composite_guard_estimate_covers_a_mode_that_expands() -> None:
+    """The estimate never falls below the canvas that follows it (#720).
+
+    ``max_alloc_bytes`` is there to reject a file *before* it allocates, so the
+    number it is checked against has to bound what comes next. A duotone
+    document stores one channel and composites over two, so its header count
+    alone under-estimated the canvas by half; the guard is now given the wider
+    of the two counts.
+    """
+    psd = PSDImage.open(
+        full_name("colormodes/4x4_8bit_duotone.psd"), max_alloc_bytes=100
+    )
+    assert psd.channels == 1
+    # 4 * 4 * 2 * 4 = 128 bytes, over the budget; the header's own count would
+    # have estimated 64 and let it through.
+    with pytest.raises(ValueError, match="4x4x2"):
+        composite(psd)
+
+
+def test_composite_pil_layered_multichannel_truncates_like_the_layerless_one() -> None:
+    """Pinning what the PIL exit does now that this shape reaches it (#720).
+
+    ``get_pil_mode(MULTICHANNEL)`` is ``"L"``, so ``composite_pil()`` keeps the
+    first spot channel and drops the rest. That is not new -- it is what the
+    layerless fixture already does in ``test_composite_pil``, and a layered
+    document now lands on exactly the same two modes instead of raising. Pinned
+    here so the truncation is a recorded consequence of letting these documents
+    composite at all. Only the numpy ``composite()`` entry point returns every
+    channel.
+    """
+    psd = _layered_multichannel()
+    preview = psd.composite(apply_icc=False)
+    assert isinstance(preview, Image.Image)
+    assert preview.mode == "L"  # served from the stored preview, uncomposited
+    image = psd.composite(ignore_preview=True, apply_icc=False)
+    assert isinstance(image, Image.Image)
+    assert image.mode == "LA"  # first spot channel, plus the composite alpha
+    color, _, _ = composite(psd)
+    assert _mse(np.asarray(image)[:, :, 0] / 255.0, color[:, :, 0]) <= 1e-4
 
 
 def test_composite_layer_filter() -> None:
