@@ -455,9 +455,18 @@ def test_composite_layerless_multichannel_over_a_backdrop() -> None:
 def _layered_multichannel(**kwargs: Any) -> PSDImage:
     """A multichannel document *with* layers, which no fixture provides.
 
-    Photoshop flattens on conversion to Multichannel, so this shape only comes
-    from a hand-built file -- which is exactly the input the allocation guard
-    exists for. Retagging the RGB fixture's color mode in place is the whole of
+    Photoshop neither produces nor preserves this shape: converting to
+    Multichannel flattens, and *opening* a hand-built layered multichannel file
+    discards the layer records outright. Verified against Photoshop 2026, which
+    reduced a 13-layer retagged document to a single Background layer whose
+    three channels it presents as spot channels ("Alpha 1".."Alpha 3") holding
+    the file's merged image data bit-for-bit. So a document of this shape is
+    only ever hand-built -- which is exactly the input the allocation guard
+    exists for -- and there is no Photoshop render to check a layered
+    multichannel composite against, because Photoshop declines to composite
+    one.
+
+    Retagging the RGB fixture's color mode in place is the whole of
     it: that fixture's three document channels and its layers' three color
     channels already agree, as they would in a multichannel file with three
     spot channels, so nothing else about the document has to change.
