@@ -655,15 +655,9 @@ class Compositor(object):
         color_t = (1.0 - mask) * alpha_b * color_b + (
             mask * alpha_b + alpha * (1.0 - alpha_b)
         ) * color
-        self._color = utils.clip(
-            np.where(
-                self._alpha > 0.0,
-                utils.divide(color_t, self._alpha),
-                # Fully transparent, so the color is arbitrary; ``color`` merely
-                # avoids utils.divide()'s 0 / 0 -> 1.0 (white) fallback.
-                color,
-            )
-        )
+        # Where the result is fully transparent the color is arbitrary, so fall
+        # back to the group's own color rather than to white.
+        self._color = utils.clip(utils.divide(color_t, self._alpha, fill=color))
 
     def _assert_source_fits(self, color: np.ndarray) -> None:
         """Check the fixed-width invariant where a source meets the canvases.
@@ -820,7 +814,12 @@ class Compositor(object):
         return utils.clip(
             self._color
             + (self._color - self._color_0)
-            * (utils.divide(self._alpha_0, self._alpha_g) - self._alpha_0)
+            * (
+                # A ratio of two alphas rather than a color, so the fill
+                # means "fully opaque" here and not "white": where the group
+                # covers nothing there is no coverage to divide out of.
+                utils.divide(self._alpha_0, self._alpha_g, fill=1.0) - self._alpha_0
+            )
         )
 
     def result_over_backdrop(self) -> np.ndarray:

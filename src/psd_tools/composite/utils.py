@@ -1,6 +1,6 @@
 """Utility functions for composite operations."""
 
-from typing import overload
+from typing import Any, overload
 
 import numpy as np
 from numpy.typing import NDArray
@@ -9,12 +9,39 @@ from psd_tools.api.layers import Layer
 from psd_tools.constants import Tag
 
 
-def divide(a: NDArray[np.floating], b: NDArray[np.floating]) -> NDArray[np.floating]:
-    """Safe division for color ops."""
-    with np.errstate(divide="ignore", invalid="ignore"):
-        c = np.true_divide(a, b)
-        c[~np.isfinite(c)] = 1.0
-    return c
+# A divisor or a fill is usually a canvas, but ``draw_stroke_effect()``
+# normalizes by a NumPy scalar and every caller may pass a plain float.
+_Scalable = NDArray[np.floating] | np.floating[Any] | float
+
+
+def divide(
+    a: NDArray[np.floating],
+    b: _Scalable,
+    fill: _Scalable = 1.0,
+) -> NDArray[np.floating]:
+    """Divide ``a`` by ``b``, substituting ``fill`` where ``b`` is not positive.
+
+    Every divisor in the compositor is an alpha or a coverage, so a zero one
+    means "nothing here" rather than an arithmetic accident, and the quotient
+    is undefined at exactly those pixels. What belongs there instead is the
+    caller's to say: un-premultiplying a color wants a color to fall back to,
+    while a ratio of two alphas wants an opacity. The default 1.0 reads as
+    white in normalized color space and as fully opaque in alpha, which is what
+    every caller that does not pass ``fill`` relies on.
+
+    ``fill`` may be a full canvas as well as a scalar, so a caller can fall
+    back per pixel to something it already has in hand.
+
+    Skipping those pixels via ``where=`` also avoids computing an invalid
+    quotient only to overwrite it -- the divisor is never negative here, so
+    ``b > 0`` and "b is nonzero" are the same test.
+    """
+    out = np.full(
+        np.broadcast_shapes(np.shape(a), np.shape(b)),
+        fill,
+        dtype=np.result_type(a, b),
+    )
+    return np.divide(a, b, out=out, where=np.asarray(b) > 0)
 
 
 def intersect(
