@@ -131,6 +131,9 @@ def composite_pil(
         - Requires optional composite dependencies (aggdraw, scipy, scikit-image)
         - LAB and Duotone color modes have limited blending support
         - Alpha channel handling varies by color mode
+        - Multichannel documents come back single-channel. PIL has no
+          multichannel mode, so only the first spot channel survives; use
+          :py:func:`psd_tools.composite.composite` to keep every channel.
     """
     UNSUPPORTED_MODES = {
         ColorMode.DUOTONE,
@@ -232,6 +235,13 @@ def composite(
           for vector shape rendering, gradient fills, and layer effects.
         - Adjustment layers have limited support.
         - Text rendering is not supported (text layers show as raster if available).
+        - Multichannel documents are composited over every spot channel the
+          file declares. That is more than Photoshop does: Photoshop discards
+          the layer records when it opens a multichannel document and displays
+          the merged image data instead, so a multichannel document that has
+          layers does not render here the way it looks there. Use
+          :py:meth:`~psd_tools.api.psd_image.PSDImage.topil` for the merged
+          data.
     """
     if viewport is None:
         if isinstance(group, PSDImage):

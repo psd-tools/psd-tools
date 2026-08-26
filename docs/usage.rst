@@ -255,6 +255,21 @@ option::
     Posterize, Threshold). The compositing result may look different from
     Photoshop.
 
+.. note::
+
+    Color mode caveats when compositing:
+
+    - Duotone and LAB blending is approximated, and warns when used.
+    - Multichannel documents come back as a single-channel image, because PIL
+      has no multichannel mode and only the first spot channel survives the
+      conversion. Use :py:func:`psd_tools.composite.composite` to get every
+      channel as a NumPy array.
+    - Photoshop discards the layer records when it opens a multichannel
+      document and displays the merged image data, so compositing a
+      multichannel document that has layers does not reproduce what Photoshop
+      shows for the same file. Use
+      :py:meth:`~psd_tools.api.psd_image.PSDImage.topil` for the merged data.
+
 Exporting data to NumPy
 -----------------------
 
