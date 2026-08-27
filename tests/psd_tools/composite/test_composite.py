@@ -519,19 +519,121 @@ def test_composite_guard_estimate_covers_a_mode_that_expands() -> None:
     """The estimate never falls below the canvas that follows it (#720).
 
     ``max_alloc_bytes`` is there to reject a file *before* it allocates, so the
-    number it is checked against has to bound what comes next. A duotone
-    document stores one channel and composites over two, so its header count
-    alone under-estimated the canvas by half; the guard is now given the wider
-    of the two counts.
+    number it is checked against has to bound what comes next. An indexed
+    document stores one channel and composites over three, its palette having
+    expanded it, so the header count alone under-estimated the canvas by 3x.
+
+    Retagged rather than taken from a fixture for the same reason as
+    ``_layered_multichannel``: Photoshop flattens on conversion to Indexed
+    Color, so ``colormodes/4x4_8bit_index_color.psd`` has no layers and takes
+    ``composite()``'s zero-layer early return, never reaching this estimate.
+    Only the *layered* path consults the palette-expanded width, and it does not
+    read the palette itself, so retagging a layered grayscale document is
+    enough. This is the only mode left where the canvas is wider than the
+    header, so it is the only way to exercise that side of the ``max()``.
     """
     psd = PSDImage.open(
-        full_name("colormodes/4x4_8bit_duotone.psd"), max_alloc_bytes=100
+        full_name("colormodes/4x4_8bit_grayscale.psd"), max_alloc_bytes=100
     )
+    psd._record.header.color_mode = ColorMode.INDEXED
     assert psd.channels == 1
-    # 4 * 4 * 2 * 4 = 128 bytes, over the budget; the header's own count of one
+    assert len(psd) > 0
+    # 4 * 4 * 3 * 4 = 192 bytes, over the budget; the header's own count of one
     # channel would have estimated 64 bytes and let it through.
-    with pytest.raises(ValueError, match="4x4x2"):
+    with pytest.raises(ValueError, match="4x4x3"):
         composite(psd)
+
+
+def test_composite_guard_estimate_takes_the_header_when_it_is_wider() -> None:
+    """The other side of the same ``max()`` (#720).
+
+    ``4x4_8bit_rgba.psd`` declares four channels and composites over three, so
+    here it is the header that bounds the pair. Both sides are pinned because
+    the guard is a security control: an estimate below the allocation defeats
+    it, and one needlessly above it rejects files that would have been fine.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_rgba.psd"), max_alloc_bytes=200)
+    assert psd.channels == 4
+    with pytest.raises(ValueError, match="4x4x4"):
+        composite(psd)
+
+
+def test_composite_duotone_is_one_channel_wide() -> None:
+    """Duotone composites at its stored width, not its ink count (#733).
+
+    ``EXPECTED_CHANNELS[DUOTONE]`` was 2 -- the inks -- while duotone pixel data
+    is a single grayscale channel, the ink curves living in the color mode data
+    section. So the backdrop was built two channels wide and every real source
+    broadcast against it: the second channel of the result was not data from the
+    file at all, it was the backdrop copied.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_duotone.psd"))
+    assert psd.channels == 1
+    assert psd.numpy("color").shape[2] == 1
+    color, _, _ = composite(psd)
+    assert color.shape == (psd.height, psd.width, 1)
+
+
+@pytest.mark.parametrize(
+    "blend_mode",
+    [
+        BlendMode.COLOR_BURN,
+        BlendMode.COLOR_DODGE,
+        BlendMode.HARD_LIGHT,
+        BlendMode.LINEAR_LIGHT,
+        BlendMode.PIN_LIGHT,
+        BlendMode.SOFT_LIGHT,
+        BlendMode.VIVID_LIGHT,
+    ],
+)
+def test_composite_duotone_with_a_channelwise_blend_mode(blend_mode: BlendMode) -> None:
+    """These blend modes crashed on every duotone document (#733).
+
+    They index the color array with a mask derived from it -- ``blend.py``'s
+    ``B[Cs == 1] = 1`` and friends -- which needs the operands to agree in
+    width. A two-channel canvas against a one-channel source did not::
+
+        IndexError: boolean index did not match indexed array along axis 2;
+        size of axis is 2 but size of corresponding boolean axis is 1
+
+    All seven of the blend modes listed here raised it. Photoshop keeps layers
+    in duotone mode, so this was reachable on ordinary documents rather than
+    only on hand-built ones.
+
+    ``Hue``, ``Saturation``, ``Color`` and ``Luminosity`` still raise, and are
+    deliberately not listed: they fail identically on
+    ``colormodes/4x4_8bit_grayscale.psd``, so that is a pre-existing
+    single-channel-document bug rather than anything duotone-specific. Duotone
+    now behaves exactly as grayscale does, which is the point.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_duotone.psd"))
+    for layer in psd:
+        layer.blend_mode = blend_mode
+    color, _, _ = composite(psd)
+    assert color.shape == (psd.height, psd.width, 1)
+
+
+def test_composite_pil_duotone_force_keeps_the_luminance_plane_intact() -> None:
+    """``force=True`` returned sheared pixels for duotone documents (#733).
+
+    With the canvas two channels wide, ``composite_pil()`` concatenated alpha
+    onto it and handed ``Image.fromarray()`` a 3-byte-per-pixel buffer declared
+    as 2-byte ``"LA"``. PIL does not reject that, so the planes came out shifted
+    against each other -- the first row's luminance read ``[75, 255, 53, 179]``
+    where the composite says ``[75, 53, 179, 241]``, the 255 being an alpha byte
+    that had slid into the colour plane. This is a wrong-pixels bug, not a
+    width one, so it is pinned against the numpy composite rather than by shape.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_duotone.psd"))
+    image = psd.composite(ignore_preview=True, force=True, apply_icc=False)
+    assert isinstance(image, Image.Image)
+    assert image.mode == "LA"
+    color, _, _ = composite(psd, force=True)
+    luminance = np.asarray(image)[:, :, 0].astype(np.int16)
+    expected = (color[:, :, 0] * 255).round().astype(np.int16)
+    assert np.abs(luminance - expected).max() <= 2
+    # The document is opaque; the alpha plane must be alpha, not a colour byte.
+    assert (np.asarray(image)[:, :, 1] == 255).all()
 
 
 def test_composite_pil_layered_multichannel_truncates_like_the_layerless_one() -> None:

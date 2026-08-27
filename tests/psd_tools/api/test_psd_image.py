@@ -352,6 +352,13 @@ def test_background_color_setter_invalid_channel_count() -> None:
     with pytest.raises(ValueError, match="Expected 1 color channel"):
         gray.background_color = (0.5, 0.5)
 
+    # Duotone stores one grayscale channel, so it expects 1 like grayscale --
+    # not one per ink. This took a 2-tuple until #733, and the second component
+    # had no channel to be written to.
+    duotone = PSDImage.new("DUOTONE", (16, 16))
+    with pytest.raises(ValueError, match="Expected 1 color channel"):
+        duotone.background_color = (0.5, 0.5)
+
     # Scalar input is always valid regardless of color mode
     rgb.background_color = 1.0
     assert rgb.background_color == 1.0
@@ -363,6 +370,8 @@ def test_background_color_setter_invalid_channel_count() -> None:
     assert cmyk.background_color == (0.0, 0.0, 0.0, 0.0)
     gray.background_color = (0.5,)
     assert gray.background_color == (0.5,)
+    duotone.background_color = (0.5,)
+    assert duotone.background_color == (0.5,)
 
 
 def test_new_with_float_color() -> None:

@@ -289,8 +289,9 @@ def composite(
     # The guard is there to reject a file *before* it allocates, so its estimate
     # must never fall below what follows it. `_channels` is the backdrop, and
     # taking the wider of it and the header's own count keeps the modes that
-    # expand covered too -- indexed through its palette, duotone into two --
-    # without loosening the ones whose header count is the larger of the pair.
+    # expand covered too -- indexed, whose single stored channel becomes three
+    # through its palette -- without loosening the ones whose header count is
+    # the larger of the pair.
     # It bounds the canvas, not everything downstream: per-layer arrays are read
     # with no guard of their own, and a layer record's channel count is an
     # unvalidated uint16, so a malformed file can still allocate past this
