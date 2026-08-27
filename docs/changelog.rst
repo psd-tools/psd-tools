@@ -4,6 +4,19 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
+- [fix] Stop cross-mode fills writing ink-space CMYK into an inverted canvas.
+  The compositor's CMYK arrays store what is *left* -- 1.0 is no ink, which
+  ``topil()`` inverts back on the way out -- but the three conversions into CMYK
+  in ``composite/paint.py`` handed them ``color_convert``'s ink-space output
+  unchanged, where white is ``(0, 0, 0, 0)``. A white solid-colour, gradient or
+  stroke fill on a CMYK document therefore composited to solid black, and a
+  black one to a muddy CMY; the artboard background constants were inverted the
+  same way. Fills authored from an RGB, grayscale, HSB or Lab descriptor are
+  affected; a CMYK descriptor on a CMYK document always read correctly.
+  ``psd_tools.color_convert`` is unchanged -- it is public API with a documented
+  ink-space contract -- and the ``background_color`` docstring, which repeated
+  the wrong spelling, is corrected (#747).
+
 - [fix] Degrade the non-separable blend modes on documents whose colour array
   is neither three nor four channels wide instead of crashing. ``Hue``, ``Saturation``, ``Color``
   and ``Luminosity`` raised ``IndexError`` or ``ValueError`` on every

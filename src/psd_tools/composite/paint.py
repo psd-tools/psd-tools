@@ -42,6 +42,23 @@ _SINGLE_CHANNEL_MODES = (
 )
 
 
+def _ink_to_canvas(ink: tuple[float, ...]) -> tuple[float, ...]:
+    """Invert an ink-space CMYK tuple into the compositor's canvas convention.
+
+    ``color_convert``'s CMYK helpers are public API with a documented ink-space
+    contract -- white is ``(0, 0, 0, 0)``, no ink laid down at all. The
+    compositor's arrays are the other way round: they store what is *left*, so
+    1.0 is no ink, and ``pil_io.post_process()`` inverts them back on the way
+    out. Handing ink space straight to the canvas made a white fill composite
+    black (#747).
+
+    Only the conversions *into* CMYK need this. ``_get_cmyk()`` already reads a
+    CMYK descriptor through ``_get_invert_color()``, which lands in canvas space
+    directly.
+    """
+    return tuple(1.0 - v for v in ink)
+
+
 def _from_rgb(color_mode: ColorMode, rgb: tuple[float, ...]) -> tuple[float, ...]:
     """Convert a canonical RGB triple to *color_mode*'s color array width.
 
@@ -56,7 +73,7 @@ def _from_rgb(color_mode: ColorMode, rgb: tuple[float, ...]) -> tuple[float, ...
     the palette, so three is the width its pixel arrays carry.
     """
     if color_mode == ColorMode.CMYK:
-        return rgb_to_cmyk(*rgb)
+        return _ink_to_canvas(rgb_to_cmyk(*rgb))
     if color_mode in _SINGLE_CHANNEL_MODES:
         return (rgb_to_grayscale(*rgb),)
     return rgb
@@ -119,7 +136,7 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
         if color_mode == ColorMode.RGB:
             return gray_to_rgb(gray)
         if color_mode == ColorMode.CMYK:
-            return gray_to_cmyk(gray)
+            return _ink_to_canvas(gray_to_cmyk(gray))
         return (gray,)
 
     def _get_cmyk(color_mode: ColorMode, x: Descriptor) -> tuple[float, ...]:
@@ -147,7 +164,7 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
         # alone keeps them in range and monotonic in lightness.
         lightness = lab[0]
         if color_mode == ColorMode.CMYK:
-            return gray_to_cmyk(lightness)
+            return _ink_to_canvas(gray_to_cmyk(lightness))
         return (lightness,)
 
     _COLOR_FUNC = {

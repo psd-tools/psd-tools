@@ -636,7 +636,10 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         :py:meth:`~PSDImage.composite` ``color`` parameter:
 
         - **RGB / Grayscale**: ``1.0`` = white, ``0.0`` = black
-        - **CMYK**: ``(0.0, 0.0, 0.0, 0.0)`` = white (no ink)
+        - **CMYK**: ``(1.0, 1.0, 1.0, 1.0)`` = white, ``(1.0, 1.0, 1.0, 0.0)``
+          = black. These arrays count what is *left*, not what is laid down,
+          so 1.0 is no ink -- the same convention as the ``color`` parameter
+          and as :py:meth:`~PSDImage.numpy` (#747).
 
         Use a scalar for uniform color or a tuple for per-channel values.
         Set to ``None`` for transparent backdrop (legacy behavior).

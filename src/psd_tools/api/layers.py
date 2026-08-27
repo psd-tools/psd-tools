@@ -1693,8 +1693,11 @@ class Artboard(Group):
                 # LAB: L in [0,1]; a and b channels are neutral at 0.5
                 return (1.0 if white else 0.0, 0.5, 0.5), 1.0
             elif color_mode == ColorMode.CMYK:
-                # CMYK: white = no ink (0,0,0,0); black = full K (0,0,0,1)
-                return ((0.0, 0.0, 0.0, 0.0) if white else (0.0, 0.0, 0.0, 1.0)), 1.0
+                # CMYK arrays store what is left rather than what is laid down,
+                # so 1.0 is no ink: white is (1,1,1,1) and black is full key,
+                # (1,1,1,0). Writing the ink-space spelling here put a white
+                # artboard background on a CMYK document at solid black (#747).
+                return ((1.0, 1.0, 1.0, 1.0) if white else (1.0, 1.0, 1.0, 0.0)), 1.0
             else:
                 logger.debug(
                     "Artboard background color not applied: unsupported color mode %s",

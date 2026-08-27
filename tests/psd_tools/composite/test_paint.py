@@ -14,7 +14,9 @@ and an HSB descriptor raised outright (#730).
 
 import numpy as np
 import pytest
+from PIL import Image
 
+from psd_tools.api.pil_io import post_process
 from psd_tools.api.utils import EXPECTED_CHANNELS
 from psd_tools.composite.paint import (
     _get_color,
@@ -192,7 +194,15 @@ def test_lab_reduces_from_lightness_alone(
 
 
 def test_lab_reduction_is_monotonic_in_lightness() -> None:
-    """Darker L stays darker after the reduction, in ink terms for CMYK."""
+    """Darker L stays darker after the reduction.
+
+    The CMYK direction reversed with #747. These arrays count what is *left*
+    rather than what is laid down -- 1.0 is no ink -- so a darker colour has the
+    *smaller* K entry, and the CMY entries of a K-only build are 1.0 rather than
+    0.0. Before #747 the ink-space spelling went into the canvas unchanged, so
+    the assertions below read the other way round and a white fill composited
+    black.
+    """
 
     def lab_desc(lightness: float) -> Descriptor:
         return _color_desc(
@@ -204,8 +214,72 @@ def test_lab_reduction_is_monotonic_in_lightness() -> None:
     light = _get_color(ColorMode.GRAYSCALE, lab_desc(90.0))
     assert dark[0] < light[0]
 
-    # CMYK is K-only, so more lightness means less key ink.
+    # CMYK is K-only, so more lightness means less key ink -- a larger entry.
     dark_cmyk = _get_color(ColorMode.CMYK, lab_desc(10.0))
     light_cmyk = _get_color(ColorMode.CMYK, lab_desc(90.0))
-    assert dark_cmyk[:3] == light_cmyk[:3] == (0.0, 0.0, 0.0)
-    assert dark_cmyk[3] > light_cmyk[3]
+    assert dark_cmyk[:3] == light_cmyk[:3] == (1.0, 1.0, 1.0)
+    assert dark_cmyk[3] < light_cmyk[3]
+
+
+@pytest.mark.parametrize(
+    ("klass", "fields", "label"),
+    [
+        (Klass.Grayscale.value, {Key.Gray: 0.0}, "gray white"),
+        (
+            Klass.RGBColor.value,
+            {Key.Red: 255, Key.Green: 255, Key.Blue: 255},
+            "rgb white",
+        ),
+        (
+            Klass.HSBColor.value,
+            {Key.Hue: 0.0, Key.Saturation: 0.0, Key.Brightness: 100.0},
+            "hsb white",
+        ),
+        (
+            Klass.LabColor.value,
+            {Key.Luminance: 255.0, Key.A: 0.0, Key.B: 0.0},
+            "lab white",
+        ),
+    ],
+)
+def test_white_fill_is_white_on_a_cmyk_document(
+    klass: bytes, fields: dict, label: str
+) -> None:
+    """A white fill composited black on every CMYK document (#747).
+
+    ``color_convert``'s CMYK helpers are ink-space by contract -- white is
+    ``(0, 0, 0, 0)``, no ink -- and the three conversions into CMYK handed that
+    to a canvas that means the opposite by it. Rendered, the fill came out
+    ``(0, 0, 0)``: solid black where Photoshop shows white.
+
+    Pinned through the real PIL exit rather than on the tuple, because the
+    inversion is only wrong relative to what ``post_process()`` does with it.
+    """
+    fill, _ = draw_solid_color_fill(
+        (0, 0, 4, 4), ColorMode.CMYK, _color_desc(klass, fields)
+    )
+    assert fill is not None
+    image = Image.fromarray((255 * fill).astype(np.uint8), "CMYK")
+    rendered = post_process(image, None, None).convert("RGB")
+    assert rendered.getpixel((0, 0)) == (255, 255, 255)
+
+
+def test_cmyk_fill_lightness_survives_the_round_trip() -> None:
+    """The canvas and the PIL exit must agree on which way the axis runs.
+
+    A monotonic check on its own would pass with the polarity reversed -- it
+    did, before #747 -- so this pins the rendered greys themselves.
+    """
+    seen = []
+    for gray in (0.0, 50.0, 100.0):
+        fill, _ = draw_solid_color_fill(
+            (0, 0, 4, 4),
+            ColorMode.CMYK,
+            _color_desc(Klass.Grayscale.value, {Key.Gray: gray}),
+        )
+        image = Image.fromarray((255 * fill).astype(np.uint8), "CMYK")
+        pixel = post_process(image, None, None).convert("RGB").getpixel((0, 0))
+        assert isinstance(pixel, tuple)
+        seen.append(pixel[0])
+    assert seen[0] == 255 and seen[2] == 0
+    assert seen[0] > seen[1] > seen[2]
