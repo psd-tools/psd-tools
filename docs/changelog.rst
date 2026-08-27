@@ -4,6 +4,30 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
+- [fix] Return a coherent image from ``PSDImage.composite(force=True)`` for
+  every colour mode. ``composite_pil()`` declared the PIL mode and built the
+  array separately, and the two could disagree in two ways (#729):
+
+  A multichannel document came back **garbled**. Its colour array has one plane
+  per spot channel, and the narrowing to the single plane PIL can hold was keyed
+  on the mode and ran *after* alpha had been appended -- by which point the mode
+  was ``"LA"`` and no longer matched, so it never fired. ``Image.fromarray()``
+  does not reject a four-plane array declared as two: it reads two bytes out of
+  every four, and the planes that came back corresponded to nothing in the file.
+  The narrowing now happens before alpha is appended, and the dropped channels
+  are announced with a warning instead of being lost silently. Use
+  :py:func:`psd_tools.composite.composite` to keep every channel.
+
+  Bitmap, CMYK and Lab documents **raised**. ``"A"`` was appended to the mode
+  whether or not PIL has an alpha variant of it, so those asked
+  ``Image.fromarray()`` for ``"1A"``, ``"CMYKA"`` and ``"LABA"`` and got
+  ``ValueError: unrecognized image mode`` or ``TypeError: Cannot handle this
+  data type``. They now come back without alpha rather than not at all. Only
+  ``"L"`` and ``"RGB"`` have alpha variants in PIL, which is the rule
+  ``get_pil_mode(alpha=True)`` already applied.
+
+  Documents composited without ``force`` are unaffected -- every one of the 284
+  fixtures renders bitwise identically.
 - [fix] Correct pass-through group compositing when the group opacity is below
   255. The group's contribution was blended against the backdrop twice, so a
   partially transparent backdrop bled its colour into the result and the output

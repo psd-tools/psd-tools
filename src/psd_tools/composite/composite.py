@@ -132,8 +132,13 @@ def composite_pil(
         - LAB and Duotone color modes have limited blending support
         - Alpha channel handling varies by color mode
         - Multichannel documents come back single-channel. PIL has no
-          multichannel mode, so only the first spot channel survives; use
+          multichannel mode, so only the first spot channel survives -- a
+          warning says so when it happens; use
           :py:func:`psd_tools.composite.composite` to keep every channel.
+        - The result carries alpha only in the modes PIL has an alpha variant
+          of, ``"L"`` and ``"RGB"``. Bitmap, CMYK and Lab come back without it
+          even under ``force``, there being no ``"1A"``, ``"CMYKA"`` or
+          ``"LABA"`` to return them in.
     """
     UNSUPPORTED_MODES = {
         ColorMode.DUOTONE,
@@ -159,12 +164,39 @@ def composite_pil(
     mode = pil_io.get_pil_mode(color_mode)
     if mode == "P":
         mode = "RGB"
+    # Narrow the array to what the mode can hold *before* alpha is appended.
+    # A multichannel document carries one plane per spot channel and PIL has no
+    # mode for that. The narrowing used to happen after the concatenation and
+    # was keyed on `mode`, so once alpha had turned "L" into "LA" it stopped
+    # firing -- and PIL does not reject a four-plane array declared as two, it
+    # reads two bytes out of every four and returns planes that correspond to
+    # nothing.
+    pil_channels = pil_io.get_pil_channels(mode)
+    if color.shape[2] > pil_channels:
+        logger.warning(
+            "%s composited to %d channels; PIL mode %r holds %d. Keeping the "
+            "first and dropping the rest -- use psd_tools.composite.composite() "
+            "to keep every channel.",
+            color_mode,
+            color.shape[2],
+            mode,
+            pil_channels,
+        )
+        color = color[:, :, :pil_channels]
     # Skip alpha when the color mode requires deferred alpha handling, or
     # when the backdrop is fully opaque (the result is guaranteed opaque).
     delay_alpha_application = color_mode not in (ColorMode.GRAYSCALE, ColorMode.RGB)
     uniform_alpha = _uniform_alpha(backdrop_alpha)
     has_opaque_backdrop = uniform_alpha is not None and uniform_alpha >= 1.0
     skip_alpha = not force and (delay_alpha_application or has_opaque_backdrop)
+    # PIL only has alpha variants of "L" and "RGB" -- the same rule
+    # get_pil_mode(alpha=True) applies. Appending it regardless built modes PIL
+    # has never heard of, so `force=True` raised outright on a bitmap ("1A"),
+    # CMYK ("CMYKA") or Lab ("LABA") document. Dropping the alpha instead
+    # returns the colour that was asked for rather than nothing at all.
+    if not skip_alpha and mode not in ("L", "RGB"):
+        logger.debug("PIL has no alpha variant of %r; returning it without.", mode)
+        skip_alpha = True
     logger.debug("Skipping alpha: %s", skip_alpha)
     if not skip_alpha:
         color = np.concatenate((color, alpha), 2)
