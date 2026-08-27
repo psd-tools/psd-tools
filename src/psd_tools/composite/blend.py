@@ -261,15 +261,20 @@ def non_separable(k: str = "s"):
     and a four-channel one round-trips through RGB. Any other width falls back
     to :py:func:`normal` rather than raising or inventing a result.
 
-    The documents that reach the fallback are the grayscale, duotone and
-    multichannel ones, and Photoshop offers none of these six modes on any of
-    them: scripted against Photoshop 2026, a grayscale document rejects every
-    one with *The command "Set" is not currently available*, and they are greyed
-    out in the UI. So there is no result to reproduce, and widening the array to
+    The fallback is keyed on the width rather than on the colour mode, so it
+    covers every mode that is not three or four channels wide: the one-channel
+    ones -- grayscale and duotone, and bitmap and indexed alike -- and
+    multichannel at whatever its spot plates come to. Photoshop offers none of
+    the six on any of them. Scripted against Photoshop 2026, a grayscale
+    document rejects every one with *The command "Set" is not currently
+    available* and they are greyed out in the UI, and bitmap mode does not admit
+    layers at all. So there is no result to reproduce, and widening the array to
     three channels would produce output Photoshop never does (#735).
 
     Lab is three channels wide and so is blended as if it were RGB. That is this
-    module's pre-existing treatment of Lab, not something the fallback decides.
+    module's pre-existing treatment of Lab, not something the fallback decides,
+    and it is the right side to leave Lab on: Photoshop does offer all six modes
+    on a Lab document.
 
     .. note: This implementation is still inaccurate.
     """

@@ -4,8 +4,8 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
-- [fix] Degrade the non-separable blend modes on grayscale, duotone and
-  multichannel documents instead of crashing. ``Hue``, ``Saturation``, ``Color``
+- [fix] Degrade the non-separable blend modes on documents whose colour array
+  is neither three nor four channels wide instead of crashing. ``Hue``, ``Saturation``, ``Color``
   and ``Luminosity`` raised ``IndexError`` or ``ValueError`` on every
   single-channel document -- grayscale and duotone -- because they index
   channels 1 and 2 of an array that has only channel 0, while ``Darker Color``
@@ -15,7 +15,7 @@ Changelog
   document, so there is no result to reproduce and they now fall back to
   ``Normal`` with a debug log, as ``Dissolve`` already does. RGB and CMYK are
   unaffected, and Lab is three channels wide so it keeps its existing
-  treatment (#735).
+  as-if-RGB treatment -- Photoshop does offer all six modes there (#735).
 
 - [fix] Let a per-channel colour be set on a multichannel document.
   :py:attr:`~psd_tools.api.psd_image.PSDImage.background_color` validated the
