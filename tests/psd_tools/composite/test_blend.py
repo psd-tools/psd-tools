@@ -1,4 +1,5 @@
 import logging
+from typing import Callable
 
 import numpy as np
 import pytest
@@ -6,7 +7,16 @@ from PIL import Image
 
 from psd_tools import PSDImage
 from psd_tools.api.layers import GroupMixin, PixelLayer
-from psd_tools.composite.blend import BLEND_FUNC, lighter_color, normal
+from psd_tools.composite.blend import (
+    BLEND_FUNC,
+    color,
+    darker_color,
+    hue,
+    lighter_color,
+    luminosity,
+    normal,
+    saturation,
+)
 from psd_tools.constants import BlendMode
 from .test_composite import check_composite_quality
 
@@ -202,3 +212,72 @@ def test_passthrough_group_opacity_equivalence(
     if got[4, 4, 3] == 0 and ref[4, 4, 3] == 0:
         return  # Fully transparent; the color channels are undefined.
     assert tuple(got[4, 4]) == pytest.approx(tuple(ref[4, 4]), abs=2)
+
+
+NON_SEPARABLE = [hue, saturation, color, luminosity, darker_color, lighter_color]
+
+
+@pytest.mark.parametrize("func", NON_SEPARABLE, ids=lambda f: f.__name__)
+@pytest.mark.parametrize("channels", [1, 2, 5])
+def test_non_separable_falls_back_to_normal_off_rgb(
+    func: Callable, channels: int
+) -> None:
+    """Widths other than RGB and CMYK degrade instead of crashing (#735).
+
+    The four component modes raised on any single-channel document -- every
+    grayscale and duotone fixture that has layers::
+
+        hue, saturation:    IndexError: boolean index did not match indexed
+                            array along axis 2
+        color, luminosity:  ValueError: zero-size array to reduction operation
+                            minimum which has no identity
+
+    ``darker_color`` and ``lighter_color`` did not raise, which was worse: the
+    empty mask they built selected nothing, so both returned the backdrop
+    untouched whatever the source was. Two and five channels -- a duotone canvas
+    widened to its inks, a multichannel document with spot plates -- are broken
+    too, differing only in which exception comes out and in that five channels
+    raises for all six rather than silently passing the backdrop through. So
+    the fallback keys on "not RGB" rather than on "single channel".
+
+    ``normal`` is the fallback because Photoshop refuses to set any of these
+    six modes on such a document, so there is no result to reproduce.
+    """
+    Cb = np.full((2, 2, channels), 0.4, dtype=np.float32)
+    Cs = np.full((2, 2, channels), 0.6, dtype=np.float32)
+    result = func(Cb, Cs)
+    assert result.shape == (2, 2, channels)
+    assert np.array_equal(result, normal(Cb, Cs))
+
+
+@pytest.mark.parametrize("func", NON_SEPARABLE, ids=lambda f: f.__name__)
+@pytest.mark.parametrize("channels", [3, 4])
+def test_non_separable_still_blends_rgb_and_cmyk(
+    func: Callable, channels: int, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The fallback must not swallow the widths that do have ground truth.
+
+    The source is brighter than the backdrop in one pixel and darker in the
+    other. A spatially constant pair would not do: ``darker_color`` and
+    ``lighter_color`` return one whole operand, so on constant input one of the
+    two always coincides with ``normal`` and the comparison could not tell a
+    real blend from the fallback.
+    """
+    Cb = np.full((1, 2, channels), 0.4, dtype=np.float32)
+    Cs = np.full((1, 2, channels), 0.6, dtype=np.float32)
+    Cs[0, 0, 0] = 0.9
+    Cs[0, 1, :] = 0.1
+    with caplog.at_level(logging.DEBUG, logger="psd_tools.composite.blend"):
+        result = func(Cb.copy(), Cs.copy())
+    assert result.shape == (1, 2, channels)
+    assert not np.array_equal(result, normal(Cb, Cs))
+    assert "falling back to normal" not in caplog.text
+
+
+def test_non_separable_fallback_is_logged(caplog: pytest.LogCaptureFixture) -> None:
+    """Degrading silently would hide a mode the caller asked for (#735)."""
+    Cb = np.full((2, 2, 1), 0.4, dtype=np.float32)
+    Cs = np.full((2, 2, 1), 0.6, dtype=np.float32)
+    with caplog.at_level(logging.DEBUG, logger="psd_tools.composite.blend"):
+        luminosity(Cb, Cs)
+    assert "luminosity blend is not defined for a 1-channel source" in caplog.text
