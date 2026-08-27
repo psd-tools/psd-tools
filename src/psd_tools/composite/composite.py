@@ -140,7 +140,10 @@ def composite_pil(
           ``"CMYKA"`` or ``"LABA"`` to return it in. For the rest it is offered
           to :py:func:`psd_tools.api.pil_io.post_process` instead, which
           carries it for CMYK by converting to RGB first when an ICC profile is
-          applied. Bitmap and Lab results carry no alpha either way.
+          applied. Bitmap results carry no alpha either way -- ``post_process()``
+          applies it only to ``"RGB"`` and ``"L"``. Nor do Lab results, but for
+          a separate reason: a Lab document carrying an ICC profile raises
+          inside ``_apply_icc()`` before reaching that point (#740).
     """
     UNSUPPORTED_MODES = {
         ColorMode.DUOTONE,

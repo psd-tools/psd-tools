@@ -27,17 +27,22 @@ Changelog
   ``"RGB"`` have an alpha variant, so for the others the alpha is no longer
   packed into the array -- it is handed to ``post_process()``, which still
   carries it for CMYK by converting to RGB first. So ``force=True`` on a CMYK
-  document now returns the same ``"RGBA"`` that ``force=False`` always did;
-  bitmap and Lab results carry no alpha either way.
+  document now returns the same ``"RGBA"`` that ``force=False`` always did.
+  Bitmap results carry no alpha in either mode, ``post_process()`` applying it
+  only to ``"RGB"`` and ``"L"``. Lab results carry none either, though for an
+  unrelated reason: a Lab document with an ICC profile raises before it gets
+  that far -- #740.
 
   A bitmap document came back **garbled in both modes**.
   ``Image.fromarray(uint8, "1")`` does not mean "these bytes, as bilevel": PIL
   reads the raw mode literally at one bit per pixel, consuming one byte per
   eight columns and expanding its bits across the row, so a 4x4 document
   returned the bits of its first four bytes. The plane is now built as ``"L"``,
-  where a byte is a pixel, and reduced afterwards. This also removes the only
-  use in the compositor of the ``mode`` parameter of ``Image.fromarray()``,
-  which Pillow deprecated and removes in Pillow 13.
+  where a byte is a pixel, and reduced afterwards. That was also the
+  compositor's only ``Image.fromarray()`` call whose ``mode`` reinterprets the
+  array's data type -- the use Pillow deprecated and removes in Pillow 13 --
+  so it no longer warns. Passing ``mode`` where it matches the dtype, as the
+  other colour modes do, is unaffected.
 
   Of the 284 fixtures outside ``third-party-psds``, rendered in both modes:
   every ``force=False`` render is bitwise identical except the bitmap one, and
