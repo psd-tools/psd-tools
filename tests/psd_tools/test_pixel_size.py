@@ -13,9 +13,12 @@ import warnings
 
 import pytest
 
+from typing import Any
+
 from psd_tools import PSDImage, PSDLargeImageWarning
 from psd_tools import compression as _compression
 from psd_tools.api import utils as _utils
+from psd_tools.constants import ColorMode
 from psd_tools.api.utils import (
     MAX_DIMENSION_PSD,
     MAX_PIXELS_PSD,
@@ -244,7 +247,7 @@ def test_explicit_kwarg_overrides_env_default(monkeypatch: pytest.MonkeyPatch) -
 
 
 # ---------------------------------------------------------------------------
-# The estimate must not fall below the allocation it guards (#732)
+# The estimate must match the allocation it guards (#732)
 # ---------------------------------------------------------------------------
 #
 # `get_image_data()` reads the header's channel count but does not always
@@ -253,6 +256,16 @@ def test_explicit_kwarg_overrides_env_default(monkeypatch: pytest.MonkeyPatch) -
 # equal to the real allocation must admit the document and one byte less must
 # reject it: that brackets the estimate from both sides at once, which a test
 # asserting only "raises" would not.
+#
+# Both directions matter. The guard is a security control, so an estimate below
+# the allocation defeats it -- but one above it rejects a file that would have
+# been fine, and a guard that refuses sound documents is its own bug. The
+# estimate is exact for every colour mode, depth and channel count below.
+#
+# Note the scope: it bounds the array that is *returned*, which is what
+# `check_pixel_size()` estimates by construction. The transient peak is a small
+# multiple of it for every mode -- `_parse_array()` holds the raw bytes and two
+# float32 arrays at once -- and that is pre-existing, not colour-mode-specific.
 
 _COLORMODE_FIXTURES = [
     "4x4_8bit_index_color.psd",
@@ -263,57 +276,149 @@ _COLORMODE_FIXTURES = [
     "4x4_8bit_cmyk.psd",
     "4x4_8bit_lab.psd",
     "4x4_16bit_multichannel.psd",
+    "4x4_16bit_cmyk.psd",
+    "4x4_16bit_lab.psd",
+    "4x4_32bit_rgb.psd",
+    "4x4_32bit_grayscale.psd",
     "4x4_1bit_bitmap.psd",
 ]
 
 
-def _colormode(filename: str, **kwargs: object) -> PSDImage:
-    return PSDImage.open(full_name("colormodes/" + filename), **kwargs)  # type: ignore[arg-type]
+def _colormode(filename: str, max_alloc_bytes: int | None = None) -> PSDImage:
+    return PSDImage.open(
+        full_name("colormodes/" + filename), max_alloc_bytes=max_alloc_bytes
+    )
 
 
-def test_numpy_guard_estimate_covers_indexed_expansion() -> None:
-    """Indexed stores one channel and the palette turns it into three.
+def _forge(
+    width: int,
+    height: int,
+    channels: int,
+    depth: int,
+    color_mode: int,
+    max_alloc_bytes: int | None = None,
+) -> PSDImage:
+    """A structurally valid PSD with an arbitrary header/mode combination.
 
-    The header's count alone under-counted the array by 3x, and indexed is the
-    mode Photoshop writes for a flattened document, so this was the common
-    shape rather than a corner.
+    `_build_psd()` above is RGB-only and empty-bodied. These tests need headers
+    that no fixture provides -- an indexed document with more than one stored
+    channel, an indexed document at a depth where the palette is not applied --
+    and need the image data to actually parse, so the estimate can be compared
+    against a real array.
     """
-    allocated = _colormode("4x4_8bit_index_color.psd").numpy().nbytes
+    buf = io.BytesIO()
+    buf.write(
+        struct.pack(
+            ">4sH6xHIIHH", b"8BPS", 1, channels, height, width, depth, color_mode
+        )
+    )
+    buf.write(struct.pack(">I", 768))  # colour mode data: a 256x3 palette
+    buf.write(bytes(768))
+    buf.write(struct.pack(">I", 0))  # image resources
+    buf.write(struct.pack(">I", 0))  # layer and mask info
+    buf.write(struct.pack(">H", 0))  # image data: raw, uncompressed
+    buf.write(bytes(width * height * channels * max(1, depth // 8)))
+    buf.seek(0)
+    return PSDImage.open(buf, max_alloc_bytes=max_alloc_bytes)
+
+
+def _assert_estimate_is_exact(open_doc: Any) -> int:
+    """A budget equal to the allocation admits; one byte less rejects.
+
+    Returns the allocation, so a caller can additionally pin its width.
+    """
+    allocated = open_doc().numpy().nbytes
+    open_doc(allocated).numpy()
+    with pytest.raises(ValueError, match="configured budget"):
+        open_doc(allocated - 1).numpy()
+    return allocated
+
+
+def test_numpy_guard_estimate_covers_the_palette_expansion() -> None:
+    """Indexed at depth 8 allocates three planes per stored channel.
+
+    ``_parse_array()`` applies the palette to the whole buffer rather than to a
+    single plane, so the array comes back ``3 * channels`` wide and the header's
+    own count under-counted it threefold. Indexed is also the mode Photoshop
+    writes for a flattened document, so this was the common shape rather than a
+    corner.
+    """
+    allocated = _assert_estimate_is_exact(
+        lambda budget=None: _colormode("4x4_8bit_index_color.psd", budget)
+    )
     assert _colormode("4x4_8bit_index_color.psd").channels == 1  # header says 1...
     assert allocated == 4 * 4 * 3 * 4  # ...the array is 3 planes wide
 
-    _colormode("4x4_8bit_index_color.psd", max_alloc_bytes=allocated).numpy()
-    with pytest.raises(ValueError, match="configured budget"):
-        _colormode("4x4_8bit_index_color.psd", max_alloc_bytes=allocated - 1).numpy()
 
+@pytest.mark.parametrize("channels", [1, 2, 4, 8])
+def test_numpy_guard_estimate_scales_the_palette_expansion(channels: int) -> None:
+    """The expansion is ``3 * channels``, not a flat 3.
 
-def test_numpy_guard_estimate_takes_the_header_when_it_is_wider() -> None:
-    """The other side of the same max(): RGBA stores four planes, resolves to three.
-
-    Swapping the header's count for the resolved one instead of taking the
-    wider of the pair would under-count here by a channel, so both directions
-    are pinned. The guard is a security control; an estimate below the
-    allocation defeats it, while one needlessly above it rejects sound files.
+    ``FileHeader.channels`` is an attacker-controlled uint16 with no cross-check
+    against the colour mode, and this guard exists for hostile headers
+    (GHSA-8q6g-vjhf-jp8m) -- so "Photoshop never writes multi-channel indexed"
+    is the threat model rather than a defence. Taking the *wider* of the header
+    count and 3, instead of their product, left the estimate a flat third of the
+    array for any header declaring three channels or more.
     """
-    allocated = _colormode("4x4_8bit_rgba.psd").numpy().nbytes
-    assert _colormode("4x4_8bit_rgba.psd").channels == 4  # header is the wider one
-    assert allocated == 4 * 4 * 4 * 4
+    allocated = _assert_estimate_is_exact(
+        lambda budget=None: _forge(4, 4, channels, 8, ColorMode.INDEXED, budget)
+    )
+    assert allocated == 4 * 4 * (3 * channels) * 4
 
-    _colormode("4x4_8bit_rgba.psd", max_alloc_bytes=allocated).numpy()
-    with pytest.raises(ValueError, match="configured budget"):
-        _colormode("4x4_8bit_rgba.psd", max_alloc_bytes=allocated - 1).numpy()
+
+@pytest.mark.parametrize("depth", [16, 32])
+def test_numpy_guard_estimate_does_not_expand_indexed_at_other_depths(
+    depth: int,
+) -> None:
+    """The palette is applied only in ``_parse_array()``'s depth-8 branch.
+
+    Indexed is an 8-bit mode, so such a document is malformed -- but it parses,
+    and it keeps its stored width. Tripling it would reject a file three times
+    smaller than the estimate claimed, which is the false-positive direction.
+    """
+    allocated = _assert_estimate_is_exact(
+        lambda budget=None: _forge(4, 4, 1, depth, ColorMode.INDEXED, budget)
+    )
+    assert allocated == 4 * 4 * 1 * 4  # not tripled
+
+
+@pytest.mark.parametrize(
+    ("color_mode", "channels"),
+    [
+        (ColorMode.RGB, 1),
+        (ColorMode.RGB, 2),
+        (ColorMode.RGB, 4),  # RGBA: the header is wider than the mode
+        (ColorMode.CMYK, 1),
+        (ColorMode.LAB, 2),
+        (ColorMode.GRAYSCALE, 2),  # grayscale + alpha
+    ],
+)
+def test_numpy_guard_estimate_follows_the_header_for_every_other_mode(
+    color_mode: int, channels: int
+) -> None:
+    """Outside the palette expansion, the stored count *is* the allocation.
+
+    Including where the header disagrees with its colour mode. Such files parse
+    fine and produce a narrow array -- a one-channel RGB document returns
+    ``(h, w, 1)`` -- so resolving the width from the colour mode instead would
+    reject them at up to four times their real size.
+    """
+    allocated = _assert_estimate_is_exact(
+        lambda budget=None: _forge(4, 4, channels, 8, color_mode, budget)
+    )
+    assert allocated == 4 * 4 * channels * 4
 
 
 @pytest.mark.parametrize("filename", _COLORMODE_FIXTURES)
 def test_numpy_guard_estimate_never_exceeds_the_allocation(filename: str) -> None:
-    """No colour mode may be rejected at a budget it actually fits inside.
+    """No shipped fixture may be rejected at a budget it actually fits inside.
 
-    The companion invariant to the two above, swept over every colour mode: an
-    estimate above the real allocation turns the budget into a false positive.
-    (Bitmap has slack in the other direction -- 1-bit rows are padded to a byte
-    boundary before unpacking, so its array is wider than any channel count
-    predicts. That is a separate gap in this estimate, not something this
-    assertion is claiming is absent.)
+    The same invariant as above swept over the real corpus, covering every
+    colour mode and all four depths. (Bitmap has slack in the other direction:
+    a 1-bit document unpacks to more values than the byte count this estimate
+    assumes, which has no depth term. That is a separate gap, not something this
+    assertion claims is absent.)
     """
     allocated = _colormode(filename).numpy().nbytes
-    _colormode(filename, max_alloc_bytes=allocated).numpy()
+    _colormode(filename, allocated).numpy()

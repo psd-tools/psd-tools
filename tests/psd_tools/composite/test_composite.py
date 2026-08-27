@@ -566,8 +566,12 @@ def test_composite_flattened_indexed_is_bounded_by_the_numpy_guard() -> None:
     flattened and returns early, before ``composite()``'s own estimate. So on
     the shape Photoshop actually writes, the guard inside ``numpy()`` is the
     only one on the path -- and it under-counted the palette expansion by 3x
-    until this was fixed, which is how the undercount stayed reachable through
-    ``composite()``.
+    until this was fixed.
+
+    Scope: this is the low-level :py:func:`psd_tools.composite.composite`. The
+    :py:meth:`PSDImage.composite` *method* does not reach either estimate on
+    this document -- it short-circuits to ``topil()`` when an unmodified
+    document has a preview, which is guarded separately in ``pil_io``.
     """
     name = "colormodes/4x4_8bit_index_color.psd"
     assert len(PSDImage.open(full_name(name))) == 0  # flattened: early return

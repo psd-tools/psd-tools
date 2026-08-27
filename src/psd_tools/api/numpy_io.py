@@ -9,7 +9,6 @@ if TYPE_CHECKING:
 from psd_tools.api.utils import (
     EXPECTED_CHANNELS,
     check_pixel_size,
-    get_color_channels,
     get_transparency_index,
     has_transparency,
 )
@@ -35,22 +34,55 @@ def get_array(
     )
 
 
+def _image_data_planes(psdimage: "PSDProtocol") -> int:
+    """Planes :func:`get_image_data` will allocate, for its allocation guard.
+
+    The header's channel count is what the merged image data *stores*, and for
+    every colour mode but one it is also what gets allocated. Indexed at depth 8
+    is the exception: :func:`_parse_array` applies the palette to the whole
+    buffer rather than to one plane, so ``(channels * h * w,)`` becomes
+    ``(channels * h * w, 3)`` and the reshape below yields
+    ``(h, w, 3 * channels)``. The header alone under-counted that threefold.
+
+    Deliberately *not* ``max(channels, get_color_channels(psdimage))``, the
+    shape #728 gave the compositor's guard. That one bounds a canvas built at
+    the resolved width, so the wider of the pair is right there. This one bounds
+    the stored array, whose width the header fixes -- and taking the wider of
+    the pair here would over-estimate any file whose header declares fewer
+    channels than its mode implies. Those parse fine and produce a narrow array:
+    a one-channel RGB document returns ``(h, w, 1)`` and would have been
+    rejected at four times its real size, which for a guard whose whole job is
+    admitting sound files is a false positive rather than a safety margin.
+
+    The palette is applied only in :func:`_parse_array`'s depth-8 branch, so a
+    16- or 32-bit indexed document -- malformed, indexed being an 8-bit mode --
+    keeps its stored width and must not be tripled either.
+
+    This bounds the array that is returned, which is what
+    :func:`~psd_tools.api.utils.check_pixel_size` estimates by construction. It
+    does not model the transient peak: :func:`_parse_array` holds the raw bytes
+    and two float32 arrays at once, and :func:`_remove_background` adds several
+    more, so the true high-water mark is a small multiple of this for every
+    colour mode. Nor does it carry a depth term, so a 1-bit document still
+    under-counts -- rows unpack to eight times the byte count the estimate
+    assumes. Both are pre-existing properties of this estimate rather than
+    anything a colour mode causes; the second is tracked separately.
+    """
+    planes = psdimage.channels
+    if psdimage.color_mode == ColorMode.INDEXED and psdimage.depth == 8:
+        planes *= EXPECTED_CHANNELS[ColorMode.INDEXED]
+    return planes
+
+
 def get_image_data(psdimage: "PSDProtocol", channel: str | None) -> np.ndarray:
-    # The header's channel count is what this function *reads*, but not always
-    # what it allocates: an indexed document stores one channel and the palette
-    # lookup below turns it into three, so the header on its own under-counted
-    # the array by 3x. The guard is here to reject a file before it allocates,
-    # so its estimate must never fall below what follows it -- and a flattened
-    # indexed document is what Photoshop ordinarily writes, not a corner case.
-    #
-    # `max()`, not a swap: grayscale-with-alpha stores two planes and resolves
-    # to one, so the resolved count alone would under-count in the other
-    # direction. Only the modes that expand are tightened by taking the wider
-    # of the pair; every other mode keeps the header's own estimate.
+    # The guard is here to reject a file before it allocates, so its estimate
+    # must not fall below the array that follows. See _image_data_planes() for
+    # why the header's own count is not that bound for an indexed document --
+    # and why the wider-of-the-pair shape used in composite() is not either.
     check_pixel_size(
         psdimage.width,
         psdimage.height,
-        max(psdimage.channels, get_color_channels(psdimage)),
+        _image_data_planes(psdimage),
         max_alloc_bytes=psdimage._max_alloc_bytes,
     )
 

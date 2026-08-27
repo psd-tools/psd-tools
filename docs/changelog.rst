@@ -54,19 +54,29 @@ Changelog
   can reject a document that a very tight budget previously admitted. Applies
   to ``composite()``'s own guard only: a document with no layers returns early,
   before that estimate, and falls to the check in ``numpy()``, which was fixed
-  the same way separately (#720, #732).
+  separately (#720, #732).
 - [fix] Never let the ``max_alloc_bytes`` estimate in ``numpy()`` fall below
   the array it guards. ``get_image_data()`` was given the header's channel
-  count, which is below what it goes on to allocate for a colour mode that
-  expands: an indexed document stores one channel and the palette lookup turns
-  it into three, so the estimate was 3x short. Flattened indexed documents are
-  what Photoshop ordinarily writes, and such a document takes ``composite()``'s
-  zero-layer early return, leaving this the only guard on the path -- so the
-  undercount was reachable through both entry points. It is now given the wider
-  of the header count and the resolved width, matching the fix applied to
-  ``composite()``'s own guard above. This can reject a document that a very
-  tight budget previously admitted; only indexed documents are affected, that
-  being the only mode whose stored count is below its allocated width (#732).
+  count, which is below what it goes on to allocate for an indexed document:
+  the palette is applied to the whole buffer, so each stored channel becomes
+  three and the estimate was threefold short. Flattened indexed documents are
+  what Photoshop ordinarily writes, and such a document takes the zero-layer
+  early return in :py:func:`psd_tools.composite.composite`, which leaves this
+  the only estimate on that path. The count is now multiplied by the palette
+  expansion, so it matches the allocation exactly for every colour mode, depth
+  and channel count. This can reject a document that a very tight budget
+  previously admitted, and only an 8-bit indexed one (#732).
+
+  Note that the header's channel count is not cross-checked against the colour
+  mode, so the expansion scales with it: a header declaring eight channels
+  allocates twenty-four planes. The guard is sized for that, since it exists to
+  bound hostile headers rather than well-formed ones.
+
+  The estimate bounds the array that is returned, which is what
+  ``check_pixel_size()`` has always measured. Peak usage during parsing is a
+  small multiple of it for every colour mode, and 1-bit documents are
+  under-counted eightfold because the estimate carries no depth term; both
+  predate this entry and are unchanged by it.
 - [fix] Composite duotone documents at their stored width.
   ``EXPECTED_CHANNELS`` reported 2 for duotone -- the ink count -- while duotone
   pixel data is a single grayscale channel, the one to four ink curves living
