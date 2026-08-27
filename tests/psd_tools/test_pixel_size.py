@@ -23,6 +23,8 @@ from psd_tools.api.utils import (
     WARN_PIXELS,
 )
 
+from .utils import full_name
+
 
 def _build_psd(width: int, height: int, channels: int = 3) -> io.BytesIO:
     """Return a BytesIO containing a minimal structurally valid PSD.
@@ -239,3 +241,79 @@ def test_explicit_kwarg_overrides_env_default(monkeypatch: pytest.MonkeyPatch) -
     psd = PSDImage.open(_build_psd(_NORMAL_W, _NORMAL_H), max_alloc_bytes=1024)
     with pytest.raises(ValueError, match="1,024 bytes"):
         psd.numpy()
+
+
+# ---------------------------------------------------------------------------
+# The estimate must not fall below the allocation it guards (#732)
+# ---------------------------------------------------------------------------
+#
+# `get_image_data()` reads the header's channel count but does not always
+# allocate that many planes, so these pin the estimate against the array that
+# is actually produced rather than against a hard-coded byte count. A budget
+# equal to the real allocation must admit the document and one byte less must
+# reject it: that brackets the estimate from both sides at once, which a test
+# asserting only "raises" would not.
+
+_COLORMODE_FIXTURES = [
+    "4x4_8bit_index_color.psd",
+    "4x4_8bit_rgba.psd",
+    "4x4_8bit_rgb.psd",
+    "4x4_8bit_grayscale.psd",
+    "4x4_8bit_duotone.psd",
+    "4x4_8bit_cmyk.psd",
+    "4x4_8bit_lab.psd",
+    "4x4_16bit_multichannel.psd",
+    "4x4_1bit_bitmap.psd",
+]
+
+
+def _colormode(filename: str, **kwargs: object) -> PSDImage:
+    return PSDImage.open(full_name("colormodes/" + filename), **kwargs)  # type: ignore[arg-type]
+
+
+def test_numpy_guard_estimate_covers_indexed_expansion() -> None:
+    """Indexed stores one channel and the palette turns it into three.
+
+    The header's count alone under-counted the array by 3x, and indexed is the
+    mode Photoshop writes for a flattened document, so this was the common
+    shape rather than a corner.
+    """
+    allocated = _colormode("4x4_8bit_index_color.psd").numpy().nbytes
+    assert _colormode("4x4_8bit_index_color.psd").channels == 1  # header says 1...
+    assert allocated == 4 * 4 * 3 * 4  # ...the array is 3 planes wide
+
+    _colormode("4x4_8bit_index_color.psd", max_alloc_bytes=allocated).numpy()
+    with pytest.raises(ValueError, match="configured budget"):
+        _colormode("4x4_8bit_index_color.psd", max_alloc_bytes=allocated - 1).numpy()
+
+
+def test_numpy_guard_estimate_takes_the_header_when_it_is_wider() -> None:
+    """The other side of the same max(): RGBA stores four planes, resolves to three.
+
+    Swapping the header's count for the resolved one instead of taking the
+    wider of the pair would under-count here by a channel, so both directions
+    are pinned. The guard is a security control; an estimate below the
+    allocation defeats it, while one needlessly above it rejects sound files.
+    """
+    allocated = _colormode("4x4_8bit_rgba.psd").numpy().nbytes
+    assert _colormode("4x4_8bit_rgba.psd").channels == 4  # header is the wider one
+    assert allocated == 4 * 4 * 4 * 4
+
+    _colormode("4x4_8bit_rgba.psd", max_alloc_bytes=allocated).numpy()
+    with pytest.raises(ValueError, match="configured budget"):
+        _colormode("4x4_8bit_rgba.psd", max_alloc_bytes=allocated - 1).numpy()
+
+
+@pytest.mark.parametrize("filename", _COLORMODE_FIXTURES)
+def test_numpy_guard_estimate_never_exceeds_the_allocation(filename: str) -> None:
+    """No colour mode may be rejected at a budget it actually fits inside.
+
+    The companion invariant to the two above, swept over every colour mode: an
+    estimate above the real allocation turns the budget into a false positive.
+    (Bitmap has slack in the other direction -- 1-bit rows are padded to a byte
+    boundary before unpacking, so its array is wider than any channel count
+    predicts. That is a separate gap in this estimate, not something this
+    assertion is claiming is absent.)
+    """
+    allocated = _colormode(filename).numpy().nbytes
+    _colormode(filename, max_alloc_bytes=allocated).numpy()

@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 from psd_tools.api.utils import (
     EXPECTED_CHANNELS,
     check_pixel_size,
+    get_color_channels,
     get_transparency_index,
     has_transparency,
 )
@@ -35,10 +36,21 @@ def get_array(
 
 
 def get_image_data(psdimage: "PSDProtocol", channel: str | None) -> np.ndarray:
+    # The header's channel count is what this function *reads*, but not always
+    # what it allocates: an indexed document stores one channel and the palette
+    # lookup below turns it into three, so the header on its own under-counted
+    # the array by 3x. The guard is here to reject a file before it allocates,
+    # so its estimate must never fall below what follows it -- and a flattened
+    # indexed document is what Photoshop ordinarily writes, not a corner case.
+    #
+    # `max()`, not a swap: grayscale-with-alpha stores two planes and resolves
+    # to one, so the resolved count alone would under-count in the other
+    # direction. Only the modes that expand are tightened by taking the wider
+    # of the pair; every other mode keeps the header's own estimate.
     check_pixel_size(
         psdimage.width,
         psdimage.height,
-        psdimage.channels,
+        max(psdimage.channels, get_color_channels(psdimage)),
         max_alloc_bytes=psdimage._max_alloc_bytes,
     )
 

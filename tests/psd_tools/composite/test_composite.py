@@ -558,6 +558,27 @@ def test_composite_guard_estimate_takes_the_header_when_it_is_wider() -> None:
         composite(psd)
 
 
+def test_composite_flattened_indexed_is_bounded_by_the_numpy_guard() -> None:
+    """The zero-layer early return is guarded too, by ``get_image_data()`` (#732).
+
+    The complement of ``..._covers_a_mode_that_expands`` above: that one had to
+    retag a layered document precisely because the shipped indexed fixture is
+    flattened and returns early, before ``composite()``'s own estimate. So on
+    the shape Photoshop actually writes, the guard inside ``numpy()`` is the
+    only one on the path -- and it under-counted the palette expansion by 3x
+    until this was fixed, which is how the undercount stayed reachable through
+    ``composite()``.
+    """
+    name = "colormodes/4x4_8bit_index_color.psd"
+    assert len(PSDImage.open(full_name(name))) == 0  # flattened: early return
+    allocated = PSDImage.open(full_name(name)).numpy().nbytes
+    assert allocated == 4 * 4 * 3 * 4  # one stored channel, three allocated
+
+    composite(PSDImage.open(full_name(name), max_alloc_bytes=allocated))
+    with pytest.raises(ValueError, match="4x4x3"):
+        composite(PSDImage.open(full_name(name), max_alloc_bytes=allocated - 1))
+
+
 def test_composite_duotone_is_one_channel_wide() -> None:
     """Duotone composites at its stored width, not its ink count (#733).
 

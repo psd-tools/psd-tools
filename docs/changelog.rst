@@ -53,9 +53,20 @@ Changelog
   header count and the canvas width, so no colour mode under-estimates. This
   can reject a document that a very tight budget previously admitted. Applies
   to ``composite()``'s own guard only: a document with no layers returns early,
-  before that estimate, and falls to the check in ``numpy()``, which is still
-  header-based and so still under-counts an indexed canvas -- tracked
-  separately in #732 (#720).
+  before that estimate, and falls to the check in ``numpy()``, which was fixed
+  the same way separately (#720, #732).
+- [fix] Never let the ``max_alloc_bytes`` estimate in ``numpy()`` fall below
+  the array it guards. ``get_image_data()`` was given the header's channel
+  count, which is below what it goes on to allocate for a colour mode that
+  expands: an indexed document stores one channel and the palette lookup turns
+  it into three, so the estimate was 3x short. Flattened indexed documents are
+  what Photoshop ordinarily writes, and such a document takes ``composite()``'s
+  zero-layer early return, leaving this the only guard on the path -- so the
+  undercount was reachable through both entry points. It is now given the wider
+  of the header count and the resolved width, matching the fix applied to
+  ``composite()``'s own guard above. This can reject a document that a very
+  tight budget previously admitted; only indexed documents are affected, that
+  being the only mode whose stored count is below its allocated width (#732).
 - [fix] Composite duotone documents at their stored width.
   ``EXPECTED_CHANNELS`` reported 2 for duotone -- the ink count -- while duotone
   pixel data is a single grayscale channel, the one to four ink curves living
@@ -72,7 +83,7 @@ Changelog
   ``Hue``, ``Saturation``, ``Color`` and ``Luminosity`` still raise on a duotone
   document. They raise identically on a grayscale one, so that is a pre-existing
   limitation of single-channel documents rather than anything this entry
-  changes.
+  changes; it is tracked in #735.
 - [fix] Read the alpha channel of a duotone document as alpha. Because the
   colour array was taken to be two channels wide, a duotone file carrying a
   transparency channel returned it as *colour* data from ``numpy("color")``,
