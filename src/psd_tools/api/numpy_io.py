@@ -34,15 +34,77 @@ def get_array(
     )
 
 
+def _image_data_planes(psdimage: "PSDProtocol", flat: bool = False) -> int:
+    """Planes :func:`get_image_data` will allocate, for its allocation guard.
+
+    ``flat`` marks the paths that return a synthesised ``(h, w, 1)`` array
+    without reading the image data at all -- a mask, or a shape on a document
+    with no transparency. Those allocate one plane whatever the colour mode, so
+    estimating them at the stored width rejects requests that comfortably fit:
+    ``numpy("mask")`` on a CMYK document allocates a quarter of what the header
+    implies. That over-estimate predates the palette fix below for every
+    multi-channel mode; it is corrected here rather than left to grow a third
+    case.
+
+    Otherwise the header's channel count is what the merged image data *stores*,
+    and for every colour mode but one it is also what gets allocated. Indexed at
+    depth 8
+    is the exception: :func:`_parse_array` applies the palette to the whole
+    buffer rather than to one plane, so ``(channels * h * w,)`` becomes
+    ``(channels * h * w, 3)`` and the reshape below yields
+    ``(h, w, 3 * channels)``. The header alone under-counted that threefold.
+
+    Deliberately *not* ``max(channels, get_color_channels(psdimage))``, the
+    shape #728 gave the compositor's guard. That one bounds a canvas built at
+    the resolved width, so the wider of the pair is right there. This one bounds
+    the stored array, whose width the header fixes -- and taking the wider of
+    the pair here would over-estimate any file whose header declares fewer
+    channels than its mode implies. Those parse fine and produce a narrow array:
+    a one-channel RGB document returns ``(h, w, 1)`` and would have been
+    rejected at four times its real size, which for a guard whose whole job is
+    admitting sound files is a false positive rather than a safety margin.
+
+    The palette is applied only in :func:`_parse_array`'s depth-8 branch, so a
+    16- or 32-bit indexed document -- malformed, indexed being an 8-bit mode --
+    keeps its stored width and must not be tripled either.
+
+    This bounds the array that is returned, which is what
+    :func:`~psd_tools.api.utils.check_pixel_size` estimates by construction. It
+    does not model the transient peak: :func:`_parse_array` holds the raw bytes
+    and two float32 arrays at once, and :func:`_remove_background` adds several
+    more, so the true high-water mark is a small multiple of this for every
+    colour mode. Nor does it carry a depth term, so a 1-bit document still
+    under-counts -- rows unpack to eight times the byte count the estimate
+    assumes. Both are pre-existing properties of this estimate rather than
+    anything a colour mode causes; the second is tracked in #737.
+    """
+    if flat:
+        return 1
+    planes = psdimage.channels
+    if psdimage.color_mode == ColorMode.INDEXED and psdimage.depth == 8:
+        planes *= EXPECTED_CHANNELS[ColorMode.INDEXED]
+    return planes
+
+
 def get_image_data(psdimage: "PSDProtocol", channel: str | None) -> np.ndarray:
+    # Decided before the guard runs rather than after, so the estimate can match
+    # whichever branch is taken. The dimension checks inside check_pixel_size()
+    # apply to both, so neither path escapes it.
+    flat = (channel == "mask") or (
+        channel == "shape" and not has_transparency(psdimage)
+    )
+    # The guard is here to reject a file before it allocates, so its estimate
+    # must not fall below the array that follows. See _image_data_planes() for
+    # why the header's own count is not that bound for an indexed document --
+    # and why the wider-of-the-pair shape used in composite() is not either.
     check_pixel_size(
         psdimage.width,
         psdimage.height,
-        psdimage.channels,
+        _image_data_planes(psdimage, flat),
         max_alloc_bytes=psdimage._max_alloc_bytes,
     )
 
-    if (channel == "mask") or (channel == "shape" and not has_transparency(psdimage)):
+    if flat:
         return np.ones((psdimage.height, psdimage.width, 1), dtype=np.float32)
 
     lut = None
