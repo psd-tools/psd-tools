@@ -67,9 +67,12 @@ Changelog
   modes -- ``ColorBurn``, ``ColorDodge``, ``HardLight``, ``LinearLight``,
   ``PinLight``, ``SoftLight`` and ``VividLight`` -- raised ``IndexError`` on any
   duotone document. Photoshop keeps layers in duotone mode, so every one of
-  these was reachable on ordinary files. ``Hue``, ``Saturation``, ``Color`` and
-  ``Luminosity`` still raise, identically to how they do on a grayscale
-  document; that is a separate single-channel issue (#733).
+  these was reachable on ordinary files (#733).
+
+  ``Hue``, ``Saturation``, ``Color`` and ``Luminosity`` still raise on a duotone
+  document. They raise identically on a grayscale one, so that is a pre-existing
+  limitation of single-channel documents rather than anything this entry
+  changes.
 - [fix] Read the alpha channel of a duotone document as alpha. Because the
   colour array was taken to be two channels wide, a duotone file carrying a
   transparency channel returned it as *colour* data from ``numpy("color")``,
