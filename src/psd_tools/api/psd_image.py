@@ -65,9 +65,10 @@ from PIL import Image
 from psd_tools.api import adjustments, layers, numpy_io, pil_io
 from psd_tools.api.protocols import PSDProtocol
 from psd_tools.api.utils import (
-    EXPECTED_CHANNELS,
     ColorInput,
+    color_channels,
     denormalize_color,
+    get_color_channels,
     normalize_color,
 )
 from psd_tools.constants import (
@@ -156,11 +157,16 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         # Strip alpha channel(s) from color for background_color since
         # composite() only expects color channels (alpha is separate).
         bg_input: ColorInput = color
-        if isinstance(color, Sequence):
-            expected = EXPECTED_CHANNELS.get(header.color_mode)
-            if expected is not None and len(color) > expected:
-                bg_input = tuple(color[:expected])
-        bg_color = normalize_color(bg_input, depth, header.color_mode)
+        # Read from the header rather than from EXPECTED_CHANNELS: that table
+        # reports 64 for a multichannel document -- the format's maximum, not
+        # this file's count -- so the strip below could never fire for one and
+        # the validator then rejected the unstripped sequence outright.
+        expected_channels = color_channels(header.color_mode, header.channels)
+        if isinstance(color, Sequence) and len(color) > expected_channels:
+            bg_input = tuple(color[:expected_channels])
+        bg_color = normalize_color(
+            bg_input, depth, header.color_mode, expected_channels
+        )
         fill_color = denormalize_color(color, depth)
         image_data = ImageData.new(header, color=fill_color, **kwargs)
         # TODO: Add default metadata.
@@ -653,7 +659,12 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         value: ColorInput | None,
     ) -> None:
         if value is not None:
-            value = normalize_color(value, self._record.header.depth, self.color_mode)
+            value = normalize_color(
+                value,
+                self._record.header.depth,
+                self.color_mode,
+                get_color_channels(self),
+            )
         if self._background_color != value:
             self._mark_updated()
         self._background_color = value

@@ -1,7 +1,12 @@
 import pytest
 
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.api.utils import EXPECTED_CHANNELS, get_color_channels
+from psd_tools.api.utils import (
+    EXPECTED_CHANNELS,
+    _validate_color_input,
+    color_channels,
+    get_color_channels,
+)
 from psd_tools.constants import ColorMode
 
 from ..utils import full_name
@@ -57,3 +62,59 @@ def test_get_color_channels_reads_the_header_only_for_multichannel() -> None:
     # A retagged document follows its header rather than the table.
     psd._record.header.channels = 5
     assert get_color_channels(psd) == 5
+
+
+def test_color_channels_matches_the_document_form() -> None:
+    """The header-taking form answers the same question as the document one.
+
+    ``PSDImage.new()`` has to validate a color before a document exists, so the
+    rule is reachable from a bare header too (#731).
+    """
+    for filename in (
+        "colormodes/4x4_1bit_bitmap.psd",
+        "colormodes/4x4_8bit_rgb.psd",
+        "colormodes/4x4_8bit_rgba.psd",
+        "colormodes/4x4_8bit_cmyk.psd",
+        "colormodes/4x4_8bit_index_color.psd",
+        "colormodes/4x4_16bit_multichannel.psd",
+    ):
+        psd = PSDImage.open(full_name(filename))
+        header = psd._record.header
+        assert color_channels(header.color_mode, header.channels) == get_color_channels(
+            psd
+        ), filename
+
+
+def test_color_channels_tracks_the_header_only_for_multichannel() -> None:
+    """A different header count moves the answer for multichannel alone."""
+    assert color_channels(ColorMode.MULTICHANNEL, 3) == 3
+    assert color_channels(ColorMode.MULTICHANNEL, 7) == 7
+    # Every other mode's count is the mode's own, whatever the header says.
+    assert color_channels(ColorMode.RGB, 3) == color_channels(ColorMode.RGB, 4) == 3
+    assert color_channels(ColorMode.DUOTONE, 1) == 1
+
+
+def test_validate_color_input_channels_overrides_the_table() -> None:
+    """The override is what makes a multichannel sequence expressible.
+
+    Without it the count comes from ``EXPECTED_CHANNELS``, whose multichannel
+    entry is 64 -- the format's maximum, not any document's count -- so no
+    sequence could satisfy it (#731).
+    """
+    # The unfixable case the table produces on its own.
+    with pytest.raises(ValueError, match="Expected 64 color channel"):
+        _validate_color_input((0.1, 0.2, 0.3), 8, ColorMode.MULTICHANNEL)
+    # With the real width supplied, the same sequence validates.
+    _validate_color_input((0.1, 0.2, 0.3), 8, ColorMode.MULTICHANNEL, 3)
+    # And a genuinely wrong width still raises, naming the count it was given.
+    with pytest.raises(ValueError, match="Expected 3 color channel"):
+        _validate_color_input((0.1, 0.2), 8, ColorMode.MULTICHANNEL, 3)
+
+
+def test_validate_color_input_leaves_other_modes_alone() -> None:
+    """Passing the override changes nothing for a mode the table gets right."""
+    _validate_color_input((1.0, 0.5, 0.0), 8, ColorMode.RGB, 3)
+    with pytest.raises(ValueError, match="Expected 3 color channel"):
+        _validate_color_input((1.0, 0.5), 8, ColorMode.RGB, 3)
+    with pytest.raises(ValueError, match="Expected 3 color channel"):
+        _validate_color_input((1.0, 0.5), 8, ColorMode.RGB)
