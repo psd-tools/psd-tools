@@ -132,8 +132,21 @@ def composite_pil(
         - LAB and Duotone color modes have limited blending support
         - Alpha channel handling varies by color mode
         - Multichannel documents come back single-channel. PIL has no
-          multichannel mode, so only the first spot channel survives; use
+          multichannel mode, so only the first spot channel survives -- a
+          warning says so when it happens; use
           :py:func:`psd_tools.composite.composite` to keep every channel.
+        - Alpha is packed into the array only for the two reachable modes that
+          have an alpha variant, ``"L"`` and ``"RGB"``; there is no ``"1A"``,
+          ``"CMYKA"`` or ``"LABA"`` to return it in. For the rest it is offered
+          to :py:func:`psd_tools.api.pil_io.post_process` instead, which
+          carries it for CMYK by converting to RGB first when an ICC profile is
+          applied. Bitmap results carry no alpha either way: ``post_process()``
+          applies it only to ``"RGB"`` and ``"L"``, and the ICC conversion that
+          reaches those for CMYK cannot help here -- little-cms builds no
+          transform for a 1-bit image, so ``_apply_icc()`` logs the failure and
+          returns the image still in ``"1"``. Nor do Lab results, for a third
+          reason: a Lab document carrying an ICC profile raises inside
+          ``_apply_icc()`` before reaching that point (#740).
     """
     UNSUPPORTED_MODES = {
         ColorMode.DUOTONE,
@@ -159,12 +172,41 @@ def composite_pil(
     mode = pil_io.get_pil_mode(color_mode)
     if mode == "P":
         mode = "RGB"
+    # Narrow the array to what the mode can hold *before* alpha is appended.
+    # A multichannel document carries one plane per spot channel and PIL has no
+    # mode for that. The narrowing used to happen after the concatenation and
+    # was keyed on `mode`, so once alpha had turned "L" into "LA" it stopped
+    # firing -- and PIL does not reject a four-plane array declared as two, it
+    # reads two bytes out of every four and returns planes that correspond to
+    # nothing.
+    pil_channels = pil_io.get_pil_channels(mode)
+    if color.shape[2] > pil_channels:
+        logger.warning(
+            "%s composited to %d channels; PIL mode %r holds %d. Keeping the "
+            "first and dropping the rest -- use psd_tools.composite.composite() "
+            "to keep every channel.",
+            color_mode,
+            color.shape[2],
+            mode,
+            pil_channels,
+        )
+        color = color[:, :, :pil_channels]
     # Skip alpha when the color mode requires deferred alpha handling, or
     # when the backdrop is fully opaque (the result is guaranteed opaque).
     delay_alpha_application = color_mode not in (ColorMode.GRAYSCALE, ColorMode.RGB)
     uniform_alpha = _uniform_alpha(backdrop_alpha)
     has_opaque_backdrop = uniform_alpha is not None and uniform_alpha >= 1.0
     skip_alpha = not force and (delay_alpha_application or has_opaque_backdrop)
+    # Of the modes reachable here -- "1", "L", "RGB", "CMYK" and "LAB" -- only
+    # "L" and "RGB" have an alpha variant. Appending "A" regardless built modes
+    # PIL has never heard of, so `force=True` raised outright on a bitmap
+    # ("1A"), CMYK ("CMYKA") or Lab ("LABA") document. Leaving it off the array
+    # returns the colour that was asked for rather than nothing at all, and for
+    # the modes `post_process()` can convert it still arrives, via `putalpha`
+    # below.
+    if not skip_alpha and mode not in ("L", "RGB"):
+        logger.debug("PIL has no alpha variant of %r; not packing it inline.", mode)
+        skip_alpha = True
     logger.debug("Skipping alpha: %s", skip_alpha)
     if not skip_alpha:
         color = np.concatenate((color, alpha), 2)
@@ -174,9 +216,23 @@ def composite_pil(
         color = color[:, :, 0]
     if color.shape[0] == 0 or color.shape[1] == 0:
         return None
-    image = Image.fromarray((255 * color).astype(np.uint8), mode)
+    pixels = (255 * color).astype(np.uint8)
+    if mode == "1":
+        # `fromarray(uint8, "1")` does not mean "these bytes, as bilevel". PIL
+        # takes the raw mode literally at one bit per pixel, so it consumes one
+        # byte per eight columns and expands its bits across the row -- a 4x4
+        # document came back as the bits of its first four bytes. Build the
+        # plane in "L", where a byte is a pixel, and reduce it afterwards.
+        image = Image.fromarray(pixels, "L").convert("1", dither=Image.Dither.NONE)
+    else:
+        image = Image.fromarray(pixels, mode)
     alpha_as_image = None
-    if not force and delay_alpha_application:
+    # Whenever the alpha did not go into the array, offer it to post_process()
+    # instead -- it converts CMYK to RGB before applying it, so `force=True` on
+    # a CMYK document keeps the alpha that `force=False` has always returned.
+    # Gating this on `not force` dropped it on exactly the paths the branch
+    # above had just diverted here.
+    if skip_alpha and delay_alpha_application:
         alpha_as_image = Image.fromarray(
             (255 * np.squeeze(alpha, axis=2)).astype(np.uint8), "L"
         )

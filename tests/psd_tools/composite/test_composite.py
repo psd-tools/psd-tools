@@ -683,6 +683,169 @@ def test_composite_pil_layered_multichannel_truncates_like_the_layerless_one() -
     assert _mse(np.asarray(image)[:, :, 0] / 255.0, color[:, :, 0]) <= 1e-4
 
 
+def test_composite_pil_multichannel_force_keeps_the_spot_channel_intact() -> None:
+    """``force=True`` returned planes that corresponded to nothing (#729).
+
+    ``get_pil_mode(MULTICHANNEL)`` is ``"L"`` and multichannel defers its alpha,
+    so ``force=True`` made ``skip_alpha`` false, concatenated alpha onto the
+    *three*-channel colour array and set the mode to ``"LA"``. The narrowing to
+    one channel was keyed on ``mode`` and ran afterwards, so by then ``"LA"`` no
+    longer matched and it never fired. ``Image.fromarray()`` does not reject a
+    four-plane array declared as two -- it reads two bytes out of every four:
+
+        plane 0 was [48, 42, 86, 118] -- spot0[0], spot2[0], spot0[1], spot2[1]
+        plane 1 was [179, 255, 199, 255] -- spot1[0], alpha[0], spot1[1], ...
+
+    Asserted bitwise against the NumPy entry point rather than by shape or MSE,
+    because the failure was interleaved bytes rather than a narrower result: a
+    shape assertion passed throughout, and the old planes are close enough in
+    range that a loose MSE bound could too.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_16bit_multichannel.psd"))
+    assert psd.channels == 3
+    truth, _, truth_alpha = composite(psd, force=True)
+    assert truth.shape[2] == 3  # every spot channel, on the numpy path
+
+    image = psd.composite(ignore_preview=True, force=True, apply_icc=False)
+    assert isinstance(image, Image.Image)
+    assert image.mode == "LA"
+    planes = np.asarray(image)
+    expected_color = (255 * truth[:, :, 0]).astype(np.uint8)
+    expected_alpha = (255 * truth_alpha[:, :, 0]).astype(np.uint8)
+    assert np.array_equal(planes[:, :, 0], expected_color)
+    assert np.array_equal(planes[:, :, 1], expected_alpha)
+
+
+def test_composite_pil_multichannel_force_agrees_with_no_force() -> None:
+    """The two paths differ in how alpha is applied, not in what the colour is.
+
+    Without ``force`` the alpha is deferred and applied by ``post_process()``;
+    with it, the alpha is concatenated up front. Either way the visible plane is
+    the first spot channel, and before #729 only one of them was.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_16bit_multichannel.psd"))
+    forced = psd.composite(ignore_preview=True, force=True, apply_icc=False)
+    lazy = psd.composite(ignore_preview=True, force=False, apply_icc=False)
+    assert isinstance(forced, Image.Image) and isinstance(lazy, Image.Image)
+    assert forced.mode == lazy.mode == "LA"
+    assert np.array_equal(np.asarray(forced), np.asarray(lazy))
+
+
+def test_composite_pil_warns_when_it_drops_channels(caplog: Any) -> None:
+    """The truncation is announced rather than silent (#729).
+
+    ``UNSUPPORTED_MODES`` already warns for Duotone and Lab, whose *blending* is
+    approximate. This is a different loss -- the blend is fine, PIL simply has
+    no mode wide enough to carry the result -- so it is warned about where it
+    happens and says what was dropped, rather than being folded into a message
+    about blending colour spaces.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_16bit_multichannel.psd"))
+    with caplog.at_level(logging.WARNING, logger="psd_tools.composite.composite"):
+        psd.composite(ignore_preview=True, apply_icc=False)
+    assert any(
+        "composited to 3 channels" in record.message and "holds 1" in record.message
+        for record in caplog.records
+    ), [r.message for r in caplog.records]
+
+
+@pytest.mark.parametrize(
+    ("colormode", "depth", "mode"),
+    [
+        ("bitmap", 1, "1"),  # PIL has no "1A"
+        ("cmyk", 8, "CMYK"),  # nor "CMYKA"
+        ("lab", 8, "LAB"),  # nor "LABA"
+        ("duotone", 8, "LA"),
+        ("grayscale", 8, "LA"),
+        ("index_color", 8, "RGBA"),
+        ("rgb", 8, "RGBA"),
+        ("rgba", 8, "RGBA"),
+        ("multichannel", 16, "LA"),
+    ],
+)
+def test_composite_pil_force_covers_every_colour_mode(
+    colormode: str, depth: int, mode: str
+) -> None:
+    """``force=True`` at the PIL exit, which nothing covered before (#729).
+
+    ``test_composite_pil`` sweeps the colour modes but never passes ``force``,
+    which is why three of these raised on the shipped fixtures without anyone
+    noticing: the mode had ``"A"`` appended whether or not PIL has an alpha
+    variant of it, so a bitmap document asked for ``"1A"``, CMYK for ``"CMYKA"``
+    and Lab for ``"LABA"``::
+
+        ValueError: unrecognized image mode
+        TypeError: Cannot handle this data type: (1, 1, 5), |u1
+
+    Those three now come back without alpha rather than not at all, which is the
+    same trade the rest of this module makes -- a degraded result beats an
+    exception the caller has to special-case.
+    """
+    filename = "colormodes/4x4_%gbit_%s.psd" % (depth, colormode)
+    psd = PSDImage.open(full_name(filename))
+    image = psd.composite(ignore_preview=True, force=True, apply_icc=False)
+    assert isinstance(image, Image.Image)
+    assert image.mode == mode
+
+
+@pytest.mark.parametrize("colormode", ["bitmap", "lab", "cmyk"])
+def test_composite_pil_force_pixels_match_the_numpy_path(colormode: str) -> None:
+    """The three modes that carry no alpha, compared bitwise rather than by mode.
+
+    Review of this change caught that asserting only ``image.mode`` was not
+    enough -- twice over. It is what let #729 survive for multichannel, and the
+    first version of the fix above turned bitmap's *raise* into silently wrong
+    pixels, which the mode assertion happily accepted:
+    ``Image.fromarray(uint8, "1")`` does not mean "these bytes, as bilevel". PIL
+    reads the raw mode literally at one bit per pixel, so a 4x4 document came
+    back as the bits of its first four bytes::
+
+        composited [[1,1,0,0],[0,0,0,0],[1,1,1,1],[0,0,0,0]]
+        returned   [[1,1,1,1],[1,1,1,1],[0,0,0,0],[0,0,0,0]]
+
+    Since these three modes get no alpha packed in, the returned planes are
+    directly comparable to the NumPy entry point's colour.
+    """
+    depth = 1 if colormode == "bitmap" else 8
+    psd = PSDImage.open(full_name("colormodes/4x4_%gbit_%s.psd" % (depth, colormode)))
+    image = psd.composite(ignore_preview=True, force=True, apply_icc=False)
+    assert isinstance(image, Image.Image)
+    color, _, _ = composite(psd, force=True)
+
+    expected = (255 * color).astype(np.uint8)
+    if colormode == "bitmap":
+        expected = (expected > 127).astype(np.uint8)  # PIL reports "1" as 0/1
+    if image.mode == "CMYK":
+        # post_process() inverts CMYK on the way out; compare on that footing.
+        expected = 255 - expected
+    actual = np.asarray(image)
+    if actual.ndim == 2:
+        actual = actual[:, :, None]
+    assert np.array_equal(actual, expected)
+
+
+def test_composite_pil_force_keeps_cmyk_alpha_reachable() -> None:
+    """``force=True`` must not drop alpha that ``force=False`` returns.
+
+    PIL has no ``"CMYKA"``, so the alpha cannot be packed into the array -- but
+    ``post_process()`` converts CMYK to RGB when an ICC profile is applied and
+    then calls ``putalpha``, which is how ``force=False`` has always returned
+    ``"RGBA"`` here. The first version of this fix diverted ``force=True`` away
+    from packing the alpha inline while that hand-off was still gated on ``not
+    force``, so the plane was dropped on exactly the paths it had just been
+    diverted from. Raised by review.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_cmyk.psd"))
+    viewport = (0, 0, 8, 8)  # wider than the document, so some pixels are bare
+    lazy = psd.composite(ignore_preview=True, viewport=viewport, force=False)
+    forced = psd.composite(ignore_preview=True, viewport=viewport, force=True)
+    assert isinstance(lazy, Image.Image) and isinstance(forced, Image.Image)
+    assert lazy.mode == forced.mode == "RGBA"
+    lazy_alpha = np.asarray(lazy)[:, :, 3]
+    assert set(np.unique(lazy_alpha).tolist()) == {0, 255}  # bare px are bare
+    assert np.array_equal(np.asarray(forced)[:, :, 3], lazy_alpha)
+
+
 def test_composite_layer_filter() -> None:
     psd = PSDImage.open(full_name("colormodes/4x4_8bit_rgba.psd"))
     # Check layer_filter.

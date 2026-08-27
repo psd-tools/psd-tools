@@ -4,6 +4,53 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
+- [fix] Stop ``composite_pil()`` declaring a PIL mode that its pixel array does
+  not match. The mode and the array were chosen separately, and they could
+  disagree in three ways -- two of which produced pixels that corresponded to
+  nothing in the file, and one of which raised (#729):
+
+  A multichannel document came back **garbled**. Its colour array has one plane
+  per spot channel, and the narrowing to the single plane PIL can hold was keyed
+  on the mode and ran *after* alpha had been appended -- by which point the mode
+  was ``"LA"`` and no longer matched, so it never fired. ``Image.fromarray()``
+  does not reject a four-plane array declared as two: it reads two bytes out of
+  every four, and the planes that came back corresponded to nothing in the file.
+  The narrowing now happens before alpha is appended, and the dropped channels
+  are announced with a warning instead of being lost silently. Use
+  :py:func:`psd_tools.composite.composite` to keep every channel.
+
+  Under ``force``, bitmap, CMYK and Lab documents **raised**. ``"A"`` was
+  appended to the mode whether or not an alpha variant of it exists, so those
+  asked ``Image.fromarray()`` for ``"1A"``, ``"CMYKA"`` and ``"LABA"`` and got
+  ``ValueError: unrecognized image mode`` or ``TypeError: Cannot handle this
+  data type``. Of the modes this function can produce, only ``"L"`` and
+  ``"RGB"`` have an alpha variant, so for the others the alpha is no longer
+  packed into the array -- it is handed to ``post_process()``, which still
+  carries it for CMYK by converting to RGB first. So ``force=True`` on a CMYK
+  document now returns the same ``"RGBA"`` that ``force=False`` always did.
+  Bitmap results carry no alpha in either mode: ``post_process()`` applies it
+  only to ``"RGB"`` and ``"L"``, and the ICC conversion that gets CMYK there
+  cannot reach a 1-bit image -- little-cms builds no transform for one, so the
+  profile is skipped and the mode stays ``"1"``. Lab results carry none either,
+  for a third reason: a Lab document with an ICC profile raises before it gets
+  that far -- #740.
+
+  A bitmap document came back **garbled in both modes**.
+  ``Image.fromarray(uint8, "1")`` does not mean "these bytes, as bilevel": PIL
+  reads the raw mode literally at one bit per pixel, consuming one byte per
+  eight columns and expanding its bits across the row, so a 4x4 document
+  returned the bits of its first four bytes. The plane is now built as ``"L"``,
+  where a byte is a pixel, and reduced afterwards. That was also the
+  compositor's only ``Image.fromarray()`` call whose ``mode`` reinterprets the
+  array's data type -- the use Pillow deprecated and removes in Pillow 13 --
+  so it no longer warns. Passing ``mode`` where it matches the dtype, as the
+  other colour modes do, is unaffected.
+
+  Of the 284 fixtures outside ``third-party-psds``, rendered in both modes:
+  every ``force=False`` render is bitwise identical except the bitmap one, and
+  under ``force`` seventeen renders that previously raised now return an image,
+  while exactly one changes from one image to another -- the garbled
+  multichannel document.
 - [fix] Correct pass-through group compositing when the group opacity is below
   255. The group's contribution was blended against the backdrop twice, so a
   partially transparent backdrop bled its colour into the result and the output
