@@ -45,7 +45,10 @@ def test_get_color_channels_reads_the_header_only_for_multichannel() -> None:
     """Every other mode's count is fixed by the mode itself.
 
     Multichannel is the exception because ``EXPECTED_CHANNELS`` reports 64 for
-    it -- the format's maximum rather than any file's own count (#720).
+    it -- the format's maximum rather than any file's own count (#720). The
+    "only" half of that is carried by the parametrized cases above: the ``rgba``
+    row has a header count of 4 and resolves to 3, so a non-multichannel
+    document demonstrably ignores its header.
     """
     psd = PSDImage.open(full_name("colormodes/4x4_16bit_multichannel.psd"))
     assert EXPECTED_CHANNELS[ColorMode.MULTICHANNEL] == 64

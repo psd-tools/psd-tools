@@ -576,17 +576,35 @@ def test_composite_duotone_is_one_channel_wide() -> None:
 
 @pytest.mark.parametrize(
     "blend_mode",
-    [BlendMode.COLOR_DODGE, BlendMode.COLOR_BURN, BlendMode.VIVID_LIGHT],
+    [
+        BlendMode.COLOR_BURN,
+        BlendMode.COLOR_DODGE,
+        BlendMode.HARD_LIGHT,
+        BlendMode.LINEAR_LIGHT,
+        BlendMode.PIN_LIGHT,
+        BlendMode.SOFT_LIGHT,
+        BlendMode.VIVID_LIGHT,
+    ],
 )
 def test_composite_duotone_with_a_channelwise_blend_mode(blend_mode: BlendMode) -> None:
     """These blend modes crashed on every duotone document (#733).
 
-    They index the color array with a mask derived from it
-    (``blend.py``'s ``B[Cs == 1] = 1``), which needs the operands to agree in
+    They index the color array with a mask derived from it -- ``blend.py``'s
+    ``B[Cs == 1] = 1`` and friends -- which needs the operands to agree in
     width. A two-channel canvas against a one-channel source did not::
 
         IndexError: boolean index did not match indexed array along axis 2;
         size of axis is 2 but size of corresponding boolean axis is 1
+
+    All seven of the blend modes listed here raised it. Photoshop keeps layers
+    in duotone mode, so this was reachable on ordinary documents rather than
+    only on hand-built ones.
+
+    ``Hue``, ``Saturation``, ``Color`` and ``Luminosity`` still raise, and are
+    deliberately not listed: they fail identically on
+    ``colormodes/4x4_8bit_grayscale.psd``, so that is a pre-existing
+    single-channel-document bug rather than anything duotone-specific. Duotone
+    now behaves exactly as grayscale does, which is the point.
     """
     psd = PSDImage.open(full_name("colormodes/4x4_8bit_duotone.psd"))
     for layer in psd:

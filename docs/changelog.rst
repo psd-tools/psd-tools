@@ -52,9 +52,10 @@ Changelog
   channel becomes three through the palette. It is now given the wider of the
   header count and the canvas width, so no colour mode under-estimates. This
   can reject a document that a very tight budget previously admitted. Applies
-  to ``composite()``'s own guard: a document with no layers returns early,
-  before that estimate, and stays covered by the check in ``numpy()`` instead
-  (#720).
+  to ``composite()``'s own guard only: a document with no layers returns early,
+  before that estimate, and falls to the check in ``numpy()``, which is still
+  header-based and so still under-counts an indexed canvas -- tracked
+  separately in #732 (#720).
 - [fix] Composite duotone documents at their stored width.
   ``EXPECTED_CHANNELS`` reported 2 for duotone -- the ink count -- while duotone
   pixel data is a single grayscale channel, the one to four ink curves living
@@ -62,9 +63,19 @@ Changelog
   ``composite()`` returned a two-channel array whose second channel was not
   data from the file but the backdrop copied; ``PSDImage.composite(force=True)``
   returned *wrong pixels*, because the over-wide array was handed to PIL as
-  ``"LA"`` and the planes came out shifted against each other; and the
-  ``ColorDodge``, ``ColorBurn`` and ``VividLight`` blend modes raised
-  ``IndexError`` on any duotone document (#733).
+  ``"LA"`` and the planes came out shifted against each other; and seven blend
+  modes -- ``ColorBurn``, ``ColorDodge``, ``HardLight``, ``LinearLight``,
+  ``PinLight``, ``SoftLight`` and ``VividLight`` -- raised ``IndexError`` on any
+  duotone document. Photoshop keeps layers in duotone mode, so every one of
+  these was reachable on ordinary files. ``Hue``, ``Saturation``, ``Color`` and
+  ``Luminosity`` still raise, identically to how they do on a grayscale
+  document; that is a separate single-channel issue (#733).
+- [fix] Read the alpha channel of a duotone document as alpha. Because the
+  colour array was taken to be two channels wide, a duotone file carrying a
+  transparency channel returned it as *colour* data from ``numpy("color")``,
+  and ``has_transparency()`` reported ``False`` -- while ``pil_mode`` said
+  ``"LA"``, so the document contradicted itself. No fixture has this shape
+  (#733).
 - [api] ``PSDImage.new("DUOTONE", ...)`` now accepts a colour. It previously
   rejected every sequence: the constructor demanded two components while the
   header it built declared one channel, so no value satisfied both (#733).
