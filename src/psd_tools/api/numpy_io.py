@@ -34,11 +34,21 @@ def get_array(
     )
 
 
-def _image_data_planes(psdimage: "PSDProtocol") -> int:
+def _image_data_planes(psdimage: "PSDProtocol", flat: bool = False) -> int:
     """Planes :func:`get_image_data` will allocate, for its allocation guard.
 
-    The header's channel count is what the merged image data *stores*, and for
-    every colour mode but one it is also what gets allocated. Indexed at depth 8
+    ``flat`` marks the paths that return a synthesised ``(h, w, 1)`` array
+    without reading the image data at all -- a mask, or a shape on a document
+    with no transparency. Those allocate one plane whatever the colour mode, so
+    estimating them at the stored width rejects requests that comfortably fit:
+    ``numpy("mask")`` on a CMYK document allocates a quarter of what the header
+    implies. That over-estimate predates the palette fix below for every
+    multi-channel mode; it is corrected here rather than left to grow a third
+    case.
+
+    Otherwise the header's channel count is what the merged image data *stores*,
+    and for every colour mode but one it is also what gets allocated. Indexed at
+    depth 8
     is the exception: :func:`_parse_array` applies the palette to the whole
     buffer rather than to one plane, so ``(channels * h * w,)`` becomes
     ``(channels * h * w, 3)`` and the reshape below yields
@@ -68,6 +78,8 @@ def _image_data_planes(psdimage: "PSDProtocol") -> int:
     assumes. Both are pre-existing properties of this estimate rather than
     anything a colour mode causes; the second is tracked in #737.
     """
+    if flat:
+        return 1
     planes = psdimage.channels
     if psdimage.color_mode == ColorMode.INDEXED and psdimage.depth == 8:
         planes *= EXPECTED_CHANNELS[ColorMode.INDEXED]
@@ -75,6 +87,12 @@ def _image_data_planes(psdimage: "PSDProtocol") -> int:
 
 
 def get_image_data(psdimage: "PSDProtocol", channel: str | None) -> np.ndarray:
+    # Decided before the guard runs rather than after, so the estimate can match
+    # whichever branch is taken. The dimension checks inside check_pixel_size()
+    # apply to both, so neither path escapes it.
+    flat = (channel == "mask") or (
+        channel == "shape" and not has_transparency(psdimage)
+    )
     # The guard is here to reject a file before it allocates, so its estimate
     # must not fall below the array that follows. See _image_data_planes() for
     # why the header's own count is not that bound for an indexed document --
@@ -82,11 +100,11 @@ def get_image_data(psdimage: "PSDProtocol", channel: str | None) -> np.ndarray:
     check_pixel_size(
         psdimage.width,
         psdimage.height,
-        _image_data_planes(psdimage),
+        _image_data_planes(psdimage, flat),
         max_alloc_bytes=psdimage._max_alloc_bytes,
     )
 
-    if (channel == "mask") or (channel == "shape" and not has_transparency(psdimage)):
+    if flat:
         return np.ones((psdimage.height, psdimage.width, 1), dtype=np.float32)
 
     lut = None

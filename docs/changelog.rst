@@ -72,6 +72,13 @@ Changelog
   allocates twenty-four planes. The guard is sized for that, since it exists to
   bound hostile headers rather than well-formed ones.
 
+  The same entry point no longer over-estimates its synthesised results either.
+  ``numpy("mask")``, and ``numpy("shape")`` on a document with no transparency,
+  return a ``(h, w, 1)`` array without reading the image data, but were
+  estimated at the document's stored width -- so a budget that fitted such a
+  request four times over could still reject it on a CMYK document. That
+  over-estimate was not specific to indexed and predates this entry.
+
   The estimate bounds the array that is returned, which is what
   ``check_pixel_size()`` has always measured. Peak usage during parsing is a
   small multiple of it for every colour mode, and 1-bit documents are

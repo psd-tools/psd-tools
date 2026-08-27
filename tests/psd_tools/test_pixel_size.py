@@ -13,11 +13,13 @@ import warnings
 
 import pytest
 
-from typing import Any
+from typing import Any, Literal, Optional
 
 from psd_tools import PSDImage, PSDLargeImageWarning
 from psd_tools import compression as _compression
 from psd_tools.api import utils as _utils
+from psd_tools.api.numpy_io import _image_data_planes
+from psd_tools.api.utils import has_transparency
 from psd_tools.constants import ColorMode
 from psd_tools.api.utils import (
     MAX_DIMENSION_PSD,
@@ -27,6 +29,8 @@ from psd_tools.api.utils import (
 )
 
 from .utils import full_name
+
+_Channel = Literal["color", "shape", "alpha", "mask"]
 
 
 def _build_psd(width: int, height: int, channels: int = 3) -> io.BytesIO:
@@ -410,8 +414,11 @@ def test_numpy_guard_estimate_follows_the_header_for_every_other_mode(
     assert allocated == 4 * 4 * channels * 4
 
 
+@pytest.mark.parametrize("channel", [None, "color", "shape", "alpha", "mask"])
 @pytest.mark.parametrize("filename", _COLORMODE_FIXTURES)
-def test_numpy_guard_estimate_never_exceeds_the_allocation(filename: str) -> None:
+def test_numpy_guard_estimate_never_exceeds_the_allocation(
+    filename: str, channel: Optional[_Channel]
+) -> None:
     """No shipped fixture may be rejected at a budget it actually fits inside.
 
     The same invariant as above swept over the real corpus, covering every
@@ -419,6 +426,42 @@ def test_numpy_guard_estimate_never_exceeds_the_allocation(filename: str) -> Non
     a 1-bit document unpacks to more values than the byte count this estimate
     assumes, which has no depth term -- #737. That is a separate gap, not
     something this assertion claims is absent.)
+
+    Swept over ``channel`` as well, because the estimate has to match whichever
+    branch the argument selects -- see the synthesised paths below, which this
+    parametrisation is what catches.
+
+    Note what "the allocation" means for a channel argument. ``numpy("color")``
+    and ``numpy("shape")`` return *views* into the full array -- on
+    ``4x4_8bit_rgba.psd``, ``numpy("color")`` hands back 192 bytes of a 256-byte
+    buffer -- so the returned array's ``nbytes`` is not what was allocated. The
+    guard has to bound the buffer, so that is what is compared against.
     """
-    allocated = _colormode(filename).numpy().nbytes
-    _colormode(filename, allocated).numpy()
+    psd = _colormode(filename)
+    flat = channel == "mask" or (channel == "shape" and not has_transparency(psd))
+    allocated = 4 * 4 * 1 * 4 if flat else psd.numpy(None).nbytes
+    _colormode(filename, allocated).numpy(channel)
+
+
+@pytest.mark.parametrize("channel", ["mask", "shape"])
+@pytest.mark.parametrize(
+    "filename", ["4x4_8bit_index_color.psd", "4x4_8bit_cmyk.psd", "4x4_8bit_rgb.psd"]
+)
+def test_numpy_guard_estimate_matches_the_synthesised_paths(
+    filename: str, channel: _Channel
+) -> None:
+    """A mask, and a shape on a document with no transparency, allocate one plane.
+
+    Both are returned as synthesised ``(h, w, 1)`` arrays without the image data
+    being read at all, so estimating them at the stored width rejects a request
+    that fits several times over -- a quarter of the header's implication on
+    CMYK, a third on indexed once the palette expansion is counted.
+
+    Raised by review on this PR. The over-estimate predates it for every
+    multi-channel mode; sizing indexed by its expanded width would have added a
+    third case rather than introducing the problem.
+    """
+    one_plane = 4 * 4 * 1 * 4
+    assert _colormode(filename).numpy(channel).nbytes == one_plane
+    assert _image_data_planes(_colormode(filename)) > 1  # the stored width differs
+    _colormode(filename, one_plane).numpy(channel)
