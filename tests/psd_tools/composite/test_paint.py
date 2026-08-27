@@ -145,3 +145,67 @@ def test_previously_working_pairs_are_unchanged(
 def test_multichannel_entry_is_not_a_channel_count() -> None:
     """Why multichannel is the mode that cannot be sized from the table."""
     assert EXPECTED_CHANNELS[ColorMode.MULTICHANNEL] == 64
+
+
+@pytest.mark.parametrize(
+    "lab",
+    [
+        (50.0, 10.0, 20.0),
+        (0.0, -128.0, -128.0),
+        (100.0, 127.0, 127.0),
+        (20.0, -90.0, 60.0),
+    ],
+)
+@pytest.mark.parametrize(
+    "color_mode",
+    [
+        ColorMode.BITMAP,
+        ColorMode.GRAYSCALE,
+        ColorMode.DUOTONE,
+        ColorMode.MULTICHANNEL,
+        ColorMode.CMYK,
+    ],
+)
+def test_lab_reduces_from_lightness_alone(
+    lab: tuple[float, float, float], color_mode: ColorMode
+) -> None:
+    """A Lab descriptor reduces via L, not by treating a/b as green and blue.
+
+    ``a`` and ``b`` are signed chroma, so folding them into a grayscale or CMYK
+    conversion as if they were RGB components gives an arbitrary result that can
+    fall outside [0, 1] -- a negative fill component. Only ``L`` carries
+    lightness, so the reduction takes it alone, which keeps the result in range
+    and monotonic in lightness.
+    """
+    desc = _color_desc(
+        Klass.LabColor.value,
+        {Key.Luminance: lab[0], Key.A: lab[1], Key.B: lab[2]},
+    )
+    result = _get_color(color_mode, desc)
+    assert all(0.0 <= c <= 1.0 for c in result), result
+    # a and b do not move the result at all.
+    swapped = _color_desc(
+        Klass.LabColor.value,
+        {Key.Luminance: lab[0], Key.A: -lab[1], Key.B: -lab[2]},
+    )
+    assert _get_color(color_mode, swapped) == result
+
+
+def test_lab_reduction_is_monotonic_in_lightness() -> None:
+    """Darker L stays darker after the reduction, in ink terms for CMYK."""
+
+    def lab_desc(lightness: float) -> Descriptor:
+        return _color_desc(
+            Klass.LabColor.value,
+            {Key.Luminance: lightness, Key.A: 0.0, Key.B: 0.0},
+        )
+
+    dark = _get_color(ColorMode.GRAYSCALE, lab_desc(10.0))
+    light = _get_color(ColorMode.GRAYSCALE, lab_desc(90.0))
+    assert dark[0] < light[0]
+
+    # CMYK is K-only, so more lightness means less key ink.
+    dark_cmyk = _get_color(ColorMode.CMYK, lab_desc(10.0))
+    light_cmyk = _get_color(ColorMode.CMYK, lab_desc(90.0))
+    assert dark_cmyk[:3] == light_cmyk[:3] == (0.0, 0.0, 0.0)
+    assert dark_cmyk[3] > light_cmyk[3]

@@ -131,15 +131,24 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
         return _from_rgb(color_mode, cmyk_to_rgb(c, m, y, k))
 
     def _get_lab(color_mode: ColorMode, x: Descriptor) -> tuple[float, ...]:
-        # This triple is not RGB, and dividing L/a/b by 255 is not a correct
-        # normalization of any of them -- L is 0..100 and a/b are signed. That
-        # is a value bug independent of this one and is left as it stands for
-        # the modes that already reached the compositor, so the reduction below
-        # only decides the *width* for the modes that could not.
+        # Dividing L/a/b by 255 is not a correct normalization of any of the
+        # three -- L is 0..100 and a/b are signed. That is a value bug
+        # independent of this one, so it is left exactly as it stands for the
+        # three modes below, which are the ones that already reached the
+        # compositor.
         lab = _get_int_color(x, (Key.Luminance, Key.A, Key.B))
         if color_mode in (ColorMode.LAB, ColorMode.RGB, ColorMode.INDEXED):
             return lab
-        return _from_rgb(color_mode, lab)
+        # The remaining modes could not be reached at all before, so there is
+        # no established behavior to preserve -- only a width to choose. This
+        # deliberately does not go through _from_rgb(): only L carries
+        # lightness, and feeding signed a/b in as if they were G and B yields
+        # components that are arbitrary and can be negative. Reducing from L
+        # alone keeps them in range and monotonic in lightness.
+        lightness = lab[0]
+        if color_mode == ColorMode.CMYK:
+            return gray_to_cmyk(lightness)
+        return (lightness,)
 
     _COLOR_FUNC = {
         Klass.RGBColor: _get_rgb,
