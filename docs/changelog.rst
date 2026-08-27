@@ -4,9 +4,10 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
-- [fix] Return a coherent image from ``PSDImage.composite(force=True)`` for
-  every colour mode. ``composite_pil()`` declared the PIL mode and built the
-  array separately, and the two could disagree in two ways (#729):
+- [fix] Stop ``composite_pil()`` declaring a PIL mode that its pixel array does
+  not match. The mode and the array were chosen separately, and they could
+  disagree in three ways -- two of which produced pixels that corresponded to
+  nothing in the file, and one of which raised (#729):
 
   A multichannel document came back **garbled**. Its colour array has one plane
   per spot channel, and the narrowing to the single plane PIL can hold was keyed
@@ -18,16 +19,31 @@ Changelog
   are announced with a warning instead of being lost silently. Use
   :py:func:`psd_tools.composite.composite` to keep every channel.
 
-  Bitmap, CMYK and Lab documents **raised**. ``"A"`` was appended to the mode
-  whether or not PIL has an alpha variant of it, so those asked
-  ``Image.fromarray()`` for ``"1A"``, ``"CMYKA"`` and ``"LABA"`` and got
+  Under ``force``, bitmap, CMYK and Lab documents **raised**. ``"A"`` was
+  appended to the mode whether or not an alpha variant of it exists, so those
+  asked ``Image.fromarray()`` for ``"1A"``, ``"CMYKA"`` and ``"LABA"`` and got
   ``ValueError: unrecognized image mode`` or ``TypeError: Cannot handle this
-  data type``. They now come back without alpha rather than not at all. Only
-  ``"L"`` and ``"RGB"`` have alpha variants in PIL, which is the rule
-  ``get_pil_mode(alpha=True)`` already applied.
+  data type``. Of the modes this function can produce, only ``"L"`` and
+  ``"RGB"`` have an alpha variant, so for the others the alpha is no longer
+  packed into the array -- it is handed to ``post_process()``, which still
+  carries it for CMYK by converting to RGB first. So ``force=True`` on a CMYK
+  document now returns the same ``"RGBA"`` that ``force=False`` always did;
+  bitmap and Lab results carry no alpha either way.
 
-  Documents composited without ``force`` are unaffected -- every one of the 284
-  fixtures renders bitwise identically.
+  A bitmap document came back **garbled in both modes**.
+  ``Image.fromarray(uint8, "1")`` does not mean "these bytes, as bilevel": PIL
+  reads the raw mode literally at one bit per pixel, consuming one byte per
+  eight columns and expanding its bits across the row, so a 4x4 document
+  returned the bits of its first four bytes. The plane is now built as ``"L"``,
+  where a byte is a pixel, and reduced afterwards. This also removes the only
+  use in the compositor of the ``mode`` parameter of ``Image.fromarray()``,
+  which Pillow deprecated and removes in Pillow 13.
+
+  Of the 284 fixtures outside ``third-party-psds``, rendered in both modes:
+  every ``force=False`` render is bitwise identical except the bitmap one, and
+  under ``force`` seventeen renders that previously raised now return an image,
+  while exactly one changes from one image to another -- the garbled
+  multichannel document.
 - [fix] Correct pass-through group compositing when the group opacity is below
   255. The group's contribution was blended against the backdrop twice, so a
   partially transparent backdrop bled its colour into the result and the output

@@ -788,6 +788,64 @@ def test_composite_pil_force_covers_every_colour_mode(
     assert image.mode == mode
 
 
+@pytest.mark.parametrize("colormode", ["bitmap", "lab", "cmyk"])
+def test_composite_pil_force_pixels_match_the_numpy_path(colormode: str) -> None:
+    """The three modes that carry no alpha, compared bitwise rather than by mode.
+
+    Review of this change caught that asserting only ``image.mode`` was not
+    enough -- twice over. It is what let #729 survive for multichannel, and the
+    first version of the fix above turned bitmap's *raise* into silently wrong
+    pixels, which the mode assertion happily accepted:
+    ``Image.fromarray(uint8, "1")`` does not mean "these bytes, as bilevel". PIL
+    reads the raw mode literally at one bit per pixel, so a 4x4 document came
+    back as the bits of its first four bytes::
+
+        composited [[1,1,0,0],[0,0,0,0],[1,1,1,1],[0,0,0,0]]
+        returned   [[1,1,1,1],[1,1,1,1],[0,0,0,0],[0,0,0,0]]
+
+    Since these three modes get no alpha packed in, the returned planes are
+    directly comparable to the NumPy entry point's colour.
+    """
+    depth = 1 if colormode == "bitmap" else 8
+    psd = PSDImage.open(full_name("colormodes/4x4_%gbit_%s.psd" % (depth, colormode)))
+    image = psd.composite(ignore_preview=True, force=True, apply_icc=False)
+    assert isinstance(image, Image.Image)
+    color, _, _ = composite(psd, force=True)
+
+    expected = (255 * color).astype(np.uint8)
+    if colormode == "bitmap":
+        expected = (expected > 127).astype(np.uint8)  # PIL reports "1" as 0/1
+    if image.mode == "CMYK":
+        # post_process() inverts CMYK on the way out; compare on that footing.
+        expected = 255 - expected
+    actual = np.asarray(image)
+    if actual.ndim == 2:
+        actual = actual[:, :, None]
+    assert np.array_equal(actual, expected)
+
+
+def test_composite_pil_force_keeps_cmyk_alpha_reachable() -> None:
+    """``force=True`` must not drop alpha that ``force=False`` returns.
+
+    PIL has no ``"CMYKA"``, so the alpha cannot be packed into the array -- but
+    ``post_process()`` converts CMYK to RGB when an ICC profile is applied and
+    then calls ``putalpha``, which is how ``force=False`` has always returned
+    ``"RGBA"`` here. The first version of this fix diverted ``force=True`` away
+    from packing the alpha inline while that hand-off was still gated on ``not
+    force``, so the plane was dropped on exactly the paths it had just been
+    diverted from. Raised by review.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_cmyk.psd"))
+    viewport = (0, 0, 8, 8)  # wider than the document, so some pixels are bare
+    lazy = psd.composite(ignore_preview=True, viewport=viewport, force=False)
+    forced = psd.composite(ignore_preview=True, viewport=viewport, force=True)
+    assert isinstance(lazy, Image.Image) and isinstance(forced, Image.Image)
+    assert lazy.mode == forced.mode == "RGBA"
+    lazy_alpha = np.asarray(lazy)[:, :, 3]
+    assert set(np.unique(lazy_alpha).tolist()) == {0, 255}  # bare px are bare
+    assert np.array_equal(np.asarray(forced)[:, :, 3], lazy_alpha)
+
+
 def test_composite_layer_filter() -> None:
     psd = PSDImage.open(full_name("colormodes/4x4_8bit_rgba.psd"))
     # Check layer_filter.
