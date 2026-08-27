@@ -132,10 +132,10 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
 
     def _get_lab(color_mode: ColorMode, x: Descriptor) -> tuple[float, ...]:
         # Dividing L/a/b by 255 is not a correct normalization of any of the
-        # three -- L is 0..100 and a/b are signed. That is a value bug
-        # independent of this one, so it is left exactly as it stands for the
-        # three modes below, which are the ones that already reached the
-        # compositor.
+        # three -- L is 0..100 and a/b are signed, and neutral a/b is 0.5 in
+        # the arrays, not 0. That is a value bug independent of this one (#743),
+        # so it is left exactly as it stands for the three modes below, which
+        # are the ones that already reached the compositor.
         lab = _get_int_color(x, (Key.Luminance, Key.A, Key.B))
         if color_mode in (ColorMode.LAB, ColorMode.RGB, ColorMode.INDEXED):
             return lab
