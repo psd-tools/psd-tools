@@ -26,6 +26,42 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# The modes whose color array is a single channel, so a descriptor color has to
+# be reduced to one component to be a legal source for them. Grayscale, bitmap
+# and duotone genuinely are one grayscale channel -- duotone's inks live in the
+# color mode data section and were never a channel count (#733). Multichannel
+# is here for a different reason: its channels are spot inks with no colorimetric relation to RGB, so
+# there is no conversion to N of them -- one channel is the honest answer, and
+# what a single channel means once widened to N is #722's question, not this
+# function's.
+_SINGLE_CHANNEL_MODES = (
+    ColorMode.BITMAP,
+    ColorMode.GRAYSCALE,
+    ColorMode.DUOTONE,
+    ColorMode.MULTICHANNEL,
+)
+
+
+def _from_rgb(color_mode: ColorMode, rgb: tuple[float, ...]) -> tuple[float, ...]:
+    """Convert a canonical RGB triple to *color_mode*'s color array width.
+
+    Every descriptor color class reaches the document through here, so the
+    result is as wide as the document's own arrays rather than as wide as the
+    descriptor happened to be. A fill that is neither one channel nor exactly
+    the document's width trips ``Compositor._assert_source_fits()``, which is
+    what a solid color, gradient or stroke did on a bitmap, duotone,
+    multichannel and (for some classes) indexed, grayscale or Lab document.
+
+    Indexed is deliberately three: its single stored channel expands through
+    the palette, so three is the width its pixel arrays carry.
+    """
+    if color_mode == ColorMode.CMYK:
+        return rgb_to_cmyk(*rgb)
+    if color_mode in _SINGLE_CHANNEL_MODES:
+        return (rgb_to_grayscale(*rgb),)
+    return rgb
+
+
 def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
     """Return color tuple from descriptor.
 
@@ -67,22 +103,16 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
                 float(color_desc[key])
                 for key in (Key.RedFloat, Key.GreenFloat, Key.BlueFloat)
             )
-        if color_mode == ColorMode.CMYK:
-            return rgb_to_cmyk(*rgb)
-        if color_mode == ColorMode.GRAYSCALE:
-            return (rgb_to_grayscale(*rgb),)
-        return rgb
+        return _from_rgb(color_mode, rgb)
 
     def _get_hsb(color_mode: ColorMode, color_desc: Descriptor) -> tuple[float, ...]:
         hue = float(color_desc[Key.Hue]) / 300.0
         saturation = float(color_desc[Key.Saturation]) / 100.0
         brightness = float(color_desc[Key.Brightness]) / 100.0
-        rgb_components = hsb_to_rgb(hue, saturation, brightness)
-        if color_mode == ColorMode.RGB:
-            return rgb_components
-        if color_mode == ColorMode.CMYK:
-            return rgb_to_cmyk(rgb_components[0], rgb_components[1], rgb_components[2])
-        raise ValueError("Unexpected color mode for HSB color %s" % (color_mode))
+        # Every mode but RGB and CMYK used to raise here, which made an HSB
+        # solid color or gradient unrenderable on a grayscale, Lab, indexed,
+        # bitmap, duotone or multichannel document.
+        return _from_rgb(color_mode, hsb_to_rgb(hue, saturation, brightness))
 
     def _get_gray(color_mode: ColorMode, x: Descriptor) -> tuple[float, ...]:
         (gray,) = _get_invert_color(x, (Key.Gray,))
@@ -96,16 +126,29 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
         c, m, y, k = _get_invert_color(
             x, (Key.Cyan, Key.Magenta, Key.Yellow, Key.Black)
         )
-        if color_mode in (ColorMode.RGB, ColorMode.GRAYSCALE):
-            r, g, b = cmyk_to_rgb(c, m, y, k)
-        if color_mode == ColorMode.RGB:
-            return (r, g, b)
-        if color_mode == ColorMode.GRAYSCALE:
-            return (rgb_to_grayscale(r, g, b),)
-        return (c, m, y, k)
+        if color_mode == ColorMode.CMYK:
+            return (c, m, y, k)
+        return _from_rgb(color_mode, cmyk_to_rgb(c, m, y, k))
 
     def _get_lab(color_mode: ColorMode, x: Descriptor) -> tuple[float, ...]:
-        return _get_int_color(x, (Key.Luminance, Key.A, Key.B))
+        # Dividing L/a/b by 255 is not a correct normalization of any of the
+        # three -- L is 0..100 and a/b are signed. That is a value bug
+        # independent of this one, so it is left exactly as it stands for the
+        # three modes below, which are the ones that already reached the
+        # compositor.
+        lab = _get_int_color(x, (Key.Luminance, Key.A, Key.B))
+        if color_mode in (ColorMode.LAB, ColorMode.RGB, ColorMode.INDEXED):
+            return lab
+        # The remaining modes could not be reached at all before, so there is
+        # no established behavior to preserve -- only a width to choose. This
+        # deliberately does not go through _from_rgb(): only L carries
+        # lightness, and feeding signed a/b in as if they were G and B yields
+        # components that are arbitrary and can be negative. Reducing from L
+        # alone keeps them in range and monotonic in lightness.
+        lightness = lab[0]
+        if color_mode == ColorMode.CMYK:
+            return gray_to_cmyk(lightness)
+        return (lightness,)
 
     _COLOR_FUNC = {
         Klass.RGBColor: _get_rgb,
@@ -230,6 +273,12 @@ def draw_pattern_fill(
         int(np.ceil(float(width) / panel.shape[1])),
         1,
     )
+    # Keyed on the *pattern's* mode, not the document's, so this is the one
+    # place a document-derived count would be wrong. It is still broken for a
+    # multichannel-mode pattern, whose entry is 64 and so never splits the
+    # alpha: the real colour count is not recoverable from the parsed pattern
+    # (the stored channel count is a fixed 24 slots), so that needs a sample
+    # rather than a table fix. See #741.
     channels = EXPECTED_CHANNELS.get(pattern.image_mode)
     pixels = np.tile(panel, reps)[:height, :width, :]
     if channels is not None and pixels.shape[2] > channels:

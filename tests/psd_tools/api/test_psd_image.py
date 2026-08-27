@@ -617,3 +617,43 @@ def test_composite_preview_rgb_with_positive_layer_count(tmp_path: Path) -> None
     loaded = PSDImage.open(output)
     result = loaded.composite()
     assert result.mode == "RGB"
+
+
+def test_background_color_accepts_a_sequence_on_multichannel() -> None:
+    """A per-channel background is expressible on a multichannel document.
+
+    The setter validated against ``EXPECTED_CHANNELS``, whose multichannel entry
+    is 64 -- the format's maximum rather than this file's three -- so every
+    sequence was rejected and only a scalar could be set (#731). Since
+    ``background_color`` is what ``save()`` composites the merged preview
+    against, there was no way to give a multichannel document a per-channel one.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_16bit_multichannel.psd"))
+    assert psd.channels == 3
+
+    psd.background_color = (0.1, 0.2, 0.3)
+    assert psd.background_color == (0.1, 0.2, 0.3)
+
+    # A scalar kept working throughout, and still does.
+    psd.background_color = 0.5
+    assert psd.background_color == 0.5
+
+    # A wrong width is still rejected, now against the document's own count.
+    with pytest.raises(ValueError, match="Expected 3 color channel"):
+        psd.background_color = (0.1, 0.2)
+
+
+def test_new_multichannel_accepts_a_sequence() -> None:
+    """``new()`` and the validator agree on a multichannel document's width.
+
+    ``_make_header()`` builds a one-channel multichannel file while the
+    validator demanded 64, so no sequence satisfied both -- the same shape of
+    bug that #734 fixed for duotone by correcting the table, which multichannel
+    cannot be fixed by because its count is per-file (#731).
+    """
+    psd = PSDImage.new("MULTICHANNEL", (4, 4), color=(0.5,))
+    assert psd.channels == 1
+    assert psd.background_color == (0.5,)
+
+    # A scalar keeps working.
+    assert PSDImage.new("MULTICHANNEL", (4, 4), color=0.5).background_color == 0.5

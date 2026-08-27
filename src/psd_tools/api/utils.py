@@ -166,15 +166,16 @@ def get_color_channels(psdimage: "PSDProtocol") -> int:
     :func:`has_transparency` and :func:`get_transparency_index` can never fire,
     because ``FileHeader.channels`` is validated to at most 56, and
     :func:`~psd_tools.api.numpy_io.get_image_data` special-cases multichannel
-    before it reaches the table at all. And one is simply wrong:
-    ``_validate_color_input()`` requires a sequence of exactly 64 components, so
-    assigning a sequence to :py:attr:`PSDImage.background_color` on a
-    multichannel document raises. That is a separate bug, filed rather than
-    fixed here -- it takes a bare ``ColorMode`` where this takes a document, and
-    so cannot reach the header at all.
+    before it reaches the table at all. The one that was simply wrong was
+    ``_validate_color_input()``, which required a sequence of exactly 64
+    components and so rejected every per-channel
+    :py:attr:`PSDImage.background_color` on a multichannel document; #731 fixed
+    that by giving it an explicit channel count, supplied by this function or
+    by :func:`color_channels`, rather than by letting it read the table.
 
     So this is for the callers the constant cannot serve: the ones that must
-    *allocate* a canvas as wide as the document's own arrays.
+    *allocate* a canvas as wide as the document's own arrays, or validate a
+    color against one.
 
     Args:
         psdimage: The PSD image protocol object
@@ -186,9 +187,26 @@ def get_color_channels(psdimage: "PSDProtocol") -> int:
         this in a malformed file -- deliberately, so that the compositor's width
         assertion still sees the mismatch.
     """
-    if psdimage.color_mode == ColorMode.MULTICHANNEL:
-        return psdimage.channels
-    return EXPECTED_CHANNELS[psdimage.color_mode]
+    return color_channels(psdimage.color_mode, psdimage.channels)
+
+
+def color_channels(color_mode: ColorMode, channels: int) -> int:
+    """The same rule as :func:`get_color_channels`, for a bare header.
+
+    :py:meth:`PSDImage.new` has to answer this question before a document
+    exists -- it holds only the :py:class:`~psd_tools.psd.header.FileHeader` it
+    has just built -- so the rule lives here rather than inside the
+    document-taking form.
+
+    Args:
+        color_mode: The document's color mode.
+        channels: The header's channel count, alpha included.
+    Returns:
+        The width of the document's color array.
+    """
+    if color_mode == ColorMode.MULTICHANNEL:
+        return channels
+    return EXPECTED_CHANNELS[color_mode]
 
 
 def has_transparency(psdimage: "PSDProtocol") -> bool:
@@ -257,13 +275,24 @@ def get_transparency_index(psdimage: "PSDProtocol") -> int:
 
 
 def _validate_color_input(
-    color: ColorInput, depth: int, color_mode: ColorMode | None = None
+    color: ColorInput,
+    depth: int,
+    color_mode: ColorMode | None = None,
+    channels: int | None = None,
 ) -> int:
     """Validate common preconditions and return max pixel value for *depth*.
 
     Raises :class:`TypeError` for ``bool``, ``str``, or other unsupported
     types.  Raises :class:`ValueError` for unsupported *depth*, empty
     sequences, or wrong number of channels for *color_mode*.
+
+    *channels* overrides the per-mode count :data:`EXPECTED_CHANNELS` would
+    supply. Multichannel is why it exists: that entry is 64, the format's
+    maximum rather than any document's own count, so validating a sequence
+    against it rejects every sequence a caller could sensibly pass. A caller
+    that knows the real width -- from a document via
+    :func:`get_color_channels`, or from a header via :func:`color_channels` --
+    passes it here.
     """
     if isinstance(color, bool):
         raise TypeError(f"Bool color {color!r} is not supported. Use int or float.")
@@ -278,13 +307,17 @@ def _validate_color_input(
     if isinstance(color, Sequence):
         if len(color) == 0:
             raise ValueError("Color sequence must not be empty.")
-        if color_mode is not None:
+        expected: int | None = None
+        if channels is not None:
+            expected = channels
+        elif color_mode is not None:
             expected = EXPECTED_CHANNELS.get(color_mode)
-            if expected is not None and len(color) != expected:
-                raise ValueError(
-                    f"Expected {expected} color channel(s) for {color_mode.name}, "
-                    f"got {len(color)}."
-                )
+        if expected is not None and len(color) != expected:
+            mode_name = color_mode.name if color_mode is not None else "the document"
+            raise ValueError(
+                f"Expected {expected} color channel(s) for {mode_name}, "
+                f"got {len(color)}."
+            )
     return max_val
 
 
@@ -352,6 +385,7 @@ def normalize_color(
     color: ColorInput,
     depth: int,
     color_mode: ColorMode | None = None,
+    channels: int | None = None,
 ) -> float | tuple[float, ...]:
     """Convert *color* to normalized ``[0.0, 1.0]`` float(s).
 
@@ -364,7 +398,7 @@ def normalize_color(
     ``list``, or any :class:`~collections.abc.Sequence`) returns a
     ``tuple[float, ...]``.  Mixed int/float sequences are supported.
     """
-    max_val = _validate_color_input(color, depth, color_mode)
+    max_val = _validate_color_input(color, depth, color_mode, channels)
     if isinstance(color, (int, float)):
         return _normalize_scalar(color, max_val)
     return tuple(_normalize_scalar(c, max_val, i) for i, c in enumerate(color))
@@ -374,6 +408,7 @@ def denormalize_color(
     color: ColorInput,
     depth: int,
     color_mode: ColorMode | None = None,
+    channels: int | None = None,
 ) -> int | tuple[int, ...]:
     """Convert *color* to raw pixel integer(s).
 
@@ -386,7 +421,7 @@ def denormalize_color(
     ``list``, or any :class:`~collections.abc.Sequence`) returns a
     ``tuple[int, ...]``.  Mixed int/float sequences are supported.
     """
-    max_val = _validate_color_input(color, depth, color_mode)
+    max_val = _validate_color_input(color, depth, color_mode, channels)
     if isinstance(color, (int, float)):
         return _denormalize_scalar(color, max_val)
     return tuple(_denormalize_scalar(c, max_val, i) for i, c in enumerate(color))

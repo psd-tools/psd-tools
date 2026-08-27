@@ -4,6 +4,29 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
+- [fix] Let a per-channel colour be set on a multichannel document.
+  :py:attr:`~psd_tools.api.psd_image.PSDImage.background_color` validated the
+  sequence against a table whose multichannel entry is 64 -- the format's
+  maximum number of channels, not any file's own count -- so every sequence was
+  rejected and only a scalar could be set. Since ``background_color`` is the
+  backdrop ``save()`` composites the merged preview against, a multichannel
+  document had no way to be given a per-channel one.
+  ``PSDImage.new("MULTICHANNEL", ...)`` was unsatisfiable for the same reason:
+  it builds a one-channel document while the validator demanded 64
+  (#731, #742).
+
+- [fix] Size a fill from the document rather than from its descriptor. A solid
+  colour, gradient or stroke takes its colour from a descriptor whose colour
+  class is independent of the document's colour mode, and the width that came
+  back was the descriptor's. Where that was neither one channel nor the
+  document's own count the compositor's width assertion fired, which is what an
+  RGB, CMYK or Lab descriptor did on a bitmap, duotone or multichannel
+  document, a CMYK one on an indexed or Lab document, and a Lab one on a
+  grayscale or CMYK document. An HSB descriptor was worse -- it raised
+  ``ValueError`` on every mode but RGB and CMYK. Every descriptor class now
+  converts to the document's width. No colour that already rendered changed
+  value (#730, #742).
+
 - [fix] Stop ``composite_pil()`` declaring a PIL mode that its pixel array does
   not match. The mode and the array were chosen separately, and they could
   disagree in three ways -- two of which produced pixels that corresponded to
