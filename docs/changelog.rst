@@ -28,9 +28,11 @@ Changelog
   packed into the array -- it is handed to ``post_process()``, which still
   carries it for CMYK by converting to RGB first. So ``force=True`` on a CMYK
   document now returns the same ``"RGBA"`` that ``force=False`` always did.
-  Bitmap results carry no alpha in either mode, ``post_process()`` applying it
-  only to ``"RGB"`` and ``"L"``. Lab results carry none either, though for an
-  unrelated reason: a Lab document with an ICC profile raises before it gets
+  Bitmap results carry no alpha in either mode: ``post_process()`` applies it
+  only to ``"RGB"`` and ``"L"``, and the ICC conversion that gets CMYK there
+  cannot reach a 1-bit image -- little-cms builds no transform for one, so the
+  profile is skipped and the mode stays ``"1"``. Lab results carry none either,
+  for a third reason: a Lab document with an ICC profile raises before it gets
   that far -- #740.
 
   A bitmap document came back **garbled in both modes**.
