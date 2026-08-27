@@ -1,6 +1,7 @@
 import logging
 from typing import Any, Optional, Tuple
 
+import numpy as np
 import pytest
 from PIL import Image
 
@@ -13,16 +14,19 @@ from psd_tools.api.layers import (
     SmartObjectLayer,
     TypeLayer,
 )
-from psd_tools.api.pil_io import get_pil_channels, get_pil_depth
+from psd_tools.api.pil_io import get_pil_channels, get_pil_depth, post_process
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.constants import (
     BlendMode,
+    ColorMode,
     CompatibilityMode,
     ProtectedFlags,
     SectionDivider,
     SheetColorType,
     Tag,
 )
+
+from psd_tools.psd.descriptor import Integer
 
 from ..utils import full_name
 
@@ -943,3 +947,46 @@ def test_group_move_between_psdimages() -> None:
     assert len(psdimage2) == 1
     assert len(group) == 1
     assert layer.parent is group
+
+
+@pytest.mark.parametrize(
+    ("bg_type", "expected"),
+    [(2, (1.0, 1.0, 1.0, 1.0)), (3, (1.0, 1.0, 1.0, 0.0))],
+)
+def test_artboard_background_is_canvas_space_on_a_cmyk_document(
+    bg_type: int, expected: tuple[float, ...]
+) -> None:
+    """A white artboard background composited black on a CMYK document (#747).
+
+    The branch spelled white as ``(0, 0, 0, 0)`` -- no ink -- into arrays that
+    count what is *left*, where that is every ink at full strength. The RGB,
+    grayscale and Lab branches beside it were already canvas-space, so CMYK was
+    the odd one out.
+
+    ``artboard-bgcolor.psd`` is an RGB document whose artboards both use the
+    custom-colour type, so neither the colour mode nor the background type
+    under test can be reached from a shipped fixture; both are forged here.
+    """
+    psd = PSDImage.open(full_name("artboard-bgcolor.psd"))
+    artboard = psd[0]
+    assert isinstance(artboard, Artboard)
+
+    for key in (Tag.ARTBOARD_DATA1, Tag.ARTBOARD_DATA2, Tag.ARTBOARD_DATA3):
+        if key in artboard.tagged_blocks:
+            artboard.tagged_blocks.get_data(key)[b"artboardBackgroundType"] = Integer(
+                bg_type
+            )
+    psd._record.header.color_mode = ColorMode.CMYK
+    assert psd.color_mode == ColorMode.CMYK
+
+    color, alpha = artboard._artboard_background_defaults()
+    assert alpha == 1.0
+    assert color == expected
+
+    # The polarity is only meaningful against what the PIL exit does with it.
+    image = Image.fromarray(
+        np.full((2, 2, 4), 255 * np.array(color, dtype=np.float32), dtype=np.uint8),
+        "CMYK",
+    )
+    rendered = post_process(image, None, None).convert("RGB").getpixel((0, 0))
+    assert rendered == ((255, 255, 255) if bg_type == 2 else (0, 0, 0))
