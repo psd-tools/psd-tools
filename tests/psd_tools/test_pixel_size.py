@@ -417,8 +417,8 @@ def test_numpy_guard_estimate_never_exceeds_the_allocation(filename: str) -> Non
     The same invariant as above swept over the real corpus, covering every
     colour mode and all four depths. (Bitmap has slack in the other direction:
     a 1-bit document unpacks to more values than the byte count this estimate
-    assumes, which has no depth term. That is a separate gap, not something this
-    assertion claims is absent.)
+    assumes, which has no depth term -- #737. That is a separate gap, not
+    something this assertion claims is absent.)
     """
     allocated = _colormode(filename).numpy().nbytes
     _colormode(filename, allocated).numpy()

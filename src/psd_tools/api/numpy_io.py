@@ -66,7 +66,7 @@ def _image_data_planes(psdimage: "PSDProtocol") -> int:
     colour mode. Nor does it carry a depth term, so a 1-bit document still
     under-counts -- rows unpack to eight times the byte count the estimate
     assumes. Both are pre-existing properties of this estimate rather than
-    anything a colour mode causes; the second is tracked separately.
+    anything a colour mode causes; the second is tracked in #737.
     """
     planes = psdimage.channels
     if psdimage.color_mode == ColorMode.INDEXED and psdimage.depth == 8:
