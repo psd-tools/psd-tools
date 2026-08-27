@@ -256,6 +256,21 @@ def divide(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
 def non_separable(k: str = "s"):
     """Wrap non-separable blending function for CMYK handling.
 
+    The wrapped functions are RGB-only by construction: the helpers below index
+    channels 0, 1 and 2 by name. A three-channel source reaches them unchanged
+    and a four-channel one round-trips through RGB. Any other width falls back
+    to :py:func:`normal` rather than raising or inventing a result.
+
+    The documents that reach the fallback are the grayscale, duotone and
+    multichannel ones, and Photoshop offers none of these six modes on any of
+    them: scripted against Photoshop 2026, a grayscale document rejects every
+    one with *The command "Set" is not currently available*, and they are greyed
+    out in the UI. So there is no result to reproduce, and widening the array to
+    three channels would produce output Photoshop never does (#735).
+
+    Lab is three channels wide and so is blended as if it were RGB. That is this
+    module's pre-existing treatment of Lab, not something the fallback decides.
+
     .. note: This implementation is still inaccurate.
     """
 
@@ -266,6 +281,17 @@ def non_separable(k: str = "s"):
                 K = Cs[:, :, 3:4] if k == "s" else Cb[:, :, 3:4]
                 Cb, Cs = _cmyk2rgb(Cb), _cmyk2rgb(Cs)
                 return np.concatenate((_rgb2cmy(func(Cb, Cs), K), K), axis=2)
+            if Cs.shape[2] != 3:
+                # Keyed on the source: the compositor allows a one-channel
+                # source against a wider canvas, so this is not always the
+                # document's own width.
+                logger.debug(
+                    "%s blend is not defined for a %d-channel source; "
+                    "falling back to normal",
+                    func.__name__,
+                    Cs.shape[2],
+                )
+                return normal(Cb, Cs)
             return func(Cb, Cs)
 
         return _blend_fn

@@ -625,17 +625,106 @@ def test_composite_duotone_with_a_channelwise_blend_mode(blend_mode: BlendMode) 
     in duotone mode, so this was reachable on ordinary documents rather than
     only on hand-built ones.
 
-    ``Hue``, ``Saturation``, ``Color`` and ``Luminosity`` still raise, and are
-    deliberately not listed: they fail identically on
-    ``colormodes/4x4_8bit_grayscale.psd``, so that is a pre-existing
-    single-channel-document bug rather than anything duotone-specific. Duotone
-    now behaves exactly as grayscale does, which is the point.
+    The non-separable modes are covered separately by
+    ``test_composite_single_channel_with_a_non_separable_blend_mode``: they
+    failed on grayscale in the same way, so they were a single-channel-document
+    bug rather than anything duotone-specific (#735). Duotone behaves exactly as
+    grayscale does, which is the point.
     """
     psd = PSDImage.open(full_name("colormodes/4x4_8bit_duotone.psd"))
     for layer in psd:
         layer.blend_mode = blend_mode
     color, _, _ = composite(psd)
     assert color.shape == (psd.height, psd.width, 1)
+
+
+@pytest.mark.parametrize(
+    "blend_mode",
+    [
+        BlendMode.HUE,
+        BlendMode.SATURATION,
+        BlendMode.COLOR,
+        BlendMode.LUMINOSITY,
+        BlendMode.DARKER_COLOR,
+        BlendMode.LIGHTER_COLOR,
+    ],
+)
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "colormodes/4x4_8bit_grayscale.psd",
+        "colormodes/4x4_16bit_grayscale.psd",
+        "colormodes/4x4_32bit_grayscale.psd",
+        "colormodes/4x4_8bit_duotone.psd",
+    ],
+)
+def test_composite_single_channel_with_a_non_separable_blend_mode(
+    filename: str, blend_mode: BlendMode
+) -> None:
+    """The non-separable modes degrade to normal instead of crashing (#735).
+
+    ``Hue`` and ``Saturation`` raised ``IndexError`` and ``Color`` and
+    ``Luminosity`` raised ``ValueError`` on every single-channel fixture that
+    has layers; ``Darker Color`` and ``Lighter Color`` returned the backdrop
+    unchanged. All six index channels 1 and 2 of an array that has only
+    channel 0.
+
+    Photoshop 2026 refuses to set any of the six on a grayscale document -- the
+    modes are greyed out in the UI and scripting them answers *The command
+    "Set" is not currently available* -- so there is no result to reproduce and
+    widening the array to three channels would invent one. Falling back to
+    normal is what ``dissolve`` already does, so the composite must match the
+    document rendered with ``Normal`` exactly.
+    """
+    psd = PSDImage.open(full_name(filename))
+    for layer in psd:
+        layer.blend_mode = blend_mode
+    color, _, _ = composite(psd)
+    assert color.shape == (psd.height, psd.width, 1)
+
+    reference = PSDImage.open(full_name(filename))
+    for layer in reference:
+        layer.blend_mode = BlendMode.NORMAL
+    assert np.array_equal(color, composite(reference)[0])
+
+
+@pytest.mark.parametrize(
+    "blend_mode",
+    [
+        BlendMode.HUE,
+        BlendMode.SATURATION,
+        BlendMode.COLOR,
+        BlendMode.LUMINOSITY,
+        BlendMode.DARKER_COLOR,
+        BlendMode.LIGHTER_COLOR,
+    ],
+)
+def test_composite_single_channel_non_separable_over_an_opaque_backdrop(
+    blend_mode: BlendMode,
+) -> None:
+    """The fixtures above cannot pin ``Darker Color`` / ``Lighter Color``.
+
+    Where the layer paints in those files the backdrop alpha is zero, so
+    ``_apply_source``'s ``(1 - alpha_b) * color + alpha_b * blend(...)``
+    collapses to the source and the blend result never reaches the output --
+    returning the backdrop and returning the source composite identically.
+    That is exactly the half of #735 that failed silently, so it needs a
+    backdrop that is opaque underneath the source.
+
+    Here the lower layer is opaque grey 96 and the upper opaque grey 192. Before
+    the fix both modes composited to 96/255, the backdrop, whatever the source
+    said; the fallback makes them the source, 192/255, like every other mode.
+    """
+    psd = PSDImage.new(mode="L", size=(4, 4), color=64)
+    psd.create_pixel_layer(image=Image.new("L", (4, 4), 96), name="lower")
+    psd.create_pixel_layer(image=Image.new("L", (4, 4), 192), name="upper")
+    for layer in psd:
+        layer.blend_mode = blend_mode
+
+    color, alpha, _ = composite(psd)
+    assert (alpha == 1.0).all(), "the backdrop must be opaque for this to bite"
+    assert color.shape == (4, 4, 1)
+    assert np.allclose(color, 192 / 255.0, atol=1 / 255.0)
 
 
 def test_composite_pil_duotone_force_keeps_the_luminance_plane_intact() -> None:
