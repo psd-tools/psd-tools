@@ -5,7 +5,7 @@ Changelog
 -------------------
 
 - [fix] Clamp a fill descriptor's colour components so an out-of-range value
-  saturates instead of corrupting the render (#757). Nothing in the format
+  saturates instead of corrupting the render (#757, #764). Nothing in the format
   constrains a component to the range its colour class normalizes by, so a
   writer emitting ``Rd = 300`` or ``Gry = 150`` produces a value outside
   ``[0, 1]``.
