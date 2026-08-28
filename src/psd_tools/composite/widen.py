@@ -150,6 +150,16 @@ def _lab(color: np.ndarray) -> np.ndarray:
     the artboard defaults beside it. Lab has no exit ICC transform to anchor a
     transfer function against, so converting here would bake an sRGB gamma
     assumption into a mode the compositor already lists as unsupported.
+
+    Since #752 that makes this deliberately disagree with the *fill* path, which
+    does convert: a grey fill descriptor now reaches a Lab canvas at its L*, so
+    grey 0.6 lands at 0.632 where a widened grey 0.6 canvas channel stays at
+    0.6. The asymmetry is intended. A descriptor carries a colour a person
+    picked in some space, and for every class but Lab that space is sRGB-ish, so
+    interpreting it is sound. An arbitrary single-channel canvas handed to a Lab
+    document carries no such claim -- it may be a mask, a spot plane or a
+    caller's scalar -- and interpreting it would invent a colour space it never
+    had.
     """
     neutral = np.full_like(color, LAB_NEUTRAL_CHROMA)
     return np.concatenate((color, neutral, neutral), axis=2)

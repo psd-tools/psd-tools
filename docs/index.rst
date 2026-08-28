@@ -97,6 +97,7 @@ Not supported:
     reference/psd_tools.api.mask
     reference/psd_tools.api.shape
     reference/psd_tools.api.smart_object
+    reference/psd_tools.color_convert
     reference/psd_tools.composite
     reference/psd_tools.compression
     reference/psd_tools.constants
