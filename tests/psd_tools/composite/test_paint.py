@@ -903,10 +903,14 @@ def test_noise_gradient_cross_space_cells_are_pinned(mode: str, band: str) -> No
 
 
 # (label, document mode, descriptor class, fields, expected canvas tuple).
-# The first four rows are the table measured in the issue; before the clamp
-# they produced (126, 180, 180), (44, 216, 0), (129, 129, 129) and (126, ...)
-# respectively -- a beyond-red HSB rendering grey-teal, a beyond-red RGB
-# rendering bright green, a beyond-white grey rendering mid-grey.
+# The first four rows are the table measured in the issue. Before the clamp the
+# tuples reached the uint8 cast as (126, 180, 180), (44, 216, 0),
+# (129, 129, 129) and (126, ...) -- what the cast *would* make of them.
+# `Compositor` clips its own arrays, so a flat opaque fill was shielded from
+# that; what was not shielded is anything that blends the value first, because
+# the clip then runs on arithmetic that is already wrong. Forging these into
+# adjustment-fillers.psd renders 194 white pixels and 150 bright cyan ones
+# along a stroke that should be (26, 26, 26).
 OUT_OF_RANGE_CASES = [
     (
         "HSB S=120 B=150 saturates to red",

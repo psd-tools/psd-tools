@@ -227,12 +227,16 @@ def composite_pil(
     if color.shape[0] == 0 or color.shape[1] == 0:
         return None
     # Clipped, not cast straight: numpy *wraps* an out-of-range float, so a
-    # component at 1.2 would arrive as byte 51 rather than as white -- an
-    # unrelated colour instead of a saturated one (#757). Every producer that
-    # can leave [0, 1] is guarded at its own source, and no file under
-    # tests/psd_files reaches here out of range in either force mode, so this
-    # changes nothing today; it is here so that the failure mode of a future
-    # one is a clipped colour rather than a wrapped one.
+    # component at 1.2 would arrive as byte 50 rather than as white -- an
+    # unrelated colour instead of a saturated one (#757).
+    #
+    # Nothing reaches here out of range today: `Compositor` clips its own
+    # arrays, the descriptor readers clamp at the source, and no file under
+    # tests/psd_files arrives out of range in either force mode even with a
+    # deliberately out-of-range backdrop. So this changes no output; it is here
+    # so the failure mode of the next producer is a clipped colour rather than
+    # a wrapped one. Note it does not make the cast total -- np.clip passes NaN
+    # through -- so it is a narrowing of the damage, not a guarantee.
     pixels = np.clip(255 * color, 0, 255).astype(np.uint8)
     if mode == "1":
         # `fromarray(uint8, "1")` does not mean "these bytes, as bilevel". PIL

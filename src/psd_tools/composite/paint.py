@@ -49,18 +49,29 @@ def _clamp01(value: float) -> float:
 
     Every descriptor color class normalizes by a fixed divisor, and nothing in
     the format constrains the component to the range that divisor assumes: a
-    writer emitting ``a = 200`` yields 1.29, ``Strt = 120`` yields 1.2 and
-    ``Rd   = 300`` yields 1.18. :py:func:`psd_tools.composite.composite_pil`
-    then casts with ``(255 * color).astype(np.uint8)``, and numpy *wraps*
-    rather than saturating, so those land on bytes 71, 51 and 44 -- not clipped
-    components but colours unrelated to the ones asked for. A beyond-white grey
-    rendered mid-grey and a beyond-red RGB rendered bright green (#757).
-    Clamping degrades to the end of the axis instead, which is the policy
-    :py:func:`psd_tools.color_convert.lab_to_rgb` already follows.
+    writer emitting ``a = 200`` yields 1.29, ``Gry = 150`` yields -0.5 and
+    ``Rd   = 300`` yields 1.18.
 
-    Applied where the untrusted number enters rather than inside
-    ``color_convert``, so those conversions keep their documented ``[0, 1]``
-    input contracts instead of having to defend them.
+    Two things then go wrong with a component outside ``[0, 1]``, and the
+    second is the one that shows. ``composite_pil()`` casts with
+    ``(255 * color).astype(np.uint8)``, and numpy *wraps* rather than
+    saturating, so those three land on bytes 72, 129 and 44. That cast is
+    mostly shielded, because ``Compositor`` runs ``utils.clip()`` on its own
+    arrays. But the clip runs *after* the value has been blended, so wherever
+    the color is composited rather than laid down flat -- an effect, a partial
+    alpha, an anti-aliased vector edge -- it corrupts the arithmetic first and
+    the clip has nothing left to recover. Forging ``Gry = 150`` into
+    ``adjustment-fillers.psd`` puts 194 white pixels along the shape's stroke
+    where the stroke is ``(26, 26, 26)``, and ``H = 0, Strt = 120, Brgh = 150``
+    puts 150 bright cyan ones there (#757).
+
+    Clamping degrades to the end of the axis instead, which is the policy
+    :py:func:`psd_tools.color_convert.lab_to_rgb` already follows. Applied
+    where the untrusted number enters rather than inside ``color_convert``, so
+    those conversions keep their documented ``[0, 1]`` input contracts instead
+    of having to defend them. Saturation and brightness are the exception: they
+    reach :py:func:`psd_tools.color_convert.hsb_to_rgb`, which is total and
+    clamps them itself, so they never arrive here.
 
     NaN maps to 0.0, because ``nan > 0.0`` is false and ``max`` therefore keeps
     its first argument. That is wanted -- a malformed descriptor degrades to the
@@ -585,7 +596,13 @@ def _noise_to_canvas(
                 continue
             rgb = lab_to_rgb(c0 * 100.0, c1 * 255.0 - 128.0, c2 * 255.0 - 128.0)
         else:
-            rgb = (c0, c1, c2)
+            # Clamped for the same reason the descriptor readers are: these
+            # components come from ``Mnm ``/``Mxm ``, which are raw file
+            # values, so a band at ``Mxm = 150`` leaves [0, 1]. The other two
+            # spaces are already covered -- HSB by ``hsb_to_rgb`` and Lab by
+            # ``lab_to_rgb`` and ``_clamp01`` above -- which left RGB as the
+            # one unguarded noise path (#757).
+            rgb = (_clamp01(c0), _clamp01(c1), _clamp01(c2))
         rows.append(_from_rgb(color_mode, rgb))
     return np.array(rows, dtype=np.float32)
 
@@ -643,7 +660,10 @@ def _make_noise_gradient_color(
     )
     if not grad.get(Key.ShowTransparency):
         return G, None
+    # Clamped like the color components, and from the same raw ``Mnm ``/``Mxm ``
+    # values (#757).
+    Ya = np.clip(Y[:, -1], 0.0, 1.0)
     Ga = interpolate.interp1d(
-        X, Y[:, -1], axis=0, bounds_error=False, fill_value=(Y[0, -1], Y[-1, -1])
+        X, Ya, axis=0, bounds_error=False, fill_value=(Ya[0], Ya[-1])
     )
     return G, Ga

@@ -5,16 +5,24 @@ Changelog
 -------------------
 
 - [fix] Clamp a fill descriptor's colour components so an out-of-range value
-  saturates instead of wrapping to an unrelated colour (#757). Nothing in the
-  format constrains a component to the range its colour class normalizes by, and
-  :py:func:`psd_tools.composite.composite_pil` casts with
-  ``(255 * color).astype(np.uint8)``, which wraps: an ``HSBC`` at ``S = 120,
-  B = 150`` rendered grey-teal instead of red, an ``RGBC`` at ``Rd = 300``
-  rendered bright green instead of red, and a ``Grsc`` beyond black rendered
-  mid-grey. All five colour classes are now guarded where the untrusted number
-  enters, as Lab already was since #743, so ``color_convert``'s documented
-  ``[0, 1]`` input contracts stay unchanged. Hue is excluded on purpose: it is an
-  angle, so it still wraps.
+  saturates instead of corrupting the render (#757). Nothing in the format
+  constrains a component to the range its colour class normalizes by, so a
+  writer emitting ``Rd = 300`` or ``Gry = 150`` produces a value outside
+  ``[0, 1]``.
+
+  A flat opaque fill was shielded from this, because the compositor clips its
+  own arrays before the uint8 cast. What was not shielded is anything that
+  blends the value first -- a layer effect, a partial alpha, an anti-aliased
+  vector edge -- because the clip then runs on arithmetic that is already
+  wrong. A shape whose fill descriptor carries a beyond-black grey rendered
+  white pixels along its stroke, and a beyond-red ``HSBC`` rendered bright
+  cyan ones, where the stroke colour was dark grey.
+
+  All five colour classes are now guarded where the untrusted number enters, as
+  Lab already was since #743, so ``color_convert``'s documented ``[0, 1]``
+  input contracts stay unchanged. The colour-noise gradient's RGB path is
+  guarded too, since its bands come from raw ``"Mnm "``/``"Mxm "`` values. Hue is
+  excluded on purpose: it is an angle, so it still wraps.
 
   :py:func:`psd_tools.color_convert.hsb_to_rgb` is now total, matching
   :py:func:`~psd_tools.color_convert.lab_to_rgb`. Its documented ``[0, 1]``

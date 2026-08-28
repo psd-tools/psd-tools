@@ -1383,13 +1383,14 @@ def test_composite_pil_clips_rather_than_wrapping_at_the_uint8_cast(
 ) -> None:
     """The cast out of the compositor must saturate, not wrap (#757).
 
-    ``(255 * color).astype(np.uint8)`` wraps, so a component at 1.2 arrived as
-    byte 51 -- an unrelated colour rather than a clipped one. Every producer
-    that can leave [0, 1] is now guarded at its own source, and no file under
-    ``tests/psd_files`` reaches this cast out of range in either force mode
-    even with a deliberately out-of-range backdrop, so nothing in the corpus
-    exercises it. The stand-in below is what keeps the clip from being dropped
-    as dead code: it stands for the next producer that gets this wrong.
+    ``(255 * color).astype(np.uint8)`` wraps, so a component at 1.2 arrives as
+    byte 50 -- an unrelated colour rather than a clipped one. Nothing reaches
+    this cast out of range today: ``Compositor`` clips its own arrays, the
+    descriptor readers clamp at the source, and no file under
+    ``tests/psd_files`` arrives out of range in either force mode even with a
+    deliberately out-of-range backdrop. So nothing in the corpus exercises the
+    clip. The stand-in below is what keeps it from being dropped as dead code:
+    it stands for the next producer that gets this wrong.
     """
     psd = PSDImage.open(full_name("colormodes/4x4_8bit_rgb.psd"))
     real = composite_module.composite
