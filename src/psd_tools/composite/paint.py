@@ -47,16 +47,25 @@ _SINGLE_CHANNEL_MODES = (
 def _clamp01(value: float) -> float:
     """Hold *value* inside the range a color array is allowed to carry.
 
-    Only the Lab encoding needs this. Lab's range is a convention the
-    descriptor does not enforce, so a writer emitting ``a = 200`` yields 1.29 --
-    and :py:func:`psd_tools.composite.composite_pil` casts with
-    ``(255 * color).astype(np.uint8)``, which *wraps* rather than saturates,
-    landing that on byte 71: not a clipped chroma but a colour unrelated to the
-    one asked for. Clamping degrades to the end of the axis instead.
+    Every descriptor color class normalizes by a fixed divisor, and nothing in
+    the format constrains the component to the range that divisor assumes: a
+    writer emitting ``a = 200`` yields 1.29, ``Strt = 120`` yields 1.2 and
+    ``Rd   = 300`` yields 1.18. :py:func:`psd_tools.composite.composite_pil`
+    then casts with ``(255 * color).astype(np.uint8)``, and numpy *wraps*
+    rather than saturating, so those land on bytes 71, 51 and 44 -- not clipped
+    components but colours unrelated to the ones asked for. A beyond-white grey
+    rendered mid-grey and a beyond-red RGB rendered bright green (#757).
+    Clamping degrades to the end of the axis instead, which is the policy
+    :py:func:`psd_tools.color_convert.lab_to_rgb` already follows.
 
-    :py:func:`psd_tools.color_convert.lab_to_rgb` clamps its own inputs and
-    output, so the values reaching here through ``_from_rgb()`` are already in
-    range; this guards the direct Lab-to-Lab path, which does no conversion.
+    Applied where the untrusted number enters rather than inside
+    ``color_convert``, so those conversions keep their documented ``[0, 1]``
+    input contracts instead of having to defend them.
+
+    NaN maps to 0.0, because ``nan > 0.0`` is false and ``max`` therefore keeps
+    its first argument. That is wanted -- a malformed descriptor degrades to the
+    end of the axis rather than poisoning the canvas -- but it is a property of
+    the argument order, so do not reverse it.
     """
     return min(1.0, max(0.0, value))
 
@@ -156,17 +165,24 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
     """
 
     def _get_int_color(color_desc: Descriptor, keys: tuple) -> tuple[float, ...]:
-        return tuple(float(color_desc[key]) / 255.0 for key in keys)
+        return tuple(_clamp01(float(color_desc[key]) / 255.0) for key in keys)
 
     def _get_invert_color(color_desc: Descriptor, keys: tuple) -> tuple[float, ...]:
-        return tuple((100.0 - float(color_desc[key])) / 100.0 for key in keys)
+        return tuple(_clamp01((100.0 - float(color_desc[key])) / 100.0) for key in keys)
 
     def _get_rgb(color_mode: ColorMode, color_desc: Descriptor) -> tuple[float, ...]:
         if Key.Red in color_desc:
             rgb = _get_int_color(color_desc, (Key.Red, Key.Green, Key.Blue))
         else:
+            # No divisor, unlike ``Rd  ``/``Grn ``/``Bl  ``: these components
+            # are the format's own normalized spelling. Nothing under
+            # tests/psd_files carries one, so that scale is taken on the
+            # format's word rather than measured here -- which is exactly why
+            # the clamp matters on this path. If the scale is what it claims,
+            # the clamp never fires; if it is not, an unexpected value
+            # saturates instead of wrapping to an unrelated colour (#757).
             rgb = tuple(
-                float(color_desc[key])
+                _clamp01(float(color_desc[key]))
                 for key in (Key.RedFloat, Key.GreenFloat, Key.BlueFloat)
             )
         return _from_rgb(color_mode, rgb)
@@ -178,6 +194,11 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
         # six-sector table, where the achromatic fallback turned a fully
         # saturated red into white (#754).
         hue = float(color_desc[Key.Hue]) / 360.0
+        # Not clamped, unlike the other classes. Hue is cyclic, so 400 deg
+        # names a real angle and ``hsb_to_rgb`` wraps it; clamping would turn
+        # it into 360. Saturation and brightness are clamped by ``hsb_to_rgb``
+        # itself, which is total, so guarding them again here would defend the
+        # same two numbers twice (#757).
         saturation = float(color_desc[Key.Saturation]) / 100.0
         brightness = float(color_desc[Key.Brightness]) / 100.0
         # Every mode but RGB and CMYK used to raise here, which made an HSB

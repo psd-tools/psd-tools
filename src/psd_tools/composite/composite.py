@@ -226,7 +226,14 @@ def composite_pil(
         color = color[:, :, 0]
     if color.shape[0] == 0 or color.shape[1] == 0:
         return None
-    pixels = (255 * color).astype(np.uint8)
+    # Clipped, not cast straight: numpy *wraps* an out-of-range float, so a
+    # component at 1.2 would arrive as byte 51 rather than as white -- an
+    # unrelated colour instead of a saturated one (#757). Every producer that
+    # can leave [0, 1] is guarded at its own source, and no file under
+    # tests/psd_files reaches here out of range in either force mode, so this
+    # changes nothing today; it is here so that the failure mode of a future
+    # one is a clipped colour rather than a wrapped one.
+    pixels = np.clip(255 * color, 0, 255).astype(np.uint8)
     if mode == "1":
         # `fromarray(uint8, "1")` does not mean "these bytes, as bilevel". PIL
         # takes the raw mode literally at one bit per pixel, so it consumes one

@@ -208,6 +208,37 @@ class TestHsbToRgb:
         """
         assert hsb_to_rgb(h, 1.0, 0.5) == (0.5, 0.5, 0.5)
 
+    @pytest.mark.parametrize(
+        ("s", "v", "expected"),
+        [
+            (1.2, 1.5, (1.0, 0.0, 0.0)),  # the pair measured in #757
+            (1.2, 1.0, (1.0, 0.0, 0.0)),
+            (-0.5, 0.5, (0.5, 0.5, 0.5)),  # negative saturation is achromatic
+            (1.0, 2.0, (1.0, 0.0, 0.0)),
+            (1.0, -1.0, (0.0, 0.0, 0.0)),
+            (float("nan"), 0.5, (0.5, 0.5, 0.5)),
+            (float("inf"), 0.5, (0.5, 0.0, 0.0)),
+            (1.0, float("nan"), (0.0, 0.0, 0.0)),
+            (1.0, float("inf"), (1.0, 0.0, 0.0)),
+        ],
+    )
+    def test_out_of_range_saturation_and_brightness_saturate(self, s, v, expected):
+        """The ``Returns:`` contract has to hold for every float, not just for
+        in-range ones.
+
+        Saturation and brightness are not angles, so unlike hue they clamp
+        rather than wrap. Before #757 this function was total only in
+        appearance: #754's non-finite-hue guard made it look as complete as
+        ``lab_to_rgb``, while ``s = 1.2, v = 1.5`` still returned
+        ``(1.5, -0.3, -0.3)`` and a NaN saturation propagated straight out. The
+        harm is downstream -- ``composite_pil()`` casts with
+        ``(255 * color).astype(np.uint8)``, which *wraps*, so 1.5 became byte
+        126 and a fully saturated red rendered grey-teal.
+        """
+        result = hsb_to_rgb(0.0, s, v)
+        assert all(0.0 <= c <= 1.0 for c in result), result
+        assert result == pytest.approx(expected)
+
 
 class TestGrayToRgb:
     def test_mid_gray(self):

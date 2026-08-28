@@ -1,4 +1,5 @@
 import logging
+import sys
 from typing import Any, Optional, cast
 
 import numpy as np
@@ -13,6 +14,12 @@ from psd_tools.psd.base import ByteElement
 from PIL import Image
 
 from ..utils import full_name
+
+# ``psd_tools.composite.__init__`` re-exports the ``composite`` function under
+# the same name as the submodule it lives in, so ``psd_tools.composite.composite``
+# resolves to the function rather than to the module. Reach the module itself
+# through sys.modules, which the import above has already populated.
+composite_module = sys.modules["psd_tools.composite.composite"]
 
 logger = logging.getLogger(__name__)
 
@@ -1366,3 +1373,33 @@ def test_lab_composite_converts_to_the_colour_it_encodes(force: bool) -> None:
     assert image.mode == "LAB"
     rendered = np.array(image.convert("RGB").getpixel((4, 20)), dtype=float)
     assert np.abs(rendered - np.array([196.0, 126.0, 101.0])).max() <= 2.0
+
+
+@pytest.mark.parametrize(
+    "value, expected", [(1.2, 255), (5.0, 255), (-0.2, 0), (-5.0, 0)]
+)
+def test_composite_pil_clips_rather_than_wrapping_at_the_uint8_cast(
+    monkeypatch: pytest.MonkeyPatch, value: float, expected: int
+) -> None:
+    """The cast out of the compositor must saturate, not wrap (#757).
+
+    ``(255 * color).astype(np.uint8)`` wraps, so a component at 1.2 arrived as
+    byte 51 -- an unrelated colour rather than a clipped one. Every producer
+    that can leave [0, 1] is now guarded at its own source, and no file under
+    ``tests/psd_files`` reaches this cast out of range in either force mode
+    even with a deliberately out-of-range backdrop, so nothing in the corpus
+    exercises it. The stand-in below is what keeps the clip from being dropped
+    as dead code: it stands for the next producer that gets this wrong.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_rgb.psd"))
+    real = composite_module.composite
+
+    def out_of_range(*args: Any, **kwargs: Any) -> Any:
+        color, shape, alpha = real(*args, **kwargs)
+        return np.full_like(color, value), shape, alpha
+
+    monkeypatch.setattr(composite_module, "composite", out_of_range)
+    image = composite_module.composite_pil(psd, 1.0, 0.0, None, None, False)
+    assert isinstance(image, Image.Image)
+    pixels = np.asarray(image.convert("RGB"))
+    assert pixels.min() == expected and pixels.max() == expected, pixels

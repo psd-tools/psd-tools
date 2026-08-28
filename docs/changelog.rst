@@ -4,6 +4,23 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
+- [fix] Clamp a fill descriptor's colour components so an out-of-range value
+  saturates instead of wrapping to an unrelated colour (#757). Nothing in the
+  format constrains a component to the range its colour class normalizes by, and
+  :py:func:`psd_tools.composite.composite_pil` casts with
+  ``(255 * color).astype(np.uint8)``, which wraps: an ``HSBC`` at ``S = 120,
+  B = 150`` rendered grey-teal instead of red, an ``RGBC`` at ``Rd = 300``
+  rendered bright green instead of red, and a ``Grsc`` beyond black rendered
+  mid-grey. All five colour classes are now guarded where the untrusted number
+  enters, as Lab already was since #743, so ``color_convert``'s documented
+  ``[0, 1]`` input contracts stay unchanged. Hue is excluded on purpose: it is an
+  angle, so it still wraps.
+
+  :py:func:`psd_tools.color_convert.hsb_to_rgb` is now total, matching
+  :py:func:`~psd_tools.color_convert.lab_to_rgb`. Its documented ``[0, 1]``
+  result previously held only for in-range saturation and brightness, and a NaN
+  saturation propagated to the caller.
+
 - [fix] Read a 32-bit document with transparency through
   :py:meth:`~psd_tools.api.psd_image.PSDImage.numpy`, which raised
   ``ValueError: assignment destination is read-only``. Photoshop writes 32-bit

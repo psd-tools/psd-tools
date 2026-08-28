@@ -889,3 +889,160 @@ def test_noise_gradient_cross_space_cells_are_pinned(mode: str, band: str) -> No
     row = NOISE_BANDS.index(band) * 8 + 4
     expected = np.array(NOISE_PINNED[(mode, band)])
     assert np.abs(rendered[row, 4] - expected).max() <= 0.1
+
+
+# ---------------------------------------------------------------------------
+# Out-of-range descriptor components (#757)
+#
+# No fixture can carry these. Photoshop will not author a component outside its
+# class's nominal range, and it normalizes a fill descriptor to the document's
+# own colour class besides (#756), so the ground truth is the clamp itself:
+# every class has to land in [0, 1], and the rendered byte has to saturate at
+# the end of the axis rather than wrap to an unrelated colour.
+# ---------------------------------------------------------------------------
+
+
+# (label, document mode, descriptor class, fields, expected canvas tuple).
+# The first four rows are the table measured in the issue; before the clamp
+# they produced (126, 180, 180), (44, 216, 0), (129, 129, 129) and (126, ...)
+# respectively -- a beyond-red HSB rendering grey-teal, a beyond-red RGB
+# rendering bright green, a beyond-white grey rendering mid-grey.
+OUT_OF_RANGE_CASES = [
+    (
+        "HSB S=120 B=150 saturates to red",
+        ColorMode.RGB,
+        Klass.HSBColor.value,
+        {Key.Hue: 0.0, Key.Saturation: 120.0, Key.Brightness: 150.0},
+        (1.0, 0.0, 0.0),
+    ),
+    (
+        "RGB 300/-40/0 saturates to red",
+        ColorMode.RGB,
+        Klass.RGBColor.value,
+        {Key.Red: 300.0, Key.Green: -40.0, Key.Blue: 0.0},
+        (1.0, 0.0, 0.0),
+    ),
+    (
+        "grey beyond black stays black",
+        ColorMode.RGB,
+        Klass.Grayscale.value,
+        {Key.Gray: 150.0},
+        (0.0, 0.0, 0.0),
+    ),
+    (
+        "CMYK negative ink stays at no ink",
+        ColorMode.CMYK,
+        Klass.CMYKColor.value,
+        {Key.Cyan: -50.0, Key.Magenta: 0.0, Key.Yellow: 0.0, Key.Black: 0.0},
+        (1.0, 1.0, 1.0, 1.0),
+    ),
+    (
+        "CMYK beyond full ink stays at full ink",
+        ColorMode.CMYK,
+        Klass.CMYKColor.value,
+        {Key.Cyan: 150.0, Key.Magenta: 0.0, Key.Yellow: 0.0, Key.Black: 0.0},
+        (0.0, 1.0, 1.0, 1.0),
+    ),
+    (
+        "float RGB is normalized already, so 3.0 saturates",
+        ColorMode.RGB,
+        Klass.RGBColor.value,
+        {Key.RedFloat: 3.0, Key.GreenFloat: -1.0, Key.BlueFloat: 0.5},
+        (1.0, 0.0, 0.5),
+    ),
+    (
+        "Lab, the class that arrived with its own guard in #743",
+        ColorMode.LAB,
+        Klass.LabColor.value,
+        {Key.Luminance: 140.0, Key.A: 200.0, Key.B: -200.0},
+        (1.0, 1.0, 0.0),
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "label, color_mode, class_id, fields, expected",
+    OUT_OF_RANGE_CASES,
+    ids=[case[0] for case in OUT_OF_RANGE_CASES],
+)
+def test_out_of_range_components_saturate_rather_than_wrapping(
+    label: str,
+    color_mode: ColorMode,
+    class_id: bytes,
+    fields: dict,
+    expected: tuple[float, ...],
+) -> None:
+    """An out-of-range component must degrade to the end of its axis.
+
+    Nothing in the descriptor format constrains a component to the range its
+    class's divisor assumes, and ``composite_pil()`` casts with
+    ``(255 * color).astype(np.uint8)``, which *wraps* rather than saturating.
+    So 1.5 arrived as byte 126: not a clipped component but a colour unrelated
+    to the one asked for, and none of it warned.
+    """
+    result = _get_color(color_mode, _color_desc(class_id, fields))
+    assert all(0.0 <= c <= 1.0 for c in result), (label, result)
+    assert result == pytest.approx(expected), label
+    # The point of the clamp is what the cast then does with it. ``astype``
+    # truncates rather than rounds, which is why the model below uses ``int``.
+    pixels = (255 * np.array(result, dtype=np.float32)).astype(np.uint8)
+    want = [int(255 * np.float32(c)) for c in expected]
+    assert pixels.tolist() == want, label
+
+
+@pytest.mark.parametrize("color_mode", list(ColorMode))
+@pytest.mark.parametrize(
+    "class_id, fields",
+    [
+        (Klass.RGBColor.value, {Key.Red: 400.0, Key.Green: -400.0, Key.Blue: 128.0}),
+        (
+            Klass.RGBColor.value,
+            {Key.RedFloat: 9.0, Key.GreenFloat: -9.0, Key.BlueFloat: 0.5},
+        ),
+        (Klass.Grayscale.value, {Key.Gray: -250.0}),
+        (
+            Klass.CMYKColor.value,
+            {Key.Cyan: -200.0, Key.Magenta: 300.0, Key.Yellow: 0.0, Key.Black: 500.0},
+        ),
+        (
+            Klass.LabColor.value,
+            {Key.Luminance: -500.0, Key.A: 900.0, Key.B: -900.0},
+        ),
+        (
+            Klass.HSBColor.value,
+            {Key.Hue: 5000.0, Key.Saturation: 900.0, Key.Brightness: -900.0},
+        ),
+    ],
+    ids=["RGBC-int", "RGBC-float", "Grsc", "CMYC", "LbCl", "HSBC"],
+)
+def test_every_class_lands_in_range_on_every_document(
+    color_mode: ColorMode, class_id: bytes, fields: dict
+) -> None:
+    """Uniform treatment, which is the reason #757 covers all five at once.
+
+    Fixing one class in isolation is what the issue exists to avoid, so this
+    sweeps every colour class against every document mode rather than pinning
+    the handful of pairs that happened to be measured.
+    """
+    result = _get_color(color_mode, _color_desc(class_id, fields))
+    assert all(0.0 <= c <= 1.0 for c in result), (color_mode, class_id, result)
+    assert all(np.isfinite(c) for c in result), (color_mode, class_id, result)
+
+
+def test_out_of_range_hue_still_wraps_rather_than_clamping() -> None:
+    """Hue is the one component that must not be clamped.
+
+    It is an angle, so 400 degrees names a real colour one turn on and
+    ``hsb_to_rgb`` folds it back onto the circle. Clamping it to 360 would turn
+    every hue past the end of the turn into red, which is the shape of the
+    #754 bug rather than a fix for #757.
+    """
+    for degrees in (30.0, 390.0, 750.0, -330.0):
+        result = _get_color(
+            ColorMode.RGB,
+            _color_desc(
+                Klass.HSBColor.value,
+                {Key.Hue: degrees, Key.Saturation: 100.0, Key.Brightness: 100.0},
+            ),
+        )
+        assert result == pytest.approx((1.0, 0.5, 0.0), abs=1e-6), degrees
