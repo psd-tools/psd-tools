@@ -4,6 +4,25 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
+- [fix] Read a 32-bit document with transparency through
+  :py:meth:`~psd_tools.api.psd_image.PSDImage.numpy`, which raised
+  ``ValueError: assignment destination is read-only``. Photoshop writes 32-bit
+  RGB with a transparency channel routinely, so this was an ordinary file
+  shape rather than a malformed one, and
+  :py:func:`psd_tools.composite.composite` failed with it for the same reason.
+  ``topil()`` was unaffected, and ``PSDImage.composite()`` only appeared to be
+  because it short-circuits to the stored preview.
+
+  ``_parse_array()`` rescales at depths 1, 8 and 16, and the conversion that
+  needs hands back a fresh, writeable, native-endian array. Depth 32 needs no
+  rescaling, so it returned ``np.frombuffer()``'s view of the file's bytes --
+  read-only, and still big-endian where every other depth returns
+  ``np.float32``. Un-premultiplying the preview writes in place, and it runs
+  only for RGB with transparency, which is why just that one combination
+  raised. All four depths now return the same kind of array. The cost is one
+  more array the size of the merged image data on 32-bit documents, which is
+  what the other three depths already allocate (#738).
+
 - [fix] Convert a scalar backdrop instead of broadcasting it across every
   channel. ``composite()`` accepts its backdrop as a scalar, a per-channel
   sequence or a full array. #722, in this same release, taught the

@@ -220,7 +220,15 @@ def _parse_array(
     elif depth == 16:
         return np.frombuffer(data, ">u2").astype(np.float32) / 65535.0
     elif depth == 32:
-        return np.frombuffer(data, ">f4")
+        # The conversion the other three branches get for free from their own
+        # rescaling, spelled out here because 32-bit data needs no rescaling.
+        # Without it this branch alone returned an array that was neither
+        # writeable -- `np.frombuffer` over immutable `bytes` is read-only, and
+        # `_remove_background()` writes in place, so a 32-bit RGB document with
+        # transparency raised `assignment destination is read-only` -- nor
+        # `np.float32`, since it kept the file's big-endian byte order where
+        # every other depth returns the native dtype (#738).
+        return np.frombuffer(data, ">f4").astype(np.float32)
     elif depth == 1:
         return np.unpackbits(np.frombuffer(data, np.uint8)).astype(np.float32)
     else:
