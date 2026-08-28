@@ -134,7 +134,8 @@ def hsb_to_rgb(h: float, s: float, v: float) -> tuple[float, float, float]:
     saturated hue into grey rather than into the color one turn away (#754).
 
     Args:
-        h: Hue as a fraction of a full turn; wrapped into [0.0, 1.0).
+        h: Hue as a fraction of a full turn, cyclic. Any value is folded
+            back onto the circle, where 1.0 is the same hue as 0.0.
         s: Saturation in [0.0, 1.0].
         v: Brightness (value) in [0.0, 1.0].
 
