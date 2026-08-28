@@ -17,6 +17,7 @@ import pytest
 from PIL import Image
 
 from psd_tools import PSDImage
+from psd_tools.api.layers import Layer
 from psd_tools.api.pil_io import post_process
 from psd_tools.api.utils import EXPECTED_CHANNELS
 from psd_tools.composite import composite
@@ -601,10 +602,8 @@ def _hsb_desc(hue: float, saturation: float, brightness: float) -> Descriptor:
     return outer
 
 
-def _hsb_swatches(
-    psd: PSDImage,
-) -> list[tuple[tuple[float, float, float], tuple[int, int, int, int]]]:
-    """Each band's HSB triple, read from the layer name, with its bounds."""
+def _hsb_swatches(psd: PSDImage) -> list[tuple[tuple[float, float, float], Layer]]:
+    """Each band's HSB triple, read from the layer name, with its fill layer."""
     swatches = []
     for layer in psd.descendants():
         if layer.tagged_blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING, None) is None:
@@ -612,35 +611,50 @@ def _hsb_swatches(
         label, *values = layer.name.split()
         assert label == "HSB", layer.name
         hue, saturation, brightness = (float(v) for v in values)
-        swatches.append(((hue, saturation, brightness), layer.bbox))
+        swatches.append(((hue, saturation, brightness), layer))
     assert len(swatches) == 16
     return swatches
 
 
 def test_hsb_descriptor_matches_photoshops_own_bytes() -> None:
-    """``_get_color`` reproduces the pixels Photoshop rendered for the triple.
+    """``_get_color`` reproduces what Photoshop made of each HSB triple.
 
     Sixteen hues walking the whole circle: each of the six sector boundaries,
     one hue inside every sector, and both ends of the wrap. Under the ``/300``
-    divisor fifteen of the sixteen are wrong -- hue 0 is the single value where
-    the two divisors agree, which is why the one HSB fixture already in the
-    corpus never caught this. The worst of them is out by 128/255.
+    divisor fourteen of the sixteen are wrong. The two that survive are the
+    degenerate pair the fixture carries for exactly this reason -- hue 0, the
+    single angle where the two divisors agree, and ``HSB 200 0 60``, where zero
+    saturation short-circuits before the hue is read at all. Hue 0 is also all
+    that ``stroke-color-descriptors-hsb-with-rgb-mode.psd`` contains, which is
+    why the corpus never caught this.
 
-    The tolerance is one code value: the comparison is against Photoshop's
-    rounded 8-bit preview, and our own float lands within 0.05 of its
-    unrounded answer (pinned in ``tests/psd_tools/test_color_convert.py``).
+    Two references, because the fixture carries both. The ``RGBC`` descriptor
+    Photoshop normalized the fill to *is* its own full-precision answer to the
+    HSB triple, and the swap the composite test performs cannot touch it, so it
+    is compared at 0.02 of a code value. The rendered preview is the same
+    answer rounded to bytes, so it is compared at the 0.5 that rounding allows.
+    Reverting the divisor takes the worst of the sixteen to 255/255: hues 330,
+    359 and 360 all fall past the end of the six-sector table and render white.
     """
     psd = PSDImage.open(full_name("descriptors/hsb-color-swatches.psd"))
     assert psd.color_mode == ColorMode.RGB
     preview = psd.numpy()
-    for (hue, saturation, brightness), bbox in _hsb_swatches(psd):
-        left, top, right, bottom = bbox
-        photoshop = preview[(top + bottom) // 2, (left + right) // 2] * 255.0
-        ours = (
-            np.array(_get_color(ColorMode.RGB, _hsb_desc(hue, saturation, brightness)))
-            * 255.0
+    for (hue, saturation, brightness), layer in _hsb_swatches(psd):
+        ours = np.array(
+            _get_color(ColorMode.RGB, _hsb_desc(hue, saturation, brightness))
         )
-        assert np.abs(photoshop - ours).max() <= 1.0, (hue, photoshop, ours)
+        ours = ours * 255.0
+
+        stored = layer.tagged_blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING)[Key.Color]
+        assert stored.classID == b"RGBC"  # Photoshop rewrote the class on save
+        photoshop = np.array(
+            [float(stored[key]) for key in (Key.Red, Key.Green, Key.Blue)]
+        )
+        assert np.abs(photoshop - ours).max() <= 0.02, (hue, photoshop, ours)
+
+        left, top, right, bottom = layer.bbox
+        rendered = preview[(top + bottom) // 2, (left + right) // 2] * 255.0
+        assert np.abs(rendered - ours).max() <= 0.5 + 1e-6, (hue, rendered, ours)
 
 
 def test_hsb_fills_composite_to_photoshops_preview() -> None:
@@ -650,18 +664,15 @@ def test_hsb_fills_composite_to_photoshops_preview() -> None:
     so a correct conversion that never reaches the canvas cannot pass. Each
     fill's stored ``RGBC`` descriptor is swapped for the ``HSBC`` one Photoshop
     normalized away, which leaves the preview -- the reference -- untouched.
-    Reverting the divisor takes the worst pixel from 1/255 to 128/255.
+
+    Sensitive well below a degree: reverting the divisor takes the worst pixel
+    from 0.5/255 to 255/255, and rotating every hue by half a degree already
+    breaks the bound.
     """
     psd = PSDImage.open(full_name("descriptors/hsb-color-swatches.psd"))
     reference = psd.numpy()
-    for layer in psd.descendants():
-        blocks = layer.tagged_blocks
-        if blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING, None) is None:
-            continue
-        hue, saturation, brightness = (float(v) for v in layer.name.split()[1:])
-        blocks.set_data(
-            Tag.SOLID_COLOR_SHEET_SETTING, _hsb_desc(hue, saturation, brightness)
-        )
+    for hsb, layer in _hsb_swatches(psd):
+        layer.tagged_blocks.set_data(Tag.SOLID_COLOR_SHEET_SETTING, _hsb_desc(*hsb))
     rendered = composite(psd, force=True)[0]
     assert rendered.shape == reference.shape
     assert np.abs(reference - rendered).max() * 255.0 <= 1.0

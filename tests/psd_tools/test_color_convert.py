@@ -132,15 +132,19 @@ class TestHsbToRgb:
     def test_hue_is_cyclic(self, h, equivalent):
         """A hue outside [0, 1) is the same colour one or more turns away.
 
-        Only ``h == 1.0`` used to be handled, by a bare special case; every
-        other out-of-range value missed the six-sector table and fell back to
-        the achromatic ``(v, v, v)``. A hue of 360 degrees reaches this through
-        ``paint._get_hsb``, so Photoshop rendered it red and psd-tools rendered
-        it white (#754).
+        Only ``h == 1.0`` used to be handled, by a bare special case. Anything
+        at or past a full turn missed the six-sector table and fell back to the
+        achromatic ``(v, v, v)``, which is how a hue of 360 degrees arriving
+        through ``paint._get_hsb`` rendered white where Photoshop renders red
+        (#754). Small negative hues did reach a sector, just the wrong one:
+        truncation towards zero put all of ``(-1/6, 0)`` in sector 0.
 
-        ``-1e-17`` is in the list because ``-1e-17 % 1.0`` is exactly ``1.0`` in
-        floating point, which puts ``int(h * 6.0)`` at 6 -- one past the last
-        sector, and an ``IndexError`` if the wrap is applied to the hue alone.
+        ``-1e-17`` is the one row here that is not a #754 regression pin -- the
+        old code truncated it into sector 0 and got the right answer by
+        accident. It guards the new code instead: ``-1e-17 % 1.0`` is exactly
+        ``1.0`` in floating point, which puts ``int(h * 6.0)`` at 6, one past
+        the last sector, and is an ``IndexError`` if the wrap is applied to the
+        hue alone rather than to the sector index as well.
         """
         assert hsb_to_rgb(h, 1.0, 1.0) == pytest.approx(
             hsb_to_rgb(equivalent, 1.0, 1.0)

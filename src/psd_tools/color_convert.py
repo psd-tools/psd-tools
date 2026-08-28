@@ -151,8 +151,8 @@ def hsb_to_rgb(h: float, s: float, v: float) -> tuple[float, float, float]:
         # NaN and the infinities name no angle, so there is no turn to wrap
         # them onto and the achromatic answer is the only degradation left.
         # Worth spelling out because ``int(float("nan") * 6.0)`` raises, and a
-        # descriptor carries unvalidated file data -- see
-        # ``lab_to_rgb``'s equivalent guard.
+        # descriptor carries unvalidated file data. Same policy as
+        # ``lab_to_rgb``, which reaches it by clamping rather than by a test.
         return (v, v, v)
     h = h % 1.0
     sector = int(h * 6.0) % 6
