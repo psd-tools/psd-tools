@@ -21,7 +21,7 @@ Changelog
   Photoshop renders ``(204, 143, 82)``. The three spaces are now converted to
   the document's own, with Lab landing in a Lab document unconverted because
   the stored percentage already *is* that array's encoding. No gradient that
-  rendered correctly before changed value (#730).
+  rendered correctly before changed value (#730, #758).
 
 - [fix] Read an HSB fill colour's hue as the angle it is. The descriptor's hue
   key is degrees, so a full turn is 360, but it was being divided by 300: every
