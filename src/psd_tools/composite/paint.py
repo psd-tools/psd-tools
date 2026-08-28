@@ -47,16 +47,39 @@ _SINGLE_CHANNEL_MODES = (
 def _clamp01(value: float) -> float:
     """Hold *value* inside the range a color array is allowed to carry.
 
-    Only the Lab encoding needs this. Lab's range is a convention the
-    descriptor does not enforce, so a writer emitting ``a = 200`` yields 1.29 --
-    and :py:func:`psd_tools.composite.composite_pil` casts with
-    ``(255 * color).astype(np.uint8)``, which *wraps* rather than saturates,
-    landing that on byte 71: not a clipped chroma but a colour unrelated to the
-    one asked for. Clamping degrades to the end of the axis instead.
+    Every descriptor color class normalizes by a fixed divisor, and nothing in
+    the format constrains the component to the range that divisor assumes: a
+    writer emitting ``a = 200`` yields 1.29, ``Gry = 150`` yields -0.5 and
+    ``Rd   = 300`` yields 1.18.
 
-    :py:func:`psd_tools.color_convert.lab_to_rgb` clamps its own inputs and
-    output, so the values reaching here through ``_from_rgb()`` are already in
-    range; this guards the direct Lab-to-Lab path, which does no conversion.
+    A component outside ``[0, 1]`` reaches the image by two routes, and only
+    one of them is still open. ``Compositor`` runs ``utils.clip()`` on its own
+    arrays, but the clip runs *after* the value has been blended, so wherever
+    the color is composited rather than laid down flat -- an effect, a partial
+    alpha, an anti-aliased vector edge -- the out-of-range component corrupts
+    the arithmetic first and clipping has nothing left to recover. Forging
+    ``Gry = 150`` into ``adjustment-fillers.psd`` puts 194 white pixels along
+    the shape's stroke where the stroke is ``(26, 26, 26)``, and
+    ``H = 0, Strt = 120, Brgh = 150`` puts 150 bright cyan ones there (#757).
+
+    The closed route is the uint8 cast. ``composite_pil()`` used to write
+    ``(255 * color).astype(np.uint8)``, and numpy *wraps* rather than
+    saturating, so those three components would have landed on bytes 72, 129
+    and 44. It clips as of #757, so nothing here depends on that cast to
+    saturate; the two guards are independent on purpose.
+
+    Clamping degrades to the end of the axis instead, which is the policy
+    :py:func:`psd_tools.color_convert.lab_to_rgb` already follows. Applied
+    where the untrusted number enters rather than inside ``color_convert``, so
+    those conversions keep their documented ``[0, 1]`` input contracts instead
+    of having to defend them. Saturation and brightness are the exception: they
+    reach :py:func:`psd_tools.color_convert.hsb_to_rgb`, which is total and
+    clamps them itself, so they never arrive here.
+
+    NaN maps to 0.0, because ``nan > 0.0`` is false and ``max`` therefore keeps
+    its first argument. That is wanted -- a malformed descriptor degrades to the
+    end of the axis rather than poisoning the canvas -- but it is a property of
+    the argument order, so do not reverse it.
     """
     return min(1.0, max(0.0, value))
 
@@ -156,17 +179,24 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
     """
 
     def _get_int_color(color_desc: Descriptor, keys: tuple) -> tuple[float, ...]:
-        return tuple(float(color_desc[key]) / 255.0 for key in keys)
+        return tuple(_clamp01(float(color_desc[key]) / 255.0) for key in keys)
 
     def _get_invert_color(color_desc: Descriptor, keys: tuple) -> tuple[float, ...]:
-        return tuple((100.0 - float(color_desc[key])) / 100.0 for key in keys)
+        return tuple(_clamp01((100.0 - float(color_desc[key])) / 100.0) for key in keys)
 
     def _get_rgb(color_mode: ColorMode, color_desc: Descriptor) -> tuple[float, ...]:
         if Key.Red in color_desc:
             rgb = _get_int_color(color_desc, (Key.Red, Key.Green, Key.Blue))
         else:
+            # No divisor, unlike ``Rd  ``/``Grn ``/``Bl  ``: these components
+            # are the format's own normalized spelling. Nothing under
+            # tests/psd_files carries one, so that scale is taken on the
+            # format's word rather than measured here -- which is exactly why
+            # the clamp matters on this path. If the scale is what it claims,
+            # the clamp never fires; if it is not, an unexpected value
+            # saturates instead of wrapping to an unrelated colour (#757).
             rgb = tuple(
-                float(color_desc[key])
+                _clamp01(float(color_desc[key]))
                 for key in (Key.RedFloat, Key.GreenFloat, Key.BlueFloat)
             )
         return _from_rgb(color_mode, rgb)
@@ -178,6 +208,11 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
         # six-sector table, where the achromatic fallback turned a fully
         # saturated red into white (#754).
         hue = float(color_desc[Key.Hue]) / 360.0
+        # Not clamped, unlike the other classes. Hue is cyclic, so 400 deg
+        # names a real angle and ``hsb_to_rgb`` wraps it; clamping would turn
+        # it into 360. Saturation and brightness are clamped by ``hsb_to_rgb``
+        # itself, which is total, so guarding them again here would defend the
+        # same two numbers twice (#757).
         saturation = float(color_desc[Key.Saturation]) / 100.0
         brightness = float(color_desc[Key.Brightness]) / 100.0
         # Every mode but RGB and CMYK used to raise here, which made an HSB
@@ -564,7 +599,13 @@ def _noise_to_canvas(
                 continue
             rgb = lab_to_rgb(c0 * 100.0, c1 * 255.0 - 128.0, c2 * 255.0 - 128.0)
         else:
-            rgb = (c0, c1, c2)
+            # Clamped for the same reason the descriptor readers are: these
+            # components come from ``Mnm ``/``Mxm ``, which are raw file
+            # values, so a band at ``Mxm = 150`` leaves [0, 1]. The other two
+            # spaces are already covered -- HSB by ``hsb_to_rgb`` and Lab by
+            # ``lab_to_rgb`` and ``_clamp01`` above -- which left RGB as the
+            # one unguarded noise path (#757).
+            rgb = (_clamp01(c0), _clamp01(c1), _clamp01(c2))
         rows.append(_from_rgb(color_mode, rgb))
     return np.array(rows, dtype=np.float32)
 
@@ -622,7 +663,10 @@ def _make_noise_gradient_color(
     )
     if not grad.get(Key.ShowTransparency):
         return G, None
+    # Clamped like the color components, and from the same raw ``Mnm ``/``Mxm ``
+    # values (#757).
+    Ya = np.clip(Y[:, -1], 0.0, 1.0)
     Ga = interpolate.interp1d(
-        X, Y[:, -1], axis=0, bounds_error=False, fill_value=(Y[0, -1], Y[-1, -1])
+        X, Ya, axis=0, bounds_error=False, fill_value=(Ya[0], Ya[-1])
     )
     return G, Ga

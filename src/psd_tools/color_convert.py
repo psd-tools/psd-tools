@@ -133,11 +133,20 @@ def hsb_to_rgb(h: float, s: float, v: float) -> tuple[float, float, float]:
     achromatic fallback for everything else out of range, which turned a fully
     saturated hue into grey rather than into the color one turn away (#754).
 
+    Saturation and brightness are not angles, so they clamp rather than wrap.
+
+    Total: any float, including infinities and NaN, returns a triple inside
+    ``[0, 1]`` rather than raising or propagating. Descriptor values are
+    unvalidated file data, and the ``Returns:`` line below used to hold only for
+    in-range ``s``/``v`` -- ``s = 1.2, v = 1.5`` gave ``(1.5, -0.3, -0.3)``,
+    which the uint8 cast in ``composite_pil()`` *wraps* into an unrelated color
+    (#757). Same policy as :py:func:`lab_to_rgb`.
+
     Args:
         h: Hue as a fraction of a full turn, cyclic. Any value is folded
             back onto the circle, where 1.0 is the same hue as 0.0.
-        s: Saturation in [0.0, 1.0].
-        v: Brightness (value) in [0.0, 1.0].
+        s: Saturation in [0.0, 1.0]. Outside that it saturates.
+        v: Brightness (value) in [0.0, 1.0]. Outside that it saturates.
 
     Returns:
         3-tuple ``(R, G, B)`` with each component in [0.0, 1.0].
@@ -145,7 +154,14 @@ def hsb_to_rgb(h: float, s: float, v: float) -> tuple[float, float, float]:
     Examples:
         >>> hsb_to_rgb(0.0, 0.0, 0.5)   # achromatic 50% grey
         (0.5, 0.5, 0.5)
+        >>> hsb_to_rgb(0.0, 1.2, 1.5)   # out of range, saturated not wrapped
+        (1.0, 0.0, 0.0)
     """
+    # Before the ``not s`` test, so that a NaN saturation reaches it as 0.0 and
+    # takes the achromatic answer rather than propagating through the sector
+    # arithmetic below.
+    s = _clamp(s, 0.0, 1.0)
+    v = _clamp(v, 0.0, 1.0)
     if not s:
         return (v, v, v)
     if not math.isfinite(h):
