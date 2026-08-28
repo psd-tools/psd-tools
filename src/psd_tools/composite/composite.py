@@ -17,6 +17,7 @@ from psd_tools.composite import paint, utils, vector
 from psd_tools.composite.adjustments import ADJUSTMENT_FUNC
 from psd_tools.composite.blend import BLEND_FUNC, normal
 from psd_tools.composite.effects import draw_stroke_effect
+from psd_tools.composite.widen import make_widen
 from psd_tools.constants import (
     BlendMode,
     ChannelID,
@@ -53,21 +54,27 @@ def _styled(effects: Iterator[Any]) -> Iterator[_StyledEffect]:
     return cast(Iterator[_StyledEffect], effects)
 
 
+# How a one-channel canvas becomes a given width. Spelled once because it is
+# threaded through most of this module -- see ``widen.make_widen()``.
+_Widen = Callable[[np.ndarray, int], np.ndarray]
+
 # What each overlay effect draws. Only the pattern needs the compositor's
-# channel count, and only the pattern can decline to draw (returning None), but
-# a uniform signature is what lets the three share one application path -- the
-# shape/alpha arithmetic around them is identical.
-_OverlayDraw = Callable[[Layer, Any, int], tuple[np.ndarray | None, np.ndarray | None]]
+# channel count and its widening, and only the pattern can decline to draw
+# (returning None), but a uniform signature is what lets the three share one
+# application path -- the shape/alpha arithmetic around them is identical.
+_OverlayDraw = Callable[
+    [Layer, Any, int, _Widen], tuple[np.ndarray | None, np.ndarray | None]
+]
 
 
 def _draw_color_overlay(
-    layer: Layer, value: Any, channels: int
+    layer: Layer, value: Any, channels: int, widen: _Widen
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
     return paint.draw_solid_color_fill(layer.bbox, layer._psd.color_mode, value)
 
 
 def _draw_pattern_overlay(
-    layer: Layer, value: Any, channels: int
+    layer: Layer, value: Any, channels: int, widen: _Widen
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
     fill, shape = paint.draw_pattern_fill(layer.bbox, layer._psd, value)
     if fill is None:
@@ -76,14 +83,17 @@ def _draw_pattern_overlay(
     # authority on width, not the layer color the overlay is drawn against: a
     # source is allowed to be single-channel inside a multi-channel document,
     # and comparing the pattern against *that* rejected patterns which in fact
-    # matched the canvas exactly.
-    color = _widen(fill, channels)
+    # matched the canvas exactly. And a pattern carries its own color mode, so
+    # a grayscale one reaches a CMYK document as a grey that has to be
+    # converted rather than replicated -- hence the compositor's own widening
+    # rather than a fresh one built here (#722).
+    color = widen(fill, channels)
     assert color.shape[-1] == channels, "Inconsistent pattern channels."
     return color, shape
 
 
 def _draw_gradient_overlay(
-    layer: Layer, value: Any, channels: int
+    layer: Layer, value: Any, channels: int, widen: _Widen
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
     return paint.draw_gradient_fill(layer.bbox, layer._psd.color_mode, value)
 
@@ -329,7 +339,14 @@ def composite(
             # Sized from the array in hand rather than from the color mode:
             # a multichannel document carries a channel count of its own that
             # EXPECTED_CHANNELS does not predict.
-            backdrop = _normalize_backdrop(backdrop_color, backdrop_alpha, *color.shape)
+            backdrop = _normalize_backdrop(
+                backdrop_color,
+                backdrop_alpha,
+                color.shape[0],
+                color.shape[1],
+                color.shape[2],
+                widen=make_widen(group),
+            )
             color, shape = _blend_backdrop(color, shape, *backdrop)
         return color, shape, shape
 
@@ -373,12 +390,19 @@ def composite(
     # are resolved here, once, rather than at each point of use. An isolated
     # group starts transparent, so the caller's alpha is dropped before the
     # canvas is built rather than after.
+    # Resolved here and carried through the compositor tree because three of
+    # the sites that need it are inside Compositor, which holds no document.
+    # (The cost is not the reason -- make_widen() only reads two attributes,
+    # and the expensive transform is built lazily and cached globally.)
+    _widen_fn = make_widen(_psd)
+
     backdrop_color, backdrop_alpha = _normalize_backdrop(
         color,
         0.0 if isolated else alpha,
         _h,
         _w,
         _channels,
+        widen=_widen_fn,
     )
 
     layer_filter = layer_filter or Layer.is_visible
@@ -390,6 +414,7 @@ def composite(
         layer_filter,
         force,
         document_backdrop=lambda: _document_backdrop(_psd, viewport),
+        widen=_widen_fn,
     )
     target_group = group if isinstance(group, GroupMixin) and not as_layer else [group]
     for layer in target_group:  # type: ignore
@@ -507,6 +532,10 @@ def _widen(color: np.ndarray, channels: int) -> np.ndarray:
     own canvases have to be a fixed width for their whole lifetime, so a
     backdrop is widened once at the point it is handed over rather than
     repeatedly patched mid-composite.
+
+    Replication is right for RGB and wrong for CMYK and Lab, so this is only
+    the fallback used when no document is available to ask -- everything that
+    can reach one goes through :py:func:`widen.make_widen` instead (#722).
     """
     if color.shape[2] == 1 and 1 < channels:
         return np.repeat(color, channels, axis=2)
@@ -518,6 +547,7 @@ def _to_canvas(
     shape: tuple[int, int, int],
     name: str,
     exact_channels: bool = False,
+    widen: _Widen = _widen,
 ) -> np.ndarray:
     """Expand a backdrop component to a full ``(height, width, channels)`` array.
 
@@ -550,7 +580,7 @@ def _to_canvas(
                 "color mode" % (name, array.shape[2], shape[2])
             )
         else:
-            array = _widen(array, shape[2])
+            array = widen(array, shape[2])
         return array
     try:
         return np.full(shape, array, dtype=np.float32)
@@ -568,6 +598,7 @@ def _normalize_backdrop(
     height: int,
     width: int,
     channels: int | None,
+    widen: _Widen = _widen,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Resolve a backdrop given in any accepted spelling to a pair of arrays.
 
@@ -590,7 +621,7 @@ def _normalize_backdrop(
     if channels is None:
         channels = 1 if np.ndim(color) == 0 else int(np.shape(color)[-1])
     return (
-        _to_canvas(color, (height, width, channels), "color"),
+        _to_canvas(color, (height, width, channels), "color", widen=widen),
         _to_canvas(alpha, (height, width, 1), "alpha", exact_channels=True),
     )
 
@@ -655,13 +686,23 @@ class Compositor(object):
 
     ``color``'s channel count becomes ``self.channels`` and is fixed for this
     compositor's lifetime, so a caller handing over a canvas narrower than the
-    document must widen it first (``_widen()``). A narrow *source* is fine --
-    the blend arithmetic broadcasts it -- and must not change the width.
+    document must widen it first. A narrow *source* is fine -- the blend
+    arithmetic broadcasts it -- and must not change the width.
+
+    ``widen`` is how that is done, here and in every sub-compositor this one
+    builds. Pass the document's own, from
+    :py:func:`~psd_tools.composite.widen.make_widen`: widening is a colour
+    conversion outside RGB, and the default is the mode-blind replication that
+    is only correct when there is no document to ask (#722). A sub-compositor
+    that does not pass it on returns its whole subtree to that fallback.
 
     Example::
 
-        color, alpha = _normalize_backdrop(1.0, 0.0, height, width, channels)
-        compositor = Compositor(group.bbox, color, alpha)
+        widen = make_widen(psd)
+        color, alpha = _normalize_backdrop(
+            1.0, 0.0, height, width, channels, widen=widen
+        )
+        compositor = Compositor(group.bbox, color, alpha, widen=widen)
         for layer in group:
             compositor.apply(layer)
         color, shape, alpha = compositor.finish()
@@ -677,10 +718,15 @@ class Compositor(object):
         adjustment_isolated: bool = False,
         document_backdrop: Callable[[], tuple[np.ndarray, np.ndarray] | None]
         | None = None,
+        widen: _Widen = _widen,
     ):
         self._viewport = viewport
         self._layer_filter = layer_filter
         self._force = force
+        # How a one-channel canvas becomes this compositor's width. Carried
+        # rather than derived because the three sites that need it below are
+        # inside this class, which holds no document handle (#722).
+        self._widen = widen
         self._adjustment_isolated = adjustment_isolated
         # What Knockout.DEEP knocks out to. Inherited by pass-through
         # sub-compositors and reset at every isolation boundary, so deep
@@ -892,7 +938,7 @@ class Compositor(object):
                     # it sits in; widen once here so knockout hands back a
                     # backdrop of this compositor's width like any other.
                     color_b, alpha_b = resolved
-                    resolved = (_widen(color_b, self.channels), alpha_b)
+                    resolved = (self._widen(color_b, self.channels), alpha_b)
                 self._document_backdrop = resolved
         return self._document_backdrop
 
@@ -1103,6 +1149,7 @@ class Compositor(object):
             force=self._force,
             adjustment_isolated=self._adjustment_isolated or isolate_adjustments,
             document_backdrop=document_backdrop,
+            widen=self._widen,
         )
 
         for sublayer in cast(GroupMixin, layer):
@@ -1159,7 +1206,12 @@ class Compositor(object):
             and layer.stroke.enabled
         ):
             color_s, shape_s, alpha_s = self._get_stroke(layer)
-            compositor = Compositor(self._viewport, _widen(color, self.channels), alpha)
+            compositor = Compositor(
+                self._viewport,
+                self._widen(color, self.channels),
+                alpha,
+                widen=self._widen,
+            )
             compositor._apply_source(color_s, shape_s, alpha_s, layer.stroke.blend_mode)
             color, _, _ = compositor.finish()
 
@@ -1171,10 +1223,11 @@ class Compositor(object):
         # TODO: Consider Tag.BLEND_CLIPPING_ELEMENTS.
         compositor = Compositor(
             self._viewport,
-            _widen(color, self.channels),
+            self._widen(color, self.channels),
             alpha,
             layer_filter=self._layer_filter,
             force=self._force,
+            widen=self._widen,
         )
         for clip_layer in layer.clip_layers:
             compositor.apply(clip_layer, clip_compositing=True)
@@ -1280,7 +1333,7 @@ class Compositor(object):
         """
         draw = _OVERLAY_DRAWS[effect_name]
         for effect in _styled(layer.effects.find(effect_name)):
-            fill, shape_e = draw(layer, effect.value, self.channels)
+            fill, shape_e = draw(layer, effect.value, self.channels, self._widen)
             if fill is None:
                 logger.debug("Skipping undrawable %s effect in %s", effect_name, layer)
                 continue
