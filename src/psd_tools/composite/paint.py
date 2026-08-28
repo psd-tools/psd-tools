@@ -172,7 +172,12 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
         return _from_rgb(color_mode, rgb)
 
     def _get_hsb(color_mode: ColorMode, color_desc: Descriptor) -> tuple[float, ...]:
-        hue = float(color_desc[Key.Hue]) / 300.0
+        # ``H   `` is an angle in degrees, so the full turn is 360 and not 300.
+        # The old divisor rotated every non-zero hue -- 120 deg was read as
+        # 0.4, which is 144 deg -- and pushed 360 clean off the end of the
+        # six-sector table, where the achromatic fallback turned a fully
+        # saturated red into white (#754).
+        hue = float(color_desc[Key.Hue]) / 360.0
         saturation = float(color_desc[Key.Saturation]) / 100.0
         brightness = float(color_desc[Key.Brightness]) / 100.0
         # Every mode but RGB and CMYK used to raise here, which made an HSB
