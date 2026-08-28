@@ -275,6 +275,55 @@ def test_normalize_backdrop_widens_a_single_channel_canvas() -> None:
     assert result.shape == (2, 2, 1)
 
 
+def test_normalize_backdrop_converts_a_scalar_like_a_single_channel_canvas() -> None:
+    """The two spellings of one color component must resolve the same way.
+
+    A scalar backdrop was broadcast across every channel while the identical
+    value spelled as a one-channel canvas went through the mode's conversion,
+    so the same backdrop had two answers. On a Lab document the scalar one was
+    not a color at all: ``1.0`` put both chroma axes at byte 255, the extreme
+    corner of each, where white is ``(255, 128, 128)`` (#753).
+    """
+
+    def lab_widen(color: np.ndarray, channels: int) -> np.ndarray:
+        """Stands in for ``make_widen()`` on a Lab document."""
+        neutral = np.full_like(color, 128.0 / 255.0)
+        return np.concatenate((color, neutral, neutral), axis=2)
+
+    for value in (0.0, 0.25, 1.0):
+        scalar, _ = _normalize_backdrop(value, 0.0, 2, 2, 3, widen=lab_widen)
+        canvas, _ = _normalize_backdrop(gray(value), 0.0, 2, 2, 3, widen=lab_widen)
+        assert np.array_equal(scalar, canvas), value
+        assert scalar[0, 0, 0] == pytest.approx(value)
+        assert scalar[0, 0, 1] == pytest.approx(128.0 / 255.0)
+        assert scalar[0, 0, 2] == pytest.approx(128.0 / 255.0)
+
+
+def test_normalize_backdrop_leaves_a_per_channel_sequence_alone() -> None:
+    """Only a *single* component is converted; a full tuple is already canvas.
+
+    The rule is the width the caller supplied, not the value: ``(1.0, 1.0,
+    1.0)`` is three components that happen to be equal, and reinterpreting it
+    would overwrite a backdrop the caller spelled out per channel.
+    """
+
+    def explode(color: np.ndarray, channels: int) -> np.ndarray:
+        raise AssertionError("a per-channel sequence must not be widened")
+
+    result, _ = _normalize_backdrop(WHITE, 0.0, 2, 2, 3, widen=explode)
+    assert np.array_equal(result, rgb(WHITE))
+
+
+def test_normalize_backdrop_scalar_needs_no_conversion_at_one_channel() -> None:
+    """A grayscale document has nothing to widen into."""
+
+    def explode(color: np.ndarray, channels: int) -> np.ndarray:
+        raise AssertionError("a one-channel canvas must not be widened")
+
+    result, _ = _normalize_backdrop(0.25, 0.0, 2, 2, 1, widen=explode)
+    assert np.array_equal(result, gray(0.25))
+
+
 def test_normalize_backdrop_infers_channels_when_none_is_given() -> None:
     """The defensive fallback for when no document names a color mode.
 

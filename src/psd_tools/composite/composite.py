@@ -604,6 +604,16 @@ def _to_canvas(
         else:
             array = widen(array, shape[2])
         return array
+    if not exact_channels and array.size == 1 and shape[2] > 1:
+        # One color component, which is what the single-channel array above is
+        # too -- so it takes the same conversion rather than being broadcast
+        # across channels that do not share an axis. Spelling the same backdrop
+        # two ways used to give two answers: on a Lab document `color=1.0` --
+        # the public default -- came out (255, 255, 255), maximum chroma at
+        # maximum lightness, where the one-channel array spelling of it already
+        # gave the (255, 128, 128) that is white (#753).
+        single = np.full((shape[0], shape[1], 1), array, dtype=np.float32)
+        return widen(single, shape[2])
     try:
         return np.full(shape, array, dtype=np.float32)
     except ValueError:

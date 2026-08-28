@@ -279,3 +279,49 @@ def test_pattern_overlay_reuses_the_threaded_conversion(monkeypatch) -> None:
         "the document was resolved %d times for %d pattern overlays; it should "
         "be resolved once per composite() and threaded" % (len(resolved), len(drawn))
     )
+
+
+def test_scalar_backdrop_reaches_the_conversion_on_a_lab_document() -> None:
+    """The default backdrop, which is where #753 actually bites.
+
+    ``composite()`` defaults to ``color=1.0``, so this is what a Lab document
+    composites against wherever nothing covers it. Broadcasting that scalar put
+    both chroma axes at 1.0 -- byte 255, the extreme corner of each -- so the
+    default backdrop was maximum chroma at maximum lightness rather than white,
+    which on a Lab canvas is ``(255, 128, 128)``.
+
+    The viewport is wider than the layer so that bare backdrop is exposed;
+    without that the layer covers every pixel and the backdrop never shows.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_lab.psd"))
+    color, _, _ = composite(psd[0], viewport=(0, 0, 8, 8), force=True)
+    bare = color[7, 7]
+    assert bare[0] == pytest.approx(1.0)
+    assert bare[1] == pytest.approx(128 / 255, abs=1e-6)
+    assert bare[2] == pytest.approx(128 / 255, abs=1e-6)
+
+
+@pytest.mark.parametrize(
+    "filename",
+    ["colormodes/4x4_8bit_lab.psd", "colormodes/4x4_8bit_cmyk.psd"],
+)
+@pytest.mark.parametrize("value", [0.0, 0.25, 1.0])
+def test_scalar_and_single_channel_backdrops_agree(filename: str, value: float) -> None:
+    """The same backdrop, spelled two ways, end to end.
+
+    This is the defect underneath #753 rather than one mode's symptom: the
+    array spelling went through the conversion #722 added and the scalar did
+    not, so which answer a caller got depended on how they happened to write
+    it. Lab is where that produced a colour off the neutral axis entirely;
+    CMYK is where it produced the over-inked build this module exists to avoid
+    -- ``0.0`` broadcast to ``(0, 0, 0, 0)``, which is every plate at 100%.
+    """
+    psd = PSDImage.open(full_name(filename))
+    canvas = np.full((psd.height, psd.width, 1), value, dtype=np.float32)
+    scalar_color, _, _ = composite(
+        psd, color=value, alpha=1.0, layer_filter=lambda layer: False
+    )
+    canvas_color, _, _ = composite(
+        psd, color=canvas, alpha=1.0, layer_filter=lambda layer: False
+    )
+    assert np.array_equal(scalar_color, canvas_color)
