@@ -23,11 +23,21 @@ from psd_tools.api.utils import EXPECTED_CHANNELS
 from psd_tools.composite import composite
 from psd_tools.composite.paint import (
     _get_color,
+    draw_gradient_fill,
     draw_solid_color_fill,
 )
 from psd_tools.constants import ColorMode, Tag
-from psd_tools.psd.descriptor import Descriptor, Double, Unit, UnitFloat
-from psd_tools.terminology import Key, Klass
+from psd_tools.psd.descriptor import (
+    Bool,
+    Descriptor,
+    Double,
+    Enumerated,
+    Integer,
+    List,
+    Unit,
+    UnitFloat,
+)
+from psd_tools.terminology import Enum, Key, Klass, Type
 
 from ..utils import full_name
 
@@ -692,3 +702,190 @@ def test_hue_360_is_red_rather_than_white() -> None:
     assert _get_color(ColorMode.RGB, _hsb_desc(360.0, 100.0, 100.0)) == pytest.approx(
         (1.0, 0.0, 0.0)
     )
+
+
+# --- Colour-noise gradients --------------------------------------------------
+#
+# A noise gradient does not carry colour stops; it carries a colour space and a
+# min/max band per component, and the table is synthesized from them. That
+# table was built three wide and handed to the compositor unconverted, so it
+# was as wide as the *descriptor's* space rather than as wide as the document
+# -- the same bug as the rest of #730, at the one site `_get_color()` does not
+# reach.
+
+
+def _int_list(values: tuple[float, ...]) -> List:
+    """A descriptor list of integers, which is how the bands are stored."""
+    items = List()
+    items.extend(Integer(int(value)) for value in values)
+    return items
+
+
+def _noise_desc(
+    space: bytes,
+    values: tuple[float, float, float, float],
+    show_transparency: bool = False,
+) -> Descriptor:
+    """A ``gradientLayer`` descriptor holding one flat colour-noise gradient.
+
+    ``Mnm `` equal to ``Mxm `` pins the noise field to a single colour, which
+    is what makes a noise gradient comparable against Photoshop at all: the
+    synthesis in ``_make_noise_gradient_color()`` is admittedly not Photoshop's
+    (it says so), but with no band to vary over there is nothing left for it to
+    get wrong, and both sides render the one colour the band names.
+    """
+    grad = Descriptor(classID=b"Grdn")
+    grad[Type.GradientForm] = Enumerated(typeID=b"GrdF", enum=Enum.ColorNoise.value)
+    grad[Key.ShowTransparency] = Bool(show_transparency)
+    grad[Key.ColorSpace] = Enumerated(typeID=b"ClrS", enum=space)
+    grad[Key.RandomSeed] = Integer(1234567)
+    grad[Key.Smoothness] = Integer(2048)
+    grad[Key.Minimum] = _int_list(values)
+    grad[Key.Maximum] = _int_list(values)
+    desc = Descriptor(classID=b"gradientLayer")
+    desc[Key.Gradient] = grad
+    desc[Key.Type] = Enumerated(typeID=b"GrdT", enum=Enum.Linear.value)
+    return desc
+
+
+# The three Photoshop offers. Measured 2026-08-28 against Photoshop 2026: it
+# rewrites anything else to ``RGBC`` -- a ``CMYC`` request came back ``RGBC``
+# even in a CMYK document -- but keeps all three of these in every document
+# mode, so none of them is tied to the document's own space.
+NOISE_SPACES = [Enum.RGBColor.value, Enum.HSBColor.value, Enum.LabColor.value]
+
+
+@pytest.mark.parametrize("space", NOISE_SPACES)
+@pytest.mark.parametrize("color_mode", list(ColorMode))
+def test_noise_gradient_width_is_legal_for_every_mode(
+    space: bytes, color_mode: ColorMode
+) -> None:
+    """The same width guarantee `_get_color()` has, at the noise table.
+
+    Before this, every one of these 24 pairs came back three wide, so the 15
+    whose document is not three channels tripped
+    ``Compositor._assert_source_fits()``.
+    """
+    color, shape = draw_gradient_fill(
+        (0, 0, 4, 4), color_mode, _noise_desc(space, (80, 40, 20, 100))
+    )
+    assert color is not None
+    assert shape is None
+    assert color.shape[:2] == (4, 4)
+    expected = 1 if color_mode == ColorMode.MULTICHANNEL else MODE_CHANNELS[color_mode]
+    assert color.shape[2] in (1, expected)
+
+
+def test_noise_gradient_transparency_is_still_split_out() -> None:
+    """``ShTr`` keeps its own band, and it is not folded into the colour."""
+    color, shape = draw_gradient_fill(
+        (0, 0, 4, 4),
+        ColorMode.CMYK,
+        _noise_desc(Enum.RGBColor.value, (80, 40, 20, 50), show_transparency=True),
+    )
+    assert color is not None and shape is not None
+    assert color.shape == (4, 4, 4)
+    assert shape.shape == (4, 4, 1)
+    assert shape == pytest.approx(0.5)
+
+
+def test_lab_noise_on_a_lab_document_is_not_round_tripped() -> None:
+    """A Lab band on a Lab document is already the array's own encoding.
+
+    ``v / 100`` *is* the byte of the eight-bit Lab encoding, which is what the
+    compositor stores, so the identity is exact rather than approximate --
+    a trip out through RGB and back would clip everything outside sRGB.
+    """
+    color, _ = draw_gradient_fill(
+        (0, 0, 4, 4), ColorMode.LAB, _noise_desc(Enum.LabColor.value, (60, 60, 60, 100))
+    )
+    assert color is not None
+    assert color == pytest.approx(0.6)
+
+
+# Photoshop's own render of the four fixtures, sampled at the centre of each
+# 8x8 band. Authored 2026-08-28 with Photoshop 2026: one document per colour
+# mode, three flat noise gradients masked to a band each -- ``RGBC`` at
+# [80, 40, 20], ``HSBl`` at [8.33, 60, 80] (hue 30 degrees) and ``LbCl`` at
+# [60, 60, 60] (L* 60, a = b = 25).
+NOISE_FIXTURES = ["rgb", "cmyk", "grayscale", "lab"]
+NOISE_BANDS = ["rgb", "hsb", "lab"]
+
+# The cells where our conversion is Photoshop's own answer, to a byte. Between
+# them they pin all three noise colour spaces: RGB and HSB on the two documents
+# that need no colour conversion beyond a reduction, and Lab where it lands in
+# a Lab document unconverted.
+NOISE_EXACT = {
+    ("rgb", "rgb"): (204.0, 102.0, 51.0),
+    ("rgb", "hsb"): (204.0, 143.0, 82.0),
+    ("grayscale", "rgb"): (127.0,),
+    ("grayscale", "hsb"): (154.0,),
+    ("lab", "lab"): (153.0, 153.0, 153.0),
+}
+
+# The rest, pinned to *our* values rather than to Photoshop's. Each is a
+# cross-space conversion that Photoshop performs through an ICC profile and we
+# perform analytically, which is a difference this issue does not touch: the
+# Lab rows are Photoshop compressing chroma on the way out of Lab (its own
+# colour engine, asked directly over the scripting bridge, puts Lab(60, 25, 25)
+# at rgb(196, 126, 101) -- where we put it -- rather than at the (178, 126, 102)
+# it renders), and the CMYK rows are the press profile against
+# ``color_convert.rgb_to_cmyk()``'s textbook build. Photoshop's numbers are
+# quoted beside each so the gap stays visible.
+NOISE_PINNED = {
+    # ours                                            photoshop
+    ("cmyk", "rgb"): (255.0, 127.5, 63.8, 204.0),  # (254, 65, 23, 255)
+    ("cmyk", "hsb"): (255.0, 178.5, 102.0, 204.0),  # (235, 118, 64, 252)
+    ("cmyk", "lab"): (255.0, 166.2, 133.4, 194.8),  # (214, 113, 117, 231)
+    ("grayscale", "lab"): (144.4,),  # (153,)
+    ("lab", "rgb"): (140.9, 166.8, 175.0),  # (151, 177, 184)
+    ("lab", "hsb"): (164.8, 147.3, 169.8),  # (171, 154, 176)
+    ("rgb", "lab"): (194.8, 127.0, 102.0),  # (178, 126, 102)
+}
+
+
+def _noise_band(mode: str) -> tuple[np.ndarray, np.ndarray]:
+    """Photoshop's stored preview and our forced render, as byte-scaled arrays."""
+    psd = PSDImage.open(full_name("gradients/noise-gradient-%s.psd" % mode))
+    reference = psd.numpy() * 255.0
+    rendered = composite(psd, force=True)[0] * 255.0
+    assert rendered.shape == reference.shape
+    return reference, rendered
+
+
+@pytest.mark.parametrize("mode", NOISE_FIXTURES)
+def test_noise_gradient_composites_on_every_document_mode(mode: str) -> None:
+    """The crash, end to end.
+
+    ``force=True`` is what puts the synthesized fill in front of the
+    compositor; without it the layer's own stored raster is used and the bug is
+    invisible. Before the fix the CMYK document raised ``source has 3 channels,
+    expected 1 or 4`` and the grayscale one ``expected 1 or 1``, while the Lab
+    and RGB documents rendered wrong colours rather than raising.
+    """
+    reference, rendered = _noise_band(mode)
+    assert rendered.shape[2] == reference.shape[2]
+
+
+@pytest.mark.parametrize("mode, band", sorted(NOISE_EXACT))
+def test_noise_gradient_matches_photoshop(mode: str, band: str) -> None:
+    """Photoshop's own render of the same gradient, to within a byte."""
+    reference, rendered = _noise_band(mode)
+    row = NOISE_BANDS.index(band) * 8 + 4
+    expected = np.array(NOISE_EXACT[(mode, band)])
+    assert np.abs(rendered[row, 4] - expected).max() <= 1.0
+    assert np.abs(reference[row, 4] - expected).max() <= 1.0
+
+
+@pytest.mark.parametrize("mode, band", sorted(NOISE_PINNED))
+def test_noise_gradient_cross_space_cells_are_pinned(mode: str, band: str) -> None:
+    """The cells whose colour conversion is not Photoshop's, held still.
+
+    They are the reason this file cannot simply diff the whole render against
+    the preview, and pinning them is what keeps a change to the noise path from
+    hiding inside a tolerance wide enough to cover the ICC gap.
+    """
+    _, rendered = _noise_band(mode)
+    row = NOISE_BANDS.index(band) * 8 + 4
+    expected = np.array(NOISE_PINNED[(mode, band)])
+    assert np.abs(rendered[row, 4] - expected).max() <= 0.1

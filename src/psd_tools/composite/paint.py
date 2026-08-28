@@ -447,7 +447,7 @@ def _make_gradient_color(
 ) -> tuple[Any | None, Any | None]:
     gradient_form = grad.get(Type.GradientForm).enum
     if gradient_form == Enum.ColorNoise:
-        return _make_noise_gradient_color(grad)
+        return _make_noise_gradient_color(color_mode, grad)
     elif gradient_form == Enum.CustomStops:
         return _make_linear_gradient_color(color_mode, grad)
 
@@ -506,7 +506,72 @@ def _make_linear_gradient_color(
     return G, Ga
 
 
-def _make_noise_gradient_color(grad: Descriptor) -> tuple[Any | None, Any | None]:
+def _noise_color_components(table: np.ndarray) -> np.ndarray:
+    """The three color columns of a noise gradient's table.
+
+    Narrower is not something any writer here has produced; replicating the
+    first column keeps such a file rendering as a grey ramp rather than
+    raising on the unpack in :py:func:`_noise_to_canvas`.
+    """
+    if table.shape[1] >= 3:
+        return table[:, :3]
+    logger.debug("Noise gradient has %d components, expected 4.", table.shape[1])
+    return np.repeat(table[:, :1], 3, axis=1)
+
+
+def _noise_to_canvas(
+    color_mode: ColorMode, space: bytes, table: np.ndarray
+) -> np.ndarray:
+    """Map a noise gradient's lookup table from *space* into the document's arrays.
+
+    The three colour components of a noise gradient are stored as percentages
+    of their own space's normalized encoding rather than as native values.
+    Measured against Photoshop 2026 by authoring flat gradients -- ``Mnm ``
+    equal to ``Mxm ``, which pins the noise field to one colour and so gives a
+    render comparable without reproducing Photoshop's noise synthesis -- and
+    reading the stored channels back:
+
+    - ``RGBC``: ``v / 100`` is the channel, so 50 is 128/255.
+    - ``HSBl``: ``v / 100`` is the fraction of a full turn for the hue, and the
+      fraction of the axis for saturation and brightness; 33 rendered as 118.8
+      degrees.
+    - ``LbCl``: ``v / 100`` is the *byte* of the eight-bit Lab encoding, which
+      is the compositor's own Lab array convention. So ``L* = v``, and
+      ``a = b = 0`` at 50 rather than at 0. In a Lab document the table needs
+      no conversion at all; the value stored for a flat ``[60, 60, 60]``
+      gradient is exactly ``(153, 153, 153)``.
+
+    Every one of the three is a colour space independent of the document's
+    mode, which is the width bug this fixes: the table came back three wide
+    whatever the document was (#730).
+    """
+    if space not in (Enum.RGBColor, Enum.HSBColor, Enum.LabColor):
+        # Photoshop offers exactly those three, so anything else is another
+        # writer's. Reading it as RGB is what this did for all three before,
+        # and a wrong color beats refusing to render.
+        logger.debug("Unknown noise gradient color space: %s", space)
+
+    rows: list[tuple[float, ...]] = []
+    for row in table:
+        c0, c1, c2 = (float(value) for value in row)
+        if space == Enum.HSBColor:
+            rgb = hsb_to_rgb(c0, c1, c2)
+        elif space == Enum.LabColor:
+            if color_mode == ColorMode.LAB:
+                # Already the destination encoding, so a trip through RGB
+                # would only lose the out-of-gamut values on the way.
+                rows.append((_clamp01(c0), _clamp01(c1), _clamp01(c2)))
+                continue
+            rgb = lab_to_rgb(c0 * 100.0, c1 * 255.0 - 128.0, c2 * 255.0 - 128.0)
+        else:
+            rgb = (c0, c1, c2)
+        rows.append(_from_rgb(color_mode, rgb))
+    return np.array(rows, dtype=np.float32)
+
+
+def _make_noise_gradient_color(
+    color_mode: ColorMode, grad: Descriptor
+) -> tuple[Any | None, Any | None]:
     """
     Make a noise gradient color.
 
@@ -542,16 +607,22 @@ def _make_noise_gradient_color(grad: Descriptor) -> tuple[Any | None, Any | None
     Y = Y / np.max(Y, axis=0)
     Y = ((maximum - minimum) * Y + minimum) / 100.0
     X = np.linspace(0, 1, 256, dtype=np.float32)
-    if grad.get(Key.ShowTransparency):
-        G = interpolate.interp1d(
-            X, Y[:, :-1], axis=0, bounds_error=False, fill_value=(Y[0, :-1], Y[-1, :-1])
-        )
-        Ga = interpolate.interp1d(
-            X, Y[:, -1], axis=0, bounds_error=False, fill_value=(Y[0, -1], Y[-1, -1])
-        )
-    else:
-        G = interpolate.interp1d(
-            X, Y[:, :3], axis=0, bounds_error=False, fill_value=(Y[0, :3], Y[-1, :3])
-        )
-        Ga = None
+    # Photoshop writes four components for each of its three noise color
+    # spaces -- three color and one transparency -- and writes the fourth
+    # whether or not ``ShTr`` is set, so the color triple is the leading three
+    # either way.
+    color_space = grad.get(Key.ColorSpace)
+    Yc = _noise_to_canvas(
+        color_mode,
+        color_space.enum if color_space is not None else Enum.RGBColor,
+        _noise_color_components(Y),
+    )
+    G = interpolate.interp1d(
+        X, Yc, axis=0, bounds_error=False, fill_value=(Yc[0], Yc[-1])
+    )
+    if not grad.get(Key.ShowTransparency):
+        return G, None
+    Ga = interpolate.interp1d(
+        X, Y[:, -1], axis=0, bounds_error=False, fill_value=(Y[0, -1], Y[-1, -1])
+    )
     return G, Ga
