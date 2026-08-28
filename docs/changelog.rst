@@ -4,6 +4,26 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
+- [fix] Stop ``composite()`` shifting both chroma planes of a Lab document.
+  The result was built with ``Image.fromarray(pixels, "LAB")``, and PIL's
+  ``"LAB"`` unpacker reads the two chroma planes as *signed* and adds 128 --
+  so an array in the encoding the compositor carries, where byte 128 is
+  ``a = 0``, came back 128 off on both axes. Not a rounding gap but a different
+  colour: a flat ``Lab(60, 25, 25)`` converted to RGB as ``(0, 187, 255)``
+  where Photoshop puts it at ``(196, 126, 101)``. Every Lab document was
+  affected, and ``composite()`` disagreed with
+  :py:meth:`~psd_tools.api.psd_image.PSDImage.topil` on the same file --
+  ``topil()`` builds with ``Image.merge()``, which writes the planes verbatim
+  and was right all along. The planes are now merged the same way, and three of
+  the five Lab documents in the test corpus composite bitwise-identically to
+  Photoshop's own preview where before every one of them was 128 out.
+
+  ``numpy()`` and :py:func:`psd_tools.composite.composite` were never affected;
+  the arrays were correct and only the PIL step corrupted them. Note that
+  ``np.asarray()`` on a ``"LAB"`` image reads PIL's internal buffer rather than
+  the values ``getpixel()`` reports, which is why the round trip looked right
+  (#759).
+
 - [fix] Size and interpret a colour-noise gradient from the document rather
   than from its descriptor. A noise gradient carries a colour space of its own
   -- Photoshop offers RGB, HSB and Lab, and keeps whichever was chosen in every
