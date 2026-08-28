@@ -686,13 +686,23 @@ class Compositor(object):
 
     ``color``'s channel count becomes ``self.channels`` and is fixed for this
     compositor's lifetime, so a caller handing over a canvas narrower than the
-    document must widen it first (``_widen()``). A narrow *source* is fine --
-    the blend arithmetic broadcasts it -- and must not change the width.
+    document must widen it first. A narrow *source* is fine -- the blend
+    arithmetic broadcasts it -- and must not change the width.
+
+    ``widen`` is how that is done, here and in every sub-compositor this one
+    builds. Pass the document's own, from
+    :py:func:`~psd_tools.composite.widen.make_widen`: widening is a colour
+    conversion outside RGB, and the default is the mode-blind replication that
+    is only correct when there is no document to ask (#722). A sub-compositor
+    that does not pass it on returns its whole subtree to that fallback.
 
     Example::
 
-        color, alpha = _normalize_backdrop(1.0, 0.0, height, width, channels)
-        compositor = Compositor(group.bbox, color, alpha)
+        widen = make_widen(psd)
+        color, alpha = _normalize_backdrop(
+            1.0, 0.0, height, width, channels, widen=widen
+        )
+        compositor = Compositor(group.bbox, color, alpha, widen=widen)
         for layer in group:
             compositor.apply(layer)
         color, shape, alpha = compositor.finish()
