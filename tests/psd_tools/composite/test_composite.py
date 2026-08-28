@@ -877,6 +877,22 @@ def test_composite_pil_force_covers_every_colour_mode(
     assert image.mode == mode
 
 
+def _pixels_as_seen(image: Image.Image) -> np.ndarray:
+    """The planes a consumer of *image* reads, rather than PIL's own buffer.
+
+    The two differ for exactly one mode reachable here. PIL stores ``"LAB"``
+    with its chroma planes offset from the values ``getpixel()`` reports, and
+    ``np.asarray()`` reads the buffer -- so a round trip out through
+    ``Image.fromarray(..., "LAB")`` and back is the identity no matter what the
+    unpacker does in between. That is why a NumPy-only assertion could not see
+    #759, where the composited image carried both chroma planes 128 off and
+    converted to an unrelated colour. ``getdata()`` goes through the unpacker,
+    which is what ``convert()`` and ``save()`` do too.
+    """
+    planes = np.array(image.getdata(), dtype=np.uint8)
+    return planes.reshape(image.size[1], image.size[0], -1)
+
+
 @pytest.mark.parametrize("colormode", ["bitmap", "lab", "cmyk"])
 def test_composite_pil_force_pixels_match_the_numpy_path(colormode: str) -> None:
     """The three modes that carry no alpha, compared bitwise rather than by mode.
@@ -908,6 +924,10 @@ def test_composite_pil_force_pixels_match_the_numpy_path(colormode: str) -> None
         # post_process() inverts CMYK on the way out; compare on that footing.
         expected = 255 - expected
     actual = np.asarray(image)
+    if colormode == "lab":
+        # `np.asarray()` is not an independent check for "LAB" -- see
+        # `_pixels_as_seen()`. Read the planes the way a consumer does.
+        actual = _pixels_as_seen(image)
     if actual.ndim == 2:
         actual = actual[:, :, None]
     assert np.array_equal(actual, expected)
@@ -1293,3 +1313,56 @@ def test_composite_mixed_colorspace_stroke() -> None:
         if isinstance(layer, GroupMixin):
             for sublayer in layer:
                 sublayer.composite()
+
+
+def test_lab_composite_agrees_with_the_preview_it_reproduces() -> None:
+    """The two entry points onto a Lab document returned different colours.
+
+    ``topil()`` builds its image with ``Image.merge()``, which writes the
+    planes verbatim; ``composite_pil()`` used ``Image.fromarray(..., "LAB")``,
+    whose unpacker reads the chroma as signed and adds 128. On a document whose
+    composite does reproduce its stored preview the two are directly
+    comparable, and they were 128 apart on both chroma axes (#759).
+
+    All three of these composite to their preview *bitwise* now. Every Lab
+    document in the corpus moved towards its preview: the two left out do not
+    reach zero for reasons that predate this and are not about chroma -- the
+    16-bit fixture's own lightness plane is 108 out, and the stroke fixture
+    carries the stroke approximation.
+    """
+    for name in (
+        "colormodes/4x4_8bit_lab.psd",
+        "descriptors/lab-color-swatches.psd",
+        "gradients/noise-gradient-lab.psd",
+    ):
+        psd = PSDImage.open(full_name(name))
+        assert psd.color_mode == ColorMode.LAB
+        preview_image = psd.topil()
+        composited_image = psd.composite(ignore_preview=True)
+        assert isinstance(preview_image, Image.Image)
+        assert isinstance(composited_image, Image.Image)
+        preview = _pixels_as_seen(preview_image)
+        composited = _pixels_as_seen(composited_image)
+        assert np.array_equal(preview, composited), name
+
+
+@pytest.mark.parametrize("force", [False, True])
+def test_lab_composite_converts_to_the_colour_it_encodes(force: bool) -> None:
+    """What the planes *mean*, which no byte-level assertion here establishes.
+
+    The band sampled is a flat ``Lab(60, 25, 25)`` -- a noise gradient with
+    ``Mnm `` equal to ``Mxm ``, from the fixture added in #758. Photoshop
+    2026's own colour engine, asked over the scripting bridge, puts it at
+    ``rgb(196, 126, 101)``.
+
+    Before the fix this converted to ``(0, 187, 255)``: not a rounding gap but
+    a different colour, which is the whole of #759. The tolerance is loose
+    enough to survive Pillow's own conversion drifting a code value and still
+    nowhere near admitting that.
+    """
+    psd = PSDImage.open(full_name("gradients/noise-gradient-lab.psd"))
+    image = psd.composite(ignore_preview=True, force=force, apply_icc=False)
+    assert isinstance(image, Image.Image)
+    assert image.mode == "LAB"
+    rendered = np.array(image.convert("RGB").getpixel((4, 20)), dtype=float)
+    assert np.abs(rendered - np.array([196.0, 126.0, 101.0])).max() <= 2.0

@@ -234,6 +234,28 @@ def composite_pil(
         # document came back as the bits of its first four bytes. Build the
         # plane in "L", where a byte is a pixel, and reduce it afterwards.
         image = Image.fromarray(pixels, "L").convert("1", dither=Image.Dither.NONE)
+    elif mode == "LAB":
+        # The same trap as "1", in a different raw mode. PIL's "LAB" unpacker
+        # reads the two chroma planes as *signed* and adds 128, so an array in
+        # the encoding the compositor carries -- where byte 128 is ``a = 0``,
+        # the file's own convention -- lands 128 off on both axes. That is not
+        # a slightly wrong colour but an unrelated one: a flat Lab(60, 25, 25)
+        # converted to RGB as (0, 187, 255) where Photoshop puts it at
+        # (196, 126, 101). Merging plane by plane writes them verbatim, which
+        # is what `pil_io._merge_channels()` does for `topil()`; the two
+        # disagreed until #759.
+        #
+        # `np.asarray()` cannot see the difference -- it reads PIL's internal
+        # buffer, which is offset the other way, so a round trip through
+        # `fromarray` is the identity. `getpixel()`, `convert()` and `save()`
+        # all see it.
+        image = Image.merge(
+            mode,
+            [
+                Image.fromarray(np.ascontiguousarray(pixels[:, :, band]), "L")
+                for band in range(pil_channels)
+            ],
+        )
     else:
         image = Image.fromarray(pixels, mode)
     alpha_as_image = None
