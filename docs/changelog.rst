@@ -4,6 +4,18 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
+- [fix] Read an HSB fill colour's hue as the angle it is. The descriptor's hue
+  key is degrees, so a full turn is 360, but it was being divided by 300: every
+  non-zero hue came out rotated -- ``HSB(120, 50, 80)`` rendered
+  ``(102, 204, 143)`` where Photoshop renders ``(102, 204, 102)`` -- and hue
+  360 landed past the end of the six-sector table, so a fully saturated red
+  rendered white (#754).
+
+  :py:func:`psd_tools.color_convert.hsb_to_rgb` now treats hue as cyclic
+  throughout, so any value outside ``[0, 1)`` wraps into it instead of falling
+  back to grey, and a non-finite hue degrades to the achromatic answer rather
+  than raising. Previously only an exact ``1.0`` was handled.
+
 - [fix] Convert a Lab fill colour across colour modes instead of passing the
   numbers through. Two mirror-image gaps, both closed here because they share
   the conversion: a Lab descriptor on a **non**-Lab document was read with a

@@ -78,6 +78,38 @@ class TestCmykToRgb:
         assert cmyk_to_rgb(0.0, 0.0, 0.0, 0.5) == pytest.approx((0.5, 0.5, 0.5))
 
 
+# Photoshop's HSB (degrees, percent, percent) -> the RGB 0..255 it reports for
+# it, read from ``SolidColor.hsb = ...; .rgb`` over the scripting bridge. The
+# hues walk the whole circle: each of the six sector boundaries, one hue inside
+# every sector, and both ends of the wrap (359 and 360). Two degenerate rows
+# guard the short circuits -- zero saturation, where hue must not matter at
+# all, and zero brightness.
+#
+# Unlike the Lab tables above these need no decoding: HSB to RGB is arithmetic
+# inside one RGB space rather than a colorimetric transform, so no working
+# space or rendering intent stands between the two columns.
+_HSB_TO_RGB = [
+    ((0.0, 100.0, 100.0), (255.0, 0.00778, 0.00778)),
+    ((30.0, 100.0, 100.0), (255.0, 127.51556, 0.00778)),
+    ((60.0, 100.0, 100.0), (255.0, 254.98444, 0.00778)),
+    ((90.0, 60.0, 90.0), (160.65125, 229.49844, 91.80405)),
+    ((120.0, 50.0, 80.0), (101.99844, 203.99689, 102.00623)),
+    ((150.0, 100.0, 100.0), (0.00778, 255.0, 127.49222)),
+    ((180.0, 40.0, 90.0), (137.70218, 229.49844, 229.49844)),
+    ((210.0, 100.0, 100.0), (0.00778, 127.50778, 255.0)),
+    ((240.0, 100.0, 100.0), (0.00778, 0.04669, 255.0)),
+    ((270.0, 80.0, 70.0), (107.08786, 35.70374, 178.50311)),
+    ((300.0, 75.0, 60.0), (152.99377, 38.25623, 153.00156)),
+    ((330.0, 100.0, 100.0), (255.0, 0.00778, 127.53891)),
+    ((359.0, 100.0, 100.0), (255.0, 0.00778, 4.28009)),
+    ((360.0, 100.0, 100.0), (255.0, 0.00778, 0.03113)),
+    ((200.0, 0.0, 60.0), (153.00156, 153.00156, 153.00156)),
+    ((45.0, 100.0, 0.0), (0.0, 0.0, 0.0)),
+    ((15.0, 33.0, 77.0), (196.34720, 147.74872, 131.55441)),
+    ((345.0, 90.0, 45.0), (114.75311, 11.47842, 37.29904)),
+]
+
+
 class TestHsbToRgb:
     def test_achromatic_zero_saturation(self):
         assert hsb_to_rgb(0.0, 0.0, 0.5) == pytest.approx((0.5, 0.5, 0.5))
@@ -85,9 +117,34 @@ class TestHsbToRgb:
     def test_achromatic_any_hue(self):
         assert hsb_to_rgb(0.33, 0.0, 0.7) == pytest.approx((0.7, 0.7, 0.7))
 
-    def test_h_one_wraps_to_zero(self):
-        """h=1.0 should give the same result as h=0.0."""
-        assert hsb_to_rgb(1.0, 1.0, 1.0) == pytest.approx(hsb_to_rgb(0.0, 1.0, 1.0))
+    @pytest.mark.parametrize(
+        ("h", "equivalent"),
+        [
+            (1.0, 0.0),
+            (2.0, 0.0),
+            (-1.0, 0.0),
+            (-1e-17, 0.0),
+            (1.5, 0.5),
+            (-0.25, 0.75),
+            (7.5, 0.5),
+        ],
+    )
+    def test_hue_is_cyclic(self, h, equivalent):
+        """A hue outside [0, 1) is the same colour one or more turns away.
+
+        Only ``h == 1.0`` used to be handled, by a bare special case; every
+        other out-of-range value missed the six-sector table and fell back to
+        the achromatic ``(v, v, v)``. A hue of 360 degrees reaches this through
+        ``paint._get_hsb``, so Photoshop rendered it red and psd-tools rendered
+        it white (#754).
+
+        ``-1e-17`` is in the list because ``-1e-17 % 1.0`` is exactly ``1.0`` in
+        floating point, which puts ``int(h * 6.0)`` at 6 -- one past the last
+        sector, and an ``IndexError`` if the wrap is applied to the hue alone.
+        """
+        assert hsb_to_rgb(h, 1.0, 1.0) == pytest.approx(
+            hsb_to_rgb(equivalent, 1.0, 1.0)
+        )
 
     def test_sector_0_red(self):
         r, g, b = hsb_to_rgb(0.0, 1.0, 1.0)
@@ -113,6 +170,39 @@ class TestHsbToRgb:
         result = hsb_to_rgb(h, 1.0, 1.0)
         assert len(result) == 3
         assert all(0.0 <= v <= 1.0 for v in result)
+
+    @pytest.mark.parametrize(("hsb", "expected"), _HSB_TO_RGB)
+    def test_matches_photoshop(self, hsb, expected):
+        """Photoshop's own HSB to RGB, over the whole hue circle.
+
+        This pins the conversion, not the reading of the descriptor: the
+        divisor #754 got wrong lives in ``paint._get_hsb`` and is pinned
+        against this same fixture data in
+        ``tests/psd_tools/composite/test_paint.py``. What it does establish is
+        that a hue expressed as a fraction of a turn -- which is what a
+        corrected ``/360`` produces -- lands where Photoshop puts it, at every
+        sector boundary and inside every sector.
+
+        The tolerance is 0.1 of a code value because Photoshop's bridge reports
+        RGB out of its own 15-bit store, which puts a true 0 at
+        ``255 / 32768 = 0.0078`` and costs at most 0.05 anywhere in the table.
+        """
+        got = [
+            255.0 * c
+            for c in hsb_to_rgb(hsb[0] / 360.0, hsb[1] / 100.0, hsb[2] / 100.0)
+        ]
+        for channel, (value, want) in enumerate(zip(got, expected)):
+            assert abs(value - want) <= 0.1, (hsb, channel, value, want)
+
+    @pytest.mark.parametrize("h", [float("nan"), float("inf"), float("-inf")])
+    def test_non_finite_hue_degrades_instead_of_raising(self, h):
+        """A hue that names no angle has no turn to wrap onto.
+
+        ``int(float("nan") * 6.0)`` raises, and this function is reached from
+        an unvalidated descriptor, so the achromatic answer stands in -- the
+        same policy ``lab_to_rgb`` applies to its own absurd inputs.
+        """
+        assert hsb_to_rgb(h, 1.0, 0.5) == (0.5, 0.5, 0.5)
 
 
 class TestGrayToRgb:

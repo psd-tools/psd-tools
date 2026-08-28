@@ -29,6 +29,8 @@ References:
       :func:`rgb_to_lab`.
 """
 
+import math
+
 #: The normalized value of a neutral ``a``/``b`` axis in a Lab color *array*.
 #:
 #: An encoding constant rather than a conversion result -- the one value in this
@@ -125,8 +127,14 @@ def hsb_to_rgb(h: float, s: float, v: float) -> tuple[float, float, float]:
     Uses the standard six-sector algorithm.  When saturation is zero the
     color is achromatic and ``(v, v, v)`` is returned.
 
+    Hue is an angle, so it is cyclic: any value outside ``[0.0, 1.0)`` wraps
+    into it, and ``1.0``, ``2.0`` and ``-1.0`` all mean the same hue as
+    ``0.0``. This used to be a bare ``h == 1.0`` special case with a silent
+    achromatic fallback for everything else out of range, which turned a fully
+    saturated hue into grey rather than into the color one turn away (#754).
+
     Args:
-        h: Hue in [0.0, 1.0); a value of exactly 1.0 wraps to 0.0.
+        h: Hue as a fraction of a full turn; wrapped into [0.0, 1.0).
         s: Saturation in [0.0, 1.0].
         v: Brightness (value) in [0.0, 1.0].
 
@@ -139,22 +147,28 @@ def hsb_to_rgb(h: float, s: float, v: float) -> tuple[float, float, float]:
     """
     if not s:
         return (v, v, v)
-    if h == 1.0:
-        h = 0.0
-    i = int(h * 6.0)
-    f = h * 6.0 - i
+    if not math.isfinite(h):
+        # NaN and the infinities name no angle, so there is no turn to wrap
+        # them onto and the achromatic answer is the only degradation left.
+        # Worth spelling out because ``int(float("nan") * 6.0)`` raises, and a
+        # descriptor carries unvalidated file data -- see
+        # ``lab_to_rgb``'s equivalent guard.
+        return (v, v, v)
+    h = h % 1.0
+    sector = int(h * 6.0) % 6
+    f = h * 6.0 - int(h * 6.0)
     w = v * (1.0 - s)
     q = v * (1.0 - s * f)
     t = v * (1.0 - s * (1.0 - f))
-    sectors: dict[int, tuple[float, float, float]] = {
-        0: (v, t, w),
-        1: (q, v, w),
-        2: (w, v, t),
-        3: (w, q, v),
-        4: (t, w, v),
-        5: (v, w, q),
-    }
-    return sectors.get(i, (v, v, v))
+    sectors: tuple[tuple[float, float, float], ...] = (
+        (v, t, w),
+        (q, v, w),
+        (w, v, t),
+        (w, q, v),
+        (t, w, v),
+        (v, w, q),
+    )
+    return sectors[sector]
 
 
 def gray_to_rgb(gray: float) -> tuple[float, float, float]:
