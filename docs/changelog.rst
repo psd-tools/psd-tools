@@ -5,7 +5,7 @@ Changelog
 -------------------
 
 - [fix] Convert a CMYK fill descriptor through ink space, so it no longer
-  renders black on every non-CMYK document (#763). ``_get_cmyk()`` read the
+  renders black on every non-CMYK document (#763, #765). ``_get_cmyk()`` read the
   descriptor into the compositor's canvas convention, where 1.0 is *no* ink,
   and then handed that to :py:func:`psd_tools.color_convert.cmyk_to_rgb`, whose
   contract is ink space, where 0.0 is no ink. The flip was never undone, so on
