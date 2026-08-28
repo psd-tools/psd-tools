@@ -12,8 +12,10 @@ from psd_tools.color_convert import (
     gray_to_cmyk,
     gray_to_rgb,
     hsb_to_rgb,
+    lab_to_rgb,
     rgb_to_cmyk,
     rgb_to_grayscale,
+    rgb_to_lab,
 )
 from psd_tools.composite._compat import require_scipy, require_skimage
 from psd_tools.constants import ColorMode, Tag
@@ -45,23 +47,40 @@ _SINGLE_CHANNEL_MODES = (
 def _clamp01(value: float) -> float:
     """Hold *value* inside the range a color array is allowed to carry.
 
-    Only the Lab readings need this. Lab is the one color class whose stored
-    range is signed, so it is the one whose normalization can leave [0, 1] --
+    Only the Lab encoding needs this. Lab's range is a convention the
+    descriptor does not enforce, so a writer emitting ``a = 200`` yields 1.29 --
     and :py:func:`psd_tools.composite.composite_pil` casts with
-    ``(255 * color).astype(np.uint8)``, which *wraps* rather than saturates. A
-    component of 1.29 lands on byte 71 and one of -0.16 on byte 216: not a
-    clipped chroma but a colour unrelated to the one asked for. Clamping
-    degrades to the end of the axis instead.
+    ``(255 * color).astype(np.uint8)``, which *wraps* rather than saturates,
+    landing that on byte 71: not a clipped chroma but a colour unrelated to the
+    one asked for. Clamping degrades to the end of the axis instead.
 
-    Both branches of ``_get_lab()`` need it, for opposite reasons. The Lab
-    target only leaves the range for input outside Photoshop's own -128..127,
-    which takes a third-party writer. The RGB and INDEXED targets leave it for
-    input squarely *inside* that range: they still divide signed chroma by 255,
-    so every negative ``a`` or ``b`` -- every green, every blue -- wraps. That
-    reading is wrong for more than its sign and is replaced wholesale by the
-    second half of #743; until then it should at least not wrap.
+    :py:func:`psd_tools.color_convert.lab_to_rgb` clamps its own inputs and
+    output, so the values reaching here through ``_from_rgb()`` are already in
+    range; this guards the direct Lab-to-Lab path, which does no conversion.
     """
     return min(1.0, max(0.0, value))
+
+
+def _lab_to_canvas(lightness: float, a: float, b: float) -> tuple[float, ...]:
+    """Encode native CIE L*a*b* into the compositor's Lab color array.
+
+    The arrays leave through PIL mode "LAB", whose bytes are ``L * 255/100``
+    with the two chroma axes offset by 128 -- byte 128 is ``a = 0``, byte 0 is
+    ``a = -128``, at slope exactly 1. So this is a relabelling into the
+    destination's own encoding rather than a conversion, and Photoshop's own
+    render of a Lab fill agrees with it to within 1/255 across the full a/b
+    range (#743).
+
+    Shared by the two ways a Lab value arrives: a Lab descriptor on a Lab
+    document, which lands here unconverted, and any other color class on a Lab
+    document, which reaches here through
+    :py:func:`psd_tools.color_convert.rgb_to_lab` (#752).
+    """
+    return (
+        _clamp01(lightness / 100.0),
+        _clamp01((a + 128.0) / 255.0),
+        _clamp01((b + 128.0) / 255.0),
+    )
 
 
 def _ink_to_canvas(ink: tuple[float, ...]) -> tuple[float, ...]:
@@ -93,9 +112,17 @@ def _from_rgb(color_mode: ColorMode, rgb: tuple[float, ...]) -> tuple[float, ...
 
     Indexed is deliberately three: its single stored channel expands through
     the palette, so three is the width its pixel arrays carry.
+
+    Lab is a real conversion rather than a width choice. It used to fall through
+    to ``return rgb``, which is three wide and so passed the width assertion
+    while meaning nothing: red arrived as ``(1.0, 0.0, 0.0)``, which a Lab array
+    reads as white at the extreme green-blue corner rather than as
+    ``(0.543, 0.819, 0.776)`` (#752).
     """
     if color_mode == ColorMode.CMYK:
         return _ink_to_canvas(rgb_to_cmyk(*rgb))
+    if color_mode == ColorMode.LAB:
+        return _lab_to_canvas(*rgb_to_lab(*rgb))
     if color_mode in _SINGLE_CHANNEL_MODES:
         return (rgb_to_grayscale(*rgb),)
     return rgb
@@ -159,6 +186,13 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
             return gray_to_rgb(gray)
         if color_mode == ColorMode.CMYK:
             return _ink_to_canvas(gray_to_cmyk(gray))
+        if color_mode == ColorMode.LAB:
+            # Not left to widen(): one channel is a legal width, so a grey fill
+            # was reaching a Lab canvas as a bare lightness and being widened
+            # with a neutral a/b. That put it on the right axis but at the wrong
+            # height -- the grey itself rather than its L* -- and disagreed with
+            # the same grey written as an RGB descriptor (#752).
+            return _from_rgb(color_mode, gray_to_rgb(gray))
         return (gray,)
 
     def _get_cmyk(color_mode: ColorMode, x: Descriptor) -> tuple[float, ...]:
@@ -170,42 +204,19 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
         return _from_rgb(color_mode, cmyk_to_rgb(c, m, y, k))
 
     def _get_lab(color_mode: ColorMode, x: Descriptor) -> tuple[float, ...]:
+        lightness = float(x[Key.Luminance])
+        a = float(x[Key.A])
+        b = float(x[Key.B])
         if color_mode == ColorMode.LAB:
-            # 255 was the right divisor for none of the three (#743). L runs
-            # 0..100 and a/b are signed, which is why psd/color.py reads Lab as
-            # "4h" where every other space is "4H".
-            #
-            # These arrays leave through PIL mode "LAB", whose bytes are
-            # L * 255/100 with the two chroma axes offset by 128 -- byte 128 is
-            # a = 0, byte 0 is a = -128, at slope exactly 1. So this is not a
-            # conversion at all, only a relabelling into the destination's own
-            # encoding, and Photoshop's merged preview of a Lab fill agrees with
-            # it to within 1/255 across the full a/b range including both ends.
-            # (Photoshop's own slope is 254/255: it puts a = 127 on byte 254.
-            # Copying that would gain under half a code value against the
-            # preview and lose the same against any ImageCms decode.)
-            return (
-                _clamp01(float(x[Key.Luminance]) / 100.0),
-                _clamp01((float(x[Key.A]) + 128.0) / 255.0),
-                _clamp01((float(x[Key.B]) + 128.0) / 255.0),
-            )
-        # Every other target still takes the /255 reading: RGB and INDEXED get
-        # the triple, and the modes that would otherwise be the wrong width
-        # reduce from L alone. Neither is a conversion. The reduction drops a/b
-        # rather than carrying them, so two colours differing only in chroma
-        # collapse to one value; the triple keeps them but reads signed chroma
-        # as if it were unsigned. Routing both through a real Lab -> RGB and on
-        # through _from_rgb() is the second half of #743, and it moves rendered
-        # output for RGB and INDEXED documents, so it is left to its own change.
-        lab = tuple(
-            _clamp01(v) for v in _get_int_color(x, (Key.Luminance, Key.A, Key.B))
-        )
-        if color_mode in (ColorMode.RGB, ColorMode.INDEXED):
-            return lab
-        lightness = lab[0]
-        if color_mode == ColorMode.CMYK:
-            return _ink_to_canvas(gray_to_cmyk(lightness))
-        return (lightness,)
+            # Straight into the array's own encoding, with no trip through RGB
+            # to lose anything on (#743).
+            return _lab_to_canvas(lightness, a, b)
+        # Everything else is a real conversion now. It used to divide all three
+        # by 255 and hand RGB and INDEXED the raw triple -- reading signed
+        # chroma as unsigned, and putting L = 100 at 0.39 -- while the narrower
+        # modes reduced from L alone, dropping a/b so that two colours differing
+        # only in chroma collapsed to one value (the second half of #743).
+        return _from_rgb(color_mode, lab_to_rgb(lightness, a, b))
 
     _COLOR_FUNC = {
         Klass.RGBColor: _get_rgb,

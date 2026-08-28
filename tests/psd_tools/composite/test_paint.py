@@ -164,9 +164,9 @@ def test_multichannel_entry_is_not_a_channel_count() -> None:
     "lab",
     [
         (50.0, 10.0, 20.0),
-        (0.0, -128.0, -128.0),
-        (100.0, 127.0, 127.0),
         (20.0, -90.0, 60.0),
+        (65.49, 13.0, 69.0),
+        (45.0, 40.0, -50.0),
     ],
 )
 @pytest.mark.parametrize(
@@ -177,59 +177,77 @@ def test_multichannel_entry_is_not_a_channel_count() -> None:
         ColorMode.DUOTONE,
         ColorMode.MULTICHANNEL,
         ColorMode.CMYK,
+        ColorMode.RGB,
+        ColorMode.INDEXED,
+        ColorMode.LAB,
     ],
 )
-def test_lab_reduces_from_lightness_alone(
+def test_lab_chroma_reaches_every_target(
     lab: tuple[float, float, float], color_mode: ColorMode
 ) -> None:
-    """A Lab descriptor reduces via L, not by treating a/b as green and blue.
+    """``a`` and ``b`` move the result on every document mode.
 
-    ``a`` and ``b`` are signed chroma, so folding them into a grayscale or CMYK
-    conversion as if they were RGB components gives an arbitrary result that can
-    fall outside [0, 1] -- a negative fill component. Only ``L`` carries
-    lightness, so the reduction takes it alone, which keeps the result in range
-    and monotonic in lightness.
+    This is the inverse of the test it replaces. #742 deliberately reduced a Lab
+    colour from ``L`` alone for the narrow modes and read the raw ``/255``
+    triple for the wide ones, and `test_lab_reduces_from_lightness_alone`
+    pinned that by asserting negating a/b changed nothing. It is now a real
+    conversion, so negating the chroma has to move the answer -- otherwise the
+    colour is being thrown away again.
+
+    The parameters are chosen so that negating a/b changes the luminance too;
+    for a narrow mode the two can otherwise coincide by accident, which would
+    make this pass without carrying any chroma.
     """
     desc = _color_desc(
         Klass.LabColor.value,
         {Key.Luminance: lab[0], Key.A: lab[1], Key.B: lab[2]},
     )
-    result = _get_color(color_mode, desc)
-    assert all(0.0 <= c <= 1.0 for c in result), result
-    # a and b do not move the result at all.
-    swapped = _color_desc(
+    flipped = _color_desc(
         Klass.LabColor.value,
         {Key.Luminance: lab[0], Key.A: -lab[1], Key.B: -lab[2]},
     )
-    assert _get_color(color_mode, swapped) == result
+    result = _get_color(color_mode, desc)
+    assert all(0.0 <= c <= 1.0 for c in result), result
+    assert result != _get_color(color_mode, flipped)
 
 
-def test_lab_reduction_is_monotonic_in_lightness() -> None:
-    """Darker L stays darker after the reduction.
+def test_lab_conversion_is_monotonic_in_lightness() -> None:
+    """Darker L stays darker after the conversion.
 
     The CMYK direction reversed with #747. These arrays count what is *left*
     rather than what is laid down -- 1.0 is no ink -- so a darker colour has the
-    *smaller* K entry, and the CMY entries of a K-only build are 1.0 rather than
-    0.0. Before #747 the ink-space spelling went into the canvas unchanged, so
-    the assertions below read the other way round and a white fill composited
-    black.
+    *smaller* K entry. What is gone since #743 is the claim that the build is
+    K-only: a neutral Lab colour converts through sRGB, and ``rgb_to_cmyk``
+    puts a genuine neutral on K alone, but the moment there is any chroma the
+    CMY entries carry it.
     """
 
-    def lab_desc(lightness: float) -> Descriptor:
+    def lab_desc(lightness: float, a: float = 0.0, b: float = 0.0) -> Descriptor:
         return _color_desc(
             Klass.LabColor.value,
-            {Key.Luminance: lightness, Key.A: 0.0, Key.B: 0.0},
+            {Key.Luminance: lightness, Key.A: a, Key.B: b},
         )
 
     dark = _get_color(ColorMode.GRAYSCALE, lab_desc(10.0))
     light = _get_color(ColorMode.GRAYSCALE, lab_desc(90.0))
     assert dark[0] < light[0]
 
-    # CMYK is K-only, so more lightness means less key ink -- a larger entry.
     dark_cmyk = _get_color(ColorMode.CMYK, lab_desc(10.0))
     light_cmyk = _get_color(ColorMode.CMYK, lab_desc(90.0))
-    assert dark_cmyk[:3] == light_cmyk[:3] == (1.0, 1.0, 1.0)
     assert dark_cmyk[3] < light_cmyk[3]
+    # A neutral still builds on K alone. Approximate, not exact: the three rows
+    # of the sRGB matrix do not sum identically, so a neutral comes back out of
+    # lab_to_rgb with ~1e-8 between its channels, and rgb_to_cmyk divides that
+    # by (1 - K) to get the CMY entries. The residue lands around 5e-8 -- a
+    # hundred-thousandth of a code value, and not worth snapping for.
+    assert dark_cmyk[:3] == pytest.approx((1.0, 1.0, 1.0), abs=1e-6)
+    assert light_cmyk[:3] == pytest.approx((1.0, 1.0, 1.0), abs=1e-6)
+    # ...and a chromatic one does not, which is the part #743 changed.
+    assert _get_color(ColorMode.CMYK, lab_desc(50.0, 60.0, -40.0))[:3] != (
+        1.0,
+        1.0,
+        1.0,
+    )
 
 
 @pytest.mark.parametrize(
@@ -406,26 +424,138 @@ def test_lab_out_of_range_clamps_rather_than_wrapping(field: Key, value: float) 
     assert pixels[axes.index(field)] == (255 if value > 0 else 0)
 
 
-@pytest.mark.parametrize("color_mode", [ColorMode.RGB, ColorMode.INDEXED])
-@pytest.mark.parametrize("lab", [(50.0, -128.0, -100.0), (25.0, -40.0, 15.0)])
-def test_lab_negative_chroma_clamps_on_an_rgb_target(
-    color_mode: ColorMode, lab: tuple[float, float, float]
-) -> None:
-    """Here the wrapping input is in range, not out of it.
+# ---------------------------------------------------------------------------
+# Cross-mode Lab conversion (#743 second half, #752)
+#
+# Photoshop rewrites a fill descriptor into the document's own colour class on
+# save, so neither direction below is authorable from Photoshop and no fixture
+# can carry them -- a scan of every file under tests/psd_files finds no LAB
+# document with a non-Lab descriptor and no non-LAB document with a Lab one.
+# The ground truth is therefore Photoshop's own colour engine over the
+# scripting bridge, with the chroma reporting encoding undone; see
+# tests/psd_tools/test_color_convert.py for the model.
+# ---------------------------------------------------------------------------
 
-    RGB and INDEXED still take the ``/255`` reading pending the second half of
-    #743, and that divides *signed* chroma as if it were unsigned. Every
-    negative ``a`` or ``b`` -- so every green and every blue -- came out
-    negative and wrapped on the cast: Lab(25, -40, 15), an ordinary green, put
-    ``a`` on byte 216, near the top of its axis rather than below the middle.
-    The reading stays wrong until it is replaced; it should not also wrap.
+
+def _native(reported: float) -> float:
+    return (reported + 0.5) * 256.0 / 255.0
+
+
+@pytest.mark.parametrize("color_mode", [ColorMode.RGB, ColorMode.INDEXED])
+@pytest.mark.parametrize(
+    ("lab", "photoshop_rgb"),
+    [
+        ((65.49, 13.0, 69.0), (202.690, 148.651, 0.0)),
+        ((75.0, 25.0, -30.0), (211.468, 168.986, 239.887)),
+        ((25.0, -40.0, 15.0), (0.0, 72.513, 33.509)),
+        ((90.0, 5.0, -5.0), (234.175, 223.039, 235.179)),
+        ((50.0, 0.0, 0.0), (120.084, 118.613, 118.084)),
+    ],
+)
+def test_lab_fill_on_an_rgb_document_matches_photoshop(
+    color_mode: ColorMode,
+    lab: tuple[float, float, float],
+    photoshop_rgb: tuple[float, float, float],
+) -> None:
+    """#743's second half: a Lab descriptor on an RGB or indexed document.
+
+    This used to be ``(L/255, a/255, b/255)`` -- signed chroma read as unsigned,
+    and ``L = 100`` arriving at 0.39. A Lab green came out an unrelated colour.
+    Indexed goes the same way: its arrays are three wide, so it fell through the
+    same branch.
     """
     desc = _color_desc(
         Klass.LabColor.value,
-        {Key.Luminance: lab[0], Key.A: lab[1], Key.B: lab[2]},
+        {
+            Key.Luminance: lab[0],
+            Key.A: _native(lab[1]),
+            Key.B: _native(lab[2]),
+        },
     )
-    result = _get_color(color_mode, desc)
-    assert all(0.0 <= c <= 1.0 for c in result), result
-    assert result[1] == 0.0  # negative a, clamped to the end of the axis
-    pixels = (255 * np.array(result, dtype=np.float32)).astype(np.uint8)
-    assert pixels[1] == 0
+    got = [255.0 * v for v in _get_color(color_mode, desc)]
+    assert len(got) == 3
+    for channel, (value, want) in enumerate(zip(got, photoshop_rgb)):
+        assert abs(value - want) <= 1.0, (lab, channel, value, want)
+
+
+@pytest.mark.parametrize(
+    ("rgb", "photoshop_lab"),
+    [
+        ((255, 0, 0), (54.2908, 79.9968, 69.1176)),
+        ((0, 255, 0), (87.8204, -79.4638, 80.1758)),
+        ((202, 149, 1), (65.5060, 12.5582, 68.3083)),
+        ((120, 200, 255), (77.0691, -14.5231, -35.5812)),
+        ((128, 128, 128), (53.5828, -0.5, -0.5)),
+    ],
+)
+def test_rgb_fill_on_a_lab_document_matches_photoshop(
+    rgb: tuple[int, int, int], photoshop_lab: tuple[float, float, float]
+) -> None:
+    """#752: an RGB descriptor on a Lab document.
+
+    ``_from_rgb()`` had no Lab branch, so the triple fell through unconverted.
+    Three channels is a legal width for a Lab document, so nothing complained --
+    red simply arrived as ``(1.0, 0.0, 0.0)``, which those arrays read as white
+    at the extreme green-blue corner.
+
+    Compared in canvas encoding rather than native units, because that is what
+    the compositor consumes; 1/255 here is one code value of the rendered
+    pixel.
+    """
+    desc = _color_desc(
+        Klass.RGBColor.value,
+        {Key.Red: float(rgb[0]), Key.Green: float(rgb[1]), Key.Blue: float(rgb[2])},
+    )
+    got = _get_color(ColorMode.LAB, desc)
+    want = (
+        photoshop_lab[0] / 100.0,
+        (_native(photoshop_lab[1]) + 128.0) / 255.0,
+        (_native(photoshop_lab[2]) + 128.0) / 255.0,
+    )
+    assert len(got) == 3
+    for channel, (value, expected) in enumerate(zip(got, want)):
+        assert abs(value - expected) * 255.0 <= 1.0, (rgb, channel, value, expected)
+
+
+@pytest.mark.parametrize(
+    ("klass", "fields", "expected"),
+    [
+        # A grey, so a and b must land exactly on the neutral axis and L on the
+        # grey's L* rather than on the grey itself. 0.6 -> 0.632 is the number
+        # widen._lab()'s docstring quotes for the divergence it keeps.
+        (
+            Klass.Grayscale.value,
+            {Key.Gray: 40.0},
+            (0.632226, 128 / 255, 128 / 255),
+        ),
+        (
+            Klass.CMYKColor.value,
+            {Key.Cyan: 10.0, Key.Magenta: 20.0, Key.Yellow: 30.0, Key.Black: 40.0},
+            (0.060154, 0.495916, 0.468762),
+        ),
+    ],
+)
+def test_other_classes_on_a_lab_document_go_through_the_conversion(
+    klass: bytes, fields: dict, expected: tuple[float, float, float]
+) -> None:
+    """The grayscale and CMYK classes reach the Lab branch too (#752).
+
+    Pinned as values rather than as agreement with the equivalent RGB
+    descriptor. That equivalence is how the code is built -- both spellings end
+    in ``_from_rgb(LAB, ...)`` -- so asserting it cannot fail, and an earlier
+    draft of this test proved it: deleting either branch left the equivalence
+    assertion passing.
+
+    Not compared against Photoshop's own Lab for these two, either. Its
+    grayscale working space is Dot Gain 20% and its CMYK separation is
+    profile-driven, neither of which is what ``gray_to_rgb`` and ``cmyk_to_rgb``
+    do, so a disagreement would be Photoshop's colour management rather than
+    this conversion. The RGB class carries the Photoshop-anchored assertion,
+    above.
+
+    Grayscale is the one that needed a branch of its own: one channel is a legal
+    width, so a grey fill used to reach the canvas as a bare lightness and get
+    widened with a neutral a/b. Right axis, wrong height.
+    """
+    got = _get_color(ColorMode.LAB, _color_desc(klass, fields))
+    assert got == pytest.approx(expected, abs=1e-6)

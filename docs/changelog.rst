@@ -4,6 +4,33 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
+- [fix] Convert a Lab fill colour across colour modes instead of passing the
+  numbers through. Two mirror-image gaps, both closed here because they share
+  the conversion: a Lab descriptor on a **non**-Lab document was read with a
+  ``/255`` divisor that suited none of its three components, and any other
+  descriptor class on a **Lab** document was written into the Lab arrays
+  uninterpreted. Red on a Lab document arrived as ``(1.0, 0.0, 0.0)`` -- white
+  at the extreme green-blue corner -- where the answer is
+  ``(0.543, 0.819, 0.776)``.
+
+  ``psd_tools.color_convert`` gains :py:func:`~psd_tools.color_convert.lab_to_rgb`
+  and :py:func:`~psd_tools.color_convert.rgb_to_lab`, D50 with Bradford-adapted
+  sRGB matrices, matching Photoshop's own colour engine to 0.05 Lab units
+  converting in and a mean of 0.35/255 converting out. Lab values there are in
+  native CIE units -- ``L`` 0..100 and signed ``a``/``b`` -- which is the one
+  exception to the module's normalized-float rule, and the module now has a
+  reference page.
+
+  Backwards-incompatible in what it renders, for two cases that no Photoshop
+  file can contain -- Photoshop rewrites a fill descriptor into the document's
+  own colour class on save, so both need a third-party writer. Beyond the
+  conversion itself, the **reduction curve moves** for a Lab fill on a
+  grayscale, bitmap, duotone or multichannel document: it was ``L/255`` and is
+  now the BT.601 luminance of the converted colour, so even a neutral changes
+  (``Lab(50, 0, 0)`` goes from 0.196 to 0.466). A grey fill on a Lab document
+  changes too, from the raw grey to its ``L*``; the single-channel *widening*
+  path deliberately still does not convert, and says why (#743, #752).
+
 - [fix] Read a Lab fill colour with the right divisor for each of its three
   components. ``L``, ``a`` and ``b`` were all divided by 255, which suits none
   of them: ``L`` runs 0..100, and ``a``/``b`` are signed and stored offset by
@@ -20,13 +47,8 @@ Changelog
   0.5, half a code value below the byte Photoshop writes: the artboard
   background default and the single-channel widening added in #722.
 
-  Lab descriptors on a *non*-Lab document are otherwise unchanged: RGB and
-  indexed targets still take the ``/255`` triple, and the narrower modes still
-  reduce from ``L`` alone. A real Lab conversion for them is the remaining half
-  of #743. They do gain the clamp, which matters more there than on the fixed
-  path -- dividing signed chroma as if it were unsigned made every negative
-  ``a`` or ``b``, so every green and every blue, wrap to an unrelated byte
-  (#743).
+  Lab descriptors on a *non*-Lab document were left to the entry above, which
+  replaces the ``/255`` reading for them with a real conversion (#743).
 
 - [fix] Convert rather than replicate when a single-channel canvas is widened
   to a CMYK or Lab document's channel count. A grey ``g`` became ``(g, g, g, g)``
