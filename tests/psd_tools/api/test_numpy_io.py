@@ -6,6 +6,7 @@ import pytest
 
 from psd_tools.api import numpy_io
 from psd_tools.api.psd_image import PSDImage
+from psd_tools.constants import ColorMode
 from psd_tools.psd.patterns import Pattern
 
 from ..utils import TEST_ROOT, full_name
@@ -34,11 +35,78 @@ def test_get_pattern(filename: str) -> None:
         ("rgba", 8),
         ("lab", 8),
         ("multichannel", 16),
+        # Depth 32 was missing from this sweep, which is part of why #738 stood:
+        # it is the one branch of `_parse_array` that does no rescaling, so it
+        # is the one that returned the raw buffer's dtype and mutability.
+        ("grayscale", 32),
+        ("rgb", 32),
     ],
 )
 def test_numpy_colormodes(colormode: str, depth: int) -> None:
     filename = "colormodes/4x4_%gbit_%s.psd" % (depth, colormode)
     psd = PSDImage.open(full_name(filename))
-    assert isinstance(psd.numpy(), np.ndarray)
+    array = psd.numpy()
+    assert isinstance(array, np.ndarray)
+    _assert_array_contract(array)
     for layer in psd:
-        assert isinstance(layer.numpy(), (np.ndarray, type(None)))
+        layer_array = layer.numpy()
+        assert isinstance(layer_array, (np.ndarray, type(None)))
+        if layer_array is not None:
+            _assert_array_contract(layer_array)
+
+
+def _assert_array_contract(array: np.ndarray) -> None:
+    """What every depth returns, which depth 32 alone did not (#738).
+
+    Native ``float32`` and writeable. The other three branches get both for
+    free from the ``.astype()`` their rescaling needs; 32-bit data needs no
+    rescaling, so it was handed back as ``np.frombuffer`` produced it -- a
+    read-only view carrying the file's big-endian dtype.
+    """
+    assert array.dtype == np.float32, array.dtype
+    assert array.dtype.byteorder in ("=", "|"), array.dtype.byteorder
+    assert array.flags.writeable
+
+
+@pytest.mark.parametrize("filename", ["transparentbg.psd", "transparentbg.psb"])
+def test_numpy_reads_a_32bit_document_with_transparency(filename: str) -> None:
+    """``numpy()`` raised on an ordinary Photoshop file shape (#738).
+
+    ``_remove_background()`` un-premultiplies the merged preview in place, and
+    it is reached only for RGB with a transparency channel -- so depth 32's
+    read-only array raised ``assignment destination is read-only`` there and
+    nowhere else. These two fixtures have shipped all along and reproduce it;
+    the issue was filed believing none did.
+    """
+    psd = PSDImage.open(full_name(filename))
+    assert (psd.depth, psd.color_mode, psd.channels) == (32, ColorMode.RGB, 4)
+
+    array = psd.numpy()  # would raise ValueError
+    _assert_array_contract(array)
+    assert array.shape == (psd.height, psd.width, 4)
+    assert psd.numpy("color").shape == (psd.height, psd.width, 3)
+    assert psd.numpy("shape").shape == (psd.height, psd.width, 1)
+
+    # Not merely non-raising: where the preview is opaque there is nothing to
+    # un-premultiply, so the colour has to agree with `topil()` -- which took
+    # the `Image.frombytes` path and worked throughout.
+    preview = np.asarray(psd.topil()).astype(np.float32) / 255.0
+    opaque = array[:, :, 3] > 0.999
+    assert opaque.any()
+    assert np.abs(array[:, :, :3][opaque] - preview[:, :, :3][opaque]).max() == 0.0
+
+
+def test_parse_array_does_not_alias_its_input() -> None:
+    """The mutability half, at the unit rather than the document level.
+
+    Writing into what ``_parse_array`` returns must not reach back into the
+    caller's buffer. A ``bytearray`` is used because the read-only-ness of the
+    ``bytes`` the real callers pass is what masked this: over a mutable buffer
+    ``np.frombuffer`` yields a *writeable* view, so the alias would be silent
+    corruption rather than a raise.
+    """
+    source = bytearray(np.arange(4, dtype=">f4").tobytes())
+    parsed = numpy_io._parse_array(source, 32)
+    assert np.array_equal(parsed, np.arange(4, dtype=np.float32))
+    parsed[0] = 99.0
+    assert bytearray(np.arange(4, dtype=">f4").tobytes()) == source
