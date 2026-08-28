@@ -4,6 +4,27 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
+- [fix] Convert a scalar backdrop instead of broadcasting it across every
+  channel. ``composite()`` accepts its backdrop as a scalar, a per-channel
+  sequence or a full array. #722, in this same release, taught the
+  single-channel *array* spelling to go through the colour mode's conversion,
+  but the scalar path was missed and stayed on ``np.full()`` -- so the same
+  backdrop had two answers depending on how it was written. A scalar now takes
+  the same conversion, and only a genuinely single component is converted: a
+  per-channel sequence is left exactly as given. Both halves land together, so
+  no released version carries the split; what *is* longstanding is the colour
+  below, which every released version got wrong by broadcasting either
+  spelling.
+
+  On a **Lab** document this was the default backdrop. ``color=1.0`` put both
+  chroma axes at byte 255 -- the extreme corner of each -- so a document
+  composited against maximum chroma at maximum lightness where white is
+  ``(255, 128, 128)``. On a **CMYK** document the default is unaffected, since
+  ``1.0`` is white either way, but other scalars were the over-inked build that
+  widening exists to avoid: ``color=0.0`` broadcast to ``(0, 0, 0, 0)``, every
+  plate at 100%. RGB, grayscale, indexed and multichannel are unchanged --
+  replication is the conversion there (#753).
+
 - [fix] Stop ``composite()`` shifting both chroma planes of a Lab document.
   The result was built with ``Image.fromarray(pixels, "LAB")``, and PIL's
   ``"LAB"`` unpacker reads the two chroma planes as *signed* and adds 128 --
