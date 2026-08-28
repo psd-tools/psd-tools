@@ -7,16 +7,16 @@ neutral.
 
 ``cmyk-gray-ramp.psd`` is the ground truth these tests are pinned against. It
 was authored by scripting Photoshop 2026: a grayscale document filled with nine
-8-bit grey patches, converted with ``convertProfile()`` to Generic CMYK and
-saved with that profile embedded. Its pixels are therefore Photoshop's own
-answer to the question this module exists to answer.
+8-bit grey patches, converted to CMYK with ``changeMode()`` and saved with its
+profile embedded. Its pixels are therefore Photoshop's own answer to the
+question this module exists to answer, and its embedded profile -- U.S. Web
+Coated (SWOP) v2, Photoshop's default -- is what the transform is built from.
 
-Generic CMYK rather than a press profile because the press profiles are 557 KB
-each and the repository caps a newly added file at 500 KB. It is a coarser
-profile, so littlecms and Photoshop diverge further on it -- 10/255 at the dark
-end against 3.6/255 measured on the same ramp built with U.S. Web Coated (SWOP)
-v2. Against replication's 137/255 either is decisive, but the tolerance below
-would tighten by half if that fixture could be shipped instead.
+The file is 568 KB, almost all of it that profile. A compact Generic CMYK
+profile would fit the 500 KB pre-commit limit but has coarser tables, and
+littlecms and Photoshop diverge to 10/255 on it against 3.6/255 here -- so the
+press profile is shipped and the hook skipped for it, in a repository whose
+CMYK fixtures already run to 2.3 MB.
 """
 
 import numpy as np
@@ -72,13 +72,11 @@ def test_cmyk_widening_matches_photoshop() -> None:
             replication_error, float(np.abs(replicated - target).max())
         )
 
-    # Locally the worst patch mean is 10/255, at the two darkest levels where
-    # this profile's coarse tables and Photoshop's gamut mapping disagree most;
-    # 14 leaves room for littlecms version differences across CI platforms.
-    # Replication's 137/255 is what keeps that from reading as "anything
-    # passes" -- the tolerance is an order of magnitude below the error it
-    # exists to reject.
-    assert icc_error * 255 < 14.0
+    # Locally the worst patch mean is 3.6/255; 6 leaves room for littlecms
+    # version differences across CI platforms. Replication's 107/255 is what
+    # keeps that from reading as "anything passes" -- the tolerance sits an
+    # order of magnitude below the error it exists to reject.
+    assert icc_error * 255 < 6.0
     assert replication_error * 255 > 100.0
 
 
@@ -86,8 +84,8 @@ def test_cmyk_widening_follows_the_document_profile() -> None:
     """A different CMYK space must give a different answer.
 
     Pins that the profile is actually read rather than a fixed table being
-    applied: the ramp fixture embeds Generic CMYK and ``4x4_8bit_cmyk.psd``
-    embeds Japan Color 2001 Coated.
+    applied: the ramp fixture embeds U.S. Web Coated (SWOP) v2 and
+    ``4x4_8bit_cmyk.psd`` embeds Japan Color 2001 Coated.
     """
     swop = make_widen(PSDImage.open(full_name("cmyk-gray-ramp.psd")))
     japan = make_widen(PSDImage.open(full_name("colormodes/4x4_8bit_cmyk.psd")))

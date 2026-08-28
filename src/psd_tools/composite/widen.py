@@ -22,8 +22,9 @@ falls back to a formula only when there is no profile to use.
 
 The numbers above are Photoshop's default CMYK space, U.S. Web Coated (SWOP)
 v2. ``tests/psd_files/cmyk-gray-ramp.psd`` is the same experiment saved as a
-fixture -- a grey ramp converted to CMYK by Photoshop, profile embedded -- and
-is what the tests pin this against.
+fixture -- a grey ramp converted to CMYK by Photoshop with that profile
+embedded -- and is what the tests pin this against, to within 3.6/255 where
+replication is out by 107/255.
 """
 
 from __future__ import annotations
