@@ -4,6 +4,25 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
+- [fix] Size and interpret a colour-noise gradient from the document rather
+  than from its descriptor. A noise gradient carries a colour space of its own
+  -- Photoshop offers RGB, HSB and Lab, and keeps whichever was chosen in every
+  document mode -- but the synthesized table was built three wide and passed
+  through as if it were always RGB. Two consequences, both fixed here:
+
+  A noise gradient on a document that is not three channels raised
+  ``AssertionError: source has 3 channels, expected 1 or N`` out of the
+  compositor's width check -- every CMYK, grayscale, bitmap, duotone and
+  (unless its spot count happened to be three) multichannel document.
+
+  An HSB or Lab noise gradient rendered the wrong colours everywhere, including
+  on the RGB documents that did not raise: its components were read as RGB, so
+  a hue of 30 degrees at ``[8.33, 60, 80]`` rendered ``(21, 153, 204)`` where
+  Photoshop renders ``(204, 143, 82)``. The three spaces are now converted to
+  the document's own, with Lab landing in a Lab document unconverted because
+  the stored percentage already *is* that array's encoding. No gradient that
+  rendered correctly before changed value (#730, #758).
+
 - [fix] Read an HSB fill colour's hue as the angle it is. The descriptor's hue
   key is degrees, so a full turn is 360, but it was being divided by 300: every
   non-zero hue came out rotated -- ``HSB(120, 50, 80)`` rendered
