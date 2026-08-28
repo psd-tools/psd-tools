@@ -4,6 +4,23 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
+- [fix] Convert rather than replicate when a single-channel canvas is widened
+  to a CMYK or Lab document's channel count. A grey ``g`` became ``(g, g, g, g)``
+  in CMYK -- a heavily over-inked colour that is not the grey it came from --
+  and ``(L, L, L)`` in Lab, where a lightness copied onto the a/b axes is the
+  opposite of neutral. CMYK now transforms through the document's embedded ICC
+  profile, matching Photoshop's own conversion to within 3/255 across a grey
+  ramp where replication was out by ~100/255, and a grey widened this way
+  survives the round trip back out through ``apply_icc`` to within 3/255 --
+  except very near black, which is outside the CMYK gamut and comes back up to
+  7/255 lighter. A CMYK document with
+  no usable profile falls back to the K-only formula a grey *fill* already uses.
+  Lab becomes ``(g, 0.5, 0.5)``, a and b being offset-encoded with 0.5 as
+  neutral. RGB is unchanged, and multichannel keeps replicating -- its spot
+  planes have no colorimetric reading to convert into. Reachable when a caller
+  hands a single-channel backdrop to a multi-channel document, or through a
+  grayscale pattern fill (#722).
+
 - [fix] Stop cross-mode fills writing ink-space CMYK into an inverted canvas.
   The compositor's CMYK arrays store what is *left* -- 1.0 is no ink, which
   ``topil()`` inverts back on the way out -- but the three conversions into CMYK
