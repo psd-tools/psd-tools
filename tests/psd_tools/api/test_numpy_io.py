@@ -1,13 +1,18 @@
 import logging
 import os
+from typing import Sequence
 
 import numpy as np
 import pytest
 
 from psd_tools.api import numpy_io
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.constants import ColorMode
-from psd_tools.psd.patterns import Pattern
+from psd_tools.constants import ColorMode, Compression
+from psd_tools.psd.patterns import (
+    Pattern,
+    VirtualMemoryArray,
+    VirtualMemoryArrayList,
+)
 
 from ..utils import TEST_ROOT, full_name
 
@@ -21,6 +26,88 @@ def test_get_pattern(filename: str) -> None:
         pattern = Pattern.read(f)
 
     assert isinstance(numpy_io.get_pattern(pattern), np.ndarray)
+
+
+def _slotted_pattern(color_mode: ColorMode, written: Sequence[int], slots: int = 26):
+    """A pattern whose *written* slots hold a 1x1 plane and the rest nothing."""
+    channels = [VirtualMemoryArray(is_written=0) for _ in range(slots)]
+    for index in written:
+        channels[index] = VirtualMemoryArray(
+            is_written=1,
+            depth=8,
+            rectangle=(0, 0, 1, 1),
+            pixel_depth=8,
+            compression=Compression.RAW,
+            data=b"\xff",
+        )
+    return Pattern(
+        image_mode=color_mode,
+        point=(1, 1),
+        data=VirtualMemoryArrayList(rectangle=(0, 0, 1, 1), channels=channels),
+    )
+
+
+@pytest.mark.parametrize(
+    ("color_mode", "written", "expected"),
+    [
+        # The three layouts Photoshop 2026 ships in Presets/Patterns/*.pat.
+        (ColorMode.RGB, (0, 1, 2), 3),
+        (ColorMode.RGB, (0, 1, 2, 25), 3),
+        (ColorMode.GRAYSCALE, (0,), 1),
+        # The same layouts under multichannel, whose count no constant fixes:
+        # its EXPECTED_CHANNELS entry is the format's 64-channel maximum, so a
+        # mode-keyed split could never fire at all (#741).
+        (ColorMode.MULTICHANNEL, (0, 1, 2), 3),
+        (ColorMode.MULTICHANNEL, (0, 1, 2, 25), 3),
+        (ColorMode.MULTICHANNEL, (0, 25), 1),
+        # Where the mode's constant and the slot layout agree, so the count is
+        # what it always was -- these pin that the rule change moved nothing.
+        (ColorMode.CMYK, (0, 1, 2, 3, 25), 4),
+        # One colour plane and an alpha, under modes whose constant is wider
+        # than that. The mode-keyed rule compared 2 against 3 and split
+        # nothing here too, so multichannel was not the only mode carrying the
+        # bug -- it is just the only one whose constant can never be reached.
+        (ColorMode.RGB, (0, 25), 1),
+        (ColorMode.INDEXED, (0, 25), 1),
+    ],
+)
+def test_get_pattern_color_channels(
+    color_mode: ColorMode, written: tuple, expected: int
+) -> None:
+    """The color count is the written slots in the color region, mode aside.
+
+    ``len(channels) - 2`` slots are color -- 24 as Photoshop writes them,
+    regardless of how many the pattern uses -- and the last of the remaining
+    two carries transparency.
+    """
+    pattern = _slotted_pattern(color_mode, written)
+
+    count = numpy_io.get_pattern_color_channels(pattern)
+
+    assert count == expected
+    # What the callers do with the count: everything past it is taken as the
+    # alpha in one slice, so the split has to leave one trailing plane or none.
+    # A count that stranded a color plane on the far side would pass the
+    # equality above and still hand the canvas a plane of the wrong kind.
+    assert numpy_io.get_pattern(pattern).shape[2] - count in (0, 1)
+
+
+@pytest.mark.parametrize("written", [(25,), (24, 25)])
+def test_get_pattern_color_channels_degrades_without_a_color_slot(
+    written: tuple,
+) -> None:
+    """Nothing in the color slots says nothing about where the boundary is.
+
+    Rather than split at zero and hand back an empty color array, take every
+    written plane as color: a pattern rendered without its alpha is worth more
+    than one that cannot be read at all.
+    """
+    pattern = _slotted_pattern(ColorMode.MULTICHANNEL, written)
+
+    count = numpy_io.get_pattern_color_channels(pattern)
+
+    assert count == len(written)
+    assert count == numpy_io.get_pattern(pattern).shape[2]
 
 
 @pytest.mark.parametrize(
