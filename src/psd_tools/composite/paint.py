@@ -52,18 +52,21 @@ def _clamp01(value: float) -> float:
     writer emitting ``a = 200`` yields 1.29, ``Gry = 150`` yields -0.5 and
     ``Rd   = 300`` yields 1.18.
 
-    Two things then go wrong with a component outside ``[0, 1]``, and the
-    second is the one that shows. ``composite_pil()`` casts with
-    ``(255 * color).astype(np.uint8)``, and numpy *wraps* rather than
-    saturating, so those three land on bytes 72, 129 and 44. That cast is
-    mostly shielded, because ``Compositor`` runs ``utils.clip()`` on its own
-    arrays. But the clip runs *after* the value has been blended, so wherever
+    A component outside ``[0, 1]`` reaches the image by two routes, and only
+    one of them is still open. ``Compositor`` runs ``utils.clip()`` on its own
+    arrays, but the clip runs *after* the value has been blended, so wherever
     the color is composited rather than laid down flat -- an effect, a partial
-    alpha, an anti-aliased vector edge -- it corrupts the arithmetic first and
-    the clip has nothing left to recover. Forging ``Gry = 150`` into
-    ``adjustment-fillers.psd`` puts 194 white pixels along the shape's stroke
-    where the stroke is ``(26, 26, 26)``, and ``H = 0, Strt = 120, Brgh = 150``
-    puts 150 bright cyan ones there (#757).
+    alpha, an anti-aliased vector edge -- the out-of-range component corrupts
+    the arithmetic first and clipping has nothing left to recover. Forging
+    ``Gry = 150`` into ``adjustment-fillers.psd`` puts 194 white pixels along
+    the shape's stroke where the stroke is ``(26, 26, 26)``, and
+    ``H = 0, Strt = 120, Brgh = 150`` puts 150 bright cyan ones there (#757).
+
+    The closed route is the uint8 cast. ``composite_pil()`` used to write
+    ``(255 * color).astype(np.uint8)``, and numpy *wraps* rather than
+    saturating, so those three components would have landed on bytes 72, 129
+    and 44. It clips as of #757, so nothing here depends on that cast to
+    saturate; the two guards are independent on purpose.
 
     Clamping degrades to the end of the axis instead, which is the policy
     :py:func:`psd_tools.color_convert.lab_to_rgb` already follows. Applied
