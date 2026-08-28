@@ -54,21 +54,27 @@ def _styled(effects: Iterator[Any]) -> Iterator[_StyledEffect]:
     return cast(Iterator[_StyledEffect], effects)
 
 
+# How a one-channel canvas becomes a given width. Spelled once because it is
+# threaded through most of this module -- see ``widen.make_widen()``.
+_Widen = Callable[[np.ndarray, int], np.ndarray]
+
 # What each overlay effect draws. Only the pattern needs the compositor's
-# channel count, and only the pattern can decline to draw (returning None), but
-# a uniform signature is what lets the three share one application path -- the
-# shape/alpha arithmetic around them is identical.
-_OverlayDraw = Callable[[Layer, Any, int], tuple[np.ndarray | None, np.ndarray | None]]
+# channel count and its widening, and only the pattern can decline to draw
+# (returning None), but a uniform signature is what lets the three share one
+# application path -- the shape/alpha arithmetic around them is identical.
+_OverlayDraw = Callable[
+    [Layer, Any, int, _Widen], tuple[np.ndarray | None, np.ndarray | None]
+]
 
 
 def _draw_color_overlay(
-    layer: Layer, value: Any, channels: int
+    layer: Layer, value: Any, channels: int, widen: _Widen
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
     return paint.draw_solid_color_fill(layer.bbox, layer._psd.color_mode, value)
 
 
 def _draw_pattern_overlay(
-    layer: Layer, value: Any, channels: int
+    layer: Layer, value: Any, channels: int, widen: _Widen
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
     fill, shape = paint.draw_pattern_fill(layer.bbox, layer._psd, value)
     if fill is None:
@@ -77,16 +83,17 @@ def _draw_pattern_overlay(
     # authority on width, not the layer color the overlay is drawn against: a
     # source is allowed to be single-channel inside a multi-channel document,
     # and comparing the pattern against *that* rejected patterns which in fact
-    # matched the canvas exactly.
-    # A pattern carries its own color mode, so a grayscale pattern reaches a
-    # CMYK document as a grey and has to be converted, not replicated (#722).
-    color = make_widen(layer._psd)(fill, channels)
+    # matched the canvas exactly. And a pattern carries its own color mode, so
+    # a grayscale one reaches a CMYK document as a grey that has to be
+    # converted rather than replicated -- hence the compositor's own widening
+    # rather than a fresh one built here (#722).
+    color = widen(fill, channels)
     assert color.shape[-1] == channels, "Inconsistent pattern channels."
     return color, shape
 
 
 def _draw_gradient_overlay(
-    layer: Layer, value: Any, channels: int
+    layer: Layer, value: Any, channels: int, widen: _Widen
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
     return paint.draw_gradient_fill(layer.bbox, layer._psd.color_mode, value)
 
@@ -540,7 +547,7 @@ def _to_canvas(
     shape: tuple[int, int, int],
     name: str,
     exact_channels: bool = False,
-    widen: Callable[[np.ndarray, int], np.ndarray] = _widen,
+    widen: _Widen = _widen,
 ) -> np.ndarray:
     """Expand a backdrop component to a full ``(height, width, channels)`` array.
 
@@ -591,7 +598,7 @@ def _normalize_backdrop(
     height: int,
     width: int,
     channels: int | None,
-    widen: Callable[[np.ndarray, int], np.ndarray] = _widen,
+    widen: _Widen = _widen,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Resolve a backdrop given in any accepted spelling to a pair of arrays.
 
@@ -701,7 +708,7 @@ class Compositor(object):
         adjustment_isolated: bool = False,
         document_backdrop: Callable[[], tuple[np.ndarray, np.ndarray] | None]
         | None = None,
-        widen: Callable[[np.ndarray, int], np.ndarray] = _widen,
+        widen: _Widen = _widen,
     ):
         self._viewport = viewport
         self._layer_filter = layer_filter
@@ -1316,7 +1323,7 @@ class Compositor(object):
         """
         draw = _OVERLAY_DRAWS[effect_name]
         for effect in _styled(layer.effects.find(effect_name)):
-            fill, shape_e = draw(layer, effect.value, self.channels)
+            fill, shape_e = draw(layer, effect.value, self.channels, self._widen)
             if fill is None:
                 logger.debug("Skipping undrawable %s effect in %s", effect_name, layer)
                 continue

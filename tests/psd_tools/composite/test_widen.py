@@ -19,6 +19,8 @@ press profile is shipped and the hook skipped for it, in a repository whose
 CMYK fixtures already run to 2.3 MB.
 """
 
+import sys
+
 import numpy as np
 import pytest
 from PIL import Image
@@ -26,7 +28,13 @@ from PIL import Image
 from psd_tools.api.pil_io import post_process
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite
-from psd_tools.composite.composite import Compositor, _widen
+from psd_tools.composite.composite import (
+    _OVERLAY_DRAWS,
+    Compositor,
+    _draw_pattern_overlay,
+    _widen,
+)
+from psd_tools.composite import widen as widen_module
 from psd_tools.composite.widen import make_widen
 from psd_tools.constants import ColorMode, Resource
 
@@ -217,4 +225,53 @@ def test_every_sub_compositor_inherits_the_conversion(monkeypatch) -> None:
     assert not any(seen), "%d of %d compositors fell back to the mode-blind _widen" % (
         sum(seen),
         len(seen),
+    )
+
+
+def test_pattern_overlay_reuses_the_threaded_conversion(monkeypatch) -> None:
+    """The overlay must take the compositor's widening, not build its own.
+
+    It did build its own, which was correct but wasteful: ``make_widen()``
+    digests the document's ICC profile, ~180 us for a press profile, so a fresh
+    closure per overlay effect paid that again each time. It also meant one path
+    resolved the conversion outside the tree the rest of this change threads it
+    through, which is the kind of divergence that goes stale.
+
+    Counting ``make_widen`` calls rather than inspecting the argument the draw
+    function receives: it receives the threaded callable either way, so a spy on
+    the parameter cannot tell whether the body used it or quietly built its own.
+    What is observable is how many times the document gets resolved -- once per
+    ``composite()``, however many overlays are drawn.
+    """
+    drawn: list[int] = []
+
+    def counting_draw(layer, value, channels, widen):
+        drawn.append(1)
+        return _draw_pattern_overlay(layer, value, channels, widen)
+
+    monkeypatch.setitem(_OVERLAY_DRAWS, "patternoverlay", counting_draw)
+
+    resolved: list[int] = []
+    original = widen_module.make_widen
+
+    def counting_make_widen(psd):
+        resolved.append(1)
+        return original(psd)
+
+    # sys.modules, not the dotted string: psd_tools.composite re-exports the
+    # composite() *function* under the module's own name, so attribute lookup
+    # on the dotted path lands on the function instead of the module.
+    monkeypatch.setattr(
+        sys.modules["psd_tools.composite.composite"],
+        "make_widen",
+        counting_make_widen,
+    )
+
+    psd = PSDImage.open(full_name("layer_effects.psd"))
+    composite(psd, force=True)
+
+    assert drawn, "no pattern overlay was drawn"
+    assert len(resolved) == 1, (
+        "the document was resolved %d times for %d pattern overlays; it should "
+        "be resolved once per composite() and threaded" % (len(resolved), len(drawn))
     )
