@@ -106,7 +106,7 @@ from PIL import Image, ImageChops
 
 import psd_tools.psd.engine_data as engine_data
 from psd_tools.api import numpy_io, pil_io
-from psd_tools.color_convert import rgb_to_grayscale
+from psd_tools.color_convert import LAB_NEUTRAL_CHROMA, rgb_to_grayscale
 from psd_tools.api.effects import Effects
 from psd_tools.api.mask import Mask
 from psd_tools.api.protocols import GroupMixinProtocol, LayerProtocol, PSDProtocol
@@ -1690,8 +1690,13 @@ class Artboard(Group):
             ):
                 return (1.0 if white else 0.0), 1.0
             elif color_mode == ColorMode.LAB:
-                # LAB: L in [0,1]; a and b channels are neutral at 0.5
-                return (1.0 if white else 0.0, 0.5, 0.5), 1.0
+                # LAB: L in [0,1]; a and b are offset-encoded, so neutral is
+                # 128/255 rather than 0.5 -- 0.5 truncates to byte 127 on the
+                # way out where Photoshop writes 128 (#743).
+                return (
+                    (1.0 if white else 0.0, LAB_NEUTRAL_CHROMA, LAB_NEUTRAL_CHROMA),
+                    1.0,
+                )
             elif color_mode == ColorMode.CMYK:
                 # CMYK arrays store what is left rather than what is laid down,
                 # so 1.0 is no ink: white is (1,1,1,1) and black is full key,

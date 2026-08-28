@@ -990,3 +990,37 @@ def test_artboard_background_is_canvas_space_on_a_cmyk_document(
     )
     rendered = post_process(image, None, None).convert("RGB").getpixel((0, 0))
     assert rendered == ((255, 255, 255) if bg_type == 2 else (0, 0, 0))
+
+
+@pytest.mark.parametrize("bg_type", [2, 3])
+def test_artboard_background_chroma_is_offset_encoded_on_a_lab_document(
+    bg_type: int,
+) -> None:
+    """A neutral Lab a/b is 128/255, not 0.5 (#743).
+
+    The two are half a code value apart, which would be beneath notice if the
+    exit rounded -- but ``composite_pil()`` casts with
+    ``(255 * color).astype(np.uint8)``, which truncates, so 0.5 lands on byte
+    127 where Photoshop writes 128 for every neutral. Asserting the tuple alone
+    would not separate them at any sane tolerance, so the byte is asserted too.
+
+    Forged the same way as the CMYK case above, and for the same reason: no
+    shipped fixture is a Lab document with a white or black artboard.
+    """
+    psd = PSDImage.open(full_name("artboard-bgcolor.psd"))
+    artboard = psd[0]
+    assert isinstance(artboard, Artboard)
+
+    for key in (Tag.ARTBOARD_DATA1, Tag.ARTBOARD_DATA2, Tag.ARTBOARD_DATA3):
+        if key in artboard.tagged_blocks:
+            artboard.tagged_blocks.get_data(key)[b"artboardBackgroundType"] = Integer(
+                bg_type
+            )
+    psd._record.header.color_mode = ColorMode.LAB
+    assert psd.color_mode == ColorMode.LAB
+
+    color, alpha = artboard._artboard_background_defaults()
+    assert alpha == 1.0
+    assert color == (1.0 if bg_type == 2 else 0.0, 128 / 255, 128 / 255)
+    chroma = (255 * np.array(color, dtype=np.float32)).astype(np.uint8)
+    assert chroma[1] == 128

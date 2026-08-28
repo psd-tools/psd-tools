@@ -16,15 +16,19 @@ import numpy as np
 import pytest
 from PIL import Image
 
+from psd_tools import PSDImage
 from psd_tools.api.pil_io import post_process
 from psd_tools.api.utils import EXPECTED_CHANNELS
+from psd_tools.composite import composite
 from psd_tools.composite.paint import (
     _get_color,
     draw_solid_color_fill,
 )
-from psd_tools.constants import ColorMode
+from psd_tools.constants import ColorMode, Tag
 from psd_tools.psd.descriptor import Descriptor, Double
 from psd_tools.terminology import Key, Klass
+
+from ..utils import full_name
 
 
 def _color_desc(class_id: bytes, fields: dict) -> Descriptor:
@@ -121,11 +125,13 @@ def test_hsb_no_longer_raises_outside_rgb_and_cmyk() -> None:
     [
         # These are the pairs that already reached the compositor, pinned so the
         # reduction added in #730 cannot quietly move them. Values are the
-        # pre-#730 outputs.
+        # pre-#730 outputs, with one deliberate exception: the Lab row moved in
+        # #743, which is what that issue is. Its pre-#730 value was
+        # (50/255, 10/255, 20/255) -- a divisor that suited none of the three.
         (ColorMode.RGB, RGB_DESC, (128 / 255, 64 / 255, 32 / 255)),
         (ColorMode.GRAYSCALE, RGB_DESC, None),  # single channel, value below
         (ColorMode.CMYK, CMYK_DESC, (0.9, 0.8, 0.7, 0.6)),
-        (ColorMode.LAB, LAB_DESC, (50 / 255, 10 / 255, 20 / 255)),
+        (ColorMode.LAB, LAB_DESC, (50 / 100, (10 + 128) / 255, (20 + 128) / 255)),
         (ColorMode.INDEXED, RGB_DESC, (128 / 255, 64 / 255, 32 / 255)),
         (ColorMode.GRAYSCALE, GRAY_DESC, (0.6,)),
         (ColorMode.BITMAP, GRAY_DESC, (0.6,)),
@@ -134,7 +140,12 @@ def test_hsb_no_longer_raises_outside_rgb_and_cmyk() -> None:
 def test_previously_working_pairs_are_unchanged(
     color_mode: ColorMode, desc: Descriptor, expected: tuple[float, ...] | None
 ) -> None:
-    """No pair that rendered before #730 changed value."""
+    """No pair that rendered before #730 changed value, bar the Lab one.
+
+    Lab is the exception on purpose: #743 is the finding that its value was
+    wrong all along, so pinning the old number here would pin the bug. Every
+    other row is unmoved.
+    """
     result = _get_color(color_mode, desc)
     if expected is None:
         assert len(result) == 1
@@ -283,3 +294,137 @@ def test_cmyk_fill_lightness_survives_the_round_trip() -> None:
         seen.append(pixel[0])
     assert seen[0] == 255 and seen[2] == 0
     assert seen[0] > seen[1] > seen[2]
+
+
+# ---------------------------------------------------------------------------
+# Lab normalization (#743)
+#
+# The fixture is a LAB document authored in Photoshop 2026, one solid-colour
+# fill layer per band, each carrying an ``LbCl`` descriptor at a known L/a/b and
+# masked to its own 16x16 square. Its merged preview is therefore Photoshop's
+# own answer to "what bytes does this descriptor mean", for fourteen colours
+# that span both ends of each chroma axis.
+# ---------------------------------------------------------------------------
+
+
+def _lab_swatches(
+    psd: PSDImage,
+) -> list[tuple[tuple[float, float, float], tuple[int, int, int, int]]]:
+    """Each band's ``LbCl`` descriptor paired with the bounds it covers."""
+    swatches = []
+    for layer in psd.descendants():
+        desc = layer.tagged_blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING, None)
+        if desc is None:
+            continue  # the white Background pixel layer
+        color = desc[Key.Color]
+        lab = (
+            float(color[Key.Luminance]),
+            float(color[Key.A]),
+            float(color[Key.B]),
+        )
+        swatches.append((lab, layer.bbox))
+    assert len(swatches) == 14
+    return swatches
+
+
+def test_lab_descriptor_matches_photoshops_own_bytes() -> None:
+    """``_get_color`` reproduces the plane Photoshop wrote for the descriptor.
+
+    Dividing L, a and b all by 255 was a correct normalization of none of them:
+    L runs 0..100, and a/b are signed and stored offset by 128, so a neutral
+    ``a = 0`` was landing on byte 0 -- the extreme end of the axis -- rather
+    than on 128. Measured against this fixture the old reading was out by up to
+    155/255; the mapping below reproduces every one of the fourteen swatches to
+    within 1/255.
+
+    That residue is Photoshop's, not ours: its own slope is 254/255, putting
+    ``a = 127`` on byte 254 where the offset encoding PIL mode "LAB" documents
+    puts it on 255. Copying that would buy under half a code value here and
+    cost the same against any ImageCms decode, so the tolerance carries it
+    instead.
+    """
+    psd = PSDImage.open(full_name("descriptors/lab-color-swatches.psd"))
+    assert psd.color_mode == ColorMode.LAB
+    # Untagged -- the document carries ICC_UNTAGGED_PROFILE and no ICC_PROFILE --
+    # so the preview is Photoshop's raw Lab planes, with no colour management
+    # standing between the descriptor and the bytes compared here.
+    preview = psd.numpy()
+    for lab, bbox in _lab_swatches(psd):
+        photoshop = preview[8, (bbox[0] + bbox[2]) // 2] * 255.0
+        ours = (
+            np.array(
+                _get_color(
+                    ColorMode.LAB,
+                    _color_desc(
+                        Klass.LabColor.value,
+                        {Key.Luminance: lab[0], Key.A: lab[1], Key.B: lab[2]},
+                    ),
+                )
+            )
+            * 255.0
+        )
+        assert np.abs(photoshop - ours).max() <= 1.0 + 1e-6, (lab, photoshop, ours)
+
+
+def test_lab_fills_composite_to_photoshops_preview() -> None:
+    """End to end, through the fills the descriptors drive.
+
+    The unit assertion above pins the tuple; this pins what actually gets
+    painted, so a correct conversion that never reaches the canvas cannot pass.
+    Reverting the normalization takes the worst pixel from 1/255 to 155/255.
+    """
+    psd = PSDImage.open(full_name("descriptors/lab-color-swatches.psd"))
+    reference = psd.numpy()
+    rendered = composite(psd, force=True)[0]
+    assert rendered.shape == reference.shape
+    assert np.abs(reference - rendered).max() * 255.0 <= 2.0
+
+
+@pytest.mark.parametrize(
+    ("field", "value"), [(Key.Luminance, 140.0), (Key.A, 200.0), (Key.B, -200.0)]
+)
+def test_lab_out_of_range_clamps_rather_than_wrapping(field: Key, value: float) -> None:
+    """A Lab target must not turn an out-of-range component into another colour.
+
+    Lab's range is a convention rather than something the descriptor enforces,
+    and it is the only colour class whose normalization can leave [0, 1]:
+    ``a = 200`` gives 1.29. ``composite_pil()`` casts with
+    ``(255 * color).astype(np.uint8)``, and numpy *wraps* out-of-range floats
+    rather than saturating, so 1.29 arrives as byte 71 -- not a clipped chroma
+    but a different colour entirely. The pre-#743 ``/255`` reading could not
+    reach this on a Lab document, so the clamp arrives with the normalization
+    that can.
+    """
+    axes = [Key.Luminance, Key.A, Key.B]
+    fields: dict[Key, float] = {Key.Luminance: 50.0, Key.A: 0.0, Key.B: 0.0}
+    fields[field] = value
+    result = _get_color(ColorMode.LAB, _color_desc(Klass.LabColor.value, fields))
+    assert all(0.0 <= c <= 1.0 for c in result), result
+    assert result[axes.index(field)] == (1.0 if value > 0 else 0.0)
+    pixels = (255 * np.array(result, dtype=np.float32)).astype(np.uint8)
+    assert pixels[axes.index(field)] == (255 if value > 0 else 0)
+
+
+@pytest.mark.parametrize("color_mode", [ColorMode.RGB, ColorMode.INDEXED])
+@pytest.mark.parametrize("lab", [(50.0, -128.0, -100.0), (25.0, -40.0, 15.0)])
+def test_lab_negative_chroma_clamps_on_an_rgb_target(
+    color_mode: ColorMode, lab: tuple[float, float, float]
+) -> None:
+    """Here the wrapping input is in range, not out of it.
+
+    RGB and INDEXED still take the ``/255`` reading pending the second half of
+    #743, and that divides *signed* chroma as if it were unsigned. Every
+    negative ``a`` or ``b`` -- so every green and every blue -- came out
+    negative and wrapped on the cast: Lab(25, -40, 15), an ordinary green, put
+    ``a`` on byte 216, near the top of its axis rather than below the middle.
+    The reading stays wrong until it is replaced; it should not also wrap.
+    """
+    desc = _color_desc(
+        Klass.LabColor.value,
+        {Key.Luminance: lab[0], Key.A: lab[1], Key.B: lab[2]},
+    )
+    result = _get_color(color_mode, desc)
+    assert all(0.0 <= c <= 1.0 for c in result), result
+    assert result[1] == 0.0  # negative a, clamped to the end of the axis
+    pixels = (255 * np.array(result, dtype=np.float32)).astype(np.uint8)
+    assert pixels[1] == 0

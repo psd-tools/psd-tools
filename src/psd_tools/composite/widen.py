@@ -36,6 +36,7 @@ from typing import TYPE_CHECKING, Callable
 
 import numpy as np
 
+from psd_tools.color_convert import LAB_NEUTRAL_CHROMA
 from psd_tools.constants import ColorMode, Resource
 
 if TYPE_CHECKING:
@@ -140,17 +141,18 @@ def _naive_cmyk(color: np.ndarray) -> np.ndarray:
 def _lab(color: np.ndarray) -> np.ndarray:
     """A grey is on Lab's neutral axis: a and b are neutral, L carries it.
 
-    ``a``/``b`` are offset-encoded with 0.5 as neutral, per
-    ``Layer._artboard_background_defaults()`` and #743. Photoshop agrees that a
-    grey is neutral -- it reports ``a = b = 0`` for every grey.
+    ``a``/``b`` are offset-encoded, so neutral is ``128 / 255`` and not the
+    0.5 written here originally -- 0.5 truncates to byte 127 on the way out
+    where Photoshop writes 128 (#743). Photoshop agrees that a grey is neutral:
+    it reports ``a = b = 0`` for every grey.
 
     ``L`` is passed through as the grey itself rather than as its L*, matching
     the artboard defaults beside it. Lab has no exit ICC transform to anchor a
     transfer function against, so converting here would bake an sRGB gamma
     assumption into a mode the compositor already lists as unsupported.
     """
-    half = np.full_like(color, 0.5)
-    return np.concatenate((color, half, half), axis=2)
+    neutral = np.full_like(color, LAB_NEUTRAL_CHROMA)
+    return np.concatenate((color, neutral, neutral), axis=2)
 
 
 def make_widen(psd: "PSDProtocol | None") -> Callable[[np.ndarray, int], np.ndarray]:

@@ -11,6 +11,16 @@ References:
     - Adobe Photoshop Color Model documentation for the CMYK ↔ RGB formulas.
 """
 
+#: The normalized value of a neutral ``a``/``b`` axis in a Lab color array.
+#:
+#: Lab's two chroma axes are signed and are stored offset by 128 -- byte 128 is
+#: ``a = 0``, byte 0 is ``a = -128`` -- so a normalized neutral is ``128 / 255``
+#: rather than the ``0.5`` this used to be spelled as. The half-step between
+#: them is not cosmetic: :py:func:`psd_tools.composite.composite_pil` truncates
+#: rather than rounds on the way out, so ``0.5`` emits byte 127 where Photoshop
+#: writes 128 (#743).
+LAB_NEUTRAL_CHROMA = 128.0 / 255.0
+
 
 def rgb_to_grayscale(r: float, g: float, b: float) -> float:
     """Convert normalized RGB to grayscale luminance (ITU-R BT.601).

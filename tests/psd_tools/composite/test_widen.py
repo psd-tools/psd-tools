@@ -123,15 +123,19 @@ def test_cmyk_widening_falls_back_without_a_profile(filename: str) -> None:
 
 
 def test_lab_widening_is_neutral() -> None:
-    """A grey sits on Lab's neutral axis; a and b are offset-encoded at 0.5.
+    """A grey sits on Lab's neutral axis; a and b are offset-encoded.
 
     Replicating the lightness put a and b at the extreme end of their axes.
-    Photoshop reports ``a = b = 0`` for every grey, and psd-tools stores neutral
-    a/b as 0.5 (#743, and ``_artboard_background_defaults()``).
+    Photoshop reports ``a = b = 0`` for every grey, which the arrays store
+    offset by 128 -- so neutral is ``128 / 255``, not the 0.5 this said before
+    #743. The half-step matters because ``composite_pil()`` truncates: 0.5
+    leaves byte 127 where Photoshop writes 128.
     """
     psd = PSDImage.open(full_name("colormodes/4x4_8bit_lab.psd"))
     assert psd.color_mode == ColorMode.LAB
-    assert np.allclose(make_widen(psd)(_grey(0.75), 3)[0, 0], (0.75, 0.5, 0.5))
+    widened = make_widen(psd)(_grey(0.75), 3)[0, 0]
+    assert np.allclose(widened, (0.75, 128 / 255, 128 / 255))
+    assert np.uint8(255 * widened[1]) == 128
 
 
 @pytest.mark.parametrize(
