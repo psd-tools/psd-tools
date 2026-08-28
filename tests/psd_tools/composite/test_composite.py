@@ -1159,6 +1159,38 @@ def test_composite_pattern_overlay_targets_the_canvas_width() -> None:
     assert compositor.finish()[0].shape == (psd.height, psd.width, 3)
 
 
+@pytest.mark.parametrize("render", ["layer", "document"])
+def test_composite_multichannel_pattern_fill_renders_its_inks(render: str) -> None:
+    """A multichannel pattern reaches the canvas without its alpha in the color.
+
+    Its ``EXPECTED_CHANNELS`` entry is 64, the format's maximum rather than any
+    pattern's count, so the alpha was never split off and the four-plane array
+    was rejected as inconsistent with the three-channel canvas -- as
+    ``AssertionError: source has 4 channels, expected 1 or 3`` here, and as
+    ``Inconsistent pattern channels.`` on the overlay path (#741).
+
+    The fixture's pattern carries three flat inks and an alpha slot that is
+    opaque over the top half of each 8x8 tile, so both what is painted and
+    where it is painted are checked rather than just the array's width.
+
+    It is ``layers-minimal/pattern-fill.psd`` with its Patterns block swapped
+    for that multichannel pattern -- Photoshop defines a pattern in multichannel
+    mode but offers no scriptable way to apply one, so the document around it is
+    Photoshop's and the pattern is laid out the way Photoshop lays out its own:
+    colour in the leading slots, transparency in the last of the 26, as all 65
+    patterns Photoshop 2026 ships in ``Presets/Patterns/*.pat`` are.
+    """
+    psd = PSDImage.open(full_name("multichannel-pattern-fill.psd"))
+    image = psd[0].composite() if render == "layer" else psd.composite()
+    pixels = np.asarray(image)
+
+    assert pixels.shape == (psd.height, psd.width, 4)
+    assert tuple(pixels[0, 0]) == (0x20, 0x80, 0xC0, 0xFF)
+    assert tuple(pixels[3, 17]) == (0x20, 0x80, 0xC0, 0xFF)
+    assert pixels[4, 0, 3] == 0
+    assert pixels[12, 17, 3] == 0
+
+
 @pytest.mark.parametrize("channels", [1, 4])
 @pytest.mark.skipif(
     not __debug__, reason="the consistency check is an assert, stripped under -O"

@@ -207,6 +207,47 @@ def get_pattern(pattern: Pattern) -> np.ndarray:
     ).reshape((height, width, -1))
 
 
+def get_pattern_color_channels(pattern: Pattern) -> int:
+    """Number of leading planes in :py:func:`get_pattern`'s array that are color.
+
+    A pattern's channel list is a fixed set of slots rather than a list of the
+    channels it uses: ``len(channels) - 2`` color slots -- 24 as Photoshop
+    writes them, whatever the pattern's mode -- and then two more, the last of
+    which holds transparency. So the count is the number of written slots in
+    the color region, contiguous or not; :py:func:`get_pattern` skips the
+    unwritten ones and stacks the rest in slot order, which puts those planes
+    at the front of its array and any alpha at the back.
+
+    Reading the boundary off the slot layout is what makes it answerable at
+    all. The alternative -- :py:data:`~psd_tools.api.utils.EXPECTED_CHANNELS`
+    keyed on the pattern's color mode -- states the width a *document* in that
+    mode carries, which is only incidentally the width this pattern stored.
+    Multichannel is the mode that can never agree, its entry being 64, the
+    format's maximum rather than any pattern's count; but any pattern storing
+    fewer color planes than its mode's constant missed the split the same way,
+    and the combined array was then rejected downstream as inconsistent with
+    the canvas (#741).
+
+    Measured over the 65 patterns Photoshop 2026 ships in
+    ``Presets/Patterns/*.pat``: RGB writes slots ``(0, 1, 2)``, RGB with
+    transparency ``(0, 1, 2, 25)``, grayscale ``(0,)``.
+
+    That measurement is what the rule rests on, and it is the whole of what it
+    rests on: a pattern that wrote its alpha into a color slot instead of a
+    trailing one would be read as all color, which is the failure this fixes,
+    facing the other way. Nothing in the corpus or in Photoshop's own presets
+    is laid out that way, and for multichannel there is no constant to fall
+    back on regardless.
+    """
+    channels = pattern.data.channels
+    color_slots = max(len(channels) - 2, 0)
+    count = sum(1 for c in channels[:color_slots] if c.is_written)
+    # A file that writes nothing into the color slots says nothing about where
+    # its boundary is, so take every written plane as color and split nothing:
+    # a pattern rendered without its alpha beats one that cannot be read.
+    return count or sum(1 for c in channels if c.is_written)
+
+
 def _parse_array(
     data: bytes | bytearray,
     depth: Literal[1, 8, 16, 32],

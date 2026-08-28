@@ -1,5 +1,6 @@
 import logging
 
+import numpy as np
 import pytest
 
 from psd_tools import PSDImage
@@ -78,6 +79,34 @@ def test_draw_pattern_fill(filename: str) -> None:
     desc[b"Scl "] = Double(50.0)
     desc[b"Opct"] = Double(67.0)
     draw_pattern_fill(psd.viewbox, psd, desc)
+
+
+def test_draw_pattern_fill_splits_a_multichannel_alpha() -> None:
+    """Which plane is alpha comes from the pattern's slots, not from its mode.
+
+    The split used to be keyed on ``EXPECTED_CHANNELS[pattern.image_mode]``,
+    which is 64 for multichannel -- the format's maximum rather than any
+    pattern's count. ``shape[2] > 64`` is never true, so the alpha stayed in
+    the color array and the four-plane result was rejected downstream as
+    inconsistent with the three-channel canvas (#741).
+
+    Both callers of this function -- the fill layer and the pattern overlay --
+    fail on the same array, which is why the pin sits here rather than at
+    either of them.
+    """
+    psd = PSDImage.open(full_name("multichannel-pattern-fill.psd"))
+    desc = psd[0].tagged_blocks.get_data(Tag.PATTERN_FILL_SETTING)
+
+    color, shape = draw_pattern_fill(psd.viewbox, psd, desc)
+
+    assert color is not None and shape is not None
+    assert color.shape == (psd.height, psd.width, 3)
+    assert shape.shape == (psd.height, psd.width, 1)
+    # The three inks are the leading slots, in slot order.
+    assert np.allclose(color[0, 0], [0x20 / 255.0, 0x80 / 255.0, 0xC0 / 255.0])
+    # The alpha is the last slot: opaque over the top half of each 8x8 tile.
+    assert shape[0, 0, 0] == 1.0
+    assert shape[4, 0, 0] == 0.0
 
 
 def test_draw_gradient_fill() -> None:

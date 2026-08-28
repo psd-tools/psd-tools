@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Any, Callable, Sequence, TypeVar
 import numpy as np
 
 from psd_tools.api import numpy_io
-from psd_tools.api.utils import EXPECTED_CHANNELS
 from psd_tools.color_convert import (
     cmyk_to_rgb,
     gray_to_cmyk,
@@ -397,15 +396,16 @@ def draw_pattern_fill(
         int(np.ceil(float(width) / panel.shape[1])),
         1,
     )
-    # Keyed on the *pattern's* mode, not the document's, so this is the one
-    # place a document-derived count would be wrong. It is still broken for a
-    # multichannel-mode pattern, whose entry is 64 and so never splits the
-    # alpha: the real colour count is not recoverable from the parsed pattern
-    # (the stored channel count is a fixed 24 slots), so that needs a sample
-    # rather than a table fix. See #741.
-    channels = EXPECTED_CHANNELS.get(pattern.image_mode)
+    # Taken from the pattern's own slot layout rather than from its color mode.
+    # A mode-keyed count is only ever right by coincidence -- when the mode's
+    # constant happens to equal the width this pattern stored -- and
+    # multichannel's is 64, the format's maximum, which no pattern can equal.
+    # ``shape[2] > channels`` was therefore never true there, the alpha was
+    # never split off, and the array reached the canvas one plane too wide and
+    # was rejected as inconsistent with it (#741).
+    channels = numpy_io.get_pattern_color_channels(pattern)
     pixels = np.tile(panel, reps)[:height, :width, :]
-    if channels is not None and pixels.shape[2] > channels:
+    if pixels.shape[2] > channels:
         return pixels[:, :, :channels], pixels[:, :, -1:]
     return pixels, None
 

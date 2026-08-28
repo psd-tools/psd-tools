@@ -4,6 +4,26 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
+- [fix] Split a pattern's alpha off by its slot layout rather than by its
+  colour mode, so a multichannel-mode pattern composites instead of raising
+  (#741). The split was keyed on ``EXPECTED_CHANNELS``, whose multichannel
+  entry is 64 -- the format's maximum number of channels, not any pattern's own
+  count. ``shape[2] > 64`` is never true, so the alpha stayed in the colour
+  array and the too-wide result was rejected downstream: ``AssertionError:
+  source has 4 channels, expected 1 or 3`` on a pattern fill layer, and
+  ``AssertionError: Inconsistent pattern channels.`` on a pattern overlay
+  effect. A pattern reserves ``len(channels) - 2`` colour slots and writes its
+  transparency into the last of the remaining two, which is the pattern's own
+  statement of where its boundary lies rather than a mode's.
+
+  Multichannel is the mode that can never reach its constant, but it is not the
+  only one that missed the split: the mode's count is the document's, not the
+  pattern's, so a pattern storing fewer colour planes than its mode's
+  constant -- an indexed or RGB one carrying a single colour plane and an
+  alpha -- kept its alpha in the colour array as well. Rendering is byte-for-byte
+  unchanged for every pattern layout in the test corpus and in the patterns
+  Photoshop ships.
+
 - [fix] Convert a CMYK fill descriptor through ink space, so it no longer
   renders black on every non-CMYK document (#763, #765). ``_get_cmyk()`` read the
   descriptor into the compositor's canvas convention, where 1.0 is *no* ink,
