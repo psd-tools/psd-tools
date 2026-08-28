@@ -114,14 +114,28 @@ def test_gradient_styles(filename: str) -> None:
                 assert _mse(reference, result) <= 0.2
 
 
+# The threshold is per fixture rather than shared. A single loose one hid #743:
+# the Lab file passed at 0.05 while sitting at 0.033, an error big enough that
+# a near-neutral mid-tone was rendering as a dark saturated colour. Correcting
+# the normalization takes it to 0.0013, and 0.01 catches that regression with
+# 3x to spare.
+#
+# Not tighter, because what is left is not a rounding floor: 98% of the residual
+# MSE comes from the ~12% of pixels along the stroke edges, which is
+# rasterization geometry and moves with the aggdraw and Pillow versions CI
+# happens to resolve. The tight bound on this normalization lives in
+# test_paint.py instead, on a fixture of solid fills with no edges to raster --
+# there it is 2/255 on the worst pixel.
+#
+# The other three fixtures are untouched by that change and keep the old bound.
 @pytest.mark.parametrize(
-    ("filename",),
+    ("filename", "threshold"),
     [
-        ("descriptors/stroke-color-descriptors-rgb.psd",),
-        ("descriptors/stroke-color-descriptors-gray.psd",),
-        ("descriptors/stroke-color-descriptors-lab.psd",),
-        ("descriptors/stroke-color-descriptors-hsb-with-rgb-mode.psd",),
+        ("descriptors/stroke-color-descriptors-rgb.psd", 0.05),
+        ("descriptors/stroke-color-descriptors-gray.psd", 0.05),
+        ("descriptors/stroke-color-descriptors-lab.psd", 0.01),
+        ("descriptors/stroke-color-descriptors-hsb-with-rgb-mode.psd", 0.05),
     ],
 )
-def test_stroke_color(filename: str) -> None:
-    check_composite_quality(filename, 0.05, force=True)
+def test_stroke_color(filename: str, threshold: float) -> None:
+    check_composite_quality(filename, threshold, force=True)

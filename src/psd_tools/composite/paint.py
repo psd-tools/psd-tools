@@ -42,6 +42,28 @@ _SINGLE_CHANNEL_MODES = (
 )
 
 
+def _clamp01(value: float) -> float:
+    """Hold *value* inside the range a color array is allowed to carry.
+
+    Only the Lab readings need this. Lab is the one color class whose stored
+    range is signed, so it is the one whose normalization can leave [0, 1] --
+    and :py:func:`psd_tools.composite.composite_pil` casts with
+    ``(255 * color).astype(np.uint8)``, which *wraps* rather than saturates. A
+    component of 1.29 lands on byte 71 and one of -0.16 on byte 216: not a
+    clipped chroma but a colour unrelated to the one asked for. Clamping
+    degrades to the end of the axis instead.
+
+    Both branches of ``_get_lab()`` need it, for opposite reasons. The Lab
+    target only leaves the range for input outside Photoshop's own -128..127,
+    which takes a third-party writer. The RGB and INDEXED targets leave it for
+    input squarely *inside* that range: they still divide signed chroma by 255,
+    so every negative ``a`` or ``b`` -- every green, every blue -- wraps. That
+    reading is wrong for more than its sign and is replaced wholesale by the
+    second half of #743; until then it should at least not wrap.
+    """
+    return min(1.0, max(0.0, value))
+
+
 def _ink_to_canvas(ink: tuple[float, ...]) -> tuple[float, ...]:
     """Invert an ink-space CMYK tuple into the compositor's canvas convention.
 
@@ -148,20 +170,38 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
         return _from_rgb(color_mode, cmyk_to_rgb(c, m, y, k))
 
     def _get_lab(color_mode: ColorMode, x: Descriptor) -> tuple[float, ...]:
-        # Dividing L/a/b by 255 is not a correct normalization of any of the
-        # three -- L is 0..100 and a/b are signed, and neutral a/b is 0.5 in
-        # the arrays, not 0. That is a value bug independent of this one (#743),
-        # so it is left exactly as it stands for the three modes below, which
-        # are the ones that already reached the compositor.
-        lab = _get_int_color(x, (Key.Luminance, Key.A, Key.B))
-        if color_mode in (ColorMode.LAB, ColorMode.RGB, ColorMode.INDEXED):
+        if color_mode == ColorMode.LAB:
+            # 255 was the right divisor for none of the three (#743). L runs
+            # 0..100 and a/b are signed, which is why psd/color.py reads Lab as
+            # "4h" where every other space is "4H".
+            #
+            # These arrays leave through PIL mode "LAB", whose bytes are
+            # L * 255/100 with the two chroma axes offset by 128 -- byte 128 is
+            # a = 0, byte 0 is a = -128, at slope exactly 1. So this is not a
+            # conversion at all, only a relabelling into the destination's own
+            # encoding, and Photoshop's merged preview of a Lab fill agrees with
+            # it to within 1/255 across the full a/b range including both ends.
+            # (Photoshop's own slope is 254/255: it puts a = 127 on byte 254.
+            # Copying that would gain under half a code value against the
+            # preview and lose the same against any ImageCms decode.)
+            return (
+                _clamp01(float(x[Key.Luminance]) / 100.0),
+                _clamp01((float(x[Key.A]) + 128.0) / 255.0),
+                _clamp01((float(x[Key.B]) + 128.0) / 255.0),
+            )
+        # Every other target still takes the /255 reading: RGB and INDEXED get
+        # the triple, and the modes that would otherwise be the wrong width
+        # reduce from L alone. Neither is a conversion. The reduction drops a/b
+        # rather than carrying them, so two colours differing only in chroma
+        # collapse to one value; the triple keeps them but reads signed chroma
+        # as if it were unsigned. Routing both through a real Lab -> RGB and on
+        # through _from_rgb() is the second half of #743, and it moves rendered
+        # output for RGB and INDEXED documents, so it is left to its own change.
+        lab = tuple(
+            _clamp01(v) for v in _get_int_color(x, (Key.Luminance, Key.A, Key.B))
+        )
+        if color_mode in (ColorMode.RGB, ColorMode.INDEXED):
             return lab
-        # The remaining modes could not be reached at all before, so there is
-        # no established behavior to preserve -- only a width to choose. This
-        # deliberately does not go through _from_rgb(): only L carries
-        # lightness, and feeding signed a/b in as if they were G and B yields
-        # components that are arbitrary and can be negative. Reducing from L
-        # alone keeps them in range and monotonic in lightness.
         lightness = lab[0]
         if color_mode == ColorMode.CMYK:
             return _ink_to_canvas(gray_to_cmyk(lightness))

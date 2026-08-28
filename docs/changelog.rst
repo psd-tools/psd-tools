@@ -4,6 +4,30 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
+- [fix] Read a Lab fill colour with the right divisor for each of its three
+  components. ``L``, ``a`` and ``b`` were all divided by 255, which suits none
+  of them: ``L`` runs 0..100, and ``a``/``b`` are signed and stored offset by
+  128, so a neutral ``a = 0`` landed at the extreme end of its axis instead of
+  in the middle. A near-neutral mid-tone therefore rendered as a dark,
+  heavily saturated colour. Measured against a Photoshop-authored Lab document
+  the old reading was out by up to 155/255; the corrected one reproduces
+  Photoshop's own render of fourteen swatches spanning both ends of each chroma
+  axis to within 1/255. Affects solid-colour, gradient and stroke fills
+  authored with a Lab colour on a Lab document -- Pantone and other book
+  colours, which is how they arise in practice. Out-of-range components now
+  clamp to the end of their axis rather than wrapping to an unrelated colour.
+  The same offset encoding corrects two neutral a/b constants that were spelled
+  0.5, half a code value below the byte Photoshop writes: the artboard
+  background default and the single-channel widening added in #722.
+
+  Lab descriptors on a *non*-Lab document are otherwise unchanged: RGB and
+  indexed targets still take the ``/255`` triple, and the narrower modes still
+  reduce from ``L`` alone. A real Lab conversion for them is the remaining half
+  of #743. They do gain the clamp, which matters more there than on the fixed
+  path -- dividing signed chroma as if it were unsigned made every negative
+  ``a`` or ``b``, so every green and every blue, wrap to an unrelated byte
+  (#743).
+
 - [fix] Convert rather than replicate when a single-channel canvas is widened
   to a CMYK or Lab document's channel count. A grey ``g`` became ``(g, g, g, g)``
   in CMYK -- a heavily over-inked colour that is not the grey it came from --
@@ -15,8 +39,8 @@ Changelog
   except very near black, which is outside the CMYK gamut and comes back up to
   7/255 lighter. A CMYK document with
   no usable profile falls back to the K-only formula a grey *fill* already uses.
-  Lab becomes ``(g, 0.5, 0.5)``, a and b being offset-encoded with 0.5 as
-  neutral. RGB is unchanged, and multichannel keeps replicating -- its spot
+  Lab becomes ``(g, 128/255, 128/255)``, a and b being offset-encoded so that
+  128/255 is neutral. RGB is unchanged, and multichannel keeps replicating -- its spot
   planes have no colorimetric reading to convert into. Reachable when a caller
   hands a single-channel backdrop to a multi-channel document, or through a
   grayscale pattern fill (#722).
