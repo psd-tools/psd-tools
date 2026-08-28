@@ -3,11 +3,18 @@
 Units: RGB, CMYK, HSB and grayscale values are normalized floats in
 ``[0.0, 1.0]``. **CIE L*a*b* is the exception and is in native units** --
 ``L`` in ``0..100`` and ``a``/``b`` signed, nominally ``-128..127``. That is
-what the PSD descriptors carry, what Photoshop's scripting bridge reports and
-what every published reference table is printed in; normalizing it would mean
-choosing an encoding, and the only sensible choice (``L/100``,
-``(a + 128)/255``) is a *canvas* encoding rather than a colorimetric one. It
-belongs with the compositor, in ``psd_tools.composite.paint``.
+what the PSD descriptors carry and what published reference tables are printed
+in; normalizing it would mean choosing an encoding, and the only sensible
+choice (``L/100``, ``(a + 128)/255``) is a *canvas* encoding rather than a
+colorimetric one. It belongs with the compositor, in
+``psd_tools.composite.paint``.
+
+Comparing against Photoshop's scripting bridge needs care: ``SolidColor.lab``
+does *not* report native units. It reports ``a`` and ``b`` through the signed
+8-bit encoding Photoshop stores them in, ``a * (255 / 256) - 0.5``, which is
+why a neutral colour comes back from it as ``a = b = -0.5`` rather than 0.
+``L`` is native. See ``tests/psd_tools/test_color_convert.py``, which undoes
+the encoding before comparing.
 
 There are intentionally no numpy or internal ``psd_tools`` imports so this
 module can be imported freely from both ``psd_tools.api`` and
