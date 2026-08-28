@@ -4,6 +4,17 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
+- [fix] Convert a CMYK fill descriptor through ink space, so it no longer
+  renders black on every non-CMYK document (#763, #765). ``_get_cmyk()`` read the
+  descriptor into the compositor's canvas convention, where 1.0 is *no* ink,
+  and then handed that to :py:func:`psd_tools.color_convert.cmyk_to_rgb`, whose
+  contract is ink space, where 0.0 is no ink. The flip was never undone, so on
+  an RGB, indexed, grayscale, bitmap, duotone, multichannel or Lab document
+  every colour arrived as its own opposite and collapsed: white ``C0 M0 Y0 K0``
+  rendered ``(0, 0, 0)``, and so did cyan, magenta and yellow. Black was the
+  one colour that came out right, by coincidence. This is the same confusion as
+  #747 on the opposite leg; a CMYK document was never affected.
+
 - [fix] Clamp a fill descriptor's colour components so an out-of-range value
   saturates instead of corrupting the render (#757, #764). Nothing in the format
   constrains a component to the range its colour class normalizes by, so a

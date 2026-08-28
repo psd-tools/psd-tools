@@ -20,7 +20,8 @@ from psd_tools import PSDImage
 from psd_tools.api.layers import Layer
 from psd_tools.api.pil_io import post_process
 from psd_tools.api.utils import EXPECTED_CHANNELS
-from psd_tools.composite import composite
+from psd_tools.color_convert import cmyk_to_rgb
+from psd_tools.composite import composite, paint
 from psd_tools.composite.paint import (
     _get_color,
     draw_gradient_fill,
@@ -539,10 +540,16 @@ def test_rgb_fill_on_a_lab_document_matches_photoshop(
             {Key.Gray: 40.0},
             (0.632226, 128 / 255, 128 / 255),
         ),
+        # Moved in #763. The old pin was (0.060154, 0.495916, 0.468762) -- an
+        # L* of 6.0, near black, for a mid brown whose L* is 52.5. That was the
+        # canvas-for-ink confusion this row had captured rather than caught: it
+        # was pinned to the implementation, and the docstring below says so,
+        # which is exactly why it could not fail when the implementation was
+        # wrong.
         (
             Klass.CMYKColor.value,
             {Key.Cyan: 10.0, Key.Magenta: 20.0, Key.Yellow: 30.0, Key.Black: 40.0},
-            (0.060154, 0.495916, 0.468762),
+            (0.524775, 0.518260, 0.543805),
         ),
     ],
 )
@@ -1050,3 +1057,140 @@ def test_out_of_range_hue_still_wraps_rather_than_clamping() -> None:
             ),
         )
         assert result == pytest.approx((1.0, 0.5, 0.0), abs=1e-6), degrees
+
+
+# ---------------------------------------------------------------------------
+# CMYK is read as ink, not as canvas (#763)
+#
+# The compositor's arrays store what is *left* -- 1.0 is no ink -- while
+# `color_convert`'s CMYK helpers are documented in ink space, where 0.0 is no
+# ink. `_get_cmyk()` read the descriptor into canvas convention and then handed
+# that to `cmyk_to_rgb()` without undoing the flip, so on every non-CMYK
+# document each colour arrived as its own opposite and collapsed to black.
+#
+# No fixture can carry this: Photoshop normalizes a fill descriptor to the
+# document's own colour class on save (#756), so a `CMYC` descriptor on an RGB
+# document is not authorable. Ground truth is `cmyk_to_rgb()` itself, which the
+# RGB rows of tests/psd_tools/test_color_convert.py anchor against Photoshop.
+# ---------------------------------------------------------------------------
+
+
+def _cmyk_desc(c: float, m: float, y: float, k: float) -> Descriptor:
+    return _color_desc(
+        Klass.CMYKColor.value,
+        {Key.Cyan: c, Key.Magenta: m, Key.Yellow: y, Key.Black: k},
+    )
+
+
+# Percent ink, and the RGB the same ink is worth. Before the fix every one of
+# these rendered (0, 0, 0) on an RGB document -- black included, but only by
+# coincidence.
+CMYK_SWATCHES = [
+    ("white", (0.0, 0.0, 0.0, 0.0), (1.0, 1.0, 1.0)),
+    ("cyan", (100.0, 0.0, 0.0, 0.0), (0.0, 1.0, 1.0)),
+    ("magenta", (0.0, 100.0, 0.0, 0.0), (1.0, 0.0, 1.0)),
+    ("yellow", (0.0, 0.0, 100.0, 0.0), (1.0, 1.0, 0.0)),
+    ("black", (0.0, 0.0, 0.0, 100.0), (0.0, 0.0, 0.0)),
+    ("mid", (20.0, 40.0, 60.0, 10.0), (0.72, 0.54, 0.36)),
+]
+
+
+@pytest.mark.parametrize("color_mode", [ColorMode.RGB, ColorMode.INDEXED])
+@pytest.mark.parametrize(
+    "label, ink, expected", CMYK_SWATCHES, ids=[s[0] for s in CMYK_SWATCHES]
+)
+def test_cmyk_descriptor_converts_through_ink_space(
+    color_mode: ColorMode,
+    label: str,
+    ink: tuple[float, float, float, float],
+    expected: tuple[float, float, float],
+) -> None:
+    """A CMYK fill is the colour its ink says, on a three-channel document."""
+    got = _get_color(color_mode, _cmyk_desc(*ink))
+    assert got == pytest.approx(expected, abs=1e-6), (label, color_mode)
+
+
+@pytest.mark.parametrize("color_mode", list(ColorMode))
+def test_cmyk_white_is_white_on_every_document(color_mode: ColorMode) -> None:
+    """``C0 M0 Y0 K0`` is no ink at all, so it cannot render as black.
+
+    The sharpest statement of the bug: a fill asking for white came back as the
+    darkest value the mode can hold, on RGB, indexed, grayscale, bitmap,
+    duotone, multichannel and Lab alike. Only a CMYK document was spared.
+
+    Expressed per mode rather than as a literal, because "white" is 1.0
+    everywhere except Lab, whose chroma axes are neutral at 128/255 while its
+    lightness is 1.0.
+    """
+    got = _get_color(color_mode, _cmyk_desc(0.0, 0.0, 0.0, 0.0))
+    if color_mode == ColorMode.LAB:
+        assert got == pytest.approx((1.0, 128 / 255, 128 / 255), abs=1e-6)
+    else:
+        assert got == pytest.approx((1.0,) * len(got), abs=1e-6)
+
+
+@pytest.mark.parametrize(
+    "label, ink, _expected", CMYK_SWATCHES, ids=[s[0] for s in CMYK_SWATCHES]
+)
+def test_cmyk_document_branch_keeps_its_canvas_values(
+    label: str, ink: tuple[float, float, float, float], _expected: tuple[float, ...]
+) -> None:
+    """The branch that always worked did not move.
+
+    ``_ink_to_canvas(v / 100)`` and the old ``(100 - v) / 100`` are the same
+    number, so rewriting the read in ink space is value-preserving here. Pinned
+    because it is the half of #763 that was correct, and a fix to the other
+    half must not pay for it.
+    """
+    got = _get_color(ColorMode.CMYK, _cmyk_desc(*ink))
+    assert got == pytest.approx(tuple(1.0 - v / 100.0 for v in ink), abs=1e-6)
+
+
+def test_cmyk_fill_reaches_the_canvas_as_ink() -> None:
+    """End to end at the array, not just at the tuple.
+
+    ``_get_color()`` is what ``draw_solid_color_fill()`` calls, so a conversion
+    that is right in isolation but never reaches the canvas would still pass the
+    unit rows above.
+    """
+    color, shape = draw_solid_color_fill(
+        (0, 0, 4, 4), ColorMode.RGB, _cmyk_desc(0.0, 0.0, 0.0, 0.0)
+    )
+    assert shape is None
+    assert color.shape == (4, 4, 3)
+    assert np.allclose(color, 1.0), color[0, 0]
+
+
+def test_cmyk_stroke_on_an_rgb_document_is_the_ink_it_asks_for() -> None:
+    """The one place in the corpus where this is not forged.
+
+    ``issues/issue397.psd`` is an RGB document whose shape layer carries a
+    vector stroke coloured ``C72 M68 Y67 K88`` -- a near-black. Photoshop will
+    not author a cross-mode *fill* descriptor, which is why #743 and #752 needed
+    forged ones, but a stroke's ``strokeStyleContent`` is evidently not
+    normalized the same way, so a real file reaches this path.
+
+    Read as ink, that stroke is ``(8, 9, 9)``. Read the old way it came back
+    ``(162, 152, 150)``, a mid grey, which is the bug at three-quarters of the
+    axis rather than at the extreme the forged white shows.
+
+    Asserted at ``create_fill_desc()`` rather than through a render, because
+    this fixture's stroke does not currently reach the composited output -- the
+    defect it was filed for. The colour is computed either way, so this pins the
+    conversion without depending on that being fixed.
+    """
+    psd = PSDImage.open(full_name("issues/issue397.psd"))
+    layer = next(layer for layer in psd.descendants() if layer.kind == "shape")
+    assert psd.color_mode == ColorMode.RGB
+    assert layer.stroke is not None
+    content = layer.stroke._data.get("strokeStyleContent")
+    assert content.get(Key.Color).classID == Klass.CMYKColor.value
+
+    color, _shape = paint.create_fill_desc(layer, content, layer.bbox)
+    assert color is not None
+    ink = tuple(
+        float(content.get(Key.Color)[key]) / 100.0
+        for key in (Key.Cyan, Key.Magenta, Key.Yellow, Key.Black)
+    )
+    assert color[0, 0] == pytest.approx(cmyk_to_rgb(*ink), abs=1e-6)
+    assert (255 * color[0, 0]).astype(np.uint8).tolist() == [8, 9, 9]
