@@ -99,8 +99,13 @@ def _build_cmyk_lut(icc_profile: bytes) -> np.ndarray | None:
     return 1.0 - ink.reshape(256, 4) / 255.0
 
 
-def _cmyk_lut(icc_profile: bytes) -> np.ndarray | None:
-    key = hashlib.sha256(icc_profile).digest()
+def _cmyk_lut(key: bytes, icc_profile: bytes) -> np.ndarray | None:
+    """Look the table up by a digest *make_widen* has already computed.
+
+    The digest is the caller's to supply because hashing the profile costs
+    ~180 us for a press profile -- more than the lookup it guards -- and it
+    would otherwise be paid on every widen call rather than once per document.
+    """
     if key not in _LUT_CACHE:
         # A failed build is cached too: it costs as much as a successful one
         # and will fail again for the same profile.
@@ -157,16 +162,18 @@ def make_widen(psd: "PSDProtocol | None") -> Callable[[np.ndarray, int], np.ndar
     """
     color_mode = None
     icc: bytes | None = None
+    icc_key: bytes | None = None
     if psd is not None:
         color_mode = psd.color_mode
         if Resource.ICC_PROFILE in psd.image_resources:
             icc = psd.image_resources.get_data(Resource.ICC_PROFILE)
+            icc_key = hashlib.sha256(icc).digest()
 
     def widen(color: np.ndarray, channels: int) -> np.ndarray:
         if color.shape[2] != 1 or channels <= 1:
             return color
         if color_mode == ColorMode.CMYK and channels == 4:
-            lut = _cmyk_lut(icc) if icc else None
+            lut = _cmyk_lut(icc_key, icc) if icc_key and icc else None
             if lut is None:
                 logger.debug(
                     "Widening a grey into CMYK without a usable ICC profile; "
