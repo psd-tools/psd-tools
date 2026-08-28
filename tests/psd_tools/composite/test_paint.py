@@ -350,7 +350,8 @@ def test_lab_descriptor_matches_photoshops_own_bytes() -> None:
     # standing between the descriptor and the bytes compared here.
     preview = psd.numpy()
     for lab, bbox in _lab_swatches(psd):
-        photoshop = preview[8, (bbox[0] + bbox[2]) // 2] * 255.0
+        left, top, right, bottom = bbox
+        photoshop = preview[(top + bottom) // 2, (left + right) // 2] * 255.0
         ours = (
             np.array(
                 _get_color(
