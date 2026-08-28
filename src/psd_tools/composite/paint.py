@@ -181,9 +181,6 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
     def _get_int_color(color_desc: Descriptor, keys: tuple) -> tuple[float, ...]:
         return tuple(_clamp01(float(color_desc[key]) / 255.0) for key in keys)
 
-    def _get_invert_color(color_desc: Descriptor, keys: tuple) -> tuple[float, ...]:
-        return tuple(_clamp01((100.0 - float(color_desc[key])) / 100.0) for key in keys)
-
     def _get_rgb(color_mode: ColorMode, color_desc: Descriptor) -> tuple[float, ...]:
         if Key.Red in color_desc:
             rgb = _get_int_color(color_desc, (Key.Red, Key.Green, Key.Blue))
@@ -221,7 +218,11 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
         return _from_rgb(color_mode, hsb_to_rgb(hue, saturation, brightness))
 
     def _get_gray(color_mode: ColorMode, x: Descriptor) -> tuple[float, ...]:
-        (gray,) = _get_invert_color(x, (Key.Gray,))
+        # ``Gry `` is percent *black*, so 0 is white. Inverting it yields a
+        # luminance, which is what every helper below takes -- a real
+        # conversion, not the canvas-convention flip that ``_ink_to_canvas()``
+        # performs.
+        gray = _clamp01((100.0 - float(x[Key.Gray])) / 100.0)
         if color_mode == ColorMode.RGB:
             return gray_to_rgb(gray)
         if color_mode == ColorMode.CMYK:
@@ -236,12 +237,27 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
         return (gray,)
 
     def _get_cmyk(color_mode: ColorMode, x: Descriptor) -> tuple[float, ...]:
-        c, m, y, k = _get_invert_color(
-            x, (Key.Cyan, Key.Magenta, Key.Yellow, Key.Black)
+        # Read as ink -- 0.0 is no ink -- which is both the descriptor's own
+        # spelling and ``color_convert``'s documented contract. The compositor's
+        # arrays store what is *left*, so only the CMYK branch flips, and it
+        # says so by name.
+        #
+        # This used to read through a helper that returned canvas convention
+        # and then hand that straight to ``cmyk_to_rgb()``, which expects ink.
+        # The flip was never undone, so on every non-CMYK document each colour
+        # arrived as its own opposite and collapsed to black: white
+        # ``C0 M0 Y0 K0`` reached ``cmyk_to_rgb(1, 1, 1, 1)`` and rendered
+        # ``(0, 0, 0)``, and so did cyan, magenta and yellow. Black was the one
+        # colour that came out right, by coincidence (#763). The same confusion
+        # in the opposite direction is what ``_ink_to_canvas()`` was added for
+        # (#747); this is the leg that was missed.
+        ink = tuple(
+            _clamp01(float(x[key]) / 100.0)
+            for key in (Key.Cyan, Key.Magenta, Key.Yellow, Key.Black)
         )
         if color_mode == ColorMode.CMYK:
-            return (c, m, y, k)
-        return _from_rgb(color_mode, cmyk_to_rgb(c, m, y, k))
+            return _ink_to_canvas(ink)
+        return _from_rgb(color_mode, cmyk_to_rgb(*ink))
 
     def _get_lab(color_mode: ColorMode, x: Descriptor) -> tuple[float, ...]:
         lightness = float(x[Key.Luminance])
