@@ -371,3 +371,25 @@ def test_zip_with_prediction_at_depth_1_cannot_produce_pixels() -> None:
         pytest.raises(RuntimeError, match="produced no result"),
     ):
         decompress(body, Compression.ZIP_WITH_PREDICTION, 4, 4, 1)
+
+
+@pytest.mark.parametrize(
+    "depth, phrase",
+    [(8, "channel replaced with black"), (1, "read abandoned")],
+)
+def test_decompress_failure_warning_states_what_follows(
+    depth: int, phrase: str
+) -> None:
+    """The warning must not promise a black fill below depth 8, where none exists.
+
+    Raised in review of #769: the text was fixed at "channel replaced with
+    black" whatever the depth, so a 1-bit failure announced a degraded read and
+    then raised, leaving a caller who reads the warning to conclude it had
+    pixels.
+    """
+    corrupt = b"\x78\x9c" + b"\xff" * 20  # valid zlib header, garbage deflate
+    with pytest.warns(PSDDecompressionWarning, match=phrase):
+        try:
+            decompress(corrupt, Compression.ZIP, 4, 4, depth)
+        except RuntimeError:
+            pass  # below depth 8 the read ends; the warning is what is asserted

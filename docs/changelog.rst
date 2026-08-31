@@ -37,7 +37,10 @@ Changelog
   values at depth 1 than any arithmetic over ``length`` could account for. Such
   a channel is now refused: degraded to black from depth 8 up, where it used to
   raise a length mismatch instead, and ending the read below depth 8, as every
-  undecodable 1-bit channel already did.
+  undecodable 1-bit channel already did. The
+  :class:`psd_tools.compression.PSDDecompressionWarning` that accompanies a
+  failed channel now says which of those two happened, rather than promising a
+  black fill that below depth 8 does not exist.
 
 - [fix] Replace a failed channel with exactly the byte count it declares, at
   every depth (#737, #769). The black fill substituted for an undecodable channel was

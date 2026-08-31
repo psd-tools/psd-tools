@@ -113,7 +113,7 @@ def _image_data_planes(psdimage: "PSDProtocol", flat: bool = False) -> int:
         # function's return value is read directly -- by the compositor's
         # sibling estimate and by tests -- so a zero plane count would be a
         # claim about the array rather than an artefact absorbed downstream.
-        return max(1, -(-values // pixels))
+        return max(1, (values + pixels - 1) // pixels)
     planes = psdimage.channels
     if psdimage.color_mode == ColorMode.INDEXED and psdimage.depth == 8:
         planes *= EXPECTED_CHANNELS[ColorMode.INDEXED]

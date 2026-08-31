@@ -147,13 +147,25 @@ def _warn_decompress_failure(
 ) -> None:
     """Log and emit a PSDDecompressionWarning for a failed channel decode.
 
-    The message names the black fill that follows from depth 8 up; below it the
-    caller raises instead, as :class:`PSDDecompressionWarning` records.
+    The message states what actually follows, which depends on the depth: the
+    black fill exists only from depth 8 up, and below it :func:`decompress`
+    raises rather than substituting anything, so promising a degraded read
+    there would describe a document the caller never receives.
     """
-    msg = (
-        "%s decode failed (%s: %s); channel replaced with black. "
-        "width=%d height=%d depth=%d version=%d"
-        % (codec, type(exc).__name__, exc, width, height, depth, version)
+    outcome = (
+        "channel replaced with black"
+        if depth >= 8
+        else "read abandoned; no black fill exists below depth 8"
+    )
+    msg = "%s decode failed (%s: %s); %s. width=%d height=%d depth=%d version=%d" % (
+        codec,
+        type(exc).__name__,
+        exc,
+        outcome,
+        width,
+        height,
+        depth,
+        version,
     )
     logger.warning(msg)
     warnings.warn(msg, PSDDecompressionWarning, stacklevel=3)
@@ -176,11 +188,26 @@ def _safe_zlib_decompress(data: bytes, max_length: int) -> bytes:
     # mismatch; at depth 1 that check is skipped and the byte became eight more
     # float32 values than any estimate allowed for (#737).
     out = d.decompress(data, max_length + 1)
+    # Then drain whatever the codec still holds, bounded the same way, rather
+    # than calling `flush()`: output can outlive its input, a match being
+    # expanded from state as it is written, so inflate can in principle stop
+    # with the input consumed and bytes still pending -- and `flush()` emits
+    # that remainder with no ceiling at all, which is the allocation this
+    # function exists to prevent. CPython appears never to do it (it leaves the
+    # unread input, the trailing adler32 at the least, in `unconsumed_tail`
+    # whenever output is pending; 140k crafted and truncated streams produced
+    # no such case, and 36k inputs agree byte for byte and exception for
+    # exception with the `flush()` form). The loop is so that the ceiling does
+    # not rest on that.
+    while not d.unconsumed_tail and len(out) <= max_length:
+        chunk = d.decompress(b"", max_length + 1 - len(out))
+        if not chunk:
+            break
+        out += chunk
     if d.unconsumed_tail or len(out) > max_length:
         raise ValueError(
             "Decompressed size exceeds expected maximum of %d bytes" % max_length
         )
-    out += d.flush()
     return out
 
 
