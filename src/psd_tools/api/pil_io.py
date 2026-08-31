@@ -86,6 +86,20 @@ def convert_image_data_to_pil(
     :raises ValueError: If an invalid channel is specified
     """
 
+    # The header's own channel count, with none of the corrections the numpy
+    # path needs (:func:`~psd_tools.api.numpy_io._image_data_planes`), because
+    # PIL allocates a plane per stored channel at every depth and mode:
+    # `_create_image()` builds one image per channel from a buffer whose pixel
+    # count is the canvas's, and PIL's "1" mode holds a byte per pixel, so a
+    # 1-bit document allocates a quarter of this estimate rather than the eight
+    # times it costs in float32.
+    #
+    # What this does not cover is the transient peak in the 16- and 32-bit
+    # branches, which build an "I"/"F" image at four bytes per pixel and then
+    # allocate a second through `.point()` before narrowing to "L" -- roughly
+    # twice the estimate, alive for as long as the conversion. That is a peak
+    # rather than a returned size, which this guard has never modelled on any
+    # path, and it is tracked in #767.
     check_pixel_size(
         psd.width,
         psd.height,

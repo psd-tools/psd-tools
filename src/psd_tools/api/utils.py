@@ -89,9 +89,14 @@ def check_pixel_size(
 
     :param width: canvas width in pixels.
     :param height: canvas height in pixels.
-    :param channels: channel count, used only to estimate the float32 allocation
-        (``width * height * channels * 4``) for the :data:`MAX_ALLOC_BYTES` budget.
-        Defaults to 1.
+    :param channels: number of float32 planes, used only to estimate the
+        allocation (``width * height * channels * 4``) for the
+        :data:`MAX_ALLOC_BYTES` budget. Defaults to 1. Callers may pass a count
+        that differs from the header's channels, because for some colour modes
+        and depths the array is not one plane per stored channel: see
+        :func:`~psd_tools.api.numpy_io._image_data_planes`, which triples an
+        indexed document for its palette and sizes a 1-bit one by the bytes its
+        codec returns.
     :param max_alloc_bytes: per-call budget in bytes; overrides the module-level
         :data:`MAX_ALLOC_BYTES` default when not ``None``.
     """
