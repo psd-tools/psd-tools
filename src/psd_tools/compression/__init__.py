@@ -199,15 +199,26 @@ def _safe_zlib_decompress(data: bytes, max_length: int) -> bytes:
     # no such case, and 36k inputs agree byte for byte and exception for
     # exception with the `flush()` form). The loop is so that the ceiling does
     # not rest on that.
-    while not d.unconsumed_tail and len(out) <= max_length:
-        chunk = d.decompress(b"", max_length + 1 - len(out))
+    #
+    # Collected rather than concatenated: `out += chunk` on a `bytes` copies the
+    # whole buffer every iteration. Accumulating into a `bytearray` from the
+    # start would instead copy every ZIP channel in the file one extra time on
+    # the way out -- on the path where the loop yields nothing, which is every
+    # path measured -- so the join happens only if the loop produced something.
+    extra: list[bytes] = []
+    total = len(out)
+    while not d.unconsumed_tail and total <= max_length:
+        chunk = d.decompress(b"", max_length + 1 - total)
         if not chunk:
             break
-        out += chunk
-    if d.unconsumed_tail or len(out) > max_length:
+        extra.append(chunk)
+        total += len(chunk)
+    if d.unconsumed_tail or total > max_length:
         raise ValueError(
             "Decompressed size exceeds expected maximum of %d bytes" % max_length
         )
+    if extra:
+        return b"".join([out, *extra])
     return out
 
 
