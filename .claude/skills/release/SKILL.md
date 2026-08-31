@@ -47,6 +47,30 @@ Now list the commits since the last release by running one of these commands:
 
 You must run this command and review the output before proceeding to Step 0 or Step 2.
 
+## Step 1b — Prose sweep
+
+Rationale docstrings and comments accumulate across a release: each fix PR appends a
+paragraph explaining what it measured, and none compresses what is already there. Trim
+them now, while the release is the unit of review — nothing enforces this mechanically
+(ruff's docstring rules are off, `ruff format` does not reflow comments or docstrings,
+and no line-length rule is selected), so this step is the only thing that catches it.
+
+Measure rather than eyeball — the worst ratios sit on the smallest helpers, which read
+as fine in a diff:
+
+```bash
+uv run python tools/prose_density.py
+```
+
+Anything above roughly 3x prose-to-code deserves a look. Keep what cost real
+measurement, and what stops a future reader undoing a fix: why a bound is shaped the
+way it is, why a guard cannot be tighter, what an experiment ruled out. Cut history the
+changelog already holds, corpus statistics the tests already assert, and the same
+explanation repeated at three layers.
+
+Trimming is a separate commit from the release commit, and touches comments and
+docstrings only. If any line of code moves, stop and treat it as a code change.
+
 ## Step 2 — Draft changelog entry
 
 Read `docs/changelog.rst` to understand the current format, then draft a new entry for **VERSION**
@@ -116,6 +140,7 @@ Run `gh pr create` with `--title "Release vVERSION"` and a `--body` containing:
 - A `### Release checklist` section with these items:
   - `[ ] Changelog entry reviewed and accurate`
   - `[ ] Version follows PEP 440`
+  - `[ ] Prose sweep done (Step 1b), or explicitly skipped`
 - A closing note: "After this PR is merged, the `auto-tag` workflow will tag the merge commit
   as `vVERSION` and the `release` workflow will build wheels and publish to PyPI automatically."
 
