@@ -5,11 +5,13 @@ import zlib
 import pytest
 
 from psd_tools.compression import (
+    _safe_zlib_decompress,
     PSDDecompressionWarning,
     compress,
     decode_prediction,
     decode_rle,
     decompress,
+    decompressed_size_bound,
     encode_prediction,
     encode_rle,
     rle_impl,
@@ -253,3 +255,141 @@ def test_decompress_length_mismatch_raises() -> None:
     short_data = zlib.compress(b"\x00" * 5)
     with pytest.raises(ValueError, match="Decompressed length mismatch"):
         decompress(short_data, Compression.ZIP, width=3, height=3, depth=8)
+
+
+# ---------------------------------------------------------------------------
+# decompressed_size_bound() must bound what decompress() returns (#737)
+# ---------------------------------------------------------------------------
+#
+# The bound is what an allocation guard has to work from: it answers "how many
+# bytes can this body become" without inflating anything, so a document can be
+# rejected before the buffer exists. Falling below the real result is the
+# failure that matters -- that is the hole #737 reports at depth 1 -- so these
+# assert the inequality in that direction over every codec and depth, and
+# equality for the two codecs whose output size is knowable exactly.
+
+
+def _packed(width: int, height: int, depth: int) -> bytes:
+    """A payload of the row size the codecs actually read.
+
+    ``max(width * depth // 8, 1)`` bytes per row, which is ``decode_rle()``'s
+    ``row_size`` and, from depth 8 up, exactly ``decompress()``'s ``length``.
+    """
+    return bytes(height * max(width * depth // 8, 1))
+
+
+@pytest.mark.parametrize("width, height", [(8, 4), (64, 3), (4, 4)])
+@pytest.mark.parametrize("kind", [Compression.RAW, Compression.RLE, Compression.ZIP])
+@pytest.mark.parametrize("depth", [1, 8, 16, 32])
+def test_decompressed_size_bound_is_never_below_the_result(
+    depth: int, kind: Compression, width: int, height: int
+) -> None:
+    """Sweep of the invariant the guard depends on, over codec x depth."""
+    body = compress(_packed(width, height, depth), kind, width, height, depth)
+    bound = decompressed_size_bound(body, kind, width, height, depth)
+    produced = len(decompress(body, kind, width, height, depth))
+    assert produced <= bound
+    if kind in (Compression.RAW, Compression.RLE):
+        # Exact, not merely bounded: RAW returns `data[:length]`, and every RLE
+        # row is padded or clipped to `row_size` rather than raising. Only ZIP,
+        # whose inflated size cannot be known without inflating, is loose.
+        assert produced == bound
+
+
+@pytest.mark.parametrize("kind", [Compression.RAW, Compression.ZIP])
+def test_decompressed_size_bound_covers_a_padded_1bit_body(kind: Compression) -> None:
+    """At depth 1, ``length`` is a byte per *pixel* -- eight times the packed size.
+
+    A body written that wide is returned in full: the ``len(result) != length``
+    check is skipped below depth 8, so nothing reconciles the two. Those bytes
+    then unpack to one float32 per bit, which is the allocation #737's estimate
+    missed eightfold, so the bound has to reach them.
+    """
+    padded = bytes(64 * 64)  # `length` for a 64x64 1-bit channel
+    body = compress(padded, kind, 64, 64, 1)
+    bound = decompressed_size_bound(body, kind, 64, 64, 1)
+    assert len(decompress(body, kind, 64, 64, 1)) == bound == 64 * 64
+
+
+@pytest.mark.parametrize("depth", [8, 16, 32])
+def test_black_fill_matches_the_declared_length(depth: int) -> None:
+    """A failed channel is replaced by exactly ``length`` bytes, at every depth.
+
+    The substitute used to be a PIL image whose mode was picked from the depth
+    -- ``"L"`` for 8, ``"RGBA"`` for anything else -- so depth 16 came back at
+    four bytes per pixel where the channel declares two. Every reader
+    downstream then saw a 16-bit document's channels at twice their width, and
+    the bound above could not have held either.
+    """
+    corrupt = b"\x78\x9c" + b"\xff" * 20  # valid zlib header, garbage deflate
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", PSDDecompressionWarning)
+        result = decompress(corrupt, Compression.ZIP, width=4, height=4, depth=depth)
+    length = 4 * 4 * depth // 8
+    assert result == bytes(length)
+    assert length <= decompressed_size_bound(corrupt, Compression.ZIP, 4, 4, depth)
+
+
+def test_safe_zlib_decompress_honours_its_own_ceiling() -> None:
+    """Exactly ``max_length + 1`` bytes must be refused, not returned.
+
+    The probe asks zlib for one byte more than the limit so that an oversize
+    stream reveals itself through ``unconsumed_tail``. A stream inflating to
+    precisely ``max_length + 1`` consumed all of its input, left no tail, and so
+    was returned a byte over the ceiling this function documents -- eight extra
+    float32 values once a 1-bit reader unpacked it (#737).
+    """
+    assert len(_safe_zlib_decompress(zlib.compress(bytes(8)), 8)) == 8
+    for oversize in (9, 10, 4096):
+        with pytest.raises(ValueError, match="exceeds expected maximum"):
+            _safe_zlib_decompress(zlib.compress(bytes(oversize)), 8)
+
+
+def test_a_zip_stream_one_byte_over_length_degrades_to_black() -> None:
+    """From depth 8 up, the refused stream black-fills rather than raising.
+
+    It used to reach the ``len(result) != length`` check and raise; being caught
+    by the ceiling instead turns it into the warning-and-degrade path every other
+    undecodable channel takes.
+    """
+    body = zlib.compress(bytes(4 * 4 + 1))  # `length` + 1 for a 4x4 8-bit channel
+    with pytest.warns(PSDDecompressionWarning, match="exceeds expected"):
+        result = decompress(body, Compression.ZIP, 4, 4, 8)
+    assert result == bytes(4 * 4)
+
+
+def test_zip_with_prediction_at_depth_1_cannot_produce_pixels() -> None:
+    """The one codec/depth pair that never allocates, pinned so the bound's
+    slack there is understood as dead rather than wrong.
+
+    ``decode_prediction`` rejects depth 1 outright, and below depth 8 there is no
+    black fill to substitute, so the read ends instead.
+    """
+    body = compress(bytes(16), Compression.ZIP, 4, 4, 8)
+    with (
+        pytest.warns(PSDDecompressionWarning, match="Invalid pixel size"),
+        pytest.raises(RuntimeError, match="produced no result"),
+    ):
+        decompress(body, Compression.ZIP_WITH_PREDICTION, 4, 4, 1)
+
+
+@pytest.mark.parametrize(
+    "depth, phrase",
+    [(8, "channel replaced with black"), (1, "read abandoned")],
+)
+def test_decompress_failure_warning_states_what_follows(
+    depth: int, phrase: str
+) -> None:
+    """The warning must not promise a black fill below depth 8, where none exists.
+
+    Raised in review of #769: the text was fixed at "channel replaced with
+    black" whatever the depth, so a 1-bit failure announced a degraded read and
+    then raised, leaving a caller who reads the warning to conclude it had
+    pixels.
+    """
+    corrupt = b"\x78\x9c" + b"\xff" * 20  # valid zlib header, garbage deflate
+    with pytest.warns(PSDDecompressionWarning, match=phrase):
+        try:
+            decompress(corrupt, Compression.ZIP, 4, 4, depth)
+        except RuntimeError:
+            pass  # below depth 8 the read ends; the warning is what is asserted

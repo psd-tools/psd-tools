@@ -68,18 +68,52 @@ def _image_data_planes(psdimage: "PSDProtocol", flat: bool = False) -> int:
     16- or 32-bit indexed document -- malformed, indexed being an 8-bit mode --
     keeps its stored width and must not be tripled either.
 
+    Depth 1 is the case the pixel count cannot express at all, and it is
+    settled first because it settles the width on its own. :func:`_parse_array`
+    unpacks such a buffer with ``np.unpackbits``, one float32 per *bit*, so the
+    array follows the byte count
+    :py:func:`~psd_tools.compression.decompress` returns rather than the pixel
+    count -- and at depth 1 those two disagree eightfold, ``length`` being one
+    byte per pixel where a row of ``width`` pixels packs into ``width // 8``
+    (#737).
+
+    Which is why the question goes to
+    :py:func:`~psd_tools.compression.decompressed_size_bound` rather than to a
+    flat factor of eight. Both directions of that estimate have a real document
+    behind them: a body written a byte per pixel is returned in full, since the
+    length check is skipped below depth 8, and unpacks to eight planes; while
+    ``colormodes/4x4_1bit_bitmap.psd`` is packed as Photoshop writes it, four
+    bytes for four rows, and allocates two planes for a four-pixel width. A flat
+    factor would have rejected the second at four times its size. The division
+    rounds up, and never to zero: a width that is not a multiple of eight leaves
+    a part-used plane, and a part-used plane still has to be paid for.
+
+    What it does not do is repair that width. Those padding bits are returned as
+    pixels, so a bitmap document whose width is not a multiple of eight comes
+    back scrambled or does not reshape at all -- #768, whose fix will change the
+    reshape this arithmetic is written against.
+
     This bounds the array that is returned, which is what
     :func:`~psd_tools.api.utils.check_pixel_size` estimates by construction. It
     does not model the transient peak: :func:`_parse_array` holds the raw bytes
     and two float32 arrays at once, and :func:`_remove_background` adds several
     more, so the true high-water mark is a small multiple of this for every
-    colour mode. Nor does it carry a depth term, so a 1-bit document still
-    under-counts -- rows unpack to eight times the byte count the estimate
-    assumes. Both are pre-existing properties of this estimate rather than
-    anything a colour mode causes; the second is tracked in #737.
+    colour mode -- a pre-existing property of this estimate rather than
+    anything a colour mode or a depth causes.
     """
     if flat:
         return 1
+    if psdimage.depth == 1:
+        values = 8 * psdimage._record.image_data.decompressed_size_bound(
+            psdimage._record.header
+        )
+        pixels = psdimage.width * psdimage.height
+        # Never below one: an empty image data section bounds at zero bytes, and
+        # while `check_pixel_size()` clamps its own `channels` argument, this
+        # function's return value is read directly -- by the compositor's
+        # sibling estimate and by tests -- so a zero plane count would be a
+        # claim about the array rather than an artefact absorbed downstream.
+        return max(1, (values + pixels - 1) // pixels)
     planes = psdimage.channels
     if psdimage.color_mode == ColorMode.INDEXED and psdimage.depth == 8:
         planes *= EXPECTED_CHANNELS[ColorMode.INDEXED]

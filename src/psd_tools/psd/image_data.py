@@ -12,7 +12,7 @@ from typing import IO, Any, Sequence, TypeVar
 
 from attrs import define, field
 
-from psd_tools.compression import compress, decompress
+from psd_tools.compression import compress, decompress, decompressed_size_bound
 from psd_tools.constants import Compression
 from psd_tools.psd.header import FileHeader
 from psd_tools.psd.base import BaseElement
@@ -78,6 +78,29 @@ class ImageData(BaseElement):
             with io.BytesIO(data) as f:
                 return [f.read(plane_size) for _ in range(header.channels)]
         return data
+
+    def decompressed_size_bound(self, header: FileHeader) -> int:
+        """
+        Upper bound on the number of bytes :py:meth:`get_data` will decompress.
+
+        Answerable without decompressing anything, so an allocation guard can
+        size the array before it exists -- see
+        :py:func:`psd_tools.compression.decompressed_size_bound`. It lives next
+        to :py:meth:`get_data` because it has to mirror that call exactly,
+        including the part a caller would most easily get wrong: every channel
+        is decompressed in one pass, ``height * channels`` rows at a time.
+
+        :param header: See :py:class:`~psd_tools.psd.header.FileHeader`.
+        :return: the maximum byte count, for all channels together.
+        """
+        return decompressed_size_bound(
+            self.data,
+            self.compression,
+            header.width,
+            header.height * header.channels,
+            header.depth,
+            header.version,
+        )
 
     def set_data(self, data: Sequence[bytes], header: FileHeader) -> int:
         """

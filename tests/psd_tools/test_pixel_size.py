@@ -10,6 +10,7 @@ import base64
 import io
 import struct
 import warnings
+import zlib
 
 import pytest
 
@@ -17,10 +18,11 @@ from typing import Any, Literal, Optional
 
 from psd_tools import PSDImage, PSDLargeImageWarning
 from psd_tools import compression as _compression
+from psd_tools.compression import compress
 from psd_tools.api import utils as _utils
 from psd_tools.api.numpy_io import _image_data_planes
 from psd_tools.api.utils import has_transparency
-from psd_tools.constants import ColorMode
+from psd_tools.constants import ColorMode, Compression
 from psd_tools.api.utils import (
     MAX_DIMENSION_PSD,
     MAX_PIXELS_PSD,
@@ -422,10 +424,9 @@ def test_numpy_guard_estimate_never_exceeds_the_allocation(
     """No shipped fixture may be rejected at a budget it actually fits inside.
 
     The same invariant as above swept over the real corpus, covering every
-    colour mode and all four depths. (Bitmap has slack in the other direction:
-    a 1-bit document unpacks to more values than the byte count this estimate
-    assumes, which has no depth term -- #737. That is a separate gap, not
-    something this assertion claims is absent.)
+    colour mode and all four depths -- bitmap included, since #737 gave the
+    estimate a depth term; see the depth-1 section below for what that has to
+    get right.
 
     Swept over ``channel`` as well, because the estimate has to match whichever
     branch the argument selects -- see the synthesised paths below, which this
@@ -465,3 +466,282 @@ def test_numpy_guard_estimate_matches_the_synthesised_paths(
     assert _colormode(filename).numpy(channel).nbytes == one_plane
     assert _image_data_planes(_colormode(filename)) > 1  # the stored width differs
     _colormode(filename, one_plane).numpy(channel)
+
+
+# ---------------------------------------------------------------------------
+# Depth 1: the estimate follows the codec, not the pixel count (#737)
+# ---------------------------------------------------------------------------
+#
+# At depth 1 the byte count and the pixel count part company. `_parse_array()`
+# unpacks the buffer with `np.unpackbits`, one float32 per *bit*, so the array
+# is eight values per stored byte -- and `decompress()`'s `length` is
+# `width * height` *bytes* at depth 1, eight times the packed size a row of
+# `width` pixels actually occupies. A RAW or ZIP body written that wide is
+# returned in full (the length check is skipped below depth 8), so the array
+# came back eight times wider than the estimate assumed.
+#
+# The estimate therefore asks the codec rather than the header. Both directions
+# are pinned below, as everywhere else in this file: exact for RAW and RLE,
+# and for ZIP an upper bound, which is the one place this trades a false
+# positive for closing the hole.
+
+
+def _forge_1bit(
+    width: int,
+    height: int,
+    channels: int,
+    color_mode: int,
+    compression: Compression,
+    body: str = "packed",
+    max_alloc_bytes: int | None = None,
+) -> PSDImage:
+    """A structurally valid 1-bit document with a body of the requested shape.
+
+    ``"packed"`` is ``height * channels`` rows of ``max(width // 8, 1)`` bytes:
+    the row size the codecs read, and for a width that is a multiple of eight
+    also the row a conforming writer packs. (At any other width the two part
+    company -- a row occupies ``ceil(width / 8)`` bytes and the reader floors
+    it, which is #768. Every width parametrised below is a multiple of eight or
+    smaller than eight, so that distinction does not arise here.) ``"padded"``
+    is one byte per pixel -- ``decompress()``'s own ``length`` at depth 1, eight
+    times the packed size -- which is what a crafted file supplies to get eight
+    times the allocation out of the estimate.
+    """
+    rows = height * channels
+    if body == "packed":
+        payload = bytes(rows * max(width // 8, 1))
+    else:
+        payload = bytes(width * rows)
+    buf = io.BytesIO()
+    buf.write(
+        struct.pack(">4sH6xHIIHH", b"8BPS", 1, channels, height, width, 1, color_mode)
+    )
+    buf.write(struct.pack(">I", 0))  # colour mode data
+    buf.write(struct.pack(">I", 0))  # image resources
+    buf.write(struct.pack(">I", 0))  # layer and mask info
+    buf.write(struct.pack(">H", compression))
+    buf.write(compress(payload, compression, width, rows, 1, 1))
+    buf.seek(0)
+    return PSDImage.open(buf, max_alloc_bytes=max_alloc_bytes)
+
+
+# Widths are multiples of eight, or below eight where the codecs' `max(..., 1)`
+# row floor applies: at any other width the unpacked value count does not
+# divide into `(-1, height, width)` and `numpy()` cannot form the array at all.
+# `test_depth_1_estimate_rounds_up_a_part_used_plane` covers that case.
+_DEPTH_1_DOCUMENTS = [
+    (4, 4, 1, ColorMode.BITMAP),
+    (64, 64, 1, ColorMode.BITMAP),
+    (64, 64, 1, ColorMode.GRAYSCALE),
+    (64, 64, 3, ColorMode.RGB),
+    (8, 3, 1, ColorMode.BITMAP),
+]
+
+
+@pytest.mark.parametrize(
+    "compression, body",
+    [
+        (Compression.RAW, "packed"),
+        (Compression.RAW, "padded"),
+        (Compression.RLE, "packed"),
+        (Compression.ZIP, "padded"),
+    ],
+)
+@pytest.mark.parametrize("width, height, channels, color_mode", _DEPTH_1_DOCUMENTS)
+def test_numpy_guard_estimate_is_exact_at_depth_1(
+    width: int,
+    height: int,
+    channels: int,
+    color_mode: int,
+    compression: Compression,
+    body: str,
+) -> None:
+    """Every depth-1 combination whose allocation is knowable, bracketed.
+
+    The ``"padded"`` rows are the under-count #737 reports -- eight planes where
+    the header implies one -- and the ``"packed"`` rows are the documents that
+    must not be rejected for it: a conforming 1-bit body allocates a single
+    plane, and estimating it at eight would refuse a sound file. Both come out
+    of the same arithmetic, which is the point.
+    """
+    _assert_estimate_is_exact(
+        lambda budget=None: _forge_1bit(
+            width, height, channels, color_mode, compression, body, budget
+        )
+    )
+
+
+@pytest.mark.parametrize("compression", [Compression.RAW, Compression.ZIP])
+def test_numpy_guard_rejects_the_padded_1bit_allocation(
+    compression: Compression,
+) -> None:
+    """The issue's reproduction: 8x the budget, allocated without a raise.
+
+    A 64x64 1-bit document returns ``(64, 64, 8)`` = 131,072 bytes; the estimate
+    without a depth term put it at 16,384. The budget below is that old
+    estimate, which must now be refused rather than exceeded eightfold.
+    """
+    budget = 64 * 64 * 1 * 4
+    psd = _forge_1bit(64, 64, 1, ColorMode.BITMAP, compression, "padded", budget)
+    with pytest.raises(ValueError, match="configured budget"):
+        psd.numpy()
+    # ... and the allocation it was hiding, for the record.
+    assert (
+        _forge_1bit(64, 64, 1, ColorMode.BITMAP, compression, "padded").numpy().nbytes
+        == 8 * budget
+    )
+
+
+def test_numpy_guard_estimate_covers_the_shipped_bitmap_fixture() -> None:
+    """``4x4_1bit_bitmap.psd`` allocates two planes, not the header's one.
+
+    The one 1-bit document in the corpus, and the shape a real one has: RAW with
+    a properly packed body, four bytes for four rows. A four-pixel row occupies
+    a whole byte, so it unpacks to twice its pixel count -- the 2.0x reading in
+    #737, well below the 8x a byte-per-pixel body reaches.
+
+    So this is also the case a flat factor of eight would have broken: it would
+    put this fixture at 512 bytes and reject it at the 128 it allocates. What
+    admits it is the body's own length, ``min(len(data), length)``, which is the
+    term that makes the estimate exact here rather than merely safe.
+    """
+    psd = _colormode("4x4_1bit_bitmap.psd")
+    assert psd._record.image_data.compression == Compression.RAW
+    assert len(psd._record.image_data.data) == 4  # packed: one byte per row
+    assert psd.channels == 1  # the header says one plane...
+    allocated = _assert_estimate_is_exact(
+        lambda budget=None: _colormode("4x4_1bit_bitmap.psd", budget)
+    )
+    assert allocated == 4 * 4 * 2 * 4  # ...the array is two planes wide
+
+
+def test_composite_guard_estimate_is_exact_for_the_bitmap_fixture() -> None:
+    """The same bracket through ``composite()``, the shipped 1-bit path.
+
+    A layerless document composites by reading its own image data, so the
+    depth-1 estimate is what bounds it -- with ``ignore_preview=True``, since
+    the default path returns the flattened preview through
+    :func:`~psd_tools.api.pil_io.convert_image_data_to_pil` and is bounded by
+    the PIL estimate instead.
+    """
+    pytest.importorskip("aggdraw")
+    pytest.importorskip("scipy")
+    pytest.importorskip("skimage")
+    allocated = _colormode("4x4_1bit_bitmap.psd").numpy(None).nbytes
+    _colormode("4x4_1bit_bitmap.psd", allocated).composite(ignore_preview=True)
+    with pytest.raises(ValueError, match="configured budget"):
+        _colormode("4x4_1bit_bitmap.psd", allocated - 1).composite(ignore_preview=True)
+
+
+def test_zip_at_depth_1_is_bounded_rather_than_measured() -> None:
+    """ZIP's inflated size is unknowable without inflating it, so the bound is ``length``.
+
+    That is exact for the crafted body above and eight times over for a
+    conforming one, the single over-estimate this fix accepts. It is the right
+    way round: ``_safe_zlib_decompress()`` caps the output at ``length``, so a
+    body of 26 bytes -- what ``length`` zero bytes deflate to for a 64x64
+    channel -- really can become 131,072 bytes of float32. Nothing pays for the
+    slack in practice: of the 293 documents in ``tests/psd_files``, 241 store
+    their merged image data RLE and 52 RAW, and none uses either ZIP codec.
+    """
+    psd = _forge_1bit(64, 64, 1, ColorMode.BITMAP, Compression.ZIP, "packed")
+    assert psd.numpy().nbytes == 64 * 64 * 1 * 4  # one plane, in fact
+    assert _image_data_planes(psd) == 8  # bounded at `length`, eight times over
+
+
+@pytest.mark.parametrize(
+    "body_bytes, values, planes",
+    [
+        # Two bytes per row: 16 values against a 20-pixel row, four fifths of a
+        # plane. Rounding down would floor the estimate to nothing at all.
+        (3 * 2, 48, 1),
+        # Between one and two planes' worth, the only shape that tells ceil from
+        # floor once the `max(1, ...)` clamp is in play: floor says one plane,
+        # 240 bytes, below the 320 the values really occupy.
+        (10, 80, 2),
+    ],
+)
+def test_depth_1_estimate_rounds_a_part_used_plane_up(
+    body_bytes: int, values: int, planes: int
+) -> None:
+    """A width that is not a multiple of eight leaves a partial plane, which costs.
+
+    A stored byte spans eight pixels and the rows here are 20 wide, so the
+    unpacked values never land on a plane boundary. ``numpy()`` cannot form such
+    an array at all -- neither 48 nor 80 values divide into ``(-1, 3, 20)`` --
+    so what is pinned is the arithmetic, whose job is to stay above the values
+    ``_parse_array()`` transiently holds either way.
+
+    That the read fails is #768, not something this asserts is correct: the
+    depth-1 path returns padding bits as pixels. When it stops doing so, the
+    ``reshape`` expectation below is what should be revisited.
+    """
+    psd = _forge_1bit(20, 3, 1, ColorMode.BITMAP, Compression.RAW, "padded")
+    psd._record.image_data.data = bytes(body_bytes)
+    bound = psd._record.image_data.decompressed_size_bound(psd._record.header)
+    assert 8 * bound == values
+    assert _image_data_planes(psd) == planes
+    assert planes * 20 * 3 >= values  # the estimate covers what is unpacked
+    with pytest.raises(ValueError, match="reshape"):
+        psd.numpy()
+
+
+def test_a_zip_stream_one_byte_over_length_is_refused() -> None:
+    """The boundary case in ``_safe_zlib_decompress``'s own ceiling.
+
+    It asks zlib for ``max_length + 1`` bytes so an oversize stream gives a byte
+    away instead of ending exactly at the limit -- and a stream inflating to
+    precisely that handed the byte back: all its input consumed, no
+    ``unconsumed_tail`` left to catch it. At depth 1 those eight extra bits
+    became eight more float32 values than any arithmetic over ``length`` could
+    reach: an 8x1 document returned ``(1, 8, 9)``, 288 bytes, against a
+    256-byte estimate.
+
+    The ceiling now holds, so the channel is refused. Below depth 8 that ends
+    the read -- the black-fill fallback is gated on ``depth >= 8`` -- which is
+    what any undecodable 1-bit channel has always done; from depth 8 up the same
+    stream degrades to black instead of raising the length mismatch it used to.
+    """
+    psd = _forge_1bit(8, 1, 1, ColorMode.BITMAP, Compression.ZIP, "padded")
+    psd._record.image_data.data = zlib.compress(bytes(8 * 1 + 1))  # `length` + 1
+    with (
+        pytest.warns(_compression.PSDDecompressionWarning, match="exceeds expected"),
+        pytest.raises(RuntimeError, match="produced no result"),
+    ):
+        psd.numpy()
+
+
+def test_16bit_degraded_image_data_keeps_its_declared_width() -> None:
+    """16-bit image data that fails to decode black-fills at its declared width.
+
+    ``decompress()``'s substitute was a PIL image whose mode came from the depth
+    -- ``"L"`` for 8, ``"RGBA"`` for anything else -- so depth 16 came back at
+    four bytes per pixel against a ``length`` of two, and parsed twice as wide:
+    a 4x4 RGB document read ``(4, 4, 6)``, 384 bytes, against a 192-byte
+    estimate, and a budget of exactly 192 admitted it.
+
+    Note what fails together here. :py:meth:`ImageData.get_data` decompresses
+    every channel in one call, so a corrupt merged section fails as a unit; the
+    same substitute serves the per-channel readers, ``ChannelData.get_data()``
+    for layers and the pattern reader, which were wrong at depth 16 the same
+    way.
+
+    The estimate is unchanged; what was wrong was the array. Bracketed here
+    rather than merely bounded, because the fill is now exactly ``length``.
+    """
+    corrupt = b"\x78\x9c" + b"\xff" * 20  # valid zlib header, garbage deflate
+
+    def open_doc(budget: int | None = None) -> PSDImage:
+        psd = _forge(4, 4, 3, 16, ColorMode.RGB, budget)
+        psd._record.image_data.compression = Compression.ZIP
+        psd._record.image_data.data = corrupt
+        return psd
+
+    with pytest.warns(_compression.PSDDecompressionWarning):
+        array = open_doc().numpy()
+    assert array.shape == (4, 4, 3)  # three planes, as the header declares
+    assert array.nbytes == 4 * 4 * 3 * 4
+    with pytest.warns(_compression.PSDDecompressionWarning):
+        open_doc(array.nbytes).numpy()
+    with pytest.raises(ValueError, match="configured budget"):
+        open_doc(array.nbytes - 1).numpy()

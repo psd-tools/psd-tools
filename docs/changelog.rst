@@ -4,6 +4,57 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
+- [fix] Give the ``max_alloc_bytes`` estimate a depth term, so a 1-bit document
+  can no longer allocate eight times its budget (#737, #769). ``check_pixel_size()``
+  sizes an allocation at ``width * height * channels * 4``, but at depth 1
+  ``numpy_io._parse_array()`` unpacks the buffer with ``np.unpackbits`` -- one
+  float32 per *bit* -- so the array follows the byte count the codec returns
+  rather than the pixel count. The two disagree eightfold: ``decompress()``'s
+  ``length`` is one byte per pixel at depth 1, where a row of ``width`` pixels
+  packs into ``width // 8``, and a body written that wide is returned in full
+  because the length check is skipped below depth 8. A 64x64 1-bit document
+  therefore returned ``(64, 64, 8)``, 131,072 bytes, against a 16,384-byte
+  estimate, and the guard admitted it -- a gap in a security control
+  (GHSA-8q6g-vjhf-jp8m) whose whole job is to bound the allocation before it
+  happens.
+
+  The estimate now asks the codec, through the new
+  :py:func:`psd_tools.compression.decompressed_size_bound`, rather than
+  multiplying by a flat eight. A properly packed body -- what
+  ``colormodes/4x4_1bit_bitmap.psd`` and any document Photoshop writes carries
+  -- still allocates only the planes it really occupies, where a flat factor
+  would have rejected that fixture at four times its size. ZIP is the one codec
+  whose inflated size cannot be known without inflating it, so a conforming
+  1-bit ZIP body is now bounded at eight times its allocation. Nothing in
+  practice pays for that: of the 293 documents in ``tests/psd_files``, 241 store
+  their merged image data RLE and 52 RAW, and none uses either ZIP codec --
+  which is where the layer channels do use ZIP, and where this bound is not
+  consulted.
+
+  ``_safe_zlib_decompress()`` also now enforces the ceiling it documents. It
+  probes one byte past the limit to catch an oversize stream, and a stream
+  inflating to exactly that was handed back a byte over -- eight more float32
+  values at depth 1 than any arithmetic over ``length`` could account for. Such
+  a channel is now refused: degraded to black from depth 8 up, where it used to
+  raise a length mismatch instead, and ending the read below depth 8, as every
+  undecodable 1-bit channel already did. The
+  :class:`psd_tools.compression.PSDDecompressionWarning` that accompanies a
+  failed channel now says which of those two happened, rather than promising a
+  black fill that below depth 8 does not exist.
+
+- [fix] Replace a failed channel with exactly the byte count it declares, at
+  every depth (#737, #769). The black fill substituted for an undecodable channel was
+  a PIL image whose mode was picked from the depth -- ``"L"`` for 8, ``"RGBA"``
+  for anything else -- so depth 16 came back at four bytes per pixel against a
+  declared two, and every reader downstream saw the channels at twice their
+  width. A 4x4 RGB document whose merged image data fails to decode read
+  ``(4, 4, 6)`` instead of ``(4, 4, 3)`` -- ``ImageData.get_data()``
+  decompresses every channel in one call, so that section fails as a unit -- and
+  allocated twice what the guard had estimated. The same substitute serves the
+  per-channel readers, ``ChannelData.get_data()`` for layers and the pattern
+  reader, so a failed 16-bit channel there came back double-width too. Depths 8
+  and 32 are unaffected, their modes having happened to match.
+
 - [fix] Split a pattern's alpha off by its slot layout rather than by its
   colour mode, so a multichannel-mode pattern composites instead of raising
   (#741). The split was keyed on ``EXPECTED_CHANNELS``, whose multichannel
@@ -387,9 +438,10 @@ Changelog
 
   The estimate bounds the array that is returned, which is what
   ``check_pixel_size()`` has always measured. Peak usage during parsing is a
-  small multiple of it for every colour mode, and 1-bit documents are
-  under-counted eightfold because the estimate carries no depth term; both
-  predate this entry and are unchanged by it.
+  small multiple of it for every colour mode; that predates this entry and is
+  unchanged by it. 1-bit documents were under-counted eightfold for want of a
+  depth term, which predated this entry as well and is fixed by the #737 entry
+  above (#769), in this same release.
 - [fix] Composite duotone documents at their stored width.
   ``EXPECTED_CHANNELS`` reported 2 for duotone -- the ink count -- while duotone
   pixel data is a single grayscale channel, the one to four ink curves living
