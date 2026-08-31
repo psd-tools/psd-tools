@@ -5,7 +5,7 @@ Changelog
 -------------------
 
 - [fix] Give the ``max_alloc_bytes`` estimate a depth term, so a 1-bit document
-  can no longer allocate eight times its budget (#737). ``check_pixel_size()``
+  can no longer allocate eight times its budget (#737, #769). ``check_pixel_size()``
   sizes an allocation at ``width * height * channels * 4``, but at depth 1
   ``numpy_io._parse_array()`` unpacks the buffer with ``np.unpackbits`` -- one
   float32 per *bit* -- so the array follows the byte count the codec returns
@@ -40,7 +40,7 @@ Changelog
   undecodable 1-bit channel already did.
 
 - [fix] Replace a failed channel with exactly the byte count it declares, at
-  every depth (#737). The black fill substituted for an undecodable channel was
+  every depth (#737, #769). The black fill substituted for an undecodable channel was
   a PIL image whose mode was picked from the depth -- ``"L"`` for 8, ``"RGBA"``
   for anything else -- so depth 16 came back at four bytes per pixel against a
   declared two, and every reader downstream saw the channels at twice their
@@ -438,7 +438,7 @@ Changelog
   small multiple of it for every colour mode; that predates this entry and is
   unchanged by it. 1-bit documents were under-counted eightfold for want of a
   depth term, which predated this entry as well and is fixed by the #737 entry
-  above, in this same release.
+  above (#769), in this same release.
 - [fix] Composite duotone documents at their stored width.
   ``EXPECTED_CHANNELS`` reported 2 for duotone -- the ink count -- while duotone
   pixel data is a single grayscale channel, the one to four ink curves living
