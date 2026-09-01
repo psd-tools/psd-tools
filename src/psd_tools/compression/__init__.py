@@ -172,10 +172,11 @@ def _safe_zlib_decompress(data: bytes, max_length: int) -> bytes:
     # be rejected as well: without the length test a stream inflating to
     # precisely `max_length + 1` was consumed whole, left no
     # `unconsumed_tail`, and was returned a byte over the ceiling this function
-    # documents. At depth 8 and up `decompress()` caught it as a length
-    # mismatch; at depth 1 that check is skipped, and the byte became eight
-    # more float32 values than any estimate allowed for -- until #768 gave the
-    # unpacking a row to trim to, which drops it with its partial row instead.
+    # documents -- caught downstream as a length mismatch from depth 8 up, and
+    # at depth 1, where that check is skipped, unpacked into eight float32
+    # values no estimate allowed for (#737). Such a stream never reaches either
+    # now: it is refused here, and `decompress()` gives the caller a black
+    # channel in its place, at depth 1 as at any other since #768.
     out = d.decompress(data, max_length + 1)
     # Then drain whatever the codec still holds, bounded the same way, rather
     # than calling `flush()`: output can outlive its input, a match being
