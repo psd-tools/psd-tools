@@ -54,8 +54,9 @@ def _styled(effects: Iterator[Any]) -> Iterator[_StyledEffect]:
     return cast(Iterator[_StyledEffect], effects)
 
 
-# How a one-channel canvas becomes a given width. Spelled once because it is
-# threaded through most of this module -- see ``widen.make_widen()``.
+# How a one-channel array -- a canvas or a source -- becomes a given width.
+# Spelled once because it is threaded through most of this module -- see
+# ``widen.make_widen()``.
 _Widen = Callable[[np.ndarray, int], np.ndarray]
 
 # What each overlay effect draws. Only the pattern needs the compositor's
@@ -429,7 +430,7 @@ def composite(
     # are resolved here, once, rather than at each point of use. An isolated
     # group starts transparent, so the caller's alpha is dropped before the
     # canvas is built rather than after.
-    # Resolved here and carried through the compositor tree because three of
+    # Resolved here and carried through the compositor tree because four of
     # the sites that need it are inside Compositor, which holds no document.
     # (The cost is not the reason -- make_widen() only reads two attributes,
     # and the expensive transform is built lazily and cached globally.)
@@ -564,13 +565,14 @@ def _uniform_alpha(alpha: float | np.ndarray) -> float | None:
 
 
 def _widen(color: np.ndarray, channels: int) -> np.ndarray:
-    """Replicate a single-channel canvas across ``channels``.
+    """Replicate a single-channel array across ``channels``.
 
-    A grayscale source inside an RGB document arrives one channel wide.
-    Broadcasting would handle it in the blend arithmetic, but the compositor's
-    own canvases have to be a fixed width for their whole lifetime, so a
-    backdrop is widened once at the point it is handed over rather than
-    repeatedly patched mid-composite.
+    A grayscale source inside an RGB document arrives one channel wide. The
+    compositor's own canvases have to be a fixed width for their whole
+    lifetime, so a backdrop is widened once at the point it is handed over
+    rather than repeatedly patched mid-composite; a source is widened at the
+    same point for a different reason, that what a grey means is the
+    document's answer and not the blend arithmetic's (#749).
 
     Replication is right for RGB and wrong for CMYK and Lab, so this is only
     the fallback used when no document is available to ask -- everything that
@@ -741,8 +743,9 @@ class Compositor(object):
 
     ``color``'s channel count becomes ``self.channels`` and is fixed for this
     compositor's lifetime, so a caller handing over a canvas narrower than the
-    document must widen it first. A narrow *source* is fine -- the blend
-    arithmetic broadcasts it -- and must not change the width.
+    document must widen it first. A narrow *source* is fine and must not change
+    the width: ``_fit_source()`` widens it at the door, so the blend arithmetic
+    only ever sees arrays of this compositor's own width.
 
     ``widen`` is how that is done, here and in every sub-compositor this one
     builds. Pass the document's own, from
@@ -778,9 +781,9 @@ class Compositor(object):
         self._viewport = viewport
         self._layer_filter = layer_filter
         self._force = force
-        # How a one-channel canvas becomes this compositor's width. Carried
-        # rather than derived because the three sites that need it below are
-        # inside this class, which holds no document handle (#722).
+        # How a one-channel array becomes this compositor's width. Carried
+        # rather than derived because the four sites that need it below are
+        # inside this class, which holds no document handle (#722, #749).
         self._widen = widen
         self._adjustment_isolated = adjustment_isolated
         # What Knockout.DEEP knocks out to. Inherited by pass-through
@@ -938,7 +941,7 @@ class Compositor(object):
         alpha: np.ndarray,
         mask: float | np.ndarray,
     ) -> None:
-        self._assert_source_fits(color)
+        color = self._fit_source(color)
         # ``color`` is the group already composited over this backdrop, because a
         # pass-through group is rendered by a non-isolated sub-compositor seeded
         # with the backdrop. Re-applying the group therefore means interpolating
@@ -965,14 +968,35 @@ class Compositor(object):
         # back to the group's own color rather than to white.
         self._color = utils.clip(utils.divide(color_t, self._alpha, fill=color))
 
+    def _fit_source(self, color: np.ndarray) -> np.ndarray:
+        """Bring a source to this compositor's width, checking the invariant.
+
+        Both doors a source colour comes through call this, so that what a
+        grey means in this document is answered in one place. A single-channel
+        source is legal to hand over -- a pattern carries its own colour mode, and
+        a fill on a multichannel document resolves to one component because
+        there is nothing to convert it into -- but which colour that one channel
+        *is* depends on the document, and only ``widen`` knows (#749).
+
+        Left to the blend arithmetic it was broadcast instead, which is
+        replication under another name: correct for RGB and, on a CMYK
+        document, an over-inked build that is not the grey it came from. The
+        same grey already converted when it arrived as a backdrop, as a clip
+        base or as a pattern overlay, so it depended on incidental layer
+        structure which of the two answers a document got.
+        """
+        self._assert_source_fits(color)
+        return self._widen(color, self._channels)
+
     def _assert_source_fits(self, color: np.ndarray) -> None:
         """Check the fixed-width invariant where a source meets the canvases.
 
-        The blend arithmetic broadcasts a single-channel source, but a *wider*
-        one would silently widen ``_color`` and leave ``channels`` stale. That
-        is what the deleted ``np.repeat`` fixups used to paper over, so this is
-        the assertion that keeps them deleted: it fires if a caller ever builds
-        a compositor narrower than the sources it will be given.
+        A single-channel source is widened by ``_fit_source()`` above, but a
+        *wider* one would silently widen ``_color`` and leave ``channels``
+        stale. That is what the deleted ``np.repeat`` fixups used to paper
+        over, so this is the assertion that keeps them deleted: it fires if a
+        caller ever builds a compositor narrower than the sources it will be
+        given.
         """
         assert self._color.shape[2] == self._channels, (
             "canvas widened to %d channels, expected %d"
@@ -1019,7 +1043,7 @@ class Compositor(object):
         blend_mode: BlendMode,
         knockout: Knockout = Knockout.NONE,
     ) -> None:
-        self._assert_source_fits(color)
+        color = self._fit_source(color)
         knockout_color, knockout_alpha = self._knockout_backdrop(knockout)
 
         self._shape_g = cast(np.ndarray, utils.union(self._shape_g, shape))

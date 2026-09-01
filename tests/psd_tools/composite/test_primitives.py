@@ -376,10 +376,12 @@ def test_widen_replicates_a_single_channel() -> None:
 
 @pytest.mark.parametrize("channels", [1, 3])
 def test_a_narrow_source_leaves_the_canvas_width_alone(channels: int) -> None:
-    """The blend arithmetic broadcasts a single-channel source (#710).
+    """A single-channel source is widened to the canvas, never the reverse (#710).
 
-    Applying one is therefore not a reason to reallocate. Consistency check:
-    this held before the fixups were deleted too.
+    The canvas width is the compositor's for its whole lifetime, so applying a
+    narrow source is not a reason to reallocate it -- ``_fit_source()`` brings
+    the source up to it (#749) rather than the arithmetic dragging the canvas
+    down. Consistency check: this held before the fixups were deleted too.
     """
     backdrop = rgb(WHITE) if channels == 3 else gray(1.0)
     compositor = Compositor((0, 0, 2, 2), backdrop, gray(0.0))
@@ -448,7 +450,12 @@ def test_document_backdrop_is_widened_to_the_canvas() -> None:
 
 
 def test_narrow_source_matches_a_pre_widened_one() -> None:
-    """Broadcasting a narrow source is the same as replicating it first."""
+    """Widening a narrow source at the door is the same as widening it before.
+
+    It held under the broadcast this replaced too, for a different reason:
+    replication is what the mode-blind ``_widen`` does, and this compositor has
+    no document to ask for anything else (#749).
+    """
 
     def run(source: np.ndarray) -> np.ndarray:
         compositor = Compositor((0, 0, 2, 2), rgb(RED), gray(1.0))

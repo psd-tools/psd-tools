@@ -5,6 +5,10 @@ and wrong for CMYK, where a grey is a profile-dependent CMY build rather than
 ``(g, g, g, g)``, and wrong for Lab, where a lightness copied into a/b is not
 neutral.
 
+The last section covers *sources* rather than backdrops (#749): a source may
+arrive one channel wide, and being broadcast by the blend arithmetic was the
+same replication reached by a different door.
+
 ``cmyk-gray-ramp.psd`` is the ground truth these tests are pinned against. It
 was authored by scripting Photoshop 2026: a grayscale document filled with nine
 8-bit grey patches, converted to CMYK with ``changeMode()`` and saved with its
@@ -25,6 +29,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
+from psd_tools.api.layers import Layer
 from psd_tools.api.pil_io import post_process
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite
@@ -36,7 +41,15 @@ from psd_tools.composite.composite import (
 )
 from psd_tools.composite import widen as widen_module
 from psd_tools.composite.widen import make_widen
-from psd_tools.constants import ColorMode, Resource
+from psd_tools.constants import BlendMode, ColorMode, Resource, Tag
+from psd_tools.psd.descriptor import Descriptor, String
+from psd_tools.psd.patterns import (
+    Pattern,
+    Patterns,
+    VirtualMemoryArray,
+    VirtualMemoryArrayList,
+)
+from psd_tools.terminology import Enum, Key
 
 from ..utils import full_name
 
@@ -325,3 +338,154 @@ def test_scalar_and_single_channel_backdrops_agree(filename: str, value: float) 
         psd, color=canvas, alpha=1.0, layer_filter=lambda layer: False
     )
     assert np.array_equal(scalar_color, canvas_color)
+
+
+# --- Sources, not only backdrops ---------------------------------------------
+#
+# A *source* is allowed to arrive one channel wide -- ``_assert_source_fits()``
+# says so -- and the blend arithmetic used to broadcast it, which is the
+# replication above reached by another door. So one grey got two answers on one
+# document depending on incidental layer structure: converted as a backdrop, as
+# a clip base, as the base colour under a stroke or as a pattern overlay,
+# replicated as a plain fill layer -- or as a stroke's own fill (#749).
+
+# The forged pattern's identifier, arbitrary but shared by the record and the
+# descriptor that names it -- ``_get_pattern()`` matches them exactly.
+FORGED_PATTERN_ID = "4c1b6c4e-7a2f-4d5b-9b3a-000000000749"
+
+
+def _gray_pattern(level: int, size: tuple[int, int] = (4, 4)) -> Pattern:
+    """A flat grayscale pattern, laid out the way Photoshop lays out its own.
+
+    26 channel slots, of which only the first is written: that is what all of
+    the grayscale patterns Photoshop 2026 ships carry, and what
+    ``get_pattern_color_channels()`` reads the colour/alpha boundary off.
+    """
+    height, width = size
+    plane = VirtualMemoryArray()
+    plane.set_data((width, height), bytes([level]) * (width * height), 8)
+    channels = [plane] + [VirtualMemoryArray() for _ in range(25)]
+    return Pattern(
+        image_mode=ColorMode.GRAYSCALE,
+        point=(height, width),
+        name="Forged Gray\x00",
+        pattern_id=FORGED_PATTERN_ID,
+        data=VirtualMemoryArrayList(rectangle=(0, 0, height, width), channels=channels),
+    )
+
+
+def _pattern_fill_desc() -> Descriptor:
+    """The descriptor a pattern fill layer and a pattern overlay both carry."""
+    pattern = Descriptor(classID=b"Ptrn")
+    pattern[Key.ID] = String(FORGED_PATTERN_ID + "\x00")
+    pattern[Key.Name] = String("Forged Gray\x00")
+    desc = Descriptor(classID=b"patternFill")
+    desc[Enum.Pattern] = pattern
+    return desc
+
+
+def _cmyk_gray_pattern_fill(level: int = 128) -> tuple[PSDImage, Layer]:
+    """A CMYK document whose only fill is a *grayscale* pattern.
+
+    Photoshop does not author this: it converts a pattern to the document's
+    colour mode when embedding it, so a pattern applied in a CMYK document is
+    stored ``image_mode=ColorMode.CMYK`` -- verified by scripting Photoshop
+    2026. The mismatch is reachable from files other tools write, and by
+    building the layer through psd-tools, so the pattern is forged into a
+    document that is otherwise Photoshop's own, embedded profile included.
+
+    The gradient block is removed so the fixture cannot rest on
+    ``create_fill()`` happening to check the pattern block first. The layer
+    object stays a ``GradientFill`` either way; nothing here reads its kind.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_cmyk.psd"))
+    assert psd.color_mode == ColorMode.CMYK
+    blocks = psd.tagged_blocks
+    assert blocks is not None
+    # Same ignore as ``Patterns.read()``'s own: ``ListElement`` carries an
+    # unbound item type, so every construction of one is untypeable here.
+    blocks.set_data(Tag.PATTERNS1, Patterns([_gray_pattern(level)]))  # type: ignore[list-item]
+    layer = psd[1]
+    del layer.tagged_blocks[Tag.GRADIENT_FILL_SETTING]
+    layer.tagged_blocks.set_data(Tag.PATTERN_FILL_SETTING, _pattern_fill_desc())
+    return psd, layer
+
+
+@pytest.mark.parametrize("render", ["layer", "document"])
+def test_gray_pattern_fill_reaches_the_conversion(render: str) -> None:
+    """The end-to-end path the issue reports, as the fill layer it names.
+
+    Rendered ``[0.502] * 4`` -- the grey in every plate, an over-inked build
+    that is not the grey it came from -- where the same grey as a backdrop, and
+    the same pattern as an *overlay effect* on the same document, had converted
+    since #722.
+    """
+    psd, layer = _cmyk_gray_pattern_fill(128)
+    target = (
+        composite(layer, force=True)
+        if render == "layer"
+        else composite(psd, force=True, layer_filter=lambda other: other is layer)
+    )
+    color = target[0]
+
+    assert color.shape == (psd.height, psd.width, 4)
+    assert np.allclose(color, make_widen(psd)(_grey(128 / 255.0), 4))
+    assert not np.allclose(color, 128 / 255.0, atol=2 / 255)
+
+
+def test_gray_pattern_agrees_between_the_fill_and_the_overlay() -> None:
+    """The first two rows of the issue's table, on one document.
+
+    A pattern fill layer and a pattern overlay effect carry the same
+    descriptor and name the same pattern, so the colour they paint cannot
+    depend on which of the two a person reached for. It did: the overlay
+    widened through ``make_widen`` and the fill was broadcast.
+
+    The overlay is driven through ``_draw_pattern_overlay`` directly rather
+    than through a forged effects block -- it takes the same descriptor the
+    fill layer stores, so what is compared is the two code paths and not two
+    spellings of the pattern. Comparing its raw return against a composited
+    fill is only sound because the fill is opaque over the whole viewport: it
+    is the pattern colour and nothing of the backdrop.
+    """
+    psd, layer = _cmyk_gray_pattern_fill(128)
+    fill = composite(layer, force=True)[0]
+
+    overlay, _ = _draw_pattern_overlay(layer, _pattern_fill_desc(), 4, make_widen(psd))
+
+    assert overlay is not None
+    assert overlay.shape[2] == 4
+    assert np.allclose(fill, overlay)
+
+
+def test_single_channel_source_and_backdrop_agree() -> None:
+    """The distinction the issue is named for, at the compositor itself.
+
+    One grey, handed to the same CMYK document twice: once as the backdrop it
+    composites against, once as a source composited onto it. A source is
+    allowed to arrive narrow and a backdrop is not, but that is a statement
+    about array widths -- it was never meant to be a statement about what
+    colour a grey is.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_cmyk.psd"))
+    widen = make_widen(psd)
+    height, width = psd.height, psd.width
+    grey = np.full((height, width, 1), 0.75, dtype=np.float32)
+    ones = np.ones((height, width, 1), dtype=np.float32)
+
+    compositor = Compositor(
+        psd.viewbox,
+        np.zeros((height, width, 4), dtype=np.float32),
+        np.zeros((height, width, 1), dtype=np.float32),
+        widen=widen,
+    )
+    compositor._apply_source(grey, ones, ones, BlendMode.NORMAL)
+    as_source = compositor.finish()[0]
+
+    as_backdrop, _, _ = composite(
+        psd, color=grey, alpha=1.0, layer_filter=lambda layer: False
+    )
+
+    assert np.allclose(as_source, as_backdrop)
+    assert np.allclose(as_source, widen(_grey(0.75), 4))
+    assert not np.allclose(as_source, 0.75, atol=2 / 255)
