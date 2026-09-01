@@ -227,10 +227,19 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         Open a PSD document.
 
         :param fp: filename or file-like object.
-        :param max_alloc_bytes: optional per-document cap (bytes) on the buffer
-            that :py:meth:`composite`/:py:meth:`numpy`/:py:meth:`topil` allocate;
-            rendering raises :class:`ValueError` if the estimate exceeds it. The
-            estimate comes from the declared geometry. Defaults to the ``$PSD_TOOLS_MAX_ALLOC_BYTES``
+        :param max_alloc_bytes: optional per-document cap (bytes) on what
+            :py:meth:`composite`/:py:meth:`numpy`/:py:meth:`topil` allocate;
+            rendering raises :class:`ValueError` if the estimate exceeds it.
+            :py:meth:`numpy` and :py:meth:`topil` estimate their allocation *at
+            its peak*, intermediates included, so the estimate depends on the
+            colour mode, the depth and the compression method rather than on the
+            declared geometry alone. :py:meth:`composite` bounds the canvas it
+            builds instead, from the geometry: what follows that guard grows with
+            the layer count, which no such estimate can bound. Note that
+            :py:meth:`composite` reaches the other two in the ordinary cases --
+            it returns the preview through :py:meth:`topil` when the document has
+            one, and a document with no layers falls through to :py:meth:`numpy`.
+            Defaults to the ``$PSD_TOOLS_MAX_ALLOC_BYTES``
             env var (or :data:`psd_tools.api.utils.MAX_ALLOC_BYTES`) when ``None``.
         :param encoding: charset encoding of the pascal string within the file,
             default 'macroman'. Some psd files need explicit encoding option.

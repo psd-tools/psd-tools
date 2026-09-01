@@ -12,7 +12,7 @@ from psd_tools.api.utils import (
     get_transparency_index,
     has_transparency,
 )
-from psd_tools.constants import ChannelID, ColorMode
+from psd_tools.constants import ChannelID, ColorMode, Compression
 from psd_tools.psd.patterns import Pattern
 
 logger = logging.getLogger(__name__)
@@ -75,13 +75,13 @@ def _image_data_planes(psdimage: "PSDProtocol", flat: bool = False) -> int:
     :func:`_parse_array` trims each row's padding, so a 1-bit document
     allocates one float32 per pixel and the header bounds it exactly.
 
-    This bounds the array that is returned, which is what
-    :func:`~psd_tools.api.utils.check_pixel_size` estimates by construction. It
-    does not model the transient peak: :func:`_parse_array` holds the raw bytes
-    and two float32 arrays at once, and :func:`_remove_background` adds several
-    more, so the true high-water mark is a small multiple of this for every
-    colour mode -- a pre-existing property of this estimate rather than
-    anything a colour mode or a depth causes.
+    This bounds the array that is returned. The transient peak on top of it --
+    :func:`_parse_array` holding two float32 arrays at once,
+    :func:`_remove_background` adding several more -- is
+    :func:`_image_data_peak_bytes`'s subject, and it is what the guard is given
+    (#767). Keep this one about the width of the result: the two are separate
+    because the plane count is a property of the format and the transients are a
+    property of the code, and they go stale for different reasons.
     """
     if flat:
         return 1
@@ -89,6 +89,113 @@ def _image_data_planes(psdimage: "PSDProtocol", flat: bool = False) -> int:
     if psdimage.color_mode == ColorMode.INDEXED and psdimage.depth == 8:
         planes *= EXPECTED_CHANNELS[ColorMode.INDEXED]
     return planes
+
+
+# What :func:`_parse_array` holds *on top of* the array it returns, in bytes per
+# pixel per plane. Each entry is a count of the arrays alive at once in that
+# depth's branch, not a safety factor:
+#
+#   depth 1   ``bits`` and ``1 - bits``, both uint8, while ``.astype`` builds the
+#             float32 result from them.
+#   depth 8   the ``.astype`` result, while ``/ 255.0`` builds the one returned.
+#             The palette adds a third, ``lut[parsed]``, counted separately below
+#             because it is uint8 rather than float32.
+#   depth 16  the same pair, rescaling by 65535 instead.
+#   depth 32  nothing. 32-bit data needs no rescale, so ``.astype`` alone
+#             produces the array that is returned.
+#
+# ``np.frombuffer`` is a view and allocates nothing; so are the ``reshape``,
+# ``transpose`` and ``ravel`` that follow.
+_PARSE_TRANSIENT: dict[int, int] = {1: 2, 8: 4, 16: 4, 32: 0}
+
+# The uint8 array the palette lookup materialises before it is widened, one byte
+# per pixel per plane -- ``lut[parsed]`` is already three planes wide.
+_PALETTE_TRANSIENT: int = 1
+
+# :func:`_remove_background`'s own temporaries, in bytes per pixel: three float32
+# arrays of the three colour planes (3 x 3 x 4) and a boolean mask of the same
+# shape (3 x 1), rounded up from the 39 measured. Flat rather than per-plane
+# because it always works on exactly three colour planes however wide the
+# document is. Measured with every alpha non-zero, which is the worst case for
+# its boolean-indexed copies -- a payload that leaves most of the alpha at zero
+# selects few elements and hides most of this.
+_BACKGROUND_TRANSIENT: int = 40
+
+# Bytes live at the codec's own peak, as a multiple of the decompressed size.
+# ``ImageData.get_data()`` runs after the guard, so this is inside what the guard
+# has to bound. RAW hands back the bytes read at open time -- the same object,
+# when the body is exactly the declared length -- while the other three build
+# their result: RLE joins materialised rows, and prediction adds an
+# ``array.array`` pass and a byte-order pass on top of the inflate. Measured
+# 1.0x / 2.0x / 2.1x / 3.1x, each rounded up.
+_DECOMPRESS_PEAK: dict[Compression, int] = {
+    Compression.RAW: 1,
+    Compression.RLE: 3,
+    Compression.ZIP: 3,
+    Compression.ZIP_WITH_PREDICTION: 4,
+}
+
+
+def _image_data_peak_bytes(psdimage: "PSDProtocol", flat: bool = False) -> int:
+    """Bytes :func:`get_image_data` allocates at its high-water mark.
+
+    :func:`_image_data_planes` sizes the array that comes back;
+    :func:`~psd_tools.api.utils.check_pixel_size` is given this instead, because
+    a budget that only bounds the result is one the peak walks straight through
+    (#767).
+
+    The three phases -- decompressing the channel buffer, parsing it into
+    float32, removing the white background -- run one after another, so the
+    widest of them bounds all three. Summing them instead would reject documents
+    that never hold two phases at once. What *is* live across the last two is the
+    decompressed buffer itself, so that is added to each rather than maxed with
+    them.
+
+    Measured with ``tracemalloc``, which sees numpy's allocations, over every
+    colour mode, depth, channel count and compression method. Two deliberate
+    exclusions:
+
+    - Per-object allocator overhead. This and ``tracemalloc`` both count
+      requested bytes; what the allocator rounds each request up to is neither
+      modelled nor modellable here.
+    - The source buffer is counted even for RAW, where ``get_data()`` usually
+      returns the very bytes object read at open time and allocates nothing.
+      It only usually does: a body longer than the declared length is sliced,
+      and this guard exists for files that are not well formed
+      (GHSA-8q6g-vjhf-jp8m). The cost of counting it is a 2x over-estimate on a
+      32-bit RAW document, where there is no parse transient to dwarf it.
+    """
+    pixels = psdimage.width * psdimage.height
+    if flat:
+        # `np.ones((h, w, 1))` and nothing else -- the image data is never read,
+        # so there is no buffer to decompress and no transient above it.
+        return pixels * 4
+
+    planes = _image_data_planes(psdimage, flat)
+    depth = psdimage.depth
+    returned = pixels * planes * 4
+
+    # Rounded up per row: a 1-bit row of `width` pixels occupies
+    # `ceil(width / 8)` bytes, padding included.
+    source = ((psdimage.width * depth + 7) // 8) * psdimage.height * psdimage.channels
+
+    parse = _PARSE_TRANSIENT[depth]
+    if psdimage.color_mode == ColorMode.INDEXED and depth == 8:
+        parse += _PALETTE_TRANSIENT
+    # `_remove_background()`'s own condition, spelled against the plane count it
+    # actually tests: `data.shape[2] > 3` on an RGB document.
+    background = (
+        _BACKGROUND_TRANSIENT
+        if psdimage.color_mode == ColorMode.RGB and planes > 3
+        else 0
+    )
+    compression = psdimage._record.image_data.compression
+
+    return max(
+        _DECOMPRESS_PEAK[compression] * source,
+        source + returned + pixels * planes * parse,
+        source + returned + pixels * background,
+    )
 
 
 def get_image_data(psdimage: "PSDProtocol", channel: str | None) -> np.ndarray:
@@ -99,14 +206,19 @@ def get_image_data(psdimage: "PSDProtocol", channel: str | None) -> np.ndarray:
         channel == "shape" and not has_transparency(psdimage)
     )
     # The guard is here to reject a file before it allocates, so its estimate
-    # must not fall below the array that follows. See _image_data_planes() for
-    # why the header's own count is not that bound for an indexed document --
-    # and why the wider-of-the-pair shape used in composite() is not either.
+    # must not fall below what follows -- which is more than the array returned,
+    # this path holding two float32 arrays at once while it parses and several
+    # more while it removes the background (#767). _image_data_peak_bytes() is
+    # that bound; the plane count still rides along, naming the shape in the
+    # error message. See _image_data_planes() for why the header's own count is
+    # not the array's width for an indexed document -- and why the
+    # wider-of-the-pair shape used in composite() is not either.
     check_pixel_size(
         psdimage.width,
         psdimage.height,
         _image_data_planes(psdimage, flat),
         max_alloc_bytes=psdimage._max_alloc_bytes,
+        estimated_bytes=_image_data_peak_bytes(psdimage, flat),
     )
 
     if flat:
