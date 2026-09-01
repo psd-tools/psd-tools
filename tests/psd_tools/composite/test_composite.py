@@ -460,7 +460,9 @@ def test_composite_layerless_multichannel_over_a_backdrop() -> None:
     assert color.shape == (psd.height, psd.width, psd.numpy("color").shape[2])
 
 
-def _layered_multichannel(**kwargs: Any) -> PSDImage:
+def _layered_multichannel(
+    filename: str = "colormodes/4x4_8bit_rgb.psd", **kwargs: Any
+) -> PSDImage:
     """A multichannel document *with* layers, which no fixture provides.
 
     Photoshop neither produces nor preserves this shape: converting to
@@ -477,7 +479,10 @@ def _layered_multichannel(**kwargs: Any) -> PSDImage:
     Retagging the RGB fixture's color mode in place is the whole of
     it: that fixture's three document channels and its layers' three color
     channels already agree, as they would in a multichannel file with three
-    spot channels, so nothing else about the document has to change.
+    spot channels, so nothing else about the document has to change. The CMYK
+    fixture retags on the same terms and gives four plates instead of three --
+    the count that used to be claimed as CMYK (#746) -- since its header and
+    its layers agree at four the same way.
 
     Built this way rather than with ``PSDImage.new`` + ``PixelLayer.frompil``
     on purpose. ``frompil`` converts to the document's ``pil_mode``, which is
@@ -486,7 +491,7 @@ def _layered_multichannel(**kwargs: Any) -> PSDImage:
     one-channel source is widened to whatever the canvas is, so the test would
     pass without ever exercising the canvas width it is about.
     """
-    psd = PSDImage.open(full_name("colormodes/4x4_8bit_rgb.psd"), **kwargs)
+    psd = PSDImage.open(full_name(filename), **kwargs)
     psd._record.header.color_mode = ColorMode.MULTICHANNEL
     return psd
 
@@ -656,17 +661,17 @@ def test_composite_duotone_with_a_channelwise_blend_mode(blend_mode: BlendMode) 
     assert color.shape == (psd.height, psd.width, 1)
 
 
-@pytest.mark.parametrize(
-    "blend_mode",
-    [
-        BlendMode.HUE,
-        BlendMode.SATURATION,
-        BlendMode.COLOR,
-        BlendMode.LUMINOSITY,
-        BlendMode.DARKER_COLOR,
-        BlendMode.LIGHTER_COLOR,
-    ],
-)
+NON_SEPARABLE_MODES = [
+    BlendMode.HUE,
+    BlendMode.SATURATION,
+    BlendMode.COLOR,
+    BlendMode.LUMINOSITY,
+    BlendMode.DARKER_COLOR,
+    BlendMode.LIGHTER_COLOR,
+]
+
+
+@pytest.mark.parametrize("blend_mode", NON_SEPARABLE_MODES)
 @pytest.mark.parametrize(
     "filename",
     [
@@ -706,17 +711,7 @@ def test_composite_single_channel_with_a_non_separable_blend_mode(
     assert np.array_equal(color, composite(reference)[0])
 
 
-@pytest.mark.parametrize(
-    "blend_mode",
-    [
-        BlendMode.HUE,
-        BlendMode.SATURATION,
-        BlendMode.COLOR,
-        BlendMode.LUMINOSITY,
-        BlendMode.DARKER_COLOR,
-        BlendMode.LIGHTER_COLOR,
-    ],
-)
+@pytest.mark.parametrize("blend_mode", NON_SEPARABLE_MODES)
 def test_composite_single_channel_non_separable_over_an_opaque_backdrop(
     blend_mode: BlendMode,
 ) -> None:
@@ -743,6 +738,78 @@ def test_composite_single_channel_non_separable_over_an_opaque_backdrop(
     assert (alpha == 1.0).all(), "the backdrop must be opaque for this to bite"
     assert color.shape == (4, 4, 1)
     assert np.allclose(color, 192 / 255.0, atol=1 / 255.0)
+
+
+@pytest.mark.parametrize("blend_mode", NON_SEPARABLE_MODES)
+@pytest.mark.parametrize(
+    ("filename", "plates"),
+    [
+        ("colormodes/4x4_8bit_rgb.psd", 3),
+        ("colormodes/4x4_8bit_cmyk.psd", 4),
+    ],
+)
+def test_composite_multichannel_with_a_non_separable_blend_mode(
+    filename: str, plates: int, blend_mode: BlendMode
+) -> None:
+    """A spot plate is neither a colour component nor an ink (#746).
+
+    #735 keyed the degradation on the width, which left the two plate counts
+    that collide with RGB and CMYK still blending: three plates went into the
+    RGB helpers as if they were R, G and B, and four were round-tripped as CMYK
+    with the fourth ink read as black generation. Measured here before the fix,
+    against the same document at ``Normal``, every one of the twelve cases
+    differed -- by up to 0.7 at three plates and 1.0 at four.
+
+    The backdrop has to be passed in opaque. Where these fixtures' layers paint
+    the document's own alpha is zero, and ``_apply_source``'s
+    ``(1 - alpha_b) * color + alpha_b * blend(...)`` then collapses to the
+    source, so the blend result never reaches the output and returning it or
+    returning the backdrop look identical -- the same trap
+    ``test_composite_single_channel_non_separable_over_an_opaque_backdrop``
+    exists for.
+
+    Left at ``force=False`` deliberately. Forcing routes the second layer
+    through ``paint.draw_gradient_fill()``, a different path from the one under
+    test, and on that path ``Luminosity`` already coincided with ``Normal``
+    before the fix -- so that parametrization would have asserted nothing.
+    """
+    psd = _layered_multichannel(filename)
+    assert psd.color_mode == ColorMode.MULTICHANNEL
+    assert psd.channels == plates
+    for layer in psd:
+        layer.blend_mode = blend_mode
+
+    color, alpha, _ = composite(psd, color=0.5, alpha=1.0)
+    assert (alpha == 1.0).all(), "the backdrop must be opaque for this to bite"
+    assert color.shape == (psd.height, psd.width, plates)
+
+    reference = _layered_multichannel(filename)
+    for layer in reference:
+        layer.blend_mode = BlendMode.NORMAL
+    assert np.array_equal(color, composite(reference, color=0.5, alpha=1.0)[0])
+
+
+@pytest.mark.parametrize("blend_mode", NON_SEPARABLE_MODES)
+def test_composite_cmyk_still_blends_where_multichannel_no_longer_does(
+    blend_mode: BlendMode,
+) -> None:
+    """The colour mode is doing the work above, not the channel count (#746).
+
+    The same fixture, the same four channels, the same backdrop -- left tagged
+    CMYK. A fix that fell back on the width of the array rather than on what
+    its channels mean would pass the test above and fail this one, taking the
+    CMYK round trip down with it.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_cmyk.psd"))
+    assert psd.color_mode == ColorMode.CMYK
+    for layer in psd:
+        layer.blend_mode = blend_mode
+    color, _, _ = composite(psd, color=0.5, alpha=1.0)
+
+    reference = PSDImage.open(full_name("colormodes/4x4_8bit_cmyk.psd"))
+    for layer in reference:
+        layer.blend_mode = BlendMode.NORMAL
+    assert not np.array_equal(color, composite(reference, color=0.5, alpha=1.0)[0])
 
 
 def test_composite_pil_duotone_force_keeps_the_luminance_plane_intact() -> None:

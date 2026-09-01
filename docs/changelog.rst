@@ -524,6 +524,18 @@ Changelog
   with Knockout at fill opacity 100% -- where it has no visible effect by
   design -- are unaffected.
 
+- [fix] Fall back to ``normal`` for the six non-separable blend modes on a
+  multichannel document at whatever its plate count is, rather than at every
+  count but three and four (#746). Three spot plates were blended as if they
+  were R, G and B, and four had the fourth plate read as CMYK black generation;
+  both were silently wrong output rather than an error. Affects only
+  multichannel documents that carry layers, a shape Photoshop neither writes --
+  converting to Multichannel flattens -- nor preserves on opening, so no file in
+  the test corpus renders differently. The six functions in
+  ``psd_tools.composite.blend`` now take the document's colour mode as an
+  optional third argument, supplied by the new ``get_blend_func()`` lookup;
+  ``BLEND_FUNC`` is unchanged.
+
 1.18.0 (2026-08-07)
 -------------------
 

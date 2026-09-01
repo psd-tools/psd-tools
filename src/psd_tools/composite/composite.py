@@ -15,7 +15,7 @@ from psd_tools.api.psd_image import PSDImage
 from psd_tools.api.utils import check_pixel_size, get_color_channels
 from psd_tools.composite import paint, utils, vector
 from psd_tools.composite.adjustments import ADJUSTMENT_FUNC
-from psd_tools.composite.blend import BLEND_FUNC, normal
+from psd_tools.composite.blend import get_blend_func
 from psd_tools.composite.effects import draw_stroke_effect
 from psd_tools.composite.widen import make_widen
 from psd_tools.constants import (
@@ -463,6 +463,7 @@ def composite(
         force,
         document_backdrop=lambda: _document_backdrop(_psd, viewport),
         widen=_widen_fn,
+        color_mode=None if _psd is None else _psd.color_mode,
     )
     target_group = group if isinstance(group, GroupMixin) and not as_layer else [group]
     for layer in target_group:  # type: ignore
@@ -762,13 +763,21 @@ class Compositor(object):
     is only correct when there is no document to ask (#722). A sub-compositor
     that does not pass it on returns its whole subtree to that fallback.
 
+    ``color_mode`` is the document's, and travels the same way for the same
+    reason: the six non-separable blend modes need to know what their operands'
+    channels are and not merely how many, since a multichannel document's spot
+    plates are neither RGB nor CMYK (#746). A sub-compositor that does not pass
+    it on returns its whole subtree to deciding by width alone.
+
     Example::
 
         widen = make_widen(psd)
         color, alpha = _normalize_backdrop(
             1.0, 0.0, height, width, channels, widen=widen
         )
-        compositor = Compositor(group.bbox, color, alpha, widen=widen)
+        compositor = Compositor(
+            group.bbox, color, alpha, widen=widen, color_mode=psd.color_mode
+        )
         for layer in group:
             compositor.apply(layer)
         color, shape, alpha = compositor.finish()
@@ -785,6 +794,7 @@ class Compositor(object):
         document_backdrop: Callable[[], tuple[np.ndarray, np.ndarray] | None]
         | None = None,
         widen: _Widen = _widen,
+        color_mode: ColorMode | None = None,
     ):
         self._viewport = viewport
         self._layer_filter = layer_filter
@@ -793,6 +803,12 @@ class Compositor(object):
         # rather than derived because the four sites that need it below are
         # inside this class, which holds no document handle (#722, #749).
         self._widen = widen
+        # The document's colour mode, for the blend functions that need to know
+        # what their operands' channels are and not just how many there are.
+        # Carried for the same reason as ``widen``: ``_apply_source()`` holds no
+        # document handle either. None means "no document to ask", and leaves
+        # the width to decide alone (#746).
+        self._color_mode = color_mode
         self._adjustment_isolated = adjustment_isolated
         # What Knockout.DEEP knocks out to. Inherited by pass-through
         # sub-compositors and reset at every isolation boundary, so deep
@@ -1067,7 +1083,7 @@ class Compositor(object):
         alpha_b = knockout_alpha if knockout else alpha_previous
         color_b = knockout_color if knockout else self._color
 
-        blend_fn = BLEND_FUNC.get(blend_mode, normal)
+        blend_fn = get_blend_func(blend_mode, self._color_mode)
         color_t = (shape - alpha) * alpha_b * color_b + alpha * (
             (1.0 - alpha_b) * color + alpha_b * blend_fn(color_b, color)
         )
@@ -1104,7 +1120,10 @@ class Compositor(object):
         shape = shape_mask * shape_const
         opacity = shape * opacity_const
 
-        blend_fn = BLEND_FUNC.get(layer.blend_mode, normal)
+        # Passed for uniformity with _apply_source() rather than for effect:
+        # the guard above has already returned for every mode whose blending
+        # the colour mode changes, multichannel included.
+        blend_fn = get_blend_func(layer.blend_mode, self._color_mode)
         blended = blend_fn(backdrop_color, transformed_color)
 
         if self._adjustment_isolated:
@@ -1237,6 +1256,7 @@ class Compositor(object):
             adjustment_isolated=self._adjustment_isolated or isolate_adjustments,
             document_backdrop=document_backdrop,
             widen=self._widen,
+            color_mode=self._color_mode,
         )
 
         for sublayer in cast(GroupMixin, layer):
@@ -1298,6 +1318,7 @@ class Compositor(object):
                 self._widen(color, self.channels),
                 alpha,
                 widen=self._widen,
+                color_mode=self._color_mode,
             )
             compositor._apply_source(color_s, shape_s, alpha_s, layer.stroke.blend_mode)
             color, _, _ = compositor.finish()
@@ -1315,6 +1336,7 @@ class Compositor(object):
             layer_filter=self._layer_filter,
             force=self._force,
             widen=self._widen,
+            color_mode=self._color_mode,
         )
         for clip_layer in layer.clip_layers:
             compositor.apply(clip_layer, clip_compositing=True)

@@ -7,17 +7,22 @@ from PIL import Image
 
 from psd_tools import PSDImage
 from psd_tools.api.layers import GroupMixin, PixelLayer
+from psd_tools.api.utils import EXPECTED_CHANNELS, color_channels
 from psd_tools.composite.blend import (
     BLEND_FUNC,
     color,
+    color_dodge,
     darker_color,
+    get_blend_func,
     hue,
     lighter_color,
     luminosity,
+    multiply,
     normal,
     saturation,
 )
-from psd_tools.constants import BlendMode
+from psd_tools.constants import BlendMode, ColorMode
+from psd_tools.terminology import Enum
 from .test_composite import check_composite_quality
 
 logger = logging.getLogger(__name__)
@@ -250,25 +255,51 @@ def test_non_separable_falls_back_to_normal_off_rgb(
     assert np.array_equal(result, normal(Cb, Cs))
 
 
-@pytest.mark.parametrize("func", NON_SEPARABLE, ids=lambda f: f.__name__)
-@pytest.mark.parametrize("channels", [3, 4])
-def test_non_separable_still_blends_rgb_and_cmyk(
-    func: Callable, channels: int, caplog: pytest.LogCaptureFixture
-) -> None:
-    """The fallback must not swallow the widths that do have ground truth.
+def _mixed_pair(channels: int) -> tuple[np.ndarray, np.ndarray]:
+    """A backdrop and a source that no single operand can be mistaken for.
 
     The source is brighter than the backdrop in one pixel and darker in the
     other. A spatially constant pair would not do: ``darker_color`` and
     ``lighter_color`` return one whole operand, so on constant input one of the
-    two always coincides with ``normal`` and the comparison could not tell a
-    real blend from the fallback.
+    two always coincides with ``normal`` and a comparison could not tell a real
+    blend from the fallback.
     """
     Cb = np.full((1, 2, channels), 0.4, dtype=np.float32)
     Cs = np.full((1, 2, channels), 0.6, dtype=np.float32)
     Cs[0, 0, 0] = 0.9
     Cs[0, 1, :] = 0.1
+    return Cb, Cs
+
+
+@pytest.mark.parametrize("func", NON_SEPARABLE, ids=lambda f: f.__name__)
+@pytest.mark.parametrize(
+    ("color_mode", "channels"),
+    [
+        (None, 3),
+        (None, 4),
+        (ColorMode.RGB, 3),
+        (ColorMode.INDEXED, 3),
+        (ColorMode.LAB, 3),
+        (ColorMode.CMYK, 4),
+    ],
+)
+def test_non_separable_still_blends_the_modes_with_ground_truth(
+    func: Callable,
+    color_mode: ColorMode | None,
+    channels: int,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The fallbacks must not swallow the cases that do have ground truth.
+
+    Photoshop offers all six modes on an RGB, indexed, Lab and CMYK document,
+    so all four keep blending -- the three-channel ones directly and CMYK
+    through the RGB round trip. So does an array with no mode attached, which
+    is what a bare ``Compositor`` or a direct call hands over: there the width
+    decides alone, as it did before #746.
+    """
+    Cb, Cs = _mixed_pair(channels)
     with caplog.at_level(logging.DEBUG, logger="psd_tools.composite.blend"):
-        result = func(Cb.copy(), Cs.copy())
+        result = func(Cb.copy(), Cs.copy(), color_mode)
     assert result.shape == (1, 2, channels)
     assert not np.array_equal(result, normal(Cb, Cs))
     assert "falling back to normal" not in caplog.text
@@ -281,3 +312,96 @@ def test_non_separable_fallback_is_logged(caplog: pytest.LogCaptureFixture) -> N
     with caplog.at_level(logging.DEBUG, logger="psd_tools.composite.blend"):
         luminosity(Cb, Cs)
     assert "luminosity blend is not defined for a 1-channel source" in caplog.text
+
+
+@pytest.mark.parametrize("func", NON_SEPARABLE, ids=lambda f: f.__name__)
+@pytest.mark.parametrize("channels", [1, 2, 3, 4, 5])
+def test_non_separable_falls_back_on_a_multichannel_document(
+    func: Callable, channels: int, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A spot plate is not a colour component, at any plate count (#746).
+
+    #745 keyed the fallback on the width, which left two plate counts blending:
+    four were claimed as CMYK and the fourth ink blended as black generation,
+    and three went into the RGB helpers as if the plates were R, G and B. Both
+    were silently wrong rather than an error, and three is the count the only
+    multichannel fixture in the corpus has.
+
+    The assertion on the message is what makes this discriminate. At one, two
+    and five channels the width fallback #745 added returns ``normal`` too, so
+    the equality alone would pass there with this fix reverted; and for three
+    and four the width is the wrong diagnosis to log.
+    """
+    Cb, Cs = _mixed_pair(channels)
+    with caplog.at_level(logging.DEBUG, logger="psd_tools.composite.blend"):
+        result = func(Cb.copy(), Cs.copy(), ColorMode.MULTICHANNEL)
+    assert result.shape == (1, 2, channels)
+    assert np.array_equal(result, normal(Cb, Cs))
+    assert (
+        "%s blend is not defined on a multichannel document" % func.__name__
+        in caplog.text
+    )
+
+
+def test_only_cmyk_is_four_channels_wide() -> None:
+    """The premise the ``Cs.shape[2] == 4`` branch reads as CMYK (#746).
+
+    Multichannel returns before that branch, so what makes its remaining
+    reading of a four-channel array sound is that no other mode can produce
+    one: :py:data:`EXPECTED_CHANNELS` fixes every mode but multichannel, whose
+    entry is the format maximum and whose count the header supplies. Pinned
+    here so that a change to the table -- indexed expanding to four
+    post-palette, say -- fails as a test rather than as an unrelated mode
+    blended as ink.
+    """
+    assert {m for m in ColorMode if EXPECTED_CHANNELS[m] == 4} == {ColorMode.CMYK}
+    assert EXPECTED_CHANNELS[ColorMode.MULTICHANNEL] == 64
+    assert color_channels(ColorMode.MULTICHANNEL, 4) == 4
+
+
+def test_get_blend_func_binds_the_mode_only_to_the_non_separable_six() -> None:
+    """Which functions take a colour mode is a correctness question (#746).
+
+    ``color_dodge`` and ``color_burn`` already have a third parameter of their
+    own -- the ``s`` factor -- so binding the mode across the whole table would
+    hand them a ``ColorMode`` as that factor. The six wrappers register
+    themselves as the decorator builds them; everything else must come back
+    untouched, and identically, so that a caller can still compare identity.
+    """
+    assert get_blend_func(BlendMode.MULTIPLY, ColorMode.MULTICHANNEL) is multiply
+    assert get_blend_func(BlendMode.COLOR_DODGE, ColorMode.CMYK) is color_dodge
+    assert get_blend_func(BlendMode.HUE) is hue
+    assert get_blend_func(BlendMode.HUE, ColorMode.MULTICHANNEL) is not hue
+
+
+def test_get_blend_func_defaults_unknown_keys_to_normal() -> None:
+    """The ``.get(..., normal)`` default this replaced is load-bearing (#746).
+
+    ``PASS_THROUGH`` has no entry in ``BLEND_FUNC`` and reaches the lookup for
+    real: a group that isolates its adjustments is composited as an ordinary
+    source, so ``_apply_source()`` is called with it. Answering ``None`` there
+    would raise rather than composite.
+    """
+    assert BLEND_FUNC.get(BlendMode.PASS_THROUGH) is None
+    assert get_blend_func(BlendMode.PASS_THROUGH) is normal
+    assert get_blend_func(BlendMode.PASS_THROUGH, ColorMode.MULTICHANNEL) is normal
+    assert get_blend_func(b"nosuchblendmode", ColorMode.CMYK) is normal
+
+
+@pytest.mark.parametrize(
+    "key",
+    [Enum.Hue, Enum.Saturation, Enum.Color, Enum.Luminosity]
+    + [b"darkerColor", b"lighterColor"],
+)
+def test_get_blend_func_degrades_the_descriptor_keys_too(key: bytes) -> None:
+    """Effects and strokes look their blend mode up by descriptor key (#746).
+
+    ``BLEND_FUNC`` carries the six twice over, once per key family, and a typo
+    in the descriptor half shipped undetected once already -- see
+    ``test_lighter_color_descriptor_key`` above. So the family a layer's own
+    blend mode does *not* come through is pinned here rather than assumed to
+    follow.
+    """
+    Cb, Cs = _mixed_pair(4)
+    blend_fn = get_blend_func(key, ColorMode.MULTICHANNEL)
+    assert np.array_equal(blend_fn(Cb.copy(), Cs.copy()), normal(Cb, Cs))

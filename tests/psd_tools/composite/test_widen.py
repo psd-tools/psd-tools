@@ -209,10 +209,11 @@ def test_widened_grey_survives_the_icc_round_trip() -> None:
         assert max(abs(c - level) for c in rendered) <= 3
 
 
-# Every function that constructs a ``Compositor``, and so has to pass ``widen``
-# on. Named rather than counted so that the fixtures below are checked to still
-# reach each one: a guard that renders a document which no longer builds, say, a
-# stroke sub-compositor keeps passing while covering nothing.
+# Every function that constructs a ``Compositor``, and so has to pass the
+# document's facts on. Named rather than counted so that the fixtures below are
+# checked to still reach each one: a guard that renders a document which no
+# longer builds, say, a stroke sub-compositor keeps passing while covering
+# nothing.
 _WIDEN_CALLERS = frozenset(
     {"composite", "_get_group", "_get_object", "_apply_clip_layers"}
 )
@@ -222,7 +223,7 @@ _WIDEN_CALLERS = frozenset(
 _WIDEN_FIXTURES = ["clipping-mask.psd", "effects/stroke-composite.psd"]
 
 
-def test_every_sub_compositor_inherits_the_conversion(monkeypatch) -> None:
+def test_every_sub_compositor_inherits_the_document_facts(monkeypatch) -> None:
     """A sub-compositor that forgets ``widen`` reverts its subtree to replication.
 
     ``_get_group()`` did exactly that, and because the group compositor is the
@@ -241,35 +242,56 @@ def test_every_sub_compositor_inherits_the_conversion(monkeypatch) -> None:
     or Lab document (#749, #776). ``effects/stroke-composite.psd`` builds eight
     of them.
 
+    ``color_mode`` is checked in the same pass, being the second fact carried
+    down the same tree for the same reason: a compositor that does not know its
+    document's colour mode blends the non-separable modes by the width of the
+    array alone, which is what read a multichannel document's fourth spot plate
+    as black generation (#746). One spy rather than two, so that the two facts
+    cannot drift apart -- the failure mode here is a *new* construction site
+    passing one argument and forgetting the other.
+
     Pinned on the identity of the callable rather than on any rendered value,
     so a new ``Compositor(...)`` that omits the argument fails here regardless
     of which document it is exercised with -- and on the caller's name, so a
     site that stops being reached fails here too rather than going quiet.
     """
-    seen: list[tuple[str, bool]] = []
+    seen: list[tuple[str, bool, bool]] = []
     original = Compositor.__init__
 
     def spy(self, *args, **kwargs):
         original(self, *args, **kwargs)
         # Frame 1 is whatever called ``Compositor(...)``: the constructor is
         # reached through ``type.__call__``, which adds no Python frame.
-        seen.append((sys._getframe(1).f_code.co_name, self._widen is _widen))
+        seen.append(
+            (
+                sys._getframe(1).f_code.co_name,
+                self._widen is _widen,
+                self._color_mode is None,
+            )
+        )
 
     monkeypatch.setattr(Compositor, "__init__", spy)
 
     for filename in _WIDEN_FIXTURES:
         composite(PSDImage.open(full_name(filename)), force=True)
 
-    fell_back = [caller for caller, is_default in seen if is_default]
+    fell_back = [caller for caller, is_default, _ in seen if is_default]
     assert not fell_back, (
         "%d of %d compositors fell back to the mode-blind "
         "_widen, from %s" % (len(fell_back), len(seen), sorted(set(fell_back)))
     )
 
-    missing = _WIDEN_CALLERS - {caller for caller, _ in seen}
+    modeless = [caller for caller, _, no_mode in seen if no_mode]
+    assert not modeless, "%d of %d compositors were given no colour mode, from %s" % (
+        len(modeless),
+        len(seen),
+        sorted(set(modeless)),
+    )
+
+    missing = _WIDEN_CALLERS - {caller for caller, _, _ in seen}
     assert not missing, (
         "%s built no compositor for these fixtures, so nothing checks that it "
-        "passes widen on" % sorted(missing)
+        "passes the document's facts on" % sorted(missing)
     )
 
 
@@ -281,7 +303,7 @@ def test_the_conversion_is_resolved_once_per_composite(monkeypatch) -> None:
     again each time. Three comments assert this in prose; nothing else asserts
     it in code.
 
-    ``test_every_sub_compositor_inherits_the_conversion`` above does not cover
+    ``test_every_sub_compositor_inherits_the_document_facts`` above does not cover
     it: that spy compares each compositor's ``_widen`` against the mode-blind
     fallback, so a site building a fresh ``make_widen(psd)`` of its own would
     satisfy it. The compositor count is asserted here for the same reason --

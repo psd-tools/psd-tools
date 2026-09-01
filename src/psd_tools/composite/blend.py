@@ -72,10 +72,11 @@ enums to their corresponding functions for easy lookup during compositing.
 
 import functools
 import logging
+from typing import Callable
 
 import numpy as np
 
-from psd_tools.constants import BlendMode
+from psd_tools.constants import BlendMode, ColorMode
 from psd_tools.terminology import Enum
 
 logger = logging.getLogger(__name__)
@@ -249,6 +250,15 @@ def divide(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     return B
 
 
+# The wrappers :py:func:`non_separable` builds, which are the only blend
+# functions that take a colour mode. Populated by the decorator rather than
+# listed here, so a seventh non-separable mode cannot be added without
+# :py:func:`get_blend_func` learning about it. Binding the mode over the whole
+# of ``BLEND_FUNC`` instead is not an option: ``color_dodge`` and
+# ``color_burn`` already have a third parameter of their own.
+_MODE_AWARE: set[Callable] = set()
+
+
 # Non-separable blending must be in RGB. CMYK should be first converted to RGB,
 # blended, then CMY components should be retrieved from RGB results. K
 # component is K of Cb for hue, saturation, and color blending, and K of Cs for
@@ -258,18 +268,38 @@ def non_separable(k: str = "s"):
 
     The wrapped functions are RGB-only by construction: the helpers below index
     channels 0, 1 and 2 by name. A three-channel source reaches them unchanged
-    and a four-channel one round-trips through RGB. Any other width falls back
-    to :py:func:`normal` rather than raising or inventing a result.
+    and a four-channel CMYK one round-trips through RGB. Anything else falls
+    back to :py:func:`normal` rather than raising or inventing a result.
 
-    The fallback is keyed on the width rather than on the colour mode, so it
-    covers every mode that is not three or four channels wide: the one-channel
-    ones -- grayscale and duotone, and bitmap and indexed alike -- and
-    multichannel at whatever its spot plates come to. Photoshop offers none of
-    the six on any of them. Scripted against Photoshop 2026, a grayscale
-    document rejects every one with *The command "Set" is not currently
-    available* and they are greyed out in the UI, and bitmap mode does not admit
-    layers at all. So there is no result to reproduce, and widening the array to
-    three channels would produce output Photoshop never does (#735).
+    What "anything else" is takes both the colour mode and the width to decide,
+    and :py:func:`get_blend_func` is what supplies the mode:
+
+    - **Multichannel** falls back at every plate count, and is checked first
+      for that reason. Its channels are spot inks, so a hue or a luminosity read off
+      them is meaningless whether there are three of them or thirty; keying on
+      the width alone had four plates claimed as CMYK -- the fourth ink blended
+      as black generation -- and three blended as if they were R, G and B
+      (#746).
+    - **One channel** falls back on the width: grayscale, duotone and bitmap
+      are each one channel wide, and Photoshop offers none of the six on any of
+      them. Two channels, and five or more, likewise.
+    - **CMYK** round-trips through RGB. **RGB** blends directly, and so does
+      indexed, whose canvas is three channels wide once its palette has been
+      applied.
+
+    Photoshop offers none of the six on any of the modes that fall back.
+    Scripted against Photoshop 2026, a grayscale document rejects every one with
+    *The command "Set" is not currently available* and they are greyed out in
+    the UI; bitmap mode does not admit layers at all; and a multichannel
+    document does not either -- converting to Multichannel flattens, so the
+    blend mode cannot be set on one in the first place. So there is no result to
+    reproduce, and widening or reinterpreting the array would produce output
+    Photoshop never does (#735, #746).
+
+    With no mode to ask -- a bare :py:class:`~psd_tools.composite.Compositor`,
+    or one of these functions called directly -- the width decides alone, as it
+    did before #746: four channels round-trip as CMYK, which is the only mode a
+    four-channel array can belong to on a real document.
 
     Lab is three channels wide and so is blended as if it were RGB. That is this
     module's pre-existing treatment of Lab, not something the fallback decides,
@@ -281,15 +311,33 @@ def non_separable(k: str = "s"):
 
     def decorator(func):
         @functools.wraps(func)
-        def _blend_fn(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
+        def _blend_fn(
+            Cb: np.ndarray, Cs: np.ndarray, color_mode: ColorMode | None = None
+        ) -> np.ndarray:
+            if color_mode == ColorMode.MULTICHANNEL:
+                # Ahead of the width tests, and with a message of its own: for
+                # three or four plates the width is the wrong diagnosis, and
+                # those are exactly the two counts that used to blend rather
+                # than fall back.
+                logger.debug(
+                    "%s blend is not defined on a multichannel document; "
+                    "falling back to normal",
+                    func.__name__,
+                )
+                return normal(Cb, Cs)
             if Cs.shape[2] == 4:
+                # Four channels means CMYK. Multichannel is the only other mode
+                # whose canvas can be that wide and it has returned above, so
+                # reading the fourth channel as K is sound here without asking
+                # the mode again. ``tests/psd_tools/composite/test_blend.py``
+                # pins that premise on ``api.utils.EXPECTED_CHANNELS``.
                 K = Cs[:, :, 3:4] if k == "s" else Cb[:, :, 3:4]
                 Cb, Cs = _cmyk2rgb(Cb), _cmyk2rgb(Cs)
                 return np.concatenate((_rgb2cmy(func(Cb, Cs), K), K), axis=2)
             if Cs.shape[2] != 3:
-                # Keyed on the source: the compositor allows a one-channel
-                # source against a wider canvas, so this is not always the
-                # document's own width.
+                # The document's own width: ``Compositor._fit_source()`` widens
+                # a one-channel source at the door, so every array that reaches
+                # here is exactly the canvas width (#749).
                 logger.debug(
                     "%s blend is not defined for a %d-channel source; "
                     "falling back to normal",
@@ -299,6 +347,7 @@ def non_separable(k: str = "s"):
                 return normal(Cb, Cs)
             return func(Cb, Cs)
 
+        _MODE_AWARE.add(_blend_fn)
         return _blend_fn
 
     return decorator
@@ -603,3 +652,29 @@ BLEND_FUNC = {
     b"lighterColor": lighter_color,
     Enum.Dissolve: dissolve,
 }
+
+
+def get_blend_func(
+    blend_mode: BlendMode | bytes, color_mode: ColorMode | None = None
+) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
+    """Look up *blend_mode*, with the document's colour mode already bound in.
+
+    :py:data:`BLEND_FUNC` answers by blend mode alone, which is all a separable
+    mode needs. The six non-separable ones also need to know what the channels
+    of their operands *are* -- three spot plates are not R, G and B, and a
+    fourth is not black generation -- so the mode is bound to those here rather
+    than plumbed through every blend signature (#746).
+
+    The result takes ``(Cb, Cs)`` either way, so the compositor calls it without
+    caring which kind it got. Pass no *color_mode* and the width decides alone,
+    exactly as it did before; :py:data:`BLEND_FUNC` itself is unchanged and
+    stays the mode-blind table.
+
+    Unknown keys answer :py:func:`normal`, as the ``.get`` calls this replaces
+    did. ``PASS_THROUGH`` is one of them and reaches here for real: a group that
+    isolates its adjustments is composited as an ordinary source.
+    """
+    func = BLEND_FUNC.get(blend_mode, normal)
+    if color_mode is None or func not in _MODE_AWARE:
+        return func
+    return functools.partial(func, color_mode=color_mode)
