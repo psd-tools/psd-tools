@@ -213,35 +213,67 @@ def test_widened_grey_survives_the_icc_round_trip() -> None:
         assert max(abs(c - level) for c in rendered) <= 3
 
 
+# Every function that constructs a ``Compositor``, and so has to pass ``widen``
+# on. Named rather than counted so that the fixtures below are checked to still
+# reach each one: a guard that renders a document which no longer builds, say, a
+# stroke sub-compositor keeps passing while covering nothing.
+_WIDEN_CALLERS = frozenset(
+    {"composite", "_get_group", "_get_object", "_apply_clip_layers"}
+)
+
+# Between them these reach all four. Neither does alone: the clipping fixture
+# has no stroked shape, and the stroke fixture has no group.
+_WIDEN_FIXTURES = ["clipping-mask.psd", "effects/stroke-composite.psd"]
+
+
 def test_every_sub_compositor_inherits_the_conversion(monkeypatch) -> None:
     """A sub-compositor that forgets ``widen`` reverts its subtree to replication.
 
     ``_get_group()`` did exactly that, and because the group compositor is the
     parent of the clip and stroke ones, losing it there took the whole subtree
-    with it -- the three sites that do pass it on were only right at the
-    document's top level. No fixture caught it: no CMYK or Lab fixture has
-    groups, so the corpus renders identically either way.
+    with it -- the sites that did pass it on were only right at the document's
+    top level. No fixture caught it: no CMYK or Lab fixture has groups, so the
+    corpus renders identically either way. Nor would one: in RGB replication
+    *is* the conversion, so a lost ``widen`` is invisible in every document the
+    corpus actually contains.
+
+    Which makes what the spy is pointed at the whole substance of the test, and
+    ``clipping-mask.psd`` alone was pointing it away from one site. It builds a
+    top-level, two group and one clip compositor, and no stroke one -- so the
+    ``Compositor(...)`` in ``_get_object()`` that seeds a stroke was covered by
+    nothing, though losing ``widen`` there reverts every stroked shape in a CMYK
+    or Lab document (#749, #776). ``effects/stroke-composite.psd`` builds eight
+    of them.
 
     Pinned on the identity of the callable rather than on any rendered value,
     so a new ``Compositor(...)`` that omits the argument fails here regardless
-    of which document it is exercised with.
+    of which document it is exercised with -- and on the caller's name, so a
+    site that stops being reached fails here too rather than going quiet.
     """
-    seen: list[bool] = []
+    seen: list[tuple[str, bool]] = []
     original = Compositor.__init__
 
     def spy(self, *args, **kwargs):
         original(self, *args, **kwargs)
-        seen.append(self._widen is _widen)
+        # Frame 1 is whatever called ``Compositor(...)``: the constructor is
+        # reached through ``type.__call__``, which adds no Python frame.
+        seen.append((sys._getframe(1).f_code.co_name, self._widen is _widen))
 
     monkeypatch.setattr(Compositor, "__init__", spy)
 
-    psd = PSDImage.open(full_name("clipping-mask.psd"))
-    composite(psd, force=True)
+    for filename in _WIDEN_FIXTURES:
+        composite(PSDImage.open(full_name(filename)), force=True)
 
-    assert seen, "no compositor was constructed"
-    assert not any(seen), "%d of %d compositors fell back to the mode-blind _widen" % (
-        sum(seen),
-        len(seen),
+    fell_back = [caller for caller, is_default in seen if is_default]
+    assert not fell_back, (
+        "%d of %d compositors fell back to the mode-blind "
+        "_widen, from %s" % (len(fell_back), len(seen), sorted(set(fell_back)))
+    )
+
+    missing = _WIDEN_CALLERS - {caller for caller, _ in seen}
+    assert not missing, (
+        "%s built no compositor for these fixtures, so nothing checks that it "
+        "passes widen on" % sorted(missing)
     )
 
 
