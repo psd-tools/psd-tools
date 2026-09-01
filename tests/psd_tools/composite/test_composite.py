@@ -884,6 +884,19 @@ def test_composite_pil_force_covers_every_colour_mode(
     assert image.mode == mode
 
 
+def _flattened_data(image: Image.Image) -> Any:
+    """*image*'s pixels as a flat sequence, under whichever name PIL has for it.
+
+    Pillow 12.1 added ``get_flattened_data()`` and deprecated ``getdata()`` for
+    removal in Pillow 14. This project's floor is Pillow 10.3, which has only
+    the old spelling, so both have to work here. They read the same values
+    through the same unpacker and differ only in what they hand back -- a tuple
+    against PIL's internal sequence -- either of which ``np.array()`` accepts.
+    """
+    flatten = getattr(image, "get_flattened_data", None)
+    return flatten() if flatten is not None else image.getdata()
+
+
 def _pixels_as_seen(image: Image.Image) -> np.ndarray:
     """The planes a consumer of *image* reads, rather than PIL's own buffer.
 
@@ -893,10 +906,10 @@ def _pixels_as_seen(image: Image.Image) -> np.ndarray:
     ``Image.fromarray(..., "LAB")`` and back is the identity no matter what the
     unpacker does in between. That is why a NumPy-only assertion could not see
     #759, where the composited image carried both chroma planes 128 off and
-    converted to an unrelated colour. ``getdata()`` goes through the unpacker,
-    which is what ``convert()`` and ``save()`` do too.
+    converted to an unrelated colour. :func:`_flattened_data` goes through the
+    unpacker, which is what ``convert()`` and ``save()`` do too.
     """
-    planes = np.array(image.getdata(), dtype=np.uint8)
+    planes = np.array(_flattened_data(image), dtype=np.uint8)
     return planes.reshape(image.size[1], image.size[0], -1)
 
 
