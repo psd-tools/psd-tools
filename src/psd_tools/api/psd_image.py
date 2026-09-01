@@ -230,9 +230,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         :param max_alloc_bytes: optional per-document cap (bytes) on the buffer
             that :py:meth:`composite`/:py:meth:`numpy`/:py:meth:`topil` allocate;
             rendering raises :class:`ValueError` if the estimate exceeds it. The
-            estimate comes from the declared geometry, except at depth 1, where
-            the array follows the byte count the codec returns and the
-            compressed body's own length is read as well. Defaults to the ``$PSD_TOOLS_MAX_ALLOC_BYTES``
+            estimate comes from the declared geometry. Defaults to the ``$PSD_TOOLS_MAX_ALLOC_BYTES``
             env var (or :data:`psd_tools.api.utils.MAX_ALLOC_BYTES`) when ``None``.
         :param encoding: charset encoding of the pascal string within the file,
             default 'macroman'. Some psd files need explicit encoding option.

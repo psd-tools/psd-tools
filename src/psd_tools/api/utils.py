@@ -95,8 +95,7 @@ def check_pixel_size(
         that differs from the header's channels, because for some colour modes
         and depths the array is not one plane per stored channel: see
         :func:`~psd_tools.api.numpy_io._image_data_planes`, which triples an
-        indexed document for its palette and sizes a 1-bit one by the bytes its
-        codec returns.
+        indexed document for its palette.
     :param max_alloc_bytes: per-call budget in bytes; overrides the module-level
         :data:`MAX_ALLOC_BYTES` default when not ``None``.
     """

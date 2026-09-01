@@ -83,12 +83,16 @@ class ImageData(BaseElement):
         """
         Upper bound on the number of bytes :py:meth:`get_data` will decompress.
 
-        Answerable without decompressing anything, so an allocation guard can
-        size the array before it exists -- see
+        Answerable without decompressing anything, so a caller can size the
+        array before it exists -- see
         :py:func:`psd_tools.compression.decompressed_size_bound`. It lives next
         to :py:meth:`get_data` because it has to mirror that call exactly,
         including the part a caller would most easily get wrong: every channel
         is decompressed in one pass, ``height * channels`` rows at a time.
+
+        Written for the depth-1 allocation guard in #737 and no longer used by
+        it: since #768 the array is one float32 per pixel at every depth, so
+        the guard reads the header. Kept as a public utility.
 
         :param header: See :py:class:`~psd_tools.psd.header.FileHeader`.
         :return: the maximum byte count, for all channels together.
