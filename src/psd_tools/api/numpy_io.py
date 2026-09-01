@@ -112,14 +112,22 @@ _PARSE_TRANSIENT: dict[int, int] = {1: 2, 8: 4, 16: 4, 32: 0}
 # per pixel per plane -- ``lut[parsed]`` is already three planes wide.
 _PALETTE_TRANSIENT: int = 1
 
-# :func:`_remove_background`'s own temporaries, in bytes per pixel: three float32
-# arrays of the three colour planes (3 x 3 x 4) and a boolean mask of the same
-# shape (3 x 1), rounded up from the 39 measured. Flat rather than per-plane
-# because it always works on exactly three colour planes however wide the
-# document is. Measured with every alpha non-zero, which is the worst case for
-# its boolean-indexed copies -- a payload that leaves most of the alpha at zero
-# selects few elements and hides most of this.
-_BACKGROUND_TRANSIENT: int = 40
+# :func:`_remove_background`'s own temporaries, in bytes per pixel: up to four
+# float32 arrays of the three colour planes (4 x 3 x 4) and a boolean mask of the
+# same shape (3 x 1), rounded up from 51. Flat rather than per-plane because it
+# always works on exactly three colour planes however wide the document is.
+#
+# This is the one term that is not the same everywhere, and it is sized on the
+# widest platform rather than on the one it was developed on. Measured at 39
+# bytes a pixel on macOS/CPython 3.10 -- three arrays, each freed before the next
+# was taken -- and at 48 on Linux and on Windows, at every Python from 3.10 to
+# 3.14 and with or without the composite extra. A guard that holds only where
+# its author ran it is not a guard, so 48 is what this covers.
+#
+# Measured with every alpha non-zero, which is the worst case for its
+# boolean-indexed copies: a payload that leaves most of the alpha at zero selects
+# few elements and hides most of this.
+_BACKGROUND_TRANSIENT: int = 52
 
 # Bytes live at the codec's own peak, as a multiple of the decompressed size.
 # ``ImageData.get_data()`` runs after the guard, so this is inside what the guard
@@ -152,8 +160,11 @@ def _image_data_peak_bytes(psdimage: "PSDProtocol", flat: bool = False) -> int:
     them.
 
     Measured with ``tracemalloc``, which sees numpy's allocations, over every
-    colour mode, depth, channel count and compression method. Two deliberate
-    exclusions:
+    colour mode, depth, channel count and compression method. The fit is exact
+    on the platform it was developed on and an upper bound elsewhere: every term
+    but :data:`_BACKGROUND_TRANSIENT` measures the same everywhere, and that one
+    is sized on the widest platform, so a document admitted here is one whose
+    peak fits on any of them. Two deliberate exclusions:
 
     - Per-object allocator overhead. This and ``tracemalloc`` both count
       requested bytes; what the allocator rounds each request up to is neither

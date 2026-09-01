@@ -611,10 +611,14 @@ _TRACE_SLACK = 16 * 1024
 # for the source buffer even where `get_data()` hands back the bytes read at
 # open time (a documented exclusion -- a body longer than the declared length
 # *is* copied, and this guard exists for malformed files), and depth 32 is the
-# one branch with no parse transient to dwarf it. 3 leaves half again on top of
-# that for platform variation in the codecs, while still failing loudly at the
-# shape of mistake worth catching: a term counted twice, or the three phases
-# summed instead of maxed, would land at 3-4x or beyond.
+# one branch with no parse transient to dwarf it.
+#
+# The rest of the headroom is for platform variation, which is real and was
+# found by this test rather than anticipated: `_remove_background()` costs 39
+# bytes a pixel on macOS and 48 on Linux and Windows, so
+# `_BACKGROUND_TRANSIENT` is sized on the latter and overshoots on the former.
+# 3 still fails loudly at the shape of mistake worth catching -- a term counted
+# twice, or the three phases summed instead of maxed, lands at 3-4x or beyond.
 _MODEL_OVERSHOOT = 3
 
 # 384 px a side. Two constraints meet here. The thinnest model in the sweep is a
