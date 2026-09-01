@@ -4,12 +4,13 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
-- [fix] Read a 1-bit (Bitmap mode) document at the row stride the format uses,
-  so its pixels come back whole (#768). A row of ``width`` pixels occupies
-  ``ceil(width / 8)`` bytes and the depth-1 path floored that, so ``numpy()``,
-  ``composite(ignore_preview=True)`` and ``save()`` raised ``ValueError`` at most
-  widths and returned half padding at widths 1, 2 and 4. Affects bitmap
-  documents only; ``topil()`` was already correct except under RLE.
+- [fix] Read and write a 1-bit (Bitmap mode) document at the row stride the
+  format uses (#768). A row of ``width`` pixels occupies ``ceil(width / 8)``
+  bytes and the depth-1 path floored that, so ``numpy()`` and
+  ``composite(ignore_preview=True)`` raised ``ValueError`` at most widths and
+  returned half padding at widths 1, 2 and 4, while re-encoding a modified
+  document sheared it by a byte a row. Affects bitmap documents only;
+  ``topil()`` was already correct except under RLE.
 
 - [fix] Return a 1-bit document the right way round: a set bit is black in
   Bitmap mode, so ``numpy()`` and ``composite()`` were rendering every such
@@ -26,10 +27,10 @@ Changelog
   sizes an allocation at ``width * height * channels * 4``, but at depth 1
   ``numpy_io._parse_array()`` unpacks the buffer with ``np.unpackbits`` -- one
   float32 per *bit* -- so the array follows the byte count the codec returns
-  rather than the pixel count. The two disagree eightfold: ``decompress()``'s
-  ``length`` is one byte per pixel at depth 1, where a row of ``width`` pixels
-  packs into ``width // 8``, and a body written that wide is returned in full
-  because the length check is skipped below depth 8. A 64x64 1-bit document
+  rather than the pixel count. The two disagreed eightfold: ``decompress()``'s
+  ``length`` counted a byte per pixel at depth 1, where a row of ``width``
+  pixels packs into ``ceil(width / 8)``, and a body written that wide was
+  returned in full, the length check being skipped below depth 8. A 64x64 1-bit document
   therefore returned ``(64, 64, 8)``, 131,072 bytes, against a 16,384-byte
   estimate, and the guard admitted it -- a gap in a security control
   (GHSA-8q6g-vjhf-jp8m) whose whole job is to bound the allocation before it
@@ -440,9 +441,9 @@ Changelog
   The estimate bounds the array that is returned, which is what
   ``check_pixel_size()`` has always measured. Peak usage during parsing is a
   small multiple of it for every colour mode; that predates this entry and is
-  unchanged by it. 1-bit documents were under-counted eightfold for want of a
-  depth term, which predated this entry as well and is fixed by the #737 entry
-  above (#769), in this same release.
+  unchanged by it. 1-bit documents were under-counted eightfold, which predated
+  this entry as well and is fixed by the row-stride entry above (#768), in this
+  same release.
 - [fix] Composite duotone documents at their stored width.
   ``EXPECTED_CHANNELS`` reported 2 for duotone -- the ink count -- while duotone
   pixel data is a single grayscale channel, the one to four ink curves living

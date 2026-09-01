@@ -173,8 +173,9 @@ def _safe_zlib_decompress(data: bytes, max_length: int) -> bytes:
     # precisely `max_length + 1` was consumed whole, left no
     # `unconsumed_tail`, and was returned a byte over the ceiling this function
     # documents. At depth 8 and up `decompress()` caught it as a length
-    # mismatch; at depth 1 that check is skipped and the byte became eight more
-    # float32 values than any estimate allowed for (#737).
+    # mismatch; at depth 1 that check is skipped, and the byte became eight
+    # more float32 values than any estimate allowed for -- until #768 gave the
+    # unpacking a row to trim to, which drops it with its partial row instead.
     out = d.decompress(data, max_length + 1)
     # Then drain whatever the codec still holds, bounded the same way, rather
     # than calling `flush()`: output can outlive its input, a match being

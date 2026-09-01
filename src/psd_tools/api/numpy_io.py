@@ -298,7 +298,11 @@ def _parse_array(
         # every other depth returns the native dtype (#738).
         return np.frombuffer(data, ">f4").astype(np.float32)
     elif depth == 1:
-        row_size = (width + 7) // 8
+        # Clamped so a zero width divides: `decompress()` rejects one before it
+        # can reach here, but this takes its width from the caller and a
+        # ZeroDivisionError is a poor way to say so. `count=0` then trims every
+        # row to nothing, which is the right answer for a channel of no pixels.
+        row_size = max((width + 7) // 8, 1)
         packed = np.frombuffer(data, np.uint8)
         # Whole rows only. A body that ends mid-row is one the geometry cannot
         # be recovered from, and dropping the remainder degrades the read

@@ -24,6 +24,7 @@ import pytest
 from PIL import Image
 
 from psd_tools.api.psd_image import PSDImage
+from psd_tools.compression import PSDDecompressionWarning
 from psd_tools.constants import Compression
 
 from .utils import full_name
@@ -138,6 +139,25 @@ def test_padding_bits_are_not_pixels() -> None:
         body[row * 3 + 2] |= 0x0F  # the four padding bits of the trailing byte
     psd._record.image_data.data = bytes(body)
     assert np.array_equal(psd.numpy()[:, :, 0], _expected("20x5_1bit_bitmap.psd"))
+
+
+def test_an_undecodable_1bit_document_degrades_to_black() -> None:
+    """The black fill, read back through both entry points rather than as bytes.
+
+    A 1-bit channel that failed to decode used to end the read with
+    ``RuntimeError``, the fill being gated on ``depth >= 8`` for want of a
+    packed form to write it in. It has one now -- and it is ``0xff``, not zero,
+    which is the half a byte-level assertion alone would not catch: zeroes here
+    would hand the caller a blank white document and call it black.
+    """
+    psd = _open("20x5_1bit_bitmap.psd")
+    psd._record.image_data.compression = Compression.ZIP
+    psd._record.image_data.data = b"\x78\x9c" + b"\xff" * 20  # garbage deflate
+    with pytest.warns(PSDDecompressionWarning, match="channel replaced with black"):
+        array = psd.numpy()
+    assert array.shape == (5, 20, 1)
+    assert not array.any()
+    assert not np.array(psd.topil()).any()
 
 
 @pytest.mark.parametrize("compression", [Compression.RAW, Compression.RLE])
