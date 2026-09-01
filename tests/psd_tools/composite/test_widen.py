@@ -32,17 +32,13 @@ from PIL import Image
 from psd_tools.api.layers import Layer
 from psd_tools.api.pil_io import post_process
 from psd_tools.api.psd_image import PSDImage
+from psd_tools.color_convert import LAB_NEUTRAL_CHROMA
 from psd_tools.composite import composite
-from psd_tools.composite.composite import (
-    _OVERLAY_DRAWS,
-    Compositor,
-    _draw_pattern_overlay,
-    _widen,
-)
+from psd_tools.composite.composite import Compositor, _widen
 from psd_tools.composite import widen as widen_module
 from psd_tools.composite.widen import make_widen
 from psd_tools.constants import BlendMode, ColorMode, Resource, Tag
-from psd_tools.psd.descriptor import Descriptor, String
+from psd_tools.psd.descriptor import Bool, Descriptor, String
 from psd_tools.psd.patterns import (
     Pattern,
     Patterns,
@@ -277,35 +273,31 @@ def test_every_sub_compositor_inherits_the_conversion(monkeypatch) -> None:
     )
 
 
-def test_pattern_overlay_reuses_the_threaded_conversion(monkeypatch) -> None:
-    """The overlay must take the compositor's widening, not build its own.
+def test_the_conversion_is_resolved_once_per_composite(monkeypatch) -> None:
+    """Resolving the document is threaded, not repeated per compositor.
 
-    It did build its own, which was correct but wasteful: ``make_widen()``
-    digests the document's ICC profile, ~180 us for a press profile, so a fresh
-    closure per overlay effect paid that again each time. It also meant one path
-    resolved the conversion outside the tree the rest of this change threads it
-    through, which is the kind of divergence that goes stale.
+    ``make_widen()`` digests the document's ICC profile -- ~180 us for a press
+    profile -- so resolving it per sub-compositor or per effect would pay that
+    again each time. Three comments assert this in prose; nothing else asserts
+    it in code.
 
-    Counting ``make_widen`` calls rather than inspecting the argument the draw
-    function receives: it receives the threaded callable either way, so a spy on
-    the parameter cannot tell whether the body used it or quietly built its own.
-    What is observable is how many times the document gets resolved -- once per
-    ``composite()``, however many overlays are drawn.
+    ``test_every_sub_compositor_inherits_the_conversion`` above does not cover
+    it: that spy compares each compositor's ``_widen`` against the mode-blind
+    fallback, so a site building a fresh ``make_widen(psd)`` of its own would
+    satisfy it. The compositor count is asserted here for the same reason --
+    "resolved once" says nothing on a document that builds one compositor.
+
+    This was the surviving half of ``test_pattern_overlay_reuses_the_threaded_
+    conversion``, whose other half -- that the pattern overlay takes the
+    threaded callable rather than building its own -- went away with the
+    widening it guarded (#777).
     """
-    drawn: list[int] = []
-
-    def counting_draw(layer, value, channels, widen):
-        drawn.append(1)
-        return _draw_pattern_overlay(layer, value, channels, widen)
-
-    monkeypatch.setitem(_OVERLAY_DRAWS, "patternoverlay", counting_draw)
-
     resolved: list[int] = []
-    original = widen_module.make_widen
+    original_make_widen = widen_module.make_widen
 
     def counting_make_widen(psd):
         resolved.append(1)
-        return original(psd)
+        return original_make_widen(psd)
 
     # sys.modules, not the dotted string: psd_tools.composite re-exports the
     # composite() *function* under the module's own name, so attribute lookup
@@ -316,13 +308,21 @@ def test_pattern_overlay_reuses_the_threaded_conversion(monkeypatch) -> None:
         counting_make_widen,
     )
 
-    psd = PSDImage.open(full_name("layer_effects.psd"))
-    composite(psd, force=True)
+    built: list[int] = []
+    original_init = Compositor.__init__
 
-    assert drawn, "no pattern overlay was drawn"
+    def counting_init(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        built.append(1)
+
+    monkeypatch.setattr(Compositor, "__init__", counting_init)
+
+    composite(PSDImage.open(full_name("clipping-mask.psd")), force=True)
+
+    assert len(built) > 1, "the fixture built no sub-compositor to thread into"
     assert len(resolved) == 1, (
-        "the document was resolved %d times for %d pattern overlays; it should "
-        "be resolved once per composite() and threaded" % (len(resolved), len(drawn))
+        "the document was resolved %d times for %d compositors; it should be "
+        "resolved once per composite() and threaded" % (len(resolved), len(built))
     )
 
 
@@ -416,8 +416,10 @@ def _pattern_fill_desc() -> Descriptor:
     return desc
 
 
-def _cmyk_gray_pattern_fill(level: int = 128) -> tuple[PSDImage, Layer]:
-    """A CMYK document whose only fill is a *grayscale* pattern.
+def _gray_pattern_fill(
+    filename: str = "colormodes/4x4_8bit_cmyk.psd", level: int = 128
+) -> tuple[PSDImage, Layer]:
+    """A document whose only fill is a *grayscale* pattern.
 
     Photoshop does not author this: it converts a pattern to the document's
     colour mode when embedding it, so a pattern applied in a CMYK document is
@@ -425,13 +427,15 @@ def _cmyk_gray_pattern_fill(level: int = 128) -> tuple[PSDImage, Layer]:
     2026. The mismatch is reachable from files other tools write, and by
     building the layer through psd-tools, so the pattern is forged into a
     document that is otherwise Photoshop's own, embedded profile included.
+    *filename* picks that document, and with it the mode being converted into.
 
     The gradient block is removed so the fixture cannot rest on
     ``create_fill()`` happening to check the pattern block first. The layer
     object stays a ``GradientFill`` either way; nothing here reads its kind.
     """
-    psd = PSDImage.open(full_name("colormodes/4x4_8bit_cmyk.psd"))
-    assert psd.color_mode == ColorMode.CMYK
+    psd = PSDImage.open(full_name(filename))
+    # The grey has to have somewhere to widen into, or nothing here is tested.
+    assert psd.channels > 1
     blocks = psd.tagged_blocks
     assert blocks is not None
     # Same ignore as ``Patterns.read()``'s own: ``ListElement`` carries an
@@ -443,6 +447,28 @@ def _cmyk_gray_pattern_fill(level: int = 128) -> tuple[PSDImage, Layer]:
     return psd, layer
 
 
+def _with_pattern_overlay(layer: Layer) -> Layer:
+    """Give *layer* a pattern overlay effect naming that same forged pattern.
+
+    Photoshop files an overlay's descriptor under ``patternOverlay`` with the
+    class ID ``patternFill`` -- the class the fill layer's own block holds, and
+    the one ``draw_pattern_fill()`` reads -- so both paths below get what
+    ``_pattern_fill_desc()`` builds, and differ only by the two flags an
+    effects block needs to be read at all.
+
+    Call this before anything reads ``layer.effects``: that property caches on
+    first access, so a block set afterwards is never seen.
+    """
+    overlay = _pattern_fill_desc()
+    overlay[Key.Enabled] = Bool(True)
+    overlay[b"present"] = Bool(True)
+    effects = Descriptor(classID=b"null")
+    effects[b"masterFXSwitch"] = Bool(True)
+    effects[b"patternOverlay"] = overlay
+    layer.tagged_blocks.set_data(Tag.OBJECT_BASED_EFFECTS_LAYER_INFO, effects)
+    return layer
+
+
 @pytest.mark.parametrize("render", ["layer", "document"])
 def test_gray_pattern_fill_reaches_the_conversion(render: str) -> None:
     """The end-to-end path the issue reports, as the fill layer it names.
@@ -452,7 +478,7 @@ def test_gray_pattern_fill_reaches_the_conversion(render: str) -> None:
     the same pattern as an *overlay effect* on the same document, had converted
     since #722.
     """
-    psd, layer = _cmyk_gray_pattern_fill(128)
+    psd, layer = _gray_pattern_fill(level=128)
     target = (
         composite(layer, force=True)
         if render == "layer"
@@ -473,21 +499,86 @@ def test_gray_pattern_agrees_between_the_fill_and_the_overlay() -> None:
     depend on which of the two a person reached for. It did: the overlay
     widened through ``make_widen`` and the fill was broadcast.
 
-    The overlay is driven through ``_draw_pattern_overlay`` directly rather
-    than through a forged effects block -- it takes the same descriptor the
-    fill layer stores, so what is compared is the two code paths and not two
-    spellings of the pattern. Comparing its raw return against a composited
+    Driven through ``_apply_overlay`` rather than through
+    ``_draw_pattern_overlay``, because since #777 the draw function no longer
+    converts anything -- it hands back the pattern at its own width and
+    ``_fit_source()`` widens it, like every other source. Comparing the raw
+    return would now compare two one-channel arrays and pass however the
+    conversion was wired. Comparing a composited overlay against a composited
     fill is only sound because the fill is opaque over the whole viewport: it
     is the pattern colour and nothing of the backdrop.
     """
-    psd, layer = _cmyk_gray_pattern_fill(128)
-    fill = composite(layer, force=True)[0]
+    psd, layer = _gray_pattern_fill(level=128)
+    _with_pattern_overlay(layer)
 
-    overlay, _ = _draw_pattern_overlay(layer, _pattern_fill_desc(), 4, make_widen(psd))
+    # A second, independent copy of the same document for the fill: attaching
+    # the effect to one layer and compositing it would apply the overlay to the
+    # very render it is being compared against.
+    _, fill_layer = _gray_pattern_fill(level=128)
+    fill = composite(fill_layer, force=True)[0]
 
-    assert overlay is not None
-    assert overlay.shape[2] == 4
+    ones = np.ones((psd.height, psd.width, 1), dtype=np.float32)
+    compositor = Compositor(
+        psd.viewbox,
+        np.zeros((psd.height, psd.width, 4), dtype=np.float32),
+        np.zeros((psd.height, psd.width, 1), dtype=np.float32),
+        widen=make_widen(psd),
+    )
+    compositor._apply_overlay(layer, "patternoverlay", ones, ones)
+    overlay = compositor.finish()[0]
+
+    assert overlay.shape == (psd.height, psd.width, 4)
     assert np.allclose(fill, overlay)
+    assert not np.allclose(overlay, 128 / 255.0, atol=2 / 255)
+
+
+def test_pattern_overlay_pads_with_white_rather_than_replicated_ones() -> None:
+    """Where the overlay's widening moved to is observable, and it is better.
+
+    Dropping the draw function's own widening (#777) moves the conversion from
+    before ``paste()`` to after it, and ``paste()`` fills outside the layer's
+    bbox with 1.0 -- white in the pattern's own one-channel encoding. Converted
+    before, that padding stayed 1.0 in a single channel and the blend
+    arithmetic broadcast it to ``(1, 1, 1)``, which on a Lab canvas is not
+    white but L=100 with both chroma axes pinned to +127. Converted after, it
+    widens like any other grey, to ``(1, 128/255, 128/255)``: white.
+
+    Reaching those pixels takes coverage outliving the layer's bbox, which
+    ``_get_object()`` hands back for a layer carrying no transparency channel.
+    Measured over every fixture in both force modes, no corpus document pairs
+    one with a pattern overlay, so the coverage is passed in directly here.
+    (Separately, and for a simpler reason, the corpus renders bitwise
+    identically either way: no pattern overlay in it is one channel wide at
+    all.) Lab is the mode that shows it: on CMYK white widens to
+    ``(1, 1, 1, 1)`` either way.
+    """
+    # Not 128: on Lab that widens to (0.502, 0.502, 0.502), which is exactly
+    # what replication gives, so the content assertion below could not tell the
+    # conversion from the bug. 200 widens to (0.784, 0.502, 0.502).
+    psd, layer = _gray_pattern_fill("colormodes/4x4_8bit_lab.psd", level=200)
+    assert psd.color_mode == ColorMode.LAB
+    _with_pattern_overlay(layer)
+
+    # A viewport two pixels larger on every side than the layer, so the ring
+    # around it is the padding and nothing else.
+    pad = 2
+    height, width = psd.height + 2 * pad, psd.width + 2 * pad
+    ones = np.ones((height, width, 1), dtype=np.float32)
+    compositor = Compositor(
+        (-pad, -pad, psd.width + pad, psd.height + pad),
+        np.zeros((height, width, 3), dtype=np.float32),
+        np.zeros((height, width, 1), dtype=np.float32),
+        widen=make_widen(psd),
+    )
+    compositor._apply_overlay(layer, "patternoverlay", ones, ones)
+    result = compositor.finish()[0]
+
+    assert np.allclose(result[0, 0], [1.0, LAB_NEUTRAL_CHROMA, LAB_NEUTRAL_CHROMA])
+    assert not np.allclose(result[0, 0], 1.0)
+    # And the pattern itself still converts, so this pins where the padding
+    # ends rather than that the whole canvas turned neutral.
+    assert np.allclose(result[pad, pad], make_widen(psd)(_grey(200 / 255.0), 3)[0, 0])
+    assert not np.allclose(result[pad, pad], 200 / 255.0)
 
 
 def test_single_channel_source_and_backdrop_agree() -> None:
