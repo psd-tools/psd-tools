@@ -5,7 +5,7 @@ Changelog
 -------------------
 
 - [fix] Convert a single-channel *source* to the document's colour mode instead
-  of letting the blend arithmetic replicate it across every channel (#749), as
+  of letting the blend arithmetic replicate it across every channel (#749, #776), as
   #722 already did for a backdrop. A grayscale pattern fill on a CMYK document
   rendered a different colour from the same pattern applied as an overlay
   effect. Affects only a one-channel source in a CMYK or Lab document, which
