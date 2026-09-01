@@ -4,6 +4,23 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
+- [fix] Read a 1-bit (Bitmap mode) document at the row stride the format uses,
+  so its pixels come back whole (#768). A row of ``width`` pixels occupies
+  ``ceil(width / 8)`` bytes and the depth-1 path floored that, so ``numpy()``,
+  ``composite(ignore_preview=True)`` and ``save()`` raised ``ValueError`` at most
+  widths and returned half padding at widths 1, 2 and 4. Affects bitmap
+  documents only; ``topil()`` was already correct except under RLE.
+
+- [fix] Return a 1-bit document the right way round: a set bit is black in
+  Bitmap mode, so ``numpy()`` and ``composite()`` were rendering every such
+  document as its own negative, disagreeing with both ``topil()`` and Photoshop
+  (#768).
+
+- [fix] Replace an undecodable 1-bit channel with black rather than raising
+  ``RuntimeError`` (#768). It now takes the same warn-and-degrade path as every
+  other depth, a black fill being expressible once a channel's length counts
+  packed rows.
+
 - [fix] Give the ``max_alloc_bytes`` estimate a depth term, so a 1-bit document
   can no longer allocate eight times its budget (#737, #769). ``check_pixel_size()``
   sizes an allocation at ``width * height * channels * 4``, but at depth 1
@@ -18,29 +35,13 @@ Changelog
   (GHSA-8q6g-vjhf-jp8m) whose whole job is to bound the allocation before it
   happens.
 
-  The estimate now asks the codec, through the new
-  :py:func:`psd_tools.compression.decompressed_size_bound`, rather than
-  multiplying by a flat eight. A properly packed body -- what
-  ``colormodes/4x4_1bit_bitmap.psd`` and any document Photoshop writes carries
-  -- still allocates only the planes it really occupies, where a flat factor
-  would have rejected that fixture at four times its size. ZIP is the one codec
-  whose inflated size cannot be known without inflating it, so a conforming
-  1-bit ZIP body is now bounded at eight times its allocation. Nothing in
-  practice pays for that: of the 293 documents in ``tests/psd_files``, 241 store
-  their merged image data RLE and 52 RAW, and none uses either ZIP codec --
-  which is where the layer channels do use ZIP, and where this bound is not
-  consulted.
-
-  ``_safe_zlib_decompress()`` also now enforces the ceiling it documents. It
-  probes one byte past the limit to catch an oversize stream, and a stream
-  inflating to exactly that was handed back a byte over -- eight more float32
-  values at depth 1 than any arithmetic over ``length`` could account for. Such
-  a channel is now refused: degraded to black from depth 8 up, where it used to
-  raise a length mismatch instead, and ending the read below depth 8, as every
-  undecodable 1-bit channel already did. The
-  :class:`psd_tools.compression.PSDDecompressionWarning` that accompanies a
-  failed channel now says which of those two happened, rather than promising a
-  black fill that below depth 8 does not exist.
+  ``_safe_zlib_decompress()`` also now enforces the ceiling it documents,
+  refusing a stream that inflates one byte past it rather than handing that byte
+  back. The eightfold gap itself is closed at its source by the row-stride fix
+  above (#768), which gives depth 1 the same arithmetic as every other depth: the
+  estimate is ``width * height * channels * 4`` again, and
+  :py:func:`psd_tools.compression.decompressed_size_bound` remains available as a
+  public utility.
 
 - [fix] Replace a failed channel with exactly the byte count it declares, at
   every depth (#737, #769). The black fill substituted for an undecodable channel was

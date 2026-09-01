@@ -91,8 +91,7 @@ def convert_image_data_to_pil(
     # PIL allocates a plane per stored channel at every depth and mode:
     # `_create_image()` builds one image per channel from a buffer whose pixel
     # count is the canvas's, and PIL's "1" mode holds a byte per pixel, so a
-    # 1-bit document allocates a quarter of this estimate rather than the eight
-    # times it costs in float32.
+    # 1-bit document allocates a quarter of this estimate.
     #
     # What this does not cover is the transient peak in the 16- and 32-bit
     # branches, which build an "I"/"F" image at four bytes per pixel and then

@@ -89,11 +89,10 @@ logger = logging.getLogger(__name__)
 class PSDDecompressionWarning(UserWarning):
     """Issued when channel data cannot be fully decompressed.
 
-    From depth 8 up the affected channel is replaced with black pixels. Below
-    it there is no substitute -- the fill is gated on ``depth >= 8``, a 1-bit
-    channel having no byte-per-pixel form to fill -- so the warning is followed
-    by a ``RuntimeError`` rather than a degraded read. Catch or filter this
-    warning to detect silently degraded images::
+    The affected channel is replaced with black pixels, at every depth --
+    ``length`` bytes of whichever value that depth spells black as, zero from
+    depth 8 up and ``0xff`` at depth 1, where an inked pixel is a *set* bit.
+    Catch or filter this warning to detect silently degraded images::
 
         import warnings
         from psd_tools.compression import PSDDecompressionWarning
@@ -113,28 +112,26 @@ MAX_DEGRADED_BYTES: int | None = 16 * 1024 * 1024
 MAX_DEGRADED_RATIO: int = 1000
 
 
+def _row_size(width: int, depth: int) -> int:
+    """Bytes one row of *width* pixels occupies at *depth*.
+
+    Rounded **up**: a row is padded to a byte boundary, so 20 pixels at depth 1
+    occupy three bytes, the last of them four pixels and four bits of padding.
+    The floor this replaces dropped that byte, and each caller floored it
+    separately (#768). From depth 8 up the division is exact.
+    """
+    return (width * depth + 7) // 8
+
+
 def _channel_length(width: int, height: int, depth: int) -> int:
     """Bytes a channel of these dimensions occupies once decompressed.
 
     Shared by :func:`decompress`, which sizes every codec's output by it, and by
     :func:`decompressed_size_bound`, which has to predict that output without
-    producing it. Note what it is *not*: at depth 1 it is one byte per pixel,
-    eight times the packed size a row of ``width`` pixels really occupies, which
-    is why the bound cannot be stated in pixels alone (#737).
+    producing it. Rows all the way down: ``height`` of them, each
+    :func:`_row_size` wide.
     """
-    return width * height * max(1, depth // 8)
-
-
-def _rle_row_size(width: int, depth: int) -> int:
-    """Bytes per row as :func:`decode_rle` reads and writes them.
-
-    Floor division, and never zero: at depth 1 a row of fewer than eight pixels
-    still occupies a byte. Shared with :func:`decompressed_size_bound` so the
-    two cannot drift apart -- a bound on this codec has to track what the
-    decoder reads, which is not quite what :func:`encode_rle` writes: that
-    keeps its own expression, with the same floor but no clamp.
-    """
-    return max(width * depth // 8, 1)
+    return height * _row_size(width, depth)
 
 
 def _warn_decompress_failure(
@@ -145,23 +142,14 @@ def _warn_decompress_failure(
     depth: int,
     version: int,
 ) -> None:
-    """Log and emit a PSDDecompressionWarning for a failed channel decode.
-
-    The message states what actually follows, which depends on the depth: the
-    black fill exists only from depth 8 up, and below it :func:`decompress`
-    raises rather than substituting anything, so promising a degraded read
-    there would describe a document the caller never receives.
-    """
-    outcome = (
-        "channel replaced with black"
-        if depth >= 8
-        else "read abandoned; no black fill exists below depth 8"
-    )
-    msg = "%s decode failed (%s: %s); %s. width=%d height=%d depth=%d version=%d" % (
+    """Log and emit a PSDDecompressionWarning for a failed channel decode."""
+    msg = (
+        "%s decode failed (%s: %s); channel replaced with black. "
+        "width=%d height=%d depth=%d version=%d"
+    ) % (
         codec,
         type(exc).__name__,
         exc,
-        outcome,
         width,
         height,
         depth,
@@ -307,36 +295,45 @@ def decompress(
             )
             result = None
 
-    if depth >= 8:
-        if result is None:
-            if (
-                MAX_DEGRADED_BYTES is not None
-                and length > MAX_DEGRADED_BYTES
-                and length > len(data) * MAX_DEGRADED_RATIO
-            ):
-                raise ValueError(
-                    "Refusing to allocate %d bytes for a channel that failed to "
-                    "decode from %d input bytes (width=%d height=%d); set "
-                    "psd_tools.compression.MAX_DEGRADED_BYTES = None to allow it."
-                    % (length, len(data), width, height)
-                )
-            # Exactly `length`, which the mismatch check below demands of a
-            # successful decode and this substitute has to honour too. It was
-            # built as a PIL image whose mode was picked from the depth -- "L"
-            # for 8, "RGBA" otherwise -- so depth 16 came back at four bytes per
-            # pixel against a `length` of two, and every reader downstream saw a
-            # channel twice its declared width (#737).
-            result = bytes(length)
-            logger.warning("Failed channel has been replaced by black")
-        else:
-            if len(result) != length:
-                raise ValueError(
-                    "Decompressed length mismatch: got %d, expected %d"
-                    % (len(result), length)
-                )
-
     if result is None:
-        raise RuntimeError("decompress() produced no result for depth=%d" % depth)
+        # At every depth, now that `length` counts packed rows: a channel of
+        # `length` black bytes exists at depth 1 as much as at depth 8, so the
+        # fill no longer has to stop where the byte-per-pixel arithmetic did.
+        # A 1-bit channel that failed to decode used to fall through to a
+        # RuntimeError instead of degrading (#768).
+        if (
+            MAX_DEGRADED_BYTES is not None
+            and length > MAX_DEGRADED_BYTES
+            and length > len(data) * MAX_DEGRADED_RATIO
+        ):
+            raise ValueError(
+                "Refusing to allocate %d bytes for a channel that failed to "
+                "decode from %d input bytes (width=%d height=%d); set "
+                "psd_tools.compression.MAX_DEGRADED_BYTES = None to allow it."
+                % (length, len(data), width, height)
+            )
+        # Exactly `length`, which the mismatch check opposite demands of a
+        # successful decode and this substitute has to honour too. It was
+        # built as a PIL image whose mode was picked from the depth -- "L"
+        # for 8, "RGBA" otherwise -- so depth 16 came back at four bytes per
+        # pixel against a `length` of two, and every reader downstream saw a
+        # channel twice its declared width (#737).
+        #
+        # Black is not zero at every depth. A bitmap-mode document stores its
+        # inked pixels *set* -- the ground truth Photoshop writes, and what
+        # `pil_io._create_image()`'s inverted "1;I" raw mode reads -- so at
+        # depth 1 the black byte is 0xff and zeroes would substitute a blank
+        # white channel instead.
+        result = b"\xff" * length if depth == 1 else bytes(length)
+        logger.warning("Failed channel has been replaced by black")
+    elif depth >= 8 and len(result) != length:
+        # Still gated: a short 1-bit body is returned as it stands rather than
+        # rejected, which is what it has always done. Raising on it would be a
+        # new exception on a read path, not a fix to one.
+        raise ValueError(
+            "Decompressed length mismatch: got %d, expected %d" % (len(result), length)
+        )
+
     return result
 
 
@@ -351,33 +348,30 @@ def decompressed_size_bound(
     """Upper bound on the number of bytes :py:func:`decompress` will return.
 
     Answerable without decompressing anything, which is what makes it usable
-    as an allocation guard's estimate:
-    :py:func:`psd_tools.api.utils.check_pixel_size` has to reject a document
-    *before* the buffer exists. It is reached today through
-    :py:meth:`psd_tools.psd.image_data.ImageData.decompressed_size_bound`, from
-    the depth-1 arm of ``psd_tools.api.numpy_io._image_data_planes()``, where
-    the byte count and the pixel count part company -- ``np.unpackbits`` yields
-    one value per *bit* -- and the pixel count alone under-counted the array
-    eightfold (#737).
+    as an allocation guard's estimate: a caller sizing a buffer can reject a
+    document *before* it exists.
 
-    ``length`` below is :py:func:`decompress`'s own ``width * height *
-    max(1, depth // 8)``; the two are meant to be read together. For a
-    well-formed body the bound is exact for RAW and RLE, and an over-estimate
-    for the two ZIP codecs, whose inflated size cannot be known without
-    inflating the stream. A malformed body only ever comes back smaller -- a
-    truncated RLE byte-count table yields fewer rows than ``height`` -- which is
-    the safe direction for a guard:
+    ``length`` is :py:func:`decompress`'s own ``height`` rows of
+    :func:`_row_size`; the two are meant to be read together. For a well-formed
+    body the bound is exact for RAW and RLE, and an over-estimate for the two
+    ZIP codecs, whose inflated size cannot be known without inflating the
+    stream. A malformed body only ever comes back smaller -- a truncated RLE
+    byte-count table yields fewer rows than ``height`` -- which is the safe
+    direction for a guard:
 
     - RAW returns ``data[:length]``, so the body's own length caps it. At depth
       8 and up a body shorter than ``length`` raises the mismatch check instead
       of returning, so the ``min`` only bites at depth 1, where that check is
       skipped.
-    - RLE returns exactly ``height`` rows of ``max(width * depth // 8, 1)``
-      bytes, each row padded or clipped to that size by ``decode()`` rather
-      than raising. At depth 1 that is *below* ``length``: a row of ``width``
-      pixels packs into ``width // 8`` bytes, not ``width``.
+    - RLE returns exactly ``height`` rows of :func:`_row_size` bytes, each row
+      padded or clipped to that size by ``decode()`` rather than raising --
+      which is ``length`` exactly, the same rows counted the same way.
     - Both ZIP codecs are capped at ``length`` by ``_safe_zlib_decompress()``,
       and so is the black fill substituted for a channel that fails to decode.
+
+    Since #768 gave every depth the same row arithmetic, only RAW can now come
+    in under ``length``; before it, depth 1 counted a byte per pixel here and
+    eight times too few in the RLE codec, and the two codecs disagreed.
 
     :param data: the compressed body; read for its length only.
     :param compression: compression type, see :py:class:`.Compression`.
@@ -395,13 +389,11 @@ def decompressed_size_bound(
     length = _channel_length(width, height, depth)
     if compression == Compression.RAW:
         return min(len(data), length)
-    if compression == Compression.RLE:
-        return height * _rle_row_size(width, depth)
     return length
 
 
 def encode_rle(data: bytes, width: int, height: int, depth: int, version: int) -> bytes:
-    row_size = width * depth // 8
+    row_size = _row_size(width, depth)
     with io.BytesIO(data) as fp:
         rows = [rle_impl.encode(fp.read(row_size)) for _ in range(height)]
     bytes_counts = array.array(("H", "I")[version - 1], map(len, rows))
@@ -417,7 +409,7 @@ def encode_rle(data: bytes, width: int, height: int, depth: int, version: int) -
 
 def decode_rle(data: bytes, width: int, height: int, depth: int, version: int) -> bytes:
     try:
-        row_size = _rle_row_size(width, depth)
+        row_size = _row_size(width, depth)
         with io.BytesIO(data) as fp:
             bytes_counts = read_be_array(("H", "I")[version - 1], height, fp)
             return b"".join(

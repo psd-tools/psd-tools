@@ -193,7 +193,7 @@ def test_parse_array_does_not_alias_its_input() -> None:
     corruption rather than a raise.
     """
     source = bytearray(np.arange(4, dtype=">f4").tobytes())
-    parsed = numpy_io._parse_array(source, 32)
+    parsed = numpy_io._parse_array(source, 32, 4)
     assert np.array_equal(parsed, np.arange(4, dtype=np.float32))
     parsed[0] = 99.0
     assert bytearray(np.arange(4, dtype=">f4").tobytes()) == source

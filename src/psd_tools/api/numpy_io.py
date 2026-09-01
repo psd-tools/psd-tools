@@ -68,30 +68,12 @@ def _image_data_planes(psdimage: "PSDProtocol", flat: bool = False) -> int:
     16- or 32-bit indexed document -- malformed, indexed being an 8-bit mode --
     keeps its stored width and must not be tripled either.
 
-    Depth 1 is the case the pixel count cannot express at all, and it is
-    settled first because it settles the width on its own. :func:`_parse_array`
-    unpacks such a buffer with ``np.unpackbits``, one float32 per *bit*, so the
-    array follows the byte count
-    :py:func:`~psd_tools.compression.decompress` returns rather than the pixel
-    count -- and at depth 1 those two disagree eightfold, ``length`` being one
-    byte per pixel where a row of ``width`` pixels packs into ``width // 8``
-    (#737).
-
-    Which is why the question goes to
-    :py:func:`~psd_tools.compression.decompressed_size_bound` rather than to a
-    flat factor of eight. Both directions of that estimate have a real document
-    behind them: a body written a byte per pixel is returned in full, since the
-    length check is skipped below depth 8, and unpacks to eight planes; while
-    ``colormodes/4x4_1bit_bitmap.psd`` is packed as Photoshop writes it, four
-    bytes for four rows, and allocates two planes for a four-pixel width. A flat
-    factor would have rejected the second at four times its size. The division
-    rounds up, and never to zero: a width that is not a multiple of eight leaves
-    a part-used plane, and a part-used plane still has to be paid for.
-
-    What it does not do is repair that width. Those padding bits are returned as
-    pixels, so a bitmap document whose width is not a multiple of eight comes
-    back scrambled or does not reshape at all -- #768, whose fix will change the
-    reshape this arithmetic is written against.
+    Depth 1 had a case of its own until #768, the array following the *byte*
+    count rather than the pixel count -- ``np.unpackbits`` yields one float32
+    per bit, and ``length`` counted a byte per pixel, so it came back eightfold
+    (#737). Both halves of that are gone: ``length`` counts packed rows and
+    :func:`_parse_array` trims each row's padding, so a 1-bit document
+    allocates one float32 per pixel and the header bounds it exactly.
 
     This bounds the array that is returned, which is what
     :func:`~psd_tools.api.utils.check_pixel_size` estimates by construction. It
@@ -103,17 +85,6 @@ def _image_data_planes(psdimage: "PSDProtocol", flat: bool = False) -> int:
     """
     if flat:
         return 1
-    if psdimage.depth == 1:
-        values = 8 * psdimage._record.image_data.decompressed_size_bound(
-            psdimage._record.header
-        )
-        pixels = psdimage.width * psdimage.height
-        # Never below one: an empty image data section bounds at zero bytes, and
-        # while `check_pixel_size()` clamps its own `channels` argument, this
-        # function's return value is read directly -- by the compositor's
-        # sibling estimate and by tests -- so a zero plane count would be a
-        # claim about the array rather than an artefact absorbed downstream.
-        return max(1, (values + pixels - 1) // pixels)
     planes = psdimage.channels
     if psdimage.color_mode == ColorMode.INDEXED and psdimage.depth == 8:
         planes *= EXPECTED_CHANNELS[ColorMode.INDEXED]
@@ -149,7 +120,10 @@ def get_image_data(psdimage: "PSDProtocol", channel: str | None) -> np.ndarray:
     if not isinstance(image_bytes, bytes):
         raise TypeError(f"Expected bytes, got {type(image_bytes).__name__}")
     array = _parse_array(
-        image_bytes, cast(Literal[1, 8, 16, 32], psdimage.depth), lut=lut
+        image_bytes,
+        cast(Literal[1, 8, 16, 32], psdimage.depth),
+        psdimage.width,
+        lut=lut,
     )
     if lut is not None:
         array = array.reshape((psdimage.height, psdimage.width, -1))
@@ -185,6 +159,7 @@ def get_layer_data(
             _parse_array(
                 data.get_data(width, height, depth, version),
                 cast(Literal[1, 8, 16, 32], depth),
+                width,
             )
             for info, data in iterator
             if condition(info) and len(data.data) > 0
@@ -233,7 +208,14 @@ def get_pattern(pattern: Pattern) -> np.ndarray:
     height, width = bottom - top, right - left
     return np.stack(
         [
-            _parse_array(c.get_data(), c.pixel_depth)  # type: ignore
+            # The channel's own rectangle, which is what
+            # `VirtualMemoryArray.get_data()` decompressed against; the
+            # pattern's is only incidentally the same one.
+            _parse_array(
+                c.get_data(),  # type: ignore[arg-type]
+                c.pixel_depth,  # type: ignore[arg-type]
+                (c.rectangle[3] - c.rectangle[1]) if c.rectangle else width,
+            )
             for c in pattern.data.channels
             if c.is_written
         ],
@@ -285,8 +267,19 @@ def get_pattern_color_channels(pattern: Pattern) -> int:
 def _parse_array(
     data: bytes | bytearray,
     depth: Literal[1, 8, 16, 32],
+    width: int,
     lut: np.ndarray | None = None,
 ) -> np.ndarray:
+    """Flatten a channel buffer into ``float32`` values in ``[0, 1]``.
+
+    *width* is used only at depth 1, and only there is it needed: every other
+    depth stores a whole number of bytes per pixel, so the buffer is a value
+    sequence and the caller's own ``reshape`` supplies the geometry. A 1-bit
+    row is padded to a byte boundary instead, so the row has to be found here
+    -- ``np.unpackbits`` alone yields ``8 * ceil(width / 8)`` values per row,
+    which either does not divide by ``width`` or divides into the wrong shape
+    (#768).
+    """
     if depth == 8:
         parsed = np.frombuffer(data, ">u1")
         if lut is not None:
@@ -305,7 +298,18 @@ def _parse_array(
         # every other depth returns the native dtype (#738).
         return np.frombuffer(data, ">f4").astype(np.float32)
     elif depth == 1:
-        return np.unpackbits(np.frombuffer(data, np.uint8)).astype(np.float32)
+        row_size = (width + 7) // 8
+        packed = np.frombuffer(data, np.uint8)
+        # Whole rows only. A body that ends mid-row is one the geometry cannot
+        # be recovered from, and dropping the remainder degrades the read
+        # rather than making the reshape below unsatisfiable.
+        packed = packed[: row_size * (packed.size // row_size)]
+        bits = np.unpackbits(packed.reshape(-1, row_size), axis=1, count=width)
+        # A set bit is *black*: Photoshop writes a bitmap-mode document with the
+        # inked pixels set, which is why `pil_io._create_image()` reads it
+        # through the inverted raw mode "1;I". This branch returned the bit as
+        # it stood, so every 1-bit document composited as its own negative.
+        return (1 - bits).astype(np.float32).ravel()
     else:
         raise ValueError("Unsupported depth: %g" % depth)
 
