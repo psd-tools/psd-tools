@@ -60,41 +60,49 @@ def _styled(effects: Iterator[Any]) -> Iterator[_StyledEffect]:
 _Widen = Callable[[np.ndarray, int], np.ndarray]
 
 # What each overlay effect draws. Only the pattern needs the compositor's
-# channel count and its widening, and only the pattern can decline to draw
-# (returning None), but a uniform signature is what lets the three share one
-# application path -- the shape/alpha arithmetic around them is identical.
-_OverlayDraw = Callable[
-    [Layer, Any, int, _Widen], tuple[np.ndarray | None, np.ndarray | None]
-]
+# channel count, and only the colour overlay always draws -- the pattern and
+# the gradient can both decline, returning None -- but a uniform signature is
+# what lets the three share one application path: the shape/alpha arithmetic
+# around them is identical.
+_OverlayDraw = Callable[[Layer, Any, int], tuple[np.ndarray | None, np.ndarray | None]]
 
 
 def _draw_color_overlay(
-    layer: Layer, value: Any, channels: int, widen: _Widen
+    layer: Layer, value: Any, channels: int
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
     return paint.draw_solid_color_fill(layer.bbox, layer._psd.color_mode, value)
 
 
 def _draw_pattern_overlay(
-    layer: Layer, value: Any, channels: int, widen: _Widen
+    layer: Layer, value: Any, channels: int
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
     fill, shape = paint.draw_pattern_fill(layer.bbox, layer._psd, value)
     if fill is None:
         return None, None
-    # A grayscale pattern over a multi-channel canvas. The canvas is the
-    # authority on width, not the layer color the overlay is drawn against: a
-    # source is allowed to be single-channel inside a multi-channel document,
-    # and comparing the pattern against *that* rejected patterns which in fact
-    # matched the canvas exactly. And a pattern carries its own color mode, so
-    # a grayscale one reaches a CMYK document as a grey that has to be
-    # converted rather than replicated -- hence the compositor's own widening
-    # rather than a fresh one built here (#722).
-    color = widen(fill, channels)
-    assert color.shape[-1] == channels, "Inconsistent pattern channels."
-    return color, shape
+    # A pattern carries its own color mode, so a grayscale one reaches a CMYK
+    # document one channel wide and has to be converted rather than replicated.
+    # That conversion is no longer made here: every source is widened at the
+    # door, in ``_fit_source()``, so this one is too (#749, #777).
+    #
+    # The width check stays. ``_assert_source_fits()`` makes the same one
+    # downstream -- paste() preserves the channel count, so it would report the
+    # same number -- but this one fires first and names the pattern, so a
+    # mismatch points at the pattern rather than at a "source" of unstated
+    # provenance. The canvas is what the width is measured against, not the
+    # layer color the overlay is drawn over: that color is itself allowed to be
+    # single-channel inside a multi-channel document, and measuring against it
+    # rejected patterns which in fact matched the canvas exactly (#711). A
+    # width that is neither 1 nor the canvas is a real inconsistency: widening
+    # reaches 3 from 1, but nothing reaches 3 from 4 (#741).
+    assert fill.shape[-1] in (1, channels), (
+        "Inconsistent pattern channels: %d, expected 1 or %d"
+        % (fill.shape[-1], channels)
+    )
+    return fill, shape
 
 
 def _draw_gradient_overlay(
-    layer: Layer, value: Any, channels: int, widen: _Widen
+    layer: Layer, value: Any, channels: int
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
     return paint.draw_gradient_fill(layer.bbox, layer._psd.color_mode, value)
 
@@ -1412,7 +1420,7 @@ class Compositor(object):
         """
         draw = _OVERLAY_DRAWS[effect_name]
         for effect in _styled(layer.effects.find(effect_name)):
-            fill, shape_e = draw(layer, effect.value, self.channels, self._widen)
+            fill, shape_e = draw(layer, effect.value, self.channels)
             if fill is None:
                 logger.debug("Skipping undrawable %s effect in %s", effect_name, layer)
                 continue
