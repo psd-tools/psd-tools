@@ -4,6 +4,14 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
+- [fix] Convert a single-channel *source* to the document's colour mode instead
+  of letting the blend arithmetic replicate it across every channel (#749, #776), as
+  #722 already did for a backdrop. A grayscale pattern fill on a CMYK document
+  rendered a different colour from the same pattern applied as an overlay
+  effect. Affects only a one-channel source in a CMYK or Lab document, which
+  Photoshop does not write -- it converts a pattern to the document's colour
+  mode on embed -- so no file in the test corpus renders differently.
+
 - [security] Size the ``max_alloc_bytes`` guard against what ``numpy()`` and
   ``topil()`` peak at rather than the array they return; both hold several
   intermediates, measured at up to 3.7x the old estimate (#767). Affects you only

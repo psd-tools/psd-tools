@@ -33,8 +33,8 @@ logger = logging.getLogger(__name__)
 # color mode data section and were never a channel count (#733). Multichannel
 # is here for a different reason: its channels are spot inks with no colorimetric relation to RGB, so
 # there is no conversion to N of them -- one channel is the honest answer, and
-# what a single channel means once widened to N is #722's question, not this
-# function's.
+# what a single channel means once widened to N is #722's question -- #749's
+# where the single channel is a source, as this one is -- not this function's.
 _SINGLE_CHANNEL_MODES = (
     ColorMode.BITMAP,
     ColorMode.GRAYSCALE,

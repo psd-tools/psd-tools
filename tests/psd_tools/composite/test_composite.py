@@ -483,8 +483,8 @@ def _layered_multichannel(**kwargs: Any) -> PSDImage:
     on purpose. ``frompil`` converts to the document's ``pil_mode``, which is
     ``"LA"`` for a three-channel multichannel document, so the layer would
     carry a single color channel against a header declaring three -- and a
-    one-channel source broadcasts, so the test would pass without ever
-    exercising the canvas width it is about.
+    one-channel source is widened to whatever the canvas is, so the test would
+    pass without ever exercising the canvas width it is about.
     """
     psd = PSDImage.open(full_name("colormodes/4x4_8bit_rgb.psd"), **kwargs)
     psd._record.header.color_mode = ColorMode.MULTICHANNEL

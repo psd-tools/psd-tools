@@ -1,8 +1,10 @@
-"""Widening a single-channel canvas to a document's channel count.
+"""Widening a single-channel array to a document's channel count.
 
 The compositor's canvases keep a fixed width for their whole lifetime, so a
-backdrop or a pattern that arrives one channel wide has to be widened once at
-the point it is handed over. Replicating the value across every channel is
+backdrop that arrives one channel wide has to be widened once at the point it
+is handed over, and a source that arrives one channel wide is widened at the
+same point so that what a grey means is the document's answer rather than the
+blend arithmetic's (#749). Replicating the value across every channel is
 correct for RGB -- a grey ``g`` is ``(g, g, g)`` -- and wrong for everything
 else: ``(g, g, g, g)`` in CMYK is a heavily over-inked colour, and a lightness
 copied into Lab's a/b axes is not neutral (#722).
@@ -153,13 +155,20 @@ def _lab(color: np.ndarray) -> np.ndarray:
 
     Since #752 that makes this deliberately disagree with the *fill* path, which
     does convert: a grey fill descriptor now reaches a Lab canvas at its L*, so
-    grey 0.6 lands at 0.632 where a widened grey 0.6 canvas channel stays at
-    0.6. The asymmetry is intended. A descriptor carries a colour a person
-    picked in some space, and for every class but Lab that space is sRGB-ish, so
-    interpreting it is sound. An arbitrary single-channel canvas handed to a Lab
-    document carries no such claim -- it may be a mask, a spot plane or a
-    caller's scalar -- and interpreting it would invent a colour space it never
-    had.
+    grey 0.6 lands at 0.632 where a widened grey 0.6 array stays at 0.6. The
+    asymmetry is intended, and the line is drawn at the descriptor rather than
+    at the canvas. A descriptor carries a colour a person picked in some space,
+    and for every class but Lab that space is sRGB-ish, so interpreting it is
+    sound. An arbitrary single-channel array carries no such claim -- it may be
+    a mask, a spot plane, a caller's scalar or a grayscale pattern's device
+    grey -- and interpreting it would invent a colour space it never had.
+
+    Since #749 that array can be a *source* and not only a canvas, which is
+    where the split becomes visible inside one document: a grey pattern fill
+    arrives one channel wide and is widened here to L = g, while the same grey
+    written as a ``Gry `` descriptor never reaches this function at all --
+    ``paint._get_gray()`` converts it to its L* and hands over three
+    channels.
     """
     neutral = np.full_like(color, LAB_NEUTRAL_CHROMA)
     return np.concatenate((color, neutral, neutral), axis=2)
@@ -169,7 +178,7 @@ def make_widen(psd: "PSDProtocol | None") -> Callable[[np.ndarray, int], np.ndar
     """Build the widening function for *psd*, resolved once per composite.
 
     Returned as a closure rather than threaded as a document handle because
-    three of the call sites are inside ``Compositor``, which holds no ``psd``.
+    four of the call sites are inside ``Compositor``, which holds no ``psd``.
     It also makes the conversion testable without a document.
     """
     color_mode = None
