@@ -71,7 +71,11 @@ class PSDLargeImageWarning(UserWarning):
 
 
 def check_pixel_size(
-    width: int, height: int, channels: int = 1, max_alloc_bytes: int | None = None
+    width: int,
+    height: int,
+    channels: int = 1,
+    max_alloc_bytes: int | None = None,
+    estimated_bytes: int | None = None,
 ) -> None:
     """Warn and/or raise when canvas dimensions exceed safe thresholds.
 
@@ -85,19 +89,37 @@ def check_pixel_size(
     :data:`WARN_PIXELS` that are still within the per-axis spec limit.
 
     When :data:`MAX_ALLOC_BYTES` is set, also raises :class:`ValueError` if the
-    estimated allocation (``width * height * channels * 4``) exceeds it.
+    estimated allocation exceeds it. That estimate is ``estimated_bytes`` when a
+    caller supplies one, and ``width * height * channels * 4`` otherwise.
+
+    The two spellings answer different questions, and the difference is the
+    point. ``width * height * channels * 4`` sizes the float32 array a path
+    *returns*; a caller that also holds intermediates -- and both image-data
+    paths hold several -- passes what it really peaks at instead, because a
+    budget the peak exceeds is a budget that did not do its job (#767). See
+    :func:`~psd_tools.api.numpy_io._image_data_peak_bytes` and
+    :func:`~psd_tools.api.pil_io._image_data_peak_bytes` for the two models, and
+    :func:`~psd_tools.composite.composite.composite` for the caller that keeps
+    the returned-size spelling deliberately: its peak grows with the layer count,
+    so no expression of this shape bounds it.
 
     :param width: canvas width in pixels.
     :param height: canvas height in pixels.
-    :param channels: number of float32 planes, used only to estimate the
-        allocation (``width * height * channels * 4``) for the
-        :data:`MAX_ALLOC_BYTES` budget. Defaults to 1. Callers may pass a count
-        that differs from the header's channels, because for some colour modes
-        and depths the array is not one plane per stored channel: see
+    :param channels: number of float32 planes. Sizes the default estimate
+        (``width * height * channels * 4``), and names the shape in the error
+        message either way. Defaults to 1. Callers may pass a count that differs
+        from the header's channels, because for some colour modes and depths the
+        array is not one plane per stored channel: see
         :func:`~psd_tools.api.numpy_io._image_data_planes`, which triples an
         indexed document for its palette.
     :param max_alloc_bytes: per-call budget in bytes; overrides the module-level
         :data:`MAX_ALLOC_BYTES` default when not ``None``.
+    :param estimated_bytes: bytes this call is expected to allocate at its peak,
+        replacing the default estimate when given. Callers whose peak is not a
+        multiple of the returned array -- one holding a flat transient, say, that
+        does not scale with the channel count -- cannot express it through
+        ``channels`` alone, which is why this takes a byte count rather than a
+        multiplier.
     """
     if width < 1 or height < 1:
         raise ValueError(f"Image dimensions must be positive, got {width}x{height}.")
@@ -116,10 +138,22 @@ def check_pixel_size(
         )
     budget = max_alloc_bytes if max_alloc_bytes is not None else MAX_ALLOC_BYTES
     if budget is not None:
-        estimated = pixels * max(1, channels) * 4
+        estimated = (
+            estimated_bytes
+            if estimated_bytes is not None
+            else pixels * max(1, channels) * 4
+        )
         if estimated > budget:
+            # Naming which estimate this is matters: with a model the number is
+            # not `width * height * channels * 4` and a reader trying to derive
+            # it from the dimensions would not get there.
+            kind = (
+                "Peak allocation"
+                if estimated_bytes is not None
+                else "Estimated allocation"
+            )
             raise ValueError(
-                f"Estimated allocation {estimated:,} bytes for "
+                f"{kind} {estimated:,} bytes for "
                 f"{width}x{height}x{channels} is over the configured budget "
                 f"({budget:,} bytes). Raise or clear it via "
                 f"PSDImage.open(max_alloc_bytes=...), ${MAX_ALLOC_BYTES_ENV}, or "

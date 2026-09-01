@@ -13,7 +13,7 @@ from psd_tools.api.utils import (
     get_transparency_index,
     has_transparency,
 )
-from psd_tools.constants import ChannelID, ColorMode, Resource
+from psd_tools.constants import ChannelID, ColorMode, Compression, Resource
 from psd_tools.psd.image_resources import ThumbnailResource, ThumbnailResourceV4
 from psd_tools.psd.patterns import Pattern
 
@@ -78,6 +78,130 @@ def get_pil_depth(pil_mode: str) -> int:
     }.get(pil_mode, 8)
 
 
+# The "I"/"F" image and the second one `.point()` builds from it, four bytes per
+# pixel each, alive together with the "L" they narrow to. Flat rather than
+# per-channel: the loop converts one channel at a time, so only one such pair
+# exists at any moment however many channels the document stores. Measured at
+# 9.0 bytes per pixel in isolation, of which the retained "L" is counted with
+# the other converted channels below.
+_CONVERSION_TRANSIENT: int = 8
+
+# `_remove_white_background()`, in bytes per pixel: the four bands `split()`
+# hands back, the `ImageMath` expression promoting each of three to "I" at four
+# bytes a pixel, the three "L" results, and the `merge()` that reassembles them.
+# Measured at 23.8 in isolation; rounded well up because PIL's buffers are
+# C-side and the instrument that reads them is coarser than the one numpy gets.
+_WHITE_BACKGROUND_TRANSIENT: int = 35
+
+# PIL rounds each image up to its arena's block granularity, so the process grows
+# by a little more than the bytes the images ask for. Every other term here
+# counts requested bytes, as the numpy model does; this one covers the
+# difference, measured at no more than 0.23 bytes per pixel over the whole
+# colour-mode/depth/compression matrix.
+_ALLOCATOR_SLACK: int = 1
+
+# Bytes live at the codec's own peak, as a multiple of the decompressed size.
+# One step wider than the numpy path's table throughout, because this path asks
+# `get_data()` to split the buffer per channel and the split is a second copy.
+_DECOMPRESS_PEAK: dict[Compression, int] = {
+    Compression.RAW: 2,
+    Compression.RLE: 3,
+    Compression.ZIP: 3,
+    Compression.ZIP_WITH_PREDICTION: 4,
+}
+
+
+def _image_data_peak_bytes(
+    psd: "PSDProtocol", channel: int | None, apply_icc: bool
+) -> int:
+    """Bytes :func:`convert_image_data_to_pil` allocates at its high-water mark.
+
+    The counterpart to :func:`~psd_tools.api.numpy_io._image_data_peak_bytes`,
+    and it corrects this path's estimate in *both* directions (#767).
+
+    The old estimate was ``width * height * channels * 4``, four bytes per pixel
+    per stored channel -- a float32 plane, which is what the numpy path returns
+    and what this one never holds. ``_create_image()`` yields "L", "P" or "1",
+    and PIL stores a byte per pixel in all three. It was wrong in both
+    directions and by different amounts: a multi-band 8-bit document was turned
+    away below its budget, while the 16- and 32-bit branches, which build an
+    "I"/"F" image and then a second through ``.point()``, ran straight past it,
+    as did anything whose alpha channel sends it through
+    ``_remove_white_background()``. Correcting it moves both ways -- a little
+    looser on 8-bit RGB and LAB, several times tighter at depth 16 and 32 and on
+    RGBA at any depth.
+
+    Phase-maxed like the numpy model, over the same three-stage shape:
+    decompress, convert each channel, assemble. Every term is gated on the
+    branch that allocates it -- indexed and multichannel documents take
+    ``channels[0]`` and never merge, ``post_process()`` is a no-op without CMYK,
+    a profile or an alpha channel, and the white background is removed only from
+    an RGBA result. Ungated, those terms would make this *tighter* than the
+    estimate it replaces on exactly the 8-bit documents it is meant to stop
+    over-counting.
+
+    PIL's buffers are C-side and invisible to ``tracemalloc``, so unlike the
+    numpy model this is an analytic count of the images the path holds, with each
+    phase measured in isolation rather than fitted to a whole-call figure -- a
+    whole-call RSS delta cannot see a phase that reuses what the phase before it
+    released. The same two exclusions apply as on the numpy side: per-object
+    allocator overhead, and the RAW source buffer being counted even where
+    ``get_data()`` would not re-allocate it.
+    """
+    pixels = psd.width * psd.height
+    depth = psd.depth
+    # Rounded up per row, as the format pads a 1-bit row to a byte boundary.
+    source = ((psd.width * depth + 7) // 8) * psd.height * psd.channels
+    conversion = _CONVERSION_TRANSIENT if depth in (16, 32) else 0
+    decompress = _DECOMPRESS_PEAK[psd._record.image_data.compression] * source
+
+    if channel is not None:
+        # One `_create_image()` and no assembly: nothing is merged, there is no
+        # alpha to put, and `_remove_white_background()` cannot fire on one band.
+        return max(decompress, source + pixels * (1 + conversion))
+
+    mode = get_pil_mode(psd.color_mode)
+    bands = get_pil_channels(mode)
+    alpha = has_transparency(psd)
+    # Indexed and multichannel documents keep `channels[0]` and never merge.
+    merged = (
+        0 if psd.color_mode in (ColorMode.INDEXED, ColorMode.MULTICHANNEL) else bands
+    )
+    icc = apply_icc and Resource.ICC_PROFILE in psd.image_resources
+    # A profile rewrites the image to RGB, so what `putalpha()` and the white
+    # background see afterwards is not the mode the colour mode implies: a CMYK
+    # or grayscale document with a profile *and* an alpha channel comes out RGBA
+    # like any other, and is charged accordingly.
+    final_bands = 3 if icc else bands
+    widened = alpha and (icc or mode in ("RGB", "L"))
+    # `post_process()`'s three widenings, whichever of them this document
+    # reaches. They run in sequence and each frees what it replaced, so the
+    # widest bounds the phase: the CMYK inversion is a second image of the same
+    # mode; `_apply_icc()` holds its input alongside the RGB it writes;
+    # `putalpha()` converts in place and holds the mode it is leaving alongside
+    # the one it is building.
+    post = max(
+        bands if mode == "CMYK" else 0,
+        bands + 3 if icc else 0,
+        2 * final_bands + 1 if widened else 0,
+    )
+    # `_remove_white_background()` only ever sees an RGBA image -- which is to
+    # say a three-band one that `putalpha()` has just widened.
+    white_background = (
+        _WHITE_BACKGROUND_TRANSIENT if widened and final_bands == 3 else 0
+    )
+
+    # One narrow image per stored channel, held in `channels` to the end, and
+    # the decompressed buffer it was built from, held just as long.
+    retained = source + pixels * (psd.channels + _ALLOCATOR_SLACK)
+    return max(
+        decompress,
+        retained + pixels * conversion,
+        retained + pixels * (merged + post),
+        retained + pixels * (merged + 1 + white_background),
+    )
+
+
 def convert_image_data_to_pil(
     psd: "PSDProtocol", channel: int | None, apply_icc: bool
 ) -> Image.Image | None:
@@ -88,22 +212,15 @@ def convert_image_data_to_pil(
 
     # The header's own channel count, with none of the corrections the numpy
     # path needs (:func:`~psd_tools.api.numpy_io._image_data_planes`), because
-    # PIL allocates a plane per stored channel at every depth and mode:
-    # `_create_image()` builds one image per channel from a buffer whose pixel
-    # count is the canvas's, and PIL's "1" mode holds a byte per pixel, so a
-    # 1-bit document allocates a quarter of this estimate.
-    #
-    # What this does not cover is the transient peak in the 16- and 32-bit
-    # branches, which build an "I"/"F" image at four bytes per pixel and then
-    # allocate a second through `.point()` before narrowing to "L" -- roughly
-    # twice the estimate, alive for as long as the conversion. That is a peak
-    # rather than a returned size, which this guard has never modelled on any
-    # path, and it is tracked in #767.
+    # PIL allocates a plane per stored channel at every depth and mode. It sizes
+    # nothing here -- `_image_data_peak_bytes()` does that -- but it still names
+    # the shape the error message reports.
     check_pixel_size(
         psd.width,
         psd.height,
         psd.channels,
         max_alloc_bytes=psd._max_alloc_bytes,
+        estimated_bytes=_image_data_peak_bytes(psd, channel, apply_icc),
     )
 
     if channel is not None and channel >= psd.channels:

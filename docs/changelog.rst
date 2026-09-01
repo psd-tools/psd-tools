@@ -4,6 +4,12 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
+- [security] Size the ``max_alloc_bytes`` guard against what ``numpy()`` and
+  ``topil()`` peak at rather than the array they return; both hold several
+  intermediates, measured at up to 3.7x the old estimate (#767). Affects you only
+  if you set ``max_alloc_bytes`` or ``$PSD_TOOLS_MAX_ALLOC_BYTES`` -- it admits
+  and rejects different documents in both directions, so re-check a tuned budget.
+
 - [fix] Read and write a 1-bit (Bitmap mode) document at the row stride the
   format uses (#768). A row of ``width`` pixels occupies ``ceil(width / 8)``
   bytes and the depth-1 path floored that, so ``numpy()`` and
@@ -39,10 +45,10 @@ Changelog
   ``_safe_zlib_decompress()`` also now enforces the ceiling it documents,
   refusing a stream that inflates one byte past it rather than handing that byte
   back. The eightfold gap itself is closed at its source by the row-stride fix
-  above (#768), which gives depth 1 the same arithmetic as every other depth: the
-  estimate is ``width * height * channels * 4`` again, and
+  above (#768), which gives depth 1 the same arithmetic as every other depth, and
   :py:func:`psd_tools.compression.decompressed_size_bound` remains available as a
-  public utility.
+  public utility. That arithmetic is superseded on both image-data paths later in
+  this release (#767).
 
 - [fix] Replace a failed channel with exactly the byte count it declares, at
   every depth (#737, #769). The black fill substituted for an undecodable channel was
@@ -439,11 +445,10 @@ Changelog
   over-estimate was not specific to indexed and predates this entry.
 
   The estimate bounds the array that is returned, which is what
-  ``check_pixel_size()`` has always measured. Peak usage during parsing is a
-  small multiple of it for every colour mode; that predates this entry and is
-  unchanged by it. 1-bit documents were under-counted eightfold, which predated
-  this entry as well and is fixed by the row-stride entry above (#768), in this
-  same release.
+  ``check_pixel_size()`` measured as of this entry; peak usage was a small
+  multiple of it, closed later in this release (#767). 1-bit documents were
+  under-counted eightfold, which predated this entry as well and is fixed by the
+  row-stride entry above (#768).
 - [fix] Composite duotone documents at their stored width.
   ``EXPECTED_CHANNELS`` reported 2 for duotone -- the ink count -- while duotone
   pixel data is a single grayscale channel, the one to four ink curves living

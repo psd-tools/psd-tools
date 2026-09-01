@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from psd_tools.api.layers import AdjustmentLayer, GroupMixin, Layer, PixelLayer
+from psd_tools.api.numpy_io import _image_data_peak_bytes
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite
 from psd_tools.composite.composite import Compositor
@@ -579,15 +580,25 @@ def test_composite_flattened_indexed_is_bounded_by_the_numpy_guard() -> None:
     :py:meth:`PSDImage.composite` *method* does not reach either estimate on
     this document -- it short-circuits to ``topil()`` when an unmodified
     document has a preview, which is guarded separately in ``pil_io``.
+
+    The number that binds is the ``numpy()`` guard's, and since #767 that is a
+    model of what the read peaks at rather than the 192-byte array it returns:
+    the palette-expanded result, the packed buffer it was built from and
+    ``_parse_array()``'s own temporaries are all live at once, some 28 bytes a
+    pixel in total. ``composite()``'s own estimate keeps the returned-size
+    spelling and stays at 192, so it is the narrower of the two here and never
+    the one that fires.
     """
     name = "colormodes/4x4_8bit_index_color.psd"
     assert len(PSDImage.open(full_name(name))) == 0  # flattened: early return
-    allocated = PSDImage.open(full_name(name)).numpy().nbytes
-    assert allocated == 4 * 4 * 3 * 4  # one stored channel, three allocated
+    psd = PSDImage.open(full_name(name))
+    assert psd.numpy().nbytes == 4 * 4 * 3 * 4  # one stored channel, three allocated
+    peak = _image_data_peak_bytes(psd)
+    assert peak == 448 > 4 * 4 * 3 * 4  # the peak the guard is handed instead
 
-    composite(PSDImage.open(full_name(name), max_alloc_bytes=allocated))
+    composite(PSDImage.open(full_name(name), max_alloc_bytes=peak))
     with pytest.raises(ValueError, match="4x4x3"):
-        composite(PSDImage.open(full_name(name), max_alloc_bytes=allocated - 1))
+        composite(PSDImage.open(full_name(name), max_alloc_bytes=peak - 1))
 
 
 def test_composite_duotone_is_one_channel_wide() -> None:
