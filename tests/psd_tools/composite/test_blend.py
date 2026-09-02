@@ -51,7 +51,7 @@ def test_lighter_color_descriptor_key() -> None:
         ("blend-modes/linear-burn.psd",),
         ("blend-modes/hard-light.psd",),
         ("blend-modes/soft-light.psd",),
-        # Was xfailed as a "vivid light algorithm discrepency" until #189: the
+        # Was xfailed as a vivid light algorithm discrepancy until #189: the
         # mode delegated to the guarded color_burn/color_dodge, whose backdrop
         # special cases Photoshop does not apply here. 0.020755 -> 0.000001.
         ("blend-modes/vivid-light.psd",),
