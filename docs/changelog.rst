@@ -1,7 +1,7 @@
 Changelog
 =========
 
-1.19.0 (unreleased)
+1.19.0 (2026-09-02)
 -------------------
 
 - [api] Annotate ``PhotoFilter.xyz`` as ``tuple[int, ...] | None`` rather than
@@ -124,6 +124,11 @@ Changelog
   record length alone, so ``user_mask_density``, ``user_mask_feather``,
   ``vector_mask_density`` and ``vector_mask_feather`` no longer return ``None``
   for affected files (#693, #704)
+- [fix] Report ``(0, 0)`` from ``LayerRecord.channel_sizes()`` for a mask
+  channel whose record carries no mask block, instead of raising
+  ``AttributeError`` -- reachable only from a malformed record.
+  ``LayerRecord.mask_data`` is annotated ``MaskData | None``, not ``object``
+  (#705)
 - [fix] Accept every scalar spelling of the composite backdrop; ``color=1`` and
   ``color=np.float32(1.0)`` raised ``TypeError`` (#708, #709)
 - [fix] Recognise a transparent backdrop given as a NumPy scalar, a 0-d array,
@@ -176,6 +181,9 @@ Changelog
   were absent, and distinguish shallow from deep via the new
   ``psd_tools.constants.Knockout`` enum. **Backwards incompatible**: documents
   combining Knockout with a fill opacity below 100% render differently (#707)
+- [chore] Bump dependencies: ruff to 0.16.4, mypy to 2.3.1, pre-commit to
+  4.6.2, cibuildwheel to 4.2.0, tornado to 6.5.8; relock scikit-image to
+  0.26.0 for Python 3.11+ (#696, #698, #699, #700, #701, #702, #780)
 
 1.18.0 (2026-08-07)
 -------------------
