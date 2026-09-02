@@ -31,7 +31,7 @@ Blend mode categories:
 - ``overlay``: Combination of multiply and screen
 - ``soft_light``: Soft version of overlay
 - ``hard_light``: Hard version of overlay
-- ``vivid_light``: Combination of color dodge and burn
+- ``vivid_light``: Burns or dodges to shift contrast
 - ``linear_light``: Combination of linear dodge and burn
 - ``pin_light``: Replaces colors based on brightness
 - ``hard_mix``: Posterizes to primary colors
@@ -251,18 +251,21 @@ def hard_mix(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     """
     Adds the red, green and blue channel values of the blend color to the RGB
     values of the base color. If the resulting sum for a channel is above 255 it
-    receives a value of 255, and below 255 a value of 0; on exactly 255 the
-    backdrop decides, as the comment below sets out.
+    receives a value of 255, and below 255 a value of 0; on exactly 255 it is
+    255 only where the base is above half, as the comment below sets out.
     Therefore, all blended pixels have red, green, and blue channel values of
     either 0 or 255. This changes all pixels to primary additive colors (red,
     green, or blue), white, or black.
     """
-    # Photoshop breaks the exact tie toward the backdrop: where Cb + Cs == 1 the
-    # result is 1 only where Cb > 0.5. That tie is a real case and not float
-    # noise -- two complementary 8-bit values sum to exactly 1.0 in float32 for
-    # all 256 of them -- so it is testable rather than something to fudge past.
-    # The 0.999999 factor this replaces decided every tie the other way and got
-    # 9 of 145 measured boundary samples wrong (#189).
+    # Where Cb + Cs == 1 exactly, Photoshop answers 1 only where Cb > 0.5. On
+    # that line Cb > 0.5, Cb > Cs and Cs < 0.5 are one and the same predicate,
+    # so which of the three Photoshop actually tests is not observable; all
+    # reproduce the 145 measured boundary samples. The tie is a real case and
+    # not float noise -- complementary values sum to exactly 1.0 in float32 at
+    # 8- and 16-bit alike -- though only a backdrop that reaches here unrounded
+    # can land on it. The 0.999999 factor this replaces did worse than lose the
+    # tie: it read as ``total >= 1 + 1e-6 * Cs``, so it mis-answered a whole
+    # band above the threshold, and got 9 of the 145 wrong (#189).
     total = Cb + Cs
     B = np.zeros_like(Cb, dtype=np.float32)
     B[(total > 1) | ((total == 1) & (Cb > 0.5))] = 1

@@ -483,7 +483,9 @@ PHOTOSHOP_CMYK: list[tuple[list[float], list[float], dict[str, list[float]]]] = 
 # the floor here is quantization and not model error: the worst of the 36 rows
 # is 1.20 steps and none exceeds one and a quarter. Two steps leaves the
 # assertion loose enough to be stable and tight enough to fail loudly -- every
-# defect #781 fixed moves at least one of these rows by 25 to 148 steps.
+# defect #781 fixed moves at least one of these rows by 25 to 148 steps. The
+# separable table further down shares this tolerance on the same reasoning; its
+# own worst row is 1.13 steps, and the defects #189 fixed move rows by 6 to 255.
 _ONE_STEP = 1.0 / 255.0
 
 
@@ -621,7 +623,7 @@ def test_get_blend_func_degrades_the_descriptor_keys_too(key: bytes) -> None:
 
 # The separable half of the same experiment that produced ``PHOTOSHOP_CMYK``
 # above, and the answer to #189: 17 of the 20 modes here already agreed with
-# Photoshop to within quantization, so the compositor's CMYK convention -- the
+# Photoshop to within 1.4/255, so the compositor's CMYK convention -- the
 # canvas counts what is left of the ink, and the separable formulas apply to
 # that complement -- was never the problem the issue supposed. Three modes were
 # wrong, and wrong in every colour mode rather than only in CMYK:
@@ -631,7 +633,11 @@ def test_get_blend_func_degrades_the_descriptor_keys_too(key: bytes) -> None:
 # ``vivid_light`` corners (Cb == 1 with Cs == 0, and Cb == 0 with Cs == 1) and
 # pair 3 carries the ``hard_mix`` tie from both sides (Cb + Cs == 1 with Cb
 # above and below a half) together with two backdrops under a quarter, where
-# ``soft_light``'s D actually differs. Format: ``(backdrop, source, {mode:
+# ``soft_light``'s D actually differs. Pair 2 does one more job: its
+# ``color_burn`` and ``color_dodge`` rows sit on those same two corners and
+# pin that the plain modes *do* keep the backdrop special cases Vivid Light
+# does not, which is the surprising half of that fix and the reason it is not
+# simply a bug in one of the two. Format: ``(backdrop, source, {mode:
 # result})``, ink percent, authored the same way -- Photoshop's own render.
 PHOTOSHOP_CMYK_SEPARABLE: list[
     tuple[list[float], list[float], dict[str, list[float]]]
@@ -778,10 +784,46 @@ def _cmyk_canvas_8bit(ink: list[float]) -> np.ndarray:
     than the 0.5 that a direct conversion yields -- close enough to read as a
     tie that is not one, and to assert the wrong branch. Snapping first makes
     the readable round numbers in the table above mean exactly what Photoshop
-    held; it reproduces all 40 stored operands there.
+    held: every operand in the table round-trips to the byte Photoshop reported.
+    That is checked rather than guaranteed -- inks such as 10, 50 and 70 land on
+    a .5 boundary in exact arithmetic, and it is float64 representation error
+    and ``np.round``'s half-to-even rule that put them on Photoshop's side. A
+    new pair that lands on such a boundary needs the same check, which
+    ``test_the_table_operands_round_trip_to_photoshops_bytes`` below applies.
     """
     value = np.round((1.0 - np.array(ink, dtype=np.float64) / 100.0) * 255.0)
     return (value / 255.0).astype(np.float32).reshape(1, 1, 4)
+
+
+def test_the_separable_table_covers_every_pair_alike() -> None:
+    """The parametrize below reads its mode list from pair 0 alone.
+
+    A key missing from a later pair would be a ``KeyError`` at run time and an
+    extra one would go silently untested, so the table is made to answer for
+    itself here.
+    """
+    keys = [set(res) for _, _, res in PHOTOSHOP_CMYK_SEPARABLE]
+    assert all(k == keys[0] for k in keys)
+    assert len(keys[0]) == 20
+
+
+def test_the_table_operands_round_trip_to_photoshops_bytes() -> None:
+    """``_cmyk_canvas_8bit``'s premise, pinned rather than assumed.
+
+    The table reads in round nominal ink because that is legible, and relies on
+    the snap landing on the byte Photoshop stored. ``normal`` returns the source
+    untouched, so its row is Photoshop's own report of that operand and gives
+    the check for free on one side; the backdrops are covered by the fact that
+    every pair's backdrop appears as some pair's source, or as its own
+    ``darken``/``lighten`` row.
+    """
+    for backdrop, source, expected in PHOTOSHOP_CMYK_SEPARABLE:
+        stored = list((1.0 - _cmyk_canvas_8bit(source).reshape(4)) * 100.0)
+        # Photoshop's sampler reports ink to two decimals, so 9.803921... comes
+        # back as 9.8. One 8-bit step is 100/255 == 0.392 of a percent, so this
+        # tolerates that report rounding and still catches a whole byte.
+        assert stored == pytest.approx(expected["normal"], abs=0.01)
+        assert _cmyk_canvas_8bit(backdrop).dtype == np.float32
 
 
 @pytest.mark.parametrize(
@@ -798,6 +840,13 @@ def test_separable_matches_photoshop_on_cmyk(pair: int, mode: str) -> None:
     across the whole canvas: it sat at 0.000179 against a 0.01 threshold while
     three modes were wrong, and two of the three defects moved it by less than
     a thousandth. Reverting any one of the three fails a row here instead.
+
+    A CMYK table settles a fix advertised for every colour mode because these
+    twenty are not mode-aware: none is in ``_MODE_AWARE``, so ``get_blend_func``
+    hands back the bare function and one object serves RGB, Grayscale, Lab and
+    CMYK alike, as the ``get_blend_func`` binding test above pins. So fixing the
+    arithmetic on CMYK fixes it everywhere, which is why #189's report against
+    CMYK alone never located a CMYK fault.
     """
     backdrop, source, expected = PHOTOSHOP_CMYK_SEPARABLE[pair]
     blend_fn = getattr(blend_module, mode)
