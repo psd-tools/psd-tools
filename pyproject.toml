@@ -94,10 +94,32 @@ exclude = ["*.md"]
 
 [tool.ruff.lint]
 # Ruff 0.16 greatly expanded the default rule set (59 -> 413 rules). Pin the
-# previous defaults so dependency bumps stay behaviour-neutral; adopting the
-# new rules can be done deliberately in a separate change.
+# previous defaults so dependency bumps stay behaviour-neutral, and adopt the
+# new rules deliberately, a family at a time -- D below is the first (#772);
+# the rest are still being evaluated in #692.
 select = ["E4", "E7", "E9", "F"]
-extend-select = ["PLC0415", "T10"]
+extend-select = ["PLC0415", "T10", "D"]
+ignore = [
+    # Missing docstrings. Requiring one on every public method is a different
+    # project from formatting the ones that exist, and it is the rule most
+    # readily satisfied with """Return the value.""" -- 581 violations, 395 of
+    # them D102. Tracked separately (#772).
+    "D1",
+    # Collapse a short multi-line docstring. No safe fixes available, and it
+    # rewrites docstrings for a stylistic preference (#772).
+    "D200",
+    # Imperative mood. A genuine convention, but it misfires on the property
+    # docstrings this codebase has many of -- "Gradient type, one of ..." --
+    # and reads as noise there (#772).
+    "D401",
+]
+
+[tool.ruff.lint.pydocstyle]
+# pep257, not google or numpy: it is the convention that matches this
+# codebase's reST/Sphinx docstrings (`:param x:`), and it leaves D212
+# multi-line-summary-first-line disabled. Under `google` that rule alone is
+# 452 violations -- a reflow of nearly every multi-line docstring in the tree.
+convention = "pep257"
 
 [tool.mypy]
 files = ["src/psd_tools", "tests", "tools", "docs/conf.py"]
