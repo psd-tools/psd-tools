@@ -4,6 +4,10 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
+- [api] Annotate ``PhotoFilter.xyz`` as ``tuple[int, ...] | None`` rather than
+  ``bool``, which it never returned -- a version 3 record holds three
+  coordinates and a version 2 record leaves it ``None``. Type-checker output
+  only; the runtime value is unchanged (#772)
 - [docs] Stop five docstrings rendering interpreted escape sequences. The
   ``psd_tools.compression.rle`` module docstring shipped a literal NUL byte and
   a mojibake ``ÿ`` where its example wrote ``\x00`` and ``\xff``, which
