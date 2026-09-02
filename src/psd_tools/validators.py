@@ -32,8 +32,10 @@ class _RangeValidator(object):
 
 def range_(minimum: Any, maximum: Any) -> _RangeValidator:
     """
-    A validator that raises a :exc:`ValueError` if the initializer is called
-    with a value that does not belong in the [minimum, maximum] range. The
-    check is performed using ``minimum <= value and value <= maximum``
+    Require a value inside the [minimum, maximum] range.
+
+    Raises a :exc:`ValueError` if the initializer is called with a value
+    outside it. The check is performed using
+    ``minimum <= value and value <= maximum``.
     """
     return _RangeValidator(minimum, maximum)

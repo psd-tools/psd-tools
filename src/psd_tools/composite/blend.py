@@ -188,8 +188,9 @@ def soft_light(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
 
 def vivid_light(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     """
-    Burns or dodges the colors by increasing or decreasing the contrast,
-    depending on the blend color. If the blend color (light source) is lighter
+    Burn or dodge the colors by increasing or decreasing the contrast.
+
+    Which one depends on the blend color. If the blend color (light source) is lighter
     than 50% gray, the image is lightened by decreasing the contrast. If the
     blend color is darker than 50% gray, the image is darkened by increasing
     the contrast.
@@ -212,8 +213,9 @@ def vivid_light(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
 
 def linear_light(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     """
-    Burns or dodges the colors by decreasing or increasing the brightness,
-    depending on the blend color. If the blend color (light source) is lighter
+    Burn or dodge the colors by decreasing or increasing the brightness.
+
+    Which one depends on the blend color. If the blend color (light source) is lighter
     than 50% gray, the image is lightened by increasing the brightness. If the
     blend color is darker than 50% gray, the image is darkened by decreasing
     the brightness.
@@ -226,7 +228,9 @@ def linear_light(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
 
 def pin_light(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     """
-    Replaces the colors, depending on the blend color. If the blend color
+    Replace the colors, depending on the blend color.
+
+    If the blend color
     (light source) is lighter than 50% gray, pixels darker than the blend color
     are replaced, and pixels lighter than the blend color do not change. If the
     blend color is darker than 50% gray, pixels lighter than the blend color
@@ -253,8 +257,9 @@ def subtract(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
 
 def hard_mix(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     """
-    Adds the red, green and blue channel values of the blend color to the RGB
-    values of the base color. If the resulting sum for a channel is above 255 it
+    Add the blend color's channel values to those of the base color.
+
+    If the resulting sum for a channel is above 255 it
     receives a value of 255, and below 255 a value of 0; on exactly 255 it is
     255 only where the base is above half, as the comment below sets out.
     Therefore, all blended pixels have red, green, and blue channel values of
@@ -278,8 +283,9 @@ def hard_mix(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
 
 def divide(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     """
-    Looks at the color information in each channel and divides the blend color
-    from the base color.
+    Divide the blend color from the base color.
+
+    Looks at the color information in each channel.
     """
     B = Cb / (Cs + _FLOAT_EPSILON)
     B[B > 1] = 1

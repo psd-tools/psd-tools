@@ -35,8 +35,9 @@ T_Pattern = TypeVar("T_Pattern", bound="Pattern")
 
 class Patterns(ListElement):
     """
-    List of Pattern structure. See
-    :py:class:`~psd_tools.psd.patterns.Pattern`.
+    List of Pattern structure.
+
+    See :py:class:`~psd_tools.psd.patterns.Pattern`.
     """
 
     @classmethod

@@ -110,8 +110,9 @@ class ColorBalance(BaseElement):
 @register(Tag.COLOR_LOOKUP)
 class ColorLookup(DescriptorBlock2):
     """
-    Dict-like Descriptor-based structure. See
-    :py:class:`~psd_tools.psd.descriptor.Descriptor`.
+    Dict-like Descriptor-based structure.
+
+    See :py:class:`~psd_tools.psd.descriptor.Descriptor`.
 
     .. py:attribute:: version
     .. py:attribute:: data_version
@@ -544,8 +545,9 @@ class HueSaturation(BaseElement):
 @define(repr=False)
 class Levels(ListElement):
     """
-    List of level records. See :py:class:
-    `~psd_tools.psd.adjustments.LevelRecord`.
+    List of level records.
+
+    See :py:class:`~psd_tools.psd.adjustments.LevelRecord`.
 
     .. py:attribute:: version
 

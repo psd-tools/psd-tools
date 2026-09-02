@@ -223,8 +223,9 @@ class TestHsbToRgb:
         ],
     )
     def test_out_of_range_saturation_and_brightness_saturate(self, s, v, expected):
-        """The ``Returns:`` contract has to hold for every float, not just for
-        in-range ones.
+        """The ``Returns:`` contract has to hold for every float.
+
+        Not just for in-range ones.
 
         Saturation and brightness are not angles, so unlike hue they clamp
         rather than wrap. Before #757 this function was total only in

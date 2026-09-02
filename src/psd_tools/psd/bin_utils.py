@@ -101,7 +101,7 @@ def write_length_block(
     padding: int = 1,
     **kwargs: Any,
 ) -> int:
-    """
+    r"""
     Writes a block of data with a length marker at the beginning.
 
     Example::
@@ -264,8 +264,7 @@ def write_be_array(fp: IO[bytes], arr: array.array) -> int:
 
 def fix_byteorder(arr: array.array) -> array.array:
     """
-    Fixes the byte order of the array (assuming it was read
-    from a Big Endian data).
+    Fix the byte order of an array read from big-endian data.
     """
     if sys.byteorder == "little":
         arr.byteswap()

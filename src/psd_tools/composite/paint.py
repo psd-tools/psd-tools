@@ -134,7 +134,7 @@ def _from_rgb(color_mode: ColorMode, rgb: tuple[float, ...]) -> tuple[float, ...
 
 
 def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
-    """Return color tuple from descriptor.
+    r"""Return color tuple from descriptor.
 
     Example descriptor::
 
@@ -331,7 +331,7 @@ def draw_pattern_fill(
     psd: Any,
     desc: Descriptor,
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
-    """
+    r"""
     Create a pattern fill.
 
     Example descriptor::
@@ -612,7 +612,7 @@ def _noise_to_canvas(
 def _make_noise_gradient_color(
     color_mode: ColorMode, grad: Descriptor
 ) -> tuple[Any | None, Any | None]:
-    """
+    r"""
     Make a noise gradient color.
 
     TODO: Improve noise gradient quality.

@@ -47,8 +47,10 @@ def encode_fixed_point(numbers: Sequence[float]) -> tuple[int, ...]:
 @define(repr=False)
 class Path(ListElement):
     """
-    List-like Path structure. Elements are either PathFillRule,
-    InitialFillRule, ClipboardRecord, ClosedPath, or OpenPath.
+    List-like Path structure.
+
+    Elements are either PathFillRule, InitialFillRule, ClipboardRecord,
+    ClosedPath, or OpenPath.
     """
 
     @classmethod
@@ -353,8 +355,9 @@ class VectorMaskSetting(BaseElement):
 @define(repr=False)
 class VectorStrokeContentSetting(Descriptor):
     """
-    Dict-like Descriptor-based structure. See
-    :py:class:`~psd_tools.psd.descriptor.Descriptor`.
+    Dict-like Descriptor-based structure.
+
+    See :py:class:`~psd_tools.psd.descriptor.Descriptor`.
 
     .. py:attribute:: key
     .. py:attribute:: version

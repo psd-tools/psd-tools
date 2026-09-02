@@ -439,8 +439,9 @@ class SolidFillInfo(BaseElement):
 @define(repr=False)
 class EffectsLayer(DictElement):
     """
-    Dict-like EffectsLayer structure. See
-    :py:class:`psd_tools.constants.EffectOSType` for available keys.
+    Dict-like EffectsLayer structure.
+
+    See :py:class:`psd_tools.constants.EffectOSType` for available keys.
 
     .. py:attribute:: version
     """

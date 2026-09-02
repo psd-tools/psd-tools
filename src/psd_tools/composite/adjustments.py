@@ -147,8 +147,9 @@ def _get_lut_size(layer: Layer) -> Literal[256, 65536]:
 @functools.lru_cache(maxsize=2)
 def _lut_domain(lut_size: int) -> NDArray[np.float32]:
     """
-    Returns the normalized domain [0, 1] used for LUT interpolation,
-    with `lut_size` evenly spaced samples. Cached per size.
+    Return the normalized domain [0, 1] used for LUT interpolation.
+
+    Gives `lut_size` evenly spaced samples. Cached per size.
     """
     return np.linspace(_0, _1, lut_size, dtype=np.float32)
 

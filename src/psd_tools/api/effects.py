@@ -147,9 +147,10 @@ class _Effect(_EffectProtocol):
 
     @property
     def value(self) -> Descriptor:
-        """Deprecated
+        """Effect descriptor value.
 
-        Effect descriptor value. Use `descriptor` property instead.
+        .. deprecated::
+            Use the :py:attr:`descriptor` property instead.
         """
         logger.debug("Deprecated, use 'descriptor' property instead.")
         return self.descriptor
@@ -259,8 +260,9 @@ class _GradientMixin(_EffectProtocol):
     @property
     def type(self) -> bytes:
         """
-        Gradient type, one of `linear`, `radial`, `angle`, `reflected`, or
-        `diamond`.
+        Gradient type.
+
+        One of `linear`, `radial`, `angle`, `reflected`, or `diamond`.
         """
         type_value = self.descriptor.get(Key.Type)
         return (
@@ -478,8 +480,10 @@ class BevelEmboss(_Effect, _AngleMixin):
     @property
     def bevel_style(self) -> bytes:
         """
-        Bevel style, one of `OuterBevel`, `InnerBevel`, `Emboss`,
-        `PillowEmboss`, or `StrokeEmboss`.
+        Bevel style.
+
+        One of `OuterBevel`, `InnerBevel`, `Emboss`, `PillowEmboss`, or
+        `StrokeEmboss`.
         """
         style = self.descriptor.get(Key.BevelStyle)
         return getattr(style, "enum", b"OtrB") if style is not None else b"OtrB"
@@ -533,7 +537,7 @@ class BevelEmboss(_Effect, _AngleMixin):
 
 @register(Klass.ChromeFX.value)
 class Satin(_Effect, _ColorMixin):
-    """Satin effect"""
+    """Satin effect."""
 
     @property
     def anti_aliased(self) -> bool:

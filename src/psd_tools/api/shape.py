@@ -69,8 +69,9 @@ class VectorMask(object):
     @property
     def paths(self) -> list[Subpath]:
         """
-        List of :py:class:`~psd_tools.psd.vector.Subpath`. Subpath is a
-        list-like structure that contains one or more
+        List of :py:class:`~psd_tools.psd.vector.Subpath`.
+
+        Subpath is a list-like structure that contains one or more
         :py:class:`~psd_tools.psd.vector.Knot` items. Knot contains
         relative coordinates of control points for a Bezier curve.
         :py:attr:`~psd_tools.psd.vector.Subpath.index` indicates which
@@ -124,8 +125,10 @@ class VectorMask(object):
     @property
     def bbox(self) -> tuple[float, float, float, float]:
         """
-        Bounding box tuple (left, top, right, bottom) in relative coordinates,
-        where top-left corner is (0., 0.) and bottom-right corner is (1., 1.).
+        Bounding box tuple (left, top, right, bottom).
+
+        In relative coordinates, where the top-left corner is (0., 0.) and the
+        bottom-right corner is (1., 1.).
 
         The bounding box accounts for the full extent of all cubic Bezier
         curves, not just the anchor points.
@@ -256,8 +259,7 @@ class Stroke(object):
     @property
     def line_dash_set(self) -> list:
         """
-        Line dash set in list of
-        :py:class:`~psd_tools.decoder.actions.UnitFloat`.
+        Line dash set in list of :py:class:`~psd_tools.decoder.actions.UnitFloat`.
 
         :return: list
         """
@@ -301,7 +303,7 @@ class Stroke(object):
 
     @property
     def stroke_adjust(self) -> Any:
-        """Stroke adjust"""
+        """Stroke adjust."""
         return self._data.get(b"strokeStyleStrokeAdjust")
 
     @property
@@ -448,6 +450,7 @@ class RoundedRectangle(Origination):
     def radii(self) -> Any:
         """
         Corner radii of rounded rectangles.
+
         The order is top-left, top-right, bottom-left, bottom-right.
 
         :return: :py:class:`~psd_tools.psd.descriptor.Descriptor`
@@ -479,7 +482,7 @@ class Line(Origination):
     @property
     def line_weight(self) -> float:
         """
-        Line weight
+        Line weight.
 
         :return: `float`
         """

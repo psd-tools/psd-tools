@@ -67,7 +67,9 @@ class GradientFill(FillLayer):
     @property
     def gradient_kind(self) -> str:
         """
-        Kind of the gradient, one of the following:
+        Kind of the gradient.
+
+        One of the following:
 
          - `Linear`
          - `Radial`
@@ -345,7 +347,7 @@ class PhotoFilter(AdjustmentLayer):
 
     @property
     def xyz(self) -> bool:
-        """xyz.
+        """XYZ coordinates, present in version 3 records.
 
         :return: `bool`
         """

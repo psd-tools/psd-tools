@@ -1,6 +1,8 @@
 """
-Image resources section structure. Image resources are used to store non-pixel
-data associated with images, such as pen tool paths or slices.
+Image resources section structure.
+
+Image resources are used to store non-pixel data associated with images, such
+as pen tool paths or slices.
 
 See :py:class:`~psd_tools.constants.Resource` to check available
 resource names.
@@ -127,8 +129,7 @@ TYPES.update(
 @define(repr=False)
 class ImageResources(DictElement):
     """
-    Image resources section of the PSD file. Dict of
-    :py:class:`.ImageResource`.
+    Image resources section of the PSD file. Dict of :py:class:`.ImageResource`.
     """
 
     def get_data(self, key: Any, default: Any = None) -> Any:
@@ -363,7 +364,7 @@ class AlphaNamesUnicode(ListElement):
 @define(repr=False)
 class DisplayInfo(BaseElement):
     """
-    DisplayInfo is a list of AlphaChannels
+    DisplayInfo is a list of AlphaChannels.
     """
 
     version: int = 1

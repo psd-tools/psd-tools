@@ -184,8 +184,9 @@ class Descriptor(_DescriptorMixin):
 @define(repr=False)
 class ObjectArray(_DescriptorMixin):
     """
-    Object array structure almost equivalent to
-    :py:class:`~psd_tools.psd.descriptor.Descriptor`.
+    Object array structure.
+
+    Almost equivalent to :py:class:`~psd_tools.psd.descriptor.Descriptor`.
 
     .. py:attribute:: items_count
 
@@ -645,8 +646,9 @@ class RawData(BaseElement):
 @register(OSType.CLASS1)
 class Class1(Class):
     """
-    Class structure equivalent to
-    :py:class:`~psd_tools.psd.descriptor.Class`.
+    Class structure.
+
+    Equivalent to :py:class:`~psd_tools.psd.descriptor.Class`.
     """
 
     pass
@@ -655,8 +657,9 @@ class Class1(Class):
 @register(OSType.CLASS2)
 class Class2(Class):
     """
-    Class structure equivalent to
-    :py:class:`~psd_tools.psd.descriptor.Class`.
+    Class structure.
+
+    Equivalent to :py:class:`~psd_tools.psd.descriptor.Class`.
     """
 
     pass
@@ -665,8 +668,9 @@ class Class2(Class):
 @register(OSType.CLASS3)
 class Class3(Class):
     """
-    Class structure equivalent to
-    :py:class:`~psd_tools.psd.descriptor.Class`.
+    Class structure.
+
+    Equivalent to :py:class:`~psd_tools.psd.descriptor.Class`.
     """
 
     pass
@@ -675,8 +679,9 @@ class Class3(Class):
 @register(OSType.REFERENCE)
 class Reference(List):
     """
-    Reference structure equivalent to
-    :py:class:`~psd_tools.psd.descriptor.List`.
+    Reference structure.
+
+    Equivalent to :py:class:`~psd_tools.psd.descriptor.List`.
     """
 
     pass
@@ -685,8 +690,9 @@ class Reference(List):
 @register(OSType.ALIAS)
 class Alias(RawData):
     """
-    Alias structure equivalent to
-    :py:class:`~psd_tools.psd.descriptor.RawData`.
+    Alias structure.
+
+    Equivalent to :py:class:`~psd_tools.psd.descriptor.RawData`.
     """
 
     pass
@@ -695,8 +701,9 @@ class Alias(RawData):
 @register(OSType.GLOBAL_OBJECT)
 class GlobalObject(Descriptor):
     """
-    Global object structure equivalent to
-    :py:class:`~psd_tools.psd.descriptor.Descriptor`.
+    Global object structure.
+
+    Equivalent to :py:class:`~psd_tools.psd.descriptor.Descriptor`.
     """
 
     pass
@@ -705,8 +712,9 @@ class GlobalObject(Descriptor):
 @register(OSType.PATH)
 class Path(RawData):
     """
-    Undocumented path structure equivalent to
-    :py:class:`~psd_tools.psd.descriptor.RawData`.
+    Undocumented path structure.
+
+    Equivalent to :py:class:`~psd_tools.psd.descriptor.RawData`.
     """
 
     pass
@@ -715,8 +723,9 @@ class Path(RawData):
 @register(OSType.IDENTIFIER)
 class Identifier(Integer):
     """
-    Identifier equivalent to
-    :py:class:`~psd_tools.psd.descriptor.Integer`.
+    Identifier.
+
+    Equivalent to :py:class:`~psd_tools.psd.descriptor.Integer`.
     """
 
     pass
@@ -771,8 +780,9 @@ class Name(BaseElement):
 @define(repr=False)
 class DescriptorBlock(Descriptor):
     """
-    Dict-like Descriptor-based structure that has `version` field. See
-    :py:class:`~psd_tools.psd.descriptor.Descriptor`.
+    Dict-like Descriptor-based structure with a `version` field.
+
+    See :py:class:`~psd_tools.psd.descriptor.Descriptor`.
 
     .. py:attribute:: version
     """
@@ -794,9 +804,9 @@ class DescriptorBlock(Descriptor):
 @define(repr=False)
 class DescriptorBlock2(Descriptor):
     """
-    Dict-like Descriptor-based structure that has `version` and
-    `data_version` fields. See
-    :py:class:`~psd_tools.psd.descriptor.Descriptor`.
+    Dict-like Descriptor-based structure with `version` and `data_version`.
+
+    See :py:class:`~psd_tools.psd.descriptor.Descriptor`.
 
     .. py:attribute:: version
     .. py:attribute:: data_version

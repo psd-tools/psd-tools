@@ -469,10 +469,10 @@ class TextRun:
 
 
 class Paragraph:
-    """
+    r"""
     A paragraph of text containing one or more styled runs.
 
-    Paragraphs are delimited by carriage return characters (``\\r``)
+    Paragraphs are delimited by carriage return characters (``\r``)
     in Photoshop's text model.
 
     Example::

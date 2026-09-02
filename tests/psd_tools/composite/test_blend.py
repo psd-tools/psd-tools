@@ -30,8 +30,10 @@ logger = logging.getLogger(__name__)
 
 
 def test_lighter_color_descriptor_key() -> None:
-    """Regression: b"lighterColor" was previously a typo (b"ligherColor")
-    which silently fell back to the normal blend mode for effects/strokes.
+    """Regression: b"lighterColor" was previously a typo (b"ligherColor").
+
+    The misspelling silently fell back to the normal blend mode for effects
+    and strokes.
     """
     assert BLEND_FUNC.get(b"lighterColor") is lighter_color
     assert BLEND_FUNC.get(b"lighterColor") is not normal
@@ -151,8 +153,9 @@ def _nested_passthrough_psd(depth: int, opacity: int, background: bool) -> PSDIm
 
 @pytest.mark.parametrize("depth", [1, 2, 3])
 def test_passthrough_group_opacity_over_opaque_backdrop(depth: int) -> None:
-    """Group opacity must scale the effective alpha of the group's contents
-    instead of blending the backdrop in twice (issue #703).
+    """Group opacity must scale the effective alpha of the group's contents.
+
+    Blending the backdrop in twice instead is what issue #703 reported.
     """
     psd = _nested_passthrough_psd(depth, opacity=128, background=True)
     image = psd.composite(ignore_preview=True).convert("RGB")
@@ -163,8 +166,9 @@ def test_passthrough_group_opacity_over_opaque_backdrop(depth: int) -> None:
 
 @pytest.mark.parametrize("depth", [1, 2, 3])
 def test_passthrough_group_opacity_over_transparent_backdrop(depth: int) -> None:
-    """Without a backdrop, group opacity only scales alpha; the initial
-    backdrop color must not bleed into the result (issue #703).
+    """Without a backdrop, group opacity only scales alpha.
+
+    The initial backdrop color must not bleed into the result (issue #703).
     """
     psd = _nested_passthrough_psd(depth, opacity=128, background=False)
     image = psd.composite(ignore_preview=True).convert("RGBA")
@@ -174,8 +178,10 @@ def test_passthrough_group_opacity_over_transparent_backdrop(depth: int) -> None
 
 @pytest.mark.parametrize("depth", [1, 2, 3])
 def test_passthrough_group_opacity_over_partial_backdrop(depth: int) -> None:
-    """The interpolation has to happen in premultiplied space, so a partially
-    transparent backdrop contributes in proportion to its own alpha.
+    """The interpolation has to happen in premultiplied space.
+
+    So a partially transparent backdrop contributes in proportion to its own
+    alpha.
 
     This is the case the pre-#703 code got wrong even without nesting, because
     it keyed off ``_shape_g`` rather than the backdrop alpha.
@@ -209,8 +215,10 @@ def _flat_psd(alpha: int, background_alpha: int) -> PSDImage:
 def test_passthrough_group_opacity_equivalence(
     depth: int, opacity: int, layer_alpha: int, background_alpha: int
 ) -> None:
-    """A pass-through group at opacity ``m`` around a single normal layer at
-    alpha ``a`` must render identically to that layer ungrouped at ``m * a``.
+    """A pass-through group must not change what its single child renders.
+
+    At opacity ``m`` around one normal layer at alpha ``a``, it must render
+    identically to that layer ungrouped at ``m * a``.
 
     This is the invariant issue #703 violated: group opacity has to scale the
     effective alpha of the contents rather than blend the backdrop in twice.
