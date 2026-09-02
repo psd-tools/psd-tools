@@ -124,7 +124,7 @@ Changelog
   record length alone, so ``user_mask_density``, ``user_mask_feather``,
   ``vector_mask_density`` and ``vector_mask_feather`` no longer return ``None``
   for affected files (#693, #704)
-- [psd] Report ``(0, 0)`` from ``LayerRecord.channel_sizes()`` for a mask
+- [fix] Report ``(0, 0)`` from ``LayerRecord.channel_sizes()`` for a mask
   channel whose record carries no mask block, instead of raising
   ``AttributeError`` -- reachable only from a malformed record.
   ``LayerRecord.mask_data`` is annotated ``MaskData | None``, not ``object``
