@@ -149,8 +149,7 @@ class _Effect(_EffectProtocol):
     def value(self) -> Descriptor:
         """Effect descriptor value.
 
-        .. deprecated::
-            Use the :py:attr:`descriptor` property instead.
+        .. note:: Deprecated. Use the ``descriptor`` property instead.
         """
         logger.debug("Deprecated, use 'descriptor' property instead.")
         return self.descriptor

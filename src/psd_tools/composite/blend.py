@@ -285,7 +285,7 @@ def divide(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     """
     Divide the blend color from the base color.
 
-    Looks at the color information in each channel.
+    Operates on the color information in each channel independently.
     """
     B = Cb / (Cs + _FLOAT_EPSILON)
     B[B > 1] = 1

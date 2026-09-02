@@ -108,9 +108,9 @@ def test_unparsable_file_yields_nothing(tmp_path: Path) -> None:
 def test_untokenizable_body_warns_instead_of_scoring_zero(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:
-    """Silently counting an unmeasurable function as prose-free.
+    """An unmeasurable function must never be counted as prose-free.
 
-    This is the one failure this tool must not have.
+    Silently doing so is the one failure this tool must not have.
     """
 
     def boom(readline: Any) -> Any:

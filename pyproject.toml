@@ -99,18 +99,20 @@ exclude = ["*.md"]
 # the rest are still being evaluated in #692.
 select = ["E4", "E7", "E9", "F"]
 extend-select = ["PLC0415", "T10", "D"]
+# Held back deliberately, on noise grounds rather than principle; each is
+# tracked in #786. Counts are repo-wide, since `ignore` is.
 ignore = [
-    # Missing docstrings. Requiring one on every public method is a different
-    # project from formatting the ones that exist, and it is the rule most
-    # readily satisfied with """Return the value.""" -- 581 violations, 395 of
-    # them D102. Tracked separately (#772).
+    # Missing docstrings, 1121 of them (544 D102). Requiring one on every
+    # public method is a different project from formatting the ones that
+    # exist, and it is the rule most readily satisfied with
+    # """Return the value.""".
     "D1",
-    # Collapse a short multi-line docstring. No safe fixes available, and it
-    # rewrites docstrings for a stylistic preference (#772).
+    # Collapse a short multi-line docstring, 87. No safe fixes available: all
+    # 87 are behind --unsafe-fixes.
     "D200",
-    # Imperative mood. A genuine convention, but it misfires on the property
-    # docstrings this codebase has many of -- "Gradient type, one of ..." --
-    # and reads as noise there (#772).
+    # Imperative mood, 96. A genuine convention, but it misfires on the
+    # property docstrings this codebase has many of -- "Gradient type, one of
+    # ..." -- and reads as noise there.
     "D401",
 ]
 
@@ -118,7 +120,7 @@ ignore = [
 # pep257, not google or numpy: it is the convention that matches this
 # codebase's reST/Sphinx docstrings (`:param x:`), and it leaves D212
 # multi-line-summary-first-line disabled. Under `google` that rule alone is
-# 452 violations -- a reflow of nearly every multi-line docstring in the tree.
+# 453 violations -- a reflow of nearly every multi-line docstring in the tree.
 convention = "pep257"
 
 [tool.mypy]

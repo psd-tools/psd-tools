@@ -349,7 +349,10 @@ class PhotoFilter(AdjustmentLayer):
     def xyz(self) -> bool:
         """XYZ coordinates, present in version 3 records.
 
-        :return: `bool`
+        Version 2 records carry `color_space` and `color_components` instead,
+        and leave this `None`.
+
+        :return: `tuple` of three `int`, or `None`
         """
         return _assert_data(self._data).xyz
 

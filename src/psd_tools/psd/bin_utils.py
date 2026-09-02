@@ -264,7 +264,7 @@ def write_be_array(fp: IO[bytes], arr: array.array) -> int:
 
 def fix_byteorder(arr: array.array) -> array.array:
     """
-    Fix the byte order of an array read from big-endian data.
+    Fix the byte order of an array, assuming it was read from big-endian data.
     """
     if sys.byteorder == "little":
         arr.byteswap()

@@ -4,7 +4,7 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
-- [docs] Stop seven docstrings rendering interpreted escape sequences. The
+- [docs] Stop five docstrings rendering interpreted escape sequences. The
   ``psd_tools.compression.rle`` module docstring shipped a literal NUL byte and
   a mojibake ``ÿ`` where its example wrote ``\x00`` and ``\xff``, which
   ``help()`` rendered as such (#772)
