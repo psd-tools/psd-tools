@@ -46,39 +46,24 @@ _SINGLE_CHANNEL_MODES = (
 def _clamp01(value: float) -> float:
     """Hold *value* inside the range a color array is allowed to carry.
 
-    Every descriptor color class normalizes by a fixed divisor, and nothing in
-    the format constrains the component to the range that divisor assumes: a
-    writer emitting ``a = 200`` yields 1.29, ``Gry = 150`` yields -0.5 and
-    ``Rd   = 300`` yields 1.18.
+    Nothing in the format constrains a descriptor component to the range its
+    color class normalizes by, and ``Compositor``'s own ``utils.clip()`` runs
+    too late to help: wherever the color is blended rather than laid down flat
+    -- an effect, a partial alpha, an anti-aliased vector edge -- the
+    out-of-range component has already corrupted the arithmetic (#757).
 
-    A component outside ``[0, 1]`` reaches the image by two routes, and only
-    one of them is still open. ``Compositor`` runs ``utils.clip()`` on its own
-    arrays, but the clip runs *after* the value has been blended, so wherever
-    the color is composited rather than laid down flat -- an effect, a partial
-    alpha, an anti-aliased vector edge -- the out-of-range component corrupts
-    the arithmetic first and clipping has nothing left to recover. Forging
-    ``Gry = 150`` into ``adjustment-fillers.psd`` puts 194 white pixels along
-    the shape's stroke where the stroke is ``(26, 26, 26)``, and
-    ``H = 0, Strt = 120, Brgh = 150`` puts 150 bright cyan ones there (#757).
+    ``composite_pil()``'s uint8 cast clips as of #757 and would saturate these
+    too, but the two guards are independent on purpose -- do not drop this one
+    on the strength of that one.
 
-    The closed route is the uint8 cast. ``composite_pil()`` used to write
-    ``(255 * color).astype(np.uint8)``, and numpy *wraps* rather than
-    saturating, so those three components would have landed on bytes 72, 129
-    and 44. It clips as of #757, so nothing here depends on that cast to
-    saturate; the two guards are independent on purpose.
+    Applied where the untrusted number enters rather than inside
+    ``color_convert``, so those conversions keep their documented ``[0, 1]``
+    input contracts. Saturation and brightness never arrive here;
+    :py:func:`psd_tools.color_convert.hsb_to_rgb` is total and clamps them.
 
-    Clamping degrades to the end of the axis instead, which is the policy
-    :py:func:`psd_tools.color_convert.lab_to_rgb` already follows. Applied
-    where the untrusted number enters rather than inside ``color_convert``, so
-    those conversions keep their documented ``[0, 1]`` input contracts instead
-    of having to defend them. Saturation and brightness are the exception: they
-    reach :py:func:`psd_tools.color_convert.hsb_to_rgb`, which is total and
-    clamps them itself, so they never arrive here.
-
-    NaN maps to 0.0, because ``nan > 0.0`` is false and ``max`` therefore keeps
-    its first argument. That is wanted -- a malformed descriptor degrades to the
-    end of the axis rather than poisoning the canvas -- but it is a property of
-    the argument order, so do not reverse it.
+    NaN maps to 0.0, because ``nan > 0.0`` is false and ``max`` keeps its first
+    argument. That degradation is wanted, but it is a property of the argument
+    order -- do not reverse it.
     """
     return min(1.0, max(0.0, value))
 
@@ -135,11 +120,9 @@ def _from_rgb(color_mode: ColorMode, rgb: tuple[float, ...]) -> tuple[float, ...
     Indexed is deliberately three: its single stored channel expands through
     the palette, so three is the width its pixel arrays carry.
 
-    Lab is a real conversion rather than a width choice. It used to fall through
-    to ``return rgb``, which is three wide and so passed the width assertion
-    while meaning nothing: red arrived as ``(1.0, 0.0, 0.0)``, which a Lab array
-    reads as white at the extreme green-blue corner rather than as
-    ``(0.543, 0.819, 0.776)`` (#752).
+    Lab is a real conversion rather than a width choice: ``return rgb`` is
+    three wide and so passes the width assertion while meaning nothing, red
+    arriving as white at the extreme green-blue corner (#752).
     """
     if color_mode == ColorMode.CMYK:
         return _ink_to_canvas(rgb_to_cmyk(*rgb))

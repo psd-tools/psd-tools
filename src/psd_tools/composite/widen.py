@@ -143,32 +143,17 @@ def _naive_cmyk(color: np.ndarray) -> np.ndarray:
 def _lab(color: np.ndarray) -> np.ndarray:
     """A grey is on Lab's neutral axis: a and b are neutral, L carries it.
 
-    ``a``/``b`` are offset-encoded, so neutral is ``128 / 255`` and not the
-    0.5 written here originally -- 0.5 truncates to byte 127 on the way out
-    where Photoshop writes 128 (#743). Photoshop agrees that a grey is neutral:
-    it reports ``a = b = 0`` for every grey.
+    ``a``/``b`` are offset-encoded, so neutral is ``128 / 255``; 0.5 truncates
+    to byte 127 where Photoshop writes 128 (#743).
 
-    ``L`` is passed through as the grey itself rather than as its L*, matching
-    the artboard defaults beside it. Lab has no exit ICC transform to anchor a
-    transfer function against, so converting here would bake an sRGB gamma
-    assumption into a mode the compositor already lists as unsupported.
-
-    Since #752 that makes this deliberately disagree with the *fill* path, which
-    does convert: a grey fill descriptor now reaches a Lab canvas at its L*, so
-    grey 0.6 lands at 0.632 where a widened grey 0.6 array stays at 0.6. The
-    asymmetry is intended, and the line is drawn at the descriptor rather than
-    at the canvas. A descriptor carries a colour a person picked in some space,
-    and for every class but Lab that space is sRGB-ish, so interpreting it is
-    sound. An arbitrary single-channel array carries no such claim -- it may be
-    a mask, a spot plane, a caller's scalar or a grayscale pattern's device
-    grey -- and interpreting it would invent a colour space it never had.
-
-    Since #749 that array can be a *source* and not only a canvas, which is
-    where the split becomes visible inside one document: a grey pattern fill
-    arrives one channel wide and is widened here to L = g, while the same grey
-    written as a ``Gry `` descriptor never reaches this function at all --
-    ``paint._get_gray()`` converts it to its L* and hands over three
-    channels.
+    ``L`` is passed through as the grey itself rather than as its L*. This
+    deliberately disagrees with the *fill* path, which converts (#752): a
+    descriptor carries a colour a person picked in some space, so interpreting
+    it is sound, while an arbitrary single-channel array -- a mask, a spot
+    plane, a caller's scalar, a grayscale pattern's device grey -- carries no
+    such claim, and converting it would invent a colour space it never had. The
+    line is drawn at the descriptor, not at the canvas; do not "fix" the
+    asymmetry.
     """
     neutral = np.full_like(color, LAB_NEUTRAL_CHROMA)
     return np.concatenate((color, neutral, neutral), axis=2)

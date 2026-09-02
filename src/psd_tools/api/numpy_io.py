@@ -38,50 +38,27 @@ def _image_data_planes(psdimage: "PSDProtocol", flat: bool = False) -> int:
     """Planes :func:`get_image_data` will allocate, for its allocation guard.
 
     ``flat`` marks the paths that return a synthesised ``(h, w, 1)`` array
-    without reading the image data at all -- a mask, or a shape on a document
-    with no transparency. Those allocate one plane whatever the colour mode, so
-    estimating them at the stored width rejects requests that comfortably fit:
-    ``numpy("mask")`` on a CMYK document allocates a quarter of what the header
-    implies. That over-estimate predates the palette fix below for every
-    multi-channel mode; it is corrected here rather than left to grow a third
-    case.
+    without reading the image data -- a mask, or a shape on a document with no
+    transparency. Those allocate one plane whatever the colour mode.
 
-    Otherwise the header's channel count is what the merged image data *stores*,
-    and for every colour mode but one it is also what gets allocated. Indexed at
-    depth 8
-    is the exception: :func:`_parse_array` applies the palette to the whole
-    buffer rather than to one plane, so ``(channels * h * w,)`` becomes
-    ``(channels * h * w, 3)`` and the reshape below yields
-    ``(h, w, 3 * channels)``. The header alone under-counted that threefold.
+    Otherwise the header's channel count is what the merged image data stores,
+    and for every colour mode but one it is what gets allocated. Indexed at
+    depth 8 is the exception: :func:`_parse_array` applies the palette to the
+    whole buffer, so the result is ``(h, w, 3 * channels)``. Only that branch
+    applies it, so a malformed 16- or 32-bit indexed document keeps its stored
+    width and must not be tripled.
 
     Deliberately *not* ``max(channels, get_color_channels(psdimage))``, the
-    shape #728 gave the compositor's guard. That one bounds a canvas built at
-    the resolved width, so the wider of the pair is right there. This one bounds
-    the stored array, whose width the header fixes -- and taking the wider of
-    the pair here would over-estimate any file whose header declares fewer
-    channels than its mode implies. Those parse fine and produce a narrow array:
-    a one-channel RGB document returns ``(h, w, 1)`` and would have been
-    rejected at four times its real size, which for a guard whose whole job is
-    admitting sound files is a false positive rather than a safety margin.
+    shape the compositor's guard uses. That one bounds a canvas built at the
+    resolved width; this one bounds the stored array, whose width the header
+    fixes. Taking the wider of the pair would reject a one-channel RGB document
+    at four times its real size -- a false positive, not a safety margin.
 
-    The palette is applied only in :func:`_parse_array`'s depth-8 branch, so a
-    16- or 32-bit indexed document -- malformed, indexed being an 8-bit mode --
-    keeps its stored width and must not be tripled either.
-
-    Depth 1 had a case of its own until #768, the array following the *byte*
-    count rather than the pixel count -- ``np.unpackbits`` yields one float32
-    per bit, and ``length`` counted a byte per pixel, so it came back eightfold
-    (#737). Both halves of that are gone: ``length`` counts packed rows and
-    :func:`_parse_array` trims each row's padding, so a 1-bit document
-    allocates one float32 per pixel and the header bounds it exactly.
-
-    This bounds the array that is returned. The transient peak on top of it --
-    :func:`_parse_array` holding two float32 arrays at once,
-    :func:`_remove_background` adding several more -- is
-    :func:`_image_data_peak_bytes`'s subject, and it is what the guard is given
-    (#767). Keep this one about the width of the result: the two are separate
-    because the plane count is a property of the format and the transients are a
-    property of the code, and they go stale for different reasons.
+    This bounds the array that is returned; the transient peak on top of it is
+    :func:`_image_data_peak_bytes`'s subject, and is what the guard is given
+    (#767). Keep the two separate: the plane count is a property of the format
+    and the transients are a property of the code, and they go stale for
+    different reasons.
     """
     if flat:
         return 1
@@ -358,25 +335,14 @@ def get_pattern_color_channels(pattern: Pattern) -> int:
     at the front of its array and any alpha at the back.
 
     Reading the boundary off the slot layout is what makes it answerable at
-    all. The alternative -- :py:data:`~psd_tools.api.utils.EXPECTED_CHANNELS`
-    keyed on the pattern's color mode -- states the width a *document* in that
-    mode carries, which is only incidentally the width this pattern stored.
-    Multichannel is the mode that can never agree, its entry being 64, the
-    format's maximum rather than any pattern's count; but any pattern storing
-    fewer color planes than its mode's constant missed the split the same way,
-    and the combined array was then rejected downstream as inconsistent with
-    the canvas (#741).
+    all. :py:data:`~psd_tools.api.utils.EXPECTED_CHANNELS` keyed on the
+    pattern's color mode states the width a *document* in that mode carries,
+    which is only incidentally the width this pattern stored (#741).
 
-    Measured over the 65 patterns Photoshop 2026 ships in
-    ``Presets/Patterns/*.pat``: RGB writes slots ``(0, 1, 2)``, RGB with
-    transparency ``(0, 1, 2, 25)``, grayscale ``(0,)``.
-
-    That measurement is what the rule rests on, and it is the whole of what it
-    rests on: a pattern that wrote its alpha into a color slot instead of a
-    trailing one would be read as all color, which is the failure this fixes,
-    facing the other way. Nothing in the corpus or in Photoshop's own presets
-    is laid out that way, and for multichannel there is no constant to fall
-    back on regardless.
+    The rule rests on how Photoshop's shipped presets are laid out -- alpha in
+    a trailing slot, never a color one. A pattern written the other way would
+    be read as all color; nothing in the corpus or in those presets is, and for
+    multichannel there is no constant to fall back on regardless.
     """
     channels = pattern.data.channels
     color_slots = max(len(channels) - 2, 0)
