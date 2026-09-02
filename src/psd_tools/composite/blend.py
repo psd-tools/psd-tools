@@ -162,7 +162,10 @@ def hard_light(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
 
 
 def soft_light(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
-    index = Cs <= 0.25
+    # D is a function of the backdrop alone. Keying its piecewise on Cs instead
+    # left every Cb <= 0.25 pixel on the sqrt arm, up to 12.6 steps of 1/255
+    # away from Photoshop (#189).
+    index = Cb <= 0.25
     index_not = ~index
     D = np.zeros_like(Cb, dtype=np.float32)
     D[index] = ((16 * Cb[index] - 12) * Cb[index] + 4) * Cb[index]
@@ -187,11 +190,19 @@ def vivid_light(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     the contrast.
     """
 
-    Cs2 = Cs * 2
-    index = Cs > 0.5
-    B = color_burn(Cb, Cs2)
-    D = color_dodge(Cb, Cs2 - 1)
-    B[index] = D[index]
+    # Deliberately not color_burn/color_dodge: those carry the spec's backdrop
+    # special cases -- Cb == 1 burns to 1, Cb == 0 dodges to 0 -- and Photoshop
+    # does not apply them here. Inside Vivid Light the *source* extreme wins,
+    # so Cs == 0 burns to 0 and Cs == 1 dodges to 1 whatever the backdrop. Plain
+    # Color Burn and Color Dodge do keep the backdrop cases, so the two really
+    # do differ; both readings are pinned against Photoshop's own render (#189).
+    burn = Cs <= 0.5
+    dodge = ~burn
+    B = np.zeros_like(Cb, dtype=np.float32)
+    B[burn] = 1 - np.minimum(1, (1 - Cb[burn]) / (2 * Cs[burn] + _FLOAT_EPSILON))
+    B[dodge] = np.minimum(1, Cb[dodge] / (2 * (1 - Cs[dodge]) + _FLOAT_EPSILON))
+    B[Cs == 0] = 0
+    B[Cs == 1] = 1
     return B
 
 
@@ -239,14 +250,22 @@ def subtract(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
 def hard_mix(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     """
     Adds the red, green and blue channel values of the blend color to the RGB
-    values of the base color. If the resulting sum for a channel is 255 or
-    greater, it receives a value of 255; if less than 255, a value of 0.
+    values of the base color. If the resulting sum for a channel is above 255 it
+    receives a value of 255, and below 255 a value of 0; on exactly 255 the
+    backdrop decides, as the comment below sets out.
     Therefore, all blended pixels have red, green, and blue channel values of
     either 0 or 255. This changes all pixels to primary additive colors (red,
     green, or blue), white, or black.
     """
+    # Photoshop breaks the exact tie toward the backdrop: where Cb + Cs == 1 the
+    # result is 1 only where Cb > 0.5. That tie is a real case and not float
+    # noise -- two complementary 8-bit values sum to exactly 1.0 in float32 for
+    # all 256 of them -- so it is testable rather than something to fudge past.
+    # The 0.999999 factor this replaces decided every tie the other way and got
+    # 9 of 145 measured boundary samples wrong (#189).
+    total = Cb + Cs
     B = np.zeros_like(Cb, dtype=np.float32)
-    B[(Cb + 0.999999 * Cs) >= 1] = 1  # There seems a weird numerical issue.
+    B[(total > 1) | ((total == 1) & (Cb > 0.5))] = 1
     return B
 
 

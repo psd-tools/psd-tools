@@ -51,10 +51,10 @@ def test_lighter_color_descriptor_key() -> None:
         ("blend-modes/linear-burn.psd",),
         ("blend-modes/hard-light.psd",),
         ("blend-modes/soft-light.psd",),
-        pytest.param(
-            "blend-modes/vivid-light.psd",
-            marks=pytest.mark.xfail(reason="vivid light algorithm discrepency"),
-        ),
+        # Was xfailed as a "vivid light algorithm discrepency" until #189: the
+        # mode delegated to the guarded color_burn/color_dodge, whose backdrop
+        # special cases Photoshop does not apply here. 0.020755 -> 0.000001.
+        ("blend-modes/vivid-light.psd",),
         ("blend-modes/linear-light.psd",),
         ("blend-modes/pin-light.psd",),
         ("blend-modes/difference.psd",),
@@ -617,3 +617,190 @@ def test_get_blend_func_degrades_the_descriptor_keys_too(key: bytes) -> None:
     Cb, Cs = _mixed_pair(4)
     blend_fn = get_blend_func(key, ColorMode.MULTICHANNEL)
     assert np.array_equal(blend_fn(Cb.copy(), Cs.copy()), normal(Cb, Cs))
+
+
+# The separable half of the same experiment that produced ``PHOTOSHOP_CMYK``
+# above, and the answer to #189: 17 of the 20 modes here already agreed with
+# Photoshop to within quantization, so the compositor's CMYK convention -- the
+# canvas counts what is left of the ink, and the separable formulas apply to
+# that complement -- was never the problem the issue supposed. Three modes were
+# wrong, and wrong in every colour mode rather than only in CMYK:
+# ``soft_light`` keyed D on the source, ``vivid_light`` inherited backdrop
+# special cases Photoshop does not apply, and ``hard_mix`` fudged the tie.
+# Pairs 2 and 3 are the ones that discriminate: pair 2 carries the two
+# ``vivid_light`` corners (Cb == 1 with Cs == 0, and Cb == 0 with Cs == 1) and
+# pair 3 carries the ``hard_mix`` tie from both sides (Cb + Cs == 1 with Cb
+# above and below a half) together with two backdrops under a quarter, where
+# ``soft_light``'s D actually differs. Format: ``(backdrop, source, {mode:
+# result})``, ink percent, authored the same way -- Photoshop's own render.
+PHOTOSHOP_CMYK_SEPARABLE: list[
+    tuple[list[float], list[float], dict[str, list[float]]]
+] = [
+    (
+        [80, 20, 10, 5],
+        [10, 70, 60, 20],
+        {
+            "color_burn": [88.63, 66.27, 24.71, 6.27],
+            "color_dodge": [0, 0, 0, 0],
+            "darken": [80, 69.8, 60, 20],
+            "difference": [29.8, 50.2, 49.8, 85.1],
+            "divide": [77.65, 0, 0, 0],
+            "exclusion": [25.88, 38.43, 41.96, 77.25],
+            "hard_light": [16.08, 51.76, 27.84, 1.96],
+            "hard_mix": [0, 0, 0, 0],
+            "lighten": [9.8, 20, 9.8, 5.1],
+            "linear_burn": [89.8, 89.8, 69.8, 25.1],
+            "linear_dodge": [0, 0, 0, 0],
+            "linear_light": [0, 60, 30.2, 0],
+            "multiply": [81.96, 75.69, 63.92, 23.92],
+            "normal": [9.8, 69.8, 60, 20],
+            "overlay": [63.92, 27.84, 11.76, 1.96],
+            "pin_light": [19.61, 40, 20.39, 5.1],
+            "screen": [7.84, 14.12, 5.88, 1.18],
+            "soft_light": [60.39, 26.27, 11.76, 3.53],
+            "subtract": [100, 50.2, 49.8, 85.1],
+            "vivid_light": [0, 33.33, 12.16, 0],
+        },
+    ),
+    (
+        [10, 70, 60, 20],
+        [80, 20, 10, 5],
+        {
+            "color_burn": [49.02, 87.45, 66.67, 21.18],
+            "color_dodge": [0, 0, 0, 0],
+            "darken": [80, 69.8, 60, 20],
+            "difference": [29.8, 50.2, 49.8, 85.1],
+            "divide": [0, 62.35, 55.69, 15.69],
+            "exclusion": [25.88, 38.43, 41.96, 77.25],
+            "hard_light": [63.92, 28.24, 12.16, 1.96],
+            "hard_mix": [0, 0, 0, 0],
+            "lighten": [9.8, 20, 9.8, 5.1],
+            "linear_burn": [89.8, 89.8, 69.8, 25.1],
+            "linear_dodge": [0, 0, 0, 0],
+            "linear_light": [70.2, 10.2, 0, 0],
+            "multiply": [81.96, 75.69, 63.92, 23.92],
+            "normal": [80, 20, 9.8, 5.1],
+            "overlay": [15.69, 51.76, 27.84, 1.96],
+            "pin_light": [60, 40, 19.61, 10.2],
+            "screen": [7.84, 14.12, 5.88, 1.18],
+            "soft_light": [15.29, 54.9, 41.57, 11.76],
+            "subtract": [29.8, 100, 100, 100],
+            "vivid_light": [24.71, 24.31, 0, 0],
+        },
+    ),
+    (
+        [100, 0, 50, 0],
+        [0, 100, 50, 0],
+        {
+            "color_burn": [100, 0, 99.22, 0],
+            "color_dodge": [100, 0, 0, 0],
+            "darken": [100, 100, 49.8, 0],
+            "difference": [0, 0, 100, 100],
+            "divide": [100, 0, 0, 0],
+            "exclusion": [0, 0, 49.8, 100],
+            "hard_light": [0.39, 100, 49.8, 0],
+            "hard_mix": [100, 0, 0, 0],
+            "lighten": [0, 0, 49.8, 0],
+            "linear_burn": [100, 100, 99.61, 0],
+            "linear_dodge": [0, 0, 0, 0],
+            "linear_light": [0.39, 100, 49.8, 0],
+            "multiply": [100, 100, 74.9, 0],
+            "normal": [0, 100, 49.8, 0],
+            "overlay": [100, 0, 49.8, 0],
+            "pin_light": [0, 100, 49.8, 0],
+            "screen": [0, 0, 24.71, 0],
+            "soft_light": [100, 0, 49.8, 0],
+            "subtract": [100, 0, 100, 100],
+            "vivid_light": [0, 100, 49.8, 0],
+        },
+    ),
+    (
+        [25, 75, 95, 95],
+        [75, 25, 0, 25],
+        {
+            "color_burn": [100, 100, 94.9, 100],
+            "color_dodge": [0, 0, 0, 79.61],
+            "darken": [74.9, 74.9, 94.9, 94.9],
+            "difference": [50.2, 50.2, 5.1, 30.2],
+            "divide": [0, 66.67, 94.9, 93.33],
+            "exclusion": [37.65, 37.65, 5.1, 27.84],
+            "hard_light": [62.35, 38.04, 0.39, 47.84],
+            "hard_mix": [0, 100, 0, 100],
+            "lighten": [25.1, 25.1, 0, 25.1],
+            "linear_burn": [100, 100, 94.9, 100],
+            "linear_dodge": [0, 0, 0, 20],
+            "linear_light": [75.29, 25.49, 0, 45.49],
+            "multiply": [81.18, 81.18, 94.9, 96.08],
+            "normal": [74.9, 25.1, 0, 25.1],
+            "overlay": [37.65, 62.35, 89.8, 92.55],
+            "pin_light": [49.8, 50.59, 0, 50.59],
+            "screen": [18.82, 18.82, 0, 23.92],
+            "soft_light": [34.51, 62.35, 82.35, 88.63],
+            "subtract": [50.2, 100, 100, 100],
+            "vivid_light": [50.2, 50.2, 0, 89.8],
+        },
+    ),
+    (
+        [0, 0, 0, 0],
+        [100, 100, 100, 100],
+        {
+            "color_burn": [0, 0, 0, 0],
+            "color_dodge": [0, 0, 0, 0],
+            "darken": [100, 100, 100, 100],
+            "difference": [0, 0, 0, 0],
+            "divide": [0, 0, 0, 0],
+            "exclusion": [0, 0, 0, 0],
+            "hard_light": [100, 100, 100, 100],
+            "hard_mix": [0, 0, 0, 0],
+            "lighten": [0, 0, 0, 0],
+            "linear_burn": [100, 100, 100, 100],
+            "linear_dodge": [0, 0, 0, 0],
+            "linear_light": [100, 100, 100, 100],
+            "multiply": [100, 100, 100, 100],
+            "normal": [100, 100, 100, 100],
+            "overlay": [0, 0, 0, 0],
+            "pin_light": [100, 100, 100, 100],
+            "screen": [0, 0, 0, 0],
+            "soft_light": [0, 0, 0, 0],
+            "subtract": [0, 0, 0, 0],
+            "vivid_light": [100, 100, 100, 100],
+        },
+    ),
+]
+
+
+def _cmyk_canvas_8bit(ink: list[float]) -> np.ndarray:
+    """Ink percent snapped to the 8-bit value Photoshop actually stored.
+
+    ``_cmyk_canvas`` above converts the percentage directly, which is fine when
+    a blend is continuous in its operands. ``hard_mix`` is not: it turns on a
+    tie at ``Cb + Cs == 1``, and a nominal 50% ink is stored as 128/255 rather
+    than the 0.5 that a direct conversion yields -- close enough to read as a
+    tie that is not one, and to assert the wrong branch. Snapping first makes
+    the readable round numbers in the table above mean exactly what Photoshop
+    held; it reproduces all 40 stored operands there.
+    """
+    value = np.round((1.0 - np.array(ink, dtype=np.float64) / 100.0) * 255.0)
+    return (value / 255.0).astype(np.float32).reshape(1, 1, 4)
+
+
+@pytest.mark.parametrize(
+    "mode", sorted(PHOTOSHOP_CMYK_SEPARABLE[0][2]), ids=lambda m: m
+)
+@pytest.mark.parametrize(
+    "pair", range(len(PHOTOSHOP_CMYK_SEPARABLE)), ids=lambda i: "pair%d" % i
+)
+def test_separable_matches_photoshop_on_cmyk(pair: int, mode: str) -> None:
+    """Every separable mode against Photoshop's own CMYK render (#189).
+
+    This is the coverage the 164-layer ``cmyk-blend-modes.psd`` fixture cannot
+    give. That document exercises all of these modes, but its error is diluted
+    across the whole canvas: it sat at 0.000179 against a 0.01 threshold while
+    three modes were wrong, and two of the three defects moved it by less than
+    a thousandth. Reverting any one of the three fails a row here instead.
+    """
+    backdrop, source, expected = PHOTOSHOP_CMYK_SEPARABLE[pair]
+    blend_fn = getattr(blend_module, mode)
+    result = blend_fn(_cmyk_canvas_8bit(backdrop), _cmyk_canvas_8bit(source))
+    ink = list((1.0 - result.reshape(4)) * 100.0)
+    assert ink == pytest.approx(expected[mode], abs=2 * _ONE_STEP * 100.0)

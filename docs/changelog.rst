@@ -4,6 +4,14 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
+- [fix] Correct ``Soft Light``, ``Vivid Light`` and ``Hard Mix``, which
+  disagreed with Photoshop in every colour mode -- not only in CMYK, where #189
+  reported it. Rendering changes for RGB, Grayscale and CMYK alike wherever
+  those three are used; ``Vivid Light`` was the largest error in the suite and
+  had been xfailed as a known discrepancy. The other 17 separable modes already
+  matched Photoshop to within 8-bit quantization on CMYK and are now pinned
+  there against its own render (#189, #PRNUM).
+
 - [fix] Blend the six non-separable modes on a CMYK document the way Photoshop
   does -- on the CMY complement, with K carried across -- instead of through a
   round trip that collapsed every one of them to a constant (#781). ``Hue``,
