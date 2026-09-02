@@ -791,22 +791,21 @@ def test_composite_multichannel_with_a_non_separable_blend_mode(
 
 
 @pytest.mark.parametrize("blend_mode", NON_SEPARABLE_MODES)
-def test_composite_cmyk_still_takes_the_round_trip_multichannel_no_longer_does(
+def test_composite_cmyk_still_blends_where_multichannel_no_longer_does(
     blend_mode: BlendMode,
 ) -> None:
     """The colour mode is doing the work above, not the channel count (#746).
 
     The same fixture, the same four channels, the same backdrop -- left tagged
-    CMYK. A fix that fell back on the width of the array rather than on what
-    its channels mean would pass the test above and fail this one, taking the
-    CMYK round trip down with it.
+    CMYK. A fix that fell back on the width of the array rather than on what its
+    channels mean would pass the test above and fail this one, taking CMYK
+    blending down with it.
 
-    Which path CMYK takes is all this pins. It is deliberately not evidence
-    that the path is *correct*: ``_cmyk2rgb`` reads its operands as ink where
-    the canvas holds what is left of it, so the six collapse to a constant on a
-    CMYK document -- which is why they differ from ``Normal`` so emphatically
-    here. See the note on ``blend.non_separable``; that inversion is #747's
-    family and is untouched by #746.
+    That CMYK still blends is all this pins; what it blends *to* is pinned
+    against Photoshop by ``test_blend.test_non_separable_matches_photoshop_on_cmyk``.
+    Until #781 the distinction mattered a great deal -- the four-channel branch
+    collapsed every mode to a constant, so this test passed on output that was
+    wrong in every pixel.
     """
     psd = PSDImage.open(full_name("colormodes/4x4_8bit_cmyk.psd"))
     assert psd.color_mode == ColorMode.CMYK

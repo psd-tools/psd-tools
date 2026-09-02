@@ -45,11 +45,19 @@ Blend mode categories:
 - ``saturation``: Preserves luminosity and hue, replaces saturation
 - ``color``: Preserves luminosity, replaces hue and saturation
 - ``luminosity``: Preserves hue and saturation, replaces luminosity
+- ``darker_color``, ``lighter_color``: Return whichever operand is darker or
+  lighter, whole -- listed under Darken and Lighten above, but non-separable
+  like the four here, and wrapped by the same guards
 
 Implementation details:
 
 - Separable blend modes process each color channel independently
-- Non-separable modes convert to HSL color space first
+- The four component modes read three channels together, through the ``_lum``
+  and ``_sat`` helpers below; on CMYK they blend the CMY complement and carry K
+  across from one operand (#781)
+- ``darker_color`` and ``lighter_color`` return one operand or the other whole.
+  On CMYK that includes its K, and K also weighs in the comparison that chooses
+  -- see ``_lightness`` (#781)
 - All functions expect normalized float32 arrays (0.0-1.0 range)
 - Division by zero is protected with small epsilon values
 
@@ -74,7 +82,7 @@ document's colour mode where the function needs it.
 
 import functools
 import logging
-from typing import Callable
+from typing import Callable, Literal
 
 import numpy as np
 
@@ -262,35 +270,86 @@ def divide(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
 _MODE_AWARE: set[Callable] = set()
 
 
-# Non-separable blending must be in RGB. CMYK should be first converted to RGB,
-# blended, then CMY components should be retrieved from RGB results. K
-# component is K of Cb for hue, saturation, and color blending, and K of Cs for
-# luminosity.
-def non_separable(k: str = "s"):
-    """Wrap non-separable blending function for CMYK handling.
+# The one place the two fallbacks are applied, so that both decorators below
+# get them and cannot drift apart. What they are and why is documented on
+# :py:func:`non_separable`.
+def _guarded(func, apply):
+    """Wrap *apply* in the two fallbacks every non-separable mode shares.
 
-    The wrapped functions are RGB-only by construction: the helpers below index
-    channels 0, 1 and 2 by name. A three-channel source reaches them unchanged
-    and a four-channel CMYK one round-trips through RGB. Anything else falls
-    back to :py:func:`normal` rather than raising or inventing a result.
+    ``func`` is only ever the undecorated function, for its name in the log and
+    for :py:func:`functools.wraps`; ``apply`` is what actually blends. Both
+    operands must be the same width for either decorator's arithmetic to mean
+    anything, so a mismatch takes the fallback rather than reaching it: K would
+    otherwise be an empty slice off a three-channel backdrop, and the mode would
+    quietly return one channel fewer than it was given.
+    """
 
-    What "anything else" is takes both the colour mode and the width to decide,
-    and :py:func:`get_blend_func` is what supplies the mode:
+    @functools.wraps(func)
+    def _blend_fn(
+        Cb: np.ndarray, Cs: np.ndarray, color_mode: ColorMode | None = None
+    ) -> np.ndarray:
+        if color_mode == ColorMode.MULTICHANNEL:
+            # Ahead of the width test, and with a message of its own: for three
+            # or four plates the width is the wrong diagnosis, and those are
+            # exactly the two counts that used to blend rather than fall back.
+            logger.debug(
+                "%s blend is not defined on a multichannel document; "
+                "falling back to normal",
+                func.__name__,
+            )
+            return normal(Cb, Cs)
+        if Cs.shape[2] not in (3, 4) or Cb.shape[2] != Cs.shape[2]:
+            # The canvas width, and inside the compositor the document's:
+            # ``Compositor._fit_source()`` widens a one-channel source at the
+            # door, so every array reaching here from there is exactly that wide
+            # (#749). A direct caller can hand over any width, which is why this
+            # is a fallback and not an assertion.
+            logger.debug(
+                "%s blend is not defined for a %d-channel source against a "
+                "%d-channel backdrop; falling back to normal",
+                func.__name__,
+                Cs.shape[2],
+                Cb.shape[2],
+            )
+            return normal(Cb, Cs)
+        return apply(Cb, Cs)
 
-    - **Multichannel** falls back at every plate count, and is checked first
-      for that reason. Its channels are spot inks, so a hue or a luminosity read off
-      them is meaningless whether there are three of them or thirty; keying on
-      the width alone had four plates claimed as CMYK -- the fourth ink blended
-      as black generation -- and three blended as if they were R, G and B
-      (#746).
-    - **One channel** falls back on the width: grayscale, duotone and bitmap
-      are each one channel wide, and Photoshop offers none of the six on any of
+    _MODE_AWARE.add(_blend_fn)
+    return _blend_fn
+
+
+# Non-separable blending happens on the CMY complement, which is what the
+# canvas already holds (#747: "the transform yields ink; the canvas counts what
+# is left"). There is no conversion to RGB and back: Photoshop blends those
+# three channels directly and carries K across from one operand -- K of Cb for
+# hue, saturation and color, K of Cs for luminosity. Scripted against Photoshop
+# 2026 over six CMYK colour pairs, that reproduces all four modes to within
+# 1.2/255; converting through RGB first, by any formula tried, does not (#781).
+def non_separable(k: Literal["b", "s"]):
+    """Wrap a component blend -- Hue, Saturation, Color or Luminosity.
+
+    The wrapped functions are three-channel by construction: the helpers below
+    index channels 0, 1 and 2 by name. RGB reaches them unchanged. CMYK hands
+    them its first three channels -- the CMY complement -- and gets K back from
+    whichever operand *k* names, ``"b"`` for the backdrop or ``"s"`` for the
+    source. There is no default: taking K from the wrong operand is invisible in
+    every RGB document and wrong in every CMYK one, which is how it went
+    unnoticed until #781.
+
+    Any other width falls back to :py:func:`normal` rather than raising or
+    inventing a result, and so does a multichannel document at any plate count:
+
+    - **Multichannel** falls back, and is checked first for that reason. Its
+      channels are spot inks, so a hue or a luminosity read off them is
+      meaningless whether there are three of them or thirty; keying on the width
+      alone had four plates claimed as CMYK and three blended as if they were R,
+      G and B (#746).
+    - **One channel** falls back on the width: grayscale, duotone and bitmap are
+      each one channel wide, and Photoshop offers none of the six on any of
       them. Two channels, and five or more, likewise.
-    - **CMYK** round-trips through RGB. **RGB** blends directly, and so does
-      indexed, whose canvas :py:data:`~psd_tools.api.utils.EXPECTED_CHANNELS`
-      fixes at three channels. (Whether an indexed *layer* arrives as palette
-      colours or as raw indices is a separate question this does not settle;
-      the palette is applied on the image-data path only.)
+    - **CMYK** blends its CMY complement. **RGB** blends directly, and so does
+      indexed, whose canvas
+      :py:data:`~psd_tools.api.utils.EXPECTED_CHANNELS` fixes at three.
 
     Photoshop offers none of the six on any of the modes that fall back.
     Scripted against Photoshop 2026, a grayscale document rejects every one with
@@ -303,7 +362,7 @@ def non_separable(k: str = "s"):
 
     With no mode to ask -- a bare :py:class:`~psd_tools.composite.Compositor`,
     or one of these functions called directly -- the width decides alone, as it
-    did before #746, and four channels round-trip as CMYK. That is a guess, and
+    did before #746, and four channels are taken for CMYK. That is a guess, and
     on a four-plate multichannel array it is the wrong one; it is the same guess
     the whole module made before #746, kept because a caller who supplies no
     document is not asking to be told which mode it has.
@@ -312,89 +371,66 @@ def non_separable(k: str = "s"):
     module's pre-existing treatment of Lab, not something the fallback decides,
     and it is the right side to leave Lab on: Photoshop does offer all six modes
     on a Lab document.
-
-    .. note::
-
-       This implementation is still inaccurate. The CMYK round trip in
-       particular reads its operands as ink where the compositor's canvas holds
-       what is left of it, so ``_cmyk2rgb`` inverts them: the six modes
-       collapse to a constant on a CMYK document, and blending an operand with
-       itself is not the identity it must be. That is the same inversion #747
-       fixed in ``composite/paint.py`` and is untouched here; #746 settled only
-       which modes reach the round trip, not what it computes.
     """
 
     def decorator(func):
-        @functools.wraps(func)
-        def _blend_fn(
-            Cb: np.ndarray, Cs: np.ndarray, color_mode: ColorMode | None = None
-        ) -> np.ndarray:
-            if color_mode == ColorMode.MULTICHANNEL:
-                # Ahead of the width tests, and with a message of its own: for
-                # three or four plates the width is the wrong diagnosis, and
-                # those are exactly the two counts that used to blend rather
-                # than fall back.
-                logger.debug(
-                    "%s blend is not defined on a multichannel document; "
-                    "falling back to normal",
-                    func.__name__,
-                )
-                return normal(Cb, Cs)
+        def apply(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
             if Cs.shape[2] == 4:
-                # Four channels means CMYK, when a mode was supplied at all:
-                # multichannel is the only other mode whose canvas can be that
-                # wide, and it returned above.
-                # ``tests/psd_tools/composite/test_blend.py`` pins that premise
-                # on ``api.utils.EXPECTED_CHANNELS``. With no mode supplied this
-                # is the guess the docstring describes, not a deduction -- and
-                # what it computes is wrong either way, see the note above.
-                K = Cs[:, :, 3:4] if k == "s" else Cb[:, :, 3:4]
-                Cb, Cs = _cmyk2rgb(Cb), _cmyk2rgb(Cs)
-                return np.concatenate((_rgb2cmy(func(Cb, Cs), K), K), axis=2)
-            if Cs.shape[2] != 3:
-                # The canvas width, and inside the compositor the
-                # document's: ``Compositor._fit_source()`` widens a one-channel
-                # source at the door, so every array reaching here from there is
-                # exactly that wide (#749). A direct caller can hand over any
-                # width, which is why this is a fallback and not an assertion.
-                logger.debug(
-                    "%s blend is not defined for a %d-channel source; "
-                    "falling back to normal",
-                    func.__name__,
-                    Cs.shape[2],
-                )
-                return normal(Cb, Cs)
+                K = Cb[:, :, 3:4] if k == "b" else Cs[:, :, 3:4]
+                return np.concatenate((func(Cb[:, :, :3], Cs[:, :, :3]), K), axis=2)
             return func(Cb, Cs)
 
-        _MODE_AWARE.add(_blend_fn)
-        return _blend_fn
+        return _guarded(func, apply)
 
     return decorator
 
 
-def _cmyk2rgb(C: np.ndarray) -> np.ndarray:
-    return np.stack([(1.0 - C[:, :, i]) * (1.0 - C[:, :, 3]) for i in range(3)], axis=2)
+def non_separable_selection(func):
+    """Wrap Darker Color or Lighter Color, which choose between whole pixels.
+
+    These two differ from the four component modes in taking the array whole
+    rather than by its first three channels: they return one operand or the
+    other unchanged, and on CMYK that has to include its K. Photoshop agrees --
+    over six colour pairs its Darker Color is one of the two inputs exactly, K
+    and all -- and forcing K from a fixed operand instead, as #781 found, gave a
+    colour neither input had (#781).
+
+    They also compare a different quantity: :py:func:`_lightness`, which folds K
+    in, where the component modes blend the CMY complement with no K term at
+    all. Both halves of that asymmetry are Photoshop's, not a simplification.
+
+    The multichannel and width fallbacks are the same ones
+    :py:func:`non_separable` documents; both decorators get them from
+    :py:func:`_guarded`.
+    """
+    return _guarded(func, func)
 
 
-def _rgb2cmy(C: np.ndarray, K: np.ndarray) -> np.ndarray:
-    K = np.repeat(K, 3, axis=2)
-    color = np.zeros((C.shape[0], C.shape[1], 3), dtype=np.float32)
-    index = K < 1.0
-    color[index] = (1.0 - C[index] - K[index]) / (1.0 - K[index] + _FLOAT_EPSILON)
-    return color
+def _lightness(C: np.ndarray) -> np.ndarray:
+    """How light a colour is, for the two modes that choose between pixels.
+
+    On CMYK the K plate darkens every ink, so it belongs in the comparison:
+    this is ``_lum(CMY) * K``, which is algebraically ``_lum(CMY * K)`` -- the
+    luminance of the naive CMYK-to-RGB conversion. The four component modes
+    deliberately use no K term at all; both halves of that asymmetry are what
+    Photoshop does (#781).
+    """
+    if C.shape[2] == 4:
+        return _lum(C[:, :, :3] * C[:, :, 3:4])
+    return _lum(C)
 
 
-@non_separable()
+@non_separable("b")
 def hue(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     return _set_lum(_set_sat(Cs, _sat(Cb)), _lum(Cb))
 
 
-@non_separable()
+@non_separable("b")
 def saturation(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     return _set_lum(_set_sat(Cb, _sat(Cs)), _lum(Cb))
 
 
-@non_separable()
+@non_separable("b")
 def color(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     return _set_lum(Cs, _lum(Cb))
 
@@ -404,17 +440,17 @@ def luminosity(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     return _set_lum(Cb, _lum(Cs))
 
 
-@non_separable()
+@non_separable_selection
 def darker_color(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
-    index = np.repeat(_lum(Cs) < _lum(Cb), 3, axis=2)
+    index = np.repeat(_lightness(Cs) < _lightness(Cb), Cb.shape[2], axis=2)
     B = Cb.copy()
     B[index] = Cs[index]
     return B
 
 
-@non_separable()
+@non_separable_selection
 def lighter_color(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
-    index = np.repeat(_lum(Cs) > _lum(Cb), 3, axis=2)
+    index = np.repeat(_lightness(Cs) > _lightness(Cb), Cb.shape[2], axis=2)
     B = Cb.copy()
     B[index] = Cs[index]
     return B
