@@ -5,562 +5,167 @@ Changelog
 -------------------
 
 - [fix] Correct ``Soft Light``, ``Vivid Light`` and ``Hard Mix``, which
-  disagreed with Photoshop in every colour mode -- not only in CMYK, where #189
-  reported it. Rendering changes for RGB, Grayscale and CMYK alike wherever
-  those three are used; ``Vivid Light`` was the largest error in the suite and
-  had been xfailed as a known discrepancy. The other 17 separable modes already
-  matched Photoshop on CMYK to within 1.4/255 and are now pinned there against
-  its own render (#189, #784).
-
+  disagreed with Photoshop in every colour mode, not only in CMYK where #189
+  reported it. **Rendering change** wherever those three are used (#189, #784)
 - [fix] Blend the six non-separable modes on a CMYK document the way Photoshop
-  does -- on the CMY complement, with K carried across -- instead of through a
-  round trip that collapsed every one of them to a constant (#781). ``Hue``,
-  ``Saturation``, ``Color``, ``Luminosity``, ``Darker Color`` and ``Lighter
-  Color`` returned full CMY whatever their operands, so blending a colour with
-  itself did not return that colour: the conversion read the canvas as ink where
-  it holds what is left of it, the same inversion #747 fixed for fills. Two
-  narrower faults went with it -- K was taken from the source for all four
-  component modes where Photoshop takes the backdrop's for three of them, and
-  ``Darker``/``Lighter Color`` dropped the chosen operand's K and left K out of
-  the comparison that chooses. Measured against Photoshop 2026 over six CMYK
-  colour pairs, all six now land within 1.2/255 -- 8-bit quantization alone is
-  1/255 -- and
-  ``blend-modes/cmyk-blend-modes.psd`` falls from 0.026612 to 0.000179 mean
-  squared error against its own merged preview -- it was xfailed as "Fix me!"
-  and now passes.
-
-  **Rendering change**: a CMYK document using any of these six modes renders
-  differently. RGB, Lab, grayscale and multichannel documents are unaffected;
-  one fixture in the corpus moves, and it moves toward Photoshop.
-
-- [fix] Degrade the six non-separable blend modes -- ``Hue``, ``Saturation``,
-  ``Color``, ``Luminosity``, ``Darker Color`` and ``Lighter Color`` -- on every
-  document Photoshop does not offer them on, instead of crashing or reading the
-  channels as something they are not (#735, #746). The first four raised
-  ``IndexError`` or ``ValueError`` on every single-channel document -- grayscale
-  and duotone -- and on anything wider than CMYK, indexing channels 1 and 2 of
-  an array that has only channel 0; ``Darker Color`` and ``Lighter Color`` did
-  not raise but returned the backdrop unchanged whatever the source was. A
-  multichannel document showed neither symptom and was misread instead: three
-  spot plates blended as if they were R, G and B, and four with the fourth plate
-  taken for CMYK black generation. All six now fall back to ``Normal`` with a
-  debug log, as ``Dissolve`` already does; RGB and CMYK are unaffected, and Lab
-  keeps its as-if-RGB treatment, Photoshop offering all six there. Affects
-  grayscale and duotone documents, which are ordinary files, and multichannel
-  documents carrying layers, which Photoshop neither writes -- converting to
-  Multichannel flattens -- nor preserves on opening, so no file in the test
-  corpus renders differently.
-
-  The six functions in ``psd_tools.composite.blend`` take the document's colour
-  mode as an optional third argument, supplied by the new ``get_blend_func()``
-  lookup; ``BLEND_FUNC`` is unchanged.
-
+  does, instead of collapsing every one of them to a constant. **Rendering
+  change** for a CMYK document using ``Hue``, ``Saturation``, ``Color``,
+  ``Luminosity``, ``Darker Color`` or ``Lighter Color`` (#781)
+- [fix] Degrade those same six modes to ``Normal`` with a debug log on the
+  documents Photoshop does not offer them on -- grayscale, duotone and
+  multichannel -- instead of raising or misreading the channels. The six
+  functions in ``psd_tools.composite.blend`` gain an optional colour-mode
+  argument, supplied by the new ``get_blend_func()``; ``BLEND_FUNC`` is
+  unchanged (#735, #746)
 - [fix] Convert a single-channel *source* to the document's colour mode instead
-  of letting the blend arithmetic replicate it across every channel (#749,
-  #776, #777), as #722 already did for a backdrop. A grayscale pattern fill on a
-  CMYK document rendered a different colour from the same pattern applied as an
-  overlay effect. Affects only a one-channel source in a CMYK or Lab document, which
-  Photoshop does not write -- it converts a pattern to the document's colour
-  mode on embed -- so no file in the test corpus renders differently.
-
+  of replicating it, as #722 already did for a backdrop. Affects a one-channel
+  source in a CMYK or Lab document (#749, #776, #777)
 - [security] Size the ``max_alloc_bytes`` guard against what ``numpy()`` and
-  ``topil()`` peak at rather than the array they return; both hold several
-  intermediates, measured at up to 3.7x the old estimate (#767). Affects you only
-  if you set ``max_alloc_bytes`` or ``$PSD_TOOLS_MAX_ALLOC_BYTES`` -- it admits
-  and rejects different documents in both directions, so re-check a tuned budget.
-
+  ``topil()`` peak at rather than the array they return -- up to 3.7x the old
+  estimate. Re-check a tuned budget: it admits and rejects different documents
+  in both directions (#767)
 - [fix] Read and write a 1-bit (Bitmap mode) document at the row stride the
-  format uses (#768). A row of ``width`` pixels occupies ``ceil(width / 8)``
-  bytes and the depth-1 path floored that, so ``numpy()`` and
-  ``composite(ignore_preview=True)`` raised ``ValueError`` at most widths and
-  returned half padding at widths 1, 2 and 4, while re-encoding a modified
-  document sheared it by a byte a row. Affects bitmap documents only;
-  ``topil()`` was already correct except under RLE.
-
-- [fix] Return a 1-bit document the right way round: a set bit is black in
-  Bitmap mode, so ``numpy()`` and ``composite()`` were rendering every such
-  document as its own negative, disagreeing with both ``topil()`` and Photoshop
-  (#768).
-
+  format uses. ``numpy()`` and ``composite(ignore_preview=True)`` raised
+  ``ValueError`` at most widths, and re-encoding sheared the image by a byte a
+  row (#768)
+- [fix] Return a 1-bit document the right way round; a set bit is black in
+  Bitmap mode, so ``numpy()`` and ``composite()`` rendered every such document
+  as its own negative (#768)
 - [fix] Replace an undecodable 1-bit channel with black rather than raising
-  ``RuntimeError`` (#768). It now takes the same warn-and-degrade path as every
-  other depth, a black fill being expressible once a channel's length counts
-  packed rows.
-
+  ``RuntimeError``, as every other depth already did (#768)
 - [fix] Give the ``max_alloc_bytes`` estimate a depth term, so a 1-bit document
-  can no longer allocate eight times its budget (#737, #769). ``check_pixel_size()``
-  sizes an allocation at ``width * height * channels * 4``, but at depth 1
-  ``numpy_io._parse_array()`` unpacks the buffer with ``np.unpackbits`` -- one
-  float32 per *bit* -- so the array follows the byte count the codec returns
-  rather than the pixel count. The two disagreed eightfold: ``decompress()``'s
-  ``length`` counted a byte per pixel at depth 1, where a row of ``width``
-  pixels packs into ``ceil(width / 8)``, and a body written that wide was
-  returned in full, the length check being skipped below depth 8. A 64x64 1-bit document
-  therefore returned ``(64, 64, 8)``, 131,072 bytes, against a 16,384-byte
-  estimate, and the guard admitted it -- a gap in a security control
-  (GHSA-8q6g-vjhf-jp8m) whose whole job is to bound the allocation before it
-  happens.
-
-  ``_safe_zlib_decompress()`` also now enforces the ceiling it documents,
-  refusing a stream that inflates one byte past it rather than handing that byte
-  back. The eightfold gap itself is closed at its source by the row-stride fix
-  above (#768), which gives depth 1 the same arithmetic as every other depth, and
-  :py:func:`psd_tools.compression.decompressed_size_bound` remains available as a
-  public utility. That arithmetic is superseded on both image-data paths later in
-  this release (#767).
-
-- [fix] Replace a failed channel with exactly the byte count it declares, at
-  every depth (#737, #769). The black fill substituted for an undecodable channel was
-  a PIL image whose mode was picked from the depth -- ``"L"`` for 8, ``"RGBA"``
-  for anything else -- so depth 16 came back at four bytes per pixel against a
-  declared two, and every reader downstream saw the channels at twice their
-  width. A 4x4 RGB document whose merged image data fails to decode read
-  ``(4, 4, 6)`` instead of ``(4, 4, 3)`` -- ``ImageData.get_data()``
-  decompresses every channel in one call, so that section fails as a unit -- and
-  allocated twice what the guard had estimated. The same substitute serves the
-  per-channel readers, ``ChannelData.get_data()`` for layers and the pattern
-  reader, so a failed 16-bit channel there came back double-width too. Depths 8
-  and 32 are unaffected, their modes having happened to match.
-
+  can no longer allocate eight times its budget (GHSA-8q6g-vjhf-jp8m).
+  ``_safe_zlib_decompress()`` now enforces the ceiling it documents, and
+  :py:func:`psd_tools.compression.decompressed_size_bound` is public
+  (#737, #769)
+- [fix] Replace a failed channel with exactly the byte count it declares. The
+  substituted black fill picked its PIL mode from the depth, so a 16-bit
+  channel came back double-width (#737, #769)
 - [fix] Split a pattern's alpha off by its slot layout rather than by its
   colour mode, so a multichannel-mode pattern composites instead of raising
-  (#741). The split was keyed on ``EXPECTED_CHANNELS``, whose multichannel
-  entry is 64 -- the format's maximum number of channels, not any pattern's own
-  count. ``shape[2] > 64`` is never true, so the alpha stayed in the colour
-  array and the too-wide result was rejected downstream: ``AssertionError:
-  source has 4 channels, expected 1 or 3`` on a pattern fill layer, and
-  ``AssertionError: Inconsistent pattern channels.`` on a pattern overlay
-  effect. A pattern reserves ``len(channels) - 2`` colour slots and writes its
-  transparency into the last of the remaining two, which is the pattern's own
-  statement of where its boundary lies rather than a mode's.
-
-  Multichannel is the mode that can never reach its constant, but it is not the
-  only one that missed the split: the mode's count is the document's, not the
-  pattern's, so a pattern storing fewer colour planes than its mode's
-  constant -- an indexed or RGB one carrying a single colour plane and an
-  alpha -- kept its alpha in the colour array as well. Rendering is byte-for-byte
-  unchanged for every pattern layout in the test corpus and in the patterns
-  Photoshop ships.
-
+  ``AssertionError``. Rendering is unchanged for every pattern layout in the
+  corpus and in the patterns Photoshop ships (#741)
 - [fix] Convert a CMYK fill descriptor through ink space, so it no longer
-  renders black on every non-CMYK document (#763, #765). ``_get_cmyk()`` read the
-  descriptor into the compositor's canvas convention, where 1.0 is *no* ink,
-  and then handed that to :py:func:`psd_tools.color_convert.cmyk_to_rgb`, whose
-  contract is ink space, where 0.0 is no ink. The flip was never undone, so on
-  an RGB, indexed, grayscale, bitmap, duotone, multichannel or Lab document
-  every colour arrived as its own opposite and collapsed: white ``C0 M0 Y0 K0``
-  rendered ``(0, 0, 0)``, and so did cyan, magenta and yellow. Black was the
-  one colour that came out right, by coincidence. This is the same confusion as
-  #747 on the opposite leg; a CMYK document was never affected.
-
-- [fix] Clamp a fill descriptor's colour components so an out-of-range value
-  saturates instead of corrupting the render (#757, #764). Nothing in the format
-  constrains a component to the range its colour class normalizes by, so a
-  writer emitting ``Rd = 300`` or ``Gry = 150`` produces a value outside
-  ``[0, 1]``.
-
-  A flat opaque fill was shielded from this, because the compositor clips its
-  own arrays before the uint8 cast. What was not shielded is anything that
-  blends the value first -- a layer effect, a partial alpha, an anti-aliased
-  vector edge -- because the clip then runs on arithmetic that is already
-  wrong. A shape whose fill descriptor carries a beyond-black grey rendered
-  white pixels along its stroke, and a beyond-red ``HSBC`` rendered bright
-  cyan ones, where the stroke colour was dark grey.
-
-  All five colour classes are now guarded where the untrusted number enters, as
-  Lab already was since #743, so ``color_convert``'s documented ``[0, 1]``
-  input contracts stay unchanged. The colour-noise gradient's RGB path is
-  guarded too, since its bands come from raw ``"Mnm "``/``"Mxm "`` values. Hue is
-  excluded on purpose: it is an angle, so it still wraps.
-
-  :py:func:`psd_tools.color_convert.hsb_to_rgb` is now total, matching
-  :py:func:`~psd_tools.color_convert.lab_to_rgb`. Its documented ``[0, 1]``
-  result previously held only for in-range saturation and brightness, and a NaN
-  saturation propagated to the caller.
-
+  renders black on every non-CMYK document. A CMYK document was unaffected
+  (#763, #765)
+- [fix] Clamp a fill descriptor's colour components, so an out-of-range value
+  saturates instead of corrupting anything that blends it first -- a layer
+  effect, a partial alpha, an anti-aliased edge. Hue still wraps, being an
+  angle, and :py:func:`psd_tools.color_convert.hsb_to_rgb` is now total
+  (#757, #764)
 - [fix] Read a 32-bit document with transparency through
-  :py:meth:`~psd_tools.api.psd_image.PSDImage.numpy`, which raised
-  ``ValueError: assignment destination is read-only``. Photoshop writes 32-bit
-  RGB with a transparency channel routinely, so this was an ordinary file
-  shape rather than a malformed one, and
-  :py:func:`psd_tools.composite.composite` failed with it for the same reason.
-  ``topil()`` was unaffected, and ``PSDImage.composite()`` only appeared to be
-  because it short-circuits to the stored preview.
-
-  ``_parse_array()`` rescales at depths 1, 8 and 16, and the conversion that
-  needs hands back a fresh, writeable, native-endian array. Depth 32 needs no
-  rescaling, so it returned ``np.frombuffer()``'s view of the file's bytes --
-  read-only, and still big-endian where every other depth returns
-  ``np.float32``. Un-premultiplying the preview writes in place, and it runs
-  only for RGB with transparency, which is why just that one combination
-  raised. All four depths now return the same kind of array. The cost is one
-  more array the size of the merged image data on 32-bit documents, which is
-  what the other three depths already allocate (#738).
-
-- [fix] Convert a scalar backdrop instead of broadcasting it across every
-  channel. ``composite()`` accepts its backdrop as a scalar, a per-channel
-  sequence or a full array. #722, in this same release, taught the
-  single-channel *array* spelling to go through the colour mode's conversion,
-  but the scalar path was missed and stayed on ``np.full()`` -- so the same
-  backdrop had two answers depending on how it was written. A scalar now takes
-  the same conversion, and only a genuinely single component is converted: a
-  per-channel sequence is left exactly as given. Both halves land together, so
-  no released version carries the split; what *is* longstanding is the colour
-  below, which every released version got wrong by broadcasting either
-  spelling.
-
-  On a **Lab** document this was the default backdrop. ``color=1.0`` put both
-  chroma axes at byte 255 -- the extreme corner of each -- so a document
-  composited against maximum chroma at maximum lightness where white is
-  ``(255, 128, 128)``. On a **CMYK** document the default is unaffected, since
-  ``1.0`` is white either way, but other scalars were the over-inked build that
-  widening exists to avoid: ``color=0.0`` broadcast to ``(0, 0, 0, 0)``, every
-  plate at 100%. RGB, grayscale, indexed and multichannel are unchanged --
-  replication is the conversion there (#753).
-
-- [fix] Stop ``composite()`` shifting both chroma planes of a Lab document.
-  The result was built with ``Image.fromarray(pixels, "LAB")``, and PIL's
-  ``"LAB"`` unpacker reads the two chroma planes as *signed* and adds 128 --
-  so an array in the encoding the compositor carries, where byte 128 is
-  ``a = 0``, came back 128 off on both axes. Not a rounding gap but a different
-  colour: a flat ``Lab(60, 25, 25)`` converted to RGB as ``(0, 187, 255)``
-  where Photoshop puts it at ``(196, 126, 101)``. Every Lab document was
-  affected, and ``composite()`` disagreed with
-  :py:meth:`~psd_tools.api.psd_image.PSDImage.topil` on the same file --
-  ``topil()`` builds with ``Image.merge()``, which writes the planes verbatim
-  and was right all along. The planes are now merged the same way, and three of
-  the five Lab documents in the test corpus composite bitwise-identically to
-  Photoshop's own preview where before every one of them was 128 out.
-
-  ``numpy()`` and :py:func:`psd_tools.composite.composite` were never affected;
-  the arrays were correct and only the PIL step corrupted them. Note that
-  ``np.asarray()`` on a ``"LAB"`` image reads PIL's internal buffer rather than
-  the values ``getpixel()`` reports, which is why the round trip looked right
-  (#759).
-
+  :py:meth:`~psd_tools.api.psd_image.PSDImage.numpy` and
+  :py:func:`psd_tools.composite.composite`, which raised ``ValueError:
+  assignment destination is read-only``. Costs one extra array on 32-bit
+  documents, matching the other depths; ``topil()`` was unaffected (#738)
+- [fix] Convert a scalar backdrop to the document's colour mode instead of
+  broadcasting it; a per-channel sequence is still passed through as given. On
+  a Lab document this was the default backdrop, and on CMYK any scalar but
+  ``1.0`` was an over-inked build (#753)
+- [fix] Stop ``composite()`` shifting both chroma planes of a Lab document by
+  128, which affected every Lab document and disagreed with ``topil()`` on the
+  same file. ``numpy()`` was never affected (#759)
 - [fix] Size and interpret a colour-noise gradient from the document rather
-  than from its descriptor. A noise gradient carries a colour space of its own
-  -- Photoshop offers RGB, HSB and Lab, and keeps whichever was chosen in every
-  document mode -- but the synthesized table was built three wide and passed
-  through as if it were always RGB. Two consequences, both fixed here:
-
-  A noise gradient on a document that is not three channels raised
-  ``AssertionError: source has 3 channels, expected 1 or N`` out of the
-  compositor's width check -- every CMYK, grayscale, bitmap, duotone and
-  (unless its spot count happened to be three) multichannel document.
-
-  An HSB or Lab noise gradient rendered the wrong colours everywhere, including
-  on the RGB documents that did not raise: its components were read as RGB, so
-  a hue of 30 degrees at ``[8.33, 60, 80]`` rendered ``(21, 153, 204)`` where
-  Photoshop renders ``(204, 143, 82)``. The three spaces are now converted to
-  the document's own, with Lab landing in a Lab document unconverted because
-  the stored percentage already *is* that array's encoding. No gradient that
-  rendered correctly before changed value (#730, #758).
-
-- [fix] Read an HSB fill colour's hue as the angle it is. The descriptor's hue
-  key is degrees, so a full turn is 360, but it was being divided by 300: every
-  non-zero hue came out rotated -- ``HSB(120, 50, 80)`` rendered
-  ``(102, 204, 143)`` where Photoshop renders ``(102, 204, 102)`` -- and hue
-  360 landed past the end of the six-sector table, so a fully saturated red
-  rendered white (#754).
-
-  :py:func:`psd_tools.color_convert.hsb_to_rgb` now treats hue as cyclic
-  throughout, so any value outside ``[0, 1)`` wraps into it instead of falling
-  back to grey, and a non-finite hue degrades to the achromatic answer rather
-  than raising. Previously only an exact ``1.0`` was handled.
-
+  than its descriptor. It raised ``AssertionError`` on any document that is not
+  three channels, and rendered an HSB or Lab gradient's colours wrongly
+  everywhere. No gradient that rendered correctly changed value (#730, #758)
+- [fix] Read an HSB fill colour's hue as degrees rather than dividing by 300,
+  so every non-zero hue is no longer rotated and hue 360 no longer renders
+  white (#754)
 - [fix] Convert a Lab fill colour across colour modes instead of passing the
-  numbers through. Two mirror-image gaps, both closed here because they share
-  the conversion: a Lab descriptor on a **non**-Lab document was read with a
-  ``/255`` divisor that suited none of its three components, and any other
-  descriptor class on a **Lab** document was written into the Lab arrays
-  uninterpreted. Red on a Lab document arrived as ``(1.0, 0.0, 0.0)`` -- white
-  at the extreme green-blue corner -- where the answer is
-  ``(0.543, 0.819, 0.776)``.
-
-  ``psd_tools.color_convert`` gains :py:func:`~psd_tools.color_convert.lab_to_rgb`
-  and :py:func:`~psd_tools.color_convert.rgb_to_lab`, D50 with Bradford-adapted
-  sRGB matrices, matching Photoshop's own colour engine to 0.05 Lab units
-  converting in and a mean of 0.35/255 converting out. Lab values there are in
-  native CIE units -- ``L`` 0..100 and signed ``a``/``b`` -- which is the one
-  exception to the module's normalized-float rule, and the module now has a
-  reference page.
-
-  Backwards-incompatible in what it renders, for two cases that no Photoshop
-  file can contain -- Photoshop rewrites a fill descriptor into the document's
-  own colour class on save, so both need a third-party writer. Beyond the
-  conversion itself, the **reduction curve moves** for a Lab fill on a
-  grayscale, bitmap, duotone or multichannel document: it was ``L/255`` and is
-  now the BT.601 luminance of the converted colour, so even a neutral changes
-  (``Lab(50, 0, 0)`` goes from 0.196 to 0.466). A grey fill on a Lab document
-  changes too, from the raw grey to its ``L*``; the single-channel *widening*
-  path deliberately still does not convert, and says why (#743, #752).
-
-- [fix] Read a Lab fill colour with the right divisor for each of its three
-  components. ``L``, ``a`` and ``b`` were all divided by 255, which suits none
-  of them: ``L`` runs 0..100, and ``a``/``b`` are signed and stored offset by
-  128, so a neutral ``a = 0`` landed at the extreme end of its axis instead of
-  in the middle. A near-neutral mid-tone therefore rendered as a dark,
-  heavily saturated colour. Measured against a Photoshop-authored Lab document
-  the old reading was out by up to 155/255; the corrected one reproduces
-  Photoshop's own render of fourteen swatches spanning both ends of each chroma
-  axis to within 1/255. Affects solid-colour, gradient and stroke fills
-  authored with a Lab colour on a Lab document -- Pantone and other book
-  colours, which is how they arise in practice. Out-of-range components now
-  clamp to the end of their axis rather than wrapping to an unrelated colour.
-  The same offset encoding corrects two neutral a/b constants that were spelled
-  0.5, half a code value below the byte Photoshop writes: the artboard
-  background default and the single-channel widening added in #722.
-
-  Lab descriptors on a *non*-Lab document were left to the entry above, which
-  replaces the ``/255`` reading for them with a real conversion (#743).
-
+  numbers through, in both directions. ``psd_tools.color_convert`` gains
+  :py:func:`~psd_tools.color_convert.lab_to_rgb` and
+  :py:func:`~psd_tools.color_convert.rgb_to_lab` (D50, Bradford-adapted sRGB)
+  and a reference page. **Backwards incompatible** in what it renders, for two
+  cases no Photoshop file can contain; the reduction curve also moves for a Lab
+  fill on a grayscale, bitmap, duotone or multichannel document (#743, #752)
+- [fix] Read a Lab fill colour with the right divisor for each component --
+  all three were divided by 255 -- which was out by up to 155/255. Affects
+  fills authored with a Lab colour on a Lab document, which is how Pantone and
+  other book colours arise (#743)
 - [fix] Convert rather than replicate when a single-channel canvas is widened
-  to a CMYK or Lab document's channel count. A grey ``g`` became ``(g, g, g, g)``
-  in CMYK -- a heavily over-inked colour that is not the grey it came from --
-  and ``(L, L, L)`` in Lab, where a lightness copied onto the a/b axes is the
-  opposite of neutral. CMYK now transforms through the document's embedded ICC
-  profile, matching Photoshop's own conversion to within 3/255 across a grey
-  ramp where replication was out by ~100/255, and a grey widened this way
-  survives the round trip back out through ``apply_icc`` to within 3/255 --
-  except very near black, which is outside the CMYK gamut and comes back up to
-  7/255 lighter. A CMYK document with
-  no usable profile falls back to the K-only formula a grey *fill* already uses.
-  Lab becomes ``(g, 128/255, 128/255)``, a and b being offset-encoded so that
-  128/255 is neutral. RGB is unchanged, and multichannel keeps replicating -- its spot
-  planes have no colorimetric reading to convert into. Reachable when a caller
-  hands a single-channel backdrop to a multi-channel document, or through a
-  grayscale pattern fill (#722).
-
-- [fix] Stop cross-mode fills writing ink-space CMYK into an inverted canvas.
-  The compositor's CMYK arrays store what is *left* -- 1.0 is no ink, which
-  ``topil()`` inverts back on the way out -- but the three conversions into CMYK
-  in ``composite/paint.py`` handed them ``color_convert``'s ink-space output
-  unchanged, where white is ``(0, 0, 0, 0)``. A white solid-colour, gradient or
-  stroke fill on a CMYK document therefore composited to solid black, and a
-  black one to a muddy CMY; the artboard background constants were inverted the
-  same way. Fills authored from an RGB, grayscale, HSB or Lab descriptor are
-  affected; a CMYK descriptor on a CMYK document always read correctly.
-  ``psd_tools.color_convert`` is unchanged -- it is public API with a documented
-  ink-space contract -- and the ``background_color`` docstring, which repeated
-  the wrong spelling, is corrected (#747).
-
-- [fix] Let a per-channel colour be set on a multichannel document.
-  :py:attr:`~psd_tools.api.psd_image.PSDImage.background_color` validated the
-  sequence against a table whose multichannel entry is 64 -- the format's
-  maximum number of channels, not any file's own count -- so every sequence was
-  rejected and only a scalar could be set. Since ``background_color`` is the
-  backdrop ``save()`` composites the merged preview against, a multichannel
-  document had no way to be given a per-channel one.
-  ``PSDImage.new("MULTICHANNEL", ...)`` was unsatisfiable for the same reason:
-  it builds a one-channel document while the validator demanded 64
-  (#731, #742).
-
-- [fix] Size a fill from the document rather than from its descriptor. A solid
-  colour, gradient or stroke takes its colour from a descriptor whose colour
-  class is independent of the document's colour mode, and the width that came
-  back was the descriptor's. Where that was neither one channel nor the
-  document's own count the compositor's width assertion fired, which is what an
-  RGB, CMYK or Lab descriptor did on a bitmap, duotone or multichannel
-  document, a CMYK one on an indexed or Lab document, and a Lab one on a
-  grayscale or CMYK document. An HSB descriptor was worse -- it raised
-  ``ValueError`` on every mode but RGB and CMYK. Every descriptor class now
-  converts to the document's width. No colour that already rendered changed
-  value (#730, #742).
-
-- [fix] Stop ``composite_pil()`` declaring a PIL mode that its pixel array does
-  not match. The mode and the array were chosen separately, and they could
-  disagree in three ways -- two of which produced pixels that corresponded to
-  nothing in the file, and one of which raised (#729):
-
-  A multichannel document came back **garbled**. Its colour array has one plane
-  per spot channel, and the narrowing to the single plane PIL can hold was keyed
-  on the mode and ran *after* alpha had been appended -- by which point the mode
-  was ``"LA"`` and no longer matched, so it never fired. ``Image.fromarray()``
-  does not reject a four-plane array declared as two: it reads two bytes out of
-  every four, and the planes that came back corresponded to nothing in the file.
-  The narrowing now happens before alpha is appended, and the dropped channels
-  are announced with a warning instead of being lost silently. Use
-  :py:func:`psd_tools.composite.composite` to keep every channel.
-
-  Under ``force``, bitmap, CMYK and Lab documents **raised**. ``"A"`` was
-  appended to the mode whether or not an alpha variant of it exists, so those
-  asked ``Image.fromarray()`` for ``"1A"``, ``"CMYKA"`` and ``"LABA"`` and got
-  ``ValueError: unrecognized image mode`` or ``TypeError: Cannot handle this
-  data type``. Of the modes this function can produce, only ``"L"`` and
-  ``"RGB"`` have an alpha variant, so for the others the alpha is no longer
-  packed into the array -- it is handed to ``post_process()``, which still
-  carries it for CMYK by converting to RGB first. So ``force=True`` on a CMYK
-  document now returns the same ``"RGBA"`` that ``force=False`` always did.
-  Bitmap results carry no alpha in either mode: ``post_process()`` applies it
-  only to ``"RGB"`` and ``"L"``, and the ICC conversion that gets CMYK there
-  cannot reach a 1-bit image -- little-cms builds no transform for one, so the
-  profile is skipped and the mode stays ``"1"``. Lab results carry none either,
-  for a third reason: a Lab document with an ICC profile raises before it gets
-  that far -- #740.
-
-  A bitmap document came back **garbled in both modes**.
-  ``Image.fromarray(uint8, "1")`` does not mean "these bytes, as bilevel": PIL
-  reads the raw mode literally at one bit per pixel, consuming one byte per
-  eight columns and expanding its bits across the row, so a 4x4 document
-  returned the bits of its first four bytes. The plane is now built as ``"L"``,
-  where a byte is a pixel, and reduced afterwards. That was also the
-  compositor's only ``Image.fromarray()`` call whose ``mode`` reinterprets the
-  array's data type -- the use Pillow deprecated and removes in Pillow 13 --
-  so it no longer warns. Passing ``mode`` where it matches the dtype, as the
-  other colour modes do, is unaffected.
-
-  Of the 284 fixtures outside ``third-party-psds``, rendered in both modes:
-  every ``force=False`` render is bitwise identical except the bitmap one, and
-  under ``force`` seventeen renders that previously raised now return an image,
-  while exactly one changes from one image to another -- the garbled
-  multichannel document.
+  to a CMYK or Lab document. CMYK now transforms through the document's
+  embedded ICC profile, falling back to the K-only formula when there is none;
+  RGB is unchanged and multichannel keeps replicating. Reachable through a
+  grayscale pattern fill (#722)
+- [fix] Stop cross-mode fills writing ink-space CMYK into an inverted canvas: a
+  white fill on a CMYK document composited to solid black. Affects fills
+  authored from an RGB, grayscale, HSB or Lab descriptor.
+  ``psd_tools.color_convert`` is unchanged, its ink-space contract being public
+  API (#747)
+- [fix] Let a per-channel colour be set on a multichannel document, and make
+  ``PSDImage.new("MULTICHANNEL", ...)`` satisfiable; the validator demanded 64
+  components (#731, #742)
+- [fix] Size a fill from the document rather than its descriptor, so a colour
+  class that does not match the document's mode no longer fires the
+  compositor's width assertion -- or, for HSB, raises ``ValueError`` on every
+  mode but RGB and CMYK. No colour that already rendered changed value
+  (#730, #742)
+- [fix] Stop ``composite_pil()`` declaring a PIL mode its pixel array does not
+  match. Multichannel and bitmap documents came back garbled, and bitmap, CMYK
+  and Lab raised under ``force`` -- ``force=True`` on CMYK now returns the same
+  ``"RGBA"`` as ``force=False``. Dropped channels are now warned about; use
+  :py:func:`psd_tools.composite.composite` to keep them. Also removes the
+  ``Image.fromarray()`` spelling Pillow removes in 13 (#729)
 - [fix] Correct pass-through group compositing when the group opacity is below
-  255. The group's contribution was blended against the backdrop twice, so a
-  partially transparent backdrop bled its colour into the result and the output
-  varied with nesting depth (#703, #706).
+  255. The group's contribution was blended against the backdrop twice, so the
+  output varied with nesting depth (#703, #706)
 - [fix] Detect the real user mask header from the channel list rather than by
-  record length alone. ``MaskData`` misidentified its presence, so
-  ``user_mask_density``, ``user_mask_feather``, ``vector_mask_density`` and
-  ``vector_mask_feather`` returned ``None`` for affected files (#693, #704).
-- [fix] Accept every scalar spelling of the composite backdrop. ``color=1`` and
-  ``color=np.float32(1.0)`` raised ``TypeError`` because only ``float`` was
-  recognised as a scalar. The backdrop is now normalised once at the API
-  boundary rather than reinterpreted at each point of use (#708, #709).
+  record length alone, so ``user_mask_density``, ``user_mask_feather``,
+  ``vector_mask_density`` and ``vector_mask_feather`` no longer return ``None``
+  for affected files (#693, #704)
+- [fix] Accept every scalar spelling of the composite backdrop; ``color=1`` and
+  ``color=np.float32(1.0)`` raised ``TypeError`` (#708, #709)
 - [fix] Recognise a transparent backdrop given as a NumPy scalar, a 0-d array,
-  or a per-pixel array of zeros. Compositing a document with no layers used
-  ``alpha=np.float32(0.0)`` as if it were opaque, which whitened every
-  uncovered pixel (#708).
-- [fix] Reject a multi-channel backdrop ``alpha``. Alpha is single-channel by
-  definition, but a wider array was accepted and reached ``composite_pil()``,
-  which concatenates it onto the colour array and built an image of the wrong
-  width (#708).
+  or a per-pixel array of zeros, which was treated as opaque and whitened every
+  uncovered pixel (#708)
+- [fix] Reject a multi-channel backdrop ``alpha``, which reached
+  ``composite_pil()`` and built an image of the wrong width (#708)
 - [fix] Composite over a single-channel backdrop array in a multi-channel
-  document. The compositor's colour canvas was widened lazily at the first
-  source layer, so a document with no source to apply -- every layer filtered
-  out or invisible, or a document whose only layers are adjustments -- kept a
-  one-channel array and raised ``TypeError`` from ``Image.fromarray()`` or
-  ``ValueError: Channel count does not match colormode``. The channel count is
-  now fixed when the compositor is built (#710).
-- [fix] Reject a backdrop whose channel count is neither 1 nor the document's.
-  A three-channel backdrop against a CMYK document used to surface as a NumPy
-  broadcast error from inside the blend arithmetic (#710).
-- [fix] Composite a layerless multichannel document over a backdrop. The
-  backdrop was sized from ``EXPECTED_CHANNELS``, which reports 64 channels for
-  multichannel documents regardless of how many the file actually carries, so
-  the blend raised ``ValueError`` (#708).
-- [fix] Composite a multichannel document that *has* layers. The same
-  ``EXPECTED_CHANNELS`` count of 64 sized the backdrop on the layered path, so
-  the canvas was built 64 channels wide and the first layer met it with an
-  ``AssertionError``. The width now comes from the document header. Note that
-  this fixes the NumPy ``composite()`` entry point; ``PSDImage.composite()``
-  keeps only the first spot channel for multichannel documents, as it already
-  did for layerless ones (#720).
+  document; one with no source layer to apply kept a one-channel canvas and
+  raised (#710)
+- [fix] Reject a backdrop whose channel count is neither 1 nor the document's,
+  rather than surfacing a NumPy broadcast error from inside the blend
+  arithmetic (#710)
+- [fix] Composite a multichannel document, with layers or without.
+  ``EXPECTED_CHANNELS`` reports 64 -- the format's maximum, not the file's
+  count -- so the canvas was built 64 wide and raised. ``PSDImage.composite()``
+  still keeps only the first spot channel (#708, #720)
 - [fix] Never let the ``max_alloc_bytes`` estimate in ``composite()`` fall
-  below the canvas it guards. The guard is there to reject a hostile file
-  *before* it allocates, but it was given the header's channel count alone,
-  which under-counted an indexed document's canvas by 3x -- its single stored
-  channel becomes three through the palette. It is now given the wider of the
-  header count and the canvas width, so no colour mode under-estimates. This
-  can reject a document that a very tight budget previously admitted. Applies
-  to ``composite()``'s own guard only: a document with no layers returns early,
-  before that estimate, and falls to the check in ``numpy()``, which was fixed
-  separately (#720, #732).
+  below the canvas it guards; an indexed document's was under-counted
+  threefold. May reject a document a very tight budget previously admitted
+  (#720, #732)
 - [fix] Never let the ``max_alloc_bytes`` estimate in ``numpy()`` fall below
-  the array it guards. ``get_image_data()`` was given the header's channel
-  count, which is below what it goes on to allocate for an indexed document:
-  the palette is applied to the whole buffer, so each stored channel becomes
-  three and the estimate was threefold short. Flattened indexed documents are
-  what Photoshop ordinarily writes, and such a document takes the zero-layer
-  early return in :py:func:`psd_tools.composite.composite`, which leaves this
-  the only estimate on that path. The count is now multiplied by the palette
-  expansion, so it matches the allocation exactly for every colour mode, depth
-  and channel count. This can reject a document that a very tight budget
-  previously admitted, and only an 8-bit indexed one (#732).
-
-  Note that the header's channel count is not cross-checked against the colour
-  mode, so the expansion scales with it: a header declaring eight channels
-  allocates twenty-four planes. The guard is sized for that, since it exists to
-  bound hostile headers rather than well-formed ones.
-
-  The same entry point no longer over-estimates its synthesised results either.
-  ``numpy("mask")``, and ``numpy("shape")`` on a document with no transparency,
-  return a ``(h, w, 1)`` array without reading the image data, but were
-  estimated at the document's stored width -- so a budget that fitted such a
-  request four times over could still reject it on a CMYK document. That
-  over-estimate was not specific to indexed and predates this entry.
-
-  The estimate bounds the array that is returned, which is what
-  ``check_pixel_size()`` measured as of this entry; peak usage was a small
-  multiple of it, closed later in this release (#767). 1-bit documents were
-  under-counted eightfold, which predated this entry as well and is fixed by the
-  row-stride entry above (#768).
-- [fix] Composite duotone documents at their stored width.
-  ``EXPECTED_CHANNELS`` reported 2 for duotone -- the ink count -- while duotone
-  pixel data is a single grayscale channel, the one to four ink curves living
-  in the colour mode data section. Three consequences, all fixed:
-  ``composite()`` returned a two-channel array whose second channel was not
-  data from the file but the backdrop copied; ``PSDImage.composite(force=True)``
-  returned *wrong pixels*, because the over-wide array was handed to PIL as
-  ``"LA"`` and the planes came out shifted against each other; and seven blend
-  modes -- ``ColorBurn``, ``ColorDodge``, ``HardLight``, ``LinearLight``,
-  ``PinLight``, ``SoftLight`` and ``VividLight`` -- raised ``IndexError`` on any
-  duotone document. Photoshop keeps layers in duotone mode, so every one of
-  these was reachable on ordinary files (#733).
-
-  ``Hue``, ``Saturation``, ``Color`` and ``Luminosity`` still raise on a duotone
-  document. They raise identically on a grayscale one, so that is a pre-existing
-  limitation of single-channel documents rather than anything this entry
-  changes; it is tracked in #735.
-- [fix] Read the alpha channel of a duotone document as alpha. Because the
-  colour array was taken to be two channels wide, a duotone file carrying a
-  transparency channel returned it as *colour* data from ``numpy("color")``,
-  and ``has_transparency()`` reported ``False`` -- while ``pil_mode`` said
-  ``"LA"``, so the document contradicted itself. No fixture has this shape
-  (#733).
-- [api] ``PSDImage.new("DUOTONE", ...)`` now accepts a colour. It previously
-  rejected every sequence: the constructor demanded two components while the
-  header it built declared one channel, so no value satisfied both (#733).
-
-  **Backwards incompatible**: a per-channel ``background_color`` on a duotone
-  document now takes one component instead of two.
-  ``psd.background_color = (0.5, 0.5)`` raises ``ValueError``; pass ``(0.5,)``
-  or a scalar. The second component was inert -- it had no channel to be
-  written to, and the saved bytes are identical without it (#733).
+  the array it guards, for the same indexed-palette reason, and stop it
+  over-estimating ``numpy("mask")`` and ``numpy("shape")``. May reject an
+  8-bit indexed document a very tight budget previously admitted (#732)
+- [fix] Composite duotone documents at their stored single grayscale channel
+  rather than the ``EXPECTED_CHANNELS`` ink count of 2. ``composite()``
+  returned a channel of copied backdrop, ``composite(force=True)`` returned
+  wrong pixels, and seven blend modes raised ``IndexError`` (#733)
+- [fix] Read the alpha channel of a duotone document as alpha; it was returned
+  as colour data from ``numpy("color")`` while ``has_transparency()`` reported
+  ``False``. No fixture has this shape (#733)
+- [api] ``PSDImage.new("DUOTONE", ...)`` now accepts a colour, having rejected
+  every sequence. **Backwards incompatible**: a per-channel
+  ``background_color`` on a duotone document takes one component instead of
+  two -- pass ``(0.5,)`` or a scalar. The second was inert (#733)
 - [api] Widen the ``color`` parameter of ``composite()``, ``composite_pil()``,
-  ``Layer.composite()``, ``Group.composite()``, ``Artboard.composite()`` and
-  ``PSDImage.composite()`` -- and of ``LayerProtocol`` and ``PSDProtocol`` --
-  from ``float | tuple[float, ...] | np.ndarray`` to
-  ``float | Sequence[float] | np.ndarray``, matching what is accepted at
-  runtime. This is a widening; existing calls are unaffected (#708).
-
-  **Backwards incompatible**: a per-channel backdrop whose length disagrees
-  with the document's colour mode now raises ``ValueError`` instead of being
-  silently accepted. ``psd.composite(color=(1.0, 1.0, 1.0))`` against a
-  grayscale or bitmap document previously produced a three-channel result that
-  was then reduced to its first channel; pass a scalar, or a sequence matching
-  ``psd.color_mode``.
+  ``Layer/Group/Artboard/PSDImage.composite()``, ``LayerProtocol`` and
+  ``PSDProtocol`` from ``tuple[float, ...]`` to ``Sequence[float]``, matching
+  what is accepted at runtime. **Backwards incompatible**: a per-channel
+  backdrop whose length disagrees with the colour mode now raises
+  ``ValueError`` instead of being silently reduced to its first channel (#708)
 - [fix] Apply a pattern overlay effect to a single-channel layer in a
-  multi-channel document. The effect took its target channel count from the
-  layer's own colour rather than from the document, so an RGB pattern over a
-  grayscale layer was rejected with ``AssertionError: Inconsistent pattern
-  channels.`` even though the pattern matched the document (#711).
-- [fix] Apply a stroke layer effect to a layer that has no mask. The mask
-  coverage is a bare scalar in that case, which the stroke effect handed
-  straight to an array routine, raising ``AttributeError: 'float' object has no
-  attribute 'shape'``. Reachable for a fill layer with no vector mask (#711).
-- [fix] Implement Knockout compositing (#707). Groups and layers with Knockout
-  enabled previously rendered as if the setting were absent. Shallow knockout
-  now punches through to the enclosing group's backdrop, and deep knockout to
-  the document backdrop -- passing through enclosing pass-through groups but
-  stopping at an isolated one, and at the Background layer where the document
-  has one. Also distinguishes shallow from deep, which were read as a single
-  boolean, via the new ``psd_tools.constants.Knockout`` enum.
-
-  **Backwards incompatible**: documents that combine Knockout with a fill
-  opacity below 100% now render differently. Documents without Knockout, or
-  with Knockout at fill opacity 100% -- where it has no visible effect by
-  design -- are unaffected.
+  multi-channel document, which was rejected with ``AssertionError:
+  Inconsistent pattern channels.`` (#711)
+- [fix] Apply a stroke layer effect to a layer that has no mask, which raised
+  ``AttributeError: 'float' object has no attribute 'shape'``. Reachable for a
+  fill layer with no vector mask (#711)
+- [fix] Implement Knockout compositing, previously rendered as if the setting
+  were absent, and distinguish shallow from deep via the new
+  ``psd_tools.constants.Knockout`` enum. **Backwards incompatible**: documents
+  combining Knockout with a fill opacity below 100% render differently (#707)
 
 1.18.0 (2026-08-07)
 -------------------
