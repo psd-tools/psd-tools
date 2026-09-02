@@ -812,10 +812,15 @@ def test_the_table_operands_round_trip_to_photoshops_bytes() -> None:
 
     The table reads in round nominal ink because that is legible, and relies on
     the snap landing on the byte Photoshop stored. ``normal`` returns the source
-    untouched, so its row is Photoshop's own report of that operand and gives
-    the check for free on one side; the backdrops are covered by the fact that
-    every pair's backdrop appears as some pair's source, or as its own
-    ``darken``/``lighten`` row.
+    untouched, so its row is Photoshop's own report of that operand and settles
+    the source side outright.
+
+    The backdrops get no such row -- only two of the five recur as another
+    pair's source -- so they are covered the other way round: a backdrop off by
+    a single byte would drag some mode row of that pair outside the tolerance
+    the test below asserts. That is the property worth having, since it is what
+    makes a mis-snapped backdrop a failure rather than a silent shift, so it is
+    measured here instead of argued.
     """
     for backdrop, source, expected in PHOTOSHOP_CMYK_SEPARABLE:
         stored = list((1.0 - _cmyk_canvas_8bit(source).reshape(4)) * 100.0)
@@ -823,7 +828,24 @@ def test_the_table_operands_round_trip_to_photoshops_bytes() -> None:
         # back as 9.8. One 8-bit step is 100/255 == 0.392 of a percent, so this
         # tolerates that report rounding and still catches a whole byte.
         assert stored == pytest.approx(expected["normal"], abs=0.01)
-        assert _cmyk_canvas_8bit(backdrop).dtype == np.float32
+
+    tolerance = 2 * _ONE_STEP * 100.0
+    for backdrop, source, expected in PHOTOSHOP_CMYK_SEPARABLE:
+        exact = _cmyk_canvas_8bit(backdrop)
+        noticed = False
+        for offset in (-1, 1):
+            nudged = np.clip(exact * 255.0 + offset, 0, 255) / 255.0
+            if np.array_equal(nudged, exact):
+                continue  # a backdrop already on 0 or 255 cannot move that way
+            for mode, row in expected.items():
+                blend_fn = getattr(blend_module, mode)
+                ink = (1.0 - blend_fn(nudged, _cmyk_canvas_8bit(source))) * 100.0
+                if (np.abs(ink.reshape(4) - np.array(row)) > tolerance).any():
+                    noticed = True
+                    break
+            if noticed:
+                break
+        assert noticed, f"a one-byte error in backdrop {backdrop} would go unseen"
 
 
 @pytest.mark.parametrize(
