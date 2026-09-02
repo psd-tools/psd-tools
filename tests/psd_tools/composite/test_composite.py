@@ -770,8 +770,9 @@ def test_composite_multichannel_with_a_non_separable_blend_mode(
 
     Left at ``force=False`` deliberately. Forcing routes the second layer
     through ``paint.draw_gradient_fill()``, a different path from the one under
-    test, and on that path ``Luminosity`` already coincided with ``Normal``
-    before the fix -- so that parametrization would have asserted nothing.
+    test, and shrinks the pre-fix evidence to nothing worth asserting on: at
+    four plates ``Luminosity`` separated from ``Normal`` by 2.4e-07 there,
+    float noise rather than a visible misblend, against 1.0 here.
     """
     psd = _layered_multichannel(filename)
     assert psd.color_mode == ColorMode.MULTICHANNEL
@@ -790,7 +791,7 @@ def test_composite_multichannel_with_a_non_separable_blend_mode(
 
 
 @pytest.mark.parametrize("blend_mode", NON_SEPARABLE_MODES)
-def test_composite_cmyk_still_blends_where_multichannel_no_longer_does(
+def test_composite_cmyk_still_takes_the_round_trip_multichannel_no_longer_does(
     blend_mode: BlendMode,
 ) -> None:
     """The colour mode is doing the work above, not the channel count (#746).
@@ -799,6 +800,13 @@ def test_composite_cmyk_still_blends_where_multichannel_no_longer_does(
     CMYK. A fix that fell back on the width of the array rather than on what
     its channels mean would pass the test above and fail this one, taking the
     CMYK round trip down with it.
+
+    Which path CMYK takes is all this pins. It is deliberately not evidence
+    that the path is *correct*: ``_cmyk2rgb`` reads its operands as ink where
+    the canvas holds what is left of it, so the six collapse to a constant on a
+    CMYK document -- which is why they differ from ``Normal`` so emphatically
+    here. See the note on ``blend.non_separable``; that inversion is #747's
+    family and is untouched by #746.
     """
     psd = PSDImage.open(full_name("colormodes/4x4_8bit_cmyk.psd"))
     assert psd.color_mode == ColorMode.CMYK

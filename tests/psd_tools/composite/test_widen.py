@@ -214,17 +214,17 @@ def test_widened_grey_survives_the_icc_round_trip() -> None:
 # checked to still reach each one: a guard that renders a document which no
 # longer builds, say, a stroke sub-compositor keeps passing while covering
 # nothing.
-_WIDEN_CALLERS = frozenset(
+_COMPOSITOR_CALLERS = frozenset(
     {"composite", "_get_group", "_get_object", "_apply_clip_layers"}
 )
 
 # Between them these reach all four. Neither does alone: the clipping fixture
 # has no stroked shape, and the stroke fixture has no group.
-_WIDEN_FIXTURES = ["clipping-mask.psd", "effects/stroke-composite.psd"]
+_COMPOSITOR_FIXTURES = ["clipping-mask.psd", "effects/stroke-composite.psd"]
 
 
 def test_every_sub_compositor_inherits_the_document_facts(monkeypatch) -> None:
-    """A sub-compositor that forgets ``widen`` reverts its subtree to replication.
+    """A sub-compositor that forgets ``widen`` or ``color_mode`` loses its subtree.
 
     ``_get_group()`` did exactly that, and because the group compositor is the
     parent of the clip and stroke ones, losing it there took the whole subtree
@@ -257,6 +257,7 @@ def test_every_sub_compositor_inherits_the_document_facts(monkeypatch) -> None:
     """
     seen: list[tuple[str, bool, bool]] = []
     original = Compositor.__init__
+    expected_mode = None
 
     def spy(self, *args, **kwargs):
         original(self, *args, **kwargs)
@@ -266,14 +267,19 @@ def test_every_sub_compositor_inherits_the_document_facts(monkeypatch) -> None:
             (
                 sys._getframe(1).f_code.co_name,
                 self._widen is _widen,
-                self._color_mode is None,
+                # Against the document's own mode rather than merely against
+                # None, so that a site hardcoding a mode of its own fails here
+                # too.
+                self._color_mode != expected_mode,
             )
         )
 
     monkeypatch.setattr(Compositor, "__init__", spy)
 
-    for filename in _WIDEN_FIXTURES:
-        composite(PSDImage.open(full_name(filename)), force=True)
+    for filename in _COMPOSITOR_FIXTURES:
+        psd = PSDImage.open(full_name(filename))
+        expected_mode = psd.color_mode
+        composite(psd, force=True)
 
     fell_back = [caller for caller, is_default, _ in seen if is_default]
     assert not fell_back, (
@@ -281,14 +287,13 @@ def test_every_sub_compositor_inherits_the_document_facts(monkeypatch) -> None:
         "_widen, from %s" % (len(fell_back), len(seen), sorted(set(fell_back)))
     )
 
-    modeless = [caller for caller, _, no_mode in seen if no_mode]
-    assert not modeless, "%d of %d compositors were given no colour mode, from %s" % (
-        len(modeless),
-        len(seen),
-        sorted(set(modeless)),
+    wrong_mode = [caller for caller, _, mismatched in seen if mismatched]
+    assert not wrong_mode, (
+        "%d of %d compositors did not carry the document's colour mode, from %s"
+        % (len(wrong_mode), len(seen), sorted(set(wrong_mode)))
     )
 
-    missing = _WIDEN_CALLERS - {caller for caller, _, _ in seen}
+    missing = _COMPOSITOR_CALLERS - {caller for caller, _, _ in seen}
     assert not missing, (
         "%s built no compositor for these fixtures, so nothing checks that it "
         "passes the document's facts on" % sorted(missing)

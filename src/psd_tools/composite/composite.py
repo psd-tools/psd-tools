@@ -1120,9 +1120,13 @@ class Compositor(object):
         shape = shape_mask * shape_const
         opacity = shape * opacity_const
 
-        # Passed for uniformity with _apply_source() rather than for effect:
-        # the guard above has already returned for every mode whose blending
-        # the colour mode changes, multichannel included.
+        # Passed for uniformity with _apply_source() rather than for effect.
+        # The guard above returns for every mode whose blending the colour mode
+        # changes, multichannel included -- though it reads the *layer's*
+        # document where this binds the compositor's, which are the same
+        # document on every path the library builds. Where they could differ, a
+        # compositor built by hand, the canvas is this one's and so is the mode
+        # that describes it.
         blend_fn = get_blend_func(layer.blend_mode, self._color_mode)
         blended = blend_fn(backdrop_color, transformed_color)
 

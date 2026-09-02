@@ -247,6 +247,11 @@ def test_non_separable_falls_back_to_normal_off_rgb(
 
     ``normal`` is the fallback because Photoshop refuses to set any of these
     six modes on such a document, so there is no result to reproduce.
+
+    Since #746 the width is no longer the whole rule: a multichannel document
+    returns before this branch when its mode is known, at three and four plates
+    as well as at the widths here. These cases carry no mode, so they still
+    reach the width fallback and pin it as #735 left it.
     """
     Cb = np.full((2, 2, channels), 0.4, dtype=np.float32)
     Cs = np.full((2, 2, channels), 0.6, dtype=np.float32)
@@ -291,11 +296,21 @@ def test_non_separable_still_blends_the_modes_with_ground_truth(
 ) -> None:
     """The fallbacks must not swallow the cases that do have ground truth.
 
-    Photoshop offers all six modes on an RGB, indexed, Lab and CMYK document,
-    so all four keep blending -- the three-channel ones directly and CMYK
-    through the RGB round trip. So does an array with no mode attached, which
-    is what a bare ``Compositor`` or a direct call hands over: there the width
-    decides alone, as it did before #746.
+    Photoshop offers all six on an RGB, a Lab and a CMYK document, so those
+    three keep blending -- the three-channel ones directly, CMYK through the
+    RGB round trip. So does an array with no mode attached, which is what a
+    bare ``Compositor`` or a direct call hands over: there the width decides
+    alone, as it did before #746.
+
+    Indexed rides along on width rather than on ground truth. Photoshop
+    flattens on conversion to Indexed Color, the same argument that keeps
+    multichannel out, so there is no layer to set a blend mode on; what the row
+    pins is that the mode-keyed branch singles out multichannel and leaves
+    every other three-channel canvas on the RGB path.
+
+    What none of these rows claims is that the CMYK result is *right*: the
+    round trip inverts its operands, as ``non_separable``'s note records. They
+    pin which path a mode takes, not what the path computes.
     """
     Cb, Cs = _mixed_pair(channels)
     with caplog.at_level(logging.DEBUG, logger="psd_tools.composite.blend"):
@@ -357,6 +372,20 @@ def test_only_cmyk_is_four_channels_wide() -> None:
     assert {m for m in ColorMode if EXPECTED_CHANNELS[m] == 4} == {ColorMode.CMYK}
     assert EXPECTED_CHANNELS[ColorMode.MULTICHANNEL] == 64
     assert color_channels(ColorMode.MULTICHANNEL, 4) == 4
+
+
+@pytest.mark.parametrize("func", NON_SEPARABLE, ids=lambda f: f.__name__)
+def test_non_separable_defaults_to_deciding_by_width(func: Callable) -> None:
+    """Called with two arguments, these behave as they did before #746.
+
+    Every other case passes a mode explicitly, including the ``None`` rows, so
+    without this the *default* would be untested -- and a default of, say,
+    ``ColorMode.MULTICHANNEL`` would degrade every direct caller to ``normal``
+    while the whole suite stayed green.
+    """
+    Cb, Cs = _mixed_pair(4)
+    assert np.array_equal(func(Cb.copy(), Cs.copy()), func(Cb.copy(), Cs.copy(), None))
+    assert not np.array_equal(func(Cb.copy(), Cs.copy()), normal(Cb, Cs))
 
 
 def test_get_blend_func_binds_the_mode_only_to_the_non_separable_six() -> None:
