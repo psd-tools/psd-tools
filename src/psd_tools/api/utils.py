@@ -188,32 +188,15 @@ EXPECTED_CHANNELS = {
 def get_color_channels(psdimage: "PSDProtocol") -> int:
     """Number of color channels a document's pixel arrays carry.
 
-    :data:`EXPECTED_CHANNELS` names a constant per color mode, which is the
-    right answer for every mode whose channel count the mode itself fixes.
-    Multichannel is the exception: its entry is 64, the *format's maximum*
-    number of channels rather than any document's actual count, so a
-    multichannel document is the only one that has to be asked how many
-    channels it carries.
+    Use this, rather than :data:`EXPECTED_CHANNELS`, wherever a caller must
+    *allocate* a canvas as wide as the document's own arrays or validate a
+    color against one. The constant is right for every mode whose channel count
+    the mode itself fixes, but its multichannel entry is 64 -- the format's
+    maximum, not any document's count -- so only the document can say.
 
-    Leaving that 64 in place is deliberate, though not harmless. The reader that
-    genuinely wants it is the defensive cap in ``numpy_io._find_channel()``,
-    where a layer record may declare more channels than the header does; 64
-    never truncates there, which is what keeps a real mismatch visible to the
-    compositor instead of quietly trimmed. Two more are inert rather than
-    correct -- the ``psdimage.channels > expected`` thresholds in
-    :func:`has_transparency` and :func:`get_transparency_index` can never fire,
-    because ``FileHeader.channels`` is validated to at most 56, and
-    :func:`~psd_tools.api.numpy_io.get_image_data` special-cases multichannel
-    before it reaches the table at all. The one that was simply wrong was
-    ``_validate_color_input()``, which required a sequence of exactly 64
-    components and so rejected every per-channel
-    :py:attr:`PSDImage.background_color` on a multichannel document; #731 fixed
-    that by giving it an explicit channel count, supplied by this function or
-    by :func:`color_channels`, rather than by letting it read the table.
-
-    So this is for the callers the constant cannot serve: the ones that must
-    *allocate* a canvas as wide as the document's own arrays, or validate a
-    color against one.
+    That 64 is left in place on purpose: ``numpy_io._find_channel()`` uses it as
+    a defensive cap, where never truncating is what keeps a layer record
+    declaring more channels than the header visible to the compositor.
 
     Args:
         psdimage: The PSD image protocol object

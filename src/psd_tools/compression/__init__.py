@@ -354,26 +354,14 @@ def decompressed_size_bound(
     document *before* it exists.
 
     ``length`` is :py:func:`decompress`'s own ``height`` rows of
-    :func:`_row_size`; the two are meant to be read together. For a well-formed
-    body the bound is exact for RAW and RLE, and an over-estimate for the two
-    ZIP codecs, whose inflated size cannot be known without inflating the
-    stream. A malformed body only ever comes back smaller -- a truncated RLE
-    byte-count table yields fewer rows than ``height`` -- which is the safe
-    direction for a guard:
+    :func:`_row_size`; the two are meant to be read together. The bound is
+    exact for RAW and RLE and an over-estimate for the two ZIP codecs, whose
+    inflated size cannot be known without inflating the stream. A malformed
+    body only ever comes back smaller, which is the safe direction for a guard.
 
-    - RAW returns ``data[:length]``, so the body's own length caps it. At depth
-      8 and up a body shorter than ``length`` raises the mismatch check instead
-      of returning, so the ``min`` only bites at depth 1, where that check is
-      skipped.
-    - RLE returns exactly ``height`` rows of :func:`_row_size` bytes, each row
-      padded or clipped to that size by ``decode()`` rather than raising --
-      which is ``length`` exactly, the same rows counted the same way.
-    - Both ZIP codecs are capped at ``length`` by ``_safe_zlib_decompress()``,
-      and so is the black fill substituted for a channel that fails to decode.
-
-    Since #768 gave every depth the same row arithmetic, only RAW can now come
-    in under ``length``; before it, depth 1 counted a byte per pixel here and
-    eight times too few in the RLE codec, and the two codecs disagreed.
+    Only RAW can come in under ``length``, returning ``data[:length]``; at
+    depth 8 and up a short body raises the mismatch check instead, so the
+    ``min`` bites at depth 1 alone.
 
     :param data: the compressed body; read for its length only.
     :param compression: compression type, see :py:class:`.Compression`.

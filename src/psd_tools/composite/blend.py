@@ -11,9 +11,11 @@ representing pixel color channels. They follow Adobe's PDF Blend Mode specificat
 Blend mode categories:
 
 **Normal modes:**
+
 - ``normal``: Source replaces backdrop (no blending)
 
 **Darken modes:**
+
 - ``darken``: Selects darker of source and backdrop
 - ``multiply``: Multiplies colors (darkens)
 - ``color_burn``: Darkens backdrop to reflect source
@@ -21,6 +23,7 @@ Blend mode categories:
 - ``darker_color``: Selects darker color (non-separable)
 
 **Lighten modes:**
+
 - ``lighten``: Selects lighter of source and backdrop
 - ``screen``: Inverted multiply (lightens)
 - ``color_dodge``: Brightens backdrop to reflect source
@@ -28,6 +31,7 @@ Blend mode categories:
 - ``lighter_color``: Selects lighter color (non-separable)
 
 **Contrast modes:**
+
 - ``overlay``: Combination of multiply and screen
 - ``soft_light``: Soft version of overlay
 - ``hard_light``: Hard version of overlay
@@ -37,17 +41,18 @@ Blend mode categories:
 - ``hard_mix``: Posterizes to primary colors
 
 **Inversion modes:**
+
 - ``difference``: Absolute difference between colors
 - ``exclusion``: Similar to difference but lower contrast
 
 **Component modes (non-separable):**
+
 - ``hue``: Preserves luminosity and saturation, replaces hue
 - ``saturation``: Preserves luminosity and hue, replaces saturation
 - ``color``: Preserves luminosity, replaces hue and saturation
 - ``luminosity``: Preserves hue and saturation, replaces luminosity
-- ``darker_color``, ``lighter_color``: Return whichever operand is darker or
-  lighter, whole -- listed under Darken and Lighten above, but non-separable
-  like the four here, and wrapped by the same guards
+- ``darker_color``, ``lighter_color``: Return one operand whole (also listed
+  under Darken and Lighten, but non-separable like the four here)
 
 Implementation details:
 
@@ -363,36 +368,26 @@ def non_separable(k: Literal["b", "s"]):
 
     - **Multichannel** falls back, and is checked first for that reason. Its
       channels are spot inks, so a hue or a luminosity read off them is
-      meaningless whether there are three of them or thirty; keying on the width
-      alone had four plates claimed as CMYK and three blended as if they were R,
-      G and B (#746).
-    - **One channel** falls back on the width: grayscale, duotone and bitmap are
-      each one channel wide, and Photoshop offers none of the six on any of
-      them. Two channels, and five or more, likewise.
+      meaningless at any plate count; keying on the width alone had four plates
+      claimed as CMYK and three blended as if they were R, G and B (#746).
+    - **One channel** falls back on the width -- grayscale, duotone, bitmap --
+      as do two, and five or more.
     - **CMYK** blends its CMY complement. **RGB** blends directly, and so does
       indexed, whose canvas
       :py:data:`~psd_tools.api.utils.EXPECTED_CHANNELS` fixes at three.
+    - **Lab** is three wide and so is blended as if it were RGB, which is this
+      module's pre-existing treatment and the right side to leave it on:
+      Photoshop does offer all six there.
 
-    Photoshop offers none of the six on any of the modes that fall back.
-    Scripted against Photoshop 2026, a grayscale document rejects every one with
-    *The command "Set" is not currently available* and they are greyed out in
-    the UI; bitmap mode does not admit layers at all; and a multichannel
-    document does not either -- converting to Multichannel flattens, so the
-    blend mode cannot be set on one in the first place. So there is no result to
-    reproduce, and widening or reinterpreting the array would produce output
-    Photoshop never does (#735, #746).
+    Photoshop offers none of the six on any mode that falls back, so there is
+    no result to reproduce and widening the array would invent output it never
+    produces (#735, #746).
 
     With no mode to ask -- a bare :py:class:`~psd_tools.composite.Compositor`,
-    or one of these functions called directly -- the width decides alone, as it
-    did before #746, and four channels are taken for CMYK. That is a guess, and
-    on a four-plate multichannel array it is the wrong one; it is the same guess
-    the whole module made before #746, kept because a caller who supplies no
-    document is not asking to be told which mode it has.
-
-    Lab is three channels wide and so is blended as if it were RGB. That is this
-    module's pre-existing treatment of Lab, not something the fallback decides,
-    and it is the right side to leave Lab on: Photoshop does offer all six modes
-    on a Lab document.
+    or one of these called directly -- the width decides alone and four
+    channels are taken for CMYK. That is a guess, and wrong on a four-plate
+    multichannel array; it is kept because a caller who supplies no document is
+    not asking to be told which mode it has.
     """
 
     def decorator(func):
@@ -410,20 +405,15 @@ def non_separable(k: Literal["b", "s"]):
 def non_separable_selection(func):
     """Wrap Darker Color or Lighter Color, which choose between whole pixels.
 
-    These two differ from the four component modes in taking the array whole
-    rather than by its first three channels: they return one operand or the
-    other unchanged, and on CMYK that has to include its K. Photoshop agrees --
-    over six colour pairs its Darker Color is one of the two inputs exactly, K
-    and all -- and forcing K from a fixed operand instead, as #781 found, gave a
-    colour neither input had (#781).
+    These two take the array whole rather than by its first three channels:
+    they return one operand or the other unchanged, and on CMYK that has to
+    include its K. They also compare a different quantity,
+    :py:func:`_lightness`, which folds K in, where the component modes blend
+    the CMY complement with no K term at all. Both halves of that asymmetry are
+    Photoshop's, not a simplification (#781).
 
-    They also compare a different quantity: :py:func:`_lightness`, which folds K
-    in, where the component modes blend the CMY complement with no K term at
-    all. Both halves of that asymmetry are Photoshop's, not a simplification.
-
-    The multichannel and width fallbacks are the same ones
-    :py:func:`non_separable` documents; both decorators get them from
-    :py:func:`_guarded`.
+    The multichannel and width fallbacks are :py:func:`non_separable`'s, both
+    decorators getting them from :py:func:`_guarded`.
     """
     return _guarded(func, func)
 
@@ -742,20 +732,18 @@ def get_blend_func(
     fourth is not black generation -- so the mode is bound to those here rather
     than plumbed through every blend signature (#746).
 
-    The result takes ``(Cb, Cs)`` either way, so the compositor calls it without
-    caring which kind it got. Pass no *color_mode* and the width decides alone,
-    exactly as it did before; :py:data:`BLEND_FUNC` itself is unchanged and
-    stays the mode-blind table.
+    The result takes ``(Cb, Cs)`` either way. Pass no *color_mode* and the
+    width decides alone; :py:data:`BLEND_FUNC` stays the mode-blind table.
 
-    *blend_mode* is ``bytes`` and not :py:class:`~psd_tools.constants.BlendMode`
-    because :py:data:`BLEND_FUNC` is keyed by two families -- enum members for a
-    layer's own mode, raw descriptor keys such as ``b"lighterColor"`` for a
-    stroke's or an effect's -- and ``BlendMode`` subclasses ``bytes``, so the
-    supertype admits both without a union of a type and its own supertype.
+    *blend_mode* is ``bytes`` rather than
+    :py:class:`~psd_tools.constants.BlendMode` because :py:data:`BLEND_FUNC` is
+    keyed by two families -- enum members for a layer's own mode, raw
+    descriptor keys such as ``b"lighterColor"`` for a stroke's or an effect's
+    -- and ``BlendMode`` subclasses ``bytes``.
 
-    Unknown keys answer :py:func:`normal`, as the ``.get`` calls this replaces
-    did. ``PASS_THROUGH`` is one of them and reaches here for real: a group that
-    isolates its adjustments is composited as an ordinary source.
+    Unknown keys answer :py:func:`normal`. ``PASS_THROUGH`` is one of them and
+    reaches here for real: a group that isolates its adjustments is composited
+    as an ordinary source.
     """
     func = BLEND_FUNC.get(blend_mode, normal)
     if color_mode is None or func not in _MODE_AWARE:
