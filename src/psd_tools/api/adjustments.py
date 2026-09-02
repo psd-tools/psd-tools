@@ -346,7 +346,7 @@ class PhotoFilter(AdjustmentLayer):
     """Photo filter adjustment."""
 
     @property
-    def xyz(self) -> bool:
+    def xyz(self) -> tuple[int, ...] | None:
         """XYZ coordinates, present in version 3 records.
 
         Version 2 records carry `color_space` and `color_components` instead,
