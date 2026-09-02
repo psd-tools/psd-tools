@@ -618,7 +618,6 @@ def _make_noise_gradient_color(
     TODO: Improve noise gradient quality.
 
     Example:
-
         Descriptor(b'Grdn'){
             'Nm  ': 'Custom\x00',
             'GrdF': (b'GrdF', b'ClNs'),

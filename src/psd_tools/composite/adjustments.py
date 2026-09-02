@@ -284,7 +284,6 @@ def apply_levels(
     layer: Levels,
 ) -> np.ndarray:
     """Applies a levels adjustment to an image."""
-
     levels_data = layer.data
 
     lut_size = _get_lut_size(layer)
@@ -655,7 +654,6 @@ def apply_invert(
     layer: Invert,
 ) -> np.ndarray:
     """Applies an invert adjustment to an image."""
-
     return _1 - img
 
 
@@ -666,7 +664,6 @@ def apply_posterize(
     layer: Posterize,
 ) -> np.ndarray:
     """Applies a posterize adjustment to an image."""
-
     lut_size = _get_lut_size(layer)
     # layer.posterize is a 1–255 integer from the PSD spec. The [2, 255] clamp is
     # intentional: PS minimum is 2. This range is correct for both 8-bit and 16-bit
@@ -688,7 +685,6 @@ def apply_threshold(
     layer: Threshold,
 ) -> np.ndarray:
     """Applies a threshold adjustment to an image."""
-
     # CMYK requires accurate luminance conversion
     if colormode == ColorMode.CMYK:
         logger.info("Threshold isn't currently supported for CMYK.")

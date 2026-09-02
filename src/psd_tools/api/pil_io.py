@@ -209,7 +209,6 @@ def convert_image_data_to_pil(
 
     :raises ValueError: If an invalid channel is specified
     """
-
     # The header's own channel count, with none of the corrections the numpy
     # path needs (:func:`~psd_tools.api.numpy_io._image_data_planes`), because
     # PIL allocates a plane per stored channel at every depth and mode. It sizes

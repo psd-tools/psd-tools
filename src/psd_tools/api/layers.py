@@ -681,7 +681,6 @@ class Layer(LayerProtocol):
 
             layer.lock(ProtectedFlags.COMPOSITE | ProtectedFlags.POSITION)
         """
-
         locks = self.locks
 
         if locks is None:
@@ -1252,7 +1251,6 @@ class GroupMixin(GroupMixinProtocol, Protocol):
 
         :param name:
         """
-
         for layer in self.findall(name):
             return layer
         return None
@@ -1263,7 +1261,6 @@ class GroupMixin(GroupMixinProtocol, Protocol):
 
         :param name:
         """
-
         for layer in self.descendants():
             if layer.name == name:
                 yield layer
@@ -1899,7 +1896,6 @@ class PixelLayer(Layer):
         **kwargs: Any,
     ) -> tuple[LayerRecord, ChannelDataList]:
         """Build layer record and channel data list from a PIL image."""
-
         # Initialize the layer record and channel data list.
         layer_record = LayerRecord(
             top=top,

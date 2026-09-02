@@ -216,7 +216,6 @@ def test_nested_clipping() -> None:
           [1] ShapeLayer('Shape 1' size=124x69)
           [2] +ShapeLayer('Shape 2' size=69x75 clip)
     """
-
     psd = PSDImage.open(full_name("clipping-mask.psd"))
     psd.compatibility_mode = CompatibilityMode.CLIP_STUDIO_PAINT
     psd[1].blend_mode = BlendMode.NORMAL

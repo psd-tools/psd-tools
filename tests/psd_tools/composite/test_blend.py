@@ -31,7 +31,8 @@ logger = logging.getLogger(__name__)
 
 def test_lighter_color_descriptor_key() -> None:
     """Regression: b"lighterColor" was previously a typo (b"ligherColor")
-    which silently fell back to the normal blend mode for effects/strokes."""
+    which silently fell back to the normal blend mode for effects/strokes.
+    """
     assert BLEND_FUNC.get(b"lighterColor") is lighter_color
     assert BLEND_FUNC.get(b"lighterColor") is not normal
 
@@ -151,7 +152,8 @@ def _nested_passthrough_psd(depth: int, opacity: int, background: bool) -> PSDIm
 @pytest.mark.parametrize("depth", [1, 2, 3])
 def test_passthrough_group_opacity_over_opaque_backdrop(depth: int) -> None:
     """Group opacity must scale the effective alpha of the group's contents
-    instead of blending the backdrop in twice (issue #703)."""
+    instead of blending the backdrop in twice (issue #703).
+    """
     psd = _nested_passthrough_psd(depth, opacity=128, background=True)
     image = psd.composite(ignore_preview=True).convert("RGB")
     pixel = tuple(np.array(image, dtype=int)[4, 4])
@@ -162,7 +164,8 @@ def test_passthrough_group_opacity_over_opaque_backdrop(depth: int) -> None:
 @pytest.mark.parametrize("depth", [1, 2, 3])
 def test_passthrough_group_opacity_over_transparent_backdrop(depth: int) -> None:
     """Without a backdrop, group opacity only scales alpha; the initial
-    backdrop color must not bleed into the result (issue #703)."""
+    backdrop color must not bleed into the result (issue #703).
+    """
     psd = _nested_passthrough_psd(depth, opacity=128, background=False)
     image = psd.composite(ignore_preview=True).convert("RGBA")
     pixel = tuple(np.array(image, dtype=int)[4, 4])

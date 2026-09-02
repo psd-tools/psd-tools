@@ -64,7 +64,6 @@ def decode(data: bytes, size: int) -> bytes:
     remaining bytes are zero-padded.  The function always returns exactly *size*
     bytes without raising.
     """
-
     i, j = 0, 0
     length = len(data)
     data_arr = bytearray(data)
@@ -97,7 +96,6 @@ def encode(data: bytes) -> bytes:
 
     Apple PackBits RLE encoder.
     """
-
     MAX_LEN = 0xFF >> 1
     length = len(data)
     i = 0

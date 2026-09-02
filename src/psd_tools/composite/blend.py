@@ -194,7 +194,6 @@ def vivid_light(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     blend color is darker than 50% gray, the image is darkened by increasing
     the contrast.
     """
-
     # Deliberately not color_burn/color_dodge: those carry the spec's backdrop
     # special cases -- Cb == 1 burns to 1, Cb == 0 dodges to 0 -- and Photoshop
     # does not apply them here. Inside Vivid Light the *source* extreme wins,

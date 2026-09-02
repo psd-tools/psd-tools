@@ -190,7 +190,8 @@ def test_compress_decompress_fail(
 )
 def test_decompress_zip_bomb_falls_back_to_black(kind: Compression) -> None:
     """A zlib payload that expands beyond the declared channel size must not
-    exhaust memory; it should fall back to a black channel."""
+    exhaust memory; it should fall back to a black channel.
+    """
     oversized = zlib.compress(b"\x00" * 10_000)
     result = decompress(oversized, kind, width=2, height=2, depth=8)
     assert result == b"\x00" * 4  # black fallback for 2×2 8-bit

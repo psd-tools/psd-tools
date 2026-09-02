@@ -109,7 +109,8 @@ def test_untokenizable_body_warns_instead_of_scoring_zero(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:
     """Silently counting an unmeasurable function as prose-free is the one
-    failure this tool must not have."""
+    failure this tool must not have.
+    """
 
     def boom(readline: Any) -> Any:
         raise SyntaxError("synthetic")
