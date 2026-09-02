@@ -67,7 +67,9 @@ class GradientFill(FillLayer):
     @property
     def gradient_kind(self) -> str:
         """
-        Kind of the gradient, one of the following:
+        Kind of the gradient.
+
+        One of the following:
 
          - `Linear`
          - `Radial`
@@ -344,10 +346,13 @@ class PhotoFilter(AdjustmentLayer):
     """Photo filter adjustment."""
 
     @property
-    def xyz(self) -> bool:
-        """xyz.
+    def xyz(self) -> tuple[int, ...] | None:
+        """XYZ coordinates, present in version 3 records.
 
-        :return: `bool`
+        Version 2 records carry `color_space` and `color_components` instead,
+        and leave this `None`.
+
+        :return: `tuple` of three `int`, or `None`
         """
         return _assert_data(self._data).xyz
 

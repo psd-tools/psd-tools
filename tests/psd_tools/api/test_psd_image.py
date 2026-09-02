@@ -581,8 +581,10 @@ def test_has_transparency_positive_layer_count(tmp_path: Path) -> None:
 
 
 def test_get_transparency_index_negative_layer_count(tmp_path: Path) -> None:
-    """get_transparency_index() returns the first alpha channel index
-    when layer_count is negative."""
+    """get_transparency_index() finds the first alpha channel index.
+
+    It has to do so even when layer_count is negative.
+    """
     output = _save_psd_with_negative_layer_count(tmp_path)
     loaded = PSDImage.open(output)
     # RGB has 3 expected channels, so the transparency channel is at index 3

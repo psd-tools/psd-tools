@@ -186,8 +186,10 @@ class Layer(LayerProtocol):
     @property
     def kind(self) -> str:
         """
-        Kind of this layer, such as group, pixel, shape, type, smartobject,
-        or psdimage. Class name without `layer` suffix.
+        Kind of this layer.
+
+        One of group, pixel, shape, type, smartobject, or psdimage -- the
+        class name without its `layer` suffix.
 
         :return: `str`
         """
@@ -418,8 +420,9 @@ class Layer(LayerProtocol):
 
     def has_pixels(self) -> bool:
         """
-        Returns True if the layer has associated pixels. When this is True,
-        `topil` method returns :py:class:`PIL.Image.Image`.
+        Whether the layer has associated pixels.
+
+        When True, the `topil` method returns :py:class:`PIL.Image.Image`.
 
         :return: `bool`
         """
@@ -681,7 +684,6 @@ class Layer(LayerProtocol):
 
             layer.lock(ProtectedFlags.COMPOSITE | ProtectedFlags.POSITION)
         """
-
         locks = self.locks
 
         if locks is None:
@@ -1248,11 +1250,10 @@ class GroupMixin(GroupMixinProtocol, Protocol):
 
     def find(self, name: str) -> Layer | None:
         """
-        Returns the first layer found for the given layer name
+        Return the first layer found for the given layer name.
 
         :param name:
         """
-
         for layer in self.findall(name):
             return layer
         return None
@@ -1263,7 +1264,6 @@ class GroupMixin(GroupMixinProtocol, Protocol):
 
         :param name:
         """
-
         for layer in self.descendants():
             if layer.name == name:
                 yield layer
@@ -1457,8 +1457,9 @@ class Group(GroupMixin, Layer):
         include_clipping: bool = False,
     ) -> tuple[int, int, int, int]:
         """
-        Returns a bounding box for ``layers`` or (0, 0, 0, 0) if the layers
-        have no bounding box.
+        Return a bounding box for ``layers``.
+
+        Gives (0, 0, 0, 0) if the layers have no bounding box.
 
         :param layers: sequence of layers or a group.
         :param include_invisible: include invisible layers in calculation.
@@ -1508,8 +1509,10 @@ class Group(GroupMixin, Layer):
         open_folder: bool = True,
     ) -> Self:
         """
-        Create a new Group object with minimal records and data channels and metadata
-        to properly include the group in the PSD file.
+        Create a new Group object.
+
+        Builds the minimal records, data channels and metadata needed to
+        include the group in the PSD file.
 
         :param name: The display name of the group. Default to "Group".
         :param open_folder: Boolean defining whether the folder will be open or closed
@@ -1899,7 +1902,6 @@ class PixelLayer(Layer):
         **kwargs: Any,
     ) -> tuple[LayerRecord, ChannelDataList]:
         """Build layer record and channel data list from a PIL image."""
-
         # Initialize the layer record and channel data list.
         layer_record = LayerRecord(
             top=top,
@@ -2023,10 +2025,10 @@ class TypeLayer(Layer):
 
     @property
     def text(self) -> str:
-        """
+        r"""
         Text in the layer. Read-only.
 
-        .. note:: New-line character in Photoshop is `'\\\\r'`.
+        .. note:: New-line character in Photoshop is ``'\r'``.
         """
         return self._data.text_data.get(b"Txt ").value.rstrip("\x00")
 

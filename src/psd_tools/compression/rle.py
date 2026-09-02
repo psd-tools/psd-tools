@@ -1,4 +1,4 @@
-"""
+r"""
 Pure Python RLE (Run-Length Encoding) codec implementation.
 
 This module provides pure Python implementations of Apple PackBits RLE encoding
@@ -55,16 +55,13 @@ installing with build tools available.
 
 
 def decode(data: bytes, size: int) -> bytes:
-    """decode(data, size) -> bytes
-
-    Apple PackBits RLE decoder.
+    """Apple PackBits RLE decoder.
 
     Tolerant implementation: runs that would exceed *size* are clipped at the
     row boundary, runs whose input is truncated copy what is available, and any
     remaining bytes are zero-padded.  The function always returns exactly *size*
     bytes without raising.
     """
-
     i, j = 0, 0
     length = len(data)
     data_arr = bytearray(data)
@@ -93,11 +90,7 @@ def decode(data: bytes, size: int) -> bytes:
 
 
 def encode(data: bytes) -> bytes:
-    """encode(data) -> bytes
-
-    Apple PackBits RLE encoder.
-    """
-
+    """Apple PackBits RLE encoder."""
     MAX_LEN = 0xFF >> 1
     length = len(data)
     i = 0

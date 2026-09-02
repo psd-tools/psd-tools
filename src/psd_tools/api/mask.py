@@ -70,7 +70,7 @@ class Mask(MaskProtocol):
 
     @property
     def bbox(self) -> tuple[int, int, int, int]:
-        """BBox"""
+        """BBox."""
         return self.left, self.top, self.right, self.bottom
 
     @property

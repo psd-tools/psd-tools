@@ -1,5 +1,5 @@
 """
-Various constants for psd_tools
+Various constants for psd_tools.
 """
 
 from enum import Enum, IntEnum, auto
@@ -7,8 +7,9 @@ from enum import Enum, IntEnum, auto
 
 class CompatibilityMode(Enum):
     """
-    Compatibility modes that describe how compositing and
-    layer control should attempt to behave.
+    Compatibility modes for compositing and layer control.
+
+    Each describes how those two should attempt to behave.
     """
 
     PHOTOSHOP = auto()
@@ -532,7 +533,7 @@ class SheetColorType(IntEnum):
 
 class TextType(IntEnum):
     """
-    Type of text
+    Type of text.
     """
 
     POINT = 0
@@ -576,7 +577,7 @@ class WritingDirection(IntEnum):
 
 class ProtectedFlags(IntEnum):
     """
-    Flags for layer locking
+    Flags for layer locking.
     """
 
     TRANSPARENCY = 0x01

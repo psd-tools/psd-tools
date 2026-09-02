@@ -38,7 +38,7 @@ class MaskProtocol(Protocol):
 
     @property
     def bbox(self) -> tuple[int, int, int, int]:
-        """BBox"""
+        """BBox."""
         ...
 
     @property
@@ -116,8 +116,9 @@ class LayerProtocol(Protocol):
     @property
     def kind(self) -> str:
         """
-        Kind of this layer, such as group, pixel, shape, type, smartobject,
-        or psdimage.
+        Kind of this layer.
+
+        One of group, pixel, shape, type, smartobject, or psdimage.
         """
         ...
 
@@ -446,8 +447,10 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
 
     def _update_record(self) -> None:
         """
-        Compiles the low-level tree layer structure back into records and channels list
-        recursively from the API layer structure.
+        Compile the low-level tree layer structure back into flat lists.
+
+        Walks the API layer structure recursively, producing the records and
+        channels list.
         """
         ...
 

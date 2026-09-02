@@ -36,8 +36,10 @@ T = TypeVar("T", bound="BaseElement")
 
 class BaseElement:
     """
-    Base element of various PSD file structs. All the data objects in
-    :py:mod:`psd_tools.psd` subpackage inherit from this class.
+    Base element of various PSD file structs.
+
+    All the data objects in the :py:mod:`psd_tools.psd` subpackage inherit
+    from this class.
 
     .. py:classmethod:: read(cls, fp)
 

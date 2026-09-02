@@ -396,8 +396,9 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
     def has_preview(self) -> bool:
         """
-        Returns if the document has real merged data. When True, `topil()`
-        returns pre-composed data.
+        Whether the document has real merged data.
+
+        When True, `topil()` returns pre-composed data.
         """
         version_info = self.image_resources.get_data(Resource.VERSION_INFO)
         if version_info:
@@ -531,8 +532,9 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
     @property
     def color_mode(self) -> ColorMode:
         """
-        Document color mode, such as 'RGB' or 'GRAYSCALE'. See
-        :py:class:`~psd_tools.constants.ColorMode`.
+        Document color mode, such as 'RGB' or 'GRAYSCALE'.
+
+        See :py:class:`~psd_tools.constants.ColorMode`.
 
         :return: :py:class:`~psd_tools.constants.ColorMode`
         """
@@ -569,6 +571,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
     def image_resources(self) -> ImageResources:
         """
         Document image resources.
+
         :py:class:`~psd_tools.psd.image_resources.ImageResources` is a
         dict-like structure that keeps various document settings.
 
@@ -698,8 +701,9 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
     def thumbnail(self) -> Image.Image | None:
         """
-        Returns a thumbnail image in PIL.Image. When the file does not
-        contain an embedded thumbnail image, returns None.
+        Return a thumbnail image in PIL.Image.
+
+        Gives None when the file contains no embedded thumbnail image.
         """
         if Resource.THUMBNAIL_RESOURCE in self.image_resources:
             return pil_io.convert_thumbnail_to_pil(
@@ -939,8 +943,10 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
     def _update_record(self) -> None:
         """
-        Compiles the tree layer structure back into records and channels list
-        recursively from the API layer structure.
+        Compile the tree layer structure back into flat lists.
+
+        Walks the API layer structure recursively, producing the records and
+        channels list.
         """
         # Initialize the layer structure information if not present.
         if self._record.layer_and_mask_information.layer_info is None:
@@ -995,7 +1001,7 @@ def _build_record_tree(
     layer_group: layers.GroupMixin,
 ) -> tuple[LayerRecords, ChannelImageData]:
     """
-    Builds the layer tree structure from records and channels list recursively
+    Build the layer tree structure from records and channels list, recursively.
     """
     layer_records = LayerRecords()
     channel_image_data = ChannelImageData()

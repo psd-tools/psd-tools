@@ -312,7 +312,7 @@ class LayerInfo(BaseElement):
 @register(Tag.LAYER_32)
 @define(repr=False)
 class LayerInfoBlock(LayerInfo):
-    """ """
+    """Layer info carried inside a tagged block, with no outer length marker."""
 
     @classmethod
     def read(
