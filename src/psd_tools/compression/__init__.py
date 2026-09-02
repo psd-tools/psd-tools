@@ -363,9 +363,14 @@ def decompressed_size_bound(
     ``length`` as its ceiling, as is the black fill substituted for a channel
     that fails to decode. Loosen either and this stops being an upper bound.
 
-    Only RAW can come in under ``length``, returning ``data[:length]``; at
-    depth 8 and up a short body raises the mismatch check instead, so the
-    ``min`` bites at depth 1 alone.
+    RAW is the only codec whose under-run is by design -- it returns
+    ``data[:length]``, which is why the ``min`` below is on its branch alone. A
+    ZIP body can inflate to fewer than ``length`` bytes too, since
+    ``_safe_zlib_decompress()`` caps the output without requiring it; at depth 8
+    and up :py:func:`decompress`'s mismatch check rejects that, so it reaches a
+    caller at depth 1 only, where the check is skipped. RLE is exact whenever it
+    returns at all, ``decode_rle()`` padding or clipping each row to
+    :func:`_row_size`.
 
     :param data: the compressed body; read for its length only.
     :param compression: compression type, see :py:class:`.Compression`.
