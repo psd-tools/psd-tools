@@ -4,6 +4,28 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
+- [fix] Degrade the six non-separable blend modes -- ``Hue``, ``Saturation``,
+  ``Color``, ``Luminosity``, ``Darker Color`` and ``Lighter Color`` -- on every
+  document Photoshop does not offer them on, instead of crashing or reading the
+  channels as something they are not (#735, #746). The first four raised
+  ``IndexError`` or ``ValueError`` on every single-channel document -- grayscale
+  and duotone -- and on anything wider than CMYK, indexing channels 1 and 2 of
+  an array that has only channel 0; ``Darker Color`` and ``Lighter Color`` did
+  not raise but returned the backdrop unchanged whatever the source was. A
+  multichannel document showed neither symptom and was misread instead: three
+  spot plates blended as if they were R, G and B, and four with the fourth plate
+  taken for CMYK black generation. All six now fall back to ``Normal`` with a
+  debug log, as ``Dissolve`` already does; RGB and CMYK are unaffected, and Lab
+  keeps its as-if-RGB treatment, Photoshop offering all six there. Affects
+  grayscale and duotone documents, which are ordinary files, and multichannel
+  documents carrying layers, which Photoshop neither writes -- converting to
+  Multichannel flattens -- nor preserves on opening, so no file in the test
+  corpus renders differently.
+
+  The six functions in ``psd_tools.composite.blend`` take the document's colour
+  mode as an optional third argument, supplied by the new ``get_blend_func()``
+  lookup; ``BLEND_FUNC`` is unchanged.
+
 - [fix] Convert a single-channel *source* to the document's colour mode instead
   of letting the blend arithmetic replicate it across every channel (#749,
   #776, #777), as #722 already did for a backdrop. A grayscale pattern fill on a
@@ -293,19 +315,6 @@ Changelog
   ``psd_tools.color_convert`` is unchanged -- it is public API with a documented
   ink-space contract -- and the ``background_color`` docstring, which repeated
   the wrong spelling, is corrected (#747).
-
-- [fix] Degrade the non-separable blend modes on documents whose colour array
-  is neither three nor four channels wide instead of crashing. ``Hue``, ``Saturation``, ``Color``
-  and ``Luminosity`` raised ``IndexError`` or ``ValueError`` on every
-  single-channel document -- grayscale and duotone -- because they index
-  channels 1 and 2 of an array that has only channel 0, while ``Darker Color``
-  and ``Lighter Color`` did not raise but returned the backdrop unchanged
-  whatever the source was. A document wider than CMYK was broken too, there
-  raising for all six. Photoshop offers none of these six modes on such a
-  document, so there is no result to reproduce and they now fall back to
-  ``Normal`` with a debug log, as ``Dissolve`` already does. RGB and CMYK are
-  unaffected, and Lab is three channels wide so it keeps its existing
-  as-if-RGB treatment -- Photoshop does offer all six modes there (#735).
 
 - [fix] Let a per-channel colour be set on a multichannel document.
   :py:attr:`~psd_tools.api.psd_image.PSDImage.background_color` validated the
