@@ -15,7 +15,8 @@ Changelog
   component modes where Photoshop takes the backdrop's for three of them, and
   ``Darker``/``Lighter Color`` dropped the chosen operand's K and left K out of
   the comparison that chooses. Measured against Photoshop 2026 over six CMYK
-  colour pairs, all six now land within one 8-bit step, and
+  colour pairs, all six now land within 1.2/255 -- 8-bit quantization alone is
+  1/255 -- and
   ``blend-modes/cmyk-blend-modes.psd`` falls from 0.026612 to 0.000179 mean
   squared error against its own merged preview -- it was xfailed as "Fix me!"
   and now passes.

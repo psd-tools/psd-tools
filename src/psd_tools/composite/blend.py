@@ -52,9 +52,12 @@ Blend mode categories:
 Implementation details:
 
 - Separable blend modes process each color channel independently
-- Non-separable modes read all three channels together, through the ``_lum``
-  and ``_sat`` helpers below; on CMYK they use the CMY complement and carry K
-  across untouched (#781)
+- The four component modes read three channels together, through the ``_lum``
+  and ``_sat`` helpers below; on CMYK they blend the CMY complement and carry K
+  across from one operand (#781)
+- ``darker_color`` and ``lighter_color`` return one operand or the other whole.
+  On CMYK that includes its K, and K also weighs in the comparison that chooses
+  -- see ``_lightness`` (#781)
 - All functions expect normalized float32 arrays (0.0-1.0 range)
 - Division by zero is protected with small epsilon values
 
@@ -267,19 +270,18 @@ def divide(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
 _MODE_AWARE: set[Callable] = set()
 
 
-# Non-separable blending happens on the CMY complement, which is what the
-# canvas already holds (#747: "the transform yields ink; the canvas counts what
-# is left"). There is no conversion to RGB and back: Photoshop blends those
-# three channels directly and carries K across from one operand -- K of Cb for
-# hue, saturation and color, K of Cs for luminosity. Scripted against Photoshop
-# 2026 over six CMYK colour pairs, that reproduces all four modes to within one
-# 8-bit step; converting through RGB first, by any formula tried, does not
-# (#781).
+# The one place the two fallbacks are applied, so that both decorators below
+# get them and cannot drift apart. What they are and why is documented on
+# :py:func:`non_separable`.
 def _guarded(func, apply):
     """Wrap *apply* in the two fallbacks every non-separable mode shares.
 
     ``func`` is only ever the undecorated function, for its name in the log and
-    for :py:func:`functools.wraps`; ``apply`` is what actually blends.
+    for :py:func:`functools.wraps`; ``apply`` is what actually blends. Both
+    operands must be the same width for either decorator's arithmetic to mean
+    anything, so a mismatch takes the fallback rather than reaching it: K would
+    otherwise be an empty slice off a three-channel backdrop, and the mode would
+    quietly return one channel fewer than it was given.
     """
 
     @functools.wraps(func)
@@ -296,17 +298,18 @@ def _guarded(func, apply):
                 func.__name__,
             )
             return normal(Cb, Cs)
-        if Cs.shape[2] not in (3, 4):
+        if Cs.shape[2] not in (3, 4) or Cb.shape[2] != Cs.shape[2]:
             # The canvas width, and inside the compositor the document's:
             # ``Compositor._fit_source()`` widens a one-channel source at the
             # door, so every array reaching here from there is exactly that wide
             # (#749). A direct caller can hand over any width, which is why this
             # is a fallback and not an assertion.
             logger.debug(
-                "%s blend is not defined for a %d-channel source; "
-                "falling back to normal",
+                "%s blend is not defined for a %d-channel source against a "
+                "%d-channel backdrop; falling back to normal",
                 func.__name__,
                 Cs.shape[2],
+                Cb.shape[2],
             )
             return normal(Cb, Cs)
         return apply(Cb, Cs)
@@ -315,6 +318,13 @@ def _guarded(func, apply):
     return _blend_fn
 
 
+# Non-separable blending happens on the CMY complement, which is what the
+# canvas already holds (#747: "the transform yields ink; the canvas counts what
+# is left"). There is no conversion to RGB and back: Photoshop blends those
+# three channels directly and carries K across from one operand -- K of Cb for
+# hue, saturation and color, K of Cs for luminosity. Scripted against Photoshop
+# 2026 over six CMYK colour pairs, that reproduces all four modes to within
+# 1.2/255; converting through RGB first, by any formula tried, does not (#781).
 def non_separable(k: Literal["b", "s"]):
     """Wrap a component blend -- Hue, Saturation, Color or Luminosity.
 
@@ -388,6 +398,10 @@ def non_separable_selection(func):
     They also compare a different quantity: :py:func:`_lightness`, which folds K
     in, where the component modes blend the CMY complement with no K term at
     all. Both halves of that asymmetry are Photoshop's, not a simplification.
+
+    The multichannel and width fallbacks are the same ones
+    :py:func:`non_separable` documents; both decorators get them from
+    :py:func:`_guarded`.
     """
     return _guarded(func, func)
 

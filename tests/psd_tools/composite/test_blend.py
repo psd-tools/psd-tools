@@ -394,7 +394,10 @@ def test_non_separable_defaults_to_deciding_by_width(func: Callable) -> None:
     assert not np.array_equal(func(Cb.copy(), Cs.copy()), normal(Cb, Cs))
 
 
-# Photoshop 2026's own answers, U.S. Web Coated (SWOP) v2, in ink percent:
+# Photoshop 2026's own answers, in ink percent, authored in its default CMYK
+# working space -- U.S. Web Coated (SWOP) v2. The space is provenance, not a
+# parameter: nothing in the model these pin consults a profile, so a document
+# saved in another working space blends by the same arithmetic. Format:
 # ``(backdrop, source, {mode: result})``. Authored by scripting Photoshop --
 # fill a Background, add a layer, set ``blendMode``, flatten, and read the pixel
 # back through ``doc.colorSamplers`` -- so these are its render and not a
@@ -477,8 +480,8 @@ PHOTOSHOP_CMYK: list[tuple[list[float], list[float], dict[str, list[float]]]] = 
 ]
 
 # One 8-bit step is 1/255, and Photoshop reports through an 8-bit sampler, so
-# the floor here is quantization and not model error: the worst of the 36 is
-# 1.20/255 and thirteen of them sit at exactly one step. Two steps leaves the
+# the floor here is quantization and not model error: the worst of the 36 rows
+# is 1.20 steps and none exceeds one and a quarter. Two steps leaves the
 # assertion loose enough to be stable and tight enough to fail loudly -- every
 # defect #781 fixed moves at least one of these rows by 25 to 148 steps.
 _ONE_STEP = 1.0 / 255.0
@@ -512,7 +515,7 @@ def test_non_separable_matches_photoshop_on_cmyk(pair: int, mode: str) -> None:
        weigh K when deciding which is darker. Reverting either half still passes
        the fixture; dropping K from the comparison changes no pixel in it at
        all, while pair 3 -- a near-neutral backdrop against a saturated source
-       -- moves by 128/255.
+       -- moves by 127.5/255.
 
     So this table is not redundant with the fixture; for two of the three it is
     the only thing standing.
@@ -533,10 +536,39 @@ def test_non_separable_is_the_identity_on_equal_cmyk_operands(func: Callable) ->
     ``saturation`` come back one ulp out because ``_set_sat`` rebuilds the
     channels from a sorted comparison rather than passing them through; the
     other four are exact.
+
+    Weak for ``darker_color`` and ``lighter_color``, deliberately kept for
+    symmetry: equal operands make their mask all-false, so they return the
+    backdrop whatever ``_lightness`` computes and whichever operand K would come
+    from. Those two are pinned by the Photoshop table above, not here.
     """
     Cb = _cmyk_canvas([37, 12, 68, 21])
     result = func(Cb.copy(), Cb.copy(), ColorMode.CMYK)
     assert result == pytest.approx(Cb, abs=1e-6)
+
+
+@pytest.mark.parametrize("func", NON_SEPARABLE, ids=lambda f: f.__name__)
+def test_non_separable_falls_back_when_the_operands_disagree_in_width(
+    func: Callable, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Operands of different widths degrade rather than half-blend (#781).
+
+    Unreachable through the compositor -- ``_fit_source()`` brings every source
+    to the canvas width, and the backdrop *is* the canvas -- so this pins a
+    direct caller's blast radius. It is worth pinning because #781 made the
+    failure quieter before making it louder: taking K from the backdrop means a
+    three-channel backdrop under a four-channel source slices ``Cb[:, :, 3:4]``
+    to *nothing*, and ``concatenate`` then returns three channels where four
+    were asked for -- a silent short array rather than the ``IndexError`` the
+    same input used to raise.
+    """
+    Cb = np.full((2, 2, 3), 0.4, dtype=np.float32)
+    Cs = np.full((2, 2, 4), 0.6, dtype=np.float32)
+    with caplog.at_level(logging.DEBUG, logger="psd_tools.composite.blend"):
+        result = func(Cb.copy(), Cs.copy(), ColorMode.CMYK)
+    assert result.shape == (2, 2, 4), "must not silently narrow the result"
+    assert np.array_equal(result, normal(Cb, Cs))
+    assert "4-channel source against a 3-channel backdrop" in caplog.text
 
 
 def test_get_blend_func_binds_the_mode_only_to_the_non_separable_six() -> None:
