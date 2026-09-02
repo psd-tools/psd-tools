@@ -146,6 +146,15 @@ Prefix each entry with its category: `[fix]`, `[api]`, `[security]`, `[chore]`,
 `[docs]`. Reference the issue and PR numbers. Flag any backwards-incompatible
 change explicitly in the entry text.
 
+**Budget: an entry is at most four lines** — one line of summary, plus a short
+"does this affect me" clause where the answer is not obvious, plus the refs.
+An entry's job is to let a reader decide whether they are affected and then
+hand them the link; it is not the place to explain the mechanism. That
+explanation is already published in three linked places — the PR body, the
+commit message, and the GitHub Release body — so a longer entry duplicates
+them and dates faster than they do. Corpus statistics, measured error figures,
+and the history of what earlier PRs got wrong all belong in the PR, not here.
+
 Entries are for user-visible change. Skip them for pure refactors, test-only
 changes, and dependabot bumps — dependency bumps are summarised in bulk by the
 release PR instead.
