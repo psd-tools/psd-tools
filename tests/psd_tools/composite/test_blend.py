@@ -21,6 +21,7 @@ from psd_tools.composite.blend import (
     normal,
     saturation,
 )
+import psd_tools.composite.blend as blend_module
 from psd_tools.constants import BlendMode, ColorMode
 from psd_tools.terminology import Enum
 from .test_composite import check_composite_quality
@@ -69,6 +70,11 @@ def test_lighter_color_descriptor_key() -> None:
         # Total test
         ("blend-modes/rgb-blend-modes.psd",),
         ("blend-modes/gray-blend-modes.psd",),
+        # Was xfailed as "# Fix me!" until #781: the six non-separable modes
+        # went through a CMYK round trip that read the canvas as ink where it
+        # holds what is left of it, and the whole document's error sat at
+        # 0.026612 against this 0.01 threshold. It is 0.000179 now.
+        ("blend-modes/cmyk-blend-modes.psd",),
     ],
 )
 def test_blend_quality(filename: str) -> None:
@@ -79,7 +85,6 @@ def test_blend_quality(filename: str) -> None:
     ("filename",),
     [
         ("blend-modes/dissolve.psd",),
-        ("blend-modes/cmyk-blend-modes.psd",),  # Fix me!
     ],
 )
 @pytest.mark.xfail
@@ -297,10 +302,10 @@ def test_non_separable_still_blends_the_modes_with_ground_truth(
     """The fallbacks must not swallow the cases that do have ground truth.
 
     Photoshop offers all six on an RGB, a Lab and a CMYK document, so those
-    three keep blending -- the three-channel ones directly, CMYK through the
-    RGB round trip. So does an array with no mode attached, which is what a
-    bare ``Compositor`` or a direct call hands over: there the width decides
-    alone, as it did before #746.
+    three keep blending -- the three-channel ones directly, CMYK on its CMY
+    complement with K carried across. So does an array with no mode attached,
+    which is what a bare ``Compositor`` or a direct call hands over: there the
+    width decides alone, as it did before #746.
 
     Indexed rides along on width rather than on ground truth. Photoshop
     flattens on conversion to Indexed Color, the same argument that keeps
@@ -308,9 +313,10 @@ def test_non_separable_still_blends_the_modes_with_ground_truth(
     pins is that the mode-keyed branch singles out multichannel and leaves
     every other three-channel canvas on the RGB path.
 
-    What none of these rows claims is that the CMYK result is *right*: the
-    round trip inverts its operands, as ``non_separable``'s note records. They
-    pin which path a mode takes, not what the path computes.
+    What the CMYK row is worth is settled separately, by
+    ``test_non_separable_matches_photoshop_on_cmyk`` below: since #781 the
+    result is Photoshop's to within one 8-bit step, where this row only asks
+    that some blending happened at all.
     """
     Cb, Cs = _mixed_pair(channels)
     with caplog.at_level(logging.DEBUG, logger="psd_tools.composite.blend"):
@@ -386,6 +392,151 @@ def test_non_separable_defaults_to_deciding_by_width(func: Callable) -> None:
     Cb, Cs = _mixed_pair(4)
     assert np.array_equal(func(Cb.copy(), Cs.copy()), func(Cb.copy(), Cs.copy(), None))
     assert not np.array_equal(func(Cb.copy(), Cs.copy()), normal(Cb, Cs))
+
+
+# Photoshop 2026's own answers, U.S. Web Coated (SWOP) v2, in ink percent:
+# ``(backdrop, source, {mode: result})``. Authored by scripting Photoshop --
+# fill a Background, add a layer, set ``blendMode``, flatten, and read the pixel
+# back through ``doc.colorSamplers`` -- so these are its render and not a
+# derivation. The pairs are off the neutral axis and differ in every channel;
+# pair 3's near-neutral backdrop and pair 5's paper white are the two that
+# discriminate hardest (see the test below).
+PHOTOSHOP_CMYK: list[tuple[list[float], list[float], dict[str, list[float]]]] = [
+    (
+        [80, 20, 10, 5],
+        [10, 70, 60, 20],
+        {
+            "hue": [0, 53.73, 45.1, 5.1],
+            "saturation": [73.73, 22.35, 13.73, 5.1],
+            "color": [0, 53.73, 45.1, 5.1],
+            "luminosity": [93.73, 33.73, 23.53, 20],
+            "darker_color": [9.8, 69.8, 60, 20],
+            "lighter_color": [80, 20, 9.8, 5.1],
+        },
+    ),
+    (
+        [10, 70, 60, 20],
+        [80, 20, 10, 5],
+        {
+            "hue": [87.45, 36.08, 27.45, 20],
+            "saturation": [2.75, 72.94, 61.57, 20],
+            "color": [93.73, 33.73, 23.53, 20],
+            "luminosity": [0, 53.73, 45.1, 5.1],
+            "darker_color": [9.8, 69.8, 60, 20],
+            "lighter_color": [80, 20, 9.8, 5.1],
+        },
+    ),
+    (
+        [5, 5, 90, 0],
+        [70, 60, 0, 10],
+        {
+            "hue": [17.65, 14.9, 0, 0],
+            "saturation": [6.67, 6.67, 76.47, 0],
+            "color": [17.65, 14.9, 0, 0],
+            "luminosity": [50.98, 50.98, 99.61, 9.8],
+            "darker_color": [69.8, 60, 0, 9.8],
+            "lighter_color": [5.1, 5.1, 89.8, 0],
+        },
+    ),
+    (
+        [40, 40, 40, 40],
+        [0, 90, 30, 0],
+        {
+            "hue": [40, 40, 40, 40],
+            "saturation": [40, 40, 40, 40],
+            "color": [0, 63.53, 21.18, 40],
+            "luminosity": [56.08, 56.08, 56.08, 0],
+            "darker_color": [40, 40, 40, 40],
+            "lighter_color": [0, 89.8, 29.8, 0],
+        },
+    ),
+    (
+        [95, 0, 30, 60],
+        [20, 15, 85, 2],
+        {
+            "hue": [27.06, 21.18, 99.61, 60],
+            "saturation": [78.43, 8.24, 30.2, 60],
+            "color": [27.45, 22.35, 92.55, 60],
+            "luminosity": [72.16, 0, 22.75, 1.96],
+            "darker_color": [94.9, 0, 29.8, 60],
+            "lighter_color": [20, 14.9, 85.1, 1.96],
+        },
+    ),
+    (
+        [0, 0, 0, 0],
+        [50, 40, 30, 10],
+        {
+            "hue": [0, 0, 0, 0],
+            "saturation": [0, 0, 0, 0],
+            "color": [0, 0, 0, 0],
+            "luminosity": [41.96, 41.96, 41.96, 9.8],
+            "darker_color": [49.8, 40, 29.8, 9.8],
+            "lighter_color": [0, 0, 0, 0],
+        },
+    ),
+]
+
+# One 8-bit step is 1/255, and Photoshop reports through an 8-bit sampler, so
+# the floor here is quantization and not model error: the worst of the 36 is
+# 1.20/255 and thirteen of them sit at exactly one step. Two steps leaves the
+# assertion loose enough to be stable and tight enough to fail loudly -- every
+# defect #781 fixed moves at least one of these rows by 25 to 148 steps.
+_ONE_STEP = 1.0 / 255.0
+
+
+def _cmyk_canvas(ink: list[float]) -> np.ndarray:
+    """Ink percent as the compositor holds it: a canvas counts what is left."""
+    return (1.0 - np.array(ink, dtype=np.float32) / 100.0).reshape(1, 1, 4)
+
+
+@pytest.mark.parametrize("mode", [f.__name__ for f in NON_SEPARABLE])
+@pytest.mark.parametrize("pair", range(len(PHOTOSHOP_CMYK)), ids=lambda i: "pair%d" % i)
+def test_non_separable_matches_photoshop_on_cmyk(pair: int, mode: str) -> None:
+    """The whole of what #781 fixed, against Photoshop's own render.
+
+    Three separate defects lived in the four-channel branch, and the corpus
+    fixture ``blend-modes/cmyk-blend-modes.psd`` catches only the first even
+    though it exercises all six modes:
+
+    1. The round trip. ``_cmyk2rgb`` computed ``(1 - C) * (1 - K)``, reading the
+       canvas as ink where it holds what is left of it, so all six collapsed to
+       a constant and ``color(Cb, Cb)`` was not ``Cb``. There is no round trip
+       now: Photoshop blends the CMY complement directly, which is what the
+       canvas already holds, and no formula that converts to RGB first came
+       within 6/255 of these numbers.
+    2. Which operand supplies K -- the backdrop's for hue, saturation and
+       color, the source's for luminosity. The code took the source's for all
+       four. Reverting that alone still passes the fixture, and moves pair 4 by
+       148/255 here.
+    3. Darker and Lighter Color return an operand *whole*, K included, and
+       weigh K when deciding which is darker. Reverting either half still passes
+       the fixture; dropping K from the comparison changes no pixel in it at
+       all, while pair 3 -- a near-neutral backdrop against a saturated source
+       -- moves by 128/255.
+
+    So this table is not redundant with the fixture; for two of the three it is
+    the only thing standing.
+    """
+    backdrop, source, expected = PHOTOSHOP_CMYK[pair]
+    blend_fn = getattr(blend_module, mode)
+    result = blend_fn(_cmyk_canvas(backdrop), _cmyk_canvas(source), ColorMode.CMYK)
+    ink = (1.0 - result.ravel()) * 100.0
+    assert ink == pytest.approx(expected[mode], abs=2 * _ONE_STEP * 100.0)
+
+
+@pytest.mark.parametrize("func", NON_SEPARABLE, ids=lambda f: f.__name__)
+def test_non_separable_is_the_identity_on_equal_cmyk_operands(func: Callable) -> None:
+    """Blending a colour with itself must return it (#781).
+
+    The plainest statement of what the inverted round trip broke: it answered
+    full CMY for every input, so even this could not hold. ``hue`` and
+    ``saturation`` come back one ulp out because ``_set_sat`` rebuilds the
+    channels from a sorted comparison rather than passing them through; the
+    other four are exact.
+    """
+    Cb = _cmyk_canvas([37, 12, 68, 21])
+    result = func(Cb.copy(), Cb.copy(), ColorMode.CMYK)
+    assert result == pytest.approx(Cb, abs=1e-6)
 
 
 def test_get_blend_func_binds_the_mode_only_to_the_non_separable_six() -> None:

@@ -4,6 +4,26 @@ Changelog
 1.19.0 (unreleased)
 -------------------
 
+- [fix] Blend the six non-separable modes on a CMYK document the way Photoshop
+  does -- on the CMY complement, with K carried across -- instead of through a
+  round trip that collapsed every one of them to a constant (#781). ``Hue``,
+  ``Saturation``, ``Color``, ``Luminosity``, ``Darker Color`` and ``Lighter
+  Color`` returned full CMY whatever their operands, so blending a colour with
+  itself did not return that colour: the conversion read the canvas as ink where
+  it holds what is left of it, the same inversion #747 fixed for fills. Two
+  narrower faults went with it -- K was taken from the source for all four
+  component modes where Photoshop takes the backdrop's for three of them, and
+  ``Darker``/``Lighter Color`` dropped the chosen operand's K and left K out of
+  the comparison that chooses. Measured against Photoshop 2026 over six CMYK
+  colour pairs, all six now land within one 8-bit step, and
+  ``blend-modes/cmyk-blend-modes.psd`` falls from 0.026612 to 0.000179 mean
+  squared error against its own merged preview -- it was xfailed as "Fix me!"
+  and now passes.
+
+  **Rendering change**: a CMYK document using any of these six modes renders
+  differently. RGB, Lab, grayscale and multichannel documents are unaffected;
+  one fixture in the corpus moves, and it moves toward Photoshop.
+
 - [fix] Degrade the six non-separable blend modes -- ``Hue``, ``Saturation``,
   ``Color``, ``Luminosity``, ``Darker Color`` and ``Lighter Color`` -- on every
   document Photoshop does not offer them on, instead of crashing or reading the
