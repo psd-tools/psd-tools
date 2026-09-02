@@ -2028,7 +2028,7 @@ class TypeLayer(Layer):
         r"""
         Text in the layer. Read-only.
 
-        .. note:: New-line character in Photoshop is `'\\r'`.
+        .. note:: New-line character in Photoshop is ``'\r'``.
         """
         return self._data.text_data.get(b"Txt ").value.rstrip("\x00")
 
