@@ -47,7 +47,7 @@ class _StyledEffect(Protocol):
     def opacity(self) -> float: ...
 
     @property
-    def blend_mode(self) -> BlendMode: ...
+    def blend_mode(self) -> bytes: ...
 
 
 def _styled(effects: Iterator[Any]) -> Iterator[_StyledEffect]:
@@ -1064,7 +1064,11 @@ class Compositor(object):
         color: np.ndarray,
         shape: np.ndarray,
         alpha: np.ndarray,
-        blend_mode: BlendMode,
+        # Not ``BlendMode``: a stroke's and an effect's blend mode is a raw
+        # descriptor key, and only a layer's is an enum member. ``BlendMode``
+        # subclasses ``bytes``, so this admits both rather than widening to a
+        # union of a type and its own supertype.
+        blend_mode: bytes,
         knockout: Knockout = Knockout.NONE,
     ) -> None:
         color = self._fit_source(color)

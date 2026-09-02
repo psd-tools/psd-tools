@@ -674,7 +674,7 @@ BLEND_FUNC = {
 
 
 def get_blend_func(
-    blend_mode: BlendMode | bytes, color_mode: ColorMode | None = None
+    blend_mode: bytes, color_mode: ColorMode | None = None
 ) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
     """Look up *blend_mode*, with the document's colour mode already bound in.
 
@@ -688,6 +688,12 @@ def get_blend_func(
     caring which kind it got. Pass no *color_mode* and the width decides alone,
     exactly as it did before; :py:data:`BLEND_FUNC` itself is unchanged and
     stays the mode-blind table.
+
+    *blend_mode* is ``bytes`` and not :py:class:`~psd_tools.constants.BlendMode`
+    because :py:data:`BLEND_FUNC` is keyed by two families -- enum members for a
+    layer's own mode, raw descriptor keys such as ``b"lighterColor"`` for a
+    stroke's or an effect's -- and ``BlendMode`` subclasses ``bytes``, so the
+    supertype admits both without a union of a type and its own supertype.
 
     Unknown keys answer :py:func:`normal`, as the ``.get`` calls this replaces
     did. ``PASS_THROUGH`` is one of them and reaches here for real: a group that
