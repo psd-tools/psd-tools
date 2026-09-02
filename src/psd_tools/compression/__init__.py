@@ -359,6 +359,10 @@ def decompressed_size_bound(
     inflated size cannot be known without inflating the stream. A malformed
     body only ever comes back smaller, which is the safe direction for a guard.
 
+    ZIP is bounded at all only because ``_safe_zlib_decompress()`` is given
+    ``length`` as its ceiling, as is the black fill substituted for a channel
+    that fails to decode. Loosen either and this stops being an upper bound.
+
     Only RAW can come in under ``length``, returning ``data[:length]``; at
     depth 8 and up a short body raises the mismatch check instead, so the
     ``min`` bites at depth 1 alone.

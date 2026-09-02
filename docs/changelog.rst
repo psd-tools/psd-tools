@@ -12,18 +12,19 @@ Changelog
   change** for a CMYK document using ``Hue``, ``Saturation``, ``Color``,
   ``Luminosity``, ``Darker Color`` or ``Lighter Color`` (#781)
 - [fix] Degrade those same six modes to ``Normal`` with a debug log on the
-  documents Photoshop does not offer them on -- grayscale, duotone and
-  multichannel -- instead of raising or misreading the channels. The six
-  functions in ``psd_tools.composite.blend`` gain an optional colour-mode
-  argument, supplied by the new ``get_blend_func()``; ``BLEND_FUNC`` is
-  unchanged (#735, #746)
+  documents Photoshop does not offer them on -- grayscale, duotone,
+  multichannel, and any other width -- instead of raising or misreading the
+  channels. The six functions in ``psd_tools.composite.blend`` gain an
+  optional colour-mode argument from the new ``get_blend_func()``
+  (#735, #746)
 - [fix] Convert a single-channel *source* to the document's colour mode instead
   of replicating it, as #722 already did for a backdrop. Affects a one-channel
   source in a CMYK or Lab document (#749, #776, #777)
 - [security] Size the ``max_alloc_bytes`` guard against what ``numpy()`` and
   ``topil()`` peak at rather than the array they return -- up to 3.7x the old
-  estimate. Re-check a tuned budget: it admits and rejects different documents
-  in both directions (#767)
+  estimate. Re-check a tuned budget -- ``max_alloc_bytes`` or
+  ``$PSD_TOOLS_MAX_ALLOC_BYTES`` -- since it admits and rejects different
+  documents in both directions (#767)
 - [fix] Read and write a 1-bit (Bitmap mode) document at the row stride the
   format uses. ``numpy()`` and ``composite(ignore_preview=True)`` raised
   ``ValueError`` at most widths, and re-encoding sheared the image by a byte a
@@ -36,14 +37,16 @@ Changelog
 - [fix] Give the ``max_alloc_bytes`` estimate a depth term, so a 1-bit document
   can no longer allocate eight times its budget (GHSA-8q6g-vjhf-jp8m).
   ``_safe_zlib_decompress()`` now enforces the ceiling it documents, and
-  :py:func:`psd_tools.compression.decompressed_size_bound` is public
-  (#737, #769)
+  :py:func:`psd_tools.compression.decompressed_size_bound` is public. The
+  depth-1 arithmetic itself is superseded later in this release, at source by
+  #768 and on both image-data paths by #767 (#737, #769)
 - [fix] Replace a failed channel with exactly the byte count it declares. The
   substituted black fill picked its PIL mode from the depth, so a 16-bit
   channel came back double-width (#737, #769)
 - [fix] Split a pattern's alpha off by its slot layout rather than by its
   colour mode, so a multichannel-mode pattern composites instead of raising
-  ``AssertionError``. Rendering is unchanged for every pattern layout in the
+  ``AssertionError`` -- as does any pattern storing fewer colour planes than
+  its mode implies. Rendering is unchanged for every pattern layout in the
   corpus and in the patterns Photoshop ships (#741)
 - [fix] Convert a CMYK fill descriptor through ink space, so it no longer
   renders black on every non-CMYK document. A CMYK document was unaffected
@@ -77,8 +80,7 @@ Changelog
   :py:func:`~psd_tools.color_convert.lab_to_rgb` and
   :py:func:`~psd_tools.color_convert.rgb_to_lab` (D50, Bradford-adapted sRGB)
   and a reference page. **Backwards incompatible** in what it renders, for two
-  cases no Photoshop file can contain; the reduction curve also moves for a Lab
-  fill on a grayscale, bitmap, duotone or multichannel document (#743, #752)
+  cases no Photoshop file can contain (#743, #752)
 - [fix] Read a Lab fill colour with the right divisor for each component --
   all three were divided by 255 -- which was out by up to 155/255. Affects
   fills authored with a Lab colour on a Lab document, which is how Pantone and

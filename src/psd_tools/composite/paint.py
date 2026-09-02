@@ -52,6 +52,10 @@ def _clamp01(value: float) -> float:
     -- an effect, a partial alpha, an anti-aliased vector edge -- the
     out-of-range component has already corrupted the arithmetic (#757).
 
+    ``composite_pil()``'s uint8 cast clips as of #757 and would saturate these
+    too, but the two guards are independent on purpose -- do not drop this one
+    on the strength of that one.
+
     Applied where the untrusted number enters rather than inside
     ``color_convert``, so those conversions keep their documented ``[0, 1]``
     input contracts. Saturation and brightness never arrive here;
