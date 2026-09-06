@@ -503,6 +503,13 @@ class HueSaturation(BaseElement):
     .. py:attribute:: colorization
     .. py:attribute:: master
     .. py:attribute:: items
+    .. py:attribute:: unknown
+
+        Whatever the block carries after the six range records, kept as
+        ``bytes`` so a write reproduces it. Photoshop writes 136 bytes here
+        where the documented fields account for 100; the remaining 36 are six
+        ``(hue, 100, 50)`` triples, one per range, whose hue is the midpoint of
+        that range's inner band. Older files stop at 100 and leave this empty.
     """
 
     version: int = 2
@@ -510,6 +517,7 @@ class HueSaturation(BaseElement):
     colorization: tuple = (0,)
     master: tuple = (0,)
     items: list = field(factory=list, converter=list)
+    unknown: bytes = field(default=b"", repr=False)
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
@@ -528,6 +536,7 @@ class HueSaturation(BaseElement):
             colorization=colorization,
             master=master,
             items=items,
+            unknown=fp.read(),
         )  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
@@ -537,6 +546,7 @@ class HueSaturation(BaseElement):
         for item in self.items:
             written += write_fmt(fp, "4h", *item[0])
             written += write_fmt(fp, "3h", *item[1])
+        written += write_bytes(fp, self.unknown)
         written += write_padding(fp, written, 4)
         return written
 
