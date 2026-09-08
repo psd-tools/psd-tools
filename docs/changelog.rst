@@ -7,7 +7,7 @@ Changelog
 - [fix] Draw a centered stroke effect its full width. Every odd stroke size
   fell one pixel short on each side of the layer edge, because the dilation
   radius was truncated rather than rounded up. **Rendering change** for a layer
-  carrying a centered stroke of odd size (#792)
+  carrying a centered stroke of odd size (#792, #796)
 - [fix] Draw the part of an outset or centered stroke effect that falls outside
   the layer, rather than clipping it to the layer's bounding box -- on a layer
   whose pixels reach that box, the whole stroke was lost. **Rendering change**
