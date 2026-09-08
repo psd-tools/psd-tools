@@ -52,6 +52,7 @@ automatically applied when rendering layers that have effects enabled.
 """
 
 import logging
+import math
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -65,6 +66,40 @@ if TYPE_CHECKING:
     from psd_tools.api.protocols import PSDProtocol
 
 logger = logging.getLogger(__name__)
+
+# How far a stroke reaches outside the layer, as a fraction of its nominal
+# size. Only the inset style stays within the layer; the other two spill past
+# its bounding box and need canvas of their own to be drawn on.
+_OUTWARD_REACH = {
+    Enum.OutsetFrame: 1.0,
+    Enum.CenteredFrame: 0.5,
+    Enum.InsetFrame: 0.0,
+}
+
+
+def stroke_bbox(
+    bbox: tuple[int, int, int, int], desc: Descriptor
+) -> tuple[int, int, int, int]:
+    """The canvas :py:func:`draw_stroke_effect` needs to draw a stroke on.
+
+    The stroke is drawn by dilating the layer's edge, so an outset or centered
+    stroke lands partly outside ``bbox``. Drawing it on ``bbox`` itself has no
+    room for that part and silently discards it -- for a layer whose pixels
+    fill its bounding box, that is the whole stroke (#792). Growing the box by
+    the stroke's outward reach gives the dilation somewhere to land.
+
+    An empty ``bbox`` is returned untouched: there is no edge to trace, and
+    growing it would place a stroke around the origin.
+    """
+    if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
+        return bbox
+    reach = _OUTWARD_REACH.get(desc.get(Key.Style).enum, 1.0)
+    if reach == 0.0:
+        return bbox
+    # ceil() because a fractional stroke still covers the pixel it falls in,
+    # and +1 for the one-pixel spread of the edge filter itself.
+    margin = math.ceil(float(desc.get(Key.SizeKey, 1.0)) * reach) + 1
+    return (bbox[0] - margin, bbox[1] - margin, bbox[2] + margin, bbox[3] + margin)
 
 
 @require_skimage

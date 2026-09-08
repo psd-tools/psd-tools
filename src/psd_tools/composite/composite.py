@@ -16,7 +16,7 @@ from psd_tools.api.utils import check_pixel_size, get_color_channels
 from psd_tools.composite import paint, utils, vector
 from psd_tools.composite.adjustments import ADJUSTMENT_FUNC
 from psd_tools.composite.blend import get_blend_func
-from psd_tools.composite.effects import draw_stroke_effect
+from psd_tools.composite.effects import draw_stroke_effect, stroke_bbox
 from psd_tools.composite.widen import make_widen
 from psd_tools.constants import (
     BlendMode,
@@ -1475,12 +1475,17 @@ class Compositor(object):
             # allocate is discarded by the very next line.
             if not isinstance(shape, np.ndarray):
                 shape = np.broadcast_to(np.float32(shape), (self.height, self.width, 1))
-            # Effect must happen at the layer viewport.
-            shape_in_bbox = paste(layer.bbox, self._viewport, shape)
+            # Effect must happen at the layer viewport, grown so an outset or
+            # centered stroke has room for the part of itself that falls
+            # outside the layer (#792).
+            bbox = stroke_bbox(layer.bbox, effect.value)
+            if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
+                continue
+            shape_in_bbox = paste(bbox, self._viewport, shape)
             color, shape_in_bbox = draw_stroke_effect(
-                layer.bbox, shape_in_bbox, effect.value, layer._psd
+                bbox, shape_in_bbox, effect.value, layer._psd
             )
-            color = paste(self._viewport, layer.bbox, color)
-            shape = paste(self._viewport, layer.bbox, shape_in_bbox)
+            color = paste(self._viewport, bbox, color)
+            shape = paste(self._viewport, bbox, shape_in_bbox)
             opacity = effect.opacity / 100.0
             self._apply_source(color, shape, shape * opacity, effect.blend_mode)
