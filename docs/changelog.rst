@@ -4,7 +4,7 @@ Changelog
 1.19.1 (unreleased)
 -------------------
 
-- [fix] Draw a centered stroke effect its full width. Every odd stroke size
+- [fix] Draw a centered stroke effect at its full width. Every odd stroke size
   fell one pixel short on each side of the layer edge, because the dilation
   radius was truncated rather than rounded up. **Rendering change** for a layer
   carrying a centered stroke of odd size (#792, #796)

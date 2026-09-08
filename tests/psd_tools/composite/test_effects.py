@@ -83,21 +83,43 @@ def test_outside_stroke_fills_expanded_viewport() -> None:
 # an implementation that truncated instead reached 1 px for every odd size.
 _CENTERED_REACH = {1: 1, 2: 1, 3: 2, 5: 3, 7: 4}
 
+# How far around a square to look when measuring its stroke. Wide enough that
+# no stroke here fills it -- _outward_reach() asserts that, because a window
+# the coverage touches reports a lower bound rather than a measurement.
+_PAD = 12
+
 
 def _outward_reach(
     alpha: np.ndarray, bbox: tuple[int, int, int, int]
 ) -> tuple[int, int, int, int]:
-    """How far non-zero alpha extends past ``bbox``, per side."""
+    """How far non-zero alpha extends past ``bbox``, per side.
+
+    Measured in absolute coordinates within a window ``_PAD`` px around
+    ``bbox``. The window is clamped to the canvas, since a negative slice bound
+    would otherwise index from the far edge and quietly measure another square.
+    """
     left, top, right, bottom = bbox
-    pad = 12
-    region = alpha[top - pad : bottom + pad, left - pad : right + pad]
-    ys, xs = np.nonzero(region)
-    return (
-        int(pad - xs.min()),
-        int(pad - ys.min()),
-        int(xs.max() + 1 - (pad + right - left)),
-        int(ys.max() + 1 - (pad + bottom - top)),
+    height, width = alpha.shape
+    x0, y0 = max(left - _PAD, 0), max(top - _PAD, 0)
+    x1, y1 = min(right + _PAD, width), min(bottom + _PAD, height)
+    assert (left - x0, top - y0, x1 - right, y1 - bottom) == (_PAD,) * 4, (
+        f"{bbox} sits within {_PAD} px of the canvas edge, so the window that "
+        f"measures it is clipped and the reach it reports is a lower bound"
     )
+
+    ys, xs = np.nonzero(alpha[y0:y1, x0:x1])
+    assert len(xs), f"no coverage at all within {_PAD} px of {bbox}"
+    reach = (
+        left - (x0 + int(xs.min())),
+        top - (y0 + int(ys.min())),
+        (x0 + int(xs.max()) + 1) - right,
+        (y0 + int(ys.max()) + 1) - bottom,
+    )
+    assert max(reach) < _PAD, (
+        f"coverage reaches the edge of the measuring window around {bbox}, so "
+        f"{reach} is a lower bound rather than the real reach"
+    )
+    return reach
 
 
 def test_centered_stroke_reach_matches_photoshop() -> None:
