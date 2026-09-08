@@ -144,7 +144,10 @@ def draw_stroke_effect(
         size *= 2
 
     edges = filters.scharr(shape[:, :, 0])
-    pen = disk(int(size / 2.0 - 1))
+    # Rounded up rather than truncated: the doubling above leaves an outset or
+    # inset radius whole, but a centered one keeps its half pixel, and dropping
+    # that drew every odd centered stroke a pixel short per side (#792).
+    pen = disk(math.ceil(size / 2.0 - 1))
     mask = (
         filters.rank.maximum((255 * edges).astype(np.uint8), pen).astype(np.float32)
         / 255.0
