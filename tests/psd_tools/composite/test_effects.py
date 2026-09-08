@@ -1,5 +1,6 @@
 import logging
 
+import numpy as np
 import pytest
 
 from psd_tools.api.psd_image import PSDImage
@@ -74,3 +75,86 @@ def test_outside_stroke_fills_expanded_viewport() -> None:
     assert image is not None
     assert image.size == (22, 22)
     assert image.getchannel("A").getbbox() == (0, 0, 22, 22)
+
+
+# How far a centered stroke of each nominal size reaches outside the layer, read
+# off Photoshop's own render of ``center-stroke-sizes.psd``. The progression is
+# ceil(size / 2), which is what makes it a formula rather than one measurement:
+# an implementation that truncated instead reached 1 px for every odd size.
+_CENTERED_REACH = {1: 1, 2: 1, 3: 2, 5: 3, 7: 4}
+
+# How far around a square to look when measuring its stroke. Wide enough that
+# no stroke here fills it -- _outward_reach() asserts that, because a window
+# the coverage touches reports a lower bound rather than a measurement.
+_PAD = 12
+
+
+def _outward_reach(
+    alpha: np.ndarray, bbox: tuple[int, int, int, int]
+) -> tuple[int, int, int, int]:
+    """How far non-zero alpha extends past ``bbox``, per side.
+
+    Measured in absolute coordinates within a window ``_PAD`` px around
+    ``bbox``. The window is clamped to the canvas, since a negative slice bound
+    would otherwise index from the far edge and quietly measure another square.
+    """
+    left, top, right, bottom = bbox
+    height, width = alpha.shape
+    x0, y0 = max(left - _PAD, 0), max(top - _PAD, 0)
+    x1, y1 = min(right + _PAD, width), min(bottom + _PAD, height)
+    assert (left - x0, top - y0, x1 - right, y1 - bottom) == (_PAD,) * 4, (
+        f"{bbox} sits within {_PAD} px of the canvas edge, so the window that "
+        f"measures it is clipped and the reach it reports is a lower bound"
+    )
+
+    ys, xs = np.nonzero(alpha[y0:y1, x0:x1])
+    assert len(xs), f"no coverage at all within {_PAD} px of {bbox}"
+    reach = (
+        left - (x0 + int(xs.min())),
+        top - (y0 + int(ys.min())),
+        (x0 + int(xs.max()) + 1) - right,
+        (y0 + int(ys.max()) + 1) - bottom,
+    )
+    assert max(reach) < _PAD, (
+        f"coverage reaches the edge of the measuring window around {bbox}, so "
+        f"{reach} is a lower bound rather than the real reach"
+    )
+    return reach
+
+
+def test_centered_stroke_reach_matches_photoshop() -> None:
+    """A centered stroke straddles the layer edge as far as Photoshop's (#792).
+
+    ``center-stroke-sizes.psd`` holds five squares carrying centered strokes of
+    1, 2, 3, 5 and 7 px. Every side of every square is checked against the same
+    measurement taken from Photoshop's own render of the file, so this pins the
+    whole progression rather than a single size -- the defect it covers was a
+    truncated dilation radius, which was correct at 1, 2 and 4 px and wrong at
+    every odd size above.
+    """
+    psd = PSDImage.open(full_name("effects/center-stroke-sizes.psd"))
+    preview = psd.topil()
+    composited = psd.composite(ignore_preview=True)
+    assert preview is not None and composited is not None
+    reference = np.asarray(preview.convert("RGBA"), dtype=np.uint8)[:, :, 3]
+    result = np.asarray(composited.convert("RGBA"), dtype=np.uint8)[:, :, 3]
+
+    measured = {}
+    for layer in psd:
+        strokes = list(layer.effects.find("stroke"))
+        if not strokes:  # The empty layer the document was created with.
+            continue
+        # Effects.find() is typed as the base _Effect; ``size`` lives on the
+        # concrete Stroke class it actually returns.
+        size = int(getattr(strokes[0], "size"))
+        expected = _outward_reach(reference, layer.bbox)
+        assert expected == (_CENTERED_REACH[size],) * 4, (
+            f"Photoshop's own render of the {size} px stroke moved"
+        )
+        assert _outward_reach(result, layer.bbox) == expected, (
+            f"{size} px centered stroke does not reach as far as Photoshop's"
+        )
+        measured[size] = expected[0]
+    assert measured == _CENTERED_REACH
+
+    check_composite_quality("effects/center-stroke-sizes.psd", threshold=0.01)
