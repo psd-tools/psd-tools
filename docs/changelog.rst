@@ -7,7 +7,7 @@ Changelog
 - [fix] Draw the part of an outset or centered stroke effect that falls outside
   the layer, rather than clipping it to the layer's bounding box -- on a layer
   whose pixels reach that box, the whole stroke was lost. **Rendering change**
-  for any layer carrying an outset or centered stroke (#792)
+  for any layer carrying an outset or centered stroke (#792, #795)
 
 1.19.0 (2026-09-02)
 -------------------
