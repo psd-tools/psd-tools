@@ -547,7 +547,6 @@ class HueSaturation(BaseElement):
             written += write_fmt(fp, "4h", *item[0])
             written += write_fmt(fp, "3h", *item[1])
         written += write_bytes(fp, self.unknown)
-        written += write_padding(fp, written, 4)
         return written
 
 
