@@ -132,6 +132,14 @@ def test_hue_saturation_rw(trailer: bytes) -> None:
     check_read_write(HueSaturation, hue_saturation_block(trailer))
 
 
+# A trailer that leaves the block off a 4-byte boundary has to come back the
+# length it went in: `unknown` already holds whatever padding its producer
+# wrote, so the write path must not add any of its own.
+@pytest.mark.parametrize("trailer", [b"\x00\x00", b"\x00\x00\x00"])
+def test_hue_saturation_unaligned_trailer_rw(trailer: bytes) -> None:
+    check_read_write(HueSaturation, hue_saturation_block(trailer))
+
+
 def test_hue_saturation_keeps_trailing_bytes() -> None:
     block = hue_saturation_block(HUE_SATURATION_TRAILER)
     assert len(block) == 136
