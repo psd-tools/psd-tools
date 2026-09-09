@@ -1,10 +1,17 @@
 from typing import List, Tuple
 import logging
 import os
+import struct
 
 import pytest
 
-from psd_tools.psd.adjustments import Curves, CurvesExtraItem, CurvesExtraMarker, Levels
+from psd_tools.psd.adjustments import (
+    Curves,
+    CurvesExtraItem,
+    CurvesExtraMarker,
+    HueSaturation,
+    Levels,
+)
 
 from ..utils import TEST_ROOT, check_read_write, check_write_read
 
@@ -91,3 +98,49 @@ def test_levels_r(filename: str) -> None:
     filepath = os.path.join(TEST_ROOT, "tagged_blocks", filename)
     with open(filepath, "rb") as f:
         assert isinstance(Levels.read(f), Levels)
+
+
+# The six range records every 'hue2' block has carried since Photoshop 5.0:
+# four range values (outer start, inner start, inner end, outer end) and three
+# settings (hue, saturation, lightness).
+HUE_SATURATION_RANGES = (
+    (315, 345, 15, 45),
+    (15, 45, 75, 105),
+    (75, 105, 135, 165),
+    (135, 165, 195, 225),
+    (195, 225, 255, 285),
+    (255, 285, 315, 345),
+)
+
+# What Photoshop writes after those records, taken from
+# psd_files/adjustments/huesaturation_colorize_rgb.psd: one (hue, 100, 50)
+# triple per range, hue at the midpoint of that range's inner band.
+HUE_SATURATION_TRAILER = struct.pack(
+    ">18h", *[v for hue in (0, 60, 120, 180, 240, 300) for v in (hue, 100, 50)]
+)
+
+
+def hue_saturation_block(trailer: bytes = b"") -> bytes:
+    data = struct.pack(">HBx3h3h", 2, 1, -118, 45, 14, 0, 0, 0)
+    for range_values in HUE_SATURATION_RANGES:
+        data += struct.pack(">4h3h", *range_values, 0, 0, 0)
+    return data + trailer
+
+
+@pytest.mark.parametrize("trailer", [b"", HUE_SATURATION_TRAILER])
+def test_hue_saturation_rw(trailer: bytes) -> None:
+    check_read_write(HueSaturation, hue_saturation_block(trailer))
+
+
+# A trailer that leaves the block off a 4-byte boundary has to come back the
+# length it went in: `unknown` already holds whatever padding its producer
+# wrote, so the write path must not add any of its own.
+@pytest.mark.parametrize("trailer", [b"\x00\x00", b"\x00\x00\x00"])
+def test_hue_saturation_unaligned_trailer_rw(trailer: bytes) -> None:
+    check_read_write(HueSaturation, hue_saturation_block(trailer))
+
+
+def test_hue_saturation_keeps_trailing_bytes() -> None:
+    block = hue_saturation_block(HUE_SATURATION_TRAILER)
+    assert len(block) == 136
+    assert HueSaturation.frombytes(block).unknown == HUE_SATURATION_TRAILER
