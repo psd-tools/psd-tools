@@ -14,8 +14,8 @@ Changelog
   for any layer carrying an outset or centered stroke (#792, #795)
 - [fix] Keep the 36 bytes Photoshop writes after a Hue/Saturation layer's six
   range records instead of dropping them on write. Affects you if you re-save a
-  file whose Hue/Saturation layers were made by a recent Photoshop; the saved
-  block shrank from 136 bytes to 100 (#645)
+  file whose Hue/Saturation layers were made by a recent Photoshop; without this
+  fix the saved block would shrink from 136 bytes to 100 (#645)
 
 1.19.0 (2026-09-02)
 -------------------
