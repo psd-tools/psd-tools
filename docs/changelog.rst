@@ -7,7 +7,7 @@ Changelog
 - [fix] Trace every stroke effect from the layer. The second stroke on a layer
   outlined the first stroke instead of the layer, which left its own ring
   unpainted and painted over the first. **Rendering change** for a layer
-  carrying more than one stroke effect (#798)
+  carrying more than one stroke effect (#798, #801)
 - [fix] Draw a centered stroke effect at its full width. Every odd stroke size
   fell one pixel short on each side of the layer edge, because the dilation
   radius was truncated rather than rounded up. **Rendering change** for a layer
