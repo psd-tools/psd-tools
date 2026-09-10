@@ -4,6 +4,12 @@ Changelog
 1.19.1 (unreleased)
 -------------------
 
+- [fix] Draw outset and centered stroke effects as a band in the layer's
+  distance field rather than a dilated edge, placing them where Photoshop does
+  on a hard-edged layer and no longer quantizing the width to whole pixels.
+  **Rendering change** for any layer carrying an outset or centered stroke; a
+  soft-edged one may land slightly further from Photoshop than before, and the
+  inset style is unchanged (#799, #802)
 - [fix] Trace every stroke effect from the layer. The second stroke on a layer
   outlined the first stroke instead of the layer, which left its own ring
   unpainted and painted over the first. **Rendering change** for a layer

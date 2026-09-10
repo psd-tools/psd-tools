@@ -44,4 +44,5 @@ Effects Rendering
     :members:
 
 Layer effects rendering including strokes, shadows, and glows. Requires
-scikit-image for morphological operations.
+scipy for the distance transform that places strokes, and scikit-image for
+the edge filter the inset style still uses.
