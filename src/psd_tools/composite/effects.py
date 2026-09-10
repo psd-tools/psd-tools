@@ -7,9 +7,8 @@ layer styles). Effects are non-destructive visual enhancements applied to layers
 such as strokes, shadows, glows, and overlays.
 
 **Note**: Effects rendering requires scipy. It additionally requires
-scikit-image for the inset stroke style and for any pattern fill, so only a
-solid or gradient outset or centered stroke draws without it. Install both
-with::
+scikit-image for any pattern fill, so a solid or gradient stroke of any
+position draws without it. Install both with::
 
     pip install 'psd-tools[composite]'
 
@@ -72,7 +71,9 @@ logger = logging.getLogger(__name__)
 
 # How far a stroke reaches outside the layer, as a fraction of its nominal
 # size. Only the inset style stays within the layer; the other two spill past
-# its bounding box and need canvas of their own to be drawn on.
+# its bounding box and need canvas of their own to be drawn on. Inset still
+# gets the fixed pixel :py:func:`stroke_bbox` adds on top, which is not room
+# for the stroke but room for the edge it is measured from.
 _OUTWARD_REACH = {
     Enum.OutsetFrame: 1.0,
     Enum.CenteredFrame: 0.5,
@@ -91,18 +92,23 @@ def stroke_bbox(
     pixels fill its bounding box, that is the whole stroke (#792). Growing the
     box by the stroke's outward reach gives it somewhere to land.
 
+    An inset stroke lands wholly inside the layer and needs no room, but it is
+    still measured from the layer's edge, and on that same layer the edge is
+    not in the picture either: every pixel of ``bbox`` is covered, so there is
+    nothing to locate a boundary against and no stroke is drawn at all. The
+    fixed pixel every style gets on top of its reach is what puts the edge back
+    in view (#799).
+
     An empty ``bbox`` is returned untouched: there is no edge to trace, and
     growing it would place a stroke around the origin.
     """
     if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
         return bbox
     reach = _OUTWARD_REACH.get(desc.get(Key.Style).enum, 1.0)
-    if reach == 0.0:
-        return bbox
     # ceil() because a fractional stroke still covers the pixel it falls in.
-    # The +1 is slack: a band reaches exactly ceil(size * reach), and an
-    # unrecognised style falls through to the dilation path, whose edge filter
-    # spreads a pixel further. Inset never gets here, its reach being 0.
+    # The +1 is the uncovered pixel the edge is measured against, and doubles
+    # as slack for an unrecognised style, which falls through to the dilation
+    # path, whose edge filter spreads a pixel further than a band does.
     margin = math.ceil(float(desc.get(Key.SizeKey, 1.0)) * reach) + 1
     return (bbox[0] - margin, bbox[1] - margin, bbox[2] + margin, bbox[3] + margin)
 
@@ -124,7 +130,7 @@ def _signed_distance(alpha: np.ndarray) -> np.ndarray:
     """
     if not HAS_SCIPY:
         raise ImportError(
-            "Outset and centered stroke effects require: scipy\n\n"
+            "Stroke effects require: scipy\n\n"
             "Install with:\n"
             "    pip install 'psd-tools[composite]'\n"
             "Or:\n"
@@ -165,41 +171,35 @@ def _distance_band(distance: np.ndarray, lo: float, hi: float) -> np.ndarray:
 
 
 @require_skimage
-def _draw_dilated_edge(shape: np.ndarray, style: bytes, size: float) -> np.ndarray:
+def _draw_dilated_edge(shape: np.ndarray, size: float) -> np.ndarray:
     """Trace the layer by dilating a gradient-magnitude edge.
 
-    The original stroke primitive, kept for the inset style: it is anchored
-    differently from the other two and a symmetric distance band misses it by
-    about a pixel, which is a separate tracking item of #799. Any style
-    :py:func:`draw_stroke_effect` does not recognise lands here too.
+    The original stroke primitive, kept only for a stroke whose position
+    :py:func:`draw_stroke_effect` does not recognise -- all three Photoshop
+    writes are drawn as distance bands. It is approximate in ways no parameter
+    fixes: ``scharr`` locates the edge as a soft blob rather than a line, and
+    ``disk`` quantizes the radius to a whole pixel (#799).
 
     This is the only part of a stroke that still needs scikit-image, which is
-    why the decorator sits here rather than on the caller -- an outset or
-    centered stroke draws with scipy alone.
+    why the decorator sits here rather than on the caller -- a stroke Photoshop
+    can actually write draws with scipy alone.
     """
     from skimage import filters  # noqa: PLC0415
     from skimage.morphology import disk  # noqa: PLC0415
 
-    if style == Enum.InsetFrame:
-        size *= 2
-
     edges = filters.scharr(shape[:, :, 0])
     # Rounded up rather than truncated, which drew every odd stroke a pixel
-    # short per side (#792). Only inset reaches this now, so the doubling
-    # above always leaves the radius whole, but the ceil() still guards the
-    # unrecognised styles that fall through here undoubled.
+    # short per side (#792).
     pen = disk(math.ceil(size / 2.0 - 1))
     mask = (
         filters.rank.maximum((255 * edges).astype(np.uint8), pen).astype(np.float32)
         / 255.0
     )
+    # ``scharr`` returns a gradient magnitude, which peaks well below 1 on a
+    # soft edge, so the stroke has to be stretched to full opacity to read as
+    # one. ``min`` is always 0 here, leaving only the division to do anything.
     mask = utils.divide(mask - np.min(mask), np.max(mask) - np.min(mask))
-    mask = np.expand_dims(mask, 2)
-
-    if style == Enum.InsetFrame:
-        mask = np.maximum(0, mask * shape)
-
-    return mask
+    return np.expand_dims(mask, 2)
 
 
 def draw_stroke_effect(
@@ -236,14 +236,28 @@ def draw_stroke_effect(
     style = desc.get(Key.Style).enum
     size = float(desc.get(Key.SizeKey, 1.0))
 
-    # An outset or centered stroke is a band in the layer's signed distance
-    # field, which is exact on a hard-edged mask and needs no pen to quantize
-    # the radius to a whole pixel. Inset keeps the dilation below: it is
-    # anchored differently, and a symmetric band misses it by about a pixel
-    # (#799). Any style this does not name keeps the dilation too.
-    if style in (Enum.OutsetFrame, Enum.CenteredFrame):
-        limits = (0.0, size) if style == Enum.OutsetFrame else (-size / 2.0, size / 2.0)
+    # A stroke is a band in the layer's signed distance field, which is exact
+    # on a hard-edged mask and needs no pen to quantize the radius to a whole
+    # pixel. All three positions are the same band read off a different
+    # anchor, inset included: Photoshop measures it from the 0.5 iso-contour
+    # like the other two, and the pixel of offset that looked like a different
+    # anchor was the layer's edge being clipped away before the stroke saw it
+    # (#799). Any position this does not name keeps the dilation below.
+    #
+    # Where the boundary cuts a pixel the band already comes out equal to that
+    # pixel's own coverage, so an inset stroke needs no clamp to stay within
+    # the layer -- but a *feathered* mask ramps on past that pixel, and there
+    # the band paints 1.0 over coverage of less than 1. The dilation clamped
+    # it; the band does not, deliberately, because which of the two Photoshop
+    # does is #799's open question about soft-edged masks rather than
+    # something to settle by keeping whichever line was already there.
+    limits = {
+        Enum.OutsetFrame: (0.0, size),
+        Enum.InsetFrame: (-size, 0.0),
+        Enum.CenteredFrame: (-size / 2.0, size / 2.0),
+    }.get(style)
+    if limits is not None:
         distance = _signed_distance(shape[:, :, 0])
         return color, np.expand_dims(_distance_band(distance, *limits), 2)
 
-    return color, _draw_dilated_edge(shape, style, size)
+    return color, _draw_dilated_edge(shape, size)

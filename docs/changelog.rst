@@ -4,15 +4,19 @@ Changelog
 1.19.1 (unreleased)
 -------------------
 
+- [fix] Draw an inset stroke effect as a band too, anchored where Photoshop
+  anchors it, and grant it the pixel of canvas it needs to find the layer's
+  edge -- on a layer whose pixels filled its bounding box it drew nothing at
+  all. **Rendering change** for any layer carrying an inset stroke (#799, #805)
 - [fix] Draw outset and centered stroke effects as a band in the layer's
   distance field rather than a dilated edge, placing them where Photoshop does
   on a hard-edged layer and no longer quantizing the width to whole pixels.
   **Rendering change** for any layer carrying an outset or centered stroke; a
-  soft-edged one may land slightly further from Photoshop than before, and the
-  inset style is unchanged (#799, #802)
-- [fix] Draw outset and centered stroke effects without scikit-image
-  installed, as long as the fill is solid or a gradient. The inset style and
-  pattern fills still need it (#799, #802, #803)
+  soft-edged one may land slightly further from Photoshop than before
+  (#799, #802)
+- [fix] Draw stroke effects without scikit-image installed, as long as the
+  fill is solid or a gradient. Pattern fills still need it
+  (#799, #802, #803, #805)
 - [fix] Trace every stroke effect from the layer. The second stroke on a layer
   outlined the first stroke instead of the layer, which left its own ring
   unpainted and painted over the first. **Rendering change** for a layer

@@ -44,5 +44,5 @@ Effects Rendering
     :members:
 
 Layer effects rendering including strokes, shadows, and glows. Requires
-scipy for the distance transform that places outset and centered strokes, and
-scikit-image for pattern fills and for the edge filter the inset style uses.
+scipy for the distance transform that places a stroke of any position, and
+scikit-image for pattern fills.

@@ -10,8 +10,10 @@ from psd_tools.composite.effects import (
     _OUTWARD_REACH,
     _distance_band,
     _signed_distance,
+    stroke_bbox,
 )
-from psd_tools.terminology import Enum
+from psd_tools.psd.descriptor import Descriptor, Double, Enumerated
+from psd_tools.terminology import Enum, Key, Klass
 
 from ..utils import full_name
 from .test_composite import check_composite_quality
@@ -172,6 +174,94 @@ def test_centered_stroke_reach_matches_photoshop() -> None:
     check_composite_quality("effects/center-stroke-sizes.psd", threshold=0.01)
 
 
+# How deep an inset stroke of each nominal size reaches into the layer, read
+# off Photoshop's own render of ``inset-stroke-sizes.psd``. The progression is
+# the size itself, unrounded: the ring is exactly as many pixels thick as the
+# stroke asks for, which is what makes the anchor a measurement rather than a
+# fit. An anchor half a pixel out lands the ring on a fractional coverage
+# instead, and one a whole pixel out changes every number in the table.
+_INSET_DEPTH = {1: 1, 2: 2, 3: 3, 5: 5, 7: 7}
+
+
+def _inward_depth(
+    stroke: np.ndarray, bbox: tuple[int, int, int, int]
+) -> tuple[int, ...]:
+    """How far solid stroke runs inward from each side of ``bbox``.
+
+    Measured along the middle row and column, so the count is the thickness of
+    one side of the ring rather than anything about its corners.
+    """
+    left, top, right, bottom = bbox
+    row, column = stroke[(top + bottom) // 2], stroke[:, (left + right) // 2]
+
+    def run(values: np.ndarray) -> int:
+        outside = np.flatnonzero(~values)
+        return int(outside[0]) if len(outside) else len(values)
+
+    return (
+        run(row[left:right]),
+        run(column[top:bottom]),
+        run(row[left:right][::-1]),
+        run(column[top:bottom][::-1]),
+    )
+
+
+def test_inset_stroke_depth_matches_photoshop() -> None:
+    """An inset stroke reaches as far into the layer as Photoshop's (#799).
+
+    ``inset-stroke-sizes.psd`` sweeps inset sizes the way
+    ``center-stroke-sizes.psd`` sweeps centered ones: five 16x16 squares
+    carrying inset strokes of 1, 2, 3, 5 and 7 px. It is the fixture that
+    settles where Photoshop anchors an inset stroke, which #799 opened
+    undecided -- the one hard-edged inset in the corpus before it appeared
+    measured a *clipped* layer, and made the anchor look a pixel out.
+
+    The whole progression is pinned rather than one size, because the anchors
+    that were candidates differ from this one by a constant: half a pixel out
+    and every ring picks up a fractional edge, a pixel out and every ring is
+    the wrong thickness. Each of those four shifts fails this test.
+
+    It pins the anchor and not the primitive, though: put the dilation back
+    and the blob it draws still crosses this threshold at the same depth for
+    all five sizes. What separates the two is
+    :py:func:`test_hard_edged_stroke_matches_photoshop`, which reads every
+    pixel rather than the depth of one run.
+    """
+    psd = PSDImage.open(full_name("effects/inset-stroke-sizes.psd"))
+    preview = psd.topil(apply_icc=False)
+    composited = psd.composite(ignore_preview=True, apply_icc=False)
+    assert preview is not None and composited is not None
+    # The stroke is the only red in the file, the squares under it being blue.
+    reference = np.asarray(preview.convert("RGB"), dtype=np.int16)[:, :, 0] > 128
+    result = np.asarray(composited.convert("RGB"), dtype=np.int16)[:, :, 0] > 128
+
+    measured = {}
+    for layer in psd:
+        strokes = list(layer.effects.find("stroke"))
+        if not strokes:  # The empty layer the document was created with.
+            continue
+        # Effects.find() is typed as the base _Effect; ``size`` lives on the
+        # concrete Stroke class it actually returns.
+        size = int(getattr(strokes[0], "size"))
+        # The square fills its bounding box, so the layer has no uncovered
+        # pixel of its own to measure an edge against. That is what made an
+        # inset stroke vanish entirely until stroke_bbox() granted it one.
+        coverage = layer.numpy("shape")
+        assert coverage is not None and bool((coverage == 1.0).all()), (
+            f"the {size} px square no longer covers its own bounding box, so "
+            f"it no longer exercises the missing boundary pixel"
+        )
+        expected = _inward_depth(reference, layer.bbox)
+        assert expected == (_INSET_DEPTH[size],) * 4, (
+            f"Photoshop's own render of the {size} px stroke moved"
+        )
+        assert _inward_depth(result, layer.bbox) == expected, (
+            f"{size} px inset stroke does not reach as deep as Photoshop's"
+        )
+        measured[size] = expected[0]
+    assert measured == _INSET_DEPTH
+
+
 def test_second_stroke_traces_the_layer() -> None:
     """Every stroke effect outlines the layer, not the stroke before it (#798).
 
@@ -217,24 +307,28 @@ def test_second_stroke_traces_the_layer() -> None:
     [
         ("effects/outside-stroke.psd",),
         ("effects/center-stroke-sizes.psd",),
+        ("effects/inset-stroke-sizes.psd",),
+        ("effects/double-stroke-effects.psd",),
     ],
 )
 def test_hard_edged_stroke_matches_photoshop(filename: str) -> None:
     """A stroke on a hard-edged mask lands where Photoshop puts it (#799).
 
-    Both files are squares with no partial alpha anywhere, so the boundary the
-    stroke is measured from is a fact rather than a modelling choice. Every
+    Every file here is squares with no partial alpha anywhere, so the boundary
+    the stroke is measured from is a fact rather than a modelling choice. Every
     straight run of the stroke then matches Photoshop to the bit, because a
     ramp that is linear in distance is the exact area of a pixel cut by a
     straight edge. What is left is the corner arcs, where that ramp is only an
-    approximation of a curved cut: 16 pixels of 1024 and 24 of 9216, differing
-    by up to 0.073 and 0.110 coverage, which is why this asserts 1e-4 rather
-    than equality.
+    approximation of a curved cut: 16 pixels of 1024 in the outset file and 24
+    of 9216 in the centered one, differing by up to 0.073 and 0.110 coverage,
+    which is why this asserts 1e-4 rather than equality.
 
-    That is still 60x and 30x under what these scored when the stroke was a
+    That is still 60x and 30x under what those two scored when the stroke was a
     dilated ``scharr`` edge -- 0.00626 and 0.00326 -- so the threshold
     separates the band from an approximation of it, which the 0.01 used
-    elsewhere would not.
+    elsewhere would not. The two inset files have no arc to approximate at all,
+    an inset offset of a convex polygon being another polygon, and reproduce
+    Photoshop bit for bit.
     """
     check_composite_quality(filename, threshold=1e-4)
 
@@ -279,6 +373,8 @@ def test_distance_band_covers_its_width_on_a_pixel_boundary() -> None:
     for width in (0.5, 1.0, 1.5, 2.0, 2.5, 3.0):
         outset = float(_distance_band(distance, 0.0, width).sum())
         assert outset == pytest.approx(width), f"outset stroke of {width} px"
+        inset = float(_distance_band(distance, -width, 0.0).sum())
+        assert inset == pytest.approx(width), f"inset stroke of {width} px"
         centered = float(_distance_band(distance, -width / 2.0, width / 2.0).sum())
         assert centered == pytest.approx(width), f"centered stroke of {width} px"
 
@@ -296,6 +392,67 @@ def test_centered_band_straddles_the_edge_evenly() -> None:
     band = _distance_band(distance, -1.5, 1.5)[0]
     assert float(band[:6].sum()) == pytest.approx(1.5), "coverage inside the layer"
     assert float(band[6:].sum()) == pytest.approx(1.5), "coverage outside the layer"
+
+
+def _stroke_descriptor(style: bytes, size: float) -> Descriptor:
+    """The two keys :py:func:`draw_stroke_effect` reads to place a stroke."""
+    color = Descriptor(classID=Klass.RGBColor.value)
+    color[Key.Red] = Double(255.0)
+    color[Key.Green] = Double(0.0)
+    color[Key.Blue] = Double(0.0)
+    desc = Descriptor(classID=b"FrFX")
+    desc[Key.Style] = Enumerated(typeID=b"FStl", enum=style)
+    desc[Key.SizeKey] = Double(size)
+    desc[Key.PaintType] = Enumerated(typeID=b"FrFl", enum=Enum.SolidColor)
+    desc[Key.Color] = color
+    return desc
+
+
+def test_inset_band_sits_wholly_inside_the_layer() -> None:
+    """An inset stroke puts all of its width on the layer's side of the edge.
+
+    The counterpart of the centered assertion above. Both name their limits
+    outright, so what they pin is the primitive -- all three positions are one
+    band and only the anchor tells them apart -- and not which limits
+    :py:func:`draw_stroke_effect` picks, which the fixtures cover. Asserted
+    apart from the total width, because an anchor a pixel out still totals the
+    right coverage while hanging off the edge of the layer.
+    """
+    alpha = np.zeros((1, 12), dtype=np.float32)
+    alpha[:, :6] = 1.0
+    distance = _signed_distance(alpha)
+    band = _distance_band(distance, -3.0, 0.0)[0]
+    assert float(band[:6].sum()) == pytest.approx(3.0), "coverage inside the layer"
+    assert float(band[6:].sum()) == 0.0, "coverage outside the layer"
+
+
+@pytest.mark.parametrize("size", [1.0, 2.0, 3.0, 7.0])
+def test_stroke_bbox_grants_the_inset_the_pixel_it_measures_from(size: float) -> None:
+    """An inset stroke needs canvas too, for the edge rather than the stroke.
+
+    A layer whose pixels fill its bounding box -- a filled rectangle, which is
+    what ``inset-stroke-sizes.psd`` is made of -- offers the band no uncovered
+    pixel to locate a boundary against, and ``_signed_distance`` correctly
+    reports the whole box as boundaryless. The stroke then vanishes outright,
+    which is the inset twin of the outset clipping #792 fixed. One pixel is
+    both necessary and enough: the distance to the nearest uncovered pixel does
+    not change once the first ring of them is there.
+    """
+    desc = _stroke_descriptor(Enum.InsetFrame, size)
+    bbox = (10, 10, 30, 30)
+    assert stroke_bbox(bbox, desc) == (9, 9, 31, 31)
+
+    filled = np.ones((bbox[3] - bbox[1], bbox[2] - bbox[0]), dtype=np.float32)
+    assert float(_distance_band(_signed_distance(filled), -size, 0.0).sum()) == 0.0
+
+    granted = np.zeros((filled.shape[0] + 2, filled.shape[1] + 2), dtype=np.float32)
+    granted[1:-1, 1:-1] = filled
+    band = _distance_band(_signed_distance(granted), -size, 0.0)
+    # The ring of a 20x20 square: the whole square once the stroke is wide
+    # enough to close over the middle, and four sides of ``size`` px until then.
+    expected = 20**2 - max(20 - 2 * size, 0) ** 2
+    assert float(band.sum()) == pytest.approx(expected)
+    assert float(band[0].sum()) == 0.0, "the stroke spilled onto the granted pixel"
 
 
 @pytest.mark.parametrize("size", [0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 7.0, 7.5, 10.0])
@@ -317,6 +474,7 @@ def test_band_fits_the_canvas_stroke_bbox_asks_for(size: float) -> None:
 
     for style, limits in (
         (Enum.OutsetFrame, (0.0, size)),
+        (Enum.InsetFrame, (-size, 0.0)),
         (Enum.CenteredFrame, (-size / 2.0, size / 2.0)),
     ):
         band = _distance_band(distance, *limits)
@@ -385,22 +543,26 @@ def test_a_feathered_mask_keeps_its_stroke_at_the_boundary() -> None:
 def test_band_strokes_draw_without_scikit_image(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A solid outset or centered stroke needs scipy, not scikit-image (#802).
+    """A solid stroke of any position needs scipy, not scikit-image (#802).
 
-    Of the stroke itself, only the inset style's dilated edge still uses
-    scikit-image. While the whole of :py:func:`draw_stroke_effect` was gated on
-    it, a scipy-only install -- a platform with no scikit-image wheel, say --
-    failed to render *any* document carrying *any* stroke, because nothing
-    upstream catches the ImportError and turns it into a missing effect.
+    While the whole of :py:func:`draw_stroke_effect` was gated on
+    scikit-image, a scipy-only install -- a platform with no scikit-image
+    wheel, say -- failed to render *any* document carrying *any* stroke,
+    because nothing upstream catches the ImportError and turns it into a
+    missing effect. #802 freed the outset and centered positions by drawing
+    them as bands, and inset joined them once its anchor was measured (#799),
+    so scikit-image is now down to the fallback for a position Photoshop does
+    not write.
 
     The paint is the other half of the answer, and it is why this says "solid":
     a stroke filled with a pattern goes through
     :py:func:`~psd_tools.composite.paint.draw_pattern_fill`, which needs
-    scikit-image whatever the style, so the last case here still raises.
+    scikit-image whatever the position, so the last case here still raises.
     """
     monkeypatch.setattr(_compat, "HAS_SKIMAGE", False)
     check_composite_quality("effects/outside-stroke.psd", threshold=1e-4)
     check_composite_quality("effects/center-stroke-sizes.psd", threshold=1e-4)
+    check_composite_quality("effects/inset-stroke-sizes.psd", threshold=1e-4)
 
     psd = PSDImage.open(full_name("effects/stroke-effects.psd"))
     pattern = next(layer for layer in psd.descendants() if layer.name == "Pattern")
@@ -416,11 +578,22 @@ def test_each_stroke_path_names_the_dependency_it_is_missing(
     Asserted because the obvious way to guard the band is ``@require_scipy``,
     whose message tells the reader to install scipy for *gradient fills* --
     accurate about the package and misleading about why.
+
+    Nothing Photoshop writes reaches the dilation any more, so its half is
+    driven by a descriptor naming a position that does not exist. That is the
+    only remaining caller, and a stroke it cannot draw is worth an install
+    instruction rather than a traceback about ``skimage``.
     """
+    shape = np.zeros((8, 8, 1), dtype=np.float32)
+    shape[2:6, 2:6] = 1.0
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+
     monkeypatch.setattr(_compat, "HAS_SKIMAGE", False)
     with pytest.raises(ImportError, match="scikit-image"):
-        check_composite_quality("effects/shape-fx2.psd", threshold=1.0)
+        effects.draw_stroke_effect(
+            (0, 0, 8, 8), shape, _stroke_descriptor(b"nope", 2.0), psd
+        )
 
     monkeypatch.setattr(effects, "HAS_SCIPY", False)
-    with pytest.raises(ImportError, match="stroke effects require: scipy"):
+    with pytest.raises(ImportError, match="Stroke effects require: scipy"):
         check_composite_quality("effects/outside-stroke.psd", threshold=1.0)
