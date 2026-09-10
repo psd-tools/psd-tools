@@ -5,7 +5,7 @@ import pytest
 
 from psd_tools import PSDImage
 from psd_tools.api.layers import Group
-from psd_tools.composite import composite
+from psd_tools.composite import composite, vector
 from psd_tools.composite.paint import (
     draw_gradient_fill,
     draw_pattern_fill,
@@ -168,3 +168,33 @@ def test_gradient_styles(filename: str) -> None:
 )
 def test_stroke_color(filename: str, threshold: float) -> None:
     check_composite_quality(filename, threshold, force=True)
+
+
+def test_draw_vector_mask_reaches_outside_the_canvas() -> None:
+    """A path is rasterized in document coordinates, not clipped to the canvas.
+
+    ``stroke-effect-transparent-shape.psd`` holds a rectangle whose path runs
+    from (-1, -1) to (33, 33) on a 32x32 canvas, so on the canvas its left
+    edge is not in the picture at all -- every pixel of the row is covered.
+    Asked for a wider box, the rasterizer must place the same path on it and
+    put that edge back, which is what lets a stroke traced from the mask
+    follow the layer rather than the canvas (#804).
+    """
+    psd = PSDImage.open(full_name("effects/stroke-effect-transparent-shape.psd"))
+    layer = psd[1]
+
+    on_canvas = vector.draw_vector_mask(layer)
+    assert np.array_equal(on_canvas[16, :4, 0], np.ones(4, dtype=np.float32)), (
+        "the canvas holds no left edge to find"
+    )
+
+    viewport = (-3, -3, 35, 35)
+    wide = vector.draw_vector_mask(layer, viewport)
+    assert wide.shape == (38, 38, 1)
+    # Row 19 is y = 16, the same row; x = -3 and -2 are outside the path and
+    # x = -1 is the first column it covers.
+    assert wide[19, 0, 0] == 0.0
+    assert wide[19, 2, 0] == 1.0
+    # Placing the path elsewhere would also move it: where the two boxes
+    # overlap the coverage has to be identical.
+    assert np.array_equal(wide[3:35, 3:35], on_canvas)

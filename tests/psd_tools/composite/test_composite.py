@@ -1424,7 +1424,7 @@ def test_composite_stroke_effect_over_a_layer_without_a_mask() -> None:
     alpha = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
     compositor = Compositor(psd.viewbox, backdrop, alpha)
     # 1.0 is exactly what _get_mask() yields for an unmasked layer.
-    compositor._apply_stroke_effect(layer, 1.0, np.ones_like(alpha))
+    compositor._apply_stroke_effect(layer, 1.0, np.ones_like(alpha), True)
     assert compositor.finish()[0].shape == (psd.height, psd.width, 3)
 
 
