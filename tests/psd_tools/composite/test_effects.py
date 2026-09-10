@@ -17,7 +17,7 @@ from psd_tools.psd.descriptor import Descriptor, Double, Enumerated
 from psd_tools.terminology import Enum, Key, Klass
 
 from ..utils import full_name
-from .test_composite import _canvas, check_composite_quality, composite_error
+from .test_composite import _canvas, _mse, check_composite_quality
 
 logger = logging.getLogger(__name__)
 
@@ -53,14 +53,16 @@ def test_stroke_traces_the_layer_where_it_runs_off_the_canvas(force: bool) -> No
     result = composite(psd, force=force)[0]
 
     # Three columns of stroke and then the layer's green interior. The pixels
-    # rather than the error: at 4 px wide the ring is off by one column, which
-    # a whole-image bound only registers as "smaller".
+    # rather than the error alone: at 4 px wide the ring is off by one column,
+    # which a whole-image bound only registers as "smaller".
     stroke, interior = result[16, 2], result[16, 3]
     assert np.allclose(stroke, result[16, 0], atol=1 / 255.0)
     assert not np.allclose(stroke, interior, atol=1 / 255.0)
     assert np.allclose(interior, result[16, 4], atol=1 / 255.0)
 
-    composite_error(psd, threshold=1e-6, force=force)
+    # Two orders of magnitude over the 1.3e-11 measured, and eight under the
+    # 0.022 this fixture sat at while it was an xfail.
+    assert _mse(psd.numpy(), result) <= 1e-9
 
 
 def test_stroke_ignores_a_viewport_narrower_than_the_layer() -> None:

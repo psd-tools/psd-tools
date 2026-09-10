@@ -10,6 +10,7 @@ from psd_tools.api.numpy_io import _image_data_peak_bytes
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite
 from psd_tools.composite.composite import Compositor
+from psd_tools.composite.effects import stroke_bbox
 from psd_tools.constants import BlendMode, ColorMode, CompatibilityMode, Tag
 from psd_tools.psd.base import ByteElement
 from PIL import Image
@@ -1412,6 +1413,12 @@ def test_composite_stroke_effect_over_a_layer_without_a_mask() -> None:
     combination is reachable for a fill layer with no vector mask, and 26 calls
     in the fixture corpus already pass the scalar; they escape only because
     those layers have no stroke effect.
+
+    The viewport is grown past the stroke's box on purpose. Only a stroke
+    drawn wholly inside the compositor's viewport reads the coverage it was
+    handed -- outside it, ``_trace_shape()`` reads the layer again and never
+    touches the scalar (#804) -- and on this layer's own canvas the stroke
+    box starts at ``(-1, -2)``, so the guarded line would go unvisited.
     """
     psd = PSDImage.open(full_name("effects/stroke-effects.psd"))
     layer = next(
@@ -1420,12 +1427,19 @@ def test_composite_stroke_effect_over_a_layer_without_a_mask() -> None:
         for sub in (getattr(top, "_layers", None) or [])
         if list(sub.effects.find("stroke"))
     )
-    backdrop = np.ones((psd.height, psd.width, 3), dtype=np.float32)
-    alpha = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
-    compositor = Compositor(psd.viewbox, backdrop, alpha)
+    viewport = (-4, -4, psd.width, psd.height)
+    for effect in layer.effects.find("stroke"):
+        bbox = stroke_bbox(layer.bbox, effect.value)
+        assert viewport[0] <= bbox[0] and viewport[1] <= bbox[1]
+        assert bbox[2] <= viewport[2] and bbox[3] <= viewport[3]
+
+    height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
+    backdrop = np.ones((height, width, 3), dtype=np.float32)
+    alpha = np.zeros((height, width, 1), dtype=np.float32)
+    compositor = Compositor(viewport, backdrop, alpha)
     # 1.0 is exactly what _get_mask() yields for an unmasked layer.
     compositor._apply_stroke_effect(layer, 1.0, np.ones_like(alpha), True)
-    assert compositor.finish()[0].shape == (psd.height, psd.width, 3)
+    assert compositor.finish()[0].shape == (height, width, 3)
 
 
 def test_composite_stroke() -> None:

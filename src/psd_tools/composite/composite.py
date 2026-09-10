@@ -1547,10 +1547,12 @@ class Compositor(object):
         alpha: np.ndarray,
         traces_mask: bool,
     ) -> None:
-        # ``shape`` is _get_mask()'s output, which is a bare 1.0 for a layer
-        # with no mask -- and paste() needs something with a channel axis.
-        # broadcast_to gives a stride-0 view rather than a full canvas, which
-        # is all paste() requires since it only reads from it.
+        # ``shape`` is the layer's coverage on this compositor's viewport, or
+        # -- when the stroke traces the mask -- _get_mask()'s output, which is
+        # a bare 1.0 for a layer with no mask. _trace_shape() hands that to
+        # paste(), which needs something with a channel axis. broadcast_to
+        # gives a stride-0 view rather than a full canvas, which is all
+        # paste() requires since it only reads from it.
         if not isinstance(shape, np.ndarray):
             shape = np.broadcast_to(np.float32(shape), (self.height, self.width, 1))
         # Photoshop traces every stroke from the layer, so ``shape`` stays the

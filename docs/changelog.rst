@@ -4,11 +4,14 @@ Changelog
 1.19.1 (unreleased)
 -------------------
 
-- [fix] Trace a stroke effect from the layer's own coverage instead of from
-  the compositor's clipped copy of it, which made the stroke follow the
-  viewport edge wherever the layer ran past it. **Rendering change** for a
-  layer that reaches off the canvas, and for any ``composite(viewport=...)``
-  narrower than the layer (#804, #806)
+- [fix] Trace a stroke effect from the layer's own coverage, not from the
+  compositor's clipped copy of it. **Rendering change** for a layer that
+  reaches off the canvas and for a ``composite(viewport=...)`` narrower than
+  the layer, where the stroke followed the viewport edge; a vector mask now
+  rasterizes on the box asked for, shifting anti-aliasing by up to 1/255. A
+  stroke on a group is unchanged (#804, #806)
+- [api] ``composite.vector.draw_vector_mask()`` takes a ``viewport`` to
+  rasterize onto, defaulting to the document canvas as before (#804, #806)
 - [fix] Draw nothing for a stroke effect of size 0 rather than raising. Only
   a descriptor can carry one -- Photoshop's own UI will not author it (#805)
 - [fix] Draw an inset stroke effect as a band too, anchored where Photoshop
