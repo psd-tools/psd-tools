@@ -4,6 +4,7 @@ import math
 import numpy as np
 import pytest
 
+from psd_tools.api.layers import Group
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import _compat, composite, effects
 from psd_tools.composite.effects import (
@@ -16,7 +17,7 @@ from psd_tools.psd.descriptor import Descriptor, Double, Enumerated
 from psd_tools.terminology import Enum, Key, Klass
 
 from ..utils import full_name
-from .test_composite import check_composite_quality, composite_error
+from .test_composite import _canvas, check_composite_quality, composite_error
 
 logger = logging.getLogger(__name__)
 
@@ -680,3 +681,30 @@ def test_each_stroke_path_names_the_dependency_it_is_missing(
     monkeypatch.setattr(effects, "HAS_SCIPY", False)
     with pytest.raises(ImportError, match="Stroke effects require: scipy"):
         check_composite_quality("effects/outside-stroke.psd", threshold=1.0)
+
+
+def test_a_group_stroke_keeps_the_clipped_copy_outside_the_viewport() -> None:
+    """A group has no coverage to re-read, so its stroke keeps what it had.
+
+    #804 fixed the stroke by reading the layer's own coverage on the box it
+    draws on, which a group does not have: a group's coverage *is* the
+    composite onto the compositor's viewport. Reading it as an object finds
+    no pixel data and no fill, which would place the stroke on an empty
+    canvas and draw nothing at all -- worse than the misplaced stroke. The
+    clipped copy stands instead.
+    """
+    psd = PSDImage.open(full_name("hidden-groups.psd"))
+    group = next(sub for sub in psd if isinstance(sub, Group))
+    covered = np.ones((psd.height, psd.width, 1), dtype=np.float32)
+    compositor = _canvas(psd)
+
+    # A box reaching two pixels off every side of the canvas: the recompute
+    # path, and the one an off-canvas group would take.
+    viewport = (-2, -2, psd.width + 2, psd.height + 2)
+    traced = compositor._trace_shape(group, viewport, covered, traces_mask=False)
+
+    assert traced.shape == (psd.height + 4, psd.width + 4, 1)
+    assert np.array_equal(traced[2:-2, 2:-2], covered)
+    assert compositor._get_object_shape(group, viewport).max() == 0.0, (
+        "the group would read as no coverage at all"
+    )

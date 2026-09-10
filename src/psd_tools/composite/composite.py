@@ -1514,10 +1514,21 @@ class Compositor(object):
         paste() zero-filled the rest, and a stroke traced from that copy
         follows the viewport edge as if it were the layer's own -- so the
         coverage is read again, on the box actually asked for (#804).
+
+        A group is the exception: its coverage is the composite onto this
+        viewport and cannot be re-read anywhere else.
         """
         x0, y0, x1, y1 = viewport
         vx0, vy0, vx1, vy1 = self._viewport
         if vx0 <= x0 and vy0 <= y0 and x1 <= vx1 and y1 <= vy1:
+            return paste(viewport, self._viewport, shape)
+
+        if isinstance(layer, GroupMixin) and not traces_mask:
+            # A group's coverage is composited onto this viewport and exists
+            # nowhere else, so there is nothing to re-read outside it. Its
+            # stroke keeps tracing the clipped copy, which is wrong in the
+            # same way but still draws a stroke; recomputing would read the
+            # group as an object and find no coverage at all.
             return paste(viewport, self._viewport, shape)
 
         traced = self._get_mask(layer, viewport)
