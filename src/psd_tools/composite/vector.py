@@ -139,7 +139,7 @@ def _draw_subpath(
 
     TODO: Replace aggdraw implementation with skimage.draw.
 
-    Note: Callers must be decorated with @needs_aggdraw before calling.
+    Note: Callers must be decorated with @require_aggdraw before calling.
     """
     import aggdraw  # type: ignore[import-not-found]  # noqa: PLC0415
 
