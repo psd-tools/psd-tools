@@ -16,9 +16,9 @@ Changelog
   **Rendering change** for any layer carrying an outset or centered stroke; a
   soft-edged one may land slightly further from Photoshop than before
   (#799, #802)
-- [fix] Draw stroke effects without scikit-image installed, as long as the
-  fill is solid or a gradient. Pattern fills still need it
-  (#799, #802, #803, #805)
+- [fix] Draw any stroke effect Photoshop can author without scikit-image
+  installed, as long as the fill is solid or a gradient. Pattern fills still
+  need it (#799, #802, #803, #805)
 - [fix] Trace every stroke effect from the layer. The second stroke on a layer
   outlined the first stroke instead of the layer, which left its own ring
   unpainted and painted over the first. **Rendering change** for a layer

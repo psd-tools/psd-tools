@@ -7,8 +7,10 @@ layer styles). Effects are non-destructive visual enhancements applied to layers
 such as strokes, shadows, glows, and overlays.
 
 **Note**: Effects rendering requires scipy. It additionally requires
-scikit-image for any pattern fill, so a solid or gradient stroke of any
-position draws without it. Install both with::
+scikit-image for any pattern fill, and for the fallback that draws a stroke
+whose position is none of the three Photoshop writes -- so a solid or gradient
+stroke of any position a real document can carry draws without it. Install
+both with::
 
     pip install 'psd-tools[composite]'
 

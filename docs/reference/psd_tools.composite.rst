@@ -44,5 +44,6 @@ Effects Rendering
     :members:
 
 Layer effects rendering including strokes, shadows, and glows. Requires
-scipy for the distance transform that places a stroke of any position, and
-scikit-image for pattern fills.
+scipy for the distance transform that places a stroke of any position
+Photoshop writes, and scikit-image for pattern fills and for the fallback that
+draws any other position.
