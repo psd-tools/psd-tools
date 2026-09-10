@@ -385,17 +385,27 @@ def test_a_feathered_mask_keeps_its_stroke_at_the_boundary() -> None:
 def test_band_strokes_draw_without_scikit_image(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An outset or centered stroke needs scipy, not scikit-image (#802).
+    """A solid outset or centered stroke needs scipy, not scikit-image (#802).
 
-    Only the inset style's dilated edge still uses scikit-image. While the
-    whole of :py:func:`draw_stroke_effect` was gated on it, a scipy-only
-    install -- a platform with no scikit-image wheel, say -- failed to render
-    *any* document carrying *any* stroke, because nothing upstream catches the
-    ImportError and turns it into a missing effect.
+    Of the stroke itself, only the inset style's dilated edge still uses
+    scikit-image. While the whole of :py:func:`draw_stroke_effect` was gated on
+    it, a scipy-only install -- a platform with no scikit-image wheel, say --
+    failed to render *any* document carrying *any* stroke, because nothing
+    upstream catches the ImportError and turns it into a missing effect.
+
+    The paint is the other half of the answer, and it is why this says "solid":
+    a stroke filled with a pattern goes through
+    :py:func:`~psd_tools.composite.paint.draw_pattern_fill`, which needs
+    scikit-image whatever the style, so the last case here still raises.
     """
     monkeypatch.setattr(_compat, "HAS_SKIMAGE", False)
     check_composite_quality("effects/outside-stroke.psd", threshold=1e-4)
     check_composite_quality("effects/center-stroke-sizes.psd", threshold=1e-4)
+
+    psd = PSDImage.open(full_name("effects/stroke-effects.psd"))
+    pattern = next(layer for layer in psd.descendants() if layer.name == "Pattern")
+    with pytest.raises(ImportError, match="scikit-image"):
+        pattern.composite()
 
 
 def test_each_stroke_path_names_the_dependency_it_is_missing(
