@@ -4,8 +4,9 @@ import math
 import numpy as np
 import pytest
 
+from psd_tools.api.layers import Group
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.composite import _compat, effects
+from psd_tools.composite import _compat, composite, effects
 from psd_tools.composite.effects import (
     _OUTWARD_REACH,
     _distance_band,
@@ -16,7 +17,7 @@ from psd_tools.psd.descriptor import Descriptor, Double, Enumerated
 from psd_tools.terminology import Enum, Key, Klass
 
 from ..utils import full_name
-from .test_composite import check_composite_quality
+from .test_composite import _canvas, _mse, check_composite_quality
 
 logger = logging.getLogger(__name__)
 
@@ -26,12 +27,61 @@ logger = logging.getLogger(__name__)
     [
         ("effects/stroke-effects.psd",),
         ("effects/shape-fx2.psd",),
-        ("effects/stroke-effect-transparent-shape.psd",),
     ],
 )
 @pytest.mark.xfail
 def test_stroke_effects_xfail(filename: str) -> None:
     check_composite_quality(filename, threshold=0.01)
+
+
+@pytest.mark.parametrize("force", [False, True])
+def test_stroke_traces_the_layer_where_it_runs_off_the_canvas(force: bool) -> None:
+    """A stroke follows the layer's edge, not the edge of the canvas (#804).
+
+    ``stroke-effect-transparent-shape.psd`` is a 32x32 document holding one
+    shape layer with bbox ``(-2, -2, 34, 34)``, a path running ``(-1, -1)`` to
+    ``(33, 33)`` and a 4 px inset stroke, so the rectangle's left edge is a
+    pixel off-canvas. The compositor handed the stroke a copy of the coverage
+    clipped to its own viewport, where that pixel had been zero-filled, and
+    the ring landed on ``0..3`` measured from the canvas edge instead of on
+    ``-1..2`` measured from the layer's.
+
+    Both force modes, because they reach the coverage by different routes:
+    the stored alpha channel, and the vector mask redrawn from the path.
+    """
+    psd = PSDImage.open(full_name("effects/stroke-effect-transparent-shape.psd"))
+    result = composite(psd, force=force)[0]
+
+    # Three columns of stroke and then the layer's green interior. The pixels
+    # rather than the error alone: at 4 px wide the ring is off by one column,
+    # which a whole-image bound only registers as "smaller".
+    stroke, interior = result[16, 2], result[16, 3]
+    assert np.allclose(stroke, result[16, 0], atol=1 / 255.0)
+    assert not np.allclose(stroke, interior, atol=1 / 255.0)
+    assert np.allclose(interior, result[16, 4], atol=1 / 255.0)
+
+    # Two orders of magnitude over the 1.3e-11 measured, and eight under the
+    # 0.022 this fixture sat at while it was an xfail.
+    assert _mse(psd.numpy(), result) <= 1e-9
+
+
+def test_stroke_ignores_a_viewport_narrower_than_the_layer() -> None:
+    """Asking for less of a layer must not move its stroke (#804).
+
+    No off-canvas geometry needed: a viewport that cuts through the layer used
+    to zero-fill the rest of the coverage the same way, so the stroke was
+    traced down the cut as if the square ended there. The wide render is the
+    reference because it is the one the fixture's own test already pins to
+    Photoshop.
+    """
+    psd = PSDImage.open(full_name("effects/center-stroke-sizes.psd"))
+    layer = next(sub for sub in psd if sub.name == "Size 7")
+    assert layer.bbox == (144, 16, 160, 32)
+
+    wide = composite(layer, viewport=(140, 12, 164, 36), as_layer=True)
+    cut = composite(layer, viewport=(140, 12, 152, 36), as_layer=True)
+    for name, w, c in zip(("color", "shape", "alpha"), wide, cut):
+        assert np.array_equal(c, w[:, :12]), name
 
 
 def test_double_stroke_effects() -> None:
@@ -633,3 +683,30 @@ def test_each_stroke_path_names_the_dependency_it_is_missing(
     monkeypatch.setattr(effects, "HAS_SCIPY", False)
     with pytest.raises(ImportError, match="Stroke effects require: scipy"):
         check_composite_quality("effects/outside-stroke.psd", threshold=1.0)
+
+
+def test_a_group_stroke_keeps_the_clipped_copy_outside_the_viewport() -> None:
+    """A group has no coverage to re-read, so its stroke keeps what it had.
+
+    #804 fixed the stroke by reading the layer's own coverage on the box it
+    draws on, which a group does not have: a group's coverage *is* the
+    composite onto the compositor's viewport. Reading it as an object finds
+    no pixel data and no fill, which would place the stroke on an empty
+    canvas and draw nothing at all -- worse than the misplaced stroke. The
+    clipped copy stands instead.
+    """
+    psd = PSDImage.open(full_name("hidden-groups.psd"))
+    group = next(sub for sub in psd if isinstance(sub, Group))
+    covered = np.ones((psd.height, psd.width, 1), dtype=np.float32)
+    compositor = _canvas(psd)
+
+    # A box reaching two pixels off every side of the canvas: the recompute
+    # path, and the one an off-canvas group would take.
+    viewport = (-2, -2, psd.width + 2, psd.height + 2)
+    traced = compositor._trace_shape(group, viewport, covered, traces_mask=False)
+
+    assert traced.shape == (psd.height + 4, psd.width + 4, 1)
+    assert np.array_equal(traced[2:-2, 2:-2], covered)
+    assert compositor._get_object_shape(group, viewport).max() == 0.0, (
+        "the group would read as no coverage at all"
+    )

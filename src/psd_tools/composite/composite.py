@@ -955,7 +955,10 @@ class Compositor(object):
             not layer.has_pixels() and utils.has_fill(layer)
         )
         self._apply_stroke_effect(
-            layer, source.shape_mask if traces_mask else source.shape, source.alpha
+            layer,
+            source.shape_mask if traces_mask else source.shape,
+            source.alpha,
+            traces_mask,
         )
 
     def _apply_passthrough_source(
@@ -1289,27 +1292,55 @@ class Compositor(object):
 
         return color, shape, alpha, isolate_adjustments
 
-    def _get_object(self, layer: Layer) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Get object attributes."""
+    def _read_object(self, layer: Layer) -> tuple[np.ndarray | None, np.ndarray | None]:
+        """The layer's own color and coverage, on ``layer.bbox`` and unpasted.
+
+        Split out of :py:meth:`_get_object` so a stroke effect can re-read the
+        coverage on the box it draws on rather than on this compositor's
+        viewport (#804), without restating which of the two sources -- stored
+        pixels or a redrawn fill -- this layer's arrays come from.
+        """
         color, shape = layer.numpy("color"), layer.numpy("shape")
         if (self._force or not layer.has_pixels()) and utils.has_fill(layer):
             color, shape = paint.create_fill(layer, layer.bbox)
             if shape is None:
                 shape = np.ones((layer.height, layer.width, 1), dtype=np.float32)
+        return color, shape
 
-        if color is None and shape is None:
-            # Empty pixel layer.
-            color = np.ones((self.height, self.width, 1), dtype=np.float32)
-            shape = np.zeros((self.height, self.width, 1), dtype=np.float32)
+    @staticmethod
+    def _place_object_shape(
+        color: np.ndarray | None,
+        shape: np.ndarray | None,
+        bbox: tuple[int, int, int, int],
+        viewport: tuple[int, int, int, int],
+    ) -> np.ndarray:
+        """Place :py:meth:`_read_object`'s coverage on ``viewport``.
+
+        A layer with no shape channel covers the whole viewport; one with
+        neither color nor shape is an empty pixel layer and covers none of it.
+        """
+        if shape is not None:
+            return paste(viewport, bbox, shape)
+        height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
+        covered = 0.0 if color is None else 1.0
+        return np.full((height, width, 1), covered, dtype=np.float32)
+
+    def _get_object_shape(
+        self, layer: Layer, viewport: tuple[int, int, int, int]
+    ) -> np.ndarray:
+        """The layer's own coverage on ``viewport``, before its mask."""
+        color, shape = self._read_object(layer)
+        return self._place_object_shape(color, shape, layer.bbox, viewport)
+
+    def _get_object(self, layer: Layer) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Get object attributes."""
+        color, own_shape = self._read_object(layer)
+        shape = self._place_object_shape(color, own_shape, layer.bbox, self._viewport)
 
         if color is None:
             color = np.ones((self.height, self.width, 1), dtype=np.float32)
         else:
             color = paste(self._viewport, layer.bbox, color, 1.0)
-        if shape is None:
-            shape = np.ones((self.height, self.width, 1), dtype=np.float32)
-        else:
-            shape = paste(self._viewport, layer.bbox, shape)
 
         alpha = shape * 1.0  # Constant factor is always 1.
 
@@ -1352,20 +1383,27 @@ class Compositor(object):
         # that seed -- the clipped layers paint onto the base layer's color.
         return compositor.result_over_backdrop()
 
-    def _get_mask(self, layer: Layer) -> float | np.ndarray:
+    def _get_mask(
+        self, layer: Layer, viewport: tuple[int, int, int, int] | None = None
+    ) -> float | np.ndarray:
         """The layer's mask coverage, with any mask density already folded in.
+
+        ``viewport`` defaults to this compositor's; a stroke effect passes the
+        box it draws on, which may reach outside it (#804).
 
         The scalar 1.0 default is an allocation-avoidance path, not an API
         convenience like the backdrop spellings: most layers have no mask, and
         materializing an all-ones canvas for each of them is pure waste.
         """
+        if viewport is None:
+            viewport = self._viewport
         shape: float | np.ndarray = 1.0
         if layer.mask is not None and not layer.mask.disabled:
             # TODO: When force, ignore real mask.
             mask = layer.numpy("mask", real_mask=not self._force)
             if mask is not None:
                 shape = paste(
-                    self._viewport,
+                    viewport,
                     layer.mask.bbox,
                     mask,
                     layer.mask.background_color / 255.0,
@@ -1393,9 +1431,7 @@ class Compositor(object):
                 )
             )
         ):
-            shape_v = vector.draw_vector_mask(layer)
-            shape_v = paste(self._viewport, layer._psd.viewbox, shape_v)
-            shape *= shape_v
+            shape *= vector.draw_vector_mask(layer, viewport)
 
             if layer.mask is not None and layer.mask.parameters:
                 density_v = layer.mask.parameters.vector_mask_density
@@ -1464,13 +1500,59 @@ class Compositor(object):
                 color, shape * shape_e, alpha * shape_e * opacity, effect.blend_mode
             )
 
+    def _trace_shape(
+        self,
+        layer: Layer,
+        viewport: tuple[int, int, int, int],
+        shape: np.ndarray,
+        traces_mask: bool,
+    ) -> np.ndarray:
+        """The layer's own coverage on ``viewport``, read past the canvas edge.
+
+        ``shape`` is that same coverage on this compositor's viewport, and is
+        the answer wherever ``viewport`` stays inside it. Where it does not,
+        paste() zero-filled the rest, and a stroke traced from that copy
+        follows the viewport edge as if it were the layer's own -- so the
+        coverage is read again, on the box actually asked for (#804).
+
+        A group is the exception: its coverage is the composite onto this
+        viewport and cannot be re-read anywhere else.
+        """
+        x0, y0, x1, y1 = viewport
+        vx0, vy0, vx1, vy1 = self._viewport
+        if vx0 <= x0 and vy0 <= y0 and x1 <= vx1 and y1 <= vy1:
+            return paste(viewport, self._viewport, shape)
+
+        if isinstance(layer, GroupMixin) and not traces_mask:
+            # A group's coverage is composited onto this viewport and exists
+            # nowhere else, so there is nothing to re-read outside it. Its
+            # stroke keeps tracing the clipped copy, which is wrong in the
+            # same way but still draws a stroke; recomputing would read the
+            # group as an object and find no coverage at all.
+            return paste(viewport, self._viewport, shape)
+
+        traced = self._get_mask(layer, viewport)
+        if not traces_mask:
+            traced = self._get_object_shape(layer, viewport) * traced
+        if not isinstance(traced, np.ndarray):
+            # An unmasked layer whose stroke traces its mask: _get_mask()
+            # yields a bare 1.0, and draw_stroke_effect() needs a canvas.
+            traced = np.full((y1 - y0, x1 - x0, 1), traced, dtype=np.float32)
+        return traced
+
     def _apply_stroke_effect(
-        self, layer: Layer, shape: float | np.ndarray, alpha: np.ndarray
+        self,
+        layer: Layer,
+        shape: float | np.ndarray,
+        alpha: np.ndarray,
+        traces_mask: bool,
     ) -> None:
-        # ``shape`` is _get_mask()'s output, which is a bare 1.0 for a layer
-        # with no mask -- and paste() needs something with a channel axis.
-        # broadcast_to gives a stride-0 view rather than a full canvas, which
-        # is all paste() requires since it only reads from it.
+        # ``shape`` is the layer's coverage on this compositor's viewport, or
+        # -- when the stroke traces the mask -- _get_mask()'s output, which is
+        # a bare 1.0 for a layer with no mask. _trace_shape() hands that to
+        # paste(), which needs something with a channel axis. broadcast_to
+        # gives a stride-0 view rather than a full canvas, which is all
+        # paste() requires since it only reads from it.
         if not isinstance(shape, np.ndarray):
             shape = np.broadcast_to(np.float32(shape), (self.height, self.width, 1))
         # Photoshop traces every stroke from the layer, so ``shape`` stays the
@@ -1484,7 +1566,7 @@ class Compositor(object):
             bbox = stroke_bbox(layer.bbox, effect.value)
             if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
                 continue
-            shape_in_bbox = paste(bbox, self._viewport, shape)
+            shape_in_bbox = self._trace_shape(layer, bbox, shape, traces_mask)
             color, mask_in_bbox = draw_stroke_effect(
                 bbox, shape_in_bbox, effect.value, layer._psd
             )

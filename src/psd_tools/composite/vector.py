@@ -15,13 +15,21 @@ logger = logging.getLogger(__name__)
 
 
 @require_aggdraw
-def draw_vector_mask(layer: "Layer") -> np.ndarray:
+def draw_vector_mask(
+    layer: "Layer", viewport: tuple[int, int, int, int] | None = None
+) -> np.ndarray:
     """
     Draw a vector mask.
 
+    ``viewport`` is the region to rasterize onto, defaulting to the document
+    canvas. A stroke effect asks for the box it draws on instead, which may
+    reach outside the canvas: the path is placed in document coordinates
+    either way, so what falls outside the canvas is real coverage rather than
+    something to be clipped away (#804).
+
     Requires aggdraw for bezier curve rasterization.
     """
-    return _draw_path(layer, brush={"color": 255})
+    return _draw_path(layer, brush={"color": 255}, viewport=viewport)
 
 
 @require_aggdraw
@@ -67,10 +75,14 @@ def _draw_path(
     layer: "Layer",
     brush: dict[str, int | float] | None = None,
     pen: dict[str, int | float] | None = None,
+    viewport: tuple[int, int, int, int] | None = None,
 ) -> np.ndarray:
     if layer.vector_mask is None:
         raise ValueError("Layer does not have a vector mask.")
-    height, width = layer._psd.height, layer._psd.width
+    if viewport is None:
+        viewport = layer._psd.viewbox
+    width, height = viewport[2] - viewport[0], viewport[3] - viewport[1]
+    doc_size = (layer._psd.width, layer._psd.height)
     color = 0
     if layer.vector_mask.initial_fill_rule and len(layer.vector_mask.paths) == 0:
         color = 1
@@ -87,7 +99,7 @@ def _draw_path(
     # Apply shape operation.
     first = True
     for subpath_list in paths:
-        plane = _draw_subpath(subpath_list, width, height, brush, pen)
+        plane = _draw_subpath(subpath_list, viewport, doc_size, brush, pen)
         assert mask.shape == (height, width, 1)
         assert plane.shape == mask.shape
 
@@ -111,20 +123,27 @@ def _draw_path(
 
 def _draw_subpath(
     subpath_list: list,
-    width: int,
-    height: int,
+    viewport: tuple[int, int, int, int],
+    doc_size: tuple[int, int],
     brush: dict[str, int | float] | None,
     pen: dict[str, int | float] | None,
 ) -> np.ndarray:
     """
     Rasterize Bezier curves using aggdraw.
 
+    Knot coordinates are fractions of the document, so the symbol is always
+    built against the document size and then translated by the viewport
+    origin -- a viewport that starts outside the canvas translates by a
+    negative offset, which is what keeps the part of the path that lies off
+    the canvas on the plane.
+
     TODO: Replace aggdraw implementation with skimage.draw.
 
-    Note: Callers must be decorated with @needs_aggdraw before calling.
+    Note: Callers must be decorated with @require_aggdraw before calling.
     """
     import aggdraw  # type: ignore[import-not-found]  # noqa: PLC0415
 
+    width, height = viewport[2] - viewport[0], viewport[3] - viewport[1]
     mask = Image.new("L", (width, height), 0)
     draw = aggdraw.Draw(mask)
     pen = aggdraw.Pen(**pen) if pen else None
@@ -133,9 +152,9 @@ def _draw_subpath(
         if len(subpath) <= 1:
             logger.warning("not enough knots: %d" % len(subpath))
             continue
-        path = " ".join(map(str, _generate_symbol(subpath, width, height)))
+        path = " ".join(map(str, _generate_symbol(subpath, *doc_size)))
         symbol = aggdraw.Symbol(path)
-        draw.symbol((0, 0), symbol, pen, brush)
+        draw.symbol((-viewport[0], -viewport[1]), symbol, pen, brush)
     draw.flush()
     del draw
     return np.expand_dims(np.array(mask).astype(np.float32) / 255.0, 2)
