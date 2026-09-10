@@ -86,16 +86,10 @@ VERSION (YYYY-MM-DD)
 **Important**: The `-` underline must be at least as long as the title line (RST requirement).
 Count the exact characters in `VERSION (YYYY-MM-DD)` and use that many dashes.
 
-Use these categories (pick the most specific one per bullet):
-
-- `api` — public API additions or changes
-- `psd` — low-level PSD parsing/writing
-- `fix` — bug fixes
-- `refactor` — internal restructuring, no behaviour change
-- `docs` — documentation only
-- `ci` — CI/CD, GitHub Actions
-- `chore` — dependency bumps, tooling, housekeeping
-- `security` — security fixes
+The categories, and the rule for picking between them, are documented in the
+**Changelog** section of the repo-root `CLAUDE.md`, which loads as project
+instructions — use that list. It is deliberately not restated here: the second copy
+is what drifted (#791).
 
 Group related changes. Omit purely internal churn that users won't care about. Reference PR numbers where available.
 
