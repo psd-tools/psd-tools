@@ -236,6 +236,15 @@ def draw_stroke_effect(
     style = desc.get(Key.Style).enum
     size = float(desc.get(Key.SizeKey, 1.0))
 
+    # A stroke of no width draws nothing, and both primitives below have to be
+    # told so. The band would paint a quarter of a pixel wherever the boundary
+    # falls exactly on a pixel centre, and the dilation's pen comes out empty,
+    # which the rank filter it is handed asserts on rather than ignores --
+    # turning a stroke that should simply be invisible into a raise. Photoshop
+    # will not author a 0 px stroke, but a descriptor can carry one.
+    if size <= 0.0:
+        return color, np.zeros((height, width, 1), dtype=np.float32)
+
     # A stroke is a band in the layer's signed distance field, which is exact
     # on a hard-edged mask and needs no pen to quantize the radius to a whole
     # pixel. All three positions are the same band read off a different

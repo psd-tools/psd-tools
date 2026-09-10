@@ -408,6 +408,42 @@ def _stroke_descriptor(style: bytes, size: float) -> Descriptor:
     return desc
 
 
+@pytest.mark.parametrize(
+    "style",
+    [Enum.OutsetFrame, Enum.InsetFrame, Enum.CenteredFrame, b"nope"],
+    ids=["outset", "inset", "centered", "unrecognised"],
+)
+@pytest.mark.parametrize("size", [0.0, -1.0], ids=["zero", "negative"])
+def test_a_stroke_of_no_width_draws_nothing(style: bytes, size: float) -> None:
+    """A stroke sized 0 is invisible, not an exception (#805 review).
+
+    Photoshop's own UI will not author one, but ``Stroke.size`` defaults to 0.0
+    at the API level and a descriptor can carry it, so both primitives have to
+    survive it. Neither did on its own: the dilation's pen is ``disk(-1)``,
+    which comes back empty and makes the rank filter it feeds assert; and the
+    band, whose limits collapse to a point, paints a quarter of a pixel
+    wherever the boundary falls exactly on a pixel centre.
+
+    Both halves are covered here -- the hard-edged square for the pen, the
+    half-covered pixel for the band -- because each path only fails on one of
+    them, and a square alone lets the band through.
+    """
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    square = np.zeros((9, 9, 1), dtype=np.float32)
+    square[3:6, 3:6] = 1.0
+    # An exactly half-covered pixel sits at distance 0, which is where the
+    # collapsed band leaks; the square has no pixel there at all.
+    straddled = np.zeros((1, 8, 1), dtype=np.float32)
+    straddled[:, :4] = 1.0
+    straddled[:, 4] = 0.5
+
+    for shape, viewport in ((square, (0, 0, 9, 9)), (straddled, (0, 0, 8, 1))):
+        _, mask = effects.draw_stroke_effect(
+            viewport, shape, _stroke_descriptor(style, size), psd
+        )
+        assert float(mask.sum()) == 0.0, f"{style!r} stroke of {size} px painted"
+
+
 def test_inset_band_sits_wholly_inside_the_layer() -> None:
     """An inset stroke puts all of its width on the layer's side of the edge.
 

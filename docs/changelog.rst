@@ -4,6 +4,8 @@ Changelog
 1.19.1 (unreleased)
 -------------------
 
+- [fix] Draw nothing for a stroke effect of size 0 rather than raising. Only
+  a descriptor can carry one -- Photoshop's own UI will not author it (#805)
 - [fix] Draw an inset stroke effect as a band too, anchored where Photoshop
   anchors it, and grant it the pixel of canvas it needs to find the layer's
   edge -- on a layer whose pixels filled its bounding box it drew nothing at
