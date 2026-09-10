@@ -142,9 +142,29 @@ Changelog
 - [fix] Short description of the user-visible change (#123, #456)
 ```
 
-Prefix each entry with its category: `[fix]`, `[api]`, `[security]`, `[chore]`,
-`[docs]`. Reference the issue and PR numbers. Flag any backwards-incompatible
-change explicitly in the entry text.
+Prefix each entry with its category, and reference the issue and PR numbers:
+
+- `[fix]` — a bug fix that leaves the public surface unchanged, wherever it
+  lives: parsing, rendering, compression
+- `[api]` — a change to the public surface: a new or renamed symbol, a new
+  parameter, a corrected annotation
+- `[security]` — security fixes
+- `[docs]` — documentation only
+- `[ci]` — CI, packaging and release engineering
+- `[refactor]` — internal restructuring a user can still observe, such as a
+  moved public module
+- `[chore]` — tooling and housekeeping; the release PR also writes one `[chore]`
+  line summarising that release's dependency bumps
+
+Pick the most specific one that applies. A category names the **kind** of change,
+not the subpackage it touches — a low-level parsing fix is `[fix]`, not `[psd]`.
+Only these seven are current: released sections still carry `[psd]`,
+`[composite]`, `[packaging]`, `[dev]` and the rest of a long tail, all retired,
+and that history stays as written. This list is the only one — anything else that
+needs the categories, the release skill included, points here rather than
+restating them (#791).
+
+Flag any backwards-incompatible change explicitly in the entry text.
 
 **Budget: aim for four lines, and treat six as the ceiling** — one line of
 summary, plus a short "does this affect me" clause where the answer is not
@@ -157,9 +177,11 @@ commit message, and the GitHub Release body — so a longer entry duplicates
 them and dates faster than they do. Corpus statistics, measured error figures,
 and the history of what earlier PRs got wrong all belong in the PR, not here.
 
-Entries are for user-visible change. Skip them for pure refactors, test-only
-changes, and dependabot bumps — dependency bumps are summarised in bulk by the
-release PR instead.
+Entries are for user-visible change, with `[ci]` and `[chore]` as the standing
+exception — the changelog carries the release-engineering record too. Skip
+test-only changes, and dependabot bumps, which the release PR summarises in bulk.
+Internal restructuring earns an entry only when a user can observe it, which is
+what `[refactor]` is for.
 
 ### Branch naming conventions
 
