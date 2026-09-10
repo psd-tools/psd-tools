@@ -1,9 +1,17 @@
 import logging
+import math
 
 import numpy as np
 import pytest
 
 from psd_tools.api.psd_image import PSDImage
+from psd_tools.composite import _compat, effects
+from psd_tools.composite.effects import (
+    _OUTWARD_REACH,
+    _distance_band,
+    _signed_distance,
+)
+from psd_tools.terminology import Enum
 
 from ..utils import full_name
 from .test_composite import check_composite_quality
@@ -202,3 +210,217 @@ def test_second_stroke_traces_the_layer() -> None:
         "the inset stroke is missing from the layer's inner edge, which is "
         "where it lands only when it traces the layer"
     )
+
+
+@pytest.mark.parametrize(
+    ("filename",),
+    [
+        ("effects/outside-stroke.psd",),
+        ("effects/center-stroke-sizes.psd",),
+    ],
+)
+def test_hard_edged_stroke_matches_photoshop(filename: str) -> None:
+    """A stroke on a hard-edged mask lands where Photoshop puts it (#799).
+
+    Both files are squares with no partial alpha anywhere, so the boundary the
+    stroke is measured from is a fact rather than a modelling choice. Every
+    straight run of the stroke then matches Photoshop to the bit, because a
+    ramp that is linear in distance is the exact area of a pixel cut by a
+    straight edge. What is left is the corner arcs, where that ramp is only an
+    approximation of a curved cut: 16 pixels of 1024 and 24 of 9216, differing
+    by up to 0.073 and 0.110 coverage, which is why this asserts 1e-4 rather
+    than equality.
+
+    That is still 60x and 30x under what these scored when the stroke was a
+    dilated ``scharr`` edge -- 0.00626 and 0.00326 -- so the threshold
+    separates the band from an approximation of it, which the 0.01 used
+    elsewhere would not.
+    """
+    check_composite_quality(filename, threshold=1e-4)
+
+
+def test_distance_band_covers_its_width_on_a_pixel_boundary() -> None:
+    """A stroke of width *w* covers *w* pixels of coverage, fractional *w* too.
+
+    The dilation pen this replaced was built from ``disk(r)`` with an integer
+    ``r``, so a 3 px centered stroke could only reach 1 px or 2 px per side and
+    never the 1.5 it asks for -- #796 fixed that by rounding to the better of
+    two wrong integers. A band in a distance field has no such step, and this
+    pins the property that makes it worth having.
+
+    The boundary here falls exactly on a pixel edge, which is the case the
+    identity holds for. Where it cuts through a pixel instead, that pixel is
+    reseeded from its own coverage and the reseeding does not re-propagate, so
+    the field stops being 1-Lipschitz just where the band sits and the total
+    drifts by up to half a pixel. That is a property of the primitive as #799
+    specifies it, and squaring it away is that issue's fourth tracking item.
+    """
+    # A single hard vertical edge, covered on the left and empty on the right.
+    alpha = np.zeros((1, 12), dtype=np.float32)
+    alpha[:, :6] = 1.0
+    distance = _signed_distance(alpha)
+    # Pixel centres sit half a pixel off the boundary, and the sign says which
+    # side: this is the measurement everything below is derived from.
+    assert distance[0].tolist() == [
+        -5.5,
+        -4.5,
+        -3.5,
+        -2.5,
+        -1.5,
+        -0.5,
+        0.5,
+        1.5,
+        2.5,
+        3.5,
+        4.5,
+        5.5,
+    ]
+
+    for width in (0.5, 1.0, 1.5, 2.0, 2.5, 3.0):
+        outset = float(_distance_band(distance, 0.0, width).sum())
+        assert outset == pytest.approx(width), f"outset stroke of {width} px"
+        centered = float(_distance_band(distance, -width / 2.0, width / 2.0).sum())
+        assert centered == pytest.approx(width), f"centered stroke of {width} px"
+
+
+def test_centered_band_straddles_the_edge_evenly() -> None:
+    """A centered stroke puts half its width on each side of the boundary.
+
+    Asserted separately from the total width above, because a band anchored to
+    one side would still total the right coverage while sitting entirely in the
+    layer -- which is what an inset stroke is, not a centered one.
+    """
+    alpha = np.zeros((1, 12), dtype=np.float32)
+    alpha[:, :6] = 1.0
+    distance = _signed_distance(alpha)
+    band = _distance_band(distance, -1.5, 1.5)[0]
+    assert float(band[:6].sum()) == pytest.approx(1.5), "coverage inside the layer"
+    assert float(band[6:].sum()) == pytest.approx(1.5), "coverage outside the layer"
+
+
+@pytest.mark.parametrize("size", [0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 7.0, 7.5, 10.0])
+def test_band_fits_the_canvas_stroke_bbox_asks_for(size: float) -> None:
+    """The band never reaches past the margin :py:func:`stroke_bbox` grants.
+
+    That margin is what keeps an outset or centered stroke from being clipped
+    to the layer's own bounding box (#792). On a hard-edged mask the band
+    reaches exactly one pixel less than the margin at every size, so equality
+    is asserted rather than a bound: the reach and the margin are now stated
+    independently -- in the band limits here and in ``_OUTWARD_REACH`` -- and
+    a change to either that forgets the other would otherwise start shaving
+    the outside of every stroke, or reserving canvas nobody draws on.
+    """
+    pad = 40
+    alpha = np.zeros((2 * pad + 20, 2 * pad + 20), dtype=np.float32)
+    alpha[pad : pad + 20, pad : pad + 20] = 1.0
+    distance = _signed_distance(alpha)
+
+    for style, limits in (
+        (Enum.OutsetFrame, (0.0, size)),
+        (Enum.CenteredFrame, (-size / 2.0, size / 2.0)),
+    ):
+        band = _distance_band(distance, *limits)
+        ys, xs = np.nonzero(band)
+        # All four sides, not just the horizontal pair: the mask is square, so
+        # a band that reached unevenly would otherwise go unnoticed.
+        reach = max(
+            pad - int(xs.min()),
+            int(xs.max()) + 1 - (pad + 20),
+            pad - int(ys.min()),
+            int(ys.max()) + 1 - (pad + 20),
+        )
+        margin = math.ceil(size * _OUTWARD_REACH[style]) + 1
+        assert reach == margin - 1, (
+            f"{style!r} stroke of {size} px reaches {reach} px outside the "
+            f"layer, against the {margin} px stroke_bbox() reserves for it"
+        )
+
+
+@pytest.mark.parametrize(
+    "alpha",
+    [0.0, 1.0, 0.3, 0.9],
+    ids=["transparent", "opaque", "below-half", "above-half"],
+)
+def test_a_mask_with_no_boundary_draws_no_stroke(alpha: float) -> None:
+    """A stroke needs a boundary to trace, and a flat mask has none (#799).
+
+    ``distance_transform_edt`` is undefined on an input with no zeros: rather
+    than refusing, it reports distances to a phantom feature off the array
+    corner, and a band built on those paints a wedge of full-coverage stroke
+    into the corner of the canvas. Nothing in the fixture corpus has a
+    boundaryless mask -- a layer everywhere below half alpha is all it takes --
+    so no rendering comparison can catch this and only this test does.
+    """
+    flat = np.full((9, 9), alpha, dtype=np.float32)
+    distance = _signed_distance(flat)
+    # Uniformly infinitely far from a boundary that is not there.
+    assert not np.isfinite(distance).any()
+    for limits in ((0.0, 3.0), (-1.5, 1.5)):
+        band = _distance_band(distance, *limits)
+        assert float(band.sum()) == 0.0, f"stroke painted on a flat {alpha} mask"
+
+
+def test_a_feathered_mask_keeps_its_stroke_at_the_boundary() -> None:
+    """A wide alpha ramp takes a stroke at its half-coverage line, not across it.
+
+    Only a pixel the boundary actually cuts is reseeded from its coverage.
+    Reseeding every partial pixel instead -- which is the reading the issue's
+    own snippet invites -- puts the entire body of a feathered mask within half
+    a pixel of a boundary it is nowhere near, and the band spreads over all of
+    it: on this ramp that paints all 32 pixels of every row rather than 4, and
+    the field stops satisfying the unit gradient the linear ramp relies on.
+    """
+    ramp = np.tile(np.linspace(1.0, 0.0, 32, dtype=np.float32), (4, 1))
+    distance = _signed_distance(ramp)
+    for limits in ((0.0, 3.0), (-1.5, 1.5)):
+        band = _distance_band(distance, *limits)
+        painted = (band > 0).sum(axis=1)
+        assert painted.tolist() == [4, 4, 4, 4], (
+            f"a 3 px stroke covered {painted.tolist()} pixels of a 32 px ramp"
+        )
+        for total in band.sum(axis=1):
+            assert float(total) == pytest.approx(3.0)
+
+
+def test_band_strokes_draw_without_scikit_image(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A solid outset or centered stroke needs scipy, not scikit-image (#802).
+
+    Of the stroke itself, only the inset style's dilated edge still uses
+    scikit-image. While the whole of :py:func:`draw_stroke_effect` was gated on
+    it, a scipy-only install -- a platform with no scikit-image wheel, say --
+    failed to render *any* document carrying *any* stroke, because nothing
+    upstream catches the ImportError and turns it into a missing effect.
+
+    The paint is the other half of the answer, and it is why this says "solid":
+    a stroke filled with a pattern goes through
+    :py:func:`~psd_tools.composite.paint.draw_pattern_fill`, which needs
+    scikit-image whatever the style, so the last case here still raises.
+    """
+    monkeypatch.setattr(_compat, "HAS_SKIMAGE", False)
+    check_composite_quality("effects/outside-stroke.psd", threshold=1e-4)
+    check_composite_quality("effects/center-stroke-sizes.psd", threshold=1e-4)
+
+    psd = PSDImage.open(full_name("effects/stroke-effects.psd"))
+    pattern = next(layer for layer in psd.descendants() if layer.name == "Pattern")
+    with pytest.raises(ImportError, match="scikit-image"):
+        pattern.composite()
+
+
+def test_each_stroke_path_names_the_dependency_it_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The two paths ask for different packages, so they must say which.
+
+    Asserted because the obvious way to guard the band is ``@require_scipy``,
+    whose message tells the reader to install scipy for *gradient fills* --
+    accurate about the package and misleading about why.
+    """
+    monkeypatch.setattr(_compat, "HAS_SKIMAGE", False)
+    with pytest.raises(ImportError, match="scikit-image"):
+        check_composite_quality("effects/shape-fx2.psd", threshold=1.0)
+
+    monkeypatch.setattr(effects, "HAS_SCIPY", False)
+    with pytest.raises(ImportError, match="stroke effects require: scipy"):
+        check_composite_quality("effects/outside-stroke.psd", threshold=1.0)

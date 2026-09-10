@@ -16,8 +16,10 @@ Or using uv::
 The composite extra includes:
 
 - ``aggdraw``: For vector path and bezier curve rasterization
-- ``scipy``: For advanced image processing operations
-- ``scikit-image``: For morphological operations in effects
+- ``scipy``: For advanced image processing operations, including the
+  distance transform that places outset and centered stroke effects
+- ``scikit-image``: For pattern fills, and for the edge filter the inset
+  stroke effect uses
 
 Key modules:
 
