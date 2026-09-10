@@ -17,12 +17,16 @@ logger = logging.getLogger(__name__)
         ("effects/stroke-effects.psd",),
         ("effects/shape-fx2.psd",),
         ("effects/stroke-effect-transparent-shape.psd",),
-        ("effects/double-stroke-effects.psd",),
     ],
 )
 @pytest.mark.xfail
 def test_stroke_effects_xfail(filename: str) -> None:
     check_composite_quality(filename, threshold=0.01)
+
+
+def test_double_stroke_effects() -> None:
+    """Two stroke effects on one layer render close to Photoshop (#798)."""
+    check_composite_quality("effects/double-stroke-effects.psd", threshold=0.01)
 
 
 @pytest.mark.parametrize(
@@ -158,3 +162,43 @@ def test_centered_stroke_reach_matches_photoshop() -> None:
     assert measured == _CENTERED_REACH
 
     check_composite_quality("effects/center-stroke-sizes.psd", threshold=0.01)
+
+
+def test_second_stroke_traces_the_layer() -> None:
+    """Every stroke effect outlines the layer, not the stroke before it (#798).
+
+    ``double-stroke-effects.psd`` is one rectangle carrying a red outset stroke
+    and a blue inset stroke -- the only layer in the corpus with more than one.
+    Tracing the second stroke from the first one's mask inset the red ring
+    rather than the layer, which both left the blue ring unpainted and painted
+    over the red one. Both rings are read off Photoshop's own render and both
+    are checked, since the defect moves each of them for a different reason.
+    """
+    psd = PSDImage.open(full_name("effects/double-stroke-effects.psd"))
+    # ICC is off on both sides: the fixture carries a profile, and the ring
+    # pixel counts below are a calibration this test asserts exactly, so they
+    # should not move with the installed color management library.
+    preview = psd.topil(apply_icc=False)
+    composited = psd.composite(ignore_preview=True, apply_icc=False)
+    assert preview is not None and composited is not None
+    reference = np.asarray(preview.convert("RGB"), dtype=np.int16)
+    result = np.asarray(composited.convert("RGB"), dtype=np.int16)
+
+    outset = (reference[:, :, 0] > 128) & (reference[:, :, 2] < 128)
+    inset = (reference[:, :, 2] > 128) & (reference[:, :, 0] < 128)
+    assert (int(outset.sum()), int(inset.sum())) == (104, 96), (
+        "Photoshop's own render of the two rings moved, so the pixels this "
+        "test measures are no longer the ones it was calibrated against"
+    )
+
+    # Well under the 221 the correct render reaches, and well over the 33 the
+    # chained one left behind -- the gap is the whole ring, not a shading tweak.
+    floor = 192
+    assert int(result[:, :, 0][outset].min()) >= floor, (
+        "the outset stroke is painted over, which is what happens when the "
+        "inset stroke traces it instead of the layer"
+    )
+    assert int(result[:, :, 2][inset].min()) >= floor, (
+        "the inset stroke is missing from the layer's inner edge, which is "
+        "where it lands only when it traces the layer"
+    )

@@ -1467,14 +1467,17 @@ class Compositor(object):
     def _apply_stroke_effect(
         self, layer: Layer, shape: float | np.ndarray, alpha: np.ndarray
     ) -> None:
+        # ``shape`` is _get_mask()'s output, which is a bare 1.0 for a layer
+        # with no mask -- and paste() needs something with a channel axis.
+        # broadcast_to gives a stride-0 view rather than a full canvas, which
+        # is all paste() requires since it only reads from it.
+        if not isinstance(shape, np.ndarray):
+            shape = np.broadcast_to(np.float32(shape), (self.height, self.width, 1))
+        # Photoshop traces every stroke from the layer, so ``shape`` stays the
+        # layer's coverage for the whole loop and each effect's own mask gets a
+        # separate name. Assigning the mask back over ``shape`` made the second
+        # stroke outline the first stroke rather than the layer (#798).
         for effect in _styled(layer.effects.find("stroke")):
-            # ``shape`` is _get_mask()'s output, which is a bare 1.0 for a layer
-            # with no mask -- and paste() needs something with a channel axis.
-            # broadcast_to gives a stride-0 view rather than a canvas: paste()
-            # only reads from it, and the full-viewport array it would otherwise
-            # allocate is discarded by the very next line.
-            if not isinstance(shape, np.ndarray):
-                shape = np.broadcast_to(np.float32(shape), (self.height, self.width, 1))
             # Effect must happen at the layer viewport, grown so an outset or
             # centered stroke has room for the part of itself that falls
             # outside the layer (#792).
@@ -1482,10 +1485,10 @@ class Compositor(object):
             if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
                 continue
             shape_in_bbox = paste(bbox, self._viewport, shape)
-            color, shape_in_bbox = draw_stroke_effect(
+            color, mask_in_bbox = draw_stroke_effect(
                 bbox, shape_in_bbox, effect.value, layer._psd
             )
             color = paste(self._viewport, bbox, color)
-            shape = paste(self._viewport, bbox, shape_in_bbox)
+            mask = paste(self._viewport, bbox, mask_in_bbox)
             opacity = effect.opacity / 100.0
-            self._apply_source(color, shape, shape * opacity, effect.blend_mode)
+            self._apply_source(color, mask, mask * opacity, effect.blend_mode)
