@@ -6,7 +6,8 @@ This module implements rendering for Photoshop layer effects (also known as
 layer styles). Effects are non-destructive visual enhancements applied to layers
 such as strokes, shadows, glows, and overlays.
 
-**Note**: Effects rendering requires scikit-image. Install with::
+**Note**: Effects rendering requires scipy, and the inset stroke style also
+requires scikit-image. Install both with::
 
     pip install 'psd-tools[composite]'
 
@@ -58,7 +59,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from psd_tools.composite import paint, utils
-from psd_tools.composite._compat import require_skimage
+from psd_tools.composite._compat import HAS_SCIPY, require_skimage
 from psd_tools.psd.descriptor import Descriptor
 from psd_tools.terminology import Enum, Key
 
@@ -119,6 +120,14 @@ def _signed_distance(alpha: np.ndarray) -> np.ndarray:
     pixel would drag the far side of a feathered mask to within half a pixel
     of a boundary it is nowhere near, and paint a stroke across all of it.
     """
+    if not HAS_SCIPY:
+        raise ImportError(
+            "Outset and centered stroke effects require: scipy\n\n"
+            "Install with:\n"
+            "    pip install 'psd-tools[composite]'\n"
+            "Or:\n"
+            "    pip install scipy"
+        )
     from scipy.ndimage import distance_transform_edt  # type: ignore[import-untyped]  # noqa: PLC0415
 
     inside = alpha >= 0.5
@@ -154,6 +163,43 @@ def _distance_band(distance: np.ndarray, lo: float, hi: float) -> np.ndarray:
 
 
 @require_skimage
+def _draw_dilated_edge(shape: np.ndarray, style: bytes, size: float) -> np.ndarray:
+    """Trace the layer by dilating a gradient-magnitude edge.
+
+    The original stroke primitive, kept for the inset style: it is anchored
+    differently from the other two and a symmetric distance band misses it by
+    about a pixel, which is a separate tracking item of #799. Any style
+    :py:func:`draw_stroke_effect` does not recognise lands here too.
+
+    This is the only part of a stroke that still needs scikit-image, which is
+    why the decorator sits here rather than on the caller -- an outset or
+    centered stroke draws with scipy alone.
+    """
+    from skimage import filters  # noqa: PLC0415
+    from skimage.morphology import disk  # noqa: PLC0415
+
+    if style == Enum.InsetFrame:
+        size *= 2
+
+    edges = filters.scharr(shape[:, :, 0])
+    # Rounded up rather than truncated, which drew every odd stroke a pixel
+    # short per side (#792). Only inset reaches this now, so the doubling
+    # above always leaves the radius whole, but the ceil() still guards the
+    # unrecognised styles that fall through here undoubled.
+    pen = disk(math.ceil(size / 2.0 - 1))
+    mask = (
+        filters.rank.maximum((255 * edges).astype(np.uint8), pen).astype(np.float32)
+        / 255.0
+    )
+    mask = utils.divide(mask - np.min(mask), np.max(mask) - np.min(mask))
+    mask = np.expand_dims(mask, 2)
+
+    if style == Enum.InsetFrame:
+        mask = np.maximum(0, mask * shape)
+
+    return mask
+
+
 def draw_stroke_effect(
     viewport: tuple[int, int, int, int],
     shape: np.ndarray,
@@ -198,28 +244,4 @@ def draw_stroke_effect(
         distance = _signed_distance(shape[:, :, 0])
         return color, np.expand_dims(_distance_band(distance, *limits), 2)
 
-    if style == Enum.InsetFrame:
-        size *= 2
-
-    # Only the dilation path needs skimage, which is why @require_skimage
-    # still guards a function whose main path is scipy's alone.
-    from skimage import filters  # noqa: PLC0415
-    from skimage.morphology import disk  # noqa: PLC0415
-
-    edges = filters.scharr(shape[:, :, 0])
-    # Rounded up rather than truncated, which drew every odd stroke a pixel
-    # short per side (#792). Only inset reaches this now, so the doubling
-    # above always leaves the radius whole, but the ceil() still guards the
-    # unrecognised styles that fall through here undoubled.
-    pen = disk(math.ceil(size / 2.0 - 1))
-    mask = (
-        filters.rank.maximum((255 * edges).astype(np.uint8), pen).astype(np.float32)
-        / 255.0
-    )
-    mask = utils.divide(mask - np.min(mask), np.max(mask) - np.min(mask))
-    mask = np.expand_dims(mask, 2)
-
-    if style == Enum.InsetFrame:
-        mask = np.maximum(0, mask * shape)
-
-    return color, mask
+    return color, _draw_dilated_edge(shape, style, size)

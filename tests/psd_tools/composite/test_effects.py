@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 
 from psd_tools.api.psd_image import PSDImage
+from psd_tools.composite import _compat, effects
 from psd_tools.composite.effects import (
     _OUTWARD_REACH,
     _distance_band,
@@ -379,3 +380,37 @@ def test_a_feathered_mask_keeps_its_stroke_at_the_boundary() -> None:
         )
         for total in band.sum(axis=1):
             assert float(total) == pytest.approx(3.0)
+
+
+def test_band_strokes_draw_without_scikit_image(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An outset or centered stroke needs scipy, not scikit-image (#802).
+
+    Only the inset style's dilated edge still uses scikit-image. While the
+    whole of :py:func:`draw_stroke_effect` was gated on it, a scipy-only
+    install -- a platform with no scikit-image wheel, say -- failed to render
+    *any* document carrying *any* stroke, because nothing upstream catches the
+    ImportError and turns it into a missing effect.
+    """
+    monkeypatch.setattr(_compat, "HAS_SKIMAGE", False)
+    check_composite_quality("effects/outside-stroke.psd", threshold=1e-4)
+    check_composite_quality("effects/center-stroke-sizes.psd", threshold=1e-4)
+
+
+def test_each_stroke_path_names_the_dependency_it_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The two paths ask for different packages, so they must say which.
+
+    Asserted because the obvious way to guard the band is ``@require_scipy``,
+    whose message tells the reader to install scipy for *gradient fills* --
+    accurate about the package and misleading about why.
+    """
+    monkeypatch.setattr(_compat, "HAS_SKIMAGE", False)
+    with pytest.raises(ImportError, match="scikit-image"):
+        check_composite_quality("effects/shape-fx2.psd", threshold=1.0)
+
+    monkeypatch.setattr(effects, "HAS_SCIPY", False)
+    with pytest.raises(ImportError, match="stroke effects require: scipy"):
+        check_composite_quality("effects/outside-stroke.psd", threshold=1.0)

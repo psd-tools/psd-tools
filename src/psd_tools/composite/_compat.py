@@ -106,7 +106,7 @@ def require_skimage(func: F) -> F:
 
     Example:
         >>> @require_skimage
-        ... def draw_stroke_effect(viewport, shape, desc, psd):
+        ... def _draw_dilated_edge(shape, style, size):
         ...     # effect implementation
         ...     pass
     """

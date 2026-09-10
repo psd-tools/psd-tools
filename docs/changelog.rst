@@ -10,6 +10,8 @@ Changelog
   **Rendering change** for any layer carrying an outset or centered stroke; a
   soft-edged one may land slightly further from Photoshop than before, and the
   inset style is unchanged (#799, #802)
+- [fix] Draw outset and centered stroke effects without scikit-image installed,
+  which only the inset style still needs (#799, #802)
 - [fix] Trace every stroke effect from the layer. The second stroke on a layer
   outlined the first stroke instead of the layer, which left its own ring
   unpainted and painted over the first. **Rendering change** for a layer
