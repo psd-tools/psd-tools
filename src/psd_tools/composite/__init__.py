@@ -17,9 +17,9 @@ The composite extra includes:
 
 - ``aggdraw``: For vector path and bezier curve rasterization
 - ``scipy``: For advanced image processing operations, including the
-  distance transform that places outset and centered stroke effects
-- ``scikit-image``: For pattern fills, and for the edge filter the inset
-  stroke effect uses
+  distance transform that places stroke effects
+- ``scikit-image``: For pattern fills, and for the fallback that draws a
+  stroke whose position is none of the three Photoshop writes
 
 Key modules:
 

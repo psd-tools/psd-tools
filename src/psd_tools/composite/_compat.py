@@ -106,7 +106,7 @@ def require_skimage(func: F) -> F:
 
     Example:
         >>> @require_skimage
-        ... def _draw_dilated_edge(shape, style, size):
+        ... def _draw_dilated_edge(shape, size):
         ...     # effect implementation
         ...     pass
     """
