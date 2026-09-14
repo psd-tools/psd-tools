@@ -1067,7 +1067,32 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         return self._layers.__getitem__(key)
 
     def __setitem__(self, key: int, value: Layer) -> None:
-        self.insert(key, value)
+        """
+        Replace the layer at the specified index with the given layer.
+
+        This operation rewrites the internal references of the layer. If the
+        given layer is already in this group, it is moved next to where the
+        replaced layer was and the group shrinks by one, following the
+        no-duplicates rule of
+        :py:meth:`~psd_tools.api.layers.GroupMixin.append`. Its final index is
+        one lower than the given one when it came from before the replaced
+        layer, because taking it out shifts the rest of the group down.
+
+        :param key: The index of the layer to replace.
+        :param value: The layer to put at that index.
+        :raises IndexError: If the index is out of range.
+        :raises TypeError: If the key is not an index, or the provided object
+            is not a Layer instance.
+        :raises ValueError: If attempting to add a group to itself.
+        """
+        if isinstance(key, slice):
+            raise TypeError("Slice assignment is not supported")
+        target = self._layers[key]
+        if target is value:
+            return
+        index = key if key >= 0 else key + len(self._layers)
+        self.insert(index, value)
+        self.remove(target)
 
     def __delitem__(self, key: int) -> None:
         self.remove(self._layers[key])

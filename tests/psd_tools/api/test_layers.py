@@ -770,6 +770,85 @@ def test_group_insert(
     )  # Negative index insert the item before the one currently at the given index.
 
 
+def test_group_setitem(
+    group: Group,
+    pixel_layer: PixelLayer,
+    type_layer: TypeLayer,
+    smartobject_layer: SmartObjectLayer,
+    fill_layer: AdjustmentLayer,
+) -> None:
+    group.extend([pixel_layer, type_layer])
+
+    group[0] = fill_layer
+    assert len(group) == 2
+    assert group[0] is fill_layer
+    assert group[1] is type_layer
+    assert pixel_layer not in group
+    assert pixel_layer._parent is None
+    assert fill_layer._parent is group
+    assert fill_layer._psd is group._psd
+
+    group[-1] = smartobject_layer
+    assert len(group) == 2
+    assert group[-1] is smartobject_layer
+    assert type_layer not in group
+
+    # Assigning the layer that is already at the index changes nothing.
+    group[0] = fill_layer
+    assert len(group) == 2
+    assert group[0] is fill_layer
+
+    # A layer already in the group moves to the index instead of being
+    # duplicated, so the group shrinks, as with append() and insert().
+    group[1] = fill_layer
+    assert len(group) == 1
+    assert group[0] is fill_layer
+
+    # A layer that came from before the replaced one lands one index lower
+    # than the index it was assigned to, because taking it out shifts the
+    # rest of the group down.
+    group.extend([pixel_layer, type_layer])
+    assert len(group) == 3
+    assert group[0] is fill_layer
+    group[2] = fill_layer
+    assert len(group) == 2
+    assert group[0] is pixel_layer
+    assert group[1] is fill_layer
+
+    group[0] = fill_layer
+    assert len(group) == 1
+
+    with pytest.raises(IndexError):
+        group[5] = pixel_layer
+    assert len(group) == 1
+
+    with pytest.raises(TypeError):
+        group[0] = "not a layer"  # type: ignore[assignment]
+    assert len(group) == 1
+
+    with pytest.raises(TypeError):
+        group[0:1] = [pixel_layer]  # type: ignore[index,assignment]
+    assert len(group) == 1
+
+
+def test_psd_image_setitem_round_trip(tmp_path: Any) -> None:
+    psdimage = PSDImage.new(mode="RGB", size=(30, 30))
+    psdimage.create_pixel_layer(Image.new("RGB", (30, 30), (255, 0, 0)), name="Red")
+    psdimage.create_pixel_layer(Image.new("RGB", (30, 30), (0, 255, 0)), name="Green")
+    replacement = PSDImage.new(mode="RGB", size=(30, 30)).create_pixel_layer(
+        Image.new("RGB", (30, 30), (0, 0, 255)), name="Blue"
+    )
+
+    psdimage[0] = replacement
+    assert [layer.name for layer in psdimage] == ["Blue", "Green"]
+
+    out = tmp_path / "test_setitem.psd"
+    psdimage.save(str(out))
+
+    psdimage2 = PSDImage.open(str(out))
+    assert [layer.name for layer in psdimage2] == ["Blue", "Green"]
+
+
 def test_group_remove(
     group: Group,
     pixel_layer: PixelLayer,
