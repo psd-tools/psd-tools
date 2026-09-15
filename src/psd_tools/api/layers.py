@@ -1095,6 +1095,17 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         self.remove(target)
 
     def __delitem__(self, key: int) -> None:
+        """
+        Remove the layer at the specified index from the group.
+
+        This operation rewrites the internal references of the layer.
+
+        :param key: The index of the layer to remove.
+        :raises IndexError: If the index is out of range.
+        :raises TypeError: If the key is not an index.
+        """
+        if isinstance(key, slice):
+            raise TypeError("Slice deletion is not supported")
         self.remove(self._layers[key])
 
     def append(self, layer: Layer) -> None:

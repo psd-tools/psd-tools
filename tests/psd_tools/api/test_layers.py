@@ -849,6 +849,27 @@ def test_psd_image_setitem_round_trip(tmp_path: Any) -> None:
     assert [layer.name for layer in psdimage2] == ["Blue", "Green"]
 
 
+def test_group_delitem(
+    group: Group,
+    pixel_layer: PixelLayer,
+    type_layer: TypeLayer,
+    smartobject_layer: SmartObjectLayer,
+) -> None:
+    group.extend([pixel_layer, type_layer, smartobject_layer])
+
+    del group[0]
+    assert len(group) == 2
+    assert pixel_layer not in group
+
+    # A slice is rejected up front, the way item assignment rejects one, and
+    # the group is left alone.
+    with pytest.raises(TypeError):
+        del group[0:2]  # type: ignore[arg-type]
+    assert len(group) == 2
+    assert group[0] is type_layer
+    assert group[1] is smartobject_layer
+
+
 def test_group_remove(
     group: Group,
     pixel_layer: PixelLayer,
