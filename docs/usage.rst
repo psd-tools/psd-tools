@@ -157,7 +157,7 @@ Moving a layer from a PSD to another will also automatically convert the PixelLa
 
 The follwing are valid for both PSDImage and Group objects.
 
-Set an item::
+Replace the layer at a given index::
 
     group[0] = layer
 

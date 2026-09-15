@@ -4,6 +4,11 @@ Changelog
 1.19.1 (unreleased)
 -------------------
 
+- [fix] Replace the layer at the given index when assigning to ``psd[i]`` or
+  ``group[i]``. Assignment inserted the new layer in front of the old one and
+  kept both. **Behaviour change** for code that relied on assignment
+  inserting; call ``insert()`` for that. An out-of-range index now raises
+  ``IndexError`` instead of appending (#811)
 - [fix] Trace a stroke effect from the layer's own coverage, not from the
   compositor's clipped copy of it. **Rendering change** for a layer that
   reaches off the canvas and for a ``composite(viewport=...)`` narrower than
