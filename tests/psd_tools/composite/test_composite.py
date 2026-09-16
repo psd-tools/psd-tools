@@ -1704,6 +1704,43 @@ def test_content_bbox_of_a_group_whose_children_are_all_hidden() -> None:
     assert _content_bbox(group) == (0, 0, 0, 0)
 
 
+def test_a_groups_contents_are_measured_once_per_composite(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The effect-aware box is memoized for the pass, not rebuilt per level.
+
+    Without the memo the outermost group measures the whole subtree, then
+    compositing descends and every group inside measures its own subtree over
+    again: O(nodes x depth), and exactly ``d(d + 1) / 2`` down a chain of
+    isolated groups, so depth 8 costs 36 measurements instead of 8.
+
+    Counted rather than timed, because the wall-clock difference is noise at
+    any depth a real document reaches -- the deepest nesting in the whole
+    fixture corpus is 5 -- and a timing assertion would be flaky without
+    measuring anything the call count does not.
+    """
+    # By name, because ``psd_tools.composite.composite`` as an attribute is the
+    # re-exported ``composite()`` function, not the module holding it.
+    module = sys.modules["psd_tools.composite.composite"]
+
+    calls = []
+    real = module._stroke_reach
+
+    def counting(layer: Layer) -> tuple[int, int, int, int]:
+        calls.append(layer)
+        return cast(tuple[int, int, int, int], real(layer))
+
+    monkeypatch.setattr(module, "_stroke_reach", counting)
+
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    node: Any = psd[0]
+    for index in range(8):
+        node = _grouped(psd, [node], "G%d" % index)
+
+    composite(psd)
+    assert len(calls) == 8, "one measurement per group, not one per group per level"
+
+
 def test_an_artboard_still_clips_its_contents_to_its_frame() -> None:
     """Widening an isolated group must not widen an artboard (#808).
 

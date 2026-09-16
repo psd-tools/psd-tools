@@ -150,15 +150,27 @@ def _stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
     return bbox
 
 
-def _paint_bbox(layer: Layer) -> tuple[int, int, int, int]:
+# Every ``_content_bbox()`` computed so far in one composite pass, keyed by
+# ``id()`` of the group. Without it the walk is repeated at every level: the
+# outermost group measures the whole subtree, then compositing descends and
+# each group inside measures its own subtree again, which is O(nodes x depth)
+# and exactly quadratic down a chain. Keyed by identity and never outliving the
+# pass, so it cannot go stale the way a cache on the layer would, and the
+# document is reachable throughout, so no id can be reused under it.
+_ContentBBoxes = dict[int, tuple[int, int, int, int]]
+
+
+def _paint_bbox(layer: Layer, memo: _ContentBBoxes) -> tuple[int, int, int, int]:
     """Every box ``layer`` and everything inside it can put paint on."""
     bbox = _stroke_reach(layer)
     if isinstance(layer, GroupMixin):
-        bbox = utils.union_bbox(bbox, _content_bbox(layer))
+        bbox = utils.union_bbox(bbox, _content_bbox(layer, memo))
     return bbox
 
 
-def _content_bbox(group: Layer) -> tuple[int, int, int, int]:
+def _content_bbox(
+    group: Layer, memo: _ContentBBoxes | None = None
+) -> tuple[int, int, int, int]:
     """The box an isolated group has to composite its contents on.
 
     ``Group.bbox`` is the union of its children's own bounding boxes and
@@ -182,10 +194,15 @@ def _content_bbox(group: Layer) -> tuple[int, int, int, int]:
     bbox = group.bbox
     if isinstance(group, Artboard):
         return bbox
+    if memo is None:
+        memo = {}
+    elif id(group) in memo:
+        return memo[id(group)]
     for child in cast(GroupMixin, group):
         if not child.is_visible() or child.clipping:
             continue
-        bbox = utils.union_bbox(bbox, _paint_bbox(child))
+        bbox = utils.union_bbox(bbox, _paint_bbox(child, memo))
+    memo[id(group)] = bbox
     return bbox
 
 
@@ -868,6 +885,7 @@ class Compositor(object):
         | None = None,
         widen: _Widen = _widen,
         color_mode: ColorMode | None = None,
+        content_bboxes: _ContentBBoxes | None = None,
     ):
         self._viewport = viewport
         self._layer_filter = layer_filter
@@ -882,6 +900,13 @@ class Compositor(object):
         # document handle either. None means "no document to ask", and leaves
         # the width to decide alone (#746).
         self._color_mode = color_mode
+        # Shared with every sub-compositor this one builds, so a group's
+        # contents are measured once per composite pass rather than once per
+        # enclosing group. A compositor built without one starts a pass of its
+        # own, which is what the public entry points and the tests do.
+        self._content_bboxes: _ContentBBoxes = (
+            {} if content_bboxes is None else content_bboxes
+        )
         self._adjustment_isolated = adjustment_isolated
         # What Knockout.DEEP knocks out to. Inherited by pass-through
         # sub-compositors and reset at every isolation boundary, so deep
@@ -1290,7 +1315,9 @@ class Compositor(object):
         viewport = (
             self._viewport
             if is_passthrough
-            else utils.intersect(self._viewport, _content_bbox(layer))
+            else utils.intersect(
+                self._viewport, _content_bbox(layer, self._content_bboxes)
+            )
         )
         if knockout:
             color_b, alpha_b = self._knockout_backdrop(knockout)
@@ -1341,6 +1368,7 @@ class Compositor(object):
             document_backdrop=document_backdrop,
             widen=self._widen,
             color_mode=self._color_mode,
+            content_bboxes=self._content_bboxes,
         )
 
         for sublayer in cast(GroupMixin, layer):
@@ -1449,6 +1477,7 @@ class Compositor(object):
             force=self._force,
             widen=self._widen,
             color_mode=self._color_mode,
+            content_bboxes=self._content_bboxes,
         )
         for clip_layer in layer.clip_layers:
             compositor.apply(clip_layer, clip_compositing=True)
