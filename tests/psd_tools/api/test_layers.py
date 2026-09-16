@@ -1338,3 +1338,31 @@ def test_reparenting_a_group_invalidates_the_subtree_it_carries(how: str) -> Non
     # one, which a single level of invalidation would leave behind.
     assert mover.bbox == (0, 0, 360, 200)
     assert inner.bbox == (0, 0, 360, 200)
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_moving_a_shape_to_another_document_rescales_its_bbox(nested: bool) -> None:
+    """A vector-mask-only shape's box is scaled by its *document's* size.
+
+    ``ShapeLayer.bbox`` multiplies the mask's normalized bounds by
+    ``self._psd.width`` and ``height``, so a cross-document move repoints
+    ``_psd`` at a canvas of a different size and the cached box no longer
+    describes anything. Nested inside a moved group, it is reached by the same
+    subtree walk that reaches the groups.
+    """
+    source = PSDImage.open(full_name("vector-mask.psd"))
+    target = PSDImage.open(full_name("note.psd"))
+    assert (source.width, source.height) == (100, 150)
+    assert (target.width, target.height) == (300, 300)
+
+    shape = source[1]
+    assert isinstance(shape, ShapeLayer)
+    moved: Any = shape
+    if nested:
+        moved = source.create_group([shape], name="G")
+
+    assert shape.bbox == (12, 42, 53, 83)  # armed against the 100x150 canvas
+
+    target.append(moved)
+
+    assert shape.bbox == (35, 85, 159, 166)
