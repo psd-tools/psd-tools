@@ -5,11 +5,22 @@ from typing import Any, Optional, cast
 import numpy as np
 import pytest
 
-from psd_tools.api.layers import AdjustmentLayer, GroupMixin, Layer, PixelLayer
+from psd_tools.api.layers import (
+    AdjustmentLayer,
+    Artboard,
+    Group,
+    GroupMixin,
+    Layer,
+    PixelLayer,
+)
 from psd_tools.api.numpy_io import _image_data_peak_bytes
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite
-from psd_tools.composite.composite import Compositor
+from psd_tools.composite.composite import (
+    Compositor,
+    _content_bbox,
+    _stroke_reach,
+)
 from psd_tools.composite.effects import stroke_bbox
 from psd_tools.constants import BlendMode, ColorMode, CompatibilityMode, Tag
 from psd_tools.psd.base import ByteElement
@@ -1548,3 +1559,173 @@ def test_composite_pil_clips_rather_than_wrapping_at_the_uint8_cast(
     assert isinstance(image, Image.Image)
     pixels = np.asarray(image.convert("RGB"))
     assert pixels.min() == expected and pixels.max() == expected, pixels
+
+
+def _grouped(psd: PSDImage, layer_list: Any, name: str) -> Any:
+    """An isolated group holding ``layer_list``, with a usable bbox.
+
+    ``GroupMixin.append()``, ``extend()`` and ``insert()`` never invalidate the
+    cached bbox, so a group populated through the editing API keeps whatever it
+    had -- and a group is born with ``(0, 0, 0, 0)`` cached, because the
+    ``isinstance(layer, GroupMixin)`` in ``_update_children()`` is a
+    ``runtime_checkable`` protocol check that reads ``bbox`` and materializes
+    it. So the group reports an empty box for the rest of its life. That is a
+    bug in the editing API, not anything these tests are about, so they clear
+    the cache and move on (#814).
+    """
+    group = psd.create_group(layer_list, name=name, blend_mode=BlendMode.NORMAL)
+    group._invalidate_bbox()
+    return group
+
+
+def test_an_isolated_group_composites_on_its_contents_reach() -> None:
+    """A group's viewport counts its children's effects, not just their boxes.
+
+    ``Group.bbox`` is the union of its children's own bounding boxes, and a
+    child's outset or centered stroke reaches past its own box and therefore
+    past the group's (#808). The union has to be taken over every descendant
+    and through nested groups: a stroke three levels down still paints on the
+    outermost isolated group's canvas.
+    """
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    layer = psd[0]
+    assert layer.bbox == (8, 8, 24, 24)
+    inner = _grouped(psd, [layer], "Inner")
+    outer = _grouped(psd, [inner], "Outer")
+
+    assert outer.bbox == (8, 8, 24, 24), "the box the group used to composite on"
+    assert _content_bbox(outer) == (4, 4, 28, 28), "the 3 px outset stroke, two deep"
+
+
+def test_content_bbox_counts_a_nested_groups_own_stroke() -> None:
+    """A group child reaches outside its box the same way a layer does.
+
+    An isolated parent has to hold the stroke box of a group *inside* it, not
+    just the boxes of that group's contents. Without that, the parent handed
+    the nested group a viewport ending at the group's own edge, and its stroke
+    came out worse than the identical group at the document root: 2012 painted
+    pixels against 2320, where both now give 2408. It does not make a stroke on
+    a group *correct* -- that is #808's other item, still open wherever the
+    stroke box escapes the viewport being composited on.
+
+    No fixture in the corpus puts a stroke effect on a group, so the effect
+    block is copied onto one from a layer that has it. Authoring that document
+    belongs with the fix for the root case.
+
+    The borrowed stroke is size 7 while the layer inside carries size 1, so the
+    group's own reach is the binding one: a helper that descended into the
+    group without measuring the group would land on the layer's smaller box and
+    look right.
+    """
+    psd = PSDImage.open(full_name("effects/center-stroke-sizes.psd"))
+    layer = next(sub for sub in psd if sub.name == "Size 1")
+    wider = next(sub for sub in psd if sub.name == "Size 7")
+    effects = wider.tagged_blocks.get_data(Tag.OBJECT_BASED_EFFECTS_LAYER_INFO)
+    inner = _grouped(psd, [layer], "Inner")
+    outer = _grouped(psd, [inner], "Outer")
+    inner.tagged_blocks.set_data(Tag.OBJECT_BASED_EFFECTS_LAYER_INFO, effects)
+
+    assert _stroke_reach(layer) == (14, 14, 34, 34), "the layer's own size 1"
+    assert _stroke_reach(inner) == (11, 11, 37, 37), "the group's borrowed size 7"
+    assert outer.bbox == (16, 16, 32, 32)
+    assert _content_bbox(outer) == (11, 11, 37, 37)
+
+
+def test_content_bbox_spans_every_child_not_just_one() -> None:
+    """Both ends of the union move, so neither end can come from one child.
+
+    ``center-stroke-sizes.psd``'s squares carry centered strokes of different
+    sizes, so the leftmost and the rightmost grow the box by different amounts
+    -- 2 px and 5 px. A helper that stopped at the first or the last child
+    would get one end right and the other wrong.
+    """
+    psd = PSDImage.open(full_name("effects/center-stroke-sizes.psd"))
+    first = next(layer for layer in psd if layer.name == "Size 1")
+    last = next(layer for layer in psd if layer.name == "Size 7")
+    assert (first.bbox, last.bbox) == ((16, 16, 32, 32), (144, 16, 160, 32))
+    group = _grouped(psd, [first, last], "Both")
+
+    assert group.bbox == (16, 16, 160, 32)
+    assert _content_bbox(group) == (14, 11, 165, 37)
+
+
+def test_content_bbox_ignores_a_hidden_or_clipping_child() -> None:
+    """The union counts the children ``Group.bbox`` counts, and no others.
+
+    A hidden child is not composited at all. A clipping child is, but only
+    through :py:meth:`Compositor._apply_clip_layers`, which keeps its color and
+    discards its coverage -- so it cannot paint outside the layer it clips to,
+    and that layer is a non-clipping child already counted.
+    """
+    for hide, clip in ((True, False), (False, True)):
+        psd = PSDImage.open(full_name("effects/center-stroke-sizes.psd"))
+        base = next(layer for layer in psd if layer.name == "Size 1")
+        other = next(layer for layer in psd if layer.name == "Size 7")
+        group = _grouped(psd, [base, other], "Both")
+        other.visible = not hide
+        other.clipping = clip
+
+        assert group.bbox == (16, 16, 32, 32), (hide, clip)
+        assert _content_bbox(group) == (14, 14, 34, 34), (hide, clip)
+
+
+def test_content_bbox_is_not_dragged_to_the_origin_by_an_empty_child() -> None:
+    """A visible child with no bounding box contributes nothing, not a corner.
+
+    ``center-stroke-sizes.psd`` ships an empty pixel layer -- visible,
+    non-clipping, bbox ``(0, 0, 0, 0)`` -- alongside its squares. Folding that
+    into the union as though it were a box at the origin would pull the group's
+    left and top edges to the canvas corner, and composite it on a viewport far
+    larger than anything inside it.
+    """
+    psd = PSDImage.open(full_name("effects/center-stroke-sizes.psd"))
+    empty = next(layer for layer in psd if layer.name == "Layer 1")
+    stroked = next(layer for layer in psd if layer.name == "Size 7")
+    assert empty.bbox == (0, 0, 0, 0)
+    assert empty.is_visible() and not empty.clipping
+    group = _grouped(psd, [empty, stroked], "Both")
+
+    assert group.bbox == (144, 16, 160, 32)
+    assert _content_bbox(group) == (139, 11, 165, 37)
+
+
+def test_content_bbox_of_a_group_whose_children_are_all_hidden() -> None:
+    """An empty group still composites on an empty viewport, as it always has.
+
+    ``utils.union_bbox`` treats ``(0, 0, 0, 0)`` as "nothing here" rather than
+    as a box at the origin, so an empty group does not acquire one.
+    """
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    layer = psd[0]
+    group = _grouped(psd, [layer], "Empty")
+    layer.visible = False
+
+    assert group.bbox == (0, 0, 0, 0)
+    assert _content_bbox(group) == (0, 0, 0, 0)
+
+
+def test_an_artboard_still_clips_its_contents_to_its_frame() -> None:
+    """Widening an isolated group must not widen an artboard (#808).
+
+    ``Artboard.bbox`` is the artboard rectangle from its own tagged block, not
+    a union of its children -- which routinely run past it -- so intersecting
+    the viewport with it is how the artboard clip is implemented here. The
+    three artboards in ``gradient-sizes.psd`` each overhang by a pixel on every
+    side; Photoshop's own render leaves the gaps between them empty, and taking
+    the union of the children instead would paint into them.
+
+    ``force=True`` because that is the mode the regression showed up in: the
+    gradients are redrawn there rather than read from stored pixels.
+    """
+    psd = PSDImage.open(full_name("gradient-sizes.psd"))
+    artboard = psd[0]
+    assert isinstance(artboard, Artboard)
+    assert artboard.bbox == (0, 0, 64, 64)
+    assert Group.extract_bbox(artboard) == (-1, -1, 65, 65), "children overhang"
+    assert _content_bbox(artboard) == artboard.bbox
+
+    image = psd.composite(ignore_preview=True, force=True)
+    assert image is not None
+    alpha = np.asarray(image.convert("RGBA"))[..., 3]
+    assert alpha[:, 64:73].max() == 0, "the vertical gap between artboards"
+    assert alpha[64:73, :].max() == 0, "the horizontal gap between artboards"

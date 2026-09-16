@@ -54,6 +54,25 @@ def intersect(
     return inter
 
 
+def union_bbox(
+    a: tuple[int, int, int, int], b: tuple[int, int, int, int]
+) -> tuple[int, int, int, int]:
+    """The smallest bounding box containing both, ignoring an empty one.
+
+    The bounding-box twin of :py:func:`intersect`, and unrelated to
+    :py:func:`union`, which is the generalized union of two *coverages*.
+
+    An empty box means "nothing here" rather than a box at the origin, so it
+    contributes nothing: growing a real box to reach ``(0, 0, 0, 0)`` would
+    drag it to the top-left corner of the canvas.
+    """
+    if a[0] >= a[2] or a[1] >= a[3]:
+        return b
+    if b[0] >= b[2] or b[1] >= b[3]:
+        return a
+    return (min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3]))
+
+
 def has_fill(layer: Layer) -> bool:
     """Check if layer has fill settings."""
     FILL_TAGS = (

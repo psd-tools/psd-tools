@@ -9,7 +9,7 @@ import numpy as np
 from PIL import Image
 
 from psd_tools.api import pil_io
-from psd_tools.api.layers import AdjustmentLayer, GroupMixin, Layer
+from psd_tools.api.layers import AdjustmentLayer, Artboard, GroupMixin, Layer
 from psd_tools.api.protocols import LayerProtocol, PSDProtocol
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.api.utils import check_pixel_size, get_color_channels
@@ -114,6 +114,79 @@ _OVERLAY_DRAWS: dict[str, _OverlayDraw] = {
     "patternoverlay": _draw_pattern_overlay,
     "gradientoverlay": _draw_gradient_overlay,
 }
+
+
+def _stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
+    """``layer.bbox`` grown to every box its stroke effects are drawn on.
+
+    A stroke is the only effect in this module that reaches outside the layer:
+    the three overlays draw on ``layer.bbox`` and are pasted from it, the
+    vector stroke's wider box contributes color alone -- ``_get_object()``
+    keeps none of its coverage -- and drop shadow, glow, satin and bevel are
+    not implemented at all. So this is the whole of the outward reach, not a
+    first instalment of it.
+
+    ``find("stroke")`` rather than a descriptor walk, so this stays in lockstep
+    with the loop in :py:meth:`Compositor._apply_stroke_effect` that actually
+    draws them: both skip a disabled effect and both skip every effect when the
+    layer's master switch is off.
+    """
+    bbox = layer.bbox
+    if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
+        return bbox
+    try:
+        for effect in _styled(layer.effects.find("stroke")):
+            bbox = utils.union_bbox(bbox, stroke_bbox(layer.bbox, effect.value))
+    except (AttributeError, TypeError, ValueError) as error:
+        # ``Effects`` rejects an effect class it does not know, and
+        # ``stroke_bbox()`` reads a style and a size straight off the
+        # descriptor. A layer outside the group's old viewport was never
+        # composited and so was never measured at all; doing it here must not
+        # turn a document that rendered into one that raises. The box falls
+        # back to the one this function grew it from, which is what the group
+        # used before.
+        logger.debug("Cannot measure the stroke effects of %s: %s" % (layer, error))
+        return layer.bbox
+    return bbox
+
+
+def _paint_bbox(layer: Layer) -> tuple[int, int, int, int]:
+    """Every box ``layer`` and everything inside it can put paint on."""
+    bbox = _stroke_reach(layer)
+    if isinstance(layer, GroupMixin):
+        bbox = utils.union_bbox(bbox, _content_bbox(layer))
+    return bbox
+
+
+def _content_bbox(group: Layer) -> tuple[int, int, int, int]:
+    """The box an isolated group has to composite its contents on.
+
+    ``Group.bbox`` is the union of its children's own bounding boxes and
+    excludes effect coverage, so a child's outset or centered stroke reaches
+    past its own box and therefore past the group's. Compositing the group on
+    that box clips the stroke away with no viewport the caller could widen to
+    get it back (#808).
+
+    An ``Artboard`` stops the descent. Its ``bbox`` is the artboard rectangle
+    rather than a union of its children -- the children routinely run past it
+    -- and intersecting with it is how the artboard clip is implemented here.
+    Growing it to fit a child would paint into the gap between two artboards,
+    which Photoshop's own render leaves empty.
+
+    The children counted are the ones ``Group.extract_bbox()`` counts, so the
+    box can only grow and never move. A clipping child is left out because it
+    cannot paint outside the layer it clips to:
+    :py:meth:`Compositor._apply_clip_layers` keeps its color and discards its
+    coverage, and that layer is a non-clipping child already counted.
+    """
+    bbox = group.bbox
+    if isinstance(group, Artboard):
+        return bbox
+    for child in cast(GroupMixin, group):
+        if not child.is_visible() or child.clipping:
+            continue
+        bbox = utils.union_bbox(bbox, _paint_bbox(child))
+    return bbox
 
 
 def composite_pil(
@@ -1217,7 +1290,7 @@ class Compositor(object):
         viewport = (
             self._viewport
             if is_passthrough
-            else utils.intersect(self._viewport, layer.bbox)
+            else utils.intersect(self._viewport, _content_bbox(layer))
         )
         if knockout:
             color_b, alpha_b = self._knockout_backdrop(knockout)
@@ -1529,6 +1602,15 @@ class Compositor(object):
             # stroke keeps tracing the clipped copy, which is wrong in the
             # same way but still draws a stroke; recomputing would read the
             # group as an object and find no coverage at all.
+            #
+            # Reached whenever the stroke box escapes the viewport being
+            # composited on, nested as readily as at the document root:
+            # _get_group() intersects with the enclosing viewport, so a nested
+            # group's is a subset of the canvas and containment is only ever
+            # harder there. What _content_bbox() changed is that an isolated
+            # parent no longer makes this worse than the root case -- its
+            # viewport now holds the group's own stroke box -- not that nesting
+            # escapes the case at all (#808 item 1).
             return paste(viewport, self._viewport, shape)
 
         traced = self._get_mask(layer, viewport)
