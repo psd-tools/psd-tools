@@ -1704,7 +1704,7 @@ def test_content_bbox_of_a_group_whose_children_are_all_hidden() -> None:
     assert _content_bbox(group) == (0, 0, 0, 0)
 
 
-def test_a_groups_contents_are_measured_once_per_composite(
+def test_group_contents_are_measured_once_per_composite(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The effect-aware box is memoized for the pass, not rebuilt per level.
@@ -1713,6 +1713,11 @@ def test_a_groups_contents_are_measured_once_per_composite(
     compositing descends and every group inside measures its own subtree over
     again: O(nodes x depth), and exactly ``d(d + 1) / 2`` down a chain of
     isolated groups, so depth 8 costs 36 measurements instead of 8.
+
+    The 8 is the seven *inner* groups plus the one leaf layer, not the eight
+    groups: ``_get_group()`` asks ``_content_bbox()`` about the outermost group
+    directly, and only the children it descends to go through
+    ``_paint_bbox()``, which is what calls ``_stroke_reach()``.
 
     Counted rather than timed, because the wall-clock difference is noise at
     any depth a real document reaches -- the deepest nesting in the whole
@@ -1738,7 +1743,16 @@ def test_a_groups_contents_are_measured_once_per_composite(
         node = _grouped(psd, [node], "G%d" % index)
 
     composite(psd)
-    assert len(calls) == 8, "one measurement per group, not one per group per level"
+    assert [layer.name for layer in calls] == [
+        "G6",
+        "G5",
+        "G4",
+        "G3",
+        "G2",
+        "G1",
+        "G0",
+        "Rect",
+    ], "each measured once, rather than once per level enclosing it"
 
 
 def test_an_artboard_still_clips_its_contents_to_its_frame() -> None:

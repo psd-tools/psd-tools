@@ -190,6 +190,13 @@ def _content_bbox(
     cannot paint outside the layer it clips to:
     :py:meth:`Compositor._apply_clip_layers` keeps its color and discards its
     coverage, and that layer is a non-clipping child already counted.
+
+    Visibility is read the way ``Group.bbox`` reads it and not the way
+    ``layer_filter`` does, so a child the filter excludes is measured here. It
+    was already inside the old box for the same reason -- ``extract_bbox()``
+    does not consult the filter either -- and all this adds on top is that
+    child's own stroke margin, so the two stay consistent rather than one
+    being narrowed alone.
     """
     bbox = group.bbox
     if isinstance(group, Artboard):
