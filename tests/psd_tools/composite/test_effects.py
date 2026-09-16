@@ -4,7 +4,6 @@ import math
 import numpy as np
 import pytest
 
-from psd_tools.api.layers import Group
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import _compat, composite, effects
 from psd_tools.composite.effects import (
@@ -17,7 +16,7 @@ from psd_tools.psd.descriptor import Descriptor, Double, Enumerated
 from psd_tools.terminology import Enum, Key, Klass
 
 from ..utils import full_name
-from .test_composite import _canvas, _mse, check_composite_quality
+from .test_composite import _mse, check_composite_quality
 
 logger = logging.getLogger(__name__)
 
@@ -685,31 +684,55 @@ def test_each_stroke_path_names_the_dependency_it_is_missing(
         check_composite_quality("effects/outside-stroke.psd", threshold=1.0)
 
 
-def test_a_group_stroke_keeps_the_clipped_copy_outside_the_viewport() -> None:
-    """A group has no coverage to re-read, so its stroke keeps what it had.
+@pytest.mark.parametrize("force", [False, True])
+def test_a_group_stroke_traces_the_group_past_the_canvas(force: bool) -> None:
+    """A stroke on a group follows the group, not the viewport edge (#808).
 
-    #804 fixed the stroke by reading the layer's own coverage on the box it
-    draws on, which a group does not have: a group's coverage *is* the
-    composite onto the compositor's viewport. Reading it as an object finds
-    no pixel data and no fill, which would place the stroke on an empty
-    canvas and draw nothing at all -- worse than the misplaced stroke. The
-    clipped copy stands instead.
+    ``group-stroke-off-canvas.psd`` is a 96x32 document with two groups, each
+    carrying a 4 px inset stroke on the *group*:
+
+    ``Clipped`` holds an L -- a blue ``Arm`` and a green ``Leg`` -- shifted so
+    the group sits at ``(-12, 4, 12, 28)``, 12 px off the left edge, and its
+    stroke box ``(-13, 3, 13, 29)`` escapes the canvas. Only the ``Arm``
+    crosses ``x = 0``, so the coverage in the escaping strip stops at
+    ``y = 14`` and the boundary running through that strip is horizontal.
+
+    That geometry is what separates three answers, at two rows:
+
+    - row 8 runs through the ``Arm``, where the group continues past the canvas
+      and so has no boundary. The compositor used to trace its own clipped copy,
+      whose coverage stopped dead at ``x = 0``, and painted a band there that
+      Photoshop does not.
+    - row 20 runs below the ``Arm``, where only the ``Leg`` is, and the group's
+      left boundary really is at ``x = 0``. Treating everything outside the
+      viewport as covered -- the cheap way to make row 8 pass -- erases this
+      band instead.
+
+    ``Inside`` is the control: its stroke box ``(35, 7, 61, 25)`` stays within
+    the canvas, so it takes the early return and must not move at all.
     """
-    psd = PSDImage.open(full_name("hidden-groups.psd"))
-    group = next(sub for sub in psd if isinstance(sub, Group))
-    covered = np.ones((psd.height, psd.width, 1), dtype=np.float32)
-    compositor = _canvas(psd)
+    check_composite_quality("effects/group-stroke-off-canvas.psd", 1e-4, force)
 
-    # A box reaching two pixels off every side of the canvas: the recompute
-    # path, and the one an off-canvas group would take.
-    viewport = (-2, -2, psd.width + 2, psd.height + 2)
-    traced = compositor._trace_shape(group, viewport, covered, traces_mask=False)
+    psd = PSDImage.open(full_name("effects/group-stroke-off-canvas.psd"))
+    image = psd.composite(ignore_preview=True, force=force)
+    assert image is not None
+    rgb = np.asarray(image.convert("RGB"))
 
-    assert traced.shape == (psd.height + 4, psd.width + 4, 1)
-    assert np.array_equal(traced[2:-2, 2:-2], covered)
-    assert compositor._get_object_shape(group, viewport).max() == 0.0, (
-        "the group would read as no coverage at all"
+    blue, red, green = (0, 0, 255), (255, 0, 0), (0, 180, 0)
+    assert [tuple(pixel) for pixel in rgb[8, 0:4]] == [blue] * 4, (
+        "the group runs past the canvas here, so there is no edge to stroke"
     )
+    assert [tuple(pixel) for pixel in rgb[20, 0:4]] == [red] * 4, (
+        "but here the group really does end at x = 0, and the band belongs"
+    )
+    assert tuple(rgb[20, 4]) == green
+
+    # The control third, byte for byte against Photoshop's own render.
+    preview = psd.topil()
+    assert preview is not None
+    assert np.array_equal(
+        rgb[:, 32:64], np.asarray(preview.convert("RGB"))[:, 32:64]
+    ), "a contained stroke box must still take the early return"
 
 
 @pytest.mark.parametrize("force", [False, True])

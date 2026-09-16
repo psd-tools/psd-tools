@@ -16,9 +16,11 @@ from psd_tools.api.layers import (
 from psd_tools.api.numpy_io import _image_data_peak_bytes
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite
+from psd_tools.composite import utils
 from psd_tools.composite.composite import (
     Compositor,
     _content_bbox,
+    _read_knockout,
     _stroke_reach,
 )
 from psd_tools.composite.effects import stroke_bbox
@@ -1780,3 +1782,178 @@ def test_an_artboard_still_clips_its_contents_to_its_frame() -> None:
     alpha = np.asarray(image.convert("RGBA"))[..., 3]
     assert alpha[:, 64:73].max() == 0, "the vertical gap between artboards"
     assert alpha[64:73, :].max() == 0, "the horizontal gap between artboards"
+
+
+def test_a_traced_group_shape_matches_the_one_it_composites_with() -> None:
+    """Re-reading a group must yield what compositing it yields (#808).
+
+    ``_get_group_shape()`` composites a group's contents a second time, on the
+    box a stroke effect draws on. The whole design rests on that second
+    composite agreeing with the first, so it is asserted rather than argued:
+    on the same viewport, the two are the same array.
+
+    A transparent backdrop is enough, and knockout and the document backdrop
+    are deliberately not carried over, because ``shape`` accumulates into
+    ``_shape_g`` -- which starts at zero and is only ever unioned into, so it
+    cannot read a backdrop at all.
+    """
+    for filename in ("transparency/knockout-deep-nested.psd", "masks3.psd"):
+        psd = PSDImage.open(full_name(filename))
+        for group in (sub for sub in _descendants(psd) if isinstance(sub, Group)):
+            compositor = _canvas(psd)
+            inner = (
+                compositor._viewport
+                if group.blend_mode == BlendMode.PASS_THROUGH
+                else utils.intersect(compositor._viewport, _content_bbox(group))
+            )
+            if inner == (0, 0, 0, 0):
+                continue
+            from_get_group = compositor._get_group(group, _read_knockout(group))[1]
+            traced = compositor._get_group_shape(group, compositor._viewport)
+            assert np.array_equal(traced, from_get_group), (filename, group.name)
+
+
+def test_a_traced_group_shape_applies_the_groups_own_mask() -> None:
+    """The re-read is the group's coverage *through its mask*, as before.
+
+    The object branch multiplies ``_get_object_shape()`` by ``_get_mask()``, and
+    the group branch has to do the same or the stroke traces a boundary the
+    mask has already cut away. ``masks3.psd`` ships a group whose user mask is a
+    horizontal band across it, which is what makes the two measurably different.
+    """
+    psd = PSDImage.open(full_name("masks3.psd"))
+    group = next(
+        sub
+        for sub in _descendants(psd)
+        if isinstance(sub, Group) and sub.mask is not None
+    )
+    assert group.mask is not None and group.mask.bbox == (2, 13, 29, 21)
+
+    compositor = _canvas(psd)
+    wide = (-4, -4, psd.width + 4, psd.height + 4)
+    covered = np.ones((psd.height, psd.width, 1), dtype=np.float32)
+    traced = compositor._trace_shape(group, wide, covered, traces_mask=False)
+    unmasked = compositor._get_group_shape(group, wide)
+
+    assert not np.allclose(traced, unmasked), "the mask has to bite"
+    assert traced.sum() < unmasked.sum()
+    assert np.array_equal(traced, unmasked * compositor._get_mask(group, wide))
+
+
+def test_a_traced_artboard_keeps_its_frame_clip() -> None:
+    """The re-read narrows its box exactly the way ``_get_group()`` does (#808).
+
+    ``_content_bbox()`` hands back an ``Artboard``'s frame verbatim, and
+    intersecting with it is how the artboard clip is implemented, so a trace
+    that skipped that step would follow the children out past the frame.
+
+    The asymmetry is load-bearing and is asserted in both directions.
+    ``_get_group()`` gives a *pass-through* group this compositor's viewport
+    untouched, so a pass-through artboard gets no frame clip today --
+    ``artboard.psd``'s does not, and its children reach ``(-736, -356)``. The
+    trace has to reproduce that rather than improve on it, or the stroke would
+    trace a frame the composite never drew.
+    """
+    psd = PSDImage.open(full_name("artboard.psd"))
+    artboard = psd[0]
+    assert isinstance(artboard, Artboard)
+    assert artboard.blend_mode == BlendMode.PASS_THROUGH
+    assert _content_bbox(artboard) == artboard.bbox
+    assert Group.extract_bbox(artboard) == (-736, -356, 1420, 1061)
+
+    left, top, right, bottom = artboard.bbox
+    wide = (left - 8, top - 8, right + 8, bottom + 8)
+
+    def outside_the_frame(shape: np.ndarray) -> int:
+        cropped = shape.copy()
+        cropped[top - wide[1] : bottom - wide[1], left - wide[0] : right - wide[0]] = 0
+        return int((cropped > 0).sum())
+
+    # A floor, not the exact 16288: 135 of those are anti-aliased vector edges,
+    # the class #804 already shifted by 1/255, and the claim here is only that
+    # the coverage is not clipped away.
+    passthrough = _canvas(psd)._get_group_shape(artboard, wide)
+    assert outside_the_frame(passthrough) > 16000, "no frame clip, as today"
+
+    artboard.blend_mode = BlendMode.NORMAL
+    isolated = _canvas(psd)._get_group_shape(artboard, wide)
+    assert outside_the_frame(isolated) == 0, "an isolated artboard clips to its frame"
+
+
+def test_a_traced_group_keeps_its_boxes_apart() -> None:
+    """The memo is keyed by the box as well as the group (#808).
+
+    A layer may carry several stroke effects (#798), and two of different sizes
+    ask for the group on two different boxes. A pass-through group is where
+    that bites: it is handed the box untouched, so the two really do composite
+    on different canvases, and a memo keyed by the group alone would hand the
+    second the first's array -- a different size, and ``paste()`` would then
+    read it as though it started somewhere it does not.
+
+    An isolated group is not a substitute here. Both of its boxes narrow to the
+    same ``_content_bbox()``, so it shares one cached array by design and only
+    the ``paste()`` back differs -- which is correct, and measures nothing about
+    the key.
+    """
+    psd = PSDImage.open(full_name("masks3.psd"))
+    group = next(
+        sub
+        for sub in _descendants(psd)
+        if isinstance(sub, Group) and sub.blend_mode == BlendMode.PASS_THROUGH
+    )
+    compositor = _canvas(psd)
+
+    narrow, wide = (
+        (-2, -2, psd.width + 2, psd.height + 2),
+        (-6, -6, psd.width, psd.height),
+    )
+    first = compositor._get_group_shape(group, narrow)
+    second = compositor._get_group_shape(group, wide)
+
+    assert len(compositor._cache.group_shapes) == 2, "one entry per box"
+    assert first.shape[:2] == (narrow[3] - narrow[1], narrow[2] - narrow[0])
+    assert second.shape[:2] == (wide[3] - wide[1], wide[2] - wide[0])
+    # Same coverage, each on its own canvas: compare where the boxes overlap.
+    overlap = utils.intersect(narrow, wide)
+
+    def crop(array, box):
+        y0, x0 = overlap[1] - box[1], overlap[0] - box[0]
+        return array[
+            y0 : y0 + overlap[3] - overlap[1], x0 : x0 + overlap[2] - overlap[0]
+        ]
+
+    assert np.array_equal(crop(first, narrow), crop(second, wide))
+    assert crop(first, narrow).sum() > 0, "the overlap carries coverage to compare"
+
+
+def test_a_traced_group_is_composited_once_per_box() -> None:
+    """Tracing must not double the work at every level of nesting (#808).
+
+    Asking twice for the same group on the same box must composite once. That
+    is what keeps nesting from doubling the work at every level, and what keeps
+    a layer's second stroke effect (#798) from repeating the first's composite;
+    this test pins the property those rest on rather than either shape of
+    document, since both need a contrived tree to exhibit.
+    """
+    built = []
+    real = composite_module.Compositor.__init__
+
+    def counting(self: Any, *args: Any, **kwargs: Any) -> None:
+        built.append(self)
+        real(self, *args, **kwargs)
+
+    psd = PSDImage.open(full_name("effects/group-stroke-off-canvas.psd"))
+    group = next(sub for sub in psd if sub.name == "Clipped")
+    compositor = _canvas(psd)
+    box = (-13, 3, 13, 29)
+
+    first = compositor._get_group_shape(group, box)
+    assert compositor._cache.group_shapes, "the box it composited on is remembered"
+
+    composite_module.Compositor.__init__ = counting
+    try:
+        again = compositor._get_group_shape(group, box)
+    finally:
+        composite_module.Compositor.__init__ = real
+    assert built == [], "the second ask composites nothing"
+    assert np.array_equal(again, first)

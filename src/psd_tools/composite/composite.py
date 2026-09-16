@@ -2,7 +2,7 @@
 
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable, Iterator, Protocol, cast
 
 import numpy as np
@@ -150,14 +150,44 @@ def _stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
     return bbox
 
 
-# Every ``_content_bbox()`` computed so far in one composite pass, keyed by
-# ``id()`` of the group. Without it the walk is repeated at every level: the
-# outermost group measures the whole subtree, then compositing descends and
-# each group inside measures its own subtree again, which is O(nodes x depth)
-# and exactly quadratic down a chain. Keyed by identity and never outliving the
-# pass, so it cannot go stale the way a cache on the layer would, and the
-# document is reachable throughout, so no id can be reused under it.
 _ContentBBoxes = dict[int, tuple[int, int, int, int]]
+_GroupShapes = dict[tuple[int, tuple[int, int, int, int]], np.ndarray]
+
+
+@dataclass
+class _PassCache:
+    """What one composite pass measures once and then reuses.
+
+    Both entries are keyed by ``id()`` and neither outlives the pass, so unlike
+    a cache on the layer they cannot go stale against an edit, and the document
+    stays reachable throughout, so no id can be reused under them.
+
+    ``content_bboxes`` holds every ``_content_bbox()`` computed so far. Without
+    it the walk repeats at every level: the outermost group measures the whole
+    subtree, then compositing descends and each group inside measures its own
+    subtree again -- O(nodes x depth), and exactly quadratic down a chain.
+
+    ``group_shapes`` holds every group coverage ``_get_group_shape()`` has
+    composited, keyed by the group and the box it was composited on. Tracing a
+    group's stroke composites its whole subtree, and a group inside that
+    subtree whose own stroke escapes composites its subtree again, so the work
+    can *double* at every level rather than merely repeat. It takes nesting
+    where each stroke reaches further than its parent's to get there -- equal
+    sizes all the way down leave the inner traces inside the box #808's other
+    half already widened, and cost d rather than 2**d -- but at 2**d a chain of
+    ten is a thousand composites. Keyed by box and not by layer alone because a
+    layer may carry several stroke effects (#798), each traced separately.
+
+    The memo collapses the composites to one per box; the ``paste()`` back to
+    each asking viewport still happens per call, so the remaining cost is
+    quadratic in depth rather than linear. It also retains one coverage canvas
+    per entry until the pass ends, which is new: the trade is bounded work for
+    bounded-lifetime memory, and on a large document with many traced groups
+    the retention is the part that grows.
+    """
+
+    content_bboxes: _ContentBBoxes = field(default_factory=dict)
+    group_shapes: _GroupShapes = field(default_factory=dict)
 
 
 def _paint_bbox(layer: Layer, memo: _ContentBBoxes) -> tuple[int, int, int, int]:
@@ -892,7 +922,7 @@ class Compositor(object):
         | None = None,
         widen: _Widen = _widen,
         color_mode: ColorMode | None = None,
-        content_bboxes: _ContentBBoxes | None = None,
+        cache: _PassCache | None = None,
     ):
         self._viewport = viewport
         self._layer_filter = layer_filter
@@ -911,9 +941,7 @@ class Compositor(object):
         # contents are measured once per composite pass rather than once per
         # enclosing group. A compositor built without one starts a pass of its
         # own, which is what the public entry points and the tests do.
-        self._content_bboxes: _ContentBBoxes = (
-            {} if content_bboxes is None else content_bboxes
-        )
+        self._cache: _PassCache = _PassCache() if cache is None else cache
         self._adjustment_isolated = adjustment_isolated
         # What Knockout.DEEP knocks out to. Inherited by pass-through
         # sub-compositors and reset at every isolation boundary, so deep
@@ -1323,7 +1351,7 @@ class Compositor(object):
             self._viewport
             if is_passthrough
             else utils.intersect(
-                self._viewport, _content_bbox(layer, self._content_bboxes)
+                self._viewport, _content_bbox(layer, self._cache.content_bboxes)
             )
         )
         if knockout:
@@ -1375,7 +1403,7 @@ class Compositor(object):
             document_backdrop=document_backdrop,
             widen=self._widen,
             color_mode=self._color_mode,
-            content_bboxes=self._content_bboxes,
+            cache=self._cache,
         )
 
         for sublayer in cast(GroupMixin, layer):
@@ -1484,7 +1512,7 @@ class Compositor(object):
             force=self._force,
             widen=self._widen,
             color_mode=self._color_mode,
-            content_bboxes=self._content_bboxes,
+            cache=self._cache,
         )
         for clip_layer in layer.clip_layers:
             compositor.apply(clip_layer, clip_compositing=True)
@@ -1624,39 +1652,104 @@ class Compositor(object):
         follows the viewport edge as if it were the layer's own -- so the
         coverage is read again, on the box actually asked for (#804).
 
-        A group is the exception: its coverage is the composite onto this
-        viewport and cannot be re-read anywhere else.
+        A group has no stored coverage to re-read, so its contents are
+        composited a second time on that box instead -- unless its stroke
+        traces its mask, which is the one branch below that never consults a
+        layer's contents at all (#808).
         """
         x0, y0, x1, y1 = viewport
         vx0, vy0, vx1, vy1 = self._viewport
         if vx0 <= x0 and vy0 <= y0 and x1 <= vx1 and y1 <= vy1:
             return paste(viewport, self._viewport, shape)
 
-        if isinstance(layer, GroupMixin) and not traces_mask:
-            # A group's coverage is composited onto this viewport and exists
-            # nowhere else, so there is nothing to re-read outside it. Its
-            # stroke keeps tracing the clipped copy, which is wrong in the
-            # same way but still draws a stroke; recomputing would read the
-            # group as an object and find no coverage at all.
-            #
-            # Reached whenever the stroke box escapes the viewport being
-            # composited on, nested as readily as at the document root:
-            # _get_group() intersects with the enclosing viewport, so a nested
-            # group's is a subset of the canvas and containment is only ever
-            # harder there. What _content_bbox() changed is that an isolated
-            # parent no longer makes this worse than the root case -- its
-            # viewport now holds the group's own stroke box -- not that nesting
-            # escapes the case at all (#808 item 1).
-            return paste(viewport, self._viewport, shape)
-
+        # TODO: a group whose stroke traces its mask -- ``force`` with a vector
+        # mask on the group -- gets the mask outline alone, which for a group
+        # bears no relation to where its contents are. Pre-existing, unreachable
+        # in the corpus (the two groups it applies to carry no stroke effect),
+        # and the same inside the viewport as outside, so this change leaves it
+        # be; ``_get_group_shape()`` is what a fix would multiply in.
         traced = self._get_mask(layer, viewport)
         if not traces_mask:
-            traced = self._get_object_shape(layer, viewport) * traced
+            # Reading a group as an object finds no pixel data and no fill, so
+            # the only route to its coverage outside this viewport is to
+            # composite its contents again on the box asked for.
+            own = (
+                self._get_group_shape(layer, viewport)
+                if isinstance(layer, GroupMixin)
+                else self._get_object_shape(layer, viewport)
+            )
+            traced = own * traced
         if not isinstance(traced, np.ndarray):
             # An unmasked layer whose stroke traces its mask: _get_mask()
             # yields a bare 1.0, and draw_stroke_effect() needs a canvas.
             traced = np.full((y1 - y0, x1 - x0, 1), traced, dtype=np.float32)
         return traced
+
+    def _get_group_shape(
+        self, layer: Layer, viewport: tuple[int, int, int, int]
+    ) -> np.ndarray:
+        """The group's own coverage on ``viewport``, composited a second time.
+
+        The object path re-reads a layer's stored pixels or redraws its fill.
+        A group has neither -- its coverage *is* a composite -- so the only way
+        to have it on a box wider than this compositor's viewport is to
+        composite its children again on that box (#808).
+
+        The box is narrowed the way :py:meth:`_get_group` narrows it, and for
+        the same reason: ``_content_bbox()`` returns an ``Artboard``'s frame
+        verbatim, and intersecting with it is how the artboard clip is
+        implemented, so a trace that skipped it would follow the children's
+        coverage out past the artboard rectangle. The pass-through branch is
+        not symmetry for its own sake either -- :py:meth:`_get_group` gives a
+        pass-through group this compositor's viewport untouched, so a
+        pass-through artboard gets no frame clip today, and the trace has to
+        reproduce that rather than improve on it.
+
+        Narrowing is also what bounds the cost. For an isolated group ``inner``
+        follows the contents rather than the stroke's margin, which is read
+        unvalidated from the descriptor, so a forged size grows the ``paste()``
+        back -- which ``draw_stroke_effect()`` already needed -- and not the
+        composite. A pass-through group has no such bound and does pay for the
+        whole box, at roughly twice the peak of the same document before.
+
+        The backdrop is transparent and carries neither knockout nor the
+        document backdrop, and ``adjustment_isolated`` and the document
+        backdrop function are left off for the same reason: ``shape``
+        accumulates into
+        ``_shape_g``, which starts at zero and is only ever unioned into, so it
+        cannot read a backdrop. Effects, on the other hand, must run -- both
+        overlays and strokes end in ``_apply_source()``, which unions into that
+        same canvas, and on ``group-clips-child-stroke.psd`` the children's own
+        strokes are 46% of the group's coverage.
+        """
+        inner = viewport
+        if layer.blend_mode != BlendMode.PASS_THROUGH:
+            inner = utils.intersect(
+                viewport, _content_bbox(layer, self._cache.content_bboxes)
+            )
+        height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
+        if inner == (0, 0, 0, 0):
+            return np.zeros((height, width, 1), dtype=np.float32)
+
+        key = (id(layer), inner)
+        shape = self._cache.group_shapes.get(key)
+        if shape is None:
+            inner_h, inner_w = inner[3] - inner[1], inner[2] - inner[0]
+            group_compositor = Compositor(
+                inner,
+                np.ones((inner_h, inner_w, self._channels), dtype=np.float32),
+                np.zeros((inner_h, inner_w, 1), dtype=np.float32),
+                layer_filter=self._layer_filter,
+                force=self._force,
+                widen=self._widen,
+                color_mode=self._color_mode,
+                cache=self._cache,
+            )
+            for sublayer in cast(GroupMixin, layer):
+                group_compositor.apply(sublayer)
+            shape = group_compositor.shape
+            self._cache.group_shapes[key] = shape
+        return paste(viewport, inner, shape)
 
     def _apply_stroke_effect(
         self,
