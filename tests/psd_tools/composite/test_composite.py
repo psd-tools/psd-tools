@@ -1564,20 +1564,13 @@ def test_composite_pil_clips_rather_than_wrapping_at_the_uint8_cast(
 
 
 def _grouped(psd: PSDImage, layer_list: Any, name: str) -> Any:
-    """An isolated group holding ``layer_list``, with a usable bbox.
+    """An isolated group holding ``layer_list``.
 
-    ``GroupMixin.append()``, ``extend()`` and ``insert()`` never invalidate the
-    cached bbox, so a group populated through the editing API keeps whatever it
-    had -- and a group is born with ``(0, 0, 0, 0)`` cached, because the
-    ``isinstance(layer, GroupMixin)`` in ``_update_children()`` is a
-    ``runtime_checkable`` protocol check that reads ``bbox`` and materializes
-    it. So the group reports an empty box for the rest of its life. That is a
-    bug in the editing API, not anything these tests are about, so they clear
-    the cache and move on (#814).
+    ``Normal`` rather than the ``create_group()`` default of pass-through:
+    every caller here is measuring what an *isolated* group does to its
+    contents' reach, which is the branch a pass-through group skips.
     """
-    group = psd.create_group(layer_list, name=name, blend_mode=BlendMode.NORMAL)
-    group._invalidate_bbox()
-    return group
+    return psd.create_group(layer_list, name=name, blend_mode=BlendMode.NORMAL)
 
 
 def test_an_isolated_group_composites_on_its_contents_reach() -> None:

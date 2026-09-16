@@ -336,6 +336,24 @@ class GroupMixinProtocol(Protocol):
         """Return the index of a layer in the group."""
         ...
 
+    if TYPE_CHECKING:
+        # Declared for the type checker only. This protocol is a *base class*
+        # of :py:class:`~psd_tools.api.layers.GroupMixin`, which precedes
+        # :py:class:`~psd_tools.api.layers.Layer` in ``Group``'s MRO, so
+        # anything given a ``...`` body here shadows the real implementation
+        # for every group: as a runtime member, ``parent`` handed each one a
+        # ``None`` parent, and ``_invalidate_bbox`` would be a silent no-op for
+        # any container that did not define its own.
+
+        @property
+        def parent(self) -> "GroupMixinProtocol | None":
+            """The container this one sits in, or None at the document root."""
+            ...
+
+        def _invalidate_bbox(self) -> None:
+            """Drop this container's cached bbox, and every one above it."""
+            ...
+
 
 class PSDProtocol(GroupMixinProtocol, Protocol):
     """
