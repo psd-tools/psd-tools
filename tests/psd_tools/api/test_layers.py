@@ -1297,3 +1297,44 @@ def test_a_group_knows_which_container_it_sits_in() -> None:
     assert inner.parent is outer
     assert outer.parent is psd
     assert psd.parent is None
+
+
+def _hidden_tree(psd: PSDImage) -> Tuple[Group, Group, Group]:
+    """A ``Mover`` holding ``Inner``, both parked under a hidden container."""
+    hidden = psd.create_group(name="Hidden")
+    mover = psd.create_group(name="Mover")
+    inner = psd.create_group(name="Inner")
+    hidden.append(mover)
+    mover.append(inner)
+    inner.append(psd[0])
+    hidden.visible = False
+    assert mover.bbox == (0, 0, 0, 0)  # armed while hidden
+    assert inner.bbox == (0, 0, 0, 0)
+    return hidden, mover, inner
+
+
+@pytest.mark.parametrize("how", ["append", "insert", "remove", "clear"])
+def test_reparenting_a_group_invalidates_the_subtree_it_carries(how: str) -> None:
+    """A group's box depends on its ancestors' visibility, not only its contents.
+
+    ``Group.extract_bbox()`` filters children through ``is_visible()``, which
+    walks *up* the parent chain. So taking a group out of a hidden container
+    changes the box of every group in the subtree it carries -- none of which
+    the upward walk in ``_invalidate_bbox()`` ever reaches.
+    """
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    hidden, mover, inner = _hidden_tree(psd)
+
+    if how == "append":
+        psd.create_group(name="Dest").append(mover)
+    elif how == "insert":
+        psd.create_group(name="Dest").insert(0, mover)
+    elif how == "remove":
+        hidden.remove(mover)
+    else:
+        hidden.clear()
+
+    # Visible again, so both boxes have to come back -- including the nested
+    # one, which a single level of invalidation would leave behind.
+    assert mover.bbox == (0, 0, 360, 200)
+    assert inner.bbox == (0, 0, 360, 200)

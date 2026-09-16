@@ -1073,6 +1073,25 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         if parent is not None:
             parent._invalidate_bbox()
 
+    def _invalidate_subtree_bbox(self) -> None:
+        """Drop this container's cached bbox, and every cached box *beneath* it.
+
+        The downward twin of :py:meth:`_invalidate_bbox`, for a container whose
+        ancestors change rather than its contents.
+        :py:meth:`Group.extract_bbox` filters children through
+        ``is_visible()``, which walks up the parent chain, so a group's box is
+        a function of its ancestors' visibility as well as its own contents.
+        Reparenting or detaching a group therefore invalidates every box in the
+        subtree it carries with it, not just its own.
+
+        Only groups are visited: an ordinary layer's box comes from its record
+        and a shape's from its path, and neither consults visibility.
+        """
+        self._bbox = None
+        for child in self._layers:
+            if isinstance(child, Group):
+                child._invalidate_subtree_bbox()
+
     def __len__(self) -> int:
         return self._layers.__len__()
 
@@ -1177,6 +1196,9 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         # bounding box, so any point after ``_update_children()`` would do.
         for donor in donors:
             donor._invalidate_bbox()
+        for layer in layers:
+            if isinstance(layer, Group):
+                layer._invalidate_subtree_bbox()
         self._invalidate_bbox()
 
     def insert(self, index: int, layer: Layer) -> None:
@@ -1201,6 +1223,8 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         self._psd._update_record()
         if donor is not None:
             donor._invalidate_bbox()
+        if isinstance(layer, Group):
+            layer._invalidate_subtree_bbox()
         self._invalidate_bbox()
 
     def remove(self, layer: Layer) -> Self:
@@ -1218,6 +1242,8 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         self._layers.remove(layer)
         layer._parent = None
         self._psd._update_record()
+        if isinstance(layer, Group):
+            layer._invalidate_subtree_bbox()
         self._invalidate_bbox()
         return self
 
@@ -1243,10 +1269,14 @@ class GroupMixin(GroupMixinProtocol, Protocol):
 
         :return: None
         """
-        for layer in self._layers:
+        detached = list(self._layers)
+        for layer in detached:
             layer._parent = None
         self._layers.clear()
         self._psd._update_record()
+        for layer in detached:
+            if isinstance(layer, Group):
+                layer._invalidate_subtree_bbox()
         self._invalidate_bbox()
 
     def index(self, layer: Layer) -> int:
