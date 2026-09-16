@@ -210,8 +210,15 @@ class Layer(LayerProtocol):
         """
         if isinstance(self, (GroupMixin, ShapeLayer)):
             self._bbox: tuple[int, int, int, int] | None = None
-        if isinstance(self.parent, (Group, Artboard)):
-            self.parent._invalidate_bbox()
+        # Every parent is a container that caches a box of its own, and the
+        # document is one of them: naming ``Group`` and ``Artboard`` here
+        # stopped the walk one level short of
+        # :py:class:`~psd_tools.api.psd_image.PSDImage`, which is a
+        # ``GroupMixin`` but not a ``Layer``, and left the document's box stale
+        # after a top-level child changed (#814).
+        parent = self.parent
+        if parent is not None:
+            parent._invalidate_bbox()
 
     @property
     def visible(self) -> bool:
@@ -1035,6 +1042,20 @@ class Layer(LayerProtocol):
         return self.move_up(-1 * offset)
 
 
+def _invalidate_moved_bbox(layer: Layer) -> None:
+    """Drop the cached boxes ``layer`` carries now that its parent has changed.
+
+    See :py:meth:`GroupMixin._invalidate_subtree_bbox` for which boxes those
+    are and why. ``Group`` and ``ShapeLayer`` are named concretely rather than
+    going through ``GroupMixin``, whose ``runtime_checkable`` protocol check
+    would execute the very ``bbox`` descriptor this is trying to clear.
+    """
+    if isinstance(layer, Group):
+        layer._invalidate_subtree_bbox()
+    elif isinstance(layer, ShapeLayer):
+        layer._bbox = None
+
+
 @runtime_checkable
 class GroupMixin(GroupMixinProtocol, Protocol):
     _psd: PSDProtocol
@@ -1050,6 +1071,42 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         if self._bbox is None:
             self._bbox = Group.extract_bbox(self)
         return self._bbox
+
+    def _invalidate_bbox(self) -> None:
+        """Drop this container's cached bbox, and every cached box above it.
+
+        ``GroupMixin`` precedes :py:class:`Layer` in ``Group``'s MRO, so this
+        is what a group invalidates through. It differs from
+        :py:meth:`Layer._invalidate_bbox` only in being available on
+        :py:class:`~psd_tools.api.psd_image.PSDImage`, which caches a box here
+        too but is not a ``Layer``; the walk stops there, since the document
+        has no parent.
+        """
+        self._bbox = None
+        parent = self.parent
+        if parent is not None:
+            parent._invalidate_bbox()
+
+    def _invalidate_subtree_bbox(self) -> None:
+        """Drop this container's cached bbox, and every cached box *beneath* it.
+
+        The downward twin of :py:meth:`_invalidate_bbox`, for a layer whose
+        ancestors change rather than its contents. Two cached boxes read
+        something above the layer that holds them, so reparenting or detaching
+        invalidates the whole subtree being carried, not just its root:
+
+        - a group's, because :py:meth:`Group.extract_bbox` filters children
+          through ``is_visible()``, which walks up the parent chain;
+        - a vector-mask-only shape's, because it scales the mask's normalized
+          bounds by ``self._psd.width`` and ``height``, and a cross-document
+          move repoints ``_psd`` at a canvas of a different size.
+
+        An ordinary layer's box is its record's own offsets, which nothing
+        above it can change, so those are left alone.
+        """
+        self._bbox = None
+        for child in self._layers:
+            _invalidate_moved_bbox(child)
 
     def __len__(self) -> int:
         return self._layers.__len__()
@@ -1134,13 +1191,32 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         """
         self._check_insertion(layers)
         # Remove parent's reference to the layers.
+        donors: list[GroupMixin] = []
+        seen: set[int] = set()
         for layer in layers:
             # NOTE: New or removed layers may not be in the parent container.
             if isinstance(layer.parent, GroupMixin) and layer in layer.parent:
-                layer.parent._layers.remove(layer)  # Skip checks for performance
+                donor = layer.parent
+                donor._layers.remove(layer)  # Skip checks for performance
+                # Collected rather than invalidated here: on Python <= 3.11 the
+                # ``isinstance`` above is a ``runtime_checkable`` protocol check
+                # that executes ``bbox``, so clearing a donor inside the loop
+                # only makes the next iteration recompute it -- quadratic on
+                # ``create_group(list(psd))`` (#814).
+                if id(donor) not in seen:
+                    seen.add(id(donor))
+                    donors.append(donor)
         self._layers.extend(layers)
         self._update_children()
         self._psd._update_record()
+        # Last only because by then the tree is consistent and a caller that
+        # reads a box next recomputes it once. ``_update_record()`` reads no
+        # bounding box, so any point after ``_update_children()`` would do.
+        for donor in donors:
+            donor._invalidate_bbox()
+        for layer in layers:
+            _invalidate_moved_bbox(layer)
+        self._invalidate_bbox()
 
     def insert(self, index: int, layer: Layer) -> None:
         """
@@ -1155,11 +1231,17 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         """
         self._check_insertion([layer])
         # Remove parent's reference to the layer.
+        donor: GroupMixin | None = None
         if isinstance(layer.parent, GroupMixin) and layer in layer.parent:
-            layer.parent._layers.remove(layer)  # Skip checks for performance
+            donor = layer.parent
+            donor._layers.remove(layer)  # Skip checks for performance
         self._layers.insert(index, layer)
         self._update_children()
         self._psd._update_record()
+        if donor is not None:
+            donor._invalidate_bbox()
+        _invalidate_moved_bbox(layer)
+        self._invalidate_bbox()
 
     def remove(self, layer: Layer) -> Self:
         """
@@ -1176,6 +1258,8 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         self._layers.remove(layer)
         layer._parent = None
         self._psd._update_record()
+        _invalidate_moved_bbox(layer)
+        self._invalidate_bbox()
         return self
 
     def pop(self, index: int = -1) -> Layer:
@@ -1200,10 +1284,14 @@ class GroupMixin(GroupMixinProtocol, Protocol):
 
         :return: None
         """
-        for layer in self._layers:
+        detached = list(self._layers)
+        for layer in detached:
             layer._parent = None
         self._layers.clear()
         self._psd._update_record()
+        for layer in detached:
+            _invalidate_moved_bbox(layer)
+        self._invalidate_bbox()
 
     def index(self, layer: Layer) -> int:
         """

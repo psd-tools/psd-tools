@@ -1123,3 +1123,246 @@ def test_artboard_background_chroma_is_offset_encoded_on_a_lab_document(
     assert color == (1.0 if bg_type == 2 else 0.0, 128 / 255, 128 / 255)
     chroma = (255 * np.array(color, dtype=np.float32)).astype(np.uint8)
     assert chroma[1] == 128
+
+
+# ---------------------------------------------------------------------------
+# Cached bounding boxes (#814)
+#
+# Every test below arms the cache *before* mutating, and asserts the recomputed
+# box differs from the armed one. That ordering matters: a test written the way
+# the issue's repro is -- create a group, add to it, then read -- cannot fail on
+# Python >= 3.12, because a fresh group only gets ``(0, 0, 0, 0)`` cached when
+# ``_update_children()``'s ``isinstance(layer, GroupMixin)`` executes the
+# ``bbox`` descriptor, and CPython 3.12 made ``isinstance()`` against a
+# ``runtime_checkable`` protocol use ``inspect.getattr_static()`` instead of
+# ``hasattr()``. Read-then-mutate has no such dependency and fails on every
+# supported interpreter.
+# ---------------------------------------------------------------------------
+
+
+def _mutate(group: Group, op: str, donor: Any) -> None:
+    if op == "append":
+        group.append(donor)
+    elif op == "extend":
+        group.extend([donor])
+    elif op == "insert":
+        group.insert(0, donor)
+    elif op == "remove":
+        group.remove(group[0])
+    elif op == "clear":
+        group.clear()
+    elif op == "delitem":
+        del group[0]
+    elif op == "setitem":
+        group[0] = donor
+    elif op == "pop":
+        group.pop(0)
+    else:  # pragma: no cover - guards the parametrization itself
+        raise AssertionError(f"unknown op {op}")
+
+
+@pytest.mark.parametrize(
+    ("op", "expected"),
+    [
+        ("append", (0, -73, 360, 200)),
+        ("extend", (0, -73, 360, 200)),
+        ("insert", (0, -73, 360, 200)),
+        ("remove", (50, 44, 174, 113)),
+        ("clear", (0, 0, 0, 0)),
+        ("delitem", (50, 44, 174, 113)),
+        ("setitem", (0, 0, 360, 200)),
+        # ``pop(0)``, not ``pop()``: the topmost layer here does not move the
+        # union, so popping it would leave the box legitimately unchanged and
+        # the assertion below could not fail.
+        ("pop", (50, 44, 174, 113)),
+    ],
+)
+def test_every_group_mutator_invalidates_the_cached_bbox(
+    op: str, expected: Tuple[int, int, int, int]
+) -> None:
+    """Mutating a group's contents must drop the box it cached beforehand."""
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    group = psd[1]
+    assert isinstance(group, Group)
+    donor = psd[0]
+
+    armed = group.bbox
+    assert armed == (50, -73, 288, 146)
+
+    _mutate(group, op, donor)
+
+    assert group.bbox == expected
+    # Not coverage -- both sides are literals from this test, so it reduces to
+    # ``expected != armed``. It is here to reject a future parametrization row
+    # whose op leaves the box unchanged, which would assert nothing.
+    assert expected != armed
+
+
+def test_moving_a_layer_out_invalidates_the_donors_bbox() -> None:
+    """The group a layer is taken *from* is never touched by the caller.
+
+    ``extend()`` and ``insert()`` pull a layer out of its old parent with
+    ``layer.parent._layers.remove(layer)``, which bypasses ``remove()``, so the
+    donor's cache has to be dropped by the receiving group (#814).
+    """
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    donor = psd[1]
+    assert isinstance(donor, Group)
+    armed = donor.bbox
+    assert armed == (50, -73, 288, 146)
+
+    recipient = psd.create_group(name="Recipient")
+    recipient.append(donor[0])
+
+    assert donor.bbox == (50, 44, 174, 113)
+    assert donor.bbox != armed
+
+
+def test_a_mutation_invalidates_every_box_above_it() -> None:
+    """A nested group, its parent and the document all cache a box of their own.
+
+    Driven by a ``clear()`` rather than an addition: moving a layer between
+    containers within one document leaves the *document's* union unchanged, so
+    an addition would make the outermost assertion vacuous.
+    """
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    outer = psd[1]
+    assert isinstance(outer, Group)
+    inner = outer[0]
+    assert isinstance(inner, Group)
+
+    armed = (inner.bbox, outer.bbox, psd.bbox)
+    assert armed == ((103, -73, 288, 146), (50, -73, 288, 146), (0, -73, 360, 200))
+
+    inner.clear()
+
+    assert (inner.bbox, outer.bbox, psd.bbox) == (
+        (0, 0, 0, 0),
+        (50, 44, 174, 113),
+        (0, 0, 360, 200),
+    )
+    assert outer.bbox != armed[1]
+    assert psd.bbox != armed[2]
+
+
+def test_the_document_bbox_follows_a_top_level_visibility_change() -> None:
+    """``PSDImage`` caches a box too, and is not a ``Layer``.
+
+    ``Layer._invalidate_bbox()`` used to recurse only into ``Group`` and
+    ``Artboard``, so the walk stopped one level short of the document (#814).
+    """
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    armed = psd.bbox
+    assert armed == (0, -73, 360, 200)
+
+    psd[0].visible = False
+
+    assert psd.bbox == (50, -73, 288, 146)
+    assert psd.bbox != armed
+
+
+def test_a_group_built_through_the_editing_api_reports_its_contents() -> None:
+    """The issue's own repro (#814).
+
+    Pre-fix this failed on Python <= 3.11 only, for the seeding reason spelled
+    out above; it is the user-facing statement of the bug, not the guard.
+    ``test_every_group_mutator_invalidates_the_cached_bbox`` is the guard.
+    """
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    layer = psd[0]
+    assert layer.bbox == (8, 8, 24, 24)
+
+    group = psd.create_group([layer], name="G")
+
+    assert group.bbox == (8, 8, 24, 24)
+    assert group.bbox == Group.extract_bbox(group)
+
+
+def test_a_group_knows_which_container_it_sits_in() -> None:
+    """``Group.parent`` resolves to ``Layer.parent``, not to a protocol stub.
+
+    ``GroupMixin`` inherits ``GroupMixinProtocol``, and both precede ``Layer``
+    in ``Group``'s MRO, so anything with a body defined on either of them
+    shadows the real implementation for every group. Declaring ``parent`` on
+    the protocol as a ``...`` property did exactly that, and silently handed
+    every group a ``None`` parent -- which in turn breaks the invalidation walk
+    this module's other tests rely on.
+    """
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    outer = psd[1]
+    assert isinstance(outer, Group)
+    inner = outer[0]
+    assert isinstance(inner, Group)
+
+    assert inner.parent is outer
+    assert outer.parent is psd
+    assert psd.parent is None
+
+
+def _hidden_tree(psd: PSDImage) -> Tuple[Group, Group, Group]:
+    """A ``Mover`` holding ``Inner``, both parked under a hidden container."""
+    hidden = psd.create_group(name="Hidden")
+    mover = psd.create_group(name="Mover")
+    inner = psd.create_group(name="Inner")
+    hidden.append(mover)
+    mover.append(inner)
+    inner.append(psd[0])
+    hidden.visible = False
+    assert mover.bbox == (0, 0, 0, 0)  # armed while hidden
+    assert inner.bbox == (0, 0, 0, 0)
+    return hidden, mover, inner
+
+
+@pytest.mark.parametrize("how", ["append", "insert", "remove", "clear"])
+def test_reparenting_a_group_invalidates_the_subtree_it_carries(how: str) -> None:
+    """A group's box depends on its ancestors' visibility, not only its contents.
+
+    ``Group.extract_bbox()`` filters children through ``is_visible()``, which
+    walks *up* the parent chain. So taking a group out of a hidden container
+    changes the box of every group in the subtree it carries -- none of which
+    the upward walk in ``_invalidate_bbox()`` ever reaches.
+    """
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    hidden, mover, inner = _hidden_tree(psd)
+
+    if how == "append":
+        psd.create_group(name="Dest").append(mover)
+    elif how == "insert":
+        psd.create_group(name="Dest").insert(0, mover)
+    elif how == "remove":
+        hidden.remove(mover)
+    else:
+        hidden.clear()
+
+    # Visible again, so both boxes have to come back -- including the nested
+    # one, which a single level of invalidation would leave behind.
+    assert mover.bbox == (0, 0, 360, 200)
+    assert inner.bbox == (0, 0, 360, 200)
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_moving_a_shape_to_another_document_rescales_its_bbox(nested: bool) -> None:
+    """A vector-mask-only shape's box is scaled by its *document's* size.
+
+    ``ShapeLayer.bbox`` multiplies the mask's normalized bounds by
+    ``self._psd.width`` and ``height``, so a cross-document move repoints
+    ``_psd`` at a canvas of a different size and the cached box no longer
+    describes anything. Nested inside a moved group, it is reached by the same
+    subtree walk that reaches the groups.
+    """
+    source = PSDImage.open(full_name("vector-mask.psd"))
+    target = PSDImage.open(full_name("note.psd"))
+    assert (source.width, source.height) == (100, 150)
+    assert (target.width, target.height) == (300, 300)
+
+    shape = source[1]
+    assert isinstance(shape, ShapeLayer)
+    moved: Any = shape
+    if nested:
+        moved = source.create_group([shape], name="G")
+
+    assert shape.bbox == (12, 42, 53, 83)  # armed against the 100x150 canvas
+
+    target.append(moved)
+
+    assert shape.bbox == (35, 85, 159, 166)

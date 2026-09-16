@@ -4,6 +4,11 @@ Changelog
 1.19.1 (unreleased)
 -------------------
 
+- [fix] Adding, moving or removing a layer now invalidates the cached bounding
+  box of every group above it, and of the document. A group edited through
+  ``append()``, ``extend()``, ``insert()``, ``remove()``, ``clear()``, ``pop()``
+  or item assignment kept reporting the ``bbox`` it had before the edit, as did
+  the group a layer was moved *out* of (#814, #818)
 - [fix] Trace a stroke effect on a group from the group's own coverage,
   composited again on the box the stroke draws on, rather than from the
   compositor's clipped copy. **Rendering change** for a stroke on a group
