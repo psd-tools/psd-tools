@@ -710,3 +710,52 @@ def test_a_group_stroke_keeps_the_clipped_copy_outside_the_viewport() -> None:
     assert compositor._get_object_shape(group, viewport).max() == 0.0, (
         "the group would read as no coverage at all"
     )
+
+
+@pytest.mark.parametrize("force", [False, True])
+def test_an_isolated_group_keeps_a_child_stroke_that_reaches_past_it(
+    force: bool,
+) -> None:
+    """A group composites on what its children paint, not on their bboxes (#808).
+
+    ``group-clips-child-stroke.psd`` is a 96x32 document holding three 16x16
+    squares, each carrying a 3 px red stroke effect and each alone in a group
+    of its own: an outset stroke under a Normal group, a centered one under a
+    Normal group, and an outset one under a Pass Through group.
+
+    ``Group.bbox`` is the union of its children's own bounding boxes and
+    excludes effect coverage, so an isolated group composited on the square
+    alone. An outset stroke lies wholly outside the square, so all of it was
+    clipped away; a centered one straddles the edge, so its outer half was. The
+    pass-through group is the control -- its viewport is the document's, so it
+    rendered correctly throughout -- and its ring is the outset ring translated
+    by +64 in x, which distinguishes a ring restored in full from one merely
+    brought back mis-shaded.
+
+    Every stroke box sits inside the canvas on all four sides, so the fixture
+    measures the group clip and not the canvas clip #804 is about.
+    """
+    check_composite_quality("effects/group-clips-child-stroke.psd", 1e-4, force)
+
+    psd = PSDImage.open(full_name("effects/group-clips-child-stroke.psd"))
+    image = psd.composite(ignore_preview=True, force=force)
+    assert image is not None
+    rgb = np.asarray(image.convert("RGB"))
+    outset, centered, passthrough = rgb[:, 0:32], rgb[:, 32:64], rgb[:, 64:96]
+
+    assert np.array_equal(outset, passthrough), "the isolated ring is the control's"
+    # Three columns of stroke outside the square, then its blue interior. The
+    # pixels rather than the error alone: a whole-image bound reads a dropped
+    # ring and a ring one column short as the same kind of "smaller".
+    assert [tuple(pixel) for pixel in outset[16, 5:9]] == [(255, 0, 0)] * 3 + [
+        (0, 0, 255)
+    ]
+    assert tuple(outset[16, 4]) == (255, 255, 255)
+    # A centered stroke straddles the edge instead of sitting outside it, so
+    # only half of it is at risk and the group clip took exactly that half:
+    # one full column and one half column beyond the square, where an outset
+    # stroke of the same size puts three full ones. It is the case that
+    # separates a whole fix from a half one.
+    assert tuple(centered[16, 7]) == (255, 0, 0)
+    assert tuple(centered[16, 6]) == (255, 127, 127)
+    assert tuple(centered[16, 5]) == (255, 255, 255)
