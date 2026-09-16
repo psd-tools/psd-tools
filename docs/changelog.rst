@@ -4,6 +4,13 @@ Changelog
 1.19.1 (unreleased)
 -------------------
 
+- [fix] Place a layer's vector stroke on the box being composited rather than
+  on the document canvas, where it could land away from the shape it outlines
+  or be clipped at the canvas edge. **Rendering change** for
+  ``layer.composite()`` and ``composite(viewport=...)``; ``psd.composite()``
+  is unaffected (#807)
+- [api] ``composite.vector.draw_stroke()`` takes a ``viewport`` to rasterize
+  onto, defaulting to the document canvas as before (#807)
 - [fix] Hiding or showing a group now invalidates the cached bounding box of
   every group beneath it, not only of those above it. A nested group read
   before an ancestor was hidden kept the box it had while visible, so both its

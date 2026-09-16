@@ -33,9 +33,18 @@ def draw_vector_mask(
 
 
 @require_aggdraw
-def draw_stroke(layer: "Layer") -> np.ndarray:
+def draw_stroke(
+    layer: "Layer", viewport: tuple[int, int, int, int] | None = None
+) -> np.ndarray:
     """
     Draw a stroke.
+
+    ``viewport`` is the region to rasterize onto, defaulting to the document
+    canvas. The compositor asks for the box it is compositing on, which need
+    not start at the origin and may reach outside the canvas: the path is
+    placed in document coordinates either way, so the stroke lands where the
+    fill it outlines already is, and the part of it that falls off the canvas
+    is real coverage rather than something to be clipped away (#807).
 
     Requires aggdraw for bezier curve rasterization.
     """
@@ -68,6 +77,7 @@ def draw_stroke(layer: "Layer") -> np.ndarray:
             # 'linecap': _CAP.get(linecap, 0),
             # 'miterlimit': miterlimit,
         },
+        viewport=viewport,
     )
 
 
@@ -132,10 +142,10 @@ def _draw_subpath(
     Rasterize Bezier curves using aggdraw.
 
     Knot coordinates are fractions of the document, so the symbol is always
-    built against the document size and then translated by the viewport
-    origin -- a viewport that starts outside the canvas translates by a
-    negative offset, which is what keeps the part of the path that lies off
-    the canvas on the plane.
+    built against the document size and then translated by minus the viewport
+    origin -- a viewport that starts outside the canvas shifts the path
+    *into* the plane, which is what keeps the part of it that lies off the
+    canvas from being drawn past the edge.
 
     TODO: Replace aggdraw implementation with skimage.draw.
 

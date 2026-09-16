@@ -1588,27 +1588,32 @@ class Compositor(object):
         return float(shape), opacity
 
     def _get_stroke(self, layer: Layer) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Get stroke source."""
+        """Get stroke source.
+
+        The fill is drawn on the layer's box grown by the stroke width and
+        pasted onto this compositor's viewport. The coverage is rasterized
+        straight onto that viewport: a path is placed in document coordinates,
+        so asking for the viewport is what puts the stroke where the fill
+        already is, whether or not the viewport happens to share the
+        document's dimensions (#807).
+        """
         if layer.stroke is None:
             raise ValueError("Layer does not have stroke data.")
         desc = layer.stroke._data
         width = int(desc.get("strokeStyleLineWidth", 1.0))
-        viewport = cast(
+        fill_bbox = cast(
             tuple[int, int, int, int],
             tuple(x + d for x, d in zip(layer.bbox, (-width, -width, width, width))),
         )
         color, _ = paint.create_fill_desc(
-            layer, desc.get("strokeStyleContent"), viewport
+            layer, desc.get("strokeStyleContent"), fill_bbox
         )
         if color is None:
             raise ValueError(
                 "Unsupported stroke fill descriptor in layer strokeStyleContent"
             )
-        color = paste(self._viewport, viewport, color, 1.0)
-        shape = vector.draw_stroke(layer)
-        if shape.shape[0] != self.height or shape.shape[1] != self.width:
-            bbox = (0, 0, shape.shape[1], shape.shape[0])
-            shape = paste(self._viewport, bbox, shape)
+        color = paste(self._viewport, fill_bbox, color, 1.0)
+        shape = vector.draw_stroke(layer, self._viewport)
         opacity = desc.get("strokeStyleOpacity", 100.0) / 100.0
         alpha = shape * opacity
         return color, shape, alpha
