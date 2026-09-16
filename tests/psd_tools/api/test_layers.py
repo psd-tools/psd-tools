@@ -1377,10 +1377,12 @@ def test_moving_a_shape_to_another_document_rescales_its_bbox(nested: bool) -> N
 # *beneath* it as well as the unions above it.
 #
 # Nothing consults a descendant's cache on the way down: ``_get_bbox()``
-# recurses through ``Group.extract_bbox()``, not through ``child.bbox``. So the
-# staleness is observable only on a *direct* read of the descendant -- through
-# ``bbox``, or any of ``left``/``top``/``right``/``bottom``/``width``/
-# ``height``, which ``Group`` overrides to read it.
+# recurses through ``Group.extract_bbox()``, not through ``child.bbox``. So a
+# parent's box stays correct and ``psd.composite()`` is unaffected. What goes
+# wrong is a *direct* read of the descendant -- ``bbox``, and the
+# ``left``/``top``/``right``/``bottom``/``width``/``height`` that ``Group``
+# overrides to read it -- and ``layer.composite()``, which takes that same box
+# as the viewport it renders on.
 #
 # Every test below arms the cache before hiding, for the reason given in the
 # #814 section above.
@@ -1407,24 +1409,27 @@ def test_hiding_a_group_drops_the_boxes_cached_beneath_it() -> None:
 def test_hiding_reaches_every_level_beneath_not_just_the_first() -> None:
     """The walk recurses; dropping the direct children's boxes is not enough.
 
-    ``Group 1`` ends up two levels under ``Outer``, so a one-level fix leaves
-    it stale while making the level above it look correct.
+    This fixture ships three nested groups that all have a non-empty box, so
+    the innermost sits two levels below the one being hidden: a one-level fix
+    leaves it stale while making the level above it look correct. Built from a
+    fixture rather than with ``create_group()`` so that #818's reparenting
+    invalidation stays out of the setup and only the ``visible`` walk is under
+    test.
     """
-    psd = PSDImage.open(full_name("clipping-mask.psd"))
-    middle = psd[1]
-    assert isinstance(middle, Group)
-    deep = middle[0]
-    assert isinstance(deep, Group)
-    outer = psd.create_group(name="Outer")
-    outer.append(middle)
+    psd = PSDImage.open(full_name("adjustments/adjustment_nested_composition_4.psd"))
+    outer = psd[2]
+    assert isinstance(outer, Group) and outer.name == "Group 1 copy 2"
+    middle = outer[0]
+    assert isinstance(middle, Group) and middle.name == "Group 1 copy"
+    inner = middle[0]
+    assert isinstance(inner, Group) and inner.name == "Group 1"
 
-    # Armed after the move, since reparenting invalidates the subtree (#818).
-    assert (middle.bbox, deep.bbox) == ((50, -73, 288, 146), (103, -73, 288, 146))
+    assert outer.bbox == middle.bbox == inner.bbox == (0, 0, 32, 32)
 
     outer.visible = False
 
     assert middle.bbox == (0, 0, 0, 0)  # one level down
-    assert deep.bbox == Group.extract_bbox(deep) == (0, 0, 0, 0)  # two levels down
+    assert inner.bbox == Group.extract_bbox(inner) == (0, 0, 0, 0)  # two levels down
 
 
 def test_showing_a_group_again_restores_the_boxes_beneath_it() -> None:
@@ -1498,4 +1503,36 @@ def test_hiding_an_artboard_drops_its_descendants_but_not_its_own_box() -> None:
     artboard.visible = False
 
     assert nested.bbox == Group.extract_bbox(nested) == (0, 0, 0, 0)
-    assert artboard.bbox == frame  # artboardRect, not a union over children
+    # An invariant, not a guard on this fix: ``Artboard.bbox`` reads a tagged
+    # block, so no implementation here could move it. Kept to pin that
+    # exemption if an artboard's own box is ever made to follow its children.
+    assert artboard.bbox == frame
+
+
+@pytest.mark.composite
+def test_hiding_a_group_changes_what_a_descendant_renders_onto() -> None:
+    """The stale box is not just a reported number -- it is a render viewport.
+
+    ``layer.composite()`` renders onto the layer's own ``bbox``, so before the
+    fix a descendant of a newly hidden group was composited onto the box it
+    had while visible: 185x219 of content where a freshly read document gives
+    the 360x200 viewbox fallback. ``psd.composite()`` never differed, because
+    it re-derives through the visibility filter instead of reading a
+    descendant's cache.
+    """
+
+    def render(arm: bool) -> Any:
+        psd = PSDImage.open(full_name("clipping-mask.psd"))
+        outer, inner = psd[1], psd[1][0]  # type: ignore[index]
+        if arm:
+            _ = inner.bbox  # armed while the ancestor is still visible
+        outer.visible = False
+        return inner.composite(force=True), psd.composite()
+
+    (armed_layer, armed_doc), (fresh_layer, fresh_doc) = render(True), render(False)
+
+    # Both sides are rendered from the same file, so this compares the two read
+    # orders against each other rather than against bytes committed here.
+    assert armed_layer.size == fresh_layer.size
+    assert armed_layer.tobytes() == fresh_layer.tobytes()
+    assert armed_doc.tobytes() == fresh_doc.tobytes()  # never differed

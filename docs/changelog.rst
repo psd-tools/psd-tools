@@ -6,9 +6,9 @@ Changelog
 
 - [fix] Hiding or showing a group now invalidates the cached bounding box of
   every group beneath it, not only of those above it. A nested group read
-  before an ancestor was hidden kept reporting the box it had while visible,
-  making ``bbox`` and the position and size properties derived from it depend
-  on the order they were first read (#819, #821)
+  before an ancestor was hidden kept the box it had while visible, so both its
+  ``bbox`` and the viewport ``layer.composite()`` renders it on depended on the
+  order they were first read. ``psd.composite()`` was not affected (#819, #821)
 - [fix] Adding, moving or removing a layer now invalidates the cached bounding
   box of every group above it, and of the document. A group edited through
   ``append()``, ``extend()``, ``insert()``, ``remove()``, ``clear()``, ``pop()``

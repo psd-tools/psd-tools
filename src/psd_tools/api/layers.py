@@ -1056,9 +1056,10 @@ class Layer(LayerProtocol):
 
 
 def _invalidate_moved_bbox(layer: Layer) -> None:
-    """Drop the cached boxes ``layer`` carries now that its parent has changed.
+    """Drop the cached boxes ``layer`` carries now that something above it changed.
 
-    See :py:meth:`GroupMixin._invalidate_subtree_bbox` for which boxes those
+    That is either a new parent or an ancestor whose ``visible`` flag moved;
+    see :py:meth:`GroupMixin._invalidate_subtree_bbox` for which boxes those
     are and why. ``Group`` and ``ShapeLayer`` are named concretely rather than
     going through ``GroupMixin``, whose ``runtime_checkable`` protocol check
     would execute the very ``bbox`` descriptor this is trying to clear.
@@ -1105,14 +1106,21 @@ class GroupMixin(GroupMixinProtocol, Protocol):
 
         The downward twin of :py:meth:`_invalidate_bbox`, for a layer whose
         ancestors change rather than its contents. Two cached boxes read
-        something above the layer that holds them, so reparenting or detaching
-        invalidates the whole subtree being carried, not just its root:
+        something above the layer that holds them, so the whole subtree is
+        invalidated, not just its root:
 
         - a group's, because :py:meth:`Group.extract_bbox` filters children
           through ``is_visible()``, which walks up the parent chain;
         - a vector-mask-only shape's, because it scales the mask's normalized
           bounds by ``self._psd.width`` and ``height``, and a cross-document
           move repoints ``_psd`` at a canvas of a different size.
+
+        Two callers, reaching different halves of that. Reparenting or
+        detaching a layer can do both. Hiding or showing a group (#819) only
+        ever does the first -- it leaves ``_psd`` alone -- so the shape boxes
+        it drops are recomputed to the same value; clearing them anyway costs
+        a recompute that a hidden subtree usually never asks for, and saves a
+        third walk that would differ from this one by one ``isinstance``.
 
         An ordinary layer's box is its record's own offsets, which nothing
         above it can change, so those are left alone.
