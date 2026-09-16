@@ -1880,6 +1880,52 @@ def test_a_traced_artboard_keeps_its_frame_clip() -> None:
     assert outside_the_frame(isolated) == 0, "an isolated artboard clips to its frame"
 
 
+def test_a_traced_group_keeps_its_boxes_apart() -> None:
+    """The memo is keyed by the box as well as the group (#808).
+
+    A layer may carry several stroke effects (#798), and two of different sizes
+    ask for the group on two different boxes. A pass-through group is where
+    that bites: it is handed the box untouched, so the two really do composite
+    on different canvases, and a memo keyed by the group alone would hand the
+    second the first's array -- a different size, and ``paste()`` would then
+    read it as though it started somewhere it does not.
+
+    An isolated group is not a substitute here. Both of its boxes narrow to the
+    same ``_content_bbox()``, so it shares one cached array by design and only
+    the ``paste()`` back differs -- which is correct, and measures nothing about
+    the key.
+    """
+    psd = PSDImage.open(full_name("masks3.psd"))
+    group = next(
+        sub
+        for sub in _descendants(psd)
+        if isinstance(sub, Group) and sub.blend_mode == BlendMode.PASS_THROUGH
+    )
+    compositor = _canvas(psd)
+
+    narrow, wide = (
+        (-2, -2, psd.width + 2, psd.height + 2),
+        (-6, -6, psd.width, psd.height),
+    )
+    first = compositor._get_group_shape(group, narrow)
+    second = compositor._get_group_shape(group, wide)
+
+    assert len(compositor._cache.group_shapes) == 2, "one entry per box"
+    assert first.shape[:2] == (narrow[3] - narrow[1], narrow[2] - narrow[0])
+    assert second.shape[:2] == (wide[3] - wide[1], wide[2] - wide[0])
+    # Same coverage, each on its own canvas: compare where the boxes overlap.
+    overlap = utils.intersect(narrow, wide)
+
+    def crop(array, box):
+        y0, x0 = overlap[1] - box[1], overlap[0] - box[0]
+        return array[
+            y0 : y0 + overlap[3] - overlap[1], x0 : x0 + overlap[2] - overlap[0]
+        ]
+
+    assert np.array_equal(crop(first, narrow), crop(second, wide))
+    assert crop(first, narrow).sum() > 0, "the overlap carries coverage to compare"
+
+
 def test_a_traced_group_is_composited_once_per_box() -> None:
     """Tracing must not double the work at every level of nesting (#808).
 

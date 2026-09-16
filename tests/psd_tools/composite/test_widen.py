@@ -215,12 +215,24 @@ def test_widened_grey_survives_the_icc_round_trip() -> None:
 # longer builds, say, a stroke sub-compositor keeps passing while covering
 # nothing.
 _COMPOSITOR_CALLERS = frozenset(
-    {"composite", "_get_group", "_get_object", "_apply_clip_layers"}
+    {
+        "composite",
+        "_get_group",
+        "_get_object",
+        "_apply_clip_layers",
+        "_get_group_shape",
+    }
 )
 
-# Between them these reach all four. Neither does alone: the clipping fixture
-# has no stroked shape, and the stroke fixture has no group.
-_COMPOSITOR_FIXTURES = ["clipping-mask.psd", "effects/stroke-composite.psd"]
+# Between them these reach all five. None does alone: the clipping fixture has
+# no stroked shape, the stroke fixture has no group, and only a stroke effect
+# *on* a group whose contents run past the viewport re-composites that group to
+# trace it (#808).
+_COMPOSITOR_FIXTURES = [
+    "clipping-mask.psd",
+    "effects/stroke-composite.psd",
+    "effects/group-stroke-off-canvas.psd",
+]
 
 
 def test_every_sub_compositor_inherits_the_document_facts(monkeypatch) -> None:
