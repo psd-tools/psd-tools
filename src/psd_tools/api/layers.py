@@ -241,8 +241,8 @@ class Layer(LayerProtocol):
         self._invalidate_bbox()
         # Down: ``Group.extract_bbox()`` filters children through
         # ``is_visible()``, which walks *up* the parent chain, so this flag is
-        # an input to the box of every container *beneath* this layer too --
-        # the half of the cache nothing dropped (#819). ``Group`` is named
+        # an input to the box of every container *beneath* this layer as well.
+        # Those are the boxes nothing used to drop (#819). ``Group`` is named
         # concretely because ``isinstance(x, GroupMixin)`` is a
         # ``runtime_checkable`` protocol check that executes the very ``bbox``
         # descriptor being cleared on Python <= 3.11.
