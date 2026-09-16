@@ -1366,3 +1366,199 @@ def test_moving_a_shape_to_another_document_rescales_its_bbox(nested: bool) -> N
     target.append(moved)
 
     assert shape.bbox == (35, 85, 159, 166)
+
+
+# ---------------------------------------------------------------------------
+# Cached bounding boxes, the downward half (#819)
+#
+# ``Group.extract_bbox()`` filters children through ``is_visible()``, which
+# walks *up* the parent chain -- so a container's box is a function of its
+# ancestors' ``visible`` flags, and hiding a group has to drop the boxes cached
+# *beneath* it as well as the unions above it.
+#
+# No *visibility-dependent* cache is consulted on the way down: for a group
+# child ``_get_bbox()`` recurses through ``Group.extract_bbox()`` rather than
+# reading ``child.bbox``. It does read ``child.bbox`` for a non-group child,
+# and ``ShapeLayer`` caches that -- but no ``visible`` flag feeds it, only the
+# document's size. So a parent's box stays correct and ``psd.composite()`` is
+# unaffected. What goes wrong is a *direct* read of the descendant -- ``bbox``,
+# and the
+# ``left``/``top``/``right``/``bottom``/``width``/``height`` that ``Group``
+# overrides to read it -- and ``layer.composite()``, which takes that same box
+# as the viewport it renders on.
+#
+# Every test below arms the cache before hiding, for the reason given in the
+# #814 section above.
+# ---------------------------------------------------------------------------
+
+
+def test_hiding_a_group_drops_the_boxes_cached_beneath_it() -> None:
+    """The issue's repro (#819): a child reporting a box its hidden parent does not."""
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    outer, inner = psd[1], psd[1][0]  # type: ignore[index]
+    assert isinstance(outer, Group) and isinstance(inner, Group)
+
+    armed = inner.bbox
+    assert armed == (103, -73, 288, 146)
+
+    outer.visible = False
+
+    # Compared against ``extract_bbox()`` rather than a second literal: the
+    # cache has to agree with what the tree actually says, not with a number
+    # chosen here.
+    assert inner.bbox == Group.extract_bbox(inner) == (0, 0, 0, 0)
+
+
+def test_hiding_reaches_every_level_beneath_not_just_the_first() -> None:
+    """The walk recurses; dropping the direct children's boxes is not enough.
+
+    This fixture ships three nested groups that all have a non-empty box, so
+    the innermost sits two levels below the one being hidden: a one-level fix
+    leaves it stale while making the level above it look correct. Built from a
+    fixture rather than with ``create_group()`` so that #818's reparenting
+    invalidation stays out of the setup and only the ``visible`` walk is under
+    test.
+    """
+    psd = PSDImage.open(full_name("adjustments/adjustment_nested_composition_4.psd"))
+    outer = psd[2]
+    assert isinstance(outer, Group) and outer.name == "Group 1 copy 2"
+    middle = outer[0]
+    assert isinstance(middle, Group) and middle.name == "Group 1 copy"
+    inner = middle[0]
+    assert isinstance(inner, Group) and inner.name == "Group 1"
+
+    assert outer.bbox == middle.bbox == inner.bbox == (0, 0, 32, 32)
+
+    outer.visible = False
+
+    assert middle.bbox == (0, 0, 0, 0)  # one level down
+    assert inner.bbox == Group.extract_bbox(inner) == (0, 0, 0, 0)  # two levels down
+
+
+def test_showing_a_group_again_restores_the_boxes_beneath_it() -> None:
+    """Invalidation does not depend on which way the flag moved."""
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    outer, inner = psd[1], psd[1][0]  # type: ignore[index]
+    assert isinstance(outer, Group) and isinstance(inner, Group)
+    armed = inner.bbox
+
+    outer.visible = False
+    assert inner.bbox == (0, 0, 0, 0)  # re-armed, now with the hidden box
+
+    outer.visible = True
+
+    assert inner.bbox == Group.extract_bbox(inner) == armed
+
+
+def test_a_hidden_ancestor_reads_the_same_whichever_order_it_is_read() -> None:
+    """Every accessor that reads the cache, not just ``bbox``.
+
+    ``Group`` overrides ``left``/``top``/``right``/``bottom`` to read
+    ``self.bbox`` and ``width``/``height`` derive from those, so the stale
+    value surfaces through seven properties -- the surface the changelog
+    names, and one no other test here reads. Both sides come from the same
+    file, so this compares the two read orders against each other rather than
+    against numbers chosen here.
+
+    Ranked as coverage rather than a guard: no mutant of this fix kills it
+    that ``..._drops_the_boxes_cached_beneath_it`` does not already kill.
+    """
+
+    def read(arm: bool) -> Tuple[Any, ...]:
+        psd = PSDImage.open(full_name("clipping-mask.psd"))
+        inner = psd[1][0]  # type: ignore[index]
+        if arm:
+            _ = inner.bbox  # armed while the ancestor is still visible
+        psd[1].visible = False
+        return (
+            inner.bbox,
+            inner.left,
+            inner.top,
+            inner.right,
+            inner.bottom,
+            inner.width,
+            inner.height,
+        )
+
+    assert read(arm=True) == read(arm=False)
+
+
+def test_setting_visible_to_the_value_it_already_has_keeps_the_cache() -> None:
+    """A write that changes nothing invalidates nothing.
+
+    Reads ``_bbox`` directly because that is the only way to tell a surviving
+    cache from one that was dropped and then recomputed to the same answer.
+    """
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    group = psd[1]
+    assert isinstance(group, Group)
+    armed = group.bbox
+
+    group.visible = group.visible
+
+    assert group._bbox == armed
+
+
+def test_hiding_an_artboard_drops_its_descendants_but_not_its_own_box() -> None:
+    """An ``Artboard`` is a ``Group``, so the walk passes through it.
+
+    Its own box is the ``artboardRect`` out of its tagged blocks, which no
+    visibility flag feeds -- so hiding it leaves that unchanged, while the
+    group nested inside it, whose box *is* filtered through ``is_visible()``,
+    has to be dropped.
+    """
+    psd = PSDImage.open(full_name("artboard.psd"))
+    artboard = psd[0]
+    assert isinstance(artboard, Artboard)
+    frame = artboard.bbox
+    assert frame == (238, 77, 1154, 1061)
+
+    # 'border' is drawn to the artboard's edges, so ``nested``'s union below
+    # coincidentally equals ``frame`` -- same tuple, unrelated sources: one is
+    # the artboardRect, the other a union over record offsets.
+    nested = psd.create_group([artboard[2]], name="Nested")
+    artboard.append(nested)
+    armed = nested.bbox
+    assert armed == (238, 77, 1154, 1061)
+
+    artboard.visible = False
+
+    assert nested.bbox == Group.extract_bbox(nested) == (0, 0, 0, 0)
+    # An invariant, not a guard on this fix: ``Artboard.bbox`` reads a tagged
+    # block, so no implementation here could move it. Kept to pin that
+    # exemption if an artboard's own box is ever made to follow its children.
+    assert artboard.bbox == frame
+
+
+@pytest.mark.composite
+def test_hiding_a_group_changes_what_a_descendant_renders_onto() -> None:
+    """The stale box is not just a reported number -- it is a render viewport.
+
+    ``layer.composite()`` renders onto the layer's own ``bbox``, so before the
+    fix a descendant of a newly hidden group was composited onto the box it
+    had while visible: 185x219 of content where a freshly read document gives
+    the 360x200 viewbox fallback. ``psd.composite()`` never differed, because
+    it re-derives through the visibility filter instead of reading a
+    descendant's cache.
+    """
+
+    def render(arm: bool) -> Any:
+        psd = PSDImage.open(full_name("clipping-mask.psd"))
+        outer, inner = psd[1], psd[1][0]  # type: ignore[index]
+        if arm:
+            _ = inner.bbox  # armed while the ancestor is still visible
+        outer.visible = False
+        return inner.composite(force=True), psd.composite()
+
+    (armed_layer, armed_doc), (fresh_layer, fresh_doc) = render(True), render(False)
+
+    # The control goes first so that it is actually reached: the layer
+    # assertions below fail under the bug, and this one holds either way --
+    # ``psd.composite()`` never differed. It documents the scope rather than
+    # guarding it.
+    assert armed_doc.tobytes() == fresh_doc.tobytes()
+
+    # Both sides are rendered from the same file, so these compare the two read
+    # orders against each other rather than against bytes committed here.
+    assert armed_layer.size == fresh_layer.size
+    assert armed_layer.tobytes() == fresh_layer.tobytes()

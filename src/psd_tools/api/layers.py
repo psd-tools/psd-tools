@@ -231,10 +231,24 @@ class Layer(LayerProtocol):
 
     @visible.setter
     def visible(self, value: bool) -> None:
-        if self.visible != value and self._psd is not None:
+        value = bool(value)
+        if self.visible == value:
+            return
+        if self._psd is not None:
             self._psd._mark_updated()
+        self._record.flags.visible = value
+        # Up: every ancestor's union gains or loses this layer.
         self._invalidate_bbox()
-        self._record.flags.visible = bool(value)
+        # Down: ``Group.extract_bbox()`` filters children through
+        # ``is_visible()``, which walks *up* the parent chain, so this flag is
+        # an input to the box of every container *beneath* this layer as well.
+        # Those are the boxes nothing used to drop (#819). ``Group`` rather
+        # than ``GroupMixin``: the latter is a ``runtime_checkable`` protocol
+        # whose ``isinstance`` runs ``hasattr(x, "bbox")`` on Python <= 3.11,
+        # recomputing this subtree's boxes a line before the walk drops them.
+        # The answer is the same either way; the concrete check skips the work.
+        if isinstance(self, Group):
+            self._invalidate_subtree_bbox()
 
     def is_visible(self) -> bool:
         """
@@ -1043,12 +1057,15 @@ class Layer(LayerProtocol):
 
 
 def _invalidate_moved_bbox(layer: Layer) -> None:
-    """Drop the cached boxes ``layer`` carries now that its parent has changed.
+    """Drop the cached boxes ``layer`` carries now that something above it changed.
 
-    See :py:meth:`GroupMixin._invalidate_subtree_bbox` for which boxes those
+    That is either a new parent or an ancestor whose ``visible`` flag moved;
+    see :py:meth:`GroupMixin._invalidate_subtree_bbox` for which boxes those
     are and why. ``Group`` and ``ShapeLayer`` are named concretely rather than
     going through ``GroupMixin``, whose ``runtime_checkable`` protocol check
-    would execute the very ``bbox`` descriptor this is trying to clear.
+    would recompute the boxes this is about to drop on Python <= 3.11. That
+    costs work rather than correctness -- the walk clears whatever the check
+    armed.
     """
     if isinstance(layer, Group):
         layer._invalidate_subtree_bbox()
@@ -1092,14 +1109,18 @@ class GroupMixin(GroupMixinProtocol, Protocol):
 
         The downward twin of :py:meth:`_invalidate_bbox`, for a layer whose
         ancestors change rather than its contents. Two cached boxes read
-        something above the layer that holds them, so reparenting or detaching
-        invalidates the whole subtree being carried, not just its root:
+        something above the layer that holds them, so the whole subtree is
+        invalidated, not just its root:
 
         - a group's, because :py:meth:`Group.extract_bbox` filters children
           through ``is_visible()``, which walks up the parent chain;
         - a vector-mask-only shape's, because it scales the mask's normalized
           bounds by ``self._psd.width`` and ``height``, and a cross-document
           move repoints ``_psd`` at a canvas of a different size.
+
+        Two callers reach different halves of that: reparenting or detaching
+        can do both, while hiding or showing a group (#819) only ever does the
+        first, since it leaves ``_psd`` alone.
 
         An ordinary layer's box is its record's own offsets, which nothing
         above it can change, so those are left alone.
