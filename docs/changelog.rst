@@ -8,8 +8,8 @@ Changelog
   composited again on the box the stroke draws on, rather than from the
   compositor's clipped copy. **Rendering change** for a stroke on a group
   whose contents reach past the viewport being composited on, where the
-  stroke followed that viewport's edge; an artboard still clips to its frame
-  (#808, #817)
+  stroke followed that viewport's edge; the trace clips exactly as the
+  composite does, artboards included (#808, #817)
 - [fix] Composite a non-pass-through group on the box its contents paint
   rather than on the union of their bounding boxes, so a child's outset or
   centered stroke effect is no longer clipped away at the group's edge.
