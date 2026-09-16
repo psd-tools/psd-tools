@@ -1376,10 +1376,13 @@ def test_moving_a_shape_to_another_document_rescales_its_bbox(nested: bool) -> N
 # ancestors' ``visible`` flags, and hiding a group has to drop the boxes cached
 # *beneath* it as well as the unions above it.
 #
-# Nothing consults a descendant's cache on the way down: ``_get_bbox()``
-# recurses through ``Group.extract_bbox()``, not through ``child.bbox``. So a
-# parent's box stays correct and ``psd.composite()`` is unaffected. What goes
-# wrong is a *direct* read of the descendant -- ``bbox``, and the
+# No *visibility-dependent* cache is consulted on the way down: for a group
+# child ``_get_bbox()`` recurses through ``Group.extract_bbox()`` rather than
+# reading ``child.bbox``. It does read ``child.bbox`` for a non-group child,
+# and ``ShapeLayer`` caches that -- but no ``visible`` flag feeds it, only the
+# document's size. So a parent's box stays correct and ``psd.composite()`` is
+# unaffected. What goes wrong is a *direct* read of the descendant -- ``bbox``,
+# and the
 # ``left``/``top``/``right``/``bottom``/``width``/``height`` that ``Group``
 # overrides to read it -- and ``layer.composite()``, which takes that same box
 # as the viewport it renders on.
@@ -1447,22 +1450,37 @@ def test_showing_a_group_again_restores_the_boxes_beneath_it() -> None:
     assert inner.bbox == Group.extract_bbox(inner) == armed
 
 
-def test_a_hidden_ancestor_gives_the_same_box_whichever_order_it_is_read() -> None:
-    """The property the cache owes a caller, stated without a literal.
+def test_a_hidden_ancestor_reads_the_same_whichever_order_it_is_read() -> None:
+    """Every accessor that reads the cache, not just ``bbox``.
 
-    Both sides are read from the same file, so this asserts that the two read
-    orders agree -- which is the bug -- rather than that either one equals a
-    number chosen here.
+    ``Group`` overrides ``left``/``top``/``right``/``bottom`` to read
+    ``self.bbox`` and ``width``/``height`` derive from those, so the stale
+    value surfaces through seven properties -- the surface the changelog
+    names, and one no other test here reads. Both sides come from the same
+    file, so this compares the two read orders against each other rather than
+    against numbers chosen here.
+
+    Ranked as coverage rather than a guard: no mutant of this fix kills it
+    that ``..._drops_the_boxes_cached_beneath_it`` does not already kill.
     """
-    armed_first = PSDImage.open(full_name("clipping-mask.psd"))
-    inner = armed_first[1][0]  # type: ignore[index]
-    _ = inner.bbox  # armed while the ancestor is still visible
-    armed_first[1].visible = False
 
-    read_after = PSDImage.open(full_name("clipping-mask.psd"))
-    read_after[1].visible = False  # nothing armed beforehand
+    def read(arm: bool) -> Tuple[Any, ...]:
+        psd = PSDImage.open(full_name("clipping-mask.psd"))
+        inner = psd[1][0]  # type: ignore[index]
+        if arm:
+            _ = inner.bbox  # armed while the ancestor is still visible
+        psd[1].visible = False
+        return (
+            inner.bbox,
+            inner.left,
+            inner.top,
+            inner.right,
+            inner.bottom,
+            inner.width,
+            inner.height,
+        )
 
-    assert inner.bbox == read_after[1][0].bbox  # type: ignore[index]
+    assert read(arm=True) == read(arm=False)
 
 
 def test_setting_visible_to_the_value_it_already_has_keeps_the_cache() -> None:
@@ -1495,6 +1513,9 @@ def test_hiding_an_artboard_drops_its_descendants_but_not_its_own_box() -> None:
     frame = artboard.bbox
     assert frame == (238, 77, 1154, 1061)
 
+    # 'border' is drawn to the artboard's edges, so ``nested``'s union below
+    # coincidentally equals ``frame`` -- same tuple, unrelated sources: one is
+    # the artboardRect, the other a union over record offsets.
     nested = psd.create_group([artboard[2]], name="Nested")
     artboard.append(nested)
     armed = nested.bbox
@@ -1531,8 +1552,13 @@ def test_hiding_a_group_changes_what_a_descendant_renders_onto() -> None:
 
     (armed_layer, armed_doc), (fresh_layer, fresh_doc) = render(True), render(False)
 
-    # Both sides are rendered from the same file, so this compares the two read
+    # The control goes first so that it is actually reached: the layer
+    # assertions below fail under the bug, and this one holds either way --
+    # ``psd.composite()`` never differed. It documents the scope rather than
+    # guarding it.
+    assert armed_doc.tobytes() == fresh_doc.tobytes()
+
+    # Both sides are rendered from the same file, so these compare the two read
     # orders against each other rather than against bytes committed here.
     assert armed_layer.size == fresh_layer.size
     assert armed_layer.tobytes() == fresh_layer.tobytes()
-    assert armed_doc.tobytes() == fresh_doc.tobytes()  # never differed

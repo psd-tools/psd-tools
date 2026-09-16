@@ -242,10 +242,11 @@ class Layer(LayerProtocol):
         # Down: ``Group.extract_bbox()`` filters children through
         # ``is_visible()``, which walks *up* the parent chain, so this flag is
         # an input to the box of every container *beneath* this layer as well.
-        # Those are the boxes nothing used to drop (#819). ``Group`` is named
-        # concretely because ``isinstance(x, GroupMixin)`` is a
-        # ``runtime_checkable`` protocol check that executes the very ``bbox``
-        # descriptor being cleared on Python <= 3.11.
+        # Those are the boxes nothing used to drop (#819). ``Group`` rather
+        # than ``GroupMixin``: the latter is a ``runtime_checkable`` protocol
+        # whose ``isinstance`` runs ``hasattr(x, "bbox")`` on Python <= 3.11,
+        # recomputing this subtree's boxes a line before the walk drops them.
+        # The answer is the same either way; the concrete check skips the work.
         if isinstance(self, Group):
             self._invalidate_subtree_bbox()
 
@@ -1062,7 +1063,9 @@ def _invalidate_moved_bbox(layer: Layer) -> None:
     see :py:meth:`GroupMixin._invalidate_subtree_bbox` for which boxes those
     are and why. ``Group`` and ``ShapeLayer`` are named concretely rather than
     going through ``GroupMixin``, whose ``runtime_checkable`` protocol check
-    would execute the very ``bbox`` descriptor this is trying to clear.
+    would recompute the boxes this is about to drop on Python <= 3.11. That
+    costs work rather than correctness -- the walk clears whatever the check
+    armed.
     """
     if isinstance(layer, Group):
         layer._invalidate_subtree_bbox()
@@ -1115,12 +1118,9 @@ class GroupMixin(GroupMixinProtocol, Protocol):
           bounds by ``self._psd.width`` and ``height``, and a cross-document
           move repoints ``_psd`` at a canvas of a different size.
 
-        Two callers, reaching different halves of that. Reparenting or
-        detaching a layer can do both. Hiding or showing a group (#819) only
-        ever does the first -- it leaves ``_psd`` alone -- so the shape boxes
-        it drops are recomputed to the same value; clearing them anyway costs
-        a recompute that a hidden subtree usually never asks for, and saves a
-        third walk that would differ from this one by one ``isinstance``.
+        Two callers reach different halves of that: reparenting or detaching
+        can do both, while hiding or showing a group (#819) only ever does the
+        first, since it leaves ``_psd`` alone.
 
         An ordinary layer's box is its record's own offsets, which nothing
         above it can change, so those are left alone.
