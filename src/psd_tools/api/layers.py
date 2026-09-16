@@ -231,10 +231,23 @@ class Layer(LayerProtocol):
 
     @visible.setter
     def visible(self, value: bool) -> None:
-        if self.visible != value and self._psd is not None:
+        value = bool(value)
+        if self.visible == value:
+            return
+        if self._psd is not None:
             self._psd._mark_updated()
+        self._record.flags.visible = value
+        # Up: every ancestor's union gains or loses this layer.
         self._invalidate_bbox()
-        self._record.flags.visible = bool(value)
+        # Down: ``Group.extract_bbox()`` filters children through
+        # ``is_visible()``, which walks *up* the parent chain, so this flag is
+        # an input to the box of every container *beneath* this layer too --
+        # the half of the cache nothing dropped (#819). ``Group`` is named
+        # concretely because ``isinstance(x, GroupMixin)`` is a
+        # ``runtime_checkable`` protocol check that executes the very ``bbox``
+        # descriptor being cleared on Python <= 3.11.
+        if isinstance(self, Group):
+            self._invalidate_subtree_bbox()
 
     def is_visible(self) -> bool:
         """

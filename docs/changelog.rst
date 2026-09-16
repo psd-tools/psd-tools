@@ -4,6 +4,12 @@ Changelog
 1.19.1 (unreleased)
 -------------------
 
+- [fix] Hiding or showing a group now invalidates the cached bounding box of
+  every group beneath it, not only of those above it. A nested group read
+  before an ancestor was hidden kept reporting the box it had while visible,
+  which made ``bbox`` -- and the ``left``/``top``/``right``/``bottom``/
+  ``width``/``height`` derived from it -- depend on the order they were first
+  read (#819, #821)
 - [fix] Adding, moving or removing a layer now invalidates the cached bounding
   box of every group above it, and of the document. A group edited through
   ``append()``, ``extend()``, ``insert()``, ``remove()``, ``clear()``, ``pop()``

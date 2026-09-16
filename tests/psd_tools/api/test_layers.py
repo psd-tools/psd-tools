@@ -1366,3 +1366,136 @@ def test_moving_a_shape_to_another_document_rescales_its_bbox(nested: bool) -> N
     target.append(moved)
 
     assert shape.bbox == (35, 85, 159, 166)
+
+
+# ---------------------------------------------------------------------------
+# Cached bounding boxes, the downward half (#819)
+#
+# ``Group.extract_bbox()`` filters children through ``is_visible()``, which
+# walks *up* the parent chain -- so a container's box is a function of its
+# ancestors' ``visible`` flags, and hiding a group has to drop the boxes cached
+# *beneath* it as well as the unions above it.
+#
+# Nothing consults a descendant's cache on the way down: ``_get_bbox()``
+# recurses through ``Group.extract_bbox()``, not through ``child.bbox``. So the
+# staleness is observable only on a *direct* read of the descendant -- through
+# ``bbox``, or any of ``left``/``top``/``right``/``bottom``/``width``/
+# ``height``, which ``Group`` overrides to read it.
+#
+# Every test below arms the cache before hiding, for the reason given in the
+# #814 section above.
+# ---------------------------------------------------------------------------
+
+
+def test_hiding_a_group_drops_the_boxes_cached_beneath_it() -> None:
+    """The issue's repro (#819): a child reporting a box its hidden parent does not."""
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    outer, inner = psd[1], psd[1][0]  # type: ignore[index]
+    assert isinstance(outer, Group) and isinstance(inner, Group)
+
+    armed = inner.bbox
+    assert armed == (103, -73, 288, 146)
+
+    outer.visible = False
+
+    # Compared against ``extract_bbox()`` rather than a second literal: the
+    # cache has to agree with what the tree actually says, not with a number
+    # chosen here.
+    assert inner.bbox == Group.extract_bbox(inner) == (0, 0, 0, 0)
+
+
+def test_hiding_reaches_every_level_beneath_not_just_the_first() -> None:
+    """The walk recurses; dropping the direct children's boxes is not enough.
+
+    ``Group 1`` ends up two levels under ``Outer``, so a one-level fix leaves
+    it stale while making the level above it look correct.
+    """
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    middle = psd[1]
+    assert isinstance(middle, Group)
+    deep = middle[0]
+    assert isinstance(deep, Group)
+    outer = psd.create_group(name="Outer")
+    outer.append(middle)
+
+    # Armed after the move, since reparenting invalidates the subtree (#818).
+    assert (middle.bbox, deep.bbox) == ((50, -73, 288, 146), (103, -73, 288, 146))
+
+    outer.visible = False
+
+    assert middle.bbox == (0, 0, 0, 0)  # one level down
+    assert deep.bbox == Group.extract_bbox(deep) == (0, 0, 0, 0)  # two levels down
+
+
+def test_showing_a_group_again_restores_the_boxes_beneath_it() -> None:
+    """Invalidation does not depend on which way the flag moved."""
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    outer, inner = psd[1], psd[1][0]  # type: ignore[index]
+    assert isinstance(outer, Group) and isinstance(inner, Group)
+    armed = inner.bbox
+
+    outer.visible = False
+    assert inner.bbox == (0, 0, 0, 0)  # re-armed, now with the hidden box
+
+    outer.visible = True
+
+    assert inner.bbox == Group.extract_bbox(inner) == armed
+
+
+def test_a_hidden_ancestor_gives_the_same_box_whichever_order_it_is_read() -> None:
+    """The property the cache owes a caller, stated without a literal.
+
+    Both sides are read from the same file, so this asserts that the two read
+    orders agree -- which is the bug -- rather than that either one equals a
+    number chosen here.
+    """
+    armed_first = PSDImage.open(full_name("clipping-mask.psd"))
+    inner = armed_first[1][0]  # type: ignore[index]
+    _ = inner.bbox  # armed while the ancestor is still visible
+    armed_first[1].visible = False
+
+    read_after = PSDImage.open(full_name("clipping-mask.psd"))
+    read_after[1].visible = False  # nothing armed beforehand
+
+    assert inner.bbox == read_after[1][0].bbox  # type: ignore[index]
+
+
+def test_setting_visible_to_the_value_it_already_has_keeps_the_cache() -> None:
+    """A write that changes nothing invalidates nothing.
+
+    Reads ``_bbox`` directly because that is the only way to tell a surviving
+    cache from one that was dropped and then recomputed to the same answer.
+    """
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    group = psd[1]
+    assert isinstance(group, Group)
+    armed = group.bbox
+
+    group.visible = group.visible
+
+    assert group._bbox == armed
+
+
+def test_hiding_an_artboard_drops_its_descendants_but_not_its_own_box() -> None:
+    """An ``Artboard`` is a ``Group``, so the walk passes through it.
+
+    Its own box is the ``artboardRect`` out of its tagged blocks, which no
+    visibility flag feeds -- so hiding it leaves that unchanged, while the
+    group nested inside it, whose box *is* filtered through ``is_visible()``,
+    has to be dropped.
+    """
+    psd = PSDImage.open(full_name("artboard.psd"))
+    artboard = psd[0]
+    assert isinstance(artboard, Artboard)
+    frame = artboard.bbox
+    assert frame == (238, 77, 1154, 1061)
+
+    nested = psd.create_group([artboard[2]], name="Nested")
+    artboard.append(nested)
+    armed = nested.bbox
+    assert armed == (238, 77, 1154, 1061)
+
+    artboard.visible = False
+
+    assert nested.bbox == Group.extract_bbox(nested) == (0, 0, 0, 0)
+    assert artboard.bbox == frame  # artboardRect, not a union over children
