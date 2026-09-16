@@ -4,6 +4,12 @@ Changelog
 1.19.1 (unreleased)
 -------------------
 
+- [fix] Composite a non-pass-through group on the box its contents paint
+  rather than on the union of their bounding boxes, so a child's outset or
+  centered stroke effect is no longer clipped away at the group's edge.
+  **Rendering change** for such a group; an artboard still clips its contents
+  to its frame, and ``group.composite()`` is unaffected, which is #797
+  (#808, #816)
 - [fix] Assigning to ``psd[i]`` or ``group[i]`` now replaces the layer at
   that index instead of inserting the new one and keeping both.
   **Behaviour change**; call ``insert()`` for the old behaviour. An
