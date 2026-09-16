@@ -4,6 +4,12 @@ Changelog
 1.19.1 (unreleased)
 -------------------
 
+- [fix] Trace a stroke effect on a group from the group's own coverage,
+  composited again on the box the stroke draws on, rather than from the
+  compositor's clipped copy. **Rendering change** for a stroke on a group
+  whose contents reach past the viewport being composited on, where the
+  stroke followed that viewport's edge; an artboard still clips to its frame
+  (#808, #817)
 - [fix] Composite a non-pass-through group on the box its contents paint
   rather than on the union of their bounding boxes, so a child's outset or
   centered stroke effect is no longer clipped away at the group's edge.
@@ -19,8 +25,8 @@ Changelog
   compositor's clipped copy of it. **Rendering change** for a layer that
   reaches off the canvas and for a ``composite(viewport=...)`` narrower than
   the layer, where the stroke followed the viewport edge; a vector mask now
-  rasterizes on the box asked for, shifting anti-aliasing by up to 1/255. A
-  stroke on a group is unchanged (#804, #806)
+  rasterizes on the box asked for, shifting anti-aliasing by up to 1/255
+  (#804, #806)
 - [api] ``composite.vector.draw_vector_mask()`` takes a ``viewport`` to
   rasterize onto, defaulting to the document canvas as before (#804, #806)
 - [fix] Draw nothing for a stroke effect of size 0 rather than raising. Only
