@@ -1604,36 +1604,71 @@ def test_an_unmeasurable_stroke_falls_back_to_the_layer_box(
     The fallback existed before, but #808 only ever reached it while measuring
     a group's children; the cull runs it for every non-group layer of every
     document, so a descriptor that trips it can now take down a composite that
-    used to work. Deleting ``Key.Style`` is the ``AttributeError`` arm --
-    ``stroke_bbox()`` does ``desc.get(Key.Style).enum`` on the result.
+    used to work. A non-numeric ``Key.SizeKey`` is the ``ValueError`` arm --
+    ``stroke_bbox()`` does ``float()`` on whatever it finds -- and it is the
+    one defect left that no amount of tolerance can read past: there is no
+    defensible width to invent for a stroke that does not state one (#826).
 
     The layer then culls on its own box, exactly as it did before the
     widening: degraded to the old decision rather than raising.
 
-    Scope, because the descriptor is broken for everyone: drawing the stroke
-    still raises, because :py:meth:`Compositor._apply_stroke_effect` calls
-    ``stroke_bbox()`` unguarded. That is untouched by #815 -- it raises the
-    same ``AttributeError`` from the same frame on the commit before it -- and
-    this test pins the cull, which is the part the widening put at risk, not
-    that a corrupt descriptor renders.
+    The composite that keeps the layer degrades the same way rather than
+    raising, which is #826's half: an effect nobody can read is dropped and
+    the document it sits on still renders.
     """
     psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
     layer = psd[0]
     broken = [effect for effect in layer.effects.find("stroke")]
     assert broken, "the fixture carries the stroke this test breaks"
     for effect in broken:
-        del effect.value[Key.Style]
+        effect.value[Key.SizeKey] = "wide"
 
     with caplog.at_level(logging.DEBUG, logger="psd_tools.composite.composite"):
         assert _stroke_reach(layer) == layer.bbox, "measurement gave up"
     assert any(
-        "Cannot measure the stroke effects" in record.message
-        for record in caplog.records
+        "Cannot measure a stroke effect" in record.message for record in caplog.records
     ), "the box matching bbox has to be the fallback, not an unmeasured layer"
     # The viewport the reach would have saved the layer on: culled instead of
     # raising, which is what the composite did before the cull consulted it.
     narrow = psd.composite(viewport=(0, 0, 8, 32), ignore_preview=True)
     assert not np.asarray(narrow.convert("RGBA"))[..., 3].any()
+
+    # The whole document, where the layer is not culled: what comes out is
+    # the same document with that stroke switched off -- the effect dropped,
+    # and nothing else with it.
+    whole = np.asarray(psd.composite(ignore_preview=True).convert("RGBA"))
+    off = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    for effect in off[0].effects.find("stroke"):
+        effect.value[Key.Enabled] = False
+    assert whole[..., 3].any(), "the layer went with its unreadable stroke"
+    assert np.array_equal(
+        whole, np.asarray(off.composite(ignore_preview=True).convert("RGBA"))
+    ), "the unreadable stroke left something behind"
+
+
+def test_one_unmeasurable_stroke_keeps_the_reach_of_the_other() -> None:
+    """A descriptor that cannot be measured costs its own box, not the layer's.
+
+    The fallback used to be the whole loop's: any effect that raised sent the
+    measurement back to ``layer.bbox``, discarding what the effects before it
+    had contributed. ``double-stroke-effects.psd`` is the fixture that can
+    tell the two apart (#798) -- its layer carries a 1 px outset and a 1 px
+    inset stroke, which grow the box by different amounts -- so breaking the
+    wider one leaves the narrower one's box behind rather than the layer's.
+
+    Keeping it matters in the direction the box is used: over-measuring costs
+    a group some canvas nobody draws on, while under-measuring clips a stroke
+    or culls a layer that has one (#826).
+    """
+    psd = PSDImage.open(full_name("effects/double-stroke-effects.psd"))
+    layer = psd[1]
+    outset, inset = list(layer.effects.find("stroke"))
+    assert _stroke_reach(layer) == (0, -1, 32, 31), "both strokes measured"
+
+    outset.value[Key.SizeKey] = "wide"
+    assert _stroke_reach(layer) == (1, 0, 31, 30), "the inset stroke's own box"
+    inset.value[Key.SizeKey] = "wide"
+    assert _stroke_reach(layer) == layer.bbox, "nothing left to measure"
 
 
 def test_accepts_honours_the_layer_filter() -> None:

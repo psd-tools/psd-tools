@@ -1,5 +1,6 @@
 import logging
 import math
+from typing import Callable
 
 import numpy as np
 import pytest
@@ -665,23 +666,196 @@ def test_each_stroke_path_names_the_dependency_it_is_missing(
     accurate about the package and misleading about why.
 
     Nothing Photoshop writes reaches the dilation any more, so its half is
-    driven by a descriptor naming a position that does not exist. That is the
-    only remaining caller, and a stroke it cannot draw is worth an install
-    instruction rather than a traceback about ``skimage``.
+    driven by a descriptor naming a position that does not exist, or -- since
+    #826 -- naming none at all, which is measured and drawn as the same
+    unrecognised position. That is the only remaining caller, and a stroke it
+    cannot draw is worth an install instruction rather than a traceback about
+    ``skimage``.
+
+    Which is the one thing #826 does not make total: on an install without
+    scikit-image a stroke with no readable position still raises, saying which
+    package would draw it.
     """
     shape = np.zeros((8, 8, 1), dtype=np.float32)
     shape[2:6, 2:6] = 1.0
     psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
 
     monkeypatch.setattr(_compat, "HAS_SKIMAGE", False)
-    with pytest.raises(ImportError, match="scikit-image"):
-        effects.draw_stroke_effect(
-            (0, 0, 8, 8), shape, _stroke_descriptor(b"nope", 2.0), psd
-        )
+    omitted = _stroke_descriptor(b"nope", 2.0)
+    del omitted[Key.Style]
+    for desc in (_stroke_descriptor(b"nope", 2.0), omitted):
+        with pytest.raises(ImportError, match="scikit-image"):
+            effects.draw_stroke_effect((0, 0, 8, 8), shape, desc, psd)
 
     monkeypatch.setattr(effects, "HAS_SCIPY", False)
     with pytest.raises(ImportError, match="Stroke effects require: scipy"):
         check_composite_quality("effects/outside-stroke.psd", threshold=1.0)
+
+
+def _rendered(
+    filename: str,
+    kind: str = "stroke",
+    mutate: Callable[[Descriptor], None] | None = None,
+    *,
+    nth: int | None = None,
+) -> np.ndarray:
+    """``filename`` composited after ``mutate`` has broken its effects.
+
+    ``nth`` selects one effect per layer, counted over the enabled effects of
+    that kind in the order the compositor draws them. The fixtures below that
+    use it carry their effects on a single layer, so it names one effect in
+    the document.
+    """
+    psd = PSDImage.open(full_name(filename))
+    for layer in psd.descendants():
+        for index, effect in enumerate(list(layer.effects.find(kind))):
+            if mutate is not None and (nth is None or index == nth):
+                mutate(effect.descriptor)
+    return np.asarray(psd.composite(ignore_preview=True).convert("RGBA"))
+
+
+def _disable(desc: Descriptor) -> None:
+    desc[Key.Enabled] = False
+
+
+# Every way an effect descriptor can defeat the reads that draw it, short of
+# the ones the drawing now reads past. The first is the stroke's own width,
+# the other two are the paint's, which ``_stroke_reach()`` never looks at at
+# all -- so no amount of hardening the measurement would have caught them.
+_UNDRAWABLE = {
+    "size": lambda desc: desc.__setitem__(Key.SizeKey, "wide"),
+    "infinite-size": lambda desc: desc.__setitem__(Key.SizeKey, Double(float("inf"))),
+    "no-color": lambda desc: desc.pop(Key.Color),
+    "color-class": lambda desc: setattr(desc[Key.Color], "classID", b"XXXX"),
+}
+
+
+@pytest.mark.parametrize("defect", sorted(_UNDRAWABLE), ids=sorted(_UNDRAWABLE))
+def test_an_unreadable_stroke_is_dropped_and_the_document_still_renders(
+    defect: str,
+) -> None:
+    """A descriptor that cannot be read costs its effect, not the render.
+
+    Two of these are the stroke's own width and reach the guard that measures
+    it: a size that will not parse (``ValueError`` from ``float()``) and one
+    that parses but cannot be a margin (``OverflowError`` from ``math.ceil``,
+    which no amount of validating the *type* would have caught). The other two
+    are the paint's and reach the guard that draws it -- a missing colour
+    descriptor, and a colour class that is none of the five -- which
+    ``_stroke_reach()`` never reads at all, so no hardening of the measurement
+    could have found them (#826).
+
+    Asserted against the same document with the stroke switched off, not
+    merely against "it did not raise": a stroke drawn at some invented width
+    or in some invented colour would pass that weaker test.
+    """
+    assert np.array_equal(
+        _rendered("effects/outside-stroke.psd", mutate=_UNDRAWABLE[defect]),
+        _rendered("effects/outside-stroke.psd", mutate=_disable),
+    )
+
+
+@pytest.mark.parametrize(
+    ("key", "type_id"),
+    [(Key.Style, b"FStl"), (Key.PaintType, b"FrFl")],
+    ids=["position", "paint"],
+)
+@pytest.mark.parametrize(
+    "defect", ["absent", "wrong-type"], ids=["absent", "wrong-type"]
+)
+def test_an_unreadable_stroke_enum_draws_as_an_unrecognised_one(
+    key: bytes, type_id: bytes, defect: str
+) -> None:
+    """An enum the descriptor does not state joins the ones it states wrongly.
+
+    Both enums a stroke is drawn from -- its position and its paint type --
+    already answer for a value neither table names: the widest reach and the
+    dilation path for one, a white fill for the other. A key that is missing
+    or holds a ``Double`` cannot be told apart from a key naming something
+    nobody implements, so it costs nothing to let them share that answer, and
+    it buys a stroke that draws instead of an ``AttributeError`` out of
+    ``desc.get(...).enum`` (#826).
+
+    Pinned against the unrecognised value at both ends -- not blank, and not
+    what the fixture itself states -- because "it drew something" would pass
+    for a missing key that had quietly become outset, or red.
+    """
+    mutate: Callable[[Descriptor], None] = (
+        (lambda desc: desc.pop(key))
+        if defect == "absent"
+        else (lambda desc: desc.__setitem__(key, Double(1.0)))
+    )
+    unrecognised = _rendered(
+        "effects/outside-stroke.psd",
+        mutate=lambda desc: desc.__setitem__(
+            key, Enumerated(typeID=type_id, enum=b"nope")
+        ),
+    )
+    assert np.array_equal(
+        _rendered("effects/outside-stroke.psd", mutate=mutate), unrecognised
+    )
+    assert not np.array_equal(
+        unrecognised, _rendered("effects/outside-stroke.psd", mutate=_disable)
+    ), "the fixture has to draw something for this to pin anything"
+    assert not np.array_equal(unrecognised, _rendered("effects/outside-stroke.psd")), (
+        "an unreadable enum quietly became the one the fixture states"
+    )
+
+
+def test_an_unreadable_stroke_leaves_the_other_stroke_on_the_layer() -> None:
+    """One bad descriptor costs one effect, not every effect on the layer.
+
+    ``double-stroke-effects.psd`` carries two strokes on one layer (#798),
+    which is what tells a guard around each effect apart from a guard around
+    the loop: both render identically unless the second stroke survives the
+    first one being unreadable.
+    """
+    both_off = _rendered("effects/double-stroke-effects.psd", mutate=_disable)
+    first_off = _rendered("effects/double-stroke-effects.psd", mutate=_disable, nth=0)
+    first_broken = _rendered(
+        "effects/double-stroke-effects.psd", mutate=_UNDRAWABLE["no-color"], nth=0
+    )
+    assert not np.array_equal(first_off, both_off), "the second stroke draws nothing"
+    assert np.array_equal(first_broken, first_off)
+
+
+def test_a_gradient_that_cannot_be_scaled_is_dropped_not_raised() -> None:
+    """A descriptor read that survives and then divides by what it read.
+
+    ``draw_gradient_fill()`` scales its coordinate grid by ``Key.Scale``, so a
+    gradient overlay scaled to 0 raises ``ZeroDivisionError`` -- a value that
+    parses, passes every type check, and still cannot be used. Photoshop's own
+    UI floors the scale at 10%, which is why this needs forging, and it is the
+    reason the guards catch what a descriptor's *arithmetic* raises and not
+    only what reading it raises (#826).
+    """
+    assert np.array_equal(
+        _rendered(
+            "clipping-mask2.psd",
+            kind="gradientoverlay",
+            mutate=lambda desc: desc.__setitem__(Key.Scale, Double(0.0)),
+        ),
+        _rendered("clipping-mask2.psd", kind="gradientoverlay", mutate=_disable),
+    )
+
+
+def test_an_unreadable_overlay_is_dropped_and_the_document_still_renders() -> None:
+    """The overlays read a descriptor to draw too, and raised the same way.
+
+    ``_apply_overlay()`` reaches the same ``paint._get_color()`` the stroke
+    does, with no measurement in front of it to degrade first, so a colour
+    overlay missing its colour took down ``stroke-composite.psd`` outright.
+    The rule is the effect's, not the stroke's: an effect whose descriptor
+    cannot be read is skipped (#826).
+    """
+    assert np.array_equal(
+        _rendered(
+            "effects/stroke-composite.psd",
+            kind="coloroverlay",
+            mutate=_UNDRAWABLE["no-color"],
+        ),
+        _rendered("effects/stroke-composite.psd", kind="coloroverlay", mutate=_disable),
+    )
 
 
 @pytest.mark.parametrize("force", [False, True])
