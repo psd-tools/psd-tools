@@ -359,7 +359,7 @@ def draw_pattern_fill(
     pattern_id = desc[Enum.Pattern][Key.ID].value.rstrip("\x00")
     pattern = psd._get_pattern(pattern_id)
     if not pattern:
-        logger.error("Pattern not found: %s" % (pattern_id))
+        logger.error("Pattern not found: %s", pattern_id)
         return None, None
 
     panel = numpy_io.get_pattern(pattern)
@@ -428,7 +428,7 @@ def draw_gradient_fill(
         Z = _make_diamond_gradient(X, Y, angle)
     else:
         # Unsupported: b'shapeburst', only avail in stroke effect
-        logger.warning("Unknown gradient style: %s." % (gradient_kind))
+        logger.warning("Unknown gradient style: %s.", gradient_kind)
         Z = np.full((height, width), 0.5, dtype=np.float32)
 
     Z = np.maximum(0.0, np.minimum(1.0, Z))
@@ -485,7 +485,7 @@ def _make_gradient_color(
     elif gradient_form == Enum.CustomStops:
         return _make_linear_gradient_color(color_mode, grad)
 
-    logger.error("Unknown gradient form: %s" % gradient_form)
+    logger.error("Unknown gradient form: %s", gradient_form)
     return None, None
 
 

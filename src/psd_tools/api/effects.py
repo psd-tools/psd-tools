@@ -41,7 +41,10 @@ class Effects:
     """
     List-like effects.
 
-    Only present effects are kept.
+    Only effects that are present and that this version can interpret are
+    kept: one that is not present, and one whose effect class has no handler
+    here, are both skipped. A layer whose effects block did not parse at all
+    has no effects.
     """
 
     def __init__(self, layer: LayerProtocol):
@@ -56,7 +59,19 @@ class Effects:
                 break
 
         self._items: list["_Effect"] = []
-        if self._data is None:
+        if not isinstance(self._data, Descriptor):
+            # Either there is no effects block, or there is one that did not
+            # parse: ``TaggedBlock.read()`` keeps the raw bytes it could not
+            # read, and reading those as a descriptor raises. Both are the
+            # no-effects case, which every property below answers for --
+            # ``scale`` by raising, as it already does for a layer carrying no
+            # effects block at all (#828).
+            if self._data is not None:
+                logger.debug(
+                    "Effects block did not parse; read as %s",
+                    type(self._data).__name__,
+                )
+                self._data = None
             return
         for key in self._data:
             value = self._data[key]
@@ -68,7 +83,14 @@ class Effects:
                     continue
                 kls = _TYPES.get(item.classID)
                 if kls is None:
-                    raise ValueError(f"Effect class not found for {item.classID!r}")
+                    # Skip it, like the effect above that is not present.
+                    # Rejecting it is defensible for a constructor on its own,
+                    # but ``Effects`` is built on first access from read-only
+                    # paths -- ``has_effects()``, and ``Layer.__repr__``
+                    # through it -- that can only pass a raise on. One effect
+                    # lost, rather than the document (#828).
+                    logger.debug("Effect class not found for %r", item.classID)
+                    continue
                 self._items.append(kls(item, layer._psd.image_resources))
 
     @property

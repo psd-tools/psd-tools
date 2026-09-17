@@ -13,7 +13,8 @@ from psd_tools.composite.effects import (
     _signed_distance,
     stroke_bbox,
 )
-from psd_tools.psd.descriptor import Descriptor, Double, Enumerated
+from psd_tools.constants import Tag
+from psd_tools.psd.descriptor import Descriptor, Double, Enumerated, List
 from psd_tools.terminology import Enum, Key, Klass
 
 from ..utils import full_name
@@ -956,3 +957,78 @@ def test_an_isolated_group_keeps_a_child_stroke_that_reaches_past_it(
     assert tuple(centered[16, 7]) == (255, 0, 0)
     assert tuple(centered[16, 6]) == (255, 127, 127)
     assert tuple(centered[16, 5]) == (255, 255, 255)
+
+
+def _unreadable_block(filename: str) -> np.ndarray:
+    """``filename`` composited with every effects block replaced by raw bytes.
+
+    What ``TaggedBlock.read()`` leaves behind for a block it could not parse,
+    which used to raise out of ``Effects.__init__`` before any guard in this
+    module could see it (#828).
+    """
+    psd = PSDImage.open(full_name(filename))
+    for layer in psd.descendants():
+        for tag in (
+            Tag.OBJECT_BASED_EFFECTS_LAYER_INFO,
+            Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V0,
+            Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V1,
+        ):
+            if tag in layer.tagged_blocks:
+                layer.tagged_blocks[tag].data = b"garbagebytes"
+    return np.asarray(psd.composite(ignore_preview=True).convert("RGBA"))
+
+
+def _with_unknown_class(filename: str, key: bytes, index: int = 0) -> np.ndarray:
+    """``filename`` composited with one effect's class forged unknown.
+
+    Not ``_rendered()``: that reaches its effect through
+    ``layer.effects.find()``, which is exactly what cannot see an effect whose
+    class has no handler. This goes at the descriptor the effects block holds.
+    """
+    psd = PSDImage.open(full_name(filename))
+    for layer in psd.descendants():
+        data = layer.effects._data
+        if data is None or key not in data:
+            continue
+        item = data[key]
+        item = item[index] if isinstance(item, List) else item
+        item.classID = b"XXXX"
+        del layer._effects
+    return np.asarray(psd.composite(ignore_preview=True).convert("RGBA"))
+
+
+def test_an_unknown_effect_class_is_dropped_and_the_document_still_renders() -> None:
+    """An effect class with no handler costs its effect, not the render (#828).
+
+    ``Effects`` used to reject it, and since the compositor formats every
+    layer it visits through ``Layer.__repr__``, which asks ``has_effects()``,
+    the whole document raised -- at any log level, logging disabled included.
+
+    Asserted against the same document with that one stroke switched off, and
+    against the other stroke still drawing, for the reason
+    ``test_an_unreadable_stroke_leaves_the_other_stroke_on_the_layer`` gives:
+    both strokes vanishing would pass a test that only asked whether the
+    render raised.
+    """
+    both_off = _rendered("effects/double-stroke-effects.psd", mutate=_disable)
+    first_off = _rendered("effects/double-stroke-effects.psd", mutate=_disable, nth=0)
+    first_unknown = _with_unknown_class(
+        "effects/double-stroke-effects.psd", b"frameFXMulti", index=0
+    )
+    assert not np.array_equal(first_off, both_off), "the second stroke draws nothing"
+    assert np.array_equal(first_unknown, first_off)
+
+
+def test_an_effects_block_that_did_not_parse_renders_as_no_effects() -> None:
+    """The layer keeps its pixels and loses its effects, not the document.
+
+    Asserted against the same document with the effects switched off rather
+    than against "it did not raise", which is what tells a block read as no
+    effects apart from one read as some invented effect -- and the fixture's
+    stroke has to draw for the second assertion to mean anything (#828).
+    """
+    both_off = _rendered("effects/double-stroke-effects.psd", mutate=_disable)
+    assert np.array_equal(
+        _unreadable_block("effects/double-stroke-effects.psd"), both_off
+    )
+    assert not np.array_equal(both_off, _rendered("effects/double-stroke-effects.psd"))

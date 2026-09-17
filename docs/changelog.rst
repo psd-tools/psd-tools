@@ -4,6 +4,14 @@ Changelog
 1.19.1 (unreleased)
 -------------------
 
+- [fix] Skip an effect psd-tools cannot read out of a layer's effects block --
+  one whose effect class this version has no handler for, or a block that did
+  not parse at all -- rather than raising. Such a file renders without that
+  effect instead of not at all, where ``layer.effects`` and everything reached
+  through it, ``repr(layer)`` included, used to raise (#828, #829)
+- [fix] ``repr(layer)`` no longer raises when a layer's bounding box or
+  effects block cannot be read, and the compositor no longer builds a debug
+  message for every layer it visits when debug logging is off (#828, #829)
 - [fix] Skip a stroke or overlay effect whose descriptor cannot be read
   instead of aborting the composite, and draw one whose position or paint type
   is missing as the unrecognised value it cannot be told apart from. Only

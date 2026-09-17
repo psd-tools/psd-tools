@@ -140,7 +140,7 @@ def _preserve_alpha(func: F) -> F:
 def _get_lut_size(layer: Layer) -> Literal[256, 65536]:
     bits = layer._psd.depth
     lut_size = min(2**bits, 65536)
-    logger.debug(f"Lut size: {lut_size}")
+    logger.debug("Lut size: %s", lut_size)
     return lut_size
 
 

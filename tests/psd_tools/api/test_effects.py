@@ -3,7 +3,10 @@ from typing import Iterator
 
 import pytest
 
+from psd_tools.api.layers import Layer
 from psd_tools.api.psd_image import PSDImage
+from psd_tools.constants import Tag
+from psd_tools.psd.descriptor import List
 from psd_tools.terminology import Enum
 from psd_tools.api import effects
 
@@ -208,3 +211,95 @@ def test_satin(fixture: PSDImage) -> None:
     assert effect.inverted is True
     assert effect.opacity == 50.0
     assert effect.size == 35.0
+
+
+def _forge_unknown_class(layer: Layer, key: bytes, index: int = 0) -> None:
+    """Give one of ``layer``'s effects a class psd-tools has no handler for.
+
+    Nothing ships like this: every effect class in ``tests/psd_files`` is one
+    ``_TYPES`` holds, and Photoshop writes no others, so reaching the branch
+    at all means forging it. ``del layer._effects`` because
+    :py:attr:`~psd_tools.api.layers.Layer.effects` memoises what it built.
+    """
+    item = layer.effects._data[key]  # type: ignore[index]
+    item = item[index] if isinstance(item, List) else item
+    item.classID = b"XXXX"
+    del layer._effects
+
+
+def test_an_unknown_effect_class_is_skipped_rather_than_rejected() -> None:
+    """A class with no handler here costs its effect, not every caller (#828).
+
+    Rejecting it made `layer.effects` raise, and `has_effects()` with it, and
+    `Layer.__repr__` through that -- so a file carrying one could not be
+    printed, displayed in a notebook, or composited at any log level. It is
+    now skipped, like an effect the Photoshop UI does not show.
+
+    The descriptor it came out of is still readable, which is why the master
+    switch and the scale are asserted too: only the one effect is dropped.
+    """
+    psd = PSDImage.open(full_name("layer_effects.psd"))
+    layer = psd[10]
+    assert [effect.name for effect in layer.effects] == ["Stroke"]
+    scale = layer.effects.scale
+
+    _forge_unknown_class(layer, b"FrFX")
+
+    assert list(layer.effects) == []
+    assert layer.has_effects() is False
+    assert " effects" not in repr(layer)
+    assert layer.effects.enabled is True
+    assert layer.effects.scale == scale
+
+
+def test_an_unknown_effect_class_costs_only_its_own_effect() -> None:
+    """One unknown class does not take the layer's other effects with it.
+
+    ``double-stroke-effects.psd`` carries two enabled strokes in one
+    ``frameFXMulti`` list (#798), so it tells skipping the item apart from
+    abandoning the layer: only if the ``continue`` sits inside the per-item
+    loop does the second stroke survive the first having no handler.
+    """
+    psd = PSDImage.open(full_name("effects/double-stroke-effects.psd"))
+    layer = psd[1]
+    assert [effect.name for effect in layer.effects] == ["Stroke", "Stroke"]
+
+    _forge_unknown_class(layer, b"frameFXMulti", index=0)
+
+    assert [effect.name for effect in layer.effects] == ["Stroke"]
+    assert layer.has_effects() is True
+    assert layer.has_effects(name="Stroke") is True
+    assert " effects" in repr(layer)
+
+
+def test_an_effects_block_that_did_not_parse_reads_as_no_effects() -> None:
+    """The other way listing a layer's effects failed before it began (#828).
+
+    ``TaggedBlock.read()`` keeps the raw bytes of a block it could not parse,
+    so ``self._data`` could be ``bytes``, and reading those as a descriptor
+    raised -- with the bytes forged here, ``IndexError``. Unlike an unknown
+    effect class this needs no forged class name, only an effects descriptor
+    that will not read, so it is the more reachable of the two.
+
+    Which exception it was depended on the bytes, and that is the point:
+    ``IndexError`` is not in the compositor's ``_UNREADABLE``, so for this
+    content no guard #826 added could see it.
+    """
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    layer = psd[0]
+    assert layer.has_effects()
+
+    for tag in (
+        Tag.OBJECT_BASED_EFFECTS_LAYER_INFO,
+        Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V0,
+        Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V1,
+    ):
+        if tag in layer.tagged_blocks:
+            layer.tagged_blocks[tag].data = b"garbagebytes"
+    del layer._effects
+
+    assert list(layer.effects) == []
+    assert len(layer.effects) == 0
+    assert layer.effects.enabled is False
+    assert layer.has_effects() is False
+    assert " effects" not in repr(layer)
