@@ -1399,6 +1399,59 @@ def test_the_cull_group_exemption_matches_the_structural_check(fixture: str) -> 
         assert layer.is_group() == isinstance(layer, GroupMixin), layer.name
 
 
+def test_a_vector_stroke_adds_no_coverage_outside_the_layer_box() -> None:
+    """Why the cull measures stroke *effects* only, and not ``layer.stroke``.
+
+    A vector stroke rasterizes on a box wider than the layer -- ``_get_stroke``
+    draws it on ``bbox`` grown by the stroke width -- so it looks like a second
+    thing that paints outside ``layer.bbox`` and therefore like something
+    :py:func:`_stroke_reach` ought to count. It is not.
+    :py:meth:`Compositor._get_object` runs that wider draw through a
+    sub-compositor and keeps ``color`` alone, discarding its ``shape`` and
+    ``alpha``, so a vector stroke only ever *tints* pixels the layer already
+    covers. Nothing outside the layer's box can show, and widening the cull
+    for it would accept layers that then paint nothing.
+
+    The layer here carries a 7 px *centered* stroke, so 3.5 px of it rasterize
+    outside the box; the viewport is padded well past that on every side, so
+    any escaping coverage would have somewhere to land and be seen.
+
+    If ``_get_object()`` ever starts keeping that coverage, this test fails
+    and the cull genuinely does need to count it -- which is the point of
+    pinning it here rather than only asserting it in a comment.
+    """
+    psd = PSDImage.open(
+        full_name("descriptors/stroke-color-descriptors-hsb-with-rgb-mode.psd")
+    )
+    layer = psd[5]
+    assert layer.stroke is not None and layer.stroke.enabled
+    assert layer.stroke.line_width == 7.0
+    assert layer.stroke.line_alignment == "center", "reaches outside the box"
+
+    bbox = layer.bbox
+    pad = 12
+    viewport = (bbox[0] - pad, bbox[1] - pad, bbox[2] + pad, bbox[3] + pad)
+    height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
+    compositor = Compositor(
+        viewport,
+        np.ones((height, width, 3), dtype=np.float32),
+        np.zeros((height, width, 1), dtype=np.float32),
+    )
+    _, shape, alpha = compositor._get_object(layer)
+
+    def extent(canvas: np.ndarray) -> tuple[int, int, int, int]:
+        rows, columns = np.nonzero(canvas[..., 0] > 1e-6)
+        return (
+            int(columns.min()) + viewport[0],
+            int(rows.min()) + viewport[1],
+            int(columns.max()) + viewport[0] + 1,
+            int(rows.max()) + viewport[1] + 1,
+        )
+
+    assert extent(shape) == bbox, "the vector stroke escaped into the coverage"
+    assert extent(alpha) == bbox
+
+
 def test_accepts_keeps_a_layer_whose_stroke_reaches_into_the_viewport() -> None:
     """The cull measures where the layer paints, not where its box is (#815).
 
