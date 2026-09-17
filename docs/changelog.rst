@@ -4,6 +4,11 @@ Changelog
 1.19.1 (unreleased)
 -------------------
 
+- [fix] Composite a layer whose bounding box falls outside the viewport when a
+  stroke effect on it reaches back inside, instead of culling the layer and
+  losing the stroke with it. **Rendering change** wherever a layer sits off
+  the canvas, or off the box being composited, while its stroke does not
+  (#815, #823)
 - [fix] Place a layer's vector stroke on the box being composited rather than
   on the document canvas, where it could land away from the shape it outlines
   or be clipped at the canvas edge. **Rendering change** for

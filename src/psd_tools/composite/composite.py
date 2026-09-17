@@ -130,6 +130,13 @@ def _stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
     with the loop in :py:meth:`Compositor._apply_stroke_effect` that actually
     draws them: both skip a disabled effect and both skip every effect when the
     layer's master switch is off.
+
+    Two callers, asking the same question for different reasons.
+    :py:func:`_paint_bbox` asks how wide a canvas a group has to composite its
+    children on (#808); :py:meth:`Compositor._accepts` asks whether a layer
+    paints inside the viewport at all (#815). The second means the fallback
+    below now runs for every non-group layer of every document rather than
+    only for a group's children, so it has to stay total.
     """
     bbox = layer.bbox
     if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
@@ -140,11 +147,11 @@ def _stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
     except (AttributeError, TypeError, ValueError) as error:
         # ``Effects`` rejects an effect class it does not know, and
         # ``stroke_bbox()`` reads a style and a size straight off the
-        # descriptor. A layer outside the group's old viewport was never
-        # composited and so was never measured at all; doing it here must not
-        # turn a document that rendered into one that raises. The box falls
-        # back to the one this function grew it from, which is what the group
-        # used before.
+        # descriptor. Measuring a layer that was never measured before must
+        # not turn a document that rendered into one that raises -- and since
+        # #815 that is every layer, not only the ones outside a group's old
+        # viewport. The box falls back to ``layer.bbox``, so a group composites
+        # on what it used before and the cull rejects what it rejected before.
         logger.debug("Cannot measure the stroke effects of %s: %s" % (layer, error))
         return layer.bbox
     return bbox
@@ -993,13 +1000,25 @@ class Compositor(object):
         self._apply_effects(layer, source)
 
     def _accepts(self, layer: Layer, clip_compositing: bool) -> bool:
-        """Whether this layer contributes to the composite at all."""
+        """Whether this layer contributes to the composite at all.
+
+        The cull measures ``_stroke_reach()`` and not ``layer.bbox``, because
+        a stroke reaches outside the layer: a layer whose own box has cleared
+        the viewport can still paint the part of its stroke that falls back
+        inside, and rejecting it here lost the stroke along with the layer
+        (#815). ``_stroke_reach()`` rather than ``_paint_bbox()`` because the
+        group half of that measurement is unreachable from here: a group is
+        exempt from the cull, so the box is only ever measured for a layer
+        that has no contents to recurse into. That is also why the
+        exemption is tested first -- the reach is not worth measuring for a
+        layer that is exempt from the test it feeds.
+        """
         if self._layer_filter is not None and not self._layer_filter(layer):
             logger.debug("Ignore %s" % layer)
             return False
-        if (utils.intersect(self._viewport, layer.bbox) == (0, 0, 0, 0)) and not (
+        if not (
             isinstance(layer, AdjustmentLayer) or isinstance(layer, GroupMixin)
-        ):
+        ) and utils.intersect(self._viewport, _stroke_reach(layer)) == (0, 0, 0, 0):
             logger.debug("Out of viewport %s" % (layer))
             return False
         if not clip_compositing and layer.clipping:
