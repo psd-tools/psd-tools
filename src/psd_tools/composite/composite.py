@@ -1013,12 +1013,22 @@ class Compositor(object):
         that has no contents to recurse into. That is also why the
         exemption is tested first -- the reach is not worth measuring for a
         layer that is exempt from the test it feeds.
+
+        ``is_group()`` and not ``isinstance(layer, GroupMixin)``, for the
+        reason ``Layer._invalidate_moved_bbox()`` and its neighbours already
+        name: ``GroupMixin`` is a ``runtime_checkable`` protocol whose
+        ``isinstance`` runs ``hasattr(x, "bbox")`` on Python <= 3.11, which
+        recomputes a group's box from its children just to answer a question
+        about the layer's type. Testing the exemption first put that on the
+        path of every layer, where the old spelling reached it only for one
+        already outside the viewport -- 15 us against 0.05 us per call here.
+        The two agree on every layer in the fixture corpus.
         """
         if self._layer_filter is not None and not self._layer_filter(layer):
             logger.debug("Ignore %s" % layer)
             return False
         if not (
-            isinstance(layer, AdjustmentLayer) or isinstance(layer, GroupMixin)
+            isinstance(layer, AdjustmentLayer) or layer.is_group()
         ) and utils.intersect(self._viewport, _stroke_reach(layer)) == (0, 0, 0, 0):
             logger.debug("Out of viewport %s" % (layer))
             return False
@@ -1476,21 +1486,35 @@ class Compositor(object):
         outside it; one with neither color nor shape is an empty pixel layer
         and covers nothing.
 
-        The opaque case is filled on ``bbox`` and pasted, rather than filled
-        straight onto ``viewport``. The two agree only while ``bbox`` contains
-        ``viewport``, which is the shape a layer with no transparency channel
-        usually has -- a Background spanning the canvas -- and that is why
-        filling the viewport went unnoticed. It is not guaranteed: #815 lets
-        the cull accept a layer whose box misses the viewport entirely, and
-        filling the viewport for one of those paints it opaque end to end.
+        The opaque case covers ``bbox`` and not ``viewport``. The two agree
+        only while ``bbox`` contains ``viewport``, which is the shape a layer
+        with no transparency channel usually has -- a Background spanning the
+        canvas -- and that is why filling the viewport went unnoticed. It is
+        not guaranteed: #815 lets the cull accept a layer whose box misses the
+        viewport entirely, and filling the viewport for one of those paints it
+        opaque end to end.
+
+        Written onto a viewport-sized canvas rather than filled on ``bbox``
+        and pasted, so the allocation is bounded by the viewport. ``bbox`` is
+        the layer's and can be far larger -- the case this widening newly
+        admits is precisely a big layer against a small viewport -- and
+        :py:func:`paste` would have copied only this intersection out of it
+        anyway.
         """
         if shape is not None:
             return paste(viewport, bbox, shape)
         height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
+        covered = np.zeros((height, width, 1), dtype=np.float32)
         if color is None:
-            return np.zeros((height, width, 1), dtype=np.float32)
-        covered = np.ones((bbox[3] - bbox[1], bbox[2] - bbox[0], 1), dtype=np.float32)
-        return paste(viewport, bbox, covered)
+            return covered
+        inter = utils.intersect(viewport, bbox)
+        if inter != (0, 0, 0, 0):
+            covered[
+                inter[1] - viewport[1] : inter[3] - viewport[1],
+                inter[0] - viewport[0] : inter[2] - viewport[0],
+                :,
+            ] = 1.0
+        return covered
 
     def _get_object_shape(
         self, layer: Layer, viewport: tuple[int, int, int, int]

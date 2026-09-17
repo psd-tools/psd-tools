@@ -1378,6 +1378,27 @@ def test_accepts_rejects_a_layer_outside_the_viewport() -> None:
     assert compositor._accepts(cast(Layer, group), clip_compositing=False)
 
 
+@pytest.mark.parametrize(
+    "fixture",
+    ["clipping-mask.psd", "hidden-groups.psd", "effects/stroke-effects.psd"],
+)
+def test_the_cull_group_exemption_matches_the_structural_check(fixture: str) -> None:
+    """``is_group()`` has to answer exactly what ``GroupMixin`` would.
+
+    :py:meth:`Compositor._accepts` exempts a group by the cheap predicate
+    rather than the protocol ``isinstance``, which costs a group's whole
+    bbox recomputation on Python <= 3.11. The two are only interchangeable
+    for as long as they agree, and nothing else makes them agree -- a new
+    group-shaped class that forgot to override ``is_group()`` would be culled
+    on a box that says nothing about where it paints, silently.
+    """
+    psd = PSDImage.open(full_name(fixture))
+    layers = list(_descendants(psd))
+    assert layers, "the fixture has something to compare"
+    for layer in layers:
+        assert layer.is_group() == isinstance(layer, GroupMixin), layer.name
+
+
 def test_accepts_keeps_a_layer_whose_stroke_reaches_into_the_viewport() -> None:
     """The cull measures where the layer paints, not where its box is (#815).
 
