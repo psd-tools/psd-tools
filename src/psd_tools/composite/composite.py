@@ -134,9 +134,10 @@ def _stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
     Two callers, asking the same question for different reasons.
     :py:func:`_paint_bbox` asks how wide a canvas a group has to composite its
     children on (#808); :py:meth:`Compositor._accepts` asks whether a layer
-    paints inside the viewport at all (#815). The second means the fallback
-    below now runs for every non-group layer of every document rather than
-    only for a group's children, so it has to stay total.
+    paints inside the viewport at all (#815). The second widens what gets
+    measured from a group's children to every non-group layer the cull
+    reaches -- visible and filter-passing, since ``_accepts`` tests the filter
+    first -- so the fallback below has to stay total.
     """
     bbox = layer.bbox
     if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
@@ -148,10 +149,10 @@ def _stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
         # ``Effects`` rejects an effect class it does not know, and
         # ``stroke_bbox()`` reads a style and a size straight off the
         # descriptor. Measuring a layer that was never measured before must
-        # not turn a document that rendered into one that raises -- and since
-        # #815 that is every layer, not only the ones outside a group's old
-        # viewport. The box falls back to ``layer.bbox``, so a group composites
-        # on what it used before and the cull rejects what it rejected before.
+        # not turn a document that rendered into one that raises, and #815
+        # widened that set from a group's children to every non-group layer.
+        # The box falls back to ``layer.bbox``, so a group composites on what
+        # it used before and the cull rejects what it rejected before.
         logger.debug("Cannot measure the stroke effects of %s: %s" % (layer, error))
         return layer.bbox
     return bbox
@@ -1471,14 +1472,25 @@ class Compositor(object):
     ) -> np.ndarray:
         """Place :py:meth:`_read_object`'s coverage on ``viewport``.
 
-        A layer with no shape channel covers the whole viewport; one with
-        neither color nor shape is an empty pixel layer and covers none of it.
+        A layer with no shape channel is opaque over its own box and absent
+        outside it; one with neither color nor shape is an empty pixel layer
+        and covers nothing.
+
+        The opaque case is filled on ``bbox`` and pasted, rather than filled
+        straight onto ``viewport``. The two agree only while ``bbox`` contains
+        ``viewport``, which is the shape a layer with no transparency channel
+        usually has -- a Background spanning the canvas -- and that is why
+        filling the viewport went unnoticed. It is not guaranteed: #815 lets
+        the cull accept a layer whose box misses the viewport entirely, and
+        filling the viewport for one of those paints it opaque end to end.
         """
         if shape is not None:
             return paste(viewport, bbox, shape)
         height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
-        covered = 0.0 if color is None else 1.0
-        return np.full((height, width, 1), covered, dtype=np.float32)
+        if color is None:
+            return np.zeros((height, width, 1), dtype=np.float32)
+        covered = np.ones((bbox[3] - bbox[1], bbox[2] - bbox[0], 1), dtype=np.float32)
+        return paste(viewport, bbox, covered)
 
     def _get_object_shape(
         self, layer: Layer, viewport: tuple[int, int, int, int]

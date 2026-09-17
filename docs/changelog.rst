@@ -9,6 +9,10 @@ Changelog
   losing the stroke with it. **Rendering change** wherever a layer sits off
   the canvas, or off the box being composited, while its stroke does not
   (#815, #823)
+- [fix] Stop a layer with no transparency channel from covering a viewport its
+  own bounding box does not reach, which painted every pixel of that viewport
+  opaque. Only reachable together with the stroke fix above, which is what
+  lets such a layer be composited on a viewport it misses (#815, #823)
 - [fix] Place a layer's vector stroke on the box being composited rather than
   on the document canvas, where it could land away from the shape it outlines
   or be clipped at the canvas edge. **Rendering change** for

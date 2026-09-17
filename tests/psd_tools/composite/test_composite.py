@@ -1382,7 +1382,9 @@ def test_accepts_keeps_a_layer_whose_stroke_reaches_into_the_viewport() -> None:
     """The cull measures where the layer paints, not where its box is (#815).
 
     ``outside-stroke.psd`` is a 16x16 square at ``(8, 8, 24, 24)`` with a 3 px
-    outset stroke, so its reach is ``(4, 4, 28, 28)``. A viewport that stops
+    outset stroke, so its reach is ``(4, 4, 28, 28)`` -- four, not three, the
+    extra pixel being the uncovered edge ``stroke_bbox()`` measures from. A
+    viewport that stops
     at ``x = 8`` touches the reach and misses the box -- and misses it by
     coinciding with its left edge, which ``intersect()`` reports as the empty
     box rather than as a one-pixel overlap.
@@ -1416,15 +1418,19 @@ def test_stroke_survives_a_viewport_the_layer_box_misses() -> None:
     """The pixels, not just the acceptance: the band is drawn where it belongs.
 
     Asserting the render and not the decision, because accepting the layer is
-    only half of it -- ``_trace_shape()`` then has to re-read the layer's
-    coverage on a box this compositor's viewport does not contain (#804), and
-    a fix that accepted the layer but traced the clipped copy would draw the
-    stroke down the viewport edge and still pass an "is anything there" test.
+    only half of it: ``_trace_shape()`` then has to re-read the layer's
+    coverage on a box this compositor's viewport does not contain (#804).
+    Here that second half is load-bearing rather than merely present -- with
+    the pre-#804 trace, which reuses the compositor's clipped copy, the
+    layer's coverage on this viewport is entirely zero, no band is drawn, and
+    the render comes back empty.
 
-    The band is the left side of the outset stroke: red, three columns wide,
-    ending one row short at each end where the corner rounds off. Column 4 is
-    the pixel ``stroke_bbox()`` adds to locate the layer's edge against, not
-    stroke, so it stays empty.
+    The band is the left side of the outset stroke: red, three columns wide.
+    Column 4 is the pixel ``stroke_bbox()`` adds to locate the layer's edge
+    against, not stroke, so it stays empty. The overall row range is the
+    mitered offset rectangle and says nothing about the corners; the rounding
+    shows only as the inner column falling one row short at each end, which
+    is asserted separately.
     """
     psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
     image = psd.composite(viewport=(0, 0, 8, 32), ignore_preview=True)
@@ -1434,14 +1440,22 @@ def test_stroke_survives_a_viewport_the_layer_box_misses() -> None:
     assert alpha.any(), "the stroke reaching back into the viewport was lost"
     rows, columns = np.nonzero(alpha)
     assert (columns.min(), columns.max()) == (5, 7), "the outset stroke's width"
-    assert (rows.min(), rows.max()) == (5, 26), "the rounded corners"
+    assert (rows.min(), rows.max()) == (5, 26), "the offset rectangle"
     assert not alpha[:, 4].any(), "the edge-locating pixel carries no stroke"
     assert np.array_equal(
         np.unique(rendered[alpha > 0][:, :3], axis=0), [[255, 0, 0]]
     ), "the stroke's own colour, not the layer's"
-    # Down the middle the band is fully opaque across all three columns; the
-    # anti-aliased corners are what the row range above pins.
+    # Down the middle the band is fully opaque across all three columns.
     assert np.array_equal(alpha[16, 5:8], [255, 255, 255])
+
+    def extent(column: int) -> tuple[int, int]:
+        rows_here = np.nonzero(alpha[:, column])[0]
+        return int(rows_here.min()), int(rows_here.max())
+
+    # The corner rounds off: the innermost column stops a row short at each
+    # end, where a mitered join would have carried it to the full extent.
+    assert extent(5) == (6, 25), "rounded"
+    assert extent(6) == extent(7) == (5, 26)
 
 
 def test_a_layer_dragged_off_canvas_keeps_the_stroke_that_reaches_back() -> None:
@@ -1464,7 +1478,53 @@ def test_a_layer_dragged_off_canvas_keeps_the_stroke_that_reaches_back() -> None
     assert (rows.min(), rows.max()) == (5, 26)
 
 
-def test_an_unmeasurable_stroke_falls_back_to_the_layer_box() -> None:
+def test_a_shapeless_layer_off_the_viewport_does_not_flood_it() -> None:
+    """Coverage for a layer with no transparency channel stops at its box.
+
+    ``_place_object_shape()`` filled the whole viewport for such a layer,
+    which was indistinguishable from filling its ``bbox`` for as long as
+    ``_accepts()`` guaranteed the two overlapped -- a layer with no
+    transparency channel is typically a Background spanning the canvas.
+    Widening the cull to the stroke's reach (#815) retires that guarantee: an
+    accepted layer may now miss the viewport entirely, and filling the
+    viewport for one of those paints every pixel of it opaque.
+
+    Forged rather than fixtured because Photoshop will not author the
+    combination -- it puts no layer style on a Background -- while the
+    compositor will happily reach it from any narrow enough viewport.
+    """
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    layer = psd[0]
+    assert layer.numpy("shape") is not None, "the fixture has one to remove"
+
+    stored = layer.numpy
+
+    def without_transparency(
+        channel: str | None = "color", real_mask: bool = True
+    ) -> Any:
+        return None if channel == "shape" else stored(channel, real_mask)
+
+    # Not monkeypatch: the substitution belongs to this one layer object, and
+    # the attribute goes away with the document at the end of the test.
+    layer.numpy = without_transparency  # type: ignore[assignment]
+
+    rendered = np.asarray(
+        psd.composite(viewport=(0, 0, 8, 32), ignore_preview=True).convert("RGBA")
+    )
+    alpha = rendered[..., 3]
+    assert alpha.any(), "the stroke still reaches in"
+    assert not alpha.all(), "the layer flooded the viewport it does not touch"
+    # What is there is the stroke and nothing else: the layer's own box is
+    # off the viewport, so none of its interior may show.
+    assert np.array_equal(
+        np.unique(rendered[alpha > 0][:, :3], axis=0), [[255, 0, 0]]
+    ), "only the stroke's colour, never the layer's fill"
+    assert not np.nonzero(alpha)[1].min() < 5, "nothing left of the stroke band"
+
+
+def test_an_unmeasurable_stroke_falls_back_to_the_layer_box(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """A descriptor ``_stroke_reach()`` cannot read must not break the cull.
 
     The fallback existed before, but #808 only ever reached it while measuring
@@ -1485,10 +1545,17 @@ def test_an_unmeasurable_stroke_falls_back_to_the_layer_box() -> None:
     """
     psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
     layer = psd[0]
-    for effect in layer.effects.find("stroke"):
+    broken = [effect for effect in layer.effects.find("stroke")]
+    assert broken, "the fixture carries the stroke this test breaks"
+    for effect in broken:
         del effect.value[Key.Style]
 
-    assert _stroke_reach(layer) == layer.bbox, "measurement gave up, quietly"
+    with caplog.at_level(logging.DEBUG, logger="psd_tools.composite.composite"):
+        assert _stroke_reach(layer) == layer.bbox, "measurement gave up"
+    assert any(
+        "Cannot measure the stroke effects" in record.message
+        for record in caplog.records
+    ), "the box matching bbox has to be the fallback, not an unmeasured layer"
     # The viewport the reach would have saved the layer on: culled instead of
     # raising, which is what the composite did before the cull consulted it.
     narrow = psd.composite(viewport=(0, 0, 8, 32), ignore_preview=True)
