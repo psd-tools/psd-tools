@@ -8,9 +8,9 @@ such as strokes, shadows, glows, and overlays.
 
 **Note**: Effects rendering requires scipy. It additionally requires
 scikit-image for any pattern fill, and for the fallback that draws a stroke
-whose position is none of the three Photoshop writes -- so a solid or gradient
-stroke of any position a real document can carry draws without it. Install
-both with::
+whose position is none of the three Photoshop writes, one the descriptor does
+not state included -- so a solid or gradient stroke of any position a real
+document can carry draws without it. Install both with::
 
     pip install 'psd-tools[composite]'
 
@@ -75,12 +75,33 @@ logger = logging.getLogger(__name__)
 # size. Only the inset style stays within the layer; the other two spill past
 # its bounding box and need canvas of their own to be drawn on. Inset still
 # gets the fixed pixel :py:func:`stroke_bbox` adds on top, which is not room
-# for the stroke but room for the edge it is measured from.
-_OUTWARD_REACH = {
+# for the stroke but room for the edge it is measured from. A style not named
+# here takes the widest reach, which is the only safe guess: reserving canvas
+# nobody draws on costs a little memory, and reserving too little clips.
+_OUTWARD_REACH: dict[bytes, float] = {
     Enum.OutsetFrame: 1.0,
     Enum.CenteredFrame: 0.5,
     Enum.InsetFrame: 0.0,
 }
+
+
+def _enum(desc: Descriptor, key: bytes) -> bytes:
+    """The enum ``key`` names, or ``b""`` if the descriptor does not carry one.
+
+    Both keys read through this -- the stroke's position and its paint type --
+    already have a defined answer for an enum neither table below knows, so a
+    key that is missing or holds something other than an ``Enumerated`` costs
+    nothing new to tolerate: it joins the unrecognised value it cannot be told
+    apart from. Reading it straight off instead turned a descriptor psd-tools
+    did not write into an ``AttributeError`` out of a composite (#826).
+
+    ``b""`` rather than None so the absence is literally an enum no table
+    holds and takes their fallback without a branch of its own; no real one
+    can collide with it, every enum Photoshop writes being four bytes.
+    ``api.effects._ColorMixin.blend_mode`` reaches for its enum the same way,
+    onto a default of its own.
+    """
+    return getattr(desc.get(key), "enum", b"")
 
 
 def stroke_bbox(
@@ -103,13 +124,20 @@ def stroke_bbox(
 
     An empty ``bbox`` is returned untouched: there is no edge to trace, and
     growing it would place a stroke around the origin.
+
+    A style the descriptor does not state, or states as something other than
+    an enum, is measured as the unrecognised style it cannot be told apart
+    from -- the widest reach, and the dilation path in
+    :py:func:`draw_stroke_effect` -- rather than raising out of a composite
+    (#826).
     """
     if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
         return bbox
-    reach = _OUTWARD_REACH.get(desc.get(Key.Style).enum, 1.0)
+    reach = _OUTWARD_REACH.get(_enum(desc, Key.Style), 1.0)
     # ceil() because a fractional stroke still covers the pixel it falls in.
     # The +1 is the uncovered pixel the edge is measured against, and doubles
-    # as slack for an unrecognised style, which falls through to the dilation
+    # as slack for a style this does not recognise -- one the descriptor names
+    # wrongly or does not name at all -- which falls through to the dilation
     # path, whose edge filter spreads a pixel further than a band does.
     margin = math.ceil(float(desc.get(Key.SizeKey, 1.0)) * reach) + 1
     return (bbox[0] - margin, bbox[1] - margin, bbox[2] + margin, bbox[3] + margin)
@@ -177,8 +205,9 @@ def _draw_dilated_edge(shape: np.ndarray, size: float) -> np.ndarray:
     """Trace the layer by dilating a gradient-magnitude edge.
 
     The original stroke primitive, kept only for a stroke whose position
-    :py:func:`draw_stroke_effect` does not recognise -- all three Photoshop
-    writes are drawn as distance bands. It is approximate in ways no parameter
+    :py:func:`draw_stroke_effect` does not recognise, one it does not state
+    at all included -- all three Photoshop writes are drawn as distance
+    bands. It is approximate in ways no parameter
     fixes: ``scharr`` locates the edge as a soft blob rather than a line, and
     ``disk`` quantizes the radius to a whole pixel (#799).
 
@@ -215,7 +244,7 @@ def draw_stroke_effect(
     if not isinstance(shape, np.ndarray):
         shape = np.full((height, width, 1), shape, dtype=np.float32)
 
-    paint_type = desc.get(Key.PaintType).enum
+    paint_type = _enum(desc, Key.PaintType)
     if paint_type == Enum.SolidColor:
         color, _ = paint.draw_solid_color_fill(viewport, psd.color_mode, desc)
         if color is None:
@@ -235,7 +264,7 @@ def draw_stroke_effect(
     # Note: current implementation is purely image-based.
     # For layers with path objects, this should be based on drawing.
 
-    style = desc.get(Key.Style).enum
+    style = _enum(desc, Key.Style)
     size = float(desc.get(Key.SizeKey, 1.0))
 
     # A stroke of no width draws nothing, and both primitives below have to be
@@ -262,11 +291,12 @@ def draw_stroke_effect(
     # it; the band does not, deliberately, because which of the two Photoshop
     # does is #799's open question about soft-edged masks rather than
     # something to settle by keeping whichever line was already there.
-    limits = {
+    bands: dict[bytes, tuple[float, float]] = {
         Enum.OutsetFrame: (0.0, size),
         Enum.InsetFrame: (-size, 0.0),
         Enum.CenteredFrame: (-size / 2.0, size / 2.0),
-    }.get(style)
+    }
+    limits = bands.get(style)
     if limits is not None:
         distance = _signed_distance(shape[:, :, 0])
         return color, np.expand_dims(_distance_band(distance, *limits), 2)

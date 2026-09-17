@@ -54,6 +54,55 @@ def _styled(effects: Iterator[Any]) -> Iterator[_StyledEffect]:
     return cast(Iterator[_StyledEffect], effects)
 
 
+# What an effect descriptor psd-tools did not write can raise on the way to
+# being read, and then used: a key that is absent, so the read lands on the
+# ``None`` ``Descriptor.get()`` returns (AttributeError); a key holding
+# something other than what the read expects (TypeError, ValueError); a colour
+# class that is none of the five (KeyError); and a number that parses but does
+# not survive the arithmetic it is put through -- an infinite stroke size
+# (OverflowError out of ``math.ceil``), a gradient scaled to zero
+# (ZeroDivisionError). They all mean one thing -- this effect cannot be read --
+# and none of them is worth losing the rest of the document over, so every
+# guard below catches the whole set rather than the arm it happens to have met.
+#
+# Not here, deliberately: ``ImportError``, which names the package that would
+# have drawn the effect, and ``AssertionError``, which states an invariant of
+# this module rather than a property of the file (#826).
+_UNREADABLE = (
+    AttributeError,
+    KeyError,
+    OverflowError,
+    TypeError,
+    ValueError,
+    ZeroDivisionError,
+)
+
+
+def _readable(layer: Layer, name: str) -> list[_StyledEffect]:
+    """The layer's enabled effects of one kind, empty if they cannot be listed.
+
+    ``Effects`` is built on first access and rejects an effect class it does
+    not know, so on such a file even asking which effects a layer has raises.
+    The three callers guard each effect they go on to read separately, inside
+    the loop; this is the failure that happens before the loop and would leave
+    them nothing to guard.
+
+    Which is as far as this can carry such a file on its own: ``Layer.__repr__``
+    asks the same question through ``has_effects()``, and the compositor formats
+    every layer it visits, so the document still raises from there. Filed apart
+    from #826, being a repr that raises rather than an effect that cannot be
+    drawn.
+    """
+    try:
+        return list(_styled(layer.effects.find(name)))
+    except _UNREADABLE as error:
+        # Lazy arguments, not ``%``: formatting ``layer`` reads its effects
+        # again, which is what just raised. ``logging`` absorbs a failed
+        # format; ``%`` would re-raise it out of the handler.
+        logger.debug("Cannot list the %s effects of %s: %s", name, layer, error)
+        return []
+
+
 # How a one-channel array -- a canvas or a source -- becomes a given width.
 # Spelled once because it is threaded through most of this module -- see
 # ``widen.make_widen()``.
@@ -137,24 +186,26 @@ def _stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
     paints inside the viewport at all (#815). The second widens what gets
     measured from a group's children to every non-group layer the cull
     reaches -- visible and filter-passing, since ``_accepts`` tests the filter
-    first -- so the fallback below has to stay total.
+    first -- so the degradation below has to stay total.
+
+    Total per effect, not for the whole loop: an effect whose box cannot be
+    read is skipped rather than taken as a verdict on the layer, so a stroke
+    beside it that reads fine still grows the box. That can only leave the box
+    wider than what gets drawn, never narrower --
+    :py:meth:`Compositor._apply_stroke_effect` calls ``stroke_bbox()`` on the
+    same descriptor and drops the same effect, and the paint, which this never
+    reads, can only drop one more. Wider is the safe direction for both
+    callers: it costs a group canvas nobody draws on, where narrower clips a
+    stroke or culls a layer that has one (#826).
     """
     bbox = layer.bbox
     if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
         return bbox
-    try:
-        for effect in _styled(layer.effects.find("stroke")):
+    for effect in _readable(layer, "stroke"):
+        try:
             bbox = utils.union_bbox(bbox, stroke_bbox(layer.bbox, effect.value))
-    except (AttributeError, TypeError, ValueError) as error:
-        # ``Effects`` rejects an effect class it does not know, and
-        # ``stroke_bbox()`` reads a style and a size straight off the
-        # descriptor. Measuring a layer that was never measured before must
-        # not turn a document that rendered into one that raises, and #815
-        # widened that set from a group's children to every non-group layer.
-        # The box falls back to ``layer.bbox``, so a group composites on what
-        # it used before and the cull rejects what it rejected before.
-        logger.debug("Cannot measure the stroke effects of %s: %s" % (layer, error))
-        return layer.bbox
+        except _UNREADABLE as error:
+            logger.debug("Cannot measure a stroke effect of %s: %s", layer, error)
     return bbox
 
 
@@ -1680,10 +1731,32 @@ class Compositor(object):
 
         The three overlay kinds differ only in what they draw, which is what
         ``_OVERLAY_DRAWS`` holds; the coverage arithmetic below is shared.
+
+        An effect is skipped twice over: when its draw declines, which the
+        pattern and the gradient do for a fill they cannot make sense of, and
+        when reading its descriptor raises, which is the same degradation one
+        step earlier (#826).
         """
         draw = _OVERLAY_DRAWS[effect_name]
-        for effect in _styled(layer.effects.find(effect_name)):
-            fill, shape_e = draw(layer, effect.value, self.channels)
+        for effect in _readable(layer, effect_name):
+            # The draw is guarded and the coverage arithmetic below is not,
+            # which keeps the shared half of this loop -- identical for all
+            # three kinds -- out of the clause, so a fault there still
+            # surfaces. The draw is not purely a descriptor read: a pattern
+            # fill decodes the pattern's own pixels, and a file whose pattern
+            # data is corrupt loses the effect here rather than the document.
+            try:
+                fill, shape_e = draw(layer, effect.value, self.channels)
+                opacity = effect.opacity / 100.0
+                blend_mode = effect.blend_mode
+            except _UNREADABLE as error:
+                logger.debug(
+                    "Skipping an unreadable %s effect in %s: %s",
+                    effect_name,
+                    layer,
+                    error,
+                )
+                continue
             if fill is None:
                 logger.debug("Skipping undrawable %s effect in %s", effect_name, layer)
                 continue
@@ -1692,9 +1765,8 @@ class Compositor(object):
                 shape_e = np.ones((self.height, self.width, 1), dtype=np.float32)
             else:
                 shape_e = paste(self._viewport, layer.bbox, shape_e)
-            opacity = effect.opacity / 100.0
             self._apply_source(
-                color, shape * shape_e, alpha * shape_e * opacity, effect.blend_mode
+                color, shape * shape_e, alpha * shape_e * opacity, blend_mode
             )
 
     def _trace_shape(
@@ -1830,18 +1902,34 @@ class Compositor(object):
         # layer's coverage for the whole loop and each effect's own mask gets a
         # separate name. Assigning the mask back over ``shape`` made the second
         # stroke outline the first stroke rather than the layer (#798).
-        for effect in _styled(layer.effects.find("stroke")):
-            # Effect must happen at the layer viewport, grown so an outset or
-            # centered stroke has room for the part of itself that falls
-            # outside the layer (#792).
-            bbox = stroke_bbox(layer.bbox, effect.value)
+        # Each effect is guarded on its own, so a layer carrying two strokes
+        # still draws the one it can read (#798). The two guards are kept
+        # apart so that _trace_shape() sits outside both: for a group it
+        # composites the whole subtree, and a fault raised down there is not
+        # this effect being unreadable. What is inside the second guard is the
+        # drawing as well as the reading, so a stroke whose pattern data will
+        # not decode is lost here too, rather than taking the document.
+        for effect in _readable(layer, "stroke"):
+            try:
+                # Effect must happen at the layer viewport, grown so an outset
+                # or centered stroke has room for the part of itself that
+                # falls outside the layer (#792).
+                bbox = stroke_bbox(layer.bbox, effect.value)
+            except _UNREADABLE as error:
+                logger.debug("Cannot measure a stroke effect of %s: %s", layer, error)
+                continue
             if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
                 continue
             shape_in_bbox = self._trace_shape(layer, bbox, shape, traces_mask)
-            color, mask_in_bbox = draw_stroke_effect(
-                bbox, shape_in_bbox, effect.value, layer._psd
-            )
+            try:
+                color, mask_in_bbox = draw_stroke_effect(
+                    bbox, shape_in_bbox, effect.value, layer._psd
+                )
+                opacity = effect.opacity / 100.0
+                blend_mode = effect.blend_mode
+            except _UNREADABLE as error:
+                logger.debug("Cannot draw a stroke effect of %s: %s", layer, error)
+                continue
             color = paste(self._viewport, bbox, color)
             mask = paste(self._viewport, bbox, mask_in_bbox)
-            opacity = effect.opacity / 100.0
-            self._apply_source(color, mask, mask * opacity, effect.blend_mode)
+            self._apply_source(color, mask, mask * opacity, blend_mode)

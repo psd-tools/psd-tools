@@ -19,7 +19,8 @@ The composite extra includes:
 - ``scipy``: For advanced image processing operations, including the
   distance transform that places stroke effects
 - ``scikit-image``: For pattern fills, and for the fallback that draws a
-  stroke whose position is none of the three Photoshop writes
+  stroke whose position is none of the three Photoshop writes, one the
+  descriptor does not state included
 
 Key modules:
 
