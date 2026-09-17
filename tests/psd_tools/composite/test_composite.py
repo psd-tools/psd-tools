@@ -26,6 +26,7 @@ from psd_tools.composite.composite import (
 from psd_tools.composite.effects import stroke_bbox
 from psd_tools.constants import BlendMode, ColorMode, CompatibilityMode, Tag
 from psd_tools.psd.base import ByteElement
+from psd_tools.terminology import Key
 from PIL import Image
 
 from ..utils import full_name
@@ -1377,6 +1378,264 @@ def test_accepts_rejects_a_layer_outside_the_viewport() -> None:
     assert compositor._accepts(cast(Layer, group), clip_compositing=False)
 
 
+@pytest.mark.parametrize(
+    "fixture",
+    ["clipping-mask.psd", "hidden-groups.psd", "effects/stroke-effects.psd"],
+)
+def test_the_cull_group_exemption_matches_the_structural_check(fixture: str) -> None:
+    """``is_group()`` has to answer exactly what ``GroupMixin`` would.
+
+    :py:meth:`Compositor._accepts` exempts a group by the cheap predicate
+    rather than the protocol ``isinstance``, which costs a group's whole
+    bbox recomputation on Python <= 3.11. The two are only interchangeable
+    for as long as they agree, and nothing else makes them agree -- a new
+    group-shaped class that forgot to override ``is_group()`` would be culled
+    on a box that says nothing about where it paints, silently.
+    """
+    psd = PSDImage.open(full_name(fixture))
+    layers = list(_descendants(psd))
+    assert layers, "the fixture has something to compare"
+    for layer in layers:
+        assert layer.is_group() == isinstance(layer, GroupMixin), layer.name
+
+
+def test_a_vector_stroke_adds_no_coverage_outside_the_layer_box() -> None:
+    """Why the cull measures stroke *effects* only, and not ``layer.stroke``.
+
+    A vector stroke rasterizes on a box wider than the layer -- ``_get_stroke``
+    draws it on ``bbox`` grown by the stroke width -- so it looks like a second
+    thing that paints outside ``layer.bbox`` and therefore like something
+    :py:func:`_stroke_reach` ought to count. It is not.
+    :py:meth:`Compositor._get_object` runs that wider draw through a
+    sub-compositor and keeps ``color`` alone, discarding its ``shape`` and
+    ``alpha``, so a vector stroke only ever *tints* pixels the layer already
+    covers. Nothing outside the layer's box can show, and widening the cull
+    for it would accept layers that then paint nothing.
+
+    The layer here carries a 7 px *centered* stroke, so 3.5 px of it rasterize
+    outside the box; the viewport is padded well past that on every side, so
+    any escaping coverage would have somewhere to land and be seen.
+
+    If ``_get_object()`` ever starts keeping that coverage, this test fails
+    and the cull genuinely does need to count it -- which is the point of
+    pinning it here rather than only asserting it in a comment.
+    """
+    psd = PSDImage.open(
+        full_name("descriptors/stroke-color-descriptors-hsb-with-rgb-mode.psd")
+    )
+    layer = psd[5]
+    assert layer.stroke is not None and layer.stroke.enabled
+    assert layer.stroke.line_width == 7.0
+    assert layer.stroke.line_alignment == "center", "reaches outside the box"
+
+    bbox = layer.bbox
+    pad = 12
+    viewport = (bbox[0] - pad, bbox[1] - pad, bbox[2] + pad, bbox[3] + pad)
+    height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
+    compositor = Compositor(
+        viewport,
+        np.ones((height, width, 3), dtype=np.float32),
+        np.zeros((height, width, 1), dtype=np.float32),
+    )
+    _, shape, alpha = compositor._get_object(layer)
+
+    def extent(canvas: np.ndarray) -> tuple[int, int, int, int]:
+        rows, columns = np.nonzero(canvas[..., 0] > 1e-6)
+        return (
+            int(columns.min()) + viewport[0],
+            int(rows.min()) + viewport[1],
+            int(columns.max()) + viewport[0] + 1,
+            int(rows.max()) + viewport[1] + 1,
+        )
+
+    assert extent(shape) == bbox, "the vector stroke escaped into the coverage"
+    assert extent(alpha) == bbox
+
+
+def test_accepts_keeps_a_layer_whose_stroke_reaches_into_the_viewport() -> None:
+    """The cull measures where the layer paints, not where its box is (#815).
+
+    ``outside-stroke.psd`` is a 16x16 square at ``(8, 8, 24, 24)`` with a 3 px
+    outset stroke, so its reach is ``(4, 4, 28, 28)`` -- four, not three, the
+    extra pixel being the uncovered edge ``stroke_bbox()`` measures from. A
+    viewport that stops
+    at ``x = 8`` touches the reach and misses the box -- and misses it by
+    coinciding with its left edge, which ``intersect()`` reports as the empty
+    box rather than as a one-pixel overlap.
+
+    ``(0, 0, 4, 32)`` is the negative: the reach clears it too, so the layer
+    is still rejected and widening the test has not simply disabled it.
+    """
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    layer = psd[0]
+    assert layer.bbox == (8, 8, 24, 24)
+    assert _stroke_reach(layer) == (4, 4, 28, 28)
+
+    def compositor_on(viewport: tuple[int, int, int, int]) -> Compositor:
+        height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
+        return Compositor(
+            viewport,
+            np.ones((height, width, 3), dtype=np.float32),
+            np.zeros((height, width, 1), dtype=np.float32),
+        )
+
+    reaches_in = (0, 0, 8, 32)
+    assert utils.intersect(reaches_in, layer.bbox) == (0, 0, 0, 0)
+    assert compositor_on(reaches_in)._accepts(layer, clip_compositing=False)
+
+    clears_it = (0, 0, 4, 32)
+    assert utils.intersect(clears_it, _stroke_reach(layer)) == (0, 0, 0, 0)
+    assert not compositor_on(clears_it)._accepts(layer, clip_compositing=False)
+
+
+def test_stroke_survives_a_viewport_the_layer_box_misses() -> None:
+    """The pixels, not just the acceptance: the band is drawn where it belongs.
+
+    Asserting the render and not the decision, because accepting the layer is
+    only half of it: ``_trace_shape()`` then has to re-read the layer's
+    coverage on a box this compositor's viewport does not contain (#804).
+    Here that second half is load-bearing rather than merely present -- with
+    the pre-#804 trace, which reuses the compositor's clipped copy, the
+    layer's coverage on this viewport is entirely zero, no band is drawn, and
+    the render comes back empty.
+
+    The band is the left side of the outset stroke: red, three columns wide.
+    Column 4 is the pixel ``stroke_bbox()`` adds to locate the layer's edge
+    against, not stroke, so it stays empty. The overall row range is the
+    mitered offset rectangle and says nothing about the corners; the rounding
+    shows only as the inner column falling one row short at each end, which
+    is asserted separately.
+    """
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    image = psd.composite(viewport=(0, 0, 8, 32), ignore_preview=True)
+    rendered = np.asarray(image.convert("RGBA"))
+
+    alpha = rendered[..., 3]
+    assert alpha.any(), "the stroke reaching back into the viewport was lost"
+    rows, columns = np.nonzero(alpha)
+    assert (columns.min(), columns.max()) == (5, 7), "the outset stroke's width"
+    assert (rows.min(), rows.max()) == (5, 26), "the offset rectangle"
+    assert not alpha[:, 4].any(), "the edge-locating pixel carries no stroke"
+    assert np.array_equal(
+        np.unique(rendered[alpha > 0][:, :3], axis=0), [[255, 0, 0]]
+    ), "the stroke's own colour, not the layer's"
+    # Down the middle the band is fully opaque across all three columns.
+    assert np.array_equal(alpha[16, 5:8], [255, 255, 255])
+
+    def extent(column: int) -> tuple[int, int]:
+        rows_here = np.nonzero(alpha[:, column])[0]
+        return int(rows_here.min()), int(rows_here.max())
+
+    # The corner rounds off: the innermost column stops a row short at each
+    # end, where a mitered join would have carried it to the full extent.
+    assert extent(5) == (6, 25), "rounded"
+    assert extent(6) == extent(7) == (5, 26)
+
+
+def test_a_layer_dragged_off_canvas_keeps_the_stroke_that_reaches_back() -> None:
+    """The issue's own repro, at the document viewport (#815).
+
+    Distinct from the ``viewport=`` test above in what it pins: there the
+    canvas is whole and the caller asked for a slice of it, here the layer
+    itself has left the canvas, which is the case ``psd.composite()`` with no
+    arguments hits.
+    """
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    layer = psd[0]
+    layer.left = -16
+    assert layer.bbox == (-16, 8, 0, 24), "flush against the canvas edge"
+
+    alpha = np.asarray(psd.composite(ignore_preview=True).convert("RGBA"))[..., 3]
+    assert alpha.any(), "the canvas came back empty"
+    rows, columns = np.nonzero(alpha)
+    assert (columns.min(), columns.max()) == (0, 2), "the stroke's right-hand side"
+    assert (rows.min(), rows.max()) == (5, 26)
+
+
+def test_a_shapeless_layer_off_the_viewport_does_not_flood_it() -> None:
+    """Coverage for a layer with no transparency channel stops at its box.
+
+    ``_place_object_shape()`` filled the whole viewport for such a layer,
+    which was indistinguishable from filling its ``bbox`` for as long as
+    ``_accepts()`` guaranteed the two overlapped -- a layer with no
+    transparency channel is typically a Background spanning the canvas.
+    Widening the cull to the stroke's reach (#815) retires that guarantee: an
+    accepted layer may now miss the viewport entirely, and filling the
+    viewport for one of those paints every pixel of it opaque.
+
+    Forged rather than fixtured because Photoshop will not author the
+    combination -- it puts no layer style on a Background -- while the
+    compositor will happily reach it from any narrow enough viewport.
+    """
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    layer = psd[0]
+    assert layer.numpy("shape") is not None, "the fixture has one to remove"
+
+    stored = layer.numpy
+
+    def without_transparency(
+        channel: str | None = "color", real_mask: bool = True
+    ) -> Any:
+        return None if channel == "shape" else stored(channel, real_mask)
+
+    # Not monkeypatch: the substitution belongs to this one layer object, and
+    # the attribute goes away with the document at the end of the test.
+    layer.numpy = without_transparency  # type: ignore[assignment]
+
+    rendered = np.asarray(
+        psd.composite(viewport=(0, 0, 8, 32), ignore_preview=True).convert("RGBA")
+    )
+    alpha = rendered[..., 3]
+    assert alpha.any(), "the stroke still reaches in"
+    assert not alpha.all(), "the layer flooded the viewport it does not touch"
+    # What is there is the stroke and nothing else: the layer's own box is
+    # off the viewport, so none of its interior may show.
+    assert np.array_equal(
+        np.unique(rendered[alpha > 0][:, :3], axis=0), [[255, 0, 0]]
+    ), "only the stroke's colour, never the layer's fill"
+    assert not np.nonzero(alpha)[1].min() < 5, "nothing left of the stroke band"
+
+
+def test_an_unmeasurable_stroke_falls_back_to_the_layer_box(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A descriptor ``_stroke_reach()`` cannot read must not break the cull.
+
+    The fallback existed before, but #808 only ever reached it while measuring
+    a group's children; the cull runs it for every non-group layer of every
+    document, so a descriptor that trips it can now take down a composite that
+    used to work. Deleting ``Key.Style`` is the ``AttributeError`` arm --
+    ``stroke_bbox()`` does ``desc.get(Key.Style).enum`` on the result.
+
+    The layer then culls on its own box, exactly as it did before the
+    widening: degraded to the old decision rather than raising.
+
+    Scope, because the descriptor is broken for everyone: drawing the stroke
+    still raises, because :py:meth:`Compositor._apply_stroke_effect` calls
+    ``stroke_bbox()`` unguarded. That is untouched by #815 -- it raises the
+    same ``AttributeError`` from the same frame on the commit before it -- and
+    this test pins the cull, which is the part the widening put at risk, not
+    that a corrupt descriptor renders.
+    """
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    layer = psd[0]
+    broken = [effect for effect in layer.effects.find("stroke")]
+    assert broken, "the fixture carries the stroke this test breaks"
+    for effect in broken:
+        del effect.value[Key.Style]
+
+    with caplog.at_level(logging.DEBUG, logger="psd_tools.composite.composite"):
+        assert _stroke_reach(layer) == layer.bbox, "measurement gave up"
+    assert any(
+        "Cannot measure the stroke effects" in record.message
+        for record in caplog.records
+    ), "the box matching bbox has to be the fallback, not an unmeasured layer"
+    # The viewport the reach would have saved the layer on: culled instead of
+    # raising, which is what the composite did before the cull consulted it.
+    narrow = psd.composite(viewport=(0, 0, 8, 32), ignore_preview=True)
+    assert not np.asarray(narrow.convert("RGBA"))[..., 3].any()
+
+
 def test_accepts_honours_the_layer_filter() -> None:
     psd = PSDImage.open(full_name("clipping-mask.psd"))
     compositor = Compositor(
@@ -1712,7 +1971,14 @@ def test_group_contents_are_measured_once_per_composite(
     The 8 is the seven *inner* groups plus the one leaf layer, not the eight
     groups: ``_get_group()`` asks ``_content_bbox()`` about the outermost group
     directly, and only the children it descends to go through
-    ``_paint_bbox()``, which is what calls ``_stroke_reach()``.
+    ``_paint_bbox()``.
+
+    ``_paint_bbox()`` is the probe rather than the ``_stroke_reach()`` inside
+    it, because the memo under test is ``_content_bbox()``'s and
+    ``_content_bbox()`` is ``_paint_bbox()``'s only caller. ``_stroke_reach()``
+    has a second one since #815 -- the viewport cull calls it per layer -- so
+    counting it would fold the cull's calls into a number that is meant to
+    measure the memo alone.
 
     Counted rather than timed, because the wall-clock difference is noise at
     any depth a real document reaches -- the deepest nesting in the whole
@@ -1724,13 +1990,13 @@ def test_group_contents_are_measured_once_per_composite(
     module = sys.modules["psd_tools.composite.composite"]
 
     calls = []
-    real = module._stroke_reach
+    real = module._paint_bbox
 
-    def counting(layer: Layer) -> tuple[int, int, int, int]:
+    def counting(layer: Layer, memo: Any) -> tuple[int, int, int, int]:
         calls.append(layer)
-        return cast(tuple[int, int, int, int], real(layer))
+        return cast(tuple[int, int, int, int], real(layer, memo))
 
-    monkeypatch.setattr(module, "_stroke_reach", counting)
+    monkeypatch.setattr(module, "_paint_bbox", counting)
 
     psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
     node: Any = psd[0]

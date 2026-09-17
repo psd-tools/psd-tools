@@ -130,6 +130,14 @@ def _stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
     with the loop in :py:meth:`Compositor._apply_stroke_effect` that actually
     draws them: both skip a disabled effect and both skip every effect when the
     layer's master switch is off.
+
+    Two callers, asking the same question for different reasons.
+    :py:func:`_paint_bbox` asks how wide a canvas a group has to composite its
+    children on (#808); :py:meth:`Compositor._accepts` asks whether a layer
+    paints inside the viewport at all (#815). The second widens what gets
+    measured from a group's children to every non-group layer the cull
+    reaches -- visible and filter-passing, since ``_accepts`` tests the filter
+    first -- so the fallback below has to stay total.
     """
     bbox = layer.bbox
     if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
@@ -140,11 +148,11 @@ def _stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
     except (AttributeError, TypeError, ValueError) as error:
         # ``Effects`` rejects an effect class it does not know, and
         # ``stroke_bbox()`` reads a style and a size straight off the
-        # descriptor. A layer outside the group's old viewport was never
-        # composited and so was never measured at all; doing it here must not
-        # turn a document that rendered into one that raises. The box falls
-        # back to the one this function grew it from, which is what the group
-        # used before.
+        # descriptor. Measuring a layer that was never measured before must
+        # not turn a document that rendered into one that raises, and #815
+        # widened that set from a group's children to every non-group layer.
+        # The box falls back to ``layer.bbox``, so a group composites on what
+        # it used before and the cull rejects what it rejected before.
         logger.debug("Cannot measure the stroke effects of %s: %s" % (layer, error))
         return layer.bbox
     return bbox
@@ -993,13 +1001,35 @@ class Compositor(object):
         self._apply_effects(layer, source)
 
     def _accepts(self, layer: Layer, clip_compositing: bool) -> bool:
-        """Whether this layer contributes to the composite at all."""
+        """Whether this layer contributes to the composite at all.
+
+        The cull measures ``_stroke_reach()`` and not ``layer.bbox``, because
+        a stroke reaches outside the layer: a layer whose own box has cleared
+        the viewport can still paint the part of its stroke that falls back
+        inside, and rejecting it here lost the stroke along with the layer
+        (#815). ``_stroke_reach()`` rather than ``_paint_bbox()`` because the
+        group half of that measurement is unreachable from here: a group is
+        exempt from the cull, so the box is only ever measured for a layer
+        that has no contents to recurse into. That is also why the
+        exemption is tested first -- the reach is not worth measuring for a
+        layer that is exempt from the test it feeds.
+
+        ``is_group()`` and not ``isinstance(layer, GroupMixin)``, for the
+        reason ``Layer._invalidate_moved_bbox()`` and its neighbours already
+        name: ``GroupMixin`` is a ``runtime_checkable`` protocol whose
+        ``isinstance`` runs ``hasattr(x, "bbox")`` on Python <= 3.11, which
+        recomputes a group's box from its children just to answer a question
+        about the layer's type. Testing the exemption first put that on the
+        path of every layer, where the old spelling reached it only for one
+        already outside the viewport -- 15 us against 0.05 us per call here.
+        The two agree on every layer in the fixture corpus.
+        """
         if self._layer_filter is not None and not self._layer_filter(layer):
             logger.debug("Ignore %s" % layer)
             return False
-        if (utils.intersect(self._viewport, layer.bbox) == (0, 0, 0, 0)) and not (
-            isinstance(layer, AdjustmentLayer) or isinstance(layer, GroupMixin)
-        ):
+        if not (
+            isinstance(layer, AdjustmentLayer) or layer.is_group()
+        ) and utils.intersect(self._viewport, _stroke_reach(layer)) == (0, 0, 0, 0):
             logger.debug("Out of viewport %s" % (layer))
             return False
         if not clip_compositing and layer.clipping:
@@ -1452,14 +1482,39 @@ class Compositor(object):
     ) -> np.ndarray:
         """Place :py:meth:`_read_object`'s coverage on ``viewport``.
 
-        A layer with no shape channel covers the whole viewport; one with
-        neither color nor shape is an empty pixel layer and covers none of it.
+        A layer with no shape channel is opaque over its own box and absent
+        outside it; one with neither color nor shape is an empty pixel layer
+        and covers nothing.
+
+        The opaque case covers ``bbox`` and not ``viewport``. The two agree
+        only while ``bbox`` contains ``viewport``, which is the shape a layer
+        with no transparency channel usually has -- a Background spanning the
+        canvas -- and that is why filling the viewport went unnoticed. It is
+        not guaranteed: #815 lets the cull accept a layer whose box misses the
+        viewport entirely, and filling the viewport for one of those paints it
+        opaque end to end.
+
+        Written onto a viewport-sized canvas rather than filled on ``bbox``
+        and pasted, so the allocation is bounded by the viewport. ``bbox`` is
+        the layer's and can be far larger -- the case this widening newly
+        admits is precisely a big layer against a small viewport -- and
+        :py:func:`paste` would have copied only this intersection out of it
+        anyway.
         """
         if shape is not None:
             return paste(viewport, bbox, shape)
         height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
-        covered = 0.0 if color is None else 1.0
-        return np.full((height, width, 1), covered, dtype=np.float32)
+        covered = np.zeros((height, width, 1), dtype=np.float32)
+        if color is None:
+            return covered
+        inter = utils.intersect(viewport, bbox)
+        if inter != (0, 0, 0, 0):
+            covered[
+                inter[1] - viewport[1] : inter[3] - viewport[1],
+                inter[0] - viewport[0] : inter[2] - viewport[0],
+                :,
+            ] = 1.0
+        return covered
 
     def _get_object_shape(
         self, layer: Layer, viewport: tuple[int, int, int, int]
