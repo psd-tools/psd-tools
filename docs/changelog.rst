@@ -7,7 +7,7 @@ Changelog
 - [fix] Skip a stroke or overlay effect whose descriptor cannot be read
   instead of aborting the composite, and draw one whose position or paint type
   is missing as the unrecognised value it cannot be told apart from. Only
-  reachable on files psd-tools did not write (#826, #PR)
+  reachable on files psd-tools did not write (#826, #827)
 - [fix] Composite a layer whose bounding box falls outside the viewport when a
   stroke effect on it reaches back inside, instead of culling the layer and
   losing the stroke with it. **Rendering change** wherever a layer sits off
