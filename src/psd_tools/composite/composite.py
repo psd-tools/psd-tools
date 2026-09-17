@@ -89,9 +89,7 @@ def _readable(layer: Layer, name: str) -> list[_StyledEffect]:
 
     Which is as far as this can carry such a file on its own: ``Layer.__repr__``
     asks the same question through ``has_effects()``, and the compositor formats
-    every layer it visits, so the document still raises from there. Filed apart
-    from #826, being a repr that raises rather than an effect that cannot be
-    drawn.
+    every layer it visits, so the document still raises from there (#828).
     """
     try:
         return list(_styled(layer.effects.find(name)))
