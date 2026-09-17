@@ -9,6 +9,7 @@ from psd_tools.api.layers import (
     AdjustmentLayer,
     Artboard,
     Group,
+    Layer,
     PixelLayer,
     ShapeLayer,
     SmartObjectLayer,
@@ -1562,3 +1563,60 @@ def test_hiding_a_group_changes_what_a_descendant_renders_onto() -> None:
     # orders against each other rather than against bytes committed here.
     assert armed_layer.size == fresh_layer.size
     assert armed_layer.tobytes() == fresh_layer.tobytes()
+
+
+@pytest.mark.parametrize("error", [ValueError, RuntimeError], ids=["narrow", "wide"])
+def test_repr_drops_an_annotation_it_cannot_read(
+    monkeypatch: pytest.MonkeyPatch, error: type[Exception]
+) -> None:
+    """A repr reports what it can read and says nothing about the rest (#828).
+
+    Driven by making ``has_effects()`` raise rather than by a forged file, so
+    it pins the repr on its own: the effects block #828 was reported for is
+    now skipped in ``Effects`` instead, one layer down, and a test that went
+    through such a file would pass on that fix alone.
+
+    Parametrized over an exception the compositor's ``_UNREADABLE`` holds and
+    one it does not, because the choice of ``except Exception`` over that
+    tuple is the decision under test. ``print()``, pdb, a logging handler and
+    pytest's own assertion rewriting all call this, and none of them asked
+    about effects.
+    """
+
+    def raises(*args: Any, **kwargs: Any) -> bool:
+        raise error("forged")
+
+    layer = PSDImage.open(full_name("layer_effects.psd"))[10]
+    assert " effects" in repr(layer)
+
+    monkeypatch.setattr(Layer, "has_effects", raises)
+    assert repr(layer) == "TypeLayer('Stroke' size=232x48)"
+
+
+@pytest.mark.composite
+def test_repr_of_an_artboard_missing_its_data_drops_the_size() -> None:
+    """The same defect one class away from the one #828 reports.
+
+    ``Artboard.bbox`` raises outright when no artboard tagged block is there
+    to read, and ``__repr__`` reaches it through ``self.width`` -- so a repr
+    could raise for a reason that has nothing to do with effects, and did so
+    before the annotation was guarded. Not reachable from a file Photoshop
+    wrote, so the block is deleted here.
+
+    The composite of such a document still raises, which is the honest
+    outcome and is asserted below: the compositor reads that box to place the
+    artboard, where a repr only wanted to mention it.
+    """
+    psd = PSDImage.open(full_name("artboard.psd"))
+    artboard = psd[0]
+    assert isinstance(artboard, Artboard)
+    assert " size=" in repr(artboard)
+
+    for key in (Tag.ARTBOARD_DATA1, Tag.ARTBOARD_DATA2, Tag.ARTBOARD_DATA3):
+        if key in artboard.tagged_blocks:
+            del artboard.tagged_blocks[key]
+    artboard._bbox = None
+
+    assert repr(artboard) == "Artboard('Artboard 1')"
+    with pytest.raises(ValueError, match="Artboard data not found"):
+        psd.composite(ignore_preview=True)

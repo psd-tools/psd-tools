@@ -1,3 +1,4 @@
+import io
 import logging
 import sys
 from typing import Any, Optional, cast
@@ -2251,3 +2252,52 @@ def test_a_traced_group_is_composited_once_per_box() -> None:
         composite_module.Compositor.__init__ = real
     assert built == [], "the second ask composites nothing"
     assert np.array_equal(again, first)
+
+
+@pytest.mark.parametrize("level", [logging.WARNING, logging.DEBUG])
+def test_a_layer_whose_repr_raises_does_not_abort_the_composite(
+    monkeypatch: pytest.MonkeyPatch, level: int
+) -> None:
+    """The compositor stops paying for a debug line nobody is listening to.
+
+    ``apply()`` and ``_accepts()`` built their message with ``%`` before
+    handing it to ``logger.debug``, so every layer was formatted whether or
+    not DEBUG was enabled -- which is both the cost and the reason a raising
+    ``repr`` was fatal at any log level, logging disabled outright included
+    (#828).
+
+    Both levels, because they pass for different reasons and a reader asks
+    about the second: above DEBUG the arguments are never formatted at all,
+    and at DEBUG ``logging`` absorbs the failure and carries on.
+
+    On a plain handler, not ``caplog``: pytest's capturing handler overrides
+    ``handleError`` to re-raise, deliberately, so a test that went through it
+    would be asserting pytest's behaviour instead of this library's.
+
+    Driven by a ``__repr__`` that raises rather than by a file, so it pins the
+    log calls alone: #828's own file no longer has a raising repr, and a test
+    going through one would pass on the other half of the fix.
+    """
+
+    def raises(self: Layer) -> str:
+        raise RuntimeError("forged")
+
+    expected = np.asarray(
+        PSDImage.open(full_name("effects/outside-stroke.psd")).composite(
+            ignore_preview=True
+        )
+    )
+
+    logger = logging.getLogger("psd_tools.composite.composite")
+    handler = logging.StreamHandler(io.StringIO())
+    monkeypatch.setattr(logger, "propagate", False)
+    monkeypatch.setattr(logger, "level", level)
+    monkeypatch.setattr(logger, "handlers", [handler])
+
+    monkeypatch.setattr(Layer, "__repr__", raises)
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    with pytest.raises(RuntimeError):
+        repr(psd[0])
+
+    rendered = psd.composite(ignore_preview=True)
+    assert np.array_equal(np.asarray(rendered), expected)

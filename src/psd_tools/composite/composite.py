@@ -81,21 +81,21 @@ _UNREADABLE = (
 def _readable(layer: Layer, name: str) -> list[_StyledEffect]:
     """The layer's enabled effects of one kind, empty if they cannot be listed.
 
-    ``Effects`` is built on first access and rejects an effect class it does
-    not know, so on such a file even asking which effects a layer has raises.
-    The three callers guard each effect they go on to read separately, inside
-    the loop; this is the failure that happens before the loop and would leave
-    them nothing to guard.
+    ``Effects`` is built on first access, so listing a layer's effects can
+    fail before the loop that reads them ever starts. The three callers guard
+    each effect they go on to read separately, inside the loop; this is the
+    failure that would leave them nothing to guard.
 
-    Which is as far as this can carry such a file on its own: ``Layer.__repr__``
-    asks the same question through ``has_effects()``, and the compositor formats
-    every layer it visits, so the document still raises from there (#828).
+    The effect class this used to fail on is now skipped one layer down, in
+    ``Effects`` itself (#828). The clause stays because the listing is what
+    the guards downstream stand on, and being total about it costs one
+    ``try``.
     """
     try:
         return list(_styled(layer.effects.find(name)))
     except _UNREADABLE as error:
-        # Lazy arguments, not ``%``: formatting ``layer`` reads its effects
-        # again, which is what just raised. ``logging`` absorbs a failed
+        # Lazy arguments, not ``%``: a path that degrades must not depend on
+        # formatting the layer it is degrading. ``logging`` absorbs a failed
         # format; ``%`` would re-raise it out of the handler.
         logger.debug("Cannot list the %s effects of %s: %s", name, layer, error)
         return []
@@ -359,7 +359,7 @@ def composite_pil(
     assert isinstance(psd_image, PSDImage)
     color_mode = psd_image.color_mode
     if color_mode in UNSUPPORTED_MODES:
-        logger.warning("Unsupported blending color space: %s" % (color_mode))
+        logger.warning("Unsupported blending color space: %s", color_mode)
 
     backdrop_alpha = alpha
     color, _, alpha = composite(
@@ -1035,7 +1035,7 @@ class Compositor(object):
         self._alpha = self._alpha_0
 
     def apply(self, layer: Layer, clip_compositing: bool = False) -> None:
-        logger.debug("Compositing %s" % layer)
+        logger.debug("Compositing %s", layer)
 
         if not self._accepts(layer, clip_compositing):
             return
@@ -1074,12 +1074,12 @@ class Compositor(object):
         The two agree on every layer in the fixture corpus.
         """
         if self._layer_filter is not None and not self._layer_filter(layer):
-            logger.debug("Ignore %s" % layer)
+            logger.debug("Ignore %s", layer)
             return False
         if not (
             isinstance(layer, AdjustmentLayer) or layer.is_group()
         ) and utils.intersect(self._viewport, _stroke_reach(layer)) == (0, 0, 0, 0):
-            logger.debug("Out of viewport %s" % (layer))
+            logger.debug("Out of viewport %s", layer)
             return False
         if not clip_compositing and layer.clipping:
             # Composited by the layer it clips to, through _apply_clip_layers().

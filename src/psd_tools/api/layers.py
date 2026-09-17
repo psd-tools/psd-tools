@@ -988,16 +988,55 @@ class Layer(LayerProtocol):
             self._psd._mark_updated()
         self.tagged_blocks.set_data(Tag.SHEET_COLOR_SETTING, value)
 
-    def __repr__(self) -> str:
+    def _annotate(self, describe: Callable[[], str]) -> str:
+        """One optional part of :py:meth:`__repr__`, dropped if it will not read.
+
+        ``except Exception``, and not the narrow tuple
+        :py:mod:`psd_tools.composite.composite` guards its descriptor reads
+        with: that one is narrow because its caller goes on to *draw*, so an
+        exception outside the set is a bug worth surfacing rather than wrong
+        pixels worth hiding. A repr draws nothing, and nothing that calls one
+        -- ``print()``, pdb, a logging handler, pytest -- asked what this
+        reads. Sharing that tuple would also mean reaching into the rendering
+        subpackage from a repr (#828).
+        """
+        try:
+            return describe()
+        except Exception as error:
+            logger.debug(
+                "%s() raised for a %s: %s",
+                describe.__name__,
+                type(self).__name__,
+                error,
+            )
+            return ""
+
+    def _repr_size(self) -> str:
         has_size = self.width > 0 and self.height > 0
+        return " size=%dx%d" % (self.width, self.height) if has_size else ""
+
+    def _repr_effects(self) -> str:
+        return " effects" if self.has_effects() else ""
+
+    def __repr__(self) -> str:
+        # ``size`` and ``effects`` go through ``_annotate()`` because they are
+        # the two parts that read beyond the record's own fields: ``bbox`` is
+        # overridden to walk a group's children, to read an artboard's tagged
+        # block -- which raises outright when it is absent -- to read a
+        # shape's origination, and on a ``FillLayer`` to raise without a
+        # document; ``has_effects()`` parses the effects descriptor. ``name``,
+        # ``visible``, ``clipping`` and ``has_mask()`` read already-parsed
+        # record fields, so guarding them would guard nothing --
+        # ``Group.clipping`` being the one that reads further, for the
+        # document's compatibility mode, which is set before a group exists.
         return "%s(%r%s%s%s%s%s)" % (
             self.__class__.__name__,
             self.name,
-            " size=%dx%d" % (self.width, self.height) if has_size else "",
+            self._annotate(self._repr_size),
             " invisible" if not self.visible else "",
             " clip" if self.clipping else "",
             " mask" if self.has_mask() else "",
-            " effects" if self.has_effects() else "",
+            self._annotate(self._repr_effects),
         )
 
     # Structure operations

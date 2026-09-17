@@ -160,7 +160,7 @@ def _draw_subpath(
     brush = aggdraw.Brush(**brush) if brush else None
     for subpath in subpath_list:
         if len(subpath) <= 1:
-            logger.warning("not enough knots: %d" % len(subpath))
+            logger.warning("not enough knots: %d", len(subpath))
             continue
         path = " ".join(map(str, _generate_symbol(subpath, *doc_size)))
         symbol = aggdraw.Symbol(path)
