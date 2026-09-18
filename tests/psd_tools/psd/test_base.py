@@ -4,6 +4,7 @@ import importlib
 import math
 import numbers
 import pkgutil
+import statistics
 from enum import Enum
 from fractions import Fraction
 
@@ -23,6 +24,7 @@ from psd_tools.psd.base import (
     ShortIntegerElement,
     StringElement,
 )
+from psd_tools.psd.descriptor import UnitFloat
 
 from ..utils import check_write_read
 
@@ -232,6 +234,49 @@ def test_integral_operators_between_elements(kls: Type[Any], fixture: int) -> No
     assert ~value == ~fixture
 
 
+@pytest.mark.parametrize(
+    "kls, fixture, is_integer",
+    [
+        (NumericElement, 1.5, False),
+        (NumericElement, -2.5, False),
+        (NumericElement, 2.0, True),
+        (IntegerElement, 3, True),
+        (ShortIntegerElement, 3, True),
+        (ByteElement, 3, True),
+        (BooleanElement, True, True),
+        (BooleanElement, False, True),
+        (UnitFloat, 12.0, True),
+    ],
+)
+def test_numbers_as_integer_ratio(
+    kls: Type[Any], fixture: Any, is_integer: bool
+) -> None:
+    """The members ``statistics`` needs, which ``numbers`` does not promise.
+
+    ``int.is_integer`` only exists from Python 3.12, so the integer-valued
+    elements answer ``True`` outright rather than delegating -- which is why
+    ``fixture`` is not asked the same question.
+    """
+    value = kls(fixture)
+    assert value.as_integer_ratio() == fixture.as_integer_ratio()
+    assert value.is_integer() is is_integer
+
+
+def test_numbers_interoperate_with_statistics() -> None:
+    """Only ``mean``, ``variance`` and ``stdev`` reach ``_exact_ratio``.
+
+    ``median`` and ``quantiles`` merely sort and interpolate, and ``fmean``
+    goes through ``float()``, so those worked before this delegation existed
+    and are not asserted here. The ``type: ignore`` comments are the same
+    story as in ``test_numbers_interoperate_with_fractions``.
+    """
+    values = [NumericElement(1.0), NumericElement(3.0), NumericElement(5.0)]
+    assert statistics.mean(values) == 3.0  # type: ignore[type-var]
+    assert statistics.variance(values) == 4.0  # type: ignore[type-var]
+    assert statistics.stdev(values) == 2.0  # type: ignore[type-var]
+    assert statistics.mean([UnitFloat(1.0), UnitFloat(2.0)]) == 1.5  # type: ignore[type-var]
+
+
 def test_numbers_interoperate_with_fractions() -> None:
     """A registered ``numbers.Real`` has to work as the right-hand operand.
 
@@ -239,6 +284,12 @@ def test_numbers_interoperate_with_fractions() -> None:
     virtual registration is invisible to a static checker, which is why PEP 484
     rules the ``numbers`` ABCs out for annotations. This buys runtime
     ``isinstance`` only, and ``float(value)`` remains the way to satisfy mypy.
+
+    Only the integral side is constructible from: ``Fraction.__new__`` is
+    type-gated on ``float``/``Decimal`` rather than duck-typing
+    ``as_integer_ratio``, until 3.14 where it became duck-typed. So
+    ``Fraction(NumericElement(2.5))`` raises on 3.10 through 3.13 and succeeds
+    on 3.14 -- do not assert either way, it would split the CI matrix.
     """
     assert Fraction(1, 2) + NumericElement(2.5) == 3.0
     assert Fraction(1, 2) * IntegerElement(4) == 2
@@ -269,6 +320,12 @@ def test_every_numeric_subclass_is_registered() -> None:
         assert kls.__hash__ is not None, kls
         converter = next(f for f in attrs.fields(kls) if f.name == "value").converter
         assert converter in (float, int, bool), (kls, converter)
+        # `IntegerElement.is_integer` answers a constant, so a subclass that
+        # re-declares `value` as a float would make it lie.
+        assert (converter in (int, bool)) is issubclass(kls, IntegerElement), (
+            kls,
+            converter,
+        )
 
 
 def test_numeric_element_rejects_a_modulus() -> None:
