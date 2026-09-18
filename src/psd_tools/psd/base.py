@@ -318,6 +318,17 @@ class NumericElement(ValueElement):
     def conjugate(self) -> float:
         return self.value.conjugate()
 
+    # Not part of the `numbers` protocol, but what `statistics` reaches for:
+    # `statistics._exact_ratio` tries `as_integer_ratio()` first and only falls
+    # back to `numerator`/`denominator` for a `numbers.Rational`. Registering a
+    # float-valued element as `Rational` would be a lie, so the ratio is what
+    # puts it on the same footing as the float it wraps.
+    def as_integer_ratio(self) -> tuple[int, int]:
+        return self.value.as_integer_ratio()
+
+    def is_integer(self) -> bool:
+        return self.value.is_integer()
+
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         return cls(read_fmt("d", fp)[0])  # type: ignore[call-arg]
@@ -386,6 +397,12 @@ class IntegerElement(NumericElement):
     @property
     def denominator(self) -> int:
         return self.value.denominator
+
+    # `int.is_integer` only exists from Python 3.12, so the inherited
+    # delegation would raise `AttributeError` on 3.10 and 3.11. An integer is
+    # integral on every version.
+    def is_integer(self) -> bool:
+        return True
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:

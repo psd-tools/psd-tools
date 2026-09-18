@@ -4,6 +4,7 @@ import importlib
 import math
 import numbers
 import pkgutil
+import statistics
 from enum import Enum
 from fractions import Fraction
 
@@ -23,6 +24,8 @@ from psd_tools.psd.base import (
     ShortIntegerElement,
     StringElement,
 )
+
+from psd_tools.psd.descriptor import UnitFloat
 
 from ..utils import check_write_read
 
@@ -232,6 +235,55 @@ def test_integral_operators_between_elements(kls: Type[Any], fixture: int) -> No
     assert ~value == ~fixture
 
 
+@pytest.mark.parametrize(
+    "kls, fixture, is_integer",
+    [
+        (NumericElement, 1.5, False),
+        (NumericElement, -2.5, False),
+        (NumericElement, 2.0, True),
+        (IntegerElement, 3, True),
+        (ShortIntegerElement, 3, True),
+        (ByteElement, 3, True),
+        (BooleanElement, True, True),
+        (BooleanElement, False, True),
+    ],
+)
+def test_numbers_as_integer_ratio(
+    kls: Type[Any], fixture: Any, is_integer: bool
+) -> None:
+    """Not ``numbers`` members, but what ``statistics`` reaches for.
+
+    ``int.is_integer`` only exists from Python 3.12, so the integer-valued
+    elements cannot delegate it and answer ``True`` outright; ``fixture`` is
+    deliberately not asked the same question here.
+    """
+    value = kls(fixture)
+    assert value.as_integer_ratio() == fixture.as_integer_ratio()
+    assert value.is_integer() is is_integer
+
+
+def test_numbers_interoperate_with_statistics() -> None:
+    """The float-valued elements must reach the fast path in ``statistics``.
+
+    ``statistics._exact_ratio`` tries ``as_integer_ratio()`` before anything
+    else, and only falls back to ``numerator``/``denominator`` for a
+    ``numbers.Rational`` -- which a float-valued element is not, and must not
+    claim to be.
+
+    The ``type: ignore`` comments are the same story as in
+    :py:func:`test_numbers_interoperate_with_fractions`: ``statistics`` is
+    annotated over ``float``/``Decimal``/``Fraction``, and a virtual
+    registration is invisible to a static checker. This works at runtime only.
+    """
+    values = [NumericElement(1.0), NumericElement(3.0), NumericElement(5.0)]
+    assert statistics.mean(values) == 3.0  # type: ignore[type-var]
+    assert statistics.median(values) == 3.0  # type: ignore[type-var]
+    assert statistics.variance(values) == 4.0  # type: ignore[type-var]
+    assert statistics.stdev(values) == 2.0  # type: ignore[type-var]
+    assert statistics.quantiles(values, n=2) == [3.0]  # type: ignore[type-var]
+    assert statistics.mean([UnitFloat(1.0), UnitFloat(2.0)]) == 1.5  # type: ignore[type-var]
+
+
 def test_numbers_interoperate_with_fractions() -> None:
     """A registered ``numbers.Real`` has to work as the right-hand operand.
 
@@ -239,6 +291,12 @@ def test_numbers_interoperate_with_fractions() -> None:
     virtual registration is invisible to a static checker, which is why PEP 484
     rules the ``numbers`` ABCs out for annotations. This buys runtime
     ``isinstance`` only, and ``float(value)`` remains the way to satisfy mypy.
+
+    Only the integral side is constructible from: ``Fraction.__new__`` is
+    type-gated on ``float``/``Decimal`` rather than duck-typing
+    ``as_integer_ratio``, until 3.14 where it became duck-typed. So
+    ``Fraction(NumericElement(2.5))`` raises on 3.10 through 3.13 and succeeds
+    on 3.14 -- do not assert either way, it would split the CI matrix.
     """
     assert Fraction(1, 2) + NumericElement(2.5) == 3.0
     assert Fraction(1, 2) * IntegerElement(4) == 2
