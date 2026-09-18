@@ -161,10 +161,12 @@ Replace the layer at a given index::
 
     group[0] = layer
 
-Add a layer or layers to a group::
+Add a layer or layers to a group. ``extend()`` accepts any iterable, including
+another group, whose layers it moves out::
 
     group.append(layer)
     group.extend(layers)
+    group.extend(other_group)
 
 Insert a layer to a specific index in the group::
 

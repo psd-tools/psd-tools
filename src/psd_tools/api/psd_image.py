@@ -767,7 +767,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             group = psdimage.create_group(name='New Group')
             group.append(psdimage.create_pixel_layer(image, name='Layer in Group'))
 
-        :param layer_list: Optional list of layers to add to the group.
+        :param layer_list: Optional iterable of layers to add to the group.
         :param name: Name of the new group.
         :param opacity: Opacity of the new layer (0-255).
         :param blend_mode: Blend mode of the new layer, default is ``BlendMode.PASS_THROUGH``.

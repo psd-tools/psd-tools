@@ -4,6 +4,11 @@ Changelog
 1.20.0 (unreleased)
 -------------------
 
+- [fix] ``GroupMixin.extend()`` now walks its argument once. A generator used
+  to add nothing, and a live container -- another group emptied in with
+  ``dest.extend(src)`` -- lost layers or never terminated. A layer named twice
+  in one call was added at two indices and saved that way; it now lands once,
+  at the position of its last mention (#820)
 - [api] ``NumericElement`` now delegates ``as_integer_ratio()`` and
   ``is_integer()`` to its value, so the ``statistics`` module works over
   float-valued descriptor values such as ``UnitFloat`` where it used to raise

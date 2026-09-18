@@ -747,6 +747,159 @@ def test_group_extend(
         assert layer._psd is group._psd
 
 
+# ---------------------------------------------------------------------------
+# extend() walks its argument once (#820)
+#
+# It used to walk it three times -- once to validate, once to detach each
+# layer from its old parent, once to attach -- which broke three things its
+# own docstring promises: a one-shot iterable added nothing, a live container
+# lost layers or hung, and a layer named twice landed at two indices.
+#
+# The two halves of the fix are ``list(layers)`` and the de-duplication, and
+# each has a case below that fails without it. The split is not the obvious
+# one: the de-dup comprehension is itself a materialization whenever there is
+# more than one element, so it alone repairs a *multi-layer* container. What
+# needs ``list()`` on its own is a generator, and a container holding exactly
+# one layer -- hence the ``size`` parametrization.
+# ---------------------------------------------------------------------------
+
+
+def test_group_extend_adds_a_repeated_layer_once(
+    group: Group, pixel_layer: PixelLayer
+) -> None:
+    """A layer named twice in one call lands once, and stays removable."""
+    group.extend([pixel_layer, pixel_layer])
+
+    assert len(group) == 1
+    assert group[0] is pixel_layer
+    assert group.count(pixel_layer) == 1
+    assert group.index(pixel_layer) == 0
+
+    # The duplicate left one layer at two indices with a single ``_parent``,
+    # so ``remove()`` dropped only the first of them and ``index()`` could
+    # never name the second.
+    group.remove(pixel_layer)
+    assert pixel_layer not in group
+    assert len(group) == 0
+
+
+def test_group_extend_does_not_write_a_repeated_layer_twice(tmp_path: Any) -> None:
+    """The duplicate reached the saved file, not just the in-memory list."""
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    layer_info = psd._record.layer_and_mask_information.layer_info
+    assert layer_info is not None
+    before = len(layer_info.layer_records)
+    layer = psd[0]
+    group = psd.create_group(name="G")
+    group.extend([layer, layer])
+
+    path = tmp_path / "duplicate.psd"
+    psd.save(str(path))
+    reopened = PSDImage.open(str(path))
+
+    saved_info = reopened._record.layer_and_mask_information.layer_info
+    assert saved_info is not None
+    # The moved layer keeps its record; the group adds its own and the
+    # bounding one that closes it. A second copy of the layer would be a
+    # fourth.
+    assert len(saved_info.layer_records) == before + 2
+    reopened_group = reopened[-1]
+    assert isinstance(reopened_group, Group)
+    assert [child.name for child in reopened_group] == [layer.name]
+
+
+def test_group_extend_keeps_a_repeated_layers_last_mention(
+    group: Group, pixel_layer: PixelLayer, type_layer: TypeLayer
+) -> None:
+    """De-duplication leaves a layer where a loop of ``append()`` would."""
+    group.extend([pixel_layer, type_layer, pixel_layer])
+    assert list(group) == [type_layer, pixel_layer]
+
+    # Same sequence, one ``append()`` at a time, onto a second group: the last
+    # mention wins there because appending a layer the group already holds
+    # moves it to the end. Keeping the *first* mention instead -- what
+    # ``dict.fromkeys()`` gives -- would order these two differently.
+    reference = PSDImage.open(full_name("layers/group.psd"))[0]
+    assert isinstance(reference, Group)
+    for layer in [pixel_layer, type_layer, pixel_layer]:
+        reference.append(layer)
+
+    assert list(reference) == [type_layer, pixel_layer]
+    assert len(group) == 0  # The loop above moved them out.
+
+
+def test_group_extend_accepts_a_one_shot_iterable(
+    group: Group, pixel_layer: PixelLayer, type_layer: TypeLayer
+) -> None:
+    """A generator used to add nothing: the checks drained it first."""
+    group.extend(layer for layer in [pixel_layer, type_layer])
+
+    assert list(group) == [pixel_layer, type_layer]
+    for layer in group:
+        assert layer._parent is group
+        assert layer._psd is group._psd
+
+
+def test_group_extend_with_nothing_to_add(group: Group) -> None:
+    """An empty argument of either kind is a no-op, not an error."""
+    nothing: list[Layer] = []
+
+    group.extend(nothing)
+    assert len(group) == 0
+
+    group.extend(layer for layer in nothing)
+    assert len(group) == 0
+
+
+@pytest.mark.parametrize("size", [1, 3])
+def test_group_extend_empties_a_live_container_into_another_group(
+    size: int,
+) -> None:
+    """``dest.extend(src)`` is how a group's contents move, and it lost them.
+
+    ``GroupMixin`` is iterable, so the detach loop was mutating the very
+    container it was iterating -- ``donor._layers.remove(layer)`` takes from
+    the list being walked -- and skipped every other layer. Those were then
+    dropped from the document altogether.
+
+    ``size=1`` is the case that pins the materialization: with more than one
+    layer the de-duplication pass builds a list of its own and would mask a
+    missing ``list(layers)``.
+    """
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    donor = psd[1]
+    assert isinstance(donor, Group)
+    src = psd.create_group(layer_list=list(donor)[:size], name="Src")
+    moved = list(src)
+    assert len(moved) == size
+    dest = psd.create_group(name="Dest")
+
+    dest.extend(src)
+
+    assert list(dest) == moved
+    assert len(src) == 0
+    for layer in moved:
+        assert layer._parent is dest
+
+
+def test_group_extend_on_its_own_contents_changes_nothing() -> None:
+    """Feeding a group itself is a no-op, and used not to terminate."""
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    group = psd.create_group(layer_list=list(psd), name="G")
+    contents = list(group)
+    assert len(contents) > 1
+
+    # The backing list first, deliberately: that shape terminates either way
+    # -- it just duplicated one layer and lost another -- so a regression
+    # fails here rather than at ``extend(group)`` below, which without the
+    # materialization never terminates at all.
+    group.extend(group._layers)
+    assert list(group) == contents
+
+    group.extend(group)
+    assert list(group) == contents
+
+
 def test_group_insert(
     group: Group,
     pixel_layer: PixelLayer,
@@ -1146,6 +1299,10 @@ def _mutate(group: Group, op: str, donor: Any) -> None:
         group.append(donor)
     elif op == "extend":
         group.extend([donor])
+    elif op == "extend_duplicate":
+        # Same layer twice: de-duplication must not drop the donor with the
+        # second mention of it (#820).
+        group.extend([donor, donor])
     elif op == "insert":
         group.insert(0, donor)
     elif op == "remove":
@@ -1167,6 +1324,7 @@ def _mutate(group: Group, op: str, donor: Any) -> None:
     [
         ("append", (0, -73, 360, 200)),
         ("extend", (0, -73, 360, 200)),
+        ("extend_duplicate", (0, -73, 360, 200)),
         ("insert", (0, -73, 360, 200)),
         ("remove", (50, 44, 174, 113)),
         ("clear", (0, 0, 0, 0)),

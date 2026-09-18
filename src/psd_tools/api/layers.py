@@ -1190,8 +1190,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         This operation rewrites the internal references of the layer. If the
         given layer is already in this group, it is moved next to where the
         replaced layer was and the group shrinks by one, following the
-        no-duplicates rule of
-        :py:meth:`~psd_tools.api.layers.GroupMixin.append`. Its final index is
+        no-duplicates rule of ``extend()``. Its final index is
         one lower than the given one when it came from before the replaced
         layer, because taking it out shifts the rest of the group down.
 
@@ -1230,7 +1229,8 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         Add a layer to the end (top) of the group.
 
         This operation rewrites the internal references of the layer.
-        Adding the same layer will not create a duplicate.
+        Adding the same layer will not create a duplicate; it moves to the end
+        instead. See ``extend()``, which this delegates to.
 
         :param layer: The layer to add.
         :raises TypeError: If the provided object is not a Layer instance.
@@ -1240,20 +1240,46 @@ class GroupMixin(GroupMixinProtocol, Protocol):
 
     def extend(self, layers: Iterable[Layer]) -> None:
         """
-        Add a list of layers to the end (top) of the group.
+        Add layers to the end (top) of the group.
 
         This operation rewrites the internal references of the layers.
-        Adding the same layer will not create a duplicate.
+        Adding the same layer will not create a duplicate: a layer named more
+        than once in one call, or already in this group, ends up once, at the
+        position of its last mention. That is where a loop of ``append()``
+        calls leaves it.
+
+        The iterable is walked once, so a one-shot one is accepted -- a
+        generator, or a live container being emptied into this group::
+
+            dest.extend(src)  # Moves every layer of src into dest.
 
         :param layers: The layers to add.
         :raises TypeError: If the provided object is not a Layer instance.
         :raises ValueError: If attempting to add a group to itself.
         """
-        self._check_insertion(layers)
+        # Materialized before anything walks it. Everything below iterates
+        # ``layers`` again, so a one-shot iterable reached the detach loop
+        # already empty and nothing was added, and a live container was
+        # mutated *while* being iterated: ``dest.extend(src)`` dropped every
+        # other layer of ``src``, and ``g.extend(g)`` never terminated (#820).
+        pending = list(layers)
+        # Keep each layer's *last* mention, which is where a loop of
+        # ``append()`` calls leaves it, since a layer already in this group is
+        # detached below and re-added at the end. Deliberately not
+        # ``dict.fromkeys(pending)``, which looks equivalent but keeps the
+        # first. Safe ahead of ``_check_insertion()``, and spares it a repeat
+        # of its per-group ``descendants()`` walk, because every dropped
+        # element is the same object as one that is kept.
+        if len(pending) > 1:
+            last = {id(layer): index for index, layer in enumerate(pending)}
+            pending = [
+                layer for index, layer in enumerate(pending) if last[id(layer)] == index
+            ]
+        self._check_insertion(pending)
         # Remove parent's reference to the layers.
         donors: list[GroupMixin] = []
         seen: set[int] = set()
-        for layer in layers:
+        for layer in pending:
             # NOTE: New or removed layers may not be in the parent container.
             if isinstance(layer.parent, GroupMixin) and layer in layer.parent:
                 donor = layer.parent
@@ -1266,7 +1292,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
                 if id(donor) not in seen:
                     seen.add(id(donor))
                     donors.append(donor)
-        self._layers.extend(layers)
+        self._layers.extend(pending)
         self._update_children()
         self._psd._update_record()
         # Last only because by then the tree is consistent and a caller that
@@ -1274,7 +1300,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         # bounding box, so any point after ``_update_children()`` would do.
         for donor in donors:
             donor._invalidate_bbox()
-        for layer in layers:
+        for layer in pending:
             _invalidate_moved_bbox(layer)
         self._invalidate_bbox()
 
@@ -1369,8 +1395,12 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         """
         return self._layers.count(layer)
 
-    def _check_insertion(self, layers: Iterable[Layer]) -> None:
+    def _check_insertion(self, layers: Sequence[Layer]) -> None:
         """Check that the given layers can be added to this group.
+
+        ``Sequence``, not ``Iterable``: this walks its argument, so a caller
+        that walks it again afterwards -- ``extend()`` does -- must not hand it
+        a one-shot iterable for this to drain (#820).
 
         :raises ValueError: If attempting to add a group to itself or create a reference loop
         :raises TypeError: If the provided object is not a Layer instance
