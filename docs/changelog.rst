@@ -4,14 +4,14 @@ Changelog
 1.20.0 (unreleased)
 -------------------
 
-- [fix] ``GroupMixin.extend()`` now walks its argument once. A generator used
-  to add nothing, and a live container -- another group emptied into this one
-  with ``dest.extend(src)`` -- lost layers or never terminated. A layer
-  mentioned twice in one call was added at two indices and saved that way; it
-  now lands once, at the position of its last mention (#820, #839)
+- [fix] ``GroupMixin.extend()`` now walks its argument once. A generator added
+  nothing; ``dest.extend(src)`` kept only every other layer of ``src`` and lost
+  the rest; ``g.extend(g)`` never terminated; and a layer mentioned twice in
+  one call was added at two indices and saved that way. Such a layer now lands
+  once, at the position of its last mention (#820, #839)
 - [fix] ``PSDImage.create_group()`` no longer truth-tests ``layer_list``, which
-  rejected an iterable that is falsey or refuses a truth test at all, such as a
-  NumPy array of layers (#820, #839)
+  rejected an iterable that refuses a truth test, such as a multi-element NumPy
+  array of layers (#820, #839)
 - [api] ``NumericElement`` now delegates ``as_integer_ratio()`` and
   ``is_integer()`` to its value, so the ``statistics`` module works over
   float-valued descriptor values such as ``UnitFloat`` where it used to raise

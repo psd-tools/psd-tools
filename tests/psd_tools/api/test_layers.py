@@ -857,10 +857,13 @@ def test_group_extend_empties_a_live_container_into_another_group(
 ) -> None:
     """``dest.extend(src)`` is how a group's contents move, and it lost them.
 
-    ``GroupMixin`` is iterable, so the detach loop was mutating the very
-    container it was iterating -- ``donor._layers.remove(layer)`` takes from
-    the list being walked -- and skipped every other layer. Those were then
-    dropped from the document altogether.
+    ``GroupMixin`` is iterable, so the detach loop was walking the very
+    container it was mutating -- ``donor._layers.remove(layer)`` takes from the
+    list being iterated -- and so reached only every other layer. The ones it
+    did reach were detached and never re-attached, because the attach step
+    re-read the same half-drained container: those are the layers lost from the
+    document. The one it skipped was left in ``src`` *and* appended to
+    ``dest``, parented to ``dest`` alone.
 
     ``size=1`` is the case that pins the materialization: with more than one
     layer the de-duplication pass builds a list of its own and would mask a

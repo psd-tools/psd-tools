@@ -87,6 +87,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Collection,
     Iterable,
     Iterator,
     Protocol,
@@ -1308,7 +1309,10 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         """
         Insert the given layer at the specified index.
 
-        This operation rewrites the internal references of the layer.
+        This operation rewrites the internal references of the layer. A layer
+        already in this group is moved rather than copied, following the
+        no-duplicates rule of ``extend()``, so the index it lands at is one
+        lower than the given one when it came from before that position.
 
         :param index: The index to insert the layer at.
         :param layer: The layer to insert.
@@ -1395,12 +1399,13 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         """
         return self._layers.count(layer)
 
-    def _check_insertion(self, layers: Sequence[Layer]) -> None:
+    def _check_insertion(self, layers: Collection[Layer]) -> None:
         """Check that the given layers can be added to this group.
 
-        ``Sequence``, not ``Iterable``: this walks its argument, so a caller
+        ``Collection``, not ``Iterable``: this walks its argument, so a caller
         that walks it again afterwards -- ``extend()`` does -- must not hand it
-        a one-shot iterable for this to drain (#820).
+        a one-shot iterable for this to drain (#820). A re-iterable container,
+        a ``Group`` included, is fine, which is why this is not ``Sequence``.
 
         :raises ValueError: If attempting to add a group to itself or create a reference loop
         :raises TypeError: If the provided object is not a Layer instance
