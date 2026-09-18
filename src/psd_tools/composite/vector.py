@@ -94,7 +94,11 @@ def _draw_path(
     width, height = viewport[2] - viewport[0], viewport[3] - viewport[1]
     doc_size = (layer._psd.width, layer._psd.height)
     color = 0
-    if layer.vector_mask.initial_fill_rule and len(layer.vector_mask.paths) == 0:
+    if (
+        brush
+        and layer.vector_mask.initial_fill_rule
+        and len(layer.vector_mask.paths) == 0
+    ):
         color = 1
     mask = np.full((height, width, 1), color, dtype=np.float32)
 
