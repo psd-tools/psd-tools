@@ -14,6 +14,7 @@ gets attrs_ decoration to have data fields.
 
 import io
 import logging
+import numbers
 from collections import OrderedDict
 from enum import Enum
 from typing import IO, Any, Callable, Generator, TypeVar
@@ -225,39 +226,51 @@ class ValueElement(BaseElement):
 class NumericElement(ValueElement):
     """
     Single value element that has a numeric `value` attribute.
+
+    Registered as a :py:class:`numbers.Real`, so that
+    ``isinstance(element, numbers.Real)`` holds and code that dispatches on
+    numeric type recognises the element. Every member of the protocol
+    delegates to `value`.
     """
 
     value: float = field(default=0.0, converter=float)
 
+    # Every binary operator delegates in expression form rather than by calling
+    # the slot on `value`. ``self.value.__truediv__(other)`` returns
+    # ``NotImplemented`` whenever `other` is not a float -- another element
+    # included -- and the reflected method dead-ends the same way, so the
+    # operator raises between two operands that are both `numbers.Real`.
     def __floordiv__(self, other: Any) -> Any:
-        return self.value.__floordiv__(other)
+        return self.value // other
 
     def __truediv__(self, other: Any) -> Any:
-        return self.value.__truediv__(other)
+        return self.value / other
 
     def __divmod__(self, other: Any) -> Any:
-        return self.value.__divmod__(other)
+        return divmod(self.value, other)
 
-    def __pow__(self, other: Any) -> Any:
-        return self.value.__pow__(other)
+    def __pow__(self, other: Any, modulo: Any = None) -> Any:
+        if modulo is None:
+            return self.value**other
+        return pow(self.value, other, modulo)
 
     def __radd__(self, other: Any) -> Any:
-        return self.value.__radd__(other)
+        return other + self.value
 
     def __rsub__(self, other: Any) -> Any:
-        return self.value.__rsub__(other)
+        return other - self.value
 
     def __rfloordiv__(self, other: Any) -> Any:
-        return self.value.__rfloordiv__(other)
+        return other // self.value
 
     def __rtruediv__(self, other: Any) -> Any:
-        return self.value.__rtruediv__(other)
+        return other / self.value
 
     def __rdivmod__(self, other: Any) -> Any:
-        return self.value.__rdivmod__(other)
+        return divmod(other, self.value)
 
     def __rpow__(self, other: Any) -> Any:
-        return self.value.__rpow__(other)
+        return other**self.value
 
     def __neg__(self) -> Any:
         return self.value.__neg__()
@@ -268,11 +281,42 @@ class NumericElement(ValueElement):
     def __abs__(self) -> Any:
         return self.value.__abs__()
 
+    def __round__(self, ndigits: int | None = None) -> Any:
+        if ndigits is None:
+            return self.value.__round__()
+        return self.value.__round__(ndigits)
+
+    def __trunc__(self) -> int:
+        return self.value.__trunc__()
+
+    def __floor__(self) -> int:
+        return self.value.__floor__()
+
+    def __ceil__(self) -> int:
+        return self.value.__ceil__()
+
     def __int__(self) -> int:
         return int(self.value)
 
     def __float__(self) -> float:
         return float(self.value)
+
+    def __complex__(self) -> complex:
+        return complex(self.value)
+
+    def __format__(self, format_spec: str) -> str:
+        return format(self.value, format_spec)
+
+    @property
+    def real(self) -> float:
+        return self.value.real
+
+    @property
+    def imag(self) -> float:
+        return self.value.imag
+
+    def conjugate(self) -> float:
+        return self.value.conjugate()
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
@@ -282,51 +326,66 @@ class NumericElement(ValueElement):
         return write_fmt(fp, "d", self.value)
 
 
+# Registration rather than inheritance: putting ``ABCMeta`` underneath the slots
+# classes attrs recreates is more risk than the ABC mixins are worth, and those
+# mixin members are written out explicitly above instead.
+numbers.Real.register(NumericElement)
+
+
 @define(repr=False, eq=False, order=False)
 class IntegerElement(NumericElement):
     """
     Single integer value element that has a `value` attribute.
 
-    Use with `@define(repr=False)` decorator.
+    Registered as a :py:class:`numbers.Integral`. Use with
+    `@define(repr=False)` decorator.
     """
 
     value: int = field(default=0, converter=int)
 
     def __lshift__(self, other: Any) -> int:
-        return self.value.__lshift__(other)
+        return self.value << other
 
     def __rshift__(self, other: Any) -> int:
-        return self.value.__rshift__(other)
+        return self.value >> other
 
     def __and__(self, other: Any) -> int:
-        return self.value.__and__(other)
+        return self.value & other
 
     def __xor__(self, other: Any) -> int:
-        return self.value.__xor__(other)
+        return self.value ^ other
 
     def __or__(self, other: Any) -> int:
-        return self.value.__or__(other)
+        return self.value | other
 
     def __rlshift__(self, other: Any) -> int:
-        return self.value.__rlshift__(other)
+        return other << self.value
 
     def __rrshift__(self, other: Any) -> int:
-        return self.value.__rrshift__(other)
+        return other >> self.value
 
     def __rand__(self, other: Any) -> int:
-        return self.value.__rand__(other)
+        return other & self.value
 
     def __rxor__(self, other: Any) -> int:
-        return self.value.__rxor__(other)
+        return other ^ self.value
 
     def __ror__(self, other: Any) -> int:
-        return self.value.__ror__(other)
+        return other | self.value
 
     def __invert__(self) -> int:
-        return self.value.__invert__()
+        return ~self.value
 
     def __index__(self) -> int:
         return self.value.__index__()
+
+    @property
+    def numerator(self) -> int:
+        return self.value.numerator
+
+    @property
+    def denominator(self) -> int:
+        return self.value.denominator
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
@@ -334,6 +393,9 @@ class IntegerElement(NumericElement):
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         return write_fmt(fp, "I", self.value)
+
+
+numbers.Integral.register(IntegerElement)
 
 
 @define(repr=False, eq=False, order=False)

@@ -82,6 +82,20 @@ def test_unit_float(unit: Unit, value: float) -> None:
     assert isinstance(float(fixture), float)
 
 
+def test_unit_float_converts_value() -> None:
+    fixture = UnitFloat(unit=Unit.Pixels, value="1.5")  # type: ignore[arg-type]
+    assert isinstance(fixture.value, float)
+    assert fixture == 1.5
+    assert UnitFloat(unit=Unit.Pixels, value=100).value == 100.0  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("value", [None, object(), [1.0], b"oops"])
+def test_unit_float_rejects_a_non_number(value: Any) -> None:
+    """``None`` and any other object used to be accepted silently."""
+    with pytest.raises((TypeError, ValueError)):
+        UnitFloat(unit=Unit.Pixels, value=value)
+
+
 @pytest.mark.parametrize(
     "fixture",
     [

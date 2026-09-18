@@ -617,7 +617,7 @@ class PascalString(ValueElement):
 
 
 @register(Resource.PIXEL_ASPECT_RATIO)
-@define(repr=False)
+@define(repr=False, eq=False, order=False)
 class PixelAspectRatio(NumericElement):
     """
     Pixel aspect ratio.
