@@ -4,6 +4,11 @@ Changelog
 1.19.1 (unreleased)
 -------------------
 
+- [fix] Stop seeding a path-less layer's raster as fully covered when only a
+  pen (stroke) is requested. The reveal-all fill-rule seed describes a fill,
+  so a stroke over zero paths now comes back empty instead of covering the
+  whole layer. **Rendering change**, only reachable where a stroke sits on a
+  path-less reveal-all mask, which Photoshop does not author (#823, #832)
 - [fix] Skip an effect psd-tools cannot read out of a layer's effects block --
   one whose effect class this version has no handler for, or a block that did
   not parse at all -- rather than raising. Such a file renders without that
@@ -25,11 +30,6 @@ Changelog
   own bounding box does not reach, which painted every pixel of that viewport
   opaque. Only reachable together with the stroke fix above, which is what
   lets such a layer be composited on a viewport it misses (#815, #825)
-- [fix] Stop seeding a path-less layer's raster as fully covered when only a
-  pen (stroke) is requested. The reveal-all fill-rule seed describes a fill,
-  so a stroke over zero paths now comes back empty instead of covering the
-  whole layer. **Rendering change** for a pen-only raster of such a layer;
-  filled shapes and their strokes are unaffected (#823)
 - [fix] Place a layer's vector stroke on the box being composited rather than
   on the document canvas, where it could land away from the shape it outlines
   or be clipped at the canvas edge. **Rendering change** for
