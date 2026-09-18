@@ -299,7 +299,7 @@ class UnitFloat(NumericElement):
         `float` value
     """
 
-    value: float = 0.0
+    value: float = field(default=0.0, converter=float)
     unit: Unit = Unit._None
 
     @classmethod
