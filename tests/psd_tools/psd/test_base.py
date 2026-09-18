@@ -24,7 +24,6 @@ from psd_tools.psd.base import (
     ShortIntegerElement,
     StringElement,
 )
-
 from psd_tools.psd.descriptor import UnitFloat
 
 from ..utils import check_write_read
@@ -246,16 +245,17 @@ def test_integral_operators_between_elements(kls: Type[Any], fixture: int) -> No
         (ByteElement, 3, True),
         (BooleanElement, True, True),
         (BooleanElement, False, True),
+        (UnitFloat, 12.0, True),
     ],
 )
 def test_numbers_as_integer_ratio(
     kls: Type[Any], fixture: Any, is_integer: bool
 ) -> None:
-    """Not ``numbers`` members, but what ``statistics`` reaches for.
+    """The members ``statistics`` needs, which ``numbers`` does not promise.
 
     ``int.is_integer`` only exists from Python 3.12, so the integer-valued
-    elements cannot delegate it and answer ``True`` outright; ``fixture`` is
-    deliberately not asked the same question here.
+    elements answer ``True`` outright rather than delegating -- which is why
+    ``fixture`` is not asked the same question.
     """
     value = kls(fixture)
     assert value.as_integer_ratio() == fixture.as_integer_ratio()
@@ -263,24 +263,17 @@ def test_numbers_as_integer_ratio(
 
 
 def test_numbers_interoperate_with_statistics() -> None:
-    """The float-valued elements must reach the fast path in ``statistics``.
+    """Only ``mean``, ``variance`` and ``stdev`` reach ``_exact_ratio``.
 
-    ``statistics._exact_ratio`` tries ``as_integer_ratio()`` before anything
-    else, and only falls back to ``numerator``/``denominator`` for a
-    ``numbers.Rational`` -- which a float-valued element is not, and must not
-    claim to be.
-
-    The ``type: ignore`` comments are the same story as in
-    :py:func:`test_numbers_interoperate_with_fractions`: ``statistics`` is
-    annotated over ``float``/``Decimal``/``Fraction``, and a virtual
-    registration is invisible to a static checker. This works at runtime only.
+    ``median`` and ``quantiles`` merely sort and interpolate, and ``fmean``
+    goes through ``float()``, so those worked before this delegation existed
+    and are not asserted here. The ``type: ignore`` comments are the same
+    story as in ``test_numbers_interoperate_with_fractions``.
     """
     values = [NumericElement(1.0), NumericElement(3.0), NumericElement(5.0)]
     assert statistics.mean(values) == 3.0  # type: ignore[type-var]
-    assert statistics.median(values) == 3.0  # type: ignore[type-var]
     assert statistics.variance(values) == 4.0  # type: ignore[type-var]
     assert statistics.stdev(values) == 2.0  # type: ignore[type-var]
-    assert statistics.quantiles(values, n=2) == [3.0]  # type: ignore[type-var]
     assert statistics.mean([UnitFloat(1.0), UnitFloat(2.0)]) == 1.5  # type: ignore[type-var]
 
 
@@ -327,6 +320,12 @@ def test_every_numeric_subclass_is_registered() -> None:
         assert kls.__hash__ is not None, kls
         converter = next(f for f in attrs.fields(kls) if f.name == "value").converter
         assert converter in (float, int, bool), (kls, converter)
+        # `IntegerElement.is_integer` answers a constant, so a subclass that
+        # re-declares `value` as a float would make it lie.
+        assert (converter in (int, bool)) is issubclass(kls, IntegerElement), (
+            kls,
+            converter,
+        )
 
 
 def test_numeric_element_rejects_a_modulus() -> None:

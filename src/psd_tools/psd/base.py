@@ -318,11 +318,9 @@ class NumericElement(ValueElement):
     def conjugate(self) -> float:
         return self.value.conjugate()
 
-    # Not part of the `numbers` protocol, but what `statistics` reaches for:
-    # `statistics._exact_ratio` tries `as_integer_ratio()` first and only falls
-    # back to `numerator`/`denominator` for a `numbers.Rational`. Registering a
-    # float-valued element as `Rational` would be a lie, so the ratio is what
-    # puts it on the same footing as the float it wraps.
+    # Not `numbers` members: `statistics._exact_ratio` tries `as_integer_ratio()`
+    # first. Do not register a float-valued element as `numbers.Rational`
+    # instead -- `float` is not one either.
     def as_integer_ratio(self) -> tuple[int, int]:
         return self.value.as_integer_ratio()
 
