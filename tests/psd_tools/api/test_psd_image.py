@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Tuple, Union
 from unittest.mock import patch
 
+import numpy as np
 import pytest
 from PIL import Image
 
@@ -171,6 +172,33 @@ def test_create_group() -> None:
     assert group[0] is layer_list[0]
     assert group.opacity == 128
     assert group.blend_mode == BlendMode.SCREEN
+
+
+def test_create_group_does_not_truth_test_its_iterable() -> None:
+    """``layer_list`` is any iterable, so its truth value is not ours to read.
+
+    A multi-element NumPy array raises ``ValueError`` when tested for truth, so
+    truth-testing rejected a perfectly good ``Iterable[Layer]`` one frame
+    before ``extend()`` would have accepted it (#820).
+    """
+    psdimage = PSDImage.new(mode="RGB", size=(100, 100))
+    layer_list = np.array(
+        [
+            psdimage.create_pixel_layer(
+                Image.new("RGB", (50, 50), (0, 255, 0)), name="Green"
+            ),
+            psdimage.create_pixel_layer(
+                Image.new("RGB", (50, 50), (255, 0, 0)), name="Red"
+            ),
+        ],
+        dtype=object,
+    )
+    with pytest.raises(ValueError):
+        bool(layer_list)  # Guards the premise: this is what used to escape.
+
+    group = psdimage.create_group(layer_list, name="My Group")
+
+    assert [layer.name for layer in group] == ["Green", "Red"]
 
 
 def test_update_record(fixture: PSDImage) -> None:

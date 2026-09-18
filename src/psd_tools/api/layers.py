@@ -1099,7 +1099,7 @@ def _invalidate_moved_bbox(layer: Layer) -> None:
     """Drop the cached boxes ``layer`` carries now that something above it changed.
 
     That is either a new parent or an ancestor whose ``visible`` flag moved;
-    see :py:meth:`GroupMixin._invalidate_subtree_bbox` for which boxes those
+    see ``GroupMixin._invalidate_subtree_bbox()`` for which boxes those
     are and why. ``Group`` and ``ShapeLayer`` are named concretely rather than
     going through ``GroupMixin``, whose ``runtime_checkable`` protocol check
     would recompute the boxes this is about to drop on Python <= 3.11. That

@@ -808,7 +808,7 @@ def test_group_extend_does_not_write_a_repeated_layer_twice(tmp_path: Any) -> No
     assert [child.name for child in reopened_group] == [layer.name]
 
 
-def test_group_extend_keeps_a_repeated_layers_last_mention(
+def test_group_extend_keeps_the_last_mention_of_a_repeated_layer(
     group: Group, pixel_layer: PixelLayer, type_layer: TypeLayer
 ) -> None:
     """De-duplication leaves a layer where a loop of ``append()`` would."""
