@@ -4,6 +4,10 @@ Changelog
 1.20.0 (unreleased)
 -------------------
 
+- [api] ``NumericElement`` now delegates ``as_integer_ratio()`` and
+  ``is_integer()`` to its value, so the ``statistics`` module works over
+  float-valued descriptor values such as ``UnitFloat`` where it used to raise
+  ``TypeError``. Neither member is part of the ``numbers`` protocol (#837, #838)
 - [api] ``NumericElement`` and ``IntegerElement``, and so every descriptor
   value built on them, now register as ``numbers.Real`` / ``numbers.Integral``
   and implement the whole of that protocol. This is for runtime ``isinstance``
