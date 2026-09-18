@@ -7,11 +7,11 @@ Changelog
 - [api] ``NumericElement`` and ``IntegerElement``, and so every descriptor
   value built on them, now register as ``numbers.Real`` / ``numbers.Integral``
   and implement the whole of that protocol. This is for runtime ``isinstance``
-  only; it buys nothing for type annotations (#834)
+  only; it buys nothing for type annotations (#834, #835)
 - [fix] Arithmetic between two elements, or with a non-float left operand, no
   longer raises ``TypeError``. ``UnitFloat`` coerces its ``value`` to ``float``
   again, and ``PixelAspectRatio`` compares equal to the value it holds and is
-  hashable (#834)
+  hashable (#834, #835)
 - [fix] Stop seeding a path-less layer's raster as fully covered when only a
   pen (stroke) is requested. The reveal-all fill-rule seed describes a fill,
   so a stroke over zero paths now comes back empty instead of covering the
