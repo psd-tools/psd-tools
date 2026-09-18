@@ -767,7 +767,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             group = psdimage.create_group(name='New Group')
             group.append(psdimage.create_pixel_layer(image, name='Layer in Group'))
 
-        :param layer_list: Optional list of layers to add to the group.
+        :param layer_list: Optional iterable of layers to add to the group.
         :param name: Name of the new group.
         :param opacity: Opacity of the new layer (0-255).
         :param blend_mode: Blend mode of the new layer, default is ``BlendMode.PASS_THROUGH``.
@@ -775,7 +775,11 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         :return: The created :py:class:`~psd_tools.api.layers.Group` object.
         """
         group = layers.Group.new(parent=self, name=name, open_folder=open_folder)
-        if layer_list:
+        # Against ``None``, not truthiness: ``layer_list`` is any iterable, and
+        # one can be falsey while holding layers, or refuse to be tested at all
+        # -- ``bool()`` on a multi-element NumPy array raises. ``extend()``
+        # handles an empty iterable itself (#820).
+        if layer_list is not None:
             group.extend(layer_list)
         group.opacity = opacity
         group.blend_mode = blend_mode

@@ -161,10 +161,12 @@ Replace the layer at a given index::
 
     group[0] = layer
 
-Add a layer or layers to a group::
+Add a layer or layers to a group. ``extend()`` accepts any iterable, including
+another group, whose layers it moves out::
 
     group.append(layer)
     group.extend(layers)
+    group.extend(other_group)
 
 Insert a layer to a specific index in the group::
 
@@ -190,8 +192,8 @@ Count the occurrences of a layer in a group::
 
     count = group.count(layer)
 
-Move a given list of layers in a newly created Group. If no parent group is given in parameter,
-the new group will replace the first layer of the list in the PSD structure::
+Move layers into a newly created group, appended at the top of the document.
+``layer_list`` is any iterable, and may be omitted to create an empty group::
 
     group = psdimage.create_group(layer_list=[layer1, layer2, ...], name="New Group")
 
