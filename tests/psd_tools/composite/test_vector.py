@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from psd_tools import PSDImage
-from psd_tools.api.layers import Group
+from psd_tools.api.layers import Group, Layer
 from psd_tools.composite import composite, vector
 from psd_tools.composite.paint import (
     draw_gradient_fill,
@@ -12,7 +12,7 @@ from psd_tools.composite.paint import (
     draw_solid_color_fill,
 )
 from psd_tools.constants import Tag
-from psd_tools.psd.descriptor import Double
+from psd_tools.psd.descriptor import Bool, Double
 from psd_tools.terminology import Enum, Key, Type
 
 from ..utils import full_name
@@ -309,3 +309,175 @@ def test_layer_composite_keeps_a_stroke_past_the_canvas_edge() -> None:
     assert color[:, 0].max() < 1 / 255, "the left edge lost its stroke"
     assert color[0, :].max() < 1 / 255, "the top edge lost its stroke"
     assert np.asarray(alpha)[:, 0, 0].min() > 0.0
+
+
+def _pathless_reveal_all_layer() -> Layer:
+    """The layer #823 names: an initial fill rule and no path to rule on."""
+    psd = PSDImage.open(full_name("adjustment-fillers.psd"))
+    layer = [x for x in psd.descendants() if x.name == "Color Fill 1"][0]
+    assert layer.vector_mask is not None
+    assert layer.vector_mask.initial_fill_rule and not layer.vector_mask.paths
+    return layer
+
+
+def _forged_pathless_stroke(disable_stroke: bool = False) -> tuple[PSDImage, Layer]:
+    """``stroke.psd``'s stroked rectangle, with its paths stripped.
+
+    No fixture carries the combination #823 describes, because Photoshop does
+    not author a stroked shape layer whose reveal-all fill rule has no path
+    under it. Forging it onto a layer that does have a stroke is enough.
+
+    The strip empties the list behind ``VectorMask.paths`` while the fill rule
+    writes through to the record; the mask is cached, so nothing rebuilds the
+    one from the other.
+    """
+    psd = PSDImage.open(full_name("stroke.psd"))
+    layer = [x for x in psd.descendants() if x.name == "Rectangle 1"][0]
+    # Every term of ``_get_object()``'s stroke guard, so that an equality
+    # below cannot come out true because the stroke was never drawn at all.
+    assert layer.has_vector_mask()
+    assert layer.stroke is not None and layer.stroke.enabled
+    assert np.count_nonzero(vector.draw_stroke(layer)) > 0, (
+        "the layer has no stroke raster for the forge to empty"
+    )
+
+    vm = layer.vector_mask
+    assert vm is not None
+    del vm.paths[:]
+    vm.initial_fill_rule = 1
+    # The setter is a no-op on a mask that carries no initial-fill-rule
+    # record, which would leave the seed nothing to key on.
+    assert vm.initial_fill_rule == 1 and len(vm.paths) == 0
+
+    if disable_stroke:
+        layer.stroke._data[b"strokeEnabled"] = Bool(False)
+        assert not layer.stroke.enabled
+    return psd, layer
+
+
+def test_pen_over_zero_paths_draws_nothing() -> None:
+    """A stroke with no path to outline comes back empty.
+
+    ``_draw_path()`` seeds its plane as covered when the vector mask has an
+    initial fill rule and carries no paths. That seed describes a *fill*, and
+    applied to a pen it returned the whole viewport as stroke coverage
+    (#823, #832).
+    """
+    layer = _pathless_reveal_all_layer()
+    pen = vector._draw_path(layer, pen={"color": 255, "width": 1.0})
+    assert np.count_nonzero(pen) == 0, (
+        f"a stroke over zero paths drew {np.count_nonzero(pen)} pixels"
+    )
+
+
+def test_draw_vector_mask_over_zero_paths_reveals_all() -> None:
+    """The same seed is right for a brush, and gating it must not take it away.
+
+    A vector mask with an initial fill rule and no path of its own reveals the
+    whole layer, so the fill it describes covers the viewport (#823).
+    """
+    layer = _pathless_reveal_all_layer()
+    mask = vector.draw_vector_mask(layer)
+    assert mask.shape == (512, 512, 1)
+    assert mask.min() == 1.0 and mask.max() == 1.0
+
+
+def test_stroke_over_zero_paths_leaves_the_render_alone() -> None:
+    """The seed reached the way a user reaches it, through the compositor.
+
+    #823 arrives through ``_get_stroke()`` -> ``draw_stroke()`` ->
+    ``_draw_path()``, the chain #807 and #822 changed the blast radius of. An
+    empty stroke has to render as no stroke at all, which is the reference
+    here -- no rasterized constant to go stale, and since both arms rasterize
+    the same paths for the other four layers, aggdraw drift cancels and the
+    measured difference is 0.
+
+    Both viewports are pinned because #807 is what made them differ, and
+    both under ``force=True``: without it the fill is not drawn from the
+    vector mask and the two renders land within a quantization step of each
+    other either way. Even there the tempting per-layer assertion is the
+    vacuous one -- the forced layer render comes back with a uniform alpha of
+    194 whether or not the seed is gated, and only its colour moves.
+    """
+    _, layer = _forged_pathless_stroke()
+    assert np.count_nonzero(vector.draw_stroke(layer)) == 0, (
+        "a stroke over zero paths covers the whole viewport"
+    )
+
+    # On the layer's own box every value moves when the seed leaks into the
+    # pen; on the canvas, which the layer covers a corner of, 4.6% of them do.
+    assert np.allclose(
+        composite(_forged_pathless_stroke()[1], force=True)[0],
+        composite(_forged_pathless_stroke(disable_stroke=True)[1], force=True)[0],
+        atol=1 / 255,
+    ), "an empty stroke does not render as no stroke on the layer"
+    assert np.allclose(
+        composite(_forged_pathless_stroke()[0], force=True)[0],
+        composite(_forged_pathless_stroke(disable_stroke=True)[0], force=True)[0],
+        atol=1 / 255,
+    ), "an empty stroke does not render as no stroke on the document"
+
+
+def test_pen_raster_of_stroked_layers_keeps_both_extremes() -> None:
+    """A pen raster of layers that do have paths keeps both of its extremes.
+
+    Every stroked layer in ``stroke.psd`` has ``initial_fill_rule == 0``,
+    asserted below, so the seed never ran for them either way: this does not
+    discriminate #823 and is not meant to. What it pins is the two ways a
+    fill-rule gate can go wrong for them -- a seed leaking into the pen
+    leaves no uncovered pixel, and a gate that empties a real stroke leaves
+    no covered one.
+
+    Deliberately no pinned sums: aggdraw is not bit-stable across versions
+    (see :py:func:`test_draw_stroke_reaches_outside_the_canvas`) and this test
+    has no opinion about its numerics, while the background pixels it reads
+    are untouched by the rasterizer, so ``min() == 0.0`` is exact.
+    """
+    psd = PSDImage.open(full_name("stroke.psd"))
+    stroked = [x for x in psd.descendants() if x.stroke and x.stroke.enabled]
+    assert {x.name for x in stroked} == {
+        "Rectangle 1",
+        "Rounded Rectangle 1",
+        "Ellipse 1",
+        "Polygon 1",
+        "Shape 1",
+    }
+    for layer in stroked:
+        assert layer.vector_mask is not None
+        assert layer.vector_mask.initial_fill_rule == 0, layer.name
+        pen = vector._draw_path(layer, pen={"color": 255, "width": 1.0})
+        assert pen.min() == 0.0, layer.name
+        assert np.count_nonzero(pen) > 0, layer.name
+
+
+def test_fill_rule_inversions_stay_brush_gated() -> None:
+    """The ``first and brush`` inversions for subtract and intersect.
+
+    They operate on the seeded plane for a brush and are skipped for a pen.
+    The new seed is gated the same way, so these sums must not move (#823).
+
+    Only the last assertion discriminates that gating, and it needs no
+    tolerance: ungating turns the empty pen plane into the drawn one, 0.0 to
+    2.61, while leaving all three raster sums bit-identical. Those are a
+    non-regression pin on the subtract and intersect arithmetic, which
+    :py:func:`test_path_operations` otherwise only checks at 0.02 MSE, so
+    they are held to ``rel=0.01`` -- three orders above aggdraw's drift
+    between versions, rather than the ``abs=1e-4`` that was 39x under it.
+    """
+    psd = PSDImage.open(full_name("vector-mask2.psd"))
+    masked = [x for x in psd.descendants() if x.name == "Masked Rectangle 1"][0]
+    assert masked.vector_mask is not None
+    assert masked.vector_mask.initial_fill_rule and len(masked.vector_mask.paths) == 1
+    brush = vector._draw_path(masked, brush={"color": 255})
+    assert brush.sum() == pytest.approx(90.12942, rel=0.01)
+    pen = vector._draw_path(masked, pen={"color": 255, "width": 1.0})
+    assert pen.sum() == pytest.approx(35.843136, rel=0.01)
+
+    filled = [x for x in psd.descendants() if x.name == "Color Fill 1"][0]
+    vm = filled.vector_mask
+    assert vm is not None
+    assert vm.initial_fill_rule and [p.operation for p in vm.paths] == [3, 3]
+    assert vector._draw_path(filled, brush={"color": 255}).sum() == pytest.approx(
+        13.241477, rel=0.01
+    )
+    assert vector._draw_path(filled, pen={"color": 255, "width": 1.0}).sum() == 0.0

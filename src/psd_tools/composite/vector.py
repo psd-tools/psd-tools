@@ -87,6 +87,18 @@ def _draw_path(
     pen: dict[str, int | float] | None = None,
     viewport: tuple[int, int, int, int] | None = None,
 ) -> np.ndarray:
+    """
+    Rasterize a layer's vector mask, filled by ``brush`` and outlined by ``pen``.
+
+    A mask with an initial fill rule and no path of its own reveals all, so
+    the plane starts out covered -- but only for a brush. The seed describes a
+    *fill*, and a pen over zero paths has no outline to draw, so seeding it
+    would cover the whole viewport with a stroke that has no shape (#823). The
+    ``first and brush`` fill-rule inversions below are gated for the same
+    reason.
+
+    Note: Callers must be decorated with @require_aggdraw before calling.
+    """
     if layer.vector_mask is None:
         raise ValueError("Layer does not have a vector mask.")
     if viewport is None:
