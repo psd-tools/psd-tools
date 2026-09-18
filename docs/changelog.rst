@@ -1,7 +1,7 @@
 Changelog
 =========
 
-1.19.1 (unreleased)
+1.20.0 (unreleased)
 -------------------
 
 - [api] ``NumericElement`` and ``IntegerElement``, and so every descriptor
