@@ -52,15 +52,19 @@ def test_draw_stroke(filename: str) -> None:
     check_composite_quality(filename, 0.01, force=True)
 
 
+# Was expected to fail at 0.01 and now measures 0.0089, because the fill it
+# is stroked over no longer carries aggdraw's quarter pixel of dilation
+# (#844). The bound is set above the measurement rather than at it: what is
+# left is the stroke, which is still drawn by aggdraw and still drawn centred
+# whatever alignment it asks for, and neither is bit-stable across versions.
 @pytest.mark.parametrize(
-    ("filename",),
+    ("filename", "threshold"),
     [
-        ("effects/stroke-composite.psd",),  # Fix me!
+        ("effects/stroke-composite.psd", 0.012),
     ],
 )
-@pytest.mark.xfail
-def test_draw_stroke_fail(filename: str) -> None:
-    check_composite_quality(filename, 0.01, force=True)
+def test_draw_stroke_over_a_fill(filename: str, threshold: float) -> None:
+    check_composite_quality(filename, threshold, force=True)
 
 
 def test_draw_solid_color_fill() -> None:
@@ -264,21 +268,35 @@ def test_layer_composite_places_a_stroke_on_a_layer_sized_viewport() -> None:
     rather than parametrized.
 
     The document render is the ground truth: it is on the canvas box, so it
-    never took the wrong branch and this fix leaves it untouched. The two
-    rasters are a pixel apart, which aggdraw does not guarantee to be exact,
-    so they are compared to a quantization step -- ample against an error that
-    was a full 1.0 (#807).
+    never took the wrong branch and this fix leaves it untouched. The error it
+    was written against was a full 1.0 (#807).
+
+    The colour is read only where both renders put something, because where
+    the alpha is zero the colour channel holds whatever the compositor last
+    left there and the two boxes leave different things. That is not a
+    weakening: a fill is now the area of the path, which does not depend on
+    where the path is rasterized, so the alphas agree exactly and the visible
+    colours agree exactly -- where aggdraw's raster used to need a
+    quantization step of slack (#844).
     """
     psd = PSDImage.open(full_name("layers/shape-layer.psd"))
     layer = psd[0]
     assert layer.bbox == (-1, -1, 31, 31)
 
     for force in (False, True):
-        document = composite(psd, force=force)[0]
-        own = composite(layer, force=force)[0]
+        document_color, _, document_alpha = composite(psd, force=force)
+        own_color, _, own_alpha = composite(layer, force=force)
         # The boxes overlap on (0, 0, 31, 31): the document's top-left corner
         # and the layer's, one pixel in.
-        assert np.allclose(document[:31, :31], own[1:, 1:], atol=1 / 255), (
+        document_alpha = np.asarray(document_alpha)[:31, :31]
+        own_alpha = np.asarray(own_alpha)[1:, 1:]
+        assert np.allclose(document_alpha, own_alpha, atol=1e-6), (
+            f"the layer render covers different pixels (force={force})"
+        )
+        visible = (document_alpha[..., 0] > 0) & (own_alpha[..., 0] > 0)
+        assert visible.sum() > 500, "nothing visible to compare"
+        difference = np.abs(document_color[:31, :31] - own_color[1:, 1:]).max(axis=2)
+        assert difference[visible].max() == 0.0, (
             f"the layer render puts the stroke elsewhere (force={force})"
         )
 
@@ -288,27 +306,52 @@ def test_layer_composite_keeps_a_stroke_past_the_canvas_edge() -> None:
 
     ``transparency/transparency-group.psd`` holds a white rectangle with a
     black 1 px stroke at bbox (-1, -1, 129, 129) on a 256x256 canvas, so the
-    left and top of its stroke are off the canvas. ``layer.composite()``
-    renders on the layer's own box and so asks for those pixels; the stroke
-    used to be drawn on the canvas, which has nothing there, and they came
-    back as the white the stroke fill is pasted over (#807).
+    box it renders on runs a pixel off the canvas on the left and the top.
+    ``layer.composite()`` asks for those pixels; the stroke used to be drawn
+    on the canvas, which has nothing there, and the whole box came back as the
+    white the stroke fill is pasted over (#807).
 
-    This is the largest change in the corpus, and the only test that pins it
-    end to end -- the document render cannot, because these pixels are exactly
-    the ones it does not show.
+    The layer carries Photoshop's own raster of itself, which is what this
+    compares against -- the document render cannot, because the box reaches
+    pixels it does not show. That raster settles what belongs in the off-canvas
+    column too: nothing. The stroke is inner-aligned, so it lies inside a path
+    whose left edge is x = 0, and the column at x = -1 is padding. It used to
+    come out as stroke only because aggdraw dilated the fill a quarter pixel
+    into it (#844).
     """
     psd = PSDImage.open(full_name("transparency/transparency-group.psd"))
     layer = list(psd.descendants())[2]
     assert layer.name == "Rectangle 1" and layer.bbox == (-1, -1, 129, 129)
+    assert layer.stroke is not None and layer.stroke.line_alignment == "inner"
 
     color, _, alpha = composite(layer, force=True)
+    alpha = np.asarray(alpha)[..., 0]
     assert color.shape == (130, 130, 3)
-    # Column 0 is x = -1 and row 0 is y = -1, both off the canvas. Every pixel
-    # of both is the black stroke, partly covering -- not the white fill that
-    # used to show through where the stroke had no coverage.
-    assert color[:, 0].max() < 1 / 255, "the left edge lost its stroke"
-    assert color[0, :].max() < 1 / 255, "the top edge lost its stroke"
-    assert np.asarray(alpha)[:, 0, 0].min() > 0.0
+
+    # Photoshop's raster of this layer, to the last bit of the mantissa.
+    stored_shape = layer.numpy("shape")
+    stored_color = layer.numpy("color")
+    assert stored_shape is not None and stored_color is not None
+    assert np.allclose(alpha, stored_shape[..., 0], atol=1e-6)
+    # Colour only where there is enough coverage for it to mean anything:
+    # below a quantization step the compositor leaves whatever it last had.
+    opaque = alpha > 1 / 255
+    assert opaque.sum() > 16000
+    assert np.array_equal(color[opaque], stored_color[opaque])
+
+    # The box is the path grown by the stroke width, so its first and last
+    # row and column are padding: x = -1 and x = 128, y = -1 and y = 128, all
+    # outside a path that spans 0 to 128. Photoshop leaves them empty and so
+    # does this, where the dilated fill used to put a quarter pixel there.
+    assert alpha[:, 0].max() == 0.0 and alpha[0, :].max() == 0.0
+    assert alpha[:, -1].max() == 0.0 and alpha[-1, :].max() == 0.0
+    # Column 1 is x = 0, the first column on the canvas, and it is the black
+    # stroke over its whole height -- not the white fill, which is what the
+    # whole box came back as before #807.
+    assert alpha[1:-1, 1].min() == 1.0, "the left edge lost its stroke"
+    assert color[1:-1, 1].max() == 0.0, "the left edge is not the stroke colour"
+    assert alpha[1, 1:-1].min() == 1.0, "the top edge lost its stroke"
+    assert color[1, 1:-1].max() == 0.0, "the top edge is not the stroke colour"
 
 
 def _pathless_reveal_all_layer() -> Layer:
@@ -460,16 +503,20 @@ def test_fill_rule_inversions_stay_brush_gated() -> None:
     tolerance: ungating turns the empty pen plane into the drawn one, 0.0 to
     2.61, while leaving all three raster sums bit-identical. Those are a
     non-regression pin on the subtract and intersect arithmetic, which
-    :py:func:`test_path_operations` otherwise only checks at 0.02 MSE, so
-    they are held to ``rel=0.01`` -- three orders above aggdraw's drift
-    between versions, rather than the ``abs=1e-4`` that was 39x under it.
+    :py:func:`test_path_operations` otherwise only checks at 0.02 MSE.
+
+    The brush sums are exact now that a fill is the area of the path rather
+    than aggdraw's quarter-pixel dilation of it (#844): the masked rectangle
+    is 9x9 on the pixel grid, and 81.0 is what 9x9 covers. It used to read
+    90.129. The pen sum keeps its tolerance, because a pen is still aggdraw's
+    and aggdraw is not bit-stable between versions.
     """
     psd = PSDImage.open(full_name("vector-mask2.psd"))
     masked = [x for x in psd.descendants() if x.name == "Masked Rectangle 1"][0]
     assert masked.vector_mask is not None
     assert masked.vector_mask.initial_fill_rule and len(masked.vector_mask.paths) == 1
     brush = vector._draw_path(masked, brush={"color": 255})
-    assert brush.sum() == pytest.approx(90.12942, rel=0.01)
+    assert brush.sum() == pytest.approx(81.0, abs=1e-4)
     pen = vector._draw_path(masked, pen={"color": 255, "width": 1.0})
     assert pen.sum() == pytest.approx(35.843136, rel=0.01)
 
@@ -478,6 +525,6 @@ def test_fill_rule_inversions_stay_brush_gated() -> None:
     assert vm is not None
     assert vm.initial_fill_rule and [p.operation for p in vm.paths] == [3, 3]
     assert vector._draw_path(filled, brush={"color": 255}).sum() == pytest.approx(
-        13.241477, rel=0.01
+        11.907392, rel=0.01
     )
     assert vector._draw_path(filled, pen={"color": 255, "width": 1.0}).sum() == 0.0

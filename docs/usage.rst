@@ -244,7 +244,7 @@ option::
 
     These dependencies (``aggdraw``, ``scipy``, ``scikit-image``) are needed for:
 
-    - Vector shapes and strokes
+    - Vector strokes
     - Gradient and pattern fills
     - Layer effects
 

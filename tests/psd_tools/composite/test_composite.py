@@ -150,26 +150,37 @@ def test_composite_quality_xfail(filename: str) -> None:
     check_composite_quality(filename, 0.01, False)
 
 
+# ``shape-layer.psd`` is the only stroked layer here, and it is the only one
+# that needs a bound of its own. Its stroke asks for ``inner`` alignment,
+# which the compositor does not implement -- every stroke is drawn centred on
+# the path, so half of this one lies outside the shape. While a fill carried
+# aggdraw's quarter pixel of dilation (#844) the fill reached far enough to
+# cover for that; an exact fill does not, and the error against Photoshop's
+# own flat render goes 0.0114 -> 0.0260. It is the stroke that moved, not the
+# fill: the alpha channel alone goes 0.00521 -> 0.00591, and the RGB of the
+# pixels that are actually visible goes 0.01475 -> 0.01468, slightly *better*.
+# The bound is set just above the measurement, so that stroke alignment
+# landing (#854) is a test failure rather than something nobody notices.
 @pytest.mark.parametrize(
-    "filename",
+    ("filename", "threshold"),
     [
-        "smartobject-layer.psd",
-        "type-layer.psd",
-        "gradient-fill.psd",
-        "shape-layer.psd",
-        "pixel-layer.psd",
-        "solid-color-fill.psd",
-        "pattern-fill.psd",
+        ("smartobject-layer.psd", 0.017),
+        ("type-layer.psd", 0.017),
+        ("gradient-fill.psd", 0.017),
+        ("shape-layer.psd", 0.028),
+        ("pixel-layer.psd", 0.017),
+        ("solid-color-fill.psd", 0.017),
+        ("pattern-fill.psd", 0.017),
     ],
 )
-def test_composite_minimal(filename: str) -> None:
+def test_composite_minimal(filename: str, threshold: float) -> None:
     source = PSDImage.open(full_name("layers-minimal/" + filename))
     reference = PSDImage.open(full_name("layers/" + filename)).numpy()
     color, _, alpha = composite(source, force=True)
     result = color
     if reference.shape[2] > color.shape[2]:
         result = np.concatenate((color, alpha), axis=2)
-    assert _mse(reference, result) <= 0.017
+    assert _mse(reference, result) <= threshold
 
 
 @pytest.mark.parametrize(

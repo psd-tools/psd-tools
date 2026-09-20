@@ -38,15 +38,17 @@ def require_aggdraw(func: F) -> F:
     """
     Decorator to check if aggdraw is available before calling the function.
 
-    Required for vector shape rendering (bezier curves, paths, strokes).
+    Required for drawing a vector stroke. Filling a path no longer needs
+    it: the coverage is computed exactly by
+    :py:mod:`psd_tools.composite.scanline` (#844).
 
     Raises:
         ImportError: If aggdraw is not installed.
 
     Example:
         >>> @require_aggdraw
-        ... def draw_vector_mask(layer):
-        ...     return _draw_path(layer, brush={"color": 255})
+        ... def draw_stroke(layer):
+        ...     return _draw_path(layer, pen={"color": 255, "width": 1.0})
     """
 
     @functools.wraps(func)
