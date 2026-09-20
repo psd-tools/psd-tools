@@ -8,7 +8,7 @@ import pytest
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import _compat, composite, effects
 from psd_tools.composite.effects import (
-    _OUTWARD_REACH,
+    _BANDS,
     _distance_band,
     _signed_distance,
     stroke_bbox,
@@ -23,16 +23,31 @@ from .test_composite import _mse, check_composite_quality
 logger = logging.getLogger(__name__)
 
 
-@pytest.mark.parametrize(
-    ("filename",),
-    [
-        ("effects/stroke-effects.psd",),
-        ("effects/shape-fx2.psd",),
-    ],
-)
 @pytest.mark.xfail
-def test_stroke_effects_xfail(filename: str) -> None:
-    check_composite_quality(filename, threshold=0.01)
+def test_stroke_effects_xfail() -> None:
+    """The largest stroke xfail, and the one #846 now accounts for.
+
+    ``stroke-effects.psd``'s stroke-bearing layers are 20-24 px shapes with
+    90-92% of their covered pixels at partial alpha, and the ramps are stored
+    in the file rather than produced here -- so it is a fixture about soft
+    alpha before it is one about strokes. Reading the boundary off coverage
+    moved it from 0.120 to 0.093 (#799); what is left of it is the effect
+    being composited onto the backdrop rather than into the layer (#846).
+    """
+    check_composite_quality("effects/stroke-effects.psd", threshold=0.01)
+
+
+def test_a_partly_antialiased_shape_keeps_its_stroke_close() -> None:
+    """``shape-fx2.psd`` is a polygon with a 4 px inset stroke (#799).
+
+    14% of its covered pixels are at partial alpha, all of them along the
+    antialiased edges of the polygon, so it is the one fixture the corpus
+    already had that could tell the coverage reading from the iso-contour
+    one -- and it halves, 1.86e-3 to 8.18e-4, without a fixture being authored
+    for it. Asserted at 1e-3 rather than the 0.01 it sat at as an xfail, which
+    is the bound that separates the two readings.
+    """
+    check_composite_quality("effects/shape-fx2.psd", threshold=1e-3)
 
 
 @pytest.mark.parametrize("force", [False, True])
@@ -635,22 +650,18 @@ def test_band_fits_the_canvas_stroke_bbox_asks_for(size: float) -> None:
     That margin is what keeps an outset or centered stroke from being clipped
     to the layer's own bounding box (#792). On a hard-edged mask the band
     reaches exactly one pixel less than the margin at every size, so equality
-    is asserted rather than a bound: the reach and the margin are now stated
-    independently -- in the band limits here and in ``_OUTWARD_REACH`` -- and
-    a change to either that forgets the other would otherwise start shaving
-    the outside of every stroke, or reserving canvas nobody draws on.
+    is asserted rather than a bound: ``_BANDS`` states each style's band and
+    its outward reach as one pair, and this is what says the pair is
+    consistent -- that the canvas reserved is the canvas drawn on, less the
+    one pixel the edge is measured against.
     """
     pad = 40
     alpha = np.zeros((2 * pad + 20, 2 * pad + 20), dtype=np.float32)
     alpha[pad : pad + 20, pad : pad + 20] = 1.0
     distance = _signed_distance(alpha)
 
-    for style, limits in (
-        (Enum.OutsetFrame, (0.0, size)),
-        (Enum.InsetFrame, (-size, 0.0)),
-        (Enum.CenteredFrame, (-size / 2.0, size / 2.0)),
-    ):
-        band = _distance_band(distance, *limits)
+    for style, (lo, hi) in _BANDS.items():
+        band = _distance_band(distance, lo * size, hi * size)
         ys, xs = np.nonzero(band)
         # All four sides, not just the horizontal pair: the mask is square, so
         # a band that reached unevenly would otherwise go unnoticed.
@@ -660,7 +671,7 @@ def test_band_fits_the_canvas_stroke_bbox_asks_for(size: float) -> None:
             pad - int(ys.min()),
             int(ys.max()) + 1 - (pad + 20),
         )
-        margin = math.ceil(size * _OUTWARD_REACH[style]) + 1
+        margin = math.ceil(size * _BANDS[style][1]) + 1
         assert reach == margin - 1, (
             f"{style!r} stroke of {size} px reaches {reach} px outside the "
             f"layer, against the {margin} px stroke_bbox() reserves for it"
@@ -975,6 +986,33 @@ def test_an_unrecognised_stroke_position_draws_as_an_outset_one() -> None:
     assert np.array_equal(unrecognised, outset)
     # Not vacuous: the fixture states inset, so both renders had to move.
     assert not np.array_equal(outset, _rendered("effects/inset-stroke-sizes.psd"))
+
+
+def test_an_unrecognised_stroke_position_says_so_in_the_log(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Drawing it as outset leaves nothing in the pixels to notice it by.
+
+    The dilated edge it used to fall through to was visibly not any of the
+    three positions, which made an unreadable descriptor its own diagnostic.
+    An outset band is the right thing to draw and byte-identical to a stated
+    one, so the only place left to say a position was not understood is here.
+    """
+    shape = np.zeros((8, 8, 1), dtype=np.float32)
+    shape[2:6, 2:6] = 1.0
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    with caplog.at_level(logging.DEBUG, logger="psd_tools.composite.effects"):
+        effects.draw_stroke_effect(
+            (0, 0, 8, 8), shape, _stroke_descriptor(b"nope", 2.0), psd
+        )
+    assert any("nope" in record.message for record in caplog.records), caplog.text
+
+    caplog.clear()
+    with caplog.at_level(logging.DEBUG, logger="psd_tools.composite.effects"):
+        effects.draw_stroke_effect(
+            (0, 0, 8, 8), shape, _stroke_descriptor(Enum.OutsetFrame, 2.0), psd
+        )
+    assert not any("Unrecognised" in record.message for record in caplog.records)
 
 
 def test_an_unreadable_stroke_leaves_the_other_stroke_on_the_layer() -> None:
