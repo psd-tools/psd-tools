@@ -4,6 +4,12 @@ Changelog
 1.20.0 (unreleased)
 -------------------
 
+- [fix] A stroke effect is now measured from the mask's coverage rather than
+  its half-opacity contour, as Photoshop does: a feathered layer takes the
+  stroke across its whole ramp instead of a band in the middle, and one
+  antialiased pixel moves it by that pixel's own coverage. Hard-edged masks
+  are unchanged. The edge-dilation fallback goes too, leaving a pattern fill
+  as the only part of an effect that still needs scikit-image (#799)
 - [fix] ``GroupMixin.extend()`` now walks its argument once. A generator added
   nothing; ``dest.extend(src)`` kept only every other layer of ``src`` and lost
   the rest; ``g.extend(g)`` never terminated; and a layer mentioned twice in

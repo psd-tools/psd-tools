@@ -48,7 +48,14 @@ def test_stroke_traces_the_layer_where_it_runs_off_the_canvas(force: bool) -> No
     ``-1..2`` measured from the layer's.
 
     Both force modes, because they reach the coverage by different routes:
-    the stored alpha channel, and the vector mask redrawn from the path.
+    the stored alpha channel, and the vector mask redrawn from the path. Which
+    is also why only the stored one is pixel-exact. aggdraw paints a 0.247
+    coverage fringe outside a path whose vertices are all integers (#844), and
+    a stroke reads the boundary off coverage (#799), so under ``force=True``
+    the ring's inner edge sits a quarter of a pixel further in. That is the
+    raster being a quarter pixel wide, not the ring being in the wrong place,
+    so what is asserted per force mode is the placement -- which is all #804
+    was ever about -- and the exact bound stays on the mode that can meet it.
     """
     psd = PSDImage.open(full_name("effects/stroke-effect-transparent-shape.psd"))
     result = composite(psd, force=force)[0]
@@ -56,14 +63,18 @@ def test_stroke_traces_the_layer_where_it_runs_off_the_canvas(force: bool) -> No
     # Three columns of stroke and then the layer's green interior. The pixels
     # rather than the error alone: at 4 px wide the ring is off by one column,
     # which a whole-image bound only registers as "smaller".
-    stroke, interior = result[16, 2], result[16, 3]
+    stroke, interior = result[16, 1], result[16, 3]
     assert np.allclose(stroke, result[16, 0], atol=1 / 255.0)
     assert not np.allclose(stroke, interior, atol=1 / 255.0)
     assert np.allclose(interior, result[16, 4], atol=1 / 255.0)
 
-    # Two orders of magnitude over the 1.3e-11 measured, and eight under the
-    # 0.022 this fixture sat at while it was an xfail.
-    assert _mse(psd.numpy(), result) <= 1e-9
+    if not force:
+        # Two orders of magnitude over the 1.3e-11 measured, and eight under
+        # the 0.022 this fixture sat at while it was an xfail.
+        assert _mse(psd.numpy(), result) <= 1e-9
+    else:
+        # One column, shaded 0.15 out by #844's fringe; 1.5e-3 measured.
+        assert _mse(psd.numpy(), result) <= 3e-3
 
 
 def test_stroke_ignores_a_viewport_narrower_than_the_layer() -> None:
@@ -384,6 +395,81 @@ def test_hard_edged_stroke_matches_photoshop(filename: str) -> None:
     check_composite_quality(filename, threshold=1e-4)
 
 
+def test_a_feathered_mask_takes_the_stroke_over_its_whole_ramp() -> None:
+    """Photoshop's answer to #799's fourth item, rendered.
+
+    ``feathered-stroke.psd`` is six 16x16 squares whose layer mask is a linear
+    alpha ramp, carrying outset, inset and centered strokes at two sizes. It
+    exists because nothing in the corpus could tell two boundary definitions
+    apart: on a hard-edged mask the 0.5 iso-contour and the coverage reading
+    name the same line, and every stroke fixture the corpus had was hard.
+
+    The ramp columns are what separates them. Photoshop's stroke fades
+    monotonically across the ramp because every pixel of it states where the
+    boundary falls within itself; the iso-contour reading puts a ``size`` px
+    band somewhere in the middle and leaves both ends bare, which shows up
+    here as a profile that is not even monotone (0.157, 0.157, 0.443, 0.522,
+    0.721, 0.658 against Photoshop's 0.196 .. 0.588).
+
+    What is still off is the compositing, not the stroke: the band's coverage
+    now equals Photoshop's, and the residue is psd-tools painting the effect
+    onto the finished backdrop rather than into the layer (#846). That is
+    worth up to 0.09 across the columns below, and it is why the shape of
+    the profile is asserted tightly and its values are not.
+    """
+    psd = PSDImage.open(full_name("effects/feathered-stroke.psd"))
+    reference = psd.numpy()[..., :3]
+    result = composite(psd)[0]
+
+    layer = next(sub for sub in psd if sub.name == "Outset 3")
+    x0, y = layer.bbox[0], (layer.bbox[1] + layer.bbox[3]) // 2
+    ramp = result[y, x0 : x0 + 6, 1]
+    assert np.all(np.diff(ramp) > 0), (
+        f"the stroke does not fade across the ramp: {ramp}"
+    )
+    assert np.allclose(ramp, reference[y, x0 : x0 + 6, 1], atol=0.1)
+
+    # 1.6e-3 measured, against 2.2e-2 for the iso-contour reading.
+    check_composite_quality("effects/feathered-stroke.psd", threshold=0.005)
+
+
+def test_an_antialiased_edge_is_stroked_from_its_own_coverage() -> None:
+    """One partial pixel moves the whole stroke, by exactly its coverage (#799).
+
+    ``antialiased-stroke-edge.psd`` is six opaque 16x16 squares whose first and
+    last columns carry a single antialiased pixel, at 25%, 50% and 75%. That
+    pixel is the only thing that differs between the three, so where the
+    stroke's far edge lands is a direct readout of how the boundary was
+    located: from coverage it moves with it, and from the 0.5 iso-contour it
+    snaps to the pixel edge and two of the three come out identical.
+
+    The far edge rather than the whole square, because the interior is where
+    #846 still costs a few percent. On ``main`` the three read 1.0000, 0.8627
+    and 0.8627 against Photoshop's 0.9647, 0.9294 and 0.8980 -- the middle one
+    a whole pixel of stroke too short, and the outer two indistinguishable.
+    """
+    psd = PSDImage.open(full_name("effects/antialiased-stroke-edge.psd"))
+    reference = psd.numpy()[..., :3]
+    result = composite(psd)[0]
+
+    fringes = []
+    for layer in psd:
+        if not layer.name.startswith("Outset"):
+            continue
+        x1, y = layer.bbox[2], (layer.bbox[1] + layer.bbox[3]) // 2
+        assert result[y, x1 + 2, 0] == pytest.approx(
+            reference[y, x1 + 2, 0], abs=2 / 255.0
+        ), layer.name
+        fringes.append(float(result[y, x1 + 2, 0]))
+    # Monotone in the coverage, which is the property the iso-contour loses.
+    assert np.all(np.diff(fringes) < 0), fringes
+
+    # 6.0e-4 measured, against 1.7e-3 for the iso-contour reading -- a whole
+    # -image bound is the weaker half of this test, which is why the pixels
+    # above are asserted at all.
+    check_composite_quality("effects/antialiased-stroke-edge.psd", threshold=0.001)
+
+
 def test_distance_band_covers_its_width_on_a_pixel_boundary() -> None:
     """A stroke of width *w* covers *w* pixels of coverage, fractional *w* too.
 
@@ -581,20 +667,21 @@ def test_band_fits_the_canvas_stroke_bbox_asks_for(size: float) -> None:
         )
 
 
-@pytest.mark.parametrize(
-    "alpha",
-    [0.0, 1.0, 0.3, 0.9],
-    ids=["transparent", "opaque", "below-half", "above-half"],
-)
-def test_a_mask_with_no_boundary_draws_no_stroke(alpha: float) -> None:
-    """A stroke needs a boundary to trace, and a flat mask has none (#799).
+@pytest.mark.parametrize("alpha", [0.0, 1.0], ids=["transparent", "opaque"])
+def test_a_mask_with_no_coverage_to_read_draws_no_stroke(alpha: float) -> None:
+    """A stroke needs a boundary to trace, and a flat 0 or 1 mask has none (#799).
 
     ``distance_transform_edt`` is undefined on an input with no zeros: rather
     than refusing, it reports distances to a phantom feature off the array
     corner, and a band built on those paints a wedge of full-coverage stroke
     into the corner of the canvas. Nothing in the fixture corpus has a
-    boundaryless mask -- a layer everywhere below half alpha is all it takes --
-    so no rendering comparison can catch this and only this test does.
+    boundaryless mask, so no rendering comparison can catch this and only this
+    test does.
+
+    Only 0 and 1 qualify. A mask flat at some *partial* value is boundaryless
+    in the 0.5 iso-contour's terms but not in coverage's: every one of its
+    pixels states where the boundary falls within itself, which is what the
+    test below pins.
     """
     flat = np.full((9, 9), alpha, dtype=np.float32)
     distance = _signed_distance(flat)
@@ -605,29 +692,87 @@ def test_a_mask_with_no_boundary_draws_no_stroke(alpha: float) -> None:
         assert float(band.sum()) == 0.0, f"stroke painted on a flat {alpha} mask"
 
 
-def test_a_feathered_mask_keeps_its_stroke_at_the_boundary() -> None:
-    """A wide alpha ramp takes a stroke at its half-coverage line, not across it.
+@pytest.mark.parametrize("alpha", [0.3, 0.9], ids=["below-half", "above-half"])
+def test_a_flat_partial_mask_is_stroked_at_its_own_coverage(alpha: float) -> None:
+    """A mask flat at a partial value is half-covered everywhere (#799).
 
-    Only a pixel the boundary actually cuts is reseeded from its coverage.
-    Reseeding every partial pixel instead -- which is the reading the issue's
-    own snippet invites -- puts the entire body of a feathered mask within half
-    a pixel of a boundary it is nowhere near, and the band spreads over all of
-    it: on this ramp that paints all 32 pixels of every row rather than 4, and
-    the field stops satisfying the unit gradient the linear ramp relies on.
+    Photoshop reads a stroke's boundary off coverage, so a pixel at 0.3 says
+    the boundary runs 0.3 of the way into it wherever that pixel sits -- and a
+    mask that says so everywhere gets an outset stroke of ``1 - alpha`` over
+    all of it, with nothing left over to fall off. That is not an artefact of
+    the uniform case: ``feathered-stroke.psd``'s ramps reach ``1 - alpha``
+    across their whole width, and the plateau that measured this reaches it
+    16 px from any edge.
+
+    Uniformity is the property worth asserting either way. The phantom-feature
+    failure the test above guards against shows up as a wedge, which a single
+    summed total would hide.
     """
-    ramp = np.tile(np.linspace(1.0, 0.0, 32, dtype=np.float32), (4, 1))
+    flat = np.full((9, 9), alpha, dtype=np.float32)
+    distance = _signed_distance(flat)
+    assert np.allclose(distance, 0.5 - alpha)
+    outset = _distance_band(distance, 0.0, 3.0)
+    assert np.allclose(outset, 1.0 - alpha)
+    inset = _distance_band(distance, -3.0, 0.0)
+    assert np.allclose(inset, alpha)
+
+
+def test_a_feathered_mask_is_stroked_across_its_whole_ramp() -> None:
+    """A wide alpha ramp takes a stroke over all of it, not a band inside it.
+
+    Photoshop was asked (#799 item 4), with masks whose alpha is a linear ramp
+    of a known width: it reads the boundary off *coverage*, so every pixel of
+    a 32 px ramp is within half a pixel of the boundary it states, and a
+    stroke of any size covers the lot. An outset stroke comes out at
+    ``1 - alpha`` there and an inset one at ``alpha``, whatever its size --
+    the size only says how far past the ramp the stroke reaches.
+
+    This is the reverse of what psd-tools drew until the measurement: the 0.5
+    iso-contour put a ``size`` px band in the middle of the ramp and left the
+    rest of it bare. Nothing in the corpus could tell the two apart, which is
+    why item 4 called for fixtures of its own; ``feathered-stroke.psd`` is
+    the rendered half of this.
+    """
+    # Strictly inside 0 and 1: a pixel at either is fully covered or not
+    # covered, and states nothing about where a boundary falls within it.
+    ramp = np.tile(np.linspace(0.99, 0.01, 32, dtype=np.float32), (4, 1))
     distance = _signed_distance(ramp)
-    for limits in ((0.0, 3.0), (-1.5, 1.5)):
-        band = _distance_band(distance, *limits)
-        painted = (band > 0).sum(axis=1)
-        assert painted.tolist() == [4, 4, 4, 4], (
-            f"a 3 px stroke covered {painted.tolist()} pixels of a 32 px ramp"
-        )
-        for total in band.sum(axis=1):
-            assert float(total) == pytest.approx(3.0)
+    assert np.allclose(distance, 0.5 - ramp)
+
+    for size in (1.0, 3.0, 7.0):
+        outset = _distance_band(distance, 0.0, size)
+        assert np.allclose(outset, 1.0 - ramp), f"outset stroke of {size} px"
+        inset = _distance_band(distance, -size, 0.0)
+        assert np.allclose(inset, ramp), f"inset stroke of {size} px"
 
 
-def test_band_strokes_draw_without_scikit_image(
+def test_a_hard_step_keeps_the_pixel_edge_it_has_no_coverage_for() -> None:
+    """Where a mask steps 0 -> 1 there is no partial pixel to read (#799).
+
+    Reading the boundary off coverage says nothing about an edge that has no
+    coverage to read, and a mask can carry both: a shape antialiased along one
+    side and butted against its own bounding box along another. The step keeps
+    the pixel-edge boundary the Euclidean field gives it, which is what makes
+    the change a no-op on every hard-edged fixture in the corpus.
+    """
+    alpha = np.zeros((4, 16), dtype=np.float32)
+    alpha[:, 2:8] = 1.0  # a hard step at x=2, an antialiased edge at x=8
+    alpha[:, 8] = 0.25
+    distance = _signed_distance(alpha)
+    # The step keeps the pixel edge: half a pixel out on each side of x=2.
+    assert distance[0, 0] == pytest.approx(1.5)
+    assert distance[0, 1] == pytest.approx(0.5)
+    assert distance[0, 2] == pytest.approx(-0.5)
+    assert distance[0, 3] == pytest.approx(-1.5)
+    # The antialiased pixel states a quarter of the way into itself, and its
+    # neighbours measure from there rather than from the pixel edge x=8 -- the
+    # quarter pixel the two readings differ by is what moves the whole stroke.
+    assert distance[0, 7] == pytest.approx(-0.75)
+    assert distance[0, 8] == pytest.approx(0.25)
+    assert distance[0, 9] == pytest.approx(1.25)
+
+
+def test_every_stroke_position_draws_without_scikit_image(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A solid stroke of any position needs scipy, not scikit-image (#802).
@@ -637,60 +782,58 @@ def test_band_strokes_draw_without_scikit_image(
     wheel, say -- failed to render *any* document carrying *any* stroke,
     because nothing upstream catches the ImportError and turns it into a
     missing effect. #802 freed the outset and centered positions by drawing
-    them as bands, and inset joined them once its anchor was measured (#799),
-    so scikit-image is now down to the fallback for a position Photoshop does
-    not write.
+    them as bands, inset joined them once its anchor was measured, and the
+    last holdout -- a position the descriptor states wrongly or not at all --
+    joined them when the dilation it fell through to was dropped (#799).
 
-    The paint is the other half of the answer, and it is why this says "solid":
-    a stroke filled with a pattern goes through
-    :py:func:`~psd_tools.composite.paint.draw_pattern_fill`, which needs
-    scikit-image whatever the position, so the last case here still raises.
+    The unrecognised position is the case worth keeping here: the other three
+    have fixtures of their own above, and it is the one that used to raise.
     """
     monkeypatch.setattr(_compat, "HAS_SKIMAGE", False)
     check_composite_quality("effects/outside-stroke.psd", threshold=1e-4)
     check_composite_quality("effects/center-stroke-sizes.psd", threshold=1e-4)
     check_composite_quality("effects/inset-stroke-sizes.psd", threshold=1e-4)
 
-    psd = PSDImage.open(full_name("effects/stroke-effects.psd"))
-    pattern = next(layer for layer in psd.descendants() if layer.name == "Pattern")
-    with pytest.raises(ImportError, match="scikit-image"):
-        pattern.composite()
+    shape = np.zeros((8, 8, 1), dtype=np.float32)
+    shape[2:6, 2:6] = 1.0
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    omitted = _stroke_descriptor(b"nope", 2.0)
+    del omitted[Key.Style]
+    for desc in (_stroke_descriptor(b"nope", 2.0), omitted):
+        _, mask = effects.draw_stroke_effect((0, 0, 8, 8), shape, desc, psd)
+        assert mask.sum() > 0, "an unrecognised position drew nothing"
 
 
-def test_each_stroke_path_names_the_dependency_it_is_missing(
+def test_a_stroke_asks_for_scipy_by_name_when_it_is_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The two paths ask for different packages, so they must say which.
+    """The one package a stroke still needs has to say so itself.
 
     Asserted because the obvious way to guard the band is ``@require_scipy``,
     whose message tells the reader to install scipy for *gradient fills* --
     accurate about the package and misleading about why.
 
-    Nothing Photoshop writes reaches the dilation any more, so its half is
-    driven by a descriptor naming a position that does not exist, or -- since
-    #826 -- naming none at all, which is measured and drawn as the same
-    unrecognised position. That is the only remaining caller, and a stroke it
-    cannot draw is worth an install instruction rather than a traceback about
-    ``skimage``.
-
-    Which is the one thing #826 does not make total: on an install without
-    scikit-image a stroke with no readable position still raises, saying which
-    package would draw it.
+    scikit-image is no longer on this path at all. It was the fallback for a
+    position Photoshop does not write, and that fallback is gone: the band
+    draws every position, a position the descriptor states wrongly or does not
+    state included (#799). What is left of scikit-image in a stroke is the
+    paint, not the shape -- a pattern fill needs it whatever the position,
+    which :py:func:`test_a_pattern_stroke_still_needs_scikit_image` pins.
     """
-    shape = np.zeros((8, 8, 1), dtype=np.float32)
-    shape[2:6, 2:6] = 1.0
-    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
-
-    monkeypatch.setattr(_compat, "HAS_SKIMAGE", False)
-    omitted = _stroke_descriptor(b"nope", 2.0)
-    del omitted[Key.Style]
-    for desc in (_stroke_descriptor(b"nope", 2.0), omitted):
-        with pytest.raises(ImportError, match="scikit-image"):
-            effects.draw_stroke_effect((0, 0, 8, 8), shape, desc, psd)
-
     monkeypatch.setattr(effects, "HAS_SCIPY", False)
     with pytest.raises(ImportError, match="Stroke effects require: scipy"):
         check_composite_quality("effects/outside-stroke.psd", threshold=1.0)
+
+
+def test_a_pattern_stroke_still_needs_scikit_image(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A stroke's paint can need what its shape no longer does (#802)."""
+    monkeypatch.setattr(_compat, "HAS_SKIMAGE", False)
+    psd = PSDImage.open(full_name("effects/stroke-effects.psd"))
+    pattern = next(layer for layer in psd.descendants() if layer.name == "Pattern")
+    with pytest.raises(ImportError, match="scikit-image"):
+        pattern.composite()
 
 
 def _rendered(
@@ -757,29 +900,35 @@ def test_an_unreadable_stroke_is_dropped_and_the_document_still_renders(
 
 
 @pytest.mark.parametrize(
-    ("key", "type_id"),
-    [(Key.Style, b"FStl"), (Key.PaintType, b"FrFl")],
+    ("key", "type_id", "filename"),
+    [
+        (Key.Style, b"FStl", "effects/inset-stroke-sizes.psd"),
+        (Key.PaintType, b"FrFl", "effects/outside-stroke.psd"),
+    ],
     ids=["position", "paint"],
 )
 @pytest.mark.parametrize(
     "defect", ["absent", "wrong-type"], ids=["absent", "wrong-type"]
 )
 def test_an_unreadable_stroke_enum_draws_as_an_unrecognised_one(
-    key: bytes, type_id: bytes, defect: str
+    key: bytes, type_id: bytes, filename: str, defect: str
 ) -> None:
     """An enum the descriptor does not state joins the ones it states wrongly.
 
     Both enums a stroke is drawn from -- its position and its paint type --
-    already answer for a value neither table names: the widest reach and the
-    dilation path for one, a white fill for the other. A key that is missing
-    or holds a ``Double`` cannot be told apart from a key naming something
-    nobody implements, so it costs nothing to let them share that answer, and
-    it buys a stroke that draws instead of an ``AttributeError`` out of
-    ``desc.get(...).enum`` (#826).
+    already answer for a value neither table names: the outset band for one, a
+    white fill for the other. A key that is missing or holds a ``Double``
+    cannot be told apart from a key naming something nobody implements, so it
+    costs nothing to let them share that answer, and it buys a stroke that
+    draws instead of an ``AttributeError`` out of ``desc.get(...).enum``
+    (#826).
 
     Pinned against the unrecognised value at both ends -- not blank, and not
     what the fixture itself states -- because "it drew something" would pass
-    for a missing key that had quietly become outset, or red.
+    for a missing key that had quietly become inset, or red. Which is why the
+    position case reads a fixture stating *inset*: an unrecognised position is
+    now drawn as an outset band rather than as a dilated edge of its own
+    (#799), so pinning it against an outset fixture would assert nothing.
     """
     mutate: Callable[[Descriptor], None] = (
         (lambda desc: desc.pop(key))
@@ -787,20 +936,45 @@ def test_an_unreadable_stroke_enum_draws_as_an_unrecognised_one(
         else (lambda desc: desc.__setitem__(key, Double(1.0)))
     )
     unrecognised = _rendered(
-        "effects/outside-stroke.psd",
+        filename,
         mutate=lambda desc: desc.__setitem__(
             key, Enumerated(typeID=type_id, enum=b"nope")
         ),
     )
-    assert np.array_equal(
-        _rendered("effects/outside-stroke.psd", mutate=mutate), unrecognised
+    assert np.array_equal(_rendered(filename, mutate=mutate), unrecognised)
+    assert not np.array_equal(unrecognised, _rendered(filename, mutate=_disable)), (
+        "the fixture has to draw something for this to pin anything"
     )
-    assert not np.array_equal(
-        unrecognised, _rendered("effects/outside-stroke.psd", mutate=_disable)
-    ), "the fixture has to draw something for this to pin anything"
-    assert not np.array_equal(unrecognised, _rendered("effects/outside-stroke.psd")), (
+    assert not np.array_equal(unrecognised, _rendered(filename)), (
         "an unreadable enum quietly became the one the fixture states"
     )
+
+
+def test_an_unrecognised_stroke_position_draws_as_an_outset_one() -> None:
+    """The widest of the three, which is the one already measured for (#799).
+
+    The fallback used to be a primitive of its own -- a dilated ``scharr``
+    edge, stretched back to full opacity -- which is gone now that the band
+    draws every position Photoshop writes. Outset rather than either of the
+    others because :py:func:`stroke_bbox` has always reserved the outset reach
+    for a position it cannot read, so this is the one choice that cannot be
+    clipped by the canvas it is handed.
+    """
+    outset = _rendered(
+        "effects/inset-stroke-sizes.psd",
+        mutate=lambda desc: desc.__setitem__(
+            Key.Style, Enumerated(typeID=b"FStl", enum=Enum.OutsetFrame)
+        ),
+    )
+    unrecognised = _rendered(
+        "effects/inset-stroke-sizes.psd",
+        mutate=lambda desc: desc.__setitem__(
+            Key.Style, Enumerated(typeID=b"FStl", enum=b"nope")
+        ),
+    )
+    assert np.array_equal(unrecognised, outset)
+    # Not vacuous: the fixture states inset, so both renders had to move.
+    assert not np.array_equal(outset, _rendered("effects/inset-stroke-sizes.psd"))
 
 
 def test_an_unreadable_stroke_leaves_the_other_stroke_on_the_layer() -> None:

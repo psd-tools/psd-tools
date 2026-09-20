@@ -99,14 +99,15 @@ def require_skimage(func: F) -> F:
     """
     Decorator to check if scikit-image is available before calling the function.
 
-    Required for layer effects (stroke effects, filters).
+    Required for a pattern fill, which is the only part of an effect that
+    still needs it.
 
     Raises:
         ImportError: If scikit-image is not installed.
 
     Example:
         >>> @require_skimage
-        ... def _draw_dilated_edge(shape, size):
+        ... def draw_pattern_fill(viewport, psd, desc):
         ...     # effect implementation
         ...     pass
     """
