@@ -1116,6 +1116,20 @@ def _invalidate_moved_bbox(layer: Layer) -> None:
 
 @runtime_checkable
 class GroupMixin(GroupMixinProtocol, Protocol):
+    """
+    Container behaviour shared by groups and documents.
+
+    :py:class:`Group` and :py:class:`~psd_tools.api.psd_image.PSDImage` both
+    hold an ordered list of child layers, and this mixin supplies what
+    operates on it: iteration and indexing, the mutation methods below, the
+    :py:meth:`descendants` walk, and a :py:attr:`bbox` computed from the
+    visible, non-clipping children.
+
+    A layer belongs to exactly one container, so adding one that already has
+    a parent moves it out of that parent rather than copying it; see
+    :py:meth:`extend`.
+    """
+
     _psd: PSDProtocol
     _bbox: tuple[int, int, int, int] | None = None
     _layers: list[Layer]

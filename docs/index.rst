@@ -95,6 +95,7 @@ Not supported:
     reference/psd_tools.api.effects
     reference/psd_tools.api.layers
     reference/psd_tools.api.mask
+    reference/psd_tools.api.protocols
     reference/psd_tools.api.shape
     reference/psd_tools.api.smart_object
     reference/psd_tools.color_convert
