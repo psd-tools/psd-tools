@@ -144,9 +144,9 @@ class Effects:
     def scale(self) -> float:
         """The fx list's scale, in percent.
 
-        100.0 where there is nothing to read, which is both what a block
-        that omits the key already answers and what :py:attr:`enabled` does
-        on the same guard, by answering False rather than raising.
+        100.0 where there is nothing to read, which is what a block that
+        omits the key already answers. :py:attr:`enabled` answers on the
+        same guard rather than raising, and this now matches it.
         """
         data = self._data
         if data is None:
@@ -357,8 +357,8 @@ class _GradientMixin(_EffectProtocol):
 
         One of `linear`, `radial`, `angle`, `reflected`, or `diamond`, or
         None where the descriptor does not say -- which is most of them,
-        since every fill shape inherits this property and only a gradient
-        writes the key.
+        since :py:class:`Stroke` and the two glows inherit this property
+        from the gradient mixin while only a gradient writes the key.
         """
         return getattr(self.descriptor.get(Key.Type), "enum", None)
 
