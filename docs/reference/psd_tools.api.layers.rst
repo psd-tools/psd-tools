@@ -10,6 +10,12 @@ Layer
     :members:
     :inherited-members:
 
+GroupMixin
+----------
+
+.. autoclass:: psd_tools.api.layers.GroupMixin()
+    :members:
+
 Artboard
 --------
 

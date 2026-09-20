@@ -4,6 +4,16 @@ Protocol definitions for type hints to avoid circular imports.
 This module defines Protocol classes that specify the interfaces for Layer and
 PSDImage without requiring concrete imports. These protocols allow other modules
 to properly type hint their parameters while avoiding circular dependency issues.
+
+Two of these names reach the rendered API reference through the annotations
+of concrete classes: :py:attr:`Layer.parent
+<psd_tools.api.layers.Layer.parent>` is declared as
+:py:class:`GroupMixinProtocol` or ``None``, and :py:class:`LayerProtocol` is
+the declared parameter type of :py:class:`~psd_tools.api.mask.Mask`,
+:py:class:`~psd_tools.api.effects.Effects` and
+:py:class:`~psd_tools.api.smart_object.SmartObject`. The whole module is
+documented so that those links land somewhere. These are interfaces; user
+code works with the classes that implement them.
 """
 
 from collections.abc import Sequence
@@ -297,6 +307,10 @@ class GroupMixinProtocol(Protocol):
 
     This protocol is used for objects that behave like groups (can contain
     child layers). Both Group layers and PSDImage implement this protocol.
+
+    Only the members declared at runtime are listed below. The full container
+    surface, including iteration, indexing and ``parent``, is on
+    :py:class:`~psd_tools.api.layers.GroupMixin`.
     """
 
     def __len__(self) -> int:
