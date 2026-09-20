@@ -37,44 +37,74 @@ def _get_value(descriptor: Descriptor, key: bytes, default: Any = None) -> Any:
     return getattr(result, "value", result)
 
 
+_EFFECTS_TAGS = (
+    Tag.OBJECT_BASED_EFFECTS_LAYER_INFO,
+    Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V0,
+    Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V1,
+)
+
+
+def _master_switch(data: Descriptor | None) -> bool:
+    """Whether the master fx switch is on. False when there is no block."""
+    return bool(data.get(b"masterFXSwitch")) if data is not None else False
+
+
 class Effects:
     """
     List-like effects.
+
+    A live view on the layer's effects block: every access re-reads the
+    descriptor, so an edit made underneath shows through, and :py:attr:`items`
+    hands out a fresh list that cannot write back into the proxy.
 
     Only effects that are present and that this version can interpret are
     kept: one that is not present, and one whose effect class has no handler
     here, are both skipped. A layer whose effects block did not parse at all
     has no effects.
+
+    The block itself is not this proxy's subject. Photoshop creates it with
+    the first effect attached and leaves it behind once the last is removed,
+    so it outlives everything it ever listed. A caller who wants that fact
+    asks the low-level structure, which spells the block three ways::
+
+        any(
+            tag in layer.tagged_blocks
+            for tag in (
+                Tag.OBJECT_BASED_EFFECTS_LAYER_INFO,
+                Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V0,
+                Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V1,
+            )
+        )
     """
 
     def __init__(self, layer: LayerProtocol):
-        self._data: Descriptor | None = None
-        for tag in (
-            Tag.OBJECT_BASED_EFFECTS_LAYER_INFO,
-            Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V0,
-            Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V1,
-        ):
-            if tag in layer.tagged_blocks:
-                self._data = layer.tagged_blocks.get_data(tag)
-                break
+        self._layer = layer
 
-        self._items: list["_Effect"] = []
-        if not isinstance(self._data, Descriptor):
-            # Either there is no effects block, or there is one that did not
-            # parse: ``TaggedBlock.read()`` keeps the raw bytes it could not
-            # read, and reading those as a descriptor raises. Both are the
-            # no-effects case, which every property below answers for --
-            # ``scale`` by raising, as it already does for a layer carrying no
-            # effects block at all (#828).
-            if self._data is not None:
-                logger.debug(
-                    "Effects block did not parse; read as %s",
-                    type(self._data).__name__,
-                )
-                self._data = None
-            return
-        for key in self._data:
-            value = self._data[key]
+    @property
+    def _data(self) -> Descriptor | None:
+        """The layer's effects descriptor, or None if there is none to read."""
+        for tag in _EFFECTS_TAGS:
+            if tag in self._layer.tagged_blocks:
+                data = self._layer.tagged_blocks.get_data(tag)
+                # ``TaggedBlock.read()`` keeps the raw bytes of a block it
+                # could not read, and reports that once, at ERROR. Both that
+                # and no block at all are the no-effects case, which every
+                # property below answers for -- ``scale`` by raising, as it
+                # already does for a layer carrying no block at all (#828).
+                return data if isinstance(data, Descriptor) else None
+        return None
+
+    def _list(self, data: Descriptor | None) -> list["_Effect"]:
+        """The effects ``data`` lists, in file order.
+
+        Takes the descriptor rather than reading it, so :py:meth:`find`, which
+        needs the master switch as well, reads the tagged blocks once.
+        """
+        items: list["_Effect"] = []
+        if data is None:
+            return items
+        for key in data:
+            value = data[key]
             if not isinstance(value, List):
                 value = [value]
             for item in value:
@@ -84,35 +114,40 @@ class Effects:
                 kls = _TYPES.get(item.classID)
                 if kls is None:
                     # Skip it, like the effect above that is not present.
-                    # Rejecting it is defensible for a constructor on its own,
-                    # but ``Effects`` is built on first access from read-only
-                    # paths -- ``has_effects()``, and ``Layer.__repr__``
-                    # through it -- that can only pass a raise on. One effect
-                    # lost, rather than the document (#828).
+                    # Rejecting it is defensible on its own, but ``Effects`` is
+                    # read from read-only paths -- ``has_effects()``, and
+                    # ``Layer.__repr__`` through it -- that can only pass a
+                    # raise on. One effect lost, rather than the document
+                    # (#828).
                     logger.debug("Effect class not found for %r", item.classID)
                     continue
-                self._items.append(kls(item, layer._psd.image_resources))
+                items.append(kls(item, self._layer._psd.image_resources))
+        return items
 
     @property
     def scale(self) -> float:
         """Scale value."""
-        if self._data is None:
+        data = self._data
+        if data is None:
             raise ValueError("Effects data is None")
-        return float(_get_value(self._data, Key.Scale, 100.0))
+        return float(_get_value(data, Key.Scale, 100.0))
 
     @property
     def enabled(self) -> bool:
-        """Whether if all the effects are enabled.
+        """Whether the master fx switch is on.
+
+        Photoshop's one switch over the whole fx list, which greys every entry
+        out at once. It says nothing about the individual effects' ``enabled``
+        flags, and a list it has switched off still lists them.
 
         :rtype: bool
         """
-        if self._data is None:
-            return False
-        return bool(self._data.get(b"masterFXSwitch"))
+        return _master_switch(self._data)
 
     @property
     def items(self) -> list["_Effect"]:
-        return self._items
+        """The listed effects, as a new list on every access."""
+        return self._list(self._data)
 
     def find(self, name: str, enabled: bool = True) -> Iterator["_Effect"]:
         """Iterate effect items by name.
@@ -123,14 +158,15 @@ class Effects:
         :param enabled: If true, only return enabled effects.
         :rtype: Iterator[Effect]
         """
-        if enabled and not self.enabled:
+        data = self._data
+        if enabled and not _master_switch(data):
             return
         KLASS = {kls.__name__.lower(): kls for kls in _TYPES.values()}
         target_kls = KLASS.get(name.lower())
         if target_kls is None:
             logger.debug("Effect class not found for name=%r", name)
             return
-        for item in self:
+        for item in self._list(data):
             if isinstance(item, target_kls):
                 if enabled and item.enabled:
                     yield item
@@ -138,18 +174,18 @@ class Effects:
                     yield item
 
     def __len__(self) -> int:
-        return self._items.__len__()
+        return len(self.items)
 
     def __iter__(self) -> Iterator["_Effect"]:
-        return self._items.__iter__()
+        return iter(self.items)
 
     def __getitem__(self, key: int) -> "_Effect":
-        return self._items.__getitem__(key)
+        return self.items[key]
 
     def __repr__(self) -> str:
         return "%s(%s)" % (
             self.__class__.__name__,
-            " ".join(x.__class__.__name__.lower() for x in self) if self._data else "",
+            " ".join(x.__class__.__name__.lower() for x in self.items),
         )
 
 
@@ -183,7 +219,12 @@ class _Effect(_EffectProtocol):
 
     @property
     def present(self) -> bool:
-        """Whether if the effect is present in Photoshop UI."""
+        """Whether the effect has an entry in the layer's fx list.
+
+        True for every effect :py:class:`Effects` hands out, because it is the
+        flag that decides what gets listed -- it distinguishes nothing among
+        the effects you can reach through the proxy.
+        """
         return bool(self.descriptor.get(b"present"))
 
     @property

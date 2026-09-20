@@ -6,8 +6,8 @@ import pytest
 from psd_tools.api.layers import Layer
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.constants import Tag
-from psd_tools.psd.descriptor import List
-from psd_tools.terminology import Enum
+from psd_tools.psd.descriptor import Bool, Descriptor, List
+from psd_tools.terminology import Enum, Key
 from psd_tools.api import effects
 
 from ..utils import full_name
@@ -218,13 +218,17 @@ def _forge_unknown_class(layer: Layer, key: bytes, index: int = 0) -> None:
 
     Nothing ships like this: every effect class in ``tests/psd_files`` is one
     ``_TYPES`` holds, and Photoshop writes no others, so reaching the branch
-    at all means forging it. ``del layer._effects`` because
-    :py:attr:`~psd_tools.api.layers.Layer.effects` memoises what it built.
+    at all means forging it.
+
+    No ``del layer._effects`` afterwards: :py:attr:`Layer.effects` is a live
+    view, so the callers below see the forged class on their next access.
+    That this helper reads ``layer.effects._data`` first is what makes them
+    evidence for it -- under the snapshot they would be reading a list built
+    before the forgery.
     """
     item = layer.effects._data[key]  # type: ignore[index]
     item = item[index] if isinstance(item, List) else item
     item.classID = b"XXXX"
-    del layer._effects
 
 
 def test_an_unknown_effect_class_is_skipped_rather_than_rejected() -> None:
@@ -296,10 +300,114 @@ def test_an_effects_block_that_did_not_parse_reads_as_no_effects() -> None:
     ):
         if tag in layer.tagged_blocks:
             layer.tagged_blocks[tag].data = b"garbagebytes"
-    del layer._effects
 
     assert list(layer.effects) == []
     assert len(layer.effects) == 0
     assert layer.effects.enabled is False
     assert layer.has_effects() is False
     assert " effects" not in repr(layer)
+
+
+def _effects_block(layer: Layer) -> Descriptor | None:
+    """The layer's effects descriptor straight out of the low-level structure.
+
+    The route :py:meth:`Layer.has_effects` documents in place of an API for
+    block presence, so the tests below can say "the block is still there"
+    without going through the proxy that is under test.
+    """
+    for tag in (
+        Tag.OBJECT_BASED_EFFECTS_LAYER_INFO,
+        Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V0,
+        Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V1,
+    ):
+        if tag in layer.tagged_blocks:
+            data = layer.tagged_blocks.get_data(tag)
+            return data if isinstance(data, Descriptor) else None
+    return None
+
+
+def test_a_block_listing_nothing_is_not_effects() -> None:
+    """``has_effects(enabled=False)`` follows the fx list, not the block (#830).
+
+    ``Фигура 1`` is the first of the 38 layers in ``tests/psd_files`` that
+    carry an effects block listing nothing -- Photoshop writes the block when
+    the first effect is attached and leaves it once the last is removed.
+
+    It discriminates because both its entries are ``enab=True`` with no
+    ``present`` flag: an implementation that read the enabled flag, or the
+    block, would answer True here. Only ``present`` -- what the Photoshop UI
+    lists, and what ``Effects`` already filters on -- answers False.
+    """
+    psd = PSDImage.open(full_name("layer_comps.psd"))
+    layer = psd[1]
+
+    block = _effects_block(layer)
+    assert block is not None
+    assert bool(block.get(b"masterFXSwitch")) is True
+    entries = [block[key] for key in block if isinstance(block[key], Descriptor)]
+    assert [entry.classID for entry in entries] == [b"DrSh", b"ebbl"]
+    assert [bool(entry.get(Key.Enabled)) for entry in entries] == [True, True]
+    assert [bool(entry.get(b"present")) for entry in entries] == [False, False]
+
+    assert len(layer.effects) == 0
+    assert layer.has_effects() is False
+    assert layer.has_effects(enabled=False) is False
+    # The pair that used to disagree on this very layer: True from the arm
+    # that asked about the block, False from the arm that read the list.
+    assert layer.has_effects(enabled=False, name="DropShadow") is False
+    assert layer.has_effects(enabled=False, name="BevelEmboss") is False
+
+
+def test_effects_follows_a_block_attached_after_it_was_read() -> None:
+    """The additive half of the live view: a block set later is seen.
+
+    Under the snapshot this was unreachable without ``del layer._effects``,
+    and the only reason the corresponding compositor fixture worked was that
+    it set its block before anything read ``layer.effects``.
+    """
+    psd = PSDImage.open(full_name("layer_comps.psd"))
+    layer = psd[3]
+    assert _effects_block(layer) is None
+    assert len(layer.effects) == 0
+    assert layer.effects.enabled is False
+
+    overlay = Descriptor(classID=b"SoFi")
+    overlay[Key.Enabled] = Bool(True)
+    overlay[b"present"] = Bool(True)
+    block = Descriptor(classID=b"null")
+    block[b"masterFXSwitch"] = Bool(True)
+    block[b"solidFill"] = overlay
+    layer.tagged_blocks.set_data(Tag.OBJECT_BASED_EFFECTS_LAYER_INFO, block)
+
+    assert [effect.name for effect in layer.effects] == ["ColorOverlay"]
+    assert layer.effects.enabled is True
+    assert layer.has_effects() is True
+    assert layer.has_effects(name="ColorOverlay") is True
+
+    # And the structural flags too, which the snapshot froze along with the
+    # list. ``set_data`` stores a ``DescriptorBlock2`` of its own, so these go
+    # at what the layer now holds rather than at what was handed to it.
+    stored = _effects_block(layer)
+    assert stored is not None
+    stored[b"masterFXSwitch"] = Bool(False)
+    assert layer.effects.enabled is False
+    assert layer.has_effects() is False
+    # Switching the master off greys the fx list out; it does not empty it.
+    assert layer.has_effects(enabled=False) is True
+    stored[b"solidFill"][b"present"] = Bool(False)  # type: ignore[index]
+    assert layer.has_effects(enabled=False) is False
+
+
+def test_items_hands_out_a_list_that_cannot_write_back() -> None:
+    """``items`` was the internal list itself, so a caller could empty it.
+
+    Held as one proxy throughout: re-reading ``layer.effects`` would pass on
+    the de-memoisation alone, and the point here is the list.
+    """
+    effects = PSDImage.open(full_name("layer_effects.psd"))[10].effects
+    assert [effect.name for effect in effects.items] == ["Stroke"]
+
+    effects.items.clear()
+
+    assert len(effects) == 1
+    assert [effect.name for effect in effects.items] == ["Stroke"]
