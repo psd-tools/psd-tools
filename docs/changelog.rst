@@ -4,6 +4,12 @@ Changelog
 1.20.0 (unreleased)
 -------------------
 
+- [fix] A stroke effect is now measured from the mask's coverage rather than
+  its half-opacity contour, as Photoshop does. A soft-edged layer -- feathered
+  mask, gradient mask, soft brush -- takes the stroke across its whole body
+  rather than a ring inside it, and a vector shape rendered with ``force=True``
+  shifts by a quarter pixel (#844). Hard-edged masks are unchanged, and only a
+  pattern fill still needs scikit-image (#799)
 - [api] ``PSDImage.mark_updated()`` is now public, so an edit this API cannot
   see -- through an effect's ``descriptor``, a layer's ``tagged_blocks``, or
   any other low-level record -- can still tell the document to regenerate its

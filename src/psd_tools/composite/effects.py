@@ -7,10 +7,8 @@ layer styles). Effects are non-destructive visual enhancements applied to layers
 such as strokes, shadows, glows, and overlays.
 
 **Note**: Effects rendering requires scipy. It additionally requires
-scikit-image for any pattern fill, and for the fallback that draws a stroke
-whose position is none of the three Photoshop writes, one the descriptor does
-not state included -- so a solid or gradient stroke of any position a real
-document can carry draws without it. Install both with::
+scikit-image for any pattern fill -- but for nothing else, so a solid or
+gradient stroke of any position draws with scipy alone. Install both with::
 
     pip install 'psd-tools[composite]'
 
@@ -61,8 +59,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from psd_tools.composite import paint, utils
-from psd_tools.composite._compat import HAS_SCIPY, require_skimage
+from psd_tools.composite import paint
+from psd_tools.composite._compat import HAS_SCIPY
 from psd_tools.psd.descriptor import Descriptor
 from psd_tools.terminology import Enum, Key
 
@@ -71,18 +69,25 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# How far a stroke reaches outside the layer, as a fraction of its nominal
-# size. Only the inset style stays within the layer; the other two spill past
-# its bounding box and need canvas of their own to be drawn on. Inset still
-# gets the fixed pixel :py:func:`stroke_bbox` adds on top, which is not room
-# for the stroke but room for the edge it is measured from. A style not named
-# here takes the widest reach, which is the only safe guess: reserving canvas
-# nobody draws on costs a little memory, and reserving too little clips.
-_OUTWARD_REACH: dict[bytes, float] = {
-    Enum.OutsetFrame: 1.0,
-    Enum.CenteredFrame: 0.5,
-    Enum.InsetFrame: 0.0,
+# Where each style puts its band, in multiples of the stroke's nominal size,
+# measured from the layer's edge and positive outward. One table because the
+# outer limit is also how far the stroke reaches past the layer, which is the
+# canvas :py:func:`stroke_bbox` has to reserve for it: stating the two apart
+# would let a change to one shave the outside of every stroke of that style,
+# or reserve canvas nobody draws on.
+#
+# Only the inset style stays within the layer. It still gets the fixed pixel
+# stroke_bbox() adds on top, which is not room for the stroke but room for the
+# edge it is measured from.
+_BANDS: dict[bytes, tuple[float, float]] = {
+    Enum.OutsetFrame: (0.0, 1.0),
+    Enum.CenteredFrame: (-0.5, 0.5),
+    Enum.InsetFrame: (-1.0, 0.0),
 }
+# A style no descriptor Photoshop wrote can hold is drawn, and measured, as an
+# outset one -- the widest of the three, so nothing it draws is clipped by the
+# canvas reserved for it, and the position Photoshop itself defaults to.
+_UNRECOGNISED = _BANDS[Enum.OutsetFrame]
 
 
 def _enum(desc: Descriptor, key: bytes) -> bytes:
@@ -127,37 +132,141 @@ def stroke_bbox(
 
     A style the descriptor does not state, or states as something other than
     an enum, is measured as the unrecognised style it cannot be told apart
-    from -- the widest reach, and the dilation path in
-    :py:func:`draw_stroke_effect` -- rather than raising out of a composite
-    (#826).
+    from -- an outset one, which :py:func:`draw_stroke_effect` then draws it
+    as -- rather than raising out of a composite (#826).
     """
     if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
         return bbox
-    reach = _OUTWARD_REACH.get(_enum(desc, Key.Style), 1.0)
+    reach = _BANDS.get(_enum(desc, Key.Style), _UNRECOGNISED)[1]
     # ceil() because a fractional stroke still covers the pixel it falls in.
-    # The +1 is the uncovered pixel the edge is measured against, and doubles
-    # as slack for a style this does not recognise -- one the descriptor names
-    # wrongly or does not name at all -- which falls through to the dilation
-    # path, whose edge filter spreads a pixel further than a band does.
+    # The +1 is the uncovered pixel the edge is measured against.
     margin = math.ceil(float(desc.get(Key.SizeKey, 1.0)) * reach) + 1
     return (bbox[0] - margin, bbox[1] - margin, bbox[2] + margin, bbox[3] + margin)
 
 
-def _signed_distance(alpha: np.ndarray) -> np.ndarray:
-    """Euclidean distance from each pixel to the mask boundary, negative inside.
+def _grow(mask: np.ndarray) -> np.ndarray:
+    """``mask`` widened by one pixel along each axis.
 
-    ``distance_transform_edt`` measures to the nearest pixel of the other
-    class, so the two pixels straddling the boundary both come back 1.0 rather
-    than the 0.5 their centres really sit at. The magnitude is shrunk to put
-    the boundary back between them; subtracting 0.5 outright would be right
-    outside and a full pixel wrong inside, where the sign is negative.
-
-    A pixel that straddles the boundary knows better than the 0.5 iso-contour
-    does where within itself the boundary falls, so those pixels -- and only
-    those -- are reseeded from their own coverage. Reseeding every partial
-    pixel would drag the far side of a feathered mask to within half a pixel
-    of a boundary it is nowhere near, and paint a stroke across all of it.
+    Sliced rather than rolled, so the first row does not count the last one as
+    its neighbour: a layer flush against one side of its viewport and
+    transparent against the other would otherwise read as a boundary between
+    them. No stroke effect can reach that today -- :py:func:`stroke_bbox`
+    grants a pixel of clear border on every side -- so this is stated here
+    rather than relied on there, because widening that margin away is the kind
+    of change nothing else would notice.
     """
+    grown = mask.copy()
+    for axis in range(mask.ndim):
+        lead: list[slice] = [slice(None)] * mask.ndim
+        trail: list[slice] = [slice(None)] * mask.ndim
+        lead[axis], trail[axis] = slice(1, None), slice(None, -1)
+        grown[tuple(lead)] |= mask[tuple(trail)]
+        grown[tuple(trail)] |= mask[tuple(lead)]
+    return grown
+
+
+def _nearest_boundary(
+    alpha: np.ndarray, partial: np.ndarray, near: np.ndarray, radius: float
+) -> np.ndarray:
+    """The nearest boundary within ``radius``, as distance, negative inside.
+
+    Every partial pixel states one boundary, ``near`` from its own centre and
+    so up to half a pixel either side of it. A pixel with no coverage of its
+    own is ``min`` over those of ``|x - p| + near[p]`` -- the nearest
+    *boundary*, which is not the nearest pixel stating one: the offsets span a
+    pixel, so a pixel one further away can win. Taking the nearest pixel's
+    word for it leaves the answer to whichever of two equidistant pixels a
+    distance transform happens to return, which is not a choice the mask
+    makes; Photoshop's render of such a mask is mirror-exact, and this is the
+    value it renders.
+
+    That minimum is a grey erosion of ``near`` by a cone, which is exact and
+    has no tie to break. ``radius`` bounds it to the band that will be read:
+    a seed further out than the widest limit plus a pixel cannot reach it, and
+    what it would have said is clipped away. Evaluated on the pixels within
+    ``radius`` of the partial band rather than on the canvas, which is what
+    keeps a cone that grows as the square of the stroke's size off every pixel
+    the stroke cannot reach.
+    """
+    span = math.ceil(radius)
+    offsets = np.mgrid[-span : span + 1, -span : span + 1].reshape(2, -1).T
+    lengths = np.hypot(offsets[:, 0], offsets[:, 1]).astype(np.float32)
+    within = lengths <= radius
+    offsets, lengths = offsets[within], lengths[within]
+
+    from scipy.ndimage import distance_transform_edt  # type: ignore[import-untyped]  # noqa: PLC0415
+
+    # Beyond the reach of any boundary, and so of any band: infinitely far
+    # out from a clear pixel and infinitely far in from an opaque one.
+    field = np.where(partial, near, np.where(alpha >= 1, -np.inf, np.inf)).astype(
+        np.float32
+    )
+    active = (distance_transform_edt(~partial) <= radius) & ~partial
+    if not active.any():
+        return field
+
+    flat = np.flatnonzero(active)
+    rows, cols = np.unravel_index(flat, alpha.shape)
+    height, width = alpha.shape
+    outward = np.full(flat.shape, np.inf, dtype=np.float32)
+    inward = np.full(flat.shape, -np.inf, dtype=np.float32)
+    for (down, across), length in zip(offsets, lengths):
+        row, col = rows + down, cols + across
+        on_canvas = (row >= 0) & (row < height) & (col >= 0) & (col < width)
+        row, col = np.where(on_canvas, row, 0), np.where(on_canvas, col, 0)
+        states = on_canvas & partial[row, col]
+        stated = near[row, col]
+        np.minimum(outward, np.where(states, stated + length, np.inf), out=outward)
+        np.maximum(inward, np.where(states, stated - length, -np.inf), out=inward)
+    field[rows, cols] = np.where((alpha >= 1).ravel()[flat], inward, outward)
+    return field
+
+
+def _signed_distance(alpha: np.ndarray, reach: float | None = None) -> np.ndarray:
+    """Distance from each pixel to the mask boundary, negative inside.
+
+    Photoshop reads that boundary off the mask's **coverage**, not off its 0.5
+    iso-contour: a pixel at ``alpha`` states that the boundary runs
+    ``0.5 - alpha`` from its own centre, and its neighbours measure outward
+    from there. On a hard-edged mask the two readings name the same line --
+    one partial pixel, and the boundary is where its coverage puts it -- which
+    is why this leaves every hard-edged fixture in the corpus bit for bit
+    unchanged. On a *feathered* one they diverge without limit: a 16 px alpha
+    ramp runs 8 px from the iso-contour at either end and half a pixel from
+    the boundary everywhere, so a stroke of any size covers all of it. Measured
+    against Photoshop on purpose-built masks -- linear ramps of several
+    widths, a ramp onto a partial plateau, and hard edges with a single
+    antialiased pixel -- which is #799's fourth tracking item, and which
+    ``effects/feathered-stroke.psd`` and ``effects/antialiased-stroke-edge.psd``
+    are the rendered half of.
+
+    Coverage says nothing about an edge that has none, so a mask stepping
+    0 -> 1 keeps the exact Euclidean distance to the iso-contour, ``base``.
+    One mask can carry both -- a shape antialiased along one side and butted
+    against its own bounding box along another -- so the two are chosen
+    between per pixel, by which boundary is nearer. Seeding a single transform
+    from both instead costs the corners: measured against the same masks, up
+    to 0.97 coverage where a feathered edge meets a hard one, against 0.002
+    for this.
+
+    A pixel outside the partial band takes the nearest of the boundaries the
+    band states, which :py:func:`_nearest_boundary` solves for outright. What
+    stays approximate is that a partial pixel's ``near`` is applied along the
+    line to that pixel rather than along the boundary's own normal, which
+    parts company with the truth around a curve the way
+    :py:func:`_distance_band` does when it paints the arc.
+
+    A mask that is flat at 0 or 1 has no boundary at all. That is not a case
+    to fall through: ``distance_transform_edt`` is undefined on an input with
+    no zeros and reports distances to a phantom feature off the array corner,
+    which a band paints as a wedge in the corner of the canvas. Being
+    uniformly infinitely far from the boundary leaves every band empty, which
+    is right. A mask flat at a *partial* value is not one of these -- every
+    pixel of it states a boundary, so it takes a stroke over all of it.
+    """
+    if reach is None:
+        # No band named, so no bound: far enough that nothing is out of range.
+        reach = float(math.hypot(*alpha.shape))
     if not HAS_SCIPY:
         raise ImportError(
             "Stroke effects require: scipy\n\n"
@@ -168,23 +277,46 @@ def _signed_distance(alpha: np.ndarray) -> np.ndarray:
         )
     from scipy.ndimage import distance_transform_edt  # type: ignore[import-untyped]  # noqa: PLC0415
 
-    inside = alpha >= 0.5
-    # With no boundary in view there is nothing to measure a stroke from, and
-    # ``distance_transform_edt`` is undefined on an input with no zeros: it
-    # reports distances to a phantom feature off the array corner, which a band
-    # would paint as a wedge in the corner of the canvas. Being uniformly
-    # infinitely far from the boundary leaves every band empty, which is right.
-    if inside.all():
-        return np.full(alpha.shape, -np.inf, dtype=np.float32)
-    if not inside.any():
-        return np.full(alpha.shape, np.inf, dtype=np.float32)
+    partial = (alpha > 0) & (alpha < 1)
+    # The boundary segments no coverage describes: a step from opaque straight
+    # to clear. Every pixel of a smoothly antialiased shape has coverage, so
+    # this is usually empty and the iso-contour below is never computed --
+    # which is what keeps the field to one transform rather than three.
+    hard = (alpha >= 1) & _grow(alpha <= 0)
+    hard |= (alpha <= 0) & _grow(alpha >= 1)
 
-    distance = distance_transform_edt(~inside).astype(np.float32)
-    distance -= distance_transform_edt(inside).astype(np.float32)
-    distance = np.sign(distance) * np.maximum(np.abs(distance) - 0.5, 0.0)
-    straddles = (alpha > 0) & (alpha < 1) & (np.abs(distance) <= 0.5)
-    distance[straddles] = 0.5 - alpha[straddles]
-    return distance
+    if not partial.any() or hard.any():
+        # ``distance_transform_edt`` measures to the nearest pixel of the other
+        # class, so the two pixels straddling the boundary both come back 1.0
+        # rather than the 0.5 their centres really sit at. The magnitude is
+        # shrunk to put the boundary back between them; subtracting 0.5
+        # outright would be right outside and a full pixel wrong inside, where
+        # the sign is negative.
+        inside = alpha >= 0.5
+        if inside.all():
+            base = np.full(alpha.shape, -np.inf, dtype=np.float32)
+        elif not inside.any():
+            base = np.full(alpha.shape, np.inf, dtype=np.float32)
+        else:
+            base = distance_transform_edt(~inside).astype(np.float32)
+            base -= distance_transform_edt(inside).astype(np.float32)
+            base = np.sign(base) * np.maximum(np.abs(base) - 0.5, 0.0)
+        if not partial.any():
+            return base
+
+    # What a partial pixel states, and what a pixel with none of its own takes
+    # from the nearest boundary any of them states.
+    near = (0.5 - alpha).astype(np.float32)
+    stated = _nearest_boundary(alpha, partial, near, reach)
+    if not hard.any():
+        return stated
+
+    # ``base`` is exact along a hard step, and is the better answer for any
+    # pixel nearer one of them than it is to the partial band.
+    distance = distance_transform_edt(~partial)
+    to_hard = distance_transform_edt(~hard)
+    field = np.where(partial, near, np.where(distance <= to_hard, stated, base))
+    return field.astype(np.float32)
 
 
 def _distance_band(distance: np.ndarray, lo: float, hi: float) -> np.ndarray:
@@ -193,44 +325,12 @@ def _distance_band(distance: np.ndarray, lo: float, hi: float) -> np.ndarray:
     A distance field has unit gradient, so one pixel of distance is one pixel
     of space, and a linear ramp across it is the exact area of a pixel cut by
     a straight edge. That is what lets a fractional width mean something: the
-    band is never quantized to a whole number of pixels the way a dilation pen
-    is. Where the band's edge curves, around a corner, the ramp approximates
-    that area rather than matching it.
+    band is never quantized to a whole number of pixels, the way it was while
+    a stroke was drawn with an integer-radius pen. Where the band's edge
+    curves, around a corner, the ramp approximates that area rather than
+    matching it.
     """
     return np.clip(hi - distance + 0.5, 0, 1) * np.clip(distance - lo + 0.5, 0, 1)
-
-
-@require_skimage
-def _draw_dilated_edge(shape: np.ndarray, size: float) -> np.ndarray:
-    """Trace the layer by dilating a gradient-magnitude edge.
-
-    The original stroke primitive, kept only for a stroke whose position
-    :py:func:`draw_stroke_effect` does not recognise, one it does not state
-    at all included -- all three Photoshop writes are drawn as distance
-    bands. It is approximate in ways no parameter
-    fixes: ``scharr`` locates the edge as a soft blob rather than a line, and
-    ``disk`` quantizes the radius to a whole pixel (#799).
-
-    This is the only part of a stroke that still needs scikit-image, which is
-    why the decorator sits here rather than on the caller -- a stroke Photoshop
-    can actually write draws with scipy alone.
-    """
-    from skimage import filters  # noqa: PLC0415
-    from skimage.morphology import disk  # noqa: PLC0415
-
-    edges = filters.scharr(shape[:, :, 0])
-    # Rounded up rather than truncated, which drew every odd stroke a pixel
-    # short per side (#792).
-    pen = disk(math.ceil(size / 2.0 - 1))
-    mask = (
-        filters.rank.maximum((255 * edges).astype(np.uint8), pen).astype(np.float32)
-        / 255.0
-    )
-    # ``scharr`` returns a gradient magnitude, which peaks well below 1 on a
-    # soft edge, so the stroke has to be stretched to full opacity to read as
-    # one. ``min`` is always 0 here, leaving only the division to do anything.
-    mask = utils.divide(mask - np.min(mask), np.max(mask) - np.min(mask))
-    return np.expand_dims(mask, 2)
 
 
 def draw_stroke_effect(
@@ -267,38 +367,37 @@ def draw_stroke_effect(
     style = _enum(desc, Key.Style)
     size = float(desc.get(Key.SizeKey, 1.0))
 
-    # A stroke of no width draws nothing, and both primitives below have to be
-    # told so. The band would paint a quarter of a pixel wherever the boundary
-    # falls exactly on a pixel centre, and the dilation's pen comes out empty,
-    # which the rank filter it is handed asserts on rather than ignores --
-    # turning a stroke that should simply be invisible into a raise. Photoshop
-    # will not author a 0 px stroke, but a descriptor can carry one.
+    # A stroke of no width draws nothing, and the band has to be told so: it
+    # would otherwise paint a quarter of a pixel wherever the boundary falls
+    # exactly on a pixel centre. Photoshop will not author a 0 px stroke, but
+    # a descriptor can carry one.
     if size <= 0.0:
         return color, np.zeros((height, width, 1), dtype=np.float32)
 
     # A stroke is a band in the layer's signed distance field, which is exact
     # on a hard-edged mask and needs no pen to quantize the radius to a whole
     # pixel. All three positions are the same band read off a different
-    # anchor, inset included: Photoshop measures it from the 0.5 iso-contour
-    # like the other two, and the pixel of offset that looked like a different
+    # anchor, inset included: Photoshop measures it from the same boundary as
+    # the other two, and the pixel of offset that looked like a different
     # anchor was the layer's edge being clipped away before the stroke saw it
-    # (#799). Any position this does not name keeps the dilation below.
+    # (#799). Nor does an inset band need clamping to the layer to stay inside
+    # it: on a pixel the boundary cuts, the band already comes out equal to
+    # that pixel's own coverage, feathered masks included.
     #
-    # Where the boundary cuts a pixel the band already comes out equal to that
-    # pixel's own coverage, so an inset stroke needs no clamp to stay within
-    # the layer -- but a *feathered* mask ramps on past that pixel, and there
-    # the band paints 1.0 over coverage of less than 1. The dilation clamped
-    # it; the band does not, deliberately, because which of the two Photoshop
-    # does is #799's open question about soft-edged masks rather than
-    # something to settle by keeping whichever line was already there.
-    bands: dict[bytes, tuple[float, float]] = {
-        Enum.OutsetFrame: (0.0, size),
-        Enum.InsetFrame: (-size, 0.0),
-        Enum.CenteredFrame: (-size / 2.0, size / 2.0),
-    }
-    limits = bands.get(style)
-    if limits is not None:
-        distance = _signed_distance(shape[:, :, 0])
-        return color, np.expand_dims(_distance_band(distance, *limits), 2)
-
-    return color, _draw_dilated_edge(shape, size)
+    # A position the descriptor states as something else, or does not state at
+    # all, takes the outset band. There is no longer a separate primitive for
+    # it to fall through to: the dilated scharr edge that used to draw it, and
+    # the contrast stretch that lifted its gradient magnitude back to full
+    # opacity, both went once the band covered every position Photoshop can
+    # write (#799). That leaves it indistinguishable from a stated outset
+    # stroke, which is why it says so in the log rather than only in the
+    # canvas stroke_bbox() reserved for it.
+    limits = _BANDS.get(style)
+    if limits is None:
+        logger.debug("Unrecognised stroke position %r; drawing it as outset", style)
+        limits = _UNRECOGNISED
+    lo, hi = limits[0] * size, limits[1] * size
+    # A boundary further out than the band's widest limit, plus the half
+    # pixel a partial pixel can state either side of itself, cannot show.
+    distance = _signed_distance(shape[:, :, 0], max(abs(lo), abs(hi)) + 1.0)
+    return color, np.expand_dims(_distance_band(distance, lo, hi), 2)
