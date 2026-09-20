@@ -15,7 +15,7 @@ Changelog
 - [docs] Document ``GroupMixin`` and the ``psd_tools.api.protocols``
   interfaces, which had no Sphinx anchor, so the annotations naming them --
   the return type of ``Layer.parent`` among them -- now render as links
-  instead of plain text (#840, #PRNUM)
+  instead of plain text (#840, #848)
 - [fix] ``GroupMixin.extend()`` now walks its argument once. A generator added
   nothing; ``dest.extend(src)`` kept only every other layer of ``src`` and lost
   the rest; ``g.extend(g)`` never terminated; and a layer mentioned twice in
