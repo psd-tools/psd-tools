@@ -305,8 +305,19 @@ def test_shape_and_fill_layer() -> None:
 
 
 def test_has_effects() -> None:
+    """Both arms over a file whose three effect layers differ only in state.
+
+    Every layer but the background holds one *listed* ``ColorOverlay``, so
+    ``enabled=False`` stays True throughout: layer 1 draws it, layer 2 has it
+    switched off, and layer 3 has the master switch off. That is the
+    distinction ``has_effects()`` reports -- what the fx list shows, against
+    what is drawn -- and not whether an effects block exists (#830).
+    """
     psd = PSDImage.open(full_name("effects/effects-enabled.psd"))
     assert not psd[0].has_effects()
+    # No block at all: both arms say no, which is the branch that used to be
+    # a tagged-block scan ahead of everything else.
+    assert not psd[0].has_effects(enabled=False)
     assert psd[1].has_effects()
     assert psd[1].has_effects(name="ColorOverlay")
     assert not psd[1].has_effects(name="DropShadow")
@@ -314,7 +325,6 @@ def test_has_effects() -> None:
     assert psd[2].has_effects(enabled=False)
     assert not psd[3].has_effects()
     assert psd[3].has_effects(enabled=False)
-    logger.error("Checking disabled effects")
     assert psd[3].has_effects(enabled=False, name="ColorOverlay")
     assert not psd[3].has_effects(enabled=False, name="DropShadow")
 
