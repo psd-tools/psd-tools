@@ -15,6 +15,7 @@ GroupMixin
 
 .. autoclass:: psd_tools.api.layers.GroupMixin()
     :members:
+    :special-members: __len__, __iter__, __getitem__, __delitem__
 
 Artboard
 --------

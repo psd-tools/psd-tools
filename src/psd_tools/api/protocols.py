@@ -308,9 +308,13 @@ class GroupMixinProtocol(Protocol):
     This protocol is used for objects that behave like groups (can contain
     child layers). Both Group layers and PSDImage implement this protocol.
 
-    Only the members declared at runtime are listed below. The full container
-    surface, including iteration, indexing and ``parent``, is on
-    :py:class:`~psd_tools.api.layers.GroupMixin`.
+    Only the members declared at runtime are listed below. The container
+    operations, iteration and indexing included, are documented on
+    :py:class:`~psd_tools.api.layers.GroupMixin`, which implements this
+    protocol. ``parent`` is declared here for the type checker only; the
+    properties that implement it are :py:attr:`Layer.parent
+    <psd_tools.api.layers.Layer.parent>` and :py:attr:`PSDImage.parent
+    <psd_tools.api.psd_image.PSDImage.parent>`.
     """
 
     def __len__(self) -> int:
