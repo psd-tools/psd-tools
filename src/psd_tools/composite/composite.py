@@ -117,15 +117,15 @@ _OverlayDraw = Callable[[Layer, Any, int], tuple[np.ndarray | None, np.ndarray |
 
 
 def _draw_color_overlay(
-    layer: Layer, value: Any, channels: int
+    layer: Layer, descriptor: Any, channels: int
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
-    return paint.draw_solid_color_fill(layer.bbox, layer._psd.color_mode, value)
+    return paint.draw_solid_color_fill(layer.bbox, layer._psd.color_mode, descriptor)
 
 
 def _draw_pattern_overlay(
-    layer: Layer, value: Any, channels: int
+    layer: Layer, descriptor: Any, channels: int
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
-    fill, shape = paint.draw_pattern_fill(layer.bbox, layer._psd, value)
+    fill, shape = paint.draw_pattern_fill(layer.bbox, layer._psd, descriptor)
     if fill is None:
         return None, None
     # A pattern carries its own color mode, so a grayscale one reaches a CMYK
@@ -151,9 +151,9 @@ def _draw_pattern_overlay(
 
 
 def _draw_gradient_overlay(
-    layer: Layer, value: Any, channels: int
+    layer: Layer, descriptor: Any, channels: int
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
-    return paint.draw_gradient_fill(layer.bbox, layer._psd.color_mode, value)
+    return paint.draw_gradient_fill(layer.bbox, layer._psd.color_mode, descriptor)
 
 
 # Iteration order is the order the overlays are composited in, unchanged from

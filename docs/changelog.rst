@@ -15,8 +15,8 @@ Changelog
   and now answers ``None`` (#831, #851)
 - [api] An effect's deprecated ``value`` property now warns with
   ``DeprecationWarning`` rather than logging at DEBUG, where no user saw it.
-  Use ``descriptor`` instead; the library's own render path has stopped
-  reading it (#831, #851)
+  Use ``descriptor`` instead. Backwards-incompatible for anyone running
+  warnings as errors, where reading it now raises (#831, #851)
 - [api] ``Layer.has_effects(enabled=False)`` now reports what the Photoshop
   fx list shows -- the same answer as ``len(layer.effects) > 0`` -- not
   whether an effects tagged block exists. Backwards-incompatible: it turns

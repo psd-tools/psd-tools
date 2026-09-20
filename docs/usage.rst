@@ -212,6 +212,17 @@ Layers can be moved within the group to change their order::
     layer.move_up() # Will send the layer upward in the group
     layer.move_down() # Will send the layer downward in the group
 
+Every edit above marks the document as edited, so ``save()`` regenerates the
+flattened preview instead of writing the one the file was opened with. An
+edit this API cannot see -- reaching past it into a descriptor, a tagged
+block or any other low-level record -- does not, and has to say so::
+
+    psd.mark_updated()
+
+Without it the saved file keeps a preview that disagrees with its own layers,
+and every reader that trusts the preview, psd-tools included, shows the image
+from before the edit.
+
 
 Exporting data to PIL
 ---------------------

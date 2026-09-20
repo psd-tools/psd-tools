@@ -2,13 +2,20 @@
 Effects module.
 
 Everything here is a read-only view on the layer's effects descriptor; none
-of it has a setter. An effect is changed through its ``descriptor``, which is
-the sanctioned way in, and an edit made that way has to be followed by
-:py:meth:`~psd_tools.api.psd_image.PSDImage.mark_updated` -- nothing else
-tells the document that its stored preview no longer matches its layers::
+of it has a setter. An effect is changed by editing that ``descriptor`` in
+place, which is the sanctioned way in, and an edit made that way has to be
+followed by :py:meth:`~psd_tools.api.psd_image.PSDImage.mark_updated` --
+nothing else tells the document that its stored preview no longer matches
+its layers::
 
-    layer.effects[0].descriptor[Key.Opacity] = UnitFloat(50.0, b"#Prc")
+    from psd_tools.psd.descriptor import UnitFloat
+    from psd_tools.terminology import Key, Unit
+
+    layer.effects[0].descriptor[Key.Opacity] = UnitFloat(50.0, Unit.Percent)
     psd.mark_updated()
+
+In place, because the view is rebuilt on every access: rebinding
+``descriptor`` itself replaces an object the next access throws away.
 """
 
 import logging

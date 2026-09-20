@@ -478,7 +478,7 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
         ...
 
     def mark_updated(self) -> None:
-        """Mark the PSD document as edited, so its stored preview is rebuilt."""
+        """Mark the PSD document as edited, so its stored preview stops being trusted."""
         ...
 
     def _update_record(self) -> None:

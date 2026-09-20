@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 from typing import Iterator
 
 import pytest
@@ -6,8 +7,8 @@ import pytest
 from psd_tools.api.layers import Layer
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.constants import Tag
-from psd_tools.psd.descriptor import Bool, Descriptor, List
-from psd_tools.terminology import Enum, Key
+from psd_tools.psd.descriptor import Bool, Descriptor, List, UnitFloat
+from psd_tools.terminology import Enum, Key, Unit
 from psd_tools.api import effects
 
 from ..utils import full_name
@@ -466,3 +467,20 @@ def test_value_is_deprecated_out_loud() -> None:
 
     with pytest.warns(DeprecationWarning, match="descriptor"):
         assert effect.value is effect.descriptor
+
+
+def test_the_documented_edit_recipe_survives_a_save(tmp_path: Path) -> None:
+    """The module docstring's editing recipe, run exactly as it is written.
+
+    It is the one workflow this module sanctions, and the failure it guards
+    against is invisible short of a save: a unit given as raw bytes reads
+    back correctly and only raises in ``write()``.
+    """
+    psd = PSDImage.open(full_name("layer_effects.psd"))
+    psd[6].effects[0].descriptor[Key.Opacity] = UnitFloat(50.0, Unit.Percent)
+    psd.mark_updated()
+
+    out = tmp_path / "edited.psd"
+    psd.save(out)
+
+    assert PSDImage.open(out)[6].effects[0].opacity == 50.0

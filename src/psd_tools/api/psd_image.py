@@ -121,7 +121,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         self._layers: list[layers.Layer] = []
         self._compatibility_mode = CompatibilityMode.DEFAULT
         self._background_color: float | tuple[float, ...] | None = None
-        self._updated: bool = False  # Flag to check if the layer tree is edited.
+        self._updated: bool = False  # See mark_updated() for what this gates.
         # Per-document allocation budget (bytes); set via open(max_alloc_bytes=...).
         self._max_alloc_bytes: int | None = None
 
@@ -260,7 +260,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         **kwargs: Any,
     ) -> None:
         """
-        Save the PSD file. Updates the ImageData section if the layer structure has been updated.
+        Save the PSD file. Updates the ImageData section if the document has been edited.
 
         :param fp: filename or file-like object.
         :param encoding: charset encoding of the pascal string within the file,
@@ -268,7 +268,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         :param mode: file open mode, default 'wb'.
         """
         if self.is_updated():
-            # Update the preview image if the layer structure has been changed.
+            # Update the preview image if the document has been edited.
             # TODO: Set a `has_composite` flag in VersionInfo resource.
             try:
                 if self._background_color is not None:
@@ -381,9 +381,12 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         """
         Mark the document as edited.
 
-        The flag gates two things: :py:meth:`save` regenerates the flattened
-        preview from the layers rather than writing the stored one, and
-        :py:meth:`composite` re-renders rather than returning it.
+        The flag gates three things: :py:meth:`save` regenerates the
+        flattened preview from the layers rather than writing the stored
+        one, :py:meth:`composite` re-renders rather than returning it, and
+        :py:meth:`Layer.composite() <psd_tools.api.layers.Layer.composite>`
+        redraws vectors rather than using a layer's stored pixels, which can
+        move pixels of its own.
 
         Every edit made through this API sets it. Call this after one it
         cannot see -- through an effect's ``descriptor``, a layer's
@@ -400,7 +403,9 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
     def is_updated(self) -> bool:
         """
-        Returns whether the layer tree has been updated.
+        Returns whether the document has been edited.
+
+        See :py:meth:`mark_updated` for what sets this and what it gates.
 
         :return: `bool`
         """
