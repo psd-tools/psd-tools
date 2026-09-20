@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 from typing import Iterator
 
 import pytest
@@ -6,8 +7,8 @@ import pytest
 from psd_tools.api.layers import Layer
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.constants import Tag
-from psd_tools.psd.descriptor import Bool, Descriptor, List
-from psd_tools.terminology import Enum, Key
+from psd_tools.psd.descriptor import Bool, Descriptor, List, UnitFloat
+from psd_tools.terminology import Enum, Key, Unit
 from psd_tools.api import effects
 
 from ..utils import full_name
@@ -91,6 +92,7 @@ def test_outer_glow(fixture: PSDImage) -> None:
     assert effect.color
     assert effect.contour
     assert effect.glow_type == Enum.SoftMatte
+    assert effect.type is None  # a glow inherits the gradient mixin
     assert effect.noise == 0.0
     assert effect.opacity == 35.0
     assert effect.quality_jitter == 0.0
@@ -110,6 +112,7 @@ def test_inner_glow(fixture: PSDImage) -> None:
     assert effect.contour
     assert effect.glow_source == Enum.EdgeGlow
     assert effect.glow_type == Enum.SoftMatte
+    assert effect.type is None  # a glow inherits the gradient mixin
     assert effect.noise == 0.0
     assert effect.opacity == 46.0
     assert effect.quality_jitter == 0.0
@@ -197,6 +200,9 @@ def test_stroke(fixture: PSDImage) -> None:
     assert effect.color
     assert effect.gradient is None
     assert effect.pattern is None
+    # One class covers all three fill shapes, so a solid-colour stroke is
+    # asked about a gradient it does not have. It used to answer b"Lnr ".
+    assert effect.type is None
 
 
 def test_satin(fixture: PSDImage) -> None:
@@ -304,6 +310,7 @@ def test_an_effects_block_that_did_not_parse_reads_as_no_effects() -> None:
     assert list(layer.effects) == []
     assert len(layer.effects) == 0
     assert layer.effects.enabled is False
+    assert layer.effects.scale == 100.0
     assert layer.has_effects() is False
     assert " effects" not in repr(layer)
 
@@ -423,3 +430,104 @@ def test_items_hands_out_a_list_that_cannot_write_back() -> None:
 
     assert len(effects) == 1
     assert [effect.name for effect in effects.items] == ["Stroke"]
+
+
+def test_an_absent_reporting_enum_is_not_fabricated() -> None:
+    """The reporting-only enums answer None instead of inventing a default.
+
+    Only ``type`` reaches the absent case on a real file -- 55 of the 65
+    corpus effects that expose it never write the key. The other seven are
+    written by every file there is, so taking the key away is the only way
+    to ask them the question at all.
+    """
+    psd = PSDImage.open(full_name("layer_effects.psd"))
+
+    stroke = psd[10].effects[0]
+    assert isinstance(stroke, effects.Stroke)
+    assert stroke.position == Enum.OutsetFrame
+    assert stroke.fill_type == Enum.SolidColor
+    del stroke.descriptor[Key.Style]
+    del stroke.descriptor[Key.PaintType]
+    assert stroke.position is None
+    assert stroke.fill_type is None
+
+    glow = psd[3].effects[0]
+    assert isinstance(glow, effects.OuterGlow)
+    assert glow.glow_type == Enum.SoftMatte
+    del glow.descriptor[Key.GlowTechnique]
+    assert glow.glow_type is None
+
+    inner = psd[4].effects[0]
+    assert isinstance(inner, effects.InnerGlow)
+    assert inner.glow_source == Enum.EdgeGlow
+    del inner.descriptor[Key.InnerGlowSource]
+    assert inner.glow_source is None
+
+    bevel = psd[1].effects[0]
+    assert isinstance(bevel, effects.BevelEmboss)
+    assert bevel.bevel_type == Enum.SoftMatte
+    assert bevel.bevel_style == Enum.InnerBevel
+    assert bevel.direction == Enum.StampIn
+    del bevel.descriptor[Key.BevelTechnique]
+    del bevel.descriptor[Key.BevelStyle]
+    del bevel.descriptor[Key.BevelDirection]
+    assert bevel.bevel_type is None
+    assert bevel.bevel_style is None
+    assert bevel.direction is None
+    # The blend modes are not in this set: an absent one really does mean
+    # Normal, which is why #831 keeps their defaults along with opacity's.
+    assert bevel.highlight_mode == Enum.Screen
+    assert bevel.shadow_mode == Enum.Multiply
+
+
+def test_value_is_deprecated_out_loud() -> None:
+    """The deprecation was a ``logger.debug`` no user ever saw.
+
+    The compositor was its last in-tree reader until #831; nothing in the
+    library trips this now.
+    """
+    effect = PSDImage.open(full_name("layer_effects.psd"))[10].effects[0]
+
+    with pytest.warns(DeprecationWarning, match="descriptor"):
+        assert effect.value is effect.descriptor
+
+
+def test_the_documented_edit_recipe_survives_a_save(tmp_path: Path) -> None:
+    """The module docstring's editing recipe, run exactly as it is written.
+
+    It is the one workflow this module sanctions, and the failure it guards
+    against is invisible short of a save: a unit given as raw bytes reads
+    back correctly and only raises in ``write()``.
+    """
+    psd = PSDImage.open(full_name("layer_effects.psd"))
+    psd[6].effects[0].descriptor[Key.Opacity] = UnitFloat(50.0, Unit.Percent)
+    psd.mark_updated()
+
+    out = tmp_path / "edited.psd"
+    psd.save(out)
+
+    assert PSDImage.open(out)[6].effects[0].opacity == 50.0
+
+
+def test_scale_answers_where_there_is_no_block() -> None:
+    """``scale`` used to raise on the guard ``enabled`` answers False on.
+
+    Reading the fx list's scale off a layer that has no fx list is not an
+    error the caller can do anything with, and the two properties
+    disagreeing about the same ``self._data is None`` made the proxy look
+    like it had two contracts. 100.0 is what a block that omits the key
+    already answers, so no layer changes its answer, only the non-layers.
+    """
+    psd = PSDImage.open(full_name("hidden-groups.psd"))
+    # Selected on block presence, not on ``has_effects()``: since #845 that
+    # asks what the fx list shows, which is a different question from the
+    # ``self._data is None`` guard this test is about.
+    plain = next(
+        layer
+        for layer in psd.descendants()
+        if _effects_block(layer) is None
+        and not any(tag in layer.tagged_blocks for tag in effects._EFFECTS_TAGS)
+    )
+
+    assert plain.effects.enabled is False
+    assert plain.effects.scale == 100.0

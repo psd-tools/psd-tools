@@ -26,6 +26,7 @@ from psd_tools.constants import (
     Resource,
     Tag,
 )
+from psd_tools.psd.descriptor import Descriptor
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ class _StyledEffect(Protocol):
     """
 
     @property
-    def value(self) -> Any: ...
+    def descriptor(self) -> Descriptor: ...
 
     @property
     def opacity(self) -> float: ...
@@ -116,15 +117,15 @@ _OverlayDraw = Callable[[Layer, Any, int], tuple[np.ndarray | None, np.ndarray |
 
 
 def _draw_color_overlay(
-    layer: Layer, value: Any, channels: int
+    layer: Layer, descriptor: Any, channels: int
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
-    return paint.draw_solid_color_fill(layer.bbox, layer._psd.color_mode, value)
+    return paint.draw_solid_color_fill(layer.bbox, layer._psd.color_mode, descriptor)
 
 
 def _draw_pattern_overlay(
-    layer: Layer, value: Any, channels: int
+    layer: Layer, descriptor: Any, channels: int
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
-    fill, shape = paint.draw_pattern_fill(layer.bbox, layer._psd, value)
+    fill, shape = paint.draw_pattern_fill(layer.bbox, layer._psd, descriptor)
     if fill is None:
         return None, None
     # A pattern carries its own color mode, so a grayscale one reaches a CMYK
@@ -150,9 +151,9 @@ def _draw_pattern_overlay(
 
 
 def _draw_gradient_overlay(
-    layer: Layer, value: Any, channels: int
+    layer: Layer, descriptor: Any, channels: int
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
-    return paint.draw_gradient_fill(layer.bbox, layer._psd.color_mode, value)
+    return paint.draw_gradient_fill(layer.bbox, layer._psd.color_mode, descriptor)
 
 
 # Iteration order is the order the overlays are composited in, unchanged from
@@ -202,7 +203,7 @@ def _stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
         return bbox
     for effect in _readable(layer, "stroke"):
         try:
-            bbox = utils.union_bbox(bbox, stroke_bbox(layer.bbox, effect.value))
+            bbox = utils.union_bbox(bbox, stroke_bbox(layer.bbox, effect.descriptor))
         except _UNREADABLE as error:
             logger.debug("Cannot measure a stroke effect of %s: %s", layer, error)
     return bbox
@@ -1745,7 +1746,7 @@ class Compositor(object):
             # fill decodes the pattern's own pixels, and a file whose pattern
             # data is corrupt loses the effect here rather than the document.
             try:
-                fill, shape_e = draw(layer, effect.value, self.channels)
+                fill, shape_e = draw(layer, effect.descriptor, self.channels)
                 opacity = effect.opacity / 100.0
                 blend_mode = effect.blend_mode
             except _UNREADABLE as error:
@@ -1913,7 +1914,7 @@ class Compositor(object):
                 # Effect must happen at the layer viewport, grown so an outset
                 # or centered stroke has room for the part of itself that
                 # falls outside the layer (#792).
-                bbox = stroke_bbox(layer.bbox, effect.value)
+                bbox = stroke_bbox(layer.bbox, effect.descriptor)
             except _UNREADABLE as error:
                 logger.debug("Cannot measure a stroke effect of %s: %s", layer, error)
                 continue
@@ -1922,7 +1923,7 @@ class Compositor(object):
             shape_in_bbox = self._trace_shape(layer, bbox, shape, traces_mask)
             try:
                 color, mask_in_bbox = draw_stroke_effect(
-                    bbox, shape_in_bbox, effect.value, layer._psd
+                    bbox, shape_in_bbox, effect.descriptor, layer._psd
                 )
                 opacity = effect.opacity / 100.0
                 blend_mode = effect.blend_mode
