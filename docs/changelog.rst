@@ -4,11 +4,15 @@ Changelog
 1.20.0 (unreleased)
 -------------------
 
+- [fix] A vector path is filled with the exact area it covers instead of
+  aggdraw's quarter-pixel dilation of it, and a combined path is filled by the
+  even-odd rule PSD uses rather than a subpath at a time, so a subpath inside
+  another cuts a hole instead of being swallowed. A ``force=True`` vector
+  render loses half a pixel of width it never had, and holes reappear (#844)
 - [fix] A stroke effect is now measured from the mask's coverage rather than
   its half-opacity contour, as Photoshop does. A soft-edged layer -- feathered
   mask, gradient mask, soft brush -- takes the stroke across its whole body
-  rather than a ring inside it, and a vector shape rendered with ``force=True``
-  shifts by a quarter pixel (#844). Hard-edged masks are unchanged, and only a
+  rather than a ring inside it. Hard-edged masks are unchanged, and only a
   pattern fill still needs scikit-image (#799)
 - [api] ``PSDImage.mark_updated()`` is now public and the private
   ``_mark_updated()`` is gone, so an edit this API cannot see -- through an
