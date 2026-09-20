@@ -364,12 +364,18 @@ def test_effects_follows_a_block_attached_after_it_was_read() -> None:
     Under the snapshot this was unreachable without ``del layer._effects``,
     and the only reason the corresponding compositor fixture worked was that
     it set its block before anything read ``layer.effects``.
+
+    ``view`` is taken, and read, while the layer still has no block, and is
+    asserted on alongside every fresh ``layer.effects``. Without it the test
+    would pass on the de-memoisation alone -- a proxy that still froze its
+    own descriptor would go unnoticed, since each access hands back a new one.
     """
     psd = PSDImage.open(full_name("layer_comps.psd"))
     layer = psd[3]
     assert _effects_block(layer) is None
-    assert len(layer.effects) == 0
-    assert layer.effects.enabled is False
+    view = layer.effects
+    assert len(view) == 0
+    assert view.enabled is False
 
     overlay = Descriptor(classID=b"SoFi")
     overlay[Key.Enabled] = Bool(True)
@@ -380,9 +386,12 @@ def test_effects_follows_a_block_attached_after_it_was_read() -> None:
     layer.tagged_blocks.set_data(Tag.OBJECT_BASED_EFFECTS_LAYER_INFO, block)
 
     assert [effect.name for effect in layer.effects] == ["ColorOverlay"]
+    assert [effect.name for effect in view] == ["ColorOverlay"]
     assert layer.effects.enabled is True
+    assert view.enabled is True
     assert layer.has_effects() is True
     assert layer.has_effects(name="ColorOverlay") is True
+    assert list(view.find("ColorOverlay"))
 
     # And the structural flags too, which the snapshot froze along with the
     # list. ``set_data`` stores a ``DescriptorBlock2`` of its own, so these go
@@ -391,11 +400,14 @@ def test_effects_follows_a_block_attached_after_it_was_read() -> None:
     assert stored is not None
     stored[b"masterFXSwitch"] = Bool(False)
     assert layer.effects.enabled is False
+    assert view.enabled is False
     assert layer.has_effects() is False
     # Switching the master off greys the fx list out; it does not empty it.
     assert layer.has_effects(enabled=False) is True
+    assert len(view) == 1
     stored[b"solidFill"][b"present"] = Bool(False)  # type: ignore[index]
     assert layer.has_effects(enabled=False) is False
+    assert len(view) == 0
 
 
 def test_items_hands_out_a_list_that_cannot_write_back() -> None:

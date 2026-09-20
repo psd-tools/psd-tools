@@ -221,9 +221,10 @@ class _Effect(_EffectProtocol):
     def present(self) -> bool:
         """Whether the effect has an entry in the layer's fx list.
 
-        True for every effect :py:class:`Effects` hands out, because it is the
-        flag that decides what gets listed -- it distinguishes nothing among
-        the effects you can reach through the proxy.
+        It is the flag :py:class:`Effects` filters on, so it is True for every
+        effect a listing hands out and distinguishes nothing within one. It
+        says so only as of that listing, though: clear it on an effect you are
+        holding and this reports False, while the next listing drops it.
         """
         return bool(self.descriptor.get(b"present"))
 
