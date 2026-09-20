@@ -53,7 +53,6 @@ The effects system integrates with the main compositing pipeline and is
 automatically applied when rendering layers that have effects enabled.
 """
 
-import itertools
 import logging
 import math
 from typing import TYPE_CHECKING
@@ -145,23 +144,6 @@ def stroke_bbox(
     return (bbox[0] - margin, bbox[1] - margin, bbox[2] + margin, bbox[3] + margin)
 
 
-def _overlap(
-    shape: tuple[int, ...], shift: tuple[int, ...]
-) -> tuple[tuple[slice, ...], tuple[slice, ...]]:
-    """The two slices that line an array up against itself moved by ``shift``.
-
-    Sliced rather than rolled so that nothing wraps: the first row must not
-    count the last one as its neighbour.
-    """
-    source = tuple(
-        slice(max(0, -step), size - max(0, step)) for step, size in zip(shift, shape)
-    )
-    target = tuple(
-        slice(max(0, step), size - max(0, -step)) for step, size in zip(shift, shape)
-    )
-    return source, target
-
-
 def _grow(mask: np.ndarray) -> np.ndarray:
     """``mask`` widened by one pixel along each axis.
 
@@ -184,69 +166,63 @@ def _grow(mask: np.ndarray) -> np.ndarray:
 
 
 def _nearest_boundary(
-    alpha: np.ndarray,
-    partial: np.ndarray,
-    near: np.ndarray,
-    seed: np.ndarray,
-    reach: np.ndarray,
+    alpha: np.ndarray, partial: np.ndarray, near: np.ndarray, radius: float
 ) -> np.ndarray:
-    """``reach`` re-measured against the boundaries the neighbours found.
+    """The nearest boundary within ``radius``, as distance, negative inside.
 
-    The nearest partial *pixel* is not the one stating the nearest boundary:
-    each states one ``near`` of its own, up to half a pixel either side of
-    itself, so a pixel one further out can state a boundary up to one pixel
-    closer. Taking the nearest pixel's word for it leaves the answer to
-    whichever of two equidistant pixels ``distance_transform_edt`` happened to
-    pick, which is not a choice the mask makes -- mirror the mask and the
-    stroke moves, by up to 0.56 coverage on this corpus. Photoshop's own
-    render of such a mask is mirror-exact, and takes the nearest boundary.
+    Every partial pixel states one boundary, ``near`` from its own centre and
+    so up to half a pixel either side of it. A pixel with no coverage of its
+    own is ``min`` over those of ``|x - p| + near[p]`` -- the nearest
+    *boundary*, which is not the nearest pixel stating one: the offsets span a
+    pixel, so a pixel one further away can win. Taking the nearest pixel's
+    word for it leaves the answer to whichever of two equidistant pixels a
+    distance transform happens to return, which is not a choice the mask
+    makes; Photoshop's render of such a mask is mirror-exact, and this is the
+    value it renders.
 
-    One round, because that half-pixel each way bounds the winner to within a
-    pixel of the nearest, so every seed that can win is one some neighbour is
-    already measuring from. Iterating further chases seeds that cannot, and
-    on this corpus it does not settle: the residual asymmetry moves around
-    rather than down. What is left after one round is 0.04 against 0.56, at
-    one stroke draw of 220 rather than 29, and closing it needs a distance
-    transform weighted by the seed values rather than more rounds of this.
-
-    Sparse because only a pixel whose neighbours disagree about the seed can
-    move, which is a thin shell around the partial band rather than the canvas.
+    That minimum is a grey erosion of ``near`` by a cone, which is exact and
+    has no tie to break. ``radius`` bounds it to the band that will be read:
+    a seed further out than the widest limit plus a pixel cannot reach it, and
+    what it would have said is clipped away. Evaluated on the pixels within
+    ``radius`` of the partial band rather than on the canvas, which is what
+    keeps a cone that grows as the square of the stroke's size off every pixel
+    the stroke cannot reach.
     """
-    shifts = [s for s in itertools.product((-1, 0, 1), repeat=alpha.ndim) if any(s)]
-    active = np.zeros(alpha.shape, dtype=bool)
-    for shift in shifts:
-        source, target = _overlap(alpha.shape, shift)
-        active[target] |= seed[source] != seed[target]
-    active &= ~partial
+    span = math.ceil(radius)
+    offsets = np.mgrid[-span : span + 1, -span : span + 1].reshape(2, -1).T
+    lengths = np.hypot(offsets[:, 0], offsets[:, 1]).astype(np.float32)
+    within = lengths <= radius
+    offsets, lengths = offsets[within], lengths[within]
+
+    from scipy.ndimage import distance_transform_edt  # type: ignore[import-untyped]  # noqa: PLC0415
+
+    # Beyond the reach of any boundary, and so of any band: infinitely far
+    # out from a clear pixel and infinitely far in from an opaque one.
+    field = np.where(partial, near, np.where(alpha >= 1, -np.inf, np.inf)).astype(
+        np.float32
+    )
+    active = (distance_transform_edt(~partial) <= radius) & ~partial
     if not active.any():
-        return reach
+        return field
 
     flat = np.flatnonzero(active)
-    where = np.unravel_index(flat, alpha.shape)
-    best = reach.ravel()[flat]
-    outward = best > 0
-    for shift in shifts:
-        neighbour = tuple(
-            np.clip(where[axis] - shift[axis], 0, alpha.shape[axis] - 1)
-            for axis in range(alpha.ndim)
-        )
-        candidate = seed[neighbour]
-        stated = np.unravel_index(candidate, alpha.shape)
-        squared = np.zeros(flat.shape, dtype=np.float32)
-        for axis in range(alpha.ndim):
-            delta = (stated[axis] - where[axis]).astype(np.float32)
-            squared += delta * delta
-        reading = np.sqrt(squared, out=squared)
-        np.negative(reading, out=reading, where=~outward)
-        reading += near.ravel()[candidate]
-        best = np.where(
-            np.where(outward, reading < best, reading > best), reading, best
-        )
-    reach.ravel()[flat] = best
-    return reach
+    rows, cols = np.unravel_index(flat, alpha.shape)
+    height, width = alpha.shape
+    outward = np.full(flat.shape, np.inf, dtype=np.float32)
+    inward = np.full(flat.shape, -np.inf, dtype=np.float32)
+    for (down, across), length in zip(offsets, lengths):
+        row, col = rows + down, cols + across
+        on_canvas = (row >= 0) & (row < height) & (col >= 0) & (col < width)
+        row, col = np.where(on_canvas, row, 0), np.where(on_canvas, col, 0)
+        states = on_canvas & partial[row, col]
+        stated = near[row, col]
+        np.minimum(outward, np.where(states, stated + length, np.inf), out=outward)
+        np.maximum(inward, np.where(states, stated - length, -np.inf), out=inward)
+    field[rows, cols] = np.where((alpha >= 1).ravel()[flat], inward, outward)
+    return field
 
 
-def _signed_distance(alpha: np.ndarray) -> np.ndarray:
+def _signed_distance(alpha: np.ndarray, reach: float | None = None) -> np.ndarray:
     """Distance from each pixel to the mask boundary, negative inside.
 
     Photoshop reads that boundary off the mask's **coverage**, not off its 0.5
@@ -273,15 +249,12 @@ def _signed_distance(alpha: np.ndarray) -> np.ndarray:
     to 0.97 coverage where a feathered edge meets a hard one, against 0.002
     for this.
 
-    A pixel outside the partial band takes the distance to the band plus the
-    coverage the pixel it lands on states -- and then, in
-    :py:func:`_nearest_boundary`, the nearest *boundary* rather than the
-    nearest pixel stating one. Two things are approximate about that even so:
-    the offset is applied along the line to that pixel rather than along the
-    boundary's own normal, which parts company with the truth around a curve
-    the way :py:func:`_distance_band` does when it paints the arc; and the
-    re-measurement looks one pixel out rather than solving for the nearest
-    boundary outright.
+    A pixel outside the partial band takes the nearest of the boundaries the
+    band states, which :py:func:`_nearest_boundary` solves for outright. What
+    stays approximate is that a partial pixel's ``near`` is applied along the
+    line to that pixel rather than along the boundary's own normal, which
+    parts company with the truth around a curve the way
+    :py:func:`_distance_band` does when it paints the arc.
 
     A mask that is flat at 0 or 1 has no boundary at all. That is not a case
     to fall through: ``distance_transform_edt`` is undefined on an input with
@@ -291,6 +264,9 @@ def _signed_distance(alpha: np.ndarray) -> np.ndarray:
     is right. A mask flat at a *partial* value is not one of these -- every
     pixel of it states a boundary, so it takes a stroke over all of it.
     """
+    if reach is None:
+        # No band named, so no bound: far enough that nothing is out of range.
+        reach = float(math.hypot(*alpha.shape))
     if not HAS_SCIPY:
         raise ImportError(
             "Stroke effects require: scipy\n\n"
@@ -329,23 +305,17 @@ def _signed_distance(alpha: np.ndarray) -> np.ndarray:
             return base
 
     # What a partial pixel states, and what a pixel with none of its own takes
-    # by walking out to the nearest pixel that has some. ``alpha >= 1`` rather
-    # than the iso-contour picks the sign: every pixel left to place is at 0
-    # or 1.
+    # from the nearest boundary any of them states.
     near = (0.5 - alpha).astype(np.float32)
-    distance, index = distance_transform_edt(~partial, return_indices=True)
-    seed = np.ravel_multi_index(tuple(index), alpha.shape).astype(np.int32)
-    reach = distance.astype(np.float32)
-    np.negative(reach, out=reach, where=alpha >= 1)
-    reach += near[tuple(index)]
-    reach = _nearest_boundary(alpha, partial, near, seed, reach)
+    stated = _nearest_boundary(alpha, partial, near, reach)
     if not hard.any():
-        return np.where(partial, near, reach).astype(np.float32)
+        return stated
 
     # ``base`` is exact along a hard step, and is the better answer for any
     # pixel nearer one of them than it is to the partial band.
+    distance = distance_transform_edt(~partial)
     to_hard = distance_transform_edt(~hard)
-    field = np.where(partial, near, np.where(distance <= to_hard, reach, base))
+    field = np.where(partial, near, np.where(distance <= to_hard, stated, base))
     return field.astype(np.float32)
 
 
@@ -427,5 +397,7 @@ def draw_stroke_effect(
         logger.debug("Unrecognised stroke position %r; drawing it as outset", style)
         limits = _UNRECOGNISED
     lo, hi = limits[0] * size, limits[1] * size
-    distance = _signed_distance(shape[:, :, 0])
+    # A boundary further out than the band's widest limit, plus the half
+    # pixel a partial pixel can state either side of itself, cannot show.
+    distance = _signed_distance(shape[:, :, 0], max(abs(lo), abs(hi)) + 1.0)
     return color, np.expand_dims(_distance_band(distance, lo, hi), 2)

@@ -812,8 +812,8 @@ def test_the_nearest_pixel_is_not_the_nearest_boundary() -> None:
     The numbers are Photoshop's. This row was authored as a layer mask and
     rendered with a 1 px outset stroke, and its mirror image separately; the
     two renders are identical to the bit, and the coverage they give is the
-    band over exactly this field. Reading the nearest pixel instead puts 0.9
-    coverage where Photoshop puts 0.1.
+    band over exactly this field. On the middle pixel Photoshop puts 0.9
+    coverage, where reading the nearest pixel puts 0.1.
     """
     row = np.zeros((1, 5), dtype=np.float32)
     row[0, 1], row[0, 3] = 0.1, 0.9
@@ -830,10 +830,11 @@ def test_a_stroke_does_not_depend_on_which_way_the_mask_faces() -> None:
 
     ``stroke-effects.psd``'s ellipses are 90% partial alpha, which is what it
     takes for two partial pixels to be equidistant from a third often enough
-    to see: before the boundary was chosen by distance rather than by seed,
+    to see: before the boundary was chosen by distance rather than by pixel,
     this layer's stroke moved by 0.228 coverage when the mask was flipped.
-    Equality rather than a bound, because the field is exactly symmetric on
-    every stroke-bearing layer in the corpus but one.
+    Equality rather than a bound, because solving for the nearest boundary
+    leaves nothing to break a tie over: every stroke-bearing layer in the
+    corpus is now exactly symmetric, in all three positions, on both axes.
     """
     psd = PSDImage.open(full_name("effects/stroke-effects.psd"))
     layer = next(sub for sub in psd.descendants() if sub.name == "Shape Ellipse")
@@ -842,11 +843,22 @@ def test_a_stroke_does_not_depend_on_which_way_the_mask_faces() -> None:
     alpha = shape[..., 0].astype(np.float32)
     assert ((alpha > 0) & (alpha < 1)).mean() > 0.5, "the fixture stopped being soft"
 
-    for limits in ((0.0, 3.0), (-3.0, 0.0), (-1.5, 1.5)):
-        band = _distance_band(_signed_distance(alpha), *limits)
-        for axis in (0, 1):
-            flipped = _distance_band(_signed_distance(np.flip(alpha, axis)), *limits)
-            assert np.array_equal(band, np.flip(flipped, axis)), (limits, axis)
+    # Scattered partial pixels of very different coverage, which is what it
+    # takes to make the nearest pixel and the nearest boundary disagree in two
+    # dimensions at once. Re-measuring against the neighbours narrowed this to
+    # 0.026 coverage and did not close it; solving for the boundary does.
+    scattered = np.zeros((5, 5), dtype=np.float32)
+    scattered[2, 4], scattered[3, 3] = 0.01, 0.80
+    scattered[4, 1], scattered[4, 2] = 0.99, 0.20
+
+    for mask in (alpha, scattered):
+        for limits in ((0.0, 3.0), (-3.0, 0.0), (-1.5, 1.5)):
+            reach = max(abs(limits[0]), abs(limits[1])) + 1.0
+            band = _distance_band(_signed_distance(mask, reach), *limits)
+            for axis in (0, 1):
+                turned = _signed_distance(np.flip(mask, axis), reach)
+                flipped = _distance_band(turned, *limits)
+                assert np.array_equal(band, np.flip(flipped, axis)), (limits, axis)
 
 
 def test_a_mask_does_not_meet_itself_around_the_array_edge() -> None:
