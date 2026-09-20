@@ -27,8 +27,11 @@ either way (see ``tests/psd_files/path-operations/nested-subpath-winding``).
 Where a single pixel holds more than one winding at once -- a contour
 crossing itself inside it, or two contours overlapping within it -- the
 answer is approximate, because a prefix sum carries the area-weighted mean
-winding of the pixel and not the distribution it came from. Every rasterizer
-of this family shares that, aggdraw included, and by a wider margin.
+winding of the pixel and not the distribution it came from. Aligned to the
+pixel grid the same overlap is exact; it is the part of it that falls inside
+one pixel that is not. Over every multi-subpath component in the test corpus
+the error stays under 0.002, and the union aggdraw was asked for instead is
+off by a full 1.0 on the same shapes. Measured in #858.
 """
 
 import numpy as np
