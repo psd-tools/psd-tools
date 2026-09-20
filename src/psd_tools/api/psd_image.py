@@ -121,7 +121,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         self._layers: list[layers.Layer] = []
         self._compatibility_mode = CompatibilityMode.DEFAULT
         self._background_color: float | tuple[float, ...] | None = None
-        self._updated: bool = False  # Flag to check if the layer tree is edited.
+        self._updated: bool = False  # See mark_updated() for what this gates.
         # Per-document allocation budget (bytes); set via open(max_alloc_bytes=...).
         self._max_alloc_bytes: int | None = None
 
@@ -260,7 +260,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         **kwargs: Any,
     ) -> None:
         """
-        Save the PSD file. Updates the ImageData section if the layer structure has been updated.
+        Save the PSD file. Updates the ImageData section if the document has been edited.
 
         :param fp: filename or file-like object.
         :param encoding: charset encoding of the pascal string within the file,
@@ -268,7 +268,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         :param mode: file open mode, default 'wb'.
         """
         if self.is_updated():
-            # Update the preview image if the layer structure has been changed.
+            # Update the preview image if the document has been edited.
             # TODO: Set a `has_composite` flag in VersionInfo resource.
             try:
                 if self._background_color is not None:
@@ -377,13 +377,49 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             raise ValueError("Failed to composite PSD image")
         return result
 
-    def _mark_updated(self) -> None:
-        """Mark the layer tree as updated."""
+    def mark_updated(self) -> None:
+        """
+        Mark the document's stored preview as stale.
+
+        The flag gates three things: :py:meth:`save` regenerates the
+        flattened preview from the layers rather than writing the stored
+        one, :py:meth:`composite` re-renders rather than returning it, and
+        :py:meth:`Layer.composite() <psd_tools.api.layers.Layer.composite>`
+        redraws vectors rather than using a layer's stored pixels, which can
+        move pixels of its own.
+
+        Call this after an edit this API cannot see -- through an effect's
+        ``descriptor``, a layer's ``tagged_blocks``, or any other low-level
+        record -- or the saved file keeps a preview that disagrees with its
+        own layers. Most edits made through this API set it themselves, but
+        the rule is not tidy: :py:attr:`Layer.sheet_color
+        <psd_tools.api.layers.Layer.sheet_color>` and
+        :py:attr:`Layer.reference_point
+        <psd_tools.api.layers.Layer.reference_point>` set it although
+        neither reaches the compositor, while :py:attr:`Layer.name
+        <psd_tools.api.layers.Layer.name>` does not set it at all.
+
+        The preview is all it marks. A wrapper that memoises on first
+        access -- ``mask``, ``vector_mask``, ``origination``, ``stroke``,
+        and the smart object and typesetting ones -- goes on reporting the
+        record it read, so replacing that record underneath one of them
+        needs the cached attribute dropped as well. An adjustment or fill
+        layer captures its ``_data`` earlier still, in ``__init__``, and a
+        group caches its bbox; neither is dropped here either.
+
+        The flag only ever goes one way: nothing clears it, ``save()``
+        included, so a document stays marked for the life of the object.
+        It lives on the document, not the layer, and ``Layer.parent`` is
+        typed as a ``GroupMixinProtocol``, so reach it through the
+        :py:class:`PSDImage` itself rather than by walking up from a layer.
+        """
         self._updated = True
 
     def is_updated(self) -> bool:
         """
-        Returns whether the layer tree has been updated.
+        Returns whether the document has been edited.
+
+        See :py:meth:`mark_updated` for what sets this and what it gates.
 
         :return: `bool`
         """
@@ -631,7 +667,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
     @compatibility_mode.setter
     def compatibility_mode(self, value: CompatibilityMode) -> None:
         if self._compatibility_mode != value:
-            self._mark_updated()
+            self.mark_updated()
         self._compatibility_mode = value
 
     @property
@@ -681,7 +717,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
                 get_color_channels(self),
             )
         if self._background_color != value:
-            self._mark_updated()
+            self.mark_updated()
         self._background_color = value
 
     @property
@@ -748,7 +784,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         )
         layer.opacity = opacity
         layer.blend_mode = blend_mode
-        self._mark_updated()
+        self.mark_updated()
         return layer
 
     def create_group(
@@ -783,7 +819,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             group.extend(layer_list)
         group.opacity = opacity
         group.blend_mode = blend_mode
-        self._mark_updated()
+        self.mark_updated()
         return group
 
     # TODO: Add more editing APIs, such as duplicate_layers, resize_canvas, etc.
@@ -970,7 +1006,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         layer_info.layer_count = len(layer_records)
 
         # Flag as updated.
-        self._mark_updated()
+        self.mark_updated()
 
     def _copy_patterns(self, psdimage: PSDProtocol) -> None:
         """Copy patterns from this psdimage to the target psdimage."""

@@ -1633,7 +1633,7 @@ def test_an_unmeasurable_stroke_falls_back_to_the_layer_box(
     broken = [effect for effect in layer.effects.find("stroke")]
     assert broken, "the fixture carries the stroke this test breaks"
     for effect in broken:
-        effect.value[Key.SizeKey] = "wide"
+        effect.descriptor[Key.SizeKey] = "wide"
 
     with caplog.at_level(logging.DEBUG, logger="psd_tools.composite.composite"):
         assert _stroke_reach(layer) == layer.bbox, "measurement gave up"
@@ -1651,7 +1651,7 @@ def test_an_unmeasurable_stroke_falls_back_to_the_layer_box(
     whole = np.asarray(psd.composite(ignore_preview=True).convert("RGBA"))
     off = PSDImage.open(full_name("effects/outside-stroke.psd"))
     for effect in off[0].effects.find("stroke"):
-        effect.value[Key.Enabled] = False
+        effect.descriptor[Key.Enabled] = False
     assert whole[..., 3].any(), "the layer went with its unreadable stroke"
     assert np.array_equal(
         whole, np.asarray(off.composite(ignore_preview=True).convert("RGBA"))
@@ -1677,9 +1677,9 @@ def test_one_unmeasurable_stroke_keeps_the_reach_of_the_other() -> None:
     outset, inset = list(layer.effects.find("stroke"))
     assert _stroke_reach(layer) == (0, -1, 32, 31), "both strokes measured"
 
-    outset.value[Key.SizeKey] = "wide"
+    outset.descriptor[Key.SizeKey] = "wide"
     assert _stroke_reach(layer) == (1, 0, 31, 30), "the inset stroke's own box"
-    inset.value[Key.SizeKey] = "wide"
+    inset.descriptor[Key.SizeKey] = "wide"
     assert _stroke_reach(layer) == layer.bbox, "nothing left to measure"
 
 
@@ -1748,7 +1748,7 @@ def test_composite_stroke_effect_over_a_layer_without_a_mask() -> None:
     )
     viewport = (-4, -4, psd.width, psd.height)
     for effect in layer.effects.find("stroke"):
-        bbox = stroke_bbox(layer.bbox, effect.value)
+        bbox = stroke_bbox(layer.bbox, effect.descriptor)
         assert viewport[0] <= bbox[0] and viewport[1] <= bbox[1]
         assert bbox[2] <= viewport[2] and bbox[3] <= viewport[3]
 
