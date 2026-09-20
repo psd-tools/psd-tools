@@ -194,6 +194,25 @@ def test_a_straight_edge_is_not_subdivided() -> None:
     assert len(scanline.flatten_cubics(start, bent, bent, end)) > 50
 
 
+def test_a_curve_that_returns_to_its_own_start_is_not_a_straight_line() -> None:
+    """The chord of a loop has no length, and a length is what the bound is.
+
+    Both handles measure zero against a chord of zero length however far off
+    they reach, so the collinearity short-circuit read this teardrop as
+    straight and flattened it to the single point it starts and ends on --
+    28.8 square pixels of coverage gone.
+    """
+    start = np.array([[5.0, 5.0]])
+    polyline = scanline.flatten_cubics(
+        start, np.array([[17.0, 13.0]]), np.array([[-7.0, 13.0]]), start
+    )
+
+    assert len(polyline) > 50
+    assert scanline.fill_coverage([polyline], 24, 24).sum() == pytest.approx(
+        28.8, abs=0.05
+    )
+
+
 def test_a_flattened_curve_stays_within_the_flatness_bound() -> None:
     """The polyline never strays further from its curve than it promises."""
     rng = np.random.default_rng(844)

@@ -156,18 +156,20 @@ def test_composite_quality_xfail(filename: str) -> None:
 # the path, so half of this one lies outside the shape. While a fill carried
 # aggdraw's quarter pixel of dilation (#844) the fill reached far enough to
 # cover for that; an exact fill does not, and the error against Photoshop's
-# own flat render goes 0.0114 -> 0.0260. It is the stroke that moved, not the
-# fill: the alpha channel alone goes 0.00521 -> 0.00591, and the RGB of the
-# pixels that are actually visible goes 0.01475 -> 0.01468, slightly *better*.
-# The bound is set just above the measurement, so that stroke alignment
-# landing (#854) is a test failure rather than something nobody notices.
+# own flat render goes 0.0114 -> 0.0260. What moved is coverage, not colour:
+# on the pixels both renders leave visible the RGB error is 0.014846 either
+# way, bit for bit, while the alpha channel goes 0.00520 -> 0.00591. The
+# bound sits above the 0.0260 measured with room for the aggdraw pen that
+# draws the stroke, which is not bit-stable between versions -- and well
+# under the 0.0800 this render scores with the stroke switched off, so it
+# still has an opinion. Stroke alignment landing (#854) should fail here.
 @pytest.mark.parametrize(
     ("filename", "threshold"),
     [
         ("smartobject-layer.psd", 0.017),
         ("type-layer.psd", 0.017),
         ("gradient-fill.psd", 0.017),
-        ("shape-layer.psd", 0.028),
+        ("shape-layer.psd", 0.032),
         ("pixel-layer.psd", 0.017),
         ("solid-color-fill.psd", 0.017),
         ("pattern-fill.psd", 0.017),

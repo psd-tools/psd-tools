@@ -165,11 +165,20 @@ def _draw_subpath(
     already laid down.
     """
     width, height = viewport[2] - viewport[0], viewport[3] - viewport[1]
+    # Counted once here rather than in each of the two below, which would
+    # report the same empty subpath twice over when both are asked for.
+    drawable = []
+    for subpath in subpath_list:
+        if len(subpath) <= 1:
+            logger.warning("not enough knots: %d", len(subpath))
+        else:
+            drawable.append(subpath)
+
     plane = np.zeros((height, width, 1), dtype=np.float32)
     if brush:
-        plane = _fill_subpath(subpath_list, viewport, doc_size)
+        plane = _fill_subpath(drawable, viewport, doc_size)
     if pen:
-        outline = _stroke_subpath(subpath_list, viewport, doc_size, pen)
+        outline = _stroke_subpath(drawable, viewport, doc_size, pen)
         plane = plane + outline - plane * outline
     return plane
 
@@ -189,12 +198,9 @@ def _fill_subpath(
     that hole is filled in (#844).
     """
     origin = np.array([viewport[0], viewport[1]], dtype=np.float64)
-    polylines = []
-    for subpath in subpath_list:
-        if len(subpath) <= 1:
-            logger.warning("not enough knots: %d", len(subpath))
-            continue
-        polylines.append(_flatten_subpath(subpath, *doc_size) - origin)
+    polylines = [
+        _flatten_subpath(subpath, *doc_size) - origin for subpath in subpath_list
+    ]
     coverage = scanline.fill_coverage(
         polylines, viewport[2] - viewport[0], viewport[3] - viewport[1]
     )
@@ -259,9 +265,6 @@ def _stroke_subpath(
     draw = aggdraw.Draw(mask)
     stroke = aggdraw.Pen(**pen)
     for subpath in subpath_list:
-        if len(subpath) <= 1:
-            logger.warning("not enough knots: %d", len(subpath))
-            continue
         path = " ".join(map(str, _generate_symbol(subpath, *doc_size)))
         symbol = aggdraw.Symbol(path)
         draw.symbol((-viewport[0], -viewport[1]), symbol, stroke, None)

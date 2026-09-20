@@ -24,11 +24,13 @@ by a wider margin.
 
 import numpy as np
 
-# Accumulator cells, and segment pieces, held at once. Each band of rows is
-# split and summed on its own, so these bound peak memory independently of the
-# canvas and of how far the path wanders across it.
+# Accumulator cells, and segment pieces, held at once. Rows are split and
+# summed a band at a time, and the pieces of a band are cut into columns a
+# span at a time, so these bound peak working memory whatever the canvas is
+# and however far the path wanders across it. The result array is separate,
+# and is the size the caller asked for.
 _BAND_CELLS = 1 << 22
-_BAND_PIECES = 1 << 20
+_BAND_PIECES = 1 << 19
 
 # Flatness of the polyline that stands in for a cubic, in pixels. A chord that
 # strays this far from its curve moves the coverage of the pixel it crosses by
@@ -40,22 +42,49 @@ _FLATNESS = 0.002
 _MAX_STEPS = 1000
 
 
+def _cuts(
+    c0: np.ndarray, c1: np.ndarray, lo: float, hi: float
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Where, and how often, each segment crosses an integer in ``[lo, hi]``.
+
+    Outside that range the pixel a piece lands in is clamped or dropped
+    anyway, so cutting there would multiply the pieces without changing the
+    coverage -- which is also what keeps a path with far-off coordinates from
+    exploding: a segment is monotone, so it can cross the range at most
+    ``hi - lo`` times however large its coordinates are.
+    """
+    first = np.maximum(np.ceil(np.minimum(c0, c1)), lo)
+    last = np.minimum(np.floor(np.maximum(c0, c1)), hi)
+    counts = np.maximum(0.0, last - first + 1.0).astype(np.int64)
+    counts[c0 == c1] = 0
+    return first, last, counts
+
+
+def _chunks(sizes: np.ndarray, budget: int) -> list[tuple[int, int]]:
+    """Split a run of items into spans whose ``sizes`` sum to about ``budget``.
+
+    One span whenever the whole run fits, which is the ordinary case.
+    """
+    running = np.cumsum(sizes)
+    if not len(running) or running[-1] <= budget:
+        return [(0, len(sizes))]
+    spans, start = [], 0
+    while start < len(sizes):
+        base = running[start - 1] if start else 0
+        stop = max(
+            int(np.searchsorted(running, base + budget, side="right")), start + 1
+        )
+        spans.append((start, stop))
+        start = stop
+    return spans
+
+
 def _split(
     p0: np.ndarray, p1: np.ndarray, axis: int, lo: float, hi: float
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Cut every segment where coordinate ``axis`` crosses an integer.
-
-    Only the integers in ``[lo, hi]`` are cut at. Outside that range the pixel
-    a piece lands in is clamped or dropped anyway, so cutting there would
-    multiply the pieces without changing the coverage -- which is also what
-    keeps a path with far-off coordinates from exploding: a segment is
-    monotone, so it can cross the range at most ``hi - lo`` times.
-    """
+    """Cut every segment where coordinate ``axis`` crosses an integer."""
     c0, c1 = p0[:, axis], p1[:, axis]
-    first = np.maximum(np.ceil(np.minimum(c0, c1)), lo)
-    last = np.minimum(np.floor(np.maximum(c0, c1)), hi)
-    cuts = np.maximum(0.0, last - first + 1.0).astype(np.int64)
-    cuts[c0 == c1] = 0
+    first, last, cuts = _cuts(c0, c1, lo, hi)
 
     total_cuts = int(cuts.sum())
     at = np.cumsum(cuts) - cuts
@@ -118,32 +147,43 @@ def fill_coverage(polylines: list, width: int, height: int) -> np.ndarray:
         reaches = (lowest > top) & (highest < bottom)
         if not reaches.any():
             continue
-        q0, q1 = _split(p0[reaches], p1[reaches], 1, top, bottom)
-        q0, q1 = _split(q0, q1, 0, 0, width)
+        rows0, rows1 = _split(p0[reaches], p1[reaches], 1, top, bottom)
 
-        middle = 0.5 * (q0 + q1)
-        row = np.floor(middle[:, 1]).astype(np.int64)
-        inside = (row >= top) & (row < bottom)
-        if not inside.any():
-            continue
-        row, middle = row[inside] - top, middle[inside]
-        rise = (q1[:, 1] - q0[:, 1])[inside]
-
-        # A piece to the left of the canvas still turns every pixel of its
-        # row, so it is kept at column -1; one to the right lands past the
-        # last column and falls out of the slice below.
-        col = np.clip(np.floor(middle[:, 0]), -1, width).astype(np.int64)
-        share = np.clip(middle[:, 0] - col, 0.0, 1.0)
-
-        cell = row * stride + (col + 1)
+        # Cutting those at every column they cross multiplies them again, by
+        # as much as the width of the canvas for a single piece that spans
+        # it. Banding the rows does not bound that, so the second cut is
+        # taken a span of pieces at a time, each span sized from the cuts it
+        # is about to make.
         cells = (bottom - top) * stride
-        acc = np.bincount(cell, weights=rise * (1.0 - share), minlength=cells)
-        acc += np.bincount(cell + 1, weights=rise * share, minlength=cells)
-        acc = acc[:cells].reshape(bottom - top, stride)
-        np.cumsum(acc, axis=1, out=acc)
-        np.abs(acc, out=acc)
-        np.clip(acc, 0.0, 1.0, out=acc)
-        coverage[top:bottom] = acc[:, 1 : width + 1]
+        acc = np.zeros(cells)
+        columns = _cuts(rows0[:, 0], rows1[:, 0], 0, width)[2] + 1
+        for start, stop in _chunks(columns, _BAND_PIECES):
+            q0, q1 = _split(rows0[start:stop], rows1[start:stop], 0, 0, width)
+
+            middle = 0.5 * (q0 + q1)
+            row = np.floor(middle[:, 1]).astype(np.int64)
+            inside = (row >= top) & (row < bottom)
+            if not inside.any():
+                continue
+            row, middle = row[inside] - top, middle[inside]
+            rise = (q1[:, 1] - q0[:, 1])[inside]
+
+            # A piece left of the canvas still turns every pixel of its row.
+            # Column -1 is where it is kept, though the ``share`` clamp just
+            # below would carry it into column 0 on its own; one to the right
+            # lands past the last column and falls out of the slice below.
+            col = np.clip(np.floor(middle[:, 0]), -1, width).astype(np.int64)
+            share = np.clip(middle[:, 0] - col, 0.0, 1.0)
+
+            cell = row * stride + (col + 1)
+            acc += np.bincount(cell, weights=rise * (1.0 - share), minlength=cells)
+            acc += np.bincount(cell + 1, weights=rise * share, minlength=cells)
+
+        rows = acc[:cells].reshape(bottom - top, stride)
+        np.cumsum(rows, axis=1, out=rows)
+        np.abs(rows, out=rows)
+        np.clip(rows, 0.0, 1.0, out=rows)
+        coverage[top:bottom] = rows[:, 1 : width + 1]
     return coverage
 
 
@@ -156,7 +196,9 @@ def flatten_cubics(
     asks for: subdivided uniformly into ``n`` steps a cubic stays within
     ``3 * m / (4 * n**2)`` of the curve, where ``m`` is the larger of the two
     second differences of its control points, so ``n`` follows from
-    :py:data:`_FLATNESS`. The second difference is measured as a length; taken
+    ``_FLATNESS``. Above ``_MAX_STEPS`` that bound is best-effort: a curve
+    whose handles reach thousands of pixels away is cut into a thousand steps
+    and no more. The second difference is measured as a length; taken
     per axis instead it understates the curvature of a diagonal bend, and the
     chord then strays up to 1.26x past the bound.
 
@@ -178,7 +220,10 @@ def flatten_cubics(
         return np.abs(chord[:, 0] * offset[:, 1] - chord[:, 1] * offset[:, 0])
 
     away = np.maximum(across(c0), across(c1)) / np.where(span > 0, span, 1.0)
-    straight = 0.75 * away <= _FLATNESS
+    # A chord of no length is not a straight curve: both handles measure
+    # zero against it however far off they reach, so the loop a cubic
+    # makes when it comes back to its own start would be discarded.
+    straight = (0.75 * away <= _FLATNESS) & (span > 0)
 
     second = np.maximum(
         np.linalg.norm(p0 - 2 * c0 + c1, axis=1),

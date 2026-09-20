@@ -67,14 +67,14 @@ def test_stroke_traces_the_layer_where_it_runs_off_the_canvas(force: bool) -> No
     ``-1..2`` measured from the layer's.
 
     Both force modes, because they reach the coverage by different routes:
-    the stored alpha channel, and the vector mask redrawn from the path. Which
-    is also why only the stored one is pixel-exact. aggdraw paints a 0.247
-    coverage fringe outside a path whose vertices are all integers (#844), and
-    a stroke reads the boundary off coverage (#799), so under ``force=True``
-    the ring's inner edge sits a quarter of a pixel further in. That is the
-    raster being a quarter pixel wide, not the ring being in the wrong place,
-    so what is asserted per force mode is the placement -- which is all #804
-    was ever about -- and the exact bound stays on the mode that can meet it.
+    the stored alpha channel, and the vector mask redrawn from the path. They
+    now agree to the last bit, because a redrawn mask is the area the path
+    covers and this path's vertices are all integers, so there is nothing for
+    the two routes to disagree about. While aggdraw drew the fill it was a
+    quarter of a pixel wider on every side (#844), and since a stroke reads
+    its boundary off coverage (#799) the ring's inner edge sat that much
+    further in -- which is why this bound used to be eight orders looser for
+    ``force=True`` than for ``force=False``.
     """
     psd = PSDImage.open(full_name("effects/stroke-effect-transparent-shape.psd"))
     result = composite(psd, force=force)[0]
@@ -87,13 +87,11 @@ def test_stroke_traces_the_layer_where_it_runs_off_the_canvas(force: bool) -> No
     assert not np.allclose(stroke, interior, atol=1 / 255.0)
     assert np.allclose(interior, result[16, 4], atol=1 / 255.0)
 
-    if not force:
-        # Two orders of magnitude over the 1.3e-11 measured, and eight under
-        # the 0.022 this fixture sat at while it was an xfail.
-        assert _mse(psd.numpy(), result) <= 1e-9
-    else:
-        # One column, shaded 0.15 out by #844's fringe; 1.5e-3 measured.
-        assert _mse(psd.numpy(), result) <= 3e-3
+    # Two orders of magnitude over the 1.3e-11 measured -- in both force
+    # modes, identically -- and eight under the 0.022 this fixture sat at
+    # while it was an xfail. ``force=True`` was held to 3e-3 for as long as
+    # the fill it strokes was aggdraw's (#844).
+    assert _mse(psd.numpy(), result) <= 1e-9
 
 
 def test_stroke_ignores_a_viewport_narrower_than_the_layer() -> None:

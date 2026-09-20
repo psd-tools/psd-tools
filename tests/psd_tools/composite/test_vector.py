@@ -52,11 +52,12 @@ def test_draw_stroke(filename: str) -> None:
     check_composite_quality(filename, 0.01, force=True)
 
 
-# Was expected to fail at 0.01 and now measures 0.0089, because the fill it
+# Was expected to fail at 0.01 and now measures 0.0066, because the fill it
 # is stroked over no longer carries aggdraw's quarter pixel of dilation
 # (#844). The bound is set above the measurement rather than at it: what is
 # left is the stroke, which is still drawn by aggdraw and still drawn centred
-# whatever alignment it asks for, and neither is bit-stable across versions.
+# whatever alignment it asks for (#854), and neither is bit-stable across
+# versions.
 @pytest.mark.parametrize(
     ("filename", "threshold"),
     [
@@ -396,6 +397,41 @@ def _forged_pathless_stroke(disable_stroke: bool = False) -> tuple[PSDImage, Lay
         layer.stroke._data[b"strokeEnabled"] = Bool(False)
         assert not layer.stroke.enabled
     return psd, layer
+
+
+def test_the_subpaths_of_one_component_are_filled_as_one_path() -> None:
+    """A combined path is wound, not unioned (#844).
+
+    ``masks.psd``'s social-media glyphs are the corpus's clearest case: each
+    is one component whose inner subpath runs against the outer one and cuts
+    the counter out of it. Drawn a subpath at a time and unioned, which is
+    what aggdraw was asked to do, the counter fills in.
+
+    The oracle is Photoshop's own raster of the layer, carried in its stored
+    transparency channel, so this cannot come out true by construction.
+    Filled as one path the error against it is 0.0014; unioned it is 0.1357,
+    two orders away, and both bounds below sit between the two with a factor
+    of ten either side.
+    """
+    psd = PSDImage.open(full_name("masks.psd"))
+    layer = [x for x in psd.descendants() if x.name == "twitter"][0]
+    assert layer.vector_mask is not None
+    subpaths = layer.vector_mask.paths
+    assert sum(1 for x in subpaths if x.operation == -1) > 0, (
+        "the glyph is not a combined path, so nothing here is about winding"
+    )
+
+    stored = layer.numpy("shape")
+    assert stored is not None
+    coverage = vector.draw_vector_mask(layer, layer.bbox)[..., 0]
+    assert float(np.abs(coverage - stored[..., 0]).mean()) < 0.01
+
+    # The counter itself, away from its antialiased rim: Photoshop leaves 932
+    # pixels of this glyph empty, where filling as one path reaches 0.0101 and
+    # unioning reaches a flat 1.0.
+    counter = stored[..., 0] < 0.01
+    assert counter.sum() > 500, "no counter to lose"
+    assert float(coverage[counter].max()) < 0.1
 
 
 def test_pen_over_zero_paths_draws_nothing() -> None:
