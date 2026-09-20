@@ -5,16 +5,13 @@ Changelog
 -------------------
 
 - [api] ``Layer.has_effects(enabled=False)`` now reports what the Photoshop
-  fx list shows, the same answer as ``len(layer.effects) > 0``, rather than
-  whether the layer carries an effects tagged block. Backwards-incompatible:
-  it turns False on a layer whose block lists nothing, which is what
-  Photoshop leaves behind once the last effect is removed (#318, #830, #831)
-- [api] ``Layer.effects`` is a live view: it re-reads the layer's effects
-  block on every access instead of freezing on the first, so an edit made
-  underneath shows through. Backwards-incompatible: ``Effects.items`` hands
-  out a fresh list rather than the proxy's own, and two accesses no longer
-  yield the same effect objects, so an effect held from an earlier one stops
-  comparing equal to, or testing ``in``, a later one (#831)
+  fx list shows -- the same answer as ``len(layer.effects) > 0`` -- not
+  whether an effects tagged block exists. Backwards-incompatible: it turns
+  False on a layer whose block lists nothing (#318, #830, #831, #845)
+- [api] ``Layer.effects`` is a live view, re-read on every access instead of
+  frozen on the first. Backwards-incompatible: ``Effects.items`` hands out a
+  fresh list, and two accesses no longer yield the same effect objects, so an
+  effect held from one stops comparing equal to a later one (#831, #845)
 - [fix] ``GroupMixin.extend()`` now walks its argument once. A generator added
   nothing; ``dest.extend(src)`` kept only every other layer of ``src`` and lost
   the rest; ``g.extend(g)`` never terminated; and a layer mentioned twice in
