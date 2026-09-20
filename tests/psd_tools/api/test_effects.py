@@ -310,6 +310,7 @@ def test_an_effects_block_that_did_not_parse_reads_as_no_effects() -> None:
     assert list(layer.effects) == []
     assert len(layer.effects) == 0
     assert layer.effects.enabled is False
+    assert layer.effects.scale == 100.0
     assert layer.has_effects() is False
     assert " effects" not in repr(layer)
 
@@ -456,6 +457,28 @@ def test_an_absent_reporting_enum_is_not_fabricated() -> None:
     del glow.descriptor[Key.GlowTechnique]
     assert glow.glow_type is None
 
+    inner = psd[4].effects[0]
+    assert isinstance(inner, effects.InnerGlow)
+    assert inner.glow_source == Enum.EdgeGlow
+    del inner.descriptor[Key.InnerGlowSource]
+    assert inner.glow_source is None
+
+    bevel = psd[1].effects[0]
+    assert isinstance(bevel, effects.BevelEmboss)
+    assert bevel.bevel_type == Enum.SoftMatte
+    assert bevel.bevel_style == Enum.InnerBevel
+    assert bevel.direction == Enum.StampIn
+    del bevel.descriptor[Key.BevelTechnique]
+    del bevel.descriptor[Key.BevelStyle]
+    del bevel.descriptor[Key.BevelDirection]
+    assert bevel.bevel_type is None
+    assert bevel.bevel_style is None
+    assert bevel.direction is None
+    # The blend modes are not in this set: an absent one really does mean
+    # Normal, which is why #831 keeps their defaults along with opacity's.
+    assert bevel.highlight_mode == Enum.Screen
+    assert bevel.shadow_mode == Enum.Multiply
+
 
 def test_value_is_deprecated_out_loud() -> None:
     """The deprecation was a ``logger.debug`` no user ever saw.
@@ -484,3 +507,21 @@ def test_the_documented_edit_recipe_survives_a_save(tmp_path: Path) -> None:
     psd.save(out)
 
     assert PSDImage.open(out)[6].effects[0].opacity == 50.0
+
+
+def test_scale_answers_where_there_is_no_block() -> None:
+    """``scale`` used to raise on the guard ``enabled`` answers False on.
+
+    Reading the fx list's scale off a layer that has no fx list is not an
+    error the caller can do anything with, and the two properties
+    disagreeing about the same ``self._data is None`` made the proxy look
+    like it had two contracts. 100.0 is what a block that omits the key
+    already answers, so no layer changes its answer, only the non-layers.
+    """
+    psd = PSDImage.open(full_name("hidden-groups.psd"))
+    plain = next(
+        layer for layer in psd.descendants() if not layer.has_effects(enabled=False)
+    )
+
+    assert plain.effects.enabled is False
+    assert plain.effects.scale == 100.0

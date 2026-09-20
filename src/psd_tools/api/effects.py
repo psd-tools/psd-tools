@@ -106,8 +106,7 @@ class Effects:
                 # ``TaggedBlock.read()`` keeps the raw bytes of a block it
                 # could not read, and reports that once, at ERROR. Both that
                 # and no block at all are the no-effects case, which every
-                # property below answers for -- ``scale`` by raising, as it
-                # already does for a layer carrying no block at all (#828).
+                # property below answers for rather than raising (#828).
                 return data if isinstance(data, Descriptor) else None
         return None
 
@@ -143,10 +142,15 @@ class Effects:
 
     @property
     def scale(self) -> float:
-        """Scale value."""
+        """The fx list's scale, in percent.
+
+        100.0 where there is nothing to read, which is both what a block
+        that omits the key already answers and what :py:attr:`enabled` does
+        on the same guard, by answering False rather than raising.
+        """
         data = self._data
         if data is None:
-            raise ValueError("Effects data is None")
+            return 100.0
         return float(_get_value(data, Key.Scale, 100.0))
 
     @property
@@ -476,10 +480,9 @@ class OuterGlow(_GlowEffect):
 @register(Klass.InnerGlow.value)
 class InnerGlow(_GlowEffect):
     @property
-    def glow_source(self) -> bytes:
-        """Elements source."""
-        source = self.descriptor.get(Key.InnerGlowSource)
-        return getattr(source, "enum", b"SrcE") if source is not None else b"SrcE"
+    def glow_source(self) -> bytes | None:
+        """Elements source, or None where the descriptor does not say."""
+        return getattr(self.descriptor.get(Key.InnerGlowSource), "enum", None)
 
 
 @register(Klass.SolidFill.value)
@@ -563,21 +566,23 @@ class BevelEmboss(_Effect, _AngleMixin):
         return float(_get_value(self.descriptor, Key.ShadowOpacity, 50.0))
 
     @property
-    def bevel_type(self) -> bytes:
-        """Bevel type, one of `SoftMatte`, `HardLight`, `SoftLight`."""
-        technique = self.descriptor.get(Key.BevelTechnique)
-        return getattr(technique, "enum", b"SfBL") if technique is not None else b"SfBL"
+    def bevel_type(self) -> bytes | None:
+        """
+        Bevel type, one of `SoftMatte`, `HardLight`, `SoftLight`.
+
+        None where the descriptor does not say.
+        """
+        return getattr(self.descriptor.get(Key.BevelTechnique), "enum", None)
 
     @property
-    def bevel_style(self) -> bytes:
+    def bevel_style(self) -> bytes | None:
         """
         Bevel style.
 
         One of `OuterBevel`, `InnerBevel`, `Emboss`, `PillowEmboss`, or
-        `StrokeEmboss`.
+        `StrokeEmboss`, or None where the descriptor does not say.
         """
-        style = self.descriptor.get(Key.BevelStyle)
-        return getattr(style, "enum", b"OtrB") if style is not None else b"OtrB"
+        return getattr(self.descriptor.get(Key.BevelStyle), "enum", None)
 
     @property
     def altitude(self) -> float:
@@ -595,10 +600,13 @@ class BevelEmboss(_Effect, _AngleMixin):
         return float(_get_value(self.descriptor, Key.Blur, 0.0))
 
     @property
-    def direction(self) -> bytes:
-        """Direction, either `StampIn` or `StampOut`."""
-        direction = self.descriptor.get(Key.BevelDirection)
-        return getattr(direction, "enum", b"In  ") if direction is not None else b"In  "
+    def direction(self) -> bytes | None:
+        """
+        Direction, either `StampIn` or `StampOut`.
+
+        None where the descriptor does not say.
+        """
+        return getattr(self.descriptor.get(Key.BevelDirection), "enum", None)
 
     @property
     def contour(self) -> Descriptor:

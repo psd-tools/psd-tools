@@ -8,11 +8,17 @@ Changelog
   see -- through an effect's ``descriptor``, a layer's ``tagged_blocks``, or
   any other low-level record -- can still tell the document to regenerate its
   preview on ``save()`` and re-render on ``composite()`` (#831, #851)
-- [api] ``Stroke.position``, ``Stroke.fill_type``, ``glow_type`` on the two
-  glows and ``type`` wherever the gradient mixin puts it now return ``None``
-  where the descriptor does not say, instead of a fabricated default.
-  Backwards-incompatible: a solid-colour ``Stroke.type`` answered ``b'Lnr '``
-  and now answers ``None`` (#831, #851)
+- [api] An effect's reporting-only enums -- ``type``, ``position``,
+  ``fill_type``, ``glow_type``, ``glow_source``, ``bevel_type``,
+  ``bevel_style``, ``direction`` -- now return ``None`` where the descriptor
+  does not say, instead of a fabricated default. ``blend_mode`` and
+  ``opacity`` keep their defaults. Backwards-incompatible: a solid-colour
+  ``Stroke.type`` answered ``b'Lnr '`` and now answers ``None`` (#831, #851)
+- [api] ``Effects.scale`` returns 100.0 for a layer with no readable effects
+  block, where it used to raise ``ValueError`` -- the answer a block that
+  omits the key already gives, and the guard ``Effects.enabled`` already
+  answers on. Backwards-incompatible for a caller that caught the raise
+  (#831, #851)
 - [api] An effect's deprecated ``value`` property now warns with
   ``DeprecationWarning`` rather than logging at DEBUG, where no user saw it.
   Use ``descriptor`` instead. Backwards-incompatible for anyone running
