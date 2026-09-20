@@ -82,22 +82,33 @@ def test_a_path_covers_the_same_pixels_wherever_it_sits_on_the_grid() -> None:
     assert here.sum() > 80, "the shape is not on the canvas"
 
 
-def test_a_subpath_wound_against_its_neighbour_cuts_a_hole() -> None:
-    """The non-zero rule, which is how Photoshop reads a combined path.
+def test_a_subpath_inside_another_cuts_a_hole_whichever_way_it_winds() -> None:
+    """The even-odd rule, which is the one PSD uses.
 
-    Wound the same way the inner square is swallowed by the outer one, which
-    is the only answer a per-subpath union can give (#844).
+    A region enclosed twice is outside again, so which way the inner subpath
+    turns makes no difference -- that is what separates even-odd from
+    non-zero, where winding the inner one the same way as the outer would
+    swallow it and fill the square solid.
+
+    Photoshop was asked. Two nested rectangles were forged into one component
+    of a real layer, once wound alike and once against, and Photoshop 2026
+    rasterized *both* to the same ring: 3000 of the 4200 pixels its outer
+    rectangle covers, with the 1200 of the inner one empty. See
+    :py:func:`test_vector.test_photoshop_reads_a_combined_path_even_odd`.
     """
     outer = _rectangle(2, 2, 14, 14)
     inner = _rectangle(5, 5, 11, 11)
 
-    against = scanline.fill_coverage([outer, list(reversed(inner))], 16, 16)
-    assert against.sum() == 144.0 - 36.0
-    assert against[8, 8] == 0.0
+    for label, second in (("against", list(reversed(inner))), ("alike", inner)):
+        coverage = scanline.fill_coverage([outer, second], 16, 16)
+        assert coverage.sum() == 144.0 - 36.0, label
+        assert coverage[8, 8] == 0.0, label
 
-    alongside = scanline.fill_coverage([outer, inner], 16, 16)
-    assert alongside.sum() == 144.0
-    assert alongside[8, 8] == 1.0
+    # A third ring inside the hole is enclosed three times, so it is inside
+    # again -- the alternation the rule is named for.
+    deeper = scanline.fill_coverage([outer, inner, _rectangle(7, 7, 9, 9)], 16, 16)
+    assert deeper.sum() == 144.0 - 36.0 + 4.0
+    assert deeper[8, 8] == 1.0
 
 
 @pytest.mark.parametrize(
@@ -192,6 +203,30 @@ def test_a_straight_edge_is_not_subdivided() -> None:
     # A handle far enough off the chord to matter is still subdivided.
     bent = np.array([[256.0, 40.0]])
     assert len(scanline.flatten_cubics(start, bent, bent, end)) > 50
+
+
+def test_a_handle_past_the_end_point_is_not_a_straight_line() -> None:
+    """Flatness is distance from the *chord*, not from the line through it.
+
+    Both handles here sit on that line, so every distance measures zero, but
+    they reach a hundred pixels past the end point and the curve runs out
+    along the line and back. Taken as one chord it strays 74 pixels, against
+    a promised 0.002.
+    """
+    start, end = np.array([[0.0, 1.0]]), np.array([[1.0, 1.0]])
+    far = np.array([[100.0, 1.0]])
+
+    assert len(scanline.flatten_cubics(start, far, far, end)) > 50
+    # Nudged off the line, where the excursion no longer cancels in signed
+    # area, the shortcut used to lose the coverage outright.
+    polyline = scanline.flatten_cubics(
+        start, np.array([[100.0, 1.002]]), np.array([[100.0, 0.998]]), end
+    )
+    assert scanline.fill_coverage([polyline], 110, 4).sum() > 0.05
+
+    # A straight edge as PSD stores one -- handles on the anchors -- is still
+    # taken in a single step, however long it is.
+    assert len(scanline.flatten_cubics(start, start, end, end)) == 1
 
 
 def test_a_curve_that_returns_to_its_own_start_is_not_a_straight_line() -> None:

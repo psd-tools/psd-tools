@@ -13,12 +13,18 @@ from psd_tools.composite.paint import (
 )
 from psd_tools.constants import Tag
 from psd_tools.psd.descriptor import Bool, Double
+from psd_tools.psd.vector import ClosedKnotLinked, ClosedPath
 from psd_tools.terminology import Enum, Key, Type
 
 from ..utils import full_name
 from .test_composite import _mse, check_composite_quality
 
 logger = logging.getLogger(__name__)
+
+# The two rectangles forged into one component below, in document
+# coordinates on the 100x150 canvas of ``transparentbg.psd``.
+_OUTER = (20, 40, 80, 110)
+_INNER = (35, 55, 65, 95)
 
 
 @pytest.mark.parametrize(
@@ -397,6 +403,77 @@ def _forged_pathless_stroke(disable_stroke: bool = False) -> tuple[PSDImage, Lay
         layer.stroke._data[b"strokeEnabled"] = Bool(False)
         assert not layer.stroke.enabled
     return psd, layer
+
+
+def _nested_component(inner_alike: bool) -> tuple[PSDImage, Layer]:
+    """Two nested rectangles forged into one component of a real layer.
+
+    The layer is ``transparentbg.psd``'s only one, and its path is replaced
+    outright.
+
+    Photoshop does not author this: it cuts a hole by reversing the subpath
+    that makes it, so every combined path in the corpus has its inner
+    subpaths wound against the outer one, and even-odd and non-zero agree on
+    all of them. Forging is the only way to reach the case that separates the
+    two rules -- the same reason :py:func:`_forged_pathless_stroke` forges.
+    """
+    psd = PSDImage.open(full_name("transparentbg.psd"))
+    layer = psd[0]
+    setting = layer.tagged_blocks.get_data(Tag.VECTOR_MASK_SETTING1)
+
+    def rectangle(box, clockwise, operation):
+        x0, y0, x1, y1 = box
+        corners = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+        if not clockwise:
+            corners.reverse()
+        knots = []
+        for x, y in corners:
+            point = (y / psd.height, x / psd.width)  # knots are (y, x) fractions
+            knots.append(ClosedKnotLinked(point, point, point))
+        return ClosedPath(items=knots, operation=operation, index=0)
+
+    keep = [x for x in setting.path if not isinstance(x, ClosedPath)]
+    setting.path._items = keep + [
+        rectangle(_OUTER, True, 1),
+        rectangle(_INNER, inner_alike, -1),
+    ]
+    # ``Layer.vector_mask`` builds itself from the block above on first
+    # access and caches it, so the block is edited before anything reads it.
+    assert "_vector_mask" not in layer.__dict__
+    return psd, layer
+
+
+def test_photoshop_reads_a_combined_path_even_odd() -> None:
+    """Which rule fills a combined path, settled by asking Photoshop.
+
+    The corpus cannot answer it: Photoshop writes a hole as a subpath wound
+    against its outer, where even-odd and non-zero agree, so all 17 combined
+    paths in ``tests/psd_files`` score the same under either rule.
+
+    So both windings were forged into this layer and Photoshop 2026 was given
+    the files. It rasterized **both** to the same ring -- 3000 pixels, the
+    4200 of the outer rectangle less the 1200 of the inner -- and our render
+    of them matched its raster exactly, to 0.0 on every pixel. Non-zero would
+    have filled the same-wound one solid at 4200. The PSD specification says
+    the same thing, and so does
+    :py:attr:`psd_tools.api.shape.VectorMask.paths` (#844).
+
+    To redo it: save the forged document, open it in Photoshop, rasterize the
+    layer, and read back the channel it leaves.
+    """
+    expected = (_OUTER[2] - _OUTER[0]) * (_OUTER[3] - _OUTER[1]) - (
+        _INNER[2] - _INNER[0]
+    ) * (_INNER[3] - _INNER[1])
+    assert expected == 3000
+
+    for alike in (True, False):
+        psd, layer = _nested_component(inner_alike=alike)
+        coverage = vector.draw_vector_mask(layer, (0, 0, psd.width, psd.height))[..., 0]
+        assert coverage.sum() == pytest.approx(expected, abs=0.5), alike
+        # The middle of the inner rectangle: empty whichever way it winds.
+        assert coverage[75, 50] == 0.0, alike
+        # And the band between the two rectangles is covered.
+        assert coverage[75, 25] == 1.0, alike
 
 
 def test_the_subpaths_of_one_component_are_filled_as_one_path() -> None:

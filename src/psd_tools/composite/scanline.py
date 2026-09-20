@@ -15,11 +15,20 @@ both parts and running a prefix sum along each row gives the signed area of
 the path in every pixel, exactly -- no sampling, and the same answer wherever
 on the grid the path happens to sit.
 
-The one place the area is not the answer is a contour that crosses itself, or
-two contours of opposite winding overlapping inside a single pixel: their
-signed areas cancel there, and the pixel comes out emptier than the region
-really is. Every rasterizer of this family shares that, aggdraw included, and
-by a wider margin.
+Coverage is read under the **even-odd** rule, which is the one PSD uses: a
+region enclosed an even number of times is outside. The prefix sum gives the
+winding number, and folding it into ``[0, 1]`` rather than clamping it there
+is what makes the rule even-odd rather than non-zero. The two differ only
+where a pixel is wound more than once -- which Photoshop does not author for
+itself, since it cuts a hole by reversing the subpath that makes it, but
+which a file from elsewhere can carry, and which Photoshop renders as a hole
+either way (see ``tests/psd_files/path-operations/nested-subpath-winding``).
+
+Where a single pixel holds more than one winding at once -- a contour
+crossing itself inside it, or two contours overlapping within it -- the
+answer is approximate, because a prefix sum carries the area-weighted mean
+winding of the pixel and not the distribution it came from. Every rasterizer
+of this family shares that, aggdraw included, and by a wider margin.
 """
 
 import numpy as np
@@ -182,7 +191,12 @@ def fill_coverage(polylines: list, width: int, height: int) -> np.ndarray:
         rows = acc[:cells].reshape(bottom - top, stride)
         np.cumsum(rows, axis=1, out=rows)
         np.abs(rows, out=rows)
-        np.clip(rows, 0.0, 1.0, out=rows)
+        # Even-odd: a pixel wound twice is outside again, so the winding is
+        # folded into [0, 1] rather than clamped there. Clamping is the
+        # non-zero rule, and Photoshop does not use it -- see the module
+        # docstring.
+        np.mod(rows, 2.0, out=rows)
+        np.subtract(1.0, np.abs(rows - 1.0), out=rows)
         coverage[top:bottom] = rows[:, 1 : width + 1]
     return coverage
 
@@ -215,15 +229,31 @@ def flatten_cubics(
 
     # Distance of each handle from the chord. Within the frame where the chord
     # is an axis a cubic reaches at most 3/4 of the larger of the two.
+    length = np.where(span > 0, span, 1.0)
+
     def across(handle: np.ndarray) -> np.ndarray:
         offset = handle - p0
-        return np.abs(chord[:, 0] * offset[:, 1] - chord[:, 1] * offset[:, 0])
+        return np.abs(chord[:, 0] * offset[:, 1] - chord[:, 1] * offset[:, 0]) / length
 
-    away = np.maximum(across(c0), across(c1)) / np.where(span > 0, span, 1.0)
-    # A chord of no length is not a straight curve: both handles measure
-    # zero against it however far off they reach, so the loop a cubic
+    def along(handle: np.ndarray) -> np.ndarray:
+        offset = handle - p0
+        return (chord[:, 0] * offset[:, 0] + chord[:, 1] * offset[:, 1]) / length**2
+
+    away = np.maximum(across(c0), across(c1))
+    # Distance from the supporting line is not enough. A handle that lies on
+    # that line but past an end point sends the curve out along it and back,
+    # which is not a chord however flat it measures; requiring both handles
+    # to fall between the end points puts the curve in their convex hull.
+    between = (
+        (along(c0) >= 0.0)
+        & (along(c0) <= 1.0)
+        & (along(c1) >= 0.0)
+        & (along(c1) <= 1.0)
+    )
+    # A chord of no length is not a straight curve either: both handles
+    # measure zero against it however far off they reach, so the loop a cubic
     # makes when it comes back to its own start would be discarded.
-    straight = (0.75 * away <= _FLATNESS) & (span > 0)
+    straight = (0.75 * away <= _FLATNESS) & (span > 0) & between
 
     second = np.maximum(
         np.linalg.norm(p0 - 2 * c0 + c1, axis=1),

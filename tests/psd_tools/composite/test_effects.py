@@ -73,8 +73,8 @@ def test_stroke_traces_the_layer_where_it_runs_off_the_canvas(force: bool) -> No
     the two routes to disagree about. While aggdraw drew the fill it was a
     quarter of a pixel wider on every side (#844), and since a stroke reads
     its boundary off coverage (#799) the ring's inner edge sat that much
-    further in -- which is why this bound used to be eight orders looser for
-    ``force=True`` than for ``force=False``.
+    further in -- which is why this bound used to be six orders looser for
+    ``force=True``, 3e-3, than the 1e-9 ``force=False`` met.
     """
     psd = PSDImage.open(full_name("effects/stroke-effect-transparent-shape.psd"))
     result = composite(psd, force=force)[0]

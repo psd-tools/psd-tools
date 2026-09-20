@@ -192,10 +192,10 @@ def _fill_subpath(
     Area of the path inside each pixel of ``viewport``.
 
     The subpaths of one merged component are rasterized together rather than
-    one at a time. They are a single path, and Photoshop fills it by the
-    non-zero rule: a subpath wound against its neighbour cuts a hole in it.
-    Drawn separately and unioned, as they were while aggdraw did the filling,
-    that hole is filled in (#844).
+    one at a time. They are a single path, filled by the even-odd rule -- the
+    one PSD uses -- so a subpath inside another cuts a hole in it whichever
+    way it winds. Drawn separately and unioned, as they were while aggdraw
+    did the filling, that hole is filled in (#844).
     """
     origin = np.array([viewport[0], viewport[1]], dtype=np.float64)
     polylines = [
