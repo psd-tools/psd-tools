@@ -391,15 +391,21 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         Call this after an edit this API cannot see -- through an effect's
         ``descriptor``, a layer's ``tagged_blocks``, or any other low-level
         record -- or the saved file keeps a preview that disagrees with its
-        own layers. The setters that change what a layer renders already do
-        it; ones that do not, :py:attr:`Layer.name
-        <psd_tools.api.layers.Layer.name>` among them, leave it alone.
+        own layers. Most edits made through this API set it themselves, but
+        the rule is not tidy: :py:attr:`Layer.sheet_color
+        <psd_tools.api.layers.Layer.sheet_color>` and
+        :py:attr:`Layer.reference_point
+        <psd_tools.api.layers.Layer.reference_point>` set it although
+        neither reaches the compositor, while :py:attr:`Layer.name
+        <psd_tools.api.layers.Layer.name>` does not set it at all.
 
         The preview is all it marks. A wrapper that memoises on first
         access -- ``mask``, ``vector_mask``, ``origination``, ``stroke``,
         and the smart object and typesetting ones -- goes on reporting the
         record it read, so replacing that record underneath one of them
-        needs the cached attribute dropped as well.
+        needs the cached attribute dropped as well. An adjustment or fill
+        layer captures its ``_data`` earlier still, in ``__init__``, and a
+        group caches its bbox; neither is dropped here either.
 
         The flag only ever goes one way: nothing clears it, ``save()``
         included, so a document stays marked for the life of the object.

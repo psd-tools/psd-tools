@@ -10,10 +10,12 @@ Changelog
   rather than a ring inside it, and a vector shape rendered with ``force=True``
   shifts by a quarter pixel (#844). Hard-edged masks are unchanged, and only a
   pattern fill still needs scikit-image (#799)
-- [api] ``PSDImage.mark_updated()`` is now public, so an edit this API cannot
-  see -- through an effect's ``descriptor``, a layer's ``tagged_blocks``, or
-  any other low-level record -- can still tell the document to regenerate its
-  preview on ``save()`` and re-render on ``composite()`` (#831, #851)
+- [api] ``PSDImage.mark_updated()`` is now public and the private
+  ``_mark_updated()`` is gone, so an edit this API cannot see -- through an
+  effect's ``descriptor`` or any other low-level record -- can still tell the
+  document to regenerate its preview on ``save()``, re-render on
+  ``composite()``, and redraw vectors on ``Layer.composite()``, which moves
+  pixels of its own (#831, #851)
 - [api] An effect's reporting-only enums -- ``type``, ``position``,
   ``fill_type``, ``glow_type``, ``glow_source``, ``bevel_type``,
   ``bevel_style``, ``direction`` -- now return ``None`` where the descriptor
@@ -21,10 +23,8 @@ Changelog
   ``opacity`` keep their defaults. Backwards-incompatible: a solid-colour
   ``Stroke.type`` answered ``b'Lnr '`` and now answers ``None`` (#831, #851)
 - [api] ``Effects.scale`` returns 100.0 for a layer with no readable effects
-  block, where it used to raise ``ValueError`` -- the answer a block that
-  omits the key already gives, and the guard ``Effects.enabled`` already
-  answers on. Backwards-incompatible for a caller that caught the raise
-  (#831, #851)
+  block, where it used to raise ``ValueError``. Backwards-incompatible for a
+  caller that caught the raise to detect the block (#831, #851)
 - [api] An effect's deprecated ``value`` property now warns with
   ``DeprecationWarning`` rather than logging at DEBUG, where no user saw it.
   Use ``descriptor`` instead. Backwards-incompatible for anyone running

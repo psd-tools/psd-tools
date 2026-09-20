@@ -435,8 +435,8 @@ def test_items_hands_out_a_list_that_cannot_write_back() -> None:
 def test_an_absent_reporting_enum_is_not_fabricated() -> None:
     """The reporting-only enums answer None instead of inventing a default.
 
-    Only ``type`` reaches the absent case on a real file -- 43 of the 53
-    corpus effects that expose it never write the key. The other three are
+    Only ``type`` reaches the absent case on a real file -- 55 of the 65
+    corpus effects that expose it never write the key. The other seven are
     written by every file there is, so taking the key away is the only way
     to ask them the question at all.
     """
@@ -519,8 +519,14 @@ def test_scale_answers_where_there_is_no_block() -> None:
     already answers, so no layer changes its answer, only the non-layers.
     """
     psd = PSDImage.open(full_name("hidden-groups.psd"))
+    # Selected on block presence, not on ``has_effects()``: since #845 that
+    # asks what the fx list shows, which is a different question from the
+    # ``self._data is None`` guard this test is about.
     plain = next(
-        layer for layer in psd.descendants() if not layer.has_effects(enabled=False)
+        layer
+        for layer in psd.descendants()
+        if _effects_block(layer) is None
+        and not any(tag in layer.tagged_blocks for tag in effects._EFFECTS_TAGS)
     )
 
     assert plain.effects.enabled is False

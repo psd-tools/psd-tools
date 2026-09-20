@@ -474,7 +474,7 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
         ...
 
     def is_updated(self) -> bool:
-        """Returns whether the PSD document has been updated."""
+        """Returns whether the PSD document has been edited."""
         ...
 
     def mark_updated(self) -> None:
