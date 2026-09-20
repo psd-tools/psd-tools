@@ -221,7 +221,8 @@ block or any other low-level record -- does not, and has to say so::
 
 Without it the saved file keeps a preview that disagrees with its own layers,
 and every reader that trusts the preview, psd-tools included, shows the image
-from before the edit.
+from before the edit. The preview is all it marks, though: a wrapper that
+memoised the record you replaced goes on reporting what it read.
 
 
 Exporting data to PIL

@@ -379,7 +379,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
     def mark_updated(self) -> None:
         """
-        Mark the document as edited.
+        Mark the document's stored preview as stale.
 
         The flag gates three things: :py:meth:`save` regenerates the
         flattened preview from the layers rather than writing the stored
@@ -388,10 +388,18 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         redraws vectors rather than using a layer's stored pixels, which can
         move pixels of its own.
 
-        Every edit made through this API sets it. Call this after one it
-        cannot see -- through an effect's ``descriptor``, a layer's
-        ``tagged_blocks``, or any other low-level record -- or the saved file
-        keeps a preview that disagrees with its own layers.
+        Call this after an edit this API cannot see -- through an effect's
+        ``descriptor``, a layer's ``tagged_blocks``, or any other low-level
+        record -- or the saved file keeps a preview that disagrees with its
+        own layers. The setters that change what a layer renders already do
+        it; ones that do not, :py:attr:`Layer.name
+        <psd_tools.api.layers.Layer.name>` among them, leave it alone.
+
+        The preview is all it marks. A wrapper that memoises on first
+        access -- ``mask``, ``vector_mask``, ``origination``, ``stroke``,
+        and the smart object and typesetting ones -- goes on reporting the
+        record it read, so replacing that record underneath one of them
+        needs the cached attribute dropped as well.
 
         The flag only ever goes one way: nothing clears it, ``save()``
         included, so a document stays marked for the life of the object.
