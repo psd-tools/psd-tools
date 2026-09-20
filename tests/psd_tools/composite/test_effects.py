@@ -9,6 +9,7 @@ from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import _compat, composite, effects
 from psd_tools.composite.effects import (
     _BANDS,
+    _grow,
     _distance_band,
     _signed_distance,
     stroke_bbox,
@@ -650,17 +651,28 @@ def test_band_fits_the_canvas_stroke_bbox_asks_for(size: float) -> None:
     That margin is what keeps an outset or centered stroke from being clipped
     to the layer's own bounding box (#792). On a hard-edged mask the band
     reaches exactly one pixel less than the margin at every size, so equality
-    is asserted rather than a bound: ``_BANDS`` states each style's band and
-    its outward reach as one pair, and this is what says the pair is
-    consistent -- that the canvas reserved is the canvas drawn on, less the
-    one pixel the edge is measured against.
+    is asserted rather than a bound.
+
+    The expected margin is written out per style rather than read back out of
+    ``_BANDS``, which is the table the band itself comes from: deriving both
+    sides from it made this pass with the outset band widened to twice its
+    size, and with :py:func:`stroke_bbox` returning its argument untouched.
     """
+    expected = {
+        Enum.OutsetFrame: math.ceil(size) + 1,
+        Enum.CenteredFrame: math.ceil(size / 2.0) + 1,
+        Enum.InsetFrame: 1,
+    }
     pad = 40
     alpha = np.zeros((2 * pad + 20, 2 * pad + 20), dtype=np.float32)
     alpha[pad : pad + 20, pad : pad + 20] = 1.0
     distance = _signed_distance(alpha)
 
-    for style, (lo, hi) in _BANDS.items():
+    for style, margin in expected.items():
+        bbox = stroke_bbox((0, 0, 20, 20), _stroke_descriptor(style, size))
+        assert bbox == (-margin, -margin, 20 + margin, 20 + margin), style
+
+        lo, hi = _BANDS[style]
         band = _distance_band(distance, lo * size, hi * size)
         ys, xs = np.nonzero(band)
         # All four sides, not just the horizontal pair: the mask is square, so
@@ -671,7 +683,6 @@ def test_band_fits_the_canvas_stroke_bbox_asks_for(size: float) -> None:
             pad - int(ys.min()),
             int(ys.max()) + 1 - (pad + 20),
         )
-        margin = math.ceil(size * _BANDS[style][1]) + 1
         assert reach == margin - 1, (
             f"{style!r} stroke of {size} px reaches {reach} px outside the "
             f"layer, against the {margin} px stroke_bbox() reserves for it"
@@ -781,6 +792,82 @@ def test_a_hard_step_keeps_the_pixel_edge_it_has_no_coverage_for() -> None:
     assert distance[0, 7] == pytest.approx(-0.75)
     assert distance[0, 8] == pytest.approx(0.25)
     assert distance[0, 9] == pytest.approx(1.25)
+    # Column 5 is the same distance from the step and from the antialiased
+    # pixel, and the coverage reading wins the tie. Asserted because turning
+    # ``distance <= to_hard`` into ``<`` moves it to -2.5 and nothing else in
+    # the file notices.
+    assert distance[0, 5] == pytest.approx(-2.75)
+
+
+def test_the_nearest_pixel_is_not_the_nearest_boundary() -> None:
+    """A pixel measures from the closest boundary, not the closest seed (#799).
+
+    Each partial pixel states a boundary up to half a pixel either side of its
+    own centre, so a pixel one further away can state one a whole pixel
+    nearer. Taking the nearest *pixel*'s word for it hands the answer to
+    whichever of two equidistant ones ``distance_transform_edt`` happens to
+    return, which is not a choice the mask makes: mirror the mask and the
+    stroke moves.
+
+    The numbers are Photoshop's. This row was authored as a layer mask and
+    rendered with a 1 px outset stroke, and its mirror image separately; the
+    two renders are identical to the bit, and the coverage they give is the
+    band over exactly this field. Reading the nearest pixel instead puts 0.9
+    coverage where Photoshop puts 0.1.
+    """
+    row = np.zeros((1, 5), dtype=np.float32)
+    row[0, 1], row[0, 3] = 0.1, 0.9
+    distance = _signed_distance(row)
+    assert distance[0].tolist() == pytest.approx([1.4, 0.4, 0.6, -0.4, 0.6])
+    # The middle pixel is one away from both, and 0.9 - 0.5 = 0.4 out from the
+    # left one against 0.5 - 0.9 = -0.4 out from the right one.
+    assert distance[0, 2] == pytest.approx(0.6)
+    assert np.allclose(distance, np.flip(_signed_distance(np.flip(row, 1)), 1))
+
+
+def test_a_stroke_does_not_depend_on_which_way_the_mask_faces() -> None:
+    """Mirroring a mask mirrors its stroke, on a fixture rather than a row.
+
+    ``stroke-effects.psd``'s ellipses are 90% partial alpha, which is what it
+    takes for two partial pixels to be equidistant from a third often enough
+    to see: before the boundary was chosen by distance rather than by seed,
+    this layer's stroke moved by 0.228 coverage when the mask was flipped.
+    Equality rather than a bound, because the field is exactly symmetric on
+    every stroke-bearing layer in the corpus but one.
+    """
+    psd = PSDImage.open(full_name("effects/stroke-effects.psd"))
+    layer = next(sub for sub in psd.descendants() if sub.name == "Shape Ellipse")
+    shape = layer.numpy("shape")
+    assert shape is not None
+    alpha = shape[..., 0].astype(np.float32)
+    assert ((alpha > 0) & (alpha < 1)).mean() > 0.5, "the fixture stopped being soft"
+
+    for limits in ((0.0, 3.0), (-3.0, 0.0), (-1.5, 1.5)):
+        band = _distance_band(_signed_distance(alpha), *limits)
+        for axis in (0, 1):
+            flipped = _distance_band(_signed_distance(np.flip(alpha, axis)), *limits)
+            assert np.array_equal(band, np.flip(flipped, axis)), (limits, axis)
+
+
+def test_a_mask_does_not_meet_itself_around_the_array_edge() -> None:
+    """The first row is not the last row's neighbour (#799 review).
+
+    :py:func:`_grow` marks the hard 0-to-1 steps, and rolling rather than
+    slicing made a layer flush against one side of its viewport a neighbour of
+    the transparency against the other -- which put a phantom boundary between
+    them and measured the whole stroke from it. Nothing in the corpus reaches
+    that, because :py:func:`stroke_bbox` grants a pixel of clear border on
+    every side, so it takes a test of its own.
+    """
+    mask = np.zeros((1, 6), dtype=bool)
+    mask[0, 5] = True
+    assert _grow(mask)[0].tolist() == [False, False, False, False, True, True]
+
+    opaque = np.zeros((4, 6), dtype=np.float32)
+    opaque[:, 0] = 1.0  # opaque against one edge, clear against the other
+    distance = _signed_distance(opaque)
+    # Measured from the step at column 1, not from a boundary wrapped around.
+    assert distance[0].tolist() == [-0.5, 0.5, 1.5, 2.5, 3.5, 4.5]
 
 
 def test_every_stroke_position_draws_without_scikit_image(

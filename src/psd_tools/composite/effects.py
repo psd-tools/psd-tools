@@ -53,6 +53,7 @@ The effects system integrates with the main compositing pipeline and is
 automatically applied when rendering layers that have effects enabled.
 """
 
+import itertools
 import logging
 import math
 from typing import TYPE_CHECKING
@@ -144,6 +145,23 @@ def stroke_bbox(
     return (bbox[0] - margin, bbox[1] - margin, bbox[2] + margin, bbox[3] + margin)
 
 
+def _overlap(
+    shape: tuple[int, ...], shift: tuple[int, ...]
+) -> tuple[tuple[slice, ...], tuple[slice, ...]]:
+    """The two slices that line an array up against itself moved by ``shift``.
+
+    Sliced rather than rolled so that nothing wraps: the first row must not
+    count the last one as its neighbour.
+    """
+    source = tuple(
+        slice(max(0, -step), size - max(0, step)) for step, size in zip(shift, shape)
+    )
+    target = tuple(
+        slice(max(0, step), size - max(0, -step)) for step, size in zip(shift, shape)
+    )
+    return source, target
+
+
 def _grow(mask: np.ndarray) -> np.ndarray:
     """``mask`` widened by one pixel along each axis.
 
@@ -163,6 +181,69 @@ def _grow(mask: np.ndarray) -> np.ndarray:
         grown[tuple(lead)] |= mask[tuple(trail)]
         grown[tuple(trail)] |= mask[tuple(lead)]
     return grown
+
+
+def _nearest_boundary(
+    alpha: np.ndarray,
+    partial: np.ndarray,
+    near: np.ndarray,
+    seed: np.ndarray,
+    reach: np.ndarray,
+) -> np.ndarray:
+    """``reach`` re-measured against the boundaries the neighbours found.
+
+    The nearest partial *pixel* is not the one stating the nearest boundary:
+    each states one ``near`` of its own, up to half a pixel either side of
+    itself, so a pixel one further out can state a boundary up to one pixel
+    closer. Taking the nearest pixel's word for it leaves the answer to
+    whichever of two equidistant pixels ``distance_transform_edt`` happened to
+    pick, which is not a choice the mask makes -- mirror the mask and the
+    stroke moves, by up to 0.56 coverage on this corpus. Photoshop's own
+    render of such a mask is mirror-exact, and takes the nearest boundary.
+
+    One round, because that half-pixel each way bounds the winner to within a
+    pixel of the nearest, so every seed that can win is one some neighbour is
+    already measuring from. Iterating further chases seeds that cannot, and
+    on this corpus it does not settle: the residual asymmetry moves around
+    rather than down. What is left after one round is 0.04 against 0.56, at
+    one stroke draw of 220 rather than 29, and closing it needs a distance
+    transform weighted by the seed values rather than more rounds of this.
+
+    Sparse because only a pixel whose neighbours disagree about the seed can
+    move, which is a thin shell around the partial band rather than the canvas.
+    """
+    shifts = [s for s in itertools.product((-1, 0, 1), repeat=alpha.ndim) if any(s)]
+    active = np.zeros(alpha.shape, dtype=bool)
+    for shift in shifts:
+        source, target = _overlap(alpha.shape, shift)
+        active[target] |= seed[source] != seed[target]
+    active &= ~partial
+    if not active.any():
+        return reach
+
+    flat = np.flatnonzero(active)
+    where = np.unravel_index(flat, alpha.shape)
+    best = reach.ravel()[flat]
+    outward = best > 0
+    for shift in shifts:
+        neighbour = tuple(
+            np.clip(where[axis] - shift[axis], 0, alpha.shape[axis] - 1)
+            for axis in range(alpha.ndim)
+        )
+        candidate = seed[neighbour]
+        stated = np.unravel_index(candidate, alpha.shape)
+        squared = np.zeros(flat.shape, dtype=np.float32)
+        for axis in range(alpha.ndim):
+            delta = (stated[axis] - where[axis]).astype(np.float32)
+            squared += delta * delta
+        reading = np.sqrt(squared, out=squared)
+        np.negative(reading, out=reading, where=~outward)
+        reading += near.ravel()[candidate]
+        best = np.where(
+            np.where(outward, reading < best, reading > best), reading, best
+        )
+    reach.ravel()[flat] = best
+    return reach
 
 
 def _signed_distance(alpha: np.ndarray) -> np.ndarray:
@@ -192,12 +273,15 @@ def _signed_distance(alpha: np.ndarray) -> np.ndarray:
     to 0.97 coverage where a feathered edge meets a hard one, against 0.002
     for this.
 
-    What a pixel outside the partial band gets is that band's distance plus
-    the coverage its nearest partial pixel states, which offsets along the
-    line to that pixel rather than along the boundary's own normal. The two
-    agree on a straight edge and part company around a curve, so a feathered
-    corner is approximated here in the same way :py:func:`_distance_band`
-    approximates the arc it paints there.
+    A pixel outside the partial band takes the distance to the band plus the
+    coverage the pixel it lands on states -- and then, in
+    :py:func:`_nearest_boundary`, the nearest *boundary* rather than the
+    nearest pixel stating one. Two things are approximate about that even so:
+    the offset is applied along the line to that pixel rather than along the
+    boundary's own normal, which parts company with the truth around a curve
+    the way :py:func:`_distance_band` does when it paints the arc; and the
+    re-measurement looks one pixel out rather than solving for the nearest
+    boundary outright.
 
     A mask that is flat at 0 or 1 has no boundary at all. That is not a case
     to fall through: ``distance_transform_edt`` is undefined on an input with
@@ -250,7 +334,11 @@ def _signed_distance(alpha: np.ndarray) -> np.ndarray:
     # or 1.
     near = (0.5 - alpha).astype(np.float32)
     distance, index = distance_transform_edt(~partial, return_indices=True)
-    reach = near[tuple(index)] + np.where(alpha >= 1, -distance, distance)
+    seed = np.ravel_multi_index(tuple(index), alpha.shape).astype(np.int32)
+    reach = distance.astype(np.float32)
+    np.negative(reach, out=reach, where=alpha >= 1)
+    reach += near[tuple(index)]
+    reach = _nearest_boundary(alpha, partial, near, seed, reach)
     if not hard.any():
         return np.where(partial, near, reach).astype(np.float32)
 
