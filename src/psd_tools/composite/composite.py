@@ -81,10 +81,11 @@ _UNREADABLE = (
 def _readable(layer: Layer, name: str) -> list[_StyledEffect]:
     """The layer's enabled effects of one kind, empty if they cannot be listed.
 
-    ``Effects`` is built on first access, so listing a layer's effects can
-    fail before the loop that reads them ever starts. The three callers guard
-    each effect they go on to read separately, inside the loop; this is the
-    failure that would leave them nothing to guard.
+    ``Effects`` re-reads the layer's block on every access, so listing a
+    layer's effects can fail on the walk ``find()`` makes before it yields
+    anything. The three callers guard each effect they go on to read
+    separately, inside the loop; this is the failure that would leave them
+    nothing to guard.
 
     The effect class this used to fail on is now skipped one layer down, in
     ``Effects`` itself (#828). The clause stays because the listing is what

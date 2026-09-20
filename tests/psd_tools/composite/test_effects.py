@@ -1292,7 +1292,6 @@ def _with_unknown_class(filename: str, key: bytes, index: int = 0) -> np.ndarray
         item = data[key]
         item = item[index] if isinstance(item, List) else item
         item.classID = b"XXXX"
-        del layer._effects
     return np.asarray(psd.composite(ignore_preview=True).convert("RGBA"))
 
 

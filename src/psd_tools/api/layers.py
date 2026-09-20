@@ -876,45 +876,46 @@ class Layer(LayerProtocol):
         """
         Returns True if the layer has effects.
 
+        Existence is what the Photoshop UI lists: an effect with an entry in
+        the layer's fx list. Whether it is switched on is separate -- the UI
+        greys out a disabled entry, and the master switch greys out the whole
+        list at once. So the two arms ask two questions: ``has_effects()`` is
+        "does this layer draw any effect?", which needs the master switch on
+        and an entry enabled under it, and ``has_effects(enabled=False)`` is
+        "does the fx list show anything?", the same answer as
+        ``len(layer.effects) > 0``.
+
+        Neither is "does the layer carry an effects tagged block". Photoshop
+        creates that block with the first effect attached and leaves it behind
+        once the last is removed, so it outlives what it lists; ask
+        :py:attr:`~psd_tools.api.layers.Layer.tagged_blocks` for it, as
+        :py:class:`~psd_tools.api.effects.Effects` documents (#318, #830).
+
         :param enabled: If True, check for enabled effects.
         :param name: If given, check for specific effect type.
         :return: `bool`
         """
-        has_effect_tag = any(
-            tag in self.tagged_blocks
-            for tag in (
-                Tag.OBJECT_BASED_EFFECTS_LAYER_INFO,
-                Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V0,
-                Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V1,
-            )
-        )
-        # No effects tag.
-        if not has_effect_tag:
-            return False
-
-        # Global enable flag check.
-        if enabled and not self.effects.enabled:
-            return False
-
-        # No specific effect type, check for any effect.
-        if name is None:
-            if enabled:
-                return any(effect.enabled for effect in self.effects)
-            return True
-
-        # Check for specific effect type and enabled state.
-        return any(self.effects.find(name, enabled))
+        effects = self.effects
+        if name is not None:
+            # ``find()`` applies the master switch itself.
+            return any(effects.find(name, enabled))
+        if enabled:
+            return effects.enabled and any(effect.enabled for effect in effects)
+        return len(effects) > 0
 
     @property
     def effects(self) -> Effects:
         """
         Layer effects.
 
+        A live view: the proxy re-reads the layer's effects block on every
+        access, so an edit made underneath shows through without it having to
+        be discarded first. It holds no state worth memoising -- building one
+        costs a fraction of listing the effects once.
+
         :return: :py:class:`~psd_tools.api.effects.Effects`
         """
-        if not hasattr(self, "_effects"):
-            self._effects = Effects(self)
-        return self._effects
+        return Effects(self)
 
     @property
     def tagged_blocks(self) -> TaggedBlocks:
@@ -1115,6 +1116,20 @@ def _invalidate_moved_bbox(layer: Layer) -> None:
 
 @runtime_checkable
 class GroupMixin(GroupMixinProtocol, Protocol):
+    """
+    Container behaviour shared by groups and documents.
+
+    :py:class:`Group` and :py:class:`~psd_tools.api.psd_image.PSDImage` both
+    hold an ordered list of child layers, and this mixin supplies what
+    operates on it: iteration and indexing, the mutation methods below, the
+    :py:meth:`descendants` walk, and a :py:attr:`bbox` computed from the
+    visible, non-clipping children.
+
+    A layer belongs to exactly one container, so adding one that already has
+    a parent moves it out of that parent rather than copying it; see
+    :py:meth:`extend`.
+    """
+
     _psd: PSDProtocol
     _bbox: tuple[int, int, int, int] | None = None
     _layers: list[Layer]

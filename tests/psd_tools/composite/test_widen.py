@@ -494,9 +494,6 @@ def _with_pattern_overlay(layer: Layer) -> Layer:
     the one ``draw_pattern_fill()`` reads -- so both paths below get what
     ``_pattern_fill_desc()`` builds, and differ only by the two flags an
     effects block needs to be read at all.
-
-    Call this before anything reads ``layer.effects``: that property caches on
-    first access, so a block set afterwards is never seen.
     """
     overlay = _pattern_fill_desc()
     overlay[Key.Enabled] = Bool(True)
