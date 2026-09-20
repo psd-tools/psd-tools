@@ -212,9 +212,10 @@ def flatten_cubics(
     second differences of its control points, so ``n`` follows from
     ``_FLATNESS``. Above ``_MAX_STEPS`` that bound is best-effort: a curve
     whose handles reach thousands of pixels away is cut into a thousand steps
-    and no more. The second difference is measured as a length; taken
-    per axis instead it understates the curvature of a diagonal bend, and the
-    chord then strays up to 1.26x past the bound.
+    and no more. The second difference is measured as a length; taken per
+    axis instead it understates the curvature of a diagonal bend by as much
+    as a factor of root two, and the chord strays past the bound with it --
+    1.26x over random cubics, and 1.40x for one written to provoke it.
 
     A curve whose control points lie on its own chord is already a straight
     line and takes one step, however long it is. PSD stores a straight edge as
