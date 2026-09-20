@@ -236,7 +236,7 @@ class Layer(LayerProtocol):
         if self.visible == value:
             return
         if self._psd is not None:
-            self._psd._mark_updated()
+            self._psd.mark_updated()
         self._record.flags.visible = value
         # Up: every ancestor's union gains or loses this layer.
         self._invalidate_bbox()
@@ -277,7 +277,7 @@ class Layer(LayerProtocol):
         if not (0 <= value <= 255):
             raise ValueError(f"Opacity must be in range [0, 255], got {value}")
         if self.opacity != value and self._psd is not None:
-            self._psd._mark_updated()
+            self._psd.mark_updated()
         self._record.opacity = int(value)
 
     @property
@@ -334,7 +334,7 @@ class Layer(LayerProtocol):
             value = value.encode("ascii")
         blend_mode = BlendMode(value)
         if self.blend_mode != blend_mode:
-            self._psd._mark_updated()
+            self._psd.mark_updated()
         self._record.blend_mode = blend_mode
 
     @property
@@ -349,7 +349,7 @@ class Layer(LayerProtocol):
     @left.setter
     def left(self, value: int) -> None:
         if self.left != value:
-            self._psd._mark_updated()
+            self._psd.mark_updated()
         self._invalidate_bbox()
         w = self.width
         self._record.left = int(value)
@@ -367,7 +367,7 @@ class Layer(LayerProtocol):
     @top.setter
     def top(self, value: int) -> None:
         if self.top != value and self._psd is not None:
-            self._psd._mark_updated()
+            self._psd.mark_updated()
         self._invalidate_bbox()
         h = self.height
         self._record.top = int(value)
@@ -547,7 +547,7 @@ class Layer(LayerProtocol):
 
         if hasattr(self, "_mask"):
             del self._mask
-        self._psd._mark_updated()
+        self._psd.mark_updated()
         return self.mask  # type: ignore[return-value]
 
     def remove_mask(self) -> None:
@@ -569,7 +569,7 @@ class Layer(LayerProtocol):
 
         if hasattr(self, "_mask"):
             del self._mask
-        self._psd._mark_updated()
+        self._psd.mark_updated()
 
     def update_mask(
         self,
@@ -614,7 +614,7 @@ class Layer(LayerProtocol):
 
         if hasattr(self, "_mask"):
             del self._mask
-        self._psd._mark_updated()
+        self._psd.mark_updated()
         return self.mask  # type: ignore[return-value]
 
     def has_vector_mask(self) -> bool:
@@ -852,7 +852,7 @@ class Layer(LayerProtocol):
     def clipping(self, value: bool) -> None:
         clipping = Clipping.NON_BASE if value else Clipping.BASE
         if self._record.clipping != clipping and self._psd is not None:
-            self._psd._mark_updated()
+            self._psd.mark_updated()
         self._record.clipping = clipping
         self._invalidate_bbox()
 
@@ -948,7 +948,7 @@ class Layer(LayerProtocol):
         if value < 0 or value > 255:
             raise ValueError("Fill opacity must be between 0 and 255.")
         if self.fill_opacity != value and self._psd is not None:
-            self._psd._mark_updated()
+            self._psd.mark_updated()
         self.tagged_blocks.set_data(Tag.BLEND_FILL_OPACITY, int(value))
 
     @property
@@ -967,7 +967,7 @@ class Layer(LayerProtocol):
         if len(value) != 2:
             raise ValueError("Reference point must be a sequence of two floats.")
         if self.reference_point != value and self._psd is not None:
-            self._psd._mark_updated()
+            self._psd.mark_updated()
         self.tagged_blocks.set_data(
             Tag.REFERENCE_POINT, [float(value[0]), float(value[1])]
         )
@@ -987,7 +987,7 @@ class Layer(LayerProtocol):
     def sheet_color(self, value: SheetColorType) -> None:
         value = SheetColorType(value)
         if self.sheet_color != value and self._psd is not None:
-            self._psd._mark_updated()
+            self._psd.mark_updated()
         self.tagged_blocks.set_data(Tag.SHEET_COLOR_SETTING, value)
 
     def _annotate(self, describe: Callable[[], str]) -> str:
@@ -1545,7 +1545,7 @@ class Group(GroupMixin, Layer):
     def blend_mode(self, value: str | bytes | BlendMode) -> None:
         _value = BlendMode(value.encode("ascii") if isinstance(value, str) else value)
         if self.blend_mode != _value and self._psd is not None:
-            self._psd._mark_updated()
+            self._psd.mark_updated()
         if _value == BlendMode.PASS_THROUGH:
             self._record.blend_mode = BlendMode.NORMAL
         else:
@@ -1608,7 +1608,7 @@ class Group(GroupMixin, Layer):
             return
         clipping = Clipping.NON_BASE if value else Clipping.BASE
         if self._record.clipping != clipping:
-            self._psd._mark_updated()
+            self._psd.mark_updated()
         self._record.clipping = clipping
         self._invalidate_bbox()
 

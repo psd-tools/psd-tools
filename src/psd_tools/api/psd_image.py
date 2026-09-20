@@ -377,8 +377,25 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             raise ValueError("Failed to composite PSD image")
         return result
 
-    def _mark_updated(self) -> None:
-        """Mark the layer tree as updated."""
+    def mark_updated(self) -> None:
+        """
+        Mark the document as edited.
+
+        The flag gates two things: :py:meth:`save` regenerates the flattened
+        preview from the layers rather than writing the stored one, and
+        :py:meth:`composite` re-renders rather than returning it.
+
+        Every edit made through this API sets it. Call this after one it
+        cannot see -- through an effect's ``descriptor``, a layer's
+        ``tagged_blocks``, or any other low-level record -- or the saved file
+        keeps a preview that disagrees with its own layers.
+
+        The flag only ever goes one way: nothing clears it, ``save()``
+        included, so a document stays marked for the life of the object.
+        It lives on the document, not the layer, and ``Layer.parent`` is
+        typed as a ``GroupMixinProtocol``, so reach it through the
+        :py:class:`PSDImage` itself rather than by walking up from a layer.
+        """
         self._updated = True
 
     def is_updated(self) -> bool:
@@ -631,7 +648,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
     @compatibility_mode.setter
     def compatibility_mode(self, value: CompatibilityMode) -> None:
         if self._compatibility_mode != value:
-            self._mark_updated()
+            self.mark_updated()
         self._compatibility_mode = value
 
     @property
@@ -681,7 +698,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
                 get_color_channels(self),
             )
         if self._background_color != value:
-            self._mark_updated()
+            self.mark_updated()
         self._background_color = value
 
     @property
@@ -748,7 +765,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         )
         layer.opacity = opacity
         layer.blend_mode = blend_mode
-        self._mark_updated()
+        self.mark_updated()
         return layer
 
     def create_group(
@@ -783,7 +800,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             group.extend(layer_list)
         group.opacity = opacity
         group.blend_mode = blend_mode
-        self._mark_updated()
+        self.mark_updated()
         return group
 
     # TODO: Add more editing APIs, such as duplicate_layers, resize_canvas, etc.
@@ -970,7 +987,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         layer_info.layer_count = len(layer_records)
 
         # Flag as updated.
-        self._mark_updated()
+        self.mark_updated()
 
     def _copy_patterns(self, psdimage: PSDProtocol) -> None:
         """Copy patterns from this psdimage to the target psdimage."""

@@ -4,6 +4,19 @@ Changelog
 1.20.0 (unreleased)
 -------------------
 
+- [api] ``PSDImage.mark_updated()`` is now public, so an edit this API cannot
+  see -- through an effect's ``descriptor``, a layer's ``tagged_blocks``, or
+  any other low-level record -- can still tell the document to regenerate its
+  preview on ``save()`` and re-render on ``composite()`` (#831, #851)
+- [api] ``Stroke.position``, ``Stroke.fill_type``, ``glow_type`` on the two
+  glows and ``type`` wherever the gradient mixin puts it now return ``None``
+  where the descriptor does not say, instead of a fabricated default.
+  Backwards-incompatible: a solid-colour ``Stroke.type`` answered ``b'Lnr '``
+  and now answers ``None`` (#831, #851)
+- [api] An effect's deprecated ``value`` property now warns with
+  ``DeprecationWarning`` rather than logging at DEBUG, where no user saw it.
+  Use ``descriptor`` instead; the library's own render path has stopped
+  reading it (#831, #851)
 - [api] ``Layer.has_effects(enabled=False)`` now reports what the Photoshop
   fx list shows -- the same answer as ``len(layer.effects) > 0`` -- not
   whether an effects tagged block exists. Backwards-incompatible: it turns

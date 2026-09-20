@@ -1,8 +1,18 @@
 """
 Effects module.
+
+Everything here is a read-only view on the layer's effects descriptor; none
+of it has a setter. An effect is changed through its ``descriptor``, which is
+the sanctioned way in, and an edit made that way has to be followed by
+:py:meth:`~psd_tools.api.psd_image.PSDImage.mark_updated` -- nothing else
+tells the document that its stored preview no longer matches its layers::
+
+    layer.effects[0].descriptor[Key.Opacity] = UnitFloat(50.0, b"#Prc")
+    psd.mark_updated()
 """
 
 import logging
+import warnings
 from typing import Any, Iterator, Protocol
 
 from psd_tools.api.protocols import LayerProtocol
@@ -197,7 +207,12 @@ class _EffectProtocol(Protocol):
 
 
 class _Effect(_EffectProtocol):
-    """Base Effect class."""
+    """Base Effect class.
+
+    A read-only view on one entry of the layer's fx list. ``descriptor`` is
+    that entry, and the only way to change one; see the module docstring for
+    what an edit through it owes the document.
+    """
 
     def __init__(self, descriptor: Descriptor, image_resources: ImageResources):
         self.descriptor = descriptor
@@ -209,7 +224,11 @@ class _Effect(_EffectProtocol):
 
         .. note:: Deprecated. Use the ``descriptor`` property instead.
         """
-        logger.debug("Deprecated, use 'descriptor' property instead.")
+        warnings.warn(
+            "'value' is deprecated, use the 'descriptor' property instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self.descriptor
 
     @property
@@ -321,16 +340,16 @@ class _GradientMixin(_EffectProtocol):
         return float(_get_value(self.descriptor, Key.Angle, 0.0))
 
     @property
-    def type(self) -> bytes:
+    def type(self) -> bytes | None:
         """
         Gradient type.
 
-        One of `linear`, `radial`, `angle`, `reflected`, or `diamond`.
+        One of `linear`, `radial`, `angle`, `reflected`, or `diamond`, or
+        None where the descriptor does not say -- which is most of them,
+        since every fill shape inherits this property and only a gradient
+        writes the key.
         """
-        type_value = self.descriptor.get(Key.Type)
-        return (
-            getattr(type_value, "enum", b"Lnr ") if type_value is not None else b"Lnr "
-        )
+        return getattr(self.descriptor.get(Key.Type), "enum", None)
 
     @property
     def reversed(self) -> bool:
@@ -349,16 +368,21 @@ class _GradientMixin(_EffectProtocol):
 
 
 class _PatternMixin(_EffectProtocol):
+    # ``b"Ptrn"`` and ``b"Lnkd"`` below are the codes Photoshop writes for
+    # these keys, and they are also Enum.Pattern and Enum.Linked. Adobe
+    # reuses a code across roles, and the Enum/Key/Klass split is a
+    # psd-tools convention, so a key spelled like an Enum is not a bug.
+
     @property
     def pattern(self) -> Descriptor:
         """Pattern config."""
         # TODO: Expose nested property.
-        return self.descriptor.get(b"Ptrn")  # Enum.Pattern. Seems a bug.
+        return self.descriptor.get(b"Ptrn")
 
     @property
     def linked(self) -> bool:
         """Linked."""
-        return bool(self.descriptor.get(b"Lnkd"))  # Enum.Linked. Seems a bug.
+        return bool(self.descriptor.get(b"Lnkd"))
 
     @property
     def angle(self) -> float:
@@ -384,14 +408,9 @@ class _GlowEffect(_Effect, _ChokeNoiseMixin, _GradientMixin):
     """Base class for glow effect."""
 
     @property
-    def glow_type(self) -> bytes:
-        """Glow type."""
-        glow_technique = self.descriptor.get(Key.GlowTechnique)
-        return (
-            getattr(glow_technique, "enum", b"SfBL")
-            if glow_technique is not None
-            else b"SfBL"
-        )
+    def glow_type(self) -> bytes | None:
+        """Glow type, or None where the descriptor does not say."""
+        return getattr(self.descriptor.get(Key.GlowTechnique), "enum", None)
 
     @property
     def quality_range(self) -> float:
@@ -461,7 +480,7 @@ class ColorOverlay(_OverlayEffect, _ColorMixin):
     pass
 
 
-@register(b"GrFl")  # Equal to Enum.GradientFill. This seems a bug.
+@register(b"GrFl")  # Enum.GradientFill's code, reused as a class ID.
 class GradientOverlay(_OverlayEffect, _AlignScaleMixin, _GradientMixin):
     pass
 
@@ -474,20 +493,22 @@ class PatternOverlay(_OverlayEffect, _AlignScaleMixin, _PatternMixin):
 @register(Klass.FrameFX.value)
 class Stroke(_Effect, _ColorMixin, _PatternMixin, _GradientMixin):
     @property
-    def position(self) -> bytes:
+    def position(self) -> bytes | None:
         """
         Position of the stroke, InsetFrame, OutsetFrame, or CenteredFrame.
+
+        None where the descriptor does not say.
         """
-        style = self.descriptor.get(Key.Style)
-        return getattr(style, "enum", b"OutF") if style is not None else b"OutF"
+        return getattr(self.descriptor.get(Key.Style), "enum", None)
 
     @property
-    def fill_type(self) -> bytes:
-        """Fill type, SolidColor, Gradient, or Pattern."""
-        paint_type = self.descriptor.get(Key.PaintType)
-        return (
-            getattr(paint_type, "enum", b"SClr") if paint_type is not None else b"SClr"
-        )
+    def fill_type(self) -> bytes | None:
+        """
+        Fill type, SolidColor, Gradient, or Pattern.
+
+        None where the descriptor does not say.
+        """
+        return getattr(self.descriptor.get(Key.PaintType), "enum", None)
 
     @property
     def size(self) -> float:

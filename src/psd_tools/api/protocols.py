@@ -477,8 +477,8 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
         """Returns whether the PSD document has been updated."""
         ...
 
-    def _mark_updated(self) -> None:
-        """Mark the PSD document as updated."""
+    def mark_updated(self) -> None:
+        """Mark the PSD document as edited, so its stored preview is rebuilt."""
         ...
 
     def _update_record(self) -> None:

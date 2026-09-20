@@ -12,6 +12,8 @@ from psd_tools.api.layers import Group
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.api.utils import get_transparency_index, has_transparency
 from psd_tools.constants import BlendMode, ColorMode, Compression
+from psd_tools.psd.descriptor import Double
+from psd_tools.terminology import Key
 
 from ..utils import full_name
 
@@ -251,6 +253,22 @@ def test_is_updated() -> None:
     layer_1 = psd[1]
     assert isinstance(layer_1, Group)
     layer_1[2].clipping = False
+    assert psd.is_updated()
+
+
+def test_mark_updated_after_an_out_of_contract_edit() -> None:
+    """``mark_updated()`` is how an edit the API cannot see gets counted.
+
+    The effects proxy is read-only, so a colour change goes through the
+    ``descriptor`` escape hatch, which sets no flag. Until #831 there was no
+    public way to set it afterwards, so the document went on believing a
+    preview that no longer matched its layers.
+    """
+    psd = PSDImage.open(full_name("layer_effects.psd"))
+    psd[6].effects[0].descriptor[Key.Color][Key.Red] = Double(255.0)
+    assert not psd.is_updated()
+
+    psd.mark_updated()
     assert psd.is_updated()
 
 

@@ -1,9 +1,12 @@
 import logging
 import math
+import warnings
+from pathlib import Path
 from typing import Callable
 
 import numpy as np
 import pytest
+from PIL import Image
 
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import _compat, composite, effects
@@ -1031,3 +1034,69 @@ def test_an_effects_block_that_did_not_parse_renders_as_no_effects() -> None:
         _unreadable_block("effects/double-stroke-effects.psd"), both_off
     )
     assert not np.array_equal(both_off, _rendered("effects/double-stroke-effects.psd"))
+
+
+def test_mark_updated_refreshes_a_preview_the_api_could_not_see(
+    tmp_path: Path,
+) -> None:
+    """The harm #831 measured: a saved file disagreeing with its own layers.
+
+    ``composite()`` hands back the stored preview while the document thinks
+    it is unedited, and ``save()`` writes that preview out. An effect colour
+    changed through ``descriptor`` sets no flag, so both keep answering from
+    before the edit until ``mark_updated()`` says otherwise.
+    """
+
+    # Everything is read back in one mode: the preview is RGB and a render
+    # of it is RGBA, so raw arrays would differ by shape alone and every
+    # assertion below would pass without looking at a pixel.
+    def pixels(image: Image.Image) -> np.ndarray:
+        return np.asarray(image.convert("RGB"))
+
+    psd = PSDImage.open(full_name("layer_effects.psd"))
+    stale = pixels(psd.composite())
+    stored = psd.topil()
+    assert stored is not None
+    assert np.array_equal(stale, pixels(stored)), (
+        "the fixture has to be answering from its stored preview"
+    )
+
+    psd[6].effects[0].descriptor[Key.Color][Key.Red] = Double(255.0)
+    assert np.array_equal(pixels(psd.composite()), stale), (
+        "an edit through the escape hatch is invisible to the document"
+    )
+
+    psd.mark_updated()
+    fresh = pixels(psd.composite())
+    assert not np.array_equal(fresh, stale), "still answering from the preview"
+    untouched = pixels(
+        PSDImage.open(full_name("layer_effects.psd")).composite(ignore_preview=True)
+    )
+    assert not np.array_equal(fresh, untouched), (
+        "the re-render has to show the edit, not merely differ from a preview"
+    )
+
+    out = tmp_path / "marked.psd"
+    psd.save(out)
+    saved = PSDImage.open(out).topil()
+    assert saved is not None
+    assert np.array_equal(pixels(saved), fresh), (
+        "save() has to write the preview it just regenerated"
+    )
+
+
+def test_the_render_path_does_not_trip_its_own_deprecation() -> None:
+    """#831 step 6: the compositor was the last in-tree reader of ``value``.
+
+    Rendering this fixture reaches all four sites it read from -- the stroke
+    reach the cull measures, the overlay fill, and the stroke's own box and
+    draw. Filtering on the message rather than on ``DeprecationWarning``
+    keeps a warning from somewhere else in the stack out of it.
+    """
+    psd = PSDImage.open(full_name("layer_effects.psd"))
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        psd.composite(ignore_preview=True)
+
+    assert not [w for w in caught if "'value' is deprecated" in str(w.message)]

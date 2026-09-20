@@ -91,6 +91,7 @@ def test_outer_glow(fixture: PSDImage) -> None:
     assert effect.color
     assert effect.contour
     assert effect.glow_type == Enum.SoftMatte
+    assert effect.type is None  # a glow inherits the gradient mixin
     assert effect.noise == 0.0
     assert effect.opacity == 35.0
     assert effect.quality_jitter == 0.0
@@ -110,6 +111,7 @@ def test_inner_glow(fixture: PSDImage) -> None:
     assert effect.contour
     assert effect.glow_source == Enum.EdgeGlow
     assert effect.glow_type == Enum.SoftMatte
+    assert effect.type is None  # a glow inherits the gradient mixin
     assert effect.noise == 0.0
     assert effect.opacity == 46.0
     assert effect.quality_jitter == 0.0
@@ -197,6 +199,9 @@ def test_stroke(fixture: PSDImage) -> None:
     assert effect.color
     assert effect.gradient is None
     assert effect.pattern is None
+    # One class covers all three fill shapes, so a solid-colour stroke is
+    # asked about a gradient it does not have. It used to answer b"Lnr ".
+    assert effect.type is None
 
 
 def test_satin(fixture: PSDImage) -> None:
@@ -423,3 +428,41 @@ def test_items_hands_out_a_list_that_cannot_write_back() -> None:
 
     assert len(effects) == 1
     assert [effect.name for effect in effects.items] == ["Stroke"]
+
+
+def test_an_absent_reporting_enum_is_not_fabricated() -> None:
+    """The reporting-only enums answer None instead of inventing a default.
+
+    Only ``type`` reaches the absent case on a real file -- 43 of the 53
+    corpus effects that expose it never write the key. The other three are
+    written by every file there is, so taking the key away is the only way
+    to ask them the question at all.
+    """
+    psd = PSDImage.open(full_name("layer_effects.psd"))
+
+    stroke = psd[10].effects[0]
+    assert isinstance(stroke, effects.Stroke)
+    assert stroke.position == Enum.OutsetFrame
+    assert stroke.fill_type == Enum.SolidColor
+    del stroke.descriptor[Key.Style]
+    del stroke.descriptor[Key.PaintType]
+    assert stroke.position is None
+    assert stroke.fill_type is None
+
+    glow = psd[3].effects[0]
+    assert isinstance(glow, effects.OuterGlow)
+    assert glow.glow_type == Enum.SoftMatte
+    del glow.descriptor[Key.GlowTechnique]
+    assert glow.glow_type is None
+
+
+def test_value_is_deprecated_out_loud() -> None:
+    """The deprecation was a ``logger.debug`` no user ever saw.
+
+    The compositor was its last in-tree reader until #831; nothing in the
+    library trips this now.
+    """
+    effect = PSDImage.open(full_name("layer_effects.psd"))[10].effects[0]
+
+    with pytest.warns(DeprecationWarning, match="descriptor"):
+        assert effect.value is effect.descriptor
