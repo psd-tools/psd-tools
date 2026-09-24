@@ -19,7 +19,7 @@ Pretty printing is the best approach to check the descriptor content::
 import logging
 from typing import IO, Any, Iterator, TypeVar
 
-from attrs import define, field
+from attrs import define, field, validators
 
 from psd_tools.constants import OSType
 from psd_tools.psd.base import (
@@ -284,6 +284,30 @@ class Property(BaseElement):
         return written
 
 
+def _unit(value: Unit | Enum | bytes) -> Unit | Enum:
+    """
+    Resolve a 4-byte unit code to a :py:class:`Unit` or an :py:class:`Enum`.
+
+    Photoshop writes a ruler unit such as ``Enum.RulerCm`` in a slot that is
+    otherwise a :py:class:`Unit`, so a code outside ``Unit`` is looked up in
+    ``Enum`` before it is rejected.
+
+    :raises ValueError: if the code is a member of neither.
+    """
+    if isinstance(value, (Unit, Enum)):
+        return value
+    try:
+        return Unit(value)
+    except ValueError:
+        pass
+    try:
+        resolved = Enum(value)
+    except ValueError:
+        raise ValueError("%r is not a valid Unit or Enum" % (value,)) from None
+    logger.warning("Using Enum for Unit field")
+    return resolved
+
+
 @register(OSType.UNIT_FLOAT)
 @define(repr=False, eq=False, order=False)
 class UnitFloat(NumericElement):
@@ -300,16 +324,15 @@ class UnitFloat(NumericElement):
     """
 
     value: float = field(default=0.0, converter=float)
-    unit: Unit = Unit._None
+    unit: Unit | Enum = field(
+        default=Unit._None,
+        converter=_unit,
+        validator=validators.instance_of((Unit, Enum)),
+    )
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         unit, value = read_fmt("4sd", fp)
-        try:
-            unit = Unit(unit)
-        except ValueError:
-            logger.warning("Using Enum for Unit field")
-            unit = Enum(unit)
         return cls(unit=unit, value=value)  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
@@ -339,17 +362,21 @@ class UnitFloats(BaseElement):
         List of `float` values
     """
 
-    unit: Unit = Unit._None
+    unit: Unit | Enum = field(
+        default=Unit._None,
+        converter=_unit,
+        validator=validators.instance_of((Unit, Enum)),
+    )
     values: list = field(factory=list)
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         unit, count = read_fmt("4sI", fp)
-        try:
-            unit = Unit(unit)
-        except ValueError:
-            logger.warning("Using Enum for Unit field")
-            unit = Enum(unit)
+        # Resolve the unit before the array is consumed. A caller probing for
+        # an optional descriptor -- SliceV6.read() -- distinguishes "this is
+        # not a descriptor" from a truncated file by catching ValueError
+        # alone, so a bad unit must not be reported as a short read.
+        unit = _unit(unit)
         values = list(read_fmt("%dd" % count, fp))
         return cls(unit=unit, values=values)  # type: ignore[call-arg]
 

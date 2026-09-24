@@ -13,6 +13,12 @@ Changelog
   so a reopened document keeps its alpha instead of coming back opaque.
   Emptying a document with ``clear()`` still drops it, since a zero layer count
   has no sign (#861, #865)
+- [api] ``UnitFloat.unit``, ``UnitFloats.unit``, ``AlphaChannel.mode`` and
+  ``SectionDividerSetting.blend_mode`` now convert and validate like the other
+  enum-typed fields, so a wrong value raises ``ValueError`` where it was set
+  rather than ``AttributeError`` at ``save()``, a ``struct`` error, or nothing.
+  Backwards-incompatible: ``AlphaChannel(mode=99)`` used to write, and
+  ``UnitFloat.unit`` is now annotated ``Unit | Enum`` (#852, #863)
 - [fix] A layer taken out of a document by ``extend()``, ``append()`` or
   ``insert()`` is no longer written back into that document's file, so it
   stops appearing in two files at once (#841, #860)

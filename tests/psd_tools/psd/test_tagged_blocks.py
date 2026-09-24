@@ -4,7 +4,7 @@ from typing import Any, List, Type
 
 import pytest
 
-from psd_tools.constants import Tag
+from psd_tools.constants import BlendMode, SectionDivider, Tag
 from psd_tools.psd.base import IntegerElement
 from psd_tools.psd.tagged_blocks import (
     Annotation,
@@ -15,6 +15,7 @@ from psd_tools.psd.tagged_blocks import (
     MetadataSettings,
     PixelSourceData2,
     ReferencePoint,
+    SectionDividerSetting,
     TaggedBlock,
     TaggedBlocks,
 )
@@ -113,3 +114,33 @@ def test_tagged_block_rw_failure(kls: Type[Any], filename: str) -> None:
 
 def test_reference_point() -> None:
     check_write_read(ReferencePoint([3, 5]))  # type: ignore[list-item]
+
+
+def test_section_divider_setting_converts_a_raw_blend_mode() -> None:
+    """A valid 4-byte code is normalised, so ``write()`` can reach ``.value``."""
+    setting = SectionDividerSetting(
+        SectionDivider.OPEN_FOLDER,  # type: ignore[arg-type]
+        signature=b"8BIM",
+        blend_mode=b"norm",  # type: ignore[arg-type]
+    )
+    assert setting.blend_mode is BlendMode.NORMAL
+    check_write_read(setting)
+
+
+def test_section_divider_setting_keeps_an_absent_blend_mode() -> None:
+    assert SectionDividerSetting(SectionDivider.OTHER).blend_mode is None  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("blend_mode", [b"zzzz", b"norm\x00", 0, "norm"])
+def test_section_divider_setting_rejects_a_bad_blend_mode(blend_mode: Any) -> None:
+    """``write()`` used to raise ``AttributeError`` -- or, for ``0``, say nothing.
+
+    ``0`` is falsy, so ``write()``'s ``if self.blend_mode:`` dropped the blend
+    mode and the signature with it, leaving a file that reads back short.
+    """
+    with pytest.raises(ValueError):
+        SectionDividerSetting(
+            SectionDivider.OPEN_FOLDER,  # type: ignore[arg-type]
+            signature=b"8BIM",
+            blend_mode=blend_mode,
+        )
