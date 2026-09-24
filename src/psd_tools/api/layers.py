@@ -534,7 +534,10 @@ class Layer(LayerProtocol):
 
         A mask channel carries its own rectangle, and the user mask's is not
         the real mask's. :py:attr:`Mask.width` cannot answer for both: it
-        reports the real rectangle whenever one exists.
+        reports the real rectangle whenever :py:meth:`Mask.has_real` says the
+        real mask's parameters are applied, which is a different question from
+        whether the real bounds exist -- ``vector-mask2.psd`` has a layer with
+        real bounds and ``has_real()`` false.
 
         ``None`` where the rectangle is missing -- a mask channel with no mask
         block, or a real-mask channel whose ``real_*`` bounds are unset, both
@@ -568,9 +571,10 @@ class Layer(LayerProtocol):
         the row table as data -- so the channels are unpacked at the source's
         numbers and packed again at the destination's.
 
-        The record is left alone. That is the point: the values are unchanged,
-        only their packing moves, so nothing about the layer other than its
-        channel data has to be rebuilt.
+        The record is not rebuilt -- only each channel's declared length is
+        touched. That is the point: the values are unchanged and only their
+        packing moves, so the layer's opacity, blend mode, mask and tagged
+        blocks have no reason to be rebuilt along with them.
 
         A channel that cannot be read is left exactly as it stands rather than
         rewritten from what the codec returned. The codec has two ways of
@@ -604,7 +608,7 @@ class Layer(LayerProtocol):
                 encoded = numpy_io._encode_array(
                     plane, cast(Literal[1, 8, 16, 32], dest.depth), width
                 )
-            except (ValueError, PSDDecompressionWarning) as e:
+            except (PSDDecompressionWarning, ValueError, TypeError, OSError) as e:
                 logger.warning(
                     "Channel %s could not be re-encoded for depth %d; "
                     "leaving it as stored: %s",

@@ -98,10 +98,16 @@ def encode_channel(band: Image.Image, depth: Literal[1, 8, 16, 32]) -> bytes:
 
     A "1" band is normalised to "L" first at every depth, its own included:
     ``tobytes()`` on it yields *packed bits*, three bytes for a row of 20,
-    which is the right buffer at depth 1 and a malformed one at depth 8. A
-    "P" band is the opposite case and is passed through untouched at depth 8,
-    because there its bytes are palette indices rather than values, and
-    ``_parse_array`` applies the palette on the way back.
+    which is a malformed buffer at depth 8, and at depth 1 is the right
+    length carrying the wrong sense -- PIL sets a bit for white and PSD sets
+    one for black, so the two differ by a complement.
+
+    A "P" band is the opposite case and is passed through untouched at depth
+    8, because there its bytes are palette indices rather than values and
+    nothing but the document's own palette gives them meaning. Nothing
+    applies that palette to a *layer* channel on the way back:
+    :func:`~psd_tools.api.numpy_io.get_layer_data` passes no lookup table,
+    and only the merged image data read builds one.
 
     :param band: a single-band :py:class:`~PIL.Image.Image`, as
         :py:meth:`PIL.Image.Image.getchannel` returns.

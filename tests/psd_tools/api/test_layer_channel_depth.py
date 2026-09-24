@@ -22,7 +22,7 @@ bytes, so ``0x80, 0x80`` decodes to 0.50196 -- exactly the right answer -- and
 the first pixel or two of a flat layer come out correct on the unfixed code.
 """
 
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import numpy as np
 import pytest
@@ -42,6 +42,14 @@ DEPTHS: tuple[Literal[8, 16, 32], ...] = (8, 16, 32)
 # that a partially decoded channel cannot pass for a decoded one.
 COLORS = np.arange(3 * 5 * 3, dtype=np.uint8).reshape(3, 5, 3) * 5 + 3
 MASK = np.arange(3 * 5, dtype=np.uint8).reshape(3, 5) * 17 + 1
+
+# A mask of a different size from the layer, and offset from it. A channel is
+# decompressed against its own rectangle, and a mask's is not the layer's, so
+# a move test whose mask happens to share the layer's rectangle cannot tell a
+# geometry lookup that reads the mask's bounds from one that ignores them.
+OFFSET_MASK = np.arange(4 * 6, dtype=np.uint8).reshape(4, 6) * 10 + 1
+LAYER_TOP, LAYER_LEFT = 2, 1
+MASK_TOP, MASK_LEFT = 3, 0
 
 
 def _image(mode: str = "RGB") -> Image.Image:
@@ -158,10 +166,16 @@ def test_a_depth_only_move_re_encodes_the_channels(
 
     Both documents are RGB, so ``pil_mode`` matches and the layer used to be
     carried across untouched -- at the source's bytes per sample.
+
+    The mask is deliberately a different size from the layer and at a
+    different origin, so that the geometry each channel is repacked against
+    has to come from that channel's own rectangle.
     """
     source = PSDImage.new("RGB", (16, 16), depth=source_depth)
-    layer = source.create_pixel_layer(_image(), name="L")
-    layer.create_mask(Image.fromarray(MASK, "L"))
+    layer = source.create_pixel_layer(
+        _image(), name="L", top=LAYER_TOP, left=LAYER_LEFT
+    )
+    layer.create_mask(Image.fromarray(OFFSET_MASK, "L"), top=MASK_TOP, left=MASK_LEFT)
 
     PSDImage.new("RGB", (16, 16), depth=dest_depth).append(layer)
 
@@ -170,16 +184,18 @@ def test_a_depth_only_move_re_encodes_the_channels(
     np.testing.assert_allclose(array[:, :, :3], COLORS / 255.0, atol=1e-6)
     mask_array = numpy_io.get_layer_data(layer, "mask")
     assert mask_array is not None
-    np.testing.assert_allclose(mask_array[:, :, 0], MASK / 255.0, atol=1e-6)
-    assert _channel_lengths(layer) == _channel_lengths(layer)  # no empty channel
+    assert mask_array.shape == (*OFFSET_MASK.shape, 1)
+    np.testing.assert_allclose(mask_array[:, :, 0], OFFSET_MASK / 255.0, atol=1e-6)
     assert all(len(channel.data) > 0 for channel in layer._channels)
 
 
 def test_a_version_only_move_re_encodes_the_channels() -> None:
     """PSD to PSB. An RLE channel's row-length words are two bytes or four."""
     source = PSDImage.new("RGB", (16, 16), depth=8)
-    layer = source.create_pixel_layer(_image(), name="L")
-    layer.create_mask(Image.fromarray(MASK, "L"))
+    layer = source.create_pixel_layer(
+        _image(), name="L", top=LAYER_TOP, left=LAYER_LEFT
+    )
+    layer.create_mask(Image.fromarray(OFFSET_MASK, "L"), top=MASK_TOP, left=MASK_LEFT)
 
     destination = PSDImage.open(full_name("2layers.psb"))
     assert destination.version == 2 and source.version == 1
@@ -190,7 +206,72 @@ def test_a_version_only_move_re_encodes_the_channels() -> None:
     np.testing.assert_allclose(array[:, :, :3], COLORS / 255.0, atol=1e-6)
     mask_array = numpy_io.get_layer_data(layer, "mask")
     assert mask_array is not None
-    np.testing.assert_allclose(mask_array[:, :, 0], MASK / 255.0, atol=1e-6)
+    assert mask_array.shape == (*OFFSET_MASK.shape, 1)
+    np.testing.assert_allclose(mask_array[:, :, 0], OFFSET_MASK / 255.0, atol=1e-6)
+
+
+def _decode_mask_channels(
+    layer: Any, depth: Literal[1, 8, 16, 32], version: int
+) -> dict[int, np.ndarray]:
+    """Both mask channels, each read against its own rectangle.
+
+    Spelled out here rather than taken from ``Layer._channel_geometry``, which
+    is the thing under test, and not from ``get_layer_data``, which reads one
+    of the two and picks which by ``has_real()``.
+    """
+    mask = layer._record.mask_data
+    rectangles = {
+        ChannelID.USER_LAYER_MASK: (mask.left, mask.top, mask.right, mask.bottom),
+        ChannelID.REAL_USER_LAYER_MASK: (
+            mask.real_left,
+            mask.real_top,
+            mask.real_right,
+            mask.real_bottom,
+        ),
+    }
+    decoded = {}
+    for info, channel in zip(layer._record.channel_info, layer._channels):
+        if info.id not in rectangles:
+            continue
+        left, top, right, bottom = rectangles[info.id]
+        width, height = right - left, bottom - top
+        raw = channel.get_data(width, height, depth, version)
+        decoded[info.id] = numpy_io._parse_array(raw, depth, width).reshape(
+            height, width
+        )
+    return decoded
+
+
+def test_a_depth_only_move_re_encodes_a_real_mask_channel() -> None:
+    """A real mask's rectangle is not the user mask's, and both are stored.
+
+    ``mask-density-layervectormask.psd`` is the corpus's case: its layers
+    carry a ``REAL_USER_LAYER_MASK`` 32x8 next to a ``USER_LAYER_MASK``
+    18x10. A repack that reads either channel against the other's rectangle
+    gets a different number of rows.
+    """
+    psd = PSDImage.open(full_name("mask-density-layervectormask.psd"))
+    layer = next(item for item in psd.descendants() if item.name == "Layer 1")
+    mask = layer._record.mask_data
+    assert mask is not None
+    real = (mask.real_left, mask.real_top, mask.real_right, mask.real_bottom)
+    assert None not in real
+    assert (mask.right - mask.left, mask.bottom - mask.top) != (
+        cast(int, real[2]) - cast(int, real[0]),
+        cast(int, real[3]) - cast(int, real[1]),
+    )
+    before = _decode_mask_channels(layer, 8, 1)
+    assert set(before) == {
+        ChannelID.USER_LAYER_MASK,
+        ChannelID.REAL_USER_LAYER_MASK,
+    }
+
+    PSDImage.new("RGB", (32, 32), depth=16).append(layer)
+
+    after = _decode_mask_channels(layer, 16, 1)
+    assert set(after) == set(before)
+    for channel_id, expected in before.items():
+        np.testing.assert_allclose(after[channel_id], expected, atol=1e-6)
 
 
 def test_a_cross_mode_move_re_encodes_at_the_destinations_version() -> None:
@@ -271,7 +352,13 @@ def test_a_cross_mode_move_into_a_deep_document_uses_that_depth() -> None:
     array = layer.numpy()
     assert array is not None
     assert array.shape[2] == 5  # CMYK plus transparency
-    assert float(array[:, :, :4].max()) > 0.0
+    # The values PIL's own RGB-to-CMYK conversion gives. Asserting them,
+    # rather than "something is non-zero", is what makes the depth-16 packing
+    # legible in the result.
+    converted = Image.fromarray(COLORS, "RGB").convert("CMYK")
+    expected_ink = np.asarray(converted, dtype=np.float32) / 255.0
+    np.testing.assert_allclose(array[:, :, :4], expected_ink, atol=1e-4)
+    np.testing.assert_allclose(array[:, :, 4], 1.0)
 
 
 class TestBitmapDocuments:
