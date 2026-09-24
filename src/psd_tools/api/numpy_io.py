@@ -640,7 +640,7 @@ def encode_image_data(
         arrays[transparency] = alpha[:, :, 0]
 
     carried = _stored_planes(psdimage, [i for i in range(channels) if i not in arrays])
-    _restore_background(arrays, carried, psdimage)
+    _restore_background(arrays, psdimage, transparency)
 
     empty = None
     planes: list[bytes] = []
@@ -700,49 +700,46 @@ def _transparency_slot(psdimage: "PSDProtocol", color_planes: int) -> int:
 
 
 def _restore_background(
-    arrays: dict[int, np.ndarray], carried: dict[int, bytes], psdimage: "PSDProtocol"
+    arrays: dict[int, np.ndarray], psdimage: "PSDProtocol", transparency: int
 ) -> None:
     """Composite the color planes back onto the white the preview is stored on.
 
-    The inverse of :func:`_remove_background`, in place and gated on the same
-    condition, so that the two compose to the identity. Photoshop stores the
-    merged preview already composited over white -- a fully transparent pixel
-    reads back as white in every Photoshop-authored fixture that has one --
-    and both readers undo it on the way in. Writing the unpremultiplied colour
-    instead, which is what going through a PIL ``RGBA`` image did, left the
-    reader to divide by an alpha the values had never been multiplied by.
+    Photoshop stores the merged preview already composited over white -- a
+    fully transparent pixel reads back white in every Photoshop-authored
+    fixture that has one -- and both readers undo it on the way in. Writing
+    the unpremultiplied colour instead, which is what going through a PIL
+    ``RGBA`` image did, left the reader to divide by an alpha the values had
+    never been multiplied by.
 
-    ``_remove_background()`` reads plane 3 whatever the alpha identifiers say,
-    so this writes against plane 3 too -- including where that plane is one
-    carried over rather than composited, which is the only way the round trip
-    closes on a document whose fourth channel is not its transparency.
-
-    Where the alpha is zero the read leaves the stored value alone, so the
-    inverse there is the colour itself and not the white this would otherwise
-    put down. The two agree in practice -- the compositor returns white at a
-    fully transparent pixel, its backdrop -- but only the explicit form is
-    actually the inverse.
+    Matted against the *transparency* plane, and only where the document has
+    one. ``_remove_background()`` reads plane 3 by position instead, whatever
+    the alpha identifiers say, and matching that was wrong in both
+    directions: an RGB document whose fourth channel is a spot channel got
+    its colour matted against ink coverage -- a layer at ``(51, 102, 153)``
+    over a spot plane of 128 was stored as ``(153, 178, 204)`` -- and one
+    whose transparency sits past plane 3 was matted against the wrong
+    channel. The reader's positional assumption is a defect of its own
+    (#868); reproducing it here would have written it into files.
 
     Grayscale is left as composited, because that is what the readers expect:
-    neither :func:`_remove_background` nor ``pil_io._remove_white_background``
+    neither ``_remove_background()`` nor ``pil_io._remove_white_background()``
     touches an ``LA`` document, although Photoshop stores one over white like
     any other (``gray0.psd`` is white at all 123,854 of its transparent
-    pixels). Writing it over white here would make psd-tools disagree with
-    itself about a file it had just written; the reader is the half that is
-    wrong, and it is a separate change.
+    pixels). That asymmetry is #868 as well.
+
+    Where the alpha is zero the read leaves the stored value alone, so the
+    inverse there is the colour itself rather than the white this would
+    otherwise put down. The two agree in practice -- the compositor returns
+    white at a fully transparent pixel, its backdrop -- but only the explicit
+    form is actually the inverse.
     """
-    if psdimage.color_mode != ColorMode.RGB or psdimage.channels <= 3:
+    if psdimage.color_mode != ColorMode.RGB or transparency < 0:
         return
-    alpha = arrays.get(3)
-    if alpha is None and 3 in carried:
-        header = psdimage._record.header
-        alpha = _parse_array(
-            carried[3], cast(Literal[1, 8, 16, 32], header.depth), header.width
-        ).reshape(header.height, header.width)
+    alpha = arrays.get(transparency)
     if alpha is None:
         return
     opaque = alpha > 0
     for index in range(min(3, psdimage.channels)):
-        if index in arrays:
+        if index in arrays and index != transparency:
             plane = arrays[index]
             arrays[index] = np.where(opaque, plane * alpha + (1.0 - alpha), plane)

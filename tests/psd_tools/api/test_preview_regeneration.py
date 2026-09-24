@@ -32,8 +32,10 @@ from psd_tools.api.numpy_io import (
     encode_image_data,
 )
 from psd_tools.api.psd_image import PSDImage
+from psd_tools.api.utils import get_transparency_index, has_transparency
 from psd_tools.compression import _row_size
-from psd_tools.constants import Compression
+from psd_tools.constants import Compression, Resource
+from psd_tools.psd.image_resources import AlphaIdentifiers, ImageResource
 
 from ..utils import full_name
 
@@ -386,6 +388,97 @@ def test_a_composite_of_the_wrong_width_is_fitted_to_the_document() -> None:
     wide = encode_image_data(psd, np.zeros((4, 4, 6), dtype=np.float32), alpha)
     assert len(wide) == 3
     assert all(len(plane) == 16 for plane in wide)
+
+
+def _rgb_with_extra_channels(
+    alpha_identifiers: list[int], planes: list[bytes], color: tuple[int, int, int]
+) -> PSDImage:
+    """A 1x1 RGB document whose extra channels are laid out as given.
+
+    Forged rather than taken from the corpus, because the corpus cannot
+    settle this: its only two RGB documents with a non-transparency fourth
+    channel hold 0 or 255 there, and matting against either is the identity.
+    An intermediate value is what separates a preview matted against the
+    transparency from one matted against whatever sits at plane 3.
+    """
+    psd = PSDImage.new("RGB", (1, 1), color=0.0)
+    psd.create_pixel_layer(Image.new("RGB", (1, 1), color), name="L")
+    header = psd._record.header
+    header.channels = len(planes)
+    # A registered resource holds its *parsed* element rather than bytes, which
+    # is what `ImageResources.get_data()` hands back; `ImageResource.data` is
+    # annotated `bytes` and has not caught up with that.
+    psd._record.image_resources[Resource.ALPHA_IDENTIFIERS] = ImageResource(
+        key=Resource.ALPHA_IDENTIFIERS,
+        data=AlphaIdentifiers(alpha_identifiers),  # type: ignore[arg-type]
+    )
+    psd._record.image_data.set_data(planes, header)
+    return psd
+
+
+def test_a_spot_channel_at_plane_three_does_not_matte_the_color() -> None:
+    """An extra channel that is not transparency must not tint the preview.
+
+    ``_remove_background()`` divides plane 3 out of the colour whatever the
+    alpha identifiers say, and writing to match it meant an RGB document
+    whose fourth channel is a spot channel had its colour matted against ink
+    coverage. A layer at ``(51, 102, 153)`` over a spot plane of 128 was
+    stored as ``(153, 178, 204)`` -- not a slightly wrong colour but a
+    washed-out one, and written into the file rather than merely read wrong.
+    """
+    psd = _rgb_with_extra_channels(
+        [1],  # one extra channel, identifier 1: a spot channel, not alpha
+        [b"\x00", b"\x00", b"\x00", b"\x80"],
+        (51, 102, 153),
+    )
+    assert not has_transparency(psd), "the fixture has to have no transparency"
+
+    reopened = _resaved(psd)
+    planes = reopened._record.image_data.get_data(reopened._record.header)
+    assert isinstance(planes, list)
+    assert [p[0] for p in planes[:3]] == [51, 102, 153]
+    assert planes[3] == b"\x80", "the spot channel has to be carried over"
+
+
+def test_transparency_past_plane_three_is_what_mattes_the_color() -> None:
+    """And the matte follows the transparency wherever the document keeps it.
+
+    Identifiers ``[1, 0]`` put a spot channel at plane 3 and the composite's
+    transparency at plane 4. Matting by position picked the spot channel;
+    matting by the identifiers picks the alpha, which is what Photoshop
+    stores the preview against.
+
+    Driven at the encoder rather than through ``save()`` on purpose. This
+    layout needs a layerless document -- ``has_transparency()`` reads the
+    layer count too -- and on one of those the composite is the stored
+    preview read back through ``_remove_background()``, which divides plane 3
+    out again. Going through the reader would measure that defect (#868)
+    rather than this one.
+    """
+    psd = PSDImage.new("RGB", (1, 1), color=0.0)
+    header = psd._record.header
+    header.channels = 5
+    psd._record.image_resources[Resource.ALPHA_IDENTIFIERS] = ImageResource(
+        key=Resource.ALPHA_IDENTIFIERS,
+        data=AlphaIdentifiers([1, 0]),  # type: ignore[arg-type,list-item]
+    )
+    # The spot plane is deliberately far from the alpha below: at 0x80 the two
+    # mattes both round to 153 and the test proves nothing.
+    psd._record.image_data.set_data(
+        [b"\x00", b"\x00", b"\x00", b"\x40", b"\xcc"], header
+    )
+    assert has_transparency(psd)
+    assert get_transparency_index(psd) == 4, "plane 4 is the transparency here"
+
+    color = np.full((1, 1, 3), 0.2, dtype=np.float32)
+    alpha = np.full((1, 1, 1), 0.5, dtype=np.float32)
+    planes = encode_image_data(psd, color, alpha)
+
+    # Matted against the alpha at plane 4: 0.2*0.5 + 0.5 = 0.6 -> 153.
+    # Against the spot plane at 64/255: 0.2*0.251 + 0.749 = 0.799 -> 204.
+    assert [p[0] for p in planes[:3]] == [153, 153, 153]
+    assert planes[3] == b"\x40", "the spot channel has to be carried over"
+    assert planes[4] == b"\x80", "plane 4 holds the composite's alpha"
 
 
 @pytest.mark.parametrize("depth", [1, 8, 16, 32])
