@@ -193,6 +193,29 @@ def test_a_version_only_move_re_encodes_the_channels() -> None:
     np.testing.assert_allclose(mask_array[:, :, 0], MASK / 255.0, atol=1e-6)
 
 
+def test_a_cross_mode_move_re_encodes_at_the_destinations_version() -> None:
+    """The other half of the version rule, on the branch PIL drives.
+
+    A grayscale v1 document into an RGB v2 one: the colour mode differs, so
+    the layer is re-rendered through PIL -- and that render used to be written
+    with the *source* file's version, leaving two-byte row counts in a file
+    whose reader takes four.
+    """
+    source = PSDImage.new("L", (16, 16), depth=8)
+    layer = source.create_pixel_layer(_image("L"), name="L")
+    expected = np.asarray(_image("L"), dtype=np.float32) / 255.0
+
+    destination = PSDImage.open(full_name("2layers.psb"))
+    assert destination.version == 2 and source.version == 1
+    assert destination.pil_mode != source.pil_mode
+    destination.append(layer)
+
+    array = layer.numpy()
+    assert array is not None
+    for plane in range(3):
+        np.testing.assert_allclose(array[:, :, plane], expected, atol=1e-6)
+
+
 def test_a_depth_only_move_keeps_the_layer_record() -> None:
     """A guard, not evidence for #867: this passes on the unfixed code too.
 

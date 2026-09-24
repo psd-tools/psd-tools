@@ -2210,11 +2210,12 @@ class PixelLayer(Layer):
 
         .. note::
             On a 16- or 32-bit document the layer is stored at the document's
-            depth but with a PIL image's *precision*, which is 8 bits: PIL has
-            no 16-bit RGB, CMYK or LAB mode to carry more, and the image is
-            converted to :py:attr:`~PSDImage.pil_mode` on the way in. The
-            values are widened, not padded -- 128 becomes 32896 at depth 16 --
-            so the layer reads back as the image given here.
+            depth but with a PIL image's *precision*, which is 8 bits: PIL
+            has no 16-bit RGB, CMYK or LAB mode to carry more, and the image
+            is converted to
+            :py:attr:`~psd_tools.api.psd_image.PSDImage.pil_mode` on the way
+            in. The values are widened, not padded -- 128 becomes 32896 at
+            depth 16 -- so the layer reads back as the image given here.
         """
         if not isinstance(image, Image.Image):
             raise TypeError(f"Expected PIL Image, got {type(image).__name__}")

@@ -793,7 +793,9 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             layer = psdimage.create_pixel_layer(image, name='Layer 1')
 
         :param name: Name of the new layer.
-        :param image: PIL Image object.
+        :param image: PIL Image object. On a 16- or 32-bit document the layer
+            is stored at the document's depth, carrying the image's own 8-bit
+            precision; see :py:meth:`~psd_tools.api.layers.PixelLayer.frompil`.
         :param top: Top coordinate of the new layer.
         :param left: Left coordinate of the new layer.
         :param compression: Compression method for the layer image data.
