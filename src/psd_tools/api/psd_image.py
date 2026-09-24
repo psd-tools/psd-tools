@@ -276,16 +276,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             # Update the preview image if the document has been edited.
             # TODO: Set a `has_composite` flag in VersionInfo resource.
             try:
-                if self._background_color is not None:
-                    composited_psd = self.composite(
-                        color=self._background_color, alpha=1.0
-                    ).convert(self.pil_mode)
-                else:
-                    composited_psd = self.composite().convert(self.pil_mode)
-                self._record.image_data.set_data(
-                    [channel.tobytes() for channel in composited_psd.split()],
-                    self._record.header,
-                )
+                self._update_preview()
             except ImportError as e:
                 logger.warning(
                     "Failed to update preview image: %s. "
@@ -298,6 +289,32 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
                 self._record.write(f, **kwargs)  # type: ignore[arg-type]
         else:
             self._record.write(fp, **kwargs)  # type: ignore[arg-type]
+
+    def _update_preview(self) -> None:
+        """Regenerate the merged image data section from the layers.
+
+        Rendered through :py:func:`psd_tools.composite.composite` -- the array
+        form -- rather than through a PIL image, because a PIL image describes
+        PIL: it holds one byte per channel whatever the header's depth says,
+        only the channels its mode has a letter for, and an ICC-corrected sRGB
+        copy of a document whose profile resource is still attached. Going
+        that way wrote a 16-bit document a section half its declared length
+        (#866). :py:func:`psd_tools.api.numpy_io.encode_image_data` packs the
+        arrays into the document's own channels and depth instead.
+
+        :raises ImportError: when the composite extra is not installed;
+            :py:meth:`save` catches it and keeps the stored preview.
+        """
+        from psd_tools.composite import composite  # noqa: PLC0415
+
+        if self._background_color is not None:
+            color, _, alpha = composite(self, color=self._background_color, alpha=1.0)
+        else:
+            color, _, alpha = composite(self)
+        self._record.image_data.set_data(
+            numpy_io.encode_image_data(self, color, alpha),
+            self._record.header,
+        )
 
     def topil(
         self, channel: int | ChannelID | None = None, apply_icc: bool = True

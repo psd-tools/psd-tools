@@ -1,4 +1,6 @@
 import logging
+import warnings
+from collections.abc import Collection
 from typing import TYPE_CHECKING, Any, Callable, Literal, cast
 
 import numpy as np
@@ -9,9 +11,15 @@ if TYPE_CHECKING:
 from psd_tools.api.utils import (
     EXPECTED_CHANNELS,
     check_pixel_size,
+    get_color_channels,
     get_transparency_index,
     has_transparency,
 )
+
+# The canonical padded row size, rather than a fourth copy of the arithmetic:
+# the write path has to agree with the codec byte for byte or the section comes
+# out a byte a row short of its declared length.
+from psd_tools.compression import PSDDecompressionWarning, _row_size
 from psd_tools.constants import ChannelID, ColorMode, Compression
 from psd_tools.psd.patterns import Pattern
 
@@ -416,3 +424,325 @@ def _remove_background(data: np.ndarray, psdimage: "PSDProtocol") -> np.ndarray:
         color[a > 0] = (color + alpha - 1)[a > 0] / a[a > 0]
         data[:, :, :3] = color
     return data
+
+
+def _fit(array: np.ndarray, height: int, width: int, fill: float) -> np.ndarray:
+    """Crop or pad *array* to the header's geometry.
+
+    The compositor's viewport is the document's viewbox, so nothing in the
+    corpus arrives at another size. It is here so that the section
+    :func:`encode_image_data` produces is the declared length *structurally*
+    rather than incidentally -- a preview one row short is the defect this
+    whole path exists to stop writing (#866).
+    """
+    if array.shape[0] == height and array.shape[1] == width:
+        return array
+    logger.debug(
+        "Composited %s where the header declares (%d, %d); fitting.",
+        array.shape[:2],
+        height,
+        width,
+    )
+    fitted = np.full((height, width, array.shape[2]), fill, dtype=np.float32)
+    rows, columns = min(height, array.shape[0]), min(width, array.shape[1])
+    fitted[:rows, :columns] = array[:rows, :columns]
+    return fitted
+
+
+def _encode_array(plane: np.ndarray, depth: Literal[1, 8, 16, 32], width: int) -> bytes:
+    """Pack one ``float32`` plane into the bytes the file stores.
+
+    The inverse of :func:`_parse_array`, and it has to stay one: whatever the
+    reader does to a stored value on the way in, this undoes on the way out.
+    *width* is used at depth 1 alone, for the same reason it is needed there --
+    a 1-bit row is padded to a byte boundary, so the row has to be found before
+    the bits can be packed.
+
+    The three integer depths clip before they cast, for the reason
+    :func:`~psd_tools.composite.composite.composite_pil` clips its own array:
+    numpy *wraps* an out-of-range float, so a component at 1.2 would be stored
+    as a dark colour rather than a saturated one. Depth 32 does not, because
+    its cast is a float-to-float one that cannot wrap, and because a 32-bit
+    channel is the one place the format has room above 1.0 --
+    ``colormodes/4x4_32bit_rgb.psd`` stores 1.0000098. Neither form catches a
+    NaN, which numpy passes through every one of these.
+    """
+    clipped = np.clip(plane, 0.0, 1.0)
+    if depth == 8:
+        return np.rint(clipped * 255.0).astype(">u1").tobytes()
+    elif depth == 16:
+        return np.rint(clipped * 65535.0).astype(">u2").tobytes()
+    elif depth == 32:
+        # No rescale, matching the read: 32-bit channels are stored as floats
+        # in [0, 1]. Every 32-bit fixture in the corpus is.
+        return plane.astype(">f4").tobytes()
+    elif depth == 1:
+        if width <= 0:
+            return b""
+        # A *set* bit is black, the inverse of the value's sense. `packbits`
+        # zeroes each row's trailing pad bits; Photoshop does not always, and
+        # it makes no difference -- the readers trim the row to `width` -- so
+        # the padding is not something a byte-for-byte test can pin down.
+        bits = 1 - np.rint(clipped).astype(np.uint8)
+        return np.packbits(bits.reshape(-1, width), axis=1).tobytes()
+    raise ValueError("Unsupported depth: %g" % depth)
+
+
+def _stored_planes(
+    psdimage: "PSDProtocol", wanted: Collection[int]
+) -> dict[int, bytes]:
+    """The document's current merged planes, for the channels nothing rebuilds.
+
+    A spot channel, or an alpha channel that is not the composite's
+    transparency, is not the compositor's output: there is nothing to
+    regenerate it from, so a save preserves what is already there.
+
+    Only *wanted* is kept. ``get_data()`` decompresses the whole section --
+    one decode covers every channel and there is no way to ask it for fewer
+    -- but holding the colour planes past it would retain 67 MB on
+    ``cmyk-alpha-spot.psd`` that nothing goes on to read.
+
+    Nothing is carried from a preview that could not be read. That takes two
+    checks, because the codec has two ways of failing: it raises on a length
+    it cannot reconcile, and it *succeeds* with black where a channel fails to
+    decode, which a length check cannot see. So the read is done with the
+    decompression warning promoted to an error -- a save that regenerates the
+    preview is the wrong place to launder a decode failure into a file, and
+    the wrong place to raise one either.
+
+    ``catch_warnings()`` is process-global and not thread-safe: for the length
+    of the read, another thread's decode warning is an error too. The scope is
+    a few statements and the alternative is carrying black, so it is the
+    lesser of the two.
+    """
+    if not wanted:
+        return {}
+    header = psdimage._record.header
+    plane_length = _row_size(header.width, header.depth) * header.height
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", PSDDecompressionWarning)
+            planes = psdimage._record.image_data.get_data(header)
+    except (PSDDecompressionWarning, ValueError, TypeError, OSError) as e:
+        # Narrow on purpose. A blanket `except` would turn any unrelated
+        # warning into a silently dropped channel wherever the caller runs
+        # under `-W error` -- writing zeros over a spot channel and saying
+        # nothing, which is the one failure this function must not have.
+        logger.debug("Cannot carry the stored preview forward: %s", e)
+        return {}
+    if not isinstance(planes, list):
+        return {}
+    return {
+        index: planes[index]
+        for index in wanted
+        if index < len(planes) and len(planes[index]) == plane_length
+    }
+
+
+# An indexed document's color table: 256 entries over three planes.
+_COLOR_TABLE_SIZE: int = 768
+
+
+def _to_indices(color: np.ndarray, psdimage: "PSDProtocol") -> np.ndarray | None:
+    """Map an indexed document's color planes back onto its own color table.
+
+    :func:`_parse_array` expands a stored index through the table, so the
+    inverse has to collapse a colour back to an index -- and against *this*
+    document's table. ``PIL.Image.convert("P")``, which the preview used to go
+    through, quantizes to PIL's own web palette instead, which is why an
+    indexed document came back in unrelated colours rather than merely
+    requantized.
+
+    ``None`` where the document has no full table to quantize against.
+    ``ColorModeData.interleave()`` reads 256 entries out of three planes
+    unguarded, so a short one is an ``IndexError`` rather than a poor
+    palette -- and a save that aborts is worse than one that leaves the
+    stored plane alone, which is what the caller does with ``None``.
+    """
+    from PIL import Image  # noqa: PLC0415
+
+    table = psdimage._record.color_mode_data.value
+    if len(table) < _COLOR_TABLE_SIZE:
+        logger.warning(
+            "Indexed document has a %d-byte color table, not %d; keeping the "
+            "stored index plane rather than quantizing against a partial one.",
+            len(table),
+            _COLOR_TABLE_SIZE,
+        )
+        return None
+    palette = Image.new("P", (1, 1))
+    palette.putpalette(psdimage._record.color_mode_data.interleave())
+    rgb = np.rint(np.clip(color[:, :, :3], 0.0, 1.0) * 255.0).astype(np.uint8)
+    indexed = Image.fromarray(rgb, "RGB").quantize(
+        palette=palette, dither=Image.Dither.NONE
+    )
+    return np.asarray(indexed, dtype=np.float32)[:, :, np.newaxis] / 255.0
+
+
+def encode_image_data(
+    psdimage: "PSDProtocol", color: np.ndarray, alpha: np.ndarray
+) -> list[bytes]:
+    """Turn a composited document into the merged image data section's planes.
+
+    The inverse of :func:`get_image_data`, and the reason it is spelled as one:
+    :py:meth:`~psd_tools.api.psd_image.PSDImage.save` used to regenerate the
+    preview by rendering it to a PIL image and splitting that, which described
+    PIL rather than the document. ``PIL.Image.tobytes()`` is one byte per
+    channel whatever the header's depth says, PIL's mode holds no spot channel
+    and no second alpha, and the conventions it stores a value in are its own
+    -- so a 16-bit document got a section half its declared length, a
+    multichannel one lost every plane but the first, a bitmap one came back
+    inverted, and a profiled one was converted to sRGB and back (#866).
+
+    *color* and *alpha* are :py:func:`psd_tools.composite.composite`'s arrays,
+    in the document's own color space; the planes returned are in the file's,
+    in header channel order, each :func:`_encode_array`-packed at the header's
+    depth. Feed them to
+    :py:meth:`~psd_tools.psd.image_data.ImageData.set_data`.
+
+    :param psdimage: the document the planes are being written for.
+    :param color: ``(height, width, color_channels)`` in [0, 1].
+    :param alpha: ``(height, width, 1)`` in [0, 1].
+    :return: one ``bytes`` per channel the header declares.
+    """
+    header = psdimage._record.header
+    depth = cast(Literal[1, 8, 16, 32], header.depth)
+    height, width, channels = header.height, header.width, header.channels
+
+    color = _fit(color, height, width, 1.0)
+    alpha = _fit(alpha, height, width, 0.0)
+    color_planes = get_color_channels(psdimage)
+    if color.shape[2] != color_planes:
+        logger.debug(
+            "Composited %d color planes where the document carries %d; fitting.",
+            color.shape[2],
+            color_planes,
+        )
+        widened = np.ones((height, width, color_planes), dtype=np.float32)
+        kept = min(color_planes, color.shape[2])
+        widened[:, :, :kept] = color[:, :, :kept]
+        color = widened
+    # Indexed at depth 16 or 32 is left alone, mirroring the reader: only its
+    # depth-8 branch applies the palette, so only that one has an inverse.
+    if psdimage.color_mode == ColorMode.INDEXED and depth == 8:
+        collapsed = _to_indices(color, psdimage)
+        if collapsed is None:
+            return _stored_or_empty(psdimage, range(channels))
+        color = collapsed
+
+    # Channel order is the header's: the color planes first, then the
+    # transparency channel wherever the document keeps it.
+    arrays: dict[int, np.ndarray] = {
+        index: color[:, :, index] for index in range(min(color.shape[2], channels))
+    }
+    transparency = _transparency_slot(psdimage, color_planes)
+    if transparency >= 0:
+        arrays[transparency] = alpha[:, :, 0]
+
+    carried = _stored_planes(psdimage, [i for i in range(channels) if i not in arrays])
+    _restore_background(arrays, carried, psdimage)
+
+    empty = None
+    planes: list[bytes] = []
+    for index in range(channels):
+        if index in arrays:
+            planes.append(_encode_array(arrays[index], depth, width))
+        elif index in carried:
+            planes.append(carried[index])
+        else:
+            # Built once, and only if a channel actually needs it: on a large
+            # document this is a whole plane of zeros nobody may want.
+            if empty is None:
+                empty = b"\x00" * (_row_size(width, depth) * height)
+            planes.append(empty)
+    return planes
+
+
+def _stored_or_empty(psdimage: "PSDProtocol", indices: Collection[int]) -> list[bytes]:
+    """Every plane carried over, or zero-filled where it cannot be.
+
+    The whole-section fallback, for when the composite cannot be expressed in
+    the document's channels at all. Leaving the stored preview as it stands
+    beats aborting the save or writing a section in the wrong encoding.
+    """
+    header = psdimage._record.header
+    carried = _stored_planes(psdimage, indices)
+    empty = b"\x00" * (_row_size(header.width, header.depth) * header.height)
+    return [carried.get(index, empty) for index in indices]
+
+
+def _transparency_slot(psdimage: "PSDProtocol", color_planes: int) -> int:
+    """Which stored channel the composite's alpha belongs in, or -1 for none.
+
+    :func:`~psd_tools.api.utils.get_transparency_index` where it can name one.
+    Where it cannot -- a document with no ``ALPHA_IDENTIFIERS`` resource --
+    the channel past the color planes is the answer only if it is the *single*
+    extra channel the document has: that is the one
+    :func:`~psd_tools.api.utils.has_transparency` was looking at when it said
+    the document has transparency at all, and with nothing else beside it
+    there is nothing else it could be. Declining to write it there left a
+    document whose stored alpha was stale, which for one built by
+    :py:meth:`~psd_tools.api.psd_image.PSDImage.frompil` from a transparent
+    image means saving it back as fully transparent.
+
+    Two or more extra channels and no identifiers to tell them apart --
+    ``cmyk-spot.psd``, three of them -- names no slot at all. The alpha is
+    dropped and every spot channel is carried over intact, which is the
+    reading that cannot destroy data: the alternative overwrites one of three
+    channels chosen by position alone.
+    """
+    if not has_transparency(psdimage):
+        return -1
+    index = get_transparency_index(psdimage)
+    if 0 <= index < psdimage.channels:
+        return index
+    return color_planes if psdimage.channels == color_planes + 1 else -1
+
+
+def _restore_background(
+    arrays: dict[int, np.ndarray], carried: dict[int, bytes], psdimage: "PSDProtocol"
+) -> None:
+    """Composite the color planes back onto the white the preview is stored on.
+
+    The inverse of :func:`_remove_background`, in place and gated on the same
+    condition, so that the two compose to the identity. Photoshop stores the
+    merged preview already composited over white -- a fully transparent pixel
+    reads back as white in every Photoshop-authored fixture that has one --
+    and both readers undo it on the way in. Writing the unpremultiplied colour
+    instead, which is what going through a PIL ``RGBA`` image did, left the
+    reader to divide by an alpha the values had never been multiplied by.
+
+    ``_remove_background()`` reads plane 3 whatever the alpha identifiers say,
+    so this writes against plane 3 too -- including where that plane is one
+    carried over rather than composited, which is the only way the round trip
+    closes on a document whose fourth channel is not its transparency.
+
+    Where the alpha is zero the read leaves the stored value alone, so the
+    inverse there is the colour itself and not the white this would otherwise
+    put down. The two agree in practice -- the compositor returns white at a
+    fully transparent pixel, its backdrop -- but only the explicit form is
+    actually the inverse.
+
+    Grayscale is left as composited, because that is what the readers expect:
+    neither :func:`_remove_background` nor ``pil_io._remove_white_background``
+    touches an ``LA`` document, although Photoshop stores one over white like
+    any other (``gray0.psd`` is white at all 123,854 of its transparent
+    pixels). Writing it over white here would make psd-tools disagree with
+    itself about a file it had just written; the reader is the half that is
+    wrong, and it is a separate change.
+    """
+    if psdimage.color_mode != ColorMode.RGB or psdimage.channels <= 3:
+        return
+    alpha = arrays.get(3)
+    if alpha is None and 3 in carried:
+        header = psdimage._record.header
+        alpha = _parse_array(
+            carried[3], cast(Literal[1, 8, 16, 32], header.depth), header.width
+        ).reshape(header.height, header.width)
+    if alpha is None:
+        return
+    opaque = alpha > 0
+    for index in range(min(3, psdimage.channels)):
+        if index in arrays:
+            plane = arrays[index]
+            arrays[index] = np.where(opaque, plane * alpha + (1.0 - alpha), plane)
