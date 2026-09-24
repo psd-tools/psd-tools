@@ -1295,6 +1295,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         # Remove parent's reference to the layers.
         donors: list[GroupMixin] = []
         seen: set[int] = set()
+        donor_psds: dict[int, PSDProtocol] = {}
         for layer in pending:
             # NOTE: New or removed layers may not be in the parent container.
             if isinstance(layer.parent, GroupMixin) and layer in layer.parent:
@@ -1308,9 +1309,22 @@ class GroupMixin(GroupMixinProtocol, Protocol):
                 if id(donor) not in seen:
                     seen.add(id(donor))
                     donors.append(donor)
+                    # Read here, not off ``donors`` afterwards:
+                    # ``_update_children()`` below repoints a moved layer's
+                    # ``_psd``, and a donor group that is itself one of
+                    # ``pending`` would by then name the receiving document.
+                    if donor._psd is not self._psd:
+                        donor_psds.setdefault(id(donor._psd), donor._psd)
         self._layers.extend(pending)
         self._update_children()
         self._psd._update_record()
+        # The donor document keeps its own flat record list, and ``save()``
+        # writes that list without rebuilding it, so a cross-document move that
+        # only rebuilt the receiving document wrote the layer into both files
+        # (#841). Rebuilding also marks the donor updated, which is what tells
+        # its ``save()`` to regenerate a preview that no longer has the layer.
+        for donor_psd in donor_psds.values():
+            donor_psd._update_record()
         # Last only because by then the tree is consistent and a caller that
         # reads a box next recomputes it once. ``_update_record()`` reads no
         # bounding box, so any point after ``_update_children()`` would do.
@@ -1337,12 +1351,19 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         self._check_insertion([layer])
         # Remove parent's reference to the layer.
         donor: GroupMixin | None = None
+        donor_psd: PSDProtocol | None = None
         if isinstance(layer.parent, GroupMixin) and layer in layer.parent:
             donor = layer.parent
             donor._layers.remove(layer)  # Skip checks for performance
+            if donor._psd is not self._psd:
+                donor_psd = donor._psd
         self._layers.insert(index, layer)
         self._update_children()
         self._psd._update_record()
+        # See ``extend()``: the donor document's record list is stale until it
+        # is rebuilt too, and ``save()`` never rebuilds it (#841).
+        if donor_psd is not None:
+            donor_psd._update_record()
         if donor is not None:
             donor._invalidate_bbox()
         _invalidate_moved_bbox(layer)

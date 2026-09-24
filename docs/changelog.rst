@@ -4,6 +4,9 @@ Changelog
 1.20.0 (unreleased)
 -------------------
 
+- [fix] A layer taken out of a document by ``extend()``, ``append()`` or
+  ``insert()`` is no longer written back into that document's file, so it
+  stops appearing in two files at once (#841, #860)
 - [fix] A vector path is filled with the exact area it covers instead of
   aggdraw's quarter-pixel dilation of it, and a combined path is filled by the
   even-odd rule PSD uses rather than a subpath at a time, so a subpath inside
