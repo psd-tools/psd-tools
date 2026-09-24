@@ -203,13 +203,9 @@ Delete a layer from its layer structure::
 
     group.remove(layer)
 
-Layers can be moved from a group to another, in the same document or across
-two::
+Layers can be moved from a group to another::
 
     target_group.append(layer)
-
-A move across documents edits both of them -- the layer leaves one file and
-joins the other -- so save both if you want the change on disk in each.
 
 Layers can be moved within the group to change their order::
 
