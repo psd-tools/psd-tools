@@ -4,6 +4,10 @@ Changelog
 1.20.0 (unreleased)
 -------------------
 
+- [fix] Moving a layer into another document with ``extend()``, ``append()``
+  or ``insert()`` now rebuilds the donor document's record list too, so the
+  moved layer stops being written back into the file it left and landing in
+  both (#841)
 - [fix] A vector path is filled with the exact area it covers instead of
   aggdraw's quarter-pixel dilation of it, and a combined path is filled by the
   even-odd rule PSD uses rather than a subpath at a time, so a subpath inside

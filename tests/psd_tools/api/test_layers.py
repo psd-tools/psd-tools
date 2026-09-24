@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 from typing import Any, Optional, Tuple
 
 import numpy as np
@@ -1213,6 +1214,56 @@ def test_group_move_between_psdimages() -> None:
     assert len(psdimage2) == 1
     assert len(group) == 1
     assert layer.parent is group
+
+
+@pytest.mark.parametrize("move", ["append", "extend", "insert"])
+def test_cross_document_move_rebuilds_the_donor_record_list(
+    tmp_path: Path, move: str
+) -> None:
+    """A layer moved out of a document must leave that document's file (#841).
+
+    ``extend()`` and ``insert()`` rebuilt the *receiving* document's flat
+    record list only, and :py:meth:`PSDImage.save` writes the stored list
+    without rebuilding it, so the donor went on writing the layer it no longer
+    holds and the layer landed in *both* files. The in-memory tree was already
+    right, so only a save and reopen of the donor sees this.
+
+    All three entry points are moved separately because they reach the rebuild
+    by different routes: ``append()`` delegates to ``extend()``, while
+    ``insert()`` carries its own donor bookkeeping. The donor is a shipped
+    file rather than a ``PSDImage.new()`` one so that it starts clean --
+    ``create_pixel_layer()`` would have marked it updated already, and the
+    dirty flag below would then hold whether or not the move set it.
+    """
+    donor = PSDImage.open(full_name("clipping-mask.psd"))
+    dest = PSDImage.new(mode="RGB", size=donor.size)
+    layer = donor[0]
+    assert layer.name == "Background"
+    assert not donor.is_updated()
+
+    if move == "append":
+        dest.append(layer)
+    elif move == "extend":
+        dest.extend([layer])
+    else:
+        dest.insert(0, layer)
+
+    assert [child.name for child in donor] == ["Group 2"]
+    # The defect itself: the flat record list the donor will write.
+    layer_info = donor._record.layer_and_mask_information.layer_info
+    assert layer_info is not None
+    assert not any(record.name == "Background" for record in layer_info.layer_records)
+    # Rebuilding also marks the donor updated, which is what makes its
+    # ``save()`` regenerate a preview that no longer shows the layer.
+    assert donor.is_updated()
+
+    donor_path = tmp_path / "donor.psd"
+    donor.save(donor_path)
+    assert [child.name for child in PSDImage.open(donor_path)] == ["Group 2"]
+
+    dest_path = tmp_path / "dest.psd"
+    dest.save(dest_path)
+    assert [child.name for child in PSDImage.open(dest_path)] == ["Background"]
 
 
 @pytest.mark.parametrize(
