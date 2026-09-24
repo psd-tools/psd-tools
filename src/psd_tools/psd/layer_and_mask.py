@@ -54,6 +54,10 @@ Example of reading layer metadata::
         print(f"  Blend mode: {record.blend_mode}")
         print(f"  Channels: {len(record.channel_info)}")
 
+A 16- or 32-bit document written by Photoshop leaves that section empty and
+keeps the list in an ``Lr16``/``Lr32`` tagged block instead, so
+``psd._get_layer_info()`` returns whichever of the two holds the layers.
+
 For most use cases, prefer the high-level :py:class:`~psd_tools.api.layers.Layer`
 API which provides easier access to this data.
 """

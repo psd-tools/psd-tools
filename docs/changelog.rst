@@ -4,6 +4,15 @@ Changelog
 1.20.0 (unreleased)
 -------------------
 
+- [fix] A structural edit to a 16- or 32-bit document -- ``remove()``,
+  ``pop()``, ``clear()``, ``create_group()``, a cross-document move -- is no
+  longer discarded on save: the rebuilt layer list now goes to the
+  ``Lr16``/``Lr32`` block the reader takes it from (#861, #865)
+- [fix] Adding, removing or reordering layers no longer drops the flag marking
+  the merged image data's first alpha channel as the composite's transparency,
+  so a reopened document keeps its alpha instead of coming back opaque. Saving
+  an emptied document and reopening it still drops it, since a zero layer
+  count on disk has no sign (#861, #865)
 - [api] ``UnitFloat.unit``, ``UnitFloats.unit``, ``AlphaChannel.mode`` and
   ``SectionDividerSetting.blend_mode`` now convert and validate like the other
   enum-typed fields, so a wrong value raises ``ValueError`` where it was set

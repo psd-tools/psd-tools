@@ -124,6 +124,11 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         self._updated: bool = False  # See mark_updated() for what this gates.
         # Per-document allocation budget (bytes); set via open(max_alloc_bytes=...).
         self._max_alloc_bytes: int | None = None
+        # Whether the merged image data's first alpha channel holds the
+        # composite's transparency. The layer count records this as a negative
+        # sign, but a count of zero has no sign, so a rebuild that momentarily
+        # sees no layers would lose it. See _update_record().
+        self._merged_alpha: bool = False
 
         self._psd = self  # For GroupMixin protocol compatibility.
         self._init()
@@ -986,7 +991,9 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         Compile the tree layer structure back into flat lists.
 
         Walks the API layer structure recursively, producing the records and
-        channels list.
+        channels list, and stores them where the reader takes them from: an
+        ``Lr16``/``Lr32`` tagged block where the document has one, the layer
+        info section itself otherwise.
         """
         # Initialize the layer structure information if not present.
         if self._record.layer_and_mask_information.layer_info is None:
@@ -998,12 +1005,34 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         if self._record.layer_and_mask_information.tagged_blocks is None:
             self._record.layer_and_mask_information.tagged_blocks = TaggedBlocks()
 
-        # Set layer records and channel image data.
+        # Set layer records and channel image data. A Photoshop-written 16- or
+        # 32-bit document carries them in an Lr16/Lr32 tagged block and leaves
+        # the layer info section empty, so rebuild whichever of the two the
+        # reader consults rather than assuming it is the section.
         layer_records, channel_image_data = _build_record_tree(self)
-        layer_info = self._record.layer_and_mask_information.layer_info
+        shadowed = self._record.layer_and_mask_information.layer_info
+        layer_info = self._record._get_layer_info()
+        # Either the tagged block, or the section initialized just above.
+        assert layer_info is not None
+        # A negative count means the first alpha channel of the merged image
+        # data holds the composite's transparency, so carry the sign over. It
+        # is remembered rather than read straight back, because an empty tree
+        # writes a count of zero and zero cannot hold a sign: `move_up()` and
+        # `move_down()` remove before they insert, so a document with a single
+        # top-level entry passes through empty on an ordinary reorder.
+        if layer_info.layer_count != 0:
+            self._merged_alpha = layer_info.layer_count < 0
+        sign = -1 if self._merged_alpha else 1
         layer_info.layer_records = layer_records
         layer_info.channel_image_data = channel_image_data
-        layer_info.layer_count = len(layer_records)
+        layer_info.layer_count = sign * len(layer_records)
+        if layer_info is not shadowed and shadowed is not None:
+            # A tagged block won, so the section is dead weight the writer
+            # would emit anyway. Empty it in place -- rebinding it would
+            # detach any reference taken before the edit.
+            shadowed.layer_count = 0
+            shadowed.layer_records = LayerRecords()
+            shadowed.channel_image_data = ChannelImageData()
 
         # Flag as updated.
         self.mark_updated()

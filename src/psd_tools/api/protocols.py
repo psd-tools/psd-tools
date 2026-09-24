@@ -486,7 +486,9 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
         Compile the low-level tree layer structure back into flat lists.
 
         Walks the API layer structure recursively, producing the records and
-        channels list.
+        channels list, and stores them where the reader takes them from: an
+        ``Lr16``/``Lr32`` tagged block where the document has one, the layer
+        info section itself otherwise.
         """
         ...
 

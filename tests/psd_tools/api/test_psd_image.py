@@ -11,8 +11,9 @@ from PIL import Image
 from psd_tools.api.layers import Group
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.api.utils import get_transparency_index, has_transparency
-from psd_tools.constants import BlendMode, ColorMode, Compression
+from psd_tools.constants import BlendMode, ColorMode, Compression, Tag
 from psd_tools.psd.descriptor import Double
+from psd_tools.psd.layer_and_mask import LayerInfo
 from psd_tools.terminology import Key
 
 from ..utils import full_name
@@ -653,6 +654,139 @@ def test_composite_preview_rgba_with_negative_layer_count(tmp_path: Path) -> Non
     # ignore_preview path (re-composites from layers)
     result_recomp = loaded.composite(ignore_preview=True)
     assert result_recomp.mode == "RGBA"
+
+
+def test_a_structural_edit_keeps_the_negative_layer_count(tmp_path: Path) -> None:
+    """An edited document must not lose its merged transparency flag (#861).
+
+    A negative ``layer_count`` means the first alpha channel of the merged
+    image data holds the composite's transparency, which is how #595 learned
+    to give ``topil()`` its alpha back. ``_update_record()`` overwrote the
+    field with a plain ``len()``, so any container edit dropped the sign and
+    the reopened document came back opaque -- 9 of 10 sampled 8-bit fixtures
+    went from RGBA to RGB.
+
+    The count is the discriminating assertion; the alpha channel is read as
+    well because the mode alone would pass on a document whose alpha happened
+    to be uniform. The extrema are the unedited fixture's, so they pin that
+    the alpha survived the round trip, not that the preview was regenerated.
+    """
+    psd = PSDImage.open(full_name("transparency/fill-opacity.psd"))
+    layer_info = psd._record.layer_and_mask_information.layer_info
+    assert layer_info is not None and layer_info.layer_count == -1
+
+    psd.create_group()
+    assert layer_info.layer_count == -3
+
+    output = tmp_path / "edited.psd"
+    psd.save(output)
+    reopened = PSDImage.open(output)
+
+    reloaded = reopened._record.layer_and_mask_information.layer_info
+    assert reloaded is not None and reloaded.layer_count == -3
+    assert has_transparency(reopened) is True
+    preview = reopened.topil()
+    assert preview is not None
+    assert preview.getchannel("A").getextrema() == (0, 204)
+
+
+@pytest.mark.parametrize("route", ["reorder", "pop_then_add", "clear_then_add"])
+def test_the_transparency_flag_survives_an_empty_tree(
+    tmp_path: Path, route: str
+) -> None:
+    """A rebuild that sees no layers must not lose the flag for good (#861).
+
+    The negative ``layer_count`` cannot be carried across a rebuild of an
+    empty tree, because zero has no sign. Reading the sign straight back off
+    the field therefore dropped it whenever the tree emptied even for an
+    instant, and every later edit wrote a positive count.
+
+    ``reorder`` is the case that makes this more than a corner: ``move_up()``
+    and ``move_down()`` are implemented as a ``remove()`` followed by an
+    ``insert()`` (``api/layers.py:1084``), so a document holding a single
+    top-level entry passes through empty on an ordinary reorder, and
+    ``group.psd`` reaches it with two records still in the file.
+
+    What no code can carry is an emptied document *written to disk* and
+    reopened: the zero count on disk has no sign to restore. That is a format
+    limit, not a fix boundary, and the changelog says so.
+    """
+    name = "layers/group.psd" if route == "reorder" else "transparency/fill-opacity.psd"
+    psd = PSDImage.open(full_name(name))
+    layer_info = psd._record.layer_and_mask_information.layer_info
+    assert layer_info is not None and layer_info.layer_count < 0
+
+    if route == "reorder":
+        psd[0].move_up(0)
+    else:
+        if route == "pop_then_add":
+            psd.pop(0)
+        else:
+            psd.clear()
+        assert layer_info.layer_count == 0  # The transit the sign cannot hold.
+        psd.create_pixel_layer(
+            Image.new("RGBA", (4, 4), (255, 0, 0, 128)), name="added"
+        )
+
+    output = tmp_path / "edited.psd"
+    psd.save(output)
+    reopened = PSDImage.open(output)
+
+    reloaded = reopened._record.layer_and_mask_information.layer_info
+    assert reloaded is not None and reloaded.layer_count < 0
+    assert has_transparency(reopened) is True
+    preview = reopened.topil()
+    assert preview is not None and preview.mode == "RGBA"
+    # getextrema() is typed per-band for a multiband image, so narrow the
+    # single band's floor before comparing it.
+    darkest = preview.getchannel("A").getextrema()[0]
+    assert isinstance(darkest, (int, float)) and darkest < 255  # Alpha is real.
+
+
+def test_a_structural_edit_empties_the_shadowed_layer_info(tmp_path: Path) -> None:
+    """Editing a document that has both lists populated leaves one (#861).
+
+    Every Photoshop-authored 16- or 32-bit file leaves the layer info section
+    empty beside its ``Lr16``/``Lr32`` block, so on a shipped fixture there is
+    nothing to clean up and this half of the fix is invisible. A file psd-tools
+    itself wrote while the defect was live is the case that needs it: it
+    carries a rebuilt list in the ignored section *and* the real one in the
+    block. That input is forged here rather than produced by the old code.
+
+    Without the cleanup the stale duplicate is copied forward on every
+    subsequent edit -- 1220 bytes of dead records on this 5x5 fixture, and
+    proportional to the layer data on a real one.
+    """
+    psd = PSDImage.open(full_name("16bit5x5.psd"))
+    lmi = psd._record.layer_and_mask_information
+    assert lmi.tagged_blocks is not None
+    block = lmi.tagged_blocks.get_data(Tag.LAYER_16)
+    lmi.layer_info = LayerInfo(
+        layer_count=len(block.layer_records),
+        layer_records=block.layer_records,
+        channel_image_data=block.channel_image_data,
+    )
+    legacy = tmp_path / "legacy.psd"
+    psd.save(legacy)
+
+    # The premise: the forged file really does carry the list twice.
+    stale = PSDImage.open(legacy)
+    stale_info = stale._record.layer_and_mask_information.layer_info
+    assert stale_info is not None and len(stale_info.layer_records) == 3
+
+    stale.pop(0)
+    output = tmp_path / "cleaned.psd"
+    stale.save(output)
+
+    reopened = PSDImage.open(output)
+    assert [child.name for child in reopened] == [
+        "Background copy",
+        "Background copy 2",
+    ]
+    cleaned = reopened._record.layer_and_mask_information.layer_info
+    assert cleaned is not None
+    assert cleaned.layer_count == 0
+    assert len(cleaned.layer_records) == 0
 
 
 def test_composite_preview_rgb_with_positive_layer_count(tmp_path: Path) -> None:

@@ -1267,6 +1267,111 @@ def test_cross_document_move_rebuilds_the_donor_record_list(
 
 
 @pytest.mark.parametrize(
+    "fixture_name", ["16bit5x5.psd", "16bit5x5.psb", "32bit5x5.psd", "32bit5x5.psb"]
+)
+@pytest.mark.parametrize("edit", ["remove", "pop", "clear", "create_group"])
+def test_a_structural_edit_to_a_deep_document_survives_a_save(
+    tmp_path: Path, fixture_name: str, edit: str
+) -> None:
+    """A 16- or 32-bit document must save the layer set it actually holds (#861).
+
+    Such a document keeps its flat record list in the ``Lr16``/``Lr32`` tagged
+    block and leaves the layer info section below it empty, which is what
+    :py:meth:`PSD._get_layer_info` reads. ``_update_record()`` rebuilt the
+    empty section instead, and the writer emits both, so the file went out
+    carrying a rebuilt list nobody reads beside the stale block everybody
+    does. The in-memory tree was already right, so only a save and reopen
+    sees this.
+
+    All four container methods are exercised because the defect is in the
+    rebuild they share, not in any one of them, and both PSD and PSB because
+    the two write the section's length field at different widths. 8-bit
+    documents were never affected -- they have no such block, and the section
+    *is* authoritative.
+
+    The reopened document is deliberately never composited: a save of an
+    edited 16- or 32-bit document writes an 8-bit preview into the image data
+    section, so ``topil()`` on the result raises for reasons that have nothing
+    to do with this fix.
+    """
+    psd = PSDImage.open(full_name(fixture_name))
+    assert [child.name for child in psd] == [
+        "Background",
+        "Background copy",
+        "Background copy 2",
+    ]
+
+    if edit == "remove":
+        psd.remove(psd[0])
+    elif edit == "pop":
+        psd.pop(0)
+    elif edit == "clear":
+        psd.clear()
+    else:
+        psd.create_group()
+    expected = [layer.name for layer in psd.descendants()]
+
+    output = tmp_path / f"edited{Path(fixture_name).suffix}"
+    psd.save(output)
+    reopened = PSDImage.open(output)
+    assert [layer.name for layer in reopened.descendants()] == expected
+
+    # The defect itself: which of the two lists the rebuild landed in.
+    lmi = reopened._record.layer_and_mask_information
+    assert lmi.layer_info is not None
+    assert lmi.layer_info.layer_count == 0
+    assert len(lmi.layer_info.layer_records) == 0
+    authoritative = reopened._record._get_layer_info()
+    assert authoritative is not None
+    assert authoritative is not lmi.layer_info
+    assert authoritative.layer_count == len(authoritative.layer_records)
+
+
+def test_a_cross_document_move_between_deep_documents_survives_a_save(
+    tmp_path: Path,
+) -> None:
+    """A layer moved between two 16-bit documents lands in exactly one (#861).
+
+    This is the case the review of #860 raised. #841 widened ``extend()`` to
+    rebuild the donor as well as the receiver; at 16 bits both rebuilds went
+    to the section the reader ignores, so on ``main`` the layer stayed in the
+    donor's file and never reached the receiver's -- a move that loses the
+    layer from both sides at once.
+
+    The receiver is a shipped PSB rather than a ``PSDImage.new()`` document so
+    that it carries an ``Lr16`` block of its own; a new one has none, and its
+    half of the move would then exercise the 8-bit path that was never broken.
+    The moved layer is renamed first because both fixtures ship the same three
+    layer names.
+    """
+    donor = PSDImage.open(full_name("16bit5x5.psd"))
+    dest = PSDImage.open(full_name("16bit5x5.psb"))
+    layer = donor[0]
+    layer.name = "Moved"
+
+    dest.append(layer)
+
+    assert [child.name for child in donor] == ["Background copy", "Background copy 2"]
+    assert [child.name for child in dest][-1] == "Moved"
+
+    donor_path = tmp_path / "donor.psd"
+    donor.save(donor_path)
+    assert [child.name for child in PSDImage.open(donor_path)] == [
+        "Background copy",
+        "Background copy 2",
+    ]
+
+    dest_path = tmp_path / "dest.psb"
+    dest.save(dest_path)
+    assert [child.name for child in PSDImage.open(dest_path)] == [
+        "Background",
+        "Background copy",
+        "Background copy 2",
+        "Moved",
+    ]
+
+
+@pytest.mark.parametrize(
     ("bg_type", "expected"),
     [(2, (1.0, 1.0, 1.0, 1.0)), (3, (1.0, 1.0, 1.0, 0.0))],
 )
