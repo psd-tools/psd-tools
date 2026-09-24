@@ -85,23 +85,40 @@ Release scope is also tracked in a milestone, titled bare without the `v` prefix
 can disagree about the same release. Settle that before Step 2 drafts the changelog, since
 the answer changes what gets written.
 
+The two drift in both directions, and one query cannot see both.
+
+**The milestone over-promises** — it holds an item whose fix never landed:
+
 ```bash
 gh issue list --milestone "VERSION" --state all --limit 100 \
   --json number,title,state,closedAt
 ```
 
-No milestone for **VERSION** is not a problem — say so and move on to Step 2.
+An empty result is fine; a release cut outside the milestone scheme is not an error.
 
-Otherwise show the list and ask the user to resolve two kinds of drift. Prompt for both,
-never act on your own: "should this block the release" is exactly the call a human is here
-to make.
+**The milestone under-reports** — an item was fixed but is milestoned for a *later*
+release, so it stands closed against a release it did not ship in. It is not in
+**VERSION**, so the query above cannot show it. List what closed since the last tag
+instead, substituting that tag's date (`git log -1 --format=%as <LAST_TAG>`):
 
-- **Open items.** Move them to the next milestone, or hold the release for them. Closing a
-  milestone does not close its issues; anything still open keeps the association but drops
-  off the progress bar, so it has to be dealt with here.
-- **Items fixed under a later milestone.** A merged PR that closed an issue milestoned for
-  a future version leaves it closed against a release it did not ship in. Move it into
-  **VERSION**.
+```bash
+gh issue list --state closed --limit 200 --search "closed:>=YYYY-MM-DD" \
+  --json number,title,closedAt,milestone
+```
+
+Of those, only the ones carrying a different version are drift. An item with **no**
+milestone is not — the milestone records planned scope, not everything that shipped — so
+give its count in one line and leave it alone unless the user asks.
+
+Put both lists to the user and ask; do not change anything first. Whether an open item
+blocks the release is the call a human is here to make.
+
+- **Open items in VERSION**: move to the next milestone, or hold the release for them.
+  Closing a milestone does not close its issues, so one left open stands attached to a
+  release it did not ship in.
+- **Closed items milestoned later**: move into **VERSION**, or leave them.
+
+Once the user has decided, apply it with `gh issue edit <N> --milestone "<title>"`.
 
 Do not close the milestone here. `auto-tag.yml` closes it after the merge (see Step 6).
 
@@ -169,7 +186,7 @@ Run `gh pr create` with `--title "Release vVERSION"` and a `--body` containing:
   - `[ ] Changelog entry reviewed and accurate`
   - `[ ] Version follows PEP 440`
   - `[ ] Prose sweep done (Step 1b), or explicitly skipped`
-  - `[ ] Milestone reconciled: no open issues, or they were moved with a note`
+  - `[ ] Milestone reconciled both ways (Step 1c)`
 - A closing note: "After this PR is merged, the `auto-tag` workflow will tag the merge commit
   as `vVERSION` and the `release` workflow will build wheels and publish to PyPI automatically."
 

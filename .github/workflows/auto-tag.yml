@@ -82,12 +82,20 @@ jobs:
         run: |
           # Milestones are titled bare -- 1.20.0, not v1.20.0.
           TITLE="${VERSION#v}"
-          NUM=$(gh api "repos/$GITHUB_REPOSITORY/milestones?state=open&per_page=100" \
-                  --jq ".[] | select(.title == \"$TITLE\") | .number")
-          if [ -n "$NUM" ]; then
-            gh api "repos/$GITHUB_REPOSITORY/milestones/$NUM" -X PATCH -f state=closed
-            echo "Closed milestone $TITLE."
-          else
+          # head -n 1 because nothing stops two open milestones sharing a title,
+          # and --jq runs per page: a two-line $NUM would build a 404 URL and
+          # close neither.
+          NUM=$(gh api --paginate "repos/$GITHUB_REPOSITORY/milestones?state=open&per_page=100" \
+                  --jq ".[] | select(.title == \"$TITLE\") | .number" | head -n 1)
+          if [ -z "$NUM" ]; then
             # A release cut outside the milestone scheme is not an error.
             echo "No open milestone titled $TITLE; nothing to close."
+          elif gh api "repos/$GITHUB_REPOSITORY/milestones/$NUM" -X PATCH -f state=closed; then
+            echo "Closed milestone $TITLE."
+          else
+            # continue-on-error keeps the run green, so say it somewhere the run
+            # page shows -- an unclosed milestone that nobody notices is the bug
+            # this step exists to fix.
+            echo "::warning title=Release milestone not closed::Could not close milestone $TITLE; close it by hand."
+            exit 1
           fi

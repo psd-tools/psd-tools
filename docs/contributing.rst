@@ -105,8 +105,8 @@ must be configured:
 4. **Automated tagging and publishing**: Merging the release PR triggers the
    ``auto-tag`` workflow, which tags the exact merge commit that landed on
    ``main`` (using ``merge_commit_sha``), pushes the tag, and closes the
-   matching release milestone if one is open. This in turn triggers the
-   ``release`` workflow, which:
+   matching release milestone if one is open. The tag push in turn triggers
+   the ``release`` workflow, which:
 
    - Builds wheels for all supported platforms (Linux, Windows, macOS including ARM)
    - Generates release notes from git commits since the previous tag
