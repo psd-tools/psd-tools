@@ -334,9 +334,9 @@ raw_psd = psd._record  # type: psd_tools.psd.PSD
 # Access header
 header = raw_psd.header  # FileHeader
 
-# Access layer records (flat list). A 16- or 32-bit document keeps them in an
-# `Lr16`/`Lr32` tagged block and leaves `layer_info` empty, so go through the
-# accessor rather than the attribute.
+# Access layer records (flat list). Where the document has an `Lr16`/`Lr32`
+# tagged block -- Photoshop writes one for 16- and 32-bit files -- the records
+# live there and `layer_info` is empty, so go through the accessor.
 layer_records = raw_psd._get_layer_info().layer_records
 ```
 

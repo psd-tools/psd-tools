@@ -690,6 +690,59 @@ def test_a_structural_edit_keeps_the_negative_layer_count(tmp_path: Path) -> Non
     assert preview.getchannel("A").getextrema() == (0, 204)
 
 
+@pytest.mark.parametrize("route", ["reorder", "pop_then_add", "clear_then_add"])
+def test_the_transparency_flag_survives_an_empty_tree(
+    tmp_path: Path, route: str
+) -> None:
+    """A rebuild that sees no layers must not lose the flag for good (#861).
+
+    The negative ``layer_count`` cannot be carried across a rebuild of an
+    empty tree, because zero has no sign. Reading the sign straight back off
+    the field therefore dropped it whenever the tree emptied even for an
+    instant, and every later edit wrote a positive count.
+
+    ``reorder`` is the case that makes this more than a corner: ``move_up()``
+    and ``move_down()`` are implemented as a ``remove()`` followed by an
+    ``insert()`` (``api/layers.py:1084``), so a document holding a single
+    top-level entry passes through empty on an ordinary reorder, and
+    ``group.psd`` reaches it with two records still in the file.
+
+    What no code can carry is an emptied document *written to disk* and
+    reopened: the zero count on disk has no sign to restore. That is a format
+    limit, not a fix boundary, and the changelog says so.
+    """
+    name = "layers/group.psd" if route == "reorder" else "transparency/fill-opacity.psd"
+    psd = PSDImage.open(full_name(name))
+    layer_info = psd._record.layer_and_mask_information.layer_info
+    assert layer_info is not None and layer_info.layer_count < 0
+
+    if route == "reorder":
+        psd[0].move_up(0)
+    else:
+        if route == "pop_then_add":
+            psd.pop(0)
+        else:
+            psd.clear()
+        assert layer_info.layer_count == 0  # The transit the sign cannot hold.
+        psd.create_pixel_layer(
+            Image.new("RGBA", (4, 4), (255, 0, 0, 128)), name="added"
+        )
+
+    output = tmp_path / "edited.psd"
+    psd.save(output)
+    reopened = PSDImage.open(output)
+
+    reloaded = reopened._record.layer_and_mask_information.layer_info
+    assert reloaded is not None and reloaded.layer_count < 0
+    assert has_transparency(reopened) is True
+    preview = reopened.topil()
+    assert preview is not None and preview.mode == "RGBA"
+    # getextrema() is typed per-band for a multiband image, so narrow the
+    # single band's floor before comparing it.
+    darkest = preview.getchannel("A").getextrema()[0]
+    assert isinstance(darkest, (int, float)) and darkest < 255  # Alpha is real.
+
+
 def test_a_structural_edit_empties_the_shadowed_layer_info(tmp_path: Path) -> None:
     """Editing a document that has both lists populated leaves one (#861).
 

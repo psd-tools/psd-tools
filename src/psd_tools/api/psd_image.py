@@ -124,6 +124,11 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         self._updated: bool = False  # See mark_updated() for what this gates.
         # Per-document allocation budget (bytes); set via open(max_alloc_bytes=...).
         self._max_alloc_bytes: int | None = None
+        # Whether the merged image data's first alpha channel holds the
+        # composite's transparency. The layer count records this as a negative
+        # sign, but a count of zero has no sign, so a rebuild that momentarily
+        # sees no layers would lose it. See _update_record().
+        self._merged_alpha: bool = False
 
         self._psd = self  # For GroupMixin protocol compatibility.
         self._init()
@@ -1010,8 +1015,14 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         # Either the tagged block, or the section initialized just above.
         assert layer_info is not None
         # A negative count means the first alpha channel of the merged image
-        # data holds the composite's transparency, so carry the sign over.
-        sign = -1 if layer_info.layer_count < 0 else 1
+        # data holds the composite's transparency, so carry the sign over. It
+        # is remembered rather than read straight back, because an empty tree
+        # writes a count of zero and zero cannot hold a sign: `move_up()` and
+        # `move_down()` remove before they insert, so a document with a single
+        # top-level entry passes through empty on an ordinary reorder.
+        if layer_info.layer_count != 0:
+            self._merged_alpha = layer_info.layer_count < 0
+        sign = -1 if self._merged_alpha else 1
         layer_info.layer_records = layer_records
         layer_info.channel_image_data = channel_image_data
         layer_info.layer_count = sign * len(layer_records)
