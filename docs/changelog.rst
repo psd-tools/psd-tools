@@ -9,10 +9,10 @@ Changelog
   bitmap, indexed or profiled document is no longer written back malformed or
   in the wrong colours. Backwards-incompatible: a CMYK document saved with
   ``color=(0, 0, 0, 0)`` stored white and now stores full ink, the sense
-  ``background_color`` documents (#866)
+  ``background_color`` documents (#866, #870)
 - [fix] ``PSDImage.new(..., depth=32)`` no longer fills the document with
   NaN: a 32-bit channel holds floats, and the fill was packed as the integer
-  ``0xffffffff``, which reads back as a quiet NaN (#866)
+  ``0xffffffff``, which reads back as a quiet NaN (#866, #870)
 - [fix] A structural edit to a 16- or 32-bit document -- ``remove()``,
   ``pop()``, ``clear()``, ``create_group()``, a cross-document move -- is no
   longer discarded on save: the rebuilt layer list now goes to the
