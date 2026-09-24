@@ -287,11 +287,13 @@ def test_save_without_composite_dependencies(tmp_path: Path, caplog: Any) -> Non
 
     output_path = tmp_path / "test_no_composite.psd"
 
-    # Mock composite() to raise ImportError (simulating missing dependencies)
+    # Mock the compositor to raise ImportError (simulating missing
+    # dependencies). `save()` reaches the array form directly, not the
+    # `composite()` method, so the module function is what has to be patched.
     def mock_composite(*args: Any, **kwargs: Any) -> None:
         raise ImportError("No module named 'scipy'")
 
-    with patch.object(psdimage, "composite", side_effect=mock_composite):
+    with patch("psd_tools.composite.composite", side_effect=mock_composite):
         # Should not raise, should log warning
         with caplog.at_level(logging.WARNING):
             psdimage.save(str(output_path))
@@ -519,8 +521,16 @@ def test_save_with_float_color_grayscale(tmp_path: Path) -> None:
 
 
 def test_save_with_float_color_cmyk(tmp_path: Path) -> None:
-    """Save CMYK PSD with white background (no ink)."""
-    psdimage = PSDImage.new("CMYK", (32, 32), color=(0.0, 0.0, 0.0, 0.0))
+    """Save CMYK PSD with white background (no ink).
+
+    1.0 is *no* ink, the convention :py:attr:`PSDImage.background_color`
+    documents and the one the stored bytes use -- a Photoshop CMYK fixture
+    stores 255 where nothing is printed. This read ``color=(0, 0, 0, 0)`` and
+    still expected 255 back, which held only because the preview was written
+    through a PIL ``CMYK`` image and ``pil_io.post_process()`` inverts one
+    (#866).
+    """
+    psdimage = PSDImage.new("CMYK", (32, 32), color=(1.0, 1.0, 1.0, 1.0))
     psdimage.create_pixel_layer(
         Image.new("CMYK", (16, 16), (255, 0, 0, 0)),
         name="Cyan Layer",

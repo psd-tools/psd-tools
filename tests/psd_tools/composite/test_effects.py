@@ -1389,7 +1389,12 @@ def test_mark_updated_refreshes_a_preview_the_api_could_not_see(
     psd.save(out)
     saved = PSDImage.open(out).topil()
     assert saved is not None
-    assert np.array_equal(pixels(saved), fresh), (
+    # Within one step, not equal: `composite_pil()` truncates its float array
+    # to bytes and the preview writer rounds it, so the two quantizations of
+    # the same render disagree by an LSB on about 4% of the pixels. A whole
+    # step is still far below the change being looked for -- `stale` differs
+    # from `fresh` by a full 255 here.
+    assert np.abs(pixels(saved).astype(int) - fresh.astype(int)).max() <= 1, (
         "save() has to write the preview it just regenerated"
     )
 

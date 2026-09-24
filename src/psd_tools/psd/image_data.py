@@ -21,6 +21,11 @@ from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
 
+# The raw value each depth spells 1.0 as. Mirrors
+# :py:data:`psd_tools.api.utils._DEPTH_MAX`, which is what hands :py:meth:`new`
+# its color; importing it would make this module depend on the api layer.
+_DEPTH_MAX: dict[int, int] = {8: 255, 16: 65535, 32: 4294967295}
+
 T = TypeVar("T", bound="ImageData")
 
 
@@ -138,7 +143,9 @@ class ImageData(BaseElement):
 
         :param header: FileHeader.
         :param compression: compression type.
-        :param color: default color. int or iterable for channel length.
+        :param color: default color, as a raw value for the header's depth --
+            what :py:func:`~psd_tools.api.utils.denormalize_color` produces.
+            int or iterable for channel length.
         """
         plane_size = header.width * header.height
         if isinstance(color, (bool, int, float)):
@@ -147,11 +154,16 @@ class ImageData(BaseElement):
             raise ValueError(
                 "Invalid color %s for channel size %d" % (color, header.channels)
             )
-        # Bitmap is not supported here.
-        fmt = {8: "B", 16: "H", 32: "I"}[header.depth]
+        # Bitmap is not supported here. Depth 32 is a *float* channel, in
+        # [0, 1], and packing the raw value as the integer it arrives as wrote
+        # a document every reader saw as NaN: `0xffffffff`, the raw form of
+        # white at this depth, is a quiet NaN read back as `>f4` (#866).
+        depth = header.depth
+        fmt = {8: "B", 16: "H", 32: "f"}[depth]
         data = []
         for i in range(header.channels):
-            data.append(pack(fmt, color[i]) * plane_size)
+            value = color[i] / _DEPTH_MAX[depth] if depth == 32 else color[i]
+            data.append(pack(fmt, value) * plane_size)
         self = cls(compression=compression)
         self.set_data(data, header)
         return self
