@@ -21,11 +21,18 @@ Analyze the commits listed in Step 1 to recommend the correct next version.
 The last tag shown in Step 1 uses a `v` prefix (e.g. `v1.14.3`); strip it when computing
 the next version so the result is a bare PEP 440 string (e.g. `1.14.4`, not `v1.14.4`).
 
-Apply these semver rules:
+Apply the project's rule, which is not plain semver:
 
-- **Major bump** (`X+1.0.0`) — any commit that breaks a public API or documented behaviour
-- **Minor bump** (`X.Y+1.0`) — any new public feature or API addition, no breaking changes
-- **Patch bump** (`X.Y.Z+1`) — bug fixes, security patches, chores, docs, or refactoring only
+- **Minor bump** (`X.Y+1.0`) — any new public feature or API addition, **or** any change
+  that breaks a public API or documented behaviour. Pre-2.0 a minor bump may break; what
+  the project asks of such a change is not a major bump but that the entry says so
+  explicitly, which the **Changelog** section of `CLAUDE.md` already requires.
+- **Patch bump** (`X.Y.Z+1`) — bug fixes, security patches, chores, docs or refactoring
+  only, with nothing backwards-incompatible.
+
+Never infer a **major bump** from the presence of breaking changes. `2.0.0` is a
+deliberate decision by the maintainer about the project's direction; propose it only if
+they have already said they want one.
 
 Show your reasoning and proposed version to the user, then ask them to confirm or override it.
 Store the confirmed version as **VERSION** for all subsequent steps.
@@ -70,6 +77,33 @@ explanation repeated at three layers.
 
 Trimming is a separate commit from the release commit, and touches comments and
 docstrings only. If any line of code moves, stop and treat it as a code change.
+
+## Step 1c — Reconcile the release milestone
+
+Release scope is also tracked in a milestone, titled bare without the `v` prefix
+(`1.20.0`, not `v1.20.0`). It is maintained by hand during triage, so it and the changelog
+can disagree about the same release. Settle that before Step 2 drafts the changelog, since
+the answer changes what gets written.
+
+```bash
+gh issue list --milestone "VERSION" --state all --limit 100 \
+  --json number,title,state,closedAt
+```
+
+No milestone for **VERSION** is not a problem — say so and move on to Step 2.
+
+Otherwise show the list and ask the user to resolve two kinds of drift. Prompt for both,
+never act on your own: "should this block the release" is exactly the call a human is here
+to make.
+
+- **Open items.** Move them to the next milestone, or hold the release for them. Closing a
+  milestone does not close its issues; anything still open keeps the association but drops
+  off the progress bar, so it has to be dealt with here.
+- **Items fixed under a later milestone.** A merged PR that closed an issue milestoned for
+  a future version leaves it closed against a release it did not ship in. Move it into
+  **VERSION**.
+
+Do not close the milestone here. `auto-tag.yml` closes it after the merge (see Step 6).
 
 ## Step 2 — Draft changelog entry
 
@@ -135,6 +169,7 @@ Run `gh pr create` with `--title "Release vVERSION"` and a `--body` containing:
   - `[ ] Changelog entry reviewed and accurate`
   - `[ ] Version follows PEP 440`
   - `[ ] Prose sweep done (Step 1b), or explicitly skipped`
+  - `[ ] Milestone reconciled: no open issues, or they were moved with a note`
 - A closing note: "After this PR is merged, the `auto-tag` workflow will tag the merge commit
   as `vVERSION` and the `release` workflow will build wheels and publish to PyPI automatically."
 
@@ -147,5 +182,7 @@ Print the PR URL. Remind the user:
 > After the PR is approved and merged, the `auto-tag` GitHub Actions workflow tags the merge
 > commit as `vVERSION` automatically. That tag push triggers the `release` workflow to build
 > wheels for all platforms and publish to PyPI. No manual tagging or publishing is needed.
+> The same workflow closes the `VERSION` milestone if one is open; that step is bookkeeping
+> and is allowed to fail without affecting the release.
 
 Replace `VERSION` with the actual version string.

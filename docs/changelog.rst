@@ -4,6 +4,10 @@ Changelog
 1.20.0 (unreleased)
 -------------------
 
+- [ci] The release milestone is now part of the release workflow: the
+  ``/release`` skill reconciles it against the changelog before the release PR
+  is opened, and ``auto-tag`` closes it after the merge. The skill's version
+  rule no longer recommends a major bump for a breaking change (#859)
 - [fix] A pixel layer or mask added to a 16- or 32-bit document is stored at
   the document's depth rather than PIL's, so it no longer reads back empty.
   ``create_pixel_layer()``, ``PixelLayer.frompil()``, ``create_mask()`` and
