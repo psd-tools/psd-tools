@@ -334,8 +334,10 @@ raw_psd = psd._record  # type: psd_tools.psd.PSD
 # Access header
 header = raw_psd.header  # FileHeader
 
-# Access layer records (flat list)
-layer_records = raw_psd.layer_and_mask_information.layer_info.layer_records
+# Access layer records (flat list). A 16- or 32-bit document keeps them in an
+# `Lr16`/`Lr32` tagged block and leaves `layer_info` empty, so go through the
+# accessor rather than the attribute.
+layer_records = raw_psd._get_layer_info().layer_records
 ```
 
 ### Modifying Layers

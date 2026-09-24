@@ -4,6 +4,15 @@ Changelog
 1.20.0 (unreleased)
 -------------------
 
+- [fix] A structural edit to a 16- or 32-bit document -- ``remove()``,
+  ``pop()``, ``clear()``, ``create_group()``, a cross-document move -- is no
+  longer discarded on save: the rebuilt layer list now goes to the
+  ``Lr16``/``Lr32`` block the reader takes it from (#861)
+- [fix] Adding, removing or reordering layers no longer drops the flag marking
+  the merged image data's first alpha channel as the composite's transparency,
+  so a reopened document keeps its alpha instead of coming back opaque.
+  Emptying a document with ``clear()`` still drops it, since a zero layer count
+  has no sign (#861)
 - [fix] A layer taken out of a document by ``extend()``, ``append()`` or
   ``insert()`` is no longer written back into that document's file, so it
   stops appearing in two files at once (#841, #860)

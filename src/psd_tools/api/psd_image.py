@@ -986,7 +986,9 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         Compile the tree layer structure back into flat lists.
 
         Walks the API layer structure recursively, producing the records and
-        channels list.
+        channels list, and stores them where the reader takes them from: an
+        ``Lr16``/``Lr32`` tagged block where the document has one, the layer
+        info section itself otherwise.
         """
         # Initialize the layer structure information if not present.
         if self._record.layer_and_mask_information.layer_info is None:
@@ -998,12 +1000,28 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         if self._record.layer_and_mask_information.tagged_blocks is None:
             self._record.layer_and_mask_information.tagged_blocks = TaggedBlocks()
 
-        # Set layer records and channel image data.
+        # Set layer records and channel image data. A Photoshop-written 16- or
+        # 32-bit document carries them in an Lr16/Lr32 tagged block and leaves
+        # the layer info section empty, so rebuild whichever of the two the
+        # reader consults rather than assuming it is the section.
         layer_records, channel_image_data = _build_record_tree(self)
-        layer_info = self._record.layer_and_mask_information.layer_info
+        shadowed = self._record.layer_and_mask_information.layer_info
+        layer_info = self._record._get_layer_info()
+        # Either the tagged block, or the section initialized just above.
+        assert layer_info is not None
+        # A negative count means the first alpha channel of the merged image
+        # data holds the composite's transparency, so carry the sign over.
+        sign = -1 if layer_info.layer_count < 0 else 1
         layer_info.layer_records = layer_records
         layer_info.channel_image_data = channel_image_data
-        layer_info.layer_count = len(layer_records)
+        layer_info.layer_count = sign * len(layer_records)
+        if layer_info is not shadowed and shadowed is not None:
+            # A tagged block won, so the section is dead weight the writer
+            # would emit anyway. Empty it in place -- rebinding it would
+            # detach any reference taken before the edit.
+            shadowed.layer_count = 0
+            shadowed.layer_records = LayerRecords()
+            shadowed.channel_image_data = ChannelImageData()
 
         # Flag as updated.
         self.mark_updated()
