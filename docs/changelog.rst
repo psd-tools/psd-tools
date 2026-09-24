@@ -8,12 +8,12 @@ Changelog
   the document's depth rather than PIL's, so it no longer reads back empty.
   ``create_pixel_layer()``, ``PixelLayer.frompil()``, ``create_mask()`` and
   ``update_mask()`` were all affected; the layer still carries a PIL image's
-  8 bits of precision, widened to the document's depth (#867)
+  8 bits of precision, widened to the document's depth (#867, #874)
 - [fix] A pixel layer moved between documents differing in bit depth, or
   between a PSD and a PSB, is re-encoded for the destination instead of being
   carried across in the source's packing, which decoded as wrong colours, NaN
   or a fully transparent layer. Other layer types are still not re-encoded on
-  such a move (#867)
+  such a move (#867, #874)
 - [fix] ``save()`` regenerates the preview in the document's own channels,
   depth and conventions rather than PIL's, so an edited 16- or 32-bit, spot,
   bitmap, indexed or profiled document is no longer written back malformed or
