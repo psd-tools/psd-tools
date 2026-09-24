@@ -372,6 +372,11 @@ class UnitFloats(BaseElement):
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         unit, count = read_fmt("4sI", fp)
+        # Resolve the unit before the array is consumed. A caller probing for
+        # an optional descriptor -- SliceV6.read() -- distinguishes "this is
+        # not a descriptor" from a truncated file by catching ValueError
+        # alone, so a bad unit must not be reported as a short read.
+        unit = _unit(unit)
         values = list(read_fmt("%dd" % count, fp))
         return cls(unit=unit, values=values)  # type: ignore[call-arg]
 
