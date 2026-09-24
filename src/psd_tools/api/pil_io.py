@@ -4,10 +4,12 @@ PIL IO module.
 
 import io
 import logging
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Literal, cast
 
+import numpy as np
 from PIL import Image, ImageChops, ImageMath
 
+from psd_tools.api.numpy_io import _encode_array
 from psd_tools.api.utils import (
     check_pixel_size,
     get_transparency_index,
@@ -76,6 +78,69 @@ def get_pil_depth(pil_mode: str) -> int:
         "I": 32,
         "F": 32,
     }.get(pil_mode, 8)
+
+
+def encode_channel(band: Image.Image, depth: Literal[1, 8, 16, 32]) -> bytes:
+    """Pack one PIL band into the bytes a channel stores at *depth*.
+
+    A PIL band holds a byte per pixel whatever the document's depth is, so
+    ``band.tobytes()`` answers for depth 8 alone. Handed to a deeper document
+    it writes a channel half or a quarter of the length the geometry requires,
+    and the layer reads back empty (#867).
+
+    The widening goes through :func:`~psd_tools.api.numpy_io._encode_array`,
+    the packer the merged image data section uses and the exact inverse of the
+    reader's :func:`~psd_tools.api.numpy_io._parse_array`, so what comes back
+    is what PIL held: 128 is stored as 32896 at depth 16 and as 0.50196 at
+    depth 32. The *precision* is still PIL's -- a band carries 8 bits of it
+    however deep the document -- but the length and the sense are the
+    document's.
+
+    A "1" band is normalised to "L" first at every depth, its own included:
+    ``tobytes()`` on it yields *packed bits*, three bytes for a row of 20,
+    which is a malformed buffer at depth 8, and at depth 1 is the right
+    length carrying the wrong sense -- PIL sets a bit for white and PSD sets
+    one for black, so the two differ by a complement.
+
+    A "P" band is the opposite case and is passed through untouched at depth
+    8, because there its bytes are palette indices rather than values and
+    nothing but the document's own palette gives them meaning. Nothing
+    applies that palette to a *layer* channel on the way back:
+    :func:`~psd_tools.api.numpy_io.get_layer_data` passes no lookup table,
+    and only the merged image data read builds one.
+
+    :param band: a single-band :py:class:`~PIL.Image.Image`, as
+        :py:meth:`PIL.Image.Image.getchannel` returns.
+    :param depth: the destination document's ``header.depth``.
+    :raises ValueError: for a "P" band at a depth other than 8, where the
+        indices have no meaning and converting through the palette would
+        discard them silently.
+    """
+    if band.mode == "1":
+        band = band.convert("L")
+    if depth == 8:
+        return band.tobytes()
+    if band.mode == "P":
+        raise ValueError(
+            "Cannot store palette indices at depth %d; an indexed document is "
+            "8-bit" % depth
+        )
+    plane = np.asarray(band, dtype=np.float32) / 255.0
+    return _encode_array(plane, depth, band.width)
+
+
+def encode_opaque_channel(
+    width: int, height: int, depth: Literal[1, 8, 16, 32]
+) -> bytes:
+    r"""The bytes a fully opaque transparency channel stores at *depth*.
+
+    Not ``b"\xff" * (width * height)``, which is opaque at depth 8 and a short
+    buffer at 16 and 32. At depth 1 it is not even white: a *set* bit is black
+    there, so full opacity is a run of zero bits.
+    """
+    if depth == 8:
+        return b"\xff" * (width * height)
+    return _encode_array(np.ones((height, width), dtype=np.float32), depth, width)
 
 
 # The "I"/"F" image and the second one `.point()` builds from it, four bytes per
