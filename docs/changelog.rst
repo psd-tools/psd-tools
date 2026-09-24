@@ -5,7 +5,7 @@ Changelog
 -------------------
 
 - [ci] ``auto-tag`` now closes the matching release milestone once a release PR
-  is merged (#859)
+  is merged (#859, #876)
 - [fix] A pixel layer or mask added to a 16- or 32-bit document is stored at
   the document's depth rather than PIL's, so it no longer reads back empty.
   ``create_pixel_layer()``, ``PixelLayer.frompil()``, ``create_mask()`` and
