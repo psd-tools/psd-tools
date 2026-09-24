@@ -6,6 +6,7 @@ import pytest
 from psd_tools.psd import PSD
 from psd_tools.constants import Resource, ColorMode
 from psd_tools.psd.image_resources import (
+    AlphaChannel,
     AlphaChannelMode,
     ImageResource,
     ImageResources,
@@ -170,3 +171,14 @@ def test_display_info_channel_type() -> None:
     assert len(info.alpha_channels) == 2
     assert info.alpha_channels[0].mode == AlphaChannelMode.SPOT
     assert info.alpha_channels[1].mode == AlphaChannelMode.INVERTED_ALPHA
+
+
+def test_alpha_channel_converts_a_raw_mode() -> None:
+    assert AlphaChannel(mode=2).mode is AlphaChannelMode.SPOT
+
+
+@pytest.mark.parametrize("mode", [99, -1, None, "spot"])
+def test_alpha_channel_rejects_a_bad_mode(mode: Any) -> None:
+    """``99`` used to be written to the file; the rest raised ``struct.error``."""
+    with pytest.raises(ValueError):
+        AlphaChannel(mode=mode)

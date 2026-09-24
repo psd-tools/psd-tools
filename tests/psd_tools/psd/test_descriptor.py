@@ -13,8 +13,9 @@ from psd_tools.psd.descriptor import (
     Reference,
     String,
     UnitFloat,
+    UnitFloats,
 )
-from psd_tools.terminology import Unit
+from psd_tools.terminology import Enum, Unit
 
 from ..utils import TEST_ROOT, check_read_write, check_write_read
 
@@ -105,3 +106,27 @@ def test_unit_float_rejects_a_non_number(value: Any) -> None:
 )
 def test_unit_float_enum(fixture: bytes) -> None:
     UnitFloat.frombytes(fixture)
+
+
+@pytest.mark.parametrize("cls", [UnitFloat, UnitFloats])
+def test_unit_converts_a_raw_code(cls: Type[Any]) -> None:
+    """A valid 4-byte code is normalised, so ``write()`` can reach ``.value``."""
+    fixture = cls(unit=b"#Prc")
+    assert fixture.unit is Unit.Percent
+    # UnitFloat compares on `value` alone, so round-trip `unit` explicitly.
+    assert cls.frombytes(fixture.tobytes()).unit is Unit.Percent
+
+
+@pytest.mark.parametrize("cls", [UnitFloat, UnitFloats])
+def test_unit_keeps_the_enum_fallback(cls: Type[Any]) -> None:
+    """A ruler unit is not a ``Unit``; ``Enum`` carries it, on both paths."""
+    assert cls(unit=b"RrCm").unit is Enum.RulerCm
+    assert cls(unit=Enum.RulerCm).unit is Enum.RulerCm
+
+
+@pytest.mark.parametrize("cls", [UnitFloat, UnitFloats])
+@pytest.mark.parametrize("unit", [b"ZZZZ", b"#Prc\x00", None, 0, "#Prc"])
+def test_unit_rejects_a_bad_code_at_construction(cls: Type[Any], unit: Any) -> None:
+    """``write()`` used to be the first thing to complain, with ``AttributeError``."""
+    with pytest.raises(ValueError, match="is not a valid Unit or Enum"):
+        cls(unit=unit)

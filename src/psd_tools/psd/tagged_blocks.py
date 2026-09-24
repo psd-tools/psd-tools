@@ -11,7 +11,7 @@ import io
 import logging
 from typing import IO, Any, TypeVar
 
-from attrs import define, field
+from attrs import converters, define, field, validators
 
 from psd_tools.constants import (
     BlendMode,
@@ -703,7 +703,11 @@ class SectionDividerSetting(BaseElement):
         validator=in_(SectionDivider),
     )
     signature: bytes | None = field(default=None, repr=False)
-    blend_mode: BlendMode | None = None
+    blend_mode: BlendMode | None = field(
+        default=None,
+        converter=converters.optional(BlendMode),
+        validator=validators.optional(in_(BlendMode)),
+    )
     sub_type: int | None = None
 
     @classmethod

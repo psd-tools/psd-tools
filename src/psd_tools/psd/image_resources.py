@@ -393,7 +393,11 @@ class AlphaChannel(BaseElement):
     c3: int = 0
     c4: int = 0
     opacity: int = 0
-    mode: AlphaChannelMode = AlphaChannelMode.ALPHA  # type: ignore[assignment]
+    mode: AlphaChannelMode = field(
+        default=AlphaChannelMode.ALPHA,
+        converter=AlphaChannelMode,
+        validator=in_(AlphaChannelMode),
+    )
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "AlphaChannel":
