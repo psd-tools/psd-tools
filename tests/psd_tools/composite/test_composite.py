@@ -15,6 +15,7 @@ from psd_tools.api.layers import (
     Layer,
     PixelLayer,
 )
+from psd_tools.api.mask import Mask
 from psd_tools.api.numpy_io import _image_data_peak_bytes
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite
@@ -1904,6 +1905,40 @@ def test_layer_opacity_fades_the_stroke_outside_the_layer_too() -> None:
     # covers nothing, so what is left is the band's own alpha.
     y, x = (layer.bbox[1] + layer.bbox[3]) // 2, layer.bbox[0] - 4
     assert float(alpha[y, x, 0]) == pytest.approx(128 / 255.0, abs=1 / 255.0)
+
+
+def test_fill_opacity_leaves_room_beside_a_layer_it_has_faded() -> None:
+    """An outset-only stroke never starts the canvas that folds fill opacity in.
+
+    The band goes on scaled by what the layer will leave of the pixel, and
+    what the layer will leave is its alpha *after* fill opacity. The two agree
+    once an effect canvas has folded that in -- but a stroke wholly outside
+    the layer puts nothing inside it, so the canvas is never started and hands
+    its source back with fill opacity still on it. Scaled by the unfaded
+    coverage, the band on this layer's ramp came out at 1.0 across the whole
+    of it instead of at ``1 - coverage`` (#884 review).
+    """
+    psd, layer = _feathered_stroke_layer()
+    layer.tagged_blocks.set_data(Tag.BLEND_FILL_OPACITY, ByteElement(0))
+
+    compositor = Compositor(
+        psd.viewbox,
+        np.ones((psd.height, psd.width, 3), dtype=np.float32),
+        np.zeros((psd.height, psd.width, 1), dtype=np.float32),
+    )
+    compositor.apply(layer)
+    alpha = compositor.finish()[2]
+
+    # The layer's fill is invisible, so the ramp carries the band and nothing
+    # else, and an outset band on a ramp is the ramp's complement.
+    y, x0 = (layer.bbox[1] + layer.bbox[3]) // 2, layer.bbox[0]
+    mask_bbox = cast(Mask, layer.mask).bbox
+    mask = layer.numpy("mask")
+    assert mask is not None
+    start = x0 - mask_bbox[0]
+    coverage = mask[y - mask_bbox[1], start : start + 6, 0]
+    assert np.all(np.diff(coverage) > 0), coverage
+    assert np.allclose(alpha[y, x0 : x0 + 6, 0], 1.0 - coverage, atol=1 / 255.0)
 
 
 def test_a_knockout_punches_with_the_layer_and_not_with_its_stroke() -> None:

@@ -1249,7 +1249,13 @@ class Compositor(object):
             self._composite_source(source, layer.blend_mode)
             self._apply_outer_effects(outer, None)
             return
-        self._apply_outer_effects(outer, source.alpha)
+        # ``alpha * fill_opacity`` is what _composite_source() is about to put
+        # on, and it is what the band has to leave room beside. The two agree
+        # only once an effect canvas has folded fill opacity in, which an
+        # outset-only stroke never reaches: it puts nothing inside the layer,
+        # so the canvas is never started and hands its source back untouched,
+        # fill opacity and all.
+        self._apply_outer_effects(outer, source.alpha * source.fill_opacity)
         self._composite_source(source, layer.blend_mode)
 
     def _accepts(self, layer: Layer, clip_compositing: bool) -> bool:
