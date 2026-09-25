@@ -99,12 +99,18 @@ An empty result is fine; a release cut outside the milestone scheme is not an er
 **The milestone under-reports** — an item was fixed but is milestoned for a *later*
 release, so it stands closed against a release it did not ship in. It is not in
 **VERSION**, so the query above cannot show it. List what closed since the last tag
-instead, substituting that tag's date (`git log -1 --format=%as <LAST_TAG>`):
+instead, substituting that tag's commit timestamp, which
+`git log -1 --format=%cI <LAST_TAG>` prints in full:
 
 ```bash
-gh issue list --state closed --limit 200 --search "closed:>=YYYY-MM-DD" \
+gh issue list --state closed --limit 200 \
+  --search "closed:>=YYYY-MM-DDTHH:MM:SS+HH:MM" \
   --json number,title,closedAt,milestone
 ```
+
+Pass the whole timestamp, not just the date. A release tagged partway through a day
+leaves issues closed before it on the same date, and those belong to the release that
+just shipped; a date-only bound sweeps them into this one.
 
 Of those, only the ones carrying a different version are drift. An item with **no**
 milestone is not — the milestone records planned scope, not everything that shipped — so
