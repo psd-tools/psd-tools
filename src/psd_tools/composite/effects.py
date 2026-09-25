@@ -61,6 +61,7 @@ import numpy as np
 
 from psd_tools.composite import paint
 from psd_tools.composite._compat import HAS_SCIPY
+from psd_tools.composite.utils import divide
 from psd_tools.psd.descriptor import Descriptor
 from psd_tools.terminology import Enum, Key
 
@@ -335,6 +336,32 @@ def draw_stroke_effect(
     desc: Descriptor,
     psd: "PSDProtocol",
 ) -> tuple[np.ndarray, np.ndarray]:
+    """The stroke's paint and the coverage it puts it on."""
+    color, coverage, _ = draw_stroke_effect_split(viewport, shape, desc, psd)
+    return color, coverage
+
+
+def draw_stroke_effect_split(
+    viewport: tuple[int, int, int, int],
+    shape: np.ndarray,
+    desc: Descriptor,
+    psd: "PSDProtocol",
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """:py:func:`draw_stroke_effect`, with the coverage split at the boundary.
+
+    The third array is the part of the band that falls *inside* the layer,
+    which is what the band's two halves are composited differently: the inside
+    paints over the layer and knocks out what it covers, the rest paints beside
+    it (#846). An inset band is wholly inside and an outset one wholly outside;
+    only a centered stroke has both.
+
+    The split is a share of the band rather than two bands drawn separately, so
+    the two always sum to what :py:func:`draw_stroke_effect` returns. Drawn
+    separately they would not: :py:func:`_distance_band` multiplies the two
+    edges' ramps, which is the area of a pixel cut by a straight edge only
+    while the band is at least a pixel wide, and halving a band halves both
+    halves' widths.
+    """
     logger.debug("Stroke effect has limited support")
     height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
     if not isinstance(shape, np.ndarray):
@@ -368,7 +395,11 @@ def draw_stroke_effect(
     # exactly on a pixel centre. Photoshop will not author a 0 px stroke, but
     # a descriptor can carry one.
     if size <= 0.0:
-        return color, np.zeros((height, width, 1), dtype=np.float32)
+        return (
+            color,
+            np.zeros((height, width, 1), dtype=np.float32),
+            np.zeros((height, width, 1), dtype=np.float32),
+        )
 
     # A stroke is a band in the layer's signed distance field, which is exact
     # on a hard-edged mask and needs no pen to quantize the radius to a whole
@@ -396,4 +427,13 @@ def draw_stroke_effect(
     # A boundary further out than the band's widest limit, plus the half
     # pixel a partial pixel can state either side of itself, cannot show.
     distance = _signed_distance(shape[:, :, 0], max(abs(lo), abs(hi)) + 1.0)
-    return color, np.expand_dims(_distance_band(distance, lo, hi), 2)
+    coverage = _distance_band(distance, lo, hi)
+    if hi <= 0.0:
+        inside = coverage
+    elif lo >= 0.0:
+        inside = np.zeros_like(coverage)
+    else:
+        within = _distance_band(distance, lo, 0.0)
+        beyond = _distance_band(distance, 0.0, hi)
+        inside = coverage * divide(within, within + beyond, fill=0.0)
+    return color, np.expand_dims(coverage, 2), np.expand_dims(inside, 2)

@@ -1,6 +1,16 @@
 Changelog
 =========
 
+1.20.1 (unreleased)
+-------------------
+
+- [fix] Stroke and overlay effects are composited into the layer they belong
+  to instead of onto the finished composite, so a layer whose coverage is
+  partial -- a feathered mask, an antialiased edge, a soft-edged pixel layer
+  -- no longer renders its effect with the backdrop mixed through it. Affects
+  every layer carrying an effect where the effect meets partial alpha; hard
+  edged layers are unchanged (#846)
+
 1.20.0 (2026-09-25)
 -------------------
 

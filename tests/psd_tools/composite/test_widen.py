@@ -48,6 +48,7 @@ from psd_tools.psd.patterns import (
 from psd_tools.terminology import Enum, Key
 
 from ..utils import full_name
+from . import opaque_effect_canvas
 
 # cmyk-gray-ramp.psd is nine 16x16 patches in a row, one per grey level.
 GRAY_LEVELS = [0, 32, 64, 96, 128, 160, 192, 224, 255]
@@ -535,7 +536,7 @@ def test_gray_pattern_agrees_between_the_fill_and_the_overlay() -> None:
     depend on which of the two a person reached for. It did: the overlay
     widened through ``make_widen`` and the fill was broadcast.
 
-    Driven through ``_apply_overlay`` rather than through
+    Driven through ``_add_overlay`` rather than through
     ``_draw_pattern_overlay``, because since #777 the draw function no longer
     converts anything -- it hands back the pattern at its own width and
     ``_fit_source()`` widens it, like every other source. Comparing the raw
@@ -553,14 +554,15 @@ def test_gray_pattern_agrees_between_the_fill_and_the_overlay() -> None:
     _, fill_layer = _gray_pattern_fill(level=128)
     fill = composite(fill_layer, force=True)[0]
 
-    ones = np.ones((psd.height, psd.width, 1), dtype=np.float32)
     compositor = Compositor(
         psd.viewbox,
         np.zeros((psd.height, psd.width, 4), dtype=np.float32),
         np.zeros((psd.height, psd.width, 1), dtype=np.float32),
         widen=make_widen(psd),
     )
-    compositor._apply_overlay(layer, "patternoverlay", ones, ones)
+    canvas = opaque_effect_canvas(compositor)
+    compositor._add_overlay(layer, "patternoverlay", canvas)
+    compositor._composite_source(canvas.source(), BlendMode.NORMAL)
     overlay = compositor.finish()[0]
 
     assert overlay.shape == (psd.height, psd.width, 4)
@@ -599,14 +601,15 @@ def test_pattern_overlay_pads_with_white_rather_than_replicated_ones() -> None:
     # around it is the padding and nothing else.
     pad = 2
     height, width = psd.height + 2 * pad, psd.width + 2 * pad
-    ones = np.ones((height, width, 1), dtype=np.float32)
     compositor = Compositor(
         (-pad, -pad, psd.width + pad, psd.height + pad),
         np.zeros((height, width, 3), dtype=np.float32),
         np.zeros((height, width, 1), dtype=np.float32),
         widen=make_widen(psd),
     )
-    compositor._apply_overlay(layer, "patternoverlay", ones, ones)
+    canvas = opaque_effect_canvas(compositor)
+    compositor._add_overlay(layer, "patternoverlay", canvas)
+    compositor._composite_source(canvas.source(), BlendMode.NORMAL)
     result = compositor.finish()[0]
 
     assert np.allclose(result[0, 0], [1.0, LAB_NEUTRAL_CHROMA, LAB_NEUTRAL_CHROMA])

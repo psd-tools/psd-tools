@@ -2,7 +2,7 @@
 
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Iterator, Protocol, cast
 
 import numpy as np
@@ -16,7 +16,7 @@ from psd_tools.api.utils import check_pixel_size, get_color_channels
 from psd_tools.composite import paint, utils, vector
 from psd_tools.composite.adjustments import ADJUSTMENT_FUNC
 from psd_tools.composite.blend import get_blend_func
-from psd_tools.composite.effects import draw_stroke_effect, stroke_bbox
+from psd_tools.composite.effects import draw_stroke_effect_split, stroke_bbox
 from psd_tools.composite.widen import make_widen
 from psd_tools.constants import (
     BlendMode,
@@ -900,7 +900,11 @@ class _Source:
     color, with any clip layers already composited onto it.
 
     ``fill_opacity`` is folded into none of them, because the two composite
-    paths apply it differently -- see ``Compositor._composite_source()``.
+    paths apply it differently -- see ``Compositor._composite_source()``. A
+    source that has been through :py:class:`_EffectCanvas` is the exception:
+    the layer's effects are not scaled by it and its own paint is, so there is
+    no one factor left to apply and the canvas folds it in, leaving 1.0 here
+    and the coverage a knockout punches with in ``knockout_shape``.
     """
 
     color: np.ndarray
@@ -914,11 +918,199 @@ class _Source:
     shape_mask: float | np.ndarray
     # Tag.BLEND_FILL_OPACITY, as a 0-1 fraction.
     fill_opacity: float
+    # The layer opacity, as a 0-1 fraction. Already in ``alpha`` and in
+    # ``mask``; carried on its own because an effect composited into the layer
+    # is scaled by it too, and ``alpha / shape`` is not it for a group.
+    opacity: float
     knockout: Knockout
     # Whether the group isolated its adjustments; None for a layer that is not
     # a group. Only an explicit False makes a pass-through group composite as
     # one -- see _composite_source().
     adjustment_isolated: bool | None
+    # What a knockout punches its hole with. ``shape`` before fill opacity is
+    # applied, which is the same array until an effect canvas has folded that
+    # in: fill opacity fades the layer's own paint without narrowing the hole
+    # it punches, which is what makes "fill 0 under a knockout" a hole at all.
+    knockout_shape: np.ndarray
+
+
+class _EffectCanvas:
+    """The layer's own canvas, where its effects composite into it.
+
+    Photoshop composites a layer's effects with the layer and puts the result
+    on the backdrop. psd-tools used to put the layer on the backdrop and then
+    each effect on top of that, which leaves a backdrop term in every pixel
+    where the layer's own coverage is partial: an outset stroke came out at
+    ``t*S + (1 - t)*(alpha*L + (1 - alpha)*B)`` where Photoshop renders
+    ``alpha*L + (1 - alpha)*S`` (#846).
+
+    What the effect paints is the same either way; where it goes is not. An
+    effect lands in one of two places relative to the layer's own region,
+    which is ``source.shape``:
+
+    - :py:meth:`over` puts it *inside*: an overlay, or the part of a stroke
+      within the boundary. It paints over the layer and knocks out what it
+      covers, and never widens the region.
+    - :py:meth:`beside` puts it *outside*: the part of a stroke past the
+      boundary. Its coverage adds to the layer's rather than being unioned
+      with it, because a band drawn from the layer's own coverage is
+      complementary to it -- on a pixel the boundary cuts, an outset band
+      comes out at ``1 - alpha`` and the two together fill the pixel exactly.
+
+    The inside is kept as a share of the region rather than of the pixel, so
+    that the layer's opacity and its own partial alpha stay out of the
+    arithmetic until :py:meth:`source` puts them back. ``fill_opacity`` fades
+    the layer's paint but not its effects, so it is folded in here rather than
+    left for :py:meth:`Compositor._composite_source` to apply to both.
+
+    An effect's own blend mode blends it against what it lands on: the layer,
+    inside, and the backdrop the compositor has so far, outside. The outside
+    is pre-blended here because the resolved source carries one color per
+    pixel and is composited with the *layer's* blend mode, which for anything
+    but Normal then blends that answer a second time.
+    """
+
+    def __init__(self, compositor: "Compositor", source: _Source) -> None:
+        self._compositor = compositor
+        self._source = source
+        self._painted = False
+
+    def _start(self) -> None:
+        """Build the canvases, once, when an effect actually draws on them.
+
+        Deferred because most layers carry no effect that draws, and an effect
+        that declines -- a pattern whose data will not decode -- must leave the
+        source it was handed untouched rather than a rebuilt copy of it, which
+        the round trip through :py:meth:`source` below would not be.
+        """
+        if self._painted:
+            return
+        source = self._source
+        self._region = source.shape
+        self._color = self._compositor._fit_source(source.color)
+        # Inside the region, and relative to it: what fraction of the region
+        # each of the three stands for. The layer's own paint starts as all of
+        # it, faded by fill opacity; ``alpha`` carries the layer opacity and
+        # whatever alpha the source has of its own, which for a group is not
+        # the layer opacity at all.
+        self._alpha = (
+            utils.divide(source.alpha, self._region, fill=0.0) * source.fill_opacity
+        )
+        self._shape = np.full_like(self._region, source.fill_opacity)
+        self._premultiplied = self._alpha * self._color
+        # Outside it, and relative to the pixel.
+        self._outer_shape = np.zeros_like(self._region)
+        self._outer_alpha = np.zeros_like(self._region)
+        self._outer_premultiplied = np.zeros_like(self._color)
+        self._painted = True
+
+    @property
+    def region(self) -> np.ndarray:
+        """The layer's own coverage, which is what ``over()`` is a share of."""
+        return self._source.shape
+
+    def within(self, coverage: np.ndarray) -> np.ndarray:
+        """A coverage of the pixel, as the share of the region it is.
+
+        A stroke band is measured on the pixel like any other coverage, while
+        the region is what an inner effect covers a share of. The two are the
+        same wherever the layer is opaque, and on a pixel its boundary cuts an
+        inset band comes out equal to the layer's own coverage there -- which
+        is the whole of the region, and what makes the inset stroke knock the
+        layer out rather than blend with it.
+        """
+        return utils.clip(utils.divide(coverage, self.region, fill=0.0))
+
+    def over(
+        self,
+        coverage: np.ndarray,
+        color: np.ndarray,
+        blend_mode: bytes,
+        opacity: float,
+    ) -> None:
+        """Paint an effect over the layer, inside its region.
+
+        ``coverage`` is a share of the region. The layer's own opacity is
+        applied alongside the effect's, because it fades an effect and the
+        layer alike.
+        """
+        if not coverage.any():
+            return
+        self._start()
+        color = self._compositor._fit_source(color)
+        blend_fn = get_blend_func(blend_mode, self._compositor._color_mode)
+        alpha = coverage * opacity * self._source.opacity
+        under = utils.divide(self._premultiplied, self._alpha, fill=color)
+        self._premultiplied = (1.0 - alpha) * self._premultiplied + alpha * (
+            (1.0 - self._alpha) * color + self._alpha * blend_fn(under, color)
+        )
+        self._alpha = alpha + (1.0 - alpha) * self._alpha
+        # Coverage and opacity are separate everywhere in this module: the
+        # effect's opacity fades what it paints without narrowing what it
+        # covers, so the shape takes the coverage it was drawn on.
+        self._shape = utils.union(self._shape, coverage)
+
+    def beside(
+        self,
+        coverage: np.ndarray,
+        color: np.ndarray,
+        blend_mode: bytes,
+        opacity: float,
+    ) -> None:
+        """Paint an effect beside the layer, outside its region.
+
+        ``coverage`` is a coverage of the pixel, and is clamped to what the
+        layer's own region leaves of it: the two are disjoint by construction,
+        and a band that overran would otherwise carry the pixel past opaque.
+        """
+        if not coverage.any():
+            return
+        self._start()
+        color = self._compositor._fit_source(color)
+        blend_fn = get_blend_func(blend_mode, self._compositor._color_mode)
+        coverage = np.minimum(coverage, 1.0 - self._region)
+        alpha = coverage * opacity * self._source.opacity
+        color_b, alpha_b = self._beneath()
+        self._outer_premultiplied = (
+            1.0 - alpha
+        ) * self._outer_premultiplied + alpha * (
+            (1.0 - alpha_b) * color + alpha_b * blend_fn(color_b, color)
+        )
+        self._outer_alpha = alpha + (1.0 - alpha) * self._outer_alpha
+        self._outer_shape = utils.union(self._outer_shape, coverage)
+
+    def _beneath(self) -> tuple[np.ndarray, np.ndarray]:
+        """What an outer effect blends against: the backdrop, under the rest.
+
+        The compositor's canvases are still the backdrop here -- the layer
+        goes on *after* its effects have been composited into it -- so the
+        first outer effect blends against exactly what it would have blended
+        against when effects were applied afterwards. A second one blends
+        against the first, over that same backdrop.
+        """
+        color_b, alpha_b = self._compositor._color, self._compositor._alpha
+        alpha = self._outer_alpha + (1.0 - self._outer_alpha) * alpha_b
+        color = utils.divide(
+            self._outer_premultiplied + (1.0 - self._outer_alpha) * alpha_b * color_b,
+            alpha,
+            fill=color_b,
+        )
+        return color, alpha
+
+    def source(self) -> _Source:
+        """The layer and its effects, as one source to composite."""
+        if not self._painted:
+            return self._source
+        alpha = self._region * self._alpha + self._outer_alpha
+        premultiplied = self._region * self._premultiplied + self._outer_premultiplied
+        return replace(
+            self._source,
+            color=utils.clip(utils.divide(premultiplied, alpha, fill=self._color)),
+            shape=utils.clip(self._region * self._shape + self._outer_shape),
+            alpha=utils.clip(alpha),
+            knockout_shape=utils.clip(self._region + self._outer_shape),
+            fill_opacity=1.0,
+        )
 
 
 class Compositor(object):
@@ -1043,8 +1235,8 @@ class Compositor(object):
             return
 
         source = self._resolve_source(layer)
+        source = self._compose_effects(layer, source)
         self._composite_source(source, layer.blend_mode)
-        self._apply_effects(layer, source)
 
     def _accepts(self, layer: Layer, clip_compositing: bool) -> bool:
         """Whether this layer contributes to the composite at all.
@@ -1117,8 +1309,10 @@ class Compositor(object):
             mask=mask,
             shape_mask=shape_mask,
             fill_opacity=fill_opacity,
+            opacity=opacity,
             knockout=knockout,
             adjustment_isolated=adjustment_isolated,
+            knockout_shape=shape,
         )
 
     def _composite_source(self, source: _Source, blend_mode: BlendMode) -> None:
@@ -1142,33 +1336,39 @@ class Compositor(object):
         # removes the whole backdrop.
         self._apply_source(
             source.color,
-            source.shape if source.knockout else source.shape * source.fill_opacity,
+            source.knockout_shape
+            if source.knockout
+            else source.shape * source.fill_opacity,
             source.alpha * source.fill_opacity,
             blend_mode,
             source.knockout,
         )
 
-    def _apply_effects(self, layer: Layer, source: _Source) -> None:
-        """Composite the layer's overlay and stroke effects.
+    def _compose_effects(self, layer: Layer, source: _Source) -> _Source:
+        """The layer's overlay and stroke effects, composited into its source.
 
-        TODO: Apply after effects. These run once the source is already in the
-        backdrop, so an effect blends against the composite rather than against
-        the layer it belongs to.
+        TODO: Drop shadow, inner shadow, the two glows, satin and bevel are
+        not drawn at all, so where they would land is not settled here either.
+        An inner one joins the overlays; a drop shadow and an outer glow are
+        outer effects with an offset and a blur, which is coverage this
+        module's own, unoffset ``_trace_shape()`` does not produce.
         """
+        canvas = _EffectCanvas(self, source)
         for effect_name in _OVERLAY_DRAWS:
-            self._apply_overlay(layer, effect_name, source.shape, source.alpha)
+            self._add_overlay(layer, effect_name, canvas)
 
         # A layer drawn from a fill, or force-redrawn from its vector mask, has
         # no source shape worth tracing -- the stroke follows the mask instead.
         traces_mask = (self._force and layer.has_vector_mask()) or (
             not layer.has_pixels() and utils.has_fill(layer)
         )
-        self._apply_stroke_effect(
+        self._add_stroke_effects(
             layer,
             source.shape_mask if traces_mask else source.shape,
-            source.alpha,
+            canvas,
             traces_mask,
         )
+        return canvas.source()
 
     def _apply_passthrough_source(
         self,
@@ -1719,13 +1919,17 @@ class Compositor(object):
         alpha = shape * opacity
         return color, shape, alpha
 
-    def _apply_overlay(
-        self, layer: Layer, effect_name: str, shape: np.ndarray, alpha: np.ndarray
+    def _add_overlay(
+        self, layer: Layer, effect_name: str, canvas: _EffectCanvas
     ) -> None:
-        """Composite every overlay effect of one kind over the layer.
+        """Composite every overlay effect of one kind into the layer.
 
         The three overlay kinds differ only in what they draw, which is what
         ``_OVERLAY_DRAWS`` holds; the coverage arithmetic below is shared.
+
+        An overlay covers the layer's whole region, so what it hands the
+        canvas is its own mask and opacity alone -- the layer's coverage is
+        what the canvas already measures a share of.
 
         An effect is skipped twice over: when its draw declines, which the
         pattern and the gradient do for a fill they cannot make sense of, and
@@ -1760,9 +1964,7 @@ class Compositor(object):
                 shape_e = np.ones((self.height, self.width, 1), dtype=np.float32)
             else:
                 shape_e = paste(self._viewport, layer.bbox, shape_e)
-            self._apply_source(
-                color, shape * shape_e, alpha * shape_e * opacity, blend_mode
-            )
+            canvas.over(shape_e, color, blend_mode, opacity)
 
     def _trace_shape(
         self,
@@ -1878,11 +2080,11 @@ class Compositor(object):
             self._cache.group_shapes[key] = shape
         return paste(viewport, inner, shape)
 
-    def _apply_stroke_effect(
+    def _add_stroke_effects(
         self,
         layer: Layer,
         shape: float | np.ndarray,
-        alpha: np.ndarray,
+        canvas: _EffectCanvas,
         traces_mask: bool,
     ) -> None:
         # ``shape`` is the layer's coverage on this compositor's viewport, or
@@ -1917,7 +2119,7 @@ class Compositor(object):
                 continue
             shape_in_bbox = self._trace_shape(layer, bbox, shape, traces_mask)
             try:
-                color, mask_in_bbox = draw_stroke_effect(
+                color, mask_in_bbox, inside_in_bbox = draw_stroke_effect_split(
                     bbox, shape_in_bbox, effect.descriptor, layer._psd
                 )
                 opacity = effect.opacity / 100.0
@@ -1927,4 +2129,17 @@ class Compositor(object):
                 continue
             color = paste(self._viewport, bbox, color)
             mask = paste(self._viewport, bbox, mask_in_bbox)
-            self._apply_source(color, mask, mask * opacity, blend_mode)
+            inside = paste(self._viewport, bbox, inside_in_bbox)
+            # The two halves of the band go to different places, and an inset
+            # or outset stroke is all of one of them -- only a centered stroke
+            # is split. The rest of the band, not ``mask - inside``, so that
+            # the two are exactly what was drawn however they divide.
+            overlap = np.minimum(inside, canvas.region)
+            canvas.over(canvas.within(overlap), color, blend_mode, opacity)
+            # ``inside`` is inside the boundary the stroke was traced from,
+            # which is the layer's own coverage only while the two are the
+            # same shape. A stroke that traces the *mask* -- a fill layer's,
+            # or any layer's under ``force`` -- can land where the layer has
+            # no paint to knock out, and that part of it paints beside the
+            # layer like the outer half does rather than being dropped.
+            canvas.beside(mask - overlap, color, blend_mode, opacity)

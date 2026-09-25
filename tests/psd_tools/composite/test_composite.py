@@ -25,12 +25,19 @@ from psd_tools.composite.composite import (
     _stroke_reach,
 )
 from psd_tools.composite.effects import stroke_bbox
-from psd_tools.constants import BlendMode, ColorMode, CompatibilityMode, Tag
+from psd_tools.constants import (
+    BlendMode,
+    ColorMode,
+    CompatibilityMode,
+    Knockout,
+    Tag,
+)
 from psd_tools.psd.base import ByteElement
 from psd_tools.terminology import Key
 from PIL import Image
 
 from ..utils import full_name
+from . import opaque_effect_canvas
 
 # ``psd_tools.composite.__init__`` re-exports the ``composite`` function under
 # the same name as the submodule it lives in, so ``psd_tools.composite.composite``
@@ -1275,14 +1282,15 @@ def test_composite_pattern_overlay_targets_the_canvas_width() -> None:
     """
     psd = PSDImage.open(full_name("patterns.psd"))
     layer = _pattern_overlay_layer(psd)
-    shape = np.ones((psd.height, psd.width, 1), dtype=np.float32)
     compositor = Compositor(
         psd.viewbox,
         np.ones((psd.height, psd.width, 3), dtype=np.float32),
         np.zeros((psd.height, psd.width, 1), dtype=np.float32),
     )
     assert compositor.channels == 3
-    compositor._apply_overlay(layer, "patternoverlay", shape, shape)
+    canvas = opaque_effect_canvas(compositor)
+    compositor._add_overlay(layer, "patternoverlay", canvas)
+    compositor._composite_source(canvas.source(), BlendMode.NORMAL)
     assert compositor.finish()[0].shape == (psd.height, psd.width, 3)
 
 
@@ -1332,14 +1340,14 @@ def test_composite_pattern_overlay_rejects_a_width_it_cannot_reach(
     """
     psd = PSDImage.open(full_name("patterns.psd"))
     layer = _pattern_overlay_layer(psd)
-    shape = np.ones((psd.height, psd.width, 1), dtype=np.float32)
     compositor = Compositor(
         psd.viewbox,
         np.ones((psd.height, psd.width, channels), dtype=np.float32),
         np.zeros((psd.height, psd.width, 1), dtype=np.float32),
     )
+    canvas = opaque_effect_canvas(compositor)
     with pytest.raises(AssertionError, match="Inconsistent pattern channels"):
-        compositor._apply_overlay(layer, "patternoverlay", shape, shape)
+        compositor._add_overlay(layer, "patternoverlay", canvas)
 
 
 def _descendants(group: Any) -> Any:
@@ -1725,11 +1733,111 @@ def test_resolve_source_folds_the_mask_and_opacity_into_the_operands() -> None:
     assert source.fill_opacity == 1.0
 
 
+def _partial_source(compositor: Compositor, coverage: float, fill: float) -> Any:
+    """A half-transparent layer, as the operands an effect composites into."""
+    covered = np.full((compositor.height, compositor.width, 1), coverage, np.float32)
+    return composite_module._Source(
+        color=np.zeros((compositor.height, compositor.width, 1), dtype=np.float32),
+        shape=covered,
+        alpha=covered.copy(),
+        mask=1.0,
+        shape_mask=1.0,
+        fill_opacity=fill,
+        opacity=1.0,
+        knockout=Knockout.NONE,
+        adjustment_isolated=None,
+        knockout_shape=covered,
+    )
+
+
+def test_an_effect_canvas_that_nothing_painted_on_hands_its_source_back() -> None:
+    """The source a layer with no drawable effect composites is its own.
+
+    Not merely an equal one: resolving the canvas divides the layer's alpha by
+    its coverage and multiplies it back, which is a round trip through
+    floating point that the overwhelming majority of layers should not be
+    taking at all. A pattern effect whose data will not decode declines after
+    the canvas exists, and has to leave it untouched too.
+    """
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    compositor = _canvas(psd)
+    source = compositor._resolve_source(psd[0])
+    canvas = composite_module._EffectCanvas(compositor, source)
+    assert canvas.source() is source
+
+    empty = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
+    canvas.over(empty, source.color, BlendMode.NORMAL, 1.0)
+    canvas.beside(empty, source.color, BlendMode.NORMAL, 1.0)
+    assert canvas.source() is source
+
+
+def test_fill_opacity_fades_the_layer_and_not_the_effect_over_it() -> None:
+    """What ``fill_opacity`` is for, once the effect is inside the layer.
+
+    Fading the layer's own paint while leaving its style at full strength is
+    the whole point of the setting, and the compositor used to get it by
+    applying the effect to the backdrop afterwards, where fill opacity had
+    never reached. Composited into the layer it is in reach, so the canvas
+    folds fill opacity into the layer's paint alone and hands back a source
+    that carries 1.0 (#846).
+
+    The hole a knockout punches is the exception that needs the coverage
+    before either: fill opacity 0 under a knockout is a hole, not a no-op.
+    """
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    compositor = _canvas(psd)
+    source = _partial_source(compositor, coverage=0.5, fill=0.0)
+    canvas = composite_module._EffectCanvas(compositor, source)
+
+    red = np.zeros((psd.height, psd.width, 3), dtype=np.float32)
+    red[..., 0] = 1.0
+    canvas.over(np.ones_like(source.shape), red, BlendMode.NORMAL, 1.0)
+    composed = canvas.source()
+
+    assert composed.fill_opacity == 1.0
+    # The layer is invisible and the effect is not, so what covers the half
+    # the layer covers is the effect alone.
+    assert np.allclose(composed.alpha, 0.5)
+    assert np.allclose(composed.color, red)
+    assert np.allclose(composed.knockout_shape, 0.5)
+
+
+def test_an_outer_effect_adds_its_coverage_beside_the_layers() -> None:
+    """The half of #846 that the ``over`` operator cannot express.
+
+    A band drawn outside the layer's boundary is disjoint from the layer, not
+    independent of it: the two divide the pixel between them rather than each
+    hiding a random share of the other. Unioned, a layer at 0.5 and a band at
+    0.5 leave a quarter of the pixel to the backdrop; added, they fill it,
+    which is what Photoshop renders.
+
+    Clamped to what the layer leaves, so that a band overrunning its side of
+    the boundary cannot carry the pixel past opaque.
+    """
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    compositor = _canvas(psd)
+    source = _partial_source(compositor, coverage=0.5, fill=1.0)
+    canvas = composite_module._EffectCanvas(compositor, source)
+
+    white = np.ones((psd.height, psd.width, 3), dtype=np.float32)
+    canvas.beside(np.full_like(source.shape, 0.5), white, BlendMode.NORMAL, 1.0)
+    composed = canvas.source()
+    assert np.allclose(composed.alpha, 1.0)
+    assert np.allclose(composed.shape, 1.0)
+    # Half the layer's black and half the effect's white, not the 2:1 an
+    # over-composited band would leave.
+    assert np.allclose(composed.color, 0.5)
+
+    canvas = composite_module._EffectCanvas(compositor, source)
+    canvas.beside(np.ones_like(source.shape), white, BlendMode.NORMAL, 1.0)
+    assert np.allclose(canvas.source().alpha, 1.0)
+
+
 def test_composite_stroke_effect_over_a_layer_without_a_mask() -> None:
     """A stroke effect must not require the layer to have a mask (#711).
 
     ``_get_mask()`` returns a bare 1.0 for a layer with no mask, and
-    ``_apply_stroke_effect`` handed that straight to ``paste()``, which needs a
+    ``_add_stroke_effects`` handed that straight to ``paste()``, which needs a
     canvas -- ``AttributeError: 'float' object has no attribute 'shape'``. The
     combination is reachable for a fill layer with no vector mask, and 26 calls
     in the fixture corpus already pass the scalar; they escape only because
@@ -1758,8 +1866,10 @@ def test_composite_stroke_effect_over_a_layer_without_a_mask() -> None:
     backdrop = np.ones((height, width, 3), dtype=np.float32)
     alpha = np.zeros((height, width, 1), dtype=np.float32)
     compositor = Compositor(viewport, backdrop, alpha)
+    canvas = opaque_effect_canvas(compositor)
     # 1.0 is exactly what _get_mask() yields for an unmasked layer.
-    compositor._apply_stroke_effect(layer, 1.0, np.ones_like(alpha), True)
+    compositor._add_stroke_effects(layer, 1.0, canvas, True)
+    compositor._composite_source(canvas.source(), BlendMode.NORMAL)
     assert compositor.finish()[0].shape == (height, width, 3)
 
 
