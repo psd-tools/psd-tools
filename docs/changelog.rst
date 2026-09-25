@@ -4,6 +4,10 @@ Changelog
 1.20.0 (unreleased)
 -------------------
 
+- [docs] ``PSDImage.new()`` now records two limitations of the documents it
+  builds: Photoshop cannot open one made at ``depth=32``, which lacks the
+  ``hdrt`` block every 32-bit document carries, and mode ``"1"`` gets a depth-8
+  ``BITMAP`` header where Photoshop writes depth 1 (#869, #873, #879)
 - [ci] ``auto-tag`` now closes the matching release milestone once a release PR
   is merged (#859, #876)
 - [fix] A pixel layer or mask added to a 16- or 32-bit document is stored at

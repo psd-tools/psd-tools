@@ -157,6 +157,17 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             when saving.
         :param depth: Bit depth (8, 16, or 32).
         :return: A :py:class:`~psd_tools.api.psd_image.PSDImage` object.
+
+        .. note::
+            Photoshop cannot open a document built at ``depth=32``. It writes
+            an ``hdrt`` block into the color mode data section of every 32-bit
+            document and rejects one that has none, which is what this builds.
+            psd-tools reads such a file back without trouble (#869).
+
+        .. note::
+            Mode ``"1"`` builds a ``BITMAP`` header at depth 8, since ``depth``
+            takes 8, 16 or 32 and defaults to 8. Every bitmap document
+            Photoshop writes is depth 1 (#873).
         """
         header = cls._make_header(mode, size, depth)
         # Strip alpha channel(s) from color for background_color since
