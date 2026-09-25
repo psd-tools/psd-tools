@@ -60,7 +60,7 @@ def test_draw_stroke(filename: str) -> None:
 
 # Was expected to fail at 0.01, then measured 0.0066 once the fill it is
 # stroked over stopped carrying aggdraw's quarter pixel of dilation (#844),
-# and measures 0.00377 now that its eight inner strokes land inside their paths
+# and measures 0.00354 now that its eight inner strokes land inside their paths
 # (#854) and blend with the fill rather than replacing it (#883). The bound is
 # set above the measurement rather than at it: what is left is the stroke,
 # which is still drawn by an aggdraw pen and so not bit-stable across versions.

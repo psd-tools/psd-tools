@@ -14,11 +14,11 @@ Changelog
   ``strokeStyleLineAlignment`` names, rather than always centred on it.
   **Rendering change** for an ``inner`` or ``outer`` stroke, which is 33 of
   the 50 stroked layers in the test corpus: an inner one now covers its whole
-  width inside the shape rather than straddling the edge (#854)
+  width inside the shape rather than straddling the edge (#854, #887)
 - [fix] A vector stroke is now composited onto the fill it outlines instead of
   replacing it. **Rendering change** for every stroked layer:
   ``strokeStyleOpacity`` was discarded entirely, and a pixel the stroke
-  covered in part came out as its colour at full strength (#883)
+  covered in part came out as its colour at full strength (#883, #887)
 
 1.20.0 (2026-09-25)
 -------------------
