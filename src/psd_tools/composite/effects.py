@@ -98,13 +98,9 @@ def _enum(desc: Descriptor, key: bytes) -> bytes:
     key that is missing or holds something other than an ``Enumerated`` costs
     nothing new to tolerate: it joins the unrecognised value it cannot be told
     apart from. Reading it straight off instead turned a descriptor psd-tools
-    did not write into an ``AttributeError`` out of a composite (#826).
-
-    ``b""`` rather than None so the absence is literally an enum no table
-    holds and takes their fallback without a branch of its own; no real one
-    can collide with it, every enum Photoshop writes being four bytes.
-    ``api.effects._ColorMixin.blend_mode`` reaches for its enum the same way,
-    onto a default of its own.
+    did not write into an ``AttributeError`` out of a composite (#826). ``b""``
+    rather than None so it takes that fallback without a branch of its own; no
+    real enum can collide with it, Photoshop writing every one as four bytes.
     """
     return getattr(desc.get(key), "enum", b"")
 
