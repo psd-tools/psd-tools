@@ -21,6 +21,7 @@ from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite
 from psd_tools.composite import paint
 from psd_tools.composite import utils
+from psd_tools.composite import vector
 from psd_tools.composite.composite import (
     Compositor,
     _content_bbox,
@@ -162,25 +163,24 @@ def test_composite_quality_xfail(filename: str) -> None:
 
 
 # ``shape-layer.psd`` is the only stroked layer here, and it is the only one
-# that needs a bound of its own. Its stroke asks for ``inner`` alignment,
-# which the compositor does not implement -- every stroke is drawn centred on
-# the path, so half of this one lies outside the shape. While a fill carried
-# aggdraw's quarter pixel of dilation (#844) the fill reached far enough to
-# cover for that; an exact fill does not, and the error against Photoshop's
-# own flat render goes 0.0114 -> 0.0260. What moved is coverage, not colour:
-# on the pixels both renders leave visible the RGB error is 0.014846 either
-# way, bit for bit, while the alpha channel goes 0.00520 -> 0.00591. The
-# bound sits above the 0.0260 measured with room for the aggdraw pen that
-# draws the stroke, which is not bit-stable between versions -- and well
-# under the 0.0800 this render scores with the stroke switched off, so it
-# still has an opinion. Stroke alignment landing (#854) should fail here.
+# that needs a bound of its own. Its 1 px stroke asks for ``inner`` alignment,
+# which now lands inside the path (#854) and is composited onto the fill
+# rather than in place of it (#883). This bound moves 0.032 -> 0.015 on a
+# measurement of 0.01424, down from 0.01621, but the document figure understates
+# it: the error here is mostly colour on pixels the render leaves transparent,
+# which no viewer sees and this metric scores anyway. On the 609 pixels both
+# renders leave visible the RGB error goes 0.01497 -> 0.00618, while the alpha
+# channel is unchanged at 0.00591 -- a stroke moves colour, not coverage. The
+# bound keeps room for the aggdraw pen that draws the stroke, which is not
+# bit-stable between versions, and stays well under the 0.06874 this render
+# scores with the stroke switched off, so it still has an opinion.
 @pytest.mark.parametrize(
     ("filename", "threshold"),
     [
         ("smartobject-layer.psd", 0.017),
         ("type-layer.psd", 0.017),
         ("gradient-fill.psd", 0.017),
-        ("shape-layer.psd", 0.032),
+        ("shape-layer.psd", 0.015),
         ("pixel-layer.psd", 0.017),
         ("solid-color-fill.psd", 0.017),
         ("pattern-fill.psd", 0.017),
@@ -1423,6 +1423,54 @@ def test_the_cull_group_exemption_matches_the_structural_check(fixture: str) -> 
     assert layers, "the fixture has something to compare"
     for layer in layers:
         assert layer.is_group() == isinstance(layer, GroupMixin), layer.name
+
+
+def test_a_partly_covered_stroke_pixel_blends_with_the_fill() -> None:
+    """A pixel the stroke covers in part is that much of it, not all of it (#883).
+
+    ``descriptors/stroke-color-descriptors-rgb.psd``'s ``Rectangle 1`` carries
+    a 1 px **centred** stroke of PANTONE Black 3 C, whose red channel is
+    32.9/255 = 0.129, over a black fill. The pen splits the band across two
+    columns at 0.498 each, and x = 6 is the inner one, where the fill is
+    already solid: Photoshop paints 0.498 of the stroke there and reads 0.0667,
+    against the 0.498 x 0.129 = 0.0643 that stroke over a black fill comes to.
+
+    ``_get_object()`` used to read the stroke's sub-compositor out with
+    ``finish()``, which divides the seed backdrop out -- correct for a result
+    handed on as a source in its own right, wrong here, where the seed is the
+    fill the stroke is being painted onto. That turned this pixel into the full
+    0.129, the stroke's own color at a pixel it half covers.
+
+    Partial coverage is the visible half of that defect and not the whole of
+    it: dividing the seed out discarded ``strokeStyleOpacity`` as well, so a
+    stroke at 50% or at 10% painted exactly as one at 100% did, on pixels it
+    covered completely.
+
+    A centred stroke, so this measures the exit and not the alignment #854
+    fixes. x = 5 is the band's outer column and stays wrong for a third reason:
+    a vector stroke has no coverage of its own, so the half of a centred band
+    that falls outside the layer cannot show at all.
+    """
+    psd = PSDImage.open(full_name("descriptors/stroke-color-descriptors-rgb.psd"))
+    layer = [x for x in psd.descendants() if x.name == "Rectangle 1"][0]
+    assert layer.stroke is not None
+    assert layer.stroke.line_width == 1.0
+    assert layer.stroke.line_alignment == "center", "not what #854 is about"
+
+    reference = PSDImage.open(
+        full_name("descriptors/stroke-color-descriptors-rgb.psd")
+    ).numpy()
+    color, _, _ = composite(psd, force=True)
+    pen = vector.draw_stroke(layer)[:, :, 0]
+
+    row = 11
+    assert pen[row, 5] == pytest.approx(0.498, abs=0.01)
+    assert pen[row, 6] == pytest.approx(0.498, abs=0.01)
+    assert reference[row, 6, 0] == pytest.approx(0.0667, abs=0.001), "Photoshop"
+    assert color[row, 6, 0] == pytest.approx(0.0643, abs=0.002)
+    assert abs(color[row, 6, 0] - reference[row, 6, 0]) < 1 / 255
+    # Far enough from the stroke's own color that the isolated exit cannot pass.
+    assert abs(color[row, 6, 0] - 0.129) > 0.05
 
 
 def test_a_vector_stroke_adds_no_coverage_outside_the_layer_box() -> None:

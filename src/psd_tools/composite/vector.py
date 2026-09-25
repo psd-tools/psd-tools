@@ -11,6 +11,7 @@ from psd_tools.composite._compat import require_aggdraw
 
 if TYPE_CHECKING:
     from psd_tools.api.layers import Layer
+    from psd_tools.psd.descriptor import Descriptor
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,30 @@ def draw_vector_mask(
     return _draw_path(layer, brush={"color": 255}, viewport=viewport)
 
 
+# The two positions that put the stroke to one side of the path. A stroke that
+# names neither -- the third position, something no version of Photoshop wrote,
+# or nothing at all -- is drawn centred, which is where every stroke was drawn
+# before #854 and the only position that is not biased in or out.
+_ALIGN_INSIDE = b"strokeStyleAlignInside"
+_ALIGN_OUTSIDE = b"strokeStyleAlignOutside"
+_SIDED = (_ALIGN_INSIDE, _ALIGN_OUTSIDE)
+# What separates a pixel the path really does clip from one the fill
+# rasterizer only rounded onto; see where it is used, in ``draw_stroke``.
+_ROUNDING = 1e-9
+
+
+def _line_alignment(desc: "Descriptor") -> bytes:
+    """Which side of the path the stroke sits on, ``b""`` if it states none.
+
+    Read off the descriptor rather than through
+    :py:attr:`psd_tools.api.shape.Stroke.line_alignment`, which raises on a
+    descriptor carrying no alignment at all. Rendering degrades instead: the
+    position is one field of a stroke that has plenty else to draw.
+    """
+    value = desc.get("strokeStyleLineAlignment")
+    return getattr(value, "enum", b"")
+
+
 @require_aggdraw
 def draw_stroke(
     layer: "Layer", viewport: tuple[int, int, int, int] | None = None
@@ -46,6 +71,22 @@ def draw_stroke(
     placed in document coordinates either way, so the stroke lands where the
     fill it outlines already is, and the part of it that falls off the canvas
     is real coverage rather than something to be clipped away (#807).
+
+    A stroke sits on the side of the path its ``strokeStyleLineAlignment``
+    names. A pen is only ever drawn centred on the line it follows, so an
+    inner or an outer stroke is drawn at twice the width and clipped to one
+    side -- the same workaround SVG and CSS use, neither being able to state
+    an alignment either (#854).
+
+    That doubling has a limit. The pen is one outline filled by the even-odd
+    rule, so where the shape is thinner than the doubled width the band
+    overlaps itself and cancels: an inner stroke of width ``w`` on a shape
+    ``t`` thick loses a strip ``2w - t`` wide down the middle, and covers
+    nothing at all once ``w`` reaches ``t``. Photoshop paints solid there.
+    Drawn centred the same cancellation began at ``w = t`` and left ``t - w``
+    uncovered, so this is the better of the two up to ``w = 2t/3`` and the
+    worse of them above it -- a stroke two thirds as wide as the shape it
+    outlines, which no fixture in the corpus comes near.
 
     Requires aggdraw, which draws the pen. Only a stroke does; a fill is
     rasterized by :py:mod:`psd_tools.composite.scanline`.
@@ -70,17 +111,35 @@ def draw_stroke(
     # linecap = linecap.enum if linecap else 'strokeStyleButtCap'
     # miterlimit = desc.get('strokeStyleMiterLimit', 100.0) / 100.
     # aggdraw >= 1.3.12 will support additional params.
-    return _draw_path(
-        layer,
-        pen={
-            "color": 255,
-            "width": width,
-            # 'linejoin': _JOIN.get(linejoin, 0),
-            # 'linecap': _CAP.get(linecap, 0),
-            # 'miterlimit': miterlimit,
-        },
-        viewport=viewport,
-    )
+    alignment = _line_alignment(desc)
+    pen: dict[str, int | float] = {
+        "color": 255,
+        "width": 2.0 * width if alignment in _SIDED else width,
+        # 'linejoin': _JOIN.get(linejoin, 0),
+        # 'linecap': _CAP.get(linecap, 0),
+        # 'miterlimit': miterlimit,
+    }
+    outline = _draw_path(layer, pen=pen, viewport=viewport)
+    if alignment not in _SIDED:
+        return outline
+
+    # Which side of the path a pixel is on, not how much of it the fill
+    # covers: the shape's antialiased edge is already in the layer alpha the
+    # stroke is composited onto, and multiplying by coverage here would count
+    # it a second time. A pixel the path only clips still counts as inside it,
+    # and as outside it too -- the band runs up to the boundary from either
+    # side, and that pixel is where the boundary is.
+    #
+    # Sided above the fill rasterizer's own rounding rather than above zero:
+    # it reports coverage of the order of 1e-15 on pixels whole pixels away
+    # from the path, and an exact comparison reads one of those as a pixel the
+    # path clips and hands it the full width of the pen. The tolerance sits in
+    # the gap that leaves: six orders of magnitude above the largest rounding
+    # measured over the corpus, and three below the smallest coverage in it
+    # that a path really does state, 9.5e-07.
+    fill = draw_vector_mask(layer, viewport)
+    inside = fill > _ROUNDING if alignment == _ALIGN_INSIDE else fill < 1.0 - _ROUNDING
+    return outline * inside
 
 
 def _draw_path(

@@ -12,7 +12,7 @@ from psd_tools.composite.paint import (
     draw_solid_color_fill,
 )
 from psd_tools.constants import Tag
-from psd_tools.psd.descriptor import Bool, Double
+from psd_tools.psd.descriptor import Bool, Double, Enumerated, UnitFloat
 from psd_tools.psd.vector import ClosedKnotLinked, ClosedPath
 from psd_tools.terminology import Enum, Key, Type
 
@@ -58,16 +58,16 @@ def test_draw_stroke(filename: str) -> None:
     check_composite_quality(filename, 0.01, force=True)
 
 
-# Was expected to fail at 0.01 and now measures 0.0066, because the fill it
-# is stroked over no longer carries aggdraw's quarter pixel of dilation
-# (#844). The bound is set above the measurement rather than at it: what is
-# left is the stroke, which is still drawn by aggdraw and still drawn centred
-# whatever alignment it asks for (#854), and neither is bit-stable across
-# versions.
+# Was expected to fail at 0.01, then measured 0.0066 once the fill it is
+# stroked over stopped carrying aggdraw's quarter pixel of dilation (#844),
+# and measures 0.00377 now that its eight inner strokes land inside their paths
+# (#854) and blend with the fill rather than replacing it (#883). The bound is
+# set above the measurement rather than at it: what is left is the stroke,
+# which is still drawn by an aggdraw pen and so not bit-stable across versions.
 @pytest.mark.parametrize(
     ("filename", "threshold"),
     [
-        ("effects/stroke-composite.psd", 0.012),
+        ("effects/stroke-composite.psd", 0.005),
     ],
 )
 def test_draw_stroke_over_a_fill(filename: str, threshold: float) -> None:
@@ -215,32 +215,273 @@ def test_draw_stroke_reaches_outside_the_canvas() -> None:
     """A stroke is rasterized in document coordinates, not clipped to the canvas.
 
     The stroke twin of :py:func:`test_draw_vector_mask_reaches_outside_the_canvas`.
-    ``path-operations/combine.psd`` holds three overlapping ellipses on a 64x64
-    canvas whose combined path runs the full 0..64 in both axes, so a 1 px
-    stroke centred on it hangs off all four edges. Asked for a wider box, the
-    rasterizer has to put those four strips back (#807).
+    ``effects/stroke-composite.psd`` holds a shape at (182, 7, 273, 78) on a
+    256x256 canvas, so its right-hand end is off the canvas and the inner
+    stroke along its top and bottom edges runs off with it. Asked for a wider
+    box, the rasterizer has to put that strip back (#807).
+    """
+    psd = PSDImage.open(full_name("effects/stroke-composite.psd"))
+    layer = [x for x in psd.descendants() if x.name == "Clip+Effects"][0]
+    assert layer.bbox == (182, 7, 273, 78), "the shape runs off the canvas"
+
+    on_canvas = vector.draw_stroke(layer)
+    assert on_canvas.shape == (256, 256, 1)
+
+    viewport = (-4, -4, 260, 260)
+    wide = vector.draw_stroke(layer, viewport)
+    assert wide.shape == (264, 264, 1)
+    # The 4 px stroke follows two horizontal edges off the right of the canvas,
+    # so what the canvas raster loses is two 4x4 blocks of full coverage.
+    margin = float(wide.sum() - wide[4:260, 4:260].sum())
+    assert margin == 32.0
+    assert float(wide[:, -4:].sum()) == 32.0, "the strip is the right-hand one"
+    for strip in (wide[:4], wide[-4:], wide[:, :4]):
+        assert float(strip.sum()) == 0.0, "the shape only leaves one edge"
+
+    # Placing the path elsewhere must not move it.
+    assert np.allclose(wide[4:260, 4:260], on_canvas, atol=1 / 255)
+
+
+def test_an_inner_stroke_covers_the_whole_width_inside_the_path() -> None:
+    """The band sits where the alignment puts it, and is as wide as it says (#854).
+
+    ``effects/stroke-composite.psd``'s ``Plain`` is a 100x100 path in a 102x102
+    box, carrying a 3 px inner stroke. Inner means the whole band lies inside the path, so it covers
+    the first three columns the fill covers. A pen centred on the path put 1.5
+    px in and 1.5 px out instead, covering two columns, one of them outside the
+    shape -- where a vector stroke cannot show at all, since it has no coverage
+    of its own.
+    """
+    psd = PSDImage.open(full_name("effects/stroke-composite.psd"))
+    # Two of the eight layers are named ``Plain``; this is the left-hand one.
+    layer = [x for x in psd.descendants() if x.name == "Plain"][0]
+    assert layer.stroke is not None and layer.bbox == (20, 19, 122, 121)
+    assert layer.stroke.line_width == 3.0
+    assert layer.stroke.line_alignment == "inner"
+
+    stroke = vector.draw_stroke(layer)[:, :, 0]
+    fill = vector.draw_vector_mask(layer)[:, :, 0]
+    # Midway down the shape, clear of the horizontal edges and their corners.
+    row = 70
+    assert list(fill[row, 20:27]) == [0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    assert list(stroke[row, 20:27]) == [0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0]
+    # Nothing outside the fill, and 3 px of it, on the left half of the row.
+    assert float((stroke[row] * (fill[row] == 0.0)).sum()) == 0.0
+    assert float(stroke[row, :61].sum()) == 3.0
+
+
+def test_a_fractional_stroke_width_matches_photoshops_own_band() -> None:
+    """A 1.47 px band covers 1.47 px, where Photoshop puts it (#854).
+
+    ``stroke.psd``'s ``Rectangle 1`` has no fill, so the channels Photoshop
+    stored for it are its own rasterization of the stroke band and nothing
+    else -- an oracle for the two things a band has, its width and its side.
+    Across the left edge it reads 1.0 then 0.4706, which is the 1.47 px the
+    descriptor asks for, laid inside the path; this draws 1.0 then 0.4667,
+    within a quantization step of it.
+
+    Only across that edge. The stroke is dashed (``strokeStyleLineDashSet`` of
+    4 on, 2 off), which the pen does not draw, so Photoshop's horizontal runs
+    are broken where this one is solid -- 188 of the layer's pixels differ by
+    more than a quantization step, and the band sums to 317.4 against
+    Photoshop's 212.6, a ratio of 0.670 against the 4/6 the dashes cut it to.
+    Row 20 falls inside a dash, and the left edge is where the comparison is
+    about the band rather than about the gaps in it.
+    """
+    psd = PSDImage.open(full_name("stroke.psd"))
+    layer = [x for x in psd.descendants() if x.name == "Rectangle 1"][0]
+    assert layer.stroke is not None
+    assert layer.stroke.line_width == 1.47
+    assert layer.stroke.line_alignment == "inner"
+
+    stored = layer.numpy("shape")
+    assert stored is not None
+    stored = stored[:, :, 0]
+    stroke = vector.draw_stroke(layer, layer.bbox)[:, :, 0]
+    fill = vector.draw_vector_mask(layer, layer.bbox)[:, :, 0]
+    row = 20
+    assert list(fill[row, 0:4]) == [0.0, 1.0, 1.0, 1.0], "the path's left edge"
+    assert stroke[row, 1] == 1.0
+    assert stroke[row, 2] == pytest.approx(0.467, abs=0.01)
+    assert float(stroke[row, :37].sum()) == pytest.approx(1.47, abs=0.01)
+    # Photoshop's own numbers for those two pixels, and its own empty third.
+    assert np.allclose(stroke[row, 1:4], stored[row, 1:4], atol=1 / 255)
+    assert stored[row, 3] == 0.0 and stroke[row, 3] == 0.0
+
+
+def test_a_centred_stroke_is_still_the_plain_pen() -> None:
+    """The position #854 did not change, pinned so that it cannot drift.
+
+    Every stroke used to be drawn as a pen centred on the path, and a centred
+    one still is -- the same call, at the width the descriptor states, with no
+    clip over it.
+    """
+    psd = PSDImage.open(full_name("descriptors/stroke-color-descriptors-rgb.psd"))
+    layer = [x for x in psd.descendants() if x.name == "Rectangle 1"][0]
+    assert layer.stroke is not None and layer.stroke.line_alignment == "center"
+
+    plain = vector._draw_path(layer, pen={"color": 255, "width": 1.0})
+    assert np.array_equal(vector.draw_stroke(layer), plain)
+
+
+def test_a_stroke_whose_alignment_is_unreadable_is_drawn_centred() -> None:
+    """An unstated or unrecognised position degrades, it does not raise (#854).
+
+    :py:attr:`psd_tools.api.shape.Stroke.line_alignment` raises on a
+    descriptor that carries no alignment at all, and answers a ``repr`` for an
+    enum it does not know. Neither is any way for a renderer to end -- the
+    position is one field of a stroke with the rest of itself to draw -- so
+    both are drawn centred, which is where every stroke was drawn before #854
+    and the only one of the three positions not biased in or out.
+
+    Photoshop writes one of the three, so this is forged onto a fixture that
+    states ``inner``.
+    """
+    psd = PSDImage.open(full_name("effects/stroke-composite.psd"))
+    layer = [x for x in psd.descendants() if x.name == "Plain"][0]
+    assert layer.stroke is not None and layer.stroke.line_alignment == "inner"
+    desc = layer.stroke._data
+    centred = vector._draw_path(layer, pen={"color": 255, "width": 3.0})
+    assert not np.array_equal(vector.draw_stroke(layer), centred), "inner, for now"
+
+    del desc[b"strokeStyleLineAlignment"]
+    with pytest.raises(AttributeError):
+        layer.stroke.line_alignment
+    assert np.array_equal(vector.draw_stroke(layer), centred), "no alignment"
+
+    desc[b"strokeStyleLineAlignment"] = Enumerated(
+        b"strokeStyleLineAlignment", b"strokeStyleAlignNonesuch"
+    )
+    assert layer.stroke.line_alignment == "b'strokeStyleAlignNonesuch'"
+    assert np.array_equal(vector.draw_stroke(layer), centred), "unknown alignment"
+
+
+def test_an_outer_stroke_lies_outside_the_path() -> None:
+    """The other side of the same clip (#854).
+
+    The corpus has exactly one outer-aligned vector stroke, on a layer whose
+    own test is an ``xfail``, so the branch is forged here instead: an outer
+    band lies wholly outside the path, and reaches the width it states.
+
+    A layer's coverage stops at its own box, and ``_get_object()`` keeps only
+    the stroke's colour, so most of an outer band cannot show in a render.
+    That is the rasterizer's answer, not the render's.
+    """
+    psd = PSDImage.open(full_name("effects/stroke-composite.psd"))
+    layer = [x for x in psd.descendants() if x.name == "Plain"][0]
+    assert layer.stroke is not None and layer.bbox == (20, 19, 122, 121)
+    layer.stroke._data[b"strokeStyleLineAlignment"] = Enumerated(
+        b"strokeStyleLineAlignment", b"strokeStyleAlignOutside"
+    )
+    assert layer.stroke.line_alignment == "outer"
+    assert layer.stroke.line_width == 3.0
+
+    viewport = (10, 10, 132, 131)
+    stroke = vector.draw_stroke(layer, viewport)[:, :, 0]
+    fill = vector.draw_vector_mask(layer, viewport)[:, :, 0]
+    assert float((stroke * (fill > 1e-9)).sum()) == 0.0, "nothing inside the path"
+    # Midway down the shape, the three columns outside the fill's left edge,
+    # which on this viewport starts at column 11.
+    row = 60
+    assert list(fill[row, 7:12]) == [0.0, 0.0, 0.0, 0.0, 1.0]
+    assert list(stroke[row, 7:12]) == [0.0, 1.0, 1.0, 1.0, 0.0]
+
+
+def test_a_centred_stroke_survives_negative_document_coordinates() -> None:
+    """#807's guarantee for a stroke that really does leave the canvas.
+
+    ``path-operations/combine.psd``'s combined path runs the full 0..64 of its
+    canvas, so a stroke *centred* on it hangs off all four edges -- the case
+    this used to be measured on, before its own stroke turned out to be inner
+    and to stop at the path (:py:func:`test_an_inner_stroke_stops_where_the_path_does`).
+    Forging the alignment back keeps the negative-coordinate half of #807
+    pinned: the pen translates the path by minus the viewport origin, which is
+    machinery of its own, and a band that never leaves the canvas cannot
+    exercise it.
     """
     psd = PSDImage.open(full_name("path-operations/combine.psd"))
     layer = psd[0]
+    assert layer.stroke is not None
+    layer.stroke._data[b"strokeStyleLineAlignment"] = Enumerated(
+        b"strokeStyleLineAlignment", b"strokeStyleAlignCenter"
+    )
+    assert layer.stroke.line_alignment == "center"
 
     on_canvas = vector.draw_stroke(layer)
-    assert on_canvas.shape == (64, 64, 1)
-
-    viewport = (-4, -4, 68, 68)
-    wide = vector.draw_stroke(layer, viewport)
-    assert wide.shape == (72, 72, 1)
-    # Row 3 is y = -1, one row above the canvas, where the tops of the two
-    # upper ellipses are; the canvas raster has nowhere to hold them.
+    wide = vector.draw_stroke(layer, (-4, -4, 68, 68))
+    # Row 3 is y = -1, above the canvas, where the tops of the two upper
+    # ellipses are; the canvas raster has nowhere to hold them.
     assert wide[3, 28, 0] == pytest.approx(0.463, abs=0.02)
     assert wide[3, 44, 0] == pytest.approx(0.463, abs=0.02)
-    # What the canvas raster loses is the whole margin, not one strip of it.
-    margin = float(wide.sum() - wide[4:68, 4:68].sum())
-    assert margin == pytest.approx(14.2, rel=0.1)
-
-    # Placing the path elsewhere must not move it. aggdraw is not exactly
-    # translation-invariant, so the overlap agrees to a quantization step
-    # rather than bitwise -- eight of the 4096 pixels are 1/255 apart.
+    assert float(wide.sum() - wide[4:68, 4:68].sum()) == pytest.approx(14.2, rel=0.1)
+    # aggdraw is not exactly translation-invariant, so the overlap agrees to a
+    # quantization step rather than bitwise.
     assert np.allclose(wide[4:68, 4:68], on_canvas, atol=1 / 255)
+
+
+def test_an_inner_stroke_wider_than_the_shape_cancels_itself() -> None:
+    """The limit of drawing a sided band with a pen of twice the width (#854).
+
+    The pen is one outline filled by the even-odd rule, so where the shape is
+    thinner than the doubled width the band overlaps itself and cancels. On a
+    100x100 path an inner stroke of width ``w`` leaves a square hole of side
+    ``2w - 100`` once ``w`` passes 50, where Photoshop paints solid.
+
+    Drawn centred, the same cancellation started at ``w = 100`` and left a
+    hole of side ``100 - w``, so the two cross at ``w = 66.7``: this is the
+    better of them below that and the worse above. Both are wrong, and the
+    widest stroke in the corpus is 10 px on a far larger shape. Pinned so the
+    limit is a decision rather than a surprise.
+    """
+    psd = PSDImage.open(full_name("effects/stroke-composite.psd"))
+    layer = [x for x in psd.descendants() if x.name == "Plain"][0]
+    assert layer.stroke is not None and layer.stroke.line_alignment == "inner"
+    desc = layer.stroke._data
+    unit = desc[b"strokeStyleLineWidth"].unit
+    viewport = (12, 11, 130, 129)
+    fill = vector.draw_vector_mask(layer, viewport)[:, :, 0]
+    assert float(fill.sum()) == 10000.0, "a 100x100 path"
+    solid = fill > 0.5
+
+    def hole(width: float) -> int:
+        desc[b"strokeStyleLineWidth"] = UnitFloat(value=width, unit=unit)
+        band = vector.draw_stroke(layer, viewport)[:, :, 0]
+        return int((solid & (band < 0.5)).sum())
+
+    # Half the thickness is the widest band the doubled pen draws whole.
+    assert hole(50.0) == 0
+    assert hole(60.0) == 20 * 20
+    assert hole(90.0) == 80 * 80
+    # And the centred pen it replaces was worse over all of that range.
+    for width in (50.0, 60.0):
+        desc[b"strokeStyleLineWidth"] = UnitFloat(value=width, unit=unit)
+        centred = vector._draw_path(
+            layer, pen={"color": 255, "width": width}, viewport=viewport
+        )[:, :, 0]
+        assert int((solid & (centred < 0.5)).sum()) > hole(width)
+
+
+def test_an_inner_stroke_stops_where_the_path_does() -> None:
+    """An inner stroke has nothing outside the path, canvas edge or not.
+
+    ``path-operations/combine.psd``'s three ellipses combine into a path that
+    runs the full 0..64 of its canvas, so the 1 px stroke *centred* on it hung
+    off all four edges, and used to be what
+    :py:func:`test_draw_stroke_reaches_outside_the_canvas` measured. The
+    stroke is inner-aligned (#854), so now it stops where the path stops and
+    the margin is empty -- while the rasterizer still honours the wider box,
+    which is what the overlap below says.
+    """
+    psd = PSDImage.open(full_name("path-operations/combine.psd"))
+    layer = psd[0]
+    assert layer.stroke is not None and layer.stroke.line_alignment == "inner"
+
+    on_canvas = vector.draw_stroke(layer)
+    wide = vector.draw_stroke(layer, (-4, -4, 68, 68))
+    assert float(wide.sum() - wide[4:68, 4:68].sum()) == 0.0
+    assert np.allclose(wide[4:68, 4:68], on_canvas, atol=1 / 255)
+    # Not empty for want of a stroke: the band is inside the path instead.
+    assert float(on_canvas.sum()) > 700.0
 
 
 def test_stroke_follows_a_shifted_viewport() -> None:
