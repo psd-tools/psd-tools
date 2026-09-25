@@ -36,6 +36,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # For closing the release milestone below. Milestones are part of the
+      # issues API.
+      issues: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -65,4 +68,42 @@ jobs:
                 exit 1
               fi
             fi
+          fi
+
+      # Runs after the tag push, so a failure here cannot stop the release.
+      # The default GITHUB_TOKEN is deliberate: unlike the tag push, closing a
+      # milestone is not meant to trigger any downstream workflow, which is the
+      # only reason RELEASE_WORKFLOW_TOKEN exists.
+      - name: Close the release milestone
+        continue-on-error: true
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Milestones are titled bare -- 1.20.0, not v1.20.0.
+          TITLE="${VERSION#v}"
+          # Check the lookup's own status: the default shell has no pipefail, so
+          # piping this into head would let a failed call read as an empty
+          # result, i.e. as "no such milestone".
+          if ! NUMS=$(gh api --paginate "repos/$GITHUB_REPOSITORY/milestones?state=open&per_page=100" \
+                        --jq ".[] | select(.title == \"$TITLE\") | .number"); then
+            echo "::warning title=Release milestone not closed::Could not list milestones; close $TITLE by hand."
+            exit 1
+          fi
+          # Take the first line in the shell rather than through head, which
+          # would SIGPIPE gh mid-pagination. Nothing stops two open milestones
+          # sharing a title, and --jq runs per page, so a two-line value is
+          # possible and would build a 404 URL that closes neither.
+          NUM=${NUMS%%$'\n'*}
+          if [ -z "$NUM" ]; then
+            # A release cut outside the milestone scheme is not an error.
+            echo "No open milestone titled $TITLE; nothing to close."
+          elif gh api "repos/$GITHUB_REPOSITORY/milestones/$NUM" -X PATCH -f state=closed; then
+            echo "Closed milestone $TITLE."
+          else
+            # continue-on-error keeps the run green, so say it somewhere the run
+            # page shows -- an unclosed milestone that nobody notices is the bug
+            # this step exists to fix.
+            echo "::warning title=Release milestone not closed::Could not close milestone $TITLE; close it by hand."
+            exit 1
           fi

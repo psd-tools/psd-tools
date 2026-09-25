@@ -196,7 +196,7 @@ what `[refactor]` is for.
 
 1. **Finalize the changelog**: Most entries should already be in `docs/changelog.rst` under an `X.Y.Z (unreleased)` heading, added by the PRs that made the changes (see [Changelog](#changelog)). Replace `(unreleased)` with the release date, correcting the version if it differs from the one decided above. Then review `git log` since the last tag to catch any user-visible change whose PR forgot an entry, and summarize the dependency bumps as a single `[chore]` line.
 
-1. **Create a release PR**: Commit the changelog update (and any version bumps) on a branch named exactly `release/vX.Y.Z` and open a PR against `main`. Merge it once approved. The branch name is how the auto-tag workflow identifies the version.
+1. **Create a release PR**: Commit the changelog update (and any version bumps) on a branch named exactly `release/vX.Y.Z` and open a PR against `main`. Merge it once approved. The branch name is how the auto-tag workflow identifies the version. Release scope is also tracked in a milestone, which the `/release` skill reconciles against the changelog before the PR is opened and `auto-tag` closes after the merge; the rules are in `.claude/skills/release/SKILL.md`.
 
 1. **Tag and publish**: After the release PR is merged, the `auto-tag` workflow (`.github/workflows/auto-tag.yml`) fires on the `pull_request: closed` event. It extracts the version from the branch name (`release/vX.Y.Z`) and tags `merge_commit_sha` — the exact commit that landed on `main` — so the tag is correct regardless of merge strategy (merge commit, squash, rebase). The tag push then triggers the `release` workflow to build wheels, create a GitHub release, and publish to PyPI. No manual tagging is needed.
 
