@@ -78,6 +78,10 @@ explanation repeated at three layers.
 Trimming is a separate commit from the release commit, and touches comments and
 docstrings only. If any line of code moves, stop and treat it as a code change.
 
+It is still a commit, so it needs the release branch to exist: create it as Step 4
+describes, rather than landing this on `main`. It is the same branch, created once —
+Step 4 does not create a second one.
+
 ## Step 1c — Reconcile the release milestone
 
 Release scope is also tracked in a milestone, titled bare without the `v` prefix
@@ -159,9 +163,32 @@ following blank line, leaving a blank line between the header and the new entry.
 
 ## Step 4 — Create release branch and commit
 
+The branch name is the only thing `auto-tag` reads the version from, and it matches
+`^release/(vX.Y.Z...)$` anchored at both ends, so the name has to be exactly
+`release/vVERSION`. A prefixed variant is not a cosmetic difference: the extract step
+yields an empty version, the `tag` job is skipped on `version != ''`, and the run
+still reports success — so nothing is tagged and nothing says so.
+
+Create it once, by whichever of these two routes applies — Step 1b's trimming commit
+needs the same branch, so it may already exist.
+
+If the project's instructions ask for a worktree, create the worktree and rename its
+branch from inside it. `EnterWorktree` names the branch after the worktree rather than
+the name it was given, prefixing `worktree-` and replacing slashes: asking for
+`release/v1.20.0` produced `worktree-release+v1.20.0`.
+
+```bash
+git branch -m release/vVERSION
+```
+
+Otherwise create the branch directly:
+
 ```bash
 git checkout -b release/vVERSION
 ```
+
+Either way, confirm it before going on — `git branch --show-current` has to print
+`release/vVERSION` exactly.
 
 Then update `src/psd_tools/version.py` using the Edit tool — replace the existing
 `__version__` line with:
