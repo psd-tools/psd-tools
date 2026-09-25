@@ -7,9 +7,9 @@ Changelog
 - [fix] Stroke and overlay effects are composited into the layer they belong
   to instead of onto the finished composite, so a layer whose coverage is
   partial no longer renders its effect with the backdrop mixed through it.
-  Layer opacity now fades a layer's effects along with the layer, and fill
-  opacity still fades neither; a layer with hard edges, full opacity and no
-  fill opacity renders as before (#846)
+  Layer opacity now fades a layer's effects along with the layer; fill
+  opacity still fades the layer's own paint alone. A layer with hard edges,
+  full opacity and no fill opacity renders as before (#846)
 
 1.20.0 (2026-09-25)
 -------------------
