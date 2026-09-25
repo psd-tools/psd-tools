@@ -1,3 +1,4 @@
+import dataclasses
 import io
 import logging
 import sys
@@ -14,9 +15,11 @@ from psd_tools.api.layers import (
     Layer,
     PixelLayer,
 )
+from psd_tools.api.mask import Mask
 from psd_tools.api.numpy_io import _image_data_peak_bytes
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite
+from psd_tools.composite import paint
 from psd_tools.composite import utils
 from psd_tools.composite.composite import (
     Compositor,
@@ -25,12 +28,20 @@ from psd_tools.composite.composite import (
     _stroke_reach,
 )
 from psd_tools.composite.effects import stroke_bbox
-from psd_tools.constants import BlendMode, ColorMode, CompatibilityMode, Tag
+from psd_tools.constants import (
+    BlendMode,
+    ColorMode,
+    CompatibilityMode,
+    Knockout,
+    Tag,
+)
 from psd_tools.psd.base import ByteElement
+from psd_tools.psd.descriptor import UnitFloat
 from psd_tools.terminology import Key
 from PIL import Image
 
 from ..utils import full_name
+from . import opaque_effect_canvas
 
 # ``psd_tools.composite.__init__`` re-exports the ``composite`` function under
 # the same name as the submodule it lives in, so ``psd_tools.composite.composite``
@@ -1275,14 +1286,15 @@ def test_composite_pattern_overlay_targets_the_canvas_width() -> None:
     """
     psd = PSDImage.open(full_name("patterns.psd"))
     layer = _pattern_overlay_layer(psd)
-    shape = np.ones((psd.height, psd.width, 1), dtype=np.float32)
     compositor = Compositor(
         psd.viewbox,
         np.ones((psd.height, psd.width, 3), dtype=np.float32),
         np.zeros((psd.height, psd.width, 1), dtype=np.float32),
     )
     assert compositor.channels == 3
-    compositor._apply_overlay(layer, "patternoverlay", shape, shape)
+    canvas = opaque_effect_canvas(compositor)
+    compositor._add_overlay(layer, "patternoverlay", canvas)
+    compositor._composite_source(canvas.source(), BlendMode.NORMAL)
     assert compositor.finish()[0].shape == (psd.height, psd.width, 3)
 
 
@@ -1332,14 +1344,14 @@ def test_composite_pattern_overlay_rejects_a_width_it_cannot_reach(
     """
     psd = PSDImage.open(full_name("patterns.psd"))
     layer = _pattern_overlay_layer(psd)
-    shape = np.ones((psd.height, psd.width, 1), dtype=np.float32)
     compositor = Compositor(
         psd.viewbox,
         np.ones((psd.height, psd.width, channels), dtype=np.float32),
         np.zeros((psd.height, psd.width, 1), dtype=np.float32),
     )
+    canvas = opaque_effect_canvas(compositor)
     with pytest.raises(AssertionError, match="Inconsistent pattern channels"):
-        compositor._apply_overlay(layer, "patternoverlay", shape, shape)
+        compositor._add_overlay(layer, "patternoverlay", canvas)
 
 
 def _descendants(group: Any) -> Any:
@@ -1725,11 +1737,279 @@ def test_resolve_source_folds_the_mask_and_opacity_into_the_operands() -> None:
     assert source.fill_opacity == 1.0
 
 
+def _partial_source(compositor: Compositor, coverage: float, fill: float) -> Any:
+    """A half-transparent layer, as the operands an effect composites into."""
+    covered = np.full((compositor.height, compositor.width, 1), coverage, np.float32)
+    return composite_module._Source(
+        color=np.zeros((compositor.height, compositor.width, 1), dtype=np.float32),
+        shape=covered,
+        alpha=covered.copy(),
+        mask=1.0,
+        shape_mask=1.0,
+        fill_opacity=fill,
+        opacity=1.0,
+        knockout=Knockout.NONE,
+        adjustment_isolated=None,
+        knockout_shape=covered,
+    )
+
+
+def test_an_effect_canvas_that_nothing_painted_on_hands_its_source_back() -> None:
+    """The source a layer with no drawable effect composites is its own.
+
+    Not merely an equal one: resolving the canvas divides the layer's alpha by
+    its coverage and multiplies it back, which is a round trip through
+    floating point that the overwhelming majority of layers should not be
+    taking at all. A pattern effect whose data will not decode declines after
+    the canvas exists, and has to leave it untouched too.
+    """
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    compositor = _canvas(psd)
+    source = compositor._resolve_source(psd[0])
+    canvas = composite_module._EffectCanvas(compositor, source)
+    assert canvas.source() is source
+
+    empty = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
+    canvas.over(empty, source.color, BlendMode.NORMAL, 1.0)
+    assert canvas.source() is source
+
+
+def test_fill_opacity_fades_the_layer_and_not_the_effect_over_it() -> None:
+    """What ``fill_opacity`` is for, once the effect is inside the layer.
+
+    Fading the layer's own paint while leaving its style at full strength is
+    the whole point of the setting, and the compositor used to get it by
+    applying the effect to the backdrop afterwards, where fill opacity had
+    never reached. Composited into the layer it is in reach, so the canvas
+    folds fill opacity into the layer's paint alone and hands back a source
+    that carries 1.0 (#846).
+
+    The hole a knockout punches is the exception that needs the coverage
+    before either: fill opacity 0 under a knockout is a hole, not a no-op.
+    """
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    compositor = _canvas(psd)
+    source = _partial_source(compositor, coverage=0.5, fill=0.0)
+    canvas = composite_module._EffectCanvas(compositor, source)
+
+    red = np.zeros((psd.height, psd.width, 3), dtype=np.float32)
+    red[..., 0] = 1.0
+    canvas.over(np.ones_like(source.shape), red, BlendMode.NORMAL, 1.0)
+    composed = canvas.source()
+
+    assert composed.fill_opacity == 1.0
+    # The layer is invisible and the effect is not, so what covers the half
+    # the layer covers is the effect alone.
+    assert np.allclose(composed.alpha, 0.5)
+    assert np.allclose(composed.color, red)
+
+    # Half-covered by the effect this time, which is what separates the two
+    # coverages: what the source contributes is faded to a quarter of the
+    # pixel, and the hole a knockout punches is still the layer's own half.
+    canvas = composite_module._EffectCanvas(compositor, source)
+    canvas.over(np.full_like(source.shape, 0.5), red, BlendMode.NORMAL, 1.0)
+    composed = canvas.source()
+    assert np.allclose(composed.shape, 0.25)
+    assert np.allclose(composed.knockout_shape, 0.5)
+
+
+def test_layer_opacity_fades_the_layer_and_its_effect_once_between_them() -> None:
+    """An overlay cannot make a half-opaque layer more opaque than it is.
+
+    The layer opacity fades a layer and its style alike, so it applies once,
+    to the two together. Applying the effect as a separate source instead
+    united the two -- the same 0.5 twice -- and lifted the layer to 0.75,
+    which is neither its opacity nor anything Photoshop renders.
+    """
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    compositor = _canvas(psd)
+    source = _partial_source(compositor, coverage=1.0, fill=1.0)
+    source = dataclasses.replace(source, opacity=0.5, alpha=source.alpha * 0.5)
+    canvas = composite_module._EffectCanvas(compositor, source)
+
+    red = np.zeros((psd.height, psd.width, 3), dtype=np.float32)
+    red[..., 0] = 1.0
+    canvas.over(np.ones_like(source.shape), red, BlendMode.NORMAL, 1.0)
+    composed = canvas.source()
+    assert np.allclose(composed.alpha, 0.5)
+    assert np.allclose(composed.color, red)
+
+
+def _feathered_stroke_layer(name: str = "Outset 6") -> tuple[PSDImage, Any]:
+    """``feathered-stroke.psd`` and one of its squares, for forging onto.
+
+    Nothing in the fixture corpus pairs an effect that draws with a knockout,
+    a non-normal layer blend mode, a layer opacity below 255 or a pass-through
+    group, so the combinations below are made rather than found. This square
+    is the one whose outset stroke covers its whole ramp, which is what makes
+    where the stroke went readable off a single pixel.
+    """
+    psd = PSDImage.open(full_name("effects/feathered-stroke.psd"))
+    return psd, next(sub for sub in psd if sub.name == name)
+
+
+def test_an_outer_effect_keeps_its_own_blend_mode_over_the_backdrop() -> None:
+    """A stroke is not blended with the mode of the layer it outlines.
+
+    An outer band lands on the backdrop rather than on the layer, so what
+    blends it is its own mode; the layer's belongs to the layer's pixels.
+    Merging the two into one source to fix #846 handed the band the layer's
+    mode as well, and a Normal stroke on a Multiply layer came out multiplied
+    against the backdrop it sits beside -- 0.863 to 0.000 in red.
+    """
+    psd, layer = _feathered_stroke_layer()
+    layer.blend_mode = BlendMode.MULTIPLY
+
+    backdrop = np.zeros((psd.height, psd.width, 3), dtype=np.float32)
+    backdrop[..., 1] = 0.5
+    compositor = Compositor(
+        psd.viewbox, backdrop, np.ones((psd.height, psd.width, 1), dtype=np.float32)
+    )
+    compositor.apply(layer)
+    result = compositor.finish()[0]
+
+    # Four pixels clear of the square, where only the stroke paints.
+    y, x = (layer.bbox[1] + layer.bbox[3]) // 2, layer.bbox[0] - 4
+    stroke = next(iter(layer.effects.find("stroke")))
+    color, _ = paint.draw_solid_color_fill(
+        (0, 0, 1, 1), psd.color_mode, stroke.descriptor
+    )
+    assert color is not None
+    assert np.allclose(result[y, x], color[0, 0], atol=1 / 255.0)
+    assert not np.allclose(result[y, x], color[0, 0] * backdrop[y, x], atol=1 / 255.0)
+
+
+def test_layer_opacity_fades_the_stroke_outside_the_layer_too() -> None:
+    """A half-opaque layer's style is half-opaque, outside the layer as well.
+
+    The inner effects get that from being composited inside the source the
+    layer opacity scales. An outer band is not in that source -- it goes on
+    before the layer, with its own blend mode -- so it carries the factor
+    itself, and where the layer covers nothing there is no later step that
+    would apply it (#884 review).
+    """
+    psd, layer = _feathered_stroke_layer()
+    layer.opacity = 128
+
+    # The layer alone, over nothing: the fixture's own Background is opaque
+    # and would answer 1.0 at every pixel whatever the stroke did.
+    compositor = Compositor(
+        psd.viewbox,
+        np.ones((psd.height, psd.width, 3), dtype=np.float32),
+        np.zeros((psd.height, psd.width, 1), dtype=np.float32),
+    )
+    compositor.apply(layer)
+    alpha = compositor.finish()[2]
+
+    # Four pixels clear of the square, where the band is opaque and the layer
+    # covers nothing, so what is left is the band's own alpha.
+    y, x = (layer.bbox[1] + layer.bbox[3]) // 2, layer.bbox[0] - 4
+    assert float(alpha[y, x, 0]) == pytest.approx(128 / 255.0, abs=1 / 255.0)
+
+
+def test_fill_opacity_leaves_room_beside_a_layer_it_has_faded() -> None:
+    """An outset-only stroke never starts the canvas that folds fill opacity in.
+
+    The band goes on scaled by what the layer will leave of the pixel, and
+    what the layer will leave is its alpha *after* fill opacity. The two agree
+    once an effect canvas has folded that in -- but a stroke wholly outside
+    the layer puts nothing inside it, so the canvas is never started and hands
+    its source back with fill opacity still on it. Scaled by the unfaded
+    coverage, the band on this layer's ramp came out at 1.0 across the whole
+    of it instead of at ``1 - coverage`` (#884 review).
+    """
+    psd, layer = _feathered_stroke_layer()
+    layer.tagged_blocks.set_data(Tag.BLEND_FILL_OPACITY, ByteElement(0))
+
+    compositor = Compositor(
+        psd.viewbox,
+        np.ones((psd.height, psd.width, 3), dtype=np.float32),
+        np.zeros((psd.height, psd.width, 1), dtype=np.float32),
+    )
+    compositor.apply(layer)
+    alpha = compositor.finish()[2]
+
+    # The layer's fill is invisible, so the ramp carries the band and nothing
+    # else, and an outset band on a ramp is the ramp's complement.
+    y, x0 = (layer.bbox[1] + layer.bbox[3]) // 2, layer.bbox[0]
+    mask_bbox = cast(Mask, layer.mask).bbox
+    mask = layer.numpy("mask")
+    assert mask is not None
+    start = x0 - mask_bbox[0]
+    coverage = mask[y - mask_bbox[1], start : start + 6, 0]
+    assert np.all(np.diff(coverage) > 0), coverage
+    assert np.allclose(alpha[y, x0 : x0 + 6, 0], 1.0 - coverage, atol=1 / 255.0)
+
+
+def test_a_knockout_punches_with_the_layer_and_not_with_its_stroke() -> None:
+    """The hole is the layer's own coverage; an effect renders over it.
+
+    Fill opacity 0 under a knockout is the whole point of the setting -- the
+    layer's paint goes and the hole stays -- so the coverage that punches it
+    is the layer's, before either fill opacity or an effect. Carrying the
+    stroke's band in it instead let a half-opaque band erase the backdrop
+    under itself, over ground the layer does not touch: an opaque Background
+    at alpha 1.0 came out at 0.5.
+    """
+    psd, layer = _feathered_stroke_layer()
+    layer.tagged_blocks.set_data(Tag.KNOCKOUT_SETTING, ByteElement(1))
+    layer.tagged_blocks.set_data(Tag.BLEND_FILL_OPACITY, ByteElement(0))
+    stroke = next(iter(layer.effects.find("stroke")))
+    opacity = stroke.descriptor[Key.Opacity]
+    stroke.descriptor[Key.Opacity] = UnitFloat(unit=opacity.unit, value=50.0)
+
+    _, _, alpha = composite(psd)
+    # A row through the square, out where the band paints and the layer does
+    # not: the opaque Background under it is not the layer's to knock out.
+    y = (layer.bbox[1] + layer.bbox[3]) // 2
+    assert np.allclose(alpha[y, : layer.bbox[0] - 4], 1.0)
+
+
+def test_an_outer_effect_adds_its_coverage_beside_the_layer() -> None:
+    """The half of #846 that the ``over`` operator cannot express.
+
+    A band drawn outside the layer's boundary is disjoint from the layer, not
+    independent of it: the two divide the pixel between them rather than each
+    hiding a random share of the other. Composited over one another, a layer
+    at 0.5 and a band at 0.5 leave a quarter of the pixel to the backdrop and
+    the colour at a 2:1 mix; added, they fill it and the mix is even, which is
+    what Photoshop renders.
+
+    The band goes on first, scaled by what the layer will leave of the pixel,
+    so that the ``union`` the layer then composites with resolves to the sum.
+    Where the layer is opaque there is no room beside it and the scale is a
+    0/0 that has to come out 0 rather than large.
+    """
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    compositor = _canvas(psd)
+    source = _partial_source(compositor, coverage=0.5, fill=1.0)
+    white = np.ones((psd.height, psd.width, 3), dtype=np.float32)
+    band = composite_module._OuterEffect(
+        white, np.full_like(source.shape, 0.5), 1.0, BlendMode.NORMAL
+    )
+
+    compositor._apply_outer_effects([band], source.alpha)
+    compositor._composite_source(source, BlendMode.NORMAL)
+    color, shape, alpha = compositor.finish()
+    assert np.allclose(alpha, 1.0)
+    assert np.allclose(color, 0.5)
+
+    # The layer opaque: nothing is left beside it, and the band is dropped
+    # rather than divided by zero.
+    compositor = _canvas(psd)
+    opaque = _partial_source(compositor, coverage=1.0, fill=1.0)
+    compositor._apply_outer_effects([band], opaque.alpha)
+    compositor._composite_source(opaque, BlendMode.NORMAL)
+    color, shape, alpha = compositor.finish()
+    assert np.allclose(alpha, 1.0)
+    assert np.allclose(color, 0.0)
+
+
 def test_composite_stroke_effect_over_a_layer_without_a_mask() -> None:
     """A stroke effect must not require the layer to have a mask (#711).
 
     ``_get_mask()`` returns a bare 1.0 for a layer with no mask, and
-    ``_apply_stroke_effect`` handed that straight to ``paste()``, which needs a
+    ``_add_stroke_effects`` handed that straight to ``paste()``, which needs a
     canvas -- ``AttributeError: 'float' object has no attribute 'shape'``. The
     combination is reachable for a fill layer with no vector mask, and 26 calls
     in the fixture corpus already pass the scalar; they escape only because
@@ -1758,8 +2038,13 @@ def test_composite_stroke_effect_over_a_layer_without_a_mask() -> None:
     backdrop = np.ones((height, width, 3), dtype=np.float32)
     alpha = np.zeros((height, width, 1), dtype=np.float32)
     compositor = Compositor(viewport, backdrop, alpha)
+    canvas = opaque_effect_canvas(compositor)
+    outer: Any = []
     # 1.0 is exactly what _get_mask() yields for an unmasked layer.
-    compositor._apply_stroke_effect(layer, 1.0, np.ones_like(alpha), True)
+    compositor._add_stroke_effects(layer, 1.0, canvas, outer, True)
+    source = canvas.source()
+    compositor._apply_outer_effects(outer, source.alpha)
+    compositor._composite_source(source, BlendMode.NORMAL)
     assert compositor.finish()[0].shape == (height, width, 3)
 
 

@@ -2,14 +2,16 @@ import logging
 import math
 import warnings
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable, cast
 
 import numpy as np
 import pytest
 from PIL import Image
 
+from psd_tools.api.mask import Mask
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.composite import _compat, composite, effects
+from psd_tools.composite import _compat, composite, effects, paint
+from psd_tools.composite.composite import _stroke_reach
 from psd_tools.composite.effects import (
     _BANDS,
     _grow,
@@ -29,14 +31,24 @@ logger = logging.getLogger(__name__)
 
 @pytest.mark.xfail
 def test_stroke_effects_xfail() -> None:
-    """The largest stroke xfail, and the one #846 now accounts for.
+    """The largest stroke xfail, and what is left in it.
 
     ``stroke-effects.psd``'s stroke-bearing layers are 20-24 px shapes with
     90-92% of their covered pixels at partial alpha, and the ramps are stored
     in the file rather than produced here -- so it is a fixture about soft
     alpha before it is one about strokes. Reading the boundary off coverage
-    moved it from 0.120 to 0.093 (#799); what is left of it is the effect
-    being composited onto the backdrop rather than into the layer (#846).
+    moved it from 0.120 to 0.093 (#799), and compositing the effect into the
+    layer from 0.093 to 0.091 (#846).
+
+    The remaining 0.091 is one thing, and it is not soft alpha: its five
+    *pixel* layers, whose ramps are real transparency, now score 1.3e-5 and
+    better, while its twelve *shape* layers score 0.002 to 0.28 and are the
+    whole of the total. A shape layer's stroke is traced from its rasterized
+    fill, and where that fill fades to transparent the trace fades with it,
+    so a stroke lands across an interior Photoshop leaves alone -- Photoshop
+    strokes the path. ``force=True`` redraws the fill from the vector mask
+    and gets the crisp outline back, which is why the same document scores
+    0.036 there, and the test asserts the worse of the two.
     """
     check_composite_quality("effects/stroke-effects.psd", threshold=0.01)
 
@@ -48,10 +60,15 @@ def test_a_partly_antialiased_shape_keeps_its_stroke_close() -> None:
     antialiased edges of the polygon, so it is the one fixture the corpus
     already had that could tell the coverage reading from the iso-contour
     one -- and it halves, 1.86e-3 to 8.18e-4, without a fixture being authored
-    for it. Asserted at 1e-3 rather than the 0.01 it sat at as an xfail, which
-    is the bound that separates the two readings.
+    for it. Compositing the effect into the layer (#846) takes it to 8.8e-5,
+    almost all of that from the alpha, which goes 7.0e-4 to 9.1e-8: this is a
+    polygon with a *fill opacity of zero*, so what covers it is the effect and
+    nothing else, and the coverage is now exactly Photoshop's.
+
+    Asserted at 2e-4 rather than the 0.01 it sat at as an xfail. 1e-3 was the
+    bound that separated the two boundary readings.
     """
-    check_composite_quality("effects/shape-fx2.psd", threshold=1e-3)
+    check_composite_quality("effects/shape-fx2.psd", threshold=2e-4)
 
 
 @pytest.mark.parametrize("force", [False, True])
@@ -428,11 +445,11 @@ def test_a_feathered_mask_takes_the_stroke_over_its_whole_ramp() -> None:
     here as a profile that is not even monotone (0.157, 0.157, 0.443, 0.522,
     0.721, 0.658 against Photoshop's 0.196 .. 0.588).
 
-    What is still off is the compositing, not the stroke: the band's coverage
-    now equals Photoshop's, and the residue is psd-tools painting the effect
-    onto the finished backdrop rather than into the layer (#846). That is
-    worth up to 0.09 across the columns below, and it is why the shape of
-    the profile is asserted tightly and its values are not.
+    The values the profile takes were off by up to 0.09 while the effect was
+    composited onto the finished backdrop rather than into the layer, which is
+    why they were asserted loosely; compositing it into the layer (#846)
+    brings them to within a quantization step of Photoshop's own render, and
+    the test below is what states the arithmetic they come from.
     """
     psd = PSDImage.open(full_name("effects/feathered-stroke.psd"))
     reference = psd.numpy()[..., :3]
@@ -444,10 +461,140 @@ def test_a_feathered_mask_takes_the_stroke_over_its_whole_ramp() -> None:
     assert np.all(np.diff(ramp) > 0), (
         f"the stroke does not fade across the ramp: {ramp}"
     )
-    assert np.allclose(ramp, reference[y, x0 : x0 + 6, 1], atol=0.1)
+    assert np.allclose(ramp, reference[y, x0 : x0 + 6, 1], atol=1 / 255.0)
 
-    # 1.6e-3 measured, against 2.2e-2 for the iso-contour reading.
-    check_composite_quality("effects/feathered-stroke.psd", threshold=0.005)
+    # 9.9e-5 measured, against 1.6e-3 while the effect went on the backdrop
+    # (#846) and 2.2e-2 for the iso-contour reading.
+    check_composite_quality("effects/feathered-stroke.psd", threshold=2e-4)
+
+
+def _channel(layer: Any, name: str) -> np.ndarray:
+    """``layer.numpy(name)``, asserted present so the arithmetic can index it."""
+    channel = layer.numpy(name)
+    assert channel is not None, f"{layer.name!r} has no {name}"
+    return channel
+
+
+def _stroke_paint(psd: PSDImage, layer: Any) -> np.ndarray:
+    """The colour the layer's one stroke effect paints, from its descriptor."""
+    effect = next(iter(layer.effects.find("stroke")))
+    color, _ = paint.draw_solid_color_fill(
+        (0, 0, 1, 1), psd.color_mode, effect.descriptor
+    )
+    assert color is not None
+    return color[0, 0]
+
+
+@pytest.mark.parametrize("name", ["Outset", "Inset", "Center"])
+@pytest.mark.parametrize("size", [3, 6])
+def test_a_stroke_is_composited_into_the_layer_not_onto_the_backdrop(
+    name: str, size: int
+) -> None:
+    """#846's table, as the arithmetic it is a table of.
+
+    Solving ``feathered-stroke.psd``'s render for the weights of the three
+    colours a pixel of it can be made from -- the layer's fill ``L``, the
+    stroke's paint ``S`` and the background ``B`` -- gives, across the ramp
+    where the layer's own coverage is ``alpha``:
+
+    ===========  =========  ==========  ==============
+    position     w(L)       w(S)        w(B)
+    ===========  =========  ==========  ==============
+    outset       ``alpha``  ``1-alpha`` 0
+    inset        0          ``alpha``   ``1 - alpha``
+    centered     0          1           0
+    ===========  =========  ==========  ==============
+
+    An outset stroke is opaque across the whole of the layer's soft skirt and
+    the layer sits *over* it; an inset one is opaque too and knocks the layer
+    out from under itself, leaving the layer's own alpha as the group's; a
+    centered one is the two together. There is no ``B`` term in the first two
+    for any stroke position, which painting the effect onto the finished
+    composite cannot reproduce: that gives
+    ``t*S + (1 - t)*(alpha*L + (1 - alpha)*B)``.
+
+    Both renders are checked against the closed form -- Photoshop's and
+    psd-tools' -- because the two agreeing is not the point. Agreeing on
+    *this* is what says the effect went into the layer.
+
+    The centered rows are a control rather than a witness: there the stroke
+    is opaque over the whole ramp, so ``t`` is 1 and the ``B`` term the old
+    order leaves behind is multiplied away. They passed before the fix and
+    the other four did not.
+    """
+    psd = PSDImage.open(full_name("effects/feathered-stroke.psd"))
+    reference = psd.numpy()[..., :3]
+    result = composite(psd)[0]
+
+    layer = next(sub for sub in psd if sub.name == f"{name} {size}")
+    background = _channel(psd[0], "color")[0, 0]
+    fill = _channel(layer, "color")[0, 0]
+    stroke = _stroke_paint(psd, layer)
+
+    # The ramp columns, which is where the layer's coverage is partial. The
+    # mask is what carries it; the layer's own raster is opaque over its box.
+    y = (layer.bbox[1] + layer.bbox[3]) // 2
+    x0 = layer.bbox[0]
+    mask_bbox = cast(Mask, layer.mask).bbox
+    mask = _channel(layer, "mask")
+    start = x0 - mask_bbox[0]
+    alpha = mask[y - mask_bbox[1], start : start + 6, 0]
+    assert np.all(np.diff(alpha) > 0) and alpha[-1] < 1.0, alpha
+    alpha = alpha[:, None]
+
+    if name == "Outset":
+        expected = alpha * fill + (1.0 - alpha) * stroke
+    elif name == "Inset":
+        expected = alpha * stroke + (1.0 - alpha) * background
+    else:
+        expected = np.tile(stroke, (len(alpha), 1))
+
+    # A quantization step: the preview is 8-bit, and the closed form is not.
+    assert np.allclose(reference[y, x0 : x0 + 6], expected, atol=1 / 255.0)
+    assert np.allclose(result[y, x0 : x0 + 6], expected, atol=1 / 255.0)
+
+
+@pytest.mark.parametrize(
+    ("name", "before"),
+    [
+        ("Raster Rectangle", 9.4e-3),
+        ("Raster Ellipse", 6.4e-3),
+        ("Raster OutsetFrame", 4.8e-3),
+        ("Raster InsetFrame", 4.0e-2),
+    ],
+)
+def test_a_soft_edged_pixel_layer_renders_its_stroke_to_the_preview(
+    name: str, before: float
+) -> None:
+    """The same fix, per layer, on a fixture that was never authored for it.
+
+    ``stroke-effects.psd``'s four soft-edged *pixel* layers are 90-92% partial
+    alpha, so the ``B`` term #846 leaves behind is on almost every pixel of
+    them, and each carries a stroke of a different position. Measured over
+    each layer's own stroke box against Photoshop's preview, they were 4.8e-3
+    to 4.0e-2 and are now 1.3e-5 and better -- ``Raster InsetFrame`` at
+    4.5e-13, which is Photoshop's render to within 1.5e-5 of a pixel value
+    and not bit for bit.
+
+    Per layer rather than over the document, because the document's own score
+    is dominated by its *shape* layers, which are wrong for an unrelated
+    reason -- see :py:func:`test_stroke_effects_xfail`. A whole-image bound
+    could not separate a 40x improvement on four layers from noise.
+    """
+    psd = PSDImage.open(full_name("effects/stroke-effects.psd"))
+    layer = next(sub for sub in psd.descendants() if sub.name == name)
+    reference = psd.numpy()
+    color, _, alpha = composite(psd)
+    result = np.concatenate((color, alpha), axis=2)
+
+    # Clamped: a stroke reaches past the canvas, and a negative index would
+    # wrap the slice round to the far side of it.
+    x0, y0, x1, y1 = _stroke_reach(layer)
+    x0, y0 = max(x0, 0), max(y0, 0)
+    x1, y1 = min(x1, psd.width), min(y1, psd.height)
+    error = _mse(reference[y0:y1, x0:x1], result[y0:y1, x0:x1])
+    assert error <= 2e-5, f"{name}: {error:.3e}"
+    assert error < before / 100.0
 
 
 def test_an_antialiased_edge_is_stroked_from_its_own_coverage() -> None:
@@ -460,10 +607,11 @@ def test_an_antialiased_edge_is_stroked_from_its_own_coverage() -> None:
     located: from coverage it moves with it, and from the 0.5 iso-contour it
     snaps to the pixel edge and two of the three come out identical.
 
-    The far edge rather than the whole square, because the interior is where
-    #846 still costs a few percent. On ``main`` the three read 1.0000, 0.8627
-    and 0.8627 against Photoshop's 0.9647, 0.9294 and 0.8980 -- the middle one
-    a whole pixel of stroke too short, and the outer two indistinguishable.
+    The far edge rather than the whole square, because that one pixel is what
+    the fixture exists to move. Before the measurement the three read 1.0000,
+    0.8627 and 0.8627 against Photoshop's 0.9647, 0.9294 and 0.8980 -- the
+    middle one a whole pixel of stroke too short, and the outer two
+    indistinguishable.
     """
     psd = PSDImage.open(full_name("effects/antialiased-stroke-edge.psd"))
     reference = psd.numpy()[..., :3]
@@ -481,10 +629,11 @@ def test_an_antialiased_edge_is_stroked_from_its_own_coverage() -> None:
     # Monotone in the coverage, which is the property the iso-contour loses.
     assert np.all(np.diff(fringes) < 0), fringes
 
-    # 6.0e-4 measured, against 1.7e-3 for the iso-contour reading -- a whole
-    # -image bound is the weaker half of this test, which is why the pixels
-    # above are asserted at all.
-    check_composite_quality("effects/antialiased-stroke-edge.psd", threshold=0.001)
+    # 1.0e-4 measured, against 6.0e-4 while the effect went on the backdrop
+    # (#846) and 1.7e-3 for the iso-contour reading -- a whole-image bound is
+    # the weaker half of this test, which is why the pixels above are asserted
+    # at all.
+    check_composite_quality("effects/antialiased-stroke-edge.psd", threshold=2e-4)
 
 
 def test_distance_band_covers_its_width_on_a_pixel_boundary() -> None:
@@ -596,6 +745,55 @@ def test_a_stroke_of_no_width_draws_nothing(style: bytes, size: float) -> None:
             viewport, shape, _stroke_descriptor(style, size), psd
         )
         assert float(mask.sum()) == 0.0, f"{style!r} stroke of {size} px painted"
+
+
+@pytest.mark.parametrize(
+    ("style", "inside"),
+    [(Enum.OutsetFrame, 0.0), (Enum.InsetFrame, 1.0), (Enum.CenteredFrame, 0.5)],
+    ids=["outset", "inset", "centered"],
+)
+def test_the_split_band_accounts_for_the_whole_stroke(
+    style: bytes, inside: float
+) -> None:
+    """The two halves are the band divided, never the band changed (#846).
+
+    Where a stroke goes depends on which side of the layer's boundary it falls
+    -- inside it paints over the layer, outside it paints beside -- so the
+    band comes back split. It is split as a *share*, so what the two sum to is
+    exactly what :py:func:`draw_stroke_effect` draws: drawing the halves
+    separately would not, because :py:func:`_distance_band` multiplies the two
+    edges' ramps, which is the area of a pixel cut by a straight edge only
+    while the band is a pixel wide or more, and halving the band halves both.
+
+    Which side each pixel's share lands on is asserted per pixel and not only
+    in the total, since a 1 px centered band on this input divides evenly and
+    a total alone cannot tell the two halves apart -- nor from a band halved
+    outright.
+    """
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    # A wider layer than band, so there are pixels on both sides that the band
+    # reaches and that state a side of their own.
+    covered = 5
+    straddled = np.zeros((1, 12, 1), dtype=np.float32)
+    straddled[:, :covered] = 1.0
+    straddled[:, covered] = 0.5
+    viewport = (0, 0, 12, 1)
+    desc = _stroke_descriptor(style, 3.0)
+
+    _, whole = effects.draw_stroke_effect(viewport, straddled, desc, psd)
+    _, coverage, within = effects.draw_stroke_effect_split(
+        viewport, straddled, desc, psd
+    )
+    assert np.array_equal(coverage, whole)
+    assert np.all(within <= coverage + 1e-6)
+    assert float(within.sum()) == pytest.approx(inside * whole.sum())
+
+    # Inside the layer the band is the layer's own side of the boundary, and
+    # past the pixel the boundary cuts it is the other side's.
+    deep, beyond = within[0, : covered - 1, 0], within[0, covered + 1 :, 0]
+    assert np.allclose(deep, coverage[0, : covered - 1, 0] if inside else 0.0)
+    assert np.allclose(beyond, coverage[0, covered + 1 :, 0] if inside == 1 else 0.0)
+    assert float(coverage.sum()) > 0.0
 
 
 def test_inset_band_sits_wholly_inside_the_layer() -> None:
@@ -1155,7 +1353,7 @@ def test_a_gradient_that_cannot_be_scaled_is_dropped_not_raised() -> None:
 def test_an_unreadable_overlay_is_dropped_and_the_document_still_renders() -> None:
     """The overlays read a descriptor to draw too, and raised the same way.
 
-    ``_apply_overlay()`` reaches the same ``paint._get_color()`` the stroke
+    ``_add_overlay()`` reaches the same ``paint._get_color()`` the stroke
     does, with no measurement in front of it to degrade first, so a colour
     overlay missing its colour took down ``stroke-composite.psd`` outright.
     The rule is the effect's, not the stroke's: an effect whose descriptor
