@@ -15,7 +15,7 @@ from psd_tools.api.psd_image import PSDImage
 from psd_tools.api.utils import check_pixel_size, get_color_channels
 from psd_tools.composite import paint, utils, vector
 from psd_tools.composite.adjustments import ADJUSTMENT_FUNC
-from psd_tools.composite.blend import get_blend_func
+from psd_tools.composite.blend import get_blend_func, normal
 from psd_tools.composite.effects import draw_stroke_effect_split, stroke_bbox
 from psd_tools.composite.widen import make_widen
 from psd_tools.constants import (
@@ -175,7 +175,7 @@ def _stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
     not implemented at all. So this is the whole of the outward reach.
 
     ``find("stroke")`` rather than a descriptor walk, so this stays in lockstep
-    with the loop in :py:meth:`Compositor._apply_stroke_effect` that actually
+    with the loop in :py:meth:`Compositor._add_stroke_effects` that actually
     draws them: both skip a disabled effect and both skip every effect when the
     layer's master switch is off.
 
@@ -187,7 +187,7 @@ def _stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
     total per effect, not for the whole loop: an effect whose box cannot be
     read is skipped rather than taken as a verdict on the layer, so a stroke
     beside it still grows the box. That leaves the box wider than what gets
-    drawn, never narrower, since ``_apply_stroke_effect`` calls
+    drawn, never narrower, since ``_add_stroke_effects`` calls
     ``stroke_bbox()`` on the same descriptor, drops the same effect, and can
     only drop one more over the paint this never reads. Wider is the safe
     direction for both callers: it costs a group canvas nobody draws on, where
@@ -986,7 +986,6 @@ class _EffectCanvas:
         if self._painted:
             return
         source = self._source
-        self._region = source.shape
         self._color = self._compositor._fit_source(source.color)
         # Inside the region, and relative to it: what fraction of the region
         # each of the three stands for. The layer's own paint starts as all of
@@ -994,14 +993,19 @@ class _EffectCanvas:
         # whatever alpha the source has of its own, which for a group is not
         # the layer opacity at all.
         self._alpha = (
-            utils.divide(source.alpha, self._region, fill=0.0) * source.fill_opacity
+            utils.divide(source.alpha, self.region, fill=0.0) * source.fill_opacity
         )
-        self._shape = np.full_like(self._region, source.fill_opacity)
         self._premultiplied = self._alpha * self._color
+        # Scalars until something widens them, which is the same
+        # allocation-avoidance path ``_get_mask()`` takes and for the same
+        # reason: a layer carrying one inner effect never reaches the three
+        # below, and this canvas is held for the whole of the effect stack
+        # rather than freed between effects the way a source is.
+        self._shape: float | np.ndarray = source.fill_opacity
         # Outside it, and relative to the pixel.
-        self._outer_shape = np.zeros_like(self._region)
-        self._outer_alpha = np.zeros_like(self._region)
-        self._outer_premultiplied = np.zeros_like(self._color)
+        self._outer_shape: float | np.ndarray = 0.0
+        self._outer_alpha: float | np.ndarray = 0.0
+        self._outer_premultiplied: float | np.ndarray = 0.0
         self._painted = True
 
     @property
@@ -1040,7 +1044,14 @@ class _EffectCanvas:
         color = self._compositor._fit_source(color)
         blend_fn = get_blend_func(blend_mode, self._compositor._color_mode)
         alpha = coverage * opacity * self._source.opacity
-        under = utils.divide(self._premultiplied, self._alpha, fill=color)
+        # ``normal`` ignores what is under it, and is also what an effect whose
+        # blend mode this module does not know answers, so the un-premultiply
+        # is skipped rather than computed for a function that will drop it.
+        under = (
+            color
+            if blend_fn is normal
+            else utils.divide(self._premultiplied, self._alpha, fill=color)
+        )
         self._premultiplied = (1.0 - alpha) * self._premultiplied + alpha * (
             (1.0 - self._alpha) * color + self._alpha * blend_fn(under, color)
         )
@@ -1068,7 +1079,7 @@ class _EffectCanvas:
         self._start()
         color = self._compositor._fit_source(color)
         blend_fn = get_blend_func(blend_mode, self._compositor._color_mode)
-        coverage = np.minimum(coverage, 1.0 - self._region)
+        coverage = np.minimum(coverage, 1.0 - self.region)
         alpha = coverage * opacity * self._source.opacity
         color_b, alpha_b = self._beneath()
         self._outer_premultiplied = (
@@ -1101,14 +1112,14 @@ class _EffectCanvas:
         """The layer and its effects, as one source to composite."""
         if not self._painted:
             return self._source
-        alpha = self._region * self._alpha + self._outer_alpha
-        premultiplied = self._region * self._premultiplied + self._outer_premultiplied
+        alpha = self.region * self._alpha + self._outer_alpha
+        premultiplied = self.region * self._premultiplied + self._outer_premultiplied
         return replace(
             self._source,
             color=utils.clip(utils.divide(premultiplied, alpha, fill=self._color)),
-            shape=utils.clip(self._region * self._shape + self._outer_shape),
+            shape=utils.clip(self.region * self._shape + self._outer_shape),
             alpha=utils.clip(alpha),
-            knockout_shape=utils.clip(self._region + self._outer_shape),
+            knockout_shape=utils.clip(self.region + self._outer_shape),
             fill_opacity=1.0,
         )
 

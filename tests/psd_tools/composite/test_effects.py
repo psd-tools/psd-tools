@@ -516,6 +516,11 @@ def test_a_stroke_is_composited_into_the_layer_not_onto_the_backdrop(
     Both renders are checked against the closed form -- Photoshop's and
     psd-tools' -- because the two agreeing is not the point. Agreeing on
     *this* is what says the effect went into the layer.
+
+    The centered rows are a control rather than a witness: there the stroke
+    is opaque over the whole ramp, so ``t`` is 1 and the ``B`` term the old
+    order leaves behind is multiplied away. They passed before the fix and
+    the other four did not.
     """
     psd = PSDImage.open(full_name("effects/feathered-stroke.psd"))
     reference = psd.numpy()[..., :3]
@@ -1334,7 +1339,7 @@ def test_a_gradient_that_cannot_be_scaled_is_dropped_not_raised() -> None:
 def test_an_unreadable_overlay_is_dropped_and_the_document_still_renders() -> None:
     """The overlays read a descriptor to draw too, and raised the same way.
 
-    ``_apply_overlay()`` reaches the same ``paint._get_color()`` the stroke
+    ``_add_overlay()`` reaches the same ``paint._get_color()`` the stroke
     does, with no measurement in front of it to degrade first, so a colour
     overlay missing its colour took down ``stroke-composite.psd`` outright.
     The rule is the effect's, not the stroke's: an effect whose descriptor
