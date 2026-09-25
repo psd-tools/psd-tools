@@ -1,7 +1,7 @@
 ---
 name: release
 description: Prepare a psd-tools release: update changelog, open release PR. Use when the user wants to cut a new version.
-allowed-tools: Bash(git:*), Bash(gh:*), Bash(date:*), Edit
+allowed-tools: Bash(git:*), Bash(gh:*), Bash(uv:*), Bash(date:*), Read, Edit
 ---
 
 ## Step 0 — Determine target version
