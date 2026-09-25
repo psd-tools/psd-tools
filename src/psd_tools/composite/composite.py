@@ -961,6 +961,10 @@ class _OuterEffect(NamedTuple):
 
     color: np.ndarray
     coverage: np.ndarray
+    # The effect's own opacity with the layer's already in it. The layer
+    # opacity fades a layer's style along with the layer, which the inner
+    # effects get from being composited inside the source it scales; an outer
+    # effect is not in that source, so it carries the factor itself.
     opacity: float
     blend_mode: bytes
 
@@ -1039,6 +1043,11 @@ class _EffectCanvas:
     def region(self) -> np.ndarray:
         """The layer's own coverage, which is what ``over()`` is a share of."""
         return self._source.shape
+
+    @property
+    def opacity(self) -> float:
+        """The layer opacity, which fades its effects along with the layer."""
+        return self._source.opacity
 
     def within(self, coverage: np.ndarray) -> np.ndarray:
         """A coverage of the pixel, as the share of the region it is.
@@ -2200,4 +2209,6 @@ class Compositor(object):
             # otherwise carry the pixel past opaque.
             beside = np.minimum(mask - overlap, 1.0 - canvas.region)
             if beside.any():
-                outer.append(_OuterEffect(color, beside, opacity, blend_mode))
+                outer.append(
+                    _OuterEffect(color, beside, opacity * canvas.opacity, blend_mode)
+                )

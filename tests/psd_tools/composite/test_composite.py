@@ -1878,6 +1878,34 @@ def test_an_outer_effect_keeps_its_own_blend_mode_over_the_backdrop() -> None:
     assert not np.allclose(result[y, x], color[0, 0] * backdrop[y, x], atol=1 / 255.0)
 
 
+def test_layer_opacity_fades_the_stroke_outside_the_layer_too() -> None:
+    """A half-opaque layer's style is half-opaque, outside the layer as well.
+
+    The inner effects get that from being composited inside the source the
+    layer opacity scales. An outer band is not in that source -- it goes on
+    before the layer, with its own blend mode -- so it carries the factor
+    itself, and where the layer covers nothing there is no later step that
+    would apply it (#884 review).
+    """
+    psd, layer = _feathered_stroke_layer()
+    layer.opacity = 128
+
+    # The layer alone, over nothing: the fixture's own Background is opaque
+    # and would answer 1.0 at every pixel whatever the stroke did.
+    compositor = Compositor(
+        psd.viewbox,
+        np.ones((psd.height, psd.width, 3), dtype=np.float32),
+        np.zeros((psd.height, psd.width, 1), dtype=np.float32),
+    )
+    compositor.apply(layer)
+    alpha = compositor.finish()[2]
+
+    # Four pixels clear of the square, where the band is opaque and the layer
+    # covers nothing, so what is left is the band's own alpha.
+    y, x = (layer.bbox[1] + layer.bbox[3]) // 2, layer.bbox[0] - 4
+    assert float(alpha[y, x, 0]) == pytest.approx(128 / 255.0, abs=1 / 255.0)
+
+
 def test_a_knockout_punches_with_the_layer_and_not_with_its_stroke() -> None:
     """The hole is the layer's own coverage; an effect renders over it.
 
