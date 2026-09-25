@@ -361,6 +361,9 @@ def draw_stroke_effect_split(
     edges' ramps, which is the area of a pixel cut by a straight edge only
     while the band is at least a pixel wide, and halving a band halves both
     halves' widths.
+
+    The two can be views of one array, since an inset band is the whole of the
+    coverage; both are read and neither is written to.
     """
     logger.debug("Stroke effect has limited support")
     height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]

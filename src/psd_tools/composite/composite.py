@@ -1311,7 +1311,14 @@ class Compositor(object):
         shape *= shape_mask
         alpha *= mask
 
-        # TODO: Tag.BLEND_INTERIOR_ELEMENTS controls how inner effects apply.
+        # TODO: Tag.BLEND_INTERIOR_ELEMENTS controls how inner effects apply,
+        # and is unread. There is a second thing riding on it now: the effect
+        # canvas hands back one source, which ``_composite_source()`` applies
+        # with the *layer's* blend mode, so an inner effect goes through that
+        # mode too -- which is what "Blend Interior Effects as Group" asks
+        # for, and Photoshop leaves it off by default. No fixture in the
+        # corpus pairs a non-normal layer blend mode with an effect that
+        # draws, so nothing here has measured which way is right (#846).
 
         return _Source(
             color=color,
