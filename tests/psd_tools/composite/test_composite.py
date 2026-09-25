@@ -18,6 +18,7 @@ from psd_tools.api.layers import (
 from psd_tools.api.numpy_io import _image_data_peak_bytes
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite
+from psd_tools.composite import paint
 from psd_tools.composite import utils
 from psd_tools.composite.composite import (
     Compositor,
@@ -34,6 +35,7 @@ from psd_tools.constants import (
     Tag,
 )
 from psd_tools.psd.base import ByteElement
+from psd_tools.psd.descriptor import UnitFloat
 from psd_tools.terminology import Key
 from PIL import Image
 
@@ -1830,6 +1832,74 @@ def test_layer_opacity_fades_the_layer_and_its_effect_once_between_them() -> Non
     composed = canvas.source()
     assert np.allclose(composed.alpha, 0.5)
     assert np.allclose(composed.color, red)
+
+
+def _feathered_stroke_layer(name: str = "Outset 6") -> tuple[PSDImage, Any]:
+    """``feathered-stroke.psd`` and one of its squares, for forging onto.
+
+    Nothing in the fixture corpus pairs an effect that draws with a knockout,
+    a non-normal layer blend mode, a layer opacity below 255 or a pass-through
+    group, so the combinations below are made rather than found. This square
+    is the one whose outset stroke covers its whole ramp, which is what makes
+    where the stroke went readable off a single pixel.
+    """
+    psd = PSDImage.open(full_name("effects/feathered-stroke.psd"))
+    return psd, next(sub for sub in psd if sub.name == name)
+
+
+def test_an_outer_effect_keeps_its_own_blend_mode_over_the_backdrop() -> None:
+    """A stroke is not blended with the mode of the layer it outlines.
+
+    An outer band lands on the backdrop rather than on the layer, so what
+    blends it is its own mode; the layer's belongs to the layer's pixels.
+    Merging the two into one source to fix #846 handed the band the layer's
+    mode as well, and a Normal stroke on a Multiply layer came out multiplied
+    against the backdrop it sits beside -- 0.863 to 0.000 in red.
+    """
+    psd, layer = _feathered_stroke_layer()
+    layer.blend_mode = BlendMode.MULTIPLY
+
+    backdrop = np.zeros((psd.height, psd.width, 3), dtype=np.float32)
+    backdrop[..., 1] = 0.5
+    compositor = Compositor(
+        psd.viewbox, backdrop, np.ones((psd.height, psd.width, 1), dtype=np.float32)
+    )
+    compositor.apply(layer)
+    result = compositor.finish()[0]
+
+    # Four pixels clear of the square, where only the stroke paints.
+    y, x = (layer.bbox[1] + layer.bbox[3]) // 2, layer.bbox[0] - 4
+    stroke = next(iter(layer.effects.find("stroke")))
+    color, _ = paint.draw_solid_color_fill(
+        (0, 0, 1, 1), psd.color_mode, stroke.descriptor
+    )
+    assert color is not None
+    assert np.allclose(result[y, x], color[0, 0], atol=1 / 255.0)
+    assert not np.allclose(result[y, x], color[0, 0] * backdrop[y, x], atol=1 / 255.0)
+
+
+def test_a_knockout_punches_with_the_layer_and_not_with_its_stroke() -> None:
+    """The hole is the layer's own coverage; an effect renders over it.
+
+    Fill opacity 0 under a knockout is the whole point of the setting -- the
+    layer's paint goes and the hole stays -- so the coverage that punches it
+    is the layer's, before either fill opacity or an effect. Carrying the
+    stroke's band in it instead let a half-opaque band erase the backdrop
+    under itself, over ground the layer does not touch: an opaque Background
+    at alpha 1.0 came out at 0.5.
+    """
+    psd, layer = _feathered_stroke_layer()
+    layer.tagged_blocks.set_data(Tag.KNOCKOUT_SETTING, ByteElement(1))
+    layer.tagged_blocks.set_data(Tag.BLEND_FILL_OPACITY, ByteElement(0))
+    stroke = next(iter(layer.effects.find("stroke")))
+    opacity = stroke.descriptor[Key.Opacity]
+    stroke.descriptor[Key.Opacity] = UnitFloat(unit=opacity.unit, value=50.0)
+
+    _, _, alpha = composite(psd)
+    # A row through the square, out where the band paints and the layer does
+    # not: the opaque Background under it is not the layer's to knock out.
+    y = (layer.bbox[1] + layer.bbox[3]) // 2
+    assert np.allclose(alpha[y, : layer.bbox[0] - 4], 1.0)
 
 
 def test_an_outer_effect_adds_its_coverage_beside_the_layer() -> None:
