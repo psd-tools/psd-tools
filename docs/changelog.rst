@@ -1,7 +1,7 @@
 Changelog
 =========
 
-1.20.0 (unreleased)
+1.20.0 (2026-09-25)
 -------------------
 
 - [docs] ``PSDImage.new()`` now records two limitations of the documents it
@@ -51,12 +51,13 @@ Changelog
   aggdraw's quarter-pixel dilation of it, and a combined path is filled by the
   even-odd rule PSD uses rather than a subpath at a time, so a subpath inside
   another cuts a hole instead of being swallowed. A ``force=True`` vector
-  render loses half a pixel of width it never had, and holes reappear (#844)
+  render loses half a pixel of width it never had, and holes reappear
+  (#844, #856)
 - [fix] A stroke effect is now measured from the mask's coverage rather than
   its half-opacity contour, as Photoshop does. A soft-edged layer -- feathered
   mask, gradient mask, soft brush -- takes the stroke across its whole body
   rather than a ring inside it. Hard-edged masks are unchanged, and only a
-  pattern fill still needs scikit-image (#799)
+  pattern fill still needs scikit-image (#799, #849)
 - [api] ``PSDImage.mark_updated()`` is now public and the private
   ``_mark_updated()`` is gone, so an edit this API cannot see -- through an
   effect's ``descriptor`` or any other low-level record -- can still tell the
@@ -152,6 +153,11 @@ Changelog
   ``append()``, ``extend()``, ``insert()``, ``remove()``, ``clear()``, ``pop()``
   or item assignment kept reporting the ``bbox`` it had before the edit, as did
   the group a layer was moved *out* of (#814, #818)
+- [fix] Moving a layer between documents, or reparenting a group, now
+  invalidates the cached bounding boxes *beneath* it as well as above: a
+  vector-mask-only shape rescales its bounds to the destination canvas, and a
+  reparented group's descendants no longer report the boxes they had under
+  their old parent (#814, #818)
 - [fix] Trace a stroke effect on a group from the group's own coverage,
   composited again on the box the stroke draws on, rather than from the
   compositor's clipped copy. **Rendering change** for a stroke on a group
@@ -207,7 +213,12 @@ Changelog
 - [fix] Keep the 36 bytes Photoshop writes after a Hue/Saturation layer's six
   range records instead of dropping them on write. Affects you if you re-save a
   file whose Hue/Saturation layers were made by a recent Photoshop; without this
-  fix the saved block would shrink from 136 bytes to 100 (#645)
+  fix the saved block would shrink from 136 bytes to 100 (#645, #794)
+- [chore] Contributor tooling: ``CLAUDE.md`` is now the single source for the
+  changelog categories, and the release skill's milestone sweep is bounded by
+  the tag's timestamp rather than its date (#791, #800, #877, #878)
+- [chore] Bump dependencies: ruff to 0.16.7, cibuildwheel to 4.2.1
+  (#793, #809, #810, #843)
 
 1.19.0 (2026-09-02)
 -------------------

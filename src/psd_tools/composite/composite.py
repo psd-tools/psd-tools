@@ -172,31 +172,26 @@ def _stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
     the three overlays draw on ``layer.bbox`` and are pasted from it, the
     vector stroke's wider box contributes color alone -- ``_get_object()``
     keeps none of its coverage -- and drop shadow, glow, satin and bevel are
-    not implemented at all. So this is the whole of the outward reach, not a
-    first instalment of it.
+    not implemented at all. So this is the whole of the outward reach.
 
     ``find("stroke")`` rather than a descriptor walk, so this stays in lockstep
     with the loop in :py:meth:`Compositor._apply_stroke_effect` that actually
     draws them: both skip a disabled effect and both skip every effect when the
     layer's master switch is off.
 
-    Two callers, asking the same question for different reasons.
-    :py:func:`_paint_bbox` asks how wide a canvas a group has to composite its
-    children on (#808); :py:meth:`Compositor._accepts` asks whether a layer
-    paints inside the viewport at all (#815). The second widens what gets
-    measured from a group's children to every non-group layer the cull
-    reaches -- visible and filter-passing, since ``_accepts`` tests the filter
-    first -- so the degradation below has to stay total.
-
-    Total per effect, not for the whole loop: an effect whose box cannot be
+    Two callers ask it for different reasons: :py:func:`_paint_bbox`, how wide
+    a canvas a group has to composite its children on (#808), and
+    :py:meth:`Compositor._accepts`, whether a layer paints inside the viewport
+    at all (#815). The second reaches every non-group layer the cull visits,
+    not just a group's children, so the degradation has to stay total -- and
+    total per effect, not for the whole loop: an effect whose box cannot be
     read is skipped rather than taken as a verdict on the layer, so a stroke
-    beside it that reads fine still grows the box. That can only leave the box
-    wider than what gets drawn, never narrower --
-    :py:meth:`Compositor._apply_stroke_effect` calls ``stroke_bbox()`` on the
-    same descriptor and drops the same effect, and the paint, which this never
-    reads, can only drop one more. Wider is the safe direction for both
-    callers: it costs a group canvas nobody draws on, where narrower clips a
-    stroke or culls a layer that has one (#826).
+    beside it still grows the box. That leaves the box wider than what gets
+    drawn, never narrower, since ``_apply_stroke_effect`` calls
+    ``stroke_bbox()`` on the same descriptor, drops the same effect, and can
+    only drop one more over the paint this never reads. Wider is the safe
+    direction for both callers: it costs a group canvas nobody draws on, where
+    narrower clips a stroke or culls a layer that has one (#826).
     """
     bbox = layer.bbox
     if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
