@@ -1,7 +1,7 @@
 Changelog
 =========
 
-1.20.1 (unreleased)
+1.21.0 (unreleased)
 -------------------
 
 - [fix] Stroke and overlay effects are composited into the layer they belong

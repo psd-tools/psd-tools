@@ -40,9 +40,9 @@ def test_stroke_effects_xfail() -> None:
     moved it from 0.120 to 0.093 (#799), and compositing the effect into the
     layer from 0.093 to 0.091 (#846).
 
-    The remaining 0.091 is one thing, and it is not soft alpha: its six
-    *pixel* layers, whose ramps are real transparency, now score 1e-5 and
-    better, while its eleven *shape* layers score 0.1 to 0.29 and are the
+    The remaining 0.091 is one thing, and it is not soft alpha: its five
+    *pixel* layers, whose ramps are real transparency, now score 1.3e-5 and
+    better, while its twelve *shape* layers score 0.002 to 0.28 and are the
     whole of the total. A shape layer's stroke is traced from its rasterized
     fill, and where that fill fades to transparent the trace fades with it,
     so a stroke lands across an interior Photoshop leaves alone -- Photoshop
@@ -572,8 +572,9 @@ def test_a_soft_edged_pixel_layer_renders_its_stroke_to_the_preview(
     alpha, so the ``B`` term #846 leaves behind is on almost every pixel of
     them, and each carries a stroke of a different position. Measured over
     each layer's own stroke box against Photoshop's preview, they were 4.8e-3
-    to 4.0e-2 and are now 1.3e-5 and better -- ``Raster InsetFrame`` is
-    Photoshop's render bit for bit.
+    to 4.0e-2 and are now 1.3e-5 and better -- ``Raster InsetFrame`` at
+    4.5e-13, which is Photoshop's render to within 1.5e-5 of a pixel value
+    and not bit for bit.
 
     Per layer rather than over the document, because the document's own score
     is dominated by its *shape* layers, which are wrong for an unrelated
@@ -763,15 +764,21 @@ def test_the_split_band_accounts_for_the_whole_stroke(
     separately would not, because :py:func:`_distance_band` multiplies the two
     edges' ramps, which is the area of a pixel cut by a straight edge only
     while the band is a pixel wide or more, and halving the band halves both.
+
+    Which side each pixel's share lands on is asserted per pixel and not only
+    in the total, since a 1 px centered band on this input divides evenly and
+    a total alone cannot tell the two halves apart -- nor from a band halved
+    outright.
     """
     psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
-    # A half-covered pixel, so the boundary runs through a pixel rather than
-    # along an edge and both halves of a centered band are sub-pixel.
-    straddled = np.zeros((1, 8, 1), dtype=np.float32)
-    straddled[:, :4] = 1.0
-    straddled[:, 4] = 0.5
-    viewport = (0, 0, 8, 1)
-    desc = _stroke_descriptor(style, 1.0)
+    # A wider layer than band, so there are pixels on both sides that the band
+    # reaches and that state a side of their own.
+    covered = 5
+    straddled = np.zeros((1, 12, 1), dtype=np.float32)
+    straddled[:, :covered] = 1.0
+    straddled[:, covered] = 0.5
+    viewport = (0, 0, 12, 1)
+    desc = _stroke_descriptor(style, 3.0)
 
     _, whole = effects.draw_stroke_effect(viewport, straddled, desc, psd)
     _, coverage, within = effects.draw_stroke_effect_split(
@@ -780,6 +787,13 @@ def test_the_split_band_accounts_for_the_whole_stroke(
     assert np.array_equal(coverage, whole)
     assert np.all(within <= coverage + 1e-6)
     assert float(within.sum()) == pytest.approx(inside * whole.sum())
+
+    # Inside the layer the band is the layer's own side of the boundary, and
+    # past the pixel the boundary cuts it is the other side's.
+    deep, beyond = within[0, : covered - 1, 0], within[0, covered + 1 :, 0]
+    assert np.allclose(deep, coverage[0, : covered - 1, 0] if inside else 0.0)
+    assert np.allclose(beyond, coverage[0, covered + 1 :, 0] if inside == 1 else 0.0)
+    assert float(coverage.sum()) > 0.0
 
 
 def test_inset_band_sits_wholly_inside_the_layer() -> None:

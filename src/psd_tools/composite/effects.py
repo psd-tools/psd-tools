@@ -31,6 +31,11 @@ The main function :py:func:`draw_stroke_effect` handles stroke rendering by:
 3. Filling the stroke region with the specified paint (solid color, gradient, pattern)
 4. Returning the rendered stroke as a NumPy array
 
+:py:func:`draw_stroke_effect_split` is the same stroke with its coverage
+divided at the layer's boundary, which is what the compositor takes: the two
+sides of that boundary are composited differently. Compositing is the only
+caller that needs the division, so the undivided spelling above stays.
+
 Implementation notes:
 
 - Effects are image-based rather than vector-based, which may differ from Photoshop
