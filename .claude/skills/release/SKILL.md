@@ -79,7 +79,8 @@ Trimming is a separate commit from the release commit, and touches comments and
 docstrings only. If any line of code moves, stop and treat it as a code change.
 
 It is still a commit, so it needs the release branch to exist: create it as Step 4
-describes before committing here, rather than landing this on `main`.
+describes, rather than landing this on `main`. It is the same branch, created once —
+Step 4 does not create a second one.
 
 ## Step 1c — Reconcile the release milestone
 
@@ -168,17 +169,26 @@ The branch name is the only thing `auto-tag` reads the version from, and it matc
 yields an empty version, the `tag` job is skipped on `version != ''`, and the run
 still reports success — so nothing is tagged and nothing says so.
 
-```bash
-git checkout -b release/vVERSION
-```
+Create it once, by whichever of these two routes applies — Step 1b's trimming commit
+needs the same branch, so it may already exist.
 
-If the project's instructions ask for a worktree, create the worktree first and then
-rename its branch, because `EnterWorktree` names the branch after the worktree with a
-`worktree-` prefix and slashes replaced, not the name it was given:
+If the project's instructions ask for a worktree, create the worktree and rename its
+branch from inside it. `EnterWorktree` names the branch after the worktree rather than
+the name it was given, prefixing `worktree-` and replacing slashes: asking for
+`release/v1.20.0` produced `worktree-release+v1.20.0`.
 
 ```bash
 git branch -m release/vVERSION
 ```
+
+Otherwise create the branch directly:
+
+```bash
+git checkout -b release/vVERSION
+```
+
+Either way, confirm it before going on — `git branch --show-current` has to print
+`release/vVERSION` exactly.
 
 Then update `src/psd_tools/version.py` using the Edit tool — replace the existing
 `__version__` line with:
