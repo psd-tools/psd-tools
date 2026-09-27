@@ -1473,6 +1473,45 @@ def test_a_partly_covered_stroke_pixel_blends_with_the_fill() -> None:
     assert abs(color[row, 6, 0] - 0.129) > 0.05
 
 
+def test_a_partly_opaque_stroke_fades_into_the_fill() -> None:
+    """``strokeStyleOpacity`` reaches a pixel the stroke covers whole (#883).
+
+    The other half of the same exit defect, and the half partial coverage
+    above cannot see. ``layers/shape-layer.psd``'s ``Polygon 1`` is a cyan
+    fill under a magenta 1 px stroke, so where the pen covers a pixel whole
+    the color is that much magenta over the rest of the cyan: red reads the
+    opacity straight back, and green reads what is left of it.
+
+    ``result_isolated()`` divided the seed backdrop out, and dividing by the
+    stroke's own alpha is what undoes the ``shape * opacity`` that
+    :py:meth:`Compositor._get_stroke` puts there -- 50% and 10% both painted
+    the flat magenta that 100% does. No fixture ships a stroke below 100%, so
+    the descriptor is forged here.
+    """
+
+    def render(opacity: float | None) -> np.ndarray:
+        psd = PSDImage.open(full_name("layers/shape-layer.psd"))
+        layer = [x for x in psd.descendants() if x.name == "Polygon 1"][0]
+        assert layer.stroke is not None
+        stored = cast(UnitFloat, layer.stroke._data["strokeStyleOpacity"])
+        assert float(stored) == 100.0, "the fixture's own value, forged below"
+        if opacity is not None:
+            layer.stroke._data["strokeStyleOpacity"] = UnitFloat(
+                unit=stored.unit, value=opacity
+            )
+        color, _, _ = composite(psd, force=True)
+        return color
+
+    row, column = 27, 19
+    psd = PSDImage.open(full_name("layers/shape-layer.psd"))
+    layer = [x for x in psd.descendants() if x.name == "Polygon 1"][0]
+    assert vector.draw_stroke(layer)[row, column, 0] == 1.0, "covered whole"
+
+    assert render(None)[row, column] == pytest.approx([1.0, 0.0, 1.0], abs=1e-6)
+    assert render(50.0)[row, column] == pytest.approx([0.5, 0.5, 1.0], abs=1e-6)
+    assert render(10.0)[row, column] == pytest.approx([0.1, 0.9, 1.0], abs=1e-6)
+
+
 def test_a_vector_stroke_adds_no_coverage_outside_the_layer_box() -> None:
     """Why the cull measures stroke *effects* only, and not ``layer.stroke``.
 
