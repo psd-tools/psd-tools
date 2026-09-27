@@ -1,6 +1,7 @@
 """Composite implementation for layer rendering and blending."""
 
 import logging
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Iterator, NamedTuple, Protocol, cast
@@ -9,6 +10,7 @@ import numpy as np
 from PIL import Image
 
 from psd_tools.api import pil_io
+from psd_tools.api.effects import DropShadow
 from psd_tools.api.layers import AdjustmentLayer, Artboard, GroupMixin, Layer
 from psd_tools.api.protocols import LayerProtocol, PSDProtocol
 from psd_tools.api.psd_image import PSDImage
@@ -16,7 +18,12 @@ from psd_tools.api.utils import check_pixel_size, get_color_channels
 from psd_tools.composite import paint, utils, vector
 from psd_tools.composite.adjustments import ADJUSTMENT_FUNC
 from psd_tools.composite.blend import get_blend_func, normal
-from psd_tools.composite.effects import draw_stroke_effect_split, stroke_bbox
+from psd_tools.composite.effects import (
+    draw_drop_shadow,
+    draw_stroke_effect_split,
+    drop_shadow_bbox,
+    stroke_bbox,
+)
 from psd_tools.composite.widen import make_widen
 from psd_tools.constants import (
     BlendMode,
@@ -84,9 +91,9 @@ def _readable(layer: Layer, name: str) -> list[_StyledEffect]:
 
     ``Effects`` re-reads the layer's block on every access, so listing a
     layer's effects can fail on the walk ``find()`` makes before it yields
-    anything. The three callers guard each effect they go on to read
-    separately, inside the loop; this is the failure that would leave them
-    nothing to guard.
+    anything. The callers guard each effect they go on to read separately,
+    inside the loop; this is the failure that would leave them nothing to
+    guard.
 
     The effect class this used to fail on is now skipped one layer down, in
     ``Effects`` itself (#828). The clause stays because the listing is what
@@ -168,11 +175,13 @@ _OVERLAY_DRAWS: dict[str, _OverlayDraw] = {
 def _stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
     """``layer.bbox`` grown to every box its stroke effects are drawn on.
 
-    A stroke is the only effect in this module that reaches outside the layer:
-    the three overlays draw on ``layer.bbox`` and are pasted from it, the
-    vector stroke's wider box contributes color alone -- ``_get_object()``
-    keeps none of its coverage -- and drop shadow, glow, satin and bevel are
-    not implemented at all. So this is the whole of the outward reach.
+    A stroke is one of the two effects in this module that reach outside the
+    layer, and :py:func:`_shadow_reach` measures the other: the three overlays
+    draw on ``layer.bbox`` and are pasted from it, the vector stroke's wider
+    box contributes color alone -- ``_get_object()`` keeps none of its
+    coverage -- and glow, satin and bevel are not implemented at all.
+    :py:func:`_effect_reach` is the two together, and is what the callers
+    below ask.
 
     ``find("stroke")`` rather than a descriptor walk, so this stays in lockstep
     with the loop in :py:meth:`Compositor._add_stroke_effects` that actually
@@ -204,6 +213,70 @@ def _stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
     return bbox
 
 
+def _cast_bbox(
+    layer: Layer, memo: "_ContentBBoxes | None" = None
+) -> tuple[int, int, int, int]:
+    """The box a layer's silhouette can cover, which is what casts its shadow.
+
+    A layer's own box, except for a group: its silhouette is its composited
+    contents, effects included, and a child's stroke or shadow runs past the
+    group's box, which is the union of its children's own. The group's
+    content box is every box those contents paint on (#808).
+    """
+    if layer.is_group():
+        return _content_bbox(layer, memo)
+    return layer.bbox
+
+
+def _shadow_reach(
+    layer: Layer, memo: "_ContentBBoxes | None" = None
+) -> tuple[int, int, int, int]:
+    """``layer.bbox`` grown to every box its drop shadows are drawn on.
+
+    The shadow's half of :py:func:`_effect_reach`, measured the way
+    :py:func:`_stroke_reach` measures a stroke and degrading the same way: an
+    effect whose box cannot be read is skipped, which leaves the box wider
+    than what gets drawn and never narrower, because
+    :py:meth:`Compositor._apply_drop_shadows` calls ``drop_shadow_bbox()`` on
+    the same box and values and drops the same effect.
+
+    The box is grown from :py:func:`_cast_bbox`, not from ``layer.bbox``, so a
+    group's shadow is measured from everything the group casts it from. The
+    group's own shadow list is read first, so a group with no shadow never
+    measures its contents here.
+    """
+    bbox = layer.bbox
+    if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
+        return bbox
+    shadows = _readable(layer, "dropshadow")
+    if not shadows:
+        return bbox
+    cast_from = _cast_bbox(layer, memo)
+    for effect in shadows:
+        shadow = cast(DropShadow, effect)
+        try:
+            bbox = utils.union_bbox(
+                bbox,
+                drop_shadow_bbox(cast_from, shadow.distance, shadow.angle, shadow.size),
+            )
+        except _UNREADABLE as error:
+            logger.debug("Cannot measure a drop shadow of %s: %s", layer, error)
+    return bbox
+
+
+def _effect_reach(
+    layer: Layer, memo: "_ContentBBoxes | None" = None
+) -> tuple[int, int, int, int]:
+    """``layer.bbox`` grown to every box its effects are drawn on.
+
+    Both callers need the whole outward reach, for the reasons
+    :py:func:`_stroke_reach` gives: a group canvas that clips a child's
+    shadow loses it as surely as one that clips its stroke, and a layer whose
+    own box has cleared the viewport can still cast a shadow back into it.
+    """
+    return utils.union_bbox(_stroke_reach(layer), _shadow_reach(layer, memo))
+
+
 _ContentBBoxes = dict[int, tuple[int, int, int, int]]
 _GroupShapes = dict[tuple[int, tuple[int, int, int, int]], np.ndarray]
 
@@ -212,8 +285,8 @@ _GroupShapes = dict[tuple[int, tuple[int, int, int, int]], np.ndarray]
 class _PassCache:
     """What one composite pass measures once and then reuses.
 
-    Both entries are keyed by ``id()`` and neither outlives the pass, so unlike
-    a cache on the layer they cannot go stale against an edit, and the document
+    Every entry is keyed by ``id()`` and none outlives the pass, so unlike a
+    cache on the layer they cannot go stale against an edit, and the document
     stays reachable throughout, so no id can be reused under them.
 
     ``content_bboxes`` holds every ``_content_bbox()`` computed so far. Without
@@ -238,15 +311,22 @@ class _PassCache:
     per entry until the pass ends, which is new: the trade is bounded work for
     bounded-lifetime memory, and on a large document with many traced groups
     the retention is the part that grows.
+
+    ``group_alphas`` holds the alpha of the same composites, under the same
+    keys, for a group's drop shadow: that is cast from how opaque the
+    contents are rather than from what they cover. Both are kept from every
+    composite, so a traced group retains two canvases per box rather than
+    one.
     """
 
     content_bboxes: _ContentBBoxes = field(default_factory=dict)
     group_shapes: _GroupShapes = field(default_factory=dict)
+    group_alphas: _GroupShapes = field(default_factory=dict)
 
 
 def _paint_bbox(layer: Layer, memo: _ContentBBoxes) -> tuple[int, int, int, int]:
     """Every box ``layer`` and everything inside it can put paint on."""
-    bbox = _stroke_reach(layer)
+    bbox = _effect_reach(layer, memo)
     if isinstance(layer, GroupMixin):
         bbox = utils.union_bbox(bbox, _content_bbox(layer, memo))
     return bbox
@@ -1238,6 +1318,14 @@ class Compositor(object):
             self._apply_adjustment(layer)
             return
 
+        # Beneath everything else the layer paints, and before the layer is
+        # resolved rather than only before it is composited: a pass-through
+        # group's contents blend with the canvas they are resolved over, and
+        # its shadow is part of that canvas. A pass-through group that knocks
+        # out loses its shadow's colour the way it loses that of every layer
+        # beneath it, because it is resolved over its knockout backdrop and
+        # re-applied against this canvas (#707).
+        self._apply_drop_shadows(layer)
         source = self._resolve_source(layer)
         source, outer = self._compose_effects(layer, source)
         if outer and _composites_as_passthrough(source, layer.blend_mode):
@@ -1261,16 +1349,17 @@ class Compositor(object):
     def _accepts(self, layer: Layer, clip_compositing: bool) -> bool:
         """Whether this layer contributes to the composite at all.
 
-        The cull measures ``_stroke_reach()`` and not ``layer.bbox``, because
+        The cull measures ``_effect_reach()`` and not ``layer.bbox``, because
         a stroke reaches outside the layer: a layer whose own box has cleared
         the viewport can still paint the part of its stroke that falls back
         inside, and rejecting it here lost the stroke along with the layer
-        (#815). ``_stroke_reach()`` rather than ``_paint_bbox()`` because the
-        group half of that measurement is unreachable from here: a group is
-        exempt from the cull, so the box is only ever measured for a layer
-        that has no contents to recurse into. That is also why the
-        exemption is tested first -- the reach is not worth measuring for a
-        layer that is exempt from the test it feeds.
+        (#815). A drop shadow reaches out the same way. ``_effect_reach()``
+        rather than ``_paint_bbox()`` because the group half of that
+        measurement is unreachable from here: a group is exempt from the cull,
+        so the box is only ever measured for a layer that has no contents to
+        recurse into. That is also why the exemption is tested first -- the
+        reach is not worth measuring for a layer that is exempt from the test
+        it feeds.
 
         ``is_group()`` and not ``isinstance(layer, GroupMixin)``, for the
         reason ``Layer._invalidate_moved_bbox()`` and its neighbours already
@@ -1287,7 +1376,7 @@ class Compositor(object):
             return False
         if not (
             isinstance(layer, AdjustmentLayer) or layer.is_group()
-        ) and utils.intersect(self._viewport, _stroke_reach(layer)) == (0, 0, 0, 0):
+        ) and utils.intersect(self._viewport, _effect_reach(layer)) == (0, 0, 0, 0):
             logger.debug("Out of viewport %s", layer)
             return False
         if not clip_compositing and layer.clipping:
@@ -1372,11 +1461,14 @@ class Compositor(object):
     ) -> tuple[_Source, list[_OuterEffect]]:
         """The layer's effects: the inner ones in its source, the outer beside.
 
-        TODO: Drop shadow, inner shadow, the two glows, satin and bevel are
-        not drawn at all, so where they would land is not settled here either.
-        An inner one joins the overlays; a drop shadow and an outer glow are
-        outer effects with an offset and a blur, which is coverage this
-        module's own, unoffset ``_trace_shape()`` does not produce.
+        A drop shadow is neither, and is not composed here: it lies beneath
+        the layer and goes on before the layer is resolved -- see
+        :py:meth:`_apply_drop_shadows`.
+
+        TODO: Inner shadow, the two glows, satin and bevel are not drawn at
+        all, so where they would land is not settled here either. An inner one
+        joins the overlays; an outer glow is an outer effect with a blur, which
+        ``draw_drop_shadow()`` already draws the coverage of.
         """
         canvas = _EffectCanvas(self, source)
         for effect_name in _OVERLAY_DRAWS:
@@ -2080,7 +2172,7 @@ class Compositor(object):
         return traced
 
     def _get_group_shape(
-        self, layer: Layer, viewport: tuple[int, int, int, int]
+        self, layer: Layer, viewport: tuple[int, int, int, int], alpha: bool = False
     ) -> np.ndarray:
         """The group's own coverage on ``viewport``, composited a second time.
 
@@ -2116,6 +2208,12 @@ class Compositor(object):
         is composited from, an outset one beside it, and on
         ``group-clips-child-stroke.psd`` the children's own strokes are 46% of
         the group's coverage.
+
+        ``alpha`` hands back the same composite's alpha instead, which is kept
+        beside the coverage so that asking for both composites once. It reads
+        no backdrop either: it starts at zero, and a knockout inside the group
+        reaches for this transparent backdrop, so it can only cut the group's
+        own alpha away.
         """
         inner = viewport
         if layer.blend_mode != BlendMode.PASS_THROUGH:
@@ -2127,7 +2225,8 @@ class Compositor(object):
             return np.zeros((height, width, 1), dtype=np.float32)
 
         key = (id(layer), inner)
-        shape = self._cache.group_shapes.get(key)
+        cached = self._cache.group_alphas if alpha else self._cache.group_shapes
+        shape = cached.get(key)
         if shape is None:
             inner_h, inner_w = inner[3] - inner[1], inner[2] - inner[0]
             group_compositor = Compositor(
@@ -2142,9 +2241,107 @@ class Compositor(object):
             )
             for sublayer in cast(GroupMixin, layer):
                 group_compositor.apply(sublayer)
-            shape = group_compositor.shape
-            self._cache.group_shapes[key] = shape
+            self._cache.group_shapes[key] = group_compositor.shape
+            self._cache.group_alphas[key] = group_compositor.alpha
+            shape = cached[key]
         return paste(viewport, inner, shape)
+
+    def _cast_shape(
+        self, layer: Layer, viewport: tuple[int, int, int, int]
+    ) -> np.ndarray:
+        """What casts the layer's drop shadow, on ``viewport``.
+
+        How opaque the layer is, before its opacity and fill opacity, and
+        under its mask: an object's own coverage, and a group's composited
+        alpha, so a child faded to nothing casts nothing. Not the outline of
+        a vector mask, which a stroke follows under ``force``: on a pixel
+        layer that would cast a shadow from the mask's empty margin.
+
+        Read afresh on ``viewport`` rather than taken from the resolved
+        source, which :py:meth:`_trace_shape` pastes from where it can. The
+        shadow goes on before the layer is resolved, so there is no source
+        yet; and a group resolved over this canvas can take alpha from it
+        through a knockout, which would make the shadow depend on the
+        viewport. The group's contents are composited over nothing, once per
+        box and pass, as :py:meth:`_get_group_shape` does for a stroke.
+        """
+        mask = self._get_mask(layer, viewport)
+        own = (
+            self._get_group_shape(layer, viewport, alpha=True)
+            if isinstance(layer, GroupMixin)
+            else self._get_object_shape(layer, viewport)
+        )
+        return utils.clip(own * mask)
+
+    def _apply_drop_shadows(self, layer: Layer) -> None:
+        """Composite every drop shadow of the layer, beneath the layer.
+
+        Called before the layer is resolved: see :py:meth:`apply`. The shadow
+        is drawn on its own box, grown from :py:func:`_cast_bbox` so a group's
+        has room for its children's effects, and cast from
+        :py:meth:`_cast_shape` read on that box, so a layer that runs past the
+        viewport still casts from the part of it out of view (#804).
+
+        The layer opacity fades the shadow with the layer, as it fades an
+        outer stroke. Fill opacity does not: it fades the layer's own paint
+        and not its effects, which is what lets a layer at fill 0 cast a
+        shadow and nothing else. With "layer knocks out drop shadow" on, the
+        shadow is cut away under the same silhouette it is cast from rather
+        than under the layer's paint, so a layer faded by fill opacity shows
+        the backdrop through itself and not its shadow.
+
+        Each effect is guarded as the strokes are, with the silhouette read
+        outside both guards so that a fault compositing a group's contents is
+        not taken for an unreadable effect. A parameter that parses to NaN or
+        infinity is unreadable too: nothing on the way raises for it, and
+        composited it would take every pixel of the canvas with it.
+        """
+        shadows = _readable(layer, "dropshadow")
+        if not shadows:
+            return
+        _, opacity = self._get_const(layer)
+        if opacity <= 0.0:
+            return
+        cast_from = _cast_bbox(layer, self._cache.content_bboxes)
+        for effect in shadows:
+            shadow = cast(DropShadow, effect)
+            try:
+                distance, angle = shadow.distance, shadow.angle
+                size, spread = shadow.size, shadow.choke
+                effect_opacity = shadow.opacity / 100.0
+                if not math.isfinite(effect_opacity):
+                    raise ValueError("opacity %r is not finite" % effect_opacity)
+                blend_mode = shadow.blend_mode
+                knocks_out = shadow.layer_knocks_out
+                bbox = drop_shadow_bbox(cast_from, distance, angle, size)
+            except _UNREADABLE as error:
+                logger.debug("Cannot measure a drop shadow of %s: %s", layer, error)
+                continue
+            if utils.intersect(self._viewport, bbox) == (0, 0, 0, 0):
+                continue
+            silhouette = self._cast_shape(layer, bbox)
+            try:
+                coverage = draw_drop_shadow(
+                    bbox,
+                    silhouette,
+                    distance=distance,
+                    angle=angle,
+                    size=size,
+                    spread=spread,
+                )
+                color, _ = paint.draw_solid_color_fill(
+                    self._viewport, layer._psd.color_mode, shadow.descriptor
+                )
+            except _UNREADABLE as error:
+                logger.debug("Cannot draw a drop shadow of %s: %s", layer, error)
+                continue
+            if knocks_out:
+                coverage = coverage * (1.0 - silhouette)
+            coverage = paste(self._viewport, bbox, coverage)
+            if coverage.any():
+                self._apply_source(
+                    color, coverage, coverage * effect_opacity * opacity, blend_mode
+                )
 
     def _add_stroke_effects(
         self,
