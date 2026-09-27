@@ -4,6 +4,10 @@ Changelog
 1.21.0 (unreleased)
 -------------------
 
+- [fix] A drop shadow layer effect is now rendered when a document is
+  composited from its layers, instead of being dropped. It fades with the
+  layer's opacity but not its fill opacity; contour and noise are not
+  applied, and the blur approximates Photoshop's (#679)
 - [fix] Stroke and overlay effects are composited into the layer they belong
   to instead of onto the finished composite, so a layer whose coverage is
   partial no longer renders its effect with the backdrop mixed through it.
