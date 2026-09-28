@@ -30,10 +30,10 @@ logger = logging.getLogger(__name__)
 
 
 def test_lighter_color_descriptor_key() -> None:
-    """Regression: b"lighterColor" was previously a typo (b"ligherColor").
+    """The descriptor key is ``b"lighterColor"``, and a typo in it is silent.
 
-    The misspelling silently fell back to the normal blend mode for effects
-    and strokes.
+    A misspelled key is simply absent from the table, so effects and strokes
+    asking for it fall back to the normal blend mode.
     """
     assert BLEND_FUNC.get(b"lighterColor") is lighter_color
     assert BLEND_FUNC.get(b"lighterColor") is not normal
@@ -54,9 +54,8 @@ def test_lighter_color_descriptor_key() -> None:
         ("blend-modes/linear-burn.psd",),
         ("blend-modes/hard-light.psd",),
         ("blend-modes/soft-light.psd",),
-        # Was xfailed as a vivid light algorithm discrepancy until #189: the
-        # mode delegated to the guarded color_burn/color_dodge, whose backdrop
-        # special cases Photoshop does not apply here. 0.020755 -> 0.000001.
+        # Vivid Light must not delegate to the guarded color_burn/color_dodge,
+        # whose backdrop special cases Photoshop does not apply here (#189).
         ("blend-modes/vivid-light.psd",),
         ("blend-modes/linear-light.psd",),
         ("blend-modes/pin-light.psd",),
@@ -73,10 +72,9 @@ def test_lighter_color_descriptor_key() -> None:
         # Total test
         ("blend-modes/rgb-blend-modes.psd",),
         ("blend-modes/gray-blend-modes.psd",),
-        # Was xfailed as "# Fix me!" until #781: the six non-separable modes
-        # went through a CMYK round trip that read the canvas as ink where it
-        # holds what is left of it, and the whole document's error sat at
-        # 0.026612 against this 0.01 threshold. It is 0.000179 now.
+        # The six non-separable modes blend the CMY complement directly: a
+        # round trip that reads the canvas as ink, where it holds what is left
+        # of it, misses this threshold (#781).
         ("blend-modes/cmyk-blend-modes.psd",),
     ],
 )
@@ -155,7 +153,7 @@ def _nested_passthrough_psd(depth: int, opacity: int, background: bool) -> PSDIm
 def test_passthrough_group_opacity_over_opaque_backdrop(depth: int) -> None:
     """Group opacity must scale the effective alpha of the group's contents.
 
-    Blending the backdrop in twice instead is what issue #703 reported.
+    Blending the backdrop in twice instead is the defect this guards (#703).
     """
     psd = _nested_passthrough_psd(depth, opacity=128, background=True)
     image = psd.composite(ignore_preview=True).convert("RGB")
@@ -183,8 +181,8 @@ def test_passthrough_group_opacity_over_partial_backdrop(depth: int) -> None:
     So a partially transparent backdrop contributes in proportion to its own
     alpha.
 
-    This is the case the pre-#703 code got wrong even without nesting, because
-    it keyed off ``_shape_g`` rather than the backdrop alpha.
+    Keying the interpolation off ``_shape_g`` rather than the backdrop alpha
+    gets this case wrong even without nesting (#703).
     """
     psd = _nested_passthrough_psd_with(
         depth, opacity=128, layer_alpha=128, background_alpha=128
@@ -220,7 +218,7 @@ def test_passthrough_group_opacity_equivalence(
     At opacity ``m`` around one normal layer at alpha ``a``, it must render
     identically to that layer ungrouped at ``m * a``.
 
-    This is the invariant issue #703 violated: group opacity has to scale the
+    This is the invariant #703 turns on: group opacity has to scale the
     effective alpha of the contents rather than blend the backdrop in twice.
     """
     grouped = _nested_passthrough_psd_with(
@@ -245,17 +243,17 @@ def test_non_separable_falls_back_to_normal_off_rgb(
 ) -> None:
     """Widths other than RGB and CMYK degrade instead of crashing (#735).
 
-    The four component modes raised on any single-channel document -- every
-    grayscale and duotone fixture that has layers::
+    Without the fallback the four component modes raise on any single-channel
+    document -- every grayscale and duotone fixture that has layers::
 
         hue, saturation:    IndexError: boolean index did not match indexed
                             array along axis 2
         color, luminosity:  ValueError: zero-size array to reduction operation
                             minimum which has no identity
 
-    ``darker_color`` and ``lighter_color`` did not raise, which was worse: the
-    empty mask they built selected nothing, so both returned the backdrop
-    untouched whatever the source was. Two and five channels -- a duotone canvas
+    ``darker_color`` and ``lighter_color`` do not raise, which is worse: the
+    empty mask they build selects nothing, so both return the backdrop
+    untouched whatever the source is. Two and five channels -- a duotone canvas
     widened to its inks, a multichannel document with spot plates -- are broken
     too, differing only in which exception comes out and in that five channels
     raises for all six rather than silently passing the backdrop through. So
@@ -264,10 +262,10 @@ def test_non_separable_falls_back_to_normal_off_rgb(
     ``normal`` is the fallback because Photoshop refuses to set any of these
     six modes on such a document, so there is no result to reproduce.
 
-    Since #746 the width is no longer the whole rule: a multichannel document
-    returns before this branch when its mode is known, at three and four plates
-    as well as at the widths here. These cases carry no mode, so they still
-    reach the width fallback and pin it as #735 left it.
+    The width is not the whole rule: a multichannel document returns before
+    this branch when its mode is known, at three and four plates as well as at
+    the widths here (#746). These cases carry no mode, so they still reach the
+    width fallback and pin it (#735).
     """
     Cb = np.full((2, 2, channels), 0.4, dtype=np.float32)
     Cs = np.full((2, 2, channels), 0.6, dtype=np.float32)
@@ -316,7 +314,7 @@ def test_non_separable_still_blends_the_modes_with_ground_truth(
     three keep blending -- the three-channel ones directly, CMYK on its CMY
     complement with K carried across. So does an array with no mode attached,
     which is what a bare ``Compositor`` or a direct call hands over: there the
-    width decides alone, as it did before #746.
+    width decides alone (#746).
 
     Indexed rides along on width rather than on ground truth. Photoshop
     flattens on conversion to Indexed Color, the same argument that keeps
@@ -325,9 +323,9 @@ def test_non_separable_still_blends_the_modes_with_ground_truth(
     every other three-channel canvas on the RGB path.
 
     What the CMYK row is worth is settled separately, by
-    ``test_non_separable_matches_photoshop_on_cmyk`` below: since #781 the
-    result is Photoshop's to within one 8-bit step, where this row only asks
-    that some blending happened at all.
+    ``test_non_separable_matches_photoshop_on_cmyk`` below, which holds the
+    result against Photoshop's own render (#781); this row only asks that some
+    blending happened at all.
     """
     Cb, Cs = _mixed_pair(channels)
     with caplog.at_level(logging.DEBUG, logger="psd_tools.composite.blend"):
@@ -353,16 +351,16 @@ def test_non_separable_falls_back_on_a_multichannel_document(
 ) -> None:
     """A spot plate is not a colour component, at any plate count (#746).
 
-    #745 keyed the fallback on the width, which left two plate counts blending:
-    four were claimed as CMYK and the fourth ink blended as black generation,
-    and three went into the RGB helpers as if the plates were R, G and B. Both
-    were silently wrong rather than an error, and three is the count the only
+    Keying the fallback on the width alone leaves two plate counts blending:
+    four claimed as CMYK with the fourth ink blended as black generation, and
+    three fed to the RGB helpers as if the plates were R, G and B (#745). Both
+    are silently wrong rather than an error, and three is the count the only
     multichannel fixture in the corpus has.
 
     The assertion on the message is what makes this discriminate. At one, two
-    and five channels the width fallback #745 added returns ``normal`` too, so
-    the equality alone would pass there with this fix reverted; and for three
-    and four the width is the wrong diagnosis to log.
+    and five channels the width fallback returns ``normal`` too, so the
+    equality alone would pass there on the width rule alone; and for three and
+    four the width is the wrong diagnosis to log.
     """
     Cb, Cs = _mixed_pair(channels)
     with caplog.at_level(logging.DEBUG, logger="psd_tools.composite.blend"):
@@ -393,7 +391,7 @@ def test_only_cmyk_is_four_channels_wide() -> None:
 
 @pytest.mark.parametrize("func", NON_SEPARABLE, ids=lambda f: f.__name__)
 def test_non_separable_defaults_to_deciding_by_width(func: Callable) -> None:
-    """Called with two arguments, these behave as they did before #746.
+    """Called with two arguments, these decide by width alone (#746).
 
     Every other case passes a mode explicitly, including the ``None`` rows, so
     without this the *default* would be untested -- and a default of, say,
@@ -491,12 +489,10 @@ PHOTOSHOP_CMYK: list[tuple[list[float], list[float], dict[str, list[float]]]] = 
 ]
 
 # One 8-bit step is 1/255, and Photoshop reports through an 8-bit sampler, so
-# the floor here is quantization and not model error: the worst of the 36 rows
-# is 1.20 steps and none exceeds one and a quarter. Two steps leaves the
-# assertion loose enough to be stable and tight enough to fail loudly -- every
-# defect #781 fixed moves at least one of these rows by 25 to 148 steps. The
-# separable table further down shares this tolerance on the same reasoning; its
-# own worst row is 1.13 steps, and the defects #189 fixed move rows by 6 to 255.
+# the floor here is quantization and not model error. Two steps leaves the
+# assertion loose enough to be stable and tight enough to fail loudly -- a
+# defect in any of these modes moves a row by far more (#781). The separable
+# table further down shares this tolerance on the same reasoning (#189).
 _ONE_STEP = 1.0 / 255.0
 
 
@@ -508,27 +504,25 @@ def _cmyk_canvas(ink: list[float]) -> np.ndarray:
 @pytest.mark.parametrize("mode", [f.__name__ for f in NON_SEPARABLE])
 @pytest.mark.parametrize("pair", range(len(PHOTOSHOP_CMYK)), ids=lambda i: "pair%d" % i)
 def test_non_separable_matches_photoshop_on_cmyk(pair: int, mode: str) -> None:
-    """The whole of what #781 fixed, against Photoshop's own render.
+    """The four-channel branch in full, against Photoshop's own render (#781).
 
-    Three separate defects lived in the four-channel branch, and the corpus
-    fixture ``blend-modes/cmyk-blend-modes.psd`` catches only the first even
+    Three rules govern it, and the corpus fixture
+    ``blend-modes/cmyk-blend-modes.psd`` discriminates only the first even
     though it exercises all six modes:
 
-    1. The round trip. ``_cmyk2rgb`` computed ``(1 - C) * (1 - K)``, reading the
-       canvas as ink where it holds what is left of it, so all six collapsed to
-       a constant and ``color(Cb, Cb)`` was not ``Cb``. There is no round trip
-       now: Photoshop blends the CMY complement directly, which is what the
-       canvas already holds, and no formula that converts to RGB first came
-       within 6/255 of these numbers.
+    1. No round trip. Photoshop blends the CMY complement directly, which is
+       what the canvas already holds. Computing ``(1 - C) * (1 - K)`` reads
+       the canvas as ink where it holds what is left of it, which collapses
+       all six to a constant and leaves ``color(Cb, Cb)`` short of ``Cb``; no
+       formula that converts to RGB first comes near these numbers.
     2. Which operand supplies K -- the backdrop's for hue, saturation and
-       color, the source's for luminosity. The code took the source's for all
-       four. Reverting that alone still passes the fixture, and moves pair 4 by
-       148/255 here.
+       color, the source's for luminosity. Taking the source's for all four
+       still passes the fixture, and moves a row here.
     3. Darker and Lighter Color return an operand *whole*, K included, and
-       weigh K when deciding which is darker. Reverting either half still passes
-       the fixture; dropping K from the comparison changes no pixel in it at
-       all, while pair 3 -- a near-neutral backdrop against a saturated source
-       -- moves by 127.5/255.
+       weigh K when deciding which is darker. Dropping either half still
+       passes the fixture; dropping K from the comparison changes no pixel in
+       it at all, while pair 3 -- a near-neutral backdrop against a saturated
+       source -- moves here.
 
     So this table is not redundant with the fixture; for two of the three it is
     the only thing standing.
@@ -544,8 +538,8 @@ def test_non_separable_matches_photoshop_on_cmyk(pair: int, mode: str) -> None:
 def test_non_separable_is_the_identity_on_equal_cmyk_operands(func: Callable) -> None:
     """Blending a colour with itself must return it (#781).
 
-    The plainest statement of what the inverted round trip broke: it answered
-    full CMY for every input, so even this could not hold. ``hue`` and
+    The plainest statement of the no-round-trip rule: an inverted round trip
+    answers full CMY for every input, so even this cannot hold. ``hue`` and
     ``saturation`` come back one ulp out because ``_set_sat`` rebuilds the
     channels from a sorted comparison rather than passing them through; the
     other four are exact.
@@ -568,12 +562,11 @@ def test_non_separable_falls_back_when_the_operands_disagree_in_width(
 
     Unreachable through the compositor -- ``_fit_source()`` brings every source
     to the canvas width, and the backdrop *is* the canvas -- so this pins a
-    direct caller's blast radius. It is worth pinning because #781 made the
-    failure quieter before making it louder: taking K from the backdrop means a
-    three-channel backdrop under a four-channel source slices ``Cb[:, :, 3:4]``
-    to *nothing*, and ``concatenate`` then returns three channels where four
-    were asked for -- a silent short array rather than the ``IndexError`` the
-    same input used to raise.
+    direct caller's blast radius. It is worth pinning because the failure is
+    otherwise quiet: taking K from the backdrop means a three-channel backdrop
+    under a four-channel source slices ``Cb[:, :, 3:4]`` to *nothing*, and
+    ``concatenate`` then returns three channels where four were asked for -- a
+    silent short array rather than an error (#781).
     """
     Cb = np.full((2, 2, 3), 0.4, dtype=np.float32)
     Cs = np.full((2, 2, 4), 0.6, dtype=np.float32)
@@ -600,7 +593,7 @@ def test_get_blend_func_binds_the_mode_only_to_the_non_separable_six() -> None:
 
 
 def test_get_blend_func_defaults_unknown_keys_to_normal() -> None:
-    """The ``.get(..., normal)`` default this replaced is load-bearing (#746).
+    """The ``.get(..., normal)`` default is load-bearing (#746).
 
     ``PASS_THROUGH`` has no entry in ``BLEND_FUNC`` and reaches the lookup for
     real: a group that isolates its adjustments is composited as an ordinary
@@ -622,7 +615,7 @@ def test_get_blend_func_degrades_the_descriptor_keys_too(key: bytes) -> None:
     """Effects and strokes look their blend mode up by descriptor key (#746).
 
     ``BLEND_FUNC`` carries the six twice over, once per key family, and a typo
-    in the descriptor half shipped undetected once already -- see
+    in the descriptor half goes undetected -- see
     ``test_lighter_color_descriptor_key`` above. So the family a layer's own
     blend mode does *not* come through is pinned here rather than assumed to
     follow.
@@ -633,13 +626,13 @@ def test_get_blend_func_degrades_the_descriptor_keys_too(key: bytes) -> None:
 
 
 # The separable half of the same experiment that produced ``PHOTOSHOP_CMYK``
-# above, and the answer to #189: 17 of the 20 modes here already agreed with
-# Photoshop to within 1.4/255, so the compositor's CMYK convention -- the
-# canvas counts what is left of the ink, and the separable formulas apply to
-# that complement -- was never the problem the issue supposed. Three modes were
-# wrong, and wrong in every colour mode rather than only in CMYK:
-# ``soft_light`` keyed D on the source, ``vivid_light`` inherited backdrop
-# special cases Photoshop does not apply, and ``hard_mix`` fudged the tie.
+# above, and the answer to #189: most of the 20 modes here agree with
+# Photoshop as they stand, so the compositor's CMYK convention -- the canvas
+# counts what is left of the ink, and the separable formulas apply to that
+# complement -- is not the problem the issue supposes. Three modes are, and in
+# every colour mode rather than only in CMYK: ``soft_light``'s D is keyed on
+# the backdrop, ``vivid_light`` does not take the backdrop special cases
+# ``color_burn``/``color_dodge`` apply, and ``hard_mix`` resolves the tie.
 # Pairs 2 and 3 are the ones that discriminate: pair 2 carries the two
 # ``vivid_light`` corners (Cb == 1 with Cs == 0, and Cb == 0 with Cs == 1) and
 # pair 3 carries the ``hard_mix`` tie from both sides (Cb + Cs == 1 with Cb
@@ -870,16 +863,16 @@ def test_separable_matches_photoshop_on_cmyk(pair: int, mode: str) -> None:
 
     This is the coverage the 164-layer ``cmyk-blend-modes.psd`` fixture cannot
     give. That document exercises all of these modes, but its error is diluted
-    across the whole canvas: it sat at 0.000179 against a 0.01 threshold while
-    three modes were wrong, and two of the three defects moved it by less than
-    a thousandth. Reverting any one of the three fails a row here instead.
+    across the whole canvas, so a wrong mode moves it by far less than its
+    threshold. A defect in any one of the three modes #189 corrects fails a
+    row here instead.
 
     A CMYK table settles a fix advertised for every colour mode because these
     twenty are not mode-aware: none is in ``_MODE_AWARE``, so ``get_blend_func``
     hands back the bare function and one object serves RGB, Grayscale, Lab and
-    CMYK alike, as the ``get_blend_func`` binding test above pins. So fixing the
-    arithmetic on CMYK fixes it everywhere, which is why #189's report against
-    CMYK alone never located a CMYK fault.
+    CMYK alike, as the ``get_blend_func`` binding test above pins. So fixing
+    the arithmetic on CMYK fixes it everywhere, which is why a report against
+    CMYK alone does not locate a CMYK fault (#189).
     """
     backdrop, source, expected = PHOTOSHOP_CMYK_SEPARABLE[pair]
     blend_fn = getattr(blend_module, mode)

@@ -260,7 +260,7 @@ def test_mask_data_parameters_573_sample() -> None:
 
     The trailing ``cc cc cc cc cc cd`` bytes are the IEEE-754 mantissa of 22.8,
     not uninitialized memory from a third-party writer. Reading them as part of
-    a real mask header is what made the block look truncated.
+    a real mask header is what makes the block look truncated.
     """
     with io.BytesIO(MASK_DATA_573) as f:
         mask_data = MaskData.read(f, has_real_mask=False)
@@ -328,8 +328,8 @@ def test_mask_data_real_mask_detection(
     """Real mask header presence follows the channel list, not the block length.
 
     These are the parameter combinations whose block reaches 36 bytes or more
-    without a REAL_USER_LAYER_MASK channel, so the old ``length >= 36``
-    heuristic read the MaskParameters payload as a real mask header (#693).
+    without a REAL_USER_LAYER_MASK channel, where a ``length >= 36`` heuristic
+    reads the MaskParameters payload as a real mask header (#693).
     """
     body = _build_mask_data_body(has_real_mask, parameter_bits)
     assert len(body) >= 36  # otherwise the case under test is not exercised
@@ -361,7 +361,8 @@ def test_mask_data_parameters_without_real_mask() -> None:
 
     A layer with both a pixel mask and a vector mask carrying custom density
     and feather, but no REAL_USER_LAYER_MASK channel. The block is 40 bytes,
-    so the old heuristic silently returned None for every parameter.
+    which a length heuristic takes for a real mask header, silently answering
+    None for every parameter.
     """
     body = bytes.fromhex(
         "00000a600000074100000d8500000b5bff100fe6"

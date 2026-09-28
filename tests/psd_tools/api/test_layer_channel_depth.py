@@ -1,25 +1,26 @@
 """What a layer's channels are packed as when the API writes them (#867).
 
-Every write path that builds channel data from a PIL image used to take the
-depth from the image. A PIL image holds a byte per pixel whatever it describes,
-so a 16- or 32-bit document got channels a half or a quarter of the length its
-geometry requires, and the layer read back empty -- the sibling defect to #866,
-in the layer path rather than the merged image data one.
+Every write path that builds channel data from a PIL image takes the depth from
+the header, never from the image. A PIL image holds a byte per pixel whatever
+it describes, so taking the depth from it gives a 16- or 32-bit document
+channels a half or a quarter of the length its geometry requires, and the layer
+reads back empty -- the sibling defect to #866, in the layer path rather than
+the merged image data one.
 
 The same rule reaches three places: ``PixelLayer.frompil()`` and everything
 that calls it, ``create_mask()``/``update_mask()`` -- a mask is stored at the
-document's depth too, which 24 16-bit and two 32-bit masks in the corpus show
--- and ``_convert_mode()``, which re-encodes a layer moved between documents
-and consulted neither the destination's depth nor its file version.
+document's depth too, as the corpus's 16- and 32-bit masks show -- and
+``_convert_mode()``, which re-encodes a layer moved between documents and so
+has to consult the destination's depth and its file version.
 
 A note on what these assert. ``len(ChannelData.data)`` is the *compressed*
 length, so the length tests build their layers with ``Compression.RAW``, where
 it is the channel length; under RLE the reader pads every short row back out to
-the full row size, which makes a length assertion pass on the unfixed code.
+the full row size, so a length assertion cannot see a short channel at all.
 For the same reason the value tests compare whole arrays and use a non-uniform
 image at least three pixels wide: an 8-bit row read as 16-bit pairs its own
 bytes, so ``0x80, 0x80`` decodes to 0.50196 -- exactly the right answer -- and
-the first pixel or two of a flat layer come out correct on the unfixed code.
+the first pixel or two of a flat layer read correct however it was packed.
 """
 
 from typing import Any, Literal, cast
@@ -142,8 +143,7 @@ def test_a_deep_document_composites_its_new_layer_after_a_save(
     """The end the issue reports from: a saved deep document, reopened.
 
     The backdrop is white and the layer is not, so a layer that reads back
-    empty composites as the backdrop alone -- which is what depth 16 and 32
-    did.
+    empty composites as the backdrop alone.
     """
     pytest.importorskip("scipy")
     psd = PSDImage.new("RGB", (5, 3), color=1.0, depth=depth)
@@ -162,10 +162,10 @@ def test_a_deep_document_composites_its_new_layer_after_a_save(
 def test_a_depth_only_move_re_encodes_the_channels(
     source_depth: Literal[8, 16, 32], dest_depth: Literal[8, 16, 32]
 ) -> None:
-    """Equal colour mode is not equal packing, which the old guard assumed.
+    """Equal colour mode is not equal packing.
 
-    Both documents are RGB, so ``pil_mode`` matches and the layer used to be
-    carried across untouched -- at the source's bytes per sample.
+    Both documents are RGB, so ``pil_mode`` matches; carrying the layer across
+    on that alone would leave it at the source's bytes per sample.
 
     The mask is deliberately a different size from the layer and at a
     different origin, so that the geometry each channel is repacked against
@@ -278,9 +278,9 @@ def test_a_cross_mode_move_re_encodes_at_the_destinations_version() -> None:
     """The other half of the version rule, on the branch PIL drives.
 
     A grayscale v1 document into an RGB v2 one: the colour mode differs, so
-    the layer is re-rendered through PIL -- and that render used to be written
-    with the *source* file's version, leaving two-byte row counts in a file
-    whose reader takes four.
+    the layer is re-rendered through PIL -- and that render has to be written
+    with the *destination* file's version, or two-byte row counts land in a
+    file whose reader takes four.
     """
     source = PSDImage.new("L", (16, 16), depth=8)
     layer = source.create_pixel_layer(_image("L"), name="L")
@@ -298,12 +298,12 @@ def test_a_cross_mode_move_re_encodes_at_the_destinations_version() -> None:
 
 
 def test_a_depth_only_move_keeps_the_layer_record() -> None:
-    """A guard, not evidence for #867: this passes on the unfixed code too.
+    """A guard, not evidence for #867.
 
-    It passed there because the move did nothing at all. It is asserted so
-    that re-encoding a depth-only move can never be done by routing it through
-    the ``pil_mode`` branch, which rebuilds the record from scratch and drops
-    all of this.
+    Nothing here distinguishes a re-encoded move from one that leaves the
+    channels alone. It is asserted so that re-encoding a depth-only move can
+    never be done by routing it through the ``pil_mode`` branch, which
+    rebuilds the record from scratch and drops all of this.
     """
     source = PSDImage.new("RGB", (16, 16), depth=8)
     layer = source.create_pixel_layer(_image(), name="L")
@@ -367,10 +367,9 @@ class TestBitmapDocuments:
     A set bit is black, so a fully opaque transparency channel is a run of
     zeros. No fixture has a depth-1 layer or mask channel and Photoshop does
     not author layers in bitmap mode, so there is no ground truth here. What
-    these assert is that the write is the reader's own inverse, which is more
-    than the old code managed -- it wrote a 16-byte ``b"\xff"`` transparency
-    for a 4x4 layer, four times too long and, read as bits, fully
-    *transparent*.
+    these assert is that the write is the reader's own inverse. A 16-byte
+    ``b"\xff"`` transparency for a 4x4 layer is four times too long and, read
+    as bits, fully *transparent*.
     """
 
     def test_a_1bit_layer_is_one_bit_per_pixel_and_opaque(self) -> None:
@@ -459,7 +458,7 @@ class TestEncoders:
 def test_a_palette_image_carrying_transparency_info_is_not_indexed_for_alpha() -> None:
     """``has_transparency_data`` is true of a "P" image with no "A" band.
 
-    Looking up ``getbands().index("A")`` on one raised ``ValueError``; the
+    Looking up ``getbands().index("A")`` on one raises ``ValueError``; the
     transparency is carried as a mask instead, as it is for any other image
     whose alpha the document's mode cannot hold.
     """

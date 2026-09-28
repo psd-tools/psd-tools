@@ -240,7 +240,7 @@ def test_composite_artboard() -> None:
 
 
 def test_composite_artboard_bgcolor() -> None:
-    """Regression test for issue #395: artboard background color in compositing."""
+    """An artboard composites over its own background color (#395)."""
     psd = PSDImage.open(full_name("artboard-bgcolor.psd"))
 
     # Artboard 0: blue background (18, 108, 200)
@@ -337,8 +337,8 @@ _BACKDROP_SPELLINGS = [
 def test_composite_backdrop_spellings_agree(color: Any) -> None:
     """Every accepted spelling of the same white backdrop must composite alike.
 
-    Regression test for #709: ``color=1`` and ``color=np.float32(1.0)`` raised
-    ``TypeError`` because only ``float`` was recognised as a scalar.
+    Recognising only ``float`` as a scalar costs ``color=1`` and
+    ``color=np.float32(1.0)``, which raise ``TypeError`` instead (#709).
     """
     psd = PSDImage.open(full_name("colormodes/4x4_8bit_rgb.psd"))
     reference, _, _ = composite(psd, color=1.0)
@@ -382,9 +382,9 @@ def test_composite_transparent_backdrop_is_skipped_in_any_spelling(
 
     The zero-layer path skips the blend for a transparent backdrop, because
     blending it in anyway sends ``utils.divide`` down its 0 / 0 -> 1.0 branch
-    and whitens every uncovered pixel. The old guard tested for ``int`` and
-    ``float`` only, so a NumPy scalar took the blend and came back white; a
-    per-pixel array of zeros did too (PR #721 review).
+    and whitens every uncovered pixel. A guard that tests for ``int`` and
+    ``float`` only sends a NumPy scalar down that blend, and a per-pixel array
+    of zeros with it (PR #721 review).
     """
     psd = PSDImage.new("RGBA", (4, 4), color=(0, 0, 0, 0))
     assert len(psd) == 0
@@ -409,8 +409,8 @@ def test_composite_single_channel_backdrop_without_a_source(
 ) -> None:
     """A one-channel backdrop must still produce a document-width image (#710).
 
-    The canvas used to be widened lazily at the first source, so a document
-    with no source to apply kept a one-channel color array and blew up on the
+    Widening the canvas lazily at the first source leaves a document with no
+    source to apply holding a one-channel color array, which blows up on the
     way out -- in ``Image.fromarray()``, or in ``_preserve_alpha`` for the
     adjustment cases.
     """
@@ -438,8 +438,8 @@ def test_composite_backdrop_rejects_a_mismatched_channel_count() -> None:
 def test_composite_backdrop_rejects_a_wrong_width_sequence_for_the_color_mode() -> None:
     """**Backwards incompatible.** A 3-tuple over a 1-channel document raises.
 
-    This used to produce a three-channel result for a grayscale document,
-    which ``composite_pil`` then silently reduced by taking channel 0. Pinned
+    Accepting it would give a three-channel result for a grayscale document,
+    which ``composite_pil`` then silently reduces by taking channel 0. Pinned
     deliberately: the loud failure is the intent, not an accident.
     """
     psd = PSDImage.open(full_name("colormodes/4x4_8bit_grayscale.psd"))
@@ -516,8 +516,8 @@ def _layered_multichannel(
     channels already agree, as they would in a multichannel file with three
     spot channels, so nothing else about the document has to change. The CMYK
     fixture retags on the same terms and gives four plates instead of three --
-    the count that used to be claimed as CMYK (#746) -- since its header and
-    its layers agree at four the same way.
+    the count a CMYK header states (#746) -- since its header and its layers
+    agree at four the same way.
 
     Built this way rather than with ``PSDImage.new`` + ``PixelLayer.frompil``
     on purpose. ``frompil`` converts to the document's ``pil_mode``, which is
@@ -535,10 +535,10 @@ def test_composite_layered_multichannel_uses_the_header_channel_count() -> None:
     """A multichannel backdrop is as wide as the document says it is (#720).
 
     ``EXPECTED_CHANNELS[MULTICHANNEL]`` is 64 -- the format's maximum, not any
-    document's count -- so the backdrop was allocated 64 channels wide and the
-    first three-channel layer met it with an ``AssertionError``. The zero-layer
-    path was fixed in #708 by sizing from the document's own array; the layered
-    path has no such array to consult, so it asks the header instead.
+    document's count -- so sizing the backdrop from it allocates 64 channels
+    wide and meets the first three-channel layer with an ``AssertionError``.
+    The zero-layer path sizes from the document's own array instead (#708);
+    the layered path has no such array to consult, so it asks the header.
     """
     psd = _layered_multichannel()
     assert psd.channels == 3
@@ -551,12 +551,12 @@ def test_composite_layered_multichannel_uses_the_header_channel_count() -> None:
 
 
 def test_composite_layered_multichannel_within_a_budget() -> None:
-    """A budget that admits the real canvas is no longer overrun (#720).
+    """A budget that admits the real canvas is not overrun (#720).
 
-    The three-channel canvas needs 192 bytes where the 64-channel one needed
-    4096, so this budget sits between the two. It is not the guard that used to
-    reject the document -- the guard was told 3 all along -- it is the canvas
-    that used to be built ~21x wider than the guard was promised.
+    The three-channel canvas needs 192 bytes where a 64-channel one needs
+    4096, so this budget sits between the two. The guard is told 3 either way;
+    what this pins is that the canvas built after it is the width the guard
+    was promised, not the format's maximum.
     """
     psd = _layered_multichannel(max_alloc_bytes=1024)
     color, _, _ = composite(psd)
@@ -569,7 +569,7 @@ def test_composite_guard_estimate_covers_a_mode_that_expands() -> None:
     ``max_alloc_bytes`` is there to reject a file *before* it allocates, so the
     number it is checked against has to bound what comes next. An indexed
     document stores one channel and composites over three, its palette having
-    expanded it, so the header count alone under-estimated the canvas by 3x.
+    expanded it, so the header count alone under-estimates the canvas.
 
     Retagged rather than taken from a fixture for the same reason as
     ``_layered_multichannel``: Photoshop flattens on conversion to Indexed
@@ -587,7 +587,7 @@ def test_composite_guard_estimate_covers_a_mode_that_expands() -> None:
     assert psd.channels == 1
     assert len(psd) > 0
     # 4 * 4 * 3 * 4 = 192 bytes, over the budget; the header's own count of one
-    # channel would have estimated 64 bytes and let it through.
+    # channel estimates 64 bytes and lets it through.
     with pytest.raises(ValueError, match="4x4x3"):
         composite(psd)
 
@@ -644,11 +644,11 @@ def test_composite_flattened_indexed_is_bounded_by_the_numpy_guard() -> None:
 def test_composite_duotone_is_one_channel_wide() -> None:
     """Duotone composites at its stored width, not its ink count (#733).
 
-    ``EXPECTED_CHANNELS[DUOTONE]`` was 2 -- the inks -- while duotone pixel data
-    is a single grayscale channel, the ink curves living in the color mode data
-    section. So the backdrop was built two channels wide and every real source
-    broadcast against it: the second channel of the result was not data from the
-    file at all, it was the backdrop copied.
+    Duotone pixel data is a single grayscale channel, the ink curves living in
+    the color mode data section, so sizing the backdrop from the ink count
+    builds it two channels wide and broadcasts every real source against it:
+    the second channel of the result is not data from the file at all, it is
+    the backdrop copied.
     """
     psd = PSDImage.open(full_name("colormodes/4x4_8bit_duotone.psd"))
     assert psd.channels == 1
@@ -759,9 +759,9 @@ def test_composite_single_channel_non_separable_over_an_opaque_backdrop(
     That is exactly the half of #735 that failed silently, so it needs a
     backdrop that is opaque underneath the source.
 
-    Here the lower layer is opaque grey 96 and the upper opaque grey 192. Before
-    the fix both modes composited to 96/255, the backdrop, whatever the source
-    said; the fallback makes them the source, 192/255, like every other mode.
+    Here the lower layer is opaque grey 96 and the upper opaque grey 192. A
+    mode that returns the backdrop composites to 96/255 whatever the source
+    says; the fallback makes it the source, 192/255, like every other mode.
     """
     psd = PSDImage.new(mode="L", size=(4, 4), color=64)
     psd.create_pixel_layer(image=Image.new("L", (4, 4), 96), name="lower")
@@ -788,12 +788,10 @@ def test_composite_multichannel_with_a_non_separable_blend_mode(
 ) -> None:
     """A spot plate is neither a colour component nor an ink (#746).
 
-    #735 keyed the degradation on the width, which left the two plate counts
-    that collide with RGB and CMYK still blending: three plates went into the
-    RGB helpers as if they were R, G and B, and four were round-tripped as CMYK
-    with the fourth ink read as black generation. Measured here before the fix,
-    against the same document at ``Normal``, every one of the twelve cases
-    differed -- by up to 0.7 at three plates and 1.0 at four.
+    Keying the degradation on the width alone (#735) leaves the two plate
+    counts that collide with RGB and CMYK still blending: three plates go into
+    the RGB helpers as if they were R, G and B, and four are round-tripped as
+    CMYK with the fourth ink read as black generation.
 
     The backdrop has to be passed in opaque. Where these fixtures' layers paint
     the document's own alpha is zero, and ``_apply_source``'s
@@ -805,9 +803,8 @@ def test_composite_multichannel_with_a_non_separable_blend_mode(
 
     Left at ``force=False`` deliberately. Forcing routes the second layer
     through ``paint.draw_gradient_fill()``, a different path from the one under
-    test, and shrinks the pre-fix evidence to nothing worth asserting on: at
-    four plates ``Luminosity`` separated from ``Normal`` by 2.4e-07 there,
-    float noise rather than a visible misblend, against 1.0 here.
+    test, where a degraded ``Luminosity`` separates from ``Normal`` by float
+    noise rather than by a visible misblend -- not enough to assert on.
     """
     psd = _layered_multichannel(filename)
     assert psd.color_mode == ColorMode.MULTICHANNEL
@@ -878,15 +875,14 @@ def test_composite_pil_duotone_force_keeps_the_luminance_plane_intact() -> None:
 
 
 def test_composite_pil_layered_multichannel_truncates_like_the_layerless_one() -> None:
-    """Pinning what the PIL exit does now that this shape reaches it (#720).
+    """Pinning what the PIL exit does with a shape that reaches it (#720).
 
     ``get_pil_mode(MULTICHANNEL)`` is ``"L"``, so ``composite_pil()`` keeps the
-    first spot channel and drops the rest. That is not new -- it is what the
-    layerless fixture already does in ``test_composite_pil``, and a layered
-    document now lands on exactly the same two modes instead of raising. Pinned
-    here so the truncation is a recorded consequence of letting these documents
-    composite at all. Only the numpy ``composite()`` entry point returns every
-    channel.
+    first spot channel and drops the rest. A layered document lands on exactly
+    the same two modes as the layerless fixture in ``test_composite_pil``,
+    pinned here so the truncation is a recorded consequence of letting these
+    documents composite at all. Only the numpy ``composite()`` entry point
+    returns every channel.
     """
     psd = _layered_multichannel()
     preview = psd.composite(apply_icc=False)
@@ -900,22 +896,22 @@ def test_composite_pil_layered_multichannel_truncates_like_the_layerless_one() -
 
 
 def test_composite_pil_multichannel_force_keeps_the_spot_channel_intact() -> None:
-    """``force=True`` returned planes that corresponded to nothing (#729).
+    """``force=True`` must not return planes that correspond to nothing (#729).
 
     ``get_pil_mode(MULTICHANNEL)`` is ``"L"`` and multichannel defers its alpha,
-    so ``force=True`` made ``skip_alpha`` false, concatenated alpha onto the
-    *three*-channel colour array and set the mode to ``"LA"``. The narrowing to
-    one channel was keyed on ``mode`` and ran afterwards, so by then ``"LA"`` no
-    longer matched and it never fired. ``Image.fromarray()`` does not reject a
-    four-plane array declared as two -- it reads two bytes out of every four:
+    so ``force=True`` leaves ``skip_alpha`` false, concatenates alpha onto the
+    *three*-channel colour array and sets the mode to ``"LA"``. Narrowing to
+    one channel afterwards cannot be keyed on ``mode``, because ``"LA"`` no
+    longer matches by then -- and ``Image.fromarray()`` does not reject a
+    four-plane array declared as two, it reads two bytes out of every four:
 
-        plane 0 was [48, 42, 86, 118] -- spot0[0], spot2[0], spot0[1], spot2[1]
-        plane 1 was [179, 255, 199, 255] -- spot1[0], alpha[0], spot1[1], ...
+        plane 0 -- spot0[0], spot2[0], spot0[1], spot2[1]
+        plane 1 -- spot1[0], alpha[0], spot1[1], ...
 
     Asserted bitwise against the NumPy entry point rather than by shape or MSE,
-    because the failure was interleaved bytes rather than a narrower result: a
-    shape assertion passed throughout, and the old planes are close enough in
-    range that a loose MSE bound could too.
+    because the failure is interleaved bytes rather than a narrower result: a
+    shape assertion passes either way, and the interleaved planes are close
+    enough in range that a loose MSE bound could too.
     """
     psd = PSDImage.open(full_name("colormodes/4x4_16bit_multichannel.psd"))
     assert psd.channels == 3
@@ -1024,10 +1020,10 @@ def _pixels_as_seen(image: Image.Image) -> np.ndarray:
     with its chroma planes offset from the values ``getpixel()`` reports, and
     ``np.asarray()`` reads the buffer -- so a round trip out through
     ``Image.fromarray(..., "LAB")`` and back is the identity no matter what the
-    unpacker does in between. That is why a NumPy-only assertion could not see
-    #759, where the composited image carried both chroma planes 128 off and
-    converted to an unrelated colour. :func:`_flattened_data` goes through the
-    unpacker, which is what ``convert()`` and ``save()`` do too.
+    unpacker does in between. That is why a NumPy-only assertion cannot see a
+    defect like #759's, where the composited image carries both chroma planes
+    128 off and converts to an unrelated colour. :func:`_flattened_data` goes
+    through the unpacker, which is what ``convert()`` and ``save()`` do too.
     """
     planes = np.array(_flattened_data(image), dtype=np.uint8)
     return planes.reshape(image.size[1], image.size[0], -1)
@@ -1037,13 +1033,11 @@ def _pixels_as_seen(image: Image.Image) -> np.ndarray:
 def test_composite_pil_force_pixels_match_the_numpy_path(colormode: str) -> None:
     """The three modes that carry no alpha, compared bitwise rather than by mode.
 
-    Review of this change caught that asserting only ``image.mode`` was not
-    enough -- twice over. It is what let #729 survive for multichannel, and the
-    first version of the fix above turned bitmap's *raise* into silently wrong
-    pixels, which the mode assertion happily accepted:
-    ``Image.fromarray(uint8, "1")`` does not mean "these bytes, as bilevel". PIL
-    reads the raw mode literally at one bit per pixel, so a 4x4 document came
-    back as the bits of its first four bytes::
+    Asserting only ``image.mode`` is not enough, twice over: it is what lets
+    #729 survive for multichannel, and it accepts silently wrong pixels from
+    bitmap, because ``Image.fromarray(uint8, "1")`` does not mean "these bytes,
+    as bilevel". PIL reads the raw mode literally at one bit per pixel, so a
+    4x4 document comes back as the bits of its first four bytes::
 
         composited [[1,1,0,0],[0,0,0,0],[1,1,1,1],[0,0,0,0]]
         returned   [[1,1,1,1],[1,1,1,1],[0,0,0,0],[0,0,0,0]]
@@ -1129,8 +1123,8 @@ def test_apply_opacity() -> None:
 # Photoshop-authored fixtures pinning Knockout semantics; see issue #707.
 #
 # Knockout has no visible effect while fill opacity is 100%, which is why the
-# pre-existing knockout-isolated-groups.psd fixture never exercised it. Every
-# fixture below therefore sets the knockout group's fill opacity to 50%.
+# knockout-isolated-groups.psd fixture does not exercise it. Every fixture
+# below therefore sets the knockout group's fill opacity to 50%.
 #
 # Each stack is: white Background / red BG / group. The "nested" fixtures put a
 # green sibling next to the knockout group inside an ``Outer`` group, so three
@@ -1270,14 +1264,14 @@ def _pattern_overlay_layer(psd: PSDImage) -> Any:
 def test_composite_pattern_overlay_targets_the_canvas_width() -> None:
     """The pattern's width comes from the compositor's canvas.
 
-    ``_draw_pattern_overlay`` used to take it from the layer colour it was
-    handed, which #710 allows to be narrower than the document. An RGB pattern
-    was then compared against 1 and rejected with ``AssertionError: Inconsistent
-    pattern channels.`` even though it matched the canvas exactly.
+    Taking it from the layer colour instead reads a width #710 allows to be
+    narrower than the document: an RGB pattern is then compared against 1 and
+    rejected with ``AssertionError: Inconsistent pattern channels.`` even
+    though it matches the canvas exactly.
 
-    Dropping that parameter (#711) makes the original mistake unconstructible --
-    there is no longer a layer colour to derive the width from -- so this is a
-    contract pin rather than a regression guard.
+    ``_draw_pattern_overlay`` takes no such parameter (#711), which makes that
+    mistake unconstructible, so this is a contract pin rather than a
+    regression guard.
     """
     psd = PSDImage.open(full_name("patterns.psd"))
     layer = _pattern_overlay_layer(psd)
@@ -1695,16 +1689,16 @@ def test_an_unmeasurable_stroke_falls_back_to_the_layer_box(
 ) -> None:
     """A descriptor ``_stroke_reach()`` cannot read must not break the cull.
 
-    The fallback existed before, but #808 only ever reached it while measuring
-    a group's children; the cull runs it for every non-group layer of every
-    document, so a descriptor that trips it can now take down a composite that
-    used to work. A non-numeric ``Key.SizeKey`` is the ``ValueError`` arm --
-    ``stroke_bbox()`` does ``float()`` on whatever it finds -- and it is the
-    one defect left that no amount of tolerance can read past: there is no
-    defensible width to invent for a stroke that does not state one (#826).
+    #808 reaches the fallback only while measuring a group's children, but the
+    cull runs it for every non-group layer of every document, so a descriptor
+    that trips it reaches far more composites. A non-numeric ``Key.SizeKey``
+    is the ``ValueError`` arm -- ``stroke_bbox()`` does ``float()`` on whatever
+    it finds -- and it is the one defect no amount of tolerance can read past:
+    there is no defensible width to invent for a stroke that does not state
+    one (#826).
 
-    The layer then culls on its own box, exactly as it did before the
-    widening: degraded to the old decision rather than raising.
+    The layer then culls on its own box: degraded to the unwidened decision
+    rather than raising.
 
     The composite that keeps the layer degrades the same way rather than
     raising, which is #826's half: an effect nobody can read is dropped and
@@ -1743,10 +1737,10 @@ def test_an_unmeasurable_stroke_falls_back_to_the_layer_box(
 def test_one_unmeasurable_stroke_keeps_the_reach_of_the_other() -> None:
     """A descriptor that cannot be measured costs its own box, not the layer's.
 
-    The fallback used to be the whole loop's: any effect that raised sent the
-    measurement back to ``layer.bbox``, discarding what the effects before it
-    had contributed. ``double-stroke-effects.psd`` is the fixture that can
-    tell the two apart (#798) -- its layer carries a 1 px outset and a 1 px
+    A fallback around the whole loop would send the measurement back to
+    ``layer.bbox`` for any effect that raised, discarding what the effects
+    before it contributed. ``double-stroke-effects.psd`` is the fixture that
+    tells the two apart (#798) -- its layer carries a 1 px outset and a 1 px
     inset stroke, which grow the box by different amounts -- so breaking the
     wider one leaves the narrower one's box behind rather than the layer's.
 
@@ -1846,11 +1840,10 @@ def test_fill_opacity_fades_the_layer_and_not_the_effect_over_it() -> None:
     """What ``fill_opacity`` is for, once the effect is inside the layer.
 
     Fading the layer's own paint while leaving its style at full strength is
-    the whole point of the setting, and the compositor used to get it by
-    applying the effect to the backdrop afterwards, where fill opacity had
-    never reached. Composited into the layer it is in reach, so the canvas
-    folds fill opacity into the layer's paint alone and hands back a source
-    that carries 1.0 (#846).
+    the whole point of the setting. Applying the effect to the backdrop
+    afterwards puts it out of fill opacity's reach; composited into the layer
+    it is in reach, so the canvas folds fill opacity into the layer's paint
+    alone and hands back a source that carries 1.0 (#846).
 
     The hole a knockout punches is the exception that needs the coverage
     before either: fill opacity 0 under a knockout is a hole, not a no-op.
@@ -1886,8 +1879,8 @@ def test_layer_opacity_fades_the_layer_and_its_effect_once_between_them() -> Non
 
     The layer opacity fades a layer and its style alike, so it applies once,
     to the two together. Applying the effect as a separate source instead
-    united the two -- the same 0.5 twice -- and lifted the layer to 0.75,
-    which is neither its opacity nor anything Photoshop renders.
+    unions the two -- the same opacity twice -- and lifts the layer past it,
+    to neither its own opacity nor anything Photoshop renders.
     """
     psd = PSDImage.open(full_name("clipping-mask.psd"))
     compositor = _canvas(psd)
@@ -1921,9 +1914,9 @@ def test_an_outer_effect_keeps_its_own_blend_mode_over_the_backdrop() -> None:
 
     An outer band lands on the backdrop rather than on the layer, so what
     blends it is its own mode; the layer's belongs to the layer's pixels.
-    Merging the two into one source to fix #846 handed the band the layer's
-    mode as well, and a Normal stroke on a Multiply layer came out multiplied
-    against the backdrop it sits beside -- 0.863 to 0.000 in red.
+    Merging the two into one source (#846) hands the band the layer's mode as
+    well, which multiplies a Normal stroke on a Multiply layer against the
+    backdrop it sits beside.
     """
     psd, layer = _feathered_stroke_layer()
     layer.blend_mode = BlendMode.MULTIPLY
@@ -1982,9 +1975,9 @@ def test_fill_opacity_leaves_room_beside_a_layer_it_has_faded() -> None:
     what the layer will leave is its alpha *after* fill opacity. The two agree
     once an effect canvas has folded that in -- but a stroke wholly outside
     the layer puts nothing inside it, so the canvas is never started and hands
-    its source back with fill opacity still on it. Scaled by the unfaded
-    coverage, the band on this layer's ramp came out at 1.0 across the whole
-    of it instead of at ``1 - coverage`` (#884 review).
+    its source back with fill opacity still on it. Scaled by that unfaded
+    coverage, the band on this layer's ramp covers the whole of it rather than
+    ``1 - coverage`` (#884 review).
     """
     psd, layer = _feathered_stroke_layer()
     layer.tagged_blocks.set_data(Tag.BLEND_FILL_OPACITY, ByteElement(0))
@@ -2015,9 +2008,8 @@ def test_a_knockout_punches_with_the_layer_and_not_with_its_stroke() -> None:
     Fill opacity 0 under a knockout is the whole point of the setting -- the
     layer's paint goes and the hole stays -- so the coverage that punches it
     is the layer's, before either fill opacity or an effect. Carrying the
-    stroke's band in it instead let a half-opaque band erase the backdrop
-    under itself, over ground the layer does not touch: an opaque Background
-    at alpha 1.0 came out at 0.5.
+    stroke's band in it instead lets a half-opaque band erase the backdrop
+    under itself, over ground the layer does not touch.
     """
     psd, layer = _feathered_stroke_layer()
     layer.tagged_blocks.set_data(Tag.KNOCKOUT_SETTING, ByteElement(1))
@@ -2076,18 +2068,18 @@ def test_an_outer_effect_adds_its_coverage_beside_the_layer() -> None:
 def test_composite_stroke_effect_over_a_layer_without_a_mask() -> None:
     """A stroke effect must not require the layer to have a mask (#711).
 
-    ``_get_mask()`` returns a bare 1.0 for a layer with no mask, and
-    ``_add_stroke_effects`` handed that straight to ``paste()``, which needs a
-    canvas -- ``AttributeError: 'float' object has no attribute 'shape'``. The
-    combination is reachable for a fill layer with no vector mask, and 26 calls
-    in the fixture corpus already pass the scalar; they escape only because
-    those layers have no stroke effect.
+    ``_get_mask()`` returns a bare 1.0 for a layer with no mask, and handing
+    that straight to ``paste()``, which needs a canvas, raises
+    ``AttributeError: 'float' object has no attribute 'shape'``. The
+    combination is reachable for a fill layer with no vector mask, and calls
+    across the fixture corpus already pass the scalar; they escape only
+    because those layers have no stroke effect.
 
     The viewport is grown past the stroke's box on purpose. Only a stroke
     drawn wholly inside the compositor's viewport reads the coverage it was
     handed -- outside it, ``_trace_shape()`` reads the layer again and never
     touches the scalar (#804) -- and on this layer's own canvas the stroke
-    box starts at ``(-1, -2)``, so the guarded line would go unvisited.
+    box starts at ``(-1, -2)``, which leaves the guarded line unvisited.
     """
     psd = PSDImage.open(full_name("effects/stroke-effects.psd"))
     layer = next(
@@ -2131,7 +2123,7 @@ def test_composite_pixel_layer_with_vector_stroke() -> None:
 
 
 def test_composite_mixed_colorspace_stroke() -> None:
-    """Regression test for issue #397: ValueError on vector layer with CMYK stroke + Grayscale fill."""
+    """A CMYK stroke over a Grayscale fill composites, rather than raising (#397)."""
     psd = PSDImage.open(full_name("issues/issue397.psd"))
     psd.composite()
     for layer in psd:
@@ -2141,19 +2133,18 @@ def test_composite_mixed_colorspace_stroke() -> None:
 
 
 def test_lab_composite_agrees_with_the_preview_it_reproduces() -> None:
-    """The two entry points onto a Lab document returned different colours.
+    """The two entry points onto a Lab document must return the same colours.
 
     ``topil()`` builds its image with ``Image.merge()``, which writes the
-    planes verbatim; ``composite_pil()`` used ``Image.fromarray(..., "LAB")``,
-    whose unpacker reads the chroma as signed and adds 128. On a document whose
-    composite does reproduce its stored preview the two are directly
-    comparable, and they were 128 apart on both chroma axes (#759).
+    planes verbatim; ``Image.fromarray(..., "LAB")`` goes through an unpacker
+    that reads the chroma as signed and adds 128, which puts the two 128 apart
+    on both chroma axes (#759). On a document whose composite does reproduce
+    its stored preview they are directly comparable.
 
-    All three of these composite to their preview *bitwise* now. Every Lab
-    document in the corpus moved towards its preview: the two left out do not
-    reach zero for reasons that predate this and are not about chroma -- the
-    16-bit fixture's own lightness plane is 108 out, and the stroke fixture
-    carries the stroke approximation.
+    All three of these composite to their preview *bitwise*. The Lab documents
+    left out do not, for reasons that are not about chroma -- the 16-bit
+    fixture's own lightness plane disagrees, and the stroke fixture carries
+    the stroke approximation.
     """
     for name in (
         "colormodes/4x4_8bit_lab.psd",
@@ -2180,10 +2171,10 @@ def test_lab_composite_converts_to_the_colour_it_encodes(force: bool) -> None:
     2026's own colour engine, asked over the scripting bridge, puts it at
     ``rgb(196, 126, 101)``.
 
-    Before the fix this converted to ``(0, 187, 255)``: not a rounding gap but
-    a different colour, which is the whole of #759. The tolerance is loose
-    enough to survive Pillow's own conversion drifting a code value and still
-    nowhere near admitting that.
+    Reading the chroma as signed converts it to ``(0, 187, 255)`` instead: not
+    a rounding gap but a different colour, which is the whole of #759. The
+    tolerance is loose enough to survive Pillow's own conversion drifting a
+    code value and still nowhere near admitting that.
     """
     psd = PSDImage.open(full_name("gradients/noise-gradient-lab.psd"))
     image = psd.composite(ignore_preview=True, force=force, apply_icc=False)
@@ -2257,12 +2248,12 @@ def test_content_bbox_counts_a_nested_groups_own_stroke() -> None:
     """A group child reaches outside its box the same way a layer does.
 
     An isolated parent has to hold the stroke box of a group *inside* it, not
-    just the boxes of that group's contents. Without that, the parent handed
+    just the boxes of that group's contents. Without that, the parent hands
     the nested group a viewport ending at the group's own edge, and its stroke
-    came out worse than the identical group at the document root: 2012 painted
-    pixels against 2320, where both now give 2408. It does not make a stroke on
-    a group *correct* -- that is #808's other item, still open wherever the
-    stroke box escapes the viewport being composited on.
+    paints fewer pixels than the identical group at the document root, where
+    the two should agree. It does not make a stroke on a group *correct* --
+    that is #808's other item, still open wherever the stroke box escapes the
+    viewport being composited on.
 
     No fixture in the corpus puts a stroke effect on a group, so the effect
     block is copied onto one from a layer that has it. Authoring that document
@@ -2428,8 +2419,8 @@ def test_an_artboard_still_clips_its_contents_to_its_frame() -> None:
     side; Photoshop's own render leaves the gaps between them empty, and taking
     the union of the children instead would paint into them.
 
-    ``force=True`` because that is the mode the regression showed up in: the
-    gradients are redrawn there rather than read from stored pixels.
+    ``force=True`` because it is the mode that exercises this: the gradients
+    are redrawn there rather than read from stored pixels.
     """
     psd = PSDImage.open(full_name("gradient-sizes.psd"))
     artboard = psd[0]
@@ -2530,9 +2521,9 @@ def test_a_traced_artboard_keeps_its_frame_clip() -> None:
         cropped[top - wide[1] : bottom - wide[1], left - wide[0] : right - wide[0]] = 0
         return int((cropped > 0).sum())
 
-    # A floor, not the exact 16288: 135 of those are anti-aliased vector edges,
-    # the class #804 already shifted by 1/255, and the claim here is only that
-    # the coverage is not clipped away.
+    # A floor rather than an exact count: some of those pixels are
+    # anti-aliased vector edges, the class #804 shifts by 1/255, and the claim
+    # here is only that the coverage is not clipped away.
     passthrough = _canvas(psd)._get_group_shape(artboard, wide)
     assert outside_the_frame(passthrough) > 16000, "no frame clip, as today"
 
@@ -2624,8 +2615,8 @@ class _CountingHandler(logging.StreamHandler):
     """A handler that says whether it was reached, discarding what it formats.
 
     Not ``caplog``: pytest's capturing handler overrides ``handleError`` to
-    re-raise, deliberately, so a test that went through it would assert
-    pytest's behaviour where this one wants ``logging``'s.
+    re-raise, deliberately, so a test going through it asserts pytest's
+    behaviour where this one wants ``logging``'s.
     """
 
     def __init__(self) -> None:
@@ -2643,11 +2634,10 @@ def test_a_layer_whose_repr_raises_does_not_abort_the_composite(
 ) -> None:
     """The compositor stops paying for a debug line nobody is listening to.
 
-    ``apply()`` and ``_accepts()`` built their message with ``%`` before
-    handing it to ``logger.debug``, so every layer was formatted whether or
-    not DEBUG was enabled -- which is both the cost and the reason a raising
-    ``repr`` was fatal at any log level, logging disabled outright included
-    (#828).
+    Building the message with ``%`` before handing it to ``logger.debug``
+    formats every layer whether or not DEBUG is enabled -- which is both the
+    cost and the reason a raising ``repr`` is fatal at any log level, logging
+    disabled outright included (#828).
 
     Both levels, because they pass for different reasons and a reader asks
     about the second: above DEBUG the arguments are never formatted at all,
@@ -2656,8 +2646,8 @@ def test_a_layer_whose_repr_raises_does_not_abort_the_composite(
     alone does not guarantee it -- see ``setLevel()`` below.
 
     Driven by a ``__repr__`` that raises rather than by a file, so it pins the
-    log calls alone: #828's own file no longer has a raising repr, and a test
-    going through one would pass on the other half of the fix.
+    log calls alone: no file in the corpus has a raising repr, and a test
+    going through one would pass on the guard in ``Effects`` instead (#828).
     """
 
     def raises(self: Layer) -> str:

@@ -2,7 +2,7 @@
 
 A crafted PSD can declare arbitrarily large dimensions in its header and
 trigger multi-GB memory allocations when composite() or numpy() is called.
-The fix emits PSDLargeImageWarning above WARN_PIXELS and raises ValueError
+psd-tools emits PSDLargeImageWarning above WARN_PIXELS and raises ValueError
 above MAX_PIXELS_PSD instead of committing the buffer silently.
 """
 
@@ -147,7 +147,8 @@ def test_normal_sized_psd_does_not_warn() -> None:
             pass  # other errors (e.g. empty pixel data) are fine
 
 
-# 49-byte PoC declaring 5964 x 10296, 6 channels, 8-bit (~3.35 GB before the fix).
+# 49-byte PoC declaring 5964 x 10296, 6 channels, 8-bit -- a multi-GB canvas
+# out of a file that carries none of it.
 _POC_B64 = "OEJQUwABAAAAAAAAAAYAACg4AAAXTAAIAAMAAAAAAAAAAAAAAAAAAUNIUIFU+yQtDw=="
 
 
@@ -261,18 +262,17 @@ def test_explicit_kwarg_overrides_env_default(monkeypatch: pytest.MonkeyPatch) -
 # The estimate must model the peak it guards (#732, #767)
 # ---------------------------------------------------------------------------
 #
-# `check_pixel_size()` used to be handed `width * height * channels * 4`: the
-# size of the array a path *returns*. #732 fixed the channel count feeding that
-# product, because `get_image_data()` reads the header's count and does not
-# always allocate that many planes. What it could not fix is that the returned
-# array was the wrong quantity to bound. Both image-data paths hold
-# intermediates alongside their result -- `_parse_array()` two float32 arrays at
-# once, `_remove_background()` several more, the decompressed buffer live across
-# all of it -- so the real high-water mark ran up to 3.7x past the budget the
-# caller had set, and on the PIL path the same product also ran the other way,
-# turning away 8-bit documents that would have fitted several times over (#767).
+# The size of the array a path *returns* -- `width * height * channels * 4` --
+# is the wrong quantity to bound. The header's channel count is not always the
+# number of planes `get_image_data()` allocates (#732), and both image-data
+# paths hold intermediates alongside their result -- `_parse_array()` two
+# float32 arrays at once, `_remove_background()` several more, the decompressed
+# buffer live across all of it -- so the real high-water mark runs well past a
+# budget set from the returned array, while on the PIL path that same product
+# runs the other way and turns away 8-bit documents that would fit several
+# times over (#767).
 #
-# So each path now hands the guard a structural model of its own peak:
+# So each path hands the guard a structural model of its own peak:
 # `numpy_io._image_data_peak_bytes()` and `pil_io._image_data_peak_bytes()`.
 # The tests below pin those models from three directions:
 #
@@ -416,8 +416,8 @@ def test_numpy_guard_estimate_covers_the_palette_expansion() -> None:
 
     ``_parse_array()`` applies the palette to the whole buffer rather than to a
     single plane, so the array comes back ``3 * channels`` wide and the header's
-    own count under-counted it threefold. Indexed is also the mode Photoshop
-    writes for a flattened document, so this was the common shape rather than a
+    own count under-counts it threefold. Indexed is also the mode Photoshop
+    writes for a flattened document, so this is the common shape rather than a
     corner.
 
     The plane count is asserted on `_image_data_planes()` and on the array
@@ -441,8 +441,8 @@ def test_numpy_guard_estimate_scales_the_palette_expansion(channels: int) -> Non
     against the colour mode, and this guard exists for hostile headers
     (GHSA-8q6g-vjhf-jp8m) -- so "Photoshop never writes multi-channel indexed"
     is the threat model rather than a defence. Taking the *wider* of the header
-    count and 3, instead of their product, left the estimate a flat third of the
-    array for any header declaring three channels or more.
+    count and 3, instead of their product, leaves the estimate a flat third of
+    the array for any header declaring three channels or more.
     """
     psd = _forge(4, 4, channels, 8, ColorMode.INDEXED)
     assert _image_data_planes(psd) == 3 * channels
@@ -518,7 +518,7 @@ def test_numpy_guard_model_covers_every_fixture_and_channel(
 
     The independent half is `nbytes`: whatever else the model counts, it may not
     come out below the buffer the call materialises. Note that this is a floor
-    and no longer an equality -- ``numpy("color")`` and ``numpy("shape")`` return
+    rather than an equality -- ``numpy("color")`` and ``numpy("shape")`` return
     *views* into the full array, so the returned array's own ``nbytes`` is not
     what was allocated, and the peak sits above the whole buffer besides.
     """
@@ -544,11 +544,9 @@ def test_numpy_guard_estimate_matches_the_synthesised_paths(
     Both are returned as synthesised ``(h, w, 1)`` arrays without the image data
     being read at all, so estimating them at the stored width rejects a request
     that fits several times over -- a quarter of the header's implication on
-    CMYK, a third on indexed once the palette expansion is counted.
-
-    Raised by review on #732. The over-estimate predates it for every
-    multi-channel mode; sizing indexed by its expanded width would have added a
-    third case rather than introducing the problem.
+    CMYK, a third on indexed once the palette expansion is counted (#732). It
+    is every multi-channel mode that is over-estimated this way, not indexed
+    alone.
     """
     one_plane = 4 * 4 * 1 * 4
     assert _colormode(filename).numpy(channel).nbytes == one_plane
@@ -592,41 +590,38 @@ def test_the_flat_numpy_paths_are_charged_four_bytes_a_pixel(filename: str) -> N
 # (PIL's are not -- they are C-side -- which is why the PIL model is asserted
 # structurally further down.)
 
-# `tracemalloc` charges its own bookkeeping to the peak it reports: measured at
-# 5,737 bytes on a 300 px document, 5,737 on a 600 px one and 5,786 on a 1200 px
-# one -- flat across a sixteenfold range in pixel count, so it is an artefact of
-# the instrument rather than an allocation the model should carry. Hence an
-# absolute tolerance rather than a proportional one.
+# `tracemalloc` charges its own bookkeeping to the peak it reports, and that
+# charge stays flat across a wide range of pixel counts rather than growing
+# with them, so it is an artefact of the instrument rather than an allocation
+# the model should carry. Hence an absolute tolerance rather than a
+# proportional one.
 #
 # It has to stay well *below* the smallest term the sweep is meant to detect, or
 # it silently absorbs one. The narrowest is the ZIP entry in `_DECOMPRESS_PEAK`,
-# worth 0.27 bytes a pixel at depth 32 -- about 40 KB at `_PEAK_SIZE` -- so this
-# is sized against that rather than only against the noise it corrects. At 64 KB
-# and a 256 px canvas, dropping that entry from 3 to 1 left every assertion here
-# passing.
+# a fraction of a byte a pixel at depth 32, so this is sized against that rather
+# than only against the noise it corrects.
 _TRACE_SLACK = 16 * 1024
 
 # How far above the measured peak the model is allowed to sit. The largest
-# structural over-count is 2.0x, on a depth-32 RAW document: the model charges
-# for the source buffer even where `get_data()` hands back the bytes read at
-# open time (a documented exclusion -- a body longer than the declared length
-# *is* copied, and this guard exists for malformed files), and depth 32 is the
-# one branch with no parse transient to dwarf it.
+# structural over-count is on a depth-32 RAW document: the model charges for
+# the source buffer even where `get_data()` hands back the bytes read at open
+# time (a documented exclusion -- a body longer than the declared length *is*
+# copied, and this guard exists for malformed files), and depth 32 is the one
+# branch with no parse transient to dwarf it.
 #
-# The rest of the headroom is for platform variation, which is real and was
-# found by this test rather than anticipated: `_remove_background()` costs 39
-# bytes a pixel on macOS and 48 on Linux and Windows, so
-# `_BACKGROUND_TRANSIENT` is sized on the latter and overshoots on the former.
-# 3 still fails loudly at the shape of mistake worth catching -- a term counted
-# twice, or the three phases summed instead of maxed, lands at 3-4x or beyond.
+# The rest of the headroom is for platform variation, which is real:
+# `_remove_background()` costs fewer bytes a pixel on macOS than on Linux and
+# Windows, so `_BACKGROUND_TRANSIENT` is sized on the latter and overshoots on
+# the former. 3 still fails loudly at the shape of mistake worth catching -- a
+# term counted twice, or the three phases summed instead of maxed, overshoots
+# by considerably more.
 _MODEL_OVERSHOOT = 3
 
-# 384 px a side. Two constraints meet here. The thinnest model in the sweep is a
-# one-channel bitmap at ~6 bytes a pixel, ~900 KB at this size and so far above
+# 384 px a side. Two constraints meet here. The thinnest model in the sweep is
+# a one-channel bitmap, whose total at this size is far enough above
 # `_TRACE_SLACK` that the tolerance is a correction rather than the assertion.
-# And the narrowest per-pixel term, ZIP at depth 32, has to clear that tolerance:
-# 0.27 bytes a pixel is ~40 KB here, comfortably over it, where a 256 px canvas
-# left it under.
+# And the narrowest per-pixel term, ZIP at depth 32, has to clear that same
+# tolerance, which it does at this size and not on a much smaller canvas.
 _PEAK_SIZE = 384
 
 # Colour mode, stored channels and depth, chosen to reach every branch of the
@@ -718,25 +713,20 @@ def test_numpy_peak_model_brackets_the_measured_peak(
 # Depth 1: one float32 per pixel, like every other depth (#737, #768)
 # ---------------------------------------------------------------------------
 #
-# #737 found the array here following the *byte* count rather than the pixel
-# count: `np.unpackbits` yields a value per bit, and `decompress()`'s `length`
-# counted a byte per pixel, so a body written that wide was returned whole and
-# unpacked to eight planes against a one-plane header. The estimate closed that
-# by asking the codec how many bytes it would really produce.
+# `np.unpackbits` yields a value per bit, so a `length` counting a byte per
+# pixel returns an oversized body whole and unpacks it to eight planes against
+# a one-plane header (#737). Both halves of that mismatch are closed (#768):
+# `length` counts packed rows, so an oversized body is truncated (RAW) or
+# refused (ZIP) rather than returned, and `_parse_array()` trims each row's
+# padding bits, so the array is one value per pixel.
 #
-# #768 removed both halves of the mismatch. `length` counts packed rows, so an
-# oversized body is truncated (RAW) or refused (ZIP) rather than returned; and
-# `_parse_array()` trims each row's padding bits, so the array is one value per
-# pixel.
-#
-# That is still the subject here, and it is a claim about the array rather than
-# about the budget: the width the header declares is the width that is
-# allocated, at the widths that are not a multiple of eight above all, which is
-# where the two arithmetics used to part company. The peak the guard is now
-# given sits above that array -- about six bytes a pixel rather than four, the
-# packed buffer and `_parse_array()`'s two uint8 temporaries riding along with
-# it -- so the array is asserted on `nbytes` and the budget is bracketed
-# against the model separately.
+# The subject here is the array rather than the budget: the width the header
+# declares is the width that is allocated, at the widths that are not a
+# multiple of eight above all, which is where the two arithmetics part company.
+# The peak the guard is given sits above that array -- nearer six bytes a pixel
+# than four, the packed buffer and `_parse_array()`'s two uint8 temporaries
+# riding along with it -- so the array is asserted on `nbytes` and the budget
+# is bracketed against the model separately.
 
 
 def _forge_1bit(
@@ -751,12 +741,11 @@ def _forge_1bit(
     """A structurally valid 1-bit document with a body of the requested shape.
 
     ``"packed"`` is ``height * channels`` rows of ``ceil(width / 8)`` bytes:
-    what a conforming writer packs, and since #768 what the codecs read. Every
+    what a conforming writer packs, and what the codecs read (#768). Every
     width below is exercised in both classes, a multiple of eight and not, the
-    padded row being the whole of what the two arithmetics disagreed about.
-    ``"padded"`` is one byte per pixel -- ``decompress()``'s own ``length`` at
-    depth 1 before #768, eight times the packed size -- which is the crafted
-    body that used to get eight times the allocation past the estimate.
+    padded row being the whole of what the two arithmetics disagree about.
+    ``"padded"`` is one byte per pixel, eight times the packed size -- the
+    crafted body that claims eight times the allocation its header implies.
     """
     rows = height * channels
     if body == "packed":
@@ -777,9 +766,9 @@ def _forge_1bit(
 
 
 # Widths on both sides of the byte boundary. The last three carry padding bits
-# -- 20 pixels in three bytes, 5 and 4 in one -- and before #768 none of them
-# could form an array at all: 8 * ceil(w/8) values per row either did not divide
-# by `width` or divided into the wrong shape.
+# -- 20 pixels in three bytes, 5 and 4 in one -- where 8 * ceil(w/8) values per
+# row either do not divide by `width` or divide into the wrong shape, and no
+# array can be formed at all until the padding is trimmed (#768).
 _DEPTH_1_DOCUMENTS = [
     (64, 64, 1, ColorMode.BITMAP),
     (64, 64, 1, ColorMode.GRAYSCALE),
@@ -804,12 +793,12 @@ def test_the_depth_1_array_is_one_float32_per_pixel(
 ) -> None:
     """Every depth-1 combination, on a conforming body.
 
-    Exact, not merely bounded, and for ZIP too: #737 had to accept an eightfold
-    over-estimate there, the inflated size being unknowable without inflating,
-    but the ceiling it is bounded at is now the packed size and a conforming
-    body reaches it. The budget bracket rides alongside because depth 1 is the
-    one depth whose source term is not a whole number of bytes per pixel, so it
-    is the one most easily got wrong in the model as well as in the array.
+    Exact, not merely bounded, and for ZIP too: the inflated size is unknowable
+    without inflating, but the ceiling it is bounded at is the packed size and
+    a conforming body reaches it (#737). The budget bracket rides alongside
+    because depth 1 is the one depth whose source term is not a whole number of
+    bytes per pixel, so it is the one most easily got wrong in the model as
+    well as in the array.
     """
     psd = _forge_1bit(width, height, channels, color_mode, compression)
     assert _image_data_planes(psd) == channels
@@ -827,21 +816,19 @@ def test_a_byte_per_pixel_1bit_body_no_longer_outgrows_its_header(
 ) -> None:
     """#737's reproduction, which the row arithmetic closes at the source.
 
-    A 64x64 1-bit document whose body is written a byte per pixel returned
-    ``(64, 64, 8)`` -- 131,072 bytes against a 16,384-byte estimate -- because
-    ``length`` was that wide too and nothing cut it back. #737 raised the
-    estimate to meet it; #768 removes the eight extra planes instead. RAW
-    truncates the body to the rows the header declares, and ZIP refuses a stream
-    that inflates past them, so either way the array is the one plane the header
-    always said it was.
+    A 64x64 1-bit document whose body is written a byte per pixel unpacks to
+    ``(64, 64, 8)``, eight planes against a one-plane header, wherever
+    ``length`` is that wide too. RAW truncates the body to the rows the header
+    declares and ZIP refuses a stream that inflates past them (#768), so either
+    way the array is the one plane the header says it is.
 
-    The number this used to be checked against, ``64 * 64 * 1 * 4``, is no
-    longer the one the guard holds -- the depth-1 peak is nearer six bytes a
-    pixel than four -- but the claim never was about that constant. It is about
-    which count the constant multiplies: a float32 per *pixel*, not per *bit*.
-    So the array is asserted at a pixel apiece, and the whole modelled peak --
-    packed buffer, result and every transient at once -- is asserted to stay
-    inside the bare eight-plane array the crafted body used to produce.
+    The claim is not about any one constant but about which count the constant
+    multiplies: a float32 per *pixel*, not per *bit*. The guard's own number is
+    wider than ``64 * 64 * 1 * 4``, the depth-1 peak being nearer six bytes a
+    pixel than four. So the array is asserted at a pixel apiece, and the whole
+    modelled peak -- packed buffer, result and every transient at once -- is
+    asserted to stay inside the bare eight-plane array the crafted body would
+    otherwise produce.
     """
     per_pixel = 64 * 64 * 1 * 4
     per_bit = 64 * 64 * 8 * 4
@@ -860,10 +847,10 @@ def test_numpy_guard_estimate_covers_the_shipped_bitmap_fixture() -> None:
     """``4x4_1bit_bitmap.psd``: the header's one plane, and exactly it.
 
     The oldest 1-bit document in the corpus, RAW with a properly packed body,
-    four bytes for four rows. Its four-pixel row fills a whole byte, so it used
-    to unpack to twice its pixel count -- the 2.0x reading in #737 -- and came
-    back ``(4, 4, 2)``, half of it padding. Trimming the padding makes the
-    header's own count the array's width.
+    four bytes for four rows. Its four-pixel row fills a whole byte, so
+    unpacking without a trim gives twice its pixel count, ``(4, 4, 2)`` with
+    half of it padding (#737). Trimming the padding makes the header's own
+    count the array's width.
     """
     psd = _colormode("4x4_1bit_bitmap.psd")
     assert psd._record.image_data.compression == Compression.RAW
@@ -886,8 +873,9 @@ def test_the_depth_1_array_is_exact_for_a_padded_width(
     """The same claim on the two Photoshop documents whose width pads.
 
     Forged headers cover the combinations no file has; these two are the real
-    thing, RAW and RLE, at a width that is not a multiple of eight. Before #768
-    neither could be measured at all -- ``numpy()`` raised on the reshape.
+    thing, RAW and RLE, at a width that is not a multiple of eight. Without the
+    row trim neither can be measured at all -- ``numpy()`` raises on the
+    reshape (#768).
     """
     assert _colormode(filename).numpy().nbytes == width * height * 1 * 4
     _assert_budget_brackets_the_model(lambda budget=None: _colormode(filename, budget))
@@ -921,9 +909,9 @@ def test_a_short_1bit_body_still_cannot_be_shaped() -> None:
     """A body that does not fill the header's rows has no geometry to recover.
 
     ``_parse_array()`` drops the part-row a truncated body ends on, and the
-    reshape then fails for want of whole planes. Unchanged by #768 and
-    deliberately so: raising here is what depth 8 and up already do, through the
-    length-mismatch check, and the alternative would be inventing rows.
+    reshape then fails for want of whole planes. Deliberately so (#768):
+    raising here is what depth 8 and up already do, through the length-mismatch
+    check, and the alternative would be inventing rows.
     """
     psd = _forge_1bit(20, 3, 1, ColorMode.BITMAP, Compression.RAW, "packed")
     psd._record.image_data.data = psd._record.image_data.data[:5]  # under two rows
@@ -937,14 +925,14 @@ def test_a_zip_stream_one_byte_over_length_is_refused() -> None:
 
     It asks zlib for ``max_length + 1`` bytes so an oversize stream gives a byte
     away instead of ending exactly at the limit -- and a stream inflating to
-    precisely that handed the byte back: all its input consumed, no
-    ``unconsumed_tail`` left to catch it. At depth 1 those eight extra bits
-    became eight more float32 values than any arithmetic over ``length`` could
-    reach (#737).
+    precisely that gives the byte back with all its input consumed and no
+    ``unconsumed_tail`` left to catch it. At depth 1 those eight extra bits are
+    eight more float32 values than any arithmetic over ``length`` can reach
+    (#737).
 
-    The ceiling holds, so the channel is refused -- and since #768 refusing it
-    yields a black channel rather than ending the read, ``length`` counting
-    packed rows being what makes a 1-bit fill expressible.
+    The ceiling holds, so the channel is refused -- and refusing it yields a
+    black channel rather than ending the read, ``length`` counting packed rows
+    being what makes a 1-bit fill expressible (#768).
     """
     psd = _forge_1bit(8, 1, 1, ColorMode.BITMAP, Compression.ZIP, "packed")
     psd._record.image_data.data = zlib.compress(bytes(1 + 1))  # `length` + 1
@@ -957,22 +945,21 @@ def test_a_zip_stream_one_byte_over_length_is_refused() -> None:
 def test_16bit_degraded_image_data_keeps_its_declared_width() -> None:
     """16-bit image data that fails to decode black-fills at its declared width.
 
-    ``decompress()``'s substitute was a PIL image whose mode came from the depth
-    -- ``"L"`` for 8, ``"RGBA"`` for anything else -- so depth 16 came back at
-    four bytes per pixel against a ``length`` of two, and parsed twice as wide:
-    a 4x4 RGB document read ``(4, 4, 6)``, 384 bytes, against a 192-byte
-    estimate, and a budget of exactly 192 admitted it.
+    A substitute whose mode came from the depth alone -- ``"L"`` for 8,
+    ``"RGBA"`` for anything else -- comes back at four bytes per pixel against
+    a ``length`` of two, and parses twice as wide: a 4x4 RGB document reads
+    ``(4, 4, 6)``, twice the three planes its header declares, so a budget
+    sized for the sound document admits it.
 
     Note what fails together here. :py:meth:`ImageData.get_data` decompresses
     every channel in one call, so a corrupt merged section fails as a unit; the
     same substitute serves the per-channel readers, ``ChannelData.get_data()``
-    for layers and the pattern reader, which were wrong at depth 16 the same
-    way.
+    for layers and the pattern reader, at depth 16 alike.
 
-    The estimate is unchanged; what was wrong was the array. Bracketed here
-    rather than merely bounded, because the fill is now exactly ``length`` --
-    a degraded read allocates what a sound one would, so the model that was
-    quoted for the sound document has to hold for this one too.
+    The subject is the array rather than the estimate. Bracketed here rather
+    than merely bounded, because the fill is exactly ``length`` -- a degraded
+    read allocates what a sound one would, so the model quoted for the sound
+    document has to hold for this one too.
     """
     corrupt = b"\x78\x9c" + b"\xff" * 20  # valid zlib header, garbage deflate
 
@@ -1001,12 +988,12 @@ def test_16bit_degraded_image_data_keeps_its_declared_width() -> None:
 # sweep above has no counterpart here. What can be asserted instead is the
 # model's structure: that it stays above the image the call hands back, and that
 # every term gated on a branch really is gated -- because ungating them is the
-# way this model would silently become the over-estimate it replaced, and #767
-# is as much about that direction as about the other. The old
-# `width * height * channels * 4` was four bytes a pixel per stored channel, a
-# float32 plane; `_create_image()` yields "L", "P" or "1" and PIL stores a byte
-# per pixel in all three, so an 8-bit multi-band document was turned away well
-# below its real footprint.
+# way this model would silently become an over-estimate, and #767 is as much
+# about that direction as about the other. A `width * height * channels * 4` is
+# four bytes a pixel per stored channel, a float32 plane; `_create_image()`
+# yields "L", "P" or "1" and PIL stores a byte per pixel in all three, so such
+# an estimate turns an 8-bit multi-band document away well below its real
+# footprint.
 #
 # A whole-call RSS delta would see some of this, and it is deliberately not
 # written into the suite: RSS answers with the allocator's arena rather than the
@@ -1043,9 +1030,9 @@ def test_pil_peak_model_does_not_charge_for_a_merge_that_never_happens() -> None
     Every other mode reaches ``Image.merge()``, which builds a second image as
     wide as the mode's band count while the per-channel images are still held.
     These two never do -- one puts a palette on the first channel, the other
-    takes it as-is -- so charging them for it would put the model back above the
-    ``width * height * channels * 4`` it replaced on exactly the 8-bit documents
-    that motivated replacing it.
+    takes it as-is -- so charging them for it would put the model above
+    ``width * height * channels * 4`` on exactly the 8-bit documents that most
+    need it not to be.
 
     Three otherwise identical forged headers isolate the term: same dimensions,
     same stored channel count, same depth, same codec, ICC off. The whole
@@ -1080,9 +1067,9 @@ def test_pil_peak_model_does_not_charge_for_a_background_it_never_removes() -> N
     """``_remove_white_background()`` only ever sees an RGBA image.
 
     It is the single largest term in this model -- four split bands, three
-    ``ImageMath`` widenings to "I", three "L" results and a merge, some 35 bytes
-    a pixel -- and it fires only when the document declares transparency for its
-    merged preview. A document without it must not be quoted for the phase.
+    ``ImageMath`` widenings to "I", three "L" results and a merge -- and it
+    fires only when the document declares transparency for its merged preview.
+    A document without it must not be quoted for the phase.
 
     The two documents are the controlled pair the corpus happens to provide:
     both RGB, both four stored channels, both 8-bit, differing in whether
@@ -1114,9 +1101,9 @@ def test_pil_peak_model_charges_the_deep_conversion_pair(depth: int) -> None:
     ``_create_image()`` reads a 16- or 32-bit channel into an "I"/"F" image at
     four bytes a pixel and then allocates a second through ``.point()`` before
     narrowing to "L". Both are alive at once, and at depth 8 neither exists --
-    the buffer becomes an "L" and nothing else. The old estimate charged
-    ``channels * 4`` whatever the depth and so could not tell the two cases
-    apart, which is the whole of the issue.
+    the buffer becomes an "L" and nothing else. An estimate of ``channels * 4``
+    whatever the depth cannot tell the two cases apart, which is the whole of
+    the issue.
 
     Held against the same header at depth 8. The excess over that is *not* the
     term itself, and the assertion deliberately does not claim it is: the model
@@ -1329,9 +1316,8 @@ def test_pil_peak_model_adds_up_to_a_fixed_number(
     total when its phase wins the maximum -- which is why they are spread across
     depths, modes and the ``apply_icc`` switch rather than enumerating headers.
     ``_ALLOCATOR_SLACK`` in particular has nowhere else to be asserted: it covers
-    what PIL's arena rounds each image up to, real enough to be why the RSS
-    figures sat above a byte count, but invisible to any instrument cheap enough
-    for CI.
+    what PIL's arena rounds each image up to, real enough to put RSS above a
+    plain byte count, but invisible to any instrument cheap enough for CI.
     """
     psd = _forge(4, 4, channels, depth, color_mode, compression=compression, icc=icc)
     assert psd._record.image_data.compression == compression

@@ -266,9 +266,9 @@ def test_numbers_interoperate_with_statistics() -> None:
     """Only ``mean``, ``variance`` and ``stdev`` reach ``_exact_ratio``.
 
     ``median`` and ``quantiles`` merely sort and interpolate, and ``fmean``
-    goes through ``float()``, so those worked before this delegation existed
-    and are not asserted here. The ``type: ignore`` comments are the same
-    story as in ``test_numbers_interoperate_with_fractions``.
+    goes through ``float()``, so those need no delegation and are not asserted
+    here. The ``type: ignore`` comments are the same story as in
+    ``test_numbers_interoperate_with_fractions``.
     """
     values = [NumericElement(1.0), NumericElement(3.0), NumericElement(5.0)]
     assert statistics.mean(values) == 3.0  # type: ignore[type-var]
@@ -301,8 +301,9 @@ def test_every_numeric_subclass_is_registered() -> None:
 
     A subclass that re-declares ``value`` without a numeric converter, or that
     lets attrs generate ``__eq__`` (which also sets ``__hash__`` to ``None``),
-    would inherit the registration while breaking what it promises. Both have
-    happened: ``UnitFloat`` and ``PixelAspectRatio``.
+    would inherit the registration while breaking what it promises. Neither
+    shape is hypothetical: ``UnitFloat`` re-declares ``value`` and both it and
+    ``PixelAspectRatio`` turn attrs' ``eq`` off by hand.
     """
     for module in pkgutil.iter_modules(psd_tools.psd.__path__):
         importlib.import_module(f"psd_tools.psd.{module.name}")

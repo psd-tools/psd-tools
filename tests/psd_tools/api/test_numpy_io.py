@@ -60,13 +60,14 @@ def _slotted_pattern(color_mode: ColorMode, written: Sequence[int], slots: int =
         (ColorMode.MULTICHANNEL, (0, 1, 2), 3),
         (ColorMode.MULTICHANNEL, (0, 1, 2, 25), 3),
         (ColorMode.MULTICHANNEL, (0, 25), 1),
-        # Where the mode's constant and the slot layout agree, so the count is
-        # what it always was -- these pin that the rule change moved nothing.
+        # Where the mode's constant and the slot layout agree, so a mode-keyed
+        # rule and a slot-keyed one give the same count.
         (ColorMode.CMYK, (0, 1, 2, 3, 25), 4),
         # One colour plane and an alpha, under modes whose constant is wider
-        # than that. The mode-keyed rule compared 2 against 3 and split
-        # nothing here too, so multichannel was not the only mode carrying the
-        # bug -- it is just the only one whose constant can never be reached.
+        # than that. A mode-keyed rule comparing 2 against 3 splits nothing
+        # here either, so multichannel is not the only mode that needs the
+        # slot layout -- it is just the only one whose constant is
+        # unreachable.
         (ColorMode.RGB, (0, 25), 1),
         (ColorMode.INDEXED, (0, 25), 1),
     ],
@@ -122,9 +123,9 @@ def test_get_pattern_color_channels_degrades_without_a_color_slot(
         ("rgba", 8),
         ("lab", 8),
         ("multichannel", 16),
-        # Depth 32 was missing from this sweep, which is part of why #738 stood:
-        # it is the one branch of `_parse_array` that does no rescaling, so it
-        # is the one that returned the raw buffer's dtype and mutability.
+        # Depth 32 earns its place in this sweep (#738): it is the one branch
+        # of `_parse_array` that does no rescaling, so it is the one that can
+        # hand back the raw buffer's dtype and mutability.
         ("grayscale", 32),
         ("rgb", 32),
     ],
@@ -143,11 +144,11 @@ def test_numpy_colormodes(colormode: str, depth: int) -> None:
 
 
 def _assert_array_contract(array: np.ndarray) -> None:
-    """What every depth returns, which depth 32 alone did not (#738).
+    """What every depth returns, depth 32 included (#738).
 
     Native ``float32`` and writeable. The other three branches get both for
     free from the ``.astype()`` their rescaling needs; 32-bit data needs no
-    rescaling, so it was handed back as ``np.frombuffer`` produced it -- a
+    rescaling, so handing it back as ``np.frombuffer`` produces it gives a
     read-only view carrying the file's big-endian dtype.
     """
     assert array.dtype == np.float32, array.dtype
@@ -157,26 +158,25 @@ def _assert_array_contract(array: np.ndarray) -> None:
 
 @pytest.mark.parametrize("filename", ["transparentbg.psd", "transparentbg.psb"])
 def test_numpy_reads_a_32bit_document_with_transparency(filename: str) -> None:
-    """``numpy()`` raised on an ordinary Photoshop file shape (#738).
+    """``numpy()`` on an ordinary Photoshop file shape (#738).
 
     ``_remove_background()`` un-premultiplies the merged preview in place, and
-    it is reached only for RGB with a transparency channel -- so depth 32's
-    read-only array raised ``assignment destination is read-only`` there and
-    nowhere else. These two fixtures have shipped all along and reproduce it;
-    the issue was filed believing none did.
+    it is reached only for RGB with a transparency channel -- so a read-only
+    depth-32 array raises ``assignment destination is read-only`` there and
+    nowhere else. These two shipped fixtures are the corpus's cases.
     """
     psd = PSDImage.open(full_name(filename))
     assert (psd.depth, psd.color_mode, psd.channels) == (32, ColorMode.RGB, 4)
 
-    array = psd.numpy()  # would raise ValueError
+    array = psd.numpy()  # raises ValueError where the array is read-only
     _assert_array_contract(array)
     assert array.shape == (psd.height, psd.width, 4)
     assert psd.numpy("color").shape == (psd.height, psd.width, 3)
     assert psd.numpy("shape").shape == (psd.height, psd.width, 1)
 
     # Not merely non-raising: where the preview is opaque there is nothing to
-    # un-premultiply, so the colour has to agree with `topil()` -- which took
-    # the `Image.frombytes` path and worked throughout.
+    # un-premultiply, so the colour has to agree with `topil()`, which reaches
+    # the same pixels by the `Image.frombytes` path.
     preview = np.asarray(psd.topil()).astype(np.float32) / 255.0
     opaque = array[:, :, 3] > 0.999
     assert opaque.any()
@@ -188,8 +188,8 @@ def test_parse_array_does_not_alias_its_input() -> None:
 
     Writing into what ``_parse_array`` returns must not reach back into the
     caller's buffer. A ``bytearray`` is used because the read-only-ness of the
-    ``bytes`` the real callers pass is what masked this: over a mutable buffer
-    ``np.frombuffer`` yields a *writeable* view, so the alias would be silent
+    ``bytes`` real callers pass would hide an alias: over a mutable buffer
+    ``np.frombuffer`` yields a *writeable* view, so the alias is silent
     corruption rather than a raise.
     """
     source = bytearray(np.arange(4, dtype=">f4").tobytes())

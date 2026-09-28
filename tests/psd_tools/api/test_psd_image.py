@@ -181,8 +181,8 @@ def test_create_group_does_not_truth_test_its_iterable() -> None:
     """``layer_list`` is any iterable, so its truth value is not ours to read.
 
     A multi-element NumPy array raises ``ValueError`` when tested for truth, so
-    truth-testing rejected a perfectly good ``Iterable[Layer]`` one frame
-    before ``extend()`` would have accepted it (#820).
+    truth-testing would reject a perfectly good ``Iterable[Layer]`` one frame
+    before ``extend()`` accepts it (#820).
     """
     psdimage = PSDImage.new(mode="RGB", size=(100, 100))
     layer_list = np.array(
@@ -197,7 +197,7 @@ def test_create_group_does_not_truth_test_its_iterable() -> None:
         dtype=object,
     )
     with pytest.raises(ValueError):
-        bool(layer_list)  # Guards the premise: this is what used to escape.
+        bool(layer_list)  # Guards the premise: a truth test raises here.
 
     group = psdimage.create_group(layer_list, name="My Group")
 
@@ -261,9 +261,9 @@ def test_mark_updated_after_an_out_of_contract_edit() -> None:
     """``mark_updated()`` is how an edit the API cannot see gets counted.
 
     The effects proxy is read-only, so a colour change goes through the
-    ``descriptor`` escape hatch, which sets no flag. Until #831 there was no
-    public way to set it afterwards, so the document went on believing a
-    preview that no longer matched its layers.
+    ``descriptor`` escape hatch, which sets no flag. Without a public way to
+    set it afterwards the document goes on believing a preview that no longer
+    matches its layers (#831).
     """
     psd = PSDImage.open(full_name("layer_effects.psd"))
     psd[6].effects[0].descriptor[Key.Color][Key.Red] = Double(255.0)
@@ -402,8 +402,8 @@ def test_background_color_setter_invalid_channel_count() -> None:
         gray.background_color = (0.5, 0.5)
 
     # Duotone stores one grayscale channel, so it expects 1 like grayscale --
-    # not one per ink. This took a 2-tuple until #733, and the second component
-    # had no channel to be written to.
+    # not one per ink. A second component would have no channel to be written
+    # to (#733).
     duotone = PSDImage.new("DUOTONE", (16, 16))
     with pytest.raises(ValueError, match="Expected 1 color channel"):
         duotone.background_color = (0.5, 0.5)
@@ -525,10 +525,9 @@ def test_save_with_float_color_cmyk(tmp_path: Path) -> None:
 
     1.0 is *no* ink, the convention :py:attr:`PSDImage.background_color`
     documents and the one the stored bytes use -- a Photoshop CMYK fixture
-    stores 255 where nothing is printed. This read ``color=(0, 0, 0, 0)`` and
-    still expected 255 back, which held only because the preview was written
-    through a PIL ``CMYK`` image and ``pil_io.post_process()`` inverts one
-    (#866).
+    stores 255 where nothing is printed. ``color=(0, 0, 0, 0)`` would also
+    read back as 255 whenever the preview goes through a PIL ``CMYK`` image,
+    because ``pil_io.post_process()`` inverts one (#866).
     """
     psdimage = PSDImage.new("CMYK", (32, 32), color=(1.0, 1.0, 1.0, 1.0))
     psdimage.create_pixel_layer(
@@ -651,8 +650,8 @@ def test_get_transparency_index_negative_layer_count(tmp_path: Path) -> None:
 def test_composite_preview_rgba_with_negative_layer_count(tmp_path: Path) -> None:
     """Default composite() returns RGBA when layer_count is negative.
 
-    This is the user-facing bug from #592: composite() used the stored preview
-    but dropped the alpha channel because has_transparency() returned False.
+    The user-facing symptom of #592: a composite taken from the stored preview
+    drops the alpha channel wherever has_transparency() reads False.
     """
     output = _save_psd_with_negative_layer_count(tmp_path)
     loaded = PSDImage.open(output)
@@ -670,16 +669,15 @@ def test_a_structural_edit_keeps_the_negative_layer_count(tmp_path: Path) -> Non
     """An edited document must not lose its merged transparency flag (#861).
 
     A negative ``layer_count`` means the first alpha channel of the merged
-    image data holds the composite's transparency, which is how #595 learned
-    to give ``topil()`` its alpha back. ``_update_record()`` overwrote the
-    field with a plain ``len()``, so any container edit dropped the sign and
-    the reopened document came back opaque -- 9 of 10 sampled 8-bit fixtures
-    went from RGBA to RGB.
+    image data holds the composite's transparency, which is what lets
+    ``topil()`` give the composite its alpha (#595). Rewriting the field with
+    a plain ``len()`` in ``_update_record()`` drops that sign on any container
+    edit, and the reopened document comes back opaque.
 
     The count is the discriminating assertion; the alpha channel is read as
-    well because the mode alone would pass on a document whose alpha happened
-    to be uniform. The extrema are the unedited fixture's, so they pin that
-    the alpha survived the round trip, not that the preview was regenerated.
+    well because the mode alone would pass on a document whose alpha is
+    uniform. The extrema are the unedited fixture's, so they pin that the
+    alpha survived the round trip, not that the preview was regenerated.
     """
     psd = PSDImage.open(full_name("transparency/fill-opacity.psd"))
     layer_info = psd._record.layer_and_mask_information.layer_info
@@ -708,8 +706,8 @@ def test_the_transparency_flag_survives_an_empty_tree(
 
     The negative ``layer_count`` cannot be carried across a rebuild of an
     empty tree, because zero has no sign. Reading the sign straight back off
-    the field therefore dropped it whenever the tree emptied even for an
-    instant, and every later edit wrote a positive count.
+    the field would therefore drop it whenever the tree empties even for an
+    instant, leaving every later edit to write a positive count.
 
     ``reorder`` is the case that makes this more than a corner: ``move_up()``
     and ``move_down()`` are implemented as a ``remove()`` followed by an
@@ -719,7 +717,7 @@ def test_the_transparency_flag_survives_an_empty_tree(
 
     What no code can carry is an emptied document *written to disk* and
     reopened: the zero count on disk has no sign to restore. That is a format
-    limit, not a fix boundary, and the changelog says so.
+    limit, which the changelog records.
     """
     name = "layers/group.psd" if route == "reorder" else "transparency/fill-opacity.psd"
     psd = PSDImage.open(full_name(name))
@@ -758,14 +756,12 @@ def test_a_structural_edit_empties_the_shadowed_layer_info(tmp_path: Path) -> No
 
     Every Photoshop-authored 16- or 32-bit file leaves the layer info section
     empty beside its ``Lr16``/``Lr32`` block, so on a shipped fixture there is
-    nothing to clean up and this half of the fix is invisible. A file psd-tools
-    itself wrote while the defect was live is the case that needs it: it
-    carries a rebuilt list in the ignored section *and* the real one in the
-    block. That input is forged here rather than produced by the old code.
+    nothing to clean up and the cleanup is invisible. The case that needs it
+    is a file carrying a rebuilt list in the ignored section *and* the real
+    one in the block, which is forged here.
 
     Without the cleanup the stale duplicate is copied forward on every
-    subsequent edit -- 1220 bytes of dead records on this 5x5 fixture, and
-    proportional to the layer data on a real one.
+    subsequent edit, at a cost proportional to the layer data.
     """
     psd = PSDImage.open(full_name("16bit5x5.psd"))
     lmi = psd._record.layer_and_mask_information
@@ -814,11 +810,12 @@ def test_composite_preview_rgb_with_positive_layer_count(tmp_path: Path) -> None
 def test_background_color_accepts_a_sequence_on_multichannel() -> None:
     """A per-channel background is expressible on a multichannel document.
 
-    The setter validated against ``EXPECTED_CHANNELS``, whose multichannel entry
-    is 64 -- the format's maximum rather than this file's three -- so every
-    sequence was rejected and only a scalar could be set (#731). Since
+    A multichannel document's width has to come from the file, not from
+    ``EXPECTED_CHANNELS``, whose multichannel entry is 64 -- the format's
+    maximum rather than this file's three. Validating against the table
+    rejects every sequence and leaves only a scalar settable (#731), and
     ``background_color`` is what ``save()`` composites the merged preview
-    against, there was no way to give a multichannel document a per-channel one.
+    against.
     """
     psd = PSDImage.open(full_name("colormodes/4x4_16bit_multichannel.psd"))
     assert psd.channels == 3
@@ -826,11 +823,11 @@ def test_background_color_accepts_a_sequence_on_multichannel() -> None:
     psd.background_color = (0.1, 0.2, 0.3)
     assert psd.background_color == (0.1, 0.2, 0.3)
 
-    # A scalar kept working throughout, and still does.
+    # A scalar is valid on any colour mode.
     psd.background_color = 0.5
     assert psd.background_color == 0.5
 
-    # A wrong width is still rejected, now against the document's own count.
+    # A wrong width is rejected against the document's own count.
     with pytest.raises(ValueError, match="Expected 3 color channel"):
         psd.background_color = (0.1, 0.2)
 
@@ -838,10 +835,10 @@ def test_background_color_accepts_a_sequence_on_multichannel() -> None:
 def test_new_multichannel_accepts_a_sequence() -> None:
     """``new()`` and the validator agree on a multichannel document's width.
 
-    ``_make_header()`` builds a one-channel multichannel file while the
-    validator demanded 64, so no sequence satisfied both -- the same shape of
-    bug that #734 fixed for duotone by correcting the table, which multichannel
-    cannot be fixed by because its count is per-file (#731).
+    ``_make_header()`` builds a one-channel multichannel file, so a validator
+    demanding the table's 64 leaves no sequence that satisfies both. Duotone's
+    counterpart is fixable by correcting the table (#734); multichannel is
+    not, because its count is per-file (#731).
     """
     psd = PSDImage.new("MULTICHANNEL", (4, 4), color=(0.5,))
     assert psd.channels == 1

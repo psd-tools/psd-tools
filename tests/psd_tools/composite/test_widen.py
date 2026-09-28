@@ -17,10 +17,9 @@ question this module exists to answer, and its embedded profile -- U.S. Web
 Coated (SWOP) v2, Photoshop's default -- is what the transform is built from.
 
 The file is 568 KB, almost all of it that profile. A compact Generic CMYK
-profile would fit the 500 KB pre-commit limit but has coarser tables, and
-littlecms and Photoshop diverge to 10/255 on it against 3.6/255 here -- so the
-press profile is shipped and the hook skipped for it, in a repository whose
-CMYK fixtures already run to 2.3 MB.
+profile would fit the 500 KB pre-commit limit but has coarser tables, on which
+littlecms and Photoshop diverge several times further -- so the press profile
+is shipped and the hook skipped for it.
 """
 
 import sys
@@ -90,10 +89,10 @@ def test_cmyk_widening_matches_photoshop() -> None:
             replication_error, float(np.abs(replicated - target).max())
         )
 
-    # Locally the worst patch mean is 3.6/255; 6 leaves room for littlecms
-    # version differences across CI platforms. Replication's 107/255 is what
-    # keeps that from reading as "anything passes" -- the tolerance sits an
-    # order of magnitude below the error it exists to reject.
+    # The bound leaves room for littlecms version differences across CI
+    # platforms. Replication is asserted beside it so it cannot read as
+    # "anything passes": the tolerance sits an order of magnitude below the
+    # error it exists to reject.
     assert icc_error * 255 < 6.0
     assert replication_error * 255 > 100.0
 
@@ -135,11 +134,11 @@ def test_cmyk_widening_falls_back_without_a_profile(filename: str) -> None:
 def test_lab_widening_is_neutral() -> None:
     """A grey sits on Lab's neutral axis; a and b are offset-encoded.
 
-    Replicating the lightness put a and b at the extreme end of their axes.
+    Replicating the lightness puts a and b at the extreme end of their axes.
     Photoshop reports ``a = b = 0`` for every grey, which the arrays store
-    offset by 128 -- so neutral is ``128 / 255``, not the 0.5 this said before
-    #743. The half-step matters because ``composite_pil()`` truncates: 0.5
-    leaves byte 127 where Photoshop writes 128.
+    offset by 128 -- so neutral is ``128 / 255`` rather than 0.5 (#743). The
+    half-step matters because ``composite_pil()`` truncates: 0.5 leaves byte
+    127 where Photoshop writes 128.
     """
     psd = PSDImage.open(full_name("colormodes/4x4_8bit_lab.psd"))
     assert psd.color_mode == ColorMode.LAB
@@ -170,16 +169,16 @@ def test_widening_still_replicates_where_that_is_right(
 
 
 def test_widening_without_a_document_replicates() -> None:
-    """A detached layer has no document to ask, so the old behaviour stands."""
+    """A detached layer has no document to ask, so it replicates instead."""
     assert np.allclose(make_widen(None)(_grey(0.75), 4)[0, 0], np.full(4, 0.75))
 
 
 def test_single_channel_backdrop_reaches_the_conversion() -> None:
     """The end-to-end path the issue reproduces.
 
-    A one-channel backdrop handed to a CMYK document used to come back
-    ``[0.75, 0.75, 0.75, 0.75]`` -- the replication, an over-inked colour that
-    is not the grey it came from.
+    Replicated, a one-channel backdrop handed to a CMYK document comes back
+    ``[0.75, 0.75, 0.75, 0.75]`` -- an over-inked colour that is not the grey
+    it came from.
     """
     psd = PSDImage.open(full_name("colormodes/4x4_8bit_cmyk.psd"))
     backdrop = np.full((psd.height, psd.width, 1), 0.75, dtype=np.float32)
@@ -316,10 +315,10 @@ def test_every_sub_compositor_inherits_the_document_facts(monkeypatch) -> None:
 def test_the_conversion_is_resolved_once_per_composite(monkeypatch) -> None:
     """Resolving the document is threaded, not repeated per compositor.
 
-    ``make_widen()`` digests the document's ICC profile -- ~180 us for a press
-    profile -- so resolving it per sub-compositor or per effect would pay that
-    again each time. Three comments assert this in prose; nothing else asserts
-    it in code.
+    ``make_widen()`` digests the document's ICC profile, which is not cheap
+    for a press profile, so resolving it per sub-compositor or per effect
+    would pay that again each time. Three comments assert this in prose;
+    nothing else asserts it in code.
 
     ``test_every_sub_compositor_inherits_the_document_facts`` above does not cover
     it: that spy compares each compositor's ``_widen`` against the mode-blind
@@ -370,10 +369,10 @@ def test_scalar_backdrop_reaches_the_conversion_on_a_lab_document() -> None:
     """The default backdrop, which is where #753 actually bites.
 
     ``composite()`` defaults to ``color=1.0``, so this is what a Lab document
-    composites against wherever nothing covers it. Broadcasting that scalar put
-    both chroma axes at 1.0 -- byte 255, the extreme corner of each -- so the
-    default backdrop was maximum chroma at maximum lightness rather than white,
-    which on a Lab canvas is ``(255, 128, 128)``.
+    composites against wherever nothing covers it. Broadcasting that scalar
+    puts both chroma axes at 1.0 -- byte 255, the extreme corner of each --
+    which is maximum chroma at maximum lightness rather than white, and white
+    on a Lab canvas is ``(255, 128, 128)``.
 
     The viewport is wider than the layer so that bare backdrop is exposed;
     without that the layer covers every pixel and the backdrop never shows.
@@ -394,11 +393,11 @@ def test_scalar_backdrop_reaches_the_conversion_on_a_lab_document() -> None:
 def test_scalar_and_single_channel_backdrops_agree(filename: str, value: float) -> None:
     """The same backdrop, spelled two ways, end to end.
 
-    This is the defect underneath #753 rather than one mode's symptom: the
-    array spelling went through the conversion #722 added and the scalar did
-    not, so which answer a caller got depended on how they happened to write
-    it. Lab is where that produced a colour off the neutral axis entirely;
-    CMYK is where it produced the over-inked build this module exists to avoid
+    This is the defect underneath #753 rather than one mode's symptom: a
+    conversion the array spelling reaches and the scalar does not (#722) makes
+    the answer depend on how a caller happens to write it. Lab is where that
+    produces a colour off the neutral axis entirely; CMYK is where it produces
+    the over-inked build this module exists to avoid
     -- ``0.0`` broadcast to ``(0, 0, 0, 0)``, which is every plate at 100%.
     """
     psd = PSDImage.open(full_name(filename))
@@ -415,11 +414,11 @@ def test_scalar_and_single_channel_backdrops_agree(filename: str, value: float) 
 # --- Sources, not only backdrops ---------------------------------------------
 #
 # A *source* is allowed to arrive one channel wide -- ``_assert_source_fits()``
-# says so -- and the blend arithmetic used to broadcast it, which is the
-# replication above reached by another door. So one grey got two answers on one
-# document depending on incidental layer structure: converted as a backdrop, as
-# a clip base, as the base colour under a stroke or as a pattern overlay,
-# replicated as a plain fill layer -- or as a stroke's own fill (#749).
+# says so -- and blend arithmetic that broadcasts it reaches the replication
+# above by another door. One grey then gets two answers on one document
+# depending on incidental layer structure: converted as a backdrop, as a clip
+# base, as the base colour under a stroke or as a pattern overlay, replicated
+# as a plain fill layer -- or as a stroke's own fill (#749).
 
 # The forged pattern's identifier, arbitrary but shared by the record and the
 # descriptor that names it -- ``_get_pattern()`` matches them exactly.
@@ -510,10 +509,10 @@ def _with_pattern_overlay(layer: Layer) -> Layer:
 def test_gray_pattern_fill_reaches_the_conversion(render: str) -> None:
     """The end-to-end path the issue reports, as the fill layer it names.
 
-    Rendered ``[0.502] * 4`` -- the grey in every plate, an over-inked build
-    that is not the grey it came from -- where the same grey as a backdrop, and
-    the same pattern as an *overlay effect* on the same document, had converted
-    since #722.
+    Broadcast, it renders ``[0.502] * 4`` -- the grey in every plate, an
+    over-inked build that is not the grey it came from -- where the same grey
+    as a backdrop, and the same pattern as an *overlay effect* on the same
+    document, converts (#722).
     """
     psd, layer = _gray_pattern_fill(level=128)
     target = (
@@ -533,15 +532,16 @@ def test_gray_pattern_agrees_between_the_fill_and_the_overlay() -> None:
 
     A pattern fill layer and a pattern overlay effect carry the same
     descriptor and name the same pattern, so the colour they paint cannot
-    depend on which of the two a person reached for. It did: the overlay
-    widened through ``make_widen`` and the fill was broadcast.
+    depend on which of the two a person reaches for. Widening the overlay
+    through ``make_widen`` while broadcasting the fill makes it depend on
+    exactly that.
 
     Driven through ``_add_overlay`` rather than through
-    ``_draw_pattern_overlay``, because since #777 the draw function no longer
-    converts anything -- it hands back the pattern at its own width and
-    ``_fit_source()`` widens it, like every other source. Comparing the raw
-    return would now compare two one-channel arrays and pass however the
-    conversion was wired. Comparing a composited overlay against a composited
+    ``_draw_pattern_overlay``, because the draw function converts nothing
+    (#777) -- it hands back the pattern at its own width and ``_fit_source()``
+    widens it, like every other source. Comparing the raw return would compare
+    two one-channel arrays and pass however the conversion is wired. Comparing
+    a composited overlay against a composited
     fill is only sound because the fill is opaque over the whole viewport: it
     is the pattern colour and nothing of the backdrop.
     """
@@ -573,13 +573,13 @@ def test_gray_pattern_agrees_between_the_fill_and_the_overlay() -> None:
 def test_pattern_overlay_pads_with_white_rather_than_replicated_ones() -> None:
     """Where the overlay's widening moved to is observable, and it is better.
 
-    Dropping the draw function's own widening (#777) moves the conversion from
-    before ``paste()`` to after it, and ``paste()`` fills outside the layer's
-    bbox with 1.0 -- white in the pattern's own one-channel encoding. Converted
-    before, that padding stayed 1.0 in a single channel and the blend
-    arithmetic broadcast it to ``(1, 1, 1)``, which on a Lab canvas is not
-    white but L=100 with both chroma axes pinned to +127. Converted after, it
-    widens like any other grey, to ``(1, 128/255, 128/255)``: white.
+    The conversion runs after ``paste()`` rather than before it (#777), and
+    ``paste()`` fills outside the layer's bbox with 1.0 -- white in the
+    pattern's own one-channel encoding. Converted before, that padding stays
+    1.0 in a single channel and the blend arithmetic broadcasts it to
+    ``(1, 1, 1)``, which on a Lab canvas is not white but L=100 with both
+    chroma axes pinned to +127. Converted after, it widens like any other
+    grey, to ``(1, 128/255, 128/255)``: white.
 
     Reaching those pixels takes coverage outliving the layer's bbox, which
     ``_get_object()`` hands back for a layer carrying no transparency channel.
@@ -591,8 +591,8 @@ def test_pattern_overlay_pads_with_white_rather_than_replicated_ones() -> None:
     ``(1, 1, 1, 1)`` either way.
     """
     # Not 128: on Lab that widens to (0.502, 0.502, 0.502), which is exactly
-    # what replication gives, so the content assertion below could not tell the
-    # conversion from the bug. 200 widens to (0.784, 0.502, 0.502).
+    # what replication gives, so the content assertion below cannot tell the
+    # conversion from replication. 200 widens to (0.784, 0.502, 0.502).
     psd, layer = _gray_pattern_fill("colormodes/4x4_8bit_lab.psd", level=200)
     assert psd.color_mode == ColorMode.LAB
     _with_pattern_overlay(layer)
@@ -626,8 +626,7 @@ def test_single_channel_source_and_backdrop_agree() -> None:
     One grey, handed to the same CMYK document twice: once as the backdrop it
     composites against, once as a source composited onto it. A source is
     allowed to arrive narrow and a backdrop is not, but that is a statement
-    about array widths -- it was never meant to be a statement about what
-    colour a grey is.
+    about array widths, not about what colour a grey is.
     """
     psd = PSDImage.open(full_name("colormodes/4x4_8bit_cmyk.psd"))
     widen = make_widen(psd)

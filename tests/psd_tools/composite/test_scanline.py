@@ -2,9 +2,8 @@
 
 The oracle throughout is the area the path actually covers, which for these
 shapes is known in closed form. That is the whole point of #844: aggdraw
-answered a quarter pixel more than the area on every side, and nothing local
-can tell a quarter pixel of real antialiasing from a quarter pixel of
-fabricated antialiasing.
+answers more than the area on every side, and nothing local can tell real
+antialiasing from fabricated antialiasing.
 """
 
 import numpy as np
@@ -22,9 +21,9 @@ def _rectangle(
 def test_a_pixel_aligned_path_has_no_fringe() -> None:
     """#844's own reproduction: integer vertices, so every pixel is 0 or 1.
 
-    aggdraw returned 0.247 in the column either side of this square and 0.247
-    in the row above and below it, on a path where no pixel is partly
-    covered at all.
+    A rasterizer that fabricates antialiasing reports partial coverage in the
+    column either side of this square and in the row above and below it, on a
+    path where no pixel is partly covered at all.
     """
     coverage = scanline.fill_coverage([_rectangle(2, 2, 14, 14)], 16, 16)
 
@@ -210,15 +209,15 @@ def test_a_handle_past_the_end_point_is_not_a_straight_line() -> None:
 
     Both handles here sit on that line, so every distance measures zero, but
     they reach a hundred pixels past the end point and the curve runs out
-    along the line and back. Taken as one chord it strays 74 pixels, against
-    a promised 0.002.
+    along the line and back -- taken as one chord, an excursion far outside
+    the flatness bound.
     """
     start, end = np.array([[0.0, 1.0]]), np.array([[1.0, 1.0]])
     far = np.array([[100.0, 1.0]])
 
     assert len(scanline.flatten_cubics(start, far, far, end)) > 50
-    # Nudged off the line, where the excursion no longer cancels in signed
-    # area, the shortcut used to lose the coverage outright.
+    # Nudged off the line the excursion no longer cancels in signed area, so
+    # a collinearity shortcut loses the coverage outright.
     polyline = scanline.flatten_cubics(
         start, np.array([[100.0, 1.002]]), np.array([[100.0, 0.998]]), end
     )
@@ -233,9 +232,9 @@ def test_a_curve_that_returns_to_its_own_start_is_not_a_straight_line() -> None:
     """The chord of a loop has no length, and a length is what the bound is.
 
     Both handles measure zero against a chord of zero length however far off
-    they reach, so the collinearity short-circuit read this teardrop as
-    straight and flattened it to the single point it starts and ends on --
-    28.8 square pixels of coverage gone.
+    they reach, so a collinearity short-circuit reads this teardrop as
+    straight and flattens it to the single point it starts and ends on, and
+    every square pixel of its coverage with it.
     """
     start = np.array([[5.0, 5.0]])
     polyline = scanline.flatten_cubics(

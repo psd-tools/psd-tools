@@ -201,7 +201,8 @@ def test_stroke(fixture: PSDImage) -> None:
     assert effect.gradient is None
     assert effect.pattern is None
     # One class covers all three fill shapes, so a solid-colour stroke is
-    # asked about a gradient it does not have. It used to answer b"Lnr ".
+    # asked about a gradient it does not have, and answers None rather than a
+    # gradient type.
     assert effect.type is None
 
 
@@ -240,10 +241,10 @@ def _forge_unknown_class(layer: Layer, key: bytes, index: int = 0) -> None:
 def test_an_unknown_effect_class_is_skipped_rather_than_rejected() -> None:
     """A class with no handler here costs its effect, not every caller (#828).
 
-    Rejecting it made `layer.effects` raise, and `has_effects()` with it, and
-    `Layer.__repr__` through that -- so a file carrying one could not be
-    printed, displayed in a notebook, or composited at any log level. It is
-    now skipped, like an effect the Photoshop UI does not show.
+    Rejecting it would make `layer.effects` raise, and `has_effects()` with
+    it, and `Layer.__repr__` through that -- so a file carrying one could not
+    be printed, displayed in a notebook, or composited at any log level. It is
+    skipped instead, like an effect the Photoshop UI does not show.
 
     The descriptor it came out of is still readable, which is why the master
     switch and the scale are asserted too: only the one effect is dropped.
@@ -283,17 +284,17 @@ def test_an_unknown_effect_class_costs_only_its_own_effect() -> None:
 
 
 def test_an_effects_block_that_did_not_parse_reads_as_no_effects() -> None:
-    """The other way listing a layer's effects failed before it began (#828).
+    """The other way listing a layer's effects can fail before it begins (#828).
 
     ``TaggedBlock.read()`` keeps the raw bytes of a block it could not parse,
-    so ``self._data`` could be ``bytes``, and reading those as a descriptor
-    raised -- with the bytes forged here, ``IndexError``. Unlike an unknown
+    so ``self._data`` can be ``bytes``, and reading those as a descriptor
+    raises -- with the bytes forged here, ``IndexError``. Unlike an unknown
     effect class this needs no forged class name, only an effects descriptor
     that will not read, so it is the more reachable of the two.
 
-    Which exception it was depended on the bytes, and that is the point:
+    Which exception comes out depends on the bytes, and that is the point:
     ``IndexError`` is not in the compositor's ``_UNREADABLE``, so for this
-    content no guard #826 added could see it.
+    content the guards #826 added cannot see it.
     """
     psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
     layer = psd[0]
@@ -336,9 +337,9 @@ def _effects_block(layer: Layer) -> Descriptor | None:
 def test_a_block_listing_nothing_is_not_effects() -> None:
     """``has_effects(enabled=False)`` follows the fx list, not the block (#830).
 
-    ``Фигура 1`` is the first of the 38 layers in ``tests/psd_files`` that
-    carry an effects block listing nothing -- Photoshop writes the block when
-    the first effect is attached and leaves it once the last is removed.
+    ``Фигура 1`` is one of the layers in ``tests/psd_files`` that carry an
+    effects block listing nothing -- Photoshop writes the block when the first
+    effect is attached and leaves it once the last is removed.
 
     It discriminates because both its entries are ``enab=True`` with no
     ``present`` flag: an implementation that read the enabled flag, or the
@@ -359,8 +360,8 @@ def test_a_block_listing_nothing_is_not_effects() -> None:
     assert len(layer.effects) == 0
     assert layer.has_effects() is False
     assert layer.has_effects(enabled=False) is False
-    # The pair that used to disagree on this very layer: True from the arm
-    # that asked about the block, False from the arm that read the list.
+    # The named form asks the fx list too, not the block: this layer is where
+    # the two arms of the same question can come apart.
     assert layer.has_effects(enabled=False, name="DropShadow") is False
     assert layer.has_effects(enabled=False, name="BevelEmboss") is False
 
@@ -368,9 +369,9 @@ def test_a_block_listing_nothing_is_not_effects() -> None:
 def test_effects_follows_a_block_attached_after_it_was_read() -> None:
     """The additive half of the live view: a block set later is seen.
 
-    Under the snapshot this was unreachable without ``del layer._effects``,
-    and the only reason the corresponding compositor fixture worked was that
-    it set its block before anything read ``layer.effects``.
+    A proxy that snapshotted the layer's effects would put this out of reach
+    without ``del layer._effects``, and would be masked by any caller that
+    sets its block before anything reads ``layer.effects``.
 
     ``view`` is taken, and read, while the layer still has no block, and is
     asserted on alongside every fresh ``layer.effects``. Without it the test
@@ -400,9 +401,9 @@ def test_effects_follows_a_block_attached_after_it_was_read() -> None:
     assert layer.has_effects(name="ColorOverlay") is True
     assert list(view.find("ColorOverlay"))
 
-    # And the structural flags too, which the snapshot froze along with the
-    # list. ``set_data`` stores a ``DescriptorBlock2`` of its own, so these go
-    # at what the layer now holds rather than at what was handed to it.
+    # And the structural flags too, which a snapshot would freeze along with
+    # the list. ``set_data`` stores a ``DescriptorBlock2`` of its own, so these
+    # go at what the layer now holds rather than at what was handed to it.
     stored = _effects_block(layer)
     assert stored is not None
     stored[b"masterFXSwitch"] = Bool(False)
@@ -418,7 +419,7 @@ def test_effects_follows_a_block_attached_after_it_was_read() -> None:
 
 
 def test_items_hands_out_a_list_that_cannot_write_back() -> None:
-    """``items`` was the internal list itself, so a caller could empty it.
+    """``items`` is not the internal list, so a caller cannot empty it.
 
     Held as one proxy throughout: re-reading ``layer.effects`` would pass on
     the de-memoisation alone, and the point here is the list.
@@ -435,10 +436,10 @@ def test_items_hands_out_a_list_that_cannot_write_back() -> None:
 def test_an_absent_reporting_enum_is_not_fabricated() -> None:
     """The reporting-only enums answer None instead of inventing a default.
 
-    Only ``type`` reaches the absent case on a real file -- 55 of the 65
-    corpus effects that expose it never write the key. The other seven are
-    written by every file there is, so taking the key away is the only way
-    to ask them the question at all.
+    Only ``type`` reaches the absent case on a real file; most corpus effects
+    that expose it never write the key. The other keys are written by every
+    file there is, so taking the key away is the only way to ask them the
+    question at all.
     """
     psd = PSDImage.open(full_name("layer_effects.psd"))
 
@@ -481,10 +482,10 @@ def test_an_absent_reporting_enum_is_not_fabricated() -> None:
 
 
 def test_value_is_deprecated_out_loud() -> None:
-    """The deprecation was a ``logger.debug`` no user ever saw.
+    """The deprecation is a warning, not a ``logger.debug`` no user ever sees.
 
-    The compositor was its last in-tree reader until #831; nothing in the
-    library trips this now.
+    Nothing in the library reads ``value``, so only a caller's own use trips
+    it (#831).
     """
     effect = PSDImage.open(full_name("layer_effects.psd"))[10].effects[0]
 
@@ -510,13 +511,13 @@ def test_the_documented_edit_recipe_survives_a_save(tmp_path: Path) -> None:
 
 
 def test_scale_answers_where_there_is_no_block() -> None:
-    """``scale`` used to raise on the guard ``enabled`` answers False on.
+    """``scale`` answers on the same guard ``enabled`` answers False on.
 
     Reading the fx list's scale off a layer that has no fx list is not an
-    error the caller can do anything with, and the two properties
-    disagreeing about the same ``self._data is None`` made the proxy look
-    like it had two contracts. 100.0 is what a block that omits the key
-    already answers, so no layer changes its answer, only the non-layers.
+    error the caller can do anything with, and the two properties disagreeing
+    about the same ``self._data is None`` would give the proxy two contracts.
+    100.0 is also what a block that omits the key answers, so a layer with a
+    block and one without agree.
     """
     psd = PSDImage.open(full_name("hidden-groups.psd"))
     # Selected on block presence, not on ``has_effects()``: since #845 that

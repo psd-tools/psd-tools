@@ -51,9 +51,8 @@ def rgb(
 def test_overlays_are_composited_in_a_fixed_order() -> None:
     """Iteration order of the table is compositing order, so it is behaviour.
 
-    The three overlays used to be three calls in ``apply()``; collapsing them
-    onto one code path (#713) moved that ordering into a dict, where it is
-    easier to disturb by accident.
+    The three overlays share one code path (#713), which puts their ordering
+    in a dict, where it is easy to disturb by accident.
     """
     assert list(_OVERLAY_DRAWS) == [
         "coloroverlay",
@@ -103,10 +102,10 @@ def test_paste_disjoint_bbox_is_all_background() -> None:
 def test_paste_background_none_and_zero_agree(background: float | None) -> None:
     """An explicit 0.0 background and no background at all must agree.
 
-    ``paste`` used to select its fill by truthiness, so 0.0 took the ``np.zeros``
-    path -- numerically identical, but it read like a bug. The guard is now
-    ``if background is not None`` (#711); this pins that the change stayed a
-    no-op.
+    Selecting the fill by truthiness sends 0.0 down the ``np.zeros`` path --
+    numerically identical, but it reads like a bug, so the guard is ``if
+    background is not None`` (#711). This pins that the two spellings stay
+    indistinguishable.
     """
     values = np.ones((1, 1, 1), dtype=np.float32)
     result = paste((0, 0, 3, 3), (0, 0, 1, 1), values, background)
@@ -263,9 +262,9 @@ def test_normalize_backdrop_passes_a_per_pixel_array_through() -> None:
 def test_normalize_backdrop_widens_a_single_channel_canvas() -> None:
     """One channel against a three-channel document is replicated (#710).
 
-    The compositor used to widen this lazily at the first source, which left
-    ``_color_0``'s width only eventually correct. Normalization settles it, so
-    the canvas width is fixed for the compositor's whole lifetime.
+    Widening lazily at the first source would leave ``_color_0``'s width only
+    eventually correct. Normalization settles it, so the canvas width is fixed
+    for the compositor's whole lifetime.
     """
     result, _ = _normalize_backdrop(gray(0.25), 0.0, 2, 2, 3)
     assert result.shape == (2, 2, 3)
@@ -278,10 +277,10 @@ def test_normalize_backdrop_widens_a_single_channel_canvas() -> None:
 def test_normalize_backdrop_converts_a_scalar_like_a_single_channel_canvas() -> None:
     """The two spellings of one color component must resolve the same way.
 
-    A scalar backdrop was broadcast across every channel while the identical
-    value spelled as a one-channel canvas went through the mode's conversion,
-    so the same backdrop had two answers. On a Lab document the scalar one was
-    not a color at all: ``1.0`` put both chroma axes at byte 255, the extreme
+    Broadcasting a scalar backdrop across every channel, while the identical
+    value spelled as a one-channel canvas goes through the mode's conversion,
+    gives one backdrop two answers. On a Lab document the scalar one is not a
+    color at all: ``1.0`` puts both chroma axes at byte 255, the extreme
     corner of each, where white is ``(255, 128, 128)`` (#753).
     """
 
@@ -381,7 +380,7 @@ def test_a_narrow_source_leaves_the_canvas_width_alone(channels: int) -> None:
     The canvas width is the compositor's for its whole lifetime, so applying a
     narrow source is not a reason to reallocate it -- ``_fit_source()`` brings
     the source up to it (#749) rather than the arithmetic dragging the canvas
-    down. Consistency check: this held before the fixups were deleted too.
+    down.
     """
     backdrop = rgb(WHITE) if channels == 3 else gray(1.0)
     compositor = Compositor((0, 0, 2, 2), backdrop, gray(0.0))
@@ -400,11 +399,10 @@ def test_a_narrow_source_leaves_the_canvas_width_alone(channels: int) -> None:
 def test_a_source_wider_than_the_canvas_is_rejected() -> None:
     """The invariant is enforced in code, not just documented (#710).
 
-    This is the case the deleted ``np.repeat`` fixups existed for: they widened
-    ``_color_0`` in place. Without them the blend would silently widen
-    ``_color`` and leave ``channels`` stale, so building a compositor narrower
-    than the sources it will be given is now a caught bug rather than a quiet
-    one.
+    Nothing widens ``_color_0`` in place, so without the assert the blend
+    would silently widen ``_color`` and leave ``channels`` stale. Building a
+    compositor narrower than the sources it will be given is a caught bug
+    rather than a quiet one.
     """
     compositor = Compositor((0, 0, 2, 2), gray(1.0), gray(0.0))
     assert compositor.channels == 1
@@ -452,9 +450,9 @@ def test_document_backdrop_is_widened_to_the_canvas() -> None:
 def test_narrow_source_matches_a_pre_widened_one() -> None:
     """Widening a narrow source at the door is the same as widening it before.
 
-    It held under the broadcast this replaced too, for a different reason:
-    replication is what the mode-blind ``_widen`` does, and this compositor has
-    no document to ask for anything else (#749).
+    A plain broadcast agrees here too, for a different reason: replication is
+    what the mode-blind ``_widen`` does, and this compositor has no document
+    to ask for anything else (#749).
     """
 
     def run(source: np.ndarray) -> np.ndarray:

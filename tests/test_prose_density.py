@@ -1,13 +1,11 @@
 """Tests for ``tools/prose_density.py``.
 
 The tool exists to make the release's prose sweep a measurement rather than an
-argument, so a wrong count is worse than no tool: the first version overstated
-every single-expression function by roughly 2x, because it derived the docstring
-size from ``ast.get_docstring()`` -- the *cleaned* text -- and added a flat two
-for the quote lines. That inflated the prose count and, since code is the
-remainder, deflated the divisor at the same time. It put
-``get_color_channels()`` at 40:1 where the file says 19.5:1, and those numbers
-were quoted in a PR and an issue before anyone checked them.
+argument, so a wrong count is worse than no tool, and a short function is where
+one goes wrong fastest. Sizing a docstring from ``ast.get_docstring()`` -- the
+*cleaned* text -- plus a flat two for the quote lines inflates the prose count
+and, since code is the remainder, deflates the divisor at the same time, which
+roughly doubles the ratio a single-expression function reports.
 """
 
 import importlib.util
@@ -67,9 +65,9 @@ def test_comments_in_an_indented_method_are_counted(tmp_path: Path) -> None:
     """A method body arrives indented; the count must survive that.
 
     ``tokenize`` accepts a leading-indented snippet on every supported Python
-    (3.10 through 3.14 all count it correctly, and all 1348 functions in ``src``
-    tokenize identically with and without a dedent), but the tool dedents first
-    so the result cannot depend on that.
+    (3.10 through 3.14 all count it correctly, and every function in ``src``
+    tokenizes identically with and without a dedent), but the tool dedents
+    first so the result cannot depend on that.
     """
     source = (
         "class C:\n"

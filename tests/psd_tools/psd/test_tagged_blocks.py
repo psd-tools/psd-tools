@@ -133,9 +133,9 @@ def test_section_divider_setting_keeps_an_absent_blend_mode() -> None:
 
 @pytest.mark.parametrize("blend_mode", [b"zzzz", b"norm\x00", 0, "norm"])
 def test_section_divider_setting_rejects_a_bad_blend_mode(blend_mode: Any) -> None:
-    """``write()`` used to raise ``AttributeError`` -- or, for ``0``, say nothing.
+    """Construction raises, rather than ``write()`` -- which for ``0`` is silent.
 
-    ``0`` is falsy, so ``write()``'s ``if self.blend_mode:`` dropped the blend
+    ``0`` is falsy, so ``write()``'s ``if self.blend_mode:`` drops the blend
     mode and the signature with it, leaving a file that reads back short.
     """
     with pytest.raises(ValueError):

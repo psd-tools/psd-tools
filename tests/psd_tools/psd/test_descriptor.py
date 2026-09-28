@@ -92,7 +92,7 @@ def test_unit_float_converts_value() -> None:
 
 @pytest.mark.parametrize("value", [None, object(), [1.0], b"oops"])
 def test_unit_float_rejects_a_non_number(value: Any) -> None:
-    """``None`` and any other object used to be accepted silently."""
+    """``None`` and any other object are refused, not accepted silently."""
     with pytest.raises((TypeError, ValueError)):
         UnitFloat(unit=Unit.Pixels, value=value)
 
@@ -127,6 +127,6 @@ def test_unit_keeps_the_enum_fallback(cls: Type[Any]) -> None:
 @pytest.mark.parametrize("cls", [UnitFloat, UnitFloats])
 @pytest.mark.parametrize("unit", [b"ZZZZ", b"#Prc\x00", None, 0, "#Prc"])
 def test_unit_rejects_a_bad_code_at_construction(cls: Type[Any], unit: Any) -> None:
-    """``write()`` used to be the first thing to complain, with ``AttributeError``."""
+    """Construction complains, rather than ``write()`` with ``AttributeError``."""
     with pytest.raises(ValueError, match="is not a valid Unit or Enum"):
         cls(unit=unit)
