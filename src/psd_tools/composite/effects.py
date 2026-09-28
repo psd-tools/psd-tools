@@ -97,10 +97,9 @@ _UNRECOGNISED = _BANDS[Enum.OutsetFrame]
 
 # Below this fraction of active pixels within the region a bounding-box crop
 # would cover, :py:func:`_nearest_boundary` skips the erosion and falls back
-# to its per-offset loop (#895). A thin outline on a big canvas -- a stroked
-# circle, an ellipse, a diagonal edge -- measures under 0.1; a filled shape's
-# boundary band measures at least 0.19. The gap between them is what a fixed
-# threshold needs, not the exact placement within it.
+# to its per-offset loop (#895): a thin outline on a much bigger canvas has
+# active pixels too sparse within that box for the erosion to pay for itself,
+# while a filled shape's boundary band fills enough of it that it does.
 _DENSE_EROSION_DENSITY = 0.15
 
 
@@ -175,6 +174,64 @@ def _grow(mask: np.ndarray) -> np.ndarray:
     return grown
 
 
+def _prune_offsets(
+    rows: np.ndarray,
+    cols: np.ndarray,
+    span: int,
+    offsets: np.ndarray,
+    lengths: np.ndarray,
+    partial_pad: np.ndarray,
+    near_pad: np.ndarray,
+    outward: bool,
+) -> np.ndarray:
+    """``min``/``max`` of ``near[p] +/- |x - p|`` over offsets, pruning early.
+
+    ``near`` never leaves ``[-0.5, 0.5]``, so once a pixel's running best is
+    at least as good as ``length - 0.5`` (``outward``) or ``0.5 - length``
+    (inward), no offset from here on -- ``offsets`` sorted by ascending
+    ``length`` -- can improve it: the best any of them could still state is
+    exactly that bound. A pixel this true of drops out of the working set,
+    so offsets past it never revisit it. This is exact, not a bound in place
+    of one: what it prunes could not have changed the answer.
+
+    Most pixels resolve within a few offsets of their own unweighted nearest
+    partial pixel, so the working set thins fast on a smooth boundary --
+    which is the common case, a circle or a diagonal edge on a canvas much
+    bigger than the stroke. It still runs every offset within ``span`` for a
+    pixel that never resolves, so this does not change the loop's worst case.
+    """
+    prows, pcols = rows + span, cols + span
+    result = np.empty(rows.shape, dtype=np.float32)
+    order = np.arange(rows.size)
+    best = np.full(rows.shape, np.inf if outward else -np.inf, dtype=np.float32)
+
+    for (down, across), length in zip(offsets, lengths):
+        if order.size == 0:
+            break
+        row, col = prows + down, pcols + across
+        states = partial_pad[row, col]
+        stated = near_pad[row, col]
+        if outward:
+            best = np.minimum(best, np.where(states, stated + length, np.inf))
+            resolved = best <= (length - 0.5)
+        else:
+            best = np.maximum(best, np.where(states, stated - length, -np.inf))
+            resolved = best >= (0.5 - length)
+        if resolved.any():
+            result[order[resolved]] = best[resolved]
+            keep = ~resolved
+            prows, pcols, best, order = (
+                prows[keep],
+                pcols[keep],
+                best[keep],
+                order[keep],
+            )
+
+    if order.size:
+        result[order] = best
+    return result
+
+
 def _nearest_boundary(
     alpha: np.ndarray, partial: np.ndarray, near: np.ndarray, radius: float
 ) -> np.ndarray:
@@ -204,11 +261,18 @@ def _nearest_boundary(
     is a thin outline on a much bigger canvas -- a circle, an ellipse, a
     diagonal edge -- that box is close to the shape's own bounding box while
     ``active`` is a sliver of it, and running the erosion there would cost
-    more than it saves. Below :py:data:`_DENSE_EROSION_DENSITY`, a single
-    Python-level pass per offset runs instead, but padded rather than bounds
-    checked: every offset lookup lands in a border of ``span`` pixels added
-    to ``partial`` and ``near`` ahead of the loop, which is what removes the
-    per-offset branch this shares with the erosion path.
+    more than it saves.
+
+    Below :py:data:`_DENSE_EROSION_DENSITY`, :py:func:`_prune_offsets` runs
+    the same minimum as a loop instead, one offset at a time in ascending
+    length, dropping each pixel out as soon as no offset still to come could
+    improve its answer -- exactly, per the bound in its own docstring. A
+    smooth boundary resolves most pixels within a handful of offsets of their
+    own nearest partial pixel, which is the common shape of this branch's
+    input, but a pixel that never resolves still costs every offset within
+    ``radius``: pruning cuts the constant this branch runs at, not the shape
+    of its worst case, which stays the one the erosion branch exists to
+    avoid.
     """
     from scipy.ndimage import (  # type: ignore[import-untyped]  # noqa: PLC0415
         distance_transform_edt,
@@ -264,22 +328,35 @@ def _nearest_boundary(
     lengths = np.hypot(offsets[:, 0], offsets[:, 1]).astype(np.float32)
     within = lengths <= radius
     offsets, lengths = offsets[within], lengths[within]
+    ascending = np.argsort(lengths, kind="stable")
+    offsets, lengths = offsets[ascending], lengths[ascending]
 
     flat = np.flatnonzero(active)
     rows, cols = np.unravel_index(flat, alpha.shape)
     partial_pad = np.pad(partial, span, constant_values=False)
     near_pad = np.pad(near, span, constant_values=0.0)
-    prows, pcols = rows + span, cols + span
+    inside = (alpha >= 1).ravel()[flat]
 
-    outward = np.full(flat.shape, np.inf, dtype=np.float32)
-    inward = np.full(flat.shape, -np.inf, dtype=np.float32)
-    for (down, across), length in zip(offsets, lengths):
-        row, col = prows + down, pcols + across
-        states = partial_pad[row, col]
-        stated = near_pad[row, col]
-        np.minimum(outward, np.where(states, stated + length, np.inf), out=outward)
-        np.maximum(inward, np.where(states, stated - length, -np.inf), out=inward)
-    field[rows, cols] = np.where((alpha >= 1).ravel()[flat], inward, outward)
+    field[rows[~inside], cols[~inside]] = _prune_offsets(
+        rows[~inside],
+        cols[~inside],
+        span,
+        offsets,
+        lengths,
+        partial_pad,
+        near_pad,
+        outward=True,
+    )
+    field[rows[inside], cols[inside]] = _prune_offsets(
+        rows[inside],
+        cols[inside],
+        span,
+        offsets,
+        lengths,
+        partial_pad,
+        near_pad,
+        outward=False,
+    )
     return field
 
 
