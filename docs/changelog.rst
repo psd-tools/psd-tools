@@ -8,6 +8,11 @@ Changelog
   whose dimensions would exceed the PSD spec limit or a configured
   ``max_alloc_bytes`` budget, instead of allocating straight from those
   dimensions before validating them (GHSA-7m55-42q7-888r)
+- [fix] A stroke effect's distance field no longer takes unboundedly long for
+  a stroke size Photoshop treats as ordinary. A filled shape's boundary now
+  runs through one exact ``scipy`` grey erosion instead of a per-offset
+  Python loop; a thin outline on a much bigger canvas keeps the loop, now
+  without its per-offset bounds check. Pixel output is unchanged (#895)
 - [fix] Stroke and overlay effects are composited into the layer they belong
   to instead of onto the finished composite, so a layer whose coverage is
   partial no longer renders its effect with the backdrop mixed through it.

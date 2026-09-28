@@ -95,6 +95,14 @@ _BANDS: dict[bytes, tuple[float, float]] = {
 # canvas reserved for it, and the position Photoshop itself defaults to.
 _UNRECOGNISED = _BANDS[Enum.OutsetFrame]
 
+# Below this fraction of active pixels within the region a bounding-box crop
+# would cover, :py:func:`_nearest_boundary` skips the erosion and falls back
+# to its per-offset loop (#895). A thin outline on a big canvas -- a stroked
+# circle, an ellipse, a diagonal edge -- measures under 0.1; a filled shape's
+# boundary band measures at least 0.19. The gap between them is what a fixed
+# threshold needs, not the exact placement within it.
+_DENSE_EROSION_DENSITY = 0.15
+
 
 def _enum(desc: Descriptor, key: bytes) -> bytes:
     """The enum ``key`` names, or ``b""`` if the descriptor does not carry one.
@@ -182,21 +190,30 @@ def _nearest_boundary(
     makes; Photoshop's render of such a mask is mirror-exact, and this is the
     value it renders.
 
-    That minimum is a grey erosion of ``near`` by a cone, which is exact and
-    has no tie to break. ``radius`` bounds it to the band that will be read:
-    a seed further out than the widest limit plus a pixel cannot reach it, and
-    what it would have said is clipped away. Evaluated on the pixels within
-    ``radius`` of the partial band rather than on the canvas, which is what
-    keeps a cone that grows as the square of the stroke's size off every pixel
-    the stroke cannot reach.
-    """
-    span = math.ceil(radius)
-    offsets = np.mgrid[-span : span + 1, -span : span + 1].reshape(2, -1).T
-    lengths = np.hypot(offsets[:, 0], offsets[:, 1]).astype(np.float32)
-    within = lengths <= radius
-    offsets, lengths = offsets[within], lengths[within]
+    That minimum is a grey erosion of ``near`` by a cone -- ``scipy``'s
+    ``grey_erosion`` with a disc footprint and ``-length`` as the structuring
+    function, which computes it without a Python-level pass per offset. The
+    dual, the nearest boundary from *inside*, is the same erosion of
+    ``-near``, negated.
 
-    from scipy.ndimage import distance_transform_edt  # type: ignore[import-untyped]  # noqa: PLC0415
+    An erosion runs the disc footprint over every pixel of whatever it is
+    given, so it only pays for itself where ``active`` -- the pixels an
+    answer is wanted for -- is a healthy share of the region a crop bounding
+    the partial pixels would cover: a filled shape's boundary, where the band
+    the footprint runs over is close to that box already. Where the boundary
+    is a thin outline on a much bigger canvas -- a circle, an ellipse, a
+    diagonal edge -- that box is close to the shape's own bounding box while
+    ``active`` is a sliver of it, and running the erosion there would cost
+    more than it saves. Below :py:data:`_DENSE_EROSION_DENSITY`, a single
+    Python-level pass per offset runs instead, but padded rather than bounds
+    checked: every offset lookup lands in a border of ``span`` pixels added
+    to ``partial`` and ``near`` ahead of the loop, which is what removes the
+    per-offset branch this shares with the erosion path.
+    """
+    from scipy.ndimage import (  # type: ignore[import-untyped]  # noqa: PLC0415
+        distance_transform_edt,
+        grey_erosion,
+    )
 
     # Beyond the reach of any boundary, and so of any band: infinitely far
     # out from a clear pixel and infinitely far in from an opaque one.
@@ -207,17 +224,59 @@ def _nearest_boundary(
     if not active.any():
         return field
 
+    span = math.ceil(radius)
+    height, width = alpha.shape
+    rows_p, cols_p = np.nonzero(partial)
+    r0, r1 = max(rows_p.min() - span, 0), min(rows_p.max() + span + 1, height)
+    c0, c1 = max(cols_p.min() - span, 0), min(cols_p.max() + span + 1, width)
+    crop = (slice(r0, r1), slice(c0, c1))
+    density = active.sum() / ((r1 - r0) * (c1 - c0))
+
+    if density >= _DENSE_EROSION_DENSITY:
+        sub_partial, sub_near, sub_alpha, sub_active = (
+            partial[crop],
+            near[crop],
+            alpha[crop],
+            active[crop],
+        )
+        grid = np.mgrid[-span : span + 1, -span : span + 1]
+        length = np.hypot(*grid).astype(np.float32)
+        kwargs = {
+            "footprint": length <= radius,
+            "structure": -length,
+            "mode": "constant",
+        }
+        outward = grey_erosion(
+            np.where(sub_partial, sub_near, np.inf).astype(np.float32),
+            cval=np.inf,
+            **kwargs,
+        )
+        inward = -grey_erosion(
+            np.where(sub_partial, -sub_near, np.inf).astype(np.float32),
+            cval=np.inf,
+            **kwargs,
+        )
+        stated = np.where(sub_alpha >= 1, inward, outward)
+        field[crop] = np.where(sub_active, stated, field[crop])
+        return field
+
+    offsets = np.mgrid[-span : span + 1, -span : span + 1].reshape(2, -1).T
+    lengths = np.hypot(offsets[:, 0], offsets[:, 1]).astype(np.float32)
+    within = lengths <= radius
+    offsets, lengths = offsets[within], lengths[within]
+
     flat = np.flatnonzero(active)
     rows, cols = np.unravel_index(flat, alpha.shape)
-    height, width = alpha.shape
+    partial_pad = np.pad(partial, span, constant_values=False)
+    near_pad = np.pad(near, span, constant_values=0.0)
+    prows, pcols = rows + span, cols + span
+
     outward = np.full(flat.shape, np.inf, dtype=np.float32)
     inward = np.full(flat.shape, -np.inf, dtype=np.float32)
     for (down, across), length in zip(offsets, lengths):
-        row, col = rows + down, cols + across
-        on_canvas = (row >= 0) & (row < height) & (col >= 0) & (col < width)
-        row, col = np.where(on_canvas, row, 0), np.where(on_canvas, col, 0)
-        states = on_canvas & partial[row, col]
-        stated = near[row, col]
+        row, col = prows + down, pcols + across
+        states = partial_pad[row, col]
+        stated = near_pad[row, col]
         np.minimum(outward, np.where(states, stated + length, np.inf), out=outward)
         np.maximum(inward, np.where(states, stated - length, -np.inf), out=inward)
     field[rows, cols] = np.where((alpha >= 1).ravel()[flat], inward, outward)
