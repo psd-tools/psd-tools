@@ -130,8 +130,8 @@ def _draw_pattern_overlay(
         return None, None
     # A pattern carries its own color mode, so a grayscale one reaches a CMYK
     # document one channel wide and has to be converted rather than replicated.
-    # Every source is widened at the door, in ``_fit_source()``, and this one
-    # with them (#749, #777).
+    # ``_fit_source()`` widens every source at the door, this pattern
+    # included (#749, #777).
     #
     # The width check stays. ``_assert_source_fits()`` makes the same one
     # downstream -- paste() preserves the channel count, so it would report the

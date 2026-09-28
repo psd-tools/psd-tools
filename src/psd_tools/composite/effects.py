@@ -235,8 +235,9 @@ def _signed_distance(alpha: np.ndarray, reach: float | None = None) -> np.ndarra
     *feathered* one they diverge without limit: a 16 px alpha ramp runs 8 px
     from the iso-contour at either end and half a pixel from the boundary
     everywhere, so a stroke of any size covers all of it.
-    ``effects/feathered-stroke.psd`` and ``effects/antialiased-stroke-edge.psd``
-    are what that is measured against (#799).
+    ``effects/feathered-stroke.psd`` and
+    ``effects/antialiased-stroke-edge.psd`` are the fixtures this is measured
+    against (#799).
 
     Coverage says nothing about an edge that has none, so a mask stepping
     0 -> 1 keeps the exact Euclidean distance to the iso-contour, ``base``.
