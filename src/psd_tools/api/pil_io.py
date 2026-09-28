@@ -422,14 +422,17 @@ def convert_thumbnail_to_pil(
         )
     elif thumbnail.fmt == 1:
         with io.BytesIO(thumbnail.data) as f:
-            image = Image.open(f)
-            # Pillow detects the format (and thus the mode) from thumbnail.data
-            # itself, not from thumbnail.fmt, so the payload need not actually
-            # be JPEG. A hand-rolled channels-per-mode table (get_pil_channels)
-            # undercounts modes like RGBA or the 32-bit "I"/"F"; a throwaway
-            # 1x1 image in the same mode reports Pillow's own real per-pixel
-            # size instead. The budget is checked here, before load() decodes
-            # pixels (GHSA-7m55-42q7-888r).
+            # fmt == 1 is documented as JPEG (Adobe's kJpegRGB); restricting
+            # Image.open() to that one format keeps every other registered
+            # Pillow plugin from ever running against thumbnail.data. That
+            # matters because some plugins decode pixels inside _open() itself
+            # -- before any check below could run -- so checking the opened
+            # image's own header is not enough on its own (GHSA-7m55-42q7-888r).
+            image = Image.open(f, formats=["JPEG"])
+            # A hand-rolled channels-per-mode table (get_pil_channels)
+            # undercounts modes it wasn't meant to classify this way, such as
+            # the 32-bit "I"/"F"; a throwaway 1x1 image in the same mode
+            # reports Pillow's own real per-pixel size instead.
             bytes_per_pixel = len(Image.new(image.mode, (1, 1)).tobytes())
             check_pixel_size(
                 image.width,

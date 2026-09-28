@@ -11,10 +11,10 @@ that guard never covered.
 
 import io
 import struct
-from typing import Any, Callable
+from typing import Any
 
 import pytest
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 
 from psd_tools import PSDImage
 from psd_tools.api.pil_io import convert_thumbnail_to_pil
@@ -190,33 +190,37 @@ def test_convert_thumbnail_to_pil_jpeg_still_decodes_a_legitimate_thumbnail() ->
     assert image.size == (4, 2)
 
 
-@pytest.mark.parametrize(
-    ("mode", "make_bytes"),
-    [
-        # get_pil_channels() has no "RGBA" entry and falls back to 3,
-        # undercounting this 4-byte-per-pixel mode by a quarter.
-        ("RGBA", lambda: _build_image_bytes("RGBA", (1, 2, 3, 4), "PNG")),
-        # get_pil_channels() counts "I" as 1 channel, undercounting this
-        # 32-bit-per-pixel mode by a factor of 4.
-        ("I", lambda: _build_image_bytes("I", 12345, "TIFF")),
-    ],
-)
-def test_convert_thumbnail_to_pil_jpeg_budget_matches_real_pixel_size(
-    mode: str, make_bytes: "Callable[[], bytes]"
-) -> None:
-    """A mode a naive channel count would undercount is still bounded by its real, decoded per-pixel size."""
-    data = make_bytes()
+def test_convert_thumbnail_to_pil_jpeg_grayscale_budget_matches_pixel_size() -> None:
+    """A grayscale JPEG (1 byte/px) is bounded by its own multiplier, not RGB's 3."""
+    jpeg = _build_image_bytes("L", 128, "JPEG")
     thumb = ThumbnailResource(
         fmt=1,
         width=0,
         height=0,
         row=0,
-        total_size=len(data),
+        total_size=len(jpeg),
         bits=24,
         planes=1,
-        data=data,
+        data=jpeg,
     )
     with pytest.raises(ValueError, match="configured budget"):
-        convert_thumbnail_to_pil(thumb, max_alloc_bytes=31)
-    image = convert_thumbnail_to_pil(thumb, max_alloc_bytes=32)
+        convert_thumbnail_to_pil(thumb, max_alloc_bytes=7)
+    image = convert_thumbnail_to_pil(thumb, max_alloc_bytes=8)
     assert image.size == (4, 2)
+
+
+def test_convert_thumbnail_to_pil_jpeg_rejects_non_jpeg_payloads() -> None:
+    """A non-JPEG payload (ICO decodes pixels inside its own _open()) is rejected outright."""
+    ico = _build_image_bytes("RGBA", (1, 2, 3, 4), "ICO", size=(16, 16))
+    thumb = ThumbnailResource(
+        fmt=1,
+        width=0,
+        height=0,
+        row=0,
+        total_size=len(ico),
+        bits=24,
+        planes=1,
+        data=ico,
+    )
+    with pytest.raises(UnidentifiedImageError):
+        convert_thumbnail_to_pil(thumb, max_alloc_bytes=1)
