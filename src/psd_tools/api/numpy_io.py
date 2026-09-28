@@ -103,11 +103,10 @@ _PALETTE_TRANSIENT: int = 1
 # always works on exactly three colour planes however wide the document is.
 #
 # This is the one term that is not the same everywhere, and it is sized on the
-# widest platform rather than on the one it was developed on. Measured at 39
-# bytes a pixel on macOS/CPython 3.10 -- three arrays, each freed before the next
-# was taken -- and at 48 on Linux and on Windows, at every Python from 3.10 to
-# 3.14 and with or without the composite extra. A guard that holds only where
-# its author ran it is not a guard, so 48 is what this covers.
+# widest platform rather than on the one it was developed on: how many of those
+# arrays are alive at once depends on when the interpreter frees them, and that
+# differs across macOS, Linux and Windows. A guard that holds only where its
+# author ran it is not a guard.
 #
 # Measured with every alpha non-zero, which is the worst case for its
 # boolean-indexed copies: a payload that leaves most of the alpha at zero selects
@@ -119,8 +118,8 @@ _BACKGROUND_TRANSIENT: int = 52
 # has to bound. RAW hands back the bytes read at open time -- the same object,
 # when the body is exactly the declared length -- while the other three build
 # their result: RLE joins materialised rows, and prediction adds an
-# ``array.array`` pass and a byte-order pass on top of the inflate. Measured
-# 1.0x / 2.0x / 2.1x / 3.1x, each rounded up.
+# ``array.array`` pass and a byte-order pass on top of the inflate. Each
+# multiple is rounded up from what that peak measures.
 _DECOMPRESS_PEAK: dict[Compression, int] = {
     Compression.RAW: 1,
     Compression.RLE: 3,
@@ -548,10 +547,9 @@ def _to_indices(color: np.ndarray, psdimage: "PSDProtocol") -> np.ndarray | None
 
     :func:`_parse_array` expands a stored index through the table, so the
     inverse has to collapse a colour back to an index -- and against *this*
-    document's table. ``PIL.Image.convert("P")``, which the preview used to go
-    through, quantizes to PIL's own web palette instead, which is why an
-    indexed document came back in unrelated colours rather than merely
-    requantized.
+    document's table. ``PIL.Image.convert("P")`` quantizes to PIL's own web
+    palette instead, which returns an indexed document in unrelated colours
+    rather than merely requantized.
 
     ``None`` where the document has no full table to quantize against.
     ``ColorModeData.interleave()`` reads 256 entries out of three planes
@@ -585,14 +583,14 @@ def encode_image_data(
     """Turn a composited document into the merged image data section's planes.
 
     The inverse of :func:`get_image_data`, and the reason it is spelled as one:
-    :py:meth:`~psd_tools.api.psd_image.PSDImage.save` used to regenerate the
-    preview by rendering it to a PIL image and splitting that, which described
-    PIL rather than the document. ``PIL.Image.tobytes()`` is one byte per
-    channel whatever the header's depth says, PIL's mode holds no spot channel
-    and no second alpha, and the conventions it stores a value in are its own
-    -- so a 16-bit document got a section half its declared length, a
-    multichannel one lost every plane but the first, a bitmap one came back
-    inverted, and a profiled one was converted to sRGB and back (#866).
+    rendering the preview to a PIL image and splitting that describes PIL
+    rather than the document. ``PIL.Image.tobytes()`` is one byte per channel
+    whatever the header's depth says, PIL's mode holds no spot channel and no
+    second alpha, and the conventions it stores a value in are its own -- so a
+    16-bit document would get a section half its declared length, a
+    multichannel one would lose every plane but the first, a bitmap one would
+    come back inverted, and a profiled one would be converted to sRGB and back
+    (#866).
 
     *color* and *alpha* are :py:func:`psd_tools.composite.composite`'s arrays,
     in the document's own color space; the planes returned are in the file's,
@@ -707,25 +705,23 @@ def _restore_background(
     Photoshop stores the merged preview already composited over white -- a
     fully transparent pixel reads back white in every Photoshop-authored
     fixture that has one -- and both readers undo it on the way in. Writing
-    the unpremultiplied colour instead, which is what going through a PIL
-    ``RGBA`` image did, left the reader to divide by an alpha the values had
-    never been multiplied by.
+    the unpremultiplied colour instead, as a PIL ``RGBA`` image would, leaves
+    the reader to divide by an alpha the values were never multiplied by.
 
     Matted against the *transparency* plane, and only where the document has
     one. ``_remove_background()`` reads plane 3 by position instead, whatever
-    the alpha identifiers say, and matching that was wrong in both
-    directions: an RGB document whose fourth channel is a spot channel got
-    its colour matted against ink coverage -- a layer at ``(51, 102, 153)``
-    over a spot plane of 128 was stored as ``(153, 178, 204)`` -- and one
-    whose transparency sits past plane 3 was matted against the wrong
-    channel. The reader's positional assumption is a defect of its own
-    (#868); reproducing it here would have written it into files.
+    the alpha identifiers say, and matching that would be wrong in both
+    directions: an RGB document whose fourth channel is a spot channel would
+    have its colour matted against ink coverage, and one whose transparency
+    sits past plane 3 would be matted against the wrong channel. The reader's
+    positional assumption is a defect of its own (#868); reproducing it here
+    would write it into files.
 
     Grayscale is left as composited, because that is what the readers expect:
     neither ``_remove_background()`` nor ``pil_io._remove_white_background()``
     touches an ``LA`` document, although Photoshop stores one over white like
-    any other (``gray0.psd`` is white at all 123,854 of its transparent
-    pixels). That asymmetry is #868 as well.
+    any other (``gray0.psd`` is white at every transparent pixel). That
+    asymmetry is #868 as well.
 
     Where the alpha is zero the read leaves the stored value alone, so the
     inverse there is the colour itself rather than the white this would

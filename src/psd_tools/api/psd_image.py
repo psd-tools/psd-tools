@@ -723,7 +723,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
           and as :py:meth:`~PSDImage.numpy` (#747).
 
         Use a scalar for uniform color or a tuple for per-channel values.
-        Set to ``None`` for transparent backdrop (legacy behavior).
+        Set to ``None`` for a transparent backdrop.
 
         Documents created via :py:meth:`~PSDImage.new` have this set
         automatically from the ``color`` parameter.

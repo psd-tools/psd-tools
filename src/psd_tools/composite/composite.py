@@ -88,8 +88,8 @@ def _readable(layer: Layer, name: str) -> list[_StyledEffect]:
     separately, inside the loop; this is the failure that would leave them
     nothing to guard.
 
-    The effect class this used to fail on is now skipped one layer down, in
-    ``Effects`` itself (#828). The clause stays because the listing is what
+    The one effect class known to fail on that walk is skipped one layer
+    down, in ``Effects`` itself (#828). The clause stays because the listing is what
     the guards downstream stand on, and being total about it costs one
     ``try``.
     """
@@ -130,8 +130,8 @@ def _draw_pattern_overlay(
         return None, None
     # A pattern carries its own color mode, so a grayscale one reaches a CMYK
     # document one channel wide and has to be converted rather than replicated.
-    # That conversion is no longer made here: every source is widened at the
-    # door, in ``_fit_source()``, so this one is too (#749, #777).
+    # ``_fit_source()`` widens every source at the door, this pattern
+    # included (#749, #777).
     #
     # The width check stays. ``_assert_source_fits()`` makes the same one
     # downstream -- paste() preserves the channel count, so it would report the
@@ -374,11 +374,10 @@ def composite_pil(
         mode = "RGB"
     # Narrow the array to what the mode can hold *before* alpha is appended.
     # A multichannel document carries one plane per spot channel and PIL has no
-    # mode for that. The narrowing used to happen after the concatenation and
-    # was keyed on `mode`, so once alpha had turned "L" into "LA" it stopped
-    # firing -- and PIL does not reject a four-plane array declared as two, it
-    # reads two bytes out of every four and returns planes that correspond to
-    # nothing.
+    # mode for that. Narrowing after the concatenation cannot be keyed on
+    # `mode`, because alpha has turned "L" into "LA" by then -- and PIL does
+    # not reject a four-plane array declared as two, it reads two bytes out of
+    # every four and returns planes that correspond to nothing.
     pil_channels = pil_io.get_pil_channels(mode)
     if color.shape[2] > pil_channels:
         logger.warning(
@@ -579,8 +578,9 @@ def composite(
     # The width the backdrop canvas is allocated at, read from the document
     # rather than from its color mode: EXPECTED_CHANNELS reports 64 for a
     # multichannel document -- the format's maximum, not any file's own count --
-    # so the canvas came out ~21x too wide and the first layer met a canvas it
-    # could not be blended against.
+    # so reading it from the color mode would allocate the backdrop far wider
+    # than the file and hand the first layer a canvas it cannot be blended
+    # against.
     _channels = get_color_channels(_psd) if _psd is not None else None
     # The guard is there to reject a file *before* it allocates, so its estimate
     # must never fall below what follows it. `_channels` is the backdrop, and
@@ -822,11 +822,11 @@ def _to_canvas(
     if not exact_channels and array.size == 1 and shape[2] > 1:
         # One color component, which is what the single-channel array above is
         # too -- so it takes the same conversion rather than being broadcast
-        # across channels that do not share an axis. Spelling the same backdrop
-        # two ways used to give two answers: on a Lab document `color=1.0` --
-        # the public default -- came out (255, 255, 255), maximum chroma at
-        # maximum lightness, where the one-channel array spelling of it already
-        # gave the (255, 128, 128) that is white (#753).
+        # across channels that do not share an axis. Broadcasting would make the
+        # two spellings of one backdrop disagree: on a Lab document
+        # `color=1.0` -- the public default -- would come out (255, 255, 255),
+        # maximum chroma at maximum lightness, where the one-channel array
+        # spelling of it gives the (255, 128, 128) that is white (#753).
         single = np.full((shape[0], shape[1], 1), array, dtype=np.float32)
         return widen(single, shape[2])
     try:
@@ -973,12 +973,11 @@ class _EffectCanvas:
     """The layer's own canvas, where the effects inside it composite into it.
 
     Photoshop composites a layer's effects with the layer and puts the result
-    on the backdrop. psd-tools used to put the layer on the backdrop and then
-    each effect on top of that, which leaves a backdrop term in every pixel
-    where the layer's own coverage is partial: an inset stroke came out at
-    ``t*S + (1 - t)*(alpha*L + (1 - alpha)*B)`` where Photoshop renders
-    ``alpha*S + (1 - alpha)*B``, knocking the layer out from under itself
-    (#846).
+    on the backdrop, so an inset stroke renders at ``alpha*S + (1 - alpha)*B``.
+    Putting the layer on the backdrop and each effect on top of that instead
+    leaves a backdrop term in every pixel where the layer's own coverage is
+    partial -- ``t*S + (1 - t)*(alpha*L + (1 - alpha)*B)`` -- knocking the
+    layer out from under itself (#846).
 
     What the effect paints is the same either way; where it goes is not. An
     *inner* effect -- an overlay, or the part of a stroke within the layer's
@@ -1244,8 +1243,8 @@ class Compositor(object):
             # A pass-through group is re-applied by interpolating this canvas
             # against the group's own result, which has no outer effect in it,
             # so anything painted beside the group first is interpolated away
-            # again. Those keep the order -- and with it the arithmetic --
-            # they had before #846; nothing in the fixture corpus reaches it.
+            # again. This branch therefore puts the source on before the outer
+            # effects; nothing in the fixture corpus reaches it (#846).
             self._composite_source(source, layer.blend_mode)
             self._apply_outer_effects(outer, None)
             return
@@ -1264,8 +1263,8 @@ class Compositor(object):
         The cull measures ``_stroke_reach()`` and not ``layer.bbox``, because
         a stroke reaches outside the layer: a layer whose own box has cleared
         the viewport can still paint the part of its stroke that falls back
-        inside, and rejecting it here lost the stroke along with the layer
-        (#815). ``_stroke_reach()`` rather than ``_paint_bbox()`` because the
+        inside, and rejecting it here would lose the stroke along with the
+        layer (#815). ``_stroke_reach()`` rather than ``_paint_bbox()`` because the
         group half of that measurement is unreachable from here: a group is
         exempt from the cull, so the box is only ever measured for a layer
         that has no contents to recurse into. That is also why the
@@ -1277,10 +1276,9 @@ class Compositor(object):
         name: ``GroupMixin`` is a ``runtime_checkable`` protocol whose
         ``isinstance`` runs ``hasattr(x, "bbox")`` on Python <= 3.11, which
         recomputes a group's box from its children just to answer a question
-        about the layer's type. Testing the exemption first put that on the
-        path of every layer, where the old spelling reached it only for one
-        already outside the viewport -- 15 us against 0.05 us per call here.
-        The two agree on every layer in the fixture corpus.
+        about the layer's type. The exemption is tested first, so the question
+        is asked of every layer; the two spellings agree on every layer in the
+        fixture corpus and only one of them is cheap.
         """
         if self._layer_filter is not None and not self._layer_filter(layer):
             logger.debug("Ignore %s", layer)
@@ -1494,10 +1492,8 @@ class Compositor(object):
 
         A single-channel source is widened by ``_fit_source()`` above, but a
         *wider* one would silently widen ``_color`` and leave ``channels``
-        stale. That is what the deleted ``np.repeat`` fixups used to paper
-        over, so this is the assertion that keeps them deleted: it fires if a
-        caller ever builds a compositor narrower than the sources it will be
-        given.
+        stale. This fires instead, if a caller ever builds a compositor
+        narrower than the sources it will be given.
         """
         assert self._color.shape[2] == self._channels, (
             "canvas widened to %d channels, expected %d"
@@ -2109,7 +2105,7 @@ class Compositor(object):
         unvalidated from the descriptor, so a forged size grows the ``paste()``
         back -- which ``draw_stroke_effect()`` already needed -- and not the
         composite. A pass-through group has no such bound and does pay for the
-        whole box, at roughly twice the peak of the same document before.
+        whole box.
 
         The backdrop is transparent and carries neither knockout nor the
         document backdrop, and ``adjustment_isolated`` and the document
@@ -2118,9 +2114,8 @@ class Compositor(object):
         ``_shape_g``, which starts at zero and is only ever unioned into, so it
         cannot read a backdrop. Effects, on the other hand, must run -- an
         overlay or an inset stroke reaches that canvas in the source its layer
-        is composited from, an outset one beside it, and on
-        ``group-clips-child-stroke.psd`` the children's own strokes are 46% of
-        the group's coverage.
+        is composited from and an outset one beside it, which
+        ``group-clips-child-stroke.psd`` measures.
         """
         inner = viewport
         if layer.blend_mode != BlendMode.PASS_THROUGH:

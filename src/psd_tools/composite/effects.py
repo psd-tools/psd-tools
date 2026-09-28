@@ -231,25 +231,21 @@ def _signed_distance(alpha: np.ndarray, reach: float | None = None) -> np.ndarra
     iso-contour: a pixel at ``alpha`` states that the boundary runs
     ``0.5 - alpha`` from its own centre, and its neighbours measure outward
     from there. On a hard-edged mask the two readings name the same line --
-    one partial pixel, and the boundary is where its coverage puts it -- which
-    is why this leaves every hard-edged fixture in the corpus bit for bit
-    unchanged. On a *feathered* one they diverge without limit: a 16 px alpha
-    ramp runs 8 px from the iso-contour at either end and half a pixel from
-    the boundary everywhere, so a stroke of any size covers all of it. Measured
-    against Photoshop on purpose-built masks -- linear ramps of several
-    widths, a ramp onto a partial plateau, and hard edges with a single
-    antialiased pixel -- which is #799's fourth tracking item, and which
-    ``effects/feathered-stroke.psd`` and ``effects/antialiased-stroke-edge.psd``
-    are the rendered half of.
+    one partial pixel, and the boundary is where its coverage puts it. On a
+    *feathered* one they diverge without limit: a 16 px alpha ramp runs 8 px
+    from the iso-contour at either end and half a pixel from the boundary
+    everywhere, so a stroke of any size covers all of it.
+    ``effects/feathered-stroke.psd`` and
+    ``effects/antialiased-stroke-edge.psd`` are the fixtures this is measured
+    against (#799).
 
     Coverage says nothing about an edge that has none, so a mask stepping
     0 -> 1 keeps the exact Euclidean distance to the iso-contour, ``base``.
     One mask can carry both -- a shape antialiased along one side and butted
     against its own bounding box along another -- so the two are chosen
     between per pixel, by which boundary is nearer. Seeding a single transform
-    from both instead costs the corners: measured against the same masks, up
-    to 0.97 coverage where a feathered edge meets a hard one, against 0.002
-    for this.
+    from both instead costs the corners, where a feathered edge meets a hard
+    one.
 
     A pixel outside the partial band takes the nearest of the boundaries the
     band states, which :py:func:`_nearest_boundary` solves for outright. What
@@ -420,13 +416,9 @@ def draw_stroke_effect_split(
     # that pixel's own coverage, feathered masks included.
     #
     # A position the descriptor states as something else, or does not state at
-    # all, takes the outset band. There is no longer a separate primitive for
-    # it to fall through to: the dilated scharr edge that used to draw it, and
-    # the contrast stretch that lifted its gradient magnitude back to full
-    # opacity, both went once the band covered every position Photoshop can
-    # write (#799). That leaves it indistinguishable from a stated outset
-    # stroke, which is why it says so in the log rather than only in the
-    # canvas stroke_bbox() reserved for it.
+    # all, takes the outset band (#799). That leaves it indistinguishable from
+    # a stated outset stroke, which is why it says so in the log rather than
+    # only in the canvas stroke_bbox() reserved for it.
     limits = _BANDS.get(style)
     if limits is None:
         logger.debug("Unrecognised stroke position %r; drawing it as outset", style)

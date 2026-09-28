@@ -10,23 +10,14 @@ else: ``(g, g, g, g)`` in CMYK is a heavily over-inked colour, and a lightness
 copied into Lab's a/b axes is not neutral (#722).
 
 What Photoshop actually does for CMYK is a profile-driven conversion, not a
-formula. Scripted against Photoshop 2026 with its default CMYK working space,
-a mid grey is a heavy CMY build carrying almost no black::
+formula: a mid grey comes out a heavy CMY build carrying almost no black, which
+neither a K-only guess nor replication is close to. So this module transforms
+through the document's own embedded ICC profile and falls back to a formula
+only when there is no profile to use.
 
-    grey  Photoshop        K-only guess    replication
-    0.25  67.5 60.6 59.6 46.7   0  0  0 75   75 75 75 75
-    0.50  51.6 43.2 43.2  7.6   0  0  0 50   50 50 50 50
-    0.75  24.7 19.6 20.1  0.0   0  0  0 25   25 25 25 25
-
-(all three in ink %, so they compare; the arrays themselves hold ``1 - ink``.)
-So this module transforms through the document's own embedded ICC profile and
-falls back to a formula only when there is no profile to use.
-
-The numbers above are Photoshop's default CMYK space, U.S. Web Coated (SWOP)
-v2. ``tests/psd_files/cmyk-gray-ramp.psd`` is the same experiment saved as a
-fixture -- a grey ramp converted to CMYK by Photoshop with that profile
-embedded -- and is what the tests pin this against, to within 3.6/255 where
-replication is out by 107/255.
+``tests/psd_files/cmyk-gray-ramp.psd`` is a grey ramp converted to CMYK by
+Photoshop with its default working space, U.S. Web Coated (SWOP) v2, embedded,
+and is what the tests pin this against.
 """
 
 from __future__ import annotations
@@ -47,9 +38,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # The grey ramp the CMYK lookup table is built over. 256 entries put adjacent
-# rows within 3/255 of each other, so interpolating between them rather than
-# taking the nearest costs almost nothing and keeps a 16- or 32-bit canvas
-# smooth. It does not make the result more precise than 8 bit: ImageCms hands
+# rows close enough together that interpolating between them rather than taking
+# the nearest costs almost nothing and keeps a 16- or 32-bit canvas smooth. It does not make the result more precise than 8 bit: ImageCms hands
 # back uint8 ink, so the curve being interpolated is quantized whatever the
 # canvas depth.
 _RAMP = np.linspace(0.0, 1.0, 256, dtype=np.float32)
@@ -70,8 +60,8 @@ def _build_cmyk_lut(icc_profile: bytes) -> np.ndarray | None:
     grey no longer survives the round trip out. The rendering intent is
     perceptual for the same reason -- ``profileToProfile()`` is called there
     without one and Pillow's default is perceptual. It is not a free choice:
-    relative colorimetric moves the result by up to 53/255, and perceptual is
-    also the one that reproduces Photoshop's own numbers.
+    relative colorimetric moves the result visibly, and perceptual is also the
+    one that reproduces Photoshop's own numbers.
     """
     try:
         from PIL import Image, ImageCms  # noqa: PLC0415
@@ -119,7 +109,7 @@ def _cmyk_lut(key: bytes, icc_profile: bytes) -> np.ndarray | None:
 def _apply_lut(color: np.ndarray, lut: np.ndarray) -> np.ndarray:
     # np.interp clamps to the ramp's endpoints, so a 32-bit canvas carrying
     # values outside [0, 1] is pinned to black or white here rather than
-    # extrapolated. Replication used to pass those through unchanged.
+    # extrapolated.
     gray = color[:, :, 0]
     return np.stack(
         [np.interp(gray, _RAMP, lut[:, i]).astype(np.float32) for i in range(4)],

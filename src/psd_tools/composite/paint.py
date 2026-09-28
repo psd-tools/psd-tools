@@ -75,8 +75,7 @@ def _lab_to_canvas(lightness: float, a: float, b: float) -> tuple[float, ...]:
     with the two chroma axes offset by 128 -- byte 128 is ``a = 0``, byte 0 is
     ``a = -128``, at slope exactly 1. So this is a relabelling into the
     destination's own encoding rather than a conversion, and Photoshop's own
-    render of a Lab fill agrees with it to within 1/255 across the full a/b
-    range (#743).
+    render of a Lab fill agrees with it across the full a/b range (#743).
 
     Shared by the two ways a Lab value arrives: a Lab descriptor on a Lab
     document, which lands here unconverted, and any other color class on a Lab
@@ -181,11 +180,8 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
         return _from_rgb(color_mode, rgb)
 
     def _get_hsb(color_mode: ColorMode, color_desc: Descriptor) -> tuple[float, ...]:
-        # ``H   `` is an angle in degrees, so the full turn is 360 and not 300.
-        # The old divisor rotated every non-zero hue -- 120 deg was read as
-        # 0.4, which is 144 deg -- and pushed 360 clean off the end of the
-        # six-sector table, where the achromatic fallback turned a fully
-        # saturated red into white (#754).
+        # ``H   `` is an angle in degrees, so the full turn is 360 and not 300
+        # (#754).
         hue = float(color_desc[Key.Hue]) / 360.0
         # Not clamped, unlike the other classes. Hue is cyclic, so 400 deg
         # names a real angle and ``hsb_to_rgb`` wraps it; clamping would turn
@@ -194,9 +190,6 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
         # same two numbers twice (#757).
         saturation = float(color_desc[Key.Saturation]) / 100.0
         brightness = float(color_desc[Key.Brightness]) / 100.0
-        # Every mode but RGB and CMYK used to raise here, which made an HSB
-        # solid color or gradient unrenderable on a grayscale, Lab, indexed,
-        # bitmap, duotone or multichannel document.
         return _from_rgb(color_mode, hsb_to_rgb(hue, saturation, brightness))
 
     def _get_gray(color_mode: ColorMode, x: Descriptor) -> tuple[float, ...]:
@@ -222,17 +215,7 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
         # Read as ink -- 0.0 is no ink -- which is both the descriptor's own
         # spelling and ``color_convert``'s documented contract. The compositor's
         # arrays store what is *left*, so only the CMYK branch flips, and it
-        # says so by name.
-        #
-        # This used to read through a helper that returned canvas convention
-        # and then hand that straight to ``cmyk_to_rgb()``, which expects ink.
-        # The flip was never undone, so on every non-CMYK document each colour
-        # arrived as its own opposite and collapsed to black: white
-        # ``C0 M0 Y0 K0`` reached ``cmyk_to_rgb(1, 1, 1, 1)`` and rendered
-        # ``(0, 0, 0)``, and so did cyan, magenta and yellow. Black was the one
-        # colour that came out right, by coincidence (#763). The same confusion
-        # in the opposite direction is what ``_ink_to_canvas()`` was added for
-        # (#747); this is the leg that was missed.
+        # says so by name (#747, #763).
         ink = tuple(
             _clamp01(float(x[key]) / 100.0)
             for key in (Key.Cyan, Key.Magenta, Key.Yellow, Key.Black)
@@ -249,11 +232,9 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
             # Straight into the array's own encoding, with no trip through RGB
             # to lose anything on (#743).
             return _lab_to_canvas(lightness, a, b)
-        # Everything else is a real conversion now. It used to divide all three
-        # by 255 and hand RGB and INDEXED the raw triple -- reading signed
-        # chroma as unsigned, and putting L = 100 at 0.39 -- while the narrower
-        # modes reduced from L alone, dropping a/b so that two colours differing
-        # only in chroma collapsed to one value (the second half of #743).
+        # Everything else is a real conversion, through sRGB: the chroma axes
+        # are signed, so neither the raw triple nor ``L`` alone stands in for
+        # the colour (the second half of #743).
         return _from_rgb(color_mode, lab_to_rgb(lightness, a, b))
 
     _COLOR_FUNC = {

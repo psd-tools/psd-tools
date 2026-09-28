@@ -95,9 +95,9 @@ class ImageData(BaseElement):
         including the part a caller would most easily get wrong: every channel
         is decompressed in one pass, ``height * channels`` rows at a time.
 
-        Written for the depth-1 allocation guard in #737 and no longer used by
-        it: since #768 the array is one float32 per pixel at every depth, so
-        the guard reads the header. Kept as a public utility.
+        A public utility with no caller in the tree: the allocation guard
+        reads the header instead, because the decompressed array is one
+        float32 per pixel at every depth (#737, #768).
 
         :param header: See :py:class:`~psd_tools.psd.header.FileHeader`.
         :return: the maximum byte count, for all channels together.

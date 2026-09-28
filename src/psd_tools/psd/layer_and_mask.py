@@ -941,7 +941,7 @@ class MaskData(BaseElement):
         # stores a REAL_USER_LAYER_MASK (-3) channel. The block length alone
         # cannot tell: a variable-length MaskParameters block can push the
         # block to 36 bytes or more with no real mask header present at all,
-        # which used to make the parameters be read as a real mask header
+        # which would make the parameters be read as a real mask header
         # (#693). The length check is kept as a guard against malformed files
         # that advertise a -3 channel but write a short mask block.
         if has_real_mask is None:
