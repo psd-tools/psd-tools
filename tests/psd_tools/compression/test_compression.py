@@ -60,12 +60,12 @@ def test_rle(fixture: bytes, width: int, height: int, depth: int, version: int) 
 def test_rle_round_trips_a_padded_1bit_row(width: int, version: int) -> None:
     """A 1-bit row is ``ceil(width / 8)`` bytes, and both codecs must say so.
 
-    Each used its own expression and both floored: ``decode_rle()`` read
-    ``max(width // 8, 1)`` bytes per row where a 20-pixel row stores three, so
-    it dropped a third of every row and left the caller short of a whole
-    channel; ``encode_rle()`` wrote the same truncation without even the clamp
-    (#768). Distinct bytes per row, so a row read at the wrong stride cannot
-    round-trip by coincidence.
+    A floored expression is the trap: ``max(width // 8, 1)`` reads two bytes
+    where a 20-pixel row stores three, dropping a third of every row and
+    leaving the caller short of a whole channel, and an encoder flooring the
+    same way writes that truncation without even the clamp (#768). Distinct
+    bytes per row, so a row read at the wrong stride cannot round-trip by
+    coincidence.
     """
     row_size = (width + 7) // 8
     height = 4
@@ -143,7 +143,7 @@ def test_decode_rle_copy_truncated_input() -> None:
 
 def test_decode_rle_lone_repeat_header() -> None:
     # 0x82 = repeat-run header with no following pixel byte (stream ends).
-    # Should not raise (previously caused IndexError in Cython); returns zeros.
+    # Must not raise in either codec implementation; returns zeros.
     data = bytes([0x82])
     assert rle_impl.decode(data, 4) == b"\x00\x00\x00\x00"
 
@@ -299,15 +299,15 @@ def _packed(width: int, height: int, depth: int) -> bytes:
     """A payload of the row size the codecs actually read.
 
     ``ceil(width * depth / 8)`` bytes per row -- ``decode_rle()``'s ``row_size``
-    and ``decompress()``'s ``length`` divided by ``height``, which since #768
-    are the same expression at every depth.
+    and ``decompress()``'s ``length`` divided by ``height``, which are the same
+    expression at every depth (#768).
     """
     return bytes(height * ((width * depth + 7) // 8))
 
 
 # Two of these widths are not a multiple of eight, so at depth 1 their rows
-# carry padding bits: 20 pixels in three bytes, 5 in one. The floor the codecs
-# used to take dropped that last byte (#768).
+# carry padding bits: 20 pixels in three bytes, 5 in one. A floored row size
+# drops that last byte (#768).
 @pytest.mark.parametrize("width, height", [(8, 4), (64, 3), (4, 4), (20, 3), (5, 2)])
 @pytest.mark.parametrize("kind", [Compression.RAW, Compression.RLE, Compression.ZIP])
 @pytest.mark.parametrize("depth", [1, 8, 16, 32])
@@ -327,17 +327,16 @@ def test_decompressed_size_bound_is_never_below_the_result(
 
 
 def test_a_byte_per_pixel_1bit_body_is_cut_back_to_its_rows() -> None:
-    """The crafted body #737 reports, no longer returned whole.
+    """The crafted body #737 reports is refused rather than returned whole.
 
-    ``length`` used to be a byte per *pixel* at depth 1 -- eight times the
-    packed size -- so a body written that wide passed straight through (the
-    ``len(result) != length`` check being skipped below depth 8) and unpacked to
-    eight float32 planes. Counting rows instead caps it at the eight times
-    smaller size a 64x64 1-bit channel really occupies: RAW truncates to it,
-    and ZIP, whose ceiling is the same number, refuses the stream and
-    black-fills.
+    A ``length`` of a byte per *pixel* at depth 1 -- eight times the packed
+    size -- lets a body written that wide pass straight through, the
+    ``len(result) != length`` check being skipped below depth 8, and unpack to
+    eight float32 planes. Counting rows caps it at the eight times smaller
+    size a 64x64 1-bit channel really occupies: RAW truncates to it, and ZIP,
+    whose ceiling is the same number, refuses the stream and black-fills.
     """
-    padded = bytes(64 * 64)  # the old `length`; the real one is 64 * 8
+    padded = bytes(64 * 64)  # a byte per pixel; the packed channel is 64 * 8
     packed_length = 64 * 8
 
     body = compress(padded, Compression.RAW, 64, 64, 1)
@@ -354,16 +353,15 @@ def test_a_byte_per_pixel_1bit_body_is_cut_back_to_its_rows() -> None:
 def test_black_fill_matches_the_declared_length(depth: int) -> None:
     """A failed channel is replaced by exactly ``length`` bytes, at every depth.
 
-    The substitute used to be a PIL image whose mode was picked from the depth
-    -- ``"L"`` for 8, ``"RGBA"`` for anything else -- so depth 16 came back at
-    four bytes per pixel where the channel declares two. Every reader
-    downstream then saw a 16-bit document's channels at twice their width, and
-    the bound above could not have held either.
+    A substitute built as a PIL image whose mode comes from the depth --
+    ``"L"`` for 8, ``"RGBA"`` for anything else -- gives depth 16 four bytes
+    per pixel where the channel declares two, so every reader downstream sees
+    a 16-bit document's channels at twice their width and the bound above
+    cannot hold either.
 
-    Depth 1 joined the sweep with #768: ``length`` counting packed rows is what
-    makes a fill expressible there at all, and black is ``0xff`` rather than
-    zero, an inked bitmap pixel being a *set* bit. Before, this channel ended
-    the read.
+    Depth 1 is in the sweep because ``length`` counting packed rows is what
+    makes a fill expressible there at all (#768), and black is ``0xff`` rather
+    than zero, an inked bitmap pixel being a *set* bit.
     """
     corrupt = b"\x78\x9c" + b"\xff" * 20  # valid zlib header, garbage deflate
     with warnings.catch_warnings():
@@ -379,9 +377,10 @@ def test_safe_zlib_decompress_honours_its_own_ceiling() -> None:
 
     The probe asks zlib for one byte more than the limit so that an oversize
     stream reveals itself through ``unconsumed_tail``. A stream inflating to
-    precisely ``max_length + 1`` consumed all of its input, left no tail, and so
-    was returned a byte over the ceiling this function documents -- eight extra
-    float32 values once a 1-bit reader unpacked it (#737).
+    precisely ``max_length + 1`` consumes all of its input and leaves no tail,
+    so the tail alone cannot catch it -- and a byte over the ceiling this
+    function documents is eight extra float32 values once a 1-bit reader
+    unpacks it (#737).
     """
     assert len(_safe_zlib_decompress(zlib.compress(bytes(8)), 8)) == 8
     for oversize in (9, 10, 4096):
@@ -392,8 +391,8 @@ def test_safe_zlib_decompress_honours_its_own_ceiling() -> None:
 def test_a_zip_stream_one_byte_over_length_degrades_to_black() -> None:
     """From depth 8 up, the refused stream black-fills rather than raising.
 
-    It used to reach the ``len(result) != length`` check and raise; being caught
-    by the ceiling instead turns it into the warning-and-degrade path every other
+    Caught by the ceiling rather than by the ``len(result) != length`` check
+    that would raise, it takes the warning-and-degrade path every other
     undecodable channel takes.
     """
     body = zlib.compress(bytes(4 * 4 + 1))  # `length` + 1 for a 4x4 8-bit channel
@@ -403,12 +402,11 @@ def test_a_zip_stream_one_byte_over_length_degrades_to_black() -> None:
 
 
 def test_zip_with_prediction_at_depth_1_degrades_rather_than_ending_the_read() -> None:
-    """``decode_prediction`` rejects depth 1 outright; that no longer ends the read.
+    """``decode_prediction`` rejects depth 1 outright, without ending the read.
 
-    The codec has no 1-bit form and never will, so this pair always fails. What
-    changed with #768 is what follows the failure: ``length`` counting packed
-    rows makes a black channel expressible at depth 1, so the caller gets one
-    instead of a ``RuntimeError``.
+    The codec has no 1-bit form and never will, so this pair always fails.
+    ``length`` counting packed rows makes a black channel expressible at depth
+    1 (#768), so the caller gets one rather than a ``RuntimeError``.
     """
     body = compress(bytes(4), Compression.ZIP, 4, 4, 1)  # inflates to `length`
     with pytest.warns(PSDDecompressionWarning, match="Invalid pixel size"):
@@ -420,9 +418,9 @@ def test_zip_with_prediction_at_depth_1_degrades_rather_than_ending_the_read() -
 def test_decompress_failure_warning_states_what_follows(depth: int) -> None:
     """The warning describes the read the caller actually receives.
 
-    Raised in review of #769, when the black fill stopped at depth 8 and the
-    text did not: a 1-bit failure announced a degraded read and then raised. It
-    now announces one and delivers one, at every depth.
+    A warning announcing a degraded read has to be followed by one at every
+    depth, depth 1 included; announcing one and then raising is the mismatch
+    this guards against (#769).
     """
     corrupt = b"\x78\x9c" + b"\xff" * 20  # valid zlib header, garbage deflate
     with pytest.warns(PSDDecompressionWarning, match="channel replaced with black"):

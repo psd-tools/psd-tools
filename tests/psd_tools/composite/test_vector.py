@@ -91,11 +91,11 @@ def test_draw_pattern_fill(filename: str) -> None:
 def test_draw_pattern_fill_splits_a_multichannel_alpha() -> None:
     """Which plane is alpha comes from the pattern's slots, not from its mode.
 
-    The split used to be keyed on ``EXPECTED_CHANNELS[pattern.image_mode]``,
-    which is 64 for multichannel -- the format's maximum rather than any
-    pattern's count. ``shape[2] > 64`` is never true, so the alpha stayed in
-    the color array and the four-plane result was rejected downstream as
-    inconsistent with the three-channel canvas (#741).
+    Keying the split on ``EXPECTED_CHANNELS[pattern.image_mode]`` reads 64 for
+    multichannel -- the format's maximum rather than any pattern's count --
+    and ``shape[2] > 64`` is never true, so the alpha stays in the color array
+    and the four-plane result is rejected downstream as inconsistent with the
+    three-channel canvas (#741).
 
     Both callers of this function -- the fill layer and the pattern overlay --
     fail on the same array, which is why the pin sits here rather than at
@@ -150,20 +150,17 @@ def test_gradient_styles(filename: str) -> None:
                 assert _mse(reference, result) <= 0.2
 
 
-# The threshold is per fixture rather than shared. A single loose one hid #743:
-# the Lab file passed at 0.05 while sitting at 0.033, an error big enough that
-# a near-neutral mid-tone was rendering as a dark saturated colour. Correcting
-# the normalization takes it to 0.0013, and 0.01 catches that regression with
-# 3x to spare.
+# The threshold is per fixture rather than shared. A single loose one lets the
+# Lab file pass while a near-neutral mid-tone renders as a dark saturated
+# colour, which is #743; the tighter bound on that row catches it.
 #
-# Not tighter, because what is left is not a rounding floor: 98% of the residual
-# MSE comes from the ~12% of pixels along the stroke edges, which is
+# Not tighter still, because what is left is not a rounding floor: most of the
+# residual MSE comes from the pixels along the stroke edges, which is
 # rasterization geometry and moves with the aggdraw and Pillow versions CI
 # happens to resolve. The tight bound on this normalization lives in
-# test_paint.py instead, on a fixture of solid fills with no edges to raster --
-# there it is 2/255 on the worst pixel.
+# test_paint.py instead, on a fixture of solid fills with no edges to raster.
 #
-# The other three fixtures are untouched by that change and keep the old bound.
+# The other three fixtures have no such row and keep the looser bound.
 @pytest.mark.parametrize(
     ("filename", "threshold"),
     [
@@ -472,11 +469,10 @@ def test_an_inner_stroke_stops_where_the_path_does() -> None:
 def test_stroke_follows_a_shifted_viewport() -> None:
     """Moving the viewport by a pixel moves the stroke with it.
 
-    ``_get_stroke()`` used to rasterize at document size and relocate the
-    result only when its *dimensions* differed from the compositor's. A
-    viewport the size of the document but at another origin took the other
-    branch, and the document-coordinate raster was used as if it were already
-    in viewport coordinates, putting the stroke a viewport-origin away from
+    Relocating a document-sized raster only when its *dimensions* differ from
+    the compositor's misses a viewport the size of the document at another
+    origin: the document-coordinate raster is then used as if it were already
+    in viewport coordinates, which puts the stroke a viewport-origin away from
     the fill it is supposed to cover (#807).
     """
     psd = PSDImage.open(full_name("stroke.psd"))
@@ -495,22 +491,21 @@ def test_layer_composite_places_a_stroke_on_a_layer_sized_viewport() -> None:
 
     ``layers/shape-layer.psd`` is 32x32 and its one shape layer has bbox
     (-1, -1, 31, 31), so ``layer.composite()`` renders on a box that carries
-    the document's dimensions and a different origin -- exactly the case the
-    dimension comparison got wrong. It is the only *stroked* layer in the
+    the document's dimensions and a different origin -- exactly the case a
+    dimension comparison gets wrong. It is the only *stroked* layer in the
     fixture corpus whose box does, which is why this file is pinned here
     rather than parametrized.
 
-    The document render is the ground truth: it is on the canvas box, so it
-    never took the wrong branch and this fix leaves it untouched. The error it
-    was written against was a full 1.0 (#807).
+    The document render is the ground truth: it is on the canvas box, so the
+    dimension comparison never misfires on it (#807).
 
     The colour is read only where both renders put something, because where
     the alpha is zero the colour channel holds whatever the compositor last
     left there and the two boxes leave different things. That is not a
     weakening: a fill is now the area of the path, which does not depend on
     where the path is rasterized, so the alphas agree exactly and the visible
-    colours agree exactly -- where aggdraw's raster used to need a
-    quantization step of slack (#844).
+    colours agree exactly -- where aggdraw's raster needs a quantization step
+    of slack (#844).
     """
     psd = PSDImage.open(full_name("layers/shape-layer.psd"))
     layer = psd[0]
@@ -540,17 +535,17 @@ def test_layer_composite_keeps_a_stroke_past_the_canvas_edge() -> None:
     ``transparency/transparency-group.psd`` holds a white rectangle with a
     black 1 px stroke at bbox (-1, -1, 129, 129) on a 256x256 canvas, so the
     box it renders on runs a pixel off the canvas on the left and the top.
-    ``layer.composite()`` asks for those pixels; the stroke used to be drawn
-    on the canvas, which has nothing there, and the whole box came back as the
+    ``layer.composite()`` asks for those pixels; drawing the stroke on the
+    canvas instead finds nothing there, and the whole box comes back as the
     white the stroke fill is pasted over (#807).
 
     The layer carries Photoshop's own raster of itself, which is what this
     compares against -- the document render cannot, because the box reaches
     pixels it does not show. That raster settles what belongs in the off-canvas
     column too: nothing. The stroke is inner-aligned, so it lies inside a path
-    whose left edge is x = 0, and the column at x = -1 is padding. It used to
-    come out as stroke only because aggdraw dilated the fill a quarter pixel
-    into it (#844).
+    whose left edge is x = 0, and the column at x = -1 is padding. It comes
+    out as stroke only where aggdraw dilates the fill a quarter pixel into it
+    (#844).
     """
     psd = PSDImage.open(full_name("transparency/transparency-group.psd"))
     layer = list(psd.descendants())[2]
@@ -575,12 +570,12 @@ def test_layer_composite_keeps_a_stroke_past_the_canvas_edge() -> None:
     # The box is the path grown by the stroke width, so its first and last
     # row and column are padding: x = -1 and x = 128, y = -1 and y = 128, all
     # outside a path that spans 0 to 128. Photoshop leaves them empty and so
-    # does this, where the dilated fill used to put a quarter pixel there.
+    # does this, where a dilated fill puts a quarter pixel there.
     assert alpha[:, 0].max() == 0.0 and alpha[0, :].max() == 0.0
     assert alpha[:, -1].max() == 0.0 and alpha[-1, :].max() == 0.0
     # Column 1 is x = 0, the first column on the canvas, and it is the black
     # stroke over its whole height -- not the white fill, which is what the
-    # whole box came back as before #807.
+    # whole box is when the stroke is drawn on the canvas instead (#807).
     assert alpha[1:-1, 1].min() == 1.0, "the left edge lost its stroke"
     assert color[1:-1, 1].max() == 0.0, "the left edge is not the stroke colour"
     assert alpha[1, 1:-1].min() == 1.0, "the top edge lost its stroke"
@@ -679,10 +674,9 @@ def test_photoshop_reads_a_combined_path_even_odd() -> None:
     So both windings were forged into this layer and Photoshop 2026 was given
     the files. It rasterized **both** to the same ring -- 3000 pixels, the
     4200 of the outer rectangle less the 1200 of the inner -- and our render
-    of them matched its raster exactly, to 0.0 on every pixel. Non-zero would
-    have filled the same-wound one solid at 4200. The PSD specification says
-    the same thing, and so does
-    :py:attr:`psd_tools.api.shape.VectorMask.paths` (#844).
+    of them matches its raster exactly, on every pixel. Non-zero would fill
+    the same-wound one solid at 4200. The PSD specification says the same
+    thing, and so does :py:attr:`psd_tools.api.shape.VectorMask.paths` (#844).
 
     To redo it: save the forged document, open it in Photoshop, rasterize the
     layer, and read back the channel it leaves.
@@ -712,9 +706,8 @@ def test_the_subpaths_of_one_component_are_filled_as_one_path() -> None:
 
     The oracle is Photoshop's own raster of the layer, carried in its stored
     transparency channel, so this cannot come out true by construction.
-    Filled as one path the error against it is 0.0014; unioned it is 0.1357,
-    two orders away, and both bounds below sit between the two with a factor
-    of ten either side.
+    Filled as one path the error against it is far under what unioning gives,
+    and both bounds below sit between the two with margin either side.
     """
     psd = PSDImage.open(full_name("masks.psd"))
     layer = [x for x in psd.descendants() if x.name == "twitter"][0]
@@ -729,9 +722,9 @@ def test_the_subpaths_of_one_component_are_filled_as_one_path() -> None:
     coverage = vector.draw_vector_mask(layer, layer.bbox)[..., 0]
     assert float(np.abs(coverage - stored[..., 0]).mean()) < 0.01
 
-    # The counter itself, away from its antialiased rim: Photoshop leaves 932
-    # pixels of this glyph empty, where filling as one path reaches 0.0101 and
-    # unioning reaches a flat 1.0.
+    # The counter itself, away from its antialiased rim: Photoshop leaves it
+    # empty, where filling as one path stays near zero and unioning reaches a
+    # flat 1.0.
     counter = stored[..., 0] < 0.01
     assert counter.sum() > 500, "no counter to lose"
     assert float(coverage[counter].max()) < 0.1
@@ -742,8 +735,7 @@ def test_pen_over_zero_paths_draws_nothing() -> None:
 
     ``_draw_path()`` seeds its plane as covered when the vector mask has an
     initial fill rule and carries no paths. That seed describes a *fill*, and
-    applied to a pen it returned the whole viewport as stroke coverage
-    (#823, #832).
+    applied to a pen it makes the whole viewport stroke coverage (#823, #832).
     """
     layer = _pathless_reveal_all_layer()
     pen = vector._draw_path(layer, pen={"color": 255, "width": 1.0})
@@ -772,9 +764,9 @@ def test_stroke_over_zero_paths_leaves_the_render_alone() -> None:
     empty stroke has to render as no stroke at all, which is the reference
     here -- no rasterized constant to go stale, and since both arms rasterize
     the same paths for the other four layers, aggdraw drift cancels and the
-    measured difference is 0.
+    two are equal.
 
-    Both viewports are pinned because #807 is what made them differ, and
+    Both viewports are pinned because #807 is what makes them differ, and
     both under ``force=True``: without it the fill is not drawn from the
     vector mask and the two renders land within a quantization step of each
     other either way. Even there the tempting per-layer assertion is the
@@ -787,7 +779,7 @@ def test_stroke_over_zero_paths_leaves_the_render_alone() -> None:
     )
 
     # On the layer's own box every value moves when the seed leaks into the
-    # pen; on the canvas, which the layer covers a corner of, 4.6% of them do.
+    # pen; on the canvas, which the layer covers a corner of, only some do.
     assert np.allclose(
         composite(_forged_pathless_stroke()[1], force=True)[0],
         composite(_forged_pathless_stroke(disable_stroke=True)[1], force=True)[0],
@@ -839,16 +831,16 @@ def test_fill_rule_inversions_stay_brush_gated() -> None:
     The new seed is gated the same way, so these sums must not move (#823).
 
     Only the last assertion discriminates that gating, and it needs no
-    tolerance: ungating turns the empty pen plane into the drawn one, 0.0 to
-    2.61, while leaving all three raster sums bit-identical. Those are a
-    non-regression pin on the subtract and intersect arithmetic, which
-    :py:func:`test_path_operations` otherwise only checks at 0.02 MSE.
+    tolerance: ungating turns the empty pen plane into the drawn one, while
+    leaving all three raster sums bit-identical. Those are a pin on the
+    subtract and intersect arithmetic, which :py:func:`test_path_operations`
+    otherwise only checks at 0.02 MSE.
 
-    The brush sums are exact now that a fill is the area of the path rather
+    The brush sums are exact because a fill is the area of the path rather
     than aggdraw's quarter-pixel dilation of it (#844): the masked rectangle
-    is 9x9 on the pixel grid, and 81.0 is what 9x9 covers. It used to read
-    90.129. The pen sum keeps its tolerance, because a pen is still aggdraw's
-    and aggdraw is not bit-stable between versions.
+    is 9x9 on the pixel grid, and 81.0 is what 9x9 covers. The pen sum keeps
+    its tolerance, because a pen is aggdraw's and aggdraw is not bit-stable
+    between versions.
     """
     psd = PSDImage.open(full_name("vector-mask2.psd"))
     masked = [x for x in psd.descendants() if x.name == "Masked Rectangle 1"][0]

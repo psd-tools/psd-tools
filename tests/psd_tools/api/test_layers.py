@@ -316,8 +316,8 @@ def test_has_effects() -> None:
     """
     psd = PSDImage.open(full_name("effects/effects-enabled.psd"))
     assert not psd[0].has_effects()
-    # No block at all: both arms say no, which is the branch that used to be
-    # a tagged-block scan ahead of everything else.
+    # No block at all, so both arms say no, without a tagged-block scan ahead
+    # of everything else.
     assert not psd[0].has_effects(enabled=False)
     assert psd[1].has_effects()
     assert psd[1].has_effects(name="ColorOverlay")
@@ -347,7 +347,7 @@ def test_extract_bbox_excludes_clipping() -> None:
     shape1 = group2[1]  # Shape 1, clipping=False, bbox=(50, 44, 174, 113)
     shape2 = group2[2]  # Shape 2, clipping=True,  bbox=(141, 17, 210, 92)
 
-    # With include_clipping=True (old behavior): Shape 2 extends the top and right bounds
+    # With include_clipping=True: Shape 2 extends the top and right bounds
     assert Group.extract_bbox([shape1, shape2], include_clipping=True) == (
         50,
         17,
@@ -355,7 +355,7 @@ def test_extract_bbox_excludes_clipping() -> None:
         113,
     )
 
-    # Default (include_clipping=False, new behavior): only shape1 contributes
+    # Default (include_clipping=False): only shape1 contributes
     assert Group.extract_bbox([shape1, shape2]) == (50, 44, 174, 113)
     assert Group.extract_bbox([shape1, shape2], include_clipping=False) == (
         50,
@@ -761,10 +761,10 @@ def test_group_extend(
 # ---------------------------------------------------------------------------
 # extend() walks its argument once (#820)
 #
-# It used to walk it three times -- once to validate, once to detach each
-# layer from its old parent, once to attach -- which broke three things its
-# own docstring promises: a one-shot iterable added nothing, a live container
-# lost layers or hung, and a layer named twice landed at two indices.
+# Walking it three times -- once to validate, once to detach each layer from
+# its old parent, once to attach -- breaks three things its own docstring
+# promises: a one-shot iterable adds nothing, a live container loses layers or
+# hangs, and a layer named twice lands at two indices.
 #
 # The two halves of the fix are ``list(layers)`` and the de-duplication, and
 # each has a case below that fails without it. The split is not the obvious
@@ -786,16 +786,16 @@ def test_group_extend_adds_a_repeated_layer_once(
     assert group.count(pixel_layer) == 1
     assert group.index(pixel_layer) == 0
 
-    # The duplicate left one layer at two indices with a single ``_parent``,
-    # so ``remove()`` dropped only the first of them and ``index()`` could
-    # never name the second.
+    # A duplicate would leave one layer at two indices with a single
+    # ``_parent``, so ``remove()`` would drop only the first of them and
+    # ``index()`` could never name the second.
     group.remove(pixel_layer)
     assert pixel_layer not in group
     assert len(group) == 0
 
 
 def test_group_extend_does_not_write_a_repeated_layer_twice(tmp_path: Any) -> None:
-    """The duplicate reached the saved file, not just the in-memory list."""
+    """A duplicate would reach the saved file, not just the in-memory list."""
     psd = PSDImage.open(full_name("clipping-mask.psd"))
     layer_info = psd._record.layer_and_mask_information.layer_info
     assert layer_info is not None
@@ -842,7 +842,7 @@ def test_group_extend_keeps_the_last_mention_of_a_repeated_layer(
 def test_group_extend_accepts_a_one_shot_iterable(
     group: Group, pixel_layer: PixelLayer, type_layer: TypeLayer
 ) -> None:
-    """A generator used to add nothing: the checks drained it first."""
+    """The checks must not drain a generator before anything is added."""
     group.extend(layer for layer in [pixel_layer, type_layer])
 
     assert list(group) == [pixel_layer, type_layer]
@@ -866,14 +866,14 @@ def test_group_extend_with_nothing_to_add(group: Group) -> None:
 def test_group_extend_empties_a_live_container_into_another_group(
     size: int,
 ) -> None:
-    """``dest.extend(src)`` is how a group's contents move, and it lost them.
+    """``dest.extend(src)`` is how a group's contents move.
 
-    ``GroupMixin`` is iterable, so the detach loop was walking the very
-    container it was mutating -- ``donor._layers.remove(layer)`` takes from the
-    list being iterated -- and so reached only every other layer. The ones it
-    did reach were detached and never re-attached, because the attach step
-    re-read the same half-drained container: those are the layers lost from the
-    document. The one it skipped was left in ``src`` *and* appended to
+    ``GroupMixin`` is iterable, so a detach loop walking the argument itself
+    walks the very container it is mutating -- ``donor._layers.remove(layer)``
+    takes from the list being iterated -- and reaches only every other layer.
+    The ones it reaches are detached and never re-attached, because the attach
+    step re-reads the same half-drained container: those are the layers lost
+    from the document. The one it skips is left in ``src`` *and* appended to
     ``dest``, parented to ``dest`` alone.
 
     ``size=1`` is the case that pins the materialization: with more than one
@@ -897,14 +897,14 @@ def test_group_extend_empties_a_live_container_into_another_group(
 
 
 def test_group_extend_on_its_own_contents_changes_nothing() -> None:
-    """Feeding a group itself is a no-op, and used not to terminate."""
+    """Feeding a group itself is a no-op, and has to terminate."""
     psd = PSDImage.open(full_name("clipping-mask.psd"))
     group = psd.create_group(layer_list=list(psd), name="G")
     contents = list(group)
     assert len(contents) > 1
 
     # The backing list first, deliberately: that shape terminates either way
-    # -- it just duplicated one layer and lost another -- so a regression
+    # -- it merely duplicates one layer and loses another -- so a regression
     # fails here rather than at ``extend(group)`` below, which without the
     # materialization never terminates at all.
     group.extend(group._layers)
@@ -1222,11 +1222,11 @@ def test_cross_document_move_rebuilds_the_donor_record_list(
 ) -> None:
     """A layer moved out of a document must leave that document's file (#841).
 
-    ``extend()`` and ``insert()`` rebuilt the *receiving* document's flat
-    record list only, and :py:meth:`PSDImage.save` writes the stored list
-    without rebuilding it, so the donor went on writing the layer it no longer
-    holds and the layer landed in *both* files. The in-memory tree was already
-    right, so only a save and reopen of the donor sees this.
+    Rebuilding the *receiving* document's flat record list alone leaves the
+    donor writing a layer it no longer holds, since :py:meth:`PSDImage.save`
+    writes the stored list without rebuilding it -- and the layer lands in
+    *both* files. The in-memory tree is right either way, so only a save and
+    reopen of the donor sees this.
 
     All three entry points are moved separately because they reach the rebuild
     by different routes: ``append()`` delegates to ``extend()``, while
@@ -1277,17 +1277,16 @@ def test_a_structural_edit_to_a_deep_document_survives_a_save(
 
     Such a document keeps its flat record list in the ``Lr16``/``Lr32`` tagged
     block and leaves the layer info section below it empty, which is what
-    :py:meth:`PSD._get_layer_info` reads. ``_update_record()`` rebuilt the
-    empty section instead, and the writer emits both, so the file went out
-    carrying a rebuilt list nobody reads beside the stale block everybody
-    does. The in-memory tree was already right, so only a save and reopen
-    sees this.
+    :py:meth:`PSD._get_layer_info` reads. Rebuilding the empty section instead
+    sends the file out carrying a rebuilt list nobody reads beside the stale
+    block everybody does, because the writer emits both. The in-memory tree is
+    right either way, so only a save and reopen sees this.
 
     All four container methods are exercised because the defect is in the
     rebuild they share, not in any one of them, and both PSD and PSB because
     the two write the section's length field at different widths. 8-bit
-    documents were never affected -- they have no such block, and the section
-    *is* authoritative.
+    documents are unaffected -- they have no such block, and the section *is*
+    authoritative.
 
     The reopened document is deliberately never composited: a save of an
     edited 16- or 32-bit document writes an 8-bit preview into the image data
@@ -1332,15 +1331,14 @@ def test_a_cross_document_move_between_deep_documents_survives_a_save(
 ) -> None:
     """A layer moved between two 16-bit documents lands in exactly one (#861).
 
-    This is the case the review of #860 raised. #841 widened ``extend()`` to
-    rebuild the donor as well as the receiver; at 16 bits both rebuilds went
-    to the section the reader ignores, so on ``main`` the layer stayed in the
-    donor's file and never reached the receiver's -- a move that loses the
-    layer from both sides at once.
+    ``extend()`` rebuilds the donor as well as the receiver (#841); at 16 bits
+    a rebuild that lands in the section the reader ignores leaves the layer in
+    the donor's file and never gets it to the receiver's -- a move that loses
+    the layer from both sides at once (#860).
 
     The receiver is a shipped PSB rather than a ``PSDImage.new()`` document so
     that it carries an ``Lr16`` block of its own; a new one has none, and its
-    half of the move would then exercise the 8-bit path that was never broken.
+    half of the move would then exercise the 8-bit path instead.
     The moved layer is renamed first because both fixtures ship the same three
     layer names.
     """
@@ -1378,12 +1376,11 @@ def test_a_cross_document_move_between_deep_documents_survives_a_save(
 def test_artboard_background_is_canvas_space_on_a_cmyk_document(
     bg_type: int, expected: tuple[float, ...]
 ) -> None:
-    """A white artboard background composited black on a CMYK document (#747).
+    """A white artboard background must not composite black on CMYK (#747).
 
-    The branch spelled white as ``(0, 0, 0, 0)`` -- no ink -- into arrays that
-    count what is *left*, where that is every ink at full strength. The RGB,
-    grayscale and Lab branches beside it were already canvas-space, so CMYK was
-    the odd one out.
+    Spelling white as ``(0, 0, 0, 0)`` -- no ink -- into arrays that count what
+    is *left* gives every ink at full strength instead. The RGB, grayscale and
+    Lab branches beside it are canvas-space, and CMYK has to be too.
 
     ``artboard-bgcolor.psd`` is an RGB document whose artboards both use the
     custom-colour type, so neither the colour mode nor the background type
@@ -1576,8 +1573,8 @@ def test_a_mutation_invalidates_every_box_above_it() -> None:
 def test_the_document_bbox_follows_a_top_level_visibility_change() -> None:
     """``PSDImage`` caches a box too, and is not a ``Layer``.
 
-    ``Layer._invalidate_bbox()`` used to recurse only into ``Group`` and
-    ``Artboard``, so the walk stopped one level short of the document (#814).
+    A ``Layer._invalidate_bbox()`` that recursed only into ``Group`` and
+    ``Artboard`` would stop one level short of the document (#814).
     """
     psd = PSDImage.open(full_name("clipping-mask.psd"))
     armed = psd.bbox
@@ -1592,8 +1589,8 @@ def test_the_document_bbox_follows_a_top_level_visibility_change() -> None:
 def test_a_group_built_through_the_editing_api_reports_its_contents() -> None:
     """The issue's own repro (#814).
 
-    Pre-fix this failed on Python <= 3.11 only, for the seeding reason spelled
-    out above; it is the user-facing statement of the bug, not the guard.
+    The user-facing statement of the bug, not the guard: for the seeding
+    reason spelled out above it discriminates on Python <= 3.11 only.
     ``test_every_group_mutator_invalidates_the_cached_bbox`` is the guard.
     """
     psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
@@ -1612,7 +1609,7 @@ def test_a_group_knows_which_container_it_sits_in() -> None:
     ``GroupMixin`` inherits ``GroupMixinProtocol``, and both precede ``Layer``
     in ``Group``'s MRO, so anything with a body defined on either of them
     shadows the real implementation for every group. Declaring ``parent`` on
-    the protocol as a ``...`` property did exactly that, and silently handed
+    the protocol as a ``...`` property does exactly that, and silently hands
     every group a ``None`` parent -- which in turn breaks the invalidation walk
     this module's other tests rely on.
     """
@@ -1862,12 +1859,12 @@ def test_hiding_an_artboard_drops_its_descendants_but_not_its_own_box() -> None:
 def test_hiding_a_group_changes_what_a_descendant_renders_onto() -> None:
     """The stale box is not just a reported number -- it is a render viewport.
 
-    ``layer.composite()`` renders onto the layer's own ``bbox``, so before the
-    fix a descendant of a newly hidden group was composited onto the box it
-    had while visible: 185x219 of content where a freshly read document gives
-    the 360x200 viewbox fallback. ``psd.composite()`` never differed, because
-    it re-derives through the visibility filter instead of reading a
-    descendant's cache.
+    ``layer.composite()`` renders onto the layer's own ``bbox``, so a stale
+    box composites a descendant of a newly hidden group onto the box it had
+    while visible: 185x219 of content where a freshly read document gives the
+    360x200 viewbox fallback. ``psd.composite()`` does not differ, because it
+    re-derives through the visibility filter instead of reading a descendant's
+    cache.
     """
 
     def render(arm: bool) -> Any:
@@ -1882,7 +1879,7 @@ def test_hiding_a_group_changes_what_a_descendant_renders_onto() -> None:
 
     # The control goes first so that it is actually reached: the layer
     # assertions below fail under the bug, and this one holds either way --
-    # ``psd.composite()`` never differed. It documents the scope rather than
+    # ``psd.composite()`` does not differ. It documents the scope rather than
     # guarding it.
     assert armed_doc.tobytes() == fresh_doc.tobytes()
 
@@ -1899,9 +1896,9 @@ def test_repr_drops_an_annotation_it_cannot_read(
     """A repr reports what it can read and says nothing about the rest (#828).
 
     Driven by making ``has_effects()`` raise rather than by a forged file, so
-    it pins the repr on its own: the effects block #828 was reported for is
-    now skipped in ``Effects`` instead, one layer down, and a test that went
-    through such a file would pass on that fix alone.
+    it pins the repr on its own: the effects block #828 reports is skipped in
+    ``Effects``, one layer down, and a test that went through such a file would
+    pass on that alone.
 
     Parametrized over an exception the compositor's ``_UNREADABLE`` holds and
     one it does not, because the choice of ``except Exception`` over that
@@ -1924,10 +1921,10 @@ def test_repr_of_an_artboard_missing_its_data_drops_the_size() -> None:
     """The same defect one class away from the one #828 reports.
 
     ``Artboard.bbox`` raises outright when no artboard tagged block is there
-    to read, and ``__repr__`` reaches it through ``self.width`` -- so a repr
-    could raise for a reason that has nothing to do with effects, and did so
-    before the annotation was guarded. Not reachable from a file Photoshop
-    wrote, so the block is deleted here.
+    to read, and ``__repr__`` reaches it through ``self.width`` -- so unless
+    the annotation is guarded a repr can raise for a reason that has nothing
+    to do with effects. Not reachable from a file Photoshop wrote, so the
+    block is deleted here.
 
     Whether such a *document* composites is deliberately not asserted: it
     raises on Python <= 3.11 and renders on 3.12, because the

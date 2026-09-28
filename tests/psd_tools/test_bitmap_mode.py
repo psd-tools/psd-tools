@@ -1,11 +1,11 @@
 """Depth 1, where a row is padded to a byte boundary (#768).
 
-A row of ``width`` pixels occupies ``ceil(width / 8)`` bytes, and until #768
-nothing on the read path said so. The RLE codec floored the row size, dropping
-whatever the last byte held; ``numpy_io._parse_array()`` unpacked one value per
-*bit* with no width to trim against, so the padding came back as pixels. A
-bitmap document was therefore readable through ``numpy()`` only if its width was
-a multiple of eight, and rendered half from padding even then.
+A row of ``width`` pixels occupies ``ceil(width / 8)`` bytes, and the whole
+read path has to say so (#768). An RLE codec that floors the row size drops
+whatever the last byte holds; ``numpy_io._parse_array()`` unpacking one value
+per *bit* with no width to trim against hands the padding back as pixels. A
+bitmap document is then readable through ``numpy()`` only where its width is a
+multiple of eight, and rendered half from padding even there.
 
 The expectations below are Photoshop's own. ``20x5_1bit_bitmap.psd`` and
 ``100x20_1bit_bitmap_rle.psd`` were authored by converting a grayscale image to
@@ -13,8 +13,8 @@ Bitmap mode (50% threshold) in Photoshop 2026 and saving as PSD, which settles
 two things this module then treats as given: the padding bits Photoshop writes
 are zero, and an inked -- black -- pixel is a **set** bit. That second one is
 why ``pil_io._create_image()`` reads the buffer through the inverted raw mode
-``"1;I"``, and why ``_parse_array()``, which returned the bit as it stood,
-rendered every 1-bit document as its own negative.
+``"1;I"``, and why ``_parse_array()`` has to invert the bit rather than return
+it as it stands, on pain of rendering every 1-bit document as its own negative.
 """
 
 import io
@@ -32,9 +32,9 @@ from .utils import full_name
 # One character per pixel, "1" white and "0" black -- the convention the
 # compositor's color array uses, so these read directly as the expected values.
 _EXPECTED: dict[str, list[str]] = {
-    # The shipped fixture, four pixels wide: its row fills half a byte, so the
-    # padding used to double the array to `(4, 4, 2)` and split the document's
-    # four rows across two planes.
+    # The shipped fixture, four pixels wide: its row fills half a byte, so
+    # keeping the padding doubles the array to `(4, 4, 2)` and splits the
+    # document's four rows across two planes.
     "4x4_1bit_bitmap.psd": [
         "0011",
         "0000",
@@ -50,9 +50,10 @@ _EXPECTED: dict[str, list[str]] = {
         "11111111111111111110",
         "10000000000000000000",
     ],
-    # RLE, thirteen bytes per row against a floor of twelve. The first four rows
-    # ink only pixels 96-99, so under the old row size they decoded to nothing
-    # at all -- and the channel came up short of `topil()`'s stride as well.
+    # RLE, thirteen bytes per row against a floor of twelve. The first four
+    # rows ink only pixels 96-99, so under a floored row size they decode to
+    # nothing at all -- and the channel comes up short of `topil()`'s stride
+    # as well.
     "100x20_1bit_bitmap_rle.psd": (
         ["1" * 96 + "0" * 4] * 4
         + ["0" * 50 + "1" * 50] * 6
@@ -78,9 +79,9 @@ def _open(filename: str) -> PSDImage:
 def test_numpy_returns_photoshops_pixels(filename: str) -> None:
     """``numpy()`` at the document's own width, with no padding in it.
 
-    Two of these could not be read at all before -- ``cannot reshape array of
-    size 120 into shape (5,20)`` -- and the third came back ``(4, 4, 2)``, its
-    second plane pure padding.
+    Padding left in the array shows up on two of these as ``cannot reshape
+    array of size 120 into shape (5,20)``, and on the third as a ``(4, 4, 2)``
+    result whose second plane is padding alone.
     """
     array = _open(filename).numpy()
     expected = _expected(filename)
@@ -90,13 +91,12 @@ def test_numpy_returns_photoshops_pixels(filename: str) -> None:
 
 @pytest.mark.parametrize("filename", _FIXTURES)
 def test_the_pil_path_agrees_with_the_numpy_one(filename: str) -> None:
-    """``topil()`` was the only entry point that was right, and it still is.
+    """``topil()`` is the entry point the other paths are measured against.
 
-    PIL's raw decoder has always read ``ceil(width / 8)`` bytes per row, so
-    ``topil()`` recovered the geometry the other paths lost -- but only after
-    the RLE codec hands it a whole channel, which is why the RLE fixture used
-    to fail here with ``not enough image data``. Its polarity was right too,
-    and it is the reference the NumPy path is now inverted to match.
+    PIL's raw decoder reads ``ceil(width / 8)`` bytes per row, so ``topil()``
+    has the geometry -- but only once the RLE codec hands it a whole channel,
+    short of which the RLE fixture fails here with ``not enough image data``.
+    Its polarity is the reference the NumPy path is inverted to match.
     """
     psd = _open(filename)
     image = psd.topil()
@@ -109,9 +109,8 @@ def test_the_pil_path_agrees_with_the_numpy_one(filename: str) -> None:
 def test_the_composite_agrees_with_the_preview(filename: str) -> None:
     """``ignore_preview=True`` renders the layers; the default returns the preview.
 
-    On a layerless bitmap document those are two readings of the same bytes, so
-    they have to agree -- and they did not: the composited one was the negative
-    of the preview, scrambled or unformable besides.
+    On a layerless bitmap document those are two readings of the same bytes,
+    so they have to agree in polarity and in geometry both.
     """
     pytest.importorskip("aggdraw")
     pytest.importorskip("scipy")
@@ -144,11 +143,10 @@ def test_padding_bits_are_not_pixels() -> None:
 def test_an_undecodable_1bit_document_degrades_to_black() -> None:
     """The black fill, read back through both entry points rather than as bytes.
 
-    A 1-bit channel that failed to decode used to end the read with
-    ``RuntimeError``, the fill being gated on ``depth >= 8`` for want of a
-    packed form to write it in. It has one now -- and it is ``0xff``, not zero,
-    which is the half a byte-level assertion alone would not catch: zeroes here
-    would hand the caller a blank white document and call it black.
+    A 1-bit channel that fails to decode gets a fill rather than a
+    ``RuntimeError``, and the fill is ``0xff``, not zero -- the half a
+    byte-level assertion alone would not catch, since zeroes here would hand
+    the caller a blank white document and call it black.
     """
     psd = _open("20x5_1bit_bitmap.psd")
     psd._record.image_data.compression = Compression.ZIP
@@ -167,10 +165,10 @@ def test_a_re_encoded_document_survives_the_round_trip(
 ) -> None:
     """The write half of the same arithmetic.
 
-    ``encode_rle()`` kept its own copy of the floored row size, so it read
-    ``width // 8`` bytes per row out of a buffer packed at ``ceil(width / 8)``
-    and wrote a document sheared by a byte a row. Re-compressing each fixture
-    under both codecs and reading it back is what exercises that.
+    An encoder reading ``width // 8`` bytes per row out of a buffer packed at
+    ``ceil(width / 8)`` writes a document sheared by a byte a row.
+    Re-compressing each fixture under both codecs and reading it back is what
+    exercises that.
     """
     psd = _open(filename)
     expected = psd.numpy()

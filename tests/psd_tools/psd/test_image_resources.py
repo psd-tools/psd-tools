@@ -185,7 +185,7 @@ def test_alpha_channel_converts_a_raw_mode() -> None:
 
 @pytest.mark.parametrize("mode", [99, -1, None, "spot"])
 def test_alpha_channel_rejects_a_bad_mode(mode: Any) -> None:
-    """``99`` used to be written to the file; the rest raised ``struct.error``."""
+    """Every bad mode raises here, ``99`` -- which packs -- along with the rest."""
     with pytest.raises(ValueError):
         AlphaChannel(mode=mode)
 
@@ -195,8 +195,8 @@ def test_slice_v6_probe_survives_a_bad_unit_in_a_truncated_descriptor() -> None:
 
     ``SliceV6.read()`` has no way to tell a trailing descriptor from the next
     slice, so it tries one and catches ``ValueError`` to back out. Resolving
-    ``UnitFloats.unit`` after its array was read turned that into ``OSError``,
-    which escaped the probe and took the whole resource down.
+    ``UnitFloats.unit`` after its array is read would turn that into
+    ``OSError``, which escapes the probe and takes the whole resource down.
     """
     block = DescriptorBlock(classID=Klass.Null.value)
     block[Key.Opacity] = UnitFloats(unit=Unit.Percent, values=[1.0])

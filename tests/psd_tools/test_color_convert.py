@@ -132,19 +132,17 @@ class TestHsbToRgb:
     def test_hue_is_cyclic(self, h, equivalent):
         """A hue outside [0, 1) is the same colour one or more turns away.
 
-        Only ``h == 1.0`` used to be handled, by a bare special case. Anything
-        at or past a full turn missed the six-sector table and fell back to the
-        achromatic ``(v, v, v)``, which is how a hue of 360 degrees arriving
-        through ``paint._get_hsb`` rendered white where Photoshop renders red
-        (#754). Small negative hues did reach a sector, just the wrong one:
-        truncation towards zero put all of ``(-1/6, 0)`` in sector 0.
+        A hue at or past a full turn must not miss the six-sector table and
+        fall back to the achromatic ``(v, v, v)``: 360 degrees reaches here
+        through ``paint._get_hsb`` and has to render red, not white (#754).
+        Truncation towards zero does not place a small negative hue either --
+        it puts all of ``(-1/6, 0)`` in sector 0.
 
-        ``-1e-17`` is the one row here that is not a #754 regression pin -- the
-        old code truncated it into sector 0 and got the right answer by
-        accident. It guards the new code instead: ``-1e-17 % 1.0`` is exactly
-        ``1.0`` in floating point, which puts ``int(h * 6.0)`` at 6, one past
-        the last sector, and is an ``IndexError`` if the wrap is applied to the
-        hue alone rather than to the sector index as well.
+        ``-1e-17`` guards the wrap itself rather than a sector: ``-1e-17 %
+        1.0`` is exactly ``1.0`` in floating point, which puts
+        ``int(h * 6.0)`` at 6, one past the last sector, and is an
+        ``IndexError`` if the wrap is applied to the hue alone rather than to
+        the sector index as well.
         """
         assert hsb_to_rgb(h, 1.0, 1.0) == pytest.approx(
             hsb_to_rgb(equivalent, 1.0, 1.0)
@@ -180,16 +178,15 @@ class TestHsbToRgb:
         """Photoshop's own HSB to RGB, over the whole hue circle.
 
         This pins the conversion, not the reading of the descriptor: the
-        divisor #754 got wrong lives in ``paint._get_hsb`` and is pinned
-        against this same fixture data in
-        ``tests/psd_tools/composite/test_paint.py``. What it does establish is
-        that a hue expressed as a fraction of a turn -- which is what a
-        corrected ``/360`` produces -- lands where Photoshop puts it, at every
-        sector boundary and inside every sector.
+        divisor lives in ``paint._get_hsb`` and is pinned against this same
+        fixture data in ``tests/psd_tools/composite/test_paint.py`` (#754).
+        What it does establish is that a hue expressed as a fraction of a turn
+        -- which is what ``/360`` produces -- lands where Photoshop puts it, at
+        every sector boundary and inside every sector.
 
         The tolerance is 0.1 of a code value because Photoshop's bridge reports
         RGB out of its own 15-bit store, which puts a true 0 at
-        ``255 / 32768 = 0.0078`` and costs at most 0.05 anywhere in the table.
+        ``255 / 32768 = 0.0078``.
         """
         got = [
             255.0 * c
@@ -228,13 +225,12 @@ class TestHsbToRgb:
         Not just for in-range ones.
 
         Saturation and brightness are not angles, so unlike hue they clamp
-        rather than wrap. Before #757 this function was total only in
-        appearance: #754's non-finite-hue guard made it look as complete as
-        ``lab_to_rgb``, while ``s = 1.2, v = 1.5`` still returned
-        ``(1.5, -0.3, -0.3)`` and a NaN saturation propagated straight out. The
-        harm is downstream -- ``composite_pil()`` casts with
-        ``(255 * color).astype(np.uint8)``, which *wraps*, so 1.5 became byte
-        126 and a fully saturated red rendered grey-teal.
+        rather than wrap (#757). Letting a component out of [0, 1] -- which is
+        what ``s = 1.2, v = 1.5`` gives without the clamps, along with a NaN
+        saturation straight through -- does its harm downstream:
+        ``composite_pil()`` casts with ``(255 * color).astype(np.uint8)``,
+        which *wraps*, so 1.5 emits byte 126 and a fully saturated red renders
+        grey-teal.
         """
         result = hsb_to_rgb(0.0, s, v)
         assert all(0.0 <= c <= 1.0 for c in result), result
@@ -278,10 +274,9 @@ class TestGrayToCmyk:
 #     a_reported = a_true * (255 / 256) - 0.5
 #
 # which is why every neutral colour comes back as ``a = b = -0.5`` rather than
-# 0. This is not a fitted correction: both constants come from the encoding, and
-# undoing it takes the disagreement across 33 measured colours from ~0.87 Lab
-# units to 0.014 -- so the tolerances below are chosen from the model, not from
-# whatever this implementation happens to produce.
+# 0. This is not a fitted correction: both constants come from the encoding, so
+# the tolerances below are chosen from the model, not from whatever this
+# implementation happens to produce.
 # ---------------------------------------------------------------------------
 
 
@@ -354,9 +349,9 @@ class TestLabToRgb:
         """The white point has to be the one the matrices carry.
 
         Pairing the ICC PCS D50 with Lindbloom's Bradford matrices leaves the
-        transform without a fixed point -- white returns 0.99981 in blue, and a
-        neutral grey picks up a b of -0.025, which the compositor's truncating
-        cast turns into byte 127 where Photoshop writes 128.
+        transform without a fixed point -- white falls short of 1.0 in blue,
+        and a neutral grey picks up a small negative b, which the compositor's
+        truncating cast turns into byte 127 where Photoshop writes 128.
         """
         assert lab_to_rgb(100.0, 0.0, 0.0) == pytest.approx((1.0, 1.0, 1.0), abs=1e-7)
         assert lab_to_rgb(0.0, 0.0, 0.0) == (0.0, 0.0, 0.0)
@@ -408,13 +403,13 @@ class TestRgbToLab:
         """Neutral must be 0.0, not merely near it.
 
         ``LAB_NEUTRAL_CHROMA`` is ``128/255``, and the compositor truncates on
-        the way out, so a chroma of -0.025 -- which is what the ICC PCS white
-        point gives here -- emits byte 127 instead of 128.
+        the way out, so a small negative chroma -- which is what the ICC PCS
+        white point gives here -- emits byte 127 instead of 128.
         """
         _, a, b = rgb_to_lab(grey, grey, grey)
         assert (a, b) == pytest.approx((0.0, 0.0), abs=1e-9)
         # The bound that actually matters: what the compositor's truncating
-        # cast makes of it. The ICC PCS white point gives -0.025 here, which
+        # cast makes of it. The ICC PCS white point gives a chroma here that
         # is small but lands a byte low.
         for chroma in (a, b):
             assert int(255.0 * ((chroma + 128.0) / 255.0)) == 128
@@ -440,9 +435,9 @@ def test_module_doctests_run_and_pass():
     """The module's doctests are otherwise dead documentation.
 
     ``addopts`` carries no ``--doctest-modules`` and there is no Sphinx doctest
-    build in CI, so nothing collected these until now -- which is how
-    ``rgb_to_grayscale``'s example came to claim 1.0 for a call that returns
-    0.9999999999999999.
+    build in CI, so this test is the only thing that collects them, and the
+    only thing that would catch an example whose printed result has drifted
+    from what the call returns.
     """
     result = doctest.testmod(psd_tools.color_convert, verbose=False)
     assert result.attempted > 0
