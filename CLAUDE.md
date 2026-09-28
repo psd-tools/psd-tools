@@ -380,6 +380,38 @@ Recent work has added comprehensive type annotations throughout the codebase. Wh
 - Use `typing_extensions.Self` for methods returning instances of the same class
 - Attrs validators should match type hints
 
+## Code Comments and Docstrings
+
+Keep them short, and document **current behavior only**. A comment earns its
+length by explaining something the code cannot say itself — a non-obvious
+constraint, a format quirk, why an obvious approach is wrong. Three things do
+not belong in one:
+
+- **History.** "used to", "was expected to fail at", "before #854". The
+  before/after belongs in the PR body, the commit message and the issue.
+- **Measured figures.** MSE bounds, corpus statistics, error counts. They drift
+  under the next change and leave a comment that reads as fact. A bound keeps
+  its *reason* ("an aggdraw pen is not bit-stable across versions"), never its
+  value.
+- **The same explanation at three layers.** Say it once, where it belongs.
+
+What stays: bare issue refs like `(#854)`, which point *into* that history;
+fixture geometry such as "a 100x100 path", which is a property of the file; and
+anything a test asserts.
+
+To keep a number, name it in code rather than recite it in prose:
+
+```python
+stroke_color = 0.129  # PANTONE Black 3 C, red channel
+assert color[row, column] == pytest.approx(share * stroke_color, abs=0.002)
+```
+
+That is checked on every run; the same number in a docstring rots silently.
+
+Existing long comment blocks are the tree's current state, not a precedent to
+match — see #891. Measure with `uv run python tools/prose_density.py`. This is
+the [Changelog](#changelog) policy applied to source.
+
 ## Known Limitations
 
 - **Type layers**: Cannot render text (no font engine)
