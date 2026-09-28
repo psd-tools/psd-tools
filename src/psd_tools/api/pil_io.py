@@ -399,9 +399,19 @@ def convert_pattern_to_pil(pattern: Pattern) -> Image.Image:
 
 def convert_thumbnail_to_pil(
     thumbnail: ThumbnailResource | ThumbnailResourceV4,
+    max_alloc_bytes: int | None = None,
 ) -> Image.Image:
     """Convert thumbnail resource."""
     if thumbnail.fmt == 0:
+        # width/height are unvalidated header fields (GHSA-7m55-42q7-888r):
+        # PIL allocates the full RGBX buffer before decoding thumbnail.data.
+        check_pixel_size(
+            thumbnail.width,
+            thumbnail.height,
+            4,
+            max_alloc_bytes=max_alloc_bytes,
+            estimated_bytes=thumbnail.width * thumbnail.height * 4,
+        )
         image = Image.frombytes(
             "RGBX",
             (thumbnail.width, thumbnail.height),
@@ -412,7 +422,26 @@ def convert_thumbnail_to_pil(
         )
     elif thumbnail.fmt == 1:
         with io.BytesIO(thumbnail.data) as f:
-            image = Image.open(f)
+            # fmt == 1 is documented as JPEG (Adobe's kJpegRGB); restricting
+            # Image.open() to that one format keeps every other registered
+            # Pillow plugin from ever running against thumbnail.data. That
+            # matters because some plugins decode pixels inside _open() itself
+            # -- before any check below could run -- so checking the opened
+            # image's own header is not enough on its own (GHSA-7m55-42q7-888r).
+            image = Image.open(f, formats=["JPEG"])
+            # Pillow's C storage pads every pixel to 4 bytes except the
+            # single-byte "1"/"L"/"P" modes -- measured directly across every
+            # mode JPEG can decode to, since tobytes() strips that padding for
+            # odd band counts (RGB serializes 3 bytes/pixel but is stored as
+            # 4) and would silently undercount the real allocation.
+            bytes_per_pixel = 1 if image.mode in ("1", "L", "P") else 4
+            check_pixel_size(
+                image.width,
+                image.height,
+                bytes_per_pixel,
+                max_alloc_bytes=max_alloc_bytes,
+                estimated_bytes=image.width * image.height * bytes_per_pixel,
+            )
             image.load()
     else:
         raise ValueError("Unknown thumbnail format %d" % (thumbnail.fmt))
