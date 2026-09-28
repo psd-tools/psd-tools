@@ -58,12 +58,8 @@ def test_draw_stroke(filename: str) -> None:
     check_composite_quality(filename, 0.01, force=True)
 
 
-# Was expected to fail at 0.01, then measured 0.0066 once the fill it is
-# stroked over stopped carrying aggdraw's quarter pixel of dilation (#844),
-# and measures 0.00354 now that its eight inner strokes land inside their paths
-# (#854) and blend with the fill rather than replacing it (#883). The bound is
-# set above the measurement rather than at it: what is left is the stroke,
-# which is still drawn by an aggdraw pen and so not bit-stable across versions.
+# The bound is set above the measurement rather than at it: what it scores is
+# the stroke, drawn by an aggdraw pen and so not bit-stable across versions.
 @pytest.mark.parametrize(
     ("filename", "threshold"),
     [
@@ -245,12 +241,9 @@ def test_draw_stroke_reaches_outside_the_canvas() -> None:
 def test_an_inner_stroke_covers_the_whole_width_inside_the_path() -> None:
     """The band sits where the alignment puts it, and is as wide as it says (#854).
 
-    ``effects/stroke-composite.psd``'s ``Plain`` is a 100x100 path in a 102x102
-    box, carrying a 3 px inner stroke. Inner means the whole band lies inside the path, so it covers
-    the first three columns the fill covers. A pen centred on the path put 1.5
-    px in and 1.5 px out instead, covering two columns, one of them outside the
-    shape -- where a vector stroke cannot show at all, since it has no coverage
-    of its own.
+    ``effects/stroke-composite.psd``'s ``Plain`` is a 100x100 path in a
+    102x102 box, carrying a 3 px inner stroke. Inner means the whole band lies
+    inside the path, so it covers the first three columns the fill covers.
     """
     psd = PSDImage.open(full_name("effects/stroke-composite.psd"))
     # Two of the eight layers are named ``Plain``; this is the left-hand one.
@@ -276,17 +269,15 @@ def test_a_fractional_stroke_width_matches_photoshops_own_band() -> None:
     ``stroke.psd``'s ``Rectangle 1`` has no fill, so the channels Photoshop
     stored for it are its own rasterization of the stroke band and nothing
     else -- an oracle for the two things a band has, its width and its side.
-    Across the left edge it reads 1.0 then 0.4706, which is the 1.47 px the
-    descriptor asks for, laid inside the path; this draws 1.0 then 0.4667,
-    within a quantization step of it.
+    Across the left edge it covers one whole pixel and part of the next --
+    the 1.47 px the descriptor asks for, laid inside the path -- which the
+    assertions below match to a quantization step.
 
     Only across that edge. The stroke is dashed (``strokeStyleLineDashSet`` of
     4 on, 2 off), which the pen does not draw, so Photoshop's horizontal runs
-    are broken where this one is solid -- 188 of the layer's pixels differ by
-    more than a quantization step, and the band sums to 317.4 against
-    Photoshop's 212.6, a ratio of 0.670 against the 4/6 the dashes cut it to.
-    Row 20 falls inside a dash, and the left edge is where the comparison is
-    about the band rather than about the gaps in it.
+    are broken where this one is solid. Row 20 falls inside a dash, and the
+    left edge is where the comparison is about the band rather than about the
+    gaps in it.
     """
     psd = PSDImage.open(full_name("stroke.psd"))
     layer = [x for x in psd.descendants() if x.name == "Rectangle 1"][0]
@@ -310,11 +301,10 @@ def test_a_fractional_stroke_width_matches_photoshops_own_band() -> None:
 
 
 def test_a_centred_stroke_is_still_the_plain_pen() -> None:
-    """The position #854 did not change, pinned so that it cannot drift.
+    """A centred stroke is the plain pen, pinned so that it cannot drift.
 
-    Every stroke used to be drawn as a pen centred on the path, and a centred
-    one still is -- the same call, at the width the descriptor states, with no
-    clip over it.
+    No clip over it, and at the width the descriptor states rather than twice
+    that -- the doubling is what puts a band to one side (#854).
     """
     psd = PSDImage.open(full_name("descriptors/stroke-color-descriptors-rgb.psd"))
     layer = [x for x in psd.descendants() if x.name == "Rectangle 1"][0]
@@ -331,8 +321,8 @@ def test_a_stroke_whose_alignment_is_unreadable_is_drawn_centred() -> None:
     descriptor that carries no alignment at all, and answers a ``repr`` for an
     enum it does not know. Neither is any way for a renderer to end -- the
     position is one field of a stroke with the rest of itself to draw -- so
-    both are drawn centred, which is where every stroke was drawn before #854
-    and the only one of the three positions not biased in or out.
+    both are drawn centred, the only one of the three positions not biased in
+    or out.
 
     Photoshop writes one of the three, so this is forged onto a fixture that
     states ``inner``.
@@ -391,13 +381,12 @@ def test_a_centred_stroke_survives_negative_document_coordinates() -> None:
     """#807's guarantee for a stroke that really does leave the canvas.
 
     ``path-operations/combine.psd``'s combined path runs the full 0..64 of its
-    canvas, so a stroke *centred* on it hangs off all four edges -- the case
-    this used to be measured on, before its own stroke turned out to be inner
-    and to stop at the path (:py:func:`test_an_inner_stroke_stops_where_the_path_does`).
-    Forging the alignment back keeps the negative-coordinate half of #807
-    pinned: the pen translates the path by minus the viewport origin, which is
-    machinery of its own, and a band that never leaves the canvas cannot
-    exercise it.
+    canvas, so a stroke *centred* on it hangs off all four edges. Its own
+    stroke is inner and stops at the path
+    (:py:func:`test_an_inner_stroke_stops_where_the_path_does`), so the
+    alignment is forged: the pen translates the path by minus the viewport
+    origin, which is machinery of its own, and a band that never leaves the
+    canvas cannot exercise it.
     """
     psd = PSDImage.open(full_name("path-operations/combine.psd"))
     layer = psd[0]
@@ -427,11 +416,9 @@ def test_an_inner_stroke_wider_than_the_shape_cancels_itself() -> None:
     100x100 path an inner stroke of width ``w`` leaves a square hole of side
     ``2w - 100`` once ``w`` passes 50, where Photoshop paints solid.
 
-    Drawn centred, the same cancellation started at ``w = 100`` and left a
-    hole of side ``100 - w``, so the two cross at ``w = 66.7``: this is the
-    better of them below that and the worse above. Both are wrong, and the
-    widest stroke in the corpus is 10 px on a far larger shape. Pinned so the
-    limit is a decision rather than a surprise.
+    A centred pen leaves a larger hole over this range, which the loop below
+    pins. Both are wrong. Pinned so the limit is a decision rather than a
+    surprise (#890).
     """
     psd = PSDImage.open(full_name("effects/stroke-composite.psd"))
     layer = [x for x in psd.descendants() if x.name == "Plain"][0]
@@ -452,7 +439,7 @@ def test_an_inner_stroke_wider_than_the_shape_cancels_itself() -> None:
     assert hole(50.0) == 0
     assert hole(60.0) == 20 * 20
     assert hole(90.0) == 80 * 80
-    # And the centred pen it replaces was worse over all of that range.
+    # A centred pen of the same width leaves more uncovered.
     for width in (50.0, 60.0):
         desc[b"strokeStyleLineWidth"] = UnitFloat(value=width, unit=unit)
         centred = vector._draw_path(
@@ -465,12 +452,10 @@ def test_an_inner_stroke_stops_where_the_path_does() -> None:
     """An inner stroke has nothing outside the path, canvas edge or not.
 
     ``path-operations/combine.psd``'s three ellipses combine into a path that
-    runs the full 0..64 of its canvas, so the 1 px stroke *centred* on it hung
-    off all four edges, and used to be what
-    :py:func:`test_draw_stroke_reaches_outside_the_canvas` measured. The
-    stroke is inner-aligned (#854), so now it stops where the path stops and
-    the margin is empty -- while the rasterizer still honours the wider box,
-    which is what the overlap below says.
+    runs the full 0..64 of its canvas, and its stroke is inner-aligned (#854),
+    so the band stops where the path stops and the margin is empty -- while
+    the rasterizer still honours the wider box, which is what the overlap
+    below says.
     """
     psd = PSDImage.open(full_name("path-operations/combine.psd"))
     layer = psd[0]

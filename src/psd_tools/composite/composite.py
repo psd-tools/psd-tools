@@ -1864,10 +1864,9 @@ class Compositor(object):
             )
             compositor._apply_source(color_s, shape_s, alpha_s, layer.stroke.blend_mode)
             # Seeded with the layer's own color and alpha, so the result is
-            # wanted as it stands on that seed. ``finish()`` divides the seed
-            # back out, which turns a pixel the stroke covers in part into
-            # full-strength stroke color instead of that much of it over the
-            # fill (#883).
+            # wanted as it stands on that seed: the stroke is painted onto the
+            # fill it outlines, and a pixel it covers in part is that much of
+            # the stroke over that fill (#883).
             color = compositor.result_over_backdrop()
 
         return color, shape, alpha

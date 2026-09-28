@@ -163,17 +163,12 @@ def test_composite_quality_xfail(filename: str) -> None:
 
 
 # ``shape-layer.psd`` is the only stroked layer here, and it is the only one
-# that needs a bound of its own. Its 1 px stroke asks for ``inner`` alignment,
-# which now lands inside the path (#854) and is composited onto the fill
-# rather than in place of it (#883). This bound moves 0.032 -> 0.015 on a
-# measurement of 0.01424, down from 0.01621, but the document figure understates
-# it: the error here is mostly colour on pixels the render leaves transparent,
-# which no viewer sees and this metric scores anyway. On the 609 pixels both
-# renders leave visible the RGB error goes 0.01497 -> 0.00618, while the alpha
-# channel is unchanged at 0.00591 -- a stroke moves colour, not coverage. The
-# bound keeps room for the aggdraw pen that draws the stroke, which is not
-# bit-stable between versions, and stays well under the 0.06874 this render
-# scores with the stroke switched off, so it still has an opinion.
+# that needs a bound of its own: its 1 px inner stroke is drawn by an aggdraw
+# pen, which is not bit-stable between versions, so the bound sits above the
+# measurement rather than at it. It stays well under what this render scores
+# with the stroke switched off, so it still has an opinion. Most of what it
+# does score is colour on pixels the render leaves transparent, which no
+# viewer sees and this metric counts anyway.
 @pytest.mark.parametrize(
     ("filename", "threshold"),
     [
@@ -1429,27 +1424,15 @@ def test_a_partly_covered_stroke_pixel_blends_with_the_fill() -> None:
     """A pixel the stroke covers in part is that much of it, not all of it (#883).
 
     ``descriptors/stroke-color-descriptors-rgb.psd``'s ``Rectangle 1`` carries
-    a 1 px **centred** stroke of PANTONE Black 3 C, whose red channel is
-    32.9/255 = 0.129, over a black fill. The pen splits the band across two
-    columns at 0.498 each, and x = 6 is the inner one, where the fill is
-    already solid: Photoshop paints 0.498 of the stroke there and reads 0.0667,
-    against the 0.498 x 0.129 = 0.0643 that stroke over a black fill comes to.
+    a 1 px **centred** stroke of PANTONE Black 3 C over a black fill. The pen
+    splits the band evenly across two columns, and x = 6 is the inner one,
+    where the fill is already solid: the color there is that share of the
+    stroke over the fill, which is what Photoshop paints.
 
-    ``_get_object()`` used to read the stroke's sub-compositor out with
-    ``finish()``, which divides the seed backdrop out -- correct for a result
-    handed on as a source in its own right, wrong here, where the seed is the
-    fill the stroke is being painted onto. That turned this pixel into the full
-    0.129, the stroke's own color at a pixel it half covers.
-
-    Partial coverage is the visible half of that defect and not the whole of
-    it: dividing the seed out discarded ``strokeStyleOpacity`` as well, so a
-    stroke at 50% or at 10% painted exactly as one at 100% did, on pixels it
-    covered completely.
-
-    A centred stroke, so this measures the exit and not the alignment #854
-    fixes. x = 5 is the band's outer column and stays wrong for a third reason:
-    a vector stroke has no coverage of its own, so the half of a centred band
-    that falls outside the layer cannot show at all.
+    A centred stroke, so this measures the compositor's exit and not the
+    alignment. x = 5 is the band's outer column and is wrong for a separate
+    reason: a vector stroke has no coverage of its own, so the half of a
+    centred band that falls outside the layer cannot show at all.
     """
     psd = PSDImage.open(full_name("descriptors/stroke-color-descriptors-rgb.psd"))
     layer = [x for x in psd.descendants() if x.name == "Rectangle 1"][0]
@@ -1463,30 +1446,28 @@ def test_a_partly_covered_stroke_pixel_blends_with_the_fill() -> None:
     color, _, _ = composite(psd, force=True)
     pen = vector.draw_stroke(layer)[:, :, 0]
 
+    stroke_color = 0.129  # PANTONE Black 3 C, red channel, 32.9/255
     row = 11
-    assert pen[row, 5] == pytest.approx(0.498, abs=0.01)
-    assert pen[row, 6] == pytest.approx(0.498, abs=0.01)
+    share = pen[row, 6]
+    assert pen[row, 5] == pytest.approx(share, abs=0.01), "split evenly"
+    assert share == pytest.approx(0.498, abs=0.01)
     assert reference[row, 6, 0] == pytest.approx(0.0667, abs=0.001), "Photoshop"
-    assert color[row, 6, 0] == pytest.approx(0.0643, abs=0.002)
+    assert color[row, 6, 0] == pytest.approx(share * stroke_color, abs=0.002)
     assert abs(color[row, 6, 0] - reference[row, 6, 0]) < 1 / 255
-    # Far enough from the stroke's own color that the isolated exit cannot pass.
-    assert abs(color[row, 6, 0] - 0.129) > 0.05
+    # Far enough from the stroke's own color that full strength cannot pass.
+    assert abs(color[row, 6, 0] - stroke_color) > 0.05
 
 
 def test_a_partly_opaque_stroke_fades_into_the_fill() -> None:
     """``strokeStyleOpacity`` reaches a pixel the stroke covers whole (#883).
 
-    The other half of the same exit defect, and the half partial coverage
-    above cannot see. ``layers/shape-layer.psd``'s ``Polygon 1`` is a cyan
-    fill under a magenta 1 px stroke, so where the pen covers a pixel whole
-    the color is that much magenta over the rest of the cyan: red reads the
-    opacity straight back, and green reads what is left of it.
+    The half of the exit that partial coverage above cannot see.
+    ``layers/shape-layer.psd``'s ``Polygon 1`` is a cyan fill under a magenta
+    1 px stroke, so where the pen covers a pixel whole the color is that much
+    magenta over the rest of the cyan: red reads the opacity straight back,
+    and green reads what is left of it.
 
-    ``result_isolated()`` divided the seed backdrop out, and dividing by the
-    stroke's own alpha is what undoes the ``shape * opacity`` that
-    :py:meth:`Compositor._get_stroke` puts there -- 50% and 10% both painted
-    the flat magenta that 100% does. No fixture ships a stroke below 100%, so
-    the descriptor is forged here.
+    No fixture ships a stroke below 100%, so the descriptor is forged here.
     """
 
     def render(opacity: float | None) -> np.ndarray:

@@ -36,8 +36,7 @@ def draw_vector_mask(
 
 # The two positions that put the stroke to one side of the path. A stroke that
 # names neither -- the third position, something no version of Photoshop wrote,
-# or nothing at all -- is drawn centred, which is where every stroke was drawn
-# before #854 and the only position that is not biased in or out.
+# or nothing at all -- is drawn centred, the only position not biased in or out.
 _ALIGN_INSIDE = b"strokeStyleAlignInside"
 _ALIGN_OUTSIDE = b"strokeStyleAlignOutside"
 _SIDED = (_ALIGN_INSIDE, _ALIGN_OUTSIDE)
@@ -82,11 +81,8 @@ def draw_stroke(
     rule, so where the shape is thinner than the doubled width the band
     overlaps itself and cancels: an inner stroke of width ``w`` on a shape
     ``t`` thick loses a strip ``2w - t`` wide down the middle, and covers
-    nothing at all once ``w`` reaches ``t``. Photoshop paints solid there.
-    Drawn centred the same cancellation began at ``w = t`` and left ``t - w``
-    uncovered, so this is the better of the two up to ``w = 2t/3`` and the
-    worse of them above it -- a stroke two thirds as wide as the shape it
-    outlines, which no fixture in the corpus comes near.
+    nothing at all once ``w`` reaches ``t``. Photoshop paints solid there
+    (#890).
 
     Requires aggdraw, which draws the pen. Only a stroke does; a fill is
     rasterized by :py:mod:`psd_tools.composite.scanline`.
@@ -130,13 +126,11 @@ def draw_stroke(
     # and as outside it too -- the band runs up to the boundary from either
     # side, and that pixel is where the boundary is.
     #
-    # Sided above the fill rasterizer's own rounding rather than above zero:
-    # it reports coverage of the order of 1e-15 on pixels whole pixels away
-    # from the path, and an exact comparison reads one of those as a pixel the
-    # path clips and hands it the full width of the pen. The tolerance sits in
-    # the gap that leaves: six orders of magnitude above the largest rounding
-    # measured over the corpus, and three below the smallest coverage in it
-    # that a path really does state, 9.5e-07.
+    # Sided above the fill rasterizer's own rounding rather than above zero,
+    # since it reports a trace of coverage on pixels whole pixels away from
+    # the path and an exact comparison would hand one of those the full width
+    # of the pen. ``_ROUNDING`` sits in the gap between that trace and the
+    # smallest coverage a path really does state.
     fill = draw_vector_mask(layer, viewport)
     inside = fill > _ROUNDING if alignment == _ALIGN_INSIDE else fill < 1.0 - _ROUNDING
     return outline * inside
