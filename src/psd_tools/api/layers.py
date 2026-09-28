@@ -264,9 +264,9 @@ class Layer(LayerProtocol):
         self._invalidate_bbox()
         # Down: ``Group.extract_bbox()`` filters children through
         # ``is_visible()``, which walks *up* the parent chain, so this flag is
-        # an input to the box of every container *beneath* this layer as well.
-        # Those are the boxes nothing used to drop (#819). ``Group`` rather
-        # than ``GroupMixin``: the latter is a ``runtime_checkable`` protocol
+        # an input to the box of every container *beneath* this layer as well
+        # (#819). ``Group`` rather than ``GroupMixin``: the latter is a
+        # ``runtime_checkable`` protocol
         # whose ``isinstance`` runs ``hasattr(x, "bbox")`` on Python <= 3.11,
         # recomputing this subtree's boxes a line before the walk drops them.
         # The answer is the same either way; the concrete check skips the work.
@@ -505,10 +505,9 @@ class Layer(LayerProtocol):
         mask data; otherwise the image is converted to grayscale (``L`` mode).
 
         A mask is stored at the **document's** depth, as every other channel
-        is: 24 of the corpus's masks are 16-bit and two are 32-bit, and
-        :py:func:`~psd_tools.api.numpy_io.get_layer_data` reads a mask channel
-        at ``layer._psd.depth`` like any other. Writing one at a fixed 8 bits
-        gave a 16-bit document half the rows it asked for (#867).
+        is, and :py:func:`~psd_tools.api.numpy_io.get_layer_data` reads a mask
+        channel at ``layer._psd.depth`` like any other. Writing one at a fixed
+        8 bits would give a 16-bit document half the rows it asked for (#867).
         """
         if "A" in image.getbands():
             mask_pixels = image.getchannel("A")
@@ -1400,10 +1399,10 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         :raises ValueError: If attempting to add a group to itself.
         """
         # Materialized before anything walks it. Everything below iterates
-        # ``layers`` again, so a one-shot iterable reached the detach loop
-        # already empty and nothing was added, and a live container was
-        # mutated *while* being iterated: ``dest.extend(src)`` dropped every
-        # other layer of ``src``, and ``g.extend(g)`` never terminated (#820).
+        # ``layers`` again, so a one-shot iterable would reach the detach loop
+        # already empty, and a live container would be mutated *while* being
+        # iterated -- ``dest.extend(src)`` dropping every other layer of
+        # ``src``, and ``g.extend(g)`` never terminating (#820).
         pending = list(layers)
         # Keep each layer's *last* mention, which is where a loop of
         # ``append()`` calls leaves it, since a layer already in this group is
@@ -1446,8 +1445,8 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         self._psd._update_record()
         # The donor document keeps its own flat record list, and ``save()``
         # writes that list without rebuilding it, so a cross-document move that
-        # only rebuilt the receiving document wrote the layer into both files
-        # (#841). Rebuilding also marks the donor updated, which is what tells
+        # only rebuilt the receiving document would write the layer into both
+        # files (#841). Rebuilding also marks the donor updated, which tells
         # its ``save()`` to regenerate a preview that no longer has the layer.
         for donor_psd in donor_psds.values():
             donor_psd._update_record()

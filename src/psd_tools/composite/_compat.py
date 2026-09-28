@@ -38,8 +38,8 @@ def require_aggdraw(func: F) -> F:
     """
     Decorator to check if aggdraw is available before calling the function.
 
-    Required for drawing a vector stroke. Filling a path no longer needs
-    it: the coverage is computed exactly by
+    Required for drawing a vector stroke. Filling a path does not need it:
+    the coverage is computed exactly by
     :py:mod:`psd_tools.composite.scanline` (#844).
 
     Raises:

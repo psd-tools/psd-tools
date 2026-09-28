@@ -116,9 +116,8 @@ def _row_size(width: int, depth: int) -> int:
     """Bytes one row of *width* pixels occupies at *depth*.
 
     Rounded **up**: a row is padded to a byte boundary, so 20 pixels at depth 1
-    occupy three bytes, the last of them four pixels and four bits of padding.
-    The floor this replaces dropped that byte, and each caller floored it
-    separately (#768). From depth 8 up the division is exact.
+    occupy three bytes, the last of them four pixels and four bits of padding
+    (#768). From depth 8 up the division is exact.
     """
     return (width * depth + 7) // 8
 
@@ -298,11 +297,10 @@ def decompress(
             result = None
 
     if result is None:
-        # At every depth, now that `length` counts packed rows: a channel of
-        # `length` black bytes exists at depth 1 as much as at depth 8, so the
-        # fill no longer has to stop where the byte-per-pixel arithmetic did.
-        # A 1-bit channel that failed to decode used to fall through to a
-        # RuntimeError instead of degrading (#768).
+        # At every depth: `length` counts packed rows, so a channel of
+        # `length` black bytes exists at depth 1 as much as at depth 8 and the
+        # fill does not have to stop where byte-per-pixel arithmetic would
+        # (#768).
         if (
             MAX_DEGRADED_BYTES is not None
             and length > MAX_DEGRADED_BYTES

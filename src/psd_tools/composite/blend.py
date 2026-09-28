@@ -168,8 +168,8 @@ def hard_light(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
 
 def soft_light(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     # D is a function of the backdrop alone. Keying its piecewise on Cs instead
-    # left every Cb <= 0.25 pixel on the sqrt arm, up to 12.6 steps of 1/255
-    # away from Photoshop (#189).
+    # leaves every Cb <= 0.25 pixel on the sqrt arm, visibly away from
+    # Photoshop (#189).
     index = Cb <= 0.25
     index_not = ~index
     D = np.zeros_like(Cb, dtype=np.float32)
@@ -268,13 +268,12 @@ def hard_mix(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     """
     # Where Cb + Cs == 1 exactly, Photoshop answers 1 only where Cb > 0.5. On
     # that line Cb > 0.5, Cb > Cs and Cs < 0.5 are one and the same predicate,
-    # so which of the three Photoshop actually tests is not observable; all
-    # reproduce the 145 measured boundary samples. The tie is a real case and
-    # not float noise -- complementary values sum to exactly 1.0 in float32 at
-    # 8- and 16-bit alike -- though only a backdrop that reaches here unrounded
-    # can land on it. The 0.999999 factor this replaces did worse than lose the
-    # tie: it read as ``total >= 1 + 1e-6 * Cs``, so it mis-answered a whole
-    # band above the threshold, and got 9 of the 145 wrong (#189).
+    # so which of the three Photoshop actually tests is not observable. The tie
+    # is a real case and not float noise -- complementary values sum to exactly
+    # 1.0 in float32 at 8- and 16-bit alike -- though only a backdrop that
+    # reaches here unrounded can land on it. An epsilon in place of the exact
+    # test does worse than lose the tie: ``total >= 1 + 1e-6 * Cs`` mis-answers
+    # a whole band above the threshold (#189).
     total = Cb + Cs
     B = np.zeros_like(Cb, dtype=np.float32)
     B[(total > 1) | ((total == 1) & (Cb > 0.5))] = 1
@@ -322,8 +321,7 @@ def _guarded(func, apply):
     ) -> np.ndarray:
         if color_mode == ColorMode.MULTICHANNEL:
             # Ahead of the width test, and with a message of its own: for three
-            # or four plates the width is the wrong diagnosis, and those are
-            # exactly the two counts that used to blend rather than fall back.
+            # or four plates the width is the wrong diagnosis.
             logger.debug(
                 "%s blend is not defined on a multichannel document; "
                 "falling back to normal",
@@ -354,9 +352,9 @@ def _guarded(func, apply):
 # canvas already holds (#747: "the transform yields ink; the canvas counts what
 # is left"). There is no conversion to RGB and back: Photoshop blends those
 # three channels directly and carries K across from one operand -- K of Cb for
-# hue, saturation and color, K of Cs for luminosity. Scripted against Photoshop
-# 2026 over six CMYK colour pairs, that reproduces all four modes to within
-# 1.2/255; converting through RGB first, by any formula tried, does not (#781).
+# hue, saturation and color, K of Cs for luminosity. That reproduces all four
+# modes against Photoshop's own numbers; converting through RGB first, by any
+# formula tried, does not (#781).
 def non_separable(k: Literal["b", "s"]):
     """Wrap a component blend -- Hue, Saturation, Color or Luminosity.
 

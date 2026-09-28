@@ -29,9 +29,9 @@ crossing itself inside it, or two contours overlapping within it -- the
 answer is approximate, because a prefix sum carries the area-weighted mean
 winding of the pixel and not the distribution it came from. Aligned to the
 pixel grid the same overlap is exact; it is the part of it that falls inside
-one pixel that is not. Over every multi-subpath component in the test corpus
-the error stays under 0.002, and the union aggdraw was asked for instead is
-off by a full 1.0 on the same shapes. Measured in #858.
+one pixel that is not. The error is confined to those pixels, where asking
+aggdraw for a union instead is wrong over whole regions of the same shapes
+(#858).
 """
 
 import numpy as np
@@ -217,8 +217,7 @@ def flatten_cubics(
     whose handles reach thousands of pixels away is cut into a thousand steps
     and no more. The second difference is measured as a length; taken per
     axis instead it understates the curvature of a diagonal bend by as much
-    as a factor of root two, and the chord strays past the bound with it --
-    1.26x over random cubics, and 1.40x for one written to provoke it.
+    as a factor of root two, and the chord strays past the bound with it.
 
     A curve whose control points lie on its own chord is already a straight
     line and takes one step, however long it is. PSD stores a straight edge as

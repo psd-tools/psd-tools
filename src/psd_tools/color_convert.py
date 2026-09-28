@@ -39,11 +39,10 @@ import math
 #: and this is what that becomes once the compositor encodes it.
 #:
 #: Lab's two chroma axes are signed and are stored offset by 128 -- byte 128 is
-#: ``a = 0``, byte 0 is ``a = -128`` -- so a normalized neutral is ``128 / 255``
-#: rather than the ``0.5`` this used to be spelled as. The half-step between
-#: them is not cosmetic: :py:func:`psd_tools.composite.composite_pil` truncates
-#: rather than rounds on the way out, so ``0.5`` emits byte 127 where Photoshop
-#: writes 128 (#743).
+#: ``a = 0``, byte 0 is ``a = -128`` -- so a normalized neutral is ``128 / 255``.
+#: The half-step from ``0.5`` is not cosmetic:
+#: :py:func:`psd_tools.composite.composite_pil` truncates rather than rounds on
+#: the way out, so ``0.5`` emits byte 127 where Photoshop writes 128 (#743).
 LAB_NEUTRAL_CHROMA = 128.0 / 255.0
 
 
@@ -129,17 +128,14 @@ def hsb_to_rgb(h: float, s: float, v: float) -> tuple[float, float, float]:
 
     Hue is an angle, so it is cyclic: any value outside ``[0.0, 1.0)`` wraps
     into it, and ``1.0``, ``2.0`` and ``-1.0`` all mean the same hue as
-    ``0.0``. This used to be a bare ``h == 1.0`` special case with a silent
-    achromatic fallback for everything else out of range, which turned a fully
-    saturated hue into grey rather than into the color one turn away (#754).
+    ``0.0`` (#754).
 
     Saturation and brightness are not angles, so they clamp rather than wrap.
 
     Total: any float, including infinities and NaN, returns a triple inside
     ``[0, 1]`` rather than raising or propagating. Descriptor values are
-    unvalidated file data, and the ``Returns:`` line below used to hold only for
-    in-range ``s``/``v`` -- ``s = 1.2, v = 1.5`` gave ``(1.5, -0.3, -0.3)``,
-    which the uint8 cast in ``composite_pil()`` *wraps* into an unrelated color
+    unvalidated file data, and a component escaping ``[0, 1]`` would be
+    *wrapped* into an unrelated color by the uint8 cast in ``composite_pil()``
     (#757). Same policy as :py:func:`lab_to_rgb`.
 
     Args:
@@ -277,9 +273,8 @@ def _clamp(value: float, low: float, high: float) -> float:
 def lab_to_rgb(lightness: float, a: float, b: float) -> tuple[float, float, float]:
     """Convert CIE L*a*b* to normalized sRGB.
 
-    The white point is D50, which is what Photoshop's Lab is; a D65 conversion
-    is wrong here by a mean of 11.6/255 and a maximum of 92.7/255 against
-    Photoshop's own numbers, against 0.35/255 and 4.5/255 for this one.
+    The white point is D50, which is what Photoshop's Lab is. A D65 pairing
+    is a visible mismatch against Photoshop's own numbers, not a rounding one.
 
     Out-of-gamut colors are clipped per channel. Every caller writes to a canvas
     that cannot represent them, so the alternative is not a better color but an
@@ -333,9 +328,8 @@ def lab_to_rgb(lightness: float, a: float, b: float) -> tuple[float, float, floa
 def rgb_to_lab(r: float, g: float, b: float) -> tuple[float, float, float]:
     """Convert normalized sRGB to CIE L*a*b*.
 
-    The exact inverse of :func:`lab_to_rgb` for any in-gamut color: round
-    tripping every sRGB value on a 6x6x6 grid returns it to within
-    0.0003/255. A neutral grey returns ``a = b = 0.0`` exactly, which is what
+    The exact inverse of :func:`lab_to_rgb` for any in-gamut color. A neutral
+    grey returns ``a = b = 0.0`` exactly, which is what
     :py:data:`LAB_NEUTRAL_CHROMA` encodes.
 
     Args:

@@ -146,23 +146,22 @@ def encode_opaque_channel(
 # The "I"/"F" image and the second one `.point()` builds from it, four bytes per
 # pixel each, alive together with the "L" they narrow to. Flat rather than
 # per-channel: the loop converts one channel at a time, so only one such pair
-# exists at any moment however many channels the document stores. Measured at
-# 9.0 bytes per pixel in isolation, of which the retained "L" is counted with
-# the other converted channels below.
+# exists at any moment however many channels the document stores. The
+# retained "L" is counted with the other converted channels below rather than
+# here.
 _CONVERSION_TRANSIENT: int = 8
 
 # `_remove_white_background()`, in bytes per pixel: the four bands `split()`
 # hands back, the `ImageMath` expression promoting each of three to "I" at four
 # bytes a pixel, the three "L" results, and the `merge()` that reassembles them.
-# Measured at 23.8 in isolation; rounded well up because PIL's buffers are
-# C-side and the instrument that reads them is coarser than the one numpy gets.
+# Rounded well up because PIL's buffers are C-side and the instrument that
+# reads them is coarser than the one numpy gets.
 _WHITE_BACKGROUND_TRANSIENT: int = 35
 
 # PIL rounds each image up to its arena's block granularity, so the process grows
 # by a little more than the bytes the images ask for. Every other term here
 # counts requested bytes, as the numpy model does; this one covers the
-# difference, measured at no more than 0.23 bytes per pixel over the whole
-# colour-mode/depth/compression matrix.
+# difference.
 _ALLOCATOR_SLACK: int = 1
 
 # Bytes live at the codec's own peak, as a multiple of the decompressed size.
@@ -182,28 +181,22 @@ def _image_data_peak_bytes(
     """Bytes :func:`convert_image_data_to_pil` allocates at its high-water mark.
 
     The counterpart to :func:`~psd_tools.api.numpy_io._image_data_peak_bytes`,
-    and it corrects this path's estimate in *both* directions (#767).
-
-    The old estimate was ``width * height * channels * 4``, four bytes per pixel
-    per stored channel -- a float32 plane, which is what the numpy path returns
-    and what this one never holds. ``_create_image()`` yields "L", "P" or "1",
-    and PIL stores a byte per pixel in all three. It was wrong in both
-    directions and by different amounts: a multi-band 8-bit document was turned
-    away below its budget, while the 16- and 32-bit branches, which build an
-    "I"/"F" image and then a second through ``.point()``, ran straight past it,
-    as did anything whose alpha channel sends it through
-    ``_remove_white_background()``. Correcting it moves both ways -- a little
-    looser on 8-bit RGB and LAB, several times tighter at depth 16 and 32 and on
-    RGBA at any depth.
+    and deliberately not the same model (#767). ``width * height * channels *
+    4`` is a float32 plane, which is what the numpy path returns and what this
+    one never holds: ``_create_image()`` yields "L", "P" or "1", and PIL stores
+    a byte per pixel in all three. The 16- and 32-bit branches build an "I"/"F"
+    image and then a second through ``.point()``, and anything whose alpha
+    channel sends it through ``_remove_white_background()`` allocates more
+    again, so the error runs in both directions and by different amounts.
 
     Phase-maxed like the numpy model, over the same three-stage shape:
     decompress, convert each channel, assemble. Every term is gated on the
     branch that allocates it -- indexed and multichannel documents take
     ``channels[0]`` and never merge, ``post_process()`` is a no-op without CMYK,
     a profile or an alpha channel, and the white background is removed only from
-    an RGBA result. Ungated, those terms would make this *tighter* than the
-    estimate it replaces on exactly the 8-bit documents it is meant to stop
-    over-counting.
+    an RGBA result. Ungated, those terms would make this *tighter* than a flat
+    four-bytes-per-channel estimate on exactly the 8-bit documents it is meant
+    to stop over-counting.
 
     PIL's buffers are C-side and invisible to ``tracemalloc``, so unlike the
     numpy model this is an analytic count of the images the path holds, with each
