@@ -1,7 +1,7 @@
 Changelog
 =========
 
-1.21.0 (unreleased)
+1.21.0 (2026-09-28)
 -------------------
 
 - [security] ``PSDImage.thumbnail()`` now rejects a raw or JPEG thumbnail
@@ -13,7 +13,7 @@ Changelog
   filled shape's boundary now runs through one exact ``scipy`` grey erosion
   instead of a per-offset loop; a thin outline on a much bigger canvas keeps
   the loop but drops each pixel out as soon as its answer is settled. Pixel
-  output is unchanged (#895)
+  output is unchanged (#895, #896)
 - [fix] Stroke and overlay effects are composited into the layer they belong
   to instead of onto the finished composite, so a layer whose coverage is
   partial no longer renders its effect with the backdrop mixed through it.
@@ -29,6 +29,7 @@ Changelog
   replacing it. **Rendering change** for every stroked layer:
   ``strokeStyleOpacity`` was discarded entirely, and a pixel the stroke
   covered in part came out as its colour at full strength (#883, #887)
+- [chore] Bump ruff from 0.16.7 to 0.16.8 (#888)
 
 1.20.0 (2026-09-25)
 -------------------
