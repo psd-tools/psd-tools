@@ -1670,9 +1670,10 @@ class Compositor(object):
         Correct when the caller is continuing to composite onto the very
         backdrop this compositor was seeded with, so that removing it would
         drop a contribution the caller still wants: the pass-through path,
-        where the sub-compositor was seeded with the parent's own canvas, and
-        the clip-layer path, where the sub-compositor was seeded with the base
-        layer's color.
+        where the sub-compositor was seeded with the parent's own canvas, the
+        clip-layer path, where it was seeded with the base layer's color, and
+        the vector-stroke path, where it was seeded with the color the stroke
+        outlines.
         """
         return self._color
 
@@ -1862,7 +1863,11 @@ class Compositor(object):
                 color_mode=self._color_mode,
             )
             compositor._apply_source(color_s, shape_s, alpha_s, layer.stroke.blend_mode)
-            color, _, _ = compositor.finish()
+            # Seeded with the layer's own color and alpha, so the result is
+            # wanted as it stands on that seed: the stroke is painted onto the
+            # fill it outlines, and a pixel it covers in part is that much of
+            # the stroke over that fill (#883).
+            color = compositor.result_over_backdrop()
 
         return color, shape, alpha
 

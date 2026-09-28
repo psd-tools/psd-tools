@@ -21,6 +21,7 @@ from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite
 from psd_tools.composite import paint
 from psd_tools.composite import utils
+from psd_tools.composite import vector
 from psd_tools.composite.composite import (
     Compositor,
     _content_bbox,
@@ -162,25 +163,19 @@ def test_composite_quality_xfail(filename: str) -> None:
 
 
 # ``shape-layer.psd`` is the only stroked layer here, and it is the only one
-# that needs a bound of its own. Its stroke asks for ``inner`` alignment,
-# which the compositor does not implement -- every stroke is drawn centred on
-# the path, so half of this one lies outside the shape. While a fill carried
-# aggdraw's quarter pixel of dilation (#844) the fill reached far enough to
-# cover for that; an exact fill does not, and the error against Photoshop's
-# own flat render goes 0.0114 -> 0.0260. What moved is coverage, not colour:
-# on the pixels both renders leave visible the RGB error is 0.014846 either
-# way, bit for bit, while the alpha channel goes 0.00520 -> 0.00591. The
-# bound sits above the 0.0260 measured with room for the aggdraw pen that
-# draws the stroke, which is not bit-stable between versions -- and well
-# under the 0.0800 this render scores with the stroke switched off, so it
-# still has an opinion. Stroke alignment landing (#854) should fail here.
+# that needs a bound of its own: its 1 px inner stroke is drawn by an aggdraw
+# pen, which is not bit-stable between versions, so the bound sits above the
+# measurement rather than at it. It stays well under what this render scores
+# with the stroke switched off, so it still has an opinion. Most of what it
+# does score is colour on pixels the render leaves transparent, which no
+# viewer sees and this metric counts anyway.
 @pytest.mark.parametrize(
     ("filename", "threshold"),
     [
         ("smartobject-layer.psd", 0.017),
         ("type-layer.psd", 0.017),
         ("gradient-fill.psd", 0.017),
-        ("shape-layer.psd", 0.032),
+        ("shape-layer.psd", 0.015),
         ("pixel-layer.psd", 0.017),
         ("solid-color-fill.psd", 0.017),
         ("pattern-fill.psd", 0.017),
@@ -1423,6 +1418,79 @@ def test_the_cull_group_exemption_matches_the_structural_check(fixture: str) -> 
     assert layers, "the fixture has something to compare"
     for layer in layers:
         assert layer.is_group() == isinstance(layer, GroupMixin), layer.name
+
+
+def test_a_partly_covered_stroke_pixel_blends_with_the_fill() -> None:
+    """A pixel the stroke covers in part is that much of it, not all of it (#883).
+
+    ``descriptors/stroke-color-descriptors-rgb.psd``'s ``Rectangle 1`` carries
+    a 1 px **centred** stroke of PANTONE Black 3 C over a black fill. The pen
+    splits the band evenly across two columns, and x = 6 is the inner one,
+    where the fill is already solid: the color there is that share of the
+    stroke over the fill, which is what Photoshop paints.
+
+    A centred stroke, so this measures the compositor's exit and not the
+    alignment. x = 5 is the band's outer column and is wrong for a separate
+    reason: a vector stroke has no coverage of its own, so the half of a
+    centred band that falls outside the layer cannot show at all.
+    """
+    psd = PSDImage.open(full_name("descriptors/stroke-color-descriptors-rgb.psd"))
+    layer = [x for x in psd.descendants() if x.name == "Rectangle 1"][0]
+    assert layer.stroke is not None
+    assert layer.stroke.line_width == 1.0
+    assert layer.stroke.line_alignment == "center", "not what #854 is about"
+
+    reference = PSDImage.open(
+        full_name("descriptors/stroke-color-descriptors-rgb.psd")
+    ).numpy()
+    color, _, _ = composite(psd, force=True)
+    pen = vector.draw_stroke(layer)[:, :, 0]
+
+    stroke_color = 0.129  # PANTONE Black 3 C, red channel, 32.9/255
+    row = 11
+    share = pen[row, 6]
+    assert pen[row, 5] == pytest.approx(share, abs=0.01), "split evenly"
+    assert share == pytest.approx(0.498, abs=0.01)
+    assert reference[row, 6, 0] == pytest.approx(0.0667, abs=0.001), "Photoshop"
+    assert color[row, 6, 0] == pytest.approx(share * stroke_color, abs=0.002)
+    assert abs(color[row, 6, 0] - reference[row, 6, 0]) < 1 / 255
+    # Far enough from the stroke's own color that full strength cannot pass.
+    assert abs(color[row, 6, 0] - stroke_color) > 0.05
+
+
+def test_a_partly_opaque_stroke_fades_into_the_fill() -> None:
+    """``strokeStyleOpacity`` reaches a pixel the stroke covers whole (#883).
+
+    The half of the exit that partial coverage above cannot see.
+    ``layers/shape-layer.psd``'s ``Polygon 1`` is a cyan fill under a magenta
+    1 px stroke, so where the pen covers a pixel whole the color is that much
+    magenta over the rest of the cyan: red reads the opacity straight back,
+    and green reads what is left of it.
+
+    No fixture ships a stroke below 100%, so the descriptor is forged here.
+    """
+
+    def render(opacity: float | None) -> np.ndarray:
+        psd = PSDImage.open(full_name("layers/shape-layer.psd"))
+        layer = [x for x in psd.descendants() if x.name == "Polygon 1"][0]
+        assert layer.stroke is not None
+        stored = cast(UnitFloat, layer.stroke._data["strokeStyleOpacity"])
+        assert float(stored) == 100.0, "the fixture's own value, forged below"
+        if opacity is not None:
+            layer.stroke._data["strokeStyleOpacity"] = UnitFloat(
+                unit=stored.unit, value=opacity
+            )
+        color, _, _ = composite(psd, force=True)
+        return color
+
+    row, column = 27, 19
+    psd = PSDImage.open(full_name("layers/shape-layer.psd"))
+    layer = [x for x in psd.descendants() if x.name == "Polygon 1"][0]
+    assert vector.draw_stroke(layer)[row, column, 0] == 1.0, "covered whole"
+
+    assert render(None)[row, column] == pytest.approx([1.0, 0.0, 1.0], abs=1e-6)
+    assert render(50.0)[row, column] == pytest.approx([0.5, 0.5, 1.0], abs=1e-6)
+    assert render(10.0)[row, column] == pytest.approx([0.1, 0.9, 1.0], abs=1e-6)
 
 
 def test_a_vector_stroke_adds_no_coverage_outside_the_layer_box() -> None:
