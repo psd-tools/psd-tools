@@ -1105,10 +1105,9 @@ def test_a_large_rings_thin_band_takes_the_sparse_loop(
 ) -> None:
     """A disc many times wider than the stroke's reach loops instead.
 
-    A disc this size relative to its reach is the shape the first version of
-    this fix regressed on (#896 review): its own bounding box is close to
-    its full extent, while the band an erosion would need to cover it is a
-    sliver of that box, so erosion there costs more than it saves.
+    Its own bounding box is close to its full extent, while the band an
+    erosion would need to cover -- the pixels within reach of its edge -- is
+    a sliver of that box, so erosion there costs more than it saves.
     """
     calls = _erosion_calls(monkeypatch)
     _signed_distance(_antialiased_disc(400, 150.0), 6.0)
