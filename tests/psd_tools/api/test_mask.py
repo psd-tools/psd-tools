@@ -80,3 +80,18 @@ def test_mask_disabled_setter() -> None:
 
     mask.disabled = False
     assert not mask.disabled
+
+
+def test_mask_parameters_without_real_channel() -> None:
+    """A 36-byte mask block with no REAL_USER_LAYER_MASK channel (#693)."""
+    psdimage = PSDImage.open(full_name("mask-parameters-no-real-channel.psd"))
+    layer = next(layer for layer in psdimage if layer.name == "heart")
+    mask = layer.mask
+    assert mask is not None
+    assert mask.real_flags is None
+    parameters = mask.parameters
+    assert parameters is not None
+    assert parameters.user_mask_density is None
+    assert parameters.user_mask_feather == 3.0
+    assert parameters.vector_mask_density == 191
+    assert parameters.vector_mask_feather == 6.0
