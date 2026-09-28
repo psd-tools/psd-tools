@@ -6,6 +6,7 @@ from typing import Any, Callable, cast
 
 import numpy as np
 import pytest
+import scipy.ndimage  # type: ignore[import-untyped]
 from PIL import Image
 
 from psd_tools.api.mask import Mask
@@ -1055,6 +1056,79 @@ def test_a_mask_does_not_meet_itself_around_the_array_edge() -> None:
     distance = _signed_distance(opaque)
     # Measured from the step at column 1, not from a boundary wrapped around.
     assert distance[0].tolist() == [-0.5, 0.5, 1.5, 2.5, 3.5, 4.5]
+
+
+def _antialiased_disc(size: int, radius: float) -> np.ndarray:
+    """A disc centred on a ``size`` square, its edge antialiased over a pixel."""
+    y, x = np.mgrid[0:size, 0:size].astype(np.float32)
+    distance = np.hypot(y - size / 2, x - size / 2)
+    return np.clip(radius - distance + 0.5, 0, 1).astype(np.float32)
+
+
+def _erosion_calls(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    """A running count of ``grey_erosion`` calls, patched in for the test.
+
+    ``_nearest_boundary`` imports ``grey_erosion`` fresh from
+    ``scipy.ndimage`` on every call rather than holding a module-level
+    reference, so it has to be patched where it is looked up from, not on
+    :py:mod:`psd_tools.composite.effects`.
+    """
+    calls = [0]
+    real_grey_erosion = scipy.ndimage.grey_erosion
+
+    def spy(*args: Any, **kwargs: Any) -> np.ndarray:
+        calls[0] += 1
+        return cast(np.ndarray, real_grey_erosion(*args, **kwargs))
+
+    monkeypatch.setattr(scipy.ndimage, "grey_erosion", spy)
+    return calls
+
+
+def test_a_filled_disc_takes_the_dense_erosion_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A disc whose boundary band fills most of its own bounding box erodes.
+
+    This shape -- an antialiased disc, filling most of the canvas it sits
+    on -- is #895's own reproducer: the per-offset loop that regressed there
+    scales with the stroke's reach, and nothing in the rest of the corpus
+    forces the density gate one way or the other, so a future change could
+    silently route it back through that loop without failing anything here.
+    """
+    calls = _erosion_calls(monkeypatch)
+    _signed_distance(_antialiased_disc(120, 45.0), 20.0)
+    assert calls[0] > 0
+
+
+def test_a_large_rings_thin_band_takes_the_sparse_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A disc many times wider than the stroke's reach loops instead.
+
+    Its own bounding box is close to its full extent, while the band an
+    erosion would need to cover -- the pixels within reach of its edge -- is
+    a sliver of that box, so erosion there costs more than it saves.
+    """
+    calls = _erosion_calls(monkeypatch)
+    _signed_distance(_antialiased_disc(400, 150.0), 6.0)
+    assert calls[0] == 0
+
+
+def test_the_dense_and_sparse_paths_agree(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Forcing the same mask through both branches gives the same field.
+
+    :py:data:`effects._DENSE_EROSION_DENSITY` is the only thing that chooses
+    between the erosion and the loop, so pinning it to either extreme runs
+    #895's own disc through both -- the reference each branch is checked
+    against is the other one, not a value pinned in this test to drift out
+    of step with either.
+    """
+    disc = _antialiased_disc(120, 45.0)
+    monkeypatch.setattr(effects, "_DENSE_EROSION_DENSITY", 0.0)
+    dense = _signed_distance(disc, 20.0)
+    monkeypatch.setattr(effects, "_DENSE_EROSION_DENSITY", 1.1)
+    sparse = _signed_distance(disc, 20.0)
+    assert np.array_equal(dense, sparse)
 
 
 def test_every_stroke_position_draws_without_scikit_image(

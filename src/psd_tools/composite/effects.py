@@ -95,6 +95,13 @@ _BANDS: dict[bytes, tuple[float, float]] = {
 # canvas reserved for it, and the position Photoshop itself defaults to.
 _UNRECOGNISED = _BANDS[Enum.OutsetFrame]
 
+# Below this fraction of active pixels within the region a bounding-box crop
+# would cover, :py:func:`_nearest_boundary` skips the erosion and falls back
+# to its per-offset loop (#895): a thin outline on a much bigger canvas has
+# active pixels too sparse within that box for the erosion to pay for itself,
+# while a filled shape's boundary band fills enough of it that it does.
+_DENSE_EROSION_DENSITY = 0.15
+
 
 def _enum(desc: Descriptor, key: bytes) -> bytes:
     """The enum ``key`` names, or ``b""`` if the descriptor does not carry one.
@@ -167,6 +174,64 @@ def _grow(mask: np.ndarray) -> np.ndarray:
     return grown
 
 
+def _prune_offsets(
+    rows: np.ndarray,
+    cols: np.ndarray,
+    span: int,
+    offsets: np.ndarray,
+    lengths: np.ndarray,
+    partial_pad: np.ndarray,
+    near_pad: np.ndarray,
+    outward: bool,
+) -> np.ndarray:
+    """``min``/``max`` of ``near[p] +/- |x - p|`` over offsets, pruning early.
+
+    ``near`` never leaves ``[-0.5, 0.5]``, so once a pixel's running best is
+    at least as good as ``length - 0.5`` (``outward``) or ``0.5 - length``
+    (inward), no offset from here on -- ``offsets`` sorted by ascending
+    ``length`` -- can improve it: the best any of them could still state is
+    exactly that bound. A pixel this true of drops out of the working set,
+    so offsets past it never revisit it. This is exact, not a bound in place
+    of one: what it prunes could not have changed the answer.
+
+    Most pixels resolve within a few offsets of their own unweighted nearest
+    partial pixel, so the working set thins fast on a smooth boundary --
+    which is the common case, a circle or a diagonal edge on a canvas much
+    bigger than the stroke. It still runs every offset within ``span`` for a
+    pixel that never resolves, so this does not change the loop's worst case.
+    """
+    prows, pcols = rows + span, cols + span
+    result = np.empty(rows.shape, dtype=np.float32)
+    order = np.arange(rows.size)
+    best = np.full(rows.shape, np.inf if outward else -np.inf, dtype=np.float32)
+
+    for (down, across), length in zip(offsets, lengths):
+        if order.size == 0:
+            break
+        row, col = prows + down, pcols + across
+        states = partial_pad[row, col]
+        stated = near_pad[row, col]
+        if outward:
+            best = np.minimum(best, np.where(states, stated + length, np.inf))
+            resolved = best <= (length - 0.5)
+        else:
+            best = np.maximum(best, np.where(states, stated - length, -np.inf))
+            resolved = best >= (0.5 - length)
+        if resolved.any():
+            result[order[resolved]] = best[resolved]
+            keep = ~resolved
+            prows, pcols, best, order = (
+                prows[keep],
+                pcols[keep],
+                best[keep],
+                order[keep],
+            )
+
+    if order.size:
+        result[order] = best
+    return result
+
+
 def _nearest_boundary(
     alpha: np.ndarray, partial: np.ndarray, near: np.ndarray, radius: float
 ) -> np.ndarray:
@@ -182,21 +247,43 @@ def _nearest_boundary(
     makes; Photoshop's render of such a mask is mirror-exact, and this is the
     value it renders.
 
-    That minimum is a grey erosion of ``near`` by a cone, which is exact and
-    has no tie to break. ``radius`` bounds it to the band that will be read:
-    a seed further out than the widest limit plus a pixel cannot reach it, and
-    what it would have said is clipped away. Evaluated on the pixels within
-    ``radius`` of the partial band rather than on the canvas, which is what
-    keeps a cone that grows as the square of the stroke's size off every pixel
-    the stroke cannot reach.
-    """
-    span = math.ceil(radius)
-    offsets = np.mgrid[-span : span + 1, -span : span + 1].reshape(2, -1).T
-    lengths = np.hypot(offsets[:, 0], offsets[:, 1]).astype(np.float32)
-    within = lengths <= radius
-    offsets, lengths = offsets[within], lengths[within]
+    That minimum is a grey erosion of ``near`` by a cone -- ``scipy``'s
+    ``grey_erosion`` with a disc footprint and ``-length`` as the structuring
+    function, which computes it without a Python-level pass per offset. The
+    dual, the nearest boundary from *inside*, is the same erosion of
+    ``-near``, negated.
 
-    from scipy.ndimage import distance_transform_edt  # type: ignore[import-untyped]  # noqa: PLC0415
+    An erosion runs the disc footprint over every pixel of whatever it is
+    given, so it only pays for itself where ``active`` -- the pixels an
+    answer is wanted for -- is a healthy share of the region a crop bounding
+    the partial pixels would cover: a filled shape's boundary, where the band
+    the footprint runs over is close to that box already. Where the boundary
+    is a thin outline on a much bigger canvas -- a circle, an ellipse, a
+    diagonal edge -- that box is close to the shape's own bounding box while
+    ``active`` is a sliver of it, and running the erosion there would cost
+    more than it saves.
+
+    Below :py:data:`_DENSE_EROSION_DENSITY`, :py:func:`_prune_offsets` runs
+    the same minimum as a loop instead, one offset at a time in ascending
+    length, dropping each pixel out as soon as no offset still to come could
+    improve its answer -- exactly, per the bound in its own docstring. A
+    smooth boundary resolves most pixels within a handful of offsets of their
+    own nearest partial pixel, which is the common shape of this branch's
+    input, but a pixel that never resolves still costs every offset within
+    ``radius``: pruning cuts the constant this branch runs at, not the shape
+    of its worst case, which stays the one the erosion branch exists to
+    avoid.
+
+    Both branches read and write through the same crop the density above is
+    measured on, padded arrays included, rather than the whole of ``alpha``:
+    everything either one needs already sits inside it, so this is memory
+    tied to the shape's own extent even when the canvas around it is much
+    bigger.
+    """
+    from scipy.ndimage import (  # type: ignore[import-untyped]  # noqa: PLC0415
+        distance_transform_edt,
+        grey_erosion,
+    )
 
     # Beyond the reach of any boundary, and so of any band: infinitely far
     # out from a clear pixel and infinitely far in from an opaque one.
@@ -207,20 +294,88 @@ def _nearest_boundary(
     if not active.any():
         return field
 
-    flat = np.flatnonzero(active)
-    rows, cols = np.unravel_index(flat, alpha.shape)
+    span = math.ceil(radius)
     height, width = alpha.shape
-    outward = np.full(flat.shape, np.inf, dtype=np.float32)
-    inward = np.full(flat.shape, -np.inf, dtype=np.float32)
-    for (down, across), length in zip(offsets, lengths):
-        row, col = rows + down, cols + across
-        on_canvas = (row >= 0) & (row < height) & (col >= 0) & (col < width)
-        row, col = np.where(on_canvas, row, 0), np.where(on_canvas, col, 0)
-        states = on_canvas & partial[row, col]
-        stated = near[row, col]
-        np.minimum(outward, np.where(states, stated + length, np.inf), out=outward)
-        np.maximum(inward, np.where(states, stated - length, -np.inf), out=inward)
-    field[rows, cols] = np.where((alpha >= 1).ravel()[flat], inward, outward)
+    rows_p, cols_p = np.nonzero(partial)
+    r0, r1 = max(rows_p.min() - span, 0), min(rows_p.max() + span + 1, height)
+    c0, c1 = max(cols_p.min() - span, 0), min(cols_p.max() + span + 1, width)
+    crop = (slice(r0, r1), slice(c0, c1))
+    density = active.sum() / ((r1 - r0) * (c1 - c0))
+
+    if density >= _DENSE_EROSION_DENSITY:
+        sub_partial, sub_near, sub_alpha, sub_active = (
+            partial[crop],
+            near[crop],
+            alpha[crop],
+            active[crop],
+        )
+        grid = np.mgrid[-span : span + 1, -span : span + 1]
+        length = np.hypot(*grid).astype(np.float32)
+        kwargs = {
+            "footprint": length <= radius,
+            "structure": -length,
+            "mode": "constant",
+        }
+        outward = grey_erosion(
+            np.where(sub_partial, sub_near, np.inf).astype(np.float32),
+            cval=np.inf,
+            **kwargs,
+        )
+        inward = -grey_erosion(
+            np.where(sub_partial, -sub_near, np.inf).astype(np.float32),
+            cval=np.inf,
+            **kwargs,
+        )
+        stated = np.where(sub_alpha >= 1, inward, outward)
+        field[crop] = np.where(sub_active, stated, field[crop])
+        return field
+
+    offsets = np.mgrid[-span : span + 1, -span : span + 1].reshape(2, -1).T
+    lengths = np.hypot(offsets[:, 0], offsets[:, 1]).astype(np.float32)
+    within = lengths <= radius
+    offsets, lengths = offsets[within], lengths[within]
+    ascending = np.argsort(lengths, kind="stable")
+    offsets, lengths = offsets[ascending], lengths[ascending]
+
+    # partial's own pixels sit inside `crop` by construction (it is padded out
+    # to `span` around their bounding box), and so does every active pixel --
+    # nothing an offset lookup needs is outside it. Padding that crop, rather
+    # than the whole canvas, is what keeps this branch's own memory use tied
+    # to the shape's extent instead of the much bigger canvas around it.
+    sub_partial, sub_near, sub_alpha, sub_active = (
+        partial[crop],
+        near[crop],
+        alpha[crop],
+        active[crop],
+    )
+    flat = np.flatnonzero(sub_active)
+    rows, cols = np.unravel_index(flat, sub_active.shape)
+    partial_pad = np.pad(sub_partial, span, constant_values=False)
+    near_pad = np.pad(sub_near, span, constant_values=0.0)
+    inside = (sub_alpha >= 1).ravel()[flat]
+
+    outward = _prune_offsets(
+        rows[~inside],
+        cols[~inside],
+        span,
+        offsets,
+        lengths,
+        partial_pad,
+        near_pad,
+        outward=True,
+    )
+    inward = _prune_offsets(
+        rows[inside],
+        cols[inside],
+        span,
+        offsets,
+        lengths,
+        partial_pad,
+        near_pad,
+        outward=False,
+    )
+    field[r0 + rows[~inside], c0 + cols[~inside]] = outward
+    field[r0 + rows[inside], c0 + cols[inside]] = inward
     return field
 
 
