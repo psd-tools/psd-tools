@@ -273,6 +273,12 @@ def _nearest_boundary(
     ``radius``: pruning cuts the constant this branch runs at, not the shape
     of its worst case, which stays the one the erosion branch exists to
     avoid.
+
+    Both branches read and write through the same crop the density above is
+    measured on, padded arrays included, rather than the whole of ``alpha``:
+    everything either one needs already sits inside it, so this is memory
+    tied to the shape's own extent even when the canvas around it is much
+    bigger.
     """
     from scipy.ndimage import (  # type: ignore[import-untyped]  # noqa: PLC0415
         distance_transform_edt,
@@ -331,13 +337,24 @@ def _nearest_boundary(
     ascending = np.argsort(lengths, kind="stable")
     offsets, lengths = offsets[ascending], lengths[ascending]
 
-    flat = np.flatnonzero(active)
-    rows, cols = np.unravel_index(flat, alpha.shape)
-    partial_pad = np.pad(partial, span, constant_values=False)
-    near_pad = np.pad(near, span, constant_values=0.0)
-    inside = (alpha >= 1).ravel()[flat]
+    # partial's own pixels sit inside `crop` by construction (it is padded out
+    # to `span` around their bounding box), and so does every active pixel --
+    # nothing an offset lookup needs is outside it. Padding that crop, rather
+    # than the whole canvas, is what keeps this branch's own memory use tied
+    # to the shape's extent instead of the much bigger canvas around it.
+    sub_partial, sub_near, sub_alpha, sub_active = (
+        partial[crop],
+        near[crop],
+        alpha[crop],
+        active[crop],
+    )
+    flat = np.flatnonzero(sub_active)
+    rows, cols = np.unravel_index(flat, sub_active.shape)
+    partial_pad = np.pad(sub_partial, span, constant_values=False)
+    near_pad = np.pad(sub_near, span, constant_values=0.0)
+    inside = (sub_alpha >= 1).ravel()[flat]
 
-    field[rows[~inside], cols[~inside]] = _prune_offsets(
+    outward = _prune_offsets(
         rows[~inside],
         cols[~inside],
         span,
@@ -347,7 +364,7 @@ def _nearest_boundary(
         near_pad,
         outward=True,
     )
-    field[rows[inside], cols[inside]] = _prune_offsets(
+    inward = _prune_offsets(
         rows[inside],
         cols[inside],
         span,
@@ -357,6 +374,8 @@ def _nearest_boundary(
         near_pad,
         outward=False,
     )
+    field[r0 + rows[~inside], c0 + cols[~inside]] = outward
+    field[r0 + rows[inside], c0 + cols[inside]] = inward
     return field
 
 
