@@ -399,9 +399,19 @@ def convert_pattern_to_pil(pattern: Pattern) -> Image.Image:
 
 def convert_thumbnail_to_pil(
     thumbnail: ThumbnailResource | ThumbnailResourceV4,
+    max_alloc_bytes: int | None = None,
 ) -> Image.Image:
     """Convert thumbnail resource."""
     if thumbnail.fmt == 0:
+        # width/height are unvalidated header fields (GHSA-7m55-42q7-888r):
+        # PIL allocates the full RGBX buffer before decoding thumbnail.data.
+        check_pixel_size(
+            thumbnail.width,
+            thumbnail.height,
+            4,
+            max_alloc_bytes=max_alloc_bytes,
+            estimated_bytes=thumbnail.width * thumbnail.height * 4,
+        )
         image = Image.frombytes(
             "RGBX",
             (thumbnail.width, thumbnail.height),

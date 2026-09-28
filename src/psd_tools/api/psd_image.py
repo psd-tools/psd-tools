@@ -776,11 +776,13 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         """
         if Resource.THUMBNAIL_RESOURCE in self.image_resources:
             return pil_io.convert_thumbnail_to_pil(
-                self.image_resources.get_data(Resource.THUMBNAIL_RESOURCE)
+                self.image_resources.get_data(Resource.THUMBNAIL_RESOURCE),
+                max_alloc_bytes=self._max_alloc_bytes,
             )
         elif Resource.THUMBNAIL_RESOURCE_PS4 in self.image_resources:
             return pil_io.convert_thumbnail_to_pil(
-                self.image_resources.get_data(Resource.THUMBNAIL_RESOURCE_PS4)
+                self.image_resources.get_data(Resource.THUMBNAIL_RESOURCE_PS4),
+                max_alloc_bytes=self._max_alloc_bytes,
             )
         return None
 

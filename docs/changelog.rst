@@ -4,6 +4,10 @@ Changelog
 1.21.0 (unreleased)
 -------------------
 
+- [security] ``PSDImage.thumbnail()`` now rejects a thumbnail resource whose
+  declared width/height exceed the PSD spec limit or a configured
+  ``max_alloc_bytes`` budget, instead of allocating straight from those
+  unvalidated header fields (GHSA-7m55-42q7-888r)
 - [fix] Stroke and overlay effects are composited into the layer they belong
   to instead of onto the finished composite, so a layer whose coverage is
   partial no longer renders its effect with the backdrop mixed through it.
