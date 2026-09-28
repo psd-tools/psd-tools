@@ -423,16 +423,20 @@ def convert_thumbnail_to_pil(
     elif thumbnail.fmt == 1:
         with io.BytesIO(thumbnail.data) as f:
             image = Image.open(f)
-            # The embedded format's own header drives decoding, not
-            # thumbnail.width/height, so the budget is checked against it
-            # (GHSA-7m55-42q7-888r) before load() decodes pixels.
-            channels = get_pil_channels(image.mode)
+            # Pillow detects the format (and thus the mode) from thumbnail.data
+            # itself, not from thumbnail.fmt, so the payload need not actually
+            # be JPEG. A hand-rolled channels-per-mode table (get_pil_channels)
+            # undercounts modes like RGBA or the 32-bit "I"/"F"; a throwaway
+            # 1x1 image in the same mode reports Pillow's own real per-pixel
+            # size instead. The budget is checked here, before load() decodes
+            # pixels (GHSA-7m55-42q7-888r).
+            bytes_per_pixel = len(Image.new(image.mode, (1, 1)).tobytes())
             check_pixel_size(
                 image.width,
                 image.height,
-                channels,
+                bytes_per_pixel,
                 max_alloc_bytes=max_alloc_bytes,
-                estimated_bytes=image.width * image.height * channels,
+                estimated_bytes=image.width * image.height * bytes_per_pixel,
             )
             image.load()
     else:

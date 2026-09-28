@@ -11,6 +11,7 @@ that guard never covered.
 
 import io
 import struct
+from typing import Any, Callable
 
 import pytest
 from PIL import Image
@@ -25,6 +26,12 @@ from psd_tools.psd.image_resources import ThumbnailResource
 def _build_jpeg_bytes(width: int, height: int) -> bytes:
     buf = io.BytesIO()
     Image.new("RGB", (width, height), (10, 20, 30)).save(buf, format="JPEG")
+    return buf.getvalue()
+
+
+def _build_image_bytes(mode: str, color: Any, fmt: str, size: tuple = (4, 2)) -> bytes:
+    buf = io.BytesIO()
+    Image.new(mode, size, color).save(buf, format=fmt)
     return buf.getvalue()
 
 
@@ -180,4 +187,36 @@ def test_convert_thumbnail_to_pil_jpeg_still_decodes_a_legitimate_thumbnail() ->
         data=jpeg,
     )
     image = convert_thumbnail_to_pil(thumb)
+    assert image.size == (4, 2)
+
+
+@pytest.mark.parametrize(
+    ("mode", "make_bytes"),
+    [
+        # get_pil_channels() has no "RGBA" entry and falls back to 3,
+        # undercounting this 4-byte-per-pixel mode by a quarter.
+        ("RGBA", lambda: _build_image_bytes("RGBA", (1, 2, 3, 4), "PNG")),
+        # get_pil_channels() counts "I" as 1 channel, undercounting this
+        # 32-bit-per-pixel mode by a factor of 4.
+        ("I", lambda: _build_image_bytes("I", 12345, "TIFF")),
+    ],
+)
+def test_convert_thumbnail_to_pil_jpeg_budget_matches_real_pixel_size(
+    mode: str, make_bytes: "Callable[[], bytes]"
+) -> None:
+    """A mode a naive channel count would undercount is still bounded by its real, decoded per-pixel size."""
+    data = make_bytes()
+    thumb = ThumbnailResource(
+        fmt=1,
+        width=0,
+        height=0,
+        row=0,
+        total_size=len(data),
+        bits=24,
+        planes=1,
+        data=data,
+    )
+    with pytest.raises(ValueError, match="configured budget"):
+        convert_thumbnail_to_pil(thumb, max_alloc_bytes=31)
+    image = convert_thumbnail_to_pil(thumb, max_alloc_bytes=32)
     assert image.size == (4, 2)
