@@ -18,7 +18,7 @@ Coated (SWOP) v2, Photoshop's default -- is what the transform is built from.
 
 The file is 568 KB, almost all of it that profile. A compact Generic CMYK
 profile would fit the 500 KB pre-commit limit but has coarser tables, on which
-littlecms and Photoshop diverge several times further -- so the press profile
+littlecms and Photoshop diverge materially further -- so the press profile
 is shipped and the hook skipped for it.
 """
 

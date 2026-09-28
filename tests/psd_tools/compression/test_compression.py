@@ -327,7 +327,7 @@ def test_decompressed_size_bound_is_never_below_the_result(
 
 
 def test_a_byte_per_pixel_1bit_body_is_cut_back_to_its_rows() -> None:
-    """The crafted body #737 reports, refused rather than returned whole.
+    """The crafted body #737 reports is refused rather than returned whole.
 
     A ``length`` of a byte per *pixel* at depth 1 -- eight times the packed
     size -- lets a body written that wide pass straight through, the

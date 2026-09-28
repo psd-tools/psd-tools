@@ -699,10 +699,10 @@ def test_a_stroke_of_no_width_draws_nothing(style: bytes, size: float) -> None:
 
     Photoshop's own UI will not author one, but ``Stroke.size`` defaults to 0.0
     at the API level and a descriptor can carry it, so both primitives have to
-    survive it, and neither does unguarded: the dilation's pen is ``disk(-1)``,
-    which comes back empty and makes the rank filter it feeds assert; and the
-    band, whose limits collapse to a point, paints a quarter of a pixel
-    wherever the boundary falls exactly on a pixel centre.
+    survive it, and neither does so without a guard. The dilation's pen is
+    ``disk(-1)``, which comes back empty and makes the rank filter it feeds
+    assert; the band's limits collapse to a point, and it paints a quarter of
+    a pixel wherever the boundary falls exactly on a pixel centre.
 
     Both halves are covered here -- the hard-edged square for the pen, the
     half-covered pixel for the band -- because each path only fails on one of

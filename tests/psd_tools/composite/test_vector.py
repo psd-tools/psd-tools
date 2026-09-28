@@ -706,9 +706,8 @@ def test_the_subpaths_of_one_component_are_filled_as_one_path() -> None:
 
     The oracle is Photoshop's own raster of the layer, carried in its stored
     transparency channel, so this cannot come out true by construction.
-    Filled as one path the error against it is two orders under what unioning
-    gives, and both bounds below sit between the two with a factor of ten
-    either side.
+    Filled as one path the error against it is far under what unioning gives,
+    and both bounds below sit between the two with margin either side.
     """
     psd = PSDImage.open(full_name("masks.psd"))
     layer = [x for x in psd.descendants() if x.name == "twitter"][0]

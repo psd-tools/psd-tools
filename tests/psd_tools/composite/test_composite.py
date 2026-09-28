@@ -1264,9 +1264,9 @@ def _pattern_overlay_layer(psd: PSDImage) -> Any:
 def test_composite_pattern_overlay_targets_the_canvas_width() -> None:
     """The pattern's width comes from the compositor's canvas.
 
-    Taking it from the layer colour instead reads a width #710 allows to be
-    narrower than the document: an RGB pattern is then compared against 1 and
-    rejected with ``AssertionError: Inconsistent pattern channels.`` even
+    Taking it from the layer colour instead reads a width that #710 allows to
+    be narrower than the document: an RGB pattern is then compared against 1
+    and rejected with ``AssertionError: Inconsistent pattern channels.`` even
     though it matches the canvas exactly.
 
     ``_draw_pattern_overlay`` takes no such parameter (#711), which makes that
