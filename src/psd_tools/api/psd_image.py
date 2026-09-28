@@ -244,8 +244,9 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
         :param fp: filename or file-like object.
         :param max_alloc_bytes: optional per-document cap (bytes) on what
-            :py:meth:`composite`/:py:meth:`numpy`/:py:meth:`topil` allocate;
-            rendering raises :class:`ValueError` if the estimate exceeds it.
+            :py:meth:`composite`/:py:meth:`numpy`/:py:meth:`topil`/:py:meth:`thumbnail`
+            allocate; rendering raises :class:`ValueError` if the estimate
+            exceeds it.
             :py:meth:`numpy` and :py:meth:`topil` estimate their allocation *at
             its peak*, intermediates included, so the estimate depends on the
             colour mode, the depth and the compression method rather than on the
@@ -773,6 +774,9 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         Return a thumbnail image in PIL.Image.
 
         Gives None when the file contains no embedded thumbnail image.
+
+        :raises ValueError: if the thumbnail's dimensions exceed the PSD spec
+            limit, or the ``max_alloc_bytes`` budget set via :py:meth:`open`.
         """
         if Resource.THUMBNAIL_RESOURCE in self.image_resources:
             return pil_io.convert_thumbnail_to_pil(

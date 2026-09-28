@@ -13,12 +13,19 @@ import io
 import struct
 
 import pytest
+from PIL import Image
 
 from psd_tools import PSDImage
 from psd_tools.api.pil_io import convert_thumbnail_to_pil
 from psd_tools.api.utils import MAX_DIMENSION_PSD
 from psd_tools.constants import Resource
 from psd_tools.psd.image_resources import ThumbnailResource
+
+
+def _build_jpeg_bytes(width: int, height: int) -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", (width, height), (10, 20, 30)).save(buf, format="JPEG")
+    return buf.getvalue()
 
 
 def _build_psd_with_thumbnail(
@@ -56,9 +63,18 @@ def _build_psd_with_thumbnail(
 _OVER_SPEC = MAX_DIMENSION_PSD + 1
 
 
-def test_thumbnail_raises_when_exceeds_spec() -> None:
-    """thumbnail() must raise ValueError when either axis exceeds the spec."""
-    psd = PSDImage.open(_build_psd_with_thumbnail(_OVER_SPEC, 1))
+@pytest.mark.parametrize(
+    "resource_id", [Resource.THUMBNAIL_RESOURCE, Resource.THUMBNAIL_RESOURCE_PS4]
+)
+def test_thumbnail_raises_when_exceeds_spec(resource_id: int) -> None:
+    """thumbnail() must raise ValueError when either axis exceeds the spec.
+
+    Parametrized over both resource IDs: THUMBNAIL_RESOURCE_PS4 parses into a
+    ThumbnailResourceV4, a separate class sharing the same converter.
+    """
+    psd = PSDImage.open(
+        _build_psd_with_thumbnail(_OVER_SPEC, 1, resource_id=resource_id)
+    )
     with pytest.raises(ValueError, match="exceeds"):
         psd.thumbnail()
 
@@ -115,3 +131,53 @@ def test_convert_thumbnail_to_pil_still_decodes_a_legitimate_thumbnail() -> None
     image = convert_thumbnail_to_pil(thumb)
     assert image.size == (4, 2)
     assert image.mode == "RGBX"
+
+
+def test_convert_thumbnail_to_pil_exact_byte_budget_boundary() -> None:
+    """The RGBX estimate must be exactly width*height*4, not some other multiplier.
+
+    A 4x2 thumbnail decodes to a 32-byte RGBX buffer (4*2*4); a budget one
+    byte under that must reject it and the exact budget must allow it.
+    """
+    data = bytes(range(24))  # 4x2 RGB, row = 4*3 = 12
+    thumb = ThumbnailResource(
+        fmt=0, width=4, height=2, row=12, total_size=24, bits=24, planes=1, data=data
+    )
+    with pytest.raises(ValueError, match="configured budget"):
+        convert_thumbnail_to_pil(thumb, max_alloc_bytes=31)
+    image = convert_thumbnail_to_pil(thumb, max_alloc_bytes=32)
+    assert image.size == (4, 2)
+
+
+def test_convert_thumbnail_to_pil_jpeg_honours_max_alloc_bytes() -> None:
+    """A JPEG thumbnail is bounded by the embedded image's own dimensions."""
+    jpeg = _build_jpeg_bytes(200, 200)  # 200*200*3 = 120,000 bytes decoded
+    thumb = ThumbnailResource(
+        fmt=1,
+        width=0,
+        height=0,
+        row=0,
+        total_size=len(jpeg),
+        bits=24,
+        planes=1,
+        data=jpeg,
+    )
+    with pytest.raises(ValueError, match="configured budget"):
+        convert_thumbnail_to_pil(thumb, max_alloc_bytes=1_000)
+
+
+def test_convert_thumbnail_to_pil_jpeg_still_decodes_a_legitimate_thumbnail() -> None:
+    """The JPEG guard must not reject a normal small embedded thumbnail."""
+    jpeg = _build_jpeg_bytes(4, 2)
+    thumb = ThumbnailResource(
+        fmt=1,
+        width=0,
+        height=0,
+        row=0,
+        total_size=len(jpeg),
+        bits=24,
+        planes=1,
+        data=jpeg,
+    )
+    image = convert_thumbnail_to_pil(thumb)
+    assert image.size == (4, 2)

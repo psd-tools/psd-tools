@@ -423,6 +423,17 @@ def convert_thumbnail_to_pil(
     elif thumbnail.fmt == 1:
         with io.BytesIO(thumbnail.data) as f:
             image = Image.open(f)
+            # The embedded format's own header drives decoding, not
+            # thumbnail.width/height, so the budget is checked against it
+            # (GHSA-7m55-42q7-888r) before load() decodes pixels.
+            channels = get_pil_channels(image.mode)
+            check_pixel_size(
+                image.width,
+                image.height,
+                channels,
+                max_alloc_bytes=max_alloc_bytes,
+                estimated_bytes=image.width * image.height * channels,
+            )
             image.load()
     else:
         raise ValueError("Unknown thumbnail format %d" % (thumbnail.fmt))
