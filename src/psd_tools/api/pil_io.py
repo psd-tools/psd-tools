@@ -429,11 +429,12 @@ def convert_thumbnail_to_pil(
             # -- before any check below could run -- so checking the opened
             # image's own header is not enough on its own (GHSA-7m55-42q7-888r).
             image = Image.open(f, formats=["JPEG"])
-            # A hand-rolled channels-per-mode table (get_pil_channels)
-            # undercounts modes it wasn't meant to classify this way, such as
-            # the 32-bit "I"/"F"; a throwaway 1x1 image in the same mode
-            # reports Pillow's own real per-pixel size instead.
-            bytes_per_pixel = len(Image.new(image.mode, (1, 1)).tobytes())
+            # Pillow's C storage pads every pixel to 4 bytes except the
+            # single-byte "1"/"L"/"P" modes -- measured directly across every
+            # mode JPEG can decode to, since tobytes() strips that padding for
+            # odd band counts (RGB serializes 3 bytes/pixel but is stored as
+            # 4) and would silently undercount the real allocation.
+            bytes_per_pixel = 1 if image.mode in ("1", "L", "P") else 4
             check_pixel_size(
                 image.width,
                 image.height,

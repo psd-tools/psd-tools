@@ -158,7 +158,7 @@ def test_convert_thumbnail_to_pil_exact_byte_budget_boundary() -> None:
 
 def test_convert_thumbnail_to_pil_jpeg_honours_max_alloc_bytes() -> None:
     """A JPEG thumbnail is bounded by the embedded image's own dimensions."""
-    jpeg = _build_jpeg_bytes(200, 200)  # 200*200*3 = 120,000 bytes decoded
+    jpeg = _build_jpeg_bytes(200, 200)  # 200*200*4 = 160,000 bytes allocated
     thumb = ThumbnailResource(
         fmt=1,
         width=0,
@@ -190,8 +190,27 @@ def test_convert_thumbnail_to_pil_jpeg_still_decodes_a_legitimate_thumbnail() ->
     assert image.size == (4, 2)
 
 
+def test_convert_thumbnail_to_pil_jpeg_rgb_budget_matches_internal_storage() -> None:
+    """RGB serializes to 3 bytes/px, but the real allocation is 4."""
+    jpeg = _build_jpeg_bytes(4, 2)  # 4x2 RGB -> 8 px * 4 bytes = 32 bytes real
+    thumb = ThumbnailResource(
+        fmt=1,
+        width=0,
+        height=0,
+        row=0,
+        total_size=len(jpeg),
+        bits=24,
+        planes=1,
+        data=jpeg,
+    )
+    with pytest.raises(ValueError, match="configured budget"):
+        convert_thumbnail_to_pil(thumb, max_alloc_bytes=31)
+    image = convert_thumbnail_to_pil(thumb, max_alloc_bytes=32)
+    assert image.size == (4, 2)
+
+
 def test_convert_thumbnail_to_pil_jpeg_grayscale_budget_matches_pixel_size() -> None:
-    """A grayscale JPEG (1 byte/px) is bounded by its own multiplier, not RGB's 3."""
+    """A grayscale JPEG (1 byte/px) is bounded by its own multiplier, not RGB's 4."""
     jpeg = _build_image_bytes("L", 128, "JPEG")
     thumb = ThumbnailResource(
         fmt=1,
