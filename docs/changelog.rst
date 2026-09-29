@@ -4,6 +4,8 @@ Changelog
 1.21.1 (unreleased)
 -------------------
 
+- [fix] Parser internals and normal control flow no longer log at INFO when
+  opening or rendering an ordinary PSD; they are now DEBUG (#902)
 - [fix] Decoding and encoding ZIP-with-prediction channels is much faster,
   which mainly helps large 16- and 32-bit documents. A truncated payload now
   gives a black channel with a warning instead of raising ``IndexError``
