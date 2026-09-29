@@ -11,11 +11,11 @@ Changelog
   gives a black channel with a warning instead of raising ``IndexError``
   (#903)
 - [api] ``BlackAndWhite`` weights, ``preset_kind`` and ``Origination.index``
-  now return ``int``, and ``Stroke.line_dash_offset`` returns ``float``, as
-  annotated. **Backwards incompatible:** they used to return the descriptor
-  ``Integer`` / ``UnitFloat``, so code reading ``.unit`` or ``.value`` must
-  drop it. ``Origination.resolution`` returns ``None`` instead of raising when
-  the key is absent. Other ``Any`` properties gain annotations only (#788, #906)
+  now return ``int``, and ``Stroke.line_dash_offset`` ``float``.
+  **Backwards incompatible:** they returned ``Integer`` / ``UnitFloat``, so drop
+  any ``.unit`` or ``.value``. A missing key gives ``None`` from
+  ``Stroke.blend_mode`` and ``Origination.resolution`` (was an error) and
+  ``0.0`` from ``line_dash_offset`` (was ``None``) (#788, #906)
 
 1.21.0 (2026-09-28)
 -------------------
