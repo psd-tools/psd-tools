@@ -1,6 +1,14 @@
 Changelog
 =========
 
+1.21.1 (unreleased)
+-------------------
+
+- [fix] Decoding and encoding ZIP-with-prediction channels is much faster,
+  which mainly helps large 16- and 32-bit documents. A truncated payload now
+  gives a black channel with a warning instead of raising ``IndexError``
+  (#903)
+
 1.21.0 (2026-09-28)
 -------------------
 

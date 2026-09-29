@@ -682,7 +682,7 @@ def test_numpy_peak_model_brackets_the_measured_peak(
 
     Swept over the compression methods as well as the header, because three of
     the four decompress into a buffer they build -- RLE joins materialised rows,
-    prediction adds an ``array.array`` pass and a byte-order pass on top of the
+    prediction adds a pass over the inflated buffer and a copy back out on top of the
     inflate -- and only RAW does not. A model fitted on raw bodies alone would
     have no codec term at all and would still look exact.
 
@@ -1245,7 +1245,7 @@ def test_pil_peak_model_charges_a_profile_on_a_mode_that_is_not_rgb() -> None:
         ),
         # The same document under each codec that builds its result rather than
         # handing back the bytes read at open: RLE joins materialised rows, and
-        # prediction adds an `array.array` pass and a byte-order pass on top of
+        # prediction adds a pass over the inflated buffer and a copy back out on top of
         # the inflate. Only here, where the codec phase is the widest, do these
         # multiples show up in a total at all.
         (
