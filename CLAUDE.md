@@ -380,6 +380,17 @@ Recent work has added comprehensive type annotations throughout the codebase. Wh
 - Use `typing_extensions.Self` for methods returning instances of the same class
 - Attrs validators should match type hints
 
+`psd_tools.api` property getters:
+
+- A property annotated `int`, `float`, `bool` or `str` returns that primitive,
+  not the descriptor wrapper (`Integer`, `UnitFloat`, ...), which does not
+  subclass it and fails `isinstance` and `json.dumps`. Cast at the getter.
+  `tests/psd_tools/api/test_annotations.py` enforces this over the fixture corpus.
+- A missing key returns a documented Photoshop default only when the format
+  defines one; otherwise annotate `T | None` and return `None`. Never invent a
+  default to satisfy the annotation, and do not raise (#788).
+- Do not annotate `Any` for a value whose type the low-level declaration knows.
+
 ## Code Comments and Docstrings
 
 Keep them short, and document **current behavior only**. A comment earns its
