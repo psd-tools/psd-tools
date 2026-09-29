@@ -281,7 +281,7 @@ class Stroke(object):
         return float(self._data.get(b"strokeStyleLineDashOffset", 0.0))
 
     @property
-    def miter_limit(self) -> Double:
+    def miter_limit(self) -> Double | None:
         """Miter limit."""
         return self._data.get(b"strokeStyleMiterLimit")
 
@@ -304,11 +304,11 @@ class Stroke(object):
         return self.STROKE_STYLE_LINE_ALIGNMENTS.get(key, str(key))
 
     @property
-    def scale_lock(self) -> Bool:
+    def scale_lock(self) -> Bool | None:
         return self._data.get(b"strokeStyleScaleLock")
 
     @property
-    def stroke_adjust(self) -> Bool:
+    def stroke_adjust(self) -> Bool | None:
         """Stroke adjust."""
         return self._data.get(b"strokeStyleStrokeAdjust")
 
@@ -318,12 +318,12 @@ class Stroke(object):
         return self._data.get(b"strokeStyleBlendMode").enum
 
     @property
-    def opacity(self) -> UnitFloat:
+    def opacity(self) -> UnitFloat | None:
         """Opacity value."""
         return self._data.get(b"strokeStyleOpacity")
 
     @property
-    def content(self) -> Descriptor:
+    def content(self) -> Descriptor | None:
         """
         Fill effect.
         """
@@ -453,7 +453,7 @@ class RoundedRectangle(Origination):
     """Rounded rectangle live shape."""
 
     @property
-    def radii(self) -> Descriptor:
+    def radii(self) -> Descriptor | None:
         """
         Corner radii of rounded rectangles.
 

@@ -48,10 +48,7 @@ def test_scalar_annotations_match_runtime(filename: str) -> None:
     mismatches = []
     for obj in objects:
         for name, annotation in set(_scalar_properties(type(obj))):
-            try:
-                value = getattr(obj, name)
-            except (AttributeError, ValueError):  # Absent block or data.
-                continue
+            value = getattr(obj, name)
             if not isinstance(value, _SCALARS[annotation]):
                 mismatches.append(
                     f"{type(obj).__name__}.{name}: {annotation.__name__}"
