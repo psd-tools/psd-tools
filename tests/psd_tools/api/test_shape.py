@@ -10,14 +10,17 @@ from psd_tools.api.shape import (
     Line,
     Rectangle,
     RoundedRectangle,
+    Stroke,
     VectorMask,
 )
+from psd_tools.psd.descriptor import Descriptor
 from psd_tools.psd.vector import (
     ClosedKnotLinked,
     ClosedPath,
     OpenKnotLinked,
     OpenPath,
     VectorMaskSetting,
+    VectorStrokeContentSetting,
 )
 
 from ..utils import full_name
@@ -215,3 +218,13 @@ def test_bbox_single_knot_closed_path_degenerate():
     assert top == pytest.approx(0.4)
     assert right == pytest.approx(0.3)
     assert bottom == pytest.approx(0.4)
+
+
+def test_stroke_missing_keys_degrade_to_none() -> None:
+    stroke = Stroke(VectorStrokeContentSetting(classID=b"strokeStyle"))
+    assert stroke.blend_mode is None
+    assert stroke.opacity is None
+
+
+def test_origination_resolution_missing_is_none() -> None:
+    assert Rectangle(Descriptor()).resolution is None

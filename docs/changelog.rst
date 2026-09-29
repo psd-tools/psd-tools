@@ -10,6 +10,12 @@ Changelog
   which mainly helps large 16- and 32-bit documents. A truncated payload now
   gives a black channel with a warning instead of raising ``IndexError``
   (#903)
+- [api] ``BlackAndWhite`` weights, ``preset_kind`` and ``Origination.index``
+  now return ``int``, and ``Stroke.line_dash_offset`` ``float``.
+  **Backwards incompatible:** they returned ``Integer`` / ``UnitFloat``, so drop
+  any ``.unit`` or ``.value``. A missing key gives ``None`` from
+  ``Stroke.blend_mode`` and ``Origination.resolution`` (was an error) and
+  ``0.0`` from ``line_dash_offset`` (was ``None``) (#788, #906)
 
 1.21.0 (2026-09-28)
 -------------------
