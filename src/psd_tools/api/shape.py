@@ -9,9 +9,15 @@ stylized.
 
 import logging
 import math
-from typing import Any, Literal
+from typing import Literal
 
-from psd_tools.psd.descriptor import Descriptor, DescriptorBlock2
+from psd_tools.psd.descriptor import (
+    Bool,
+    Descriptor,
+    DescriptorBlock2,
+    Double,
+    UnitFloat,
+)
 from psd_tools.psd.vector import (
     ClipboardRecord,
     InitialFillRule,
@@ -272,11 +278,11 @@ class Stroke(object):
 
         :return: float
         """
-        return self._data.get(b"strokeStyleLineDashOffset")
+        return float(self._data.get(b"strokeStyleLineDashOffset", 0.0))
 
     @property
-    def miter_limit(self) -> Any:
-        """Miter limit in float."""
+    def miter_limit(self) -> Double:
+        """Miter limit."""
         return self._data.get(b"strokeStyleMiterLimit")
 
     @property
@@ -298,26 +304,26 @@ class Stroke(object):
         return self.STROKE_STYLE_LINE_ALIGNMENTS.get(key, str(key))
 
     @property
-    def scale_lock(self) -> Any:
+    def scale_lock(self) -> Bool:
         return self._data.get(b"strokeStyleScaleLock")
 
     @property
-    def stroke_adjust(self) -> Any:
+    def stroke_adjust(self) -> Bool:
         """Stroke adjust."""
         return self._data.get(b"strokeStyleStrokeAdjust")
 
     @property
-    def blend_mode(self) -> Any:
+    def blend_mode(self) -> bytes:
         """Blend mode."""
         return self._data.get(b"strokeStyleBlendMode").enum
 
     @property
-    def opacity(self) -> Any:
+    def opacity(self) -> UnitFloat:
         """Opacity value."""
         return self._data.get(b"strokeStyleOpacity")
 
     @property
-    def content(self) -> Any:
+    def content(self) -> Descriptor:
         """
         Fill effect.
         """
@@ -447,7 +453,7 @@ class RoundedRectangle(Origination):
     """Rounded rectangle live shape."""
 
     @property
-    def radii(self) -> Any:
+    def radii(self) -> Descriptor:
         """
         Corner radii of rounded rectangles.
 

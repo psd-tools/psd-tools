@@ -1919,8 +1919,8 @@ class Compositor(object):
                 if density is None:
                     density = 255
 
-                density = float(density) / 255.0
-                shape = density * shape + (1 - density)
+                share = float(density) / 255.0
+                shape = share * shape + (1 - share)
 
         if (
             layer.vector_mask is not None

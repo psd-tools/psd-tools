@@ -10,6 +10,11 @@ Changelog
   which mainly helps large 16- and 32-bit documents. A truncated payload now
   gives a black channel with a warning instead of raising ``IndexError``
   (#903)
+- [api] ``BlackAndWhite`` colour weights and ``preset_kind`` now return ``int``,
+  and ``Stroke.line_dash_offset`` returns ``float``, as annotated. **Backwards
+  incompatible:** they used to return the descriptor ``Integer`` / ``UnitFloat``,
+  so code reading ``.unit`` or ``.value`` must drop it. Other ``Any``
+  properties in ``api`` gain annotations only, with no runtime change (#788)
 
 1.21.0 (2026-09-28)
 -------------------

@@ -11,14 +11,14 @@ Example::
 """
 
 import logging
-from typing import Any
+from typing import Any, TypeVar
 
 from psd_tools.api.layers import AdjustmentLayer, FillLayer
 from psd_tools.constants import Tag
 from psd_tools.psd.adjustments import Curves as CurvesData
 from psd_tools.psd.adjustments import LevelRecord
 from psd_tools.psd.adjustments import Levels as LevelsData
-from psd_tools.psd.descriptor import DescriptorBlock
+from psd_tools.psd.descriptor import Descriptor, DescriptorBlock
 from psd_tools.registry import new_registry
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,10 @@ logger = logging.getLogger(__name__)
 TYPES, register = new_registry(attribute="_KEY")
 
 
-def _assert_data(data: Any) -> Any:
+_T = TypeVar("_T")
+
+
+def _assert_data(data: _T | None) -> _T:
     """Validate that data is not None and return it.
 
     :raises ValueError: If data is None
@@ -301,39 +304,39 @@ class BlackAndWhite(AdjustmentLayer):
 
     @property
     def red(self) -> int:
-        return _assert_data(self._data).get(b"Rd  ", 40)
+        return int(_assert_data(self._data).get(b"Rd  ", 40))
 
     @property
     def yellow(self) -> int:
-        return _assert_data(self._data).get(b"Yllw", 60)
+        return int(_assert_data(self._data).get(b"Yllw", 60))
 
     @property
     def green(self) -> int:
-        return _assert_data(self._data).get(b"Grn ", 40)
+        return int(_assert_data(self._data).get(b"Grn ", 40))
 
     @property
     def cyan(self) -> int:
-        return _assert_data(self._data).get(b"Cyn ", 60)
+        return int(_assert_data(self._data).get(b"Cyn ", 60))
 
     @property
     def blue(self) -> int:
-        return _assert_data(self._data).get(b"Bl  ", 20)
+        return int(_assert_data(self._data).get(b"Bl  ", 20))
 
     @property
     def magenta(self) -> int:
-        return _assert_data(self._data).get(b"Mgnt", 80)
+        return int(_assert_data(self._data).get(b"Mgnt", 80))
 
     @property
     def use_tint(self) -> bool:
         return bool(_assert_data(self._data).get(b"useTint", False))
 
     @property
-    def tint_color(self) -> Any:
+    def tint_color(self) -> Descriptor | None:
         return _assert_data(self._data).get(b"tintColor")
 
     @property
     def preset_kind(self) -> int:
-        return _assert_data(self._data).get(b"bwPresetKind", 1)
+        return int(_assert_data(self._data).get(b"bwPresetKind", 1))
 
     @property
     def preset_file_name(self) -> str:
@@ -357,19 +360,19 @@ class PhotoFilter(AdjustmentLayer):
         return _assert_data(self._data).xyz
 
     @property
-    def color_space(self) -> Any:
+    def color_space(self) -> int | None:
         return _assert_data(self._data).color_space
 
     @property
-    def color_components(self) -> Any:
+    def color_components(self) -> tuple | None:
         return _assert_data(self._data).color_components
 
     @property
-    def density(self) -> Any:
+    def density(self) -> int | None:
         return _assert_data(self._data).density
 
     @property
-    def luminosity(self) -> Any:
+    def luminosity(self) -> int | None:
         return _assert_data(self._data).luminosity
 
 
@@ -378,11 +381,11 @@ class ChannelMixer(AdjustmentLayer):
     """Channel mixer adjustment."""
 
     @property
-    def monochrome(self) -> Any:
+    def monochrome(self) -> int:
         return _assert_data(self._data).monochrome
 
     @property
-    def data(self) -> Any:
+    def data(self) -> list:
         return _assert_data(self._data).data
 
 
@@ -431,11 +434,11 @@ class SelectiveColor(AdjustmentLayer):
     """Selective color adjustment."""
 
     @property
-    def method(self) -> Any:
+    def method(self) -> int:
         return _assert_data(self._data).method
 
     @property
-    def data(self) -> Any:
+    def data(self) -> list:
         return _assert_data(self._data).data
 
 
@@ -444,27 +447,27 @@ class GradientMap(AdjustmentLayer):
     """Gradient map adjustment."""
 
     @property
-    def reversed(self) -> Any:
+    def reversed(self) -> int:
         return _assert_data(self._data).is_reversed
 
     @property
-    def dithered(self) -> Any:
+    def dithered(self) -> int:
         return _assert_data(self._data).is_dithered
 
     @property
-    def gradient_name(self) -> Any:
+    def gradient_name(self) -> str:
         return _assert_data(self._data).name.strip("\x00")
 
     @property
-    def color_stops(self) -> Any:
+    def color_stops(self) -> list:
         return _assert_data(self._data).color_stops
 
     @property
-    def transparency_stops(self) -> Any:
+    def transparency_stops(self) -> list:
         return _assert_data(self._data).transparency_stops
 
     @property
-    def expansion(self) -> Any:
+    def expansion(self) -> int:
         return _assert_data(self._data).expansion
 
     @property
@@ -473,37 +476,37 @@ class GradientMap(AdjustmentLayer):
         return _assert_data(self._data).interpolation / 4096.0
 
     @property
-    def length(self) -> Any:
+    def length(self) -> int:
         return _assert_data(self._data).length
 
     @property
-    def mode(self) -> Any:
+    def mode(self) -> int:
         return _assert_data(self._data).mode
 
     @property
-    def random_seed(self) -> Any:
+    def random_seed(self) -> int:
         return _assert_data(self._data).random_seed
 
     @property
-    def show_transparency(self) -> Any:
+    def show_transparency(self) -> int:
         return _assert_data(self._data).show_transparency
 
     @property
-    def use_vector_color(self) -> Any:
+    def use_vector_color(self) -> int:
         return _assert_data(self._data).use_vector_color
 
     @property
-    def roughness(self) -> Any:
+    def roughness(self) -> int:
         return _assert_data(self._data).roughness
 
     @property
-    def color_model(self) -> Any:
+    def color_model(self) -> int:
         return _assert_data(self._data).color_model
 
     @property
-    def min_color(self) -> Any:
+    def min_color(self) -> list:
         return _assert_data(self._data).minimum_color
 
     @property
-    def max_color(self) -> Any:
+    def max_color(self) -> list:
         return _assert_data(self._data).maximum_color

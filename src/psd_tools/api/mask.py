@@ -42,7 +42,7 @@ from PIL import Image
 
 from psd_tools.api.protocols import LayerProtocol, MaskProtocol
 from psd_tools.constants import ChannelID
-from psd_tools.psd.layer_and_mask import MaskData, MaskFlags
+from psd_tools.psd.layer_and_mask import MaskData, MaskFlags, MaskParameters
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +148,7 @@ class Mask(MaskProtocol):
         return self._data.flags
 
     @property
-    def parameters(self) -> Any:
+    def parameters(self) -> MaskParameters | None:
         """Parameters."""
         return self._data.parameters
 
