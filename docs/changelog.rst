@@ -14,8 +14,8 @@ Changelog
   now return ``int``, and ``Stroke.line_dash_offset`` returns ``float``, as
   annotated. **Backwards incompatible:** they used to return the descriptor
   ``Integer`` / ``UnitFloat``, so code reading ``.unit`` or ``.value`` must
-  drop it. ``Origination.resolution`` no longer raises when the key is
-  absent. Other ``Any`` properties gain annotations only (#788, #906)
+  drop it. ``Origination.resolution`` returns ``None`` instead of raising when
+  the key is absent. Other ``Any`` properties gain annotations only (#788, #906)
 
 1.21.0 (2026-09-28)
 -------------------

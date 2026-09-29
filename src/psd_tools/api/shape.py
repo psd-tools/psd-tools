@@ -370,12 +370,13 @@ class Origination(object):
         return int(self._data.get(b"keyOriginType"))
 
     @property
-    def resolution(self) -> float:
-        """Resolution.
+    def resolution(self) -> float | None:
+        """Resolution, or `None` if the file does not record one.
 
-        :return: `float`
+        :return: `float` or `None`
         """
-        return float(self._data.get(b"keyOriginResolution", 72.0))
+        value = self._data.get(b"keyOriginResolution")
+        return None if value is None else float(value)
 
     @property
     def bbox(self) -> tuple[float, float, float, float]:
