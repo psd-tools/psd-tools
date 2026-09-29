@@ -35,6 +35,8 @@ def _objects(psd: PSDImage) -> Iterator[Any]:
         yield layer
         if layer.has_stroke():
             yield layer.stroke
+        # An Invalidated origination carries no live-shape properties.
+        yield from (o for o in layer.origination if not o.invalidated)
 
 
 @pytest.mark.parametrize("filename", all_files())

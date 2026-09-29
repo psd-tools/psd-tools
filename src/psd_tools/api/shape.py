@@ -375,7 +375,7 @@ class Origination(object):
 
         :return: `float`
         """
-        return float(self._data.get(b"keyOriginResolution"))
+        return float(self._data.get(b"keyOriginResolution", 72.0))
 
     @property
     def bbox(self) -> tuple[float, float, float, float]:
@@ -401,7 +401,7 @@ class Origination(object):
 
         :return: `int`
         """
-        return self._data.get(b"keyOriginIndex")
+        return int(self._data.get(b"keyOriginIndex", 0))
 
     @property
     def invalidated(self) -> bool:
