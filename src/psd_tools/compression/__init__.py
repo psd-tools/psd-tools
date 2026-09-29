@@ -421,20 +421,26 @@ def decode_rle(data: bytes, width: int, height: int, depth: int, version: int) -
 
 
 def encode_prediction(data: bytes | bytearray, w: int, h: int, depth: int) -> bytes:
+    """Encode data for ZIP with prediction.
+
+    Bytes past ``w * h`` samples are appended unchanged.
+    """
+    if depth not in (8, 16, 32):
+        raise ValueError("Invalid pixel size %d" % (depth))
+    size = w * h * depth // 8
     if depth == 8:
-        rows = np.frombuffer(data, np.uint8, count=w * h).reshape(h, w)
-        return _delta_encode(rows).tobytes()
+        rows = np.frombuffer(data, np.uint8, count=size).reshape(h, w)
+        encoded = _delta_encode(rows)
     elif depth == 16:
         rows = np.frombuffer(data, ">u2", count=w * h).reshape(h, w)
-        return _delta_encode(rows.astype(np.uint16)).astype(">u2").tobytes()
-    elif depth == 32:
+        encoded = _delta_encode(rows.astype(np.uint16)).astype(">u2")
+    else:
         # Each row's 4-byte samples are split into four byte planes, and the
         # delta runs across the whole row of planes.
-        samples = np.frombuffer(data, np.uint8, count=4 * w * h).reshape(h, w, 4)
+        samples = np.frombuffer(data, np.uint8, count=size).reshape(h, w, 4)
         planes = samples.transpose(0, 2, 1).reshape(h, 4 * w)
-        return _delta_encode(planes).tobytes()
-    else:
-        raise ValueError("Invalid pixel size %d" % (depth))
+        encoded = _delta_encode(planes)
+    return encoded.tobytes() + bytes(data[size:])
 
 
 def decode_prediction(data: bytes, w: int, h: int, depth: int) -> bytes:

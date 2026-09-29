@@ -1,6 +1,7 @@
 import array
 import logging
 import random
+import sys
 import warnings
 import zlib
 
@@ -44,6 +45,12 @@ def test_prediction(fixture: bytes, width: int, height: int, depth: int) -> None
     assert fixture == decoded
 
 
+def _ref_to_big_endian(arr: array.array) -> None:
+    """Swap a native-endian word array to or from big-endian, in place."""
+    if sys.byteorder == "little":
+        arr.byteswap()
+
+
 def _ref_deltas(arr: array.array, row: int, h: int, sign: int, mod: int) -> None:
     """In-place per-element delta (sign -1) or running sum (sign +1) of each row."""
     for y in range(h):
@@ -76,10 +83,10 @@ def _ref_encode(data: bytes, w: int, h: int, depth: int) -> bytes:
         return arr.tobytes()
     arr = array.array("B" if depth == 8 else "H", data)
     if depth == 16:
-        arr.byteswap()
+        _ref_to_big_endian(arr)
     _ref_deltas(arr, w, h, -1, 1 << depth)
     if depth == 16:
-        arr.byteswap()
+        _ref_to_big_endian(arr)
     return arr.tobytes()
 
 
@@ -90,10 +97,10 @@ def _ref_decode(data: bytes, w: int, h: int, depth: int) -> bytes:
         return _ref_planes(arr.tobytes(), w, h, False)
     arr = array.array("B" if depth == 8 else "H", data)
     if depth == 16:
-        arr.byteswap()
+        _ref_to_big_endian(arr)
     _ref_deltas(arr, w, h, 1, 1 << depth)
     if depth == 16:
-        arr.byteswap()
+        _ref_to_big_endian(arr)
     return arr.tobytes()
 
 
@@ -117,6 +124,15 @@ def test_prediction_matches_reference(
         data, width, height, depth
     )
     assert decode_prediction(encoded, width, height, depth) == data
+
+
+@pytest.mark.parametrize("depth", [8, 16, 32])
+def test_encode_prediction_keeps_bytes_past_the_image(depth: int) -> None:
+    size = 2 * 2 * depth // 8
+    data = random.Random(depth).randbytes(size)
+    assert encode_prediction(data + b"tail", 2, 2, depth) == (
+        encode_prediction(data, 2, 2, depth) + b"tail"
+    )
 
 
 @pytest.mark.parametrize("depth, size", [(8, 3), (16, 7), (32, 15)])
