@@ -64,6 +64,12 @@ def test_get_scalar_degrades_to_default(descriptor, key, type_, default):
     assert get_scalar(descriptor, key, type_, default) == default
 
 
+def test_get_scalar_default_is_coerced_to_type():
+    data = Descriptor(classID=Klass.Null, items={b"text": String("x")})  # type: ignore[arg-type]
+    for key in (b"miss", b"text"):
+        assert type(get_scalar(data, key, float, 0)) is float  # type: ignore[arg-type]
+
+
 def test_get_scalar_none_descriptor():
     assert get_scalar(None, b"long", int, 3) == 3
 

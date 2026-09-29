@@ -25,12 +25,14 @@ def get_scalar(
 ) -> _S:
     """Read *key* as a plain *type_*, whatever OSType it arrived as.
 
-    A float read as ``int`` truncates toward zero. Returns *default* when the key
-    is absent or the value cannot be coerced.
+    A float read as ``int`` truncates toward zero. Returns *default*, coerced to
+    *type_*, when the key is absent (silently) or the value cannot be coerced
+    (with a debug log).
     """
+    fallback: _S = type_(default)  # type: ignore[call-overload]
     raw = _lookup(data, key)
     if raw is None:
-        return default
+        return fallback
     value = getattr(raw, "value", raw)
     try:
         if type_ is str:
@@ -43,7 +45,7 @@ def get_scalar(
     except (TypeError, ValueError, OverflowError):
         pass
     logger.debug("Cannot read %r as %s: %r", key, type_.__name__, raw)
-    return default
+    return fallback
 
 
 @overload
