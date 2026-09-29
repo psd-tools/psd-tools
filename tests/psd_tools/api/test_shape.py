@@ -13,7 +13,7 @@ from psd_tools.api.shape import (
     Stroke,
     VectorMask,
 )
-from psd_tools.psd.descriptor import Descriptor
+from psd_tools.psd.descriptor import Bool, Descriptor, Double, UnitFloat
 from psd_tools.psd.vector import (
     ClosedKnotLinked,
     ClosedPath,
@@ -22,6 +22,7 @@ from psd_tools.psd.vector import (
     VectorMaskSetting,
     VectorStrokeContentSetting,
 )
+from psd_tools.terminology import Unit
 
 from ..utils import full_name
 
@@ -224,6 +225,27 @@ def test_stroke_missing_keys_degrade_to_none() -> None:
     stroke = Stroke(VectorStrokeContentSetting(classID=b"strokeStyle"))
     assert stroke.blend_mode is None
     assert stroke.opacity is None
+    assert stroke.miter_limit is None
+    assert stroke.scale_lock is None
+    assert stroke.stroke_adjust is None
+
+
+def test_stroke_wire_values_are_plain_primitives() -> None:
+    stroke = Stroke(
+        VectorStrokeContentSetting(
+            classID=b"strokeStyle",
+            items={  # type: ignore[arg-type]
+                b"strokeStyleMiterLimit": Double(1.5),
+                b"strokeStyleScaleLock": Bool(True),
+                b"strokeStyleStrokeAdjust": Bool(False),
+                b"strokeStyleOpacity": UnitFloat(unit=Unit.Percent, value=80.0),
+            },
+        )
+    )
+    assert stroke.miter_limit == 1.5 and type(stroke.miter_limit) is float
+    assert stroke.scale_lock is True
+    assert stroke.stroke_adjust is False
+    assert stroke.opacity == 80.0 and type(stroke.opacity) is float
 
 
 def test_origination_resolution_missing_is_none() -> None:
