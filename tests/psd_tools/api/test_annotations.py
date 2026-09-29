@@ -6,7 +6,8 @@ runs, paragraphs and styles beneath a type setting are not walked.
 """
 
 import logging
-from typing import Any, Iterator
+import types
+from typing import Any, Iterator, Union, get_args, get_origin
 
 import pytest
 
@@ -27,17 +28,29 @@ _SCALARS: dict[type, tuple[type, ...]] = {
 _BY_NAME: dict[Any, type] = {t.__name__: t for t in _SCALARS}
 
 
-def _scalar_properties(cls: type) -> Iterator[tuple[str, type]]:
+def _scalar_of(annotation: Any) -> tuple[type, bool] | None:
+    """The scalar an annotation promises, and whether `None` is allowed."""
+    optional = False
+    if isinstance(annotation, str):
+        # `from __future__ import annotations` leaves the source text.
+        optional = annotation.endswith(" | None")
+        annotation = _BY_NAME.get(annotation.removesuffix(" | None"))
+    elif get_origin(annotation) in (Union, types.UnionType):
+        args = [a for a in get_args(annotation) if a is not type(None)]
+        optional = len(args) < len(get_args(annotation))
+        annotation = args[0] if len(args) == 1 else None
+    return (annotation, optional) if annotation in _SCALARS else None
+
+
+def _scalar_properties(cls: type) -> Iterator[tuple[str, type, bool]]:
     for klass in cls.__mro__:
         for name, attr in vars(klass).items():
             if not isinstance(attr, property) or attr.fget is None:
                 continue
             # get_type_hints() cannot resolve every forward reference in api/.
-            annotation = attr.fget.__annotations__.get("return")
-            # `from __future__ import annotations` leaves the bare name.
-            annotation = _BY_NAME.get(annotation, annotation)
-            if annotation in _SCALARS:
-                yield name, annotation
+            found = _scalar_of(attr.fget.__annotations__.get("return"))
+            if found is not None:
+                yield (name, *found)
 
 
 def _objects(psd: PSDImage) -> Iterator[Any]:
@@ -69,8 +82,10 @@ def test_scalar_annotations_match_runtime(filename: str) -> None:
 
     mismatches = []
     for obj in objects:
-        for name, annotation in set(_scalar_properties(type(obj))):
+        for name, annotation, optional in set(_scalar_properties(type(obj))):
             value = getattr(obj, name)
+            if value is None and optional:
+                continue
             if not isinstance(value, _SCALARS[annotation]):
                 mismatches.append(
                     f"{type(obj).__name__}.{name}: {annotation.__name__}"

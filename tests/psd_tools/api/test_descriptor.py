@@ -70,6 +70,19 @@ def test_get_scalar_default_is_coerced_to_type():
         assert type(get_scalar(data, key, float, 0)) is float  # type: ignore[arg-type]
 
 
+def test_get_scalar_none_default_means_absent():
+    data = Descriptor(classID=Klass.Null, items={b"text": String("x")})  # type: ignore[arg-type]
+    assert get_scalar(data, b"miss", float, None) is None
+    assert get_scalar(data, b"text", float, None) is None
+    assert get_scalar(None, b"miss", float, None) is None
+
+
+def test_get_scalar_none_default_still_coerces_present_value():
+    data = Descriptor(classID=Klass.Null, items={b"long": Integer(7)})  # type: ignore[arg-type]
+    value = get_scalar(data, b"long", float, None)
+    assert value == 7.0 and type(value) is float
+
+
 def test_get_scalar_none_descriptor():
     assert get_scalar(None, b"long", int, 3) == 3
 

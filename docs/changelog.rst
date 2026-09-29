@@ -16,6 +16,10 @@ Changelog
   any ``.unit`` or ``.value``. A missing key gives ``None`` from
   ``Stroke.blend_mode`` and ``Origination.resolution`` (was an error) and
   ``0.0`` from ``line_dash_offset`` (was ``None``) (#788, #906)
+- [api] ``Stroke.miter_limit``, ``scale_lock``, ``stroke_adjust`` and
+  ``opacity`` now return ``float`` / ``bool``, or ``None`` if absent or unreadable.
+  **Backwards incompatible:** they returned ``Double`` / ``Bool`` /
+  ``UnitFloat``, so drop any ``.value`` (#789)
 
 1.21.0 (2026-09-28)
 -------------------

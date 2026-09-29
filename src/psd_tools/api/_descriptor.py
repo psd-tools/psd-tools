@@ -20,16 +20,26 @@ def _lookup(data: DictElement | None, key: bytes) -> Any:
     return None if data is None else data.get(key)
 
 
+@overload
+def get_scalar(
+    data: DictElement | None, key: bytes, type_: type[_S], default: None
+) -> _S | None: ...
+@overload
 def get_scalar(
     data: DictElement | None, key: bytes, type_: type[_S], default: _S
-) -> _S:
+) -> _S: ...
+def get_scalar(
+    data: DictElement | None, key: bytes, type_: type[_S], default: _S | None
+) -> _S | None:
     """Read *key* as a plain *type_*, whatever OSType it arrived as.
 
     A float read as ``int`` truncates toward zero. Returns *default*, coerced to
     *type_*, when the key is absent (silently) or the value cannot be coerced
-    (with a debug log).
+    (with a debug log). A *default* of ``None`` is returned as is.
     """
-    fallback: _S = type_(default)  # type: ignore[call-overload]
+    fallback: _S | None = (
+        None if default is None else type_(default)  # type: ignore[call-overload]
+    )
     raw = _lookup(data, key)
     if raw is None:
         return fallback

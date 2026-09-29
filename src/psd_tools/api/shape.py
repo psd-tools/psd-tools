@@ -11,13 +11,8 @@ import logging
 import math
 from typing import Literal
 
-from psd_tools.psd.descriptor import (
-    Bool,
-    Descriptor,
-    DescriptorBlock2,
-    Double,
-    UnitFloat,
-)
+from psd_tools.api._descriptor import get_scalar
+from psd_tools.psd.descriptor import Descriptor, DescriptorBlock2
 from psd_tools.psd.vector import (
     ClipboardRecord,
     InitialFillRule,
@@ -281,9 +276,9 @@ class Stroke(object):
         return float(self._data.get(b"strokeStyleLineDashOffset", 0.0))
 
     @property
-    def miter_limit(self) -> Double | None:
-        """Miter limit."""
-        return self._data.get(b"strokeStyleMiterLimit")
+    def miter_limit(self) -> float | None:
+        """Miter limit, or `None` if the file does not record one."""
+        return get_scalar(self._data, b"strokeStyleMiterLimit", float, None)
 
     @property
     def line_cap_type(self) -> str:
@@ -304,13 +299,14 @@ class Stroke(object):
         return self.STROKE_STYLE_LINE_ALIGNMENTS.get(key, str(key))
 
     @property
-    def scale_lock(self) -> Bool | None:
-        return self._data.get(b"strokeStyleScaleLock")
+    def scale_lock(self) -> bool | None:
+        """Scale lock, or `None` if the file does not record one."""
+        return get_scalar(self._data, b"strokeStyleScaleLock", bool, None)
 
     @property
-    def stroke_adjust(self) -> Bool | None:
-        """Stroke adjust."""
-        return self._data.get(b"strokeStyleStrokeAdjust")
+    def stroke_adjust(self) -> bool | None:
+        """Stroke adjust, or `None` if the file does not record one."""
+        return get_scalar(self._data, b"strokeStyleStrokeAdjust", bool, None)
 
     @property
     def blend_mode(self) -> bytes | None:
@@ -319,9 +315,9 @@ class Stroke(object):
         return None if value is None else value.enum
 
     @property
-    def opacity(self) -> UnitFloat | None:
-        """Opacity value."""
-        return self._data.get(b"strokeStyleOpacity")
+    def opacity(self) -> float | None:
+        """Opacity in percent, or `None` if the file does not record one."""
+        return get_scalar(self._data, b"strokeStyleOpacity", float, None)
 
     @property
     def content(self) -> Descriptor | None:
