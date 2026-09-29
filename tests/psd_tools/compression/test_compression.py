@@ -1,4 +1,6 @@
+import array
 import logging
+import random
 import warnings
 import zlib
 
@@ -40,6 +42,100 @@ def test_prediction(fixture: bytes, width: int, height: int, depth: int) -> None
     encoded = encode_prediction(fixture, width, height, depth)
     decoded = decode_prediction(encoded, width, height, depth)
     assert fixture == decoded
+
+
+def _ref_deltas(arr: array.array, row: int, h: int, sign: int, mod: int) -> None:
+    """In-place per-element delta (sign -1) or running sum (sign +1) of each row."""
+    for y in range(h):
+        xs = range(row - 1) if sign > 0 else reversed(range(row - 1))
+        for x in xs:
+            pos = y * row + x
+            arr[pos + 1] = (arr[pos + 1] + sign * arr[pos]) % mod
+
+
+def _ref_planes(data: bytes, w: int, h: int, to_planes: bool) -> bytes:
+    """Split each row's 4-byte samples into byte planes, or merge them back."""
+    out = bytearray(len(data))
+    for y in range(h):
+        for x in range(w):
+            for k in range(4):
+                interleaved = 4 * (y * w + x) + k
+                planar = 4 * y * w + k * w + x
+                if to_planes:
+                    out[planar] = data[interleaved]
+                else:
+                    out[interleaved] = data[planar]
+    return bytes(out)
+
+
+def _ref_encode(data: bytes, w: int, h: int, depth: int) -> bytes:
+    """Per-element loops: the definition of the format the numpy code matches."""
+    if depth == 32:
+        arr = array.array("B", _ref_planes(data, w, h, True))
+        _ref_deltas(arr, 4 * w, h, -1, 0x100)
+        return arr.tobytes()
+    arr = array.array("B" if depth == 8 else "H", data)
+    if depth == 16:
+        arr.byteswap()
+    _ref_deltas(arr, w, h, -1, 1 << depth)
+    if depth == 16:
+        arr.byteswap()
+    return arr.tobytes()
+
+
+def _ref_decode(data: bytes, w: int, h: int, depth: int) -> bytes:
+    if depth == 32:
+        arr = array.array("B", data)
+        _ref_deltas(arr, 4 * w, h, 1, 0x100)
+        return _ref_planes(arr.tobytes(), w, h, False)
+    arr = array.array("B" if depth == 8 else "H", data)
+    if depth == 16:
+        arr.byteswap()
+    _ref_deltas(arr, w, h, 1, 1 << depth)
+    if depth == 16:
+        arr.byteswap()
+    return arr.tobytes()
+
+
+_PREDICTION_SHAPES = [(1, 1), (1, 3), (2, 1), (2, 2), (3, 2), (7, 5), (64, 3)]
+
+
+@pytest.mark.parametrize("width, height", _PREDICTION_SHAPES)
+@pytest.mark.parametrize("depth", [8, 16, 32])
+@pytest.mark.parametrize("fill", ["random", "ones", "zeros"])
+def test_prediction_matches_reference(
+    width: int, height: int, depth: int, fill: str
+) -> None:
+    size = width * height * depth // 8
+    if fill == "random":
+        data = random.Random(width * 31 + height).randbytes(size)
+    else:
+        data = (b"\xff" if fill == "ones" else b"\x00") * size
+    encoded = encode_prediction(data, width, height, depth)
+    assert encoded == _ref_encode(data, width, height, depth)
+    assert decode_prediction(data, width, height, depth) == _ref_decode(
+        data, width, height, depth
+    )
+    assert decode_prediction(encoded, width, height, depth) == data
+
+
+@pytest.mark.parametrize("depth, size", [(8, 3), (16, 7), (32, 15)])
+def test_decode_prediction_short_payload_raises_value_error(
+    depth: int, size: int
+) -> None:
+    with pytest.raises(ValueError):
+        decode_prediction(bytes(size), 2, 2, depth)
+
+
+@pytest.mark.parametrize("depth", [8, 16, 32])
+def test_decompress_short_prediction_payload_degrades(depth: int) -> None:
+    """A short payload is a warning and a black channel, not an exception."""
+    short = zlib.compress(bytes(3))
+    with pytest.warns(PSDDecompressionWarning):
+        result = decompress(
+            short, Compression.ZIP_WITH_PREDICTION, width=2, height=2, depth=depth
+        )
+    assert result == bytes(4 * depth // 8)
 
 
 @pytest.mark.parametrize(
@@ -274,8 +370,9 @@ def test_decompress_corrupted_zlib_emits_warning(kind: Compression) -> None:
 def test_decompress_length_mismatch_raises() -> None:
     """A decompressed payload of wrong length must raise ValueError (integrity check).
 
-    Only ZIP is tested here: for ZIP_WITH_PREDICTION a short payload crashes
-    inside decode_prediction (IndexError) before reaching the length check.
+    Only ZIP is tested here: for ZIP_WITH_PREDICTION a short payload is
+    rejected by decode_prediction (ValueError) before reaching the length
+    check.
     """
     # Compress 5 bytes but declare a 3×3=9 pixel channel.
     short_data = zlib.compress(b"\x00" * 5)

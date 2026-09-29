@@ -68,12 +68,11 @@ import io
 import logging
 import warnings
 import zlib
-from typing import Iterator
+
+import numpy as np
 
 from psd_tools.constants import Compression
 from psd_tools.psd.bin_utils import (
-    be_array_from_bytes,
-    be_array_to_bytes,
     read_be_array,
     write_be_array,
 )
@@ -423,92 +422,47 @@ def decode_rle(data: bytes, width: int, height: int, depth: int, version: int) -
 
 def encode_prediction(data: bytes | bytearray, w: int, h: int, depth: int) -> bytes:
     if depth == 8:
-        arr = array.array("B", data)
-        arr = _delta_encode(arr, 0x100, w, h)
-        return be_array_to_bytes(arr)
+        rows = np.frombuffer(data, np.uint8, count=w * h).reshape(h, w)
+        return _delta_encode(rows).tobytes()
     elif depth == 16:
-        arr = array.array("H", data)
-        arr = _delta_encode(arr, 0x10000, w, h)
-        return be_array_to_bytes(arr)
+        rows = np.frombuffer(data, ">u2", count=w * h).reshape(h, w)
+        return _delta_encode(rows.astype(np.uint16)).astype(">u2").tobytes()
     elif depth == 32:
-        arr = array.array("B", data)
-        arr = _shuffle_byte_order(arr, w, h)
-        arr = _delta_encode(arr, 0x100, w * 4, h)
-        return arr.tobytes()
+        # Each row's 4-byte samples are split into four byte planes, and the
+        # delta runs across the whole row of planes.
+        samples = np.frombuffer(data, np.uint8, count=4 * w * h).reshape(h, w, 4)
+        planes = samples.transpose(0, 2, 1).reshape(h, 4 * w)
+        return _delta_encode(planes).tobytes()
     else:
         raise ValueError("Invalid pixel size %d" % (depth))
 
 
 def decode_prediction(data: bytes, w: int, h: int, depth: int) -> bytes:
+    """Decode ZIP-with-prediction data.
+
+    Bytes past ``w * h`` samples are ignored; a short *data* raises ValueError.
+    """
     if depth == 8:
-        arr = be_array_from_bytes("B", data)
-        arr = _delta_decode(arr, 0x100, w, h)
+        rows = np.frombuffer(data, np.uint8, count=w * h).reshape(h, w)
+        return _delta_decode(rows).tobytes()
     elif depth == 16:
-        arr = be_array_from_bytes("H", data)
-        arr = _delta_decode(arr, 0x10000, w, h)
+        rows = np.frombuffer(data, ">u2", count=w * h).reshape(h, w)
+        return _delta_decode(rows.astype(np.uint16)).astype(">u2").tobytes()
     elif depth == 32:
-        arr = array.array("B", data)
-        arr = _delta_decode(arr, 0x100, w * 4, h)
-        arr = _restore_byte_order(arr, w, h)
+        planes = np.frombuffer(data, np.uint8, count=4 * w * h).reshape(h, 4 * w)
+        return _delta_decode(planes).reshape(h, 4, w).transpose(0, 2, 1).tobytes()
     else:
         raise ValueError("Invalid pixel size %d" % (depth))
 
-    return arr.tobytes()
+
+def _delta_encode(rows: "np.ndarray") -> "np.ndarray":
+    """Difference along each row, wrapping at the dtype width."""
+    out = np.empty_like(rows)
+    out[:, :1] = rows[:, :1]
+    np.subtract(rows[:, 1:], rows[:, :-1], out=out[:, 1:])
+    return out
 
 
-def _delta_encode(arr: array.array, mod: int, w: int, h: int) -> array.array:
-    arr.byteswap()
-    for y in reversed(range(h)):
-        offset = y * w
-        for x in reversed(range(w - 1)):
-            pos = offset + x
-            next_value = (arr[pos + 1] - arr[pos]) % mod
-            arr[pos + 1] = next_value
-    return arr
-
-
-def _delta_decode(arr: array.array, mod: int, w: int, h: int) -> array.array:
-    for y in range(h):
-        offset = y * w
-        for x in range(w - 1):
-            pos = offset + x
-            next_value = (arr[pos + 1] + arr[pos]) % mod
-            arr[pos + 1] = next_value
-    arr.byteswap()
-    return arr
-
-
-def _shuffled_order(w: int, h: int) -> Iterator[int]:
-    """
-    Generator for the order of 4-byte values.
-
-    32bit channels are also encoded using delta encoding,
-    but it make no sense to apply delta compression to bytes.
-    It is possible to apply delta compression to 2-byte or 4-byte
-    words, but it seems it is not the best way either.
-    In PSD, each 4-byte item is split into 4 bytes and these
-    bytes are packed together: "123412341234" becomes "111222333444";
-    delta compression is applied to the packed data.
-
-    So we have to (a) decompress data from the delta compression
-    and (b) recombine data back to 4-byte values.
-    """
-    rowsize = 4 * w
-    for row in range(0, rowsize * h, rowsize):
-        for offset in range(row, row + w):
-            for x in range(offset, offset + rowsize, w):
-                yield x
-
-
-def _shuffle_byte_order(bytes_array: array.array, w: int, h: int) -> array.array:
-    arr = bytes_array[:]
-    for src, dst in enumerate(_shuffled_order(w, h)):
-        arr[dst] = bytes_array[src]
-    return arr
-
-
-def _restore_byte_order(bytes_array: array.array, w: int, h: int) -> array.array:
-    arr = bytes_array[:]
-    for dst, src in enumerate(_shuffled_order(w, h)):
-        arr[dst] = bytes_array[src]
-    return arr
+def _delta_decode(rows: "np.ndarray") -> "np.ndarray":
+    """Running sum along each row, wrapping at the dtype width."""
+    return np.cumsum(rows, axis=1, dtype=rows.dtype)
