@@ -24,6 +24,8 @@ _SCALARS: dict[type, tuple[type, ...]] = {
     str: (str,),
 }
 
+_BY_NAME: dict[Any, type] = {t.__name__: t for t in _SCALARS}
+
 
 def _scalar_properties(cls: type) -> Iterator[tuple[str, type]]:
     for klass in cls.__mro__:
@@ -32,6 +34,8 @@ def _scalar_properties(cls: type) -> Iterator[tuple[str, type]]:
                 continue
             # get_type_hints() cannot resolve every forward reference in api/.
             annotation = attr.fget.__annotations__.get("return")
+            # `from __future__ import annotations` leaves the bare name.
+            annotation = _BY_NAME.get(annotation, annotation)
             if annotation in _SCALARS:
                 yield name, annotation
 
