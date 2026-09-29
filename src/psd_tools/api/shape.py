@@ -313,9 +313,10 @@ class Stroke(object):
         return self._data.get(b"strokeStyleStrokeAdjust")
 
     @property
-    def blend_mode(self) -> bytes:
+    def blend_mode(self) -> bytes | None:
         """Blend mode."""
-        return self._data.get(b"strokeStyleBlendMode").enum
+        value = self._data.get(b"strokeStyleBlendMode")
+        return None if value is None else value.enum
 
     @property
     def opacity(self) -> UnitFloat | None:

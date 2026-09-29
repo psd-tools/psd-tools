@@ -1858,7 +1858,8 @@ class Compositor(object):
                 widen=self._widen,
                 color_mode=self._color_mode,
             )
-            compositor._apply_source(color_s, shape_s, alpha_s, layer.stroke.blend_mode)
+            stroke_blend_mode = layer.stroke.blend_mode or BlendMode.NORMAL
+            compositor._apply_source(color_s, shape_s, alpha_s, stroke_blend_mode)
             # Seeded with the layer's own color and alpha, so the result is
             # wanted as it stands on that seed: the stroke is painted onto the
             # fill it outlines, and a pixel it covers in part is that much of
