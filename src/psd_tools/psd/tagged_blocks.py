@@ -537,7 +537,7 @@ class MetadataSetting(BaseElement):
             data = DescriptorBlock.frombytes(data, padding=4)
         else:
             message = "Unknown metadata key %r" % (key)
-            logger.warning(message)
+            logger.debug(message)
             data = data
         return cls(signature, key, copy_on_sheet, data)
 
