@@ -19,7 +19,7 @@ Changelog
 - [api] ``Stroke.miter_limit``, ``scale_lock``, ``stroke_adjust`` and
   ``opacity`` now return ``float`` / ``bool``, or ``None`` if absent or unreadable.
   **Backwards incompatible:** they returned ``Double`` / ``Bool`` /
-  ``UnitFloat``, so drop any ``.value`` (#789)
+  ``UnitFloat``, so drop any ``.value`` or ``.unit`` (#789)
 
 1.21.0 (2026-09-28)
 -------------------
