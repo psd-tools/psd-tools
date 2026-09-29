@@ -14,7 +14,7 @@ Changelog
   and ``Stroke.line_dash_offset`` returns ``float``, as annotated. **Backwards
   incompatible:** they used to return the descriptor ``Integer`` / ``UnitFloat``,
   so code reading ``.unit`` or ``.value`` must drop it. Other ``Any``
-  properties in ``api`` gain annotations only, with no runtime change (#788)
+  properties in ``api`` gain annotations only, with no runtime change (#788, #906)
 
 1.21.0 (2026-09-28)
 -------------------
