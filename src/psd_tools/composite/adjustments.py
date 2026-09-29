@@ -367,7 +367,7 @@ def apply_exposure(
 ) -> np.ndarray:
     """Applies an exposure adjustment to an image."""
     if colormode == ColorMode.CMYK:
-        logger.info("Exposure doesn't support CMYK in Photoshop.")
+        logger.debug("Exposure doesn't support CMYK in Photoshop.")
         return img
 
     exposure = np.float32(layer.exposure)
@@ -412,7 +412,7 @@ def apply_huesaturation(
 ) -> np.ndarray:
     """Applies a hue/saturation adjustment to an image."""
     if colormode == ColorMode.GRAYSCALE:
-        logger.info("Hue/Saturation doesn't support grayscale in Photoshop.")
+        logger.debug("Hue/Saturation doesn't support grayscale in Photoshop.")
         return img
 
     # CMYK requires accurate luminance conversion

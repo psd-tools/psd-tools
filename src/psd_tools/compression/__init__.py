@@ -413,7 +413,7 @@ def decode_rle(data: bytes, width: int, height: int, depth: int, version: int) -
             )
     except ValueError as e:
         logger.error(f"An error occurred during RLE decoding: {e}")
-        logger.info(
+        logger.debug(
             f"Decompression of RLE data failed: {width=} {height=} {depth=} {version=} size={len(data)}",
             exc_info=True,
         )

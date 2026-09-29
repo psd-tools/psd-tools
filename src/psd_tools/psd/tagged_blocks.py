@@ -295,7 +295,7 @@ class TaggedBlock(BaseElement):
                 data = raw_data
         else:
             message = "Unknown tagged block: %r, %s" % (key, trimmed_repr(raw_data))
-            logger.info(message)
+            logger.debug(message)
             data = raw_data
         return cls(signature, key, data)
 
@@ -537,7 +537,7 @@ class MetadataSetting(BaseElement):
             data = DescriptorBlock.frombytes(data, padding=4)
         else:
             message = "Unknown metadata key %r" % (key)
-            logger.warning(message)
+            logger.debug(message)
             data = data
         return cls(signature, key, copy_on_sheet, data)
 

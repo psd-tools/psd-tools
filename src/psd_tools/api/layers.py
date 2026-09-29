@@ -1866,7 +1866,7 @@ class Group(GroupMixin, Layer):
         ]
         bboxes = [bbox for bbox in bboxes if bbox != (0, 0, 0, 0)]
         if len(bboxes) == 0:  # Empty bounding box.
-            logger.info("No bounding box could be extracted from the given layers.")
+            logger.debug("No bounding box could be extracted from the given layers.")
             return (0, 0, 0, 0)
         lefts, tops, rights, bottoms = zip(*bboxes)
         return (min(lefts), min(tops), max(rights), max(bottoms))

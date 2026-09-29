@@ -470,13 +470,13 @@ def _get_channel(layer: "LayerProtocol", channel: int) -> Image.Image | None:
         return None
     if channel == ChannelID.USER_LAYER_MASK:
         if layer.mask is None:
-            logger.info("Layer has no mask.")
+            logger.debug("Layer has no mask.")
             return None
         width = layer.mask.data.width
         height = layer.mask.data.height
     elif channel == ChannelID.REAL_USER_LAYER_MASK:
         if layer.mask is None:
-            logger.info("Layer has no real mask.")
+            logger.debug("Layer has no real mask.")
             return None
         width = layer.mask.data.real_width
         height = layer.mask.data.real_height
