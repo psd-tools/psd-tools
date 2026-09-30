@@ -176,3 +176,19 @@ def test_backing_bytes_charges_the_owner_of_a_truncated_view():
     full = np.zeros((4, 4, 4), dtype=np.float32)
     assert numpy_io._backing_bytes(full[:, :, :3]) == full.nbytes
     assert numpy_io._backing_bytes(full.reshape(16, 4)[:, :3]) == full.nbytes
+
+
+def test_repeated_channel_ids_are_charged_once_per_decode():
+    layer = _rgb_layer()
+    _, _, planes, peak = _layer_peak_bytes(layer, None, False)
+    info, data = layer._record.channel_info[0], layer._channels[0]
+    empty = type(data)(compression=data.compression, data=b"")
+    for _ in range(50):
+        layer._record.channel_info.insert(0, info)
+        layer._channels.insert(0, empty)
+    _, _, repeated, repeated_peak = _layer_peak_bytes(layer, None, False)
+    assert repeated == planes + 50
+    assert repeated_peak > peak
+    layer._psd._max_alloc_bytes = peak
+    with pytest.raises(ValueError, match="Peak allocation"):
+        layer.topil()
