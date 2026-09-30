@@ -251,3 +251,11 @@ def test_the_pattern_estimate_covers_the_decode_peak() -> None:
         tracemalloc.stop()
     # Fixed interpreter-side objects are not modelled, as for layer reads.
     assert peak <= _rle_peak(side, planes) + 65536
+
+
+def test_a_pattern_whose_depths_disagree_is_rejected_before_the_decode() -> None:
+    pattern = _forged_pattern(1000, Compression.RLE)
+    (first,) = [c for c in pattern.data.channels if c.is_written][:1]
+    first.depth = 32
+    with pytest.raises(ValueError, match="disagrees"):
+        numpy_io.get_pattern(pattern)

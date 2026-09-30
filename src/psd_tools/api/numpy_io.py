@@ -425,12 +425,15 @@ def _check_pattern_read(
         if c.rectangle:
             width = max(width, c.rectangle[3] - c.rectangle[1])
             height = max(height, c.rectangle[2] - c.rectangle[0])
-    # The decode reads `depth`, the parse reads `pixel_depth`; size for either.
-    depth = max(
-        d if d in _PARSE_TRANSIENT else 32
-        for c in written
-        for d in (c.depth, c.pixel_depth)
-    )
+    # The decode reads `depth` and the parse reads `pixel_depth`. Unequal, the
+    # parse yields more values than the estimate models, so neither is trusted.
+    for c in written:
+        if c.depth != c.pixel_depth:
+            raise ValueError(
+                f"Pattern channel depth {c.depth} disagrees with its pixel "
+                f"depth {c.pixel_depth}."
+            )
+    depth = max(c.depth if c.depth in _PARSE_TRANSIENT else 32 for c in written)  # type: ignore[type-var]
     check_pixel_size(
         width,
         height,
