@@ -11,6 +11,7 @@ Example::
 """
 
 import logging
+
 from psd_tools.api._descriptor import get_descriptor, get_enum, get_scalar
 from psd_tools.api.layers import AdjustmentLayer, FillLayer
 from psd_tools.constants import GradientType, Tag
@@ -118,7 +119,8 @@ class Curves(AdjustmentLayer):
         """
         Raw data.
 
-        :return: :py:class:`~psd_tools.psd.adjustments.Curves`
+        :return: :py:class:`~psd_tools.psd.adjustments.Curves`, or `None` if the
+            block is absent
         """
         return self._data
 
@@ -176,7 +178,8 @@ class Levels(AdjustmentLayer):
         """
         List of level records. The first record is the master.
 
-        :return: :py:class:`~psd_tools.psd.adjustments.Levels`.
+        :return: :py:class:`~psd_tools.psd.adjustments.Levels`, or `None` if the
+            block is absent
         """
         return self._data
 

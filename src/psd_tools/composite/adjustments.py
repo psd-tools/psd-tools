@@ -286,7 +286,7 @@ def apply_levels(
 ) -> np.ndarray:
     """Applies a levels adjustment to an image."""
     levels_data = layer.data
-    if levels_data is None:
+    if not levels_data:
         return img
 
     lut_size = _get_lut_size(layer)
