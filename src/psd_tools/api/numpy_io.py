@@ -251,6 +251,27 @@ def get_image_data(psdimage: "PSDProtocol", channel: str | None) -> np.ndarray:
     return array
 
 
+def _layer_read_peak_bytes(
+    width: int, height: int, depth: int, planes: int, decompress: int
+) -> int:
+    """Bytes one :func:`get_layer_data` channel read allocates at its peak.
+
+    ``planes`` is the number of channels the read selects, not the record's
+    channel count. The phases run in sequence: decompressing a channel, parsing
+    it while the earlier ones are retained, and ``np.stack`` copying the lot.
+    The doubled float32 stack is the high-water mark for anything past a single
+    8-bit plane.
+    """
+    pixels = width * height
+    source = _row_size(width, depth) * height
+    plane = pixels * 4
+    return max(
+        (planes - 1) * plane + decompress * source,
+        (planes - 1) * plane + source + plane + pixels * _PARSE_TRANSIENT[depth],
+        2 * planes * plane,
+    )
+
+
 def get_layer_data(
     layer: "LayerProtocol", channel: str | None, real_mask: bool = True
 ) -> np.ndarray | None:
@@ -261,6 +282,26 @@ def get_layer_data(
         condition: Callable[[Any], bool],
     ) -> np.ndarray | None:
         depth, version = layer._psd.depth, layer._psd.version
+        iterator = zip(layer._record.channel_info, layer._channels)
+        selected = [
+            data for info, data in iterator if condition(info) and len(data.data) > 0
+        ]
+        # An empty box allocates nothing, and check_pixel_size() rejects it.
+        if selected and width >= 1 and height >= 1:
+            check_pixel_size(
+                width,
+                height,
+                len(selected),
+                max_alloc_bytes=layer._psd._max_alloc_bytes,
+                estimated_bytes=_layer_read_peak_bytes(
+                    width,
+                    height,
+                    depth,
+                    len(selected),
+                    max(_DECOMPRESS_PEAK[data.compression] for data in selected),
+                ),
+                warn=False,
+            )
         iterator = zip(layer._record.channel_info, layer._channels)
         channels = [
             _parse_array(
@@ -306,6 +347,17 @@ def get_layer_data(
     )
     if shape is None:
         return color
+    if color is not None:
+        # Both reads are live while `np.concatenate` builds a third array.
+        planes = color.shape[2] + shape.shape[2]
+        check_pixel_size(
+            layer.width,
+            layer.height,
+            planes,
+            max_alloc_bytes=layer._psd._max_alloc_bytes,
+            estimated_bytes=2 * layer.width * layer.height * planes * 4,
+            warn=False,
+        )
     return np.concatenate([color, shape], axis=2)
 
 
