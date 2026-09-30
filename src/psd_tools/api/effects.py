@@ -22,6 +22,7 @@ import logging
 import warnings
 from typing import Any, Iterator, Protocol
 
+from psd_tools.api._descriptor import get_scalar
 from psd_tools.api.protocols import LayerProtocol
 from psd_tools.constants import Resource, Tag
 from psd_tools.psd.descriptor import Descriptor, List
@@ -34,26 +35,6 @@ logger = logging.getLogger(__name__)
 _TYPES, register = new_registry()
 
 
-def _get_value(descriptor: Descriptor, key: bytes, default: Any = None) -> Any:
-    """
-    Get a value from a descriptor, extracting the .value attribute if present.
-
-    This helper ensures we correctly handle descriptor objects that have a .value
-    attribute (like NumericElement, BooleanElement, etc.) while also supporting
-    cases where a default value is returned when the key is missing.
-
-    Args:
-        descriptor: The descriptor to get the value from
-        key: The key to look up
-        default: The default value if the key is not found
-
-    Returns:
-        The extracted value, either from obj.value or the object itself
-    """
-    result = descriptor.get(key, default)
-    return getattr(result, "value", result)
-
-
 _EFFECTS_TAGS = (
     Tag.OBJECT_BASED_EFFECTS_LAYER_INFO,
     Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V0,
@@ -63,7 +44,7 @@ _EFFECTS_TAGS = (
 
 def _master_switch(data: Descriptor | None) -> bool:
     """Whether the master fx switch is on. False when there is no block."""
-    return bool(data.get(b"masterFXSwitch")) if data is not None else False
+    return get_scalar(data, b"masterFXSwitch", bool, False)
 
 
 class Effects:
@@ -151,7 +132,7 @@ class Effects:
         data = self._data
         if data is None:
             return 100.0
-        return float(_get_value(data, Key.Scale, 100.0))
+        return get_scalar(data, Key.Scale, float, 100.0)
 
     @property
     def enabled(self) -> bool:
@@ -245,7 +226,7 @@ class _Effect(_EffectProtocol):
     @property
     def enabled(self) -> bool:
         """Whether if the effect is enabled."""
-        return bool(self.descriptor.get(Key.Enabled))
+        return get_scalar(self.descriptor, Key.Enabled, bool, False)
 
     @property
     def present(self) -> bool:
@@ -256,17 +237,17 @@ class _Effect(_EffectProtocol):
         says so only as of that listing, though: clear it on an effect you are
         holding and this reports False, while the next listing drops it.
         """
-        return bool(self.descriptor.get(b"present"))
+        return get_scalar(self.descriptor, b"present", bool, False)
 
     @property
     def shown(self) -> bool:
         """Whether if the effect is shown in dialog."""
-        return bool(self.descriptor.get(b"showInDialog"))
+        return get_scalar(self.descriptor, b"showInDialog", bool, False)
 
     @property
     def opacity(self) -> float:
         """Layer effect opacity in percentage."""
-        return float(_get_value(self.descriptor, Key.Opacity, 100.0))
+        return get_scalar(self.descriptor, Key.Opacity, float, 100.0)
 
     def has_patterns(self) -> bool:
         return isinstance(self, _PatternMixin) and self.pattern is not None
@@ -302,22 +283,22 @@ class _ChokeNoiseMixin(_ColorMixin):
     @property
     def choke(self) -> float:
         """Choke level in pixels."""
-        return float(_get_value(self.descriptor, Key.ChokeMatte, 0.0))
+        return get_scalar(self.descriptor, Key.ChokeMatte, float, 0.0)
 
     @property
     def size(self) -> float:
         """Size in pixels."""
-        return float(_get_value(self.descriptor, Key.Blur, 0.0))
+        return get_scalar(self.descriptor, Key.Blur, float, 0.0)
 
     @property
     def noise(self) -> float:
         """Noise level in percent."""
-        return float(_get_value(self.descriptor, Key.Noise, 0.0))
+        return get_scalar(self.descriptor, Key.Noise, float, 0.0)
 
     @property
     def anti_aliased(self) -> bool:
         """Angi-aliased."""
-        return bool(self.descriptor.get(Key.AntiAlias))
+        return get_scalar(self.descriptor, Key.AntiAlias, bool, False)
 
     @property
     def contour(self) -> Descriptor:
@@ -329,14 +310,14 @@ class _AngleMixin(_EffectProtocol):
     @property
     def use_global_light(self) -> bool:
         """Using global light."""
-        return bool(self.descriptor.get(Key.UseGlobalAngle))
+        return get_scalar(self.descriptor, Key.UseGlobalAngle, bool, False)
 
     @property
     def angle(self) -> float:
         """Angle value."""
         if self.use_global_light:
             return self._image_resources.get_data(Resource.GLOBAL_ANGLE, 30.0)
-        return float(_get_value(self.descriptor, Key.LocalLightingAngle, 0.0))
+        return get_scalar(self.descriptor, Key.LocalLightingAngle, float, 0.0)
 
 
 class _GradientMixin(_EffectProtocol):
@@ -348,7 +329,7 @@ class _GradientMixin(_EffectProtocol):
     @property
     def angle(self) -> float:
         """Angle value."""
-        return float(_get_value(self.descriptor, Key.Angle, 0.0))
+        return get_scalar(self.descriptor, Key.Angle, float, 0.0)
 
     @property
     def type(self) -> bytes | None:
@@ -365,12 +346,12 @@ class _GradientMixin(_EffectProtocol):
     @property
     def reversed(self) -> bool:
         """Reverse flag."""
-        return bool(self.descriptor.get(Key.Reverse))
+        return get_scalar(self.descriptor, Key.Reverse, bool, False)
 
     @property
     def dithered(self) -> bool:
         """Dither flag."""
-        return bool(self.descriptor.get(Key.Dither))
+        return get_scalar(self.descriptor, Key.Dither, bool, False)
 
     @property
     def offset(self) -> Descriptor:
@@ -393,12 +374,12 @@ class _PatternMixin(_EffectProtocol):
     @property
     def linked(self) -> bool:
         """Linked."""
-        return bool(self.descriptor.get(b"Lnkd"))
+        return get_scalar(self.descriptor, b"Lnkd", bool, False)
 
     @property
     def angle(self) -> float:
         """Angle value."""
-        return float(_get_value(self.descriptor, Key.Angle, 0.0))
+        return get_scalar(self.descriptor, Key.Angle, float, 0.0)
 
     @property
     def phase(self) -> Descriptor:
@@ -412,7 +393,7 @@ class _ShadowEffect(_Effect, _ChokeNoiseMixin, _AngleMixin):
     @property
     def distance(self) -> float:
         """Distance in pixels."""
-        return float(_get_value(self.descriptor, Key.Distance, 0.0))
+        return get_scalar(self.descriptor, Key.Distance, float, 0.0)
 
 
 class _GlowEffect(_Effect, _ChokeNoiseMixin, _GradientMixin):
@@ -426,12 +407,12 @@ class _GlowEffect(_Effect, _ChokeNoiseMixin, _GradientMixin):
     @property
     def quality_range(self) -> float:
         """Quality range in percent."""
-        return float(_get_value(self.descriptor, Key.InputRange, 0.0))
+        return get_scalar(self.descriptor, Key.InputRange, float, 0.0)
 
     @property
     def quality_jitter(self) -> float:
         """Quality jitter in percent."""
-        return float(_get_value(self.descriptor, Key.ShadingNoise, 0.0))
+        return get_scalar(self.descriptor, Key.ShadingNoise, float, 0.0)
 
 
 class _OverlayEffect(_Effect):
@@ -448,12 +429,12 @@ class _AlignScaleMixin(_EffectProtocol):
     @property
     def scale(self) -> float:
         """Scale value."""
-        return float(_get_value(self.descriptor, Key.Scale, 1.0))
+        return get_scalar(self.descriptor, Key.Scale, float, 1.0)
 
     @property
     def aligned(self) -> bool:
         """Aligned."""
-        return bool(self.descriptor.get(Key.Alignment))
+        return get_scalar(self.descriptor, Key.Alignment, bool, False)
 
 
 @register(Klass.DropShadow.value)
@@ -461,7 +442,7 @@ class DropShadow(_ShadowEffect):
     @property
     def layer_knocks_out(self) -> bool:
         """Layers are knocking out."""
-        return bool(self.descriptor.get(b"layerConceals"))
+        return get_scalar(self.descriptor, b"layerConceals", bool, False)
 
 
 @register(Klass.InnerShadow.value)
@@ -474,7 +455,7 @@ class OuterGlow(_GlowEffect):
     @property
     def spread(self) -> float:
         """Spread level in percent."""
-        return float(_get_value(self.descriptor, Key.ShadingNoise, 0.0))
+        return get_scalar(self.descriptor, Key.ShadingNoise, float, 0.0)
 
 
 @register(Klass.InnerGlow.value)
@@ -523,12 +504,12 @@ class Stroke(_Effect, _ColorMixin, _PatternMixin, _GradientMixin):
     @property
     def size(self) -> float:
         """Size value."""
-        return float(_get_value(self.descriptor, Key.SizeKey, 0.0))
+        return get_scalar(self.descriptor, Key.SizeKey, float, 0.0)
 
     @property
     def overprint(self) -> bool:
         """Overprint flag."""
-        return bool(self.descriptor.get(b"overprint"))
+        return get_scalar(self.descriptor, b"overprint", bool, False)
 
 
 @register(Klass.BevelEmboss.value)
@@ -547,7 +528,7 @@ class BevelEmboss(_Effect, _AngleMixin):
     @property
     def highlight_opacity(self) -> float:
         """Highlight opacity value in percentage."""
-        return float(_get_value(self.descriptor, Key.HighlightOpacity, 50.0))
+        return get_scalar(self.descriptor, Key.HighlightOpacity, float, 50.0)
 
     @property
     def shadow_mode(self) -> bytes:
@@ -563,7 +544,7 @@ class BevelEmboss(_Effect, _AngleMixin):
     @property
     def shadow_opacity(self) -> float:
         """Shadow opacity value in percentage."""
-        return float(_get_value(self.descriptor, Key.ShadowOpacity, 50.0))
+        return get_scalar(self.descriptor, Key.ShadowOpacity, float, 50.0)
 
     @property
     def bevel_type(self) -> bytes | None:
@@ -587,17 +568,17 @@ class BevelEmboss(_Effect, _AngleMixin):
     @property
     def altitude(self) -> float:
         """Altitude value in angle."""
-        return float(_get_value(self.descriptor, Key.LocalLightingAltitude, 30.0))
+        return get_scalar(self.descriptor, Key.LocalLightingAltitude, float, 30.0)
 
     @property
     def depth(self) -> float:
         """Depth value in percentage."""
-        return float(_get_value(self.descriptor, Key.StrengthRatio, 0.0))
+        return get_scalar(self.descriptor, Key.StrengthRatio, float, 0.0)
 
     @property
     def size(self) -> float:
         """Size value in pixel."""
-        return float(_get_value(self.descriptor, Key.Blur, 0.0))
+        return get_scalar(self.descriptor, Key.Blur, float, 0.0)
 
     @property
     def direction(self) -> bytes | None:
@@ -616,22 +597,22 @@ class BevelEmboss(_Effect, _AngleMixin):
     @property
     def anti_aliased(self) -> bool:
         """Anti-aliased."""
-        return bool(self.descriptor.get(b"antialiasGloss"))
+        return get_scalar(self.descriptor, b"antialiasGloss", bool, False)
 
     @property
     def soften(self) -> float:
         """Soften value in pixels."""
-        return float(_get_value(self.descriptor, Key.Softness, 0.0))
+        return get_scalar(self.descriptor, Key.Softness, float, 0.0)
 
     @property
     def use_shape(self) -> bool:
         """Using shape."""
-        return bool(self.descriptor.get(b"useShape"))
+        return get_scalar(self.descriptor, b"useShape", bool, False)
 
     @property
     def use_texture(self) -> bool:
         """Using texture."""
-        return bool(self.descriptor.get(b"useTexture"))
+        return get_scalar(self.descriptor, b"useTexture", bool, False)
 
 
 @register(Klass.ChromeFX.value)
@@ -641,27 +622,27 @@ class Satin(_Effect, _ColorMixin):
     @property
     def anti_aliased(self) -> bool:
         """Anti-aliased."""
-        return bool(self.descriptor.get(Key.AntiAlias))
+        return get_scalar(self.descriptor, Key.AntiAlias, bool, False)
 
     @property
     def inverted(self) -> bool:
         """Inverted."""
-        return bool(self.descriptor.get(Key.Invert))
+        return get_scalar(self.descriptor, Key.Invert, bool, False)
 
     @property
     def angle(self) -> float:
         """Angle value in degrees."""
-        return float(_get_value(self.descriptor, Key.LocalLightingAngle, 0.0))
+        return get_scalar(self.descriptor, Key.LocalLightingAngle, float, 0.0)
 
     @property
     def distance(self) -> float:
         """Distance value in pixels."""
-        return float(_get_value(self.descriptor, Key.Distance, 120.0))
+        return get_scalar(self.descriptor, Key.Distance, float, 120.0)
 
     @property
     def size(self) -> float:
         """Size value in pixel."""
-        return float(_get_value(self.descriptor, Key.Blur, 120.0))
+        return get_scalar(self.descriptor, Key.Blur, float, 120.0)
 
     @property
     def contour(self) -> Descriptor:

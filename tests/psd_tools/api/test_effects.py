@@ -7,7 +7,8 @@ import pytest
 from psd_tools.api.layers import Layer
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.constants import Tag
-from psd_tools.psd.descriptor import Bool, Descriptor, List, UnitFloat
+from psd_tools.psd.descriptor import Bool, Descriptor, List, String, UnitFloat
+from psd_tools.psd.image_resources import ImageResources
 from psd_tools.terminology import Enum, Key, Unit
 from psd_tools.api import effects
 
@@ -532,3 +533,14 @@ def test_scale_answers_where_there_is_no_block() -> None:
 
     assert plain.effects.enabled is False
     assert plain.effects.scale == 100.0
+
+
+def test_an_unreadable_effect_value_degrades_to_the_default() -> None:
+    descriptor = Descriptor(
+        items={Key.Blur: String("x"), b"useShape": String("y")}  # type: ignore[arg-type]
+    )
+    effect = effects.BevelEmboss(descriptor, ImageResources())
+
+    assert effect.soften == 0.0
+    assert effect.size == 0.0
+    assert effect.use_shape is False
