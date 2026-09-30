@@ -20,6 +20,8 @@ Changelog
   ``opacity`` now return ``float`` / ``bool``, or ``None`` if absent or unreadable.
   **Backwards incompatible:** they returned ``Double`` / ``Bool`` /
   ``UnitFloat``, so drop any ``.value`` or ``.unit`` (#789)
+- [fix] A malformed value under an effect's numeric or boolean key now reads
+  as that property's default instead of raising or counting as true (#789)
 
 1.21.0 (2026-09-28)
 -------------------
