@@ -13,13 +13,13 @@ Example::
 import logging
 from typing import Any, TypeVar
 
-from psd_tools.api._descriptor import get_enum, get_scalar
+from psd_tools.api._descriptor import get_descriptor, get_enum, get_scalar
 from psd_tools.api.layers import AdjustmentLayer, FillLayer
 from psd_tools.constants import GradientType, Tag
 from psd_tools.psd.adjustments import Curves as CurvesData
 from psd_tools.psd.adjustments import LevelRecord
 from psd_tools.psd.adjustments import Levels as LevelsData
-from psd_tools.psd.descriptor import Descriptor, DescriptorBlock
+from psd_tools.psd.descriptor import Descriptor
 from psd_tools.registry import new_registry
 
 logger = logging.getLogger(__name__)
@@ -45,9 +45,9 @@ class SolidColorFill(FillLayer):
     """Solid color fill."""
 
     @property
-    def data(self) -> DescriptorBlock:
+    def data(self) -> Descriptor | None:
         """Color in Descriptor(RGB)."""
-        return _assert_data(self._data).get(b"Clr ")
+        return get_descriptor(self._data, b"Clr ")
 
 
 @register(Tag.PATTERN_FILL_SETTING)
@@ -55,9 +55,9 @@ class PatternFill(FillLayer):
     """Pattern fill."""
 
     @property
-    def data(self) -> DescriptorBlock:
+    def data(self) -> Descriptor | None:
         """Pattern in Descriptor(PATTERN)."""
-        return _assert_data(self._data).get(b"Ptrn")
+        return get_descriptor(self._data, b"Ptrn")
 
 
 @register(Tag.GRADIENT_FILL_SETTING)
@@ -81,9 +81,9 @@ class GradientFill(FillLayer):
         return kind.name.capitalize()
 
     @property
-    def data(self) -> DescriptorBlock:
+    def data(self) -> Descriptor | None:
         """Gradient in Descriptor(GRADIENT)."""
-        return _assert_data(self._data).get(b"Grad")
+        return get_descriptor(self._data, b"Grad")
 
 
 @register(Tag.CONTENT_GENERATOR_EXTRA_DATA)
@@ -330,7 +330,7 @@ class BlackAndWhite(AdjustmentLayer):
 
     @property
     def tint_color(self) -> Descriptor | None:
-        return _assert_data(self._data).get(b"tintColor")
+        return get_descriptor(self._data, b"tintColor")
 
     @property
     def preset_kind(self) -> int:

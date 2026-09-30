@@ -20,7 +20,7 @@ def psd() -> PSDImage:
 def test_solid_color_fill() -> None:
     layer = PSDImage.open(full_name("layers/solid-color-fill.psd"))[0]
     assert isinstance(layer, SolidColorFill)
-    assert layer.data
+    assert isinstance(layer.data, Descriptor)
 
 
 def test_gradient_fill() -> None:
@@ -28,13 +28,13 @@ def test_gradient_fill() -> None:
     assert isinstance(layer, GradientFill)
     assert layer.angle
     assert layer.gradient_kind
-    assert layer.data
+    assert isinstance(layer.data, Descriptor)
 
 
 def test_pattern_fill() -> None:
     layer = PSDImage.open(full_name("layers/pattern-fill.psd"))[0]
     assert isinstance(layer, PatternFill)
-    assert layer.data
+    assert isinstance(layer.data, Descriptor)
 
 
 def test_brightness_contrast(psd: PSDImage) -> None:
@@ -103,7 +103,7 @@ def test_black_and_white(psd: PSDImage) -> None:
     assert layer.blue == 20
     assert layer.magenta == 80
     assert layer.use_tint is False
-    assert layer.tint_color
+    assert isinstance(layer.tint_color, Descriptor)
     assert layer.preset_kind == 1
     assert layer.preset_file_name == ""
 
@@ -161,6 +161,38 @@ def test_a_missing_or_unreadable_gradient_angle_is_none(
     assert isinstance(layer, GradientFill)
     monkeypatch.setattr(layer, "_data", Descriptor(items=items))
     assert layer.angle is None
+
+
+_DESCRIPTOR_GETTERS = [
+    ("layers/solid-color-fill.psd", 0, "data", b"Clr "),
+    ("layers/pattern-fill.psd", 0, "data", b"Ptrn"),
+    ("layers/gradient-fill.psd", 0, "data", b"Grad"),
+    ("fill_adjustments.psd", 11, "tint_color", b"tintColor"),
+]
+
+
+@pytest.mark.parametrize("filename, index, attr, key", _DESCRIPTOR_GETTERS)
+@pytest.mark.parametrize("block", [None, Descriptor()])
+def test_a_missing_descriptor_reads_none(
+    monkeypatch: pytest.MonkeyPatch,
+    filename: str,
+    index: int,
+    attr: str,
+    key: bytes,
+    block: Descriptor | None,
+) -> None:
+    layer = PSDImage.open(full_name(filename))[index]
+    monkeypatch.setattr(layer, "_data", block)
+    assert getattr(layer, attr) is None
+
+
+@pytest.mark.parametrize("filename, index, attr, key", _DESCRIPTOR_GETTERS)
+def test_a_non_descriptor_value_reads_none(
+    monkeypatch: pytest.MonkeyPatch, filename: str, index: int, attr: str, key: bytes
+) -> None:
+    layer = PSDImage.open(full_name(filename))[index]
+    monkeypatch.setattr(layer, "_data", Descriptor(items={key: Integer(1)}))  # type: ignore[arg-type]
+    assert getattr(layer, attr) is None
 
 
 def test_photo_filter(psd: PSDImage) -> None:

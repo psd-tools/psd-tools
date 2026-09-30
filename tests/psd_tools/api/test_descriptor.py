@@ -6,6 +6,7 @@ from psd_tools.api._descriptor import (
     DESCRIPTOR_BLEND_MODES,
     coerce_scalar,
     get_blend_mode,
+    get_descriptor,
     get_enum,
     get_scalar,
 )
@@ -155,3 +156,17 @@ def test_every_blend_mode_but_pass_through_has_a_descriptor_code():
     assert set(DESCRIPTOR_BLEND_MODES.values()) == set(BlendMode) - {
         BlendMode.PASS_THROUGH
     }
+
+
+def test_get_descriptor():
+    inner = Descriptor(classID=Klass.Null)
+    outer = Descriptor(items={b"obj ": inner, b"long": Integer(1)})  # type: ignore[arg-type]
+    assert get_descriptor(outer, b"obj ") is inner
+    assert get_descriptor(outer, b"nope") is None
+    assert get_descriptor(None, b"obj ") is None
+
+
+def test_get_descriptor_degrades_with_debug_log(descriptor, caplog):
+    with caplog.at_level("DEBUG", logger="psd_tools.api._descriptor"):
+        assert get_descriptor(descriptor, b"long") is None
+    assert "Descriptor" in caplog.text

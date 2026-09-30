@@ -10,6 +10,7 @@ from typing import Any, Mapping, TypeVar, overload
 
 from psd_tools.constants import BlendMode
 from psd_tools.psd.base import DictElement
+from psd_tools.psd.descriptor import Descriptor
 from psd_tools.terminology import Enum as Term
 
 logger = logging.getLogger(__name__)
@@ -73,6 +74,18 @@ def coerce_scalar(
         pass
     logger.debug("Cannot read %r as %s: %r", label, type_.__name__, raw)
     return fallback
+
+
+def get_descriptor(data: _Data, key: _Key) -> Descriptor | None:
+    """Read the object at *key* as a :py:class:`Descriptor`.
+
+    Returns ``None`` when the key is absent or holds anything else.
+    """
+    raw = _lookup(data, key)
+    if raw is None or isinstance(raw, Descriptor):
+        return raw
+    logger.debug("Cannot read %r as Descriptor: %r", key, raw)
+    return None
 
 
 @overload
