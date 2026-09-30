@@ -31,6 +31,11 @@ Changelog
   ``UnitFloat``, so drop any ``.value`` or ``.unit`` (#789)
 - [fix] A malformed value under an effect's numeric or boolean key now reads
   as that property's default instead of raising or counting as true (#789)
+- [api] An effect's ``type``, ``position``, ``fill_type``, ``glow_type``,
+  ``glow_source``, ``bevel_type``, ``bevel_style`` and ``direction`` now return
+  members of new ``psd_tools.constants`` enums, which still equal the raw
+  ``bytes`` code. ``GradientFill.gradient_kind`` gives ``None`` where it
+  raised, and so does an unrecognised effect value (#789)
 
 1.21.0 (2026-09-28)
 -------------------

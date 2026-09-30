@@ -6,7 +6,17 @@ import pytest
 
 from psd_tools.api.layers import Layer
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.constants import Tag
+from psd_tools.constants import (
+    BevelDirection,
+    BevelStyle,
+    BevelTechnique,
+    GlowSource,
+    GlowTechnique,
+    GradientType,
+    StrokeFillType,
+    StrokePosition,
+    Tag,
+)
 from psd_tools.psd.descriptor import Bool, Descriptor, List, String, UnitFloat
 from psd_tools.psd.image_resources import ImageResources
 from psd_tools.terminology import Enum, Key, Unit
@@ -558,3 +568,42 @@ def test_an_unreadable_effect_value_degrades_to_the_default() -> None:
     assert effect.soften == 0.0
     assert effect.size == 0.0
     assert effect.use_shape is False
+
+
+def test_effect_enums_are_members_that_still_equal_the_raw_code() -> None:
+    psd = PSDImage.open(full_name("layer_effects.psd"))
+    stroke = psd[10].effects[0]
+    assert isinstance(stroke, effects.Stroke)
+    assert stroke.position is StrokePosition.OUTSIDE
+    assert stroke.fill_type is StrokeFillType.SOLID_COLOR
+    assert stroke.position == b"OutF"
+    assert {b"OutF": 1}[stroke.position] == 1
+    glow = psd[3].effects[0]
+    assert isinstance(glow, effects.OuterGlow)
+    assert glow.glow_type is GlowTechnique.SOFT_MATTE
+    inner = psd[4].effects[0]
+    assert isinstance(inner, effects.InnerGlow)
+    assert inner.glow_source is GlowSource.EDGE
+    bevel = psd[1].effects[0]
+    assert isinstance(bevel, effects.BevelEmboss)
+    assert bevel.bevel_type is BevelTechnique.SOFT_MATTE
+    assert bevel.bevel_style is BevelStyle.INNER_BEVEL
+    assert bevel.direction is BevelDirection.STAMP_IN
+    gradients = [
+        e
+        for layer in psd
+        for e in layer.effects
+        if isinstance(e, effects.GradientOverlay)
+    ]
+    assert gradients[0].type is GradientType.LINEAR
+
+
+def test_an_unrecognised_effect_enum_reads_as_none(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    stroke = PSDImage.open(full_name("layer_effects.psd"))[10].effects[0]
+    assert isinstance(stroke, effects.Stroke)
+    stroke.descriptor[Key.Style].enum = b"nope"
+    with caplog.at_level(logging.DEBUG, logger="psd_tools.api._descriptor"):
+        assert stroke.position is None
+    assert "StrokePosition" in caplog.text

@@ -490,6 +490,70 @@ class EffectOSType(bytes, Enum):
     SOLID_FILL = b"sofi"
 
 
+class BevelDirection(bytes, Enum):
+    """Bevel and emboss direction."""
+
+    STAMP_IN = b"In  "
+    STAMP_OUT = b"Out "
+
+
+class BevelStyle(bytes, Enum):
+    """Bevel and emboss style."""
+
+    OUTER_BEVEL = b"OtrB"
+    INNER_BEVEL = b"InrB"
+    EMBOSS = b"Embs"
+    PILLOW_EMBOSS = b"PlEb"
+
+
+class BevelTechnique(bytes, Enum):
+    """Bevel and emboss technique."""
+
+    SOFT_MATTE = b"SfBL"
+    PRECISE_MATTE = b"PrBL"
+    SLOPE_LIMIT_MATTE = b"Slmt"
+
+
+class GlowSource(bytes, Enum):
+    """Inner glow source."""
+
+    EDGE = b"SrcE"
+    CENTER = b"SrcC"
+
+
+class GlowTechnique(bytes, Enum):
+    """Glow technique."""
+
+    SOFT_MATTE = b"SfBL"
+    PRECISE_MATTE = b"PrBL"
+
+
+class GradientType(bytes, Enum):
+    """Gradient type."""
+
+    LINEAR = b"Lnr "
+    RADIAL = b"Rdl "
+    ANGLE = b"Angl"
+    REFLECTED = b"Rflc"
+    DIAMOND = b"Dmnd"
+
+
+class StrokeFillType(bytes, Enum):
+    """Stroke effect fill type."""
+
+    SOLID_COLOR = b"SClr"
+    GRADIENT = b"GrFl"
+    PATTERN = b"Ptrn"
+
+
+class StrokePosition(bytes, Enum):
+    """Stroke effect position."""
+
+    INSIDE = b"InsF"
+    OUTSIDE = b"OutF"
+    CENTER = b"CtrF"
+
+
 class PathResourceID(IntEnum):
     CLOSED_LENGTH = 0
     CLOSED_KNOT_LINKED = 1
