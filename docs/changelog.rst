@@ -1,7 +1,7 @@
 Changelog
 =========
 
-1.21.1 (unreleased)
+1.22.0 (2026-09-30)
 -------------------
 
 - [api] ``max_alloc_bytes`` now defaults to 4 GiB instead of off, and a
@@ -17,12 +17,12 @@ Changelog
   layer's own box are not covered (#842)
 - [security] ``composite()`` now checks the canvases that a stroke effect's
   size, a vector stroke's width or a pattern fill's scale grow, against the
-  per-axis limit and ``max_alloc_bytes``. Set ``max_alloc_bytes`` when
-  compositing untrusted files (#920)
+  per-axis limit and ``max_alloc_bytes`` (GHSA-mg89-vfv6-5pm4, #920)
 - [security] ``composite()`` now bounds descriptor-grown canvases without
   ``max_alloc_bytes``. A stroke effect's size above Photoshop's 250 px limit is
   drawn at 250. A vector stroke far wider than its layer or the viewport, or a
-  pattern scaled far past 1,000% of its own size, raises ``ValueError`` (#921)
+  pattern scaled far past 1,000% of its own size, raises ``ValueError``
+  (GHSA-mg89-vfv6-5pm4, #921)
 - [security] ``composite()`` now checks a pattern record's declared size
   against the per-axis limit and ``max_alloc_bytes`` before decoding it (#922)
 - [fix] A layer over 30,000 px on an axis now raises ``ValueError`` from
