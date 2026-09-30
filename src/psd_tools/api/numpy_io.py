@@ -251,6 +251,14 @@ def get_image_data(psdimage: "PSDProtocol", channel: str | None) -> np.ndarray:
     return array
 
 
+def _backing_bytes(array: np.ndarray) -> int:
+    """Bytes kept alive by *array*: its owner's, since a slice is a view."""
+    base = array
+    while isinstance(base.base, np.ndarray):
+        base = base.base
+    return base.nbytes
+
+
 def _layer_read_peak_bytes(
     width: int,
     height: int,
@@ -355,19 +363,22 @@ def get_layer_data(
         layer.width,
         layer.height,
         lambda x: x.id == ChannelID.TRANSPARENCY_MASK,
-        held=color.nbytes if color is not None else 0,
+        held=_backing_bytes(color) if color is not None else 0,
     )
     if shape is None:
         return color
     if color is not None:
-        # Both reads are live while `np.concatenate` builds a third array.
+        # Both reads are live, views included, while `np.concatenate` builds a
+        # third array.
         planes = color.shape[2] + shape.shape[2]
         check_pixel_size(
             layer.width,
             layer.height,
             planes,
             max_alloc_bytes=layer._psd._max_alloc_bytes,
-            estimated_bytes=2 * layer.width * layer.height * planes * 4,
+            estimated_bytes=_backing_bytes(color)
+            + _backing_bytes(shape)
+            + layer.width * layer.height * planes * 4,
             warn=False,
         )
     return np.concatenate([color, shape], axis=2)

@@ -4,6 +4,7 @@ import gc
 import tracemalloc
 import warnings
 
+import numpy as np
 import pytest
 
 from psd_tools import PSDImage, PSDLargeImageWarning
@@ -169,3 +170,9 @@ def test_pil_widening_only_charged_with_a_stored_alpha():
     _, _, _, peak = _layer_peak_bytes(layer, None, False)
     # Merge phase: three retained bands, the slack plane and the merged image.
     assert peak == layer.width * layer.height * 7
+
+
+def test_backing_bytes_charges_the_owner_of_a_truncated_view():
+    full = np.zeros((4, 4, 4), dtype=np.float32)
+    assert numpy_io._backing_bytes(full[:, :, :3]) == full.nbytes
+    assert numpy_io._backing_bytes(full.reshape(16, 4)[:, :3]) == full.nbytes
