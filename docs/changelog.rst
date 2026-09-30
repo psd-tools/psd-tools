@@ -53,6 +53,10 @@ Changelog
   records no readable alignment (#789)
 - [fix] An effect whose blend mode Photoshop writes as a long name, such as
   ``multiply`` or ``screen``, was composited as Normal, and now blends (#789)
+- [api] The struct-backed adjustment getters (``Levels``, ``Curves.data``,
+  ``Exposure``, ``HueSaturation``, ``GradientMap`` and the like) are annotated
+  ``| None``. **Backwards incompatible:** a layer with no data block gives
+  ``None`` where it raised ``ValueError``, and renders as a no-op (#789)
 
 1.21.0 (2026-09-28)
 -------------------

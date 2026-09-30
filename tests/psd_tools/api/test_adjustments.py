@@ -7,6 +7,7 @@ from psd_tools.api.adjustments import GradientFill, PatternFill, SolidColorFill
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.psd.adjustments import Curves as CurvesData
 from psd_tools.psd.adjustments import CurvesExtraMarker
+from psd_tools.psd.adjustments import Levels as LevelsData
 from psd_tools.psd.descriptor import Descriptor, Integer, String
 
 from ..utils import full_name
@@ -92,6 +93,7 @@ def test_hue_saturation(psd: PSDImage) -> None:
     assert layer.enable_colorization == 0
     assert layer.colorization == (0, 25, 0)
     assert layer.master == (-17, 19, 4)
+    assert layer.data is not None
     assert len(layer.data) == 6
 
 
@@ -249,6 +251,7 @@ def test_selective_color(psd: PSDImage) -> None:
     layer = psd[18]
     assert isinstance(layer, adjustments.SelectiveColor)
     assert layer.method == 0
+    assert layer.data is not None
     assert len(layer.data) == 10
 
 
@@ -256,7 +259,9 @@ def _test_gradient_map_common(layer: adjustments.GradientMap, random_seed: int) 
     assert layer.reversed == 0
     assert layer.dithered == 0
     assert layer.gradient_name == "Foreground to Background"
+    assert layer.color_stops is not None
     assert len(layer.color_stops) == 2
+    assert layer.transparency_stops is not None
     assert len(layer.transparency_stops) == 2
     assert layer.expansion == 2
     assert layer.interpolation == 1.0
@@ -302,3 +307,63 @@ def test_gradient_kind_reads_as_none_when_unreadable() -> None:
         assert layer.gradient_kind is None
     del data[b"Type"]
     assert layer.gradient_kind is None
+
+
+_STRUCT_GETTERS = [
+    (5, ("data", "master")),
+    (6, ("data", "extra")),
+    (7, ("exposure", "exposure_offset", "gamma")),
+    (9, ("data", "enable_colorization", "colorization", "master")),
+    (10, ("shadows", "midtones", "highlights", "luminosity")),
+    (
+        12,
+        ("xyz", "color_space", "color_components", "density", "luminosity"),
+    ),
+    (13, ("monochrome", "data")),
+    (16, ("posterize",)),
+    (17, ("threshold",)),
+    (18, ("method", "data")),
+    (
+        19,
+        (
+            "reversed",
+            "dithered",
+            "gradient_name",
+            "color_stops",
+            "transparency_stops",
+            "expansion",
+            "interpolation",
+            "length",
+            "mode",
+            "random_seed",
+            "show_transparency",
+            "use_vector_color",
+            "roughness",
+            "color_model",
+            "min_color",
+            "max_color",
+        ),
+    ),
+]
+
+
+@pytest.mark.parametrize("index, attrs", _STRUCT_GETTERS)
+def test_an_absent_adjustment_block_reads_none(
+    psd: PSDImage, monkeypatch: pytest.MonkeyPatch, index: int, attrs: tuple[str, ...]
+) -> None:
+    layer = psd[index]
+    for attr in attrs:
+        if attr != "xyz":  # the fixture is a version 2 record
+            assert getattr(layer, attr) is not None, attr
+    monkeypatch.setattr(layer, "_data", None)
+    for attr in attrs:
+        assert getattr(layer, attr) is None, attr
+
+
+def test_levels_without_records_reads_no_master(
+    psd: PSDImage, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    layer = psd[5]
+    assert isinstance(layer, adjustments.Levels)
+    monkeypatch.setattr(layer, "_data", LevelsData(version=2))
+    assert layer.master is None

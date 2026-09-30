@@ -1579,6 +1579,11 @@ class Compositor(object):
             )
             return
 
+        # No block to apply, so nothing to blend either; a neutral one still blends.
+        if layer._data is None:
+            logger.debug("Adjustment layer without data: %s", layer.kind)
+            return
+
         backdrop_color = self._color
         transformed_color = adjustment_fn(backdrop_color, colormode, layer)
 
