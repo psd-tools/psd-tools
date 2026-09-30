@@ -13,7 +13,7 @@ Changelog
   size, a vector stroke's width or a pattern fill's scale grow, against the
   per-axis limit and ``max_alloc_bytes``. Without a budget only the per-axis
   limit applies; set ``max_alloc_bytes`` when compositing untrusted files
-  (#PR)
+  (#920)
 - [fix] A layer over 30,000 px on an axis now raises ``ValueError`` from
   ``Layer.numpy()`` / ``Layer.topil()`` instead of allocating (#842)
 - [fix] Parser internals and normal control flow no longer log at INFO when
