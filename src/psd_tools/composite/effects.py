@@ -64,6 +64,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from psd_tools.api.utils import check_pixel_size
 from psd_tools.composite import paint
 from psd_tools.composite._compat import HAS_SCIPY
 from psd_tools.composite.utils import divide
@@ -95,6 +96,11 @@ _BANDS: dict[bytes, tuple[float, float]] = {
 # canvas reserved for it, and the position Photoshop itself defaults to.
 _UNRECOGNISED = _BANDS[Enum.OutsetFrame]
 
+# What a stroke canvas costs per pixel at its peak: the signed-distance
+# transients (an int64 offset grid pair, float64 planes) dwarf the float32
+# canvas and colour planes, so a budget is checked against this, not 4 bytes.
+_STROKE_BYTES = 32
+
 # Below this fraction of active pixels within the region a bounding-box crop
 # would cover, :py:func:`_nearest_boundary` skips the erosion and falls back
 # to its per-offset loop (#895): a thin outline on a much bigger canvas has
@@ -119,7 +125,9 @@ def _enum(desc: Descriptor, key: bytes) -> bytes:
 
 
 def stroke_bbox(
-    bbox: tuple[int, int, int, int], desc: Descriptor
+    bbox: tuple[int, int, int, int],
+    desc: Descriptor,
+    max_alloc_bytes: int | None = None,
 ) -> tuple[int, int, int, int]:
     """The canvas :py:func:`draw_stroke_effect` needs to draw a stroke on.
 
@@ -143,6 +151,9 @@ def stroke_bbox(
     an enum, is measured as the unrecognised style it cannot be told apart
     from -- an outset one, which :py:func:`draw_stroke_effect` then draws it
     as -- rather than raising out of a composite (#826).
+
+    Raises :class:`ValueError` when the grown box is over the per-axis limit
+    or ``max_alloc_bytes``, which the callers read as an unreadable stroke.
     """
     if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
         return bbox
@@ -150,7 +161,19 @@ def stroke_bbox(
     # ceil() because a fractional stroke still covers the pixel it falls in.
     # The +1 is the uncovered pixel the edge is measured against.
     margin = math.ceil(float(desc.get(Key.SizeKey, 1.0)) * reach) + 1
-    return (bbox[0] - margin, bbox[1] - margin, bbox[2] + margin, bbox[3] + margin)
+    grown = (bbox[0] - margin, bbox[1] - margin, bbox[2] + margin, bbox[3] + margin)
+    # The size is the file's, so the box it grows is checked before anything is
+    # allocated on it. A box that fails is an unreadable stroke to both callers.
+    if grown[0] < grown[2] and grown[1] < grown[3]:
+        width, height = grown[2] - grown[0], grown[3] - grown[1]
+        check_pixel_size(
+            width,
+            height,
+            max_alloc_bytes=max_alloc_bytes,
+            estimated_bytes=width * height * _STROKE_BYTES,
+            warn=False,
+        )
+    return grown
 
 
 def _grow(mask: np.ndarray) -> np.ndarray:
