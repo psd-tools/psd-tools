@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from psd_tools.api._descriptor import get_enum, get_scalar
+from psd_tools.api._descriptor import coerce_scalar, get_enum, get_scalar
 from psd_tools.psd.descriptor import (
     Bool,
     Descriptor,
@@ -113,3 +113,14 @@ def test_get_enum_degrades(descriptor):
     assert get_enum(descriptor, b"miss", Enum) is None
     assert get_enum(descriptor, b"long", Enum, Enum.Normal) is Enum.Normal
     assert get_enum(None, b"mode", Enum, Enum.Normal) is Enum.Normal
+
+
+def test_get_scalar_reads_a_string_key_from_a_plain_mapping():
+    assert get_scalar({"a": Integer(3)}, "a", float, 0.0) == 3.0
+    assert get_scalar({"a": Integer(3)}, "b", float, None) is None
+
+
+def test_coerce_scalar_logs_the_label(caplog):
+    with caplog.at_level("DEBUG", logger="psd_tools.api._descriptor"):
+        assert coerce_scalar(String("x"), int, 7, "Label") == 7
+    assert "Label" in caplog.text

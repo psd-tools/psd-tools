@@ -10,6 +10,9 @@ Changelog
   which mainly helps large 16- and 32-bit documents. A truncated payload now
   gives a black channel with a warning instead of raising ``IndexError``
   (#903)
+- [api] The ``TypeSetting`` style and font getters now read an unreadable value
+  as the run's default style value, or the documented default, instead of
+  raising or coercing it (#789)
 - [api] The descriptor-backed adjustment and fill getters (``BrightnessContrast``,
   ``Vibrance``, ``BlackAndWhite``) now read a missing or unreadable value as
   its default instead of raising. **Backwards incompatible:**
