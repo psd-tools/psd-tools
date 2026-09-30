@@ -42,6 +42,10 @@ Changelog
   **Backwards incompatible:** they returned the descriptor's ``bytes`` code, so
   ``effect.blend_mode == b"Nrml"`` is now ``False``; compare with
   ``BlendMode.NORMAL``. ``get_blend_func`` takes a ``BlendMode`` (#789)
+- [api] ``Stroke.line_alignment`` returns a ``StrokeAlignment`` (a ``str`` enum,
+  so ``== "inner"`` still holds). **Backwards incompatible:** it answers
+  ``None``, not an ``AttributeError`` or a ``repr`` string, when the file
+  records no readable alignment (#789)
 - [fix] An effect whose blend mode Photoshop writes as a long name, such as
   ``multiply`` or ``screen``, was composited as Normal, and now blends (#789)
 

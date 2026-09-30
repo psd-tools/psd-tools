@@ -13,7 +13,7 @@ from psd_tools.api.shape import (
     Stroke,
     VectorMask,
 )
-from psd_tools.constants import BlendMode
+from psd_tools.constants import BlendMode, StrokeAlignment
 from psd_tools.psd.descriptor import Bool, Descriptor, Double, Enumerated, UnitFloat
 from psd_tools.psd.vector import (
     ClosedKnotLinked,
@@ -225,6 +225,7 @@ def test_bbox_single_knot_closed_path_degenerate():
 def test_stroke_missing_keys_degrade_to_none() -> None:
     stroke = Stroke(VectorStrokeContentSetting(classID=b"strokeStyle"))
     assert stroke.blend_mode is None
+    assert stroke.line_alignment is None
     assert stroke.opacity is None
     assert stroke.miter_limit is None
     assert stroke.scale_lock is None
@@ -266,3 +267,21 @@ def test_stroke_blend_mode(code: bytes, expected: BlendMode | None) -> None:
     stroke = Stroke(VectorStrokeContentSetting(classID=b"strokeStyle"))
     stroke._data[b"strokeStyleBlendMode"] = Enumerated(b"BlnM", code)
     assert stroke.blend_mode is expected
+
+
+@pytest.mark.parametrize(
+    "code, expected",
+    [
+        (b"strokeStyleAlignInside", StrokeAlignment.INNER),
+        (b"strokeStyleAlignOutside", StrokeAlignment.OUTER),
+        (b"strokeStyleAlignCenter", StrokeAlignment.CENTER),
+        (b"nope", None),
+    ],
+)
+def test_stroke_line_alignment(code: bytes, expected: StrokeAlignment | None) -> None:
+    stroke = Stroke(VectorStrokeContentSetting(classID=b"strokeStyle"))
+    stroke._data[b"strokeStyleLineAlignment"] = Enumerated(
+        b"strokeStyleLineAlignment", code
+    )
+    assert stroke.line_alignment is expected
+    assert expected is None or stroke.line_alignment == expected.value

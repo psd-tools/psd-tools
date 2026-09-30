@@ -12,7 +12,7 @@ import math
 from typing import Literal
 
 from psd_tools.api._descriptor import get_blend_mode, get_scalar
-from psd_tools.constants import BlendMode
+from psd_tools.constants import BlendMode, StrokeAlignment
 from psd_tools.psd.descriptor import Descriptor, DescriptorBlock2
 from psd_tools.psd.vector import (
     ClipboardRecord,
@@ -233,9 +233,9 @@ class Stroke(object):
     }
 
     STROKE_STYLE_LINE_ALIGNMENTS = {
-        b"strokeStyleAlignInside": "inner",
-        b"strokeStyleAlignOutside": "outer",
-        b"strokeStyleAlignCenter": "center",
+        b"strokeStyleAlignInside": StrokeAlignment.INNER,
+        b"strokeStyleAlignOutside": StrokeAlignment.OUTER,
+        b"strokeStyleAlignCenter": StrokeAlignment.CENTER,
     }
 
     def __init__(self, data: VectorStrokeContentSetting):
@@ -294,10 +294,14 @@ class Stroke(object):
         return self.STROKE_STYLE_LINE_JOIN_TYPES.get(key, str(key))
 
     @property
-    def line_alignment(self) -> str:
-        """Alignment, one of `inner`, `outer`, `center`."""
-        key = self._data.get(b"strokeStyleLineAlignment").enum
-        return self.STROKE_STYLE_LINE_ALIGNMENTS.get(key, str(key))
+    def line_alignment(self) -> StrokeAlignment | None:
+        """Alignment, or `None` if the file does not record a readable one."""
+        raw = self._data.get(b"strokeStyleLineAlignment")
+        key = getattr(raw, "enum", b"")
+        alignment = self.STROKE_STYLE_LINE_ALIGNMENTS.get(key)
+        if alignment is None and raw is not None:
+            logger.debug("Cannot read line alignment as StrokeAlignment: %r", raw)
+        return alignment
 
     @property
     def scale_lock(self) -> bool | None:
