@@ -4,6 +4,7 @@ Utility functions for the API layer.
 
 from __future__ import annotations
 
+import operator
 import os
 import warnings
 from collections.abc import Sequence
@@ -49,25 +50,29 @@ AllocBudget = int | Literal["unlimited"]
 def validate_alloc_budget(value: object) -> AllocBudget | None:
     """Return ``value`` if it is a valid budget setting, else raise.
 
-    Valid settings are a positive :class:`int`, ``"unlimited"``, or ``None``
-    (inherit :data:`MAX_ALLOC_BYTES`).
+    Valid settings are a positive integer, ``"unlimited"``, or ``None``
+    (inherit :data:`MAX_ALLOC_BYTES`). An integer such as ``numpy.int64`` is
+    returned as :class:`int`.
 
     :raises TypeError: for a :class:`bool` or a value of another type.
     :raises ValueError: for a non-positive integer or another string.
     """
-    if value is None or value == UNLIMITED:
+    if value is None or (isinstance(value, str) and value == UNLIMITED):
         return value  # type: ignore[return-value]
-    if isinstance(value, bool) or not isinstance(value, (int, str)):
-        raise TypeError(
-            f"max_alloc_bytes must be a positive int, {UNLIMITED!r} or None, "
-            f"got {value!r}."
-        )
-    if isinstance(value, str) or value <= 0:
-        raise ValueError(
-            f"max_alloc_bytes must be a positive int, {UNLIMITED!r} or None, "
-            f"got {value!r}."
-        )
-    return value
+    message = (
+        f"max_alloc_bytes must be a positive int, {UNLIMITED!r} or None, got {value!r}."
+    )
+    if isinstance(value, str):
+        raise ValueError(message)
+    if isinstance(value, bool):
+        raise TypeError(message)
+    try:
+        number = operator.index(value)  # type: ignore[arg-type]
+    except TypeError:
+        raise TypeError(message) from None
+    if number <= 0:
+        raise ValueError(message)
+    return number
 
 
 def _env_alloc_budget() -> AllocBudget:
@@ -106,20 +111,24 @@ def resolve_alloc_budget(value: AllocBudget | None) -> int | None:
 
     ``None`` resolves :data:`MAX_ALLOC_BYTES` as it is now. An invalid
     :data:`MAX_ALLOC_BYTES` warns and gives :data:`DEFAULT_MAX_ALLOC_BYTES`.
+
+    :raises TypeError: if ``value`` is invalid; see :func:`validate_alloc_budget`.
+    :raises ValueError: if ``value`` is invalid; see :func:`validate_alloc_budget`.
     """
     if value is None:
-        value = MAX_ALLOC_BYTES
-        if value is None:
+        if MAX_ALLOC_BYTES is None:
             return None
         try:
-            validate_alloc_budget(value)
+            value = validate_alloc_budget(MAX_ALLOC_BYTES)
         except (TypeError, ValueError):
             warnings.warn(
-                f"Ignoring psd_tools.api.utils.MAX_ALLOC_BYTES={value!r}; "
-                f"using {DEFAULT_MAX_ALLOC_BYTES:,} bytes.",
+                f"Ignoring psd_tools.api.utils.MAX_ALLOC_BYTES="
+                f"{MAX_ALLOC_BYTES!r}; using {DEFAULT_MAX_ALLOC_BYTES:,} bytes.",
                 stacklevel=2,
             )
             return DEFAULT_MAX_ALLOC_BYTES
+    else:
+        value = validate_alloc_budget(value)
     return None if value == UNLIMITED else value  # type: ignore[return-value]
 
 
@@ -168,8 +177,9 @@ def check_pixel_size(
     :data:`WARN_PIXELS` that are still within the per-axis spec limit.
 
     Also raises :class:`ValueError` if the estimated allocation exceeds the
-    budget that :func:`resolve_alloc_budget` gives for ``max_alloc_bytes``. That estimate is ``estimated_bytes`` when a
-    caller supplies one, and ``width * height * channels * 4`` otherwise.
+    budget that :func:`resolve_alloc_budget` gives for ``max_alloc_bytes``.
+    That estimate is ``estimated_bytes`` when a caller supplies one, and
+    ``width * height * channels * 4`` otherwise.
 
     The two spellings answer different questions, and the difference is the
     point. ``width * height * channels * 4`` sizes the float32 array a path

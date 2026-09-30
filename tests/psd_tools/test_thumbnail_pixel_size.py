@@ -92,7 +92,7 @@ def test_thumbnail_open_does_not_raise_for_out_of_spec_dimensions() -> None:
     assert psd.has_thumbnail() is True
 
 
-def test_thumbnail_opt_in_byte_budget_raises_when_set() -> None:
+def test_thumbnail_byte_budget_raises_when_set() -> None:
     """A within-spec but oversized thumbnail is still bounded by max_alloc_bytes."""
     # 25,000 x 25,000 x 4 bytes/px ~= 2.5 GB, within MAX_DIMENSION_PSD.
     psd = PSDImage.open(
@@ -102,7 +102,7 @@ def test_thumbnail_opt_in_byte_budget_raises_when_set() -> None:
         psd.thumbnail()
 
 
-def test_thumbnail_opt_in_byte_budget_disabled_by_default() -> None:
+def test_thumbnail_default_byte_budget_admits_small_thumbnail() -> None:
     """With no max_alloc_bytes set, a normal small thumbnail is unaffected."""
     data = bytes(range(24))  # 4x2 RGB, row = 4*3 = 12
     psd = PSDImage.open(_build_psd_with_thumbnail(4, 2, data=data))

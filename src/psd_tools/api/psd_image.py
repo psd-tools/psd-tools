@@ -247,8 +247,8 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         :param max_alloc_bytes: initial :py:attr:`max_alloc_bytes`, checked
             before the file is read. Caps (bytes) what
             :py:meth:`composite`/:py:meth:`numpy`/:py:meth:`topil`/:py:meth:`thumbnail`
-            allocate; rendering raises :class:`ValueError` if the estimate
-            exceeds it.
+            allocate; rendering raises :class:`ValueError`, or skips a layer
+            effect, if the estimate exceeds it.
             :py:meth:`numpy` and :py:meth:`topil` estimate their allocation *at
             its peak*, intermediates included, so the estimate depends on the
             colour mode, the depth and the compression method rather than on the

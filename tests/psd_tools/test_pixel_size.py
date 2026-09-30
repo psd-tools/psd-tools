@@ -9,11 +9,15 @@ above MAX_PIXELS_PSD instead of committing the buffer silently.
 import base64
 import gc
 import io
+import os
 import struct
+import subprocess
+import sys
 import tracemalloc
 import warnings
 import zlib
 
+import numpy as np
 import pytest
 
 from typing import Any, Callable, Literal, Optional
@@ -187,7 +191,7 @@ def test_data_aware_guard_keeps_small_corrupt_channels_lenient() -> None:
     )
 
 
-def test_opt_in_byte_budget_raises_when_set() -> None:
+def test_process_byte_budget_raises_when_set() -> None:
     """Setting MAX_ALLOC_BYTES bounds even a small, otherwise-allowed canvas."""
     psd = PSDImage.open(_build_psd(_NORMAL_W, _NORMAL_H))  # 64x64x3 -> ~49 KB est
     saved = _utils.MAX_ALLOC_BYTES
@@ -262,6 +266,39 @@ def test_env_var_invalid_is_ignored_with_warning(
             assert _utils._env_alloc_budget() == _utils.DEFAULT_MAX_ALLOC_BYTES
 
 
+def test_numpy_integer_budget_is_accepted() -> None:
+    value = _utils.validate_alloc_budget(np.int64(1024))
+    assert value == 1024 and type(value) is int
+
+
+def test_explicit_invalid_budget_raises() -> None:
+    """Only the process-wide value falls back; an explicit one is the caller's."""
+    with pytest.raises(ValueError, match="max_alloc_bytes"):
+        check_pixel_size(4, 4, max_alloc_bytes="foo")  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "env, expected",
+    [
+        (None, "u.DEFAULT_MAX_ALLOC_BYTES"),
+        ("unlimited", "'unlimited'"),
+        ("1024", "1024"),
+        ("bogus", "u.DEFAULT_MAX_ALLOC_BYTES"),
+    ],
+)
+def test_import_seeds_process_budget(env: Optional[str], expected: str) -> None:
+    """The shipped MAX_ALLOC_BYTES, as a fresh interpreter imports it."""
+    environ = {k: v for k, v in os.environ.items() if k != _utils.MAX_ALLOC_BYTES_ENV}
+    if env is not None:
+        environ[_utils.MAX_ALLOC_BYTES_ENV] = env
+    code = (
+        "import warnings; warnings.simplefilter('ignore')\n"
+        "from psd_tools.api import utils as u\n"
+        f"assert u.MAX_ALLOC_BYTES == {expected}, u.MAX_ALLOC_BYTES\n"
+    )
+    subprocess.run([sys.executable, "-c", code], env=environ, check=True)
+
+
 @pytest.mark.parametrize("raw", ["unlimited", " Unlimited "])
 def test_env_var_unlimited(monkeypatch: pytest.MonkeyPatch, raw: str) -> None:
     monkeypatch.setenv(_utils.MAX_ALLOC_BYTES_ENV, raw)
@@ -325,6 +362,7 @@ def test_max_alloc_bytes_property_round_trips(monkeypatch: pytest.MonkeyPatch) -
 _INVALID_BUDGETS = [
     (True, TypeError),
     (False, TypeError),
+    (np.int64(0), ValueError),
     (1.5, TypeError),
     (b"unlimited", TypeError),
     (0, ValueError),

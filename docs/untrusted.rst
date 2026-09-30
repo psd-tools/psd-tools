@@ -25,13 +25,14 @@ or for the whole process, through the environment or the module::
     import psd_tools.api.utils
     psd_tools.api.utils.MAX_ALLOC_BYTES = 512 * 1024**2
 
-A setting is a positive integer, or ``"unlimited"`` to disable the budget. The
-document's setting wins. A document whose setting is ``None``, the default,
+A setting is a positive integer, or ``"unlimited"`` to disable the budget;
+``None`` in ``MAX_ALLOC_BYTES`` also disables it, and the environment variable
+accepts ``unlimited`` in any case. The document's setting wins. A document whose setting is ``None``, the default,
 uses ``psd_tools.api.utils.MAX_ALLOC_BYTES`` as it is when each check
 runs, so changing it affects documents that are already open. That variable is
 read from ``$PSD_TOOLS_MAX_ALLOC_BYTES`` at import, and is the built-in default
-when the variable is unset. An invalid environment value warns and gives the
-built-in default. An invalid API value raises :class:`TypeError` or
+when the variable is unset. An invalid environment or ``MAX_ALLOC_BYTES`` value
+warns and gives the built-in default. An invalid API value raises :class:`TypeError` or
 :class:`ValueError`, and :py:meth:`~psd_tools.api.psd_image.PSDImage.open`
 checks it before reading the file.
 
