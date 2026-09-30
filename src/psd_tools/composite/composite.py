@@ -55,6 +55,10 @@ def _styled(effects: Iterator[Any]) -> Iterator[_StyledEffect]:
     return cast(Iterator[_StyledEffect], effects)
 
 
+# Per pixel, what a gradient fill peaks at: its coordinate grids and ramp
+# planes outweigh the float32 colour it returns.
+_GRADIENT_FILL_BYTES = 128
+
 # What an effect descriptor psd-tools did not write can raise on the way to
 # being read, and then used: a key that is absent, so the read lands on the
 # ``None`` ``Descriptor.get()`` returns (AttributeError); a key holding
@@ -1991,6 +1995,13 @@ class Compositor(object):
                 fill_bbox[3] - fill_bbox[1],
                 self.channels,
                 layer._psd._max_alloc_bytes,
+                estimated_bytes=(fill_bbox[2] - fill_bbox[0])
+                * (fill_bbox[3] - fill_bbox[1])
+                * (
+                    _GRADIENT_FILL_BYTES
+                    if desc.get("strokeStyleContent").classID == b"gradientLayer"
+                    else self.channels * 4
+                ),
                 warn=False,
             )
         color, _ = paint.create_fill_desc(

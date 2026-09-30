@@ -8,8 +8,8 @@ import pytest
 from psd_tools.api import numpy_io
 from psd_tools.api.layers import Layer
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.composite import effects
-from psd_tools.composite.composite import _stroke_reach
+from psd_tools.composite import effects, paint
+from psd_tools.composite.composite import _GRADIENT_FILL_BYTES, _stroke_reach
 from psd_tools.composite.paint import draw_pattern_fill
 from psd_tools.constants import Tag
 from psd_tools.psd.descriptor import Descriptor, Double, UnitFloat
@@ -47,7 +47,7 @@ def test_the_scaled_pattern_panel_is_checked_at_its_resize_size() -> None:
     percent = 400.0
     rows, cols = int(shape[0] * percent / 100), int(shape[1] * percent / 100)
     desc[b"Scl "] = Double(percent)
-    resized = rows * cols * shape[2] * 4
+    resized = rows * cols * shape[2] * 4 * paint._RESIZE_COPIES
 
     psd._max_alloc_bytes = resized
     draw_pattern_fill(psd.viewbox, psd, desc)
@@ -168,3 +168,37 @@ def test_a_denormal_stroke_size_still_grows_the_box_by_a_pixel_and_its_edge() ->
         right + 2,
         bottom + 2,
     )
+
+
+def test_tile_rounding_past_the_axis_limit_is_not_rejected() -> None:
+    """The limit is on the viewport, not on the tile that covers it."""
+    psd, desc, shape = _pattern()
+    desc[b"Scl "] = Double(100.0)
+    width = 29999
+    assert -(-width // shape[1]) * shape[1] > 30000
+    color, _ = draw_pattern_fill((0, 0, width, 1), psd, desc)
+    assert color is not None and color.shape[:2] == (1, width)
+
+
+def test_a_gradient_vector_stroke_fill_is_checked_at_its_own_peak(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    psd, layer, desc = _vector_stroke()
+    monkeypatch.setattr(desc[b"strokeStyleContent"], "classID", b"gradientLayer")
+    monkeypatch.setattr(
+        paint,
+        "create_fill_desc",
+        lambda layer, desc, viewport: (
+            np.zeros((viewport[3] - viewport[1], viewport[2] - viewport[0], 3)),
+            None,
+        ),
+    )
+    left, top, right, bottom = layer.bbox
+    grow = 2 * int(desc[b"strokeStyleLineWidth"].value)
+    peak = (right - left + grow) * (bottom - top + grow) * _GRADIENT_FILL_BYTES
+
+    psd._max_alloc_bytes = peak
+    psd.composite(force=True, ignore_preview=True)
+    psd._max_alloc_bytes = peak - 1
+    with pytest.raises(ValueError, match="over the configured budget"):
+        psd.composite(force=True, ignore_preview=True)

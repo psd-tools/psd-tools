@@ -27,6 +27,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_RESIZE_COPIES = 4
+
 
 # The modes whose color array is a single channel, so a descriptor color has to
 # be reduced to one component to be a legal source for them. Grayscale, bitmap
@@ -359,13 +361,18 @@ def draw_pattern_fill(
             )
         except OverflowError as error:
             raise ValueError("Pattern scale is not finite.") from error
+        # resize() holds intermediates beside its output.
         check_pixel_size(
             new_shape[1],
             new_shape[0],
             panel.shape[2],
             budget,
             estimated_bytes=(
-                new_shape[0] * new_shape[1] * panel.shape[2] * panel.dtype.itemsize
+                new_shape[0]
+                * new_shape[1]
+                * panel.shape[2]
+                * panel.dtype.itemsize
+                * _RESIZE_COPIES
             ),
             warn=False,
         )
@@ -379,9 +386,10 @@ def draw_pattern_fill(
     )
     if reps[0] > 0 and reps[1] > 0:
         tiled = (reps[0] * panel.shape[0], reps[1] * panel.shape[1])
+        # The limit is on the viewport; the tile is rounded up past it.
         check_pixel_size(
-            tiled[1],
-            tiled[0],
+            width,
+            height,
             panel.shape[2],
             budget,
             estimated_bytes=tiled[0] * tiled[1] * panel.shape[2] * panel.dtype.itemsize,

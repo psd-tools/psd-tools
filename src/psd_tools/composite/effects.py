@@ -99,7 +99,7 @@ _UNRECOGNISED = _BANDS[Enum.OutsetFrame]
 # What a stroke canvas costs per pixel at its peak: the signed-distance
 # transients (an int64 offset grid pair, float64 planes) dwarf the float32
 # canvas and colour planes, so a budget is checked against this, not 4 bytes.
-_STROKE_BYTES = 32
+_STROKE_BYTES = 64
 
 # Below this fraction of active pixels within the region a bounding-box crop
 # would cover, :py:func:`_nearest_boundary` skips the erosion and falls back
