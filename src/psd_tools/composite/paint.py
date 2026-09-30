@@ -29,6 +29,10 @@ logger = logging.getLogger(__name__)
 
 _RESIZE_COPIES = 4
 
+# Per pixel, what a gradient fill peaks at: its coordinate grids and ramp
+# planes outweigh the float32 colour it returns.
+GRADIENT_FILL_BYTES = 128
+
 
 # The modes whose color array is a single channel, so a descriptor color has to
 # be reduced to one component to be a legal source for them. Grayscale, bitmap

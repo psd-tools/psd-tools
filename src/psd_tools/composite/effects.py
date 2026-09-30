@@ -165,12 +165,16 @@ def stroke_bbox(
     # The size is the file's, so the box it grows is checked before anything is
     # allocated on it. A box that fails is an unreadable stroke to both callers.
     if grown[0] < grown[2] and grown[1] < grown[3]:
+        # A gradient paint peaks above the distance field it is drawn under.
+        per_pixel = _STROKE_BYTES
+        if _enum(desc, Key.PaintType) == Enum.GradientFill:
+            per_pixel = max(per_pixel, paint.GRADIENT_FILL_BYTES)
         width, height = grown[2] - grown[0], grown[3] - grown[1]
         check_pixel_size(
             width,
             height,
             max_alloc_bytes=max_alloc_bytes,
-            estimated_bytes=width * height * _STROKE_BYTES,
+            estimated_bytes=width * height * per_pixel,
             warn=False,
         )
     return grown

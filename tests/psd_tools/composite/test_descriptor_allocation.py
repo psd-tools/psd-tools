@@ -9,11 +9,11 @@ from psd_tools.api import numpy_io
 from psd_tools.api.layers import Layer
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import effects, paint
-from psd_tools.composite.composite import _GRADIENT_FILL_BYTES, _stroke_reach
+from psd_tools.composite.composite import _stroke_reach
 from psd_tools.composite.paint import draw_pattern_fill
 from psd_tools.constants import Tag
-from psd_tools.psd.descriptor import Descriptor, Double, UnitFloat
-from psd_tools.terminology import Key
+from psd_tools.psd.descriptor import Descriptor, Double, Enumerated, UnitFloat
+from psd_tools.terminology import Enum, Key
 
 from ..utils import full_name
 
@@ -96,6 +96,17 @@ def test_the_stroke_box_is_checked_at_its_peak_per_pixel() -> None:
     _, layer, desc = _stroke_desc(50.0)
     grown = effects.stroke_bbox(layer.bbox, desc)
     peak = (grown[2] - grown[0]) * (grown[3] - grown[1]) * effects._STROKE_BYTES
+
+    assert effects.stroke_bbox(layer.bbox, desc, peak) == grown
+    with pytest.raises(ValueError, match="over the configured budget"):
+        effects.stroke_bbox(layer.bbox, desc, peak - 1)
+
+
+def test_a_gradient_stroke_box_is_checked_at_the_gradient_peak() -> None:
+    _, layer, desc = _stroke_desc(50.0)
+    desc[Key.PaintType] = Enumerated(typeID=b"FrFl", enum=Enum.GradientFill)
+    grown = effects.stroke_bbox(layer.bbox, desc)
+    peak = (grown[2] - grown[0]) * (grown[3] - grown[1]) * paint.GRADIENT_FILL_BYTES
 
     assert effects.stroke_bbox(layer.bbox, desc, peak) == grown
     with pytest.raises(ValueError, match="over the configured budget"):
@@ -195,7 +206,7 @@ def test_a_gradient_vector_stroke_fill_is_checked_at_its_own_peak(
     )
     left, top, right, bottom = layer.bbox
     grow = 2 * int(desc[b"strokeStyleLineWidth"].value)
-    peak = (right - left + grow) * (bottom - top + grow) * _GRADIENT_FILL_BYTES
+    peak = (right - left + grow) * (bottom - top + grow) * paint.GRADIENT_FILL_BYTES
 
     psd._max_alloc_bytes = peak
     psd.composite(force=True, ignore_preview=True)
