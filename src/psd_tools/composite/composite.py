@@ -1777,11 +1777,9 @@ class Compositor(object):
         color = layer.numpy("color")
         # The colour array stays live through the shape read, so it is charged
         # to that read's allocation guard.
-        shape = numpy_io.get_array(
-            layer,
-            "shape",
-            held=numpy_io._backing_bytes(color) if color is not None else 0,
-        )
+        if color is not None:
+            numpy_io.check_shape_read(layer, numpy_io._backing_bytes(color))
+        shape = layer.numpy("shape")
         if (self._force or not layer.has_pixels()) and utils.has_fill(layer):
             color, shape = paint.create_fill(layer, layer.bbox)
             if shape is None:

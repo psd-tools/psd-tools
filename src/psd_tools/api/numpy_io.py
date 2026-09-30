@@ -286,14 +286,57 @@ def _layer_read_peak_bytes(
     )
 
 
+def _guard_channel_read(
+    layer: "LayerProtocol",
+    width: int,
+    height: int,
+    condition: Callable[[Any], bool],
+    held: int = 0,
+) -> None:
+    """Check one :func:`get_layer_data` channel read against the budget."""
+    selected = [
+        data
+        for info, data in zip(layer._record.channel_info, layer._channels)
+        if condition(info) and len(data.data) > 0
+    ]
+    # An empty box allocates nothing, and check_pixel_size() rejects it.
+    if selected and width >= 1 and height >= 1:
+        check_pixel_size(
+            width,
+            height,
+            len(selected),
+            max_alloc_bytes=layer._psd._max_alloc_bytes,
+            estimated_bytes=_layer_read_peak_bytes(
+                width,
+                height,
+                layer._psd.depth,
+                len(selected),
+                max(_DECOMPRESS_PEAK[data.compression] for data in selected),
+                held,
+            ),
+            warn=False,
+        )
+
+
+def check_shape_read(layer: "LayerProtocol", held: int) -> None:
+    """Check a ``numpy("shape")`` read made while *held* bytes stay live.
+
+    For a caller that dispatches the read itself and so cannot pass ``held``.
+    """
+    _guard_channel_read(
+        layer,
+        layer.width,
+        layer.height,
+        lambda x: x.id == ChannelID.TRANSPARENCY_MASK,
+        held,
+    )
+
+
 def get_layer_data(
     layer: "LayerProtocol",
     channel: str | None,
     real_mask: bool = True,
-    held: int = 0,
 ) -> np.ndarray | None:
-    """Read a layer's pixels; ``held`` is what the caller keeps live meanwhile."""
-
     def _find_channel(
         layer: "LayerProtocol",
         width: int,
@@ -302,27 +345,7 @@ def get_layer_data(
         held: int = 0,
     ) -> np.ndarray | None:
         depth, version = layer._psd.depth, layer._psd.version
-        iterator = zip(layer._record.channel_info, layer._channels)
-        selected = [
-            data for info, data in iterator if condition(info) and len(data.data) > 0
-        ]
-        # An empty box allocates nothing, and check_pixel_size() rejects it.
-        if selected and width >= 1 and height >= 1:
-            check_pixel_size(
-                width,
-                height,
-                len(selected),
-                max_alloc_bytes=layer._psd._max_alloc_bytes,
-                estimated_bytes=_layer_read_peak_bytes(
-                    width,
-                    height,
-                    depth,
-                    len(selected),
-                    max(_DECOMPRESS_PEAK[data.compression] for data in selected),
-                    held,
-                ),
-                warn=False,
-            )
+        _guard_channel_read(layer, width, height, condition, held)
         iterator = zip(layer._record.channel_info, layer._channels)
         channels = [
             _parse_array(
@@ -343,16 +366,13 @@ def get_layer_data(
         return None
 
     if channel == "color":
-        return _find_channel(
-            layer, layer.width, layer.height, lambda x: x.id >= 0, held
-        )
+        return _find_channel(layer, layer.width, layer.height, lambda x: x.id >= 0)
     elif channel == "shape":
         return _find_channel(
             layer,
             layer.width,
             layer.height,
             lambda x: x.id == ChannelID.TRANSPARENCY_MASK,
-            held,
         )
     elif channel == "mask":
         if layer.mask is None:

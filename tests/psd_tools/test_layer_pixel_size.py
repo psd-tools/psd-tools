@@ -9,6 +9,7 @@ import pytest
 
 from psd_tools import PSDImage, PSDLargeImageWarning
 from psd_tools.api import numpy_io
+from psd_tools.api.layers import Layer
 from psd_tools.api.numpy_io import _layer_read_peak_bytes
 from psd_tools.api.pil_io import _layer_peak_bytes
 
@@ -206,6 +207,20 @@ def test_compositor_shape_read_is_sized_with_the_color_array_held(monkeypatch):
     psd = PSDImage.open(full_name("semi-transparent-layers.psd"))
     psd.composite(force=True)
     assert any(h > 0 for h in seen)
+
+
+def test_compositor_shape_read_dispatches_through_layer_numpy(monkeypatch):
+    real = Layer.numpy
+    calls = []
+
+    def spy(self, channel=None, real_mask=True):
+        calls.append(channel)
+        return real(self, channel, real_mask)
+
+    monkeypatch.setattr(Layer, "numpy", spy)
+    psd = PSDImage.open(full_name("semi-transparent-layers.psd"))
+    psd.composite(force=True)
+    assert "shape" in calls
 
 
 def test_topil_unknown_channel_id_returns_none():
