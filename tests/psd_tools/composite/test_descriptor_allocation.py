@@ -91,7 +91,8 @@ def test_the_tiled_pattern_is_checked_at_the_viewport() -> None:
 
 def test_an_empty_pattern_viewport_is_not_rejected() -> None:
     psd, desc, _ = _pattern()
-    psd._max_alloc_bytes = 1
+    # Room for the pattern's own decode, none for any tiling.
+    psd._max_alloc_bytes = 1 << 20
     color, _ = draw_pattern_fill((0, 0, 0, 0), psd, desc)
     assert color is not None and color.size == 0
 
@@ -306,3 +307,18 @@ def test_a_budget_covers_the_distance_search_grid() -> None:
     assert effects.stroke_bbox(layer.bbox, desc, grid) == grown
     with pytest.raises(ValueError, match="over the configured budget"):
         effects.stroke_bbox(layer.bbox, desc, grid - 1)
+
+
+def test_a_forged_pattern_record_is_rejected_by_the_fill() -> None:
+    """The fill hands its budget to the decode, which sizes from the record."""
+    psd, desc, _ = _pattern()
+    pattern = psd._get_pattern(desc[b"Ptrn"][Key.ID].value.rstrip("\x00"))
+    assert pattern is not None
+    for c in pattern.data.channels:
+        if c.is_written:
+            c.rectangle = (0, 0, 20000, 20000)
+            c.data = b"\x00" * 40000
+    pattern.data.rectangle = (0, 0, 20000, 20000)
+    psd._max_alloc_bytes = 1 << 28
+    with pytest.raises(ValueError, match="over the configured budget"):
+        draw_pattern_fill(psd.viewbox, psd, desc)
