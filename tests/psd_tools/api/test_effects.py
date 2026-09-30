@@ -626,6 +626,9 @@ def test_an_unrecognised_effect_enum_reads_as_none(
     assert "Cannot read" in caplog.text
 
 
+_NOT_IN_TERMINOLOGY = (GradientType.SHAPE_BURST, BevelStyle.STROKE_EMBOSS)
+
+
 @pytest.mark.parametrize(
     "enum_cls",
     [
@@ -641,6 +644,56 @@ def test_an_unrecognised_effect_enum_reads_as_none(
 )
 def test_effect_enum_codes_match_the_terminology(enum_cls: Any) -> None:
     for member in enum_cls:
-        if member is GradientType.SHAPE_BURST:
+        if member in _NOT_IN_TERMINOLOGY:
             continue
         assert Enum(member.value)
+
+
+@pytest.mark.parametrize(
+    "layer_name, effect_cls, expected",
+    [
+        (
+            "bevel-stroke-emboss",
+            effects.BevelEmboss,
+            {"bevel_style": BevelStyle.STROKE_EMBOSS},
+        ),
+        (
+            "bevel-pillow-precise",
+            effects.BevelEmboss,
+            {
+                "bevel_style": BevelStyle.PILLOW_EMBOSS,
+                "bevel_type": BevelTechnique.PRECISE_MATTE,
+                "direction": BevelDirection.STAMP_OUT,
+            },
+        ),
+        (
+            "bevel-outer-slope",
+            effects.BevelEmboss,
+            {
+                "bevel_style": BevelStyle.OUTER_BEVEL,
+                "bevel_type": BevelTechnique.SLOPE_LIMIT_MATTE,
+            },
+        ),
+        (
+            "inner-glow-center-precise",
+            effects.InnerGlow,
+            {
+                "glow_type": GlowTechnique.PRECISE_MATTE,
+                "glow_source": GlowSource.CENTER,
+            },
+        ),
+        ("stroke-shapeburst", effects.Stroke, {"type": GradientType.SHAPE_BURST}),
+        ("stroke-radial", effects.Stroke, {"type": GradientType.RADIAL}),
+        ("stroke-angle", effects.Stroke, {"type": GradientType.ANGLE}),
+        ("stroke-diamond", effects.Stroke, {"type": GradientType.DIAMOND}),
+        ("stroke-reflected", effects.Stroke, {"type": GradientType.REFLECTED}),
+    ],
+)
+def test_effect_enums_read_the_codes_photoshop_writes(
+    layer_name: str, effect_cls: type, expected: dict[str, Any]
+) -> None:
+    psd = PSDImage.open(full_name("effects/effect-enums.psd"))
+    layer = next(layer for layer in psd if layer.name == layer_name)
+    effect = next(e for e in layer.effects if isinstance(e, effect_cls))
+    for prop, member in expected.items():
+        assert getattr(effect, prop) is member

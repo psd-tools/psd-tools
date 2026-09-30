@@ -504,6 +504,7 @@ class BevelStyle(bytes, Enum):
     INNER_BEVEL = b"InrB"
     EMBOSS = b"Embs"
     PILLOW_EMBOSS = b"PlEb"
+    STROKE_EMBOSS = b"strokeEmboss"  # Not in the terminology.
 
 
 class BevelTechnique(bytes, Enum):
