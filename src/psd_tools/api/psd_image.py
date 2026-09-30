@@ -250,7 +250,9 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             :py:meth:`numpy` and :py:meth:`topil` estimate their allocation *at
             its peak*, intermediates included, so the estimate depends on the
             colour mode, the depth and the compression method rather than on the
-            declared geometry alone. :py:meth:`composite` bounds the canvas it
+            declared geometry alone. ``Layer.numpy()`` and ``Layer.topil()`` apply
+            the same ceiling to each layer read, at the layer's own size.
+            :py:meth:`composite` bounds the canvas it
             builds instead, from the geometry: what follows that guard grows with
             the layer count, which no such estimate can bound. Note that
             :py:meth:`composite` reaches the other two in the ordinary cases --

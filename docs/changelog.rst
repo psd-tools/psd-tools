@@ -4,6 +4,13 @@ Changelog
 1.21.1 (unreleased)
 -------------------
 
+- [api] ``max_alloc_bytes`` now bounds each ``Layer.numpy()`` and
+  ``Layer.topil()`` read, and so the stored-pixel reads of ``composite()``,
+  at the layer's own size. A layer larger than the canvas that used to read
+  unchecked is now rejected over budget. Redrawn-fill and stroke canvases are
+  not covered (#842)
+- [fix] A layer over 30,000 px on an axis now raises ``ValueError`` from
+  ``Layer.numpy()`` / ``Layer.topil()`` instead of allocating (#842)
 - [fix] Parser internals and normal control flow no longer log at INFO when
   opening or rendering an ordinary PSD; they are now DEBUG (#902)
 - [fix] Decoding and encoding ZIP-with-prediction channels is much faster,

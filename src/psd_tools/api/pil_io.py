@@ -17,6 +17,7 @@ from psd_tools.api.utils import (
 )
 from psd_tools.constants import ChannelID, ColorMode, Compression, Resource
 from psd_tools.psd.image_resources import ThumbnailResource, ThumbnailResourceV4
+from psd_tools.psd.layer_and_mask import ChannelData
 from psd_tools.psd.patterns import Pattern
 
 if TYPE_CHECKING:
@@ -330,10 +331,92 @@ def convert_image_data_to_pil(
     return _remove_white_background(image)
 
 
+def _layer_peak_bytes(
+    layer: "LayerProtocol", channel: int | None, apply_icc: bool
+) -> tuple[int, int, int, int] | None:
+    """``(width, height, planes, peak)`` for :func:`convert_layer_to_pil`.
+
+    ``None`` where it reads nothing.
+
+    The layer-scale counterpart of :func:`_image_data_peak_bytes`, over the same
+    phases: decompress a channel, convert it, merge, post-process. ``planes`` is
+    what the read stores -- one for a single channel, otherwise the colour
+    channels and the alpha -- rather than the record's channel count.
+    """
+    psd = layer._psd
+    if psd is None:
+        return None
+    # One decode per entry `_merge_channels()` iterates, each resolved to the
+    # *last* record of its id as `_get_channel()` does, so a repeated id is
+    # decoded once per repeat. An empty resolved entry decodes nothing.
+    resolved: dict[int, ChannelData] = {
+        i.id: c for i, c in zip(layer._record.channel_info, layer._channels)
+    }
+    wanted: list[int]
+    if channel is None:
+        wanted = [i.id for i in layer._record.channel_info if i.id >= 0]
+        wanted.append(ChannelID.TRANSPARENCY_MASK)
+    else:
+        wanted = [channel]
+    reads = [resolved[i] for i in wanted if i in resolved and len(resolved[i].data) > 0]
+    if channel in (ChannelID.USER_LAYER_MASK, ChannelID.REAL_USER_LAYER_MASK):
+        if layer.mask is None:
+            return None
+        real = channel == ChannelID.REAL_USER_LAYER_MASK
+        width = layer.mask.data.real_width if real else layer.mask.data.width
+        height = layer.mask.data.real_height if real else layer.mask.data.height
+    else:
+        width, height = layer.width, layer.height
+    if not reads or width < 1 or height < 1:
+        return None
+
+    pixels = width * height
+    depth = psd.depth
+    stored = len(reads)
+    source = ((width * depth + 7) // 8) * height
+    conversion = _CONVERSION_TRANSIENT if depth in (16, 32) else 0
+    compression = max(_DECOMPRESS_PEAK[c.compression] for c in reads)
+    retained = pixels * (stored + _ALLOCATOR_SLACK)
+    phases = [
+        pixels * (stored - 1) + compression * source,
+        retained + source + pixels * (1 + conversion),
+    ]
+
+    if channel is None:
+        mode = get_pil_mode(psd.color_mode)
+        bands = get_pil_channels(mode)
+        icc = apply_icc and Resource.ICC_PROFILE in psd.image_resources
+        final_bands = 3 if icc else bands
+        has_alpha = (
+            ChannelID.TRANSPARENCY_MASK in resolved
+            and len(resolved[ChannelID.TRANSPARENCY_MASK].data) > 0
+        )
+        widened = has_alpha and (icc or mode in ("RGB", "L"))
+        post = max(
+            bands if mode == "CMYK" else 0,
+            bands + 3 if icc else 0,
+            2 * final_bands + 1 if widened else 0,
+        )
+        phases.append(retained + pixels * (bands + post))
+    return width, height, stored, max(phases)
+
+
 def convert_layer_to_pil(
     layer: "LayerProtocol", channel: int | None, apply_icc: bool
 ) -> Image.Image | None:
     """Convert Layer to PIL Image."""
+    sized = _layer_peak_bytes(layer, channel, apply_icc)
+    if sized is not None:
+        width, height, planes, peak = sized
+        assert layer._psd is not None
+        check_pixel_size(
+            width,
+            height,
+            planes,
+            max_alloc_bytes=layer._psd._max_alloc_bytes,
+            estimated_bytes=peak,
+            warn=False,
+        )
     alpha = None
     icc = None
     image = None

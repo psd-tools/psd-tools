@@ -76,6 +76,7 @@ def check_pixel_size(
     channels: int = 1,
     max_alloc_bytes: int | None = None,
     estimated_bytes: int | None = None,
+    warn: bool = True,
 ) -> None:
     """Warn and/or raise when canvas dimensions exceed safe thresholds.
 
@@ -120,6 +121,9 @@ def check_pixel_size(
         does not scale with the channel count -- cannot express it through
         ``channels`` alone, which is why this takes a byte count rather than a
         multiplier.
+    :param warn: issue :class:`PSDLargeImageWarning` above :data:`WARN_PIXELS`.
+        The per-layer guards pass ``False`` so a composite of large layers warns
+        once, for the canvas, rather than once per layer.
     """
     if width < 1 or height < 1:
         raise ValueError(f"Image dimensions must be positive, got {width}x{height}.")
@@ -129,7 +133,7 @@ def check_pixel_size(
             f"{MAX_DIMENSION_PSD} px per axis."
         )
     pixels = width * height
-    if pixels > WARN_PIXELS:
+    if warn and pixels > WARN_PIXELS:
         warnings.warn(
             f"Image {width}x{height} ({pixels:,} px) exceeds the soft pixel "
             f"limit ({WARN_PIXELS:,} px). Processing may require significant memory.",

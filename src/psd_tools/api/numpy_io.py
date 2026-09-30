@@ -251,16 +251,101 @@ def get_image_data(psdimage: "PSDProtocol", channel: str | None) -> np.ndarray:
     return array
 
 
+def _backing_bytes(array: np.ndarray) -> int:
+    """Bytes kept alive by *array*: its owner's, since a slice is a view."""
+    base = array
+    while isinstance(base.base, np.ndarray):
+        base = base.base
+    return base.nbytes
+
+
+def _layer_read_peak_bytes(
+    width: int,
+    height: int,
+    depth: int,
+    planes: int,
+    decompress: int,
+    held: int = 0,
+) -> int:
+    """Bytes one :func:`get_layer_data` channel read allocates at its peak.
+
+    ``planes`` is the number of channels the read selects, not the record's
+    channel count. The phases run in sequence: decompressing a channel, parsing
+    it while the earlier ones are retained, and ``np.stack`` copying the lot.
+    The doubled float32 stack is the high-water mark for anything past a single
+    8-bit plane. ``held`` is what the caller keeps live across the read, added
+    to every phase.
+    """
+    pixels = width * height
+    source = _row_size(width, depth) * height
+    plane = pixels * 4
+    return held + max(
+        (planes - 1) * plane + decompress * source,
+        (planes - 1) * plane + source + plane + pixels * _PARSE_TRANSIENT[depth],
+        2 * planes * plane,
+    )
+
+
+def _guard_channel_read(
+    layer: "LayerProtocol",
+    width: int,
+    height: int,
+    condition: Callable[[Any], bool],
+    held: int = 0,
+) -> None:
+    """Check one :func:`get_layer_data` channel read against the budget."""
+    selected = [
+        data
+        for info, data in zip(layer._record.channel_info, layer._channels)
+        if condition(info) and len(data.data) > 0
+    ]
+    # An empty box allocates nothing, and check_pixel_size() rejects it.
+    if selected and width >= 1 and height >= 1:
+        check_pixel_size(
+            width,
+            height,
+            len(selected),
+            max_alloc_bytes=layer._psd._max_alloc_bytes,
+            estimated_bytes=_layer_read_peak_bytes(
+                width,
+                height,
+                layer._psd.depth,
+                len(selected),
+                max(_DECOMPRESS_PEAK[data.compression] for data in selected),
+                held,
+            ),
+            warn=False,
+        )
+
+
+def check_shape_read(layer: "LayerProtocol", held: int) -> None:
+    """Check a ``numpy("shape")`` read made while *held* bytes stay live.
+
+    For a caller that dispatches the read itself and so cannot pass ``held``.
+    """
+    _guard_channel_read(
+        layer,
+        layer.width,
+        layer.height,
+        lambda x: x.id == ChannelID.TRANSPARENCY_MASK,
+        held,
+    )
+
+
 def get_layer_data(
-    layer: "LayerProtocol", channel: str | None, real_mask: bool = True
+    layer: "LayerProtocol",
+    channel: str | None,
+    real_mask: bool = True,
 ) -> np.ndarray | None:
     def _find_channel(
         layer: "LayerProtocol",
         width: int,
         height: int,
         condition: Callable[[Any], bool],
+        held: int = 0,
     ) -> np.ndarray | None:
         depth, version = layer._psd.depth, layer._psd.version
+        _guard_channel_read(layer, width, height, condition, held)
         iterator = zip(layer._record.channel_info, layer._channels)
         channels = [
             _parse_array(
@@ -302,10 +387,28 @@ def get_layer_data(
 
     color = _find_channel(layer, layer.width, layer.height, lambda x: x.id >= 0)
     shape = _find_channel(
-        layer, layer.width, layer.height, lambda x: x.id == ChannelID.TRANSPARENCY_MASK
+        layer,
+        layer.width,
+        layer.height,
+        lambda x: x.id == ChannelID.TRANSPARENCY_MASK,
+        held=_backing_bytes(color) if color is not None else 0,
     )
     if shape is None:
         return color
+    if color is not None:
+        # Both reads are live, views included, while `np.concatenate` builds a
+        # third array.
+        planes = color.shape[2] + shape.shape[2]
+        check_pixel_size(
+            layer.width,
+            layer.height,
+            planes,
+            max_alloc_bytes=layer._psd._max_alloc_bytes,
+            estimated_bytes=_backing_bytes(color)
+            + _backing_bytes(shape)
+            + layer.width * layer.height * planes * 4,
+            warn=False,
+        )
     return np.concatenate([color, shape], axis=2)
 
 

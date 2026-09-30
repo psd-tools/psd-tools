@@ -8,7 +8,7 @@ from typing import Any, Callable, Iterator, NamedTuple, Protocol, cast
 import numpy as np
 from PIL import Image
 
-from psd_tools.api import pil_io
+from psd_tools.api import numpy_io, pil_io
 from psd_tools.api.layers import AdjustmentLayer, Artboard, GroupMixin, Layer
 from psd_tools.api.protocols import LayerProtocol, PSDProtocol
 from psd_tools.api.psd_image import PSDImage
@@ -588,16 +588,15 @@ def composite(
     # expand covered too -- indexed, whose single stored channel becomes three
     # through its palette -- without loosening the ones whose header count is
     # the larger of the pair.
-    # It bounds the canvas, not everything downstream: per-layer arrays are read
-    # with no guard of their own, and a layer record's channel count is an
-    # unvalidated uint16, so a malformed file can still allocate past this
-    # before `_assert_source_fits` fires.
+    # It bounds the canvas, not everything downstream: each stored-pixel read is
+    # guarded on its own by `Layer.numpy()`, but the redrawn-fill and stroke
+    # canvases are built at layer size outside that guard.
     # This keeps the returned-size spelling of the estimate where the two
     # image-data paths moved to a modelled peak (#767), and not for want of
     # trying: what follows this guard grows with the layer count, so there is no
-    # expression in `width * height * <constant>` that bounds it. A caller who
-    # needs `max_alloc_bytes` to mean the peak has it on `numpy()` and `topil()`;
-    # here it means the canvas, as it always has.
+    # expression in `width * height * <constant>` that bounds it. The budget is a
+    # per-allocation ceiling on `numpy()` and `topil()`, layers included; here it
+    # means the canvas, as it always has.
     _estimate = (
         max(_psd.channels, _channels)
         if _psd is not None and _channels is not None
@@ -1775,7 +1774,12 @@ class Compositor(object):
         viewport (#804), without restating which of the two sources -- stored
         pixels or a redrawn fill -- this layer's arrays come from.
         """
-        color, shape = layer.numpy("color"), layer.numpy("shape")
+        color = layer.numpy("color")
+        # The colour array stays live through the shape read, so it is charged
+        # to that read's allocation guard.
+        if color is not None:
+            numpy_io.check_shape_read(layer, numpy_io._backing_bytes(color))
+        shape = layer.numpy("shape")
         if (self._force or not layer.has_pixels()) and utils.has_fill(layer):
             color, shape = paint.create_fill(layer, layer.bbox)
             if shape is None:
