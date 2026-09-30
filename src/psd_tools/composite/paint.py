@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, Callable, Sequence, TypeVar
 import numpy as np
 
 from psd_tools.api import numpy_io
-from psd_tools.api.utils import check_pixel_size
+from psd_tools.api.utils import check_growth, check_pixel_size
 from psd_tools.color_convert import (
     cmyk_to_rgb,
     gray_to_cmyk,
@@ -28,6 +28,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _RESIZE_COPIES = 4
+
+# How many times its own area a pattern panel may be scaled up to, past the
+# floor check_growth() allows.
+_SCALE_GROWTH = 100
 
 # Per pixel, what a gradient fill peaks at: its coordinate grids and ramp
 # planes outweigh the float32 colour it returns.
@@ -365,6 +369,11 @@ def draw_pattern_fill(
             )
         except OverflowError as error:
             raise ValueError("Pattern scale is not finite.") from error
+        check_growth(
+            new_shape[0] * new_shape[1],
+            panel.shape[0] * panel.shape[1],
+            _SCALE_GROWTH,
+        )
         # resize() holds intermediates beside its output.
         check_pixel_size(
             new_shape[1],

@@ -66,6 +66,27 @@ def _env_alloc_budget() -> int | None:
 MAX_ALLOC_BYTES: int | None = _env_alloc_budget()
 
 
+# A canvas a descriptor value grows may hold this many pixels whatever it grows
+# from, so a small layer under a wide pen is not rejected for being small.
+GROWTH_FLOOR_PIXELS = 2**24
+
+
+def check_growth(pixels: int, reference_pixels: int, factor: int) -> None:
+    """Raise :class:`ValueError` when a descriptor-grown canvas is out of proportion.
+
+    A stroke width or pattern scale is the file's, and Photoshop bounds neither
+    in a way that has been verified. ``pixels`` may not exceed ``factor`` times
+    ``reference_pixels``, or :data:`GROWTH_FLOOR_PIXELS` if that is more. This
+    holds without ``max_alloc_bytes``; the byte budget is checked separately.
+    """
+    limit = max(GROWTH_FLOOR_PIXELS, factor * reference_pixels)
+    if pixels > limit:
+        raise ValueError(
+            f"A descriptor value grows a canvas to {pixels:,} px, over the "
+            f"{limit:,} px allowed for it."
+        )
+
+
 class PSDLargeImageWarning(UserWarning):
     """Issued when a PSD canvas exceeds the soft pixel limit (:data:`WARN_PIXELS`)."""
 

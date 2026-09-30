@@ -6,7 +6,7 @@ import tracemalloc
 import numpy as np
 import pytest
 
-from psd_tools.api import numpy_io
+from psd_tools.api import numpy_io, utils
 from psd_tools.api.layers import Layer
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import effects, paint
@@ -20,6 +20,7 @@ from ..utils import full_name
 
 # Far past the per-axis limit however the value is spent.
 HUGE = 1e9
+GROWN = "descriptor value grows"
 
 
 def _pattern() -> tuple[PSDImage, Descriptor, tuple[int, ...]]:
@@ -31,15 +32,32 @@ def _pattern() -> tuple[PSDImage, Descriptor, tuple[int, ...]]:
 
 
 @pytest.mark.parametrize(
-    ("scale", "message"), [(HUGE, "per axis"), (float("inf"), "not finite")]
+    ("scale", "message"), [(HUGE, GROWN), (float("inf"), "not finite")]
 )
 def test_a_forged_pattern_scale_is_rejected_without_a_budget(
     scale: float, message: str
 ) -> None:
-    """The per-axis limit bounds it, and a non-finite scale is a ValueError."""
+    """A scale past the growth limit is a ValueError, and so is a non-finite one."""
     psd, desc, _ = _pattern()
     desc[b"Scl "] = Double(scale)
     with pytest.raises(ValueError, match=message):
+        draw_pattern_fill(psd.viewbox, psd, desc)
+
+
+def test_a_pattern_scale_is_bounded_by_its_own_panel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    psd, desc, shape = _pattern()
+    percent = 400.0
+    desc[b"Scl "] = Double(percent)
+    scaled = int(shape[0] * percent / 100) * int(shape[1] * percent / 100)
+    assert scaled > shape[0] * shape[1] * paint._SCALE_GROWTH // 100
+
+    monkeypatch.setattr(utils, "GROWTH_FLOOR_PIXELS", scaled)
+    draw_pattern_fill(psd.viewbox, psd, desc)
+    monkeypatch.setattr(utils, "GROWTH_FLOOR_PIXELS", scaled - 1)
+    monkeypatch.setattr(paint, "_SCALE_GROWTH", 1)
+    with pytest.raises(ValueError, match=GROWN):
         draw_pattern_fill(psd.viewbox, psd, desc)
 
 
@@ -87,11 +105,30 @@ def _stroke_desc(size: float) -> tuple[PSDImage, Layer, Descriptor]:
     return psd, layer, effect.descriptor
 
 
-@pytest.mark.parametrize("size", [1e5, HUGE, 1e300])
-def test_a_forged_stroke_size_is_rejected_without_a_budget(size: float) -> None:
+@pytest.mark.parametrize("size", [251.0, 1e5, HUGE, 1e300])
+def test_a_stroke_size_past_photoshops_limit_is_drawn_at_the_limit(
+    size: float,
+) -> None:
+    _, layer, desc = _stroke_desc(effects._MAX_STROKE_SIZE)
+    limit = effects.stroke_bbox(layer.bbox, desc)
+    desc[Key.SizeKey] = Double(size)
+    assert effects.stroke_bbox(layer.bbox, desc) == limit
+
+
+@pytest.mark.parametrize("size", [float("inf"), float("nan")])
+def test_a_non_finite_stroke_size_is_rejected(size: float) -> None:
     _, layer, desc = _stroke_desc(size)
-    with pytest.raises(ValueError, match="per axis"):
+    with pytest.raises(ValueError, match="not finite"):
         effects.stroke_bbox(layer.bbox, desc)
+
+
+def test_a_forged_stroke_size_renders_as_the_limit() -> None:
+    limit, _, _ = _stroke_desc(effects._MAX_STROKE_SIZE)
+    forged, _, _ = _stroke_desc(HUGE)
+    assert np.array_equal(
+        np.asarray(limit.composite(ignore_preview=True).convert("RGBA")),
+        np.asarray(forged.composite(ignore_preview=True).convert("RGBA")),
+    )
 
 
 def test_the_stroke_box_is_checked_at_its_peak_per_pixel() -> None:
@@ -125,6 +162,7 @@ def test_a_stroke_over_budget_is_dropped_from_the_reach_and_the_render(
 ) -> None:
     """Both callers read the failed box as an unreadable stroke."""
     psd, layer, _ = _stroke_desc(HUGE)
+    psd._max_alloc_bytes = 1_000_000
     with caplog.at_level(logging.DEBUG, logger="psd_tools.composite.composite"):
         assert _stroke_reach(layer) == layer.bbox
         forged = np.asarray(psd.composite(ignore_preview=True).convert("RGBA"))
@@ -145,7 +183,7 @@ def _vector_stroke() -> tuple[PSDImage, Layer, Descriptor]:
 
 
 @pytest.mark.parametrize(
-    ("width", "message"), [(HUGE, "per axis"), (float("inf"), "not finite")]
+    ("width", "message"), [(HUGE, GROWN), (float("inf"), "not finite")]
 )
 def test_a_forged_vector_stroke_width_is_rejected_without_a_budget(
     width: float, message: str
@@ -169,6 +207,25 @@ def test_the_vector_stroke_fill_is_checked_at_the_grown_box() -> None:
     psd.composite(force=True, ignore_preview=True)
     psd._max_alloc_bytes = fill - 1
     with pytest.raises(ValueError, match="over the configured budget"):
+        psd.composite(force=True, ignore_preview=True)
+
+
+def test_the_vector_stroke_fill_is_bounded_by_the_larger_of_viewport_and_layer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    psd, layer, desc = _vector_stroke()
+    unit = desc[b"strokeStyleLineWidth"].unit
+    width = 300
+    desc[b"strokeStyleLineWidth"] = UnitFloat(value=float(width), unit=unit)
+    left, top, right, bottom = layer.bbox
+    grown = (right - left + 2 * width) * (bottom - top + 2 * width)
+    viewport = psd.width * psd.height
+    assert grown > 4 * max(viewport, (right - left) * (bottom - top))
+
+    monkeypatch.setattr(utils, "GROWTH_FLOOR_PIXELS", grown)
+    psd.composite(force=True, ignore_preview=True)
+    monkeypatch.setattr(utils, "GROWTH_FLOOR_PIXELS", grown - 1)
+    with pytest.raises(ValueError, match=GROWN):
         psd.composite(force=True, ignore_preview=True)
 
 
@@ -239,7 +296,7 @@ def test_an_inset_stroke_size_does_not_grow_the_distance_search_past_the_canvas(
 
 def test_a_budget_covers_the_distance_search_grid() -> None:
     """An inset stroke's box is small, so its grid is what the budget meets."""
-    _, layer, desc = _stroke_desc(5000.0)
+    _, layer, desc = _stroke_desc(effects._MAX_STROKE_SIZE)
     desc[Key.Style] = Enumerated(typeID=b"FStl", enum=Enum.InsetFrame)
     grown = effects.stroke_bbox(layer.bbox, desc)
     side = max(grown[2] - grown[0], grown[3] - grown[1])
