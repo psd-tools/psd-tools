@@ -76,7 +76,9 @@ class GradientFill(FillLayer):
         One of `Linear`, `Radial`, `Angle`, `Reflected` or `Diamond`.
         """
         kind = get_enum(self._data, b"Type", GradientType)
-        return None if kind is None else kind.name.capitalize()
+        if kind is None or kind is GradientType.SHAPE_BURST:  # Stroke only.
+            return None
+        return kind.name.capitalize()
 
     @property
     def data(self) -> DescriptorBlock:

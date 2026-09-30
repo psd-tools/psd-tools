@@ -254,7 +254,8 @@ def test_gradient_kind_reads_as_none_when_unreadable() -> None:
     data = layer._data
     assert data is not None
     assert layer.gradient_kind == "Linear"
-    data[b"Type"].enum = b"nope"
-    assert layer.gradient_kind is None
+    for unreadable in (b"nope", b"shapeburst"):
+        data[b"Type"].enum = unreadable
+        assert layer.gradient_kind is None
     del data[b"Type"]
     assert layer.gradient_kind is None
