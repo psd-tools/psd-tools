@@ -1,7 +1,15 @@
 import logging
 
+import numpy as np
 import pytest
 
+from psd_tools.api import adjustments
+from psd_tools.api.psd_image import PSDImage
+from psd_tools.composite.adjustments import apply_curves
+from psd_tools.constants import ColorMode
+from psd_tools.psd.adjustments import Curves as CurvesData
+
+from ..utils import full_name
 from .test_composite import check_composite_quality, check_icc_composite_quality
 
 logger = logging.getLogger(__name__)
@@ -83,6 +91,16 @@ def test_curves_composite_icc(name: str, colormode: str) -> None:
 def test_curves_composite_error(name: str, colormode: str) -> None:
     filename = f"adjustments/{name}_{colormode}.psd"
     check_composite_quality(filename, curves_tests[name], False)
+
+
+def test_curves_without_extra_records_leaves_the_image_alone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layer = PSDImage.open(full_name("fill_adjustments.psd"))[6]
+    assert isinstance(layer, adjustments.Curves)
+    monkeypatch.setattr(layer, "_data", CurvesData(version=4))
+    image = np.zeros((2, 2, 3), dtype=np.float32)
+    assert apply_curves(image, ColorMode.RGB, layer) is image
 
 
 # Exposure
