@@ -288,3 +288,12 @@ class TestDegradedValues:
     def test_an_unreadable_colour_component_gives_no_colour(self) -> None:
         color = {"Values": List([Float(1.0), String("x")])}  # type: ignore[list-item]
         assert CharacterStyle({"FillColor": color}, ()).fill_color is None
+
+    def test_a_malformed_run_length_array_is_read_as_absent(self) -> None:
+        engine = {
+            "StyleRun": {"RunLengthArray": [Integer(1), String("x")], "RunArray": []},
+            "ParagraphRun": {"RunLengthArray": [String("x")], "RunArray": [{}]},
+        }
+        ts = TypeSetting("ab", engine, {})  # type: ignore[arg-type]
+        assert [(r.start, r.end) for r in ts.runs] == [(0, 2)]
+        assert [(p.start, p.end) for p in ts.paragraphs] == [(0, 2)]

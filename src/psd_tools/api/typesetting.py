@@ -546,6 +546,18 @@ class Paragraph:
         return f"Paragraph({self._text!r}, runs={len(self._runs)})"
 
 
+def _lengths(raw: Any) -> list[int]:
+    """Read a ``RunLengthArray``; a malformed one is empty, as if absent."""
+    try:
+        items = list(raw) if raw else []
+    except TypeError:
+        return []
+    lengths = [coerce_scalar(v, int, None, "RunLengthArray") for v in items]
+    if None in lengths:
+        return []
+    return lengths  # type: ignore[return-value]
+
+
 class _RunLengthIndex:
     """Map character indices to run indices using a run length array.
 
@@ -558,11 +570,11 @@ class _RunLengthIndex:
         rli(6)  # -> 2
     """
 
-    def __init__(self, run_length_array: list[Any]) -> None:
+    def __init__(self, run_length_array: list[int]) -> None:
         self._boundaries: list[int] = []
         cumulative = 0
         for length in run_length_array:
-            cumulative += coerce_scalar(length, int, 0, "RunLengthArray")
+            cumulative += length
             self._boundaries.append(cumulative)
 
     @property
@@ -667,7 +679,7 @@ class TypeSetting:
     ) -> tuple[TextRun, ...]:
         text = self._text
         style_run = self._engine_dict.get("StyleRun", {})
-        run_lengths = style_run.get("RunLengthArray", [])
+        run_lengths = _lengths(style_run.get("RunLengthArray"))
         run_array = style_run.get("RunArray", [])
 
         if not run_lengths:
@@ -680,7 +692,7 @@ class TypeSetting:
         runs: list[TextRun] = []
         pos = 0
         for i in range(len(run_lengths)):
-            length = coerce_scalar(run_lengths[i], int, 0, "RunLengthArray")
+            length = run_lengths[i]
             end = pos + length
             if pos >= len(text):
                 break
@@ -700,11 +712,11 @@ class TypeSetting:
     ) -> tuple[Paragraph, ...]:
         text = self._text
         style_run = self._engine_dict.get("StyleRun", {})
-        run_lengths = style_run.get("RunLengthArray", [])
+        run_lengths = _lengths(style_run.get("RunLengthArray"))
         run_array = style_run.get("RunArray", [])
 
         para_run = self._engine_dict.get("ParagraphRun", {})
-        para_lengths = para_run.get("RunLengthArray", [])
+        para_lengths = _lengths(para_run.get("RunLengthArray"))
         para_array = para_run.get("RunArray", [])
 
         if not (para_lengths and para_array):
