@@ -53,6 +53,12 @@ Changelog
   records no readable alignment (#789)
 - [fix] An effect whose blend mode Photoshop writes as a long name, such as
   ``multiply`` or ``screen``, was composited as Normal, and now blends (#789)
+- [api] The ``Levels``, ``Curves``, ``Exposure``, ``HueSaturation``,
+  ``ColorBalance``, ``PhotoFilter``, ``ChannelMixer``, ``Posterize``,
+  ``Threshold``, ``SelectiveColor`` and ``GradientMap`` getters are annotated
+  ``T | None``. **Backwards incompatible:** a layer with no data block gives
+  ``None`` where it raised ``ValueError``, and its adjustment renders as a
+  no-op (#789)
 
 1.21.0 (2026-09-28)
 -------------------

@@ -11,8 +11,6 @@ Example::
 """
 
 import logging
-from typing import TypeVar
-
 from psd_tools.api._descriptor import get_descriptor, get_enum, get_scalar
 from psd_tools.api.layers import AdjustmentLayer, FillLayer
 from psd_tools.constants import GradientType, Tag
@@ -26,19 +24,6 @@ from psd_tools.registry import new_registry
 logger = logging.getLogger(__name__)
 
 TYPES, register = new_registry(attribute="_KEY")
-
-
-_T = TypeVar("_T")
-
-
-def _assert_data(data: _T | None) -> _T:
-    """Validate that data is not None and return it.
-
-    :raises ValueError: If data is None
-    """
-    if data is None:
-        raise ValueError("Adjustment layer data is None")
-    return data
 
 
 @register(Tag.SOLID_COLOR_SHEET_SETTING)
@@ -129,18 +114,20 @@ class Curves(AdjustmentLayer):
     """
 
     @property
-    def data(self) -> CurvesData:
+    def data(self) -> CurvesData | None:
         """
         Raw data.
 
         :return: :py:class:`~psd_tools.psd.adjustments.Curves`
         """
-        return _assert_data(self._data)
+        return self._data
 
     @property
     def extra(self) -> CurvesExtraMarker | None:
         """Extra curves records, or `None` if the file has none."""
-        extra = self.data.extra
+        if self._data is None:
+            return None
+        extra = self._data.extra
         return extra if isinstance(extra, CurvesExtraMarker) else None
 
 
@@ -151,28 +138,28 @@ class Exposure(AdjustmentLayer):
     """
 
     @property
-    def exposure(self) -> float:
+    def exposure(self) -> float | None:
         """Exposure.
 
-        :return: `float`
+        :return: `float`, or `None` if the block is absent
         """
-        return float(_assert_data(self._data).exposure)
+        return None if self._data is None else float(self._data.exposure)
 
     @property
-    def exposure_offset(self) -> float:
+    def exposure_offset(self) -> float | None:
         """Exposure offset.
 
-        :return: `float`
+        :return: `float`, or `None` if the block is absent
         """
-        return float(_assert_data(self._data).offset)
+        return None if self._data is None else float(self._data.offset)
 
     @property
-    def gamma(self) -> float:
+    def gamma(self) -> float | None:
         """Gamma.
 
-        :return: `float`
+        :return: `float`, or `None` if the block is absent
         """
-        return float(_assert_data(self._data).gamma)
+        return None if self._data is None else float(self._data.gamma)
 
 
 @register(Tag.LEVELS)
@@ -185,18 +172,18 @@ class Levels(AdjustmentLayer):
     """
 
     @property
-    def data(self) -> LevelsData:
+    def data(self) -> LevelsData | None:
         """
         List of level records. The first record is the master.
 
         :return: :py:class:`~psd_tools.psd.adjustments.Levels`.
         """
-        return _assert_data(self._data)
+        return self._data
 
     @property
-    def master(self) -> LevelRecord:
-        """Master record."""
-        return self.data[0]
+    def master(self) -> LevelRecord | None:
+        """Master record, or `None` if the block is absent or empty."""
+        return self._data[0] if self._data else None
 
 
 @register(Tag.VIBRANCE)
@@ -229,37 +216,37 @@ class HueSaturation(AdjustmentLayer):
     """
 
     @property
-    def data(self) -> list:
+    def data(self) -> list | None:
         """
         List of Hue/Saturation records.
 
-        :return: `list`
+        :return: `list`, or `None` if the block is absent
         """
-        return _assert_data(self._data).items
+        return None if self._data is None else self._data.items
 
     @property
-    def enable_colorization(self) -> int:
+    def enable_colorization(self) -> int | None:
         """Enable colorization.
 
-        :return: `int`
+        :return: `int`, or `None` if the block is absent
         """
-        return int(_assert_data(self._data).enable)
+        return None if self._data is None else int(self._data.enable)
 
     @property
-    def colorization(self) -> tuple:
+    def colorization(self) -> tuple | None:
         """Colorization.
 
-        :return: `tuple`
+        :return: `tuple`, or `None` if the block is absent
         """
-        return _assert_data(self._data).colorization
+        return None if self._data is None else self._data.colorization
 
     @property
-    def master(self) -> tuple:
+    def master(self) -> tuple | None:
         """Master record.
 
-        :return: `tuple`
+        :return: `tuple`, or `None` if the block is absent
         """
-        return _assert_data(self._data).master
+        return None if self._data is None else self._data.master
 
 
 @register(Tag.COLOR_BALANCE)
@@ -267,36 +254,36 @@ class ColorBalance(AdjustmentLayer):
     """Color balance adjustment."""
 
     @property
-    def shadows(self) -> tuple:
+    def shadows(self) -> tuple | None:
         """Shadows.
 
-        :return: `tuple`
+        :return: `tuple`, or `None` if the block is absent
         """
-        return _assert_data(self._data).shadows
+        return None if self._data is None else self._data.shadows
 
     @property
-    def midtones(self) -> tuple:
+    def midtones(self) -> tuple | None:
         """Mid-tones.
 
-        :return: `tuple`
+        :return: `tuple`, or `None` if the block is absent
         """
-        return _assert_data(self._data).midtones
+        return None if self._data is None else self._data.midtones
 
     @property
-    def highlights(self) -> tuple:
+    def highlights(self) -> tuple | None:
         """Highlights.
 
-        :return: `tuple`
+        :return: `tuple`, or `None` if the block is absent
         """
-        return _assert_data(self._data).highlights
+        return None if self._data is None else self._data.highlights
 
     @property
-    def luminosity(self) -> int:
+    def luminosity(self) -> int | None:
         """Luminosity.
 
-        :return: `int`
+        :return: `int`, or `None` if the block is absent
         """
-        return int(_assert_data(self._data).luminosity)
+        return None if self._data is None else int(self._data.luminosity)
 
 
 @register(Tag.BLACK_AND_WHITE)
@@ -358,23 +345,23 @@ class PhotoFilter(AdjustmentLayer):
 
         :return: `tuple` of three `int`, or `None`
         """
-        return _assert_data(self._data).xyz
+        return None if self._data is None else self._data.xyz
 
     @property
     def color_space(self) -> int | None:
-        return _assert_data(self._data).color_space
+        return None if self._data is None else self._data.color_space
 
     @property
     def color_components(self) -> tuple | None:
-        return _assert_data(self._data).color_components
+        return None if self._data is None else self._data.color_components
 
     @property
     def density(self) -> int | None:
-        return _assert_data(self._data).density
+        return None if self._data is None else self._data.density
 
     @property
     def luminosity(self) -> int | None:
-        return _assert_data(self._data).luminosity
+        return None if self._data is None else self._data.luminosity
 
 
 @register(Tag.CHANNEL_MIXER)
@@ -382,12 +369,12 @@ class ChannelMixer(AdjustmentLayer):
     """Channel mixer adjustment."""
 
     @property
-    def monochrome(self) -> int:
-        return _assert_data(self._data).monochrome
+    def monochrome(self) -> int | None:
+        return None if self._data is None else self._data.monochrome
 
     @property
-    def data(self) -> list:
-        return _assert_data(self._data).data
+    def data(self) -> list | None:
+        return None if self._data is None else self._data.data
 
 
 @register(Tag.COLOR_LOOKUP)
@@ -409,12 +396,12 @@ class Posterize(AdjustmentLayer):
     """Posterize adjustment."""
 
     @property
-    def posterize(self) -> int:
+    def posterize(self) -> int | None:
         """Posterize value.
 
-        :return: `int`
+        :return: `int`, or `None` if the block is absent
         """
-        return _assert_data(self._data)
+        return self._data
 
 
 @register(Tag.THRESHOLD)
@@ -422,12 +409,12 @@ class Threshold(AdjustmentLayer):
     """Threshold adjustment."""
 
     @property
-    def threshold(self) -> int:
+    def threshold(self) -> int | None:
         """Threshold value.
 
-        :return: `int`
+        :return: `int`, or `None` if the block is absent
         """
-        return _assert_data(self._data)
+        return self._data
 
 
 @register(Tag.SELECTIVE_COLOR)
@@ -435,12 +422,12 @@ class SelectiveColor(AdjustmentLayer):
     """Selective color adjustment."""
 
     @property
-    def method(self) -> int:
-        return _assert_data(self._data).method
+    def method(self) -> int | None:
+        return None if self._data is None else self._data.method
 
     @property
-    def data(self) -> list:
-        return _assert_data(self._data).data
+    def data(self) -> list | None:
+        return None if self._data is None else self._data.data
 
 
 @register(Tag.GRADIENT_MAP)
@@ -448,66 +435,66 @@ class GradientMap(AdjustmentLayer):
     """Gradient map adjustment."""
 
     @property
-    def reversed(self) -> int:
-        return _assert_data(self._data).is_reversed
+    def reversed(self) -> int | None:
+        return None if self._data is None else self._data.is_reversed
 
     @property
-    def dithered(self) -> int:
-        return _assert_data(self._data).is_dithered
+    def dithered(self) -> int | None:
+        return None if self._data is None else self._data.is_dithered
 
     @property
-    def gradient_name(self) -> str:
-        return _assert_data(self._data).name.strip("\x00")
+    def gradient_name(self) -> str | None:
+        return None if self._data is None else self._data.name.strip("\x00")
 
     @property
-    def color_stops(self) -> list:
-        return _assert_data(self._data).color_stops
+    def color_stops(self) -> list | None:
+        return None if self._data is None else self._data.color_stops
 
     @property
-    def transparency_stops(self) -> list:
-        return _assert_data(self._data).transparency_stops
+    def transparency_stops(self) -> list | None:
+        return None if self._data is None else self._data.transparency_stops
 
     @property
-    def expansion(self) -> int:
-        return _assert_data(self._data).expansion
+    def expansion(self) -> int | None:
+        return None if self._data is None else self._data.expansion
 
     @property
-    def interpolation(self) -> float:
+    def interpolation(self) -> float | None:
         """Interpolation between 0.0 and 1.0."""
-        return _assert_data(self._data).interpolation / 4096.0
+        return None if self._data is None else self._data.interpolation / 4096.0
 
     @property
-    def length(self) -> int:
-        return _assert_data(self._data).length
+    def length(self) -> int | None:
+        return None if self._data is None else self._data.length
 
     @property
-    def mode(self) -> int:
-        return _assert_data(self._data).mode
+    def mode(self) -> int | None:
+        return None if self._data is None else self._data.mode
 
     @property
-    def random_seed(self) -> int:
-        return _assert_data(self._data).random_seed
+    def random_seed(self) -> int | None:
+        return None if self._data is None else self._data.random_seed
 
     @property
-    def show_transparency(self) -> int:
-        return _assert_data(self._data).show_transparency
+    def show_transparency(self) -> int | None:
+        return None if self._data is None else self._data.show_transparency
 
     @property
-    def use_vector_color(self) -> int:
-        return _assert_data(self._data).use_vector_color
+    def use_vector_color(self) -> int | None:
+        return None if self._data is None else self._data.use_vector_color
 
     @property
-    def roughness(self) -> int:
-        return _assert_data(self._data).roughness
+    def roughness(self) -> int | None:
+        return None if self._data is None else self._data.roughness
 
     @property
-    def color_model(self) -> int:
-        return _assert_data(self._data).color_model
+    def color_model(self) -> int | None:
+        return None if self._data is None else self._data.color_model
 
     @property
-    def min_color(self) -> list:
-        return _assert_data(self._data).minimum_color
+    def min_color(self) -> list | None:
+        return None if self._data is None else self._data.minimum_color
 
     @property
-    def max_color(self) -> list:
-        return _assert_data(self._data).maximum_color
+    def max_color(self) -> list | None:
+        return None if self._data is None else self._data.maximum_color

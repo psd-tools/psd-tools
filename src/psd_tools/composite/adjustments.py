@@ -286,6 +286,8 @@ def apply_levels(
 ) -> np.ndarray:
     """Applies a levels adjustment to an image."""
     levels_data = layer.data
+    if levels_data is None:
+        return img
 
     lut_size = _get_lut_size(layer)
     t = _lut_domain(lut_size)
@@ -371,6 +373,9 @@ def apply_exposure(
         logger.debug("Exposure doesn't support CMYK in Photoshop.")
         return img
 
+    if layer.exposure is None or layer.exposure_offset is None or layer.gamma is None:
+        return img
+
     exposure = np.float32(layer.exposure)
     offset = np.float32(layer.exposure_offset)
     gamma = min(
@@ -421,8 +426,12 @@ def apply_huesaturation(
         logger.info("Hue/Saturation isn't currently supported for CMYK.")
         return img
 
+    items, colorization, master = layer.data, layer.colorization, layer.master
+    if items is None or colorization is None or master is None:
+        return img
+
     if layer.enable_colorization:
-        hsl_colorize_tuple = _normalize_hsl(layer.colorization)
+        hsl_colorize_tuple = _normalize_hsl(colorization)
         return (
             _huesaturation_colorize(img, hsl_colorize_tuple)
             if hsl_colorize_tuple != (_0, _0, _0)
@@ -431,10 +440,10 @@ def apply_huesaturation(
 
     color_ranges = [
         (hue_range, _normalize_hsl(hsl_tuple))
-        for hue_range, hsl_tuple in layer.data
+        for hue_range, hsl_tuple in items
         if hsl_tuple != (_0, _0, _0)
     ]
-    hsl_master_tuple = _normalize_hsl(layer.master)
+    hsl_master_tuple = _normalize_hsl(master)
     return (
         _huesaturation(img, color_ranges, hsl_master_tuple)
         if color_ranges or hsl_master_tuple != (_0, _0, _0)
@@ -666,6 +675,9 @@ def apply_posterize(
     layer: Posterize,
 ) -> np.ndarray:
     """Applies a posterize adjustment to an image."""
+    if layer.posterize is None:
+        return img
+
     lut_size = _get_lut_size(layer)
     # layer.posterize is a 1–255 integer from the PSD spec. The [2, 255] clamp is
     # intentional: PS minimum is 2. This range is correct for both 8-bit and 16-bit
@@ -690,6 +702,9 @@ def apply_threshold(
     # CMYK requires accurate luminance conversion
     if colormode == ColorMode.CMYK:
         logger.info("Threshold isn't currently supported for CMYK.")
+        return img
+
+    if layer.threshold is None:
         return img
 
     lut_size = _get_lut_size(layer)
