@@ -2,7 +2,14 @@ import json
 
 import pytest
 
-from psd_tools.api._descriptor import coerce_scalar, get_enum, get_scalar
+from psd_tools.api._descriptor import (
+    DESCRIPTOR_BLEND_MODES,
+    coerce_scalar,
+    get_blend_mode,
+    get_enum,
+    get_scalar,
+)
+from psd_tools.constants import BlendMode
 from psd_tools.psd.descriptor import (
     Bool,
     Descriptor,
@@ -124,3 +131,27 @@ def test_coerce_scalar_logs_the_label(caplog):
     with caplog.at_level("DEBUG", logger="psd_tools.api._descriptor"):
         assert coerce_scalar(String("x"), int, 7, "Label") == 7
     assert "Label" in caplog.text
+
+
+def test_get_blend_mode_reads_both_code_families(descriptor):
+    descriptor[b"long_name"] = Enumerated(b"BlnM", b"lighterColor")
+    assert get_blend_mode(descriptor, b"mode") is BlendMode.MULTIPLY
+    assert get_blend_mode(descriptor, b"long_name") is BlendMode.LIGHTER_COLOR
+
+
+def test_get_blend_mode_degrades(descriptor):
+    assert get_blend_mode(descriptor, b"nope") is None
+    assert get_blend_mode(descriptor, b"miss") is None
+    assert get_blend_mode(descriptor, b"nope", BlendMode.NORMAL) is BlendMode.NORMAL
+    assert get_blend_mode(None, b"mode", BlendMode.NORMAL) is BlendMode.NORMAL
+
+
+def test_get_blend_mode_does_not_take_a_layer_record_code(descriptor):
+    descriptor[b"record"] = Enumerated(b"BlnM", BlendMode.MULTIPLY.value)
+    assert get_blend_mode(descriptor, b"record") is None
+
+
+def test_every_blend_mode_but_pass_through_has_a_descriptor_code():
+    assert set(DESCRIPTOR_BLEND_MODES.values()) == set(BlendMode) - {
+        BlendMode.PASS_THROUGH
+    }

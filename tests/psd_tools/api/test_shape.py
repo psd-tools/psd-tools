@@ -13,7 +13,8 @@ from psd_tools.api.shape import (
     Stroke,
     VectorMask,
 )
-from psd_tools.psd.descriptor import Bool, Descriptor, Double, UnitFloat
+from psd_tools.constants import BlendMode
+from psd_tools.psd.descriptor import Bool, Descriptor, Double, Enumerated, UnitFloat
 from psd_tools.psd.vector import (
     ClosedKnotLinked,
     ClosedPath,
@@ -250,3 +251,18 @@ def test_stroke_wire_values_are_plain_primitives() -> None:
 
 def test_origination_resolution_missing_is_none() -> None:
     assert Rectangle(Descriptor()).resolution is None
+
+
+@pytest.mark.parametrize(
+    "code, expected",
+    [
+        (b"Nrml", BlendMode.NORMAL),
+        (b"normal", BlendMode.NORMAL),
+        (b"linearDodge", BlendMode.LINEAR_DODGE),
+        (b"nope", None),
+    ],
+)
+def test_stroke_blend_mode(code: bytes, expected: BlendMode | None) -> None:
+    stroke = Stroke(VectorStrokeContentSetting(classID=b"strokeStyle"))
+    stroke._data[b"strokeStyleBlendMode"] = Enumerated(b"BlnM", code)
+    assert stroke.blend_mode is expected

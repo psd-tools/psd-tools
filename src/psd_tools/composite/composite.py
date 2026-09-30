@@ -48,7 +48,7 @@ class _StyledEffect(Protocol):
     def opacity(self) -> float: ...
 
     @property
-    def blend_mode(self) -> bytes: ...
+    def blend_mode(self) -> BlendMode: ...
 
 
 def _styled(effects: Iterator[Any]) -> Iterator[_StyledEffect]:
@@ -966,7 +966,7 @@ class _OuterEffect(NamedTuple):
     # effects get from being composited inside the source it scales; an outer
     # effect is not in that source, so it carries the factor itself.
     opacity: float
-    blend_mode: bytes
+    blend_mode: BlendMode
 
 
 class _EffectCanvas:
@@ -1064,7 +1064,7 @@ class _EffectCanvas:
         self,
         coverage: np.ndarray,
         color: np.ndarray,
-        blend_mode: bytes,
+        blend_mode: BlendMode,
         opacity: float,
     ) -> None:
         """Paint an effect over the layer, inside its region.
@@ -1537,11 +1537,7 @@ class Compositor(object):
         color: np.ndarray,
         shape: np.ndarray,
         alpha: np.ndarray,
-        # Not ``BlendMode``: a stroke's and an effect's blend mode is a raw
-        # descriptor key, and only a layer's is an enum member. ``BlendMode``
-        # subclasses ``bytes``, so this admits both rather than widening to a
-        # union of a type and its own supertype.
-        blend_mode: bytes,
+        blend_mode: BlendMode,
         knockout: Knockout = Knockout.NONE,
     ) -> None:
         color = self._fit_source(color)

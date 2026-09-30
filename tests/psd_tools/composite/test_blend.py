@@ -23,20 +23,9 @@ from psd_tools.composite.blend import (
 )
 import psd_tools.composite.blend as blend_module
 from psd_tools.constants import BlendMode, ColorMode
-from psd_tools.terminology import Enum
 from .test_composite import check_composite_quality
 
 logger = logging.getLogger(__name__)
-
-
-def test_lighter_color_descriptor_key() -> None:
-    """The descriptor key is ``b"lighterColor"``, and a typo in it is silent.
-
-    A misspelled key is simply absent from the table, so effects and strokes
-    asking for it fall back to the normal blend mode.
-    """
-    assert BLEND_FUNC.get(b"lighterColor") is lighter_color
-    assert BLEND_FUNC.get(b"lighterColor") is not normal
 
 
 @pytest.mark.parametrize(
@@ -603,26 +592,6 @@ def test_get_blend_func_defaults_unknown_keys_to_normal() -> None:
     assert BLEND_FUNC.get(BlendMode.PASS_THROUGH) is None
     assert get_blend_func(BlendMode.PASS_THROUGH) is normal
     assert get_blend_func(BlendMode.PASS_THROUGH, ColorMode.MULTICHANNEL) is normal
-    assert get_blend_func(b"nosuchblendmode", ColorMode.CMYK) is normal
-
-
-@pytest.mark.parametrize(
-    "key",
-    [Enum.Hue, Enum.Saturation, Enum.Color, Enum.Luminosity]
-    + [b"darkerColor", b"lighterColor"],
-)
-def test_get_blend_func_degrades_the_descriptor_keys_too(key: bytes) -> None:
-    """Effects and strokes look their blend mode up by descriptor key (#746).
-
-    ``BLEND_FUNC`` carries the six twice over, once per key family, and a typo
-    in the descriptor half goes undetected -- see
-    ``test_lighter_color_descriptor_key`` above. So the family a layer's own
-    blend mode does *not* come through is pinned here rather than assumed to
-    follow.
-    """
-    Cb, Cs = _mixed_pair(4)
-    blend_fn = get_blend_func(key, ColorMode.MULTICHANNEL)
-    assert np.array_equal(blend_fn(Cb.copy(), Cs.copy()), normal(Cb, Cs))
 
 
 # The separable half of the same experiment that produced ``PHOTOSHOP_CMYK``

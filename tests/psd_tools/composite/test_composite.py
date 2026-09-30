@@ -2682,3 +2682,23 @@ def test_a_layer_whose_repr_raises_does_not_abort_the_composite(
     assert (records.count > 0) is (level == logging.DEBUG), (
         "the DEBUG case has to reach the handler, and the WARNING case must not"
     )
+
+
+@pytest.mark.parametrize(
+    "mode, expected",
+    [
+        ("normal", (60, 140, 220)),
+        ("multiply", (47, 0, 0)),
+        ("screen", (213, 140, 220)),
+    ],
+)
+def test_effect_blend_mode_written_as_a_long_name_is_applied(
+    mode: str, expected: tuple[int, int, int]
+) -> None:
+    """A colour overlay over a (200, 0, 0) square, blended with (60, 140, 220)."""
+    psd = PSDImage.open(full_name("effects/blend-modes.psd"))
+    layer = next(layer for layer in psd if layer.name == f"overlay-{mode}")
+    image = layer.composite(force=True)
+    assert image is not None
+    pixel = image.convert("RGB").getpixel((layer.width // 2, layer.height // 2))
+    assert pixel == pytest.approx(expected, abs=1)

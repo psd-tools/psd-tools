@@ -22,12 +22,13 @@ import logging
 import warnings
 from typing import Any, Iterator, Protocol
 
-from psd_tools.api._descriptor import get_enum, get_scalar
+from psd_tools.api._descriptor import get_blend_mode, get_enum, get_scalar
 from psd_tools.api.protocols import LayerProtocol
 from psd_tools.constants import (
     BevelDirection,
     BevelStyle,
     BevelTechnique,
+    BlendMode,
     GlowSource,
     GlowTechnique,
     GradientType,
@@ -38,7 +39,7 @@ from psd_tools.constants import (
 )
 from psd_tools.psd.descriptor import Descriptor, List
 from psd_tools.psd.image_resources import ImageResources
-from psd_tools.terminology import Enum, Key, Klass
+from psd_tools.terminology import Key, Klass
 from psd_tools.registry import new_registry
 
 logger = logging.getLogger(__name__)
@@ -287,10 +288,9 @@ class _ColorMixin(_EffectProtocol):
         return self.descriptor.get(Key.Color)
 
     @property
-    def blend_mode(self) -> bytes:
-        """Effect blending mode."""
-        mode = self.descriptor.get(Key.Mode)
-        return getattr(mode, "enum", Enum.Normal) if mode is not None else Enum.Normal
+    def blend_mode(self) -> BlendMode:
+        """Effect blending mode, `NORMAL` where the descriptor does not say."""
+        return get_blend_mode(self.descriptor, Key.Mode, BlendMode.NORMAL)
 
 
 class _ChokeNoiseMixin(_ColorMixin):
@@ -434,10 +434,9 @@ class _OverlayEffect(_Effect):
 
 class _AlignScaleMixin(_EffectProtocol):
     @property
-    def blend_mode(self) -> bytes:
-        """Effect blending mode."""
-        mode = self.descriptor.get(Key.Mode)
-        return getattr(mode, "enum", Enum.Normal) if mode is not None else Enum.Normal
+    def blend_mode(self) -> BlendMode:
+        """Effect blending mode, `NORMAL` where the descriptor does not say."""
+        return get_blend_mode(self.descriptor, Key.Mode, BlendMode.NORMAL)
 
     @property
     def scale(self) -> float:
@@ -520,10 +519,9 @@ class Stroke(_Effect, _ColorMixin, _PatternMixin, _GradientMixin):
 @register(Klass.BevelEmboss.value)
 class BevelEmboss(_Effect, _AngleMixin):
     @property
-    def highlight_mode(self) -> bytes:
-        """Highlight blending mode."""
-        mode = self.descriptor.get(Key.HighlightMode)
-        return getattr(mode, "enum", Enum.Normal) if mode is not None else Enum.Normal
+    def highlight_mode(self) -> BlendMode:
+        """Highlight blending mode, `NORMAL` where the descriptor does not say."""
+        return get_blend_mode(self.descriptor, Key.HighlightMode, BlendMode.NORMAL)
 
     @property
     def highlight_color(self) -> Descriptor:
@@ -536,10 +534,9 @@ class BevelEmboss(_Effect, _AngleMixin):
         return get_scalar(self.descriptor, Key.HighlightOpacity, float, 50.0)
 
     @property
-    def shadow_mode(self) -> bytes:
-        """Shadow blending mode."""
-        mode = self.descriptor.get(Key.ShadowMode)
-        return getattr(mode, "enum", Enum.Normal) if mode is not None else Enum.Normal
+    def shadow_mode(self) -> BlendMode:
+        """Shadow blending mode, `NORMAL` where the descriptor does not say."""
+        return get_blend_mode(self.descriptor, Key.ShadowMode, BlendMode.NORMAL)
 
     @property
     def shadow_color(self) -> Descriptor:

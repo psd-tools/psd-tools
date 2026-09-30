@@ -10,6 +10,7 @@ from psd_tools.constants import (
     BevelDirection,
     BevelStyle,
     BevelTechnique,
+    BlendMode,
     GlowSource,
     GlowTechnique,
     GradientType,
@@ -56,10 +57,10 @@ def test_bevel(fixture: PSDImage) -> None:
     assert effect.direction == Enum.StampIn
     assert effect.enabled is True
     assert effect.highlight_color
-    assert effect.highlight_mode == Enum.Screen
+    assert effect.highlight_mode is BlendMode.SCREEN
     assert effect.highlight_opacity == 50.0
     assert effect.shadow_color
-    assert effect.shadow_mode == Enum.Multiply
+    assert effect.shadow_mode is BlendMode.MULTIPLY
     assert effect.shadow_opacity == 50.0
     assert effect.size == 41.0
     assert effect.soften == 0.0
@@ -82,10 +83,10 @@ def test_emboss(fixture: PSDImage) -> None:
     assert effect.direction == Enum.StampIn
     assert effect.enabled is True
     assert effect.highlight_color
-    assert effect.highlight_mode == Enum.Screen
+    assert effect.highlight_mode is BlendMode.SCREEN
     assert effect.highlight_opacity == 50.0
     assert effect.shadow_color
-    assert effect.shadow_mode == Enum.Multiply
+    assert effect.shadow_mode is BlendMode.MULTIPLY
     assert effect.shadow_opacity == 50.0
     assert effect.size == 41.0
     assert effect.soften == 0.0
@@ -98,7 +99,7 @@ def test_outer_glow(fixture: PSDImage) -> None:
     effect = fixture[3].effects[0]
     assert isinstance(effect, effects.OuterGlow)
     assert effect.anti_aliased is False
-    assert effect.blend_mode == Enum.Screen
+    assert effect.blend_mode is BlendMode.SCREEN
     assert effect.choke == 0.0
     assert effect.color
     assert effect.contour
@@ -117,7 +118,7 @@ def test_inner_glow(fixture: PSDImage) -> None:
     effect = fixture[4].effects[0]
     assert isinstance(effect, effects.InnerGlow)
     assert effect.anti_aliased is False
-    assert effect.blend_mode == Enum.Screen
+    assert effect.blend_mode is BlendMode.SCREEN
     assert effect.choke == 0.0
     assert effect.color
     assert effect.contour
@@ -137,7 +138,7 @@ def test_inner_shadow(fixture: PSDImage) -> None:
     assert isinstance(effect, effects.InnerShadow)
     assert effect.angle == 90.0
     assert effect.anti_aliased is False
-    assert effect.blend_mode == Enum.Multiply
+    assert effect.blend_mode is BlendMode.MULTIPLY
     assert effect.choke == 0.0
     assert effect.color
     assert effect.contour
@@ -151,7 +152,7 @@ def test_inner_shadow(fixture: PSDImage) -> None:
 def test_color_overlay(fixture: PSDImage) -> None:
     effect = fixture[6].effects[0]
     assert isinstance(effect, effects.ColorOverlay)
-    assert effect.blend_mode == Enum.Normal
+    assert effect.blend_mode is BlendMode.NORMAL
     assert effect.color
     assert effect.opacity == 100.0
 
@@ -161,7 +162,7 @@ def test_drop_shadow(fixture: PSDImage) -> None:
     assert isinstance(effect, effects.DropShadow)
     assert effect.angle == 90.0
     assert effect.anti_aliased is False
-    assert effect.blend_mode == Enum.Multiply
+    assert effect.blend_mode is BlendMode.MULTIPLY
     assert effect.choke == 0.0
     assert effect.color
     assert effect.contour
@@ -178,7 +179,7 @@ def test_gradient_overlay(fixture: PSDImage) -> None:
     assert isinstance(effect, effects.GradientOverlay)
     assert effect.aligned is True
     assert effect.angle == 87.0
-    assert effect.blend_mode == Enum.Normal
+    assert effect.blend_mode is BlendMode.NORMAL
     assert effect.dithered is False
     assert effect.gradient
     assert effect.offset
@@ -192,7 +193,7 @@ def test_pattern_overlay(fixture: PSDImage) -> None:
     effect = fixture[9].effects[0]
     assert isinstance(effect, effects.PatternOverlay)
     assert effect.aligned is True
-    assert effect.blend_mode == Enum.Normal
+    assert effect.blend_mode is BlendMode.NORMAL
     assert effect.opacity == 100.0
     assert effect.pattern
     assert effect.phase
@@ -202,7 +203,7 @@ def test_pattern_overlay(fixture: PSDImage) -> None:
 def test_stroke(fixture: PSDImage) -> None:
     effect = fixture[10].effects[0]
     assert isinstance(effect, effects.Stroke)
-    assert effect.blend_mode == Enum.Normal
+    assert effect.blend_mode is BlendMode.NORMAL
     assert effect.fill_type == Enum.SolidColor
     assert effect.opacity == 100.0
     assert effect.overprint is False
@@ -222,7 +223,7 @@ def test_satin(fixture: PSDImage) -> None:
     assert isinstance(effect, effects.Satin)
     assert effect.angle == -60.0
     assert effect.anti_aliased is True
-    assert effect.blend_mode == Enum.Multiply
+    assert effect.blend_mode is BlendMode.MULTIPLY
     assert effect.color
     assert effect.contour
     assert effect.distance == 20.0
@@ -502,8 +503,8 @@ def test_an_absent_reporting_enum_is_not_fabricated() -> None:
     assert bevel.direction is None
     # The blend modes are not in this set: an absent one really does mean
     # Normal, which is why #831 keeps their defaults along with opacity's.
-    assert bevel.highlight_mode == Enum.Screen
-    assert bevel.shadow_mode == Enum.Multiply
+    assert bevel.highlight_mode is BlendMode.SCREEN
+    assert bevel.shadow_mode is BlendMode.MULTIPLY
 
 
 def test_value_is_deprecated_out_loud() -> None:
@@ -697,3 +698,87 @@ def test_effect_enums_read_the_codes_photoshop_writes(
     effect = next(e for e in layer.effects if isinstance(e, effect_cls))
     for prop, member in expected.items():
         assert getattr(effect, prop) is member
+
+
+_PHOTOSHOP_EFFECT_BLEND_MODES = {
+    "normal": BlendMode.NORMAL,
+    "dissolve": BlendMode.DISSOLVE,
+    "darken": BlendMode.DARKEN,
+    "multiply": BlendMode.MULTIPLY,
+    "colorBurn": BlendMode.COLOR_BURN,
+    "linearBurn": BlendMode.LINEAR_BURN,
+    "darkerColor": BlendMode.DARKER_COLOR,
+    "lighten": BlendMode.LIGHTEN,
+    "screen": BlendMode.SCREEN,
+    "colorDodge": BlendMode.COLOR_DODGE,
+    "linearDodge": BlendMode.LINEAR_DODGE,
+    "lighterColor": BlendMode.LIGHTER_COLOR,
+    "overlay": BlendMode.OVERLAY,
+    "softLight": BlendMode.SOFT_LIGHT,
+    "hardLight": BlendMode.HARD_LIGHT,
+    "vividLight": BlendMode.VIVID_LIGHT,
+    "linearLight": BlendMode.LINEAR_LIGHT,
+    "pinLight": BlendMode.PIN_LIGHT,
+    "hardMix": BlendMode.HARD_MIX,
+    "difference": BlendMode.DIFFERENCE,
+    "exclusion": BlendMode.EXCLUSION,
+    "blendDivide": BlendMode.DIVIDE,
+    "hue": BlendMode.HUE,
+    "saturation": BlendMode.SATURATION,
+    "color": BlendMode.COLOR,
+    "luminosity": BlendMode.LUMINOSITY,
+}
+
+
+@pytest.mark.parametrize("code, expected", _PHOTOSHOP_EFFECT_BLEND_MODES.items())
+def test_effect_blend_mode_reads_the_code_photoshop_writes(
+    code: str, expected: BlendMode
+) -> None:
+    psd = PSDImage.open(full_name("effects/blend-modes.psd"))
+    layer = next(layer for layer in psd if layer.name == f"shadow-{code}")
+    effect = next(e for e in layer.effects if isinstance(e, effects.DropShadow))
+    assert effect.descriptor[Key.Mode].enum == code.encode()
+    assert effect.blend_mode is expected
+
+
+def test_bevel_blend_modes_read_the_codes_photoshop_writes() -> None:
+    psd = PSDImage.open(full_name("effects/blend-modes.psd"))
+    layer = next(layer for layer in psd if layer.name == "bevel-modes")
+    bevel = next(e for e in layer.effects if isinstance(e, effects.BevelEmboss))
+    assert bevel.highlight_mode is BlendMode.COLOR_DODGE
+    assert bevel.shadow_mode is BlendMode.COLOR_BURN
+
+
+def test_effect_blend_mode_reads_the_terminology_code_older_files_write() -> None:
+    psd = PSDImage.open(full_name("layer_effects.psd"))
+    modes = {
+        e.blend_mode
+        for layer in psd.descendants()
+        for e in layer.effects
+        if isinstance(e, effects.DropShadow)
+    }
+    assert BlendMode.MULTIPLY in modes
+
+
+@pytest.mark.parametrize(
+    "layer_name, effect_cls, getter, key",
+    [
+        ("shadow-multiply", effects.DropShadow, "blend_mode", Key.Mode),
+        ("bevel-modes", effects.BevelEmboss, "highlight_mode", Key.HighlightMode),
+        ("bevel-modes", effects.BevelEmboss, "shadow_mode", Key.ShadowMode),
+    ],
+)
+def test_an_unrecognised_effect_blend_mode_reads_as_normal(
+    layer_name: str,
+    effect_cls: type,
+    getter: str,
+    key: bytes,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    psd = PSDImage.open(full_name("effects/blend-modes.psd"))
+    layer = next(layer for layer in psd if layer.name == layer_name)
+    effect = next(e for e in layer.effects if isinstance(e, effect_cls))
+    effect.descriptor[key].enum = b"nope"
+    with caplog.at_level("DEBUG", logger="psd_tools.api._descriptor"):
+        assert getattr(effect, getter) is BlendMode.NORMAL
+    assert "Cannot read" in caplog.text
