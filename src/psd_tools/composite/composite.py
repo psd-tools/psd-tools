@@ -1587,6 +1587,11 @@ class Compositor(object):
                 layer, transformed_color, self._alpha
             )
 
+        # An adjustment that returns its input changes nothing, whatever the
+        # blend mode.
+        if transformed_color is backdrop_color:
+            return
+
         shape_mask = self._get_mask(layer)
         shape_const, opacity_const = self._get_const(layer)
 

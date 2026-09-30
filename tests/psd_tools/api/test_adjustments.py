@@ -7,6 +7,7 @@ from psd_tools.api.adjustments import GradientFill, PatternFill, SolidColorFill
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.psd.adjustments import Curves as CurvesData
 from psd_tools.psd.adjustments import CurvesExtraMarker
+from psd_tools.psd.adjustments import Levels as LevelsData
 from psd_tools.psd.descriptor import Descriptor, Integer, String
 
 from ..utils import full_name
@@ -357,3 +358,12 @@ def test_an_absent_adjustment_block_reads_none(
     monkeypatch.setattr(layer, "_data", None)
     for attr in attrs:
         assert getattr(layer, attr) is None, attr
+
+
+def test_levels_without_records_reads_no_master(
+    psd: PSDImage, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    layer = psd[5]
+    assert isinstance(layer, adjustments.Levels)
+    monkeypatch.setattr(layer, "_data", LevelsData(version=2))
+    assert layer.master is None

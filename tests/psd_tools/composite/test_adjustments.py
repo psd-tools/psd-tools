@@ -14,7 +14,7 @@ from psd_tools.composite.adjustments import (
     apply_posterize,
     apply_threshold,
 )
-from psd_tools.constants import ColorMode
+from psd_tools.constants import BlendMode, ColorMode
 from psd_tools.psd.adjustments import Curves as CurvesData
 
 from ..utils import full_name
@@ -128,6 +128,20 @@ def test_an_absent_adjustment_block_leaves_the_image_alone(
     monkeypatch.setattr(layer, "_data", None)
     image = np.zeros((2, 2, 3), dtype=np.float32)
     assert apply(image, ColorMode.RGB, layer) is image
+
+
+def test_an_absent_adjustment_block_leaves_the_composite_alone_under_multiply(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    psd = PSDImage.open(full_name("fill_adjustments.psd"))
+    layer = psd[5]
+    assert isinstance(layer, adjustments.Levels)
+    layer.visible = False
+    expected = psd.composite(force=True)
+    layer.visible = True
+    layer.blend_mode = BlendMode.MULTIPLY
+    monkeypatch.setattr(layer, "_data", None)
+    assert psd.composite(force=True).tobytes() == expected.tobytes()
 
 
 # Exposure
