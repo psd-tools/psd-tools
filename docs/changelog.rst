@@ -7,7 +7,7 @@ Changelog
 - [api] ``Layer.duplicate()`` copies a layer or nested group within its
   document, with independent layer data and fresh IDs. It accepts a
   destination, insertion index and name; smart-object contents and other
-  document resources remain shared (related to #882)
+  document resources remain shared (#928; related to #882)
 
 1.24.0 (2026-10-06)
 -------------------
