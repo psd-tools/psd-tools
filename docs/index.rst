@@ -81,6 +81,7 @@ Not supported:
     :maxdepth: 1
 
     usage
+    untrusted
     migration
     changelog
     contributing

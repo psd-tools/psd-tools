@@ -4,6 +4,12 @@ Changelog
 1.21.1 (unreleased)
 -------------------
 
+- [api] ``max_alloc_bytes`` now defaults to 4 GiB instead of off, and a
+  document's budget can be changed with the new ``PSDImage.max_alloc_bytes``
+  property. **Backwards-incompatible**: rendering a document whose estimate is
+  over 4 GiB now raises ``ValueError``; set ``"unlimited"`` (API or
+  ``$PSD_TOOLS_MAX_ALLOC_BYTES``) to restore the old behaviour. See
+  "Handling untrusted files" (#925)
 - [api] ``max_alloc_bytes`` now bounds each ``Layer.numpy()`` and
   ``Layer.topil()`` read, and so the stored-pixel reads of ``composite()``,
   at the layer's own size. A layer larger than the canvas that used to read

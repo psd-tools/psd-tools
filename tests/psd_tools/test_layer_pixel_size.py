@@ -35,6 +35,14 @@ def test_layer_topil_rejected_over_budget():
         layer.topil()
 
 
+def test_layer_inherits_budget_set_after_open():
+    layer = _rgb_layer(max_alloc_bytes="unlimited")
+    assert layer.numpy("color") is not None
+    layer._psd.max_alloc_bytes = 1000
+    with pytest.raises(ValueError, match="1,000 bytes"):
+        layer.numpy("color")
+
+
 def test_layer_read_within_budget():
     layer = _rgb_layer(max_alloc_bytes=1 << 30)
     assert layer.numpy("color") is not None
@@ -45,7 +53,7 @@ def test_composite_rejected_by_layer_guard():
     # A budget the canvas fits but a layer read does not.
     psd = PSDImage.open(full_name("clipping-mask2.psd"))
     canvas = psd.width * psd.height * 4 * 4
-    psd._max_alloc_bytes = canvas
+    psd.max_alloc_bytes = canvas
     with pytest.raises(ValueError, match="Peak allocation"):
         psd.composite(force=True)
 

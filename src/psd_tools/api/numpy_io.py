@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
 from psd_tools.api.utils import (
     EXPECTED_CHANNELS,
+    AllocBudget,
     check_pixel_size,
     get_color_channels,
     get_transparency_index,
@@ -413,7 +414,7 @@ def get_layer_data(
 
 
 def _check_pattern_read(
-    pattern: Pattern, width: int, height: int, max_alloc_bytes: int | None
+    pattern: Pattern, width: int, height: int, max_alloc_bytes: AllocBudget | None
 ) -> None:
     """Check :func:`get_pattern`'s decode against the limits before it runs."""
     written = [c for c in pattern.data.channels if c.is_written]
@@ -450,7 +451,9 @@ def _check_pattern_read(
     )
 
 
-def get_pattern(pattern: Pattern, max_alloc_bytes: int | None = None) -> np.ndarray:
+def get_pattern(
+    pattern: Pattern, max_alloc_bytes: AllocBudget | None = None
+) -> np.ndarray:
     """Get pattern array.
 
     :raises ValueError: if the record's declared size exceeds the per-axis limit

@@ -11,6 +11,7 @@ from PIL import Image, ImageChops, ImageMath
 
 from psd_tools.api.numpy_io import _encode_array
 from psd_tools.api.utils import (
+    AllocBudget,
     check_pixel_size,
     get_transparency_index,
     has_transparency,
@@ -482,7 +483,7 @@ def convert_pattern_to_pil(pattern: Pattern) -> Image.Image:
 
 def convert_thumbnail_to_pil(
     thumbnail: ThumbnailResource | ThumbnailResourceV4,
-    max_alloc_bytes: int | None = None,
+    max_alloc_bytes: AllocBudget | None = None,
 ) -> Image.Image:
     """Convert thumbnail resource."""
     if thumbnail.fmt == 0:
