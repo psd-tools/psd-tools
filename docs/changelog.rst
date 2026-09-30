@@ -17,6 +17,8 @@ Changelog
   ``max_alloc_bytes``. A stroke effect's size above Photoshop's 250 px limit is
   drawn at 250. A vector stroke far wider than its layer or the viewport, or a
   pattern scaled far past 1,000% of its own size, raises ``ValueError`` (#921)
+- [security] ``composite()`` now checks a pattern record's declared size
+  against the per-axis limit and ``max_alloc_bytes`` before decoding it (#922)
 - [fix] A layer over 30,000 px on an axis now raises ``ValueError`` from
   ``Layer.numpy()`` / ``Layer.topil()`` instead of allocating (#842)
 - [fix] Parser internals and normal control flow no longer log at INFO when

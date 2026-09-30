@@ -354,12 +354,12 @@ def draw_pattern_fill(
         logger.error("Pattern not found: %s", pattern_id)
         return None, None
 
-    panel = numpy_io.get_pattern(pattern)
+    budget = getattr(psd, "_max_alloc_bytes", None)
+    panel = numpy_io.get_pattern(pattern, budget)
     assert panel.shape[0] > 0
 
     # The scale is the file's, so the panel it sizes and the tiling of that
     # panel across the viewport are both checked before they are allocated.
-    budget = getattr(psd, "_max_alloc_bytes", None)
     scale = float(desc.get(Key.Scale, 100.0)) / 100.0
     if scale != 1.0:
         try:

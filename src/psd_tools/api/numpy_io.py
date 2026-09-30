@@ -412,10 +412,50 @@ def get_layer_data(
     return np.concatenate([color, shape], axis=2)
 
 
-def get_pattern(pattern: Pattern) -> np.ndarray:
-    """Get pattern array."""
+def _check_pattern_read(
+    pattern: Pattern, width: int, height: int, max_alloc_bytes: int | None
+) -> None:
+    """Check :func:`get_pattern`'s decode against the limits before it runs."""
+    written = [c for c in pattern.data.channels if c.is_written]
+    if not written:
+        return
+    # A record's declared sizes are the file's; the widest of them is what the
+    # decode can be made to allocate.
+    for c in written:
+        if c.rectangle:
+            width = max(width, c.rectangle[3] - c.rectangle[1])
+            height = max(height, c.rectangle[2] - c.rectangle[0])
+    # The decode reads `depth`, the parse reads `pixel_depth`; size for either.
+    depth = max(
+        d if d in _PARSE_TRANSIENT else 32
+        for c in written
+        for d in (c.depth, c.pixel_depth)
+    )
+    check_pixel_size(
+        width,
+        height,
+        len(written),
+        max_alloc_bytes=max_alloc_bytes,
+        estimated_bytes=_layer_read_peak_bytes(
+            width,
+            height,
+            depth,
+            len(written),
+            max(_DECOMPRESS_PEAK[c.compression] for c in written),
+        ),
+        warn=False,
+    )
+
+
+def get_pattern(pattern: Pattern, max_alloc_bytes: int | None = None) -> np.ndarray:
+    """Get pattern array.
+
+    :raises ValueError: if the record's declared size exceeds the per-axis limit
+        or *max_alloc_bytes* (default :data:`~psd_tools.api.utils.MAX_ALLOC_BYTES`).
+    """
     top, left, bottom, right = pattern.data.rectangle
     height, width = bottom - top, right - left
+    _check_pattern_read(pattern, width, height, max_alloc_bytes)
     return np.stack(
         [
             # The channel's own rectangle, which is what

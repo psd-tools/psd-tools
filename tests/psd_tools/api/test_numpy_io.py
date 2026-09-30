@@ -1,18 +1,20 @@
 import logging
 import os
+import tracemalloc
 from typing import Sequence
 
 import numpy as np
 import pytest
 
-from psd_tools.api import numpy_io
+from psd_tools.api import numpy_io, utils
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.constants import ColorMode, Compression
+from psd_tools.constants import ColorMode, Compression, Tag
 from psd_tools.psd.patterns import (
     Pattern,
     VirtualMemoryArray,
     VirtualMemoryArrayList,
 )
+from psd_tools.terminology import Key
 
 from ..utils import TEST_ROOT, full_name
 
@@ -197,3 +199,55 @@ def test_parse_array_does_not_alias_its_input() -> None:
     assert np.array_equal(parsed, np.arange(4, dtype=np.float32))
     parsed[0] = 99.0
     assert bytearray(np.arange(4, dtype=">f4").tobytes()) == source
+
+
+def _forged_pattern(side: int, compression: Compression) -> Pattern:
+    """The fixture's pattern, every written channel re-declared ``side`` square."""
+    psd = PSDImage.open(full_name("layers-minimal/pattern-fill.psd"))
+    desc = psd[0].tagged_blocks.get_data(Tag.PATTERN_FILL_SETTING)
+    pattern = psd._get_pattern(desc[b"Ptrn"][Key.ID].value.rstrip("\x00"))
+    assert pattern is not None
+    for c in pattern.data.channels:
+        if c.is_written:
+            c.rectangle = (0, 0, side, side)
+            c.compression = compression
+            c.data = b"\x00" * (2 * side)
+    pattern.data.rectangle = (0, 0, side, side)
+    return pattern
+
+
+def _rle_peak(side: int, planes: int) -> int:
+    return numpy_io._layer_read_peak_bytes(
+        side, side, 8, planes, numpy_io._DECOMPRESS_PEAK[Compression.RLE]
+    )
+
+
+def test_a_forged_pattern_size_is_checked_before_the_decode() -> None:
+    side = 1000
+    pattern = _forged_pattern(side, Compression.RLE)
+    planes = sum(1 for c in pattern.data.channels if c.is_written)
+    peak = _rle_peak(side, planes)
+
+    assert numpy_io.get_pattern(pattern, peak).shape == (side, side, planes)
+    with pytest.raises(ValueError, match="over the configured budget"):
+        numpy_io.get_pattern(pattern, peak - 1)
+
+
+def test_a_forged_pattern_axis_past_the_limit_is_rejected() -> None:
+    pattern = _forged_pattern(utils.MAX_DIMENSION_PSD + 1, Compression.RLE)
+    with pytest.raises(ValueError, match="per axis"):
+        numpy_io.get_pattern(pattern)
+
+
+def test_the_pattern_estimate_covers_the_decode_peak() -> None:
+    side = 1000
+    pattern = _forged_pattern(side, Compression.RLE)
+    planes = sum(1 for c in pattern.data.channels if c.is_written)
+    tracemalloc.start()
+    try:
+        numpy_io.get_pattern(pattern)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    # Fixed interpreter-side objects are not modelled, as for layer reads.
+    assert peak <= _rle_peak(side, planes) + 65536
