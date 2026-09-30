@@ -125,7 +125,7 @@ DESCRIPTOR_BLEND_MODES: dict[bytes, BlendMode] = {
         BlendMode.HARD_MIX: (b"hardMix",),
         BlendMode.DIFFERENCE: (Term.Difference, b"difference"),
         BlendMode.EXCLUSION: (Term.Exclusion, b"exclusion"),
-        BlendMode.SUBTRACT: (Term.Subtract, b"subtract"),
+        BlendMode.SUBTRACT: (Term.Subtract, b"blendSubtraction"),
         BlendMode.DIVIDE: (b"blendDivide",),
         BlendMode.HUE: (Term.Hue, b"hue"),
         BlendMode.SATURATION: (Term.Saturation, b"saturation"),

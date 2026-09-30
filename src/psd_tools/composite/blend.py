@@ -709,7 +709,7 @@ def get_blend_func(
     The result takes ``(Cb, Cs)`` either way. Pass no *color_mode* and the
     width decides alone; :py:data:`BLEND_FUNC` stays the mode-blind table.
 
-    Unknown keys answer :py:func:`normal`. ``PASS_THROUGH`` is one of them and
+    Any other mode answers :py:func:`normal`. ``PASS_THROUGH`` is one of them and
     reaches here for real: a group that isolates its adjustments is composited
     as an ordinary source.
     """

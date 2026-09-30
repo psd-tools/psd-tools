@@ -722,6 +722,7 @@ _PHOTOSHOP_EFFECT_BLEND_MODES = {
     "hardMix": BlendMode.HARD_MIX,
     "difference": BlendMode.DIFFERENCE,
     "exclusion": BlendMode.EXCLUSION,
+    "blendSubtraction": BlendMode.SUBTRACT,
     "blendDivide": BlendMode.DIVIDE,
     "hue": BlendMode.HUE,
     "saturation": BlendMode.SATURATION,
@@ -782,3 +783,9 @@ def test_an_unrecognised_effect_blend_mode_reads_as_normal(
     with caplog.at_level("DEBUG", logger="psd_tools.api._descriptor"):
         assert getattr(effect, getter) is BlendMode.NORMAL
     assert "Cannot read" in caplog.text
+
+
+def test_photoshop_writes_every_blend_mode_but_pass_through() -> None:
+    assert set(_PHOTOSHOP_EFFECT_BLEND_MODES.values()) == set(BlendMode) - {
+        BlendMode.PASS_THROUGH
+    }
