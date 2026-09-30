@@ -13,9 +13,9 @@ Example::
 import logging
 from typing import Any, TypeVar
 
-from psd_tools.api._descriptor import get_scalar
+from psd_tools.api._descriptor import get_enum, get_scalar
 from psd_tools.api.layers import AdjustmentLayer, FillLayer
-from psd_tools.constants import Tag
+from psd_tools.constants import GradientType, Tag
 from psd_tools.psd.adjustments import Curves as CurvesData
 from psd_tools.psd.adjustments import LevelRecord
 from psd_tools.psd.adjustments import Levels as LevelsData
@@ -69,19 +69,16 @@ class GradientFill(FillLayer):
         return get_scalar(self._data, b"Angl", float, None)
 
     @property
-    def gradient_kind(self) -> str:
+    def gradient_kind(self) -> str | None:
         """
-        Kind of the gradient.
+        Kind of the gradient, or `None` if the file does not record one.
 
-        One of the following:
-
-         - `Linear`
-         - `Radial`
-         - `Angle`
-         - `Reflected`
-         - `Diamond`
+        One of `Linear`, `Radial`, `Angle`, `Reflected` or `Diamond`.
         """
-        return _assert_data(self._data).get(b"Type").get_name()
+        kind = get_enum(self._data, b"Type", GradientType)
+        if kind is None or kind is GradientType.SHAPE_BURST:  # Stroke only.
+            return None
+        return kind.name.capitalize()
 
     @property
     def data(self) -> DescriptorBlock:

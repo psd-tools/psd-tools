@@ -1,12 +1,22 @@
 import logging
 from pathlib import Path
-from typing import Iterator
+from typing import Any, Iterator
 
 import pytest
 
 from psd_tools.api.layers import Layer
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.constants import Tag
+from psd_tools.constants import (
+    BevelDirection,
+    BevelStyle,
+    BevelTechnique,
+    GlowSource,
+    GlowTechnique,
+    GradientType,
+    StrokeFillType,
+    StrokePosition,
+    Tag,
+)
 from psd_tools.psd.descriptor import Bool, Descriptor, List, String, UnitFloat
 from psd_tools.psd.image_resources import ImageResources
 from psd_tools.terminology import Enum, Key, Unit
@@ -558,3 +568,132 @@ def test_an_unreadable_effect_value_degrades_to_the_default() -> None:
     assert effect.soften == 0.0
     assert effect.size == 0.0
     assert effect.use_shape is False
+
+
+def test_effect_enums_are_members_that_still_equal_the_raw_code() -> None:
+    psd = PSDImage.open(full_name("layer_effects.psd"))
+    stroke = psd[10].effects[0]
+    assert isinstance(stroke, effects.Stroke)
+    assert stroke.position is StrokePosition.OUTSIDE
+    assert stroke.fill_type is StrokeFillType.SOLID_COLOR
+    assert stroke.position == b"OutF"
+    assert {b"OutF": 1}[stroke.position] == 1
+    glow = psd[3].effects[0]
+    assert isinstance(glow, effects.OuterGlow)
+    assert glow.glow_type is GlowTechnique.SOFT_MATTE
+    inner = psd[4].effects[0]
+    assert isinstance(inner, effects.InnerGlow)
+    assert inner.glow_source is GlowSource.EDGE
+    bevel = psd[1].effects[0]
+    assert isinstance(bevel, effects.BevelEmboss)
+    assert bevel.bevel_type is BevelTechnique.SOFT_MATTE
+    assert bevel.bevel_style is BevelStyle.INNER_BEVEL
+    assert bevel.direction is BevelDirection.STAMP_IN
+    gradients = [
+        e
+        for layer in psd
+        for e in layer.effects
+        if isinstance(e, effects.GradientOverlay)
+    ]
+    assert gradients[0].type is GradientType.LINEAR
+
+
+@pytest.mark.parametrize(
+    "index, effect_cls, prop, key",
+    [
+        (10, effects.Stroke, "position", Key.Style),
+        (10, effects.Stroke, "fill_type", Key.PaintType),
+        (3, effects.OuterGlow, "glow_type", Key.GlowTechnique),
+        (4, effects.InnerGlow, "glow_source", Key.InnerGlowSource),
+        (1, effects.BevelEmboss, "bevel_type", Key.BevelTechnique),
+        (1, effects.BevelEmboss, "bevel_style", Key.BevelStyle),
+        (1, effects.BevelEmboss, "direction", Key.BevelDirection),
+    ],
+)
+def test_an_unrecognised_effect_enum_reads_as_none(
+    caplog: pytest.LogCaptureFixture,
+    index: int,
+    effect_cls: type,
+    prop: str,
+    key: Key,
+) -> None:
+    effect = PSDImage.open(full_name("layer_effects.psd"))[index].effects[0]
+    assert isinstance(effect, effect_cls)
+    assert getattr(effect, prop) is not None
+    effect.descriptor[key].enum = b"nope"
+    with caplog.at_level(logging.DEBUG, logger="psd_tools.api._descriptor"):
+        assert getattr(effect, prop) is None
+    assert "Cannot read" in caplog.text
+
+
+_NOT_IN_TERMINOLOGY = (GradientType.SHAPE_BURST, BevelStyle.STROKE_EMBOSS)
+
+
+@pytest.mark.parametrize(
+    "enum_cls",
+    [
+        BevelDirection,
+        BevelStyle,
+        BevelTechnique,
+        GlowSource,
+        GlowTechnique,
+        GradientType,
+        StrokeFillType,
+        StrokePosition,
+    ],
+)
+def test_effect_enum_codes_match_the_terminology(enum_cls: Any) -> None:
+    for member in enum_cls:
+        if member in _NOT_IN_TERMINOLOGY:
+            continue
+        assert Enum(member.value)
+
+
+@pytest.mark.parametrize(
+    "layer_name, effect_cls, expected",
+    [
+        (
+            "bevel-stroke-emboss",
+            effects.BevelEmboss,
+            {"bevel_style": BevelStyle.STROKE_EMBOSS},
+        ),
+        (
+            "bevel-pillow-precise",
+            effects.BevelEmboss,
+            {
+                "bevel_style": BevelStyle.PILLOW_EMBOSS,
+                "bevel_type": BevelTechnique.PRECISE_MATTE,
+                "direction": BevelDirection.STAMP_OUT,
+            },
+        ),
+        (
+            "bevel-outer-slope",
+            effects.BevelEmboss,
+            {
+                "bevel_style": BevelStyle.OUTER_BEVEL,
+                "bevel_type": BevelTechnique.SLOPE_LIMIT_MATTE,
+            },
+        ),
+        (
+            "inner-glow-center-precise",
+            effects.InnerGlow,
+            {
+                "glow_type": GlowTechnique.PRECISE_MATTE,
+                "glow_source": GlowSource.CENTER,
+            },
+        ),
+        ("stroke-shapeburst", effects.Stroke, {"type": GradientType.SHAPE_BURST}),
+        ("stroke-radial", effects.Stroke, {"type": GradientType.RADIAL}),
+        ("stroke-angle", effects.Stroke, {"type": GradientType.ANGLE}),
+        ("stroke-diamond", effects.Stroke, {"type": GradientType.DIAMOND}),
+        ("stroke-reflected", effects.Stroke, {"type": GradientType.REFLECTED}),
+    ],
+)
+def test_effect_enums_read_the_codes_photoshop_writes(
+    layer_name: str, effect_cls: type, expected: dict[str, Any]
+) -> None:
+    psd = PSDImage.open(full_name("effects/effect-enums.psd"))
+    layer = next(layer for layer in psd if layer.name == layer_name)
+    effect = next(e for e in layer.effects if isinstance(e, effect_cls))
+    for prop, member in expected.items():
+        assert getattr(effect, prop) is member

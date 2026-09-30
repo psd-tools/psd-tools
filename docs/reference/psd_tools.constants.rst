@@ -3,6 +3,27 @@ psd\_tools\.constants
 
 .. automodule:: psd_tools.constants
 
+BevelDirection
+--------------
+
+.. autoclass:: psd_tools.constants.BevelDirection
+    :members:
+    :undoc-members:
+
+BevelStyle
+----------
+
+.. autoclass:: psd_tools.constants.BevelStyle
+    :members:
+    :undoc-members:
+
+BevelTechnique
+--------------
+
+.. autoclass:: psd_tools.constants.BevelTechnique
+    :members:
+    :undoc-members:
+
 BlendMode
 ---------
 
@@ -66,6 +87,27 @@ GlobalLayerMaskKind
     :members:
     :undoc-members:
 
+GlowSource
+----------
+
+.. autoclass:: psd_tools.constants.GlowSource
+    :members:
+    :undoc-members:
+
+GlowTechnique
+-------------
+
+.. autoclass:: psd_tools.constants.GlowTechnique
+    :members:
+    :undoc-members:
+
+GradientType
+------------
+
+.. autoclass:: psd_tools.constants.GradientType
+    :members:
+    :undoc-members:
+
 LinkedLayerType
 ---------------
 
@@ -105,6 +147,20 @@ SectionDivider
 --------------
 
 .. autoclass:: psd_tools.constants.SectionDivider
+    :members:
+    :undoc-members:
+
+StrokeFillType
+--------------
+
+.. autoclass:: psd_tools.constants.StrokeFillType
+    :members:
+    :undoc-members:
+
+StrokePosition
+--------------
+
+.. autoclass:: psd_tools.constants.StrokePosition
     :members:
     :undoc-members:
 

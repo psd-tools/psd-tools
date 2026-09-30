@@ -22,9 +22,20 @@ import logging
 import warnings
 from typing import Any, Iterator, Protocol
 
-from psd_tools.api._descriptor import get_scalar
+from psd_tools.api._descriptor import get_enum, get_scalar
 from psd_tools.api.protocols import LayerProtocol
-from psd_tools.constants import Resource, Tag
+from psd_tools.constants import (
+    BevelDirection,
+    BevelStyle,
+    BevelTechnique,
+    GlowSource,
+    GlowTechnique,
+    GradientType,
+    Resource,
+    StrokeFillType,
+    StrokePosition,
+    Tag,
+)
 from psd_tools.psd.descriptor import Descriptor, List
 from psd_tools.psd.image_resources import ImageResources
 from psd_tools.terminology import Enum, Key, Klass
@@ -335,16 +346,15 @@ class _GradientMixin(_EffectProtocol):
         return get_scalar(self.descriptor, Key.Angle, float, 0.0)
 
     @property
-    def type(self) -> bytes | None:
+    def type(self) -> GradientType | None:
         """
-        Gradient type.
+        Gradient type, or None where the descriptor does not say.
 
-        One of `linear`, `radial`, `angle`, `reflected`, or `diamond`, or
-        None where the descriptor does not say -- which is most of them,
-        since :py:class:`Stroke` and the two glows inherit this property
-        from the gradient mixin while only a gradient writes the key.
+        That is most of them: :py:class:`Stroke` and the two glows inherit
+        this property from the gradient mixin, while only a gradient writes
+        the key.
         """
-        return getattr(self.descriptor.get(Key.Type), "enum", None)
+        return get_enum(self.descriptor, Key.Type, GradientType)
 
     @property
     def reversed(self) -> bool:
@@ -403,9 +413,9 @@ class _GlowEffect(_Effect, _ChokeNoiseMixin, _GradientMixin):
     """Base class for glow effect."""
 
     @property
-    def glow_type(self) -> bytes | None:
-        """Glow type, or None where the descriptor does not say."""
-        return getattr(self.descriptor.get(Key.GlowTechnique), "enum", None)
+    def glow_type(self) -> GlowTechnique | None:
+        """Glow technique, or None where the descriptor does not say."""
+        return get_enum(self.descriptor, Key.GlowTechnique, GlowTechnique)
 
     @property
     def quality_range(self) -> float:
@@ -464,9 +474,9 @@ class OuterGlow(_GlowEffect):
 @register(Klass.InnerGlow.value)
 class InnerGlow(_GlowEffect):
     @property
-    def glow_source(self) -> bytes | None:
+    def glow_source(self) -> GlowSource | None:
         """Elements source, or None where the descriptor does not say."""
-        return getattr(self.descriptor.get(Key.InnerGlowSource), "enum", None)
+        return get_enum(self.descriptor, Key.InnerGlowSource, GlowSource)
 
 
 @register(Klass.SolidFill.value)
@@ -487,22 +497,14 @@ class PatternOverlay(_OverlayEffect, _AlignScaleMixin, _PatternMixin):
 @register(Klass.FrameFX.value)
 class Stroke(_Effect, _ColorMixin, _PatternMixin, _GradientMixin):
     @property
-    def position(self) -> bytes | None:
-        """
-        Position of the stroke, InsetFrame, OutsetFrame, or CenteredFrame.
-
-        None where the descriptor does not say.
-        """
-        return getattr(self.descriptor.get(Key.Style), "enum", None)
+    def position(self) -> StrokePosition | None:
+        """Position of the stroke, or None where the descriptor does not say."""
+        return get_enum(self.descriptor, Key.Style, StrokePosition)
 
     @property
-    def fill_type(self) -> bytes | None:
-        """
-        Fill type, SolidColor, Gradient, or Pattern.
-
-        None where the descriptor does not say.
-        """
-        return getattr(self.descriptor.get(Key.PaintType), "enum", None)
+    def fill_type(self) -> StrokeFillType | None:
+        """Fill type, or None where the descriptor does not say."""
+        return get_enum(self.descriptor, Key.PaintType, StrokeFillType)
 
     @property
     def size(self) -> float:
@@ -550,23 +552,14 @@ class BevelEmboss(_Effect, _AngleMixin):
         return get_scalar(self.descriptor, Key.ShadowOpacity, float, 50.0)
 
     @property
-    def bevel_type(self) -> bytes | None:
-        """
-        Bevel type, one of `SoftMatte`, `HardLight`, `SoftLight`.
-
-        None where the descriptor does not say.
-        """
-        return getattr(self.descriptor.get(Key.BevelTechnique), "enum", None)
+    def bevel_type(self) -> BevelTechnique | None:
+        """Bevel technique, or None where the descriptor does not say."""
+        return get_enum(self.descriptor, Key.BevelTechnique, BevelTechnique)
 
     @property
-    def bevel_style(self) -> bytes | None:
-        """
-        Bevel style.
-
-        One of `OuterBevel`, `InnerBevel`, `Emboss`, `PillowEmboss`, or
-        `StrokeEmboss`, or None where the descriptor does not say.
-        """
-        return getattr(self.descriptor.get(Key.BevelStyle), "enum", None)
+    def bevel_style(self) -> BevelStyle | None:
+        """Bevel style, or None where the descriptor does not say."""
+        return get_enum(self.descriptor, Key.BevelStyle, BevelStyle)
 
     @property
     def altitude(self) -> float:
@@ -584,13 +577,9 @@ class BevelEmboss(_Effect, _AngleMixin):
         return get_scalar(self.descriptor, Key.Blur, float, 0.0)
 
     @property
-    def direction(self) -> bytes | None:
-        """
-        Direction, either `StampIn` or `StampOut`.
-
-        None where the descriptor does not say.
-        """
-        return getattr(self.descriptor.get(Key.BevelDirection), "enum", None)
+    def direction(self) -> BevelDirection | None:
+        """Direction, or None where the descriptor does not say."""
+        return get_enum(self.descriptor, Key.BevelDirection, BevelDirection)
 
     @property
     def contour(self) -> Descriptor:

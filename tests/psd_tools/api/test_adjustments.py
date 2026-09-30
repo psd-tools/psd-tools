@@ -246,3 +246,16 @@ def test_gradient_map_v3() -> None:
         assert layer._data is not None
         assert layer._data.version == 3
         assert layer._data.method == method
+
+
+def test_gradient_kind_reads_as_none_when_unreadable() -> None:
+    layer = PSDImage.open(full_name("layers/gradient-fill.psd"))[0]
+    assert isinstance(layer, GradientFill)
+    data = layer._data
+    assert data is not None
+    assert layer.gradient_kind == "Linear"
+    for unreadable in (b"nope", b"shapeburst"):
+        data[b"Type"].enum = unreadable
+        assert layer.gradient_kind is None
+    del data[b"Type"]
+    assert layer.gradient_kind is None
