@@ -4,7 +4,7 @@ PIL IO module.
 
 import io
 import logging
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 import numpy as np
 from PIL import Image, ImageChops, ImageMath
@@ -17,6 +17,7 @@ from psd_tools.api.utils import (
 )
 from psd_tools.constants import ChannelID, ColorMode, Compression, Resource
 from psd_tools.psd.image_resources import ThumbnailResource, ThumbnailResourceV4
+from psd_tools.psd.layer_and_mask import ChannelData
 from psd_tools.psd.patterns import Pattern
 
 if TYPE_CHECKING:
@@ -348,7 +349,7 @@ def _layer_peak_bytes(
     # One decode per entry `_merge_channels()` iterates, each resolved to the
     # *last* record of its id as `_get_channel()` does, so a repeated id is
     # decoded once per repeat. An empty resolved entry decodes nothing.
-    resolved: dict[int, Any] = {
+    resolved: dict[int, ChannelData] = {
         i.id: c for i, c in zip(layer._record.channel_info, layer._channels)
     }
     wanted: list[int]
