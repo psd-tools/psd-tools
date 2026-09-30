@@ -8,10 +8,10 @@ from PIL import Image
 
 from psd_tools.composite import scanline
 from psd_tools.composite._compat import require_aggdraw
+from psd_tools.constants import StrokeAlignment
 
 if TYPE_CHECKING:
     from psd_tools.api.layers import Layer
-    from psd_tools.psd.descriptor import Descriptor
 
 logger = logging.getLogger(__name__)
 
@@ -37,24 +37,10 @@ def draw_vector_mask(
 # The two positions that put the stroke to one side of the path. A stroke that
 # names neither -- the third position, something no version of Photoshop wrote,
 # or nothing at all -- is drawn centred, the only position not biased in or out.
-_ALIGN_INSIDE = b"strokeStyleAlignInside"
-_ALIGN_OUTSIDE = b"strokeStyleAlignOutside"
-_SIDED = (_ALIGN_INSIDE, _ALIGN_OUTSIDE)
+_SIDED = (StrokeAlignment.INNER, StrokeAlignment.OUTER)
 # What separates a pixel the path really does clip from one the fill
 # rasterizer only rounded onto; see where it is used, in ``draw_stroke``.
 _ROUNDING = 1e-9
-
-
-def _line_alignment(desc: "Descriptor") -> bytes:
-    """Which side of the path the stroke sits on, ``b""`` if it states none.
-
-    Read off the descriptor rather than through
-    :py:attr:`psd_tools.api.shape.Stroke.line_alignment`, which raises on a
-    descriptor carrying no alignment at all. Rendering degrades instead: the
-    position is one field of a stroke that has plenty else to draw.
-    """
-    value = desc.get("strokeStyleLineAlignment")
-    return getattr(value, "enum", b"")
 
 
 @require_aggdraw
@@ -107,16 +93,17 @@ def draw_stroke(
     # linecap = linecap.enum if linecap else 'strokeStyleButtCap'
     # miterlimit = desc.get('strokeStyleMiterLimit', 100.0) / 100.
     # aggdraw >= 1.3.12 will support additional params.
-    alignment = _line_alignment(desc)
+    alignment = layer.stroke.line_alignment
+    sided = alignment in _SIDED
     pen: dict[str, int | float] = {
         "color": 255,
-        "width": 2.0 * width if alignment in _SIDED else width,
+        "width": 2.0 * width if sided else width,
         # 'linejoin': _JOIN.get(linejoin, 0),
         # 'linecap': _CAP.get(linecap, 0),
         # 'miterlimit': miterlimit,
     }
     outline = _draw_path(layer, pen=pen, viewport=viewport)
-    if alignment not in _SIDED:
+    if not sided:
         return outline
 
     # Which side of the path a pixel is on, not how much of it the fill
@@ -132,7 +119,11 @@ def draw_stroke(
     # of the pen. ``_ROUNDING`` sits in the gap between that trace and the
     # smallest coverage a path really does state.
     fill = draw_vector_mask(layer, viewport)
-    inside = fill > _ROUNDING if alignment == _ALIGN_INSIDE else fill < 1.0 - _ROUNDING
+    inside = (
+        fill > _ROUNDING
+        if alignment is StrokeAlignment.INNER
+        else fill < 1.0 - _ROUNDING
+    )
     return outline * inside
 
 

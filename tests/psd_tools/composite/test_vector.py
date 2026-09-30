@@ -314,12 +314,10 @@ def test_a_centred_stroke_is_still_the_plain_pen() -> None:
 def test_a_stroke_whose_alignment_is_unreadable_is_drawn_centred() -> None:
     """An unstated or unrecognised position degrades, it does not raise (#854).
 
-    :py:attr:`psd_tools.api.shape.Stroke.line_alignment` raises on a
-    descriptor that carries no alignment at all, and answers a ``repr`` for an
-    enum it does not know. Neither is any way for a renderer to end -- the
-    position is one field of a stroke with the rest of itself to draw -- so
-    both are drawn centred, the only one of the three positions not biased in
-    or out.
+    :py:attr:`psd_tools.api.shape.Stroke.line_alignment` answers ``None`` for
+    both. The position is one field of a stroke with the rest of itself to
+    draw, so both are drawn centred, the only one of the three positions not
+    biased in or out.
 
     Photoshop writes one of the three, so this is forged onto a fixture that
     states ``inner``.
@@ -332,14 +330,13 @@ def test_a_stroke_whose_alignment_is_unreadable_is_drawn_centred() -> None:
     assert not np.array_equal(vector.draw_stroke(layer), centred), "inner, for now"
 
     del desc[b"strokeStyleLineAlignment"]
-    with pytest.raises(AttributeError):
-        layer.stroke.line_alignment
+    assert layer.stroke.line_alignment is None
     assert np.array_equal(vector.draw_stroke(layer), centred), "no alignment"
 
     desc[b"strokeStyleLineAlignment"] = Enumerated(
         b"strokeStyleLineAlignment", b"strokeStyleAlignNonesuch"
     )
-    assert layer.stroke.line_alignment == "b'strokeStyleAlignNonesuch'"
+    assert layer.stroke.line_alignment is None
     assert np.array_equal(vector.draw_stroke(layer), centred), "unknown alignment"
 
 

@@ -556,6 +556,14 @@ class StrokePosition(bytes, Enum):
     CENTER = b"CtrF"
 
 
+class StrokeAlignment(str, Enum):
+    """Which side of the path a vector stroke sits on."""
+
+    INNER = "inner"
+    OUTER = "outer"
+    CENTER = "center"
+
+
 class PathResourceID(IntEnum):
     CLOSED_LENGTH = 0
     CLOSED_KNOT_LINKED = 1

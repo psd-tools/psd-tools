@@ -150,6 +150,13 @@ SectionDivider
     :members:
     :undoc-members:
 
+StrokeAlignment
+---------------
+
+.. autoclass:: psd_tools.constants.StrokeAlignment
+    :members:
+    :undoc-members:
+
 StrokeFillType
 --------------
 
