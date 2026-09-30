@@ -273,7 +273,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         :raises ValueError: if ``max_alloc_bytes`` is not positive or is a
             string other than ``"unlimited"``.
         """
-        validate_alloc_budget(max_alloc_bytes)
+        max_alloc_bytes = validate_alloc_budget(max_alloc_bytes)
         if isinstance(fp, (str, bytes, os.PathLike)):
             with open(fp, "rb") as f:
                 self = cls(PSD.read(f, **kwargs))

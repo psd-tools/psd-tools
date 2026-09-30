@@ -2,9 +2,10 @@ Handling untrusted files
 ========================
 
 A PSD file can declare far more pixels than it contains, so a small file can
-ask for gigabytes when it is rendered. psd-tools checks what each rendering
-step is about to allocate against an *allocation budget* before allocating it,
-and raises :class:`ValueError` when the estimate is over.
+ask for gigabytes when it is rendered. psd-tools checks the estimated size of
+the allocations listed below against an *allocation budget* before making
+them. One over the budget raises :class:`ValueError`, or skips the layer effect
+that needed it.
 
 The allocation budget
 ---------------------
@@ -39,11 +40,12 @@ checks it before reading the file.
 What it bounds
 --------------
 
-- :py:meth:`~psd_tools.api.psd_image.PSDImage.numpy`,
-  :py:meth:`~psd_tools.api.psd_image.PSDImage.topil` and
-  :py:meth:`~psd_tools.api.psd_image.PSDImage.thumbnail`. The estimate is the
+- :py:meth:`~psd_tools.api.psd_image.PSDImage.numpy` and
+  :py:meth:`~psd_tools.api.psd_image.PSDImage.topil`. The estimate is the
   peak of the call, including its intermediates, so it depends on the colour
   mode, depth and compression and is larger than the array returned.
+- :py:meth:`~psd_tools.api.psd_image.PSDImage.thumbnail`, at the size of the
+  decoded image; the JPEG decoder's own intermediates are not counted.
 - Each layer's ``numpy()`` and ``topil()``, at the layer's own size, including
   the reads that :py:meth:`~psd_tools.api.psd_image.PSDImage.composite` makes.
 - The canvas that ``composite()`` builds, and each canvas that a stroke size,

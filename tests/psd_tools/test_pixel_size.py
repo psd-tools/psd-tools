@@ -269,6 +269,13 @@ def test_env_var_invalid_is_ignored_with_warning(
 def test_numpy_integer_budget_is_accepted() -> None:
     value = _utils.validate_alloc_budget(np.int64(1024))
     assert value == 1024 and type(value) is int
+    psd = PSDImage.open(
+        _build_psd(_NORMAL_W, _NORMAL_H),
+        max_alloc_bytes=np.int64(1024),  # type: ignore[arg-type]
+    )
+    assert type(psd.max_alloc_bytes) is int
+    psd.max_alloc_bytes = np.int64(2048)  # type: ignore[assignment]
+    assert type(psd.max_alloc_bytes) is int
 
 
 def test_explicit_invalid_budget_raises() -> None:
