@@ -92,7 +92,6 @@ from typing import Callable, Literal
 import numpy as np
 
 from psd_tools.constants import BlendMode, ColorMode
-from psd_tools.terminology import Enum
 
 logger = logging.getLogger(__name__)
 
@@ -693,39 +692,11 @@ BLEND_FUNC = {
     BlendMode.DARKER_COLOR: darker_color,
     BlendMode.LIGHTER_COLOR: lighter_color,
     BlendMode.DISSOLVE: dissolve,
-    # Descriptor keys
-    Enum.Normal: normal,
-    Enum.Multiply: multiply,
-    Enum.Screen: screen,
-    Enum.Overlay: overlay,
-    Enum.Darken: darken,
-    Enum.Lighten: lighten,
-    Enum.ColorDodge: color_dodge,
-    Enum.ColorBurn: color_burn,
-    b"linearDodge": linear_dodge,
-    b"linearBurn": linear_burn,
-    Enum.HardLight: hard_light,
-    Enum.SoftLight: soft_light,
-    b"vividLight": vivid_light,
-    b"linearLight": linear_light,
-    b"pinLight": pin_light,
-    b"hardMix": hard_mix,
-    b"blendDivide": divide,
-    Enum.Difference: difference,
-    Enum.Exclusion: exclusion,
-    Enum.Subtract: subtract,
-    Enum.Hue: hue,
-    Enum.Saturation: saturation,
-    Enum.Color: color,
-    Enum.Luminosity: luminosity,
-    b"darkerColor": darker_color,
-    b"lighterColor": lighter_color,
-    Enum.Dissolve: dissolve,
 }
 
 
 def get_blend_func(
-    blend_mode: bytes, color_mode: ColorMode | None = None
+    blend_mode: BlendMode, color_mode: ColorMode | None = None
 ) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
     """Look up *blend_mode*, with the document's colour mode already bound in.
 
@@ -738,13 +709,7 @@ def get_blend_func(
     The result takes ``(Cb, Cs)`` either way. Pass no *color_mode* and the
     width decides alone; :py:data:`BLEND_FUNC` stays the mode-blind table.
 
-    *blend_mode* is ``bytes`` rather than
-    :py:class:`~psd_tools.constants.BlendMode` because :py:data:`BLEND_FUNC` is
-    keyed by two families -- enum members for a layer's own mode, raw
-    descriptor keys such as ``b"lighterColor"`` for a stroke's or an effect's
-    -- and ``BlendMode`` subclasses ``bytes``.
-
-    Unknown keys answer :py:func:`normal`. ``PASS_THROUGH`` is one of them and
+    Any other mode answers :py:func:`normal`. ``PASS_THROUGH`` is one of them and
     reaches here for real: a group that isolates its adjustments is composited
     as an ordinary source.
     """

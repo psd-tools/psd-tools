@@ -11,7 +11,8 @@ import logging
 import math
 from typing import Literal
 
-from psd_tools.api._descriptor import get_scalar
+from psd_tools.api._descriptor import get_blend_mode, get_scalar
+from psd_tools.constants import BlendMode
 from psd_tools.psd.descriptor import Descriptor, DescriptorBlock2
 from psd_tools.psd.vector import (
     ClipboardRecord,
@@ -309,10 +310,9 @@ class Stroke(object):
         return get_scalar(self._data, b"strokeStyleStrokeAdjust", bool, None)
 
     @property
-    def blend_mode(self) -> bytes | None:
-        """Blend mode."""
-        value = self._data.get(b"strokeStyleBlendMode")
-        return None if value is None else value.enum
+    def blend_mode(self) -> BlendMode | None:
+        """Blend mode, or `None` if the file does not record a readable one."""
+        return get_blend_mode(self._data, b"strokeStyleBlendMode")
 
     @property
     def opacity(self) -> float | None:

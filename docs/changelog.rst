@@ -37,6 +37,13 @@ Changelog
   the raw ``bytes`` code. **Backwards incompatible:** an unrecognised value
   gives ``None`` (was the bytes), and ``str()`` / ``repr()`` change.
   ``GradientFill.gradient_kind`` gives ``None`` where it raised (#789)
+- [api] An effect's ``blend_mode``, ``BevelEmboss.highlight_mode`` and
+  ``shadow_mode``, and ``Stroke.blend_mode`` now return a ``BlendMode``.
+  **Backwards incompatible:** they returned the descriptor's ``bytes`` code, so
+  ``effect.blend_mode == b"Nrml"`` is now ``False``; compare with
+  ``BlendMode.NORMAL``. ``get_blend_func`` takes a ``BlendMode`` (#789)
+- [fix] An effect whose blend mode Photoshop writes as a long name, such as
+  ``multiply`` or ``screen``, was composited as Normal, and now blends (#789)
 
 1.21.0 (2026-09-28)
 -------------------
