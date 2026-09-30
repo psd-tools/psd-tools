@@ -7,6 +7,7 @@ import warnings
 import pytest
 
 from psd_tools import PSDImage, PSDLargeImageWarning
+from psd_tools.api import numpy_io
 from psd_tools.api.numpy_io import _layer_read_peak_bytes
 from psd_tools.api.pil_io import _layer_peak_bytes
 
@@ -124,3 +125,47 @@ def test_layer_with_empty_channel_data_is_not_guarded():
     assert layer.numpy("color") is None
     assert layer.topil() is None
     assert _layer_peak_bytes(layer, None, False) is None
+
+
+def test_numpy_peak_charges_held_bytes_in_every_phase():
+    base = _layer_read_peak_bytes(100, 100, 8, 1, 3)
+    assert _layer_read_peak_bytes(100, 100, 8, 1, 3, held=7) == base + 7
+
+
+def test_shape_read_is_sized_with_the_color_array_held(monkeypatch):
+    seen = []
+    real = numpy_io._layer_read_peak_bytes
+
+    def spy(*args, **kwargs):
+        seen.append(args[5] if len(args) > 5 else kwargs.get("held", 0))
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(numpy_io, "_layer_read_peak_bytes", spy)
+    psd = PSDImage.open(full_name("semi-transparent-layers.psd"))
+    layer = next(
+        x
+        for x in psd.descendants()
+        if x.width * x.height > 0
+        and any(
+            i.id == ChannelID.TRANSPARENCY_MASK and len(c.data) > 0
+            for i, c in zip(x._record.channel_info, x._channels)
+        )
+    )
+    layer.numpy()
+    assert seen[0] == 0
+    assert seen[1] == layer.numpy("color").nbytes
+
+
+def test_pil_decompress_phase_holds_earlier_planes():
+    layer = _rgb_layer()
+    _, _, planes, peak = _layer_peak_bytes(layer, None, False)
+    pixels = layer.width * layer.height
+    assert peak >= pixels * (planes - 1)
+
+
+def test_pil_widening_only_charged_with_a_stored_alpha():
+    layer = _rgb_layer()
+    assert all(i.id != ChannelID.TRANSPARENCY_MASK for i in layer._record.channel_info)
+    _, _, _, peak = _layer_peak_bytes(layer, None, False)
+    # Merge phase: three retained bands, the slack plane and the merged image.
+    assert peak == layer.width * layer.height * 7

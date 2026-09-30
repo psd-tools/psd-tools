@@ -378,14 +378,18 @@ def _layer_peak_bytes(
         if i.id in {info.id for info in infos}
     )
     retained = pixels * (stored + _ALLOCATOR_SLACK)
-    phases = [compression * source, retained + source + pixels * (1 + conversion)]
+    phases = [
+        pixels * (stored - 1) + compression * source,
+        retained + source + pixels * (1 + conversion),
+    ]
 
     if channel is None:
         mode = get_pil_mode(psd.color_mode)
         bands = get_pil_channels(mode)
         icc = apply_icc and Resource.ICC_PROFILE in psd.image_resources
         final_bands = 3 if icc else bands
-        widened = icc or mode in ("RGB", "L")
+        has_alpha = any(i.id == ChannelID.TRANSPARENCY_MASK for i in infos)
+        widened = has_alpha and (icc or mode in ("RGB", "L"))
         post = max(
             bands if mode == "CMYK" else 0,
             bands + 3 if icc else 0,
