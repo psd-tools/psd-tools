@@ -101,6 +101,9 @@ _UNRECOGNISED = _BANDS[Enum.OutsetFrame]
 # canvas and colour planes, so a budget is checked against this, not 4 bytes.
 _STROKE_BYTES = 64
 
+# What each offset of the distance search's grid costs at its peak.
+_GRID_BYTES = 48
+
 # Below this fraction of active pixels within the region a bounding-box crop
 # would cover, :py:func:`_nearest_boundary` skips the erosion and falls back
 # to its per-offset loop (#895): a thin outline on a much bigger canvas has
@@ -157,10 +160,12 @@ def stroke_bbox(
     """
     if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
         return bbox
-    reach = _BANDS.get(_enum(desc, Key.Style), _UNRECOGNISED)[1]
+    limits = _BANDS.get(_enum(desc, Key.Style), _UNRECOGNISED)
+    reach = limits[1]
     # ceil() because a fractional stroke still covers the pixel it falls in.
     # The +1 is the uncovered pixel the edge is measured against.
-    margin = math.ceil(float(desc.get(Key.SizeKey, 1.0)) * reach) + 1
+    size = float(desc.get(Key.SizeKey, 1.0))
+    margin = math.ceil(size * reach) + 1
     grown = (bbox[0] - margin, bbox[1] - margin, bbox[2] + margin, bbox[3] + margin)
     # The size is the file's, so the box it grows is checked before anything is
     # allocated on it. A box that fails is an unreadable stroke to both callers.
@@ -170,11 +175,17 @@ def stroke_bbox(
         if _enum(desc, Key.PaintType) == Enum.GradientFill:
             per_pixel = max(per_pixel, paint.GRADIENT_FILL_BYTES)
         width, height = grown[2] - grown[0], grown[3] - grown[1]
+        # The distance search's offset grid follows the stroke's size, not the
+        # box: an inset one reserves a pixel however wide it is.
+        radius = min(
+            max(abs(limits[0]), abs(limits[1])) * size + 1.0, max(width, height)
+        )
+        grid = (2 * math.ceil(radius) + 1) ** 2 * _GRID_BYTES
         check_pixel_size(
             width,
             height,
             max_alloc_bytes=max_alloc_bytes,
-            estimated_bytes=width * height * per_pixel,
+            estimated_bytes=max(width * height * per_pixel, grid),
             warn=False,
         )
     return grown
@@ -321,8 +332,9 @@ def _nearest_boundary(
     if not active.any():
         return field
 
-    span = math.ceil(radius)
     height, width = alpha.shape
+    # An offset past the canvas's longest side reaches no pixel.
+    span = math.ceil(min(radius, max(height, width) - 1))
     rows_p, cols_p = np.nonzero(partial)
     r0, r1 = max(rows_p.min() - span, 0), min(rows_p.max() + span + 1, height)
     c0, c1 = max(cols_p.min() - span, 0), min(cols_p.max() + span + 1, width)

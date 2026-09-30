@@ -377,6 +377,7 @@ def draw_pattern_fill(
                 * panel.shape[2]
                 * panel.dtype.itemsize
                 * _RESIZE_COPIES
+                + panel.nbytes
             ),
             warn=False,
         )
@@ -396,7 +397,11 @@ def draw_pattern_fill(
             height,
             panel.shape[2],
             budget,
-            estimated_bytes=tiled[0] * tiled[1] * panel.shape[2] * panel.dtype.itemsize,
+            # The panel stays live while it is tiled.
+            estimated_bytes=(
+                tiled[0] * tiled[1] * panel.shape[2] * panel.dtype.itemsize
+                + panel.nbytes
+            ),
             warn=False,
         )
     # Taken from the pattern's own slot layout rather than from its color mode.

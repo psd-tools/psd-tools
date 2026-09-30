@@ -1,6 +1,7 @@
 """Allocations a descriptor's size grows are checked before they are made."""
 
 import logging
+import tracemalloc
 
 import numpy as np
 import pytest
@@ -47,7 +48,8 @@ def test_the_scaled_pattern_panel_is_checked_at_its_resize_size() -> None:
     percent = 400.0
     rows, cols = int(shape[0] * percent / 100), int(shape[1] * percent / 100)
     desc[b"Scl "] = Double(percent)
-    resized = rows * cols * shape[2] * 4 * paint._RESIZE_COPIES
+    panel = shape[0] * shape[1] * shape[2] * 4
+    resized = rows * cols * shape[2] * 4 * paint._RESIZE_COPIES + panel
 
     psd._max_alloc_bytes = resized
     draw_pattern_fill(psd.viewbox, psd, desc)
@@ -61,7 +63,7 @@ def test_the_tiled_pattern_is_checked_at_the_viewport() -> None:
     psd, desc, shape = _pattern()
     desc[b"Scl "] = Double(0.0)
     viewport = (0, 0, 2000, 2000)
-    tiled = 2000 * 2000 * shape[2] * 4
+    tiled = 2000 * 2000 * shape[2] * 4 + shape[2] * 4  # plus the 1x1 panel
 
     psd._max_alloc_bytes = tiled
     draw_pattern_fill(viewport, psd, desc)
@@ -213,3 +215,38 @@ def test_a_gradient_vector_stroke_fill_is_checked_at_its_own_peak(
     psd._max_alloc_bytes = peak - 1
     with pytest.raises(ValueError, match="over the configured budget"):
         psd.composite(force=True, ignore_preview=True)
+
+
+def test_an_inset_stroke_size_does_not_grow_the_distance_search_past_the_canvas() -> (
+    None
+):
+    """The search offsets stop at the canvas edge, whatever the stroke's size."""
+    psd, _, desc = _stroke_desc(1e5)
+    desc[Key.Style] = Enumerated(typeID=b"FStl", enum=Enum.InsetFrame)
+    rows, cols = np.mgrid[:18, :18]
+    disc = np.clip(8.0 - np.hypot(rows - 8.5, cols - 8.5) + 0.5, 0.0, 1.0)
+    assert ((disc > 0) & (disc < 1)).any(), "an antialiased edge to search from"
+    shape = disc.astype(np.float32)[:, :, None]
+
+    tracemalloc.start()
+    try:
+        effects.draw_stroke_effect_split((0, 0, 18, 18), shape, desc, psd)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert peak < 10_000_000
+
+
+def test_a_budget_covers_the_distance_search_grid() -> None:
+    """An inset stroke's box is small, so its grid is what the budget meets."""
+    _, layer, desc = _stroke_desc(5000.0)
+    desc[Key.Style] = Enumerated(typeID=b"FStl", enum=Enum.InsetFrame)
+    grown = effects.stroke_bbox(layer.bbox, desc)
+    side = max(grown[2] - grown[0], grown[3] - grown[1])
+    grid = (2 * side + 1) ** 2 * effects._GRID_BYTES
+    box = (grown[2] - grown[0]) * (grown[3] - grown[1]) * effects._STROKE_BYTES
+    assert grid > box
+
+    assert effects.stroke_bbox(layer.bbox, desc, grid) == grown
+    with pytest.raises(ValueError, match="over the configured budget"):
+        effects.stroke_bbox(layer.bbox, desc, grid - 1)
