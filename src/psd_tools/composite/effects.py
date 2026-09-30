@@ -96,6 +96,9 @@ _BANDS: dict[bytes, tuple[float, float]] = {
 # canvas reserved for it, and the position Photoshop itself defaults to.
 _UNRECOGNISED = _BANDS[Enum.OutsetFrame]
 
+# The widest stroke Photoshop writes; a larger size can only be a forged one.
+_MAX_STROKE_SIZE = 250.0
+
 # What a stroke canvas costs per pixel at its peak: the signed-distance
 # transients (an int64 offset grid pair, float64 planes) dwarf the float32
 # canvas and colour planes, so a budget is checked against this, not 4 bytes.
@@ -127,6 +130,14 @@ def _enum(desc: Descriptor, key: bytes) -> bytes:
     return getattr(desc.get(key), "enum", b"")
 
 
+def _stroke_size(desc: Descriptor) -> float:
+    """The descriptor's stroke size, held to what Photoshop can write."""
+    size = float(desc.get(Key.SizeKey, 1.0))
+    if not math.isfinite(size):
+        raise ValueError("Stroke size is not finite.")
+    return min(size, _MAX_STROKE_SIZE)
+
+
 def stroke_bbox(
     bbox: tuple[int, int, int, int],
     desc: Descriptor,
@@ -155,8 +166,10 @@ def stroke_bbox(
     from -- an outset one, which :py:func:`draw_stroke_effect` then draws it
     as -- rather than raising out of a composite (#826).
 
-    Raises :class:`ValueError` when the grown box is over the per-axis limit
-    or ``max_alloc_bytes``, which the callers read as an unreadable stroke.
+    A size above what Photoshop writes is drawn at that limit. Raises
+    :class:`ValueError` when the size is not finite or the grown box is over
+    the per-axis limit or ``max_alloc_bytes``, which the callers read as an
+    unreadable stroke.
     """
     if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
         return bbox
@@ -164,7 +177,7 @@ def stroke_bbox(
     reach = limits[1]
     # ceil() because a fractional stroke still covers the pixel it falls in.
     # The +1 is the uncovered pixel the edge is measured against.
-    size = float(desc.get(Key.SizeKey, 1.0))
+    size = _stroke_size(desc)
     margin = math.ceil(size * reach) + 1
     grown = (bbox[0] - margin, bbox[1] - margin, bbox[2] + margin, bbox[3] + margin)
     # The size is the file's, so the box it grows is checked before anything is
@@ -586,7 +599,7 @@ def draw_stroke_effect_split(
     # For layers with path objects, this should be based on drawing.
 
     style = _enum(desc, Key.Style)
-    size = float(desc.get(Key.SizeKey, 1.0))
+    size = _stroke_size(desc)
 
     # A stroke of no width draws nothing, and the band has to be told so: it
     # would otherwise paint a quarter of a pixel wherever the boundary falls

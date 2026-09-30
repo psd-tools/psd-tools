@@ -12,7 +12,7 @@ from psd_tools.api import numpy_io, pil_io
 from psd_tools.api.layers import AdjustmentLayer, Artboard, GroupMixin, Layer
 from psd_tools.api.protocols import LayerProtocol, PSDProtocol
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.api.utils import check_pixel_size, get_color_channels
+from psd_tools.api.utils import check_growth, check_pixel_size, get_color_channels
 from psd_tools.composite import paint, utils, vector
 from psd_tools.composite.adjustments import ADJUSTMENT_FUNC
 from psd_tools.composite.blend import get_blend_func, normal
@@ -53,6 +53,15 @@ class _StyledEffect(Protocol):
 
 def _styled(effects: Iterator[Any]) -> Iterator[_StyledEffect]:
     return cast(Iterator[_StyledEffect], effects)
+
+
+# How many times the larger of the viewport and the layer a vector stroke's
+# fill may grow to, past the floor check_growth() allows.
+_STROKE_GROWTH = 4
+
+
+def _pixels(bbox: tuple[int, int, int, int]) -> int:
+    return max(0, bbox[2] - bbox[0]) * max(0, bbox[3] - bbox[1])
 
 
 # What an effect descriptor psd-tools did not write can raise on the way to
@@ -1986,6 +1995,11 @@ class Compositor(object):
         )
         # The width is the file's, and it grows the box the fill is drawn on.
         if fill_bbox[0] < fill_bbox[2] and fill_bbox[1] < fill_bbox[3]:
+            check_growth(
+                (fill_bbox[2] - fill_bbox[0]) * (fill_bbox[3] - fill_bbox[1]),
+                max(_pixels(self._viewport), _pixels(layer.bbox)),
+                _STROKE_GROWTH,
+            )
             check_pixel_size(
                 fill_bbox[2] - fill_bbox[0],
                 fill_bbox[3] - fill_bbox[1],
