@@ -9,7 +9,7 @@ Changelog
   property. **Backwards-incompatible**: rendering a document whose estimate is
   over 4 GiB now raises ``ValueError``; set ``"unlimited"`` (API or
   ``$PSD_TOOLS_MAX_ALLOC_BYTES``) to restore the old behaviour. See
-  "Handling untrusted files" (#925)
+  "Handling untrusted files" (#925, #929)
 - [api] ``max_alloc_bytes`` now bounds each ``Layer.numpy()`` and
   ``Layer.topil()`` read, and so the stored-pixel reads of ``composite()``,
   at the layer's own size. A layer larger than the canvas that used to read
