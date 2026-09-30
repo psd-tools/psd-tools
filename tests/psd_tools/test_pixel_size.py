@@ -9,11 +9,15 @@ above MAX_PIXELS_PSD instead of committing the buffer silently.
 import base64
 import gc
 import io
+import os
 import struct
+import subprocess
+import sys
 import tracemalloc
 import warnings
 import zlib
 
+import numpy as np
 import pytest
 
 from typing import Any, Callable, Literal, Optional
@@ -154,7 +158,9 @@ _POC_B64 = "OEJQUwABAAAAAAAAAAYAACg4AAAXTAAIAAMAAAAAAAAAAAAAAAAAAUNIUIFU+yQtDw==
 
 def test_data_aware_guard_rejects_tiny_file_huge_canvas() -> None:
     """The 49-byte PoC must raise instead of silently allocating gigabytes."""
-    psd = PSDImage.open(io.BytesIO(base64.b64decode(_POC_B64)))
+    psd = PSDImage.open(
+        io.BytesIO(base64.b64decode(_POC_B64)), max_alloc_bytes="unlimited"
+    )
     assert psd.width == 5964 and psd.height == 10296 and psd.channels == 6
     with pytest.raises(ValueError, match="failed to decode"):
         psd.numpy()
@@ -165,7 +171,9 @@ def test_data_aware_guard_rejects_tiny_file_huge_canvas_composite() -> None:
     pytest.importorskip("aggdraw")
     pytest.importorskip("scipy")
     pytest.importorskip("skimage")
-    psd = PSDImage.open(io.BytesIO(base64.b64decode(_POC_B64)))
+    psd = PSDImage.open(
+        io.BytesIO(base64.b64decode(_POC_B64)), max_alloc_bytes="unlimited"
+    )
     with pytest.raises(ValueError, match="failed to decode"):
         psd.composite()
 
@@ -183,7 +191,7 @@ def test_data_aware_guard_keeps_small_corrupt_channels_lenient() -> None:
     )
 
 
-def test_opt_in_byte_budget_raises_when_set() -> None:
+def test_process_byte_budget_raises_when_set() -> None:
     """Setting MAX_ALLOC_BYTES bounds even a small, otherwise-allowed canvas."""
     psd = PSDImage.open(_build_psd(_NORMAL_W, _NORMAL_H))  # 64x64x3 -> ~49 KB est
     saved = _utils.MAX_ALLOC_BYTES
@@ -195,23 +203,34 @@ def test_opt_in_byte_budget_raises_when_set() -> None:
         _utils.MAX_ALLOC_BYTES = saved
 
 
-def test_opt_in_byte_budget_disabled_by_default() -> None:
-    """With the default (None) budget, a within-spec canvas is not budget-rejected."""
-    assert _utils.MAX_ALLOC_BYTES is None
-    psd = PSDImage.open(_build_psd(_NORMAL_W, _NORMAL_H))
-    try:
-        psd.numpy()
-    except ValueError as exc:
-        assert "MAX_ALLOC_BYTES" not in str(exc)
-    except Exception:
-        pass  # other errors (e.g. empty pixel data) are fine
+def test_default_byte_budget_is_finite(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Unset, the environment seeds the built-in budget, which check_pixel_size applies."""
+    monkeypatch.delenv(_utils.MAX_ALLOC_BYTES_ENV, raising=False)
+    assert _utils._env_alloc_budget() == _utils.DEFAULT_MAX_ALLOC_BYTES
+    monkeypatch.setattr(_utils, "MAX_ALLOC_BYTES", _utils.DEFAULT_MAX_ALLOC_BYTES)
+    side = MAX_DIMENSION_PSD
+    assert side * side * 4 * 4 > _utils.DEFAULT_MAX_ALLOC_BYTES
+    with pytest.raises(ValueError, match="configured budget"):
+        check_pixel_size(side, side, 4, warn=False)
+
+
+def test_unlimited_disables_the_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``"unlimited"`` lifts the budget, from the document or the process."""
+    side = MAX_DIMENSION_PSD
+    monkeypatch.setattr(_utils, "MAX_ALLOC_BYTES", _utils.DEFAULT_MAX_ALLOC_BYTES)
+    check_pixel_size(side, side, 4, max_alloc_bytes="unlimited", warn=False)
+    monkeypatch.setattr(_utils, "MAX_ALLOC_BYTES", "unlimited")
+    check_pixel_size(side, side, 4, warn=False)
+    monkeypatch.setattr(_utils, "MAX_ALLOC_BYTES", None)
+    check_pixel_size(side, side, 4, warn=False)
 
 
 def test_open_max_alloc_bytes_kwarg_bounds_within_spec_canvas() -> None:
     """open(max_alloc_bytes=...) caps a within-spec canvas without touching globals."""
-    assert _utils.MAX_ALLOC_BYTES is None  # global default stays off
+    saved = _utils.MAX_ALLOC_BYTES
     psd = PSDImage.open(_build_psd(_NORMAL_W, _NORMAL_H), max_alloc_bytes=1024)
-    assert psd._max_alloc_bytes == 1024
+    assert psd.max_alloc_bytes == 1024
+    assert _utils.MAX_ALLOC_BYTES == saved
     with pytest.raises(ValueError, match="1,024 bytes"):
         psd.numpy()
 
@@ -240,13 +259,66 @@ def test_env_var_seeds_default_budget(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_env_var_invalid_is_ignored_with_warning(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Non-integer and non-positive values are ignored (budget stays off)."""
-    monkeypatch.setenv(_utils.MAX_ALLOC_BYTES_ENV, "not-an-int")
-    with pytest.warns(UserWarning, match=_utils.MAX_ALLOC_BYTES_ENV):
-        assert _utils._env_alloc_budget() is None
-    monkeypatch.setenv(_utils.MAX_ALLOC_BYTES_ENV, "-5")
-    with pytest.warns(UserWarning, match=_utils.MAX_ALLOC_BYTES_ENV):
-        assert _utils._env_alloc_budget() is None
+    """Invalid values warn and fall back to the finite default."""
+    for raw in ("not-an-int", "-5", "0", ""):
+        monkeypatch.setenv(_utils.MAX_ALLOC_BYTES_ENV, raw)
+        with pytest.warns(UserWarning, match=_utils.MAX_ALLOC_BYTES_ENV):
+            assert _utils._env_alloc_budget() == _utils.DEFAULT_MAX_ALLOC_BYTES
+
+
+def test_numpy_integer_budget_is_accepted() -> None:
+    value = _utils.validate_alloc_budget(np.int64(1024))
+    assert value == 1024 and type(value) is int
+    psd = PSDImage.open(
+        _build_psd(_NORMAL_W, _NORMAL_H),
+        max_alloc_bytes=np.int64(1024),  # type: ignore[arg-type]
+    )
+    assert type(psd.max_alloc_bytes) is int
+    psd.max_alloc_bytes = np.int64(2048)  # type: ignore[assignment]
+    assert type(psd.max_alloc_bytes) is int
+
+
+def test_explicit_invalid_budget_raises() -> None:
+    """Only the process-wide value falls back; an explicit one is the caller's."""
+    with pytest.raises(ValueError, match="max_alloc_bytes"):
+        check_pixel_size(4, 4, max_alloc_bytes="foo")  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "env, expected",
+    [
+        (None, "u.DEFAULT_MAX_ALLOC_BYTES"),
+        ("unlimited", "'unlimited'"),
+        ("1024", "1024"),
+        ("bogus", "u.DEFAULT_MAX_ALLOC_BYTES"),
+    ],
+)
+def test_import_seeds_process_budget(env: Optional[str], expected: str) -> None:
+    """The shipped MAX_ALLOC_BYTES, as a fresh interpreter imports it."""
+    environ = {k: v for k, v in os.environ.items() if k != _utils.MAX_ALLOC_BYTES_ENV}
+    if env is not None:
+        environ[_utils.MAX_ALLOC_BYTES_ENV] = env
+    code = (
+        "import warnings; warnings.simplefilter('ignore')\n"
+        "from psd_tools.api import utils as u\n"
+        f"assert u.MAX_ALLOC_BYTES == {expected}, u.MAX_ALLOC_BYTES\n"
+    )
+    subprocess.run([sys.executable, "-c", code], env=environ, check=True)
+
+
+@pytest.mark.parametrize("raw", ["unlimited", " Unlimited "])
+def test_env_var_unlimited(monkeypatch: pytest.MonkeyPatch, raw: str) -> None:
+    monkeypatch.setenv(_utils.MAX_ALLOC_BYTES_ENV, raw)
+    assert _utils._env_alloc_budget() == "unlimited"
+
+
+def test_invalid_process_budget_falls_back_to_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A bad MAX_ALLOC_BYTES warns and fails closed rather than raising."""
+    monkeypatch.setattr(_utils, "MAX_ALLOC_BYTES", 0)
+    with pytest.warns(UserWarning, match="MAX_ALLOC_BYTES"):
+        assert _utils.resolve_alloc_budget(None) == _utils.DEFAULT_MAX_ALLOC_BYTES
 
 
 def test_explicit_kwarg_overrides_env_default(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -256,6 +328,72 @@ def test_explicit_kwarg_overrides_env_default(monkeypatch: pytest.MonkeyPatch) -
     psd = PSDImage.open(_build_psd(_NORMAL_W, _NORMAL_H), max_alloc_bytes=1024)
     with pytest.raises(ValueError, match="1,024 bytes"):
         psd.numpy()
+
+
+# Renders without error, unlike _build_psd, which stores no image data.
+_RENDERABLE = full_name("clipping-mask2.psd")
+
+
+def test_explicit_unlimited_overrides_process_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(_utils, "MAX_ALLOC_BYTES", 1024)
+    psd = PSDImage.open(_RENDERABLE, max_alloc_bytes="unlimited")
+    psd.numpy()
+
+
+def test_none_inherits_process_default_live(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A document left at None sees MAX_ALLOC_BYTES as it is when it renders."""
+    psd = PSDImage.open(_RENDERABLE)
+    assert psd.max_alloc_bytes is None
+    psd.numpy()
+    monkeypatch.setattr(_utils, "MAX_ALLOC_BYTES", 1024)
+    with pytest.raises(ValueError, match="1,024 bytes"):
+        psd.numpy()
+
+
+def test_max_alloc_bytes_property_round_trips(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(_utils, "MAX_ALLOC_BYTES", "unlimited")
+    psd = PSDImage.open(_RENDERABLE)
+    psd.max_alloc_bytes = 1024
+    assert psd.max_alloc_bytes == 1024
+    with pytest.raises(ValueError, match="1,024 bytes"):
+        psd.numpy()
+    psd.max_alloc_bytes = "unlimited"
+    assert psd.max_alloc_bytes == "unlimited"
+    psd.numpy()
+    psd.max_alloc_bytes = None
+    assert psd.max_alloc_bytes is None
+
+
+_INVALID_BUDGETS = [
+    (True, TypeError),
+    (False, TypeError),
+    (np.int64(0), ValueError),
+    (1.5, TypeError),
+    (b"unlimited", TypeError),
+    (0, ValueError),
+    (-1, ValueError),
+    ("foo", ValueError),
+    ("1024", ValueError),
+]
+
+
+@pytest.mark.parametrize("value, error", _INVALID_BUDGETS)
+def test_open_rejects_invalid_budget_before_parsing(value: Any, error: type) -> None:
+    """The setting is checked before the stream is read, so garbage cannot mask it."""
+    fp = io.BytesIO(b"not a psd")
+    with pytest.raises(error, match="max_alloc_bytes"):
+        PSDImage.open(fp, max_alloc_bytes=value)
+    assert fp.tell() == 0
+
+
+@pytest.mark.parametrize("value, error", _INVALID_BUDGETS)
+def test_setter_rejects_invalid_budget(value: Any, error: type) -> None:
+    psd = PSDImage.open(_build_psd(_NORMAL_W, _NORMAL_H), max_alloc_bytes=1024)
+    with pytest.raises(error, match="max_alloc_bytes"):
+        psd.max_alloc_bytes = value
+    assert psd.max_alloc_bytes == 1024
 
 
 # ---------------------------------------------------------------------------

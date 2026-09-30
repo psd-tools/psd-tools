@@ -4,10 +4,11 @@ Utility functions for the API layer.
 
 from __future__ import annotations
 
+import operator
 import os
 import warnings
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final, Literal
 
 if TYPE_CHECKING:
     from psd_tools.api.protocols import PSDProtocol
@@ -37,33 +38,98 @@ MAX_PIXELS_PSB: int = 300_000 * 300_000
 # Environment variable that seeds MAX_ALLOC_BYTES at import time.
 MAX_ALLOC_BYTES_ENV: str = "PSD_TOOLS_MAX_ALLOC_BYTES"
 
+# Built-in budget, used when neither the document nor the environment sets one.
+DEFAULT_MAX_ALLOC_BYTES: int = 4 * 1024**3
 
-def _env_alloc_budget() -> int | None:
+# The budget value that disables the byte ceiling.
+UNLIMITED: Final = "unlimited"
+
+AllocBudget = int | Literal["unlimited"]
+
+
+def validate_alloc_budget(value: object) -> AllocBudget | None:
+    """Return ``value`` if it is a valid budget setting, else raise.
+
+    Valid settings are a positive integer, ``"unlimited"``, or ``None``
+    (inherit :data:`MAX_ALLOC_BYTES`). An integer such as ``numpy.int64`` is
+    returned as :class:`int`.
+
+    :raises TypeError: for a :class:`bool` or a value of another type.
+    :raises ValueError: for a non-positive integer or another string.
+    """
+    if value is None or (isinstance(value, str) and value == UNLIMITED):
+        return value  # type: ignore[return-value]
+    message = (
+        f"max_alloc_bytes must be a positive int, {UNLIMITED!r} or None, got {value!r}."
+    )
+    if isinstance(value, str):
+        raise ValueError(message)
+    if isinstance(value, bool):
+        raise TypeError(message)
+    try:
+        number = operator.index(value)  # type: ignore[arg-type]
+    except TypeError:
+        raise TypeError(message) from None
+    if number <= 0:
+        raise ValueError(message)
+    return number
+
+
+def _env_alloc_budget() -> AllocBudget:
     """Default :data:`MAX_ALLOC_BYTES` from ``$PSD_TOOLS_MAX_ALLOC_BYTES``.
 
-    A positive integer enables the budget; unset/invalid/non-positive leaves it off.
+    A positive integer or ``unlimited`` is taken as given; unset gives
+    :data:`DEFAULT_MAX_ALLOC_BYTES`, and anything else warns and gives it too.
     """
     raw = os.environ.get(MAX_ALLOC_BYTES_ENV)
     if raw is None:
-        return None
+        return DEFAULT_MAX_ALLOC_BYTES
+    if raw.strip().lower() == UNLIMITED:
+        return UNLIMITED
     try:
         value = int(raw)
     except ValueError:
-        warnings.warn(
-            f"Ignoring non-integer {MAX_ALLOC_BYTES_ENV}={raw!r}.", stacklevel=2
-        )
-        return None
+        value = 0
     if value <= 0:
         warnings.warn(
-            f"Ignoring non-positive {MAX_ALLOC_BYTES_ENV}={value}.", stacklevel=2
+            f"Ignoring {MAX_ALLOC_BYTES_ENV}={raw!r}: expected a positive "
+            f"integer or {UNLIMITED!r}; using {DEFAULT_MAX_ALLOC_BYTES:,} bytes.",
+            stacklevel=2,
         )
-        return None
+        return DEFAULT_MAX_ALLOC_BYTES
     return value
 
 
-# Opt-in byte ceiling on the estimated float32 allocation; None = off (default).
-# Seeded from $PSD_TOOLS_MAX_ALLOC_BYTES; per-document override via open(max_alloc_bytes=...).
-MAX_ALLOC_BYTES: int | None = _env_alloc_budget()
+# Process-wide byte ceiling on each estimated allocation, for documents whose
+# own budget is None. Read at call time, so assigning it affects open documents.
+# None is also accepted as "unlimited".
+MAX_ALLOC_BYTES: AllocBudget | None = _env_alloc_budget()
+
+
+def resolve_alloc_budget(value: AllocBudget | None) -> int | None:
+    """The byte ceiling a budget setting stands for; ``None`` if unlimited.
+
+    ``None`` resolves :data:`MAX_ALLOC_BYTES` as it is now. An invalid
+    :data:`MAX_ALLOC_BYTES` warns and gives :data:`DEFAULT_MAX_ALLOC_BYTES`.
+
+    :raises TypeError: if ``value`` is invalid; see :func:`validate_alloc_budget`.
+    :raises ValueError: if ``value`` is invalid; see :func:`validate_alloc_budget`.
+    """
+    if value is None:
+        if MAX_ALLOC_BYTES is None:
+            return None
+        try:
+            value = validate_alloc_budget(MAX_ALLOC_BYTES)
+        except (TypeError, ValueError):
+            warnings.warn(
+                f"Ignoring psd_tools.api.utils.MAX_ALLOC_BYTES="
+                f"{MAX_ALLOC_BYTES!r}; using {DEFAULT_MAX_ALLOC_BYTES:,} bytes.",
+                stacklevel=2,
+            )
+            return DEFAULT_MAX_ALLOC_BYTES
+    else:
+        value = validate_alloc_budget(value)
+    return None if value == UNLIMITED else value  # type: ignore[return-value]
 
 
 # A canvas a descriptor value grows may hold this many pixels whatever it grows
@@ -95,7 +161,7 @@ def check_pixel_size(
     width: int,
     height: int,
     channels: int = 1,
-    max_alloc_bytes: int | None = None,
+    max_alloc_bytes: AllocBudget | None = None,
     estimated_bytes: int | None = None,
     warn: bool = True,
 ) -> None:
@@ -110,9 +176,10 @@ def check_pixel_size(
     Issues a :class:`PSDLargeImageWarning` for pixel counts above
     :data:`WARN_PIXELS` that are still within the per-axis spec limit.
 
-    When :data:`MAX_ALLOC_BYTES` is set, also raises :class:`ValueError` if the
-    estimated allocation exceeds it. That estimate is ``estimated_bytes`` when a
-    caller supplies one, and ``width * height * channels * 4`` otherwise.
+    Also raises :class:`ValueError` if the estimated allocation exceeds the
+    budget that :func:`resolve_alloc_budget` gives for ``max_alloc_bytes``.
+    That estimate is ``estimated_bytes`` when a caller supplies one, and
+    ``width * height * channels * 4`` otherwise.
 
     The two spellings answer different questions, and the difference is the
     point. ``width * height * channels * 4`` sizes the float32 array a path
@@ -134,8 +201,8 @@ def check_pixel_size(
         array is not one plane per stored channel: see
         :func:`~psd_tools.api.numpy_io._image_data_planes`, which triples an
         indexed document for its palette.
-    :param max_alloc_bytes: per-call budget in bytes; overrides the module-level
-        :data:`MAX_ALLOC_BYTES` default when not ``None``.
+    :param max_alloc_bytes: budget setting for this call; ``None`` defers to
+        :data:`MAX_ALLOC_BYTES`.
     :param estimated_bytes: bytes this call is expected to allocate at its peak,
         replacing the default estimate when given. Callers whose peak is not a
         multiple of the returned array -- one holding a flat transient, say, that
@@ -161,7 +228,7 @@ def check_pixel_size(
             PSDLargeImageWarning,
             stacklevel=3,
         )
-    budget = max_alloc_bytes if max_alloc_bytes is not None else MAX_ALLOC_BYTES
+    budget = resolve_alloc_budget(max_alloc_bytes)
     if budget is not None:
         estimated = (
             estimated_bytes
@@ -180,9 +247,9 @@ def check_pixel_size(
             raise ValueError(
                 f"{kind} {estimated:,} bytes for "
                 f"{width}x{height}x{channels} is over the configured budget "
-                f"({budget:,} bytes). Raise or clear it via "
-                f"PSDImage.open(max_alloc_bytes=...), ${MAX_ALLOC_BYTES_ENV}, or "
-                f"psd_tools.api.utils.MAX_ALLOC_BYTES to allow it."
+                f"({budget:,} bytes). Raise it, or set {UNLIMITED!r}, via "
+                f"psd.max_alloc_bytes, PSDImage.open(max_alloc_bytes=...), "
+                f"${MAX_ALLOC_BYTES_ENV}, or psd_tools.api.utils.MAX_ALLOC_BYTES."
             )
 
 

@@ -21,6 +21,11 @@ Example::
 Working with PSD document
 -------------------------
 
+.. note::
+
+    Rendering is bounded by an allocation budget, 4 GiB by default. See
+    :doc:`untrusted` to change it, and for what it does not bound.
+
 :py:mod:`psd_tools.api` package provides the user-friendly API to work
 with PSD files.
 :py:class:`~psd_tools.PSDImage` represents a PSD file.

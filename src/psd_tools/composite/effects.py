@@ -64,7 +64,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from psd_tools.api.utils import check_pixel_size
+from psd_tools.api.utils import AllocBudget, check_pixel_size
 from psd_tools.composite import paint
 from psd_tools.composite._compat import HAS_SCIPY
 from psd_tools.composite.utils import divide
@@ -141,7 +141,7 @@ def _stroke_size(desc: Descriptor) -> float:
 def stroke_bbox(
     bbox: tuple[int, int, int, int],
     desc: Descriptor,
-    max_alloc_bytes: int | None = None,
+    max_alloc_bytes: AllocBudget | None = None,
 ) -> tuple[int, int, int, int]:
     """The canvas :py:func:`draw_stroke_effect` needs to draw a stroke on.
 

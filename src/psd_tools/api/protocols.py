@@ -387,7 +387,12 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
 
     # Internal attributes accessed by related classes
     _record: PSD  # psd_tools.psd.PSD
-    _max_alloc_bytes: int | None  # per-document allocation budget
+    _max_alloc_bytes: int | Literal["unlimited"] | None  # See PSDImage.max_alloc_bytes.
+
+    @property
+    def max_alloc_bytes(self) -> int | Literal["unlimited"] | None:
+        """Allocation budget setting; ``None`` defers to the process default."""
+        ...
 
     @property
     def name(self) -> str:

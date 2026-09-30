@@ -65,11 +65,13 @@ from PIL import Image
 from psd_tools.api import adjustments, layers, numpy_io, pil_io
 from psd_tools.api.protocols import PSDProtocol
 from psd_tools.api.utils import (
+    AllocBudget,
     ColorInput,
     color_channels,
     denormalize_color,
     get_color_channels,
     normalize_color,
+    validate_alloc_budget,
 )
 from psd_tools.constants import (
     BlendMode,
@@ -122,8 +124,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         self._compatibility_mode = CompatibilityMode.DEFAULT
         self._background_color: float | tuple[float, ...] | None = None
         self._updated: bool = False  # See mark_updated() for what this gates.
-        # Per-document allocation budget (bytes); set via open(max_alloc_bytes=...).
-        self._max_alloc_bytes: int | None = None
+        self._max_alloc_bytes: AllocBudget | None = None  # See max_alloc_bytes.
         # Whether the merged image data's first alpha channel holds the
         # composite's transparency. The layer count records this as a negative
         # sign, but a count of zero has no sign, so a rebuild that momentarily
@@ -236,17 +237,18 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
     def open(
         cls,
         fp: IO[bytes] | str | bytes | os.PathLike,
-        max_alloc_bytes: int | None = None,
+        max_alloc_bytes: AllocBudget | None = None,
         **kwargs: Any,
     ) -> Self:
         """
         Open a PSD document.
 
         :param fp: filename or file-like object.
-        :param max_alloc_bytes: optional per-document cap (bytes) on what
+        :param max_alloc_bytes: initial :py:attr:`max_alloc_bytes`, checked
+            before the file is read. Caps (bytes) what
             :py:meth:`composite`/:py:meth:`numpy`/:py:meth:`topil`/:py:meth:`thumbnail`
-            allocate; rendering raises :class:`ValueError` if the estimate
-            exceeds it.
+            allocate; rendering raises :class:`ValueError`, or skips a layer
+            effect, if the estimate exceeds it.
             :py:meth:`numpy` and :py:meth:`topil` estimate their allocation *at
             its peak*, intermediates included, so the estimate depends on the
             colour mode, the depth and the compression method rather than on the
@@ -262,12 +264,16 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             :py:meth:`composite` reaches the other two in the ordinary cases --
             it returns the preview through :py:meth:`topil` when the document has
             one, and a document with no layers falls through to :py:meth:`numpy`.
-            Defaults to the ``$PSD_TOOLS_MAX_ALLOC_BYTES``
-            env var (or :data:`psd_tools.api.utils.MAX_ALLOC_BYTES`) when ``None``.
+            See :doc:`/untrusted` for the precedence and what it does not bound.
         :param encoding: charset encoding of the pascal string within the file,
             default 'macroman'. Some psd files need explicit encoding option.
         :return: A :py:class:`~psd_tools.api.psd_image.PSDImage` object.
+        :raises TypeError: if ``max_alloc_bytes`` is not an int, a string or
+            ``None``, or is a bool.
+        :raises ValueError: if ``max_alloc_bytes`` is not positive or is a
+            string other than ``"unlimited"``.
         """
+        max_alloc_bytes = validate_alloc_budget(max_alloc_bytes)
         if isinstance(fp, (str, bytes, os.PathLike)):
             with open(fp, "rb") as f:
                 self = cls(PSD.read(f, **kwargs))
@@ -469,6 +475,29 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
     def parent(self) -> None:
         """Parent of this layer."""
         return None
+
+    @property
+    def max_alloc_bytes(self) -> AllocBudget | None:
+        """
+        Allocation budget for this document and its layers.
+
+        A positive int is a byte ceiling on each estimated allocation, and
+        ``"unlimited"`` disables it. ``None``, the default, defers to
+        ``psd_tools.api.utils.MAX_ALLOC_BYTES`` whenever the budget is
+        checked. Gives the setting, not the resolved ceiling; use
+        ``psd_tools.api.utils.resolve_alloc_budget()`` for that.
+        See :doc:`/untrusted`.
+
+        :raises TypeError: on assigning a bool or a value that is not an int,
+            a string or ``None``.
+        :raises ValueError: on assigning a non-positive int or a string other
+            than ``"unlimited"``.
+        """
+        return self._max_alloc_bytes
+
+    @max_alloc_bytes.setter
+    def max_alloc_bytes(self, value: AllocBudget | None) -> None:
+        self._max_alloc_bytes = validate_alloc_budget(value)
 
     def has_preview(self) -> bool:
         """
@@ -782,7 +811,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         Gives None when the file contains no embedded thumbnail image.
 
         :raises ValueError: if the thumbnail's dimensions exceed the PSD spec
-            limit, or the ``max_alloc_bytes`` budget set via :py:meth:`open`.
+            limit, or :py:attr:`max_alloc_bytes`.
         """
         if Resource.THUMBNAIL_RESOURCE in self.image_resources:
             return pil_io.convert_thumbnail_to_pil(
