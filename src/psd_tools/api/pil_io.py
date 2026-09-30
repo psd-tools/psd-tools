@@ -4,7 +4,7 @@ PIL IO module.
 
 import io
 import logging
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import numpy as np
 from PIL import Image, ImageChops, ImageMath
@@ -348,13 +348,15 @@ def _layer_peak_bytes(
     # One decode per entry `_merge_channels()` iterates, each resolved to the
     # *last* record of its id as `_get_channel()` does, so a repeated id is
     # decoded once per repeat. An empty resolved entry decodes nothing.
-    resolved = {i.id: c for i, c in zip(layer._record.channel_info, layer._channels)}
-    wanted: list[ChannelID]
+    resolved: dict[int, Any] = {
+        i.id: c for i, c in zip(layer._record.channel_info, layer._channels)
+    }
+    wanted: list[int]
     if channel is None:
         wanted = [i.id for i in layer._record.channel_info if i.id >= 0]
         wanted.append(ChannelID.TRANSPARENCY_MASK)
     else:
-        wanted = [ChannelID(channel)]
+        wanted = [channel]
     reads = [resolved[i] for i in wanted if i in resolved and len(resolved[i].data) > 0]
     if channel in (ChannelID.USER_LAYER_MASK, ChannelID.REAL_USER_LAYER_MASK):
         if layer.mask is None:

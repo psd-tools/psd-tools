@@ -8,7 +8,7 @@ from typing import Any, Callable, Iterator, NamedTuple, Protocol, cast
 import numpy as np
 from PIL import Image
 
-from psd_tools.api import pil_io
+from psd_tools.api import numpy_io, pil_io
 from psd_tools.api.layers import AdjustmentLayer, Artboard, GroupMixin, Layer
 from psd_tools.api.protocols import LayerProtocol, PSDProtocol
 from psd_tools.api.psd_image import PSDImage
@@ -1774,7 +1774,14 @@ class Compositor(object):
         viewport (#804), without restating which of the two sources -- stored
         pixels or a redrawn fill -- this layer's arrays come from.
         """
-        color, shape = layer.numpy("color"), layer.numpy("shape")
+        color = layer.numpy("color")
+        # The colour array stays live through the shape read, so it is charged
+        # to that read's allocation guard.
+        shape = numpy_io.get_array(
+            layer,
+            "shape",
+            held=numpy_io._backing_bytes(color) if color is not None else 0,
+        )
         if (self._force or not layer.has_pixels()) and utils.has_fill(layer):
             color, shape = paint.create_fill(layer, layer.bbox)
             if shape is None:

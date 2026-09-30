@@ -287,8 +287,13 @@ def _layer_read_peak_bytes(
 
 
 def get_layer_data(
-    layer: "LayerProtocol", channel: str | None, real_mask: bool = True
+    layer: "LayerProtocol",
+    channel: str | None,
+    real_mask: bool = True,
+    held: int = 0,
 ) -> np.ndarray | None:
+    """Read a layer's pixels; ``held`` is what the caller keeps live meanwhile."""
+
     def _find_channel(
         layer: "LayerProtocol",
         width: int,
@@ -338,13 +343,16 @@ def get_layer_data(
         return None
 
     if channel == "color":
-        return _find_channel(layer, layer.width, layer.height, lambda x: x.id >= 0)
+        return _find_channel(
+            layer, layer.width, layer.height, lambda x: x.id >= 0, held
+        )
     elif channel == "shape":
         return _find_channel(
             layer,
             layer.width,
             layer.height,
             lambda x: x.id == ChannelID.TRANSPARENCY_MASK,
+            held,
         )
     elif channel == "mask":
         if layer.mask is None:

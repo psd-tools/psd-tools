@@ -192,3 +192,21 @@ def test_repeated_channel_ids_are_charged_once_per_decode():
     layer._psd._max_alloc_bytes = peak
     with pytest.raises(ValueError, match="Peak allocation"):
         layer.topil()
+
+
+def test_compositor_shape_read_is_sized_with_the_color_array_held(monkeypatch):
+    seen = []
+    real = numpy_io._layer_read_peak_bytes
+
+    def spy(*args, **kwargs):
+        seen.append(args[5] if len(args) > 5 else kwargs.get("held", 0))
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(numpy_io, "_layer_read_peak_bytes", spy)
+    psd = PSDImage.open(full_name("semi-transparent-layers.psd"))
+    psd.composite(force=True)
+    assert any(h > 0 for h in seen)
+
+
+def test_topil_unknown_channel_id_returns_none():
+    assert _rgb_layer().topil(channel=10) is None
