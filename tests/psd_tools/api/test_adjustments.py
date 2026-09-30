@@ -5,6 +5,7 @@ import pytest
 from psd_tools.api import adjustments
 from psd_tools.api.adjustments import GradientFill, PatternFill, SolidColorFill
 from psd_tools.api.psd_image import PSDImage
+from psd_tools.psd.descriptor import Descriptor, Integer, String
 
 from ..utils import full_name
 
@@ -105,6 +106,61 @@ def test_black_and_white(psd: PSDImage) -> None:
     assert layer.tint_color
     assert layer.preset_kind == 1
     assert layer.preset_file_name == ""
+
+
+def test_an_unreadable_adjustment_value_degrades_to_the_default(
+    psd: PSDImage, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    layer = psd[11]
+    assert isinstance(layer, adjustments.BlackAndWhite)
+    data = Descriptor(
+        items={  # type: ignore[arg-type]
+            b"Rd  ": String("x"),
+            b"useTint": String("y"),
+            b"Yllw": Integer(5),
+        }
+    )
+    monkeypatch.setattr(layer, "_data", data)
+    assert layer.red == 40
+    assert layer.use_tint is False
+    assert layer.yellow == 5
+
+
+def test_a_layer_without_data_reads_defaults(
+    psd: PSDImage, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    vibrance = psd[8]
+    assert isinstance(vibrance, adjustments.Vibrance)
+    monkeypatch.setattr(vibrance, "_data", None)
+    assert vibrance.vibrance == 0
+    contrast = psd[4]
+    assert isinstance(contrast, adjustments.BrightnessContrast)
+    monkeypatch.setattr(contrast, "_data", None)
+    assert contrast.brightness == 0
+    assert contrast.vrsn == 1
+    assert contrast.automatic is False
+
+
+def test_an_unreadable_preset_file_name_is_empty(
+    psd: PSDImage, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    layer = psd[11]
+    assert isinstance(layer, adjustments.BlackAndWhite)
+    data = Descriptor(
+        items={b"blackAndWhitePresetFileName": Integer(1)}  # type: ignore[arg-type]
+    )
+    monkeypatch.setattr(layer, "_data", data)
+    assert layer.preset_file_name == ""
+
+
+@pytest.mark.parametrize("items", [{}, {b"Angl": String("x")}])
+def test_a_missing_or_unreadable_gradient_angle_is_none(
+    monkeypatch: pytest.MonkeyPatch, items: dict
+) -> None:
+    layer = PSDImage.open(full_name("layers/gradient-fill.psd"))[0]
+    assert isinstance(layer, GradientFill)
+    monkeypatch.setattr(layer, "_data", Descriptor(items=items))
+    assert layer.angle is None
 
 
 def test_photo_filter(psd: PSDImage) -> None:

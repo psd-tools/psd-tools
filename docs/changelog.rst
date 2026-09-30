@@ -10,6 +10,11 @@ Changelog
   which mainly helps large 16- and 32-bit documents. A truncated payload now
   gives a black channel with a warning instead of raising ``IndexError``
   (#903)
+- [api] The descriptor-backed adjustment and fill getters (``BrightnessContrast``,
+  ``Vibrance``, ``BlackAndWhite``) now read a missing or unreadable value as
+  its default instead of raising. **Backwards incompatible:**
+  ``GradientFill.angle`` is ``float | None``, and gives ``None`` where it
+  raised ``TypeError`` (#789)
 - [api] ``BlackAndWhite`` weights, ``preset_kind`` and ``Origination.index``
   now return ``int``, and ``Stroke.line_dash_offset`` ``float``.
   **Backwards incompatible:** they returned ``Integer`` / ``UnitFloat``, so drop
