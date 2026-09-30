@@ -251,7 +251,11 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             its peak*, intermediates included, so the estimate depends on the
             colour mode, the depth and the compression method rather than on the
             declared geometry alone. ``Layer.numpy()`` and ``Layer.topil()`` apply
-            the same ceiling to each layer read, at the layer's own size.
+            the same ceiling to each layer read, at the layer's own size, and
+            :py:meth:`composite` to each stroke or pattern canvas that a
+            descriptor's size grows. A layer effect over the ceiling is
+            skipped rather than raising; a vector stroke or a fill layer over
+            it raises :class:`ValueError`.
             :py:meth:`composite` bounds the canvas it
             builds instead, from the geometry: what follows that guard grows with
             the layer count, which no such estimate can bound. Note that

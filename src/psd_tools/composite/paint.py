@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Callable, Sequence, TypeVar
 import numpy as np
 
 from psd_tools.api import numpy_io
+from psd_tools.api.utils import check_pixel_size
 from psd_tools.color_convert import (
     cmyk_to_rgb,
     gray_to_cmyk,
@@ -25,6 +26,12 @@ if TYPE_CHECKING:
     from psd_tools.api.layers import Layer
 
 logger = logging.getLogger(__name__)
+
+_RESIZE_COPIES = 4
+
+# Per pixel, what a gradient fill peaks at: its coordinate grids and ramp
+# planes outweigh the float32 colour it returns.
+GRADIENT_FILL_BYTES = 128
 
 
 # The modes whose color array is a single channel, so a descriptor color has to
@@ -346,11 +353,33 @@ def draw_pattern_fill(
     panel = numpy_io.get_pattern(pattern)
     assert panel.shape[0] > 0
 
+    # The scale is the file's, so the panel it sizes and the tiling of that
+    # panel across the viewport are both checked before they are allocated.
+    budget = getattr(psd, "_max_alloc_bytes", None)
     scale = float(desc.get(Key.Scale, 100.0)) / 100.0
     if scale != 1.0:
-        new_shape = (
-            max(1, int(panel.shape[0] * scale)),
-            max(1, int(panel.shape[1] * scale)),
+        try:
+            new_shape = (
+                max(1, int(panel.shape[0] * scale)),
+                max(1, int(panel.shape[1] * scale)),
+            )
+        except OverflowError as error:
+            raise ValueError("Pattern scale is not finite.") from error
+        # resize() holds intermediates beside its output.
+        check_pixel_size(
+            new_shape[1],
+            new_shape[0],
+            panel.shape[2],
+            budget,
+            estimated_bytes=(
+                new_shape[0]
+                * new_shape[1]
+                * panel.shape[2]
+                * panel.dtype.itemsize
+                * _RESIZE_COPIES
+                + panel.nbytes
+            ),
+            warn=False,
         )
         panel = resize(panel, new_shape)
 
@@ -360,6 +389,21 @@ def draw_pattern_fill(
         int(np.ceil(float(width) / panel.shape[1])),
         1,
     )
+    if reps[0] > 0 and reps[1] > 0:
+        tiled = (reps[0] * panel.shape[0], reps[1] * panel.shape[1])
+        # The limit is on the viewport; the tile is rounded up past it.
+        check_pixel_size(
+            width,
+            height,
+            panel.shape[2],
+            budget,
+            # The panel stays live while it is tiled.
+            estimated_bytes=(
+                tiled[0] * tiled[1] * panel.shape[2] * panel.dtype.itemsize
+                + panel.nbytes
+            ),
+            warn=False,
+        )
     # Taken from the pattern's own slot layout rather than from its color mode.
     # A mode-keyed count is only ever right by coincidence -- when the mode's
     # constant happens to equal the width this pattern stored -- and

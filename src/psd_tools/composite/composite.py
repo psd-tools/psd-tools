@@ -198,7 +198,10 @@ def _stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
         return bbox
     for effect in _readable(layer, "stroke"):
         try:
-            bbox = utils.union_bbox(bbox, stroke_bbox(layer.bbox, effect.descriptor))
+            bbox = utils.union_bbox(
+                bbox,
+                stroke_bbox(layer.bbox, effect.descriptor, layer._psd._max_alloc_bytes),
+            )
         except _UNREADABLE as error:
             logger.debug("Cannot measure a stroke effect of %s: %s", layer, error)
     return bbox
@@ -589,8 +592,8 @@ def composite(
     # through its palette -- without loosening the ones whose header count is
     # the larger of the pair.
     # It bounds the canvas, not everything downstream: each stored-pixel read is
-    # guarded on its own by `Layer.numpy()`, but the redrawn-fill and stroke
-    # canvases are built at layer size outside that guard.
+    # guarded on its own by `Layer.numpy()`, and the canvases a descriptor's size
+    # grows -- stroke effect, vector stroke, pattern scale -- on their own.
     # This keeps the returned-size spelling of the estimate where the two
     # image-data paths moved to a modelled peak (#767), and not for want of
     # trying: what follows this guard grows with the layer count, so there is no
@@ -1973,11 +1976,30 @@ class Compositor(object):
         if layer.stroke is None:
             raise ValueError("Layer does not have stroke data.")
         desc = layer.stroke._data
-        width = int(desc.get("strokeStyleLineWidth", 1.0))
+        try:
+            width = int(desc.get("strokeStyleLineWidth", 1.0))
+        except OverflowError as error:
+            raise ValueError("Stroke width is not finite.") from error
         fill_bbox = cast(
             tuple[int, int, int, int],
             tuple(x + d for x, d in zip(layer.bbox, (-width, -width, width, width))),
         )
+        # The width is the file's, and it grows the box the fill is drawn on.
+        if fill_bbox[0] < fill_bbox[2] and fill_bbox[1] < fill_bbox[3]:
+            check_pixel_size(
+                fill_bbox[2] - fill_bbox[0],
+                fill_bbox[3] - fill_bbox[1],
+                self.channels,
+                layer._psd._max_alloc_bytes,
+                estimated_bytes=(fill_bbox[2] - fill_bbox[0])
+                * (fill_bbox[3] - fill_bbox[1])
+                * (
+                    paint.GRADIENT_FILL_BYTES
+                    if desc.get("strokeStyleContent").classID == b"gradientLayer"
+                    else self.channels * 4
+                ),
+                warn=False,
+            )
         color, _ = paint.create_fill_desc(
             layer, desc.get("strokeStyleContent"), fill_bbox
         )
@@ -2184,7 +2206,9 @@ class Compositor(object):
                 # Effect must happen at the layer viewport, grown so an outset
                 # or centered stroke has room for the part of itself that
                 # falls outside the layer (#792).
-                bbox = stroke_bbox(layer.bbox, effect.descriptor)
+                bbox = stroke_bbox(
+                    layer.bbox, effect.descriptor, layer._psd._max_alloc_bytes
+                )
             except _UNREADABLE as error:
                 logger.debug("Cannot measure a stroke effect of %s: %s", layer, error)
                 continue

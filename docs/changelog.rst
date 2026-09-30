@@ -7,8 +7,13 @@ Changelog
 - [api] ``max_alloc_bytes`` now bounds each ``Layer.numpy()`` and
   ``Layer.topil()`` read, and so the stored-pixel reads of ``composite()``,
   at the layer's own size. A layer larger than the canvas that used to read
-  unchecked is now rejected over budget. Redrawn-fill and stroke canvases are
-  not covered (#842)
+  unchecked is now rejected over budget. Solid and gradient fills drawn at a
+  layer's own box are not covered (#842)
+- [security] ``composite()`` now checks the canvases that a stroke effect's
+  size, a vector stroke's width or a pattern fill's scale grow, against the
+  per-axis limit and ``max_alloc_bytes``. Without a budget only the per-axis
+  limit applies; set ``max_alloc_bytes`` when compositing untrusted files
+  (#920)
 - [fix] A layer over 30,000 px on an axis now raises ``ValueError`` from
   ``Layer.numpy()`` / ``Layer.topil()`` instead of allocating (#842)
 - [fix] Parser internals and normal control flow no longer log at INFO when
