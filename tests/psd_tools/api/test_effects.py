@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Iterator
+from typing import Any, Iterator
 
 import pytest
 
@@ -598,12 +598,49 @@ def test_effect_enums_are_members_that_still_equal_the_raw_code() -> None:
     assert gradients[0].type is GradientType.LINEAR
 
 
+@pytest.mark.parametrize(
+    "index, effect_cls, prop, key",
+    [
+        (10, effects.Stroke, "position", Key.Style),
+        (10, effects.Stroke, "fill_type", Key.PaintType),
+        (3, effects.OuterGlow, "glow_type", Key.GlowTechnique),
+        (4, effects.InnerGlow, "glow_source", Key.InnerGlowSource),
+        (1, effects.BevelEmboss, "bevel_type", Key.BevelTechnique),
+        (1, effects.BevelEmboss, "bevel_style", Key.BevelStyle),
+        (1, effects.BevelEmboss, "direction", Key.BevelDirection),
+    ],
+)
 def test_an_unrecognised_effect_enum_reads_as_none(
     caplog: pytest.LogCaptureFixture,
+    index: int,
+    effect_cls: type,
+    prop: str,
+    key: Key,
 ) -> None:
-    stroke = PSDImage.open(full_name("layer_effects.psd"))[10].effects[0]
-    assert isinstance(stroke, effects.Stroke)
-    stroke.descriptor[Key.Style].enum = b"nope"
+    effect = PSDImage.open(full_name("layer_effects.psd"))[index].effects[0]
+    assert isinstance(effect, effect_cls)
+    assert getattr(effect, prop) is not None
+    effect.descriptor[key].enum = b"nope"
     with caplog.at_level(logging.DEBUG, logger="psd_tools.api._descriptor"):
-        assert stroke.position is None
-    assert "StrokePosition" in caplog.text
+        assert getattr(effect, prop) is None
+    assert "Cannot read" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "enum_cls",
+    [
+        BevelDirection,
+        BevelStyle,
+        BevelTechnique,
+        GlowSource,
+        GlowTechnique,
+        GradientType,
+        StrokeFillType,
+        StrokePosition,
+    ],
+)
+def test_effect_enum_codes_match_the_terminology(enum_cls: Any) -> None:
+    for member in enum_cls:
+        if member is GradientType.SHAPE_BURST:
+            continue
+        assert Enum(member.value)

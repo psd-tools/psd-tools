@@ -33,9 +33,10 @@ Changelog
   as that property's default instead of raising or counting as true (#789)
 - [api] An effect's ``type``, ``position``, ``fill_type``, ``glow_type``,
   ``glow_source``, ``bevel_type``, ``bevel_style`` and ``direction`` now return
-  members of new ``psd_tools.constants`` enums, which still equal the raw
-  ``bytes`` code. ``GradientFill.gradient_kind`` gives ``None`` where it
-  raised, and so does an unrecognised effect value (#789)
+  members of new ``psd_tools.constants`` enums, which still equal and hash as
+  the raw ``bytes`` code. **Backwards incompatible:** an unrecognised value
+  gives ``None`` (was the bytes), and ``str()`` / ``repr()`` change.
+  ``GradientFill.gradient_kind`` gives ``None`` where it raised (#789)
 
 1.21.0 (2026-09-28)
 -------------------

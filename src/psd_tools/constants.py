@@ -536,6 +536,7 @@ class GradientType(bytes, Enum):
     ANGLE = b"Angl"
     REFLECTED = b"Rflc"
     DIAMOND = b"Dmnd"
+    SHAPE_BURST = b"shapeburst"  # Stroke effect only; not in the terminology.
 
 
 class StrokeFillType(bytes, Enum):
