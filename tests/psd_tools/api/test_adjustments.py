@@ -5,6 +5,7 @@ import pytest
 from psd_tools.api import adjustments
 from psd_tools.api.adjustments import GradientFill, PatternFill, SolidColorFill
 from psd_tools.api.psd_image import PSDImage
+from psd_tools.psd.descriptor import Descriptor, Integer, String
 
 from ..utils import full_name
 
@@ -105,6 +106,30 @@ def test_black_and_white(psd: PSDImage) -> None:
     assert layer.tint_color
     assert layer.preset_kind == 1
     assert layer.preset_file_name == ""
+
+
+def test_an_unreadable_adjustment_value_degrades_to_the_default(
+    psd: PSDImage,
+) -> None:
+    layer = psd[11]
+    assert isinstance(layer, adjustments.BlackAndWhite)
+    layer._data = Descriptor(
+        items={  # type: ignore[arg-type]
+            b"Rd  ": String("x"),
+            b"useTint": String("y"),
+            b"Yllw": Integer(5),
+        }
+    )
+    assert layer.red == 40
+    assert layer.use_tint is False
+    assert layer.yellow == 5
+
+
+def test_an_unreadable_gradient_angle_is_none() -> None:
+    layer = PSDImage.open(full_name("layers/gradient-fill.psd"))[0]
+    assert isinstance(layer, GradientFill)
+    layer._data = Descriptor(items={b"Angl": String("x")})  # type: ignore[arg-type]
+    assert layer.angle is None
 
 
 def test_photo_filter(psd: PSDImage) -> None:

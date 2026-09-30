@@ -13,6 +13,7 @@ Example::
 import logging
 from typing import Any, TypeVar
 
+from psd_tools.api._descriptor import get_scalar
 from psd_tools.api.layers import AdjustmentLayer, FillLayer
 from psd_tools.constants import Tag
 from psd_tools.psd.adjustments import Curves as CurvesData
@@ -64,8 +65,8 @@ class GradientFill(FillLayer):
     """Gradient fill."""
 
     @property
-    def angle(self) -> float:
-        return float(_assert_data(self._data).get(b"Angl"))
+    def angle(self) -> float | None:
+        return get_scalar(self._data, b"Angl", float, None)
 
     @property
     def gradient_kind(self) -> str:
@@ -96,31 +97,31 @@ class BrightnessContrast(AdjustmentLayer):
 
     @property
     def brightness(self) -> int:
-        return int(_assert_data(self._data).get(b"Brgh", 0))
+        return get_scalar(self._data, b"Brgh", int, 0)
 
     @property
     def contrast(self) -> int:
-        return int(_assert_data(self._data).get(b"Cntr", 0))
+        return get_scalar(self._data, b"Cntr", int, 0)
 
     @property
     def mean(self) -> int:
-        return int(_assert_data(self._data).get(b"means", 0))
+        return get_scalar(self._data, b"means", int, 0)
 
     @property
     def lab(self) -> bool:
-        return bool(_assert_data(self._data).get(b"Lab ", False))
+        return get_scalar(self._data, b"Lab ", bool, False)
 
     @property
     def use_legacy(self) -> bool:
-        return bool(_assert_data(self._data).get(b"useLegacy", False))
+        return get_scalar(self._data, b"useLegacy", bool, False)
 
     @property
     def vrsn(self) -> int:
-        return int(_assert_data(self._data).get(b"Vrsn", 1))
+        return get_scalar(self._data, b"Vrsn", int, 1)
 
     @property
     def automatic(self) -> bool:
-        return bool(_assert_data(self._data).get(b"auto", False))
+        return get_scalar(self._data, b"auto", bool, False)
 
 
 @register(Tag.CURVES)
@@ -208,7 +209,7 @@ class Vibrance(AdjustmentLayer):
 
         :return: `int`
         """
-        return int(_assert_data(self._data).get(b"vibrance", 0))
+        return get_scalar(self._data, b"vibrance", int, 0)
 
     @property
     def saturation(self) -> int:
@@ -216,7 +217,7 @@ class Vibrance(AdjustmentLayer):
 
         :return: `int`
         """
-        return int(_assert_data(self._data).get(b"Strt", 0))
+        return get_scalar(self._data, b"Strt", int, 0)
 
 
 @register(Tag.HUE_SATURATION)
@@ -304,31 +305,31 @@ class BlackAndWhite(AdjustmentLayer):
 
     @property
     def red(self) -> int:
-        return int(_assert_data(self._data).get(b"Rd  ", 40))
+        return get_scalar(self._data, b"Rd  ", int, 40)
 
     @property
     def yellow(self) -> int:
-        return int(_assert_data(self._data).get(b"Yllw", 60))
+        return get_scalar(self._data, b"Yllw", int, 60)
 
     @property
     def green(self) -> int:
-        return int(_assert_data(self._data).get(b"Grn ", 40))
+        return get_scalar(self._data, b"Grn ", int, 40)
 
     @property
     def cyan(self) -> int:
-        return int(_assert_data(self._data).get(b"Cyn ", 60))
+        return get_scalar(self._data, b"Cyn ", int, 60)
 
     @property
     def blue(self) -> int:
-        return int(_assert_data(self._data).get(b"Bl  ", 20))
+        return get_scalar(self._data, b"Bl  ", int, 20)
 
     @property
     def magenta(self) -> int:
-        return int(_assert_data(self._data).get(b"Mgnt", 80))
+        return get_scalar(self._data, b"Mgnt", int, 80)
 
     @property
     def use_tint(self) -> bool:
-        return bool(_assert_data(self._data).get(b"useTint", False))
+        return get_scalar(self._data, b"useTint", bool, False)
 
     @property
     def tint_color(self) -> Descriptor | None:
@@ -336,11 +337,11 @@ class BlackAndWhite(AdjustmentLayer):
 
     @property
     def preset_kind(self) -> int:
-        return int(_assert_data(self._data).get(b"bwPresetKind", 1))
+        return get_scalar(self._data, b"bwPresetKind", int, 1)
 
     @property
     def preset_file_name(self) -> str:
-        value = _assert_data(self._data).get(b"blackAndWhitePresetFileName", "") + ""
+        value = get_scalar(self._data, b"blackAndWhitePresetFileName", str, "")
         return value.strip("\x00")
 
 
