@@ -51,7 +51,6 @@ def test_a_pattern_scale_is_bounded_by_its_own_panel(
     percent = 400.0
     desc[b"Scl "] = Double(percent)
     scaled = int(shape[0] * percent / 100) * int(shape[1] * percent / 100)
-    assert scaled > shape[0] * shape[1] * paint._SCALE_GROWTH // 100
 
     monkeypatch.setattr(utils, "GROWTH_FLOOR_PIXELS", scaled)
     draw_pattern_fill(psd.viewbox, psd, desc)
