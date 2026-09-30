@@ -1579,6 +1579,11 @@ class Compositor(object):
             )
             return
 
+        # No block to apply, so nothing to blend either; a neutral one still blends.
+        if layer._data is None:
+            logger.debug("Adjustment layer without data: %s", layer.kind)
+            return
+
         backdrop_color = self._color
         transformed_color = adjustment_fn(backdrop_color, colormode, layer)
 
@@ -1586,11 +1591,6 @@ class Compositor(object):
             transformed_color = self._apply_clip_layers(
                 layer, transformed_color, self._alpha
             )
-
-        # An adjustment that returns its input changes nothing, whatever the
-        # blend mode.
-        if transformed_color is backdrop_color:
-            return
 
         shape_mask = self._get_mask(layer)
         shape_const, opacity_const = self._get_const(layer)
