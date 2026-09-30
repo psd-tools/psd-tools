@@ -106,7 +106,10 @@ class Effects:
                 value = [value]
             for item in value:
                 # Keep only present effects.
-                if not (isinstance(item, Descriptor) and item.get(b"present")):
+                if not (
+                    isinstance(item, Descriptor)
+                    and get_scalar(item, b"present", bool, False)
+                ):
                     continue
                 kls = _TYPES.get(item.classID)
                 if kls is None:

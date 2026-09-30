@@ -367,6 +367,20 @@ def test_a_block_listing_nothing_is_not_effects() -> None:
     assert layer.has_effects(enabled=False, name="BevelEmboss") is False
 
 
+def test_a_malformed_present_flag_lists_no_effect() -> None:
+    """The fx list and ``Effect.present`` read the flag the same way."""
+    layer = PSDImage.open(full_name("effects/outside-stroke.psd"))[0]
+    block = _effects_block(layer)
+    assert block is not None
+    entries = [block[key] for key in block if isinstance(block[key], Descriptor)]
+    assert len(layer.effects) > 0
+
+    for entry in entries:
+        entry[b"present"] = String("y")  # type: ignore[assignment]
+
+    assert len(layer.effects) == 0
+
+
 def test_effects_follows_a_block_attached_after_it_was_read() -> None:
     """The additive half of the live view: a block set later is seen.
 
