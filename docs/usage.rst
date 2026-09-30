@@ -199,6 +199,21 @@ Move layers into a newly created group, appended at the top of the document.
 
 Some operations are available for all ``Layer`` objects.
 
+Duplicate a layer directly above the original, or into a group in the same
+document::
+
+    copied_layer = layer.duplicate(name="Layer copy")
+    copied_group = group.duplicate(parent=target_group, index=0)
+
+:py:meth:`~psd_tools.api.layers.Layer.duplicate` copies a group's entire
+subtree, retaining layer types, pixel data, masks and layer metadata. The
+copy gets fresh layer IDs and can be edited independently. Smart-object
+contents and other document resources remain shared. The source stays in
+place. Cross-document duplication is not supported; a detached source needs
+an explicit destination parent. ``index`` follows Python list insertion
+rules. Without it, a copy goes immediately above its source in the same
+parent, or to the top of a different container.
+
 Delete a layer from its layer structure::
 
     group.remove(layer)

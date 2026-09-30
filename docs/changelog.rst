@@ -4,6 +4,10 @@ Changelog
 1.21.1 (unreleased)
 -------------------
 
+- [api] ``Layer.duplicate()`` copies a layer or nested group within its
+  document, with independent layer data and fresh IDs. It accepts a
+  destination, insertion index and name; smart-object contents and other
+  document resources remain shared (related to #882)
 - [api] ``max_alloc_bytes`` now bounds each ``Layer.numpy()`` and
   ``Layer.topil()`` read, and so the stored-pixel reads of ``composite()``,
   at the layer's own size. A layer larger than the canvas that used to read
