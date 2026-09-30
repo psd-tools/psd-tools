@@ -15,8 +15,8 @@ Changelog
   compositing untrusted files (#920)
 - [security] ``composite()`` now bounds descriptor-grown canvases without
   ``max_alloc_bytes``. A stroke effect's size above Photoshop's 250 px limit is
-  drawn at 250, and a vector stroke or pattern scale that grows its canvas far
-  past the layer or viewport raises ``ValueError`` (#921)
+  drawn at 250. A vector stroke far wider than its layer or the viewport, or a
+  pattern scaled far past 1,000% of its own size, raises ``ValueError`` (#921)
 - [fix] A layer over 30,000 px on an axis now raises ``ValueError`` from
   ``Layer.numpy()`` / ``Layer.topil()`` instead of allocating (#842)
 - [fix] Parser internals and normal control flow no longer log at INFO when
