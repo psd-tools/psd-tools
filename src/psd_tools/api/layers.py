@@ -85,6 +85,7 @@ and exposed through the ``kind`` property for easy type checking.
 import logging
 import operator
 import warnings
+from copy import deepcopy
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -1171,6 +1172,97 @@ class Layer(LayerProtocol):
         if not self._is_attached():
             raise ValueError(f"Layer {self} is not attached to a document")
 
+    def duplicate(
+        self,
+        parent: "GroupMixin | None" = None,
+        *,
+        index: int | None = None,
+        name: str | None = None,
+    ) -> Self:
+        """
+        Deep-copy this layer, including a group's descendants, in its document.
+
+        The copy retains its layer type, channels, masks and layer metadata,
+        with fresh layer IDs. Document resources such as smart-object contents
+        remain shared. No cached API wrappers are copied.
+
+        :param parent: Destination group or document. Defaults to this layer's
+            parent. A detached layer requires an explicit destination.
+        :param index: Insertion position, with Python list semantics. Defaults
+            to immediately above the source in the same parent, or the top of
+            another container.
+        :param name: Optional name for the copy's root layer.
+        :raises TypeError: If the destination, index or name has an invalid type.
+        :raises ValueError: If no destination is available, the destination is
+            in another document, or the name exceeds 255 characters.
+        :return: The inserted copy; the source remains in place.
+        """
+        if parent is None:
+            parent = cast("GroupMixin | None", self.parent)
+        if parent is None:
+            raise ValueError("A detached layer requires a destination parent")
+        if not isinstance(parent, GroupMixin):
+            raise TypeError("Parent must be a group or PSDImage")
+        if parent._psd is not self._psd:
+            raise ValueError("Cannot duplicate a layer into another document")
+        if index is None:
+            index = (
+                parent.index(self) + 1
+                if parent is self.parent and self in parent
+                else len(parent)
+            )
+        else:
+            index = operator.index(index)
+        if name is not None:
+            if not isinstance(name, str):
+                raise TypeError("Layer name must be a string")
+            if len(name) >= 256:
+                raise ValueError("Layer name too long (max 255 characters)")
+
+        # Reconstruct from records so lazy wrappers bind to the copy, without
+        # following parent or document references through deepcopy().
+        duplicate = self._duplicate(parent)
+        sources: list[LayerProtocol] = [*self._psd.descendants(), self]
+        if isinstance(self, Group):
+            sources.extend(self.descendants())
+        used_ids = {
+            record.tagged_blocks.get_data(Tag.LAYER_ID)
+            for layer in sources
+            for record in _layer_records(layer)
+            if Tag.LAYER_ID in record.tagged_blocks
+        }
+        copies: list[Layer] = [duplicate]
+        if isinstance(duplicate, Group):
+            copies.extend(duplicate.descendants())
+        next_id = 1
+        for layer in copies:
+            for record in _layer_records(layer):
+                if (
+                    record is not layer._record
+                    and Tag.LAYER_ID not in record.tagged_blocks
+                ):
+                    continue
+                while next_id in used_ids:
+                    next_id += 1
+                if next_id > 0xFFFFFFFF:
+                    raise ValueError("No unused layer IDs available")
+                record.tagged_blocks.set_data(Tag.LAYER_ID, next_id)
+                used_ids.add(next_id)
+                next_id += 1
+        if name is not None:
+            duplicate.name = name
+        parent.insert(index, duplicate)
+        return duplicate
+
+    def _duplicate(self, parent: "GroupMixin") -> Self:
+        """Build a detached copy of this subtree from its low-level records."""
+        duplicate = type(self)(parent, deepcopy(self._record), deepcopy(self._channels))
+        if isinstance(self, Group) and isinstance(duplicate, Group):
+            duplicate._bounding_record = deepcopy(self._bounding_record)
+            duplicate._bounding_channels = deepcopy(self._bounding_channels)
+            duplicate._layers = [child._duplicate(duplicate) for child in self]
+        return duplicate
+
     def delete_layer(self) -> Self:
         """
         Deprecated: Use layer.parent.remove(layer) instead.
@@ -1283,6 +1375,13 @@ class Layer(LayerProtocol):
         :return: self
         """
         return self.move_up(-1 * offset)
+
+
+def _layer_records(layer: LayerProtocol) -> Iterator[LayerRecord]:
+    """Yield a layer's record and, for groups, its closing divider record."""
+    yield layer._record
+    if isinstance(layer, Group) and layer._bounding_record is not None:
+        yield layer._bounding_record
 
 
 def _invalidate_moved_bbox(layer: Layer) -> None:
