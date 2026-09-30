@@ -28,30 +28,74 @@ from __future__ import annotations
 import bisect
 import logging
 from itertools import groupby
-from typing import Any, Iterator
+from typing import Any, Iterator, TypeVar, overload
 
 from enum import IntEnum
 
+from psd_tools.api._descriptor import coerce_scalar, get_scalar
 from psd_tools.constants import FontBaseline, FontCaps, Justification, WritingDirection
 from psd_tools.psd import engine_data
 
 logger = logging.getLogger(__name__)
 
 
+_S = TypeVar("_S", int, float, bool, str)
+_Style = engine_data.Dict | dict[str, Any] | None
+
+
 def _safe_enum(
-    enum_cls: type[IntEnum], value: Any, default: IntEnum | None = None
+    enum_cls: type[IntEnum], value: int, default: IntEnum | None = None
 ) -> Any:
     """Convert a value to an IntEnum member, returning *default* on failure."""
     try:
-        return enum_cls(int(value))
+        return enum_cls(value)
     except (ValueError, KeyError):
         logger.debug("Unknown %s value: %r", enum_cls.__name__, value)
         return default
 
 
-def _val(obj: Any) -> Any:
-    """Unwrap engine_data ValueElement objects to their plain Python value."""
-    return getattr(obj, "value", obj)
+def _raw(data: _Style, default: _Style, key: str) -> Any:
+    """The first non-None entry for *key* in the run data, then the default style."""
+    for layer in (data, default):
+        value = layer.get(key) if layer else None
+        if value is not None:
+            return value
+    return None
+
+
+@overload
+def _scalar(
+    data: _Style, default: _Style, key: str, type_: type[_S], fallback: None
+) -> _S | None: ...
+@overload
+def _scalar(
+    data: _Style, default: _Style, key: str, type_: type[_S], fallback: _S
+) -> _S: ...
+def _scalar(
+    data: _Style, default: _Style, key: str, type_: type[_S], fallback: _S | None
+) -> _S | None:
+    """Read *key* as a plain *type_*, from the run data and then the default style."""
+    for layer in (data, default):
+        value = get_scalar(layer, key, type_, None)
+        if value is not None:
+            return value
+    return fallback
+
+
+def _triple(
+    raw: Any, default: tuple[float, float, float]
+) -> tuple[float, float, float]:
+    """Read a (min, desired, max) list, each missing or unreadable part defaulting."""
+    try:
+        items = list(raw)
+    except TypeError:
+        return default
+    items += [None] * (3 - len(items))
+    return (
+        coerce_scalar(items[0], float, default[0]),
+        coerce_scalar(items[1], float, default[1]),
+        coerce_scalar(items[2], float, default[2]),
+    )
 
 
 def _color_tuple(color_data: Any) -> tuple[float, ...] | None:
@@ -64,7 +108,10 @@ def _color_tuple(color_data: Any) -> tuple[float, ...] | None:
     values = color_data.get("Values")
     if values is None:
         return None
-    return tuple(_val(v) for v in values)
+    parts = tuple(coerce_scalar(v, float, None, "Values") for v in values)
+    if None in parts:
+        return None
+    return parts  # type: ignore[return-value]
 
 
 class FontInfo:
@@ -91,32 +138,27 @@ class FontInfo:
     @property
     def postscript_name(self) -> str:
         """PostScript name of the font."""
-        name = self._data.get("Name")
-        return str(_val(name)) if name is not None else ""
+        return get_scalar(self._data, "Name", str, "")
 
     @property
     def family(self) -> str:
         """Font family name, or empty string if unavailable."""
-        val = self._data.get("FontFamily")
-        return str(_val(val)) if val is not None else ""
+        return get_scalar(self._data, "FontFamily", str, "")
 
     @property
     def style(self) -> str:
         """Font style (e.g. 'Bold', 'Italic'), or empty string."""
-        val = self._data.get("FontStyle")
-        return str(_val(val)) if val is not None else ""
+        return get_scalar(self._data, "FontStyle", str, "")
 
     @property
     def font_type(self) -> int:
         """Font type identifier."""
-        val = self._data.get("FontType")
-        return int(_val(val)) if val is not None else 0
+        return get_scalar(self._data, "FontType", int, 0)
 
     @property
     def synthetic(self) -> bool:
         """Whether the font is synthetic."""
-        val = self._data.get("Synthetic")
-        return bool(_val(val)) if val is not None else False
+        return get_scalar(self._data, "Synthetic", bool, False)
 
     def __repr__(self) -> str:
         return (
@@ -143,29 +185,11 @@ class CharacterStyle:
         self._fonts = fonts
         self._default = default
 
-    def _get(self, key: str, fallback: Any = None) -> Any:
-        """Get value from run data, falling back to default style."""
-        value = self._data.get(key) if self._data else None
-        if value is not None:
-            return _val(value)
-        if self._default:
-            value = self._default.get(key)
-            if value is not None:
-                return _val(value)
-        return fallback
-
     @property
     def font(self) -> FontInfo | None:
         """The :py:class:`FontInfo` object for this run's font."""
-        idx = self._get("Font")
-        if idx is None:
-            return None
-        try:
-            idx = int(idx)
-        except (TypeError, ValueError):
-            logger.debug("Invalid font index %r in CharacterStyle.", idx)
-            return None
-        if 0 <= idx < len(self._fonts):
+        idx = _scalar(self._data, self._default, "Font", int, None)
+        if idx is not None and 0 <= idx < len(self._fonts):
             return self._fonts[idx]
         return None
 
@@ -178,7 +202,7 @@ class CharacterStyle:
     @property
     def font_size(self) -> float:
         """Font size in points."""
-        return float(self._get("FontSize", 12.0))
+        return _scalar(self._data, self._default, "FontSize", float, 12.0)
 
     @property
     def fill_color(self) -> tuple[float, ...] | None:
@@ -205,104 +229,110 @@ class CharacterStyle:
     @property
     def fill_flag(self) -> bool:
         """Whether fill is enabled."""
-        return bool(self._get("FillFlag", True))
+        return _scalar(self._data, self._default, "FillFlag", bool, True)
 
     @property
     def stroke_flag(self) -> bool:
         """Whether stroke is enabled."""
-        return bool(self._get("StrokeFlag", False))
+        return _scalar(self._data, self._default, "StrokeFlag", bool, False)
 
     @property
     def faux_bold(self) -> bool:
         """Whether faux bold is enabled."""
-        return bool(self._get("FauxBold", False))
+        return _scalar(self._data, self._default, "FauxBold", bool, False)
 
     @property
     def faux_italic(self) -> bool:
         """Whether faux italic is enabled."""
-        return bool(self._get("FauxItalic", False))
+        return _scalar(self._data, self._default, "FauxItalic", bool, False)
 
     @property
     def underline(self) -> bool:
         """Whether underline is enabled."""
-        return bool(self._get("Underline", False))
+        return _scalar(self._data, self._default, "Underline", bool, False)
 
     @property
     def strikethrough(self) -> bool:
         """Whether strikethrough is enabled."""
-        return bool(self._get("Strikethrough", False))
+        return _scalar(self._data, self._default, "Strikethrough", bool, False)
 
     @property
     def ligatures(self) -> bool:
         """Whether ligatures are enabled."""
-        return bool(self._get("Ligatures", True))
+        return _scalar(self._data, self._default, "Ligatures", bool, True)
 
     @property
     def font_caps(self) -> FontCaps:
         """Font capitalization style."""
-        return _safe_enum(FontCaps, self._get("FontCaps", 0), FontCaps.NORMAL)
+        return _safe_enum(
+            FontCaps,
+            _scalar(self._data, self._default, "FontCaps", int, 0),
+            FontCaps.NORMAL,
+        )
 
     @property
     def font_baseline(self) -> FontBaseline:
         """Font baseline position."""
         return _safe_enum(
-            FontBaseline, self._get("FontBaseline", 0), FontBaseline.NORMAL
+            FontBaseline,
+            _scalar(self._data, self._default, "FontBaseline", int, 0),
+            FontBaseline.NORMAL,
         )
 
     @property
     def tracking(self) -> int:
         """Tracking (letter spacing adjustment)."""
-        return int(self._get("Tracking", 0))
+        return _scalar(self._data, self._default, "Tracking", int, 0)
 
     @property
     def auto_kerning(self) -> bool:
         """Whether auto kerning is enabled."""
-        return bool(self._get("AutoKern", True))
+        return _scalar(self._data, self._default, "AutoKern", bool, True)
 
     @property
     def kerning(self) -> int:
         """Manual kerning value."""
-        return int(self._get("Kerning", 0))
+        return _scalar(self._data, self._default, "Kerning", int, 0)
 
     @property
     def baseline_shift(self) -> float:
         """Baseline shift in points."""
-        return float(self._get("BaselineShift", 0.0))
+        return _scalar(self._data, self._default, "BaselineShift", float, 0.0)
 
     @property
     def horizontal_scale(self) -> float:
         """Horizontal scale (1.0 = 100%)."""
-        return float(self._get("HorizontalScale", 1.0))
+        return _scalar(self._data, self._default, "HorizontalScale", float, 1.0)
 
     @property
     def vertical_scale(self) -> float:
         """Vertical scale (1.0 = 100%)."""
-        return float(self._get("VerticalScale", 1.0))
+        return _scalar(self._data, self._default, "VerticalScale", float, 1.0)
 
     @property
     def auto_leading(self) -> bool:
         """Whether auto leading is enabled."""
-        return bool(self._get("AutoLeading", True))
+        return _scalar(self._data, self._default, "AutoLeading", bool, True)
 
     @property
     def leading(self) -> float:
         """Leading (line spacing) value."""
-        return float(self._get("Leading", 0.0))
+        return _scalar(self._data, self._default, "Leading", float, 0.0)
 
     @property
     def no_break(self) -> bool:
         """Whether no-break is enabled."""
-        return bool(self._get("NoBreak", False))
+        return _scalar(self._data, self._default, "NoBreak", bool, False)
 
     @property
     def tsume(self) -> float:
         """Tsume value for CJK character tightening (0.0-1.0)."""
-        return float(self._get("Tsume", 0.0))
+        return _scalar(self._data, self._default, "Tsume", float, 0.0)
 
     @property
     def language(self) -> int:
         """Language identifier."""
-        return int(self._get("Language", 0))
+        return _scalar(self._data, self._default, "Language", int, 0)
 
     def __repr__(self) -> str:
         return (
@@ -326,92 +356,76 @@ class ParagraphStyle:
         self._data = data
         self._default = default
 
-    def _get(self, key: str, fallback: Any = None) -> Any:
-        """Get value from paragraph data, falling back to default."""
-        value = self._data.get(key) if self._data else None
-        if value is not None:
-            return _val(value)
-        if self._default:
-            value = self._default.get(key)
-            if value is not None:
-                return _val(value)
-        return fallback
-
     @property
     def justification(self) -> Justification:
         """Text justification / alignment."""
         return _safe_enum(
-            Justification, self._get("Justification", 0), Justification.LEFT
+            Justification,
+            _scalar(self._data, self._default, "Justification", int, 0),
+            Justification.LEFT,
         )
 
     @property
     def first_line_indent(self) -> float:
         """First line indent in points."""
-        return float(self._get("FirstLineIndent", 0.0))
+        return _scalar(self._data, self._default, "FirstLineIndent", float, 0.0)
 
     @property
     def start_indent(self) -> float:
         """Start (left) indent in points."""
-        return float(self._get("StartIndent", 0.0))
+        return _scalar(self._data, self._default, "StartIndent", float, 0.0)
 
     @property
     def end_indent(self) -> float:
         """End (right) indent in points."""
-        return float(self._get("EndIndent", 0.0))
+        return _scalar(self._data, self._default, "EndIndent", float, 0.0)
 
     @property
     def space_before(self) -> float:
         """Space before paragraph in points."""
-        return float(self._get("SpaceBefore", 0.0))
+        return _scalar(self._data, self._default, "SpaceBefore", float, 0.0)
 
     @property
     def space_after(self) -> float:
         """Space after paragraph in points."""
-        return float(self._get("SpaceAfter", 0.0))
+        return _scalar(self._data, self._default, "SpaceAfter", float, 0.0)
 
     @property
     def auto_hyphenate(self) -> bool:
         """Whether auto-hyphenation is enabled."""
-        return bool(self._get("AutoHyphenate", False))
+        return _scalar(self._data, self._default, "AutoHyphenate", bool, False)
 
     @property
     def auto_leading(self) -> float:
         """Auto leading scale (typically 1.2)."""
-        return float(self._get("AutoLeading", 1.2))
+        return _scalar(self._data, self._default, "AutoLeading", float, 1.2)
 
     @property
     def leading_type(self) -> int:
         """Leading type identifier."""
-        return int(self._get("LeadingType", 0))
+        return _scalar(self._data, self._default, "LeadingType", int, 0)
 
     @property
     def word_spacing(self) -> tuple[float, float, float]:
         """Word spacing as (min, desired, max)."""
-        ws = self._get("WordSpacing")
-        if ws is None:
-            return (1.0, 1.0, 2.0)
-        return (float(_val(ws[0])), float(_val(ws[1])), float(_val(ws[2])))
+        return _triple(_raw(self._data, self._default, "WordSpacing"), (1.0, 1.0, 2.0))
 
     @property
     def letter_spacing(self) -> tuple[float, float, float]:
         """Letter spacing as (min, desired, max)."""
-        ls = self._get("LetterSpacing")
-        if ls is None:
-            return (0.0, 0.0, 0.05)
-        return (float(_val(ls[0])), float(_val(ls[1])), float(_val(ls[2])))
+        return _triple(
+            _raw(self._data, self._default, "LetterSpacing"), (0.0, 0.0, 0.05)
+        )
 
     @property
     def glyph_spacing(self) -> tuple[float, float, float]:
         """Glyph spacing as (min, desired, max)."""
-        gs = self._get("GlyphSpacing")
-        if gs is None:
-            return (1.0, 1.0, 1.0)
-        return (float(_val(gs[0])), float(_val(gs[1])), float(_val(gs[2])))
+        return _triple(_raw(self._data, self._default, "GlyphSpacing"), (1.0, 1.0, 1.0))
 
     @property
     def every_line_composer(self) -> bool:
         """Whether Adobe multi-line composer is enabled."""
-        return bool(self._get("EveryLineComposer", False))
+        return _scalar(self._data, self._default, "EveryLineComposer", bool, False)
 
     def __repr__(self) -> str:
         return f"ParagraphStyle(justification={self.justification.name})"
@@ -532,6 +546,18 @@ class Paragraph:
         return f"Paragraph({self._text!r}, runs={len(self._runs)})"
 
 
+def _lengths(raw: Any) -> list[int]:
+    """Read a ``RunLengthArray``; a malformed one is empty, as if absent."""
+    try:
+        items = list(raw) if raw else []
+    except TypeError:
+        return []
+    lengths = [coerce_scalar(v, int, None, "RunLengthArray") for v in items]
+    if None in lengths:
+        return []
+    return lengths  # type: ignore[return-value]
+
+
 class _RunLengthIndex:
     """Map character indices to run indices using a run length array.
 
@@ -544,11 +570,11 @@ class _RunLengthIndex:
         rli(6)  # -> 2
     """
 
-    def __init__(self, run_length_array: list[Any]) -> None:
+    def __init__(self, run_length_array: list[int]) -> None:
         self._boundaries: list[int] = []
         cumulative = 0
         for length in run_length_array:
-            cumulative += int(_val(length))
+            cumulative += length
             self._boundaries.append(cumulative)
 
     @property
@@ -623,8 +649,8 @@ class TypeSetting:
         # Character default: resolve via StyleSheetSet + TheNormalStyleSheet index
         style_sheet_set = self._resource_dict.get("StyleSheetSet")
         normal_ss_index = self._resource_dict.get("TheNormalStyleSheet")
-        if style_sheet_set and normal_ss_index is not None:
-            idx = int(_val(normal_ss_index))
+        idx = coerce_scalar(normal_ss_index, int, None, "TheNormalStyleSheet")
+        if style_sheet_set and idx is not None:
             if 0 <= idx < len(style_sheet_set):
                 default_char_data = style_sheet_set[idx].get("StyleSheetData", {})
             else:
@@ -636,8 +662,8 @@ class TypeSetting:
         # Paragraph default: resolve via ParagraphSheetSet + TheNormalParagraphSheet
         para_sheet_set = self._resource_dict.get("ParagraphSheetSet")
         normal_ps_index = self._resource_dict.get("TheNormalParagraphSheet")
-        if para_sheet_set and normal_ps_index is not None:
-            idx = int(_val(normal_ps_index))
+        idx = coerce_scalar(normal_ps_index, int, None, "TheNormalParagraphSheet")
+        if para_sheet_set and idx is not None:
             if 0 <= idx < len(para_sheet_set):
                 default_para_data = para_sheet_set[idx].get("Properties", {})
             else:
@@ -653,7 +679,7 @@ class TypeSetting:
     ) -> tuple[TextRun, ...]:
         text = self._text
         style_run = self._engine_dict.get("StyleRun", {})
-        run_lengths = style_run.get("RunLengthArray", [])
+        run_lengths = _lengths(style_run.get("RunLengthArray"))
         run_array = style_run.get("RunArray", [])
 
         if not run_lengths:
@@ -666,7 +692,7 @@ class TypeSetting:
         runs: list[TextRun] = []
         pos = 0
         for i in range(len(run_lengths)):
-            length = int(_val(run_lengths[i]))
+            length = run_lengths[i]
             end = pos + length
             if pos >= len(text):
                 break
@@ -686,11 +712,11 @@ class TypeSetting:
     ) -> tuple[Paragraph, ...]:
         text = self._text
         style_run = self._engine_dict.get("StyleRun", {})
-        run_lengths = style_run.get("RunLengthArray", [])
+        run_lengths = _lengths(style_run.get("RunLengthArray"))
         run_array = style_run.get("RunArray", [])
 
         para_run = self._engine_dict.get("ParagraphRun", {})
-        para_lengths = para_run.get("RunLengthArray", [])
+        para_lengths = _lengths(para_run.get("RunLengthArray"))
         para_array = para_run.get("RunArray", [])
 
         if not (para_lengths and para_array):
@@ -769,10 +795,8 @@ class TypeSetting:
     def _parse_writing_direction(self) -> WritingDirection | None:
         rendered = self._engine_dict.get("Rendered", {})
         shapes = rendered.get("Shapes", {}) if rendered else {}
-        wd = shapes.get("WritingDirection") if shapes else None
-        if wd is not None:
-            return _safe_enum(WritingDirection, _val(wd), None)
-        return None
+        wd = get_scalar(shapes, "WritingDirection", int, None)
+        return None if wd is None else _safe_enum(WritingDirection, wd, None)
 
     @property
     def text(self) -> str:

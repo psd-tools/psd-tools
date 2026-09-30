@@ -6,7 +6,7 @@ import logging
 import math
 from enum import Enum
 from numbers import Real
-from typing import Any, TypeVar, overload
+from typing import Any, Mapping, TypeVar, overload
 
 from psd_tools.psd.base import DictElement
 
@@ -16,20 +16,20 @@ _S = TypeVar("_S", int, float, bool, str)
 _E = TypeVar("_E", bound=Enum)
 
 
-def _lookup(data: DictElement | None, key: bytes) -> Any:
+_Data = DictElement | Mapping[Any, Any] | None
+_Key = bytes | str
+
+
+def _lookup(data: _Data, key: _Key) -> Any:
     return None if data is None else data.get(key)
 
 
 @overload
-def get_scalar(
-    data: DictElement | None, key: bytes, type_: type[_S], default: None
-) -> _S | None: ...
+def get_scalar(data: _Data, key: _Key, type_: type[_S], default: None) -> _S | None: ...
 @overload
+def get_scalar(data: _Data, key: _Key, type_: type[_S], default: _S) -> _S: ...
 def get_scalar(
-    data: DictElement | None, key: bytes, type_: type[_S], default: _S
-) -> _S: ...
-def get_scalar(
-    data: DictElement | None, key: bytes, type_: type[_S], default: _S | None
+    data: _Data, key: _Key, type_: type[_S], default: _S | None
 ) -> _S | None:
     """Read *key* as a plain *type_*, whatever OSType it arrived as.
 
@@ -37,10 +37,25 @@ def get_scalar(
     *type_*, when the key is absent (silently) or the value cannot be coerced
     (with a debug log). A *default* of ``None`` is returned as is.
     """
+    return coerce_scalar(_lookup(data, key), type_, default, key)
+
+
+@overload
+def coerce_scalar(
+    raw: Any, type_: type[_S], default: None, label: Any = ...
+) -> _S | None: ...
+@overload
+def coerce_scalar(raw: Any, type_: type[_S], default: _S, label: Any = ...) -> _S: ...
+def coerce_scalar(
+    raw: Any, type_: type[_S], default: _S | None, label: Any = None
+) -> _S | None:
+    """Read an already fetched *raw* value as :py:func:`get_scalar` does.
+
+    *label* names the value in the debug log.
+    """
     fallback: _S | None = (
         None if default is None else type_(default)  # type: ignore[call-overload]
     )
-    raw = _lookup(data, key)
     if raw is None:
         return fallback
     value = getattr(raw, "value", raw)
@@ -54,19 +69,17 @@ def get_scalar(
             return type_(value)  # type: ignore[return-value,call-overload]
     except (TypeError, ValueError, OverflowError):
         pass
-    logger.debug("Cannot read %r as %s: %r", key, type_.__name__, raw)
+    logger.debug("Cannot read %r as %s: %r", label, type_.__name__, raw)
     return fallback
 
 
 @overload
-def get_enum(data: DictElement | None, key: bytes, enum_cls: type[_E]) -> _E | None: ...
+def get_enum(data: _Data, key: _Key, enum_cls: type[_E]) -> _E | None: ...
 @overload
+def get_enum(data: _Data, key: _Key, enum_cls: type[_E], default: _E) -> _E: ...
 def get_enum(
-    data: DictElement | None, key: bytes, enum_cls: type[_E], default: _E
-) -> _E: ...
-def get_enum(
-    data: DictElement | None,
-    key: bytes,
+    data: _Data,
+    key: _Key,
     enum_cls: type[_E],
     default: _E | None = None,
 ) -> _E | None:
