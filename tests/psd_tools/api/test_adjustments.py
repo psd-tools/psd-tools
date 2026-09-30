@@ -125,6 +125,28 @@ def test_an_unreadable_adjustment_value_degrades_to_the_default(
     assert layer.yellow == 5
 
 
+def test_a_layer_without_data_reads_defaults(psd: PSDImage) -> None:
+    layer = psd[8]
+    assert isinstance(layer, adjustments.Vibrance)
+    layer._data = None
+    assert layer.vibrance == 0
+    layer = psd[4]
+    assert isinstance(layer, adjustments.BrightnessContrast)
+    layer._data = None
+    assert layer.brightness == 0
+    assert layer.vrsn == 1
+    assert layer.automatic is False
+
+
+def test_an_unreadable_preset_file_name_is_empty(psd: PSDImage) -> None:
+    layer = psd[11]
+    assert isinstance(layer, adjustments.BlackAndWhite)
+    layer._data = Descriptor(
+        items={b"blackAndWhitePresetFileName": Integer(1)}  # type: ignore[arg-type]
+    )
+    assert layer.preset_file_name == ""
+
+
 def test_an_unreadable_gradient_angle_is_none() -> None:
     layer = PSDImage.open(full_name("layers/gradient-fill.psd"))[0]
     assert isinstance(layer, GradientFill)
