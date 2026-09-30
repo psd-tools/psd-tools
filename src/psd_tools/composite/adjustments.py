@@ -333,8 +333,9 @@ def apply_curves(
     """
     from scipy import interpolate  # type: ignore[import-untyped]  # noqa: PLC0415
 
-    curves_data = layer.extra
-    info_dict = {data.channel_id: data.points for data in curves_data}
+    if layer.extra is None:
+        return img
+    info_dict = {data.channel_id: data.points for data in layer.extra}
 
     lut_size = _get_lut_size(layer)
     t = _lut_domain(lut_size)

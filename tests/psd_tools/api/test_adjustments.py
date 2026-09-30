@@ -1,10 +1,15 @@
 import logging
 
+import numpy as np
 import pytest
 
 from psd_tools.api import adjustments
 from psd_tools.api.adjustments import GradientFill, PatternFill, SolidColorFill
 from psd_tools.api.psd_image import PSDImage
+from psd_tools.composite.adjustments import apply_curves
+from psd_tools.constants import ColorMode
+from psd_tools.psd.adjustments import Curves as CurvesData
+from psd_tools.psd.adjustments import CurvesExtraMarker
 from psd_tools.psd.descriptor import Descriptor, Integer, String
 
 from ..utils import full_name
@@ -57,7 +62,18 @@ def test_curves(psd: PSDImage) -> None:
     layer = psd[6]
     assert isinstance(layer, adjustments.Curves)
     assert layer.data
-    assert layer.extra
+    assert isinstance(layer.extra, CurvesExtraMarker)
+
+
+def test_curves_without_extra_records_reads_none(
+    psd: PSDImage, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    layer = psd[6]
+    assert isinstance(layer, adjustments.Curves)
+    monkeypatch.setattr(layer, "_data", CurvesData(version=4))
+    assert layer.extra is None
+    image = np.zeros((2, 2, 3), dtype=np.float32)
+    assert apply_curves(image, ColorMode.RGB, layer) is image
 
 
 def test_exposure(psd: PSDImage) -> None:

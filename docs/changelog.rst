@@ -43,9 +43,10 @@ Changelog
   ``effect.blend_mode == b"Nrml"`` is now ``False``; compare with
   ``BlendMode.NORMAL``. ``get_blend_func`` takes a ``BlendMode`` (#789)
 - [api] ``SolidColorFill.data``, ``PatternFill.data``, ``GradientFill.data`` and
-  ``BlackAndWhite.tint_color`` are annotated ``Descriptor | None``.
-  **Backwards incompatible:** a layer with no data block gives ``None`` where it
-  raised ``ValueError``, and a non-descriptor value gives ``None`` (#789)
+  ``BlackAndWhite.tint_color`` are annotated ``Descriptor | None``, and
+  ``Curves.extra`` ``CurvesExtraMarker | None``. **Backwards incompatible:** a
+  layer with no data block gives ``None`` where it raised ``ValueError``, and a
+  non-descriptor value gives ``None`` (#789)
 - [api] ``Stroke.line_alignment`` returns a ``StrokeAlignment`` (a ``str`` enum,
   so ``== "inner"`` still holds). **Backwards incompatible:** it answers
   ``None``, not an ``AttributeError`` or a ``repr`` string, when the file

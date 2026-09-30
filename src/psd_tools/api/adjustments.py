@@ -11,12 +11,13 @@ Example::
 """
 
 import logging
-from typing import Any, TypeVar
+from typing import TypeVar
 
 from psd_tools.api._descriptor import get_descriptor, get_enum, get_scalar
 from psd_tools.api.layers import AdjustmentLayer, FillLayer
 from psd_tools.constants import GradientType, Tag
 from psd_tools.psd.adjustments import Curves as CurvesData
+from psd_tools.psd.adjustments import CurvesExtraMarker
 from psd_tools.psd.adjustments import LevelRecord
 from psd_tools.psd.adjustments import Levels as LevelsData
 from psd_tools.psd.descriptor import Descriptor
@@ -137,8 +138,10 @@ class Curves(AdjustmentLayer):
         return _assert_data(self._data)
 
     @property
-    def extra(self) -> Any:
-        return self.data.extra
+    def extra(self) -> CurvesExtraMarker | None:
+        """Extra curves records, or `None` if the file has none."""
+        extra = self.data.extra
+        return extra if isinstance(extra, CurvesExtraMarker) else None
 
 
 @register(Tag.EXPOSURE)
