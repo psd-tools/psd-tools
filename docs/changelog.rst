@@ -1,7 +1,7 @@
 Changelog
 =========
 
-1.23.0 (unreleased)
+1.23.0 (2026-10-01)
 -------------------
 
 - [api] Add ``Layer.move_to(parent, *, index=None)``, a strict move within one
@@ -25,6 +25,20 @@ Changelog
 - [fix] ``be_array_to_bytes()`` and ``write_be_array()`` no longer byte-swap
   the caller's array in place on little-endian systems, so writing it twice
   gives the same bytes (#915)
+- [security] Structural parsing now rejects a block whose declared length runs
+  past its data or a nested section that overruns its parent, and stops at
+  1,000,000 objects or 64 nested descriptor/text-engine levels with
+  ``ParseLimitError``. **Backwards-incompatible** for a malformed file that
+  used to parse (GHSA-v7vq-grqq-m352)
+- [api] Add ``ParseLimits`` and ``ParseLimitError``, and a ``parse_limits``
+  argument to ``PSDImage.open()``. Byte limits are opt-in. See "Handling
+  untrusted files" (GHSA-v7vq-grqq-m352)
+- [security] ``decompress()``, ``decode_rle()`` and the low-level ``get_data()``
+  methods accept ``max_output_bytes`` and raise ``DecompressionLimitError``.
+  An RLE stream that expands past 16 MiB and 1,000x its input now raises too
+  (GHSA-v7vq-grqq-m352)
+- [security] EngineData tokenization no longer copies the remaining text at each
+  token, which was quadratic on large documents (GHSA-v7vq-grqq-m352)
 
 1.22.0 (2026-09-30)
 -------------------
