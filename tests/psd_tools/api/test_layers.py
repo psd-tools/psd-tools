@@ -1997,3 +1997,118 @@ def test_repr_of_an_artboard_missing_its_data_drops_the_size() -> None:
     artboard._bbox = None
 
     assert repr(artboard) == "Artboard('Artboard 1')"
+
+
+def _group_doc() -> tuple[PSDImage, Group]:
+    psd = PSDImage.open(full_name("group.psd"))
+    return psd, next(layer for layer in psd if isinstance(layer, Group))
+
+
+def test_move_to_default_is_top() -> None:
+    psd, group = _group_doc()
+    child = group[0]
+    assert child.move_to(psd) is child
+    assert child.parent is psd and psd[-1] is child and child not in group
+    assert child._is_attached()
+
+
+def test_move_to_index_is_final_position() -> None:
+    psd, _ = _group_doc()
+    background = psd[0]
+    for index, expected in [(1, 1), (0, 0), (-1, 1), (-2, 0)]:
+        background.move_to(psd, index=index)
+        assert psd.index(background) == expected
+
+
+@pytest.mark.parametrize("index", [2, -3, 100])
+def test_move_to_index_out_of_range(index: int) -> None:
+    psd, group = _group_doc()
+    layers = list(psd)
+    with pytest.raises(IndexError):
+        psd[0].move_to(psd, index=index)  # same parent: valid range is 0..1
+    assert list(psd) == layers and len(group) == 1
+    with pytest.raises(IndexError):
+        psd[0].move_to(group, index=index)  # other parent: valid range is 0..1
+    assert list(psd) == layers and len(group) == 1
+
+
+def test_move_to_other_parent_range() -> None:
+    psd, group = _group_doc()
+    background = psd[0]
+    background.move_to(group, index=1)
+    assert group.index(background) == 1 and background.parent is group
+
+
+def test_move_to_top_is_noop() -> None:
+    psd, group = _group_doc()
+    psd._updated = False
+    psd[-1].move_to(psd)
+    assert not psd._updated and list(psd) == [psd[0], group]
+
+
+def test_move_to_rejects_before_mutating() -> None:
+    psd, group = _group_doc()
+    other = PSDImage.open(full_name("group.psd"))
+    other_group = next(layer for layer in other if isinstance(layer, Group))
+    child = group[0]
+    with pytest.raises(ValueError, match="different documents"):
+        child.move_to(other)
+    with pytest.raises(ValueError, match="different documents"):
+        child.move_to(other_group)
+    with pytest.raises(ValueError, match="Group or document"):
+        psd[0].move_to(child)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="itself"):
+        group.move_to(group)
+    assert child.parent is group and child in group and psd[0].parent is psd
+
+
+def test_move_to_artboard_only_at_root() -> None:
+    psd = PSDImage.open(full_name("artboard.psd"))
+    artboard = next(layer for layer in psd if isinstance(layer, Artboard))
+    group = psd.create_group(name="g")
+    with pytest.raises(ValueError, match="document root"):
+        artboard.move_to(group)
+    assert artboard.parent is psd
+    layer = artboard[0]
+    layer.move_to(group)
+    assert layer.parent is group
+    artboard.move_to(psd, index=0)
+    assert psd[0] is artboard
+
+
+def test_move_to_bad_arguments_do_not_mutate() -> None:
+    psd, group = _group_doc()
+    child = group[0]
+    with pytest.raises(ValueError, match="Group or document"):
+        child.move_to(None)  # type: ignore[arg-type]
+    with pytest.raises(TypeError):
+        child.move_to(psd, index=1.0)  # type: ignore[arg-type]
+    assert child.parent is group and child in group
+
+
+def test_move_to_marks_only_when_moving() -> None:
+    psd, _ = _group_doc()
+    psd._updated = False
+    psd[-1].move_to(psd, index=-1)
+    assert not psd._updated
+    psd[0].move_to(psd)
+    assert psd._updated
+
+
+def test_move_to_validates_artboard_before_index() -> None:
+    psd = PSDImage.open(full_name("artboard.psd"))
+    artboard = next(layer for layer in psd if isinstance(layer, Artboard))
+    group = psd.create_group(name="g")
+    with pytest.raises(ValueError, match="document root"):
+        artboard.move_to(group, index=100)
+
+
+def test_move_to_detached() -> None:
+    psd, group = _group_doc()
+    child = group[0]
+    psd.remove(group)
+    child.move_to(psd)  # a layer of a removed group re-attaches
+    assert child._is_attached() and psd[-1] is child
+    background = psd[0]
+    background.move_to(group)  # a removed group is a valid destination
+    assert background in group and not background._is_attached()

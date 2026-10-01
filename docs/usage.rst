@@ -207,6 +207,17 @@ create an empty group::
 
     group = psdimage.create_group(layer_list=[layer1, layer2, ...], name="New Group")
 
+Move a layer into another group, or the document root, of the same document. ``index`` is
+the layer's position afterwards, ``-1`` being the top, and an index out of range
+raises ``IndexError``. The default is the top. Layers clipped to the moved layer
+stay behind, because clipping depends on position::
+
+    layer.move_to(group)
+    layer.move_to(group, index=0)
+
+An :py:class:`~psd_tools.api.layers.Artboard` can only be moved to the document
+root.
+
 A layer can change its order within its group::
 
     layer.move_up() # Will send the layer upward in the group

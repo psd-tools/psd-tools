@@ -83,6 +83,7 @@ and exposed through the ``kind`` property for easy type checking.
 """
 
 import logging
+import operator
 import warnings
 from typing import (
     TYPE_CHECKING,
@@ -1189,9 +1190,67 @@ class Layer(LayerProtocol):
         self.parent.remove(self)  # type: ignore[union-attr]
         return self
 
+    def _resolve_placement(self, parent: "GroupMixin", index: int | None) -> int:
+        """Validate placing this layer in ``parent`` and return its final index.
+
+        Checks run in a fixed order, before anything is mutated: types, same
+        document, reference loops, then the range of ``index``. A layer already
+        in ``parent`` is placed among the others, so the range is one shorter.
+
+        :raises ValueError: If ``parent`` is not a group or document of this
+            layer's document, the placement would create a loop, or an artboard
+            is not going to the document root.
+        :raises IndexError: If ``index`` is out of range.
+        """
+        if not (
+            isinstance(parent, Group)
+            or (parent is not None and parent is getattr(parent, "_psd", None))
+        ):
+            raise ValueError(
+                f"Expected a Group or document, got {type(parent).__name__}"
+            )
+        if parent._psd is not self._psd:
+            raise ValueError("The layer and the parent are in different documents")
+        parent._check_insertion([self])
+        if isinstance(self, Artboard) and parent is not self._psd:
+            raise ValueError("An artboard can only be placed at the document root")
+        final_length = len(parent) + (0 if self in parent else 1)
+        if index is None:
+            return final_length - 1
+        index = operator.index(index)
+        if not -final_length <= index < final_length:
+            raise IndexError(f"Index {index} out of range for {final_length} layers")
+        return index % final_length
+
+    def move_to(self, parent: "GroupMixin", *, index: int | None = None) -> Self:
+        """
+        Move the layer into ``parent``, a group or document of the same document.
+
+        A layer has one parent, so this moves rather than copies. A layer
+        already at the requested position is left alone. Clipping is
+        positional: the layers clipped to this one are not carried with it.
+        Moving into a removed group removes the layer from the document.
+
+        :param parent: The destination :py:class:`Group` or document.
+        :param index: The layer's position in ``parent`` afterwards, counting
+            from the bottom; negative counts from the top, so ``-1`` is the top.
+            Default is the top.
+        :raises ValueError: If ``parent`` is not a group or document of this
+            layer's document, the move would create a reference loop, or the
+            layer is an :py:class:`Artboard` and ``parent`` is not the document.
+        :raises TypeError: If ``index`` is not an integer.
+        :raises IndexError: If ``index`` is out of range.
+        :return: self
+        """
+        target = self._resolve_placement(parent, index)
+        if self.parent is parent and parent.index(self) == target:
+            return self
+        parent.insert(target, self)
+        return self
+
     def move_to_group(self, group: "GroupMixin") -> Self:
         """
-        Deprecated: Use group.append(layer) instead.
+        Deprecated: Use layer.move_to(group) instead.
 
         :param group: The group the current layer will be moved into.
         """
