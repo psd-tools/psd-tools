@@ -7,7 +7,7 @@ Changelog
 - [api] Add ``Layer.move_to(parent, *, index=None)``, a strict move within one
   document: ``index`` is the final position, an out-of-range one raises
   ``IndexError``, and a parent in another document raises ``ValueError``.
-  ``move_to_group()`` stays deprecated (#812)
+  ``move_to_group()`` stays deprecated (#812, #934)
 - [api] ``GroupMixinProtocol`` declares ``__setitem__``, so index assignment
   on a value typed as it, such as a narrowed ``layer.parent``, now type-checks
   (#812, #932)
