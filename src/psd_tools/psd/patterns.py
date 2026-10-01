@@ -14,8 +14,10 @@ from psd_tools.compression import compress, decompress
 from psd_tools.constants import ColorMode, Compression
 from psd_tools.psd.base import BaseElement, ListElement
 from psd_tools.psd.bin_utils import (
+    bounded_reader,
     is_readable,
     read_fmt,
+    read_exact,
     read_length_block,
     read_pascal_string,
     read_unicode_string,
@@ -202,10 +204,13 @@ class VirtualMemoryArray(BaseElement):
         length = read_fmt("I", fp)[0]
         if length == 0:
             return cls(is_written=is_written)
-        depth = read_fmt("I", fp)[0]
-        rectangle = read_fmt("4I", fp)
-        pixel_depth, compression = read_fmt("HB", fp)
-        data = fp.read(length - 23)
+        if length < 23:
+            raise IOError("Invalid pattern channel length: %d" % length)
+        with bounded_reader(fp, length) as body:
+            depth = read_fmt("I", body)[0]
+            rectangle = read_fmt("4I", body)
+            pixel_depth, compression = read_fmt("HB", body)
+            data = read_exact(body, length - 23)
         return cls(is_written, depth, rectangle, pixel_depth, compression, data)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:

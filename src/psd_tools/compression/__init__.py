@@ -276,7 +276,7 @@ def decompress(
     elif compression == Compression.RLE:
         try:
             result = decode_rle(data, width, height, depth, version)
-        except (ValueError, IndexError) as e:
+        except (ValueError, IndexError, OSError) as e:
             _warn_decompress_failure("RLE", e, width, height, depth, version)
             result = None
     elif compression == Compression.ZIP:
