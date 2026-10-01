@@ -75,7 +75,9 @@ def test_invalid_limits_rejected_before_read(entrypoint) -> None:
     assert stream.tell() == 0
 
 
-@pytest.mark.parametrize("field", ["max_read_bytes", "max_total_bytes", "max_objects"])
+@pytest.mark.parametrize(
+    "field", ["max_read_bytes", "max_total_bytes", "max_objects", "max_nesting_depth"]
+)
 @pytest.mark.parametrize(
     "value, error",
     [

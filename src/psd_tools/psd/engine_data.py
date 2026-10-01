@@ -41,7 +41,12 @@ from typing import Any, Iterator
 
 from attrs import frozen
 
-from psd_tools.psd.parse_limits import ParseLimits, consume_bytes, parse_context
+from psd_tools.psd.parse_limits import (
+    ParseLimits,
+    consume_bytes,
+    parse_container,
+    parse_context,
+)
 
 from psd_tools.psd.base import (
     BooleanElement,
@@ -155,7 +160,7 @@ class Dict(DictElement):
         parse_limits: ParseLimits | None = None,
         **kwargs: Any,
     ) -> "Dict":
-        with parse_context(parse_limits) as is_root:
+        with parse_context(parse_limits) as is_root, parse_container():
             if is_root or not isinstance(data, Tokenizer):
                 consume_bytes(len(data))
             tokenizer = data if isinstance(data, Tokenizer) else Tokenizer(data)
@@ -299,7 +304,7 @@ class List(ListElement):
         parse_limits: ParseLimits | None = None,
         **kwargs: Any,
     ) -> "List":
-        with parse_context(parse_limits) as is_root:
+        with parse_context(parse_limits) as is_root, parse_container():
             if is_root or not isinstance(data, Tokenizer):
                 consume_bytes(len(data))
             tokenizer = data if isinstance(data, Tokenizer) else Tokenizer(data)

@@ -15,6 +15,7 @@ from psd_tools.psd.base import (
     ShortIntegerElement,
 )
 from psd_tools.psd.descriptor import DescriptorBlock, DescriptorBlock2
+from psd_tools.psd.parse_limits import parse_context
 from psd_tools.terminology import Enum, Key
 from psd_tools.psd.bin_utils import (
     is_readable,
@@ -121,8 +122,9 @@ class ColorLookup(DescriptorBlock2):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
-        version, data_version = read_fmt("HI", fp)
-        return cls(version=version, data_version=data_version, **cls._read_body(fp))  # type: ignore[call-arg, attr-defined]
+        with parse_context(kwargs.pop("parse_limits", None)):
+            version, data_version = read_fmt("HI", fp)
+            return cls(version=version, data_version=data_version, **cls._read_body(fp))  # type: ignore[call-arg, attr-defined]
 
     def write(self, fp: IO[bytes], padding: int = 4, **kwargs: Any) -> int:
         written = write_fmt(fp, "HI", self.version, self.data_version)

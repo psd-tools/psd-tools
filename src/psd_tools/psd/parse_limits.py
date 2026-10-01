@@ -13,14 +13,20 @@ class ParseLimitError(ValueError):
 
 @dataclass(frozen=True)
 class ParseLimits:
-    """Limit single reads, cumulative materialized bytes, and parsed objects."""
+    """Limit reads, materialized bytes, parsed objects, and container nesting."""
 
     max_read_bytes: int | None = 256 * 1024**2
     max_total_bytes: int | None = 1024**3
     max_objects: int | None = 1_000_000
+    max_nesting_depth: int | None = 64
 
     def __post_init__(self) -> None:
-        for name in ("max_read_bytes", "max_total_bytes", "max_objects"):
+        for name in (
+            "max_read_bytes",
+            "max_total_bytes",
+            "max_objects",
+            "max_nesting_depth",
+        ):
             value = getattr(self, name)
             if value is None:
                 continue
@@ -42,6 +48,7 @@ class _ParseBudget:
         self.limits = limits
         self.total_bytes = 0
         self.objects = 0
+        self.depth = 0
         self.error: ParseLimitError | None = None
 
     def check(self, value: int, maximum: int | None, name: str) -> None:
@@ -92,3 +99,17 @@ def consume_objects(count: int) -> None:
     if budget is not None:
         budget.check(budget.objects + count, budget.limits.max_objects, "max_objects")
         budget.objects += count
+
+
+@contextmanager
+def parse_container() -> Iterator[None]:
+    """Reserve one active descriptor or text-engine container level."""
+    budget = _budget.get()
+    if budget is None:
+        raise RuntimeError("Container parsing requires a parse context")
+    budget.check(budget.depth + 1, budget.limits.max_nesting_depth, "max_nesting_depth")
+    budget.depth += 1
+    try:
+        yield
+    finally:
+        budget.depth -= 1

@@ -45,6 +45,7 @@ from psd_tools.psd.bin_utils import (
     write_unicode_string,
 )
 from psd_tools.registry import new_registry
+from psd_tools.psd.parse_limits import parse_container, parse_context
 from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
@@ -53,12 +54,18 @@ TYPES, register = new_registry(attribute="ostype")
 
 T = TypeVar("T")
 
-_TERMS = set(
+_TERMS = frozenset(
     item.value
     for kls in (Klass, Enum, Event, Form, Key, Type, Unit)
     for item in kls
     if len(item.value) == 4
 )
+
+
+class _ZeroLengthKey(bytes):
+    """An unknown descriptor key encoded with a zero length field."""
+
+    __slots__ = ()
 
 
 def read_length_and_key(fp: IO[bytes]) -> bytes:
@@ -68,8 +75,8 @@ def read_length_and_key(fp: IO[bytes]) -> bytes:
     length = read_fmt("I", fp)[0]
     key = read_exact(fp, length or 4)
     if length == 0 and key not in _TERMS:
-        logger.debug("Unknown term: %r" % (key))
-        _TERMS.add(key)
+        logger.debug("Unknown term: %r", key)
+        return _ZeroLengthKey(key)
     return key
 
 
@@ -77,7 +84,8 @@ def write_length_and_key(fp: IO[bytes], value: bytes) -> int:
     """
     Helper to write descriptor key.
     """
-    written = write_fmt(fp, "I", 0 if value in _TERMS else len(value))
+    compact = value in _TERMS or isinstance(value, _ZeroLengthKey)
+    written = write_fmt(fp, "I", 0 if compact else len(value))
     written += write_bytes(fp, value)
     return written
 
@@ -88,18 +96,19 @@ class _DescriptorMixin(DictElement):
 
     @classmethod
     def _read_body(cls, fp: IO[bytes]) -> dict[str, Any]:
-        name = read_unicode_string(fp, padding=1)
-        classID = read_length_and_key(fp)
-        items = []
-        count = read_fmt("I", fp)[0]
-        for _ in range(count):
-            key = read_length_and_key(fp)
-            ostype = OSType(read_exact(fp, 4))
-            kls = TYPES.get(ostype)
-            value = kls.read(fp)  # type: ignore[union-attr]
-            items.append((key, value))
+        with parse_container():
+            name = read_unicode_string(fp, padding=1)
+            classID = read_length_and_key(fp)
+            items = []
+            count = read_fmt("I", fp)[0]
+            for _ in range(count):
+                key = read_length_and_key(fp)
+                ostype = OSType(read_exact(fp, 4))
+                kls = TYPES.get(ostype)
+                value = kls.read(fp)  # type: ignore[union-attr]
+                items.append((key, value))
 
-        return dict(name=name, classID=classID, items=items)
+            return dict(name=name, classID=classID, items=items)
 
     def _write_body(self, fp: IO[bytes]) -> int:
         written = write_unicode_string(fp, self.name, padding=1)
@@ -175,7 +184,8 @@ class Descriptor(_DescriptorMixin):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
-        return cls(**cls._read_body(fp))  # type: ignore[attr-defined]
+        with parse_context(kwargs.pop("parse_limits", None)):
+            return cls(**cls._read_body(fp))  # type: ignore[attr-defined]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         return self._write_body(fp)
@@ -208,8 +218,9 @@ class ObjectArray(_DescriptorMixin):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
-        items_count = read_fmt("I", fp)[0]
-        return cls(items_count=items_count, **cls._read_body(fp))  # type: ignore[attr-defined,call-arg]
+        with parse_context(kwargs.pop("parse_limits", None)):
+            items_count = read_fmt("I", fp)[0]
+            return cls(items_count=items_count, **cls._read_body(fp))  # type: ignore[attr-defined,call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         written = write_fmt(fp, "I", self.items_count)
@@ -231,14 +242,15 @@ class List(ListElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
-        items = []
-        count = read_fmt("I", fp)[0]
-        for _ in range(count):
-            key = OSType(read_exact(fp, 4))
-            kls = TYPES.get(key)
-            value = kls.read(fp)  # type: ignore[union-attr]
-            items.append(value)
-        return cls(items)  # type: ignore[call-arg]
+        with parse_context(kwargs.pop("parse_limits", None)), parse_container():
+            items = []
+            count = read_fmt("I", fp)[0]
+            for _ in range(count):
+                key = OSType(read_exact(fp, 4))
+                kls = TYPES.get(key)
+                value = kls.read(fp)  # type: ignore[union-attr]
+                items.append(value)
+            return cls(items)  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         written = write_fmt(fp, "I", len(self))
@@ -819,8 +831,9 @@ class DescriptorBlock(Descriptor):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
-        version = read_fmt("I", fp)[0]
-        return cls(version=version, **cls._read_body(fp))  # type: ignore[attr-defined,call-arg]
+        with parse_context(kwargs.pop("parse_limits", None)):
+            version = read_fmt("I", fp)[0]
+            return cls(version=version, **cls._read_body(fp))  # type: ignore[attr-defined,call-arg]
 
     def write(self, fp: IO[bytes], padding: int = 4, **kwargs: Any) -> int:
         written = write_fmt(fp, "I", self.version)
@@ -845,8 +858,9 @@ class DescriptorBlock2(Descriptor):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
-        version, data_version = read_fmt("2I", fp)
-        return cls(version=version, data_version=data_version, **cls._read_body(fp))  # type: ignore[attr-defined,call-arg]
+        with parse_context(kwargs.pop("parse_limits", None)):
+            version, data_version = read_fmt("2I", fp)
+            return cls(version=version, data_version=data_version, **cls._read_body(fp))  # type: ignore[attr-defined,call-arg]
 
     def write(self, fp: IO[bytes], padding: int = 4, **kwargs: Any) -> int:
         written = write_fmt(fp, "2I", self.version, self.data_version)

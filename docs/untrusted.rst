@@ -13,6 +13,7 @@ Parsing limits
 
 :py:class:`~psd_tools.ParseLimits` limits an individual read to 256 MiB,
 cumulative parsed bytes to 1 GiB, and parsed objects to 1,000,000 by default.
+Descriptor and text-engine container parsing defaults to 64 active levels.
 Set limits when opening a document::
 
     from psd_tools import ParseLimits, PSDImage
@@ -21,19 +22,23 @@ Set limits when opening a document::
         max_read_bytes=64 * 1024**2,
         max_total_bytes=256 * 1024**2,
         max_objects=100_000,
+        max_nesting_depth=32,
     ))
 
 Each setting is a positive integer; ``None`` disables that limit.
 ``parse_limits=None`` uses the defaults. Limits also apply to low-level
-``PSD.read()`` and ``frombytes()`` entry points; direct component ``read()``
-calls share limits only when called within a budgeted parse.
+``PSD.read()`` and ``frombytes()`` entry points. Recursive descriptor and
+text-engine ``read()`` calls also establish a budget; other component
+``read()`` calls use limits only within a budgeted parse.
 
 Nested parsers share the root budget. Read bytes and inputs to ``frombytes()``
 count cumulatively, including bytes copied or parsed again. Objects count
 low-level element instances, unpacked scalar values, and array entries.
 Peeking at available bytes does not consume the budget. Exceeding a limit
 raises :py:class:`~psd_tools.ParseLimitError`; recovery does not suppress it.
-These counters bound parsing work, not total process memory, nesting depth,
+Nesting counts active descriptor bodies, descriptor lists, and text-engine
+dictionary/list parsers, including containers parsed from embedded bytes.
+These counters bound parsing work, not total process memory,
 tokenizer runtime, or later pixel decompression. Rendering uses its separate
 allocation budget below.
 
