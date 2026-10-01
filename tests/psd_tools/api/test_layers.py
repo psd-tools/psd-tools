@@ -2146,3 +2146,10 @@ def test_detached_group_creates_layers() -> None:
     psd.remove(group)
     layer = group.create_pixel_layer(Image.new("RGB", (4, 4)))
     assert layer in group and not layer._is_attached()
+
+
+def test_parent_creators_type_check() -> None:
+    psd, group = _group_doc()
+    parent = group[0].parent
+    assert parent is not None
+    assert parent.create_group(name="Via parent").parent is group
