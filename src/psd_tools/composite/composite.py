@@ -549,7 +549,6 @@ def composite(
         else:
             viewport = group.bbox
             if viewport == (0, 0, 0, 0):
-                assert group._psd is not None
                 viewport = group._psd.viewbox
     assert viewport is not None
 
@@ -593,7 +592,7 @@ def composite(
     # so reading it from the color mode would allocate the backdrop far wider
     # than the file and hand the first layer a canvas it cannot be blended
     # against.
-    _channels = get_color_channels(_psd) if _psd is not None else None
+    _channels = get_color_channels(_psd)
     # The guard is there to reject a file *before* it allocates, so its estimate
     # must never fall below what follows it. `_channels` is the backdrop, and
     # taking the wider of it and the header's own count keeps the modes that
@@ -609,16 +608,12 @@ def composite(
     # expression in `width * height * <constant>` that bounds it. The budget is a
     # per-allocation ceiling on `numpy()` and `topil()`, layers included; here it
     # means the canvas, as it always has.
-    _estimate = (
-        max(_psd.channels, _channels)
-        if _psd is not None and _channels is not None
-        else 1
-    )
+    _estimate = max(_psd.channels, _channels)
     check_pixel_size(
         _w,
         _h,
         _estimate,
-        max_alloc_bytes=_psd._max_alloc_bytes if _psd is not None else None,
+        max_alloc_bytes=_psd._max_alloc_bytes,
     )
 
     isolated = False
@@ -655,7 +650,7 @@ def composite(
         force,
         document_backdrop=lambda: _document_backdrop(_psd, viewport),
         widen=_widen_fn,
-        color_mode=None if _psd is None else _psd.color_mode,
+        color_mode=_psd.color_mode,
     )
     target_group = group if isinstance(group, GroupMixin) and not as_layer else [group]
     for layer in target_group:  # type: ignore

@@ -7,6 +7,12 @@ Changelog
 - [api] ``GroupMixinProtocol`` declares ``__setitem__``, so index assignment
   on a value typed as it, such as a narrowed ``layer.parent``, now type-checks
   (#812, #932)
+- [fix] ``composite()`` and ``has_clip_layers()`` no longer raise on a layer
+  removed from its document; ``clip_layers`` is empty (#812)
+- [api] Backwards-incompatible: ``Layer.delete_layer()``, ``move_up()`` and
+  ``move_down()`` raise ``ValueError`` on a layer not attached to a document,
+  which includes one inside a removed group. ``delete_layer()`` used to do
+  nothing on a removed layer (#812)
 - [docs] "Modifying the layer structure" states the one-parent rule and that
   the list methods are a fixed set (#812, #932)
 
