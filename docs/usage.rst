@@ -90,9 +90,8 @@ the PIL image will be converted to the color mode of the PSD File given in param
 To construct a layered PSD file from scratch::
 
     psdimage = PSDImage.new(mode='RGB', size=(640, 480), depth=8)
-    layer = psdimage.create_pixel_layer(pil_image, name="Layer 1", top=0, left=0, opacity=255)
     group = psdimage.create_group(name="Group 1")
-    group.append(layer)
+    layer = group.create_pixel_layer(pil_image, name="Layer 1", top=0, left=0, opacity=255)
     psdimage.save('new_image.psd')
 
 See the function documentation for further parameter explanations.
