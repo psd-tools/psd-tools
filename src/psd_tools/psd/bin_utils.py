@@ -363,9 +363,9 @@ def be_array_from_bytes(fmt: str, data: bytes) -> array.array:
 
 def be_array_to_bytes(arr: array.array) -> bytes:
     """
-    Writes an array to bytestring with big-endian data.
+    Writes an array to bytestring with big-endian data without modifying it.
     """
-    data = fix_byteorder(arr)
+    data = fix_byteorder(arr[:])
     if hasattr(arr, "tobytes"):
         return data.tobytes()
     else:

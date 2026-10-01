@@ -22,6 +22,9 @@ Changelog
   nothing on a removed layer (#812)
 - [docs] "Modifying the layer structure" states the one-parent rule and that
   the list methods are a fixed set (#812, #932)
+- [fix] ``be_array_to_bytes()`` and ``write_be_array()`` no longer byte-swap
+  the caller's array in place on little-endian systems, so writing it twice
+  gives the same bytes (#915)
 
 1.22.0 (2026-09-30)
 -------------------
