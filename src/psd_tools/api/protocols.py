@@ -329,6 +329,10 @@ class GroupMixinProtocol(Protocol):
         """Get child layer by index."""
         ...
 
+    def __setitem__(self, key: int, value: "Layer") -> None:
+        """Replace child layer by index."""
+        ...
+
     def __delitem__(self, key: int) -> None:
         """Delete child layer by index."""
         ...
