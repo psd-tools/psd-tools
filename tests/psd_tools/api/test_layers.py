@@ -2123,6 +2123,8 @@ def test_group_creates_layers_in_place() -> None:
     inner = group.create_group(layer_list=[layer], name="Inner")
     assert inner.parent is group and layer.parent is inner and layer not in group
     assert inner.create_pixel_layer(Image.new("RGB", (4, 4))).parent is inner
+    empty = group.create_group(name="Empty", blend_mode=BlendMode.NORMAL)
+    assert len(empty) == 0 and empty.blend_mode == BlendMode.NORMAL
 
 
 def test_group_creators_mark_and_round_trip(tmp_path: Path) -> None:

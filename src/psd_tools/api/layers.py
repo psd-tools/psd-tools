@@ -2096,7 +2096,7 @@ class Group(GroupMixin, Layer):
         open_folder: bool = True,
     ) -> Self:
         """
-        Deprecated: Use ``psdimage.create_group(layer_list, name)`` instead.
+        Deprecated: Use ``parent.create_group(layer_list, name)`` instead.
 
         :param parent: The parent group to add the newly created Group object into.
         :param layers: The layers to group. Can by any subclass of

@@ -824,7 +824,6 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             )
         return None
 
-    # Editing API
     # TODO: Add more editing APIs, such as duplicate_layers, resize_canvas, etc.
 
     # Private methods
