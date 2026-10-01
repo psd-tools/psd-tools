@@ -155,12 +155,16 @@ adjustment applied to the composed image. See :ref:`adjustment-layers`.
 Modifying the layer structure
 -----------------------------
 
-The layer structure of a PSD object can be modified through methods emulating a python list.
+A layer has at most one parent. :py:class:`~psd_tools.api.psd_image.PSDImage`
+and :py:class:`~psd_tools.api.layers.Group` hold their child layers in order,
+and adding a layer that already has a parent moves it out of that parent rather
+than copying it. The internal model of the layer structure is updated
+automatically.
 
-The internal model of the psd layer structure will be automatically updated.
-Moving a layer from a PSD to another will also automatically convert the PixelLayer to the target psd's color mode.
-
-The follwing are valid for both PSDImage and Group objects.
+The following methods are valid for both PSDImage and Group objects. Besides
+indexing, iteration, ``reversed()``, ``len()``, ``in`` and ``del group[i]``,
+they are the only list operations provided: ``sort()``, ``reverse()``, ``+=``,
+``copy()`` and slice assignment or deletion are not supported.
 
 Replace the layer at a given index::
 
@@ -177,7 +181,7 @@ Insert a layer to a specific index in the group::
 
     group.insert(3, layer)
 
-Remove a layer from the a group::
+Remove a layer from a group::
 
     group.remove(layer)
 
@@ -193,26 +197,17 @@ Get the index of a layer in the group::
 
     index = group.index(layer)
 
-Count the occurrences of a layer in a group::
+Check whether a group holds a layer, as 0 or 1::
 
     count = group.count(layer)
 
-Move layers into a newly created group, appended at the top of the document.
-``layer_list`` is any iterable, and may be omitted to create an empty group::
+On a PSDImage only, move layers into a newly created group, appended at the
+top of the document. ``layer_list`` is any iterable, and may be omitted to
+create an empty group::
 
     group = psdimage.create_group(layer_list=[layer1, layer2, ...], name="New Group")
 
-Some operations are available for all ``Layer`` objects.
-
-Delete a layer from its layer structure::
-
-    group.remove(layer)
-
-Layers can be moved from a group to another::
-
-    target_group.append(layer)
-
-Layers can be moved within the group to change their order::
+A layer can change its order within its group::
 
     layer.move_up() # Will send the layer upward in the group
     layer.move_down() # Will send the layer downward in the group

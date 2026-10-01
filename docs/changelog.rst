@@ -1,6 +1,15 @@
 Changelog
 =========
 
+1.23.0 (unreleased)
+-------------------
+
+- [api] ``GroupMixinProtocol`` declares ``__setitem__``, so index assignment
+  on a value typed as it, such as a narrowed ``layer.parent``, now type-checks
+  (#812, #932)
+- [docs] "Modifying the layer structure" states the one-parent rule and that
+  the list methods are a fixed set (#812, #932)
+
 1.22.0 (2026-09-30)
 -------------------
 

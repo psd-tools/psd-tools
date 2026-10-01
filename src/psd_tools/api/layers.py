@@ -1250,9 +1250,11 @@ class GroupMixin(GroupMixinProtocol, Protocol):
     :py:meth:`descendants` walk, and a :py:attr:`bbox` computed from the
     visible, non-clipping children.
 
-    A layer belongs to exactly one container, so adding one that already has
+    A layer belongs to at most one container, so adding one that already has
     a parent moves it out of that parent rather than copying it; see
-    :py:meth:`extend`.
+    :py:meth:`extend`. The list methods here are a fixed set: ``sort()``,
+    ``reverse()``, ``+=``, ``copy()`` and slice assignment or deletion are not
+    provided.
     """
 
     _psd: PSDProtocol
@@ -1554,7 +1556,9 @@ class GroupMixin(GroupMixinProtocol, Protocol):
 
     def count(self, layer: Layer) -> int:
         """
-        Counts the number of occurrences of a layer in the group.
+        Return 1 if the layer is a child of this container, else 0.
+
+        Adding a layer that is already here moves it, so it never appears twice.
 
         :param layer: The layer to count.
         """
