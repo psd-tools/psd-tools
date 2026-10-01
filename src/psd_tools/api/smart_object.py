@@ -75,7 +75,7 @@ class SmartObject:
                 break
 
         self._data = None
-        if layer._psd is not None and layer._psd.tagged_blocks is not None:
+        if layer._psd.tagged_blocks is not None:
             for key in (
                 Tag.LINKED_LAYER1,
                 Tag.LINKED_LAYER2,

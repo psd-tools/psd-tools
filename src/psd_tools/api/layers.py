@@ -257,8 +257,7 @@ class Layer(LayerProtocol):
         value = bool(value)
         if self.visible == value:
             return
-        if self._psd is not None:
-            self._psd.mark_updated()
+        self._psd.mark_updated()
         self._record.flags.visible = value
         # Up: every ancestor's union gains or loses this layer.
         self._invalidate_bbox()
@@ -298,7 +297,7 @@ class Layer(LayerProtocol):
     def opacity(self, value: int) -> None:
         if not (0 <= value <= 255):
             raise ValueError(f"Opacity must be in range [0, 255], got {value}")
-        if self.opacity != value and self._psd is not None:
+        if self.opacity != value:
             self._psd.mark_updated()
         self._record.opacity = int(value)
 
@@ -388,7 +387,7 @@ class Layer(LayerProtocol):
 
     @top.setter
     def top(self, value: int) -> None:
-        if self.top != value and self._psd is not None:
+        if self.top != value:
             self._psd.mark_updated()
         self._invalidate_bbox()
         h = self.height
@@ -916,7 +915,7 @@ class Layer(LayerProtocol):
         """
         from psd_tools.composite import composite_pil  # noqa: PLC0415
 
-        if self._psd is not None and self._psd.is_updated():
+        if self._psd.is_updated():
             force = True
 
         return composite_pil(
@@ -944,8 +943,10 @@ class Layer(LayerProtocol):
         if self.clipping:
             return []
 
-        # Look for clipping layers in the parent scope.
-        parent: GroupMixin = self.parent or self._psd  # type: ignore
+        # A detached layer has no siblings, so nothing clips to it.
+        parent: GroupMixin | None = self.parent  # type: ignore
+        if parent is None:
+            return []
         index = parent.index(self)
 
         # TODO: Cache the result and invalidate when needed.
@@ -976,7 +977,7 @@ class Layer(LayerProtocol):
     @clipping.setter
     def clipping(self, value: bool) -> None:
         clipping = Clipping.NON_BASE if value else Clipping.BASE
-        if self._record.clipping != clipping and self._psd is not None:
+        if self._record.clipping != clipping:
             self._psd.mark_updated()
         self._record.clipping = clipping
         self._invalidate_bbox()
@@ -1072,7 +1073,7 @@ class Layer(LayerProtocol):
     def fill_opacity(self, value: int) -> None:
         if value < 0 or value > 255:
             raise ValueError("Fill opacity must be between 0 and 255.")
-        if self.fill_opacity != value and self._psd is not None:
+        if self.fill_opacity != value:
             self._psd.mark_updated()
         self.tagged_blocks.set_data(Tag.BLEND_FILL_OPACITY, int(value))
 
@@ -1091,7 +1092,7 @@ class Layer(LayerProtocol):
     def reference_point(self, value: Sequence[float]) -> None:
         if len(value) != 2:
             raise ValueError("Reference point must be a sequence of two floats.")
-        if self.reference_point != value and self._psd is not None:
+        if self.reference_point != value:
             self._psd.mark_updated()
         self.tagged_blocks.set_data(
             Tag.REFERENCE_POINT, [float(value[0]), float(value[1])]
@@ -1111,7 +1112,7 @@ class Layer(LayerProtocol):
     @sheet_color.setter
     def sheet_color(self, value: SheetColorType) -> None:
         value = SheetColorType(value)
-        if self.sheet_color != value and self._psd is not None:
+        if self.sheet_color != value:
             self._psd.mark_updated()
         self.tagged_blocks.set_data(Tag.SHEET_COLOR_SETTING, value)
 
@@ -1167,12 +1168,25 @@ class Layer(LayerProtocol):
         )
 
     # Structure operations
+    def _is_attached(self) -> bool:
+        """Whether the parent chain reaches this layer's document."""
+        node: Any = self
+        while node.parent is not None:
+            node = node.parent
+        return node is self._psd
+
+    def _require_attached(self) -> None:
+        if not self._is_attached():
+            raise ValueError(f"Layer {self} is not attached to a document")
+
     def delete_layer(self) -> Self:
         """
         Deprecated: Use layer.parent.remove(layer) instead.
+
+        :raises ValueError: If the layer is not attached to a document
         """
-        if self.parent is not None and isinstance(self.parent, GroupMixin):
-            self.parent.remove(self)
+        self._require_attached()
+        self.parent.remove(self)  # type: ignore[union-attr]
         return self
 
     def move_to_group(self, group: "GroupMixin") -> Self:
@@ -1189,12 +1203,11 @@ class Layer(LayerProtocol):
         Moves the layer up a certain offset within the group the layer is in.
 
         :param offset: The number of positions to move the layer up (can be negative).
-        :raises ValueError: If layer has no parent or parent is not a group
+        :raises ValueError: If the layer is not attached to a document
         :raises IndexError: If the new index is out of bounds
         :return: self
         """
-        if self.parent is None:
-            raise ValueError(f"Cannot move layer {self} without a parent")
+        self._require_attached()
         if not isinstance(self.parent, GroupMixin):
             raise TypeError(
                 f"Parent must be a GroupMixin, got {type(self.parent).__name__}"
@@ -1215,7 +1228,7 @@ class Layer(LayerProtocol):
         Moves the layer down a certain offset within the group the layer is in.
 
         :param offset: The number of positions to move the layer down (can be negative).
-        :raises ValueError: If layer has no parent or parent is not a group
+        :raises ValueError: If the layer is not attached to a document
         :raises IndexError: If the new index is out of bounds
         :return: self
         """
@@ -1694,7 +1707,7 @@ class Group(GroupMixin, Layer):
     @blend_mode.setter
     def blend_mode(self, value: str | bytes | BlendMode) -> None:
         _value = BlendMode(value.encode("ascii") if isinstance(value, str) else value)
-        if self.blend_mode != _value and self._psd is not None:
+        if self.blend_mode != _value:
             self._psd.mark_updated()
         if _value == BlendMode.PASS_THROUGH:
             self._record.blend_mode = BlendMode.NORMAL
@@ -2061,8 +2074,7 @@ class Artboard(Group):
         if bg_type is None:
             return 1.0, 0.0
 
-        psd = self._psd
-        color_mode = psd.color_mode if psd is not None else ColorMode.RGB
+        color_mode = self._psd.color_mode
 
         bg_type = int(bg_type)
         if bg_type == 1:  # Transparent
@@ -2631,8 +2643,6 @@ class ShapeLayer(Layer):
                         "Vector mask is None despite has_vector_mask() returning True"
                     )
                 bbox = self.vector_mask.bbox
-                if self._psd is None:
-                    raise ValueError("PSD is None for shape layer")
                 self._bbox = (
                     int(round(bbox[0] * self._psd.width)),
                     int(round(bbox[1] * self._psd.height)),
@@ -2669,14 +2679,10 @@ class FillLayer(Layer):
     def right(self) -> int:
         if self._record.right:
             return self._record.right
-        if self._psd is None:
-            raise ValueError("Cannot determine the right position of the layer.")
         return self._psd.width
 
     @property
     def bottom(self) -> int:
         if self._record.bottom:
             return self._record.bottom
-        if self._psd is None:
-            raise ValueError("Cannot determine the right position of the layer.")
         return self._psd.height

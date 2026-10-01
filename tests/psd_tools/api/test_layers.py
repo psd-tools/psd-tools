@@ -736,6 +736,59 @@ def test_layer_move_down(
     assert test_group.index(smartobject_layer) == 2
 
 
+def test_is_attached() -> None:
+    psd = PSDImage.open(full_name("group.psd"))
+    group = next(layer for layer in psd if isinstance(layer, Group))
+    child = group[0]
+    assert group._is_attached() and child._is_attached()
+
+    psd.remove(group)
+    assert not group._is_attached()
+    assert not child._is_attached()  # parent is set, but the chain is cut
+
+    psd.append(group)
+    assert group._is_attached() and child._is_attached()
+
+
+def test_detached_layer_clip_layers_and_composite() -> None:
+    psd = PSDImage.open(full_name("layers/pixel-layer.psd"))
+    layer = psd[0]
+    before = layer.composite()
+    assert before is not None
+    psd.remove(layer)
+    assert layer.parent is None
+    assert layer.clip_layers == []
+    assert not layer.has_clip_layers()
+    after = layer.composite()
+    assert after is not None
+    assert after.size == before.size
+    assert after.tobytes() == before.tobytes()
+
+
+def test_detached_layer_ops_raise() -> None:
+    psd = PSDImage.open(full_name("group.psd"))
+    group = next(layer for layer in psd if isinstance(layer, Group))
+    child = group[0]
+    psd.remove(group)
+    for layer in (group, child):
+        for op in (
+            layer.move_up,
+            layer.move_down,
+            layer.delete_layer,
+        ):
+            with pytest.raises(ValueError, match="not attached to a document"):
+                op()
+    assert group[0] is child
+
+
+def test_delete_layer_attached() -> None:
+    psd = PSDImage.open(full_name("group.psd"))
+    group = next(layer for layer in psd if isinstance(layer, Group))
+    child = group[0]
+    assert child.delete_layer() is child
+    assert child not in group
+
+
 def test_group_append(group: Group, pixel_layer: PixelLayer) -> None:
     group.append(pixel_layer)
     assert pixel_layer in group

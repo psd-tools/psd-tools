@@ -345,8 +345,6 @@ def _layer_peak_bytes(
     channels and the alpha -- rather than the record's channel count.
     """
     psd = layer._psd
-    if psd is None:
-        return None
     # One decode per entry `_merge_channels()` iterates, each resolved to the
     # *last* record of its id as `_get_channel()` does, so a repeated id is
     # decoded once per repeat. An empty resolved entry decodes nothing.
@@ -409,7 +407,6 @@ def convert_layer_to_pil(
     sized = _layer_peak_bytes(layer, channel, apply_icc)
     if sized is not None:
         width, height, planes, peak = sized
-        assert layer._psd is not None
         check_pixel_size(
             width,
             height,
@@ -424,11 +421,7 @@ def convert_layer_to_pil(
     if channel is None:
         image = _merge_channels(layer)
         alpha = _get_channel(layer, ChannelID.TRANSPARENCY_MASK)
-        if (
-            apply_icc
-            and layer._psd is not None
-            and (Resource.ICC_PROFILE in layer._psd.image_resources)
-        ):
+        if apply_icc and (Resource.ICC_PROFILE in layer._psd.image_resources):
             icc = layer._psd.image_resources.get_data(Resource.ICC_PROFILE)
     else:
         image = _get_channel(layer, channel)
@@ -533,8 +526,6 @@ def convert_thumbnail_to_pil(
 
 
 def _merge_channels(layer: "LayerProtocol") -> Image.Image | None:
-    if layer._psd is None:
-        return None
     mode = get_pil_mode(layer._psd.color_mode)
     channel_images = [
         _get_channel(layer, info.id)
@@ -550,8 +541,6 @@ def _merge_channels(layer: "LayerProtocol") -> Image.Image | None:
 
 
 def _get_channel(layer: "LayerProtocol", channel: int) -> Image.Image | None:
-    if layer._psd is None:
-        return None
     if channel == ChannelID.USER_LAYER_MASK:
         if layer.mask is None:
             logger.debug("Layer has no mask.")
