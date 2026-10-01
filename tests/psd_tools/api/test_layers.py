@@ -2112,3 +2112,35 @@ def test_move_to_detached() -> None:
     background = psd[0]
     background.move_to(group)  # a removed group is a valid destination
     assert background in group and not background._is_attached()
+
+
+def test_group_creates_layers_in_place() -> None:
+    psd, group = _group_doc()
+    before = len(group)
+    layer = group.create_pixel_layer(Image.new("RGB", (4, 4)), name="In", opacity=7)
+    assert layer.parent is group and group[-1] is layer and len(group) == before + 1
+    assert layer.opacity == 7 and layer._is_attached()
+    inner = group.create_group(layer_list=[layer], name="Inner")
+    assert inner.parent is group and layer.parent is inner and layer not in group
+    assert inner.create_pixel_layer(Image.new("RGB", (4, 4))).parent is inner
+
+
+def test_group_creators_mark_and_round_trip(tmp_path: Path) -> None:
+    psd, group = _group_doc()
+    marked: list[bool] = []
+    psd.mark_updated = lambda: marked.append(True)  # type: ignore[method-assign]
+    group.create_pixel_layer(Image.new("RGB", (4, 4)), name="Saved")
+    assert marked
+    del psd.mark_updated
+    path = tmp_path / "out.psd"
+    psd.save(path)
+    reopened = PSDImage.open(path)
+    saved = next(layer for layer in reopened if isinstance(layer, Group))
+    assert saved[-1].name == "Saved"
+
+
+def test_detached_group_creates_layers() -> None:
+    psd, group = _group_doc()
+    psd.remove(group)
+    layer = group.create_pixel_layer(Image.new("RGB", (4, 4)))
+    assert layer in group and not layer._is_attached()

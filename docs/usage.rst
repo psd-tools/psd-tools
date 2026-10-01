@@ -107,7 +107,7 @@ See the function documentation for further parameter explanations.
 Create a new group object.::
 
     group = psdimage.create_group(name="Group name")
-    group.append(layer)
+    layer = group.create_pixel_layer(pil_image, name="Layer in group")
 
 :py:class:`~psd_tools.api.layers.TypeLayer` is a layer with texts::
 
@@ -201,9 +201,9 @@ Check whether a group holds a layer, as 0 or 1::
 
     count = group.count(layer)
 
-On a PSDImage only, move layers into a newly created group, appended at the
-top of the document. ``layer_list`` is any iterable, and may be omitted to
-create an empty group::
+Move layers into a newly created group, placed at the top of the group or
+document it is created on. ``layer_list`` is any iterable, and may be omitted
+to create an empty group::
 
     group = psdimage.create_group(layer_list=[layer1, layer2, ...], name="New Group")
 

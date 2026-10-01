@@ -55,7 +55,7 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Sequence
-from typing import IO, Any, Callable, Iterable, Literal
+from typing import IO, Any, Callable, Literal
 
 from typing_extensions import Self
 
@@ -74,7 +74,6 @@ from psd_tools.api.utils import (
     validate_alloc_budget,
 )
 from psd_tools.constants import (
-    BlendMode,
     ChannelID,
     ColorMode,
     CompatibilityMode,
@@ -826,78 +825,6 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         return None
 
     # Editing API
-    def create_pixel_layer(
-        self,
-        image: Image.Image,
-        name: str = "Layer",
-        top: int = 0,
-        left: int = 0,
-        compression: Compression = Compression.RLE,
-        opacity: int = 255,
-        blend_mode: BlendMode = BlendMode.NORMAL,
-    ) -> layers.PixelLayer:
-        """
-        Create a new pixel layer and add it to the PSDImage.
-
-        Example::
-
-            psdimage = PSDImage.new("RGB", (640, 480))
-            layer = psdimage.create_pixel_layer(image, name='Layer 1')
-
-        :param name: Name of the new layer.
-        :param image: PIL Image object. On a 16- or 32-bit document the layer
-            is stored at the document's depth, carrying the image's own 8-bit
-            precision; see :py:meth:`~psd_tools.api.layers.PixelLayer.frompil`.
-        :param top: Top coordinate of the new layer.
-        :param left: Left coordinate of the new layer.
-        :param compression: Compression method for the layer image data.
-        :param opacity: Opacity of the new layer (0-255).
-        :param blend_mode: Blend mode of the new layer, default is ``BlendMode.NORMAL``.
-        :return: The created :py:class:`~psd_tools.api.layers.PixelLayer` object.
-        """
-        layer = layers.PixelLayer.frompil(
-            image, parent=self, name=name, top=top, left=left, compression=compression
-        )
-        layer.opacity = opacity
-        layer.blend_mode = blend_mode
-        self.mark_updated()
-        return layer
-
-    def create_group(
-        self,
-        layer_list: Iterable[layers.Layer] | None = None,
-        name: str = "Group",
-        opacity: int = 255,
-        blend_mode: BlendMode = BlendMode.PASS_THROUGH,
-        open_folder: bool = True,
-    ) -> layers.Group:
-        """
-        Create a new group layer and add it to the PSDImage.
-
-        Example::
-
-            group = psdimage.create_group(name='New Group')
-            group.append(psdimage.create_pixel_layer(image, name='Layer in Group'))
-
-        :param layer_list: Optional iterable of layers to add to the group.
-        :param name: Name of the new group.
-        :param opacity: Opacity of the new layer (0-255).
-        :param blend_mode: Blend mode of the new layer, default is ``BlendMode.PASS_THROUGH``.
-        :param open_folder: Whether the group is an open folder in the Photoshop UI.
-        :return: The created :py:class:`~psd_tools.api.layers.Group` object.
-        """
-        group = layers.Group.new(parent=self, name=name, open_folder=open_folder)
-        # Against ``None``, not truthiness: ``layer_list`` is any iterable, and
-        # one can be falsey while holding layers, or refuse to be tested at all
-        # -- ``bool()`` on a multi-element NumPy array raises. ``extend()``
-        # handles an empty iterable itself (#820).
-        if layer_list is not None:
-            group.extend(layer_list)
-        group.opacity = opacity
-        group.blend_mode = blend_mode
-        self.mark_updated()
-        return group
-
     # TODO: Add more editing APIs, such as duplicate_layers, resize_canvas, etc.
 
     # Private methods
