@@ -10,7 +10,7 @@ Changelog
   ``move_to_group()`` stays deprecated (#812, #934)
 - [api] ``create_pixel_layer()`` and ``create_group()`` are now on ``Group`` as
   well as ``PSDImage``, creating the layer directly in that group, e.g.
-  ``group.create_pixel_layer(image)`` (#812)
+  ``group.create_pixel_layer(image)`` (#812, #935)
 - [api] ``GroupMixinProtocol`` declares ``__setitem__``, so index assignment
   on a value typed as it, such as a narrowed ``layer.parent``, now type-checks
   (#812, #932)
