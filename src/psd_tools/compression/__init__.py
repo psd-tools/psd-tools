@@ -66,6 +66,7 @@ image types.
 import array
 import io
 import logging
+import operator
 import warnings
 import zlib
 
@@ -103,13 +104,57 @@ class PSDDecompressionWarning(UserWarning):
     """
 
 
+class DecompressionLimitError(ValueError):
+    """Raised before decoding when channel output exceeds a byte limit."""
+
+
 _VALID_DEPTHS: frozenset[int] = frozenset((1, 8, 16, 32))
 _MAX_DIMENSION: int = 300_000  # PSD/PSB hard limit per the Adobe spec
 
-# Reject the black-fill fallback when a failed decode dwarfs its input (CWE-789).
+# Reject excessive RLE expansion and failed-decode black fills (CWE-789).
 # Set MAX_DEGRADED_BYTES to None to disable the guard (also disables the ratio check).
 MAX_DEGRADED_BYTES: int | None = 16 * 1024 * 1024
 MAX_DEGRADED_RATIO: int = 1000
+
+
+def _validate_dimensions(width: int, height: int, depth: int) -> None:
+    if width < 1 or width > _MAX_DIMENSION:
+        raise ValueError("width %d out of range [1, %d]" % (width, _MAX_DIMENSION))
+    if height < 1 or height > _MAX_DIMENSION:
+        raise ValueError("height %d out of range [1, %d]" % (height, _MAX_DIMENSION))
+    if depth not in _VALID_DEPTHS:
+        raise ValueError("depth %d not in %s" % (depth, sorted(_VALID_DEPTHS)))
+
+
+def _check_output_limit(length: int, max_output_bytes: int | None) -> None:
+    if max_output_bytes is None:
+        return
+    if isinstance(max_output_bytes, bool):
+        raise TypeError("max_output_bytes must be a positive integer or None")
+    try:
+        limit = operator.index(max_output_bytes)
+    except TypeError:
+        raise TypeError("max_output_bytes must be a positive integer or None") from None
+    if limit <= 0:
+        raise ValueError("max_output_bytes must be a positive integer or None")
+    if length > limit:
+        raise DecompressionLimitError(
+            "Decompressed output bound of %d bytes exceeds max_output_bytes=%d"
+            % (length, limit)
+        )
+
+
+def _check_expansion(length: int, input_length: int, reason: str) -> None:
+    if (
+        MAX_DEGRADED_BYTES is not None
+        and length > MAX_DEGRADED_BYTES
+        and length > input_length * MAX_DEGRADED_RATIO
+    ):
+        raise DecompressionLimitError(
+            "Refusing to allocate %d bytes for %s from %d input bytes; set "
+            "psd_tools.compression.MAX_DEGRADED_BYTES = None to allow it."
+            % (length, reason, input_length)
+        )
 
 
 def _row_size(width: int, depth: int) -> int:
@@ -249,6 +294,8 @@ def decompress(
     height: int,
     depth: int,
     version: int = 1,
+    *,
+    max_output_bytes: int | None = None,
 ) -> bytes:
     """Decompress raw data.
 
@@ -259,17 +306,18 @@ def decompress(
     :param height: height in pixels; must be in [1, 300000].
     :param depth: bit depth of the pixel; must be one of 1, 8, 16, 32.
     :param version: psd file version.
+    :param max_output_bytes: positive output-byte ceiling; None disables it.
     :return: decompressed data bytes.
     :raises ValueError: if *width*, *height*, or *depth* are out of range.
+    :raises DecompressionLimitError: if an output or expansion limit is exceeded.
     """
-    if width < 1 or width > _MAX_DIMENSION:
-        raise ValueError("width %d out of range [1, %d]" % (width, _MAX_DIMENSION))
-    if height < 1 or height > _MAX_DIMENSION:
-        raise ValueError("height %d out of range [1, %d]" % (height, _MAX_DIMENSION))
-    if depth not in _VALID_DEPTHS:
-        raise ValueError("depth %d not in %s" % (depth, sorted(_VALID_DEPTHS)))
+    _validate_dimensions(width, height, depth)
 
     length = _channel_length(width, height, depth)
+    _check_output_limit(
+        min(len(data), length) if compression == Compression.RAW else length,
+        max_output_bytes,
+    )
 
     result: bytes | None = None
     if compression == Compression.RAW:
@@ -277,7 +325,7 @@ def decompress(
     elif compression == Compression.RLE:
         try:
             result = decode_rle(data, width, height, depth, version)
-        except ParseLimitError:
+        except (ParseLimitError, DecompressionLimitError):
             raise
         except (ValueError, IndexError, OSError) as e:
             _warn_decompress_failure("RLE", e, width, height, depth, version)
@@ -303,17 +351,7 @@ def decompress(
         # `length` black bytes exists at depth 1 as much as at depth 8 and the
         # fill does not have to stop where byte-per-pixel arithmetic would
         # (#768).
-        if (
-            MAX_DEGRADED_BYTES is not None
-            and length > MAX_DEGRADED_BYTES
-            and length > len(data) * MAX_DEGRADED_RATIO
-        ):
-            raise ValueError(
-                "Refusing to allocate %d bytes for a channel that failed to "
-                "decode from %d input bytes (width=%d height=%d); set "
-                "psd_tools.compression.MAX_DEGRADED_BYTES = None to allow it."
-                % (length, len(data), width, height)
-            )
+        _check_expansion(length, len(data), "a channel that failed to decode")
         # Exactly `length`, which the mismatch check opposite demands of a
         # successful decode and this substitute has to honour too. It was
         # built as a PIL image whose mode was picked from the depth -- "L"
@@ -406,7 +444,27 @@ def encode_rle(data: bytes, width: int, height: int, depth: int, version: int) -
     return result
 
 
-def decode_rle(data: bytes, width: int, height: int, depth: int, version: int) -> bytes:
+def decode_rle(
+    data: bytes,
+    width: int,
+    height: int,
+    depth: int,
+    version: int,
+    *,
+    max_output_bytes: int | None = None,
+) -> bytes:
+    """Decode RLE rows, checking output limits before reading or allocating.
+
+    ``max_output_bytes`` is a positive byte ceiling or ``None`` to disable it.
+    Excessive expansion is also rejected by ``MAX_DEGRADED_BYTES`` and
+    ``MAX_DEGRADED_RATIO``, including zero-padding of incomplete rows.
+    """
+    _validate_dimensions(width, height, depth)
+    if version not in (1, 2):
+        raise ValueError("version must be 1 or 2")
+    length = _channel_length(width, height, depth)
+    _check_output_limit(length, max_output_bytes)
+    _check_expansion(length, len(data), "RLE output")
     try:
         row_size = _row_size(width, depth)
         with io.BytesIO(data) as fp:

@@ -42,6 +42,23 @@ These counters bound parsing work, not total process memory,
 tokenizer runtime, or later pixel decompression. Rendering uses its separate
 allocation budget below.
 
+Low-level decompression
+-----------------------
+
+:py:func:`~psd_tools.compression.decompress` and
+:py:func:`~psd_tools.compression.decode_rle` accept ``max_output_bytes``,
+a positive output-byte ceiling or ``None`` (the default) to disable it.
+The low-level image, channel, and pattern ``get_data()`` methods accept it too;
+for merged images it covers all channels together. Exceeding the ceiling raises
+:py:class:`~psd_tools.compression.DecompressionLimitError` before decoding.
+Intermediate buffers and channel splitting can use additional memory.
+
+RLE output and failed-decode black fills also raise this error when output is
+both over 16 MiB and over 1,000 times the input size. This rejects excessive
+zero-padding while preserving complete valid PackBits streams. Set
+``psd_tools.compression.MAX_DEGRADED_BYTES = None`` to disable this expansion
+guard independently of ``max_output_bytes``.
+
 The allocation budget
 ---------------------
 

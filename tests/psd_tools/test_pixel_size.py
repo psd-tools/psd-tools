@@ -162,7 +162,7 @@ def test_data_aware_guard_rejects_tiny_file_huge_canvas() -> None:
         io.BytesIO(base64.b64decode(_POC_B64)), max_alloc_bytes="unlimited"
     )
     assert psd.width == 5964 and psd.height == 10296 and psd.channels == 6
-    with pytest.raises(ValueError, match="failed to decode"):
+    with pytest.raises(_compression.DecompressionLimitError, match="RLE output"):
         psd.numpy()
 
 
@@ -174,7 +174,7 @@ def test_data_aware_guard_rejects_tiny_file_huge_canvas_composite() -> None:
     psd = PSDImage.open(
         io.BytesIO(base64.b64decode(_POC_B64)), max_alloc_bytes="unlimited"
     )
-    with pytest.raises(ValueError, match="failed to decode"):
+    with pytest.raises(_compression.DecompressionLimitError, match="RLE output"):
         psd.composite()
 
 

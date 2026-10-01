@@ -69,11 +69,18 @@ class ImageData(BaseElement):
         logger.debug("  wrote image data, len=%d" % (fp.tell() - start_pos))
         return written
 
-    def get_data(self, header: FileHeader, split: bool = True) -> list[bytes] | bytes:
+    def get_data(
+        self,
+        header: FileHeader,
+        split: bool = True,
+        *,
+        max_output_bytes: int | None = None,
+    ) -> list[bytes] | bytes:
         """
         Get decompressed data.
 
         :param header: See :py:class:`~psd_tools.psd.header.FileHeader`.
+        :param max_output_bytes: optional ceiling on the combined channel bytes.
         :return: `list` of bytes corresponding each channel.
         """
         data = decompress(
@@ -83,6 +90,7 @@ class ImageData(BaseElement):
             header.height * header.channels,
             header.depth,
             header.version,
+            max_output_bytes=max_output_bytes,
         )
         if split:
             plane_size = len(data) // header.channels

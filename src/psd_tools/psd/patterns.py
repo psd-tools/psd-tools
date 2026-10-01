@@ -232,7 +232,7 @@ class VirtualMemoryArray(BaseElement):
         written += write_bytes(fp, self.data)
         return written
 
-    def get_data(self) -> bytes | None:
+    def get_data(self, *, max_output_bytes: int | None = None) -> bytes | None:
         """Get decompressed bytes."""
         if not self.is_written:
             return None
@@ -242,7 +242,13 @@ class VirtualMemoryArray(BaseElement):
         width = right - left
         height = bottom - top
         return decompress(
-            self.data, self.compression, width, height, self.depth, version=1
+            self.data,
+            self.compression,
+            width,
+            height,
+            self.depth,
+            version=1,
+            max_output_bytes=max_output_bytes,
         )
 
     def set_data(

@@ -1227,16 +1227,33 @@ class ChannelData(BaseElement):
         # written += write_padding(fp, written, 2)  # Seems no padding here.
         return written
 
-    def get_data(self, width: int, height: int, depth: int, version: int = 1) -> bytes:
+    def get_data(
+        self,
+        width: int,
+        height: int,
+        depth: int,
+        version: int = 1,
+        *,
+        max_output_bytes: int | None = None,
+    ) -> bytes:
         """Get decompressed channel data.
 
         :param width: width.
         :param height: height.
         :param depth: bit depth of the pixel.
         :param version: psd file version.
+        :param max_output_bytes: optional ceiling on decoded channel bytes.
         :rtype: bytes
         """
-        return decompress(self.data, self.compression, width, height, depth, version)
+        return decompress(
+            self.data,
+            self.compression,
+            width,
+            height,
+            depth,
+            version,
+            max_output_bytes=max_output_bytes,
+        )
 
     def set_data(
         self, data: bytes, width: int, height: int, depth: int, version: int = 1
