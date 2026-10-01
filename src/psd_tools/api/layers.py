@@ -1439,6 +1439,78 @@ class GroupMixin(GroupMixinProtocol, Protocol):
             raise TypeError("Slice deletion is not supported")
         self.remove(self._layers[key])
 
+    def create_pixel_layer(
+        self,
+        image: Image.Image,
+        name: str = "Layer",
+        top: int = 0,
+        left: int = 0,
+        compression: Compression = Compression.RLE,
+        opacity: int = 255,
+        blend_mode: BlendMode = BlendMode.NORMAL,
+    ) -> "PixelLayer":
+        """
+        Create a new pixel layer at the top of this group or document.
+
+        Example::
+
+            psdimage = PSDImage.new("RGB", (640, 480))
+            layer = psdimage.create_pixel_layer(image, name='Layer 1')
+
+        :param name: Name of the new layer.
+        :param image: PIL Image object. On a 16- or 32-bit document the layer
+            is stored at the document's depth, carrying the image's own 8-bit
+            precision; see :py:meth:`~psd_tools.api.layers.PixelLayer.frompil`.
+        :param top: Top coordinate of the new layer.
+        :param left: Left coordinate of the new layer.
+        :param compression: Compression method for the layer image data.
+        :param opacity: Opacity of the new layer (0-255).
+        :param blend_mode: Blend mode of the new layer, default is ``BlendMode.NORMAL``.
+        :return: The created :py:class:`~psd_tools.api.layers.PixelLayer` object.
+        """
+        layer = PixelLayer.frompil(
+            image, parent=self, name=name, top=top, left=left, compression=compression
+        )
+        layer.opacity = opacity
+        layer.blend_mode = blend_mode
+        self._psd.mark_updated()
+        return layer
+
+    def create_group(
+        self,
+        layer_list: Iterable[Layer] | None = None,
+        name: str = "Group",
+        opacity: int = 255,
+        blend_mode: BlendMode = BlendMode.PASS_THROUGH,
+        open_folder: bool = True,
+    ) -> "Group":
+        """
+        Create a new group at the top of this group or document.
+
+        Example::
+
+            group = psdimage.create_group(name='New Group')
+            layer = group.create_pixel_layer(image, name='Layer in Group')
+
+        :param layer_list: Optional iterable of layers to add to the group.
+        :param name: Name of the new group.
+        :param opacity: Opacity of the new layer (0-255).
+        :param blend_mode: Blend mode of the new layer, default is ``BlendMode.PASS_THROUGH``.
+        :param open_folder: Whether the group is an open folder in the Photoshop UI.
+        :return: The created :py:class:`~psd_tools.api.layers.Group` object.
+        """
+        group = Group.new(parent=self, name=name, open_folder=open_folder)
+        # Against ``None``, not truthiness: ``layer_list`` is any iterable, and
+        # one can be falsey while holding layers, or refuse to be tested at all
+        # -- ``bool()`` on a multi-element NumPy array raises. ``extend()``
+        # handles an empty iterable itself (#820).
+        if layer_list is not None:
+            group.extend(layer_list)
+        group.opacity = opacity
+        group.blend_mode = blend_mode
+        self._psd.mark_updated()
+        return group
+
     def append(self, layer: Layer) -> None:
         """
         Add a layer to the end (top) of the group.
@@ -2024,7 +2096,7 @@ class Group(GroupMixin, Layer):
         open_folder: bool = True,
     ) -> Self:
         """
-        Deprecated: Use ``psdimage.create_group(layer_list, name)`` instead.
+        Deprecated: Use ``parent.create_group(layer_list, name)`` instead.
 
         :param parent: The parent group to add the newly created Group object into.
         :param layers: The layers to group. Can by any subclass of

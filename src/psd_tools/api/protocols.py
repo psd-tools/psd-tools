@@ -16,16 +16,22 @@ documented so that those links land somewhere. These are interfaces; user
 code works with the classes that implement them.
 """
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING, Callable, Iterator, Literal, Protocol
 
 if TYPE_CHECKING:
-    from psd_tools.api.layers import Layer
+    from psd_tools.api.layers import Group, Layer, PixelLayer
 
 import numpy as np
 from PIL import Image
 
-from psd_tools.constants import BlendMode, ChannelID, ColorMode, CompatibilityMode
+from psd_tools.constants import (
+    BlendMode,
+    ChannelID,
+    ColorMode,
+    Compression,
+    CompatibilityMode,
+)
 from psd_tools.psd.document import PSD
 from psd_tools.psd.image_resources import ImageResources
 from psd_tools.psd.layer_and_mask import ChannelDataList, LayerRecord, MaskData
@@ -374,6 +380,30 @@ class GroupMixinProtocol(Protocol):
 
         def _invalidate_bbox(self) -> None:
             """Drop this container's cached bbox, and every one above it."""
+            ...
+
+        def create_pixel_layer(
+            self,
+            image: Image.Image,
+            name: str = ...,
+            top: int = ...,
+            left: int = ...,
+            compression: Compression = ...,
+            opacity: int = ...,
+            blend_mode: BlendMode = ...,
+        ) -> "PixelLayer":
+            """Create a pixel layer at the top of this container."""
+            ...
+
+        def create_group(
+            self,
+            layer_list: Iterable["Layer"] | None = ...,
+            name: str = ...,
+            opacity: int = ...,
+            blend_mode: BlendMode = ...,
+            open_folder: bool = ...,
+        ) -> "Group":
+            """Create a group at the top of this container."""
             ...
 
 
