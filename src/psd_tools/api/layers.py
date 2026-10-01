@@ -1253,7 +1253,8 @@ class GroupMixin(GroupMixinProtocol, Protocol):
     A layer belongs to at most one container, so adding one that already has
     a parent moves it out of that parent rather than copying it; see
     :py:meth:`extend`. The list methods here are a fixed set: ``sort()``,
-    ``reverse()``, ``+=``, ``copy()`` and slice assignment are not provided.
+    ``reverse()``, ``+=``, ``copy()`` and slice assignment or deletion are not
+    provided.
     """
 
     _psd: PSDProtocol

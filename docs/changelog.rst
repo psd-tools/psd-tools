@@ -4,8 +4,9 @@ Changelog
 1.23.0 (unreleased)
 -------------------
 
-- [api] ``layer.parent[i] = other`` now type-checks: ``GroupMixinProtocol``
-  declares the ``__setitem__`` that ``Group`` and ``PSDImage`` implement (#812, #932)
+- [api] ``GroupMixinProtocol`` declares ``__setitem__``, so index assignment
+  on a value typed as it, such as a narrowed ``layer.parent``, now type-checks
+  (#812, #932)
 - [docs] "Modifying the layer structure" states the one-parent rule and that
   the list methods are a fixed set (#812, #932)
 

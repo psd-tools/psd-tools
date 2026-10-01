@@ -14,7 +14,7 @@ GroupMixinProtocol
 
 .. autoclass:: psd_tools.api.protocols.GroupMixinProtocol()
     :members:
-    :special-members: __len__, __iter__, __getitem__, __delitem__
+    :special-members: __len__, __iter__, __getitem__, __setitem__, __delitem__
 
 MaskProtocol
 ------------

@@ -162,9 +162,9 @@ than copying it. The internal model of the layer structure is updated
 automatically.
 
 The following methods are valid for both PSDImage and Group objects. Besides
-indexing, iteration, ``len()``, ``in`` and ``del group[i]``, they are the only
-list operations provided: ``sort()``, ``reverse()``, ``+=``, ``copy()`` and
-slice assignment or deletion are not supported.
+indexing, iteration, ``reversed()``, ``len()``, ``in`` and ``del group[i]``,
+they are the only list operations provided: ``sort()``, ``reverse()``, ``+=``,
+``copy()`` and slice assignment or deletion are not supported.
 
 Replace the layer at a given index::
 
