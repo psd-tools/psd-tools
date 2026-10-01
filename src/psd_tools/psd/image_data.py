@@ -16,7 +16,13 @@ from psd_tools.compression import compress, decompress, decompressed_size_bound
 from psd_tools.constants import Compression
 from psd_tools.psd.header import FileHeader
 from psd_tools.psd.base import BaseElement
-from psd_tools.psd.bin_utils import pack, read_fmt, write_bytes, write_fmt
+from psd_tools.psd.bin_utils import (
+    pack,
+    read_fmt,
+    read_remaining,
+    write_bytes,
+    write_fmt,
+)
 from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
@@ -52,7 +58,7 @@ class ImageData(BaseElement):
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         start_pos = fp.tell()
         compression = Compression(read_fmt("H", fp)[0])
-        data = fp.read()  # TODO: Parse data here. Need header.
+        data = read_remaining(fp)
         logger.debug("  read image data, len=%d" % (fp.tell() - start_pos))
         return cls(compression, data)
 
@@ -63,11 +69,18 @@ class ImageData(BaseElement):
         logger.debug("  wrote image data, len=%d" % (fp.tell() - start_pos))
         return written
 
-    def get_data(self, header: FileHeader, split: bool = True) -> list[bytes] | bytes:
+    def get_data(
+        self,
+        header: FileHeader,
+        split: bool = True,
+        *,
+        max_output_bytes: int | None = None,
+    ) -> list[bytes] | bytes:
         """
         Get decompressed data.
 
         :param header: See :py:class:`~psd_tools.psd.header.FileHeader`.
+        :param max_output_bytes: optional ceiling on the combined channel bytes.
         :return: `list` of bytes corresponding each channel.
         """
         data = decompress(
@@ -77,6 +90,7 @@ class ImageData(BaseElement):
             header.height * header.channels,
             header.depth,
             header.version,
+            max_output_bytes=max_output_bytes,
         )
         if split:
             plane_size = len(data) // header.channels

@@ -12,6 +12,7 @@ from psd_tools.psd.base import BaseElement, ListElement
 from psd_tools.psd.bin_utils import (
     is_readable,
     read_fmt,
+    read_remaining,
     read_length_block,
     read_pascal_string,
     write_bytes,
@@ -163,7 +164,7 @@ class FilterEffectChannel(BaseElement):
             return cls(is_written=is_written)
         with io.BytesIO(data) as f:
             compression = read_fmt("H", f)[0]
-            data = f.read()
+            data = read_remaining(f)
         return cls(is_written, compression, data)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
@@ -211,7 +212,7 @@ class FilterEffectExtra(BaseElement):
         data = b""
         with io.BytesIO(read_length_block(fp, fmt="Q")) as f:
             compression = read_fmt("H", f)[0]
-            data = f.read()
+            data = read_remaining(f)
 
         return cls(
             is_written=is_written,

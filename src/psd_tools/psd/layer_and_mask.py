@@ -80,8 +80,10 @@ from psd_tools.constants import (
 from psd_tools.psd.base import BaseElement, ListElement
 from psd_tools.psd.tagged_blocks import TaggedBlocks, register
 from psd_tools.psd.bin_utils import (
+    bounded_reader,
     is_readable,
     read_fmt,
+    read_exact,
     read_length_block,
     read_pascal_string,
     write_bytes,
@@ -144,20 +146,14 @@ class LayerAndMaskInformation(BaseElement):
     ) -> T_LayerAndMaskInformation:
         start_pos = fp.tell()
         length = read_fmt(("I", "Q")[version - 1], fp)[0]
-        end_pos = fp.tell() + length
         logger.debug(
             "reading layer and mask info, len=%d, offset=%d" % (length, start_pos)
         )
-        if length == 0:
-            self = cls()
-        else:
-            self = cls._read_body(fp, end_pos, encoding, version)
-        if fp.tell() > end_pos:
-            logger.warning(
-                "LayerAndMaskInformation is broken: current fp=%d, expected=%d"
-                % (fp.tell(), end_pos)
-            )
-        fp.seek(end_pos, 0)
+        with bounded_reader(fp, length) as body:
+            if length == 0:
+                self = cls()
+            else:
+                self = cls._read_body(body, body.tell() + length, encoding, version)
         return self
 
     @classmethod
@@ -171,10 +167,13 @@ class LayerAndMaskInformation(BaseElement):
         layer_info = LayerInfo.read(fp, encoding, version)
 
         global_layer_mask_info = None
-        if is_readable(fp, 17) and fp.tell() < end_pos:
-            global_layer_mask_info = GlobalLayerMaskInfo.read(fp)
+        if is_readable(fp, 4):
+            marker = read_fmt("4s", fp)[0]
+            fp.seek(-4, 1)
+            if marker not in (b"8BIM", b"8B64"):
+                global_layer_mask_info = GlobalLayerMaskInfo.read(fp)
 
-        tagged_blocks = None
+        tagged_blocks = TaggedBlocks()
         if is_readable(fp):
             # For some reason, global tagged blocks aligns 4 byte
             tagged_blocks = TaggedBlocks.read(
@@ -246,13 +245,11 @@ class LayerInfo(BaseElement):
     ) -> T_LayerInfo:
         length = read_fmt(("I", "Q")[version - 1], fp)[0]
         logger.debug("reading layer info, len=%d" % length)
-        end_pos = fp.tell() + length
-        if length == 0:
-            self = LayerInfo()
-        else:
-            self = cls._read_body(fp, encoding, version)
-        assert fp.tell() <= end_pos
-        fp.seek(end_pos, 0)
+        with bounded_reader(fp, length) as body:
+            if length == 0:
+                self = cls()
+            else:
+                self = cls._read_body(body, encoding, version)
         return self  # type: ignore[return-value]
 
     @classmethod
@@ -1177,7 +1174,7 @@ class ChannelDataList(ListElement):
                 logger.warning(
                     "  channel %s: length=1 is invalid, skipping 1 byte", c.id
                 )
-                fp.read(1)
+                read_exact(fp, 1)
                 items.append(ChannelData())
             else:
                 items.append(ChannelData.read(fp, c.length - 2, **kwargs))
@@ -1221,7 +1218,7 @@ class ChannelData(BaseElement):
                 "ChannelData.read: negative length %d, clamping to 0", length
             )
             length = 0
-        data = fp.read(length)
+        data = read_exact(fp, length)
         return cls(compression=compression, data=data)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
@@ -1230,16 +1227,33 @@ class ChannelData(BaseElement):
         # written += write_padding(fp, written, 2)  # Seems no padding here.
         return written
 
-    def get_data(self, width: int, height: int, depth: int, version: int = 1) -> bytes:
+    def get_data(
+        self,
+        width: int,
+        height: int,
+        depth: int,
+        version: int = 1,
+        *,
+        max_output_bytes: int | None = None,
+    ) -> bytes:
         """Get decompressed channel data.
 
         :param width: width.
         :param height: height.
         :param depth: bit depth of the pixel.
         :param version: psd file version.
+        :param max_output_bytes: optional ceiling on decoded channel bytes.
         :rtype: bytes
         """
-        return decompress(self.data, self.compression, width, height, depth, version)
+        return decompress(
+            self.data,
+            self.compression,
+            width,
+            height,
+            depth,
+            version,
+            max_output_bytes=max_output_bytes,
+        )
 
     def set_data(
         self, data: bytes, width: int, height: int, depth: int, version: int = 1

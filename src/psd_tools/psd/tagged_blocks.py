@@ -40,8 +40,10 @@ from psd_tools.psd.linked_layer import LinkedLayers
 from psd_tools.psd.patterns import Patterns
 from psd_tools.psd.vector import VectorMaskSetting, VectorStrokeContentSetting
 from psd_tools.psd.bin_utils import (
+    bounded_reader,
     is_readable,
     read_fmt,
+    read_exact,
     read_length_block,
     read_pascal_string,
     trimmed_repr,
@@ -52,6 +54,7 @@ from psd_tools.psd.bin_utils import (
     write_pascal_string,
 )
 from psd_tools.registry import new_registry
+from psd_tools.psd.parse_limits import ParseLimitError
 from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
@@ -180,10 +183,11 @@ class TaggedBlocks(DictElement):
         end_pos: int | None = None,
         **kwargs: Any,
     ) -> T_TaggedBlocks:
+        if end_pos is not None:
+            with bounded_reader(fp, end_pos - fp.tell()) as body:
+                return cls.read(body, version=version, padding=padding, **kwargs)
         items = []
         while is_readable(fp, 8):  # len(signature) + len(key) = 8
-            if end_pos is not None and fp.tell() >= end_pos:
-                break
             block = TaggedBlock.read(fp, version, padding)
             if block is None:
                 break
@@ -288,6 +292,8 @@ class TaggedBlock(BaseElement):
         if kls:
             try:
                 data = kls.frombytes(raw_data, version=version)
+            except ParseLimitError:
+                raise
             except (OSError, ValueError) as e:
                 # Fallback to raw data.
                 message = "Failed to read tagged block %r: %s" % (key, e)
@@ -340,8 +346,10 @@ class Annotations(ListElement):
         items = []
         for _ in range(count):
             length = read_fmt("I", fp)[0] - 4
+            if length < 0:
+                raise IOError("Invalid annotation length: %d" % (length + 4))
             if length > 0:
-                with io.BytesIO(fp.read(length)) as f:
+                with io.BytesIO(read_exact(fp, length)) as f:
                     items.append(Annotation.read(f))
         return cls(
             major_version=major_version,
@@ -438,7 +446,7 @@ class Bytes(ValueElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "Bytes":
-        return cls(fp.read(4))
+        return cls(read_exact(fp, 4))
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         return write_bytes(fp, self.value)
@@ -837,6 +845,8 @@ class TypeToolObjectSetting(BaseElement):
                 engine_data = text_data[b"EngineData"].value
                 engine_data = EngineData.frombytes(engine_data)
                 text_data[b"EngineData"].value = engine_data
+            except ParseLimitError:
+                raise
             except Exception:
                 logger.warning("Failed to read engine data")
         warp_version = read_fmt("H", fp)[0]

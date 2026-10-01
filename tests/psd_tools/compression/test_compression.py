@@ -326,8 +326,7 @@ def test_decompress_zip_bomb_emits_psd_warning(kind: Compression) -> None:
 def test_decompress_rle_failure_emits_psd_warning() -> None:
     """An undecodable RLE channel must emit PSDDecompressionWarning."""
     # version=1 row byte-count table needs height*2 bytes (unsigned short each).
-    # Providing only 1 byte forces array.frombytes to raise ValueError (not a
-    # multiple of 2), which is the path that triggers the warning.
+    # A truncated table raises OSError in read_exact, triggering the warning.
     bad_rle = b"\x00"
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")

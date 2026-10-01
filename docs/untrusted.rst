@@ -2,10 +2,62 @@ Handling untrusted files
 ========================
 
 A PSD file can declare far more pixels than it contains, so a small file can
-ask for gigabytes when it is rendered. psd-tools checks the estimated size of
+ask for gigabytes when it is rendered. Structural parsing has read and object
+limits; rendering checks the estimated size of
 the allocations listed below against an *allocation budget* before making
 them. One over the budget raises :class:`ValueError`, or skips the layer effect
 that needed it.
+
+Parsing limits
+--------------
+
+:py:class:`~psd_tools.ParseLimits` defaults to 1,000,000 parsed objects and
+64 active descriptor/text-engine container levels. Byte limits are disabled
+by default to support large embedded Smart Objects. Enable individual-read
+and cumulative-byte limits when opening an untrusted document::
+
+    from psd_tools import ParseLimits, PSDImage
+
+    psd = PSDImage.open('untrusted.psd', parse_limits=ParseLimits(
+        max_read_bytes=64 * 1024**2,
+        max_total_bytes=256 * 1024**2,
+        max_objects=100_000,
+        max_nesting_depth=32,
+    ))
+
+Each setting is a positive integer; ``None`` disables that limit.
+``parse_limits=None`` uses the defaults. Limits also apply to low-level
+``PSD.read()`` and ``frombytes()`` entry points. Recursive descriptor and
+text-engine ``read()`` calls also establish a budget; other component
+``read()`` calls use limits only within a budgeted parse.
+
+Nested parsers share the root budget. Read bytes and inputs to ``frombytes()``
+count cumulatively, including bytes copied or parsed again. Objects count
+low-level element instances, unpacked scalar values, and array entries.
+Peeking at available bytes does not consume the budget. Exceeding a limit
+raises :py:class:`~psd_tools.ParseLimitError`; recovery does not suppress it.
+Nesting counts active descriptor bodies, descriptor lists, and text-engine
+dictionary/list parsers, including containers parsed from embedded bytes.
+These counters bound parsing work, not total process memory,
+tokenizer runtime, or later pixel decompression. Rendering uses its separate
+allocation budget below.
+
+Low-level decompression
+-----------------------
+
+:py:func:`~psd_tools.compression.decompress` and
+:py:func:`~psd_tools.compression.decode_rle` accept ``max_output_bytes``,
+a positive output-byte ceiling or ``None`` (the default) to disable it.
+The low-level image, channel, and pattern ``get_data()`` methods accept it too;
+for merged images it covers all channels together. Exceeding the ceiling raises
+:py:class:`~psd_tools.compression.DecompressionLimitError` before decoding.
+Intermediate buffers and channel splitting can use additional memory.
+
+RLE output and failed-decode black fills also raise this error when output is
+both over 16 MiB and over 1,000 times the input size. This rejects excessive
+zero-padding while preserving complete valid PackBits streams. Set
+``psd_tools.compression.MAX_DEGRADED_BYTES = None`` to disable this expansion
+guard independently of ``max_output_bytes``.
 
 The allocation budget
 ---------------------
@@ -55,8 +107,7 @@ What it bounds
 What it does not bound
 ----------------------
 
-- Parsing. :py:meth:`~psd_tools.api.psd_image.PSDImage.open` reads the file
-  structure before any budget applies.
+- Parsing, which uses the separate limits above.
 - The total of a composite. Each allocation is checked on its own, and
   compositing holds several at once, in numbers that grow with the layer count.
 - Solid and gradient fills drawn at a layer's own box.
@@ -74,9 +125,10 @@ These apply whatever the budget:
 Recommendations
 ---------------
 
-For files from an untrusted source, keep a finite budget, and process each
+For files from an untrusted source, set finite parsing byte limits and a
+rendering allocation budget, and process each
 file in a separate process with an operating-system memory limit and a
-timeout, since parsing and a composite's total are not bounded by the budget.
+timeout, since the budgets do not cap total process memory or CPU time.
 On Linux, for example::
 
     import resource

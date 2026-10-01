@@ -15,10 +15,12 @@ from psd_tools.psd.base import (
     ShortIntegerElement,
 )
 from psd_tools.psd.descriptor import DescriptorBlock, DescriptorBlock2
+from psd_tools.psd.parse_limits import parse_context
 from psd_tools.terminology import Enum, Key
 from psd_tools.psd.bin_utils import (
     is_readable,
     read_fmt,
+    read_remaining,
     read_unicode_string,
     write_bytes,
     write_fmt,
@@ -120,8 +122,9 @@ class ColorLookup(DescriptorBlock2):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
-        version, data_version = read_fmt("HI", fp)
-        return cls(version=version, data_version=data_version, **cls._read_body(fp))  # type: ignore[call-arg, attr-defined]
+        with parse_context(kwargs.pop("parse_limits", None)):
+            version, data_version = read_fmt("HI", fp)
+            return cls(version=version, data_version=data_version, **cls._read_body(fp))  # type: ignore[call-arg, attr-defined]
 
     def write(self, fp: IO[bytes], padding: int = 4, **kwargs: Any) -> int:
         written = write_fmt(fp, "HI", self.version, self.data_version)
@@ -150,7 +153,7 @@ class ChannelMixer(BaseElement):
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         version, monochrome = read_fmt("2H", fp)
         data = list(read_fmt("5h", fp))
-        unknown = fp.read()
+        unknown = read_remaining(fp)
         return cls(version=version, monochrome=monochrome, data=data, unknown=unknown)  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
@@ -536,7 +539,7 @@ class HueSaturation(BaseElement):
             colorization=colorization,
             master=master,
             items=items,
-            unknown=fp.read(),
+            unknown=read_remaining(fp),
         )  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:

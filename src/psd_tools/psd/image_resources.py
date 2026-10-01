@@ -83,6 +83,7 @@ from psd_tools.psd.base import (
 from psd_tools.psd.color import Color
 from psd_tools.psd.descriptor import DescriptorBlock
 from psd_tools.psd.bin_utils import (
+    read_exact,
     is_readable,
     read_fmt,
     read_length_block,
@@ -96,6 +97,7 @@ from psd_tools.psd.bin_utils import (
     write_unicode_string,
 )
 from psd_tools.registry import new_registry
+from psd_tools.psd.parse_limits import ParseLimitError
 from psd_tools.validators import in_
 from psd_tools.version import __version__
 
@@ -907,6 +909,8 @@ class SliceV6(BaseElement):
                     if data.classID == b"\x00\x00\x00\x00":
                         data = None
                         raise ValueError(data)
+                except ParseLimitError:
+                    raise
                 except ValueError:
                     logger.debug("Failed to read DescriptorBlock")
                     fp.seek(current_position)
@@ -987,7 +991,7 @@ class ThumbnailResource(BaseElement):
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "ThumbnailResource":
         fmt, width, height, row, total_size, size, bits, planes = read_fmt("6I2H", fp)
-        data = fp.read(size)
+        data = read_exact(fp, size)
         return cls(fmt, width, height, row, total_size, bits, planes, data)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:

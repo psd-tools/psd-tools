@@ -10,12 +10,83 @@ and serializing PSD file structures.
 """
 
 import array
+import io
 import logging
+import re
 import struct
 import sys
-from typing import IO, Any, Callable
+from contextlib import contextmanager
+from typing import IO, Any, Callable, Iterator, cast
+
+from psd_tools.psd.parse_limits import consume_bytes, consume_objects
 
 logger = logging.getLogger(__name__)
+
+
+def _remaining_bytes(fp: IO[bytes]) -> int:
+    position = fp.tell()
+    try:
+        end = fp.seek(0, 2)
+    finally:
+        fp.seek(position)
+    return end - position
+
+
+def read_exact(fp: IO[bytes], size: int) -> bytes:
+    """Read exactly size bytes, validating availability before allocation."""
+    if size < 0 or size > _remaining_bytes(fp):
+        raise IOError("Invalid data section size: %d" % size)
+    consume_bytes(size)
+    data = fp.read(size)
+    if len(data) != size:
+        raise IOError(
+            "Failed to read data section: read=%d, expected=%d." % (len(data), size)
+        )
+    return data
+
+
+def read_remaining(fp: IO[bytes]) -> bytes:
+    """Read the remaining section with allocation checks."""
+    return read_exact(fp, _remaining_bytes(fp))
+
+
+class _BoundedReader(io.IOBase):
+    """Expose a section of a seekable stream using absolute positions."""
+
+    def __init__(self, fp: IO[bytes], length: int):
+        if length < 0 or length > _remaining_bytes(fp):
+            raise IOError("Invalid data section size: %d" % length)
+        self._fp = fp
+        self._start = fp.tell()
+        self._end = self._start + length
+
+    def tell(self) -> int:
+        return self._fp.tell()
+
+    def seek(self, offset: int, whence: int = 0) -> int:
+        if whence == 0:
+            position = offset
+        elif whence == 1:
+            position = self.tell() + offset
+        elif whence == 2:
+            position = self._end + offset
+        else:
+            raise ValueError("Invalid whence: %d" % whence)
+        if not self._start <= position <= self._end:
+            raise IOError("Seek outside data section: %d" % position)
+        return self._fp.seek(position)
+
+    def read(self, size: int = -1) -> bytes:
+        remaining = self._end - self.tell()
+        return self._fp.read(remaining if size < 0 else min(size, remaining))
+
+
+@contextmanager
+def bounded_reader(fp: IO[bytes], length: int) -> Iterator[IO[bytes]]:
+    """Limit reads and seeks to a section, skipping its remainder on success."""
+    reader = _BoundedReader(fp, length)
+    yield cast(IO[bytes], reader)
+    reader.seek(0, 2)
 
 
 def pack(fmt: str, *args: Any) -> bytes:
@@ -25,7 +96,15 @@ def pack(fmt: str, *args: Any) -> bytes:
 
 def unpack(fmt: str, data: bytes) -> tuple[Any, ...]:
     fmt = str(">" + fmt)
+    consume_objects(_format_objects(fmt))
     return struct.unpack(fmt, data)
+
+
+def _format_objects(fmt: str) -> int:
+    return sum(
+        0 if code == "x" else 1 if code in "sp" else int(count or "1")
+        for count, code in re.findall(r"(\d*)([xcbB?hHiIlLqQnNefdspP])", fmt)
+    )
 
 
 def read_fmt(fmt: str, fp: IO[bytes]) -> tuple[Any, ...]:
@@ -34,13 +113,18 @@ def read_fmt(fmt: str, fp: IO[bytes]) -> tuple[Any, ...]:
     """
     fmt = str(">" + fmt)
     fmt_size = struct.calcsize(fmt)
-    data = fp.read(fmt_size)
-    if len(data) != fmt_size:
-        fp.seek(-len(data), 1)
+    if fmt_size > _remaining_bytes(fp):
         raise IOError(
             "Failed to read data section: read=%d, expected=%d. "
-            "Likely the file is corrupted." % (len(data), fmt_size)
+            "Likely the file is corrupted." % (_remaining_bytes(fp), fmt_size)
         )
+    consume_objects(_format_objects(fmt))
+    position = fp.tell()
+    try:
+        data = read_exact(fp, fmt_size)
+    except IOError:
+        fp.seek(position)
+        raise
     return struct.unpack(fmt, data)
 
 
@@ -84,12 +168,7 @@ def read_length_block(fp: IO[bytes], fmt: str = "I", padding: int = 1) -> bytes:
     :return: bytes object
     """
     length = read_fmt(fmt, fp)[0]
-    data = fp.read(length)
-    if len(data) != length:
-        raise IOError(
-            "Failed to read data section: read=%d, expected=%d. "
-            "Likely the file is corrupted." % (len(data), length)
-        )
+    data = read_exact(fp, length)
     read_padding(fp, length, padding)
     return data
 
@@ -164,7 +243,7 @@ def read_padding(fp: IO[bytes], size: int, divisor: int = 2) -> bytes:
     """
     remainder = size % divisor
     if remainder:
-        return fp.read(divisor - remainder)
+        return read_exact(fp, divisor - remainder)
     return b""
 
 
@@ -190,9 +269,7 @@ def is_readable(fp: IO[bytes], size: int = 1) -> bool:
     :param size: byte size
     :return: bool
     """
-    read_size = len(fp.read(size))
-    fp.seek(-read_size, 1)
-    return read_size == size
+    return 0 <= size <= _remaining_bytes(fp)
 
 
 def pad(number: int, divisor: int) -> int:
@@ -215,8 +292,7 @@ def read_pascal_string(
     start_pos = fp.tell()
     # read_length_block doesn't work for a byte.
     length = read_fmt("B", fp)[0]
-    data = fp.read(length)
-    assert len(data) == length, (len(data), length)
+    data = read_exact(fp, length)
     read_padding(fp, fp.tell() - start_pos, padding)
     return data.decode(encoding)
 
@@ -233,7 +309,7 @@ def write_pascal_string(
 
 def read_unicode_string(fp: IO[bytes], padding: int = 1) -> str:
     num_chars = read_fmt("I", fp)[0]
-    data = fp.read(num_chars * 2)
+    data = read_exact(fp, num_chars * 2)
     read_padding(fp, struct.calcsize("I") + num_chars * 2, padding)
     return data.decode("utf-16-be")
 
@@ -250,8 +326,11 @@ def read_be_array(fmt: str, count: int, fp: IO[bytes]) -> array.array:
     """
     Reads an array from a file with big-endian data.
     """
+    if count < 0:
+        raise IOError("Invalid array size: %d" % count)
+    consume_objects(count)
     arr = array.array(str(fmt))
-    arr.frombytes(fp.read(count * arr.itemsize))
+    arr.frombytes(read_exact(fp, count * arr.itemsize))
     return fix_byteorder(arr)
 
 
@@ -275,6 +354,9 @@ def be_array_from_bytes(fmt: str, data: bytes) -> array.array:
     """
     Reads an array from bytestring with big-endian data.
     """
+    itemsize = array.array(str(fmt)).itemsize
+    consume_objects(len(data) // itemsize)
+    consume_bytes(len(data))
     arr = array.array(str(fmt), data)
     return fix_byteorder(arr)
 

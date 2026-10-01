@@ -31,6 +31,8 @@ EngineData. The format looks like the following::
 
 from __future__ import annotations
 
+from psd_tools.psd.bin_utils import read_remaining
+
 import codecs
 import logging
 import re
@@ -38,6 +40,13 @@ from enum import Enum
 from typing import Any, Iterator
 
 from attrs import frozen
+
+from psd_tools.psd.parse_limits import (
+    ParseLimits,
+    consume_bytes,
+    parse_container,
+    parse_context,
+)
 
 from psd_tools.psd.base import (
     BooleanElement,
@@ -108,20 +117,20 @@ class Tokenizer:
             raise StopIteration
 
         index = self.index
-        if self.data[index:].startswith(self.UTF16_START):
-            match = self.UTF16_END.search(self.data[index:])
+        if self.data.startswith(self.UTF16_START, index):
+            match = self.UTF16_END.search(self.data, index)
             if match is None:
                 raise ValueError("Invalid token: %r" % (self.data[index:]))
-            token = self.data[index : index + match.end()]
-            self.index += match.end()
+            token = self.data[index : match.end()]
+            self.index = match.end()
         else:
-            match = self.DIVIDER.search(self.data[index:])
+            match = self.DIVIDER.search(self.data, index)
             if match is None:
                 token = self.data[index:]
                 self.index = len(self.data)
             else:
-                token = self.data[index : index + match.start()]
-                self.index += match.end()
+                token = self.data[index : match.start()]
+                self.index = match.end()
                 if token == b"":
                     return self.__next__()
 
@@ -140,28 +149,41 @@ class Dict(DictElement):
 
     @classmethod
     def read(cls, fp: Any, **kwargs: Any) -> "Dict":
-        return cls.frombytes(fp.read())
+        with parse_context(kwargs.pop("parse_limits", None)):
+            return cls.frombytes(read_remaining(fp), **kwargs)
 
     @classmethod
-    def frombytes(cls, data: bytes | Tokenizer, **kwargs: Any) -> "Dict":
-        tokenizer = data if isinstance(data, Tokenizer) else Tokenizer(data)
-        self = cls()
-        for k_token, k_token_type in tokenizer:
-            if k_token_type == EngineToken.PROPERTY:
-                key = Property.frombytes(k_token)
-                v_token, v_token_type = next(tokenizer)
-                kls = TOKEN_CLASSES.get(v_token_type)
-                if v_token_type in (EngineToken.ARRAY_START, EngineToken.DICT_START):
-                    assert kls is not None
-                    value = kls.frombytes(tokenizer)
-                elif kls:
-                    value = kls.frombytes(v_token)
-                else:
-                    raise ValueError("Invalid token: %r" % (v_token))
-                self[key] = value
-            elif k_token_type == EngineToken.DICT_END:
-                return self
-        return self
+    def frombytes(
+        cls,
+        data: bytes | Tokenizer,
+        *args: Any,
+        parse_limits: ParseLimits | None = None,
+        **kwargs: Any,
+    ) -> "Dict":
+        with parse_context(parse_limits) as is_root, parse_container():
+            if is_root or not isinstance(data, Tokenizer):
+                consume_bytes(len(data))
+            tokenizer = data if isinstance(data, Tokenizer) else Tokenizer(data)
+            self = cls()
+            for k_token, k_token_type in tokenizer:
+                if k_token_type == EngineToken.PROPERTY:
+                    key = Property.frombytes(k_token)
+                    v_token, v_token_type = next(tokenizer)
+                    kls = TOKEN_CLASSES.get(v_token_type)
+                    if v_token_type in (
+                        EngineToken.ARRAY_START,
+                        EngineToken.DICT_START,
+                    ):
+                        assert kls is not None
+                        value = kls.frombytes(tokenizer)
+                    elif kls:
+                        value = kls.frombytes(v_token)
+                    else:
+                        raise ValueError("Invalid token: %r" % (v_token))
+                    self[key] = value
+                elif k_token_type == EngineToken.DICT_END:
+                    return self
+            return self
 
     def write(
         self,
@@ -271,26 +293,36 @@ class List(ListElement):
 
     @classmethod
     def read(cls, fp: Any, **kwargs: Any) -> "List":
-        return cls.frombytes(fp.read())
+        with parse_context(kwargs.pop("parse_limits", None)):
+            return cls.frombytes(read_remaining(fp), **kwargs)
 
     @classmethod
-    def frombytes(cls, data: bytes | Tokenizer, **kwargs: Any) -> "List":
-        tokenizer = data if isinstance(data, Tokenizer) else Tokenizer(data)
-        self = cls()
-        for token, token_type in tokenizer:
-            if token_type == EngineToken.ARRAY_END:
-                return self
+    def frombytes(
+        cls,
+        data: bytes | Tokenizer,
+        *args: Any,
+        parse_limits: ParseLimits | None = None,
+        **kwargs: Any,
+    ) -> "List":
+        with parse_context(parse_limits) as is_root, parse_container():
+            if is_root or not isinstance(data, Tokenizer):
+                consume_bytes(len(data))
+            tokenizer = data if isinstance(data, Tokenizer) else Tokenizer(data)
+            self = cls()
+            for token, token_type in tokenizer:
+                if token_type == EngineToken.ARRAY_END:
+                    return self
 
-            kls = TOKEN_CLASSES.get(token_type)
-            if token_type in (EngineToken.ARRAY_START, EngineToken.DICT_START):
-                assert kls is not None
-                value = kls.frombytes(tokenizer)
-            else:
-                assert kls is not None
-                value = kls.frombytes(token)
-            self.append(value)
+                kls = TOKEN_CLASSES.get(token_type)
+                if token_type in (EngineToken.ARRAY_START, EngineToken.DICT_START):
+                    assert kls is not None
+                    value = kls.frombytes(tokenizer)
+                else:
+                    assert kls is not None
+                    value = kls.frombytes(token)
+                self.append(value)
 
-        return self
+            return self
 
     def write(self, fp: Any, indent: int | None = None, **kwargs: Any) -> int:
         written = write_bytes(fp, b"[")
@@ -331,14 +363,23 @@ class String(ValueElement):
 
     @classmethod
     def read(cls, fp: Any, **kwargs: Any) -> "String":
-        return cls.frombytes(fp.read())
+        with parse_context(kwargs.pop("parse_limits", None)):
+            return cls.frombytes(read_remaining(fp), **kwargs)
 
     @classmethod
-    def frombytes(cls, data: bytes, **kwargs: Any) -> "String":
-        value = data[1:-1]
-        for c in cls._ESCAPED_CHARS:
-            value = value.replace(b"\\" + c, c)
-        return cls(value.decode("utf-16"))
+    def frombytes(
+        cls,
+        data: bytes,
+        *args: Any,
+        parse_limits: ParseLimits | None = None,
+        **kwargs: Any,
+    ) -> "String":
+        with parse_context(parse_limits):
+            consume_bytes(len(data))
+            value = data[1:-1]
+            for c in cls._ESCAPED_CHARS:
+                value = value.replace(b"\\" + c, c)
+            return cls(value.decode("utf-16"))
 
     def write(self, fp: Any, **kwargs: Any) -> int:
         assert isinstance(self.value, str)
@@ -356,11 +397,20 @@ class Bool(BooleanElement):
 
     @classmethod
     def read(cls, fp: Any, **kwargs: Any) -> "Bool":
-        return cls.frombytes(fp.read())
+        with parse_context(kwargs.pop("parse_limits", None)):
+            return cls.frombytes(read_remaining(fp), **kwargs)
 
     @classmethod
-    def frombytes(cls, data: bytes, **kwargs: Any) -> "Bool":
-        return cls(data == b"true")
+    def frombytes(
+        cls,
+        data: bytes,
+        *args: Any,
+        parse_limits: ParseLimits | None = None,
+        **kwargs: Any,
+    ) -> "Bool":
+        with parse_context(parse_limits):
+            consume_bytes(len(data))
+            return cls(data == b"true")
 
     def write(self, fp: Any, indent: int = 0, **kwargs: Any) -> int:
         return write_bytes(fp, b"true" if self.value else b"false")
@@ -374,11 +424,20 @@ class Integer(IntegerElement):
 
     @classmethod
     def read(cls, fp: Any, **kwargs: Any) -> "Integer":
-        return cls.frombytes(fp.read())
+        with parse_context(kwargs.pop("parse_limits", None)):
+            return cls.frombytes(read_remaining(fp), **kwargs)
 
     @classmethod
-    def frombytes(cls, data: bytes, **kwargs: Any) -> "Integer":
-        return cls(int(data))
+    def frombytes(
+        cls,
+        data: bytes,
+        *args: Any,
+        parse_limits: ParseLimits | None = None,
+        **kwargs: Any,
+    ) -> "Integer":
+        with parse_context(parse_limits):
+            consume_bytes(len(data))
+            return cls(int(data))
 
     def write(self, fp: Any, indent: int = 0, **kwargs: Any) -> int:
         return write_bytes(fp, b"%d" % (self.value))
@@ -392,11 +451,20 @@ class Float(NumericElement):
 
     @classmethod
     def read(cls, fp: Any, **kwargs: Any) -> "Float":
-        return cls.frombytes(fp.read())
+        with parse_context(kwargs.pop("parse_limits", None)):
+            return cls.frombytes(read_remaining(fp), **kwargs)
 
     @classmethod
-    def frombytes(cls, data: bytes, **kwargs: Any) -> "Float":
-        return cls(float(data))
+    def frombytes(
+        cls,
+        data: bytes,
+        *args: Any,
+        parse_limits: ParseLimits | None = None,
+        **kwargs: Any,
+    ) -> "Float":
+        with parse_context(parse_limits):
+            consume_bytes(len(data))
+            return cls(float(data))
 
     def write(self, fp: Any, **kwargs: Any) -> int:
         value = b"%.8f" % (self.value)
@@ -416,11 +484,20 @@ class Property(ValueElement):
 
     @classmethod
     def read(cls, fp: Any, **kwargs: Any) -> "Property":
-        return cls.frombytes(fp.read())
+        with parse_context(kwargs.pop("parse_limits", None)):
+            return cls.frombytes(read_remaining(fp), **kwargs)
 
     @classmethod
-    def frombytes(cls, data: bytes, **kwargs: Any) -> "Property":
-        return cls(data.replace(b"/", b"").decode("macroman"))
+    def frombytes(
+        cls,
+        data: bytes,
+        *args: Any,
+        parse_limits: ParseLimits | None = None,
+        **kwargs: Any,
+    ) -> "Property":
+        with parse_context(parse_limits):
+            consume_bytes(len(data))
+            return cls(data.replace(b"/", b"").decode("macroman"))
 
     def write(self, fp: Any, **kwargs: Any) -> int:
         assert isinstance(self.value, str)
@@ -436,7 +513,8 @@ class Tag(ValueElement):
 
     @classmethod
     def read(cls, fp: Any, **kwargs: Any) -> "Tag":
-        return cls(fp.read())
+        with parse_context(kwargs.pop("parse_limits", None)):
+            return cls(read_remaining(fp))
 
     def write(self, fp: Any, **kwargs: Any) -> int:
         return write_bytes(fp, self.value)  # type: ignore[arg-type]

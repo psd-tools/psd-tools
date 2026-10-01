@@ -12,6 +12,7 @@ from psd_tools.constants import LinkedLayerType
 from psd_tools.psd.base import BaseElement, ListElement
 from psd_tools.psd.descriptor import DescriptorBlock
 from psd_tools.psd.bin_utils import (
+    read_exact,
     is_readable,
     read_fmt,
     read_length_block,
@@ -118,11 +119,11 @@ class LinkedLayer(BaseElement):
                 timestamp = read_fmt("I4Bd", fp)
             filesize = read_fmt("Q", fp)[0]  # External file size.
             if version > 2:
-                data = fp.read(datasize)
+                data = read_exact(fp, datasize)
         elif kind == LinkedLayerType.ALIAS:
             read_fmt("8x", fp)
         if kind == LinkedLayerType.DATA:
-            data = fp.read(datasize)
+            data = read_exact(fp, datasize)
             assert len(data) == datasize, "(%d vs %d)" % (len(data), datasize)
 
         # The followings are not well documented...
@@ -133,7 +134,7 @@ class LinkedLayer(BaseElement):
         if version >= 7:
             lock_state = read_fmt("B", fp)[0]
         if kind == LinkedLayerType.EXTERNAL and version == 2:
-            data = fp.read(datasize)
+            data = read_exact(fp, datasize)
 
         return cls(
             kind,
