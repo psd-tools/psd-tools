@@ -117,20 +117,20 @@ class Tokenizer:
             raise StopIteration
 
         index = self.index
-        if self.data[index:].startswith(self.UTF16_START):
-            match = self.UTF16_END.search(self.data[index:])
+        if self.data.startswith(self.UTF16_START, index):
+            match = self.UTF16_END.search(self.data, index)
             if match is None:
                 raise ValueError("Invalid token: %r" % (self.data[index:]))
-            token = self.data[index : index + match.end()]
-            self.index += match.end()
+            token = self.data[index : match.end()]
+            self.index = match.end()
         else:
-            match = self.DIVIDER.search(self.data[index:])
+            match = self.DIVIDER.search(self.data, index)
             if match is None:
                 token = self.data[index:]
                 self.index = len(self.data)
             else:
-                token = self.data[index : index + match.start()]
-                self.index += match.end()
+                token = self.data[index : match.start()]
+                self.index = match.end()
                 if token == b"":
                     return self.__next__()
 

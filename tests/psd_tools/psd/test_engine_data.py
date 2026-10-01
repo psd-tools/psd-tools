@@ -34,6 +34,76 @@ def test_tokenizer_item(fixture: bytes, token_type: int) -> None:
 
 
 @pytest.mark.parametrize(
+    "data, expected",
+    [
+        (b"", []),
+        (b" \n\t", []),
+        (
+            b" \t<< /Value [ -12 .5 true false ] >>\x00 \n",
+            [
+                (b"<<", EngineToken.DICT_START),
+                (b"/Value", EngineToken.PROPERTY),
+                (b"[", EngineToken.ARRAY_START),
+                (b"-12", EngineToken.NUMBER),
+                (b".5", EngineToken.NUMBER_WITH_DECIMAL),
+                (b"true", EngineToken.BOOLEAN),
+                (b"false", EngineToken.BOOLEAN),
+                (b"]", EngineToken.ARRAY_END),
+                (b">>\x00", EngineToken.DICT_END),
+            ],
+        ),
+        (
+            b"/Text (\xfe\xff\x00A\\)\x00B)/Next (\xfe\xff) ",
+            [
+                (b"/Text", EngineToken.PROPERTY),
+                (b"(\xfe\xff\x00A\\)\x00B)", EngineToken.STRING),
+                (b"/Next", EngineToken.PROPERTY),
+                (b"(\xfe\xff)", EngineToken.STRING),
+            ],
+        ),
+        (b"1", [(b"1", EngineToken.NUMBER)]),
+    ],
+)
+def test_tokenizer_offsets(data, expected) -> None:
+    tokenizer = Tokenizer(data)
+    assert list(tokenizer) == expected
+    assert tokenizer.index == len(data)
+    assert len(tokenizer) == 0
+    with pytest.raises(StopIteration):
+        tokenizer.next()
+
+
+@pytest.mark.parametrize(
+    "suffix, message",
+    [(b"(\xfe\xff\x00A", "Invalid token"), (b"?", "Unknown token")],
+)
+def test_tokenizer_invalid_at_offset(suffix: bytes, message: str) -> None:
+    tokenizer = Tokenizer(b"1 " + suffix)
+    assert next(tokenizer) == (b"1", EngineToken.NUMBER)
+    with pytest.raises(ValueError) as error:
+        next(tokenizer)
+    assert str(error.value) == "%s: %r" % (message, suffix)
+
+
+@pytest.mark.parametrize("token", [b"1", b"(\xfe\xff\x00A)"])
+def test_tokenizer_copies_only_tokens(token: bytes) -> None:
+    class TrackedBytes(bytes):
+        copied_bytes = 0
+
+        def __getitem__(self, key):
+            value = super().__getitem__(key)
+            if isinstance(key, slice):
+                self.copied_bytes += len(value)
+            return value
+
+    count = 4096
+    data = TrackedBytes((token + b" ") * count)
+    tokenizer = Tokenizer(data)
+    assert sum(1 for _ in tokenizer) == count
+    assert data.copied_bytes == len(token) * count
+
+
+@pytest.mark.parametrize(
     "filename, indent, write",
     [
         ("TySh_1.dat", 0, True),
