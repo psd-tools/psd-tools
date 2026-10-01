@@ -84,6 +84,7 @@ from psd_tools.constants import (
     Tag,
 )
 from psd_tools.psd.document import PSD
+from psd_tools.psd.parse_limits import ParseLimits
 from psd_tools.psd.header import FileHeader
 from psd_tools.psd.image_data import ImageData
 from psd_tools.psd.image_resources import ImageResources
@@ -238,12 +239,16 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         cls,
         fp: IO[bytes] | str | bytes | os.PathLike,
         max_alloc_bytes: AllocBudget | None = None,
+        parse_limits: ParseLimits | None = None,
         **kwargs: Any,
     ) -> Self:
         """
         Open a PSD document.
 
         :param fp: filename or file-like object.
+        :param parse_limits: structural read and object limits; ``None`` uses
+            :py:class:`~psd_tools.ParseLimits` defaults. Exceeding a limit
+            raises :py:class:`~psd_tools.ParseLimitError` before the allocation.
         :param max_alloc_bytes: initial :py:attr:`max_alloc_bytes`, checked
             before the file is read. Caps (bytes) what
             :py:meth:`composite`/:py:meth:`numpy`/:py:meth:`topil`/:py:meth:`thumbnail`
@@ -274,11 +279,13 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             string other than ``"unlimited"``.
         """
         max_alloc_bytes = validate_alloc_budget(max_alloc_bytes)
+        if parse_limits is not None and not isinstance(parse_limits, ParseLimits):
+            raise TypeError("parse_limits must be a ParseLimits instance or None")
         if isinstance(fp, (str, bytes, os.PathLike)):
             with open(fp, "rb") as f:
-                self = cls(PSD.read(f, **kwargs))
+                self = cls(PSD.read(f, parse_limits=parse_limits, **kwargs))
         else:
-            self = cls(PSD.read(fp, **kwargs))
+            self = cls(PSD.read(fp, parse_limits=parse_limits, **kwargs))
         self._max_alloc_bytes = max_alloc_bytes
         return self
 

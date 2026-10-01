@@ -54,6 +54,7 @@ from psd_tools.psd.bin_utils import (
     write_pascal_string,
 )
 from psd_tools.registry import new_registry
+from psd_tools.psd.parse_limits import ParseLimitError
 from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
@@ -291,6 +292,8 @@ class TaggedBlock(BaseElement):
         if kls:
             try:
                 data = kls.frombytes(raw_data, version=version)
+            except ParseLimitError:
+                raise
             except (OSError, ValueError) as e:
                 # Fallback to raw data.
                 message = "Failed to read tagged block %r: %s" % (key, e)
@@ -842,6 +845,8 @@ class TypeToolObjectSetting(BaseElement):
                 engine_data = text_data[b"EngineData"].value
                 engine_data = EngineData.frombytes(engine_data)
                 text_data[b"EngineData"].value = engine_data
+            except ParseLimitError:
+                raise
             except Exception:
                 logger.warning("Failed to read engine data")
         warp_version = read_fmt("H", fp)[0]

@@ -33,6 +33,7 @@ from psd_tools.psd.base import (
 )
 from psd_tools.terminology import Enum, Event, Form, Key, Klass, Type, Unit
 from psd_tools.psd.bin_utils import (
+    read_exact,
     read_fmt,
     read_length_block,
     read_unicode_string,
@@ -65,7 +66,7 @@ def read_length_and_key(fp: IO[bytes]) -> bytes:
     Helper to read descriptor key.
     """
     length = read_fmt("I", fp)[0]
-    key = fp.read(length or 4)
+    key = read_exact(fp, length or 4)
     if length == 0 and key not in _TERMS:
         logger.debug("Unknown term: %r" % (key))
         _TERMS.add(key)
@@ -93,7 +94,7 @@ class _DescriptorMixin(DictElement):
         count = read_fmt("I", fp)[0]
         for _ in range(count):
             key = read_length_and_key(fp)
-            ostype = OSType(fp.read(4))
+            ostype = OSType(read_exact(fp, 4))
             kls = TYPES.get(ostype)
             value = kls.read(fp)  # type: ignore[union-attr]
             items.append((key, value))
@@ -233,7 +234,7 @@ class List(ListElement):
         items = []
         count = read_fmt("I", fp)[0]
         for _ in range(count):
-            key = OSType(fp.read(4))
+            key = OSType(read_exact(fp, 4))
             kls = TYPES.get(key)
             value = kls.read(fp)  # type: ignore[union-attr]
             items.append(value)

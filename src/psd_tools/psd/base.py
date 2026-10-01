@@ -29,6 +29,12 @@ from psd_tools.psd.bin_utils import (
     write_fmt,
     write_unicode_string,
 )
+from psd_tools.psd.parse_limits import (
+    ParseLimits,
+    consume_bytes,
+    consume_objects,
+    parse_context,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +69,10 @@ class BaseElement:
         Validate the attribute.
     """
 
+    def __new__(cls: type[T], *args: Any, **kwargs: Any) -> T:
+        consume_objects(1)
+        return super().__new__(cls)
+
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         raise NotImplementedError()
@@ -71,9 +81,18 @@ class BaseElement:
         raise NotImplementedError()
 
     @classmethod
-    def frombytes(cls: type[T], data: bytes, *args: Any, **kwargs: Any) -> T:
-        with io.BytesIO(data) as f:
-            return cls.read(f, *args, **kwargs)
+    def frombytes(
+        cls: type[T],
+        data: bytes,
+        *args: Any,
+        parse_limits: ParseLimits | None = None,
+        **kwargs: Any,
+    ) -> T:
+        """Parse bytes using shared structural limits; None selects the defaults."""
+        with parse_context(parse_limits):
+            consume_bytes(len(data))
+            with io.BytesIO(data) as f:
+                return cls.read(f, *args, **kwargs)
 
     def tobytes(self, *args: Any, **kwargs: Any) -> bytes:
         with io.BytesIO() as f:

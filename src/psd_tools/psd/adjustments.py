@@ -19,6 +19,7 @@ from psd_tools.terminology import Enum, Key
 from psd_tools.psd.bin_utils import (
     is_readable,
     read_fmt,
+    read_remaining,
     read_unicode_string,
     write_bytes,
     write_fmt,
@@ -150,7 +151,7 @@ class ChannelMixer(BaseElement):
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         version, monochrome = read_fmt("2H", fp)
         data = list(read_fmt("5h", fp))
-        unknown = fp.read()
+        unknown = read_remaining(fp)
         return cls(version=version, monochrome=monochrome, data=data, unknown=unknown)  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
@@ -536,7 +537,7 @@ class HueSaturation(BaseElement):
             colorization=colorization,
             master=master,
             items=items,
-            unknown=fp.read(),
+            unknown=read_remaining(fp),
         )  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:

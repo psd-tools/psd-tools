@@ -2,10 +2,40 @@ Handling untrusted files
 ========================
 
 A PSD file can declare far more pixels than it contains, so a small file can
-ask for gigabytes when it is rendered. psd-tools checks the estimated size of
+ask for gigabytes when it is rendered. Structural parsing has read and object
+limits; rendering checks the estimated size of
 the allocations listed below against an *allocation budget* before making
 them. One over the budget raises :class:`ValueError`, or skips the layer effect
 that needed it.
+
+Parsing limits
+--------------
+
+:py:class:`~psd_tools.ParseLimits` limits an individual read to 256 MiB,
+cumulative parsed bytes to 1 GiB, and parsed objects to 1,000,000 by default.
+Set limits when opening a document::
+
+    from psd_tools import ParseLimits, PSDImage
+
+    psd = PSDImage.open('untrusted.psd', parse_limits=ParseLimits(
+        max_read_bytes=64 * 1024**2,
+        max_total_bytes=256 * 1024**2,
+        max_objects=100_000,
+    ))
+
+Each setting is a positive integer; ``None`` disables that limit.
+``parse_limits=None`` uses the defaults. Limits also apply to low-level
+``PSD.read()`` and ``frombytes()`` entry points; direct component ``read()``
+calls share limits only when called within a budgeted parse.
+
+Nested parsers share the root budget. Read bytes and inputs to ``frombytes()``
+count cumulatively, including bytes copied or parsed again. Objects count
+low-level element instances, unpacked scalar values, and array entries.
+Peeking at available bytes does not consume the budget. Exceeding a limit
+raises :py:class:`~psd_tools.ParseLimitError`; recovery does not suppress it.
+These counters bound parsing work, not total process memory, nesting depth,
+tokenizer runtime, or later pixel decompression. Rendering uses its separate
+allocation budget below.
 
 The allocation budget
 ---------------------
@@ -55,8 +85,7 @@ What it bounds
 What it does not bound
 ----------------------
 
-- Parsing. :py:meth:`~psd_tools.api.psd_image.PSDImage.open` reads the file
-  structure before any budget applies.
+- Parsing, which uses the separate limits above.
 - The total of a composite. Each allocation is checked on its own, and
   compositing holds several at once, in numbers that grow with the layer count.
 - Solid and gradient fills drawn at a layer's own box.
@@ -76,7 +105,7 @@ Recommendations
 
 For files from an untrusted source, keep a finite budget, and process each
 file in a separate process with an operating-system memory limit and a
-timeout, since parsing and a composite's total are not bounded by the budget.
+timeout, since the budgets do not cap total process memory or CPU time.
 On Linux, for example::
 
     import resource

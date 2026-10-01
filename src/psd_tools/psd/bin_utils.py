@@ -12,10 +12,13 @@ and serializing PSD file structures.
 import array
 import io
 import logging
+import re
 import struct
 import sys
 from contextlib import contextmanager
 from typing import IO, Any, Callable, Iterator, cast
+
+from psd_tools.psd.parse_limits import consume_bytes, consume_objects
 
 logger = logging.getLogger(__name__)
 
@@ -33,12 +36,18 @@ def read_exact(fp: IO[bytes], size: int) -> bytes:
     """Read exactly size bytes, validating availability before allocation."""
     if size < 0 or size > _remaining_bytes(fp):
         raise IOError("Invalid data section size: %d" % size)
+    consume_bytes(size)
     data = fp.read(size)
     if len(data) != size:
         raise IOError(
             "Failed to read data section: read=%d, expected=%d." % (len(data), size)
         )
     return data
+
+
+def read_remaining(fp: IO[bytes]) -> bytes:
+    """Read the remaining section with allocation checks."""
+    return read_exact(fp, _remaining_bytes(fp))
 
 
 class _BoundedReader(io.IOBase):
@@ -87,7 +96,15 @@ def pack(fmt: str, *args: Any) -> bytes:
 
 def unpack(fmt: str, data: bytes) -> tuple[Any, ...]:
     fmt = str(">" + fmt)
+    consume_objects(_format_objects(fmt))
     return struct.unpack(fmt, data)
+
+
+def _format_objects(fmt: str) -> int:
+    return sum(
+        0 if code == "x" else 1 if code in "sp" else int(count or "1")
+        for count, code in re.findall(r"(\d*)([xcbB?hHiIlLqQnNefdspP])", fmt)
+    )
 
 
 def read_fmt(fmt: str, fp: IO[bytes]) -> tuple[Any, ...]:
@@ -96,13 +113,18 @@ def read_fmt(fmt: str, fp: IO[bytes]) -> tuple[Any, ...]:
     """
     fmt = str(">" + fmt)
     fmt_size = struct.calcsize(fmt)
-    data = fp.read(fmt_size)
-    if len(data) != fmt_size:
-        fp.seek(-len(data), 1)
+    if fmt_size > _remaining_bytes(fp):
         raise IOError(
             "Failed to read data section: read=%d, expected=%d. "
-            "Likely the file is corrupted." % (len(data), fmt_size)
+            "Likely the file is corrupted." % (_remaining_bytes(fp), fmt_size)
         )
+    consume_objects(_format_objects(fmt))
+    position = fp.tell()
+    try:
+        data = read_exact(fp, fmt_size)
+    except IOError:
+        fp.seek(position)
+        raise
     return struct.unpack(fmt, data)
 
 
@@ -247,9 +269,7 @@ def is_readable(fp: IO[bytes], size: int = 1) -> bool:
     :param size: byte size
     :return: bool
     """
-    read_size = len(fp.read(size))
-    fp.seek(-read_size, 1)
-    return read_size == size
+    return 0 <= size <= _remaining_bytes(fp)
 
 
 def pad(number: int, divisor: int) -> int:
@@ -306,6 +326,9 @@ def read_be_array(fmt: str, count: int, fp: IO[bytes]) -> array.array:
     """
     Reads an array from a file with big-endian data.
     """
+    if count < 0:
+        raise IOError("Invalid array size: %d" % count)
+    consume_objects(count)
     arr = array.array(str(fmt))
     arr.frombytes(read_exact(fp, count * arr.itemsize))
     return fix_byteorder(arr)
@@ -331,6 +354,9 @@ def be_array_from_bytes(fmt: str, data: bytes) -> array.array:
     """
     Reads an array from bytestring with big-endian data.
     """
+    itemsize = array.array(str(fmt)).itemsize
+    consume_objects(len(data) // itemsize)
+    consume_bytes(len(data))
     arr = array.array(str(fmt), data)
     return fix_byteorder(arr)
 

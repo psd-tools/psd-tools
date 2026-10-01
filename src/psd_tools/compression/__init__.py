@@ -72,6 +72,7 @@ import zlib
 import numpy as np
 
 from psd_tools.constants import Compression
+from psd_tools.psd.parse_limits import ParseLimitError
 from psd_tools.psd.bin_utils import (
     read_be_array,
     write_be_array,
@@ -276,6 +277,8 @@ def decompress(
     elif compression == Compression.RLE:
         try:
             result = decode_rle(data, width, height, depth, version)
+        except ParseLimitError:
+            raise
         except (ValueError, IndexError, OSError) as e:
             _warn_decompress_failure("RLE", e, width, height, depth, version)
             result = None
