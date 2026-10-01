@@ -11,10 +11,10 @@ that needed it.
 Parsing limits
 --------------
 
-:py:class:`~psd_tools.ParseLimits` limits an individual read to 256 MiB,
-cumulative parsed bytes to 1 GiB, and parsed objects to 1,000,000 by default.
-Descriptor and text-engine container parsing defaults to 64 active levels.
-Set limits when opening a document::
+:py:class:`~psd_tools.ParseLimits` defaults to 1,000,000 parsed objects and
+64 active descriptor/text-engine container levels. Byte limits are disabled
+by default to support large embedded Smart Objects. Enable individual-read
+and cumulative-byte limits when opening an untrusted document::
 
     from psd_tools import ParseLimits, PSDImage
 
@@ -108,7 +108,8 @@ These apply whatever the budget:
 Recommendations
 ---------------
 
-For files from an untrusted source, keep a finite budget, and process each
+For files from an untrusted source, set finite parsing byte limits and a
+rendering allocation budget, and process each
 file in a separate process with an operating-system memory limit and a
 timeout, since the budgets do not cap total process memory or CPU time.
 On Linux, for example::

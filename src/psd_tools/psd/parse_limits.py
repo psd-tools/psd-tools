@@ -15,8 +15,8 @@ class ParseLimitError(ValueError):
 class ParseLimits:
     """Limit reads, materialized bytes, parsed objects, and container nesting."""
 
-    max_read_bytes: int | None = 256 * 1024**2
-    max_total_bytes: int | None = 1024**3
+    max_read_bytes: int | None = None
+    max_total_bytes: int | None = None
     max_objects: int | None = 1_000_000
     max_nesting_depth: int | None = 64
 

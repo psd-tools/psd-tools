@@ -106,6 +106,25 @@ def test_exact_limits_zero_reads_and_disabled_limits() -> None:
     )
 
 
+@pytest.mark.parametrize("limits", [None, ParseLimits()])
+def test_default_budget_allows_large_available_payload_reads(limits) -> None:
+    size = 2 * 1024**3
+
+    class VirtualPayload(io.BytesIO):
+        def seek(self, offset: int, whence: int = 0) -> int:
+            return super().seek(
+                size + offset if whence == 2 else offset, 0 if whence == 2 else whence
+            )
+
+        def read(self, size: int | None = -1) -> bytes:
+            raise OSError("payload read reached")
+
+    with parse_context(limits):
+        for _ in range(4):
+            with pytest.raises(OSError, match="payload read reached"):
+                read_exact(VirtualPayload(), size)
+
+
 def test_peeks_do_not_spend_bytes_or_objects() -> None:
     stream = io.BytesIO(b"x")
     with parse_context(ParseLimits(max_read_bytes=1, max_total_bytes=1, max_objects=1)):
