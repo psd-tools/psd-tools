@@ -921,3 +921,45 @@ def test_a_stroke_only_layer_keeps_the_strokes_own_opacity() -> None:
     assert image is not None
     alpha = np.asarray(image.convert("RGBA"))[:, :, 3]
     assert alpha[alpha.shape[0] // 2, 1] == pytest.approx(0.5 * 194, abs=2)
+
+
+@pytest.mark.parametrize("force", [False, True])
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "stroke-center.psd",
+        "stroke-center-no-fill.psd",
+        "stroke-outer.psd",
+        "stroke-outer-no-fill.psd",
+    ],
+)
+def test_a_sided_stroke_matches_photoshops_own_render(
+    filename: str, force: bool
+) -> None:
+    """A 10 px centered or outer stroke on a 40x40 rectangle, fill on and off (#937).
+
+    Each file is authored in Photoshop, so its preview is the expected render;
+    the outer half of the stroke lies outside the rectangle's path.
+    """
+    psd = PSDImage.open(full_name(filename))
+    expected = psd.topil()
+    assert expected is not None
+    image = psd.composite(force=force, ignore_preview=True)
+    assert image is not None
+    difference = np.abs(
+        np.asarray(image.convert("RGB"), dtype=int)
+        - np.asarray(expected.convert("RGB"), dtype=int)
+    )
+    assert difference.max() <= 2
+
+
+def test_a_centered_stroke_over_its_fill_counts_layer_opacity_once() -> None:
+    """Where the stroke overlaps the fill, the layer's opacity applies once (#937)."""
+    psd = PSDImage.open(full_name("stroke-center.psd"))
+    psd[1].opacity = 128
+    image = psd.composite(force=True, ignore_preview=True)
+    assert image is not None
+    pixels = np.asarray(image.convert("RGB"), dtype=int)
+    # Inside the path (x = 32), outside it (x = 27): both blue at half over white.
+    assert pixels[50, 32] == pytest.approx([127, 127, 255], abs=2)
+    assert pixels[50, 27] == pytest.approx([127, 127, 255], abs=2)

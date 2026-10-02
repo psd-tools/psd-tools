@@ -41,6 +41,9 @@ _SIDED = (StrokeAlignment.INNER, StrokeAlignment.OUTER)
 # What separates a pixel the path really does clip from one the fill
 # rasterizer only rounded onto; see where it is used, in ``draw_stroke``.
 _ROUNDING = 1e-9
+# The same, for a pixel the path covers whole: the rasterizer reports one a
+# float32 step or two short of 1.0, which an exact test calls outside.
+_FULL_ROUNDING = 1e-5
 
 
 @require_aggdraw
@@ -122,7 +125,7 @@ def draw_stroke(
     inside = (
         fill > _ROUNDING
         if alignment is StrokeAlignment.INNER
-        else fill < 1.0 - _ROUNDING
+        else fill < 1.0 - _FULL_ROUNDING
     )
     return outline * inside
 
