@@ -1939,8 +1939,9 @@ class Compositor(object):
             path = vector.draw_vector_mask(layer, self._viewport)
             outside = 1.0 - path
             weight_s = alpha_s * outside
+            weight_f = alpha * path
             color = utils.divide(
-                path * over_fill + weight_s * color_s, path + weight_s, fill=0.0
+                weight_f * over_fill + weight_s * color_s, weight_f + weight_s, fill=0.0
             )
             return color, shape, alpha, (shape_s * outside, weight_s)
 
