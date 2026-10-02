@@ -1538,10 +1538,8 @@ def test_a_vector_stroke_adds_no_coverage_outside_the_layer_box() -> None:
 
     for canvas in (shape, alpha):
         left, top, right, bottom = extent(canvas)
-        assert (left, top) >= bbox[:2], "the vector stroke escaped into the coverage"
-        assert (right, bottom) <= bbox[2:], (
-            "the vector stroke escaped into the coverage"
-        )
+        escaped = left < bbox[0] or top < bbox[1] or right > bbox[2] or bottom > bbox[3]
+        assert not escaped, "the vector stroke escaped into the coverage"
 
 
 def test_accepts_keeps_a_layer_whose_stroke_reaches_into_the_viewport() -> None:
