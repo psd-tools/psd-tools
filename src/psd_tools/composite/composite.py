@@ -1854,6 +1854,8 @@ class Compositor(object):
             color = paste(self._viewport, layer.bbox, color, 1.0)
 
         alpha = shape * 1.0  # Constant factor is always 1.
+        redrawn = self._force or not layer.has_pixels()
+        fill_off = utils.is_fill_disabled(layer)
 
         # TODO: Prepare a test case for clipping mask with stroke to check the order.
         # Apply stroke if any.
@@ -1863,6 +1865,10 @@ class Compositor(object):
             and layer.stroke.enabled
         ):
             color_s, shape_s, alpha_s = self._get_stroke(layer)
+            if redrawn and fill_off:
+                # No fill to paint onto: the layer is the stroke source, kept
+                # inside the coverage the layer has.
+                return color_s, shape * shape_s, alpha * alpha_s
             compositor = Compositor(
                 self._viewport,
                 self._widen(color, self.channels),
@@ -1878,6 +1884,8 @@ class Compositor(object):
             # the stroke over that fill (#883).
             color = compositor.result_over_backdrop()
 
+        if redrawn and fill_off:
+            shape, alpha = shape * 0.0, alpha * 0.0
         return color, shape, alpha
 
     def _apply_clip_layers(

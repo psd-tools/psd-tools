@@ -1,6 +1,13 @@
 Changelog
 =========
 
+1.23.1 (unreleased)
+-------------------
+
+- [fix] A stroke-only shape layer no longer has its interior filled when the
+  layer is redrawn (``force=True``, or no stored pixels). The outer half of a
+  centred or outer stroke is still not drawn (#937, #938)
+
 1.23.0 (2026-10-01)
 -------------------
 

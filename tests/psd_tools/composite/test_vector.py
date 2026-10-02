@@ -14,7 +14,7 @@ from psd_tools.composite.paint import (
 from psd_tools.constants import Tag
 from psd_tools.psd.descriptor import Bool, Double, Enumerated, UnitFloat
 from psd_tools.psd.vector import ClosedKnotLinked, ClosedPath
-from psd_tools.terminology import Enum, Key, Type
+from psd_tools.terminology import Enum, Key, Type, Unit
 
 from ..utils import full_name
 from .test_composite import _mse, check_composite_quality
@@ -856,3 +856,68 @@ def test_fill_rule_inversions_stay_brush_gated() -> None:
         11.907392, rel=0.01
     )
     assert vector._draw_path(filled, pen={"color": 255, "width": 1.0}).sum() == 0.0
+
+
+@pytest.mark.parametrize("sheet_tag", [False, True])
+@pytest.mark.parametrize("fill_enabled", [False, True])
+def test_a_disabled_fill_is_not_drawn_whichever_tag_holds_it(
+    sheet_tag: bool, fill_enabled: bool
+) -> None:
+    """``fillEnabled`` gates every fill source, not only the stroke's (#937).
+
+    The sheet-setting layout is forged: Photoshop writes a fill to the stroke
+    content tag instead.
+    """
+    psd = PSDImage.open(full_name("stroke.psd"))
+    layer = [x for x in psd.descendants() if x.name == "Rectangle 1"][0]
+    content = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)
+    if sheet_tag:
+        layer.tagged_blocks.set_data(Tag.SOLID_COLOR_SHEET_SETTING, content)
+    stroke = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_DATA)
+    stroke["fillEnabled"] = Bool(fill_enabled)
+    layer.tagged_blocks.set_data(Tag.VECTOR_STROKE_DATA, stroke)
+
+    image = layer.composite(viewport=layer.bbox, force=True)
+    assert image is not None
+    alpha = np.asarray(image.convert("RGBA"))[:, :, 3]
+    centre = alpha[alpha.shape[0] // 2, alpha.shape[1] // 2]
+    assert (centre > 0) == fill_enabled
+    assert alpha[alpha.shape[0] // 2, 1] > 0, "the stroke band is still drawn"
+
+
+def test_a_stroke_only_layer_with_pixels_keeps_its_stored_alpha() -> None:
+    """Stored pixels already hold the fill state, so ``force=False`` reads them (#937)."""
+    psd = PSDImage.open(full_name("stroke.psd"))
+    layer = [x for x in psd.descendants() if x.name == "Rectangle 1"][0]
+    stored = layer.numpy("shape")
+    assert stored is not None
+    stored = stored[:, :, 0]
+    image = layer.composite(viewport=layer.bbox, force=False)
+    assert image is not None
+    alpha = np.asarray(image.convert("RGBA"))[:, :, 3] / 194.0
+    assert np.abs(alpha - stored).max() < 2 / 255
+
+
+def test_a_layer_with_neither_fill_nor_stroke_draws_nothing() -> None:
+    """A disabled fill with no stroke to draw leaves no coverage (#937)."""
+    psd = PSDImage.open(full_name("stroke.psd"))
+    layer = [x for x in psd.descendants() if x.name == "Rectangle 1"][0]
+    stroke = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_DATA)
+    stroke["strokeEnabled"] = Bool(False)
+    layer.tagged_blocks.set_data(Tag.VECTOR_STROKE_DATA, stroke)
+    image = layer.composite(viewport=layer.bbox, force=True)
+    assert image is not None
+    assert np.asarray(image.convert("RGBA"))[:, :, 3].max() == 0
+
+
+def test_a_stroke_only_layer_keeps_the_strokes_own_opacity() -> None:
+    """The band is the stroke source, so ``strokeStyleOpacity`` applies to it (#937)."""
+    psd = PSDImage.open(full_name("stroke.psd"))
+    layer = [x for x in psd.descendants() if x.name == "Rectangle 1"][0]
+    stroke = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_DATA)
+    stroke["strokeStyleOpacity"] = UnitFloat(unit=Unit.Percent, value=50.0)
+    layer.tagged_blocks.set_data(Tag.VECTOR_STROKE_DATA, stroke)
+    image = layer.composite(viewport=layer.bbox, force=True)
+    assert image is not None
+    alpha = np.asarray(image.convert("RGBA"))[:, :, 3]
+    assert alpha[alpha.shape[0] // 2, 1] == pytest.approx(0.5 * 194, abs=2)
