@@ -7,7 +7,7 @@ Changelog
 - [fix] A stroke-only shape layer no longer has its interior filled when the
   layer is redrawn (``force=True``, or no stored pixels) (#937, #938)
 - [fix] A centred or outer vector stroke is drawn outside its path too when
-  the layer is redrawn (``force=True``, or no stored pixels) (#937)
+  the layer is redrawn (``force=True``, or no stored pixels) (#937, #939)
 
 1.23.0 (2026-10-01)
 -------------------
