@@ -1917,34 +1917,30 @@ class Compositor(object):
                 if inner:
                     return color_s, shape * shape_s, alpha * alpha_s, None
                 return color_s, shape * 0.0, alpha * 0.0, (shape_s, alpha_s)
+            # What the fill covers of the path. An inner stroke keeps the
+            # fill's own alpha, so the stroke is painted onto it whole (#883).
+            path = None if inner else vector.draw_vector_mask(layer, self._viewport)
+            covered = alpha if path is None else alpha * path
             compositor = Compositor(
                 self._viewport,
                 self._widen(color, self.channels),
-                alpha,
+                covered,
                 widen=self._widen,
                 color_mode=self._color_mode,
             )
             stroke_blend_mode = layer.stroke.blend_mode or BlendMode.NORMAL
             compositor._apply_source(color_s, shape_s, alpha_s, stroke_blend_mode)
-            # Seeded with the layer's own color and alpha, so the result is
-            # wanted as it stands on that seed: the stroke is painted onto the
-            # fill it outlines, and a pixel it covers in part is that much of
-            # the stroke over that fill (#883).
-            over_fill = compositor.result_over_backdrop()
-            if inner:
-                return over_fill, shape, alpha, None
-            # The stroke is in the color already, over the fill. What the fill
-            # leaves uncovered -- outside the path, or under a transparent
-            # part of it -- is the stroke's own, weighed by its alpha against
-            # the fill's share.
-            path = vector.draw_vector_mask(layer, self._viewport)
-            weight_f = alpha * path
-            uncovered = 1.0 - weight_f
-            weight_s = alpha_s * uncovered
-            color = utils.divide(
-                weight_f * over_fill + weight_s * color_s, weight_f + weight_s, fill=0.0
-            )
-            return color, shape, alpha, (shape_s * uncovered, weight_s)
+            # Seeded with the fill's color and alpha, so the result is wanted
+            # as it stands on that seed: the stroke is painted onto the fill it
+            # outlines, and a pixel it covers in part is that much of the
+            # stroke over that fill (#883).
+            color = compositor.result_over_backdrop()
+            if path is None:
+                return color, shape, alpha, None
+            # What the fill leaves uncovered -- outside the path, or under a
+            # transparent part of it -- is the stroke's own.
+            uncovered = 1.0 - covered
+            return color, shape, alpha, (shape_s * uncovered, alpha_s * uncovered)
 
         if fill_off and (self._force or not layer.has_pixels()):
             shape, alpha = shape * 0.0, alpha * 0.0

@@ -984,3 +984,30 @@ def test_a_centered_stroke_shows_through_a_transparent_fill(
     assert pixels[50, 32] == pytest.approx([0, 0, 255], abs=2), "inner half"
     assert pixels[50, 27] == pytest.approx([0, 0, 255], abs=2), "outer half"
     assert pixels[50, 50] == pytest.approx([255, 255, 255], abs=2), "no fill"
+
+
+def test_a_half_covered_fill_under_a_half_opaque_stroke_composites_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The stroke is counted once where the fill is only partly there (#937).
+
+    Red at half alpha under blue at half opacity: the union covers 0.75 and
+    reads (1/3, 0, 2/3) straight, which over white is (0.5, 0.25, 0.75).
+    """
+    real = paint_module.create_fill
+
+    def half(layer: Layer, bbox: tuple[int, int, int, int]):  # type: ignore[no-untyped-def]
+        color, _ = real(layer, bbox)
+        return color, np.full(
+            (bbox[3] - bbox[1], bbox[2] - bbox[0], 1), 0.5, np.float32
+        )
+
+    monkeypatch.setattr(paint_module, "create_fill", half)
+    psd = PSDImage.open(full_name("stroke-center.psd"))
+    stroke = psd[1].tagged_blocks.get_data(Tag.VECTOR_STROKE_DATA)
+    stroke["strokeStyleOpacity"] = UnitFloat(unit=Unit.Percent, value=50.0)
+    psd[1].tagged_blocks.set_data(Tag.VECTOR_STROKE_DATA, stroke)
+    image = psd.composite(force=True, ignore_preview=True)
+    assert image is not None
+    pixel = np.asarray(image.convert("RGB"), dtype=float)[50, 32] / 255.0
+    assert pixel == pytest.approx([0.5, 0.25, 0.75], abs=0.02)
