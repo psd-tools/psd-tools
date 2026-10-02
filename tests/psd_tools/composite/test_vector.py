@@ -2,6 +2,7 @@ import logging
 
 import numpy as np
 import pytest
+import psd_tools.composite.paint as paint_module
 
 from psd_tools import PSDImage
 from psd_tools.api.layers import Group, Layer
@@ -963,3 +964,23 @@ def test_a_centered_stroke_over_its_fill_counts_layer_opacity_once() -> None:
     # Inside the path (x = 32), outside it (x = 27): both blue at half over white.
     assert pixels[50, 32] == pytest.approx([127, 127, 255], abs=2)
     assert pixels[50, 27] == pytest.approx([127, 127, 255], abs=2)
+
+
+def test_a_centered_stroke_shows_through_a_transparent_fill(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The stroke is its own coverage wherever the fill leaves none (#937)."""
+    real = paint_module.create_fill
+
+    def transparent(layer: Layer, bbox: tuple[int, int, int, int]):  # type: ignore[no-untyped-def]
+        color, _ = real(layer, bbox)
+        return color, np.zeros((bbox[3] - bbox[1], bbox[2] - bbox[0], 1), np.float32)
+
+    monkeypatch.setattr(paint_module, "create_fill", transparent)
+    psd = PSDImage.open(full_name("stroke-center.psd"))
+    image = psd.composite(force=True, ignore_preview=True)
+    assert image is not None
+    pixels = np.asarray(image.convert("RGB"), dtype=int)
+    assert pixels[50, 32] == pytest.approx([0, 0, 255], abs=2), "inner half"
+    assert pixels[50, 27] == pytest.approx([0, 0, 255], abs=2), "outer half"
+    assert pixels[50, 50] == pytest.approx([255, 255, 255], abs=2), "no fill"

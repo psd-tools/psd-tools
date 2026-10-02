@@ -1933,17 +1933,18 @@ class Compositor(object):
             over_fill = compositor.result_over_backdrop()
             if inner:
                 return over_fill, shape, alpha, None
-            # Inside the path the stroke is already in the color, over the
-            # fill; only what falls outside it is new, and it is weighed by
-            # its own alpha against the fill's share.
+            # The stroke is in the color already, over the fill. What the fill
+            # leaves uncovered -- outside the path, or under a transparent
+            # part of it -- is the stroke's own, weighed by its alpha against
+            # the fill's share.
             path = vector.draw_vector_mask(layer, self._viewport)
-            outside = 1.0 - path
-            weight_s = alpha_s * outside
             weight_f = alpha * path
+            uncovered = 1.0 - weight_f
+            weight_s = alpha_s * uncovered
             color = utils.divide(
                 weight_f * over_fill + weight_s * color_s, weight_f + weight_s, fill=0.0
             )
-            return color, shape, alpha, (shape_s * outside, weight_s)
+            return color, shape, alpha, (shape_s * uncovered, weight_s)
 
         if fill_off and (self._force or not layer.has_pixels()):
             shape, alpha = shape * 0.0, alpha * 0.0
