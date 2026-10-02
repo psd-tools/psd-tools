@@ -1,6 +1,7 @@
 """Composite implementation for layer rendering and blending."""
 
 import logging
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Iterator, NamedTuple, Protocol, cast
@@ -24,6 +25,7 @@ from psd_tools.constants import (
     ColorMode,
     Knockout,
     Resource,
+    StrokeAlignment,
     Tag,
 )
 from psd_tools.psd.descriptor import Descriptor
@@ -174,14 +176,34 @@ _OVERLAY_DRAWS: dict[str, _OverlayDraw] = {
 }
 
 
-def _stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
-    """``layer.bbox`` grown to every box its stroke effects are drawn on.
+def _vector_stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
+    """``layer.bbox`` grown by the width of a centred or outer vector stroke.
 
-    A stroke is the only effect in this module that reaches outside the layer:
-    the three overlays draw on ``layer.bbox`` and are pasted from it, the
-    vector stroke's wider box contributes color alone -- ``_get_object()``
-    keeps none of its coverage -- and drop shadow, glow, satin and bevel are
-    not implemented at all. So this is the whole of the outward reach.
+    An inner stroke stays inside the path. A width that cannot be read leaves
+    the box as it is, since this runs for every layer the cull visits.
+    """
+    bbox = layer.bbox
+    stroke = layer.stroke if layer.has_vector_mask() else None
+    if (
+        stroke is None
+        or not stroke.enabled
+        or stroke.line_alignment is StrokeAlignment.INNER
+    ):
+        return bbox
+    try:
+        width = max(math.ceil(float(stroke._data.get("strokeStyleLineWidth", 1.0))), 0)
+    except (OverflowError, ValueError, TypeError):
+        return bbox
+    return (bbox[0] - width, bbox[1] - width, bbox[2] + width, bbox[3] + width)
+
+
+def _stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
+    """``layer.bbox`` grown to every box its strokes are drawn on.
+
+    A stroke is the only thing in this module that reaches outside the layer:
+    the three overlays draw on ``layer.bbox`` and are pasted from it, and drop
+    shadow, glow, satin and bevel are not implemented at all. So this is the
+    whole of the outward reach.
 
     ``find("stroke")`` rather than a descriptor walk, so this stays in lockstep
     with the loop in :py:meth:`Compositor._add_stroke_effects` that actually
@@ -205,6 +227,7 @@ def _stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
     bbox = layer.bbox
     if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
         return bbox
+    bbox = _vector_stroke_reach(layer)
     for effect in _readable(layer, "stroke"):
         try:
             bbox = utils.union_bbox(
@@ -1308,10 +1331,11 @@ class Compositor(object):
         """
         knockout = _read_knockout(layer)
         adjustment_isolated: bool | None = None
+        stroke: tuple[np.ndarray, np.ndarray] | None = None
         if isinstance(layer, GroupMixin):
             color, shape, alpha, adjustment_isolated = self._get_group(layer, knockout)
         else:
-            color, shape, alpha = self._get_object(layer)
+            color, shape, alpha, stroke = self._get_object(layer)
 
         if layer.has_clip_layers():
             color = self._apply_clip_layers(layer, color, alpha)
@@ -1323,6 +1347,11 @@ class Compositor(object):
         # and are not shared with anything else.
         shape *= shape_mask
         alpha *= mask
+        if stroke is not None:
+            stroke_mask = self._get_mask(layer, clip_to_path=False)
+            # The fill's share and the stroke's are disjoint, so they add.
+            shape = np.minimum(shape + stroke[0] * stroke_mask, 1.0)
+            alpha = np.minimum(alpha + stroke[1] * stroke_mask * opacity, 1.0)
 
         # TODO: Tag.BLEND_INTERIOR_ELEMENTS controls how inner effects apply,
         # and is unread. There is a second thing riding on it now: the effect
@@ -1843,8 +1872,29 @@ class Compositor(object):
         color, shape = self._read_object(layer)
         return self._place_object_shape(color, shape, layer.bbox, viewport)
 
-    def _get_object(self, layer: Layer) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Get object attributes."""
+    def _has_redrawn_stroke(self, layer: Layer) -> bool:
+        """Whether this layer's vector stroke is drawn from the path.
+
+        A layer read from stored pixels has its stroke in them already.
+        """
+        return bool(
+            (self._force or not layer.has_pixels())
+            and layer.has_vector_mask()
+            and layer.stroke is not None
+            and layer.stroke.enabled
+        )
+
+    def _get_object(
+        self, layer: Layer
+    ) -> tuple[
+        np.ndarray, np.ndarray, np.ndarray, tuple[np.ndarray, np.ndarray] | None
+    ]:
+        """Get object attributes.
+
+        The last item is the coverage and alpha of a redrawn centred or outer
+        stroke. Unlike the fill it is not clipped to the vector mask, which it
+        reaches past.
+        """
         color, own_shape = self._read_object(layer)
         shape = self._place_object_shape(color, own_shape, layer.bbox, self._viewport)
 
@@ -1854,39 +1904,47 @@ class Compositor(object):
             color = paste(self._viewport, layer.bbox, color, 1.0)
 
         alpha = shape * 1.0  # Constant factor is always 1.
-        redrawn = self._force or not layer.has_pixels()
         fill_off = utils.is_fill_disabled(layer)
 
-        # TODO: Prepare a test case for clipping mask with stroke to check the order.
-        # Apply stroke if any.
-        if (
-            layer.has_vector_mask()
-            and layer.stroke is not None
-            and layer.stroke.enabled
-        ):
+        if self._has_redrawn_stroke(layer):
+            assert layer.stroke is not None
             color_s, shape_s, alpha_s = self._get_stroke(layer)
-            if redrawn and fill_off:
-                # No fill to paint onto: the layer is the stroke source, kept
-                # inside the coverage the layer has.
-                return color_s, shape * shape_s, alpha * alpha_s
+            # An inner stroke stays inside the path, so it needs no coverage
+            # of its own: the fill's is the bound.
+            inner = layer.stroke.line_alignment is StrokeAlignment.INNER
+            if fill_off:
+                # No fill to paint onto: the layer is the stroke.
+                if inner:
+                    return color_s, shape * shape_s, alpha * alpha_s, None
+                return color_s, shape * 0.0, alpha * 0.0, (shape_s, alpha_s)
+            # What the fill covers of the path. An inner stroke keeps the
+            # fill's own alpha, so the stroke is painted onto it whole (#883).
+            path = None if inner else vector.draw_vector_mask(layer, self._viewport)
+            covered = alpha if path is None else alpha * path
             compositor = Compositor(
                 self._viewport,
                 self._widen(color, self.channels),
-                alpha,
+                covered,
                 widen=self._widen,
                 color_mode=self._color_mode,
             )
             stroke_blend_mode = layer.stroke.blend_mode or BlendMode.NORMAL
             compositor._apply_source(color_s, shape_s, alpha_s, stroke_blend_mode)
-            # Seeded with the layer's own color and alpha, so the result is
-            # wanted as it stands on that seed: the stroke is painted onto the
-            # fill it outlines, and a pixel it covers in part is that much of
-            # the stroke over that fill (#883).
+            # Seeded with the fill's color and alpha, so the result is wanted
+            # as it stands on that seed: the stroke is painted onto the fill it
+            # outlines, and a pixel it covers in part is that much of the
+            # stroke over that fill (#883).
             color = compositor.result_over_backdrop()
+            if path is None:
+                return color, shape, alpha, None
+            # What the fill leaves uncovered -- outside the path, or under a
+            # transparent part of it -- is the stroke's own.
+            uncovered = 1.0 - covered
+            return color, shape, alpha, (shape_s * uncovered, alpha_s * uncovered)
 
-        if redrawn and fill_off:
+        if fill_off and (self._force or not layer.has_pixels()):
             shape, alpha = shape * 0.0, alpha * 0.0
-        return color, shape, alpha
+        return color, shape, alpha, None
 
     def _apply_clip_layers(
         self, layer: Layer, color: np.ndarray, alpha: np.ndarray
@@ -1909,12 +1967,16 @@ class Compositor(object):
         return compositor.result_over_backdrop()
 
     def _get_mask(
-        self, layer: Layer, viewport: tuple[int, int, int, int] | None = None
+        self,
+        layer: Layer,
+        viewport: tuple[int, int, int, int] | None = None,
+        clip_to_path: bool = True,
     ) -> float | np.ndarray:
         """The layer's mask coverage, with any mask density already folded in.
 
         ``viewport`` defaults to this compositor's; a stroke effect passes the
-        box it draws on, which may reach outside it (#804).
+        box it draws on, which may reach outside it (#804). ``clip_to_path=False``
+        leaves the vector mask out: a stroke is not clipped to its own path.
 
         The scalar 1.0 default is an allocation-avoidance path, not an API
         convenience like the backdrop spellings: most layers have no mask, and
@@ -1944,7 +2006,8 @@ class Compositor(object):
                 shape = share * shape + (1 - share)
 
         if (
-            layer.vector_mask is not None
+            clip_to_path
+            and layer.vector_mask is not None
             and not layer.vector_mask.disabled
             and (
                 self._force

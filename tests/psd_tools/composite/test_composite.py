@@ -27,6 +27,7 @@ from psd_tools.composite.composite import (
     _content_bbox,
     _read_knockout,
     _stroke_reach,
+    _vector_stroke_reach,
 )
 from psd_tools.composite.effects import stroke_bbox
 from psd_tools.constants import (
@@ -1424,9 +1425,7 @@ def test_a_partly_covered_stroke_pixel_blends_with_the_fill() -> None:
     stroke over the fill, which is what Photoshop paints.
 
     A centred stroke, so this measures the compositor's exit and not the
-    alignment. x = 5 is the band's outer column and is wrong for a separate
-    reason: a vector stroke has no coverage of its own, so the half of a
-    centred band that falls outside the layer cannot show at all.
+    alignment; x = 5 is the band's outer column, outside the path.
     """
     psd = PSDImage.open(full_name("descriptors/stroke-color-descriptors-rgb.psd"))
     layer = [x for x in psd.descendants() if x.name == "Rectangle 1"][0]
@@ -1487,26 +1486,11 @@ def test_a_partly_opaque_stroke_fades_into_the_fill() -> None:
     assert render(10.0)[row, column] == pytest.approx([0.1, 0.9, 1.0], abs=1e-6)
 
 
-def test_a_vector_stroke_adds_no_coverage_outside_the_layer_box() -> None:
-    """Why the cull measures stroke *effects* only, and not ``layer.stroke``.
+def test_a_centered_vector_stroke_covers_both_sides_of_the_path() -> None:
+    """A redrawn stroke is coverage of its own, and the cull counts it (#937).
 
-    A vector stroke rasterizes on a box wider than the layer -- ``_get_stroke``
-    draws it on ``bbox`` grown by the stroke width -- so it looks like a second
-    thing that paints outside ``layer.bbox`` and therefore like something
-    :py:func:`_stroke_reach` ought to count. It is not.
-    :py:meth:`Compositor._get_object` runs that wider draw through a
-    sub-compositor and keeps ``color`` alone, discarding its ``shape`` and
-    ``alpha``, so a vector stroke only ever *tints* pixels the layer already
-    covers. Nothing outside the layer's box can show, and widening the cull
-    for it would accept layers that then paint nothing.
-
-    The layer here carries a 7 px *centered* stroke, so 3.5 px of it rasterize
-    outside the box; the viewport is padded well past that on every side, so
-    any escaping coverage would have somewhere to land and be seen.
-
-    If ``_get_object()`` ever starts keeping that coverage, this test fails
-    and the cull genuinely does need to count it -- which is the point of
-    pinning it here rather than only asserting it in a comment.
+    The layer carries a 7 px *centered* stroke, so 3.5 px of it falls outside
+    the path. The viewport is padded past that on every side.
     """
     psd = PSDImage.open(
         full_name("descriptors/stroke-color-descriptors-hsb-with-rgb-mode.psd")
@@ -1514,9 +1498,11 @@ def test_a_vector_stroke_adds_no_coverage_outside_the_layer_box() -> None:
     layer = psd[5]
     assert layer.stroke is not None and layer.stroke.enabled
     assert layer.stroke.line_width == 7.0
-    assert layer.stroke.line_alignment == "center", "reaches outside the box"
+    assert layer.stroke.line_alignment == "center"
 
     bbox = layer.bbox
+    assert _stroke_reach(layer) == (bbox[0] - 7, bbox[1] - 7, bbox[2] + 7, bbox[3] + 7)
+
     pad = 12
     viewport = (bbox[0] - pad, bbox[1] - pad, bbox[2] + pad, bbox[3] + pad)
     height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
@@ -1524,22 +1510,24 @@ def test_a_vector_stroke_adds_no_coverage_outside_the_layer_box() -> None:
         viewport,
         np.ones((height, width, 3), dtype=np.float32),
         np.zeros((height, width, 1), dtype=np.float32),
+        force=True,
     )
-    _, shape, alpha = compositor._get_object(layer)
+    source = compositor._resolve_source(layer)
 
     def extent(canvas: np.ndarray) -> tuple[int, int, int, int]:
-        rows, columns = np.nonzero(canvas[..., 0] > 1e-6)
+        rows, columns = np.nonzero(canvas[..., 0] > 0.5)
         return (
-            int(columns.min()) + viewport[0],
-            int(rows.min()) + viewport[1],
-            int(columns.max()) + viewport[0] + 1,
-            int(rows.max()) + viewport[1] + 1,
+            int(columns.min()),
+            int(rows.min()),
+            int(columns.max()) + 1,
+            int(rows.max()) + 1,
         )
 
-    for canvas in (shape, alpha):
+    path = extent(vector.draw_vector_mask(layer, viewport))
+    for canvas in (source.shape, source.alpha):
         left, top, right, bottom = extent(canvas)
-        escaped = left < bbox[0] or top < bbox[1] or right > bbox[2] or bottom > bbox[3]
-        assert not escaped, "the vector stroke escaped into the coverage"
+        assert left < path[0] and top < path[1], "the outer half is missing"
+        assert right > path[2] and bottom > path[3], "the outer half is missing"
 
 
 def test_accepts_keeps_a_layer_whose_stroke_reaches_into_the_viewport() -> None:
@@ -1758,7 +1746,9 @@ def test_one_unmeasurable_stroke_keeps_the_reach_of_the_other() -> None:
     outset.descriptor[Key.SizeKey] = "wide"
     assert _stroke_reach(layer) == (1, 0, 31, 30), "the inset stroke's own box"
     inset.descriptor[Key.SizeKey] = "wide"
-    assert _stroke_reach(layer) == layer.bbox, "nothing left to measure"
+    assert _stroke_reach(layer) == _vector_stroke_reach(layer), (
+        "nothing left to measure"
+    )
 
 
 def test_accepts_honours_the_layer_filter() -> None:

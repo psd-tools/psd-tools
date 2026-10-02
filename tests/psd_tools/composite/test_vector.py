@@ -2,6 +2,7 @@ import logging
 
 import numpy as np
 import pytest
+import psd_tools.composite.paint as paint_module
 
 from psd_tools import PSDImage
 from psd_tools.api.layers import Group, Layer
@@ -921,3 +922,92 @@ def test_a_stroke_only_layer_keeps_the_strokes_own_opacity() -> None:
     assert image is not None
     alpha = np.asarray(image.convert("RGBA"))[:, :, 3]
     assert alpha[alpha.shape[0] // 2, 1] == pytest.approx(0.5 * 194, abs=2)
+
+
+@pytest.mark.parametrize("force", [False, True])
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "stroke-center.psd",
+        "stroke-center-no-fill.psd",
+        "stroke-outer.psd",
+        "stroke-outer-no-fill.psd",
+    ],
+)
+def test_a_sided_stroke_matches_photoshops_own_render(
+    filename: str, force: bool
+) -> None:
+    """A 10 px centered or outer stroke on a 40x40 rectangle, fill on and off (#937).
+
+    Each file is authored in Photoshop, so its preview is the expected render;
+    the outer half of the stroke lies outside the rectangle's path.
+    """
+    psd = PSDImage.open(full_name(filename))
+    expected = psd.topil()
+    assert expected is not None
+    image = psd.composite(force=force, ignore_preview=True)
+    assert image is not None
+    difference = np.abs(
+        np.asarray(image.convert("RGB"), dtype=int)
+        - np.asarray(expected.convert("RGB"), dtype=int)
+    )
+    assert difference.max() <= 2
+
+
+def test_a_centered_stroke_over_its_fill_counts_layer_opacity_once() -> None:
+    """Where the stroke overlaps the fill, the layer's opacity applies once (#937)."""
+    psd = PSDImage.open(full_name("stroke-center.psd"))
+    psd[1].opacity = 128
+    image = psd.composite(force=True, ignore_preview=True)
+    assert image is not None
+    pixels = np.asarray(image.convert("RGB"), dtype=int)
+    # Inside the path (x = 32), outside it (x = 27): both blue at half over white.
+    assert pixels[50, 32] == pytest.approx([127, 127, 255], abs=2)
+    assert pixels[50, 27] == pytest.approx([127, 127, 255], abs=2)
+
+
+def test_a_centered_stroke_shows_through_a_transparent_fill(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The stroke is its own coverage wherever the fill leaves none (#937)."""
+    real = paint_module.create_fill
+
+    def transparent(layer: Layer, bbox: tuple[int, int, int, int]):  # type: ignore[no-untyped-def]
+        color, _ = real(layer, bbox)
+        return color, np.zeros((bbox[3] - bbox[1], bbox[2] - bbox[0], 1), np.float32)
+
+    monkeypatch.setattr(paint_module, "create_fill", transparent)
+    psd = PSDImage.open(full_name("stroke-center.psd"))
+    image = psd.composite(force=True, ignore_preview=True)
+    assert image is not None
+    pixels = np.asarray(image.convert("RGB"), dtype=int)
+    assert pixels[50, 32] == pytest.approx([0, 0, 255], abs=2), "inner half"
+    assert pixels[50, 27] == pytest.approx([0, 0, 255], abs=2), "outer half"
+    assert pixels[50, 50] == pytest.approx([255, 255, 255], abs=2), "no fill"
+
+
+def test_a_half_covered_fill_under_a_half_opaque_stroke_composites_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The stroke is counted once where the fill is only partly there (#937).
+
+    Red at half alpha under blue at half opacity: the union covers 0.75 and
+    reads (1/3, 0, 2/3) straight, which over white is (0.5, 0.25, 0.75).
+    """
+    real = paint_module.create_fill
+
+    def half(layer: Layer, bbox: tuple[int, int, int, int]):  # type: ignore[no-untyped-def]
+        color, _ = real(layer, bbox)
+        return color, np.full(
+            (bbox[3] - bbox[1], bbox[2] - bbox[0], 1), 0.5, np.float32
+        )
+
+    monkeypatch.setattr(paint_module, "create_fill", half)
+    psd = PSDImage.open(full_name("stroke-center.psd"))
+    stroke = psd[1].tagged_blocks.get_data(Tag.VECTOR_STROKE_DATA)
+    stroke["strokeStyleOpacity"] = UnitFloat(unit=Unit.Percent, value=50.0)
+    psd[1].tagged_blocks.set_data(Tag.VECTOR_STROKE_DATA, stroke)
+    image = psd.composite(force=True, ignore_preview=True)
+    assert image is not None
+    pixel = np.asarray(image.convert("RGB"), dtype=float)[50, 32] / 255.0
+    assert pixel == pytest.approx([0.5, 0.25, 0.75], abs=0.02)
