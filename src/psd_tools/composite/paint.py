@@ -18,6 +18,7 @@ from psd_tools.color_convert import (
     rgb_to_lab,
 )
 from psd_tools.composite._compat import require_scipy, require_skimage
+from psd_tools.composite.utils import is_fill_disabled
 from psd_tools.constants import ColorMode, Tag
 from psd_tools.psd.descriptor import Descriptor
 from psd_tools.terminology import Enum, Key, Klass, Type
@@ -281,6 +282,8 @@ def create_fill(
     viewport: tuple[int, int, int, int],
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
     """Create a fill image."""
+    if is_fill_disabled(layer):
+        return None, None
     if Tag.SOLID_COLOR_SHEET_SETTING in layer.tagged_blocks:
         desc = layer.tagged_blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING)
         return draw_solid_color_fill(viewport, layer._psd.color_mode, desc)
@@ -291,15 +294,13 @@ def create_fill(
         desc = layer.tagged_blocks.get_data(Tag.GRADIENT_FILL_SETTING)
         return draw_gradient_fill(viewport, layer._psd.color_mode, desc)
     if Tag.VECTOR_STROKE_CONTENT_DATA in layer.tagged_blocks:
-        stroke = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_DATA)
-        if not stroke or stroke.get("fillEnabled").value is True:
-            desc = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)
-            if Key.Color in desc:
-                return draw_solid_color_fill(viewport, layer._psd.color_mode, desc)
-            elif Key.Pattern in desc:
-                return draw_pattern_fill(viewport, layer._psd, desc)
-            elif Key.Gradient in desc:
-                return draw_gradient_fill(viewport, layer._psd.color_mode, desc)
+        desc = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)
+        if Key.Color in desc:
+            return draw_solid_color_fill(viewport, layer._psd.color_mode, desc)
+        elif Key.Pattern in desc:
+            return draw_pattern_fill(viewport, layer._psd, desc)
+        elif Key.Gradient in desc:
+            return draw_gradient_fill(viewport, layer._psd.color_mode, desc)
     return None, None
 
 

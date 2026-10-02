@@ -73,6 +73,12 @@ def union_bbox(
     return (min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3]))
 
 
+def is_fill_disabled(layer: Layer) -> bool:
+    """Check if a shape layer's fill is switched off, whichever tag holds it."""
+    stroke = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_DATA)
+    return bool(stroke) and getattr(stroke.get("fillEnabled"), "value", True) is False
+
+
 def has_fill(layer: Layer) -> bool:
     """Check if layer has fill settings."""
     FILL_TAGS = (
