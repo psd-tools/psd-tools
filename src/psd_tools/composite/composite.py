@@ -1865,6 +1865,10 @@ class Compositor(object):
             and layer.stroke.enabled
         ):
             color_s, shape_s, alpha_s = self._get_stroke(layer)
+            if redrawn and fill_off:
+                # No fill to paint onto: the layer is the stroke source, kept
+                # inside the coverage the layer has.
+                return color_s, shape * shape_s, alpha * alpha_s
             compositor = Compositor(
                 self._viewport,
                 self._widen(color, self.channels),
@@ -1879,10 +1883,6 @@ class Compositor(object):
             # fill it outlines, and a pixel it covers in part is that much of
             # the stroke over that fill (#883).
             color = compositor.result_over_backdrop()
-            if redrawn and fill_off:
-                # No fill to paint onto: the layer is the stroke band, kept
-                # inside the coverage the layer has.
-                return color, shape * shape_s, alpha * shape_s
 
         if redrawn and fill_off:
             shape, alpha = shape * 0.0, alpha * 0.0

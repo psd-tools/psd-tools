@@ -14,7 +14,7 @@ from psd_tools.composite.paint import (
 from psd_tools.constants import Tag
 from psd_tools.psd.descriptor import Bool, Double, Enumerated, UnitFloat
 from psd_tools.psd.vector import ClosedKnotLinked, ClosedPath
-from psd_tools.terminology import Enum, Key, Type
+from psd_tools.terminology import Enum, Key, Type, Unit
 
 from ..utils import full_name
 from .test_composite import _mse, check_composite_quality
@@ -908,3 +908,16 @@ def test_a_layer_with_neither_fill_nor_stroke_draws_nothing() -> None:
     image = layer.composite(viewport=layer.bbox, force=True)
     assert image is not None
     assert np.asarray(image.convert("RGBA"))[:, :, 3].max() == 0
+
+
+def test_a_stroke_only_layer_keeps_the_strokes_own_opacity() -> None:
+    """The band is the stroke source, so ``strokeStyleOpacity`` applies to it (#937)."""
+    psd = PSDImage.open(full_name("stroke.psd"))
+    layer = [x for x in psd.descendants() if x.name == "Rectangle 1"][0]
+    stroke = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_DATA)
+    stroke["strokeStyleOpacity"] = UnitFloat(unit=Unit.Percent, value=50.0)
+    layer.tagged_blocks.set_data(Tag.VECTOR_STROKE_DATA, stroke)
+    image = layer.composite(viewport=layer.bbox, force=True)
+    assert image is not None
+    alpha = np.asarray(image.convert("RGBA"))[:, :, 3]
+    assert alpha[alpha.shape[0] // 2, 1] == pytest.approx(0.5 * 194, abs=2)
