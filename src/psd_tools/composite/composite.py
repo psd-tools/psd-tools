@@ -1349,8 +1349,9 @@ class Compositor(object):
         alpha *= mask
         if stroke is not None:
             stroke_mask = self._get_mask(layer, clip_to_path=False)
-            shape = utils.union(shape, stroke[0] * stroke_mask)
-            alpha = utils.union(alpha, stroke[1] * stroke_mask * opacity)
+            # The fill's share and the stroke's are disjoint, so they add.
+            shape = np.minimum(shape + stroke[0] * stroke_mask, 1.0)
+            alpha = np.minimum(alpha + stroke[1] * stroke_mask * opacity, 1.0)
 
         # TODO: Tag.BLEND_INTERIOR_ELEMENTS controls how inner effects apply,
         # and is unread. There is a second thing riding on it now: the effect
@@ -1936,7 +1937,8 @@ class Compositor(object):
             path = vector.draw_vector_mask(layer, self._viewport)
             color = path * over_fill + (1.0 - path) * color_s
             # Inside the path the stroke is already in the color, over the fill.
-            return color, shape, alpha, (shape_s, alpha_s * (1.0 - path))
+            outside = 1.0 - path
+            return color, shape, alpha, (shape_s * outside, alpha_s * outside)
 
         if fill_off and (self._force or not layer.has_pixels()):
             shape, alpha = shape * 0.0, alpha * 0.0
