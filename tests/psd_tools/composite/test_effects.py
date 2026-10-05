@@ -64,6 +64,33 @@ def test_a_shape_layers_stroke_leaves_its_faded_interior_alone(name: str) -> Non
     assert error <= 2e-3, f"{name}: {error:.3e}"
 
 
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "effects/shape-stroke-raster-mask.psd",
+        "effects/shape-stroke-raster-mask-density.psd",
+    ],
+)
+def test_a_masked_shape_layers_stroke_is_cut_by_its_raster_mask(
+    filename: str,
+) -> None:
+    """The stroke of a shape layer that also has a raster mask (#886).
+
+    Both are ``stroke-effects.psd``'s ``Shape Rectangle`` -- a fill that fades
+    across the path -- on a 40x40 canvas, with a raster mask that reveals
+    everything right of ``x = 12`` and so cuts the stroke ring and the interior
+    in two. The second sets the mask's density to 50%. Photoshop's preview is
+    the reference: the path interior takes the mask's coverage, and the ring is
+    neither left whole nor faded with the fill.
+    """
+    psd = PSDImage.open(full_name(filename))
+    layer = next(sub for sub in psd.descendants() if sub.has_mask())
+    assert layer.has_vector_mask() and layer.mask is not None
+    check_composite_quality(filename, threshold=1e-4)
+    # The cut is a hard edge the stroke has to reach, in pixels.
+    assert layer.mask.bbox[0] == 12
+
+
 def test_a_traced_shape_reads_its_interior_from_the_path_and_its_edge_from_pixels() -> (
     None
 ):
