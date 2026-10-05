@@ -450,15 +450,25 @@ def post_process(
     return image
 
 
-def _pattern_peak_bytes(pixels: int, written: int, depth: int) -> int:
+def _pattern_peak_bytes(
+    width: int, height: int, written: int, depth: int, decompress: int
+) -> int:
     """Bytes :func:`convert_pattern_to_pil` holds at its high-water mark.
 
-    One retained "L" per written channel, plus the widest later phase: the
-    16- and 32-bit conversion transient, or the merge and the ``putalpha()``
-    widening, bounded by treating every written channel as a band.
+    Phase-maxed, with every written channel sized ``width`` x ``height``: the
+    decode of one channel (``decompress`` times its source bytes, beside the
+    "L" planes already built); that source beside one 16- or 32-bit conversion
+    transient; and the merge and ``putalpha()`` widening, bounded by treating
+    every written channel as a band.
     """
+    pixels = width * height
+    source = ((width * depth + 7) // 8) * height
     conversion = _CONVERSION_TRANSIENT if depth in (16, 32) else 0
-    return pixels * (written + max(conversion, 3 * written + 1))
+    return max(
+        pixels * (written - 1) + decompress * source,
+        pixels * written + source + pixels * conversion,
+        pixels * (written + 3 * written + 1),
+    )
 
 
 def convert_pattern_to_pil(
@@ -489,7 +499,11 @@ def convert_pattern_to_pil(
             len(written),
             max_alloc_bytes=max_alloc_bytes,
             estimated_bytes=_pattern_peak_bytes(
-                width * height, len(written), max(c.pixel_depth or 8 for c in written)
+                width,
+                height,
+                len(written),
+                max(c.pixel_depth or 8 for c in written),
+                max(_DECOMPRESS_PEAK[c.compression] for c in written),
             ),
             warn=False,
         )

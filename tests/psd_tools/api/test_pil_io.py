@@ -83,16 +83,22 @@ def test_a_declared_pattern_axis_past_the_limit_is_rejected() -> None:
 def test_the_pattern_budget_is_the_modelled_peak() -> None:
     pattern = _pattern_with_declared_size(8)
     written = sum(1 for c in pattern.data.channels if c.is_written)
-    peak = pil_io._pattern_peak_bytes(64, written, 8)
+    peak = pil_io._pattern_peak_bytes(8, 8, written, 8, 1)
 
     assert pil_io.convert_pattern_to_pil(pattern, max_alloc_bytes=peak)
     with pytest.raises(ValueError, match="over the configured budget"):
         pil_io.convert_pattern_to_pil(pattern, max_alloc_bytes=peak - 1)
 
 
-def test_a_deep_pattern_is_charged_its_conversion_transient() -> None:
-    # Past three channels the merge dominates, so only a narrow pattern shows it.
-    assert pil_io._pattern_peak_bytes(64, 1, 16) > pil_io._pattern_peak_bytes(64, 1, 8)
+def test_a_pattern_is_charged_its_decompression_phase() -> None:
+    side = 1000
+    pixels = side * side
+    # One 32-bit prediction channel decodes at 4x its 4 bytes per pixel.
+    predicted = pil_io._pattern_peak_bytes(
+        side, side, 1, 32, pil_io._DECOMPRESS_PEAK[Compression.ZIP_WITH_PREDICTION]
+    )
+    assert predicted >= 16 * pixels
+    assert predicted > pil_io._pattern_peak_bytes(side, side, 1, 8, 1)
 
 
 def test_a_declared_channel_size_is_checked_before_the_decompress() -> None:
@@ -101,7 +107,7 @@ def test_a_declared_channel_size_is_checked_before_the_decompress() -> None:
         if c.is_written:
             c.rectangle = (0, 0, 20000, 20000)
             c.compression = Compression.ZIP
-            c.data = zlib.compress(b"\x00" * 20000 * 20000)
+            c.data = zlib.compress(b"\x00" * 64)
     with pytest.raises(ValueError, match="over the configured budget"):
         pil_io.convert_pattern_to_pil(pattern, max_alloc_bytes=1 << 20)
 
