@@ -1922,9 +1922,9 @@ class Compositor(object):
     ]:
         """Get object attributes.
 
-        The last item is the coverage and alpha of a redrawn centred or outer
-        stroke. Unlike the fill it is not clipped to the vector mask, which it
-        reaches past.
+        The last item is the coverage and alpha a redrawn stroke has of its own,
+        where the fill leaves any. Unlike the fill it is not clipped to the
+        vector mask, which a centred or outer stroke reaches past.
         """
         color, own_shape = self._read_object(layer)
         shape = self._place_object_shape(color, own_shape, layer.bbox, self._viewport)
@@ -1939,9 +1939,10 @@ class Compositor(object):
 
         if self._has_redrawn_stroke(layer):
             assert layer.stroke is not None
-            color_s, shape_s, alpha_s = self._get_stroke(layer)
-            # An inner stroke stays inside the path, so it needs no coverage
-            # of its own: the fill's is the bound.
+            path = None if fill_off else vector.draw_vector_mask(layer, self._viewport)
+            color_s, shape_s, alpha_s = self._get_stroke(layer, path)
+            # An inner stroke stays inside the path, so with the fill off the
+            # path's own coverage is the bound.
             inner = layer.stroke.line_alignment is StrokeAlignment.INNER
             if fill_off:
                 # No fill to paint onto: the layer is the stroke.
@@ -1950,8 +1951,8 @@ class Compositor(object):
                 return color_s, shape * 0.0, alpha * 0.0, (shape_s, alpha_s)
             # What the fill covers of the path. An inner stroke keeps the
             # fill's own alpha, so the stroke is painted onto it whole (#883).
-            path = None if inner else vector.draw_vector_mask(layer, self._viewport)
-            covered = alpha if path is None else alpha * path
+            assert path is not None
+            covered = alpha if inner else alpha * path
             compositor = Compositor(
                 self._viewport,
                 self._widen(color, self.channels),
@@ -1967,11 +1968,18 @@ class Compositor(object):
             # outlines, and a pixel it covers in part is that much of the
             # stroke over that fill (#883).
             color = compositor.result_over_backdrop()
-            if path is None:
-                return color, shape, alpha, None
             # What the fill leaves uncovered -- outside the path, or under a
             # transparent part of it -- is the stroke's own.
             uncovered = 1.0 - covered
+            if inner:
+                # The pen's antialiasing can reach past the path; the stroke
+                # has nothing out there.
+                # Alpha scales with coverage so the stroke keeps its opacity.
+                bounded = np.minimum(shape_s, path)
+                alpha_s = alpha_s * np.divide(
+                    bounded, shape_s, out=np.zeros_like(bounded), where=shape_s > 0
+                )
+                shape_s = bounded
             return color, shape, alpha, (shape_s * uncovered, alpha_s * uncovered)
 
         if fill_off and (self._force or not layer.has_pixels()):
@@ -2119,7 +2127,9 @@ class Compositor(object):
         opacity = layer.opacity / 255.0
         return float(shape), opacity
 
-    def _get_stroke(self, layer: Layer) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def _get_stroke(
+        self, layer: Layer, path: np.ndarray | None = None
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Get stroke source.
 
         The fill is drawn on the layer's box grown by the stroke width and
@@ -2169,7 +2179,7 @@ class Compositor(object):
                 "Unsupported stroke fill descriptor in layer strokeStyleContent"
             )
         color = paste(self._viewport, fill_bbox, color, 1.0)
-        shape = vector.draw_stroke(layer, self._viewport)
+        shape = vector.draw_stroke(layer, self._viewport, path)
         opacity = desc.get("strokeStyleOpacity", 100.0) / 100.0
         alpha = shape * opacity
         return color, shape, alpha
