@@ -59,6 +59,7 @@ _RETAINED_COLOR_BYTES = 16
 _STROKE_LIVE_BYTES = 13
 # Slack on a distance to the silhouette, measured from a pixel-resolution edge.
 _BOUNDARY_MARGIN = 1.0
+_RIDGE_DROP = 0.5
 
 
 @require_aggdraw
@@ -219,8 +220,10 @@ def _solid_inner_band(
     # depth peaks at the centre and falls to ``d - 1`` at the edges, so the
     # pixel spans only ``d - 1`` to ``d - 0.5`` and fills twice as fast.
     d = distance[1:-1, 1:-1]
-    ridge = ((d > distance[:-2, 1:-1]) & (d > distance[2:, 1:-1])) | (
-        (d > distance[1:-1, :-2]) & (d > distance[1:-1, 2:])
+    # A weak maximum is a slanted corner, not a ridge, and keeps the pen's coverage.
+    gap = d - _RIDGE_DROP
+    ridge = ((gap >= distance[:-2, 1:-1]) & (gap >= distance[2:, 1:-1])) | (
+        (gap >= distance[1:-1, :-2]) & (gap >= distance[1:-1, 2:])
     )
     share = width + 1.0 - d
     solid = np.clip(np.where(ridge, 2.0 * share, share), 0.0, 1.0)[:, :, None]

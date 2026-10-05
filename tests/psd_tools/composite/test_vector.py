@@ -1273,6 +1273,30 @@ def test_the_solid_inner_band_leaves_a_ridge_the_stroke_has_not_reached(
     assert centre == pytest.approx(middle)
 
 
+def test_the_solid_inner_band_does_not_double_a_slanted_corner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A weak distance maximum at a slanted corner is not a ridge (#890)."""
+    pytest.importorskip("scipy.ndimage")
+    psd, layer = _nested_component(True)
+    rows, cols = np.mgrid[0 : psd.height, 0 : psd.width]
+    x, y = cols + 0.5, rows + 0.5
+    slope = (x - 30) / 3.0
+    shape = (x >= 30) & (x <= 72) & (y >= 46 + slope) & (y <= 86 + slope)
+
+    def parallelogram(layer: Layer, **kwargs: Any) -> np.ndarray:
+        left, top, right, bottom = kwargs["viewport"]
+        return shape[top:bottom, left:right, None].astype(np.float64)
+
+    monkeypatch.setattr(vector, "_draw_path", parallelogram)
+    width = 1.75
+    viewport = (0, 0, psd.width, psd.height)
+    blank = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
+    band = vector._solid_inner_band(layer, blank, width, viewport)
+    # The acute corner pixel is 2 from the outside, level with its x neighbours, so no ridge.
+    assert band[48, 32, 0] == pytest.approx(width + 1.0 - 2.0)
+
+
 def test_the_solid_inner_band_does_not_depend_on_the_viewport() -> None:
     """A crop is the same crop of the full render, edge pixels included (#890)."""
     pytest.importorskip("scipy.ndimage")
