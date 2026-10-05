@@ -4,6 +4,10 @@ Changelog
 1.23.1 (unreleased)
 -------------------
 
+- [fix] An inner vector stroke wider than half the shape is no longer left
+  hollow down the middle. Needs scipy, and without it the old rendering
+  remains (#890)
+
 - [fix] A vector stroke on a combined path no longer paints the arcs one
   subpath buries inside another, away from the combined shape's outline.
   Needs scipy, and without it the old rendering remains. A mitred corner

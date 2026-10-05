@@ -410,17 +410,11 @@ def test_a_centred_stroke_survives_negative_document_coordinates() -> None:
     assert np.allclose(wide[4:68, 4:68], on_canvas, atol=1 / 255)
 
 
-def test_an_inner_stroke_wider_than_the_shape_cancels_itself() -> None:
-    """The limit of drawing a sided band with a pen of twice the width (#854).
+def test_an_inner_stroke_wider_than_half_the_shape_has_no_hole() -> None:
+    """The doubled pen cancels itself where the shape is thin; the band is filled (#890).
 
-    The pen is one outline filled by the even-odd rule, so where the shape is
-    thinner than the doubled width the band overlaps itself and cancels. On a
-    100x100 path an inner stroke of width ``w`` leaves a square hole of side
-    ``2w - 100`` once ``w`` passes 50, where Photoshop paints solid.
-
-    A centred pen leaves a larger hole over this range, which the loop below
-    pins. Both are wrong. Pinned so the limit is a decision rather than a
-    surprise (#890).
+    On a 100x100 path the pen alone leaves a hole of side ``2w - 100`` once
+    ``w`` passes 50, where Photoshop paints solid.
     """
     psd = PSDImage.open(full_name("effects/stroke-composite.psd"))
     layer = [x for x in psd.descendants() if x.name == "Plain"][0]
@@ -432,22 +426,15 @@ def test_an_inner_stroke_wider_than_the_shape_cancels_itself() -> None:
     assert float(fill.sum()) == 10000.0, "a 100x100 path"
     solid = fill > 0.5
 
-    def hole(width: float) -> int:
+    def band(width: float) -> np.ndarray:
         desc[b"strokeStyleLineWidth"] = UnitFloat(value=width, unit=unit)
-        band = vector.draw_stroke(layer, viewport)[:, :, 0]
-        return int((solid & (band < 0.5)).sum())
+        return vector.draw_stroke(layer, viewport)[:, :, 0]
 
-    # Half the thickness is the widest band the doubled pen draws whole.
-    assert hole(50.0) == 0
-    assert hole(60.0) == 20 * 20
-    assert hole(90.0) == 80 * 80
-    # A centred pen of the same width leaves more uncovered.
-    for width in (50.0, 60.0):
-        desc[b"strokeStyleLineWidth"] = UnitFloat(value=width, unit=unit)
-        centred = vector._draw_path(
-            layer, pen={"color": 255, "width": width}, viewport=viewport
-        )[:, :, 0]
-        assert int((solid & (centred < 0.5)).sum()) > hole(width)
+    for width in (50.0, 60.0, 90.0, 120.0):
+        assert int((solid & (band(width) < 0.5)).sum()) == 0
+
+    # Narrower than that the pen still draws the band's own edge.
+    assert float(band(10.0)[solid].sum()) == pytest.approx(10000.0 - 80 * 80, rel=0.02)
 
 
 def test_an_inner_stroke_stops_where_the_path_does() -> None:

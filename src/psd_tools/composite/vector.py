@@ -48,7 +48,7 @@ _FULL_ROUNDING = 1e-5
 # How far the pen reaches from the path it follows, in half-widths. A right-angle
 # corner is mitred out to sqrt(2); a sharper one reaches further and is cut here.
 _MITER_REACH = 1.5
-# Per padded pixel, what ``_near_silhouette`` peaks at: two float64 distance
+# Per padded pixel, what ``_silhouette_distance`` peaks at: two float64 distance
 # fields and the one they are merged into, with scipy's own temporaries, over
 # the fill and its masks.
 _NEAR_SILHOUETTE_BYTES = 48
@@ -78,12 +78,10 @@ def draw_stroke(
     side -- the same workaround SVG and CSS use, neither being able to state
     an alignment either (#854).
 
-    That doubling has a limit. The pen is one outline filled by the even-odd
-    rule, so where the shape is thinner than the doubled width the band
-    overlaps itself and cancels: an inner stroke of width ``w`` on a shape
-    ``t`` thick loses a strip ``2w - t`` wide down the middle, and covers
-    nothing at all once ``w`` reaches ``t``. Photoshop paints solid there
-    (#890).
+    The pen is one outline filled by the even-odd rule, so where the shape is
+    thinner than the doubled width it overlaps itself and cancels. An inner
+    stroke is therefore also painted solid wherever the distance to the
+    boundary is within the width (#890); an outer stroke is not.
 
     The pen follows each input path, so it is kept to the neighbourhood of the
     combined shape's boundary, which is where Photoshop strokes (#889).
@@ -120,7 +118,9 @@ def draw_stroke(
         # 'linecap': _CAP.get(linecap, 0),
         # 'miterlimit': miterlimit,
     }
-    near = _near_silhouette(layer, float(pen["width"]) / 2.0 * _MITER_REACH, viewport)
+    inner = alignment is StrokeAlignment.INNER
+    radius = float(pen["width"]) / 2.0 * _MITER_REACH
+    near = _near_silhouette(layer, radius, viewport)
     outline = _draw_path(layer, pen=pen, viewport=viewport, near=near)
     if not sided:
         return outline
@@ -138,11 +138,9 @@ def draw_stroke(
     # of the pen. ``_ROUNDING`` sits in the gap between that trace and the
     # smallest coverage a path really does state.
     fill = draw_vector_mask(layer, viewport)
-    inside = (
-        fill > _ROUNDING
-        if alignment is StrokeAlignment.INNER
-        else fill < 1.0 - _FULL_ROUNDING
-    )
+    inside = fill > _ROUNDING if inner else fill < 1.0 - _FULL_ROUNDING
+    if inner:
+        outline = _solid_inner_band(layer, outline, width, viewport)
     return outline * inside
 
 
@@ -153,23 +151,74 @@ def can_bury_arcs(layer: "Layer") -> bool:
 
 
 def _near_silhouette(
+    layer: "Layer", radius: float, viewport: tuple[int, int, int, int] | None
+) -> np.ndarray | None:
+    """
+    Pixels within ``radius`` of the boundary of the shape the paths combine to.
+
+    Keeping the pen to this neighbourhood drops the arcs one path buries inside
+    another (#889). ``None`` when there is nothing to bury or no scipy, which
+    leaves every arc stroked.
+    """
+    if not can_bury_arcs(layer):
+        return None
+    distance = _silhouette_distance(layer, radius, viewport)
+    if distance is None:
+        return None
+    return (distance <= radius + _BOUNDARY_MARGIN).astype(np.float32)[:, :, None]
+
+
+def _solid_inner_band(
+    layer: "Layer",
+    outline: np.ndarray,
+    width: float,
+    viewport: tuple[int, int, int, int] | None,
+) -> np.ndarray:
+    """
+    ``outline`` with every pixel wholly within ``width`` of the boundary solid.
+
+    The doubled pen cancels itself where the shape is thinner than it (#890);
+    the pen keeps the band's own edge. Nothing outside the layer's box is
+    inside the shape, so only that part of the viewport is measured.
+    """
+    if viewport is None:
+        viewport = layer._psd.viewbox
+    left, top, right, bottom = layer.bbox
+    box = (
+        max(viewport[0], left),
+        max(viewport[1], top),
+        min(viewport[2], right),
+        min(viewport[3], bottom),
+    )
+    if box[2] <= box[0] or box[3] <= box[1]:
+        return outline
+    distance = _silhouette_distance(layer, width, box)
+    if distance is None:
+        return outline
+    solid = (distance <= width - 1.0)[:, :, None]
+    rows = slice(box[1] - viewport[1], box[3] - viewport[1])
+    cols = slice(box[0] - viewport[0], box[2] - viewport[0])
+    outline = outline.copy()
+    outline[rows, cols] = np.maximum(outline[rows, cols], solid)
+    return outline
+
+
+def _silhouette_distance(
     layer: "Layer",
     radius: float,
     viewport: tuple[int, int, int, int] | None,
 ) -> np.ndarray | None:
     """
-    Pixels within ``radius`` of the boundary of the shape the paths combine to.
+    Distance from each viewport pixel to the boundary of the combined shape.
 
     Photoshop strokes that silhouette, but a pen follows each input path, so an
-    arc one path buries inside another would be stroked too (#889). Keeping
-    the pen to this neighbourhood drops the buried arcs. ``None`` when there is
-    nothing to bury or no scipy, which leaves every arc stroked.
+    arc one path buries inside another would be stroked too (#889). Only
+    distances within ``radius`` are reliable. ``None`` when the shape is empty
+    or there is no scipy; ``inf`` throughout when the shape covers the viewport.
 
     A pixel is inside at any coverage, so a component thinner than a pixel still
     has a boundary; the margin on ``radius`` absorbs the fringe it adds.
     """
-    if not can_bury_arcs(layer):
-        return None
     try:
         from scipy.ndimage import distance_transform_edt  # type: ignore[import-untyped]  # noqa: PLC0415
     except ImportError:
@@ -177,13 +226,15 @@ def _near_silhouette(
 
     if viewport is None:
         viewport = layer._psd.viewbox
-    # A boundary just outside the viewport still bounds the band inside it.
+    # A boundary just outside the viewport still bounds the band inside it, but
+    # none lies beyond the layer's own box, so a wide stroke need not look further.
     reach = int(np.ceil(radius + _BOUNDARY_MARGIN))
+    left, top, right, bottom = layer.bbox
     padded = (
-        viewport[0] - reach,
-        viewport[1] - reach,
-        viewport[2] + reach,
-        viewport[3] + reach,
+        max(viewport[0] - reach, min(viewport[0], left - 1)),
+        max(viewport[1] - reach, min(viewport[1], top - 1)),
+        min(viewport[2] + reach, max(viewport[2], right + 1)),
+        min(viewport[3] + reach, max(viewport[3], bottom + 1)),
     )
     width, height = padded[2] - padded[0], padded[3] - padded[1]
     check_pixel_size(
@@ -204,14 +255,14 @@ def _near_silhouette(
     if not inside.any():
         return None
     if inside.all():
-        return np.zeros(
-            (viewport[3] - viewport[1], viewport[2] - viewport[0], 1), np.float32
-        )
+        return np.full((viewport[3] - viewport[1], viewport[2] - viewport[0]), np.inf)
     distance = np.where(
         inside, distance_transform_edt(inside), distance_transform_edt(~inside)
     )
-    near = distance <= radius + _BOUNDARY_MARGIN
-    return near[reach:-reach, reach:-reach].astype(np.float32)[:, :, None]
+    return distance[
+        viewport[1] - padded[1] : distance.shape[0] - (padded[3] - viewport[3]),
+        viewport[0] - padded[0] : distance.shape[1] - (padded[2] - viewport[2]),
+    ]
 
 
 def _draw_path(
