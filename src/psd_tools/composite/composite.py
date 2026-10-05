@@ -926,6 +926,22 @@ def _blend_backdrop(
     return result_color, result_alpha
 
 
+# A pixel the path covers whole, which the rasterizer reports a float32 step
+# short of 1.0.
+_PATH_FULL = 1e-5
+
+
+def _is_shape_layer(layer: Layer) -> bool:
+    """A fill clipped to a path, whose stored coverage is rasterized from it."""
+    return (
+        not isinstance(layer, GroupMixin)
+        and layer.has_pixels()
+        and layer.vector_mask is not None
+        and not layer.vector_mask.disabled
+        and utils.has_fill(layer)
+    )
+
+
 @dataclass(frozen=True)
 class _Source:
     """A layer resolved into the operands the blend equations take.
@@ -1428,10 +1444,17 @@ class Compositor(object):
         traces_mask = (self._force and layer.has_vector_mask()) or (
             not layer.has_pixels() and utils.has_fill(layer)
         )
+        traced: float | np.ndarray = source.shape
+        if traces_mask:
+            traced = source.shape_mask
+        elif _is_shape_layer(layer):
+            traced = self._path_interior(
+                layer, self._viewport, source.shape_mask, source.shape
+            )
         outer: list[_OuterEffect] = []
         self._add_stroke_effects(
             layer,
-            source.shape_mask if traces_mask else source.shape,
+            traced,
             canvas,
             outer,
             traces_mask,
@@ -2228,7 +2251,7 @@ class Compositor(object):
         # in the corpus (the two groups it applies to carry no stroke effect),
         # and the same inside the viewport as outside, so this change leaves it
         # be; ``_get_group_shape()`` is what a fix would multiply in.
-        traced = self._get_mask(layer, viewport)
+        traced = mask = self._get_mask(layer, viewport)
         if not traces_mask:
             # Reading a group as an object finds no pixel data and no fill, so
             # the only route to its coverage outside this viewport is to
@@ -2238,12 +2261,31 @@ class Compositor(object):
                 if isinstance(layer, GroupMixin)
                 else self._get_object_shape(layer, viewport)
             )
-            traced = own * traced
+            traced = own * mask
+            if _is_shape_layer(layer):
+                traced = self._path_interior(layer, viewport, mask, traced)
         if not isinstance(traced, np.ndarray):
             # An unmasked layer whose stroke traces its mask: _get_mask()
             # yields a bare 1.0, and draw_stroke_effect() needs a canvas.
             traced = np.full((y1 - y0, x1 - x0, 1), traced, dtype=np.float32)
         return traced
+
+    @staticmethod
+    def _path_interior(
+        layer: Layer,
+        viewport: tuple[int, int, int, int],
+        mask: float | np.ndarray,
+        stored: np.ndarray,
+    ) -> np.ndarray:
+        """``stored`` coverage, with the path's interior held at ``mask``.
+
+        Photoshop strokes the path, so a fill that fades inside it does not
+        thin the stroke (#886). The path's own edge is left to the stored
+        coverage: Photoshop's rasterizer does not agree with the exact area
+        that :py:func:`vector.draw_vector_mask` computes there.
+        """
+        inside = vector.draw_vector_mask(layer, viewport) >= 1.0 - _PATH_FULL
+        return np.where(inside, mask, stored).astype(np.float32, copy=False)
 
     def _get_group_shape(
         self, layer: Layer, viewport: tuple[int, int, int, int]

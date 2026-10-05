@@ -39,7 +39,8 @@ caller that needs the division, so the undivided spelling above stays.
 Implementation notes:
 
 - Effects are image-based rather than vector-based, which may differ from Photoshop
-- For layers with vector paths, ideally strokes should be drawn geometrically
+- A shape layer's stroke follows its path interior but traces the stored coverage
+  at the path's edge
 - Some effect parameters may not be fully supported
 - Complex effect combinations may not render identically to Photoshop
 
