@@ -183,12 +183,9 @@ def _solid_inner_band(
     The doubled pen cancels itself where the shape is thinner than it (#890);
     the pen keeps the band's own edge. Nothing outside the layer's box is
     inside the shape, so only that part of the viewport is measured. The fill
-    closes an open subpath that the pen leaves open, so its boundary would grow
-    a stroke along the missing edge; such a layer keeps the pen alone.
+    closes an open subpath that the pen leaves open, so only closed subpaths
+    state a boundary to repair.
     """
-    assert layer.vector_mask is not None
-    if any(len(path) > 1 and not path.is_closed() for path in layer.vector_mask.paths):
-        return outline
     if viewport is None:
         viewport = layer._psd.viewbox
     left, top, right, bottom = layer.bbox
@@ -206,15 +203,16 @@ def _solid_inner_band(
         * (_RETAINED_COLOR_BYTES + _STROKE_LIVE_BYTES)
     )
     try:
-        distance = _silhouette_distance(layer, width, box, held)
+        distance = _silhouette_distance(layer, width, box, held, closed_only=True)
     except ValueError:
         # The repair is optional, so a budget it cannot fit leaves the pen alone.
         return outline
     if distance is None:
         return outline
-    # A pixel this near is wholly inside the band; the pen keeps the pixels the
-    # band's edge only partly covers.
-    solid = (distance <= width)[:, :, None]
+    # A pixel whose centre is ``d`` from the nearest outside centre spans
+    # depths ``d - 1`` to ``d``, so the band covers all of it up to ``d == width``
+    # and a falling share beyond.
+    solid = np.clip(width + 1.0 - distance, 0.0, 1.0)[:, :, None]
     rows = slice(box[1] - viewport[1], box[3] - viewport[1])
     cols = slice(box[0] - viewport[0], box[2] - viewport[0])
     outline[rows, cols] = np.maximum(outline[rows, cols], solid)
@@ -226,6 +224,7 @@ def _silhouette_distance(
     radius: float,
     viewport: tuple[int, int, int, int] | None,
     held_bytes: int | None = None,
+    closed_only: bool = False,
 ) -> np.ndarray | None:
     """
     Distance from each viewport pixel to the boundary of the combined shape.
@@ -235,7 +234,8 @@ def _silhouette_distance(
     distances within ``radius`` are reliable. ``None`` when the shape is empty
     or there is no scipy; ``inf`` throughout when the shape covers the viewport.
     ``held_bytes`` is what the caller holds meanwhile, by default the colour of
-    each viewport pixel.
+    each viewport pixel. ``closed_only`` leaves out the open subpaths, whose
+    implicit closing edge the fill would otherwise take for a boundary.
 
     A pixel is inside at any coverage, so a component thinner than a pixel still
     has a boundary; the margin on ``radius`` absorbs the fringe it adds.
@@ -272,7 +272,12 @@ def _silhouette_distance(
         estimated_bytes=width * height * _NEAR_SILHOUETTE_BYTES + held_bytes,
         warn=False,
     )
-    inside = draw_vector_mask(layer, padded)[:, :, 0] > _FULL_ROUNDING
+    mask = (
+        _draw_path(layer, brush={"color": 255}, viewport=padded, closed_only=True)
+        if closed_only
+        else draw_vector_mask(layer, padded)
+    )
+    inside = mask[:, :, 0] > _FULL_ROUNDING
     # ``distance_transform_edt`` measures to a phantom feature off the array
     # corner when there is no zero to measure to. An empty mask states no boundary
     # to follow; one that is covered throughout has none in reach.
@@ -295,12 +300,13 @@ def _draw_path(
     pen: dict[str, int | float] | None = None,
     viewport: tuple[int, int, int, int] | None = None,
     near: np.ndarray | None = None,
+    closed_only: bool = False,
 ) -> np.ndarray:
     """
     Rasterize a layer's vector mask, filled by ``brush`` and outlined by ``pen``.
 
     ``near`` limits the outline of a closed subpath to where it is nonzero; see
-    :py:func:`_near_silhouette`.
+    :py:func:`_near_silhouette`. ``closed_only`` fills the closed subpaths alone.
 
     A mask with an initial fill rule and no path of its own reveals all, so
     the plane starts out covered -- but only for a brush. The seed describes a
@@ -338,7 +344,9 @@ def _draw_path(
     # Apply shape operation.
     first = True
     for subpath_list in paths:
-        plane = _draw_subpath(subpath_list, viewport, doc_size, brush, pen, near)
+        plane = _draw_subpath(
+            subpath_list, viewport, doc_size, brush, pen, near, closed_only
+        )
         assert mask.shape == (height, width, 1)
         assert plane.shape == mask.shape
 
@@ -367,6 +375,7 @@ def _draw_subpath(
     brush: dict[str, int | float] | None,
     pen: dict[str, int | float] | None,
     near: np.ndarray | None = None,
+    closed_only: bool = False,
 ) -> np.ndarray:
     """
     Rasterize one merged path component, filled by ``brush``, outlined by ``pen``.
@@ -387,7 +396,9 @@ def _draw_subpath(
 
     plane = np.zeros((height, width, 1), dtype=np.float32)
     if brush:
-        plane = _fill_subpath(drawable, viewport, doc_size)
+        filled = [x for x in drawable if x.is_closed()] if closed_only else drawable
+        if filled:
+            plane = _fill_subpath(filled, viewport, doc_size)
     if pen:
         closed = [subpath for subpath in drawable if subpath.is_closed()]
         outline = plane * 0

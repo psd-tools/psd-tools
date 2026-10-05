@@ -1,6 +1,7 @@
 import logging
 
 import sys
+from typing import Any
 
 import numpy as np
 import pytest
@@ -1130,48 +1131,75 @@ def test_an_open_subpath_is_stroked_wherever_the_silhouette_is() -> None:
     assert np.count_nonzero(gated[off_line]) == 0
 
 
-@pytest.mark.parametrize("open_subpath", [False, True])
-def test_the_solid_inner_band_leaves_a_layer_with_an_open_subpath_alone(
-    open_subpath: bool,
-) -> None:
-    """The fill closes an open subpath, so its boundary is not the pen's (#890)."""
+def _with_open_line(layer: Layer) -> None:
+    """Add a zero-area open subpath, far from the rest of the path."""
+    start, end = (0.7, 0.1), (0.7, 0.9)  # (y, x) fractions
+    _append_open(layer, [start, end])
+
+
+def _append_open(layer: Layer, points: list[tuple[float, float]]) -> None:
+    """Add an open subpath through ``points``, (y, x) fractions, to the path."""
+    setting = next(
+        data
+        for key in (Tag.VECTOR_MASK_SETTING1, Tag.VECTOR_MASK_SETTING2)
+        if (data := layer.tagged_blocks.get_data(key)) is not None
+    )
+    knots: list[Any] = [OpenKnotLinked(p, p, p) for p in points]
+    setting.path._items.append(OpenPath(items=knots, operation=1, index=0))
+
+
+def test_an_open_subpath_does_not_disable_the_solid_inner_band() -> None:
+    """The open line is no boundary, and the closed shape is still repaired (#890)."""
+    pytest.importorskip("scipy.ndimage")
+    psd = PSDImage.open(full_name("effects/stroke-composite.psd"))
+    layer = [x for x in psd.descendants() if x.name == "Plain"][0]
+    assert layer.stroke is not None
+    _with_open_line(layer)
+    desc = layer.stroke._data
+    desc[b"strokeStyleLineWidth"] = UnitFloat(
+        value=60.0, unit=desc[b"strokeStyleLineWidth"].unit
+    )
+    viewport = (12, 11, 130, 129)
+    solid = vector.draw_vector_mask(layer, viewport)[:, :, 0] > 0.5
+    assert solid.sum() == 10000
+    band = vector.draw_stroke(layer, viewport)[:, :, 0]
+    assert int((solid & (band < 0.5)).sum()) == 0
+
+
+def test_the_solid_inner_band_ignores_the_closing_edge_of_an_open_subpath() -> None:
+    """The fill closes an open subpath that the pen leaves open (#890)."""
+    pytest.importorskip("scipy.ndimage")
     psd, layer = _nested_component(True)
-    if open_subpath:
-        setting = layer.tagged_blocks.get_data(Tag.VECTOR_MASK_SETTING1)
-        start, end = (0.2, 0.1), (0.2, 0.9)  # (y, x) fractions
-        setting.path._items.append(
-            OpenPath(
-                items=[
-                    OpenKnotLinked(start, start, start),  # type: ignore[list-item]
-                    OpenKnotLinked(end, end, end),  # type: ignore[list-item]
-                ],
-                operation=1,
-                index=0,
-            )
-        )
+    _with_open_line(layer)
+    # Three sides of a rectangle: the fill closes the fourth, the pen does not.
+    _append_open(layer, [(0.85, 0.1), (0.85, 0.9), (0.97, 0.9), (0.97, 0.1)])
     blank = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
     band = vector._solid_inner_band(layer, blank, 4.0, (0, 0, psd.width, psd.height))
-    assert band.any() is not open_subpath
+    top, bottom = int(0.85 * psd.height), int(0.97 * psd.height)
+    assert not band[top:bottom].any(), "the open rectangle's area is no shape"
+    assert band.any(), "the closed shapes are repaired"
 
 
+@pytest.mark.parametrize(("width", "least"), [(2.0, 1.0), (1.9, 0.85)])
 def test_the_solid_inner_band_covers_a_shape_thinner_than_a_pixel_margin(
-    monkeypatch: pytest.MonkeyPatch,
+    width: float, least: float, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A 3x3 square under a width of 2 has its centre wholly in the band (#890)."""
+    """A 3x3 square under a width of 2 or a little less is covered through (#890)."""
     pytest.importorskip("scipy.ndimage")
     psd, layer = _nested_component(True)
 
-    def mask(layer: Layer, viewport: tuple[int, int, int, int]) -> np.ndarray:
+    def mask(layer: Layer, **kwargs: Any) -> np.ndarray:
+        viewport = kwargs["viewport"]
         out = np.zeros((viewport[3] - viewport[1], viewport[2] - viewport[0], 1))
         left, top = -viewport[0], -viewport[1]  # document origin in the array
         out[top + 50 : top + 53, left + 60 : left + 63] = 1.0
         return out
 
-    monkeypatch.setattr(vector, "draw_vector_mask", mask)
+    monkeypatch.setattr(vector, "_draw_path", mask)
     blank = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
-    band = vector._solid_inner_band(layer, blank, 2.0, (0, 0, psd.width, psd.height))
+    band = vector._solid_inner_band(layer, blank, width, (0, 0, psd.width, psd.height))
     # The distance is two-sided; the caller clips the band to the inside.
-    assert band[50:53, 60:63].all()
+    assert band[50:53, 60:63].min() >= least
 
 
 def test_the_solid_inner_band_gives_way_to_the_allocation_budget() -> None:
