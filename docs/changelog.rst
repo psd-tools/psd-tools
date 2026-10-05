@@ -5,7 +5,7 @@ Changelog
 -------------------
 
 - [fix] A vector stroke on a combined path no longer paints the arcs one
-  subpath buries inside another; only the combined shape's outline is stroked.
+  subpath buries inside another, away from the combined shape's outline.
   Needs scipy, and without it the old rendering remains. A mitred corner
   sharper than a right angle is now cut short on such paths (#889)
 

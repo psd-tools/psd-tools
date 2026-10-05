@@ -1056,6 +1056,38 @@ def test_a_stroke_skips_the_arcs_one_path_buries_in_another(
     )
 
 
+@pytest.mark.parametrize("fill", [0.0, 0.4, 1.0])
+def test_a_flat_silhouette_gates_without_a_phantom_boundary(
+    fill: float, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No pixel at half coverage states no boundary; a whole one has none in reach (#889)."""
+    psd, layer = _nested_component(True)
+
+    def flat(layer: Layer, viewport: tuple[int, int, int, int]) -> np.ndarray:
+        return np.full((viewport[3] - viewport[1], viewport[2] - viewport[0], 1), fill)
+
+    monkeypatch.setattr(vector, "draw_vector_mask", flat)
+    viewport = (0, 0, psd.width, psd.height)
+    near = vector._near_silhouette(layer, 1.5, viewport)
+    if fill < 1.0:
+        assert near is None, "a pen with no silhouette to follow is left whole"
+    else:
+        assert near is not None and near.shape == (psd.height, psd.width, 1)
+        assert not near.any(), "no boundary anywhere, so none within reach"
+
+
+def test_the_silhouette_gate_is_charged_to_the_allocation_budget() -> None:
+    """The distance fields of a gated stroke are over the viewport (#889)."""
+    psd = PSDImage.open(full_name("path-operations/combine.psd"))
+    assert vector.can_bury_arcs(psd[0])
+    budget = psd.width * psd.height * vector.NEAR_SILHOUETTE_BYTES
+    psd._max_alloc_bytes = budget
+    assert psd.composite(force=True, ignore_preview=True) is not None
+    psd._max_alloc_bytes = budget - 1
+    with pytest.raises(ValueError, match="over the configured budget"):
+        psd.composite(force=True, ignore_preview=True)
+
+
 def test_an_open_subpath_is_stroked_wherever_the_silhouette_is() -> None:
     """An open subpath bounds no area, so the silhouette cannot drop it (#889)."""
     psd, layer = _nested_component(True)

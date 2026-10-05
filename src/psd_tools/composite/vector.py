@@ -47,6 +47,9 @@ _FULL_ROUNDING = 1e-5
 # How far the pen reaches from the path it follows, in half-widths. A right-angle
 # corner is mitred out to sqrt(2); a sharper one reaches further and is cut here.
 _MITER_REACH = 1.5
+# Per pixel, what ``_near_silhouette`` peaks at: two float64 distance fields and
+# the one they are merged into, over the fill and its masks.
+NEAR_SILHOUETTE_BYTES = 40
 # Slack on a distance to the silhouette, measured from a pixel-resolution edge.
 _BOUNDARY_MARGIN = 1.0
 
@@ -139,6 +142,12 @@ def draw_stroke(
     return outline * inside
 
 
+def can_bury_arcs(layer: "Layer") -> bool:
+    """Whether a stroke of ``layer`` is gated: one closed subpath has no other to bury it."""
+    assert layer.vector_mask is not None
+    return sum(1 for subpath in layer.vector_mask.paths if subpath.is_closed()) >= 2
+
+
 def _near_silhouette(
     layer: "Layer",
     radius: float,
@@ -155,9 +164,7 @@ def _near_silhouette(
     A pixel is inside at half coverage, so the boundary is placed to within a
     pixel; the margin on ``radius`` absorbs that.
     """
-    # One closed subpath has no other to bury an arc of it.
-    assert layer.vector_mask is not None
-    if sum(1 for subpath in layer.vector_mask.paths if subpath.is_closed()) < 2:
+    if not can_bury_arcs(layer):
         return None
     try:
         from scipy.ndimage import distance_transform_edt  # type: ignore[import-untyped]  # noqa: PLC0415
@@ -175,6 +182,15 @@ def _near_silhouette(
         viewport[3] + reach,
     )
     inside = draw_vector_mask(layer, padded)[:, :, 0] >= 0.5
+    # ``distance_transform_edt`` measures to a phantom feature off the array
+    # corner when there is no zero to measure to. A mask with no pixel at half
+    # coverage states no boundary to follow; one that is whole has none in reach.
+    if not inside.any():
+        return None
+    if inside.all():
+        return np.zeros(
+            (viewport[3] - viewport[1], viewport[2] - viewport[0], 1), np.float32
+        )
     distance = np.where(
         inside, distance_transform_edt(inside), distance_transform_edt(~inside)
     )
