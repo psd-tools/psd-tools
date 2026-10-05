@@ -2153,3 +2153,27 @@ def test_parent_creators_type_check() -> None:
     parent = group[0].parent
     assert parent is not None
     assert parent.create_group(name="Via parent").parent is group
+
+
+def test_a_document_that_received_a_layer_can_donate_one() -> None:
+    """The receiver of a patterns-carrying move is itself a donor next (#862).
+
+    One move is not enough: ``set_data()`` stores the unwrapped ``bytes`` key
+    only when the receiver had no patterns block, and the guard rejected it on
+    the *next* move out.
+    """
+    a = PSDImage.open(full_name("layers/pixel-layer.psd"))
+    b = PSDImage.open(full_name("2layers.psd"))
+    c = PSDImage.open(full_name("1layer.psd"))
+    assert a.tagged_blocks is not None
+    assert Tag.PATTERNS1 in a.tagged_blocks
+    assert b.tagged_blocks is None or Tag.PATTERNS1 not in b.tagged_blocks
+
+    b.append(a[0])
+    layer = b[-1]
+    c.append(layer)
+
+    assert layer._psd is c
+    assert layer in c
+    assert c.tagged_blocks is not None
+    assert Tag.PATTERNS1 in c.tagged_blocks
