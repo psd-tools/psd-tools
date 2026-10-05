@@ -387,6 +387,20 @@ class DisplayInfo(BaseElement):
         return written
 
 
+def _alpha_channel_mode(value: int) -> AlphaChannelMode | int:
+    """
+    Resolve a mode byte to :py:class:`AlphaChannelMode`, keeping an unknown one.
+
+    :raises ValueError: if the value is not an integer that fits one byte.
+    """
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 255:
+        raise ValueError("Invalid alpha channel mode: %r" % (value,))
+    try:
+        return AlphaChannelMode(value)
+    except ValueError:
+        return value
+
+
 @define(repr=False)
 class AlphaChannel(BaseElement):
     color_space: int = 0
@@ -395,23 +409,23 @@ class AlphaChannel(BaseElement):
     c3: int = 0
     c4: int = 0
     opacity: int = 0
-    mode: AlphaChannelMode = field(
-        default=AlphaChannelMode.ALPHA,
-        converter=AlphaChannelMode,
-        validator=in_(AlphaChannelMode),
+    mode: AlphaChannelMode | int = field(
+        default=AlphaChannelMode.ALPHA, converter=_alpha_channel_mode
     )
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "AlphaChannel":
         vals = read_fmt("6H", fp)
-        mode = AlphaChannelMode(read_fmt("B", fp)[0])
+        mode = _alpha_channel_mode(read_fmt("B", fp)[0])
+        if not isinstance(mode, AlphaChannelMode):
+            logger.debug("Unknown alpha channel mode found: %d" % (mode))
         return cls(*vals, mode)  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         written = write_fmt(
             fp, "6H", self.color_space, self.c1, self.c2, self.c3, self.c4, self.opacity
         )
-        written += write_fmt(fp, "B", self.mode)
+        written += write_fmt(fp, "B", int(self.mode))
         return written
 
 
