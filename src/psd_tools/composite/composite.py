@@ -1973,8 +1973,12 @@ class Compositor(object):
             if inner:
                 # The pen's antialiasing can reach past the path; the stroke
                 # has nothing out there.
-                shape_s = np.minimum(shape_s, path)
-                alpha_s = np.minimum(alpha_s, path)
+                # Alpha scales with coverage so the stroke keeps its opacity.
+                bounded = np.minimum(shape_s, path)
+                alpha_s = alpha_s * np.divide(
+                    bounded, shape_s, out=np.zeros_like(bounded), where=shape_s > 0
+                )
+                shape_s = bounded
             return color, shape, alpha, (shape_s * uncovered, alpha_s * uncovered)
 
         if fill_off and (self._force or not layer.has_pixels()):
