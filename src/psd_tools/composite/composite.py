@@ -1994,7 +1994,7 @@ class Compositor(object):
             or not isinstance(layer, (ShapeLayer, FillLayer))
             or self._force
             or not layer.has_pixels()
-            or mask.has_real()
+            or mask.real_flags is not None
             or mask.bbox != layer.bbox
         ):
             return False

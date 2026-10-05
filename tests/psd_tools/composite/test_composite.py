@@ -42,6 +42,7 @@ from psd_tools.constants import (
 )
 from psd_tools.psd.base import ByteElement
 from psd_tools.psd.descriptor import UnitFloat
+from psd_tools.psd.layer_and_mask import MaskFlags
 from psd_tools.terminology import Key
 from PIL import Image
 
@@ -2769,3 +2770,13 @@ def test_mask_comparison_charges_the_live_mask_to_the_shape_read(
     )
     assert _blank_compositor(psd)._mask_repeats_shape(layer)
     assert held == [numpy_io._backing_bytes(mask)]
+
+
+def test_mask_with_real_flags_present_is_applied() -> None:
+    """``has_real()`` is the ``parameters_applied`` bit, not the record's presence."""
+    psd = PSDImage.open(full_name("clipping-mask2.psd"))
+    layer = next(x for x in psd.descendants() if x.name == "Polygon 1")
+    assert layer.mask is not None
+    layer.mask._data.real_flags = MaskFlags()
+    assert not layer.mask.has_real()
+    assert not _blank_compositor(psd)._mask_repeats_shape(layer)
