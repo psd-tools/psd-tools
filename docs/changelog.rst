@@ -4,6 +4,11 @@ Changelog
 1.23.1 (unreleased)
 -------------------
 
+- [fix] A document whose display-info resource carries an alpha channel mode
+  this version does not know now opens; ``AlphaChannel.mode`` keeps the raw
+  ``int`` and writes it back. ``AlphaChannel(mode=99)`` is accepted again, any
+  byte value now being valid (#864)
+
 - [fix] Moving a layer out of a document that earlier received one from another
   document no longer raises ``TypeError`` (#862, #946)
 - [fix] A stroke-only shape layer no longer has its interior filled when the

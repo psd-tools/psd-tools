@@ -183,11 +183,21 @@ def test_alpha_channel_converts_a_raw_mode() -> None:
     assert AlphaChannel(mode=2).mode is AlphaChannelMode.SPOT
 
 
-@pytest.mark.parametrize("mode", [99, -1, None, "spot"])
-def test_alpha_channel_rejects_a_bad_mode(mode: Any) -> None:
-    """Every bad mode raises here, ``99`` -- which packs -- along with the rest."""
+@pytest.mark.parametrize("mode", [256, -1, None, "spot", 1.0, True])
+def test_alpha_channel_rejects_a_mode_that_cannot_pack(mode: Any) -> None:
     with pytest.raises(ValueError):
         AlphaChannel(mode=mode)
+
+
+def test_alpha_channel_keeps_an_unknown_mode_through_a_round_trip() -> None:
+    data = b"\x00" * 12 + b"\x63"
+    channel = AlphaChannel.read(io.BytesIO(data))
+    assert channel.mode == 99
+    assert not isinstance(channel.mode, AlphaChannelMode)
+    out = io.BytesIO()
+    channel.write(out)
+    assert out.getvalue() == data
+    assert AlphaChannel(mode=99).mode == 99
 
 
 def test_slice_v6_probe_survives_a_bad_unit_in_a_truncated_descriptor() -> None:
