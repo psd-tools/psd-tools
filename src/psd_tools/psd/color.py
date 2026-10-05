@@ -39,7 +39,7 @@ class Color(BaseElement):
         try:
             id = ColorSpaceID(id)
         except ValueError:
-            logger.info("Custom color space found: %d" % (id))
+            logger.debug("Custom color space found: %d" % (id))
         if id == ColorSpaceID.LAB:
             values = read_fmt("4h", fp)
         else:

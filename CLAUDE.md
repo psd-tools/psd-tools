@@ -1,321 +1,192 @@
 # CLAUDE.md
 
-## Development Commands
+See also [the contributor documentation](docs/contributing.rst) for setup, test and docs commands.
 
-See also [the contributor documentation](docs/contributing.rst) for development workflows.
+## Development Notes
 
-### Setup
-
-```bash
-# Install dependencies (uv includes the dev group by default)
-uv sync
-
-# Install with composite support (required for rendering/compositing)
-uv sync --extra composite
-
-# Install with all groups (docs) and composite extra
-uv sync --all-groups --extra composite
-```
-
-**Note**: The `composite` extra includes `aggdraw`, `scipy`, and `scikit-image` dependencies
-required for layer compositing (rendering). These are optional since they may not be available
-on all platforms (notably Python 3.14 on Windows).
-
-### Building
-
-```bash
-# Build Cython modules and a wheel
-uv build --wheel
-```
-
-### Testing
-
-```bash
-# Run all tests with coverage
-uv run pytest
-
-# Run specific test
-uv run pytest tests/psd_tools/api/test_layers.py::test_layer_name
-
-# Run tests without coverage
-uv run pytest --no-cov
-```
-
-### Linting and Type Checking
-
-```bash
-# Run ruff linter
-uv run ruff check
-
-# Format with ruff
-uv run ruff format
-
-# Run mypy type checker
-uv run mypy
-```
-
-### Documentation
-
-```bash
-# Build HTML documentation
-uv run --group docs make -C docs html
-# Output in docs/_build/html/
-```
-
-## Available Skills
-
-These slash commands are available in Claude Code. Invoke them by typing `/<name>` in the chat.
-
-**Project-defined** (`.claude/skills/`):
-
-| Skill                         | When to use                                                                       |
-| ----------------------------- | --------------------------------------------------------------------------------- |
-| `/release [version]`          | Cut a new version: updates changelog, bumps version, opens a release PR.          |
-| `/investigate-issue <number>` | Investigate a GitHub issue, trace the root cause, and post findings as a comment. |
-
-**Built-in Claude Code commands**:
-
-| Skill                  | When to use                                                                                                      |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `/code-review [--fix]` | Review the current diff for bugs and simplification opportunities. Pass `--fix` to apply findings automatically. |
-| `/review`              | Review the open PR on the current branch — reads PR description, diff, and CI state.                             |
-| `/security-review`     | Run a focused security review of pending changes on the current branch.                                          |
-
-## GitHub Workflow
-
-### Common `gh` CLI patterns
-
-```bash
-# View an issue with all comments
-gh issue view 123 --repo psd-tools/psd-tools --comments
-
-# Post a comment (use --body-file for multiline Markdown to avoid shell escaping issues)
-gh issue comment 123 --repo psd-tools/psd-tools --body-file "${TMPDIR:-/tmp}/comment.md"
-
-# View a PR (current branch)
-gh pr view
-
-# Check CI status for the current PR
-gh pr checks
-
-# List open PRs
-gh pr list
-
-# Parse JSON output with jq (more efficient than python3 for simple field extraction)
-gh issue view 123 --repo psd-tools/psd-tools --json title,body,comments | jq '.comments[].body'
-
-# Mark a PR review comment thread as resolved (GraphQL)
-gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: "..."}) { thread { isResolved } } }'
-```
-
-### Typical fix workflow
-
-1. `gh issue view <N> --comments` — read the issue and comments, understand the bug
-1. `git checkout -b fix/short-description` — create the branch before editing any files
-1. Investigate code, write the fix, run `uv run pytest`
-1. Commit and push → `gh pr create`
-1. Address PR review comments → push follow-up commits
-1. After merge: `git checkout main && git pull && git branch -d fix/short-description`
-
-### Branch naming conventions
-
-- `fix/<short-description>` — bug fixes
-- `feature/<short-description>` — new features
-- `release/vX.Y.Z` — release PRs (required by auto-tag workflow)
-- `chore/<short-description>` — tooling, deps, CI
-
-## Release Workflow
-
-1. **Decide the version number** following [PEP 440](https://peps.python.org/pep-0440/) based on the changes since the last release. The auto-tag workflow recognises these forms: `v1.2.3` (release), `v1.2.3a1` / `v1.2.3b1` / `v1.2.3rc1` (pre-releases), `v1.2.3.post1` (post-release).
-
-1. **Update the changelog**: Review `git log` since the last tag and summarize changes in `docs/changelog.rst` under the new version heading.
-
-1. **Create a release PR**: Commit the changelog update (and any version bumps) on a branch named exactly `release/vX.Y.Z` and open a PR against `main`. Merge it once approved. The branch name is how the auto-tag workflow identifies the version.
-
-1. **Tag and publish**: After the release PR is merged, the `auto-tag` workflow (`.github/workflows/auto-tag.yml`) fires on the `pull_request: closed` event. It extracts the version from the branch name (`release/vX.Y.Z`) and tags `merge_commit_sha` — the exact commit that landed on `main` — so the tag is correct regardless of merge strategy (merge commit, squash, rebase). The tag push then triggers the `release` workflow to build wheels, create a GitHub release, and publish to PyPI. No manual tagging is needed.
-
-   **Prerequisite**: the repo must have a `RELEASE_WORKFLOW_TOKEN` secret set to a fine-grained PAT with `contents: write`. Tags pushed with the default `GITHUB_TOKEN` do not trigger downstream workflows.
+- Use `uv run python` / `uv run pytest` to use the development runtime.
+- Rendering and compositing need the optional `composite` extra: `uv sync --extra composite`
+  (`aggdraw`, `scipy`, `scikit-image`). It is optional because it is unavailable on some
+  platforms (notably Python 3.14 on Windows). Tests needing it skip via `pytest.importorskip`.
+- `uv run pytest --no-cov` skips coverage; `uv run pytest path::test_name` runs one test.
+- Lint and types: `uv run ruff check`, `uv run ruff format`, `uv run mypy`.
+- Changes land via PR; `main` is protected.
 
 ## Architecture Overview
 
 ### Two-Layer Design
 
-psd-tools has a clear separation between low-level binary parsing and high-level user API:
+**Low-level (`psd_tools.psd`)**: reads/writes raw PSD binary structures following Adobe's
+specification. All classes use `attrs` and implement `read(fp)` and `write(fp)`.
 
-**Low-Level Layer (`psd_tools.psd`)**: Reads/writes raw PSD binary format following Adobe's specification. All classes use `attrs` and implement `read(fp)` and `write(fp)` methods for binary serialization.
+**High-level (`psd_tools.api`)**: Pythonic interfaces. `PSDImage` wraps the low-level `PSD`
+and reconstructs the layer tree from the flat layer record list.
 
-**High-Level API (`psd_tools.api`)**: Provides Pythonic interfaces for users. The `PSDImage` class wraps the low-level `PSD` structure and reconstructs the layer tree from the flat layer record list.
+Other subpackages: `psd_tools.composite` (rendering: blend modes, effects, vector
+rasterization) and `psd_tools.compression` (Raw, RLE, ZIP; `_rle.pyx` is a Cython RLE codec
+with a pure-Python fallback).
 
-### Key Subpackages
+Import convention: internal code imports from the defining module
+(`from psd_tools.psd.document import PSD`); public API uses the package
+(`from psd_tools.psd import PSD`).
 
-- **`psd_tools.psd`**: Binary structure parsing (header, layer records, tagged blocks, descriptors, image resources)
-  - The main `PSD` class is defined in `psd_tools.psd.document` but re-exported from `psd_tools.psd.__init__` for convenience
-  - Internal code imports from specific modules (e.g., `from psd_tools.psd.document import PSD`)
-  - Public API uses the package import (e.g., `from psd_tools.psd import PSD`)
-- **`psd_tools.api`**: User-facing API (`PSDImage`, layer types, effects, masks)
-- **`psd_tools.composite`**: Rendering engine (blend modes, effects, vector rasterization)
-- **`psd_tools.compression`**: Compression codecs (Raw, RLE, ZIP). Includes Cython-optimized RLE in `_rle.pyx`
+### Contracts
 
-### File Format Structure
+- **Read-only by design.** Mutating low-level structures under the API is out of contract.
+  A stale cache after a *high-level* edit (`layer.name = ...`) is a real bug.
+- **Compositor viewport and artboards** clip as described in
+  [docs/architecture.rst](docs/architecture.rst); read it before changing either.
+- **Unknown data round-trips.** Unrecognised tagged blocks and fields are preserved as bytes
+  on write. Do not drop or reinterpret them.
 
-PSD files consist of five sequential sections:
+### Layer Tree and Records
 
-1. **File Header** (26 bytes): Signature, version, dimensions, color mode
-1. **Color Mode Data**: Palette data for indexed color mode
-1. **Image Resources**: Document metadata (color profiles, guides, thumbnails)
-1. **Layer and Mask Information**: Layer records + channel image data + tagged blocks
-1. **Image Data**: Flattened composite image
+`PSDImage` rebuilds the layer tree from the flat record list. For 16- and 32-bit files
+read records through `psd._record._get_layer_info()`, not `layer_info`. Details:
+[docs/architecture.rst](docs/architecture.rst).
 
-### Layer Tree Reconstruction
+### BaseElement and attrs
 
-PSD stores layers as a **flat list** with implicit hierarchy. The `SectionDivider` tagged block marks group boundaries:
+All binary structures inherit from `BaseElement` and implement
+`read(cls, fp, **kwargs) -> Self` and `write(self, fp, **kwargs) -> int`, so complex
+structures compose recursively from simple ones. Data classes use `attrs`
+(`@define(repr=False)`, `field(default=...)`); validators must match type hints.
 
-```text
-Record 0: "Background" (normal layer)
-Record 1: "Group" (BOUNDING_SECTION_DIVIDER = group start)
-Record 2:   "Child 1" (inside group)
-Record 3:   "Child 2" (inside group)
-Record 4: (END_SECTION_DIVIDER = group end)
-```
+### Tagged Blocks
 
-`PSDImage` reconstructs this into a tree structure with parent-child relationships.
-
-### BaseElement Pattern
-
-All binary structures inherit from `BaseElement` and implement:
+Metadata lives in tagged blocks keyed by a 4-byte `Tag`; a registry maps tags to handler
+classes via `@register(Tag.FOO)`.
 
 ```python
-@classmethod
-def read(cls, fp: IO[bytes], **kwargs) -> Self:
-    """Read from file pointer"""
-
-def write(self, fp: IO[bytes], **kwargs) -> int:
-    """Write to file pointer, return bytes written"""
-```
-
-This enables recursive composition of complex structures from simple primitives.
-
-### Attrs-Based Classes
-
-The codebase uses `attrs` for all data classes:
-
-```python
-from attrs import define, field
-
-@define(repr=False)
-class FileHeader(BaseElement):
-    signature: bytes = field(default=b"8BPS")
-    version: int = field(default=1)
-    channels: int = field(default=4)
-    # ...
-```
-
-Benefits: automatic `__init__`, validation, type hints, easy tuple conversion with `astuple()`.
-
-### Tagged Blocks System
-
-PSD uses an extensible "tagged blocks" system for metadata. Each block has a 4-byte `Tag` key and associated data:
-
-```python
-# Check if tag exists
 if Tag.UNICODE_LAYER_NAME in layer._record.tagged_blocks:
     name = layer._record.tagged_blocks.get_data(Tag.UNICODE_LAYER_NAME)
 ```
 
-Registry pattern maps tags to handler classes using `@register(Tag.FOO)`.
+### Key Files
 
-### Performance Optimizations
-
-1. **Cython RLE Codec** (`compression/_rle.pyx`): C++ implementation for fast RLE compression/decompression. Falls back to pure Python if not compiled.
-
-1. **Lazy Loading**: API layer only parses data on access (masks, effects, channel data).
-
-1. **NumPy Vectorization**: Compositing engine uses NumPy arrays for efficient blend mode calculations.
-
-## Important Files
-
-- **`src/psd_tools/psd/document.py`**: Main `PSD` class representing the complete file structure
-- **`src/psd_tools/psd/__init__.py`**: Package exports (re-exports `PSD` and other structures)
-- **`src/psd_tools/api/psd_image.py`**: `PSDImage` user-facing API
-- **`src/psd_tools/api/layers.py`**: Layer type hierarchy
-- **`src/psd_tools/psd/layer_and_mask.py`**: Layer records and channel data
-- **`src/psd_tools/psd/tagged_blocks.py`**: Tagged block registry and handlers
-- **`src/psd_tools/psd/descriptor.py`**: Adobe's descriptor format (key-value serialization)
-- **`src/psd_tools/composite/__init__.py`**: `Compositor` class
-- **`src/psd_tools/constants.py`**: Enums for color modes, blend modes, tags, etc.
-- **`src/psd_tools/terminology.py`**: Adobe's 4-byte identifier mappings
-
-## Common Patterns
-
-Use `uv run python` to use the development runtime.
-
-### Reading a PSD File
-
-```python
-from psd_tools import PSDImage
-
-psd = PSDImage.open('example.psd')
-for layer in psd:
-    print(layer.name, layer.kind)
-```
-
-### Accessing Low-Level Structure
-
-```python
-# Get the raw PSD object
-raw_psd = psd._record  # type: psd_tools.psd.PSD
-
-# Access header
-header = raw_psd.header  # FileHeader
-
-# Access layer records (flat list)
-layer_records = raw_psd.layer_and_mask_information.layer_info.layer_records
-```
-
-### Modifying Layers
-
-```python
-layer.name = "New Name"
-layer.opacity = 128
-layer.blend_mode = BlendMode.MULTIPLY
-psd.save('modified.psd')  # Automatically marks as dirty
-```
-
-### Compositing
-
-**Note**: Compositing requires optional dependencies. Install with `pip install 'psd-tools[composite]'`
-
-```python
-# Composite entire document
-image = psd.composite()  # Returns PIL Image
-image.save('output.png')
-
-# Composite specific layer
-layer_image = layer.composite()
-```
-
-If composite dependencies are not installed, calling `.composite()` will raise an `ImportError`
-with instructions on how to install the required packages.
+- `src/psd_tools/psd/document.py`: the `PSD` class (re-exported from `psd_tools.psd`).
+- `src/psd_tools/psd/tagged_blocks.py`: tagged block registry and handlers.
+- `src/psd_tools/psd/descriptor.py`: Adobe's descriptor format (key-value serialization).
+- `src/psd_tools/terminology.py`: Adobe's 4-byte identifier mappings.
 
 ## Testing Conventions
 
-- Tests are organized to mirror the package structure: `tests/psd_tools/psd/` for low-level, `tests/psd_tools/api/` for high-level
-- Fixture PSD files are in `tests/psd_files/`
-- Tests often use parametrization over multiple fixture files
-- Round-trip validation is common: read → modify → write → read → verify
+- Tests mirror the package structure: `tests/psd_tools/psd/` for low-level,
+  `tests/psd_tools/api/` for high-level. Fixture PSDs are in `tests/psd_files/`.
+- Tests often parametrize over fixture files.
+- Round-trip validation is common: read → modify → write → read → verify.
 
 ## Type Annotations
 
-Recent work has added comprehensive type annotations throughout the codebase. When adding new code:
+New code uses type hints on all signatures and `typing_extensions.Self` for methods
+returning their own class.
 
-- Use proper type hints for all function signatures
-- Use `typing_extensions.Self` for methods returning instances of the same class
-- Attrs validators should match type hints
+`psd_tools.api` property getters return primitives, not descriptor wrappers, and `T | None`
+for a missing key with no Photoshop default (#788); see
+[docs/architecture.rst](docs/architecture.rst). Do not annotate `Any` for a value whose type
+the low-level declaration knows.
 
-## Known Limitations
+## Code Comments and Docstrings
 
-- **Type layers**: Cannot render text (no font engine)
-- **Adjustment layers**: Compositing supported for BrightnessContrast, Levels, Curves, Exposure, Invert, Posterize, and Threshold; other types are not yet supported
-- **Layer effects**: Only basic effects supported (drop shadow, stroke)
-- **Smart objects**: Can extract/embed but not edit contents
-- **Unknown data**: Preserved as bytes during round-trip but not interpreted
+Keep them short, and document **current behavior only**. A comment earns its
+length by explaining something the code cannot say itself — a non-obvious
+constraint, a format quirk, why an obvious approach is wrong. Three things do
+not belong in one:
+
+- **History.** "used to", "was expected to fail at", "before #854". The
+  before/after belongs in the PR body, the commit message and the issue.
+- **Measured figures.** MSE bounds, corpus statistics, error counts. They drift
+  under the next change and leave a comment that reads as fact. A bound keeps
+  its *reason* ("an aggdraw pen is not bit-stable across versions"), never its
+  value.
+- **The same explanation at three layers.** Say it once, where it belongs.
+
+What stays: bare issue refs like `(#854)`, which point *into* that history;
+fixture geometry such as "a 100x100 path", which is a property of the file; and
+anything a test asserts.
+
+To keep a number, name it in code rather than recite it in prose:
+
+```python
+stroke_color = 0.129  # PANTONE Black 3 C, red channel
+assert color[row, column] == pytest.approx(share * stroke_color, abs=0.002)
+```
+
+That is checked on every run; the same number in a docstring rots silently.
+
+Existing long comment blocks are the tree's current state, not a precedent to
+match — see #891. Measure with `uv run python tools/prose_density.py`. This is
+the [Changelog](#changelog) policy applied to source.
+
+## Changelog
+
+`docs/changelog.rst` is **maintained by hand** and is **not** generated by any
+workflow. Do not skip it on the assumption that it is automated.
+
+The `release` workflow does generate release notes from `git log`, but those go
+into the **GitHub Release body** only — that is a separate artifact and never
+touches `docs/changelog.rst`.
+
+**A PR that changes user-visible behaviour adds its own entry**, in the same PR
+as the change. Add it under a `X.Y.Z (unreleased)` heading at the top of the
+file, creating that heading if it does not exist yet; the release PR later
+replaces `(unreleased)` with the release date.
+
+```rst
+Changelog
+=========
+
+1.19.0 (unreleased)
+-------------------
+
+- [fix] Short description of the user-visible change (#123, #456)
+```
+
+Prefix each entry with its category, and reference the issue and PR numbers:
+
+- `[fix]` — a bug fix that leaves the public surface unchanged, wherever it
+  lives: parsing, rendering, compression
+- `[api]` — a change to the public surface: a new or renamed symbol, a new
+  parameter, a corrected annotation
+- `[security]` — security fixes
+- `[docs]` — documentation only
+- `[ci]` — what a user installs: the wheels, platforms or sdist contents
+  published
+- `[refactor]` — internal restructuring a user can still observe, such as a
+  moved public module
+
+Pick the most specific one that applies. A category names the **kind** of change,
+not the subpackage it touches — a low-level parsing fix is `[fix]`, not `[psd]`.
+Only these six are current: released sections still carry `[chore]`, `[psd]`,
+`[composite]`, `[packaging]`, `[dev]` and the rest of a long tail, all retired,
+and that history stays as written. This list is the only one — anything else that
+needs the categories, the release skill included, points here rather than
+restating them (#791).
+
+Flag any backwards-incompatible change explicitly in the entry text.
+
+**Budget: aim for four lines, and treat six as the ceiling** — one line of
+summary, plus a short "does this affect me" clause where the answer is not
+obvious, plus the refs. Spend the extra lines on a backwards-incompatibility
+warning or a migration instruction, never on mechanism.
+An entry's job is to let a reader decide whether they are affected and then
+hand them the link; it is not the place to explain the mechanism. That
+explanation is already published in three linked places — the PR body, the
+commit message, and the GitHub Release body — so a longer entry duplicates
+them and dates faster than they do. Corpus statistics, measured error figures,
+and the history of what earlier PRs got wrong all belong in the PR, not here.
+
+Entries are for user-visible change only. Skip test-only changes, developer
+tooling (lint, `CLAUDE.md`, CI workflows that publish nothing new) and
+dependency bumps; the GitHub Release body, generated from `git log`, records
+them. A bump that changes what users must satisfy, such as a minimum Python or
+dependency version, is user-visible and gets its own entry.
+Internal restructuring earns an entry only when a user can observe it, which is
+what `[refactor]` is for.
+
+## Releases
+
+Run the `/release` skill (`.claude/skills/release/SKILL.md`); the pipeline is described in
+[the contributor documentation](docs/contributing.rst). One hard constraint: the release PR's
+branch must be named exactly `release/vX.Y.Z` (PEP 440 forms such as `v1.2.3rc1` are
+accepted), because the `auto-tag` workflow reads the version from it.

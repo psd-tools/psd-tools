@@ -1,4 +1,5 @@
 from typing import Any, Type
+import io
 import os
 
 import pytest
@@ -6,13 +7,19 @@ import pytest
 from psd_tools.psd import PSD
 from psd_tools.constants import Resource, ColorMode
 from psd_tools.psd.image_resources import (
+    AlphaChannel,
     AlphaChannelMode,
     ImageResource,
     ImageResources,
     Slices,
+    SliceV6,
     TransferFunction,
     TransferFunctions,
 )
+
+from psd_tools.psd.descriptor import UnitFloats
+from psd_tools.psd.tagged_blocks import DescriptorBlock
+from psd_tools.terminology import Key, Klass, Unit
 
 from ..utils import TEST_ROOT, check_read_write, check_write_read
 
@@ -170,3 +177,43 @@ def test_display_info_channel_type() -> None:
     assert len(info.alpha_channels) == 2
     assert info.alpha_channels[0].mode == AlphaChannelMode.SPOT
     assert info.alpha_channels[1].mode == AlphaChannelMode.INVERTED_ALPHA
+
+
+def test_alpha_channel_converts_a_raw_mode() -> None:
+    assert AlphaChannel(mode=2).mode is AlphaChannelMode.SPOT
+
+
+@pytest.mark.parametrize("mode", [256, -1, None, "spot", 1.0, True])
+def test_alpha_channel_rejects_a_mode_that_cannot_pack(mode: Any) -> None:
+    with pytest.raises(ValueError):
+        AlphaChannel(mode=mode)
+
+
+def test_alpha_channel_keeps_an_unknown_mode_through_a_round_trip() -> None:
+    data = b"\x00" * 12 + b"\x63"
+    channel = AlphaChannel.read(io.BytesIO(data))
+    assert channel.mode == 99
+    assert not isinstance(channel.mode, AlphaChannelMode)
+    out = io.BytesIO()
+    channel.write(out)
+    assert out.getvalue() == data
+    assert AlphaChannel(mode=99).mode == 99
+
+
+def test_slice_v6_probe_survives_a_bad_unit_in_a_truncated_descriptor() -> None:
+    """A bad unit must reach the probe as ``ValueError``, not as a short read.
+
+    ``SliceV6.read()`` has no way to tell a trailing descriptor from the next
+    slice, so it tries one and catches ``ValueError`` to back out. Resolving
+    ``UnitFloats.unit`` after its array is read would turn that into
+    ``OSError``, which escapes the probe and takes the whole resource down.
+    """
+    block = DescriptorBlock(classID=Klass.Null.value)
+    block[Key.Opacity] = UnitFloats(unit=Unit.Percent, values=[1.0])
+    # A unit no enum knows, and the array it announces cut off entirely.
+    descriptor = block.tobytes().replace(b"#Prc", b"ZZZZ")[:-8]
+    payload = SliceV6().tobytes() + descriptor
+
+    fp = io.BytesIO(payload)
+    assert SliceV6.read(fp).data is None
+    assert fp.tell() == len(SliceV6().tobytes())

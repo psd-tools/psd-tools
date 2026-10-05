@@ -47,7 +47,6 @@ class ColorModeData(ValueElement):
         """
         Returns interleaved color table in bytes.
         """
-
         return b"".join(
             array.array(
                 "B", [(self.value[i]), (self.value[i + 256]), (self.value[i + 512])]

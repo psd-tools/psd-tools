@@ -35,7 +35,17 @@ Vector Rendering
 .. automodule:: psd_tools.composite.vector
     :members:
 
-Vector shape and path rendering using aggdraw for bezier curve rasterization.
+Vector shape and path rendering. A path is filled by
+:py:mod:`psd_tools.composite.scanline`; aggdraw draws the pen of a stroke.
+
+Path Rasterization
+------------------
+
+.. automodule:: psd_tools.composite.scanline
+    :members:
+
+Exact-coverage rasterization of a filled path: the area the path covers in
+each pixel, computed rather than sampled.
 
 Effects Rendering
 -----------------
@@ -44,4 +54,5 @@ Effects Rendering
     :members:
 
 Layer effects rendering including strokes, shadows, and glows. Requires
-scikit-image for morphological operations.
+scipy for the distance transform that places a stroke of any position, and
+scikit-image for pattern fills.

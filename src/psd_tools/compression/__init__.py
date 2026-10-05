@@ -21,6 +21,8 @@ Key functions:
 
 - :py:func:`compress`: Compress raw pixel data using specified method
 - :py:func:`decompress`: Decompress pixel data back to raw bytes
+- :py:func:`decompressed_size_bound`: Upper bound on what :py:func:`decompress`
+  will return, without decompressing anything
 - :py:func:`encode_rle`: RLE encoding for a single channel
 - :py:func:`decode_rle`: RLE decoding for a single channel
 
@@ -64,16 +66,15 @@ image types.
 import array
 import io
 import logging
+import operator
 import warnings
 import zlib
-from typing import Iterator
 
-from PIL import Image
+import numpy as np
 
 from psd_tools.constants import Compression
+from psd_tools.psd.parse_limits import ParseLimitError
 from psd_tools.psd.bin_utils import (
-    be_array_from_bytes,
-    be_array_to_bytes,
     read_be_array,
     write_be_array,
 )
@@ -89,8 +90,10 @@ logger = logging.getLogger(__name__)
 class PSDDecompressionWarning(UserWarning):
     """Issued when channel data cannot be fully decompressed.
 
-    The affected channel is replaced with black pixels.  Catch or filter this
-    warning to detect silently degraded images::
+    The affected channel is replaced with black pixels, at every depth --
+    ``length`` bytes of whichever value that depth spells black as, zero from
+    depth 8 up and ``0xff`` at depth 1, where an inked pixel is a *set* bit.
+    Catch or filter this warning to detect silently degraded images::
 
         import warnings
         from psd_tools.compression import PSDDecompressionWarning
@@ -101,13 +104,78 @@ class PSDDecompressionWarning(UserWarning):
     """
 
 
+class DecompressionLimitError(ValueError):
+    """Raised before decoding when channel output exceeds a byte limit."""
+
+
 _VALID_DEPTHS: frozenset[int] = frozenset((1, 8, 16, 32))
 _MAX_DIMENSION: int = 300_000  # PSD/PSB hard limit per the Adobe spec
 
-# Reject the black-fill fallback when a failed decode dwarfs its input (CWE-789).
+# Reject excessive RLE expansion and failed-decode black fills (CWE-789).
 # Set MAX_DEGRADED_BYTES to None to disable the guard (also disables the ratio check).
 MAX_DEGRADED_BYTES: int | None = 16 * 1024 * 1024
 MAX_DEGRADED_RATIO: int = 1000
+
+
+def _validate_dimensions(width: int, height: int, depth: int) -> None:
+    if width < 1 or width > _MAX_DIMENSION:
+        raise ValueError("width %d out of range [1, %d]" % (width, _MAX_DIMENSION))
+    if height < 1 or height > _MAX_DIMENSION:
+        raise ValueError("height %d out of range [1, %d]" % (height, _MAX_DIMENSION))
+    if depth not in _VALID_DEPTHS:
+        raise ValueError("depth %d not in %s" % (depth, sorted(_VALID_DEPTHS)))
+
+
+def _check_output_limit(length: int, max_output_bytes: int | None) -> None:
+    if max_output_bytes is None:
+        return
+    if isinstance(max_output_bytes, bool):
+        raise TypeError("max_output_bytes must be a positive integer or None")
+    try:
+        limit = operator.index(max_output_bytes)
+    except TypeError:
+        raise TypeError("max_output_bytes must be a positive integer or None") from None
+    if limit <= 0:
+        raise ValueError("max_output_bytes must be a positive integer or None")
+    if length > limit:
+        raise DecompressionLimitError(
+            "Decompressed output bound of %d bytes exceeds max_output_bytes=%d"
+            % (length, limit)
+        )
+
+
+def _check_expansion(length: int, input_length: int, reason: str) -> None:
+    if (
+        MAX_DEGRADED_BYTES is not None
+        and length > MAX_DEGRADED_BYTES
+        and length > input_length * MAX_DEGRADED_RATIO
+    ):
+        raise DecompressionLimitError(
+            "Refusing to allocate %d bytes for %s from %d input bytes; set "
+            "psd_tools.compression.MAX_DEGRADED_BYTES = None to allow it."
+            % (length, reason, input_length)
+        )
+
+
+def _row_size(width: int, depth: int) -> int:
+    """Bytes one row of *width* pixels occupies at *depth*.
+
+    Rounded **up**: a row is padded to a byte boundary, so 20 pixels at depth 1
+    occupy three bytes, the last of them four pixels and four bits of padding
+    (#768). From depth 8 up the division is exact.
+    """
+    return (width * depth + 7) // 8
+
+
+def _channel_length(width: int, height: int, depth: int) -> int:
+    """Bytes a channel of these dimensions occupies once decompressed.
+
+    Shared by :func:`decompress`, which sizes every codec's output by it, and by
+    :func:`decompressed_size_bound`, which has to predict that output without
+    producing it. Rows all the way down: ``height`` of them, each
+    :func:`_row_size` wide.
+    """
+    return height * _row_size(width, depth)
 
 
 def _warn_decompress_failure(
@@ -122,7 +190,14 @@ def _warn_decompress_failure(
     msg = (
         "%s decode failed (%s: %s); channel replaced with black. "
         "width=%d height=%d depth=%d version=%d"
-        % (codec, type(exc).__name__, exc, width, height, depth, version)
+    ) % (
+        codec,
+        type(exc).__name__,
+        exc,
+        width,
+        height,
+        depth,
+        version,
     )
     logger.warning(msg)
     warnings.warn(msg, PSDDecompressionWarning, stacklevel=3)
@@ -136,12 +211,48 @@ def _safe_zlib_decompress(data: bytes, max_length: int) -> bytes:
     memory exhaustion from crafted ZIP-bomb payloads.
     """
     d = zlib.decompressobj()
+    # One byte more than the limit, so that a stream which really is oversize
+    # gives that byte away instead of ending exactly at the boundary. It has to
+    # be rejected as well: without the length test a stream inflating to
+    # precisely `max_length + 1` was consumed whole, left no
+    # `unconsumed_tail`, and was returned a byte over the ceiling this function
+    # documents -- caught downstream as a length mismatch from depth 8 up, and
+    # at depth 1, where that check is skipped, unpacked into eight float32
+    # values no estimate allowed for (#737). Such a stream never reaches either
+    # now: it is refused here, and `decompress()` gives the caller a black
+    # channel in its place, at depth 1 as at any other since #768.
     out = d.decompress(data, max_length + 1)
-    if d.unconsumed_tail:
+    # Then drain whatever the codec still holds, bounded the same way, rather
+    # than calling `flush()`: output can outlive its input, a match being
+    # expanded from state as it is written, so inflate can in principle stop
+    # with the input consumed and bytes still pending -- and `flush()` emits
+    # that remainder with no ceiling at all, which is the allocation this
+    # function exists to prevent. CPython appears never to do it (it leaves the
+    # unread input, the trailing adler32 at the least, in `unconsumed_tail`
+    # whenever output is pending; 140k crafted and truncated streams produced
+    # no such case, and 36k inputs agree byte for byte and exception for
+    # exception with the `flush()` form). The loop is so that the ceiling does
+    # not rest on that.
+    #
+    # Collected rather than concatenated: `out += chunk` on a `bytes` copies the
+    # whole buffer every iteration. Accumulating into a `bytearray` from the
+    # start would instead copy every ZIP channel in the file one extra time on
+    # the way out -- on the path where the loop yields nothing, which is every
+    # path measured -- so the join happens only if the loop produced something.
+    extra: list[bytes] = []
+    total = len(out)
+    while not d.unconsumed_tail and total <= max_length:
+        chunk = d.decompress(b"", max_length + 1 - total)
+        if not chunk:
+            break
+        extra.append(chunk)
+        total += len(chunk)
+    if d.unconsumed_tail or total > max_length:
         raise ValueError(
             "Decompressed size exceeds expected maximum of %d bytes" % max_length
         )
-    out += d.flush()
+    if extra:
+        return b"".join([out, *extra])
     return out
 
 
@@ -183,6 +294,8 @@ def decompress(
     height: int,
     depth: int,
     version: int = 1,
+    *,
+    max_output_bytes: int | None = None,
 ) -> bytes:
     """Decompress raw data.
 
@@ -193,17 +306,18 @@ def decompress(
     :param height: height in pixels; must be in [1, 300000].
     :param depth: bit depth of the pixel; must be one of 1, 8, 16, 32.
     :param version: psd file version.
+    :param max_output_bytes: positive output-byte ceiling; None disables it.
     :return: decompressed data bytes.
     :raises ValueError: if *width*, *height*, or *depth* are out of range.
+    :raises DecompressionLimitError: if an output or expansion limit is exceeded.
     """
-    if width < 1 or width > _MAX_DIMENSION:
-        raise ValueError("width %d out of range [1, %d]" % (width, _MAX_DIMENSION))
-    if height < 1 or height > _MAX_DIMENSION:
-        raise ValueError("height %d out of range [1, %d]" % (height, _MAX_DIMENSION))
-    if depth not in _VALID_DEPTHS:
-        raise ValueError("depth %d not in %s" % (depth, sorted(_VALID_DEPTHS)))
+    _validate_dimensions(width, height, depth)
 
-    length = width * height * max(1, depth // 8)
+    length = _channel_length(width, height, depth)
+    _check_output_limit(
+        min(len(data), length) if compression == Compression.RAW else length,
+        max_output_bytes,
+    )
 
     result: bytes | None = None
     if compression == Compression.RAW:
@@ -211,7 +325,9 @@ def decompress(
     elif compression == Compression.RLE:
         try:
             result = decode_rle(data, width, height, depth, version)
-        except (ValueError, IndexError) as e:
+        except (ParseLimitError, DecompressionLimitError):
+            raise
+        except (ValueError, IndexError, OSError) as e:
             _warn_decompress_failure("RLE", e, width, height, depth, version)
             result = None
     elif compression == Compression.ZIP:
@@ -230,36 +346,91 @@ def decompress(
             )
             result = None
 
-    if depth >= 8:
-        if result is None:
-            if (
-                MAX_DEGRADED_BYTES is not None
-                and length > MAX_DEGRADED_BYTES
-                and length > len(data) * MAX_DEGRADED_RATIO
-            ):
-                raise ValueError(
-                    "Refusing to allocate %d bytes for a channel that failed to "
-                    "decode from %d input bytes (width=%d height=%d); set "
-                    "psd_tools.compression.MAX_DEGRADED_BYTES = None to allow it."
-                    % (length, len(data), width, height)
-                )
-            mode = "L" if depth == 8 else "RGB" if depth == 24 else "RGBA"
-            result = Image.new(mode, (width, height), color=0).tobytes()
-            logger.warning("Failed channel has been replaced by black")
-        else:
-            if len(result) != length:
-                raise ValueError(
-                    "Decompressed length mismatch: got %d, expected %d"
-                    % (len(result), length)
-                )
-
     if result is None:
-        raise RuntimeError("decompress() produced no result for depth=%d" % depth)
+        # At every depth: `length` counts packed rows, so a channel of
+        # `length` black bytes exists at depth 1 as much as at depth 8 and the
+        # fill does not have to stop where byte-per-pixel arithmetic would
+        # (#768).
+        _check_expansion(length, len(data), "a channel that failed to decode")
+        # Exactly `length`, which the mismatch check opposite demands of a
+        # successful decode and this substitute has to honour too. It was
+        # built as a PIL image whose mode was picked from the depth -- "L"
+        # for 8, "RGBA" otherwise -- so depth 16 came back at four bytes per
+        # pixel against a `length` of two, and every reader downstream saw a
+        # channel twice its declared width (#737).
+        #
+        # Black is not zero at every depth. A bitmap-mode document stores its
+        # inked pixels *set* -- the ground truth Photoshop writes, and what
+        # `pil_io._create_image()`'s inverted "1;I" raw mode reads -- so at
+        # depth 1 the black byte is 0xff and zeroes would substitute a blank
+        # white channel instead.
+        result = b"\xff" * length if depth == 1 else bytes(length)
+        logger.warning("Failed channel has been replaced by black")
+    elif depth >= 8 and len(result) != length:
+        # Still gated: a short 1-bit body is returned as it stands rather than
+        # rejected, which is what it has always done. Raising on it would be a
+        # new exception on a read path, not a fix to one.
+        raise ValueError(
+            "Decompressed length mismatch: got %d, expected %d" % (len(result), length)
+        )
+
     return result
 
 
+def decompressed_size_bound(
+    data: bytes,
+    compression: Compression,
+    width: int,
+    height: int,
+    depth: int,
+    version: int = 1,
+) -> int:
+    """Upper bound on the number of bytes :py:func:`decompress` will return.
+
+    Answerable without decompressing anything, which is what makes it usable
+    as an allocation guard's estimate: a caller sizing a buffer can reject a
+    document *before* it exists.
+
+    ``length`` is :py:func:`decompress`'s own ``height`` rows of
+    :func:`_row_size`; the two are meant to be read together. The bound is
+    exact for RAW and RLE and an over-estimate for the two ZIP codecs, whose
+    inflated size cannot be known without inflating the stream. A malformed
+    body only ever comes back smaller, which is the safe direction for a guard.
+
+    ZIP is bounded at all only because ``_safe_zlib_decompress()`` is given
+    ``length`` as its ceiling, as is the black fill substituted for a channel
+    that fails to decode. Loosen either and this stops being an upper bound.
+
+    RAW is the only codec whose under-run is by design -- it returns
+    ``data[:length]``, which is why the ``min`` below is on its branch alone. A
+    ZIP body can inflate to fewer than ``length`` bytes too, since
+    ``_safe_zlib_decompress()`` caps the output without requiring it; at depth 8
+    and up :py:func:`decompress`'s mismatch check rejects that, so it reaches a
+    caller at depth 1 only, where the check is skipped. RLE is exact whenever it
+    returns at all, ``decode_rle()`` padding or clipping each row to
+    :func:`_row_size`.
+
+    :param data: the compressed body; read for its length only.
+    :param compression: compression type, see :py:class:`.Compression`.
+    :param width: width in pixels.
+    :param height: height in pixels. Pass ``height * channels`` wherever the
+        caller decompresses every channel in one call, as
+        :py:meth:`psd_tools.psd.image_data.ImageData.get_data` does.
+    :param depth: bit depth of the pixel; one of 1, 8, 16, 32.
+    :param version: psd file version. Accepted for symmetry with
+        :py:func:`decompress`; the bound does not depend on it, the row
+        byte-count table being read past rather than returned.
+    :return: the largest number of bytes ``decompress()`` can return for these
+        arguments.
+    """
+    length = _channel_length(width, height, depth)
+    if compression == Compression.RAW:
+        return min(len(data), length)
+    return length
+
+
 def encode_rle(data: bytes, width: int, height: int, depth: int, version: int) -> bytes:
-    row_size = width * depth // 8
+    row_size = _row_size(width, depth)
     with io.BytesIO(data) as fp:
         rows = [rle_impl.encode(fp.read(row_size)) for _ in range(height)]
     bytes_counts = array.array(("H", "I")[version - 1], map(len, rows))
@@ -273,9 +444,29 @@ def encode_rle(data: bytes, width: int, height: int, depth: int, version: int) -
     return result
 
 
-def decode_rle(data: bytes, width: int, height: int, depth: int, version: int) -> bytes:
+def decode_rle(
+    data: bytes,
+    width: int,
+    height: int,
+    depth: int,
+    version: int,
+    *,
+    max_output_bytes: int | None = None,
+) -> bytes:
+    """Decode RLE rows, checking output limits before reading or allocating.
+
+    ``max_output_bytes`` is a positive byte ceiling or ``None`` to disable it.
+    Excessive expansion is also rejected by ``MAX_DEGRADED_BYTES`` and
+    ``MAX_DEGRADED_RATIO``, including zero-padding of incomplete rows.
+    """
+    _validate_dimensions(width, height, depth)
+    if version not in (1, 2):
+        raise ValueError("version must be 1 or 2")
+    length = _channel_length(width, height, depth)
+    _check_output_limit(length, max_output_bytes)
+    _check_expansion(length, len(data), "RLE output")
     try:
-        row_size = max(width * depth // 8, 1)
+        row_size = _row_size(width, depth)
         with io.BytesIO(data) as fp:
             bytes_counts = read_be_array(("H", "I")[version - 1], height, fp)
             return b"".join(
@@ -283,7 +474,7 @@ def decode_rle(data: bytes, width: int, height: int, depth: int, version: int) -
             )
     except ValueError as e:
         logger.error(f"An error occurred during RLE decoding: {e}")
-        logger.info(
+        logger.debug(
             f"Decompression of RLE data failed: {width=} {height=} {depth=} {version=} size={len(data)}",
             exc_info=True,
         )
@@ -291,93 +482,54 @@ def decode_rle(data: bytes, width: int, height: int, depth: int, version: int) -
 
 
 def encode_prediction(data: bytes | bytearray, w: int, h: int, depth: int) -> bytes:
-    if depth == 8:
-        arr = array.array("B", data)
-        arr = _delta_encode(arr, 0x100, w, h)
-        return be_array_to_bytes(arr)
-    elif depth == 16:
-        arr = array.array("H", data)
-        arr = _delta_encode(arr, 0x10000, w, h)
-        return be_array_to_bytes(arr)
-    elif depth == 32:
-        arr = array.array("B", data)
-        arr = _shuffle_byte_order(arr, w, h)
-        arr = _delta_encode(arr, 0x100, w * 4, h)
-        return arr.tobytes()
-    else:
+    """Encode data for ZIP with prediction.
+
+    Bytes past ``w * h`` samples are appended unchanged.
+    """
+    if depth not in (8, 16, 32):
         raise ValueError("Invalid pixel size %d" % (depth))
+    size = w * h * depth // 8
+    if depth == 8:
+        rows = np.frombuffer(data, np.uint8, count=size).reshape(h, w)
+        encoded = _delta_encode(rows)
+    elif depth == 16:
+        rows = np.frombuffer(data, ">u2", count=w * h).reshape(h, w)
+        encoded = _delta_encode(rows.astype(np.uint16)).astype(">u2")
+    else:
+        # Each row's 4-byte samples are split into four byte planes, and the
+        # delta runs across the whole row of planes.
+        samples = np.frombuffer(data, np.uint8, count=size).reshape(h, w, 4)
+        planes = samples.transpose(0, 2, 1).reshape(h, 4 * w)
+        encoded = _delta_encode(planes)
+    return encoded.tobytes() + bytes(data[size:])
 
 
 def decode_prediction(data: bytes, w: int, h: int, depth: int) -> bytes:
+    """Decode ZIP-with-prediction data.
+
+    Bytes past ``w * h`` samples are ignored; a short *data* raises ValueError.
+    """
     if depth == 8:
-        arr = be_array_from_bytes("B", data)
-        arr = _delta_decode(arr, 0x100, w, h)
+        rows = np.frombuffer(data, np.uint8, count=w * h).reshape(h, w)
+        return _delta_decode(rows).tobytes()
     elif depth == 16:
-        arr = be_array_from_bytes("H", data)
-        arr = _delta_decode(arr, 0x10000, w, h)
+        rows = np.frombuffer(data, ">u2", count=w * h).reshape(h, w)
+        return _delta_decode(rows.astype(np.uint16)).astype(">u2").tobytes()
     elif depth == 32:
-        arr = array.array("B", data)
-        arr = _delta_decode(arr, 0x100, w * 4, h)
-        arr = _restore_byte_order(arr, w, h)
+        planes = np.frombuffer(data, np.uint8, count=4 * w * h).reshape(h, 4 * w)
+        return _delta_decode(planes).reshape(h, 4, w).transpose(0, 2, 1).tobytes()
     else:
         raise ValueError("Invalid pixel size %d" % (depth))
 
-    return arr.tobytes()
+
+def _delta_encode(rows: "np.ndarray") -> "np.ndarray":
+    """Difference along each row, wrapping at the dtype width."""
+    out = np.empty_like(rows)
+    out[:, :1] = rows[:, :1]
+    np.subtract(rows[:, 1:], rows[:, :-1], out=out[:, 1:])
+    return out
 
 
-def _delta_encode(arr: array.array, mod: int, w: int, h: int) -> array.array:
-    arr.byteswap()
-    for y in reversed(range(h)):
-        offset = y * w
-        for x in reversed(range(w - 1)):
-            pos = offset + x
-            next_value = (arr[pos + 1] - arr[pos]) % mod
-            arr[pos + 1] = next_value
-    return arr
-
-
-def _delta_decode(arr: array.array, mod: int, w: int, h: int) -> array.array:
-    for y in range(h):
-        offset = y * w
-        for x in range(w - 1):
-            pos = offset + x
-            next_value = (arr[pos + 1] + arr[pos]) % mod
-            arr[pos + 1] = next_value
-    arr.byteswap()
-    return arr
-
-
-def _shuffled_order(w: int, h: int) -> Iterator[int]:
-    """
-    Generator for the order of 4-byte values.
-
-    32bit channels are also encoded using delta encoding,
-    but it make no sense to apply delta compression to bytes.
-    It is possible to apply delta compression to 2-byte or 4-byte
-    words, but it seems it is not the best way either.
-    In PSD, each 4-byte item is split into 4 bytes and these
-    bytes are packed together: "123412341234" becomes "111222333444";
-    delta compression is applied to the packed data.
-
-    So we have to (a) decompress data from the delta compression
-    and (b) recombine data back to 4-byte values.
-    """
-    rowsize = 4 * w
-    for row in range(0, rowsize * h, rowsize):
-        for offset in range(row, row + w):
-            for x in range(offset, offset + rowsize, w):
-                yield x
-
-
-def _shuffle_byte_order(bytes_array: array.array, w: int, h: int) -> array.array:
-    arr = bytes_array[:]
-    for src, dst in enumerate(_shuffled_order(w, h)):
-        arr[dst] = bytes_array[src]
-    return arr
-
-
-def _restore_byte_order(bytes_array: array.array, w: int, h: int) -> array.array:
-    arr = bytes_array[:]
-    for dst, src in enumerate(_shuffled_order(w, h)):
-        arr[dst] = bytes_array[src]
-    return arr
+def _delta_decode(rows: "np.ndarray") -> "np.ndarray":
+    """Running sum along each row, wrapping at the dtype width."""
+    return np.cumsum(rows, axis=1, dtype=rows.dtype)

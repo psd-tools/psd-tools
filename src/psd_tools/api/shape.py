@@ -9,8 +9,10 @@ stylized.
 
 import logging
 import math
-from typing import Any, Literal
+from typing import Literal
 
+from psd_tools.api._descriptor import get_blend_mode, get_scalar
+from psd_tools.constants import BlendMode, StrokeAlignment
 from psd_tools.psd.descriptor import Descriptor, DescriptorBlock2
 from psd_tools.psd.vector import (
     ClipboardRecord,
@@ -69,8 +71,9 @@ class VectorMask(object):
     @property
     def paths(self) -> list[Subpath]:
         """
-        List of :py:class:`~psd_tools.psd.vector.Subpath`. Subpath is a
-        list-like structure that contains one or more
+        List of :py:class:`~psd_tools.psd.vector.Subpath`.
+
+        Subpath is a list-like structure that contains one or more
         :py:class:`~psd_tools.psd.vector.Knot` items. Knot contains
         relative coordinates of control points for a Bezier curve.
         :py:attr:`~psd_tools.psd.vector.Subpath.index` indicates which
@@ -124,8 +127,10 @@ class VectorMask(object):
     @property
     def bbox(self) -> tuple[float, float, float, float]:
         """
-        Bounding box tuple (left, top, right, bottom) in relative coordinates,
-        where top-left corner is (0., 0.) and bottom-right corner is (1., 1.).
+        Bounding box tuple (left, top, right, bottom).
+
+        In relative coordinates, where the top-left corner is (0., 0.) and the
+        bottom-right corner is (1., 1.).
 
         The bounding box accounts for the full extent of all cubic Bezier
         curves, not just the anchor points.
@@ -228,9 +233,9 @@ class Stroke(object):
     }
 
     STROKE_STYLE_LINE_ALIGNMENTS = {
-        b"strokeStyleAlignInside": "inner",
-        b"strokeStyleAlignOutside": "outer",
-        b"strokeStyleAlignCenter": "center",
+        b"strokeStyleAlignInside": StrokeAlignment.INNER,
+        b"strokeStyleAlignOutside": StrokeAlignment.OUTER,
+        b"strokeStyleAlignCenter": StrokeAlignment.CENTER,
     }
 
     def __init__(self, data: VectorStrokeContentSetting):
@@ -256,8 +261,7 @@ class Stroke(object):
     @property
     def line_dash_set(self) -> list:
         """
-        Line dash set in list of
-        :py:class:`~psd_tools.decoder.actions.UnitFloat`.
+        Line dash set in list of :py:class:`~psd_tools.decoder.actions.UnitFloat`.
 
         :return: list
         """
@@ -270,12 +274,12 @@ class Stroke(object):
 
         :return: float
         """
-        return self._data.get(b"strokeStyleLineDashOffset")
+        return float(self._data.get(b"strokeStyleLineDashOffset", 0.0))
 
     @property
-    def miter_limit(self) -> Any:
-        """Miter limit in float."""
-        return self._data.get(b"strokeStyleMiterLimit")
+    def miter_limit(self) -> float | None:
+        """Miter limit, or `None` if the file does not record one."""
+        return get_scalar(self._data, b"strokeStyleMiterLimit", float, None)
 
     @property
     def line_cap_type(self) -> str:
@@ -290,32 +294,37 @@ class Stroke(object):
         return self.STROKE_STYLE_LINE_JOIN_TYPES.get(key, str(key))
 
     @property
-    def line_alignment(self) -> str:
-        """Alignment, one of `inner`, `outer`, `center`."""
-        key = self._data.get(b"strokeStyleLineAlignment").enum
-        return self.STROKE_STYLE_LINE_ALIGNMENTS.get(key, str(key))
+    def line_alignment(self) -> StrokeAlignment | None:
+        """Alignment, or `None` if the file does not record a readable one."""
+        raw = self._data.get(b"strokeStyleLineAlignment")
+        key = getattr(raw, "enum", b"")
+        alignment = self.STROKE_STYLE_LINE_ALIGNMENTS.get(key)
+        if alignment is None and raw is not None:
+            logger.debug("Cannot read line alignment as StrokeAlignment: %r", raw)
+        return alignment
 
     @property
-    def scale_lock(self) -> Any:
-        return self._data.get(b"strokeStyleScaleLock")
+    def scale_lock(self) -> bool | None:
+        """Scale lock, or `None` if the file does not record one."""
+        return get_scalar(self._data, b"strokeStyleScaleLock", bool, None)
 
     @property
-    def stroke_adjust(self) -> Any:
-        """Stroke adjust"""
-        return self._data.get(b"strokeStyleStrokeAdjust")
+    def stroke_adjust(self) -> bool | None:
+        """Stroke adjust, or `None` if the file does not record one."""
+        return get_scalar(self._data, b"strokeStyleStrokeAdjust", bool, None)
 
     @property
-    def blend_mode(self) -> Any:
-        """Blend mode."""
-        return self._data.get(b"strokeStyleBlendMode").enum
+    def blend_mode(self) -> BlendMode | None:
+        """Blend mode, or `None` if the file does not record a readable one."""
+        return get_blend_mode(self._data, b"strokeStyleBlendMode")
 
     @property
-    def opacity(self) -> Any:
-        """Opacity value."""
-        return self._data.get(b"strokeStyleOpacity")
+    def opacity(self) -> float | None:
+        """Opacity in percent, or `None` if the file does not record one."""
+        return get_scalar(self._data, b"strokeStyleOpacity", float, None)
 
     @property
-    def content(self) -> Any:
+    def content(self) -> Descriptor | None:
         """
         Fill effect.
         """
@@ -361,12 +370,13 @@ class Origination(object):
         return int(self._data.get(b"keyOriginType"))
 
     @property
-    def resolution(self) -> float:
-        """Resolution.
+    def resolution(self) -> float | None:
+        """Resolution, or `None` if the file does not record one.
 
-        :return: `float`
+        :return: `float` or `None`
         """
-        return float(self._data.get(b"keyOriginResolution"))
+        value = self._data.get(b"keyOriginResolution")
+        return None if value is None else float(value)
 
     @property
     def bbox(self) -> tuple[float, float, float, float]:
@@ -392,7 +402,7 @@ class Origination(object):
 
         :return: `int`
         """
-        return self._data.get(b"keyOriginIndex")
+        return int(self._data.get(b"keyOriginIndex", 0))
 
     @property
     def invalidated(self) -> bool:
@@ -445,9 +455,10 @@ class RoundedRectangle(Origination):
     """Rounded rectangle live shape."""
 
     @property
-    def radii(self) -> Any:
+    def radii(self) -> Descriptor | None:
         """
         Corner radii of rounded rectangles.
+
         The order is top-left, top-right, bottom-left, bottom-right.
 
         :return: :py:class:`~psd_tools.psd.descriptor.Descriptor`
@@ -479,7 +490,7 @@ class Line(Origination):
     @property
     def line_weight(self) -> float:
         """
-        Line weight
+        Line weight.
 
         :return: `float`
         """

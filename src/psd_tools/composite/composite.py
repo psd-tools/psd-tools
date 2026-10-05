@@ -1,27 +1,347 @@
 """Composite implementation for layer rendering and blending."""
 
 import logging
-from typing import Callable, cast
+import math
+from collections.abc import Sequence
+from dataclasses import dataclass, field, replace
+from typing import Any, Callable, Iterator, NamedTuple, Protocol, cast
 
 import numpy as np
 from PIL import Image
 
-from psd_tools.api import pil_io
-from psd_tools.api.layers import AdjustmentLayer, GroupMixin, Layer
+from psd_tools.api import numpy_io, pil_io
+from psd_tools.api.layers import (
+    AdjustmentLayer,
+    Artboard,
+    GroupMixin,
+    FillLayer,
+    Layer,
+    ShapeLayer,
+)
+from psd_tools.api.protocols import LayerProtocol, PSDProtocol
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.api.utils import EXPECTED_CHANNELS, check_pixel_size
+from psd_tools.api.utils import check_growth, check_pixel_size, get_color_channels
 from psd_tools.composite import paint, utils, vector
 from psd_tools.composite.adjustments import ADJUSTMENT_FUNC
-from psd_tools.composite.blend import BLEND_FUNC, normal
-from psd_tools.composite.effects import draw_stroke_effect
-from psd_tools.constants import BlendMode, ColorMode, Resource, Tag
+from psd_tools.composite.blend import get_blend_func, normal
+from psd_tools.composite.effects import draw_stroke_effect_split, stroke_bbox
+from psd_tools.composite.widen import make_widen
+from psd_tools.constants import (
+    BlendMode,
+    ChannelID,
+    ColorMode,
+    Knockout,
+    Resource,
+    StrokeAlignment,
+    Tag,
+)
+from psd_tools.psd.descriptor import Descriptor
 
 logger = logging.getLogger(__name__)
 
 
+class _StyledEffect(Protocol):
+    """What the compositor needs from an overlay or stroke effect.
+
+    ``Effects.find()`` looks effects up by name at runtime and is typed as
+    returning the base ``_Effect``, which does not declare ``blend_mode`` --
+    that lives on the mixins the concrete classes bring in. Every name looked
+    up in this module resolves to a class that has one, so the iterators are
+    narrowed to this rather than each use being cast separately.
+    """
+
+    @property
+    def descriptor(self) -> Descriptor: ...
+
+    @property
+    def opacity(self) -> float: ...
+
+    @property
+    def blend_mode(self) -> BlendMode: ...
+
+
+def _styled(effects: Iterator[Any]) -> Iterator[_StyledEffect]:
+    return cast(Iterator[_StyledEffect], effects)
+
+
+# How many times the larger of the viewport and the layer a vector stroke's
+# fill may grow to, past the floor check_growth() allows.
+_STROKE_GROWTH = 4
+
+
+def _pixels(bbox: tuple[int, int, int, int]) -> int:
+    return max(0, bbox[2] - bbox[0]) * max(0, bbox[3] - bbox[1])
+
+
+# What an effect descriptor psd-tools did not write can raise on the way to
+# being read, and then used: a key that is absent, so the read lands on the
+# ``None`` ``Descriptor.get()`` returns (AttributeError); a key holding
+# something other than what the read expects (TypeError, ValueError); a colour
+# class that is none of the five (KeyError); and a number that parses but does
+# not survive the arithmetic it is put through -- an infinite stroke size
+# (OverflowError out of ``math.ceil``), a gradient scaled to zero
+# (ZeroDivisionError). They all mean one thing -- this effect cannot be read --
+# and none of them is worth losing the rest of the document over, so every
+# guard below catches the whole set rather than the arm it happens to have met.
+#
+# Not here, deliberately: ``ImportError``, which names the package that would
+# have drawn the effect, and ``AssertionError``, which states an invariant of
+# this module rather than a property of the file (#826).
+_UNREADABLE = (
+    AttributeError,
+    KeyError,
+    OverflowError,
+    TypeError,
+    ValueError,
+    ZeroDivisionError,
+)
+
+
+def _readable(layer: Layer, name: str) -> list[_StyledEffect]:
+    """The layer's enabled effects of one kind, empty if they cannot be listed.
+
+    ``Effects`` re-reads the layer's block on every access, so listing a
+    layer's effects can fail on the walk ``find()`` makes before it yields
+    anything. The three callers guard each effect they go on to read
+    separately, inside the loop; this is the failure that would leave them
+    nothing to guard.
+
+    The one effect class known to fail on that walk is skipped one layer
+    down, in ``Effects`` itself (#828). The clause stays because the listing is what
+    the guards downstream stand on, and being total about it costs one
+    ``try``.
+    """
+    try:
+        return list(_styled(layer.effects.find(name)))
+    except _UNREADABLE as error:
+        # Lazy arguments, not ``%``: a path that degrades must not depend on
+        # formatting the layer it is degrading. ``logging`` absorbs a failed
+        # format; ``%`` would re-raise it out of the handler.
+        logger.debug("Cannot list the %s effects of %s: %s", name, layer, error)
+        return []
+
+
+# How a one-channel array -- a canvas or a source -- becomes a given width.
+# Spelled once because it is threaded through most of this module -- see
+# ``widen.make_widen()``.
+_Widen = Callable[[np.ndarray, int], np.ndarray]
+
+# What each overlay effect draws. Only the pattern needs the compositor's
+# channel count, and only the colour overlay always draws -- the pattern and
+# the gradient can both decline, returning None -- but a uniform signature is
+# what lets the three share one application path: the shape/alpha arithmetic
+# around them is identical.
+_OverlayDraw = Callable[[Layer, Any, int], tuple[np.ndarray | None, np.ndarray | None]]
+
+
+def _draw_color_overlay(
+    layer: Layer, descriptor: Any, channels: int
+) -> tuple[np.ndarray | None, np.ndarray | None]:
+    return paint.draw_solid_color_fill(layer.bbox, layer._psd.color_mode, descriptor)
+
+
+def _draw_pattern_overlay(
+    layer: Layer, descriptor: Any, channels: int
+) -> tuple[np.ndarray | None, np.ndarray | None]:
+    fill, shape = paint.draw_pattern_fill(layer.bbox, layer._psd, descriptor)
+    if fill is None:
+        return None, None
+    # A pattern carries its own color mode, so a grayscale one reaches a CMYK
+    # document one channel wide and has to be converted rather than replicated.
+    # ``_fit_source()`` widens every source at the door, this pattern
+    # included (#749, #777).
+    #
+    # The width check stays. ``_assert_source_fits()`` makes the same one
+    # downstream -- paste() preserves the channel count, so it would report the
+    # same number -- but this one fires first and names the pattern, so a
+    # mismatch points at the pattern rather than at a "source" of unstated
+    # provenance. The canvas is what the width is measured against, not the
+    # layer color the overlay is drawn over: that color is itself allowed to be
+    # single-channel inside a multi-channel document, and measuring against it
+    # rejected patterns which in fact matched the canvas exactly (#711). A
+    # width that is neither 1 nor the canvas is a real inconsistency: widening
+    # reaches 3 from 1, but nothing reaches 3 from 4 (#741).
+    assert fill.shape[-1] in (1, channels), (
+        "Inconsistent pattern channels: %d, expected 1 or %d"
+        % (fill.shape[-1], channels)
+    )
+    return fill, shape
+
+
+def _draw_gradient_overlay(
+    layer: Layer, descriptor: Any, channels: int
+) -> tuple[np.ndarray | None, np.ndarray | None]:
+    return paint.draw_gradient_fill(layer.bbox, layer._psd.color_mode, descriptor)
+
+
+# Iteration order is the order the overlays are composited in, unchanged from
+# the sequence of calls this replaced.
+_OVERLAY_DRAWS: dict[str, _OverlayDraw] = {
+    "coloroverlay": _draw_color_overlay,
+    "patternoverlay": _draw_pattern_overlay,
+    "gradientoverlay": _draw_gradient_overlay,
+}
+
+
+def _vector_stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
+    """``layer.bbox`` grown by the width of a centred or outer vector stroke.
+
+    An inner stroke stays inside the path. A width that cannot be read leaves
+    the box as it is, since this runs for every layer the cull visits.
+    """
+    bbox = layer.bbox
+    stroke = layer.stroke if layer.has_vector_mask() else None
+    if (
+        stroke is None
+        or not stroke.enabled
+        or stroke.line_alignment is StrokeAlignment.INNER
+    ):
+        return bbox
+    try:
+        width = max(math.ceil(float(stroke._data.get("strokeStyleLineWidth", 1.0))), 0)
+    except (OverflowError, ValueError, TypeError):
+        return bbox
+    return (bbox[0] - width, bbox[1] - width, bbox[2] + width, bbox[3] + width)
+
+
+def _stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
+    """``layer.bbox`` grown to every box its strokes are drawn on.
+
+    A stroke is the only thing in this module that reaches outside the layer:
+    the three overlays draw on ``layer.bbox`` and are pasted from it, and drop
+    shadow, glow, satin and bevel are not implemented at all. So this is the
+    whole of the outward reach.
+
+    ``find("stroke")`` rather than a descriptor walk, so this stays in lockstep
+    with the loop in :py:meth:`Compositor._add_stroke_effects` that actually
+    draws them: both skip a disabled effect and both skip every effect when the
+    layer's master switch is off.
+
+    Two callers ask it for different reasons: :py:func:`_paint_bbox`, how wide
+    a canvas a group has to composite its children on (#808), and
+    :py:meth:`Compositor._accepts`, whether a layer paints inside the viewport
+    at all (#815). The second reaches every non-group layer the cull visits,
+    not just a group's children, so the degradation has to stay total -- and
+    total per effect, not for the whole loop: an effect whose box cannot be
+    read is skipped rather than taken as a verdict on the layer, so a stroke
+    beside it still grows the box. That leaves the box wider than what gets
+    drawn, never narrower, since ``_add_stroke_effects`` calls
+    ``stroke_bbox()`` on the same descriptor, drops the same effect, and can
+    only drop one more over the paint this never reads. Wider is the safe
+    direction for both callers: it costs a group canvas nobody draws on, where
+    narrower clips a stroke or culls a layer that has one (#826).
+    """
+    bbox = layer.bbox
+    if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
+        return bbox
+    bbox = _vector_stroke_reach(layer)
+    for effect in _readable(layer, "stroke"):
+        try:
+            bbox = utils.union_bbox(
+                bbox,
+                stroke_bbox(layer.bbox, effect.descriptor, layer._psd._max_alloc_bytes),
+            )
+        except _UNREADABLE as error:
+            logger.debug("Cannot measure a stroke effect of %s: %s", layer, error)
+    return bbox
+
+
+_ContentBBoxes = dict[int, tuple[int, int, int, int]]
+_GroupShapes = dict[tuple[int, tuple[int, int, int, int]], np.ndarray]
+
+
+@dataclass
+class _PassCache:
+    """What one composite pass measures once and then reuses.
+
+    Both entries are keyed by ``id()`` and neither outlives the pass, so unlike
+    a cache on the layer they cannot go stale against an edit, and the document
+    stays reachable throughout, so no id can be reused under them.
+
+    ``content_bboxes`` holds every ``_content_bbox()`` computed so far. Without
+    it the walk repeats at every level: the outermost group measures the whole
+    subtree, then compositing descends and each group inside measures its own
+    subtree again -- O(nodes x depth), and exactly quadratic down a chain.
+
+    ``group_shapes`` holds every group coverage ``_get_group_shape()`` has
+    composited, keyed by the group and the box it was composited on. Tracing a
+    group's stroke composites its whole subtree, and a group inside that
+    subtree whose own stroke escapes composites its subtree again, so the work
+    can *double* at every level rather than merely repeat. It takes nesting
+    where each stroke reaches further than its parent's to get there -- equal
+    sizes all the way down leave the inner traces inside the box #808's other
+    half already widened, and cost d rather than 2**d -- but at 2**d a chain of
+    ten is a thousand composites. Keyed by box and not by layer alone because a
+    layer may carry several stroke effects (#798), each traced separately.
+
+    The memo collapses the composites to one per box; the ``paste()`` back to
+    each asking viewport still happens per call, so the remaining cost is
+    quadratic in depth rather than linear. It also retains one coverage canvas
+    per entry until the pass ends, which is new: the trade is bounded work for
+    bounded-lifetime memory, and on a large document with many traced groups
+    the retention is the part that grows.
+    """
+
+    content_bboxes: _ContentBBoxes = field(default_factory=dict)
+    group_shapes: _GroupShapes = field(default_factory=dict)
+
+
+def _paint_bbox(layer: Layer, memo: _ContentBBoxes) -> tuple[int, int, int, int]:
+    """Every box ``layer`` and everything inside it can put paint on."""
+    bbox = _stroke_reach(layer)
+    if isinstance(layer, GroupMixin):
+        bbox = utils.union_bbox(bbox, _content_bbox(layer, memo))
+    return bbox
+
+
+def _content_bbox(
+    group: Layer, memo: _ContentBBoxes | None = None
+) -> tuple[int, int, int, int]:
+    """The box an isolated group has to composite its contents on.
+
+    ``Group.bbox`` is the union of its children's own bounding boxes and
+    excludes effect coverage, so a child's outset or centered stroke reaches
+    past its own box and therefore past the group's. Compositing the group on
+    that box clips the stroke away with no viewport the caller could widen to
+    get it back (#808).
+
+    An ``Artboard`` stops the descent. Its ``bbox`` is the artboard rectangle
+    rather than a union of its children -- the children routinely run past it
+    -- and intersecting with it is how the artboard clip is implemented here.
+    Growing it to fit a child would paint into the gap between two artboards,
+    which Photoshop's own render leaves empty.
+
+    The children counted are the ones ``Group.extract_bbox()`` counts, so the
+    box can only grow and never move. A clipping child is left out because it
+    cannot paint outside the layer it clips to:
+    :py:meth:`Compositor._apply_clip_layers` keeps its color and discards its
+    coverage, and that layer is a non-clipping child already counted.
+
+    Visibility is read the way ``Group.bbox`` reads it and not the way
+    ``layer_filter`` does, so a child the filter excludes is measured here. It
+    was already inside the old box for the same reason -- ``extract_bbox()``
+    does not consult the filter either -- and all this adds on top is that
+    child's own stroke margin, so the two stay consistent rather than one
+    being narrowed alone.
+    """
+    bbox = group.bbox
+    if isinstance(group, Artboard):
+        return bbox
+    if memo is None:
+        memo = {}
+    elif id(group) in memo:
+        return memo[id(group)]
+    for child in cast(GroupMixin, group):
+        if not child.is_visible() or child.clipping:
+            continue
+        bbox = utils.union_bbox(bbox, _paint_bbox(child, memo))
+    memo[id(group)] = bbox
+    return bbox
+
+
 def composite_pil(
     layer: Layer | PSDImage,
-    color: float | tuple[float, ...] | np.ndarray,
+    color: float | Sequence[float] | np.ndarray,
     alpha: float | np.ndarray,
     viewport: tuple[int, int, int, int] | None,
     layer_filter: Callable[[Layer], bool] | None,
@@ -37,7 +357,8 @@ def composite_pil(
 
     Args:
         layer: Layer or PSDImage to composite
-        color: Initial backdrop color (0.0-1.0). Can be scalar, tuple, or ndarray
+        color: Initial backdrop color (0.0-1.0). Can be a scalar, a
+            per-channel sequence, or an ndarray
         alpha: Initial backdrop alpha (0.0-1.0). Can be scalar or ndarray
         viewport: Bounding box (left, top, right, bottom) to composite. If None, uses layer bounds
         layer_filter: Optional callable to filter which layers to composite. Should return True to include
@@ -52,6 +373,22 @@ def composite_pil(
         - Requires optional composite dependencies (aggdraw, scipy, scikit-image)
         - LAB and Duotone color modes have limited blending support
         - Alpha channel handling varies by color mode
+        - Multichannel documents come back single-channel. PIL has no
+          multichannel mode, so only the first spot channel survives -- a
+          warning says so when it happens; use
+          :py:func:`psd_tools.composite.composite` to keep every channel.
+        - Alpha is packed into the array only for the two reachable modes that
+          have an alpha variant, ``"L"`` and ``"RGB"``; there is no ``"1A"``,
+          ``"CMYKA"`` or ``"LABA"`` to return it in. For the rest it is offered
+          to :py:func:`psd_tools.api.pil_io.post_process` instead, which
+          carries it for CMYK by converting to RGB first when an ICC profile is
+          applied. Bitmap results carry no alpha either way: ``post_process()``
+          applies it only to ``"RGB"`` and ``"L"``, and the ICC conversion that
+          reaches those for CMYK cannot help here -- little-cms builds no
+          transform for a 1-bit image, so ``_apply_icc()`` logs the failure and
+          returns the image still in ``"1"``. Nor do Lab results, for a third
+          reason: a Lab document carrying an ICC profile raises inside
+          ``_apply_icc()`` before reaching that point (#740).
     """
     UNSUPPORTED_MODES = {
         ColorMode.DUOTONE,
@@ -61,7 +398,7 @@ def composite_pil(
     assert isinstance(psd_image, PSDImage)
     color_mode = psd_image.color_mode
     if color_mode in UNSUPPORTED_MODES:
-        logger.warning("Unsupported blending color space: %s" % (color_mode))
+        logger.warning("Unsupported blending color space: %s", color_mode)
 
     backdrop_alpha = alpha
     color, _, alpha = composite(
@@ -77,14 +414,40 @@ def composite_pil(
     mode = pil_io.get_pil_mode(color_mode)
     if mode == "P":
         mode = "RGB"
+    # Narrow the array to what the mode can hold *before* alpha is appended.
+    # A multichannel document carries one plane per spot channel and PIL has no
+    # mode for that. Narrowing after the concatenation cannot be keyed on
+    # `mode`, because alpha has turned "L" into "LA" by then -- and PIL does
+    # not reject a four-plane array declared as two, it reads two bytes out of
+    # every four and returns planes that correspond to nothing.
+    pil_channels = pil_io.get_pil_channels(mode)
+    if color.shape[2] > pil_channels:
+        logger.warning(
+            "%s composited to %d channels; PIL mode %r holds %d. Keeping the "
+            "first and dropping the rest -- use psd_tools.composite.composite() "
+            "to keep every channel.",
+            color_mode,
+            color.shape[2],
+            mode,
+            pil_channels,
+        )
+        color = color[:, :, :pil_channels]
     # Skip alpha when the color mode requires deferred alpha handling, or
     # when the backdrop is fully opaque (the result is guaranteed opaque).
     delay_alpha_application = color_mode not in (ColorMode.GRAYSCALE, ColorMode.RGB)
-    has_opaque_backdrop = (
-        isinstance(backdrop_alpha, (int, float, np.integer, np.floating))
-        and backdrop_alpha >= 1.0
-    )
+    uniform_alpha = _uniform_alpha(backdrop_alpha)
+    has_opaque_backdrop = uniform_alpha is not None and uniform_alpha >= 1.0
     skip_alpha = not force and (delay_alpha_application or has_opaque_backdrop)
+    # Of the modes reachable here -- "1", "L", "RGB", "CMYK" and "LAB" -- only
+    # "L" and "RGB" have an alpha variant. Appending "A" regardless built modes
+    # PIL has never heard of, so `force=True` raised outright on a bitmap
+    # ("1A"), CMYK ("CMYKA") or Lab ("LABA") document. Leaving it off the array
+    # returns the colour that was asked for rather than nothing at all, and for
+    # the modes `post_process()` can convert it still arrives, via `putalpha`
+    # below.
+    if not skip_alpha and mode not in ("L", "RGB"):
+        logger.debug("PIL has no alpha variant of %r; not packing it inline.", mode)
+        skip_alpha = True
     logger.debug("Skipping alpha: %s", skip_alpha)
     if not skip_alpha:
         color = np.concatenate((color, alpha), 2)
@@ -94,15 +457,60 @@ def composite_pil(
         color = color[:, :, 0]
     if color.shape[0] == 0 or color.shape[1] == 0:
         return None
-    image = Image.fromarray((255 * color).astype(np.uint8), mode)
+    # Clipped, not cast straight: numpy *wraps* an out-of-range float, so a
+    # component at 1.2 would arrive as byte 50 rather than as white -- an
+    # unrelated colour instead of a saturated one (#757).
+    #
+    # Nothing reaches here out of range today: `Compositor` clips its own
+    # arrays, the descriptor readers clamp at the source, and no file under
+    # tests/psd_files arrives out of range in either force mode even with a
+    # deliberately out-of-range backdrop. So this changes no output; it is here
+    # so the failure mode of the next producer is a clipped colour rather than
+    # a wrapped one. Note it does not make the cast total -- np.clip passes NaN
+    # through -- so it is a narrowing of the damage, not a guarantee.
+    pixels = np.clip(255 * color, 0, 255).astype(np.uint8)
+    if mode == "1":
+        # `fromarray(uint8, "1")` does not mean "these bytes, as bilevel". PIL
+        # takes the raw mode literally at one bit per pixel, so it consumes one
+        # byte per eight columns and expands its bits across the row -- a 4x4
+        # document came back as the bits of its first four bytes. Build the
+        # plane in "L", where a byte is a pixel, and reduce it afterwards.
+        image = Image.fromarray(pixels, "L").convert("1", dither=Image.Dither.NONE)
+    elif mode == "LAB":
+        # The same trap as "1", in a different raw mode. PIL's "LAB" unpacker
+        # reads the two chroma planes as *signed* and adds 128, so an array in
+        # the encoding the compositor carries -- where byte 128 is ``a = 0``,
+        # the file's own convention -- lands 128 off on both axes. That is not
+        # a slightly wrong colour but an unrelated one: a flat Lab(60, 25, 25)
+        # converted to RGB as (0, 187, 255) where Photoshop puts it at
+        # (196, 126, 101). Merging plane by plane writes them verbatim, which
+        # is what `pil_io._merge_channels()` does for `topil()`; the two
+        # disagreed until #759.
+        #
+        # `np.asarray()` cannot see the difference -- it reads PIL's internal
+        # buffer, which is offset the other way, so a round trip through
+        # `fromarray` is the identity. `getpixel()`, `convert()` and `save()`
+        # all see it.
+        image = Image.merge(
+            mode,
+            [
+                Image.fromarray(np.ascontiguousarray(pixels[:, :, band]), "L")
+                for band in range(pil_channels)
+            ],
+        )
+    else:
+        image = Image.fromarray(pixels, mode)
     alpha_as_image = None
-    if not force and delay_alpha_application:
+    # Whenever the alpha did not go into the array, offer it to post_process()
+    # instead -- it converts CMYK to RGB before applying it, so `force=True` on
+    # a CMYK document keeps the alpha that `force=False` has always returned.
+    # Gating this on `not force` dropped it on exactly the paths the branch
+    # above had just diverted here.
+    if skip_alpha and delay_alpha_application:
         alpha_as_image = Image.fromarray(
             (255 * np.squeeze(alpha, axis=2)).astype(np.uint8), "L"
         )
     icc = None
-    psd_image = layer if isinstance(layer, PSDImage) else layer._psd
-    assert psd_image is not None
     if apply_icc and Resource.ICC_PROFILE in psd_image.image_resources:
         icc = psd_image.image_resources.get_data(Resource.ICC_PROFILE)
     return pil_io.post_process(image, alpha_as_image, icc)
@@ -110,7 +518,7 @@ def composite_pil(
 
 def composite(
     group: Layer | PSDImage,
-    color: float | tuple[float, ...] | np.ndarray = 1.0,
+    color: float | Sequence[float] | np.ndarray = 1.0,
     alpha: float | np.ndarray = 0.0,
     viewport: tuple[int, int, int, int] | None = None,
     layer_filter: Callable[[Layer], bool] | None = None,
@@ -127,7 +535,8 @@ def composite(
     Args:
         group: Layer or PSDImage to composite
         color: Initial backdrop color (0.0-1.0, default: 1.0). Can be a scalar
-            float applied to all channels, a tuple of per-channel values, or an ndarray.
+            applied to all channels, a per-channel sequence, or a full
+            (height, width, channels) ndarray.
         alpha: Initial backdrop alpha (0.0-1.0, default: 0.0). Can be scalar or ndarray.
         viewport: Bounding box (left, top, right, bottom) to composite. If None, uses layer bounds
         layer_filter: Optional callable(layer) -> bool to filter which layers to composite
@@ -156,6 +565,13 @@ def composite(
           for vector shape rendering, gradient fills, and layer effects.
         - Adjustment layers have limited support.
         - Text rendering is not supported (text layers show as raster if available).
+        - Multichannel documents are composited over every spot channel the
+          file declares. That is more than Photoshop does: Photoshop discards
+          the layer records when it opens a multichannel document and displays
+          the merged image data instead, so a multichannel document that has
+          layers does not render here the way it looks there. Use
+          :py:meth:`~psd_tools.api.psd_image.PSDImage.topil` for the merged
+          data.
     """
     if viewport is None:
         if isinstance(group, PSDImage):
@@ -163,7 +579,6 @@ def composite(
         else:
             viewport = group.bbox
             if viewport == (0, 0, 0, 0):
-                assert group._psd is not None
                 viewport = group._psd.viewbox
     assert viewport is not None
 
@@ -177,35 +592,96 @@ def composite(
         if viewport != group.viewbox:
             color = paste(viewport, group.bbox, color, 1.0)
             shape = paste(viewport, group.bbox, shape)
-        if not (isinstance(backdrop_alpha, (int, float)) and backdrop_alpha == 0.0):
-            color, shape = _blend_backdrop(
-                color, shape, backdrop_color, backdrop_alpha, group.color_mode
+        # A wholly transparent backdrop contributes nothing, and blending it
+        # in anyway would turn fully uncovered pixels white via divide()'s
+        # 0 / 0 fallback. np.any() covers every spelling at once -- scalar,
+        # NumPy scalar, or an array of zeros -- and short-circuits on the
+        # first nonzero. Normalize only once past that check, so the backdrop
+        # is not expanded to a full canvas for the common default.
+        if np.any(backdrop_alpha):
+            # Sized from the array in hand rather than from the color mode:
+            # a multichannel document carries a channel count of its own that
+            # EXPECTED_CHANNELS does not predict.
+            backdrop = _normalize_backdrop(
+                backdrop_color,
+                backdrop_alpha,
+                color.shape[0],
+                color.shape[1],
+                color.shape[2],
+                widen=make_widen(group),
             )
+            color, shape = _blend_backdrop(color, shape, *backdrop)
         return color, shape, shape
 
     _w = viewport[2] - viewport[0]
     _h = viewport[3] - viewport[1]
     _psd = group if isinstance(group, PSDImage) else group._psd
+    # The width the backdrop canvas is allocated at, read from the document
+    # rather than from its color mode: EXPECTED_CHANNELS reports 64 for a
+    # multichannel document -- the format's maximum, not any file's own count --
+    # so reading it from the color mode would allocate the backdrop far wider
+    # than the file and hand the first layer a canvas it cannot be blended
+    # against.
+    _channels = get_color_channels(_psd)
+    # The guard is there to reject a file *before* it allocates, so its estimate
+    # must never fall below what follows it. `_channels` is the backdrop, and
+    # taking the wider of it and the header's own count keeps the modes that
+    # expand covered too -- indexed, whose single stored channel becomes three
+    # through its palette -- without loosening the ones whose header count is
+    # the larger of the pair.
+    # It bounds the canvas, not everything downstream: each stored-pixel read is
+    # guarded on its own by `Layer.numpy()`, and the canvases a descriptor's size
+    # grows -- stroke effect, vector stroke, pattern scale -- on their own.
+    # This keeps the returned-size spelling of the estimate where the two
+    # image-data paths moved to a modelled peak (#767), and not for want of
+    # trying: what follows this guard grows with the layer count, so there is no
+    # expression in `width * height * <constant>` that bounds it. The budget is a
+    # per-allocation ceiling on `numpy()` and `topil()`, layers included; here it
+    # means the canvas, as it always has.
+    _estimate = max(_psd.channels, _channels)
     check_pixel_size(
         _w,
         _h,
-        _psd.channels if _psd is not None else 1,
-        max_alloc_bytes=_psd._max_alloc_bytes if _psd is not None else None,
+        _estimate,
+        max_alloc_bytes=_psd._max_alloc_bytes,
     )
-
-    if isinstance(color, float):
-        assert _psd is not None
-        color_mode = _psd.color_mode
-        assert isinstance(color_mode, ColorMode)
-        color = (color,) * EXPECTED_CHANNELS[color_mode]
 
     isolated = False
     if not isinstance(group, PSDImage):
         isolated = group.blend_mode != BlendMode.PASS_THROUGH
 
+    # The compositor works exclusively in full-canvas arrays; the scalar and
+    # per-channel spellings are a convenience of the public signature, so they
+    # are resolved here, once, rather than at each point of use. An isolated
+    # group starts transparent, so the caller's alpha is dropped before the
+    # canvas is built rather than after.
+    # Resolved here and carried through the compositor tree because four of
+    # the sites that need it are inside Compositor, which holds no document.
+    # (The cost is not the reason -- make_widen() only reads two attributes,
+    # and the expensive transform is built lazily and cached globally.)
+    _widen_fn = make_widen(_psd)
+
+    backdrop_color, backdrop_alpha = _normalize_backdrop(
+        color,
+        0.0 if isolated else alpha,
+        _h,
+        _w,
+        _channels,
+        widen=_widen_fn,
+    )
+
     layer_filter = layer_filter or Layer.is_visible
 
-    compositor = Compositor(viewport, color, alpha, isolated, layer_filter, force)
+    compositor = Compositor(
+        viewport,
+        backdrop_color,
+        backdrop_alpha,
+        layer_filter,
+        force,
+        document_backdrop=lambda: _document_backdrop(_psd, viewport),
+        widen=_widen_fn,
+        color_mode=_psd.color_mode,
+    )
     target_group = group if isinstance(group, GroupMixin) and not as_layer else [group]
     for layer in target_group:  # type: ignore
         compositor.apply(layer)  # type: ignore[arg-type]
@@ -222,7 +698,7 @@ def paste(
     shape = (viewport[3] - viewport[1], viewport[2] - viewport[0], values.shape[2])
     view = (
         np.full(shape, background, dtype=np.float32)
-        if background
+        if background is not None
         else np.zeros(shape, dtype=np.float32)
     )
     inter = utils.intersect(viewport, bbox)
@@ -240,22 +716,206 @@ def paste(
     return view
 
 
+def _is_background_layer(layer: "LayerProtocol") -> bool:
+    """Whether the layer is Photoshop's Background layer.
+
+    A Background layer is opaque by construction and carries no transparency
+    channel, which is what distinguishes it from an ordinary bottom layer that
+    merely happens to be fully opaque.
+    """
+    record = getattr(layer, "_record", None)
+    if record is None:
+        return False
+    return not any(
+        channel.id == ChannelID.TRANSPARENCY_MASK for channel in record.channel_info
+    )
+
+
+def _read_knockout(layer: Layer) -> Knockout:
+    """Read a layer's knockout setting, tolerating undefined values.
+
+    The tagged block is a raw byte, so a corrupt file -- or one written by a
+    future Photoshop or a third-party tool -- can carry a value outside the
+    enum. Fall back to NONE with a warning rather than raising: compositing a
+    malformed document should degrade, not crash.
+    """
+    value = layer.tagged_blocks.get_data(Tag.KNOCKOUT_SETTING, 0)
+    try:
+        return Knockout(value)
+    except ValueError:
+        logger.warning(
+            "Unknown knockout setting %r in %s; compositing without knockout",
+            value,
+            layer,
+        )
+        return Knockout.NONE
+
+
+def _document_backdrop(
+    psd: "PSDProtocol | None", viewport: tuple[int, int, int, int]
+) -> tuple[np.ndarray, np.ndarray] | None:
+    """The backdrop that deep knockout knocks out to.
+
+    Photoshop treats the Background layer as the canvas rather than as an
+    ordinary layer: deep knockout removes every ordinary layer beneath the
+    knockout group and stops there. Verified against Photoshop 2026 -- with the
+    Background converted to an ordinary layer, the same document knocks all the
+    way through to transparency instead.
+
+    Returns None when the document has no Background layer, in which case deep
+    knockout falls back to the compositor's own initial backdrop.
+    """
+    if psd is None or len(psd) == 0:
+        return None
+    bottom = psd[0]
+    if not _is_background_layer(bottom):
+        return None
+    color = bottom.numpy("color")
+    if color is None:
+        return None
+    color = paste(viewport, bottom.bbox, color, 1.0)
+    alpha = np.ones((color.shape[0], color.shape[1], 1), dtype=np.float32)
+    return color, alpha
+
+
+def _uniform_alpha(alpha: float | np.ndarray) -> float | None:
+    """The backdrop alpha as a plain float when it is a single scalar.
+
+    Returns None for an array-valued backdrop rather than scanning it: the
+    caller decides the output mode from this, and reporting an all-ones array
+    as opaque would drop the alpha channel from images that carry one today.
+    Tested by dimensionality rather than by type so that ``1``, ``1.0``,
+    ``np.float32(1.0)`` and ``np.array(1.0)`` all behave alike.
+    """
+    return float(alpha) if np.ndim(alpha) == 0 else None
+
+
+def _widen(color: np.ndarray, channels: int) -> np.ndarray:
+    """Replicate a single-channel array across ``channels``.
+
+    A grayscale source inside an RGB document arrives one channel wide. The
+    compositor's own canvases have to be a fixed width for their whole
+    lifetime, so a backdrop is widened once at the point it is handed over
+    rather than repeatedly patched mid-composite; a source is widened at the
+    same point for a different reason, that what a grey means is the
+    document's answer and not the blend arithmetic's (#749).
+
+    Replication is right for RGB and wrong for CMYK and Lab, so this is only
+    the fallback used when no document is available to ask -- everything that
+    can reach one goes through :py:func:`widen.make_widen` instead (#722).
+    """
+    if color.shape[2] == 1 and 1 < channels:
+        return np.repeat(color, channels, axis=2)
+    return color
+
+
+def _to_canvas(
+    value: float | Sequence[float] | np.ndarray,
+    shape: tuple[int, int, int],
+    name: str,
+    exact_channels: bool = False,
+    widen: _Widen = _widen,
+) -> np.ndarray:
+    """Expand a backdrop component to a full ``(height, width, channels)`` array.
+
+    An array that is already per-pixel is taken as given, except that a
+    single-channel one is widened to the document's channel count: the
+    compositor's canvases keep a fixed width for their whole lifetime.
+    ``exact_channels`` rejects any mismatch outright instead, for alpha, which
+    is single-channel by definition and would otherwise reach
+    ``composite_pil()`` and be concatenated into a color array of the wrong
+    width.
+
+    A scalar is one color component, exactly as that single-channel array is,
+    so it is widened the same way rather than being broadcast across channels
+    that do not share an axis (#753). A per-channel sequence is broadcast as
+    given: its width is the caller's statement of the colour, not something to
+    reinterpret.
+    """
+    array = np.asarray(value, dtype=np.float32)
+    if array.ndim == 3:
+        if exact_channels:
+            if array.shape != shape:
+                raise ValueError(
+                    "Backdrop %s has shape %r, expected %r" % (name, array.shape, shape)
+                )
+        elif array.shape[:2] != shape[:2]:
+            raise ValueError(
+                "Backdrop %s covers %r, expected %r to match the viewport"
+                % (name, array.shape[:2], shape[:2])
+            )
+        elif array.shape[2] not in (1, shape[2]):
+            # A single channel replicates; any other width has no reading, and
+            # left alone it would surface as a broadcast error from inside the
+            # blend arithmetic instead.
+            raise ValueError(
+                "Backdrop %s has %d channels, expected 1 or %d for this "
+                "color mode" % (name, array.shape[2], shape[2])
+            )
+        else:
+            array = widen(array, shape[2])
+        return array
+    if not exact_channels and array.size == 1 and shape[2] > 1:
+        # One color component, which is what the single-channel array above is
+        # too -- so it takes the same conversion rather than being broadcast
+        # across channels that do not share an axis. Broadcasting would make the
+        # two spellings of one backdrop disagree: on a Lab document
+        # `color=1.0` -- the public default -- would come out (255, 255, 255),
+        # maximum chroma at maximum lightness, where the one-channel array
+        # spelling of it gives the (255, 128, 128) that is white (#753).
+        single = np.full((shape[0], shape[1], 1), array, dtype=np.float32)
+        return widen(single, shape[2])
+    try:
+        return np.full(shape, array, dtype=np.float32)
+    except ValueError:
+        raise ValueError(
+            "Backdrop %s %r cannot be expanded to %r; pass a scalar, a "
+            "per-channel sequence, or a full (height, width, channels) array"
+            % (name, value, shape)
+        ) from None
+
+
+def _normalize_backdrop(
+    color: float | Sequence[float] | np.ndarray,
+    alpha: float | np.ndarray,
+    height: int,
+    width: int,
+    channels: int | None,
+    widen: _Widen = _widen,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Resolve a backdrop given in any accepted spelling to a pair of arrays.
+
+    The public entry points accept the backdrop as a scalar, a per-channel
+    sequence or a ready-made array because that is convenient to call; the
+    compositor only ever works with arrays. Converting once here keeps the
+    three spellings from being re-interpreted -- inconsistently -- at each use
+    site.
+
+    This does materialize a full canvas even for a constant backdrop, exactly
+    as ``Compositor`` did before: the scalar spelling is an API convenience,
+    not an allocation-avoidance path. (``_get_mask``/``_get_const`` keep their
+    scalars for that reason instead.)
+
+    ``channels`` is the width of the canvas to build -- the document's own
+    color channel count, per ``get_color_channels()`` -- or None to infer it
+    from ``color`` where no document is available to ask, the same defensive
+    fallback ``check_pixel_size()`` is given in ``composite()``.
+    """
+    if channels is None:
+        channels = 1 if np.ndim(color) == 0 else int(np.shape(color)[-1])
+    return (
+        _to_canvas(color, (height, width, channels), "color", widen=widen),
+        _to_canvas(alpha, (height, width, 1), "alpha", exact_channels=True),
+    )
+
+
 def _blend_backdrop(
     color: np.ndarray,
     shape: np.ndarray,
-    backdrop_color: float | tuple[float, ...] | np.ndarray,
-    backdrop_alpha: float | np.ndarray,
-    color_mode: ColorMode,
+    backdrop_color: np.ndarray,
+    backdrop_alpha: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Blend foreground color/shape over a backdrop using standard "over" compositing."""
-    if isinstance(backdrop_color, float):
-        backdrop_color = (backdrop_color,) * EXPECTED_CHANNELS[color_mode]
-    if isinstance(backdrop_color, tuple):
-        backdrop_color = np.broadcast_to(
-            np.array(backdrop_color, dtype=np.float32), color.shape
-        )
-    if isinstance(backdrop_alpha, (int, float)):
-        backdrop_alpha = np.full_like(shape, backdrop_alpha)
     result_alpha = utils.union(shape, backdrop_alpha)
     result_color = utils.clip(
         utils.divide(
@@ -266,12 +926,286 @@ def _blend_backdrop(
     return result_color, result_alpha
 
 
+# A pixel the path covers whole, which the rasterizer reports a float32 step
+# short of 1.0.
+_PATH_FULL = 1e-5
+
+
+def _is_shape_layer(layer: Layer) -> bool:
+    """A fill clipped to a path, whose stored coverage is rasterized from it."""
+    return (
+        not isinstance(layer, GroupMixin)
+        and layer.has_pixels()
+        and layer.vector_mask is not None
+        and not layer.vector_mask.disabled
+        and utils.has_fill(layer)
+    )
+
+
+@dataclass(frozen=True)
+class _Source:
+    """A layer resolved into the operands the blend equations take.
+
+    All three canvases cover the full viewport, but they carry different
+    factors: ``shape`` has the layer's mask folded in, ``alpha`` has the mask
+    and the layer opacity, and ``color`` has neither -- it is the layer's own
+    color, with any clip layers already composited onto it.
+
+    ``fill_opacity`` is folded into none of them, because the two composite
+    paths apply it differently -- see ``Compositor._composite_source()``. A
+    source that has been through :py:class:`_EffectCanvas` is the exception:
+    the layer's effects are not scaled by it and its own paint is, so there is
+    no one factor left to apply and the canvas folds it in, leaving 1.0 here
+    and the coverage a knockout punches with in ``knockout_shape``.
+    """
+
+    color: np.ndarray
+    shape: np.ndarray
+    alpha: np.ndarray
+    # The mask coverage scaled by the layer opacity: how much of the source
+    # replaces the backdrop along the pass-through path.
+    mask: float | np.ndarray
+    # The mask coverage on its own. A stroke effect on a layer that has no
+    # pixels of its own traces this rather than ``shape``.
+    shape_mask: float | np.ndarray
+    # Tag.BLEND_FILL_OPACITY, as a 0-1 fraction.
+    fill_opacity: float
+    # The layer opacity, as a 0-1 fraction. Already in ``alpha`` and in
+    # ``mask``; carried on its own because an effect composited into the layer
+    # is scaled by it too, and ``alpha / shape`` is not it for a group.
+    opacity: float
+    knockout: Knockout
+    # Whether the group isolated its adjustments; None for a layer that is not
+    # a group. Only an explicit False makes a pass-through group composite as
+    # one -- see _composite_source().
+    adjustment_isolated: bool | None
+    # What a knockout punches its hole with. ``shape`` before fill opacity is
+    # applied, which is the same array until an effect canvas has folded that
+    # in: fill opacity fades the layer's own paint without narrowing the hole
+    # it punches, which is what makes "fill 0 under a knockout" a hole at all.
+    knockout_shape: np.ndarray
+
+
+def _composites_as_passthrough(source: _Source, blend_mode: BlendMode) -> bool:
+    """Whether this source goes on by interpolation rather than by compositing.
+
+    ``is False`` and not a truth test: when a group isolates its adjustments,
+    pass-through composing falls back to over composing, because
+    ``_get_group()`` has already handed back the group's isolated result. None
+    means the layer is not a group at all.
+
+    Spelled once because two callers turn on it -- the composite itself, and
+    where an outer effect goes relative to it -- and they have to agree.
+    """
+    return blend_mode == BlendMode.PASS_THROUGH and source.adjustment_isolated is False
+
+
+class _OuterEffect(NamedTuple):
+    """What an effect paints *beside* the layer, held until the layer is ready.
+
+    An outer effect goes on before the layer and keeps its own blend mode
+    against the backdrop, so unlike an inner one it is not folded into the
+    layer's source -- see :py:meth:`Compositor._apply_outer_effects`. It is
+    collected rather than applied on the spot because the scale it goes on at
+    is read off the layer's finished alpha, which the inner effects are still
+    changing while the stroke is being drawn.
+    """
+
+    color: np.ndarray
+    coverage: np.ndarray
+    # The effect's own opacity with the layer's already in it. The layer
+    # opacity fades a layer's style along with the layer, which the inner
+    # effects get from being composited inside the source it scales; an outer
+    # effect is not in that source, so it carries the factor itself.
+    opacity: float
+    blend_mode: BlendMode
+
+
+class _EffectCanvas:
+    """The layer's own canvas, where the effects inside it composite into it.
+
+    Photoshop composites a layer's effects with the layer and puts the result
+    on the backdrop, so an inset stroke renders at ``alpha*S + (1 - alpha)*B``.
+    Putting the layer on the backdrop and each effect on top of that instead
+    leaves a backdrop term in every pixel where the layer's own coverage is
+    partial -- ``t*S + (1 - t)*(alpha*L + (1 - alpha)*B)`` -- knocking the
+    layer out from under itself (#846).
+
+    What the effect paints is the same either way; where it goes is not. An
+    *inner* effect -- an overlay, or the part of a stroke within the layer's
+    boundary -- covers a share of the layer's own region, which is
+    ``source.shape``: it paints over the layer, knocks out what it covers, and
+    never widens the region. The coverage it is given is that share rather
+    than a coverage of the pixel, so that the layer's opacity and whatever
+    alpha it has of its own stay out of the arithmetic until
+    :py:meth:`source` puts them back, and an effect's own blend mode blends it
+    against the layer it lands on.
+
+    ``fill_opacity`` fades the layer's paint but not its effects, so it is
+    folded in here rather than left for
+    :py:meth:`Compositor._composite_source` to apply to both, and the coverage
+    a knockout punches with travels in ``knockout_shape`` instead.
+
+    The *outer* half of a stroke does not come through here at all: it is
+    disjoint from the layer rather than inside it, and it keeps its own blend
+    mode against the backdrop, which one merged source composited with the
+    layer's blend mode could not express.
+    """
+
+    def __init__(self, compositor: "Compositor", source: _Source) -> None:
+        self._compositor = compositor
+        self._source = source
+        self._painted = False
+
+    def _start(self) -> None:
+        """Build the canvases, once, when an effect actually draws on them.
+
+        Deferred because most layers carry no effect that draws, and an effect
+        that declines -- a pattern whose data will not decode -- must leave the
+        source it was handed untouched rather than a rebuilt copy of it, which
+        the round trip through :py:meth:`source` below would not be.
+        """
+        if self._painted:
+            return
+        source = self._source
+        self._color = self._compositor._fit_source(source.color)
+        # Inside the region and relative to it, with the layer opacity divided
+        # back out: that opacity fades the layer and its effects alike, so it
+        # applies once, to the whole stack, in source() below. Leaving it in
+        # here and scaling each effect by it as well is what made an overlay
+        # at full strength lift a half-opaque layer to 0.75.
+        #
+        # What is left is the layer's own alpha against its own coverage,
+        # which for an object is 1 and for a group is the group's, faded by
+        # fill opacity.
+        opacity = source.opacity
+        self._alpha = utils.divide(source.alpha, self.region, fill=0.0) * (
+            source.fill_opacity / opacity if opacity > 0.0 else 0.0
+        )
+        self._premultiplied = self._alpha * self._color
+        # A scalar until something widens it, which is the same
+        # allocation-avoidance path ``_get_mask()`` takes and for the same
+        # reason: this canvas is held for the whole of the effect stack rather
+        # than freed between effects the way a source is.
+        self._shape: float | np.ndarray = source.fill_opacity
+        self._painted = True
+
+    @property
+    def region(self) -> np.ndarray:
+        """The layer's own coverage, which is what ``over()`` is a share of."""
+        return self._source.shape
+
+    @property
+    def opacity(self) -> float:
+        """The layer opacity, which fades its effects along with the layer."""
+        return self._source.opacity
+
+    def within(self, coverage: np.ndarray) -> np.ndarray:
+        """A coverage of the pixel, as the share of the region it is.
+
+        A stroke band is measured on the pixel like any other coverage, while
+        the region is what an inner effect covers a share of. The two are the
+        same wherever the layer is opaque, and on a pixel its boundary cuts an
+        inset band comes out equal to the layer's own coverage there -- which
+        is the whole of the region, and what makes the inset stroke knock the
+        layer out rather than blend with it.
+        """
+        return utils.clip(utils.divide(coverage, self.region, fill=0.0))
+
+    def over(
+        self,
+        coverage: np.ndarray,
+        color: np.ndarray,
+        blend_mode: BlendMode,
+        opacity: float,
+    ) -> None:
+        """Paint an effect over the layer, inside its region.
+
+        ``coverage`` is a share of the region, and ``opacity`` the effect's
+        own. The layer's opacity is not applied here -- see :py:meth:`_start`.
+        """
+        if not coverage.any():
+            return
+        self._start()
+        color = self._compositor._fit_source(color)
+        blend_fn = get_blend_func(blend_mode, self._compositor._color_mode)
+        alpha = coverage * opacity
+        # ``normal`` ignores what is under it, and is also what an effect whose
+        # blend mode this module does not know answers, so the un-premultiply
+        # is skipped rather than computed for a function that will drop it.
+        under = (
+            color
+            if blend_fn is normal
+            else utils.divide(self._premultiplied, self._alpha, fill=color)
+        )
+        self._premultiplied = (1.0 - alpha) * self._premultiplied + alpha * (
+            (1.0 - self._alpha) * color + self._alpha * blend_fn(under, color)
+        )
+        self._alpha = alpha + (1.0 - alpha) * self._alpha
+        # Coverage and opacity are separate everywhere in this module: the
+        # effect's opacity fades what it paints without narrowing what it
+        # covers, so the shape takes the coverage it was drawn on.
+        self._shape = utils.union(self._shape, coverage)
+
+    def source(self) -> _Source:
+        """The layer and the effects inside it, as one source to composite."""
+        if not self._painted:
+            return self._source
+        opacity = self._source.opacity
+        alpha = self.region * self._alpha * opacity
+        premultiplied = self.region * self._premultiplied * opacity
+        return replace(
+            self._source,
+            color=utils.clip(utils.divide(premultiplied, alpha, fill=self._color)),
+            shape=utils.clip(self.region * self._shape),
+            alpha=utils.clip(alpha),
+            # Not narrowed by fill opacity, which the shape above now carries:
+            # fill opacity fades the layer's own paint without narrowing the
+            # hole it punches, and that is what makes "fill 0 under a
+            # knockout" a hole at all.
+            knockout_shape=self.region,
+            fill_opacity=1.0,
+        )
+
+
 class Compositor(object):
     """Composite context.
 
+    ``color`` and ``alpha`` are the initial backdrop, and must already be
+    ``(height, width, channels)`` arrays covering ``viewport``; the public
+    entry points normalize the spellings they accept via
+    ``_normalize_backdrop()``. An isolated group composites against a
+    transparent backdrop, which the caller expresses by passing a zero
+    ``alpha`` -- so that canvas is never built only to be discarded.
+
+    ``color``'s channel count becomes ``self.channels`` and is fixed for this
+    compositor's lifetime, so a caller handing over a canvas narrower than the
+    document must widen it first. A narrow *source* is fine and must not change
+    the width: ``_fit_source()`` widens it at the door, so the blend arithmetic
+    only ever sees arrays of this compositor's own width.
+
+    ``widen`` is how that is done, here and in every sub-compositor this one
+    builds. Pass the document's own, from
+    :py:func:`~psd_tools.composite.widen.make_widen`: widening is a colour
+    conversion outside RGB, and the default is the mode-blind replication that
+    is only correct when there is no document to ask (#722). A sub-compositor
+    that does not pass it on returns its whole subtree to that fallback.
+
+    ``color_mode`` is the document's, and travels the same way for the same
+    reason: the six non-separable blend modes need to know what their operands'
+    channels are and not merely how many, since a multichannel document's spot
+    plates are neither RGB nor CMYK (#746). A sub-compositor that does not pass
+    it on returns its whole subtree to deciding by width alone.
+
     Example::
 
-        compositor = Compositor(group.bbox)
+        widen = make_widen(psd)
+        color, alpha = _normalize_backdrop(
+            1.0, 0.0, height, width, channels, widen=widen
+        )
+        compositor = Compositor(
+            group.bbox, color, alpha, widen=widen, color_mode=psd.color_mode
+        )
         for layer in group:
             compositor.apply(layer)
         color, shape, alpha = compositor.finish()
@@ -280,35 +1214,65 @@ class Compositor(object):
     def __init__(
         self,
         viewport: tuple[int, int, int, int],
-        color: float | tuple[float, ...] | np.ndarray = 1.0,
-        alpha: float | np.ndarray = 0.0,
-        isolated: bool = False,
+        color: np.ndarray,
+        alpha: np.ndarray,
         layer_filter: Callable[[Layer], bool] | None = None,
         force: bool = False,
         adjustment_isolated: bool = False,
+        document_backdrop: Callable[[], tuple[np.ndarray, np.ndarray] | None]
+        | None = None,
+        widen: _Widen = _widen,
+        color_mode: ColorMode | None = None,
+        cache: _PassCache | None = None,
     ):
         self._viewport = viewport
         self._layer_filter = layer_filter
         self._force = force
-        self._clip_mask = 1.0
+        self._mask_repeats: dict[int, bool] = {}
+        # How a one-channel array becomes this compositor's width. Carried
+        # rather than derived because the four sites that need it below are
+        # inside this class, which holds no document handle (#722, #749).
+        self._widen = widen
+        # The document's colour mode, for the blend functions that need to know
+        # what their operands' channels are and not just how many there are.
+        # Carried for the same reason as ``widen``: ``_apply_source()`` holds no
+        # document handle either. None means "no document to ask", and leaves
+        # the width to decide alone (#746).
+        self._color_mode = color_mode
+        # Shared with every sub-compositor this one builds, so a group's
+        # contents are measured once per composite pass rather than once per
+        # enclosing group. A compositor built without one starts a pass of its
+        # own, which is what the public entry points and the tests do.
+        self._cache: _PassCache = _PassCache() if cache is None else cache
         self._adjustment_isolated = adjustment_isolated
+        # What Knockout.DEEP knocks out to. Inherited by pass-through
+        # sub-compositors and reset at every isolation boundary, so deep
+        # knockout escapes pass-through groups but stops at an isolated one.
+        # None means "this compositor's own initial backdrop".
+        #
+        # Resolved lazily: it decodes the Background layer, and the vast
+        # majority of documents never contain a deep knockout at all.
+        self._document_backdrop_fn = document_backdrop
+        self._document_backdrop_resolved = False
+        self._document_backdrop: tuple[np.ndarray, np.ndarray] | None = None
 
-        if isolated:
-            self._alpha_0 = np.zeros((self.height, self.width, 1), dtype=np.float32)
-        elif isinstance(alpha, np.ndarray):
-            self._alpha_0 = alpha
-        else:
-            self._alpha_0 = np.full(
-                (self.height, self.width, 1), alpha, dtype=np.float32
-            )
+        # Preconditions rather than documentation: the whole point of fixing
+        # the channel count is that nothing downstream has to re-check it.
+        assert color.ndim == 3, "backdrop color must be a (h, w, c) canvas"
+        assert color.shape[:2] == (self.height, self.width), (
+            "backdrop color %r does not cover viewport %r"
+            % (color.shape, self._viewport)
+        )
+        assert alpha.shape == (self.height, self.width, 1), (
+            "backdrop alpha %r must be single-channel over viewport %r"
+            % (alpha.shape, self._viewport)
+        )
 
-        if isinstance(color, np.ndarray):
-            self._color_0 = color
-        else:
-            channels = 1 if isinstance(color, float) else len(color)
-            self._color_0 = np.full(
-                (self.height, self.width, channels), color, dtype=np.float32
-            )
+        self._alpha_0 = alpha
+        self._color_0 = color
+        # The channel count is fixed for this compositor's lifetime; every
+        # canvas it hands to or takes from the blend equations is this wide.
+        self._channels = color.shape[2]
 
         self._shape_g = np.zeros((self.height, self.width, 1), dtype=np.float32)
         self._alpha_g = np.zeros((self.height, self.width, 1), dtype=np.float32)
@@ -316,73 +1280,224 @@ class Compositor(object):
         self._alpha = self._alpha_0
 
     def apply(self, layer: Layer, clip_compositing: bool = False) -> None:
-        logger.debug("Compositing %s" % layer)
+        logger.debug("Compositing %s", layer)
 
-        if self._layer_filter is not None and not self._layer_filter(layer):
-            logger.debug("Ignore %s" % layer)
+        if not self._accepts(layer, clip_compositing):
             return
-        if (utils.intersect(self._viewport, layer.bbox) == (0, 0, 0, 0)) and not (
-            isinstance(layer, AdjustmentLayer) or isinstance(layer, GroupMixin)
-        ):
-            logger.debug("Out of viewport %s" % (layer))
-            return
-        if not clip_compositing and layer.clipping:
-            return
-
-        is_adjustment_isolated = None
-        knockout = bool(layer.tagged_blocks.get_data(Tag.KNOCKOUT_SETTING, 0))
         if isinstance(layer, AdjustmentLayer):
+            # An adjustment contributes no source of its own; it rewrites the
+            # canvas that is already there.
             self._apply_adjustment(layer)
             return
-        elif isinstance(layer, GroupMixin):
-            color, shape, alpha, is_adjustment_isolated = self._get_group(
-                layer, knockout
-            )
-        else:
-            color, shape, alpha = self._get_object(layer)
 
-        # Composite clip layers.
+        source = self._resolve_source(layer)
+        source, outer = self._compose_effects(layer, source)
+        if outer and _composites_as_passthrough(source, layer.blend_mode):
+            # A pass-through group is re-applied by interpolating this canvas
+            # against the group's own result, which has no outer effect in it,
+            # so anything painted beside the group first is interpolated away
+            # again. This branch therefore puts the source on before the outer
+            # effects; nothing in the fixture corpus reaches it (#846).
+            self._composite_source(source, layer.blend_mode)
+            self._apply_outer_effects(outer, None)
+            return
+        # ``alpha * fill_opacity`` is what _composite_source() is about to put
+        # on, and it is what the band has to leave room beside. The two agree
+        # only once an effect canvas has folded fill opacity in, which an
+        # outset-only stroke never reaches: it puts nothing inside the layer,
+        # so the canvas is never started and hands its source back untouched,
+        # fill opacity and all.
+        self._apply_outer_effects(outer, source.alpha * source.fill_opacity)
+        self._composite_source(source, layer.blend_mode)
+
+    def _accepts(self, layer: Layer, clip_compositing: bool) -> bool:
+        """Whether this layer contributes to the composite at all.
+
+        The cull measures ``_stroke_reach()`` and not ``layer.bbox``, because
+        a stroke reaches outside the layer: a layer whose own box has cleared
+        the viewport can still paint the part of its stroke that falls back
+        inside, and rejecting it here would lose the stroke along with the
+        layer (#815). ``_stroke_reach()`` rather than ``_paint_bbox()`` because the
+        group half of that measurement is unreachable from here: a group is
+        exempt from the cull, so the box is only ever measured for a layer
+        that has no contents to recurse into. That is also why the
+        exemption is tested first -- the reach is not worth measuring for a
+        layer that is exempt from the test it feeds.
+
+        ``is_group()`` and not ``isinstance(layer, GroupMixin)``, for the
+        reason ``Layer._invalidate_moved_bbox()`` and its neighbours already
+        name: ``GroupMixin`` is a ``runtime_checkable`` protocol whose
+        ``isinstance`` runs ``hasattr(x, "bbox")`` on Python <= 3.11, which
+        recomputes a group's box from its children just to answer a question
+        about the layer's type. The exemption is tested first, so the question
+        is asked of every layer; the two spellings agree on every layer in the
+        fixture corpus and only one of them is cheap.
+        """
+        if self._layer_filter is not None and not self._layer_filter(layer):
+            logger.debug("Ignore %s", layer)
+            return False
+        if not (
+            isinstance(layer, AdjustmentLayer) or layer.is_group()
+        ) and utils.intersect(self._viewport, _stroke_reach(layer)) == (0, 0, 0, 0):
+            logger.debug("Out of viewport %s", layer)
+            return False
+        if not clip_compositing and layer.clipping:
+            # Composited by the layer it clips to, through _apply_clip_layers().
+            return False
+        return True
+
+    def _resolve_source(self, layer: Layer) -> _Source:
+        """Resolve a layer into the operands the blend equations take.
+
+        Reads the layer -- group, object, clip layers, mask, opacity -- and
+        reads this compositor's canvases where a group needs a backdrop to
+        stand on, but writes none of them. ``_composite_source()`` is the write.
+        """
+        knockout = _read_knockout(layer)
+        adjustment_isolated: bool | None = None
+        stroke: tuple[np.ndarray, np.ndarray] | None = None
+        if isinstance(layer, GroupMixin):
+            color, shape, alpha, adjustment_isolated = self._get_group(layer, knockout)
+        else:
+            color, shape, alpha, stroke = self._get_object(layer)
+
         if layer.has_clip_layers():
             color = self._apply_clip_layers(layer, color, alpha)
 
-        # Apply masks and opacity.
-        shape_mask, opacity_mask = self._get_mask(layer)
-        shape_const, opacity_const = self._get_const(layer)
-        mask = shape_mask * opacity_mask * opacity_const
+        shape_mask = self._get_mask(layer)
+        fill_opacity, opacity = self._get_const(layer)
+        mask = shape_mask * opacity
+        # In place: both canvases were built for this layer by the calls above
+        # and are not shared with anything else.
         shape *= shape_mask
         alpha *= mask
+        if stroke is not None:
+            stroke_mask = self._get_mask(layer, clip_to_path=False)
+            # The fill's share and the stroke's are disjoint, so they add.
+            shape = np.minimum(shape + stroke[0] * stroke_mask, 1.0)
+            alpha = np.minimum(alpha + stroke[1] * stroke_mask * opacity, 1.0)
 
-        # TODO: Tag.BLEND_INTERIOR_ELEMENTS controls how inner effects apply.
+        # TODO: Tag.BLEND_INTERIOR_ELEMENTS controls how inner effects apply,
+        # and is unread. There is a second thing riding on it now: the effect
+        # canvas hands back one source, which ``_composite_source()`` applies
+        # with the *layer's* blend mode, so an inner effect goes through that
+        # mode too -- which is what "Blend Interior Effects as Group" asks
+        # for, and Photoshop leaves it off by default. No fixture in the
+        # corpus pairs a non-normal layer blend mode with an effect that
+        # draws, so nothing here has measured which way is right (#846).
 
-        full_passthrough = (
-            layer.blend_mode == BlendMode.PASS_THROUGH
-            and is_adjustment_isolated is False
-        )  # when adjustments are isolated, passthrough composing fallbacks to over composing
-        if full_passthrough:
+        return _Source(
+            color=color,
+            shape=shape,
+            alpha=alpha,
+            mask=mask,
+            shape_mask=shape_mask,
+            fill_opacity=fill_opacity,
+            opacity=opacity,
+            knockout=knockout,
+            adjustment_isolated=adjustment_isolated,
+            knockout_shape=shape,
+        )
+
+    def _composite_source(self, source: _Source, blend_mode: BlendMode) -> None:
+        """Composite a resolved source into this compositor's canvases."""
+        if _composites_as_passthrough(source, blend_mode):
             self._apply_passthrough_source(
-                color, shape * shape_const, alpha * shape_const, mask * shape_const
+                source.color,
+                source.shape * source.fill_opacity,
+                source.alpha * source.fill_opacity,
+                source.mask * source.fill_opacity,
             )
-        else:
-            self._apply_source(
-                color,
-                shape * shape_const,
-                alpha * shape_const,
-                layer.blend_mode,
-                knockout,
-            )
+            return
 
-        # TODO: Apply after effects
-        self._apply_color_overlay(layer, color, shape, alpha)
-        self._apply_pattern_overlay(layer, color, shape, alpha)
-        self._apply_gradient_overlay(layer, color, shape, alpha)
-        if (
-            (self._force and layer.has_vector_mask())
-            or (not layer.has_pixels())
-            and utils.has_fill(layer)
-        ):
-            self._apply_stroke_effect(layer, color, shape_mask, alpha)
-        else:
-            self._apply_stroke_effect(layer, color, shape, alpha)
+        # Fill opacity scales how much the source contributes, but under
+        # knockout the hole is punched by the source's full coverage -- so
+        # ``shape`` stays unscaled there and ``(1 - shape)`` in _apply_source()
+        # removes the whole backdrop.
+        self._apply_source(
+            source.color,
+            source.knockout_shape
+            if source.knockout
+            else source.shape * source.fill_opacity,
+            source.alpha * source.fill_opacity,
+            blend_mode,
+            source.knockout,
+        )
+
+    def _compose_effects(
+        self, layer: Layer, source: _Source
+    ) -> tuple[_Source, list[_OuterEffect]]:
+        """The layer's effects: the inner ones in its source, the outer beside.
+
+        TODO: Drop shadow, inner shadow, the two glows, satin and bevel are
+        not drawn at all, so where they would land is not settled here either.
+        An inner one joins the overlays; a drop shadow and an outer glow are
+        outer effects with an offset and a blur, which is coverage this
+        module's own, unoffset ``_trace_shape()`` does not produce.
+        """
+        canvas = _EffectCanvas(self, source)
+        for effect_name in _OVERLAY_DRAWS:
+            self._add_overlay(layer, effect_name, canvas)
+
+        # A layer drawn from a fill, or force-redrawn from its vector mask, has
+        # no source shape worth tracing -- the stroke follows the mask instead.
+        traces_mask = (self._force and layer.has_vector_mask()) or (
+            not layer.has_pixels() and utils.has_fill(layer)
+        )
+        traced: float | np.ndarray = source.shape
+        if traces_mask:
+            traced = source.shape_mask
+        elif _is_shape_layer(layer) and _readable(layer, "stroke"):
+            traced = self._path_interior(
+                layer, self._viewport, source.shape_mask, source.shape
+            )
+        outer: list[_OuterEffect] = []
+        self._add_stroke_effects(
+            layer,
+            traced,
+            canvas,
+            outer,
+            traces_mask,
+        )
+        return canvas.source(), outer
+
+    def _apply_outer_effects(
+        self, effects: Sequence[_OuterEffect], covered: np.ndarray | None
+    ) -> None:
+        """Composite what paints beside the layer, before the layer goes on.
+
+        An outer band is disjoint from the layer rather than over or under it:
+        a band drawn from the layer's own coverage is complementary to it, so
+        on a pixel the boundary cuts an outset band comes out at ``1 - alpha``
+        and the two together fill the pixel. Their coverages therefore *add*,
+        which is not what compositing one over the other gives.
+
+        Painting the band first and the layer over it is how that addition is
+        reached without merging the two into one source -- which would hand
+        the band the layer's blend mode instead of its own. The layer then
+        attenuates the band by ``1 - covered``, so the band goes on at
+        ``t / (1 - covered)``, and the ``union`` the layer composites with
+        resolves to ``covered + t`` exactly. ``covered`` is the layer's
+        finished alpha, effects inside it included, so it is read after they
+        are composited and not before.
+
+        Where the layer is already opaque there is no room beside it and no
+        band either, which is the ``fill=0`` below: the quotient is 0/0 there
+        rather than large.
+
+        ``covered`` is None where the layer is composited first after all, and
+        the band goes on at what it was drawn at -- see :py:meth:`apply`.
+        """
+        for effect in effects:
+            coverage = effect.coverage
+            if covered is not None:
+                coverage = utils.clip(utils.divide(coverage, 1.0 - covered, fill=0.0))
+            self._apply_source(
+                effect.color,
+                coverage,
+                coverage * effect.opacity,
+                effect.blend_mode,
+            )
 
     def _apply_passthrough_source(
         self,
@@ -391,21 +1506,97 @@ class Compositor(object):
         alpha: np.ndarray,
         mask: float | np.ndarray,
     ) -> None:
-        new_shape = cast(np.ndarray, utils.union(self._shape_g, shape))
+        color = self._fit_source(color)
+        # ``color`` is the group already composited over this backdrop, because a
+        # pass-through group is rendered by a non-isolated sub-compositor seeded
+        # with the backdrop. Re-applying the group therefore means interpolating
+        # between the backdrop and that result by the group opacity/mask, which
+        # must happen in premultiplied space so a transparent (or partially
+        # transparent) backdrop does not bleed its color into the result.
+        #
+        # TODO(#707): knockout is ignored here while _get_group() honors it, so
+        # a knockout pass-through group interpolates against a different backdrop
+        # than it was composited over, and the result varies with nesting depth.
+        color_b = self._color
+        alpha_b = self._alpha
 
-        # this step is used to use over composing when no pixels are found in the backdrop, instead of linear interpolation composing
-        color_support = utils.clip(
-            utils.divide(
-                color * mask * (1.0 - self._shape_g) + self._color * self._shape_g,
-                new_shape,
-            )
-        )
-
-        self._shape_g = new_shape
+        self._shape_g = cast(np.ndarray, utils.union(self._shape_g, shape))
         self._alpha_g = cast(np.ndarray, utils.union(self._alpha_g, alpha))
+        # union(alpha_b, alpha) -- ``alpha`` is the group alpha already scaled by
+        # ``mask``, which is what the premultiplied interpolation resolves to.
         self._alpha = cast(np.ndarray, utils.union(self._alpha_0, self._alpha_g))
 
-        self._color = utils.clip((color * mask + (1 - mask) * color_support))
+        color_t = (1.0 - mask) * alpha_b * color_b + (
+            mask * alpha_b + alpha * (1.0 - alpha_b)
+        ) * color
+        # Where the result is fully transparent the color is arbitrary, so fall
+        # back to the group's own color rather than to white.
+        self._color = utils.clip(utils.divide(color_t, self._alpha, fill=color))
+
+    def _fit_source(self, color: np.ndarray) -> np.ndarray:
+        """Bring a source to this compositor's width, checking the invariant.
+
+        Both doors a source colour comes through call this, so that what a
+        grey means in this document is answered in one place. A single-channel
+        source is legal to hand over -- a pattern carries its own colour mode, and
+        a fill on a multichannel document resolves to one component because
+        there is nothing to convert it into -- but which colour that one channel
+        *is* depends on the document, and only ``widen`` knows (#749).
+
+        Left to the blend arithmetic it was broadcast instead, which is
+        replication under another name: correct for RGB and, on a CMYK
+        document, an over-inked build that is not the grey it came from. The
+        same grey already converted when it arrived as a backdrop, as a clip
+        base or as a pattern overlay, so it depended on incidental layer
+        structure which of the two answers a document got.
+        """
+        self._assert_source_fits(color)
+        return self._widen(color, self._channels)
+
+    def _assert_source_fits(self, color: np.ndarray) -> None:
+        """Check the fixed-width invariant where a source meets the canvases.
+
+        A single-channel source is widened by ``_fit_source()`` above, but a
+        *wider* one would silently widen ``_color`` and leave ``channels``
+        stale. This fires instead, if a caller ever builds a compositor
+        narrower than the sources it will be given.
+        """
+        assert self._color.shape[2] == self._channels, (
+            "canvas widened to %d channels, expected %d"
+            % (self._color.shape[2], self._channels)
+        )
+        assert color.shape[2] in (1, self._channels), (
+            "source has %d channels, expected 1 or %d"
+            % (color.shape[2], self._channels)
+        )
+
+    def _resolve_document_backdrop(self) -> tuple[np.ndarray, np.ndarray] | None:
+        if not self._document_backdrop_resolved:
+            self._document_backdrop_resolved = True
+            if self._document_backdrop_fn is not None:
+                resolved = self._document_backdrop_fn()
+                if resolved is not None:
+                    # The Background layer can be narrower than the document
+                    # it sits in; widen once here so knockout hands back a
+                    # backdrop of this compositor's width like any other.
+                    color_b, alpha_b = resolved
+                    resolved = (self._widen(color_b, self.channels), alpha_b)
+                self._document_backdrop = resolved
+        return self._document_backdrop
+
+    def _knockout_backdrop(self, knockout: Knockout) -> tuple[np.ndarray, np.ndarray]:
+        """The (color, alpha) pair that ``knockout`` knocks out to.
+
+        SHALLOW knocks out to this compositor's own initial backdrop, i.e. the
+        enclosing group's. DEEP knocks out to the document backdrop, which is
+        inherited across pass-through groups and reset at isolation boundaries;
+        where there is none it degrades to the same backdrop as SHALLOW.
+        """
+        if knockout == Knockout.DEEP:
+            resolved = self._resolve_document_backdrop()
+            if resolved is not None:
+                return resolved
+        return self._color_0, self._alpha_0
 
     def _apply_source(
         self,
@@ -413,27 +1604,25 @@ class Compositor(object):
         shape: np.ndarray,
         alpha: np.ndarray,
         blend_mode: BlendMode,
-        knockout: bool = False,
+        knockout: Knockout = Knockout.NONE,
     ) -> None:
-        if self._color_0.shape[2] == 1 and 1 < color.shape[2]:
-            self._color_0 = np.repeat(self._color_0, color.shape[2], axis=2)
-        if self._color.shape[2] == 1 and 1 < color.shape[2]:
-            self._color = np.repeat(self._color, color.shape[2], axis=2)
+        color = self._fit_source(color)
+        knockout_color, knockout_alpha = self._knockout_backdrop(knockout)
 
         self._shape_g = cast(np.ndarray, utils.union(self._shape_g, shape))
         if knockout:
             self._alpha_g = (
-                (1.0 - shape) * self._alpha_g + (shape - alpha) * self._alpha_0 + alpha
+                (1.0 - shape) * self._alpha_g + (shape - alpha) * knockout_alpha + alpha
             )
         else:
             self._alpha_g = cast(np.ndarray, utils.union(self._alpha_g, alpha))
         alpha_previous = self._alpha
         self._alpha = cast(np.ndarray, utils.union(self._alpha_0, self._alpha_g))
 
-        alpha_b = self._alpha_0 if knockout else alpha_previous
-        color_b = self._color_0 if knockout else self._color
+        alpha_b = knockout_alpha if knockout else alpha_previous
+        color_b = knockout_color if knockout else self._color
 
-        blend_fn = BLEND_FUNC.get(blend_mode, normal)
+        blend_fn = get_blend_func(blend_mode, self._color_mode)
         color_t = (shape - alpha) * alpha_b * color_b + alpha * (
             (1.0 - alpha_b) * color + alpha_b * blend_fn(color_b, color)
         )
@@ -456,6 +1645,11 @@ class Compositor(object):
             )
             return
 
+        # No block to apply, so nothing to blend either; a neutral one still blends.
+        if layer._data is None:
+            logger.debug("Adjustment layer without data: %s", layer.kind)
+            return
+
         backdrop_color = self._color
         transformed_color = adjustment_fn(backdrop_color, colormode, layer)
 
@@ -464,13 +1658,20 @@ class Compositor(object):
                 layer, transformed_color, self._alpha
             )
 
-        shape_mask, opacity_mask = self._get_mask(layer)
+        shape_mask = self._get_mask(layer)
         shape_const, opacity_const = self._get_const(layer)
 
         shape = shape_mask * shape_const
-        opacity = shape * opacity_mask * opacity_const
+        opacity = shape * opacity_const
 
-        blend_fn = BLEND_FUNC.get(layer.blend_mode, normal)
+        # Passed for uniformity with _apply_source() rather than for effect.
+        # The guard above returns for every mode whose blending the colour mode
+        # changes, multichannel included -- though it reads the *layer's*
+        # document where this binds the compositor's, which are the same
+        # document on every path the library builds. Where they could differ, a
+        # compositor built by hand, the canvas is this one's and so is the mode
+        # that describes it.
+        blend_fn = get_blend_func(layer.blend_mode, self._color_mode)
         blended = blend_fn(backdrop_color, transformed_color)
 
         if self._adjustment_isolated:
@@ -483,7 +1684,7 @@ class Compositor(object):
             )
 
     def finish(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        return self.color, self.shape, self.alpha
+        return self.result_isolated(), self.shape, self.alpha
 
     @property
     def viewport(self) -> tuple[int, int, int, int]:
@@ -498,12 +1699,46 @@ class Compositor(object):
         return self._viewport[3] - self._viewport[1]
 
     @property
-    def color(self) -> np.ndarray:
+    def channels(self) -> int:
+        """The channel count every canvas in this compositor carries."""
+        return self._channels
+
+    def result_isolated(self) -> np.ndarray:
+        """The composited color with the initial backdrop's contribution removed.
+
+        Correct when the result is handed back as a *source* in its own right
+        -- a group about to be composited by its parent, or the return value of
+        ``composite()`` -- because the caller will composite it over that same
+        backdrop again, and the backdrop must not be counted twice. Paired with
+        ``alpha``, this is straight (un-premultiplied) color: where the group
+        covers nothing, the backdrop it was seeded with is undone.
+
+        The correction is a no-op for the transparent backdrop an isolated
+        group starts from, and grows with ``_alpha_0``.
+        """
         return utils.clip(
             self._color
             + (self._color - self._color_0)
-            * (utils.divide(self._alpha_0, self._alpha_g) - self._alpha_0)
+            * (
+                # A ratio of two alphas rather than a color, so the fill
+                # means "fully opaque" here and not "white": where the group
+                # covers nothing there is no coverage to divide out of.
+                utils.divide(self._alpha_0, self._alpha_g, fill=1.0) - self._alpha_0
+            )
         )
+
+    def result_over_backdrop(self) -> np.ndarray:
+        """The composited color *as it stands over* the initial backdrop.
+
+        Correct when the caller is continuing to composite onto the very
+        backdrop this compositor was seeded with, so that removing it would
+        drop a contribution the caller still wants: the pass-through path,
+        where the sub-compositor was seeded with the parent's own canvas, the
+        clip-layer path, where it was seeded with the base layer's color, and
+        the vector-stroke path, where it was seeded with the color the stroke
+        outlines.
+        """
+        return self._color
 
     @property
     def shape(self) -> np.ndarray:
@@ -514,17 +1749,18 @@ class Compositor(object):
         return self._alpha_g
 
     def _get_group(
-        self, layer: Layer, knockout: bool
+        self, layer: Layer, knockout: Knockout
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, bool]:
         is_passthrough = layer.blend_mode == BlendMode.PASS_THROUGH
         viewport = (
             self._viewport
             if is_passthrough
-            else utils.intersect(self._viewport, layer.bbox)
+            else utils.intersect(
+                self._viewport, _content_bbox(layer, self._cache.content_bboxes)
+            )
         )
         if knockout:
-            color_b = self._color_0
-            alpha_b = self._alpha_0
+            color_b, alpha_b = self._knockout_backdrop(knockout)
         else:
             color_b = self._color
             alpha_b = self._alpha
@@ -533,75 +1769,222 @@ class Compositor(object):
         shape_const, _ = self._get_const(layer)
         isolate_adjustments = shape_const < 1.0 or layer.has_clip_layers()
 
+        # A pass-through group is not an isolation boundary, so deep knockout
+        # inside it still reaches the document backdrop; an isolated group is,
+        # so deep knockout there stops at the group's own backdrop.
+        document_backdrop = None
+        if is_passthrough and self._document_backdrop_fn is not None:
+            parent_viewport = self._viewport
+            resolve_parent = self._resolve_document_backdrop
+
+            def document_backdrop() -> tuple[np.ndarray, np.ndarray] | None:
+                resolved = resolve_parent()
+                if resolved is None:
+                    return None
+                backdrop_color, backdrop_alpha = resolved
+                return (
+                    paste(viewport, parent_viewport, backdrop_color, 1.0),
+                    paste(viewport, parent_viewport, backdrop_alpha),
+                )
+
+        # Only a pass-through group inherits the enclosing alpha; an isolated
+        # one starts transparent, so that paste is skipped rather than made and
+        # thrown away.
+        group_alpha = (
+            paste(viewport, self._viewport, alpha_b)
+            if is_passthrough
+            else np.zeros(
+                (viewport[3] - viewport[1], viewport[2] - viewport[0], 1),
+                dtype=np.float32,
+            )
+        )
         group_compositor = Compositor(
             viewport,
             color=paste(viewport, self._viewport, color_b, 1.0),
-            alpha=paste(viewport, self._viewport, alpha_b),
-            isolated=(not is_passthrough),
+            alpha=group_alpha,
             layer_filter=self._layer_filter,
             force=self._force,
             adjustment_isolated=self._adjustment_isolated or isolate_adjustments,
+            document_backdrop=document_backdrop,
+            widen=self._widen,
+            color_mode=self._color_mode,
+            cache=self._cache,
         )
 
         for sublayer in cast(GroupMixin, layer):
             group_compositor.apply(sublayer)
 
+        # When adjustments are isolated the group is composited as an ordinary
+        # source, so the backdrop it was seeded with has to come back out
+        # first; otherwise it stays in, because _apply_passthrough_source()
+        # interpolates the result against that same backdrop. For a
+        # non-pass-through group the two agree anyway -- it was seeded
+        # transparent, and the correction is a no-op there.
         if isolate_adjustments:
-            color = group_compositor.color  # prevents backdrop color contamination
+            color = group_compositor.result_isolated()
         else:
-            color = group_compositor._color
-        shape = group_compositor._shape_g
-        alpha = group_compositor._alpha_g
+            color = group_compositor.result_over_backdrop()
+        shape = group_compositor.shape
+        alpha = group_compositor.alpha
 
         color = paste(self._viewport, viewport, color, 1.0)
         shape = paste(self._viewport, viewport, shape)
         alpha = paste(self._viewport, viewport, alpha)
 
-        assert color is not None
-        assert shape is not None
-        assert alpha is not None
         return color, shape, alpha, isolate_adjustments
 
-    def _get_object(self, layer: Layer) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Get object attributes."""
-        color, shape = layer.numpy("color"), layer.numpy("shape")
+    def _read_object(self, layer: Layer) -> tuple[np.ndarray | None, np.ndarray | None]:
+        """The layer's own color and coverage, on ``layer.bbox`` and unpasted.
+
+        Split out of :py:meth:`_get_object` so a stroke effect can re-read the
+        coverage on the box it draws on rather than on this compositor's
+        viewport (#804), without restating which of the two sources -- stored
+        pixels or a redrawn fill -- this layer's arrays come from.
+        """
+        color = layer.numpy("color")
+        # The colour array stays live through the shape read, so it is charged
+        # to that read's allocation guard.
+        if color is not None:
+            numpy_io.check_shape_read(layer, numpy_io._backing_bytes(color))
+        shape = layer.numpy("shape")
         if (self._force or not layer.has_pixels()) and utils.has_fill(layer):
             color, shape = paint.create_fill(layer, layer.bbox)
             if shape is None:
                 shape = np.ones((layer.height, layer.width, 1), dtype=np.float32)
+        return color, shape
 
-        if color is None and shape is None:
-            # Empty pixel layer.
-            color = np.ones((self.height, self.width, 1), dtype=np.float32)
-            shape = np.zeros((self.height, self.width, 1), dtype=np.float32)
+    @staticmethod
+    def _place_object_shape(
+        color: np.ndarray | None,
+        shape: np.ndarray | None,
+        bbox: tuple[int, int, int, int],
+        viewport: tuple[int, int, int, int],
+    ) -> np.ndarray:
+        """Place :py:meth:`_read_object`'s coverage on ``viewport``.
+
+        A layer with no shape channel is opaque over its own box and absent
+        outside it; one with neither color nor shape is an empty pixel layer
+        and covers nothing.
+
+        The opaque case covers ``bbox`` and not ``viewport``. The two agree
+        only while ``bbox`` contains ``viewport``, which is the shape a layer
+        with no transparency channel usually has -- a Background spanning the
+        canvas -- and that is why filling the viewport went unnoticed. It is
+        not guaranteed: #815 lets the cull accept a layer whose box misses the
+        viewport entirely, and filling the viewport for one of those paints it
+        opaque end to end.
+
+        Written onto a viewport-sized canvas rather than filled on ``bbox``
+        and pasted, so the allocation is bounded by the viewport. ``bbox`` is
+        the layer's and can be far larger -- the case this widening newly
+        admits is precisely a big layer against a small viewport -- and
+        :py:func:`paste` would have copied only this intersection out of it
+        anyway.
+        """
+        if shape is not None:
+            return paste(viewport, bbox, shape)
+        height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
+        covered = np.zeros((height, width, 1), dtype=np.float32)
+        if color is None:
+            return covered
+        inter = utils.intersect(viewport, bbox)
+        if inter != (0, 0, 0, 0):
+            covered[
+                inter[1] - viewport[1] : inter[3] - viewport[1],
+                inter[0] - viewport[0] : inter[2] - viewport[0],
+                :,
+            ] = 1.0
+        return covered
+
+    def _get_object_shape(
+        self, layer: Layer, viewport: tuple[int, int, int, int]
+    ) -> np.ndarray:
+        """The layer's own coverage on ``viewport``, before its mask."""
+        color, shape = self._read_object(layer)
+        return self._place_object_shape(color, shape, layer.bbox, viewport)
+
+    def _has_redrawn_stroke(self, layer: Layer) -> bool:
+        """Whether this layer's vector stroke is drawn from the path.
+
+        A layer read from stored pixels has its stroke in them already.
+        """
+        return bool(
+            (self._force or not layer.has_pixels())
+            and layer.has_vector_mask()
+            and layer.stroke is not None
+            and layer.stroke.enabled
+        )
+
+    def _get_object(
+        self, layer: Layer
+    ) -> tuple[
+        np.ndarray, np.ndarray, np.ndarray, tuple[np.ndarray, np.ndarray] | None
+    ]:
+        """Get object attributes.
+
+        The last item is the coverage and alpha a redrawn stroke has of its own,
+        where the fill leaves any. Unlike the fill it is not clipped to the
+        vector mask, which a centred or outer stroke reaches past.
+        """
+        color, own_shape = self._read_object(layer)
+        shape = self._place_object_shape(color, own_shape, layer.bbox, self._viewport)
 
         if color is None:
             color = np.ones((self.height, self.width, 1), dtype=np.float32)
         else:
             color = paste(self._viewport, layer.bbox, color, 1.0)
-        if shape is None:
-            shape = np.ones((self.height, self.width, 1), dtype=np.float32)
-        else:
-            shape = paste(self._viewport, layer.bbox, shape)
 
         alpha = shape * 1.0  # Constant factor is always 1.
+        fill_off = utils.is_fill_disabled(layer)
 
-        # TODO: Prepare a test case for clipping mask with stroke to check the order.
-        # Apply stroke if any.
-        if (
-            layer.has_vector_mask()
-            and layer.stroke is not None
-            and layer.stroke.enabled
-        ):
-            color_s, shape_s, alpha_s = self._get_stroke(layer)
-            compositor = Compositor(self._viewport, color, alpha)
-            compositor._apply_source(color_s, shape_s, alpha_s, layer.stroke.blend_mode)
-            color, _, _ = compositor.finish()
+        if self._has_redrawn_stroke(layer):
+            assert layer.stroke is not None
+            path = None if fill_off else vector.draw_vector_mask(layer, self._viewport)
+            color_s, shape_s, alpha_s = self._get_stroke(layer, path)
+            # An inner stroke stays inside the path, so with the fill off the
+            # path's own coverage is the bound.
+            inner = layer.stroke.line_alignment is StrokeAlignment.INNER
+            if fill_off:
+                # No fill to paint onto: the layer is the stroke.
+                if inner:
+                    return color_s, shape * shape_s, alpha * alpha_s, None
+                return color_s, shape * 0.0, alpha * 0.0, (shape_s, alpha_s)
+            # What the fill covers of the path. An inner stroke keeps the
+            # fill's own alpha, so the stroke is painted onto it whole (#883).
+            assert path is not None
+            covered = alpha if inner else alpha * path
+            compositor = Compositor(
+                self._viewport,
+                self._widen(color, self.channels),
+                covered,
+                widen=self._widen,
+                color_mode=self._color_mode,
+            )
+            # Photoshop paints a vector stroke Normal whatever its
+            # ``strokeStyleBlendMode`` says, against the fill and the backdrop alike.
+            compositor._apply_source(color_s, shape_s, alpha_s, BlendMode.NORMAL)
+            # Seeded with the fill's color and alpha, so the result is wanted
+            # as it stands on that seed: the stroke is painted onto the fill it
+            # outlines, and a pixel it covers in part is that much of the
+            # stroke over that fill (#883).
+            color = compositor.result_over_backdrop()
+            # What the fill leaves uncovered -- outside the path, or under a
+            # transparent part of it -- is the stroke's own.
+            uncovered = 1.0 - covered
+            if inner:
+                # The pen's antialiasing can reach past the path; the stroke
+                # has nothing out there.
+                # Alpha scales with coverage so the stroke keeps its opacity.
+                bounded = np.minimum(shape_s, path)
+                alpha_s = alpha_s * np.divide(
+                    bounded, shape_s, out=np.zeros_like(bounded), where=shape_s > 0
+                )
+                shape_s = bounded
+            return color, shape, alpha, (shape_s * uncovered, alpha_s * uncovered)
 
-        assert color is not None
-        assert shape is not None
-        assert alpha is not None
-        return color, shape, alpha
+        if fill_off and (self._force or not layer.has_pixels()):
+            shape, alpha = shape * 0.0, alpha * 0.0
+        return color, shape, alpha, None
 
     def _apply_clip_layers(
         self, layer: Layer, color: np.ndarray, alpha: np.ndarray
@@ -609,25 +1992,94 @@ class Compositor(object):
         # TODO: Consider Tag.BLEND_CLIPPING_ELEMENTS.
         compositor = Compositor(
             self._viewport,
-            color,
+            self._widen(color, self.channels),
             alpha,
             layer_filter=self._layer_filter,
             force=self._force,
+            widen=self._widen,
+            color_mode=self._color_mode,
+            cache=self._cache,
         )
         for clip_layer in layer.clip_layers:
             compositor.apply(clip_layer, clip_compositing=True)
-        return compositor._color
+        # Seeded with ``color`` itself, so the result is wanted as it stands on
+        # that seed -- the clipped layers paint onto the base layer's color.
+        return compositor.result_over_backdrop()
 
-    def _get_mask(self, layer: Layer) -> tuple[float | np.ndarray, float]:
-        """Get mask attributes."""
+    def _mask_repeats_shape(self, layer: Layer) -> bool:
+        """Whether the mask is the stored shape channel again, pixel for pixel.
+
+        Applying it would square the layer's edge coverage (#885). Only shape
+        and fill layers qualify: elsewhere the mask is a user's, even one made
+        from the layer's transparency. Memoized per layer, as stroke tracing
+        asks again.
+        """
+        known = self._mask_repeats.get(id(layer))
+        if known is None:
+            known = self._mask_repeats[id(layer)] = self._compare_mask_to_shape(layer)
+        return known
+
+    def _compare_mask_to_shape(self, layer: Layer) -> bool:
+        mask = layer.mask
+        if (
+            mask is None
+            or not isinstance(layer, (ShapeLayer, FillLayer))
+            or self._force
+            or not layer.has_pixels()
+            or mask.real_flags is not None
+            or mask.bbox != layer.bbox
+        ):
+            return False
+        if mask.parameters and any(
+            d not in (None, 255)
+            for d in (
+                mask.parameters.user_mask_density,
+                mask.parameters.vector_mask_density,
+            )
+        ):
+            return False
+        stored = layer.numpy("mask", real_mask=True)
+        if stored is None:
+            return False
+        # The mask stays live through the shape read, so it is charged to it.
+        numpy_io.check_shape_read(layer, numpy_io._backing_bytes(stored))
+        shape = layer.numpy("shape")
+        return (
+            shape is not None
+            and stored is not None
+            and shape.shape == stored.shape
+            and bool(np.array_equal(shape, stored))
+        )
+
+    def _get_mask(
+        self,
+        layer: Layer,
+        viewport: tuple[int, int, int, int] | None = None,
+        clip_to_path: bool = True,
+    ) -> float | np.ndarray:
+        """The layer's mask coverage, with any mask density already folded in.
+
+        ``viewport`` defaults to this compositor's; a stroke effect passes the
+        box it draws on, which may reach outside it (#804). ``clip_to_path=False``
+        leaves the vector mask out: a stroke is not clipped to its own path.
+
+        The scalar 1.0 default is an allocation-avoidance path, not an API
+        convenience like the backdrop spellings: most layers have no mask, and
+        materializing an all-ones canvas for each of them is pure waste.
+        """
+        if viewport is None:
+            viewport = self._viewport
         shape: float | np.ndarray = 1.0
-        opacity: float = 1.0
-        if layer.mask is not None and not layer.mask.disabled:
+        if (
+            layer.mask is not None
+            and not layer.mask.disabled
+            and not self._mask_repeats_shape(layer)
+        ):
             # TODO: When force, ignore real mask.
             mask = layer.numpy("mask", real_mask=not self._force)
             if mask is not None:
                 shape = paste(
-                    self._viewport,
+                    viewport,
                     layer.mask.bbox,
                     mask,
                     layer.mask.background_color / 255.0,
@@ -639,11 +2091,12 @@ class Compositor(object):
                 if density is None:
                     density = 255
 
-                density = float(density) / 255.0
-                shape = density * shape + (1 - density)
+                share = float(density) / 255.0
+                shape = share * shape + (1 - share)
 
         if (
-            layer.vector_mask is not None
+            clip_to_path
+            and layer.vector_mask is not None
             and not layer.vector_mask.disabled
             and (
                 self._force
@@ -655,9 +2108,7 @@ class Compositor(object):
                 )
             )
         ):
-            shape_v = vector.draw_vector_mask(layer)
-            shape_v = paste(self._viewport, layer._psd.viewbox, shape_v)
-            shape *= shape_v
+            shape *= vector.draw_vector_mask(layer, viewport)
 
             if layer.mask is not None and layer.mask.parameters:
                 density_v = layer.mask.parameters.vector_mask_density
@@ -668,103 +2119,322 @@ class Compositor(object):
                 d = float(density_v) / 255.0
                 shape = d * shape + (1.0 - d)
 
-        assert shape is not None
-        assert opacity is not None
-        return shape, opacity
+        return shape
 
     def _get_const(self, layer: Layer) -> tuple[float, float]:
         """Get constant attributes."""
         shape = layer.tagged_blocks.get_data(Tag.BLEND_FILL_OPACITY, 255) / 255.0
         opacity = layer.opacity / 255.0
-        assert shape is not None
-        assert opacity is not None
         return float(shape), opacity
 
-    def _get_stroke(self, layer: Layer) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Get stroke source."""
+    def _get_stroke(
+        self, layer: Layer, path: np.ndarray | None = None
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Get stroke source.
+
+        The fill is drawn on the layer's box grown by the stroke width and
+        pasted onto this compositor's viewport. The coverage is rasterized
+        straight onto that viewport: a path is placed in document coordinates,
+        so asking for the viewport is what puts the stroke where the fill
+        already is, whether or not the viewport happens to share the
+        document's dimensions (#807).
+        """
         if layer.stroke is None:
             raise ValueError("Layer does not have stroke data.")
         desc = layer.stroke._data
-        width = int(desc.get("strokeStyleLineWidth", 1.0))
-        viewport = cast(
+        try:
+            width = int(desc.get("strokeStyleLineWidth", 1.0))
+        except OverflowError as error:
+            raise ValueError("Stroke width is not finite.") from error
+        fill_bbox = cast(
             tuple[int, int, int, int],
             tuple(x + d for x, d in zip(layer.bbox, (-width, -width, width, width))),
         )
+        # The width is the file's, and it grows the box the fill is drawn on.
+        if fill_bbox[0] < fill_bbox[2] and fill_bbox[1] < fill_bbox[3]:
+            check_growth(
+                (fill_bbox[2] - fill_bbox[0]) * (fill_bbox[3] - fill_bbox[1]),
+                max(_pixels(self._viewport), _pixels(layer.bbox)),
+                _STROKE_GROWTH,
+            )
+            check_pixel_size(
+                fill_bbox[2] - fill_bbox[0],
+                fill_bbox[3] - fill_bbox[1],
+                self.channels,
+                layer._psd._max_alloc_bytes,
+                estimated_bytes=(fill_bbox[2] - fill_bbox[0])
+                * (fill_bbox[3] - fill_bbox[1])
+                * (
+                    paint.GRADIENT_FILL_BYTES
+                    if desc.get("strokeStyleContent").classID == b"gradientLayer"
+                    else self.channels * 4
+                ),
+                warn=False,
+            )
         color, _ = paint.create_fill_desc(
-            layer, desc.get("strokeStyleContent"), viewport
+            layer, desc.get("strokeStyleContent"), fill_bbox
         )
         if color is None:
             raise ValueError(
                 "Unsupported stroke fill descriptor in layer strokeStyleContent"
             )
-        color = paste(self._viewport, viewport, color, 1.0)
-        shape = vector.draw_stroke(layer)
-        if shape.shape[0] != self.height or shape.shape[1] != self.width:
-            bbox = (0, 0, shape.shape[1], shape.shape[0])
-            shape = paste(self._viewport, bbox, shape)
+        color = paste(self._viewport, fill_bbox, color, 1.0)
+        shape = vector.draw_stroke(layer, self._viewport, path)
         opacity = desc.get("strokeStyleOpacity", 100.0) / 100.0
         alpha = shape * opacity
         return color, shape, alpha
 
-    def _apply_color_overlay(self, layer, color, shape, alpha):
-        for effect in layer.effects.find("coloroverlay"):
-            color, shape_e = paint.draw_solid_color_fill(
-                layer.bbox, layer._psd.color_mode, effect.value
-            )
-            color = paste(self._viewport, layer.bbox, color, 1.0)
+    def _add_overlay(
+        self, layer: Layer, effect_name: str, canvas: _EffectCanvas
+    ) -> None:
+        """Composite every overlay effect of one kind into the layer.
+
+        The three overlay kinds differ only in what they draw, which is what
+        ``_OVERLAY_DRAWS`` holds; the coverage arithmetic below is shared.
+
+        An overlay covers the layer's whole region, so what it hands the
+        canvas is its own mask and opacity alone -- the layer's coverage is
+        what the canvas already measures a share of.
+
+        An effect is skipped twice over: when its draw declines, which the
+        pattern and the gradient do for a fill they cannot make sense of, and
+        when reading its descriptor raises, which is the same degradation one
+        step earlier (#826).
+        """
+        draw = _OVERLAY_DRAWS[effect_name]
+        for effect in _readable(layer, effect_name):
+            # The draw is guarded and the coverage arithmetic below is not,
+            # which keeps the shared half of this loop -- identical for all
+            # three kinds -- out of the clause, so a fault there still
+            # surfaces. The draw is not purely a descriptor read: a pattern
+            # fill decodes the pattern's own pixels, and a file whose pattern
+            # data is corrupt loses the effect here rather than the document.
+            try:
+                fill, shape_e = draw(layer, effect.descriptor, self.channels)
+                opacity = effect.opacity / 100.0
+                blend_mode = effect.blend_mode
+            except _UNREADABLE as error:
+                logger.debug(
+                    "Skipping an unreadable %s effect in %s: %s",
+                    effect_name,
+                    layer,
+                    error,
+                )
+                continue
+            if fill is None:
+                logger.debug("Skipping undrawable %s effect in %s", effect_name, layer)
+                continue
+            color = paste(self._viewport, layer.bbox, fill, 1.0)
             if shape_e is None:
                 shape_e = np.ones((self.height, self.width, 1), dtype=np.float32)
             else:
                 shape_e = paste(self._viewport, layer.bbox, shape_e)
-            opacity = effect.opacity / 100.0
-            self._apply_source(
-                color, shape * shape_e, alpha * shape_e * opacity, effect.blend_mode
-            )
+            canvas.over(shape_e, color, blend_mode, opacity)
 
-    def _apply_pattern_overlay(self, layer, color, shape, alpha):
-        channels = color.shape[-1]
-        for effect in layer.effects.find("patternoverlay"):
-            color, shape_e = paint.draw_pattern_fill(
-                layer.bbox, layer._psd, effect.value
-            )
-            if color.shape[-1] == 1 and color.shape[-1] < channels:
-                # Pattern has different # color channels here.
-                color = np.full([layer.height, layer.width, channels], color)
-            assert color.shape[-1] == channels, "Inconsistent pattern channels."
+    def _trace_shape(
+        self,
+        layer: Layer,
+        viewport: tuple[int, int, int, int],
+        shape: np.ndarray,
+        traces_mask: bool,
+    ) -> np.ndarray:
+        """The layer's own coverage on ``viewport``, read past the canvas edge.
 
-            color = paste(self._viewport, layer.bbox, color, 1.0)
-            if shape_e is None:
-                shape_e = np.ones((self.height, self.width, 1), dtype=np.float32)
-            else:
-                shape_e = paste(self._viewport, layer.bbox, shape_e)
-            opacity = effect.opacity / 100.0
-            self._apply_source(
-                color, shape * shape_e, alpha * shape_e * opacity, effect.blend_mode
-            )
+        ``shape`` is that same coverage on this compositor's viewport, and is
+        the answer wherever ``viewport`` stays inside it. Where it does not,
+        paste() zero-filled the rest, and a stroke traced from that copy
+        follows the viewport edge as if it were the layer's own -- so the
+        coverage is read again, on the box actually asked for (#804).
 
-    def _apply_gradient_overlay(self, layer, color, shape, alpha):
-        for effect in layer.effects.find("gradientoverlay"):
-            color, shape_e = paint.draw_gradient_fill(
-                layer.bbox, layer._psd.color_mode, effect.value
-            )
-            color = paste(self._viewport, layer.bbox, color, 1.0)
-            if shape_e is None:
-                shape_e = np.ones((self.height, self.width, 1), dtype=np.float32)
-            else:
-                shape_e = paste(self._viewport, layer.bbox, shape_e)
-            opacity = effect.opacity / 100.0
-            self._apply_source(
-                color, shape * shape_e, alpha * shape_e * opacity, effect.blend_mode
-            )
+        A group has no stored coverage to re-read, so its contents are
+        composited a second time on that box instead -- unless its stroke
+        traces its mask, which is the one branch below that never consults a
+        layer's contents at all (#808).
+        """
+        x0, y0, x1, y1 = viewport
+        vx0, vy0, vx1, vy1 = self._viewport
+        if vx0 <= x0 and vy0 <= y0 and x1 <= vx1 and y1 <= vy1:
+            return paste(viewport, self._viewport, shape)
 
-    def _apply_stroke_effect(self, layer, color, shape, alpha):
-        for effect in layer.effects.find("stroke"):
-            # Effect must happen at the layer viewport.
-            shape_in_bbox = paste(layer.bbox, self._viewport, shape)
-            color, shape_in_bbox = draw_stroke_effect(
-                layer.bbox, shape_in_bbox, effect.value, layer._psd
+        # TODO: a group whose stroke traces its mask -- ``force`` with a vector
+        # mask on the group -- gets the mask outline alone, which for a group
+        # bears no relation to where its contents are. Pre-existing, unreachable
+        # in the corpus (the two groups it applies to carry no stroke effect),
+        # and the same inside the viewport as outside, so this change leaves it
+        # be; ``_get_group_shape()`` is what a fix would multiply in.
+        traced = mask = self._get_mask(layer, viewport)
+        if not traces_mask:
+            # Reading a group as an object finds no pixel data and no fill, so
+            # the only route to its coverage outside this viewport is to
+            # composite its contents again on the box asked for.
+            own = (
+                self._get_group_shape(layer, viewport)
+                if isinstance(layer, GroupMixin)
+                else self._get_object_shape(layer, viewport)
             )
-            color = paste(self._viewport, layer.bbox, color)
-            shape = paste(self._viewport, layer.bbox, shape_in_bbox)
-            opacity = effect.opacity / 100.0
-            self._apply_source(color, shape, shape * opacity, effect.blend_mode)
+            traced = own * mask
+            if _is_shape_layer(layer):
+                traced = self._path_interior(layer, viewport, mask, traced)
+        if not isinstance(traced, np.ndarray):
+            # An unmasked layer whose stroke traces its mask: _get_mask()
+            # yields a bare 1.0, and draw_stroke_effect() needs a canvas.
+            traced = np.full((y1 - y0, x1 - x0, 1), traced, dtype=np.float32)
+        return traced
+
+    @staticmethod
+    def _path_interior(
+        layer: Layer,
+        viewport: tuple[int, int, int, int],
+        mask: float | np.ndarray,
+        stored: np.ndarray,
+    ) -> np.ndarray:
+        """``stored`` coverage, with the path's interior held at ``mask``.
+
+        Photoshop strokes the path, so a fill that fades inside it does not
+        thin the stroke (#886). The path's own edge is left to the stored
+        coverage: Photoshop's rasterizer does not agree with the exact area
+        that :py:func:`vector.draw_vector_mask` computes there.
+        """
+        inside = vector.draw_vector_mask(layer, viewport) >= 1.0 - _PATH_FULL
+        return np.where(inside, mask, stored).astype(np.float32, copy=False)
+
+    def _get_group_shape(
+        self, layer: Layer, viewport: tuple[int, int, int, int]
+    ) -> np.ndarray:
+        """The group's own coverage on ``viewport``, composited a second time.
+
+        The object path re-reads a layer's stored pixels or redraws its fill.
+        A group has neither -- its coverage *is* a composite -- so the only way
+        to have it on a box wider than this compositor's viewport is to
+        composite its children again on that box (#808).
+
+        The box is narrowed the way :py:meth:`_get_group` narrows it, and for
+        the same reason: ``_content_bbox()`` returns an ``Artboard``'s frame
+        verbatim, and intersecting with it is how the artboard clip is
+        implemented, so a trace that skipped it would follow the children's
+        coverage out past the artboard rectangle. The pass-through branch is
+        not symmetry for its own sake either -- :py:meth:`_get_group` gives a
+        pass-through group this compositor's viewport untouched, so a
+        pass-through artboard gets no frame clip today, and the trace has to
+        reproduce that rather than improve on it.
+
+        Narrowing is also what bounds the cost. For an isolated group ``inner``
+        follows the contents rather than the stroke's margin, which is read
+        unvalidated from the descriptor, so a forged size grows the ``paste()``
+        back -- which ``draw_stroke_effect()`` already needed -- and not the
+        composite. A pass-through group has no such bound and does pay for the
+        whole box.
+
+        The backdrop is transparent and carries neither knockout nor the
+        document backdrop, and ``adjustment_isolated`` and the document
+        backdrop function are left off for the same reason: ``shape``
+        accumulates into
+        ``_shape_g``, which starts at zero and is only ever unioned into, so it
+        cannot read a backdrop. Effects, on the other hand, must run -- an
+        overlay or an inset stroke reaches that canvas in the source its layer
+        is composited from and an outset one beside it, which
+        ``group-clips-child-stroke.psd`` measures.
+        """
+        inner = viewport
+        if layer.blend_mode != BlendMode.PASS_THROUGH:
+            inner = utils.intersect(
+                viewport, _content_bbox(layer, self._cache.content_bboxes)
+            )
+        height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
+        if inner == (0, 0, 0, 0):
+            return np.zeros((height, width, 1), dtype=np.float32)
+
+        key = (id(layer), inner)
+        shape = self._cache.group_shapes.get(key)
+        if shape is None:
+            inner_h, inner_w = inner[3] - inner[1], inner[2] - inner[0]
+            group_compositor = Compositor(
+                inner,
+                np.ones((inner_h, inner_w, self._channels), dtype=np.float32),
+                np.zeros((inner_h, inner_w, 1), dtype=np.float32),
+                layer_filter=self._layer_filter,
+                force=self._force,
+                widen=self._widen,
+                color_mode=self._color_mode,
+                cache=self._cache,
+            )
+            for sublayer in cast(GroupMixin, layer):
+                group_compositor.apply(sublayer)
+            shape = group_compositor.shape
+            self._cache.group_shapes[key] = shape
+        return paste(viewport, inner, shape)
+
+    def _add_stroke_effects(
+        self,
+        layer: Layer,
+        shape: float | np.ndarray,
+        canvas: _EffectCanvas,
+        outer: list[_OuterEffect],
+        traces_mask: bool,
+    ) -> None:
+        # ``shape`` is the layer's coverage on this compositor's viewport, or
+        # -- when the stroke traces the mask -- _get_mask()'s output, which is
+        # a bare 1.0 for a layer with no mask. _trace_shape() hands that to
+        # paste(), which needs something with a channel axis. broadcast_to
+        # gives a stride-0 view rather than a full canvas, which is all
+        # paste() requires since it only reads from it.
+        if not isinstance(shape, np.ndarray):
+            shape = np.broadcast_to(np.float32(shape), (self.height, self.width, 1))
+        # Photoshop traces every stroke from the layer, so ``shape`` stays the
+        # layer's coverage for the whole loop and each effect's own mask gets a
+        # separate name. Assigning the mask back over ``shape`` made the second
+        # stroke outline the first stroke rather than the layer (#798).
+        # Each effect is guarded on its own, so a layer carrying two strokes
+        # still draws the one it can read (#798). The two guards are kept
+        # apart so that _trace_shape() sits outside both: for a group it
+        # composites the whole subtree, and a fault raised down there is not
+        # this effect being unreadable. What is inside the second guard is the
+        # drawing as well as the reading, so a stroke whose pattern data will
+        # not decode is lost here too, rather than taking the document.
+        for effect in _readable(layer, "stroke"):
+            try:
+                # Effect must happen at the layer viewport, grown so an outset
+                # or centered stroke has room for the part of itself that
+                # falls outside the layer (#792).
+                bbox = stroke_bbox(
+                    layer.bbox, effect.descriptor, layer._psd._max_alloc_bytes
+                )
+            except _UNREADABLE as error:
+                logger.debug("Cannot measure a stroke effect of %s: %s", layer, error)
+                continue
+            if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
+                continue
+            shape_in_bbox = self._trace_shape(layer, bbox, shape, traces_mask)
+            try:
+                color, mask_in_bbox, inside_in_bbox = draw_stroke_effect_split(
+                    bbox, shape_in_bbox, effect.descriptor, layer._psd
+                )
+                opacity = effect.opacity / 100.0
+                blend_mode = effect.blend_mode
+            except _UNREADABLE as error:
+                logger.debug("Cannot draw a stroke effect of %s: %s", layer, error)
+                continue
+            color = paste(self._viewport, bbox, color)
+            mask = paste(self._viewport, bbox, mask_in_bbox)
+            inside = paste(self._viewport, bbox, inside_in_bbox)
+            # The two halves of the band go to different places, and an inset
+            # or outset stroke is all of one of them -- only a centered stroke
+            # is split. The rest of the band, not ``mask - inside``, so that
+            # the two are exactly what was drawn however they divide.
+            overlap = np.minimum(inside, canvas.region)
+            canvas.over(canvas.within(overlap), color, blend_mode, opacity)
+            # ``inside`` is inside the boundary the stroke was traced from,
+            # which is the layer's own coverage only while the two are the
+            # same shape. A stroke that traces the *mask* -- a fill layer's,
+            # or any layer's under ``force`` -- can land where the layer has
+            # no paint to knock out, and that part of it paints beside the
+            # layer like the outer half does rather than being dropped.
+            #
+            # Clamped to what the layer's region leaves of the pixel: the two
+            # are disjoint by construction, and a band that overran would
+            # otherwise carry the pixel past opaque.
+            beside = np.minimum(mask - overlap, 1.0 - canvas.region)
+            if beside.any():
+                outer.append(
+                    _OuterEffect(color, beside, opacity * canvas.opacity, blend_mode)
+                )

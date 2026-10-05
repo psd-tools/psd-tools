@@ -1,18 +1,49 @@
+import array
 import io
 from typing import Any
 
 import pytest
 
 from psd_tools.psd.bin_utils import (
+    be_array_to_bytes,
     pack,
     read_length_block,
     read_pascal_string,
     read_unicode_string,
     unpack,
+    write_be_array,
     write_length_block,
     write_pascal_string,
     write_unicode_string,
 )
+
+
+@pytest.mark.parametrize(
+    "fmt, values, expected",
+    [
+        ("B", [0x12, 0x34], b"\x12\x34"),
+        ("H", [0x1234, 0xABCD], b"\x12\x34\xab\xcd"),
+        ("I", [0x12345678], b"\x12\x34\x56\x78"),
+        ("H", [], b""),
+    ],
+)
+def test_be_array_serialization_preserves_input(
+    fmt: str, values: list[int], expected: bytes
+) -> None:
+    data = array.array(fmt, values)
+    for _ in range(2):
+        assert be_array_to_bytes(data) == expected
+        assert data.tolist() == values
+
+
+def test_write_be_array_preserves_input() -> None:
+    data = array.array("H", [0x1234, 0xABCD])
+    expected = b"\x12\x34\xab\xcd"
+    with io.BytesIO() as fp:
+        for _ in range(2):
+            assert write_be_array(fp, data) == len(expected)
+            assert data.tolist() == [0x1234, 0xABCD]
+        assert fp.getvalue() == expected * 2
 
 
 @pytest.mark.parametrize(

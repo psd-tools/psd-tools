@@ -12,6 +12,7 @@ from psd_tools.api.typesetting import (
     TextRun,
     TypeSetting,
 )
+from psd_tools.psd.engine_data import Float, Integer, List, String
 from psd_tools.constants import FontBaseline, FontCaps, Justification
 
 from ..utils import full_name
@@ -258,3 +259,41 @@ class TestTypeLayerIntegration:
         assert type_layer.resource_dict
         assert type_layer.document_resources
         assert type_layer.text == "A"
+
+
+class TestDegradedValues:
+    def test_an_unreadable_run_value_falls_back_to_the_default_style(self) -> None:
+        style = CharacterStyle({"FontSize": String("x")}, (), {"FontSize": Float(9.0)})
+        assert style.font_size == 9.0
+
+    def test_an_unreadable_value_reads_as_the_fallback(self) -> None:
+        style = CharacterStyle({"Tracking": String("x"), "FillFlag": String("y")}, ())
+        assert style.tracking == 0
+        assert style.fill_flag is True
+        assert style.font is None
+
+    def test_an_unreadable_font_index_has_no_font(self) -> None:
+        assert CharacterStyle({"Font": String("x")}, ()).font is None
+
+    def test_an_unreadable_font_name_is_empty(self) -> None:
+        font = FontInfo(0, {"Name": Integer(1), "FontType": String("x")})  # type: ignore[arg-type]
+        assert font.postscript_name == ""
+        assert font.font_type == 0
+
+    def test_a_malformed_spacing_triple_keeps_the_default_parts(self) -> None:
+        style = ParagraphStyle({"WordSpacing": List([Float(0.5), String("x")])})  # type: ignore[list-item]
+        assert style.word_spacing == (0.5, 1.0, 2.0)
+        assert style.letter_spacing == (0.0, 0.0, 0.05)
+
+    def test_an_unreadable_colour_component_gives_no_colour(self) -> None:
+        color = {"Values": List([Float(1.0), String("x")])}  # type: ignore[list-item]
+        assert CharacterStyle({"FillColor": color}, ()).fill_color is None
+
+    def test_a_malformed_run_length_array_is_read_as_absent(self) -> None:
+        engine = {
+            "StyleRun": {"RunLengthArray": [Integer(1), String("x")], "RunArray": []},
+            "ParagraphRun": {"RunLengthArray": [String("x")], "RunArray": [{}]},
+        }
+        ts = TypeSetting("ab", engine, {})  # type: ignore[arg-type]
+        assert [(r.start, r.end) for r in ts.runs] == [(0, 2)]
+        assert [(p.start, p.end) for p in ts.paragraphs] == [(0, 2)]

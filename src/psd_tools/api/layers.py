@@ -83,12 +83,16 @@ and exposed through the ``kind`` property for easy type checking.
 """
 
 import logging
+import operator
+import warnings
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Collection,
     Iterable,
     Iterator,
+    Literal,
     Protocol,
     Sequence,
     TypeVar,
@@ -106,7 +110,8 @@ from PIL import Image, ImageChops
 
 import psd_tools.psd.engine_data as engine_data
 from psd_tools.api import numpy_io, pil_io
-from psd_tools.color_convert import rgb_to_grayscale
+from psd_tools.color_convert import LAB_NEUTRAL_CHROMA, rgb_to_grayscale
+from psd_tools.compression import PSDDecompressionWarning
 from psd_tools.api.effects import Effects
 from psd_tools.api.mask import Mask
 from psd_tools.api.protocols import GroupMixinProtocol, LayerProtocol, PSDProtocol
@@ -126,6 +131,7 @@ from psd_tools.constants import (
     TextType,
 )
 from psd_tools.psd.descriptor import DescriptorBlock
+from psd_tools.psd.header import FileHeader
 from psd_tools.psd.layer_and_mask import (
     ChannelData,
     ChannelDataList,
@@ -145,6 +151,24 @@ logger = logging.getLogger(__name__)
 
 
 TGroupMixin = TypeVar("TGroupMixin", bound="GroupMixin")
+
+
+def _compression_for(compression: Compression, depth: int) -> Compression:
+    """The codec to store a channel with, given the document's *depth*.
+
+    ZIP with prediction delta-encodes whole samples, and a 1-bit channel has
+    none: ``encode_prediction()`` raises on it, and ``decompress()`` turns the
+    matching read into a black channel and a warning. So a bitmap document
+    takes plain ZIP instead of a codec it cannot express. Every other pairing
+    of the four codecs with depths 1, 8, 16 and 32 round-trips as asked.
+
+    The choice is recorded in the channel's own ``compression`` field, so a
+    reader is told what it was given and nothing has to infer it.
+    """
+    if depth == 1 and compression == Compression.ZIP_WITH_PREDICTION:
+        logger.debug("ZIP with prediction is not defined at depth 1; using ZIP.")
+        return Compression.ZIP
+    return compression
 
 
 class Layer(LayerProtocol):
@@ -186,8 +210,10 @@ class Layer(LayerProtocol):
     @property
     def kind(self) -> str:
         """
-        Kind of this layer, such as group, pixel, shape, type, smartobject,
-        or psdimage. Class name without `layer` suffix.
+        Kind of this layer.
+
+        One of group, pixel, shape, type, smartobject, or psdimage -- the
+        class name without its `layer` suffix.
 
         :return: `str`
         """
@@ -208,8 +234,15 @@ class Layer(LayerProtocol):
         """
         if isinstance(self, (GroupMixin, ShapeLayer)):
             self._bbox: tuple[int, int, int, int] | None = None
-        if isinstance(self.parent, (Group, Artboard)):
-            self.parent._invalidate_bbox()
+        # Every parent is a container that caches a box of its own, and the
+        # document is one of them: naming ``Group`` and ``Artboard`` here
+        # stopped the walk one level short of
+        # :py:class:`~psd_tools.api.psd_image.PSDImage`, which is a
+        # ``GroupMixin`` but not a ``Layer``, and left the document's box stale
+        # after a top-level child changed (#814).
+        parent = self.parent
+        if parent is not None:
+            parent._invalidate_bbox()
 
     @property
     def visible(self) -> bool:
@@ -222,10 +255,23 @@ class Layer(LayerProtocol):
 
     @visible.setter
     def visible(self, value: bool) -> None:
-        if self.visible != value and self._psd is not None:
-            self._psd._mark_updated()
+        value = bool(value)
+        if self.visible == value:
+            return
+        self._psd.mark_updated()
+        self._record.flags.visible = value
+        # Up: every ancestor's union gains or loses this layer.
         self._invalidate_bbox()
-        self._record.flags.visible = bool(value)
+        # Down: ``Group.extract_bbox()`` filters children through
+        # ``is_visible()``, which walks *up* the parent chain, so this flag is
+        # an input to the box of every container *beneath* this layer as well
+        # (#819). ``Group`` rather than ``GroupMixin``: the latter is a
+        # ``runtime_checkable`` protocol
+        # whose ``isinstance`` runs ``hasattr(x, "bbox")`` on Python <= 3.11,
+        # recomputing this subtree's boxes a line before the walk drops them.
+        # The answer is the same either way; the concrete check skips the work.
+        if isinstance(self, Group):
+            self._invalidate_subtree_bbox()
 
     def is_visible(self) -> bool:
         """
@@ -252,8 +298,8 @@ class Layer(LayerProtocol):
     def opacity(self, value: int) -> None:
         if not (0 <= value <= 255):
             raise ValueError(f"Opacity must be in range [0, 255], got {value}")
-        if self.opacity != value and self._psd is not None:
-            self._psd._mark_updated()
+        if self.opacity != value:
+            self._psd.mark_updated()
         self._record.opacity = int(value)
 
     @property
@@ -310,7 +356,7 @@ class Layer(LayerProtocol):
             value = value.encode("ascii")
         blend_mode = BlendMode(value)
         if self.blend_mode != blend_mode:
-            self._psd._mark_updated()
+            self._psd.mark_updated()
         self._record.blend_mode = blend_mode
 
     @property
@@ -325,7 +371,7 @@ class Layer(LayerProtocol):
     @left.setter
     def left(self, value: int) -> None:
         if self.left != value:
-            self._psd._mark_updated()
+            self._psd.mark_updated()
         self._invalidate_bbox()
         w = self.width
         self._record.left = int(value)
@@ -342,8 +388,8 @@ class Layer(LayerProtocol):
 
     @top.setter
     def top(self, value: int) -> None:
-        if self.top != value and self._psd is not None:
-            self._psd._mark_updated()
+        if self.top != value:
+            self._psd.mark_updated()
         self._invalidate_bbox()
         h = self.height
         self._record.top = int(value)
@@ -418,8 +464,9 @@ class Layer(LayerProtocol):
 
     def has_pixels(self) -> bool:
         """
-        Returns True if the layer has associated pixels. When this is True,
-        `topil` method returns :py:class:`PIL.Image.Image`.
+        Whether the layer has associated pixels.
+
+        When True, the `topil` method returns :py:class:`PIL.Image.Image`.
 
         :return: `bool`
         """
@@ -456,7 +503,11 @@ class Layer(LayerProtocol):
 
         If the image has an alpha channel the alpha channel is used as the
         mask data; otherwise the image is converted to grayscale (``L`` mode).
-        Layer masks in PSD are always 8-bit regardless of document depth.
+
+        A mask is stored at the **document's** depth, as every other channel
+        is, and :py:func:`~psd_tools.api.numpy_io.get_layer_data` reads a mask
+        channel at ``layer._psd.depth`` like any other. Writing one at a fixed
+        8 bits would give a 16-bit document half the rows it asked for (#867).
         """
         if "A" in image.getbands():
             mask_pixels = image.getchannel("A")
@@ -464,11 +515,110 @@ class Layer(LayerProtocol):
             mask_pixels = image.convert("L")
 
         width, height = mask_pixels.size
-        version = self._psd._record.header.version
+        header = self._psd._record.header
+        depth = cast(Literal[1, 8, 16, 32], header.depth)
 
-        channel_data = ChannelData(compression)
-        channel_data.set_data(mask_pixels.tobytes(), width, height, 8, version)
+        channel_data = ChannelData(_compression_for(compression, depth))
+        channel_data.set_data(
+            pil_io.encode_channel(mask_pixels, depth),
+            width,
+            height,
+            depth,
+            header.version,
+        )
         return channel_data, width, height
+
+    def _channel_geometry(self, channel_id: int) -> tuple[int, int] | None:
+        """The ``(width, height)`` a stored channel was compressed against.
+
+        A mask channel carries its own rectangle, and the user mask's is not
+        the real mask's. :py:attr:`Mask.width` cannot answer for both: it
+        reports the real rectangle whenever :py:meth:`Mask.has_real` says the
+        real mask's parameters are applied, which is a different question from
+        whether the real bounds exist -- ``vector-mask2.psd`` has a layer with
+        real bounds and ``has_real()`` false.
+
+        ``None`` where the rectangle is missing -- a mask channel with no mask
+        block, or a real-mask channel whose ``real_*`` bounds are unset, both
+        of which the format permits and neither of which can be decompressed.
+        """
+        if channel_id not in (
+            ChannelID.USER_LAYER_MASK,
+            ChannelID.REAL_USER_LAYER_MASK,
+        ):
+            return self.width, self.height
+        mask = self._record.mask_data
+        if mask is None:
+            return None
+        if channel_id == ChannelID.USER_LAYER_MASK:
+            return mask.right - mask.left, mask.bottom - mask.top
+        left, top = mask.real_left, mask.real_top
+        right, bottom = mask.real_right, mask.real_bottom
+        if left is None or top is None or right is None or bottom is None:
+            return None
+        return right - left, bottom - top
+
+    def _reencode_channels(self, source: FileHeader, dest: FileHeader) -> None:
+        """Repack every stored channel from *source*'s packing into *dest*'s.
+
+        Depth and file version are the two things about a document that decide
+        how a channel's bytes are laid out without changing what they mean:
+        depth sets the bytes per sample, and version sets the width of the
+        row-length words an RLE channel is prefixed with. A layer moved into a
+        document that differs in either carries bytes the destination's reader
+        cannot make sense of -- it reads half the rows it asked for, or reads
+        the row table as data -- so the channels are unpacked at the source's
+        numbers and packed again at the destination's.
+
+        The record is not rebuilt -- only each channel's declared length is
+        touched. That is the point: the values are unchanged and only their
+        packing moves, so the layer's opacity, blend mode, mask and tagged
+        blocks have no reason to be rebuilt along with them.
+
+        A channel that cannot be read is left exactly as it stands rather than
+        rewritten from what the codec returned. The codec has two ways of
+        failing and only one of them raises: the other *succeeds*, with black,
+        which is why the read promotes
+        :py:class:`~psd_tools.compression.PSDDecompressionWarning` to an error.
+        Repacking a black-filled channel would turn an unreadable channel into
+        a readable wrong one, and a move is the wrong place to do either.
+
+        ``catch_warnings()`` is process-global and not thread-safe; for the
+        length of the read another thread's decode warning is an error too.
+        The scope is one statement, as it is in
+        :py:func:`~psd_tools.api.numpy_io._stored_planes`.
+        """
+        for info, data in zip(self._record.channel_info, self._channels):
+            if len(data.data) == 0:
+                continue
+            geometry = self._channel_geometry(info.id)
+            if geometry is None:
+                continue
+            width, height = geometry
+            if width <= 0 or height <= 0:
+                continue
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("error", PSDDecompressionWarning)
+                    raw = data.get_data(width, height, source.depth, source.version)
+                plane = numpy_io._parse_array(
+                    raw, cast(Literal[1, 8, 16, 32], source.depth), width
+                )
+                encoded = numpy_io._encode_array(
+                    plane, cast(Literal[1, 8, 16, 32], dest.depth), width
+                )
+            except (PSDDecompressionWarning, ValueError, TypeError, OSError) as e:
+                logger.warning(
+                    "Channel %s could not be re-encoded for depth %d; "
+                    "leaving it as stored: %s",
+                    info.id,
+                    dest.depth,
+                    e,
+                )
+                continue
+            data.compression = _compression_for(data.compression, dest.depth)
+            data.set_data(encoded, width, height, dest.depth, dest.version)
+            info.length = data._length
 
     def create_mask(
         self,
@@ -522,7 +672,7 @@ class Layer(LayerProtocol):
 
         if hasattr(self, "_mask"):
             del self._mask
-        self._psd._mark_updated()
+        self._psd.mark_updated()
         return self.mask  # type: ignore[return-value]
 
     def remove_mask(self) -> None:
@@ -544,7 +694,7 @@ class Layer(LayerProtocol):
 
         if hasattr(self, "_mask"):
             del self._mask
-        self._psd._mark_updated()
+        self._psd.mark_updated()
 
     def update_mask(
         self,
@@ -589,7 +739,7 @@ class Layer(LayerProtocol):
 
         if hasattr(self, "_mask"):
             del self._mask
-        self._psd._mark_updated()
+        self._psd.mark_updated()
         return self.mask  # type: ignore[return-value]
 
     def has_vector_mask(self) -> bool:
@@ -681,7 +831,6 @@ class Layer(LayerProtocol):
 
             layer.lock(ProtectedFlags.COMPOSITE | ProtectedFlags.POSITION)
         """
-
         locks = self.locks
 
         if locks is None:
@@ -744,7 +893,7 @@ class Layer(LayerProtocol):
         self,
         viewport: tuple[int, int, int, int] | None = None,
         force: bool = False,
-        color: float | tuple[float, ...] | np.ndarray = 1.0,
+        color: float | Sequence[float] | np.ndarray = 1.0,
         alpha: float | np.ndarray = 0.0,
         layer_filter: Callable | None = None,
         apply_icc: bool = True,
@@ -755,7 +904,8 @@ class Layer(LayerProtocol):
         :param viewport: Viewport bounding box specified by (x1, y1, x2, y2)
             tuple. Default is the layer's bbox.
         :param force: Boolean flag to force vector drawing.
-        :param color: Backdrop color specified by scalar or tuple of scalar.
+        :param color: Backdrop color, as a scalar, a per-channel sequence, or a
+            full ``(height, width, channels)`` array.
             The color value should be in [0.0, 1.0]. For example, (1., 0., 0.)
             specifies red in RGB color mode.
         :param alpha: Backdrop alpha in [0.0, 1.0].
@@ -766,7 +916,7 @@ class Layer(LayerProtocol):
         """
         from psd_tools.composite import composite_pil  # noqa: PLC0415
 
-        if self._psd is not None and self._psd.is_updated():
+        if self._psd.is_updated():
             force = True
 
         return composite_pil(
@@ -794,8 +944,10 @@ class Layer(LayerProtocol):
         if self.clipping:
             return []
 
-        # Look for clipping layers in the parent scope.
-        parent: GroupMixin = self.parent or self._psd  # type: ignore
+        # A detached layer has no siblings, so nothing clips to it.
+        parent: GroupMixin | None = self.parent  # type: ignore
+        if parent is None:
+            return []
         index = parent.index(self)
 
         # TODO: Cache the result and invalidate when needed.
@@ -826,8 +978,8 @@ class Layer(LayerProtocol):
     @clipping.setter
     def clipping(self, value: bool) -> None:
         clipping = Clipping.NON_BASE if value else Clipping.BASE
-        if self._record.clipping != clipping and self._psd is not None:
-            self._psd._mark_updated()
+        if self._record.clipping != clipping:
+            self._psd.mark_updated()
         self._record.clipping = clipping
         self._invalidate_bbox()
 
@@ -851,45 +1003,46 @@ class Layer(LayerProtocol):
         """
         Returns True if the layer has effects.
 
+        Existence is what the Photoshop UI lists: an effect with an entry in
+        the layer's fx list. Whether it is switched on is separate -- the UI
+        greys out a disabled entry, and the master switch greys out the whole
+        list at once. So the two arms ask two questions: ``has_effects()`` is
+        "does this layer draw any effect?", which needs the master switch on
+        and an entry enabled under it, and ``has_effects(enabled=False)`` is
+        "does the fx list show anything?", the same answer as
+        ``len(layer.effects) > 0``.
+
+        Neither is "does the layer carry an effects tagged block". Photoshop
+        creates that block with the first effect attached and leaves it behind
+        once the last is removed, so it outlives what it lists; ask
+        :py:attr:`~psd_tools.api.layers.Layer.tagged_blocks` for it, as
+        :py:class:`~psd_tools.api.effects.Effects` documents (#318, #830).
+
         :param enabled: If True, check for enabled effects.
         :param name: If given, check for specific effect type.
         :return: `bool`
         """
-        has_effect_tag = any(
-            tag in self.tagged_blocks
-            for tag in (
-                Tag.OBJECT_BASED_EFFECTS_LAYER_INFO,
-                Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V0,
-                Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V1,
-            )
-        )
-        # No effects tag.
-        if not has_effect_tag:
-            return False
-
-        # Global enable flag check.
-        if enabled and not self.effects.enabled:
-            return False
-
-        # No specific effect type, check for any effect.
-        if name is None:
-            if enabled:
-                return any(effect.enabled for effect in self.effects)
-            return True
-
-        # Check for specific effect type and enabled state.
-        return any(self.effects.find(name, enabled))
+        effects = self.effects
+        if name is not None:
+            # ``find()`` applies the master switch itself.
+            return any(effects.find(name, enabled))
+        if enabled:
+            return effects.enabled and any(effect.enabled for effect in effects)
+        return len(effects) > 0
 
     @property
     def effects(self) -> Effects:
         """
         Layer effects.
 
+        A live view: the proxy re-reads the layer's effects block on every
+        access, so an edit made underneath shows through without it having to
+        be discarded first. It holds no state worth memoising -- building one
+        costs a fraction of listing the effects once.
+
         :return: :py:class:`~psd_tools.api.effects.Effects`
         """
-        if not hasattr(self, "_effects"):
-            self._effects = Effects(self)
-        return self._effects
+        return Effects(self)
 
     @property
     def tagged_blocks(self) -> TaggedBlocks:
@@ -921,8 +1074,8 @@ class Layer(LayerProtocol):
     def fill_opacity(self, value: int) -> None:
         if value < 0 or value > 255:
             raise ValueError("Fill opacity must be between 0 and 255.")
-        if self.fill_opacity != value and self._psd is not None:
-            self._psd._mark_updated()
+        if self.fill_opacity != value:
+            self._psd.mark_updated()
         self.tagged_blocks.set_data(Tag.BLEND_FILL_OPACITY, int(value))
 
     @property
@@ -940,8 +1093,8 @@ class Layer(LayerProtocol):
     def reference_point(self, value: Sequence[float]) -> None:
         if len(value) != 2:
             raise ValueError("Reference point must be a sequence of two floats.")
-        if self.reference_point != value and self._psd is not None:
-            self._psd._mark_updated()
+        if self.reference_point != value:
+            self._psd.mark_updated()
         self.tagged_blocks.set_data(
             Tag.REFERENCE_POINT, [float(value[0]), float(value[1])]
         )
@@ -960,34 +1113,144 @@ class Layer(LayerProtocol):
     @sheet_color.setter
     def sheet_color(self, value: SheetColorType) -> None:
         value = SheetColorType(value)
-        if self.sheet_color != value and self._psd is not None:
-            self._psd._mark_updated()
+        if self.sheet_color != value:
+            self._psd.mark_updated()
         self.tagged_blocks.set_data(Tag.SHEET_COLOR_SETTING, value)
 
-    def __repr__(self) -> str:
+    def _annotate(self, describe: Callable[[], str]) -> str:
+        """One optional part of :py:meth:`__repr__`, dropped if it will not read.
+
+        ``except Exception``, and not the narrow tuple
+        :py:mod:`psd_tools.composite.composite` guards its descriptor reads
+        with: that one is narrow because its caller goes on to *draw*, so an
+        exception outside the set is a bug worth surfacing rather than wrong
+        pixels worth hiding. A repr draws nothing, and nothing that calls one
+        -- ``print()``, pdb, a logging handler, pytest -- asked what this
+        reads. Sharing that tuple would also mean reaching into the rendering
+        subpackage from a repr (#828).
+        """
+        try:
+            return describe()
+        except Exception as error:
+            logger.debug(
+                "%s() raised for a %s: %s",
+                describe.__name__,
+                type(self).__name__,
+                error,
+            )
+            return ""
+
+    def _repr_size(self) -> str:
         has_size = self.width > 0 and self.height > 0
+        return " size=%dx%d" % (self.width, self.height) if has_size else ""
+
+    def _repr_effects(self) -> str:
+        return " effects" if self.has_effects() else ""
+
+    def __repr__(self) -> str:
+        # ``size`` and ``effects`` go through ``_annotate()`` because they are
+        # the two parts that read beyond the record's own fields: ``bbox`` is
+        # overridden to walk a group's children, to read an artboard's tagged
+        # block -- which raises outright when it is absent -- to read a
+        # shape's origination, and on a ``FillLayer`` to raise without a
+        # document; ``has_effects()`` parses the effects descriptor. ``name``,
+        # ``visible``, ``clipping`` and ``has_mask()`` read already-parsed
+        # record fields, so guarding them would guard nothing --
+        # ``Group.clipping`` being the one that reads further, for the
+        # document's compatibility mode, which is set before a group exists.
         return "%s(%r%s%s%s%s%s)" % (
             self.__class__.__name__,
             self.name,
-            " size=%dx%d" % (self.width, self.height) if has_size else "",
+            self._annotate(self._repr_size),
             " invisible" if not self.visible else "",
             " clip" if self.clipping else "",
             " mask" if self.has_mask() else "",
-            " effects" if self.has_effects() else "",
+            self._annotate(self._repr_effects),
         )
 
     # Structure operations
+    def _is_attached(self) -> bool:
+        """Whether the parent chain reaches this layer's document."""
+        node: Any = self
+        while node.parent is not None:
+            node = node.parent
+        return node is self._psd
+
+    def _require_attached(self) -> None:
+        if not self._is_attached():
+            raise ValueError(f"Layer {self} is not attached to a document")
+
     def delete_layer(self) -> Self:
         """
         Deprecated: Use layer.parent.remove(layer) instead.
+
+        :raises ValueError: If the layer is not attached to a document
         """
-        if self.parent is not None and isinstance(self.parent, GroupMixin):
-            self.parent.remove(self)
+        self._require_attached()
+        self.parent.remove(self)  # type: ignore[union-attr]
+        return self
+
+    def _resolve_placement(self, parent: "GroupMixin", index: int | None) -> int:
+        """Validate placing this layer in ``parent`` and return its final index.
+
+        Checks run in a fixed order, before anything is mutated: types, same
+        document, reference loops, then the range of ``index``. A layer already
+        in ``parent`` is placed among the others, so the range is one shorter.
+
+        :raises ValueError: If ``parent`` is not a group or document of this
+            layer's document, the placement would create a loop, or an artboard
+            is not going to the document root.
+        :raises IndexError: If ``index`` is out of range.
+        """
+        if not (
+            isinstance(parent, Group)
+            or (parent is not None and parent is getattr(parent, "_psd", None))
+        ):
+            raise ValueError(
+                f"Expected a Group or document, got {type(parent).__name__}"
+            )
+        if parent._psd is not self._psd:
+            raise ValueError("The layer and the parent are in different documents")
+        parent._check_insertion([self])
+        if isinstance(self, Artboard) and parent is not self._psd:
+            raise ValueError("An artboard can only be placed at the document root")
+        final_length = len(parent) + (0 if self in parent else 1)
+        if index is None:
+            return final_length - 1
+        index = operator.index(index)
+        if not -final_length <= index < final_length:
+            raise IndexError(f"Index {index} out of range for {final_length} layers")
+        return index % final_length
+
+    def move_to(self, parent: "GroupMixin", *, index: int | None = None) -> Self:
+        """
+        Move the layer into ``parent``, a group or document of the same document.
+
+        A layer has one parent, so this moves rather than copies. A layer
+        already at the requested position is left alone. Clipping is
+        positional: the layers clipped to this one are not carried with it.
+        Moving into a removed group removes the layer from the document.
+
+        :param parent: The destination :py:class:`Group` or document.
+        :param index: The layer's position in ``parent`` afterwards, counting
+            from the bottom; negative counts from the top, so ``-1`` is the top.
+            Default is the top.
+        :raises ValueError: If ``parent`` is not a group or document of this
+            layer's document, the move would create a reference loop, or the
+            layer is an :py:class:`Artboard` and ``parent`` is not the document.
+        :raises TypeError: If ``index`` is not an integer.
+        :raises IndexError: If ``index`` is out of range.
+        :return: self
+        """
+        target = self._resolve_placement(parent, index)
+        if self.parent is parent and parent.index(self) == target:
+            return self
+        parent.insert(target, self)
         return self
 
     def move_to_group(self, group: "GroupMixin") -> Self:
         """
-        Deprecated: Use group.append(layer) instead.
+        Deprecated: Use layer.move_to(group) instead.
 
         :param group: The group the current layer will be moved into.
         """
@@ -999,12 +1262,11 @@ class Layer(LayerProtocol):
         Moves the layer up a certain offset within the group the layer is in.
 
         :param offset: The number of positions to move the layer up (can be negative).
-        :raises ValueError: If layer has no parent or parent is not a group
+        :raises ValueError: If the layer is not attached to a document
         :raises IndexError: If the new index is out of bounds
         :return: self
         """
-        if self.parent is None:
-            raise ValueError(f"Cannot move layer {self} without a parent")
+        self._require_attached()
         if not isinstance(self.parent, GroupMixin):
             raise TypeError(
                 f"Parent must be a GroupMixin, got {type(self.parent).__name__}"
@@ -1025,15 +1287,48 @@ class Layer(LayerProtocol):
         Moves the layer down a certain offset within the group the layer is in.
 
         :param offset: The number of positions to move the layer down (can be negative).
-        :raises ValueError: If layer has no parent or parent is not a group
+        :raises ValueError: If the layer is not attached to a document
         :raises IndexError: If the new index is out of bounds
         :return: self
         """
         return self.move_up(-1 * offset)
 
 
+def _invalidate_moved_bbox(layer: Layer) -> None:
+    """Drop the cached boxes ``layer`` carries now that something above it changed.
+
+    That is either a new parent or an ancestor whose ``visible`` flag moved;
+    see ``GroupMixin._invalidate_subtree_bbox()`` for which boxes those
+    are and why. ``Group`` and ``ShapeLayer`` are named concretely rather than
+    going through ``GroupMixin``, whose ``runtime_checkable`` protocol check
+    would recompute the boxes this is about to drop on Python <= 3.11. That
+    costs work rather than correctness -- the walk clears whatever the check
+    armed.
+    """
+    if isinstance(layer, Group):
+        layer._invalidate_subtree_bbox()
+    elif isinstance(layer, ShapeLayer):
+        layer._bbox = None
+
+
 @runtime_checkable
 class GroupMixin(GroupMixinProtocol, Protocol):
+    """
+    Container behaviour shared by groups and documents.
+
+    :py:class:`Group` and :py:class:`~psd_tools.api.psd_image.PSDImage` both
+    hold an ordered list of child layers, and this mixin supplies what
+    operates on it: iteration and indexing, the mutation methods below, the
+    :py:meth:`descendants` walk, and a :py:attr:`bbox` computed from the
+    visible, non-clipping children.
+
+    A layer belongs to at most one container, so adding one that already has
+    a parent moves it out of that parent rather than copying it; see
+    :py:meth:`extend`. The list methods here are a fixed set: ``sort()``,
+    ``reverse()``, ``+=``, ``copy()`` and slice assignment or deletion are not
+    provided.
+    """
+
     _psd: PSDProtocol
     _bbox: tuple[int, int, int, int] | None = None
     _layers: list[Layer]
@@ -1047,6 +1342,46 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         if self._bbox is None:
             self._bbox = Group.extract_bbox(self)
         return self._bbox
+
+    def _invalidate_bbox(self) -> None:
+        """Drop this container's cached bbox, and every cached box above it.
+
+        ``GroupMixin`` precedes :py:class:`Layer` in ``Group``'s MRO, so this
+        is what a group invalidates through. It differs from
+        :py:meth:`Layer._invalidate_bbox` only in being available on
+        :py:class:`~psd_tools.api.psd_image.PSDImage`, which caches a box here
+        too but is not a ``Layer``; the walk stops there, since the document
+        has no parent.
+        """
+        self._bbox = None
+        parent = self.parent
+        if parent is not None:
+            parent._invalidate_bbox()
+
+    def _invalidate_subtree_bbox(self) -> None:
+        """Drop this container's cached bbox, and every cached box *beneath* it.
+
+        The downward twin of :py:meth:`_invalidate_bbox`, for a layer whose
+        ancestors change rather than its contents. Two cached boxes read
+        something above the layer that holds them, so the whole subtree is
+        invalidated, not just its root:
+
+        - a group's, because :py:meth:`Group.extract_bbox` filters children
+          through ``is_visible()``, which walks up the parent chain;
+        - a vector-mask-only shape's, because it scales the mask's normalized
+          bounds by ``self._psd.width`` and ``height``, and a cross-document
+          move repoints ``_psd`` at a canvas of a different size.
+
+        Two callers reach different halves of that: reparenting or detaching
+        can do both, while hiding or showing a group (#819) only ever does the
+        first, since it leaves ``_psd`` alone.
+
+        An ordinary layer's box is its record's own offsets, which nothing
+        above it can change, so those are left alone.
+        """
+        self._bbox = None
+        for child in self._layers:
+            _invalidate_moved_bbox(child)
 
     def __len__(self) -> int:
         return self._layers.__len__()
@@ -1064,17 +1399,125 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         return self._layers.__getitem__(key)
 
     def __setitem__(self, key: int, value: Layer) -> None:
-        self.insert(key, value)
+        """
+        Replace the layer at the specified index with the given layer.
+
+        This operation rewrites the internal references of the layer. If the
+        given layer is already in this group, it is moved next to where the
+        replaced layer was and the group shrinks by one, following the
+        no-duplicates rule of ``extend()``. Its final index is
+        one lower than the given one when it came from before the replaced
+        layer, because taking it out shifts the rest of the group down.
+
+        :param key: The index of the layer to replace.
+        :param value: The layer to put at that index.
+        :raises IndexError: If the index is out of range.
+        :raises TypeError: If the key is not an index, or the provided object
+            is not a Layer instance.
+        :raises ValueError: If attempting to add a group to itself.
+        """
+        if isinstance(key, slice):
+            raise TypeError("Slice assignment is not supported")
+        target = self._layers[key]
+        if target is value:
+            return
+        index = key if key >= 0 else key + len(self._layers)
+        self.insert(index, value)
+        self.remove(target)
 
     def __delitem__(self, key: int) -> None:
+        """
+        Remove the layer at the specified index from the group.
+
+        This operation rewrites the internal references of the layer.
+
+        :param key: The index of the layer to remove.
+        :raises IndexError: If the index is out of range.
+        :raises TypeError: If the key is not an index.
+        """
+        if isinstance(key, slice):
+            raise TypeError("Slice deletion is not supported")
         self.remove(self._layers[key])
+
+    def create_pixel_layer(
+        self,
+        image: Image.Image,
+        name: str = "Layer",
+        top: int = 0,
+        left: int = 0,
+        compression: Compression = Compression.RLE,
+        opacity: int = 255,
+        blend_mode: BlendMode = BlendMode.NORMAL,
+    ) -> "PixelLayer":
+        """
+        Create a new pixel layer at the top of this group or document.
+
+        Example::
+
+            psdimage = PSDImage.new("RGB", (640, 480))
+            layer = psdimage.create_pixel_layer(image, name='Layer 1')
+
+        :param name: Name of the new layer.
+        :param image: PIL Image object. On a 16- or 32-bit document the layer
+            is stored at the document's depth, carrying the image's own 8-bit
+            precision; see :py:meth:`~psd_tools.api.layers.PixelLayer.frompil`.
+        :param top: Top coordinate of the new layer.
+        :param left: Left coordinate of the new layer.
+        :param compression: Compression method for the layer image data.
+        :param opacity: Opacity of the new layer (0-255).
+        :param blend_mode: Blend mode of the new layer, default is ``BlendMode.NORMAL``.
+        :return: The created :py:class:`~psd_tools.api.layers.PixelLayer` object.
+        """
+        layer = PixelLayer.frompil(
+            image, parent=self, name=name, top=top, left=left, compression=compression
+        )
+        layer.opacity = opacity
+        layer.blend_mode = blend_mode
+        self._psd.mark_updated()
+        return layer
+
+    def create_group(
+        self,
+        layer_list: Iterable[Layer] | None = None,
+        name: str = "Group",
+        opacity: int = 255,
+        blend_mode: BlendMode = BlendMode.PASS_THROUGH,
+        open_folder: bool = True,
+    ) -> "Group":
+        """
+        Create a new group at the top of this group or document.
+
+        Example::
+
+            group = psdimage.create_group(name='New Group')
+            layer = group.create_pixel_layer(image, name='Layer in Group')
+
+        :param layer_list: Optional iterable of layers to add to the group.
+        :param name: Name of the new group.
+        :param opacity: Opacity of the new layer (0-255).
+        :param blend_mode: Blend mode of the new layer, default is ``BlendMode.PASS_THROUGH``.
+        :param open_folder: Whether the group is an open folder in the Photoshop UI.
+        :return: The created :py:class:`~psd_tools.api.layers.Group` object.
+        """
+        group = Group.new(parent=self, name=name, open_folder=open_folder)
+        # Against ``None``, not truthiness: ``layer_list`` is any iterable, and
+        # one can be falsey while holding layers, or refuse to be tested at all
+        # -- ``bool()`` on a multi-element NumPy array raises. ``extend()``
+        # handles an empty iterable itself (#820).
+        if layer_list is not None:
+            group.extend(layer_list)
+        group.opacity = opacity
+        group.blend_mode = blend_mode
+        self._psd.mark_updated()
+        return group
 
     def append(self, layer: Layer) -> None:
         """
         Add a layer to the end (top) of the group.
 
         This operation rewrites the internal references of the layer.
-        Adding the same layer will not create a duplicate.
+        Adding the same layer will not create a duplicate; it moves to the end
+        instead. See ``extend()``, which this delegates to.
 
         :param layer: The layer to add.
         :raises TypeError: If the provided object is not a Layer instance.
@@ -1084,30 +1527,92 @@ class GroupMixin(GroupMixinProtocol, Protocol):
 
     def extend(self, layers: Iterable[Layer]) -> None:
         """
-        Add a list of layers to the end (top) of the group.
+        Add layers to the end (top) of the group.
 
         This operation rewrites the internal references of the layers.
-        Adding the same layer will not create a duplicate.
+        Adding the same layer will not create a duplicate: a layer named more
+        than once in one call, or already in this group, ends up once, at the
+        position of its last mention. That is where a loop of ``append()``
+        calls leaves it.
+
+        The iterable is walked once, so a one-shot one is accepted -- a
+        generator, or a live container being emptied into this group::
+
+            dest.extend(src)  # Moves every layer of src into dest.
 
         :param layers: The layers to add.
         :raises TypeError: If the provided object is not a Layer instance.
         :raises ValueError: If attempting to add a group to itself.
         """
-        self._check_insertion(layers)
+        # Materialized before anything walks it. Everything below iterates
+        # ``layers`` again, so a one-shot iterable would reach the detach loop
+        # already empty, and a live container would be mutated *while* being
+        # iterated -- ``dest.extend(src)`` dropping every other layer of
+        # ``src``, and ``g.extend(g)`` never terminating (#820).
+        pending = list(layers)
+        # Keep each layer's *last* mention, which is where a loop of
+        # ``append()`` calls leaves it, since a layer already in this group is
+        # detached below and re-added at the end. Deliberately not
+        # ``dict.fromkeys(pending)``, which looks equivalent but keeps the
+        # first. Safe ahead of ``_check_insertion()``, and spares it a repeat
+        # of its per-group ``descendants()`` walk, because every dropped
+        # element is the same object as one that is kept.
+        if len(pending) > 1:
+            last = {id(layer): index for index, layer in enumerate(pending)}
+            pending = [
+                layer for index, layer in enumerate(pending) if last[id(layer)] == index
+            ]
+        self._check_insertion(pending)
         # Remove parent's reference to the layers.
-        for layer in layers:
+        donors: list[GroupMixin] = []
+        seen: set[int] = set()
+        donor_psds: dict[int, PSDProtocol] = {}
+        for layer in pending:
             # NOTE: New or removed layers may not be in the parent container.
             if isinstance(layer.parent, GroupMixin) and layer in layer.parent:
-                layer.parent._layers.remove(layer)  # Skip checks for performance
-        self._layers.extend(layers)
+                donor = layer.parent
+                donor._layers.remove(layer)  # Skip checks for performance
+                # Collected rather than invalidated here: on Python <= 3.11 the
+                # ``isinstance`` above is a ``runtime_checkable`` protocol check
+                # that executes ``bbox``, so clearing a donor inside the loop
+                # only makes the next iteration recompute it -- quadratic on
+                # ``create_group(list(psd))`` (#814).
+                if id(donor) not in seen:
+                    seen.add(id(donor))
+                    donors.append(donor)
+                    # Read here, not off ``donors`` afterwards:
+                    # ``_update_children()`` below repoints a moved layer's
+                    # ``_psd``, and a donor group that is itself one of
+                    # ``pending`` would by then name the receiving document.
+                    if donor._psd is not self._psd:
+                        donor_psds.setdefault(id(donor._psd), donor._psd)
+        self._layers.extend(pending)
         self._update_children()
         self._psd._update_record()
+        # The donor document keeps its own flat record list, and ``save()``
+        # writes that list without rebuilding it, so a cross-document move that
+        # only rebuilt the receiving document would write the layer into both
+        # files (#841). Rebuilding also marks the donor updated, which tells
+        # its ``save()`` to regenerate a preview that no longer has the layer.
+        for donor_psd in donor_psds.values():
+            donor_psd._update_record()
+        # Last only because by then the tree is consistent and a caller that
+        # reads a box next recomputes it once. ``_update_record()`` reads no
+        # bounding box, so any point after ``_update_children()`` would do.
+        for donor in donors:
+            donor._invalidate_bbox()
+        for layer in pending:
+            _invalidate_moved_bbox(layer)
+        self._invalidate_bbox()
 
     def insert(self, index: int, layer: Layer) -> None:
         """
         Insert the given layer at the specified index.
 
-        This operation rewrites the internal references of the layer.
+        This operation rewrites the internal references of the layer. A layer
+        already in this group is moved rather than copied, following the
+        no-duplicates rule of ``extend()``, so the index it lands at is one
+        lower than the given one when it came from before that position.
 
         :param index: The index to insert the layer at.
         :param layer: The layer to insert.
@@ -1116,11 +1621,24 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         """
         self._check_insertion([layer])
         # Remove parent's reference to the layer.
+        donor: GroupMixin | None = None
+        donor_psd: PSDProtocol | None = None
         if isinstance(layer.parent, GroupMixin) and layer in layer.parent:
-            layer.parent._layers.remove(layer)  # Skip checks for performance
+            donor = layer.parent
+            donor._layers.remove(layer)  # Skip checks for performance
+            if donor._psd is not self._psd:
+                donor_psd = donor._psd
         self._layers.insert(index, layer)
         self._update_children()
         self._psd._update_record()
+        # See ``extend()``: the donor document's record list is stale until it
+        # is rebuilt too, and ``save()`` never rebuilds it (#841).
+        if donor_psd is not None:
+            donor_psd._update_record()
+        if donor is not None:
+            donor._invalidate_bbox()
+        _invalidate_moved_bbox(layer)
+        self._invalidate_bbox()
 
     def remove(self, layer: Layer) -> Self:
         """
@@ -1137,6 +1655,8 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         self._layers.remove(layer)
         layer._parent = None
         self._psd._update_record()
+        _invalidate_moved_bbox(layer)
+        self._invalidate_bbox()
         return self
 
     def pop(self, index: int = -1) -> Layer:
@@ -1161,10 +1681,14 @@ class GroupMixin(GroupMixinProtocol, Protocol):
 
         :return: None
         """
-        for layer in self._layers:
+        detached = list(self._layers)
+        for layer in detached:
             layer._parent = None
         self._layers.clear()
         self._psd._update_record()
+        for layer in detached:
+            _invalidate_moved_bbox(layer)
+        self._invalidate_bbox()
 
     def index(self, layer: Layer) -> int:
         """
@@ -1176,14 +1700,21 @@ class GroupMixin(GroupMixinProtocol, Protocol):
 
     def count(self, layer: Layer) -> int:
         """
-        Counts the number of occurrences of a layer in the group.
+        Return 1 if the layer is a child of this container, else 0.
+
+        Adding a layer that is already here moves it, so it never appears twice.
 
         :param layer: The layer to count.
         """
         return self._layers.count(layer)
 
-    def _check_insertion(self, layers: Iterable[Layer]) -> None:
+    def _check_insertion(self, layers: Collection[Layer]) -> None:
         """Check that the given layers can be added to this group.
+
+        ``Collection``, not ``Iterable``: this walks its argument, so a caller
+        that walks it again afterwards -- ``extend()`` does -- must not hand it
+        a one-shot iterable for this to drain (#820). A re-iterable container,
+        a ``Group`` included, is fine, which is why this is not ``Sequence``.
 
         :raises ValueError: If attempting to add a group to itself or create a reference loop
         :raises TypeError: If the provided object is not a Layer instance
@@ -1247,11 +1778,10 @@ class GroupMixin(GroupMixinProtocol, Protocol):
 
     def find(self, name: str) -> Layer | None:
         """
-        Returns the first layer found for the given layer name
+        Return the first layer found for the given layer name.
 
         :param name:
         """
-
         for layer in self.findall(name):
             return layer
         return None
@@ -1262,7 +1792,6 @@ class GroupMixin(GroupMixinProtocol, Protocol):
 
         :param name:
         """
-
         for layer in self.descendants():
             if layer.name == name:
                 yield layer
@@ -1309,8 +1838,8 @@ class Group(GroupMixin, Layer):
     @blend_mode.setter
     def blend_mode(self, value: str | bytes | BlendMode) -> None:
         _value = BlendMode(value.encode("ascii") if isinstance(value, str) else value)
-        if self.blend_mode != _value and self._psd is not None:
-            self._psd._mark_updated()
+        if self.blend_mode != _value:
+            self._psd.mark_updated()
         if _value == BlendMode.PASS_THROUGH:
             self._record.blend_mode = BlendMode.NORMAL
         else:
@@ -1373,7 +1902,7 @@ class Group(GroupMixin, Layer):
             return
         clipping = Clipping.NON_BASE if value else Clipping.BASE
         if self._record.clipping != clipping:
-            self._psd._mark_updated()
+            self._psd.mark_updated()
         self._record.clipping = clipping
         self._invalidate_bbox()
 
@@ -1415,7 +1944,7 @@ class Group(GroupMixin, Layer):
         self,
         viewport: tuple[int, int, int, int] | None = None,
         force: bool = False,
-        color: float | tuple[float, ...] | np.ndarray = 1.0,
+        color: float | Sequence[float] | np.ndarray = 1.0,
         alpha: float | np.ndarray = 0.0,
         layer_filter: Callable | None = None,
         apply_icc: bool = True,
@@ -1426,7 +1955,8 @@ class Group(GroupMixin, Layer):
         :param viewport: Viewport bounding box specified by (x1, y1, x2, y2)
             tuple. Default is the layer's bbox.
         :param force: Boolean flag to force vector drawing.
-        :param color: Backdrop color specified by scalar or tuple of scalar.
+        :param color: Backdrop color, as a scalar, a per-channel sequence, or a
+            full ``(height, width, channels)`` array.
             The color value should be in [0.0, 1.0]. For example, (1., 0., 0.)
             specifies red in RGB color mode.
         :param alpha: Backdrop alpha in [0.0, 1.0].
@@ -1455,8 +1985,9 @@ class Group(GroupMixin, Layer):
         include_clipping: bool = False,
     ) -> tuple[int, int, int, int]:
         """
-        Returns a bounding box for ``layers`` or (0, 0, 0, 0) if the layers
-        have no bounding box.
+        Return a bounding box for ``layers``.
+
+        Gives (0, 0, 0, 0) if the layers have no bounding box.
 
         :param layers: sequence of layers or a group.
         :param include_invisible: include invisible layers in calculation.
@@ -1483,7 +2014,7 @@ class Group(GroupMixin, Layer):
         ]
         bboxes = [bbox for bbox in bboxes if bbox != (0, 0, 0, 0)]
         if len(bboxes) == 0:  # Empty bounding box.
-            logger.info("No bounding box could be extracted from the given layers.")
+            logger.debug("No bounding box could be extracted from the given layers.")
             return (0, 0, 0, 0)
         lefts, tops, rights, bottoms = zip(*bboxes)
         return (min(lefts), min(tops), max(rights), max(bottoms))
@@ -1506,8 +2037,10 @@ class Group(GroupMixin, Layer):
         open_folder: bool = True,
     ) -> Self:
         """
-        Create a new Group object with minimal records and data channels and metadata
-        to properly include the group in the PSD file.
+        Create a new Group object.
+
+        Builds the minimal records, data channels and metadata needed to
+        include the group in the PSD file.
 
         :param name: The display name of the group. Default to "Group".
         :param open_folder: Boolean defining whether the folder will be open or closed
@@ -1563,7 +2096,7 @@ class Group(GroupMixin, Layer):
         open_folder: bool = True,
     ) -> Self:
         """
-        Deprecated: Use ``psdimage.create_group(layer_list, name)`` instead.
+        Deprecated: Use ``parent.create_group(layer_list, name)`` instead.
 
         :param parent: The parent group to add the newly created Group object into.
         :param layers: The layers to group. Can by any subclass of
@@ -1616,7 +2149,7 @@ class Artboard(Group):
         self,
         viewport: tuple[int, int, int, int] | None = None,
         force: bool = False,
-        color: float | tuple[float, ...] | np.ndarray | None = None,
+        color: float | Sequence[float] | np.ndarray | None = None,
         alpha: float | np.ndarray | None = None,
         layer_filter: Callable | None = None,
         apply_icc: bool = True,
@@ -1672,8 +2205,7 @@ class Artboard(Group):
         if bg_type is None:
             return 1.0, 0.0
 
-        psd = self._psd
-        color_mode = psd.color_mode if psd is not None else ColorMode.RGB
+        color_mode = self._psd.color_mode
 
         bg_type = int(bg_type)
         if bg_type == 1:  # Transparent
@@ -1688,11 +2220,19 @@ class Artboard(Group):
             ):
                 return (1.0 if white else 0.0), 1.0
             elif color_mode == ColorMode.LAB:
-                # LAB: L in [0,1]; a and b channels are neutral at 0.5
-                return (1.0 if white else 0.0, 0.5, 0.5), 1.0
+                # LAB: L in [0,1]; a and b are offset-encoded, so neutral is
+                # 128/255 rather than 0.5 -- 0.5 truncates to byte 127 on the
+                # way out where Photoshop writes 128 (#743).
+                return (
+                    (1.0 if white else 0.0, LAB_NEUTRAL_CHROMA, LAB_NEUTRAL_CHROMA),
+                    1.0,
+                )
             elif color_mode == ColorMode.CMYK:
-                # CMYK: white = no ink (0,0,0,0); black = full K (0,0,0,1)
-                return ((0.0, 0.0, 0.0, 0.0) if white else (0.0, 0.0, 0.0, 1.0)), 1.0
+                # CMYK arrays store what is left rather than what is laid down,
+                # so 1.0 is no ink: white is (1,1,1,1) and black is full key,
+                # (1,1,1,0). Writing the ink-space spelling here put a white
+                # artboard background on a CMYK document at solid black (#747).
+                return ((1.0, 1.0, 1.0, 1.0) if white else (1.0, 1.0, 1.0, 0.0)), 1.0
             else:
                 logger.debug(
                     "Artboard background color not applied: unsupported color mode %s",
@@ -1817,6 +2357,15 @@ class PixelLayer(Layer):
             modes that do not carry a transparency band (e.g. RGB, CMYK), the
             alpha channel is instead stored as a pixel mask
             (``USER_LAYER_MASK``).
+
+        .. note::
+            On a 16- or 32-bit document the layer is stored at the document's
+            depth but with a PIL image's *precision*, which is 8 bits: PIL
+            has no 16-bit RGB, CMYK or LAB mode to carry more, and the image
+            is converted to
+            :py:attr:`~psd_tools.api.psd_image.PSDImage.pil_mode` on the way
+            in. The values are widened, not padded -- 128 becomes 32896 at
+            depth 16 -- so the layer reads back as the image given here.
         """
         if not isinstance(image, Image.Image):
             raise TypeError(f"Expected PIL Image, got {type(image).__name__}")
@@ -1841,6 +2390,7 @@ class PixelLayer(Layer):
             top,
             compression,
             version=parent._psd._record.header.version,
+            depth=cast(Literal[1, 8, 16, 32], parent._psd._record.header.depth),
         )
         self = cls(parent, layer_record, channel_data_list)
         parent.append(self)
@@ -1857,25 +2407,45 @@ class PixelLayer(Layer):
         return self
 
     def _convert_mode(self, parent: GroupMixin) -> "PixelLayer":
-        """Convert the image format to match the given group."""
-        if parent._psd.pil_mode == self._psd.pil_mode:
-            return self
+        """Re-encode the layer's channels for *parent*'s document.
 
-        # Get the current layer image.
-        image = self.topil()
-        if not isinstance(image, Image.Image):
-            raise ValueError("Failed to render the image for mode conversion.")
-        # Rebuild layer record and channels.
-        layer_record, channel_data_list = self._build_layer_record_and_channels(
-            image.convert(parent._psd.pil_mode),
-            self.name,
-            self.left,
-            self.top,
-            Compression.RLE,
-            version=self._psd._record.header.version,
-        )
-        self._record = layer_record
-        self._channels = channel_data_list
+        Three things about the destination decide how a channel is stored --
+        its colour mode, its depth and its file version -- and a move that
+        changes any of them leaves channels the destination cannot read. The
+        mode is handled by re-rendering through PIL; depth and version are
+        handled in place, because the bytes are the same values in a different
+        packing and PIL is not needed to repack them.
+
+        Taking the in-place route wherever it applies is also what makes
+        widening this guard safe: the PIL route rebuilds the layer record from
+        scratch and so drops the layer's opacity, blend mode, mask and tagged
+        blocks, and it fires on exactly the moves it fired on before. The
+        depth- and version-only moves it now covers keep their record, and
+        keep more precision besides -- a 16-bit layer moved to a 32-bit
+        document carries 16 bits where ``topil()`` would have narrowed it
+        to 8.
+        """
+        source = self._psd._record.header
+        dest = parent._psd._record.header
+        if parent._psd.pil_mode != self._psd.pil_mode:
+            # Get the current layer image.
+            image = self.topil()
+            if not isinstance(image, Image.Image):
+                raise ValueError("Failed to render the image for mode conversion.")
+            # Rebuild layer record and channels.
+            layer_record, channel_data_list = self._build_layer_record_and_channels(
+                image.convert(parent._psd.pil_mode),
+                self.name,
+                self.left,
+                self.top,
+                Compression.RLE,
+                version=dest.version,
+                depth=cast(Literal[1, 8, 16, 32], dest.depth),
+            )
+            self._record = layer_record
+            self._channels = channel_data_list
+        elif (source.depth, source.version) != (dest.depth, dest.version):
+            self._reencode_channels(source, dest)
         return self
 
     @staticmethod
@@ -1886,10 +2456,16 @@ class PixelLayer(Layer):
         top: int,
         compression: Compression,
         version: int = 1,
+        depth: Literal[1, 8, 16, 32] = 8,
         **kwargs: Any,
     ) -> tuple[LayerRecord, ChannelDataList]:
-        """Build layer record and channel data list from a PIL image."""
+        """Build layer record and channel data list from a PIL image.
 
+        *depth* and *version* are the destination document's, not the image's.
+        A PIL image is 8-bit whatever it describes, so taking the depth from it
+        wrote a 16- or 32-bit document a channel a half or a quarter of its
+        declared length, and the layer read back empty (#867).
+        """
         # Initialize the layer record and channel data list.
         layer_record = LayerRecord(
             top=top,
@@ -1904,15 +2480,19 @@ class PixelLayer(Layer):
         # Set layer name.
         layer_record.name = name
 
-        depth = pil_io.get_pil_depth(image.mode.rstrip("A"))
+        compression = _compression_for(compression, depth)
 
         # Transparency channel.
         transparency_data = ChannelData(compression)
-        if image.has_transparency_data:
-            # TODO: Need check for other types of transparency, palette for "indexed" mode
-            image_bytes = image.getchannel(image.getbands().index("A")).tobytes()
+        # `getbands()` rather than `has_transparency_data`, which is also true
+        # of a "P" image carrying an `info["transparency"]` key -- there is no
+        # "A" band to index on one of those, so the lookup below raised.
+        if "A" in image.getbands():
+            image_bytes = pil_io.encode_channel(
+                image.getchannel(image.getbands().index("A")), depth
+            )
         else:
-            image_bytes = b"\xff" * (image.width * image.height)
+            image_bytes = pil_io.encode_opaque_channel(image.width, image.height, depth)
         transparency_data.set_data(
             image_bytes,
             image.width,
@@ -1930,7 +2510,7 @@ class PixelLayer(Layer):
         for channel_index in range(pil_io.get_pil_channels(image.mode.rstrip("A"))):
             channel_data = ChannelData(compression)
             channel_data.set_data(
-                image.getchannel(channel_index).tobytes(),
+                pil_io.encode_channel(image.getchannel(channel_index), depth),
                 image.width,
                 image.height,
                 depth,
@@ -2013,10 +2593,10 @@ class TypeLayer(Layer):
 
     @property
     def text(self) -> str:
-        """
+        r"""
         Text in the layer. Read-only.
 
-        .. note:: New-line character in Photoshop is `'\\\\r'`.
+        .. note:: New-line character in Photoshop is ``'\r'``.
         """
         return self._data.text_data.get(b"Txt ").value.rstrip("\x00")
 
@@ -2194,8 +2774,6 @@ class ShapeLayer(Layer):
                         "Vector mask is None despite has_vector_mask() returning True"
                     )
                 bbox = self.vector_mask.bbox
-                if self._psd is None:
-                    raise ValueError("PSD is None for shape layer")
                 self._bbox = (
                     int(round(bbox[0] * self._psd.width)),
                     int(round(bbox[1] * self._psd.height)),
@@ -2232,14 +2810,10 @@ class FillLayer(Layer):
     def right(self) -> int:
         if self._record.right:
             return self._record.right
-        if self._psd is None:
-            raise ValueError("Cannot determine the right position of the layer.")
         return self._psd.width
 
     @property
     def bottom(self) -> int:
         if self._record.bottom:
             return self._record.bottom
-        if self._psd is None:
-            raise ValueError("Cannot determine the right position of the layer.")
         return self._psd.height

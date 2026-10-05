@@ -140,15 +140,16 @@ def _preserve_alpha(func: F) -> F:
 def _get_lut_size(layer: Layer) -> Literal[256, 65536]:
     bits = layer._psd.depth
     lut_size = min(2**bits, 65536)
-    logger.debug(f"Lut size: {lut_size}")
+    logger.debug("Lut size: %s", lut_size)
     return lut_size
 
 
 @functools.lru_cache(maxsize=2)
 def _lut_domain(lut_size: int) -> NDArray[np.float32]:
     """
-    Returns the normalized domain [0, 1] used for LUT interpolation,
-    with `lut_size` evenly spaced samples. Cached per size.
+    Return the normalized domain [0, 1] used for LUT interpolation.
+
+    Gives `lut_size` evenly spaced samples. Cached per size.
     """
     return np.linspace(_0, _1, lut_size, dtype=np.float32)
 
@@ -284,8 +285,9 @@ def apply_levels(
     layer: Levels,
 ) -> np.ndarray:
     """Applies a levels adjustment to an image."""
-
     levels_data = layer.data
+    if not levels_data:
+        return img
 
     lut_size = _get_lut_size(layer)
     t = _lut_domain(lut_size)
@@ -333,8 +335,9 @@ def apply_curves(
     """
     from scipy import interpolate  # type: ignore[import-untyped]  # noqa: PLC0415
 
-    curves_data = layer.extra
-    info_dict = {data.channel_id: data.points for data in curves_data}
+    if layer.extra is None:
+        return img
+    info_dict = {data.channel_id: data.points for data in layer.extra}
 
     lut_size = _get_lut_size(layer)
     t = _lut_domain(lut_size)
@@ -367,7 +370,10 @@ def apply_exposure(
 ) -> np.ndarray:
     """Applies an exposure adjustment to an image."""
     if colormode == ColorMode.CMYK:
-        logger.info("Exposure doesn't support CMYK in Photoshop.")
+        logger.debug("Exposure doesn't support CMYK in Photoshop.")
+        return img
+
+    if layer.exposure is None or layer.exposure_offset is None or layer.gamma is None:
         return img
 
     exposure = np.float32(layer.exposure)
@@ -412,7 +418,7 @@ def apply_huesaturation(
 ) -> np.ndarray:
     """Applies a hue/saturation adjustment to an image."""
     if colormode == ColorMode.GRAYSCALE:
-        logger.info("Hue/Saturation doesn't support grayscale in Photoshop.")
+        logger.debug("Hue/Saturation doesn't support grayscale in Photoshop.")
         return img
 
     # CMYK requires accurate luminance conversion
@@ -420,8 +426,12 @@ def apply_huesaturation(
         logger.info("Hue/Saturation isn't currently supported for CMYK.")
         return img
 
+    items, colorization, master = layer.data, layer.colorization, layer.master
+    if items is None or colorization is None or master is None:
+        return img
+
     if layer.enable_colorization:
-        hsl_colorize_tuple = _normalize_hsl(layer.colorization)
+        hsl_colorize_tuple = _normalize_hsl(colorization)
         return (
             _huesaturation_colorize(img, hsl_colorize_tuple)
             if hsl_colorize_tuple != (_0, _0, _0)
@@ -430,10 +440,10 @@ def apply_huesaturation(
 
     color_ranges = [
         (hue_range, _normalize_hsl(hsl_tuple))
-        for hue_range, hsl_tuple in layer.data
+        for hue_range, hsl_tuple in items
         if hsl_tuple != (_0, _0, _0)
     ]
-    hsl_master_tuple = _normalize_hsl(layer.master)
+    hsl_master_tuple = _normalize_hsl(master)
     return (
         _huesaturation(img, color_ranges, hsl_master_tuple)
         if color_ranges or hsl_master_tuple != (_0, _0, _0)
@@ -655,7 +665,6 @@ def apply_invert(
     layer: Invert,
 ) -> np.ndarray:
     """Applies an invert adjustment to an image."""
-
     return _1 - img
 
 
@@ -666,6 +675,8 @@ def apply_posterize(
     layer: Posterize,
 ) -> np.ndarray:
     """Applies a posterize adjustment to an image."""
+    if layer.posterize is None:
+        return img
 
     lut_size = _get_lut_size(layer)
     # layer.posterize is a 1–255 integer from the PSD spec. The [2, 255] clamp is
@@ -688,10 +699,12 @@ def apply_threshold(
     layer: Threshold,
 ) -> np.ndarray:
     """Applies a threshold adjustment to an image."""
-
     # CMYK requires accurate luminance conversion
     if colormode == ColorMode.CMYK:
         logger.info("Threshold isn't currently supported for CMYK.")
+        return img
+
+    if layer.threshold is None:
         return img
 
     lut_size = _get_lut_size(layer)

@@ -21,6 +21,11 @@ Example::
 Working with PSD document
 -------------------------
 
+.. note::
+
+    Rendering is bounded by an allocation budget, 4 GiB by default. See
+    :doc:`untrusted` to change it, and for what it does not bound.
+
 :py:mod:`psd_tools.api` package provides the user-friendly API to work
 with PSD files.
 :py:class:`~psd_tools.PSDImage` represents a PSD file.
@@ -85,9 +90,8 @@ the PIL image will be converted to the color mode of the PSD File given in param
 To construct a layered PSD file from scratch::
 
     psdimage = PSDImage.new(mode='RGB', size=(640, 480), depth=8)
-    layer = psdimage.create_pixel_layer(pil_image, name="Layer 1", top=0, left=0, opacity=255)
     group = psdimage.create_group(name="Group 1")
-    group.append(layer)
+    layer = group.create_pixel_layer(pil_image, name="Layer 1", top=0, left=0, opacity=255)
     psdimage.save('new_image.psd')
 
 See the function documentation for further parameter explanations.
@@ -102,7 +106,7 @@ See the function documentation for further parameter explanations.
 Create a new group object.::
 
     group = psdimage.create_group(name="Group name")
-    group.append(layer)
+    layer = group.create_pixel_layer(pil_image, name="Layer in group")
 
 :py:class:`~psd_tools.api.layers.TypeLayer` is a layer with texts::
 
@@ -150,27 +154,33 @@ adjustment applied to the composed image. See :ref:`adjustment-layers`.
 Modifying the layer structure
 -----------------------------
 
-The layer structure of a PSD object can be modified through methods emulating a python list.
+A layer has at most one parent. :py:class:`~psd_tools.api.psd_image.PSDImage`
+and :py:class:`~psd_tools.api.layers.Group` hold their child layers in order,
+and adding a layer that already has a parent moves it out of that parent rather
+than copying it. The internal model of the layer structure is updated
+automatically.
 
-The internal model of the psd layer structure will be automatically updated.
-Moving a layer from a PSD to another will also automatically convert the PixelLayer to the target psd's color mode.
+The following methods are valid for both PSDImage and Group objects. Besides
+indexing, iteration, ``reversed()``, ``len()``, ``in`` and ``del group[i]``,
+they are the only list operations provided: ``sort()``, ``reverse()``, ``+=``,
+``copy()`` and slice assignment or deletion are not supported.
 
-The follwing are valid for both PSDImage and Group objects.
-
-Set an item::
+Replace the layer at a given index::
 
     group[0] = layer
 
-Add a layer or layers to a group::
+Add a layer or layers to a group. ``extend()`` accepts any iterable, including
+another group, whose layers it moves out::
 
     group.append(layer)
     group.extend(layers)
+    group.extend(other_group)
 
 Insert a layer to a specific index in the group::
 
     group.insert(3, layer)
 
-Remove a layer from the a group::
+Remove a layer from a group::
 
     group.remove(layer)
 
@@ -186,29 +196,49 @@ Get the index of a layer in the group::
 
     index = group.index(layer)
 
-Count the occurrences of a layer in a group::
+Check whether a group holds a layer, as 0 or 1::
 
     count = group.count(layer)
 
-Move a given list of layers in a newly created Group. If no parent group is given in parameter,
-the new group will replace the first layer of the list in the PSD structure::
+Move layers into a newly created group, placed at the top of the group or
+document it is created on. ``layer_list`` is any iterable, and may be omitted
+to create an empty group::
 
     group = psdimage.create_group(layer_list=[layer1, layer2, ...], name="New Group")
 
-Some operations are available for all ``Layer`` objects.
+Move a layer into another group, or the document root, of the same document. ``index`` is
+the layer's position afterwards, ``-1`` being the top, and an index out of range
+raises ``IndexError``. The default is the top. Layers clipped to the moved layer
+stay behind, because clipping depends on position::
 
-Delete a layer from its layer structure::
+    layer.move_to(group)
+    layer.move_to(group, index=0)
 
-    group.remove(layer)
+An :py:class:`~psd_tools.api.layers.Artboard` can only be moved to the document
+root.
 
-Layers can be moved from a group to another::
-
-    target_group.append(layer)
-
-Layers can be moved within the group to change their order::
+A layer can change its order within its group::
 
     layer.move_up() # Will send the layer upward in the group
     layer.move_down() # Will send the layer downward in the group
+
+A layer removed from its document keeps its properties and pixels, can be
+composited, and can be added back. ``move_up()``, ``move_down()`` and
+``delete_layer()`` raise ``ValueError`` on it, and on any layer inside a removed
+group, because they act on the document's layer tree.
+
+Every edit above marks the document as edited, so ``save()`` regenerates the
+flattened preview instead of writing the one the file was opened with. An
+edit this API cannot see -- reaching past it into a descriptor, a tagged
+block or any other low-level record -- does not, and has to say so with
+:py:meth:`~psd_tools.api.psd_image.PSDImage.mark_updated`::
+
+    psdimage.mark_updated()
+
+Without it the saved file keeps a preview that disagrees with its own layers,
+and every reader that trusts the preview, psd-tools included, shows the image
+from before the edit. The preview is all it marks, though: a wrapper that
+memoised the record you replaced goes on reporting what it read.
 
 
 Exporting data to PIL
@@ -242,7 +272,7 @@ option::
 
     These dependencies (``aggdraw``, ``scipy``, ``scikit-image``) are needed for:
 
-    - Vector shapes and strokes
+    - Vector strokes
     - Gradient and pattern fills
     - Layer effects
 
@@ -254,6 +284,21 @@ option::
     limited support (BrightnessContrast, Levels, Curves, Exposure, Invert,
     Posterize, Threshold). The compositing result may look different from
     Photoshop.
+
+.. note::
+
+    Color mode caveats when compositing:
+
+    - Duotone and LAB blending is approximated, and warns when used.
+    - Multichannel documents come back as a single-channel image, because PIL
+      has no multichannel mode and only the first spot channel survives the
+      conversion. Use :py:func:`psd_tools.composite.composite` to get every
+      channel as a NumPy array.
+    - Photoshop discards the layer records when it opens a multichannel
+      document and displays the merged image data, so compositing a
+      multichannel document that has layers does not reproduce what Photoshop
+      shows for the same file. Use
+      :py:meth:`~psd_tools.api.psd_image.PSDImage.topil` for the merged data.
 
 Exporting data to NumPy
 -----------------------

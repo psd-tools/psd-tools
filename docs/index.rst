@@ -81,9 +81,11 @@ Not supported:
     :maxdepth: 1
 
     usage
+    untrusted
     migration
     changelog
     contributing
+    architecture
 
 .. toctree::
     :caption: Package reference
@@ -95,8 +97,10 @@ Not supported:
     reference/psd_tools.api.effects
     reference/psd_tools.api.layers
     reference/psd_tools.api.mask
+    reference/psd_tools.api.protocols
     reference/psd_tools.api.shape
     reference/psd_tools.api.smart_object
+    reference/psd_tools.color_convert
     reference/psd_tools.composite
     reference/psd_tools.compression
     reference/psd_tools.constants

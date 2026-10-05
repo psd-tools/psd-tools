@@ -12,14 +12,25 @@ from typing import IO, Any, Sequence, TypeVar
 
 from attrs import define, field
 
-from psd_tools.compression import compress, decompress
+from psd_tools.compression import compress, decompress, decompressed_size_bound
 from psd_tools.constants import Compression
 from psd_tools.psd.header import FileHeader
 from psd_tools.psd.base import BaseElement
-from psd_tools.psd.bin_utils import pack, read_fmt, write_bytes, write_fmt
+from psd_tools.psd.bin_utils import (
+    pack,
+    read_fmt,
+    read_remaining,
+    write_bytes,
+    write_fmt,
+)
 from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
+
+# The raw value each depth spells 1.0 as. Mirrors
+# :py:data:`psd_tools.api.utils._DEPTH_MAX`, which is what hands :py:meth:`new`
+# its color; importing it would make this module depend on the api layer.
+_DEPTH_MAX: dict[int, int] = {8: 255, 16: 65535, 32: 4294967295}
 
 T = TypeVar("T", bound="ImageData")
 
@@ -47,7 +58,7 @@ class ImageData(BaseElement):
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         start_pos = fp.tell()
         compression = Compression(read_fmt("H", fp)[0])
-        data = fp.read()  # TODO: Parse data here. Need header.
+        data = read_remaining(fp)
         logger.debug("  read image data, len=%d" % (fp.tell() - start_pos))
         return cls(compression, data)
 
@@ -58,11 +69,18 @@ class ImageData(BaseElement):
         logger.debug("  wrote image data, len=%d" % (fp.tell() - start_pos))
         return written
 
-    def get_data(self, header: FileHeader, split: bool = True) -> list[bytes] | bytes:
+    def get_data(
+        self,
+        header: FileHeader,
+        split: bool = True,
+        *,
+        max_output_bytes: int | None = None,
+    ) -> list[bytes] | bytes:
         """
         Get decompressed data.
 
         :param header: See :py:class:`~psd_tools.psd.header.FileHeader`.
+        :param max_output_bytes: optional ceiling on the combined channel bytes.
         :return: `list` of bytes corresponding each channel.
         """
         data = decompress(
@@ -72,12 +90,40 @@ class ImageData(BaseElement):
             header.height * header.channels,
             header.depth,
             header.version,
+            max_output_bytes=max_output_bytes,
         )
         if split:
             plane_size = len(data) // header.channels
             with io.BytesIO(data) as f:
                 return [f.read(plane_size) for _ in range(header.channels)]
         return data
+
+    def decompressed_size_bound(self, header: FileHeader) -> int:
+        """
+        Upper bound on the number of bytes :py:meth:`get_data` will decompress.
+
+        Answerable without decompressing anything, so a caller can size the
+        array before it exists -- see
+        :py:func:`psd_tools.compression.decompressed_size_bound`. It lives next
+        to :py:meth:`get_data` because it has to mirror that call exactly,
+        including the part a caller would most easily get wrong: every channel
+        is decompressed in one pass, ``height * channels`` rows at a time.
+
+        A public utility with no caller in the tree: the allocation guard
+        reads the header instead, because the decompressed array is one
+        float32 per pixel at every depth (#737, #768).
+
+        :param header: See :py:class:`~psd_tools.psd.header.FileHeader`.
+        :return: the maximum byte count, for all channels together.
+        """
+        return decompressed_size_bound(
+            self.data,
+            self.compression,
+            header.width,
+            header.height * header.channels,
+            header.depth,
+            header.version,
+        )
 
     def set_data(self, data: Sequence[bytes], header: FileHeader) -> int:
         """
@@ -111,7 +157,9 @@ class ImageData(BaseElement):
 
         :param header: FileHeader.
         :param compression: compression type.
-        :param color: default color. int or iterable for channel length.
+        :param color: default color, as a raw value for the header's depth --
+            what :py:func:`~psd_tools.api.utils.denormalize_color` produces.
+            int or iterable for channel length.
         """
         plane_size = header.width * header.height
         if isinstance(color, (bool, int, float)):
@@ -120,11 +168,16 @@ class ImageData(BaseElement):
             raise ValueError(
                 "Invalid color %s for channel size %d" % (color, header.channels)
             )
-        # Bitmap is not supported here.
-        fmt = {8: "B", 16: "H", 32: "I"}[header.depth]
+        # Bitmap is not supported here. Depth 32 is a *float* channel, in
+        # [0, 1], and packing the raw value as the integer it arrives as wrote
+        # a document every reader saw as NaN: `0xffffffff`, the raw form of
+        # white at this depth, is a quiet NaN read back as `>f4` (#866).
+        depth = header.depth
+        fmt = {8: "B", 16: "H", 32: "f"}[depth]
         data = []
         for i in range(header.channels):
-            data.append(pack(fmt, color[i]) * plane_size)
+            value = color[i] / _DEPTH_MAX[depth] if depth == 32 else color[i]
+            data.append(pack(fmt, value) * plane_size)
         self = cls(compression=compression)
         self.set_data(data, header)
         return self

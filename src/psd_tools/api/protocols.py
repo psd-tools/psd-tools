@@ -4,17 +4,34 @@ Protocol definitions for type hints to avoid circular imports.
 This module defines Protocol classes that specify the interfaces for Layer and
 PSDImage without requiring concrete imports. These protocols allow other modules
 to properly type hint their parameters while avoiding circular dependency issues.
+
+Two of these names reach the rendered API reference through the annotations
+of concrete classes: :py:attr:`Layer.parent
+<psd_tools.api.layers.Layer.parent>` is declared as
+:py:class:`GroupMixinProtocol` or ``None``, and :py:class:`LayerProtocol` is
+the declared parameter type of :py:class:`~psd_tools.api.mask.Mask`,
+:py:class:`~psd_tools.api.effects.Effects` and
+:py:class:`~psd_tools.api.smart_object.SmartObject`. The whole module is
+documented so that those links land somewhere. These are interfaces; user
+code works with the classes that implement them.
 """
 
+from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING, Callable, Iterator, Literal, Protocol
 
 if TYPE_CHECKING:
-    from psd_tools.api.layers import Layer
+    from psd_tools.api.layers import Group, Layer, PixelLayer
 
 import numpy as np
 from PIL import Image
 
-from psd_tools.constants import BlendMode, ChannelID, ColorMode, CompatibilityMode
+from psd_tools.constants import (
+    BlendMode,
+    ChannelID,
+    ColorMode,
+    Compression,
+    CompatibilityMode,
+)
 from psd_tools.psd.document import PSD
 from psd_tools.psd.image_resources import ImageResources
 from psd_tools.psd.layer_and_mask import ChannelDataList, LayerRecord, MaskData
@@ -37,7 +54,7 @@ class MaskProtocol(Protocol):
 
     @property
     def bbox(self) -> tuple[int, int, int, int]:
-        """BBox"""
+        """BBox."""
         ...
 
     @property
@@ -71,7 +88,7 @@ class MaskProtocol(Protocol):
         ...
 
     def has_real(self) -> bool:
-        """Return True if the mask has real flags."""
+        """Return True if ``real_flags`` is present with ``parameters_applied`` set."""
         ...
 
     @property
@@ -115,8 +132,9 @@ class LayerProtocol(Protocol):
     @property
     def kind(self) -> str:
         """
-        Kind of this layer, such as group, pixel, shape, type, smartobject,
-        or psdimage.
+        Kind of this layer.
+
+        One of group, pixel, shape, type, smartobject, or psdimage.
         """
         ...
 
@@ -270,7 +288,7 @@ class LayerProtocol(Protocol):
         self,
         viewport: tuple[int, int, int, int] | None = None,
         force: bool = False,
-        color: float | tuple[float, ...] | np.ndarray = 1.0,
+        color: float | Sequence[float] | np.ndarray = 1.0,
         alpha: float | np.ndarray = 0.0,
         layer_filter: Callable | None = None,
         apply_icc: bool = True,
@@ -295,6 +313,14 @@ class GroupMixinProtocol(Protocol):
 
     This protocol is used for objects that behave like groups (can contain
     child layers). Both Group layers and PSDImage implement this protocol.
+
+    Only the members declared at runtime are listed below. The container
+    operations, iteration and indexing included, are documented on
+    :py:class:`~psd_tools.api.layers.GroupMixin`, which implements this
+    protocol. ``parent`` is declared here for the type checker only; the
+    properties that implement it are :py:attr:`Layer.parent
+    <psd_tools.api.layers.Layer.parent>` and :py:attr:`PSDImage.parent
+    <psd_tools.api.psd_image.PSDImage.parent>`.
     """
 
     def __len__(self) -> int:
@@ -307,6 +333,10 @@ class GroupMixinProtocol(Protocol):
 
     def __getitem__(self, index: int) -> LayerProtocol:
         """Get child layer by index."""
+        ...
+
+    def __setitem__(self, key: int, value: "Layer") -> None:
+        """Replace child layer by index."""
         ...
 
     def __delitem__(self, key: int) -> None:
@@ -334,6 +364,48 @@ class GroupMixinProtocol(Protocol):
         """Return the index of a layer in the group."""
         ...
 
+    if TYPE_CHECKING:
+        # Declared for the type checker only. This protocol is a *base class*
+        # of :py:class:`~psd_tools.api.layers.GroupMixin`, which precedes
+        # :py:class:`~psd_tools.api.layers.Layer` in ``Group``'s MRO, so
+        # anything given a ``...`` body here shadows the real implementation
+        # for every group: as a runtime member, ``parent`` handed each one a
+        # ``None`` parent, and ``_invalidate_bbox`` would be a silent no-op for
+        # any container that did not define its own.
+
+        @property
+        def parent(self) -> "GroupMixinProtocol | None":
+            """The container this one sits in, or None at the document root."""
+            ...
+
+        def _invalidate_bbox(self) -> None:
+            """Drop this container's cached bbox, and every one above it."""
+            ...
+
+        def create_pixel_layer(
+            self,
+            image: Image.Image,
+            name: str = ...,
+            top: int = ...,
+            left: int = ...,
+            compression: Compression = ...,
+            opacity: int = ...,
+            blend_mode: BlendMode = ...,
+        ) -> "PixelLayer":
+            """Create a pixel layer at the top of this container."""
+            ...
+
+        def create_group(
+            self,
+            layer_list: Iterable["Layer"] | None = ...,
+            name: str = ...,
+            opacity: int = ...,
+            blend_mode: BlendMode = ...,
+            open_folder: bool = ...,
+        ) -> "Group":
+            """Create a group at the top of this container."""
+            ...
+
 
 class PSDProtocol(GroupMixinProtocol, Protocol):
     """
@@ -349,7 +421,12 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
 
     # Internal attributes accessed by related classes
     _record: PSD  # psd_tools.psd.PSD
-    _max_alloc_bytes: int | None  # per-document allocation budget
+    _max_alloc_bytes: int | Literal["unlimited"] | None  # See PSDImage.max_alloc_bytes.
+
+    @property
+    def max_alloc_bytes(self) -> int | Literal["unlimited"] | None:
+        """Allocation budget setting; ``None`` defers to the process default."""
+        ...
 
     @property
     def name(self) -> str:
@@ -436,17 +513,21 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
         ...
 
     def is_updated(self) -> bool:
-        """Returns whether the PSD document has been updated."""
+        """Returns whether the PSD document has been edited."""
         ...
 
-    def _mark_updated(self) -> None:
-        """Mark the PSD document as updated."""
+    def mark_updated(self) -> None:
+        """Mark the PSD document as edited, so its stored preview stops being trusted."""
         ...
 
     def _update_record(self) -> None:
         """
-        Compiles the low-level tree layer structure back into records and channels list
-        recursively from the API layer structure.
+        Compile the low-level tree layer structure back into flat lists.
+
+        Walks the API layer structure recursively, producing the records and
+        channels list, and stores them where the reader takes them from: an
+        ``Lr16``/``Lr32`` tagged block where the document has one, the layer
+        info section itself otherwise.
         """
         ...
 
@@ -477,7 +558,7 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
         self,
         viewport: tuple[int, int, int, int] | None = None,
         force: bool = False,
-        color: float | tuple[float, ...] | np.ndarray | None = 1.0,
+        color: float | Sequence[float] | np.ndarray | None = 1.0,
         alpha: float | np.ndarray = 0.0,
         layer_filter: Callable | None = None,
         ignore_preview: bool = False,

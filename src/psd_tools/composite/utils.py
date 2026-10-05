@@ -1,6 +1,6 @@
 """Utility functions for composite operations."""
 
-from typing import overload
+from typing import Any, overload
 
 import numpy as np
 from numpy.typing import NDArray
@@ -9,12 +9,39 @@ from psd_tools.api.layers import Layer
 from psd_tools.constants import Tag
 
 
-def divide(a: NDArray[np.floating], b: NDArray[np.floating]) -> NDArray[np.floating]:
-    """Safe division for color ops."""
-    with np.errstate(divide="ignore", invalid="ignore"):
-        c = np.true_divide(a, b)
-        c[~np.isfinite(c)] = 1.0
-    return c
+# A divisor or a fill is usually a canvas, but ``draw_stroke_effect()``
+# normalizes by a NumPy scalar and every caller may pass a plain float.
+_Scalable = NDArray[np.floating] | np.floating[Any] | float
+
+
+def divide(
+    a: NDArray[np.floating],
+    b: _Scalable,
+    fill: _Scalable = 1.0,
+) -> NDArray[np.floating]:
+    """Divide ``a`` by ``b``, substituting ``fill`` where ``b`` is not positive.
+
+    Every divisor in the compositor is an alpha or a coverage, so a zero one
+    means "nothing here" rather than an arithmetic accident, and the quotient
+    is undefined at exactly those pixels. What belongs there instead is the
+    caller's to say: un-premultiplying a color wants a color to fall back to,
+    while a ratio of two alphas wants an opacity. The default 1.0 reads as
+    white in normalized color space and as fully opaque in alpha, which is what
+    every caller that does not pass ``fill`` relies on.
+
+    ``fill`` may be a full canvas as well as a scalar, so a caller can fall
+    back per pixel to something it already has in hand.
+
+    Skipping those pixels via ``where=`` also avoids computing an invalid
+    quotient only to overwrite it -- the divisor is never negative here, so
+    ``b > 0`` and "b is nonzero" are the same test.
+    """
+    out = np.full(
+        np.broadcast_shapes(np.shape(a), np.shape(b)),
+        fill,
+        dtype=np.result_type(a, b),
+    )
+    return np.divide(a, b, out=out, where=np.asarray(b) > 0)
 
 
 def intersect(
@@ -25,6 +52,31 @@ def intersect(
     if inter[0] >= inter[2] or inter[1] >= inter[3]:
         return (0, 0, 0, 0)
     return inter
+
+
+def union_bbox(
+    a: tuple[int, int, int, int], b: tuple[int, int, int, int]
+) -> tuple[int, int, int, int]:
+    """The smallest bounding box containing both, ignoring an empty one.
+
+    The bounding-box twin of :py:func:`intersect`, and unrelated to
+    :py:func:`union`, which is the generalized union of two *coverages*.
+
+    An empty box means "nothing here" rather than a box at the origin, so it
+    contributes nothing: growing a real box to reach ``(0, 0, 0, 0)`` would
+    drag it to the top-left corner of the canvas.
+    """
+    if a[0] >= a[2] or a[1] >= a[3]:
+        return b
+    if b[0] >= b[2] or b[1] >= b[3]:
+        return a
+    return (min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3]))
+
+
+def is_fill_disabled(layer: Layer) -> bool:
+    """Check if a shape layer's fill is switched off, whichever tag holds it."""
+    stroke = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_DATA)
+    return bool(stroke) and getattr(stroke.get("fillEnabled"), "value", True) is False
 
 
 def has_fill(layer: Layer) -> bool:

@@ -1,5 +1,5 @@
 """
-Various constants for psd_tools
+Various constants for psd_tools.
 """
 
 from enum import Enum, IntEnum, auto
@@ -7,8 +7,9 @@ from enum import Enum, IntEnum, auto
 
 class CompatibilityMode(Enum):
     """
-    Compatibility modes that describe how compositing and
-    layer control should attempt to behave.
+    Compatibility modes for compositing and layer control.
+
+    Each describes how those two should attempt to behave.
     """
 
     PHOTOSHOP = auto()
@@ -18,6 +19,24 @@ class CompatibilityMode(Enum):
     KRITA = auto()
 
     DEFAULT = PHOTOSHOP
+
+
+class Knockout(IntEnum):
+    """
+    Knockout setting of a layer or group.
+
+    Stored in the :py:attr:`Tag.KNOCKOUT_SETTING` tagged block. Knockout makes a
+    layer punch a hole through what is beneath it, down to a backdrop chosen by
+    this setting. It only becomes visible when the layer's fill opacity is below
+    100%: at 100% the layer's own content exactly refills the hole it punched.
+    """
+
+    NONE = 0
+    SHALLOW = 1
+    """Knock out to the enclosing group's backdrop."""
+    DEEP = 2
+    """Knock out to the document backdrop, passing through any enclosing
+    pass-through groups but stopping at an isolated (non pass-through) one."""
 
 
 class ColorMode(IntEnum):
@@ -471,6 +490,80 @@ class EffectOSType(bytes, Enum):
     SOLID_FILL = b"sofi"
 
 
+class BevelDirection(bytes, Enum):
+    """Bevel and emboss direction."""
+
+    STAMP_IN = b"In  "
+    STAMP_OUT = b"Out "
+
+
+class BevelStyle(bytes, Enum):
+    """Bevel and emboss style."""
+
+    OUTER_BEVEL = b"OtrB"
+    INNER_BEVEL = b"InrB"
+    EMBOSS = b"Embs"
+    PILLOW_EMBOSS = b"PlEb"
+    STROKE_EMBOSS = b"strokeEmboss"  # Not in the terminology.
+
+
+class BevelTechnique(bytes, Enum):
+    """Bevel and emboss technique."""
+
+    SOFT_MATTE = b"SfBL"
+    PRECISE_MATTE = b"PrBL"
+    SLOPE_LIMIT_MATTE = b"Slmt"
+
+
+class GlowSource(bytes, Enum):
+    """Inner glow source."""
+
+    EDGE = b"SrcE"
+    CENTER = b"SrcC"
+
+
+class GlowTechnique(bytes, Enum):
+    """Glow technique."""
+
+    SOFT_MATTE = b"SfBL"
+    PRECISE_MATTE = b"PrBL"
+
+
+class GradientType(bytes, Enum):
+    """Gradient type."""
+
+    LINEAR = b"Lnr "
+    RADIAL = b"Rdl "
+    ANGLE = b"Angl"
+    REFLECTED = b"Rflc"
+    DIAMOND = b"Dmnd"
+    SHAPE_BURST = b"shapeburst"  # Stroke effect only; not in the terminology.
+
+
+class StrokeFillType(bytes, Enum):
+    """Stroke effect fill type."""
+
+    SOLID_COLOR = b"SClr"
+    GRADIENT = b"GrFl"
+    PATTERN = b"Ptrn"
+
+
+class StrokePosition(bytes, Enum):
+    """Stroke effect position."""
+
+    INSIDE = b"InsF"
+    OUTSIDE = b"OutF"
+    CENTER = b"CtrF"
+
+
+class StrokeAlignment(str, Enum):
+    """Which side of the path a vector stroke sits on."""
+
+    INNER = "inner"
+    OUTER = "outer"
+    CENTER = "center"
+
+
 class PathResourceID(IntEnum):
     CLOSED_LENGTH = 0
     CLOSED_KNOT_LINKED = 1
@@ -514,7 +607,7 @@ class SheetColorType(IntEnum):
 
 class TextType(IntEnum):
     """
-    Type of text
+    Type of text.
     """
 
     POINT = 0
@@ -558,7 +651,7 @@ class WritingDirection(IntEnum):
 
 class ProtectedFlags(IntEnum):
     """
-    Flags for layer locking
+    Flags for layer locking.
     """
 
     TRANSPARENCY = 0x01

@@ -1,10 +1,26 @@
 import logging
-from typing import Iterator
+from pathlib import Path
+from typing import Any, Iterator
 
 import pytest
 
+from psd_tools.api.layers import Layer
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.terminology import Enum
+from psd_tools.constants import (
+    BevelDirection,
+    BevelStyle,
+    BevelTechnique,
+    BlendMode,
+    GlowSource,
+    GlowTechnique,
+    GradientType,
+    StrokeFillType,
+    StrokePosition,
+    Tag,
+)
+from psd_tools.psd.descriptor import Bool, Descriptor, List, String, UnitFloat
+from psd_tools.psd.image_resources import ImageResources
+from psd_tools.terminology import Enum, Key, Unit
 from psd_tools.api import effects
 
 from ..utils import full_name
@@ -41,10 +57,10 @@ def test_bevel(fixture: PSDImage) -> None:
     assert effect.direction == Enum.StampIn
     assert effect.enabled is True
     assert effect.highlight_color
-    assert effect.highlight_mode == Enum.Screen
+    assert effect.highlight_mode is BlendMode.SCREEN
     assert effect.highlight_opacity == 50.0
     assert effect.shadow_color
-    assert effect.shadow_mode == Enum.Multiply
+    assert effect.shadow_mode is BlendMode.MULTIPLY
     assert effect.shadow_opacity == 50.0
     assert effect.size == 41.0
     assert effect.soften == 0.0
@@ -67,10 +83,10 @@ def test_emboss(fixture: PSDImage) -> None:
     assert effect.direction == Enum.StampIn
     assert effect.enabled is True
     assert effect.highlight_color
-    assert effect.highlight_mode == Enum.Screen
+    assert effect.highlight_mode is BlendMode.SCREEN
     assert effect.highlight_opacity == 50.0
     assert effect.shadow_color
-    assert effect.shadow_mode == Enum.Multiply
+    assert effect.shadow_mode is BlendMode.MULTIPLY
     assert effect.shadow_opacity == 50.0
     assert effect.size == 41.0
     assert effect.soften == 0.0
@@ -83,11 +99,12 @@ def test_outer_glow(fixture: PSDImage) -> None:
     effect = fixture[3].effects[0]
     assert isinstance(effect, effects.OuterGlow)
     assert effect.anti_aliased is False
-    assert effect.blend_mode == Enum.Screen
+    assert effect.blend_mode is BlendMode.SCREEN
     assert effect.choke == 0.0
     assert effect.color
     assert effect.contour
     assert effect.glow_type == Enum.SoftMatte
+    assert effect.type is None  # a glow inherits the gradient mixin
     assert effect.noise == 0.0
     assert effect.opacity == 35.0
     assert effect.quality_jitter == 0.0
@@ -101,12 +118,13 @@ def test_inner_glow(fixture: PSDImage) -> None:
     effect = fixture[4].effects[0]
     assert isinstance(effect, effects.InnerGlow)
     assert effect.anti_aliased is False
-    assert effect.blend_mode == Enum.Screen
+    assert effect.blend_mode is BlendMode.SCREEN
     assert effect.choke == 0.0
     assert effect.color
     assert effect.contour
     assert effect.glow_source == Enum.EdgeGlow
     assert effect.glow_type == Enum.SoftMatte
+    assert effect.type is None  # a glow inherits the gradient mixin
     assert effect.noise == 0.0
     assert effect.opacity == 46.0
     assert effect.quality_jitter == 0.0
@@ -120,7 +138,7 @@ def test_inner_shadow(fixture: PSDImage) -> None:
     assert isinstance(effect, effects.InnerShadow)
     assert effect.angle == 90.0
     assert effect.anti_aliased is False
-    assert effect.blend_mode == Enum.Multiply
+    assert effect.blend_mode is BlendMode.MULTIPLY
     assert effect.choke == 0.0
     assert effect.color
     assert effect.contour
@@ -134,7 +152,7 @@ def test_inner_shadow(fixture: PSDImage) -> None:
 def test_color_overlay(fixture: PSDImage) -> None:
     effect = fixture[6].effects[0]
     assert isinstance(effect, effects.ColorOverlay)
-    assert effect.blend_mode == Enum.Normal
+    assert effect.blend_mode is BlendMode.NORMAL
     assert effect.color
     assert effect.opacity == 100.0
 
@@ -144,7 +162,7 @@ def test_drop_shadow(fixture: PSDImage) -> None:
     assert isinstance(effect, effects.DropShadow)
     assert effect.angle == 90.0
     assert effect.anti_aliased is False
-    assert effect.blend_mode == Enum.Multiply
+    assert effect.blend_mode is BlendMode.MULTIPLY
     assert effect.choke == 0.0
     assert effect.color
     assert effect.contour
@@ -161,7 +179,7 @@ def test_gradient_overlay(fixture: PSDImage) -> None:
     assert isinstance(effect, effects.GradientOverlay)
     assert effect.aligned is True
     assert effect.angle == 87.0
-    assert effect.blend_mode == Enum.Normal
+    assert effect.blend_mode is BlendMode.NORMAL
     assert effect.dithered is False
     assert effect.gradient
     assert effect.offset
@@ -175,7 +193,7 @@ def test_pattern_overlay(fixture: PSDImage) -> None:
     effect = fixture[9].effects[0]
     assert isinstance(effect, effects.PatternOverlay)
     assert effect.aligned is True
-    assert effect.blend_mode == Enum.Normal
+    assert effect.blend_mode is BlendMode.NORMAL
     assert effect.opacity == 100.0
     assert effect.pattern
     assert effect.phase
@@ -185,7 +203,7 @@ def test_pattern_overlay(fixture: PSDImage) -> None:
 def test_stroke(fixture: PSDImage) -> None:
     effect = fixture[10].effects[0]
     assert isinstance(effect, effects.Stroke)
-    assert effect.blend_mode == Enum.Normal
+    assert effect.blend_mode is BlendMode.NORMAL
     assert effect.fill_type == Enum.SolidColor
     assert effect.opacity == 100.0
     assert effect.overprint is False
@@ -194,6 +212,10 @@ def test_stroke(fixture: PSDImage) -> None:
     assert effect.color
     assert effect.gradient is None
     assert effect.pattern is None
+    # One class covers all three fill shapes, so a solid-colour stroke is
+    # asked about a gradient it does not have, and answers None rather than a
+    # gradient type.
+    assert effect.type is None
 
 
 def test_satin(fixture: PSDImage) -> None:
@@ -201,10 +223,569 @@ def test_satin(fixture: PSDImage) -> None:
     assert isinstance(effect, effects.Satin)
     assert effect.angle == -60.0
     assert effect.anti_aliased is True
-    assert effect.blend_mode == Enum.Multiply
+    assert effect.blend_mode is BlendMode.MULTIPLY
     assert effect.color
     assert effect.contour
     assert effect.distance == 20.0
     assert effect.inverted is True
     assert effect.opacity == 50.0
     assert effect.size == 35.0
+
+
+def _forge_unknown_class(layer: Layer, key: bytes, index: int = 0) -> None:
+    """Give one of ``layer``'s effects a class psd-tools has no handler for.
+
+    Nothing ships like this: every effect class in ``tests/psd_files`` is one
+    ``_TYPES`` holds, and Photoshop writes no others, so reaching the branch
+    at all means forging it.
+
+    No ``del layer._effects`` afterwards: :py:attr:`Layer.effects` is a live
+    view, so the callers below see the forged class on their next access.
+    That this helper reads ``layer.effects._data`` first is what makes them
+    evidence for it -- under the snapshot they would be reading a list built
+    before the forgery.
+    """
+    item = layer.effects._data[key]  # type: ignore[index]
+    item = item[index] if isinstance(item, List) else item
+    item.classID = b"XXXX"
+
+
+def test_an_unknown_effect_class_is_skipped_rather_than_rejected() -> None:
+    """A class with no handler here costs its effect, not every caller (#828).
+
+    Rejecting it would make `layer.effects` raise, and `has_effects()` with
+    it, and `Layer.__repr__` through that -- so a file carrying one could not
+    be printed, displayed in a notebook, or composited at any log level. It is
+    skipped instead, like an effect the Photoshop UI does not show.
+
+    The descriptor it came out of is still readable, which is why the master
+    switch and the scale are asserted too: only the one effect is dropped.
+    """
+    psd = PSDImage.open(full_name("layer_effects.psd"))
+    layer = psd[10]
+    assert [effect.name for effect in layer.effects] == ["Stroke"]
+    scale = layer.effects.scale
+
+    _forge_unknown_class(layer, b"FrFX")
+
+    assert list(layer.effects) == []
+    assert layer.has_effects() is False
+    assert " effects" not in repr(layer)
+    assert layer.effects.enabled is True
+    assert layer.effects.scale == scale
+
+
+def test_an_unknown_effect_class_costs_only_its_own_effect() -> None:
+    """One unknown class does not take the layer's other effects with it.
+
+    ``double-stroke-effects.psd`` carries two enabled strokes in one
+    ``frameFXMulti`` list (#798), so it tells skipping the item apart from
+    abandoning the layer: only if the ``continue`` sits inside the per-item
+    loop does the second stroke survive the first having no handler.
+    """
+    psd = PSDImage.open(full_name("effects/double-stroke-effects.psd"))
+    layer = psd[1]
+    assert [effect.name for effect in layer.effects] == ["Stroke", "Stroke"]
+
+    _forge_unknown_class(layer, b"frameFXMulti", index=0)
+
+    assert [effect.name for effect in layer.effects] == ["Stroke"]
+    assert layer.has_effects() is True
+    assert layer.has_effects(name="Stroke") is True
+    assert " effects" in repr(layer)
+
+
+def test_an_effects_block_that_did_not_parse_reads_as_no_effects() -> None:
+    """The other way listing a layer's effects can fail before it begins (#828).
+
+    ``TaggedBlock.read()`` keeps the raw bytes of a block it could not parse,
+    so ``self._data`` can be ``bytes``, and reading those as a descriptor
+    raises -- with the bytes forged here, ``IndexError``. Unlike an unknown
+    effect class this needs no forged class name, only an effects descriptor
+    that will not read, so it is the more reachable of the two.
+
+    Which exception comes out depends on the bytes, and that is the point:
+    ``IndexError`` is not in the compositor's ``_UNREADABLE``, so for this
+    content the guards #826 added cannot see it.
+    """
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    layer = psd[0]
+    assert layer.has_effects()
+
+    for tag in (
+        Tag.OBJECT_BASED_EFFECTS_LAYER_INFO,
+        Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V0,
+        Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V1,
+    ):
+        if tag in layer.tagged_blocks:
+            layer.tagged_blocks[tag].data = b"garbagebytes"
+
+    assert list(layer.effects) == []
+    assert len(layer.effects) == 0
+    assert layer.effects.enabled is False
+    assert layer.effects.scale == 100.0
+    assert layer.has_effects() is False
+    assert " effects" not in repr(layer)
+
+
+def _effects_block(layer: Layer) -> Descriptor | None:
+    """The layer's effects descriptor straight out of the low-level structure.
+
+    The route :py:meth:`Layer.has_effects` documents in place of an API for
+    block presence, so the tests below can say "the block is still there"
+    without going through the proxy that is under test.
+    """
+    for tag in (
+        Tag.OBJECT_BASED_EFFECTS_LAYER_INFO,
+        Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V0,
+        Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V1,
+    ):
+        if tag in layer.tagged_blocks:
+            data = layer.tagged_blocks.get_data(tag)
+            return data if isinstance(data, Descriptor) else None
+    return None
+
+
+def test_a_block_listing_nothing_is_not_effects() -> None:
+    """``has_effects(enabled=False)`` follows the fx list, not the block (#830).
+
+    ``Фигура 1`` is one of the layers in ``tests/psd_files`` that carry an
+    effects block listing nothing -- Photoshop writes the block when the first
+    effect is attached and leaves it once the last is removed.
+
+    It discriminates because both its entries are ``enab=True`` with no
+    ``present`` flag: an implementation that read the enabled flag, or the
+    block, would answer True here. Only ``present`` -- what the Photoshop UI
+    lists, and what ``Effects`` already filters on -- answers False.
+    """
+    psd = PSDImage.open(full_name("layer_comps.psd"))
+    layer = psd[1]
+
+    block = _effects_block(layer)
+    assert block is not None
+    assert bool(block.get(b"masterFXSwitch")) is True
+    entries = [block[key] for key in block if isinstance(block[key], Descriptor)]
+    assert [entry.classID for entry in entries] == [b"DrSh", b"ebbl"]
+    assert [bool(entry.get(Key.Enabled)) for entry in entries] == [True, True]
+    assert [bool(entry.get(b"present")) for entry in entries] == [False, False]
+
+    assert len(layer.effects) == 0
+    assert layer.has_effects() is False
+    assert layer.has_effects(enabled=False) is False
+    # The named form asks the fx list too, not the block: this layer is where
+    # the two arms of the same question can come apart.
+    assert layer.has_effects(enabled=False, name="DropShadow") is False
+    assert layer.has_effects(enabled=False, name="BevelEmboss") is False
+
+
+def test_a_malformed_present_flag_lists_no_effect() -> None:
+    """The fx list and ``Effect.present`` read the flag the same way."""
+    layer = PSDImage.open(full_name("effects/outside-stroke.psd"))[0]
+    block = _effects_block(layer)
+    assert block is not None
+    entries = [block[key] for key in block if isinstance(block[key], Descriptor)]
+    assert len(layer.effects) > 0
+
+    for entry in entries:
+        entry[b"present"] = String("y")  # type: ignore[assignment]
+
+    assert len(layer.effects) == 0
+
+
+def test_effects_follows_a_block_attached_after_it_was_read() -> None:
+    """The additive half of the live view: a block set later is seen.
+
+    A proxy that snapshotted the layer's effects would put this out of reach
+    without ``del layer._effects``, and would be masked by any caller that
+    sets its block before anything reads ``layer.effects``.
+
+    ``view`` is taken, and read, while the layer still has no block, and is
+    asserted on alongside every fresh ``layer.effects``. Without it the test
+    would pass on the de-memoisation alone -- a proxy that still froze its
+    own descriptor would go unnoticed, since each access hands back a new one.
+    """
+    psd = PSDImage.open(full_name("layer_comps.psd"))
+    layer = psd[3]
+    assert _effects_block(layer) is None
+    view = layer.effects
+    assert len(view) == 0
+    assert view.enabled is False
+
+    overlay = Descriptor(classID=b"SoFi")
+    overlay[Key.Enabled] = Bool(True)
+    overlay[b"present"] = Bool(True)
+    block = Descriptor(classID=b"null")
+    block[b"masterFXSwitch"] = Bool(True)
+    block[b"solidFill"] = overlay
+    layer.tagged_blocks.set_data(Tag.OBJECT_BASED_EFFECTS_LAYER_INFO, block)
+
+    assert [effect.name for effect in layer.effects] == ["ColorOverlay"]
+    assert [effect.name for effect in view] == ["ColorOverlay"]
+    assert layer.effects.enabled is True
+    assert view.enabled is True
+    assert layer.has_effects() is True
+    assert layer.has_effects(name="ColorOverlay") is True
+    assert list(view.find("ColorOverlay"))
+
+    # And the structural flags too, which a snapshot would freeze along with
+    # the list. ``set_data`` stores a ``DescriptorBlock2`` of its own, so these
+    # go at what the layer now holds rather than at what was handed to it.
+    stored = _effects_block(layer)
+    assert stored is not None
+    stored[b"masterFXSwitch"] = Bool(False)
+    assert layer.effects.enabled is False
+    assert view.enabled is False
+    assert layer.has_effects() is False
+    # Switching the master off greys the fx list out; it does not empty it.
+    assert layer.has_effects(enabled=False) is True
+    assert len(view) == 1
+    stored[b"solidFill"][b"present"] = Bool(False)  # type: ignore[index]
+    assert layer.has_effects(enabled=False) is False
+    assert len(view) == 0
+
+
+def test_items_hands_out_a_list_that_cannot_write_back() -> None:
+    """``items`` is not the internal list, so a caller cannot empty it.
+
+    Held as one proxy throughout: re-reading ``layer.effects`` would pass on
+    the de-memoisation alone, and the point here is the list.
+    """
+    effects = PSDImage.open(full_name("layer_effects.psd"))[10].effects
+    assert [effect.name for effect in effects.items] == ["Stroke"]
+
+    effects.items.clear()
+
+    assert len(effects) == 1
+    assert [effect.name for effect in effects.items] == ["Stroke"]
+
+
+def test_an_absent_reporting_enum_is_not_fabricated() -> None:
+    """The reporting-only enums answer None instead of inventing a default.
+
+    Only ``type`` reaches the absent case on a real file; most corpus effects
+    that expose it never write the key. The other keys are written by every
+    file there is, so taking the key away is the only way to ask them the
+    question at all.
+    """
+    psd = PSDImage.open(full_name("layer_effects.psd"))
+
+    stroke = psd[10].effects[0]
+    assert isinstance(stroke, effects.Stroke)
+    assert stroke.position == Enum.OutsetFrame
+    assert stroke.fill_type == Enum.SolidColor
+    del stroke.descriptor[Key.Style]
+    del stroke.descriptor[Key.PaintType]
+    assert stroke.position is None
+    assert stroke.fill_type is None
+
+    glow = psd[3].effects[0]
+    assert isinstance(glow, effects.OuterGlow)
+    assert glow.glow_type == Enum.SoftMatte
+    del glow.descriptor[Key.GlowTechnique]
+    assert glow.glow_type is None
+
+    inner = psd[4].effects[0]
+    assert isinstance(inner, effects.InnerGlow)
+    assert inner.glow_source == Enum.EdgeGlow
+    del inner.descriptor[Key.InnerGlowSource]
+    assert inner.glow_source is None
+
+    bevel = psd[1].effects[0]
+    assert isinstance(bevel, effects.BevelEmboss)
+    assert bevel.bevel_type == Enum.SoftMatte
+    assert bevel.bevel_style == Enum.InnerBevel
+    assert bevel.direction == Enum.StampIn
+    del bevel.descriptor[Key.BevelTechnique]
+    del bevel.descriptor[Key.BevelStyle]
+    del bevel.descriptor[Key.BevelDirection]
+    assert bevel.bevel_type is None
+    assert bevel.bevel_style is None
+    assert bevel.direction is None
+    # The blend modes are not in this set: an absent one really does mean
+    # Normal, which is why #831 keeps their defaults along with opacity's.
+    assert bevel.highlight_mode is BlendMode.SCREEN
+    assert bevel.shadow_mode is BlendMode.MULTIPLY
+
+
+def test_value_is_deprecated_out_loud() -> None:
+    """The deprecation is a warning, not a ``logger.debug`` no user ever sees.
+
+    Nothing in the library reads ``value``, so only a caller's own use trips
+    it (#831).
+    """
+    effect = PSDImage.open(full_name("layer_effects.psd"))[10].effects[0]
+
+    with pytest.warns(DeprecationWarning, match="descriptor"):
+        assert effect.value is effect.descriptor
+
+
+def test_the_documented_edit_recipe_survives_a_save(tmp_path: Path) -> None:
+    """The module docstring's editing recipe, run exactly as it is written.
+
+    It is the one workflow this module sanctions, and the failure it guards
+    against is invisible short of a save: a unit given as raw bytes reads
+    back correctly and only raises in ``write()``.
+    """
+    psd = PSDImage.open(full_name("layer_effects.psd"))
+    psd[6].effects[0].descriptor[Key.Opacity] = UnitFloat(50.0, Unit.Percent)
+    psd.mark_updated()
+
+    out = tmp_path / "edited.psd"
+    psd.save(out)
+
+    assert PSDImage.open(out)[6].effects[0].opacity == 50.0
+
+
+def test_scale_answers_where_there_is_no_block() -> None:
+    """``scale`` answers on the same guard ``enabled`` answers False on.
+
+    Reading the fx list's scale off a layer that has no fx list is not an
+    error the caller can do anything with, and the two properties disagreeing
+    about the same ``self._data is None`` would give the proxy two contracts.
+    100.0 is also what a block that omits the key answers, so a layer with a
+    block and one without agree.
+    """
+    psd = PSDImage.open(full_name("hidden-groups.psd"))
+    # Selected on block presence, not on ``has_effects()``: since #845 that
+    # asks what the fx list shows, which is a different question from the
+    # ``self._data is None`` guard this test is about.
+    plain = next(
+        layer
+        for layer in psd.descendants()
+        if _effects_block(layer) is None
+        and not any(tag in layer.tagged_blocks for tag in effects._EFFECTS_TAGS)
+    )
+
+    assert plain.effects.enabled is False
+    assert plain.effects.scale == 100.0
+
+
+def test_an_unreadable_effect_value_degrades_to_the_default() -> None:
+    descriptor = Descriptor(
+        items={Key.Blur: String("x"), b"useShape": String("y")}  # type: ignore[arg-type]
+    )
+    effect = effects.BevelEmboss(descriptor, ImageResources())
+
+    assert effect.soften == 0.0
+    assert effect.size == 0.0
+    assert effect.use_shape is False
+
+
+def test_effect_enums_are_members_that_still_equal_the_raw_code() -> None:
+    psd = PSDImage.open(full_name("layer_effects.psd"))
+    stroke = psd[10].effects[0]
+    assert isinstance(stroke, effects.Stroke)
+    assert stroke.position is StrokePosition.OUTSIDE
+    assert stroke.fill_type is StrokeFillType.SOLID_COLOR
+    assert stroke.position == b"OutF"
+    assert {b"OutF": 1}[stroke.position] == 1
+    glow = psd[3].effects[0]
+    assert isinstance(glow, effects.OuterGlow)
+    assert glow.glow_type is GlowTechnique.SOFT_MATTE
+    inner = psd[4].effects[0]
+    assert isinstance(inner, effects.InnerGlow)
+    assert inner.glow_source is GlowSource.EDGE
+    bevel = psd[1].effects[0]
+    assert isinstance(bevel, effects.BevelEmboss)
+    assert bevel.bevel_type is BevelTechnique.SOFT_MATTE
+    assert bevel.bevel_style is BevelStyle.INNER_BEVEL
+    assert bevel.direction is BevelDirection.STAMP_IN
+    gradients = [
+        e
+        for layer in psd
+        for e in layer.effects
+        if isinstance(e, effects.GradientOverlay)
+    ]
+    assert gradients[0].type is GradientType.LINEAR
+
+
+@pytest.mark.parametrize(
+    "index, effect_cls, prop, key",
+    [
+        (10, effects.Stroke, "position", Key.Style),
+        (10, effects.Stroke, "fill_type", Key.PaintType),
+        (3, effects.OuterGlow, "glow_type", Key.GlowTechnique),
+        (4, effects.InnerGlow, "glow_source", Key.InnerGlowSource),
+        (1, effects.BevelEmboss, "bevel_type", Key.BevelTechnique),
+        (1, effects.BevelEmboss, "bevel_style", Key.BevelStyle),
+        (1, effects.BevelEmboss, "direction", Key.BevelDirection),
+    ],
+)
+def test_an_unrecognised_effect_enum_reads_as_none(
+    caplog: pytest.LogCaptureFixture,
+    index: int,
+    effect_cls: type,
+    prop: str,
+    key: Key,
+) -> None:
+    effect = PSDImage.open(full_name("layer_effects.psd"))[index].effects[0]
+    assert isinstance(effect, effect_cls)
+    assert getattr(effect, prop) is not None
+    effect.descriptor[key].enum = b"nope"
+    with caplog.at_level(logging.DEBUG, logger="psd_tools.api._descriptor"):
+        assert getattr(effect, prop) is None
+    assert "Cannot read" in caplog.text
+
+
+_NOT_IN_TERMINOLOGY = (GradientType.SHAPE_BURST, BevelStyle.STROKE_EMBOSS)
+
+
+@pytest.mark.parametrize(
+    "enum_cls",
+    [
+        BevelDirection,
+        BevelStyle,
+        BevelTechnique,
+        GlowSource,
+        GlowTechnique,
+        GradientType,
+        StrokeFillType,
+        StrokePosition,
+    ],
+)
+def test_effect_enum_codes_match_the_terminology(enum_cls: Any) -> None:
+    for member in enum_cls:
+        if member in _NOT_IN_TERMINOLOGY:
+            continue
+        assert Enum(member.value)
+
+
+@pytest.mark.parametrize(
+    "layer_name, effect_cls, expected",
+    [
+        (
+            "bevel-stroke-emboss",
+            effects.BevelEmboss,
+            {"bevel_style": BevelStyle.STROKE_EMBOSS},
+        ),
+        (
+            "bevel-pillow-precise",
+            effects.BevelEmboss,
+            {
+                "bevel_style": BevelStyle.PILLOW_EMBOSS,
+                "bevel_type": BevelTechnique.PRECISE_MATTE,
+                "direction": BevelDirection.STAMP_OUT,
+            },
+        ),
+        (
+            "bevel-outer-slope",
+            effects.BevelEmboss,
+            {
+                "bevel_style": BevelStyle.OUTER_BEVEL,
+                "bevel_type": BevelTechnique.SLOPE_LIMIT_MATTE,
+            },
+        ),
+        (
+            "inner-glow-center-precise",
+            effects.InnerGlow,
+            {
+                "glow_type": GlowTechnique.PRECISE_MATTE,
+                "glow_source": GlowSource.CENTER,
+            },
+        ),
+        ("stroke-shapeburst", effects.Stroke, {"type": GradientType.SHAPE_BURST}),
+        ("stroke-radial", effects.Stroke, {"type": GradientType.RADIAL}),
+        ("stroke-angle", effects.Stroke, {"type": GradientType.ANGLE}),
+        ("stroke-diamond", effects.Stroke, {"type": GradientType.DIAMOND}),
+        ("stroke-reflected", effects.Stroke, {"type": GradientType.REFLECTED}),
+    ],
+)
+def test_effect_enums_read_the_codes_photoshop_writes(
+    layer_name: str, effect_cls: type, expected: dict[str, Any]
+) -> None:
+    psd = PSDImage.open(full_name("effects/effect-enums.psd"))
+    layer = next(layer for layer in psd if layer.name == layer_name)
+    effect = next(e for e in layer.effects if isinstance(e, effect_cls))
+    for prop, member in expected.items():
+        assert getattr(effect, prop) is member
+
+
+_PHOTOSHOP_EFFECT_BLEND_MODES = {
+    "normal": BlendMode.NORMAL,
+    "dissolve": BlendMode.DISSOLVE,
+    "darken": BlendMode.DARKEN,
+    "multiply": BlendMode.MULTIPLY,
+    "colorBurn": BlendMode.COLOR_BURN,
+    "linearBurn": BlendMode.LINEAR_BURN,
+    "darkerColor": BlendMode.DARKER_COLOR,
+    "lighten": BlendMode.LIGHTEN,
+    "screen": BlendMode.SCREEN,
+    "colorDodge": BlendMode.COLOR_DODGE,
+    "linearDodge": BlendMode.LINEAR_DODGE,
+    "lighterColor": BlendMode.LIGHTER_COLOR,
+    "overlay": BlendMode.OVERLAY,
+    "softLight": BlendMode.SOFT_LIGHT,
+    "hardLight": BlendMode.HARD_LIGHT,
+    "vividLight": BlendMode.VIVID_LIGHT,
+    "linearLight": BlendMode.LINEAR_LIGHT,
+    "pinLight": BlendMode.PIN_LIGHT,
+    "hardMix": BlendMode.HARD_MIX,
+    "difference": BlendMode.DIFFERENCE,
+    "exclusion": BlendMode.EXCLUSION,
+    "blendSubtraction": BlendMode.SUBTRACT,
+    "blendDivide": BlendMode.DIVIDE,
+    "hue": BlendMode.HUE,
+    "saturation": BlendMode.SATURATION,
+    "color": BlendMode.COLOR,
+    "luminosity": BlendMode.LUMINOSITY,
+}
+
+
+@pytest.mark.parametrize("code, expected", _PHOTOSHOP_EFFECT_BLEND_MODES.items())
+def test_effect_blend_mode_reads_the_code_photoshop_writes(
+    code: str, expected: BlendMode
+) -> None:
+    psd = PSDImage.open(full_name("effects/blend-modes.psd"))
+    layer = next(layer for layer in psd if layer.name == f"shadow-{code}")
+    effect = next(e for e in layer.effects if isinstance(e, effects.DropShadow))
+    assert effect.descriptor[Key.Mode].enum == code.encode()
+    assert effect.blend_mode is expected
+
+
+def test_bevel_blend_modes_read_the_codes_photoshop_writes() -> None:
+    psd = PSDImage.open(full_name("effects/blend-modes.psd"))
+    layer = next(layer for layer in psd if layer.name == "bevel-modes")
+    bevel = next(e for e in layer.effects if isinstance(e, effects.BevelEmboss))
+    assert bevel.highlight_mode is BlendMode.COLOR_DODGE
+    assert bevel.shadow_mode is BlendMode.COLOR_BURN
+
+
+def test_effect_blend_mode_reads_the_terminology_code_older_files_write() -> None:
+    psd = PSDImage.open(full_name("layer_effects.psd"))
+    modes = {
+        e.blend_mode
+        for layer in psd.descendants()
+        for e in layer.effects
+        if isinstance(e, effects.DropShadow)
+    }
+    assert BlendMode.MULTIPLY in modes
+
+
+@pytest.mark.parametrize(
+    "layer_name, effect_cls, getter, key",
+    [
+        ("shadow-multiply", effects.DropShadow, "blend_mode", Key.Mode),
+        ("bevel-modes", effects.BevelEmboss, "highlight_mode", Key.HighlightMode),
+        ("bevel-modes", effects.BevelEmboss, "shadow_mode", Key.ShadowMode),
+    ],
+)
+def test_an_unrecognised_effect_blend_mode_reads_as_normal(
+    layer_name: str,
+    effect_cls: type,
+    getter: str,
+    key: bytes,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    psd = PSDImage.open(full_name("effects/blend-modes.psd"))
+    layer = next(layer for layer in psd if layer.name == layer_name)
+    effect = next(e for e in layer.effects if isinstance(e, effect_cls))
+    effect.descriptor[key].enum = b"nope"
+    with caplog.at_level("DEBUG", logger="psd_tools.api._descriptor"):
+        assert getattr(effect, getter) is BlendMode.NORMAL
+    assert "Cannot read" in caplog.text
+
+
+def test_photoshop_writes_every_blend_mode_but_pass_through() -> None:
+    assert set(_PHOTOSHOP_EFFECT_BLEND_MODES.values()) == set(BlendMode) - {
+        BlendMode.PASS_THROUGH
+    }

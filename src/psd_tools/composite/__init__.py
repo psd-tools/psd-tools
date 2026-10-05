@@ -15,9 +15,10 @@ Or using uv::
 
 The composite extra includes:
 
-- ``aggdraw``: For vector path and bezier curve rasterization
-- ``scipy``: For advanced image processing operations
-- ``scikit-image``: For morphological operations in effects
+- ``aggdraw``: For drawing a vector stroke. A path is *filled* without it
+- ``scipy``: For advanced image processing operations, including the
+  distance transform that places stroke effects
+- ``scikit-image``: For pattern fills
 
 Key modules:
 
@@ -25,6 +26,7 @@ Key modules:
 - :py:mod:`psd_tools.composite.blend`: Blend mode implementations
 - :py:mod:`psd_tools.composite.effects`: Layer effects (stroke, shadow, etc.)
 - :py:mod:`psd_tools.composite.vector`: Vector shape and path rendering
+- :py:mod:`psd_tools.composite.scanline`: Exact coverage of a filled path
 - :py:mod:`psd_tools.composite.paint`: Fill rendering (gradients, patterns)
 
 Example usage::
@@ -47,7 +49,7 @@ screen, overlay, soft light, and more.
 Performance considerations:
 
 - Compositing can be memory-intensive for large documents
-- Vector shapes require aggdraw for accurate rendering
+- A stroked vector shape requires aggdraw; filling one does not
 - Some effects have limited support compared to Photoshop
 """
 

@@ -1,7 +1,24 @@
 import logging
+from typing import Callable
 
+import numpy as np
 import pytest
 
+from psd_tools.api import adjustments
+from psd_tools.api.psd_image import PSDImage
+from psd_tools.composite.adjustments import (
+    apply_curves,
+    apply_exposure,
+    apply_huesaturation,
+    apply_levels,
+    apply_posterize,
+    apply_threshold,
+)
+from psd_tools.constants import BlendMode, ColorMode
+from psd_tools.psd.adjustments import Curves as CurvesData
+from psd_tools.psd.adjustments import HueSaturation as HueSaturationData
+
+from ..utils import full_name
 from .test_composite import check_composite_quality, check_icc_composite_quality
 
 logger = logging.getLogger(__name__)
@@ -83,6 +100,64 @@ def test_curves_composite_icc(name: str, colormode: str) -> None:
 def test_curves_composite_error(name: str, colormode: str) -> None:
     filename = f"adjustments/{name}_{colormode}.psd"
     check_composite_quality(filename, curves_tests[name], False)
+
+
+def test_curves_without_extra_records_leaves_the_image_alone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layer = PSDImage.open(full_name("fill_adjustments.psd"))[6]
+    assert isinstance(layer, adjustments.Curves)
+    monkeypatch.setattr(layer, "_data", CurvesData(version=4))
+    image = np.zeros((2, 2, 3), dtype=np.float32)
+    assert apply_curves(image, ColorMode.RGB, layer) is image
+
+
+@pytest.mark.parametrize(
+    "index, apply",
+    [
+        (5, apply_levels),
+        (7, apply_exposure),
+        (9, apply_huesaturation),
+        (16, apply_posterize),
+        (17, apply_threshold),
+    ],
+)
+def test_an_absent_adjustment_block_leaves_the_image_alone(
+    monkeypatch: pytest.MonkeyPatch, index: int, apply: Callable[..., np.ndarray]
+) -> None:
+    layer = PSDImage.open(full_name("fill_adjustments.psd"))[index]
+    monkeypatch.setattr(layer, "_data", None)
+    image = np.zeros((2, 2, 3), dtype=np.float32)
+    assert apply(image, ColorMode.RGB, layer) is image
+
+
+def test_an_absent_adjustment_block_leaves_the_composite_alone_under_multiply(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    psd = PSDImage.open(full_name("fill_adjustments.psd"))
+    layer = psd[5]
+    assert isinstance(layer, adjustments.Levels)
+    layer.visible = False
+    expected = psd.composite(force=True)
+    layer.visible = True
+    layer.blend_mode = BlendMode.MULTIPLY
+    monkeypatch.setattr(layer, "_data", None)
+    assert psd.composite(force=True).tobytes() == expected.tobytes()
+
+
+def test_a_neutral_adjustment_still_blends_under_multiply(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    psd = PSDImage.open(full_name("fill_adjustments.psd"))
+    layer = psd[9]
+    assert isinstance(layer, adjustments.HueSaturation)
+    layer.visible = False
+    hidden = psd.composite(force=True)
+    layer.visible = True
+    layer.blend_mode = BlendMode.MULTIPLY
+    neutral = HueSaturationData(enable=0, colorization=(0, 0, 0), master=(0, 0, 0))
+    monkeypatch.setattr(layer, "_data", neutral)
+    assert psd.composite(force=True).tobytes() != hidden.tobytes()
 
 
 # Exposure

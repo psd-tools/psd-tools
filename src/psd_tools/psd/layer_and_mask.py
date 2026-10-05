@@ -54,6 +54,10 @@ Example of reading layer metadata::
         print(f"  Blend mode: {record.blend_mode}")
         print(f"  Channels: {len(record.channel_info)}")
 
+A 16- or 32-bit document written by Photoshop leaves that section empty and
+keeps the list in an ``Lr16``/``Lr32`` tagged block instead, so
+``psd._get_layer_info()`` returns whichever of the two holds the layers.
+
 For most use cases, prefer the high-level :py:class:`~psd_tools.api.layers.Layer`
 API which provides easier access to this data.
 """
@@ -76,8 +80,10 @@ from psd_tools.constants import (
 from psd_tools.psd.base import BaseElement, ListElement
 from psd_tools.psd.tagged_blocks import TaggedBlocks, register
 from psd_tools.psd.bin_utils import (
+    bounded_reader,
     is_readable,
     read_fmt,
+    read_exact,
     read_length_block,
     read_pascal_string,
     write_bytes,
@@ -140,20 +146,14 @@ class LayerAndMaskInformation(BaseElement):
     ) -> T_LayerAndMaskInformation:
         start_pos = fp.tell()
         length = read_fmt(("I", "Q")[version - 1], fp)[0]
-        end_pos = fp.tell() + length
         logger.debug(
             "reading layer and mask info, len=%d, offset=%d" % (length, start_pos)
         )
-        if length == 0:
-            self = cls()
-        else:
-            self = cls._read_body(fp, end_pos, encoding, version)
-        if fp.tell() > end_pos:
-            logger.warning(
-                "LayerAndMaskInformation is broken: current fp=%d, expected=%d"
-                % (fp.tell(), end_pos)
-            )
-        fp.seek(end_pos, 0)
+        with bounded_reader(fp, length) as body:
+            if length == 0:
+                self = cls()
+            else:
+                self = cls._read_body(body, body.tell() + length, encoding, version)
         return self
 
     @classmethod
@@ -167,10 +167,13 @@ class LayerAndMaskInformation(BaseElement):
         layer_info = LayerInfo.read(fp, encoding, version)
 
         global_layer_mask_info = None
-        if is_readable(fp, 17) and fp.tell() < end_pos:
-            global_layer_mask_info = GlobalLayerMaskInfo.read(fp)
+        if is_readable(fp, 4):
+            marker = read_fmt("4s", fp)[0]
+            fp.seek(-4, 1)
+            if marker not in (b"8BIM", b"8B64"):
+                global_layer_mask_info = GlobalLayerMaskInfo.read(fp)
 
-        tagged_blocks = None
+        tagged_blocks = TaggedBlocks()
         if is_readable(fp):
             # For some reason, global tagged blocks aligns 4 byte
             tagged_blocks = TaggedBlocks.read(
@@ -242,13 +245,11 @@ class LayerInfo(BaseElement):
     ) -> T_LayerInfo:
         length = read_fmt(("I", "Q")[version - 1], fp)[0]
         logger.debug("reading layer info, len=%d" % length)
-        end_pos = fp.tell() + length
-        if length == 0:
-            self = LayerInfo()
-        else:
-            self = cls._read_body(fp, encoding, version)
-        assert fp.tell() <= end_pos
-        fp.seek(end_pos, 0)
+        with bounded_reader(fp, length) as body:
+            if length == 0:
+                self = cls()
+            else:
+                self = cls._read_body(body, encoding, version)
         return self  # type: ignore[return-value]
 
     @classmethod
@@ -312,7 +313,7 @@ class LayerInfo(BaseElement):
 @register(Tag.LAYER_32)
 @define(repr=False)
 class LayerInfoBlock(LayerInfo):
-    """ """
+    """Layer info carried inside a tagged block, with no outer length marker."""
 
     @classmethod
     def read(
@@ -582,7 +583,7 @@ class LayerRecord(BaseElement):
         default=Clipping.BASE, converter=Clipping, validator=in_(Clipping)
     )
     flags: LayerFlags = field(factory=LayerFlags)
-    mask_data: object = None
+    mask_data: "MaskData | None" = None
     blending_ranges: LayerBlendingRanges = field(factory=LayerBlendingRanges)
     name: str = ""
     tagged_blocks: TaggedBlocks = field(factory=TaggedBlocks)
@@ -603,9 +604,12 @@ class LayerRecord(BaseElement):
 
         data = read_length_block(fp, fmt="xI")
         logger.debug("  read layer record, len=%d" % (fp.tell() - start_pos))
+        has_real_mask = any(
+            channel.id == ChannelID.REAL_USER_LAYER_MASK for channel in channel_info
+        )
         with io.BytesIO(data) as f:
             mask_data, blending_ranges, name, tagged_blocks = cls._read_extra(
-                f, encoding, version
+                f, encoding, version, has_real_mask=has_real_mask
             )
             self = cls(
                 top=top,
@@ -632,9 +636,13 @@ class LayerRecord(BaseElement):
 
     @classmethod
     def _read_extra(
-        cls, fp: IO[bytes], encoding: str, version: int
+        cls,
+        fp: IO[bytes],
+        encoding: str,
+        version: int,
+        has_real_mask: bool | None = None,
     ) -> tuple["MaskData | None", LayerBlendingRanges, str, TaggedBlocks]:
-        mask_data = MaskData.read(fp)
+        mask_data = MaskData.read(fp, has_real_mask=has_real_mask)
         blending_ranges = LayerBlendingRanges.read(fp)
         name = read_pascal_string(fp, encoding, padding=4)
         tagged_blocks = TaggedBlocks.read(fp, version=version, padding=1)
@@ -674,8 +682,22 @@ class LayerRecord(BaseElement):
 
     def _write_extra(self, fp: IO[bytes], encoding: str, version: int) -> int:
         written = 0
-        if self.mask_data and hasattr(self.mask_data, "write"):
-            written += self.mask_data.write(fp)  # type: ignore[attr-defined]
+        if (
+            self.mask_data is not None
+            and self.mask_data.real_flags is not None
+            and not any(
+                channel.id == ChannelID.REAL_USER_LAYER_MASK
+                for channel in self.channel_info
+            )
+        ):
+            logger.warning(
+                "Layer %r carries real user mask data but no "
+                "REAL_USER_LAYER_MASK channel; the mask block will not read "
+                "back the same way.",
+                self.name,
+            )
+        if self.mask_data is not None:
+            written += self.mask_data.write(fp)
         else:
             written += write_fmt(fp, "I", 0)
 
@@ -697,13 +719,31 @@ class LayerRecord(BaseElement):
 
     @property
     def channel_sizes(self) -> list[tuple[int, int]]:
-        """List of channel sizes: [(width, height)]."""
+        """
+        List of channel sizes: [(width, height)].
+
+        A mask channel is reported as ``(0, 0)`` whenever its extent is empty
+        or unknown: the record carries no mask block, the rectangle the channel
+        refers to is degenerate, or, for
+        :py:attr:`~psd_tools.constants.ChannelID.REAL_USER_LAYER_MASK`, the
+        record has no real user mask rectangle.
+        """
         sizes = []
         for channel in self.channel_info:
             if channel.id == ChannelID.USER_LAYER_MASK:
-                sizes.append((self.mask_data.width, self.mask_data.height))  # type: ignore[attr-defined]
+                mask_data = self.mask_data
+                sizes.append(
+                    (mask_data.width, mask_data.height)
+                    if mask_data is not None
+                    else (0, 0)
+                )
             elif channel.id == ChannelID.REAL_USER_LAYER_MASK:
-                sizes.append((self.mask_data.real_width, self.mask_data.real_height))  # type: ignore[attr-defined]
+                mask_data = self.mask_data
+                sizes.append(
+                    (mask_data.real_width, mask_data.real_height)
+                    if mask_data is not None
+                    else (0, 0)
+                )
             else:
                 sizes.append((self.width, self.height))
         return sizes
@@ -779,6 +819,13 @@ class MaskData(BaseElement):
 
     Real user mask is a final composite mask of vector and pixel masks.
 
+    The real user mask fields (:py:attr:`real_flags`,
+    :py:attr:`real_background_color` and the ``real_*`` rectangle) are present
+    only when the owning :py:class:`.LayerRecord` also carries a
+    :py:attr:`~psd_tools.constants.ChannelID.REAL_USER_LAYER_MASK` channel.
+    Keep the two in sync when building a record by hand, otherwise the written
+    mask block cannot be parsed back.
+
     .. py:attribute:: top
 
         Top position.
@@ -847,16 +894,37 @@ class MaskData(BaseElement):
     real_right: int | None = None
 
     @classmethod
-    def read(cls: type[T_MaskData], fp: IO[bytes], **kwargs: Any) -> T_MaskData:  # type: ignore[return]
+    def read(  # type: ignore[return]
+        cls: type[T_MaskData],
+        fp: IO[bytes],
+        has_real_mask: bool | None = None,
+        **kwargs: Any,
+    ) -> T_MaskData:
+        """
+        Read the mask data block.
+
+        :param fp: file-like object.
+        :param has_real_mask: whether the layer stores a
+            :py:attr:`~psd_tools.constants.ChannelID.REAL_USER_LAYER_MASK`
+            channel, which is what determines the presence of the real user
+            mask header. When `None`, presence is guessed from the block
+            length, which is ambiguous for large
+            :py:class:`.MaskParameters` blocks.
+        """
         data = read_length_block(fp)
         if len(data) == 0:
             return None  # type: ignore[return-value]
 
         with io.BytesIO(data) as f:
-            return cls._read_body(f, len(data))
+            return cls._read_body(f, len(data), has_real_mask=has_real_mask)
 
     @classmethod
-    def _read_body(cls: type[T_MaskData], fp: IO[bytes], length: int) -> T_MaskData:
+    def _read_body(
+        cls: type[T_MaskData],
+        fp: IO[bytes],
+        length: int,
+        has_real_mask: bool | None = None,
+    ) -> T_MaskData:
         top, left, bottom, right, background_color = read_fmt("4iB", fp)
         flags = MaskFlags.read(fp)
 
@@ -866,9 +934,21 @@ class MaskData(BaseElement):
         #     read_fmt('2x', fp)
         #     return cls(top, left, bottom, right, background_color, flags)
 
+        # The real user mask header is present only when the layer actually
+        # stores a REAL_USER_LAYER_MASK (-3) channel. The block length alone
+        # cannot tell: a variable-length MaskParameters block can push the
+        # block to 36 bytes or more with no real mask header present at all,
+        # which would make the parameters be read as a real mask header
+        # (#693). The length check is kept as a guard against malformed files
+        # that advertise a -3 channel but write a short mask block.
+        if has_real_mask is None:
+            read_real_mask = length >= 36
+        else:
+            read_real_mask = has_real_mask and length >= 36
+
         real_flags, real_background_color = None, None
         real_top, real_left, real_bottom, real_right = None, None, None, None
-        if length >= 36:
+        if read_real_mask:
             real_flags = MaskFlags.read(fp)
             real_background_color = read_fmt("B", fp)[0]
             real_top, real_left, real_bottom, real_right = read_fmt("4i", fp)
@@ -972,12 +1052,13 @@ class MaskParameters(BaseElement):
     def read(
         cls: type[T_MaskParameters], fp: IO[bytes], **kwargs: Any
     ) -> T_MaskParameters:
-        parameters = read_fmt("B", fp)[0]
+        parameters: int | None = None
         user_mask_density = None
         user_mask_feather = None
         vector_mask_density = None
         vector_mask_feather = None
         try:
+            parameters = read_fmt("B", fp)[0]
             if bool(parameters & 1):
                 user_mask_density = read_fmt("B", fp)[0]
             if bool(parameters & 2):
@@ -988,8 +1069,8 @@ class MaskParameters(BaseElement):
                 vector_mask_feather = read_fmt("d", fp)[0]
         except OSError as exc:
             logger.warning(
-                "Truncated MaskParameters data (parameters=0x%02x); some fields will be missing: %s",
-                parameters,
+                "Truncated MaskParameters data (parameters=%s); some fields will be missing: %s",
+                "unknown" if parameters is None else "0x%02x" % parameters,
                 exc,
             )
         return cls(
@@ -1093,7 +1174,7 @@ class ChannelDataList(ListElement):
                 logger.warning(
                     "  channel %s: length=1 is invalid, skipping 1 byte", c.id
                 )
-                fp.read(1)
+                read_exact(fp, 1)
                 items.append(ChannelData())
             else:
                 items.append(ChannelData.read(fp, c.length - 2, **kwargs))
@@ -1137,7 +1218,7 @@ class ChannelData(BaseElement):
                 "ChannelData.read: negative length %d, clamping to 0", length
             )
             length = 0
-        data = fp.read(length)
+        data = read_exact(fp, length)
         return cls(compression=compression, data=data)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
@@ -1146,16 +1227,33 @@ class ChannelData(BaseElement):
         # written += write_padding(fp, written, 2)  # Seems no padding here.
         return written
 
-    def get_data(self, width: int, height: int, depth: int, version: int = 1) -> bytes:
+    def get_data(
+        self,
+        width: int,
+        height: int,
+        depth: int,
+        version: int = 1,
+        *,
+        max_output_bytes: int | None = None,
+    ) -> bytes:
         """Get decompressed channel data.
 
         :param width: width.
         :param height: height.
         :param depth: bit depth of the pixel.
         :param version: psd file version.
+        :param max_output_bytes: optional ceiling on decoded channel bytes.
         :rtype: bytes
         """
-        return decompress(self.data, self.compression, width, height, depth, version)
+        return decompress(
+            self.data,
+            self.compression,
+            width,
+            height,
+            depth,
+            version,
+            max_output_bytes=max_output_bytes,
+        )
 
     def set_data(
         self, data: bytes, width: int, height: int, depth: int, version: int = 1

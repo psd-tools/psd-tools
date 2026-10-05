@@ -1,16 +1,59 @@
+import dataclasses
+import io
 import logging
-from typing import Any, Optional
+import sys
+from typing import Any, Optional, cast
 
 import numpy as np
 import pytest
 
-from psd_tools.api.layers import GroupMixin
+from psd_tools.api.layers import (
+    AdjustmentLayer,
+    Artboard,
+    Group,
+    GroupMixin,
+    Layer,
+    PixelLayer,
+    SmartObjectLayer,
+    TypeLayer,
+)
+from psd_tools.api.mask import Mask
+from psd_tools.api import numpy_io
+from psd_tools.api.numpy_io import _image_data_peak_bytes
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite
-from psd_tools.constants import CompatibilityMode
+from psd_tools.composite import paint
+from psd_tools.composite import utils
+from psd_tools.composite import vector
+from psd_tools.composite.composite import (
+    Compositor,
+    _content_bbox,
+    _read_knockout,
+    _stroke_reach,
+    _vector_stroke_reach,
+)
+from psd_tools.composite.effects import stroke_bbox
+from psd_tools.constants import (
+    BlendMode,
+    ColorMode,
+    CompatibilityMode,
+    Knockout,
+    Tag,
+)
+from psd_tools.psd.base import ByteElement
+from psd_tools.psd.descriptor import UnitFloat
+from psd_tools.psd.layer_and_mask import MaskFlags
+from psd_tools.terminology import Key
 from PIL import Image
 
 from ..utils import full_name
+from . import opaque_effect_canvas
+
+# ``psd_tools.composite.__init__`` re-exports the ``composite`` function under
+# the same name as the submodule it lives in, so ``psd_tools.composite.composite``
+# resolves to the function rather than to the module. Reach the module itself
+# through sys.modules, which the import above has already populated.
+composite_module = sys.modules["psd_tools.composite.composite"]
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +119,18 @@ def check_icc_composite_quality(
         ("opacity-fill.psd",),
         ("transparency/transparency-group.psd",),
         ("transparency/knockout-isolated-groups.psd",),
+        ("transparency/knockout-none-normal.psd",),
+        ("transparency/knockout-none-passthrough.psd",),
+        ("transparency/knockout-none-nested.psd",),
+        ("transparency/knockout-none-cyanbg.psd",),
+        ("transparency/knockout-shallow-nested.psd",),
+        ("transparency/knockout-shallow-nested-pt.psd",),
+        ("transparency/knockout-deep-normal.psd",),
+        ("transparency/knockout-deep-passthrough.psd",),
+        ("transparency/knockout-deep-nested.psd",),
+        ("transparency/knockout-deep-nested-pt.psd",),
+        ("transparency/knockout-deep-cyanbg.psd",),
+        ("transparency/knockout-deep-nobg.psd",),
         ("transparency/clip-opacity.psd",),
         ("transparency/fill-opacity.psd",),
         ("mask.psd",),
@@ -112,26 +167,33 @@ def test_composite_quality_xfail(filename: str) -> None:
     check_composite_quality(filename, 0.01, False)
 
 
+# ``shape-layer.psd`` is the only stroked layer here, and it is the only one
+# that needs a bound of its own: its 1 px inner stroke is drawn by an aggdraw
+# pen, which is not bit-stable between versions, so the bound sits above the
+# measurement rather than at it. It stays well under what this render scores
+# with the stroke switched off, so it still has an opinion. Most of what it
+# does score is colour on pixels the render leaves transparent, which no
+# viewer sees and this metric counts anyway.
 @pytest.mark.parametrize(
-    "filename",
+    ("filename", "threshold"),
     [
-        "smartobject-layer.psd",
-        "type-layer.psd",
-        "gradient-fill.psd",
-        "shape-layer.psd",
-        "pixel-layer.psd",
-        "solid-color-fill.psd",
-        "pattern-fill.psd",
+        ("smartobject-layer.psd", 0.017),
+        ("type-layer.psd", 0.017),
+        ("gradient-fill.psd", 0.017),
+        ("shape-layer.psd", 0.015),
+        ("pixel-layer.psd", 0.017),
+        ("solid-color-fill.psd", 0.017),
+        ("pattern-fill.psd", 0.017),
     ],
 )
-def test_composite_minimal(filename: str) -> None:
+def test_composite_minimal(filename: str, threshold: float) -> None:
     source = PSDImage.open(full_name("layers-minimal/" + filename))
     reference = PSDImage.open(full_name("layers/" + filename)).numpy()
     color, _, alpha = composite(source, force=True)
     result = color
     if reference.shape[2] > color.shape[2]:
         result = np.concatenate((color, alpha), axis=2)
-    assert _mse(reference, result) <= 0.017
+    assert _mse(reference, result) <= threshold
 
 
 @pytest.mark.parametrize(
@@ -183,7 +245,7 @@ def test_composite_artboard() -> None:
 
 
 def test_composite_artboard_bgcolor() -> None:
-    """Regression test for issue #395: artboard background color in compositing."""
+    """An artboard composites over its own background color (#395)."""
     psd = PSDImage.open(full_name("artboard-bgcolor.psd"))
 
     # Artboard 0: blue background (18, 108, 200)
@@ -264,6 +326,774 @@ def test_composite_pil(
         assert isinstance(layer.composite(apply_icc=apply_icc), Image.Image)
 
 
+_BACKDROP_SPELLINGS = [
+    pytest.param(1, id="int"),
+    pytest.param(1.0, id="float"),
+    pytest.param(np.float32(1.0), id="numpy-scalar"),
+    pytest.param(np.int64(1), id="numpy-int"),
+    pytest.param((1.0, 1.0, 1.0), id="tuple"),
+    pytest.param([1.0, 1.0, 1.0], id="list"),
+    pytest.param(np.ones((4, 4, 3), dtype=np.float32), id="ndarray"),
+    pytest.param(np.ones((4, 4, 1), dtype=np.float32), id="single-channel-canvas"),
+]
+
+
+@pytest.mark.parametrize("color", _BACKDROP_SPELLINGS)
+def test_composite_backdrop_spellings_agree(color: Any) -> None:
+    """Every accepted spelling of the same white backdrop must composite alike.
+
+    Recognising only ``float`` as a scalar costs ``color=1`` and
+    ``color=np.float32(1.0)``, which raise ``TypeError`` instead (#709).
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_rgb.psd"))
+    reference, _, _ = composite(psd, color=1.0)
+    result, _, _ = composite(psd, color=color)
+    assert result.shape == reference.shape
+    assert np.array_equal(result, reference)
+
+
+@pytest.mark.parametrize("color", [1, 1.0, np.float32(1.0), (1.0,), [1.0]])
+def test_composite_backdrop_spellings_agree_grayscale(color: Any) -> None:
+    """Same as above for a single-channel document."""
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_grayscale.psd"))
+    reference, _, _ = composite(psd, color=1.0)
+    result, _, _ = composite(psd, color=color)
+    assert result.shape == reference.shape
+    assert np.array_equal(result, reference)
+
+
+@pytest.mark.parametrize("alpha", [1, 1.0, np.float32(1.0)])
+def test_composite_backdrop_alpha_spellings_agree(alpha: Any) -> None:
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_rgba.psd"))
+    reference, _, _ = composite(psd, color=0.0, alpha=1.0)
+    result, _, _ = composite(psd, color=0.0, alpha=alpha)
+    assert np.array_equal(result, reference)
+
+
+@pytest.mark.parametrize(
+    "alpha",
+    [
+        pytest.param(0, id="int"),
+        pytest.param(0.0, id="float"),
+        pytest.param(np.float32(0.0), id="numpy-scalar"),
+        pytest.param(np.array(0.0), id="0d-array"),
+        pytest.param(np.zeros((4, 4, 1), dtype=np.float32), id="array-of-zeros"),
+    ],
+)
+def test_composite_transparent_backdrop_is_skipped_in_any_spelling(
+    alpha: Any,
+) -> None:
+    """A transparent backdrop must be recognised however it is spelled.
+
+    The zero-layer path skips the blend for a transparent backdrop, because
+    blending it in anyway sends ``utils.divide`` down its 0 / 0 -> 1.0 branch
+    and whitens every uncovered pixel. A guard that tests for ``int`` and
+    ``float`` only sends a NumPy scalar down that blend, and a per-pixel array
+    of zeros with it (PR #721 review).
+    """
+    psd = PSDImage.new("RGBA", (4, 4), color=(0, 0, 0, 0))
+    assert len(psd) == 0
+    result, _, _ = composite(psd, color=1.0, alpha=alpha)
+    assert np.array_equal(result, np.zeros_like(result))
+
+
+@pytest.mark.parametrize(
+    ("filename", "kwargs"),
+    [
+        # Nothing to composite: every layer filtered out.
+        ("colormodes/4x4_8bit_rgb.psd", {"layer_filter": lambda layer: False}),
+        # Nothing to composite either: the only layer is an adjustment, which
+        # transforms the backdrop rather than applying a source over it.
+        ("layers/curves.psd", {}),
+        ("layers/levels.psd", {}),
+        ("layers/brightness-contrast.psd", {}),
+    ],
+)
+def test_composite_single_channel_backdrop_without_a_source(
+    filename: str, kwargs: Any
+) -> None:
+    """A one-channel backdrop must still produce a document-width image (#710).
+
+    Widening the canvas lazily at the first source leaves a document with no
+    source to apply holding a one-channel color array, which blows up on the
+    way out -- in ``Image.fromarray()``, or in ``_preserve_alpha`` for the
+    adjustment cases.
+    """
+    psd = PSDImage.open(full_name(filename))
+    backdrop = np.full((psd.height, psd.width, 1), 0.25, dtype=np.float32)
+    image = psd.composite(color=backdrop, alpha=1.0, ignore_preview=True, **kwargs)
+    assert image.mode == "RGB"
+    assert image.size == (psd.width, psd.height)
+
+
+def test_composite_backdrop_rejects_an_unresolvable_channel_count() -> None:
+    """Three channels against a four-channel document has no reading (#710)."""
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_cmyk.psd"))
+    with pytest.raises(ValueError, match="has 3 channels, expected 1 or 4"):
+        composite(psd, color=np.ones((4, 4, 3), dtype=np.float32), alpha=1.0)
+
+
+def test_composite_backdrop_rejects_a_mismatched_channel_count() -> None:
+    """A wrong-width backdrop is an error rather than a silently odd canvas."""
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_rgb.psd"))
+    with pytest.raises(ValueError, match="cannot be expanded"):
+        composite(psd, color=(1.0, 0.0))
+
+
+def test_composite_backdrop_rejects_a_wrong_width_sequence_for_the_color_mode() -> None:
+    """**Backwards incompatible.** A 3-tuple over a 1-channel document raises.
+
+    Accepting it would give a three-channel result for a grayscale document,
+    which ``composite_pil`` then silently reduces by taking channel 0. Pinned
+    deliberately: the loud failure is the intent, not an accident.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_grayscale.psd"))
+    with pytest.raises(ValueError, match="cannot be expanded"):
+        composite(psd, color=(1.0, 1.0, 1.0), alpha=1.0)
+
+
+def test_composite_backdrop_rejects_a_multi_channel_alpha() -> None:
+    """Alpha is single-channel by definition (PR #721 review).
+
+    A wider alpha survived to ``finish()`` on the zero-layer path, where
+    ``composite_pil()`` concatenates it onto the color array and would build an
+    image of the wrong width.
+    """
+    psd = PSDImage.new("RGBA", (4, 4), color=(0, 0, 0, 0))
+    with pytest.raises(ValueError, match=r"alpha has shape"):
+        composite(psd, color=1.0, alpha=np.ones((4, 4, 3), dtype=np.float32))
+
+
+def test_composite_does_not_mutate_a_caller_supplied_backdrop() -> None:
+    """The compositor stores the caller's array; it must never write to it."""
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_rgb.psd"))
+    backdrop = np.full((psd.height, psd.width, 3), 0.25, dtype=np.float32)
+    composite(psd, color=backdrop, alpha=1.0)
+    assert np.array_equal(backdrop, np.full_like(backdrop, 0.25))
+
+
+def test_composite_empty_document_backdrop() -> None:
+    """The zero-layer path normalizes its backdrop like any other.
+
+    It is reached before any layer exists, so it sizes the backdrop from the
+    preview array rather than from the color mode.
+    """
+    psd = PSDImage.new("RGB", (4, 4), color=0)
+    assert len(psd) == 0
+    reference, _, _ = composite(psd, color=1.0, alpha=1.0)
+    spellings: list[Any] = [1, np.float32(1.0), (1.0, 1.0, 1.0)]
+    for color in spellings:
+        result, _, _ = composite(psd, color=color, alpha=1.0)
+        assert np.array_equal(result, reference), color
+
+
+def test_composite_layerless_multichannel_over_a_backdrop() -> None:
+    """A multichannel document has more channels than its color mode predicts.
+
+    ``EXPECTED_CHANNELS[MULTICHANNEL]`` is 64, so sizing the backdrop from the
+    color mode could not be blended against the document's own array and raised
+    ``ValueError``. The zero-layer path sizes from that array instead.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_16bit_multichannel.psd"))
+    assert len(psd) == 0
+    color, _, _ = composite(psd, color=1.0, alpha=1.0)
+    assert color.shape == (psd.height, psd.width, psd.numpy("color").shape[2])
+
+
+def _layered_multichannel(
+    filename: str = "colormodes/4x4_8bit_rgb.psd", **kwargs: Any
+) -> PSDImage:
+    """A multichannel document *with* layers, which no fixture provides.
+
+    Photoshop neither produces nor preserves this shape: converting to
+    Multichannel flattens, and *opening* a hand-built layered multichannel file
+    discards the layer records outright. Verified against Photoshop 2026, which
+    reduced a 13-layer retagged document to a single Background layer whose
+    three channels it presents as spot channels ("Alpha 1".."Alpha 3") holding
+    the file's merged image data bit-for-bit. So a document of this shape is
+    only ever hand-built -- which is exactly the input the allocation guard
+    exists for -- and there is no Photoshop render to check a layered
+    multichannel composite against, because Photoshop declines to composite
+    one.
+
+    Retagging the RGB fixture's color mode in place is the whole of
+    it: that fixture's three document channels and its layers' three color
+    channels already agree, as they would in a multichannel file with three
+    spot channels, so nothing else about the document has to change. The CMYK
+    fixture retags on the same terms and gives four plates instead of three --
+    the count a CMYK header states (#746) -- since its header and its layers
+    agree at four the same way.
+
+    Built this way rather than with ``PSDImage.new`` + ``PixelLayer.frompil``
+    on purpose. ``frompil`` converts to the document's ``pil_mode``, which is
+    ``"LA"`` for a three-channel multichannel document, so the layer would
+    carry a single color channel against a header declaring three -- and a
+    one-channel source is widened to whatever the canvas is, so the test would
+    pass without ever exercising the canvas width it is about.
+    """
+    psd = PSDImage.open(full_name(filename), **kwargs)
+    psd._record.header.color_mode = ColorMode.MULTICHANNEL
+    return psd
+
+
+def test_composite_layered_multichannel_uses_the_header_channel_count() -> None:
+    """A multichannel backdrop is as wide as the document says it is (#720).
+
+    ``EXPECTED_CHANNELS[MULTICHANNEL]`` is 64 -- the format's maximum, not any
+    document's count -- so sizing the backdrop from it allocates 64 channels
+    wide and meets the first three-channel layer with an ``AssertionError``.
+    The zero-layer path sizes from the document's own array instead (#708);
+    the layered path has no such array to consult, so it asks the header.
+    """
+    psd = _layered_multichannel()
+    assert psd.channels == 3
+    assert len(psd) > 0
+    color, _, _ = composite(psd)
+    assert color.shape == (psd.height, psd.width, psd.channels)
+    # Its one layer carrying pixel data covers the whole canvas opaquely, so
+    # the composite reproduces the document's own merged preview.
+    assert _mse(color, psd.numpy("color")) <= 1e-6
+
+
+def test_composite_layered_multichannel_within_a_budget() -> None:
+    """A budget that admits the real canvas is not overrun (#720).
+
+    The three-channel canvas needs 192 bytes where a 64-channel one needs
+    4096, so this budget sits between the two. The guard is told 3 either way;
+    what this pins is that the canvas built after it is the width the guard
+    was promised, not the format's maximum.
+    """
+    psd = _layered_multichannel(max_alloc_bytes=1024)
+    color, _, _ = composite(psd)
+    assert color.shape == (psd.height, psd.width, 3)
+
+
+def test_composite_guard_estimate_covers_a_mode_that_expands() -> None:
+    """The estimate never falls below the canvas that follows it (#720).
+
+    ``max_alloc_bytes`` is there to reject a file *before* it allocates, so the
+    number it is checked against has to bound what comes next. An indexed
+    document stores one channel and composites over three, its palette having
+    expanded it, so the header count alone under-estimates the canvas.
+
+    Retagged rather than taken from a fixture for the same reason as
+    ``_layered_multichannel``: Photoshop flattens on conversion to Indexed
+    Color, so ``colormodes/4x4_8bit_index_color.psd`` has no layers and takes
+    ``composite()``'s zero-layer early return, never reaching this estimate.
+    Only the *layered* path consults the palette-expanded width, and it does not
+    read the palette itself, so retagging a layered grayscale document is
+    enough. This is the only mode left where the canvas is wider than the
+    header, so it is the only way to exercise that side of the ``max()``.
+    """
+    psd = PSDImage.open(
+        full_name("colormodes/4x4_8bit_grayscale.psd"), max_alloc_bytes=100
+    )
+    psd._record.header.color_mode = ColorMode.INDEXED
+    assert psd.channels == 1
+    assert len(psd) > 0
+    # 4 * 4 * 3 * 4 = 192 bytes, over the budget; the header's own count of one
+    # channel estimates 64 bytes and lets it through.
+    with pytest.raises(ValueError, match="4x4x3"):
+        composite(psd)
+
+
+def test_composite_guard_estimate_takes_the_header_when_it_is_wider() -> None:
+    """The other side of the same ``max()`` (#720).
+
+    ``4x4_8bit_rgba.psd`` declares four channels and composites over three, so
+    here it is the header that bounds the pair. Both sides are pinned because
+    the guard is a security control: an estimate below the allocation defeats
+    it, and one needlessly above it rejects files that would have been fine.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_rgba.psd"), max_alloc_bytes=200)
+    assert psd.channels == 4
+    with pytest.raises(ValueError, match="4x4x4"):
+        composite(psd)
+
+
+def test_composite_flattened_indexed_is_bounded_by_the_numpy_guard() -> None:
+    """The zero-layer early return is guarded too, by ``get_image_data()`` (#732).
+
+    The complement of ``..._covers_a_mode_that_expands`` above: that one had to
+    retag a layered document precisely because the shipped indexed fixture is
+    flattened and returns early, before ``composite()``'s own estimate. So on
+    the shape Photoshop actually writes, the guard inside ``numpy()`` is the
+    only one on the path -- and it under-counted the palette expansion by 3x
+    until this was fixed.
+
+    Scope: this is the low-level :py:func:`psd_tools.composite.composite`. The
+    :py:meth:`PSDImage.composite` *method* does not reach either estimate on
+    this document -- it short-circuits to ``topil()`` when an unmodified
+    document has a preview, which is guarded separately in ``pil_io``.
+
+    The number that binds is the ``numpy()`` guard's, and since #767 that is a
+    model of what the read peaks at rather than the 192-byte array it returns:
+    the palette-expanded result, the packed buffer it was built from and
+    ``_parse_array()``'s own temporaries are all live at once, some 28 bytes a
+    pixel in total. ``composite()``'s own estimate keeps the returned-size
+    spelling and stays at 192, so it is the narrower of the two here and never
+    the one that fires.
+    """
+    name = "colormodes/4x4_8bit_index_color.psd"
+    assert len(PSDImage.open(full_name(name))) == 0  # flattened: early return
+    psd = PSDImage.open(full_name(name))
+    assert psd.numpy().nbytes == 4 * 4 * 3 * 4  # one stored channel, three allocated
+    peak = _image_data_peak_bytes(psd)
+    assert peak == 448 > 4 * 4 * 3 * 4  # the peak the guard is handed instead
+
+    composite(PSDImage.open(full_name(name), max_alloc_bytes=peak))
+    with pytest.raises(ValueError, match="4x4x3"):
+        composite(PSDImage.open(full_name(name), max_alloc_bytes=peak - 1))
+
+
+def test_composite_duotone_is_one_channel_wide() -> None:
+    """Duotone composites at its stored width, not its ink count (#733).
+
+    Duotone pixel data is a single grayscale channel, the ink curves living in
+    the color mode data section, so sizing the backdrop from the ink count
+    builds it two channels wide and broadcasts every real source against it:
+    the second channel of the result is not data from the file at all, it is
+    the backdrop copied.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_duotone.psd"))
+    assert psd.channels == 1
+    assert psd.numpy("color").shape[2] == 1
+    color, _, _ = composite(psd)
+    assert color.shape == (psd.height, psd.width, 1)
+
+
+@pytest.mark.parametrize(
+    "blend_mode",
+    [
+        BlendMode.COLOR_BURN,
+        BlendMode.COLOR_DODGE,
+        BlendMode.HARD_LIGHT,
+        BlendMode.LINEAR_LIGHT,
+        BlendMode.PIN_LIGHT,
+        BlendMode.SOFT_LIGHT,
+        BlendMode.VIVID_LIGHT,
+    ],
+)
+def test_composite_duotone_with_a_channelwise_blend_mode(blend_mode: BlendMode) -> None:
+    """These blend modes crashed on every duotone document (#733).
+
+    They index the color array with a mask derived from it -- ``blend.py``'s
+    ``B[Cs == 1] = 1`` and friends -- which needs the operands to agree in
+    width. A two-channel canvas against a one-channel source did not::
+
+        IndexError: boolean index did not match indexed array along axis 2;
+        size of axis is 2 but size of corresponding boolean axis is 1
+
+    All seven of the blend modes listed here raised it. Photoshop keeps layers
+    in duotone mode, so this was reachable on ordinary documents rather than
+    only on hand-built ones.
+
+    The non-separable modes are covered separately by
+    ``test_composite_single_channel_with_a_non_separable_blend_mode``: they
+    failed on grayscale in the same way, so they were a single-channel-document
+    bug rather than anything duotone-specific (#735). Duotone behaves exactly as
+    grayscale does, which is the point.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_duotone.psd"))
+    for layer in psd:
+        layer.blend_mode = blend_mode
+    color, _, _ = composite(psd)
+    assert color.shape == (psd.height, psd.width, 1)
+
+
+NON_SEPARABLE_MODES = [
+    BlendMode.HUE,
+    BlendMode.SATURATION,
+    BlendMode.COLOR,
+    BlendMode.LUMINOSITY,
+    BlendMode.DARKER_COLOR,
+    BlendMode.LIGHTER_COLOR,
+]
+
+
+@pytest.mark.parametrize("blend_mode", NON_SEPARABLE_MODES)
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "colormodes/4x4_8bit_grayscale.psd",
+        "colormodes/4x4_16bit_grayscale.psd",
+        "colormodes/4x4_32bit_grayscale.psd",
+        "colormodes/4x4_8bit_duotone.psd",
+    ],
+)
+def test_composite_single_channel_with_a_non_separable_blend_mode(
+    filename: str, blend_mode: BlendMode
+) -> None:
+    """The non-separable modes degrade to normal instead of crashing (#735).
+
+    ``Hue`` and ``Saturation`` raised ``IndexError`` and ``Color`` and
+    ``Luminosity`` raised ``ValueError`` on every single-channel fixture that
+    has layers; ``Darker Color`` and ``Lighter Color`` returned the backdrop
+    unchanged. All six index channels 1 and 2 of an array that has only
+    channel 0.
+
+    Photoshop 2026 refuses to set any of the six on a grayscale document -- the
+    modes are greyed out in the UI and scripting them answers *The command
+    "Set" is not currently available* -- so there is no result to reproduce and
+    widening the array to three channels would invent one. Falling back to
+    normal is what ``dissolve`` already does, so the composite must match the
+    document rendered with ``Normal`` exactly.
+    """
+    psd = PSDImage.open(full_name(filename))
+    for layer in psd:
+        layer.blend_mode = blend_mode
+    color, _, _ = composite(psd)
+    assert color.shape == (psd.height, psd.width, 1)
+
+    reference = PSDImage.open(full_name(filename))
+    for layer in reference:
+        layer.blend_mode = BlendMode.NORMAL
+    assert np.array_equal(color, composite(reference)[0])
+
+
+@pytest.mark.parametrize("blend_mode", NON_SEPARABLE_MODES)
+def test_composite_single_channel_non_separable_over_an_opaque_backdrop(
+    blend_mode: BlendMode,
+) -> None:
+    """The fixtures above cannot pin ``Darker Color`` / ``Lighter Color``.
+
+    Where the layer paints in those files the backdrop alpha is zero, so
+    ``_apply_source``'s ``(1 - alpha_b) * color + alpha_b * blend(...)``
+    collapses to the source and the blend result never reaches the output --
+    returning the backdrop and returning the source composite identically.
+    That is exactly the half of #735 that failed silently, so it needs a
+    backdrop that is opaque underneath the source.
+
+    Here the lower layer is opaque grey 96 and the upper opaque grey 192. A
+    mode that returns the backdrop composites to 96/255 whatever the source
+    says; the fallback makes it the source, 192/255, like every other mode.
+    """
+    psd = PSDImage.new(mode="L", size=(4, 4), color=64)
+    psd.create_pixel_layer(image=Image.new("L", (4, 4), 96), name="lower")
+    psd.create_pixel_layer(image=Image.new("L", (4, 4), 192), name="upper")
+    for layer in psd:
+        layer.blend_mode = blend_mode
+
+    color, alpha, _ = composite(psd)
+    assert (alpha == 1.0).all(), "the backdrop must be opaque for this to bite"
+    assert color.shape == (4, 4, 1)
+    assert np.allclose(color, 192 / 255.0, atol=1 / 255.0)
+
+
+@pytest.mark.parametrize("blend_mode", NON_SEPARABLE_MODES)
+@pytest.mark.parametrize(
+    ("filename", "plates"),
+    [
+        ("colormodes/4x4_8bit_rgb.psd", 3),
+        ("colormodes/4x4_8bit_cmyk.psd", 4),
+    ],
+)
+def test_composite_multichannel_with_a_non_separable_blend_mode(
+    filename: str, plates: int, blend_mode: BlendMode
+) -> None:
+    """A spot plate is neither a colour component nor an ink (#746).
+
+    Keying the degradation on the width alone (#735) leaves the two plate
+    counts that collide with RGB and CMYK still blending: three plates go into
+    the RGB helpers as if they were R, G and B, and four are round-tripped as
+    CMYK with the fourth ink read as black generation.
+
+    The backdrop has to be passed in opaque. Where these fixtures' layers paint
+    the document's own alpha is zero, and ``_apply_source``'s
+    ``(1 - alpha_b) * color + alpha_b * blend(...)`` then collapses to the
+    source, so the blend result never reaches the output and returning it or
+    returning the backdrop look identical -- the same trap
+    ``test_composite_single_channel_non_separable_over_an_opaque_backdrop``
+    exists for.
+
+    Left at ``force=False`` deliberately. Forcing routes the second layer
+    through ``paint.draw_gradient_fill()``, a different path from the one under
+    test, where a degraded ``Luminosity`` separates from ``Normal`` by float
+    noise rather than by a visible misblend -- not enough to assert on.
+    """
+    psd = _layered_multichannel(filename)
+    assert psd.color_mode == ColorMode.MULTICHANNEL
+    assert psd.channels == plates
+    for layer in psd:
+        layer.blend_mode = blend_mode
+
+    color, alpha, _ = composite(psd, color=0.5, alpha=1.0)
+    assert (alpha == 1.0).all(), "the backdrop must be opaque for this to bite"
+    assert color.shape == (psd.height, psd.width, plates)
+
+    reference = _layered_multichannel(filename)
+    for layer in reference:
+        layer.blend_mode = BlendMode.NORMAL
+    assert np.array_equal(color, composite(reference, color=0.5, alpha=1.0)[0])
+
+
+@pytest.mark.parametrize("blend_mode", NON_SEPARABLE_MODES)
+def test_composite_cmyk_still_blends_where_multichannel_no_longer_does(
+    blend_mode: BlendMode,
+) -> None:
+    """The colour mode is doing the work above, not the channel count (#746).
+
+    The same fixture, the same four channels, the same backdrop -- left tagged
+    CMYK. A fix that fell back on the width of the array rather than on what its
+    channels mean would pass the test above and fail this one, taking CMYK
+    blending down with it.
+
+    That CMYK still blends is all this pins; what it blends *to* is pinned
+    against Photoshop by ``test_blend.test_non_separable_matches_photoshop_on_cmyk``.
+    Until #781 the distinction mattered a great deal -- the four-channel branch
+    collapsed every mode to a constant, so this test passed on output that was
+    wrong in every pixel.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_cmyk.psd"))
+    assert psd.color_mode == ColorMode.CMYK
+    for layer in psd:
+        layer.blend_mode = blend_mode
+    color, _, _ = composite(psd, color=0.5, alpha=1.0)
+
+    reference = PSDImage.open(full_name("colormodes/4x4_8bit_cmyk.psd"))
+    for layer in reference:
+        layer.blend_mode = BlendMode.NORMAL
+    assert not np.array_equal(color, composite(reference, color=0.5, alpha=1.0)[0])
+
+
+def test_composite_pil_duotone_force_keeps_the_luminance_plane_intact() -> None:
+    """``force=True`` returned sheared pixels for duotone documents (#733).
+
+    With the canvas two channels wide, ``composite_pil()`` concatenated alpha
+    onto it and handed ``Image.fromarray()`` a 3-byte-per-pixel buffer declared
+    as 2-byte ``"LA"``. PIL does not reject that, so the planes came out shifted
+    against each other -- the first row's luminance read ``[75, 255, 53, 179]``
+    where the composite says ``[75, 53, 179, 241]``, the 255 being an alpha byte
+    that had slid into the colour plane. This is a wrong-pixels bug, not a
+    width one, so it is pinned against the numpy composite rather than by shape.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_duotone.psd"))
+    image = psd.composite(ignore_preview=True, force=True, apply_icc=False)
+    assert isinstance(image, Image.Image)
+    assert image.mode == "LA"
+    color, _, _ = composite(psd, force=True)
+    luminance = np.asarray(image)[:, :, 0].astype(np.int16)
+    expected = (color[:, :, 0] * 255).round().astype(np.int16)
+    assert np.abs(luminance - expected).max() <= 2
+    # The document is opaque; the alpha plane must be alpha, not a colour byte.
+    assert (np.asarray(image)[:, :, 1] == 255).all()
+
+
+def test_composite_pil_layered_multichannel_truncates_like_the_layerless_one() -> None:
+    """Pinning what the PIL exit does with a shape that reaches it (#720).
+
+    ``get_pil_mode(MULTICHANNEL)`` is ``"L"``, so ``composite_pil()`` keeps the
+    first spot channel and drops the rest. A layered document lands on exactly
+    the same two modes as the layerless fixture in ``test_composite_pil``,
+    pinned here so the truncation is a recorded consequence of letting these
+    documents composite at all. Only the numpy ``composite()`` entry point
+    returns every channel.
+    """
+    psd = _layered_multichannel()
+    preview = psd.composite(apply_icc=False)
+    assert isinstance(preview, Image.Image)
+    assert preview.mode == "L"  # served from the stored preview, uncomposited
+    image = psd.composite(ignore_preview=True, apply_icc=False)
+    assert isinstance(image, Image.Image)
+    assert image.mode == "LA"  # first spot channel, plus the composite alpha
+    color, _, _ = composite(psd)
+    assert _mse(np.asarray(image)[:, :, 0] / 255.0, color[:, :, 0]) <= 1e-4
+
+
+def test_composite_pil_multichannel_force_keeps_the_spot_channel_intact() -> None:
+    """``force=True`` must not return planes that correspond to nothing (#729).
+
+    ``get_pil_mode(MULTICHANNEL)`` is ``"L"`` and multichannel defers its alpha,
+    so ``force=True`` leaves ``skip_alpha`` false, concatenates alpha onto the
+    *three*-channel colour array and sets the mode to ``"LA"``. Narrowing to
+    one channel afterwards cannot be keyed on ``mode``, because ``"LA"`` no
+    longer matches by then -- and ``Image.fromarray()`` does not reject a
+    four-plane array declared as two, it reads two bytes out of every four:
+
+        plane 0 -- spot0[0], spot2[0], spot0[1], spot2[1]
+        plane 1 -- spot1[0], alpha[0], spot1[1], ...
+
+    Asserted bitwise against the NumPy entry point rather than by shape or MSE,
+    because the failure is interleaved bytes rather than a narrower result: a
+    shape assertion passes either way, and the interleaved planes are close
+    enough in range that a loose MSE bound could too.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_16bit_multichannel.psd"))
+    assert psd.channels == 3
+    truth, _, truth_alpha = composite(psd, force=True)
+    assert truth.shape[2] == 3  # every spot channel, on the numpy path
+
+    image = psd.composite(ignore_preview=True, force=True, apply_icc=False)
+    assert isinstance(image, Image.Image)
+    assert image.mode == "LA"
+    planes = np.asarray(image)
+    expected_color = (255 * truth[:, :, 0]).astype(np.uint8)
+    expected_alpha = (255 * truth_alpha[:, :, 0]).astype(np.uint8)
+    assert np.array_equal(planes[:, :, 0], expected_color)
+    assert np.array_equal(planes[:, :, 1], expected_alpha)
+
+
+def test_composite_pil_multichannel_force_agrees_with_no_force() -> None:
+    """The two paths differ in how alpha is applied, not in what the colour is.
+
+    Without ``force`` the alpha is deferred and applied by ``post_process()``;
+    with it, the alpha is concatenated up front. Either way the visible plane is
+    the first spot channel, and before #729 only one of them was.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_16bit_multichannel.psd"))
+    forced = psd.composite(ignore_preview=True, force=True, apply_icc=False)
+    lazy = psd.composite(ignore_preview=True, force=False, apply_icc=False)
+    assert isinstance(forced, Image.Image) and isinstance(lazy, Image.Image)
+    assert forced.mode == lazy.mode == "LA"
+    assert np.array_equal(np.asarray(forced), np.asarray(lazy))
+
+
+def test_composite_pil_warns_when_it_drops_channels(caplog: Any) -> None:
+    """The truncation is announced rather than silent (#729).
+
+    ``UNSUPPORTED_MODES`` already warns for Duotone and Lab, whose *blending* is
+    approximate. This is a different loss -- the blend is fine, PIL simply has
+    no mode wide enough to carry the result -- so it is warned about where it
+    happens and says what was dropped, rather than being folded into a message
+    about blending colour spaces.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_16bit_multichannel.psd"))
+    with caplog.at_level(logging.WARNING, logger="psd_tools.composite.composite"):
+        psd.composite(ignore_preview=True, apply_icc=False)
+    assert any(
+        "composited to 3 channels" in record.message and "holds 1" in record.message
+        for record in caplog.records
+    ), [r.message for r in caplog.records]
+
+
+@pytest.mark.parametrize(
+    ("colormode", "depth", "mode"),
+    [
+        ("bitmap", 1, "1"),  # PIL has no "1A"
+        ("cmyk", 8, "CMYK"),  # nor "CMYKA"
+        ("lab", 8, "LAB"),  # nor "LABA"
+        ("duotone", 8, "LA"),
+        ("grayscale", 8, "LA"),
+        ("index_color", 8, "RGBA"),
+        ("rgb", 8, "RGBA"),
+        ("rgba", 8, "RGBA"),
+        ("multichannel", 16, "LA"),
+    ],
+)
+def test_composite_pil_force_covers_every_colour_mode(
+    colormode: str, depth: int, mode: str
+) -> None:
+    """``force=True`` at the PIL exit, which nothing covered before (#729).
+
+    ``test_composite_pil`` sweeps the colour modes but never passes ``force``,
+    which is why three of these raised on the shipped fixtures without anyone
+    noticing: the mode had ``"A"`` appended whether or not PIL has an alpha
+    variant of it, so a bitmap document asked for ``"1A"``, CMYK for ``"CMYKA"``
+    and Lab for ``"LABA"``::
+
+        ValueError: unrecognized image mode
+        TypeError: Cannot handle this data type: (1, 1, 5), |u1
+
+    Those three now come back without alpha rather than not at all, which is the
+    same trade the rest of this module makes -- a degraded result beats an
+    exception the caller has to special-case.
+    """
+    filename = "colormodes/4x4_%gbit_%s.psd" % (depth, colormode)
+    psd = PSDImage.open(full_name(filename))
+    image = psd.composite(ignore_preview=True, force=True, apply_icc=False)
+    assert isinstance(image, Image.Image)
+    assert image.mode == mode
+
+
+def _flattened_data(image: Image.Image) -> Any:
+    """*image*'s pixels as a flat sequence, under whichever name PIL has for it.
+
+    Pillow 12.1 added ``get_flattened_data()`` and deprecated ``getdata()`` for
+    removal in Pillow 14. This project's floor is Pillow 10.3, which has only
+    the old spelling, so both have to work here. They read the same values
+    through the same unpacker and differ only in what they hand back -- a tuple
+    against PIL's internal sequence -- either of which ``np.array()`` accepts.
+    """
+    flatten = getattr(image, "get_flattened_data", None)
+    return flatten() if flatten is not None else image.getdata()
+
+
+def _pixels_as_seen(image: Image.Image) -> np.ndarray:
+    """The planes a consumer of *image* reads, rather than PIL's own buffer.
+
+    The two differ for exactly one mode reachable here. PIL stores ``"LAB"``
+    with its chroma planes offset from the values ``getpixel()`` reports, and
+    ``np.asarray()`` reads the buffer -- so a round trip out through
+    ``Image.fromarray(..., "LAB")`` and back is the identity no matter what the
+    unpacker does in between. That is why a NumPy-only assertion cannot see a
+    defect like #759's, where the composited image carries both chroma planes
+    128 off and converts to an unrelated colour. :func:`_flattened_data` goes
+    through the unpacker, which is what ``convert()`` and ``save()`` do too.
+    """
+    planes = np.array(_flattened_data(image), dtype=np.uint8)
+    return planes.reshape(image.size[1], image.size[0], -1)
+
+
+@pytest.mark.parametrize("colormode", ["bitmap", "lab", "cmyk"])
+def test_composite_pil_force_pixels_match_the_numpy_path(colormode: str) -> None:
+    """The three modes that carry no alpha, compared bitwise rather than by mode.
+
+    Asserting only ``image.mode`` is not enough, twice over: it is what lets
+    #729 survive for multichannel, and it accepts silently wrong pixels from
+    bitmap, because ``Image.fromarray(uint8, "1")`` does not mean "these bytes,
+    as bilevel". PIL reads the raw mode literally at one bit per pixel, so a
+    4x4 document comes back as the bits of its first four bytes::
+
+        composited [[1,1,0,0],[0,0,0,0],[1,1,1,1],[0,0,0,0]]
+        returned   [[1,1,1,1],[1,1,1,1],[0,0,0,0],[0,0,0,0]]
+
+    Since these three modes get no alpha packed in, the returned planes are
+    directly comparable to the NumPy entry point's colour.
+    """
+    depth = 1 if colormode == "bitmap" else 8
+    psd = PSDImage.open(full_name("colormodes/4x4_%gbit_%s.psd" % (depth, colormode)))
+    image = psd.composite(ignore_preview=True, force=True, apply_icc=False)
+    assert isinstance(image, Image.Image)
+    color, _, _ = composite(psd, force=True)
+
+    expected = (255 * color).astype(np.uint8)
+    if colormode == "bitmap":
+        expected = (expected > 127).astype(np.uint8)  # PIL reports "1" as 0/1
+    if image.mode == "CMYK":
+        # post_process() inverts CMYK on the way out; compare on that footing.
+        expected = 255 - expected
+    actual = np.asarray(image)
+    if colormode == "lab":
+        # `np.asarray()` is not an independent check for "LAB" -- see
+        # `_pixels_as_seen()`. Read the planes the way a consumer does.
+        actual = _pixels_as_seen(image)
+    if actual.ndim == 2:
+        actual = actual[:, :, None]
+    assert np.array_equal(actual, expected)
+
+
+def test_composite_pil_force_keeps_cmyk_alpha_reachable() -> None:
+    """``force=True`` must not drop alpha that ``force=False`` returns.
+
+    PIL has no ``"CMYKA"``, so the alpha cannot be packed into the array -- but
+    ``post_process()`` converts CMYK to RGB when an ICC profile is applied and
+    then calls ``putalpha``, which is how ``force=False`` has always returned
+    ``"RGBA"`` here. The first version of this fix diverted ``force=True`` away
+    from packing the alpha inline while that hand-off was still gated on ``not
+    force``, so the plane was dropped on exactly the paths it had just been
+    diverted from. Raised by review.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_cmyk.psd"))
+    viewport = (0, 0, 8, 8)  # wider than the document, so some pixels are bare
+    lazy = psd.composite(ignore_preview=True, viewport=viewport, force=False)
+    forced = psd.composite(ignore_preview=True, viewport=viewport, force=True)
+    assert isinstance(lazy, Image.Image) and isinstance(forced, Image.Image)
+    assert lazy.mode == forced.mode == "RGBA"
+    lazy_alpha = np.asarray(lazy)[:, :, 3]
+    assert set(np.unique(lazy_alpha).tolist()) == {0, 255}  # bare px are bare
+    assert np.array_equal(np.asarray(forced)[:, :, 3], lazy_alpha)
+
+
 def test_composite_layer_filter() -> None:
     psd = PSDImage.open(full_name("colormodes/4x4_8bit_rgba.psd"))
     # Check layer_filter.
@@ -295,6 +1125,109 @@ def test_apply_opacity() -> None:
     assert _mse(psd.numpy("shape"), result[2]) < 0.01
 
 
+# Photoshop-authored fixtures pinning Knockout semantics; see issue #707.
+#
+# Knockout has no visible effect while fill opacity is 100%, which is why the
+# knockout-isolated-groups.psd fixture does not exercise it. Every fixture
+# below therefore sets the knockout group's fill opacity to 50%.
+#
+# Each stack is: white Background / red BG / group. The "nested" fixtures put a
+# green sibling next to the knockout group inside an ``Outer`` group, so three
+# outcomes are distinguishable at the sampled pixel:
+#
+#   green  -> no knockout                          (composites over the sibling)
+#   red    -> knocked out to the enclosing group's backdrop
+#   white  -> knocked out to the document backdrop
+#
+# Expected values are Photoshop 2026's own rendering, sampled at (16, 16).
+_KNOCKOUT_CASES = [
+    # No knockout: the group simply composites over what is below it.
+    ("knockout-none-normal", (127, 0, 128)),
+    ("knockout-none-passthrough", (127, 0, 128)),
+    ("knockout-none-nested", (0, 127, 128)),
+    ("knockout-none-cyanbg", (127, 0, 128)),
+    # Shallow knockout stops at the enclosing group's backdrop (the red BG).
+    ("knockout-shallow-nested", (127, 0, 128)),
+    ("knockout-shallow-nested-pt", (127, 0, 128)),
+    # An isolated (non pass-through) ``Outer`` bounds deep knockout too, so this
+    # matches the shallow result rather than reaching the document backdrop.
+    ("knockout-deep-nested", (127, 0, 128)),
+    # Deep knockout reaches the document backdrop. The Background layer is part
+    # of that backdrop and is *not* knocked out -- knockout-deep-cyanbg pins
+    # this down, since a white Background cannot be told apart from knocking
+    # through to transparency and flattening onto white.
+    ("knockout-deep-cyanbg", (0, 127, 255)),
+    ("knockout-deep-normal", (127, 127, 255)),
+    # A knockout group renders the same whether or not it is pass-through:
+    # when knockout is set, the pass-through blend mode stops mattering.
+    ("knockout-deep-passthrough", (127, 127, 255)),
+    # ``Outer`` is pass-through here, so it is not an isolation boundary and
+    # deep knockout escapes it to reach the document backdrop.
+    ("knockout-deep-nested-pt", (127, 127, 255)),
+]
+
+
+@pytest.mark.parametrize(("name", "expected"), _KNOCKOUT_CASES)
+def test_composite_knockout(name: str, expected: tuple[int, int, int]) -> None:
+    psd = PSDImage.open(full_name(f"transparency/{name}.psd"))
+    image = psd.composite(ignore_preview=True)
+    assert image is not None
+    pixel = image.convert("RGBA").getpixel((16, 16))
+    assert isinstance(pixel, tuple)
+    # Every fixture has an opaque Background layer, so a correct render is
+    # opaque (254 rather than 255 after the compositor's rounding). Asserting
+    # this matters: knocking through to transparency would otherwise be masked
+    # by dropping the alpha channel before comparing.
+    assert pixel[3] >= 250, f"{name}: expected an opaque result, got alpha={pixel[3]}"
+    assert all(abs(a - b) <= 2 for a, b in zip(pixel[:3], expected)), (
+        f"{name}: Photoshop renders {expected}, psd-tools rendered {pixel[:3]}"
+    )
+
+
+def test_composite_knockout_without_background_layer() -> None:
+    """Deep knockout reaches full transparency when there is no Background layer.
+
+    This is the other half of the semantics pinned by knockout-deep-cyanbg: the
+    Background layer is the canvas, not an ordinary layer. The fixture is the
+    same stack with its Background converted to an ordinary layer, and Photoshop
+    knocks all the way through to transparency, removing both layers beneath.
+    """
+    psd = PSDImage.open(full_name("transparency/knockout-deep-nobg.psd"))
+    image = psd.composite(ignore_preview=True)
+    assert image is not None
+    r, g, b, a = image.convert("RGBA").getpixel((16, 16))  # type: ignore[misc]
+    # Photoshop renders (0, 0, 255, 128): pure blue at half alpha.
+    assert (r, g, b) == (0, 0, 255)
+    assert abs(a - 128) <= 2
+
+
+def test_composite_knockout_undefined_value(tmp_path: Any, caplog: Any) -> None:
+    """An undefined KNOCKOUT_SETTING byte degrades instead of raising.
+
+    The tagged block is a raw byte, so a corrupt or third-party file can carry a
+    value outside the Knockout enum. Compositing must not crash on it.
+    """
+    psd = PSDImage.new(mode="RGB", size=(8, 8))
+    psd.create_pixel_layer(image=Image.new("RGBA", (8, 8), (255, 0, 0, 255)), name="BG")
+    group = psd.create_group(name="G0")
+    group.blend_mode = BlendMode.NORMAL
+    group.tagged_blocks.set_data(Tag.KNOCKOUT_SETTING, ByteElement(7))
+    group.tagged_blocks.set_data(Tag.BLEND_FILL_OPACITY, ByteElement(128))
+    group.append(PixelLayer.frompil(Image.new("RGBA", (8, 8), (0, 0, 255, 255)), psd))
+
+    path = tmp_path / "undefined-knockout.psd"
+    psd.save(str(path))
+
+    with caplog.at_level(logging.WARNING, logger="psd_tools.composite.composite"):
+        image = PSDImage.open(str(path)).composite(ignore_preview=True)
+    assert image is not None
+    # Falls back to Knockout.NONE, i.e. renders as if the setting were absent.
+    assert image.convert("RGB").getpixel((4, 4)) == (127, 0, 128)
+    assert any(
+        "Unknown knockout setting" in record.message for record in caplog.records
+    )
+
+
 def test_composite_clipping_mask() -> None:
     psd = PSDImage.open(full_name("clipping-mask.psd"))
     reference = composite(psd)
@@ -324,6 +1257,853 @@ def test_composite_group_clipping_clip_studio() -> None:
     )
 
 
+def _pattern_overlay_layer(psd: PSDImage) -> Any:
+    return next(
+        sub
+        for top in psd
+        for sub in [top] + list(getattr(top, "_layers", None) or [])
+        if list(sub.effects.find("patternoverlay"))
+    )
+
+
+def test_composite_pattern_overlay_targets_the_canvas_width() -> None:
+    """The pattern's width comes from the compositor's canvas.
+
+    Taking it from the layer colour instead reads a width that #710 allows to
+    be narrower than the document: an RGB pattern is then compared against 1
+    and rejected with ``AssertionError: Inconsistent pattern channels.`` even
+    though it matches the canvas exactly.
+
+    ``_draw_pattern_overlay`` takes no such parameter (#711), which makes that
+    mistake unconstructible, so this is a contract pin rather than a
+    regression guard.
+    """
+    psd = PSDImage.open(full_name("patterns.psd"))
+    layer = _pattern_overlay_layer(psd)
+    compositor = Compositor(
+        psd.viewbox,
+        np.ones((psd.height, psd.width, 3), dtype=np.float32),
+        np.zeros((psd.height, psd.width, 1), dtype=np.float32),
+    )
+    assert compositor.channels == 3
+    canvas = opaque_effect_canvas(compositor)
+    compositor._add_overlay(layer, "patternoverlay", canvas)
+    compositor._composite_source(canvas.source(), BlendMode.NORMAL)
+    assert compositor.finish()[0].shape == (psd.height, psd.width, 3)
+
+
+@pytest.mark.parametrize("render", ["layer", "document"])
+def test_composite_multichannel_pattern_fill_renders_its_inks(render: str) -> None:
+    """A multichannel pattern reaches the canvas without its alpha in the color.
+
+    Its ``EXPECTED_CHANNELS`` entry is 64, the format's maximum rather than any
+    pattern's count, so the alpha was never split off and the four-plane array
+    was rejected as inconsistent with the three-channel canvas -- as
+    ``AssertionError: source has 4 channels, expected 1 or 3`` here, and as
+    ``Inconsistent pattern channels.`` on the overlay path (#741).
+
+    The fixture's pattern carries three flat inks and an alpha slot that is
+    opaque over the top half of each 8x8 tile, so both what is painted and
+    where it is painted are checked rather than just the array's width.
+
+    It is ``layers-minimal/pattern-fill.psd`` with its Patterns block swapped
+    for that multichannel pattern -- Photoshop defines a pattern in multichannel
+    mode but offers no scriptable way to apply one, so the document around it is
+    Photoshop's and the pattern is laid out the way Photoshop lays out its own:
+    colour in the leading slots, transparency in the last of the 26, as all 65
+    patterns Photoshop 2026 ships in ``Presets/Patterns/*.pat`` are.
+    """
+    psd = PSDImage.open(full_name("multichannel-pattern-fill.psd"))
+    image = psd[0].composite() if render == "layer" else psd.composite()
+    pixels = np.asarray(image)
+
+    assert pixels.shape == (psd.height, psd.width, 4)
+    assert tuple(pixels[0, 0]) == (0x20, 0x80, 0xC0, 0xFF)
+    assert tuple(pixels[3, 17]) == (0x20, 0x80, 0xC0, 0xFF)
+    assert pixels[4, 0, 3] == 0
+    assert pixels[12, 17, 3] == 0
+
+
+@pytest.mark.parametrize("channels", [1, 4])
+@pytest.mark.skipif(
+    not __debug__, reason="the consistency check is an assert, stripped under -O"
+)
+def test_composite_pattern_overlay_rejects_a_width_it_cannot_reach(
+    channels: int,
+) -> None:
+    """A pattern must be one channel or exactly the canvas width.
+
+    Widening replicates a single channel, so it can reach 3 from 1 but cannot
+    reach 1 or 4 from 3. That mismatch is a real inconsistency and stays caught.
+    """
+    psd = PSDImage.open(full_name("patterns.psd"))
+    layer = _pattern_overlay_layer(psd)
+    compositor = Compositor(
+        psd.viewbox,
+        np.ones((psd.height, psd.width, channels), dtype=np.float32),
+        np.zeros((psd.height, psd.width, 1), dtype=np.float32),
+    )
+    canvas = opaque_effect_canvas(compositor)
+    with pytest.raises(AssertionError, match="Inconsistent pattern channels"):
+        compositor._add_overlay(layer, "patternoverlay", canvas)
+
+
+def _descendants(group: Any) -> Any:
+    for layer in group:
+        yield layer
+        if isinstance(layer, GroupMixin):
+            yield from _descendants(layer)
+
+
+def _canvas(psd: PSDImage) -> Compositor:
+    return Compositor(
+        psd.viewbox,
+        np.ones((psd.height, psd.width, 3), dtype=np.float32),
+        np.zeros((psd.height, psd.width, 1), dtype=np.float32),
+    )
+
+
+def test_accepts_defers_a_clipping_layer_to_its_base() -> None:
+    """A clipping layer is composited by the layer it clips to, not on its own.
+
+    ``_apply_clip_layers()`` re-enters ``apply()`` with ``clip_compositing``,
+    which is the only way past this rejection.
+    """
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    clipped = next(layer for layer in _descendants(psd) if layer.clipping)
+    compositor = _canvas(psd)
+    assert not compositor._accepts(clipped, clip_compositing=False)
+    assert compositor._accepts(clipped, clip_compositing=True)
+
+
+def test_accepts_rejects_a_layer_outside_the_viewport() -> None:
+    """Culling applies to ordinary layers; groups and adjustments are exempt."""
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    elsewhere = (1000, 1000, 1010, 1010)
+    compositor = Compositor(
+        elsewhere,
+        np.ones((10, 10, 3), dtype=np.float32),
+        np.zeros((10, 10, 1), dtype=np.float32),
+    )
+    # Both exemptions have to be excluded here, not just the group one: an
+    # adjustment layer would legitimately be accepted and the assertion below
+    # would then be pinning the wrong branch.
+    ordinary = next(
+        layer
+        for layer in _descendants(psd)
+        if not isinstance(layer, (GroupMixin, AdjustmentLayer))
+    )
+    assert not compositor._accepts(ordinary, clip_compositing=False)
+    group = next(layer for layer in _descendants(psd) if isinstance(layer, GroupMixin))
+    assert compositor._accepts(cast(Layer, group), clip_compositing=False)
+
+
+@pytest.mark.parametrize(
+    "fixture",
+    ["clipping-mask.psd", "hidden-groups.psd", "effects/stroke-effects.psd"],
+)
+def test_the_cull_group_exemption_matches_the_structural_check(fixture: str) -> None:
+    """``is_group()`` has to answer exactly what ``GroupMixin`` would.
+
+    :py:meth:`Compositor._accepts` exempts a group by the cheap predicate
+    rather than the protocol ``isinstance``, which costs a group's whole
+    bbox recomputation on Python <= 3.11. The two are only interchangeable
+    for as long as they agree, and nothing else makes them agree -- a new
+    group-shaped class that forgot to override ``is_group()`` would be culled
+    on a box that says nothing about where it paints, silently.
+    """
+    psd = PSDImage.open(full_name(fixture))
+    layers = list(_descendants(psd))
+    assert layers, "the fixture has something to compare"
+    for layer in layers:
+        assert layer.is_group() == isinstance(layer, GroupMixin), layer.name
+
+
+def test_a_partly_covered_stroke_pixel_blends_with_the_fill() -> None:
+    """A pixel the stroke covers in part is that much of it, not all of it (#883).
+
+    ``descriptors/stroke-color-descriptors-rgb.psd``'s ``Rectangle 1`` carries
+    a 1 px **centred** stroke of PANTONE Black 3 C over a black fill. The pen
+    splits the band evenly across two columns, and x = 6 is the inner one,
+    where the fill is already solid: the color there is that share of the
+    stroke over the fill, which is what Photoshop paints.
+
+    A centred stroke, so this measures the compositor's exit and not the
+    alignment; x = 5 is the band's outer column, outside the path.
+    """
+    psd = PSDImage.open(full_name("descriptors/stroke-color-descriptors-rgb.psd"))
+    layer = [x for x in psd.descendants() if x.name == "Rectangle 1"][0]
+    assert layer.stroke is not None
+    assert layer.stroke.line_width == 1.0
+    assert layer.stroke.line_alignment == "center", "not what #854 is about"
+
+    reference = PSDImage.open(
+        full_name("descriptors/stroke-color-descriptors-rgb.psd")
+    ).numpy()
+    color, _, _ = composite(psd, force=True)
+    pen = vector.draw_stroke(layer)[:, :, 0]
+
+    stroke_color = 0.129  # PANTONE Black 3 C, red channel, 32.9/255
+    row = 11
+    share = pen[row, 6]
+    assert pen[row, 5] == pytest.approx(share, abs=0.01), "split evenly"
+    assert share == pytest.approx(0.498, abs=0.01)
+    assert reference[row, 6, 0] == pytest.approx(0.0667, abs=0.001), "Photoshop"
+    assert color[row, 6, 0] == pytest.approx(share * stroke_color, abs=0.002)
+    assert abs(color[row, 6, 0] - reference[row, 6, 0]) < 1 / 255
+    # Far enough from the stroke's own color that full strength cannot pass.
+    assert abs(color[row, 6, 0] - stroke_color) > 0.05
+
+
+def test_a_partly_opaque_stroke_fades_into_the_fill() -> None:
+    """``strokeStyleOpacity`` reaches a pixel the stroke covers whole (#883).
+
+    The half of the exit that partial coverage above cannot see.
+    ``layers/shape-layer.psd``'s ``Polygon 1`` is a cyan fill under a magenta
+    1 px stroke, so where the pen covers a pixel whole the color is that much
+    magenta over the rest of the cyan: red reads the opacity straight back,
+    and green reads what is left of it.
+
+    No fixture ships a stroke below 100%, so the descriptor is forged here.
+    """
+
+    def render(opacity: float | None) -> np.ndarray:
+        psd = PSDImage.open(full_name("layers/shape-layer.psd"))
+        layer = [x for x in psd.descendants() if x.name == "Polygon 1"][0]
+        assert layer.stroke is not None
+        stored = cast(UnitFloat, layer.stroke._data["strokeStyleOpacity"])
+        assert float(stored) == 100.0, "the fixture's own value, forged below"
+        if opacity is not None:
+            layer.stroke._data["strokeStyleOpacity"] = UnitFloat(
+                unit=stored.unit, value=opacity
+            )
+        color, _, _ = composite(psd, force=True)
+        return color
+
+    row, column = 27, 19
+    psd = PSDImage.open(full_name("layers/shape-layer.psd"))
+    layer = [x for x in psd.descendants() if x.name == "Polygon 1"][0]
+    assert vector.draw_stroke(layer)[row, column, 0] == 1.0, "covered whole"
+
+    assert render(None)[row, column] == pytest.approx([1.0, 0.0, 1.0], abs=1e-6)
+    assert render(50.0)[row, column] == pytest.approx([0.5, 0.5, 1.0], abs=1e-6)
+    assert render(10.0)[row, column] == pytest.approx([0.1, 0.9, 1.0], abs=1e-6)
+
+
+def test_a_centered_vector_stroke_covers_both_sides_of_the_path() -> None:
+    """A redrawn stroke is coverage of its own, and the cull counts it (#937).
+
+    The layer carries a 7 px *centered* stroke, so 3.5 px of it falls outside
+    the path. The viewport is padded past that on every side.
+    """
+    psd = PSDImage.open(
+        full_name("descriptors/stroke-color-descriptors-hsb-with-rgb-mode.psd")
+    )
+    layer = psd[5]
+    assert layer.stroke is not None and layer.stroke.enabled
+    assert layer.stroke.line_width == 7.0
+    assert layer.stroke.line_alignment == "center"
+
+    bbox = layer.bbox
+    assert _stroke_reach(layer) == (bbox[0] - 7, bbox[1] - 7, bbox[2] + 7, bbox[3] + 7)
+
+    pad = 12
+    viewport = (bbox[0] - pad, bbox[1] - pad, bbox[2] + pad, bbox[3] + pad)
+    height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
+    compositor = Compositor(
+        viewport,
+        np.ones((height, width, 3), dtype=np.float32),
+        np.zeros((height, width, 1), dtype=np.float32),
+        force=True,
+    )
+    source = compositor._resolve_source(layer)
+
+    def extent(canvas: np.ndarray) -> tuple[int, int, int, int]:
+        rows, columns = np.nonzero(canvas[..., 0] > 0.5)
+        return (
+            int(columns.min()),
+            int(rows.min()),
+            int(columns.max()) + 1,
+            int(rows.max()) + 1,
+        )
+
+    path = extent(vector.draw_vector_mask(layer, viewport))
+    for canvas in (source.shape, source.alpha):
+        left, top, right, bottom = extent(canvas)
+        assert left < path[0] and top < path[1], "the outer half is missing"
+        assert right > path[2] and bottom > path[3], "the outer half is missing"
+
+
+def test_accepts_keeps_a_layer_whose_stroke_reaches_into_the_viewport() -> None:
+    """The cull measures where the layer paints, not where its box is (#815).
+
+    ``outside-stroke.psd`` is a 16x16 square at ``(8, 8, 24, 24)`` with a 3 px
+    outset stroke, so its reach is ``(4, 4, 28, 28)`` -- four, not three, the
+    extra pixel being the uncovered edge ``stroke_bbox()`` measures from. A
+    viewport that stops
+    at ``x = 8`` touches the reach and misses the box -- and misses it by
+    coinciding with its left edge, which ``intersect()`` reports as the empty
+    box rather than as a one-pixel overlap.
+
+    ``(0, 0, 4, 32)`` is the negative: the reach clears it too, so the layer
+    is still rejected and widening the test has not simply disabled it.
+    """
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    layer = psd[0]
+    assert layer.bbox == (8, 8, 24, 24)
+    assert _stroke_reach(layer) == (4, 4, 28, 28)
+
+    def compositor_on(viewport: tuple[int, int, int, int]) -> Compositor:
+        height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
+        return Compositor(
+            viewport,
+            np.ones((height, width, 3), dtype=np.float32),
+            np.zeros((height, width, 1), dtype=np.float32),
+        )
+
+    reaches_in = (0, 0, 8, 32)
+    assert utils.intersect(reaches_in, layer.bbox) == (0, 0, 0, 0)
+    assert compositor_on(reaches_in)._accepts(layer, clip_compositing=False)
+
+    clears_it = (0, 0, 4, 32)
+    assert utils.intersect(clears_it, _stroke_reach(layer)) == (0, 0, 0, 0)
+    assert not compositor_on(clears_it)._accepts(layer, clip_compositing=False)
+
+
+def test_stroke_survives_a_viewport_the_layer_box_misses() -> None:
+    """The pixels, not just the acceptance: the band is drawn where it belongs.
+
+    Asserting the render and not the decision, because accepting the layer is
+    only half of it: ``_trace_shape()`` then has to re-read the layer's
+    coverage on a box this compositor's viewport does not contain (#804).
+    Here that second half is load-bearing rather than merely present -- with
+    the pre-#804 trace, which reuses the compositor's clipped copy, the
+    layer's coverage on this viewport is entirely zero, no band is drawn, and
+    the render comes back empty.
+
+    The band is the left side of the outset stroke: red, three columns wide.
+    Column 4 is the pixel ``stroke_bbox()`` adds to locate the layer's edge
+    against, not stroke, so it stays empty. The overall row range is the
+    mitered offset rectangle and says nothing about the corners; the rounding
+    shows only as the inner column falling one row short at each end, which
+    is asserted separately.
+    """
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    image = psd.composite(viewport=(0, 0, 8, 32), ignore_preview=True)
+    rendered = np.asarray(image.convert("RGBA"))
+
+    alpha = rendered[..., 3]
+    assert alpha.any(), "the stroke reaching back into the viewport was lost"
+    rows, columns = np.nonzero(alpha)
+    assert (columns.min(), columns.max()) == (5, 7), "the outset stroke's width"
+    assert (rows.min(), rows.max()) == (5, 26), "the offset rectangle"
+    assert not alpha[:, 4].any(), "the edge-locating pixel carries no stroke"
+    assert np.array_equal(
+        np.unique(rendered[alpha > 0][:, :3], axis=0), [[255, 0, 0]]
+    ), "the stroke's own colour, not the layer's"
+    # Down the middle the band is fully opaque across all three columns.
+    assert np.array_equal(alpha[16, 5:8], [255, 255, 255])
+
+    def extent(column: int) -> tuple[int, int]:
+        rows_here = np.nonzero(alpha[:, column])[0]
+        return int(rows_here.min()), int(rows_here.max())
+
+    # The corner rounds off: the innermost column stops a row short at each
+    # end, where a mitered join would have carried it to the full extent.
+    assert extent(5) == (6, 25), "rounded"
+    assert extent(6) == extent(7) == (5, 26)
+
+
+def test_a_layer_dragged_off_canvas_keeps_the_stroke_that_reaches_back() -> None:
+    """The issue's own repro, at the document viewport (#815).
+
+    Distinct from the ``viewport=`` test above in what it pins: there the
+    canvas is whole and the caller asked for a slice of it, here the layer
+    itself has left the canvas, which is the case ``psd.composite()`` with no
+    arguments hits.
+    """
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    layer = psd[0]
+    layer.left = -16
+    assert layer.bbox == (-16, 8, 0, 24), "flush against the canvas edge"
+
+    alpha = np.asarray(psd.composite(ignore_preview=True).convert("RGBA"))[..., 3]
+    assert alpha.any(), "the canvas came back empty"
+    rows, columns = np.nonzero(alpha)
+    assert (columns.min(), columns.max()) == (0, 2), "the stroke's right-hand side"
+    assert (rows.min(), rows.max()) == (5, 26)
+
+
+def test_a_shapeless_layer_off_the_viewport_does_not_flood_it() -> None:
+    """Coverage for a layer with no transparency channel stops at its box.
+
+    ``_place_object_shape()`` filled the whole viewport for such a layer,
+    which was indistinguishable from filling its ``bbox`` for as long as
+    ``_accepts()`` guaranteed the two overlapped -- a layer with no
+    transparency channel is typically a Background spanning the canvas.
+    Widening the cull to the stroke's reach (#815) retires that guarantee: an
+    accepted layer may now miss the viewport entirely, and filling the
+    viewport for one of those paints every pixel of it opaque.
+
+    Forged rather than fixtured because Photoshop will not author the
+    combination -- it puts no layer style on a Background -- while the
+    compositor will happily reach it from any narrow enough viewport.
+    """
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    layer = psd[0]
+    assert layer.numpy("shape") is not None, "the fixture has one to remove"
+
+    stored = layer.numpy
+
+    def without_transparency(
+        channel: str | None = "color", real_mask: bool = True
+    ) -> Any:
+        return None if channel == "shape" else stored(channel, real_mask)
+
+    # Not monkeypatch: the substitution belongs to this one layer object, and
+    # the attribute goes away with the document at the end of the test.
+    layer.numpy = without_transparency  # type: ignore[assignment]
+
+    rendered = np.asarray(
+        psd.composite(viewport=(0, 0, 8, 32), ignore_preview=True).convert("RGBA")
+    )
+    alpha = rendered[..., 3]
+    assert alpha.any(), "the stroke still reaches in"
+    assert not alpha.all(), "the layer flooded the viewport it does not touch"
+    # What is there is the stroke and nothing else: the layer's own box is
+    # off the viewport, so none of its interior may show.
+    assert np.array_equal(
+        np.unique(rendered[alpha > 0][:, :3], axis=0), [[255, 0, 0]]
+    ), "only the stroke's colour, never the layer's fill"
+    assert not np.nonzero(alpha)[1].min() < 5, "nothing left of the stroke band"
+
+
+def test_an_unmeasurable_stroke_falls_back_to_the_layer_box(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A descriptor ``_stroke_reach()`` cannot read must not break the cull.
+
+    #808 reaches the fallback only while measuring a group's children, but the
+    cull runs it for every non-group layer of every document, so a descriptor
+    that trips it reaches far more composites. A non-numeric ``Key.SizeKey``
+    is the ``ValueError`` arm -- ``stroke_bbox()`` does ``float()`` on whatever
+    it finds -- and it is the one defect no amount of tolerance can read past:
+    there is no defensible width to invent for a stroke that does not state
+    one (#826).
+
+    The layer then culls on its own box: degraded to the unwidened decision
+    rather than raising.
+
+    The composite that keeps the layer degrades the same way rather than
+    raising, which is #826's half: an effect nobody can read is dropped and
+    the document it sits on still renders.
+    """
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    layer = psd[0]
+    broken = [effect for effect in layer.effects.find("stroke")]
+    assert broken, "the fixture carries the stroke this test breaks"
+    for effect in broken:
+        effect.descriptor[Key.SizeKey] = "wide"
+
+    with caplog.at_level(logging.DEBUG, logger="psd_tools.composite.composite"):
+        assert _stroke_reach(layer) == layer.bbox, "measurement gave up"
+    assert any(
+        "Cannot measure a stroke effect" in record.message for record in caplog.records
+    ), "the box matching bbox has to be the fallback, not an unmeasured layer"
+    # The viewport the reach would have saved the layer on: culled instead of
+    # raising, which is what the composite did before the cull consulted it.
+    narrow = psd.composite(viewport=(0, 0, 8, 32), ignore_preview=True)
+    assert not np.asarray(narrow.convert("RGBA"))[..., 3].any()
+
+    # The whole document, where the layer is not culled: what comes out is
+    # the same document with that stroke switched off -- the effect dropped,
+    # and nothing else with it.
+    whole = np.asarray(psd.composite(ignore_preview=True).convert("RGBA"))
+    off = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    for effect in off[0].effects.find("stroke"):
+        effect.descriptor[Key.Enabled] = False
+    assert whole[..., 3].any(), "the layer went with its unreadable stroke"
+    assert np.array_equal(
+        whole, np.asarray(off.composite(ignore_preview=True).convert("RGBA"))
+    ), "the unreadable stroke left something behind"
+
+
+def test_one_unmeasurable_stroke_keeps_the_reach_of_the_other() -> None:
+    """A descriptor that cannot be measured costs its own box, not the layer's.
+
+    A fallback around the whole loop would send the measurement back to
+    ``layer.bbox`` for any effect that raised, discarding what the effects
+    before it contributed. ``double-stroke-effects.psd`` is the fixture that
+    tells the two apart (#798) -- its layer carries a 1 px outset and a 1 px
+    inset stroke, which grow the box by different amounts -- so breaking the
+    wider one leaves the narrower one's box behind rather than the layer's.
+
+    Keeping it matters in the direction the box is used: over-measuring costs
+    a group some canvas nobody draws on, while under-measuring clips a stroke
+    or culls a layer that has one (#826).
+    """
+    psd = PSDImage.open(full_name("effects/double-stroke-effects.psd"))
+    layer = psd[1]
+    outset, inset = list(layer.effects.find("stroke"))
+    assert _stroke_reach(layer) == (0, -1, 32, 31), "both strokes measured"
+
+    outset.descriptor[Key.SizeKey] = "wide"
+    assert _stroke_reach(layer) == (1, 0, 31, 30), "the inset stroke's own box"
+    inset.descriptor[Key.SizeKey] = "wide"
+    assert _stroke_reach(layer) == _vector_stroke_reach(layer), (
+        "nothing left to measure"
+    )
+
+
+def test_accepts_honours_the_layer_filter() -> None:
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    compositor = Compositor(
+        psd.viewbox,
+        np.ones((psd.height, psd.width, 3), dtype=np.float32),
+        np.zeros((psd.height, psd.width, 1), dtype=np.float32),
+        layer_filter=lambda layer: False,
+    )
+    assert not compositor._accepts(psd[0], clip_compositing=False)
+
+
+def test_resolve_source_reads_the_layer_without_writing_the_canvas() -> None:
+    """The split's contract: resolving is a read, compositing is the write."""
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    compositor = _canvas(psd)
+    before = compositor.result_over_backdrop().copy()
+
+    source = compositor._resolve_source(psd[0])
+    assert source.color.shape == (psd.height, psd.width, 3)
+    assert np.array_equal(compositor.result_over_backdrop(), before)
+
+    compositor._composite_source(source, psd[0].blend_mode)
+    assert not np.array_equal(compositor.result_over_backdrop(), before)
+
+
+def test_resolve_source_folds_the_mask_and_opacity_into_the_operands() -> None:
+    """Opacity reaches ``alpha`` but not ``shape``; fill opacity reaches neither.
+
+    Fill opacity is left to ``_composite_source()`` because knockout applies it
+    to ``alpha`` only, and the source's full coverage punches the hole.
+    """
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    layer = psd[0]
+    layer.opacity = 128
+    compositor = _canvas(psd)
+    source = compositor._resolve_source(layer)
+    assert np.allclose(source.alpha, source.shape * (128 / 255.0))
+    assert source.fill_opacity == 1.0
+
+
+def _partial_source(compositor: Compositor, coverage: float, fill: float) -> Any:
+    """A half-transparent layer, as the operands an effect composites into."""
+    covered = np.full((compositor.height, compositor.width, 1), coverage, np.float32)
+    return composite_module._Source(
+        color=np.zeros((compositor.height, compositor.width, 1), dtype=np.float32),
+        shape=covered,
+        alpha=covered.copy(),
+        mask=1.0,
+        shape_mask=1.0,
+        fill_opacity=fill,
+        opacity=1.0,
+        knockout=Knockout.NONE,
+        adjustment_isolated=None,
+        knockout_shape=covered,
+    )
+
+
+def test_an_effect_canvas_that_nothing_painted_on_hands_its_source_back() -> None:
+    """The source a layer with no drawable effect composites is its own.
+
+    Not merely an equal one: resolving the canvas divides the layer's alpha by
+    its coverage and multiplies it back, which is a round trip through
+    floating point that the overwhelming majority of layers should not be
+    taking at all. A pattern effect whose data will not decode declines after
+    the canvas exists, and has to leave it untouched too.
+    """
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    compositor = _canvas(psd)
+    source = compositor._resolve_source(psd[0])
+    canvas = composite_module._EffectCanvas(compositor, source)
+    assert canvas.source() is source
+
+    empty = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
+    canvas.over(empty, source.color, BlendMode.NORMAL, 1.0)
+    assert canvas.source() is source
+
+
+def test_fill_opacity_fades_the_layer_and_not_the_effect_over_it() -> None:
+    """What ``fill_opacity`` is for, once the effect is inside the layer.
+
+    Fading the layer's own paint while leaving its style at full strength is
+    the whole point of the setting. Applying the effect to the backdrop
+    afterwards puts it out of fill opacity's reach; composited into the layer
+    it is in reach, so the canvas folds fill opacity into the layer's paint
+    alone and hands back a source that carries 1.0 (#846).
+
+    The hole a knockout punches is the exception that needs the coverage
+    before either: fill opacity 0 under a knockout is a hole, not a no-op.
+    """
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    compositor = _canvas(psd)
+    source = _partial_source(compositor, coverage=0.5, fill=0.0)
+    canvas = composite_module._EffectCanvas(compositor, source)
+
+    red = np.zeros((psd.height, psd.width, 3), dtype=np.float32)
+    red[..., 0] = 1.0
+    canvas.over(np.ones_like(source.shape), red, BlendMode.NORMAL, 1.0)
+    composed = canvas.source()
+
+    assert composed.fill_opacity == 1.0
+    # The layer is invisible and the effect is not, so what covers the half
+    # the layer covers is the effect alone.
+    assert np.allclose(composed.alpha, 0.5)
+    assert np.allclose(composed.color, red)
+
+    # Half-covered by the effect this time, which is what separates the two
+    # coverages: what the source contributes is faded to a quarter of the
+    # pixel, and the hole a knockout punches is still the layer's own half.
+    canvas = composite_module._EffectCanvas(compositor, source)
+    canvas.over(np.full_like(source.shape, 0.5), red, BlendMode.NORMAL, 1.0)
+    composed = canvas.source()
+    assert np.allclose(composed.shape, 0.25)
+    assert np.allclose(composed.knockout_shape, 0.5)
+
+
+def test_layer_opacity_fades_the_layer_and_its_effect_once_between_them() -> None:
+    """An overlay cannot make a half-opaque layer more opaque than it is.
+
+    The layer opacity fades a layer and its style alike, so it applies once,
+    to the two together. Applying the effect as a separate source instead
+    unions the two -- the same opacity twice -- and lifts the layer past it,
+    to neither its own opacity nor anything Photoshop renders.
+    """
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    compositor = _canvas(psd)
+    source = _partial_source(compositor, coverage=1.0, fill=1.0)
+    source = dataclasses.replace(source, opacity=0.5, alpha=source.alpha * 0.5)
+    canvas = composite_module._EffectCanvas(compositor, source)
+
+    red = np.zeros((psd.height, psd.width, 3), dtype=np.float32)
+    red[..., 0] = 1.0
+    canvas.over(np.ones_like(source.shape), red, BlendMode.NORMAL, 1.0)
+    composed = canvas.source()
+    assert np.allclose(composed.alpha, 0.5)
+    assert np.allclose(composed.color, red)
+
+
+def _feathered_stroke_layer(name: str = "Outset 6") -> tuple[PSDImage, Any]:
+    """``feathered-stroke.psd`` and one of its squares, for forging onto.
+
+    Nothing in the fixture corpus pairs an effect that draws with a knockout,
+    a non-normal layer blend mode, a layer opacity below 255 or a pass-through
+    group, so the combinations below are made rather than found. This square
+    is the one whose outset stroke covers its whole ramp, which is what makes
+    where the stroke went readable off a single pixel.
+    """
+    psd = PSDImage.open(full_name("effects/feathered-stroke.psd"))
+    return psd, next(sub for sub in psd if sub.name == name)
+
+
+def test_an_outer_effect_keeps_its_own_blend_mode_over_the_backdrop() -> None:
+    """A stroke is not blended with the mode of the layer it outlines.
+
+    An outer band lands on the backdrop rather than on the layer, so what
+    blends it is its own mode; the layer's belongs to the layer's pixels.
+    Merging the two into one source (#846) hands the band the layer's mode as
+    well, which multiplies a Normal stroke on a Multiply layer against the
+    backdrop it sits beside.
+    """
+    psd, layer = _feathered_stroke_layer()
+    layer.blend_mode = BlendMode.MULTIPLY
+
+    backdrop = np.zeros((psd.height, psd.width, 3), dtype=np.float32)
+    backdrop[..., 1] = 0.5
+    compositor = Compositor(
+        psd.viewbox, backdrop, np.ones((psd.height, psd.width, 1), dtype=np.float32)
+    )
+    compositor.apply(layer)
+    result = compositor.finish()[0]
+
+    # Four pixels clear of the square, where only the stroke paints.
+    y, x = (layer.bbox[1] + layer.bbox[3]) // 2, layer.bbox[0] - 4
+    stroke = next(iter(layer.effects.find("stroke")))
+    color, _ = paint.draw_solid_color_fill(
+        (0, 0, 1, 1), psd.color_mode, stroke.descriptor
+    )
+    assert color is not None
+    assert np.allclose(result[y, x], color[0, 0], atol=1 / 255.0)
+    assert not np.allclose(result[y, x], color[0, 0] * backdrop[y, x], atol=1 / 255.0)
+
+
+def test_layer_opacity_fades_the_stroke_outside_the_layer_too() -> None:
+    """A half-opaque layer's style is half-opaque, outside the layer as well.
+
+    The inner effects get that from being composited inside the source the
+    layer opacity scales. An outer band is not in that source -- it goes on
+    before the layer, with its own blend mode -- so it carries the factor
+    itself, and where the layer covers nothing there is no later step that
+    would apply it (#884 review).
+    """
+    psd, layer = _feathered_stroke_layer()
+    layer.opacity = 128
+
+    # The layer alone, over nothing: the fixture's own Background is opaque
+    # and would answer 1.0 at every pixel whatever the stroke did.
+    compositor = Compositor(
+        psd.viewbox,
+        np.ones((psd.height, psd.width, 3), dtype=np.float32),
+        np.zeros((psd.height, psd.width, 1), dtype=np.float32),
+    )
+    compositor.apply(layer)
+    alpha = compositor.finish()[2]
+
+    # Four pixels clear of the square, where the band is opaque and the layer
+    # covers nothing, so what is left is the band's own alpha.
+    y, x = (layer.bbox[1] + layer.bbox[3]) // 2, layer.bbox[0] - 4
+    assert float(alpha[y, x, 0]) == pytest.approx(128 / 255.0, abs=1 / 255.0)
+
+
+def test_fill_opacity_leaves_room_beside_a_layer_it_has_faded() -> None:
+    """An outset-only stroke never starts the canvas that folds fill opacity in.
+
+    The band goes on scaled by what the layer will leave of the pixel, and
+    what the layer will leave is its alpha *after* fill opacity. The two agree
+    once an effect canvas has folded that in -- but a stroke wholly outside
+    the layer puts nothing inside it, so the canvas is never started and hands
+    its source back with fill opacity still on it. Scaled by that unfaded
+    coverage, the band on this layer's ramp covers the whole of it rather than
+    ``1 - coverage`` (#884 review).
+    """
+    psd, layer = _feathered_stroke_layer()
+    layer.tagged_blocks.set_data(Tag.BLEND_FILL_OPACITY, ByteElement(0))
+
+    compositor = Compositor(
+        psd.viewbox,
+        np.ones((psd.height, psd.width, 3), dtype=np.float32),
+        np.zeros((psd.height, psd.width, 1), dtype=np.float32),
+    )
+    compositor.apply(layer)
+    alpha = compositor.finish()[2]
+
+    # The layer's fill is invisible, so the ramp carries the band and nothing
+    # else, and an outset band on a ramp is the ramp's complement.
+    y, x0 = (layer.bbox[1] + layer.bbox[3]) // 2, layer.bbox[0]
+    mask_bbox = cast(Mask, layer.mask).bbox
+    mask = layer.numpy("mask")
+    assert mask is not None
+    start = x0 - mask_bbox[0]
+    coverage = mask[y - mask_bbox[1], start : start + 6, 0]
+    assert np.all(np.diff(coverage) > 0), coverage
+    assert np.allclose(alpha[y, x0 : x0 + 6, 0], 1.0 - coverage, atol=1 / 255.0)
+
+
+def test_a_knockout_punches_with_the_layer_and_not_with_its_stroke() -> None:
+    """The hole is the layer's own coverage; an effect renders over it.
+
+    Fill opacity 0 under a knockout is the whole point of the setting -- the
+    layer's paint goes and the hole stays -- so the coverage that punches it
+    is the layer's, before either fill opacity or an effect. Carrying the
+    stroke's band in it instead lets a half-opaque band erase the backdrop
+    under itself, over ground the layer does not touch.
+    """
+    psd, layer = _feathered_stroke_layer()
+    layer.tagged_blocks.set_data(Tag.KNOCKOUT_SETTING, ByteElement(1))
+    layer.tagged_blocks.set_data(Tag.BLEND_FILL_OPACITY, ByteElement(0))
+    stroke = next(iter(layer.effects.find("stroke")))
+    opacity = stroke.descriptor[Key.Opacity]
+    stroke.descriptor[Key.Opacity] = UnitFloat(unit=opacity.unit, value=50.0)
+
+    _, _, alpha = composite(psd)
+    # A row through the square, out where the band paints and the layer does
+    # not: the opaque Background under it is not the layer's to knock out.
+    y = (layer.bbox[1] + layer.bbox[3]) // 2
+    assert np.allclose(alpha[y, : layer.bbox[0] - 4], 1.0)
+
+
+def test_an_outer_effect_adds_its_coverage_beside_the_layer() -> None:
+    """The half of #846 that the ``over`` operator cannot express.
+
+    A band drawn outside the layer's boundary is disjoint from the layer, not
+    independent of it: the two divide the pixel between them rather than each
+    hiding a random share of the other. Composited over one another, a layer
+    at 0.5 and a band at 0.5 leave a quarter of the pixel to the backdrop and
+    the colour at a 2:1 mix; added, they fill it and the mix is even, which is
+    what Photoshop renders.
+
+    The band goes on first, scaled by what the layer will leave of the pixel,
+    so that the ``union`` the layer then composites with resolves to the sum.
+    Where the layer is opaque there is no room beside it and the scale is a
+    0/0 that has to come out 0 rather than large.
+    """
+    psd = PSDImage.open(full_name("clipping-mask.psd"))
+    compositor = _canvas(psd)
+    source = _partial_source(compositor, coverage=0.5, fill=1.0)
+    white = np.ones((psd.height, psd.width, 3), dtype=np.float32)
+    band = composite_module._OuterEffect(
+        white, np.full_like(source.shape, 0.5), 1.0, BlendMode.NORMAL
+    )
+
+    compositor._apply_outer_effects([band], source.alpha)
+    compositor._composite_source(source, BlendMode.NORMAL)
+    color, shape, alpha = compositor.finish()
+    assert np.allclose(alpha, 1.0)
+    assert np.allclose(color, 0.5)
+
+    # The layer opaque: nothing is left beside it, and the band is dropped
+    # rather than divided by zero.
+    compositor = _canvas(psd)
+    opaque = _partial_source(compositor, coverage=1.0, fill=1.0)
+    compositor._apply_outer_effects([band], opaque.alpha)
+    compositor._composite_source(opaque, BlendMode.NORMAL)
+    color, shape, alpha = compositor.finish()
+    assert np.allclose(alpha, 1.0)
+    assert np.allclose(color, 0.0)
+
+
+def test_composite_stroke_effect_over_a_layer_without_a_mask() -> None:
+    """A stroke effect must not require the layer to have a mask (#711).
+
+    ``_get_mask()`` returns a bare 1.0 for a layer with no mask, and handing
+    that straight to ``paste()``, which needs a canvas, raises
+    ``AttributeError: 'float' object has no attribute 'shape'``. The
+    combination is reachable for a fill layer with no vector mask, and calls
+    across the fixture corpus already pass the scalar; they escape only
+    because those layers have no stroke effect.
+
+    The viewport is grown past the stroke's box on purpose. Only a stroke
+    drawn wholly inside the compositor's viewport reads the coverage it was
+    handed -- outside it, ``_trace_shape()`` reads the layer again and never
+    touches the scalar (#804) -- and on this layer's own canvas the stroke
+    box starts at ``(-1, -2)``, which leaves the guarded line unvisited.
+    """
+    psd = PSDImage.open(full_name("effects/stroke-effects.psd"))
+    layer = next(
+        sub
+        for top in psd
+        for sub in (getattr(top, "_layers", None) or [])
+        if list(sub.effects.find("stroke"))
+    )
+    viewport = (-4, -4, psd.width, psd.height)
+    for effect in layer.effects.find("stroke"):
+        bbox = stroke_bbox(layer.bbox, effect.descriptor)
+        assert viewport[0] <= bbox[0] and viewport[1] <= bbox[1]
+        assert bbox[2] <= viewport[2] and bbox[3] <= viewport[3]
+
+    height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
+    backdrop = np.ones((height, width, 3), dtype=np.float32)
+    alpha = np.zeros((height, width, 1), dtype=np.float32)
+    compositor = Compositor(viewport, backdrop, alpha)
+    canvas = opaque_effect_canvas(compositor)
+    outer: Any = []
+    # 1.0 is exactly what _get_mask() yields for an unmasked layer.
+    compositor._add_stroke_effects(layer, 1.0, canvas, outer, True)
+    source = canvas.source()
+    compositor._apply_outer_effects(outer, source.alpha)
+    compositor._composite_source(source, BlendMode.NORMAL)
+    assert compositor.finish()[0].shape == (height, width, 3)
+
+
 def test_composite_stroke() -> None:
     psd = PSDImage.open(full_name("stroke.psd"))
     reference = composite(psd, force=True)
@@ -339,10 +2119,664 @@ def test_composite_pixel_layer_with_vector_stroke() -> None:
 
 
 def test_composite_mixed_colorspace_stroke() -> None:
-    """Regression test for issue #397: ValueError on vector layer with CMYK stroke + Grayscale fill."""
+    """A CMYK stroke over a Grayscale fill composites, rather than raising (#397)."""
     psd = PSDImage.open(full_name("issues/issue397.psd"))
     psd.composite()
     for layer in psd:
         if isinstance(layer, GroupMixin):
             for sublayer in layer:
                 sublayer.composite()
+
+
+def test_lab_composite_agrees_with_the_preview_it_reproduces() -> None:
+    """The two entry points onto a Lab document must return the same colours.
+
+    ``topil()`` builds its image with ``Image.merge()``, which writes the
+    planes verbatim; ``Image.fromarray(..., "LAB")`` goes through an unpacker
+    that reads the chroma as signed and adds 128, which puts the two 128 apart
+    on both chroma axes (#759). On a document whose composite does reproduce
+    its stored preview they are directly comparable.
+
+    All three of these composite to their preview *bitwise*. The Lab documents
+    left out do not, for reasons that are not about chroma -- the 16-bit
+    fixture's own lightness plane disagrees, and the stroke fixture carries
+    the stroke approximation.
+    """
+    for name in (
+        "colormodes/4x4_8bit_lab.psd",
+        "descriptors/lab-color-swatches.psd",
+        "gradients/noise-gradient-lab.psd",
+    ):
+        psd = PSDImage.open(full_name(name))
+        assert psd.color_mode == ColorMode.LAB
+        preview_image = psd.topil()
+        composited_image = psd.composite(ignore_preview=True)
+        assert isinstance(preview_image, Image.Image)
+        assert isinstance(composited_image, Image.Image)
+        preview = _pixels_as_seen(preview_image)
+        composited = _pixels_as_seen(composited_image)
+        assert np.array_equal(preview, composited), name
+
+
+@pytest.mark.parametrize("force", [False, True])
+def test_lab_composite_converts_to_the_colour_it_encodes(force: bool) -> None:
+    """What the planes *mean*, which no byte-level assertion here establishes.
+
+    The band sampled is a flat ``Lab(60, 25, 25)`` -- a noise gradient with
+    ``Mnm `` equal to ``Mxm ``, from the fixture added in #758. Photoshop
+    2026's own colour engine, asked over the scripting bridge, puts it at
+    ``rgb(196, 126, 101)``.
+
+    Reading the chroma as signed converts it to ``(0, 187, 255)`` instead: not
+    a rounding gap but a different colour, which is the whole of #759. The
+    tolerance is loose enough to survive Pillow's own conversion drifting a
+    code value and still nowhere near admitting that.
+    """
+    psd = PSDImage.open(full_name("gradients/noise-gradient-lab.psd"))
+    image = psd.composite(ignore_preview=True, force=force, apply_icc=False)
+    assert isinstance(image, Image.Image)
+    assert image.mode == "LAB"
+    rendered = np.array(image.convert("RGB").getpixel((4, 20)), dtype=float)
+    assert np.abs(rendered - np.array([196.0, 126.0, 101.0])).max() <= 2.0
+
+
+@pytest.mark.parametrize(
+    "value, expected", [(1.2, 255), (5.0, 255), (-0.2, 0), (-5.0, 0)]
+)
+def test_composite_pil_clips_rather_than_wrapping_at_the_uint8_cast(
+    monkeypatch: pytest.MonkeyPatch, value: float, expected: int
+) -> None:
+    """The cast out of the compositor must saturate, not wrap (#757).
+
+    ``(255 * color).astype(np.uint8)`` wraps, so a component at 1.2 arrives as
+    byte 50 -- an unrelated colour rather than a clipped one. Nothing reaches
+    this cast out of range today: ``Compositor`` clips its own arrays, the
+    descriptor readers clamp at the source, and no file under
+    ``tests/psd_files`` arrives out of range in either force mode even with a
+    deliberately out-of-range backdrop. So nothing in the corpus exercises the
+    clip. The stand-in below is what keeps it from being dropped as dead code:
+    it stands for the next producer that gets this wrong.
+    """
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_rgb.psd"))
+    real = composite_module.composite
+
+    def out_of_range(*args: Any, **kwargs: Any) -> Any:
+        color, shape, alpha = real(*args, **kwargs)
+        return np.full_like(color, value), shape, alpha
+
+    monkeypatch.setattr(composite_module, "composite", out_of_range)
+    image = composite_module.composite_pil(psd, 1.0, 0.0, None, None, False)
+    assert isinstance(image, Image.Image)
+    pixels = np.asarray(image.convert("RGB"))
+    assert pixels.min() == expected and pixels.max() == expected, pixels
+
+
+def _grouped(psd: PSDImage, layer_list: Any, name: str) -> Any:
+    """An isolated group holding ``layer_list``.
+
+    ``Normal`` rather than the ``create_group()`` default of pass-through:
+    every caller here is measuring what an *isolated* group does to its
+    contents' reach, which is the branch a pass-through group skips.
+    """
+    return psd.create_group(layer_list, name=name, blend_mode=BlendMode.NORMAL)
+
+
+def test_an_isolated_group_composites_on_its_contents_reach() -> None:
+    """A group's viewport counts its children's effects, not just their boxes.
+
+    ``Group.bbox`` is the union of its children's own bounding boxes, and a
+    child's outset or centered stroke reaches past its own box and therefore
+    past the group's (#808). The union has to be taken over every descendant
+    and through nested groups: a stroke three levels down still paints on the
+    outermost isolated group's canvas.
+    """
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    layer = psd[0]
+    assert layer.bbox == (8, 8, 24, 24)
+    inner = _grouped(psd, [layer], "Inner")
+    outer = _grouped(psd, [inner], "Outer")
+
+    assert outer.bbox == (8, 8, 24, 24), "the box the group used to composite on"
+    assert _content_bbox(outer) == (4, 4, 28, 28), "the 3 px outset stroke, two deep"
+
+
+def test_content_bbox_counts_a_nested_groups_own_stroke() -> None:
+    """A group child reaches outside its box the same way a layer does.
+
+    An isolated parent has to hold the stroke box of a group *inside* it, not
+    just the boxes of that group's contents. Without that, the parent hands
+    the nested group a viewport ending at the group's own edge, and its stroke
+    paints fewer pixels than the identical group at the document root, where
+    the two should agree. It does not make a stroke on a group *correct* --
+    that is #808's other item, still open wherever the stroke box escapes the
+    viewport being composited on.
+
+    No fixture in the corpus puts a stroke effect on a group, so the effect
+    block is copied onto one from a layer that has it. Authoring that document
+    belongs with the fix for the root case.
+
+    The borrowed stroke is size 7 while the layer inside carries size 1, so the
+    group's own reach is the binding one: a helper that descended into the
+    group without measuring the group would land on the layer's smaller box and
+    look right.
+    """
+    psd = PSDImage.open(full_name("effects/center-stroke-sizes.psd"))
+    layer = next(sub for sub in psd if sub.name == "Size 1")
+    wider = next(sub for sub in psd if sub.name == "Size 7")
+    effects = wider.tagged_blocks.get_data(Tag.OBJECT_BASED_EFFECTS_LAYER_INFO)
+    inner = _grouped(psd, [layer], "Inner")
+    outer = _grouped(psd, [inner], "Outer")
+    inner.tagged_blocks.set_data(Tag.OBJECT_BASED_EFFECTS_LAYER_INFO, effects)
+
+    assert _stroke_reach(layer) == (14, 14, 34, 34), "the layer's own size 1"
+    assert _stroke_reach(inner) == (11, 11, 37, 37), "the group's borrowed size 7"
+    assert outer.bbox == (16, 16, 32, 32)
+    assert _content_bbox(outer) == (11, 11, 37, 37)
+
+
+def test_content_bbox_spans_every_child_not_just_one() -> None:
+    """Both ends of the union move, so neither end can come from one child.
+
+    ``center-stroke-sizes.psd``'s squares carry centered strokes of different
+    sizes, so the leftmost and the rightmost grow the box by different amounts
+    -- 2 px and 5 px. A helper that stopped at the first or the last child
+    would get one end right and the other wrong.
+    """
+    psd = PSDImage.open(full_name("effects/center-stroke-sizes.psd"))
+    first = next(layer for layer in psd if layer.name == "Size 1")
+    last = next(layer for layer in psd if layer.name == "Size 7")
+    assert (first.bbox, last.bbox) == ((16, 16, 32, 32), (144, 16, 160, 32))
+    group = _grouped(psd, [first, last], "Both")
+
+    assert group.bbox == (16, 16, 160, 32)
+    assert _content_bbox(group) == (14, 11, 165, 37)
+
+
+def test_content_bbox_ignores_a_hidden_or_clipping_child() -> None:
+    """The union counts the children ``Group.bbox`` counts, and no others.
+
+    A hidden child is not composited at all. A clipping child is, but only
+    through :py:meth:`Compositor._apply_clip_layers`, which keeps its color and
+    discards its coverage -- so it cannot paint outside the layer it clips to,
+    and that layer is a non-clipping child already counted.
+    """
+    for hide, clip in ((True, False), (False, True)):
+        psd = PSDImage.open(full_name("effects/center-stroke-sizes.psd"))
+        base = next(layer for layer in psd if layer.name == "Size 1")
+        other = next(layer for layer in psd if layer.name == "Size 7")
+        group = _grouped(psd, [base, other], "Both")
+        other.visible = not hide
+        other.clipping = clip
+
+        assert group.bbox == (16, 16, 32, 32), (hide, clip)
+        assert _content_bbox(group) == (14, 14, 34, 34), (hide, clip)
+
+
+def test_content_bbox_is_not_dragged_to_the_origin_by_an_empty_child() -> None:
+    """A visible child with no bounding box contributes nothing, not a corner.
+
+    ``center-stroke-sizes.psd`` ships an empty pixel layer -- visible,
+    non-clipping, bbox ``(0, 0, 0, 0)`` -- alongside its squares. Folding that
+    into the union as though it were a box at the origin would pull the group's
+    left and top edges to the canvas corner, and composite it on a viewport far
+    larger than anything inside it.
+    """
+    psd = PSDImage.open(full_name("effects/center-stroke-sizes.psd"))
+    empty = next(layer for layer in psd if layer.name == "Layer 1")
+    stroked = next(layer for layer in psd if layer.name == "Size 7")
+    assert empty.bbox == (0, 0, 0, 0)
+    assert empty.is_visible() and not empty.clipping
+    group = _grouped(psd, [empty, stroked], "Both")
+
+    assert group.bbox == (144, 16, 160, 32)
+    assert _content_bbox(group) == (139, 11, 165, 37)
+
+
+def test_content_bbox_of_a_group_whose_children_are_all_hidden() -> None:
+    """An empty group still composites on an empty viewport, as it always has.
+
+    ``utils.union_bbox`` treats ``(0, 0, 0, 0)`` as "nothing here" rather than
+    as a box at the origin, so an empty group does not acquire one.
+    """
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    layer = psd[0]
+    group = _grouped(psd, [layer], "Empty")
+    layer.visible = False
+
+    assert group.bbox == (0, 0, 0, 0)
+    assert _content_bbox(group) == (0, 0, 0, 0)
+
+
+def test_group_contents_are_measured_once_per_composite(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The effect-aware box is memoized for the pass, not rebuilt per level.
+
+    Without the memo the outermost group measures the whole subtree, then
+    compositing descends and every group inside measures its own subtree over
+    again: O(nodes x depth), and exactly ``d(d + 1) / 2`` down a chain of
+    isolated groups, so depth 8 costs 36 measurements instead of 8.
+
+    The 8 is the seven *inner* groups plus the one leaf layer, not the eight
+    groups: ``_get_group()`` asks ``_content_bbox()`` about the outermost group
+    directly, and only the children it descends to go through
+    ``_paint_bbox()``.
+
+    ``_paint_bbox()`` is the probe rather than the ``_stroke_reach()`` inside
+    it, because the memo under test is ``_content_bbox()``'s and
+    ``_content_bbox()`` is ``_paint_bbox()``'s only caller. ``_stroke_reach()``
+    has a second one since #815 -- the viewport cull calls it per layer -- so
+    counting it would fold the cull's calls into a number that is meant to
+    measure the memo alone.
+
+    Counted rather than timed, because the wall-clock difference is noise at
+    any depth a real document reaches -- the deepest nesting in the whole
+    fixture corpus is 5 -- and a timing assertion would be flaky without
+    measuring anything the call count does not.
+    """
+    # By name, because ``psd_tools.composite.composite`` as an attribute is the
+    # re-exported ``composite()`` function, not the module holding it.
+    module = sys.modules["psd_tools.composite.composite"]
+
+    calls = []
+    real = module._paint_bbox
+
+    def counting(layer: Layer, memo: Any) -> tuple[int, int, int, int]:
+        calls.append(layer)
+        return cast(tuple[int, int, int, int], real(layer, memo))
+
+    monkeypatch.setattr(module, "_paint_bbox", counting)
+
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    node: Any = psd[0]
+    for index in range(8):
+        node = _grouped(psd, [node], "G%d" % index)
+
+    composite(psd)
+    assert [layer.name for layer in calls] == [
+        "G6",
+        "G5",
+        "G4",
+        "G3",
+        "G2",
+        "G1",
+        "G0",
+        "Rect",
+    ], "each measured once, rather than once per level enclosing it"
+
+
+def test_an_artboard_still_clips_its_contents_to_its_frame() -> None:
+    """Widening an isolated group must not widen an artboard (#808).
+
+    ``Artboard.bbox`` is the artboard rectangle from its own tagged block, not
+    a union of its children -- which routinely run past it -- so intersecting
+    the viewport with it is how the artboard clip is implemented here. The
+    three artboards in ``gradient-sizes.psd`` each overhang by a pixel on every
+    side; Photoshop's own render leaves the gaps between them empty, and taking
+    the union of the children instead would paint into them.
+
+    ``force=True`` because it is the mode that exercises this: the gradients
+    are redrawn there rather than read from stored pixels.
+    """
+    psd = PSDImage.open(full_name("gradient-sizes.psd"))
+    artboard = psd[0]
+    assert isinstance(artboard, Artboard)
+    assert artboard.bbox == (0, 0, 64, 64)
+    assert Group.extract_bbox(artboard) == (-1, -1, 65, 65), "children overhang"
+    assert _content_bbox(artboard) == artboard.bbox
+
+    image = psd.composite(ignore_preview=True, force=True)
+    assert image is not None
+    alpha = np.asarray(image.convert("RGBA"))[..., 3]
+    assert alpha[:, 64:73].max() == 0, "the vertical gap between artboards"
+    assert alpha[64:73, :].max() == 0, "the horizontal gap between artboards"
+
+
+def test_a_traced_group_shape_matches_the_one_it_composites_with() -> None:
+    """Re-reading a group must yield what compositing it yields (#808).
+
+    ``_get_group_shape()`` composites a group's contents a second time, on the
+    box a stroke effect draws on. The whole design rests on that second
+    composite agreeing with the first, so it is asserted rather than argued:
+    on the same viewport, the two are the same array.
+
+    A transparent backdrop is enough, and knockout and the document backdrop
+    are deliberately not carried over, because ``shape`` accumulates into
+    ``_shape_g`` -- which starts at zero and is only ever unioned into, so it
+    cannot read a backdrop at all.
+    """
+    for filename in ("transparency/knockout-deep-nested.psd", "masks3.psd"):
+        psd = PSDImage.open(full_name(filename))
+        for group in (sub for sub in _descendants(psd) if isinstance(sub, Group)):
+            compositor = _canvas(psd)
+            inner = (
+                compositor._viewport
+                if group.blend_mode == BlendMode.PASS_THROUGH
+                else utils.intersect(compositor._viewport, _content_bbox(group))
+            )
+            if inner == (0, 0, 0, 0):
+                continue
+            from_get_group = compositor._get_group(group, _read_knockout(group))[1]
+            traced = compositor._get_group_shape(group, compositor._viewport)
+            assert np.array_equal(traced, from_get_group), (filename, group.name)
+
+
+def test_a_traced_group_shape_applies_the_groups_own_mask() -> None:
+    """The re-read is the group's coverage *through its mask*, as before.
+
+    The object branch multiplies ``_get_object_shape()`` by ``_get_mask()``, and
+    the group branch has to do the same or the stroke traces a boundary the
+    mask has already cut away. ``masks3.psd`` ships a group whose user mask is a
+    horizontal band across it, which is what makes the two measurably different.
+    """
+    psd = PSDImage.open(full_name("masks3.psd"))
+    group = next(
+        sub
+        for sub in _descendants(psd)
+        if isinstance(sub, Group) and sub.mask is not None
+    )
+    assert group.mask is not None and group.mask.bbox == (2, 13, 29, 21)
+
+    compositor = _canvas(psd)
+    wide = (-4, -4, psd.width + 4, psd.height + 4)
+    covered = np.ones((psd.height, psd.width, 1), dtype=np.float32)
+    traced = compositor._trace_shape(group, wide, covered, traces_mask=False)
+    unmasked = compositor._get_group_shape(group, wide)
+
+    assert not np.allclose(traced, unmasked), "the mask has to bite"
+    assert traced.sum() < unmasked.sum()
+    assert np.array_equal(traced, unmasked * compositor._get_mask(group, wide))
+
+
+def test_a_traced_artboard_keeps_its_frame_clip() -> None:
+    """The re-read narrows its box exactly the way ``_get_group()`` does (#808).
+
+    ``_content_bbox()`` hands back an ``Artboard``'s frame verbatim, and
+    intersecting with it is how the artboard clip is implemented, so a trace
+    that skipped that step would follow the children out past the frame.
+
+    The asymmetry is load-bearing and is asserted in both directions.
+    ``_get_group()`` gives a *pass-through* group this compositor's viewport
+    untouched, so a pass-through artboard gets no frame clip today --
+    ``artboard.psd``'s does not, and its children reach ``(-736, -356)``. The
+    trace has to reproduce that rather than improve on it, or the stroke would
+    trace a frame the composite never drew.
+    """
+    psd = PSDImage.open(full_name("artboard.psd"))
+    artboard = psd[0]
+    assert isinstance(artboard, Artboard)
+    assert artboard.blend_mode == BlendMode.PASS_THROUGH
+    assert _content_bbox(artboard) == artboard.bbox
+    assert Group.extract_bbox(artboard) == (-736, -356, 1420, 1061)
+
+    left, top, right, bottom = artboard.bbox
+    wide = (left - 8, top - 8, right + 8, bottom + 8)
+
+    def outside_the_frame(shape: np.ndarray) -> int:
+        cropped = shape.copy()
+        cropped[top - wide[1] : bottom - wide[1], left - wide[0] : right - wide[0]] = 0
+        return int((cropped > 0).sum())
+
+    # A floor rather than an exact count: some of those pixels are
+    # anti-aliased vector edges, the class #804 shifts by 1/255, and the claim
+    # here is only that the coverage is not clipped away.
+    passthrough = _canvas(psd)._get_group_shape(artboard, wide)
+    assert outside_the_frame(passthrough) > 16000, "no frame clip, as today"
+
+    artboard.blend_mode = BlendMode.NORMAL
+    isolated = _canvas(psd)._get_group_shape(artboard, wide)
+    assert outside_the_frame(isolated) == 0, "an isolated artboard clips to its frame"
+
+
+def test_a_traced_group_keeps_its_boxes_apart() -> None:
+    """The memo is keyed by the box as well as the group (#808).
+
+    A layer may carry several stroke effects (#798), and two of different sizes
+    ask for the group on two different boxes. A pass-through group is where
+    that bites: it is handed the box untouched, so the two really do composite
+    on different canvases, and a memo keyed by the group alone would hand the
+    second the first's array -- a different size, and ``paste()`` would then
+    read it as though it started somewhere it does not.
+
+    An isolated group is not a substitute here. Both of its boxes narrow to the
+    same ``_content_bbox()``, so it shares one cached array by design and only
+    the ``paste()`` back differs -- which is correct, and measures nothing about
+    the key.
+    """
+    psd = PSDImage.open(full_name("masks3.psd"))
+    group = next(
+        sub
+        for sub in _descendants(psd)
+        if isinstance(sub, Group) and sub.blend_mode == BlendMode.PASS_THROUGH
+    )
+    compositor = _canvas(psd)
+
+    narrow, wide = (
+        (-2, -2, psd.width + 2, psd.height + 2),
+        (-6, -6, psd.width, psd.height),
+    )
+    first = compositor._get_group_shape(group, narrow)
+    second = compositor._get_group_shape(group, wide)
+
+    assert len(compositor._cache.group_shapes) == 2, "one entry per box"
+    assert first.shape[:2] == (narrow[3] - narrow[1], narrow[2] - narrow[0])
+    assert second.shape[:2] == (wide[3] - wide[1], wide[2] - wide[0])
+    # Same coverage, each on its own canvas: compare where the boxes overlap.
+    overlap = utils.intersect(narrow, wide)
+
+    def crop(array, box):
+        y0, x0 = overlap[1] - box[1], overlap[0] - box[0]
+        return array[
+            y0 : y0 + overlap[3] - overlap[1], x0 : x0 + overlap[2] - overlap[0]
+        ]
+
+    assert np.array_equal(crop(first, narrow), crop(second, wide))
+    assert crop(first, narrow).sum() > 0, "the overlap carries coverage to compare"
+
+
+def test_a_traced_group_is_composited_once_per_box() -> None:
+    """Tracing must not double the work at every level of nesting (#808).
+
+    Asking twice for the same group on the same box must composite once. That
+    is what keeps nesting from doubling the work at every level, and what keeps
+    a layer's second stroke effect (#798) from repeating the first's composite;
+    this test pins the property those rest on rather than either shape of
+    document, since both need a contrived tree to exhibit.
+    """
+    built = []
+    real = composite_module.Compositor.__init__
+
+    def counting(self: Any, *args: Any, **kwargs: Any) -> None:
+        built.append(self)
+        real(self, *args, **kwargs)
+
+    psd = PSDImage.open(full_name("effects/group-stroke-off-canvas.psd"))
+    group = next(sub for sub in psd if sub.name == "Clipped")
+    compositor = _canvas(psd)
+    box = (-13, 3, 13, 29)
+
+    first = compositor._get_group_shape(group, box)
+    assert compositor._cache.group_shapes, "the box it composited on is remembered"
+
+    composite_module.Compositor.__init__ = counting
+    try:
+        again = compositor._get_group_shape(group, box)
+    finally:
+        composite_module.Compositor.__init__ = real
+    assert built == [], "the second ask composites nothing"
+    assert np.array_equal(again, first)
+
+
+class _CountingHandler(logging.StreamHandler):
+    """A handler that says whether it was reached, discarding what it formats.
+
+    Not ``caplog``: pytest's capturing handler overrides ``handleError`` to
+    re-raise, deliberately, so a test going through it asserts pytest's
+    behaviour where this one wants ``logging``'s.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(io.StringIO())
+        self.count = 0
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.count += 1
+        super().emit(record)
+
+
+@pytest.mark.parametrize("level", [logging.WARNING, logging.DEBUG])
+def test_a_layer_whose_repr_raises_does_not_abort_the_composite(
+    monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest, level: int
+) -> None:
+    """The compositor stops paying for a debug line nobody is listening to.
+
+    Building the message with ``%`` before handing it to ``logger.debug``
+    formats every layer whether or not DEBUG is enabled -- which is both the
+    cost and the reason a raising ``repr`` is fatal at any log level, logging
+    disabled outright included (#828).
+
+    Both levels, because they pass for different reasons and a reader asks
+    about the second: above DEBUG the arguments are never formatted at all,
+    and at DEBUG ``logging`` absorbs the failure and carries on. The handler
+    is asserted to have seen something in that second case, because the level
+    alone does not guarantee it -- see ``setLevel()`` below.
+
+    Driven by a ``__repr__`` that raises rather than by a file, so it pins the
+    log calls alone: no file in the corpus has a raising repr, and a test
+    going through one would pass on the guard in ``Effects`` instead (#828).
+    """
+
+    def raises(self: Layer) -> str:
+        raise RuntimeError("forged")
+
+    expected = np.asarray(
+        PSDImage.open(full_name("effects/outside-stroke.psd")).composite(
+            ignore_preview=True
+        )
+    )
+
+    logger = logging.getLogger("psd_tools.composite.composite")
+    records = _CountingHandler()
+    monkeypatch.setattr(logger, "propagate", False)
+    monkeypatch.setattr(logger, "handlers", [records])
+
+    # ``setLevel()``, not ``logger.level = level``: assigning the attribute
+    # leaves ``logging``'s per-level cache holding the previous answer, so
+    # after the WARNING case this one emitted nothing at all and passed
+    # without the handler ever formatting anything (PR review).
+    original = logger.level
+    request.addfinalizer(lambda: logger.setLevel(original))
+    logger.setLevel(level)
+
+    monkeypatch.setattr(Layer, "__repr__", raises)
+    psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
+    with pytest.raises(RuntimeError):
+        repr(psd[0])
+
+    rendered = psd.composite(ignore_preview=True)
+    assert np.array_equal(np.asarray(rendered), expected)
+    assert (records.count > 0) is (level == logging.DEBUG), (
+        "the DEBUG case has to reach the handler, and the WARNING case must not"
+    )
+
+
+@pytest.mark.parametrize(
+    "mode, expected",
+    [
+        ("normal", (60, 140, 220)),
+        ("multiply", (47, 0, 0)),
+        ("screen", (213, 140, 220)),
+    ],
+)
+def test_effect_blend_mode_written_as_a_long_name_is_applied(
+    mode: str, expected: tuple[int, int, int]
+) -> None:
+    """A colour overlay over a (200, 0, 0) square, blended with (60, 140, 220)."""
+    psd = PSDImage.open(full_name("effects/blend-modes.psd"))
+    layer = next(layer for layer in psd if layer.name == f"overlay-{mode}")
+    image = layer.composite(force=True)
+    assert image is not None
+    pixel = image.convert("RGB").getpixel((layer.width // 2, layer.height // 2))
+    assert pixel == pytest.approx(expected, abs=1)
+
+
+def _blank_compositor(psd: PSDImage) -> Compositor:
+    x0, y0, x1, y1 = psd.viewbox
+    height, width = y1 - y0, x1 - x0
+    return Compositor(
+        psd.viewbox,
+        np.zeros((height, width, 3), dtype=np.float32),
+        np.zeros((height, width, 1), dtype=np.float32),
+    )
+
+
+def test_mask_equal_to_shape_channel_is_not_applied_twice() -> None:
+    psd = PSDImage.open(full_name("clipping-mask2.psd"))
+    layer = next(x for x in psd.descendants() if x.name == "Polygon 1")
+    compositor = _blank_compositor(psd)
+
+    assert compositor._mask_repeats_shape(layer)
+    assert compositor._get_mask(layer) == 1.0
+    shape = layer.numpy("shape")
+    assert shape is not None
+    source = compositor._resolve_source(layer)
+    # ``viewbox`` starts at the origin, so the layer's pixel (x, y) sits at
+    # ``shape[y - bbox.top, x - bbox.left]``.
+    left, top = layer.bbox[:2]
+    assert source.shape[491, 167, 0] == pytest.approx(shape[491 - top, 167 - left, 0])
+
+
+def test_mask_differing_from_shape_channel_in_one_pixel_is_applied(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    psd = PSDImage.open(full_name("clipping-mask2.psd"))
+    layer = next(x for x in psd.descendants() if x.name == "Polygon 1")
+    compositor = _blank_compositor(psd)
+    original = type(layer).numpy
+
+    def numpy(self: Layer, channel: str = "color", **kwargs: Any) -> Any:
+        array = original(self, channel, **kwargs)
+        if self is layer and channel == "mask" and array is not None:
+            array = array.copy()
+            array[-1, -1] = 1.0  # the corner the layer does not cover
+        return array
+
+    monkeypatch.setattr(type(layer), "numpy", numpy)
+    assert not compositor._mask_repeats_shape(layer)
+    assert isinstance(compositor._get_mask(layer), np.ndarray)
+
+
+@pytest.mark.parametrize("layer_class", [PixelLayer, TypeLayer, SmartObjectLayer])
+def test_mask_equal_to_shape_channel_is_applied_on_a_non_shape_layer(
+    layer_class: type[Layer],
+) -> None:
+    """Outside shape and fill layers the mask is a user's, whatever it equals."""
+    psd = PSDImage.open(full_name("clipping-mask2.psd"))
+    layer = next(x for x in psd.descendants() if x.name == "Polygon 1")
+    layer.__class__ = layer_class
+    assert not _blank_compositor(psd)._mask_repeats_shape(layer)
+
+
+def test_mask_comparison_charges_the_live_mask_to_the_shape_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    psd = PSDImage.open(full_name("clipping-mask2.psd"))
+    layer = next(x for x in psd.descendants() if x.name == "Polygon 1")
+    mask = layer.numpy("mask")
+    assert mask is not None
+    held: list[int] = []
+    monkeypatch.setattr(
+        numpy_io, "check_shape_read", lambda layer, bytes_: held.append(bytes_)
+    )
+    assert _blank_compositor(psd)._mask_repeats_shape(layer)
+    assert held == [numpy_io._backing_bytes(mask)]
+
+
+def test_mask_with_real_flags_present_is_applied() -> None:
+    """``has_real()`` is the ``parameters_applied`` bit, not the record's presence."""
+    psd = PSDImage.open(full_name("clipping-mask2.psd"))
+    layer = next(x for x in psd.descendants() if x.name == "Polygon 1")
+    assert layer.mask is not None
+    layer.mask._data.real_flags = MaskFlags()
+    assert not layer.mask.has_real()
+    assert not _blank_compositor(psd)._mask_repeats_shape(layer)

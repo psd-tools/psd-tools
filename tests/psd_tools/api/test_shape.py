@@ -10,15 +10,20 @@ from psd_tools.api.shape import (
     Line,
     Rectangle,
     RoundedRectangle,
+    Stroke,
     VectorMask,
 )
+from psd_tools.constants import BlendMode, StrokeAlignment
+from psd_tools.psd.descriptor import Bool, Descriptor, Double, Enumerated, UnitFloat
 from psd_tools.psd.vector import (
     ClosedKnotLinked,
     ClosedPath,
     OpenKnotLinked,
     OpenPath,
     VectorMaskSetting,
+    VectorStrokeContentSetting,
 )
+from psd_tools.terminology import Unit
 
 from ..utils import full_name
 
@@ -215,3 +220,68 @@ def test_bbox_single_knot_closed_path_degenerate():
     assert top == pytest.approx(0.4)
     assert right == pytest.approx(0.3)
     assert bottom == pytest.approx(0.4)
+
+
+def test_stroke_missing_keys_degrade_to_none() -> None:
+    stroke = Stroke(VectorStrokeContentSetting(classID=b"strokeStyle"))
+    assert stroke.blend_mode is None
+    assert stroke.line_alignment is None
+    assert stroke.opacity is None
+    assert stroke.miter_limit is None
+    assert stroke.scale_lock is None
+    assert stroke.stroke_adjust is None
+
+
+def test_stroke_wire_values_are_plain_primitives() -> None:
+    stroke = Stroke(
+        VectorStrokeContentSetting(
+            classID=b"strokeStyle",
+            items={  # type: ignore[arg-type]
+                b"strokeStyleMiterLimit": Double(1.5),
+                b"strokeStyleScaleLock": Bool(True),
+                b"strokeStyleStrokeAdjust": Bool(False),
+                b"strokeStyleOpacity": UnitFloat(unit=Unit.Percent, value=80.0),
+            },
+        )
+    )
+    assert stroke.miter_limit == 1.5 and type(stroke.miter_limit) is float
+    assert stroke.scale_lock is True
+    assert stroke.stroke_adjust is False
+    assert stroke.opacity == 80.0 and type(stroke.opacity) is float
+
+
+def test_origination_resolution_missing_is_none() -> None:
+    assert Rectangle(Descriptor()).resolution is None
+
+
+@pytest.mark.parametrize(
+    "code, expected",
+    [
+        (b"Nrml", BlendMode.NORMAL),
+        (b"normal", BlendMode.NORMAL),
+        (b"linearDodge", BlendMode.LINEAR_DODGE),
+        (b"nope", None),
+    ],
+)
+def test_stroke_blend_mode(code: bytes, expected: BlendMode | None) -> None:
+    stroke = Stroke(VectorStrokeContentSetting(classID=b"strokeStyle"))
+    stroke._data[b"strokeStyleBlendMode"] = Enumerated(b"BlnM", code)
+    assert stroke.blend_mode is expected
+
+
+@pytest.mark.parametrize(
+    "code, expected",
+    [
+        (b"strokeStyleAlignInside", StrokeAlignment.INNER),
+        (b"strokeStyleAlignOutside", StrokeAlignment.OUTER),
+        (b"strokeStyleAlignCenter", StrokeAlignment.CENTER),
+        (b"nope", None),
+    ],
+)
+def test_stroke_line_alignment(code: bytes, expected: StrokeAlignment | None) -> None:
+    stroke = Stroke(VectorStrokeContentSetting(classID=b"strokeStyle"))
+    stroke._data[b"strokeStyleLineAlignment"] = Enumerated(
+        b"strokeStyleLineAlignment", code
+    )
+    assert stroke.line_alignment is expected
+    assert expected is None or stroke.line_alignment == expected.value

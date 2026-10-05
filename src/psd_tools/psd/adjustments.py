@@ -15,10 +15,12 @@ from psd_tools.psd.base import (
     ShortIntegerElement,
 )
 from psd_tools.psd.descriptor import DescriptorBlock, DescriptorBlock2
+from psd_tools.psd.parse_limits import parse_context
 from psd_tools.terminology import Enum, Key
 from psd_tools.psd.bin_utils import (
     is_readable,
     read_fmt,
+    read_remaining,
     read_unicode_string,
     write_bytes,
     write_fmt,
@@ -110,8 +112,9 @@ class ColorBalance(BaseElement):
 @register(Tag.COLOR_LOOKUP)
 class ColorLookup(DescriptorBlock2):
     """
-    Dict-like Descriptor-based structure. See
-    :py:class:`~psd_tools.psd.descriptor.Descriptor`.
+    Dict-like Descriptor-based structure.
+
+    See :py:class:`~psd_tools.psd.descriptor.Descriptor`.
 
     .. py:attribute:: version
     .. py:attribute:: data_version
@@ -119,8 +122,9 @@ class ColorLookup(DescriptorBlock2):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
-        version, data_version = read_fmt("HI", fp)
-        return cls(version=version, data_version=data_version, **cls._read_body(fp))  # type: ignore[call-arg, attr-defined]
+        with parse_context(kwargs.pop("parse_limits", None)):
+            version, data_version = read_fmt("HI", fp)
+            return cls(version=version, data_version=data_version, **cls._read_body(fp))  # type: ignore[call-arg, attr-defined]
 
     def write(self, fp: IO[bytes], padding: int = 4, **kwargs: Any) -> int:
         written = write_fmt(fp, "HI", self.version, self.data_version)
@@ -149,7 +153,7 @@ class ChannelMixer(BaseElement):
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         version, monochrome = read_fmt("2H", fp)
         data = list(read_fmt("5h", fp))
-        unknown = fp.read()
+        unknown = read_remaining(fp)
         return cls(version=version, monochrome=monochrome, data=data, unknown=unknown)  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
@@ -502,6 +506,13 @@ class HueSaturation(BaseElement):
     .. py:attribute:: colorization
     .. py:attribute:: master
     .. py:attribute:: items
+    .. py:attribute:: unknown
+
+        Whatever the block carries after the six range records, kept as
+        ``bytes`` so a write reproduces it. Photoshop writes 136 bytes here
+        where the documented fields account for 100; the remaining 36 are six
+        ``(hue, 100, 50)`` triples, one per range, whose hue is the midpoint of
+        that range's inner band. Older files stop at 100 and leave this empty.
     """
 
     version: int = 2
@@ -509,6 +520,7 @@ class HueSaturation(BaseElement):
     colorization: tuple = (0,)
     master: tuple = (0,)
     items: list = field(factory=list, converter=list)
+    unknown: bytes = field(default=b"", repr=False)
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
@@ -527,6 +539,7 @@ class HueSaturation(BaseElement):
             colorization=colorization,
             master=master,
             items=items,
+            unknown=read_remaining(fp),
         )  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
@@ -536,7 +549,7 @@ class HueSaturation(BaseElement):
         for item in self.items:
             written += write_fmt(fp, "4h", *item[0])
             written += write_fmt(fp, "3h", *item[1])
-        written += write_padding(fp, written, 4)
+        written += write_bytes(fp, self.unknown)
         return written
 
 
@@ -544,8 +557,9 @@ class HueSaturation(BaseElement):
 @define(repr=False)
 class Levels(ListElement):
     """
-    List of level records. See :py:class:
-    `~psd_tools.psd.adjustments.LevelRecord`.
+    List of level records.
+
+    See :py:class:`~psd_tools.psd.adjustments.LevelRecord`.
 
     .. py:attribute:: version
 

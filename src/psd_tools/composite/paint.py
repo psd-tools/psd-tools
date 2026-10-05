@@ -6,16 +6,19 @@ from typing import TYPE_CHECKING, Any, Callable, Sequence, TypeVar
 import numpy as np
 
 from psd_tools.api import numpy_io
-from psd_tools.api.utils import EXPECTED_CHANNELS
+from psd_tools.api.utils import check_growth, check_pixel_size
 from psd_tools.color_convert import (
     cmyk_to_rgb,
     gray_to_cmyk,
     gray_to_rgb,
     hsb_to_rgb,
+    lab_to_rgb,
     rgb_to_cmyk,
     rgb_to_grayscale,
+    rgb_to_lab,
 )
 from psd_tools.composite._compat import require_scipy, require_skimage
+from psd_tools.composite.utils import is_fill_disabled
 from psd_tools.constants import ColorMode, Tag
 from psd_tools.psd.descriptor import Descriptor
 from psd_tools.terminology import Enum, Key, Klass, Type
@@ -25,9 +28,124 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_RESIZE_COPIES = 4
+
+# How many times its own area a pattern panel may be scaled up to, past the
+# floor check_growth() allows.
+_SCALE_GROWTH = 100
+
+# Per pixel, what a gradient fill peaks at: its coordinate grids and ramp
+# planes outweigh the float32 colour it returns.
+GRADIENT_FILL_BYTES = 128
+
+
+# The modes whose color array is a single channel, so a descriptor color has to
+# be reduced to one component to be a legal source for them. Grayscale, bitmap
+# and duotone genuinely are one grayscale channel -- duotone's inks live in the
+# color mode data section and were never a channel count (#733). Multichannel
+# is here for a different reason: its channels are spot inks with no colorimetric relation to RGB, so
+# there is no conversion to N of them -- one channel is the honest answer, and
+# what a single channel means once widened to N is #722's question -- #749's
+# where the single channel is a source, as this one is -- not this function's.
+_SINGLE_CHANNEL_MODES = (
+    ColorMode.BITMAP,
+    ColorMode.GRAYSCALE,
+    ColorMode.DUOTONE,
+    ColorMode.MULTICHANNEL,
+)
+
+
+def _clamp01(value: float) -> float:
+    """Hold *value* inside the range a color array is allowed to carry.
+
+    Nothing in the format constrains a descriptor component to the range its
+    color class normalizes by, and ``Compositor``'s own ``utils.clip()`` runs
+    too late to help: wherever the color is blended rather than laid down flat
+    -- an effect, a partial alpha, an anti-aliased vector edge -- the
+    out-of-range component has already corrupted the arithmetic (#757).
+
+    ``composite_pil()``'s uint8 cast clips as of #757 and would saturate these
+    too, but the two guards are independent on purpose -- do not drop this one
+    on the strength of that one.
+
+    Applied where the untrusted number enters rather than inside
+    ``color_convert``, so those conversions keep their documented ``[0, 1]``
+    input contracts. Saturation and brightness never arrive here;
+    :py:func:`psd_tools.color_convert.hsb_to_rgb` is total and clamps them.
+
+    NaN maps to 0.0, because ``nan > 0.0`` is false and ``max`` keeps its first
+    argument. That degradation is wanted, but it is a property of the argument
+    order -- do not reverse it.
+    """
+    return min(1.0, max(0.0, value))
+
+
+def _lab_to_canvas(lightness: float, a: float, b: float) -> tuple[float, ...]:
+    """Encode native CIE L*a*b* into the compositor's Lab color array.
+
+    The arrays leave through PIL mode "LAB", whose bytes are ``L * 255/100``
+    with the two chroma axes offset by 128 -- byte 128 is ``a = 0``, byte 0 is
+    ``a = -128``, at slope exactly 1. So this is a relabelling into the
+    destination's own encoding rather than a conversion, and Photoshop's own
+    render of a Lab fill agrees with it across the full a/b range (#743).
+
+    Shared by the two ways a Lab value arrives: a Lab descriptor on a Lab
+    document, which lands here unconverted, and any other color class on a Lab
+    document, which reaches here through
+    :py:func:`psd_tools.color_convert.rgb_to_lab` (#752).
+    """
+    return (
+        _clamp01(lightness / 100.0),
+        _clamp01((a + 128.0) / 255.0),
+        _clamp01((b + 128.0) / 255.0),
+    )
+
+
+def _ink_to_canvas(ink: tuple[float, ...]) -> tuple[float, ...]:
+    """Invert an ink-space CMYK tuple into the compositor's canvas convention.
+
+    ``color_convert``'s CMYK helpers are public API with a documented ink-space
+    contract -- white is ``(0, 0, 0, 0)``, no ink laid down at all. The
+    compositor's arrays are the other way round: they store what is *left*, so
+    1.0 is no ink, and ``pil_io.post_process()`` inverts them back on the way
+    out. Handing ink space straight to the canvas made a white fill composite
+    black (#747).
+
+    Only the conversions *into* CMYK need this. ``_get_cmyk()`` already reads a
+    CMYK descriptor through ``_get_invert_color()``, which lands in canvas space
+    directly.
+    """
+    return tuple(1.0 - v for v in ink)
+
+
+def _from_rgb(color_mode: ColorMode, rgb: tuple[float, ...]) -> tuple[float, ...]:
+    """Convert a canonical RGB triple to *color_mode*'s color array width.
+
+    Every descriptor color class reaches the document through here, so the
+    result is as wide as the document's own arrays rather than as wide as the
+    descriptor happened to be. A fill that is neither one channel nor exactly
+    the document's width trips ``Compositor._assert_source_fits()``, which is
+    what a solid color, gradient or stroke did on a bitmap, duotone,
+    multichannel and (for some classes) indexed, grayscale or Lab document.
+
+    Indexed is deliberately three: its single stored channel expands through
+    the palette, so three is the width its pixel arrays carry.
+
+    Lab is a real conversion rather than a width choice: ``return rgb`` is
+    three wide and so passes the width assertion while meaning nothing, red
+    arriving as white at the extreme green-blue corner (#752).
+    """
+    if color_mode == ColorMode.CMYK:
+        return _ink_to_canvas(rgb_to_cmyk(*rgb))
+    if color_mode == ColorMode.LAB:
+        return _lab_to_canvas(*rgb_to_lab(*rgb))
+    if color_mode in _SINGLE_CHANNEL_MODES:
+        return (rgb_to_grayscale(*rgb),)
+    return rgb
+
 
 def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
-    """Return color tuple from descriptor.
+    r"""Return color tuple from descriptor.
 
     Example descriptor::
 
@@ -54,58 +172,82 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
     """
 
     def _get_int_color(color_desc: Descriptor, keys: tuple) -> tuple[float, ...]:
-        return tuple(float(color_desc[key]) / 255.0 for key in keys)
-
-    def _get_invert_color(color_desc: Descriptor, keys: tuple) -> tuple[float, ...]:
-        return tuple((100.0 - float(color_desc[key])) / 100.0 for key in keys)
+        return tuple(_clamp01(float(color_desc[key]) / 255.0) for key in keys)
 
     def _get_rgb(color_mode: ColorMode, color_desc: Descriptor) -> tuple[float, ...]:
         if Key.Red in color_desc:
             rgb = _get_int_color(color_desc, (Key.Red, Key.Green, Key.Blue))
         else:
+            # No divisor, unlike ``Rd  ``/``Grn ``/``Bl  ``: these components
+            # are the format's own normalized spelling. Nothing under
+            # tests/psd_files carries one, so that scale is taken on the
+            # format's word rather than measured here -- which is exactly why
+            # the clamp matters on this path. If the scale is what it claims,
+            # the clamp never fires; if it is not, an unexpected value
+            # saturates instead of wrapping to an unrelated colour (#757).
             rgb = tuple(
-                float(color_desc[key])
+                _clamp01(float(color_desc[key]))
                 for key in (Key.RedFloat, Key.GreenFloat, Key.BlueFloat)
             )
-        if color_mode == ColorMode.CMYK:
-            return rgb_to_cmyk(*rgb)
-        if color_mode == ColorMode.GRAYSCALE:
-            return (rgb_to_grayscale(*rgb),)
-        return rgb
+        return _from_rgb(color_mode, rgb)
 
     def _get_hsb(color_mode: ColorMode, color_desc: Descriptor) -> tuple[float, ...]:
-        hue = float(color_desc[Key.Hue]) / 300.0
+        # ``H   `` is an angle in degrees, so the full turn is 360 and not 300
+        # (#754).
+        hue = float(color_desc[Key.Hue]) / 360.0
+        # Not clamped, unlike the other classes. Hue is cyclic, so 400 deg
+        # names a real angle and ``hsb_to_rgb`` wraps it; clamping would turn
+        # it into 360. Saturation and brightness are clamped by ``hsb_to_rgb``
+        # itself, which is total, so guarding them again here would defend the
+        # same two numbers twice (#757).
         saturation = float(color_desc[Key.Saturation]) / 100.0
         brightness = float(color_desc[Key.Brightness]) / 100.0
-        rgb_components = hsb_to_rgb(hue, saturation, brightness)
-        if color_mode == ColorMode.RGB:
-            return rgb_components
-        if color_mode == ColorMode.CMYK:
-            return rgb_to_cmyk(rgb_components[0], rgb_components[1], rgb_components[2])
-        raise ValueError("Unexpected color mode for HSB color %s" % (color_mode))
+        return _from_rgb(color_mode, hsb_to_rgb(hue, saturation, brightness))
 
     def _get_gray(color_mode: ColorMode, x: Descriptor) -> tuple[float, ...]:
-        (gray,) = _get_invert_color(x, (Key.Gray,))
+        # ``Gry `` is percent *black*, so 0 is white. Inverting it yields a
+        # luminance, which is what every helper below takes -- a real
+        # conversion, not the canvas-convention flip that ``_ink_to_canvas()``
+        # performs.
+        gray = _clamp01((100.0 - float(x[Key.Gray])) / 100.0)
         if color_mode == ColorMode.RGB:
             return gray_to_rgb(gray)
         if color_mode == ColorMode.CMYK:
-            return gray_to_cmyk(gray)
+            return _ink_to_canvas(gray_to_cmyk(gray))
+        if color_mode == ColorMode.LAB:
+            # Not left to widen(): one channel is a legal width, so a grey fill
+            # was reaching a Lab canvas as a bare lightness and being widened
+            # with a neutral a/b. That put it on the right axis but at the wrong
+            # height -- the grey itself rather than its L* -- and disagreed with
+            # the same grey written as an RGB descriptor (#752).
+            return _from_rgb(color_mode, gray_to_rgb(gray))
         return (gray,)
 
     def _get_cmyk(color_mode: ColorMode, x: Descriptor) -> tuple[float, ...]:
-        c, m, y, k = _get_invert_color(
-            x, (Key.Cyan, Key.Magenta, Key.Yellow, Key.Black)
+        # Read as ink -- 0.0 is no ink -- which is both the descriptor's own
+        # spelling and ``color_convert``'s documented contract. The compositor's
+        # arrays store what is *left*, so only the CMYK branch flips, and it
+        # says so by name (#747, #763).
+        ink = tuple(
+            _clamp01(float(x[key]) / 100.0)
+            for key in (Key.Cyan, Key.Magenta, Key.Yellow, Key.Black)
         )
-        if color_mode in (ColorMode.RGB, ColorMode.GRAYSCALE):
-            r, g, b = cmyk_to_rgb(c, m, y, k)
-        if color_mode == ColorMode.RGB:
-            return (r, g, b)
-        if color_mode == ColorMode.GRAYSCALE:
-            return (rgb_to_grayscale(r, g, b),)
-        return (c, m, y, k)
+        if color_mode == ColorMode.CMYK:
+            return _ink_to_canvas(ink)
+        return _from_rgb(color_mode, cmyk_to_rgb(*ink))
 
     def _get_lab(color_mode: ColorMode, x: Descriptor) -> tuple[float, ...]:
-        return _get_int_color(x, (Key.Luminance, Key.A, Key.B))
+        lightness = float(x[Key.Luminance])
+        a = float(x[Key.A])
+        b = float(x[Key.B])
+        if color_mode == ColorMode.LAB:
+            # Straight into the array's own encoding, with no trip through RGB
+            # to lose anything on (#743).
+            return _lab_to_canvas(lightness, a, b)
+        # Everything else is a real conversion, through sRGB: the chroma axes
+        # are signed, so neither the raw triple nor ``L`` alone stands in for
+        # the colour (the second half of #743).
+        return _from_rgb(color_mode, lab_to_rgb(lightness, a, b))
 
     _COLOR_FUNC = {
         Klass.RGBColor: _get_rgb,
@@ -140,6 +282,8 @@ def create_fill(
     viewport: tuple[int, int, int, int],
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
     """Create a fill image."""
+    if is_fill_disabled(layer):
+        return None, None
     if Tag.SOLID_COLOR_SHEET_SETTING in layer.tagged_blocks:
         desc = layer.tagged_blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING)
         return draw_solid_color_fill(viewport, layer._psd.color_mode, desc)
@@ -150,15 +294,13 @@ def create_fill(
         desc = layer.tagged_blocks.get_data(Tag.GRADIENT_FILL_SETTING)
         return draw_gradient_fill(viewport, layer._psd.color_mode, desc)
     if Tag.VECTOR_STROKE_CONTENT_DATA in layer.tagged_blocks:
-        stroke = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_DATA)
-        if not stroke or stroke.get("fillEnabled").value is True:
-            desc = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)
-            if Key.Color in desc:
-                return draw_solid_color_fill(viewport, layer._psd.color_mode, desc)
-            elif Key.Pattern in desc:
-                return draw_pattern_fill(viewport, layer._psd, desc)
-            elif Key.Gradient in desc:
-                return draw_gradient_fill(viewport, layer._psd.color_mode, desc)
+        desc = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)
+        if Key.Color in desc:
+            return draw_solid_color_fill(viewport, layer._psd.color_mode, desc)
+        elif Key.Pattern in desc:
+            return draw_pattern_fill(viewport, layer._psd, desc)
+        elif Key.Gradient in desc:
+            return draw_gradient_fill(viewport, layer._psd.color_mode, desc)
     return None, None
 
 
@@ -182,7 +324,7 @@ def draw_pattern_fill(
     psd: Any,
     desc: Descriptor,
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
-    """
+    r"""
     Create a pattern fill.
 
     Example descriptor::
@@ -210,17 +352,44 @@ def draw_pattern_fill(
     pattern_id = desc[Enum.Pattern][Key.ID].value.rstrip("\x00")
     pattern = psd._get_pattern(pattern_id)
     if not pattern:
-        logger.error("Pattern not found: %s" % (pattern_id))
+        logger.error("Pattern not found: %s", pattern_id)
         return None, None
 
-    panel = numpy_io.get_pattern(pattern)
+    budget = getattr(psd, "_max_alloc_bytes", None)
+    panel = numpy_io.get_pattern(pattern, budget)
     assert panel.shape[0] > 0
 
+    # The scale is the file's, so the panel it sizes and the tiling of that
+    # panel across the viewport are both checked before they are allocated.
     scale = float(desc.get(Key.Scale, 100.0)) / 100.0
     if scale != 1.0:
-        new_shape = (
-            max(1, int(panel.shape[0] * scale)),
-            max(1, int(panel.shape[1] * scale)),
+        try:
+            new_shape = (
+                max(1, int(panel.shape[0] * scale)),
+                max(1, int(panel.shape[1] * scale)),
+            )
+        except OverflowError as error:
+            raise ValueError("Pattern scale is not finite.") from error
+        check_growth(
+            new_shape[0] * new_shape[1],
+            panel.shape[0] * panel.shape[1],
+            _SCALE_GROWTH,
+        )
+        # resize() holds intermediates beside its output.
+        check_pixel_size(
+            new_shape[1],
+            new_shape[0],
+            panel.shape[2],
+            budget,
+            estimated_bytes=(
+                new_shape[0]
+                * new_shape[1]
+                * panel.shape[2]
+                * panel.dtype.itemsize
+                * _RESIZE_COPIES
+                + panel.nbytes
+            ),
+            warn=False,
         )
         panel = resize(panel, new_shape)
 
@@ -230,9 +399,31 @@ def draw_pattern_fill(
         int(np.ceil(float(width) / panel.shape[1])),
         1,
     )
-    channels = EXPECTED_CHANNELS.get(pattern.image_mode)
+    if reps[0] > 0 and reps[1] > 0:
+        tiled = (reps[0] * panel.shape[0], reps[1] * panel.shape[1])
+        # The limit is on the viewport; the tile is rounded up past it.
+        check_pixel_size(
+            width,
+            height,
+            panel.shape[2],
+            budget,
+            # The panel stays live while it is tiled.
+            estimated_bytes=(
+                tiled[0] * tiled[1] * panel.shape[2] * panel.dtype.itemsize
+                + panel.nbytes
+            ),
+            warn=False,
+        )
+    # Taken from the pattern's own slot layout rather than from its color mode.
+    # A mode-keyed count is only ever right by coincidence -- when the mode's
+    # constant happens to equal the width this pattern stored -- and
+    # multichannel's is 64, the format's maximum, which no pattern can equal.
+    # ``shape[2] > channels`` was therefore never true there, the alpha was
+    # never split off, and the array reached the canvas one plane too wide and
+    # was rejected as inconsistent with it (#741).
+    channels = numpy_io.get_pattern_color_channels(pattern)
     pixels = np.tile(panel, reps)[:height, :width, :]
-    if channels is not None and pixels.shape[2] > channels:
+    if pixels.shape[2] > channels:
         return pixels[:, :, :channels], pixels[:, :, -1:]
     return pixels, None
 
@@ -272,7 +463,7 @@ def draw_gradient_fill(
         Z = _make_diamond_gradient(X, Y, angle)
     else:
         # Unsupported: b'shapeburst', only avail in stroke effect
-        logger.warning("Unknown gradient style: %s." % (gradient_kind))
+        logger.warning("Unknown gradient style: %s.", gradient_kind)
         Z = np.full((height, width), 0.5, dtype=np.float32)
 
     Z = np.maximum(0.0, np.minimum(1.0, Z))
@@ -325,11 +516,11 @@ def _make_gradient_color(
 ) -> tuple[Any | None, Any | None]:
     gradient_form = grad.get(Type.GradientForm).enum
     if gradient_form == Enum.ColorNoise:
-        return _make_noise_gradient_color(grad)
+        return _make_noise_gradient_color(color_mode, grad)
     elif gradient_form == Enum.CustomStops:
         return _make_linear_gradient_color(color_mode, grad)
 
-    logger.error("Unknown gradient form: %s" % gradient_form)
+    logger.error("Unknown gradient form: %s", gradient_form)
     return None, None
 
 
@@ -384,14 +575,84 @@ def _make_linear_gradient_color(
     return G, Ga
 
 
-def _make_noise_gradient_color(grad: Descriptor) -> tuple[Any | None, Any | None]:
+def _noise_color_components(table: np.ndarray) -> np.ndarray:
+    """The three color columns of a noise gradient's table.
+
+    Narrower is not something any writer here has produced; replicating the
+    first column keeps such a file rendering as a grey ramp rather than
+    raising on the unpack in :py:func:`_noise_to_canvas`.
     """
+    if table.shape[1] >= 3:
+        return table[:, :3]
+    logger.debug("Noise gradient has %d components, expected 4.", table.shape[1])
+    return np.repeat(table[:, :1], 3, axis=1)
+
+
+def _noise_to_canvas(
+    color_mode: ColorMode, space: bytes, table: np.ndarray
+) -> np.ndarray:
+    """Map a noise gradient's lookup table from *space* into the document's arrays.
+
+    The three colour components of a noise gradient are stored as percentages
+    of their own space's normalized encoding rather than as native values.
+    Measured against Photoshop 2026 by authoring flat gradients -- ``Mnm ``
+    equal to ``Mxm ``, which pins the noise field to one colour and so gives a
+    render comparable without reproducing Photoshop's noise synthesis -- and
+    reading the stored channels back:
+
+    - ``RGBC``: ``v / 100`` is the channel, so 50 is 128/255.
+    - ``HSBl``: ``v / 100`` is the fraction of a full turn for the hue, and the
+      fraction of the axis for saturation and brightness; 33 rendered as 118.8
+      degrees.
+    - ``LbCl``: ``v / 100`` is the *byte* of the eight-bit Lab encoding, which
+      is the compositor's own Lab array convention. So ``L* = v``, and
+      ``a = b = 0`` at 50 rather than at 0. In a Lab document the table needs
+      no conversion at all; the value stored for a flat ``[60, 60, 60]``
+      gradient is exactly ``(153, 153, 153)``.
+
+    Every one of the three is a colour space independent of the document's
+    mode, which is the width bug this fixes: the table came back three wide
+    whatever the document was (#730).
+    """
+    if space not in (Enum.RGBColor, Enum.HSBColor, Enum.LabColor):
+        # Photoshop offers exactly those three, so anything else is another
+        # writer's. Reading it as RGB is what this did for all three before,
+        # and a wrong color beats refusing to render.
+        logger.debug("Unknown noise gradient color space: %s", space)
+
+    rows: list[tuple[float, ...]] = []
+    for row in table:
+        c0, c1, c2 = (float(value) for value in row)
+        if space == Enum.HSBColor:
+            rgb = hsb_to_rgb(c0, c1, c2)
+        elif space == Enum.LabColor:
+            if color_mode == ColorMode.LAB:
+                # Already the destination encoding, so a trip through RGB
+                # would only lose the out-of-gamut values on the way.
+                rows.append((_clamp01(c0), _clamp01(c1), _clamp01(c2)))
+                continue
+            rgb = lab_to_rgb(c0 * 100.0, c1 * 255.0 - 128.0, c2 * 255.0 - 128.0)
+        else:
+            # Clamped for the same reason the descriptor readers are: these
+            # components come from ``Mnm ``/``Mxm ``, which are raw file
+            # values, so a band at ``Mxm = 150`` leaves [0, 1]. The other two
+            # spaces are already covered -- HSB by ``hsb_to_rgb`` and Lab by
+            # ``lab_to_rgb`` and ``_clamp01`` above -- which left RGB as the
+            # one unguarded noise path (#757).
+            rgb = (_clamp01(c0), _clamp01(c1), _clamp01(c2))
+        rows.append(_from_rgb(color_mode, rgb))
+    return np.array(rows, dtype=np.float32)
+
+
+def _make_noise_gradient_color(
+    color_mode: ColorMode, grad: Descriptor
+) -> tuple[Any | None, Any | None]:
+    r"""
     Make a noise gradient color.
 
     TODO: Improve noise gradient quality.
 
     Example:
-
         Descriptor(b'Grdn'){
             'Nm  ': 'Custom\x00',
             'GrdF': (b'GrdF', b'ClNs'),
@@ -420,16 +681,25 @@ def _make_noise_gradient_color(grad: Descriptor) -> tuple[Any | None, Any | None
     Y = Y / np.max(Y, axis=0)
     Y = ((maximum - minimum) * Y + minimum) / 100.0
     X = np.linspace(0, 1, 256, dtype=np.float32)
-    if grad.get(Key.ShowTransparency):
-        G = interpolate.interp1d(
-            X, Y[:, :-1], axis=0, bounds_error=False, fill_value=(Y[0, :-1], Y[-1, :-1])
-        )
-        Ga = interpolate.interp1d(
-            X, Y[:, -1], axis=0, bounds_error=False, fill_value=(Y[0, -1], Y[-1, -1])
-        )
-    else:
-        G = interpolate.interp1d(
-            X, Y[:, :3], axis=0, bounds_error=False, fill_value=(Y[0, :3], Y[-1, :3])
-        )
-        Ga = None
+    # Photoshop writes four components for each of its three noise color
+    # spaces -- three color and one transparency -- and writes the fourth
+    # whether or not ``ShTr`` is set, so the color triple is the leading three
+    # either way.
+    color_space = grad.get(Key.ColorSpace)
+    Yc = _noise_to_canvas(
+        color_mode,
+        color_space.enum if color_space is not None else Enum.RGBColor,
+        _noise_color_components(Y),
+    )
+    G = interpolate.interp1d(
+        X, Yc, axis=0, bounds_error=False, fill_value=(Yc[0], Yc[-1])
+    )
+    if not grad.get(Key.ShowTransparency):
+        return G, None
+    # Clamped like the color components, and from the same raw ``Mnm ``/``Mxm ``
+    # values (#757).
+    Ya = np.clip(Y[:, -1], 0.0, 1.0)
+    Ga = interpolate.interp1d(
+        X, Ya, axis=0, bounds_error=False, fill_value=(Ya[0], Ya[-1])
+    )
     return G, Ga

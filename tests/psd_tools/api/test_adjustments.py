@@ -5,6 +5,10 @@ import pytest
 from psd_tools.api import adjustments
 from psd_tools.api.adjustments import GradientFill, PatternFill, SolidColorFill
 from psd_tools.api.psd_image import PSDImage
+from psd_tools.psd.adjustments import Curves as CurvesData
+from psd_tools.psd.adjustments import CurvesExtraMarker
+from psd_tools.psd.adjustments import Levels as LevelsData
+from psd_tools.psd.descriptor import Descriptor, Integer, String
 
 from ..utils import full_name
 
@@ -19,7 +23,7 @@ def psd() -> PSDImage:
 def test_solid_color_fill() -> None:
     layer = PSDImage.open(full_name("layers/solid-color-fill.psd"))[0]
     assert isinstance(layer, SolidColorFill)
-    assert layer.data
+    assert isinstance(layer.data, Descriptor)
 
 
 def test_gradient_fill() -> None:
@@ -27,13 +31,13 @@ def test_gradient_fill() -> None:
     assert isinstance(layer, GradientFill)
     assert layer.angle
     assert layer.gradient_kind
-    assert layer.data
+    assert isinstance(layer.data, Descriptor)
 
 
 def test_pattern_fill() -> None:
     layer = PSDImage.open(full_name("layers/pattern-fill.psd"))[0]
     assert isinstance(layer, PatternFill)
-    assert layer.data
+    assert isinstance(layer.data, Descriptor)
 
 
 def test_brightness_contrast(psd: PSDImage) -> None:
@@ -56,7 +60,16 @@ def test_curves(psd: PSDImage) -> None:
     layer = psd[6]
     assert isinstance(layer, adjustments.Curves)
     assert layer.data
-    assert layer.extra
+    assert isinstance(layer.extra, CurvesExtraMarker)
+
+
+def test_curves_without_extra_records_reads_none(
+    psd: PSDImage, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    layer = psd[6]
+    assert isinstance(layer, adjustments.Curves)
+    monkeypatch.setattr(layer, "_data", CurvesData(version=4))
+    assert layer.extra is None
 
 
 def test_exposure(psd: PSDImage) -> None:
@@ -80,6 +93,7 @@ def test_hue_saturation(psd: PSDImage) -> None:
     assert layer.enable_colorization == 0
     assert layer.colorization == (0, 25, 0)
     assert layer.master == (-17, 19, 4)
+    assert layer.data is not None
     assert len(layer.data) == 6
 
 
@@ -102,9 +116,96 @@ def test_black_and_white(psd: PSDImage) -> None:
     assert layer.blue == 20
     assert layer.magenta == 80
     assert layer.use_tint is False
-    assert layer.tint_color
+    assert isinstance(layer.tint_color, Descriptor)
     assert layer.preset_kind == 1
     assert layer.preset_file_name == ""
+
+
+def test_an_unreadable_adjustment_value_degrades_to_the_default(
+    psd: PSDImage, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    layer = psd[11]
+    assert isinstance(layer, adjustments.BlackAndWhite)
+    data = Descriptor(
+        items={  # type: ignore[arg-type]
+            b"Rd  ": String("x"),
+            b"useTint": String("y"),
+            b"Yllw": Integer(5),
+        }
+    )
+    monkeypatch.setattr(layer, "_data", data)
+    assert layer.red == 40
+    assert layer.use_tint is False
+    assert layer.yellow == 5
+
+
+def test_a_layer_without_data_reads_defaults(
+    psd: PSDImage, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    vibrance = psd[8]
+    assert isinstance(vibrance, adjustments.Vibrance)
+    monkeypatch.setattr(vibrance, "_data", None)
+    assert vibrance.vibrance == 0
+    contrast = psd[4]
+    assert isinstance(contrast, adjustments.BrightnessContrast)
+    monkeypatch.setattr(contrast, "_data", None)
+    assert contrast.brightness == 0
+    assert contrast.vrsn == 1
+    assert contrast.automatic is False
+
+
+def test_an_unreadable_preset_file_name_is_empty(
+    psd: PSDImage, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    layer = psd[11]
+    assert isinstance(layer, adjustments.BlackAndWhite)
+    data = Descriptor(
+        items={b"blackAndWhitePresetFileName": Integer(1)}  # type: ignore[arg-type]
+    )
+    monkeypatch.setattr(layer, "_data", data)
+    assert layer.preset_file_name == ""
+
+
+@pytest.mark.parametrize("items", [{}, {b"Angl": String("x")}])
+def test_a_missing_or_unreadable_gradient_angle_is_none(
+    monkeypatch: pytest.MonkeyPatch, items: dict
+) -> None:
+    layer = PSDImage.open(full_name("layers/gradient-fill.psd"))[0]
+    assert isinstance(layer, GradientFill)
+    monkeypatch.setattr(layer, "_data", Descriptor(items=items))
+    assert layer.angle is None
+
+
+_DESCRIPTOR_GETTERS = [
+    ("layers/solid-color-fill.psd", 0, "data", b"Clr "),
+    ("layers/pattern-fill.psd", 0, "data", b"Ptrn"),
+    ("layers/gradient-fill.psd", 0, "data", b"Grad"),
+    ("fill_adjustments.psd", 11, "tint_color", b"tintColor"),
+]
+
+
+@pytest.mark.parametrize("filename, index, attr, key", _DESCRIPTOR_GETTERS)
+@pytest.mark.parametrize("block", [None, Descriptor()])
+def test_a_missing_descriptor_reads_none(
+    monkeypatch: pytest.MonkeyPatch,
+    filename: str,
+    index: int,
+    attr: str,
+    key: bytes,
+    block: Descriptor | None,
+) -> None:
+    layer = PSDImage.open(full_name(filename))[index]
+    monkeypatch.setattr(layer, "_data", block)
+    assert getattr(layer, attr) is None
+
+
+@pytest.mark.parametrize("filename, index, attr, key", _DESCRIPTOR_GETTERS)
+def test_a_non_descriptor_value_reads_none(
+    monkeypatch: pytest.MonkeyPatch, filename: str, index: int, attr: str, key: bytes
+) -> None:
+    layer = PSDImage.open(full_name(filename))[index]
+    monkeypatch.setattr(layer, "_data", Descriptor(items={key: Integer(1)}))  # type: ignore[arg-type]
+    assert getattr(layer, attr) is None
 
 
 def test_photo_filter(psd: PSDImage) -> None:
@@ -150,6 +251,7 @@ def test_selective_color(psd: PSDImage) -> None:
     layer = psd[18]
     assert isinstance(layer, adjustments.SelectiveColor)
     assert layer.method == 0
+    assert layer.data is not None
     assert len(layer.data) == 10
 
 
@@ -157,7 +259,9 @@ def _test_gradient_map_common(layer: adjustments.GradientMap, random_seed: int) 
     assert layer.reversed == 0
     assert layer.dithered == 0
     assert layer.gradient_name == "Foreground to Background"
+    assert layer.color_stops is not None
     assert len(layer.color_stops) == 2
+    assert layer.transparency_stops is not None
     assert len(layer.transparency_stops) == 2
     assert layer.expansion == 2
     assert layer.interpolation == 1.0
@@ -190,3 +294,76 @@ def test_gradient_map_v3() -> None:
         assert layer._data is not None
         assert layer._data.version == 3
         assert layer._data.method == method
+
+
+def test_gradient_kind_reads_as_none_when_unreadable() -> None:
+    layer = PSDImage.open(full_name("layers/gradient-fill.psd"))[0]
+    assert isinstance(layer, GradientFill)
+    data = layer._data
+    assert data is not None
+    assert layer.gradient_kind == "Linear"
+    for unreadable in (b"nope", b"shapeburst"):
+        data[b"Type"].enum = unreadable
+        assert layer.gradient_kind is None
+    del data[b"Type"]
+    assert layer.gradient_kind is None
+
+
+_STRUCT_GETTERS = [
+    (5, ("data", "master")),
+    (6, ("data", "extra")),
+    (7, ("exposure", "exposure_offset", "gamma")),
+    (9, ("data", "enable_colorization", "colorization", "master")),
+    (10, ("shadows", "midtones", "highlights", "luminosity")),
+    (
+        12,
+        ("xyz", "color_space", "color_components", "density", "luminosity"),
+    ),
+    (13, ("monochrome", "data")),
+    (16, ("posterize",)),
+    (17, ("threshold",)),
+    (18, ("method", "data")),
+    (
+        19,
+        (
+            "reversed",
+            "dithered",
+            "gradient_name",
+            "color_stops",
+            "transparency_stops",
+            "expansion",
+            "interpolation",
+            "length",
+            "mode",
+            "random_seed",
+            "show_transparency",
+            "use_vector_color",
+            "roughness",
+            "color_model",
+            "min_color",
+            "max_color",
+        ),
+    ),
+]
+
+
+@pytest.mark.parametrize("index, attrs", _STRUCT_GETTERS)
+def test_an_absent_adjustment_block_reads_none(
+    psd: PSDImage, monkeypatch: pytest.MonkeyPatch, index: int, attrs: tuple[str, ...]
+) -> None:
+    layer = psd[index]
+    for attr in attrs:
+        if attr != "xyz":  # the fixture is a version 2 record
+            assert getattr(layer, attr) is not None, attr
+    monkeypatch.setattr(layer, "_data", None)
+    for attr in attrs:
+        assert getattr(layer, attr) is None, attr
+
+
+def test_levels_without_records_reads_no_master(
+    psd: PSDImage, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    layer = psd[5]
+    assert isinstance(layer, adjustments.Levels)
+    monkeypatch.setattr(layer, "_data", LevelsData(version=2))
+    assert layer.master is None

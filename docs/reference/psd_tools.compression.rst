@@ -12,6 +12,10 @@ Compression Functions
 
 .. autofunction:: psd_tools.compression.decompress
 
+.. autofunction:: psd_tools.compression.decompressed_size_bound
+
+.. autoclass:: psd_tools.compression.DecompressionLimitError
+
 RLE Codec
 ---------
 

@@ -242,7 +242,7 @@ class TestOpenSecurity:
     def test_fullpath_outside_external_dir_falls_back_to_relpath(
         self, tmp_path: Path
     ) -> None:
-        """fullPath outside external_dir is ignored; relPath inside is used."""
+        """A fullPath outside external_dir is ignored; relPath inside is used."""
         target = tmp_path / "asset.png"
         target.write_bytes(b"asset")
         so = _make_external_smart_object("/etc/passwd", "asset.png")
@@ -306,7 +306,7 @@ class TestExternalReadConfinement:
     def test_open_default_falls_back_to_relpath_inside_cwd(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """fullPath outside CWD is ignored; relPath inside CWD is used."""
+        """A fullPath outside CWD is ignored; relPath inside CWD is used."""
         workdir = tmp_path / "work"
         workdir.mkdir()
         (workdir / "asset.png").write_bytes(b"asset")

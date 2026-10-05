@@ -1,6 +1,7 @@
-"""
-Utility to generate terminology.py from PITerminology.h and
-PIStringTerminology.h in the Photoshop SDK. Use with Python 3.
+r"""
+Generate terminology.py from the Photoshop SDK headers.
+
+Reads PITerminology.h and PIStringTerminology.h. Use with Python 3.
 
 Usage:
 

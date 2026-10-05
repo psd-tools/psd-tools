@@ -4,17 +4,21 @@ PIL IO module.
 
 import io
 import logging
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Literal, cast
 
+import numpy as np
 from PIL import Image, ImageChops, ImageMath
 
+from psd_tools.api.numpy_io import _encode_array
 from psd_tools.api.utils import (
+    AllocBudget,
     check_pixel_size,
     get_transparency_index,
     has_transparency,
 )
-from psd_tools.constants import ChannelID, ColorMode, Resource
+from psd_tools.constants import ChannelID, ColorMode, Compression, Resource
 from psd_tools.psd.image_resources import ThumbnailResource, ThumbnailResourceV4
+from psd_tools.psd.layer_and_mask import ChannelData
 from psd_tools.psd.patterns import Pattern
 
 if TYPE_CHECKING:
@@ -78,6 +82,186 @@ def get_pil_depth(pil_mode: str) -> int:
     }.get(pil_mode, 8)
 
 
+def encode_channel(band: Image.Image, depth: Literal[1, 8, 16, 32]) -> bytes:
+    """Pack one PIL band into the bytes a channel stores at *depth*.
+
+    A PIL band holds a byte per pixel whatever the document's depth is, so
+    ``band.tobytes()`` answers for depth 8 alone. Handed to a deeper document
+    it writes a channel half or a quarter of the length the geometry requires,
+    and the layer reads back empty (#867).
+
+    The widening goes through :func:`~psd_tools.api.numpy_io._encode_array`,
+    the packer the merged image data section uses and the exact inverse of the
+    reader's :func:`~psd_tools.api.numpy_io._parse_array`, so what comes back
+    is what PIL held: 128 is stored as 32896 at depth 16 and as 0.50196 at
+    depth 32. The *precision* is still PIL's -- a band carries 8 bits of it
+    however deep the document -- but the length and the sense are the
+    document's.
+
+    A "1" band is normalised to "L" first at every depth, its own included:
+    ``tobytes()`` on it yields *packed bits*, three bytes for a row of 20,
+    which is a malformed buffer at depth 8, and at depth 1 is the right
+    length carrying the wrong sense -- PIL sets a bit for white and PSD sets
+    one for black, so the two differ by a complement.
+
+    A "P" band is the opposite case and is passed through untouched at depth
+    8, because there its bytes are palette indices rather than values and
+    nothing but the document's own palette gives them meaning. Nothing
+    applies that palette to a *layer* channel on the way back:
+    :func:`~psd_tools.api.numpy_io.get_layer_data` passes no lookup table,
+    and only the merged image data read builds one.
+
+    :param band: a single-band :py:class:`~PIL.Image.Image`, as
+        :py:meth:`PIL.Image.Image.getchannel` returns.
+    :param depth: the destination document's ``header.depth``.
+    :raises ValueError: for a "P" band at a depth other than 8, where the
+        indices have no meaning and converting through the palette would
+        discard them silently.
+    """
+    if band.mode == "1":
+        band = band.convert("L")
+    if depth == 8:
+        return band.tobytes()
+    if band.mode == "P":
+        raise ValueError(
+            "Cannot store palette indices at depth %d; an indexed document is "
+            "8-bit" % depth
+        )
+    plane = np.asarray(band, dtype=np.float32) / 255.0
+    return _encode_array(plane, depth, band.width)
+
+
+def encode_opaque_channel(
+    width: int, height: int, depth: Literal[1, 8, 16, 32]
+) -> bytes:
+    r"""The bytes a fully opaque transparency channel stores at *depth*.
+
+    Not ``b"\xff" * (width * height)``, which is opaque at depth 8 and a short
+    buffer at 16 and 32. At depth 1 it is not even white: a *set* bit is black
+    there, so full opacity is a run of zero bits.
+    """
+    if depth == 8:
+        return b"\xff" * (width * height)
+    return _encode_array(np.ones((height, width), dtype=np.float32), depth, width)
+
+
+# The "I"/"F" image and the second one `.point()` builds from it, four bytes per
+# pixel each, alive together with the "L" they narrow to. Flat rather than
+# per-channel: the loop converts one channel at a time, so only one such pair
+# exists at any moment however many channels the document stores. The
+# retained "L" is counted with the other converted channels below rather than
+# here.
+_CONVERSION_TRANSIENT: int = 8
+
+# `_remove_white_background()`, in bytes per pixel: the four bands `split()`
+# hands back, the `ImageMath` expression promoting each of three to "I" at four
+# bytes a pixel, the three "L" results, and the `merge()` that reassembles them.
+# Rounded well up because PIL's buffers are C-side and the instrument that
+# reads them is coarser than the one numpy gets.
+_WHITE_BACKGROUND_TRANSIENT: int = 35
+
+# PIL rounds each image up to its arena's block granularity, so the process grows
+# by a little more than the bytes the images ask for. Every other term here
+# counts requested bytes, as the numpy model does; this one covers the
+# difference.
+_ALLOCATOR_SLACK: int = 1
+
+# Bytes live at the codec's own peak, as a multiple of the decompressed size.
+# One step wider than the numpy path's table throughout, because this path asks
+# `get_data()` to split the buffer per channel and the split is a second copy.
+_DECOMPRESS_PEAK: dict[Compression, int] = {
+    Compression.RAW: 2,
+    Compression.RLE: 3,
+    Compression.ZIP: 3,
+    Compression.ZIP_WITH_PREDICTION: 4,
+}
+
+
+def _image_data_peak_bytes(
+    psd: "PSDProtocol", channel: int | None, apply_icc: bool
+) -> int:
+    """Bytes :func:`convert_image_data_to_pil` allocates at its high-water mark.
+
+    The counterpart to :func:`~psd_tools.api.numpy_io._image_data_peak_bytes`,
+    and deliberately not the same model (#767). ``width * height * channels *
+    4`` is a float32 plane, which is what the numpy path returns and what this
+    one never holds: ``_create_image()`` yields "L", "P" or "1", and PIL stores
+    a byte per pixel in all three. The 16- and 32-bit branches build an "I"/"F"
+    image and then a second through ``.point()``, and anything whose alpha
+    channel sends it through ``_remove_white_background()`` allocates more
+    again, so the error runs in both directions and by different amounts.
+
+    Phase-maxed like the numpy model, over the same three-stage shape:
+    decompress, convert each channel, assemble. Every term is gated on the
+    branch that allocates it -- indexed and multichannel documents take
+    ``channels[0]`` and never merge, ``post_process()`` is a no-op without CMYK,
+    a profile or an alpha channel, and the white background is removed only from
+    an RGBA result. Ungated, those terms would make this *tighter* than a flat
+    four-bytes-per-channel estimate on exactly the 8-bit documents it is meant
+    to stop over-counting.
+
+    PIL's buffers are C-side and invisible to ``tracemalloc``, so unlike the
+    numpy model this is an analytic count of the images the path holds, with each
+    phase measured in isolation rather than fitted to a whole-call figure -- a
+    whole-call RSS delta cannot see a phase that reuses what the phase before it
+    released. The same two exclusions apply as on the numpy side: per-object
+    allocator overhead, and the RAW source buffer being counted even where
+    ``get_data()`` would not re-allocate it.
+    """
+    pixels = psd.width * psd.height
+    depth = psd.depth
+    # Rounded up per row, as the format pads a 1-bit row to a byte boundary.
+    source = ((psd.width * depth + 7) // 8) * psd.height * psd.channels
+    conversion = _CONVERSION_TRANSIENT if depth in (16, 32) else 0
+    decompress = _DECOMPRESS_PEAK[psd._record.image_data.compression] * source
+
+    if channel is not None:
+        # One `_create_image()` and no assembly: nothing is merged, there is no
+        # alpha to put, and `_remove_white_background()` cannot fire on one band.
+        return max(decompress, source + pixels * (1 + conversion))
+
+    mode = get_pil_mode(psd.color_mode)
+    bands = get_pil_channels(mode)
+    alpha = has_transparency(psd)
+    # Indexed and multichannel documents keep `channels[0]` and never merge.
+    merged = (
+        0 if psd.color_mode in (ColorMode.INDEXED, ColorMode.MULTICHANNEL) else bands
+    )
+    icc = apply_icc and Resource.ICC_PROFILE in psd.image_resources
+    # A profile rewrites the image to RGB, so what `putalpha()` and the white
+    # background see afterwards is not the mode the colour mode implies: a CMYK
+    # or grayscale document with a profile *and* an alpha channel comes out RGBA
+    # like any other, and is charged accordingly.
+    final_bands = 3 if icc else bands
+    widened = alpha and (icc or mode in ("RGB", "L"))
+    # `post_process()`'s three widenings, whichever of them this document
+    # reaches. They run in sequence and each frees what it replaced, so the
+    # widest bounds the phase: the CMYK inversion is a second image of the same
+    # mode; `_apply_icc()` holds its input alongside the RGB it writes;
+    # `putalpha()` converts in place and holds the mode it is leaving alongside
+    # the one it is building.
+    post = max(
+        bands if mode == "CMYK" else 0,
+        bands + 3 if icc else 0,
+        2 * final_bands + 1 if widened else 0,
+    )
+    # `_remove_white_background()` only ever sees an RGBA image -- which is to
+    # say a three-band one that `putalpha()` has just widened.
+    white_background = (
+        _WHITE_BACKGROUND_TRANSIENT if widened and final_bands == 3 else 0
+    )
+
+    # One narrow image per stored channel, held in `channels` to the end, and
+    # the decompressed buffer it was built from, held just as long.
+    retained = source + pixels * (psd.channels + _ALLOCATOR_SLACK)
+    return max(
+        decompress,
+        retained + pixels * conversion,
+        retained + pixels * (merged + post),
+        retained + pixels * (merged + 1 + white_background),
+    )
+
+
 def convert_image_data_to_pil(
     psd: "PSDProtocol", channel: int | None, apply_icc: bool
 ) -> Image.Image | None:
@@ -85,12 +269,17 @@ def convert_image_data_to_pil(
 
     :raises ValueError: If an invalid channel is specified
     """
-
+    # The header's own channel count, with none of the corrections the numpy
+    # path needs (:func:`~psd_tools.api.numpy_io._image_data_planes`), because
+    # PIL allocates a plane per stored channel at every depth and mode. It sizes
+    # nothing here -- `_image_data_peak_bytes()` does that -- but it still names
+    # the shape the error message reports.
     check_pixel_size(
         psd.width,
         psd.height,
         psd.channels,
         max_alloc_bytes=psd._max_alloc_bytes,
+        estimated_bytes=_image_data_peak_bytes(psd, channel, apply_icc),
     )
 
     if channel is not None and channel >= psd.channels:
@@ -143,21 +332,96 @@ def convert_image_data_to_pil(
     return _remove_white_background(image)
 
 
+def _layer_peak_bytes(
+    layer: "LayerProtocol", channel: int | None, apply_icc: bool
+) -> tuple[int, int, int, int] | None:
+    """``(width, height, planes, peak)`` for :func:`convert_layer_to_pil`.
+
+    ``None`` where it reads nothing.
+
+    The layer-scale counterpart of :func:`_image_data_peak_bytes`, over the same
+    phases: decompress a channel, convert it, merge, post-process. ``planes`` is
+    what the read stores -- one for a single channel, otherwise the colour
+    channels and the alpha -- rather than the record's channel count.
+    """
+    psd = layer._psd
+    # One decode per entry `_merge_channels()` iterates, each resolved to the
+    # *last* record of its id as `_get_channel()` does, so a repeated id is
+    # decoded once per repeat. An empty resolved entry decodes nothing.
+    resolved: dict[int, ChannelData] = {
+        i.id: c for i, c in zip(layer._record.channel_info, layer._channels)
+    }
+    wanted: list[int]
+    if channel is None:
+        wanted = [i.id for i in layer._record.channel_info if i.id >= 0]
+        wanted.append(ChannelID.TRANSPARENCY_MASK)
+    else:
+        wanted = [channel]
+    reads = [resolved[i] for i in wanted if i in resolved and len(resolved[i].data) > 0]
+    if channel in (ChannelID.USER_LAYER_MASK, ChannelID.REAL_USER_LAYER_MASK):
+        if layer.mask is None:
+            return None
+        real = channel == ChannelID.REAL_USER_LAYER_MASK
+        width = layer.mask.data.real_width if real else layer.mask.data.width
+        height = layer.mask.data.real_height if real else layer.mask.data.height
+    else:
+        width, height = layer.width, layer.height
+    if not reads or width < 1 or height < 1:
+        return None
+
+    pixels = width * height
+    depth = psd.depth
+    stored = len(reads)
+    source = ((width * depth + 7) // 8) * height
+    conversion = _CONVERSION_TRANSIENT if depth in (16, 32) else 0
+    compression = max(_DECOMPRESS_PEAK[c.compression] for c in reads)
+    retained = pixels * (stored + _ALLOCATOR_SLACK)
+    phases = [
+        pixels * (stored - 1) + compression * source,
+        retained + source + pixels * (1 + conversion),
+    ]
+
+    if channel is None:
+        mode = get_pil_mode(psd.color_mode)
+        bands = get_pil_channels(mode)
+        icc = apply_icc and Resource.ICC_PROFILE in psd.image_resources
+        final_bands = 3 if icc else bands
+        has_alpha = (
+            ChannelID.TRANSPARENCY_MASK in resolved
+            and len(resolved[ChannelID.TRANSPARENCY_MASK].data) > 0
+        )
+        widened = has_alpha and (icc or mode in ("RGB", "L"))
+        post = max(
+            bands if mode == "CMYK" else 0,
+            bands + 3 if icc else 0,
+            2 * final_bands + 1 if widened else 0,
+        )
+        phases.append(retained + pixels * (bands + post))
+    return width, height, stored, max(phases)
+
+
 def convert_layer_to_pil(
     layer: "LayerProtocol", channel: int | None, apply_icc: bool
 ) -> Image.Image | None:
     """Convert Layer to PIL Image."""
+    sized = _layer_peak_bytes(layer, channel, apply_icc)
+    if sized is not None:
+        width, height, planes, peak = sized
+        check_pixel_size(
+            width,
+            height,
+            planes,
+            max_alloc_bytes=layer._psd._max_alloc_bytes,
+            estimated_bytes=peak,
+            warn=False,
+        )
     alpha = None
     icc = None
     image = None
     if channel is None:
         image = _merge_channels(layer)
         alpha = _get_channel(layer, ChannelID.TRANSPARENCY_MASK)
-        if (
-            apply_icc
-            and layer._psd is not None
-            and (Resource.ICC_PROFILE in layer._psd.image_resources)
-        ):
+        if apply_icc and (Resource.ICC_PROFILE in layer._psd.image_resources):
             icc = layer._psd.image_resources.get_data(Resource.ICC_PROFILE)
     else:
         image = _get_channel(layer, channel)
@@ -186,12 +450,64 @@ def post_process(
     return image
 
 
-def convert_pattern_to_pil(pattern: Pattern) -> Image.Image:
-    """Convert Pattern to PIL Image."""
+def _pattern_peak_bytes(
+    width: int, height: int, written: int, depth: int, decompress: int
+) -> int:
+    """Bytes :func:`convert_pattern_to_pil` holds at its high-water mark.
+
+    Phase-maxed, with every written channel sized ``width`` x ``height``: the
+    decode of one channel (``decompress`` times its source bytes, beside the
+    "L" planes already built); that source beside one 16- or 32-bit conversion
+    transient; and the merge and ``putalpha()`` widening, bounded by treating
+    every written channel as a band. ``depth`` is the widest of the channels'
+    ``depth`` (the decode) and ``pixel_depth`` (the conversion).
+    """
+    pixels = width * height
+    source = ((width * depth + 7) // 8) * height
+    conversion = _CONVERSION_TRANSIENT if depth >= 16 else 0
+    return max(
+        pixels * (written - 1) + decompress * source,
+        pixels * (written + _ALLOCATOR_SLACK) + source + pixels * conversion,
+        pixels * (written + 3 * written + 1),
+    )
+
+
+def convert_pattern_to_pil(
+    pattern: Pattern, max_alloc_bytes: AllocBudget | None = None
+) -> Image.Image:
+    """Convert Pattern to PIL Image.
+
+    :raises ValueError: if the record's declared size exceeds the per-axis limit
+        or *max_alloc_bytes* (default :data:`~psd_tools.api.utils.MAX_ALLOC_BYTES`).
+    """
     mode = get_pil_mode(pattern.image_mode)
     # The order is different here.
     top, left, bottom, right = pattern.data.rectangle
     size = right - left, bottom - top
+    written = [c for c in pattern.data.channels if c.is_written]
+    # Both sizes are the file's: `get_data()` decompresses to the channel's own
+    # rectangle, and `_create_image()` allocates the pattern's in full before it
+    # looks at the data. The widest of them bounds the call.
+    if written:
+        width, height = size
+        for c in written:
+            if c.rectangle:
+                width = max(width, c.rectangle[3] - c.rectangle[1])
+                height = max(height, c.rectangle[2] - c.rectangle[0])
+        check_pixel_size(
+            width,
+            height,
+            len(written),
+            max_alloc_bytes=max_alloc_bytes,
+            estimated_bytes=_pattern_peak_bytes(
+                width,
+                height,
+                len(written),
+                max(max(c.depth or 8, c.pixel_depth or 8) for c in written),
+                max(_DECOMPRESS_PEAK[c.compression] for c in written),
+            ),
+            warn=False,
+        )
     channels = [
         _create_image(size, c.get_data() or b"", c.pixel_depth or 8).convert("L")
         for c in pattern.data.channels
@@ -212,9 +528,19 @@ def convert_pattern_to_pil(pattern: Pattern) -> Image.Image:
 
 def convert_thumbnail_to_pil(
     thumbnail: ThumbnailResource | ThumbnailResourceV4,
+    max_alloc_bytes: AllocBudget | None = None,
 ) -> Image.Image:
     """Convert thumbnail resource."""
     if thumbnail.fmt == 0:
+        # width/height are unvalidated header fields (GHSA-7m55-42q7-888r):
+        # PIL allocates the full RGBX buffer before decoding thumbnail.data.
+        check_pixel_size(
+            thumbnail.width,
+            thumbnail.height,
+            4,
+            max_alloc_bytes=max_alloc_bytes,
+            estimated_bytes=thumbnail.width * thumbnail.height * 4,
+        )
         image = Image.frombytes(
             "RGBX",
             (thumbnail.width, thumbnail.height),
@@ -225,7 +551,26 @@ def convert_thumbnail_to_pil(
         )
     elif thumbnail.fmt == 1:
         with io.BytesIO(thumbnail.data) as f:
-            image = Image.open(f)
+            # fmt == 1 is documented as JPEG (Adobe's kJpegRGB); restricting
+            # Image.open() to that one format keeps every other registered
+            # Pillow plugin from ever running against thumbnail.data. That
+            # matters because some plugins decode pixels inside _open() itself
+            # -- before any check below could run -- so checking the opened
+            # image's own header is not enough on its own (GHSA-7m55-42q7-888r).
+            image = Image.open(f, formats=["JPEG"])
+            # Pillow's C storage pads every pixel to 4 bytes except the
+            # single-byte "1"/"L"/"P" modes -- measured directly across every
+            # mode JPEG can decode to, since tobytes() strips that padding for
+            # odd band counts (RGB serializes 3 bytes/pixel but is stored as
+            # 4) and would silently undercount the real allocation.
+            bytes_per_pixel = 1 if image.mode in ("1", "L", "P") else 4
+            check_pixel_size(
+                image.width,
+                image.height,
+                bytes_per_pixel,
+                max_alloc_bytes=max_alloc_bytes,
+                estimated_bytes=image.width * image.height * bytes_per_pixel,
+            )
             image.load()
     else:
         raise ValueError("Unknown thumbnail format %d" % (thumbnail.fmt))
@@ -233,8 +578,6 @@ def convert_thumbnail_to_pil(
 
 
 def _merge_channels(layer: "LayerProtocol") -> Image.Image | None:
-    if layer._psd is None:
-        return None
     mode = get_pil_mode(layer._psd.color_mode)
     channel_images = [
         _get_channel(layer, info.id)
@@ -250,17 +593,15 @@ def _merge_channels(layer: "LayerProtocol") -> Image.Image | None:
 
 
 def _get_channel(layer: "LayerProtocol", channel: int) -> Image.Image | None:
-    if layer._psd is None:
-        return None
     if channel == ChannelID.USER_LAYER_MASK:
         if layer.mask is None:
-            logger.info("Layer has no mask.")
+            logger.debug("Layer has no mask.")
             return None
         width = layer.mask.data.width
         height = layer.mask.data.height
     elif channel == ChannelID.REAL_USER_LAYER_MASK:
         if layer.mask is None:
-            logger.info("Layer has no real mask.")
+            logger.debug("Layer has no real mask.")
             return None
         width = layer.mask.data.real_width
         height = layer.mask.data.real_height

@@ -1,6 +1,8 @@
 """
-Image resources section structure. Image resources are used to store non-pixel
-data associated with images, such as pen tool paths or slices.
+Image resources section structure.
+
+Image resources are used to store non-pixel data associated with images, such
+as pen tool paths or slices.
 
 See :py:class:`~psd_tools.constants.Resource` to check available
 resource names.
@@ -81,6 +83,7 @@ from psd_tools.psd.base import (
 from psd_tools.psd.color import Color
 from psd_tools.psd.descriptor import DescriptorBlock
 from psd_tools.psd.bin_utils import (
+    read_exact,
     is_readable,
     read_fmt,
     read_length_block,
@@ -94,6 +97,7 @@ from psd_tools.psd.bin_utils import (
     write_unicode_string,
 )
 from psd_tools.registry import new_registry
+from psd_tools.psd.parse_limits import ParseLimitError
 from psd_tools.validators import in_
 from psd_tools.version import __version__
 
@@ -127,8 +131,7 @@ TYPES.update(
 @define(repr=False)
 class ImageResources(DictElement):
     """
-    Image resources section of the PSD file. Dict of
-    :py:class:`.ImageResource`.
+    Image resources section of the PSD file. Dict of :py:class:`.ImageResource`.
     """
 
     def get_data(self, key: Any, default: Any = None) -> Any:
@@ -276,7 +279,7 @@ class ImageResource(BaseElement):
             elif Resource.is_plugin_resource(key):
                 logger.debug("Undefined PLUGIN_RESOURCE found: %d" % (key))
             else:
-                logger.info("Unknown image resource %d" % (key))
+                logger.debug("Unknown image resource %d" % (key))
         name = read_pascal_string(fp, encoding, padding=2)
         raw_data = read_length_block(fp, padding=2)
         if key in TYPES:
@@ -363,7 +366,7 @@ class AlphaNamesUnicode(ListElement):
 @define(repr=False)
 class DisplayInfo(BaseElement):
     """
-    DisplayInfo is a list of AlphaChannels
+    DisplayInfo is a list of AlphaChannels.
     """
 
     version: int = 1
@@ -384,6 +387,20 @@ class DisplayInfo(BaseElement):
         return written
 
 
+def _alpha_channel_mode(value: int) -> AlphaChannelMode | int:
+    """
+    Resolve a mode byte to :py:class:`AlphaChannelMode`, keeping an unknown one.
+
+    :raises ValueError: if the value is not an integer that fits one byte.
+    """
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 255:
+        raise ValueError("Invalid alpha channel mode: %r" % (value,))
+    try:
+        return AlphaChannelMode(value)
+    except ValueError:
+        return value
+
+
 @define(repr=False)
 class AlphaChannel(BaseElement):
     color_space: int = 0
@@ -392,19 +409,23 @@ class AlphaChannel(BaseElement):
     c3: int = 0
     c4: int = 0
     opacity: int = 0
-    mode: AlphaChannelMode = AlphaChannelMode.ALPHA  # type: ignore[assignment]
+    mode: AlphaChannelMode | int = field(
+        default=AlphaChannelMode.ALPHA, converter=_alpha_channel_mode
+    )
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "AlphaChannel":
         vals = read_fmt("6H", fp)
-        mode = AlphaChannelMode(read_fmt("B", fp)[0])
+        mode = _alpha_channel_mode(read_fmt("B", fp)[0])
+        if not isinstance(mode, AlphaChannelMode):
+            logger.debug("Unknown alpha channel mode found: %d" % (mode))
         return cls(*vals, mode)  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         written = write_fmt(
             fp, "6H", self.color_space, self.c1, self.c2, self.c3, self.c4, self.opacity
         )
-        written += write_fmt(fp, "B", self.mode)
+        written += write_fmt(fp, "B", int(self.mode))
         return written
 
 
@@ -616,7 +637,7 @@ class PascalString(ValueElement):
 
 
 @register(Resource.PIXEL_ASPECT_RATIO)
-@define(repr=False)
+@define(repr=False, eq=False, order=False)
 class PixelAspectRatio(NumericElement):
     """
     Pixel aspect ratio.
@@ -902,6 +923,8 @@ class SliceV6(BaseElement):
                     if data.classID == b"\x00\x00\x00\x00":
                         data = None
                         raise ValueError(data)
+                except ParseLimitError:
+                    raise
                 except ValueError:
                     logger.debug("Failed to read DescriptorBlock")
                     fp.seek(current_position)
@@ -982,7 +1005,7 @@ class ThumbnailResource(BaseElement):
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "ThumbnailResource":
         fmt, width, height, row, total_size, size, bits, planes = read_fmt("6I2H", fp)
-        data = fp.read(size)
+        data = read_exact(fp, size)
         return cls(fmt, width, height, row, total_size, bits, planes, data)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:

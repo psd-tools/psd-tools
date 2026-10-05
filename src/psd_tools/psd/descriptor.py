@@ -19,7 +19,7 @@ Pretty printing is the best approach to check the descriptor content::
 import logging
 from typing import IO, Any, Iterator, TypeVar
 
-from attrs import define, field
+from attrs import define, field, validators
 
 from psd_tools.constants import OSType
 from psd_tools.psd.base import (
@@ -33,6 +33,7 @@ from psd_tools.psd.base import (
 )
 from psd_tools.terminology import Enum, Event, Form, Key, Klass, Type, Unit
 from psd_tools.psd.bin_utils import (
+    read_exact,
     read_fmt,
     read_length_block,
     read_unicode_string,
@@ -44,6 +45,7 @@ from psd_tools.psd.bin_utils import (
     write_unicode_string,
 )
 from psd_tools.registry import new_registry
+from psd_tools.psd.parse_limits import parse_container, parse_context
 from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
@@ -52,7 +54,7 @@ TYPES, register = new_registry(attribute="ostype")
 
 T = TypeVar("T")
 
-_TERMS = set(
+_TERMS = frozenset(
     item.value
     for kls in (Klass, Enum, Event, Form, Key, Type, Unit)
     for item in kls
@@ -60,15 +62,21 @@ _TERMS = set(
 )
 
 
+class _ZeroLengthKey(bytes):
+    """An unknown descriptor key encoded with a zero length field."""
+
+    __slots__ = ()
+
+
 def read_length_and_key(fp: IO[bytes]) -> bytes:
     """
     Helper to read descriptor key.
     """
     length = read_fmt("I", fp)[0]
-    key = fp.read(length or 4)
+    key = read_exact(fp, length or 4)
     if length == 0 and key not in _TERMS:
-        logger.debug("Unknown term: %r" % (key))
-        _TERMS.add(key)
+        logger.debug("Unknown term: %r", key)
+        return _ZeroLengthKey(key)
     return key
 
 
@@ -76,7 +84,8 @@ def write_length_and_key(fp: IO[bytes], value: bytes) -> int:
     """
     Helper to write descriptor key.
     """
-    written = write_fmt(fp, "I", 0 if value in _TERMS else len(value))
+    compact = value in _TERMS or isinstance(value, _ZeroLengthKey)
+    written = write_fmt(fp, "I", 0 if compact else len(value))
     written += write_bytes(fp, value)
     return written
 
@@ -87,18 +96,19 @@ class _DescriptorMixin(DictElement):
 
     @classmethod
     def _read_body(cls, fp: IO[bytes]) -> dict[str, Any]:
-        name = read_unicode_string(fp, padding=1)
-        classID = read_length_and_key(fp)
-        items = []
-        count = read_fmt("I", fp)[0]
-        for _ in range(count):
-            key = read_length_and_key(fp)
-            ostype = OSType(fp.read(4))
-            kls = TYPES.get(ostype)
-            value = kls.read(fp)  # type: ignore[union-attr]
-            items.append((key, value))
+        with parse_container():
+            name = read_unicode_string(fp, padding=1)
+            classID = read_length_and_key(fp)
+            items = []
+            count = read_fmt("I", fp)[0]
+            for _ in range(count):
+                key = read_length_and_key(fp)
+                ostype = OSType(read_exact(fp, 4))
+                kls = TYPES.get(ostype)
+                value = kls.read(fp)  # type: ignore[union-attr]
+                items.append((key, value))
 
-        return dict(name=name, classID=classID, items=items)
+            return dict(name=name, classID=classID, items=items)
 
     def _write_body(self, fp: IO[bytes]) -> int:
         written = write_unicode_string(fp, self.name, padding=1)
@@ -174,7 +184,8 @@ class Descriptor(_DescriptorMixin):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
-        return cls(**cls._read_body(fp))  # type: ignore[attr-defined]
+        with parse_context(kwargs.pop("parse_limits", None)):
+            return cls(**cls._read_body(fp))  # type: ignore[attr-defined]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         return self._write_body(fp)
@@ -184,8 +195,9 @@ class Descriptor(_DescriptorMixin):
 @define(repr=False)
 class ObjectArray(_DescriptorMixin):
     """
-    Object array structure almost equivalent to
-    :py:class:`~psd_tools.psd.descriptor.Descriptor`.
+    Object array structure.
+
+    Almost equivalent to :py:class:`~psd_tools.psd.descriptor.Descriptor`.
 
     .. py:attribute:: items_count
 
@@ -206,8 +218,9 @@ class ObjectArray(_DescriptorMixin):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
-        items_count = read_fmt("I", fp)[0]
-        return cls(items_count=items_count, **cls._read_body(fp))  # type: ignore[attr-defined,call-arg]
+        with parse_context(kwargs.pop("parse_limits", None)):
+            items_count = read_fmt("I", fp)[0]
+            return cls(items_count=items_count, **cls._read_body(fp))  # type: ignore[attr-defined,call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         written = write_fmt(fp, "I", self.items_count)
@@ -229,14 +242,15 @@ class List(ListElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
-        items = []
-        count = read_fmt("I", fp)[0]
-        for _ in range(count):
-            key = OSType(fp.read(4))
-            kls = TYPES.get(key)
-            value = kls.read(fp)  # type: ignore[union-attr]
-            items.append(value)
-        return cls(items)  # type: ignore[call-arg]
+        with parse_context(kwargs.pop("parse_limits", None)), parse_container():
+            items = []
+            count = read_fmt("I", fp)[0]
+            for _ in range(count):
+                key = OSType(read_exact(fp, 4))
+                kls = TYPES.get(key)
+                value = kls.read(fp)  # type: ignore[union-attr]
+                items.append(value)
+            return cls(items)  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         written = write_fmt(fp, "I", len(self))
@@ -283,6 +297,30 @@ class Property(BaseElement):
         return written
 
 
+def _unit(value: Unit | Enum | bytes) -> Unit | Enum:
+    """
+    Resolve a 4-byte unit code to a :py:class:`Unit` or an :py:class:`Enum`.
+
+    Photoshop writes a ruler unit such as ``Enum.RulerCm`` in a slot that is
+    otherwise a :py:class:`Unit`, so a code outside ``Unit`` is looked up in
+    ``Enum`` before it is rejected.
+
+    :raises ValueError: if the code is a member of neither.
+    """
+    if isinstance(value, (Unit, Enum)):
+        return value
+    try:
+        return Unit(value)
+    except ValueError:
+        pass
+    try:
+        resolved = Enum(value)
+    except ValueError:
+        raise ValueError("%r is not a valid Unit or Enum" % (value,)) from None
+    logger.warning("Using Enum for Unit field")
+    return resolved
+
+
 @register(OSType.UNIT_FLOAT)
 @define(repr=False, eq=False, order=False)
 class UnitFloat(NumericElement):
@@ -298,17 +336,16 @@ class UnitFloat(NumericElement):
         `float` value
     """
 
-    value: float = 0.0
-    unit: Unit = Unit._None
+    value: float = field(default=0.0, converter=float)
+    unit: Unit | Enum = field(
+        default=Unit._None,
+        converter=_unit,
+        validator=validators.instance_of((Unit, Enum)),
+    )
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         unit, value = read_fmt("4sd", fp)
-        try:
-            unit = Unit(unit)
-        except ValueError:
-            logger.warning("Using Enum for Unit field")
-            unit = Enum(unit)
         return cls(unit=unit, value=value)  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
@@ -338,17 +375,21 @@ class UnitFloats(BaseElement):
         List of `float` values
     """
 
-    unit: Unit = Unit._None
+    unit: Unit | Enum = field(
+        default=Unit._None,
+        converter=_unit,
+        validator=validators.instance_of((Unit, Enum)),
+    )
     values: list = field(factory=list)
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         unit, count = read_fmt("4sI", fp)
-        try:
-            unit = Unit(unit)
-        except ValueError:
-            logger.warning("Using Enum for Unit field")
-            unit = Enum(unit)
+        # Resolve the unit before the array is consumed. A caller probing for
+        # an optional descriptor -- SliceV6.read() -- distinguishes "this is
+        # not a descriptor" from a truncated file by catching ValueError
+        # alone, so a bad unit must not be reported as a short read.
+        unit = _unit(unit)
         values = list(read_fmt("%dd" % count, fp))
         return cls(unit=unit, values=values)  # type: ignore[call-arg]
 
@@ -645,8 +686,9 @@ class RawData(BaseElement):
 @register(OSType.CLASS1)
 class Class1(Class):
     """
-    Class structure equivalent to
-    :py:class:`~psd_tools.psd.descriptor.Class`.
+    Class structure.
+
+    Equivalent to :py:class:`~psd_tools.psd.descriptor.Class`.
     """
 
     pass
@@ -655,8 +697,9 @@ class Class1(Class):
 @register(OSType.CLASS2)
 class Class2(Class):
     """
-    Class structure equivalent to
-    :py:class:`~psd_tools.psd.descriptor.Class`.
+    Class structure.
+
+    Equivalent to :py:class:`~psd_tools.psd.descriptor.Class`.
     """
 
     pass
@@ -665,8 +708,9 @@ class Class2(Class):
 @register(OSType.CLASS3)
 class Class3(Class):
     """
-    Class structure equivalent to
-    :py:class:`~psd_tools.psd.descriptor.Class`.
+    Class structure.
+
+    Equivalent to :py:class:`~psd_tools.psd.descriptor.Class`.
     """
 
     pass
@@ -675,8 +719,9 @@ class Class3(Class):
 @register(OSType.REFERENCE)
 class Reference(List):
     """
-    Reference structure equivalent to
-    :py:class:`~psd_tools.psd.descriptor.List`.
+    Reference structure.
+
+    Equivalent to :py:class:`~psd_tools.psd.descriptor.List`.
     """
 
     pass
@@ -685,8 +730,9 @@ class Reference(List):
 @register(OSType.ALIAS)
 class Alias(RawData):
     """
-    Alias structure equivalent to
-    :py:class:`~psd_tools.psd.descriptor.RawData`.
+    Alias structure.
+
+    Equivalent to :py:class:`~psd_tools.psd.descriptor.RawData`.
     """
 
     pass
@@ -695,8 +741,9 @@ class Alias(RawData):
 @register(OSType.GLOBAL_OBJECT)
 class GlobalObject(Descriptor):
     """
-    Global object structure equivalent to
-    :py:class:`~psd_tools.psd.descriptor.Descriptor`.
+    Global object structure.
+
+    Equivalent to :py:class:`~psd_tools.psd.descriptor.Descriptor`.
     """
 
     pass
@@ -705,8 +752,9 @@ class GlobalObject(Descriptor):
 @register(OSType.PATH)
 class Path(RawData):
     """
-    Undocumented path structure equivalent to
-    :py:class:`~psd_tools.psd.descriptor.RawData`.
+    Undocumented path structure.
+
+    Equivalent to :py:class:`~psd_tools.psd.descriptor.RawData`.
     """
 
     pass
@@ -715,8 +763,9 @@ class Path(RawData):
 @register(OSType.IDENTIFIER)
 class Identifier(Integer):
     """
-    Identifier equivalent to
-    :py:class:`~psd_tools.psd.descriptor.Integer`.
+    Identifier.
+
+    Equivalent to :py:class:`~psd_tools.psd.descriptor.Integer`.
     """
 
     pass
@@ -771,8 +820,9 @@ class Name(BaseElement):
 @define(repr=False)
 class DescriptorBlock(Descriptor):
     """
-    Dict-like Descriptor-based structure that has `version` field. See
-    :py:class:`~psd_tools.psd.descriptor.Descriptor`.
+    Dict-like Descriptor-based structure with a `version` field.
+
+    See :py:class:`~psd_tools.psd.descriptor.Descriptor`.
 
     .. py:attribute:: version
     """
@@ -781,8 +831,9 @@ class DescriptorBlock(Descriptor):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
-        version = read_fmt("I", fp)[0]
-        return cls(version=version, **cls._read_body(fp))  # type: ignore[attr-defined,call-arg]
+        with parse_context(kwargs.pop("parse_limits", None)):
+            version = read_fmt("I", fp)[0]
+            return cls(version=version, **cls._read_body(fp))  # type: ignore[attr-defined,call-arg]
 
     def write(self, fp: IO[bytes], padding: int = 4, **kwargs: Any) -> int:
         written = write_fmt(fp, "I", self.version)
@@ -794,9 +845,9 @@ class DescriptorBlock(Descriptor):
 @define(repr=False)
 class DescriptorBlock2(Descriptor):
     """
-    Dict-like Descriptor-based structure that has `version` and
-    `data_version` fields. See
-    :py:class:`~psd_tools.psd.descriptor.Descriptor`.
+    Dict-like Descriptor-based structure with `version` and `data_version`.
+
+    See :py:class:`~psd_tools.psd.descriptor.Descriptor`.
 
     .. py:attribute:: version
     .. py:attribute:: data_version
@@ -807,8 +858,9 @@ class DescriptorBlock2(Descriptor):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
-        version, data_version = read_fmt("2I", fp)
-        return cls(version=version, data_version=data_version, **cls._read_body(fp))  # type: ignore[attr-defined,call-arg]
+        with parse_context(kwargs.pop("parse_limits", None)):
+            version, data_version = read_fmt("2I", fp)
+            return cls(version=version, data_version=data_version, **cls._read_body(fp))  # type: ignore[attr-defined,call-arg]
 
     def write(self, fp: IO[bytes], padding: int = 4, **kwargs: Any) -> int:
         written = write_fmt(fp, "2I", self.version, self.data_version)

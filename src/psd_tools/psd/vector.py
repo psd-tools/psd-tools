@@ -12,6 +12,7 @@ from attrs import define, field, astuple
 from psd_tools.constants import PathResourceID
 from psd_tools.psd.base import BaseElement, ListElement, ValueElement
 from psd_tools.psd.descriptor import Descriptor
+from psd_tools.psd.parse_limits import parse_context
 from psd_tools.psd.bin_utils import (
     is_readable,
     read_fmt,
@@ -47,8 +48,10 @@ def encode_fixed_point(numbers: Sequence[float]) -> tuple[int, ...]:
 @define(repr=False)
 class Path(ListElement):
     """
-    List-like Path structure. Elements are either PathFillRule,
-    InitialFillRule, ClipboardRecord, ClosedPath, or OpenPath.
+    List-like Path structure.
+
+    Elements are either PathFillRule, InitialFillRule, ClipboardRecord,
+    ClosedPath, or OpenPath.
     """
 
     @classmethod
@@ -353,8 +356,9 @@ class VectorMaskSetting(BaseElement):
 @define(repr=False)
 class VectorStrokeContentSetting(Descriptor):
     """
-    Dict-like Descriptor-based structure. See
-    :py:class:`~psd_tools.psd.descriptor.Descriptor`.
+    Dict-like Descriptor-based structure.
+
+    See :py:class:`~psd_tools.psd.descriptor.Descriptor`.
 
     .. py:attribute:: key
     .. py:attribute:: version
@@ -365,8 +369,9 @@ class VectorStrokeContentSetting(Descriptor):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
-        key, version = read_fmt("4sI", fp)
-        return cls(key=key, version=version, **cls._read_body(fp))
+        with parse_context(kwargs.pop("parse_limits", None)):
+            key, version = read_fmt("4sI", fp)
+            return cls(key=key, version=version, **cls._read_body(fp))
 
     def write(self, fp: IO[bytes], padding: int = 4, **kwargs: Any) -> int:
         written = write_fmt(fp, "4sI", self.key, self.version)

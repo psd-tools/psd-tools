@@ -1,0 +1,1189 @@
+"""Unit tests for descriptor-to-document color conversion in ``paint``.
+
+A fill's color comes from a descriptor, whose color class is independent of the
+document's color mode: a shape authored in an RGB document keeps its ``RGBC``
+descriptor when the document is converted. ``_get_color()`` is what reconciles
+the two, and the width it returns has to be one the compositor accepts --
+either a single channel or exactly the document's own count, per
+``Compositor._assert_source_fits()``.
+
+It did not. Every cell marked below produced a width that is neither, so a
+solid color, gradient or stroke on such a document tripped the width assertion,
+and an HSB descriptor raised outright (#730).
+"""
+
+import numpy as np
+import pytest
+from PIL import Image
+
+from psd_tools import PSDImage
+from psd_tools.api.layers import Layer
+from psd_tools.api.pil_io import post_process
+from psd_tools.api.utils import EXPECTED_CHANNELS
+from psd_tools.color_convert import cmyk_to_rgb
+from psd_tools.composite import composite, paint
+from psd_tools.composite.paint import (
+    _get_color,
+    draw_gradient_fill,
+    draw_solid_color_fill,
+)
+from psd_tools.constants import ColorMode, Tag
+from psd_tools.psd.descriptor import (
+    Bool,
+    Descriptor,
+    Double,
+    Enumerated,
+    Integer,
+    List,
+    Unit,
+    UnitFloat,
+)
+from psd_tools.terminology import Enum, Key, Klass, Type
+
+from ..utils import full_name
+
+
+def _color_desc(class_id: bytes, fields: dict) -> Descriptor:
+    """A ``solidColorLayer`` descriptor wrapping one color descriptor."""
+    inner = Descriptor(classID=class_id)
+    for key, value in fields.items():
+        inner[key] = Double(value)
+    outer = Descriptor(classID=b"solidColorLayer")
+    outer[Key.Color] = inner
+    return outer
+
+
+RGB_DESC = _color_desc(
+    Klass.RGBColor.value, {Key.Red: 128.0, Key.Green: 64.0, Key.Blue: 32.0}
+)
+GRAY_DESC = _color_desc(Klass.Grayscale.value, {Key.Gray: 40.0})
+CMYK_DESC = _color_desc(
+    Klass.CMYKColor.value,
+    {Key.Cyan: 10.0, Key.Magenta: 20.0, Key.Yellow: 30.0, Key.Black: 40.0},
+)
+LAB_DESC = _color_desc(
+    Klass.LabColor.value, {Key.Luminance: 50.0, Key.A: 10.0, Key.B: 20.0}
+)
+HSB_DESC = _color_desc(
+    Klass.HSBColor.value, {Key.Hue: 120.0, Key.Saturation: 50.0, Key.Brightness: 80.0}
+)
+
+ALL_DESCS = [
+    ("RGBColor", RGB_DESC),
+    ("Grayscale", GRAY_DESC),
+    ("CMYKColor", CMYK_DESC),
+    ("LabColor", LAB_DESC),
+    ("HSBColor", HSB_DESC),
+]
+
+# The width each mode's color arrays carry. Multichannel is excluded: its count
+# is per-file rather than per-mode, which is why a fill resolves to a single
+# channel for it and lets the compositor widen.
+MODE_CHANNELS = {
+    ColorMode.BITMAP: 1,
+    ColorMode.GRAYSCALE: 1,
+    ColorMode.INDEXED: 3,
+    ColorMode.RGB: 3,
+    ColorMode.CMYK: 4,
+    ColorMode.DUOTONE: 1,
+    ColorMode.LAB: 3,
+}
+
+
+@pytest.mark.parametrize("class_name, desc", ALL_DESCS)
+@pytest.mark.parametrize("color_mode", list(ColorMode))
+def test_get_color_width_is_legal_for_every_mode(
+    class_name: str, desc: Descriptor, color_mode: ColorMode
+) -> None:
+    """Every descriptor class resolves to a width the compositor accepts.
+
+    ``_assert_source_fits()`` allows a single channel or exactly the document's
+    count. Before #730 this failed for 19 of these 40 pairs -- an RGB, CMYK or
+    Lab descriptor on a bitmap, duotone or multichannel document, a CMYK one on
+    an indexed or Lab document, a Lab one on a grayscale or CMYK document, and
+    an HSB one on anything but RGB or CMYK, which raised instead.
+    """
+    width = len(_get_color(color_mode, desc))
+    if color_mode == ColorMode.MULTICHANNEL:
+        # No colorimetric conversion from RGB to N spot inks exists, so one
+        # channel is the honest answer and widening is the compositor's call.
+        assert width == 1
+    else:
+        assert width in (1, MODE_CHANNELS[color_mode])
+
+
+@pytest.mark.parametrize("class_name, desc", ALL_DESCS)
+@pytest.mark.parametrize("color_mode", list(ColorMode))
+def test_solid_color_fill_shape_is_legal_for_every_mode(
+    class_name: str, desc: Descriptor, color_mode: ColorMode
+) -> None:
+    """The same guarantee at the array the compositor is actually handed."""
+    color, shape = draw_solid_color_fill((0, 0, 4, 4), color_mode, desc)
+    assert shape is None
+    assert color.shape[:2] == (4, 4)
+    expected = 1 if color_mode == ColorMode.MULTICHANNEL else MODE_CHANNELS[color_mode]
+    assert color.shape[2] in (1, expected)
+    assert color.dtype == np.float32
+
+
+def test_hsb_no_longer_raises_outside_rgb_and_cmyk() -> None:
+    """An HSB descriptor was unrenderable on six of the eight modes."""
+    for color_mode in ColorMode:
+        _get_color(color_mode, HSB_DESC)  # would have raised ValueError
+
+
+@pytest.mark.parametrize(
+    "color_mode, desc, expected",
+    [
+        # These are the pairs that already reached the compositor, pinned so the
+        # reduction added in #730 cannot quietly move them. Every row is the
+        # value that reduction preserves, bar the Lab one, which #743 moved:
+        # dividing all three Lab axes by 255 suits none of them.
+        (ColorMode.RGB, RGB_DESC, (128 / 255, 64 / 255, 32 / 255)),
+        (ColorMode.GRAYSCALE, RGB_DESC, None),  # single channel, value below
+        (ColorMode.CMYK, CMYK_DESC, (0.9, 0.8, 0.7, 0.6)),
+        (ColorMode.LAB, LAB_DESC, (50 / 100, (10 + 128) / 255, (20 + 128) / 255)),
+        (ColorMode.INDEXED, RGB_DESC, (128 / 255, 64 / 255, 32 / 255)),
+        (ColorMode.GRAYSCALE, GRAY_DESC, (0.6,)),
+        (ColorMode.BITMAP, GRAY_DESC, (0.6,)),
+    ],
+)
+def test_previously_working_pairs_are_unchanged(
+    color_mode: ColorMode, desc: Descriptor, expected: tuple[float, ...] | None
+) -> None:
+    """Every pair #730 inherited keeps its value, bar the Lab one.
+
+    Lab is the exception on purpose: #743 is the finding that a divisor of 255
+    is wrong on all three axes, so pinning the inherited number would pin the
+    bug. Every other row is unmoved.
+    """
+    result = _get_color(color_mode, desc)
+    if expected is None:
+        assert len(result) == 1
+        return
+    assert len(result) == len(expected)
+    for got, want in zip(result, expected):
+        assert got == pytest.approx(want, abs=1e-6)
+
+
+def test_multichannel_entry_is_not_a_channel_count() -> None:
+    """Why multichannel is the mode that cannot be sized from the table."""
+    assert EXPECTED_CHANNELS[ColorMode.MULTICHANNEL] == 64
+
+
+@pytest.mark.parametrize(
+    "lab",
+    [
+        (50.0, 10.0, 20.0),
+        (20.0, -90.0, 60.0),
+        (65.49, 13.0, 69.0),
+        (45.0, 40.0, -50.0),
+    ],
+)
+@pytest.mark.parametrize(
+    "color_mode",
+    [
+        ColorMode.BITMAP,
+        ColorMode.GRAYSCALE,
+        ColorMode.DUOTONE,
+        ColorMode.MULTICHANNEL,
+        ColorMode.CMYK,
+        ColorMode.RGB,
+        ColorMode.INDEXED,
+        ColorMode.LAB,
+    ],
+)
+def test_lab_chroma_reaches_every_target(
+    lab: tuple[float, float, float], color_mode: ColorMode
+) -> None:
+    """``a`` and ``b`` move the result on every document mode.
+
+    This is the inverse of the test it replaces. #742 deliberately reduced a Lab
+    colour from ``L`` alone for the narrow modes and read the raw ``/255``
+    triple for the wide ones, and `test_lab_reduces_from_lightness_alone`
+    pinned that by asserting negating a/b changed nothing. It is now a real
+    conversion, so negating the chroma has to move the answer -- otherwise the
+    colour is being thrown away again.
+
+    The parameters are chosen so that negating a/b changes the luminance too;
+    for a narrow mode the two can otherwise coincide by accident, which would
+    make this pass without carrying any chroma.
+    """
+    desc = _color_desc(
+        Klass.LabColor.value,
+        {Key.Luminance: lab[0], Key.A: lab[1], Key.B: lab[2]},
+    )
+    flipped = _color_desc(
+        Klass.LabColor.value,
+        {Key.Luminance: lab[0], Key.A: -lab[1], Key.B: -lab[2]},
+    )
+    result = _get_color(color_mode, desc)
+    assert all(0.0 <= c <= 1.0 for c in result), result
+    assert result != _get_color(color_mode, flipped)
+
+
+def test_lab_conversion_is_monotonic_in_lightness() -> None:
+    """Darker L stays darker after the conversion.
+
+    These arrays count what is *left* rather than what is laid down -- 1.0 is
+    no ink (#747) -- so a darker colour has the *smaller* K entry. The build is
+    not K-only (#743): a neutral Lab colour converts through sRGB, and
+    ``rgb_to_cmyk`` puts a genuine neutral on K alone, but the moment there is
+    any chroma the CMY entries carry it.
+    """
+
+    def lab_desc(lightness: float, a: float = 0.0, b: float = 0.0) -> Descriptor:
+        return _color_desc(
+            Klass.LabColor.value,
+            {Key.Luminance: lightness, Key.A: a, Key.B: b},
+        )
+
+    dark = _get_color(ColorMode.GRAYSCALE, lab_desc(10.0))
+    light = _get_color(ColorMode.GRAYSCALE, lab_desc(90.0))
+    assert dark[0] < light[0]
+
+    dark_cmyk = _get_color(ColorMode.CMYK, lab_desc(10.0))
+    light_cmyk = _get_color(ColorMode.CMYK, lab_desc(90.0))
+    assert dark_cmyk[3] < light_cmyk[3]
+    # A neutral still builds on K alone. Approximate, not exact: the three rows
+    # of the sRGB matrix do not sum identically, so a neutral comes back out of
+    # lab_to_rgb with ~1e-8 between its channels, and rgb_to_cmyk divides that
+    # by (1 - K) to get the CMY entries. The residue lands around 5e-8 -- a
+    # hundred-thousandth of a code value, and not worth snapping for.
+    assert dark_cmyk[:3] == pytest.approx((1.0, 1.0, 1.0), abs=1e-6)
+    assert light_cmyk[:3] == pytest.approx((1.0, 1.0, 1.0), abs=1e-6)
+    # ...and a chromatic one does not, which is the part #743 changed.
+    assert _get_color(ColorMode.CMYK, lab_desc(50.0, 60.0, -40.0))[:3] != (
+        1.0,
+        1.0,
+        1.0,
+    )
+
+
+@pytest.mark.parametrize(
+    ("klass", "fields", "label"),
+    [
+        (Klass.Grayscale.value, {Key.Gray: 0.0}, "gray white"),
+        (
+            Klass.RGBColor.value,
+            {Key.Red: 255, Key.Green: 255, Key.Blue: 255},
+            "rgb white",
+        ),
+        (
+            Klass.HSBColor.value,
+            {Key.Hue: 0.0, Key.Saturation: 0.0, Key.Brightness: 100.0},
+            "hsb white",
+        ),
+        (
+            Klass.LabColor.value,
+            {Key.Luminance: 255.0, Key.A: 0.0, Key.B: 0.0},
+            "lab white",
+        ),
+    ],
+)
+def test_white_fill_is_white_on_a_cmyk_document(
+    klass: bytes, fields: dict, label: str
+) -> None:
+    """A white fill composited black on every CMYK document (#747).
+
+    ``color_convert``'s CMYK helpers are ink-space by contract -- white is
+    ``(0, 0, 0, 0)``, no ink -- and the three conversions into CMYK handed that
+    to a canvas that means the opposite by it. Rendered, the fill came out
+    ``(0, 0, 0)``: solid black where Photoshop shows white.
+
+    Pinned through the real PIL exit rather than on the tuple, because the
+    inversion is only wrong relative to what ``post_process()`` does with it.
+    """
+    fill, _ = draw_solid_color_fill(
+        (0, 0, 4, 4), ColorMode.CMYK, _color_desc(klass, fields)
+    )
+    assert fill is not None
+    image = Image.fromarray((255 * fill).astype(np.uint8), "CMYK")
+    rendered = post_process(image, None, None).convert("RGB")
+    assert rendered.getpixel((0, 0)) == (255, 255, 255)
+
+
+def test_cmyk_fill_lightness_survives_the_round_trip() -> None:
+    """The canvas and the PIL exit must agree on which way the axis runs.
+
+    A monotonic check on its own would pass with the polarity reversed -- it
+    did, before #747 -- so this pins the rendered greys themselves.
+    """
+    seen = []
+    for gray in (0.0, 50.0, 100.0):
+        fill, _ = draw_solid_color_fill(
+            (0, 0, 4, 4),
+            ColorMode.CMYK,
+            _color_desc(Klass.Grayscale.value, {Key.Gray: gray}),
+        )
+        image = Image.fromarray((255 * fill).astype(np.uint8), "CMYK")
+        pixel = post_process(image, None, None).convert("RGB").getpixel((0, 0))
+        assert isinstance(pixel, tuple)
+        seen.append(pixel[0])
+    assert seen[0] == 255 and seen[2] == 0
+    assert seen[0] > seen[1] > seen[2]
+
+
+# ---------------------------------------------------------------------------
+# Lab normalization (#743)
+#
+# The fixture is a LAB document authored in Photoshop 2026, one solid-colour
+# fill layer per band, each carrying an ``LbCl`` descriptor at a known L/a/b and
+# masked to its own 16x16 square. Its merged preview is therefore Photoshop's
+# own answer to "what bytes does this descriptor mean", for fourteen colours
+# that span both ends of each chroma axis.
+# ---------------------------------------------------------------------------
+
+
+def _lab_swatches(
+    psd: PSDImage,
+) -> list[tuple[tuple[float, float, float], tuple[int, int, int, int]]]:
+    """Each band's ``LbCl`` descriptor paired with the bounds it covers."""
+    swatches = []
+    for layer in psd.descendants():
+        desc = layer.tagged_blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING, None)
+        if desc is None:
+            continue  # the white Background pixel layer
+        color = desc[Key.Color]
+        lab = (
+            float(color[Key.Luminance]),
+            float(color[Key.A]),
+            float(color[Key.B]),
+        )
+        swatches.append((lab, layer.bbox))
+    assert len(swatches) == 14
+    return swatches
+
+
+def test_lab_descriptor_matches_photoshops_own_bytes() -> None:
+    """``_get_color`` reproduces the plane Photoshop wrote for the descriptor.
+
+    Dividing L, a and b all by 255 is a correct normalization of none of them:
+    L runs 0..100, and a/b are signed and stored offset by 128, so a neutral
+    ``a = 0`` lands on byte 0 -- the extreme end of the axis -- rather than on
+    128. The mapping below reproduces every one of the fourteen swatches to
+    within the tolerance asserted here.
+
+    The residue is Photoshop's, not ours: its own slope is 254/255, putting
+    ``a = 127`` on byte 254 where the offset encoding PIL mode "LAB" documents
+    puts it on 255. Copying that would buy under half a code value here and
+    cost the same against any ImageCms decode, so the tolerance carries it
+    instead.
+    """
+    psd = PSDImage.open(full_name("descriptors/lab-color-swatches.psd"))
+    assert psd.color_mode == ColorMode.LAB
+    # Untagged -- the document carries ICC_UNTAGGED_PROFILE and no ICC_PROFILE --
+    # so the preview is Photoshop's raw Lab planes, with no colour management
+    # standing between the descriptor and the bytes compared here.
+    preview = psd.numpy()
+    for lab, bbox in _lab_swatches(psd):
+        left, top, right, bottom = bbox
+        photoshop = preview[(top + bottom) // 2, (left + right) // 2] * 255.0
+        ours = (
+            np.array(
+                _get_color(
+                    ColorMode.LAB,
+                    _color_desc(
+                        Klass.LabColor.value,
+                        {Key.Luminance: lab[0], Key.A: lab[1], Key.B: lab[2]},
+                    ),
+                )
+            )
+            * 255.0
+        )
+        assert np.abs(photoshop - ours).max() <= 1.0 + 1e-6, (lab, photoshop, ours)
+
+
+def test_lab_fills_composite_to_photoshops_preview() -> None:
+    """End to end, through the fills the descriptors drive.
+
+    The unit assertion above pins the tuple; this pins what actually gets
+    painted, so a correct conversion that never reaches the canvas cannot pass.
+    """
+    psd = PSDImage.open(full_name("descriptors/lab-color-swatches.psd"))
+    reference = psd.numpy()
+    rendered = composite(psd, force=True)[0]
+    assert rendered.shape == reference.shape
+    assert np.abs(reference - rendered).max() * 255.0 <= 2.0
+
+
+@pytest.mark.parametrize(
+    ("field", "value"), [(Key.Luminance, 140.0), (Key.A, 200.0), (Key.B, -200.0)]
+)
+def test_lab_out_of_range_clamps_rather_than_wrapping(field: Key, value: float) -> None:
+    """A Lab target must not turn an out-of-range component into another colour.
+
+    Lab's range is a convention rather than something the descriptor enforces,
+    and it is the only colour class whose normalization can leave [0, 1]:
+    ``a = 200`` gives 1.29. ``composite_pil()`` casts with
+    ``(255 * color).astype(np.uint8)``, and numpy *wraps* out-of-range floats
+    rather than saturating, so 1.29 arrives as byte 71 -- not a clipped chroma
+    but a different colour entirely. A ``/255`` reading of all three axes
+    cannot leave [0, 1] on a Lab document, so the clamp belongs with the
+    normalization that can (#743).
+    """
+    axes = [Key.Luminance, Key.A, Key.B]
+    fields: dict[Key, float] = {Key.Luminance: 50.0, Key.A: 0.0, Key.B: 0.0}
+    fields[field] = value
+    result = _get_color(ColorMode.LAB, _color_desc(Klass.LabColor.value, fields))
+    assert all(0.0 <= c <= 1.0 for c in result), result
+    assert result[axes.index(field)] == (1.0 if value > 0 else 0.0)
+    pixels = (255 * np.array(result, dtype=np.float32)).astype(np.uint8)
+    assert pixels[axes.index(field)] == (255 if value > 0 else 0)
+
+
+# ---------------------------------------------------------------------------
+# Cross-mode Lab conversion (#743 second half, #752)
+#
+# Photoshop rewrites a fill descriptor into the document's own colour class on
+# save, so neither direction below is authorable from Photoshop and no fixture
+# can carry them -- a scan of every file under tests/psd_files finds no LAB
+# document with a non-Lab descriptor and no non-LAB document with a Lab one.
+# The ground truth is therefore Photoshop's own colour engine over the
+# scripting bridge, with the chroma reporting encoding undone; see
+# tests/psd_tools/test_color_convert.py for the model.
+# ---------------------------------------------------------------------------
+
+
+def _native(reported: float) -> float:
+    return (reported + 0.5) * 256.0 / 255.0
+
+
+@pytest.mark.parametrize("color_mode", [ColorMode.RGB, ColorMode.INDEXED])
+@pytest.mark.parametrize(
+    ("lab", "photoshop_rgb"),
+    [
+        ((65.49, 13.0, 69.0), (202.690, 148.651, 0.0)),
+        ((75.0, 25.0, -30.0), (211.468, 168.986, 239.887)),
+        ((25.0, -40.0, 15.0), (0.0, 72.513, 33.509)),
+        ((90.0, 5.0, -5.0), (234.175, 223.039, 235.179)),
+        ((50.0, 0.0, 0.0), (120.084, 118.613, 118.084)),
+    ],
+)
+def test_lab_fill_on_an_rgb_document_matches_photoshop(
+    color_mode: ColorMode,
+    lab: tuple[float, float, float],
+    photoshop_rgb: tuple[float, float, float],
+) -> None:
+    """#743's second half: a Lab descriptor on an RGB or indexed document.
+
+    Read as ``(L/255, a/255, b/255)`` the chroma is signed data taken as
+    unsigned and ``L = 100`` arrives at 0.39, which makes a Lab green an
+    unrelated colour. Indexed goes the same way: its arrays are three wide, so
+    it falls through the same branch.
+    """
+    desc = _color_desc(
+        Klass.LabColor.value,
+        {
+            Key.Luminance: lab[0],
+            Key.A: _native(lab[1]),
+            Key.B: _native(lab[2]),
+        },
+    )
+    got = [255.0 * v for v in _get_color(color_mode, desc)]
+    assert len(got) == 3
+    for channel, (value, want) in enumerate(zip(got, photoshop_rgb)):
+        assert abs(value - want) <= 1.0, (lab, channel, value, want)
+
+
+@pytest.mark.parametrize(
+    ("rgb", "photoshop_lab"),
+    [
+        ((255, 0, 0), (54.2908, 79.9968, 69.1176)),
+        ((0, 255, 0), (87.8204, -79.4638, 80.1758)),
+        ((202, 149, 1), (65.5060, 12.5582, 68.3083)),
+        ((120, 200, 255), (77.0691, -14.5231, -35.5812)),
+        ((128, 128, 128), (53.5828, -0.5, -0.5)),
+    ],
+)
+def test_rgb_fill_on_a_lab_document_matches_photoshop(
+    rgb: tuple[int, int, int], photoshop_lab: tuple[float, float, float]
+) -> None:
+    """#752: an RGB descriptor on a Lab document.
+
+    Without a Lab branch in ``_from_rgb()`` the triple falls through
+    unconverted, and three channels is a legal width for a Lab document, so
+    nothing complains -- red simply arrives as ``(1.0, 0.0, 0.0)``, which those
+    arrays read as white at the extreme green-blue corner.
+
+    Compared in canvas encoding rather than native units, because that is what
+    the compositor consumes; 1/255 here is one code value of the rendered
+    pixel.
+    """
+    desc = _color_desc(
+        Klass.RGBColor.value,
+        {Key.Red: float(rgb[0]), Key.Green: float(rgb[1]), Key.Blue: float(rgb[2])},
+    )
+    got = _get_color(ColorMode.LAB, desc)
+    want = (
+        photoshop_lab[0] / 100.0,
+        (_native(photoshop_lab[1]) + 128.0) / 255.0,
+        (_native(photoshop_lab[2]) + 128.0) / 255.0,
+    )
+    assert len(got) == 3
+    for channel, (value, expected) in enumerate(zip(got, want)):
+        assert abs(value - expected) * 255.0 <= 1.0, (rgb, channel, value, expected)
+
+
+@pytest.mark.parametrize(
+    ("klass", "fields", "expected"),
+    [
+        # A grey, so a and b must land exactly on the neutral axis and L on the
+        # grey's L* rather than on the grey itself. 0.6 -> 0.632 is the number
+        # widen._lab()'s docstring quotes for the divergence it keeps.
+        (
+            Klass.Grayscale.value,
+            {Key.Gray: 40.0},
+            (0.632226, 128 / 255, 128 / 255),
+        ),
+        # A mid brown, whose L* is 52.5 (#763). Reading the canvas array as
+        # ink instead puts it near black, which a row pinned to the
+        # implementation captures rather than catches.
+        (
+            Klass.CMYKColor.value,
+            {Key.Cyan: 10.0, Key.Magenta: 20.0, Key.Yellow: 30.0, Key.Black: 40.0},
+            (0.524775, 0.518260, 0.543805),
+        ),
+    ],
+)
+def test_other_classes_on_a_lab_document_go_through_the_conversion(
+    klass: bytes, fields: dict, expected: tuple[float, float, float]
+) -> None:
+    """The grayscale and CMYK classes reach the Lab branch too (#752).
+
+    Pinned as values rather than as agreement with the equivalent RGB
+    descriptor. That equivalence is how the code is built -- both spellings end
+    in ``_from_rgb(LAB, ...)`` -- so asserting it cannot fail: deleting either
+    branch leaves the equivalence assertion passing.
+
+    Not compared against Photoshop's own Lab for these two, either. Its
+    grayscale working space is Dot Gain 20% and its CMYK separation is
+    profile-driven, neither of which is what ``gray_to_rgb`` and ``cmyk_to_rgb``
+    do, so a disagreement would be Photoshop's colour management rather than
+    this conversion. The RGB class carries the Photoshop-anchored assertion,
+    above.
+
+    Grayscale is the one that needs a branch of its own: one channel is a legal
+    width, so without it a grey fill reaches the canvas as a bare lightness and
+    gets widened with a neutral a/b. Right axis, wrong height.
+    """
+    got = _get_color(ColorMode.LAB, _color_desc(klass, fields))
+    assert got == pytest.approx(expected, abs=1e-6)
+
+
+# ---------------------------------------------------------------------------
+# HSB hue normalization (#754)
+#
+# ``H   `` is an angle in degrees and was being divided by 300, so every
+# non-zero hue came out rotated and 360 fell off the end of the six-sector
+# table into the achromatic fallback -- a fully saturated red rendered white.
+#
+# The fixture is an RGB document authored in Photoshop 2026, one solid-colour
+# fill layer per swatch, masked to its own 16x16 square, and each *set from
+# HSB*: the colour Photoshop rendered is its own answer to what the HSB triple
+# means. The triple itself is in the layer name, because Photoshop 2026 rewrites
+# a fill descriptor into the document's own colour class on save -- an ``HSBC``
+# solid colour comes back as ``RGBC``, and so does an HSB shape stroke. The
+# tests below therefore rebuild the ``HSBC`` descriptor Photoshop discarded and
+# feed *that* to the code under test, which is exactly the shape of file a
+# third-party writer produces (and that
+# ``stroke-color-descriptors-hsb-with-rgb-mode.psd`` already carries, at hue 0).
+#
+# No colour management stands between the two columns: HSB to RGB is arithmetic
+# inside the document's own RGB space rather than a colorimetric transform, and
+# the document is untagged besides.
+# ---------------------------------------------------------------------------
+
+
+def _hsb_desc(hue: float, saturation: float, brightness: float) -> Descriptor:
+    """An ``HSBC`` fill descriptor, typed the way Photoshop types one.
+
+    Hue is a ``UnitFloat`` carrying ``Unit.Angle`` while saturation and
+    brightness are plain doubles -- which is the format's own statement that
+    the first of the three is degrees.
+    """
+    inner = Descriptor(classID=Klass.HSBColor.value)
+    inner[Key.Hue] = UnitFloat(hue, Unit.Angle)
+    inner[Key.Saturation] = Double(saturation)
+    inner[Key.Brightness] = Double(brightness)
+    outer = Descriptor(classID=b"solidColorLayer")
+    outer[Key.Color] = inner
+    return outer
+
+
+def _hsb_swatches(psd: PSDImage) -> list[tuple[tuple[float, float, float], Layer]]:
+    """Each band's HSB triple, read from the layer name, with its fill layer."""
+    swatches = []
+    for layer in psd.descendants():
+        if layer.tagged_blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING, None) is None:
+            continue  # the white Background pixel layer
+        label, *values = layer.name.split()
+        assert label == "HSB", layer.name
+        hue, saturation, brightness = (float(v) for v in values)
+        swatches.append(((hue, saturation, brightness), layer))
+    assert len(swatches) == 16
+    return swatches
+
+
+def test_hsb_descriptor_matches_photoshops_own_bytes() -> None:
+    """``_get_color`` reproduces what Photoshop made of each HSB triple.
+
+    Sixteen hues walking the whole circle: each of the six sector boundaries,
+    one hue inside every sector, and both ends of the wrap. Under the ``/300``
+    divisor fourteen of the sixteen are wrong. The two that survive are the
+    degenerate pair the fixture carries for exactly this reason -- hue 0, the
+    single angle where the two divisors agree, and ``HSB 200 0 60``, where zero
+    saturation short-circuits before the hue is read at all. Hue 0 is also all
+    that ``stroke-color-descriptors-hsb-with-rgb-mode.psd`` contains, which is
+    why the corpus never caught this.
+
+    Two references, because the fixture carries both. The ``RGBC`` descriptor
+    Photoshop normalized the fill to *is* its own full-precision answer to the
+    HSB triple, and the swap the composite test performs cannot touch it, so it
+    is compared at 0.02 of a code value. The rendered preview is the same
+    answer rounded to bytes, so it is compared at the 0.5 that rounding allows.
+    Both bounds are far under what a wrong divisor costs: hues 330, 359 and 360
+    then fall past the end of the six-sector table and render white.
+    """
+    psd = PSDImage.open(full_name("descriptors/hsb-color-swatches.psd"))
+    assert psd.color_mode == ColorMode.RGB
+    preview = psd.numpy()
+    for (hue, saturation, brightness), layer in _hsb_swatches(psd):
+        ours = np.array(
+            _get_color(ColorMode.RGB, _hsb_desc(hue, saturation, brightness))
+        )
+        ours = ours * 255.0
+
+        stored = layer.tagged_blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING)[Key.Color]
+        assert stored.classID == b"RGBC"  # Photoshop rewrote the class on save
+        photoshop = np.array(
+            [float(stored[key]) for key in (Key.Red, Key.Green, Key.Blue)]
+        )
+        assert np.abs(photoshop - ours).max() <= 0.02, (hue, photoshop, ours)
+
+        left, top, right, bottom = layer.bbox
+        rendered = preview[(top + bottom) // 2, (left + right) // 2] * 255.0
+        assert np.abs(rendered - ours).max() <= 0.5 + 1e-6, (hue, rendered, ours)
+
+
+def test_hsb_fills_composite_to_photoshops_preview() -> None:
+    """End to end, through the fills the descriptors drive.
+
+    The assertion above pins the tuple; this pins what actually gets painted,
+    so a correct conversion that never reaches the canvas cannot pass. Each
+    fill's stored ``RGBC`` descriptor is swapped for the ``HSBC`` one Photoshop
+    normalized away, which leaves the preview -- the reference -- untouched.
+
+    Sensitive well below a degree: rotating every hue by half a degree already
+    breaks the bound.
+    """
+    psd = PSDImage.open(full_name("descriptors/hsb-color-swatches.psd"))
+    reference = psd.numpy()
+    for hsb, layer in _hsb_swatches(psd):
+        layer.tagged_blocks.set_data(Tag.SOLID_COLOR_SHEET_SETTING, _hsb_desc(*hsb))
+    rendered = composite(psd, force=True)[0]
+    assert rendered.shape == reference.shape
+    assert np.abs(reference - rendered).max() * 255.0 <= 1.0
+
+
+def test_hue_360_is_red_rather_than_white() -> None:
+    """The wrap, called out on its own because it fails differently.
+
+    A rotated hue is a wrong colour; hue 360 is not a colour at all. 360/300
+    is 1.2, so ``int(1.2 * 6)`` indexes past the six sectors and the fallback
+    returns ``(v, v, v)`` -- white, where Photoshop renders a fully saturated
+    red.
+    """
+    assert _get_color(ColorMode.RGB, _hsb_desc(360.0, 100.0, 100.0)) == pytest.approx(
+        _get_color(ColorMode.RGB, _hsb_desc(0.0, 100.0, 100.0))
+    )
+    assert _get_color(ColorMode.RGB, _hsb_desc(360.0, 100.0, 100.0)) == pytest.approx(
+        (1.0, 0.0, 0.0)
+    )
+
+
+# --- Colour-noise gradients --------------------------------------------------
+#
+# A noise gradient does not carry colour stops; it carries a colour space and a
+# min/max band per component, and the table is synthesized from them. That
+# table was built three wide and handed to the compositor unconverted, so it
+# was as wide as the *descriptor's* space rather than as wide as the document
+# -- the same bug as the rest of #730, at the one site `_get_color()` does not
+# reach.
+
+
+def _int_list(values: tuple[float, ...]) -> List:
+    """A descriptor list of integers, which is how the bands are stored."""
+    items = List()
+    items.extend(Integer(int(value)) for value in values)
+    return items
+
+
+def _noise_desc(
+    space: bytes,
+    values: tuple[float, float, float, float],
+    show_transparency: bool = False,
+) -> Descriptor:
+    """A ``gradientLayer`` descriptor holding one flat colour-noise gradient.
+
+    ``Mnm `` equal to ``Mxm `` pins the noise field to a single colour, which
+    is what makes a noise gradient comparable against Photoshop at all: the
+    synthesis in ``_make_noise_gradient_color()`` is admittedly not Photoshop's
+    (it says so), but with no band to vary over there is nothing left for it to
+    get wrong, and both sides render the one colour the band names.
+    """
+    grad = Descriptor(classID=b"Grdn")
+    grad[Type.GradientForm] = Enumerated(typeID=b"GrdF", enum=Enum.ColorNoise.value)
+    grad[Key.ShowTransparency] = Bool(show_transparency)
+    grad[Key.ColorSpace] = Enumerated(typeID=b"ClrS", enum=space)
+    grad[Key.RandomSeed] = Integer(1234567)
+    grad[Key.Smoothness] = Integer(2048)
+    grad[Key.Minimum] = _int_list(values)
+    grad[Key.Maximum] = _int_list(values)
+    desc = Descriptor(classID=b"gradientLayer")
+    desc[Key.Gradient] = grad
+    desc[Key.Type] = Enumerated(typeID=b"GrdT", enum=Enum.Linear.value)
+    return desc
+
+
+# The three Photoshop offers. Measured 2026-08-28 against Photoshop 2026: it
+# rewrites anything else to ``RGBC`` -- a ``CMYC`` request came back ``RGBC``
+# even in a CMYK document -- but keeps all three of these in every document
+# mode, so none of them is tied to the document's own space.
+NOISE_SPACES = [Enum.RGBColor.value, Enum.HSBColor.value, Enum.LabColor.value]
+
+
+@pytest.mark.parametrize("space", NOISE_SPACES)
+@pytest.mark.parametrize("color_mode", list(ColorMode))
+def test_noise_gradient_width_is_legal_for_every_mode(
+    space: bytes, color_mode: ColorMode
+) -> None:
+    """The same width guarantee `_get_color()` has, at the noise table.
+
+    Before this, every one of these 24 pairs came back three wide, so the 15
+    whose document is not three channels tripped
+    ``Compositor._assert_source_fits()``.
+    """
+    color, shape = draw_gradient_fill(
+        (0, 0, 4, 4), color_mode, _noise_desc(space, (80, 40, 20, 100))
+    )
+    assert color is not None
+    assert shape is None
+    assert color.shape[:2] == (4, 4)
+    expected = 1 if color_mode == ColorMode.MULTICHANNEL else MODE_CHANNELS[color_mode]
+    assert color.shape[2] in (1, expected)
+
+
+def test_noise_gradient_transparency_is_still_split_out() -> None:
+    """``ShTr`` keeps its own band, and it is not folded into the colour."""
+    color, shape = draw_gradient_fill(
+        (0, 0, 4, 4),
+        ColorMode.CMYK,
+        _noise_desc(Enum.RGBColor.value, (80, 40, 20, 50), show_transparency=True),
+    )
+    assert color is not None and shape is not None
+    assert color.shape == (4, 4, 4)
+    assert shape.shape == (4, 4, 1)
+    assert shape == pytest.approx(0.5)
+
+
+def test_lab_noise_on_a_lab_document_is_not_round_tripped() -> None:
+    """A Lab band on a Lab document is already the array's own encoding.
+
+    ``v / 100`` *is* the byte of the eight-bit Lab encoding, which is what the
+    compositor stores, so the identity is exact rather than approximate --
+    a trip out through RGB and back would clip everything outside sRGB.
+    """
+    color, _ = draw_gradient_fill(
+        (0, 0, 4, 4), ColorMode.LAB, _noise_desc(Enum.LabColor.value, (60, 60, 60, 100))
+    )
+    assert color is not None
+    assert color == pytest.approx(0.6)
+
+
+# Photoshop's own render of the four fixtures, sampled at the centre of each
+# 8x8 band. Authored 2026-08-28 with Photoshop 2026: one document per colour
+# mode, three flat noise gradients masked to a band each -- ``RGBC`` at
+# [80, 40, 20], ``HSBl`` at [8.33, 60, 80] (hue 30 degrees) and ``LbCl`` at
+# [60, 60, 60] (L* 60, a = b = 25).
+NOISE_FIXTURES = ["rgb", "cmyk", "grayscale", "lab"]
+NOISE_BANDS = ["rgb", "hsb", "lab"]
+
+# The cells where our conversion is Photoshop's own answer, to a byte. Between
+# them they pin all three noise colour spaces: RGB and HSB on the two documents
+# that need no colour conversion beyond a reduction, and Lab where it lands in
+# a Lab document unconverted.
+NOISE_EXACT = {
+    ("rgb", "rgb"): (204.0, 102.0, 51.0),
+    ("rgb", "hsb"): (204.0, 143.0, 82.0),
+    ("grayscale", "rgb"): (127.0,),
+    ("grayscale", "hsb"): (154.0,),
+    ("lab", "lab"): (153.0, 153.0, 153.0),
+}
+
+# The rest, pinned to *our* values rather than to Photoshop's. Each is a
+# cross-space conversion that Photoshop performs through an ICC profile and we
+# perform analytically, which is a difference this issue does not touch: the
+# Lab rows are Photoshop compressing chroma on the way out of Lab (its own
+# colour engine, asked directly over the scripting bridge, puts Lab(60, 25, 25)
+# at rgb(196, 126, 101) -- where we put it -- rather than at the (178, 126, 102)
+# it renders), and the CMYK rows are the press profile against
+# ``color_convert.rgb_to_cmyk()``'s textbook build. Photoshop's numbers are
+# quoted beside each so the gap stays visible.
+NOISE_PINNED = {
+    # ours                                            photoshop
+    ("cmyk", "rgb"): (255.0, 127.5, 63.8, 204.0),  # (254, 65, 23, 255)
+    ("cmyk", "hsb"): (255.0, 178.5, 102.0, 204.0),  # (235, 118, 64, 252)
+    ("cmyk", "lab"): (255.0, 166.2, 133.4, 194.8),  # (214, 113, 117, 231)
+    ("grayscale", "lab"): (144.4,),  # (153,)
+    ("lab", "rgb"): (140.9, 166.8, 175.0),  # (151, 177, 184)
+    ("lab", "hsb"): (164.8, 147.3, 169.8),  # (171, 154, 176)
+    ("rgb", "lab"): (194.8, 127.0, 102.0),  # (178, 126, 102)
+}
+
+
+def _noise_band(mode: str) -> tuple[np.ndarray, np.ndarray]:
+    """Photoshop's stored preview and our forced render, as byte-scaled arrays."""
+    psd = PSDImage.open(full_name("gradients/noise-gradient-%s.psd" % mode))
+    reference = psd.numpy() * 255.0
+    rendered = composite(psd, force=True)[0] * 255.0
+    assert rendered.shape == reference.shape
+    return reference, rendered
+
+
+@pytest.mark.parametrize("mode", NOISE_FIXTURES)
+def test_noise_gradient_composites_on_every_document_mode(mode: str) -> None:
+    """The crash, end to end.
+
+    ``force=True`` is what puts the synthesized fill in front of the
+    compositor; without it the layer's own stored raster is used and a
+    synthesis defect is invisible. A fill built at the wrong width raises
+    ``source has 3 channels, expected 1 or 4`` on the CMYK document and
+    ``expected 1 or 1`` on the grayscale one, while the Lab and RGB documents
+    render wrong colours rather than raising.
+    """
+    reference, rendered = _noise_band(mode)
+    assert rendered.shape[2] == reference.shape[2]
+
+
+@pytest.mark.parametrize("mode, band", sorted(NOISE_EXACT))
+def test_noise_gradient_matches_photoshop(mode: str, band: str) -> None:
+    """Photoshop's own render of the same gradient, to within a byte."""
+    reference, rendered = _noise_band(mode)
+    row = NOISE_BANDS.index(band) * 8 + 4
+    expected = np.array(NOISE_EXACT[(mode, band)])
+    assert np.abs(rendered[row, 4] - expected).max() <= 1.0
+    assert np.abs(reference[row, 4] - expected).max() <= 1.0
+
+
+@pytest.mark.parametrize("mode, band", sorted(NOISE_PINNED))
+def test_noise_gradient_cross_space_cells_are_pinned(mode: str, band: str) -> None:
+    """The cells whose colour conversion is not Photoshop's, held still.
+
+    They are the reason this file cannot simply diff the whole render against
+    the preview, and pinning them is what keeps a change to the noise path from
+    hiding inside a tolerance wide enough to cover the ICC gap.
+    """
+    _, rendered = _noise_band(mode)
+    row = NOISE_BANDS.index(band) * 8 + 4
+    expected = np.array(NOISE_PINNED[(mode, band)])
+    assert np.abs(rendered[row, 4] - expected).max() <= 0.1
+
+
+# ---------------------------------------------------------------------------
+# Out-of-range descriptor components (#757)
+#
+# No fixture can carry these. Photoshop will not author a component outside its
+# class's nominal range, and it normalizes a fill descriptor to the document's
+# own colour class besides (#756), so the ground truth is the clamp itself:
+# every class has to land in [0, 1], and the rendered byte has to saturate at
+# the end of the axis rather than wrap to an unrelated colour.
+# ---------------------------------------------------------------------------
+
+
+# (label, document mode, descriptor class, fields, expected canvas tuple).
+# The first four rows are the table measured in the issue. Before the clamp the
+# tuples reached the uint8 cast as (126, 180, 180), (44, 216, 0),
+# (129, 129, 129) and (126, ...) -- what the cast *would* make of them.
+# `Compositor` clips its own arrays, so a flat opaque fill was shielded from
+# that; what was not shielded is anything that blends the value first, because
+# the clip then runs on arithmetic that is already wrong. Forging these into
+# adjustment-fillers.psd renders 194 white pixels and 150 bright cyan ones
+# along a stroke that should be (26, 26, 26).
+OUT_OF_RANGE_CASES = [
+    (
+        "HSB S=120 B=150 saturates to red",
+        ColorMode.RGB,
+        Klass.HSBColor.value,
+        {Key.Hue: 0.0, Key.Saturation: 120.0, Key.Brightness: 150.0},
+        (1.0, 0.0, 0.0),
+    ),
+    (
+        "RGB 300/-40/0 saturates to red",
+        ColorMode.RGB,
+        Klass.RGBColor.value,
+        {Key.Red: 300.0, Key.Green: -40.0, Key.Blue: 0.0},
+        (1.0, 0.0, 0.0),
+    ),
+    (
+        "grey beyond black stays black",
+        ColorMode.RGB,
+        Klass.Grayscale.value,
+        {Key.Gray: 150.0},
+        (0.0, 0.0, 0.0),
+    ),
+    (
+        "CMYK negative ink stays at no ink",
+        ColorMode.CMYK,
+        Klass.CMYKColor.value,
+        {Key.Cyan: -50.0, Key.Magenta: 0.0, Key.Yellow: 0.0, Key.Black: 0.0},
+        (1.0, 1.0, 1.0, 1.0),
+    ),
+    (
+        "CMYK beyond full ink stays at full ink",
+        ColorMode.CMYK,
+        Klass.CMYKColor.value,
+        {Key.Cyan: 150.0, Key.Magenta: 0.0, Key.Yellow: 0.0, Key.Black: 0.0},
+        (0.0, 1.0, 1.0, 1.0),
+    ),
+    (
+        "float RGB is normalized already, so 3.0 saturates",
+        ColorMode.RGB,
+        Klass.RGBColor.value,
+        {Key.RedFloat: 3.0, Key.GreenFloat: -1.0, Key.BlueFloat: 0.5},
+        (1.0, 0.0, 0.5),
+    ),
+    (
+        "Lab, the class that arrived with its own guard in #743",
+        ColorMode.LAB,
+        Klass.LabColor.value,
+        {Key.Luminance: 140.0, Key.A: 200.0, Key.B: -200.0},
+        (1.0, 1.0, 0.0),
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "label, color_mode, class_id, fields, expected",
+    OUT_OF_RANGE_CASES,
+    ids=[case[0] for case in OUT_OF_RANGE_CASES],
+)
+def test_out_of_range_components_saturate_rather_than_wrapping(
+    label: str,
+    color_mode: ColorMode,
+    class_id: bytes,
+    fields: dict,
+    expected: tuple[float, ...],
+) -> None:
+    """An out-of-range component must degrade to the end of its axis.
+
+    Nothing in the descriptor format constrains a component to the range its
+    class's divisor assumes, and ``composite_pil()`` casts with
+    ``(255 * color).astype(np.uint8)``, which *wraps* rather than saturating.
+    So 1.5 arrives as byte 126: not a clipped component but a colour unrelated
+    to the one asked for, and nothing warns.
+    """
+    result = _get_color(color_mode, _color_desc(class_id, fields))
+    assert all(0.0 <= c <= 1.0 for c in result), (label, result)
+    assert result == pytest.approx(expected), label
+    # The point of the clamp is what the cast then does with it. ``astype``
+    # truncates rather than rounds, which is why the model below uses ``int``.
+    pixels = (255 * np.array(result, dtype=np.float32)).astype(np.uint8)
+    want = [int(255 * np.float32(c)) for c in expected]
+    assert pixels.tolist() == want, label
+
+
+@pytest.mark.parametrize("color_mode", list(ColorMode))
+@pytest.mark.parametrize(
+    "class_id, fields",
+    [
+        (Klass.RGBColor.value, {Key.Red: 400.0, Key.Green: -400.0, Key.Blue: 128.0}),
+        (
+            Klass.RGBColor.value,
+            {Key.RedFloat: 9.0, Key.GreenFloat: -9.0, Key.BlueFloat: 0.5},
+        ),
+        (Klass.Grayscale.value, {Key.Gray: -250.0}),
+        (
+            Klass.CMYKColor.value,
+            {Key.Cyan: -200.0, Key.Magenta: 300.0, Key.Yellow: 0.0, Key.Black: 500.0},
+        ),
+        (
+            Klass.LabColor.value,
+            {Key.Luminance: -500.0, Key.A: 900.0, Key.B: -900.0},
+        ),
+        (
+            Klass.HSBColor.value,
+            {Key.Hue: 5000.0, Key.Saturation: 900.0, Key.Brightness: -900.0},
+        ),
+    ],
+    ids=["RGBC-int", "RGBC-float", "Grsc", "CMYC", "LbCl", "HSBC"],
+)
+def test_every_class_lands_in_range_on_every_document(
+    color_mode: ColorMode, class_id: bytes, fields: dict
+) -> None:
+    """Uniform treatment, which is the reason #757 covers all five at once.
+
+    Fixing one class in isolation is what the issue exists to avoid, so this
+    sweeps every colour class against every document mode rather than pinning
+    the handful of pairs that happened to be measured.
+    """
+    result = _get_color(color_mode, _color_desc(class_id, fields))
+    assert all(0.0 <= c <= 1.0 for c in result), (color_mode, class_id, result)
+    assert all(np.isfinite(c) for c in result), (color_mode, class_id, result)
+
+
+def test_out_of_range_hue_still_wraps_rather_than_clamping() -> None:
+    """Hue is the one component that must not be clamped.
+
+    It is an angle, so 400 degrees names a real colour one turn on and
+    ``hsb_to_rgb`` folds it back onto the circle. Clamping it to 360 would turn
+    every hue past the end of the turn into red, which is the shape of the
+    #754 bug rather than a fix for #757.
+    """
+    for degrees in (30.0, 390.0, 750.0, -330.0):
+        result = _get_color(
+            ColorMode.RGB,
+            _color_desc(
+                Klass.HSBColor.value,
+                {Key.Hue: degrees, Key.Saturation: 100.0, Key.Brightness: 100.0},
+            ),
+        )
+        assert result == pytest.approx((1.0, 0.5, 0.0), abs=1e-6), degrees
+
+
+# ---------------------------------------------------------------------------
+# CMYK is read as ink, not as canvas (#763)
+#
+# The compositor's arrays store what is *left* -- 1.0 is no ink -- while
+# `color_convert`'s CMYK helpers are documented in ink space, where 0.0 is no
+# ink. Reading the descriptor into canvas convention and handing that to
+# `cmyk_to_rgb()` without undoing the flip makes each colour its own opposite
+# on every non-CMYK document, and collapses it to black.
+#
+# No fixture can carry this: Photoshop normalizes a fill descriptor to the
+# document's own colour class on save (#756), so a `CMYC` descriptor on an RGB
+# document is not authorable. Ground truth is `cmyk_to_rgb()` itself, which the
+# RGB rows of tests/psd_tools/test_color_convert.py anchor against Photoshop.
+# ---------------------------------------------------------------------------
+
+
+def _cmyk_desc(c: float, m: float, y: float, k: float) -> Descriptor:
+    return _color_desc(
+        Klass.CMYKColor.value,
+        {Key.Cyan: c, Key.Magenta: m, Key.Yellow: y, Key.Black: k},
+    )
+
+
+# Percent ink, and the RGB the same ink is worth. Read in canvas convention
+# every one of these renders (0, 0, 0) on an RGB document -- black included,
+# but only by coincidence.
+CMYK_SWATCHES = [
+    ("white", (0.0, 0.0, 0.0, 0.0), (1.0, 1.0, 1.0)),
+    ("cyan", (100.0, 0.0, 0.0, 0.0), (0.0, 1.0, 1.0)),
+    ("magenta", (0.0, 100.0, 0.0, 0.0), (1.0, 0.0, 1.0)),
+    ("yellow", (0.0, 0.0, 100.0, 0.0), (1.0, 1.0, 0.0)),
+    ("black", (0.0, 0.0, 0.0, 100.0), (0.0, 0.0, 0.0)),
+    ("mid", (20.0, 40.0, 60.0, 10.0), (0.72, 0.54, 0.36)),
+]
+
+
+@pytest.mark.parametrize("color_mode", [ColorMode.RGB, ColorMode.INDEXED])
+@pytest.mark.parametrize(
+    "label, ink, expected", CMYK_SWATCHES, ids=[s[0] for s in CMYK_SWATCHES]
+)
+def test_cmyk_descriptor_converts_through_ink_space(
+    color_mode: ColorMode,
+    label: str,
+    ink: tuple[float, float, float, float],
+    expected: tuple[float, float, float],
+) -> None:
+    """A CMYK fill is the colour its ink says, on a three-channel document."""
+    got = _get_color(color_mode, _cmyk_desc(*ink))
+    assert got == pytest.approx(expected, abs=1e-6), (label, color_mode)
+
+
+@pytest.mark.parametrize("color_mode", list(ColorMode))
+def test_cmyk_white_is_white_on_every_document(color_mode: ColorMode) -> None:
+    """``C0 M0 Y0 K0`` is no ink at all, so it cannot render as black.
+
+    The sharpest statement of the defect: read in canvas convention, a fill
+    asking for white comes back as the darkest value the mode can hold, on RGB,
+    indexed, grayscale, bitmap, duotone, multichannel and Lab alike. Only a
+    CMYK document is spared.
+
+    Expressed per mode rather than as a literal, because "white" is 1.0
+    everywhere except Lab, whose chroma axes are neutral at 128/255 while its
+    lightness is 1.0.
+    """
+    got = _get_color(color_mode, _cmyk_desc(0.0, 0.0, 0.0, 0.0))
+    if color_mode == ColorMode.LAB:
+        assert got == pytest.approx((1.0, 128 / 255, 128 / 255), abs=1e-6)
+    else:
+        assert got == pytest.approx((1.0,) * len(got), abs=1e-6)
+
+
+@pytest.mark.parametrize(
+    "label, ink, _expected", CMYK_SWATCHES, ids=[s[0] for s in CMYK_SWATCHES]
+)
+def test_cmyk_document_branch_keeps_its_canvas_values(
+    label: str, ink: tuple[float, float, float, float], _expected: tuple[float, ...]
+) -> None:
+    """The CMYK-document branch is unmoved.
+
+    ``_ink_to_canvas(v / 100)`` and ``(100 - v) / 100`` are the same number, so
+    reading in ink space is value-preserving here. Pinned because it is the
+    half of #763 that is correct, and a fix to the other half must not pay for
+    it.
+    """
+    got = _get_color(ColorMode.CMYK, _cmyk_desc(*ink))
+    assert got == pytest.approx(tuple(1.0 - v / 100.0 for v in ink), abs=1e-6)
+
+
+def test_cmyk_fill_reaches_the_canvas_as_ink() -> None:
+    """End to end at the array, not just at the tuple.
+
+    ``_get_color()`` is what ``draw_solid_color_fill()`` calls, so a conversion
+    that is right in isolation but never reaches the canvas would still pass the
+    unit rows above.
+    """
+    color, shape = draw_solid_color_fill(
+        (0, 0, 4, 4), ColorMode.RGB, _cmyk_desc(0.0, 0.0, 0.0, 0.0)
+    )
+    assert shape is None
+    assert color.shape == (4, 4, 3)
+    assert np.allclose(color, 1.0), color[0, 0]
+
+
+def test_cmyk_stroke_on_an_rgb_document_is_the_ink_it_asks_for() -> None:
+    """The one place in the corpus where this is not forged.
+
+    ``issues/issue397.psd`` is an RGB document whose shape layer carries a
+    vector stroke coloured ``C72 M68 Y67 K88`` -- a near-black. Photoshop will
+    not author a cross-mode *fill* descriptor, which is why #743 and #752 needed
+    forged ones, but a stroke's ``strokeStyleContent`` is evidently not
+    normalized the same way, so a real file reaches this path.
+
+    Read as ink, that stroke is ``(8, 9, 9)``; read in canvas convention it is
+    ``(162, 152, 150)``, a mid grey, which is the defect at three-quarters of
+    the axis rather than at the extreme the forged white shows.
+
+    Asserted at ``create_fill_desc()`` rather than through a render, because
+    this fixture's stroke does not reach the composited output -- the defect it
+    was filed for. The colour is computed either way, so this pins the
+    conversion without depending on that being fixed.
+    """
+    psd = PSDImage.open(full_name("issues/issue397.psd"))
+    layer = next(layer for layer in psd.descendants() if layer.kind == "shape")
+    assert psd.color_mode == ColorMode.RGB
+    assert layer.stroke is not None
+    content = layer.stroke._data.get("strokeStyleContent")
+    assert content.get(Key.Color).classID == Klass.CMYKColor.value
+
+    color, _shape = paint.create_fill_desc(layer, content, layer.bbox)
+    assert color is not None
+    ink = tuple(
+        float(content.get(Key.Color)[key]) / 100.0
+        for key in (Key.Cyan, Key.Magenta, Key.Yellow, Key.Black)
+    )
+    assert color[0, 0] == pytest.approx(cmyk_to_rgb(*ink), abs=1e-6)
+    assert (255 * color[0, 0]).astype(np.uint8).tolist() == [8, 9, 9]

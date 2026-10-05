@@ -1,6 +1,602 @@
 Changelog
 =========
 
+1.23.1 (unreleased)
+-------------------
+
+- [security] ``convert_pattern_to_pil()`` now checks the pattern's declared size
+  against the per-axis limit and ``max_alloc_bytes`` before allocating, and
+  takes ``max_alloc_bytes``. It raises ``ValueError`` on a crafted file that
+  declares a huge pattern or channel size. ``PSDImage`` never calls it (#960)
+
+- [fix] An inner vector stroke over a gradient fill with transparent stops
+  shows at its own opacity where the fill is clear, matching Photoshop, rather
+  than fading with it. Affects ``force=True`` and layers without stored
+  pixels (#941)
+
+- [fix] A redrawn vector stroke (``force=True``, or no stored pixels) is
+  painted Normal whatever its stored blend mode, matching Photoshop (#940)
+
+- [fix] An inner vector stroke wider than half the shape is no longer left
+  hollow down the middle. Needs scipy, and without it the old rendering
+  remains (#890)
+
+- [fix] A vector stroke on a combined path no longer paints the arcs one
+  subpath buries inside another, away from the combined shape's outline.
+  Needs scipy, and without it the old rendering remains. A mitred corner
+  sharper than a right angle is now cut short on such paths (#889)
+
+- [fix] A document whose display-info resource carries an alpha channel mode
+  this version does not know now opens; ``AlphaChannel.mode`` keeps the raw
+  ``int`` and writes it back. ``AlphaChannel(mode=99)`` is accepted again, any
+  byte value now being valid (#864)
+
+- [fix] Moving a layer out of a document that earlier received one from another
+  document no longer raises ``TypeError`` (#862, #946)
+- [fix] A shape or fill layer whose mask repeats its own stored coverage, such
+  as a rasterized vector mask, no longer renders its antialiased edge squared.
+  Redrawn renders (``force=True``) and a no-fill shape with a vector mask are
+  unchanged (#885, #948)
+- [fix] A stroke-only shape layer no longer has its interior filled when the
+  layer is redrawn (``force=True``, or no stored pixels) (#937, #938)
+- [fix] A centred or outer vector stroke is drawn outside its path too when
+  the layer is redrawn (``force=True``, or no stored pixels) (#937, #939)
+- [fix] A shape layer's stroke effect no longer paints across a fill that
+  fades to transparent inside its path. Layers without a vector mask, and
+  redrawn renders (``force=True``), are unchanged (#886, #952)
+
+1.23.0 (2026-10-01)
+-------------------
+
+- [api] Add ``Layer.move_to(parent, *, index=None)``, a strict move within one
+  document: ``index`` is the final position, an out-of-range one raises
+  ``IndexError``, and a parent in another document raises ``ValueError``.
+  ``move_to_group()`` stays deprecated (#812, #934)
+- [api] ``create_pixel_layer()`` and ``create_group()`` are now on ``Group`` as
+  well as ``PSDImage``, creating the layer directly in that group, e.g.
+  ``group.create_pixel_layer(image)`` (#812, #935)
+- [api] ``GroupMixinProtocol`` declares ``__setitem__``, so index assignment
+  on a value typed as it, such as a narrowed ``layer.parent``, now type-checks
+  (#812, #932)
+- [fix] ``composite()`` and ``has_clip_layers()`` no longer raise on a layer
+  removed from its document; ``clip_layers`` is empty (#812)
+- [api] Backwards-incompatible: ``Layer.delete_layer()``, ``move_up()`` and
+  ``move_down()`` raise ``ValueError`` on a layer not attached to a document,
+  which includes one inside a removed group. ``delete_layer()`` used to do
+  nothing on a removed layer (#812)
+- [docs] "Modifying the layer structure" states the one-parent rule and that
+  the list methods are a fixed set (#812, #932)
+- [fix] ``be_array_to_bytes()`` and ``write_be_array()`` no longer byte-swap
+  the caller's array in place on little-endian systems, so writing it twice
+  gives the same bytes (#915)
+- [security] Structural parsing now rejects a block whose declared length runs
+  past its data or a nested section that overruns its parent, and stops at
+  1,000,000 objects or 64 nested descriptor/text-engine levels with
+  ``ParseLimitError``. **Backwards-incompatible** for a malformed file that
+  used to parse (GHSA-v7vq-grqq-m352)
+- [api] Add ``ParseLimits`` and ``ParseLimitError``, and a ``parse_limits``
+  argument to ``PSDImage.open()``. Byte limits are opt-in. See "Handling
+  untrusted files" (GHSA-v7vq-grqq-m352)
+- [security] ``decompress()``, ``decode_rle()`` and the low-level ``get_data()``
+  methods accept ``max_output_bytes`` and raise ``DecompressionLimitError``.
+  An RLE stream that expands past 16 MiB and 1,000x its input now raises too
+  (GHSA-v7vq-grqq-m352)
+- [security] EngineData tokenization no longer copies the remaining text at each
+  token, which was quadratic on large documents (GHSA-v7vq-grqq-m352)
+
+1.22.0 (2026-09-30)
+-------------------
+
+- [api] ``max_alloc_bytes`` now defaults to 4 GiB instead of off, and a
+  document's budget can be changed with the new ``PSDImage.max_alloc_bytes``
+  property. **Backwards-incompatible**: an estimate over 4 GiB now raises
+  ``ValueError`` or omits a layer effect; set ``"unlimited"`` (API or
+  ``$PSD_TOOLS_MAX_ALLOC_BYTES``) for the old behaviour. See "Handling
+  untrusted files" (#925, #929)
+- [api] ``max_alloc_bytes`` now bounds each ``Layer.numpy()`` and
+  ``Layer.topil()`` read, and so the stored-pixel reads of ``composite()``,
+  at the layer's own size. A layer larger than the canvas that used to read
+  unchecked is now rejected over budget. Solid and gradient fills drawn at a
+  layer's own box are not covered (#842)
+- [security] ``composite()`` now checks the canvases that a stroke effect's
+  size, a vector stroke's width or a pattern fill's scale grow, against the
+  per-axis limit and ``max_alloc_bytes`` (GHSA-mg89-vfv6-5pm4, #920)
+- [security] ``composite()`` now bounds descriptor-grown canvases without
+  ``max_alloc_bytes``. A stroke effect's size above Photoshop's 250 px limit is
+  drawn at 250. A vector stroke far wider than its layer or the viewport, or a
+  pattern scaled far past 1,000% of its own size, raises ``ValueError``
+  (GHSA-mg89-vfv6-5pm4, #921)
+- [security] ``composite()`` now checks a pattern record's declared size
+  against the per-axis limit and ``max_alloc_bytes`` before decoding it (#922)
+- [fix] A layer over 30,000 px on an axis now raises ``ValueError`` from
+  ``Layer.numpy()`` / ``Layer.topil()`` instead of allocating (#842)
+- [fix] Parser internals and normal control flow no longer log at INFO when
+  opening or rendering an ordinary PSD; they are now DEBUG (#902)
+- [fix] Decoding and encoding ZIP-with-prediction channels is much faster,
+  which mainly helps large 16- and 32-bit documents. A truncated payload now
+  gives a black channel with a warning instead of raising ``IndexError``
+  (#903)
+- [api] The ``TypeSetting`` style and font getters now read an unreadable scalar
+  as the default style's value, or the documented default, instead of raising
+  or coercing it. ``fill_color`` and ``stroke_color`` give ``float``
+  components, and ``None`` if one is unreadable (#789)
+- [api] The descriptor-backed adjustment and fill getters (``BrightnessContrast``,
+  ``Vibrance``, ``BlackAndWhite``) now read a missing or unreadable value as
+  its default instead of raising. **Backwards incompatible:**
+  ``GradientFill.angle`` is ``float | None``, and gives ``None`` where it
+  raised ``TypeError`` (#789)
+- [api] ``BlackAndWhite`` weights, ``preset_kind`` and ``Origination.index``
+  now return ``int``, and ``Stroke.line_dash_offset`` ``float``.
+  **Backwards incompatible:** they returned ``Integer`` / ``UnitFloat``, so drop
+  any ``.unit`` or ``.value``. A missing key gives ``None`` from
+  ``Stroke.blend_mode`` and ``Origination.resolution`` (was an error) and
+  ``0.0`` from ``line_dash_offset`` (was ``None``) (#788, #906)
+- [api] ``Stroke.miter_limit``, ``scale_lock``, ``stroke_adjust`` and
+  ``opacity`` now return ``float`` / ``bool``, or ``None`` if absent or unreadable.
+  **Backwards incompatible:** they returned ``Double`` / ``Bool`` /
+  ``UnitFloat``, so drop any ``.value`` or ``.unit`` (#789)
+- [fix] A malformed value under an effect's numeric or boolean key now reads
+  as that property's default instead of raising or counting as true (#789)
+- [api] An effect's ``type``, ``position``, ``fill_type``, ``glow_type``,
+  ``glow_source``, ``bevel_type``, ``bevel_style`` and ``direction`` now return
+  members of new ``psd_tools.constants`` enums, which still equal and hash as
+  the raw ``bytes`` code. **Backwards incompatible:** an unrecognised value
+  gives ``None`` (was the bytes), and ``str()`` / ``repr()`` change.
+  ``GradientFill.gradient_kind`` gives ``None`` where it raised (#789)
+- [api] An effect's ``blend_mode``, ``BevelEmboss.highlight_mode`` and
+  ``shadow_mode``, and ``Stroke.blend_mode`` now return a ``BlendMode``.
+  **Backwards incompatible:** they returned the descriptor's ``bytes`` code, so
+  ``effect.blend_mode == b"Nrml"`` is now ``False``; compare with
+  ``BlendMode.NORMAL``. ``get_blend_func`` takes a ``BlendMode`` (#789)
+- [api] ``SolidColorFill.data``, ``PatternFill.data``, ``GradientFill.data`` and
+  ``BlackAndWhite.tint_color`` are annotated ``Descriptor | None``, and
+  ``Curves.extra`` ``CurvesExtraMarker | None``. **Backwards incompatible:** a
+  layer with no data block gives ``None`` where it raised ``ValueError``, and a
+  non-descriptor value gives ``None`` (#789)
+- [api] ``Stroke.line_alignment`` returns a ``StrokeAlignment`` (a ``str`` enum,
+  so ``== "inner"`` still holds). **Backwards incompatible:** it answers
+  ``None``, not an ``AttributeError`` or a ``repr`` string, when the file
+  records no readable alignment (#789)
+- [fix] An effect whose blend mode Photoshop writes as a long name, such as
+  ``multiply`` or ``screen``, was composited as Normal, and now blends (#789)
+- [api] The struct-backed adjustment getters (``Levels``, ``Curves.data``,
+  ``Exposure``, ``HueSaturation``, ``GradientMap`` and the like) are annotated
+  ``| None``. **Backwards incompatible:** a layer with no data block gives
+  ``None`` where it raised ``ValueError``, and renders as a no-op (#789)
+
+1.21.0 (2026-09-28)
+-------------------
+
+- [security] ``PSDImage.thumbnail()`` now rejects a raw or JPEG thumbnail
+  whose dimensions would exceed the PSD spec limit or a configured
+  ``max_alloc_bytes`` budget, instead of allocating straight from those
+  dimensions before validating them (GHSA-7m55-42q7-888r)
+- [fix] A stroke effect's distance field is much faster for a stroke size
+  Photoshop treats as ordinary, which previously could take minutes. A
+  filled shape's boundary now runs through one exact ``scipy`` grey erosion
+  instead of a per-offset loop; a thin outline on a much bigger canvas keeps
+  the loop but drops each pixel out as soon as its answer is settled. Pixel
+  output is unchanged (#895, #896)
+- [fix] Stroke and overlay effects are composited into the layer they belong
+  to instead of onto the finished composite, so a layer whose coverage is
+  partial no longer renders its effect with the backdrop mixed through it.
+  Layer opacity now fades a layer's effects along with the layer; fill
+  opacity still fades the layer's own paint alone. A layer with hard edges,
+  full opacity and no fill opacity renders as before (#846)
+- [fix] A vector stroke is now drawn on the side of the path its
+  ``strokeStyleLineAlignment`` names, rather than always centred on it.
+  **Rendering change** for any ``inner`` or ``outer`` stroke: an inner one
+  now covers its whole width inside the shape rather than straddling the
+  edge (#854, #887)
+- [fix] A vector stroke is now composited onto the fill it outlines instead of
+  replacing it. **Rendering change** for every stroked layer:
+  ``strokeStyleOpacity`` was discarded entirely, and a pixel the stroke
+  covered in part came out as its colour at full strength (#883, #887)
+- [chore] Bump ruff from 0.16.7 to 0.16.8 (#888)
+
+1.20.0 (2026-09-25)
+-------------------
+
+- [docs] ``PSDImage.new()`` now records two limitations of the documents it
+  builds: Photoshop cannot open one made at ``depth=32``, which lacks the
+  ``hdrt`` block every 32-bit document carries, and mode ``"1"`` gets a depth-8
+  ``BITMAP`` header where Photoshop writes depth 1 (#869, #873, #879)
+- [ci] ``auto-tag`` now closes the matching release milestone once a release PR
+  is merged (#859, #876)
+- [fix] A pixel layer or mask added to a 16- or 32-bit document is stored at
+  the document's depth rather than PIL's, so it no longer reads back empty.
+  ``create_pixel_layer()``, ``PixelLayer.frompil()``, ``create_mask()`` and
+  ``update_mask()`` were all affected; the layer still carries a PIL image's
+  8 bits of precision, widened to the document's depth (#867, #874)
+- [fix] A pixel layer moved between documents differing in bit depth, or
+  between a PSD and a PSB, is re-encoded for the destination instead of being
+  carried across in the source's packing, which decoded as wrong colours, NaN
+  or a fully transparent layer. Other layer types are still not re-encoded on
+  such a move (#867, #874)
+- [fix] ``save()`` regenerates the preview in the document's own channels,
+  depth and conventions rather than PIL's, so an edited 16- or 32-bit, spot,
+  bitmap, indexed or profiled document is no longer written back malformed or
+  in the wrong colours. Backwards-incompatible: a CMYK document saved with
+  ``color=(0, 0, 0, 0)`` stored white and now stores full ink, the sense
+  ``background_color`` documents (#866, #870)
+- [fix] ``PSDImage.new(..., depth=32)`` no longer fills the document with
+  NaN: a 32-bit channel holds floats, and the fill was packed as the integer
+  ``0xffffffff``, which reads back as a quiet NaN (#866, #870)
+- [fix] A structural edit to a 16- or 32-bit document -- ``remove()``,
+  ``pop()``, ``clear()``, ``create_group()``, a cross-document move -- is no
+  longer discarded on save: the rebuilt layer list now goes to the
+  ``Lr16``/``Lr32`` block the reader takes it from (#861, #865)
+- [fix] Adding, removing or reordering layers no longer drops the flag marking
+  the merged image data's first alpha channel as the composite's transparency,
+  so a reopened document keeps its alpha instead of coming back opaque. Saving
+  an emptied document and reopening it still drops it, since a zero layer
+  count on disk has no sign (#861, #865)
+- [api] ``UnitFloat.unit``, ``UnitFloats.unit``, ``AlphaChannel.mode`` and
+  ``SectionDividerSetting.blend_mode`` now convert and validate like the other
+  enum-typed fields, so a wrong value raises ``ValueError`` where it was set
+  rather than ``AttributeError`` at ``save()``, a ``struct`` error, or nothing.
+  Backwards-incompatible: ``AlphaChannel(mode=99)`` used to write, and
+  ``UnitFloat.unit`` is now annotated ``Unit | Enum`` (#852, #863)
+- [fix] A layer taken out of a document by ``extend()``, ``append()`` or
+  ``insert()`` is no longer written back into that document's file, so it
+  stops appearing in two files at once (#841, #860)
+- [fix] A vector path is filled with the exact area it covers instead of
+  aggdraw's quarter-pixel dilation of it, and a combined path is filled by the
+  even-odd rule PSD uses rather than a subpath at a time, so a subpath inside
+  another cuts a hole instead of being swallowed. A ``force=True`` vector
+  render loses half a pixel of width it never had, and holes reappear
+  (#844, #856)
+- [fix] A stroke effect is now measured from the mask's coverage rather than
+  its half-opacity contour, as Photoshop does. A soft-edged layer -- feathered
+  mask, gradient mask, soft brush -- takes the stroke across its whole body
+  rather than a ring inside it. Hard-edged masks are unchanged, and only a
+  pattern fill still needs scikit-image (#799, #849)
+- [api] ``PSDImage.mark_updated()`` is now public and the private
+  ``_mark_updated()`` is gone, so an edit this API cannot see -- through an
+  effect's ``descriptor`` or any other low-level record -- can still tell the
+  document to regenerate its preview on ``save()``, re-render on
+  ``composite()``, and redraw vectors on ``Layer.composite()``, which moves
+  pixels of its own (#831, #851)
+- [api] An effect's reporting-only enums -- ``type``, ``position``,
+  ``fill_type``, ``glow_type``, ``glow_source``, ``bevel_type``,
+  ``bevel_style``, ``direction`` -- now return ``None`` where the descriptor
+  does not say, instead of a fabricated default. ``blend_mode`` and
+  ``opacity`` keep their defaults. Backwards-incompatible: a solid-colour
+  ``Stroke.type`` answered ``b'Lnr '`` and now answers ``None`` (#831, #851)
+- [api] ``Effects.scale`` returns 100.0 for a layer with no readable effects
+  block, where it used to raise ``ValueError``. Backwards-incompatible for a
+  caller that caught the raise to detect the block (#831, #851)
+- [api] An effect's deprecated ``value`` property now warns with
+  ``DeprecationWarning`` rather than logging at DEBUG, where no user saw it.
+  Use ``descriptor`` instead. Backwards-incompatible for anyone running
+  warnings as errors, where reading it now raises (#831, #851)
+- [api] ``Layer.has_effects(enabled=False)`` now reports what the Photoshop
+  fx list shows -- the same answer as ``len(layer.effects) > 0`` -- not
+  whether an effects tagged block exists. Backwards-incompatible: it turns
+  False on a layer whose block lists nothing (#318, #830, #831, #845)
+- [api] ``Layer.effects`` is a live view, re-read on every access instead of
+  frozen on the first. Backwards-incompatible: ``Effects.items`` hands out a
+  fresh list, and two accesses no longer yield the same effect objects, so an
+  effect held from one stops comparing equal to a later one (#831, #845)
+- [docs] Document ``GroupMixin`` and the ``psd_tools.api.protocols``
+  interfaces, which had no Sphinx anchor, so the annotations naming them --
+  the return type of ``Layer.parent`` among them -- now render as links
+  instead of plain text (#840, #848)
+- [fix] ``GroupMixin.extend()`` now walks its argument once. A generator added
+  nothing; ``dest.extend(src)`` kept only every other layer of ``src`` and lost
+  the rest; ``g.extend(g)`` never terminated; and a layer mentioned twice in
+  one call was added at two indices and saved that way. Such a layer now lands
+  once, at the position of its last mention (#820, #839)
+- [fix] ``PSDImage.create_group()`` no longer truth-tests ``layer_list``, which
+  rejected an iterable that refuses a truth test, such as a multi-element NumPy
+  array of layers (#820, #839)
+- [api] ``NumericElement`` now delegates ``as_integer_ratio()`` and
+  ``is_integer()`` to its value, so the ``statistics`` module works over
+  float-valued descriptor values such as ``UnitFloat`` where it used to raise
+  ``TypeError``, and ``Fraction()`` accepts one on Python 3.14. Neither member
+  is part of the ``numbers`` protocol (#837, #838)
+- [api] ``NumericElement`` and ``IntegerElement``, and so every descriptor
+  value built on them, now register as ``numbers.Real`` / ``numbers.Integral``
+  and implement the whole of that protocol. This is for runtime ``isinstance``
+  only; it buys nothing for type annotations (#834, #835)
+- [fix] Arithmetic between two elements, or with a non-float left operand, no
+  longer raises ``TypeError``. ``UnitFloat`` coerces its ``value`` to ``float``
+  again, and ``PixelAspectRatio`` compares equal to the value it holds and is
+  hashable (#834, #835)
+- [fix] Stop seeding a path-less layer's raster as fully covered when only a
+  pen (stroke) is requested. The reveal-all fill-rule seed describes a fill,
+  so a stroke over zero paths now comes back empty instead of covering the
+  whole layer. **Rendering change**, only reachable where a stroke sits on a
+  path-less reveal-all mask, which Photoshop does not author (#823, #832)
+- [fix] Skip an effect psd-tools cannot read out of a layer's effects block --
+  one whose effect class this version has no handler for, or a block that did
+  not parse at all -- rather than raising. Such a file renders without that
+  effect instead of not at all, where ``layer.effects`` and everything reached
+  through it, ``repr(layer)`` included, used to raise (#828, #829)
+- [fix] ``repr(layer)`` no longer raises when a layer's bounding box or
+  effects block cannot be read, and the compositor no longer builds a debug
+  message for every layer it visits when debug logging is off (#828, #829)
+- [fix] Skip a stroke or overlay effect whose descriptor cannot be read
+  instead of aborting the composite, and draw one whose position or paint type
+  is missing as the unrecognised value it cannot be told apart from. Only
+  reachable on files psd-tools did not write (#826, #827)
+- [fix] Composite a layer whose bounding box falls outside the viewport when a
+  stroke effect on it reaches back inside, instead of culling the layer and
+  losing the stroke with it. **Rendering change** wherever a layer sits off
+  the canvas, or off the box being composited, while its stroke does not
+  (#815, #825)
+- [fix] Stop a layer with no transparency channel from covering a viewport its
+  own bounding box does not reach, which painted every pixel of that viewport
+  opaque. Only reachable together with the stroke fix above, which is what
+  lets such a layer be composited on a viewport it misses (#815, #825)
+- [fix] Place a layer's vector stroke on the box being composited rather than
+  on the document canvas, where it could land away from the shape it outlines
+  or be clipped at the canvas edge. **Rendering change** for
+  ``layer.composite()`` and ``composite(viewport=...)``; ``psd.composite()``
+  is unaffected (#807, #822)
+- [api] ``composite.vector.draw_stroke()`` takes a ``viewport`` to rasterize
+  onto, defaulting to the document canvas as before (#807, #822)
+- [fix] Hiding or showing a group now invalidates the cached bounding box of
+  every group beneath it, not only of those above it. A nested group read
+  before an ancestor was hidden kept the box it had while visible, so both its
+  ``bbox`` and the viewport ``layer.composite()`` renders it on depended on the
+  order they were first read. ``psd.composite()`` was not affected (#819, #821)
+- [fix] Adding, moving or removing a layer now invalidates the cached bounding
+  box of every group above it, and of the document. A group edited through
+  ``append()``, ``extend()``, ``insert()``, ``remove()``, ``clear()``, ``pop()``
+  or item assignment kept reporting the ``bbox`` it had before the edit, as did
+  the group a layer was moved *out* of (#814, #818)
+- [fix] Moving a layer between documents, or reparenting a group, now
+  invalidates the cached bounding boxes *beneath* it as well as above: a
+  vector-mask-only shape rescales its bounds to the destination canvas, and a
+  reparented group's descendants no longer report the boxes they had under
+  their old parent (#814, #818)
+- [fix] Trace a stroke effect on a group from the group's own coverage,
+  composited again on the box the stroke draws on, rather than from the
+  compositor's clipped copy. **Rendering change** for a stroke on a group
+  whose contents reach past the viewport being composited on, where the
+  stroke followed that viewport's edge; the trace clips exactly as the
+  composite does, artboards included (#808, #817)
+- [fix] Composite a non-pass-through group on the box its contents paint
+  rather than on the union of their bounding boxes, so a child's outset or
+  centered stroke effect is no longer clipped away at the group's edge.
+  **Rendering change** for such a group; an artboard still clips its contents
+  to its frame, and ``group.composite()`` is unaffected, which is #797
+  (#808, #816)
+- [fix] Assigning to ``psd[i]`` or ``group[i]`` now replaces the layer at
+  that index instead of inserting the new one and keeping both.
+  **Behaviour change**; call ``insert()`` for the old behaviour. An
+  out-of-range index raises ``IndexError`` instead of appending, and a slice
+  raises ``TypeError`` on both assignment and deletion (#811)
+- [fix] Trace a stroke effect from the layer's own coverage, not from the
+  compositor's clipped copy of it. **Rendering change** for a layer that
+  reaches off the canvas and for a ``composite(viewport=...)`` narrower than
+  the layer, where the stroke followed the viewport edge; a vector mask now
+  rasterizes on the box asked for, shifting anti-aliasing by up to 1/255
+  (#804, #806)
+- [api] ``composite.vector.draw_vector_mask()`` takes a ``viewport`` to
+  rasterize onto, defaulting to the document canvas as before (#804, #806)
+- [fix] Draw nothing for a stroke effect of size 0 rather than raising. Only
+  a descriptor can carry one -- Photoshop's own UI will not author it (#805)
+- [fix] Draw an inset stroke effect as a band too, anchored where Photoshop
+  anchors it, and grant it the pixel of canvas it needs to find the layer's
+  edge -- on a layer whose pixels filled its bounding box it drew nothing at
+  all. **Rendering change** for any layer carrying an inset stroke (#799, #805)
+- [fix] Draw outset and centered stroke effects as a band in the layer's
+  distance field rather than a dilated edge, placing them where Photoshop does
+  on a hard-edged layer and no longer quantizing the width to whole pixels.
+  **Rendering change** for any layer carrying an outset or centered stroke; a
+  soft-edged one may land slightly further from Photoshop than before
+  (#799, #802)
+- [fix] Draw any stroke effect Photoshop can author without scikit-image
+  installed, as long as the fill is solid or a gradient. Pattern fills still
+  need it (#799, #802, #803, #805)
+- [fix] Trace every stroke effect from the layer. The second stroke on a layer
+  outlined the first stroke instead of the layer, which left its own ring
+  unpainted and painted over the first. **Rendering change** for a layer
+  carrying more than one stroke effect (#798, #801)
+- [fix] Draw a centered stroke effect at its full width. Every odd stroke size
+  fell one pixel short on each side of the layer edge, because the dilation
+  radius was truncated rather than rounded up. **Rendering change** for a layer
+  carrying a centered stroke of odd size (#792, #796)
+- [fix] Draw the part of an outset or centered stroke effect that falls outside
+  the layer, rather than clipping it to the layer's bounding box -- on a layer
+  whose pixels reach that box, the whole stroke was lost. **Rendering change**
+  for any layer carrying an outset or centered stroke (#792, #795)
+- [fix] Keep the 36 bytes Photoshop writes after a Hue/Saturation layer's six
+  range records instead of dropping them on write. Affects you if you re-save a
+  file whose Hue/Saturation layers were made by a recent Photoshop; without this
+  fix the saved block would shrink from 136 bytes to 100 (#645, #794)
+- [chore] Contributor tooling: ``CLAUDE.md`` is now the single source for the
+  changelog categories, and the release skill's milestone sweep is bounded by
+  the tag's timestamp rather than its date (#791, #800, #877, #878)
+- [chore] Bump dependencies: ruff to 0.16.7, cibuildwheel to 4.2.1
+  (#793, #809, #810, #843)
+
+1.19.0 (2026-09-02)
+-------------------
+
+- [api] Annotate ``PhotoFilter.xyz`` as ``tuple[int, ...] | None`` rather than
+  ``bool``, which it never returned -- a version 3 record holds three
+  coordinates and a version 2 record leaves it ``None``. Type-checker output
+  only; the runtime value is unchanged (#772, #787)
+- [docs] Stop five docstrings rendering interpreted escape sequences. The
+  ``psd_tools.compression.rle`` module docstring shipped a literal NUL byte and
+  a mojibake ``ÿ`` where its example wrote ``\x00`` and ``\xff``, which
+  ``help()`` rendered as such (#772, #787)
+- [fix] Correct ``Soft Light``, ``Vivid Light`` and ``Hard Mix``, which
+  disagreed with Photoshop in every colour mode, not only in CMYK where #189
+  reported it. **Rendering change** wherever those three are used (#189, #784)
+- [fix] Blend the six non-separable modes on a CMYK document the way Photoshop
+  does, instead of collapsing every one of them to a constant. **Rendering
+  change** for a CMYK document using ``Hue``, ``Saturation``, ``Color``,
+  ``Luminosity``, ``Darker Color`` or ``Lighter Color`` (#781)
+- [fix] Degrade those same six modes to ``Normal`` with a debug log on the
+  documents Photoshop does not offer them on -- grayscale, duotone,
+  multichannel, and any other width -- instead of raising or misreading the
+  channels. The six functions in ``psd_tools.composite.blend`` gain an
+  optional colour-mode argument from the new ``get_blend_func()``
+  (#735, #746)
+- [fix] Convert a single-channel *source* to the document's colour mode instead
+  of replicating it, as #722 already did for a backdrop. Affects a one-channel
+  source in a CMYK or Lab document (#749, #776, #777)
+- [security] Size the ``max_alloc_bytes`` guard against what ``numpy()`` and
+  ``topil()`` peak at rather than the array they return -- up to 3.7x the old
+  estimate. Re-check a tuned budget -- ``max_alloc_bytes`` or
+  ``$PSD_TOOLS_MAX_ALLOC_BYTES`` -- since it admits and rejects different
+  documents in both directions (#767)
+- [fix] Read and write a 1-bit (Bitmap mode) document at the row stride the
+  format uses. ``numpy()`` and ``composite(ignore_preview=True)`` raised
+  ``ValueError`` at most widths, and re-encoding sheared the image by a byte a
+  row (#768)
+- [fix] Return a 1-bit document the right way round; a set bit is black in
+  Bitmap mode, so ``numpy()`` and ``composite()`` rendered every such document
+  as its own negative (#768)
+- [fix] Replace an undecodable 1-bit channel with black rather than raising
+  ``RuntimeError``, as every other depth already did (#768)
+- [fix] Give the ``max_alloc_bytes`` estimate a depth term, so a 1-bit document
+  can no longer allocate eight times its budget (GHSA-8q6g-vjhf-jp8m).
+  ``_safe_zlib_decompress()`` now enforces the ceiling it documents, and
+  :py:func:`psd_tools.compression.decompressed_size_bound` is public. The
+  depth-1 arithmetic itself is superseded later in this release, at source by
+  #768 and on both image-data paths by #767 (#737, #769)
+- [fix] Replace a failed channel with exactly the byte count it declares. The
+  substituted black fill picked its PIL mode from the depth, so a 16-bit
+  channel came back double-width (#737, #769)
+- [fix] Split a pattern's alpha off by its slot layout rather than by its
+  colour mode, so a multichannel-mode pattern composites instead of raising
+  ``AssertionError`` -- as does any pattern storing fewer colour planes than
+  its mode implies. Rendering is unchanged for every pattern layout in the
+  corpus and in the patterns Photoshop ships (#741)
+- [fix] Convert a CMYK fill descriptor through ink space, so it no longer
+  renders black on every non-CMYK document. A CMYK document was unaffected
+  (#763, #765)
+- [fix] Clamp a fill descriptor's colour components, so an out-of-range value
+  saturates instead of corrupting anything that blends it first -- a layer
+  effect, a partial alpha, an anti-aliased edge. Hue still wraps, being an
+  angle, and :py:func:`psd_tools.color_convert.hsb_to_rgb` is now total
+  (#757, #764)
+- [fix] Read a 32-bit document with transparency through
+  :py:meth:`~psd_tools.api.psd_image.PSDImage.numpy` and
+  :py:func:`psd_tools.composite.composite`, which raised ``ValueError:
+  assignment destination is read-only``. Costs one extra array on 32-bit
+  documents, matching the other depths; ``topil()`` was unaffected (#738)
+- [fix] Convert a scalar backdrop to the document's colour mode instead of
+  broadcasting it; a per-channel sequence is still passed through as given. On
+  a Lab document this was the default backdrop, and on CMYK any scalar but
+  ``1.0`` was an over-inked build (#753)
+- [fix] Stop ``composite()`` shifting both chroma planes of a Lab document by
+  128, which affected every Lab document and disagreed with ``topil()`` on the
+  same file. ``numpy()`` was never affected (#759)
+- [fix] Size and interpret a colour-noise gradient from the document rather
+  than its descriptor. It raised ``AssertionError`` on any document that is not
+  three channels, and rendered an HSB or Lab gradient's colours wrongly
+  everywhere. No gradient that rendered correctly changed value (#730, #758)
+- [fix] Read an HSB fill colour's hue as degrees rather than dividing by 300,
+  so every non-zero hue is no longer rotated and hue 360 no longer renders
+  white (#754)
+- [fix] Convert a Lab fill colour across colour modes instead of passing the
+  numbers through, in both directions. ``psd_tools.color_convert`` gains
+  :py:func:`~psd_tools.color_convert.lab_to_rgb` and
+  :py:func:`~psd_tools.color_convert.rgb_to_lab` (D50, Bradford-adapted sRGB)
+  and a reference page. **Backwards incompatible** in what it renders, for two
+  cases no Photoshop file can contain (#743, #752)
+- [fix] Read a Lab fill colour with the right divisor for each component --
+  all three were divided by 255 -- which was out by up to 155/255. Affects
+  fills authored with a Lab colour on a Lab document, which is how Pantone and
+  other book colours arise (#743)
+- [fix] Convert rather than replicate when a single-channel canvas is widened
+  to a CMYK or Lab document. CMYK now transforms through the document's
+  embedded ICC profile, falling back to the K-only formula when there is none;
+  RGB is unchanged and multichannel keeps replicating. Reachable through a
+  grayscale pattern fill (#722)
+- [fix] Stop cross-mode fills writing ink-space CMYK into an inverted canvas: a
+  white fill on a CMYK document composited to solid black. Affects fills
+  authored from an RGB, grayscale, HSB or Lab descriptor.
+  ``psd_tools.color_convert`` is unchanged, its ink-space contract being public
+  API (#747)
+- [fix] Let a per-channel colour be set on a multichannel document, and make
+  ``PSDImage.new("MULTICHANNEL", ...)`` satisfiable; the validator demanded 64
+  components (#731, #742)
+- [fix] Size a fill from the document rather than its descriptor, so a colour
+  class that does not match the document's mode no longer fires the
+  compositor's width assertion -- or, for HSB, raises ``ValueError`` on every
+  mode but RGB and CMYK. No colour that already rendered changed value
+  (#730, #742)
+- [fix] Stop ``composite_pil()`` declaring a PIL mode its pixel array does not
+  match. Multichannel and bitmap documents came back garbled, and bitmap, CMYK
+  and Lab raised under ``force`` -- ``force=True`` on CMYK now returns the same
+  ``"RGBA"`` as ``force=False``. Dropped channels are now warned about; use
+  :py:func:`psd_tools.composite.composite` to keep them. Also removes the
+  ``Image.fromarray()`` spelling Pillow removes in 13 (#729)
+- [fix] Correct pass-through group compositing when the group opacity is below
+  255. The group's contribution was blended against the backdrop twice, so the
+  output varied with nesting depth (#703, #706)
+- [fix] Detect the real user mask header from the channel list rather than by
+  record length alone, so ``user_mask_density``, ``user_mask_feather``,
+  ``vector_mask_density`` and ``vector_mask_feather`` no longer return ``None``
+  for affected files (#693, #704)
+- [fix] Report ``(0, 0)`` from ``LayerRecord.channel_sizes()`` for a mask
+  channel whose record carries no mask block, instead of raising
+  ``AttributeError`` -- reachable only from a malformed record.
+  ``LayerRecord.mask_data`` is annotated ``MaskData | None``, not ``object``
+  (#705)
+- [fix] Accept every scalar spelling of the composite backdrop; ``color=1`` and
+  ``color=np.float32(1.0)`` raised ``TypeError`` (#708, #709)
+- [fix] Recognise a transparent backdrop given as a NumPy scalar, a 0-d array,
+  or a per-pixel array of zeros, which was treated as opaque and whitened every
+  uncovered pixel (#708)
+- [fix] Reject a multi-channel backdrop ``alpha``, which reached
+  ``composite_pil()`` and built an image of the wrong width (#708)
+- [fix] Composite over a single-channel backdrop array in a multi-channel
+  document; one with no source layer to apply kept a one-channel canvas and
+  raised (#710)
+- [fix] Reject a backdrop whose channel count is neither 1 nor the document's,
+  rather than surfacing a NumPy broadcast error from inside the blend
+  arithmetic (#710)
+- [fix] Composite a multichannel document, with layers or without.
+  ``EXPECTED_CHANNELS`` reports 64 -- the format's maximum, not the file's
+  count -- so the canvas was built 64 wide and raised. ``PSDImage.composite()``
+  still keeps only the first spot channel (#708, #720)
+- [fix] Never let the ``max_alloc_bytes`` estimate in ``composite()`` fall
+  below the canvas it guards; an indexed document's was under-counted
+  threefold. May reject a document a very tight budget previously admitted
+  (#720, #732)
+- [fix] Never let the ``max_alloc_bytes`` estimate in ``numpy()`` fall below
+  the array it guards, for the same indexed-palette reason, and stop it
+  over-estimating ``numpy("mask")`` and ``numpy("shape")``. May reject an
+  8-bit indexed document a very tight budget previously admitted (#732)
+- [fix] Composite duotone documents at their stored single grayscale channel
+  rather than the ``EXPECTED_CHANNELS`` ink count of 2. ``composite()``
+  returned a channel of copied backdrop, ``composite(force=True)`` returned
+  wrong pixels, and seven blend modes raised ``IndexError`` (#733)
+- [fix] Read the alpha channel of a duotone document as alpha; it was returned
+  as colour data from ``numpy("color")`` while ``has_transparency()`` reported
+  ``False``. No fixture has this shape (#733)
+- [api] ``PSDImage.new("DUOTONE", ...)`` now accepts a colour, having rejected
+  every sequence. **Backwards incompatible**: a per-channel
+  ``background_color`` on a duotone document takes one component instead of
+  two -- pass ``(0.5,)`` or a scalar. The second was inert (#733)
+- [api] Widen the ``color`` parameter of ``composite()``, ``composite_pil()``,
+  ``Layer/Group/Artboard/PSDImage.composite()``, ``LayerProtocol`` and
+  ``PSDProtocol`` from ``tuple[float, ...]`` to ``Sequence[float]``, matching
+  what is accepted at runtime. **Backwards incompatible**: a per-channel
+  backdrop whose length disagrees with the colour mode now raises
+  ``ValueError`` instead of being silently reduced to its first channel (#708)
+- [fix] Apply a pattern overlay effect to a single-channel layer in a
+  multi-channel document, which was rejected with ``AssertionError:
+  Inconsistent pattern channels.`` (#711)
+- [fix] Apply a stroke layer effect to a layer that has no mask, which raised
+  ``AttributeError: 'float' object has no attribute 'shape'``. Reachable for a
+  fill layer with no vector mask (#711)
+- [fix] Implement Knockout compositing, previously rendered as if the setting
+  were absent, and distinguish shallow from deep via the new
+  ``psd_tools.constants.Knockout`` enum. **Backwards incompatible**: documents
+  combining Knockout with a fill opacity below 100% render differently (#707)
+- [chore] Bump dependencies: ruff to 0.16.4, mypy to 2.3.1, pre-commit to
+  4.6.2, cibuildwheel to 4.2.0, tornado to 6.5.8; relock scikit-image to
+  0.26.0 for Python 3.11+ (#696, #698, #699, #700, #701, #702, #780)
+
 1.18.0 (2026-08-07)
 -------------------
 

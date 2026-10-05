@@ -16,6 +16,7 @@ from .color_mode_data import ColorModeData
 from .header import FileHeader
 from .image_data import ImageData
 from .image_resources import ImageResources
+from .parse_limits import ParseLimits, parse_context
 from .layer_and_mask import (
     LayerAndMaskInformation,
     LayerInfo,
@@ -75,17 +76,23 @@ class PSD(BaseElement):
 
     @classmethod
     def read(
-        cls: type[T], fp: IO[bytes], encoding: str = "macroman", **kwargs: Any
+        cls: type[T],
+        fp: IO[bytes],
+        encoding: str = "macroman",
+        parse_limits: ParseLimits | None = None,
+        **kwargs: Any,
     ) -> T:
-        header = FileHeader.read(fp)
-        logger.debug("read %s" % header)
-        return cls(
-            header,
-            ColorModeData.read(fp),
-            ImageResources.read(fp, encoding),
-            LayerAndMaskInformation.read(fp, encoding, header.version),
-            ImageData.read(fp),
-        )
+        """Read a document with shared structural parsing limits."""
+        with parse_context(parse_limits):
+            header = FileHeader.read(fp)
+            logger.debug("read %s" % header)
+            return cls(
+                header,
+                ColorModeData.read(fp),
+                ImageResources.read(fp, encoding),
+                LayerAndMaskInformation.read(fp, encoding, header.version),
+                ImageData.read(fp),
+            )
 
     def write(self, fp: IO[bytes], encoding: str = "macroman", **kwargs: Any) -> int:
         logger.debug("writing %s" % self.header)

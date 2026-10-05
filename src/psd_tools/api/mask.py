@@ -42,7 +42,7 @@ from PIL import Image
 
 from psd_tools.api.protocols import LayerProtocol, MaskProtocol
 from psd_tools.constants import ChannelID
-from psd_tools.psd.layer_and_mask import MaskData, MaskFlags
+from psd_tools.psd.layer_and_mask import MaskData, MaskFlags, MaskParameters
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,7 @@ class Mask(MaskProtocol):
 
     @property
     def bbox(self) -> tuple[int, int, int, int]:
-        """BBox"""
+        """BBox."""
         return self.left, self.top, self.right, self.bottom
 
     @property
@@ -140,7 +140,7 @@ class Mask(MaskProtocol):
     @disabled.setter
     def disabled(self, value: bool) -> None:
         self._data.flags.mask_disabled = value
-        self._layer._psd._mark_updated()
+        self._layer._psd.mark_updated()
 
     @property
     def flags(self) -> MaskFlags:
@@ -148,7 +148,7 @@ class Mask(MaskProtocol):
         return self._data.flags
 
     @property
-    def parameters(self) -> Any:
+    def parameters(self) -> MaskParameters | None:
         """Parameters."""
         return self._data.parameters
 
@@ -163,7 +163,11 @@ class Mask(MaskProtocol):
         return self._data
 
     def has_real(self) -> bool:
-        """Return True if the mask has real flags."""
+        """Return True if ``real_flags`` is present with ``parameters_applied`` set.
+
+        The real mask channel is read only then; a record with the bit clear
+        does not count.
+        """
         return self.real_flags is not None and self.real_flags.parameters_applied
 
     def topil(
