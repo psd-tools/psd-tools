@@ -220,7 +220,7 @@ def get_image_data(psdimage: "PSDProtocol", channel: str | None) -> np.ndarray:
     if flat:
         return np.ones((psdimage.height, psdimage.width, 1), dtype=np.float32)
 
-    lut = None
+    lut: np.ndarray | None = None
     if psdimage.color_mode == ColorMode.INDEXED:
         lut = np.frombuffer(psdimage._record.color_mode_data.value, np.uint8)
         lut = lut.reshape((3, -1)).transpose()
