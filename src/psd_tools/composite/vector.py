@@ -64,7 +64,9 @@ _RIDGE_DROP = 0.5
 
 @require_aggdraw
 def draw_stroke(
-    layer: "Layer", viewport: tuple[int, int, int, int] | None = None
+    layer: "Layer",
+    viewport: tuple[int, int, int, int] | None = None,
+    path: np.ndarray | None = None,
 ) -> np.ndarray:
     """
     Draw a stroke.
@@ -75,6 +77,9 @@ def draw_stroke(
     placed in document coordinates either way, so the stroke lands where the
     fill it outlines already is, and the part of it that falls off the canvas
     is real coverage rather than something to be clipped away (#807).
+
+    ``path`` is the layer's :py:func:`draw_vector_mask` on ``viewport``, for a
+    caller that has it already.
 
     A stroke sits on the side of the path its ``strokeStyleLineAlignment``
     names. A pen is only ever drawn centred on the line it follows, so an
@@ -141,7 +146,7 @@ def draw_stroke(
     # the path and an exact comparison would hand one of those the full width
     # of the pen. ``_ROUNDING`` sits in the gap between that trace and the
     # smallest coverage a path really does state.
-    fill = draw_vector_mask(layer, viewport)
+    fill = draw_vector_mask(layer, viewport) if path is None else path
     inside = fill > _ROUNDING if inner else fill < 1.0 - _FULL_ROUNDING
     if inner:
         outline = _solid_inner_band(layer, outline, width, viewport, near)

@@ -1939,7 +1939,8 @@ class Compositor(object):
 
         if self._has_redrawn_stroke(layer):
             assert layer.stroke is not None
-            color_s, shape_s, alpha_s = self._get_stroke(layer)
+            path = None if fill_off else vector.draw_vector_mask(layer, self._viewport)
+            color_s, shape_s, alpha_s = self._get_stroke(layer, path)
             # An inner stroke stays inside the path, so with the fill off the
             # path's own coverage is the bound.
             inner = layer.stroke.line_alignment is StrokeAlignment.INNER
@@ -1950,7 +1951,7 @@ class Compositor(object):
                 return color_s, shape * 0.0, alpha * 0.0, (shape_s, alpha_s)
             # What the fill covers of the path. An inner stroke keeps the
             # fill's own alpha, so the stroke is painted onto it whole (#883).
-            path = vector.draw_vector_mask(layer, self._viewport)
+            assert path is not None
             covered = alpha if inner else alpha * path
             compositor = Compositor(
                 self._viewport,
@@ -2126,7 +2127,9 @@ class Compositor(object):
         opacity = layer.opacity / 255.0
         return float(shape), opacity
 
-    def _get_stroke(self, layer: Layer) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def _get_stroke(
+        self, layer: Layer, path: np.ndarray | None = None
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Get stroke source.
 
         The fill is drawn on the layer's box grown by the stroke width and
@@ -2176,7 +2179,7 @@ class Compositor(object):
                 "Unsupported stroke fill descriptor in layer strokeStyleContent"
             )
         color = paste(self._viewport, fill_bbox, color, 1.0)
-        shape = vector.draw_stroke(layer, self._viewport)
+        shape = vector.draw_stroke(layer, self._viewport, path)
         opacity = desc.get("strokeStyleOpacity", 100.0) / 100.0
         alpha = shape * opacity
         return color, shape, alpha
