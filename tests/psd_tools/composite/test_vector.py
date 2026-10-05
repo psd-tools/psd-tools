@@ -1127,3 +1127,27 @@ def test_an_open_subpath_is_stroked_wherever_the_silhouette_is() -> None:
     assert gated[line, 20:80].max(axis=0).min() > 0.4, "the open line was gated away"
     assert np.count_nonzero(ungated[off_line]) > 0, "no closed outline to gate"
     assert np.count_nonzero(gated[off_line]) == 0
+
+
+@pytest.mark.parametrize("open_subpath", [False, True])
+def test_the_solid_inner_band_leaves_a_layer_with_an_open_subpath_alone(
+    open_subpath: bool,
+) -> None:
+    """The fill closes an open subpath, so its boundary is not the pen's (#890)."""
+    psd, layer = _nested_component(True)
+    if open_subpath:
+        setting = layer.tagged_blocks.get_data(Tag.VECTOR_MASK_SETTING1)
+        start, end = (0.2, 0.1), (0.2, 0.9)  # (y, x) fractions
+        setting.path._items.append(
+            OpenPath(
+                items=[
+                    OpenKnotLinked(start, start, start),  # type: ignore[list-item]
+                    OpenKnotLinked(end, end, end),  # type: ignore[list-item]
+                ],
+                operation=1,
+                index=0,
+            )
+        )
+    blank = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
+    band = vector._solid_inner_band(layer, blank, 4.0, (0, 0, psd.width, psd.height))
+    assert band.any() is not open_subpath

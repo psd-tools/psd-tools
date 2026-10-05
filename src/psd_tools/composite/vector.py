@@ -179,8 +179,13 @@ def _solid_inner_band(
 
     The doubled pen cancels itself where the shape is thinner than it (#890);
     the pen keeps the band's own edge. Nothing outside the layer's box is
-    inside the shape, so only that part of the viewport is measured.
+    inside the shape, so only that part of the viewport is measured. The fill
+    closes an open subpath that the pen leaves open, so its boundary would grow
+    a stroke along the missing edge; such a layer keeps the pen alone.
     """
+    assert layer.vector_mask is not None
+    if any(len(path) > 1 and not path.is_closed() for path in layer.vector_mask.paths):
+        return outline
     if viewport is None:
         viewport = layer._psd.viewbox
     left, top, right, bottom = layer.bbox
