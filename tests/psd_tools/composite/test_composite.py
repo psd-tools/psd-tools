@@ -2694,3 +2694,49 @@ def test_effect_blend_mode_written_as_a_long_name_is_applied(
     assert image is not None
     pixel = image.convert("RGB").getpixel((layer.width // 2, layer.height // 2))
     assert pixel == pytest.approx(expected, abs=1)
+
+
+def _blank_compositor(psd: PSDImage) -> Compositor:
+    x0, y0, x1, y1 = psd.viewbox
+    height, width = y1 - y0, x1 - x0
+    return Compositor(
+        psd.viewbox,
+        np.zeros((height, width, 3), dtype=np.float32),
+        np.zeros((height, width, 1), dtype=np.float32),
+    )
+
+
+def test_mask_equal_to_shape_channel_is_not_applied_twice() -> None:
+    psd = PSDImage.open(full_name("clipping-mask2.psd"))
+    layer = next(x for x in psd.descendants() if x.name == "Polygon 1")
+    compositor = _blank_compositor(psd)
+
+    assert compositor._mask_repeats_shape(layer)
+    assert compositor._get_mask(layer) == 1.0
+    shape = layer.numpy("shape")
+    assert shape is not None
+    source = compositor._resolve_source(layer)
+    # ``viewbox`` starts at the origin, so the layer's pixel (x, y) sits at
+    # ``shape[y - bbox.top, x - bbox.left]``.
+    left, top = layer.bbox[:2]
+    assert source.shape[491, 167, 0] == pytest.approx(shape[491 - top, 167 - left, 0])
+
+
+def test_mask_differing_from_shape_channel_in_one_pixel_is_applied(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    psd = PSDImage.open(full_name("clipping-mask2.psd"))
+    layer = next(x for x in psd.descendants() if x.name == "Polygon 1")
+    compositor = _blank_compositor(psd)
+    original = type(layer).numpy
+
+    def numpy(self: Layer, channel: str = "color", **kwargs: Any) -> Any:
+        array = original(self, channel, **kwargs)
+        if self is layer and channel == "mask" and array is not None:
+            array = array.copy()
+            array[-1, -1] = 1.0  # the corner the layer does not cover
+        return array
+
+    monkeypatch.setattr(type(layer), "numpy", numpy)
+    assert not compositor._mask_repeats_shape(layer)
+    assert isinstance(compositor._get_mask(layer), np.ndarray)

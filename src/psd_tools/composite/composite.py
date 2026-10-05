@@ -10,7 +10,13 @@ import numpy as np
 from PIL import Image
 
 from psd_tools.api import numpy_io, pil_io
-from psd_tools.api.layers import AdjustmentLayer, Artboard, GroupMixin, Layer
+from psd_tools.api.layers import (
+    AdjustmentLayer,
+    Artboard,
+    GroupMixin,
+    Layer,
+    PixelLayer,
+)
 from psd_tools.api.protocols import LayerProtocol, PSDProtocol
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.api.utils import check_growth, check_pixel_size, get_color_channels
@@ -1966,6 +1972,39 @@ class Compositor(object):
         # that seed -- the clipped layers paint onto the base layer's color.
         return compositor.result_over_backdrop()
 
+    def _mask_repeats_shape(self, layer: Layer) -> bool:
+        """Whether the mask is the stored shape channel again, pixel for pixel.
+
+        Applying it would square the layer's edge coverage (#885). A pixel
+        layer is left out: its mask is a user's, whatever it was made from.
+        """
+        mask = layer.mask
+        if (
+            mask is None
+            or isinstance(layer, PixelLayer)
+            or self._force
+            or not layer.has_pixels()
+            or mask.has_real()
+            or mask.bbox != layer.bbox
+        ):
+            return False
+        if mask.parameters and any(
+            d not in (None, 255)
+            for d in (
+                mask.parameters.user_mask_density,
+                mask.parameters.vector_mask_density,
+            )
+        ):
+            return False
+        shape = layer.numpy("shape")
+        stored = layer.numpy("mask", real_mask=True)
+        return (
+            shape is not None
+            and stored is not None
+            and shape.shape == stored.shape
+            and bool(np.array_equal(shape, stored))
+        )
+
     def _get_mask(
         self,
         layer: Layer,
@@ -1985,7 +2024,11 @@ class Compositor(object):
         if viewport is None:
             viewport = self._viewport
         shape: float | np.ndarray = 1.0
-        if layer.mask is not None and not layer.mask.disabled:
+        if (
+            layer.mask is not None
+            and not layer.mask.disabled
+            and not self._mask_repeats_shape(layer)
+        ):
             # TODO: When force, ignore real mask.
             mask = layer.numpy("mask", real_mask=not self._force)
             if mask is not None:
