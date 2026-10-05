@@ -1,6 +1,7 @@
 import logging
 
 import sys
+from typing import Any
 
 import numpy as np
 import pytest
@@ -410,18 +411,13 @@ def test_a_centred_stroke_survives_negative_document_coordinates() -> None:
     assert np.allclose(wide[4:68, 4:68], on_canvas, atol=1 / 255)
 
 
-def test_an_inner_stroke_wider_than_the_shape_cancels_itself() -> None:
-    """The limit of drawing a sided band with a pen of twice the width (#854).
+def test_an_inner_stroke_wider_than_half_the_shape_has_no_hole() -> None:
+    """The doubled pen cancels itself where the shape is thin; the band is filled (#890).
 
-    The pen is one outline filled by the even-odd rule, so where the shape is
-    thinner than the doubled width the band overlaps itself and cancels. On a
-    100x100 path an inner stroke of width ``w`` leaves a square hole of side
-    ``2w - 100`` once ``w`` passes 50, where Photoshop paints solid.
-
-    A centred pen leaves a larger hole over this range, which the loop below
-    pins. Both are wrong. Pinned so the limit is a decision rather than a
-    surprise (#890).
+    On a 100x100 path the pen alone leaves a hole of side ``2w - 100`` once
+    ``w`` passes 50, where Photoshop paints solid.
     """
+    pytest.importorskip("scipy.ndimage")
     psd = PSDImage.open(full_name("effects/stroke-composite.psd"))
     layer = [x for x in psd.descendants() if x.name == "Plain"][0]
     assert layer.stroke is not None and layer.stroke.line_alignment == "inner"
@@ -432,22 +428,15 @@ def test_an_inner_stroke_wider_than_the_shape_cancels_itself() -> None:
     assert float(fill.sum()) == 10000.0, "a 100x100 path"
     solid = fill > 0.5
 
-    def hole(width: float) -> int:
+    def band(width: float) -> np.ndarray:
         desc[b"strokeStyleLineWidth"] = UnitFloat(value=width, unit=unit)
-        band = vector.draw_stroke(layer, viewport)[:, :, 0]
-        return int((solid & (band < 0.5)).sum())
+        return vector.draw_stroke(layer, viewport)[:, :, 0]
 
-    # Half the thickness is the widest band the doubled pen draws whole.
-    assert hole(50.0) == 0
-    assert hole(60.0) == 20 * 20
-    assert hole(90.0) == 80 * 80
-    # A centred pen of the same width leaves more uncovered.
-    for width in (50.0, 60.0):
-        desc[b"strokeStyleLineWidth"] = UnitFloat(value=width, unit=unit)
-        centred = vector._draw_path(
-            layer, pen={"color": 255, "width": width}, viewport=viewport
-        )[:, :, 0]
-        assert int((solid & (centred < 0.5)).sum()) > hole(width)
+    for width in (50.0, 60.0, 90.0, 120.0):
+        assert int((solid & (band(width) < 0.5)).sum()) == 0
+
+    # Narrower than that the pen still draws the band's own edge.
+    assert float(band(10.0)[solid].sum()) == pytest.approx(10000.0 - 80 * 80, rel=0.02)
 
 
 def test_an_inner_stroke_stops_where_the_path_does() -> None:
@@ -1140,3 +1129,234 @@ def test_an_open_subpath_is_stroked_wherever_the_silhouette_is() -> None:
     assert gated[line, 20:80].max(axis=0).min() > 0.4, "the open line was gated away"
     assert np.count_nonzero(ungated[off_line]) > 0, "no closed outline to gate"
     assert np.count_nonzero(gated[off_line]) == 0
+
+
+def _with_open_line(layer: Layer) -> None:
+    """Add a zero-area open subpath, far from the rest of the path."""
+    start, end = (0.7, 0.1), (0.7, 0.9)  # (y, x) fractions
+    _append_open(layer, [start, end])
+
+
+def _append_open(layer: Layer, points: list[tuple[float, float]]) -> None:
+    """Add an open subpath through ``points``, (y, x) fractions, to the path."""
+    setting = next(
+        data
+        for key in (Tag.VECTOR_MASK_SETTING1, Tag.VECTOR_MASK_SETTING2)
+        if (data := layer.tagged_blocks.get_data(key)) is not None
+    )
+    knots: list[Any] = [OpenKnotLinked(p, p, p) for p in points]
+    setting.path._items.append(OpenPath(items=knots, operation=1, index=0))
+
+
+def test_an_open_subpath_does_not_disable_the_solid_inner_band() -> None:
+    """The open line is no boundary, and the closed shape is still repaired (#890)."""
+    pytest.importorskip("scipy.ndimage")
+    psd = PSDImage.open(full_name("effects/stroke-composite.psd"))
+    layer = [x for x in psd.descendants() if x.name == "Plain"][0]
+    assert layer.stroke is not None
+    _with_open_line(layer)
+    desc = layer.stroke._data
+    desc[b"strokeStyleLineWidth"] = UnitFloat(
+        value=60.0, unit=desc[b"strokeStyleLineWidth"].unit
+    )
+    viewport = (12, 11, 130, 129)
+    solid = vector.draw_vector_mask(layer, viewport)[:, :, 0] > 0.5
+    assert solid.sum() == 10000
+    band = vector.draw_stroke(layer, viewport)[:, :, 0]
+    assert int((solid & (band < 0.5)).sum()) == 0
+
+
+def test_the_solid_inner_band_ignores_the_closing_edge_of_an_open_subpath() -> None:
+    """The fill closes an open subpath that the pen leaves open (#890)."""
+    pytest.importorskip("scipy.ndimage")
+    psd, layer = _nested_component(True)
+    _with_open_line(layer)
+    # Three sides of a rectangle: the fill closes the fourth, the pen does not.
+    _append_open(layer, [(0.85, 0.1), (0.85, 0.9), (0.97, 0.9), (0.97, 0.1)])
+    blank = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
+    band = vector._solid_inner_band(layer, blank, 4.0, (0, 0, psd.width, psd.height))
+    top, bottom = int(0.85 * psd.height), int(0.97 * psd.height)
+    assert not band[top:bottom].any(), "the open rectangle's area is no shape"
+    assert band.any(), "the closed shapes are repaired"
+
+
+@pytest.mark.parametrize("width", [2.0, 1.9])
+def test_the_solid_inner_band_covers_a_shape_thinner_than_a_pixel_margin(
+    width: float, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A 3x3 square under a width of 2 or a little less is covered through (#890)."""
+    pytest.importorskip("scipy.ndimage")
+    psd, layer = _nested_component(True)
+
+    def mask(layer: Layer, **kwargs: Any) -> np.ndarray:
+        viewport = kwargs["viewport"]
+        out = np.zeros((viewport[3] - viewport[1], viewport[2] - viewport[0], 1))
+        left, top = -viewport[0], -viewport[1]  # document origin in the array
+        out[top + 50 : top + 53, left + 60 : left + 63] = 1.0
+        return out
+
+    monkeypatch.setattr(vector, "_draw_path", mask)
+    blank = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
+    band = vector._solid_inner_band(layer, blank, width, (0, 0, psd.width, psd.height))
+    # The distance is two-sided; the caller clips the band to the inside.
+    assert band[50:53, 60:63].min() == 1.0
+
+
+def test_the_solid_inner_band_gives_way_to_the_allocation_budget() -> None:
+    """The repair is optional, so a budget it cannot fit leaves the pen alone (#890)."""
+    pytest.importorskip("scipy.ndimage")
+    psd, layer = _nested_component(True)
+    viewport = (0, 0, psd.width, psd.height)
+    blank = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
+    assert vector._solid_inner_band(layer, blank.copy(), 4.0, viewport).any()
+    psd._max_alloc_bytes = psd.width * psd.height * 16
+    assert not vector._solid_inner_band(layer, blank, 4.0, viewport).any()
+
+
+@pytest.mark.parametrize("operation", [2, 3])
+def test_an_open_only_component_runs_no_operation_on_the_repair_mask(
+    operation: int,
+) -> None:
+    """A component with no closed subpath is skipped, not applied as empty (#890)."""
+    pytest.importorskip("scipy.ndimage")
+    psd, layer = _nested_component(True)
+    _append_open(layer, [(0.85, 0.1), (0.85, 0.9), (0.97, 0.9), (0.97, 0.1)])
+    setting = next(
+        data
+        for key in (Tag.VECTOR_MASK_SETTING1, Tag.VECTOR_MASK_SETTING2)
+        if (data := layer.tagged_blocks.get_data(key)) is not None
+    )
+    setting.path._items[-1].operation = operation
+    blank = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
+    band = vector._solid_inner_band(layer, blank, 4.0, (0, 0, psd.width, psd.height))
+    assert band.any(), "the closed shapes are still repaired"
+
+
+def _rectangle_mask(box: tuple[int, int, int, int]) -> Any:
+    """A ``_draw_path`` stand-in covering ``box``, document coordinates, whole."""
+
+    def mask(layer: Layer, **kwargs: Any) -> np.ndarray:
+        viewport = kwargs["viewport"]
+        out = np.zeros((viewport[3] - viewport[1], viewport[2] - viewport[0], 1))
+        x0, y0, x1, y1 = box
+        out[
+            y0 - viewport[1] : y1 - viewport[1], x0 - viewport[0] : x1 - viewport[0]
+        ] = 1
+        return out
+
+    return mask
+
+
+@pytest.mark.parametrize(
+    ("box", "width", "middle"),
+    [
+        ((32, 50, 72, 53), 1.0, 0.0),
+        ((32, 50, 72, 53), 1.25, 0.5),
+        ((60, 50, 63, 53), 1.0, 0.0),
+        ((60, 50, 63, 53), 1.5, 1.0),
+    ],
+)
+def test_the_solid_inner_band_leaves_a_ridge_the_stroke_has_not_reached(
+    box: tuple[int, int, int, int],
+    width: float,
+    middle: float,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A ridge fills as the band reaches it, not before, on shapes that never cancel (#890)."""
+    pytest.importorskip("scipy.ndimage")
+    psd, layer = _nested_component(True)
+    monkeypatch.setattr(vector, "_draw_path", _rectangle_mask(box))
+    blank = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
+    band = vector._solid_inner_band(layer, blank, width, (0, 0, psd.width, psd.height))
+    x0, y0, x1, y1 = box
+    centre = band[y0 + 1, (x0 + x1) // 2, 0]
+    assert centre == pytest.approx(middle)
+
+
+def test_the_solid_inner_band_does_not_double_a_slanted_corner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A weak distance maximum at a slanted corner is not a ridge (#890)."""
+    pytest.importorskip("scipy.ndimage")
+    psd, layer = _nested_component(True)
+    rows, cols = np.mgrid[0 : psd.height, 0 : psd.width]
+    x, y = cols + 0.5, rows + 0.5
+    slope = (x - 30) / 3.0
+    shape = (x >= 30) & (x <= 72) & (y >= 46 + slope) & (y <= 86 + slope)
+
+    def parallelogram(layer: Layer, **kwargs: Any) -> np.ndarray:
+        left, top, right, bottom = kwargs["viewport"]
+        return shape[top:bottom, left:right, None].astype(np.float64)
+
+    monkeypatch.setattr(vector, "_draw_path", parallelogram)
+    width = 1.75
+    viewport = (0, 0, psd.width, psd.height)
+    blank = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
+    band = vector._solid_inner_band(layer, blank, width, viewport)
+    # The acute corner pixel is 2 from the outside, level with its x neighbours, so no ridge.
+    assert band[48, 32, 0] == pytest.approx(width + 1.0 - 2.0)
+
+
+def test_the_solid_inner_band_does_not_depend_on_the_viewport() -> None:
+    """A crop is the same crop of the full render, edge pixels included (#890)."""
+    pytest.importorskip("scipy.ndimage")
+    psd = PSDImage.open(full_name("effects/stroke-composite.psd"))
+    layer = [x for x in psd.descendants() if x.name == "Plain"][0]
+    full = (0, 0, psd.width, psd.height)
+    left, top, right, bottom = layer.bbox
+    # A window across the top edge, one pixel tall inside the shape.
+    window = (left + 40, top, left + 60, top + 3)
+    whole = vector._solid_inner_band(
+        layer, np.zeros((psd.height, psd.width, 1), np.float32), 1.5, full
+    )
+    crop = vector._solid_inner_band(
+        layer, np.zeros((3, 20, 1), np.float32), 1.5, window
+    )
+    assert np.array_equal(crop, whole[top : top + 3, left + 40 : left + 60])
+
+
+def test_the_solid_inner_band_stays_within_the_silhouette_gate() -> None:
+    """The repair does not restore what the gate dropped (#889, #890)."""
+    pytest.importorskip("scipy.ndimage")
+    psd, layer = _nested_component(True)
+    viewport = (0, 0, psd.width, psd.height)
+    shape = (psd.height, psd.width, 1)
+    ungated = vector._solid_inner_band(
+        layer, np.zeros(shape, np.float32), 4.0, viewport
+    )
+    gated = vector._solid_inner_band(
+        layer, np.zeros(shape, np.float32), 4.0, viewport, np.zeros(shape, np.float32)
+    )
+    assert ungated.any() and not gated.any()
+
+
+@pytest.mark.parametrize(
+    ("name", "probe"),
+    [
+        ("inner-stroke-wide", (44, 44)),  # centre of a 40x40 square, width 30
+        ("inner-stroke-thin", (25, 25)),  # centre of a 3x3 square, width 1.9
+    ],
+)
+def test_an_inner_stroke_wider_than_half_the_shape_matches_photoshop(
+    name: str, probe: tuple[int, int]
+) -> None:
+    """Photoshop's own render of an inner stroke that the doubled pen cancels (#890).
+
+    Both files were authored in Photoshop from a shape layer whose path and
+    stroke width were forged, and their previews are Photoshop's render of
+    them. The stroke covers each shape through, centre included, which is the
+    pixel the pen alone leaves bare.
+    """
+    pytest.importorskip("scipy.ndimage")
+    psd = PSDImage.open(full_name(f"effects/{name}.psd"))
+    layer = psd[0]
+    assert layer.stroke is not None and layer.stroke.line_alignment == "inner"
+    expected = psd.topil()
+    assert expected is not None
+    image = psd.composite(force=True, ignore_preview=True)
+    assert image is not None
+    got = np.asarray(image.convert("RGB")).astype(int)
+    want = np.asarray(expected.convert("RGB")).astype(int)
+    assert np.abs(got - want).max() <= 8
+    x, y = probe
+    assert want[y, x].tolist() == [255, 0, 0], "the stroke colour reaches the centre"

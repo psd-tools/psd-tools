@@ -48,14 +48,18 @@ _FULL_ROUNDING = 1e-5
 # How far the pen reaches from the path it follows, in half-widths. A right-angle
 # corner is mitred out to sqrt(2); a sharper one reaches further and is cut here.
 _MITER_REACH = 1.5
-# Per padded pixel, what ``_near_silhouette`` peaks at: two float64 distance
+# Per padded pixel, what ``_silhouette_distance`` peaks at: two float64 distance
 # fields and the one they are merged into, with scipy's own temporaries, over
 # the fill and its masks.
 _NEAR_SILHOUETTE_BYTES = 48
 # Per viewport pixel, the stroke colour the caller still holds (RGBA float32).
 _RETAINED_COLOR_BYTES = 16
+# Per viewport pixel, what ``draw_stroke`` holds while it repairs a band: the
+# outline and the fill (float32 each), the gate, and the inside mask.
+_STROKE_LIVE_BYTES = 13
 # Slack on a distance to the silhouette, measured from a pixel-resolution edge.
 _BOUNDARY_MARGIN = 1.0
+_RIDGE_DROP = 0.5
 
 
 @require_aggdraw
@@ -78,12 +82,10 @@ def draw_stroke(
     side -- the same workaround SVG and CSS use, neither being able to state
     an alignment either (#854).
 
-    That doubling has a limit. The pen is one outline filled by the even-odd
-    rule, so where the shape is thinner than the doubled width the band
-    overlaps itself and cancels: an inner stroke of width ``w`` on a shape
-    ``t`` thick loses a strip ``2w - t`` wide down the middle, and covers
-    nothing at all once ``w`` reaches ``t``. Photoshop paints solid there
-    (#890).
+    The pen is one outline filled by the even-odd rule, so where the shape is
+    thinner than the doubled width it overlaps itself and cancels. An inner
+    stroke is therefore also painted solid wherever the distance to the
+    boundary is within the width (#890); an outer stroke is not.
 
     The pen follows each input path, so it is kept to the neighbourhood of the
     combined shape's boundary, which is where Photoshop strokes (#889).
@@ -120,7 +122,9 @@ def draw_stroke(
         # 'linecap': _CAP.get(linecap, 0),
         # 'miterlimit': miterlimit,
     }
-    near = _near_silhouette(layer, float(pen["width"]) / 2.0 * _MITER_REACH, viewport)
+    inner = alignment is StrokeAlignment.INNER
+    radius = float(pen["width"]) / 2.0 * _MITER_REACH
+    near = _near_silhouette(layer, radius, viewport)
     outline = _draw_path(layer, pen=pen, viewport=viewport, near=near)
     if not sided:
         return outline
@@ -138,11 +142,9 @@ def draw_stroke(
     # of the pen. ``_ROUNDING`` sits in the gap between that trace and the
     # smallest coverage a path really does state.
     fill = draw_vector_mask(layer, viewport)
-    inside = (
-        fill > _ROUNDING
-        if alignment is StrokeAlignment.INNER
-        else fill < 1.0 - _FULL_ROUNDING
-    )
+    inside = fill > _ROUNDING if inner else fill < 1.0 - _FULL_ROUNDING
+    if inner:
+        outline = _solid_inner_band(layer, outline, width, viewport, near)
     return outline * inside
 
 
@@ -153,23 +155,113 @@ def can_bury_arcs(layer: "Layer") -> bool:
 
 
 def _near_silhouette(
-    layer: "Layer",
-    radius: float,
-    viewport: tuple[int, int, int, int] | None,
+    layer: "Layer", radius: float, viewport: tuple[int, int, int, int] | None
 ) -> np.ndarray | None:
     """
     Pixels within ``radius`` of the boundary of the shape the paths combine to.
 
+    Keeping the pen to this neighbourhood drops the arcs one path buries inside
+    another (#889). ``None`` when there is nothing to bury or no scipy, which
+    leaves every arc stroked.
+    """
+    if not can_bury_arcs(layer):
+        return None
+    distance = _silhouette_distance(layer, radius, viewport)
+    if distance is None:
+        return None
+    return (distance <= radius + _BOUNDARY_MARGIN).astype(np.float32)[:, :, None]
+
+
+def _solid_inner_band(
+    layer: "Layer",
+    outline: np.ndarray,
+    width: float,
+    viewport: tuple[int, int, int, int] | None,
+    near: np.ndarray | None = None,
+) -> np.ndarray:
+    """
+    Make solid, in place, every ``outline`` pixel wholly within ``width`` of the boundary.
+
+    The doubled pen cancels itself where the shape is thinner than it (#890);
+    the pen keeps the band's own edge. Nothing outside the layer's box is
+    inside the shape, so only that part of the viewport is measured. The fill
+    closes an open subpath that the pen leaves open, so only closed subpaths
+    state a boundary to repair. The repair stays within ``near``, the gate that
+    drops the arcs a path buries (#889).
+    """
+    if viewport is None:
+        viewport = layer._psd.viewbox
+    left, top, right, bottom = layer.bbox
+    box = (
+        max(viewport[0], left),
+        max(viewport[1], top),
+        min(viewport[2], right),
+        min(viewport[3], bottom),
+    )
+    if box[2] <= box[0] or box[3] <= box[1]:
+        return outline
+    held = (
+        (viewport[2] - viewport[0])
+        * (viewport[3] - viewport[1])
+        * (_RETAINED_COLOR_BYTES + _STROKE_LIVE_BYTES)
+    )
+    # One pixel more on every side, for the neighbours of an edge pixel.
+    halo = (box[0] - 1, box[1] - 1, box[2] + 1, box[3] + 1)
+    try:
+        distance = _silhouette_distance(layer, width, halo, held, closed_only=True)
+    except ValueError:
+        # The repair is optional, so a budget it cannot fit leaves the pen alone.
+        return outline
+    if distance is None:
+        return outline
+    # A pixel whose centre is ``d`` from the nearest outside centre spans
+    # depths ``d - 1`` to ``d``, so the band covers all of it up to ``d == width``
+    # and a falling share beyond. On a ridge, where opposing boundaries meet,
+    # depth peaks at the centre and falls to ``d - 1`` at the edges, so the
+    # pixel spans only ``d - 1`` to ``d - 0.5`` and fills twice as fast.
+    d = distance[1:-1, 1:-1]
+    # A weak maximum is a slanted corner, not a ridge, and keeps the pen's coverage.
+    gap = d - _RIDGE_DROP
+    ridge = ((gap >= distance[:-2, 1:-1]) & (gap >= distance[2:, 1:-1])) | (
+        (gap >= distance[1:-1, :-2]) & (gap >= distance[1:-1, 2:])
+    )
+    share = width + 1.0 - d
+    solid = np.clip(np.where(ridge, 2.0 * share, share), 0.0, 1.0)[:, :, None]
+    if near is not None:
+        solid = (
+            solid
+            * near[
+                box[1] - viewport[1] : box[3] - viewport[1],
+                box[0] - viewport[0] : box[2] - viewport[0],
+            ]
+        )
+    rows = slice(box[1] - viewport[1], box[3] - viewport[1])
+    cols = slice(box[0] - viewport[0], box[2] - viewport[0])
+    outline[rows, cols] = np.maximum(outline[rows, cols], solid)
+    return outline
+
+
+def _silhouette_distance(
+    layer: "Layer",
+    radius: float,
+    viewport: tuple[int, int, int, int] | None,
+    held_bytes: int | None = None,
+    closed_only: bool = False,
+) -> np.ndarray | None:
+    """
+    Distance from each viewport pixel to the boundary of the combined shape.
+
     Photoshop strokes that silhouette, but a pen follows each input path, so an
-    arc one path buries inside another would be stroked too (#889). Keeping
-    the pen to this neighbourhood drops the buried arcs. ``None`` when there is
-    nothing to bury or no scipy, which leaves every arc stroked.
+    arc one path buries inside another would be stroked too (#889). Only
+    distances within ``radius`` are reliable. ``None`` when the shape is empty
+    or there is no scipy; ``inf`` throughout when the shape covers the viewport.
+    ``held_bytes`` is what the caller holds meanwhile, by default the colour of
+    each viewport pixel. ``closed_only`` leaves out the open subpaths, whose
+    implicit closing edge the fill would otherwise take for a boundary.
 
     A pixel is inside at any coverage, so a component thinner than a pixel still
     has a boundary; the margin on ``radius`` absorbs the fringe it adds.
     """
-    if not can_bury_arcs(layer):
-        return None
     try:
         from scipy.ndimage import distance_transform_edt  # type: ignore[import-untyped]  # noqa: PLC0415
     except ImportError:
@@ -177,41 +269,51 @@ def _near_silhouette(
 
     if viewport is None:
         viewport = layer._psd.viewbox
-    # A boundary just outside the viewport still bounds the band inside it.
+    # A boundary just outside the viewport still bounds the band inside it, but
+    # none lies beyond the layer's own box, so a wide stroke need not look further.
     reach = int(np.ceil(radius + _BOUNDARY_MARGIN))
+    left, top, right, bottom = layer.bbox
     padded = (
-        viewport[0] - reach,
-        viewport[1] - reach,
-        viewport[2] + reach,
-        viewport[3] + reach,
+        max(viewport[0] - reach, min(viewport[0], left - 1)),
+        max(viewport[1] - reach, min(viewport[1], top - 1)),
+        min(viewport[2] + reach, max(viewport[2], right + 1)),
+        min(viewport[3] + reach, max(viewport[3], bottom + 1)),
     )
     width, height = padded[2] - padded[0], padded[3] - padded[1]
+    if held_bytes is None:
+        held_bytes = (
+            (viewport[2] - viewport[0])
+            * (viewport[3] - viewport[1])
+            * _RETAINED_COLOR_BYTES
+        )
     check_pixel_size(
         width,
         height,
         1,
         layer._psd._max_alloc_bytes,
-        estimated_bytes=width * height * _NEAR_SILHOUETTE_BYTES
-        + (viewport[2] - viewport[0])
-        * (viewport[3] - viewport[1])
-        * _RETAINED_COLOR_BYTES,
+        estimated_bytes=width * height * _NEAR_SILHOUETTE_BYTES + held_bytes,
         warn=False,
     )
-    inside = draw_vector_mask(layer, padded)[:, :, 0] > _FULL_ROUNDING
+    mask = (
+        _draw_path(layer, brush={"color": 255}, viewport=padded, closed_only=True)
+        if closed_only
+        else draw_vector_mask(layer, padded)
+    )
+    inside = mask[:, :, 0] > _FULL_ROUNDING
     # ``distance_transform_edt`` measures to a phantom feature off the array
     # corner when there is no zero to measure to. An empty mask states no boundary
     # to follow; one that is covered throughout has none in reach.
     if not inside.any():
         return None
     if inside.all():
-        return np.zeros(
-            (viewport[3] - viewport[1], viewport[2] - viewport[0], 1), np.float32
-        )
+        return np.full((viewport[3] - viewport[1], viewport[2] - viewport[0]), np.inf)
     distance = np.where(
         inside, distance_transform_edt(inside), distance_transform_edt(~inside)
     )
-    near = distance <= radius + _BOUNDARY_MARGIN
-    return near[reach:-reach, reach:-reach].astype(np.float32)[:, :, None]
+    return distance[
+        viewport[1] - padded[1] : distance.shape[0] - (padded[3] - viewport[3]),
+        viewport[0] - padded[0] : distance.shape[1] - (padded[2] - viewport[2]),
+    ]
 
 
 def _draw_path(
@@ -220,12 +322,13 @@ def _draw_path(
     pen: dict[str, int | float] | None = None,
     viewport: tuple[int, int, int, int] | None = None,
     near: np.ndarray | None = None,
+    closed_only: bool = False,
 ) -> np.ndarray:
     """
     Rasterize a layer's vector mask, filled by ``brush`` and outlined by ``pen``.
 
     ``near`` limits the outline of a closed subpath to where it is nonzero; see
-    :py:func:`_near_silhouette`.
+    :py:func:`_near_silhouette`. ``closed_only`` fills the closed subpaths alone.
 
     A mask with an initial fill rule and no path of its own reveals all, so
     the plane starts out covered -- but only for a brush. The seed describes a
@@ -263,7 +366,13 @@ def _draw_path(
     # Apply shape operation.
     first = True
     for subpath_list in paths:
-        plane = _draw_subpath(subpath_list, viewport, doc_size, brush, pen, near)
+        # A component with no closed subpath has nothing to fill, and its
+        # operation must not run on the empty plane.
+        if closed_only and not any(x.is_closed() for x in subpath_list):
+            continue
+        plane = _draw_subpath(
+            subpath_list, viewport, doc_size, brush, pen, near, closed_only
+        )
         assert mask.shape == (height, width, 1)
         assert plane.shape == mask.shape
 
@@ -292,6 +401,7 @@ def _draw_subpath(
     brush: dict[str, int | float] | None,
     pen: dict[str, int | float] | None,
     near: np.ndarray | None = None,
+    closed_only: bool = False,
 ) -> np.ndarray:
     """
     Rasterize one merged path component, filled by ``brush``, outlined by ``pen``.
@@ -312,7 +422,9 @@ def _draw_subpath(
 
     plane = np.zeros((height, width, 1), dtype=np.float32)
     if brush:
-        plane = _fill_subpath(drawable, viewport, doc_size)
+        filled = [x for x in drawable if x.is_closed()] if closed_only else drawable
+        if filled:
+            plane = _fill_subpath(filled, viewport, doc_size)
     if pen:
         closed = [subpath for subpath in drawable if subpath.is_closed()]
         outline = plane * 0
