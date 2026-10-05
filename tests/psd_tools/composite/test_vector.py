@@ -1,5 +1,7 @@
 import logging
 
+import sys
+
 import numpy as np
 import pytest
 import psd_tools.composite.paint as paint_module
@@ -1076,16 +1078,22 @@ def test_a_flat_silhouette_gates_without_a_phantom_boundary(
         assert not near.any(), "no boundary anywhere, so none within reach"
 
 
-def test_the_silhouette_gate_is_charged_to_the_allocation_budget() -> None:
-    """The distance fields of a gated stroke are over the viewport (#889)."""
+def test_the_silhouette_gate_is_charged_to_the_allocation_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The padded distance fields of a gated stroke are budgeted (#889)."""
     psd = PSDImage.open(full_name("path-operations/combine.psd"))
     assert vector.can_bury_arcs(psd[0])
-    budget = psd.width * psd.height * vector.NEAR_SILHOUETTE_BYTES
-    psd._max_alloc_bytes = budget
-    assert psd.composite(force=True, ignore_preview=True) is not None
-    psd._max_alloc_bytes = budget - 1
+    psd._max_alloc_bytes = psd.width * psd.height * 16
     with pytest.raises(ValueError, match="over the configured budget"):
         psd.composite(force=True, ignore_preview=True)
+    psd._max_alloc_bytes = psd.width * psd.height * 400
+    assert psd.composite(force=True, ignore_preview=True) is not None
+
+    # Without scipy nothing is allocated, so nothing is charged.
+    monkeypatch.setitem(sys.modules, "scipy.ndimage", None)
+    psd._max_alloc_bytes = psd.width * psd.height * 16
+    assert vector._near_silhouette(psd[0], 2.0, None) is None
 
 
 def test_an_open_subpath_is_stroked_wherever_the_silhouette_is() -> None:

@@ -2168,15 +2168,6 @@ class Compositor(object):
                 "Unsupported stroke fill descriptor in layer strokeStyleContent"
             )
         color = paste(self._viewport, fill_bbox, color, 1.0)
-        if vector.can_bury_arcs(layer):
-            check_pixel_size(
-                self._viewport[2] - self._viewport[0],
-                self._viewport[3] - self._viewport[1],
-                self.channels,
-                layer._psd._max_alloc_bytes,
-                estimated_bytes=_pixels(self._viewport) * vector.NEAR_SILHOUETTE_BYTES,
-                warn=False,
-            )
         shape = vector.draw_stroke(layer, self._viewport)
         opacity = desc.get("strokeStyleOpacity", 100.0) / 100.0
         alpha = shape * opacity

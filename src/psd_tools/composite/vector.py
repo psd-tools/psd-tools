@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Generator
 import numpy as np
 from PIL import Image
 
+from psd_tools.api.utils import check_pixel_size
 from psd_tools.composite import scanline
 from psd_tools.composite._compat import require_aggdraw
 from psd_tools.constants import StrokeAlignment
@@ -47,9 +48,11 @@ _FULL_ROUNDING = 1e-5
 # How far the pen reaches from the path it follows, in half-widths. A right-angle
 # corner is mitred out to sqrt(2); a sharper one reaches further and is cut here.
 _MITER_REACH = 1.5
-# Per pixel, what ``_near_silhouette`` peaks at: two float64 distance fields and
-# the one they are merged into, over the fill and its masks.
-NEAR_SILHOUETTE_BYTES = 40
+# Per padded pixel, what ``_near_silhouette`` peaks at: two float64 distance
+# fields and the one they are merged into, over the fill and its masks.
+_NEAR_SILHOUETTE_BYTES = 40
+# Per viewport pixel, the stroke colour the caller still holds (RGBA float32).
+_RETAINED_COLOR_BYTES = 16
 # Slack on a distance to the silhouette, measured from a pixel-resolution edge.
 _BOUNDARY_MARGIN = 1.0
 
@@ -180,6 +183,18 @@ def _near_silhouette(
         viewport[1] - reach,
         viewport[2] + reach,
         viewport[3] + reach,
+    )
+    width, height = padded[2] - padded[0], padded[3] - padded[1]
+    check_pixel_size(
+        width,
+        height,
+        1,
+        layer._psd._max_alloc_bytes,
+        estimated_bytes=width * height * _NEAR_SILHOUETTE_BYTES
+        + (viewport[2] - viewport[0])
+        * (viewport[3] - viewport[1])
+        * _RETAINED_COLOR_BYTES,
+        warn=False,
     )
     inside = draw_vector_mask(layer, padded)[:, :, 0] >= 0.5
     # ``distance_transform_edt`` measures to a phantom feature off the array
