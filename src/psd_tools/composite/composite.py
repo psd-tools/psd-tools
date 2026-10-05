@@ -1447,7 +1447,7 @@ class Compositor(object):
         traced: float | np.ndarray = source.shape
         if traces_mask:
             traced = source.shape_mask
-        elif _is_shape_layer(layer):
+        elif _is_shape_layer(layer) and _readable(layer, "stroke"):
             traced = self._path_interior(
                 layer, self._viewport, source.shape_mask, source.shape
             )

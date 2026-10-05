@@ -12,7 +12,12 @@ from PIL import Image
 from psd_tools.api.mask import Mask
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import _compat, composite, effects, paint, vector
-from psd_tools.composite.composite import Compositor, _stroke_reach
+from psd_tools.composite.composite import (
+    Compositor,
+    _is_shape_layer,
+    _readable,
+    _stroke_reach,
+)
 from psd_tools.composite.effects import (
     _BANDS,
     _grow,
@@ -33,8 +38,8 @@ logger = logging.getLogger(__name__)
 def test_stroke_effects_render_to_the_preview() -> None:
     """``stroke-effects.psd``'s stroke-bearing layers are shapes and pixels.
 
-    Their fills are 20-24 px with 90-92% of the covered pixels at partial
-    alpha, so it is a fixture about soft alpha before it is one about strokes.
+    Most covered pixels are at partial alpha, so it is a fixture about soft
+    alpha before it is one about strokes.
     """
     check_composite_quality("effects/stroke-effects.psd", threshold=0.01)
 
@@ -89,6 +94,21 @@ def test_a_masked_shape_layers_stroke_is_cut_by_its_raster_mask(
     check_composite_quality(filename, threshold=1e-4)
     # The cut is a hard edge the stroke has to reach, in pixels.
     assert layer.mask.bbox[0] == 12
+
+
+def test_a_shape_layer_without_a_stroke_does_not_rasterize_its_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The path is only read for a layer that has a stroke to trace (#886)."""
+    psd = PSDImage.open(full_name("blend-modes/color-burn.psd"))
+    layers = [sub for sub in psd.descendants() if _is_shape_layer(sub)]
+    assert layers and not any(_readable(sub, "stroke") for sub in layers)
+
+    def refuse(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("path rasterized for a layer with no stroke")
+
+    monkeypatch.setattr(Compositor, "_path_interior", staticmethod(refuse))
+    composite(psd)
 
 
 def test_a_traced_shape_reads_its_interior_from_the_path_and_its_edge_from_pixels() -> (
