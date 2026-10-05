@@ -10,7 +10,14 @@ import numpy as np
 from PIL import Image
 
 from psd_tools.api import numpy_io, pil_io
-from psd_tools.api.layers import AdjustmentLayer, Artboard, GroupMixin, Layer
+from psd_tools.api.layers import (
+    AdjustmentLayer,
+    Artboard,
+    GroupMixin,
+    FillLayer,
+    Layer,
+    ShapeLayer,
+)
 from psd_tools.api.protocols import LayerProtocol, PSDProtocol
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.api.utils import check_growth, check_pixel_size, get_color_channels
@@ -1205,6 +1212,7 @@ class Compositor(object):
         self._viewport = viewport
         self._layer_filter = layer_filter
         self._force = force
+        self._mask_repeats: dict[int, bool] = {}
         # How a one-channel array becomes this compositor's width. Carried
         # rather than derived because the four sites that need it below are
         # inside this class, which holds no document handle (#722, #749).
@@ -1966,6 +1974,51 @@ class Compositor(object):
         # that seed -- the clipped layers paint onto the base layer's color.
         return compositor.result_over_backdrop()
 
+    def _mask_repeats_shape(self, layer: Layer) -> bool:
+        """Whether the mask is the stored shape channel again, pixel for pixel.
+
+        Applying it would square the layer's edge coverage (#885). Only shape
+        and fill layers qualify: elsewhere the mask is a user's, even one made
+        from the layer's transparency. Memoized per layer, as stroke tracing
+        asks again.
+        """
+        known = self._mask_repeats.get(id(layer))
+        if known is None:
+            known = self._mask_repeats[id(layer)] = self._compare_mask_to_shape(layer)
+        return known
+
+    def _compare_mask_to_shape(self, layer: Layer) -> bool:
+        mask = layer.mask
+        if (
+            mask is None
+            or not isinstance(layer, (ShapeLayer, FillLayer))
+            or self._force
+            or not layer.has_pixels()
+            or mask.real_flags is not None
+            or mask.bbox != layer.bbox
+        ):
+            return False
+        if mask.parameters and any(
+            d not in (None, 255)
+            for d in (
+                mask.parameters.user_mask_density,
+                mask.parameters.vector_mask_density,
+            )
+        ):
+            return False
+        stored = layer.numpy("mask", real_mask=True)
+        if stored is None:
+            return False
+        # The mask stays live through the shape read, so it is charged to it.
+        numpy_io.check_shape_read(layer, numpy_io._backing_bytes(stored))
+        shape = layer.numpy("shape")
+        return (
+            shape is not None
+            and stored is not None
+            and shape.shape == stored.shape
+            and bool(np.array_equal(shape, stored))
+        )
+
     def _get_mask(
         self,
         layer: Layer,
@@ -1985,7 +2038,11 @@ class Compositor(object):
         if viewport is None:
             viewport = self._viewport
         shape: float | np.ndarray = 1.0
-        if layer.mask is not None and not layer.mask.disabled:
+        if (
+            layer.mask is not None
+            and not layer.mask.disabled
+            and not self._mask_repeats_shape(layer)
+        ):
             # TODO: When force, ignore real mask.
             mask = layer.numpy("mask", real_mask=not self._force)
             if mask is not None:

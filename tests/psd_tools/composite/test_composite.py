@@ -14,8 +14,11 @@ from psd_tools.api.layers import (
     GroupMixin,
     Layer,
     PixelLayer,
+    SmartObjectLayer,
+    TypeLayer,
 )
 from psd_tools.api.mask import Mask
+from psd_tools.api import numpy_io
 from psd_tools.api.numpy_io import _image_data_peak_bytes
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite
@@ -39,6 +42,7 @@ from psd_tools.constants import (
 )
 from psd_tools.psd.base import ByteElement
 from psd_tools.psd.descriptor import UnitFloat
+from psd_tools.psd.layer_and_mask import MaskFlags
 from psd_tools.terminology import Key
 from PIL import Image
 
@@ -2694,3 +2698,85 @@ def test_effect_blend_mode_written_as_a_long_name_is_applied(
     assert image is not None
     pixel = image.convert("RGB").getpixel((layer.width // 2, layer.height // 2))
     assert pixel == pytest.approx(expected, abs=1)
+
+
+def _blank_compositor(psd: PSDImage) -> Compositor:
+    x0, y0, x1, y1 = psd.viewbox
+    height, width = y1 - y0, x1 - x0
+    return Compositor(
+        psd.viewbox,
+        np.zeros((height, width, 3), dtype=np.float32),
+        np.zeros((height, width, 1), dtype=np.float32),
+    )
+
+
+def test_mask_equal_to_shape_channel_is_not_applied_twice() -> None:
+    psd = PSDImage.open(full_name("clipping-mask2.psd"))
+    layer = next(x for x in psd.descendants() if x.name == "Polygon 1")
+    compositor = _blank_compositor(psd)
+
+    assert compositor._mask_repeats_shape(layer)
+    assert compositor._get_mask(layer) == 1.0
+    shape = layer.numpy("shape")
+    assert shape is not None
+    source = compositor._resolve_source(layer)
+    # ``viewbox`` starts at the origin, so the layer's pixel (x, y) sits at
+    # ``shape[y - bbox.top, x - bbox.left]``.
+    left, top = layer.bbox[:2]
+    assert source.shape[491, 167, 0] == pytest.approx(shape[491 - top, 167 - left, 0])
+
+
+def test_mask_differing_from_shape_channel_in_one_pixel_is_applied(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    psd = PSDImage.open(full_name("clipping-mask2.psd"))
+    layer = next(x for x in psd.descendants() if x.name == "Polygon 1")
+    compositor = _blank_compositor(psd)
+    original = type(layer).numpy
+
+    def numpy(self: Layer, channel: str = "color", **kwargs: Any) -> Any:
+        array = original(self, channel, **kwargs)
+        if self is layer and channel == "mask" and array is not None:
+            array = array.copy()
+            array[-1, -1] = 1.0  # the corner the layer does not cover
+        return array
+
+    monkeypatch.setattr(type(layer), "numpy", numpy)
+    assert not compositor._mask_repeats_shape(layer)
+    assert isinstance(compositor._get_mask(layer), np.ndarray)
+
+
+@pytest.mark.parametrize("layer_class", [PixelLayer, TypeLayer, SmartObjectLayer])
+def test_mask_equal_to_shape_channel_is_applied_on_a_non_shape_layer(
+    layer_class: type[Layer],
+) -> None:
+    """Outside shape and fill layers the mask is a user's, whatever it equals."""
+    psd = PSDImage.open(full_name("clipping-mask2.psd"))
+    layer = next(x for x in psd.descendants() if x.name == "Polygon 1")
+    layer.__class__ = layer_class
+    assert not _blank_compositor(psd)._mask_repeats_shape(layer)
+
+
+def test_mask_comparison_charges_the_live_mask_to_the_shape_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    psd = PSDImage.open(full_name("clipping-mask2.psd"))
+    layer = next(x for x in psd.descendants() if x.name == "Polygon 1")
+    mask = layer.numpy("mask")
+    assert mask is not None
+    held: list[int] = []
+    monkeypatch.setattr(
+        numpy_io, "check_shape_read", lambda layer, bytes_: held.append(bytes_)
+    )
+    assert _blank_compositor(psd)._mask_repeats_shape(layer)
+    assert held == [numpy_io._backing_bytes(mask)]
+
+
+def test_mask_with_real_flags_present_is_applied() -> None:
+    """``has_real()`` is the ``parameters_applied`` bit, not the record's presence."""
+    psd = PSDImage.open(full_name("clipping-mask2.psd"))
+    layer = next(x for x in psd.descendants() if x.name == "Polygon 1")
+    assert layer.mask is not None
+    layer.mask._data.real_flags = MaskFlags()
+    assert not layer.mask.has_real()
+    assert not _blank_compositor(psd)._mask_repeats_shape(layer)
