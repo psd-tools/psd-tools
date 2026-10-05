@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-See also [the contributor documentation](docs/contributing.rst) for setup, test, lint and docs commands.
+See also [the contributor documentation](docs/contributing.rst) for setup, test and docs commands.
 
 ## Development Notes
 
@@ -9,6 +9,7 @@ See also [the contributor documentation](docs/contributing.rst) for setup, test,
   (`aggdraw`, `scipy`, `scikit-image`). It is optional because it is unavailable on some
   platforms (notably Python 3.14 on Windows). Tests needing it skip via `pytest.importorskip`.
 - `uv run pytest --no-cov` skips coverage; `uv run pytest path::test_name` runs one test.
+- Lint and types: `uv run ruff check`, `uv run ruff format`, `uv run mypy`.
 - Changes land via PR; `main` is protected.
 
 ## Architecture Overview
@@ -35,7 +36,6 @@ Import convention: internal code imports from the defining module
   A stale cache after a *high-level* edit (`layer.name = ...`) is a real bug.
 - **Unknown data round-trips.** Unrecognised tagged blocks and fields are preserved as bytes
   on write. Do not drop or reinterpret them.
-- **Lazy loading.** The API layer parses masks, effects and channel data only on access.
 
 ### Layer Tree Reconstruction
 
