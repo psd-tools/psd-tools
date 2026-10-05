@@ -170,8 +170,8 @@ Prefix each entry with its category, and reference the issue and PR numbers:
   parameter, a corrected annotation
 - `[security]` — security fixes
 - `[docs]` — documentation only
-- `[ci]` — packaging and release engineering a user can observe, such as the
-  wheels or platforms published
+- `[ci]` — what a user installs: the wheels, platforms or sdist contents
+  published
 - `[refactor]` — internal restructuring a user can still observe, such as a
   moved public module
 
@@ -197,9 +197,10 @@ them and dates faster than they do. Corpus statistics, measured error figures,
 and the history of what earlier PRs got wrong all belong in the PR, not here.
 
 Entries are for user-visible change only. Skip test-only changes, developer
-tooling (lint, `CLAUDE.md`, workflow-only CI) and dependency bumps; the GitHub
-Release body, generated from `git log`, records them. A bump that changes a
-requirement users install against is user-visible and gets its own entry.
+tooling (lint, `CLAUDE.md`, CI workflows that publish nothing new) and
+dependency bumps; the GitHub Release body, generated from `git log`, records
+them. A bump that changes what users must satisfy, such as a minimum Python or
+dependency version, is user-visible and gets its own entry.
 Internal restructuring earns an entry only when a user can observe it, which is
 what `[refactor]` is for.
 
