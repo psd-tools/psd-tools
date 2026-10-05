@@ -21,7 +21,7 @@ Changelog
   the layer is redrawn (``force=True``, or no stored pixels) (#937, #939)
 - [fix] A shape layer's stroke effect no longer paints across a fill that
   fades to transparent inside its path. Layers without a vector mask, and
-  redrawn renders (``force=True``), are unchanged (#886)
+  redrawn renders (``force=True``), are unchanged (#886, #952)
 
 1.23.0 (2026-10-01)
 -------------------
