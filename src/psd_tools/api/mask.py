@@ -163,7 +163,10 @@ class Mask(MaskProtocol):
         return self._data
 
     def has_real(self) -> bool:
-        """Return True if the mask has real flags."""
+        """Return True if the real user mask is in use (``parameters_applied``).
+
+        A ``real_flags`` record with that bit clear does not count.
+        """
         return self.real_flags is not None and self.real_flags.parameters_applied
 
     def topil(

@@ -88,7 +88,7 @@ class MaskProtocol(Protocol):
         ...
 
     def has_real(self) -> bool:
-        """Return True if the mask has real flags."""
+        """Return True if the real user mask is in use (``parameters_applied``)."""
         ...
 
     @property
