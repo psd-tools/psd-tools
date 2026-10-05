@@ -13,6 +13,8 @@
 *.bmp binary
 *.psd binary
 *.psb binary
+# Raw payload fixtures under tests/
+*.dat binary
 # SVG is XML text, not binary
 *.svg text
 
@@ -95,3 +97,7 @@ poetry.lock text eol=lf
 *.whl binary
 *.pkl binary
 *.pickle binary
+
+# Scripts whose line endings matter to the shell that runs them
+tools/*.sh text eol=lf
+*.bat text eol=crlf
