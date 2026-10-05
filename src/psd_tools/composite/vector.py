@@ -211,8 +211,13 @@ def _solid_inner_band(
         return outline
     # A pixel whose centre is ``d`` from the nearest outside centre spans
     # depths ``d - 1`` to ``d``, so the band covers all of it up to ``d == width``
-    # and a falling share beyond.
-    solid = np.clip(width + 1.0 - distance, 0.0, 1.0)[:, :, None]
+    # and a falling share beyond. On a ridge, where opposing boundaries meet, the
+    # depth stops rising at the centre and the span is only half as long.
+    padded = np.pad(distance, 1, constant_values=-1.0)
+    ridge = ((distance > padded[:-2, 1:-1]) & (distance > padded[2:, 1:-1])) | (
+        (distance > padded[1:-1, :-2]) & (distance > padded[1:-1, 2:])
+    )
+    solid = np.clip(width + np.where(ridge, 1.5, 1.0) - distance, 0.0, 1.0)[:, :, None]
     rows = slice(box[1] - viewport[1], box[3] - viewport[1])
     cols = slice(box[0] - viewport[0], box[2] - viewport[0])
     outline[rows, cols] = np.maximum(outline[rows, cols], solid)
@@ -344,6 +349,10 @@ def _draw_path(
     # Apply shape operation.
     first = True
     for subpath_list in paths:
+        # A component with no closed subpath has nothing to fill, and its
+        # operation must not run on the empty plane.
+        if closed_only and not any(x.is_closed() for x in subpath_list):
+            continue
         plane = _draw_subpath(
             subpath_list, viewport, doc_size, brush, pen, near, closed_only
         )

@@ -1180,9 +1180,9 @@ def test_the_solid_inner_band_ignores_the_closing_edge_of_an_open_subpath() -> N
     assert band.any(), "the closed shapes are repaired"
 
 
-@pytest.mark.parametrize(("width", "least"), [(2.0, 1.0), (1.9, 0.85)])
+@pytest.mark.parametrize("width", [2.0, 1.9])
 def test_the_solid_inner_band_covers_a_shape_thinner_than_a_pixel_margin(
-    width: float, least: float, monkeypatch: pytest.MonkeyPatch
+    width: float, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A 3x3 square under a width of 2 or a little less is covered through (#890)."""
     pytest.importorskip("scipy.ndimage")
@@ -1199,7 +1199,7 @@ def test_the_solid_inner_band_covers_a_shape_thinner_than_a_pixel_margin(
     blank = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
     band = vector._solid_inner_band(layer, blank, width, (0, 0, psd.width, psd.height))
     # The distance is two-sided; the caller clips the band to the inside.
-    assert band[50:53, 60:63].min() >= least
+    assert band[50:53, 60:63].min() == 1.0
 
 
 def test_the_solid_inner_band_gives_way_to_the_allocation_budget() -> None:
@@ -1211,3 +1211,22 @@ def test_the_solid_inner_band_gives_way_to_the_allocation_budget() -> None:
     assert vector._solid_inner_band(layer, blank.copy(), 4.0, viewport).any()
     psd._max_alloc_bytes = psd.width * psd.height * 16
     assert not vector._solid_inner_band(layer, blank, 4.0, viewport).any()
+
+
+@pytest.mark.parametrize("operation", [2, 3])
+def test_an_open_only_component_runs_no_operation_on_the_repair_mask(
+    operation: int,
+) -> None:
+    """A component with no closed subpath is skipped, not applied as empty (#890)."""
+    pytest.importorskip("scipy.ndimage")
+    psd, layer = _nested_component(True)
+    _append_open(layer, [(0.85, 0.1), (0.85, 0.9), (0.97, 0.9), (0.97, 0.1)])
+    setting = next(
+        data
+        for key in (Tag.VECTOR_MASK_SETTING1, Tag.VECTOR_MASK_SETTING2)
+        if (data := layer.tagged_blocks.get_data(key)) is not None
+    )
+    setting.path._items[-1].operation = operation
+    blank = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
+    band = vector._solid_inner_band(layer, blank, 4.0, (0, 0, psd.width, psd.height))
+    assert band.any(), "the closed shapes are still repaired"
