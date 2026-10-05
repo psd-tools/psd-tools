@@ -1,7 +1,7 @@
 Changelog
 =========
 
-1.23.1 (unreleased)
+1.23.1 (2026-10-06)
 -------------------
 
 - [security] ``convert_pattern_to_pil()`` now checks the pattern's declared size
