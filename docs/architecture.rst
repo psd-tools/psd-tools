@@ -19,7 +19,8 @@ The package has two layers and two supporting subpackages.
 :py:mod:`psd_tools.api`
     The user-facing interface. :py:class:`~psd_tools.PSDImage` wraps the
     low-level ``PSD`` and exposes layers, masks, effects and pixel access.
-    Data is parsed lazily, on first access.
+    Parsing happens when the file is opened; decompression and pixel
+    materialization are deferred until first access.
 
 :py:mod:`psd_tools.composite`
     The rendering engine: blend modes, layer effects and vector rasterization
@@ -40,11 +41,12 @@ A PSD stores layers as a flat record list; groups are implied by
 
 .. code-block:: text
 
-    Record 0: "Background"          normal layer
-    Record 1: "Group"               BOUNDING_SECTION_DIVIDER (group start)
-    Record 2:   "Child 1"
-    Record 3:   "Child 2"
-    Record 4: (END_SECTION_DIVIDER) group end
+    Record 0: "Background"    normal layer
+    Record 1: (divider)       BOUNDING_SECTION_DIVIDER: opens the group
+    Record 2: "Child 1"
+    Record 3: "Child 2"
+    Record 4: "Group"         OPEN_FOLDER or CLOSED_FOLDER: closes the group
+                              and carries its name and attributes
 
 In a 16- or 32-bit document the records can live in an ``Lr16``/``Lr32``
 tagged block rather than ``layer_info``, so read them through
@@ -83,8 +85,10 @@ Compositing
 Preview versus drawing
 ^^^^^^^^^^^^^^^^^^^^^^
 
-``PSDImage.composite()`` returns the stored preview when the document has one
-and has not been edited, and renders layers otherwise. Within a render,
+``PSDImage.composite()`` returns the stored preview when the document has one,
+has not been edited, and none of ``ignore_preview``, ``force`` or
+``layer_filter`` is given. Those arguments are how a test reaches the
+renderer. Otherwise it renders layers. Within a render,
 ``force=True`` draws vector shapes with aggdraw instead of reading the layer's
 stored channel, which carries Photoshop's own rasterization. A change to the
 drawing code is invisible to the default mode, so verify both.
@@ -111,6 +115,8 @@ unclipped.
 Allocation budget
 ^^^^^^^^^^^^^^^^^
 
-Reads and renders are checked against ``max_alloc_bytes`` before allocating;
-see :doc:`untrusted`. The check compares the modelled peak of the operation,
-not the size of the returned array, so a budget must be sized from the peak.
+Pixel reads and renders are checked against ``max_alloc_bytes`` before
+allocating; structural parsing and low-level decompression have their own
+limits (``ParseLimits``, ``max_output_bytes``). See :doc:`untrusted`. The check
+compares the modelled peak of the operation, not the size of the returned
+array, so a budget must be sized from the peak.
