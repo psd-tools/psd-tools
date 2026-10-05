@@ -92,18 +92,21 @@ drawing code is invisible to the default mode, so verify both.
 Viewport
 ^^^^^^^^
 
-``Compositor`` pastes every layer array onto its viewport and zero-fills the
-rest. Code that needs coverage outside the viewport, such as a stroke effect,
-must read the layer again on the larger box; cropping cannot recover it.
-Groups are the exception, because a group's coverage is the composite itself.
+``Compositor`` pastes each layer's arrays onto its viewport, padding coverage
+with zeros. Code that needs coverage outside the viewport, such as a stroke
+effect traced past the canvas edge, cannot recover it by cropping; it must read
+the layer again on the larger box. A group has no stored coverage to re-read,
+so its contents are composited again on that box.
 
 Artboards
 ^^^^^^^^^
 
 ``Artboard`` subclasses ``Group`` but its ``bbox`` is the artboard rectangle,
-not the union of its children. Intersecting a viewport with that box is how
-artboards clip their contents, so any change that widens a group's viewport
-must carve artboards out.
+not the union of its children. For a group that is not pass-through,
+intersecting the viewport with that box is how the artboard clips its contents
+(``_get_group()``), so any change that widens a group's viewport must carve
+artboards out. A pass-through artboard receives the parent's viewport
+unclipped.
 
 Allocation budget
 ^^^^^^^^^^^^^^^^^
