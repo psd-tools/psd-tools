@@ -143,7 +143,7 @@ def draw_stroke(
     fill = draw_vector_mask(layer, viewport)
     inside = fill > _ROUNDING if inner else fill < 1.0 - _FULL_ROUNDING
     if inner:
-        outline = _solid_inner_band(layer, outline, width, viewport)
+        outline = _solid_inner_band(layer, outline, width, viewport, near)
     return outline * inside
 
 
@@ -176,6 +176,7 @@ def _solid_inner_band(
     outline: np.ndarray,
     width: float,
     viewport: tuple[int, int, int, int] | None,
+    near: np.ndarray | None = None,
 ) -> np.ndarray:
     """
     Make solid, in place, every ``outline`` pixel wholly within ``width`` of the boundary.
@@ -184,7 +185,8 @@ def _solid_inner_band(
     the pen keeps the band's own edge. Nothing outside the layer's box is
     inside the shape, so only that part of the viewport is measured. The fill
     closes an open subpath that the pen leaves open, so only closed subpaths
-    state a boundary to repair.
+    state a boundary to repair. The repair stays within ``near``, the gate that
+    drops the arcs a path buries (#889).
     """
     if viewport is None:
         viewport = layer._psd.viewbox
@@ -202,8 +204,10 @@ def _solid_inner_band(
         * (viewport[3] - viewport[1])
         * (_RETAINED_COLOR_BYTES + _STROKE_LIVE_BYTES)
     )
+    # One pixel more on every side, for the neighbours of an edge pixel.
+    halo = (box[0] - 1, box[1] - 1, box[2] + 1, box[3] + 1)
     try:
-        distance = _silhouette_distance(layer, width, box, held, closed_only=True)
+        distance = _silhouette_distance(layer, width, halo, held, closed_only=True)
     except ValueError:
         # The repair is optional, so a budget it cannot fit leaves the pen alone.
         return outline
@@ -211,13 +215,23 @@ def _solid_inner_band(
         return outline
     # A pixel whose centre is ``d`` from the nearest outside centre spans
     # depths ``d - 1`` to ``d``, so the band covers all of it up to ``d == width``
-    # and a falling share beyond. On a ridge, where opposing boundaries meet, the
-    # depth stops rising at the centre and the span is only half as long.
-    padded = np.pad(distance, 1, constant_values=-1.0)
-    ridge = ((distance > padded[:-2, 1:-1]) & (distance > padded[2:, 1:-1])) | (
-        (distance > padded[1:-1, :-2]) & (distance > padded[1:-1, 2:])
+    # and a falling share beyond. On a ridge, where opposing boundaries meet,
+    # depth peaks at the centre and falls to ``d - 1`` at the edges, so the
+    # pixel spans only ``d - 1`` to ``d - 0.5`` and fills twice as fast.
+    d = distance[1:-1, 1:-1]
+    ridge = ((d > distance[:-2, 1:-1]) & (d > distance[2:, 1:-1])) | (
+        (d > distance[1:-1, :-2]) & (d > distance[1:-1, 2:])
     )
-    solid = np.clip(width + np.where(ridge, 1.5, 1.0) - distance, 0.0, 1.0)[:, :, None]
+    share = width + 1.0 - d
+    solid = np.clip(np.where(ridge, 2.0 * share, share), 0.0, 1.0)[:, :, None]
+    if near is not None:
+        solid = (
+            solid
+            * near[
+                box[1] - viewport[1] : box[3] - viewport[1],
+                box[0] - viewport[0] : box[2] - viewport[0],
+            ]
+        )
     rows = slice(box[1] - viewport[1], box[3] - viewport[1])
     cols = slice(box[0] - viewport[0], box[2] - viewport[0])
     outline[rows, cols] = np.maximum(outline[rows, cols], solid)
