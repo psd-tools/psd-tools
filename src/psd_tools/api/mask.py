@@ -163,9 +163,10 @@ class Mask(MaskProtocol):
         return self._data
 
     def has_real(self) -> bool:
-        """Return True if the real user mask is in use (``parameters_applied``).
+        """Return True if ``real_flags`` is present with ``parameters_applied`` set.
 
-        A ``real_flags`` record with that bit clear does not count.
+        The real mask channel is read only then; a record with the bit clear
+        does not count.
         """
         return self.real_flags is not None and self.real_flags.parameters_applied
 
