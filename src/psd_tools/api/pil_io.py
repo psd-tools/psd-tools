@@ -464,7 +464,7 @@ def _pattern_peak_bytes(
     """
     pixels = width * height
     source = ((width * depth + 7) // 8) * height
-    conversion = _CONVERSION_TRANSIENT if depth in (16, 32) else 0
+    conversion = _CONVERSION_TRANSIENT if depth >= 16 else 0
     return max(
         pixels * (written - 1) + decompress * source,
         pixels * (written + _ALLOCATOR_SLACK) + source + pixels * conversion,

@@ -133,3 +133,8 @@ def test_a_pattern_is_charged_the_decode_depth_when_the_depths_disagree() -> Non
 
     with pytest.raises(ValueError, match="over the configured budget"):
         pil_io.convert_pattern_to_pil(pattern, max_alloc_bytes=narrow)
+
+
+def test_an_unsupported_depth_does_not_hide_the_conversion_transient() -> None:
+    sixteen = pil_io._pattern_peak_bytes(8, 8, 1, 16, 1)
+    assert pil_io._pattern_peak_bytes(8, 8, 1, 17, 1) >= sixteen
