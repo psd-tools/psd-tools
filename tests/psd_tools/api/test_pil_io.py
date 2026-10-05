@@ -120,3 +120,16 @@ def test_apply_icc_profile() -> None:
     assert no_icc is not None
     assert with_icc is not None
     assert no_icc.getextrema() != with_icc.getextrema()
+
+
+def test_a_pattern_is_charged_the_decode_depth_when_the_depths_disagree() -> None:
+    pattern = _pattern_with_declared_size(8)
+    for c in pattern.data.channels:
+        if c.is_written:
+            c.depth, c.pixel_depth = 32, 8
+            c.compression = Compression.ZIP_WITH_PREDICTION
+    written = sum(1 for c in pattern.data.channels if c.is_written)
+    narrow = pil_io._pattern_peak_bytes(8, 8, written, 8, 4)
+
+    with pytest.raises(ValueError, match="over the configured budget"):
+        pil_io.convert_pattern_to_pil(pattern, max_alloc_bytes=narrow)

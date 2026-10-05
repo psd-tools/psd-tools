@@ -459,14 +459,15 @@ def _pattern_peak_bytes(
     decode of one channel (``decompress`` times its source bytes, beside the
     "L" planes already built); that source beside one 16- or 32-bit conversion
     transient; and the merge and ``putalpha()`` widening, bounded by treating
-    every written channel as a band.
+    every written channel as a band. ``depth`` is the widest of the channels'
+    ``depth`` (the decode) and ``pixel_depth`` (the conversion).
     """
     pixels = width * height
     source = ((width * depth + 7) // 8) * height
     conversion = _CONVERSION_TRANSIENT if depth in (16, 32) else 0
     return max(
         pixels * (written - 1) + decompress * source,
-        pixels * written + source + pixels * conversion,
+        pixels * (written + _ALLOCATOR_SLACK) + source + pixels * conversion,
         pixels * (written + 3 * written + 1),
     )
 
@@ -502,7 +503,7 @@ def convert_pattern_to_pil(
                 width,
                 height,
                 len(written),
-                max(c.pixel_depth or 8 for c in written),
+                max(max(c.depth or 8, c.pixel_depth or 8) for c in written),
                 max(_DECOMPRESS_PEAK[c.compression] for c in written),
             ),
             warn=False,
