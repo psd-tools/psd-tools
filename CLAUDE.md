@@ -170,15 +170,14 @@ Prefix each entry with its category, and reference the issue and PR numbers:
   parameter, a corrected annotation
 - `[security]` — security fixes
 - `[docs]` — documentation only
-- `[ci]` — CI, packaging and release engineering
+- `[ci]` — packaging and release engineering a user can observe, such as the
+  wheels or platforms published
 - `[refactor]` — internal restructuring a user can still observe, such as a
   moved public module
-- `[chore]` — tooling and housekeeping; the release PR also writes one `[chore]`
-  line summarising that release's dependency bumps
 
 Pick the most specific one that applies. A category names the **kind** of change,
 not the subpackage it touches — a low-level parsing fix is `[fix]`, not `[psd]`.
-Only these seven are current: released sections still carry `[psd]`,
+Only these six are current: released sections still carry `[chore]`, `[psd]`,
 `[composite]`, `[packaging]`, `[dev]` and the rest of a long tail, all retired,
 and that history stays as written. This list is the only one — anything else that
 needs the categories, the release skill included, points here rather than
@@ -197,9 +196,10 @@ commit message, and the GitHub Release body — so a longer entry duplicates
 them and dates faster than they do. Corpus statistics, measured error figures,
 and the history of what earlier PRs got wrong all belong in the PR, not here.
 
-Entries are for user-visible change, with `[ci]` and `[chore]` as the standing
-exception — the changelog carries the release-engineering record too. Skip
-test-only changes, and dependabot bumps, which the release PR summarises in bulk.
+Entries are for user-visible change only. Skip test-only changes, developer
+tooling (lint, `CLAUDE.md`, workflow-only CI) and dependency bumps; the GitHub
+Release body, generated from `git log`, records them. A bump that changes a
+requirement users install against is user-visible and gets its own entry.
 Internal restructuring earns an entry only when a user can observe it, which is
 what `[refactor]` is for.
 
