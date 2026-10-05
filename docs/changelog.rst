@@ -4,6 +4,11 @@ Changelog
 1.23.1 (unreleased)
 -------------------
 
+- [fix] An inner vector stroke over a gradient fill with transparent stops
+  shows at its own opacity where the fill is clear, matching Photoshop, rather
+  than fading with it. Affects ``force=True`` and layers without stored
+  pixels (#941)
+
 - [fix] A redrawn vector stroke (``force=True``, or no stored pixels) is
   painted Normal whatever its stored blend mode, matching Photoshop (#940)
 
