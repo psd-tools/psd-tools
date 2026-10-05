@@ -1304,3 +1304,35 @@ def test_the_solid_inner_band_stays_within_the_silhouette_gate() -> None:
         layer, np.zeros(shape, np.float32), 4.0, viewport, np.zeros(shape, np.float32)
     )
     assert ungated.any() and not gated.any()
+
+
+@pytest.mark.parametrize(
+    ("name", "probe"),
+    [
+        ("inner-stroke-wide", (44, 44)),  # centre of a 40x40 square, width 30
+        ("inner-stroke-thin", (25, 25)),  # centre of a 3x3 square, width 1.9
+    ],
+)
+def test_an_inner_stroke_wider_than_half_the_shape_matches_photoshop(
+    name: str, probe: tuple[int, int]
+) -> None:
+    """Photoshop's own render of an inner stroke that the doubled pen cancels (#890).
+
+    Both files were authored in Photoshop from a shape layer whose path and
+    stroke width were forged, and their previews are Photoshop's render of
+    them. The stroke covers each shape through, centre included, which is the
+    pixel the pen alone leaves bare.
+    """
+    pytest.importorskip("scipy.ndimage")
+    psd = PSDImage.open(full_name(f"effects/{name}.psd"))
+    layer = psd[0]
+    assert layer.stroke is not None and layer.stroke.line_alignment == "inner"
+    expected = psd.topil()
+    assert expected is not None
+    image = psd.composite(force=True, ignore_preview=True)
+    assert image is not None
+    got = np.asarray(image.convert("RGB")).astype(int)
+    want = np.asarray(expected.convert("RGB")).astype(int)
+    assert np.abs(got - want).max() <= 8
+    x, y = probe
+    assert want[y, x].tolist() == [255, 0, 0], "the stroke colour reaches the centre"
