@@ -14,8 +14,9 @@ from psd_tools.api.layers import (
     AdjustmentLayer,
     Artboard,
     GroupMixin,
+    FillLayer,
     Layer,
-    PixelLayer,
+    ShapeLayer,
 )
 from psd_tools.api.protocols import LayerProtocol, PSDProtocol
 from psd_tools.api.psd_image import PSDImage
@@ -1211,6 +1212,7 @@ class Compositor(object):
         self._viewport = viewport
         self._layer_filter = layer_filter
         self._force = force
+        self._mask_repeats: dict[int, bool] = {}
         # How a one-channel array becomes this compositor's width. Carried
         # rather than derived because the four sites that need it below are
         # inside this class, which holds no document handle (#722, #749).
@@ -1975,13 +1977,21 @@ class Compositor(object):
     def _mask_repeats_shape(self, layer: Layer) -> bool:
         """Whether the mask is the stored shape channel again, pixel for pixel.
 
-        Applying it would square the layer's edge coverage (#885). A pixel
-        layer is left out: its mask is a user's, whatever it was made from.
+        Applying it would square the layer's edge coverage (#885). Only shape
+        and fill layers qualify: elsewhere the mask is a user's, even one made
+        from the layer's transparency. Memoized per layer, as stroke tracing
+        asks again.
         """
+        known = self._mask_repeats.get(id(layer))
+        if known is None:
+            known = self._mask_repeats[id(layer)] = self._compare_mask_to_shape(layer)
+        return known
+
+    def _compare_mask_to_shape(self, layer: Layer) -> bool:
         mask = layer.mask
         if (
             mask is None
-            or isinstance(layer, PixelLayer)
+            or not isinstance(layer, (ShapeLayer, FillLayer))
             or self._force
             or not layer.has_pixels()
             or mask.has_real()

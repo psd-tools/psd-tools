@@ -11,9 +11,9 @@ Changelog
 
 - [fix] Moving a layer out of a document that earlier received one from another
   document no longer raises ``TypeError`` (#862, #946)
-- [fix] A layer whose mask is its own stored coverage, such as a shape layer's
-  rasterized vector mask, no longer has its antialiased edge rendered at the
-  coverage squared (#885, #948)
+- [fix] A shape or fill layer whose mask repeats its own stored coverage, such
+  as a rasterized vector mask, no longer renders its antialiased edge squared.
+  Redrawn renders (``force=True``) are unchanged (#885, #948)
 - [fix] A stroke-only shape layer no longer has its interior filled when the
   layer is redrawn (``force=True``, or no stored pixels) (#937, #938)
 - [fix] A centred or outer vector stroke is drawn outside its path too when

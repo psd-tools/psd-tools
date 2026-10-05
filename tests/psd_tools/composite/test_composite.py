@@ -14,6 +14,8 @@ from psd_tools.api.layers import (
     GroupMixin,
     Layer,
     PixelLayer,
+    SmartObjectLayer,
+    TypeLayer,
 )
 from psd_tools.api.mask import Mask
 from psd_tools.api.numpy_io import _image_data_peak_bytes
@@ -2740,3 +2742,14 @@ def test_mask_differing_from_shape_channel_in_one_pixel_is_applied(
     monkeypatch.setattr(type(layer), "numpy", numpy)
     assert not compositor._mask_repeats_shape(layer)
     assert isinstance(compositor._get_mask(layer), np.ndarray)
+
+
+@pytest.mark.parametrize("layer_class", [PixelLayer, TypeLayer, SmartObjectLayer])
+def test_mask_equal_to_shape_channel_is_applied_on_a_non_shape_layer(
+    layer_class: type[Layer],
+) -> None:
+    """Outside shape and fill layers the mask is a user's, whatever it equals."""
+    psd = PSDImage.open(full_name("clipping-mask2.psd"))
+    layer = next(x for x in psd.descendants() if x.name == "Polygon 1")
+    layer.__class__ = layer_class
+    assert not _blank_compositor(psd)._mask_repeats_shape(layer)
