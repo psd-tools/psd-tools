@@ -49,8 +49,9 @@ _FULL_ROUNDING = 1e-5
 # corner is mitred out to sqrt(2); a sharper one reaches further and is cut here.
 _MITER_REACH = 1.5
 # Per padded pixel, what ``_near_silhouette`` peaks at: two float64 distance
-# fields and the one they are merged into, over the fill and its masks.
-_NEAR_SILHOUETTE_BYTES = 40
+# fields and the one they are merged into, with scipy's own temporaries, over
+# the fill and its masks.
+_NEAR_SILHOUETTE_BYTES = 48
 # Per viewport pixel, the stroke colour the caller still holds (RGBA float32).
 _RETAINED_COLOR_BYTES = 16
 # Slack on a distance to the silhouette, measured from a pixel-resolution edge.
@@ -164,8 +165,8 @@ def _near_silhouette(
     the pen to this neighbourhood drops the buried arcs. ``None`` when there is
     nothing to bury or no scipy, which leaves every arc stroked.
 
-    A pixel is inside at half coverage, so the boundary is placed to within a
-    pixel; the margin on ``radius`` absorbs that.
+    A pixel is inside at any coverage, so a component thinner than a pixel still
+    has a boundary; the margin on ``radius`` absorbs the fringe it adds.
     """
     if not can_bury_arcs(layer):
         return None
@@ -196,10 +197,10 @@ def _near_silhouette(
         * _RETAINED_COLOR_BYTES,
         warn=False,
     )
-    inside = draw_vector_mask(layer, padded)[:, :, 0] >= 0.5
+    inside = draw_vector_mask(layer, padded)[:, :, 0] > _FULL_ROUNDING
     # ``distance_transform_edt`` measures to a phantom feature off the array
-    # corner when there is no zero to measure to. A mask with no pixel at half
-    # coverage states no boundary to follow; one that is whole has none in reach.
+    # corner when there is no zero to measure to. An empty mask states no boundary
+    # to follow; one that is covered throughout has none in reach.
     if not inside.any():
         return None
     if inside.all():

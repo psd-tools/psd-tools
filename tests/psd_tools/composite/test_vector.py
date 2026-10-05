@@ -1062,7 +1062,7 @@ def test_a_stroke_skips_the_arcs_one_path_buries_in_another(
 def test_a_flat_silhouette_gates_without_a_phantom_boundary(
     fill: float, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """No pixel at half coverage states no boundary; a whole one has none in reach (#889)."""
+    """An empty mask states no boundary; a covered one has none in reach (#889)."""
     psd, layer = _nested_component(True)
 
     def flat(layer: Layer, viewport: tuple[int, int, int, int]) -> np.ndarray:
@@ -1071,11 +1071,29 @@ def test_a_flat_silhouette_gates_without_a_phantom_boundary(
     monkeypatch.setattr(vector, "draw_vector_mask", flat)
     viewport = (0, 0, psd.width, psd.height)
     near = vector._near_silhouette(layer, 1.5, viewport)
-    if fill < 1.0:
+    if fill == 0.0:
         assert near is None, "a pen with no silhouette to follow is left whole"
     else:
         assert near is not None and near.shape == (psd.height, psd.width, 1)
         assert not near.any(), "no boundary anywhere, so none within reach"
+
+
+def test_a_component_thinner_than_a_pixel_keeps_its_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A strip under half coverage is still a component to stroke (#889)."""
+    psd, layer = _nested_component(True)
+
+    def mask(layer: Layer, viewport: tuple[int, int, int, int]) -> np.ndarray:
+        out = np.zeros((viewport[3] - viewport[1], viewport[2] - viewport[0], 1))
+        left, top = -viewport[0], -viewport[1]  # document origin in the array
+        out[top + 10 : top + 60, left + 10 : left + 60] = 1.0
+        out[:, left + 80] = 0.4
+        return out
+
+    monkeypatch.setattr(vector, "draw_vector_mask", mask)
+    near = vector._near_silhouette(layer, 2.0, (0, 0, psd.width, psd.height))
+    assert near is not None and near[40, 80 - 2 : 80 + 3].all()
 
 
 def test_the_silhouette_gate_is_charged_to_the_allocation_budget(
