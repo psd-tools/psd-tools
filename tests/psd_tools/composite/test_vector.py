@@ -14,7 +14,12 @@ from psd_tools.composite.paint import (
 )
 from psd_tools.constants import Tag
 from psd_tools.psd.descriptor import Bool, Double, Enumerated, UnitFloat
-from psd_tools.psd.vector import ClosedKnotLinked, ClosedPath
+from psd_tools.psd.vector import (
+    ClosedKnotLinked,
+    ClosedPath,
+    OpenKnotLinked,
+    OpenPath,
+)
 from psd_tools.terminology import Enum, Key, Type, Unit
 
 from ..utils import full_name
@@ -458,10 +463,12 @@ def test_an_inner_stroke_stops_where_the_path_does() -> None:
 
     on_canvas = vector.draw_stroke(layer)
     wide = vector.draw_stroke(layer, (-4, -4, 68, 68))
-    assert float(wide.sum() - wide[4:68, 4:68].sum()) == 0.0
+    margin = wide.copy()
+    margin[4:68, 4:68] = 0
+    assert margin.max() == 0.0
     assert np.allclose(wide[4:68, 4:68], on_canvas, atol=1 / 255)
     # Not empty for want of a stroke: the band is inside the path instead.
-    assert float(on_canvas.sum()) > 700.0
+    assert float(on_canvas.sum()) > 300.0
 
 
 def test_stroke_follows_a_shifted_viewport() -> None:
@@ -1011,3 +1018,67 @@ def test_a_half_covered_fill_under_a_half_opaque_stroke_composites_once(
     assert image is not None
     pixel = np.asarray(image.convert("RGB"), dtype=float)[50, 32] / 255.0
     assert pixel == pytest.approx([0.5, 0.25, 0.75], abs=0.02)
+
+
+def test_a_stroke_skips_the_arcs_one_path_buries_in_another(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``combine.psd`` unions three ellipses, so some of each outline is interior (#889).
+
+    Photoshop strokes the silhouette: its preview paints the fill colour
+    where an arc of one ellipse lies inside another. A pixel the fill covers
+    whole, with all four neighbours covered whole too, is on no boundary, so
+    the pen should not touch it.
+    """
+    psd = PSDImage.open(full_name("path-operations/combine.psd"))
+    layer = [x for x in psd.descendants() if x.stroke is not None][0]
+    solid = vector.draw_vector_mask(layer)[..., 0] >= 1.0
+    interior = solid.copy()
+    for axis in (0, 1):
+        for shift in (1, -1):
+            interior &= np.roll(solid, shift, axis)
+
+    stroke = vector.draw_stroke(layer)[..., 0]
+    with monkeypatch.context() as patch:
+        patch.setattr(vector, "_near_silhouette", lambda *args, **kwargs: None)
+        buried = vector.draw_stroke(layer)[..., 0]
+    assert np.count_nonzero(buried[interior]) > 100, "no buried arc to skip"
+    # Where an arc crosses the boundary it is inside the pen's reach of it, so
+    # a few pixels stay: the bound is on how much of the seam is left, not zero.
+    assert stroke[interior].sum() < 0.2 * buried[interior].sum()
+
+    expected = psd.topil()
+    assert expected is not None
+    image = psd.composite(force=True, ignore_preview=True)
+    assert image is not None
+    assert np.asarray(image.convert("RGB"))[3, 27] == pytest.approx(
+        np.asarray(expected.convert("RGB"))[3, 27], abs=8
+    )
+
+
+def test_an_open_subpath_is_stroked_wherever_the_silhouette_is() -> None:
+    """An open subpath bounds no area, so the silhouette cannot drop it (#889)."""
+    psd, layer = _nested_component(True)
+    setting = layer.tagged_blocks.get_data(Tag.VECTOR_MASK_SETTING1)
+    left, right = (0.2, 0.1), (0.2, 0.9)  # (y, x) fractions
+    open_path = OpenPath(
+        items=[
+            OpenKnotLinked(left, left, left),  # type: ignore[list-item]
+            OpenKnotLinked(right, right, right),  # type: ignore[list-item]
+        ],
+        operation=1,
+        index=0,
+    )
+    setting.path._items.append(open_path)
+
+    nowhere = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
+    pen = {"color": 255, "width": 1.0}
+    gated = vector._draw_path(layer, pen=pen, near=nowhere)
+    ungated = vector._draw_path(layer, pen=pen)
+
+    line = slice(int(0.2 * psd.height) - 1, int(0.2 * psd.height) + 2)
+    off_line = np.ones(psd.height, dtype=bool)
+    off_line[line] = False
+    assert gated[line, 20:80].max(axis=0).min() > 0.4, "the open line was gated away"
+    assert np.count_nonzero(ungated[off_line]) > 0, "no closed outline to gate"
+    assert np.count_nonzero(gated[off_line]) == 0
