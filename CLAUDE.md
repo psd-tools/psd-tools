@@ -34,21 +34,16 @@ Import convention: internal code imports from the defining module
 
 - **Read-only by design.** Mutating low-level structures under the API is out of contract.
   A stale cache after a *high-level* edit (`layer.name = ...`) is a real bug.
+- **Compositor viewport and artboards** clip as described in
+  [docs/architecture.rst](docs/architecture.rst); read it before changing either.
 - **Unknown data round-trips.** Unrecognised tagged blocks and fields are preserved as bytes
   on write. Do not drop or reinterpret them.
 
-### Layer Tree Reconstruction
+### Layer Tree and Records
 
-PSD stores layers as a **flat list** with implicit hierarchy. The `SectionDivider` tagged
-block marks group boundaries:
-
-```text
-Record 0: "Background" (normal layer)
-Record 1: "Group" (BOUNDING_SECTION_DIVIDER = group start)
-Record 2:   "Child 1" (inside group)
-Record 3:   "Child 2" (inside group)
-Record 4: (END_SECTION_DIVIDER = group end)
-```
+`PSDImage` rebuilds the layer tree from the flat record list. For 16- and 32-bit files
+read records through `psd._record._get_layer_info()`, not `layer_info`. Details:
+[docs/architecture.rst](docs/architecture.rst).
 
 ### BaseElement and attrs
 
@@ -65,15 +60,6 @@ classes via `@register(Tag.FOO)`.
 ```python
 if Tag.UNICODE_LAYER_NAME in layer._record.tagged_blocks:
     name = layer._record.tagged_blocks.get_data(Tag.UNICODE_LAYER_NAME)
-```
-
-### Accessing Layer Records
-
-Where the document has an `Lr16`/`Lr32` tagged block -- Photoshop writes one for 16- and
-32-bit files -- the records live there and `layer_info` is empty, so go through the accessor:
-
-```python
-layer_records = psd._record._get_layer_info().layer_records
 ```
 
 ### Key Files
@@ -95,16 +81,10 @@ layer_records = psd._record._get_layer_info().layer_records
 New code uses type hints on all signatures and `typing_extensions.Self` for methods
 returning their own class.
 
-`psd_tools.api` property getters:
-
-- A property annotated `int`, `float`, `bool` or `str` returns that primitive,
-  not the descriptor wrapper (`Integer`, `UnitFloat`, ...), which does not
-  subclass it and fails `isinstance` and `json.dumps`. Cast at the getter.
-  `tests/psd_tools/api/test_annotations.py` enforces this over the fixture corpus.
-- A missing key returns a documented Photoshop default only when the format
-  defines one; otherwise annotate `T | None` and return `None`. Never invent a
-  default to satisfy the annotation, and do not raise (#788).
-- Do not annotate `Any` for a value whose type the low-level declaration knows.
+`psd_tools.api` property getters return primitives, not descriptor wrappers, and `T | None`
+for a missing key with no Photoshop default (#788); see
+[docs/architecture.rst](docs/architecture.rst). Do not annotate `Any` for a value whose type
+the low-level declaration knows.
 
 ## Code Comments and Docstrings
 

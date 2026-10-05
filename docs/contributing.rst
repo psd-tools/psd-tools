@@ -11,39 +11,8 @@ The license is MIT.
 Package design
 --------------
 
-The package consists of four major subpackages:
-
-1) :py:mod:`psd_tools.psd`: subpackage that reads/writes low-level binary
-    structure of the PSD/PSB file. The core data structures are built around
-    attrs_ classes that all implement `read` and `write` methods. Each data
-    object tries to resemble the structure described in the specification_.
-    Although documented, the specification_ is far from complete and some are
-    even inaccurate. When `psd-tools` finds unknown data structure, the package
-    keeps such data as `bytes` in the parsed result.
-
-.. _attrs: https://www.attrs.org/en/stable/index.html#
-.. _specification: https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/
-
-2) :py:mod:`psd_tools.api`: User-facing API that implements various
-    easy-to-use methods that manipulate low-level :py:mod:`psd_tools.psd` data
-    structures. This is the primary interface for most users.
-
-3) :py:mod:`psd_tools.composite`: Rendering engine for layer compositing and
-    blending. This subpackage implements blend modes, layer effects (drop
-    shadows, strokes, etc.), and vector shape rasterization. It uses NumPy
-    arrays for efficient pixel manipulation and includes optional dependencies
-    (`scipy`, `scikit-image`, `aggdraw`) that must be installed via the
-    ``composite`` extra.
-
-4) :py:mod:`psd_tools.compression`: Image compression codecs for raw data,
-    RLE (Run-Length Encoding), and ZIP compression. The RLE codec includes a
-    Cython-optimized implementation (`_rle.pyx`) that falls back to pure Python
-    if not compiled, providing significant performance improvements for large
-    files.
-
-In the future, it might be good to implement the `Photoshop API`_ on top of the existing `psd-tools` API.
-
-.. _Photoshop API: https://developer.adobe.com/photoshop/uxp/2022/ps_reference/
+See :doc:`architecture` for the package layout and the contracts a change
+must preserve.
 
 Testing
 -------
@@ -61,6 +30,19 @@ Finally, run tests::
 
     uv run pytest
 
+Things to know when writing compositor tests:
+
+- ``check_composite_quality()`` defaults to ``force=False``. A regression in
+  the drawing path shows only under ``force=True``, so run both.
+- Assert pixel values, not only the PIL mode of the result.
+- ``_mse`` in ``tests/psd_tools/composite/test_composite.py`` scores colour
+  where alpha is 0, so split alpha from RGB before reading a change as a
+  regression.
+- A fixture whose layer runs past the canvas measures the viewport clip, not
+  the feature under test. Compare ``layer.bbox`` with ``psd.size`` first.
+- CI runs several Python versions, and behaviour differs between them. Check
+  type annotations and lock bumps on the newest one.
+
 Documentation
 -------------
 
@@ -71,6 +53,11 @@ Install documentation dependencies::
 Once installed, use `Makefile`::
 
     make docs
+
+The default build does not report dead cross-references; only
+``sphinx-build -n`` does. There is no intersphinx mapping, so third-party
+types in annotations always count as dead. Compare the
+``not found: psd_tools.`` entries rather than the total.
 
 Release Process
 ---------------
