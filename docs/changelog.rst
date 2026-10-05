@@ -19,6 +19,8 @@ Changelog
   layer is redrawn (``force=True``, or no stored pixels) (#937, #938)
 - [fix] A centred or outer vector stroke is drawn outside its path too when
   the layer is redrawn (``force=True``, or no stored pixels) (#937, #939)
+- [chore] ``CLAUDE.md`` is trimmed to what every contributor's coding agent
+  needs, and the unused ``investigate-issue`` skill is removed (#949)
 
 1.23.0 (2026-10-01)
 -------------------
