@@ -1054,8 +1054,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             raise ValueError("Failed to create tagged blocks for psdimage")
 
         for tag in self.tagged_blocks.keys():
-            # Keys may be raw bytes: ``set_data()`` stores the unwrapped value,
-            # and ``Tag`` is a ``bytes`` enum, so the comparison still holds.
+            # Keys may be raw bytes (``set_data()`` unwraps); ``Tag`` is a bytes enum.
             if tag in (Tag.PATTERNS1, Tag.PATTERNS2, Tag.PATTERNS3):
                 logger.debug("Copying patterns for tag %s", tag)
                 source_patterns: Patterns = self.tagged_blocks.get_data(tag)

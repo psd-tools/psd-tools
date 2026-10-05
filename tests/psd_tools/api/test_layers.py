@@ -2156,12 +2156,7 @@ def test_parent_creators_type_check() -> None:
 
 
 def test_a_document_that_received_a_layer_can_donate_one() -> None:
-    """The receiver of a patterns-carrying move is itself a donor next (#862).
-
-    One move is not enough: ``set_data()`` stores the unwrapped ``bytes`` key
-    only when the receiver had no patterns block, and the guard rejected it on
-    the *next* move out.
-    """
+    """A document that received a patterns-carrying layer can donate one (#862)."""
     a = PSDImage.open(full_name("layers/pixel-layer.psd"))
     b = PSDImage.open(full_name("2layers.psd"))
     c = PSDImage.open(full_name("1layer.psd"))
