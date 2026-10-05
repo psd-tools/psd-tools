@@ -54,7 +54,7 @@ def test_a_shape_layers_stroke_leaves_its_faded_interior_alone(name: str) -> Non
     These shapes are stored with an alpha ramp across the interior, and a
     stroke traced from that coverage paints across it at ``1 - alpha``.
     Photoshop strokes the path, so the layer is held to the preview over its
-    own stroke box, which that reading misses by two orders of magnitude.
+    own stroke box.
     """
     psd = PSDImage.open(full_name("effects/stroke-effects.psd"))
     layer = next(sub for sub in psd.descendants() if sub.name == name)
