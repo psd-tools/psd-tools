@@ -450,12 +450,64 @@ def post_process(
     return image
 
 
-def convert_pattern_to_pil(pattern: Pattern) -> Image.Image:
-    """Convert Pattern to PIL Image."""
+def _pattern_peak_bytes(
+    width: int, height: int, written: int, depth: int, decompress: int
+) -> int:
+    """Bytes :func:`convert_pattern_to_pil` holds at its high-water mark.
+
+    Phase-maxed, with every written channel sized ``width`` x ``height``: the
+    decode of one channel (``decompress`` times its source bytes, beside the
+    "L" planes already built); that source beside one 16- or 32-bit conversion
+    transient; and the merge and ``putalpha()`` widening, bounded by treating
+    every written channel as a band. ``depth`` is the widest of the channels'
+    ``depth`` (the decode) and ``pixel_depth`` (the conversion).
+    """
+    pixels = width * height
+    source = ((width * depth + 7) // 8) * height
+    conversion = _CONVERSION_TRANSIENT if depth >= 16 else 0
+    return max(
+        pixels * (written - 1) + decompress * source,
+        pixels * (written + _ALLOCATOR_SLACK) + source + pixels * conversion,
+        pixels * (written + 3 * written + 1),
+    )
+
+
+def convert_pattern_to_pil(
+    pattern: Pattern, max_alloc_bytes: AllocBudget | None = None
+) -> Image.Image:
+    """Convert Pattern to PIL Image.
+
+    :raises ValueError: if the record's declared size exceeds the per-axis limit
+        or *max_alloc_bytes* (default :data:`~psd_tools.api.utils.MAX_ALLOC_BYTES`).
+    """
     mode = get_pil_mode(pattern.image_mode)
     # The order is different here.
     top, left, bottom, right = pattern.data.rectangle
     size = right - left, bottom - top
+    written = [c for c in pattern.data.channels if c.is_written]
+    # Both sizes are the file's: `get_data()` decompresses to the channel's own
+    # rectangle, and `_create_image()` allocates the pattern's in full before it
+    # looks at the data. The widest of them bounds the call.
+    if written:
+        width, height = size
+        for c in written:
+            if c.rectangle:
+                width = max(width, c.rectangle[3] - c.rectangle[1])
+                height = max(height, c.rectangle[2] - c.rectangle[0])
+        check_pixel_size(
+            width,
+            height,
+            len(written),
+            max_alloc_bytes=max_alloc_bytes,
+            estimated_bytes=_pattern_peak_bytes(
+                width,
+                height,
+                len(written),
+                max(max(c.depth or 8, c.pixel_depth or 8) for c in written),
+                max(_DECOMPRESS_PEAK[c.compression] for c in written),
+            ),
+            warn=False,
+        )
     channels = [
         _create_image(size, c.get_data() or b"", c.pixel_depth or 8).convert("L")
         for c in pattern.data.channels

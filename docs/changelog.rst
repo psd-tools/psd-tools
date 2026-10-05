@@ -4,6 +4,11 @@ Changelog
 1.23.1 (unreleased)
 -------------------
 
+- [security] ``convert_pattern_to_pil()`` now checks the pattern's declared size
+  against the per-axis limit and ``max_alloc_bytes`` before allocating, and
+  takes ``max_alloc_bytes``. It raises ``ValueError`` on a crafted file that
+  declares a huge pattern or channel size. ``PSDImage`` never calls it (#960)
+
 - [fix] An inner vector stroke over a gradient fill with transparent stops
   shows at its own opacity where the fill is clear, matching Photoshop, rather
   than fading with it. Affects ``force=True`` and layers without stored
