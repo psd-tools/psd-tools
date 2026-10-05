@@ -4,6 +4,10 @@ Changelog
 1.23.1 (unreleased)
 -------------------
 
+- [fix] A redrawn vector stroke (``force=True``, or no stored pixels) is
+  painted Normal whatever its blend mode, as Photoshop does. It was blended
+  with that mode against the fill only (#940)
+
 - [fix] An inner vector stroke wider than half the shape is no longer left
   hollow down the middle. Needs scipy, and without it the old rendering
   remains (#890)
