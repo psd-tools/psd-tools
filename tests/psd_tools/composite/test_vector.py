@@ -416,6 +416,7 @@ def test_an_inner_stroke_wider_than_half_the_shape_has_no_hole() -> None:
     On a 100x100 path the pen alone leaves a hole of side ``2w - 100`` once
     ``w`` passes 50, where Photoshop paints solid.
     """
+    pytest.importorskip("scipy.ndimage")
     psd = PSDImage.open(full_name("effects/stroke-composite.psd"))
     layer = [x for x in psd.descendants() if x.name == "Plain"][0]
     assert layer.stroke is not None and layer.stroke.line_alignment == "inner"
@@ -1151,3 +1152,34 @@ def test_the_solid_inner_band_leaves_a_layer_with_an_open_subpath_alone(
     blank = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
     band = vector._solid_inner_band(layer, blank, 4.0, (0, 0, psd.width, psd.height))
     assert band.any() is not open_subpath
+
+
+def test_the_solid_inner_band_covers_a_shape_thinner_than_a_pixel_margin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 3x3 square under a width of 2 has its centre wholly in the band (#890)."""
+    pytest.importorskip("scipy.ndimage")
+    psd, layer = _nested_component(True)
+
+    def mask(layer: Layer, viewport: tuple[int, int, int, int]) -> np.ndarray:
+        out = np.zeros((viewport[3] - viewport[1], viewport[2] - viewport[0], 1))
+        left, top = -viewport[0], -viewport[1]  # document origin in the array
+        out[top + 50 : top + 53, left + 60 : left + 63] = 1.0
+        return out
+
+    monkeypatch.setattr(vector, "draw_vector_mask", mask)
+    blank = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
+    band = vector._solid_inner_band(layer, blank, 2.0, (0, 0, psd.width, psd.height))
+    # The distance is two-sided; the caller clips the band to the inside.
+    assert band[50:53, 60:63].all()
+
+
+def test_the_solid_inner_band_gives_way_to_the_allocation_budget() -> None:
+    """The repair is optional, so a budget it cannot fit leaves the pen alone (#890)."""
+    pytest.importorskip("scipy.ndimage")
+    psd, layer = _nested_component(True)
+    viewport = (0, 0, psd.width, psd.height)
+    blank = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
+    assert vector._solid_inner_band(layer, blank.copy(), 4.0, viewport).any()
+    psd._max_alloc_bytes = psd.width * psd.height * 16
+    assert not vector._solid_inner_band(layer, blank, 4.0, viewport).any()

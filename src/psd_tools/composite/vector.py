@@ -54,6 +54,9 @@ _MITER_REACH = 1.5
 _NEAR_SILHOUETTE_BYTES = 48
 # Per viewport pixel, the stroke colour the caller still holds (RGBA float32).
 _RETAINED_COLOR_BYTES = 16
+# Per viewport pixel, what ``draw_stroke`` holds while it repairs a band: the
+# outline and the fill (float32 each), the gate, and the inside mask.
+_STROKE_LIVE_BYTES = 13
 # Slack on a distance to the silhouette, measured from a pixel-resolution edge.
 _BOUNDARY_MARGIN = 1.0
 
@@ -175,7 +178,7 @@ def _solid_inner_band(
     viewport: tuple[int, int, int, int] | None,
 ) -> np.ndarray:
     """
-    ``outline`` with every pixel wholly within ``width`` of the boundary solid.
+    Make solid, in place, every ``outline`` pixel wholly within ``width`` of the boundary.
 
     The doubled pen cancels itself where the shape is thinner than it (#890);
     the pen keeps the band's own edge. Nothing outside the layer's box is
@@ -197,13 +200,23 @@ def _solid_inner_band(
     )
     if box[2] <= box[0] or box[3] <= box[1]:
         return outline
-    distance = _silhouette_distance(layer, width, box)
+    held = (
+        (viewport[2] - viewport[0])
+        * (viewport[3] - viewport[1])
+        * (_RETAINED_COLOR_BYTES + _STROKE_LIVE_BYTES)
+    )
+    try:
+        distance = _silhouette_distance(layer, width, box, held)
+    except ValueError:
+        # The repair is optional, so a budget it cannot fit leaves the pen alone.
+        return outline
     if distance is None:
         return outline
-    solid = (distance <= width - 1.0)[:, :, None]
+    # A pixel this near is wholly inside the band; the pen keeps the pixels the
+    # band's edge only partly covers.
+    solid = (distance <= width)[:, :, None]
     rows = slice(box[1] - viewport[1], box[3] - viewport[1])
     cols = slice(box[0] - viewport[0], box[2] - viewport[0])
-    outline = outline.copy()
     outline[rows, cols] = np.maximum(outline[rows, cols], solid)
     return outline
 
@@ -212,6 +225,7 @@ def _silhouette_distance(
     layer: "Layer",
     radius: float,
     viewport: tuple[int, int, int, int] | None,
+    held_bytes: int | None = None,
 ) -> np.ndarray | None:
     """
     Distance from each viewport pixel to the boundary of the combined shape.
@@ -220,6 +234,8 @@ def _silhouette_distance(
     arc one path buries inside another would be stroked too (#889). Only
     distances within ``radius`` are reliable. ``None`` when the shape is empty
     or there is no scipy; ``inf`` throughout when the shape covers the viewport.
+    ``held_bytes`` is what the caller holds meanwhile, by default the colour of
+    each viewport pixel.
 
     A pixel is inside at any coverage, so a component thinner than a pixel still
     has a boundary; the margin on ``radius`` absorbs the fringe it adds.
@@ -242,15 +258,18 @@ def _silhouette_distance(
         min(viewport[3] + reach, max(viewport[3], bottom + 1)),
     )
     width, height = padded[2] - padded[0], padded[3] - padded[1]
+    if held_bytes is None:
+        held_bytes = (
+            (viewport[2] - viewport[0])
+            * (viewport[3] - viewport[1])
+            * _RETAINED_COLOR_BYTES
+        )
     check_pixel_size(
         width,
         height,
         1,
         layer._psd._max_alloc_bytes,
-        estimated_bytes=width * height * _NEAR_SILHOUETTE_BYTES
-        + (viewport[2] - viewport[0])
-        * (viewport[3] - viewport[1])
-        * _RETAINED_COLOR_BYTES,
+        estimated_bytes=width * height * _NEAR_SILHOUETTE_BYTES + held_bytes,
         warn=False,
     )
     inside = draw_vector_mask(layer, padded)[:, :, 0] > _FULL_ROUNDING
