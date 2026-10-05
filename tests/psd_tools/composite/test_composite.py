@@ -18,6 +18,7 @@ from psd_tools.api.layers import (
     TypeLayer,
 )
 from psd_tools.api.mask import Mask
+from psd_tools.api import numpy_io
 from psd_tools.api.numpy_io import _image_data_peak_bytes
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite
@@ -2753,3 +2754,18 @@ def test_mask_equal_to_shape_channel_is_applied_on_a_non_shape_layer(
     layer = next(x for x in psd.descendants() if x.name == "Polygon 1")
     layer.__class__ = layer_class
     assert not _blank_compositor(psd)._mask_repeats_shape(layer)
+
+
+def test_mask_comparison_charges_the_live_mask_to_the_shape_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    psd = PSDImage.open(full_name("clipping-mask2.psd"))
+    layer = next(x for x in psd.descendants() if x.name == "Polygon 1")
+    mask = layer.numpy("mask")
+    assert mask is not None
+    held: list[int] = []
+    monkeypatch.setattr(
+        numpy_io, "check_shape_read", lambda layer, bytes_: held.append(bytes_)
+    )
+    assert _blank_compositor(psd)._mask_repeats_shape(layer)
+    assert held == [numpy_io._backing_bytes(mask)]

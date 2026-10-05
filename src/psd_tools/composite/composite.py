@@ -2006,8 +2006,12 @@ class Compositor(object):
             )
         ):
             return False
-        shape = layer.numpy("shape")
         stored = layer.numpy("mask", real_mask=True)
+        if stored is None:
+            return False
+        # The mask stays live through the shape read, so it is charged to it.
+        numpy_io.check_shape_read(layer, numpy_io._backing_bytes(stored))
+        shape = layer.numpy("shape")
         return (
             shape is not None
             and stored is not None
