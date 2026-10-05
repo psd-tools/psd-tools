@@ -85,6 +85,7 @@ Not supported:
     migration
     changelog
     contributing
+    architecture
 
 .. toctree::
     :caption: Package reference
