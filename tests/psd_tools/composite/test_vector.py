@@ -10,6 +10,7 @@ import psd_tools.composite.paint as paint_module
 from psd_tools import PSDImage
 from psd_tools.api.layers import Group, Layer
 from psd_tools.composite import composite, vector
+from psd_tools.composite.composite import Compositor
 from psd_tools.composite.paint import (
     draw_gradient_fill,
     draw_pattern_fill,
@@ -1360,3 +1361,47 @@ def test_an_inner_stroke_wider_than_half_the_shape_matches_photoshop(
     assert np.abs(got - want).max() <= 8
     x, y = probe
     assert want[y, x].tolist() == [255, 0, 0], "the stroke colour reaches the centre"
+
+
+def test_an_inner_stroke_shows_at_its_own_opacity_where_the_gradient_is_clear() -> None:
+    """The stroke is its own coverage where the fill is transparent (#941).
+
+    Authored in Photoshop: a 62x62 rectangle filled with a gradient that fades
+    from opaque to clear across it, inside a red 10 px inner stroke. Photoshop
+    paints the band solid red on the clear side as well as the opaque one.
+    """
+    psd = PSDImage.open(full_name("effects/inner-stroke-transparent-gradient.psd"))
+    layer = psd[1]
+    assert layer.stroke is not None and layer.stroke.line_alignment == "inner"
+    expected = psd.topil()
+    assert expected is not None
+    image = psd.composite(force=True, ignore_preview=True)
+    assert image is not None
+    got = np.asarray(image.convert("RGB")).astype(int)
+    want = np.asarray(expected.convert("RGB")).astype(int)
+    # Band pixels on the left (opaque side) and the right (clear side).
+    for x, y in [(22, 50), (25, 50), (70, 50), (76, 50), (78, 50), (50, 22)]:
+        assert want[y, x].tolist() == [255, 0, 0]
+        assert got[y, x].tolist() == pytest.approx([255, 0, 0], abs=2), (x, y)
+
+
+def test_an_inner_stroke_keeps_its_opacity_at_the_path_edge() -> None:
+    """Bounding the stroke by the path scales its alpha with its coverage (#941)."""
+    psd = PSDImage.open(full_name("effects/stroke-effects.psd"))
+    layer = next(x for x in psd.descendants() if x.name == "Stroke InsetFrame")
+    assert layer.stroke is not None and layer.stroke.line_alignment == "inner"
+    stroke = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_DATA)
+    stroke["strokeStyleOpacity"] = UnitFloat(unit=Unit.Percent, value=50.0)
+    layer.tagged_blocks.set_data(Tag.VECTOR_STROKE_DATA, stroke)
+    compositor = Compositor(
+        psd.viewbox,
+        np.ones((psd.height, psd.width, 3), np.float32),
+        np.ones((psd.height, psd.width, 1), np.float32),
+        force=True,
+    )
+    _, _, _, own = compositor._get_object(layer)
+    assert own is not None
+    shape, alpha = own
+    partial = (shape > 0.05) & (shape < 0.95)
+    assert partial.any(), "the path has antialiased edges"
+    assert alpha[partial] == pytest.approx(0.5 * shape[partial], abs=1e-4)

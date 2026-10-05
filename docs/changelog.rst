@@ -9,6 +9,11 @@ Changelog
   takes ``max_alloc_bytes``. It raises ``ValueError`` on a crafted file that
   declares a huge pattern or channel size. ``PSDImage`` never calls it (#960)
 
+- [fix] An inner vector stroke over a gradient fill with transparent stops
+  shows at its own opacity where the fill is clear, matching Photoshop, rather
+  than fading with it. Affects ``force=True`` and layers without stored
+  pixels (#941)
+
 - [fix] A redrawn vector stroke (``force=True``, or no stored pixels) is
   painted Normal whatever its stored blend mode, matching Photoshop (#940)
 
