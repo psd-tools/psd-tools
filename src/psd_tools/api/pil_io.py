@@ -474,17 +474,22 @@ def convert_pattern_to_pil(
     top, left, bottom, right = pattern.data.rectangle
     size = right - left, bottom - top
     written = [c for c in pattern.data.channels if c.is_written]
-    # The declared rectangle is the file's, and `_create_image()` allocates it
-    # in full before it looks at the data.
+    # Both sizes are the file's: `get_data()` decompresses to the channel's own
+    # rectangle, and `_create_image()` allocates the pattern's in full before it
+    # looks at the data. The widest of them bounds the call.
     if written:
+        width, height = size
+        for c in written:
+            if c.rectangle:
+                width = max(width, c.rectangle[3] - c.rectangle[1])
+                height = max(height, c.rectangle[2] - c.rectangle[0])
         check_pixel_size(
-            *size,
+            width,
+            height,
             len(written),
             max_alloc_bytes=max_alloc_bytes,
             estimated_bytes=_pattern_peak_bytes(
-                size[0] * size[1],
-                len(written),
-                max(c.pixel_depth or 8 for c in written),
+                width * height, len(written), max(c.pixel_depth or 8 for c in written)
             ),
             warn=False,
         )

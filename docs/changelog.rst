@@ -6,8 +6,8 @@ Changelog
 
 - [security] ``convert_pattern_to_pil()`` now checks the pattern's declared size
   against the per-axis limit and ``max_alloc_bytes`` before allocating, and
-  takes ``max_alloc_bytes``. It raises ``ValueError`` where it used to allocate
-  gigabytes for a crafted file. ``PSDImage`` itself never calls it (#PR)
+  takes ``max_alloc_bytes``. It raises ``ValueError`` on a crafted file that
+  declares a huge pattern or channel size. ``PSDImage`` never calls it (#PR)
 
 - [fix] A redrawn vector stroke (``force=True``, or no stored pixels) is
   painted Normal whatever its stored blend mode, matching Photoshop (#940)

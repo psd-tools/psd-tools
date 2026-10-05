@@ -1,5 +1,6 @@
 import logging
 import os
+import zlib
 
 import pytest
 
@@ -93,8 +94,16 @@ def test_a_deep_pattern_is_charged_its_conversion_transient() -> None:
     # Past three channels the merge dominates, so only a narrow pattern shows it.
     assert pil_io._pattern_peak_bytes(64, 1, 16) > pil_io._pattern_peak_bytes(64, 1, 8)
 
-    pattern = _pattern_with_declared_size(8, depth=16)
-    assert pil_io.convert_pattern_to_pil(pattern)
+
+def test_a_declared_channel_size_is_checked_before_the_decompress() -> None:
+    pattern = _pattern_with_declared_size(8)
+    for c in pattern.data.channels:
+        if c.is_written:
+            c.rectangle = (0, 0, 20000, 20000)
+            c.compression = Compression.ZIP
+            c.data = zlib.compress(b"\x00" * 20000 * 20000)
+    with pytest.raises(ValueError, match="over the configured budget"):
+        pil_io.convert_pattern_to_pil(pattern, max_alloc_bytes=1 << 20)
 
 
 def test_apply_icc_profile() -> None:
