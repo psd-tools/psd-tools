@@ -450,12 +450,44 @@ def post_process(
     return image
 
 
-def convert_pattern_to_pil(pattern: Pattern) -> Image.Image:
-    """Convert Pattern to PIL Image."""
+def _pattern_peak_bytes(pixels: int, written: int, depth: int) -> int:
+    """Bytes :func:`convert_pattern_to_pil` holds at its high-water mark.
+
+    One retained "L" per written channel, plus the widest later phase: the
+    16- and 32-bit conversion transient, or the merge and the ``putalpha()``
+    widening, bounded by treating every written channel as a band.
+    """
+    conversion = _CONVERSION_TRANSIENT if depth in (16, 32) else 0
+    return pixels * (written + max(conversion, 3 * written + 1))
+
+
+def convert_pattern_to_pil(
+    pattern: Pattern, max_alloc_bytes: AllocBudget | None = None
+) -> Image.Image:
+    """Convert Pattern to PIL Image.
+
+    :raises ValueError: if the record's declared size exceeds the per-axis limit
+        or *max_alloc_bytes* (default :data:`~psd_tools.api.utils.MAX_ALLOC_BYTES`).
+    """
     mode = get_pil_mode(pattern.image_mode)
     # The order is different here.
     top, left, bottom, right = pattern.data.rectangle
     size = right - left, bottom - top
+    written = [c for c in pattern.data.channels if c.is_written]
+    # The declared rectangle is the file's, and `_create_image()` allocates it
+    # in full before it looks at the data.
+    if written:
+        check_pixel_size(
+            *size,
+            len(written),
+            max_alloc_bytes=max_alloc_bytes,
+            estimated_bytes=_pattern_peak_bytes(
+                size[0] * size[1],
+                len(written),
+                max(c.pixel_depth or 8 for c in written),
+            ),
+            warn=False,
+        )
     channels = [
         _create_image(size, c.get_data() or b"", c.pixel_depth or 8).convert("L")
         for c in pattern.data.channels
