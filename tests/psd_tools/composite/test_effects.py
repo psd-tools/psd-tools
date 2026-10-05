@@ -11,8 +11,13 @@ from PIL import Image
 
 from psd_tools.api.mask import Mask
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.composite import _compat, composite, effects, paint
-from psd_tools.composite.composite import _stroke_reach
+from psd_tools.composite import _compat, composite, effects, paint, vector
+from psd_tools.composite.composite import (
+    Compositor,
+    _is_shape_layer,
+    _readable,
+    _stroke_reach,
+)
 from psd_tools.composite.effects import (
     _BANDS,
     _grow,
@@ -25,31 +30,127 @@ from psd_tools.psd.descriptor import Descriptor, Double, Enumerated, List
 from psd_tools.terminology import Enum, Key, Klass
 
 from ..utils import full_name
-from .test_composite import _mse, check_composite_quality
+from .test_composite import _canvas, _mse, check_composite_quality
 
 logger = logging.getLogger(__name__)
 
 
-@pytest.mark.xfail
-def test_stroke_effects_xfail() -> None:
-    """The largest stroke xfail, and what is left in it.
+def test_stroke_effects_render_to_the_preview() -> None:
+    """``stroke-effects.psd``'s stroke-bearing layers are shapes and pixels.
 
-    ``stroke-effects.psd``'s stroke-bearing layers are 20-24 px shapes with
-    90-92% of their covered pixels at partial alpha, and the ramps are stored
-    in the file rather than produced here -- so it is a fixture about soft
+    Most covered pixels are at partial alpha, so it is a fixture about soft
     alpha before it is one about strokes.
-
-    What the threshold still has to absorb is not the soft alpha: its five
-    *pixel* layers, whose ramps are real transparency, score far under it,
-    while its twelve *shape* layers are the whole of the error. A shape
-    layer's stroke is traced from its rasterized fill, and where that fill
-    fades to transparent the trace fades with it, so a stroke lands across an
-    interior Photoshop leaves alone -- Photoshop strokes the path.
-    ``force=True`` redraws the fill from the vector mask and gets the crisp
-    outline back, so the same document scores better there, and the test
-    asserts the worse of the two.
     """
     check_composite_quality("effects/stroke-effects.psd", threshold=0.01)
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["Shape Rectangle", "Shape OutsetFrame", "Shape InsetFrame", "Shape CenterFrame"],
+)
+def test_a_shape_layers_stroke_leaves_its_faded_interior_alone(name: str) -> None:
+    """A fill that fades inside the path is not stroked through (#886).
+
+    These shapes are stored with an alpha ramp across the interior, and a
+    stroke traced from that coverage paints across it at ``1 - alpha``.
+    Photoshop strokes the path, so the layer is held to the preview over its
+    own stroke box.
+    """
+    psd = PSDImage.open(full_name("effects/stroke-effects.psd"))
+    layer = next(sub for sub in psd.descendants() if sub.name == name)
+    reference = psd.numpy()
+    color, _, alpha = composite(psd)
+    result = np.concatenate((color, alpha), axis=2)
+
+    x0, y0, x1, y1 = _stroke_reach(layer)
+    x0, y0 = max(x0, 0), max(y0, 0)
+    x1, y1 = min(x1, psd.width), min(y1, psd.height)
+    error = _mse(reference[y0:y1, x0:x1], result[y0:y1, x0:x1])
+    assert error <= 2e-3, f"{name}: {error:.3e}"
+
+
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "effects/shape-stroke-raster-mask.psd",
+        "effects/shape-stroke-raster-mask-density.psd",
+    ],
+)
+def test_a_masked_shape_layers_stroke_is_cut_by_its_raster_mask(
+    filename: str,
+) -> None:
+    """The stroke of a shape layer that also has a raster mask (#886).
+
+    Both are ``stroke-effects.psd``'s ``Shape Rectangle`` -- a fill that fades
+    across the path -- on a 40x40 canvas, with a raster mask that reveals
+    everything right of ``x = 12`` and so cuts the stroke ring and the interior
+    in two. The second sets the mask's density to 50%. Photoshop's preview is
+    the reference: the path interior takes the mask's coverage, and the ring is
+    neither left whole nor faded with the fill.
+    """
+    psd = PSDImage.open(full_name(filename))
+    layer = next(sub for sub in psd.descendants() if sub.has_mask())
+    assert layer.has_vector_mask() and layer.mask is not None
+    check_composite_quality(filename, threshold=1e-4)
+    # The cut is a hard edge the stroke has to reach, in pixels.
+    assert layer.mask.bbox[0] == 12
+
+
+def test_a_shape_layer_without_a_stroke_does_not_rasterize_its_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The path is only read for a layer that has a stroke to trace (#886)."""
+    psd = PSDImage.open(full_name("blend-modes/color-burn.psd"))
+    layers = [sub for sub in psd.descendants() if _is_shape_layer(sub)]
+    assert layers and not any(_readable(sub, "stroke") for sub in layers)
+
+    def refuse(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("path rasterized for a layer with no stroke")
+
+    monkeypatch.setattr(Compositor, "_path_interior", staticmethod(refuse))
+    composite(psd)
+
+
+def test_a_traced_shape_reads_its_interior_from_the_path_and_its_edge_from_pixels() -> (
+    None
+):
+    """``_path_interior()`` swaps only the pixels the path covers whole (#886).
+
+    ``Shape Ellipse`` is stored with a fading alpha and an antialiased edge.
+    The trace on the canvas and the wider re-read through a viewport too small
+    to hold the layer are two routes to the same coverage, and have to agree.
+    """
+    psd = PSDImage.open(full_name("effects/stroke-effects.psd"))
+    layer = next(sub for sub in psd.descendants() if sub.name == "Shape Ellipse")
+    stored = layer.numpy("shape")
+    assert stored is not None
+    middle = (layer.height // 2, layer.width // 2, 0)
+    assert 0.0 < stored[middle] < 1.0
+
+    whole = _canvas(psd)
+    source = whole._resolve_source(layer)
+    shape = whole._path_interior(
+        layer, whole._viewport, source.shape_mask, source.shape
+    )
+    traced = whole._trace_shape(layer, layer.bbox, shape, traces_mask=False)
+    assert traced.shape == stored.shape
+    assert traced[middle] == 1.0
+    # Where the path is not whole, Photoshop's own coverage stands.
+    path = vector.draw_vector_mask(layer, layer.bbox)
+    edge = (path > 0.0) & (path < 1.0 - 1e-5)
+    assert edge.any()
+    assert np.array_equal(traced[edge], stored[edge])
+
+    x0, y0, x1, y1 = layer.left + 4, layer.top + 4, layer.right - 4, layer.bottom - 4
+    narrow = Compositor(
+        (x0, y0, x1, y1),
+        np.ones((y1 - y0, x1 - x0, 3), dtype=np.float32),
+        np.zeros((y1 - y0, x1 - x0, 1), dtype=np.float32),
+    )
+    reread = narrow._trace_shape(
+        layer, layer.bbox, narrow._resolve_source(layer).shape, traces_mask=False
+    )
+    assert np.array_equal(reread, traced)
 
 
 def test_a_partly_antialiased_shape_keeps_its_stroke_close() -> None:
@@ -559,7 +660,7 @@ def test_a_soft_edged_pixel_layer_renders_its_stroke_to_the_preview(
 
     Per layer rather than over the document, because the document's own score
     is dominated by its *shape* layers, which are wrong for an unrelated
-    reason -- see :py:func:`test_stroke_effects_xfail`. A whole-image bound
+    reason. A whole-image bound
     could not separate four improved layers from noise.
     """
     psd = PSDImage.open(full_name("effects/stroke-effects.psd"))
