@@ -4,6 +4,11 @@ Changelog
 1.23.1 (unreleased)
 -------------------
 
+- [fix] A vector stroke on a combined path no longer paints the arcs one
+  subpath buries inside another, away from the combined shape's outline.
+  Needs scipy, and without it the old rendering remains. A mitred corner
+  sharper than a right angle is now cut short on such paths (#889)
+
 - [fix] A document whose display-info resource carries an alpha channel mode
   this version does not know now opens; ``AlphaChannel.mode`` keeps the raw
   ``int`` and writes it back. ``AlphaChannel(mode=99)`` is accepted again, any
