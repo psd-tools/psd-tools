@@ -68,6 +68,18 @@ def test_a_scaled_pattern_is_antialiased_on_a_reduction() -> None:
     assert np.allclose(tall[:, :, 0], [[e, e] for e in expected], atol=1e-5)
 
 
+def test_the_resize_estimate_covers_every_buffer_live_at_once() -> None:
+    """Counted by hand for 100x100x3 float32 enlarged to 400x400."""
+    panel = np.zeros((100, 100, 3), dtype=np.float32)
+    live = (
+        120_000  # the panel
+        + 1_920_000  # the output array
+        + 2 * 40_000  # one source plane, contiguous and as a Pillow image
+        + 2 * 640_000  # the resized plane and its np.asarray copy
+    )
+    assert paint._resize_peak_bytes(panel, (400, 400)) >= live
+
+
 def test_a_downscale_is_checked_at_its_live_buffers() -> None:
     """The source planes outweigh a shrunken output, so the output alone undercounts."""
     psd, desc, _ = _pattern()

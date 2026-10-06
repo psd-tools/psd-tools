@@ -327,7 +327,7 @@ def _resize_peak_bytes(panel: np.ndarray, shape: tuple[int, int]) -> int:
         panel.nbytes
         + height * width * panel.shape[2] * plane  # the output
         + 2 * source  # the contiguous copy and Pillow's own
-        + height * width * plane  # the resized plane
+        + 2 * height * width * plane  # the resized plane and its np.asarray copy
         + width * panel.shape[0] * plane  # the horizontal pass
     )
 
