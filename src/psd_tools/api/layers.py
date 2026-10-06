@@ -2197,8 +2197,7 @@ class Artboard(Group):
         """
         data = None
         for key in (Tag.ARTBOARD_DATA1, Tag.ARTBOARD_DATA2, Tag.ARTBOARD_DATA3):
-            if key in self.tagged_blocks:
-                data = self.tagged_blocks.get_data(key)
+            data = self.tagged_blocks.get_data(key, data)
 
         if data is None:
             return 1.0, 0.0
@@ -2302,8 +2301,7 @@ class Artboard(Group):
         if self._bbox is None:
             data = None
             for key in (Tag.ARTBOARD_DATA1, Tag.ARTBOARD_DATA2, Tag.ARTBOARD_DATA3):
-                if key in self.tagged_blocks:
-                    data = self.tagged_blocks.get_data(key)
+                data = self.tagged_blocks.get_data(key, data)
             if data is None:
                 raise ValueError("Artboard data not found in tagged blocks")
             rect = data.get(b"artboardRect")

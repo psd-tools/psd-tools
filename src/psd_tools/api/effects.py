@@ -94,13 +94,12 @@ class Effects:
     def _data(self) -> Descriptor | None:
         """The layer's effects descriptor, or None if there is none to read."""
         for tag in _EFFECTS_TAGS:
-            if tag in self._layer.tagged_blocks:
-                data = self._layer.tagged_blocks.get_data(tag)
-                # ``TaggedBlock.read()`` keeps the raw bytes of a block it
-                # could not read, and reports that once, at ERROR. Both that
-                # and no block at all are the no-effects case, which every
-                # property below answers for rather than raising (#828).
-                return data if isinstance(data, Descriptor) else None
+            # A block that could not be read is skipped, like a missing one:
+            # both are the no-effects case, which every property below
+            # answers for rather than raising (#828).
+            data = self._layer.tagged_blocks.get_data(tag)
+            if isinstance(data, Descriptor):
+                return data
         return None
 
     def _list(self, data: Descriptor | None) -> list["_Effect"]:

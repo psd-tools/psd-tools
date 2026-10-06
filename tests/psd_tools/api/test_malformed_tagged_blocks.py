@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from psd_tools import PSDImage
-from psd_tools.api.layers import SmartObjectLayer, TypeLayer
+from psd_tools.api.layers import Artboard, SmartObjectLayer, TypeLayer
 from psd_tools.api.smart_object import SmartObject
 from psd_tools.constants import Tag
 from psd_tools.psd.tagged_blocks import TaggedBlock
@@ -137,3 +137,41 @@ def test_copying_patterns_keeps_a_malformed_target_block() -> None:
     source._copy_patterns(target)
     assert target.tagged_blocks is not None
     assert target.tagged_blocks[Tag.PATTERNS1].data == b"\xff\xff"
+
+
+def test_a_malformed_later_artboard_block_does_not_hide_a_valid_one() -> None:
+    psd = PSDImage.open(full_name("advanced-blending.psd"))
+    artboard = next(x for x in psd.descendants() if isinstance(x, Artboard))
+    blocks = artboard._record.tagged_blocks
+    expected = artboard.bbox
+    valid = next(
+        k
+        for k in (Tag.ARTBOARD_DATA1, Tag.ARTBOARD_DATA2, Tag.ARTBOARD_DATA3)
+        if k in blocks
+    )
+    later = Tag.ARTBOARD_DATA3 if valid != Tag.ARTBOARD_DATA3 else Tag.ARTBOARD_DATA2
+    blocks[later] = TaggedBlock(key=later, data=b"\xff\xff")
+    artboard._bbox = None
+
+    assert artboard.bbox == expected
+    artboard._artboard_background_defaults()
+
+
+def test_a_malformed_first_effects_block_does_not_hide_a_valid_one() -> None:
+    psd = PSDImage.open(full_name("advanced-blending.psd"))
+    layer = next(
+        x
+        for x in psd.descendants()
+        if Tag.OBJECT_BASED_EFFECTS_LAYER_INFO in x.tagged_blocks and x.effects.enabled
+    )
+    blocks = layer._record.tagged_blocks
+    expected = len(list(layer.effects))
+    assert expected
+    blocks[Tag.OBJECT_BASED_EFFECTS_LAYER_INFO_V0] = blocks[
+        Tag.OBJECT_BASED_EFFECTS_LAYER_INFO
+    ]
+    blocks[Tag.OBJECT_BASED_EFFECTS_LAYER_INFO] = TaggedBlock(
+        key=Tag.OBJECT_BASED_EFFECTS_LAYER_INFO, data=b"\xff\xff"
+    )
+
+    assert len(list(layer.effects)) == expected
