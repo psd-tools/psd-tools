@@ -8,6 +8,7 @@ import pytest
 
 from psd_tools.api import numpy_io, utils
 from psd_tools.api.psd_image import PSDImage
+from psd_tools.compression import decompress_row_peak_bytes
 from psd_tools.constants import ColorMode, Compression, Resource, Tag
 from psd_tools.psd.patterns import (
     Pattern,
@@ -202,19 +203,26 @@ def test_parse_array_does_not_alias_its_input() -> None:
     assert bytearray(np.arange(4, dtype=">f4").tobytes()) == source
 
 
-def _forged_pattern(side: int, compression: Compression) -> Pattern:
-    """The fixture's pattern, every written channel re-declared ``side`` square."""
+def _forged_pattern_of_size(
+    width: int, height: int, compression: Compression
+) -> Pattern:
+    """The fixture's pattern, every written channel re-declared *width* x *height*."""
     psd = PSDImage.open(full_name("layers-minimal/pattern-fill.psd"))
     desc = psd[0].tagged_blocks.get_data(Tag.PATTERN_FILL_SETTING)
     pattern = psd._get_pattern(desc[b"Ptrn"][Key.ID].value.rstrip("\x00"))
     assert pattern is not None
     for c in pattern.data.channels:
         if c.is_written:
-            c.rectangle = (0, 0, side, side)
+            c.rectangle = (0, 0, height, width)
             c.compression = compression
-            c.data = b"\x00" * (2 * side)
-    pattern.data.rectangle = (0, 0, side, side)
+            c.data = b"\x00" * (2 * height)
+    pattern.data.rectangle = (0, 0, height, width)
     return pattern
+
+
+def _forged_pattern(side: int, compression: Compression) -> Pattern:
+    """The fixture's pattern, every written channel re-declared ``side`` square."""
+    return _forged_pattern_of_size(side, side, compression)
 
 
 def _rle_peak(side: int, planes: int) -> int:
@@ -252,6 +260,50 @@ def test_the_pattern_estimate_covers_the_decode_peak() -> None:
         tracemalloc.stop()
     # Fixed interpreter-side objects are not modelled, as for layer reads.
     assert peak <= _rle_peak(side, planes) + 65536
+
+
+def test_a_tall_narrow_pattern_is_guarded_at_its_own_rows() -> None:
+    """Rows, not payload, are what an RLE pattern decode allocates.
+
+    The codec's own multiple of the payload -- ``_layer_read_peak_bytes()``
+    without ``row_objects`` -- is a fraction of what a one-pixel-wide pattern of
+    the same row count allocates, so a budget set at it has to be refused rather
+    than admitted.
+    """
+    rows = 20000
+    pattern = _forged_pattern_of_size(1, rows, Compression.RLE)
+    planes = sum(1 for c in pattern.data.channels if c.is_written)
+    payload_only = numpy_io._layer_read_peak_bytes(
+        1, rows, 8, planes, numpy_io._DECOMPRESS_PEAK[Compression.RLE]
+    )
+    with pytest.raises(ValueError, match="over the configured budget"):
+        numpy_io.get_pattern(pattern, payload_only)
+    charged = payload_only + decompress_row_peak_bytes(Compression.RLE, rows)
+    assert numpy_io.get_pattern(pattern, charged).shape == (rows, 1, planes)
+
+
+def test_a_pattern_whose_channels_do_not_share_a_codec() -> None:
+    """The guard is per channel: its own multiple and its own rows together.
+
+    The fixture's pattern carries three written channels. Tied on the codec's
+    multiple, an estimate that takes the widest of them and no rows is still
+    below what the RLE ones allocate.
+    """
+    rows = 20000
+    pattern = _forged_pattern_of_size(1, rows, Compression.ZIP)
+    written = [c for c in pattern.data.channels if c.is_written]
+    assert len(written) == 3
+    written[0].compression = Compression.RLE
+    written[1].compression = Compression.RLE
+
+    payload_only = numpy_io._layer_read_peak_bytes(
+        1, rows, 8, len(written), numpy_io._DECOMPRESS_PEAK[Compression.ZIP]
+    )
+    with pytest.raises(ValueError, match="over the configured budget"):
+        numpy_io.get_pattern(pattern, payload_only)
+
+    charged = payload_only + decompress_row_peak_bytes(Compression.RLE, rows)
+    assert numpy_io.get_pattern(pattern, charged).shape == (rows, 1, len(written))
 
 
 def test_a_pattern_whose_depths_disagree_is_rejected_before_the_decode() -> None:

@@ -425,6 +425,20 @@ def encode_rle(data: bytes, width: int, height: int, depth: int, version: int) -
     return result
 
 
+# Bytes one RLE row costs beside its payload: the compressed row `decode_rle()`
+# reads, the object the codec returns, and the join holding both.
+RLE_ROW_BYTES: int = 128
+
+
+def decompress_row_peak_bytes(compression: Compression, rows: int) -> int:
+    """Bytes :func:`decompress` holds in one object per row, above the payload.
+
+    Only RLE decodes a row at a time; the other codecs produce their whole output
+    as a single object, so *rows* adds nothing for them.
+    """
+    return rows * RLE_ROW_BYTES if compression == Compression.RLE else 0
+
+
 def decode_rle(
     data: bytes,
     width: int,

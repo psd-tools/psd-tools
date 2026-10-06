@@ -16,6 +16,7 @@ from psd_tools.api.utils import (
     get_transparency_index,
     has_transparency,
 )
+from psd_tools.compression import decompress_row_peak_bytes
 from psd_tools.constants import ChannelID, ColorMode, Compression, Resource
 from psd_tools.psd.image_resources import ThumbnailResource, ThumbnailResourceV4
 from psd_tools.psd.layer_and_mask import ChannelData
@@ -173,6 +174,7 @@ _ALLOCATOR_SLACK: int = 1
 # Bytes live at the codec's own peak, as a multiple of the decompressed size.
 # One step wider than the numpy path's table throughout, because this path asks
 # `get_data()` to split the buffer per channel and the split is a second copy.
+# RLE's per-row objects are not here: `decompress_row_peak_bytes()` counts them.
 _DECOMPRESS_PEAK: dict[Compression, int] = {
     Compression.RAW: 2,
     Compression.RLE: 3,
@@ -217,7 +219,11 @@ def _image_data_peak_bytes(
     # Rounded up per row, as the format pads a 1-bit row to a byte boundary.
     source = ((psd.width * depth + 7) // 8) * psd.height * psd.channels
     conversion = _CONVERSION_TRANSIENT if depth in (16, 32) else 0
-    decompress = _DECOMPRESS_PEAK[psd._record.image_data.compression] * source
+    codec = psd._record.image_data.compression
+    # One pass decodes every channel: `height * channels` rows of the table.
+    decompress = _DECOMPRESS_PEAK[codec] * source + decompress_row_peak_bytes(
+        codec, psd.height * psd.channels
+    )
 
     if channel is not None:
         # One `_create_image()` and no assembly: nothing is merged, there is no
@@ -383,10 +389,14 @@ def _layer_peak_bytes(
     stored = len(reads)
     source = ((width * depth + 7) // 8) * height
     conversion = _CONVERSION_TRANSIENT if depth in (16, 32) else 0
-    compression = max(_DECOMPRESS_PEAK[c.compression] for c in reads)
+    decompress = max(
+        _DECOMPRESS_PEAK[c.compression] * source
+        + decompress_row_peak_bytes(c.compression, height)
+        for c in reads
+    )
     retained = pixels * (stored + _ALLOCATOR_SLACK)
     phases = [
-        pixels * (stored - 1) + compression * source,
+        pixels * (stored - 1) + decompress,
         retained + source + pixels * (1 + conversion),
     ]
 
@@ -460,7 +470,12 @@ def post_process(
 
 
 def _pattern_peak_bytes(
-    width: int, height: int, written: int, depth: int, decompress: int
+    width: int,
+    height: int,
+    written: int,
+    depth: int,
+    decompress: int,
+    row_objects: int = 0,
 ) -> int:
     """Bytes :func:`convert_pattern_to_pil` holds at its high-water mark.
 
@@ -470,12 +485,17 @@ def _pattern_peak_bytes(
     transient; and the merge and ``putalpha()`` widening, bounded by treating
     every written channel as a band. ``depth`` is the widest of the channels'
     ``depth`` (the decode) and ``pixel_depth`` (the conversion).
+
+    ``row_objects`` is the per-row space the codec's payload multiple is not
+    sized for, added by the caller from
+    :func:`~psd_tools.compression.decompress_row_peak_bytes` for the channels
+    it reads.
     """
     pixels = width * height
     source = ((width * depth + 7) // 8) * height
     conversion = _CONVERSION_TRANSIENT if depth >= 16 else 0
     return max(
-        pixels * (written - 1) + decompress * source,
+        pixels * (written - 1) + decompress * source + row_objects,
         pixels * (written + _ALLOCATOR_SLACK) + source + pixels * conversion,
         pixels * (written + 3 * written + 1),
     )
@@ -514,6 +534,9 @@ def convert_pattern_to_pil(
                 len(written),
                 max(max(c.depth or 8, c.pixel_depth or 8) for c in written),
                 max(_DECOMPRESS_PEAK[c.compression] for c in written),
+                row_objects=max(
+                    decompress_row_peak_bytes(c.compression, height) for c in written
+                ),
             ),
             warn=False,
         )
