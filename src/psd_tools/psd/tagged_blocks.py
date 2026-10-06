@@ -740,7 +740,8 @@ class SectionDividerSetting(BaseElement):
         signature, blend_mode = None, None
         if is_readable(fp, 8):
             signature = read_fmt("4s", fp)[0]
-            assert signature == b"8BIM", "Invalid signature %r" % signature
+            if signature != b"8BIM":
+                raise ValueError("Invalid signature %r" % signature)
             blend_mode = BlendMode(read_fmt("4s", fp)[0])
         sub_type = None
         if is_readable(fp, 4):

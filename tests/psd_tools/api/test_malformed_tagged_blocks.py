@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from psd_tools import PSDImage
-from psd_tools.api.layers import SmartObjectLayer
+from psd_tools.api.layers import SmartObjectLayer, TypeLayer
 from psd_tools.constants import Tag
 
 from ..utils import full_name
@@ -74,3 +74,21 @@ def test_a_malformed_layer_block_raises_on_open(key: bytes) -> None:
     block = b"8BIM" + key + struct.pack(">I", len(body)) + body
     with pytest.raises((OSError, ValueError)):
         PSDImage.open(_document(block))
+
+
+def test_a_type_layer_without_parsed_data_raises_value_error() -> None:
+    psd = PSDImage.open(full_name("adjustment-fillers.psd"))
+    _corrupt(psd, Tag.TYPE_TOOL_OBJECT_SETTING)
+    buffer = io.BytesIO()
+    psd.save(buffer)
+    buffer.seek(0)
+
+    reopened = PSDImage.open(buffer)
+    type_layers = [x for x in reopened.descendants() if isinstance(x, TypeLayer)]
+    assert type_layers
+    for layer in type_layers:
+        for name in ("text", "transform", "warp", "engine_dict", "typesetting"):
+            with pytest.raises(ValueError):
+                getattr(layer, name)
+        layer.bbox
+        layer.composite()

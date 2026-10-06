@@ -160,6 +160,12 @@ def test_a_malformed_structural_block_raises(key: Tag) -> None:
         TaggedBlock.read(_raw_block(key.value, b"\xff\xff"))
 
 
+def test_a_section_divider_with_a_bad_signature_raises_value_error() -> None:
+    payload = struct.pack(">I", 1) + b"XXXXnorm"
+    with pytest.raises(ValueError):
+        TaggedBlock.read(_raw_block(Tag.SECTION_DIVIDER_SETTING.value, payload))
+
+
 def test_a_malformed_block_keeps_its_bytes_and_reads_as_missing() -> None:
     block = TaggedBlock.read(_raw_block(Tag.VECTOR_MASK_SETTING1.value, b"\xff\xff"))
     assert block.data == b"\xff\xff"

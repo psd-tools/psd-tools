@@ -144,6 +144,7 @@ from psd_tools.psd.tagged_blocks import (
     ProtectedSetting,
     SectionDividerSetting,
     TaggedBlocks,
+    TypeToolObjectSetting,
 )
 from psd_tools.terminology import Key
 
@@ -2590,7 +2591,13 @@ class TypeLayer(Layer):
 
     def __init__(self, *args: Any):
         super(TypeLayer, self).__init__(*args)
-        self._data = self.tagged_blocks.get_data(Tag.TYPE_TOOL_OBJECT_SETTING)
+        self._type_data = self.tagged_blocks.get_data(Tag.TYPE_TOOL_OBJECT_SETTING)
+
+    @property
+    def _data(self) -> TypeToolObjectSetting:
+        if self._type_data is None:
+            raise ValueError("Type tool data not found")
+        return self._type_data
 
     @property
     def text(self) -> str:
