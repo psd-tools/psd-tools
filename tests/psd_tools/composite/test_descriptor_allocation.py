@@ -44,6 +44,70 @@ def test_a_forged_pattern_scale_is_rejected_without_a_budget(
         draw_pattern_fill(psd.viewbox, psd, desc)
 
 
+def test_a_scaled_pattern_is_resampled_in_pixel_values() -> None:
+    """A ramp doubled along each axis is the bilinear ramp, clamped at the edges."""
+    ramp = np.array([[[0.0], [1.0]]], dtype=np.float32)
+    wide = paint._resize_panel(ramp, (1, 4))
+    assert wide.shape == (1, 4, 1) and wide.dtype == np.float32
+    assert np.allclose(wide[0, :, 0], [0.0, 0.25, 0.75, 1.0])
+    tall = paint._resize_panel(ramp.transpose(1, 0, 2), (4, 1))
+    assert tall.shape == (4, 1, 1)
+    assert np.allclose(tall[:, 0, 0], [0.0, 0.25, 0.75, 1.0])
+
+
+def test_a_scaled_pattern_is_antialiased_on_a_reduction() -> None:
+    """A 2x reduction filters over a wider span than its own block, on both axes.
+
+    A ramp 0..3 halved is 5/7 and 16/7 rather than the block means 0.5 and 2.5.
+    """
+    ramp = np.tile(np.arange(4, dtype=np.float32), (4, 1))[:, :, None]
+    expected = [5 / 7, 16 / 7]
+    wide = paint._resize_panel(ramp, (2, 2))
+    assert np.allclose(wide[:, :, 0], [expected, expected], atol=1e-5)
+    tall = paint._resize_panel(ramp.transpose(1, 0, 2), (2, 2))
+    assert np.allclose(tall[:, :, 0], [[e, e] for e in expected], atol=1e-5)
+
+
+def test_the_resize_estimate_covers_every_buffer_live_at_once() -> None:
+    """Counted by hand for 100x100x3 float32 enlarged to 400x400."""
+    panel = np.zeros((100, 100, 3), dtype=np.float32)
+    live = (
+        120_000  # the panel
+        + 1_920_000  # the output array
+        + 2 * 40_000  # one source plane, contiguous and as a Pillow image
+        + 2 * 640_000  # the resized plane and its np.asarray copy
+    )
+    assert paint._resize_peak_bytes(panel, (400, 400)) >= live
+
+
+def test_a_downscale_is_checked_at_its_live_buffers() -> None:
+    """The source planes outweigh a shrunken output, so the output alone undercounts."""
+    psd, desc, _ = _pattern()
+    desc[b"Scl "] = Double(40.0)
+    pattern = psd._get_pattern(desc[b"Ptrn"][Key.ID].value.rstrip("\x00"))
+    assert pattern is not None
+    panel = numpy_io.get_pattern(pattern)
+    rows, cols = int(panel.shape[0] * 0.4), int(panel.shape[1] * 0.4)
+    peak = paint._resize_peak_bytes(panel, (rows, cols))
+    assert peak > rows * cols * panel.shape[2] * 4 * 4 + panel.nbytes
+
+    viewport = (0, 0, 1, 1)
+    psd._max_alloc_bytes = peak
+    draw_pattern_fill(viewport, psd, desc)
+    psd._max_alloc_bytes = peak - 1
+    with pytest.raises(ValueError, match="over the configured budget"):
+        draw_pattern_fill(viewport, psd, desc)
+
+
+def test_a_resized_pattern_keeps_its_channels_apart() -> None:
+    panel = np.zeros((2, 2, 3), dtype=np.float32)
+    panel[..., 1] = 0.5
+    panel[..., 2] = 1.0
+    out = paint._resize_panel(panel, (6, 4))
+    assert out.shape == (6, 4, 3)
+    assert np.allclose(out.reshape(-1, 3), [0.0, 0.5, 1.0])
+
+
 def test_a_pattern_scale_is_bounded_by_its_own_panel(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -57,21 +121,6 @@ def test_a_pattern_scale_is_bounded_by_its_own_panel(
     monkeypatch.setattr(utils, "GROWTH_FLOOR_PIXELS", scaled - 1)
     monkeypatch.setattr(paint, "_SCALE_GROWTH", 1)
     with pytest.raises(ValueError, match=GROWN):
-        draw_pattern_fill(psd.viewbox, psd, desc)
-
-
-def test_the_scaled_pattern_panel_is_checked_at_its_resize_size() -> None:
-    psd, desc, shape = _pattern()
-    percent = 400.0
-    rows, cols = int(shape[0] * percent / 100), int(shape[1] * percent / 100)
-    desc[b"Scl "] = Double(percent)
-    panel = shape[0] * shape[1] * shape[2] * 4
-    resized = rows * cols * shape[2] * 4 * paint._RESIZE_COPIES + panel
-
-    psd._max_alloc_bytes = resized
-    draw_pattern_fill(psd.viewbox, psd, desc)
-    psd._max_alloc_bytes = resized - 1
-    with pytest.raises(ValueError, match="over the configured budget"):
         draw_pattern_fill(psd.viewbox, psd, desc)
 
 

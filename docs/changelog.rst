@@ -4,6 +4,9 @@ Changelog
 1.24.0 (unreleased)
 -------------------
 
+- [ci] ``scikit-image`` is no longer installed by the ``composite`` extra;
+  scaled pattern fills are resized with Pillow and may differ slightly at the
+  tile edges. Depend on it directly if you need it (#963)
 - [ci] The minimum versions are now ``numpy>=1.22`` and, for the ``composite``
   extra, ``scipy>=1.9``. Older NumPy fails to import ``psd_tools.composite``.
   Newer installs are unaffected (#965)

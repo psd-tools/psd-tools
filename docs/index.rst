@@ -18,7 +18,7 @@ For advanced layer compositing features, install with the ``composite`` extra::
 
     pip install psd-tools[composite]
 
-This installs optional dependencies (``aggdraw``, ``scipy``, ``scikit-image``)
+This installs optional dependencies (``aggdraw``, ``scipy``)
 required for:
 
 - Vector shape and stroke rendering

@@ -4,6 +4,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Callable, Sequence, TypeVar
 
 import numpy as np
+from PIL import Image
 
 from psd_tools.api import numpy_io
 from psd_tools.api.utils import check_growth, check_pixel_size
@@ -17,7 +18,7 @@ from psd_tools.color_convert import (
     rgb_to_grayscale,
     rgb_to_lab,
 )
-from psd_tools.composite._compat import require_scipy, require_skimage
+from psd_tools.composite._compat import require_scipy
 from psd_tools.composite.utils import is_fill_disabled
 from psd_tools.constants import ColorMode, Tag
 from psd_tools.psd.descriptor import Descriptor
@@ -27,8 +28,6 @@ if TYPE_CHECKING:
     from psd_tools.api.layers import Layer
 
 logger = logging.getLogger(__name__)
-
-_RESIZE_COPIES = 4
 
 # How many times its own area a pattern panel may be scaled up to, past the
 # floor check_growth() allows.
@@ -304,6 +303,35 @@ def create_fill(
     return None, None
 
 
+def _resize_panel(panel: np.ndarray, shape: tuple[int, int]) -> np.ndarray:
+    """Bilinear-resize a float panel, one float32 plane at a time."""
+    height, width = shape
+    out = np.empty((height, width, panel.shape[2]), dtype=np.float32)
+    for channel in range(panel.shape[2]):
+        source = Image.fromarray(
+            np.ascontiguousarray(panel[:, :, channel], dtype=np.float32), "F"
+        )
+        out[:, :, channel] = np.asarray(
+            source.resize((width, height), Image.Resampling.BILINEAR)
+        )
+        del source
+    return out
+
+
+def _resize_peak_bytes(panel: np.ndarray, shape: tuple[int, int]) -> int:
+    """What :py:func:`_resize_panel` holds at its peak, for one plane's resize."""
+    height, width = shape
+    plane = np.dtype(np.float32).itemsize
+    source = panel.shape[0] * panel.shape[1] * plane
+    return (
+        panel.nbytes
+        + height * width * panel.shape[2] * plane  # the output
+        + 2 * source  # the contiguous copy and Pillow's own
+        + 2 * height * width * plane  # the resized plane and its np.asarray copy
+        + width * panel.shape[0] * plane  # the horizontal pass
+    )
+
+
 def draw_solid_color_fill(
     viewport: tuple[int, int, int, int],
     color_mode: ColorMode,
@@ -318,7 +346,6 @@ def draw_solid_color_fill(
     return color, None
 
 
-@require_skimage
 def draw_pattern_fill(
     viewport: tuple[int, int, int, int],
     psd: Any,
@@ -347,8 +374,6 @@ def draw_pattern_fill(
 
     .. todo:: Test this.
     """
-    from skimage.transform import resize  # noqa: PLC0415
-
     pattern_id = desc[Enum.Pattern][Key.ID].value.rstrip("\x00")
     pattern = psd._get_pattern(pattern_id)
     if not pattern:
@@ -375,23 +400,15 @@ def draw_pattern_fill(
             panel.shape[0] * panel.shape[1],
             _SCALE_GROWTH,
         )
-        # resize() holds intermediates beside its output.
         check_pixel_size(
             new_shape[1],
             new_shape[0],
             panel.shape[2],
             budget,
-            estimated_bytes=(
-                new_shape[0]
-                * new_shape[1]
-                * panel.shape[2]
-                * panel.dtype.itemsize
-                * _RESIZE_COPIES
-                + panel.nbytes
-            ),
+            estimated_bytes=_resize_peak_bytes(panel, new_shape),
             warn=False,
         )
-        panel = resize(panel, new_shape)
+        panel = _resize_panel(panel, new_shape)
 
     height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
     reps = (

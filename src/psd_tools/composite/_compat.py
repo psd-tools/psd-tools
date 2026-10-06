@@ -9,7 +9,6 @@ if TYPE_CHECKING:
     # Type checkers see these as always available
     import aggdraw  # type: ignore[import-not-found]
     from scipy import interpolate  # type: ignore[import-untyped]
-    from skimage import filters  # type: ignore[import-untyped]
 
 # Check for optional dependencies
 try:
@@ -25,13 +24,6 @@ try:
     HAS_SCIPY = True
 except ImportError:
     HAS_SCIPY = False
-
-try:
-    from skimage import filters  # noqa: F401  # type: ignore[import-untyped,no-redef]
-
-    HAS_SKIMAGE = True
-except ImportError:
-    HAS_SKIMAGE = False
 
 
 def require_aggdraw(func: F) -> F:
@@ -91,38 +83,6 @@ def require_scipy(func: F) -> F:
                 "    pip install 'psd-tools[composite]'\n"
                 "Or:\n"
                 "    pip install scipy"
-            )
-        return func(*args, **kwargs)
-
-    return wrapper  # type: ignore[return-value]
-
-
-def require_skimage(func: F) -> F:
-    """
-    Decorator to check if scikit-image is available before calling the function.
-
-    Required for a pattern fill, which is the only part of an effect that
-    still needs it.
-
-    Raises:
-        ImportError: If scikit-image is not installed.
-
-    Example:
-        >>> @require_skimage
-        ... def draw_pattern_fill(viewport, psd, desc):
-        ...     # effect implementation
-        ...     pass
-    """
-
-    @functools.wraps(func)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        if not HAS_SKIMAGE:
-            raise ImportError(
-                "Layer effects require: scikit-image\n\n"
-                "Install with:\n"
-                "    pip install 'psd-tools[composite]'\n"
-                "Or:\n"
-                "    pip install scikit-image"
             )
         return func(*args, **kwargs)
 

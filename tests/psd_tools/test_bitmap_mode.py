@@ -114,7 +114,6 @@ def test_the_composite_agrees_with_the_preview(filename: str) -> None:
     """
     pytest.importorskip("aggdraw")
     pytest.importorskip("scipy")
-    pytest.importorskip("skimage")
     psd = _open(filename)
     composited = psd.composite(ignore_preview=True, apply_icc=False)
     assert isinstance(composited, Image.Image)

@@ -26,7 +26,7 @@ If you use advanced compositing features, install with the composite extra::
 
 Or install the dependencies separately::
 
-    pip install psd-tools aggdraw scipy scikit-image
+    pip install psd-tools aggdraw scipy
 
 **What works without composite dependencies:**
 

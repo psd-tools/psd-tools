@@ -170,7 +170,6 @@ def test_data_aware_guard_rejects_tiny_file_huge_canvas_composite() -> None:
     """The advisory names both numpy() and composite(); guard the latter too."""
     pytest.importorskip("aggdraw")
     pytest.importorskip("scipy")
-    pytest.importorskip("skimage")
     psd = PSDImage.open(
         io.BytesIO(base64.b64decode(_POC_B64)), max_alloc_bytes="unlimited"
     )
@@ -1034,7 +1033,6 @@ def test_composite_guard_model_brackets_the_bitmap_fixture() -> None:
     """
     pytest.importorskip("aggdraw")
     pytest.importorskip("scipy")
-    pytest.importorskip("skimage")
     name = "4x4_1bit_bitmap.psd"
     model = _numpy_peak_bytes(_colormode(name))
     assert model > 4 * 4 * 1 * 4  # wider than composite()'s own estimate

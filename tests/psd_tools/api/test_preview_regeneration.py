@@ -41,7 +41,6 @@ from ..utils import full_name
 
 pytest.importorskip("aggdraw")
 pytest.importorskip("scipy")
-pytest.importorskip("skimage")
 
 from psd_tools.composite import composite  # noqa: E402
 
