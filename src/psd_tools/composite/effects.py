@@ -6,9 +6,7 @@ This module implements rendering for Photoshop layer effects (also known as
 layer styles). Effects are non-destructive visual enhancements applied to layers
 such as strokes, shadows, glows, and overlays.
 
-**Note**: Effects rendering requires scipy. It additionally requires
-scikit-image for any pattern fill -- but for nothing else, so a solid or
-gradient stroke of any position draws with scipy alone. Install both with::
+**Note**: Effects rendering requires scipy. Install it with::
 
     pip install 'psd-tools[composite]'
 

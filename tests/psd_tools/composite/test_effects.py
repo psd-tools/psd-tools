@@ -11,7 +11,7 @@ from PIL import Image
 
 from psd_tools.api.mask import Mask
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.composite import _compat, composite, effects, paint, vector
+from psd_tools.composite import composite, effects, paint, vector
 from psd_tools.composite.composite import (
     Compositor,
     _is_shape_layer,
@@ -1232,23 +1232,12 @@ def test_the_dense_and_sparse_paths_agree(monkeypatch: pytest.MonkeyPatch) -> No
     assert np.array_equal(dense, sparse)
 
 
-def test_every_stroke_position_draws_without_scikit_image(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A solid stroke of any position needs scipy, not scikit-image (#802).
+def test_every_stroke_position_draws() -> None:
+    """The unrecognised position draws as a band too (#802, #799).
 
-    A scipy-only install -- a platform with no scikit-image wheel, say -- has
-    to render a document carrying a stroke, because nothing upstream catches
-    the ImportError and turns it into a missing effect. Gating
-    :py:func:`draw_stroke_effect` on scikit-image would cost *every* such
-    document; every position is drawn as a band instead, one the descriptor
-    states wrongly or not at all included, and a band needs only scipy (#802,
-    #799).
-
-    The unrecognised position is the case worth keeping here: the other three
-    have fixtures of their own above, and it is the one with no other cover.
+    The other three have fixtures of their own above; this is the one with no
+    other cover.
     """
-    monkeypatch.setattr(_compat, "HAS_SKIMAGE", False)
     check_composite_quality("effects/outside-stroke.psd", threshold=1e-4)
     check_composite_quality("effects/center-stroke-sizes.psd", threshold=1e-4)
     check_composite_quality("effects/inset-stroke-sizes.psd", threshold=1e-4)
@@ -1271,27 +1260,10 @@ def test_a_stroke_asks_for_scipy_by_name_when_it_is_missing(
     Asserted because the obvious way to guard the band is ``@require_scipy``,
     whose message tells the reader to install scipy for *gradient fills* --
     accurate about the package and misleading about why.
-
-    scikit-image is not on this path at all: the band draws every position, a
-    position the descriptor states wrongly or does not state included (#799).
-    What scikit-image is still needed for in a stroke is the paint, not the
-    shape -- a pattern fill needs it whatever the position,
-    which :py:func:`test_a_pattern_stroke_still_needs_scikit_image` pins.
     """
     monkeypatch.setattr(effects, "HAS_SCIPY", False)
     with pytest.raises(ImportError, match="Stroke effects require: scipy"):
         check_composite_quality("effects/outside-stroke.psd", threshold=1.0)
-
-
-def test_a_pattern_stroke_still_needs_scikit_image(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A stroke's paint can need what its shape does not (#802)."""
-    monkeypatch.setattr(_compat, "HAS_SKIMAGE", False)
-    psd = PSDImage.open(full_name("effects/stroke-effects.psd"))
-    pattern = next(layer for layer in psd.descendants() if layer.name == "Pattern")
-    with pytest.raises(ImportError, match="scikit-image"):
-        pattern.composite()
 
 
 def _rendered(

@@ -270,7 +270,7 @@ option::
 
         pip install psd-tools[composite]
 
-    These dependencies (``aggdraw``, ``scipy``, ``scikit-image``) are needed for:
+    These dependencies (``aggdraw``, ``scipy``) are needed for:
 
     - Vector strokes
     - Gradient and pattern fills

@@ -44,6 +44,26 @@ def test_a_forged_pattern_scale_is_rejected_without_a_budget(
         draw_pattern_fill(psd.viewbox, psd, desc)
 
 
+def test_a_scaled_pattern_is_resampled_in_pixel_values() -> None:
+    """A ramp doubled along each axis is the bilinear ramp, clamped at the edges."""
+    ramp = np.array([[[0.0], [1.0]]], dtype=np.float32)
+    wide = paint._resize_panel(ramp, (1, 4))
+    assert wide.shape == (1, 4, 1) and wide.dtype == np.float32
+    assert np.allclose(wide[0, :, 0], [0.0, 0.25, 0.75, 1.0])
+    tall = paint._resize_panel(ramp.transpose(1, 0, 2), (4, 1))
+    assert tall.shape == (4, 1, 1)
+    assert np.allclose(tall[:, 0, 0], [0.0, 0.25, 0.75, 1.0])
+
+
+def test_a_resized_pattern_keeps_its_channels_apart() -> None:
+    panel = np.zeros((2, 2, 3), dtype=np.float32)
+    panel[..., 1] = 0.5
+    panel[..., 2] = 1.0
+    out = paint._resize_panel(panel, (6, 4))
+    assert out.shape == (6, 4, 3)
+    assert np.allclose(out.reshape(-1, 3), [0.0, 0.5, 1.0])
+
+
 def test_a_pattern_scale_is_bounded_by_its_own_panel(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

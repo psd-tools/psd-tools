@@ -42,7 +42,6 @@ composite = [
     "aggdraw>=1.3.16,<1.4.1;sys_platform=='win32' and python_version<'3.11'",
     "aggdraw>=1.4.1;sys_platform=='win32' and python_version>='3.11'",
     "scipy>=1.9",
-    "scikit-image",
 ]
 
 [dependency-groups]
@@ -61,7 +60,6 @@ dev = [
     "aggdraw>=1.3.16,<1.4.1;sys_platform=='win32' and python_version<'3.11'",
     "aggdraw>=1.4.1;sys_platform=='win32' and python_version>='3.11'",
     "scipy>=1.9",
-    "scikit-image",
 ]
 docs = ["sphinx", "sphinx_rtd_theme"]
 
@@ -81,7 +79,7 @@ version = { attr = "psd_tools.version.__version__" }
 testpaths = ["tests"]
 addopts = "--cov=psd_tools"
 markers = [
-    "composite: marks tests as requiring composite dependencies (aggdraw, scipy, scikit-image)",
+    "composite: marks tests as requiring composite dependencies (aggdraw, scipy)",
 ]
 
 [tool.ruff]

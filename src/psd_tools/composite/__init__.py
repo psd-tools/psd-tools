@@ -18,7 +18,6 @@ The composite extra includes:
 - ``aggdraw``: For drawing a vector stroke. A path is *filled* without it
 - ``scipy``: For advanced image processing operations, including the
   distance transform that places stroke effects
-- ``scikit-image``: For pattern fills
 
 Key modules:
 
