@@ -12,7 +12,12 @@ from typing import IO, Any, Sequence, TypeVar
 
 from attrs import define, field
 
-from psd_tools.compression import compress, decompress, decompressed_size_bound
+from psd_tools.compression import (
+    _row_size,
+    compress,
+    decompress,
+    decompressed_size_bound,
+)
 from psd_tools.constants import Compression
 from psd_tools.psd.header import FileHeader
 from psd_tools.psd.base import BaseElement
@@ -27,10 +32,11 @@ from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
 
-# The raw value each depth spells 1.0 as. Mirrors
+# The raw value each depth spells 1.0 as. Bitmap is one bit a pixel, so its
+# maximum is the bit itself rather than a byte's. Mirrors
 # :py:data:`psd_tools.api.utils._DEPTH_MAX`, which is what hands :py:meth:`new`
 # its color; importing it would make this module depend on the api layer.
-_DEPTH_MAX: dict[int, int] = {8: 255, 16: 65535, 32: 4294967295}
+_DEPTH_MAX: dict[int, int] = {1: 1, 8: 255, 16: 65535, 32: 4294967295}
 
 T = TypeVar("T", bound="ImageData")
 
@@ -168,14 +174,21 @@ class ImageData(BaseElement):
             raise ValueError(
                 "Invalid color %s for channel size %d" % (color, header.channels)
             )
-        # Bitmap is not supported here. Depth 32 is a *float* channel, in
-        # [0, 1], and packing the raw value as the integer it arrives as wrote
-        # a document every reader saw as NaN: `0xffffffff`, the raw form of
-        # white at this depth, is a quiet NaN read back as `>f4` (#866).
+        # Bitmap is a bit a pixel, and an inked -- black -- one is a *set* bit,
+        # the sense `numpy_io._parse_array()` inverts on the way out (#873).
+        # Depth 32 is a *float* channel in [0, 1] whose raw form is packed as a
+        # float: `0xffffffff`, white at that depth, is a quiet NaN read back as
+        # `>f4` (#866).
         depth = header.depth
-        fmt = {8: "B", 16: "H", 32: "f"}[depth]
         data = []
         for i in range(header.channels):
+            if depth == 1:
+                # Both readers trim each row to `width`, so the padding bits
+                # are set with the rest rather than cleared.
+                bits = b"\xff" if color[i] == 0 else b"\x00"
+                data.append(bits * (_row_size(header.width, 1) * header.height))
+                continue
+            fmt = {8: "B", 16: "H", 32: "f"}[depth]
             value = color[i] / _DEPTH_MAX[depth] if depth == 32 else color[i]
             data.append(pack(fmt, value) * plane_size)
         self = cls(compression=compression)

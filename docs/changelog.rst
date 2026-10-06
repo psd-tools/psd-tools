@@ -1,6 +1,14 @@
 Changelog
 =========
 
+1.25.0 (unreleased)
+-------------------
+
+- [api] ``PSDImage.new("1", ...)`` now builds a depth-1 document, the only depth
+  a bitmap mode stores a channel at, where it declared depth 8 before.
+  ``depth=1`` is accepted for mode ``"1"`` and rejected for every other mode
+  (#873, #975)
+
 1.24.0 (2026-10-06)
 -------------------
 

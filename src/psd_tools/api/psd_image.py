@@ -141,7 +141,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         mode: str,
         size: tuple[int, int],
         color: ColorInput = 0,
-        depth: Literal[8, 16, 32] = 8,
+        depth: Literal[1, 8, 16, 32] = 8,
         **kwargs: Any,
     ) -> Self:
         """
@@ -157,19 +157,16 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             is used both as the initial image data fill and as the
             :py:attr:`~PSDImage.background_color` compositing backdrop
             when saving.
-        :param depth: Bit depth (8, 16, or 32).
-        :return: A :py:class:`~psd_tools.api.psd_image.PSDImage` object.
+        :param depth: Bit depth. Mode ``"1"`` builds a ``BITMAP`` document at
+            depth 1 whatever this is -- one bit a channel is the only depth the
+            mode stores a channel at (#873) -- and every other mode takes 8, 16
+            or 32.
 
         .. note::
             Photoshop cannot open a document built at ``depth=32``. It writes
             an ``hdrt`` block into the color mode data section of every 32-bit
             document and rejects one that has none, which is what this builds.
             psd-tools reads such a file back without trouble (#869).
-
-        .. note::
-            Mode ``"1"`` builds a ``BITMAP`` header at depth 8, since ``depth``
-            takes 8, 16 or 32 and defaults to 8. Every bitmap document
-            Photoshop writes is depth 1 (#873).
         """
         header = cls._make_header(mode, size, depth)
         # Strip alpha channel(s) from color for background_color since
@@ -183,9 +180,9 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         if isinstance(color, Sequence) and len(color) > expected_channels:
             bg_input = tuple(color[:expected_channels])
         bg_color = normalize_color(
-            bg_input, depth, header.color_mode, expected_channels
+            bg_input, header.depth, header.color_mode, expected_channels
         )
-        fill_color = denormalize_color(color, depth)
+        fill_color = denormalize_color(color, header.depth)
         image_data = ImageData.new(header, color=fill_color, **kwargs)
         # TODO: Add default metadata.
         psdimage = cls(
@@ -865,9 +862,14 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
     @classmethod
     def _make_header(
-        cls, mode: str, size: tuple[int, int], depth: Literal[8, 16, 32] = 8
+        cls, mode: str, size: tuple[int, int], depth: Literal[1, 8, 16, 32] = 8
     ) -> FileHeader:
-        if depth not in (8, 16, 32):
+        color_mode = pil_io.get_color_mode(mode)
+        if color_mode == ColorMode.BITMAP:
+            # One bit a channel is the only depth a bitmap document has, so the
+            # mode decides it rather than the argument (#873).
+            depth = 1
+        elif depth not in (8, 16, 32):
             raise ValueError(f"Invalid depth: {depth}. Must be 8, 16, or 32")
         if size[0] > 300000:
             raise ValueError(f"Width too large: {size[0]} > 300,000")
@@ -877,7 +879,6 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         if size[0] > 30000 or size[1] > 30000:
             logger.debug("Width or height larger than 30,000 pixels")
             version = 2
-        color_mode = pil_io.get_color_mode(mode)
         alpha = mode.upper().endswith("A")
         channels = ColorMode.channels(color_mode, alpha)
         return FileHeader(

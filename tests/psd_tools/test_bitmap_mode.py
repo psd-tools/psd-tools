@@ -24,8 +24,8 @@ import pytest
 from PIL import Image
 
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.compression import PSDDecompressionWarning
-from psd_tools.constants import Compression
+from psd_tools.compression import PSDDecompressionWarning, _row_size
+from psd_tools.constants import ColorMode, Compression
 
 from .utils import full_name
 
@@ -181,3 +181,50 @@ def test_a_re_encoded_document_survives_the_round_trip(
     psd.save(buf)
     buf.seek(0)
     assert np.array_equal(PSDImage.open(buf).numpy(), expected)
+
+
+def test_new_builds_a_bitmap_document_at_depth_1() -> None:
+    """``PSDImage.new("1", ...)`` writes the depth the mode stores at (#873).
+
+    Photoshop writes every bitmap document at depth 1, and the header is what a
+    reader believes: a ``BITMAP`` header at depth 8 describes a document no
+    other reader has to accept, however consistently psd-tools reads its own
+    back.
+    """
+    psd = PSDImage.new("1", (20, 3))
+    assert psd.color_mode == ColorMode.BITMAP
+    assert psd.depth == 1
+    assert PSDImage.new("1", (20, 3), depth=1).depth == 1
+    # The fill is at the mode's own depth: `color=0` is black, which the stored
+    # plane spells as a set bit.
+    assert np.unique(psd.numpy()) == [0.0]
+    assert np.unique(PSDImage.new("1", (20, 3), color=1.0).numpy()) == [1.0]
+
+
+def test_a_depth_1_document_round_trips_through_a_file() -> None:
+    """The packed section, through the public API and a real file.
+
+    A row of twenty pixels is three bytes rather than twenty, and the fill has
+    to survive the inversion the mode reads its bits through: white in, white
+    out.
+    """
+    psd = PSDImage.new("1", (20, 3), color=1.0)
+    psd.mark_updated()
+    buf = io.BytesIO()
+    psd.save(buf)
+    buf.seek(0)
+    reopened = PSDImage.open(buf)
+
+    assert reopened.depth == 1
+    header = reopened._record.header
+    stored = reopened._record.image_data.get_data(header, split=False)
+    assert isinstance(stored, bytes)
+    assert len(stored) == _row_size(20, 1) * 3
+    assert np.unique(reopened.numpy()) == [1.0]
+    assert np.unique(np.asarray(reopened.topil())) == [True]
+
+
+def test_a_non_bitmap_document_still_rejects_depth_1() -> None:
+    """One bit a channel is the bitmap mode's, not a depth every mode takes."""
+    with pytest.raises(ValueError, match="Invalid depth: 1"):
+        PSDImage.new("RGB", (4, 4), depth=1)
