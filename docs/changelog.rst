@@ -1,6 +1,13 @@
 Changelog
 =========
 
+1.24.0 (unreleased)
+-------------------
+
+- [ci] The minimum versions are now ``numpy>=1.22`` and, for the ``composite``
+  extra, ``scipy>=1.9``. Older NumPy fails to import ``psd_tools.composite``.
+  Newer installs are unaffected (#965)
+
 1.23.1 (2026-10-06)
 -------------------
 
