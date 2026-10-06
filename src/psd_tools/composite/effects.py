@@ -117,14 +117,10 @@ _DENSE_EROSION_DENSITY = 0.15
 def _enum(desc: Descriptor, key: bytes) -> bytes:
     """The enum ``key`` names, or ``b""`` if the descriptor does not carry one.
 
-    Both keys read through this -- the stroke's position and its paint type --
-    already have a defined answer for an enum neither table below knows, so a
-    key that is missing or holds something other than an ``Enumerated`` costs
-    nothing new to tolerate: it joins the unrecognised value it cannot be told
-    apart from. Reading it straight off instead turned a descriptor psd-tools
-    did not write into an ``AttributeError`` out of a composite (#826). ``b""``
-    rather than None so it takes that fallback without a branch of its own; no
-    real enum can collide with it, Photoshop writing every one as four bytes.
+    A missing or non-``Enumerated`` value joins the unrecognised enums the
+    callers already handle, instead of raising ``AttributeError`` (#826).
+    ``b""`` rather than None so it takes that fallback without a branch; no real
+    enum collides with it, being four bytes.
     """
     return getattr(desc.get(key), "enum", b"")
 
@@ -526,13 +522,9 @@ def _signed_distance(alpha: np.ndarray, reach: float | None = None) -> np.ndarra
 def _distance_band(distance: np.ndarray, lo: float, hi: float) -> np.ndarray:
     """Coverage of the band between ``lo`` and ``hi``, antialiased.
 
-    A distance field has unit gradient, so one pixel of distance is one pixel
-    of space, and a linear ramp across it is the exact area of a pixel cut by
-    a straight edge. That is what lets a fractional width mean something: the
-    band is never quantized to a whole number of pixels, the way it was while
-    a stroke was drawn with an integer-radius pen. Where the band's edge
-    curves, around a corner, the ramp approximates that area rather than
-    matching it.
+    A distance field has unit gradient, so a linear ramp across one pixel is the
+    exact area of a pixel cut by a straight edge, and a fractional width is not
+    quantized. Where the band's edge curves, the ramp only approximates it.
     """
     return np.clip(hi - distance + 0.5, 0, 1) * np.clip(distance - lo + 0.5, 0, 1)
 

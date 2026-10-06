@@ -55,26 +55,15 @@ _SINGLE_CHANNEL_MODES = (
 
 
 def _clamp01(value: float) -> float:
-    """Hold *value* inside the range a color array is allowed to carry.
+    """Hold *value* inside the range a color array may carry (#757).
 
-    Nothing in the format constrains a descriptor component to the range its
-    color class normalizes by, and ``Compositor``'s own ``utils.clip()`` runs
-    too late to help: wherever the color is blended rather than laid down flat
-    -- an effect, a partial alpha, an anti-aliased vector edge -- the
-    out-of-range component has already corrupted the arithmetic (#757).
+    A descriptor component is unconstrained, and ``utils.clip()`` runs too late
+    once the color is blended. ``composite_pil()``'s uint8 clip is independent
+    on purpose; do not drop this one because of it. Applied where the untrusted
+    number enters, so ``color_convert`` keeps its ``[0, 1]`` input contracts.
 
-    ``composite_pil()``'s uint8 cast clips as of #757 and would saturate these
-    too, but the two guards are independent on purpose -- do not drop this one
-    on the strength of that one.
-
-    Applied where the untrusted number enters rather than inside
-    ``color_convert``, so those conversions keep their documented ``[0, 1]``
-    input contracts. Saturation and brightness never arrive here;
-    :py:func:`psd_tools.color_convert.hsb_to_rgb` is total and clamps them.
-
-    NaN maps to 0.0, because ``nan > 0.0`` is false and ``max`` keeps its first
-    argument. That degradation is wanted, but it is a property of the argument
-    order -- do not reverse it.
+    NaN maps to 0.0 because ``max`` keeps its first argument when ``nan > 0.0``
+    is false; do not reverse the argument order.
     """
     return min(1.0, max(0.0, value))
 
@@ -82,15 +71,9 @@ def _clamp01(value: float) -> float:
 def _lab_to_canvas(lightness: float, a: float, b: float) -> tuple[float, ...]:
     """Encode native CIE L*a*b* into the compositor's Lab color array.
 
-    The arrays leave through PIL mode "LAB", whose bytes are ``L * 255/100``
-    with the two chroma axes offset by 128 -- byte 128 is ``a = 0``, byte 0 is
-    ``a = -128``, at slope exactly 1. So this is a relabelling into the
-    destination's own encoding rather than a conversion, and Photoshop's own
-    render of a Lab fill agrees with it across the full a/b range (#743).
-
-    Shared by the two ways a Lab value arrives: a Lab descriptor on a Lab
-    document, which lands here unconverted, and any other color class on a Lab
-    document, which reaches here through
+    PIL mode "LAB" stores ``L * 255/100`` with the chroma axes offset by 128, so
+    this is a relabelling, not a conversion (#743). Shared by a Lab descriptor
+    on a Lab document and by other color classes via
     :py:func:`psd_tools.color_convert.rgb_to_lab` (#752).
     """
     return (
@@ -103,16 +86,9 @@ def _lab_to_canvas(lightness: float, a: float, b: float) -> tuple[float, ...]:
 def _ink_to_canvas(ink: tuple[float, ...]) -> tuple[float, ...]:
     """Invert an ink-space CMYK tuple into the compositor's canvas convention.
 
-    ``color_convert``'s CMYK helpers are public API with a documented ink-space
-    contract -- white is ``(0, 0, 0, 0)``, no ink laid down at all. The
-    compositor's arrays are the other way round: they store what is *left*, so
-    1.0 is no ink, and ``pil_io.post_process()`` inverts them back on the way
-    out. Handing ink space straight to the canvas made a white fill composite
-    black (#747).
-
-    Only the conversions *into* CMYK need this. ``_get_cmyk()`` already reads a
-    CMYK descriptor through ``_get_invert_color()``, which lands in canvas space
-    directly.
+    Ink space has white at all zeros; the canvas stores what is *left*, so 1.0
+    is no ink (#747). Only conversions *into* CMYK need this; ``_get_cmyk()``
+    already lands in canvas space.
     """
     return tuple(1.0 - v for v in ink)
 
@@ -120,19 +96,10 @@ def _ink_to_canvas(ink: tuple[float, ...]) -> tuple[float, ...]:
 def _from_rgb(color_mode: ColorMode, rgb: tuple[float, ...]) -> tuple[float, ...]:
     """Convert a canonical RGB triple to *color_mode*'s color array width.
 
-    Every descriptor color class reaches the document through here, so the
-    result is as wide as the document's own arrays rather than as wide as the
-    descriptor happened to be. A fill that is neither one channel nor exactly
-    the document's width trips ``Compositor._assert_source_fits()``, which is
-    what a solid color, gradient or stroke did on a bitmap, duotone,
-    multichannel and (for some classes) indexed, grayscale or Lab document.
-
-    Indexed is deliberately three: its single stored channel expands through
-    the palette, so three is the width its pixel arrays carry.
-
-    Lab is a real conversion rather than a width choice: ``return rgb`` is
-    three wide and so passes the width assertion while meaning nothing, red
-    arriving as white at the extreme green-blue corner (#752).
+    Every descriptor color class goes through here, so a fill matches the
+    document's array width, which ``Compositor._assert_source_fits()`` checks.
+    Indexed is three because its stored channel expands through the palette.
+    Lab is a real conversion, not a width choice (#752).
     """
     if color_mode == ColorMode.CMYK:
         return _ink_to_canvas(rgb_to_cmyk(*rgb))

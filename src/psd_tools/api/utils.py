@@ -271,7 +271,7 @@ EXPECTED_CHANNELS = {
     ColorMode.MULTICHANNEL: 64,
     # Duotone stores a single grayscale channel; its one to four inks live in
     # the color mode data section, not in the image data, so no ink count is a
-    # channel count. This read 2 until #733.
+    # channel count (#733).
     ColorMode.DUOTONE: 1,
     ColorMode.LAB: 3,
 }
@@ -280,36 +280,25 @@ EXPECTED_CHANNELS = {
 def get_color_channels(psdimage: "PSDProtocol") -> int:
     """Number of color channels a document's pixel arrays carry.
 
-    Use this, rather than :data:`EXPECTED_CHANNELS`, wherever a caller must
-    *allocate* a canvas as wide as the document's own arrays or validate a
-    color against one. The constant is right for every mode whose channel count
-    the mode itself fixes, but its multichannel entry is 64 -- the format's
-    maximum, not any document's count -- so only the document can say.
-
-    That 64 is left in place on purpose: ``numpy_io._find_channel()`` uses it as
-    a defensive cap, where never truncating is what keeps a layer record
-    declaring more channels than the header visible to the compositor.
+    Use this, not :data:`EXPECTED_CHANNELS`, to allocate a canvas as wide as the
+    document's arrays or to validate a color against one. The constant's
+    multichannel entry is the format's maximum, kept as a defensive cap in
+    ``numpy_io._find_channel()``; only the document knows its own count.
 
     Args:
         psdimage: The PSD image protocol object
     Returns:
-        The width of the document's color array. For every mode but multichannel
-        that is the mode's own color components, with any alpha excluded; for
-        multichannel it is the header's count, whose channels are spot channels.
-        Layer arrays drop their transparency channel and so can be narrower than
-        this in a malformed file -- deliberately, so that the compositor's width
-        assertion still sees the mismatch.
+        The width of the document's color array, alpha excluded; for
+        multichannel it is the header's count. Layer arrays can be narrower in a
+        malformed file, so the compositor's width assertion still sees it.
     """
     return color_channels(psdimage.color_mode, psdimage.channels)
 
 
 def color_channels(color_mode: ColorMode, channels: int) -> int:
-    """The same rule as :func:`get_color_channels`, for a bare header.
+    """:func:`get_color_channels` for a bare header.
 
-    :py:meth:`PSDImage.new` has to answer this question before a document
-    exists -- it holds only the :py:class:`~psd_tools.psd.header.FileHeader` it
-    has just built -- so the rule lives here rather than inside the
-    document-taking form.
+    :py:meth:`PSDImage.new` needs this before a document exists.
 
     Args:
         color_mode: The document's color mode.

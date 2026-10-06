@@ -47,27 +47,20 @@ def _image_data_planes(psdimage: "PSDProtocol", flat: bool = False) -> int:
     """Planes :func:`get_image_data` will allocate, for its allocation guard.
 
     ``flat`` marks the paths that return a synthesised ``(h, w, 1)`` array
-    without reading the image data -- a mask, or a shape on a document with no
-    transparency. Those allocate one plane whatever the colour mode.
+    without reading the image data, which allocate one plane in any color mode.
 
-    Otherwise the header's channel count is what the merged image data stores,
-    and for every colour mode but one it is what gets allocated. Indexed at
-    depth 8 is the exception: :func:`_parse_array` applies the palette to the
-    whole buffer, so the result is ``(h, w, 3 * channels)``. Only that branch
-    applies it, so a malformed 16- or 32-bit indexed document keeps its stored
-    width and must not be tripled.
+    Otherwise the header's channel count is the stored width. Indexed at depth 8
+    is the exception: :func:`_parse_array` applies the palette to the whole
+    buffer, giving ``(h, w, 3 * channels)``; 16- and 32-bit indexed keep their
+    stored width.
 
-    Deliberately *not* ``max(channels, get_color_channels(psdimage))``, the
-    shape the compositor's guard uses. That one bounds a canvas built at the
-    resolved width; this one bounds the stored array, whose width the header
-    fixes. Taking the wider of the pair would reject a one-channel RGB document
-    at four times its real size -- a false positive, not a safety margin.
+    Deliberately *not* ``max(channels, get_color_channels(psdimage))``: that
+    bounds a canvas at the resolved width, while this bounds the stored array,
+    and the wider of the two would falsely reject a one-channel RGB document.
 
-    This bounds the array that is returned; the transient peak on top of it is
-    :func:`_image_data_peak_bytes`'s subject, and is what the guard is given
-    (#767). Keep the two separate: the plane count is a property of the format
-    and the transients are a property of the code, and they go stale for
-    different reasons.
+    This bounds the returned array; the transient peak on top is
+    :func:`_image_data_peak_bytes`'s subject (#767). Keep them separate: one is a
+    property of the format, the other of the code.
     """
     if flat:
         return 1
@@ -483,23 +476,16 @@ def get_pattern(
 def get_pattern_color_channels(pattern: Pattern) -> int:
     """Number of leading planes in :py:func:`get_pattern`'s array that are color.
 
-    A pattern's channel list is a fixed set of slots rather than a list of the
-    channels it uses: ``len(channels) - 2`` color slots -- 24 as Photoshop
-    writes them, whatever the pattern's mode -- and then two more, the last of
-    which holds transparency. So the count is the number of written slots in
-    the color region, contiguous or not; :py:func:`get_pattern` skips the
-    unwritten ones and stacks the rest in slot order, which puts those planes
-    at the front of its array and any alpha at the back.
+    A pattern's channel list is a fixed set of slots: ``len(channels) - 2``
+    color slots, then two more, the last holding transparency. The count is the
+    number of written color slots, contiguous or not; :py:func:`get_pattern`
+    stacks the written ones in slot order, color first and alpha last.
 
-    Reading the boundary off the slot layout is what makes it answerable at
-    all. :py:data:`~psd_tools.api.utils.EXPECTED_CHANNELS` keyed on the
-    pattern's color mode states the width a *document* in that mode carries,
-    which is only incidentally the width this pattern stored (#741).
+    :py:data:`~psd_tools.api.utils.EXPECTED_CHANNELS` states a *document's*
+    width, only incidentally the pattern's stored one (#741).
 
-    The rule rests on how Photoshop's shipped presets are laid out -- alpha in
-    a trailing slot, never a color one. A pattern written the other way would
-    be read as all color; nothing in the corpus or in those presets is, and for
-    multichannel there is no constant to fall back on regardless.
+    Assumes alpha is in a trailing slot, as in Photoshop's shipped presets; a
+    pattern written otherwise would be read as all color.
     """
     channels = pattern.data.channels
     color_slots = max(len(channels) - 2, 0)
@@ -822,21 +808,15 @@ def _transparency_slot(psdimage: "PSDProtocol", color_planes: int) -> int:
     """Which stored channel the composite's alpha belongs in, or -1 for none.
 
     :func:`~psd_tools.api.utils.get_transparency_index` where it can name one.
-    Where it cannot -- a document with no ``ALPHA_IDENTIFIERS`` resource --
-    the channel past the color planes is the answer only if it is the *single*
-    extra channel the document has: that is the one
-    :func:`~psd_tools.api.utils.has_transparency` was looking at when it said
-    the document has transparency at all, and with nothing else beside it
-    there is nothing else it could be. Declining to write it there left a
-    document whose stored alpha was stale, which for one built by
-    :py:meth:`~psd_tools.api.psd_image.PSDImage.frompil` from a transparent
-    image means saving it back as fully transparent.
+    Without an ``ALPHA_IDENTIFIERS`` resource, the channel past the color planes
+    is the answer only if it is the *single* extra channel, the one
+    :func:`~psd_tools.api.utils.has_transparency` saw; declining there would
+    save a :py:meth:`~psd_tools.api.psd_image.PSDImage.frompil` document of a
+    transparent image as fully transparent.
 
-    Two or more extra channels and no identifiers to tell them apart --
-    ``cmyk-spot.psd``, three of them -- names no slot at all. The alpha is
-    dropped and every spot channel is carried over intact, which is the
-    reading that cannot destroy data: the alternative overwrites one of three
-    channels chosen by position alone.
+    Two or more extra channels with no identifiers name no slot: the alpha is
+    dropped and every spot channel is carried over, since the alternative
+    overwrites one chosen by position alone.
     """
     if not has_transparency(psdimage):
         return -1
@@ -851,32 +831,20 @@ def _restore_background(
 ) -> None:
     """Composite the color planes back onto the white the preview is stored on.
 
-    Photoshop stores the merged preview already composited over white -- a
-    fully transparent pixel reads back white in every Photoshop-authored
-    fixture that has one -- and both readers undo it on the way in. Writing
-    the unpremultiplied colour instead, as a PIL ``RGBA`` image would, leaves
-    the reader to divide by an alpha the values were never multiplied by.
+    Photoshop stores the merged preview already composited over white, and both
+    readers undo it on the way in. Writing the unpremultiplied colour, as a PIL
+    ``RGBA`` image would, leaves the reader dividing by an alpha the values were
+    never multiplied by.
 
     Matted against the *transparency* plane, and only where the document has
-    one. ``_remove_background()`` reads plane 3 by position instead, whatever
-    the alpha identifiers say, and matching that would be wrong in both
-    directions: an RGB document whose fourth channel is a spot channel would
-    have its colour matted against ink coverage, and one whose transparency
-    sits past plane 3 would be matted against the wrong channel. The reader's
-    positional assumption is a defect of its own (#868); reproducing it here
-    would write it into files.
+    one. ``_remove_background()`` reads plane 3 by position instead, which is a
+    defect of its own (#868); reproducing it here would write it into files.
 
-    Grayscale is left as composited, because that is what the readers expect:
-    neither ``_remove_background()`` nor ``pil_io._remove_white_background()``
-    touches an ``LA`` document, although Photoshop stores one over white like
-    any other (``gray0.psd`` is white at every transparent pixel). That
-    asymmetry is #868 as well.
+    Grayscale is left as composited, as neither ``_remove_background()`` nor
+    ``pil_io._remove_white_background()`` touches an ``LA`` document (#868).
 
-    Where the alpha is zero the read leaves the stored value alone, so the
-    inverse there is the colour itself rather than the white this would
-    otherwise put down. The two agree in practice -- the compositor returns
-    white at a fully transparent pixel, its backdrop -- but only the explicit
-    form is actually the inverse.
+    Where alpha is zero the read leaves the stored value alone, so the explicit
+    form keeps the colour itself rather than putting down white.
     """
     if psdimage.color_mode != ColorMode.RGB or transparency < 0:
         return

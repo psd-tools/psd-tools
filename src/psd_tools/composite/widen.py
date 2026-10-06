@@ -136,14 +136,10 @@ def _lab(color: np.ndarray) -> np.ndarray:
     ``a``/``b`` are offset-encoded, so neutral is ``128 / 255``; 0.5 truncates
     to byte 127 where Photoshop writes 128 (#743).
 
-    ``L`` is passed through as the grey itself rather than as its L*. This
-    deliberately disagrees with the *fill* path, which converts (#752): a
-    descriptor carries a colour a person picked in some space, so interpreting
-    it is sound, while an arbitrary single-channel array -- a mask, a spot
-    plane, a caller's scalar, a grayscale pattern's device grey -- carries no
-    such claim, and converting it would invent a colour space it never had. The
-    line is drawn at the descriptor, not at the canvas; do not "fix" the
-    asymmetry.
+    ``L`` is the grey itself, not its L*. This deliberately differs from the
+    *fill* path, which converts (#752): a descriptor carries a color picked in
+    some space, while a mask, spot plane or device grey carries no such claim.
+    Do not "fix" the asymmetry.
     """
     neutral = np.full_like(color, LAB_NEUTRAL_CHROMA)
     return np.concatenate((color, neutral, neutral), axis=2)

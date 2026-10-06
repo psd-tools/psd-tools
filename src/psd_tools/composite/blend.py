@@ -357,39 +357,19 @@ def _guarded(func, apply):
 def non_separable(k: Literal["b", "s"]):
     """Wrap a component blend -- Hue, Saturation, Color or Luminosity.
 
-    The wrapped functions are three-channel by construction: the helpers below
-    index channels 0, 1 and 2 by name. RGB reaches them unchanged. CMYK hands
-    them its first three channels -- the CMY complement -- and gets K back from
-    whichever operand *k* names, ``"b"`` for the backdrop or ``"s"`` for the
-    source. There is no default: taking K from the wrong operand is invisible in
-    every RGB document and wrong in every CMYK one, which is how it went
-    unnoticed until #781.
+    The wrapped functions are three-channel. RGB passes unchanged; CMYK passes
+    its CMY complement and takes K from the operand *k* names, ``"b"`` for the
+    backdrop or ``"s"`` for the source. There is no default: the wrong operand
+    is invisible in RGB and wrong in CMYK (#781).
 
-    Any other width falls back to :py:func:`normal` rather than raising or
-    inventing a result, and so does a multichannel document at any plate count:
+    Any other width falls back to :py:func:`normal`, as does multichannel at any
+    plate count, which is checked first because its channels are spot inks
+    (#746). Indexed blends as RGB and Lab as RGB-like three channels. Photoshop
+    offers none of the six on a fallback mode, so widening would invent output
+    (#735, #746).
 
-    - **Multichannel** falls back, and is checked first for that reason. Its
-      channels are spot inks, so a hue or a luminosity read off them is
-      meaningless at any plate count; keying on the width alone had four plates
-      claimed as CMYK and three blended as if they were R, G and B (#746).
-    - **One channel** falls back on the width -- grayscale, duotone, bitmap --
-      as do two, and five or more.
-    - **CMYK** blends its CMY complement. **RGB** blends directly, and so does
-      indexed, whose canvas
-      :py:data:`~psd_tools.api.utils.EXPECTED_CHANNELS` fixes at three.
-    - **Lab** is three wide and so is blended as if it were RGB, which is this
-      module's pre-existing treatment and the right side to leave it on:
-      Photoshop does offer all six there.
-
-    Photoshop offers none of the six on any mode that falls back, so there is
-    no result to reproduce and widening the array would invent output it never
-    produces (#735, #746).
-
-    With no mode to ask -- a bare :py:class:`~psd_tools.composite.Compositor`,
-    or one of these called directly -- the width decides alone and four
-    channels are taken for CMYK. That is a guess, and wrong on a four-plate
-    multichannel array; it is kept because a caller who supplies no document is
-    not asking to be told which mode it has.
+    With no mode to ask, the width decides alone and four channels are taken
+    for CMYK, a guess that is wrong on a four-plate multichannel array.
     """
 
     def decorator(func):
@@ -407,15 +387,10 @@ def non_separable(k: Literal["b", "s"]):
 def non_separable_selection(func):
     """Wrap Darker Color or Lighter Color, which choose between whole pixels.
 
-    These two take the array whole rather than by its first three channels:
-    they return one operand or the other unchanged, and on CMYK that has to
-    include its K. They also compare a different quantity,
-    :py:func:`_lightness`, which folds K in, where the component modes blend
-    the CMY complement with no K term at all. Both halves of that asymmetry are
-    Photoshop's, not a simplification (#781).
-
-    The multichannel and width fallbacks are :py:func:`non_separable`'s, both
-    decorators getting them from :py:func:`_guarded`.
+    These take the array whole, K included, and compare :py:func:`_lightness`,
+    which folds K in where the component modes use none. Both are Photoshop's
+    behavior (#781). Fallbacks are :py:func:`non_separable`'s, via
+    :py:func:`_guarded`.
     """
     return _guarded(func, func)
 
