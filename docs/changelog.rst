@@ -6,7 +6,8 @@ Changelog
 
 - [fix] An indexed document with a truncated color table now raises
   ``ValueError`` from ``numpy()``, ``topil()`` and ``composite()`` instead of
-  ``IndexError`` (#968)
+  ``IndexError``. A table longer than 768 bytes now ignores the extra bytes
+  rather than misreading the planes (#968)
 - [ci] ``scikit-image`` is no longer installed by the ``composite`` extra;
   scaled pattern fills are resized with Pillow and may differ slightly at the
   tile edges. Depend on it directly if you need it (#963)
