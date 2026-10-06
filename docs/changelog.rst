@@ -1,6 +1,16 @@
 Changelog
 =========
 
+1.25.0 (unreleased)
+-------------------
+
+- [fix] A grayscale document's merged preview is now un-matted on read and
+  matted on write, as an RGB one already was: ``numpy()`` and ``topil()`` return
+  the layer colour rather than the value Photoshop stores over white, and a save
+  round trip no longer shifts it. The matte follows the alpha identifiers rather
+  than plane 3, so an RGB document with a spot channel before its transparency is
+  no longer divided by that channel's coverage (#868, #974)
+
 1.24.0 (2026-10-06)
 -------------------
 

@@ -1355,8 +1355,9 @@ def test_pil_peak_model_charges_a_profile_on_a_mode_that_is_not_rgb() -> None:
         # Same RGB document with a profile and still no alpha: `_apply_icc()`
         # holds its input beside the RGB it writes, and nothing widens after.
         (ColorMode.RGB, 3, 8, True, None, Compression.RAW, 256, "the ICC output"),
-        # Grayscale with alpha: `putalpha()` holds "L" and "LA" together. No
-        # background phase -- one band never becomes RGBA without a profile.
+        # Grayscale with alpha: `putalpha()` holds "L" and "LA" together, and the
+        # "LA" it widens to reaches the background phase, which is the one-band
+        # one -- 1 + 16 bytes a pixel rather than 1 + 35.
         (
             ColorMode.GRAYSCALE,
             2,
@@ -1364,8 +1365,8 @@ def test_pil_peak_model_charges_a_profile_on_a_mode_that_is_not_rgb() -> None:
             False,
             None,
             Compression.RAW,
-            144,
-            "putalpha widening L to LA",
+            368,
+            "the LA background removal",
         ),
         # Eight 32-bit channels: 512 bytes of source, and twice that while the
         # codec runs, is wider than anything the assembly does.

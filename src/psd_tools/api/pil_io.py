@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Literal, cast
 import numpy as np
 from PIL import Image, ImageChops, ImageMath
 
-from psd_tools.api.numpy_io import _encode_array
+from psd_tools.api.numpy_io import _BACKGROUND_MODES, _encode_array
 from psd_tools.api.utils import (
     AllocBudget,
     check_pixel_size,
@@ -159,6 +159,10 @@ _CONVERSION_TRANSIENT: int = 8
 # Rounded well up because PIL's buffers are C-side and the instrument that
 # reads them is coarser than the one numpy gets.
 _WHITE_BACKGROUND_TRANSIENT: int = 35
+# The same for the `LA` result of a grayscale document, one colour band wide
+# rather than three: two bands split, one promoted to "I", one "L" result, and
+# the merge reassembling them. Rounded up from 9.
+_WHITE_BACKGROUND_TRANSIENT_1: int = 16
 
 # PIL rounds each image up to its arena's block granularity, so the process grows
 # by a little more than the bytes the images ask for. Every other term here
@@ -245,11 +249,16 @@ def _image_data_peak_bytes(
         bands + 3 if icc else 0,
         2 * final_bands + 1 if widened else 0,
     )
-    # `_remove_white_background()` only ever sees an RGBA image -- which is to
-    # say a three-band one that `putalpha()` has just widened.
-    white_background = (
-        _WHITE_BACKGROUND_TRANSIENT if widened and final_bands == 3 else 0
-    )
+    # `_remove_white_background()` only ever sees what `putalpha()` has just
+    # widened: an RGBA image from the RGB or ICC path, or the LA result a
+    # grayscale document's own one-channel plane makes.
+    white_background = 0
+    if widened and (final_bands == 3 or psd.color_mode in _BACKGROUND_MODES):
+        white_background = (
+            _WHITE_BACKGROUND_TRANSIENT_1
+            if final_bands == 1
+            else _WHITE_BACKGROUND_TRANSIENT
+        )
 
     # One narrow image per stored channel, held in `channels` to the end, and
     # the decompressed buffer it was built from, held just as long.
@@ -329,7 +338,7 @@ def convert_image_data_to_pil(
         return None
 
     image = post_process(image, alpha, icc)
-    return _remove_white_background(image)
+    return _remove_white_background(image, psd.color_mode)
 
 
 def _layer_peak_bytes(
@@ -696,12 +705,19 @@ def _apply_icc(image: Image.Image, icc_profile: bytes) -> Image.Image:
     return result
 
 
-def _remove_white_background(image: Image.Image) -> Image.Image:
-    """Remove white background in the preview image."""
-    if image.mode == "RGBA":
+def _remove_white_background(image: Image.Image, color_mode: ColorMode) -> Image.Image:
+    """Remove white background in the preview image.
+
+    An ``RGBA`` image has come through the RGB or ICC path, whose preview
+    convention the fixtures settle. An ``LA`` one is the document's own
+    one-channel plane: grayscale is stored over white (``gray0.psd`` is white at
+    every transparent pixel), while duotone shares that PIL mode without an
+    equivalent to read (#868).
+    """
+    if image.mode == "RGBA" or (image.mode == "LA" and color_mode in _BACKGROUND_MODES):
         bands = image.split()
-        a = bands[3]
-        rgb = [
+        a = bands[-1]
+        color = [
             ImageMath.lambda_eval(
                 lambda args: args["convert"](
                     args["float"](args["x"] + args["a"] - 255)
@@ -715,8 +731,8 @@ def _remove_white_background(image: Image.Image) -> Image.Image:
                 x=x,
                 a=a,
             )
-            for x in bands[:3]
+            for x in bands[:-1]
         ]
-        return Image.merge(bands=rgb + [a], mode="RGBA")
+        return Image.merge(bands=color + [a], mode=image.mode)
 
     return image
