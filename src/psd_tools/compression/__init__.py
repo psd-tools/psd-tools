@@ -387,41 +387,22 @@ def decompressed_size_bound(
 ) -> int:
     """Upper bound on the number of bytes :py:func:`decompress` will return.
 
-    Answerable without decompressing anything, which is what makes it usable
-    as an allocation guard's estimate: a caller sizing a buffer can reject a
-    document *before* it exists.
+    Answerable without decompressing, so an allocation guard can reject a
+    document *before* the buffer exists.
 
     ``length`` is :py:func:`decompress`'s own ``height`` rows of
-    :func:`_row_size`; the two are meant to be read together. The bound is
-    exact for RAW and RLE and an over-estimate for the two ZIP codecs, whose
-    inflated size cannot be known without inflating the stream. A malformed
-    body only ever comes back smaller, which is the safe direction for a guard.
+    :func:`_row_size`. The bound is exact for RAW and RLE and an over-estimate
+    for the two ZIP codecs; a malformed body only comes back smaller, which is
+    the safe direction for a guard.
 
-    ZIP is bounded at all only because ``_safe_zlib_decompress()`` is given
-    ``length`` as its ceiling, as is the black fill substituted for a channel
-    that fails to decode. Loosen either and this stops being an upper bound.
+    ZIP is bounded only because ``_safe_zlib_decompress()`` is given ``length``
+    as its ceiling, as is the black fill for a channel that fails to decode;
+    loosen either and this stops being an upper bound.
 
-    RAW is the only codec whose under-run is by design -- it returns
-    ``data[:length]``, which is why the ``min`` below is on its branch alone. A
-    ZIP body can inflate to fewer than ``length`` bytes too, since
-    ``_safe_zlib_decompress()`` caps the output without requiring it; at depth 8
-    and up :py:func:`decompress`'s mismatch check rejects that, so it reaches a
-    caller at depth 1 only, where the check is skipped. RLE is exact whenever it
-    returns at all, ``decode_rle()`` padding or clipping each row to
-    :func:`_row_size`.
-
-    :param data: the compressed body; read for its length only.
-    :param compression: compression type, see :py:class:`.Compression`.
-    :param width: width in pixels.
-    :param height: height in pixels. Pass ``height * channels`` wherever the
-        caller decompresses every channel in one call, as
-        :py:meth:`psd_tools.psd.image_data.ImageData.get_data` does.
-    :param depth: bit depth of the pixel; one of 1, 8, 16, 32.
-    :param version: psd file version. Accepted for symmetry with
-        :py:func:`decompress`; the bound does not depend on it, the row
-        byte-count table being read past rather than returned.
-    :return: the largest number of bytes ``decompress()`` can return for these
-        arguments.
+    RAW under-runs by design (``data[:length]``), hence the ``min`` on its
+    branch alone. A ZIP body can also inflate short; ``decompress()``'s mismatch
+    check rejects that at depth 8 and up, so it reaches a caller at depth 1
+    only. RLE is exact whenever it returns, padding or clipping each row.
     """
     length = _channel_length(width, height, depth)
     if compression == Compression.RAW:

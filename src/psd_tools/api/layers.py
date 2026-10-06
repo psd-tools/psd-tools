@@ -157,14 +157,9 @@ TGroupMixin = TypeVar("TGroupMixin", bound="GroupMixin")
 def _compression_for(compression: Compression, depth: int) -> Compression:
     """The codec to store a channel with, given the document's *depth*.
 
-    ZIP with prediction delta-encodes whole samples, and a 1-bit channel has
-    none: ``encode_prediction()`` raises on it, and ``decompress()`` turns the
-    matching read into a black channel and a warning. So a bitmap document
-    takes plain ZIP instead of a codec it cannot express. Every other pairing
-    of the four codecs with depths 1, 8, 16 and 32 round-trips as asked.
-
-    The choice is recorded in the channel's own ``compression`` field, so a
-    reader is told what it was given and nothing has to infer it.
+    ZIP with prediction delta-encodes whole samples and a 1-bit channel has
+    none, so a bitmap document takes plain ZIP. The choice is recorded in the
+    channel's own ``compression`` field.
     """
     if depth == 1 and compression == Compression.ZIP_WITH_PREDICTION:
         logger.debug("ZIP with prediction is not defined at depth 1; using ZIP.")
@@ -1005,20 +1000,14 @@ class Layer(LayerProtocol):
         """
         Returns True if the layer has effects.
 
-        Existence is what the Photoshop UI lists: an effect with an entry in
-        the layer's fx list. Whether it is switched on is separate -- the UI
-        greys out a disabled entry, and the master switch greys out the whole
-        list at once. So the two arms ask two questions: ``has_effects()`` is
-        "does this layer draw any effect?", which needs the master switch on
-        and an entry enabled under it, and ``has_effects(enabled=False)`` is
-        "does the fx list show anything?", the same answer as
+        ``has_effects()`` asks "does this layer draw any effect?": the master
+        switch on and an entry enabled under it. ``has_effects(enabled=False)``
+        asks "does the fx list show anything?", the same as
         ``len(layer.effects) > 0``.
 
-        Neither is "does the layer carry an effects tagged block". Photoshop
-        creates that block with the first effect attached and leaves it behind
-        once the last is removed, so it outlives what it lists; ask
-        :py:attr:`~psd_tools.api.layers.Layer.tagged_blocks` for it, as
-        :py:class:`~psd_tools.api.effects.Effects` documents (#318, #830).
+        Neither tests for an effects tagged block, which Photoshop leaves behind
+        after the last effect is removed; ask
+        :py:attr:`~psd_tools.api.layers.Layer.tagged_blocks` for that (#318, #830).
 
         :param enabled: If True, check for enabled effects.
         :param name: If given, check for specific effect type.
@@ -1297,15 +1286,10 @@ class Layer(LayerProtocol):
 
 
 def _invalidate_moved_bbox(layer: Layer) -> None:
-    """Drop the cached boxes ``layer`` carries now that something above it changed.
+    """Drop the cached boxes ``layer`` carries after an ancestor changed.
 
-    That is either a new parent or an ancestor whose ``visible`` flag moved;
-    see ``GroupMixin._invalidate_subtree_bbox()`` for which boxes those
-    are and why. ``Group`` and ``ShapeLayer`` are named concretely rather than
-    going through ``GroupMixin``, whose ``runtime_checkable`` protocol check
-    would recompute the boxes this is about to drop on Python <= 3.11. That
-    costs work rather than correctness -- the walk clears whatever the check
-    armed.
+    ``Group`` and ``ShapeLayer`` are named concretely because a ``GroupMixin``
+    ``runtime_checkable`` check would recompute the boxes on Python <= 3.11.
     """
     if isinstance(layer, Group):
         layer._invalidate_subtree_bbox()
@@ -1361,25 +1345,18 @@ class GroupMixin(GroupMixinProtocol, Protocol):
             parent._invalidate_bbox()
 
     def _invalidate_subtree_bbox(self) -> None:
-        """Drop this container's cached bbox, and every cached box *beneath* it.
+        """Drop this container's cached bbox and every cached box *beneath* it.
 
-        The downward twin of :py:meth:`_invalidate_bbox`, for a layer whose
-        ancestors change rather than its contents. Two cached boxes read
-        something above the layer that holds them, so the whole subtree is
-        invalidated, not just its root:
+        For a layer whose ancestors change rather than its contents. Two cached
+        boxes read something above their holder:
 
         - a group's, because :py:meth:`Group.extract_bbox` filters children
           through ``is_visible()``, which walks up the parent chain;
         - a vector-mask-only shape's, because it scales the mask's normalized
-          bounds by ``self._psd.width`` and ``height``, and a cross-document
-          move repoints ``_psd`` at a canvas of a different size.
+          bounds by ``self._psd`` size, which a cross-document move changes.
 
-        Two callers reach different halves of that: reparenting or detaching
-        can do both, while hiding or showing a group (#819) only ever does the
-        first, since it leaves ``_psd`` alone.
-
-        An ordinary layer's box is its record's own offsets, which nothing
-        above it can change, so those are left alone.
+        Reparenting can do both; toggling a group's visibility (#819) only the
+        first. An ordinary layer's box is its record's offsets and is kept.
         """
         self._bbox = None
         for child in self._layers:

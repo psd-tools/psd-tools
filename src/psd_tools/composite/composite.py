@@ -100,16 +100,9 @@ _UNREADABLE = (
 def _readable(layer: Layer, name: str) -> list[_StyledEffect]:
     """The layer's enabled effects of one kind, empty if they cannot be listed.
 
-    ``Effects`` re-reads the layer's block on every access, so listing a
-    layer's effects can fail on the walk ``find()`` makes before it yields
-    anything. The three callers guard each effect they go on to read
-    separately, inside the loop; this is the failure that would leave them
-    nothing to guard.
-
-    The one effect class known to fail on that walk is skipped one layer
-    down, in ``Effects`` itself (#828). The clause stays because the listing is what
-    the guards downstream stand on, and being total about it costs one
-    ``try``.
+    ``Effects`` re-reads the layer's block on every access, so the walk
+    ``find()`` makes can fail before it yields anything. The callers guard each
+    effect they read; this covers the listing they stand on (#828).
     """
     try:
         return list(_styled(layer.effects.find(name)))
@@ -781,11 +774,10 @@ def _document_backdrop(
 def _uniform_alpha(alpha: float | np.ndarray) -> float | None:
     """The backdrop alpha as a plain float when it is a single scalar.
 
-    Returns None for an array-valued backdrop rather than scanning it: the
-    caller decides the output mode from this, and reporting an all-ones array
-    as opaque would drop the alpha channel from images that carry one today.
-    Tested by dimensionality rather than by type so that ``1``, ``1.0``,
-    ``np.float32(1.0)`` and ``np.array(1.0)`` all behave alike.
+    None for an array-valued backdrop, which is not scanned: an all-ones array
+    reported as opaque would drop the alpha channel from images that carry one.
+    Tested by dimensionality so ``1``, ``1.0``, ``np.float32(1.0)`` and
+    ``np.array(1.0)`` behave alike.
     """
     return float(alpha) if np.ndim(alpha) == 0 else None
 
@@ -793,16 +785,12 @@ def _uniform_alpha(alpha: float | np.ndarray) -> float | None:
 def _widen(color: np.ndarray, channels: int) -> np.ndarray:
     """Replicate a single-channel array across ``channels``.
 
-    A grayscale source inside an RGB document arrives one channel wide. The
-    compositor's own canvases have to be a fixed width for their whole
-    lifetime, so a backdrop is widened once at the point it is handed over
-    rather than repeatedly patched mid-composite; a source is widened at the
-    same point for a different reason, that what a grey means is the
-    document's answer and not the blend arithmetic's (#749).
+    A backdrop is widened once where it is handed over, since canvases keep a
+    fixed width; a source is widened there too because what a grey means is the
+    document's answer, not the blend arithmetic's (#749).
 
-    Replication is right for RGB and wrong for CMYK and Lab, so this is only
-    the fallback used when no document is available to ask -- everything that
-    can reach one goes through :py:func:`widen.make_widen` instead (#722).
+    Replication is wrong for CMYK and Lab, so this is only the fallback when no
+    document is available; everything else uses :py:func:`widen.make_widen` (#722).
     """
     if color.shape[2] == 1 and 1 < channels:
         return np.repeat(color, channels, axis=2)
@@ -989,13 +977,9 @@ class _Source:
 def _composites_as_passthrough(source: _Source, blend_mode: BlendMode) -> bool:
     """Whether this source goes on by interpolation rather than by compositing.
 
-    ``is False`` and not a truth test: when a group isolates its adjustments,
-    pass-through composing falls back to over composing, because
-    ``_get_group()`` has already handed back the group's isolated result. None
-    means the layer is not a group at all.
-
-    Spelled once because two callers turn on it -- the composite itself, and
-    where an outer effect goes relative to it -- and they have to agree.
+    ``is False``, not a truth test: when a group isolates its adjustments,
+    pass-through falls back to over composing, and None means not a group.
+    Spelled once because the composite and the outer-effect ordering must agree.
     """
     return blend_mode == BlendMode.PASS_THROUGH and source.adjustment_isolated is False
 
@@ -1103,12 +1087,9 @@ class _EffectCanvas:
     def within(self, coverage: np.ndarray) -> np.ndarray:
         """A coverage of the pixel, as the share of the region it is.
 
-        A stroke band is measured on the pixel like any other coverage, while
-        the region is what an inner effect covers a share of. The two are the
-        same wherever the layer is opaque, and on a pixel its boundary cuts an
-        inset band comes out equal to the layer's own coverage there -- which
-        is the whole of the region, and what makes the inset stroke knock the
-        layer out rather than blend with it.
+        A stroke band is measured on the pixel, an inner effect on the region.
+        Where the layer's boundary cuts an inset band, the result is the whole
+        region, so the inset stroke knocks the layer out rather than blending.
         """
         return utils.clip(utils.divide(coverage, self.region, fill=0.0))
 
@@ -1536,19 +1517,10 @@ class Compositor(object):
     def _fit_source(self, color: np.ndarray) -> np.ndarray:
         """Bring a source to this compositor's width, checking the invariant.
 
-        Both doors a source colour comes through call this, so that what a
-        grey means in this document is answered in one place. A single-channel
-        source is legal to hand over -- a pattern carries its own colour mode, and
-        a fill on a multichannel document resolves to one component because
-        there is nothing to convert it into -- but which colour that one channel
-        *is* depends on the document, and only ``widen`` knows (#749).
-
-        Left to the blend arithmetic it was broadcast instead, which is
-        replication under another name: correct for RGB and, on a CMYK
-        document, an over-inked build that is not the grey it came from. The
-        same grey already converted when it arrived as a backdrop, as a clip
-        base or as a pattern overlay, so it depended on incidental layer
-        structure which of the two answers a document got.
+        Both doors a source colour comes through call this, so what a grey means
+        in this document is answered in one place: a single-channel source (a
+        pattern, or a fill on a multichannel document) is widened by ``widen``,
+        not broadcast by the blend arithmetic, which is wrong for CMYK (#749).
         """
         self._assert_source_fits(color)
         return self._widen(color, self._channels)
@@ -1730,13 +1702,8 @@ class Compositor(object):
     def result_over_backdrop(self) -> np.ndarray:
         """The composited color *as it stands over* the initial backdrop.
 
-        Correct when the caller is continuing to composite onto the very
-        backdrop this compositor was seeded with, so that removing it would
-        drop a contribution the caller still wants: the pass-through path,
-        where the sub-compositor was seeded with the parent's own canvas, the
-        clip-layer path, where it was seeded with the base layer's color, and
-        the vector-stroke path, where it was seeded with the color the stroke
-        outlines.
+        For a caller that keeps compositing onto the backdrop this compositor
+        was seeded with: the pass-through, clip-layer and vector-stroke paths.
         """
         return self._color
 
