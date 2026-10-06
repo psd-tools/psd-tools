@@ -259,3 +259,25 @@ def test_a_pattern_whose_depths_disagree_is_rejected_before_the_decode() -> None
     first.depth = 32
     with pytest.raises(ValueError, match="disagrees"):
         numpy_io.get_pattern(pattern)
+
+
+@pytest.mark.parametrize("size", [9, 10])
+def test_a_short_color_table_is_a_value_error(size: int) -> None:
+    """A truncated table is rejected with a catchable error, not an IndexError."""
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_index_color.psd"))
+    psd._record.color_mode_data.value = psd._record.color_mode_data.value[:size]
+
+    for read in (psd.numpy, psd.topil, psd.composite):
+        with pytest.raises(ValueError, match="Color table"):
+            read()
+
+
+def test_an_overlong_color_table_reads_the_first_256_entries() -> None:
+    """Planes are 256 bytes apart whatever follows them; trailing bytes are ignored."""
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_index_color.psd"))
+    table = bytes(range(256)) + bytes(range(255, -1, -1)) + bytes([7] * 256)
+    psd._record.color_mode_data.value = table
+    expected = psd.numpy()
+
+    psd._record.color_mode_data.value = table + b"\x01\x02\x03"
+    assert np.array_equal(psd.numpy(), expected)

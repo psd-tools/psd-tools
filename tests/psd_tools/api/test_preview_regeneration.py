@@ -326,16 +326,15 @@ def test_a_short_color_table_keeps_the_stored_index_plane(
 ) -> None:
     """An indexed document Photoshop could not have written must not abort.
 
-    ``ColorModeData.interleave()`` reads 256 entries out of three planes with
-    no bounds check, so quantizing against a truncated table is an
-    ``IndexError`` rather than a poor palette. The stored plane is kept
+    Quantizing against a truncated table cannot give a faithful palette, and
+    ``ColorModeData.interleave()`` raises on one. The stored plane is kept
     instead: a preview that no longer matches the layers beats a document
     that cannot be written at all.
 
     Exercised against the encoder rather than through ``save()``, because on
-    a *layerless* indexed document the read raises first -- ``_parse_array``
-    indexes the same short table to expand the stored plane -- and the corpus
-    has no indexed document with layers to reach the encoder any other way.
+    a *layerless* indexed document the read raises first -- it expands the
+    stored plane through the same short table -- and the corpus has no
+    indexed document with layers to reach the encoder any other way.
     """
     psd = PSDImage.open(full_name("colormodes/4x4_8bit_index_color.psd"))
     color, _, alpha = composite(psd)

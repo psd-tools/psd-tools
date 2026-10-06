@@ -94,3 +94,14 @@ def test_color_mode_data_exception() -> None:
         ColorModeData.frombytes(b"")
     with pytest.raises(IOError):
         ColorModeData.frombytes(str(10).encode("ascii"))
+
+
+@pytest.mark.parametrize("size", [0, 9, 10, 767])
+def test_interleave_rejects_a_short_color_table(size: int) -> None:
+    with pytest.raises(ValueError, match="Color table"):
+        ColorModeData(b"\x00" * size).interleave()
+
+
+def test_interleave_reads_three_planes() -> None:
+    table = bytes([1] * 256 + [2] * 256 + [3] * 256)
+    assert ColorModeData(table).interleave() == b"\x01\x02\x03" * 256

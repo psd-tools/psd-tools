@@ -222,8 +222,9 @@ def get_image_data(psdimage: "PSDProtocol", channel: str | None) -> np.ndarray:
 
     lut: np.ndarray | None = None
     if psdimage.color_mode == ColorMode.INDEXED:
-        lut = np.frombuffer(psdimage._record.color_mode_data.value, np.uint8)
-        lut = lut.reshape((3, -1)).transpose()
+        lut = np.frombuffer(
+            psdimage._record.color_mode_data.interleave(), np.uint8
+        ).reshape((-1, 3))
     image_bytes = psdimage._record.image_data.get_data(psdimage._record.header, False)
     if not isinstance(image_bytes, bytes):
         raise TypeError(f"Expected bytes, got {type(image_bytes).__name__}")
@@ -701,10 +702,9 @@ def _to_indices(color: np.ndarray, psdimage: "PSDProtocol") -> np.ndarray | None
     rather than merely requantized.
 
     ``None`` where the document has no full table to quantize against.
-    ``ColorModeData.interleave()`` reads 256 entries out of three planes
-    unguarded, so a short one is an ``IndexError`` rather than a poor
-    palette -- and a save that aborts is worse than one that leaves the
-    stored plane alone, which is what the caller does with ``None``.
+    ``ColorModeData.interleave()`` raises ``ValueError`` on a short table,
+    and a save that aborts is worse than one that leaves the stored plane
+    alone, which is what the caller does with ``None``.
     """
     from PIL import Image  # noqa: PLC0415
 
