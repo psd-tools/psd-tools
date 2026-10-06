@@ -84,6 +84,7 @@ and exposed through the ``kind`` property for easy type checking.
 
 import logging
 import operator
+import uuid
 import warnings
 from copy import deepcopy
 from typing import (
@@ -126,13 +127,15 @@ from psd_tools.constants import (
     CompatibilityMode,
     Compression,
     ProtectedFlags,
+    Resource,
     SectionDivider,
     SheetColorType,
     Tag,
     TextType,
 )
-from psd_tools.psd.descriptor import Descriptor, DescriptorBlock
+from psd_tools.psd.descriptor import Descriptor, DescriptorBlock, String
 from psd_tools.psd.header import FileHeader
+from psd_tools.psd.image_resources import ImageResource, Integer
 from psd_tools.psd.layer_and_mask import (
     ChannelData,
     ChannelDataList,
@@ -144,6 +147,7 @@ from psd_tools.psd.layer_and_mask import (
 from psd_tools.psd.tagged_blocks import (
     ProtectedSetting,
     SectionDividerSetting,
+    SmartObjectLayerData,
     TaggedBlocks,
     TypeToolObjectSetting,
 )
@@ -1188,13 +1192,17 @@ class Layer(LayerProtocol):
 
         :param parent: Destination group or document. Defaults to this layer's
             parent. A detached layer requires an explicit destination.
-        :param index: Insertion position, with Python list semantics. Defaults
-            to immediately above the source in the same parent, or the top of
-            another container.
+        :param index: The copy's final position in the destination, counting
+            from the bottom; negative counts from the top, so ``-1`` is the top.
+            Defaults to immediately above the source in the same parent, or
+            the top of another container. Inserting directly above a clip base
+            releases the layers clipped to that base.
         :param name: Optional name for the copy's root layer.
         :raises TypeError: If the destination, index or name has an invalid type.
         :raises ValueError: If no destination is available, the destination is
-            in another document, or the name exceeds 255 characters.
+            in another document, an artboard is not going to the document root,
+            or the name exceeds 255 characters.
+        :raises IndexError: If ``index`` is out of range.
         :return: The inserted copy; the source remains in place.
         """
         if parent is None:
@@ -1205,6 +1213,8 @@ class Layer(LayerProtocol):
             raise TypeError("Parent must be a group or PSDImage")
         if parent._psd is not self._psd:
             raise ValueError("Cannot duplicate a layer into another document")
+        if isinstance(self, Artboard) and parent is not self._psd:
+            raise ValueError("An artboard can only be placed at the document root")
         if index is None:
             index = (
                 parent.index(self) + 1
@@ -1213,6 +1223,12 @@ class Layer(LayerProtocol):
             )
         else:
             index = operator.index(index)
+            final_length = len(parent) + 1
+            if not -final_length <= index < final_length:
+                raise IndexError(
+                    f"Index {index} out of range for {final_length} layers"
+                )
+            index %= final_length
         if name is not None:
             if not isinstance(name, str):
                 raise TypeError("Layer name must be a string")
@@ -1234,7 +1250,10 @@ class Layer(LayerProtocol):
         copies: list[Layer] = [duplicate]
         if isinstance(duplicate, Group):
             copies.extend(duplicate.descendants())
-        next_id = 1
+        seed = self._psd.image_resources.get_data(Resource.IDS_SEED_NUMBER, 0)
+        # The seed resource stores a signed 32-bit integer, but layer IDs are
+        # unsigned. Compare the same 32 bits when the high bit is set.
+        next_id = max(seed & 0xFFFFFFFF, max(used_ids, default=0)) + 1
         for layer in copies:
             for record in _layer_records(layer):
                 if (
@@ -1242,21 +1261,36 @@ class Layer(LayerProtocol):
                     and Tag.LAYER_ID not in record.tagged_blocks
                 ):
                     continue
-                while next_id in used_ids:
-                    next_id += 1
                 if next_id > 0xFFFFFFFF:
                     raise ValueError("No unused layer IDs available")
                 record.tagged_blocks.set_data(Tag.LAYER_ID, next_id)
-                used_ids.add(next_id)
                 next_id += 1
         if name is not None:
             duplicate.name = name
+        clip_layers = (
+            self.clip_layers
+            if parent is self.parent and index == parent.index(self) + 1
+            else []
+        )
+        seed = next_id - 1
+        seed_resource = ImageResource(
+            key=Resource.IDS_SEED_NUMBER,
+            data=Integer(seed if seed < 0x80000000 else seed - 0x100000000),  # type: ignore[arg-type]
+        )
         parent.insert(index, duplicate)
+        self._psd.image_resources[Resource.IDS_SEED_NUMBER] = seed_resource
+        for layer in clip_layers:
+            layer.clipping = False
         return duplicate
 
     def _duplicate(self, parent: "GroupMixin") -> Self:
         """Build a detached copy of this subtree from its low-level records."""
         duplicate = type(self)(parent, deepcopy(self._record), deepcopy(self._channels))
+        instance_id = str(uuid.uuid4())
+        for key in (Tag.SMART_OBJECT_LAYER_DATA1, Tag.SMART_OBJECT_LAYER_DATA2):
+            config = duplicate.tagged_blocks.get_data(key)
+            if isinstance(config, SmartObjectLayerData):
+                config.data[b"placed"] = String(instance_id)
         if isinstance(self, Group) and isinstance(duplicate, Group):
             duplicate._bounding_record = deepcopy(self._bounding_record)
             duplicate._bounding_channels = deepcopy(self._bounding_channels)

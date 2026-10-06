@@ -228,9 +228,13 @@ subtree, retaining layer types, pixel data, masks and layer metadata. The
 copy gets fresh layer IDs and can be edited independently. Smart-object
 contents and other document resources remain shared. The source stays in
 place. Cross-document duplication is not supported; a detached source needs
-an explicit destination parent. ``index`` follows Python list insertion
-rules. Without it, a copy goes immediately above its source in the same
-parent, or to the top of a different container.
+an explicit destination parent. ``index`` is the copy's position in the
+destination after the call; ``-1`` is the top. An out-of-range index raises
+``IndexError``. Without it, a copy goes immediately above its source in the
+same parent, or to the top of a different container. Duplicating a clip base
+directly above itself releases the layers clipped to it, as Photoshop does.
+Artboards can only be duplicated at the document root. Smart-object copies
+share the original content but have fresh instance IDs.
 
 A layer can change its order within its group::
 

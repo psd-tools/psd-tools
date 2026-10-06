@@ -6,8 +6,9 @@ Changelog
 
 - [api] ``Layer.duplicate()`` copies a layer or nested group within its
   document, with independent layer data and fresh IDs. It accepts a
-  destination, insertion index and name; smart-object contents and other
-  document resources remain shared (#928; related to #882)
+  destination, final position and name; smart-object contents remain shared
+  with fresh instance IDs. A copy directly above a clip base releases its
+  clipping layers. Artboards stay at the document root (#928; related to #882)
 
 1.24.0 (2026-10-06)
 -------------------

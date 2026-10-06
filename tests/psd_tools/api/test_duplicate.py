@@ -1,6 +1,7 @@
 """Layer duplication and serialization tests."""
 
 from pathlib import Path
+from uuid import UUID
 
 import numpy as np
 import pytest
@@ -15,7 +16,8 @@ from psd_tools.api.layers import (
     SmartObjectLayer,
     TypeLayer,
 )
-from psd_tools.constants import BlendMode, Tag
+from psd_tools.constants import BlendMode, Resource, Tag
+from psd_tools.psd.image_resources import ImageResource, Integer
 from psd_tools.psd.tagged_blocks import TaggedBlock
 
 from tests.conftest import skip_without_composite
@@ -110,7 +112,7 @@ def test_duplicate_nested_group_and_divider_records() -> None:
     nested.visible = False
     group.tagged_blocks.set_data(Tag.LAYER_ID, 1)
     nested.tagged_blocks.set_data(Tag.LAYER_ID, 3)
-    pixel.tagged_blocks.set_data(Tag.LAYER_ID, 0xFFFFFFFF)
+    pixel.tagged_blocks.set_data(Tag.LAYER_ID, 9)
     assert group._bounding_record is not None
     group._bounding_record.tagged_blocks.set_data(Tag.LAYER_ID, 2)
     duplicate = group.duplicate(name="Root copy")
@@ -129,14 +131,15 @@ def test_duplicate_nested_group_and_divider_records() -> None:
     clone_ids = [duplicate.layer_id, *(x.layer_id for x in duplicate.descendants())]
     clone_ids.append(duplicate._bounding_record.tagged_blocks.get_data(Tag.LAYER_ID))
     assert len(set(clone_ids)) == len(clone_ids)
-    assert not set(clone_ids) & {1, 2, 3, 0xFFFFFFFF}
+    assert min(clone_ids) == 10
+    assert psd.image_resources.get_data(Resource.IDS_SEED_NUMBER) == max(clone_ids)
     duplicate[0][0].name = "Changed"
     duplicate[0].append(psd.create_pixel_layer(Image.new("RGB", (1, 1))))
     assert pixel.name != "Changed"
     assert len(nested) == 1
 
 
-@pytest.mark.parametrize("index", [None, 0, 1, -1, -100, 100])
+@pytest.mark.parametrize("index", [None, 0, 1, -1, -2])
 def test_duplicate_destination_and_index(index: int | None) -> None:
     psd = PSDImage.new("RGB", (8, 8))
     source = psd.create_pixel_layer(Image.new("RGB", (2, 2)), name="Source")
@@ -145,8 +148,10 @@ def test_duplicate_destination_and_index(index: int | None) -> None:
     destination.append(first)
     expected: list[Layer] = [first]
     duplicate = source.duplicate(destination, index=index)
-    expected.insert(len(expected) if index is None else index, duplicate)
+    target = len(expected) if index is None else index % (len(expected) + 1)
+    expected.insert(target, duplicate)
     assert list(destination) == expected
+    assert destination.index(duplicate) == target
     assert duplicate.parent is destination
     assert source.parent is psd
     assert source in psd
@@ -209,6 +214,10 @@ def test_duplicate_into_hidden_group_invalidates_cached_bounds() -> None:
         ({"parent": object()}, TypeError),
         ({"index": 1.5}, TypeError),
         ({"index": "0"}, TypeError),
+        ({"index": -3}, IndexError),
+        ({"index": 2}, IndexError),
+        ({"index": -100}, IndexError),
+        ({"index": 100}, IndexError),
         ({"name": 123}, TypeError),
         ({"name": "a" * 256}, ValueError),
     ],
@@ -234,6 +243,128 @@ def test_duplicate_rejects_another_document() -> None:
     assert len(source_psd) == 1
     assert len(group) == 0
     assert not source_psd.is_updated()
+
+
+@pytest.mark.parametrize("index", [None, 1, -3])
+@pytest.mark.parametrize("group_base", [False, True])
+def test_duplicate_clip_base_releases_clipped_layers(
+    index: int | None, group_base: bool
+) -> None:
+    psd = PSDImage.new("RGB", (8, 8))
+    base = (
+        psd.create_group()
+        if group_base
+        else psd.create_pixel_layer(Image.new("RGB", (2, 2)))
+    )
+    clips = [psd.create_pixel_layer(Image.new("RGB", (2, 2))) for _ in range(2)]
+    for layer in clips:
+        layer.clipping = True
+    assert base.clip_layers == clips
+    copy = base.duplicate(index=index)
+    assert list(psd) == [base, copy, *clips]
+    assert not any(layer.clipping for layer in clips)
+    assert not base.clip_layers and not copy.clip_layers
+
+
+def test_duplicate_clipped_layer_preserves_clipping() -> None:
+    psd = PSDImage.new("RGB", (8, 8))
+    base, first, second = [
+        psd.create_pixel_layer(Image.new("RGB", (2, 2))) for _ in range(3)
+    ]
+    first.clipping = second.clipping = True
+    copy = first.duplicate()
+    assert list(psd) == [base, first, copy, second]
+    assert copy.clipping and first.clipping and second.clipping
+    assert base.clip_layers == [first, copy, second]
+
+
+@pytest.mark.parametrize("other_parent", [False, True])
+def test_duplicate_clip_base_elsewhere_preserves_clipping(other_parent: bool) -> None:
+    psd = PSDImage.new("RGB", (8, 8))
+    base = psd.create_pixel_layer(Image.new("RGB", (2, 2)))
+    clip = psd.create_pixel_layer(Image.new("RGB", (2, 2)))
+    clip.clipping = True
+    destination = psd.create_group() if other_parent else psd
+    base.duplicate(destination, index=0)
+    assert clip.clipping
+    assert base.clip_layers == [clip]
+
+
+def test_duplicate_artboard_rejects_group_destination_without_mutation() -> None:
+    psd = PSDImage.open(full_name("artboard.psd"))
+    source = next(layer for layer in psd if isinstance(layer, Artboard))
+    destination = psd.create_group()
+    before = psd._record.tobytes()
+    with pytest.raises(ValueError, match="document root"):
+        source.duplicate(destination)
+    assert psd._record.tobytes() == before
+    assert len(destination) == 0
+
+
+@pytest.mark.parametrize("seed", [0, 4, 100, 0x7FFFFFFF])
+def test_duplicate_advances_id_seed(seed: int, tmp_path: Path) -> None:
+    psd = PSDImage.open(full_name("layers/smartobject-layer.psd"))
+    source = psd[0]
+    psd.image_resources[Resource.IDS_SEED_NUMBER] = ImageResource(
+        key=Resource.IDS_SEED_NUMBER,
+        data=Integer(seed),  # type: ignore[arg-type]
+    )
+    expected = max(seed, source.layer_id) + 1
+    copy = source.duplicate()
+    assert copy.layer_id == expected
+    assert (
+        psd.image_resources.get_data(Resource.IDS_SEED_NUMBER) & 0xFFFFFFFF == expected
+    )
+    psd.remove(copy)
+    copy = source.duplicate()
+    assert copy.layer_id == expected + 1
+    path = tmp_path / "seed.psd"
+    psd.save(path)
+    saved = PSDImage.open(path)
+    assert (
+        saved.image_resources.get_data(Resource.IDS_SEED_NUMBER) & 0xFFFFFFFF
+        == expected + 1
+    )
+    assert saved[0].duplicate().layer_id == expected + 2
+
+
+def test_duplicate_id_exhaustion_is_atomic() -> None:
+    psd = PSDImage.open(full_name("layers/pixel-layer.psd"))
+    source = psd[0]
+    source.tagged_blocks.set_data(Tag.LAYER_ID, 0xFFFFFFFF)
+    before = psd._record.tobytes()
+    with pytest.raises(ValueError, match="No unused layer IDs"):
+        source.duplicate()
+    assert psd._record.tobytes() == before
+    assert list(psd) == [source]
+    assert not psd.is_updated()
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_duplicate_smart_object_instance_id(nested: bool, tmp_path: Path) -> None:
+    psd = PSDImage.open(full_name("layers/smartobject-layer.psd"))
+    source = psd[0]
+    config = source.tagged_blocks.get_data(Tag.SMART_OBJECT_LAYER_DATA1)
+    original_instance = config.data[b"placed"].value
+    original_content = config.data[b"Idnt"].value
+    if nested:
+        group = psd.create_group([source])
+        duplicate = group.duplicate()[0]
+    else:
+        duplicate = source.duplicate()
+    duplicate.name = "Smart copy"
+    data = duplicate.tagged_blocks.get_data(Tag.SMART_OBJECT_LAYER_DATA1).data
+    assert data[b"Idnt"].value == original_content
+    assert data[b"placed"].value != original_instance
+    assert UUID(data[b"placed"].value).version == 4
+    assert config.data[b"placed"].value == original_instance
+    path = tmp_path / "instance.psd"
+    psd.save(path)
+    saved = PSDImage.open(path).find("Smart copy")
+    assert saved is not None
+    saved_data = saved.tagged_blocks.get_data(Tag.SMART_OBJECT_LAYER_DATA1).data
+    assert saved_data[b"placed"] == data[b"placed"]
+    assert saved_data[b"Idnt"].value == original_content
 
 
 def test_duplicate_uses_fresh_type_shape_and_smart_object_wrappers() -> None:
