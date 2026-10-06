@@ -174,7 +174,8 @@ class Dict(DictElement):
                         EngineToken.ARRAY_START,
                         EngineToken.DICT_START,
                     ):
-                        assert kls is not None
+                        if kls is None:
+                            raise ValueError("Unknown type")
                         value = kls.frombytes(tokenizer)
                     elif kls:
                         value = kls.frombytes(v_token)
@@ -315,10 +316,12 @@ class List(ListElement):
 
                 kls = TOKEN_CLASSES.get(token_type)
                 if token_type in (EngineToken.ARRAY_START, EngineToken.DICT_START):
-                    assert kls is not None
+                    if kls is None:
+                        raise ValueError("Unknown type")
                     value = kls.frombytes(tokenizer)
                 else:
-                    assert kls is not None
+                    if kls is None:
+                        raise ValueError("Unknown type")
                     value = kls.frombytes(token)
                 self.append(value)
 

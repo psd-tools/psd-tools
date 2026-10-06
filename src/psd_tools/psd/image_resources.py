@@ -805,7 +805,8 @@ class Slices(BaseElement):
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "Slices":
         version = read_fmt("I", fp)[0]
-        assert version in (6, 7, 8), "Invalid version %d" % (version)
+        if version not in (6, 7, 8):
+            raise ValueError("Invalid version %d" % (version))
         if version == 6:
             return cls(version=version, data=SlicesV6.read(fp))
         return cls(version=version, data=DescriptorBlock.read(fp))

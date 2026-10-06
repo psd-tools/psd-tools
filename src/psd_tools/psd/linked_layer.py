@@ -96,7 +96,8 @@ class LinkedLayer(BaseElement):
     def read(cls: type[T_LinkedLayer], fp: IO[bytes], **kwargs: Any) -> T_LinkedLayer:
         kind = LinkedLayerType(read_fmt("4s", fp)[0])
         version = read_fmt("I", fp)[0]
-        assert 1 <= version and version <= 8, "Invalid version %d" % (version)
+        if not 1 <= version <= 8:
+            raise ValueError("Invalid version %d" % (version))
         uuid = read_pascal_string(fp, "macroman", padding=1)
         filename = read_unicode_string(fp)
         filetype, creator, datasize, open_file = read_fmt("4s4sQB", fp)
@@ -124,7 +125,8 @@ class LinkedLayer(BaseElement):
             read_fmt("8x", fp)
         if kind == LinkedLayerType.DATA:
             data = read_exact(fp, datasize)
-            assert len(data) == datasize, "(%d vs %d)" % (len(data), datasize)
+            if len(data) != datasize:
+                raise ValueError("(%d vs %d)" % (len(data), datasize))
 
         # The followings are not well documented...
         if version >= 5:

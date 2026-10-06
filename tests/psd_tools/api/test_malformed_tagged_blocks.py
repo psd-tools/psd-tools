@@ -13,9 +13,6 @@ from psd_tools.constants import Tag
 
 from ..utils import full_name
 
-pytest.importorskip("aggdraw")
-pytest.importorskip("scipy")
-
 
 def _corrupt(psd: PSDImage, tag: Tag) -> None:
     """Replace every parsed ``tag`` block with the bytes a failed parse leaves."""
@@ -48,6 +45,8 @@ def _corrupt(psd: PSDImage, tag: Tag) -> None:
     ],
 )
 def test_a_malformed_block_does_not_break_rendering(fixture: str, tag: Tag) -> None:
+    pytest.importorskip("aggdraw")
+    pytest.importorskip("scipy")
     psd = PSDImage.open(full_name(fixture))
     _corrupt(psd, tag)
     for layer in psd.descendants():
@@ -77,6 +76,8 @@ def test_a_malformed_layer_block_raises_on_open(key: bytes) -> None:
 
 
 def test_a_type_layer_without_parsed_data_raises_value_error() -> None:
+    pytest.importorskip("aggdraw")
+    pytest.importorskip("scipy")
     psd = PSDImage.open(full_name("adjustment-fillers.psd"))
     _corrupt(psd, Tag.TYPE_TOOL_OBJECT_SETTING)
     buffer = io.BytesIO()

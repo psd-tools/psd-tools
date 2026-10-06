@@ -551,7 +551,8 @@ class MetadataSetting(BaseElement):
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "MetadataSetting":
         signature = read_fmt("4s", fp)[0]
-        assert signature in cls._KNOWN_SIGNATURES, "Invalid signature %r" % signature
+        if signature not in cls._KNOWN_SIGNATURES:
+            raise ValueError("Invalid signature %r" % signature)
         key, copy_on_sheet = read_fmt("4s?3x", fp)
         data: Any = read_length_block(fp)
         if key in (b"mdyn", b"sgrp"):

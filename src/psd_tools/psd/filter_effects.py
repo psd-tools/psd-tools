@@ -44,7 +44,8 @@ class FilterEffects(ListElement):
         cls: type[T_FilterEffects], fp: IO[bytes], **kwargs: Any
     ) -> T_FilterEffects:
         version = read_fmt("I", fp)[0]
-        assert version in (1, 2, 3), "Invalid version %d" % (version)
+        if version not in (1, 2, 3):
+            raise ValueError("Invalid version %d" % (version))
         items = []
         while is_readable(fp, 8):
             with io.BytesIO(read_length_block(fp, fmt="Q", padding=4)) as f:
@@ -89,7 +90,8 @@ class FilterEffect(BaseElement):
     def read(cls: type[T_FilterEffect], fp: IO[bytes], **kwargs: Any) -> T_FilterEffect:
         uuid = read_pascal_string(fp, encoding="ascii", padding=1)
         version = read_fmt("I", fp)[0]
-        assert version <= 1, "Invalid version %d" % (version)
+        if version > 1:
+            raise ValueError("Invalid version %d" % (version))
         with io.BytesIO(read_length_block(fp, fmt="Q")) as f:
             rectangle, depth, max_channels, channels = cls._read_body(f)
         # Documentation is incorrect here.

@@ -102,7 +102,8 @@ class Pattern(BaseElement):
     @classmethod
     def read(cls: type[T_Pattern], fp: IO[bytes], **kwargs: Any) -> T_Pattern:
         version = read_fmt("I", fp)[0]
-        assert version == 1, "Invalid version %d" % (version)
+        if version != 1:
+            raise ValueError("Invalid version %d" % (version))
         image_mode = ColorMode(read_fmt("I", fp)[0])
         point = read_fmt("2h", fp)
         name = read_unicode_string(fp)
@@ -150,7 +151,8 @@ class VirtualMemoryArrayList(BaseElement):
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         version = read_fmt("I", fp)[0]
-        assert version == 3, "Invalid version %d" % (version)
+        if version != 3:
+            raise ValueError("Invalid version %d" % (version))
 
         data = read_length_block(fp)
         with io.BytesIO(data) as f:

@@ -166,6 +166,21 @@ def test_a_section_divider_with_a_bad_signature_raises_value_error() -> None:
         TaggedBlock.read(_raw_block(Tag.SECTION_DIVIDER_SETTING.value, payload))
 
 
+@pytest.mark.parametrize(
+    "key, payload",
+    [
+        (Tag.PATTERNS1, struct.pack(">IIII", 8, 2, 0, 0)),
+        (Tag.CURVES, struct.pack(">BHI", 0, 2, 0)),
+        (Tag.FILTER_EFFECTS1, struct.pack(">I", 9)),
+    ],
+)
+def test_a_parser_validation_failure_falls_back_to_bytes(
+    key: Tag, payload: bytes
+) -> None:
+    block = TaggedBlock.read(_raw_block(key.value, payload))
+    assert isinstance(block.data, bytes)
+
+
 def test_a_malformed_block_keeps_its_bytes_and_reads_as_missing() -> None:
     block = TaggedBlock.read(_raw_block(Tag.VECTOR_MASK_SETTING1.value, b"\xff\xff"))
     assert block.data == b"\xff\xff"
