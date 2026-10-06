@@ -1,5 +1,8 @@
+import struct
+
 import pytest
 
+from psd_tools.psd.parse_limits import ParseLimitError
 from psd_tools.psd.vector import Path, ClosedPath, OpenPath
 
 from ..utils import check_read_write
@@ -29,3 +32,10 @@ def test_subpath_repr() -> None:
     assert repr(closedpath) == "ClosedPath(index=0, operation=1)"
     openpath = OpenPath()
     assert repr(openpath) == "OpenPath(index=0, operation=1)"
+
+
+def test_nested_subpaths_raise_a_parse_limit_error() -> None:
+    header = struct.pack(">HhH2I10s", 1, 1, 1, 0, 0, b"\0" * 10)
+    payload = (struct.pack(">H", 0) + header) * 500 + b"\0" * 64
+    with pytest.raises(ParseLimitError):
+        Path.frombytes(payload)

@@ -168,7 +168,12 @@ class Dict(DictElement):
             for k_token, k_token_type in tokenizer:
                 if k_token_type == EngineToken.PROPERTY:
                     key = Property.frombytes(k_token)
-                    v_token, v_token_type = next(tokenizer)
+                    try:
+                        v_token, v_token_type = next(tokenizer)
+                    except StopIteration:
+                        raise ValueError(
+                            "Missing value for property %r" % (key,)
+                        ) from None
                     kls = TOKEN_CLASSES.get(v_token_type)
                     if v_token_type in (
                         EngineToken.ARRAY_START,

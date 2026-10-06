@@ -236,10 +236,8 @@ class VirtualMemoryArray(BaseElement):
 
     def get_data(self, *, max_output_bytes: int | None = None) -> bytes | None:
         """Get decompressed bytes."""
-        if not self.is_written:
+        if not self.is_written or self.rectangle is None or self.depth is None:
             return None
-        assert self.rectangle is not None
-        assert self.depth is not None
         top, left, bottom, right = self.rectangle
         width = right - left
         height = bottom - top

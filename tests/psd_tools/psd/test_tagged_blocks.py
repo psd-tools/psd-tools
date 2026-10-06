@@ -1,3 +1,4 @@
+import copy
 import io
 import logging
 import os
@@ -7,7 +8,10 @@ from typing import Any, List, Type
 import pytest
 
 from psd_tools.constants import BlendMode, SectionDivider, Tag
+from psd_tools.psd import PSD
 from psd_tools.psd.base import IntegerElement
+from psd_tools.psd.layer_and_mask import ChannelImageData, LayerInfoBlock, LayerRecords
+from psd_tools.psd.parse_limits import ParseLimitError
 from psd_tools.psd.tagged_blocks import (
     Annotation,
     Annotations,
@@ -195,3 +199,28 @@ def test_a_malformed_block_keeps_its_bytes_and_reads_as_missing() -> None:
 def test_an_unknown_block_still_reads_as_bytes() -> None:
     blocks = TaggedBlocks([(b"zzzz", TaggedBlock(key=b"zzzz", data=b"abc"))])  # type: ignore[arg-type]
     assert blocks.get_data(b"zzzz") == b"abc"
+
+
+def test_nested_layer_info_blocks_raise_a_parse_limit_error() -> None:
+    with open(os.path.join(TEST_ROOT, "psd_files", "1layer.psd"), "rb") as f:
+        psd = PSD.read(f)
+    layer_info = psd.layer_and_mask_information.layer_info
+    assert layer_info is not None
+    assert layer_info.layer_records is not None
+    assert layer_info.channel_image_data is not None
+    record = layer_info.layer_records[0]
+    channels = layer_info.channel_image_data[0]
+    inner = b""
+    for _ in range(100):
+        nested = copy.deepcopy(record)
+        if inner:
+            nested.tagged_blocks[Tag.LAYER_16] = TaggedBlock(
+                b"8BIM", Tag.LAYER_16, inner
+            )
+        block = LayerInfoBlock(
+            1, LayerRecords([nested]), ChannelImageData([copy.deepcopy(channels)])
+        )
+        inner = block.tobytes()
+    record.tagged_blocks[Tag.LAYER_16] = TaggedBlock(b"8BIM", Tag.LAYER_16, inner)
+    with pytest.raises(ParseLimitError):
+        PSD.frombytes(psd.tobytes())

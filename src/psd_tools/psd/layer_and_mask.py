@@ -78,6 +78,7 @@ from psd_tools.constants import (
     Tag,
 )
 from psd_tools.psd.base import BaseElement, ListElement
+from psd_tools.psd.parse_limits import parse_container, parse_context
 from psd_tools.psd.tagged_blocks import TaggedBlocks, register
 from psd_tools.psd.bin_utils import (
     bounded_reader,
@@ -323,7 +324,9 @@ class LayerInfoBlock(LayerInfo):
         version: int = 1,
         **kwargs: Any,
     ) -> T_LayerInfo:
-        return cls._read_body(fp, encoding, version)
+        # Lr16/Lr32 may nest inside a layer record; bound the depth.
+        with parse_context(kwargs.pop("parse_limits", None)), parse_container():
+            return cls._read_body(fp, encoding, version)
 
     def write(
         self,
