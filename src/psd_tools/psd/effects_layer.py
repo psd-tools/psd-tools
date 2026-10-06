@@ -93,7 +93,8 @@ class ShadowInfo(BaseElement):
         version, blur, intensity, angle, distance = read_fmt("IIIiI", fp)
         color = Color.read(fp)
         signature = read_fmt("4s", fp)[0]
-        assert signature == b"8BIM", "Invalid signature %r" % (signature)
+        if signature != b"8BIM":
+            raise ValueError("Invalid signature %r" % (signature))
         blend_mode = BlendMode(read_fmt("4s", fp)[0])
         enabled, use_global_angle, opacity = read_fmt("3B", fp)
         native_color = Color.read(fp)
@@ -153,7 +154,8 @@ class _GlowInfo:
         version, blur, intensity = read_fmt("III", fp)
         color = Color.read(fp)
         signature = read_fmt("4s", fp)[0]
-        assert signature == b"8BIM", "Invalid signature %r" % (signature)
+        if signature != b"8BIM":
+            raise ValueError("Invalid signature %r" % (signature))
         blend_mode = BlendMode(read_fmt("4s", fp)[0])
         enabled, opacity = read_fmt("2B", fp)
         return version, blur, intensity, color, blend_mode, enabled, opacity
@@ -329,9 +331,11 @@ class BevelInfo(BaseElement):
         # TODO: Check 4-byte = 2-byte int + 2-byte fraction?
         version, angle, depth, blur = read_fmt("Ii2I", fp)
         signature, highlight_blend_mode = read_fmt("4s4s", fp)
-        assert signature == b"8BIM", "Invalid signature %r" % (signature)
+        if signature != b"8BIM":
+            raise ValueError("Invalid signature %r" % (signature))
         signature, shadow_blend_mode = read_fmt("4s4s", fp)
-        assert signature == b"8BIM", "Invalid signature %r" % (signature)
+        if signature != b"8BIM":
+            raise ValueError("Invalid signature %r" % (signature))
         highlight_color = Color.read(fp)
         shadow_color = Color.read(fp)
         bevel_style, highlight_opacity, shadow_opacity = read_fmt("3B", fp)
@@ -415,7 +419,8 @@ class SolidFillInfo(BaseElement):
     ) -> T_SolidFillInfo:
         version = read_fmt("I", fp)[0]
         signature, blend_mode = read_fmt("4s4s", fp)
-        assert signature == b"8BIM", "Invalid signature %r" % (signature)
+        if signature != b"8BIM":
+            raise ValueError("Invalid signature %r" % (signature))
         color = Color.read(fp)
         opacity, enabled = read_fmt("2B", fp)
         native_color = Color.read(fp)
@@ -464,10 +469,12 @@ class EffectsLayer(DictElement):
         items = []
         for _ in range(count):
             signature = read_fmt("4s", fp)[0]
-            assert signature == b"8BIM", "Invalid signature %r" % (signature)
+            if signature != b"8BIM":
+                raise ValueError("Invalid signature %r" % (signature))
             ostype = EffectOSType(read_fmt("4s", fp)[0])
             kls = cls.EFFECT_TYPES.get(ostype)
-            assert kls is not None
+            if kls is None:
+                raise ValueError("Unknown type")
             items.append((ostype, kls.frombytes(read_length_block(fp))))  # type: ignore[attr-defined]
         return cls(version=version, items=items)  # type: ignore[arg-type]
 

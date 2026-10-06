@@ -283,17 +283,14 @@ def create_fill(
     """Create a fill image."""
     if is_fill_disabled(layer):
         return None, None
-    if Tag.SOLID_COLOR_SHEET_SETTING in layer.tagged_blocks:
-        desc = layer.tagged_blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING)
+    blocks = layer.tagged_blocks
+    if (desc := blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING)) is not None:
         return draw_solid_color_fill(viewport, layer._psd.color_mode, desc)
-    if Tag.PATTERN_FILL_SETTING in layer.tagged_blocks:
-        desc = layer.tagged_blocks.get_data(Tag.PATTERN_FILL_SETTING)
+    if (desc := blocks.get_data(Tag.PATTERN_FILL_SETTING)) is not None:
         return draw_pattern_fill(viewport, layer._psd, desc)
-    if Tag.GRADIENT_FILL_SETTING in layer.tagged_blocks:
-        desc = layer.tagged_blocks.get_data(Tag.GRADIENT_FILL_SETTING)
+    if (desc := blocks.get_data(Tag.GRADIENT_FILL_SETTING)) is not None:
         return draw_gradient_fill(viewport, layer._psd.color_mode, desc)
-    if Tag.VECTOR_STROKE_CONTENT_DATA in layer.tagged_blocks:
-        desc = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)
+    if (desc := blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)) is not None:
         if Key.Color in desc:
             return draw_solid_color_fill(viewport, layer._psd.color_mode, desc)
         elif Key.Pattern in desc:

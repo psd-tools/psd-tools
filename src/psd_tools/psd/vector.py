@@ -60,7 +60,8 @@ class Path(ListElement):
         while is_readable(fp, 26):
             selector = PathResourceID(read_fmt("H", fp)[0])
             kls = TYPES.get(selector)
-            assert kls is not None
+            if kls is None:
+                raise ValueError("Unknown type")
             items.append(kls.read(fp))
         return cls(items)
 
@@ -110,7 +111,8 @@ class Subpath(ListElement):
         for _ in range(length):
             selector = PathResourceID(read_fmt("H", fp)[0])
             kls = TYPES.get(selector)
-            assert kls is not None
+            if kls is None:
+                raise ValueError("Unknown type")
             items.append(kls.read(fp))
         return cls(
             items=items,
@@ -327,7 +329,8 @@ class VectorMaskSetting(BaseElement):
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         version, flags = read_fmt("2I", fp)
-        assert version == 3, "Unknown vector mask version %d" % version
+        if version != 3:
+            raise ValueError("Unknown vector mask version %d" % version)
         path = Path.read(fp)
         return cls(version=version, flags=flags, path=path)
 

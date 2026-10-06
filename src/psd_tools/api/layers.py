@@ -144,6 +144,7 @@ from psd_tools.psd.tagged_blocks import (
     ProtectedSetting,
     SectionDividerSetting,
     TaggedBlocks,
+    TypeToolObjectSetting,
 )
 from psd_tools.terminology import Key
 
@@ -749,7 +750,7 @@ class Layer(LayerProtocol):
         :return: `bool`
         """
         return any(
-            key in self.tagged_blocks
+            self.tagged_blocks.get_data(key) is not None
             for key in (Tag.VECTOR_MASK_SETTING1, Tag.VECTOR_MASK_SETTING2)
         )
 
@@ -764,8 +765,9 @@ class Layer(LayerProtocol):
             self._vector_mask = None
             blocks = self.tagged_blocks
             for key in (Tag.VECTOR_MASK_SETTING1, Tag.VECTOR_MASK_SETTING2):
-                if key in blocks:
-                    self._vector_mask = VectorMask(blocks.get_data(key))
+                data = blocks.get_data(key)
+                if data is not None:
+                    self._vector_mask = VectorMask(data)
                     break
         return self._vector_mask
 
@@ -2195,8 +2197,7 @@ class Artboard(Group):
         """
         data = None
         for key in (Tag.ARTBOARD_DATA1, Tag.ARTBOARD_DATA2, Tag.ARTBOARD_DATA3):
-            if key in self.tagged_blocks:
-                data = self.tagged_blocks.get_data(key)
+            data = self.tagged_blocks.get_data(key, data)
 
         if data is None:
             return 1.0, 0.0
@@ -2300,8 +2301,7 @@ class Artboard(Group):
         if self._bbox is None:
             data = None
             for key in (Tag.ARTBOARD_DATA1, Tag.ARTBOARD_DATA2, Tag.ARTBOARD_DATA3):
-                if key in self.tagged_blocks:
-                    data = self.tagged_blocks.get_data(key)
+                data = self.tagged_blocks.get_data(key, data)
             if data is None:
                 raise ValueError("Artboard data not found in tagged blocks")
             rect = data.get(b"artboardRect")
@@ -2589,7 +2589,13 @@ class TypeLayer(Layer):
 
     def __init__(self, *args: Any):
         super(TypeLayer, self).__init__(*args)
-        self._data = self.tagged_blocks.get_data(Tag.TYPE_TOOL_OBJECT_SETTING)
+        self._type_data = self.tagged_blocks.get_data(Tag.TYPE_TOOL_OBJECT_SETTING)
+
+    @property
+    def _data(self) -> TypeToolObjectSetting:
+        if self._type_data is None:
+            raise ValueError("Type tool data not found")
+        return self._type_data
 
     @property
     def text(self) -> str:

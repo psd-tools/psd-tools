@@ -186,7 +186,8 @@ class Curves(BaseElement):
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         # NOTE: This is highly experimental and unstable.
         is_map, version, count_map = read_fmt("BHI", fp)
-        assert version in (1, 4), "Invalid version %d" % (version)
+        if version not in (1, 4):
+            raise ValueError("Invalid version %d" % (version))
 
         if version == 1:
             count = bin(count_map).count("1")  # Bitmap = channel index?
@@ -200,9 +201,8 @@ class Curves(BaseElement):
             data = []
             for _ in range(count):
                 point_count = read_fmt("H", fp)[0]
-                assert 2 <= point_count and point_count <= 19, (
-                    "Curves point count not in [2, 19]"
-                )
+                if not 2 <= point_count <= 19:
+                    raise ValueError("Curves point count not in [2, 19]")
                 points = [read_fmt("2H", fp) for i in range(point_count)]
                 data.append(points)
 
@@ -244,7 +244,8 @@ class CurvesExtraMarker(ListElement):
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         signature, version, count = read_fmt("4sHI", fp)
-        assert signature == b"Crv ", "Invalid signature %r" % (signature)
+        if signature != b"Crv ":
+            raise ValueError("Invalid signature %r" % (signature))
         items = []
         for _ in range(count):
             items.append(CurvesExtraItem.read(fp, **kwargs))
@@ -353,7 +354,8 @@ class GradientMap(BaseElement):
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         version, is_reversed, is_dithered = read_fmt("H2B", fp)
-        assert version in (1, 3), "Invalid version %s" % (version)
+        if version not in (1, 3):
+            raise ValueError("Invalid version %s" % (version))
         method = read_fmt("4s", fp)[0] if version == 3 else b"Gcls"
         name = read_unicode_string(fp)
         count = read_fmt("H", fp)[0]
@@ -361,7 +363,8 @@ class GradientMap(BaseElement):
         count = read_fmt("H", fp)[0]
         transparency_stops = [TransparencyStop.read(fp) for _ in range(count)]
         expansion, interpolation, length, mode = read_fmt("4H", fp)
-        assert expansion == 2, "Invalid expansion %d" % (expansion)
+        if expansion != 2:
+            raise ValueError("Invalid expansion %d" % (expansion))
         random_seed, show_transparency, use_vector_color = read_fmt("I2H", fp)
         roughness, color_model = read_fmt("IH", fp)
         minimum_color = read_fmt("4H", fp)
@@ -525,7 +528,8 @@ class HueSaturation(BaseElement):
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         version, enable = read_fmt("HBx", fp)
-        assert version == 2, "Invalid version %d" % (version)
+        if version != 2:
+            raise ValueError("Invalid version %d" % (version))
         colorization = read_fmt("3h", fp)
         master = read_fmt("3h", fp)
         items = []
@@ -683,7 +687,8 @@ class PhotoFilter(BaseElement):
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
         version = read_fmt("H", fp)[0]
-        assert version in (2, 3), "Invalid version %d" % (version)
+        if version not in (2, 3):
+            raise ValueError("Invalid version %d" % (version))
         if version == 3:
             xyz = read_fmt("3I", fp)
             color_space = None

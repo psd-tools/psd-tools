@@ -64,14 +64,14 @@ class SmartObject:
     def __init__(self, layer: LayerProtocol):
         self._config = None
         for key in (Tag.SMART_OBJECT_LAYER_DATA1, Tag.SMART_OBJECT_LAYER_DATA2):
-            if key in layer.tagged_blocks:
-                self._config = layer.tagged_blocks.get_data(key)
+            self._config = layer.tagged_blocks.get_data(key)
+            if self._config is not None:
                 break
 
         self._placed_layer = None
         for key in (Tag.PLACED_LAYER1, Tag.PLACED_LAYER2):
-            if key in layer.tagged_blocks:
-                self._placed_layer = layer.tagged_blocks.get_data(key)
+            self._placed_layer = layer.tagged_blocks.get_data(key)
+            if self._placed_layer is not None:
                 break
 
         self._data = None
@@ -82,8 +82,8 @@ class SmartObject:
                 Tag.LINKED_LAYER3,
                 Tag.LINKED_LAYER_EXTERNAL,
             ):
-                if key in layer._psd.tagged_blocks:
-                    data = layer._psd.tagged_blocks.get_data(key)
+                data = layer._psd.tagged_blocks.get_data(key)
+                if data is not None:
                     for item in data:
                         if item.uuid == self.unique_id:
                             self._data = item

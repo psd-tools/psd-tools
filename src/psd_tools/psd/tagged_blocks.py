@@ -149,9 +149,14 @@ class TaggedBlocks(DictElement):
 
             if key in tagged_blocks:
                 value = tagged_blocks[key].data
+
+        A block that has a handler but failed to parse keeps its raw bytes
+        (see ``tagged_blocks[key].data``) and reads as missing here.
         """
         if key in self:
             value = self[key].data
+            if isinstance(value, bytes) and key in TYPES:
+                return default
             if isinstance(value, ValueElement):
                 return value.value
             else:
@@ -261,6 +266,15 @@ class TaggedBlock(BaseElement):
         Tag.ARTBOARD_DATA2,
     }
 
+    # The layer tree cannot be built without these, so a parse failure raises
+    # instead of falling back to raw bytes.
+    _STRUCTURAL = {
+        Tag.LAYER_16,
+        Tag.LAYER_32,
+        Tag.SECTION_DIVIDER_SETTING,
+        Tag.NESTED_SECTION_DIVIDER_SETTING,
+    }
+
     signature: bytes = field(default=b"8BIM", repr=False, validator=in_(_SIGNATURES))
     key: bytes = b""
     data: bytes = field(default=b"", repr=True)
@@ -295,6 +309,8 @@ class TaggedBlock(BaseElement):
             except ParseLimitError:
                 raise
             except (OSError, ValueError) as e:
+                if key in cls._STRUCTURAL:
+                    raise
                 # Fallback to raw data.
                 message = "Failed to read tagged block %r: %s" % (key, e)
                 logger.error(message)
@@ -535,7 +551,8 @@ class MetadataSetting(BaseElement):
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "MetadataSetting":
         signature = read_fmt("4s", fp)[0]
-        assert signature in cls._KNOWN_SIGNATURES, "Invalid signature %r" % signature
+        if signature not in cls._KNOWN_SIGNATURES:
+            raise ValueError("Invalid signature %r" % signature)
         key, copy_on_sheet = read_fmt("4s?3x", fp)
         data: Any = read_length_block(fp)
         if key in (b"mdyn", b"sgrp"):
@@ -724,7 +741,8 @@ class SectionDividerSetting(BaseElement):
         signature, blend_mode = None, None
         if is_readable(fp, 8):
             signature = read_fmt("4s", fp)[0]
-            assert signature == b"8BIM", "Invalid signature %r" % signature
+            if signature != b"8BIM":
+                raise ValueError("Invalid signature %r" % signature)
             blend_mode = BlendMode(read_fmt("4s", fp)[0])
         sub_type = None
         if is_readable(fp, 4):
