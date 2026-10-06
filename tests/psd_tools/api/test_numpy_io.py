@@ -259,3 +259,14 @@ def test_a_pattern_whose_depths_disagree_is_rejected_before_the_decode() -> None
     first.depth = 32
     with pytest.raises(ValueError, match="disagrees"):
         numpy_io.get_pattern(pattern)
+
+
+@pytest.mark.parametrize("size", [9, 10])
+def test_a_short_color_table_is_a_value_error(size: int) -> None:
+    """A truncated table is rejected with a catchable error, not an IndexError."""
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_index_color.psd"))
+    psd._record.color_mode_data.value = psd._record.color_mode_data.value[:size]
+
+    for read in (psd.numpy, psd.topil, psd.composite):
+        with pytest.raises(ValueError, match="Color table"):
+            read()
