@@ -130,7 +130,7 @@ from psd_tools.constants import (
     Tag,
     TextType,
 )
-from psd_tools.psd.descriptor import DescriptorBlock
+from psd_tools.psd.descriptor import Descriptor, DescriptorBlock
 from psd_tools.psd.header import FileHeader
 from psd_tools.psd.layer_and_mask import (
     ChannelData,
@@ -2305,12 +2305,18 @@ class Artboard(Group):
             if data is None:
                 raise ValueError("Artboard data not found in tagged blocks")
             rect = data.get(b"artboardRect")
-            self._bbox = (
-                int(rect.get(b"Left")),
-                int(rect.get(b"Top ")),
-                int(rect.get(b"Rght")),
-                int(rect.get(b"Btom")),
-            )
+            if not isinstance(rect, Descriptor):
+                raise ValueError("Artboard rect not found")
+            sides: list[Any] = [
+                rect.get(key) for key in (b"Left", b"Top ", b"Rght", b"Btom")
+            ]
+            if any(side is None for side in sides):
+                raise ValueError("Artboard rect is incomplete")
+            try:
+                left, top, right, bottom = (int(side) for side in sides)
+            except (TypeError, OverflowError) as e:
+                raise ValueError("Artboard rect is not a finite number") from e
+            self._bbox = (left, top, right, bottom)
         return self._bbox
 
 
