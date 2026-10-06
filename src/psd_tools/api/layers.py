@@ -749,7 +749,7 @@ class Layer(LayerProtocol):
         :return: `bool`
         """
         return any(
-            key in self.tagged_blocks
+            self.tagged_blocks.get_data(key) is not None
             for key in (Tag.VECTOR_MASK_SETTING1, Tag.VECTOR_MASK_SETTING2)
         )
 
@@ -764,8 +764,9 @@ class Layer(LayerProtocol):
             self._vector_mask = None
             blocks = self.tagged_blocks
             for key in (Tag.VECTOR_MASK_SETTING1, Tag.VECTOR_MASK_SETTING2):
-                if key in blocks:
-                    self._vector_mask = VectorMask(blocks.get_data(key))
+                data = blocks.get_data(key)
+                if data is not None:
+                    self._vector_mask = VectorMask(data)
                     break
         return self._vector_mask
 

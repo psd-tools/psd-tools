@@ -1,5 +1,7 @@
+import io
 import logging
 import os
+import struct
 from typing import Any, List, Type
 
 import pytest
@@ -144,3 +146,31 @@ def test_section_divider_setting_rejects_a_bad_blend_mode(blend_mode: Any) -> No
             signature=b"8BIM",
             blend_mode=blend_mode,
         )
+
+
+def _raw_block(key: bytes, payload: bytes) -> io.BytesIO:
+    return io.BytesIO(b"8BIM" + key + struct.pack(">I", len(payload)) + payload)
+
+
+@pytest.mark.parametrize(
+    "key", [Tag.LAYER_16, Tag.LAYER_32, Tag.SECTION_DIVIDER_SETTING]
+)
+def test_a_malformed_structural_block_raises(key: Tag) -> None:
+    with pytest.raises((OSError, ValueError)):
+        TaggedBlock.read(_raw_block(key.value, b"\xff\xff"))
+
+
+def test_a_malformed_block_keeps_its_bytes_and_reads_as_missing() -> None:
+    block = TaggedBlock.read(_raw_block(Tag.VECTOR_MASK_SETTING1.value, b"\xff\xff"))
+    assert block.data == b"\xff\xff"
+
+    blocks = TaggedBlocks([(Tag.VECTOR_MASK_SETTING1, block)])  # type: ignore[arg-type]
+    assert Tag.VECTOR_MASK_SETTING1 in blocks
+    assert blocks.get_data(Tag.VECTOR_MASK_SETTING1) is None
+    assert blocks.get_data(Tag.VECTOR_MASK_SETTING1, "default") == "default"
+    check_write_read(block)
+
+
+def test_an_unknown_block_still_reads_as_bytes() -> None:
+    blocks = TaggedBlocks([(b"zzzz", TaggedBlock(key=b"zzzz", data=b"abc"))])  # type: ignore[arg-type]
+    assert blocks.get_data(b"zzzz") == b"abc"

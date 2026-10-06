@@ -82,8 +82,8 @@ class SmartObject:
                 Tag.LINKED_LAYER3,
                 Tag.LINKED_LAYER_EXTERNAL,
             ):
-                if key in layer._psd.tagged_blocks:
-                    data = layer._psd.tagged_blocks.get_data(key)
+                data = layer._psd.tagged_blocks.get_data(key)
+                if data is not None:
                     for item in data:
                         if item.uuid == self.unique_id:
                             self._data = item

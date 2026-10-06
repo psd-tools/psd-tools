@@ -893,8 +893,8 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         if self.tagged_blocks is None:
             return None
         for key in (Tag.PATTERNS1, Tag.PATTERNS2, Tag.PATTERNS3):
-            if key in self.tagged_blocks:
-                data = self.tagged_blocks.get_data(key)
+            data = self.tagged_blocks.get_data(key)
+            if data is not None:
                 for pattern in data:
                     if pattern.pattern_id == pattern_id:
                         return pattern

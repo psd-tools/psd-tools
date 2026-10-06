@@ -4,6 +4,11 @@ Changelog
 1.24.0 (unreleased)
 -------------------
 
+- [fix] A document whose ``Lr16``/``Lr32`` layer block or section divider fails
+  to parse now raises ``OSError``/``ValueError`` on open instead of
+  ``AttributeError``. Other malformed tagged blocks keep their raw bytes and
+  ``TaggedBlocks.get_data()`` returns the default for them, so rendering skips
+  them instead of crashing with ``AttributeError``/``TypeError``
 - [fix] An indexed document with a truncated color table now raises
   ``ValueError`` from ``numpy()``, ``topil()`` and ``composite()`` instead of
   ``IndexError``. A table longer than 768 bytes now ignores the extra bytes
