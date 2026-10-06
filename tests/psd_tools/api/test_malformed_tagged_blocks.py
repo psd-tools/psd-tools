@@ -9,7 +9,9 @@ import pytest
 
 from psd_tools import PSDImage
 from psd_tools.api.layers import SmartObjectLayer, TypeLayer
+from psd_tools.api.smart_object import SmartObject
 from psd_tools.constants import Tag
+from psd_tools.psd.tagged_blocks import TaggedBlock
 
 from ..utils import full_name
 
@@ -93,3 +95,28 @@ def test_a_type_layer_without_parsed_data_raises_value_error() -> None:
                 getattr(layer, name)
         layer.bbox
         layer.composite()
+
+
+@pytest.mark.parametrize(
+    "first, second, attribute",
+    [
+        (Tag.SMART_OBJECT_LAYER_DATA1, Tag.SMART_OBJECT_LAYER_DATA2, "_config"),
+        (Tag.PLACED_LAYER1, Tag.PLACED_LAYER2, "_placed_layer"),
+    ],
+)
+def test_a_malformed_smart_object_block_does_not_shadow_the_fallback(
+    first: Tag, second: Tag, attribute: str
+) -> None:
+    psd = PSDImage.open(full_name("blend-modes/cmyk-blend-modes.psd"))
+    layer = next(
+        x
+        for x in psd.descendants()
+        if isinstance(x, SmartObjectLayer)
+        and (first in x.tagged_blocks or second in x.tagged_blocks)
+    )
+    blocks = layer._record.tagged_blocks
+    expected = blocks[first if first in blocks else second].data
+    blocks[second] = TaggedBlock(key=second, data=expected)
+    blocks[first] = TaggedBlock(key=first, data=b"\xff\xff")
+
+    assert getattr(SmartObject(layer), attribute) is expected
