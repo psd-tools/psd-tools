@@ -29,8 +29,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_RESIZE_COPIES = 4
-
 # How many times its own area a pattern panel may be scaled up to, past the
 # floor check_growth() allows.
 _SCALE_GROWTH = 100
@@ -310,13 +308,28 @@ def _resize_panel(panel: np.ndarray, shape: tuple[int, int]) -> np.ndarray:
     height, width = shape
     out = np.empty((height, width, panel.shape[2]), dtype=np.float32)
     for channel in range(panel.shape[2]):
-        plane = Image.fromarray(
+        source = Image.fromarray(
             np.ascontiguousarray(panel[:, :, channel], dtype=np.float32), "F"
         )
         out[:, :, channel] = np.asarray(
-            plane.resize((width, height), Image.Resampling.BILINEAR)
+            source.resize((width, height), Image.Resampling.BILINEAR)
         )
+        del source
     return out
+
+
+def _resize_peak_bytes(panel: np.ndarray, shape: tuple[int, int]) -> int:
+    """What :py:func:`_resize_panel` holds at its peak, for one plane's resize."""
+    height, width = shape
+    plane = np.dtype(np.float32).itemsize
+    source = panel.shape[0] * panel.shape[1] * plane
+    return (
+        panel.nbytes
+        + height * width * panel.shape[2] * plane  # the output
+        + 2 * source  # the contiguous copy and Pillow's own
+        + height * width * plane  # the resized plane
+        + width * panel.shape[0] * plane  # the horizontal pass
+    )
 
 
 def draw_solid_color_fill(
@@ -387,20 +400,12 @@ def draw_pattern_fill(
             panel.shape[0] * panel.shape[1],
             _SCALE_GROWTH,
         )
-        # resize() holds intermediates beside its output.
         check_pixel_size(
             new_shape[1],
             new_shape[0],
             panel.shape[2],
             budget,
-            estimated_bytes=(
-                new_shape[0]
-                * new_shape[1]
-                * panel.shape[2]
-                * panel.dtype.itemsize
-                * _RESIZE_COPIES
-                + panel.nbytes
-            ),
+            estimated_bytes=_resize_peak_bytes(panel, new_shape),
             warn=False,
         )
         panel = _resize_panel(panel, new_shape)
