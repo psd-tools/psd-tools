@@ -6,7 +6,7 @@ Changelog
 
 - [ci] The minimum versions are now ``numpy>=2.0`` and, for the ``composite``
   extra, ``scipy>=1.13``. The code already needed NumPy 2.0 (``np.concat``), so
-  NumPy 1.x installs were broken rather than supported.
+  NumPy 1.x installs were broken rather than supported (#965)
 
 1.23.1 (2026-10-06)
 -------------------
