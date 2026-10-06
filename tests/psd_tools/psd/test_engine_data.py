@@ -2,7 +2,14 @@ import os
 
 import pytest
 
-from psd_tools.psd.engine_data import EngineData, EngineToken, Float, String, Tokenizer
+from psd_tools.psd.engine_data import (
+    EngineData,
+    EngineData2,
+    EngineToken,
+    Float,
+    String,
+    Tokenizer,
+)
 
 from ..utils import TEST_ROOT, check_read_write
 
@@ -161,3 +168,8 @@ def test_float(fixture: bytes) -> None:
 )
 def test_string(fixture: bytes) -> None:
     check_read_write(String, fixture)
+
+
+def test_engine_data_property_without_a_value_raises_value_error() -> None:
+    with pytest.raises(ValueError):
+        EngineData2.frombytes(b"<< /A")

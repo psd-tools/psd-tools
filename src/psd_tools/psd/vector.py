@@ -12,7 +12,7 @@ from attrs import define, field, astuple
 from psd_tools.constants import PathResourceID
 from psd_tools.psd.base import BaseElement, ListElement, ValueElement
 from psd_tools.psd.descriptor import Descriptor
-from psd_tools.psd.parse_limits import parse_context
+from psd_tools.psd.parse_limits import parse_container, parse_context
 from psd_tools.psd.bin_utils import (
     is_readable,
     read_fmt,
@@ -108,12 +108,14 @@ class Subpath(ListElement):
         length, operation, _unknown1, _unknown2, index, _unknown3 = read_fmt(
             "HhH2I10s", fp
         )
-        for _ in range(length):
-            selector = PathResourceID(read_fmt("H", fp)[0])
-            kls = TYPES.get(selector)
-            if kls is None:
-                raise ValueError("Unknown type")
-            items.append(kls.read(fp))
+        # A subpath record may itself be a subpath; bound the depth.
+        with parse_context(kwargs.pop("parse_limits", None)), parse_container():
+            for _ in range(length):
+                selector = PathResourceID(read_fmt("H", fp)[0])
+                kls = TYPES.get(selector)
+                if kls is None:
+                    raise ValueError("Unknown type")
+                items.append(kls.read(fp))
         return cls(
             items=items,
             operation=operation,

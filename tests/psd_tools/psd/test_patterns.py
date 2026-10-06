@@ -1,5 +1,6 @@
 from typing import Any, Tuple
 import logging
+import struct
 
 import pytest
 
@@ -63,3 +64,8 @@ def test_virtual_memory_array_get_data_non_zero_origin() -> None:
     data = vma.get_data()
     assert data is not None
     assert len(data) == 8 * 8  # 64 bytes, not 28*18=504
+
+
+def test_virtual_memory_array_without_a_body_reads_as_no_data() -> None:
+    value = VirtualMemoryArray.frombytes(struct.pack(">II", 1, 0))
+    assert value.get_data() is None
