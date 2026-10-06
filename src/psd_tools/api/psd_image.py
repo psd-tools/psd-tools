@@ -1057,9 +1057,14 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             # Keys may be raw bytes (``set_data()`` unwraps); ``Tag`` is a bytes enum.
             if tag in (Tag.PATTERNS1, Tag.PATTERNS2, Tag.PATTERNS3):
                 logger.debug("Copying patterns for tag %s", tag)
-                source_patterns: Patterns = self.tagged_blocks.get_data(tag)
-                target_patterns: Patterns = psdimage.tagged_blocks.get_data(tag)
+                source_patterns: Patterns | None = self.tagged_blocks.get_data(tag)
+                target_patterns: Patterns | None = psdimage.tagged_blocks.get_data(tag)
+                if source_patterns is None:
+                    continue
                 if target_patterns is None:
+                    if tag in psdimage.tagged_blocks:
+                        # Keep a malformed target block as it is.
+                        continue
                     target_patterns = Patterns()
                     psdimage.tagged_blocks.set_data(tag, target_patterns)
 
