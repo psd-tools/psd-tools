@@ -91,10 +91,11 @@ from psd_tools.psd.layer_and_mask import (
     ChannelImageData,
     GlobalLayerMaskInfo,
     LayerInfo,
+    LayerRecord,
     LayerRecords,
 )
 from psd_tools.psd.patterns import Patterns
-from psd_tools.psd.tagged_blocks import TaggedBlocks
+from psd_tools.psd.tagged_blocks import SectionDividerSetting, TaggedBlocks
 
 logger = logging.getLogger(__name__)
 
@@ -900,18 +901,49 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
                         return pattern
         return None
 
+    @staticmethod
+    def _divider(record: LayerRecord) -> SectionDividerSetting | None:
+        blocks = record.tagged_blocks
+        divider = blocks.get_data(Tag.SECTION_DIVIDER_SETTING, None)
+        return blocks.get_data(Tag.NESTED_SECTION_DIVIDER_SETTING, divider)
+
+    @classmethod
+    def _unmatched_dividers(cls, records: list[tuple[Any, Any]]) -> set[int]:
+        """Indices of group dividers that do not pair up, as ``_init`` reads them."""
+        opened: list[int] = []
+        unmatched: set[int] = set()
+        for index, (record, _) in enumerate(records):
+            divider = cls._divider(record)
+            if divider is None:
+                continue
+            if divider.kind == SectionDivider.BOUNDING_SECTION_DIVIDER:
+                opened.append(index)
+            elif divider.kind in (
+                SectionDivider.OPEN_FOLDER,
+                SectionDivider.CLOSED_FOLDER,
+            ):
+                if opened:
+                    opened.pop()
+                else:
+                    unmatched.add(index)
+        return unmatched | set(opened)
+
     def _init(self) -> None:
         """Initialize layer structure."""
         group_stack: list[layers.Group | PSDImage] = [self]
+        records = list(self._record._iter_layers())
+        unmatched = self._unmatched_dividers(records)
 
-        for record, channels in self._record._iter_layers():
+        for index, (record, channels) in enumerate(records):
             current_group = group_stack[-1]
 
             blocks = record.tagged_blocks
             end_of_group = False
             layer: layers.Layer | PSDImage | None = None
-            divider = blocks.get_data(Tag.SECTION_DIVIDER_SETTING, None)
-            divider = blocks.get_data(Tag.NESTED_SECTION_DIVIDER_SETTING, divider)
+            divider = self._divider(record)
+            if index in unmatched:
+                logger.warning("Ignoring an unbalanced section divider.")
+                divider = None
             if (
                 divider is not None
                 and

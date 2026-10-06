@@ -4,6 +4,10 @@ Changelog
 1.24.0 (unreleased)
 -------------------
 
+- [fix] A group divider with no matching opener or closer is now read as an
+  ordinary layer instead of failing with ``TypeError`` on open or
+  ``AttributeError`` on ``layer.name``. ``Artboard.bbox`` raises ``ValueError``
+  for a partial or non-finite ``artboardRect`` (#971)
 - [fix] A document with deeply nested subpaths or ``Lr16``/``Lr32`` blocks now
   raises ``ParseLimitError`` instead of ``RecursionError``. Truncated text
   engine data no longer raises ``StopIteration``, and an empty pattern memory
