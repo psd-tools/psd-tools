@@ -4,6 +4,10 @@ Changelog
 1.24.0 (unreleased)
 -------------------
 
+- [fix] A document with deeply nested subpaths or ``Lr16``/``Lr32`` blocks now
+  raises ``ParseLimitError`` instead of ``RecursionError``. Truncated text
+  engine data no longer raises ``StopIteration``, and an empty pattern memory
+  array reads as no data instead of raising ``AssertionError`` (#970)
 - [fix] A document whose ``Lr16``/``Lr32`` layer block or section divider fails
   to parse now raises ``OSError``/``ValueError`` on open instead of
   ``AttributeError``. Other malformed tagged blocks keep their raw bytes and
