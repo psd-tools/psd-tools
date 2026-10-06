@@ -313,7 +313,9 @@ def _resize_panel(panel: np.ndarray, shape: tuple[int, int]) -> np.ndarray:
         plane = Image.fromarray(
             np.ascontiguousarray(panel[:, :, channel], dtype=np.float32), "F"
         )
-        out[:, :, channel] = plane.resize((width, height), Image.Resampling.BILINEAR)
+        out[:, :, channel] = np.asarray(
+            plane.resize((width, height), Image.Resampling.BILINEAR)
+        )
     return out
 
 
