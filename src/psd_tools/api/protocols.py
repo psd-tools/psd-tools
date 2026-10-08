@@ -455,7 +455,7 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
 
     @property
     def depth(self) -> int:
-        """Depth of the document (8, 16, or 32 bits)."""
+        """Depth of the document, in bits per channel."""
         ...
 
     @property
