@@ -10,6 +10,11 @@ Changelog
   rejected for every other mode. **Backward incompatible:** ``color=255`` and
   ``background_color = 255`` raise ``ValueError``. An integer color is a raw
   value in ``[0, 1]``; white is ``1`` or ``1.0`` (#873, #975)
+- [fix] A grayscale preview with declared transparency is un-matted on read
+  and matted on write. ``numpy()`` and an ``LA`` ``topil()`` do this for RGB
+  and grayscale only. An ``RGBA`` ``topil()`` still un-mats every mode, so
+  CMYK and LAB are too after an ICC profile converts them. ``cactus_top.psd``
+  is no longer un-matted: that channel is not declared as transparency (#868, #974)
 
 1.24.0 (2026-10-06)
 -------------------

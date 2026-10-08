@@ -447,12 +447,11 @@ def test_transparency_past_plane_three_is_what_mattes_the_color() -> None:
     matting by the identifiers picks the alpha, which is what Photoshop
     stores the preview against.
 
-    Driven at the encoder rather than through ``save()`` on purpose. This
-    layout needs a layerless document -- ``has_transparency()`` reads the
-    layer count too -- and on one of those the composite is the stored
-    preview read back through ``_remove_background()``, which divides plane 3
-    out again. Going through the reader would measure that defect (#868)
-    rather than this one.
+    Driven at the encoder rather than through ``save()`` on purpose: this
+    asserts which plane ``encode_image_data()`` chooses, and a round trip
+    through ``save()`` would also fold in the compositor's own render. The other
+    half of the pair -- that the read undoes the same plane -- is
+    :func:`test_the_read_divides_out_the_transparency_past_plane_three` below.
     """
     psd = PSDImage.new("RGB", (1, 1), color=0.0)
     header = psd._record.header
@@ -531,3 +530,66 @@ def test_a_built_deep_document_round_trips_through_a_file(tmp_path: Path) -> Non
     # The backdrop `new()` was given, which the regenerated preview has to
     # carry at the document's own depth rather than at PIL's.
     assert np.array_equal(reopened.numpy()[6, 6], np.ones(3, dtype=np.float32))
+
+
+def test_the_read_divides_out_the_transparency_past_plane_three() -> None:
+    """The read undoes the matte on the plane the format names, not plane 3.
+
+    Identifiers ``[1, 0]`` put a spot channel at plane 3 and the composite's
+    transparency at plane 4, with the colour stored against the latter.
+    Dividing the spot plane out divides by ink coverage and does not return
+    the stored colour.
+    """
+    psd = PSDImage.new("RGB", (1, 1), color=0.0)
+    header = psd._record.header
+    header.channels = 5
+    psd._record.image_resources[Resource.ALPHA_IDENTIFIERS] = ImageResource(
+        key=Resource.ALPHA_IDENTIFIERS,
+        data=AlphaIdentifiers([1, 0]),  # type: ignore[arg-type,list-item]
+    )
+    psd._record.image_data.set_data(
+        [b"\x99", b"\x99", b"\x99", b"\x40", b"\x80"], header
+    )
+    assert get_transparency_index(psd) == 4
+
+    array = psd.numpy()
+    assert array is not None
+    # The stored colour, un-matted against the transparency plane rather than
+    # the spot plane ahead of it.
+    assert np.allclose(array[0, 0, :3], (0x99 + 0x80 - 255) / 0x80, atol=1 / 255)
+    assert array[0, 0, 3] == pytest.approx(0x40 / 255)
+    assert array[0, 0, 4] == pytest.approx(0x80 / 255)
+
+
+def test_a_grayscale_preview_is_stored_over_white_like_an_rgb_one() -> None:
+    """The write side puts the same matte down for a grayscale document.
+
+    ``gray0.psd`` is white at every fully transparent pixel, so the regenerated
+    section has to be too, and the read side has to take it off again: that pair
+    is what makes a save round trip land where it started rather than an alpha
+    step away. Only a grayscale document can show it; the RGB arm is matted
+    either way.
+    """
+    psd = PSDImage.open(full_name("gray0.psd"))
+    before = psd.numpy()
+    assert before is not None
+
+    psd.mark_updated()
+    buf = io.BytesIO()
+    psd.save(buf)
+    buf.seek(0)
+    reopened = PSDImage.open(buf)
+
+    header = reopened._record.header
+    stored = reopened._record.image_data.get_data(header, split=False)
+    assert isinstance(stored, bytes)
+    plane = np.frombuffer(stored, ">u1").reshape(2, header.height, header.width)[0]
+    color, _, alpha = composite(reopened)
+    a = alpha[:, :, 0]
+    assert plane[a < 0.01].min() >= 254, "white at every transparent pixel"
+    assert np.abs(plane / 255.0 - (color[:, :, 0] * a + 1 - a))[a > 0.999].max() < 0.02
+
+    after = reopened.numpy()
+    assert after is not None
+    partial = (a > 0.1) & (a < 0.9)
+    assert np.abs(after - before)[partial].mean() < 0.01

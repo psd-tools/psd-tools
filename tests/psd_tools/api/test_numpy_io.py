@@ -8,7 +8,7 @@ import pytest
 
 from psd_tools.api import numpy_io, utils
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.constants import ColorMode, Compression, Tag
+from psd_tools.constants import ColorMode, Compression, Resource, Tag
 from psd_tools.psd.patterns import (
     Pattern,
     VirtualMemoryArray,
@@ -16,6 +16,7 @@ from psd_tools.psd.patterns import (
 )
 from psd_tools.terminology import Key
 
+from ..test_pixel_size import _forge
 from ..utils import TEST_ROOT, full_name
 
 logger = logging.getLogger(__name__)
@@ -281,3 +282,120 @@ def test_an_overlong_color_table_reads_the_first_256_entries() -> None:
 
     psd._record.color_mode_data.value = table + b"\x01\x02\x03"
     assert np.array_equal(psd.numpy(), expected)
+
+
+@pytest.mark.composite
+def test_numpy_unmattes_a_grayscale_preview_like_the_rgb_one() -> None:
+    """``GRAYSCALE`` previews are stored over white and read back through it.
+
+    Photoshop composites the merged preview over white for a grayscale document
+    the way it does for RGB, so a read that keeps the stored plane returns that
+    composite rather than the layer colour. ``composite()`` is the independent
+    answer for what that colour is, and the PIL path has to land on it too.
+    """
+    from psd_tools.composite import composite  # noqa: PLC0415
+
+    psd = PSDImage.open(full_name("gray0.psd"))
+    array = psd.numpy()
+    assert array is not None
+    color, _, alpha = composite(psd)
+    a = alpha[:, :, 0]
+    partial = (a > 0.1) & (a < 0.9)
+    assert partial.sum() > 1000
+
+    assert np.abs(array[:, :, 0][partial] - color[:, :, 0][partial]).mean() < 0.01
+
+    image = psd.topil()
+    assert image is not None
+    preview = np.asarray(image).astype(np.float32) / 255.0
+    assert np.abs(preview[:, :, 0][partial] - color[:, :, 0][partial]).mean() < 0.02
+
+
+@pytest.mark.composite
+def test_a_grayscale_preview_without_a_profile_is_unmatted_as_la() -> None:
+    """The ``LA`` branch of the removal, which no shipped fixture reaches.
+
+    ``gray0.psd`` carries a profile, so ``post_process()`` converts its preview
+    to RGB and ``_remove_white_background()`` arrives at an ``RGBA`` image.
+    Without one that conversion never happens and the preview stays ``LA``, which
+    the removal has to undo the white background of just the same (#868).
+    """
+    from psd_tools.composite import composite  # noqa: PLC0415
+
+    psd = PSDImage.open(full_name("gray0.psd"))
+    del psd._record.image_resources[Resource.ICC_PROFILE]
+    image = psd.topil()
+    assert image is not None
+    assert image.mode == "LA"
+
+    color, _, alpha = composite(psd)
+    a = alpha[:, :, 0]
+    partial = (a > 0.1) & (a < 0.9)
+    preview = np.asarray(image).astype(np.float32) / 255.0
+    assert np.abs(preview[:, :, 0][partial] - color[:, :, 0][partial]).mean() < 0.01
+
+
+def test_a_duotone_preview_is_not_unmatted_as_la() -> None:
+    """Duotone shares PIL's ``LA`` mode without sharing the convention.
+
+    No duotone document with transparency is shipped, so nothing settles whether
+    Photoshop stores one over white. The read is left as it stands rather than
+    guessed at, which keeps ``topil()`` and ``numpy()`` on the same plane -- the
+    two go on being read the same way, which is the whole of the fix (#868).
+    """
+    psd = _forge(4, 4, 2, 8, ColorMode.DUOTONE)
+    assert utils.has_transparency(psd)
+    image = psd.topil()
+    assert image is not None
+    assert image.mode == "LA"
+
+    array = psd.numpy()
+    assert array is not None
+    preview = np.asarray(image).astype(np.float32) / 255.0
+    assert np.abs(preview[:, :, 0] - array[:, :, 0]).max() < 1 / 255
+
+
+def test_cactus_top_is_not_unmatted_on_an_undeclared_channel() -> None:
+    """``cactus_top.psd`` keeps the colour stored in the file.
+
+    The document is RGB with four channels and no alpha identifiers, so
+    ``has_transparency()`` is false and the fourth channel is not a matte.
+    That channel is not opaque, which is what makes dividing by it visible.
+    """
+    psd = PSDImage.open(full_name("third-party-psds/cactus_top.psd"))
+    assert psd.color_mode == ColorMode.RGB
+    assert psd.channels == 4
+    assert not utils.has_transparency(psd)
+    assert utils.get_transparency_index(psd) < 0
+
+    raw = psd._record.image_data.get_data(psd._record.header)
+    assert isinstance(raw, list)
+    stored = (
+        np.stack(
+            [
+                np.frombuffer(plane, np.uint8).reshape(psd.height, psd.width)
+                for plane in raw
+            ],
+            axis=-1,
+        ).astype(np.float32)
+        / 255.0
+    )
+
+    array = psd.numpy()
+    assert array is not None
+    assert np.array_equal(array, stored)
+
+    color = stored[:, :, :3]
+    alpha = stored[:, :, 3]
+    divided = color.copy()
+    covered = alpha > 0
+    divided[covered] = (color[covered] + alpha[covered, None] - 1) / alpha[
+        covered, None
+    ]
+    assert not np.array_equal(divided, color)
+
+    image = psd.topil(apply_icc=False)
+    assert image is not None
+    assert image.mode == "RGB"
+    preview = np.asarray(image).astype(np.float32) / 255.0
+    assert np.array_equal(preview, color)
