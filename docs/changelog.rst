@@ -1,6 +1,16 @@
 Changelog
 =========
 
+1.25.0 (unreleased)
+-------------------
+
+- [api] ``PSDImage.new("1", ...)`` and ``frompil`` of mode ``"1"`` now build a
+  depth-1 bitmap document, where ``new`` declared depth 8. Omitting ``depth``
+  selects 1; any other depth is rejected for mode ``"1"``, and ``depth=1`` is
+  rejected for every other mode. **Backward incompatible:** ``color=255`` and
+  ``background_color = 255`` raise ``ValueError``. An integer color is a raw
+  value in ``[0, 1]``; white is ``1`` or ``1.0`` (#873, #975)
+
 1.24.0 (2026-10-06)
 -------------------
 

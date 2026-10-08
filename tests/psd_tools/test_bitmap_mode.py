@@ -24,8 +24,10 @@ import pytest
 from PIL import Image
 
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.compression import PSDDecompressionWarning
-from psd_tools.constants import Compression
+from psd_tools.compression import PSDDecompressionWarning, _row_size
+from psd_tools.constants import ColorMode, Compression
+from psd_tools.psd.header import FileHeader
+from psd_tools.psd.image_data import ImageData
 
 from .utils import full_name
 
@@ -181,3 +183,150 @@ def test_a_re_encoded_document_survives_the_round_trip(
     psd.save(buf)
     buf.seek(0)
     assert np.array_equal(PSDImage.open(buf).numpy(), expected)
+
+
+def test_new_builds_a_bitmap_document_at_depth_1() -> None:
+    """``PSDImage.new("1", ...)`` writes the depth the mode stores at (#873).
+
+    Photoshop writes every bitmap document at depth 1, and the header is what a
+    reader believes: a ``BITMAP`` header at depth 8 describes a document no
+    other reader has to accept, however consistently psd-tools reads its own
+    back.
+    """
+    psd = PSDImage.new("1", (20, 3))
+    assert psd.color_mode == ColorMode.BITMAP
+    assert psd.depth == 1
+    assert PSDImage.new("1", (20, 3), depth=1).depth == 1
+    # The fill is at the mode's own depth: `color=0` is black, which the stored
+    # plane spells as a set bit.
+    assert np.unique(psd.numpy()) == [0.0]
+    assert np.unique(PSDImage.new("1", (20, 3), color=1.0).numpy()) == [1.0]
+
+
+def test_a_depth_1_document_round_trips_through_a_file() -> None:
+    """The packed section, through the public API and a real file.
+
+    A row of twenty pixels is three bytes rather than twenty, and the fill has
+    to survive the inversion the mode reads its bits through: white in, white
+    out.
+    """
+    psd = PSDImage.new("1", (20, 3), color=1.0)
+    psd.mark_updated()
+    buf = io.BytesIO()
+    psd.save(buf)
+    buf.seek(0)
+    reopened = PSDImage.open(buf)
+
+    assert reopened.depth == 1
+    header = reopened._record.header
+    stored = reopened._record.image_data.get_data(header, split=False)
+    assert isinstance(stored, bytes)
+    assert len(stored) == _row_size(20, 1) * 3
+    assert np.unique(reopened.numpy()) == [1.0]
+    assert np.unique(np.asarray(reopened.topil())) == [True]
+
+
+def test_a_non_bitmap_document_still_rejects_depth_1() -> None:
+    """One bit a channel is the bitmap mode's, not a depth every mode takes."""
+    with pytest.raises(ValueError, match="Invalid depth: 1"):
+        PSDImage.new("RGB", (4, 4), depth=1)
+
+
+def test_a_bitmap_document_rejects_any_other_depth() -> None:
+    """Mode ``"1"`` takes depth 1. Omitting ``depth`` still selects 1."""
+    assert PSDImage.new("1", (4, 4)).depth == 1
+    with pytest.raises(ValueError, match="Invalid depth: 8"):
+        PSDImage.new("1", (4, 4), depth=8)
+    with pytest.raises(ValueError, match="Invalid depth: 16"):
+        PSDImage.new("1", (4, 4), depth=16)
+    with pytest.raises(ValueError, match="Invalid depth: 32"):
+        PSDImage.new("1", (4, 4), depth=32)
+
+
+def test_an_integer_color_on_mode_1_is_a_raw_bit() -> None:
+    """An integer color for mode ``"1"`` is a raw value in ``[0, 1]``."""
+    black = PSDImage.new("1", (8, 2), color=0)
+    white = PSDImage.new("1", (8, 2), color=1)
+    assert black.background_color == 0.0
+    assert white.background_color == 1.0
+    assert np.array_equal(black.numpy(), np.zeros((2, 8, 1), dtype=np.float32))
+    assert np.array_equal(white.numpy(), np.ones((2, 8, 1), dtype=np.float32))
+    white.background_color = 0
+    assert white.background_color == 0.0
+    white.background_color = 1
+    assert white.background_color == 1.0
+    with pytest.raises(ValueError, match="out of range"):
+        PSDImage.new("1", (8, 2), color=255)
+    with pytest.raises(ValueError, match="out of range"):
+        white.background_color = 255
+
+
+def test_a_bitmap_plane_rejects_a_color_past_one_bit() -> None:
+    """A raw bitmap value other than 0 or 1 is rejected."""
+    header = FileHeader(
+        width=20, height=1, depth=1, channels=1, color_mode=ColorMode.BITMAP
+    )
+    with pytest.raises(ValueError, match="bitmap color"):
+        ImageData.new(header, color=2)
+    with pytest.raises(ValueError, match="bitmap color"):
+        ImageData.new(header, color=255)
+
+
+# "1" is white, matching ``numpy()``.
+_MODE_1_ROWS = (
+    "10101010111100001000",
+    "00000000000000000001",
+    "11111111111111111111",
+)
+_MODE_1_PLANE = bytes((0x55, 0x0F, 0x70, 0xFF, 0xFF, 0xE0, 0x00, 0x00, 0x00))
+
+
+def test_frompil_packs_a_mode_1_image_as_a_bitmap_channel() -> None:
+    """``frompil`` of mode ``"1"`` writes depth 1 in the channel's own sense.
+
+    PIL sets a bit for white and a bitmap channel sets one for black. A
+    uniform fill hides both that and the trailing bits of a short row.
+    """
+    image = Image.new("1", (20, len(_MODE_1_ROWS)))
+    for y, row in enumerate(_MODE_1_ROWS):
+        for x, bit in enumerate(row):
+            image.putpixel((x, y), int(bit))
+
+    psd = PSDImage.frompil(image)
+    assert psd.color_mode == ColorMode.BITMAP
+    assert psd.depth == 1
+    expected = np.array(
+        [[float(bit) for bit in row] for row in _MODE_1_ROWS], dtype=np.float32
+    )
+    assert np.array_equal(psd.numpy()[:, :, 0], expected)
+    stored = psd._record.image_data.get_data(psd._record.header, split=False)
+    assert stored == _MODE_1_PLANE
+    preview = psd.topil()
+    assert isinstance(preview, Image.Image)
+    assert np.array_equal(np.array(preview, dtype=np.float32), expected)
+
+
+@pytest.mark.parametrize(
+    "compression", [Compression.RAW, Compression.RLE, Compression.ZIP]
+)
+@pytest.mark.parametrize(
+    ("color", "plane"),
+    [(0, b"\xff\xff\xf0" * 3), (1, b"\x00" * 9)],
+)
+def test_new_stores_a_depth_1_plane_under_each_codec(
+    compression: Compression, color: int, plane: bytes
+) -> None:
+    """A solid depth-1 fill round-trips under raw, RLE and ZIP, padding clear."""
+    psd = PSDImage.new("1", (20, 3), color=color, compression=compression)
+    assert psd.depth == 1
+    assert psd._record.image_data.compression == compression
+
+    buf = io.BytesIO()
+    psd.save(buf)
+    buf.seek(0)
+    reopened = PSDImage.open(buf)
+    stored = reopened._record.image_data.get_data(reopened._record.header, split=False)
+    assert stored == plane
+    assert np.array_equal(
+        reopened.numpy(), np.full((3, 20, 1), color, dtype=np.float32)
+    )

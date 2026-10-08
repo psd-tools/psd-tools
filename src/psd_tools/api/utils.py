@@ -17,7 +17,9 @@ from psd_tools.constants import ColorMode, Resource, Tag
 
 ColorInput = int | float | Sequence[int | float]
 
-_DEPTH_MAX: dict[int, int] = {8: 255, 16: 65535, 32: 4294967295}
+# The raw value each depth spells 1.0 as. Bitmap is one bit a pixel, so its
+# maximum is the bit itself rather than a byte's.
+_DEPTH_MAX: dict[int, int] = {1: 1, 8: 255, 16: 65535, 32: 4294967295}
 
 # Soft warning threshold — emit a PSDLargeImageWarning when a composite/numpy
 # allocation would exceed this pixel count. Not spec-derived; chosen so that
