@@ -13,7 +13,6 @@ from typing import IO, Any, Sequence, TypeVar
 from attrs import define, field
 
 from psd_tools.compression import (
-    _row_size,
     compress,
     decompress,
     decompressed_size_bound,
@@ -32,13 +31,26 @@ from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
 
-# The raw value each depth spells 1.0 as. Bitmap is one bit a pixel, so its
-# maximum is the bit itself rather than a byte's. Mirrors
-# :py:data:`psd_tools.api.utils._DEPTH_MAX`, which is what hands :py:meth:`new`
-# its color; importing it would make this module depend on the api layer.
-_DEPTH_MAX: dict[int, int] = {1: 1, 8: 255, 16: 65535, 32: 4294967295}
-
 T = TypeVar("T", bound="ImageData")
+
+
+def _solid_bitmap_plane(color: object, width: int, height: int) -> bytes:
+    """One solid bitmap plane.
+
+    ``0`` is black, a set bit, and ``1`` is white. Bits past ``width`` stay
+    clear: a reader trims them, a byte compare does not.
+    """
+    if color not in (0, 1):
+        raise ValueError("Invalid bitmap color %r. Expected 0 or 1" % (color,))
+    row_bytes = (width + 7) // 8
+    if color == 1:
+        return b"\x00" * (row_bytes * height)
+    full, remainder = divmod(width, 8)
+    row = b"\xff" * full
+    if remainder:
+        # Pixels occupy the high bits. The rest of the byte is padding.
+        row += bytes(((0xFF << (8 - remainder)) & 0xFF,))
+    return row * height
 
 
 @define(repr=False)
@@ -180,17 +192,17 @@ class ImageData(BaseElement):
         # float: `0xffffffff`, white at that depth, is a quiet NaN read back as
         # `>f4` (#866).
         depth = header.depth
-        data = []
-        for i in range(header.channels):
-            if depth == 1:
-                # Both readers trim each row to `width`, so the padding bits
-                # are set with the rest rather than cleared.
-                bits = b"\xff" if color[i] == 0 else b"\x00"
-                data.append(bits * (_row_size(header.width, 1) * header.height))
-                continue
+        if depth == 1:
+            data = [
+                _solid_bitmap_plane(color[i], header.width, header.height)
+                for i in range(header.channels)
+            ]
+        else:
             fmt = {8: "B", 16: "H", 32: "f"}[depth]
-            value = color[i] / _DEPTH_MAX[depth] if depth == 32 else color[i]
-            data.append(pack(fmt, value) * plane_size)
+            data = []
+            for i in range(header.channels):
+                value = color[i] / 0xFFFFFFFF if depth == 32 else color[i]
+                data.append(pack(fmt, value) * plane_size)
         self = cls(compression=compression)
         self.set_data(data, header)
         return self

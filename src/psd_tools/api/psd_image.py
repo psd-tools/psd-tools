@@ -141,7 +141,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         mode: str,
         size: tuple[int, int],
         color: ColorInput = 0,
-        depth: Literal[1, 8, 16, 32] = 8,
+        depth: Literal[1, 8, 16, 32] | None = None,
         **kwargs: Any,
     ) -> Self:
         """
@@ -150,17 +150,17 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         :param mode: The color mode to use for the new image.
         :param size: A tuple containing (width, height) in pixels.
         :param color: What color to use for the image. Default is black.
-            Accepts a single integer (0-255 for 8-bit) or float in the
-            [0.0, 1.0] range, or a sequence of per-channel values using
-            the same ranges (e.g., 3 values for ``"RGB"``, 4 for
+            Accepts a single integer (0-255 for 8-bit, 0 or 1 at depth 1)
+            or float in the [0.0, 1.0] range, or a sequence of per-channel
+            values using the same ranges (e.g., 3 values for ``"RGB"``, 4 for
             ``"CMYK"``). Mixed int/float sequences are allowed. The color
             is used both as the initial image data fill and as the
             :py:attr:`~PSDImage.background_color` compositing backdrop
             when saving.
-        :param depth: Bit depth. Mode ``"1"`` builds a ``BITMAP`` document at
-            depth 1 whatever this is -- one bit a channel is the only depth the
-            mode stores a channel at (#873) -- and every other mode takes 8, 16
-            or 32.
+        :param depth: Bit depth, or ``None`` to select 1 for mode ``"1"`` and
+            8 otherwise. Mode ``"1"`` accepts only 1; every other mode accepts
+            8, 16 or 32.
+        :return: A :py:class:`~psd_tools.api.psd_image.PSDImage` object.
 
         .. note::
             Photoshop cannot open a document built at ``depth=32``. It writes
@@ -219,7 +219,13 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         # TODO: Add default metadata.
         # TODO: Perhaps make this smart object.
         image_data = ImageData(compression=compression)
-        image_data.set_data([channel.tobytes() for channel in image.split()], header)
+        # A bitmap channel is the complement of PIL mode "1". ``encode_channel``
+        # is the depth-1 writer the other paths use.
+        if header.depth == 1:
+            planes = [pil_io.encode_channel(channel, 1) for channel in image.split()]
+        else:
+            planes = [channel.tobytes() for channel in image.split()]
+        image_data.set_data(planes, header)
         psdimage = cls(
             PSD(
                 header=header,
@@ -862,13 +868,19 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
     @classmethod
     def _make_header(
-        cls, mode: str, size: tuple[int, int], depth: Literal[1, 8, 16, 32] = 8
+        cls,
+        mode: str,
+        size: tuple[int, int],
+        depth: Literal[1, 8, 16, 32] | None = None,
     ) -> FileHeader:
         color_mode = pil_io.get_color_mode(mode)
         if color_mode == ColorMode.BITMAP:
-            # One bit a channel is the only depth a bitmap document has, so the
-            # mode decides it rather than the argument (#873).
+            # One bit a channel is the only depth a bitmap document stores (#873).
+            if depth not in (None, 1):
+                raise ValueError(f"Invalid depth: {depth}. Must be 1")
             depth = 1
+        elif depth is None:
+            depth = 8
         elif depth not in (8, 16, 32):
             raise ValueError(f"Invalid depth: {depth}. Must be 8, 16, or 32")
         if size[0] > 300000:
