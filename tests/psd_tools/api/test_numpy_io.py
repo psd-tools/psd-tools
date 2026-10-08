@@ -353,3 +353,49 @@ def test_a_duotone_preview_is_not_unmatted_as_la() -> None:
     assert array is not None
     preview = np.asarray(image).astype(np.float32) / 255.0
     assert np.abs(preview[:, :, 0] - array[:, :, 0]).max() < 1 / 255
+
+
+def test_cactus_top_is_not_unmatted_on_an_undeclared_channel() -> None:
+    """``cactus_top.psd`` keeps the colour stored in the file.
+
+    The document is RGB with four channels and no alpha identifiers, so
+    ``has_transparency()`` is false and the fourth channel is not a matte.
+    That channel is not opaque, which is what makes dividing by it visible.
+    """
+    psd = PSDImage.open(full_name("third-party-psds/cactus_top.psd"))
+    assert psd.color_mode == ColorMode.RGB
+    assert psd.channels == 4
+    assert not utils.has_transparency(psd)
+    assert utils.get_transparency_index(psd) < 0
+
+    raw = psd._record.image_data.get_data(psd._record.header)
+    assert isinstance(raw, list)
+    stored = (
+        np.stack(
+            [
+                np.frombuffer(plane, np.uint8).reshape(psd.height, psd.width)
+                for plane in raw
+            ],
+            axis=-1,
+        ).astype(np.float32)
+        / 255.0
+    )
+
+    array = psd.numpy()
+    assert array is not None
+    assert np.array_equal(array, stored)
+
+    color = stored[:, :, :3]
+    alpha = stored[:, :, 3]
+    divided = color.copy()
+    covered = alpha > 0
+    divided[covered] = (color[covered] + alpha[covered, None] - 1) / alpha[
+        covered, None
+    ]
+    assert not np.array_equal(divided, color)
+
+    image = psd.topil(apply_icc=False)
+    assert image is not None
+    assert image.mode == "RGB"
+    preview = np.asarray(image).astype(np.float32) / 255.0
+    assert np.array_equal(preview, color)

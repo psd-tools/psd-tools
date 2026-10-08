@@ -1356,8 +1356,8 @@ def test_pil_peak_model_charges_a_profile_on_a_mode_that_is_not_rgb() -> None:
         # holds its input beside the RGB it writes, and nothing widens after.
         (ColorMode.RGB, 3, 8, True, None, Compression.RAW, 256, "the ICC output"),
         # Grayscale with alpha: `putalpha()` holds "L" and "LA" together, and the
-        # "LA" it widens to reaches the background phase, which is the one-band
-        # one -- 1 + 16 bytes a pixel rather than 1 + 35.
+        # "LA" it widens to reaches the one-band background removal, not the
+        # three-band one.
         (
             ColorMode.GRAYSCALE,
             2,

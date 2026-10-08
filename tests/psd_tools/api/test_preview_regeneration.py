@@ -536,10 +536,9 @@ def test_the_read_divides_out_the_transparency_past_plane_three() -> None:
     """The read undoes the matte on the plane the format names, not plane 3.
 
     Identifiers ``[1, 0]`` put a spot channel at plane 3 and the composite's
-    transparency at plane 4, with the colour stored against the latter. Dividing
-    the spot plane out instead divides by ink coverage: 0.6 against 0x40 comes
-    back negative, so the layer colour is neither what was stored nor a colour
-    anything could draw.
+    transparency at plane 4, with the colour stored against the latter.
+    Dividing the spot plane out divides by ink coverage and does not return
+    the stored colour.
     """
     psd = PSDImage.new("RGB", (1, 1), color=0.0)
     header = psd._record.header
@@ -555,8 +554,8 @@ def test_the_read_divides_out_the_transparency_past_plane_three() -> None:
 
     array = psd.numpy()
     assert array is not None
-    # (0x99 + 0x80 - 255) / 0x80 in the stored scale: 0.203, where dividing the
-    # spot plane out gives -0.59.
+    # The stored colour, un-matted against the transparency plane rather than
+    # the spot plane ahead of it.
     assert np.allclose(array[0, 0, :3], (0x99 + 0x80 - 255) / 0x80, atol=1 / 255)
     assert array[0, 0, 3] == pytest.approx(0x40 / 255)
     assert array[0, 0, 4] == pytest.approx(0x80 / 255)

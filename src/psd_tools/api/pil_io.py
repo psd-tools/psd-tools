@@ -161,7 +161,7 @@ _CONVERSION_TRANSIENT: int = 8
 _WHITE_BACKGROUND_TRANSIENT: int = 35
 # The same for the `LA` result of a grayscale document, one colour band wide
 # rather than three: two bands split, one promoted to "I", one "L" result, and
-# the merge reassembling them. Rounded up from 9.
+# the merge reassembling them.
 _WHITE_BACKGROUND_TRANSIENT_1: int = 16
 
 # PIL rounds each image up to its arena's block granularity, so the process grows
