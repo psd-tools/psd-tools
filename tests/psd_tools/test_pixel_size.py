@@ -846,6 +846,46 @@ def test_numpy_peak_model_brackets_the_measured_peak(
     )
 
 
+# A body one pixel wide and long enough that the row table is what the decode
+# allocates: `source` stays small while the objects RLE holds one of per row do
+# not. The sweep above is square, where the parse and stack phases are orders of
+# magnitude above the codec's own and no per-row term can show through.
+_TALL_NARROW_ROWS = 20000
+_TALL_NARROW_DOCUMENTS = [
+    (ColorMode.GRAYSCALE, 2, 8),
+    (ColorMode.RGB, 4, 8),
+]
+
+
+@pytest.mark.parametrize("color_mode, channels, depth", _TALL_NARROW_DOCUMENTS)
+def test_numpy_peak_model_covers_the_rows_a_tall_narrow_rle_body_decodes(
+    color_mode: int, channels: int, depth: int
+) -> None:
+    """The codec peak on a tall, narrow body is its rows, not its payload.
+
+    Sized against what the call allocates rather than against the model, so a
+    term the model omits shows up here as a peak above it. Both directions, for
+    the same reason as the sweep above: a model under the peak guards nothing,
+    and one far above it turns away documents that fit.
+    """
+    psd = _forge(
+        1,
+        _TALL_NARROW_ROWS,
+        channels,
+        depth,
+        color_mode,
+        compression=Compression.RLE,
+    )
+    model = _numpy_peak_bytes(psd)
+    peak = _traced_peak(psd.numpy)
+    assert peak <= model + _TRACE_SLACK, (
+        f"peak {peak:,} allocated past a model of {model:,}"
+    )
+    assert model <= _MODEL_OVERSHOOT * peak, (
+        f"model {model:,} is more than {_MODEL_OVERSHOOT}x the {peak:,} measured"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Depth 1: one float32 per pixel, like every other depth (#737, #768)
 # ---------------------------------------------------------------------------
@@ -1381,10 +1421,11 @@ def test_pil_peak_model_charges_a_profile_on_a_mode_that_is_not_rgb() -> None:
             "the codec, raw",
         ),
         # The same document under each codec that builds its result rather than
-        # handing back the bytes read at open: RLE joins materialised rows, and
-        # prediction adds a pass over the inflated buffer and a copy back out on top of
-        # the inflate. Only here, where the codec phase is the widest, do these
-        # multiples show up in a total at all.
+        # handing back the bytes read at open: RLE joins materialised rows, whose
+        # per-row objects `decompress_row_peak_bytes()` adds, one per row of every
+        # channel, and prediction adds a pass over the inflated buffer and a copy
+        # back out on top of the inflate. Only here, where the codec phase is the
+        # widest, do these multiples show up in a total at all.
         (
             ColorMode.MULTICHANNEL,
             8,
@@ -1392,7 +1433,7 @@ def test_pil_peak_model_charges_a_profile_on_a_mode_that_is_not_rgb() -> None:
             False,
             None,
             Compression.RLE,
-            1536,
+            5632,
             "the codec, RLE",
         ),
         (

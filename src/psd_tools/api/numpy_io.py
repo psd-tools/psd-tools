@@ -20,7 +20,11 @@ from psd_tools.api.utils import (
 # The canonical padded row size, rather than a fourth copy of the arithmetic:
 # the write path has to agree with the codec byte for byte or the section comes
 # out a byte a row short of its declared length.
-from psd_tools.compression import PSDDecompressionWarning, _row_size
+from psd_tools.compression import (
+    PSDDecompressionWarning,
+    _row_size,
+    decompress_row_peak_bytes,
+)
 from psd_tools.constants import ChannelID, ColorMode, Compression
 from psd_tools.psd.patterns import Pattern
 
@@ -111,9 +115,10 @@ _BACKGROUND_TRANSIENT: int = 18
 # ``ImageData.get_data()`` runs after the guard, so this is inside what the guard
 # has to bound. RAW hands back the bytes read at open time -- the same object,
 # when the body is exactly the declared length -- while the other three build
-# their result: RLE joins materialised rows, and prediction adds a
-# pass over the inflated buffer and a copy back out. Each
-# multiple is rounded up from what that peak measures.
+# their result: RLE joins materialised rows, beside the per-row objects
+# `decompress_row_peak_bytes()` counts, and prediction adds a pass over the
+# inflated buffer and a copy back out. Each multiple is rounded up from what
+# that peak measures.
 _DECOMPRESS_PEAK: dict[Compression, int] = {
     Compression.RAW: 1,
     Compression.RLE: 3,
@@ -180,9 +185,13 @@ def _image_data_peak_bytes(psdimage: "PSDProtocol", flat: bool = False) -> int:
         else 0
     )
     compression = psdimage._record.image_data.compression
+    # One pass decodes every channel: `height * channels` rows of the table.
+    row_objects = decompress_row_peak_bytes(
+        compression, psdimage.height * psdimage.channels
+    )
 
     return max(
-        _DECOMPRESS_PEAK[compression] * source,
+        _DECOMPRESS_PEAK[compression] * source + row_objects,
         source + returned + pixels * planes * parse,
         source + returned + pixels * background,
     )
@@ -262,6 +271,7 @@ def _layer_read_peak_bytes(
     planes: int,
     decompress: int,
     held: int = 0,
+    row_objects: int = 0,
 ) -> int:
     """Bytes one :func:`get_layer_data` channel read allocates at its peak.
 
@@ -271,12 +281,17 @@ def _layer_read_peak_bytes(
     The doubled float32 stack is the high-water mark for anything past a single
     8-bit plane. ``held`` is what the caller keeps live across the read, added
     to every phase.
+
+    ``row_objects`` is the per-row space the codec's payload multiple is not
+    sized for, added by the caller from
+    :func:`~psd_tools.compression.decompress_row_peak_bytes` for the channels it
+    reads.
     """
     pixels = width * height
     source = _row_size(width, depth) * height
     plane = pixels * 4
     return held + max(
-        (planes - 1) * plane + decompress * source,
+        (planes - 1) * plane + decompress * source + row_objects,
         (planes - 1) * plane + source + plane + pixels * _PARSE_TRANSIENT[depth],
         2 * planes * plane,
     )
@@ -309,6 +324,10 @@ def _guard_channel_read(
                 len(selected),
                 max(_DECOMPRESS_PEAK[data.compression] for data in selected),
                 held,
+                row_objects=max(
+                    decompress_row_peak_bytes(data.compression, height)
+                    for data in selected
+                ),
             ),
             warn=False,
         )
@@ -441,6 +460,9 @@ def _check_pattern_read(
             depth,
             len(written),
             max(_DECOMPRESS_PEAK[c.compression] for c in written),
+            row_objects=max(
+                decompress_row_peak_bytes(c.compression, height) for c in written
+            ),
         ),
         warn=False,
     )

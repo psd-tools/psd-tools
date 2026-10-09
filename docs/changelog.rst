@@ -15,6 +15,11 @@ Changelog
   and grayscale only. An ``RGBA`` ``topil()`` still un-mats every mode, so
   CMYK and LAB are too after an ICC profile converts them. ``cactus_top.psd``
   is no longer un-matted: that channel is not declared as transparency (#868, #974)
+- [fix] The allocation guard now counts the object RLE decoding holds per row,
+  so a tall, narrow RLE document is refused with ``ValueError`` when its real
+  peak is over ``max_alloc_bytes`` instead of passing on a payload-only
+  estimate. A document whose two estimates straddle your budget now raises
+  (#926, #973)
 
 1.24.0 (2026-10-06)
 -------------------
