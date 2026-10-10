@@ -217,6 +217,25 @@ stay behind, because clipping depends on position::
 An :py:class:`~psd_tools.api.layers.Artboard` can only be moved to the document
 root.
 
+Duplicate a layer directly above the original, or into a group in the same
+document::
+
+    copied_layer = layer.duplicate(name="Layer copy")
+    copied_group = group.duplicate(parent=target_group, index=0)
+
+:py:meth:`~psd_tools.api.layers.Layer.duplicate` copies a group's entire
+subtree, retaining layer types, pixel data, masks and layer metadata. The
+copy gets fresh layer IDs and can be edited independently. Smart-object
+contents and other document resources remain shared. The source stays in
+place. Cross-document duplication is not supported; a detached source needs
+an explicit destination parent. ``index`` is the copy's position in the
+destination after the call; ``-1`` is the top. An out-of-range index raises
+``IndexError``. Without it, a copy goes immediately above its source in the
+same parent, or to the top of a different container. Duplicating a clip base
+directly above itself releases the layers clipped to it, as Photoshop does.
+Artboards can only be duplicated at the document root. Smart-object copies
+share the original content but have fresh instance IDs.
+
 A layer can change its order within its group::
 
     layer.move_up() # Will send the layer upward in the group

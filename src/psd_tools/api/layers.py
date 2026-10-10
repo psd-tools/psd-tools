@@ -84,7 +84,9 @@ and exposed through the ``kind`` property for easy type checking.
 
 import logging
 import operator
+import uuid
 import warnings
+from copy import deepcopy
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -125,13 +127,15 @@ from psd_tools.constants import (
     CompatibilityMode,
     Compression,
     ProtectedFlags,
+    Resource,
     SectionDivider,
     SheetColorType,
     Tag,
     TextType,
 )
-from psd_tools.psd.descriptor import Descriptor, DescriptorBlock
+from psd_tools.psd.descriptor import Descriptor, DescriptorBlock, String
 from psd_tools.psd.header import FileHeader
+from psd_tools.psd.image_resources import ImageResource, Integer
 from psd_tools.psd.layer_and_mask import (
     ChannelData,
     ChannelDataList,
@@ -143,6 +147,7 @@ from psd_tools.psd.layer_and_mask import (
 from psd_tools.psd.tagged_blocks import (
     ProtectedSetting,
     SectionDividerSetting,
+    SmartObjectLayerData,
     TaggedBlocks,
     TypeToolObjectSetting,
 )
@@ -1171,6 +1176,127 @@ class Layer(LayerProtocol):
         if not self._is_attached():
             raise ValueError(f"Layer {self} is not attached to a document")
 
+    def duplicate(
+        self,
+        parent: "GroupMixin | None" = None,
+        *,
+        index: int | None = None,
+        name: str | None = None,
+    ) -> Self:
+        """
+        Deep-copy this layer, including a group's descendants, in its document.
+
+        The copy retains its layer type, channels, masks and layer metadata,
+        with fresh layer IDs. Document resources such as smart-object contents
+        remain shared. No cached API wrappers are copied.
+
+        :param parent: Destination group or document. Defaults to this layer's
+            parent. A detached layer requires an explicit destination.
+        :param index: The copy's final position in the destination, counting
+            from the bottom; negative counts from the top, so ``-1`` is the top.
+            Defaults to immediately above the source in the same parent, or
+            the top of another container. Inserting directly above a clip base
+            releases the layers clipped to that base.
+        :param name: Optional name for the copy's root layer.
+        :raises TypeError: If the destination, index or name has an invalid type.
+        :raises ValueError: If no destination is available, the destination is
+            in another document, an artboard is not going to the document root,
+            or the name exceeds 255 characters.
+        :raises IndexError: If ``index`` is out of range.
+        :return: The inserted copy; the source remains in place.
+        """
+        if parent is None:
+            parent = cast("GroupMixin | None", self.parent)
+        if parent is None:
+            raise ValueError("A detached layer requires a destination parent")
+        if not isinstance(parent, GroupMixin):
+            raise TypeError("Parent must be a group or PSDImage")
+        if parent._psd is not self._psd:
+            raise ValueError("Cannot duplicate a layer into another document")
+        if isinstance(self, Artboard) and parent is not self._psd:
+            raise ValueError("An artboard can only be placed at the document root")
+        if index is None:
+            index = (
+                parent.index(self) + 1
+                if parent is self.parent and self in parent
+                else len(parent)
+            )
+        else:
+            index = operator.index(index)
+            final_length = len(parent) + 1
+            if not -final_length <= index < final_length:
+                raise IndexError(
+                    f"Index {index} out of range for {final_length} layers"
+                )
+            index %= final_length
+        if name is not None:
+            if not isinstance(name, str):
+                raise TypeError("Layer name must be a string")
+            if len(name) >= 256:
+                raise ValueError("Layer name too long (max 255 characters)")
+
+        # Reconstruct from records so lazy wrappers bind to the copy, without
+        # following parent or document references through deepcopy().
+        duplicate = self._duplicate(parent)
+        sources: list[LayerProtocol] = [*self._psd.descendants(), self]
+        if isinstance(self, Group):
+            sources.extend(self.descendants())
+        used_ids = {
+            record.tagged_blocks.get_data(Tag.LAYER_ID)
+            for layer in sources
+            for record in _layer_records(layer)
+            if Tag.LAYER_ID in record.tagged_blocks
+        }
+        copies: list[Layer] = [duplicate]
+        if isinstance(duplicate, Group):
+            copies.extend(duplicate.descendants())
+        seed = self._psd.image_resources.get_data(Resource.IDS_SEED_NUMBER, 0)
+        # The seed resource stores a signed 32-bit integer, but layer IDs are
+        # unsigned. Compare the same 32 bits when the high bit is set.
+        next_id = max(seed & 0xFFFFFFFF, max(used_ids, default=0)) + 1
+        for layer in copies:
+            for record in _layer_records(layer):
+                if (
+                    record is not layer._record
+                    and Tag.LAYER_ID not in record.tagged_blocks
+                ):
+                    continue
+                if next_id > 0xFFFFFFFF:
+                    raise ValueError("No unused layer IDs available")
+                record.tagged_blocks.set_data(Tag.LAYER_ID, next_id)
+                next_id += 1
+        if name is not None:
+            duplicate.name = name
+        clip_layers = (
+            self.clip_layers
+            if parent is self.parent and index == parent.index(self) + 1
+            else []
+        )
+        seed = next_id - 1
+        seed_resource = ImageResource(
+            key=Resource.IDS_SEED_NUMBER,
+            data=Integer(seed if seed < 0x80000000 else seed - 0x100000000),  # type: ignore[arg-type]
+        )
+        parent.insert(index, duplicate)
+        self._psd.image_resources[Resource.IDS_SEED_NUMBER] = seed_resource
+        for layer in clip_layers:
+            layer.clipping = False
+        return duplicate
+
+    def _duplicate(self, parent: "GroupMixin") -> Self:
+        """Build a detached copy of this subtree from its low-level records."""
+        duplicate = type(self)(parent, deepcopy(self._record), deepcopy(self._channels))
+        instance_id = str(uuid.uuid4())
+        for key in (Tag.SMART_OBJECT_LAYER_DATA1, Tag.SMART_OBJECT_LAYER_DATA2):
+            config = duplicate.tagged_blocks.get_data(key)
+            if isinstance(config, SmartObjectLayerData):
+                config.data[b"placed"] = String(instance_id)
+        if isinstance(self, Group) and isinstance(duplicate, Group):
+            duplicate._bounding_record = deepcopy(self._bounding_record)
+            duplicate._bounding_channels = deepcopy(self._bounding_channels)
+            duplicate._layers = [child._duplicate(duplicate) for child in self]
+        return duplicate
+
     def delete_layer(self) -> Self:
         """
         Deprecated: Use layer.parent.remove(layer) instead.
@@ -1283,6 +1409,13 @@ class Layer(LayerProtocol):
         :return: self
         """
         return self.move_up(-1 * offset)
+
+
+def _layer_records(layer: LayerProtocol) -> Iterator[LayerRecord]:
+    """Yield a layer's record and, for groups, its closing divider record."""
+    yield layer._record
+    if isinstance(layer, Group) and layer._bounding_record is not None:
+        yield layer._bounding_record
 
 
 def _invalidate_moved_bbox(layer: Layer) -> None:

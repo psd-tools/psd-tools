@@ -4,6 +4,11 @@ Changelog
 1.25.0 (unreleased)
 -------------------
 
+- [api] ``Layer.duplicate()`` copies a layer or nested group within its
+  document, with independent layer data and fresh IDs. It accepts a
+  destination, final position and name; smart-object contents remain shared
+  with fresh instance IDs. A copy directly above a clip base releases its
+  clipping layers. Artboards stay at the document root (#928; related to #882)
 - [api] ``PSDImage.new("1", ...)`` and ``frompil`` of mode ``"1"`` now build a
   depth-1 bitmap document, where ``new`` declared depth 8. Omitting ``depth``
   selects 1; any other depth is rejected for mode ``"1"``, and ``depth=1`` is
