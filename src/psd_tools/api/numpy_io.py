@@ -91,10 +91,10 @@ _PARSE_TRANSIENT: dict[int, int] = {1: 2, 8: 4, 16: 4, 32: 0}
 # per pixel per plane -- ``lut[parsed]`` is already three planes wide.
 _PALETTE_TRANSIENT: int = 1
 
-# :func:`_remove_background`'s own temporaries, in bytes per pixel: up to four
-# float32 arrays of the three colour planes (4 x 3 x 4) and a boolean mask of the
-# same shape (3 x 1), rounded up from 51. Flat rather than per-plane because it
-# always works on exactly three colour planes however wide the document is.
+# :func:`_remove_background`'s own temporaries, in bytes per pixel per colour
+# plane: up to four float32 arrays of a plane (4 x 4) and a boolean mask of the
+# same shape (1), rounded up from 17. Per plane rather than flat because it runs
+# on one plane for a grayscale document and three for an RGB one.
 #
 # This is the one term that is not the same everywhere, and it is sized on the
 # widest platform rather than on the one it was developed on: how many of those
@@ -105,7 +105,7 @@ _PALETTE_TRANSIENT: int = 1
 # Measured with every alpha non-zero, which is the worst case for its
 # boolean-indexed copies: a payload that leaves most of the alpha at zero selects
 # few elements and hides most of this.
-_BACKGROUND_TRANSIENT: int = 52
+_BACKGROUND_TRANSIENT: int = 18
 
 # Bytes live at the codec's own peak, as a multiple of the decompressed size.
 # ``ImageData.get_data()`` runs after the guard, so this is inside what the guard
@@ -171,11 +171,12 @@ def _image_data_peak_bytes(psdimage: "PSDProtocol", flat: bool = False) -> int:
     parse = _PARSE_TRANSIENT[depth]
     if psdimage.color_mode == ColorMode.INDEXED and depth == 8:
         parse += _PALETTE_TRANSIENT
-    # `_remove_background()`'s own condition, spelled against the plane count it
-    # actually tests: `data.shape[2] > 3` on an RGB document.
+    # `_remove_background()`'s own condition, asked the way it asks it: the
+    # colour planes it works on, and whether the format names a plane to matte
+    # against.
     background = (
-        _BACKGROUND_TRANSIENT
-        if psdimage.color_mode == ColorMode.RGB and planes > 3
+        _BACKGROUND_TRANSIENT * get_color_channels(psdimage)
+        if _background_index(psdimage) >= 0
         else 0
     )
     compression = psdimage._record.image_data.compression
@@ -550,14 +551,38 @@ def _parse_array(
         raise ValueError("Unsupported depth: %g" % depth)
 
 
+# The modes whose merged preview Photoshop stores composited over white, which
+# `_remove_background()` undoes on the way in and `_restore_background()` puts
+# back on the way out (#868).
+_BACKGROUND_MODES = (ColorMode.RGB, ColorMode.GRAYSCALE)
+
+
+def _background_index(psdimage: "PSDProtocol") -> int:
+    """Plane :func:`_remove_background` mattes against, or -1 where it does none.
+
+    The format names the transparency plane, and naming one is no more evidence
+    of a preview stored over white here than anywhere else: an ``RGBA`` result
+    from a CMYK or LAB document has nothing to undo until a fixture says
+    otherwise (#868).
+    """
+    if psdimage.color_mode not in _BACKGROUND_MODES:
+        return -1
+    planes = get_color_channels(psdimage)
+    index = _transparency_slot(psdimage, planes)
+    return index if index >= planes else -1
+
+
 def _remove_background(data: np.ndarray, psdimage: "PSDProtocol") -> np.ndarray:
     """ImageData preview is rendered on a white background."""
-    if psdimage.color_mode == ColorMode.RGB and data.shape[2] > 3:
-        color = data[:, :, :3]
-        alpha = data[:, :, 3:4]
-        a = np.repeat(alpha, color.shape[2], axis=2)
-        color[a > 0] = (color + alpha - 1)[a > 0] / a[a > 0]
-        data[:, :, :3] = color
+    index = _background_index(psdimage)
+    if index < 0 or index >= data.shape[2]:
+        return data
+    planes = get_color_channels(psdimage)
+    color = data[:, :, :planes]
+    alpha = data[:, :, index : index + 1]
+    a = np.repeat(alpha, color.shape[2], axis=2)
+    color[a > 0] = (color + alpha - 1)[a > 0] / a[a > 0]
+    data[:, :, :planes] = color
     return data
 
 
@@ -836,23 +861,28 @@ def _restore_background(
     ``RGBA`` image would, leaves the reader dividing by an alpha the values were
     never multiplied by.
 
-    Matted against the *transparency* plane, and only where the document has
-    one. ``_remove_background()`` reads plane 3 by position instead, which is a
-    defect of its own (#868); reproducing it here would write it into files.
+    Matted against the *transparency* plane, the one the format names, and only
+    where the document has one: the plane ``_remove_background()`` undoes it
+    with, so the two stay inverse. A plane chosen by position would be wrong in
+    both directions -- an RGB document whose fourth channel is a spot channel
+    would have its colour matted against ink coverage, and one whose
+    transparency sits past plane 3 would be matted against the wrong channel.
 
-    Grayscale is left as composited, as neither ``_remove_background()`` nor
-    ``pil_io._remove_white_background()`` touches an ``LA`` document (#868).
+    Every mode whose preview is stored over white is matted, grayscale
+    included. Photoshop writes it there for an ``LA`` document like any other
+    (``gray0.psd`` is white at every transparent pixel), and the ``LA`` reader
+    undoes it there.
 
     Where alpha is zero the read leaves the stored value alone, so the explicit
     form keeps the colour itself rather than putting down white.
     """
-    if psdimage.color_mode != ColorMode.RGB or transparency < 0:
+    if psdimage.color_mode not in _BACKGROUND_MODES or transparency < 0:
         return
     alpha = arrays.get(transparency)
     if alpha is None:
         return
     opaque = alpha > 0
-    for index in range(min(3, psdimage.channels)):
+    for index in range(min(get_color_channels(psdimage), psdimage.channels)):
         if index in arrays and index != transparency:
             plane = arrays[index]
             arrays[index] = np.where(opaque, plane * alpha + (1.0 - alpha), plane)

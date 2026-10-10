@@ -398,21 +398,20 @@ class TestBitmapDocuments:
         assert array is not None
         np.testing.assert_allclose(array, 1.0)
 
-    def test_a_bitmap_band_is_not_stored_as_packed_bits_at_depth_8(self) -> None:
-        """``PSDImage.new("1", ...)`` builds a BITMAP header at depth *8*.
+    def test_a_bitmap_band_is_stored_as_packed_bits_at_depth_1(self) -> None:
+        """``PSDImage.new("1", ...)`` builds a BITMAP header at depth *1*.
 
-        Whether that header is right is a separate question. What must hold
-        either way is that the channel matches the depth the header declares:
-        a "1" band's ``tobytes()`` is bit-packed, which is a byte per pixel
-        only by accident and never for a row of more than eight.
+        What this pins is that the channel matches the depth the header
+        declares: a "1" band's ``tobytes()`` is bit-packed, which is a byte per
+        pixel only by accident and never for a row of more than eight.
         """
         psd = PSDImage.new("1", (20, 3))
-        assert psd.color_mode == ColorMode.BITMAP and psd.depth == 8
+        assert psd.color_mode == ColorMode.BITMAP and psd.depth == 1
         layer = psd.create_pixel_layer(
             Image.new("1", (20, 3), 1), name="L", compression=Compression.RAW
         )
 
-        assert _channel_lengths(layer) == [_row_size(20, 8) * 3] * 2
+        assert _channel_lengths(layer) == [_row_size(20, 1) * 3] * 2
 
 
 class TestEncoders:
