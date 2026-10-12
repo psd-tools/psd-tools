@@ -76,7 +76,7 @@ class LinkedLayer(BaseElement):
     """
 
     kind: LinkedLayerType = field(
-        default=LinkedLayerType.ALIAS, validator=in_(LinkedLayerType)
+        default=LinkedLayerType.ALIAS, validator=in_(tuple(LinkedLayerType))
     )
     version: int = field(default=1, validator=range_(1, 8))
     uuid: str = ""
