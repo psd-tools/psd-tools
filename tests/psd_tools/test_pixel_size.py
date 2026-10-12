@@ -847,7 +847,7 @@ def test_numpy_peak_model_brackets_the_measured_peak(
 
 
 # A body one pixel wide and long enough that the row table is what the decode
-# allocates: `source` stays small while the objects RLE holds one of per row do
+# allocates: `source` stays small while the RLE row overhead does
 # not. The sweep above is square, where the parse and stack phases are orders of
 # magnitude above the codec's own and no per-row term can show through.
 _TALL_NARROW_ROWS = 20000
