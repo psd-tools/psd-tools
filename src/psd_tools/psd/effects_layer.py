@@ -80,7 +80,7 @@ class ShadowInfo(BaseElement):
     distance: int = 0
     color: Color = field(factory=Color)
     blend_mode: BlendMode = field(
-        default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode)
+        default=BlendMode.NORMAL, converter=BlendMode, validator=in_(tuple(BlendMode))
     )
     enabled: int = 0
     use_global_angle: int = 0
@@ -189,7 +189,7 @@ class OuterGlowInfo(BaseElement, _GlowInfo):
     intensity: int = 0
     color: Color = field(factory=Color)
     blend_mode: BlendMode = field(
-        default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode)
+        default=BlendMode.NORMAL, converter=BlendMode, validator=in_(tuple(BlendMode))
     )
     enabled: int = 0
     opacity: int = 0
@@ -244,7 +244,7 @@ class InnerGlowInfo(BaseElement, _GlowInfo):
     intensity: int = 0
     color: Color = field(factory=Color)
     blend_mode: BlendMode = field(
-        default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode)
+        default=BlendMode.NORMAL, converter=BlendMode, validator=in_(tuple(BlendMode))
     )
     enabled: int = 0
     opacity: int = 0
@@ -310,10 +310,10 @@ class BevelInfo(BaseElement):
     depth: int = 0
     blur: int = 0
     highlight_blend_mode: BlendMode = field(
-        default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode)
+        default=BlendMode.NORMAL, converter=BlendMode, validator=in_(tuple(BlendMode))
     )
     shadow_blend_mode: BlendMode = field(
-        default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode)
+        default=BlendMode.NORMAL, converter=BlendMode, validator=in_(tuple(BlendMode))
     )
     highlight_color: Color = field(factory=Color)
     shadow_color: Color = field(factory=Color)
@@ -406,7 +406,7 @@ class SolidFillInfo(BaseElement):
 
     version: int = 2
     blend_mode: BlendMode = field(
-        default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode)
+        default=BlendMode.NORMAL, converter=BlendMode, validator=in_(tuple(BlendMode))
     )
     color: Color = field(factory=Color)
     opacity: int = 0

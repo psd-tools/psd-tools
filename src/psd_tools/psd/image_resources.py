@@ -746,7 +746,7 @@ class PrintScale(BaseElement):
     style: PrintScaleStyle = field(
         default=PrintScaleStyle.CENTERED,
         converter=PrintScaleStyle,
-        validator=in_(PrintScaleStyle),
+        validator=in_(tuple(PrintScaleStyle)),
     )
     x: float = 0.0
     y: float = 0.0

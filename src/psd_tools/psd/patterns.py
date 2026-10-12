@@ -91,7 +91,7 @@ class Pattern(BaseElement):
 
     version: int = 1
     image_mode: ColorMode = field(
-        default=ColorMode.RGB, converter=ColorMode, validator=in_(ColorMode)
+        default=ColorMode.RGB, converter=ColorMode, validator=in_(tuple(ColorMode))
     )
     point: tuple[int, int] = field(default=(0, 0))
     name: str = ""
@@ -194,7 +194,9 @@ class VirtualMemoryArray(BaseElement):
     rectangle: tuple[int, int, int, int] | None = None
     pixel_depth: int | None = None
     compression: Compression = field(
-        default=Compression.RAW, converter=Compression, validator=in_(Compression)
+        default=Compression.RAW,
+        converter=Compression,
+        validator=in_(tuple(Compression)),
     )
     data: bytes = b""
 

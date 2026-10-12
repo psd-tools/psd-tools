@@ -357,7 +357,9 @@ class ChannelInfo(BaseElement):
     """
 
     id: ChannelID = field(
-        default=ChannelID.CHANNEL_0, converter=ChannelID, validator=in_(ChannelID)
+        default=ChannelID.CHANNEL_0,
+        converter=ChannelID,
+        validator=in_(tuple(ChannelID)),
     )
     length: int = 0
 
@@ -579,11 +581,11 @@ class LayerRecord(BaseElement):
     channel_info: list[ChannelInfo] = field(factory=list)
     signature: bytes = field(default=b"8BIM", repr=False, validator=in_((b"8BIM",)))
     blend_mode: BlendMode = field(
-        default=BlendMode.NORMAL, converter=BlendMode, validator=in_(BlendMode)
+        default=BlendMode.NORMAL, converter=BlendMode, validator=in_(tuple(BlendMode))
     )
     opacity: int = field(default=255, validator=range_(0, 255))
     clipping: Clipping = field(
-        default=Clipping.BASE, converter=Clipping, validator=in_(Clipping)
+        default=Clipping.BASE, converter=Clipping, validator=in_(tuple(Clipping))
     )
     flags: LayerFlags = field(factory=LayerFlags)
     mask_data: "MaskData | None" = None
@@ -1204,7 +1206,9 @@ class ChannelData(BaseElement):
     """
 
     compression: Compression = field(
-        default=Compression.RAW, converter=Compression, validator=in_(Compression)
+        default=Compression.RAW,
+        converter=Compression,
+        validator=in_(tuple(Compression)),
     )
     data: bytes = b""
 
@@ -1307,7 +1311,7 @@ class GlobalLayerMaskInfo(BaseElement):
     kind: GlobalLayerMaskKind = field(
         default=GlobalLayerMaskKind.PER_LAYER,
         converter=GlobalLayerMaskKind,
-        validator=in_(GlobalLayerMaskKind),
+        validator=in_(tuple(GlobalLayerMaskKind)),
     )
 
     @classmethod

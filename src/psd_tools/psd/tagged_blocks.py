@@ -621,7 +621,7 @@ class PlacedLayerData(BaseElement):
     layer_type: PlacedLayerType = field(
         default=PlacedLayerType.UNKNOWN,
         converter=PlacedLayerType,
-        validator=in_(PlacedLayerType),
+        validator=in_(tuple(PlacedLayerType)),
     )
     transform: tuple = (0.0,) * 8
     warp: object = None
@@ -725,13 +725,13 @@ class SectionDividerSetting(BaseElement):
     kind: SectionDivider = field(
         default=SectionDivider.OTHER,
         converter=SectionDivider,
-        validator=in_(SectionDivider),
+        validator=in_(tuple(SectionDivider)),
     )
     signature: bytes | None = field(default=None, repr=False)
     blend_mode: BlendMode | None = field(
         default=None,
         converter=converters.optional(BlendMode),
-        validator=validators.optional(in_(BlendMode)),
+        validator=validators.optional(in_(tuple(BlendMode))),
     )
     sub_type: int | None = None
 
