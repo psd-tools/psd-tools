@@ -82,6 +82,7 @@ Layer types are automatically determined from the underlying PSD structures
 and exposed through the ``kind`` property for easy type checking.
 """
 
+import copy
 import logging
 import operator
 import warnings
@@ -165,6 +166,142 @@ def _compression_for(compression: Compression, depth: int) -> Compression:
         logger.debug("ZIP with prediction is not defined at depth 1; using ZIP.")
         return Compression.ZIP
     return compression
+
+
+def _channel_geometry(record: LayerRecord, channel_id: int) -> tuple[int, int] | None:
+    """The ``(width, height)`` a stored channel was compressed against.
+
+    A mask channel carries its own rectangle, and the user mask's is not the
+    real mask's. :py:attr:`Mask.width` cannot answer for both: it reports the
+    real rectangle whenever :py:meth:`Mask.has_real` says the real mask's
+    parameters are applied, which is a different question from whether the
+    real bounds exist -- ``vector-mask2.psd`` has a layer with real bounds and
+    ``has_real()`` false.
+
+    ``None`` where the rectangle is missing -- a mask channel with no mask
+    block, or a real-mask channel whose ``real_*`` bounds are unset, both of
+    which the format permits and neither of which can be decompressed.
+    """
+    if channel_id not in (
+        ChannelID.USER_LAYER_MASK,
+        ChannelID.REAL_USER_LAYER_MASK,
+    ):
+        return record.right - record.left, record.bottom - record.top
+    mask = record.mask_data
+    if mask is None:
+        return None
+    if channel_id == ChannelID.USER_LAYER_MASK:
+        return mask.right - mask.left, mask.bottom - mask.top
+    left, top = mask.real_left, mask.real_top
+    right, bottom = mask.real_right, mask.real_bottom
+    if left is None or top is None or right is None or bottom is None:
+        return None
+    return right - left, bottom - top
+
+
+def _repack_channel(
+    record: LayerRecord,
+    info: ChannelInfo,
+    data: ChannelData,
+    source: FileHeader,
+    dest: FileHeader,
+) -> None:
+    """Unpack *data* at *source*'s depth and version and pack it at *dest*'s.
+
+    A channel that cannot be read is left exactly as it stands rather than
+    rewritten from what the codec returned. The codec has two ways of failing
+    and only one of them raises: the other *succeeds*, with black, which is why
+    the read promotes :py:class:`~psd_tools.compression.PSDDecompressionWarning`
+    to an error. Repacking a black-filled channel would turn an unreadable
+    channel into a readable wrong one.
+
+    ``catch_warnings()`` is process-global and not thread-safe; for the length
+    of the read another thread's decode warning is an error too. The scope is
+    one statement, as it is in :py:func:`~psd_tools.api.numpy_io._stored_planes`.
+    """
+    if len(data.data) == 0:
+        return
+    geometry = _channel_geometry(record, info.id)
+    if geometry is None:
+        return
+    width, height = geometry
+    if width <= 0 or height <= 0:
+        return
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", PSDDecompressionWarning)
+            raw = data.get_data(width, height, source.depth, source.version)
+        plane = numpy_io._parse_array(
+            raw, cast(Literal[1, 8, 16, 32], source.depth), width
+        )
+        encoded = numpy_io._encode_array(
+            plane, cast(Literal[1, 8, 16, 32], dest.depth), width
+        )
+    except (PSDDecompressionWarning, ValueError, TypeError, OSError) as e:
+        logger.warning(
+            "Channel %s could not be re-encoded for depth %d; leaving it as stored: %s",
+            info.id,
+            dest.depth,
+            e,
+        )
+        return
+    data.compression = _compression_for(data.compression, dest.depth)
+    data.set_data(encoded, width, height, dest.depth, dest.version)
+    info.length = data._length
+
+
+def _reencoded(
+    record: LayerRecord,
+    channels: ChannelDataList,
+    source: FileHeader,
+    dest: FileHeader,
+    color: Image.Image | None = None,
+) -> tuple[LayerRecord, ChannelDataList]:
+    """Copy of *record* and *channels* stored the way *dest*'s document stores them.
+
+    Depth sets the bytes per sample and file version sets the width of an RLE
+    channel's row-length words, so a channel moved into a document that
+    differs in either is unpacked at *source*'s numbers and packed at *dest*'s.
+    The values are unchanged.
+
+    *color* is the layer's pixels already converted to *dest*'s colour mode,
+    with no alpha band and the size of the layer's rectangle. It replaces the
+    colour channels; the transparency and mask channels belong to no colour
+    mode and are repacked like the rest. Everything else on the record --
+    opacity, blend mode, mask and tagged blocks -- is kept.
+
+    Neither argument is modified.
+    """
+    record = copy.deepcopy(record)
+    channels = copy.deepcopy(channels)
+    for info, data in zip(record.channel_info, channels):
+        _repack_channel(record, info, data, source, dest)
+    if color is None:
+        return record, channels
+
+    depth = cast(Literal[1, 8, 16, 32], dest.depth)
+    painted: list[tuple[ChannelInfo, ChannelData]] = []
+    for index in range(pil_io.get_pil_channels(color.mode)):
+        data = ChannelData(_compression_for(Compression.RLE, depth))
+        data.set_data(
+            pil_io.encode_channel(color.getchannel(index), depth),
+            color.width,
+            color.height,
+            depth,
+            dest.version,
+        )
+        painted.append((ChannelInfo(id=ChannelID(index), length=data._length), data))
+    pairs: list[tuple[ChannelInfo, ChannelData]] = []
+    for info, data in zip(record.channel_info, channels):
+        if info.id >= 0:
+            pairs, painted = pairs + painted, []
+        else:
+            pairs.append((info, data))
+    pairs += painted
+    record.channel_info = [info for info, _ in pairs]
+    channels = ChannelDataList()
+    channels.extend(data for _, data in pairs)
+    return record, channels
 
 
 class Layer(LayerProtocol):
@@ -523,98 +660,6 @@ class Layer(LayerProtocol):
             header.version,
         )
         return channel_data, width, height
-
-    def _channel_geometry(self, channel_id: int) -> tuple[int, int] | None:
-        """The ``(width, height)`` a stored channel was compressed against.
-
-        A mask channel carries its own rectangle, and the user mask's is not
-        the real mask's. :py:attr:`Mask.width` cannot answer for both: it
-        reports the real rectangle whenever :py:meth:`Mask.has_real` says the
-        real mask's parameters are applied, which is a different question from
-        whether the real bounds exist -- ``vector-mask2.psd`` has a layer with
-        real bounds and ``has_real()`` false.
-
-        ``None`` where the rectangle is missing -- a mask channel with no mask
-        block, or a real-mask channel whose ``real_*`` bounds are unset, both
-        of which the format permits and neither of which can be decompressed.
-        """
-        if channel_id not in (
-            ChannelID.USER_LAYER_MASK,
-            ChannelID.REAL_USER_LAYER_MASK,
-        ):
-            return self.width, self.height
-        mask = self._record.mask_data
-        if mask is None:
-            return None
-        if channel_id == ChannelID.USER_LAYER_MASK:
-            return mask.right - mask.left, mask.bottom - mask.top
-        left, top = mask.real_left, mask.real_top
-        right, bottom = mask.real_right, mask.real_bottom
-        if left is None or top is None or right is None or bottom is None:
-            return None
-        return right - left, bottom - top
-
-    def _reencode_channels(self, source: FileHeader, dest: FileHeader) -> None:
-        """Repack every stored channel from *source*'s packing into *dest*'s.
-
-        Depth and file version are the two things about a document that decide
-        how a channel's bytes are laid out without changing what they mean:
-        depth sets the bytes per sample, and version sets the width of the
-        row-length words an RLE channel is prefixed with. A layer moved into a
-        document that differs in either carries bytes the destination's reader
-        cannot make sense of -- it reads half the rows it asked for, or reads
-        the row table as data -- so the channels are unpacked at the source's
-        numbers and packed again at the destination's.
-
-        The record is not rebuilt -- only each channel's declared length is
-        touched. That is the point: the values are unchanged and only their
-        packing moves, so the layer's opacity, blend mode, mask and tagged
-        blocks have no reason to be rebuilt along with them.
-
-        A channel that cannot be read is left exactly as it stands rather than
-        rewritten from what the codec returned. The codec has two ways of
-        failing and only one of them raises: the other *succeeds*, with black,
-        which is why the read promotes
-        :py:class:`~psd_tools.compression.PSDDecompressionWarning` to an error.
-        Repacking a black-filled channel would turn an unreadable channel into
-        a readable wrong one, and a move is the wrong place to do either.
-
-        ``catch_warnings()`` is process-global and not thread-safe; for the
-        length of the read another thread's decode warning is an error too.
-        The scope is one statement, as it is in
-        :py:func:`~psd_tools.api.numpy_io._stored_planes`.
-        """
-        for info, data in zip(self._record.channel_info, self._channels):
-            if len(data.data) == 0:
-                continue
-            geometry = self._channel_geometry(info.id)
-            if geometry is None:
-                continue
-            width, height = geometry
-            if width <= 0 or height <= 0:
-                continue
-            try:
-                with warnings.catch_warnings():
-                    warnings.simplefilter("error", PSDDecompressionWarning)
-                    raw = data.get_data(width, height, source.depth, source.version)
-                plane = numpy_io._parse_array(
-                    raw, cast(Literal[1, 8, 16, 32], source.depth), width
-                )
-                encoded = numpy_io._encode_array(
-                    plane, cast(Literal[1, 8, 16, 32], dest.depth), width
-                )
-            except (PSDDecompressionWarning, ValueError, TypeError, OSError) as e:
-                logger.warning(
-                    "Channel %s could not be re-encoded for depth %d; "
-                    "leaving it as stored: %s",
-                    info.id,
-                    dest.depth,
-                    e,
-                )
-                continue
-            data.compression = _compression_for(data.compression, dest.depth)
-            data.set_data(encoded, width, height, dest.depth, dest.version)
-            info.length = data._length
 
     def create_mask(
         self,
@@ -2392,38 +2437,28 @@ class PixelLayer(Layer):
     def _convert_mode(self, parent: GroupMixin) -> "PixelLayer":
         """Re-encode the layer's channels for *parent*'s document.
 
-        Three things about the destination decide how a channel is stored --
-        its colour mode, its depth and its file version -- and a move that
-        changes any of them leaves channels the destination cannot read. The
-        mode is handled by re-rendering through PIL; depth and version are
-        handled in place, because the bytes are the same values in a different
-        packing and PIL is not needed to repack them.
-
-        The PIL route rebuilds the layer record from scratch and so drops the
-        layer's opacity, blend mode, mask and tagged blocks; the in-place
-        route keeps them, and keeps more precision besides.
+        A move that changes the destination's colour mode, depth or file
+        version leaves channels it cannot read. See :py:func:`_reencoded`.
+        A colour mode change renders the layer through PIL for the colour
+        channels; the record is kept either way.
         """
         source = self._psd._record.header
         dest = parent._psd._record.header
+        color = None
         if self._needs_render(parent, source, dest):
-            # Get the current layer image.
             image = self.topil()
             if not isinstance(image, Image.Image):
                 raise ValueError("Failed to render the image for mode conversion.")
-            # Rebuild layer record and channels.
-            layer_record, channel_data_list = self._build_layer_record_and_channels(
-                image.convert(parent._psd.pil_mode),
-                self.name,
-                self.left,
-                self.top,
-                Compression.RLE,
-                version=dest.version,
-                depth=cast(Literal[1, 8, 16, 32], dest.depth),
+            color = image.convert(parent._psd.pil_mode.rstrip("A"))
+            if color.mode == "CMYK":
+                color = ImageChops.invert(color)
+        if color is not None or (source.depth, source.version) != (
+            dest.depth,
+            dest.version,
+        ):
+            self._record, self._channels = _reencoded(
+                self._record, self._channels, source, dest, color
             )
-            self._record = layer_record
-            self._channels = channel_data_list
-        elif (source.depth, source.version) != (dest.depth, dest.version):
-            self._reencode_channels(source, dest)
         return self
 
     def _needs_render(

@@ -30,6 +30,7 @@ import pytest
 from PIL import Image
 
 import psd_tools.api.numpy_io as numpy_io
+from psd_tools.api.layers import _reencoded
 from psd_tools.api.pil_io import encode_channel, encode_opaque_channel
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.compression import _row_size
@@ -318,25 +319,44 @@ def test_a_depth_only_move_keeps_the_layer_record() -> None:
     assert layer.has_mask()
 
 
-def test_a_cross_mode_move_still_rebuilds_the_record() -> None:
-    """A tripwire for a known defect, not a guarantee anyone wants.
-
-    The ``pil_mode`` branch replaces the layer record, so a move between
-    documents of different colour modes loses the layer's opacity, blend mode
-    and mask. #867 deliberately does not widen the set of moves that take that
-    branch; this pins the behaviour so the fix for it has to come here.
-    """
+@pytest.mark.parametrize("dest_depth", [8, 16])
+def test_a_cross_mode_move_keeps_the_layer_record(dest_depth: Literal[8, 16]) -> None:
     source = PSDImage.new("RGB", (16, 16), depth=8)
     layer = source.create_pixel_layer(_image(), name="L")
     layer.create_mask(Image.fromarray(MASK, "L"))
     layer.opacity = 77
     layer.blend_mode = BlendMode.MULTIPLY
 
-    PSDImage.new("CMYK", (16, 16), depth=8).append(layer)
+    PSDImage.new("CMYK", (16, 16), depth=dest_depth).append(layer)
 
-    assert layer.opacity == 255
-    assert layer.blend_mode == BlendMode.NORMAL
-    assert not layer.has_mask()
+    assert layer.opacity == 77
+    assert layer.blend_mode == BlendMode.MULTIPLY
+    assert layer.has_mask()
+    ids = [info.id for info in layer._record.channel_info]
+    assert ids == [-1, 0, 1, 2, 3, -2]
+    assert layer.mask is not None
+    mask = layer.mask.topil()
+    assert mask is not None
+    np.testing.assert_array_equal(np.asarray(mask), MASK)
+
+
+def test_reencoded_leaves_its_arguments_alone() -> None:
+    source = PSDImage.new("RGB", (16, 16), depth=8)
+    layer = source.create_pixel_layer(_image(), name="L")
+    layer.create_mask(Image.fromarray(MASK, "L"))
+    record, channels = layer._record, layer._channels
+    before = (record.channel_info[:], [c.data for c in channels])
+    dest = PSDImage.new("CMYK", (16, 16), depth=16)._record.header
+
+    new_record, new_channels = _reencoded(
+        record, channels, source._record.header, dest, _image().convert("CMYK")
+    )
+
+    assert new_record is not record
+    assert new_channels is not channels
+    assert (record.channel_info, [c.data for c in channels]) == before
+    assert [info.id for info in record.channel_info] == [-1, 0, 1, 2, -2]
+    assert [info.id for info in new_record.channel_info] == [-1, 0, 1, 2, 3, -2]
 
 
 def test_a_cross_mode_move_into_a_deep_document_uses_that_depth() -> None:
@@ -352,12 +372,12 @@ def test_a_cross_mode_move_into_a_deep_document_uses_that_depth() -> None:
     array = layer.numpy()
     assert array is not None
     assert array.shape[2] == 5  # CMYK plus transparency
-    # The values PIL's own RGB-to-CMYK conversion gives. Asserting them,
-    # rather than "something is non-zero", is what makes the depth-16 packing
-    # legible in the result.
-    converted = Image.fromarray(COLORS, "RGB").convert("CMYK")
-    expected_ink = np.asarray(converted, dtype=np.float32) / 255.0
-    np.testing.assert_allclose(array[:, :, :4], expected_ink, atol=1e-4)
+    # A layer created in the CMYK document directly is the oracle for what a
+    # moved one must read back as, inversion included.
+    direct = PSDImage.new("CMYK", (16, 16), depth=16).create_pixel_layer(_image())
+    ink = direct.numpy()
+    assert ink is not None
+    np.testing.assert_allclose(array[:, :, :4], ink[:, :, :4], atol=1e-4)
     np.testing.assert_allclose(array[:, :, 4], 1.0)
 
 
@@ -522,4 +542,4 @@ def test_narrowing_a_32bit_layer_still_tone_maps() -> None:
 
     array = layer.numpy()
     assert array is not None
-    np.testing.assert_allclose(array, expected, atol=1e-6)
+    np.testing.assert_allclose(array, expected[:, :, : array.shape[2]], atol=1e-6)
