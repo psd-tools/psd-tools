@@ -6,11 +6,12 @@ import pytest
 
 from psd_tools.api import pil_io, utils
 from psd_tools.api.psd_image import PSDImage
+from psd_tools.compression import decompress_row_peak_bytes
 from psd_tools.constants import ColorMode, Compression
 from psd_tools.psd.patterns import Pattern
 
 from ..utils import TEST_ROOT, full_name
-from .test_numpy_io import _forged_pattern
+from .test_numpy_io import _forged_pattern, _forged_pattern_of_size
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,26 @@ def test_the_pattern_budget_is_the_modelled_peak() -> None:
     assert pil_io.convert_pattern_to_pil(pattern, max_alloc_bytes=peak)
     with pytest.raises(ValueError, match="over the configured budget"):
         pil_io.convert_pattern_to_pil(pattern, max_alloc_bytes=peak - 1)
+
+
+def test_a_tall_narrow_pattern_is_charged_its_decoded_rows() -> None:
+    """The PIL pattern guard includes what one object per row costs.
+
+    A one-pixel-wide body sizes the codec's payload multiple at a fraction of
+    what the decode allocates, so a budget set at that estimate alone has to be
+    refused rather than admitted.
+    """
+    rows = 20000
+    pattern = _forged_pattern_of_size(1, rows, Compression.RLE)
+    written = sum(1 for c in pattern.data.channels if c.is_written)
+    payload_only = pil_io._pattern_peak_bytes(
+        1, rows, written, 8, pil_io._DECOMPRESS_PEAK[Compression.RLE]
+    )
+    with pytest.raises(ValueError, match="over the configured budget"):
+        pil_io.convert_pattern_to_pil(pattern, max_alloc_bytes=payload_only)
+
+    charged = payload_only + decompress_row_peak_bytes(Compression.RLE, rows)
+    assert pil_io.convert_pattern_to_pil(pattern, max_alloc_bytes=charged)
 
 
 def test_a_pattern_is_charged_its_decompression_phase() -> None:
