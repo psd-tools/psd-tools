@@ -477,3 +477,49 @@ def test_a_palette_image_carrying_transparency_info_is_not_indexed_for_alpha() -
     array = layer.numpy()
     assert array is not None
     np.testing.assert_allclose(array[:, :, 3], 1.0)
+
+
+@pytest.mark.parametrize(
+    ("source_file", "dest_file"),
+    [
+        ("layers/pixel-layer.psd", "16bit5x5.psd"),
+        ("16bit5x5.psd", "layers/pixel-layer.psd"),
+    ],
+)
+def test_a_move_between_documents_that_differ_only_in_alpha_is_exact(
+    source_file: str, dest_file: str
+) -> None:
+    """The documents' merged-image alpha is not the layer's packing (#872)."""
+    source = PSDImage.open(full_name(source_file))
+    destination = PSDImage.open(full_name(dest_file))
+    assert source.color_mode == destination.color_mode
+    assert source.pil_mode != destination.pil_mode
+    layer = next(layer for layer in source.descendants() if layer.kind == "pixel")
+    before = layer.numpy()
+    channels = len(layer._channels)
+    assert before is not None
+
+    destination.append(layer)
+
+    after = layer.numpy()
+    assert after is not None
+    assert len(layer._channels) == channels
+    # Narrowing to 8 bits rounds to the nearest of 255 steps.
+    np.testing.assert_allclose(after, before, atol=0.5 / 255 + 1e-6)
+
+
+def test_narrowing_a_32bit_layer_still_tone_maps() -> None:
+    """32-bit to 8-bit stays on the render route, which tone-maps like Photoshop."""
+    source = PSDImage.open(full_name("32bit5x5.psd"))
+    destination = PSDImage.open(full_name("layers/pixel-layer.psd"))
+    assert source.pil_mode != destination.pil_mode
+    layer = next(layer for layer in source.descendants() if layer.kind == "pixel")
+    image = layer.topil()
+    assert image is not None
+    expected = np.asarray(image.convert(destination.pil_mode), np.float32) / 255
+
+    destination.append(layer)
+
+    array = layer.numpy()
+    assert array is not None
+    np.testing.assert_allclose(array, expected, atol=1e-6)
