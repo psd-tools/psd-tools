@@ -10,6 +10,7 @@ from psd_tools.api.utils import check_pixel_size
 from psd_tools.composite import scanline
 from psd_tools.composite._compat import require_aggdraw
 from psd_tools.constants import StrokeAlignment
+from psd_tools.psd.vector import Knot
 
 if TYPE_CHECKING:
     from psd_tools.api.layers import Layer
@@ -420,8 +421,9 @@ def _draw_subpath(
     # report the same empty subpath twice over when both are asked for.
     drawable = []
     for subpath in subpath_list:
-        if len(subpath) <= 1:
-            logger.warning("not enough knots: %d", len(subpath))
+        count = sum(isinstance(x, Knot) for x in subpath)
+        if count <= 1:
+            logger.warning("not enough knots: %d", count)
         else:
             drawable.append(subpath)
 
@@ -482,7 +484,7 @@ def _flatten_subpath(subpath, width: int, height: int) -> np.ndarray:
     A closed one does not: its last curve returns to the first anchor, which
     the contour already starts from.
     """
-    knots = list(subpath)
+    knots = [x for x in subpath if isinstance(x, Knot)]
     closed = subpath.is_closed()
     pairs = list(zip(knots, knots[1:] + knots[:1] if closed else knots[1:]))
 
@@ -544,18 +546,19 @@ def _generate_symbol(
     command: str = "C",
 ) -> Generator[str | float, None, None]:
     """Sequence generator for SVG path."""
-    if len(path) == 0:
+    knots = [x for x in path if isinstance(x, Knot)]
+    if len(knots) == 0:
         return
 
     # Initial point.
     yield "M"
-    yield path[0].anchor[1] * width
-    yield path[0].anchor[0] * height
+    yield knots[0].anchor[1] * width
+    yield knots[0].anchor[0] * height
     yield command
 
     # Closed path or open path
     points = (
-        zip(path, path[1:] + path[0:1]) if path.is_closed() else zip(path, path[1:])
+        zip(knots, knots[1:] + knots[:1]) if path.is_closed() else zip(knots, knots[1:])
     )
 
     # Rest of the points.

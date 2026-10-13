@@ -17,6 +17,7 @@ from psd_tools.psd.descriptor import Descriptor, DescriptorBlock2
 from psd_tools.psd.vector import (
     ClipboardRecord,
     InitialFillRule,
+    Knot,
     Subpath,
     VectorMaskSetting,
     VectorStrokeContentSetting,
@@ -166,7 +167,7 @@ class VectorMask(object):
         ys: list[float] = []
 
         for path in self.paths:
-            knots = list(path)
+            knots = [k for k in path if isinstance(k, Knot)]
             if len(knots) == 0:
                 continue
             # For a single-knot open path there are no segments, but we still
