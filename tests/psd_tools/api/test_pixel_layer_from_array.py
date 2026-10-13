@@ -123,3 +123,15 @@ def test_out_of_range_floats_saturate_below_depth_32() -> None:
     array = np.full((3, 5, 3), 1.2, dtype=np.float32)
     out = _document("RGB", 16).create_pixel_layer_from_array(array).numpy("color")
     assert out is not None and np.all(out == 1.0)
+
+
+def test_depth_32_keeps_values_outside_the_unit_range(tmp_path: Path) -> None:
+    psd = _document("RGB", 32)
+    array = np.full((3, 5, 3), 1.2, dtype=np.float32)
+    array[0, 0, 0] = -0.25
+    psd.create_pixel_layer_from_array(array)
+    path = tmp_path / "hdr.psd"
+    psd.save(path)
+    out = PSDImage.open(path)[0].numpy("color")
+    assert out is not None
+    np.testing.assert_array_equal(out, array)

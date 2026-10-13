@@ -86,6 +86,7 @@ import copy
 import logging
 import operator
 import warnings
+from itertools import chain
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -2596,10 +2597,10 @@ class PixelLayer(Layer):
             transparency = pil_io.encode_opaque_channel(
                 image.width, image.height, depth
             )
-        colors = [
+        colors = (
             pil_io.encode_channel(image.getchannel(index), depth)
             for index in range(pil_io.get_pil_channels(image.mode.rstrip("A")))
-        ]
+        )
         return PixelLayer._assemble(
             transparency,
             colors,
@@ -2617,7 +2618,7 @@ class PixelLayer(Layer):
     @staticmethod
     def _assemble(
         transparency: bytes,
-        colors: list[bytes],
+        colors: Iterable[bytes],
         name: str,
         left: int,
         top: int,
@@ -2628,7 +2629,11 @@ class PixelLayer(Layer):
         depth: Literal[1, 8, 16, 32],
         **kwargs: Any,
     ) -> tuple[LayerRecord, ChannelDataList]:
-        """Pack encoded planes into a layer record, transparency first."""
+        """Pack encoded planes into a layer record, transparency first.
+
+        *colors* is consumed lazily so only one uncompressed plane is held
+        beside the compressed ones.
+        """
         layer_record = LayerRecord(
             top=top,
             left=left,
@@ -2640,8 +2645,10 @@ class PixelLayer(Layer):
         layer_record.name = name
         channel_data_list = ChannelDataList()
 
-        planes = [(ChannelID.TRANSPARENCY_MASK, transparency)]
-        planes += [(ChannelID(index), plane) for index, plane in enumerate(colors)]
+        planes = chain(
+            [(ChannelID.TRANSPARENCY_MASK, transparency)],
+            ((ChannelID(index), plane) for index, plane in enumerate(colors)),
+        )
         for channel_id, plane in planes:
             channel_data = ChannelData(compression)
             channel_data.set_data(plane, width, height, depth, version)
@@ -2720,10 +2727,10 @@ class PixelLayer(Layer):
             transparency = numpy_io._encode_array(values[:, :, planes], depth, width)
         else:
             transparency = pil_io.encode_opaque_channel(width, height, depth)
-        colors = [
+        colors = (
             numpy_io._encode_array(values[:, :, index], depth, width)
             for index in range(planes)
-        ]
+        )
         layer_record, channel_data_list = cls._assemble(
             transparency,
             colors,
