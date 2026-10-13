@@ -10,6 +10,8 @@ from psd_tools.api.layers import PixelLayer
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.constants import BlendMode, Compression
 
+from ..utils import full_name
+
 DEPTHS: tuple[Literal[8, 16, 32], ...] = (8, 16, 32)
 
 # Values no 8-bit step can hold at depth 16, so a layer narrowed on the way
@@ -135,3 +137,9 @@ def test_depth_32_keeps_values_outside_the_unit_range(tmp_path: Path) -> None:
     out = PSDImage.open(path)[0].numpy("color")
     assert out is not None
     np.testing.assert_array_equal(out, array)
+
+
+def test_indexed_document_is_rejected() -> None:
+    psd = PSDImage.open(full_name("colormodes/4x4_8bit_index_color.psd"))
+    with pytest.raises(ValueError, match="indexed"):
+        psd.create_pixel_layer_from_array(np.zeros((4, 4, 3), dtype=np.float32))

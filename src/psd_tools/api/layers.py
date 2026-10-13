@@ -2693,7 +2693,8 @@ class PixelLayer(Layer):
         :return: A :py:class:`~psd_tools.api.layers.PixelLayer` object
         :raises TypeError: If the array is not a float, ``uint8`` or ``uint16`` ``numpy.ndarray``
         :raises ValueError: If parent is None, or the array is empty,
-            non-finite, or of the wrong shape for the document's colour mode
+            non-finite, or of the wrong shape for the document's colour mode,
+            or the document is indexed
         """
         if not isinstance(array, np.ndarray):
             raise TypeError(f"Expected numpy.ndarray, got {type(array).__name__}")
@@ -2713,6 +2714,11 @@ class PixelLayer(Layer):
             raise ValueError(f"Expected a non-empty 2D or 3D array, got {array.shape}")
 
         psd = parent._psd
+        if psd.color_mode == ColorMode.INDEXED:
+            raise ValueError(
+                "An indexed document stores palette indices, not colors; "
+                "use create_pixel_layer() with a PIL image"
+            )
         planes = get_color_channels(psd)
         height, width, channels = values.shape
         if channels not in (planes, planes + 1):
