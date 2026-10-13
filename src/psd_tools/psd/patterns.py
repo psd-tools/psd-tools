@@ -4,9 +4,8 @@ Patterns structure.
 
 import io
 import logging
-from typing import IO, Any, TypeVar
+from typing import IO, Any, Self, TypeVar
 
-from typing_extensions import Self
 
 from attrs import define, field
 

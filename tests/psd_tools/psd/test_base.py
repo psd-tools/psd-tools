@@ -288,7 +288,7 @@ def test_numbers_interoperate_with_fractions() -> None:
     Only the integral side is constructible from: ``Fraction.__new__`` is
     type-gated on ``float``/``Decimal`` rather than duck-typing
     ``as_integer_ratio``, until 3.14 where it became duck-typed. So
-    ``Fraction(NumericElement(2.5))`` raises on 3.10 through 3.13 and succeeds
+    ``Fraction(NumericElement(2.5))`` raises on 3.11 through 3.13 and succeeds
     on 3.14 -- do not assert either way, it would split the CI matrix.
     """
     assert Fraction(1, 2) + NumericElement(2.5) == 3.0

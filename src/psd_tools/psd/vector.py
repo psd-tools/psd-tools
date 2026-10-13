@@ -3,9 +3,8 @@ Vector mask, path, and stroke structure.
 """
 
 import logging
-from typing import IO, Any, Sequence, TypeVar
+from typing import IO, Any, Self, Sequence, TypeVar
 
-from typing_extensions import Self
 
 from attrs import define, field, astuple
 

@@ -78,7 +78,7 @@ if Tag.UNICODE_LAYER_NAME in layer._record.tagged_blocks:
 
 ## Type Annotations
 
-New code uses type hints on all signatures and `typing_extensions.Self` for methods
+New code uses type hints on all signatures and `typing.Self` for methods
 returning their own class.
 
 `psd_tools.api` property getters return primitives, not descriptor wrappers, and `T | None`
