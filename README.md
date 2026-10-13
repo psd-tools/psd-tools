@@ -55,9 +55,9 @@ for advanced rendering features:
 
 Basic compositing works without these dependencies using cached previews or simple
 pixel-based operations. Note that the composite extra may not be available on all
-platforms. On Windows with Python 3.15, aggdraw builds from source; if the build
-fails to find FreeType, set the environment variable `AGGDRAW_FREETYPE_ROOT` to an
-empty value before installing.
+platforms. Where aggdraw has no wheel and builds from source on Windows, a build that
+fails to find FreeType succeeds with the environment variable `AGGDRAW_FREETYPE_ROOT`
+set to an empty value.
 
 ## Getting started
 
