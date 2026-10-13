@@ -11,7 +11,9 @@ Changelog
 - [api] ``paint.draw_gradient_fill``, ``draw_pattern_fill`` and
   ``create_fill_desc`` gain an optional ``anchor`` to lay the fill out on a box
   other than the one drawn (#824, #987)
-
+- [fix] ``PSDImage.new(..., depth=32)`` writes the ``hdrt`` color mode data
+  block Photoshop requires, so Photoshop can open the document instead of
+  rejecting it (#869)
 - [ci] Drop Python 3.10, which reaches end of life on 2026-10-31, and add
   Python 3.15. **Backward incompatible:** ``requires-python`` is now
   ``>=3.11``. ``typing-extensions`` is no longer a dependency. aggdraw

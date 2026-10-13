@@ -15,6 +15,12 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound="ColorModeData")
 
+# The ``hdrt`` (HDR toning) block Photoshop writes into every 32-bit document;
+# it rejects a 32-bit file whose color mode data lacks one (#869).
+HDRT_DEFAULT = bytes.fromhex(
+    "68647274000000033f000000000000020000000800440065006600610075006c00740000000200020000000000ff00ff010100000000000000004180000000000001000000003f800000"
+)
+
 
 @define(repr=False)
 class ColorModeData(ValueElement):
