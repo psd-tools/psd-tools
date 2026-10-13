@@ -340,6 +340,20 @@ def test_a_cross_mode_move_keeps_the_layer_record(dest_depth: Literal[8, 16]) ->
     np.testing.assert_array_equal(np.asarray(mask), MASK)
 
 
+@pytest.mark.parametrize("mode", ["RGB", "CMYK"])
+def test_a_mask_read_before_a_move_still_edits_the_record(mode: str) -> None:
+    source = PSDImage.new("RGB", (16, 16), depth=8)
+    layer = source.create_pixel_layer(_image(), name="L")
+    layer.create_mask(Image.fromarray(MASK, "L"))
+    assert layer.mask is not None
+
+    PSDImage.new(cast(Any, mode), (16, 16), depth=16).append(layer)
+    layer.mask.disabled = True
+
+    assert layer._record.mask_data is not None
+    assert layer._record.mask_data.flags.mask_disabled
+
+
 def test_reencoded_leaves_its_arguments_alone() -> None:
     source = PSDImage.new("RGB", (16, 16), depth=8)
     layer = source.create_pixel_layer(_image(), name="L")

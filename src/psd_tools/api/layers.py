@@ -2456,9 +2456,11 @@ class PixelLayer(Layer):
             dest.depth,
             dest.version,
         ):
-            self._record, self._channels = _reencoded(
+            record, self._channels = _reencoded(
                 self._record, self._channels, source, dest, color
             )
+            # The record object stays, so wrappers cached on it stay bound.
+            self._record.channel_info = record.channel_info
         return self
 
     def _needs_render(
