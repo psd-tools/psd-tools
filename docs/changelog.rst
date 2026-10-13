@@ -8,7 +8,7 @@ Changelog
   Python 3.15. **Backward incompatible:** ``requires-python`` is now
   ``>=3.11``. ``typing-extensions`` is no longer a dependency. aggdraw
   publishes no cp315 wheels, so the ``composite`` extra builds from source on
-  3.15, and does not build on Windows (#964, #978)
+  3.15 (#964, #978)
 - [api] ``PSDImage.new("1", ...)`` and ``frompil`` of mode ``"1"`` now build a
   depth-1 bitmap document, where ``new`` declared depth 8. Omitting ``depth``
   selects 1; any other depth is rejected for mode ``"1"``, and ``depth=1`` is

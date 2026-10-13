@@ -18,10 +18,6 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ['3.11', '3.12', '3.13', '3.14', '3.15']
-        exclude:
-          # aggdraw publishes no cp315 Windows wheel and its sdist does not build there
-          - os: windows-latest
-            python-version: '3.15'
 
     steps:
       - uses: actions/checkout@v7
@@ -33,6 +29,9 @@ jobs:
 
       - name: Install dependencies
         run: uv sync -p ${{ matrix.python-version }} --group dev
+        env:
+          # Without cp315 wheels, aggdraw builds from sdist; an empty root skips its freetype detection
+          AGGDRAW_FREETYPE_ROOT: ''
 
       - name: Run tests
         run: uv run pytest
