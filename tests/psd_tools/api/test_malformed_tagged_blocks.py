@@ -312,6 +312,8 @@ def test_a_vector_mask_bbox_ignores_non_knot_records() -> None:
 def test_a_forced_composite_skips_non_knot_records(
     filename: str, patches: dict[int, int]
 ) -> None:
+    if filename.startswith("descriptors/"):
+        pytest.importorskip("aggdraw")
     psd = _patched_document(filename, patches)
     for layer in psd.descendants():
         if layer.kind == "shape":
