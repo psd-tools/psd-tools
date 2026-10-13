@@ -10,6 +10,9 @@ Changelog
 - [fix] Moving a pixel layer into a document of a different colour mode keeps
   the layer's opacity, blend mode, mask and tagged blocks, and a layer moved
   into a CMYK document no longer reads back with inverted colours (#872, #990)
+- [fix] Moving a shape, type, fill, adjustment, smart object layer or group
+  into a document of a different colour mode, depth or file version
+  re-encodes its channels, so it no longer reads back corrupt (#872, #991)
 - [fix] A pattern or gradient vector stroke is laid out across the path, as
   Photoshop does, instead of a box grown by the stroke width. Affects
   composites of shape layers with a pattern or gradient stroke, most for wide

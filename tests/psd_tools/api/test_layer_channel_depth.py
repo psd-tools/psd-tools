@@ -23,6 +23,7 @@ bytes, so ``0x80, 0x80`` decodes to 0.50196 -- exactly the right answer -- and
 the first pixel or two of a flat layer read correct however it was packed.
 """
 
+import io
 from typing import Any, Literal, cast
 
 import numpy as np
@@ -557,3 +558,59 @@ def test_narrowing_a_32bit_layer_still_tone_maps() -> None:
     array = layer.numpy()
     assert array is not None
     np.testing.assert_allclose(array, expected[:, :, : array.shape[2]], atol=1e-6)
+
+
+@pytest.mark.parametrize("name", ["TEXT", "Color Fill 1", "Polygon 1"])
+@pytest.mark.parametrize(
+    "mode, depth, count", [("CMYK", 8, 4), ("L", 8, 1), ("RGB", 16, 3)]
+)
+def test_a_non_pixel_layer_move_re_encodes_its_channels(
+    name: str, mode: str, depth: Literal[8, 16], count: int
+) -> None:
+    source = PSDImage.open(full_name("adjustment-fillers.psd"))
+    layer = next(layer for layer in source.descendants() if layer.name == name)
+    had_pixels = layer.has_pixels()
+    opacity, blend, tags = layer.opacity, layer.blend_mode, len(layer.tagged_blocks)
+
+    dest = PSDImage.new(mode, (source.width, source.height), depth=depth)
+    dest.append(layer)
+
+    ids = [info.id for info in layer._record.channel_info]
+    assert [i for i in ids if i >= 0] == list(range(count))
+    assert (layer.opacity, layer.blend_mode) == (opacity, blend)
+    assert len(layer.tagged_blocks) == tags
+    assert layer.has_pixels() == had_pixels
+    if had_pixels:
+        array = layer.numpy("color")
+        assert array is not None
+        assert array.shape[2] == count
+
+
+def test_a_text_layer_keeps_its_pixels_across_a_depth_move() -> None:
+    source = PSDImage.open(full_name("adjustment-fillers.psd"))
+    layer = next(layer for layer in source.descendants() if layer.name == "TEXT")
+    before = layer.numpy("color")
+    assert before is not None
+
+    PSDImage.new("RGB", (source.width, source.height), depth=16).append(layer)
+
+    after = layer.numpy("color")
+    assert after is not None
+    np.testing.assert_allclose(after, before, atol=1e-6)
+
+
+def test_a_group_mask_survives_a_depth_move() -> None:
+    source = PSDImage.open(full_name("masks3.psd"))
+    group = next(layer for layer in source.descendants() if layer.name == "Group 1")
+    assert group.mask is not None
+    before = group.mask.topil()
+    assert before is not None
+
+    dest = PSDImage.new("RGB", (source.width, source.height), depth=16)
+    dest.append(group)
+    dest.save(io.BytesIO())
+
+    assert group.mask is not None
+    after = group.mask.topil()
+    assert after is not None
+    np.testing.assert_array_equal(np.asarray(after), np.asarray(before))
