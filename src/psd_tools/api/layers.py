@@ -2587,7 +2587,8 @@ class TypeLayer(Layer):
 
         .. note:: New-line character in Photoshop is ``'\r'``.
         """
-        return self._data.text_data.get(b"Txt ").value.rstrip("\x00")
+        item = self._data.text_data.get(b"Txt ")
+        return item.value.rstrip("\x00") if item is not None else ""
 
     @property
     def text_type(self) -> TextType | None:
@@ -2638,24 +2639,30 @@ class TypeLayer(Layer):
         return self._data.transform
 
     @property
-    def _engine_data(self) -> engine_data.EngineData | engine_data.EngineData2:
-        """Styling and resource information."""
-        return self._data.text_data.get(b"EngineData").value
+    def _engine_data(self) -> engine_data.Dict:
+        """Styling and resource information; empty if missing or unparsable."""
+        item = self._data.text_data.get(b"EngineData")
+        value = item.value if item is not None else None
+        return value if isinstance(value, engine_data.Dict) else engine_data.Dict()
+
+    def _engine_section(self, key: str) -> engine_data.Dict:
+        section = self._engine_data.get(key)
+        return section if isinstance(section, engine_data.Dict) else engine_data.Dict()
 
     @property
     def engine_dict(self) -> engine_data.Dict:
-        """Styling information dict."""
-        return self._engine_data.get("EngineDict")
+        """Styling information dict; empty if the engine data is unreadable."""
+        return self._engine_section("EngineDict")
 
     @property
     def resource_dict(self) -> engine_data.Dict:
         """Resource set."""
-        return self._engine_data.get("ResourceDict")
+        return self._engine_section("ResourceDict")
 
     @property
     def document_resources(self) -> engine_data.Dict:
         """Resource set relevant to the document."""
-        return self._engine_data.get("DocumentResources")
+        return self._engine_section("DocumentResources")
 
     @property
     def warp(self) -> DescriptorBlock | None:
