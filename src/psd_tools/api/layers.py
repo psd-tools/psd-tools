@@ -118,6 +118,7 @@ from psd_tools.api.mask import Mask
 from psd_tools.api.protocols import GroupMixinProtocol, LayerProtocol, PSDProtocol
 from psd_tools.api.shape import Origination, Stroke, VectorMask
 from psd_tools.api.smart_object import SmartObject
+from psd_tools.api.utils import get_color_channels
 from psd_tools.constants import (
     BlendMode,
     ChannelID,
@@ -973,6 +974,10 @@ class Layer(LayerProtocol):
         .. note:: Not all of the PSD image modes are supported in
             :py:class:`PIL.Image.Image`. For example, 'CMYK' mode cannot include
             alpha channel in PIL. In this case, topil drops alpha channel.
+
+        .. note:: PIL has no 16- or 32-bit RGB, CMYK or LAB mode, so a deep
+            layer comes back with 8 bits per channel. Use
+            :py:meth:`numpy` for the stored precision.
         """
         return pil_io.convert_layer_to_pil(self, channel, apply_icc)
 
@@ -1541,7 +1546,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         :param name: Name of the new layer.
         :param image: PIL Image object. On a 16- or 32-bit document the layer
             is stored at the document's depth, carrying the image's own 8-bit
-            precision; see :py:meth:`~psd_tools.api.layers.PixelLayer.frompil`.
+            precision; use :py:meth:`create_pixel_layer_from_array` to keep more.
         :param top: Top coordinate of the new layer.
         :param left: Left coordinate of the new layer.
         :param compression: Compression method for the layer image data.
@@ -1551,6 +1556,46 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         """
         layer = PixelLayer.frompil(
             image, parent=self, name=name, top=top, left=left, compression=compression
+        )
+        layer.opacity = opacity
+        layer.blend_mode = blend_mode
+        self._psd.mark_updated()
+        return layer
+
+    def create_pixel_layer_from_array(
+        self,
+        array: np.ndarray,
+        name: str = "Layer",
+        top: int = 0,
+        left: int = 0,
+        compression: Compression = Compression.RLE,
+        opacity: int = 255,
+        blend_mode: BlendMode = BlendMode.NORMAL,
+    ) -> "PixelLayer":
+        """
+        Create a new pixel layer from an array at the document's full precision.
+
+        Unlike :py:meth:`create_pixel_layer`, a 16- or 32-bit document keeps
+        more than 8 bits; see :py:meth:`~psd_tools.api.layers.PixelLayer.fromarray`
+        for the accepted arrays.
+
+        Example::
+
+            psdimage = PSDImage.new("RGB", (640, 480), depth=16)
+            array = np.random.rand(480, 640, 3).astype(np.float32)
+            layer = psdimage.create_pixel_layer_from_array(array)
+
+        :param array: ``float32`` in [0, 1], ``uint8`` or ``uint16`` array.
+        :param name: Name of the new layer.
+        :param top: Top coordinate of the new layer.
+        :param left: Left coordinate of the new layer.
+        :param compression: Compression method for the layer image data.
+        :param opacity: Opacity of the new layer (0-255).
+        :param blend_mode: Blend mode of the new layer, default is ``BlendMode.NORMAL``.
+        :return: The created :py:class:`~psd_tools.api.layers.PixelLayer` object.
+        """
+        layer = PixelLayer.fromarray(
+            array, parent=self, name=name, top=top, left=left, compression=compression
         )
         layer.opacity = opacity
         layer.blend_mode = blend_mode
@@ -2478,6 +2523,8 @@ class PixelLayer(Layer):
             :py:attr:`~psd_tools.api.psd_image.PSDImage.pil_mode` on the way
             in. The values are widened, not padded -- 128 becomes 32896 at
             depth 16 -- so the layer reads back as the image given here.
+            Use :py:meth:`~psd_tools.api.layers.PixelLayer.fromarray` to keep
+            more precision.
         """
         if not isinstance(image, Image.Image):
             raise TypeError(f"Expected PIL Image, got {type(image).__name__}")
@@ -2536,63 +2583,163 @@ class PixelLayer(Layer):
         wrote a 16- or 32-bit document a channel a half or a quarter of its
         declared length, and the layer read back empty (#867).
         """
-        # Initialize the layer record and channel data list.
-        layer_record = LayerRecord(
-            top=top,
-            left=left,
-            bottom=top + image.height,
-            right=left + image.width,
-            channel_info=[],
-            **kwargs,
-        )
-        channel_data_list = ChannelDataList()
-
-        # Set layer name.
-        layer_record.name = name
-
         compression = _compression_for(compression, depth)
 
-        # Transparency channel.
-        transparency_data = ChannelData(compression)
         # `getbands()` rather than `has_transparency_data`, which is also true
         # of a "P" image carrying an `info["transparency"]` key -- there is no
         # "A" band to index on one of those, so the lookup below raised.
         if "A" in image.getbands():
-            image_bytes = pil_io.encode_channel(
+            transparency = pil_io.encode_channel(
                 image.getchannel(image.getbands().index("A")), depth
             )
         else:
-            image_bytes = pil_io.encode_opaque_channel(image.width, image.height, depth)
-        transparency_data.set_data(
-            image_bytes,
+            transparency = pil_io.encode_opaque_channel(
+                image.width, image.height, depth
+            )
+        colors = [
+            pil_io.encode_channel(image.getchannel(index), depth)
+            for index in range(pil_io.get_pil_channels(image.mode.rstrip("A")))
+        ]
+        return PixelLayer._assemble(
+            transparency,
+            colors,
+            name,
+            left,
+            top,
             image.width,
             image.height,
-            depth,
+            compression,
             version,
+            depth,
+            **kwargs,
         )
-        transparency_info = ChannelInfo(
-            ChannelID.TRANSPARENCY_MASK, len(transparency_data.data) + 2
-        )
-        layer_record.channel_info.append(transparency_info)
-        channel_data_list.append(transparency_data)
 
-        # Color channels.
-        for channel_index in range(pil_io.get_pil_channels(image.mode.rstrip("A"))):
+    @staticmethod
+    def _assemble(
+        transparency: bytes,
+        colors: list[bytes],
+        name: str,
+        left: int,
+        top: int,
+        width: int,
+        height: int,
+        compression: Compression,
+        version: int,
+        depth: Literal[1, 8, 16, 32],
+        **kwargs: Any,
+    ) -> tuple[LayerRecord, ChannelDataList]:
+        """Pack encoded planes into a layer record, transparency first."""
+        layer_record = LayerRecord(
+            top=top,
+            left=left,
+            bottom=top + height,
+            right=left + width,
+            channel_info=[],
+            **kwargs,
+        )
+        layer_record.name = name
+        channel_data_list = ChannelDataList()
+
+        planes = [(ChannelID.TRANSPARENCY_MASK, transparency)]
+        planes += [(ChannelID(index), plane) for index, plane in enumerate(colors)]
+        for channel_id, plane in planes:
             channel_data = ChannelData(compression)
-            channel_data.set_data(
-                pil_io.encode_channel(image.getchannel(channel_index), depth),
-                image.width,
-                image.height,
-                depth,
-                version,
-            )
-            channel_info = ChannelInfo(
-                id=ChannelID(channel_index), length=len(channel_data.data) + 2
+            channel_data.set_data(plane, width, height, depth, version)
+            layer_record.channel_info.append(
+                ChannelInfo(channel_id, len(channel_data.data) + 2)
             )
             channel_data_list.append(channel_data)
-            layer_record.channel_info.append(channel_info)
-
         return layer_record, channel_data_list
+
+    @classmethod
+    def fromarray(
+        cls,
+        array: np.ndarray,
+        parent: GroupMixin,
+        name: str = "Layer",
+        top: int = 0,
+        left: int = 0,
+        compression: Compression = Compression.RLE,
+        **kwargs: Any,
+    ) -> "PixelLayer":
+        """
+        Create a PixelLayer from an array at the document's full precision.
+
+        The inverse of :py:meth:`~psd_tools.api.layers.Layer.numpy`: a layer
+        read back with ``numpy()`` returns the array given here, to the
+        precision of the document's depth.
+
+        :param array: ``(height, width, channels)`` array, or ``(height,
+            width)`` for a single channel. ``channels`` is the colour mode's
+            colour channel count, with one more for the layer's transparency;
+            a layer without it is opaque. Floating point values are in
+            [0, 1] (32-bit documents also keep values outside it); ``uint8``
+            and ``uint16`` are scaled by their maximum. Values are in the
+            stored convention ``numpy()`` returns, so a CMYK layer holds
+            255 for no ink.
+        :param parent: The parent group or PSDImage this layer belongs to.
+        :param name: The name of the layer. Defaults to "Layer"
+        :param top: Pixelwise offset from the top of the canvas for the new layer.
+        :param left: Pixelwise offset from the left of the canvas for the new layer.
+        :param compression: Compression algorithm to use for the data.
+
+        :return: A :py:class:`~psd_tools.api.layers.PixelLayer` object
+        :raises TypeError: If the array is not a float, ``uint8`` or ``uint16`` ``numpy.ndarray``
+        :raises ValueError: If parent is None, or the array is empty,
+            non-finite, or of the wrong shape for the document's colour mode
+        """
+        if not isinstance(array, np.ndarray):
+            raise TypeError(f"Expected numpy.ndarray, got {type(array).__name__}")
+        if parent is None:
+            raise ValueError("Parent cannot be None")
+        if array.dtype.kind == "f":
+            values = array.astype(np.float32)
+            if not np.isfinite(values).all():
+                raise ValueError("Array contains NaN or infinity")
+        elif array.dtype in (np.uint8, np.uint16):
+            values = array.astype(np.float32) / float(np.iinfo(array.dtype).max)
+        else:
+            raise TypeError(f"Unsupported dtype {array.dtype}; use float or uint8/16")
+        if values.ndim == 2:
+            values = values[:, :, np.newaxis]
+        if values.ndim != 3 or values.size == 0:
+            raise ValueError(f"Expected a non-empty 2D or 3D array, got {array.shape}")
+
+        psd = parent._psd
+        planes = get_color_channels(psd)
+        height, width, channels = values.shape
+        if channels not in (planes, planes + 1):
+            raise ValueError(
+                f"Expected {planes} or {planes + 1} channels for color mode "
+                f"{psd.color_mode.name}, got {channels}"
+            )
+        depth = cast(Literal[1, 8, 16, 32], psd._record.header.depth)
+        compression = _compression_for(compression, depth)
+
+        if channels > planes:
+            transparency = numpy_io._encode_array(values[:, :, planes], depth, width)
+        else:
+            transparency = pil_io.encode_opaque_channel(width, height, depth)
+        colors = [
+            numpy_io._encode_array(values[:, :, index], depth, width)
+            for index in range(planes)
+        ]
+        layer_record, channel_data_list = cls._assemble(
+            transparency,
+            colors,
+            name,
+            left,
+            top,
+            width,
+            height,
+            compression,
+            psd._record.header.version,
+            depth,
+            **kwargs,
+        )
+        self = cls(parent, layer_record, channel_data_list)
+        parent.append(self)
+        return self
 
 
 class SmartObjectLayer(Layer):

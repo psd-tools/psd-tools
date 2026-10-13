@@ -395,6 +395,19 @@ class GroupMixinProtocol(Protocol):
             """Create a pixel layer at the top of this container."""
             ...
 
+        def create_pixel_layer_from_array(
+            self,
+            array: np.ndarray,
+            name: str = ...,
+            top: int = ...,
+            left: int = ...,
+            compression: Compression = ...,
+            opacity: int = ...,
+            blend_mode: BlendMode = ...,
+        ) -> "PixelLayer":
+            """Create a pixel layer from an array at the top of this container."""
+            ...
+
         def create_group(
             self,
             layer_list: Iterable["Layer"] | None = ...,

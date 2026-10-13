@@ -94,6 +94,11 @@ To construct a layered PSD file from scratch::
     layer = group.create_pixel_layer(pil_image, name="Layer 1", top=0, left=0, opacity=255)
     psdimage.save('new_image.psd')
 
+A PIL image carries 8 bits per channel, so a pixel layer in a 16- or 32-bit document
+keeps more precision only when created from an array::
+
+    psdimage.create_pixel_layer_from_array(array, name="Deep layer")
+
 See the function documentation for further parameter explanations.
 
 :py:class:`~psd_tools.api.layers.Group` has internal layers::

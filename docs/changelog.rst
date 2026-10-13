@@ -4,6 +4,10 @@ Changelog
 1.25.0 (unreleased)
 -------------------
 
+- [api] Add ``create_pixel_layer_from_array()`` and ``PixelLayer.fromarray()``
+  to create a pixel layer from a ``float32``, ``uint8`` or ``uint16`` array, so
+  a layer in a 16- or 32-bit document is not limited to PIL's 8 bits (#871)
+
 - [fix] Moving a layer between documents of the same colour mode no longer
   re-renders it through PIL when only the documents' merged-image alpha
   differs, so the layer keeps its opacity, blend mode and mask (#872, #989)
