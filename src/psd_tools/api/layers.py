@@ -908,7 +908,7 @@ class Layer(LayerProtocol):
         color = None
         if self._needs_render(parent, source, dest):
             mode = parent._psd.pil_mode.rstrip("A")
-            if self.has_pixels():
+            if self.has_pixels() and not self.is_group():
                 image = self.topil()
                 if not isinstance(image, Image.Image):
                     raise ValueError("Failed to render the image for mode conversion.")
@@ -1039,7 +1039,7 @@ class Layer(LayerProtocol):
             return []
 
         # A detached layer has no siblings, so nothing clips to it.
-        parent: "GroupMixin" | None = self.parent  # type: ignore
+        parent: GroupMixin | None = self.parent  # type: ignore
         if parent is None:
             return []
         index = parent.index(self)
@@ -1812,8 +1812,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         for layer in self:
             # Update PSD reference if needed
             if layer._psd != self._psd:
-                if not isinstance(layer, GroupMixin):
-                    layer._convert_mode(self)
+                layer._convert_mode(self)
                 layer._psd._copy_patterns(self._psd)  # TODO: optimize
                 layer._psd = self._psd
             # Update parent reference
@@ -1887,7 +1886,7 @@ class Group(GroupMixin, Layer):
 
     def __init__(
         self,
-        parent: "GroupMixin",
+        parent: GroupMixin,
         record: LayerRecord,
         channels: ChannelDataList,
     ):
@@ -2108,7 +2107,7 @@ class Group(GroupMixin, Layer):
     @classmethod
     def new(
         cls,
-        parent: "GroupMixin",
+        parent: GroupMixin,
         name: str = "Group",
         open_folder: bool = True,
     ) -> Self:
@@ -2166,7 +2165,7 @@ class Group(GroupMixin, Layer):
     @classmethod
     def group_layers(
         cls,
-        parent: "GroupMixin",
+        parent: GroupMixin,
         layers: Sequence[Layer],
         name: str = "Group",
         open_folder: bool = True,
@@ -2409,7 +2408,7 @@ class PixelLayer(Layer):
     def frompil(
         cls,
         image: Image.Image,
-        parent: "GroupMixin",
+        parent: GroupMixin,
         name: str = "Layer",
         top: int = 0,
         left: int = 0,
