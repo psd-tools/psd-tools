@@ -855,8 +855,11 @@ def test_new_writes_hdrt_only_at_depth_32(
 ) -> None:
     psdimage = PSDImage.new("RGB", (8, 8), depth=depth)
     value = psdimage._record.color_mode_data.value
-    assert value.startswith(b"hdrt") == hdrt
-    assert (value == b"") == (not hdrt)
+    if hdrt:
+        reference = PSDImage.open(full_name("32bit5x5.psd"))
+        assert value == reference._record.color_mode_data.value
+    else:
+        assert value == b""
     buffer = io.BytesIO()
     psdimage.save(buffer)
     buffer.seek(0)
