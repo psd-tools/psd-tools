@@ -85,6 +85,7 @@ from psd_tools.psd.document import PSD
 from psd_tools.psd.parse_limits import ParseLimits
 from psd_tools.psd.header import FileHeader
 from psd_tools.psd.image_data import ImageData
+from psd_tools.psd.color_mode_data import HDRT_DEFAULT, ColorModeData
 from psd_tools.psd.image_resources import ImageResources
 from psd_tools.psd.layer_and_mask import (
     ChannelImageData,
@@ -162,10 +163,9 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         :return: A :py:class:`~psd_tools.api.psd_image.PSDImage` object.
 
         .. note::
-            Photoshop cannot open a document built at ``depth=32``. It writes
-            an ``hdrt`` block into the color mode data section of every 32-bit
-            document and rejects one that has none, which is what this builds.
-            psd-tools reads such a file back without trouble (#869).
+            A ``depth=32`` document carries the default ``hdrt`` (HDR toning)
+            block in its color mode data, which Photoshop requires of every
+            32-bit file (#869).
         """
         header = cls._make_header(mode, size, depth)
         # Strip alpha channel(s) from color for background_color since
@@ -187,6 +187,9 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         psdimage = cls(
             PSD(
                 header=header,
+                color_mode_data=ColorModeData(
+                    HDRT_DEFAULT if header.depth == 32 else b""
+                ),
                 image_data=image_data,
                 image_resources=ImageResources.new(),
             )

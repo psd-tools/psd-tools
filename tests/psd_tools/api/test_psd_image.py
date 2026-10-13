@@ -1,7 +1,8 @@
+import io
 import logging
 import pprint
 from pathlib import Path
-from typing import Any, Tuple, Union
+from typing import Any, Literal, Tuple, Union
 from unittest.mock import patch
 
 import numpy as np
@@ -846,3 +847,18 @@ def test_new_multichannel_accepts_a_sequence() -> None:
 
     # A scalar keeps working.
     assert PSDImage.new("MULTICHANNEL", (4, 4), color=0.5).background_color == 0.5
+
+
+@pytest.mark.parametrize("depth, hdrt", [(8, False), (16, False), (32, True)])
+def test_new_writes_hdrt_only_at_depth_32(
+    depth: Literal[8, 16, 32], hdrt: bool
+) -> None:
+    psdimage = PSDImage.new("RGB", (8, 8), depth=depth)
+    value = psdimage._record.color_mode_data.value
+    assert value.startswith(b"hdrt") == hdrt
+    assert (value == b"") == (not hdrt)
+    buffer = io.BytesIO()
+    psdimage.save(buffer)
+    buffer.seek(0)
+    reopened = PSDImage.open(buffer)
+    assert reopened._record.color_mode_data.value == value
