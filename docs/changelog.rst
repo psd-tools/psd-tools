@@ -4,6 +4,9 @@ Changelog
 1.25.0 (unreleased)
 -------------------
 
+- [fix] Moving a layer between documents of the same colour mode no longer
+  re-renders it through PIL when only the documents' merged-image alpha
+  differs, so the layer keeps its opacity, blend mode and mask (#872, #989)
 - [fix] A pattern or gradient vector stroke is laid out across the path, as
   Photoshop does, instead of a box grown by the stroke width. Affects
   composites of shape layers with a pattern or gradient stroke, most for wide

@@ -2399,18 +2399,13 @@ class PixelLayer(Layer):
         handled in place, because the bytes are the same values in a different
         packing and PIL is not needed to repack them.
 
-        Taking the in-place route wherever it applies is also what makes
-        widening this guard safe: the PIL route rebuilds the layer record from
-        scratch and so drops the layer's opacity, blend mode, mask and tagged
-        blocks, and it fires on exactly the moves it fired on before. The
-        depth- and version-only moves it now covers keep their record, and
-        keep more precision besides -- a 16-bit layer moved to a 32-bit
-        document carries 16 bits where ``topil()`` would have narrowed it
-        to 8.
+        The PIL route rebuilds the layer record from scratch and so drops the
+        layer's opacity, blend mode, mask and tagged blocks; the in-place
+        route keeps them, and keeps more precision besides.
         """
         source = self._psd._record.header
         dest = parent._psd._record.header
-        if parent._psd.pil_mode != self._psd.pil_mode:
+        if self._needs_render(parent, source, dest):
             # Get the current layer image.
             image = self.topil()
             if not isinstance(image, Image.Image):
@@ -2430,6 +2425,23 @@ class PixelLayer(Layer):
         elif (source.depth, source.version) != (dest.depth, dest.version):
             self._reencode_channels(source, dest)
         return self
+
+    def _needs_render(
+        self, parent: GroupMixin, source: FileHeader, dest: FileHeader
+    ) -> bool:
+        """Whether a move must re-render through PIL rather than repack in place.
+
+        The colour mode decides it. ``pil_mode`` also carries the document's
+        merged-image alpha, which says nothing about how a layer's channels
+        are packed, so it is not compared -- except when narrowing a 32-bit
+        layer, where only the render tone-maps the stored linear values the
+        way Photoshop's mode change does.
+        """
+        if source.color_mode != dest.color_mode:
+            return True
+        if source.depth == 32 and dest.depth != 32:
+            return parent._psd.pil_mode != self._psd.pil_mode
+        return False
 
     @staticmethod
     def _build_layer_record_and_channels(
