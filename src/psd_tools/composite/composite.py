@@ -176,6 +176,28 @@ _OVERLAY_DRAWS: dict[str, _OverlayDraw] = {
 }
 
 
+def _path_bbox(layer: Layer) -> tuple[int, int, int, int]:
+    """The box of the layer's vector mask in document pixels.
+
+    ``layer.bbox`` follows the layer record, which can be wider than the path.
+    A layer without a path to measure keeps ``layer.bbox``.
+    """
+    mask = layer.vector_mask if layer.has_vector_mask() else None
+    if mask is None or not any(len(path) for path in mask.paths):
+        return layer.bbox
+    left, top, right, bottom = mask.bbox
+    width, height = layer._psd.width, layer._psd.height
+    try:
+        return (
+            int(round(left * width)),
+            int(round(top * height)),
+            int(round(right * width)),
+            int(round(bottom * height)),
+        )
+    except (OverflowError, ValueError):
+        return layer.bbox
+
+
 def _vector_stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
     """``layer.bbox`` grown by the width of a centred or outer vector stroke.
 
@@ -2100,8 +2122,10 @@ class Compositor(object):
         """Get stroke source.
 
         The fill is drawn on the layer's box grown by the stroke width and
-        pasted onto this compositor's viewport. The coverage is rasterized
-        straight onto that viewport: a path is placed in document coordinates,
+        pasted onto this compositor's viewport, but laid out across the path's
+        own box: Photoshop maps a pattern's phase and a gradient's ramp across
+        the path whatever the width. The coverage is rasterized straight onto
+        that viewport: a path is placed in document coordinates,
         so asking for the viewport is what puts the stroke where the fill
         already is, whether or not the viewport happens to share the
         document's dimensions (#807).
@@ -2110,7 +2134,7 @@ class Compositor(object):
             raise ValueError("Layer does not have stroke data.")
         desc = layer.stroke._data
         try:
-            width = int(desc.get("strokeStyleLineWidth", 1.0))
+            width = math.ceil(desc.get("strokeStyleLineWidth", 1.0))
         except OverflowError as error:
             raise ValueError("Stroke width is not finite.") from error
         fill_bbox = cast(
@@ -2139,7 +2163,7 @@ class Compositor(object):
                 warn=False,
             )
         color, _ = paint.create_fill_desc(
-            layer, desc.get("strokeStyleContent"), fill_bbox
+            layer, desc.get("strokeStyleContent"), fill_bbox, _path_bbox(layer)
         )
         if color is None:
             raise ValueError(
