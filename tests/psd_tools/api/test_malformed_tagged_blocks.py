@@ -291,10 +291,11 @@ def test_a_stroke_with_unreadable_join_type_defaults() -> None:
 def test_a_smart_object_with_an_unreadable_id_raises_value_error() -> None:
     psd = _patched("layers-minimal/smartobject-layer.psd", 22588, 0xF8)
     layer = next(x for x in psd.descendants() if isinstance(x, SmartObjectLayer))
+    smart_object = layer.smart_object
+    with pytest.raises(ValueError, match="identifier"):
+        smart_object.unique_id
     with pytest.raises(ValueError):
-        layer.smart_object.unique_id
-    with pytest.raises(ValueError):
-        layer.smart_object.data
+        smart_object.data
 
 
 def test_an_external_smart_object_without_full_path_falls_back_to_rel_path(
@@ -306,3 +307,15 @@ def test_an_external_smart_object_without_full_path_falls_back_to_rel_path(
     (tmp_path / "linked-layer.png").write_bytes(b"png")
     with layer.smart_object.open(external_dir=tmp_path) as f:
         assert f.read() == b"png"
+
+
+def test_an_external_smart_object_without_any_path_raises_value_error() -> None:
+    psd = PSDImage.open(full_name("placedLayer.psd"))
+    layer = next(x for x in psd.descendants() if x.name == "linked-png")
+    assert isinstance(layer, SmartObjectLayer)
+    assert layer.smart_object._data is not None
+    linked_file = layer.smart_object._data.linked_file
+    for key in (b"fullPath", b"relPath"):
+        del linked_file[key]
+    with pytest.raises(ValueError, match="no readable path"):
+        layer.smart_object.data

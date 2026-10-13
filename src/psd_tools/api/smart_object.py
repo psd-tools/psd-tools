@@ -226,9 +226,11 @@ class SmartObject:
     @property
     def unique_id(self) -> str:
         """UUID of the object."""
+        if self._config is None:
+            raise ValueError("Smart object config not found")
         unique_id = self._read_unique_id()
         if unique_id is None:
-            raise ValueError("Smart object config not found")
+            raise ValueError("Smart object identifier not found")
         return unique_id
 
     @property
