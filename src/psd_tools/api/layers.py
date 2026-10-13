@@ -895,13 +895,22 @@ class Layer(LayerProtocol):
 
         return None
 
-    def _convert_mode(self, parent: "GroupMixin") -> Self:
-        """Re-encode the layer's channels for *parent*'s document.
+    def _apply_reencoded(self, converted: tuple[LayerRecord, ChannelDataList]) -> None:
+        """Store the result of :py:meth:`_reencode`; it cannot fail."""
+        record, self._channels = converted
+        # The record object stays, so wrappers cached on it stay bound.
+        self._record.channel_info = record.channel_info
+
+    def _reencode(
+        self, parent: "GroupMixin"
+    ) -> tuple[LayerRecord, ChannelDataList] | None:
+        """The layer's record and channels as *parent*'s document stores them.
 
         A move that changes the destination's colour mode, depth or file
         version leaves channels it cannot read. See :py:func:`_reencoded`.
         A colour mode change renders the layer through PIL for the colour
-        channels; the record is kept either way.
+        channels. ``None`` when nothing changes. The layer is not modified, so
+        a move can run this for every layer before it touches either tree.
         """
         source = self._psd._record.header
         dest = parent._psd._record.header
@@ -917,16 +926,12 @@ class Layer(LayerProtocol):
                 color = Image.new(mode, (0, 0))
             if color.mode == "CMYK":
                 color = ImageChops.invert(color)
-        if color is not None or (source.depth, source.version) != (
+        if color is None and (source.depth, source.version) == (
             dest.depth,
             dest.version,
         ):
-            record, self._channels = _reencoded(
-                self._record, self._channels, source, dest, color
-            )
-            # The record object stays, so wrappers cached on it stay bound.
-            self._record.channel_info = record.channel_info
-        return self
+            return None
+        return _reencoded(self._record, self._channels, source, dest, color)
 
     def _needs_render(
         self, parent: "GroupMixin", source: FileHeader, dest: FileHeader
@@ -1639,6 +1644,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
                 layer for index, layer in enumerate(pending) if last[id(layer)] == index
             ]
         self._check_insertion(pending)
+        converted = self._reencode_moved(pending)
         # Remove parent's reference to the layers.
         donors: list[GroupMixin] = []
         seen: set[int] = set()
@@ -1663,7 +1669,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
                     if donor._psd is not self._psd:
                         donor_psds.setdefault(id(donor._psd), donor._psd)
         self._layers.extend(pending)
-        self._update_children()
+        self._update_children(converted)
         self._psd._update_record()
         # The donor document keeps its own flat record list, and ``save()``
         # writes that list without rebuilding it, so a cross-document move that
@@ -1696,6 +1702,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         :raises ValueError: If attempting to add a group to itself.
         """
         self._check_insertion([layer])
+        converted = self._reencode_moved([layer])
         # Remove parent's reference to the layer.
         donor: GroupMixin | None = None
         donor_psd: PSDProtocol | None = None
@@ -1705,7 +1712,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
             if donor._psd is not self._psd:
                 donor_psd = donor._psd
         self._layers.insert(index, layer)
-        self._update_children()
+        self._update_children(converted)
         self._psd._update_record()
         # See ``extend()``: the donor document's record list is stale until it
         # is rebuilt too, and ``save()`` never rebuilds it (#841).
@@ -1807,18 +1814,44 @@ class GroupMixin(GroupMixinProtocol, Protocol):
                         f"within the group between {self} and {layer}"
                     )
 
-    def _update_children(self) -> None:
-        """Update children's _psd and _parent references."""
+    def _reencode_moved(
+        self, layers: Iterable[Layer]
+    ) -> dict[int, tuple[LayerRecord, ChannelDataList]]:
+        """Re-encode every moved layer, and its descendants, for this document.
+
+        Run before either tree changes, so a conversion that raises leaves both
+        documents as they were. Keyed by ``id(layer)``.
+        """
+        converted: dict[int, tuple[LayerRecord, ChannelDataList]] = {}
+        for layer in layers:
+            nodes = [layer]
+            if isinstance(layer, GroupMixin):
+                nodes.extend(layer.descendants())
+            for node in nodes:
+                if node._psd != self._psd:
+                    result = node._reencode(self)
+                    if result is not None:
+                        converted[id(node)] = result
+        return converted
+
+    def _update_children(
+        self, converted: dict[int, tuple[LayerRecord, ChannelDataList]]
+    ) -> None:
+        """Update children's _psd and _parent references.
+
+        *converted* is what :py:meth:`_reencode_moved` returned.
+        """
         for layer in self:
             # Update PSD reference if needed
             if layer._psd != self._psd:
-                layer._convert_mode(self)
+                if id(layer) in converted:
+                    layer._apply_reencoded(converted[id(layer)])
                 layer._psd._copy_patterns(self._psd)  # TODO: optimize
                 layer._psd = self._psd
             # Update parent reference
             layer._parent = self
             if isinstance(layer, GroupMixin):
-                layer._update_children()
+                layer._update_children(converted)
 
     def is_visible(self) -> bool:
         """Returns visibility of the element."""

@@ -10,7 +10,7 @@ the merged image data one.
 The same rule reaches three places: ``PixelLayer.frompil()`` and everything
 that calls it, ``create_mask()``/``update_mask()`` -- a mask is stored at the
 document's depth too, as the corpus's 16- and 32-bit masks show -- and
-``_convert_mode()``, which re-encodes a layer moved between documents and so
+``_reencode()``, which re-encodes a layer moved between documents and so
 has to consult the destination's depth and its file version.
 
 A note on what these assert. ``len(ChannelData.data)`` is the *compressed*
@@ -614,3 +614,32 @@ def test_a_group_mask_survives_a_depth_move() -> None:
     after = group.mask.topil()
     assert after is not None
     np.testing.assert_array_equal(np.asarray(after), np.asarray(before))
+
+
+@pytest.mark.parametrize("method", ["append", "extend", "insert"])
+@pytest.mark.parametrize("mode", ["L", "CMYK"])
+def test_a_failed_cross_document_move_changes_neither_document(
+    method: str, mode: str
+) -> None:
+    source = PSDImage.open(full_name("descriptors/lab-color-swatches.psd"))
+    pixel = next(layer for layer in source if layer.kind == "pixel")
+    group = source.create_group([pixel], name="group")
+    empty = source.create_group(name="empty")
+    tops = list(source)
+    dest = PSDImage.new(mode, source.size)
+    kept = [info.id for info in empty._record.channel_info]
+
+    with pytest.raises(ValueError, match="LAB"):
+        if method == "insert":
+            dest.insert(0, group)
+        elif method == "append":
+            dest.append(group)
+        else:
+            dest.extend([empty, group])
+
+    assert len(dest) == 0
+    assert list(source) == tops
+    assert list(group) == [pixel]
+    assert (pixel.parent, group.parent, empty.parent) == (group, source, source)
+    assert pixel._psd is group._psd is empty._psd is source
+    assert [info.id for info in empty._record.channel_info] == kept
