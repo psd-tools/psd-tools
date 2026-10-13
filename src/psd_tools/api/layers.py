@@ -2538,6 +2538,13 @@ class SmartObjectLayer(Layer):
         return self._smart_object
 
 
+def _engine_path(node: Any, *keys: str) -> Any:
+    """Follow ``keys`` through engine dicts; ``None`` if any step is not one."""
+    for key in keys:
+        node = node.get(key) if isinstance(node, engine_data.Dict) else None
+    return node
+
+
 class TypeLayer(Layer):
     """
     Layer that has text and styling information for fonts or paragraphs.
@@ -2587,7 +2594,9 @@ class TypeLayer(Layer):
 
         .. note:: New-line character in Photoshop is ``'\r'``.
         """
-        return self._data.text_data.get(b"Txt ").value.rstrip("\x00")
+        item = self._data.text_data.get(b"Txt ")
+        value = item.value if item is not None else None
+        return value.rstrip("\x00") if isinstance(value, str) else ""
 
     @property
     def text_type(self) -> TextType | None:
@@ -2603,16 +2612,11 @@ class TypeLayer(Layer):
 
         See :py:class:`psd_tools.constants.TextType`.
         """
-        shapes = (
-            self._engine_data.get("EngineDict", {})
-            .get("Rendered", {})
-            .get("Shapes", {})
-            .get("Children", {})
-        )
+        shapes = _engine_path(self.engine_dict, "Rendered", "Shapes", "Children")
+        if not isinstance(shapes, engine_data.List):
+            shapes = []
         if len(shapes) == 1:
-            text_type = (
-                shapes[0].get("Cookie", {}).get("Photoshop", {}).get("ShapeType", {})
-            )
+            text_type = _engine_path(shapes[0], "Cookie", "Photoshop", "ShapeType")
             if text_type in (0, 1):
                 return TextType.POINT if text_type == 0 else TextType.PARAGRAPH
             else:
@@ -2638,24 +2642,30 @@ class TypeLayer(Layer):
         return self._data.transform
 
     @property
-    def _engine_data(self) -> engine_data.EngineData | engine_data.EngineData2:
-        """Styling and resource information."""
-        return self._data.text_data.get(b"EngineData").value
+    def _engine_data(self) -> engine_data.Dict:
+        """Styling and resource information; empty if missing or unparsable."""
+        item = self._data.text_data.get(b"EngineData")
+        value = item.value if item is not None else None
+        return value if isinstance(value, engine_data.Dict) else engine_data.Dict()
+
+    def _engine_section(self, key: str) -> engine_data.Dict:
+        section = self._engine_data.get(key)
+        return section if isinstance(section, engine_data.Dict) else engine_data.Dict()
 
     @property
     def engine_dict(self) -> engine_data.Dict:
-        """Styling information dict."""
-        return self._engine_data.get("EngineDict")
+        """Styling information dict; empty if the engine data is unreadable."""
+        return self._engine_section("EngineDict")
 
     @property
     def resource_dict(self) -> engine_data.Dict:
         """Resource set."""
-        return self._engine_data.get("ResourceDict")
+        return self._engine_section("ResourceDict")
 
     @property
     def document_resources(self) -> engine_data.Dict:
         """Resource set relevant to the document."""
-        return self._engine_data.get("DocumentResources")
+        return self._engine_section("DocumentResources")
 
     @property
     def warp(self) -> DescriptorBlock | None:

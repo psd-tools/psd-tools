@@ -27,6 +27,10 @@ Changelog
   peak is over ``max_alloc_bytes`` instead of passing on a payload-only
   estimate. A document whose two estimates straddle your budget now raises
   (#926, #973)
+- [fix] ``TypeLayer`` no longer raises ``AttributeError`` when its text data
+  is malformed. ``text`` is empty and ``engine_dict``, ``resource_dict`` and
+  ``document_resources`` are empty dicts when the data is missing or
+  unreadable, as with ``typesetting`` and ``font_names`` (#980)
 
 1.24.0 (2026-10-06)
 -------------------

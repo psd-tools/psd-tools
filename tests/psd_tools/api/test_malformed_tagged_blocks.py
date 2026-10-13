@@ -10,7 +10,8 @@ import pytest
 from psd_tools import PSDImage
 from psd_tools.api.layers import Artboard, SmartObjectLayer, TypeLayer
 from psd_tools.api.smart_object import SmartObject
-from psd_tools.constants import Tag
+from psd_tools.constants import Tag, TextType
+from psd_tools.psd.engine_data import Integer, Property
 from psd_tools.psd.tagged_blocks import TaggedBlock
 
 from ..utils import full_name
@@ -175,3 +176,64 @@ def test_a_malformed_first_effects_block_does_not_hide_a_valid_one() -> None:
     )
 
     assert len(list(layer.effects)) == expected
+
+
+def _patched_type_layers(filename: str, offset: int, value: int) -> list[TypeLayer]:
+    data = bytearray(open(full_name(filename), "rb").read())
+    data[offset] = value
+    psd = PSDImage.open(io.BytesIO(data))
+    layers = [x for x in psd.descendants() if isinstance(x, TypeLayer)]
+    assert layers
+    return layers
+
+
+@pytest.mark.parametrize(
+    "filename, offset, value",
+    [
+        ("clip-adjustment.psd", 21766, 0x07),
+        ("transparency/fill-opacity.psd", 28844, 0x41),
+        ("masks.psd", 57869, 0xDF),
+    ],
+)
+def test_a_type_layer_with_unreadable_text_data_degrades(
+    filename: str, offset: int, value: int
+) -> None:
+    for layer in _patched_type_layers(filename, offset, value):
+        assert isinstance(layer.text, str)
+        assert layer.text_type in (None, *TextType)
+        layer.engine_dict, layer.resource_dict, layer.document_resources
+        assert isinstance(layer.font_names, list)
+        layer.typesetting
+
+
+def test_a_type_layer_without_engine_data_has_empty_dicts() -> None:
+    layers = _patched_type_layers("transparency/fill-opacity.psd", 28844, 0x41)
+    for layer in layers:
+        assert not layer.engine_dict
+        assert not layer.resource_dict
+        assert not layer.document_resources
+        assert layer.text_type is None
+        assert layer.font_names == []
+
+
+def test_a_type_layer_without_text_has_empty_text() -> None:
+    layers = _patched_type_layers("masks.psd", 57869, 0xDF)
+    assert [layer.text for layer in layers].count("") >= 1
+
+
+def _type_layer() -> TypeLayer:
+    psd = PSDImage.open(full_name("clip-adjustment.psd"))
+    return next(x for x in psd.descendants() if isinstance(x, TypeLayer))
+
+
+def test_a_type_layer_with_a_non_string_text_has_empty_text() -> None:
+    layer = _type_layer()
+    layer._data.text_data[b"Txt "].value = 5
+    assert layer.text == ""
+
+
+def test_a_type_layer_with_a_scalar_engine_dict_degrades() -> None:
+    layer = _type_layer()
+    layer._data.text_data[b"EngineData"].value[Property("EngineDict")] = Integer(1)
+    assert not layer.engine_dict
+    assert layer.text_type is None
