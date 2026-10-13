@@ -31,6 +31,13 @@ Changelog
   is malformed. ``text`` is empty and ``engine_dict``, ``resource_dict`` and
   ``document_resources`` are empty dicts when the data is missing or
   unreadable, as with ``typesetting`` and ``font_names`` (#980)
+- [fix] ``ShapeLayer.bbox``, ``Stroke.line_width``, ``line_cap_type`` and
+  ``line_join_type``, and ``SmartObject.unique_id``, ``data`` and ``open()`` no
+  longer raise ``AttributeError``, ``TypeError`` or ``KeyError`` when a
+  descriptor key is missing. A shape
+  falls back to its vector mask bbox, ``Stroke`` to Photoshop's defaults (width
+  1, ``butt`` cap, ``miter`` join), and an external smart object to ``relPath``;
+  one with no readable id or path raises ``ValueError`` (#981)
 
 1.24.0 (2026-10-06)
 -------------------

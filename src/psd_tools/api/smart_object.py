@@ -8,6 +8,7 @@ import logging
 import os
 from typing import IO, Iterator
 
+from psd_tools.api._descriptor import get_scalar
 from psd_tools.api.protocols import LayerProtocol
 from psd_tools.constants import Tag
 
@@ -75,7 +76,8 @@ class SmartObject:
                 break
 
         self._data = None
-        if layer._psd.tagged_blocks is not None:
+        unique_id = self._read_unique_id()
+        if unique_id is not None and layer._psd.tagged_blocks is not None:
             for key in (
                 Tag.LINKED_LAYER1,
                 Tag.LINKED_LAYER2,
@@ -85,7 +87,7 @@ class SmartObject:
                 data = layer._psd.tagged_blocks.get_data(key)
                 if data is not None:
                     for item in data:
-                        if item.uuid == self.unique_id:
+                        if item.uuid == unique_id:
                             self._data = item
                             break
                     if self._data:
@@ -162,7 +164,8 @@ class SmartObject:
                     external_dir if external_dir is not None else os.getcwd()
                 )
             )
-            filepath = self._data.linked_file[b"fullPath"].value
+            linked_file = self._data.linked_file
+            filepath = get_scalar(linked_file, b"fullPath", str, "")
             filepath = filepath.replace("\x00", "").replace("file://", "")
             if safe_dir is not None and filepath:
                 resolved = os.path.realpath(filepath)
@@ -174,8 +177,10 @@ class SmartObject:
                     # fullPath escapes safe_dir — fall through to relPath
                     filepath = ""
             if not filepath or not os.path.exists(filepath):
-                relpath = self._data.linked_file[b"relPath"].value
+                relpath = get_scalar(linked_file, b"relPath", str, "")
                 relpath = relpath.replace("\x00", "")
+                if not relpath:
+                    raise ValueError("External smart object has no readable path")
                 if safe_dir is not None:
                     filepath = os.path.realpath(os.path.join(safe_dir, relpath))
                     if not _is_inside(safe_dir, filepath):
@@ -212,12 +217,19 @@ class SmartObject:
             with self.open() as f:
                 return f.read()
 
+    def _read_unique_id(self) -> str | None:
+        if self._config is None:
+            return None
+        value = get_scalar(self._config.data, b"Idnt", str, None)
+        return None if value is None else value.strip("\x00")
+
     @property
     def unique_id(self) -> str:
         """UUID of the object."""
-        if self._config is None:
+        unique_id = self._read_unique_id()
+        if unique_id is None:
             raise ValueError("Smart object config not found")
-        return self._config.data.get(b"Idnt").value.strip("\x00")
+        return unique_id
 
     @property
     def filesize(self) -> int:
