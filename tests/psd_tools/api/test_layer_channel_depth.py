@@ -557,3 +557,29 @@ def test_narrowing_a_32bit_layer_still_tone_maps() -> None:
     array = layer.numpy()
     assert array is not None
     np.testing.assert_allclose(array, expected[:, :, : array.shape[2]], atol=1e-6)
+
+
+@pytest.mark.parametrize("name", ["TEXT", "Color Fill 1", "Polygon 1"])
+@pytest.mark.parametrize(
+    "mode, depth, count", [("CMYK", 8, 4), ("L", 8, 1), ("RGB", 16, 3)]
+)
+def test_a_non_pixel_layer_move_re_encodes_its_channels(
+    name: str, mode: str, depth: Literal[8, 16], count: int
+) -> None:
+    source = PSDImage.open(full_name("adjustment-fillers.psd"))
+    layer = next(layer for layer in source.descendants() if layer.name == name)
+    had_pixels = layer.has_pixels()
+    opacity, blend, tags = layer.opacity, layer.blend_mode, len(layer.tagged_blocks)
+
+    dest = PSDImage.new(mode, (source.width, source.height), depth=depth)
+    dest.append(layer)
+
+    ids = [info.id for info in layer._record.channel_info]
+    assert [i for i in ids if i >= 0] == list(range(count))
+    assert (layer.opacity, layer.blend_mode) == (opacity, blend)
+    assert len(layer.tagged_blocks) == tags
+    assert layer.has_pixels() == had_pixels
+    if had_pixels:
+        array = layer.numpy("color")
+        assert array is not None
+        assert array.shape[2] == count

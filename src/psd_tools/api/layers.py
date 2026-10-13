@@ -895,6 +895,56 @@ class Layer(LayerProtocol):
 
         return None
 
+    def _convert_mode(self, parent: "GroupMixin") -> Self:
+        """Re-encode the layer's channels for *parent*'s document.
+
+        A move that changes the destination's colour mode, depth or file
+        version leaves channels it cannot read. See :py:func:`_reencoded`.
+        A colour mode change renders the layer through PIL for the colour
+        channels; the record is kept either way.
+        """
+        source = self._psd._record.header
+        dest = parent._psd._record.header
+        color = None
+        if self._needs_render(parent, source, dest):
+            mode = parent._psd.pil_mode.rstrip("A")
+            if self.has_pixels():
+                image = self.topil()
+                if not isinstance(image, Image.Image):
+                    raise ValueError("Failed to render the image for mode conversion.")
+                color = image.convert(mode)
+            else:
+                color = Image.new(mode, (0, 0))
+            if color.mode == "CMYK":
+                color = ImageChops.invert(color)
+        if color is not None or (source.depth, source.version) != (
+            dest.depth,
+            dest.version,
+        ):
+            record, self._channels = _reencoded(
+                self._record, self._channels, source, dest, color
+            )
+            # The record object stays, so wrappers cached on it stay bound.
+            self._record.channel_info = record.channel_info
+        return self
+
+    def _needs_render(
+        self, parent: "GroupMixin", source: FileHeader, dest: FileHeader
+    ) -> bool:
+        """Whether a move must re-render through PIL rather than repack in place.
+
+        The colour mode decides it. ``pil_mode`` also carries the document's
+        merged-image alpha, which says nothing about how a layer's channels
+        are packed, so it is not compared -- except when narrowing a 32-bit
+        layer, where only the render tone-maps the stored linear values the
+        way Photoshop's mode change does.
+        """
+        if source.color_mode != dest.color_mode:
+            return True
+        if source.depth == 32 and dest.depth != 32:
+            return parent._psd.pil_mode != self._psd.pil_mode
+        return False
+
     def topil(
         self, channel: int | None = None, apply_icc: bool = True
     ) -> Image.Image | None:
@@ -989,7 +1039,7 @@ class Layer(LayerProtocol):
             return []
 
         # A detached layer has no siblings, so nothing clips to it.
-        parent: GroupMixin | None = self.parent  # type: ignore
+        parent: "GroupMixin" | None = self.parent  # type: ignore
         if parent is None:
             return []
         index = parent.index(self)
@@ -1762,7 +1812,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         for layer in self:
             # Update PSD reference if needed
             if layer._psd != self._psd:
-                if isinstance(layer, PixelLayer):
+                if not isinstance(layer, GroupMixin):
                     layer._convert_mode(self)
                 layer._psd._copy_patterns(self._psd)  # TODO: optimize
                 layer._psd = self._psd
@@ -1837,7 +1887,7 @@ class Group(GroupMixin, Layer):
 
     def __init__(
         self,
-        parent: GroupMixin,
+        parent: "GroupMixin",
         record: LayerRecord,
         channels: ChannelDataList,
     ):
@@ -2058,7 +2108,7 @@ class Group(GroupMixin, Layer):
     @classmethod
     def new(
         cls,
-        parent: GroupMixin,
+        parent: "GroupMixin",
         name: str = "Group",
         open_folder: bool = True,
     ) -> Self:
@@ -2116,7 +2166,7 @@ class Group(GroupMixin, Layer):
     @classmethod
     def group_layers(
         cls,
-        parent: GroupMixin,
+        parent: "GroupMixin",
         layers: Sequence[Layer],
         name: str = "Group",
         open_folder: bool = True,
@@ -2359,7 +2409,7 @@ class PixelLayer(Layer):
     def frompil(
         cls,
         image: Image.Image,
-        parent: GroupMixin,
+        parent: "GroupMixin",
         name: str = "Layer",
         top: int = 0,
         left: int = 0,
@@ -2435,52 +2485,6 @@ class PixelLayer(Layer):
             )
 
         return self
-
-    def _convert_mode(self, parent: GroupMixin) -> "PixelLayer":
-        """Re-encode the layer's channels for *parent*'s document.
-
-        A move that changes the destination's colour mode, depth or file
-        version leaves channels it cannot read. See :py:func:`_reencoded`.
-        A colour mode change renders the layer through PIL for the colour
-        channels; the record is kept either way.
-        """
-        source = self._psd._record.header
-        dest = parent._psd._record.header
-        color = None
-        if self._needs_render(parent, source, dest):
-            image = self.topil()
-            if not isinstance(image, Image.Image):
-                raise ValueError("Failed to render the image for mode conversion.")
-            color = image.convert(parent._psd.pil_mode.rstrip("A"))
-            if color.mode == "CMYK":
-                color = ImageChops.invert(color)
-        if color is not None or (source.depth, source.version) != (
-            dest.depth,
-            dest.version,
-        ):
-            record, self._channels = _reencoded(
-                self._record, self._channels, source, dest, color
-            )
-            # The record object stays, so wrappers cached on it stay bound.
-            self._record.channel_info = record.channel_info
-        return self
-
-    def _needs_render(
-        self, parent: GroupMixin, source: FileHeader, dest: FileHeader
-    ) -> bool:
-        """Whether a move must re-render through PIL rather than repack in place.
-
-        The colour mode decides it. ``pil_mode`` also carries the document's
-        merged-image alpha, which says nothing about how a layer's channels
-        are packed, so it is not compared -- except when narrowing a 32-bit
-        layer, where only the render tone-maps the stored linear values the
-        way Photoshop's mode change does.
-        """
-        if source.color_mode != dest.color_mode:
-            return True
-        if source.depth == 32 and dest.depth != 32:
-            return parent._psd.pil_mode != self._psd.pil_mode
-        return False
 
     @staticmethod
     def _build_layer_record_and_channels(
