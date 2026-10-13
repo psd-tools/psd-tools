@@ -4,6 +4,12 @@ Changelog
 1.25.0 (unreleased)
 -------------------
 
+- [fix] A pattern or gradient vector stroke is laid out across the path, as
+  Photoshop does, instead of a box grown by the stroke width. Affects
+  composites of shape layers with a pattern or gradient stroke, most for wide
+  strokes. ``paint.draw_gradient_fill`` and ``draw_pattern_fill`` gain an
+  optional ``anchor`` (#824)
+
 - [ci] Drop Python 3.10, which reaches end of life on 2026-10-31, and add
   Python 3.15. **Backward incompatible:** ``requires-python`` is now
   ``>=3.11``. ``typing-extensions`` is no longer a dependency. aggdraw

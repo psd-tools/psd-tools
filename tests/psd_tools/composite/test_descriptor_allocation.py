@@ -307,7 +307,7 @@ def test_a_gradient_vector_stroke_fill_is_checked_at_its_own_peak(
     monkeypatch.setattr(
         paint,
         "create_fill_desc",
-        lambda layer, desc, viewport: (
+        lambda layer, desc, viewport, anchor=None: (
             np.zeros((viewport[3] - viewport[1], viewport[2] - viewport[0], 3)),
             None,
         ),
