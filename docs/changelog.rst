@@ -38,7 +38,7 @@ Changelog
   ``relPath``, or raise ``ValueError`` when nothing is readable (#981, #984)
 - [fix] ``VectorMask.bbox`` and forced vector rendering (``composite(force=True)``)
   no longer raise ``AttributeError`` when a subpath holds records that are not
-  knots. They skip those records (#982)
+  knots. They skip those records (#982, #986)
 
 1.24.0 (2026-10-06)
 -------------------
