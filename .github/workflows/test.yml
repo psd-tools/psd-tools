@@ -18,6 +18,10 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ['3.11', '3.12', '3.13', '3.14', '3.15']
+        exclude:
+          # aggdraw publishes no cp315 Windows wheel and its sdist does not build there
+          - os: windows-latest
+            python-version: '3.15'
 
     steps:
       - uses: actions/checkout@v7
