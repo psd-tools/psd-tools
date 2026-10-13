@@ -64,10 +64,8 @@ def test_a_string_expression_that_is_not_a_docstring_is_not_counted(
 def test_comments_in_an_indented_method_are_counted(tmp_path: Path) -> None:
     """A method body arrives indented; the count must survive that.
 
-    ``tokenize`` accepts a leading-indented snippet on every supported Python
-    (3.10 through 3.14 all count it correctly, and every function in ``src``
-    tokenizes identically with and without a dedent), but the tool dedents
-    first so the result cannot depend on that.
+    ``tokenize`` accepts a leading-indented snippet on every supported Python,
+    but the tool dedents first so the result cannot depend on that.
     """
     source = (
         "class C:\n"
