@@ -94,13 +94,13 @@ from typing import (
     Iterator,
     Literal,
     Protocol,
+    Self,
     Sequence,
     TypeVar,
     cast,
     runtime_checkable,
 )
 
-from typing_extensions import Self
 
 if TYPE_CHECKING:
     from psd_tools.api.typesetting import TypeSetting

@@ -59,9 +59,8 @@ def _comment_lines(source: str, where: str) -> int:
     """Comment tokens in *source*, counted once per line.
 
     *source* is dedented first. A method's body arrives indented, which
-    ``tokenize`` accepts on every supported Python -- 3.10 through 3.14 all
-    count it correctly, and all 1348 functions in ``src`` tokenize identically
-    with and without the dedent -- so this is insurance rather than a fix.
+    ``tokenize`` accepts on every supported Python, so this is insurance
+    rather than a fix.
 
     A snippet that cannot be tokenized is reported rather than counted as zero:
     silently scoring an unmeasurable function as having no prose is the one

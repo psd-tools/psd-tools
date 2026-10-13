@@ -55,7 +55,7 @@ for advanced rendering features:
 
 Basic compositing works without these dependencies using cached previews or simple
 pixel-based operations. Note that the composite extra may not be available on all
-platforms (notably Python 3.14 on Windows).
+platforms (notably Python 3.15 on Windows).
 
 ## Getting started
 

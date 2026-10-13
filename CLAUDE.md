@@ -7,7 +7,7 @@ See also [the contributor documentation](docs/contributing.rst) for setup, test 
 - Use `uv run python` / `uv run pytest` to use the development runtime.
 - Rendering and compositing need the optional `composite` extra: `uv sync --extra composite`
   (`aggdraw`, `scipy`). It is optional because it is unavailable on some
-  platforms (notably Python 3.14 on Windows). Tests needing it skip via `pytest.importorskip`.
+  platforms (notably Python 3.15 on Windows). Tests needing it skip via `pytest.importorskip`.
 - `uv run pytest --no-cov` skips coverage; `uv run pytest path::test_name` runs one test.
 - Lint and types: `uv run ruff check`, `uv run ruff format`, `uv run mypy`.
 - Changes land via PR; `main` is protected.
@@ -78,7 +78,7 @@ if Tag.UNICODE_LAYER_NAME in layer._record.tagged_blocks:
 
 ## Type Annotations
 
-New code uses type hints on all signatures and `typing_extensions.Self` for methods
+New code uses type hints on all signatures and `typing.Self` for methods
 returning their own class.
 
 `psd_tools.api` property getters return primitives, not descriptor wrappers, and `T | None`

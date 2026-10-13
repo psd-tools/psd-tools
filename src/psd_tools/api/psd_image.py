@@ -55,9 +55,8 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Sequence
-from typing import IO, Any, Callable, Literal
+from typing import IO, Any, Callable, Literal, Self
 
-from typing_extensions import Self
 
 import numpy as np
 from PIL import Image
