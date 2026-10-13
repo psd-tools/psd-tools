@@ -7,8 +7,10 @@ Changelog
 - [fix] A pattern or gradient vector stroke is laid out across the path, as
   Photoshop does, instead of a box grown by the stroke width. Affects
   composites of shape layers with a pattern or gradient stroke, most for wide
-  strokes. ``paint.draw_gradient_fill`` and ``draw_pattern_fill`` gain an
-  optional ``anchor`` (#824)
+  strokes (#824, #987)
+- [api] ``paint.draw_gradient_fill``, ``draw_pattern_fill`` and
+  ``create_fill_desc`` gain an optional ``anchor`` to lay the fill out on a box
+  other than the one drawn (#824, #987)
 
 - [ci] Drop Python 3.10, which reaches end of life on 2026-10-31, and add
   Python 3.15. **Backward incompatible:** ``requires-python`` is now
