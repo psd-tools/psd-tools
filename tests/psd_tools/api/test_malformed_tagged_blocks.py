@@ -11,6 +11,7 @@ from psd_tools import PSDImage
 from psd_tools.api.layers import Artboard, SmartObjectLayer, TypeLayer
 from psd_tools.api.smart_object import SmartObject
 from psd_tools.constants import Tag, TextType
+from psd_tools.psd.engine_data import Integer, Property
 from psd_tools.psd.tagged_blocks import TaggedBlock
 
 from ..utils import full_name
@@ -218,3 +219,21 @@ def test_a_type_layer_without_engine_data_has_empty_dicts() -> None:
 def test_a_type_layer_without_text_has_empty_text() -> None:
     layers = _patched_type_layers("masks.psd", 57869, 0xDF)
     assert [layer.text for layer in layers].count("") >= 1
+
+
+def _type_layer() -> TypeLayer:
+    psd = PSDImage.open(full_name("clip-adjustment.psd"))
+    return next(x for x in psd.descendants() if isinstance(x, TypeLayer))
+
+
+def test_a_type_layer_with_a_non_string_text_has_empty_text() -> None:
+    layer = _type_layer()
+    layer._data.text_data[b"Txt "].value = 5
+    assert layer.text == ""
+
+
+def test_a_type_layer_with_a_scalar_engine_dict_degrades() -> None:
+    layer = _type_layer()
+    layer._data.text_data[b"EngineData"].value[Property("EngineDict")] = Integer(1)
+    assert not layer.engine_dict
+    assert layer.text_type is None
