@@ -274,8 +274,10 @@ def _reencoded(
     """
     record = copy.deepcopy(record)
     channels = copy.deepcopy(channels)
-    for info, data in zip(record.channel_info, channels):
-        _repack_channel(record, info, data, source, dest)
+    if (source.depth, source.version) != (dest.depth, dest.version):
+        for info, data in zip(record.channel_info, channels):
+            if color is None or info.id < 0:
+                _repack_channel(record, info, data, source, dest)
     if color is None:
         return record, channels
 
