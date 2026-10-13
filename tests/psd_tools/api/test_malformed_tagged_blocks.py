@@ -8,7 +8,8 @@ from typing import Any
 import pytest
 
 from psd_tools import PSDImage
-from psd_tools.api.layers import Artboard, SmartObjectLayer, TypeLayer
+from psd_tools.api.layers import Artboard, ShapeLayer, SmartObjectLayer, TypeLayer
+from psd_tools.api.shape import Stroke
 from psd_tools.api.smart_object import SmartObject
 from psd_tools.constants import Tag, TextType
 from psd_tools.psd.engine_data import Integer, Property
@@ -237,3 +238,84 @@ def test_a_type_layer_with_a_scalar_engine_dict_degrades() -> None:
     layer._data.text_data[b"EngineData"].value[Property("EngineDict")] = Integer(1)
     assert not layer.engine_dict
     assert layer.text_type is None
+
+
+def _patched(filename: str, offset: int, value: int) -> PSDImage:
+    data = bytearray(open(full_name(filename), "rb").read())
+    data[offset] = value
+    return PSDImage.open(io.BytesIO(data))
+
+
+def _strokes(psd: PSDImage) -> list[Stroke]:
+    strokes = [x.stroke for x in psd.descendants() if hasattr(x, "stroke") and x.stroke]
+    assert strokes
+    return strokes
+
+
+def test_a_shape_with_an_unreadable_origination_bbox_uses_the_path() -> None:
+    psd = _patched("masks/2.psd", 20034, 0x07)
+    layers = [x for x in psd.descendants() if isinstance(x, ShapeLayer)]
+    unreadable = [
+        x
+        for x in layers
+        if x.has_origination() and any(o._read_bbox() is None for o in x.origination)
+    ]
+    assert unreadable
+    for layer in unreadable:
+        assert layer.vector_mask is not None
+        box = layer.vector_mask.bbox
+        assert layer.bbox == (
+            round(box[0] * psd.width),
+            round(box[1] * psd.height),
+            round(box[2] * psd.width),
+            round(box[3] * psd.height),
+        )
+        assert (0.0, 0.0, 0.0, 0.0) in [o.bbox for o in layer.origination]
+
+
+def test_a_stroke_with_unreadable_line_width_defaults() -> None:
+    psd = _patched("layers-minimal/shape-layer.psd", 22561, 0x00)
+    assert [s.line_width for s in _strokes(psd)] == [1.0]
+
+
+def test_a_stroke_with_unreadable_cap_type_defaults() -> None:
+    psd = _patched("layers/shape-layer.psd", 21860, 0xFF)
+    assert [s.line_cap_type for s in _strokes(psd)] == ["butt"]
+
+
+def test_a_stroke_with_unreadable_join_type_defaults() -> None:
+    psd = _patched("layers/shape-layer.psd", 21932, 0x03)
+    assert [s.line_join_type for s in _strokes(psd)] == ["miter"]
+
+
+def test_a_smart_object_with_an_unreadable_id_raises_value_error() -> None:
+    psd = _patched("layers-minimal/smartobject-layer.psd", 22588, 0xF8)
+    layer = next(x for x in psd.descendants() if isinstance(x, SmartObjectLayer))
+    smart_object = layer.smart_object
+    with pytest.raises(ValueError, match="identifier"):
+        smart_object.unique_id
+    with pytest.raises(ValueError):
+        smart_object.data
+
+
+def test_an_external_smart_object_without_full_path_falls_back_to_rel_path(
+    tmp_path: Any,
+) -> None:
+    psd = _patched("placedLayer.psd", 85175, 0x00)
+    layer = next(x for x in psd.descendants() if x.name == "linked-png")
+    assert isinstance(layer, SmartObjectLayer)
+    (tmp_path / "linked-layer.png").write_bytes(b"png")
+    with layer.smart_object.open(external_dir=tmp_path) as f:
+        assert f.read() == b"png"
+
+
+def test_an_external_smart_object_without_any_path_raises_value_error() -> None:
+    psd = PSDImage.open(full_name("placedLayer.psd"))
+    layer = next(x for x in psd.descendants() if x.name == "linked-png")
+    assert isinstance(layer, SmartObjectLayer)
+    assert layer.smart_object._data is not None
+    linked_file = layer.smart_object._data.linked_file
+    for key in (b"fullPath", b"relPath"):
+        del linked_file[key]
+    with pytest.raises(ValueError, match="no readable path"):
+        layer.smart_object.data

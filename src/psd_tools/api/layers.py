@@ -2757,8 +2757,10 @@ class ShapeLayer(Layer):
                     self._record.right,
                     self._record.bottom,
                 )
-            elif self.has_origination() and not any(
-                x.invalidated for x in self.origination
+            elif (
+                self.has_origination()
+                and not any(x.invalidated for x in self.origination)
+                and all(x._read_bbox() is not None for x in self.origination)
             ):
                 lefts, tops, rights, bottoms = zip(*[x.bbox for x in self.origination])
                 self._bbox = (
