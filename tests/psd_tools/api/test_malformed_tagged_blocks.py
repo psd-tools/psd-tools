@@ -14,6 +14,7 @@ from psd_tools.api.smart_object import SmartObject
 from psd_tools.constants import Tag, TextType
 from psd_tools.psd.engine_data import Integer, Property
 from psd_tools.psd.tagged_blocks import TaggedBlock
+from psd_tools.psd.vector import ClosedPath, Knot
 
 from ..utils import full_name
 
@@ -273,6 +274,51 @@ def test_a_shape_with_an_unreadable_origination_bbox_uses_the_path() -> None:
         assert (0.0, 0.0, 0.0, 0.0) in [o.bbox for o in layer.origination]
 
 
+def _patched_document(filename: str, patches: dict[int, int]) -> PSDImage:
+    data = bytearray(open(full_name(filename), "rb").read())
+    for offset, value in patches.items():
+        data[offset] = value
+    return PSDImage.open(io.BytesIO(data))
+
+
+_NON_KNOT_PATCHES = [
+    ("blend-modes/overlay.psd", {21747: 0x00, 21748: 0x00}),
+    ("descriptors/stroke-color-descriptors-rgb.psd", {22157: 0x00, 22159: 0x01}),
+]
+
+
+@pytest.mark.parametrize("filename, patches", _NON_KNOT_PATCHES)
+def test_a_vector_mask_with_non_knot_records_skips_them(
+    filename: str, patches: dict[int, int]
+) -> None:
+    psd = _patched_document(filename, patches)
+    masks = [x.vector_mask for x in psd.descendants() if x.vector_mask is not None]
+    assert any(not isinstance(k, Knot) for m in masks for p in m.paths for k in p)
+    for mask in masks:
+        left, top, right, bottom = mask.bbox
+        assert left <= right and top <= bottom
+
+
+def test_a_vector_mask_bbox_ignores_non_knot_records() -> None:
+    psd = _patched_document("blend-modes/overlay.psd", _NON_KNOT_PATCHES[0][1])
+    layer = next(x for x in psd.descendants() if x.name == "Ellipse 3")
+    assert layer.vector_mask is not None
+    assert layer.vector_mask.bbox == pytest.approx(
+        (0.125, 0.25, 0.875, 0.78033), abs=1e-5
+    )
+
+
+@pytest.mark.parametrize("filename, patches", _NON_KNOT_PATCHES)
+def test_a_forced_composite_skips_non_knot_records(
+    filename: str, patches: dict[int, int]
+) -> None:
+    psd = _patched_document(filename, patches)
+    for layer in psd.descendants():
+        if layer.kind == "shape":
+            layer.composite(force=True)
+    psd.composite(force=True)
+
+
 def test_a_stroke_with_unreadable_line_width_defaults() -> None:
     psd = _patched("layers-minimal/shape-layer.psd", 22561, 0x00)
     assert [s.line_width for s in _strokes(psd)] == [1.0]
@@ -319,3 +365,12 @@ def test_an_external_smart_object_without_any_path_raises_value_error() -> None:
         del linked_file[key]
     with pytest.raises(ValueError, match="no readable path"):
         layer.smart_object.data
+
+
+def test_a_forced_stroke_skips_non_knot_records() -> None:
+    pytest.importorskip("aggdraw")
+    psd = PSDImage.open(full_name("layers/shape-layer.psd"))
+    layer = next(x for x in psd.descendants() if x.kind == "shape" and x.stroke)
+    assert layer.vector_mask is not None
+    layer.vector_mask.paths[0].insert(1, ClosedPath())
+    layer.composite(force=True)
