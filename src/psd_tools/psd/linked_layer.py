@@ -73,6 +73,9 @@ class LinkedLayer(BaseElement):
     .. py:attribute:: child_id
     .. py:attribute:: mod_time
     .. py:attribute:: lock_state
+    .. py:attribute:: content_descriptor
+
+        Version 8 only: a descriptor holding a ``contentID``.
     """
 
     kind: LinkedLayerType = field(
@@ -91,6 +94,7 @@ class LinkedLayer(BaseElement):
     child_id: str | None = None
     mod_time: float | None = None
     lock_state: int | None = None
+    content_descriptor: DescriptorBlock | None = None
 
     @classmethod
     def read(cls: type[T_LinkedLayer], fp: IO[bytes], **kwargs: Any) -> T_LinkedLayer:
@@ -113,6 +117,7 @@ class LinkedLayer(BaseElement):
         child_id = None
         mod_time = None
         lock_state = None
+        content_descriptor = None
 
         if kind == LinkedLayerType.EXTERNAL:
             linked_file = DescriptorBlock.read(fp, padding=1)
@@ -135,6 +140,8 @@ class LinkedLayer(BaseElement):
             mod_time = read_fmt("d", fp)[0]
         if version >= 7:
             lock_state = read_fmt("B", fp)[0]
+        if version >= 8:
+            content_descriptor = DescriptorBlock.read(fp, padding=1)
         if kind == LinkedLayerType.EXTERNAL and version == 2:
             data = read_exact(fp, datasize)
 
@@ -153,6 +160,7 @@ class LinkedLayer(BaseElement):
             child_id,
             mod_time,
             lock_state,
+            content_descriptor,
         )
 
     def write(self, fp: IO[bytes], padding: int = 1, **kwargs: Any) -> int:
@@ -190,6 +198,8 @@ class LinkedLayer(BaseElement):
             written += write_fmt(fp, "d", self.mod_time)
         if self.lock_state is not None:
             written += write_fmt(fp, "B", self.lock_state)
+        if self.content_descriptor is not None:
+            written += self.content_descriptor.write(fp, padding=1)
 
         if self.kind == LinkedLayerType.EXTERNAL and self.version == 2:
             assert self.data is not None
