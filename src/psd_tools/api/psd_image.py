@@ -438,37 +438,24 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         """
         Mark the document's stored preview as stale.
 
-        The flag gates three things: :py:meth:`save` regenerates the
-        flattened preview from the layers rather than writing the stored
-        one, :py:meth:`composite` re-renders rather than returning it, and
-        :py:meth:`Layer.composite() <psd_tools.api.layers.Layer.composite>`
-        redraws vectors rather than using a layer's stored pixels, which can
-        move pixels of its own.
+        While marked, :py:meth:`save` regenerates the flattened preview from
+        the layers, :py:meth:`composite` re-renders instead of returning the
+        stored preview, and :py:meth:`Layer.composite()
+        <psd_tools.api.layers.Layer.composite>` redraws vectors instead of
+        using a layer's stored pixels.
 
-        Call this after an edit this API cannot see -- through an effect's
-        ``descriptor``, a layer's ``tagged_blocks``, or any other low-level
-        record -- or the saved file keeps a preview that disagrees with its
-        own layers. Most edits made through this API set it themselves, but
-        the rule is not tidy: :py:attr:`Layer.sheet_color
-        <psd_tools.api.layers.Layer.sheet_color>` and
-        :py:attr:`Layer.reference_point
-        <psd_tools.api.layers.Layer.reference_point>` set it although
-        neither reaches the compositor, while :py:attr:`Layer.name
-        <psd_tools.api.layers.Layer.name>` does not set it at all.
+        Call this after an edit this API cannot see, such as one through an
+        effect's ``descriptor``, a layer's ``tagged_blocks``, or any other
+        low-level record. Most edits made through this API set it themselves.
 
-        The preview is all it marks. A wrapper that memoises on first
-        access -- ``mask``, ``vector_mask``, ``origination``, ``stroke``,
-        and the smart object and typesetting ones -- goes on reporting the
-        record it read, so replacing that record underneath one of them
-        needs the cached attribute dropped as well. An adjustment or fill
-        layer captures its ``_data`` earlier still, in ``__init__``, and a
-        group caches its bbox; neither is dropped here either.
+        It marks the preview only. Wrappers that memoise on first access
+        (``mask``, ``vector_mask``, ``origination``, ``stroke``, smart object
+        and typesetting), the ``_data`` of an adjustment or fill layer, and a
+        group's bbox keep the record they read.
 
-        The flag only ever goes one way: nothing clears it, ``save()``
-        included, so a document stays marked for the life of the object.
-        It lives on the document, not the layer, and ``Layer.parent`` is
-        typed as a ``GroupMixinProtocol``, so reach it through the
-        :py:class:`PSDImage` itself rather than by walking up from a layer.
+        Nothing clears the flag, ``save()`` included. It lives on the
+        :py:class:`PSDImage`, so reach it there rather than through
+        ``Layer.parent``.
         """
         self._updated = True
 
@@ -688,10 +675,8 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         """
         Document image resources.
 
-        :py:class:`~psd_tools.psd.image_resources.ImageResources` is a
-        dict-like structure that keeps various document settings.
-
-        See :py:class:`psd_tools.constants.Resource` for available keys.
+        A dict-like structure of document settings. See
+        :py:class:`psd_tools.constants.Resource` for available keys.
 
         :return: :py:class:`~psd_tools.psd.image_resources.ImageResources`
 
@@ -701,8 +686,8 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             version_info = psd.image_resources.get_data(Resource.VERSION_INFO)
             slices = psd.image_resources.get_data(Resource.SLICES)
 
-        Image resources contain an ICC profile. The following shows how to
-        export a TIFF file, which holds any color mode, with embedded ICC profile::
+        To export a TIFF file, which holds any color mode, with the embedded
+        ICC profile::
 
             from psd_tools.constants import Resource
             icc_profile = psd.image_resources.get_data(Resource.ICC_PROFILE)
@@ -756,24 +741,20 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         Background color for the merged composite image. Writable.
 
         When set, :py:meth:`~PSDImage.save` composites layers against an
-        opaque backdrop of this color instead of a transparent one. This is
-        useful for creating RGB-mode PSD files where transparent areas should
-        appear as a specific color (e.g., white) in the merged composite.
+        opaque backdrop of this color instead of a transparent one.
 
         Values are in [0.0, 1.0] range, matching the
         :py:meth:`~PSDImage.composite` ``color`` parameter:
 
         - **RGB / Grayscale**: ``1.0`` = white, ``0.0`` = black
         - **CMYK**: ``(1.0, 1.0, 1.0, 1.0)`` = white, ``(1.0, 1.0, 1.0, 0.0)``
-          = black. These arrays count what is *left*, not what is laid down,
-          so 1.0 is no ink -- the same convention as the ``color`` parameter
-          and as :py:meth:`~PSDImage.numpy` (#747).
+          = black. Values count the ink left, so 1.0 is no ink, as in the
+          ``color`` parameter and :py:meth:`~PSDImage.numpy`.
 
         Use a scalar for uniform color or a tuple for per-channel values.
         Set to ``None`` for a transparent backdrop.
 
-        Documents created via :py:meth:`~PSDImage.new` have this set
-        automatically from the ``color`` parameter.
+        :py:meth:`~PSDImage.new` sets it from the ``color`` parameter.
 
         :return: `float`, `tuple[float, ...]`, or `None`
 

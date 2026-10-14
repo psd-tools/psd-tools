@@ -1,100 +1,63 @@
 Changelog
 =========
 
-1.25.0 (unreleased)
+1.25.0 (2026-10-14)
 -------------------
 
-- [docs] Document the default ICC conversion of CMYK and LAB images on export, and fix
-  the ``compose`` typo in the ``image_resources`` ICC example (#237, #1009)
-- [docs] Document the cross-document transfer contract: ``Layer.copy_to()`` copies,
-  converts and carries resources, and the cross-document move is deprecated
-  (#998; part of #882)
-- [api] Cross-document ``append()``/``extend()``/``insert()`` and item assignment
-  emit a ``DeprecationWarning``: the move will raise ``ValueError``. Use
-  ``Layer.copy_to()``, which leaves the source in place (#1001, #1005; part of #882)
-- [fix] ``Layer.copy_to()`` and cross-document ``append()``/``extend()``/``insert()``
-  now carry the linked smart objects and only the patterns a layer uses, as
-  independent copies; a smart-object copy no longer loses its data. Ids that
-  clash with the destination's are reissued (#1000; part of #882)
-- [api] Add ``Layer.copy_to(group, index=None)``, which copies a layer or group
-  into any document, converting it to the destination's mode and depth and
-  leaving the source in place. Unlike ``append()``, it does not move the
-  layer (#999; part of #882)
-- [fix] Moving or copying a 32-bit layer into a shallower document of the same
-  colour mode now tone-maps it, as ``topil()`` does (#999)
-- [api] ``Layer.duplicate()`` copies a layer or nested group within its
-  document, with independent layer data and fresh IDs. It accepts a
-  destination, final position and name; smart-object contents remain shared
-  with fresh instance IDs. A copy directly above its source releases the
-  clipped layers above it. Artboards stay at the document root (#928; related to #882)
+- [api] Layers can now be copied between documents and within one.
+  ``Layer.copy_to(group, index=None)`` copies a layer or group into any
+  document, converting it to the destination's mode and depth, carrying its
+  patterns and linked smart objects, and leaving the source in place.
+  ``Layer.duplicate()`` copies a layer or group within its document with fresh
+  IDs. Moving a layer in from another document with ``append()``, ``extend()``,
+  ``insert()`` or item assignment emits a ``DeprecationWarning`` and will raise
+  ``ValueError``; use ``copy_to()`` instead (#882, #928, #999, #1000, #1001)
 - [api] Add ``create_pixel_layer_from_array()`` and ``PixelLayer.fromarray()``
-  to create a pixel layer from a ``float32``, ``uint8`` or ``uint16`` array, so
-  a layer in a 16- or 32-bit document is not limited to PIL's 8 bits (#871)
-- [api] ``SmartObject.resolution`` returns ``None`` when the file records no
-  readable resolution, instead of raising ``AttributeError``. Callers that use
-  the value as a ``float`` need a ``None`` check (#985)
-
-- [fix] Moving a layer between documents of the same colour mode no longer
-  re-renders it through PIL when only the documents' merged-image alpha
-  differs, so the layer keeps its opacity, blend mode and mask (#872, #989)
-- [fix] Moving a pixel layer into a document of a different colour mode keeps
-  the layer's opacity, blend mode, mask and tagged blocks, and a layer moved
-  into a CMYK document no longer reads back with inverted colours (#872, #990)
-- [fix] Moving a shape, type, fill, adjustment, smart object layer or group
-  into a document of a different colour mode, depth or file version
-  re-encodes its channels, so it no longer reads back corrupt (#872, #991)
-- [fix] A move between documents that cannot convert a layer, such as a
-  Lab layer into a grayscale or CMYK document, raises before anything changes,
-  instead of leaving the layer in the destination and both documents
-  half-updated (#992)
-- [fix] ``Origination``, ``Line`` and ``Stroke.line_dash_offset`` getters
-  default instead of raising ``TypeError`` on a missing or mistyped descriptor
-  key (#985)
+  to create a pixel layer from a ``float32``, ``uint8`` or ``uint16`` array,
+  so a layer in a 16- or 32-bit document is not limited to PIL's 8 bits (#871)
+- [fix] Moving a layer between documents keeps its opacity, blend mode, mask
+  and tagged blocks, including between documents of the same colour mode whose
+  merged-image alpha differs. Across a different colour mode, depth or file
+  version it re-encodes the layer's channels, so it no longer reads back
+  corrupt or with inverted CMYK colours. A move that cannot convert the layer,
+  such as Lab into grayscale, raises before either document changes. A 32-bit
+  layer moved into a shallower document is tone-mapped
+  (#872, #989, #990, #991, #992, #999)
+- [fix] ``PSDImage.new(..., depth=32)`` writes the ``hdrt`` color mode data
+  block, so Photoshop can open the document (#869)
+- [api] ``PSDImage.new("1", ...)`` and ``frompil`` of mode ``"1"`` build a
+  depth-1 bitmap document, where ``new`` declared depth 8. **Backward
+  incompatible:** ``color=255`` and ``background_color = 255`` raise
+  ``ValueError``; white is ``1`` or ``1.0`` (#873, #975)
+- [fix] A grayscale preview with declared transparency is un-matted on read
+  and matted on write, as RGB already was (#868, #974)
 - [fix] A pattern or gradient vector stroke is laid out across the path, as
   Photoshop does, instead of a box grown by the stroke width. Affects
-  composites of shape layers with a pattern or gradient stroke, most for wide
-  strokes (#824, #987)
+  composites of shape layers with such strokes, most for wide strokes
+  (#824, #987)
 - [api] ``paint.draw_gradient_fill``, ``draw_pattern_fill`` and
   ``create_fill_desc`` gain an optional ``anchor`` to lay the fill out on a box
   other than the one drawn (#824, #987)
-- [fix] ``PSDImage.new(..., depth=32)`` writes the ``hdrt`` color mode data
-  block Photoshop requires, so Photoshop can open the document instead of
-  rejecting it (#869)
-- [ci] Drop Python 3.10, which reaches end of life on 2026-10-31, and add
-  Python 3.15. **Backward incompatible:** ``requires-python`` is now
-  ``>=3.11``. ``typing-extensions`` is no longer a dependency. aggdraw
-  publishes no cp315 wheels, so the ``composite`` extra builds from source on
-  3.15. If that build fails on Windows to find FreeType, set
-  ``AGGDRAW_FREETYPE_ROOT`` to an empty value before installing (#964, #978,
-  #979)
-- [api] ``PSDImage.new("1", ...)`` and ``frompil`` of mode ``"1"`` now build a
-  depth-1 bitmap document, where ``new`` declared depth 8. Omitting ``depth``
-  selects 1; any other depth is rejected for mode ``"1"``, and ``depth=1`` is
-  rejected for every other mode. **Backward incompatible:** ``color=255`` and
-  ``background_color = 255`` raise ``ValueError``. An integer color is a raw
-  value in ``[0, 1]``; white is ``1`` or ``1.0`` (#873, #975)
-- [fix] A grayscale preview with declared transparency is un-matted on read
-  and matted on write. ``numpy()`` and an ``LA`` ``topil()`` do this for RGB
-  and grayscale only. An ``RGBA`` ``topil()`` still un-mats every mode, so
-  CMYK and LAB are too after an ICC profile converts them. ``cactus_top.psd``
-  is no longer un-matted: that channel is not declared as transparency (#868, #974)
-- [fix] The allocation guard now counts the object RLE decoding holds per row,
-  so a tall, narrow RLE document is refused with ``ValueError`` when its real
-  peak is over ``max_alloc_bytes`` instead of passing on a payload-only
-  estimate. A document whose two estimates straddle your budget now raises
-  (#926, #973)
-- [fix] ``TypeLayer`` no longer raises ``AttributeError`` when its text data
-  is malformed. ``text`` is empty and ``engine_dict``, ``resource_dict`` and
-  ``document_resources`` are empty dicts when the data is missing or
-  unreadable, as with ``typesetting`` and ``font_names`` (#980)
-- [fix] ``ShapeLayer.bbox``, ``Stroke`` width, cap and join, and
-  ``SmartObject.unique_id``, ``data`` and ``open()`` no longer raise
-  ``AttributeError``, ``TypeError`` or ``KeyError`` on a missing descriptor
-  key. They fall back to the vector mask bbox, Photoshop's defaults and
-  ``relPath``, or raise ``ValueError`` when nothing is readable (#981, #984)
-- [fix] ``VectorMask.bbox`` and forced vector rendering (``composite(force=True)``)
-  no longer raise ``AttributeError`` when a subpath holds records that are not
-  knots. They skip those records (#982, #986)
+- [fix] ``TypeLayer``, ``ShapeLayer``, ``Stroke``, ``SmartObject``, ``Origination``,
+  ``Line`` and ``VectorMask`` properties no longer raise ``AttributeError``,
+  ``TypeError`` or ``KeyError`` on malformed or incomplete data. They degrade to
+  empty values or Photoshop's defaults, or raise ``ValueError`` when nothing is
+  readable (#980, #981, #982, #984, #985, #986, #997)
+- [api] ``SmartObject.resolution`` returns ``None`` when the file records no
+  readable resolution, instead of raising ``AttributeError``. **Backward
+  incompatible:** callers that use the value as a ``float`` need a ``None``
+  check (#985)
+- [fix] The allocation guard counts the per-row objects RLE decoding holds, so
+  a tall, narrow RLE document whose real peak is over ``max_alloc_bytes`` is
+  refused with ``ValueError``. A document that straddles your budget now
+  raises (#926, #973)
+- [ci] Drop Python 3.10 and add Python 3.15. **Backward incompatible:**
+  ``requires-python`` is now ``>=3.11``, and ``typing-extensions`` is no longer
+  a dependency. aggdraw publishes no cp315 wheels, so the ``composite`` extra
+  builds from source on 3.15; if that fails to find FreeType on Windows, set
+  ``AGGDRAW_FREETYPE_ROOT`` to an empty value before installing (#964, #978, #979)
+- [docs] Document the cross-document transfer contract, and the default ICC
+  conversion of CMYK and LAB images on export (#237, #998, #1009)
 
 1.24.0 (2026-10-06)
 -------------------
