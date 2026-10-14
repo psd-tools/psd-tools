@@ -68,6 +68,25 @@ still assumes it.
   given and shares the nested values. Re-fetch with ``get_data()`` before
   mutating the stored block.
 
+Cross-document transfer
+-----------------------
+
+A layer moves between groups of one document, and is copied between documents.
+
+- ``Layer.copy_to()`` builds a detached copy, re-encodes its channels for the
+  destination, issues fresh layer IDs and transfers the resources the copy
+  references, then inserts it. The source document is not touched.
+- Resources that layers reference by ID are carried by ``ResourceTransfer``:
+  linked smart objects and only the patterns in use. An ID that clashes with a
+  different resource in the destination is reissued, and a reference that does
+  not resolve is left alone. Patterns are not converted to the destination's
+  colour mode.
+- Narrowing a 32-bit layer tone-maps, so it matches ``topil()``.
+- Cross-document ``append()``, ``extend()``, ``insert()``, item assignment,
+  ``create_group(layer_list=...)``, ``move_to_group()`` and ``group_layers()``
+  still move the layer out of its donor, and are deprecated; they will raise
+  ``ValueError``.
+
 Property getters
 ----------------
 

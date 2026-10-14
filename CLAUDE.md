@@ -105,6 +105,11 @@ What stays: bare issue refs like `(#854)`, which point *into* that history;
 fixture geometry such as "a 100x100 path", which is a property of the file; and
 anything a test asserts.
 
+Issue refs stay out of text a user reads: the `docs/` pages other than the
+changelog, and docstrings, which render into the API reference. There `(#882)` is
+plain text that links nowhere and means nothing to a reader. Use them in source
+comments and the changelog.
+
 To keep a number, name it in code rather than recite it in prose:
 
 ```python

@@ -163,7 +163,8 @@ A layer has at most one parent. :py:class:`~psd_tools.api.psd_image.PSDImage`
 and :py:class:`~psd_tools.api.layers.Group` hold their child layers in order,
 and adding a layer that already has a parent moves it out of that parent rather
 than copying it. The internal model of the layer structure is updated
-automatically.
+automatically. To bring a layer in from another document, copy it with
+``copy_to()``.
 
 The following methods are valid for both PSDImage and Group objects. Besides
 indexing, iteration, ``reversed()``, ``len()``, ``in`` and ``del group[i]``,
@@ -186,12 +187,32 @@ Insert a layer to a specific index in the group::
     group.insert(3, layer)
 
 Adding a layer from another document moves it out of that document, and emits a
-``DeprecationWarning``: it will raise ``ValueError``. Use ``copy_to()`` to copy a layer
-or group into a document that can hold layers (not Bitmap, Indexed or
-Multichannel), converting it to the destination's colour mode and depth and
-leaving the source in place (#1001, #1005)::
+``DeprecationWarning``: it will raise ``ValueError``. Copy it
+instead::
 
     copy = layer.copy_to(other_psdimage)
+    copy = layer.copy_to(other_group, index=0)
+
+:py:meth:`~psd_tools.api.layers.Layer.copy_to` copies the layer or group it is
+called on, with its whole subtree, and leaves the source in place. ``index`` is
+the copy's position in the destination afterwards, ``-1`` being the top; the
+default is the top. The copy:
+
+- is converted to the destination's colour mode, depth and file version.
+  Narrowing, such as 32 to 8 bit, tone-maps as Photoshop's Image > Mode does, so
+  the copy looks like the source's ``topil()``. A layer that cannot be converted
+  to the destination's colour mode raises ``ValueError``.
+- gets fresh layer IDs.
+- carries the linked smart objects and the patterns it uses, as independent
+  copies. An ID that clashes with one in the destination is reissued. Patterns
+  keep their own colour mode.
+- does not bring the layers clipped to it, because clipping depends on position.
+
+A Bitmap, Indexed or Multichannel destination cannot hold layers and raises
+``ValueError``. An :py:class:`~psd_tools.api.layers.Artboard` can only be copied
+to the document root. Within one document, ``copy_to()`` delegates to
+:py:meth:`~psd_tools.api.layers.Layer.duplicate`, but defaults to the top of the
+destination rather than directly above the source.
 
 Remove a layer from a group::
 
@@ -240,8 +261,8 @@ document::
 subtree, retaining layer types, pixel data, masks and layer metadata. The
 copy gets fresh layer IDs and can be edited independently. Smart-object
 contents and other document resources remain shared. The source stays in
-place. Cross-document duplication is not supported; a detached source needs
-an explicit destination parent. ``index`` is the copy's position in the
+place. ``duplicate()`` does not cross documents; use ``copy_to()``. A detached
+source needs an explicit destination parent. ``index`` is the copy's position in the
 destination after the call; ``-1`` is the top. An out-of-range index raises
 ``IndexError``. Without it, a copy goes immediately above its source in the
 same parent, or to the top of a different container. A copy placed directly

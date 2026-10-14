@@ -4,6 +4,9 @@ Changelog
 1.25.0 (unreleased)
 -------------------
 
+- [docs] Document the cross-document transfer contract: ``Layer.copy_to()`` copies,
+  converts and carries resources, and the cross-document move is deprecated
+  (#998; part of #882)
 - [api] Cross-document ``append()``/``extend()``/``insert()`` and item assignment
   emit a ``DeprecationWarning``: the move will raise ``ValueError``. Use
   ``Layer.copy_to()``, which leaves the source in place (#1001, #1005; part of #882)
