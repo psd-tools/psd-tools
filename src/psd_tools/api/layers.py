@@ -1512,7 +1512,7 @@ class Layer(LayerProtocol):
 
         :param group: The group the current layer will be moved into.
         """
-        group.append(self)
+        group._extend([self])
         return self
 
     def move_up(self, offset: int = 1) -> Self:
@@ -2511,7 +2511,7 @@ class Group(GroupMixin, Layer):
         if len(layers) == 0:
             raise ValueError("Cannot create a group from an empty list of layers")
         group = cls.new(parent, name, open_folder)
-        group.extend(layers)
+        group._extend(layers)
         return group
 
 

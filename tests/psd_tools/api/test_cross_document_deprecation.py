@@ -80,3 +80,24 @@ def test_copy_to_does_not_warn() -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         source[0].copy_to(dest)
+
+
+def test_move_to_group_warns_at_the_caller() -> None:
+    dest, source = _documents()
+    group = Group.new(parent=dest, name="target")
+
+    with pytest.warns(DeprecationWarning, match="copy_to") as record:
+        source[0].move_to_group(group)
+
+    moved = [w for w in record if "copy_to" in str(w.message)]
+    assert moved and all(w.filename == __file__ for w in moved)
+
+
+def test_group_layers_warns_at_the_caller() -> None:
+    dest, source = _documents()
+
+    with pytest.warns(DeprecationWarning, match="copy_to") as record:
+        Group.group_layers(dest, [source[0]])
+
+    moved = [w for w in record if "copy_to" in str(w.message)]
+    assert moved and all(w.filename == __file__ for w in moved)
