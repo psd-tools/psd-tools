@@ -133,14 +133,13 @@ class ResourceTransfer:
         present = _find(self._dest, _PATTERN_TAGS, "pattern_id", pattern_id)
         if present and present[0][1] == pattern:
             return pattern_id
+        new = str(uuid.uuid4()) if present else pattern_id
         target = self._target(tag)
-        if target is None:
-            return pattern_id
-        clone = deepcopy(pattern)
-        if present:
-            clone.pattern_id = str(uuid.uuid4())
-        target.append(clone)
-        return clone.pattern_id
+        if target is not None:
+            clone = deepcopy(pattern)
+            clone.pattern_id = new
+            target.append(clone)
+        return new
 
     def _linked(self, source: PSDProtocol, unique_id: str) -> str:
         found = _find(source, _LINKED_TAGS, "uuid", unique_id)

@@ -274,3 +274,22 @@ def test_the_patterns_block_is_created_when_the_destination_has_none() -> None:
 
     assert dest.tagged_blocks is not None
     assert isinstance(dest.tagged_blocks.get_data(Tag.PATTERNS1), Patterns)
+
+
+def test_a_clash_beside_a_malformed_target_block_does_not_bind_the_clashing_id() -> (
+    None
+):
+    source, layer = _pattern_source()
+    dest = PSDImage.open(full_name("layers/pattern-fill.psd"))
+    assert dest.tagged_blocks is not None
+    unrelated = _patterns(dest)[0]
+    unrelated.name = "unrelated"
+    del dest.tagged_blocks[Tag.PATTERNS1]
+    dest.tagged_blocks.set_data(Tag.PATTERNS2, [unrelated])
+    dest.tagged_blocks[Tag.PATTERNS1] = TaggedBlock(key=Tag.PATTERNS1, data=b"\xff\xff")
+    old = _pattern_ref(layer)
+
+    copy = layer.copy_to(dest)
+
+    assert _pattern_ref(copy).value.rstrip("\x00") != old.value.rstrip("\x00")
+    assert dest.tagged_blocks[Tag.PATTERNS1].data == b"\xff\xff"
