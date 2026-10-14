@@ -75,6 +75,9 @@ version = { attr = "psd_tools.version.__version__" }
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--cov=psd_tools"
+filterwarnings = [
+    "ignore:Moving a layer into another document:DeprecationWarning",
+]
 markers = [
     "composite: marks tests as requiring composite dependencies (aggdraw, scipy)",
 ]
