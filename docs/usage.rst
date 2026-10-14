@@ -187,7 +187,7 @@ Insert a layer to a specific index in the group::
     group.insert(3, layer)
 
 Adding a layer from another document moves it out of that document, and emits a
-``DeprecationWarning``: it will raise ``ValueError`` (#1001, #1005). Copy it
+``DeprecationWarning``: it will raise ``ValueError``. Copy it
 instead::
 
     copy = layer.copy_to(other_psdimage)
@@ -212,7 +212,7 @@ A Bitmap, Indexed or Multichannel destination cannot hold layers and raises
 ``ValueError``. An :py:class:`~psd_tools.api.layers.Artboard` can only be copied
 to the document root. Within one document, ``copy_to()`` delegates to
 :py:meth:`~psd_tools.api.layers.Layer.duplicate`, but defaults to the top of the
-destination rather than directly above the source (#882).
+destination rather than directly above the source.
 
 Remove a layer from a group::
 

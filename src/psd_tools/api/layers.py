@@ -1862,7 +1862,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
 
         .. deprecated:: 1.25.0
             Moving a layer in from another document will raise ``ValueError``. Use
-            :py:meth:`~psd_tools.api.layers.Layer.copy_to` (#1001).
+            :py:meth:`~psd_tools.api.layers.Layer.copy_to`.
 
         :param layer: The layer to add.
         :raises TypeError: If the provided object is not a Layer instance.
@@ -1887,7 +1887,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
 
         .. deprecated:: 1.25.0
             Moving a layer in from another document will raise ``ValueError``. Use
-            :py:meth:`~psd_tools.api.layers.Layer.copy_to` (#1001).
+            :py:meth:`~psd_tools.api.layers.Layer.copy_to`.
 
         :param layers: The layers to add.
         :raises TypeError: If the provided object is not a Layer instance.
@@ -1970,7 +1970,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
 
         .. deprecated:: 1.25.0
             Moving a layer in from another document will raise ``ValueError``. Use
-            :py:meth:`~psd_tools.api.layers.Layer.copy_to` (#1001).
+            :py:meth:`~psd_tools.api.layers.Layer.copy_to`.
 
         :param index: The index to insert the layer at.
         :param layer: The layer to insert.

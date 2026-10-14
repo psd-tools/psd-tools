@@ -85,7 +85,7 @@ A layer moves between groups of one document, and is copied between documents.
 - Cross-document ``append()``, ``extend()``, ``insert()``, item assignment,
   ``create_group(layer_list=...)``, ``move_to_group()`` and ``group_layers()``
   still move the layer out of its donor, and are deprecated; they will raise
-  ``ValueError`` (#1005).
+  ``ValueError``.
 
 Property getters
 ----------------
