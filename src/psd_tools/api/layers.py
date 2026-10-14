@@ -1321,6 +1321,8 @@ class Layer(LayerProtocol):
             raise TypeError("Parent must be a group or PSDImage")
         if parent._psd is not self._psd:
             raise ValueError("Cannot duplicate a layer into another document")
+        if parent is not self._psd and not cast(Layer, parent)._is_attached():
+            raise ValueError("Cannot duplicate a layer into a removed group")
         if isinstance(self, Artboard) and parent is not self._psd:
             raise ValueError("An artboard can only be placed at the document root")
         if index is None:
@@ -1350,10 +1352,10 @@ class Layer(LayerProtocol):
         if isinstance(self, Group):
             sources.extend(self.descendants())
         used_ids = {
-            record.tagged_blocks.get_data(Tag.LAYER_ID)
+            layer_id
             for layer in sources
             for record in _layer_records(layer)
-            if Tag.LAYER_ID in record.tagged_blocks
+            if isinstance(layer_id := record.tagged_blocks.get_data(Tag.LAYER_ID), int)
         }
         copies: list[Layer] = [duplicate]
         if isinstance(duplicate, Group):

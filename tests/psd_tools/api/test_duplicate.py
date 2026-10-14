@@ -514,3 +514,32 @@ def test_duplicate_channel_roundtrip(filename: str, tmp_path: Path) -> None:
         assert copy.mask is not None
         assert copy.mask.bbox == source.mask.bbox
         assert copy.mask.topil().tobytes() == source.mask.topil().tobytes()  # type: ignore[union-attr]
+
+
+def test_duplicate_with_malformed_layer_id_block() -> None:
+    psd = PSDImage.open(full_name("layers/pixel-layer.psd"))
+    source = psd[0]
+    source.tagged_blocks[Tag.LAYER_ID] = TaggedBlock(key=Tag.LAYER_ID, data=b"\x00")
+    assert source.tagged_blocks.get_data(Tag.LAYER_ID) is None
+
+    duplicate = source.duplicate()
+
+    assert isinstance(duplicate.layer_id, int) and duplicate.layer_id > 0
+    assert source.tagged_blocks[Tag.LAYER_ID].data == b"\x00"
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_duplicate_into_removed_group_is_rejected(explicit: bool) -> None:
+    psd = PSDImage.new("RGB", (8, 8))
+    child = psd.create_pixel_layer(Image.new("RGB", (2, 2)))
+    group = psd.create_group([child])
+    other = psd.create_pixel_layer(Image.new("RGB", (2, 2)))
+    psd.remove(group)
+    seed = psd.image_resources.get_data(Resource.IDS_SEED_NUMBER)
+
+    with pytest.raises(ValueError, match="removed group"):
+        other.duplicate(group) if explicit else child.duplicate()
+
+    assert psd.image_resources.get_data(Resource.IDS_SEED_NUMBER) == seed
+    assert list(group) == [child]
+    assert list(psd) == [other]
