@@ -945,17 +945,15 @@ class Layer(LayerProtocol):
     ) -> bool:
         """Whether a move must re-render through PIL rather than repack in place.
 
-        The colour mode decides it. ``pil_mode`` also carries the document's
-        merged-image alpha, which says nothing about how a layer's channels
-        are packed, so it is not compared -- except when narrowing a 32-bit
-        layer, where only the render tone-maps the stored linear values the
-        way Photoshop's mode change does.
+        The colour mode decides it, and so does narrowing a 32-bit layer, where
+        only the render tone-maps the stored linear values the way Photoshop's
+        mode change does. ``pil_mode`` also carries the document's merged-image
+        alpha, which says nothing about how a layer's channels are packed, so
+        it is not compared.
         """
         if source.color_mode != dest.color_mode:
             return True
-        if source.depth == 32 and dest.depth != 32:
-            return parent._psd.pil_mode != self._psd.pil_mode
-        return False
+        return source.depth == 32 and dest.depth != 32
 
     def topil(
         self, channel: int | None = None, apply_icc: bool = True
@@ -1336,13 +1334,7 @@ class Layer(LayerProtocol):
                 else len(parent)
             )
         else:
-            index = operator.index(index)
-            final_length = len(parent) + 1
-            if not -final_length <= index < final_length:
-                raise IndexError(
-                    f"Index {index} out of range for {final_length} layers"
-                )
-            index %= final_length
+            index = _insertion_index(parent, index)
         if name is not None:
             if not isinstance(name, str):
                 raise TypeError("Layer name must be a string")
@@ -1355,30 +1347,10 @@ class Layer(LayerProtocol):
         sources: list[LayerProtocol] = [*self._psd.descendants(), self]
         if isinstance(self, Group):
             sources.extend(self.descendants())
-        used_ids = {
-            layer_id
-            for layer in sources
-            for record in _layer_records(layer)
-            if isinstance(layer_id := record.tagged_blocks.get_data(Tag.LAYER_ID), int)
-        }
         copies: list[Layer] = [duplicate]
         if isinstance(duplicate, Group):
             copies.extend(duplicate.descendants())
-        seed = self._psd.image_resources.get_data(Resource.IDS_SEED_NUMBER, 0)
-        # The seed resource stores a signed 32-bit integer, but layer IDs are
-        # unsigned. Compare the same 32 bits when the high bit is set.
-        next_id = max(seed & 0xFFFFFFFF, max(used_ids, default=0)) + 1
-        for layer in copies:
-            for record in _layer_records(layer):
-                if (
-                    record is not layer._record
-                    and Tag.LAYER_ID not in record.tagged_blocks
-                ):
-                    continue
-                if next_id > 0xFFFFFFFF:
-                    raise ValueError("No unused layer IDs available")
-                record.tagged_blocks.set_data(Tag.LAYER_ID, next_id)
-                next_id += 1
+        seed_resource = _issue_layer_ids(self._psd, sources, copies)
         if name is not None:
             duplicate.name = name
         clip_layers = (
@@ -1386,16 +1358,68 @@ class Layer(LayerProtocol):
             if parent is self.parent and index == parent.index(self) + 1
             else []
         )
-        seed = next_id - 1
-        seed_resource = ImageResource(
-            key=Resource.IDS_SEED_NUMBER,
-            data=Integer(seed if seed < 0x80000000 else seed - 0x100000000),  # type: ignore[arg-type]
-        )
         parent.insert(index, duplicate)
         self._psd.image_resources[Resource.IDS_SEED_NUMBER] = seed_resource
         for layer in clip_layers:
             layer.clipping = False
         return duplicate
+
+    def copy_to(self, group: "GroupMixin", index: int | None = None) -> Self:
+        """
+        Copy the layer into ``group``, a group or document of any document.
+
+        The copy is deep, including a group's descendants, and has fresh layer
+        IDs. The source and its document are left as they were. Channels are
+        converted to the destination's colour mode, depth and file version;
+        narrowing a 32-bit layer tone-maps as Photoshop does. Patterns are
+        shared with the source, unconverted, and linked smart-object data is
+        not carried to another document (#1000). Clipping is positional: the
+        layers clipped to this one are not copied, and a copy keeps its own
+        clipping flag.
+
+        :param group: The destination :py:class:`Group` or document.
+        :param index: The copy's position in ``group`` afterwards, counting
+            from the bottom; negative counts from the top, so ``-1`` is the top.
+            Default is the top.
+        :raises TypeError: If ``group`` is not a group or document, or
+            ``index`` is not an integer.
+        :raises ValueError: If ``group`` is a removed group or in a Bitmap,
+            Indexed or Multichannel document, which cannot hold layers; an
+            :py:class:`Artboard` is not going to the document root; or the
+            layer cannot be converted to the destination's colour mode.
+        :raises IndexError: If ``index`` is out of range.
+        :return: The inserted copy.
+        """
+        if not isinstance(group, GroupMixin):
+            raise TypeError("Destination must be a group or PSDImage")
+        if group._psd is self._psd:
+            return self.duplicate(group, index=len(group) if index is None else index)
+        if group._psd.color_mode in _LAYERLESS_MODES:
+            raise ValueError(
+                f"A {group._psd.color_mode.name} document cannot hold layers"
+            )
+        if group is not group._psd and not cast(Layer, group)._is_attached():
+            raise ValueError("Cannot copy a layer into a removed group")
+        if isinstance(self, Artboard) and group is not group._psd:
+            raise ValueError("An artboard can only be placed at the document root")
+        position = len(group) if index is None else _insertion_index(group, index)
+
+        # Converted from the source, which still names its own document, before
+        # the destination changes.
+        copy_ = self._duplicate(group)
+        sources: list[Layer] = [self]
+        copies: list[Layer] = [copy_]
+        if isinstance(self, Group) and isinstance(copy_, Group):
+            sources.extend(self.descendants())
+            copies.extend(copy_.descendants())
+        for source, target in zip(sources, copies):
+            if (converted := source._reencode(group)) is not None:
+                target._apply_reencoded(converted)
+        seed_resource = _issue_layer_ids(group._psd, group._psd.descendants(), copies)
+        self._psd._copy_patterns(group._psd)  # TODO: optimize
+        group.insert(position, copy_)
+        group._psd.image_resources[Resource.IDS_SEED_NUMBER] = seed_resource
+        return copy_
 
     def _duplicate(self, parent: "GroupMixin") -> Self:
         """Build a detached copy of this subtree from its low-level records."""
@@ -1523,6 +1547,52 @@ class Layer(LayerProtocol):
         :return: self
         """
         return self.move_up(-1 * offset)
+
+
+_LAYERLESS_MODES = (ColorMode.BITMAP, ColorMode.INDEXED, ColorMode.MULTICHANNEL)
+
+
+def _insertion_index(parent: "GroupMixin", index: Any) -> int:
+    """Final position of a layer added to *parent*, counting from the bottom."""
+    index = operator.index(index)
+    final_length = len(parent) + 1
+    if not -final_length <= index < final_length:
+        raise IndexError(f"Index {index} out of range for {final_length} layers")
+    return index % final_length
+
+
+def _issue_layer_ids(
+    psd: PSDProtocol, existing: Iterable[LayerProtocol], copies: Iterable[Layer]
+) -> ImageResource:
+    """Give *copies* layer IDs unused in *psd* and by *existing*.
+
+    Returns the seed resource to store once the copies are in place.
+
+    :raises ValueError: If the 32-bit ID space is exhausted.
+    """
+    used_ids = {
+        layer_id
+        for layer in existing
+        for record in _layer_records(layer)
+        if isinstance(layer_id := record.tagged_blocks.get_data(Tag.LAYER_ID), int)
+    }
+    seed = psd.image_resources.get_data(Resource.IDS_SEED_NUMBER, 0)
+    # The seed resource stores a signed 32-bit integer, but layer IDs are
+    # unsigned. Compare the same 32 bits when the high bit is set.
+    next_id = max(seed & 0xFFFFFFFF, max(used_ids, default=0)) + 1
+    for layer in copies:
+        for record in _layer_records(layer):
+            if record is not layer._record and Tag.LAYER_ID not in record.tagged_blocks:
+                continue
+            if next_id > 0xFFFFFFFF:
+                raise ValueError("No unused layer IDs available")
+            record.tagged_blocks.set_data(Tag.LAYER_ID, next_id)
+            next_id += 1
+    seed = next_id - 1
+    return ImageResource(
+        key=Resource.IDS_SEED_NUMBER,
+        data=Integer(seed if seed < 0x80000000 else seed - 0x100000000),  # type: ignore[arg-type]
+    )
 
 
 def _layer_records(layer: LayerProtocol) -> Iterator[LayerRecord]:
