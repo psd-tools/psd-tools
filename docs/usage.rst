@@ -185,6 +185,13 @@ Insert a layer to a specific index in the group::
 
     group.insert(3, layer)
 
+Adding a layer from another document moves it out of that document, and emits a
+``DeprecationWarning``: it will become a copy. Use ``copy_to()`` to copy a layer
+or group into any document, converting it to the destination's colour mode and
+depth and leaving the source in place (#1001)::
+
+    copy = layer.copy_to(other_psdimage)
+
 Remove a layer from a group::
 
     group.remove(layer)

@@ -1721,7 +1721,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         if target is value:
             return
         index = key if key >= 0 else key + len(self._layers)
-        self.insert(index, value)
+        self._insert(index, value)
         self.remove(target)
 
     def __delitem__(self, key: int) -> None:
@@ -1844,7 +1844,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         # -- ``bool()`` on a multi-element NumPy array raises. ``extend()``
         # handles an empty iterable itself (#820).
         if layer_list is not None:
-            group.extend(layer_list)
+            group._extend(layer_list)
         group.opacity = opacity
         group.blend_mode = blend_mode
         self._psd.mark_updated()
@@ -1858,11 +1858,15 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         Adding the same layer will not create a duplicate; it moves to the end
         instead. See ``extend()``, which this delegates to.
 
+        .. deprecated:: 1.25.0
+            Moving a layer in from another document will become a copy. Use
+            :py:meth:`Layer.copy_to` (#1001).
+
         :param layer: The layer to add.
         :raises TypeError: If the provided object is not a Layer instance.
         :raises ValueError: If attempting to add a group to itself.
         """
-        self.extend([layer])
+        self._extend([layer])
 
     def extend(self, layers: Iterable[Layer]) -> None:
         """
@@ -1879,10 +1883,17 @@ class GroupMixin(GroupMixinProtocol, Protocol):
 
             dest.extend(src)  # Moves every layer of src into dest.
 
+        .. deprecated:: 1.25.0
+            Moving a layer in from another document will become a copy. Use
+            :py:meth:`Layer.copy_to` (#1001).
+
         :param layers: The layers to add.
         :raises TypeError: If the provided object is not a Layer instance.
         :raises ValueError: If attempting to add a group to itself.
         """
+        self._extend(layers)
+
+    def _extend(self, layers: Iterable[Layer]) -> None:
         # Materialized before anything walks it. Everything below iterates
         # ``layers`` again, so a one-shot iterable would reach the detach loop
         # already empty, and a live container would be mutated *while* being
@@ -1902,6 +1913,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
                 layer for index, layer in enumerate(pending) if last[id(layer)] == index
             ]
         self._check_insertion(pending)
+        self._warn_if_cross_document(pending)
         converted = self._reencode_moved(pending)
         # Remove parent's reference to the layers.
         donors: list[GroupMixin] = []
@@ -1954,12 +1966,20 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         no-duplicates rule of ``extend()``, so the index it lands at is one
         lower than the given one when it came from before that position.
 
+        .. deprecated:: 1.25.0
+            Moving a layer in from another document will become a copy. Use
+            :py:meth:`Layer.copy_to` (#1001).
+
         :param index: The index to insert the layer at.
         :param layer: The layer to insert.
         :raises TypeError: If the provided object is not a Layer instance.
         :raises ValueError: If attempting to add a group to itself.
         """
+        self._insert(index, layer)
+
+    def _insert(self, index: int, layer: Layer) -> None:
         self._check_insertion([layer])
+        self._warn_if_cross_document([layer])
         converted = self._reencode_moved([layer])
         # Remove parent's reference to the layer.
         donor: GroupMixin | None = None
@@ -1980,6 +2000,16 @@ class GroupMixin(GroupMixinProtocol, Protocol):
             donor._invalidate_bbox()
         _invalidate_moved_bbox(layer)
         self._invalidate_bbox()
+
+    def _warn_if_cross_document(self, layers: Iterable[Layer]) -> None:
+        # stacklevel 4: here, ``_extend``/``_insert``, the public method, its caller.
+        if any(layer._psd is not self._psd for layer in layers):
+            warnings.warn(
+                "Moving a layer into another document is deprecated and will "
+                "become a copy; use Layer.copy_to() to copy it and keep the source.",
+                DeprecationWarning,
+                stacklevel=4,
+            )
 
     def remove(self, layer: Layer) -> Self:
         """
