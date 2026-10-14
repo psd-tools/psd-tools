@@ -345,6 +345,12 @@ option::
     Color mode caveats when compositing:
 
     - Duotone and LAB blending is approximated, and warns when used.
+    - CMYK and LAB images are converted to sRGB through the embedded ICC
+      profile by default. Pass ``apply_icc=False`` to
+      :py:meth:`~psd_tools.api.psd_image.PSDImage.composite` or
+      :py:meth:`~psd_tools.api.psd_image.PSDImage.topil` to keep the document's
+      own colour space. A CMYK document without an embedded profile stays
+      in CMYK, which PNG cannot store; save it as TIFF or JPEG instead.
     - Multichannel documents come back as a single-channel image, because PIL
       has no multichannel mode and only the first spot channel survives the
       conversion. Use :py:func:`psd_tools.composite.composite` to get every

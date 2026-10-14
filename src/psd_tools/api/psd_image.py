@@ -702,12 +702,12 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             slices = psd.image_resources.get_data(Resource.SLICES)
 
         Image resources contain an ICC profile. The following shows how to
-        export a PNG file with embedded ICC profile::
+        export a TIFF file, which holds any color mode, with embedded ICC profile::
 
             from psd_tools.constants import Resource
             icc_profile = psd.image_resources.get_data(Resource.ICC_PROFILE)
-            image = psd.compose(apply_icc=False)
-            image.save('output.png', icc_profile=icc_profile)
+            image = psd.composite(apply_icc=False)
+            image.save('output.tif', icc_profile=icc_profile)
         """
         return self._record.image_resources
 
