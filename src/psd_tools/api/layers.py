@@ -1372,9 +1372,10 @@ class Layer(LayerProtocol):
         IDs. The source and its document are left as they were. Channels are
         converted to the destination's colour mode, depth and file version;
         narrowing a 32-bit layer tone-maps as Photoshop does. Patterns are
-        copied unconverted and linked smart-object data is not carried to
-        another document (#1000). Clipping is positional: the layers clipped
-        to this one are not copied, and a copy keeps its own clipping flag.
+        shared with the source, unconverted, and linked smart-object data is
+        not carried to another document (#1000). Clipping is positional: the
+        layers clipped to this one are not copied, and a copy keeps its own
+        clipping flag.
 
         :param group: The destination :py:class:`Group` or document.
         :param index: The copy's position in ``group`` afterwards, counting
