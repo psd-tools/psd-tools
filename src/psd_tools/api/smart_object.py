@@ -317,11 +317,11 @@ class SmartObject:
         return self._config.data.get(b"warp")
 
     @property
-    def resolution(self) -> float:
-        """Resolution of the object."""
+    def resolution(self) -> float | None:
+        """Resolution of the object, or `None` if the file does not record one."""
         if self._config is None:
             raise ValueError("Smart object config not found")
-        return self._config.data.get(b"Rslt").value
+        return get_scalar(self._config.data, b"Rslt", float, None)
 
     @property
     def transform_box(

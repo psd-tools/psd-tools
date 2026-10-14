@@ -9,7 +9,7 @@ import pytest
 
 from psd_tools import PSDImage
 from psd_tools.api.layers import Artboard, ShapeLayer, SmartObjectLayer, TypeLayer
-from psd_tools.api.shape import Stroke
+from psd_tools.api.shape import Line, Origination, Stroke
 from psd_tools.api.smart_object import SmartObject
 from psd_tools.constants import Tag, TextType
 from psd_tools.psd.engine_data import Integer, Property
@@ -376,3 +376,76 @@ def test_a_forced_stroke_skips_non_knot_records() -> None:
     assert layer.vector_mask is not None
     layer.vector_mask.paths[0].insert(1, ClosedPath())
     layer.composite(force=True)
+
+
+def _origination(filename: str, kind: type) -> Any:
+    psd = PSDImage.open(full_name(filename))
+    return next(
+        o
+        for x in psd.descendants()
+        if isinstance(x, ShapeLayer) and x.has_origination()
+        for o in x.origination
+        if isinstance(o, kind)
+    )
+
+
+_LINE_GETTERS = [
+    ("origin_type", b"keyOriginType", 0),
+    ("index", b"keyOriginIndex", 0),
+    ("line_weight", b"keyOriginLineWeight", 0.0),
+    ("arrow_width", b"keyOriginLineArrWdth", 0.0),
+    ("arrow_length", b"keyOriginLineArrLngth", 0.0),
+    ("arrow_conc", b"keyOriginLineArrConc", 0),
+]
+
+
+@pytest.mark.parametrize("name, key, default", _LINE_GETTERS)
+@pytest.mark.parametrize("damage", ["missing", "mistyped"])
+def test_a_line_with_an_unreadable_scalar_defaults(
+    name: str, key: bytes, default: float, damage: str
+) -> None:
+    line = _origination("stroke.psd", Line)
+    if damage == "missing":
+        line._data.pop(key, None)
+    else:
+        line._data[key] = line._data
+    assert getattr(line, name) == default
+
+
+@pytest.mark.parametrize("damage", ["missing", "mistyped"])
+def test_an_origination_with_an_unreadable_type_is_created(damage: str) -> None:
+    line = _origination("stroke.psd", Line)
+    if damage == "missing":
+        del line._data[b"keyOriginType"]
+    else:
+        line._data[b"keyOriginType"] = line._data
+    assert type(Origination.create(line._data)) is Origination
+
+
+def test_an_origination_with_an_unreadable_resolution_is_none() -> None:
+    line = _origination("stroke.psd", Line)
+    assert line.resolution is not None
+    line._data[b"keyOriginResolution"] = line._data
+    assert line.resolution is None
+    del line._data[b"keyOriginResolution"]
+    assert line.resolution is None
+
+
+def test_a_stroke_with_a_mistyped_dash_offset_defaults() -> None:
+    stroke = _strokes(PSDImage.open(full_name("layers/shape-layer.psd")))[0]
+    stroke._data[b"strokeStyleLineDashOffset"] = stroke._data
+    assert stroke.line_dash_offset == 0.0
+
+
+@pytest.mark.parametrize("damage", ["missing", "mistyped"])
+def test_a_smart_object_with_an_unreadable_resolution_is_none(damage: str) -> None:
+    psd = PSDImage.open(full_name("blend-modes/cmyk-blend-modes.psd"))
+    layer = next(x for x in psd.descendants() if isinstance(x, SmartObjectLayer))
+    smart_object = layer.smart_object
+    assert smart_object.resolution is not None
+    assert smart_object._config is not None
+    if damage == "missing":
+        del smart_object._config.data[b"Rslt"]
+    else:
+        smart_object._config.data[b"Rslt"] = smart_object._config.data
+    assert smart_object.resolution is None

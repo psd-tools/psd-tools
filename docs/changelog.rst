@@ -12,6 +12,9 @@ Changelog
 - [api] Add ``create_pixel_layer_from_array()`` and ``PixelLayer.fromarray()``
   to create a pixel layer from a ``float32``, ``uint8`` or ``uint16`` array, so
   a layer in a 16- or 32-bit document is not limited to PIL's 8 bits (#871)
+- [api] ``SmartObject.resolution`` returns ``None`` when the file records no
+  readable resolution, instead of raising ``AttributeError``. Callers that use
+  the value as a ``float`` need a ``None`` check (#985)
 
 - [fix] Moving a layer between documents of the same colour mode no longer
   re-renders it through PIL when only the documents' merged-image alpha
@@ -26,6 +29,9 @@ Changelog
   Lab layer into a grayscale or CMYK document, raises before anything changes,
   instead of leaving the layer in the destination and both documents
   half-updated (#992)
+- [fix] ``Origination``, ``Line`` and ``Stroke.line_dash_offset`` getters
+  default instead of raising ``TypeError`` on a missing or mistyped descriptor
+  key (#985)
 - [fix] A pattern or gradient vector stroke is laid out across the path, as
   Photoshop does, instead of a box grown by the stroke width. Affects
   composites of shape layers with a pattern or gradient stroke, most for wide
