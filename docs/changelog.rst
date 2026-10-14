@@ -8,6 +8,8 @@ Changelog
   into any document, converting it to the destination's mode and depth and
   leaving the source in place. Unlike ``append()``, it does not move the
   layer (#999; part of #882)
+- [fix] Moving or copying a 32-bit layer into a shallower document of the same
+  colour mode now tone-maps it, as ``topil()`` does (#999)
 - [api] ``Layer.duplicate()`` copies a layer or nested group within its
   document, with independent layer data and fresh IDs. It accepts a
   destination, final position and name; smart-object contents remain shared
