@@ -590,7 +590,3 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
         :return: PIL Image.
         """
         ...
-
-    def _copy_patterns(self, psdimage: "PSDProtocol") -> None:
-        """Copy patterns from this psdimage to the target psdimage."""
-        ...

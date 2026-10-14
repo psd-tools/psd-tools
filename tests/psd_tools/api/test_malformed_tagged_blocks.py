@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from psd_tools import PSDImage
+from psd_tools.api._resources import ResourceTransfer
 from psd_tools.api.layers import Artboard, ShapeLayer, SmartObjectLayer, TypeLayer
 from psd_tools.api.shape import Line, Origination, Stroke
 from psd_tools.api.smart_object import SmartObject
@@ -137,7 +138,7 @@ def test_copying_patterns_keeps_a_malformed_target_block() -> None:
     source = PSDImage.open(full_name("adjustment-fillers.psd"))
     target = PSDImage.open(full_name("adjustment-fillers.psd"))
     _corrupt(target, Tag.PATTERNS1)
-    source._copy_patterns(target)
+    ResourceTransfer(target).add(source, [x._record for x in source.descendants()])
     assert target.tagged_blocks is not None
     assert target.tagged_blocks[Tag.PATTERNS1].data == b"\xff\xff"
 
