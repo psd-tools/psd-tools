@@ -4,6 +4,11 @@ Changelog
 1.25.0 (unreleased)
 -------------------
 
+- [api] ``Layer.duplicate()`` copies a layer or nested group within its
+  document, with independent layer data and fresh IDs. It accepts a
+  destination, final position and name; smart-object contents remain shared
+  with fresh instance IDs. A copy directly above its source releases the
+  clipped layers above it. Artboards stay at the document root (#928; related to #882)
 - [api] Add ``create_pixel_layer_from_array()`` and ``PixelLayer.fromarray()``
   to create a pixel layer from a ``float32``, ``uint8`` or ``uint16`` array, so
   a layer in a 16- or 32-bit document is not limited to PIL's 8 bits (#871)
