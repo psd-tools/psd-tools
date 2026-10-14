@@ -275,7 +275,7 @@ class Stroke(object):
 
         :return: float
         """
-        return float(self._data.get(b"strokeStyleLineDashOffset", 0.0))
+        return get_scalar(self._data, b"strokeStyleLineDashOffset", float, 0.0)
 
     @property
     def miter_limit(self) -> float | None:
@@ -349,7 +349,7 @@ class Origination(object):
     ) -> "Invalidated | Rectangle | RoundedRectangle | Line | Ellipse":
         if data.get(b"keyShapeInvalidated"):
             return Invalidated(data)
-        origin_type = data.get(b"keyOriginType")
+        origin_type = get_scalar(data, b"keyOriginType", int, 0)
         types = {1: Rectangle, 2: RoundedRectangle, 4: Line, 5: Ellipse}
         return types.get(origin_type, kls)(data)  # type: ignore
 
@@ -368,7 +368,7 @@ class Origination(object):
 
         :return: `int`
         """
-        return int(self._data.get(b"keyOriginType"))
+        return get_scalar(self._data, b"keyOriginType", int, 0)
 
     @property
     def resolution(self) -> float | None:
@@ -376,8 +376,7 @@ class Origination(object):
 
         :return: `float` or `None`
         """
-        value = self._data.get(b"keyOriginResolution")
-        return None if value is None else float(value)
+        return get_scalar(self._data, b"keyOriginResolution", float, None)
 
     @property
     def bbox(self) -> tuple[float, float, float, float]:
@@ -404,7 +403,7 @@ class Origination(object):
 
         :return: `int`
         """
-        return int(self._data.get(b"keyOriginIndex", 0))
+        return get_scalar(self._data, b"keyOriginIndex", int, 0)
 
     @property
     def invalidated(self) -> bool:
@@ -496,7 +495,7 @@ class Line(Origination):
 
         :return: `float`
         """
-        return float(self._data.get(b"keyOriginLineWeight"))
+        return get_scalar(self._data, b"keyOriginLineWeight", float, 0.0)
 
     @property
     def arrow_start(self) -> bool:
@@ -521,7 +520,7 @@ class Line(Origination):
 
         :return: `float`
         """
-        return float(self._data.get(b"keyOriginLineArrWdth"))
+        return get_scalar(self._data, b"keyOriginLineArrWdth", float, 0.0)
 
     @property
     def arrow_length(self) -> float:
@@ -529,7 +528,7 @@ class Line(Origination):
 
         :return: `float`
         """
-        return float(self._data.get(b"keyOriginLineArrLngth"))
+        return get_scalar(self._data, b"keyOriginLineArrLngth", float, 0.0)
 
     @property
     def arrow_conc(self) -> int:
@@ -537,4 +536,4 @@ class Line(Origination):
 
         :return: `int`
         """
-        return int(self._data.get(b"keyOriginLineArrConc"))
+        return get_scalar(self._data, b"keyOriginLineArrConc", int, 0)
