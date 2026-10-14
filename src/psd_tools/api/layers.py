@@ -1053,7 +1053,10 @@ class Layer(LayerProtocol):
         """
         if self.clipping:
             return []
+        return self._clipped_above()
 
+    def _clipped_above(self) -> list[Self]:
+        """The run of clipping siblings directly above this layer."""
         # A detached layer has no siblings, so nothing clips to it.
         parent: GroupMixin | None = self.parent  # type: ignore
         if parent is None:
@@ -1303,8 +1306,8 @@ class Layer(LayerProtocol):
         :param index: The copy's final position in the destination, counting
             from the bottom; negative counts from the top, so ``-1`` is the top.
             Defaults to immediately above the source in the same parent, or
-            the top of another container. Inserting directly above a clip base
-            releases the layers clipped to that base.
+            the top of another container. A copy placed directly above its
+            source releases the clipped layers above the source.
         :param name: Optional name for the copy's root layer.
         :raises TypeError: If the destination, index or name has an invalid type.
         :raises ValueError: If no destination is available, the destination is
@@ -1378,7 +1381,7 @@ class Layer(LayerProtocol):
         if name is not None:
             duplicate.name = name
         clip_layers = (
-            self.clip_layers
+            self._clipped_above()
             if parent is self.parent and index == parent.index(self) + 1
             else []
         )

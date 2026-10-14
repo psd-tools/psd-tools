@@ -266,16 +266,37 @@ def test_duplicate_clip_base_releases_clipped_layers(
     assert not base.clip_layers and not copy.clip_layers
 
 
-def test_duplicate_clipped_layer_preserves_clipping() -> None:
-    psd = PSDImage.new("RGB", (8, 8))
-    base, first, second = [
-        psd.create_pixel_layer(Image.new("RGB", (2, 2))) for _ in range(3)
-    ]
-    first.clipping = second.clipping = True
-    copy = first.duplicate()
-    assert list(psd) == [base, first, copy, second]
-    assert copy.clipping and first.clipping and second.clipping
-    assert base.clip_layers == [first, copy, second]
+@pytest.mark.parametrize(
+    "stack, target, expected",
+    [
+        # Photoshop's Duplicate Layer; stacks are bottom to top, ``*`` is clipped.
+        ("Base C1* C2* C3*", "C1", "Base C1* C1copy* C2 C3"),
+        ("Base C1* C2* C3*", "C2", "Base C1* C2* C2copy* C3"),
+        ("Base C1* C2* C3*", "C3", "Base C1* C2* C3* C3copy*"),
+        ("Base C1* C2* X", "C1", "Base C1* C1copy* C2 X"),
+        ("Base C1* Mid D1*", "Mid", "Base C1* Mid Midcopy D1"),
+        ("Base Mid* D1*", "Mid", "Base Mid* Midcopy* D1"),
+    ],
+)
+def test_duplicate_clipped_layer_releases_the_run_above(
+    stack: str, target: str, expected: str
+) -> None:
+    def build(spec: str) -> PSDImage:
+        psd = PSDImage.new("RGB", (8, 8))
+        for item in spec.split():
+            layer = psd.create_pixel_layer(
+                Image.new("RGB", (2, 2)), name=item.rstrip("*")
+            )
+            layer.clipping = item.endswith("*")
+        return psd
+
+    psd = build(stack)
+    source = psd.find(target)
+    assert source is not None
+    source.duplicate(name=f"{target}copy")
+    assert [f"{layer.name}{'*' if layer.clipping else ''}" for layer in psd] == (
+        expected.split()
+    )
 
 
 @pytest.mark.parametrize("other_parent", [False, True])

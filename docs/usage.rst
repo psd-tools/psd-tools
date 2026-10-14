@@ -236,8 +236,9 @@ place. Cross-document duplication is not supported; a detached source needs
 an explicit destination parent. ``index`` is the copy's position in the
 destination after the call; ``-1`` is the top. An out-of-range index raises
 ``IndexError``. Without it, a copy goes immediately above its source in the
-same parent, or to the top of a different container. Duplicating a clip base
-directly above itself releases the layers clipped to it, as Photoshop does.
+same parent, or to the top of a different container. A copy placed directly
+above its source releases the clipped layers above the source, as Photoshop
+does.
 Artboards can only be duplicated at the document root. Smart-object copies
 share the original content but have fresh instance IDs.
 
