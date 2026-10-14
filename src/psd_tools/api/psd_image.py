@@ -94,7 +94,6 @@ from psd_tools.psd.layer_and_mask import (
     LayerRecord,
     LayerRecords,
 )
-from psd_tools.psd.patterns import Patterns
 from psd_tools.psd.tagged_blocks import SectionDividerSetting, TaggedBlocks
 
 logger = logging.getLogger(__name__)
@@ -1087,38 +1086,6 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
         # Flag as updated.
         self.mark_updated()
-
-    def _copy_patterns(self, psdimage: PSDProtocol) -> None:
-        """Copy patterns from this psdimage to the target psdimage."""
-        if self.tagged_blocks is None:
-            # Nothing to copy.
-            return
-
-        if psdimage.tagged_blocks is None:
-            logger.debug("Creating tagged blocks for psdimage.")
-            psdimage._record.layer_and_mask_information.tagged_blocks = TaggedBlocks()
-        if psdimage.tagged_blocks is None:
-            raise ValueError("Failed to create tagged blocks for psdimage")
-
-        for tag in self.tagged_blocks.keys():
-            # Keys may be raw bytes (``set_data()`` unwraps); ``Tag`` is a bytes enum.
-            if tag in (Tag.PATTERNS1, Tag.PATTERNS2, Tag.PATTERNS3):
-                logger.debug("Copying patterns for tag %s", tag)
-                source_patterns: Patterns | None = self.tagged_blocks.get_data(tag)
-                target_patterns: Patterns | None = psdimage.tagged_blocks.get_data(tag)
-                if source_patterns is None:
-                    continue
-                if target_patterns is None:
-                    if tag in psdimage.tagged_blocks:
-                        # Keep a malformed target block as it is.
-                        continue
-                    target_patterns = Patterns()
-                    psdimage.tagged_blocks.set_data(tag, target_patterns)
-
-                target_pattern_ids = {p.pattern_id for p in target_patterns}
-                for pattern in source_patterns:
-                    if pattern.pattern_id not in target_pattern_ids:
-                        target_patterns.append(pattern)
 
 
 def _build_record_tree(

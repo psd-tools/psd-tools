@@ -116,6 +116,7 @@ import psd_tools.psd.engine_data as engine_data
 from psd_tools.api import numpy_io, pil_io
 from psd_tools.color_convert import LAB_NEUTRAL_CHROMA, rgb_to_grayscale
 from psd_tools.compression import PSDDecompressionWarning
+from psd_tools.api._resources import ResourceTransfer
 from psd_tools.api.effects import Effects
 from psd_tools.api.mask import Mask
 from psd_tools.api.protocols import GroupMixinProtocol, LayerProtocol, PSDProtocol
@@ -1371,9 +1372,9 @@ class Layer(LayerProtocol):
         The copy is deep, including a group's descendants, and has fresh layer
         IDs. The source and its document are left as they were. Channels are
         converted to the destination's colour mode, depth and file version;
-        narrowing a 32-bit layer tone-maps as Photoshop does. Patterns are
-        shared with the source, unconverted, and linked smart-object data is
-        not carried to another document (#1000). Clipping is positional: the
+        narrowing a 32-bit layer tone-maps as Photoshop does. The patterns and
+        linked smart objects it uses are copied into the destination document,
+        patterns unconverted to its colour mode. Clipping is positional: the
         layers clipped to this one are not copied, and a copy keeps its own
         clipping flag.
 
@@ -1416,7 +1417,9 @@ class Layer(LayerProtocol):
             if (converted := source._reencode(group)) is not None:
                 target._apply_reencoded(converted)
         seed_resource = _issue_layer_ids(group._psd, group._psd.descendants(), copies)
-        self._psd._copy_patterns(group._psd)  # TODO: optimize
+        transfer = ResourceTransfer(group._psd)
+        for node in copies:
+            transfer.add(self._psd, _layer_records(node))
         group.insert(position, copy_)
         group._psd.image_resources[Resource.IDS_SEED_NUMBER] = seed_resource
         return copy_
@@ -2090,23 +2093,27 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         return converted
 
     def _update_children(
-        self, converted: dict[int, tuple[LayerRecord, ChannelDataList]]
+        self,
+        converted: dict[int, tuple[LayerRecord, ChannelDataList]],
+        transfer: ResourceTransfer | None = None,
     ) -> None:
         """Update children's _psd and _parent references.
 
         *converted* is what :py:meth:`_reencode_moved` returned.
         """
+        transfer = transfer or ResourceTransfer(self._psd)
         for layer in self:
             # Update PSD reference if needed
             if layer._psd != self._psd:
                 if id(layer) in converted:
                     layer._apply_reencoded(converted[id(layer)])
-                layer._psd._copy_patterns(self._psd)  # TODO: optimize
+                transfer.add(layer._psd, _layer_records(layer))
+                layer.__dict__.pop("_smart_object", None)
                 layer._psd = self._psd
             # Update parent reference
             layer._parent = self
             if isinstance(layer, GroupMixin):
-                layer._update_children(converted)
+                layer._update_children(converted, transfer)
 
     def is_visible(self) -> bool:
         """Returns visibility of the element."""

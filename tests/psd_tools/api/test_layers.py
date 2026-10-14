@@ -2156,12 +2156,10 @@ def test_parent_creators_type_check() -> None:
 
 
 def test_a_document_that_received_a_layer_can_donate_one() -> None:
-    """A document that received a patterns-carrying layer can donate one (#862)."""
-    a = PSDImage.open(full_name("layers/pixel-layer.psd"))
+    """A document that received a pattern-using layer can donate one (#862)."""
+    a = PSDImage.open(full_name("layers/pattern-fill.psd"))
     b = PSDImage.open(full_name("2layers.psd"))
     c = PSDImage.open(full_name("1layer.psd"))
-    assert a.tagged_blocks is not None
-    assert Tag.PATTERNS1 in a.tagged_blocks
     assert b.tagged_blocks is None or Tag.PATTERNS1 not in b.tagged_blocks
 
     b.append(a[0])

@@ -4,6 +4,10 @@ Changelog
 1.25.0 (unreleased)
 -------------------
 
+- [fix] ``Layer.copy_to()`` and cross-document ``append()``/``extend()``/``insert()``
+  now carry the linked smart objects and only the patterns a layer uses, as
+  independent copies; a smart-object copy no longer loses its data. Ids that
+  clash with the destination's are reissued (#1000; part of #882)
 - [api] Add ``Layer.copy_to(group, index=None)``, which copies a layer or group
   into any document, converting it to the destination's mode and depth and
   leaving the source in place. Unlike ``append()``, it does not move the
