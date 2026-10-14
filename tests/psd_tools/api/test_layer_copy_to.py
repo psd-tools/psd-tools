@@ -124,6 +124,23 @@ def test_copy_narrowing_32bit_tone_maps_like_topil() -> None:
     np.testing.assert_array_equal(layer.numpy(), stored)
 
 
+def test_copy_narrowing_32bit_tone_maps_when_the_pil_modes_match() -> None:
+    source = PSDImage.open(full_name("32bit5x5.psd"))
+    layer = next(layer for layer in source.descendants() if layer.kind == "pixel")
+    dest = PSDImage.new("RGB", (5, 5))
+    assert source.pil_mode == dest.pil_mode
+    image = layer.topil()
+    assert image is not None
+
+    result = layer.copy_to(dest).topil()
+
+    assert result is not None
+    np.testing.assert_array_equal(
+        np.asarray(result.convert(dest.pil_mode)),
+        np.asarray(image.convert(dest.pil_mode)),
+    )
+
+
 def test_chained_copy_keeps_every_document_independent() -> None:
     a, layer = _source()
     b = PSDImage.new("RGB", (16, 16), depth=16)

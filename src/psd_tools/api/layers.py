@@ -945,17 +945,15 @@ class Layer(LayerProtocol):
     ) -> bool:
         """Whether a move must re-render through PIL rather than repack in place.
 
-        The colour mode decides it. ``pil_mode`` also carries the document's
-        merged-image alpha, which says nothing about how a layer's channels
-        are packed, so it is not compared -- except when narrowing a 32-bit
-        layer, where only the render tone-maps the stored linear values the
-        way Photoshop's mode change does.
+        The colour mode decides it, and so does narrowing a 32-bit layer, where
+        only the render tone-maps the stored linear values the way Photoshop's
+        mode change does. ``pil_mode`` also carries the document's merged-image
+        alpha, which says nothing about how a layer's channels are packed, so
+        it is not compared.
         """
         if source.color_mode != dest.color_mode:
             return True
-        if source.depth == 32 and dest.depth != 32:
-            return parent._psd.pil_mode != self._psd.pil_mode
-        return False
+        return source.depth == 32 and dest.depth != 32
 
     def topil(
         self, channel: int | None = None, apply_icc: bool = True
