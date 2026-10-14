@@ -68,7 +68,9 @@ class ImageData(BaseElement):
     """
 
     compression: Compression = field(
-        default=Compression.RAW, converter=Compression, validator=in_(Compression)
+        default=Compression.RAW,
+        converter=Compression,
+        validator=in_(tuple(Compression)),
     )
     data: bytes = b""
 

@@ -10,10 +10,12 @@ import pytest
 from psd_tools.compression import (
     _safe_zlib_decompress,
     PSDDecompressionWarning,
+    RLE_ROW_BYTES,
     compress,
     decode_prediction,
     decode_rle,
     decompress,
+    decompress_row_peak_bytes,
     decompressed_size_bound,
     encode_prediction,
     encode_rle,
@@ -537,3 +539,21 @@ def test_decompress_failure_warning_states_what_follows(depth: int) -> None:
     corrupt = b"\x78\x9c" + b"\xff" * 20  # valid zlib header, garbage deflate
     with pytest.warns(PSDDecompressionWarning, match="channel replaced with black"):
         decompress(corrupt, Compression.ZIP, 4, 4, depth)
+
+
+def test_the_per_row_term_is_charged_for_rle_alone() -> None:
+    """What ``decompress_row_peak_bytes()`` adds on top of a codec's payload peak.
+
+    ``decode_rle()`` holds one object per row of the table, through a
+    ``b"".join()`` that keeps every one of them alive while the channel is
+    assembled. The other codecs produce their whole output as one object, so the
+    term is theirs alone -- and a record with no rows holds nothing.
+    """
+    assert decompress_row_peak_bytes(Compression.RLE, 7) == 7 * RLE_ROW_BYTES
+    assert decompress_row_peak_bytes(Compression.RLE, 0) == 0
+    for compression in (
+        Compression.RAW,
+        Compression.ZIP,
+        Compression.ZIP_WITH_PREDICTION,
+    ):
+        assert decompress_row_peak_bytes(compression, 7) == 0

@@ -155,11 +155,7 @@ def test_a_layerless_document_survives_a_save_at_every_depth(
 
     Depth 32 additionally pins ``ImageData.new``: packing white as the integer
     ``0xffffffff`` is a quiet NaN read back as ``>f4``, which leaves the
-    document NaN before it is ever saved. Photoshop still declines a document
-    ``PSDImage.new(depth=32)`` builds, for a missing ``hdrt`` color mode data
-    block rather than for anything in the preview (#869). What is asserted
-    here is that psd-tools reads its own output and that no NaN reaches the
-    file.
+    document NaN before it is ever saved.
     """
     psd = PSDImage.new("RGB", (8, 8), color=1.0, depth=depth)
     assert not np.isnan(psd.numpy()).any()

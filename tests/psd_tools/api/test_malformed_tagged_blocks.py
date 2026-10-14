@@ -8,10 +8,13 @@ from typing import Any
 import pytest
 
 from psd_tools import PSDImage
-from psd_tools.api.layers import Artboard, SmartObjectLayer, TypeLayer
+from psd_tools.api.layers import Artboard, ShapeLayer, SmartObjectLayer, TypeLayer
+from psd_tools.api.shape import Stroke
 from psd_tools.api.smart_object import SmartObject
-from psd_tools.constants import Tag
+from psd_tools.constants import Tag, TextType
+from psd_tools.psd.engine_data import Integer, Property
 from psd_tools.psd.tagged_blocks import TaggedBlock
+from psd_tools.psd.vector import ClosedPath, Knot
 
 from ..utils import full_name
 
@@ -175,3 +178,201 @@ def test_a_malformed_first_effects_block_does_not_hide_a_valid_one() -> None:
     )
 
     assert len(list(layer.effects)) == expected
+
+
+def _patched_type_layers(filename: str, offset: int, value: int) -> list[TypeLayer]:
+    data = bytearray(open(full_name(filename), "rb").read())
+    data[offset] = value
+    psd = PSDImage.open(io.BytesIO(data))
+    layers = [x for x in psd.descendants() if isinstance(x, TypeLayer)]
+    assert layers
+    return layers
+
+
+@pytest.mark.parametrize(
+    "filename, offset, value",
+    [
+        ("clip-adjustment.psd", 21766, 0x07),
+        ("transparency/fill-opacity.psd", 28844, 0x41),
+        ("masks.psd", 57869, 0xDF),
+    ],
+)
+def test_a_type_layer_with_unreadable_text_data_degrades(
+    filename: str, offset: int, value: int
+) -> None:
+    for layer in _patched_type_layers(filename, offset, value):
+        assert isinstance(layer.text, str)
+        assert layer.text_type in (None, *TextType)
+        layer.engine_dict, layer.resource_dict, layer.document_resources
+        assert isinstance(layer.font_names, list)
+        layer.typesetting
+
+
+def test_a_type_layer_without_engine_data_has_empty_dicts() -> None:
+    layers = _patched_type_layers("transparency/fill-opacity.psd", 28844, 0x41)
+    for layer in layers:
+        assert not layer.engine_dict
+        assert not layer.resource_dict
+        assert not layer.document_resources
+        assert layer.text_type is None
+        assert layer.font_names == []
+
+
+def test_a_type_layer_without_text_has_empty_text() -> None:
+    layers = _patched_type_layers("masks.psd", 57869, 0xDF)
+    assert [layer.text for layer in layers].count("") >= 1
+
+
+def _type_layer() -> TypeLayer:
+    psd = PSDImage.open(full_name("clip-adjustment.psd"))
+    return next(x for x in psd.descendants() if isinstance(x, TypeLayer))
+
+
+def test_a_type_layer_with_a_non_string_text_has_empty_text() -> None:
+    layer = _type_layer()
+    layer._data.text_data[b"Txt "].value = 5
+    assert layer.text == ""
+
+
+def test_a_type_layer_with_a_scalar_engine_dict_degrades() -> None:
+    layer = _type_layer()
+    layer._data.text_data[b"EngineData"].value[Property("EngineDict")] = Integer(1)
+    assert not layer.engine_dict
+    assert layer.text_type is None
+
+
+def _patched(filename: str, offset: int, value: int) -> PSDImage:
+    data = bytearray(open(full_name(filename), "rb").read())
+    data[offset] = value
+    return PSDImage.open(io.BytesIO(data))
+
+
+def _strokes(psd: PSDImage) -> list[Stroke]:
+    strokes = [x.stroke for x in psd.descendants() if hasattr(x, "stroke") and x.stroke]
+    assert strokes
+    return strokes
+
+
+def test_a_shape_with_an_unreadable_origination_bbox_uses_the_path() -> None:
+    psd = _patched("masks/2.psd", 20034, 0x07)
+    layers = [x for x in psd.descendants() if isinstance(x, ShapeLayer)]
+    unreadable = [
+        x
+        for x in layers
+        if x.has_origination() and any(o._read_bbox() is None for o in x.origination)
+    ]
+    assert unreadable
+    for layer in unreadable:
+        assert layer.vector_mask is not None
+        box = layer.vector_mask.bbox
+        assert layer.bbox == (
+            round(box[0] * psd.width),
+            round(box[1] * psd.height),
+            round(box[2] * psd.width),
+            round(box[3] * psd.height),
+        )
+        assert (0.0, 0.0, 0.0, 0.0) in [o.bbox for o in layer.origination]
+
+
+def _patched_document(filename: str, patches: dict[int, int]) -> PSDImage:
+    data = bytearray(open(full_name(filename), "rb").read())
+    for offset, value in patches.items():
+        data[offset] = value
+    return PSDImage.open(io.BytesIO(data))
+
+
+_NON_KNOT_PATCHES = [
+    ("blend-modes/overlay.psd", {21747: 0x00, 21748: 0x00}),
+    ("descriptors/stroke-color-descriptors-rgb.psd", {22157: 0x00, 22159: 0x01}),
+]
+
+
+@pytest.mark.parametrize("filename, patches", _NON_KNOT_PATCHES)
+def test_a_vector_mask_with_non_knot_records_skips_them(
+    filename: str, patches: dict[int, int]
+) -> None:
+    psd = _patched_document(filename, patches)
+    masks = [x.vector_mask for x in psd.descendants() if x.vector_mask is not None]
+    assert any(not isinstance(k, Knot) for m in masks for p in m.paths for k in p)
+    for mask in masks:
+        left, top, right, bottom = mask.bbox
+        assert left <= right and top <= bottom
+
+
+def test_a_vector_mask_bbox_ignores_non_knot_records() -> None:
+    psd = _patched_document("blend-modes/overlay.psd", _NON_KNOT_PATCHES[0][1])
+    layer = next(x for x in psd.descendants() if x.name == "Ellipse 3")
+    assert layer.vector_mask is not None
+    assert layer.vector_mask.bbox == pytest.approx(
+        (0.125, 0.25, 0.875, 0.78033), abs=1e-5
+    )
+
+
+@pytest.mark.parametrize("filename, patches", _NON_KNOT_PATCHES)
+def test_a_forced_composite_skips_non_knot_records(
+    filename: str, patches: dict[int, int]
+) -> None:
+    if filename.startswith("descriptors/"):
+        pytest.importorskip("aggdraw")
+    psd = _patched_document(filename, patches)
+    for layer in psd.descendants():
+        if layer.kind == "shape":
+            layer.composite(force=True)
+    psd.composite(force=True)
+
+
+def test_a_stroke_with_unreadable_line_width_defaults() -> None:
+    psd = _patched("layers-minimal/shape-layer.psd", 22561, 0x00)
+    assert [s.line_width for s in _strokes(psd)] == [1.0]
+
+
+def test_a_stroke_with_unreadable_cap_type_defaults() -> None:
+    psd = _patched("layers/shape-layer.psd", 21860, 0xFF)
+    assert [s.line_cap_type for s in _strokes(psd)] == ["butt"]
+
+
+def test_a_stroke_with_unreadable_join_type_defaults() -> None:
+    psd = _patched("layers/shape-layer.psd", 21932, 0x03)
+    assert [s.line_join_type for s in _strokes(psd)] == ["miter"]
+
+
+def test_a_smart_object_with_an_unreadable_id_raises_value_error() -> None:
+    psd = _patched("layers-minimal/smartobject-layer.psd", 22588, 0xF8)
+    layer = next(x for x in psd.descendants() if isinstance(x, SmartObjectLayer))
+    smart_object = layer.smart_object
+    with pytest.raises(ValueError, match="identifier"):
+        smart_object.unique_id
+    with pytest.raises(ValueError):
+        smart_object.data
+
+
+def test_an_external_smart_object_without_full_path_falls_back_to_rel_path(
+    tmp_path: Any,
+) -> None:
+    psd = _patched("placedLayer.psd", 85175, 0x00)
+    layer = next(x for x in psd.descendants() if x.name == "linked-png")
+    assert isinstance(layer, SmartObjectLayer)
+    (tmp_path / "linked-layer.png").write_bytes(b"png")
+    with layer.smart_object.open(external_dir=tmp_path) as f:
+        assert f.read() == b"png"
+
+
+def test_an_external_smart_object_without_any_path_raises_value_error() -> None:
+    psd = PSDImage.open(full_name("placedLayer.psd"))
+    layer = next(x for x in psd.descendants() if x.name == "linked-png")
+    assert isinstance(layer, SmartObjectLayer)
+    assert layer.smart_object._data is not None
+    linked_file = layer.smart_object._data.linked_file
+    for key in (b"fullPath", b"relPath"):
+        del linked_file[key]
+    with pytest.raises(ValueError, match="no readable path"):
+        layer.smart_object.data
+
+
+def test_a_forced_stroke_skips_non_knot_records() -> None:
+    pytest.importorskip("aggdraw")
+    psd = PSDImage.open(full_name("layers/shape-layer.psd"))
+    layer = next(x for x in psd.descendants() if x.kind == "shape" and x.stroke)
+    assert layer.vector_mask is not None
+    layer.vector_mask.paths[0].insert(1, ClosedPath())
+    layer.composite(force=True)

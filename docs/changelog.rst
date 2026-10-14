@@ -9,6 +9,40 @@ Changelog
   destination, final position and name; smart-object contents remain shared
   with fresh instance IDs. A copy directly above a clip base releases its
   clipping layers. Artboards stay at the document root (#928; related to #882)
+- [api] Add ``create_pixel_layer_from_array()`` and ``PixelLayer.fromarray()``
+  to create a pixel layer from a ``float32``, ``uint8`` or ``uint16`` array, so
+  a layer in a 16- or 32-bit document is not limited to PIL's 8 bits (#871)
+
+- [fix] Moving a layer between documents of the same colour mode no longer
+  re-renders it through PIL when only the documents' merged-image alpha
+  differs, so the layer keeps its opacity, blend mode and mask (#872, #989)
+- [fix] Moving a pixel layer into a document of a different colour mode keeps
+  the layer's opacity, blend mode, mask and tagged blocks, and a layer moved
+  into a CMYK document no longer reads back with inverted colours (#872, #990)
+- [fix] Moving a shape, type, fill, adjustment, smart object layer or group
+  into a document of a different colour mode, depth or file version
+  re-encodes its channels, so it no longer reads back corrupt (#872, #991)
+- [fix] A move between documents that cannot convert a layer, such as a
+  Lab layer into a grayscale or CMYK document, raises before anything changes,
+  instead of leaving the layer in the destination and both documents
+  half-updated (#992)
+- [fix] A pattern or gradient vector stroke is laid out across the path, as
+  Photoshop does, instead of a box grown by the stroke width. Affects
+  composites of shape layers with a pattern or gradient stroke, most for wide
+  strokes (#824, #987)
+- [api] ``paint.draw_gradient_fill``, ``draw_pattern_fill`` and
+  ``create_fill_desc`` gain an optional ``anchor`` to lay the fill out on a box
+  other than the one drawn (#824, #987)
+- [fix] ``PSDImage.new(..., depth=32)`` writes the ``hdrt`` color mode data
+  block Photoshop requires, so Photoshop can open the document instead of
+  rejecting it (#869)
+- [ci] Drop Python 3.10, which reaches end of life on 2026-10-31, and add
+  Python 3.15. **Backward incompatible:** ``requires-python`` is now
+  ``>=3.11``. ``typing-extensions`` is no longer a dependency. aggdraw
+  publishes no cp315 wheels, so the ``composite`` extra builds from source on
+  3.15. If that build fails on Windows to find FreeType, set
+  ``AGGDRAW_FREETYPE_ROOT`` to an empty value before installing (#964, #978,
+  #979)
 - [api] ``PSDImage.new("1", ...)`` and ``frompil`` of mode ``"1"`` now build a
   depth-1 bitmap document, where ``new`` declared depth 8. Omitting ``depth``
   selects 1; any other depth is rejected for mode ``"1"``, and ``depth=1`` is
@@ -20,6 +54,23 @@ Changelog
   and grayscale only. An ``RGBA`` ``topil()`` still un-mats every mode, so
   CMYK and LAB are too after an ICC profile converts them. ``cactus_top.psd``
   is no longer un-matted: that channel is not declared as transparency (#868, #974)
+- [fix] The allocation guard now counts the object RLE decoding holds per row,
+  so a tall, narrow RLE document is refused with ``ValueError`` when its real
+  peak is over ``max_alloc_bytes`` instead of passing on a payload-only
+  estimate. A document whose two estimates straddle your budget now raises
+  (#926, #973)
+- [fix] ``TypeLayer`` no longer raises ``AttributeError`` when its text data
+  is malformed. ``text`` is empty and ``engine_dict``, ``resource_dict`` and
+  ``document_resources`` are empty dicts when the data is missing or
+  unreadable, as with ``typesetting`` and ``font_names`` (#980)
+- [fix] ``ShapeLayer.bbox``, ``Stroke`` width, cap and join, and
+  ``SmartObject.unique_id``, ``data`` and ``open()`` no longer raise
+  ``AttributeError``, ``TypeError`` or ``KeyError`` on a missing descriptor
+  key. They fall back to the vector mask bbox, Photoshop's defaults and
+  ``relPath``, or raise ``ValueError`` when nothing is readable (#981, #984)
+- [fix] ``VectorMask.bbox`` and forced vector rendering (``composite(force=True)``)
+  no longer raise ``AttributeError`` when a subpath holds records that are not
+  knots. They skip those records (#982, #986)
 
 1.24.0 (2026-10-06)
 -------------------

@@ -70,7 +70,7 @@ class FileHeader(BaseElement):
     width: int = field(default=64, validator=range_(1, 300001))
     depth: int = field(default=8, validator=in_((1, 8, 16, 32)))
     color_mode: ColorMode = field(
-        default=ColorMode.RGB, converter=ColorMode, validator=in_(ColorMode)
+        default=ColorMode.RGB, converter=ColorMode, validator=in_(tuple(ColorMode))
     )
 
     @signature.validator

@@ -232,14 +232,15 @@ def create_fill_desc(
     layer: "Layer",
     desc: Descriptor,
     viewport: tuple[int, int, int, int],
+    anchor: tuple[int, int, int, int] | None = None,
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
-    """Create a fill image."""
+    """Create a fill image, laid out on ``anchor`` and drawn on ``viewport``."""
     if desc.classID == b"solidColorLayer":
         return draw_solid_color_fill(viewport, layer._psd.color_mode, desc)
     if desc.classID == b"patternLayer":
-        return draw_pattern_fill(viewport, layer._psd, desc)
+        return draw_pattern_fill(viewport, layer._psd, desc, anchor)
     if desc.classID == b"gradientLayer":
-        return draw_gradient_fill(viewport, layer._psd.color_mode, desc)
+        return draw_gradient_fill(viewport, layer._psd.color_mode, desc, anchor)
     return None, None
 
 
@@ -314,9 +315,13 @@ def draw_pattern_fill(
     viewport: tuple[int, int, int, int],
     psd: Any,
     desc: Descriptor,
+    anchor: tuple[int, int, int, int] | None = None,
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
     r"""
     Create a pattern fill.
+
+    The tiling starts at the top-left of ``anchor``, which defaults to
+    ``viewport``, so a viewport larger than the anchor continues the same tiling.
 
     Example descriptor::
 
@@ -375,9 +380,14 @@ def draw_pattern_fill(
         panel = _resize_panel(panel, new_shape)
 
     height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
+    # The tiling is shifted so that it starts at the anchor, not the viewport.
+    shift_y = shift_x = 0
+    if anchor is not None:
+        shift_y = (viewport[1] - anchor[1]) % panel.shape[0]
+        shift_x = (viewport[0] - anchor[0]) % panel.shape[1]
     reps = (
-        int(np.ceil(float(height) / panel.shape[0])),
-        int(np.ceil(float(width) / panel.shape[1])),
+        int(np.ceil(float(height + shift_y) / panel.shape[0])),
+        int(np.ceil(float(width + shift_x) / panel.shape[1])),
         1,
     )
     if reps[0] > 0 and reps[1] > 0:
@@ -403,7 +413,9 @@ def draw_pattern_fill(
     # never split off, and the array reached the canvas one plane too wide and
     # was rejected as inconsistent with it (#741).
     channels = numpy_io.get_pattern_color_channels(pattern)
-    pixels = np.tile(panel, reps)[:height, :width, :]
+    pixels = np.tile(panel, reps)[
+        shift_y : shift_y + height, shift_x : shift_x + width, :
+    ]
     if pixels.shape[2] > channels:
         return pixels[:, :, :channels], pixels[:, :, -1:]
     return pixels, None
@@ -414,21 +426,28 @@ def draw_gradient_fill(
     viewport: tuple[int, int, int, int],
     color_mode: ColorMode,
     desc: Descriptor,
+    anchor: tuple[int, int, int, int] | None = None,
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
     """
     Create a gradient fill image.
 
+    The ramp is laid out across ``anchor``, which defaults to ``viewport``; a
+    viewport larger than the anchor continues the ramp past its ends.
+
     Requires scipy for gradient color interpolation.
     """
     height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
+    box = viewport if anchor is None else anchor
+    # A path with no extent along an axis ramps as a single pixel there.
+    box_height, box_width = max(box[3] - box[1], 1), max(box[2] - box[0], 1)
 
     angle = float(desc.get(Key.Angle, 0))
     scale = float(desc.get(Key.Scale, 100.0)) / 100.0
     ratio = angle % 90
-    scale *= (90.0 - ratio) / 90.0 * width + (ratio / 90.0) * height
+    scale *= (90.0 - ratio) / 90.0 * box_width + (ratio / 90.0) * box_height
     X, Y = np.meshgrid(
-        np.linspace(-width / scale, width / scale, width, dtype=np.float32),
-        np.linspace(-height / scale, height / scale, height, dtype=np.float32),
+        _ramp_axis(viewport[0] - box[0], width, box_width, scale),
+        _ramp_axis(viewport[1] - box[1], height, box_height, scale),
     )
 
     gradient_kind = desc.get(Key.Type).enum
@@ -455,6 +474,12 @@ def draw_gradient_fill(
     color = G(Z) if G is not None else None
     shape = np.expand_dims(Ga(Z), 2) if Ga is not None else None
     return color, shape
+
+
+def _ramp_axis(start: int, count: int, extent: int, scale: float) -> np.ndarray:
+    """``count`` ramp coordinates from pixel ``start``, ``extent`` pixels spanning -1 to 1."""
+    step = 2.0 * extent / scale / (extent - 1) if extent > 1 else 0.0
+    return (-extent / scale + (start + np.arange(count)) * step).astype(np.float32)
 
 
 def _make_linear_gradient(X: np.ndarray, Y: np.ndarray, angle: float) -> np.ndarray:

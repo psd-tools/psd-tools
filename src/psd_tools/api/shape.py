@@ -11,12 +11,13 @@ import logging
 import math
 from typing import Literal
 
-from psd_tools.api._descriptor import get_blend_mode, get_scalar
+from psd_tools.api._descriptor import get_blend_mode, get_descriptor, get_scalar
 from psd_tools.constants import BlendMode, StrokeAlignment
 from psd_tools.psd.descriptor import Descriptor, DescriptorBlock2
 from psd_tools.psd.vector import (
     ClipboardRecord,
     InitialFillRule,
+    Knot,
     Subpath,
     VectorMaskSetting,
     VectorStrokeContentSetting,
@@ -166,7 +167,7 @@ class VectorMask(object):
         ys: list[float] = []
 
         for path in self.paths:
-            knots = list(path)
+            knots = [k for k in path if isinstance(k, Knot)]
             if len(knots) == 0:
                 continue
             # For a single-knot open path there are no segments, but we still
@@ -255,8 +256,8 @@ class Stroke(object):
 
     @property
     def line_width(self) -> float:
-        """Stroke width in float."""
-        return float(self._data.get(b"strokeStyleLineWidth"))
+        """Stroke width in float; 1.0 if the file does not record a readable one."""
+        return get_scalar(self._data, b"strokeStyleLineWidth", float, 1.0)
 
     @property
     def line_dash_set(self) -> list:
@@ -283,15 +284,15 @@ class Stroke(object):
 
     @property
     def line_cap_type(self) -> str:
-        """Cap type, one of `butt`, `round`, `square`."""
-        key = self._data.get(b"strokeStyleLineCapType").enum
-        return self.STROKE_STYLE_LINE_CAP_TYPES.get(key, str(key))
+        """Cap type, one of `butt`, `round`, `square`; `butt` if not recorded."""
+        key: bytes = getattr(self._data.get(b"strokeStyleLineCapType"), "enum", b"")
+        return self.STROKE_STYLE_LINE_CAP_TYPES.get(key, str(key) if key else "butt")
 
     @property
     def line_join_type(self) -> str:
-        """Join type, one of `miter`, `round`, `bevel`."""
-        key = self._data.get(b"strokeStyleLineJoinType").enum
-        return self.STROKE_STYLE_LINE_JOIN_TYPES.get(key, str(key))
+        """Join type, one of `miter`, `round`, `bevel`; `miter` if not recorded."""
+        key: bytes = getattr(self._data.get(b"strokeStyleLineJoinType"), "enum", b"")
+        return self.STROKE_STYLE_LINE_JOIN_TYPES.get(key, str(key) if key else "miter")
 
     @property
     def line_alignment(self) -> StrokeAlignment | None:
@@ -380,20 +381,21 @@ class Origination(object):
 
     @property
     def bbox(self) -> tuple[float, float, float, float]:
-        """
-        Bounding box of the live shape.
+        """Bounding box of the live shape; zeros if the file does not record one.
 
-        :return: :py:class:`~psd_tools.psd.descriptor.Descriptor`
+        :return: `tuple` of `float`
         """
-        bbox = self._data.get(b"keyOriginShapeBBox")
-        if bbox:
-            return (
-                float(bbox.get(b"Left").value),
-                float(bbox.get(b"Top ").value),
-                float(bbox.get(b"Rght").value),
-                float(bbox.get(b"Btom").value),
-            )
-        return (0.0, 0.0, 0.0, 0.0)
+        return self._read_bbox() or (0.0, 0.0, 0.0, 0.0)
+
+    def _read_bbox(self) -> tuple[float, float, float, float] | None:
+        rect = get_descriptor(self._data, b"keyOriginShapeBBox")
+        sides = [
+            get_scalar(rect, key, float, None)
+            for key in (b"Left", b"Top ", b"Rght", b"Btom")
+        ]
+        if any(side is None for side in sides):
+            return None
+        return (sides[0], sides[1], sides[2], sides[3])  # type: ignore[return-value]
 
     @property
     def index(self) -> int:

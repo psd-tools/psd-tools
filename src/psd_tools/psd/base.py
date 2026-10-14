@@ -416,7 +416,7 @@ class IntegerElement(NumericElement):
         return self.value.denominator
 
     # `int.is_integer` only exists from Python 3.12, so the inherited
-    # delegation would raise `AttributeError` on 3.10 and 3.11. An integer is
+    # delegation would raise `AttributeError` on 3.11. An integer is
     # integral on every version.
     def is_integer(self) -> bool:
         return True

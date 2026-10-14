@@ -10,7 +10,7 @@ the merged image data one.
 The same rule reaches three places: ``PixelLayer.frompil()`` and everything
 that calls it, ``create_mask()``/``update_mask()`` -- a mask is stored at the
 document's depth too, as the corpus's 16- and 32-bit masks show -- and
-``_convert_mode()``, which re-encodes a layer moved between documents and so
+``_reencode()``, which re-encodes a layer moved between documents and so
 has to consult the destination's depth and its file version.
 
 A note on what these assert. ``len(ChannelData.data)`` is the *compressed*
@@ -23,6 +23,7 @@ bytes, so ``0x80, 0x80`` decodes to 0.50196 -- exactly the right answer -- and
 the first pixel or two of a flat layer read correct however it was packed.
 """
 
+import io
 from typing import Any, Literal, cast
 
 import numpy as np
@@ -30,6 +31,7 @@ import pytest
 from PIL import Image
 
 import psd_tools.api.numpy_io as numpy_io
+from psd_tools.api.layers import _reencoded
 from psd_tools.api.pil_io import encode_channel, encode_opaque_channel
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.compression import _row_size
@@ -318,25 +320,58 @@ def test_a_depth_only_move_keeps_the_layer_record() -> None:
     assert layer.has_mask()
 
 
-def test_a_cross_mode_move_still_rebuilds_the_record() -> None:
-    """A tripwire for a known defect, not a guarantee anyone wants.
-
-    The ``pil_mode`` branch replaces the layer record, so a move between
-    documents of different colour modes loses the layer's opacity, blend mode
-    and mask. #867 deliberately does not widen the set of moves that take that
-    branch; this pins the behaviour so the fix for it has to come here.
-    """
+@pytest.mark.parametrize("dest_depth", [8, 16])
+def test_a_cross_mode_move_keeps_the_layer_record(dest_depth: Literal[8, 16]) -> None:
     source = PSDImage.new("RGB", (16, 16), depth=8)
     layer = source.create_pixel_layer(_image(), name="L")
     layer.create_mask(Image.fromarray(MASK, "L"))
     layer.opacity = 77
     layer.blend_mode = BlendMode.MULTIPLY
 
-    PSDImage.new("CMYK", (16, 16), depth=8).append(layer)
+    PSDImage.new("CMYK", (16, 16), depth=dest_depth).append(layer)
 
-    assert layer.opacity == 255
-    assert layer.blend_mode == BlendMode.NORMAL
-    assert not layer.has_mask()
+    assert layer.opacity == 77
+    assert layer.blend_mode == BlendMode.MULTIPLY
+    assert layer.has_mask()
+    ids = [info.id for info in layer._record.channel_info]
+    assert ids == [-1, 0, 1, 2, 3, -2]
+    assert layer.mask is not None
+    mask = layer.mask.topil()
+    assert mask is not None
+    np.testing.assert_array_equal(np.asarray(mask), MASK)
+
+
+@pytest.mark.parametrize("mode", ["RGB", "CMYK"])
+def test_a_mask_read_before_a_move_still_edits_the_record(mode: str) -> None:
+    source = PSDImage.new("RGB", (16, 16), depth=8)
+    layer = source.create_pixel_layer(_image(), name="L")
+    layer.create_mask(Image.fromarray(MASK, "L"))
+    assert layer.mask is not None
+
+    PSDImage.new(cast(Any, mode), (16, 16), depth=16).append(layer)
+    layer.mask.disabled = True
+
+    assert layer._record.mask_data is not None
+    assert layer._record.mask_data.flags.mask_disabled
+
+
+def test_reencoded_leaves_its_arguments_alone() -> None:
+    source = PSDImage.new("RGB", (16, 16), depth=8)
+    layer = source.create_pixel_layer(_image(), name="L")
+    layer.create_mask(Image.fromarray(MASK, "L"))
+    record, channels = layer._record, layer._channels
+    before = (record.channel_info[:], [c.data for c in channels])
+    dest = PSDImage.new("CMYK", (16, 16), depth=16)._record.header
+
+    new_record, new_channels = _reencoded(
+        record, channels, source._record.header, dest, _image().convert("CMYK")
+    )
+
+    assert new_record is not record
+    assert new_channels is not channels
+    assert (record.channel_info, [c.data for c in channels]) == before
+    assert [info.id for info in record.channel_info] == [-1, 0, 1, 2, -2]
+    assert [info.id for info in new_record.channel_info] == [-1, 0, 1, 2, 3, -2]
 
 
 def test_a_cross_mode_move_into_a_deep_document_uses_that_depth() -> None:
@@ -352,12 +387,12 @@ def test_a_cross_mode_move_into_a_deep_document_uses_that_depth() -> None:
     array = layer.numpy()
     assert array is not None
     assert array.shape[2] == 5  # CMYK plus transparency
-    # The values PIL's own RGB-to-CMYK conversion gives. Asserting them,
-    # rather than "something is non-zero", is what makes the depth-16 packing
-    # legible in the result.
-    converted = Image.fromarray(COLORS, "RGB").convert("CMYK")
-    expected_ink = np.asarray(converted, dtype=np.float32) / 255.0
-    np.testing.assert_allclose(array[:, :, :4], expected_ink, atol=1e-4)
+    # A layer created in the CMYK document directly is the oracle for what a
+    # moved one must read back as, inversion included.
+    direct = PSDImage.new("CMYK", (16, 16), depth=16).create_pixel_layer(_image())
+    ink = direct.numpy()
+    assert ink is not None
+    np.testing.assert_allclose(array[:, :, :4], ink[:, :, :4], atol=1e-4)
     np.testing.assert_allclose(array[:, :, 4], 1.0)
 
 
@@ -477,3 +512,134 @@ def test_a_palette_image_carrying_transparency_info_is_not_indexed_for_alpha() -
     array = layer.numpy()
     assert array is not None
     np.testing.assert_allclose(array[:, :, 3], 1.0)
+
+
+@pytest.mark.parametrize(
+    ("source_file", "dest_file"),
+    [
+        ("layers/pixel-layer.psd", "16bit5x5.psd"),
+        ("16bit5x5.psd", "layers/pixel-layer.psd"),
+    ],
+)
+def test_a_move_between_documents_that_differ_only_in_alpha_is_exact(
+    source_file: str, dest_file: str
+) -> None:
+    """The documents' merged-image alpha is not the layer's packing (#872)."""
+    source = PSDImage.open(full_name(source_file))
+    destination = PSDImage.open(full_name(dest_file))
+    assert source.color_mode == destination.color_mode
+    assert source.pil_mode != destination.pil_mode
+    layer = next(layer for layer in source.descendants() if layer.kind == "pixel")
+    before = layer.numpy()
+    channels = len(layer._channels)
+    assert before is not None
+
+    destination.append(layer)
+
+    after = layer.numpy()
+    assert after is not None
+    assert len(layer._channels) == channels
+    # Narrowing to 8 bits rounds to the nearest of 255 steps.
+    np.testing.assert_allclose(after, before, atol=0.5 / 255 + 1e-6)
+
+
+def test_narrowing_a_32bit_layer_still_tone_maps() -> None:
+    """32-bit to 8-bit stays on the render route, which tone-maps like Photoshop."""
+    source = PSDImage.open(full_name("32bit5x5.psd"))
+    destination = PSDImage.open(full_name("layers/pixel-layer.psd"))
+    assert source.pil_mode != destination.pil_mode
+    layer = next(layer for layer in source.descendants() if layer.kind == "pixel")
+    image = layer.topil()
+    assert image is not None
+    expected = np.asarray(image.convert(destination.pil_mode), np.float32) / 255
+
+    destination.append(layer)
+
+    array = layer.numpy()
+    assert array is not None
+    np.testing.assert_allclose(array, expected[:, :, : array.shape[2]], atol=1e-6)
+
+
+@pytest.mark.parametrize("name", ["TEXT", "Color Fill 1", "Polygon 1"])
+@pytest.mark.parametrize(
+    "mode, depth, count", [("CMYK", 8, 4), ("L", 8, 1), ("RGB", 16, 3)]
+)
+def test_a_non_pixel_layer_move_re_encodes_its_channels(
+    name: str, mode: str, depth: Literal[8, 16], count: int
+) -> None:
+    source = PSDImage.open(full_name("adjustment-fillers.psd"))
+    layer = next(layer for layer in source.descendants() if layer.name == name)
+    had_pixels = layer.has_pixels()
+    opacity, blend, tags = layer.opacity, layer.blend_mode, len(layer.tagged_blocks)
+
+    dest = PSDImage.new(mode, (source.width, source.height), depth=depth)
+    dest.append(layer)
+
+    ids = [info.id for info in layer._record.channel_info]
+    assert [i for i in ids if i >= 0] == list(range(count))
+    assert (layer.opacity, layer.blend_mode) == (opacity, blend)
+    assert len(layer.tagged_blocks) == tags
+    assert layer.has_pixels() == had_pixels
+    if had_pixels:
+        array = layer.numpy("color")
+        assert array is not None
+        assert array.shape[2] == count
+
+
+def test_a_text_layer_keeps_its_pixels_across_a_depth_move() -> None:
+    source = PSDImage.open(full_name("adjustment-fillers.psd"))
+    layer = next(layer for layer in source.descendants() if layer.name == "TEXT")
+    before = layer.numpy("color")
+    assert before is not None
+
+    PSDImage.new("RGB", (source.width, source.height), depth=16).append(layer)
+
+    after = layer.numpy("color")
+    assert after is not None
+    np.testing.assert_allclose(after, before, atol=1e-6)
+
+
+def test_a_group_mask_survives_a_depth_move() -> None:
+    source = PSDImage.open(full_name("masks3.psd"))
+    group = next(layer for layer in source.descendants() if layer.name == "Group 1")
+    assert group.mask is not None
+    before = group.mask.topil()
+    assert before is not None
+
+    dest = PSDImage.new("RGB", (source.width, source.height), depth=16)
+    dest.append(group)
+    dest.save(io.BytesIO())
+
+    assert group.mask is not None
+    after = group.mask.topil()
+    assert after is not None
+    np.testing.assert_array_equal(np.asarray(after), np.asarray(before))
+
+
+@pytest.mark.parametrize("method", ["append", "extend", "insert"])
+@pytest.mark.parametrize("mode", ["L", "CMYK"])
+def test_a_failed_cross_document_move_changes_neither_document(
+    method: str, mode: str
+) -> None:
+    source = PSDImage.open(full_name("descriptors/lab-color-swatches.psd"))
+    pixel = next(layer for layer in source if layer.kind == "pixel")
+    group = source.create_group([pixel], name="group")
+    empty = source.create_group(name="empty")
+    tops = list(source)
+    dest = PSDImage.new(mode, source.size)
+    kept = [info.id for info in empty._record.channel_info]
+
+    with pytest.raises(ValueError, match="LAB"):
+        if method == "insert":
+            dest.insert(0, group)
+        elif method == "append":
+            dest.append(group)
+        else:
+            dest.extend([empty, group])
+
+    assert len(dest) == 0
+    assert list(source) == tops
+    assert list(group) == [pixel]
+    assert (pixel.parent, group.parent, empty.parent) == (group, source, source)
+    assert pixel._psd is group._psd is empty._psd is source
+    assert [info.id for info in empty._record.channel_info] == kept
