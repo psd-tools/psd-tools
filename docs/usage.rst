@@ -193,10 +193,10 @@ instead::
     copy = layer.copy_to(other_psdimage)
     copy = layer.copy_to(other_group, index=0)
 
-:py:meth:`~psd_tools.api.layers.Layer.copy_to` takes a layer or group, with its
-whole subtree, and leaves the source in place. ``index`` is the copy's position in
-the destination afterwards, ``-1`` being the top; the default is the top. The
-copy:
+:py:meth:`~psd_tools.api.layers.Layer.copy_to` copies the layer or group it is
+called on, with its whole subtree, and leaves the source in place. ``index`` is
+the copy's position in the destination afterwards, ``-1`` being the top; the
+default is the top. The copy:
 
 - is converted to the destination's colour mode, depth and file version.
   Narrowing, such as 32 to 8 bit, tone-maps as Photoshop's Image > Mode does, so
@@ -210,8 +210,9 @@ copy:
 
 A Bitmap, Indexed or Multichannel destination cannot hold layers and raises
 ``ValueError``. An :py:class:`~psd_tools.api.layers.Artboard` can only be copied
-to the document root. Within one document, ``copy_to()`` is
-:py:meth:`~psd_tools.api.layers.Layer.duplicate` (#882).
+to the document root. Within one document, ``copy_to()`` delegates to
+:py:meth:`~psd_tools.api.layers.Layer.duplicate`, but defaults to the top of the
+destination rather than directly above the source (#882).
 
 Remove a layer from a group::
 
