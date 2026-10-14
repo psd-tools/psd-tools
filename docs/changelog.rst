@@ -4,6 +4,10 @@ Changelog
 1.25.0 (unreleased)
 -------------------
 
+- [api] Add ``Layer.copy_to(group, index=None)``, which copies a layer or group
+  into any document, converting it to the destination's mode and depth and
+  leaving the source in place. Unlike ``append()``, it does not move the
+  layer (#999; part of #882)
 - [api] ``Layer.duplicate()`` copies a layer or nested group within its
   document, with independent layer data and fresh IDs. It accepts a
   destination, final position and name; smart-object contents remain shared
