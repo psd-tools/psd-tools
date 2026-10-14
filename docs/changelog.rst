@@ -15,12 +15,14 @@ Changelog
 - [api] Add ``create_pixel_layer_from_array()`` and ``PixelLayer.fromarray()``
   to create a pixel layer from a ``float32``, ``uint8`` or ``uint16`` array,
   so a layer in a 16- or 32-bit document is not limited to PIL's 8 bits (#871)
-- [fix] Moving a layer between documents of a different colour mode, depth or
-  file version keeps its opacity, blend mode, mask and tagged blocks and
-  re-encodes its channels, so it no longer reads back corrupt or with
-  inverted CMYK colours. A move that cannot convert the layer, such as Lab into
-  grayscale, raises before either document changes. A 32-bit layer moved into
-  a shallower document is tone-mapped (#872, #992, #999)
+- [fix] Moving a layer between documents keeps its opacity, blend mode, mask
+  and tagged blocks, including between documents of the same colour mode whose
+  merged-image alpha differs. Across a different colour mode, depth or file
+  version it re-encodes the layer's channels, so it no longer reads back
+  corrupt or with inverted CMYK colours. A move that cannot convert the layer,
+  such as Lab into grayscale, raises before either document changes. A 32-bit
+  layer moved into a shallower document is tone-mapped
+  (#872, #989, #990, #991, #992, #999)
 - [fix] ``PSDImage.new(..., depth=32)`` writes the ``hdrt`` color mode data
   block, so Photoshop can open the document (#869)
 - [api] ``PSDImage.new("1", ...)`` and ``frompil`` of mode ``"1"`` build a
@@ -31,16 +33,20 @@ Changelog
   and matted on write, as RGB already was (#868, #974)
 - [fix] A pattern or gradient vector stroke is laid out across the path, as
   Photoshop does, instead of a box grown by the stroke width. Affects
-  composites of shape layers with such strokes, most for wide strokes. Adds an
-  optional ``anchor`` to ``paint.draw_gradient_fill``, ``draw_pattern_fill``
-  and ``create_fill_desc`` (#824, #987)
+  composites of shape layers with such strokes, most for wide strokes
+  (#824, #987)
+- [api] ``paint.draw_gradient_fill``, ``draw_pattern_fill`` and
+  ``create_fill_desc`` gain an optional ``anchor`` to lay the fill out on a box
+  other than the one drawn (#824, #987)
 - [fix] ``TypeLayer``, ``ShapeLayer``, ``Stroke``, ``SmartObject``, ``Origination``,
   ``Line`` and ``VectorMask`` properties no longer raise ``AttributeError``,
   ``TypeError`` or ``KeyError`` on malformed or incomplete data. They degrade to
   empty values or Photoshop's defaults, or raise ``ValueError`` when nothing is
-  readable. ``SmartObject.resolution`` returns ``None`` when no resolution is
-  recorded, so callers that use it as a ``float`` need a ``None`` check
-  (#980, #981, #982, #984, #985, #986, #997)
+  readable (#980, #981, #982, #984, #985, #986, #997)
+- [api] ``SmartObject.resolution`` returns ``None`` when the file records no
+  readable resolution, instead of raising ``AttributeError``. **Backward
+  incompatible:** callers that use the value as a ``float`` need a ``None``
+  check (#985)
 - [fix] The allocation guard counts the per-row objects RLE decoding holds, so
   a tall, narrow RLE document whose real peak is over ``max_alloc_bytes`` is
   refused with ``ValueError``. A document that straddles your budget now
