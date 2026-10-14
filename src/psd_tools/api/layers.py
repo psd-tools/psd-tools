@@ -1299,7 +1299,8 @@ class Layer(LayerProtocol):
 
         The copy retains its layer type, channels, masks and layer metadata,
         with fresh layer IDs. Document resources such as smart-object contents
-        remain shared. No cached API wrappers are copied.
+        remain shared. No cached API wrappers are copied. An artboard's copy
+        keeps its rectangle and so overlaps the source.
 
         :param parent: Destination group or document. Defaults to this layer's
             parent. A detached layer requires an explicit destination.
