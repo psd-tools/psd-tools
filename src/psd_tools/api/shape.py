@@ -74,15 +74,12 @@ class VectorMask(object):
         """
         List of :py:class:`~psd_tools.psd.vector.Subpath`.
 
-        Subpath is a list-like structure that contains one or more
-        :py:class:`~psd_tools.psd.vector.Knot` items. Knot contains
-        relative coordinates of control points for a Bezier curve.
-        :py:attr:`~psd_tools.psd.vector.Subpath.index` indicates which
-        origination item the subpath belongs, and
-        :py:class:`~psd_tools.psd.vector.Subpath.operation` indicates how
-        to combine multiple shape paths.
-
-        In PSD, path fill rule is even-odd.
+        A Subpath is a list of :py:class:`~psd_tools.psd.vector.Knot` items,
+        which hold relative Bezier control points.
+        :py:attr:`~psd_tools.psd.vector.Subpath.index` names the origination
+        item the subpath belongs to, and
+        :py:class:`~psd_tools.psd.vector.Subpath.operation` says how to
+        combine shape paths. The fill rule is even-odd.
 
         Example::
 

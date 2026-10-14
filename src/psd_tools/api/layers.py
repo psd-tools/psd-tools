@@ -1875,13 +1875,10 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         Add layers to the end (top) of the group.
 
         This operation rewrites the internal references of the layers.
-        Adding the same layer will not create a duplicate: a layer named more
-        than once in one call, or already in this group, ends up once, at the
-        position of its last mention. That is where a loop of ``append()``
-        calls leaves it.
-
-        The iterable is walked once, so a one-shot one is accepted -- a
-        generator, or a live container being emptied into this group::
+        A layer named more than once, or already in this group, ends up once,
+        at the position of its last mention, as a loop of ``append()`` calls
+        leaves it. The iterable is walked once, so a generator or a live
+        container being emptied into this group is accepted::
 
             dest.extend(src)  # Moves every layer of src into dest.
 
