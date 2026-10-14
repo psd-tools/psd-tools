@@ -706,7 +706,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
             from psd_tools.constants import Resource
             icc_profile = psd.image_resources.get_data(Resource.ICC_PROFILE)
-            image = psd.compose(apply_icc=False)
+            image = psd.composite(apply_icc=False)
             image.save('output.png', icc_profile=icc_profile)
         """
         return self._record.image_resources

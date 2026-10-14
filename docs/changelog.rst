@@ -4,6 +4,8 @@ Changelog
 1.25.0 (unreleased)
 -------------------
 
+- [docs] Document the default ICC conversion of CMYK and LAB images on export, and fix
+  the ``compose`` typo in the ``image_resources`` ICC example
 - [docs] Document the cross-document transfer contract: ``Layer.copy_to()`` copies,
   converts and carries resources, and the cross-document move is deprecated
   (#998; part of #882)
