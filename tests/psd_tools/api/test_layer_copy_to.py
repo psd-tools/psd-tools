@@ -229,3 +229,21 @@ def test_copy_into_a_document_without_layers_survives_a_save(name: str) -> None:
     assert (reopened.name, reopened.bbox) == (copy.name, copy.bbox)
     np.testing.assert_array_equal(reopened.numpy(), copy.numpy())
     assert reopened.layer_id == copy.layer_id
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "colormodes/4x4_1bit_bitmap.psd",
+        "colormodes/4x4_8bit_index_color.psd",
+        "colormodes/4x4_16bit_multichannel.psd",
+    ],
+)
+def test_copy_into_a_mode_without_layers_is_rejected(name: str) -> None:
+    _, layer = _source()
+    dest = PSDImage.open(full_name(name))
+
+    with pytest.raises(ValueError, match="cannot hold layers"):
+        layer.copy_to(dest)
+
+    assert len(dest) == 0

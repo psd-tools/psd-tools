@@ -1382,8 +1382,9 @@ class Layer(LayerProtocol):
             Default is the top.
         :raises TypeError: If ``group`` is not a group or document, or
             ``index`` is not an integer.
-        :raises ValueError: If ``group`` is a removed group, an
-            :py:class:`Artboard` is not going to the document root, or the
+        :raises ValueError: If ``group`` is a removed group or in a Bitmap,
+            Indexed or Multichannel document, which cannot hold layers; an
+            :py:class:`Artboard` is not going to the document root; or the
             layer cannot be converted to the destination's colour mode.
         :raises IndexError: If ``index`` is out of range.
         :return: The inserted copy.
@@ -1392,6 +1393,10 @@ class Layer(LayerProtocol):
             raise TypeError("Destination must be a group or PSDImage")
         if group._psd is self._psd:
             return self.duplicate(group, index=len(group) if index is None else index)
+        if group._psd.color_mode in _LAYERLESS_MODES:
+            raise ValueError(
+                f"A {group._psd.color_mode.name} document cannot hold layers"
+            )
         if group is not group._psd and not cast(Layer, group)._is_attached():
             raise ValueError("Cannot copy a layer into a removed group")
         if isinstance(self, Artboard) and group is not group._psd:
@@ -1541,6 +1546,9 @@ class Layer(LayerProtocol):
         :return: self
         """
         return self.move_up(-1 * offset)
+
+
+_LAYERLESS_MODES = (ColorMode.BITMAP, ColorMode.INDEXED, ColorMode.MULTICHANNEL)
 
 
 def _insertion_index(parent: "GroupMixin", index: Any) -> int:
