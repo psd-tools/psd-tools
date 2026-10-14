@@ -1859,7 +1859,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         instead. See ``extend()``, which this delegates to.
 
         .. deprecated:: 1.25.0
-            Moving a layer in from another document will become a copy. Use
+            Moving a layer in from another document will raise ``ValueError``. Use
             :py:meth:`Layer.copy_to` (#1001).
 
         :param layer: The layer to add.
@@ -1884,7 +1884,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
             dest.extend(src)  # Moves every layer of src into dest.
 
         .. deprecated:: 1.25.0
-            Moving a layer in from another document will become a copy. Use
+            Moving a layer in from another document will raise ``ValueError``. Use
             :py:meth:`Layer.copy_to` (#1001).
 
         :param layers: The layers to add.
@@ -1967,7 +1967,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         lower than the given one when it came from before that position.
 
         .. deprecated:: 1.25.0
-            Moving a layer in from another document will become a copy. Use
+            Moving a layer in from another document will raise ``ValueError``. Use
             :py:meth:`Layer.copy_to` (#1001).
 
         :param index: The index to insert the layer at.

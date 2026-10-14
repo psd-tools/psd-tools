@@ -5,8 +5,8 @@ Changelog
 -------------------
 
 - [api] Cross-document ``append()``/``extend()``/``insert()`` and item assignment
-  emit a ``DeprecationWarning``: the move will become a copy. Use
-  ``Layer.copy_to()``, which leaves the source in place (#1001; part of #882)
+  emit a ``DeprecationWarning``: the move will raise ``ValueError``. Use
+  ``Layer.copy_to()``, which leaves the source in place (#1001, #1005; part of #882)
 - [fix] ``Layer.copy_to()`` and cross-document ``append()``/``extend()``/``insert()``
   now carry the linked smart objects and only the patterns a layer uses, as
   independent copies; a smart-object copy no longer loses its data. Ids that
