@@ -349,8 +349,8 @@ option::
       profile by default. Pass ``apply_icc=False`` to
       :py:meth:`~psd_tools.api.psd_image.PSDImage.composite` or
       :py:meth:`~psd_tools.api.psd_image.PSDImage.topil` to keep the document's
-      own colour space. A document without an embedded profile falls back to
-      a simple conversion, so its colours can differ from Photoshop's.
+      own colour space. A CMYK document without an embedded profile falls
+      back to a simple conversion, so its colours can differ from Photoshop's.
     - Multichannel documents come back as a single-channel image, because PIL
       has no multichannel mode and only the first spot channel survives the
       conversion. Use :py:func:`psd_tools.composite.composite` to get every
