@@ -212,3 +212,20 @@ def test_failed_conversion_leaves_the_destination_untouched() -> None:
 
     assert len(dest) == 0
     assert dest.image_resources.get_data(Resource.IDS_SEED_NUMBER) == seed
+
+
+@pytest.mark.parametrize("name", ["0layers.psd", "0layers_tblocks.psd", "history.psd"])
+def test_copy_into_a_document_without_layers_survives_a_save(name: str) -> None:
+    _, layer = _source()
+    dest = PSDImage.open(full_name(name))
+    assert len(list(dest.descendants())) == 0
+
+    copy = layer.copy_to(dest)
+
+    buffer = io.BytesIO()
+    dest.save(buffer)
+    buffer.seek(0)
+    (reopened,) = PSDImage.open(buffer).descendants()
+    assert (reopened.name, reopened.bbox) == (copy.name, copy.bbox)
+    np.testing.assert_array_equal(reopened.numpy(), copy.numpy())
+    assert reopened.layer_id == copy.layer_id
