@@ -1,16 +1,20 @@
 from typing import Any, Dict
+import io
 import logging
 import struct
 
 import pytest
 
-from psd_tools.constants import LinkedLayerType
+from psd_tools.constants import LinkedLayerType, Tag
+from psd_tools.psd import PSD
 from psd_tools.psd.descriptor import DescriptorBlock
 from psd_tools.psd.linked_layer import LinkedLayer, LinkedLayers
 
-from ..utils import check_read_write, check_write_read
+from ..utils import check_read_write, check_write_read, full_name
 
 logger = logging.getLogger(__name__)
+
+LINKED_TAGS = (Tag.LINKED_LAYER1, Tag.LINKED_LAYER2, Tag.LINKED_LAYER3)
 
 
 def _unicode(text: str) -> bytes:
@@ -136,3 +140,24 @@ def test_linked_layers_wr() -> None:
         ]
     )
     check_write_read(linked_layers)
+
+
+def test_linked_layer_v8_survives_save() -> None:
+    # smart-object-v8.psd: an embedded smart object as Photoshop 27 writes it.
+    with open(full_name("smart-object-v8.psd"), "rb") as f:
+        psd = PSD.read(f)
+
+    def entries(psd: PSD) -> list[LinkedLayer]:
+        blocks = psd.layer_and_mask_information.tagged_blocks
+        assert blocks is not None
+        return [e for tag in LINKED_TAGS if tag in blocks for e in blocks.get_data(tag)]
+
+    before = entries(psd)
+    assert [e.version for e in before] == [8]
+    assert before[0].content_descriptor is not None
+
+    buffer = io.BytesIO()
+    psd.write(buffer)
+    buffer.seek(0)
+    after = entries(PSD.read(buffer))
+    assert [e.tobytes() for e in after] == [e.tobytes() for e in before]
