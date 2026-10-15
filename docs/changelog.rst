@@ -1,6 +1,14 @@
 Changelog
 =========
 
+1.26.0 (unreleased)
+-------------------
+
+- [api] ``LinkedLayer`` reads the descriptor that ends a version 8 entry into
+  ``content_descriptor``, and writes it back. Saving a file with a smart object
+  embedded by Photoshop 26.9 or later no longer drops it. Photoshop refuses a
+  file whose version 8 entry is missing it (#1011, #1012)
+
 1.25.0 (2026-10-14)
 -------------------
 
