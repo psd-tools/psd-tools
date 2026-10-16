@@ -143,9 +143,7 @@ class Tokenizer:
 
 @register(EngineToken.DICT_START)
 class Dict(DictElement):
-    """
-    Dict-like element.
-    """
+    """Dict-like element."""
 
     @classmethod
     def read(cls, fp: Any, **kwargs: Any) -> "Dict":
@@ -293,9 +291,7 @@ class EngineData2(Dict):
 
 @register(EngineToken.ARRAY_START)
 class List(ListElement):
-    """
-    List-like element.
-    """
+    """List-like element."""
 
     @classmethod
     def read(cls, fp: Any, **kwargs: Any) -> "List":
@@ -363,9 +359,7 @@ class List(ListElement):
 
 @register(EngineToken.STRING)
 class String(ValueElement):
-    """
-    String element.
-    """
+    """String element."""
 
     _ESCAPED_CHARS = (b"\\", b"(", b")")
 
@@ -399,9 +393,7 @@ class String(ValueElement):
 
 @register(EngineToken.BOOLEAN)
 class Bool(BooleanElement):
-    """
-    Bool element.
-    """
+    """Bool element."""
 
     @classmethod
     def read(cls, fp: Any, **kwargs: Any) -> "Bool":
@@ -426,9 +418,7 @@ class Bool(BooleanElement):
 
 @register(EngineToken.NUMBER)
 class Integer(IntegerElement):
-    """
-    Integer element.
-    """
+    """Integer element."""
 
     @classmethod
     def read(cls, fp: Any, **kwargs: Any) -> "Integer":
@@ -453,9 +443,7 @@ class Integer(IntegerElement):
 
 @register(EngineToken.NUMBER_WITH_DECIMAL)
 class Float(NumericElement):
-    """
-    Float element.
-    """
+    """Float element."""
 
     @classmethod
     def read(cls, fp: Any, **kwargs: Any) -> "Float":
@@ -486,9 +474,7 @@ class Float(NumericElement):
 @register(EngineToken.PROPERTY)
 @frozen(repr=False, eq=False, order=False)
 class Property(ValueElement):
-    """
-    Property element.
-    """
+    """Property element."""
 
     @classmethod
     def read(cls, fp: Any, **kwargs: Any) -> "Property":
@@ -515,9 +501,7 @@ class Property(ValueElement):
 @register(EngineToken.UNKNOWN_TAG)
 @register(EngineToken.UNKNOWN_TAG2)
 class Tag(ValueElement):
-    """
-    Tag element.
-    """
+    """Tag element."""
 
     @classmethod
     def read(cls, fp: Any, **kwargs: Any) -> "Tag":

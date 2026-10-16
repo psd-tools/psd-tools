@@ -1,6 +1,4 @@
-"""
-Smart object module.
-"""
+"""Smart object module."""
 
 import contextlib
 import io

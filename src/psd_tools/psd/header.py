@@ -1,6 +1,4 @@
-"""
-File header structure.
-"""
+"""File header structure."""
 
 import logging
 from typing import IO, Any, TypeVar

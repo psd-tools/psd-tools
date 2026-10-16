@@ -323,9 +323,7 @@ class Stroke(object):
 
     @property
     def content(self) -> Descriptor | None:
-        """
-        Fill effect.
-        """
+        """Fill effect."""
         return self._data.get(b"strokeStyleContent")
 
     def __repr__(self) -> str:
@@ -404,9 +402,7 @@ class Origination(object):
 
     @property
     def invalidated(self) -> bool:
-        """
-        :return: `bool`
-        """
+        """:return: `bool`"""
         return False
 
     def __repr__(self) -> str:
@@ -529,8 +525,5 @@ class Line(Origination):
 
     @property
     def arrow_conc(self) -> int:
-        """
-
-        :return: `int`
-        """
+        """:return: `int`"""
         return get_scalar(self._data, b"keyOriginLineArrConc", int, 0)

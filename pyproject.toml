@@ -105,9 +105,6 @@ ignore = [
     # exist, and it is the rule most readily satisfied with
     # """Return the value.""".
     "D1",
-    # Collapse a short multi-line docstring, 87. No safe fixes available: all
-    # 87 are behind --unsafe-fixes.
-    "D200",
     # Imperative mood, 96. A genuine convention, but it misfires on the
     # property docstrings this codebase has many of -- "Gradient type, one of
     # ..." -- and reads as noise there.

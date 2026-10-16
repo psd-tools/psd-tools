@@ -1,6 +1,4 @@
-"""
-Utility functions for the API layer.
-"""
+"""Utility functions for the API layer."""
 
 from __future__ import annotations
 

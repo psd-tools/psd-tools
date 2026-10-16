@@ -1,6 +1,4 @@
-"""
-Filter effects structure.
-"""
+"""Filter effects structure."""
 
 import io
 import logging

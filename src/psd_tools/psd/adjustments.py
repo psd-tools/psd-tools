@@ -1,6 +1,4 @@
-"""
-Adjustment layer structure.
-"""
+"""Adjustment layer structure."""
 
 import logging
 from typing import IO, Any, TypeVar

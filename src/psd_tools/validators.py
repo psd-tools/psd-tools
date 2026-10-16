@@ -1,6 +1,4 @@
-"""
-Validation functions for attr.
-"""
+"""Validation functions for attr."""
 
 from typing import Any
 

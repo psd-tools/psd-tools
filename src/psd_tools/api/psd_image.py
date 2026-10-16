@@ -1072,9 +1072,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 def _build_record_tree(
     layer_group: layers.GroupMixin,
 ) -> tuple[LayerRecords, ChannelImageData]:
-    """
-    Build the layer tree structure from records and channels list, recursively.
-    """
+    """Build the layer tree structure from records and channels list, recursively."""
     layer_records = LayerRecords()
     channel_image_data = ChannelImageData()
 

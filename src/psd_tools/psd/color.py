@@ -1,6 +1,4 @@
-"""
-Color structure and conversion methods.
-"""
+"""Color structure and conversion methods."""
 
 import logging
 from typing import IO, Any, TypeVar

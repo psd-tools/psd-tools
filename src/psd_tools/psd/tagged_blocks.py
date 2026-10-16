@@ -515,9 +515,7 @@ class FilterMask(BaseElement):
 
 @register(Tag.METADATA_SETTING)
 class MetadataSettings(ListElement):
-    """
-    MetadataSettings structure.
-    """
+    """MetadataSettings structure."""
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "MetadataSettings":
@@ -535,9 +533,7 @@ class MetadataSettings(ListElement):
 
 @define(repr=False)
 class MetadataSetting(BaseElement):
-    """
-    MetadataSetting structure.
-    """
+    """MetadataSetting structure."""
 
     _KNOWN_KEYS = {b"cust", b"cmls", b"extn", b"mlst", b"tmln", b"sgrp"}
     _KNOWN_SIGNATURES = (b"8BIM", b"8ELE")
@@ -583,9 +579,7 @@ class MetadataSetting(BaseElement):
 @register(Tag.PIXEL_SOURCE_DATA2)
 @define(repr=False)
 class PixelSourceData2(ListElement):
-    """
-    PixelSourceData2 structure.
-    """
+    """PixelSourceData2 structure."""
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "PixelSourceData2":
@@ -608,9 +602,7 @@ class PixelSourceData2(ListElement):
 @register(Tag.PLACED_LAYER2)
 @define(repr=False)
 class PlacedLayerData(BaseElement):
-    """
-    PlacedLayerData structure.
-    """
+    """PlacedLayerData structure."""
 
     kind: bytes = b"plcL"
     version: int = field(default=3, validator=in_((3,)))
@@ -667,9 +659,7 @@ class PlacedLayerData(BaseElement):
 
 @register(Tag.PROTECTED_SETTING)
 class ProtectedSetting(IntegerElement):
-    """
-    ProtectedSetting structure.
-    """
+    """ProtectedSetting structure."""
 
     @property
     def transparency(self) -> bool:
@@ -698,9 +688,7 @@ class ProtectedSetting(IntegerElement):
 @register(Tag.REFERENCE_POINT)
 @define(repr=False)
 class ReferencePoint(ListElement):
-    """
-    ReferencePoint structure.
-    """
+    """ReferencePoint structure."""
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "ReferencePoint":

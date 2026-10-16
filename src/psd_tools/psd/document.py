@@ -106,9 +106,7 @@ class PSD(BaseElement):
         return written
 
     def _iter_layers(self) -> Generator[tuple[Any, Any], None, None]:
-        """
-        Iterate over (layer_record, channel_data) pairs.
-        """
+        """Iterate over (layer_record, channel_data) pairs."""
         layer_info = self._get_layer_info()
         if layer_info is not None:
             records = layer_info.layer_records

@@ -1,6 +1,4 @@
-"""
-Patterns structure.
-"""
+"""Patterns structure."""
 
 import io
 import logging

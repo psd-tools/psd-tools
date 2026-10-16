@@ -127,9 +127,7 @@ class BaseElement:
     def _find(
         self, condition: Callable[[Any], bool] | None = None
     ) -> Generator[Any, None, None]:
-        """
-        Traversal API intended for debugging.
-        """
+        """Traversal API intended for debugging."""
         for _ in BaseElement._traverse(self, condition):
             yield _
 
@@ -137,9 +135,7 @@ class BaseElement:
     def _traverse(
         element: Any, condition: Callable[[Any], bool] | None = None
     ) -> Generator[Any, None, None]:
-        """
-        Traversal API intended for debugging.
-        """
+        """Traversal API intended for debugging."""
         if condition is None or condition(element):
             yield element
         if isinstance(element, DictElement):
@@ -159,9 +155,7 @@ class BaseElement:
 
 @define
 class EmptyElement(BaseElement):
-    """
-    Empty element that does not have a value.
-    """
+    """Empty element that does not have a value."""
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], *args: Any, **kwargs: Any) -> T:
@@ -516,9 +510,7 @@ class StringElement(ValueElement):
 
 @define(repr=False)
 class ListElement(BaseElement):
-    """
-    List-like element that has `items` list.
-    """
+    """List-like element that has `items` list."""
 
     _items: list = field(factory=list, converter=list)
 
@@ -596,9 +588,7 @@ class ListElement(BaseElement):
 
 @define(repr=False)
 class DictElement(BaseElement):
-    """
-    Dict-like element that has `items` OrderedDict.
-    """
+    """Dict-like element that has `items` OrderedDict."""
 
     _items: OrderedDict = field(factory=OrderedDict, converter=OrderedDict)
 

@@ -492,9 +492,7 @@ class LayerBlendingRanges(BaseElement):
 
 
 class LayerRecords(ListElement):
-    """
-    List of layer records. See :py:class:`.LayerRecord`.
-    """
+    """List of layer records. See :py:class:`.LayerRecord`."""
 
     @classmethod
     def read(  # type: ignore[override]

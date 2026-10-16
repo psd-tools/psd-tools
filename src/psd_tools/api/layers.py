@@ -372,9 +372,7 @@ class Layer(LayerProtocol):
         return self.tagged_blocks.get_data(Tag.LAYER_ID, -1)
 
     def _invalidate_bbox(self) -> None:
-        """
-        Invalidate this layer's _bbox and any parents recursively to the root.
-        """
+        """Invalidate this layer's _bbox and any parents recursively to the root."""
         if isinstance(self, (GroupMixin, ShapeLayer)):
             self._bbox: tuple[int, int, int, int] | None = None
         # Every parent is a container that caches a box of its own, and the
@@ -2515,9 +2513,7 @@ class Group(GroupMixin, Layer):
 
 
 class Artboard(Group):
-    """
-    Artboard is a special kind of group that has a pre-defined viewbox.
-    """
+    """Artboard is a special kind of group that has a pre-defined viewbox."""
 
     @classmethod
     def _move(kls, group: Group) -> "Artboard":
@@ -3206,9 +3202,7 @@ class TypeLayer(Layer):
 
 
 class ShapeLayer(Layer):
-    """
-    Layer that has drawing in vector mask.
-    """
+    """Layer that has drawing in vector mask."""
 
     def __init__(self, *args: Any):
         super(ShapeLayer, self).__init__(*args)
