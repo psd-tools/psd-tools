@@ -65,7 +65,9 @@ def test_duplicate_preserves_layer_type_and_data(filename: str) -> None:
     assert duplicate._record.flags is not source._record.flags
     assert duplicate._record.tagged_blocks is not source._record.tagged_blocks
     assert duplicate._channels is not source._channels
-    assert all(a is not b for a, b in zip(duplicate._channels, source._channels))
+    assert all(
+        a is not b for a, b in zip(duplicate._channels, source._channels, strict=True)
+    )
     assert duplicate.layer_id > 0
     assert duplicate.layer_id not in original_ids
     assert psd.is_updated()
@@ -491,7 +493,7 @@ def test_duplicate_group_roundtrip(filename: str, tmp_path: Path) -> None:
         assert copy.bbox == duplicate.bbox
     actual = list(copy.descendants())
     assert len(actual) == len(expected)
-    for layer, original in zip(actual, expected):
+    for layer, original in zip(actual, expected, strict=True):
         assert type(layer) is type(original)
         assert layer.name == original.name
         assert layer.layer_id == original.layer_id

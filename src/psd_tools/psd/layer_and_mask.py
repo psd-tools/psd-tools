@@ -296,8 +296,10 @@ class LayerInfo(BaseElement):
         if not self.layer_records or not self.channel_image_data:
             return
 
-        for layer, lengths in zip(self.layer_records, self.channel_image_data._lengths):
-            for channel_info, length in zip(layer.channel_info, lengths):
+        for layer, lengths in zip(
+            self.layer_records, self.channel_image_data._lengths, strict=False
+        ):
+            for channel_info, length in zip(layer.channel_info, lengths, strict=False):
                 channel_info.length = length
 
 

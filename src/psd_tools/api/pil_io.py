@@ -362,7 +362,8 @@ def _layer_peak_bytes(
     # *last* record of its id as `_get_channel()` does, so a repeated id is
     # decoded once per repeat. An empty resolved entry decodes nothing.
     resolved: dict[int, ChannelData] = {
-        i.id: c for i, c in zip(layer._record.channel_info, layer._channels)
+        i.id: c
+        for i, c in zip(layer._record.channel_info, layer._channels, strict=False)
     }
     wanted: list[int]
     if channel is None:

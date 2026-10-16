@@ -232,7 +232,7 @@ def _decode_mask_channels(
         ),
     }
     decoded = {}
-    for info, channel in zip(layer._record.channel_info, layer._channels):
+    for info, channel in zip(layer._record.channel_info, layer._channels, strict=True):
         if info.id not in rectangles:
             continue
         left, top, right, bottom = rectangles[info.id]
@@ -382,7 +382,7 @@ def test_a_cross_mode_move_into_a_deep_document_uses_that_depth() -> None:
     PSDImage.new("CMYK", (16, 16), depth=16).append(layer)
 
     expected = _row_size(layer.width, 16) * layer.height
-    for info, channel in zip(layer._record.channel_info, layer._channels):
+    for info, channel in zip(layer._record.channel_info, layer._channels, strict=True):
         assert len(channel.get_data(layer.width, layer.height, 16)) == expected, info.id
     array = layer.numpy()
     assert array is not None

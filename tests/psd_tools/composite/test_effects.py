@@ -217,7 +217,7 @@ def test_stroke_ignores_a_viewport_narrower_than_the_layer() -> None:
 
     wide = composite(layer, viewport=(140, 12, 164, 36), as_layer=True)
     cut = composite(layer, viewport=(140, 12, 152, 36), as_layer=True)
-    for name, w, c in zip(("color", "shape", "alpha"), wide, cut):
+    for name, w, c in zip(("color", "shape", "alpha"), wide, cut, strict=True):
         assert np.array_equal(c, w[:, :12]), name
 
 

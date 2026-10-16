@@ -192,7 +192,7 @@ class TestHsbToRgb:
             255.0 * c
             for c in hsb_to_rgb(hsb[0] / 360.0, hsb[1] / 100.0, hsb[2] / 100.0)
         ]
-        for channel, (value, want) in enumerate(zip(got, expected)):
+        for channel, (value, want) in enumerate(zip(got, expected, strict=True)):
             assert abs(value - want) <= 0.1, (hsb, channel, value, want)
 
     @pytest.mark.parametrize("h", [float("nan"), float("inf"), float("-inf")])
@@ -342,7 +342,7 @@ class TestLabToRgb:
         lightness, a, b = lab
         got = [v * 255.0 for v in lab_to_rgb(lightness, _native(a), _native(b))]
         tolerance = _LAB_TO_RGB_GAMUT_LIMITED.get(lab, 0.5)
-        for channel, (g, want) in enumerate(zip(got, expected)):
+        for channel, (g, want) in enumerate(zip(got, expected, strict=True)):
             assert abs(g - want) <= tolerance, (lab, channel, g, want)
 
     def test_white_is_exactly_white(self):
@@ -427,7 +427,10 @@ class TestRgbToLab:
                 for b in range(0, 256, 51):
                     source = (r / 255.0, g / 255.0, b / 255.0)
                     back = lab_to_rgb(*rgb_to_lab(*source))
-                    worst = max(worst, max(abs(x - y) for x, y in zip(back, source)))
+                    worst = max(
+                        worst,
+                        max(abs(x - y) for x, y in zip(back, source, strict=True)),
+                    )
         assert worst * 255.0 < 0.01
 
 

@@ -29,7 +29,7 @@ import bisect
 import logging
 from collections.abc import Iterator
 from enum import IntEnum
-from itertools import groupby
+from itertools import groupby, pairwise
 from typing import Any, TypeVar, overload
 
 from psd_tools.api._descriptor import coerce_scalar, get_scalar
@@ -747,7 +747,7 @@ class TypeSetting:
         )
 
         paragraphs: list[Paragraph] = []
-        pairs = list(zip([0] + stops, stops))
+        pairs = list(pairwise([0] + stops))
 
         for idx, group in groupby(pairs, key=lambda pair: para_index(pair[0])):
             group_list = list(group)

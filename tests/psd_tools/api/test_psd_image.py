@@ -358,7 +358,7 @@ def test_background_color_setter() -> None:
     psdimage.background_color = (1.0, 128, 0.5)
     expected = (1.0, 128 / 255, 0.5)
     assert psdimage.background_color is not None
-    for a, b in zip(psdimage.background_color, expected):  # type: ignore[arg-type]
+    for a, b in zip(psdimage.background_color, expected, strict=True):  # type: ignore[arg-type]
         assert abs(a - b) < 1e-9
 
     # list input accepted (any Sequence works)

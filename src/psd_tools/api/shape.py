@@ -9,6 +9,7 @@ stylized.
 
 import logging
 import math
+from itertools import pairwise
 from typing import Literal
 
 from psd_tools.api._descriptor import get_blend_mode, get_descriptor, get_scalar
@@ -174,9 +175,9 @@ class VectorMask:
                 ys.append(knots[0].anchor[0])
                 continue
             pairs = (
-                zip(knots, knots[1:] + knots[:1])
+                zip(knots, knots[1:] + knots[:1], strict=True)
                 if path.is_closed()
-                else zip(knots, knots[1:])
+                else pairwise(knots)
             )
             for k0, k1 in pairs:
                 # anchor = (y, x); leaving/preceding = (y, x)
