@@ -85,7 +85,7 @@ class PSD(BaseElement):
         """Read a document with shared structural parsing limits."""
         with parse_context(parse_limits):
             header = FileHeader.read(fp)
-            logger.debug("read %s" % header)
+            logger.debug(f"read {header}")
             return cls(
                 header,
                 ColorModeData.read(fp),
@@ -96,7 +96,7 @@ class PSD(BaseElement):
 
     def write(self, fp: IO[bytes], encoding: str = "macroman", **kwargs: Any) -> int:
         """Write the structure to a file-like object and return the bytes written."""
-        logger.debug("writing %s" % self.header)
+        logger.debug(f"writing {self.header}")
         written = self.header.write(fp)
         written += self.color_mode_data.write(fp)
         written += self.image_resources.write(fp, encoding)

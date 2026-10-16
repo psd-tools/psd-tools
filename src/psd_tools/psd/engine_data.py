@@ -122,7 +122,7 @@ class Tokenizer:
         if self.data.startswith(self.UTF16_START, index):
             match = self.UTF16_END.search(self.data, index)
             if match is None:
-                raise ValueError("Invalid token: %r" % (self.data[index:]))
+                raise ValueError(f"Invalid token: {self.data[index:]!r}")
             token = self.data[index : match.end()]
             self.index = match.end()
         else:
@@ -140,7 +140,7 @@ class Tokenizer:
             if token_type.value.search(token):
                 return token, token_type
 
-        raise ValueError("Unknown token: %r" % (token))
+        raise ValueError(f"Unknown token: {token!r}")
 
 
 @register(EngineToken.DICT_START)
@@ -174,7 +174,7 @@ class Dict(DictElement):
                         v_token, v_token_type = next(tokenizer)
                     except StopIteration:
                         raise ValueError(
-                            "Missing value for property %r" % (key,)
+                            f"Missing value for property {key!r}"
                         ) from None
                     kls = TOKEN_CLASSES.get(v_token_type)
                     if v_token_type in (
@@ -187,7 +187,7 @@ class Dict(DictElement):
                     elif kls:
                         value = kls.frombytes(v_token)
                     else:
-                        raise ValueError("Invalid token: %r" % (v_token))
+                        raise ValueError(f"Invalid token: {v_token!r}")
                     self[key] = value
                 elif k_token_type == EngineToken.DICT_END:
                     return self

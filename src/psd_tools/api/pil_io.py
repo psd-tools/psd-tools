@@ -663,7 +663,7 @@ def _create_image(size: tuple[int, int], data: bytes, depth: int) -> Image.Image
     elif depth == 1:
         return Image.frombytes("1", size, data, "raw", "1;I")
     else:
-        raise ValueError("Unsupported depth: %g" % depth)
+        raise ValueError(f"Unsupported depth: {depth:g}")
 
 
 def _check_channels(
@@ -673,14 +673,12 @@ def _check_channels(
     if len(channels) > expected_channels:
         # Seems possible when FilterMask is attached.
         logger.debug(
-            "Channels mismatch: expected %g != given %g"
-            % (expected_channels, len(channels))
+            f"Channels mismatch: expected {expected_channels:g} != given {len(channels):g}"
         )
         channels = channels[:expected_channels]
     elif len(channels) < expected_channels:
         raise ValueError(
-            "Channels mismatch: expected %g != given %g"
-            % (expected_channels, len(channels))
+            f"Channels mismatch: expected {expected_channels:g} != given {len(channels):g}"
         )
     return channels
 
@@ -713,7 +711,7 @@ def _apply_icc(image: Image.Image, icc_profile: bytes) -> Image.Image:
         )
 
     except ImageCms.PyCMSError as e:
-        logger.error("Failed to apply ICC profile: %s" % (e))
+        logger.error(f"Failed to apply ICC profile: {e}")
         return image
 
     if result is None:

@@ -576,7 +576,7 @@ def _parse_array(
         # it stood, so every 1-bit document composited as its own negative.
         return (1 - bits).astype(np.float32).ravel()
     else:
-        raise ValueError("Unsupported depth: %g" % depth)
+        raise ValueError(f"Unsupported depth: {depth:g}")
 
 
 # The modes whose merged preview Photoshop stores composited over white, which
@@ -673,7 +673,7 @@ def _encode_array(plane: np.ndarray, depth: Literal[1, 8, 16, 32], width: int) -
         # the padding is not something a byte-for-byte test can pin down.
         bits = 1 - np.rint(clipped).astype(np.uint8)
         return np.packbits(bits.reshape(-1, width), axis=1).tobytes()
-    raise ValueError("Unsupported depth: %g" % depth)
+    raise ValueError(f"Unsupported depth: {depth:g}")
 
 
 def _stored_planes(

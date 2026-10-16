@@ -40,7 +40,7 @@ def _solid_bitmap_plane(color: object, width: int, height: int) -> bytes:
     clear: a reader trims them, a byte compare does not.
     """
     if color not in (0, 1):
-        raise ValueError("Invalid bitmap color %r. Expected 0 or 1" % (color,))
+        raise ValueError(f"Invalid bitmap color {color!r}. Expected 0 or 1")
     row_bytes = (width + 7) // 8
     if color == 1:
         return b"\x00" * (row_bytes * height)

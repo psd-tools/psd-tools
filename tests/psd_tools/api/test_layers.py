@@ -82,7 +82,7 @@ ALL_FIXTURES = [
 
 def test_pixel_layer_properties(pixel_layer: PixelLayer) -> None:
     layer = pixel_layer
-    assert layer.name == "Pixel", "layer.name = %s" % type(layer.name)
+    assert layer.name == "Pixel", f"layer.name = {type(layer.name)}"
     assert layer.kind == "pixel"
     assert layer.visible is True
     assert layer.opacity == 255

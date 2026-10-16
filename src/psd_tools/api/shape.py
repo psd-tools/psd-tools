@@ -327,7 +327,7 @@ class Stroke:
         return self._data.get(b"strokeStyleContent")
 
     def __repr__(self) -> str:
-        return "%s(width=%g)" % (self.__class__.__name__, self.line_width)
+        return f"{self.__class__.__name__}(width={self.line_width:g})"
 
 
 class Origination:
@@ -408,13 +408,7 @@ class Origination:
 
     def __repr__(self) -> str:
         bbox = self.bbox
-        return "%s(bbox=(%g, %g, %g, %g))" % (
-            self.__class__.__name__,
-            bbox[0],
-            bbox[1],
-            bbox[2],
-            bbox[3],
-        )
+        return f"{self.__class__.__name__}(bbox=({bbox[0]:g}, {bbox[1]:g}, {bbox[2]:g}, {bbox[3]:g}))"
 
 
 class Invalidated(Origination):
@@ -432,7 +426,7 @@ class Invalidated(Origination):
         return True
 
     def __repr__(self) -> str:
-        return "%s()" % (self.__class__.__name__)
+        return f"{self.__class__.__name__}()"
 
 
 class Rectangle(Origination):

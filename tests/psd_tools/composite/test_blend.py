@@ -358,7 +358,7 @@ def test_non_separable_falls_back_on_a_multichannel_document(
     assert result.shape == (1, 2, channels)
     assert np.array_equal(result, normal(Cb, Cs))
     assert (
-        "%s blend is not defined on a multichannel document" % func.__name__
+        f"{func.__name__} blend is not defined on a multichannel document"
         in caplog.text
     )
 

@@ -307,8 +307,8 @@ def test_every_sub_compositor_inherits_the_document_facts(monkeypatch) -> None:
 
     missing = _COMPOSITOR_CALLERS - {caller for caller, _, _ in seen}
     assert not missing, (
-        "%s built no compositor for these fixtures, so nothing checks that it "
-        "passes the document's facts on" % sorted(missing)
+        f"{sorted(missing)} built no compositor for these fixtures, so nothing checks that it "
+        "passes the document's facts on"
     )
 
 

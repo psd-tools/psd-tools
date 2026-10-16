@@ -1257,7 +1257,7 @@ class Layer(LayerProtocol):
         # record fields, so guarding them would guard nothing --
         # ``Group.clipping`` being the one that reads further, for the
         # document's compatibility mode, which is set before a group exists.
-        return "%s(%r%s%s%s%s%s)" % (
+        return "{}({!r}{}{}{}{}{})".format(
             self.__class__.__name__,
             self.name,
             self._annotate(self._repr_size),

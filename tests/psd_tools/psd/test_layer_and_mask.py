@@ -586,7 +586,7 @@ def test_channel_data_data(
     channel = ChannelData(compression)
     channel.set_data(data, width, height, depth, version)
     output = channel.get_data(width, height, depth, version)
-    assert output == data, "output=%r, expected=%r" % (output, data)
+    assert output == data, f"output={output!r}, expected={data!r}"
 
 
 def test_global_layer_mask_info() -> None:

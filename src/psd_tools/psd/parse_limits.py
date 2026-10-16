@@ -31,15 +31,13 @@ class ParseLimits:
             if value is None:
                 continue
             if isinstance(value, bool):
-                raise TypeError("%s must be a positive integer or None" % name)
+                raise TypeError(f"{name} must be a positive integer or None")
             try:
                 normalized = operator.index(value)
             except TypeError:
-                raise TypeError(
-                    "%s must be a positive integer or None" % name
-                ) from None
+                raise TypeError(f"{name} must be a positive integer or None") from None
             if normalized <= 0:
-                raise ValueError("%s must be positive" % name)
+                raise ValueError(f"{name} must be positive")
             object.__setattr__(self, name, normalized)
 
 

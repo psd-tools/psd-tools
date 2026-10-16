@@ -399,10 +399,4 @@ class SmartObject:
             f.write(content)
 
     def __repr__(self) -> str:
-        return "SmartObject(%r kind=%r type=%r detected=%r size=%s)" % (
-            self.filename,
-            self.kind,
-            self.filetype,
-            self.detected_filetype,
-            self.filesize,
-        )
+        return f"SmartObject({self.filename!r} kind={self.kind!r} type={self.filetype!r} detected={self.detected_filetype!r} size={self.filesize})"

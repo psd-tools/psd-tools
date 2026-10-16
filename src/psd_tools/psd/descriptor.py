@@ -320,7 +320,7 @@ def _unit(value: Unit | Enum | bytes) -> Unit | Enum:
     try:
         resolved = Enum(value)
     except ValueError:
-        raise ValueError("%r is not a valid Unit or Enum" % (value,)) from None
+        raise ValueError(f"{value!r} is not a valid Unit or Enum") from None
     logger.warning("Using Enum for Unit field")
     return resolved
 

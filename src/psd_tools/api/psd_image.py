@@ -979,7 +979,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
                             layer = layers.Artboard._move(layer)
                     end_of_group = True
                 else:
-                    logger.warning("Divider %s found." % divider.kind)
+                    logger.warning(f"Divider {divider.kind} found.")
             elif Tag.TYPE_TOOL_OBJECT_SETTING in blocks or Tag.TYPE_TOOL_INFO in blocks:
                 layer = layers.TypeLayer(current_group, record, channels)
             elif (

@@ -89,7 +89,7 @@ def test_tokenizer_invalid_at_offset(suffix: bytes, message: str) -> None:
     assert next(tokenizer) == (b"1", EngineToken.NUMBER)
     with pytest.raises(ValueError) as error:
         next(tokenizer)
-    assert str(error.value) == "%s: %r" % (message, suffix)
+    assert str(error.value) == f"{message}: {suffix!r}"
 
 
 @pytest.mark.parametrize("token", [b"1", b"(\xfe\xff\x00A)"])

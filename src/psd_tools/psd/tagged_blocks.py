@@ -289,7 +289,7 @@ class TaggedBlock(BaseElement):
         """Read the structure from a file-like object."""
         signature = read_fmt("4s", fp)[0]
         if signature not in cls._SIGNATURES:
-            logger.warning("Invalid signature (%r)" % (signature))
+            logger.warning(f"Invalid signature ({signature!r})")
             fp.seek(-4, 1)
             return None  # type: ignore[return-value]
 
@@ -297,7 +297,7 @@ class TaggedBlock(BaseElement):
         try:
             key = Tag(key)
         except ValueError:
-            message = "Unknown key: %r" % (key)
+            message = f"Unknown key: {key!r}"
             logger.warning(message)
 
         fmt = cls._length_format(key, version)
@@ -312,11 +312,11 @@ class TaggedBlock(BaseElement):
                 if key in cls._STRUCTURAL:
                     raise
                 # Fallback to raw data.
-                message = "Failed to read tagged block %r: %s" % (key, e)
+                message = f"Failed to read tagged block {key!r}: {e}"
                 logger.error(message)
                 data = raw_data
         else:
-            message = "Unknown tagged block: %r, %s" % (key, trimmed_repr(raw_data))
+            message = f"Unknown tagged block: {key!r}, {trimmed_repr(raw_data)}"
             logger.debug(message)
             data = raw_data
         return cls(signature, key, data)
@@ -562,7 +562,7 @@ class MetadataSetting(BaseElement):
         """Read the structure from a file-like object."""
         signature = read_fmt("4s", fp)[0]
         if signature not in cls._KNOWN_SIGNATURES:
-            raise ValueError("Invalid signature %r" % signature)
+            raise ValueError(f"Invalid signature {signature!r}")
         key, copy_on_sheet = read_fmt("4s?3x", fp)
         data: Any = read_length_block(fp)
         if key in (b"mdyn", b"sgrp"):
@@ -571,7 +571,7 @@ class MetadataSetting(BaseElement):
         elif key in cls._KNOWN_KEYS:
             data = DescriptorBlock.frombytes(data, padding=4)
         else:
-            message = "Unknown metadata key %r" % (key)
+            message = f"Unknown metadata key {key!r}"
             logger.debug(message)
             data = data
         return cls(signature, key, copy_on_sheet, data)
@@ -758,7 +758,7 @@ class SectionDividerSetting(BaseElement):
         if is_readable(fp, 8):
             signature = read_fmt("4s", fp)[0]
             if signature != b"8BIM":
-                raise ValueError("Invalid signature %r" % signature)
+                raise ValueError(f"Invalid signature {signature!r}")
             blend_mode = BlendMode(read_fmt("4s", fp)[0])
         sub_type = None
         if is_readable(fp, 4):

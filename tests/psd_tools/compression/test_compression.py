@@ -218,7 +218,7 @@ def test_compress_decompress(
 ) -> None:
     compressed = compress(data, kind, width, height, depth, version)
     output = decompress(compressed, kind, width, height, depth, version)
-    assert output == data, "output=%r, expected=%r" % (output, data)
+    assert output == data, f"output={output!r}, expected={data!r}"
 
 
 def test_decompress_rle_overflow_clips() -> None:
