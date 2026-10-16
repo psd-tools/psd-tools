@@ -49,9 +49,11 @@ class CommonStateInfo(BaseElement):
     def read(
         cls: type[T_CommonStateInfo], fp: IO[bytes], **kwargs: Any
     ) -> T_CommonStateInfo:
+        """Read the structure from a file-like object."""
         return cls(*read_fmt("IB2x", fp))
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, "IB2x", *astuple(self))
 
 
@@ -89,6 +91,7 @@ class ShadowInfo(BaseElement):
 
     @classmethod
     def read(cls: type[T_ShadowInfo], fp: IO[bytes], **kwargs: Any) -> T_ShadowInfo:
+        """Read the structure from a file-like object."""
         # TODO: Check 4-byte = 2-byte int + 2-byte fraction?
         version, blur, intensity, angle, distance = read_fmt("IIIiI", fp)
         color = Color.read(fp)
@@ -113,6 +116,7 @@ class ShadowInfo(BaseElement):
         )
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(
             fp,
             "IIIiI",
@@ -199,6 +203,7 @@ class OuterGlowInfo(BaseElement, _GlowInfo):
     def read(
         cls: type[T_OuterGlowInfo], fp: IO[bytes], **kwargs: Any
     ) -> T_OuterGlowInfo:
+        """Read the structure from a file-like object."""
         version, blur, intensity, color, blend_mode, enabled, opacity = cls._read_body(
             fp
         )
@@ -217,6 +222,7 @@ class OuterGlowInfo(BaseElement, _GlowInfo):
         )
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = self._write_body(fp)
         if self.native_color and hasattr(self.native_color, "write"):
             written += self.native_color.write(fp)  # type: ignore[attr-defined]
@@ -255,6 +261,7 @@ class InnerGlowInfo(BaseElement, _GlowInfo):
     def read(
         cls: type[T_InnerGlowInfo], fp: IO[bytes], **kwargs: Any
     ) -> T_InnerGlowInfo:
+        """Read the structure from a file-like object."""
         version, blur, intensity, color, blend_mode, enabled, opacity = cls._read_body(
             fp
         )
@@ -275,6 +282,7 @@ class InnerGlowInfo(BaseElement, _GlowInfo):
         )
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = self._write_body(fp)
         if self.version >= 2:
             written += write_fmt(fp, "B", self.invert)
@@ -328,6 +336,7 @@ class BevelInfo(BaseElement):
 
     @classmethod
     def read(cls: type[T_BevelInfo], fp: IO[bytes], **kwargs: Any) -> T_BevelInfo:
+        """Read the structure from a file-like object."""
         # TODO: Check 4-byte = 2-byte int + 2-byte fraction?
         version, angle, depth, blur = read_fmt("Ii2I", fp)
         signature, highlight_blend_mode = read_fmt("4s4s", fp)
@@ -364,6 +373,7 @@ class BevelInfo(BaseElement):
         )
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "Ii2I", self.version, self.angle, self.depth, self.blur)
         written += write_fmt(
             fp,
@@ -417,6 +427,7 @@ class SolidFillInfo(BaseElement):
     def read(
         cls: type[T_SolidFillInfo], fp: IO[bytes], **kwargs: Any
     ) -> T_SolidFillInfo:
+        """Read the structure from a file-like object."""
         version = read_fmt("I", fp)[0]
         signature, blend_mode = read_fmt("4s4s", fp)
         if signature != b"8BIM":
@@ -434,6 +445,7 @@ class SolidFillInfo(BaseElement):
         )
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "I4s4s", self.version, b"8BIM", self.blend_mode.value)
         written += self.color.write(fp)
         written += write_fmt(fp, "2B", self.opacity, self.enabled)
@@ -465,6 +477,7 @@ class EffectsLayer(DictElement):
 
     @classmethod
     def read(cls: type[T_EffectsLayer], fp: IO[bytes], **kwargs: Any) -> T_EffectsLayer:
+        """Read the structure from a file-like object."""
         version, count = read_fmt("2H", fp)
         items = []
         for _ in range(count):
@@ -479,6 +492,7 @@ class EffectsLayer(DictElement):
         return cls(version=version, items=items)  # type: ignore[arg-type]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "2H", self.version, len(self))
         for key in self:
             written += write_fmt(fp, "4s4s", b"8BIM", key.value)

@@ -33,6 +33,7 @@ class Color(BaseElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         id = read_fmt("H", fp)[0]
         try:
             id = ColorSpaceID(id)
@@ -45,6 +46,7 @@ class Color(BaseElement):
         return cls(id, list(values))
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         id = getattr(self.id, "value", self.id)
         written = write_fmt(fp, "H", id)
         if self.id == ColorSpaceID.LAB:

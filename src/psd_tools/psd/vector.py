@@ -35,10 +35,12 @@ T_VectorStrokeContentSetting = TypeVar(
 
 
 def decode_fixed_point(numbers: Sequence[int]) -> tuple[float, ...]:
+    """Convert 8.24 fixed point numbers to floats."""
     return tuple(float(x) / 0x01000000 for x in numbers)
 
 
 def encode_fixed_point(numbers: Sequence[float]) -> tuple[int, ...]:
+    """Convert floats to 8.24 fixed point numbers."""
     return tuple(int(x * 0x01000000) for x in numbers)
 
 
@@ -53,6 +55,7 @@ class Path(ListElement):
 
     @classmethod
     def read(cls: type[T_Path], fp: IO[bytes], **kwargs: Any) -> T_Path:
+        """Read the structure from a file-like object."""
         items = []
         while is_readable(fp, 26):
             selector = PathResourceID(read_fmt("H", fp)[0])
@@ -63,6 +66,7 @@ class Path(ListElement):
         return cls(items)
 
     def write(self, fp: IO[bytes], padding: int = 4, **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = 0
         for item in self:
             written += write_fmt(fp, "H", item.selector.value)
@@ -101,6 +105,7 @@ class Subpath(ListElement):
 
     @classmethod
     def read(cls: type[T_Subpath], fp: IO[bytes], **kwargs: Any) -> T_Subpath:
+        """Read the structure from a file-like object."""
         items = []
         length, operation, _unknown1, _unknown2, index, _unknown3 = read_fmt(
             "HhH2I10s", fp
@@ -123,6 +128,7 @@ class Subpath(ListElement):
         )
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(
             fp,
             "HhH2I10s",
@@ -187,45 +193,61 @@ class Knot(BaseElement):
 
     @classmethod
     def read(cls: type[T_Knot], fp: IO[bytes], **kwargs: Any) -> T_Knot:
+        """Read the structure from a file-like object."""
         preceding = decode_fixed_point(read_fmt("2i", fp))
         anchor = decode_fixed_point(read_fmt("2i", fp))
         leaving = decode_fixed_point(read_fmt("2i", fp))
         return cls(preceding, anchor, leaving)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         values = self.preceding + self.anchor + self.leaving
         return write_fmt(fp, "6i", *encode_fixed_point(values))
 
 
 @register(PathResourceID.CLOSED_LENGTH)
 class ClosedPath(Subpath):
+    """Length record of a closed subpath."""
+
     def is_closed(self) -> bool:
+        """Return whether the path is closed, always `True`."""
         return True
 
 
 @register(PathResourceID.OPEN_LENGTH)
 class OpenPath(Subpath):
+    """Length record of an open subpath."""
+
     def is_closed(self) -> bool:
+        """Return whether the path is closed, always `False`."""
         return False
 
 
 @register(PathResourceID.CLOSED_KNOT_LINKED)
 class ClosedKnotLinked(Knot):
+    """Knot of a closed subpath with linked control points."""
+
     pass
 
 
 @register(PathResourceID.CLOSED_KNOT_UNLINKED)
 class ClosedKnotUnlinked(Knot):
+    """Knot of a closed subpath with unlinked control points."""
+
     pass
 
 
 @register(PathResourceID.OPEN_KNOT_LINKED)
 class OpenKnotLinked(Knot):
+    """Knot of an open subpath with linked control points."""
+
     pass
 
 
 @register(PathResourceID.OPEN_KNOT_UNLINKED)
 class OpenKnotUnlinked(Knot):
+    """Knot of an open subpath with unlinked control points."""
+
     pass
 
 
@@ -236,10 +258,12 @@ class PathFillRule(BaseElement):
 
     @classmethod
     def read(cls: type[T_PathFillRule], fp: IO[bytes], **kwargs: Any) -> T_PathFillRule:
+        """Read the structure from a file-like object."""
         read_fmt("24x", fp)
         return cls()
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, "24x")
 
 
@@ -280,9 +304,11 @@ class ClipboardRecord(BaseElement):
     def read(
         cls: type[T_ClipboardRecord], fp: IO[bytes], **kwargs: Any
     ) -> T_ClipboardRecord:
+        """Read the structure from a file-like object."""
         return cls(*decode_fixed_point(read_fmt("5i4x", fp)))  # type: ignore[arg-type]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, "5i4x", *encode_fixed_point(astuple(self)))
 
 
@@ -302,9 +328,11 @@ class InitialFillRule(ValueElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
+        """Read the structure from a file-like object."""
         return cls(*read_fmt("H22x", fp))
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, "H22x", *astuple(self))
 
 
@@ -325,6 +353,7 @@ class VectorMaskSetting(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
+        """Read the structure from a file-like object."""
         version, flags = read_fmt("2I", fp)
         if version != 3:
             raise ValueError("Unknown vector mask version %d" % version)
@@ -332,6 +361,7 @@ class VectorMaskSetting(BaseElement):
         return cls(version=version, flags=flags, path=path)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "2I", self.version, self.flags)
         if self.path:
             written += self.path.write(fp)
@@ -369,11 +399,13 @@ class VectorStrokeContentSetting(Descriptor):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
+        """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             key, version = read_fmt("4sI", fp)
             return cls(key=key, version=version, **cls._read_body(fp))
 
     def write(self, fp: IO[bytes], padding: int = 4, **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "4sI", self.key, self.version)
         written += self._write_body(fp)
         written += write_padding(fp, written, padding)

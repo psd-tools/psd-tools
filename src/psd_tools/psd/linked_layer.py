@@ -36,6 +36,7 @@ class LinkedLayers(ListElement):
 
     @classmethod
     def read(cls: type[T_LinkedLayers], fp: IO[bytes], **kwargs: Any) -> T_LinkedLayers:
+        """Read the structure from a file-like object."""
         items = []
         while is_readable(fp, 8):
             data = read_length_block(fp, fmt="Q", padding=4)
@@ -44,6 +45,7 @@ class LinkedLayers(ListElement):
         return cls(items)  # type: ignore[arg-type]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = 0
         for item in self:
             written += write_length_block(fp, item.write, fmt="Q", padding=4)
@@ -94,6 +96,7 @@ class LinkedLayer(BaseElement):
 
     @classmethod
     def read(cls: type[T_LinkedLayer], fp: IO[bytes], **kwargs: Any) -> T_LinkedLayer:
+        """Read the structure from a file-like object."""
         kind = LinkedLayerType(read_fmt("4s", fp)[0])
         version = read_fmt("I", fp)[0]
         if not 1 <= version <= 8:
@@ -160,6 +163,7 @@ class LinkedLayer(BaseElement):
         )
 
     def write(self, fp: IO[bytes], padding: int = 1, **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "4sI", self.kind.value, self.version)
         written += write_pascal_string(fp, self.uuid, "macroman", padding=1)
         written += write_unicode_string(fp, self.filename)

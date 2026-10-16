@@ -70,14 +70,17 @@ class BaseElement:
     """
 
     def __new__(cls: type[T], *args: Any, **kwargs: Any) -> T:
+        """Create the element and count it against the object budget."""
         consume_objects(1)
         return super().__new__(cls)
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         raise NotImplementedError()
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         raise NotImplementedError()
 
     @classmethod
@@ -95,11 +98,13 @@ class BaseElement:
                 return cls.read(f, *args, **kwargs)
 
     def tobytes(self, *args: Any, **kwargs: Any) -> bytes:
+        """Write the element to bytes."""
         with io.BytesIO() as f:
             self.write(f, *args, **kwargs)
             return f.getvalue()
 
     def validate(self) -> None:
+        """Validate the field values of the element."""
         return validate(self)  # type: ignore[arg-type]
 
     def _repr_pretty_(self, p: Any, cycle: bool) -> None:
@@ -159,9 +164,11 @@ class EmptyElement(BaseElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], *args: Any, **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         return cls()
 
     def write(self, fp: IO[bytes], *args: Any, **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return 0
 
 
@@ -322,29 +329,36 @@ class NumericElement(ValueElement):
 
     @property
     def real(self) -> float:
+        """Real part of the value."""
         return self.value.real
 
     @property
     def imag(self) -> float:
+        """Imaginary part of the value."""
         return self.value.imag
 
     def conjugate(self) -> float:
+        """Return the complex conjugate of the value."""
         return self.value.conjugate()
 
     # Not `numbers` members: `statistics._exact_ratio` tries `as_integer_ratio()`
     # first. Do not register a float-valued element as `numbers.Rational`
     # instead -- `float` is not one either.
     def as_integer_ratio(self) -> tuple[int, int]:
+        """Return the value as a ratio of integers."""
         return self.value.as_integer_ratio()
 
     def is_integer(self) -> bool:
+        """Return whether the value is integral."""
         return self.value.is_integer()
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         return cls(read_fmt("d", fp)[0])  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, "d", self.value)
 
 
@@ -403,23 +417,28 @@ class IntegerElement(NumericElement):
 
     @property
     def numerator(self) -> int:
+        """Numerator of the value."""
         return self.value.numerator
 
     @property
     def denominator(self) -> int:
+        """Denominator of the value."""
         return self.value.denominator
 
     # `int.is_integer` only exists from Python 3.12, so the inherited
     # delegation would raise `AttributeError` on 3.11. An integer is
     # integral on every version.
     def is_integer(self) -> bool:
+        """Return whether the value is integral, always `True`."""
         return True
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         return cls(read_fmt("I", fp)[0])  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, "I", self.value)
 
 
@@ -436,6 +455,7 @@ class ShortIntegerElement(IntegerElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         try:
             return cls(read_fmt("H2x", fp)[0])  # type: ignore[call-arg]
         except IOError as e:
@@ -443,6 +463,7 @@ class ShortIntegerElement(IntegerElement):
         return cls(read_fmt("H", fp)[0])  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, "H2x", self.value)
 
 
@@ -456,6 +477,7 @@ class ByteElement(IntegerElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         try:
             return cls(read_fmt("B3x", fp)[0])  # type: ignore[call-arg]
         except IOError as e:
@@ -463,6 +485,7 @@ class ByteElement(IntegerElement):
         return cls(read_fmt("B", fp)[0])  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, "B3x", self.value)
 
 
@@ -478,6 +501,7 @@ class BooleanElement(IntegerElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         try:
             return cls(read_fmt("?3x", fp)[0])  # type: ignore[call-arg]
         except IOError as e:
@@ -485,6 +509,7 @@ class BooleanElement(IntegerElement):
         return cls(read_fmt("?", fp)[0])  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, "?3x", self.value)
 
 
@@ -502,9 +527,11 @@ class StringElement(ValueElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], padding: int = 1, **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         return cls(read_unicode_string(fp, padding=padding))  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], padding: int = 1, **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_unicode_string(fp, self.value, padding=padding)
 
 
@@ -515,30 +542,39 @@ class ListElement(BaseElement):
     _items: list = field(factory=list, converter=list)
 
     def append(self, x: Any) -> None:
+        """Append an item."""
         return self._items.append(x)
 
     def extend(self, L: Any) -> None:
+        """Extend with the items of an iterable."""
         return self._items.extend(L)
 
     def insert(self, i: int, x: Any) -> None:
+        """Insert an item before an index."""
         return self._items.insert(i, x)
 
     def remove(self, x: Any) -> None:
+        """Remove the first matching item."""
         return self._items.remove(x)
 
     def pop(self, *args: Any) -> Any:
+        """Remove and return an item."""
         return self._items.pop(*args)
 
     def index(self, x: Any) -> int:
+        """Return the index of the first matching item."""
         return self._items.index(x)
 
     def count(self, x: Any) -> int:
+        """Return the number of matching items."""
         return self._items.count(x)
 
     def sort(self, *args: Any, **kwargs: Any) -> None:
+        """Sort the items in place."""
         return self._items.sort(*args, **kwargs)
 
     def reverse(self) -> None:
+        """Reverse the items in place."""
         return self._items.reverse()
 
     def __len__(self) -> int:
@@ -577,6 +613,7 @@ class ListElement(BaseElement):
             p.breakable("")
 
     def write(self, fp: IO[bytes], *args: Any, **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = 0
         for item in self:
             if hasattr(item, "write"):
@@ -593,40 +630,51 @@ class DictElement(BaseElement):
     _items: OrderedDict = field(factory=OrderedDict, converter=OrderedDict)
 
     def clear(self) -> None:
+        """Remove all items."""
         return self._items.clear()
 
     def copy(self) -> OrderedDict:
+        """Return a shallow copy of the items."""
         return self._items.copy()
 
     @classmethod
     def fromkeys(cls, seq: Any, *args: Any) -> "DictElement":
+        """Create an element from keys with a shared value."""
         return cls(OrderedDict.fromkeys(seq, *args))
 
     def get(self, key: Any, *args: Any) -> Any:
+        """Return the value of a key, or the default."""
         key = self._key_converter(key)
         return self._items.get(key, *args)
 
     def items(self) -> Any:
+        """Return the view of the items."""
         return self._items.items()
 
     def keys(self) -> Any:
+        """Return the view of the keys."""
         return self._items.keys()
 
     def pop(self, key: Any, *args: Any) -> Any:
+        """Remove a key and return its value."""
         key = self._key_converter(key)
         return self._items.pop(key, *args)
 
     def popitem(self) -> Any:
+        """Remove and return the last item."""
         return self._items.popitem()
 
     def setdefault(self, key: Any, *args: Any) -> Any:
+        """Return the value of a key, inserting the default if the key is missing."""
         key = self._key_converter(key)
         return self._items.setdefault(key, *args)
 
     def update(self, *args: Any) -> None:
+        """Update from a mapping or an iterable of pairs."""
         return self._items.update(*args)
 
     def values(self) -> Any:
+        """Return the view of the values."""
         return self._items.values()
 
     def __len__(self) -> int:
@@ -679,9 +727,11 @@ class DictElement(BaseElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], *args: Any, **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         raise NotImplementedError
 
     def write(self, fp: IO[bytes], *args: Any, **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = 0
         for key in self:
             value = self[key]

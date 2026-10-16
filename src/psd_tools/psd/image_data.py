@@ -76,6 +76,7 @@ class ImageData(BaseElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         start_pos = fp.tell()
         compression = Compression(read_fmt("H", fp)[0])
         data = read_remaining(fp)
@@ -83,6 +84,7 @@ class ImageData(BaseElement):
         return cls(compression, data)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         start_pos = fp.tell()
         written = write_fmt(fp, "H", self.compression.value)
         written += write_bytes(fp, self.data)

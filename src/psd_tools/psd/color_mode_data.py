@@ -35,12 +35,15 @@ class ColorModeData(ValueElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         value = read_length_block(fp)
         logger.debug("reading color mode data, len=%d" % (len(value)))
         # TODO: Parse color table.
         return cls(value)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
+
         def writer(f: IO[bytes]) -> int:
             return write_bytes(f, self.value)
 

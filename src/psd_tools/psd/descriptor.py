@@ -180,10 +180,12 @@ class Descriptor(_DescriptorMixin):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             return cls(**cls._read_body(fp))  # type: ignore[attr-defined]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return self._write_body(fp)
 
 
@@ -214,11 +216,13 @@ class ObjectArray(_DescriptorMixin):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             items_count = read_fmt("I", fp)[0]
             return cls(items_count=items_count, **cls._read_body(fp))  # type: ignore[attr-defined,call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "I", self.items_count)
         written += self._write_body(fp)
         return written
@@ -238,6 +242,7 @@ class List(ListElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)), parse_container():
             items = []
             count = read_fmt("I", fp)[0]
@@ -249,6 +254,7 @@ class List(ListElement):
             return cls(items)  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "I", len(self))
         for item in self:
             written += write_bytes(fp, item.ostype.value)
@@ -281,12 +287,14 @@ class Property(BaseElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         name = read_unicode_string(fp)
         classID = read_length_and_key(fp)
         keyID = read_length_and_key(fp)
         return cls(name, classID, keyID)  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_unicode_string(fp, self.name)
         written += write_length_and_key(fp, self.classID)
         written += write_length_and_key(fp, self.keyID)
@@ -341,10 +349,12 @@ class UnitFloat(NumericElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         unit, value = read_fmt("4sd", fp)
         return cls(unit=unit, value=value)  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, "4sd", self.unit.value, self.value)
 
     def _repr_pretty_(self, p: Any, cycle: bool) -> None:
@@ -380,6 +390,7 @@ class UnitFloats(BaseElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         unit, count = read_fmt("4sI", fp)
         # Resolve the unit before the array is consumed. A caller probing for
         # an optional descriptor -- SliceV6.read() -- distinguishes "this is
@@ -390,6 +401,7 @@ class UnitFloats(BaseElement):
         return cls(unit=unit, values=values)  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(
             fp,
             "4sI%dd" % len(self.values),
@@ -421,9 +433,11 @@ class Double(NumericElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         return cls(*read_fmt("d", fp))
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, "d", self.value)
 
 
@@ -446,11 +460,13 @@ class Class(BaseElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         name = read_unicode_string(fp)
         classID = read_length_and_key(fp)
         return cls(name, classID)  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_unicode_string(fp, self.name)
         written += write_length_and_key(fp, self.classID)
         return written
@@ -499,6 +515,7 @@ class EnumeratedReference(BaseElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         name = read_unicode_string(fp)
         classID = read_length_and_key(fp)
         typeID = read_length_and_key(fp)
@@ -506,6 +523,7 @@ class EnumeratedReference(BaseElement):
         return cls(name, classID, typeID, enum)  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_unicode_string(fp, self.name)
         written += write_length_and_key(fp, self.classID)
         written += write_length_and_key(fp, self.typeID)
@@ -538,12 +556,14 @@ class Offset(BaseElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         name = read_unicode_string(fp)
         classID = read_length_and_key(fp)
         offset = read_fmt("I", fp)[0]
         return cls(name, classID, offset)  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_unicode_string(fp, self.name)
         written += write_length_and_key(fp, self.classID)
         written += write_fmt(fp, "I", self.value)
@@ -562,9 +582,11 @@ class Bool(BooleanElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         return cls(read_fmt("?", fp)[0])  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, "?", self.value)
 
 
@@ -580,9 +602,11 @@ class LargeInteger(IntegerElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         return cls(read_fmt("q", fp)[0])  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, "q", self.value)
 
 
@@ -598,9 +622,11 @@ class Integer(IntegerElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         return cls(read_fmt("i", fp)[0])  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, "i", self.value)
 
 
@@ -624,11 +650,13 @@ class Enumerated(BaseElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         typeID = read_length_and_key(fp)
         enum = read_length_and_key(fp)
         return cls(typeID, enum)  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_length_and_key(fp, self.typeID)
         written += write_length_and_key(fp, self.enum)
         return written
@@ -668,9 +696,12 @@ class RawData(BaseElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         return cls(read_length_block(fp))  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
+
         def writer(f: IO[bytes]) -> int:
             if hasattr(self.value, "write"):
                 return self.value.write(f)
@@ -799,12 +830,14 @@ class Name(BaseElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         name = read_unicode_string(fp)
         classID = read_length_and_key(fp)
         value = read_unicode_string(fp)
         return cls(name, classID, value)  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_unicode_string(fp, self.name)
         written += write_length_and_key(fp, self.classID)
         written += write_unicode_string(fp, self.value)
@@ -825,11 +858,13 @@ class DescriptorBlock(Descriptor):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             version = read_fmt("I", fp)[0]
             return cls(version=version, **cls._read_body(fp))  # type: ignore[attr-defined,call-arg]
 
     def write(self, fp: IO[bytes], padding: int = 4, **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "I", self.version)
         written += self._write_body(fp)
         written += write_padding(fp, written, padding)
@@ -852,11 +887,13 @@ class DescriptorBlock2(Descriptor):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             version, data_version = read_fmt("2I", fp)
             return cls(version=version, data_version=data_version, **cls._read_body(fp))  # type: ignore[attr-defined,call-arg]
 
     def write(self, fp: IO[bytes], padding: int = 4, **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "2I", self.version, self.data_version)
         written += self._write_body(fp)
         written += write_padding(fp, written, padding)
