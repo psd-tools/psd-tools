@@ -274,7 +274,7 @@ def _reencoded(
     record = copy.deepcopy(record)
     channels = copy.deepcopy(channels)
     if (source.depth, source.version) != (dest.depth, dest.version):
-        for info, data in zip(record.channel_info, channels):
+        for info, data in zip(record.channel_info, channels, strict=False):
             if color is None or info.id < 0:
                 _repack_channel(record, info, data, source, dest)
     if color is None:
@@ -293,7 +293,7 @@ def _reencoded(
         )
         painted.append((ChannelInfo(id=ChannelID(index), length=data._length), data))
     pairs: list[tuple[ChannelInfo, ChannelData]] = []
-    for info, data in zip(record.channel_info, channels):
+    for info, data in zip(record.channel_info, channels, strict=False):
         if info.id >= 0:
             pairs, painted = pairs + painted, []
         else:
@@ -606,7 +606,7 @@ class Layer(LayerProtocol):
         """
         return any(
             ci.id >= 0 and cd.data and len(cd.data) > 0
-            for ci, cd in zip(self._record.channel_info, self._channels)
+            for ci, cd in zip(self._record.channel_info, self._channels, strict=False)
         )
 
     def has_mask(self) -> bool:
@@ -1408,7 +1408,7 @@ class Layer(LayerProtocol):
         if isinstance(self, Group) and isinstance(copy_, Group):
             sources.extend(self.descendants())
             copies.extend(copy_.descendants())
-        for source, target in zip(sources, copies):
+        for source, target in zip(sources, copies, strict=False):
             if (converted := source._reencode(group)) is not None:
                 target._apply_reencoded(converted)
         seed_resource = _issue_layer_ids(group._psd, group._psd.descendants(), copies)
@@ -2408,7 +2408,7 @@ class Group(GroupMixin, Layer):
         if len(bboxes) == 0:  # Empty bounding box.
             logger.debug("No bounding box could be extracted from the given layers.")
             return (0, 0, 0, 0)
-        lefts, tops, rights, bottoms = zip(*bboxes)
+        lefts, tops, rights, bottoms = zip(*bboxes, strict=True)
         return (min(lefts), min(tops), max(rights), max(bottoms))
 
     def _set_bounding_records(
@@ -3251,7 +3251,9 @@ class ShapeLayer(Layer):
                 and not any(x.invalidated for x in self.origination)
                 and all(x._read_bbox() is not None for x in self.origination)
             ):
-                lefts, tops, rights, bottoms = zip(*[x.bbox for x in self.origination])
+                lefts, tops, rights, bottoms = zip(
+                    *[x.bbox for x in self.origination], strict=True
+                )
                 self._bbox = (
                     int(min(lefts)),
                     int(min(tops)),

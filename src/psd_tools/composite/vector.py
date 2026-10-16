@@ -2,6 +2,7 @@
 
 import logging
 from collections.abc import Generator
+from itertools import pairwise
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -489,7 +490,9 @@ def _flatten_subpath(subpath, width: int, height: int) -> np.ndarray:
     """
     knots = [x for x in subpath if isinstance(x, Knot)]
     closed = subpath.is_closed()
-    pairs = list(zip(knots, knots[1:] + knots[:1] if closed else knots[1:]))
+    pairs = list(
+        zip(knots, knots[1:] + knots[:1], strict=True) if closed else pairwise(knots)
+    )
 
     def scaled(points) -> np.ndarray:
         return np.array(
@@ -561,7 +564,9 @@ def _generate_symbol(
 
     # Closed path or open path
     points = (
-        zip(knots, knots[1:] + knots[:1]) if path.is_closed() else zip(knots, knots[1:])
+        zip(knots, knots[1:] + knots[:1], strict=True)
+        if path.is_closed()
+        else pairwise(knots)
     )
 
     # Rest of the points.

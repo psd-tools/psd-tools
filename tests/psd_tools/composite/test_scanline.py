@@ -6,6 +6,8 @@ answers more than the area on every side, and nothing local can tell real
 antialiasing from fabricated antialiasing.
 """
 
+from itertools import pairwise
+
 import numpy as np
 import pytest
 
@@ -263,7 +265,7 @@ def test_a_flattened_curve_stays_within_the_flatness_bound() -> None:
         )
         polyline = np.concatenate([polyline, knots[3]])
         nearest = np.full(len(curve), np.inf)
-        for a, b in zip(polyline[:-1], polyline[1:]):
+        for a, b in pairwise(polyline):
             along = b - a
             length = max(float(along @ along), 1e-300)
             where = np.clip(((curve - a) @ along) / length, 0, 1)[:, None]

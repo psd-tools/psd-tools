@@ -311,7 +311,7 @@ def _guard_channel_read(
     """Check one :func:`get_layer_data` channel read against the budget."""
     selected = [
         data
-        for info, data in zip(layer._record.channel_info, layer._channels)
+        for info, data in zip(layer._record.channel_info, layer._channels, strict=False)
         if condition(info) and len(data.data) > 0
     ]
     # An empty box allocates nothing, and check_pixel_size() rejects it.
@@ -367,7 +367,7 @@ def get_layer_data(
     ) -> np.ndarray | None:
         depth, version = layer._psd.depth, layer._psd.version
         _guard_channel_read(layer, width, height, condition, held)
-        iterator = zip(layer._record.channel_info, layer._channels)
+        iterator = zip(layer._record.channel_info, layer._channels, strict=False)
         channels = [
             _parse_array(
                 data.get_data(width, height, depth, version),

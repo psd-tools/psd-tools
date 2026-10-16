@@ -113,7 +113,7 @@ class PSD(BaseElement):
             records = layer_info.layer_records
             channel_data = layer_info.channel_image_data
             if records is not None and channel_data is not None:
-                yield from zip(records, channel_data)
+                yield from zip(records, channel_data, strict=False)
 
     def _get_layer_info(self) -> LayerInfo | None:
         tagged_blocks = self.layer_and_mask_information.tagged_blocks

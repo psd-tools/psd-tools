@@ -251,7 +251,7 @@ def _prune_offsets(
     order = np.arange(rows.size)
     best = np.full(rows.shape, np.inf if outward else -np.inf, dtype=np.float32)
 
-    for (down, across), length in zip(offsets, lengths):
+    for (down, across), length in zip(offsets, lengths, strict=False):
         if order.size == 0:
             break
         row, col = prows + down, pcols + across

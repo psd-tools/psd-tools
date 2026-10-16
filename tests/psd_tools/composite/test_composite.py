@@ -1097,7 +1097,10 @@ def test_composite_layer_filter() -> None:
     rendered = psd.composite(layer_filter=lambda x: False)
     reference = psd.topil()
     assert reference is not None
-    assert all(a != b for a, b in zip(rendered.getextrema(), reference.getextrema()))
+    assert all(
+        a != b
+        for a, b in zip(rendered.getextrema(), reference.getextrema(), strict=False)
+    )
 
 
 def test_apply_mask() -> None:
@@ -1176,7 +1179,7 @@ def test_composite_knockout(name: str, expected: tuple[int, int, int]) -> None:
     # this matters: knocking through to transparency would otherwise be masked
     # by dropping the alpha channel before comparing.
     assert pixel[3] >= 250, f"{name}: expected an opaque result, got alpha={pixel[3]}"
-    assert all(abs(a - b) <= 2 for a, b in zip(pixel[:3], expected)), (
+    assert all(abs(a - b) <= 2 for a, b in zip(pixel[:3], expected, strict=True)), (
         f"{name}: Photoshop renders {expected}, psd-tools rendered {pixel[:3]}"
     )
 

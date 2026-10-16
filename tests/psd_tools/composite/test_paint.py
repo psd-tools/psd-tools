@@ -162,7 +162,7 @@ def test_previously_working_pairs_are_unchanged(
         assert len(result) == 1
         return
     assert len(result) == len(expected)
-    for got, want in zip(result, expected):
+    for got, want in zip(result, expected, strict=True):
         assert got == pytest.approx(want, abs=1e-6)
 
 
@@ -482,7 +482,7 @@ def test_lab_fill_on_an_rgb_document_matches_photoshop(
     )
     got = [255.0 * v for v in _get_color(color_mode, desc)]
     assert len(got) == 3
-    for channel, (value, want) in enumerate(zip(got, photoshop_rgb)):
+    for channel, (value, want) in enumerate(zip(got, photoshop_rgb, strict=True)):
         assert abs(value - want) <= 1.0, (lab, channel, value, want)
 
 
@@ -521,7 +521,7 @@ def test_rgb_fill_on_a_lab_document_matches_photoshop(
         (_native(photoshop_lab[2]) + 128.0) / 255.0,
     )
     assert len(got) == 3
-    for channel, (value, expected) in enumerate(zip(got, want)):
+    for channel, (value, expected) in enumerate(zip(got, want, strict=True)):
         assert abs(value - expected) * 255.0 <= 1.0, (rgb, channel, value, expected)
 
 

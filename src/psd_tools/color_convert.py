@@ -303,7 +303,7 @@ def lab_to_rgb(lightness: float, a: float, b: float) -> tuple[float, float, floa
     fy = (lightness + 16.0) / 116.0
     fxyz = (fy + a / 500.0, fy, fy - b / 200.0)
     xyz = []
-    for f, white in zip(fxyz, _LAB_D50):
+    for f, white in zip(fxyz, _LAB_D50, strict=True):
         # ``f * f * f`` rather than ``f ** 3`` on purpose. A descriptor carries
         # unvalidated file data, and on a large float the power operator raises
         # OverflowError where the multiplication saturates to inf -- which the
@@ -349,7 +349,7 @@ def rgb_to_lab(r: float, g: float, b: float) -> tuple[float, float, float]:
     """
     linear = [_srgb_ungamma(_clamp(v, 0.0, 1.0)) for v in (r, g, b)]
     f = []
-    for row, white in zip(_SRGB_TO_XYZ_D50, _LAB_D50):
+    for row, white in zip(_SRGB_TO_XYZ_D50, _LAB_D50, strict=True):
         ratio = (row[0] * linear[0] + row[1] * linear[1] + row[2] * linear[2]) / white
         f.append(
             ratio ** (1.0 / 3.0)

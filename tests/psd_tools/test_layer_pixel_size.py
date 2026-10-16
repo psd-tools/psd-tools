@@ -159,7 +159,7 @@ def test_shape_read_is_sized_with_the_color_array_held(monkeypatch):
         if x.width * x.height > 0
         and any(
             i.id == ChannelID.TRANSPARENCY_MASK and len(c.data) > 0
-            for i, c in zip(x._record.channel_info, x._channels)
+            for i, c in zip(x._record.channel_info, x._channels, strict=True)
         )
     )
     layer.numpy()

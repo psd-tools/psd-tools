@@ -2142,7 +2142,10 @@ class Compositor:
             raise ValueError("Stroke width is not finite.") from error
         fill_bbox = cast(
             tuple[int, int, int, int],
-            tuple(x + d for x, d in zip(layer.bbox, (-width, -width, width, width))),
+            tuple(
+                x + d
+                for x, d in zip(layer.bbox, (-width, -width, width, width), strict=True)
+            ),
         )
         # The width is the file's, and it grows the box the fill is drawn on.
         if fill_bbox[0] < fill_bbox[2] and fill_bbox[1] < fill_bbox[3]:
