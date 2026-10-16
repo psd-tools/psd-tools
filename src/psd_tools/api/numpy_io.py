@@ -1,3 +1,5 @@
+"""NumPy conversion of layers and documents."""
+
 import logging
 import warnings
 from collections.abc import Collection
@@ -34,6 +36,7 @@ logger = logging.getLogger(__name__)
 def get_array(
     layer: "LayerProtocol | PSDProtocol", channel: str | None, **kwargs: Any
 ) -> np.ndarray | None:
+    """Return the pixel data of a layer or document as an array, optionally of one channel."""
     # Import at runtime to avoid circular imports
     from psd_tools.api.layers import Layer  # noqa: PLC0415
     from psd_tools.api.psd_image import PSDImage  # noqa: PLC0415
@@ -198,6 +201,7 @@ def _image_data_peak_bytes(psdimage: "PSDProtocol", flat: bool = False) -> int:
 
 
 def get_image_data(psdimage: "PSDProtocol", channel: str | None) -> np.ndarray:
+    """Return the merged image data of a document as an array."""
     # Decided before the guard runs rather than after, so the estimate can match
     # whichever branch is taken. The dimension checks inside check_pixel_size()
     # apply to both, so neither path escapes it.
@@ -352,6 +356,8 @@ def get_layer_data(
     channel: str | None,
     real_mask: bool = True,
 ) -> np.ndarray | None:
+    """Return the pixel data of a layer as an array, optionally of one channel."""
+
     def _find_channel(
         layer: "LayerProtocol",
         width: int,

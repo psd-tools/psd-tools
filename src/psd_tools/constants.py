@@ -51,6 +51,7 @@ class ColorMode(IntEnum):
 
     @staticmethod
     def channels(value: "ColorMode", alpha: bool = False) -> int:
+        """Return the number of channels of a color mode, with an alpha channel if requested."""
         return {
             ColorMode.BITMAP: 1,
             ColorMode.GRAYSCALE: 1,
@@ -218,10 +219,12 @@ class Resource(IntEnum):
 
     @staticmethod
     def is_path_info(value: int) -> bool:
+        """Return whether a resource ID is in the path information range."""
         return 2000 <= value and value <= 2997
 
     @staticmethod
     def is_plugin_resource(value: int) -> bool:
+        """Return whether a resource ID is in the plugin resource range."""
         return 4000 <= value and value <= 4999
 
 
@@ -549,6 +552,8 @@ class StrokeAlignment(str, Enum):
 
 
 class PathResourceID(IntEnum):
+    """Record types of a path resource."""
+
     CLOSED_LENGTH = 0
     CLOSED_KNOT_LINKED = 1
     CLOSED_KNOT_UNLINKED = 2
@@ -561,6 +566,8 @@ class PathResourceID(IntEnum):
 
 
 class PlacedLayerType(IntEnum):
+    """Type of a placed layer."""
+
     UNKNOWN = 0
     VECTOR = 1
     RASTER = 2
@@ -568,6 +575,8 @@ class PlacedLayerType(IntEnum):
 
 
 class SectionDivider(IntEnum):
+    """Section divider types of a layer group."""
+
     OTHER = 0
     OPEN_FOLDER = 1
     CLOSED_FOLDER = 2
@@ -575,6 +584,8 @@ class SectionDivider(IntEnum):
 
 
 class SheetColorType(IntEnum):
+    """Sheet color labels."""
+
     NO_COLOR = 0
     RED = 1
     ORANGE = 2

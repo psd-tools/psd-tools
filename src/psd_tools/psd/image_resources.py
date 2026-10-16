@@ -179,6 +179,7 @@ class ImageResources(DictElement):
         encoding: str = "macroman",
         **kwargs: Any,
     ) -> T_ImageResources:
+        """Read the structure from a file-like object."""
         data = read_length_block(fp)
         logger.debug("reading image resources, len=%d" % (len(data)))
         with io.BytesIO(data) as f:
@@ -195,6 +196,8 @@ class ImageResources(DictElement):
         return cls(items)  # type: ignore[arg-type]
 
     def write(self, fp: IO[bytes], encoding: str = "macroman", **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
+
         def writer(f: IO[bytes]) -> int:
             written = sum(self[key].write(f, encoding) for key in self)
             logger.debug("writing image resources, len=%d" % (written))
@@ -268,6 +271,7 @@ class ImageResource(BaseElement):
         encoding: str = "macroman",
         **kwargs: Any,
     ) -> T_ImageResource:
+        """Read the structure from a file-like object."""
         signature, key = read_fmt("4sH", fp)
         try:
             key = Resource(key)
@@ -295,6 +299,7 @@ class ImageResource(BaseElement):
         return cls(signature, key, name, data)
 
     def write(self, fp: IO[bytes], encoding: str = "macroman", **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(
             fp, "4sH", self.signature, getattr(self.key, "value", self.key)
         )
@@ -315,12 +320,14 @@ class AlphaIdentifiers(ListElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "AlphaIdentifiers":
+        """Read the structure from a file-like object."""
         items = []
         while is_readable(fp, 4):
             items.append(read_fmt("I", fp)[0])
         return cls(items)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return sum(write_fmt(fp, "I", item) for item in self)
 
 
@@ -330,12 +337,14 @@ class AlphaNamesPascal(ListElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "AlphaNamesPascal":
+        """Read the structure from a file-like object."""
         items = []
         while is_readable(fp):
             items.append(read_pascal_string(fp, "macroman", padding=1))
         return cls(items)  # type: ignore[arg-type]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return sum(write_pascal_string(fp, item, padding=1) for item in self)
 
 
@@ -345,12 +354,14 @@ class AlphaNamesUnicode(ListElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "AlphaNamesUnicode":
+        """Read the structure from a file-like object."""
         items = []
         while is_readable(fp):
             items.append(read_unicode_string(fp))
         return cls(items)  # type: ignore[arg-type]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return sum(write_unicode_string(fp, item) for item in self)
 
 
@@ -364,6 +375,7 @@ class DisplayInfo(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "DisplayInfo":
+        """Read the structure from a file-like object."""
         # ref: https://github.com/MolecularMatters/psd_sdk/blob/311b5c2e3fe04c8cc6a563665e66b19b3fcf8116/src/Psd/PsdParseImageResourcesSection.cpp#L83
         version = read_fmt("I", fp)[0]
         items = []
@@ -372,6 +384,7 @@ class DisplayInfo(BaseElement):
         return cls(version=version, alpha_channels=items)  # type: ignore[arg-type]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "I", self.version)
         written += sum(item.write(fp) for item in self.alpha_channels)
         return written
@@ -393,6 +406,8 @@ def _alpha_channel_mode(value: int) -> AlphaChannelMode | int:
 
 @define(repr=False)
 class AlphaChannel(BaseElement):
+    """Color description of an alpha channel."""
+
     color_space: int = 0
     c1: int = 0
     c2: int = 0
@@ -405,6 +420,7 @@ class AlphaChannel(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "AlphaChannel":
+        """Read the structure from a file-like object."""
         vals = read_fmt("6H", fp)
         mode = _alpha_channel_mode(read_fmt("B", fp)[0])
         if not isinstance(mode, AlphaChannelMode):
@@ -412,6 +428,7 @@ class AlphaChannel(BaseElement):
         return cls(*vals, mode)  # type: ignore[call-arg]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(
             fp, "6H", self.color_space, self.c1, self.c2, self.c3, self.c4, self.opacity
         )
@@ -428,9 +445,11 @@ class Byte(ByteElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "Byte":
+        """Read the structure from a file-like object."""
         return cls(*read_fmt("B", fp))
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, "B", self.value)
 
 
@@ -450,6 +469,7 @@ class GridGuidesInfo(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "GridGuidesInfo":
+        """Read the structure from a file-like object."""
         version, horizontal, vertical, count = read_fmt("4I", fp)
         items = []
         for _ in range(count):
@@ -462,6 +482,7 @@ class GridGuidesInfo(BaseElement):
         )
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(
             fp, "4I", self.version, self.horizontal, self.vertical, len(self.data)
         )
@@ -477,12 +498,14 @@ class HalftoneScreens(ListElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "HalftoneScreens":
+        """Read the structure from a file-like object."""
         items = []
         while is_readable(fp, 18):
             items.append(HalftoneScreen.read(fp))
         return cls(items)  # type: ignore[arg-type]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return sum(item.write(fp) for item in self)
 
 
@@ -508,6 +531,7 @@ class HalftoneScreen(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "HalftoneScreen":
+        """Read the structure from a file-like object."""
         freq = float(read_fmt("I", fp)[0]) / 0x10000
         unit = read_fmt("H", fp)[0]
         angle = float(read_fmt("i", fp)[0]) / 0x10000
@@ -515,6 +539,7 @@ class HalftoneScreen(BaseElement):
         return cls(freq, unit, angle, shape, use_accurate, use_printer)  # type: ignore[arg-type]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "I", int(self.freq * 0x10000))
         written += write_fmt(fp, "H", self.unit)
         written += write_fmt(fp, "i", int(self.angle * 0x10000))
@@ -532,9 +557,11 @@ class Integer(IntegerElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "Integer":
+        """Read the structure from a file-like object."""
         return cls(*read_fmt("i", fp))
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, "i", self.value)
 
 
@@ -544,12 +571,14 @@ class LayerGroupEnabledIDs(ListElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "LayerGroupEnabledIDs":
+        """Read the structure from a file-like object."""
         items = []
         while is_readable(fp, 1):
             items.append(read_fmt("B", fp)[0])
         return cls(items)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return sum(write_fmt(fp, "B", item) for item in self)
 
 
@@ -559,12 +588,14 @@ class LayerGroupInfo(ListElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "LayerGroupInfo":
+        """Read the structure from a file-like object."""
         items = []
         while is_readable(fp, 2):
             items.append(read_fmt("H", fp)[0])
         return cls(items)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return sum(write_fmt(fp, "H", item) for item in self)
 
 
@@ -574,10 +605,12 @@ class LayerSelectionIDs(ListElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "LayerSelectionIDs":
+        """Read the structure from a file-like object."""
         count = read_fmt("H", fp)[0]
         return cls(read_fmt("I", fp)[0] for _ in range(count))
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "H", len(self))
         written += sum(write_fmt(fp, "I", item) for item in self)
         return written
@@ -591,9 +624,11 @@ class ShortInteger(ShortIntegerElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "ShortInteger":
+        """Read the structure from a file-like object."""
         return cls(*read_fmt("H", fp))
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, "H", self.value)
 
 
@@ -604,9 +639,11 @@ class PascalString(ValueElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "PascalString":
+        """Read the structure from a file-like object."""
         return cls(read_pascal_string(fp, "macroman"))
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_pascal_string(fp, self.value, "macroman", padding=1)  # type: ignore[arg-type]
 
 
@@ -623,10 +660,12 @@ class PixelAspectRatio(NumericElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "PixelAspectRatio":
+        """Read the structure from a file-like object."""
         version, value = read_fmt("Id", fp)
         return cls(version=version, value=value)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, "Id", self.version, self.value)
 
 
@@ -659,6 +698,7 @@ class PrintFlags(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "PrintFlags":
+        """Read the structure from a file-like object."""
         values = read_fmt("8?", fp)
         print_flags_value = read_fmt("?", fp)[0] if is_readable(fp) else None
         return cls(
@@ -674,6 +714,7 @@ class PrintFlags(BaseElement):
         )
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         values = astuple(self)
         if self.print_flags is None:
             values = values[:-1]
@@ -699,9 +740,11 @@ class PrintFlagsInfo(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "PrintFlagsInfo":
+        """Read the structure from a file-like object."""
         return cls(*read_fmt("HBxIH", fp))
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, "HBxIH", *astuple(self))
 
 
@@ -728,9 +771,11 @@ class PrintScale(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "PrintScale":
+        """Read the structure from a file-like object."""
         return cls(*read_fmt("H3f", fp))
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, "H3f", self.style.value, self.x, self.y, self.scale)
 
 
@@ -757,9 +802,11 @@ class ResoulutionInfo(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "ResoulutionInfo":
+        """Read the structure from a file-like object."""
         return cls(*read_fmt("I2HI2H", fp))
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, "I2HI2H", *astuple(self))
 
 
@@ -778,6 +825,7 @@ class Slices(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "Slices":
+        """Read the structure from a file-like object."""
         version = read_fmt("I", fp)[0]
         if version not in (6, 7, 8):
             raise ValueError("Invalid version %d" % (version))
@@ -786,6 +834,7 @@ class Slices(BaseElement):
         return cls(version=version, data=DescriptorBlock.read(fp))
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "I", self.version)
         if hasattr(self.data, "write"):
             written += self.data.write(fp, padding=1)
@@ -808,6 +857,7 @@ class SlicesV6(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "SlicesV6":
+        """Read the structure from a file-like object."""
         bbox = read_fmt("4I", fp)
         name = read_unicode_string(fp)
         count = read_fmt("I", fp)[0]
@@ -815,6 +865,7 @@ class SlicesV6(BaseElement):
         return cls(bbox=bbox, name=name, items=items)  # type: ignore[arg-type]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "4I", *self.bbox)
         written += write_unicode_string(fp, self.name)
         written += write_fmt(fp, "I", len(self.items))
@@ -872,6 +923,7 @@ class SliceV6(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "SliceV6":
+        """Read the structure from a file-like object."""
         slice_id, group_id, origin = read_fmt("3I", fp)
         associated_id = read_fmt("I", fp)[0] if origin == 1 else None
         name = read_unicode_string(fp)
@@ -927,6 +979,7 @@ class SliceV6(BaseElement):
         )
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "3I", self.slice_id, self.group_id, self.origin)
         if self.origin == 1 and self.associated_id is not None:
             written += write_fmt(fp, "I", self.associated_id)
@@ -979,11 +1032,13 @@ class ThumbnailResource(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "ThumbnailResource":
+        """Read the structure from a file-like object."""
         fmt, width, height, row, total_size, size, bits, planes = read_fmt("6I2H", fp)
         data = read_exact(fp, size)
         return cls(fmt, width, height, row, total_size, bits, planes, data)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(
             fp,
             "6I2H",
@@ -1002,6 +1057,8 @@ class ThumbnailResource(BaseElement):
 
 @register(Resource.THUMBNAIL_RESOURCE_PS4)
 class ThumbnailResourceV4(ThumbnailResource):
+    """Thumbnail resource with BGR pixel order."""
+
     _RAW_MODE = "BGR"
 
 
@@ -1013,12 +1070,14 @@ class TransferFunctions(ListElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "TransferFunctions":
+        """Read the structure from a file-like object."""
         items = []
         while is_readable(fp, 28):
             items.append(TransferFunction.read(fp))
         return cls(items)  # type: ignore[arg-type]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return sum(item.write(fp) for item in self)
 
 
@@ -1047,11 +1106,13 @@ class TransferFunction(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "TransferFunction":
+        """Read the structure from a file-like object."""
         curve = read_fmt("13h", fp)
         override = read_fmt("H", fp)[0]
         return cls(curve=curve, override=override)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "13h", *self.curve)
         written += write_fmt(fp, "H", self.override)
         return written
@@ -1063,6 +1124,7 @@ class URLList(ListElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "URLList":
+        """Read the structure from a file-like object."""
         count = read_fmt("I", fp)[0]
         items = []
         for _ in range(count):
@@ -1070,6 +1132,7 @@ class URLList(ListElement):
         return cls(items)  # type: ignore[arg-type]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "I", len(self))
         written += sum(item.write(fp) for item in self)
         return written
@@ -1091,11 +1154,13 @@ class URLItem(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "URLItem":
+        """Read the structure from a file-like object."""
         number, id = read_fmt("2I", fp)
         name = read_unicode_string(fp)
         return cls(number, id, name)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "2I", self.number, self.id)
         written += write_unicode_string(fp, self.name)
         return written
@@ -1122,6 +1187,7 @@ class VersionInfo(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "VersionInfo":
+        """Read the structure from a file-like object."""
         version, has_composite = read_fmt("I?", fp)
         writer = read_unicode_string(fp)
         reader = read_unicode_string(fp)
@@ -1129,6 +1195,7 @@ class VersionInfo(BaseElement):
         return cls(version, has_composite, writer, reader, file_version)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "I?", self.version, self.has_composite)
         written += write_unicode_string(fp, self.writer)
         written += write_unicode_string(fp, self.reader)

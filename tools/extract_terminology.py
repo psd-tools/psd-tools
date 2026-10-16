@@ -57,6 +57,7 @@ STERM_PATTERN = re.compile(
 
 
 def extract_terminology(filepath, pattern=None):
+    """Extract terminology classes from a source file."""
     terms = {}
     keys = set()
     with open(filepath, "r") as f:
@@ -79,6 +80,7 @@ def extract_terminology(filepath, pattern=None):
 
 
 def print_class(name, fields, header=None, **kwargs):
+    """Print a terminology class."""
     print("\n", **kwargs)
     print((header or "class {0}:").format(name), **kwargs)
     for field in fields:
@@ -86,6 +88,7 @@ def print_class(name, fields, header=None, **kwargs):
 
 
 def main():
+    """Convert a terminology source file into a Python module."""
     terms = extract_terminology(sys.argv[1])
 
     with open(sys.argv[2], "w") as f:

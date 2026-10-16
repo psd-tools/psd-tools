@@ -65,10 +65,13 @@ TOKEN_CLASSES, register = new_registry()
 
 
 def compile_re(pattern: str) -> re.Pattern[bytes]:
+    """Compile a byte pattern for the tokenizer."""
     return re.compile(pattern.encode("macroman"), re.S)
 
 
 class EngineToken(Enum):
+    """Token types of engine data."""
+
     ARRAY_END = compile_re(r"^\]$")
     ARRAY_START = compile_re(r"^\[$")
     BOOLEAN = compile_re(r"^(true|false)$")
@@ -110,6 +113,7 @@ class Tokenizer:
         return len(self.data) - self.index
 
     def next(self) -> tuple[bytes, EngineToken]:
+        """Return the next token."""
         return self.__next__()
 
     def __next__(self) -> tuple[bytes, EngineToken]:
@@ -147,6 +151,7 @@ class Dict(DictElement):
 
     @classmethod
     def read(cls, fp: Any, **kwargs: Any) -> "Dict":
+        """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             return cls.frombytes(read_remaining(fp), **kwargs)
 
@@ -158,6 +163,7 @@ class Dict(DictElement):
         parse_limits: ParseLimits | None = None,
         **kwargs: Any,
     ) -> "Dict":
+        """Parse the element from raw bytes or a token stream."""
         with parse_context(parse_limits) as is_root, parse_container():
             if is_root or not isinstance(data, Tokenizer):
                 consume_bytes(len(data))
@@ -196,6 +202,7 @@ class Dict(DictElement):
         write_container: bool = True,
         **kwargs: Any,
     ) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         inner_indent = indent if indent is None else indent + 1
         written = 0
         if write_container:
@@ -255,6 +262,7 @@ class Dict(DictElement):
         return self._items.__contains__(key)
 
     def get(self, key: str | Property, *args: Any) -> Any:
+        """Return the value of a key given as a string or a `Property`."""
         key = key if isinstance(key, Property) else Property(key)
         return super(Dict, self).get(key, *args)
 
@@ -284,6 +292,7 @@ class EngineData2(Dict):
         write_container: bool = False,
         **kwargs: Any,
     ) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return super(EngineData2, self).write(
             fp, indent=indent, write_container=write_container
         )
@@ -295,6 +304,7 @@ class List(ListElement):
 
     @classmethod
     def read(cls, fp: Any, **kwargs: Any) -> "List":
+        """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             return cls.frombytes(read_remaining(fp), **kwargs)
 
@@ -306,6 +316,7 @@ class List(ListElement):
         parse_limits: ParseLimits | None = None,
         **kwargs: Any,
     ) -> "List":
+        """Parse the element from raw bytes or a token stream."""
         with parse_context(parse_limits) as is_root, parse_container():
             if is_root or not isinstance(data, Tokenizer):
                 consume_bytes(len(data))
@@ -329,6 +340,7 @@ class List(ListElement):
             return self
 
     def write(self, fp: Any, indent: int | None = None, **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_bytes(fp, b"[")
         if indent is None:
             for item in self:
@@ -365,6 +377,7 @@ class String(ValueElement):
 
     @classmethod
     def read(cls, fp: Any, **kwargs: Any) -> "String":
+        """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             return cls.frombytes(read_remaining(fp), **kwargs)
 
@@ -376,6 +389,7 @@ class String(ValueElement):
         parse_limits: ParseLimits | None = None,
         **kwargs: Any,
     ) -> "String":
+        """Parse the element from raw bytes."""
         with parse_context(parse_limits):
             consume_bytes(len(data))
             value = data[1:-1]
@@ -384,6 +398,7 @@ class String(ValueElement):
             return cls(value.decode("utf-16"))
 
     def write(self, fp: Any, **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         assert isinstance(self.value, str)
         value = self.value.encode("utf-16-be")
         for c in self._ESCAPED_CHARS:
@@ -397,6 +412,7 @@ class Bool(BooleanElement):
 
     @classmethod
     def read(cls, fp: Any, **kwargs: Any) -> "Bool":
+        """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             return cls.frombytes(read_remaining(fp), **kwargs)
 
@@ -408,11 +424,13 @@ class Bool(BooleanElement):
         parse_limits: ParseLimits | None = None,
         **kwargs: Any,
     ) -> "Bool":
+        """Parse the element from raw bytes."""
         with parse_context(parse_limits):
             consume_bytes(len(data))
             return cls(data == b"true")
 
     def write(self, fp: Any, indent: int = 0, **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_bytes(fp, b"true" if self.value else b"false")
 
 
@@ -422,6 +440,7 @@ class Integer(IntegerElement):
 
     @classmethod
     def read(cls, fp: Any, **kwargs: Any) -> "Integer":
+        """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             return cls.frombytes(read_remaining(fp), **kwargs)
 
@@ -433,11 +452,13 @@ class Integer(IntegerElement):
         parse_limits: ParseLimits | None = None,
         **kwargs: Any,
     ) -> "Integer":
+        """Parse the element from raw bytes."""
         with parse_context(parse_limits):
             consume_bytes(len(data))
             return cls(int(data))
 
     def write(self, fp: Any, indent: int = 0, **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_bytes(fp, b"%d" % (self.value))
 
 
@@ -447,6 +468,7 @@ class Float(NumericElement):
 
     @classmethod
     def read(cls, fp: Any, **kwargs: Any) -> "Float":
+        """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             return cls.frombytes(read_remaining(fp), **kwargs)
 
@@ -458,11 +480,13 @@ class Float(NumericElement):
         parse_limits: ParseLimits | None = None,
         **kwargs: Any,
     ) -> "Float":
+        """Parse the element from raw bytes."""
         with parse_context(parse_limits):
             consume_bytes(len(data))
             return cls(float(data))
 
     def write(self, fp: Any, **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         value = b"%.8f" % (self.value)
         value = value.rstrip(b"0")
         value = value + b"0" if value.endswith(b".") else value
@@ -478,6 +502,7 @@ class Property(ValueElement):
 
     @classmethod
     def read(cls, fp: Any, **kwargs: Any) -> "Property":
+        """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             return cls.frombytes(read_remaining(fp), **kwargs)
 
@@ -489,11 +514,13 @@ class Property(ValueElement):
         parse_limits: ParseLimits | None = None,
         **kwargs: Any,
     ) -> "Property":
+        """Parse the element from raw bytes."""
         with parse_context(parse_limits):
             consume_bytes(len(data))
             return cls(data.replace(b"/", b"").decode("macroman"))
 
     def write(self, fp: Any, **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         assert isinstance(self.value, str)
         return write_bytes(fp, b"/" + self.value.encode("macroman"))
 
@@ -505,8 +532,10 @@ class Tag(ValueElement):
 
     @classmethod
     def read(cls, fp: Any, **kwargs: Any) -> "Tag":
+        """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             return cls(read_remaining(fp))
 
     def write(self, fp: Any, **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_bytes(fp, self.value)  # type: ignore[arg-type]

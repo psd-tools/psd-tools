@@ -450,6 +450,8 @@ class _AlignScaleMixin(_EffectProtocol):
 
 @register(Klass.DropShadow.value)
 class DropShadow(_ShadowEffect):
+    """Drop shadow effect."""
+
     @property
     def layer_knocks_out(self) -> bool:
         """Layers are knocking out."""
@@ -458,11 +460,15 @@ class DropShadow(_ShadowEffect):
 
 @register(Klass.InnerShadow.value)
 class InnerShadow(_ShadowEffect):
+    """Inner shadow effect."""
+
     pass
 
 
 @register(Klass.OuterGlow.value)
 class OuterGlow(_GlowEffect):
+    """Outer glow effect."""
+
     @property
     def spread(self) -> float:
         """Spread level in percent."""
@@ -471,6 +477,8 @@ class OuterGlow(_GlowEffect):
 
 @register(Klass.InnerGlow.value)
 class InnerGlow(_GlowEffect):
+    """Inner glow effect."""
+
     @property
     def glow_source(self) -> GlowSource | None:
         """Elements source, or None where the descriptor does not say."""
@@ -479,21 +487,29 @@ class InnerGlow(_GlowEffect):
 
 @register(Klass.SolidFill.value)
 class ColorOverlay(_OverlayEffect, _ColorMixin):
+    """Color overlay effect."""
+
     pass
 
 
 @register(b"GrFl")  # Enum.GradientFill's code, reused as a class ID.
 class GradientOverlay(_OverlayEffect, _AlignScaleMixin, _GradientMixin):
+    """Gradient overlay effect."""
+
     pass
 
 
 @register(b"patternFill")
 class PatternOverlay(_OverlayEffect, _AlignScaleMixin, _PatternMixin):
+    """Pattern overlay effect."""
+
     pass
 
 
 @register(Klass.FrameFX.value)
 class Stroke(_Effect, _ColorMixin, _PatternMixin, _GradientMixin):
+    """Stroke effect."""
+
     @property
     def position(self) -> StrokePosition | None:
         """Position of the stroke, or None where the descriptor does not say."""
@@ -517,6 +533,8 @@ class Stroke(_Effect, _ColorMixin, _PatternMixin, _GradientMixin):
 
 @register(Klass.BevelEmboss.value)
 class BevelEmboss(_Effect, _AngleMixin):
+    """Bevel and emboss effect."""
+
     @property
     def highlight_mode(self) -> BlendMode:
         """Highlight blending mode, `NORMAL` where the descriptor does not say."""

@@ -454,6 +454,7 @@ def post_process(
     alpha: Image.Image | None,
     icc_profile: bytes | None = None,
 ) -> Image.Image:
+    """Fix inverted CMYK, apply the ICC profile and attach the alpha channel."""
     # Fix inverted CMYK.
     if image.mode == "CMYK":
         image = ImageChops.invert(image)

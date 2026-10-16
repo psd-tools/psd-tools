@@ -342,6 +342,7 @@ class Origination(object):
     def create(
         kls, data: DescriptorBlock2
     ) -> "Invalidated | Rectangle | RoundedRectangle | Line | Ellipse":
+        """Create the shape that matches a vector origination descriptor."""
         if data.get(b"keyShapeInvalidated"):
             return Invalidated(data)
         origin_type = get_scalar(data, b"keyOriginType", int, 0)
@@ -427,6 +428,7 @@ class Invalidated(Origination):
 
     @property
     def invalidated(self) -> bool:
+        """Always `True`."""
         return True
 
     def __repr__(self) -> str:

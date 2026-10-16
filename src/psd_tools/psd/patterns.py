@@ -41,6 +41,7 @@ class Patterns(ListElement):
 
     @classmethod
     def read(cls: type[T_Patterns], fp: IO[bytes], **kwargs: Any) -> T_Patterns:
+        """Read the structure from a file-like object."""
         items = []
         while is_readable(fp, 4):
             data = read_length_block(fp, padding=4)
@@ -49,6 +50,7 @@ class Patterns(ListElement):
         return cls(items)  # type: ignore[arg-type]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = 0
         for item in self:
             written += write_length_block(fp, item.write, padding=4)
@@ -98,6 +100,7 @@ class Pattern(BaseElement):
 
     @classmethod
     def read(cls: type[T_Pattern], fp: IO[bytes], **kwargs: Any) -> T_Pattern:
+        """Read the structure from a file-like object."""
         version = read_fmt("I", fp)[0]
         if version != 1:
             raise ValueError("Invalid version %d" % (version))
@@ -114,6 +117,7 @@ class Pattern(BaseElement):
         return cls(version, image_mode, point, name, pattern_id, color_table, data)  # type: ignore[arg-type]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "2I", self.version, self.image_mode.value)
         written += write_fmt(fp, "2h", *self.point)
         written += write_unicode_string(fp, self.name)
@@ -147,6 +151,7 @@ class VirtualMemoryArrayList(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
+        """Read the structure from a file-like object."""
         version = read_fmt("I", fp)[0]
         if version != 3:
             raise ValueError("Invalid version %d" % (version))
@@ -162,6 +167,7 @@ class VirtualMemoryArrayList(BaseElement):
         return cls(version, rectangle, channels)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "I", self.version)
         return written + write_length_block(fp, lambda f: self._write_body(f))
 
@@ -199,6 +205,7 @@ class VirtualMemoryArray(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
+        """Read the structure from a file-like object."""
         is_written = read_fmt("I", fp)[0]
         if is_written == 0:
             return cls(is_written=is_written)
@@ -215,6 +222,7 @@ class VirtualMemoryArray(BaseElement):
         return cls(is_written, depth, rectangle, pixel_depth, compression, data)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "I", self.is_written)
         if self.is_written == 0:
             return written

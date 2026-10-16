@@ -78,7 +78,9 @@ class FileHeader(BaseElement):
 
     @classmethod
     def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+        """Read the structure from a file-like object."""
         return cls(*read_fmt(cls._FORMAT, fp))
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, self._FORMAT, *astuple(self))

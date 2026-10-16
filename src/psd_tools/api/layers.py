@@ -315,6 +315,8 @@ def _reencoded(
 
 
 class Layer(LayerProtocol):
+    """Base class of the layers."""
+
     def __init__(
         self,
         parent: "GroupMixin",
@@ -890,10 +892,12 @@ class Layer(LayerProtocol):
         locks.lock(lock_flags)
 
     def unlock(self) -> None:
+        """Clear every lock of the layer."""
         self.lock(0)
 
     @property
     def locks(self) -> ProtectedSetting | None:
+        """Lock settings of the layer, or `None` if the layer has none."""
         protected_settings_block = self.tagged_blocks.get(Tag.PROTECTED_SETTING)
 
         if protected_settings_block is not None:
@@ -2666,6 +2670,7 @@ class Artboard(Group):
 
     @property
     def left(self) -> int:
+        """Left coordinate of the bounding box."""
         return self.bbox[0]
 
     @left.setter
@@ -2674,6 +2679,7 @@ class Artboard(Group):
 
     @property
     def top(self) -> int:
+        """Top coordinate of the bounding box."""
         return self.bbox[1]
 
     @top.setter
@@ -2682,10 +2688,12 @@ class Artboard(Group):
 
     @property
     def right(self) -> int:
+        """Right coordinate of the bounding box."""
         return self.bbox[2]
 
     @property
     def bottom(self) -> int:
+        """Bottom coordinate of the bounding box."""
         return self.bbox[3]
 
     @property
@@ -3210,6 +3218,7 @@ class ShapeLayer(Layer):
 
     @property
     def left(self) -> int:
+        """Left coordinate of the bounding box."""
         return self.bbox[0]
 
     @left.setter
@@ -3218,6 +3227,7 @@ class ShapeLayer(Layer):
 
     @property
     def top(self) -> int:
+        """Top coordinate of the bounding box."""
         return self.bbox[1]
 
     @top.setter
@@ -3226,10 +3236,12 @@ class ShapeLayer(Layer):
 
     @property
     def right(self) -> int:
+        """Right coordinate of the bounding box."""
         return self.bbox[2]
 
     @property
     def bottom(self) -> int:
+        """Bottom coordinate of the bounding box."""
         return self.bbox[3]
 
     @property
@@ -3295,12 +3307,14 @@ class FillLayer(Layer):
 
     @property
     def right(self) -> int:
+        """Right coordinate of the layer record, or the document width if the record has none."""
         if self._record.right:
             return self._record.right
         return self._psd.width
 
     @property
     def bottom(self) -> int:
+        """Bottom coordinate of the layer record, or the document height if the record has none."""
         if self._record.bottom:
             return self._record.bottom
         return self._psd.height

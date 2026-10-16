@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+"""Build script for the Cython extension."""
+
 import sys
 import sysconfig
 

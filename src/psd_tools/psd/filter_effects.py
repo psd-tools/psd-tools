@@ -41,6 +41,7 @@ class FilterEffects(ListElement):
     def read(
         cls: type[T_FilterEffects], fp: IO[bytes], **kwargs: Any
     ) -> T_FilterEffects:
+        """Read the structure from a file-like object."""
         version = read_fmt("I", fp)[0]
         if version not in (1, 2, 3):
             raise ValueError("Invalid version %d" % (version))
@@ -51,6 +52,7 @@ class FilterEffects(ListElement):
         return cls(version=version, items=items)  # type: ignore[arg-type]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "I", self.version)
         for item in self:
             written += write_length_block(fp, item.write, fmt="Q", padding=4)
@@ -86,6 +88,7 @@ class FilterEffect(BaseElement):
 
     @classmethod
     def read(cls: type[T_FilterEffect], fp: IO[bytes], **kwargs: Any) -> T_FilterEffect:
+        """Read the structure from a file-like object."""
         uuid = read_pascal_string(fp, encoding="ascii", padding=1)
         version = read_fmt("I", fp)[0]
         if version > 1:
@@ -114,6 +117,7 @@ class FilterEffect(BaseElement):
         return rectangle, depth, max_channels, channels
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_pascal_string(fp, self.uuid or "", encoding="ascii", padding=1)
         written += write_fmt(fp, "I", self.version)
 
@@ -156,6 +160,7 @@ class FilterEffectChannel(BaseElement):
     def read(
         cls: type[T_FilterEffectChannel], fp: IO[bytes], **kwargs: Any
     ) -> T_FilterEffectChannel:
+        """Read the structure from a file-like object."""
         is_written = read_fmt("I", fp)[0]
         if is_written == 0:
             return cls(is_written=is_written)
@@ -168,6 +173,7 @@ class FilterEffectChannel(BaseElement):
         return cls(is_written, compression, data)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "I", self.is_written)
         if self.is_written == 0:
             return written
@@ -203,6 +209,7 @@ class FilterEffectExtra(BaseElement):
     def read(
         cls: type[T_FilterEffectExtra], fp: IO[bytes], **kwargs: Any
     ) -> T_FilterEffectExtra:
+        """Read the structure from a file-like object."""
         is_written = read_fmt("B", fp)[0]
         if not is_written:
             return cls(is_written=is_written)
@@ -222,6 +229,7 @@ class FilterEffectExtra(BaseElement):
         )
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "B", self.is_written)
 
         def writer(f: IO[bytes]) -> int:

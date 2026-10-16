@@ -53,6 +53,7 @@ class GradientFill(FillLayer):
 
     @property
     def angle(self) -> float | None:
+        """Angle of the gradient in degrees, or `None` if not set."""
         return get_scalar(self._data, b"Angl", float, None)
 
     @property
@@ -81,30 +82,37 @@ class BrightnessContrast(AdjustmentLayer):
 
     @property
     def brightness(self) -> int:
+        """Brightness adjustment."""
         return get_scalar(self._data, b"Brgh", int, 0)
 
     @property
     def contrast(self) -> int:
+        """Contrast adjustment."""
         return get_scalar(self._data, b"Cntr", int, 0)
 
     @property
     def mean(self) -> int:
+        """Value of the `means` key, 0 if absent."""
         return get_scalar(self._data, b"means", int, 0)
 
     @property
     def lab(self) -> bool:
+        """Value of the `Lab ` flag."""
         return get_scalar(self._data, b"Lab ", bool, False)
 
     @property
     def use_legacy(self) -> bool:
+        """Whether the legacy algorithm is used."""
         return get_scalar(self._data, b"useLegacy", bool, False)
 
     @property
     def vrsn(self) -> int:
+        """Version of the adjustment record."""
         return get_scalar(self._data, b"Vrsn", int, 1)
 
     @property
     def automatic(self) -> bool:
+        """Value of the `auto` flag."""
         return get_scalar(self._data, b"auto", bool, False)
 
 
@@ -291,42 +299,52 @@ class BlackAndWhite(AdjustmentLayer):
 
     @property
     def red(self) -> int:
+        """Red slider value."""
         return get_scalar(self._data, b"Rd  ", int, 40)
 
     @property
     def yellow(self) -> int:
+        """Yellow slider value."""
         return get_scalar(self._data, b"Yllw", int, 60)
 
     @property
     def green(self) -> int:
+        """Green slider value."""
         return get_scalar(self._data, b"Grn ", int, 40)
 
     @property
     def cyan(self) -> int:
+        """Cyan slider value."""
         return get_scalar(self._data, b"Cyn ", int, 60)
 
     @property
     def blue(self) -> int:
+        """Blue slider value."""
         return get_scalar(self._data, b"Bl  ", int, 20)
 
     @property
     def magenta(self) -> int:
+        """Magenta slider value."""
         return get_scalar(self._data, b"Mgnt", int, 80)
 
     @property
     def use_tint(self) -> bool:
+        """Whether the tint is enabled."""
         return get_scalar(self._data, b"useTint", bool, False)
 
     @property
     def tint_color(self) -> Descriptor | None:
+        """Tint color descriptor, or `None` if not set."""
         return get_descriptor(self._data, b"tintColor")
 
     @property
     def preset_kind(self) -> int:
+        """Preset kind."""
         return get_scalar(self._data, b"bwPresetKind", int, 1)
 
     @property
     def preset_file_name(self) -> str:
+        """File name of the preset."""
         value = get_scalar(self._data, b"blackAndWhitePresetFileName", str, "")
         return value.strip("\x00")
 
@@ -348,18 +366,22 @@ class PhotoFilter(AdjustmentLayer):
 
     @property
     def color_space(self) -> int | None:
+        """Color space of the filter color, or `None` for a version 3 record."""
         return None if self._data is None else self._data.color_space
 
     @property
     def color_components(self) -> tuple | None:
+        """Components of the filter color in `color_space`, or `None` for a version 3 record."""
         return None if self._data is None else self._data.color_components
 
     @property
     def density(self) -> int | None:
+        """Density of the filter, or `None` if not set."""
         return None if self._data is None else self._data.density
 
     @property
     def luminosity(self) -> int | None:
+        """Preserve luminosity setting, or `None` if not set."""
         return None if self._data is None else self._data.luminosity
 
 
@@ -369,10 +391,12 @@ class ChannelMixer(AdjustmentLayer):
 
     @property
     def monochrome(self) -> int | None:
+        """Monochrome setting, or `None` if not set."""
         return None if self._data is None else self._data.monochrome
 
     @property
     def data(self) -> list | None:
+        """Channel mixer coefficients, or `None` if not set."""
         return None if self._data is None else self._data.data
 
 
@@ -422,10 +446,12 @@ class SelectiveColor(AdjustmentLayer):
 
     @property
     def method(self) -> int | None:
+        """Adjustment method, or `None` if not set."""
         return None if self._data is None else self._data.method
 
     @property
     def data(self) -> list | None:
+        """Adjustment values per color range, or `None` if not set."""
         return None if self._data is None else self._data.data
 
 
@@ -435,26 +461,32 @@ class GradientMap(AdjustmentLayer):
 
     @property
     def reversed(self) -> int | None:
+        """Whether the gradient is reversed, or `None` if not set."""
         return None if self._data is None else self._data.is_reversed
 
     @property
     def dithered(self) -> int | None:
+        """Whether the gradient is dithered, or `None` if not set."""
         return None if self._data is None else self._data.is_dithered
 
     @property
     def gradient_name(self) -> str | None:
+        """Name of the gradient, or `None` if not set."""
         return None if self._data is None else self._data.name.strip("\x00")
 
     @property
     def color_stops(self) -> list | None:
+        """Color stops, or `None` if not set."""
         return None if self._data is None else self._data.color_stops
 
     @property
     def transparency_stops(self) -> list | None:
+        """Transparency stops, or `None` if not set."""
         return None if self._data is None else self._data.transparency_stops
 
     @property
     def expansion(self) -> int | None:
+        """Expansion of the gradient, or `None` if not set."""
         return None if self._data is None else self._data.expansion
 
     @property
@@ -464,36 +496,45 @@ class GradientMap(AdjustmentLayer):
 
     @property
     def length(self) -> int | None:
+        """Byte count of the parameter block, or `None` if not set."""
         return None if self._data is None else self._data.length
 
     @property
     def mode(self) -> int | None:
+        """Mode of the gradient, or `None` if not set."""
         return None if self._data is None else self._data.mode
 
     @property
     def random_seed(self) -> int | None:
+        """Random seed of a noise gradient, or `None` if not set."""
         return None if self._data is None else self._data.random_seed
 
     @property
     def show_transparency(self) -> int | None:
+        """Whether a noise gradient shows transparency, or `None` if not set."""
         return None if self._data is None else self._data.show_transparency
 
     @property
     def use_vector_color(self) -> int | None:
+        """Whether a noise gradient uses vector color, or `None` if not set."""
         return None if self._data is None else self._data.use_vector_color
 
     @property
     def roughness(self) -> int | None:
+        """Roughness of a noise gradient, or `None` if not set."""
         return None if self._data is None else self._data.roughness
 
     @property
     def color_model(self) -> int | None:
+        """Color model of a noise gradient, or `None` if not set."""
         return None if self._data is None else self._data.color_model
 
     @property
     def min_color(self) -> list | None:
+        """Minimum color of a noise gradient, or `None` if not set."""
         return None if self._data is None else self._data.minimum_color
 
     @property
     def max_color(self) -> list | None:
+        """Maximum color of a noise gradient, or `None` if not set."""
         return None if self._data is None else self._data.maximum_color

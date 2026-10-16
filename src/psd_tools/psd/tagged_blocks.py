@@ -188,6 +188,7 @@ class TaggedBlocks(DictElement):
         end_pos: int | None = None,
         **kwargs: Any,
     ) -> T_TaggedBlocks:
+        """Read the structure from a file-like object."""
         if end_pos is not None:
             with bounded_reader(fp, end_pos - fp.tell()) as body:
                 return cls.read(body, version=version, padding=padding, **kwargs)
@@ -287,6 +288,7 @@ class TaggedBlock(BaseElement):
         padding: int = 1,
         **kwargs: Any,
     ) -> T_TaggedBlock:  # type: ignore[return]
+        """Read the structure from a file-like object."""
         signature = read_fmt("4s", fp)[0]
         if signature not in cls._SIGNATURES:
             logger.warning("Invalid signature (%r)" % (signature))
@@ -324,6 +326,7 @@ class TaggedBlock(BaseElement):
     def write(
         self, fp: IO[bytes], version: int = 1, padding: int = 1, **kwargs: Any
     ) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         key = self.key if isinstance(self.key, bytes) else self.key.value
         written = write_fmt(fp, "4s4s", self.signature, key)
 
@@ -358,6 +361,7 @@ class Annotations(ListElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "Annotations":
+        """Read the structure from a file-like object."""
         major_version, minor_version, count = read_fmt("2HI", fp)
         items = []
         for _ in range(count):
@@ -374,6 +378,7 @@ class Annotations(ListElement):
         )
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(
             fp, "2HI", self.major_version, self.minor_version, len(self)
         )
@@ -409,6 +414,7 @@ class Annotation(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "Annotation":
+        """Read the structure from a file-like object."""
         kind, is_open, flags, optional_blocks = read_fmt("4s2BH", fp)
         icon_location = read_fmt("4i", fp)
         popup_location = read_fmt("4i", fp)
@@ -434,6 +440,7 @@ class Annotation(BaseElement):
         )
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(
             fp, "4s2BH", self.kind, self.is_open, self.flags, self.optional_blocks
         )
@@ -462,9 +469,11 @@ class Bytes(ValueElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "Bytes":
+        """Read the structure from a file-like object."""
         return cls(read_exact(fp, 4))
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_bytes(fp, self.value)
 
 
@@ -479,12 +488,14 @@ class ChannelBlendingRestrictionsSetting(ListElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "ChannelBlendingRestrictionsSetting":
+        """Read the structure from a file-like object."""
         items = []
         while is_readable(fp, 4):
             items.append(read_fmt("I", fp)[0])
         return cls(items)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, "%dI" % len(self), *self._items)
 
 
@@ -503,11 +514,13 @@ class FilterMask(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "FilterMask":
+        """Read the structure from a file-like object."""
         color = Color.read(fp)
         opacity = read_fmt("H", fp)[0]
         return cls(color, opacity)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = self.color.write(fp)
         written += write_fmt(fp, "H", self.opacity)
         return written
@@ -519,6 +532,7 @@ class MetadataSettings(ListElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "MetadataSettings":
+        """Read the structure from a file-like object."""
         count = read_fmt("I", fp)[0]
         items = []
         for _ in range(count):
@@ -526,6 +540,7 @@ class MetadataSettings(ListElement):
         return cls(items)  # type: ignore[arg-type]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "I", len(self))
         written += sum(item.write(fp) for item in self)
         return written
@@ -546,6 +561,7 @@ class MetadataSetting(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "MetadataSetting":
+        """Read the structure from a file-like object."""
         signature = read_fmt("4s", fp)[0]
         if signature not in cls._KNOWN_SIGNATURES:
             raise ValueError("Invalid signature %r" % signature)
@@ -563,6 +579,7 @@ class MetadataSetting(BaseElement):
         return cls(signature, key, copy_on_sheet, data)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "4s4s?3x", self.signature, self.key, self.copy_on_sheet)
 
         def writer(f: IO[bytes]) -> int:
@@ -583,12 +600,14 @@ class PixelSourceData2(ListElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "PixelSourceData2":
+        """Read the structure from a file-like object."""
         items = []
         while is_readable(fp, 8):
             items.append(read_length_block(fp, fmt="Q"))
         return cls(items)  # type: ignore[arg-type]
 
     def write(self, fp: IO[bytes], padding: int = 4, **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = 0
         for item in self:
             written += write_length_block(
@@ -620,6 +639,7 @@ class PlacedLayerData(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "PlacedLayerData":
+        """Read the structure from a file-like object."""
         kind, version = read_fmt("4sI", fp)
         uuid_str = read_pascal_string(fp, "macroman", padding=1)
         page, total_pages, anti_alias, layer_type = read_fmt("4I", fp)
@@ -638,6 +658,7 @@ class PlacedLayerData(BaseElement):
         )
 
     def write(self, fp: IO[bytes], padding: int = 4, **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "4sI", self.kind, self.version)
         uuid_str = (
             self.uuid.decode("macroman") if isinstance(self.uuid, bytes) else self.uuid
@@ -663,25 +684,31 @@ class ProtectedSetting(IntegerElement):
 
     @property
     def transparency(self) -> bool:
+        """Whether transparency is protected."""
         return bool(self.value & 0x01)
 
     @property
     def composite(self) -> bool:
+        """Whether compositing is protected."""
         return bool(self.value & 0x02)
 
     @property
     def position(self) -> bool:
+        """Whether position is protected."""
         return bool(self.value & 0x04)
 
     @property
     def nesting(self) -> bool:
+        """Whether nesting is protected."""
         return bool(self.value & 0x08)
 
     @property
     def complete(self) -> bool:
+        """Whether everything is protected."""
         return self.value == 2147483648
 
     def lock(self, lock_flags: Any) -> None:
+        """Set the protection flags."""
         self.value = int(lock_flags)
 
 
@@ -692,9 +719,11 @@ class ReferencePoint(ListElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "ReferencePoint":
+        """Read the structure from a file-like object."""
         return cls(list(read_fmt("2d", fp)))
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, "2d", *self._items)
 
 
@@ -725,6 +754,7 @@ class SectionDividerSetting(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "SectionDividerSetting":
+        """Read the structure from a file-like object."""
         kind = SectionDivider(read_fmt("I", fp)[0])
         signature, blend_mode = None, None
         if is_readable(fp, 8):
@@ -738,6 +768,7 @@ class SectionDividerSetting(BaseElement):
         return cls(kind, signature=signature, blend_mode=blend_mode, sub_type=sub_type)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "I", self.kind.value)
         if self.blend_mode:
             if self.signature is None:
@@ -772,9 +803,11 @@ class SheetColorSetting(ValueElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "SheetColorSetting":
+        """Read the structure from a file-like object."""
         return cls(SheetColorType(*read_fmt("H6x", fp)))
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, "H6x", self.value.value)
 
 
@@ -796,11 +829,13 @@ class SmartObjectLayerData(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "SmartObjectLayerData":
+        """Read the structure from a file-like object."""
         kind, version = read_fmt("4sI", fp)
         data = DescriptorBlock.read(fp)
         return cls(kind, version, data)
 
     def write(self, fp: IO[bytes], padding: int = 4, **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "4sI", self.kind, self.version)
         written += self.data.write(fp, padding=1)
         written += write_padding(fp, written, padding)
@@ -841,6 +876,7 @@ class TypeToolObjectSetting(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "TypeToolObjectSetting":
+        """Read the structure from a file-like object."""
         version = read_fmt("H", fp)[0]
         transform = read_fmt("6d", fp)
         text_version = read_fmt("H", fp)[0]
@@ -872,6 +908,7 @@ class TypeToolObjectSetting(BaseElement):
         )
 
     def write(self, fp: IO[bytes], padding: int = 4, **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "H6d", self.version, *self.transform)
         written += write_fmt(fp, "H", self.text_version)
         written += self.text_data.write(fp, padding=1)
@@ -899,11 +936,13 @@ class UserMask(BaseElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "UserMask":
+        """Read the structure from a file-like object."""
         color = Color.read(fp)
         opacity, flag = read_fmt("HBx", fp)
         return cls(color, opacity, flag)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = self.color.write(fp)
         written += write_fmt(fp, "HBx", self.opacity, self.flag)
         return written

@@ -90,11 +90,13 @@ def bounded_reader(fp: IO[bytes], length: int) -> Iterator[IO[bytes]]:
 
 
 def pack(fmt: str, *args: Any) -> bytes:
+    """Pack values into big-endian binary data."""
     fmt = str(">" + fmt)
     return struct.pack(fmt, *args)
 
 
 def unpack(fmt: str, data: bytes) -> tuple[Any, ...]:
+    """Unpack big-endian binary data."""
     fmt = str(">" + fmt)
     consume_objects(_format_objects(fmt))
     return struct.unpack(fmt, data)
@@ -269,6 +271,7 @@ def is_readable(fp: IO[bytes], size: int = 1) -> bool:
 
 
 def pad(number: int, divisor: int) -> int:
+    """Round a number up to a multiple of a divisor."""
     if number % divisor:
         number = (number // divisor + 1) * divisor
     return number
@@ -296,6 +299,7 @@ def read_pascal_string(
 def write_pascal_string(
     fp: IO[bytes], value: str, encoding: str = "macroman", padding: int = 2
 ) -> int:
+    """Write a Pascal string and return the number of bytes written."""
     data = value.encode(encoding)
     written = write_fmt(fp, "B", len(data))
     written += write_bytes(fp, data)
@@ -304,6 +308,7 @@ def write_pascal_string(
 
 
 def read_unicode_string(fp: IO[bytes], padding: int = 1) -> str:
+    """Read a length-prefixed UTF-16 string."""
     num_chars = read_fmt("I", fp)[0]
     data = read_exact(fp, num_chars * 2)
     read_padding(fp, struct.calcsize("I") + num_chars * 2, padding)
@@ -311,6 +316,7 @@ def read_unicode_string(fp: IO[bytes], padding: int = 1) -> str:
 
 
 def write_unicode_string(fp: IO[bytes], value: str, padding: int = 1) -> int:
+    """Write a length-prefixed UTF-16 string and return the number of bytes written."""
     encoded = value.encode("utf-16-be")
     written = write_fmt(fp, "I", len(encoded) // 2)
     written += write_bytes(fp, encoded)
@@ -359,6 +365,7 @@ def be_array_to_bytes(arr: array.array) -> bytes:
 
 
 def trimmed_repr(data: Any, trim_length: int = 16) -> str:
+    """Return a repr with long bytes truncated."""
     if isinstance(data, bytes):
         if len(data) > trim_length:
             return repr(data[:trim_length] + b" ... =" + str(len(data)).encode("ascii"))

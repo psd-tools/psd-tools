@@ -145,6 +145,7 @@ class LayerAndMaskInformation(BaseElement):
         version: int = 1,
         **kwargs: Any,
     ) -> T_LayerAndMaskInformation:
+        """Read the structure from a file-like object."""
         start_pos = fp.tell()
         length = read_fmt(("I", "Q")[version - 1], fp)[0]
         logger.debug(
@@ -191,6 +192,8 @@ class LayerAndMaskInformation(BaseElement):
         padding: int = 4,
         **kwargs: Any,
     ) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
+
         def writer(f: IO[bytes]) -> int:
             written = self._write_body(f, encoding, version, padding)
             logger.debug("writing layer and mask info, len=%d" % (written))
@@ -244,6 +247,7 @@ class LayerInfo(BaseElement):
         version: int = 1,
         **kwargs: Any,
     ) -> T_LayerInfo:
+        """Read the structure from a file-like object."""
         length = read_fmt(("I", "Q")[version - 1], fp)[0]
         logger.debug("reading layer info, len=%d" % length)
         with bounded_reader(fp, length) as body:
@@ -276,6 +280,8 @@ class LayerInfo(BaseElement):
         padding: int = 4,
         **kwargs: Any,
     ) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
+
         def writer(f: IO[bytes]) -> int:
             written = self._write_body(f, encoding, version, padding)
             logger.debug("writing layer info, len=%d" % (written))
@@ -324,6 +330,7 @@ class LayerInfoBlock(LayerInfo):
         version: int = 1,
         **kwargs: Any,
     ) -> T_LayerInfo:
+        """Read the structure from a file-like object."""
         # Lr16/Lr32 may nest inside a layer record; bound the depth.
         with parse_context(kwargs.pop("parse_limits", None)), parse_container():
             return cls._read_body(fp, encoding, version)
@@ -336,6 +343,7 @@ class LayerInfoBlock(LayerInfo):
         padding: int = 4,
         **kwargs: Any,
     ) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return self._write_body(fp, encoding, version, padding)
 
 
@@ -367,10 +375,12 @@ class ChannelInfo(BaseElement):
     def read(
         cls: type[T_ChannelInfo], fp: IO[bytes], version: int = 1, **kwargs: Any
     ) -> T_ChannelInfo:
+        """Read the structure from a file-like object."""
         values = read_fmt(("hI", "hQ")[version - 1], fp)
         return cls(id=values[0], length=values[1])
 
     def write(self, fp: IO[bytes], version: int = 1, **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_fmt(fp, ("hI", "hQ")[version - 1], *astuple(self))
 
 
@@ -397,6 +407,7 @@ class LayerFlags(BaseElement):
 
     @classmethod
     def read(cls: type[T_LayerFlags], fp: IO[bytes], **kwargs: Any) -> T_LayerFlags:
+        """Read the structure from a file-like object."""
         flags = read_fmt("B", fp)[0]
         return cls(
             bool(flags & 1),
@@ -410,6 +421,7 @@ class LayerFlags(BaseElement):
         )
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         flags = (
             (self.transparency_protected * 1)
             | ((not self.visible) * 2)
@@ -455,6 +467,7 @@ class LayerBlendingRanges(BaseElement):
     def read(
         cls: type[T_LayerBlendingRanges], fp: IO[bytes], **kwargs: Any
     ) -> T_LayerBlendingRanges:
+        """Read the structure from a file-like object."""
         data = read_length_block(fp)
         if len(data) == 0:
             return cls(None, None)  # type: ignore[arg-type]
@@ -477,6 +490,7 @@ class LayerBlendingRanges(BaseElement):
         return cls(composite_ranges, channel_ranges)  # type: ignore[arg-type]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_length_block(fp, lambda f: self._write_body(f))
 
     def _write_body(self, fp: IO[bytes]) -> int:
@@ -503,6 +517,7 @@ class LayerRecords(ListElement):
         version: int = 1,
         **kwargs: Any,
     ) -> T_LayerRecords:  # type: ignore[override]
+        """Read the structure from a file-like object."""
         items = []
         for _ in range(abs(layer_count)):
             items.append(LayerRecord.read(fp, encoding, version))
@@ -599,6 +614,7 @@ class LayerRecord(BaseElement):
         version: int = 1,
         **kwargs: Any,
     ) -> T_LayerRecord:
+        """Read the structure from a file-like object."""
         start_pos = fp.tell()
         top, left, bottom, right, num_channels = read_fmt("4iH", fp)
         channel_info = [ChannelInfo.read(fp, version) for i in range(num_channels)]
@@ -654,6 +670,7 @@ class LayerRecord(BaseElement):
     def write(
         self, fp: IO[bytes], encoding: str = "macroman", version: int = 1, **kwargs: Any
     ) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         start_pos = fp.tell()
         written = write_fmt(
             fp,
@@ -789,6 +806,7 @@ class MaskFlags(BaseElement):
 
     @classmethod
     def read(cls: type[T_MaskFlags], fp: IO[bytes], **kwargs: Any) -> T_MaskFlags:
+        """Read the structure from a file-like object."""
         flags = read_fmt("B", fp)[0]
         return cls(
             bool(flags & 1),
@@ -802,6 +820,7 @@ class MaskFlags(BaseElement):
         )
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         flags = (
             (self.pos_relative_to_layer * 1)
             | (self.mask_disabled * 2)
@@ -978,6 +997,7 @@ class MaskData(BaseElement):
         )
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_length_block(fp, lambda f: self._write_body(f))
 
     def _write_body(self, fp: IO[bytes]) -> int:
@@ -1055,6 +1075,7 @@ class MaskParameters(BaseElement):
     def read(
         cls: type[T_MaskParameters], fp: IO[bytes], **kwargs: Any
     ) -> T_MaskParameters:
+        """Read the structure from a file-like object."""
         parameters: int | None = None
         user_mask_density = None
         user_mask_feather = None
@@ -1084,6 +1105,7 @@ class MaskParameters(BaseElement):
         )
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = 0
         written += write_fmt(
             fp,
@@ -1124,6 +1146,7 @@ class ChannelImageData(ListElement):
         layer_records: "LayerRecords | None" = None,
         **kwargs: Any,
     ) -> T_ChannelImageData:
+        """Read the structure from a file-like object."""
         start_pos = fp.tell()
         items = []
         if layer_records:
@@ -1133,6 +1156,7 @@ class ChannelImageData(ListElement):
         return cls(items)  # type: ignore[arg-type]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         start_pos = fp.tell()
         written = sum(item.write(fp) for item in self)
         logger.debug("  wrote channel image data, len=%d" % (fp.tell() - start_pos))
@@ -1158,6 +1182,7 @@ class ChannelDataList(ListElement):
         channel_info: list["ChannelInfo"],
         **kwargs: Any,
     ) -> T_ChannelDataList:
+        """Read the structure from a file-like object."""
         items = []
         for c in channel_info:
             if c.length == 0:
@@ -1214,6 +1239,7 @@ class ChannelData(BaseElement):
     def read(
         cls: type[T_ChannelData], fp: IO[bytes], length: int = 0, **kwargs: Any
     ) -> T_ChannelData:
+        """Read the structure from a file-like object."""
         compression = Compression(read_fmt("H", fp)[0])
         # length is c.length - 2 (the 2-byte compression header is excluded).
         # A negative value here indicates an upstream logic error; warn and
@@ -1227,6 +1253,7 @@ class ChannelData(BaseElement):
         return cls(compression=compression, data=data)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "H", self.compression.value)
         written += write_bytes(fp, self.data)
         # written += write_padding(fp, written, 2)  # Seems no padding here.
@@ -1316,6 +1343,7 @@ class GlobalLayerMaskInfo(BaseElement):
     def read(
         cls: type[T_GlobalLayerMaskInfo], fp: IO[bytes], **kwargs: Any
     ) -> T_GlobalLayerMaskInfo:
+        """Read the structure from a file-like object."""
         pos = fp.tell()
         data = read_length_block(fp)  # fmt?
         logger.debug("reading global layer mask info, len=%d" % (len(data)))
@@ -1341,6 +1369,7 @@ class GlobalLayerMaskInfo(BaseElement):
         return cls(overlay_color, opacity, kind)
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
+        """Write the structure to a file-like object and return the bytes written."""
         return write_length_block(fp, lambda f: self._write_body(f))
 
     def _write_body(self, fp: IO[bytes]) -> int:

@@ -411,6 +411,7 @@ def decompressed_size_bound(
 
 
 def encode_rle(data: bytes, width: int, height: int, depth: int, version: int) -> bytes:
+    """Encode raw image data with RLE."""
     row_size = _row_size(width, depth)
     with io.BytesIO(data) as fp:
         rows = [rle_impl.encode(fp.read(row_size)) for _ in range(height)]
