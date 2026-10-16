@@ -9,7 +9,7 @@ __all__ = ["in_", "range_"]
 
 
 @attr.s(repr=False, slots=True, hash=True)
-class _RangeValidator(object):
+class _RangeValidator:
     minimum: Any = attr.ib()
     maximum: Any = attr.ib()
 
@@ -23,9 +23,7 @@ class _RangeValidator(object):
             raise ValueError("'{name}' must be in range []")
 
     def __repr__(self) -> str:
-        return "<range_ validator with [{minimum!r}, {maximum!r}]".format(
-            minimum=self.minimum, maximum=self.maximum
-        )
+        return f"<range_ validator with [{self.minimum!r}, {self.maximum!r}]"
 
 
 def range_(minimum: Any, maximum: Any) -> _RangeValidator:

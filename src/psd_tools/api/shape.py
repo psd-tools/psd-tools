@@ -27,7 +27,7 @@ from psd_tools.terminology import Event
 logger = logging.getLogger(__name__)
 
 
-class VectorMask(object):
+class VectorMask:
     """
     Vector mask data.
 
@@ -209,7 +209,7 @@ class VectorMask(object):
         )
 
 
-class Stroke(object):
+class Stroke:
     """
     Stroke contains decorative information for strokes.
 
@@ -239,7 +239,7 @@ class Stroke(object):
     def __init__(self, data: VectorStrokeContentSetting):
         self._data = data
         if self._data.classID not in (b"strokeStyle", Event.Stroke):
-            logger.warning("Unknown class ID found: {!r}".format(self._data.classID))
+            logger.warning(f"Unknown class ID found: {self._data.classID!r}")
 
     @property
     def enabled(self) -> bool:
@@ -330,7 +330,7 @@ class Stroke(object):
         return "%s(width=%g)" % (self.__class__.__name__, self.line_width)
 
 
-class Origination(object):
+class Origination:
     """
     Vector origination.
 

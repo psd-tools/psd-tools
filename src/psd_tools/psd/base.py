@@ -16,8 +16,9 @@ import io
 import logging
 import numbers
 from collections import OrderedDict
+from collections.abc import Callable, Generator
 from enum import Enum
-from typing import IO, Any, Callable, Generator, TypeVar
+from typing import IO, Any, TypeVar
 
 from attrs import define, field, fields, has, validate
 
@@ -109,17 +110,17 @@ class BaseElement:
 
     def _repr_pretty_(self, p: Any, cycle: bool) -> None:
         if cycle:
-            p.text("{name}(...)".format(name=self.__class__.__name__))
+            p.text(f"{self.__class__.__name__}(...)")
             return
 
-        with p.group(2, "{name}(".format(name=self.__class__.__name__), ")"):
+        with p.group(2, f"{self.__class__.__name__}(", ")"):
             p.breakable("")
             field_list = [f for f in fields(self.__class__) if f.repr]  # type: ignore[arg-type]
             for idx, field_item in enumerate(field_list):
                 if idx:
                     p.text(",")
                     p.breakable()
-                p.text("{field}=".format(field=field_item.name))
+                p.text(f"{field_item.name}=")
                 value = getattr(self, field_item.name)
                 if isinstance(value, bytes):
                     p.text(trimmed_repr(value))
@@ -133,8 +134,7 @@ class BaseElement:
         self, condition: Callable[[Any], bool] | None = None
     ) -> Generator[Any, None, None]:
         """Traversal API intended for debugging."""
-        for _ in BaseElement._traverse(self, condition):
-            yield _
+        yield from BaseElement._traverse(self, condition)
 
     @staticmethod
     def _traverse(
@@ -458,7 +458,7 @@ class ShortIntegerElement(IntegerElement):
         """Read the structure from a file-like object."""
         try:
             return cls(read_fmt("H2x", fp)[0])  # type: ignore[call-arg]
-        except IOError as e:
+        except OSError as e:
             logger.error(e)
         return cls(read_fmt("H", fp)[0])  # type: ignore[call-arg]
 
@@ -480,7 +480,7 @@ class ByteElement(IntegerElement):
         """Read the structure from a file-like object."""
         try:
             return cls(read_fmt("B3x", fp)[0])  # type: ignore[call-arg]
-        except IOError as e:
+        except OSError as e:
             logger.error(e)
         return cls(read_fmt("B", fp)[0])  # type: ignore[call-arg]
 
@@ -504,7 +504,7 @@ class BooleanElement(IntegerElement):
         """Read the structure from a file-like object."""
         try:
             return cls(read_fmt("?3x", fp)[0])  # type: ignore[call-arg]
-        except IOError as e:
+        except OSError as e:
             logger.error(e)
         return cls(read_fmt("?", fp)[0])  # type: ignore[call-arg]
 

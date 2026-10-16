@@ -57,11 +57,11 @@ class Color(BaseElement):
 
     def _repr_pretty_(self, p: Any, cycle: bool) -> None:
         if cycle:
-            p.text("{name}(...)".format(name=self.__class__.__name__))
+            p.text(f"{self.__class__.__name__}(...)")
             return
 
         name = getattr(self.id, "name", self.id)
-        with p.group(2, "{name}(".format(name=name), ")"):
+        with p.group(2, f"{name}(", ")"):
             p.breakable("")
             for idx, value in enumerate(self.values):
                 if idx:

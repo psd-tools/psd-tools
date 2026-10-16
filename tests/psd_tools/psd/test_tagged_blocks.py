@@ -3,7 +3,7 @@ import io
 import logging
 import os
 import struct
-from typing import Any, List, Type
+from typing import Any
 
 import pytest
 
@@ -83,7 +83,7 @@ def test_annotations() -> None:
         list(range(2)),
     ],
 )
-def test_channel_blending_restrictions_setting(fixture: List[int]) -> None:
+def test_channel_blending_restrictions_setting(fixture: list[int]) -> None:
     check_write_read(ChannelBlendingRestrictionsSetting(fixture))  # type: ignore[arg-type]
 
 
@@ -99,7 +99,7 @@ def test_channel_blending_restrictions_setting(fixture: List[int]) -> None:
         (MetadataSettings, "shmd_2.dat"),
     ],
 )
-def test_tagged_block_rw(kls: Type[Any], filename: str) -> None:
+def test_tagged_block_rw(kls: type[Any], filename: str) -> None:
     filepath = os.path.join(TEST_ROOT, "tagged_blocks", filename)
     with open(filepath, "rb") as f:
         fixture = f.read()
@@ -111,7 +111,7 @@ def test_tagged_block_rw(kls: Type[Any], filename: str) -> None:
     "kls, filename",
     [(DescriptorBlock2, "CAI.dat")],
 )
-def test_tagged_block_rw_failure(kls: Type[Any], filename: str) -> None:
+def test_tagged_block_rw_failure(kls: type[Any], filename: str) -> None:
     filepath = os.path.join(TEST_ROOT, "tagged_blocks", filename)
     with open(filepath, "rb") as f:
         fixture = f.read()

@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import logging
 import math
+from collections.abc import Mapping
 from enum import Enum
 from numbers import Real
-from typing import Any, Mapping, TypeVar, overload
+from typing import Any, TypeVar, overload
 
 from psd_tools.constants import BlendMode
 from psd_tools.psd.base import DictElement

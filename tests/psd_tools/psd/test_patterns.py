@@ -1,6 +1,6 @@
 import logging
 import struct
-from typing import Any, Tuple
+from typing import Any
 
 import pytest
 
@@ -27,7 +27,7 @@ VIRTUAL_MEMORY_ARRAY = (
         (1, 8, (0, 0, 8, 8), 8, 0, b"\x00" * 64),
     ],
 )
-def test_virtual_memory_array_wr(args: Tuple[Any, ...]) -> None:
+def test_virtual_memory_array_wr(args: tuple[Any, ...]) -> None:
     check_write_read(VirtualMemoryArray(*args))
 
 

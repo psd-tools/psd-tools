@@ -1,7 +1,7 @@
 import io
 import logging
 import struct
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 
@@ -94,7 +94,7 @@ def test_linked_layer_v8_keeps_content_descriptor() -> None:
         ),
     ],
 )
-def test_linked_layer_wr(kwargs: Dict[str, Any]) -> None:
+def test_linked_layer_wr(kwargs: dict[str, Any]) -> None:
     check_write_read(LinkedLayer(**kwargs))
 
 

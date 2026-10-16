@@ -6,7 +6,8 @@ binary structure of a PSD/PSB file.
 """
 
 import logging
-from typing import IO, Any, Generator, Optional, TypeVar
+from collections.abc import Generator
+from typing import IO, Any, TypeVar
 
 from attrs import define, field
 
@@ -114,10 +115,9 @@ class PSD(BaseElement):
             records = layer_info.layer_records
             channel_data = layer_info.channel_image_data
             if records is not None and channel_data is not None:
-                for record, channels in zip(records, channel_data):
-                    yield record, channels
+                yield from zip(records, channel_data)
 
-    def _get_layer_info(self) -> Optional[LayerInfo]:
+    def _get_layer_info(self) -> LayerInfo | None:
         tagged_blocks = self.layer_and_mask_information.tagged_blocks
         if tagged_blocks is not None:
             for key in (Tag.LAYER_16, Tag.LAYER_32):

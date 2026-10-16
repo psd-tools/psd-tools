@@ -1,5 +1,5 @@
 import os
-from typing import Any, Type
+from typing import Any
 
 import pytest
 
@@ -23,7 +23,7 @@ DESCRIPTOR_DATA = ["0.dat", "1.dat"]
 
 
 @pytest.mark.parametrize("cls", [TYPES[key] for key in TYPES])
-def test_empty_wr(cls: Type[Any]) -> None:
+def test_empty_wr(cls: type[Any]) -> None:
     check_write_read(cls())
 
 
@@ -64,7 +64,7 @@ def test_reference_rw(fixture: bytes) -> None:
         (Integer, 1),
     ],
 )
-def test_value_elements(kls: Type[Any], value: Any) -> None:
+def test_value_elements(kls: type[Any], value: Any) -> None:
     fixture = kls(value)
     assert fixture == value
 
@@ -109,7 +109,7 @@ def test_unit_float_enum(fixture: bytes) -> None:
 
 
 @pytest.mark.parametrize("cls", [UnitFloat, UnitFloats])
-def test_unit_converts_a_raw_code(cls: Type[Any]) -> None:
+def test_unit_converts_a_raw_code(cls: type[Any]) -> None:
     """A valid 4-byte code is normalised, so ``write()`` can reach ``.value``."""
     fixture = cls(unit=b"#Prc")
     assert fixture.unit is Unit.Percent
@@ -118,7 +118,7 @@ def test_unit_converts_a_raw_code(cls: Type[Any]) -> None:
 
 
 @pytest.mark.parametrize("cls", [UnitFloat, UnitFloats])
-def test_unit_keeps_the_enum_fallback(cls: Type[Any]) -> None:
+def test_unit_keeps_the_enum_fallback(cls: type[Any]) -> None:
     """A ruler unit is not a ``Unit``; ``Enum`` carries it, on both paths."""
     assert cls(unit=b"RrCm").unit is Enum.RulerCm
     assert cls(unit=Enum.RulerCm).unit is Enum.RulerCm
@@ -126,7 +126,7 @@ def test_unit_keeps_the_enum_fallback(cls: Type[Any]) -> None:
 
 @pytest.mark.parametrize("cls", [UnitFloat, UnitFloats])
 @pytest.mark.parametrize("unit", [b"ZZZZ", b"#Prc\x00", None, 0, "#Prc"])
-def test_unit_rejects_a_bad_code_at_construction(cls: Type[Any], unit: Any) -> None:
+def test_unit_rejects_a_bad_code_at_construction(cls: type[Any], unit: Any) -> None:
     """Construction complains, rather than ``write()`` with ``AttributeError``."""
     with pytest.raises(ValueError, match="is not a valid Unit or Enum"):
         cls(unit=unit)

@@ -4,7 +4,8 @@ import contextlib
 import io
 import logging
 import os
-from typing import IO, Iterator
+from collections.abc import Iterator
+from typing import IO
 
 from psd_tools.api._descriptor import get_scalar
 from psd_tools.api.protocols import LayerProtocol

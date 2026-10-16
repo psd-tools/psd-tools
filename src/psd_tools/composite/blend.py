@@ -87,7 +87,8 @@ document's colour mode where the function needs it.
 
 import functools
 import logging
-from typing import Callable, Literal
+from collections.abc import Callable
+from typing import Literal
 
 import numpy as np
 

@@ -277,7 +277,7 @@ EXPECTED_CHANNELS = {
 }
 
 
-def get_color_channels(psdimage: "PSDProtocol") -> int:
+def get_color_channels(psdimage: PSDProtocol) -> int:
     """Return the number of color channels a document's pixel arrays carry.
 
     Use this, not :data:`EXPECTED_CHANNELS`, to allocate a canvas as wide as the
@@ -311,7 +311,7 @@ def color_channels(color_mode: ColorMode, channels: int) -> int:
     return EXPECTED_CHANNELS[color_mode]
 
 
-def has_transparency(psdimage: "PSDProtocol") -> bool:
+def has_transparency(psdimage: PSDProtocol) -> bool:
     """Check if the PSD image has transparency information.
 
     Args:
@@ -347,7 +347,7 @@ def has_transparency(psdimage: "PSDProtocol") -> bool:
     return False
 
 
-def get_transparency_index(psdimage: "PSDProtocol") -> int:
+def get_transparency_index(psdimage: PSDProtocol) -> int:
     """Get the index of the transparency channel in the PSD image.
 
     Args:

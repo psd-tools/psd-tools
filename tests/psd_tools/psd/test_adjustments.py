@@ -1,7 +1,6 @@
 import logging
 import os
 import struct
-from typing import List, Tuple
 
 import pytest
 
@@ -57,7 +56,7 @@ def test_curves(
     ],
 )
 def test_curves_extra_item_wr(
-    channel_id: int, points: List[Tuple[int, int]], is_map: bool
+    channel_id: int, points: list[tuple[int, int]], is_map: bool
 ) -> None:
     check_write_read(
         CurvesExtraItem(channel_id=channel_id, points=points),  # type: ignore[arg-type]

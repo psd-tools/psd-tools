@@ -8,7 +8,8 @@ this is the only place pixels are saved.
 
 import io
 import logging
-from typing import IO, Any, Sequence, TypeVar
+from collections.abc import Sequence
+from typing import IO, Any, TypeVar
 
 from attrs import define, field
 

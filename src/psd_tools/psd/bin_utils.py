@@ -15,8 +15,9 @@ import logging
 import re
 import struct
 import sys
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from typing import IO, Any, Callable, Iterator, cast
+from typing import IO, Any, cast
 
 from psd_tools.psd.parse_limits import consume_bytes, consume_objects
 
@@ -35,11 +36,11 @@ def _remaining_bytes(fp: IO[bytes]) -> int:
 def read_exact(fp: IO[bytes], size: int) -> bytes:
     """Read exactly size bytes, validating availability before allocation."""
     if size < 0 or size > _remaining_bytes(fp):
-        raise IOError("Invalid data section size: %d" % size)
+        raise OSError("Invalid data section size: %d" % size)
     consume_bytes(size)
     data = fp.read(size)
     if len(data) != size:
-        raise IOError(
+        raise OSError(
             "Failed to read data section: read=%d, expected=%d." % (len(data), size)
         )
     return data
@@ -55,7 +56,7 @@ class _BoundedReader(io.IOBase):
 
     def __init__(self, fp: IO[bytes], length: int):
         if length < 0 or length > _remaining_bytes(fp):
-            raise IOError("Invalid data section size: %d" % length)
+            raise OSError("Invalid data section size: %d" % length)
         self._fp = fp
         self._start = fp.tell()
         self._end = self._start + length
@@ -73,7 +74,7 @@ class _BoundedReader(io.IOBase):
         else:
             raise ValueError("Invalid whence: %d" % whence)
         if not self._start <= position <= self._end:
-            raise IOError("Seek outside data section: %d" % position)
+            raise OSError("Seek outside data section: %d" % position)
         return self._fp.seek(position)
 
     def read(self, size: int = -1) -> bytes:
@@ -114,7 +115,7 @@ def read_fmt(fmt: str, fp: IO[bytes]) -> tuple[Any, ...]:
     fmt = str(">" + fmt)
     fmt_size = struct.calcsize(fmt)
     if fmt_size > _remaining_bytes(fp):
-        raise IOError(
+        raise OSError(
             "Failed to read data section: read=%d, expected=%d. "
             "Likely the file is corrupted." % (_remaining_bytes(fp), fmt_size)
         )
@@ -122,7 +123,7 @@ def read_fmt(fmt: str, fp: IO[bytes]) -> tuple[Any, ...]:
     position = fp.tell()
     try:
         data = read_exact(fp, fmt_size)
-    except IOError:
+    except OSError:
         fp.seek(position)
         raise
     return struct.unpack(fmt, data)
@@ -134,7 +135,7 @@ def write_fmt(fp: IO[bytes], fmt: str, *args: Any) -> int:
     fmt_size = struct.calcsize(fmt)
     written = write_bytes(fp, struct.pack(fmt, *args))
     if written != fmt_size:
-        raise IOError(
+        raise OSError(
             "Failed to write data section: written=%d, expected=%d."
             % (written, fmt_size)
         )
@@ -151,7 +152,7 @@ def write_bytes(fp: IO[bytes], data: bytes) -> int:
     fp.write(data)
     written = fp.tell() - pos
     if written != len(data):
-        raise IOError(
+        raise OSError(
             "Failed to write data: written=%d, expected=%d." % (written, len(data))
         )
     return written
@@ -327,7 +328,7 @@ def write_unicode_string(fp: IO[bytes], value: str, padding: int = 1) -> int:
 def read_be_array(fmt: str, count: int, fp: IO[bytes]) -> array.array:
     """Read an array from a file with big-endian data."""
     if count < 0:
-        raise IOError("Invalid array size: %d" % count)
+        raise OSError("Invalid array size: %d" % count)
     consume_objects(count)
     arr = array.array(str(fmt))
     arr.frombytes(read_exact(fp, count * arr.itemsize))

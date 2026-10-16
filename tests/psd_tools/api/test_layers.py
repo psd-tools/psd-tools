@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pytest
@@ -138,14 +138,14 @@ def test_layer_is_visible(pixel_layer: PixelLayer) -> None:
 
 
 @pytest.fixture(params=["pixel_layer", "group"])
-def is_group_args(request: Any) -> Tuple[Any, Optional[bool]]:
+def is_group_args(request: Any) -> tuple[Any, bool | None]:
     return (
         request.getfixturevalue(request.param),
         {"pixel_layer": False, "group": True}.get(request.param),
     )
 
 
-def test_layer_is_group(is_group_args: Tuple[Any, bool]) -> None:
+def test_layer_is_group(is_group_args: tuple[Any, bool]) -> None:
     layer, expected = is_group_args
     assert layer.is_group() == expected
 
@@ -155,14 +155,14 @@ def test_layer_has_mask(pixel_layer: PixelLayer) -> None:
 
 
 @pytest.fixture(params=ALL_FIXTURES)
-def kind_args(request: Any) -> Tuple[Any, str]:
+def kind_args(request: Any) -> tuple[Any, str]:
     expected = request.param.replace("_layer", "")
     expected = expected.replace("fill", "solidcolorfill")
     expected = expected.replace("adjustment", "brightnesscontrast")
     return (request.getfixturevalue(request.param), expected)
 
 
-def test_layer_kind(kind_args: Tuple[Any, str]) -> None:
+def test_layer_kind(kind_args: tuple[Any, str]) -> None:
     layer, expected = kind_args
     assert layer.kind == expected
 
@@ -173,7 +173,7 @@ def test_curves_with_vectormask() -> None:
 
 
 @pytest.fixture(params=ALL_FIXTURES)
-def topil_args(request: Any) -> Tuple[Any, bool]:
+def topil_args(request: Any) -> tuple[Any, bool]:
     is_image = request.param in {
         "pixel_layer",
         "smartobject_layer",
@@ -184,7 +184,7 @@ def topil_args(request: Any) -> Tuple[Any, bool]:
     return (request.getfixturevalue(request.param), is_image)
 
 
-def test_topil(topil_args: Tuple[Any, bool]) -> None:
+def test_topil(topil_args: tuple[Any, bool]) -> None:
     fixture, is_image = topil_args
     image = fixture.topil()
 
@@ -1555,7 +1555,7 @@ def _mutate(group: Group, op: str, donor: Any) -> None:
     ],
 )
 def test_every_group_mutator_invalidates_the_cached_bbox(
-    op: str, expected: Tuple[int, int, int, int]
+    op: str, expected: tuple[int, int, int, int]
 ) -> None:
     """Mutating a group's contents must drop the box it cached beforehand."""
     psd = PSDImage.open(full_name("clipping-mask.psd"))
@@ -1676,7 +1676,7 @@ def test_a_group_knows_which_container_it_sits_in() -> None:
     assert psd.parent is None
 
 
-def _hidden_tree(psd: PSDImage) -> Tuple[Group, Group, Group]:
+def _hidden_tree(psd: PSDImage) -> tuple[Group, Group, Group]:
     """A ``Mover`` holding ``Inner``, both parked under a hidden container."""
     hidden = psd.create_group(name="Hidden")
     mover = psd.create_group(name="Mover")
@@ -1841,7 +1841,7 @@ def test_a_hidden_ancestor_reads_the_same_whichever_order_it_is_read() -> None:
     that ``..._drops_the_boxes_cached_beneath_it`` does not already kill.
     """
 
-    def read(arm: bool) -> Tuple[Any, ...]:
+    def read(arm: bool) -> tuple[Any, ...]:
         psd = PSDImage.open(full_name("clipping-mask.psd"))
         inner = psd[1][0]  # type: ignore[index]
         if arm:

@@ -2,7 +2,8 @@ import fnmatch
 import io
 import logging
 import os
-from typing import Any, Generator, List, Type, TypeVar
+from collections.abc import Generator
+from typing import Any, TypeVar
 
 from psd_tools.psd.base import BaseElement
 from psd_tools.psd.bin_utils import trimmed_repr
@@ -47,7 +48,7 @@ def full_name(filename: str) -> str:
     return os.path.join(TEST_ROOT, "psd_files", filename)
 
 
-def all_files() -> List[str]:
+def all_files() -> list[str]:
     return [f for f in find_files() if f.find("third-party-psds") < 0]
 
 
@@ -59,7 +60,7 @@ def check_write_read(element: T, *args: Any, **kwargs: Any) -> None:
     assert element == new_element, "%s vs %s" % (element, new_element)
 
 
-def check_read_write(cls: Type[T], data: bytes, *args: Any, **kwargs: Any) -> None:
+def check_read_write(cls: type[T], data: bytes, *args: Any, **kwargs: Any) -> None:
     element = cls.frombytes(data, *args, **kwargs)
     new_data = element.tobytes(*args, **kwargs)
     assert data == new_data, "%s vs %s" % (trimmed_repr(data), trimmed_repr(new_data))
