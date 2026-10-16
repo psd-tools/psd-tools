@@ -783,6 +783,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
     @property
     def pil_mode(self) -> str:
+        """PIL mode matching the color mode and the number of channels."""
         alpha = self.channels - pil_io.get_pil_channels(
             pil_io.get_pil_mode(self.color_mode)
         )
