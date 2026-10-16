@@ -57,7 +57,6 @@ import os
 from collections.abc import Sequence
 from typing import IO, Any, Callable, Literal, Self
 
-
 import numpy as np
 from PIL import Image
 
@@ -81,11 +80,10 @@ from psd_tools.constants import (
     SectionDivider,
     Tag,
 )
+from psd_tools.psd.color_mode_data import HDRT_DEFAULT, ColorModeData
 from psd_tools.psd.document import PSD
-from psd_tools.psd.parse_limits import ParseLimits
 from psd_tools.psd.header import FileHeader
 from psd_tools.psd.image_data import ImageData
-from psd_tools.psd.color_mode_data import HDRT_DEFAULT, ColorModeData
 from psd_tools.psd.image_resources import ImageResources
 from psd_tools.psd.layer_and_mask import (
     ChannelImageData,
@@ -94,6 +92,7 @@ from psd_tools.psd.layer_and_mask import (
     LayerRecord,
     LayerRecords,
 )
+from psd_tools.psd.parse_limits import ParseLimits
 from psd_tools.psd.tagged_blocks import SectionDividerSetting, TaggedBlocks
 
 logger = logging.getLogger(__name__)

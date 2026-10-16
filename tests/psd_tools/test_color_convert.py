@@ -1,8 +1,8 @@
 """Unit tests for psd_tools.color_convert."""
 
-import pytest
-
 import doctest
+
+import pytest
 
 import psd_tools.color_convert
 from psd_tools.color_convert import (

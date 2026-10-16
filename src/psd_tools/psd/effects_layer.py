@@ -8,11 +8,10 @@ are stored in tagged blocks.
 import logging
 from typing import IO, Any, TypeVar
 
-from attrs import define, field, astuple
+from attrs import astuple, define, field
 
 from psd_tools.constants import BlendMode, EffectOSType
 from psd_tools.psd.base import BaseElement, DictElement
-from psd_tools.psd.color import Color
 from psd_tools.psd.bin_utils import (
     read_fmt,
     read_length_block,
@@ -20,6 +19,7 @@ from psd_tools.psd.bin_utils import (
     write_length_block,
     write_padding,
 )
+from psd_tools.psd.color import Color
 from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)

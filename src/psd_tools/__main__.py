@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+
 from psd_tools import PSDImage
 from psd_tools.api.layers import Layer
 from psd_tools.version import __version__

@@ -31,8 +31,6 @@ EngineData. The format looks like the following::
 
 from __future__ import annotations
 
-from psd_tools.psd.bin_utils import read_remaining
-
 import codecs
 import logging
 import re
@@ -40,13 +38,6 @@ from enum import Enum
 from typing import Any, Iterator
 
 from attrs import frozen
-
-from psd_tools.psd.parse_limits import (
-    ParseLimits,
-    consume_bytes,
-    parse_container,
-    parse_context,
-)
 
 from psd_tools.psd.base import (
     BooleanElement,
@@ -56,7 +47,13 @@ from psd_tools.psd.base import (
     NumericElement,
     ValueElement,
 )
-from psd_tools.psd.bin_utils import write_bytes
+from psd_tools.psd.bin_utils import read_remaining, write_bytes
+from psd_tools.psd.parse_limits import (
+    ParseLimits,
+    consume_bytes,
+    parse_container,
+    parse_context,
+)
 from psd_tools.registry import new_registry
 
 logger = logging.getLogger(__name__)

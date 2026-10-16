@@ -66,9 +66,9 @@ import io
 import logging
 from typing import IO, Any, TypeVar
 
-from attrs import define, field, astuple
+from attrs import astuple, define, field
 
-from psd_tools.constants import PrintScaleStyle, Resource, AlphaChannelMode
+from psd_tools.constants import AlphaChannelMode, PrintScaleStyle, Resource
 from psd_tools.psd.base import (
     BaseElement,
     ByteElement,
@@ -80,11 +80,9 @@ from psd_tools.psd.base import (
     StringElement,
     ValueElement,
 )
-from psd_tools.psd.color import Color
-from psd_tools.psd.descriptor import DescriptorBlock
 from psd_tools.psd.bin_utils import (
-    read_exact,
     is_readable,
+    read_exact,
     read_fmt,
     read_length_block,
     read_pascal_string,
@@ -96,8 +94,10 @@ from psd_tools.psd.bin_utils import (
     write_pascal_string,
     write_unicode_string,
 )
-from psd_tools.registry import new_registry
+from psd_tools.psd.color import Color
+from psd_tools.psd.descriptor import DescriptorBlock
 from psd_tools.psd.parse_limits import ParseLimitError
+from psd_tools.registry import new_registry
 from psd_tools.validators import in_
 from psd_tools.version import __version__
 

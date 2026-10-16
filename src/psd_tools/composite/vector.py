@@ -269,7 +269,9 @@ def _silhouette_distance(
     has a boundary; the margin on ``radius`` absorbs the fringe it adds.
     """
     try:
-        from scipy.ndimage import distance_transform_edt  # type: ignore[import-untyped]  # noqa: PLC0415
+        from scipy.ndimage import (  # type: ignore[import-untyped]  # noqa: PLC0415
+            distance_transform_edt,
+        )
     except ImportError:
         return None
 

@@ -10,9 +10,9 @@ from psd_tools.psd.base import BaseElement, ListElement
 from psd_tools.psd.bin_utils import (
     is_readable,
     read_fmt,
-    read_remaining,
     read_length_block,
     read_pascal_string,
+    read_remaining,
     write_bytes,
     write_fmt,
     write_length_block,

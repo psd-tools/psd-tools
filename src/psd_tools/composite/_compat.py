@@ -1,7 +1,7 @@
 """Compatibility module for optional composite dependencies."""
 
 import functools
-from typing import Any, Callable, TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, TypeVar
 
 F = TypeVar("F", bound=Callable)
 

@@ -1,11 +1,11 @@
 from typing import Any
 
+import psd_tools.compression._rle as _rle  # type: ignore[import-not-found]
 import pytest
 
-import psd_tools.compression._rle as _rle  # type: ignore[import-not-found]
 import psd_tools.compression.rle as rle
 
-from .test_compression import RAW_IMAGE_3x3_8bit, EDGE_CASE_1
+from .test_compression import EDGE_CASE_1, RAW_IMAGE_3x3_8bit
 
 
 def test_identical() -> None:

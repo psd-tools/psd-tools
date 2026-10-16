@@ -8,9 +8,9 @@ import zlib
 import pytest
 
 from psd_tools.compression import (
-    _safe_zlib_decompress,
-    PSDDecompressionWarning,
     RLE_ROW_BYTES,
+    PSDDecompressionWarning,
+    _safe_zlib_decompress,
     compress,
     decode_prediction,
     decode_rle,

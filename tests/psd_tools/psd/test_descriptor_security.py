@@ -24,7 +24,8 @@ from psd_tools.psd.descriptor import (
     read_length_and_key,
     write_length_and_key,
 )
-from psd_tools.psd.engine_data import Dict as EngineDict, List as EngineList
+from psd_tools.psd.engine_data import Dict as EngineDict
+from psd_tools.psd.engine_data import List as EngineList
 from psd_tools.psd.header import FileHeader
 from psd_tools.psd.parse_limits import parse_container, parse_context
 from psd_tools.psd.vector import VectorStrokeContentSetting

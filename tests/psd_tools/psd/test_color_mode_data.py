@@ -1,4 +1,5 @@
 import pytest
+
 from psd_tools.psd.color_mode_data import ColorModeData
 from psd_tools.utils import pack
 

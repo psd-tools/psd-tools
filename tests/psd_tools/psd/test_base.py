@@ -1,18 +1,17 @@
-from typing import Any, Type
-import logging
 import importlib
+import logging
 import math
 import numbers
 import pkgutil
 import statistics
 from enum import Enum
 from fractions import Fraction
+from typing import Any, Type
 
 import attrs
 import pytest
 
 import psd_tools.psd
-
 from psd_tools.psd.base import (
     BooleanElement,
     ByteElement,

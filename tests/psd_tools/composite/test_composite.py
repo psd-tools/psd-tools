@@ -6,7 +6,9 @@ from typing import Any, Optional, cast
 
 import numpy as np
 import pytest
+from PIL import Image
 
+from psd_tools.api import numpy_io
 from psd_tools.api.layers import (
     AdjustmentLayer,
     Artboard,
@@ -18,13 +20,9 @@ from psd_tools.api.layers import (
     TypeLayer,
 )
 from psd_tools.api.mask import Mask
-from psd_tools.api import numpy_io
 from psd_tools.api.numpy_io import _image_data_peak_bytes
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.composite import composite
-from psd_tools.composite import paint
-from psd_tools.composite import utils
-from psd_tools.composite import vector
+from psd_tools.composite import composite, paint, utils, vector
 from psd_tools.composite.composite import (
     Compositor,
     _content_bbox,
@@ -44,7 +42,6 @@ from psd_tools.psd.base import ByteElement
 from psd_tools.psd.descriptor import UnitFloat
 from psd_tools.psd.layer_and_mask import MaskFlags
 from psd_tools.terminology import Key
-from PIL import Image
 
 from ..utils import full_name
 from . import opaque_effect_canvas

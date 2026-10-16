@@ -1,6 +1,6 @@
-from typing import Any, Tuple
 import logging
 import struct
+from typing import Any, Tuple
 
 import pytest
 

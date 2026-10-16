@@ -1,5 +1,5 @@
-from typing import Any, Type
 import os
+from typing import Any, Type
 
 import pytest
 

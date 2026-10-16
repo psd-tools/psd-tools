@@ -105,7 +105,6 @@ from typing import (
     runtime_checkable,
 )
 
-
 if TYPE_CHECKING:
     from psd_tools.api.typesetting import TypeSetting
 
@@ -114,8 +113,6 @@ from PIL import Image, ImageChops
 
 import psd_tools.psd.engine_data as engine_data
 from psd_tools.api import numpy_io, pil_io
-from psd_tools.color_convert import LAB_NEUTRAL_CHROMA, rgb_to_grayscale
-from psd_tools.compression import PSDDecompressionWarning
 from psd_tools.api._resources import ResourceTransfer
 from psd_tools.api.effects import Effects
 from psd_tools.api.mask import Mask
@@ -123,6 +120,8 @@ from psd_tools.api.protocols import GroupMixinProtocol, LayerProtocol, PSDProtoc
 from psd_tools.api.shape import Origination, Stroke, VectorMask
 from psd_tools.api.smart_object import SmartObject
 from psd_tools.api.utils import get_color_channels
+from psd_tools.color_convert import LAB_NEUTRAL_CHROMA, rgb_to_grayscale
+from psd_tools.compression import PSDDecompressionWarning
 from psd_tools.constants import (
     BlendMode,
     ChannelID,

@@ -16,28 +16,28 @@ import sys
 import tracemalloc
 import warnings
 import zlib
+from typing import Any, Callable, Literal, Optional
 
 import numpy as np
 import pytest
 
-from typing import Any, Callable, Literal, Optional
-
 from psd_tools import PSDImage, PSDLargeImageWarning
 from psd_tools import compression as _compression
-from psd_tools.compression import compress
 from psd_tools.api import utils as _utils
-from psd_tools.api.numpy_io import _image_data_planes
 from psd_tools.api.numpy_io import _image_data_peak_bytes as _numpy_peak_bytes
+from psd_tools.api.numpy_io import _image_data_planes
 from psd_tools.api.pil_io import _WHITE_BACKGROUND_TRANSIENT
 from psd_tools.api.pil_io import _image_data_peak_bytes as _pil_peak_bytes
-from psd_tools.api.utils import check_pixel_size, has_transparency
-from psd_tools.constants import ColorMode, Compression, Resource
 from psd_tools.api.utils import (
     MAX_DIMENSION_PSD,
-    MAX_PIXELS_PSD,
     MAX_PIXELS_PSB,
+    MAX_PIXELS_PSD,
     WARN_PIXELS,
+    check_pixel_size,
+    has_transparency,
 )
+from psd_tools.compression import compress
+from psd_tools.constants import ColorMode, Compression, Resource
 
 from .utils import full_name
 

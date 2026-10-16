@@ -3,7 +3,7 @@
 import logging
 from typing import IO, Any, TypeVar
 
-from attrs import define, field, astuple
+from attrs import astuple, define, field
 
 from psd_tools.constants import Tag
 from psd_tools.psd.base import (
@@ -12,9 +12,6 @@ from psd_tools.psd.base import (
     ListElement,
     ShortIntegerElement,
 )
-from psd_tools.psd.descriptor import DescriptorBlock, DescriptorBlock2
-from psd_tools.psd.parse_limits import parse_context
-from psd_tools.terminology import Enum, Key
 from psd_tools.psd.bin_utils import (
     is_readable,
     read_fmt,
@@ -25,7 +22,10 @@ from psd_tools.psd.bin_utils import (
     write_padding,
     write_unicode_string,
 )
+from psd_tools.psd.descriptor import DescriptorBlock, DescriptorBlock2
+from psd_tools.psd.parse_limits import parse_context
 from psd_tools.registry import new_registry
+from psd_tools.terminology import Enum, Key
 from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)

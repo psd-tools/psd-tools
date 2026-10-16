@@ -1,11 +1,12 @@
-from typing import Any, Type
 import io
 import os
+from typing import Any, Type
 
 import pytest
 
+from psd_tools.constants import ColorMode, Resource
 from psd_tools.psd import PSD
-from psd_tools.constants import Resource, ColorMode
+from psd_tools.psd.descriptor import UnitFloats
 from psd_tools.psd.image_resources import (
     AlphaChannel,
     AlphaChannelMode,
@@ -16,8 +17,6 @@ from psd_tools.psd.image_resources import (
     TransferFunction,
     TransferFunctions,
 )
-
-from psd_tools.psd.descriptor import UnitFloats
 from psd_tools.psd.tagged_blocks import DescriptorBlock
 from psd_tools.terminology import Key, Klass, Unit
 

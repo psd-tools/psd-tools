@@ -3,7 +3,7 @@ import struct
 import pytest
 
 from psd_tools.psd.parse_limits import ParseLimitError
-from psd_tools.psd.vector import Path, ClosedPath, OpenPath
+from psd_tools.psd.vector import ClosedPath, OpenPath, Path
 
 from ..utils import check_read_write
 

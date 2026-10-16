@@ -13,7 +13,6 @@ from psd_tools.api import numpy_io
 from psd_tools.api.layers import Layer
 from psd_tools.api.numpy_io import _layer_read_peak_bytes
 from psd_tools.api.pil_io import _layer_peak_bytes
-
 from psd_tools.compression import decompress_row_peak_bytes
 from psd_tools.constants import ChannelID, Compression
 

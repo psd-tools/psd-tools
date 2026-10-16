@@ -2,6 +2,7 @@ import io
 import os
 
 import pytest
+
 from psd_tools.psd import PSD
 
 from ..utils import TEST_ROOT, all_files, check_write_read

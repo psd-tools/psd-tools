@@ -670,7 +670,10 @@ def _make_noise_gradient_color(
         }
     """
     from scipy import interpolate  # type: ignore[import-untyped]  # noqa: PLC0415
-    from scipy.ndimage import maximum_filter1d, uniform_filter1d  # type: ignore[import-untyped]  # noqa: PLC0415
+    from scipy.ndimage import (  # type: ignore[import-untyped]  # noqa: PLC0415
+        maximum_filter1d,
+        uniform_filter1d,
+    )
 
     logger.debug("Noise gradient is not accurate.")
     roughness = grad.get(Key.Smoothness).value / 4096.0  # Larger is sharper.

@@ -6,8 +6,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from psd_tools.api.psd_image import PSDImage
 from psd_tools.api.layers import SmartObjectLayer
+from psd_tools.api.psd_image import PSDImage
 from psd_tools.api.smart_object import SmartObject
 from psd_tools.constants import LinkedLayerType
 
