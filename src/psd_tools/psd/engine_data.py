@@ -273,8 +273,6 @@ class EngineData(Dict):
     descriptor.
     """
 
-    pass
-
 
 class EngineData2(Dict):
     """
@@ -486,7 +484,7 @@ class Float(NumericElement):
         value = b"%.8f" % (self.value)
         value = value.rstrip(b"0")
         value = value + b"0" if value.endswith(b".") else value
-        if 0.0 < abs(self.value) and abs(self.value) < 1.0:
+        if abs(self.value) > 0.0 and abs(self.value) < 1.0:
             value = value.replace(b"0.", b".")
         return write_bytes(fp, value)
 

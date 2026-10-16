@@ -519,9 +519,9 @@ def _set_sat(C: np.ndarray, s: np.ndarray) -> np.ndarray:
     B = np.zeros_like(C, dtype=np.float32)
 
     index_diff = C_max > C_min
-    index_mid = C == C_mid
-    index_max = (C == C_max) & ~index_mid
-    index_min = C == C_min
+    index_mid = C_mid == C
+    index_max = (C_max == C) & ~index_mid
+    index_min = C_min == C
 
     index = index_mid & index_diff
     B[index] = (
@@ -591,11 +591,11 @@ def hsl2rgb(img: np.ndarray) -> np.ndarray:
     X = C * (_1 - np.abs(H_ % _2 - _1))
 
     mask0 = H_ < 1
-    mask1 = (1 <= H_) & (H_ < 2)
-    mask2 = (2 <= H_) & (H_ < 3)
-    mask3 = (3 <= H_) & (H_ < 4)
-    mask4 = (4 <= H_) & (H_ < 5)
-    mask5 = 5 <= H_
+    mask1 = (H_ >= 1) & (H_ < 2)
+    mask2 = (H_ >= 2) & (H_ < 3)
+    mask3 = (H_ >= 3) & (H_ < 4)
+    mask4 = (H_ >= 4) & (H_ < 5)
+    mask5 = H_ >= 5
 
     R[mask0], G[mask0], B[mask0] = C[mask0], X[mask0], _0
     R[mask1], G[mask1], B[mask1] = X[mask1], C[mask1], _0

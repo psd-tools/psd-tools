@@ -463,8 +463,6 @@ class DropShadow(_ShadowEffect):
 class InnerShadow(_ShadowEffect):
     """Inner shadow effect."""
 
-    pass
-
 
 @register(Klass.OuterGlow.value)
 class OuterGlow(_GlowEffect):
@@ -490,21 +488,15 @@ class InnerGlow(_GlowEffect):
 class ColorOverlay(_OverlayEffect, _ColorMixin):
     """Color overlay effect."""
 
-    pass
-
 
 @register(b"GrFl")  # Enum.GradientFill's code, reused as a class ID.
 class GradientOverlay(_OverlayEffect, _AlignScaleMixin, _GradientMixin):
     """Gradient overlay effect."""
 
-    pass
-
 
 @register(b"patternFill")
 class PatternOverlay(_OverlayEffect, _AlignScaleMixin, _PatternMixin):
     """Pattern overlay effect."""
-
-    pass
 
 
 @register(Klass.FrameFX.value)

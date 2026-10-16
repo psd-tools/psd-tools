@@ -177,7 +177,7 @@ def test_the_bands_the_canvas_is_summed_in_do_not_show() -> None:
     whole = scanline.fill_coverage([circle, diagonal], 64, 64)
 
     for cells, pieces in ((67 * 1, 1), (67 * 7, 1 << 20), (1 << 22, 3)):
-        banded = scanline.fill_coverage.__globals__  # noqa: SLF001
+        banded = scanline.fill_coverage.__globals__
         saved = (banded["_BAND_CELLS"], banded["_BAND_PIECES"])
         banded["_BAND_CELLS"], banded["_BAND_PIECES"] = cells, pieces
         try:

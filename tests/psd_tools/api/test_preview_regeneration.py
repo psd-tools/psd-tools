@@ -42,7 +42,7 @@ from ..utils import full_name
 pytest.importorskip("aggdraw")
 pytest.importorskip("scipy")
 
-from psd_tools.composite import composite  # noqa: E402
+from psd_tools.composite import composite
 
 # The colour-mode matrix, the two deep fixtures the issue measured, and the
 # four documents whose channel count PIL's mode cannot hold.

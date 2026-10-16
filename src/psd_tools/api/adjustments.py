@@ -403,14 +403,10 @@ class ChannelMixer(AdjustmentLayer):
 class ColorLookup(AdjustmentLayer):
     """Color lookup adjustment."""
 
-    pass
-
 
 @register(Tag.INVERT)
 class Invert(AdjustmentLayer):
     """Invert adjustment."""
-
-    pass
 
 
 @register(Tag.POSTERIZE)

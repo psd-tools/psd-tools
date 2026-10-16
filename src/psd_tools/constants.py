@@ -220,12 +220,12 @@ class Resource(IntEnum):
     @staticmethod
     def is_path_info(value: int) -> bool:
         """Return whether a resource ID is in the path information range."""
-        return 2000 <= value and value <= 2997
+        return value >= 2000 and value <= 2997
 
     @staticmethod
     def is_plugin_resource(value: int) -> bool:
         """Return whether a resource ID is in the plugin resource range."""
-        return 4000 <= value and value <= 4999
+        return value >= 4000 and value <= 4999
 
 
 ImageResourceID = Resource  # For backward compatibility.

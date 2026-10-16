@@ -179,7 +179,7 @@ def test_unknown_terms_are_not_retained_or_cross_contaminated() -> None:
         stream = io.BytesIO()
         write_length_and_key(stream, parsed)
         assert stream.getvalue() == pack("I", 0) + key
-    assert _TERMS == before
+    assert before == _TERMS
     assert isinstance(_TERMS, frozenset)
 
 
