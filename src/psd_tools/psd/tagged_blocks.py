@@ -9,7 +9,7 @@ Tagged block data structure.
 
 import io
 import logging
-from typing import IO, Any, TypeVar
+from typing import IO, Any, Self
 
 from attrs import converters, define, field, validators
 
@@ -59,8 +59,6 @@ from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
 
-T_TaggedBlocks = TypeVar("T_TaggedBlocks", bound="TaggedBlocks")
-T_TaggedBlock = TypeVar("T_TaggedBlock", bound="TaggedBlock")
 
 TYPES, register = new_registry()
 
@@ -181,13 +179,13 @@ class TaggedBlocks(DictElement):
 
     @classmethod
     def read(
-        cls: type[T_TaggedBlocks],
+        cls,
         fp: IO[bytes],
         version: int = 1,
         padding: int = 1,
         end_pos: int | None = None,
         **kwargs: Any,
-    ) -> T_TaggedBlocks:
+    ) -> Self:
         """Read the structure from a file-like object."""
         if end_pos is not None:
             with bounded_reader(fp, end_pos - fp.tell()) as body:
@@ -282,12 +280,12 @@ class TaggedBlock(BaseElement):
 
     @classmethod
     def read(
-        cls: type[T_TaggedBlock],
+        cls,
         fp: IO[bytes],
         version: int = 1,
         padding: int = 1,
         **kwargs: Any,
-    ) -> T_TaggedBlock:  # type: ignore[return]
+    ) -> Self:  # type: ignore[return]
         """Read the structure from a file-like object."""
         signature = read_fmt("4s", fp)[0]
         if signature not in cls._SIGNATURES:

@@ -9,7 +9,7 @@ this is the only place pixels are saved.
 import io
 import logging
 from collections.abc import Sequence
-from typing import IO, Any, TypeVar
+from typing import IO, Any, Self
 
 from attrs import define, field
 
@@ -31,8 +31,6 @@ from psd_tools.psd.header import FileHeader
 from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
-
-T = TypeVar("T", bound="ImageData")
 
 
 def _solid_bitmap_plane(color: object, width: int, height: int) -> bytes:
@@ -76,7 +74,7 @@ class ImageData(BaseElement):
     data: bytes = b""
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         start_pos = fp.tell()
         compression = Compression(read_fmt("H", fp)[0])
@@ -170,11 +168,11 @@ class ImageData(BaseElement):
 
     @classmethod
     def new(
-        cls: type[T],
+        cls,
         header: FileHeader,
         color: int | Sequence[int] = 0,
         compression: Compression = Compression.RAW,
-    ) -> T:
+    ) -> Self:
         """
         Create a new image data object.
 

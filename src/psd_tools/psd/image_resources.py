@@ -64,7 +64,7 @@ The following resources are plain bytes::
 
 import io
 import logging
-from typing import IO, Any, TypeVar
+from typing import IO, Any, Self
 
 from attrs import astuple, define, field
 
@@ -103,8 +103,6 @@ from psd_tools.version import __version__
 
 logger = logging.getLogger(__name__)
 
-T_ImageResources = TypeVar("T_ImageResources", bound="ImageResources")
-T_ImageResource = TypeVar("T_ImageResource", bound="ImageResource")
 
 TYPES, register = new_registry()
 
@@ -150,7 +148,7 @@ class ImageResources(DictElement):
         return default
 
     @classmethod
-    def new(cls: type[T_ImageResources], **kwargs: Any) -> T_ImageResources:
+    def new(cls, **kwargs: Any) -> Self:
         """
         Create a new default image resouces.
 
@@ -174,11 +172,11 @@ class ImageResources(DictElement):
 
     @classmethod
     def read(
-        cls: type[T_ImageResources],
+        cls,
         fp: IO[bytes],
         encoding: str = "macroman",
         **kwargs: Any,
-    ) -> T_ImageResources:
+    ) -> Self:
         """Read the structure from a file-like object."""
         data = read_length_block(fp)
         logger.debug("reading image resources, len=%d" % (len(data)))
@@ -186,9 +184,7 @@ class ImageResources(DictElement):
             return cls._read_body(f, encoding=encoding)
 
     @classmethod
-    def _read_body(
-        cls: type[T_ImageResources], fp: IO[bytes], *args: Any, **kwargs: Any
-    ) -> T_ImageResources:
+    def _read_body(cls, fp: IO[bytes], *args: Any, **kwargs: Any) -> Self:
         items = []
         while is_readable(fp, 4):
             item = ImageResource.read(fp, *args, **kwargs)
@@ -266,11 +262,11 @@ class ImageResource(BaseElement):
 
     @classmethod
     def read(
-        cls: type[T_ImageResource],
+        cls,
         fp: IO[bytes],
         encoding: str = "macroman",
         **kwargs: Any,
-    ) -> T_ImageResource:
+    ) -> Self:
         """Read the structure from a file-like object."""
         signature, key = read_fmt("4sH", fp)
         try:

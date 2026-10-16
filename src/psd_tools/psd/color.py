@@ -1,7 +1,7 @@
 """Color structure and conversion methods."""
 
 import logging
-from typing import IO, Any, TypeVar
+from typing import IO, Any, Self
 
 from attrs import define, field
 
@@ -10,8 +10,6 @@ from psd_tools.psd.base import BaseElement
 from psd_tools.psd.bin_utils import read_fmt, write_fmt
 
 logger = logging.getLogger(__name__)
-
-T = TypeVar("T", bound="Color")
 
 
 @define(repr=False)
@@ -32,7 +30,7 @@ class Color(BaseElement):
     values: list = field(factory=lambda: [0, 0, 0, 0])
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         id = read_fmt("H", fp)[0]
         try:

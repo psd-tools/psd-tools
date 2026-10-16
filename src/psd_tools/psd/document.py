@@ -7,7 +7,7 @@ binary structure of a PSD/PSB file.
 
 import logging
 from collections.abc import Generator
-from typing import IO, Any, TypeVar
+from typing import IO, Any, Self
 
 from attrs import define, field
 
@@ -25,8 +25,6 @@ from .layer_and_mask import (
 from .parse_limits import ParseLimits, parse_context
 
 logger = logging.getLogger(__name__)
-
-T = TypeVar("T", bound="PSD")
 
 
 @define(repr=False)
@@ -78,12 +76,12 @@ class PSD(BaseElement):
 
     @classmethod
     def read(
-        cls: type[T],
+        cls,
         fp: IO[bytes],
         encoding: str = "macroman",
         parse_limits: ParseLimits | None = None,
         **kwargs: Any,
-    ) -> T:
+    ) -> Self:
         """Read a document with shared structural parsing limits."""
         with parse_context(parse_limits):
             header = FileHeader.read(fp)

@@ -22,13 +22,6 @@ logger = logging.getLogger(__name__)
 
 TYPES, register = new_registry(attribute="selector")  # Path item types.
 
-T_Path = TypeVar("T_Path", bound="Path")
-T_Subpath = TypeVar("T_Subpath", bound="Subpath")
-T_Knot = TypeVar("T_Knot", bound="Knot")
-T_PathFillRule = TypeVar("T_PathFillRule", bound="PathFillRule")
-T_ClipboardRecord = TypeVar("T_ClipboardRecord", bound="ClipboardRecord")
-T_InitialFillRule = TypeVar("T_InitialFillRule", bound="InitialFillRule")
-T_VectorMaskSetting = TypeVar("T_VectorMaskSetting", bound="VectorMaskSetting")
 T_VectorStrokeContentSetting = TypeVar(
     "T_VectorStrokeContentSetting", bound="VectorStrokeContentSetting"
 )
@@ -54,7 +47,7 @@ class Path(ListElement):
     """
 
     @classmethod
-    def read(cls: type[T_Path], fp: IO[bytes], **kwargs: Any) -> T_Path:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         items = []
         while is_readable(fp, 26):
@@ -104,7 +97,7 @@ class Subpath(ListElement):
     _unknown3: bytes = field(default=b"\x00" * 10, repr=False)
 
     @classmethod
-    def read(cls: type[T_Subpath], fp: IO[bytes], **kwargs: Any) -> T_Subpath:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         items = []
         length, operation, _unknown1, _unknown2, index, _unknown3 = read_fmt(
@@ -192,7 +185,7 @@ class Knot(BaseElement):
     leaving: tuple = (0.0,)
 
     @classmethod
-    def read(cls: type[T_Knot], fp: IO[bytes], **kwargs: Any) -> T_Knot:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         preceding = decode_fixed_point(read_fmt("2i", fp))
         anchor = decode_fixed_point(read_fmt("2i", fp))
@@ -249,7 +242,7 @@ class PathFillRule(BaseElement):
     """Path fill rule record, empty."""
 
     @classmethod
-    def read(cls: type[T_PathFillRule], fp: IO[bytes], **kwargs: Any) -> T_PathFillRule:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         read_fmt("24x", fp)
         return cls()
@@ -293,9 +286,7 @@ class ClipboardRecord(BaseElement):
     resolution: int = 0
 
     @classmethod
-    def read(
-        cls: type[T_ClipboardRecord], fp: IO[bytes], **kwargs: Any
-    ) -> T_ClipboardRecord:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         return cls(*decode_fixed_point(read_fmt("5i4x", fp)))  # type: ignore[arg-type]
 

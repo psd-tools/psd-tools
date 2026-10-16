@@ -1,7 +1,7 @@
 """Adjustment layer structure."""
 
 import logging
-from typing import IO, Any, TypeVar
+from typing import IO, Any, Self
 
 from attrs import astuple, define, field
 
@@ -30,7 +30,6 @@ from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar("T", bound="BaseElement")
 
 ADJUSTMENT_TYPES, register = new_registry()
 
@@ -66,7 +65,7 @@ class BrightnessContrast(BaseElement):
     lab_only: int = 0
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         return cls(*read_fmt("3HBx", fp))
 
@@ -93,7 +92,7 @@ class ColorBalance(BaseElement):
     luminosity: bool = False
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         shadows = read_fmt("3h", fp)
         midtones = read_fmt("3h", fp)
@@ -123,7 +122,7 @@ class ColorLookup(DescriptorBlock2):
     """
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             version, data_version = read_fmt("HI", fp)
@@ -154,7 +153,7 @@ class ChannelMixer(BaseElement):
     unknown: bytes = field(default=b"", repr=False)
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         version, monochrome = read_fmt("2H", fp)
         data = list(read_fmt("5h", fp))
@@ -189,7 +188,7 @@ class Curves(BaseElement):
     extra: object = None
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         # NOTE: This is highly experimental and unstable.
         is_map, version, count_map = read_fmt("BHI", fp)
@@ -220,7 +219,7 @@ class Curves(BaseElement):
             except OSError:
                 logger.warning("Failed to read CurvesExtraMarker")
 
-        return cls(is_map, version, count_map, data, extra)  # type: ignore[call-arg]
+        return cls(is_map, version, count_map, data, extra)  # type: ignore[call-arg, arg-type]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         """Write the structure to a file-like object and return the bytes written."""
@@ -250,7 +249,7 @@ class CurvesExtraMarker(ListElement):
     version: int = field(default=4, validator=in_((3, 4)))
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         signature, version, count = read_fmt("4sHI", fp)
         if signature != b"Crv ":
@@ -258,7 +257,7 @@ class CurvesExtraMarker(ListElement):
         items = []
         for _ in range(count):
             items.append(CurvesExtraItem.read(fp, **kwargs))
-        return cls(version=version, items=items)  # type: ignore[call-arg]
+        return cls(version=version, items=items)  # type: ignore[call-arg, arg-type]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         """Write the structure to a file-like object and return the bytes written."""
@@ -280,7 +279,7 @@ class CurvesExtraItem(BaseElement):
     points: list[Any] = field(factory=list, converter=list)
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], is_map: bool = False, **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], is_map: bool = False, **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         if is_map:
             channel_id = read_fmt("H", fp)[0]
@@ -364,7 +363,7 @@ class GradientMap(BaseElement):
     maximum_color: list = field(factory=list, converter=list)
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         version, is_reversed, is_dithered = read_fmt("H2B", fp)
         if version not in (1, 3):
@@ -389,8 +388,8 @@ class GradientMap(BaseElement):
             is_dithered,
             name,
             method,
-            color_stops,
-            transparency_stops,
+            color_stops,  # type: ignore[arg-type]
+            transparency_stops,  # type: ignore[arg-type]
             expansion,
             interpolation,
             length,
@@ -451,7 +450,7 @@ class ColorStop(BaseElement):
     color: tuple = (0,)
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         location, midpoint, mode = read_fmt("2IH", fp)
         color = read_fmt("4H2x", fp)
@@ -479,7 +478,7 @@ class TransparencyStop(BaseElement):
     opacity: int = 0
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         return cls(*read_fmt("2IH", fp))  # type: ignore[call-arg]
 
@@ -506,7 +505,7 @@ class Exposure(BaseElement):
     gamma: float = 0.0
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         return cls(*read_fmt("H3f", fp))
 
@@ -546,7 +545,7 @@ class HueSaturation(BaseElement):
     unknown: bytes = field(default=b"", repr=False)
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         version, enable = read_fmt("HBx", fp)
         if version != 2:
@@ -563,7 +562,7 @@ class HueSaturation(BaseElement):
             enable=enable,
             colorization=colorization,
             master=master,
-            items=items,
+            items=items,  # type: ignore[arg-type]
             unknown=read_remaining(fp),
         )  # type: ignore[call-arg]
 
@@ -600,7 +599,7 @@ class Levels(ListElement):
     extra_version: int | None = None
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         version = read_fmt("H", fp)[0]
         if version != 2:
@@ -628,7 +627,7 @@ class Levels(ListElement):
 
             items += [LevelRecord.read(fp) for _ in range(count - 29)]
 
-        return cls(version=version, extra_version=extra_version, items=items)  # type: ignore[call-arg]
+        return cls(version=version, extra_version=extra_version, items=items)  # type: ignore[call-arg, arg-type]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         """Write the structure to a file-like object and return the bytes written."""
@@ -680,7 +679,7 @@ class LevelRecord(BaseElement):
     gamma: int = 0
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         return cls(*read_fmt("5H", fp))  # type: ignore[call-arg]
 
@@ -704,14 +703,14 @@ class PhotoFilter(BaseElement):
     """
 
     version: int = field(default=0, validator=in_((2, 3)))
-    xyz: tuple = (0,)
+    xyz: tuple | None = (0,)
     color_space: int | None = None
     color_components: tuple | None = None
     density: int | None = None
     luminosity: int | None = None
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         version = read_fmt("H", fp)[0]
         if version not in (2, 3):
@@ -762,11 +761,11 @@ class SelectiveColor(BaseElement):
     data: list = field(factory=list, converter=list)
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         version, method = read_fmt("2H", fp)
         data = [read_fmt("4h", fp) for i in range(10)]
-        return cls(version=version, method=method, data=data)  # type: ignore[call-arg]
+        return cls(version=version, method=method, data=data)  # type: ignore[call-arg, arg-type]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         """Write the structure to a file-like object and return the bytes written."""
