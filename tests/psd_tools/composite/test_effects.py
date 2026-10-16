@@ -20,8 +20,8 @@ from psd_tools.composite.composite import (
 )
 from psd_tools.composite.effects import (
     _BANDS,
-    _grow,
     _distance_band,
+    _grow,
     _signed_distance,
     stroke_bbox,
 )

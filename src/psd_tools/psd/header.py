@@ -3,7 +3,7 @@
 import logging
 from typing import IO, Any, TypeVar
 
-from attrs import define, field, astuple
+from attrs import astuple, define, field
 
 from psd_tools.constants import ColorMode
 from psd_tools.psd.base import BaseElement

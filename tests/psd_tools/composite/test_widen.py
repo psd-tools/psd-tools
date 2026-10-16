@@ -33,8 +33,8 @@ from psd_tools.api.pil_io import post_process
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.color_convert import LAB_NEUTRAL_CHROMA
 from psd_tools.composite import composite
-from psd_tools.composite.composite import Compositor, _widen
 from psd_tools.composite import widen as widen_module
+from psd_tools.composite.composite import Compositor, _widen
 from psd_tools.composite.widen import make_widen
 from psd_tools.constants import BlendMode, ColorMode, Resource, Tag
 from psd_tools.psd.descriptor import Bool, Descriptor, String

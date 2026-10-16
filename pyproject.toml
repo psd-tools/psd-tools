@@ -93,10 +93,10 @@ exclude = ["*.md"]
 [tool.ruff.lint]
 # Ruff 0.16 greatly expanded the default rule set (59 -> 413 rules). Pin the
 # previous defaults so dependency bumps stay behaviour-neutral, and adopt the
-# new rules deliberately, a family at a time -- D below is the first (#772);
+# new rules deliberately, a family at a time -- D (#772) and I are adopted;
 # the rest are still being evaluated in #692.
 select = ["E4", "E7", "E9", "F"]
-extend-select = ["PLC0415", "T10", "D"]
+extend-select = ["PLC0415", "T10", "D", "I"]
 # Held back deliberately, on noise grounds rather than principle; each is
 # tracked in #786.
 ignore = [

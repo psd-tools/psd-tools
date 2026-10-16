@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
+import psd_tools.composite.blend as blend_module
 from psd_tools import PSDImage
 from psd_tools.api.layers import GroupMixin, PixelLayer
 from psd_tools.api.utils import EXPECTED_CHANNELS, color_channels
@@ -21,8 +22,8 @@ from psd_tools.composite.blend import (
     normal,
     saturation,
 )
-import psd_tools.composite.blend as blend_module
 from psd_tools.constants import BlendMode, ColorMode
+
 from .test_composite import check_composite_quality
 
 logger = logging.getLogger(__name__)

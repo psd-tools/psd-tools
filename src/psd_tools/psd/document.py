@@ -11,16 +11,17 @@ from typing import IO, Any, Generator, Optional, TypeVar
 from attrs import define, field
 
 from psd_tools.constants import Tag
+
 from .base import BaseElement
 from .color_mode_data import ColorModeData
 from .header import FileHeader
 from .image_data import ImageData
 from .image_resources import ImageResources
-from .parse_limits import ParseLimits, parse_context
 from .layer_and_mask import (
     LayerAndMaskInformation,
     LayerInfo,
 )
+from .parse_limits import ParseLimits, parse_context
 
 logger = logging.getLogger(__name__)
 

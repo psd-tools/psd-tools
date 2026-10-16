@@ -31,19 +31,11 @@ from psd_tools.psd.base import (
     StringElement,
     ValueElement,
 )
-from psd_tools.psd.color import Color
-from psd_tools.psd.descriptor import DescriptorBlock, DescriptorBlock2
-from psd_tools.psd.effects_layer import EffectsLayer
-from psd_tools.psd.engine_data import EngineData, EngineData2
-from psd_tools.psd.filter_effects import FilterEffects
-from psd_tools.psd.linked_layer import LinkedLayers
-from psd_tools.psd.patterns import Patterns
-from psd_tools.psd.vector import VectorMaskSetting, VectorStrokeContentSetting
 from psd_tools.psd.bin_utils import (
     bounded_reader,
     is_readable,
-    read_fmt,
     read_exact,
+    read_fmt,
     read_length_block,
     read_pascal_string,
     trimmed_repr,
@@ -53,8 +45,16 @@ from psd_tools.psd.bin_utils import (
     write_padding,
     write_pascal_string,
 )
-from psd_tools.registry import new_registry
+from psd_tools.psd.color import Color
+from psd_tools.psd.descriptor import DescriptorBlock, DescriptorBlock2
+from psd_tools.psd.effects_layer import EffectsLayer
+from psd_tools.psd.engine_data import EngineData, EngineData2
+from psd_tools.psd.filter_effects import FilterEffects
+from psd_tools.psd.linked_layer import LinkedLayers
 from psd_tools.psd.parse_limits import ParseLimitError
+from psd_tools.psd.patterns import Patterns
+from psd_tools.psd.vector import VectorMaskSetting, VectorStrokeContentSetting
+from psd_tools.registry import new_registry
 from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)

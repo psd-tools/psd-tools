@@ -27,10 +27,9 @@ from __future__ import annotations
 
 import bisect
 import logging
+from enum import IntEnum
 from itertools import groupby
 from typing import Any, Iterator, TypeVar, overload
-
-from enum import IntEnum
 
 from psd_tools.api._descriptor import coerce_scalar, get_scalar
 from psd_tools.constants import FontBaseline, FontCaps, Justification, WritingDirection

@@ -1,7 +1,7 @@
-from typing import List, Tuple
 import logging
 import os
 import struct
+from typing import List, Tuple
 
 import pytest
 

@@ -1,12 +1,11 @@
 import logging
-
 import sys
 from typing import Any
 
 import numpy as np
 import pytest
-import psd_tools.composite.paint as paint_module
 
+import psd_tools.composite.paint as paint_module
 from psd_tools import PSDImage
 from psd_tools.api.layers import Group, Layer
 from psd_tools.composite import composite, vector

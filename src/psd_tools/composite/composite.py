@@ -13,8 +13,8 @@ from psd_tools.api import numpy_io, pil_io
 from psd_tools.api.layers import (
     AdjustmentLayer,
     Artboard,
-    GroupMixin,
     FillLayer,
+    GroupMixin,
     Layer,
     ShapeLayer,
 )

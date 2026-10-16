@@ -12,8 +12,8 @@ from psd_tools.api.typesetting import (
     TextRun,
     TypeSetting,
 )
-from psd_tools.psd.engine_data import Float, Integer, List, String
 from psd_tools.constants import FontBaseline, FontCaps, Justification
+from psd_tools.psd.engine_data import Float, Integer, List, String
 
 from ..utils import full_name
 

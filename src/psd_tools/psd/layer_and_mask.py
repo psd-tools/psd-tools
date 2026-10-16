@@ -66,7 +66,7 @@ import io
 import logging
 from typing import IO, Any, TypeVar
 
-from attrs import define, field, astuple
+from attrs import astuple, define, field
 
 from psd_tools.compression import compress, decompress
 from psd_tools.constants import (
@@ -78,13 +78,11 @@ from psd_tools.constants import (
     Tag,
 )
 from psd_tools.psd.base import BaseElement, ListElement
-from psd_tools.psd.parse_limits import parse_container, parse_context
-from psd_tools.psd.tagged_blocks import TaggedBlocks, register
 from psd_tools.psd.bin_utils import (
     bounded_reader,
     is_readable,
-    read_fmt,
     read_exact,
+    read_fmt,
     read_length_block,
     read_pascal_string,
     write_bytes,
@@ -93,6 +91,8 @@ from psd_tools.psd.bin_utils import (
     write_padding,
     write_pascal_string,
 )
+from psd_tools.psd.parse_limits import parse_container, parse_context
+from psd_tools.psd.tagged_blocks import TaggedBlocks, register
 from psd_tools.validators import in_, range_
 
 logger = logging.getLogger(__name__)

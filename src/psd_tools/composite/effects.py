@@ -475,7 +475,9 @@ def _signed_distance(alpha: np.ndarray, reach: float | None = None) -> np.ndarra
             "Or:\n"
             "    pip install scipy"
         )
-    from scipy.ndimage import distance_transform_edt  # type: ignore[import-untyped]  # noqa: PLC0415
+    from scipy.ndimage import (  # type: ignore[import-untyped]  # noqa: PLC0415
+        distance_transform_edt,
+    )
 
     partial = (alpha > 0) & (alpha < 1)
     # The boundary segments no coverage describes: a step from opaque straight

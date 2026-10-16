@@ -15,7 +15,8 @@ from psd_tools.constants import Tag
 from psd_tools.psd import PSD
 from psd_tools.psd.bin_utils import is_readable, pack, read_exact, read_fmt
 from psd_tools.psd.descriptor import DescriptorBlock, RawData, UnitFloats
-from psd_tools.psd.engine_data import EngineData, List as EngineList, Tokenizer
+from psd_tools.psd.engine_data import EngineData, Tokenizer
+from psd_tools.psd.engine_data import List as EngineList
 from psd_tools.psd.header import FileHeader
 from psd_tools.psd.image_resources import AlphaIdentifiers, SliceV6
 from psd_tools.psd.parse_limits import consume_bytes, parse_context

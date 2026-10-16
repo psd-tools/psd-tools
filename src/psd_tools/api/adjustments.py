@@ -16,8 +16,7 @@ from psd_tools.api._descriptor import get_descriptor, get_enum, get_scalar
 from psd_tools.api.layers import AdjustmentLayer, FillLayer
 from psd_tools.constants import GradientType, Tag
 from psd_tools.psd.adjustments import Curves as CurvesData
-from psd_tools.psd.adjustments import CurvesExtraMarker
-from psd_tools.psd.adjustments import LevelRecord
+from psd_tools.psd.adjustments import CurvesExtraMarker, LevelRecord
 from psd_tools.psd.adjustments import Levels as LevelsData
 from psd_tools.psd.descriptor import Descriptor
 from psd_tools.registry import new_registry

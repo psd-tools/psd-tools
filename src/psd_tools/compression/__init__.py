@@ -73,11 +73,11 @@ import zlib
 import numpy as np
 
 from psd_tools.constants import Compression
-from psd_tools.psd.parse_limits import ParseLimitError
 from psd_tools.psd.bin_utils import (
     read_be_array,
     write_be_array,
 )
+from psd_tools.psd.parse_limits import ParseLimitError
 
 try:
     from . import _rle as rle_impl  # type: ignore[import-not-found,attr-defined]

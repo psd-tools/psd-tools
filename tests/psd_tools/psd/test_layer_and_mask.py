@@ -1,7 +1,7 @@
-from typing import Any, Dict, Tuple
 import io
 import logging
 import struct
+from typing import Any, Dict, Tuple
 
 import pytest
 

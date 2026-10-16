@@ -2,25 +2,25 @@
 
 import functools
 import logging
-from typing import Literal, Callable, TypeVar, cast
+from typing import Callable, Literal, TypeVar, cast
 
 import numpy as np
 from numpy.typing import NDArray
 
-from psd_tools.api.layers import Layer
-from psd_tools.constants import ColorMode
-from psd_tools.composite._compat import require_scipy
-from psd_tools.composite.blend import _lum, rgb2hsl, hsl2rgb, hsl2hsv, hsv2hsl
 from psd_tools.api.adjustments import (
     BrightnessContrast,
-    Levels,
     Curves,
     Exposure,
     HueSaturation,
     Invert,
+    Levels,
     Posterize,
     Threshold,
 )
+from psd_tools.api.layers import Layer
+from psd_tools.composite._compat import require_scipy
+from psd_tools.composite.blend import _lum, hsl2hsv, hsl2rgb, hsv2hsl, rgb2hsl
+from psd_tools.constants import ColorMode
 
 logger = logging.getLogger(__name__)
 
@@ -552,7 +552,9 @@ def _correct_saturation(
 # TODO: find exact mapping to avoid interpolation
 @functools.lru_cache(maxsize=1)
 def _get_huesaturation_interpolator():
-    from scipy.interpolate import RegularGridInterpolator  # type: ignore[import-untyped]  # noqa: PLC0415
+    from scipy.interpolate import (  # type: ignore[import-untyped]  # noqa: PLC0415
+        RegularGridInterpolator,
+    )
 
     axis = np.linspace(-_1, _1, 21, dtype=np.float32)
     return RegularGridInterpolator(

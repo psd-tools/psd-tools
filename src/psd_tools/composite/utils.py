@@ -8,7 +8,6 @@ from numpy.typing import NDArray
 from psd_tools.api.layers import Layer
 from psd_tools.constants import Tag
 
-
 # A divisor or a fill is usually a canvas, but ``draw_stroke_effect()``
 # normalizes by a NumPy scalar and every caller may pass a plain float.
 _Scalable = NDArray[np.floating] | np.floating[Any] | float

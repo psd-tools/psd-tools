@@ -31,7 +31,6 @@ from psd_tools.psd.base import (
     NumericElement,
     StringElement,
 )
-from psd_tools.terminology import Enum, Event, Form, Key, Klass, Type, Unit
 from psd_tools.psd.bin_utils import (
     read_exact,
     read_fmt,
@@ -44,8 +43,9 @@ from psd_tools.psd.bin_utils import (
     write_padding,
     write_unicode_string,
 )
-from psd_tools.registry import new_registry
 from psd_tools.psd.parse_limits import parse_container, parse_context
+from psd_tools.registry import new_registry
+from psd_tools.terminology import Enum, Event, Form, Key, Klass, Type, Unit
 from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)

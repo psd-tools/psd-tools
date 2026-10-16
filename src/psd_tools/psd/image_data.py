@@ -18,7 +18,6 @@ from psd_tools.compression import (
     decompressed_size_bound,
 )
 from psd_tools.constants import Compression
-from psd_tools.psd.header import FileHeader
 from psd_tools.psd.base import BaseElement
 from psd_tools.psd.bin_utils import (
     pack,
@@ -27,6 +26,7 @@ from psd_tools.psd.bin_utils import (
     write_bytes,
     write_fmt,
 )
+from psd_tools.psd.header import FileHeader
 from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)

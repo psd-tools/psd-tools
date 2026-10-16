@@ -19,7 +19,6 @@ from psd_tools.api.layers import (
 from psd_tools.constants import BlendMode, Resource, Tag
 from psd_tools.psd.image_resources import ImageResource, Integer
 from psd_tools.psd.tagged_blocks import TaggedBlock
-
 from tests.conftest import skip_without_composite
 
 from ..utils import full_name

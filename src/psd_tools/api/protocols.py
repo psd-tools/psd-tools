@@ -29,8 +29,8 @@ from psd_tools.constants import (
     BlendMode,
     ChannelID,
     ColorMode,
-    Compression,
     CompatibilityMode,
+    Compression,
 )
 from psd_tools.psd.document import PSD
 from psd_tools.psd.image_resources import ImageResources

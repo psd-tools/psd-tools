@@ -4,6 +4,7 @@ from typing import Any, Iterator
 
 import pytest
 
+from psd_tools.api import effects
 from psd_tools.api.layers import Layer
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.constants import (
@@ -21,7 +22,6 @@ from psd_tools.constants import (
 from psd_tools.psd.descriptor import Bool, Descriptor, List, String, UnitFloat
 from psd_tools.psd.image_resources import ImageResources
 from psd_tools.terminology import Enum, Key, Unit
-from psd_tools.api import effects
 
 from ..utils import full_name
 

@@ -27,7 +27,6 @@ from psd_tools.constants import (
     SheetColorType,
     Tag,
 )
-
 from psd_tools.psd.descriptor import Integer
 
 from ..utils import full_name

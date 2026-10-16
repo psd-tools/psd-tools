@@ -4,7 +4,6 @@ import io
 import logging
 from typing import IO, Any, Self, TypeVar
 
-
 from attrs import define, field
 
 from psd_tools.compression import compress, decompress
@@ -13,8 +12,8 @@ from psd_tools.psd.base import BaseElement, ListElement
 from psd_tools.psd.bin_utils import (
     bounded_reader,
     is_readable,
-    read_fmt,
     read_exact,
+    read_fmt,
     read_length_block,
     read_pascal_string,
     read_unicode_string,

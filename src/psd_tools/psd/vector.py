@@ -3,19 +3,18 @@
 import logging
 from typing import IO, Any, Self, Sequence, TypeVar
 
-
-from attrs import define, field, astuple
+from attrs import astuple, define, field
 
 from psd_tools.constants import PathResourceID
 from psd_tools.psd.base import BaseElement, ListElement, ValueElement
-from psd_tools.psd.descriptor import Descriptor
-from psd_tools.psd.parse_limits import parse_container, parse_context
 from psd_tools.psd.bin_utils import (
     is_readable,
     read_fmt,
     write_fmt,
     write_padding,
 )
+from psd_tools.psd.descriptor import Descriptor
+from psd_tools.psd.parse_limits import parse_container, parse_context
 from psd_tools.registry import new_registry
 
 logger = logging.getLogger(__name__)

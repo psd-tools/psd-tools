@@ -39,8 +39,8 @@ from psd_tools.constants import (
 )
 from psd_tools.psd.descriptor import Descriptor, List
 from psd_tools.psd.image_resources import ImageResources
-from psd_tools.terminology import Key, Klass
 from psd_tools.registry import new_registry
+from psd_tools.terminology import Key, Klass
 
 logger = logging.getLogger(__name__)
 

@@ -1,6 +1,6 @@
-from typing import Any, List
 import logging
 import sys
+from typing import Any, List
 
 import pytest
 
