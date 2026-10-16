@@ -140,7 +140,7 @@ class Subpath(ListElement):
 
     def is_closed(self) -> bool:
         """
-        Returns whether if the path is closed or not.
+        Return whether the path is closed.
 
         :return: `bool`.
         """

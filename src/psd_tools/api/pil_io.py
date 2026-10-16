@@ -133,7 +133,7 @@ def encode_channel(band: Image.Image, depth: Literal[1, 8, 16, 32]) -> bytes:
 def encode_opaque_channel(
     width: int, height: int, depth: Literal[1, 8, 16, 32]
 ) -> bytes:
-    r"""The bytes a fully opaque transparency channel stores at *depth*.
+    r"""Return the bytes a fully opaque transparency channel stores at *depth*.
 
     Not ``b"\xff" * (width * height)``, which is opaque at depth 8 and a short
     buffer at 16 and 32. At depth 1 it is not even white: a *set* bit is black

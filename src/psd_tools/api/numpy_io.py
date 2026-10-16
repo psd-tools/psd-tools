@@ -497,7 +497,7 @@ def get_pattern(
 
 
 def get_pattern_color_channels(pattern: Pattern) -> int:
-    """Number of leading planes in :py:func:`get_pattern`'s array that are color.
+    """Return the number of leading planes in :py:func:`get_pattern`'s array that are color.
 
     A pattern's channel list is a fixed set of slots: ``len(channels) - 2``
     color slots, then two more, the last holding transparency. The count is the
@@ -673,7 +673,7 @@ def _encode_array(plane: np.ndarray, depth: Literal[1, 8, 16, 32], width: int) -
 def _stored_planes(
     psdimage: "PSDProtocol", wanted: Collection[int]
 ) -> dict[int, bytes]:
-    """The document's current merged planes, for the channels nothing rebuilds.
+    """Return the document's current merged planes, for the channels nothing rebuilds.
 
     A spot channel, or an alpha channel that is not the composite's
     transparency, is not the compositor's output: there is nothing to

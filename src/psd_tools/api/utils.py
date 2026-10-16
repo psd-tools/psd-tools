@@ -107,7 +107,7 @@ MAX_ALLOC_BYTES: AllocBudget | None = _env_alloc_budget()
 
 
 def resolve_alloc_budget(value: AllocBudget | None) -> int | None:
-    """The byte ceiling a budget setting stands for; ``None`` if unlimited.
+    """Return the byte ceiling a budget setting stands for; ``None`` if unlimited.
 
     ``None`` resolves :data:`MAX_ALLOC_BYTES` as it is now. An invalid
     :data:`MAX_ALLOC_BYTES` warns and gives :data:`DEFAULT_MAX_ALLOC_BYTES`.
@@ -278,7 +278,7 @@ EXPECTED_CHANNELS = {
 
 
 def get_color_channels(psdimage: "PSDProtocol") -> int:
-    """Number of color channels a document's pixel arrays carry.
+    """Return the number of color channels a document's pixel arrays carry.
 
     Use this, not :data:`EXPECTED_CHANNELS`, to allocate a canvas as wide as the
     document's arrays or to validate a color against one. The constant's

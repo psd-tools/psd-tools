@@ -52,7 +52,7 @@ def _descriptors(node: Any) -> Iterator[DictElement]:
 
 
 def _bare(value: Any) -> str | None:
-    """The id in a descriptor ``String``, without its trailing NUL."""
+    """Return the id in a descriptor ``String``, without its trailing NUL."""
     return value.value.rstrip("\x00") if isinstance(value, String) else None
 
 
@@ -113,7 +113,7 @@ class ResourceTransfer:
         return dest.tagged_blocks
 
     def _target(self, tag: Tag) -> Any:
-        """The destination's list for *tag*, created if absent; ``None`` if malformed."""
+        """Return the destination's list for *tag*, created if absent; ``None`` if malformed."""
         blocks = self._blocks(create=True)
         if blocks is None:
             return None

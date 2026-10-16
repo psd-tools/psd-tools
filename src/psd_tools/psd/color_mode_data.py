@@ -49,7 +49,7 @@ class ColorModeData(ValueElement):
 
     def interleave(self) -> bytes:
         """
-        Returns interleaved color table in bytes.
+        Return interleaved color table in bytes.
 
         :raises ValueError: if the table is shorter than 256 entries.
         """
