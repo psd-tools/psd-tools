@@ -227,28 +227,20 @@ class OpenPath(Subpath):
 class ClosedKnotLinked(Knot):
     """Knot of a closed subpath with linked control points."""
 
-    pass
-
 
 @register(PathResourceID.CLOSED_KNOT_UNLINKED)
 class ClosedKnotUnlinked(Knot):
     """Knot of a closed subpath with unlinked control points."""
-
-    pass
 
 
 @register(PathResourceID.OPEN_KNOT_LINKED)
 class OpenKnotLinked(Knot):
     """Knot of an open subpath with linked control points."""
 
-    pass
-
 
 @register(PathResourceID.OPEN_KNOT_UNLINKED)
 class OpenKnotUnlinked(Knot):
     """Knot of an open subpath with unlinked control points."""
-
-    pass
 
 
 @register(PathResourceID.PATH_FILL)

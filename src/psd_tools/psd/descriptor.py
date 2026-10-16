@@ -482,8 +482,6 @@ class String(StringElement):
         `str` value
     """
 
-    pass
-
 
 @register(OSType.ENUMERATED_REFERENCE)
 @define(repr=False)
@@ -718,8 +716,6 @@ class Class1(Class):
     Equivalent to :py:class:`~psd_tools.psd.descriptor.Class`.
     """
 
-    pass
-
 
 @register(OSType.CLASS2)
 class Class2(Class):
@@ -728,8 +724,6 @@ class Class2(Class):
 
     Equivalent to :py:class:`~psd_tools.psd.descriptor.Class`.
     """
-
-    pass
 
 
 @register(OSType.CLASS3)
@@ -740,8 +734,6 @@ class Class3(Class):
     Equivalent to :py:class:`~psd_tools.psd.descriptor.Class`.
     """
 
-    pass
-
 
 @register(OSType.REFERENCE)
 class Reference(List):
@@ -750,8 +742,6 @@ class Reference(List):
 
     Equivalent to :py:class:`~psd_tools.psd.descriptor.List`.
     """
-
-    pass
 
 
 @register(OSType.ALIAS)
@@ -762,8 +752,6 @@ class Alias(RawData):
     Equivalent to :py:class:`~psd_tools.psd.descriptor.RawData`.
     """
 
-    pass
-
 
 @register(OSType.GLOBAL_OBJECT)
 class GlobalObject(Descriptor):
@@ -772,8 +760,6 @@ class GlobalObject(Descriptor):
 
     Equivalent to :py:class:`~psd_tools.psd.descriptor.Descriptor`.
     """
-
-    pass
 
 
 @register(OSType.PATH)
@@ -784,8 +770,6 @@ class Path(RawData):
     Equivalent to :py:class:`~psd_tools.psd.descriptor.RawData`.
     """
 
-    pass
-
 
 @register(OSType.IDENTIFIER)
 class Identifier(Integer):
@@ -795,14 +779,10 @@ class Identifier(Integer):
     Equivalent to :py:class:`~psd_tools.psd.descriptor.Integer`.
     """
 
-    pass
-
 
 @register(OSType.INDEX)
 class Index(Integer):
     """Index equivalent to :py:class:`~psd_tools.psd.descriptor.Integer`."""
-
-    pass
 
 
 @register(OSType.NAME)

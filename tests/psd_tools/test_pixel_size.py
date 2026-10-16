@@ -134,7 +134,7 @@ def test_large_within_spec_psd_warns_but_does_not_raise() -> None:
         except Exception as exc:
             if isinstance(exc, AssertionError):
                 raise
-            pass  # other errors (e.g. empty pixel data) are fine
+            # other errors (e.g. empty pixel data) are fine
 
 
 def test_normal_sized_psd_does_not_warn() -> None:
@@ -149,7 +149,7 @@ def test_normal_sized_psd_does_not_warn() -> None:
         except Exception as exc:
             if isinstance(exc, AssertionError):
                 raise
-            pass  # other errors (e.g. empty pixel data) are fine
+            # other errors (e.g. empty pixel data) are fine
 
 
 # 49-byte PoC declaring 5964 x 10296, 6 channels, 8-bit -- a multi-GB canvas
@@ -230,7 +230,7 @@ def test_open_max_alloc_bytes_kwarg_bounds_within_spec_canvas() -> None:
     saved = _utils.MAX_ALLOC_BYTES
     psd = PSDImage.open(_build_psd(_NORMAL_W, _NORMAL_H), max_alloc_bytes=1024)
     assert psd.max_alloc_bytes == 1024
-    assert _utils.MAX_ALLOC_BYTES == saved
+    assert saved == _utils.MAX_ALLOC_BYTES
     with pytest.raises(ValueError, match="1,024 bytes"):
         psd.numpy()
 

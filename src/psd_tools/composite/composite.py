@@ -814,7 +814,7 @@ def _widen(color: np.ndarray, channels: int) -> np.ndarray:
     Replication is wrong for CMYK and Lab, so this is only the fallback when no
     document is available; everything else uses :py:func:`widen.make_widen` (#722).
     """
-    if color.shape[2] == 1 and 1 < channels:
+    if color.shape[2] == 1 and channels > 1:
         return np.repeat(color, channels, axis=2)
     return color
 

@@ -438,13 +438,9 @@ class Invalidated(Origination):
 class Rectangle(Origination):
     """Rectangle live shape."""
 
-    pass
-
 
 class Ellipse(Origination):
     """Ellipse live shape."""
-
-    pass
 
 
 class RoundedRectangle(Origination):
