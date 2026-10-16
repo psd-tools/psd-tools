@@ -1,6 +1,4 @@
-"""
-Vector mask, path, and stroke structure.
-"""
+"""Vector mask, path, and stroke structure."""
 
 import logging
 from typing import IO, Any, Self, Sequence, TypeVar
@@ -234,9 +232,7 @@ class OpenKnotUnlinked(Knot):
 @register(PathResourceID.PATH_FILL)
 @define(repr=False)
 class PathFillRule(BaseElement):
-    """
-    Path fill rule record, empty.
-    """
+    """Path fill rule record, empty."""
 
     @classmethod
     def read(cls: type[T_PathFillRule], fp: IO[bytes], **kwargs: Any) -> T_PathFillRule:

@@ -130,9 +130,7 @@ TYPES.update(
 
 @define(repr=False)
 class ImageResources(DictElement):
-    """
-    Image resources section of the PSD file. Dict of :py:class:`.ImageResource`.
-    """
+    """Image resources section of the PSD file. Dict of :py:class:`.ImageResource`."""
 
     def get_data(self, key: Any, default: Any = None) -> Any:
         """
@@ -313,9 +311,7 @@ class ImageResource(BaseElement):
 
 @register(Resource.ALPHA_IDENTIFIERS)
 class AlphaIdentifiers(ListElement):
-    """
-    List of alpha identifiers.
-    """
+    """List of alpha identifiers."""
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "AlphaIdentifiers":
@@ -330,9 +326,7 @@ class AlphaIdentifiers(ListElement):
 
 @register(Resource.ALPHA_NAMES_PASCAL)
 class AlphaNamesPascal(ListElement):
-    """
-    List of alpha names.
-    """
+    """List of alpha names."""
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "AlphaNamesPascal":
@@ -347,9 +341,7 @@ class AlphaNamesPascal(ListElement):
 
 @register(Resource.ALPHA_NAMES_UNICODE)
 class AlphaNamesUnicode(ListElement):
-    """
-    List of alpha names.
-    """
+    """List of alpha names."""
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "AlphaNamesUnicode":
@@ -365,9 +357,7 @@ class AlphaNamesUnicode(ListElement):
 @register(Resource.DISPLAY_INFO)
 @define(repr=False)
 class DisplayInfo(BaseElement):
-    """
-    DisplayInfo is a list of AlphaChannels.
-    """
+    """DisplayInfo is a list of AlphaChannels."""
 
     version: int = 1
     alpha_channels: list = field(factory=list, converter=list)
@@ -434,9 +424,7 @@ class AlphaChannel(BaseElement):
 @register(Resource.EFFECTS_VISIBLE)
 @register(Resource.WATERMARK)
 class Byte(ByteElement):
-    """
-    Byte element.
-    """
+    """Byte element."""
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "Byte":
@@ -485,9 +473,7 @@ class GridGuidesInfo(BaseElement):
 @register(Resource.DUOTONE_HALFTONING_INFO)
 @register(Resource.GRAYSCALE_HALFTONING_INFO)
 class HalftoneScreens(ListElement):
-    """
-    Halftone screens.
-    """
+    """Halftone screens."""
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "HalftoneScreens":
@@ -542,9 +528,7 @@ class HalftoneScreen(BaseElement):
 @register(Resource.GLOBAL_ANGLE)
 @register(Resource.IDS_SEED_NUMBER)
 class Integer(IntegerElement):
-    """
-    Integer element.
-    """
+    """Integer element."""
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "Integer":
@@ -556,9 +540,7 @@ class Integer(IntegerElement):
 
 @register(Resource.LAYER_GROUPS_ENABLED_ID)
 class LayerGroupEnabledIDs(ListElement):
-    """
-    Layer group enabled ids.
-    """
+    """Layer group enabled ids."""
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "LayerGroupEnabledIDs":
@@ -573,9 +555,7 @@ class LayerGroupEnabledIDs(ListElement):
 
 @register(Resource.LAYER_GROUP_INFO)
 class LayerGroupInfo(ListElement):
-    """
-    Layer group info list.
-    """
+    """Layer group info list."""
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "LayerGroupInfo":
@@ -590,9 +570,7 @@ class LayerGroupInfo(ListElement):
 
 @register(Resource.LAYER_SELECTION_IDS)
 class LayerSelectionIDs(ListElement):
-    """
-    Layer selection ids.
-    """
+    """Layer selection ids."""
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "LayerSelectionIDs":
@@ -609,9 +587,7 @@ class LayerSelectionIDs(ListElement):
 @register(Resource.LAYER_STATE_INFO)
 @register(Resource.TRANSPARENCY_INDEX)
 class ShortInteger(ShortIntegerElement):
-    """
-    Short integer element.
-    """
+    """Short integer element."""
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "ShortInteger":
@@ -624,9 +600,7 @@ class ShortInteger(ShortIntegerElement):
 @register(Resource.CAPTION_PASCAL)
 @register(Resource.CLIPPING_PATH_NAME)
 class PascalString(ValueElement):
-    """
-    Pascal string element.
-    """
+    """Pascal string element."""
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "PascalString":
@@ -1035,9 +1009,7 @@ class ThumbnailResourceV4(ThumbnailResource):
 @register(Resource.DUOTONE_TRANSFER_FUNCTION)
 @register(Resource.GRAYSCALE_TRANSFER_FUNCTION)
 class TransferFunctions(ListElement):
-    """
-    Transfer functions.
-    """
+    """Transfer functions."""
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "TransferFunctions":
@@ -1087,9 +1059,7 @@ class TransferFunction(BaseElement):
 
 @register(Resource.URL_LIST)
 class URLList(ListElement):
-    """
-    URL list structure.
-    """
+    """URL list structure."""
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "URLList":

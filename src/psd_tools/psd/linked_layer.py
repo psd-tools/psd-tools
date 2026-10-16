@@ -1,6 +1,4 @@
-"""
-Linked layer structure.
-"""
+"""Linked layer structure."""
 
 import io
 import logging
@@ -34,9 +32,7 @@ T_LinkedLayer = TypeVar("T_LinkedLayer", bound="LinkedLayer")
 
 
 class LinkedLayers(ListElement):
-    """
-    List of LinkedLayer structure. See :py:class:`.LinkedLayer`.
-    """
+    """List of LinkedLayer structure. See :py:class:`.LinkedLayer`."""
 
     @classmethod
     def read(cls: type[T_LinkedLayers], fp: IO[bytes], **kwargs: Any) -> T_LinkedLayers:

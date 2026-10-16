@@ -1,6 +1,4 @@
-"""
-Color mode data structure.
-"""
+"""Color mode data structure."""
 
 import array
 import logging

@@ -108,9 +108,7 @@ def _format_objects(fmt: str) -> int:
 
 
 def read_fmt(fmt: str, fp: IO[bytes]) -> tuple[Any, ...]:
-    """
-    Reads data from ``fp`` according to ``fmt``.
-    """
+    """Reads data from ``fp`` according to ``fmt``."""
     fmt = str(">" + fmt)
     fmt_size = struct.calcsize(fmt)
     if fmt_size > _remaining_bytes(fp):
@@ -129,9 +127,7 @@ def read_fmt(fmt: str, fp: IO[bytes]) -> tuple[Any, ...]:
 
 
 def write_fmt(fp: IO[bytes], fmt: str, *args: Any) -> int:
-    """
-    Writes data to ``fp`` according to ``fmt``.
-    """
+    """Writes data to ``fp`` according to ``fmt``."""
     fmt = str(">" + fmt)
     fmt_size = struct.calcsize(fmt)
     written = write_bytes(fp, struct.pack(fmt, *args))
@@ -323,9 +319,7 @@ def write_unicode_string(fp: IO[bytes], value: str, padding: int = 1) -> int:
 
 
 def read_be_array(fmt: str, count: int, fp: IO[bytes]) -> array.array:
-    """
-    Reads an array from a file with big-endian data.
-    """
+    """Reads an array from a file with big-endian data."""
     if count < 0:
         raise IOError("Invalid array size: %d" % count)
     consume_objects(count)
@@ -335,25 +329,19 @@ def read_be_array(fmt: str, count: int, fp: IO[bytes]) -> array.array:
 
 
 def write_be_array(fp: IO[bytes], arr: array.array) -> int:
-    """
-    Writes an array to a file with big-endian data.
-    """
+    """Writes an array to a file with big-endian data."""
     return write_bytes(fp, be_array_to_bytes(arr))
 
 
 def fix_byteorder(arr: array.array) -> array.array:
-    """
-    Fix the byte order of an array, assuming it was read from big-endian data.
-    """
+    """Fix the byte order of an array, assuming it was read from big-endian data."""
     if sys.byteorder == "little":
         arr.byteswap()
     return arr
 
 
 def be_array_from_bytes(fmt: str, data: bytes) -> array.array:
-    """
-    Reads an array from bytestring with big-endian data.
-    """
+    """Reads an array from bytestring with big-endian data."""
     itemsize = array.array(str(fmt)).itemsize
     consume_objects(len(data) // itemsize)
     consume_bytes(len(data))
@@ -362,9 +350,7 @@ def be_array_from_bytes(fmt: str, data: bytes) -> array.array:
 
 
 def be_array_to_bytes(arr: array.array) -> bytes:
-    """
-    Writes an array to bytestring with big-endian data without modifying it.
-    """
+    """Writes an array to bytestring with big-endian data without modifying it."""
     data = fix_byteorder(arr[:])
     if hasattr(arr, "tobytes"):
         return data.tobytes()
@@ -380,9 +366,7 @@ def trimmed_repr(data: Any, trim_length: int = 16) -> str:
 
 
 def decode_fixed_point_32bit(data: bytes) -> float:
-    """
-    Decodes ``data`` as an unsigned 4-byte fixed-point number.
-    """
+    """Decodes ``data`` as an unsigned 4-byte fixed-point number."""
     lo, hi = unpack("2H", data)
     # XXX: shouldn't denominator be 2**16 ?
     return lo + hi / (2**16 - 1)

@@ -302,9 +302,7 @@ def draw_solid_color_fill(
     color_mode: ColorMode,
     desc: Descriptor,
 ) -> tuple[np.ndarray, np.ndarray | None]:
-    """
-    Create a solid color fill.
-    """
+    """Create a solid color fill."""
     fill = _get_color(color_mode, desc)
     height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
     color = np.full((height, width, len(fill)), fill, dtype=np.float32)

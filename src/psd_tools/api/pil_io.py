@@ -1,6 +1,4 @@
-"""
-PIL IO module.
-"""
+"""PIL IO module."""
 
 import io
 import logging

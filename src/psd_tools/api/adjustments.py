@@ -110,9 +110,7 @@ class BrightnessContrast(AdjustmentLayer):
 
 @register(Tag.CURVES)
 class Curves(AdjustmentLayer):
-    """
-    Curves adjustment.
-    """
+    """Curves adjustment."""
 
     @property
     def data(self) -> CurvesData | None:
@@ -135,9 +133,7 @@ class Curves(AdjustmentLayer):
 
 @register(Tag.EXPOSURE)
 class Exposure(AdjustmentLayer):
-    """
-    Exposure adjustment.
-    """
+    """Exposure adjustment."""
 
     @property
     def exposure(self) -> float | None:

@@ -1,6 +1,4 @@
-"""
-Various constants for psd_tools.
-"""
+"""Various constants for psd_tools."""
 
 from enum import Enum, IntEnum, auto
 
@@ -40,9 +38,7 @@ class Knockout(IntEnum):
 
 
 class ColorMode(IntEnum):
-    """
-    Color mode.
-    """
+    """Color mode."""
 
     BITMAP = 0
     GRAYSCALE = 1
@@ -68,9 +64,7 @@ class ColorMode(IntEnum):
 
 
 class ColorSpaceID(IntEnum):
-    """
-    Color space types.
-    """
+    """Color space types."""
 
     RGB = 0
     HSB = 1
@@ -235,9 +229,7 @@ ImageResourceID = Resource  # For backward compatibility.
 
 
 class LinkedLayerType(bytes, Enum):
-    """
-    Linked layer types.
-    """
+    """Linked layer types."""
 
     DATA = b"liFD"
     EXTERNAL = b"liFE"
@@ -245,9 +237,7 @@ class LinkedLayerType(bytes, Enum):
 
 
 class ChannelID(IntEnum):
-    """
-    Channel types.
-    """
+    """Channel types."""
 
     CHANNEL_0 = 0  # Red, Cyan, Gray, ...
     CHANNEL_1 = 1  # Green, Magenta, ...
@@ -272,9 +262,7 @@ class Clipping(IntEnum):
 
 
 class BlendMode(bytes, Enum):
-    """
-    Blend modes.
-    """
+    """Blend modes."""
 
     PASS_THROUGH = b"pass"
     NORMAL = b"norm"
@@ -442,9 +430,7 @@ class PrintScaleStyle(IntEnum):
 
 
 class OSType(bytes, Enum):
-    """
-    Descriptor OSTypes and reference OSTypes.
-    """
+    """Descriptor OSTypes and reference OSTypes."""
 
     # OS types
     REFERENCE = b"obj "
@@ -477,9 +463,7 @@ class OSType(bytes, Enum):
 
 
 class EffectOSType(bytes, Enum):
-    """
-    OS Type keys for Layer Effects.
-    """
+    """OS Type keys for Layer Effects."""
 
     COMMON_STATE = b"cmnS"
     DROP_SHADOW = b"dsdw"
@@ -606,9 +590,7 @@ class SheetColorType(IntEnum):
 
 
 class TextType(IntEnum):
-    """
-    Type of text.
-    """
+    """Type of text."""
 
     POINT = 0
     PARAGRAPH = 1
@@ -650,9 +632,7 @@ class WritingDirection(IntEnum):
 
 
 class ProtectedFlags(IntEnum):
-    """
-    Flags for layer locking.
-    """
+    """Flags for layer locking."""
 
     TRANSPARENCY = 0x01
     COMPOSITE = 0x02
@@ -663,9 +643,7 @@ class ProtectedFlags(IntEnum):
 
 
 class AlphaChannelMode(IntEnum):
-    """
-    alpha channel types.
-    """
+    """alpha channel types."""
 
     # ref: https://github.com/MolecularMatters/psd_sdk/blob/311b5c2e3fe04c8cc6a563665e66b19b3fcf8116/src/Psd/PsdAlphaChannel.h#L16
 
