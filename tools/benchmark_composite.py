@@ -51,6 +51,7 @@ def build_document(size: int, layers: int, layer_size: int) -> PSDImage:
 
 
 def main() -> None:
+    """Run the benchmark."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--size", type=int, default=2000, help="canvas edge in px")
     parser.add_argument("--layers", type=int, default=50, help="number of layers")

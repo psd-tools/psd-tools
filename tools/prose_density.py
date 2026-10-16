@@ -45,6 +45,8 @@ from typing import Iterator, NamedTuple
 
 
 class Entry(NamedTuple):
+    """Prose and code measurement of one function."""
+
     ratio: float
     prose: int
     code: int
@@ -142,6 +144,7 @@ def _changed_files(since: str) -> set[Path]:
 
 
 def main() -> None:
+    """Report the functions with the highest prose density."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "--paths",
