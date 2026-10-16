@@ -69,7 +69,7 @@ class _ZeroLengthKey(bytes):
 
 
 def read_length_and_key(fp: IO[bytes]) -> bytes:
-    """Helper to read descriptor key."""
+    """Read descriptor key."""
     length = read_fmt("I", fp)[0]
     key = read_exact(fp, length or 4)
     if length == 0 and key not in _TERMS:
@@ -79,7 +79,7 @@ def read_length_and_key(fp: IO[bytes]) -> bytes:
 
 
 def write_length_and_key(fp: IO[bytes], value: bytes) -> int:
-    """Helper to write descriptor key."""
+    """Write descriptor key."""
     compact = value in _TERMS or isinstance(value, _ZeroLengthKey)
     written = write_fmt(fp, "I", 0 if compact else len(value))
     written += write_bytes(fp, value)

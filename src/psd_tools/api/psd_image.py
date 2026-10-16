@@ -461,7 +461,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
     def is_updated(self) -> bool:
         """
-        Returns whether the document has been edited.
+        Return whether the document has been edited.
 
         See :py:meth:`mark_updated` for what sets this and what it gates.
 
@@ -790,7 +790,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         return pil_io.get_pil_mode(self.color_mode, alpha > 0)
 
     def has_thumbnail(self) -> bool:
-        """True if the PSDImage has a thumbnail resource."""
+        """Return True if the PSDImage has a thumbnail resource."""
         return (
             Resource.THUMBNAIL_RESOURCE in self.image_resources
             or Resource.THUMBNAIL_RESOURCE_PS4 in self.image_resources
@@ -904,7 +904,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
     @classmethod
     def _unmatched_dividers(cls, records: list[tuple[Any, Any]]) -> set[int]:
-        """Indices of group dividers that do not pair up, as ``_init`` reads them."""
+        """Return the indices of group dividers that do not pair up, as ``_init`` reads them."""
         opened: list[int] = []
         unmatched: set[int] = set()
         for index, (record, _) in enumerate(records):

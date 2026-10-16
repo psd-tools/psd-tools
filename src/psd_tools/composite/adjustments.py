@@ -206,7 +206,7 @@ def apply_brightnesscontrast(
     layer: BrightnessContrast,
 ) -> np.ndarray:
     """
-    Applies a brightness & contrast adjustment to an image.
+    Apply a brightness & contrast adjustment to an image.
 
     Requires scipy for cubic spline interpolation.
     """
@@ -284,7 +284,7 @@ def apply_levels(
     colormode: Literal[ColorMode.CMYK, ColorMode.GRAYSCALE, ColorMode.RGB],
     layer: Levels,
 ) -> np.ndarray:
-    """Applies a levels adjustment to an image."""
+    """Apply a levels adjustment to an image."""
     levels_data = layer.data
     if not levels_data:
         return img
@@ -329,7 +329,7 @@ def apply_curves(
     layer: Curves,
 ) -> np.ndarray:
     """
-    Applies a curves adjustment to an image.
+    Apply a curves adjustment to an image.
 
     Requires scipy for cubic spline interpolation.
     """
@@ -368,7 +368,7 @@ def apply_exposure(
     colormode: Literal[ColorMode.CMYK, ColorMode.GRAYSCALE, ColorMode.RGB],
     layer: Exposure,
 ) -> np.ndarray:
-    """Applies an exposure adjustment to an image."""
+    """Apply an exposure adjustment to an image."""
     if colormode == ColorMode.CMYK:
         logger.debug("Exposure doesn't support CMYK in Photoshop.")
         return img
@@ -416,7 +416,7 @@ def apply_huesaturation(
     colormode: Literal[ColorMode.CMYK, ColorMode.GRAYSCALE, ColorMode.RGB],
     layer: HueSaturation,
 ) -> np.ndarray:
-    """Applies a hue/saturation adjustment to an image."""
+    """Apply a hue/saturation adjustment to an image."""
     if colormode == ColorMode.GRAYSCALE:
         logger.debug("Hue/Saturation doesn't support grayscale in Photoshop.")
         return img
@@ -664,7 +664,7 @@ def apply_invert(
     colormode: Literal[ColorMode.CMYK, ColorMode.GRAYSCALE, ColorMode.RGB],
     layer: Invert,
 ) -> np.ndarray:
-    """Applies an invert adjustment to an image."""
+    """Apply an invert adjustment to an image."""
     return _1 - img
 
 
@@ -674,7 +674,7 @@ def apply_posterize(
     colormode: Literal[ColorMode.CMYK, ColorMode.GRAYSCALE, ColorMode.RGB],
     layer: Posterize,
 ) -> np.ndarray:
-    """Applies a posterize adjustment to an image."""
+    """Apply a posterize adjustment to an image."""
     if layer.posterize is None:
         return img
 
@@ -698,7 +698,7 @@ def apply_threshold(
     colormode: Literal[ColorMode.CMYK, ColorMode.GRAYSCALE, ColorMode.RGB],
     layer: Threshold,
 ) -> np.ndarray:
-    """Applies a threshold adjustment to an image."""
+    """Apply a threshold adjustment to an image."""
     # CMYK requires accurate luminance conversion
     if colormode == ColorMode.CMYK:
         logger.info("Threshold isn't currently supported for CMYK.")

@@ -526,5 +526,5 @@ def _delta_encode(rows: "np.ndarray") -> "np.ndarray":
 
 
 def _delta_decode(rows: "np.ndarray") -> "np.ndarray":
-    """Running sum along each row, wrapping at the dtype width."""
+    """Return the running sum along each row, wrapping at the dtype width."""
     return np.cumsum(rows, axis=1, dtype=rows.dtype)

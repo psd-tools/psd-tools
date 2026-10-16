@@ -103,7 +103,7 @@ class Effects:
         return None
 
     def _list(self, data: Descriptor | None) -> list["_Effect"]:
-        """The effects ``data`` lists, in file order.
+        """Return the effects ``data`` lists, in file order.
 
         Takes the descriptor rather than reading it, so :py:meth:`find`, which
         needs the master switch as well, reads the tagged blocks once.

@@ -240,11 +240,11 @@ class LayerProtocol(Protocol):
         ...
 
     def has_pixels(self) -> bool:
-        """Returns True if the layer has associated pixels."""
+        """Return True if the layer has associated pixels."""
         ...
 
     def has_mask(self) -> bool:
-        """Returns True if the layer has a mask."""
+        """Return True if the layer has a mask."""
         ...
 
     @property
@@ -257,7 +257,7 @@ class LayerProtocol(Protocol):
         ...
 
     def has_vector_mask(self) -> bool:
-        """Returns True if the layer has a vector mask."""
+        """Return True if the layer has a vector mask."""
         ...
 
     def topil(
@@ -324,7 +324,7 @@ class GroupMixinProtocol(Protocol):
     """
 
     def __len__(self) -> int:
-        """Number of child layers."""
+        """Return the number of child layers."""
         ...
 
     def __iter__(self) -> Iterator[LayerProtocol]:
@@ -344,7 +344,7 @@ class GroupMixinProtocol(Protocol):
         ...
 
     def is_visible(self) -> bool:
-        """Returns visibility of the element."""
+        """Return visibility of the element."""
         ...
 
     def is_group(self) -> bool:
@@ -522,11 +522,11 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
         ...
 
     def has_preview(self) -> bool:
-        """Returns if the document has real merged data."""
+        """Return whether the document has real merged data."""
         ...
 
     def is_updated(self) -> bool:
-        """Returns whether the PSD document has been edited."""
+        """Return whether the PSD document has been edited."""
         ...
 
     def mark_updated(self) -> None:

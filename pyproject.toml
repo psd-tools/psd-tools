@@ -105,11 +105,14 @@ ignore = [
     # exist, and it is the rule most readily satisfied with
     # """Return the value.""".
     "D1",
-    # Imperative mood, 96. A genuine convention, but it misfires on the
-    # property docstrings this codebase has many of -- "Gradient type, one of
-    # ..." -- and reads as noise there.
-    "D401",
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# D401 (imperative mood) is enforced on the public API and the low level. These
+# trees describe a value rather than an action ("The layer's own coverage ...").
+"src/psd_tools/composite/**" = ["D401"]
+"tests/**" = ["D401"]
+"tools/**" = ["D401"]
 
 [tool.ruff.lint.pydocstyle]
 # pep257, not google or numpy: it is the convention that matches this

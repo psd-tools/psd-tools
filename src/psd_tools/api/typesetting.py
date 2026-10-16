@@ -55,7 +55,7 @@ def _safe_enum(
 
 
 def _raw(data: _Style, default: _Style, key: str) -> Any:
-    """The first non-None entry for *key* in the run data, then the default style."""
+    """Return the first non-None entry for *key* in the run data, then the default style."""
     for layer in (data, default):
         value = layer.get(key) if layer else None
         if value is not None:

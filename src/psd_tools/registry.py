@@ -28,7 +28,7 @@ T = TypeVar("T")
 
 def new_registry(attribute: str | None = None) -> tuple[dict, Callable]:
     """
-    Returns an empty dict and a @register decorator.
+    Return an empty dict and a @register decorator.
 
     The registry dict maps keys to registered functions/classes. The register
     decorator can be used to register functions or classes with specific keys.

@@ -164,7 +164,7 @@ TGroupMixin = TypeVar("TGroupMixin", bound="GroupMixin")
 
 
 def _compression_for(compression: Compression, depth: int) -> Compression:
-    """The codec to store a channel with, given the document's *depth*.
+    """Return the codec to store a channel with, given the document's *depth*.
 
     ZIP with prediction delta-encodes whole samples and a 1-bit channel has
     none, so a bitmap document takes plain ZIP. The choice is recorded in the
@@ -177,7 +177,7 @@ def _compression_for(compression: Compression, depth: int) -> Compression:
 
 
 def _channel_geometry(record: LayerRecord, channel_id: int) -> tuple[int, int] | None:
-    """The ``(width, height)`` a stored channel was compressed against.
+    """Return the ``(width, height)`` a stored channel was compressed against.
 
     A mask channel carries its own rectangle, and the user mask's is not the
     real mask's. :py:attr:`Mask.width` cannot answer for both: it reports the
@@ -618,7 +618,7 @@ class Layer(LayerProtocol):
 
     def has_mask(self) -> bool:
         """
-        Returns True if the layer has a mask.
+        Return True if the layer has a mask.
 
         :return: `bool`
         """
@@ -793,7 +793,7 @@ class Layer(LayerProtocol):
 
     def has_vector_mask(self) -> bool:
         """
-        Returns True if the layer has a vector mask.
+        Return True if the layer has a vector mask.
 
         :return: `bool`
         """
@@ -821,7 +821,7 @@ class Layer(LayerProtocol):
 
     def has_origination(self) -> bool:
         """
-        Returns True if the layer has live shape properties.
+        Return True if the layer has live shape properties.
 
         :return: `bool`
         """
@@ -857,7 +857,7 @@ class Layer(LayerProtocol):
         return self._origination
 
     def has_stroke(self) -> bool:
-        """Returns True if the shape has a stroke."""
+        """Return True if the shape has a stroke."""
         return Tag.VECTOR_STROKE_DATA in self.tagged_blocks
 
     @property
@@ -910,7 +910,7 @@ class Layer(LayerProtocol):
     def _reencode(
         self, parent: "GroupMixin"
     ) -> tuple[LayerRecord, ChannelDataList] | None:
-        """The layer's record and channels as *parent*'s document stores them.
+        """Return the layer's record and channels as *parent*'s document stores them.
 
         A move that changes the destination's colour mode, depth or file
         version leaves channels it cannot read. See :py:func:`_reencoded`.
@@ -1032,7 +1032,7 @@ class Layer(LayerProtocol):
 
     def has_clip_layers(self, visible: bool = False) -> bool:
         """
-        Returns True if the layer has associated clipping.
+        Return True if the layer has associated clipping.
 
         :param visible: If True, check for visible clipping layers.
         :return: `bool`
@@ -1053,7 +1053,7 @@ class Layer(LayerProtocol):
         return self._clipped_above()
 
     def _clipped_above(self) -> list[Self]:
-        """The run of clipping siblings directly above this layer."""
+        """Return the run of clipping siblings directly above this layer."""
         # A detached layer has no siblings, so nothing clips to it.
         parent: GroupMixin | None = self.parent  # type: ignore
         if parent is None:
@@ -1103,7 +1103,7 @@ class Layer(LayerProtocol):
 
     @clipping_layer.setter
     def clipping_layer(self, value: bool) -> None:
-        """Deprecated. Use clipping property instead."""
+        """Use ``clipping`` instead (deprecated)."""
         logger.warning(
             "clipping_layer property is deprecated. Use clipping property instead."
         )
@@ -1111,7 +1111,7 @@ class Layer(LayerProtocol):
 
     def has_effects(self, enabled: bool = True, name: str | None = None) -> bool:
         """
-        Returns True if the layer has effects.
+        Return True if the layer has effects.
 
         ``has_effects()`` asks "does this layer draw any effect?": the master
         switch on and an entry enabled under it. ``has_effects(enabled=False)``
@@ -1440,7 +1440,7 @@ class Layer(LayerProtocol):
 
     def delete_layer(self) -> Self:
         """
-        Deprecated: Use layer.parent.remove(layer) instead.
+        Use ``layer.parent.remove(layer)`` instead (deprecated).
 
         :raises ValueError: If the layer is not attached to a document
         """
@@ -1508,7 +1508,7 @@ class Layer(LayerProtocol):
 
     def move_to_group(self, group: "GroupMixin") -> Self:
         """
-        Deprecated: Use layer.move_to(group) instead.
+        Use ``layer.move_to(group)`` instead (deprecated).
 
         :param group: The group the current layer will be moved into.
         """
@@ -1517,7 +1517,7 @@ class Layer(LayerProtocol):
 
     def move_up(self, offset: int = 1) -> Self:
         """
-        Moves the layer up a certain offset within the group the layer is in.
+        Move the layer up a certain offset within the group the layer is in.
 
         :param offset: The number of positions to move the layer up (can be negative).
         :raises ValueError: If the layer is not attached to a document
@@ -1542,7 +1542,7 @@ class Layer(LayerProtocol):
 
     def move_down(self, offset: int = 1) -> Self:
         """
-        Moves the layer down a certain offset within the group the layer is in.
+        Move the layer down a certain offset within the group the layer is in.
 
         :param offset: The number of positions to move the layer down (can be negative).
         :raises ValueError: If the layer is not attached to a document
@@ -1556,7 +1556,7 @@ _LAYERLESS_MODES = (ColorMode.BITMAP, ColorMode.INDEXED, ColorMode.MULTICHANNEL)
 
 
 def _insertion_index(parent: "GroupMixin", index: Any) -> int:
-    """Final position of a layer added to *parent*, counting from the bottom."""
+    """Return the final position of a layer added to *parent*, counting from the bottom."""
     index = operator.index(index)
     final_length = len(parent) + 1
     if not -final_length <= index < final_length:
@@ -2010,7 +2010,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
 
     def remove(self, layer: Layer) -> Self:
         """
-        Removes the specified layer from the group.
+        Remove the specified layer from the group.
 
         This operation rewrites the internal references of the layer.
 
@@ -2029,7 +2029,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
 
     def pop(self, index: int = -1) -> Layer:
         """
-        Removes the specified layer from the list and returns it.
+        Remove the specified layer from the list and return it.
 
         This operation rewrites the internal references of the layer.
 
@@ -2043,7 +2043,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
 
     def clear(self) -> None:
         """
-        Clears the group.
+        Clear the group.
 
         This operation rewrites the internal references of the layers.
 
@@ -2060,7 +2060,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
 
     def index(self, layer: Layer) -> int:
         """
-        Returns the index of the specified layer in the group.
+        Return the index of the specified layer in the group.
 
         :param layer: The layer to find.
         """
@@ -2143,7 +2143,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
                 layer._update_children(converted, transfer)
 
     def is_visible(self) -> bool:
-        """Returns visibility of the element."""
+        """Return visibility of the element."""
         return Layer.is_visible(self)  # type: ignore
 
     def is_group(self) -> bool:
@@ -2317,7 +2317,7 @@ class Group(GroupMixin, Layer):
     @open_folder.setter
     def open_folder(self, value: bool) -> None:
         """
-        Sets whether the group is an open folder.
+        Set whether the group is an open folder.
 
         :param value: `bool`
         """
@@ -2493,7 +2493,7 @@ class Group(GroupMixin, Layer):
         open_folder: bool = True,
     ) -> Self:
         """
-        Deprecated: Use ``parent.create_group(layer_list, name)`` instead.
+        Use ``parent.create_group(layer_list, name)`` instead (deprecated).
 
         :param parent: The parent group to add the newly created Group object into.
         :param layers: The layers to group. Can by any subclass of
@@ -2517,7 +2517,7 @@ class Artboard(Group):
 
     @classmethod
     def _move(kls, group: Group) -> "Artboard":
-        """Converts a Group into an Artboard, updating all references as needed.
+        """Convert a Group into an Artboard, updating all references as needed.
 
         :raises ValueError: If group has no parent
         """

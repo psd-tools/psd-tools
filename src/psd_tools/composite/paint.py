@@ -481,33 +481,33 @@ def _ramp_axis(start: int, count: int, extent: int, scale: float) -> np.ndarray:
 
 
 def _make_linear_gradient(X: np.ndarray, Y: np.ndarray, angle: float) -> np.ndarray:
-    """Generates index map for linear gradients."""
+    """Generate index map for linear gradients."""
     theta = np.radians(angle % 360)
     Z = 0.5 * (np.cos(theta) * X - np.sin(theta) * Y + 1)
     return Z
 
 
 def _make_radial_gradient(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
-    """Generates index map for radial gradients."""
+    """Generate index map for radial gradients."""
     Z = np.sqrt(np.power(X, 2) + np.power(Y, 2))
     return Z
 
 
 def _make_angle_gradient(X: np.ndarray, Y: np.ndarray, angle: float) -> np.ndarray:
-    """Generates index map for angle gradients."""
+    """Generate index map for angle gradients."""
     Z = (((180 * np.arctan2(Y, X) / np.pi) + angle) % 360) / 360
     return Z
 
 
 def _make_reflected_gradient(X: np.ndarray, Y: np.ndarray, angle: float) -> np.ndarray:
-    """Generates index map for reflected gradients."""
+    """Generate index map for reflected gradients."""
     theta = np.radians(angle % 360)
     Z = np.abs((np.cos(theta) * X - np.sin(theta) * Y))
     return Z
 
 
 def _make_diamond_gradient(X: np.ndarray, Y: np.ndarray, angle: float) -> np.ndarray:
-    """Generates index map for diamond gradients."""
+    """Generate index map for diamond gradients."""
     theta = np.radians(angle % 360)
     Z = np.abs(np.cos(theta) * X - np.sin(theta) * Y) + np.abs(
         np.sin(theta) * X + np.cos(theta) * Y
