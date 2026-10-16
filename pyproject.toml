@@ -98,20 +98,19 @@ exclude = ["*.md"]
 select = ["E4", "E7", "E9", "F"]
 extend-select = ["PLC0415", "T10", "D"]
 # Held back deliberately, on noise grounds rather than principle; each is
-# tracked in #786. Counts are repo-wide, since `ignore` is.
+# tracked in #786.
 ignore = [
-    # Missing docstrings, 1121 of them (544 D102). Requiring one on every
-    # public method is a different project from formatting the ones that
-    # exist, and it is the rule most readily satisfied with
-    # """Return the value.""".
-    "D1",
+    # Magic methods and `__init__` are named by the protocol they implement.
+    "D105",
+    "D107",
 ]
 
 [tool.ruff.lint.per-file-ignores]
 # D401 (imperative mood) is enforced on the public API and the low level. These
 # trees describe a value rather than an action ("The layer's own coverage ...").
 "src/psd_tools/composite/**" = ["D401"]
-"tests/**" = ["D401"]
+# Test names say what is tested.
+"tests/**" = ["D1", "D401"]
 "tools/**" = ["D401"]
 
 [tool.ruff.lint.pydocstyle]
