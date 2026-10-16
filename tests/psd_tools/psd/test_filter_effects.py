@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Any, Tuple
+from typing import Any
 
 import pytest
 
@@ -71,7 +71,7 @@ logger = logging.getLogger(__name__)
         ),
     ],
 )
-def test_filter_effect(args: Tuple[Any, ...]) -> None:
+def test_filter_effect(args: tuple[Any, ...]) -> None:
     check_write_read(FilterEffect(*args))
 
 

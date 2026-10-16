@@ -1,7 +1,8 @@
 """Paint and fill operations for compositing."""
 
 import logging
-from typing import TYPE_CHECKING, Any, Callable, Sequence, TypeVar
+from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import numpy as np
 from PIL import Image
@@ -502,7 +503,7 @@ def _make_angle_gradient(X: np.ndarray, Y: np.ndarray, angle: float) -> np.ndarr
 def _make_reflected_gradient(X: np.ndarray, Y: np.ndarray, angle: float) -> np.ndarray:
     """Generate index map for reflected gradients."""
     theta = np.radians(angle % 360)
-    Z = np.abs((np.cos(theta) * X - np.sin(theta) * Y))
+    Z = np.abs(np.cos(theta) * X - np.sin(theta) * Y)
     return Z
 
 

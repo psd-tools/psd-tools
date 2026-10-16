@@ -1,10 +1,10 @@
 """Resource limits shared by nested low-level PSD parsers."""
 
 import operator
+from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Iterator
 
 
 class ParseLimitError(ValueError):

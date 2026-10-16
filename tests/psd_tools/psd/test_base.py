@@ -6,7 +6,7 @@ import pkgutil
 import statistics
 from enum import Enum
 from fractions import Fraction
-from typing import Any, Type
+from typing import Any
 
 import attrs
 import pytest
@@ -61,7 +61,7 @@ def test_string(fixture: str) -> None:
         (NumericElement, 1.0),
     ],
 )
-def test_numbers(kls: Type[Any], fixture: int) -> None:
+def test_numbers(kls: type[Any], fixture: int) -> None:
     value = kls(fixture)
     check_write_read(value)
     assert value == fixture
@@ -70,7 +70,7 @@ def test_numbers(kls: Type[Any], fixture: int) -> None:
     assert hash(value) == hash(fixture)
 
 
-def _abc_members(abc: Type[Any]) -> set:
+def _abc_members(abc: type[Any]) -> set:
     """Every member the ABC promises, abstract methods *and* concrete mixins.
 
     ``register()`` supplies neither, so the mixins are the part that a bare
@@ -114,7 +114,7 @@ def _abc_members(abc: Type[Any]) -> set:
         (BooleanElement, True, True),
     ],
 )
-def test_numbers_abc(kls: Type[Any], fixture: Any, integral: bool) -> None:
+def test_numbers_abc(kls: type[Any], fixture: Any, integral: bool) -> None:
     value = kls(fixture)
     assert isinstance(value, numbers.Number)
     assert isinstance(value, numbers.Complex)
@@ -129,7 +129,7 @@ def test_numbers_abc(kls: Type[Any], fixture: Any, integral: bool) -> None:
         (numbers.Integral, IntegerElement),
     ],
 )
-def test_numbers_abc_members_present(abc: Type[Any], kls: Type[Any]) -> None:
+def test_numbers_abc_members_present(abc: type[Any], kls: type[Any]) -> None:
     """The registration must not outlive the protocol it claims to implement.
 
     Deliberately not ``hasattr``: attribute lookup on a class also searches the
@@ -154,7 +154,7 @@ def test_numbers_abc_members_present(abc: Type[Any], kls: Type[Any]) -> None:
         (BooleanElement, True),
     ],
 )
-def test_numbers_protocol(kls: Type[Any], fixture: Any) -> None:
+def test_numbers_protocol(kls: type[Any], fixture: Any) -> None:
     value = kls(fixture)
     assert round(value) == round(fixture)
     assert round(value, 1) == round(fixture, 1)
@@ -179,7 +179,7 @@ def test_numbers_protocol(kls: Type[Any], fixture: Any) -> None:
         (BooleanElement, True),
     ],
 )
-def test_integral_protocol(kls: Type[Any], fixture: int) -> None:
+def test_integral_protocol(kls: type[Any], fixture: int) -> None:
     value = kls(fixture)
     assert value.numerator == fixture.numerator
     assert value.denominator == fixture.denominator
@@ -196,7 +196,7 @@ def test_integral_protocol(kls: Type[Any], fixture: int) -> None:
         (BooleanElement, True),
     ],
 )
-def test_numbers_operators_between_elements(kls: Type[Any], fixture: Any) -> None:
+def test_numbers_operators_between_elements(kls: type[Any], fixture: Any) -> None:
     """Both operands are `numbers.Real`, so no operator may refuse the pair.
 
     Delegating through ``value.__truediv__(other)`` instead of ``value / other``
@@ -223,7 +223,7 @@ def test_numbers_operators_between_elements(kls: Type[Any], fixture: Any) -> Non
         (BooleanElement, True),
     ],
 )
-def test_integral_operators_between_elements(kls: Type[Any], fixture: int) -> None:
+def test_integral_operators_between_elements(kls: type[Any], fixture: int) -> None:
     value = kls(fixture)
     assert value & value == fixture & fixture
     assert value | value == fixture | fixture
@@ -248,7 +248,7 @@ def test_integral_operators_between_elements(kls: Type[Any], fixture: int) -> No
     ],
 )
 def test_numbers_as_integer_ratio(
-    kls: Type[Any], fixture: Any, is_integer: bool
+    kls: type[Any], fixture: Any, is_integer: bool
 ) -> None:
     """The members ``statistics`` needs, which ``numbers`` does not promise.
 
@@ -307,7 +307,7 @@ def test_every_numeric_subclass_is_registered() -> None:
     for module in pkgutil.iter_modules(psd_tools.psd.__path__):
         importlib.import_module(f"psd_tools.psd.{module.name}")
 
-    def descendants(kls: Type[Any]) -> Any:
+    def descendants(kls: type[Any]) -> Any:
         for subclass in kls.__subclasses__():
             yield subclass
             yield from descendants(subclass)
@@ -342,7 +342,7 @@ def test_numeric_element_rejects_a_modulus() -> None:
         (BooleanElement, b"\x00\x01"),
     ],
 )
-def test_malformed_numbers(kls: Type[Any], fixture: bytes) -> None:
+def test_malformed_numbers(kls: type[Any], fixture: bytes) -> None:
     kls.frombytes(fixture)
 
 

@@ -16,8 +16,8 @@ documented so that those links land somewhere. These are interfaces; user
 code works with the classes that implement them.
 """
 
-from collections.abc import Iterable, Sequence
-from typing import TYPE_CHECKING, Callable, Iterator, Literal, Protocol
+from collections.abc import Callable, Iterable, Iterator, Sequence
+from typing import TYPE_CHECKING, Literal, Protocol
 
 if TYPE_CHECKING:
     from psd_tools.api.layers import Group, Layer, PixelLayer

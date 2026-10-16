@@ -1,6 +1,6 @@
 import io
 import os
-from typing import Any, Type
+from typing import Any
 
 import pytest
 
@@ -61,7 +61,7 @@ def test_image_resource_exception() -> None:
         (Slices, "slices_0.dat"),
     ],
 )
-def test_image_resource_rw(kls: Type[Any], filename: str) -> None:
+def test_image_resource_rw(kls: type[Any], filename: str) -> None:
     filepath = os.path.join(TEST_ROOT, "image_resources", filename)
     with open(filepath, "rb") as f:
         fixture = f.read()

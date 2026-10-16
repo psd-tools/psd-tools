@@ -54,8 +54,8 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Sequence
-from typing import IO, Any, Callable, Literal, Self
+from collections.abc import Callable, Sequence
+from typing import IO, Any, Literal, Self
 
 import numpy as np
 from PIL import Image
@@ -617,7 +617,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
         :return: (left, top, right, bottom) `tuple`.
         """
-        bbox = super(PSDImage, self).bbox
+        bbox = super().bbox
         if bbox == (0, 0, 0, 0):
             bbox = self.viewbox
         return bbox

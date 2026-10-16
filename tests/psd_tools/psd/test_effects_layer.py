@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Type
+from typing import Any
 
 import pytest
 
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
         SolidFillInfo,
     ],
 )
-def test_effects_layer_empty_wr(kls: Type[Any]) -> None:
+def test_effects_layer_empty_wr(kls: type[Any]) -> None:
     check_write_read(kls())
 
 

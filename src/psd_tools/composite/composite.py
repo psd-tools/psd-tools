@@ -2,9 +2,9 @@
 
 import logging
 import math
-from collections.abc import Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field, replace
-from typing import Any, Callable, Iterator, NamedTuple, Protocol, cast
+from typing import Any, NamedTuple, Protocol, cast
 
 import numpy as np
 from PIL import Image
@@ -1171,7 +1171,7 @@ class _EffectCanvas:
         )
 
 
-class Compositor(object):
+class Compositor:
     """Composite context.
 
     ``color`` and ``alpha`` are the initial backdrop, and must already be

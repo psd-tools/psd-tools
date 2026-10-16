@@ -1,7 +1,7 @@
 import io
 import logging
 import struct
-from typing import Any, Dict, Tuple
+from typing import Any
 
 import pytest
 
@@ -72,7 +72,7 @@ def test_channel_info() -> None:
         ((True, True, True, True, True),),
     ],
 )
-def test_layer_flags_wr(args: Tuple[bool, ...]) -> None:
+def test_layer_flags_wr(args: tuple[bool, ...]) -> None:
     check_write_read(LayerFlags(*args))
 
 
@@ -226,7 +226,7 @@ def test_mask_flags_rw(fixture: bytes) -> None:
         ),
     ],
 )
-def test_mask_data(args: Tuple[Any, ...]) -> None:
+def test_mask_data(args: tuple[Any, ...]) -> None:
     check_write_read(MaskData(**args))  # type: ignore[arg-type]
 
 
@@ -293,7 +293,7 @@ PARAMETER_FIELDS = (
     "vector_mask_feather",
 )
 
-PARAMETER_VALUES: Dict[str, Any] = {
+PARAMETER_VALUES: dict[str, Any] = {
     "user_mask_density": 200,
     "user_mask_feather": 3.5,
     "vector_mask_density": 100,

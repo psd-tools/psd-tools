@@ -2,8 +2,8 @@
 
 import logging
 import warnings
-from collections.abc import Collection
-from typing import TYPE_CHECKING, Any, Callable, Literal, cast
+from collections.abc import Callable, Collection
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import numpy as np
 

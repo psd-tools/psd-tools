@@ -2,7 +2,7 @@ import dataclasses
 import io
 import logging
 import sys
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 import numpy as np
 import pytest
@@ -60,7 +60,7 @@ def _mse(x: Any, y: Any) -> Any:
 
 
 def composite_error(
-    layer: Any, threshold: float, force: bool = True, channel: Optional[str] = None
+    layer: Any, threshold: float, force: bool = True, channel: str | None = None
 ) -> Any:
     reference = layer.numpy(channel)
     color, _, alpha = composite(layer, force=force)

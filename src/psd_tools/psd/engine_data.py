@@ -34,8 +34,9 @@ from __future__ import annotations
 import codecs
 import logging
 import re
+from collections.abc import Iterator
 from enum import Enum
-from typing import Any, Iterator
+from typing import Any
 
 from attrs import frozen
 
@@ -147,7 +148,7 @@ class Dict(DictElement):
     """Dict-like element."""
 
     @classmethod
-    def read(cls, fp: Any, **kwargs: Any) -> "Dict":
+    def read(cls, fp: Any, **kwargs: Any) -> Dict:
         """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             return cls.frombytes(read_remaining(fp), **kwargs)
@@ -159,7 +160,7 @@ class Dict(DictElement):
         *args: Any,
         parse_limits: ParseLimits | None = None,
         **kwargs: Any,
-    ) -> "Dict":
+    ) -> Dict:
         """Parse the element from raw bytes or a token stream."""
         with parse_context(parse_limits) as is_root, parse_container():
             if is_root or not isinstance(data, Tokenizer):
@@ -244,15 +245,15 @@ class Dict(DictElement):
 
     def __getitem__(self, key: str | Property) -> Any:
         key = key if isinstance(key, Property) else Property(key)
-        return super(Dict, self).__getitem__(key)
+        return super().__getitem__(key)
 
     def __setitem__(self, key: str | Property, value: Any) -> None:
         key = key if isinstance(key, Property) else Property(key)
-        super(Dict, self).__setitem__(key, value)
+        super().__setitem__(key, value)
 
     def __detitem__(self, key: str | Property) -> None:
         key = key if isinstance(key, Property) else Property(key)
-        super(Dict, self).__delitem__(key)
+        super().__delitem__(key)
 
     def __contains__(self, key: str | Property) -> bool:  # type: ignore[override]
         key = key if isinstance(key, Property) else Property(key)
@@ -261,7 +262,7 @@ class Dict(DictElement):
     def get(self, key: str | Property, *args: Any) -> Any:
         """Return the value of a key given as a string or a `Property`."""
         key = key if isinstance(key, Property) else Property(key)
-        return super(Dict, self).get(key, *args)
+        return super().get(key, *args)
 
 
 class EngineData(Dict):
@@ -290,9 +291,7 @@ class EngineData2(Dict):
         **kwargs: Any,
     ) -> int:
         """Write the structure to a file-like object and return the bytes written."""
-        return super(EngineData2, self).write(
-            fp, indent=indent, write_container=write_container
-        )
+        return super().write(fp, indent=indent, write_container=write_container)
 
 
 @register(EngineToken.ARRAY_START)
@@ -300,7 +299,7 @@ class List(ListElement):
     """List-like element."""
 
     @classmethod
-    def read(cls, fp: Any, **kwargs: Any) -> "List":
+    def read(cls, fp: Any, **kwargs: Any) -> List:
         """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             return cls.frombytes(read_remaining(fp), **kwargs)
@@ -312,7 +311,7 @@ class List(ListElement):
         *args: Any,
         parse_limits: ParseLimits | None = None,
         **kwargs: Any,
-    ) -> "List":
+    ) -> List:
         """Parse the element from raw bytes or a token stream."""
         with parse_context(parse_limits) as is_root, parse_container():
             if is_root or not isinstance(data, Tokenizer):
@@ -373,7 +372,7 @@ class String(ValueElement):
     _ESCAPED_CHARS = (b"\\", b"(", b")")
 
     @classmethod
-    def read(cls, fp: Any, **kwargs: Any) -> "String":
+    def read(cls, fp: Any, **kwargs: Any) -> String:
         """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             return cls.frombytes(read_remaining(fp), **kwargs)
@@ -385,7 +384,7 @@ class String(ValueElement):
         *args: Any,
         parse_limits: ParseLimits | None = None,
         **kwargs: Any,
-    ) -> "String":
+    ) -> String:
         """Parse the element from raw bytes."""
         with parse_context(parse_limits):
             consume_bytes(len(data))
@@ -408,7 +407,7 @@ class Bool(BooleanElement):
     """Bool element."""
 
     @classmethod
-    def read(cls, fp: Any, **kwargs: Any) -> "Bool":
+    def read(cls, fp: Any, **kwargs: Any) -> Bool:
         """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             return cls.frombytes(read_remaining(fp), **kwargs)
@@ -420,7 +419,7 @@ class Bool(BooleanElement):
         *args: Any,
         parse_limits: ParseLimits | None = None,
         **kwargs: Any,
-    ) -> "Bool":
+    ) -> Bool:
         """Parse the element from raw bytes."""
         with parse_context(parse_limits):
             consume_bytes(len(data))
@@ -436,7 +435,7 @@ class Integer(IntegerElement):
     """Integer element."""
 
     @classmethod
-    def read(cls, fp: Any, **kwargs: Any) -> "Integer":
+    def read(cls, fp: Any, **kwargs: Any) -> Integer:
         """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             return cls.frombytes(read_remaining(fp), **kwargs)
@@ -448,7 +447,7 @@ class Integer(IntegerElement):
         *args: Any,
         parse_limits: ParseLimits | None = None,
         **kwargs: Any,
-    ) -> "Integer":
+    ) -> Integer:
         """Parse the element from raw bytes."""
         with parse_context(parse_limits):
             consume_bytes(len(data))
@@ -464,7 +463,7 @@ class Float(NumericElement):
     """Float element."""
 
     @classmethod
-    def read(cls, fp: Any, **kwargs: Any) -> "Float":
+    def read(cls, fp: Any, **kwargs: Any) -> Float:
         """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             return cls.frombytes(read_remaining(fp), **kwargs)
@@ -476,7 +475,7 @@ class Float(NumericElement):
         *args: Any,
         parse_limits: ParseLimits | None = None,
         **kwargs: Any,
-    ) -> "Float":
+    ) -> Float:
         """Parse the element from raw bytes."""
         with parse_context(parse_limits):
             consume_bytes(len(data))
@@ -498,7 +497,7 @@ class Property(ValueElement):
     """Property element."""
 
     @classmethod
-    def read(cls, fp: Any, **kwargs: Any) -> "Property":
+    def read(cls, fp: Any, **kwargs: Any) -> Property:
         """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             return cls.frombytes(read_remaining(fp), **kwargs)
@@ -510,7 +509,7 @@ class Property(ValueElement):
         *args: Any,
         parse_limits: ParseLimits | None = None,
         **kwargs: Any,
-    ) -> "Property":
+    ) -> Property:
         """Parse the element from raw bytes."""
         with parse_context(parse_limits):
             consume_bytes(len(data))
@@ -528,7 +527,7 @@ class Tag(ValueElement):
     """Tag element."""
 
     @classmethod
-    def read(cls, fp: Any, **kwargs: Any) -> "Tag":
+    def read(cls, fp: Any, **kwargs: Any) -> Tag:
         """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             return cls(read_remaining(fp))

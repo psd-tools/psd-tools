@@ -1,5 +1,5 @@
 import logging
-from typing import Iterator, Type
+from collections.abc import Iterator
 
 import pytest
 
@@ -112,7 +112,7 @@ def test_vector_mask(psd: PSDImage) -> None:
 def test_origination(
     psd: PSDImage,
     index: int,
-    kls: Type[Rectangle | RoundedRectangle | Ellipse | Invalidated | Line],
+    kls: type[Rectangle | RoundedRectangle | Ellipse | Invalidated | Line],
 ) -> None:
     origination = psd[index].origination[0]
     assert isinstance(origination, kls)

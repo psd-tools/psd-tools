@@ -212,7 +212,7 @@ class VirtualMemoryArray(BaseElement):
         if length == 0:
             return cls(is_written=is_written)
         if length < 23:
-            raise IOError("Invalid pattern channel length: %d" % length)
+            raise OSError("Invalid pattern channel length: %d" % length)
         with bounded_reader(fp, length) as body:
             depth = read_fmt("I", body)[0]
             rectangle = read_fmt("4I", body)

@@ -1,4 +1,4 @@
-from typing import Any, List
+from typing import Any
 
 import pytest
 
@@ -67,7 +67,7 @@ _CHANNEL_CASES = [
 
 
 @pytest.mark.parametrize("compression, data, header", _CHANNEL_CASES)
-def test_image_data_data(compression: int, data: List[bytes], header: Any) -> None:
+def test_image_data_data(compression: int, data: list[bytes], header: Any) -> None:
     image_data = ImageData(compression)
     image_data.set_data(data, header)
     output = image_data.get_data(header)
@@ -76,7 +76,7 @@ def test_image_data_data(compression: int, data: List[bytes], header: Any) -> No
 
 @pytest.mark.parametrize("compression, data, header", _CHANNEL_CASES)
 def test_image_data_decompressed_size_bound(
-    compression: int, data: List[bytes], header: Any
+    compression: int, data: list[bytes], header: Any
 ) -> None:
     """The bound must cover what :py:meth:`ImageData.get_data` really produces.
 

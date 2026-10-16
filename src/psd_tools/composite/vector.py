@@ -1,7 +1,8 @@
 """Vector shapes and path operations for compositing."""
 
 import logging
-from typing import TYPE_CHECKING, Generator
+from collections.abc import Generator
+from typing import TYPE_CHECKING
 
 import numpy as np
 from PIL import Image

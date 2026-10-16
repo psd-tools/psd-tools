@@ -87,19 +87,15 @@ import logging
 import operator
 import uuid
 import warnings
+from collections.abc import Callable, Collection, Iterable, Iterator, Sequence
 from copy import deepcopy
 from itertools import chain
 from typing import (
     TYPE_CHECKING,
     Any,
-    Callable,
-    Collection,
-    Iterable,
-    Iterator,
     Literal,
     Protocol,
     Self,
-    Sequence,
     TypeVar,
     cast,
     runtime_checkable,
@@ -323,7 +319,7 @@ class Layer(LayerProtocol):
         channels: ChannelDataList,
     ):
         self._psd = parent._psd
-        self._parent: "GroupMixinProtocol | None" = parent
+        self._parent: GroupMixinProtocol | None = parent
         self._record = record
         self._channels = channels
 
@@ -348,7 +344,7 @@ class Layer(LayerProtocol):
             value.encode("macroman")
             self._record.name = value
         except UnicodeEncodeError:
-            self._record.name = str("?")
+            self._record.name = "?"
         self._record.tagged_blocks.set_data(Tag.UNICODE_LAYER_NAME, value)
 
     @property
@@ -2233,7 +2229,7 @@ class Group(GroupMixin, Layer):
         # Use the blend mode from the section divider setting if present.
         if setting is not None and setting.blend_mode is not None:
             return setting.blend_mode
-        return super(Group, self).blend_mode
+        return super().blend_mode
 
     @blend_mode.setter
     def blend_mode(self, value: str | bytes | BlendMode) -> None:
@@ -3073,7 +3069,7 @@ class TypeLayer(Layer):
     """
 
     def __init__(self, *args: Any):
-        super(TypeLayer, self).__init__(*args)
+        super().__init__(*args)
         self._type_data = self.tagged_blocks.get_data(Tag.TYPE_TOOL_OBJECT_SETTING)
 
     @property
@@ -3212,7 +3208,7 @@ class ShapeLayer(Layer):
     """Layer that has drawing in vector mask."""
 
     def __init__(self, *args: Any):
-        super(ShapeLayer, self).__init__(*args)
+        super().__init__(*args)
         self._bbox: tuple[int, int, int, int] | None = None
 
     @property
@@ -3289,7 +3285,7 @@ class AdjustmentLayer(Layer):
     """Layer that applies specified image adjustment effect."""
 
     def __init__(self, *args: Any):
-        super(AdjustmentLayer, self).__init__(*args)
+        super().__init__(*args)
         self._data = None
         if hasattr(self.__class__, "_KEY"):
             self._data = self.tagged_blocks.get_data(self.__class__._KEY)
@@ -3299,7 +3295,7 @@ class FillLayer(Layer):
     """Layer that fills the canvas region."""
 
     def __init__(self, *args: Any):
-        super(FillLayer, self).__init__(*args)
+        super().__init__(*args)
         self._data = None
         if hasattr(self.__class__, "_KEY"):
             self._data = self.tagged_blocks.get_data(self.__class__._KEY)

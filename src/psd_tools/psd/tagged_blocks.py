@@ -367,7 +367,7 @@ class Annotations(ListElement):
         for _ in range(count):
             length = read_fmt("I", fp)[0] - 4
             if length < 0:
-                raise IOError("Invalid annotation length: %d" % (length + 4))
+                raise OSError("Invalid annotation length: %d" % (length + 4))
             if length > 0:
                 with io.BytesIO(read_exact(fp, length)) as f:
                     items.append(Annotation.read(f))

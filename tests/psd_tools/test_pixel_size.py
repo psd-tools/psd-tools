@@ -16,7 +16,8 @@ import sys
 import tracemalloc
 import warnings
 import zlib
-from typing import Any, Callable, Literal, Optional
+from collections.abc import Callable
+from typing import Any, Literal
 
 import numpy as np
 import pytest
@@ -292,7 +293,7 @@ def test_explicit_invalid_budget_raises() -> None:
         ("bogus", "u.DEFAULT_MAX_ALLOC_BYTES"),
     ],
 )
-def test_import_seeds_process_budget(env: Optional[str], expected: str) -> None:
+def test_import_seeds_process_budget(env: str | None, expected: str) -> None:
     """The shipped MAX_ALLOC_BYTES, as a fresh interpreter imports it."""
     environ = {k: v for k, v in os.environ.items() if k != _utils.MAX_ALLOC_BYTES_ENV}
     if env is not None:
@@ -639,7 +640,7 @@ def test_numpy_guard_estimate_follows_the_header_for_every_other_mode(
 @pytest.mark.parametrize("channel", [None, "color", "shape", "alpha", "mask"])
 @pytest.mark.parametrize("filename", _COLORMODE_FIXTURES)
 def test_numpy_guard_model_covers_every_fixture_and_channel(
-    filename: str, channel: Optional[_Channel]
+    filename: str, channel: _Channel | None
 ) -> None:
     """No shipped fixture may be rejected at a budget its own model admits.
 

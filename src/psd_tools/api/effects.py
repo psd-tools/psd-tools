@@ -20,7 +20,8 @@ In place, because the view is rebuilt on every access: rebinding
 
 import logging
 import warnings
-from typing import Any, Iterator, Protocol
+from collections.abc import Iterator
+from typing import Any, Protocol
 
 from psd_tools.api._descriptor import get_blend_mode, get_enum, get_scalar
 from psd_tools.api.protocols import LayerProtocol
@@ -108,7 +109,7 @@ class Effects:
         Takes the descriptor rather than reading it, so :py:meth:`find`, which
         needs the master switch as well, reads the tagged blocks once.
         """
-        items: list["_Effect"] = []
+        items: list[_Effect] = []
         if data is None:
             return items
         for key in data:

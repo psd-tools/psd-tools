@@ -1,7 +1,8 @@
 """Vector mask, path, and stroke structure."""
 
 import logging
-from typing import IO, Any, Self, Sequence, TypeVar
+from collections.abc import Sequence
+from typing import IO, Any, Self, TypeVar
 
 from attrs import astuple, define, field
 

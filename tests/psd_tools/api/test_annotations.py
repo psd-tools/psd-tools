@@ -7,7 +7,8 @@ runs, paragraphs and styles beneath a type setting are not walked.
 
 import logging
 import types
-from typing import Any, Iterator, Union, get_args, get_origin
+from collections.abc import Iterator
+from typing import Any, Union, get_args, get_origin
 
 import pytest
 

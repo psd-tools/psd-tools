@@ -2,7 +2,8 @@
 
 import functools
 import logging
-from typing import Callable, Literal, TypeVar, cast
+from collections.abc import Callable
+from typing import Literal, TypeVar, cast
 
 import numpy as np
 from numpy.typing import NDArray

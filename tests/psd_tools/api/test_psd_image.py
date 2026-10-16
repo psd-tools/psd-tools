@@ -2,7 +2,7 @@ import io
 import logging
 import pprint
 from pathlib import Path
-from typing import Any, Literal, Tuple, Union
+from typing import Any, Literal
 from unittest.mock import patch
 
 import numpy as np
@@ -37,7 +37,7 @@ def fixture() -> PSDImage:
         ("CMYK", (16, 24), (255, 128, 64, 128)),
     ],
 )
-def test_new(args: Tuple[str, Tuple[int, int], Tuple[int, ...]]) -> None:
+def test_new(args: tuple[str, tuple[int, int], tuple[int, ...]]) -> None:
     PSDImage.new(*args)  # type: ignore[arg-type]
 
 
@@ -54,7 +54,7 @@ def test_frompil_psb() -> None:
         Path("colormodes/4x4_8bit_rgb.psd"),
     ],
 )
-def test_open(filename: Union[str, Path]) -> None:
+def test_open(filename: str | Path) -> None:
     input_path = full_name(str(filename))
     PSDImage.open(input_path)
     with open(input_path, "rb") as f:

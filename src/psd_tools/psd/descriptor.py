@@ -17,7 +17,8 @@ Pretty printing is the best approach to check the descriptor content::
 """
 
 import logging
-from typing import IO, Any, Iterator, TypeVar
+from collections.abc import Iterator
+from typing import IO, Any, TypeVar
 
 from attrs import define, field, validators
 
@@ -411,8 +412,7 @@ class UnitFloats(BaseElement):
         )
 
     def __iter__(self) -> Iterator[float]:
-        for value in self.values:
-            yield value
+        yield from self.values
 
     def __getitem__(self, index: int) -> float:
         return self.values[index]

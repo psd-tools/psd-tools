@@ -25,7 +25,8 @@ from __future__ import annotations
 import hashlib
 import io
 import logging
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -145,7 +146,7 @@ def _lab(color: np.ndarray) -> np.ndarray:
     return np.concatenate((color, neutral, neutral), axis=2)
 
 
-def make_widen(psd: "PSDProtocol | None") -> Callable[[np.ndarray, int], np.ndarray]:
+def make_widen(psd: PSDProtocol | None) -> Callable[[np.ndarray, int], np.ndarray]:
     """Build the widening function for *psd*, resolved once per composite.
 
     Returned as a closure rather than threaded as a document handle because

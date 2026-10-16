@@ -14,8 +14,6 @@ Usage:
     https://www.adobe.com/devnet/photoshop/sdk/eula.html
 """
 
-from __future__ import print_function
-
 import re
 import sys
 
@@ -60,7 +58,7 @@ def extract_terminology(filepath, pattern=None):
     """Extract terminology classes from a source file."""
     terms = {}
     keys = set()
-    with open(filepath, "r") as f:
+    with open(filepath) as f:
         for line in f:
             m = re.match(pattern or TERM_PATTERN, line)
             if m:
