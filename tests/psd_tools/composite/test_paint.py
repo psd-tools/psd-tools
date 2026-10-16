@@ -844,7 +844,7 @@ NOISE_PINNED = {
 
 def _noise_band(mode: str) -> tuple[np.ndarray, np.ndarray]:
     """Photoshop's stored preview and our forced render, as byte-scaled arrays."""
-    psd = PSDImage.open(full_name("gradients/noise-gradient-%s.psd" % mode))
+    psd = PSDImage.open(full_name(f"gradients/noise-gradient-{mode}.psd"))
     reference = psd.numpy() * 255.0
     rendered = composite(psd, force=True)[0] * 255.0
     assert rendered.shape == reference.shape

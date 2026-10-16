@@ -71,7 +71,7 @@ def test_image_data_data(compression: int, data: list[bytes], header: Any) -> No
     image_data = ImageData(compression)
     image_data.set_data(data, header)
     output = image_data.get_data(header)
-    assert output == data, "output=%r, expected=%r" % (output, data)
+    assert output == data, f"output={output!r}, expected={data!r}"
 
 
 @pytest.mark.parametrize("compression, data, header", _CHANNEL_CASES)

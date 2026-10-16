@@ -103,7 +103,7 @@ ignore = [
     # Magic methods and `__init__` are named by the protocol they implement.
     "D105",
     "D107",
-    # `%` formatting is kept where a template is built apart from its operands.
+    # `%d` is kept: it coerces its operand to `int`, and struct formats are built with it.
     "UP031",
     # `StrEnum` would change `str()` of the public `StrokeAlignment`.
     "UP042",

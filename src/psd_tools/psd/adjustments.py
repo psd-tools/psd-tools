@@ -253,7 +253,7 @@ class CurvesExtraMarker(ListElement):
         """Read the structure from a file-like object."""
         signature, version, count = read_fmt("4sHI", fp)
         if signature != b"Crv ":
-            raise ValueError("Invalid signature %r" % (signature))
+            raise ValueError(f"Invalid signature {signature!r}")
         items = []
         for _ in range(count):
             items.append(CurvesExtraItem.read(fp, **kwargs))
@@ -367,7 +367,7 @@ class GradientMap(BaseElement):
         """Read the structure from a file-like object."""
         version, is_reversed, is_dithered = read_fmt("H2B", fp)
         if version not in (1, 3):
-            raise ValueError("Invalid version %s" % (version))
+            raise ValueError(f"Invalid version {version}")
         method = read_fmt("4s", fp)[0] if version == 3 else b"Gcls"
         name = read_unicode_string(fp)
         count = read_fmt("H", fp)[0]
@@ -611,7 +611,7 @@ class Levels(ListElement):
             signature, extra_version = read_fmt("4sH", fp)
             if signature == b"ls\x00\x03":
                 # Clip Studio Paint has an incorrect signature.
-                logger.warning("Invalid signature %r, assuming b'Lvls'." % (signature))
+                logger.warning(f"Invalid signature {signature!r}, assuming b'Lvls'.")
                 # Clip Studio Paint seems to incorrectly trim the last record.
                 count = extra_version - 1
                 extra_version = 3
@@ -619,7 +619,7 @@ class Levels(ListElement):
                     "Levels extra version %d, count %d" % (extra_version, count)
                 )
             elif signature != b"Lvls":
-                raise ValueError("Invalid signature %r" % (signature))
+                raise ValueError(f"Invalid signature {signature!r}")
             elif extra_version != 3:
                 raise ValueError("Invalid extra version %d" % (extra_version))
             else:

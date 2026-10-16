@@ -82,7 +82,7 @@ def print_class(name, fields, header=None, **kwargs):
     print("\n", **kwargs)
     print((header or "class {0}:").format(name), **kwargs)
     for field in fields:
-        print("    %s = b%r" % field, **kwargs)
+        print("    {} = b{!r}".format(*field), **kwargs)
 
 
 def main():

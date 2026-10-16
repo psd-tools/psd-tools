@@ -847,12 +847,11 @@ def _to_canvas(
         if exact_channels:
             if array.shape != shape:
                 raise ValueError(
-                    "Backdrop %s has shape %r, expected %r" % (name, array.shape, shape)
+                    f"Backdrop {name} has shape {array.shape!r}, expected {shape!r}"
                 )
         elif array.shape[:2] != shape[:2]:
             raise ValueError(
-                "Backdrop %s covers %r, expected %r to match the viewport"
-                % (name, array.shape[:2], shape[:2])
+                f"Backdrop {name} covers {array.shape[:2]!r}, expected {shape[:2]!r} to match the viewport"
             )
         elif array.shape[2] not in (1, shape[2]):
             # A single channel replicates; any other width has no reading, and
@@ -879,9 +878,8 @@ def _to_canvas(
         return np.full(shape, array, dtype=np.float32)
     except ValueError:
         raise ValueError(
-            "Backdrop %s %r cannot be expanded to %r; pass a scalar, a "
+            f"Backdrop {name} {value!r} cannot be expanded to {shape!r}; pass a scalar, a "
             "per-channel sequence, or a full (height, width, channels) array"
-            % (name, value, shape)
         ) from None
 
 
@@ -1263,12 +1261,10 @@ class Compositor:
         # the channel count is that nothing downstream has to re-check it.
         assert color.ndim == 3, "backdrop color must be a (h, w, c) canvas"
         assert color.shape[:2] == (self.height, self.width), (
-            "backdrop color %r does not cover viewport %r"
-            % (color.shape, self._viewport)
+            f"backdrop color {color.shape!r} does not cover viewport {self._viewport!r}"
         )
         assert alpha.shape == (self.height, self.width, 1), (
-            "backdrop alpha %r must be single-channel over viewport %r"
-            % (alpha.shape, self._viewport)
+            f"backdrop alpha {alpha.shape!r} must be single-channel over viewport {self._viewport!r}"
         )
 
         self._alpha_0 = alpha

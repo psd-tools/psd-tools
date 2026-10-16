@@ -162,8 +162,8 @@ class ImageResources(DictElement):
                         key=Resource.VERSION_INFO,
                         data=VersionInfo(  # type: ignore[arg-type]
                             has_composite=True,
-                            writer="psd-tools %s" % __version__,
-                            reader="psd-tools %s" % __version__,
+                            writer=f"psd-tools {__version__}",
+                            reader=f"psd-tools {__version__}",
                         ),
                     ),
                 ),
@@ -393,7 +393,7 @@ def _alpha_channel_mode(value: int) -> AlphaChannelMode | int:
     :raises ValueError: if the value is not an integer that fits one byte.
     """
     if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 255:
-        raise ValueError("Invalid alpha channel mode: %r" % (value,))
+        raise ValueError(f"Invalid alpha channel mode: {value!r}")
     try:
         return AlphaChannelMode(value)
     except ValueError:

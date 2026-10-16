@@ -1071,7 +1071,7 @@ class MaskParameters(BaseElement):
         except OSError as exc:
             logger.warning(
                 "Truncated MaskParameters data (parameters=%s); some fields will be missing: %s",
-                "unknown" if parameters is None else "0x%02x" % parameters,
+                "unknown" if parameters is None else f"0x{parameters:02x}",
                 exc,
             )
         return cls(

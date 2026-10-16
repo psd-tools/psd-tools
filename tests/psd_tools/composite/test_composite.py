@@ -208,7 +208,7 @@ def test_composite_minimal(filename: str, threshold: float) -> None:
     ],
 )
 def test_composite_colormodes(colormode: str, depth: int) -> None:
-    filename = "colormodes/4x4_%gbit_%s.psd" % (depth, colormode)
+    filename = f"colormodes/4x4_{depth:g}bit_{colormode}.psd"
     psd = PSDImage.open(full_name(filename))
     composite_error(psd, 0.01, False, "color")
 
@@ -227,7 +227,7 @@ def test_composite_colormodes(colormode: str, depth: int) -> None:
 )
 @pytest.mark.xfail
 def test_composite_colormodes_xfail(colormode: str, depth: int) -> None:
-    filename = "colormodes/4x4_%gbit_%s.psd" % (depth, colormode)
+    filename = f"colormodes/4x4_{depth:g}bit_{colormode}.psd"
     psd = PSDImage.open(full_name(filename))
     composite_error(psd, 0.01, False, "color")
 
@@ -314,7 +314,7 @@ def test_composite_viewport() -> None:
 def test_composite_pil(
     colormode: str, depth: int, mode: str, ignore_preview: bool, apply_icc: bool
 ) -> None:
-    filename = "colormodes/4x4_%gbit_%s.psd" % (depth, colormode)
+    filename = f"colormodes/4x4_{depth:g}bit_{colormode}.psd"
     psd = PSDImage.open(full_name(filename))
     image = psd.composite(ignore_preview=ignore_preview, apply_icc=apply_icc)
     assert isinstance(image, Image.Image)
@@ -995,7 +995,7 @@ def test_composite_pil_force_covers_every_colour_mode(
     same trade the rest of this module makes -- a degraded result beats an
     exception the caller has to special-case.
     """
-    filename = "colormodes/4x4_%gbit_%s.psd" % (depth, colormode)
+    filename = f"colormodes/4x4_{depth:g}bit_{colormode}.psd"
     psd = PSDImage.open(full_name(filename))
     image = psd.composite(ignore_preview=True, force=True, apply_icc=False)
     assert isinstance(image, Image.Image)
@@ -1048,7 +1048,7 @@ def test_composite_pil_force_pixels_match_the_numpy_path(colormode: str) -> None
     directly comparable to the NumPy entry point's colour.
     """
     depth = 1 if colormode == "bitmap" else 8
-    psd = PSDImage.open(full_name("colormodes/4x4_%gbit_%s.psd" % (depth, colormode)))
+    psd = PSDImage.open(full_name(f"colormodes/4x4_{depth:g}bit_{colormode}.psd"))
     image = psd.composite(ignore_preview=True, force=True, apply_icc=False)
     assert isinstance(image, Image.Image)
     color, _, _ = composite(psd, force=True)

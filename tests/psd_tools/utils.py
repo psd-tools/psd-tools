@@ -57,10 +57,10 @@ def check_write_read(element: T, *args: Any, **kwargs: Any) -> None:
     element.write(f, *args, **kwargs)
     f.seek(0)
     new_element = element.read(f, *args, **kwargs)
-    assert element == new_element, "%s vs %s" % (element, new_element)
+    assert element == new_element, f"{element} vs {new_element}"
 
 
 def check_read_write(cls: type[T], data: bytes, *args: Any, **kwargs: Any) -> None:
     element = cls.frombytes(data, *args, **kwargs)
     new_data = element.tobytes(*args, **kwargs)
-    assert data == new_data, "%s vs %s" % (trimmed_repr(data), trimmed_repr(new_data))
+    assert data == new_data, f"{trimmed_repr(data)} vs {trimmed_repr(new_data)}"

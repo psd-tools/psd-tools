@@ -135,7 +135,7 @@ def test_get_pattern_color_channels_degrades_without_a_color_slot(
     ],
 )
 def test_numpy_colormodes(colormode: str, depth: int) -> None:
-    filename = "colormodes/4x4_%gbit_%s.psd" % (depth, colormode)
+    filename = f"colormodes/4x4_{depth:g}bit_{colormode}.psd"
     psd = PSDImage.open(full_name(filename))
     array = psd.numpy()
     assert isinstance(array, np.ndarray)
