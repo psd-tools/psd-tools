@@ -8,6 +8,8 @@ Changelog
   ``content_descriptor``, and writes it back. Saving a file with a smart object
   embedded by Photoshop 26.9 or later no longer drops it. Photoshop refuses a
   file whose version 8 entry is missing it (#1011, #1012)
+- [api] ``psd.adjustments.PhotoFilter.xyz`` is annotated ``tuple | None``: it is
+  ``None`` for a version 2 record. Runtime behavior is unchanged (#692, #1019)
 
 1.25.0 (2026-10-14)
 -------------------
