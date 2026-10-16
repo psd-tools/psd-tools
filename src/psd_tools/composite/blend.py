@@ -110,30 +110,37 @@ _FLOAT_EPSILON: float = 1e-9
 
 # Separable blend functions
 def normal(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
+    """Normal blend mode."""
     return Cs
 
 
 def multiply(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
+    """Multiply blend mode."""
     return Cb * Cs
 
 
 def screen(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
+    """Screen blend mode."""
     return Cb + Cs - (Cb * Cs)
 
 
 def overlay(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
+    """Overlay blend mode."""
     return hard_light(Cs, Cb)
 
 
 def darken(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
+    """Darken blend mode."""
     return np.minimum(Cb, Cs)
 
 
 def lighten(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
+    """Lighten blend mode."""
     return np.maximum(Cb, Cs)
 
 
 def color_dodge(Cb: np.ndarray, Cs: np.ndarray, s: float = 1.0) -> np.ndarray:
+    """Color dodge blend mode."""
     B = np.zeros_like(Cb, dtype=np.float32)
     B[Cs == 1] = 1
     B[Cb == 0] = 0
@@ -143,6 +150,7 @@ def color_dodge(Cb: np.ndarray, Cs: np.ndarray, s: float = 1.0) -> np.ndarray:
 
 
 def color_burn(Cb: np.ndarray, Cs: np.ndarray, s: float = 1.0) -> np.ndarray:
+    """Color burn blend mode."""
     B = np.zeros_like(Cb, dtype=np.float32)
     B[Cb == 1] = 1
     index = (Cb != 1) & (Cs != 0)
@@ -151,14 +159,17 @@ def color_burn(Cb: np.ndarray, Cs: np.ndarray, s: float = 1.0) -> np.ndarray:
 
 
 def linear_dodge(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
+    """Linear dodge blend mode."""
     return np.minimum(1, Cb + Cs)
 
 
 def linear_burn(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
+    """Linear burn blend mode."""
     return np.maximum(0, Cb + Cs - 1)
 
 
 def hard_light(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
+    """Hard light blend mode."""
     index = Cs > 0.5
     B = multiply(Cb, 2 * Cs)
     B[index] = screen(Cb, 2 * Cs - 1)[index]
@@ -166,6 +177,7 @@ def hard_light(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
 
 
 def soft_light(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
+    """Soft light blend mode."""
     # D is a function of the backdrop alone. Keying its piecewise on Cs instead
     # leaves every Cb <= 0.25 pixel on the sqrt arm, visibly away from
     # Photoshop (#189).
@@ -243,14 +255,17 @@ def pin_light(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
 
 
 def difference(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
+    """Difference blend mode."""
     return np.abs(Cb - Cs)
 
 
 def exclusion(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
+    """Exclusion blend mode."""
     return Cb + Cs - 2 * Cb * Cs
 
 
 def subtract(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
+    """Subtract blend mode."""
     return np.maximum(0, Cb - Cs)
 
 
@@ -411,26 +426,31 @@ def _lightness(C: np.ndarray) -> np.ndarray:
 
 @non_separable("b")
 def hue(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
+    """Hue blend mode."""
     return _set_lum(_set_sat(Cs, _sat(Cb)), _lum(Cb))
 
 
 @non_separable("b")
 def saturation(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
+    """Saturation blend mode."""
     return _set_lum(_set_sat(Cb, _sat(Cs)), _lum(Cb))
 
 
 @non_separable("b")
 def color(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
+    """Color blend mode."""
     return _set_lum(Cs, _lum(Cb))
 
 
 @non_separable("s")
 def luminosity(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
+    """Luminosity blend mode."""
     return _set_lum(Cb, _lum(Cs))
 
 
 @non_separable_selection
 def darker_color(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
+    """Darker color blend mode."""
     index = np.repeat(_lightness(Cs) < _lightness(Cb), Cb.shape[2], axis=2)
     B = Cb.copy()
     B[index] = Cs[index]
@@ -439,6 +459,7 @@ def darker_color(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
 
 @non_separable_selection
 def lighter_color(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
+    """Lighter color blend mode."""
     index = np.repeat(_lightness(Cs) > _lightness(Cb), Cb.shape[2], axis=2)
     B = Cb.copy()
     B[index] = Cs[index]
@@ -446,6 +467,7 @@ def lighter_color(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
 
 
 def dissolve(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
+    """Dissolve blend mode, which falls back to normal."""
     # TODO: Implement me!
     logger.debug("Dissolve blend is not implemented")
     return normal(Cb, Cs)

@@ -1,3 +1,5 @@
+"""Adjustment layer operations for the compositor."""
+
 import functools
 import logging
 from typing import Literal, Callable, TypeVar, cast

@@ -1,3 +1,5 @@
+"""Command line interface."""
+
 import argparse
 import logging
 from psd_tools import PSDImage
@@ -37,6 +39,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int | None:
+    """Run the command line interface and return the exit status."""
     args = parse_args(argv)
 
     logging.basicConfig(level=logging.WARNING)

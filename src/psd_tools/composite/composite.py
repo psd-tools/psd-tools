@@ -1283,6 +1283,7 @@ class Compositor(object):
         self._alpha = self._alpha_0
 
     def apply(self, layer: Layer, clip_compositing: bool = False) -> None:
+        """Composite a layer into the stack."""
         logger.debug("Compositing %s", layer)
 
         if not self._accepts(layer, clip_compositing):
@@ -1678,18 +1679,22 @@ class Compositor(object):
             )
 
     def finish(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Return the isolated result, the shape and the alpha."""
         return self.result_isolated(), self.shape, self.alpha
 
     @property
     def viewport(self) -> tuple[int, int, int, int]:
+        """Viewport as `(left, top, right, bottom)`."""
         return self._viewport
 
     @property
     def width(self) -> int:
+        """Width of the viewport."""
         return self._viewport[2] - self._viewport[0]
 
     @property
     def height(self) -> int:
+        """Height of the viewport."""
         return self._viewport[3] - self._viewport[1]
 
     @property
@@ -1731,10 +1736,12 @@ class Compositor(object):
 
     @property
     def shape(self) -> np.ndarray:
+        """Accumulated shape of the composite."""
         return self._shape_g
 
     @property
     def alpha(self) -> np.ndarray:
+        """Accumulated alpha of the composite."""
         return self._alpha_g
 
     def _get_group(
