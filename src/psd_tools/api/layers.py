@@ -96,7 +96,6 @@ from typing import (
     Literal,
     Protocol,
     Self,
-    TypeVar,
     cast,
     runtime_checkable,
 )
@@ -153,9 +152,6 @@ from psd_tools.psd.tagged_blocks import (
 from psd_tools.terminology import Key
 
 logger = logging.getLogger(__name__)
-
-
-TGroupMixin = TypeVar("TGroupMixin", bound="GroupMixin")
 
 
 def _compression_for(compression: Compression, depth: int) -> Compression:

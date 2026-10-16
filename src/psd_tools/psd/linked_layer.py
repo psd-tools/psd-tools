@@ -2,7 +2,7 @@
 
 import io
 import logging
-from typing import IO, Any, TypeVar
+from typing import IO, Any, Self
 
 from attrs import define, field
 
@@ -27,15 +27,12 @@ from psd_tools.validators import in_, range_
 
 logger = logging.getLogger(__name__)
 
-T_LinkedLayers = TypeVar("T_LinkedLayers", bound="LinkedLayers")
-T_LinkedLayer = TypeVar("T_LinkedLayer", bound="LinkedLayer")
-
 
 class LinkedLayers(ListElement):
     """List of LinkedLayer structure. See :py:class:`.LinkedLayer`."""
 
     @classmethod
-    def read(cls: type[T_LinkedLayers], fp: IO[bytes], **kwargs: Any) -> T_LinkedLayers:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         items = []
         while is_readable(fp, 8):
@@ -95,7 +92,7 @@ class LinkedLayer(BaseElement):
     content_descriptor: DescriptorBlock | None = None
 
     @classmethod
-    def read(cls: type[T_LinkedLayer], fp: IO[bytes], **kwargs: Any) -> T_LinkedLayer:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         kind = LinkedLayerType(read_fmt("4s", fp)[0])
         version = read_fmt("I", fp)[0]

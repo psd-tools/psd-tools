@@ -18,7 +18,7 @@ Pretty printing is the best approach to check the descriptor content::
 
 import logging
 from collections.abc import Iterator
-from typing import IO, Any, TypeVar
+from typing import IO, Any, Self
 
 from attrs import define, field, validators
 
@@ -53,7 +53,6 @@ logger = logging.getLogger(__name__)
 
 TYPES, register = new_registry(attribute="ostype")
 
-T = TypeVar("T")
 
 _TERMS = frozenset(
     item.value
@@ -180,7 +179,7 @@ class Descriptor(_DescriptorMixin):
     classID: bytes = Klass.Null.value
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             return cls(**cls._read_body(fp))  # type: ignore[attr-defined]
@@ -216,7 +215,7 @@ class ObjectArray(_DescriptorMixin):
     classID: bytes = Klass.Null.value
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             items_count = read_fmt("I", fp)[0]
@@ -242,7 +241,7 @@ class List(ListElement):
     """
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)), parse_container():
             items = []
@@ -287,7 +286,7 @@ class Property(BaseElement):
     keyID: bytes = b"\x00\x00\x00\x00"
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         name = read_unicode_string(fp)
         classID = read_length_and_key(fp)
@@ -349,7 +348,7 @@ class UnitFloat(NumericElement):
     )
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         unit, value = read_fmt("4sd", fp)
         return cls(unit=unit, value=value)  # type: ignore[call-arg]
@@ -390,7 +389,7 @@ class UnitFloats(BaseElement):
     values: list = field(factory=list)
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         unit, count = read_fmt("4sI", fp)
         # Resolve the unit before the array is consumed. A caller probing for
@@ -432,7 +431,7 @@ class Double(NumericElement):
     """
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         return cls(*read_fmt("d", fp))
 
@@ -459,7 +458,7 @@ class Class(BaseElement):
     classID: bytes = b"\x00\x00\x00\x00"
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         name = read_unicode_string(fp)
         classID = read_length_and_key(fp)
@@ -512,7 +511,7 @@ class EnumeratedReference(BaseElement):
     enum: bytes = b"\x00\x00\x00\x00"
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         name = read_unicode_string(fp)
         classID = read_length_and_key(fp)
@@ -553,7 +552,7 @@ class Offset(BaseElement):
     value: int = 0
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         name = read_unicode_string(fp)
         classID = read_length_and_key(fp)
@@ -579,7 +578,7 @@ class Bool(BooleanElement):
     """
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         return cls(read_fmt("?", fp)[0])  # type: ignore[call-arg]
 
@@ -599,7 +598,7 @@ class LargeInteger(IntegerElement):
     """
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         return cls(read_fmt("q", fp)[0])  # type: ignore[call-arg]
 
@@ -619,7 +618,7 @@ class Integer(IntegerElement):
     """
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         return cls(read_fmt("i", fp)[0])  # type: ignore[call-arg]
 
@@ -647,7 +646,7 @@ class Enumerated(BaseElement):
     enum: bytes = b"\x00\x00\x00\x00"
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         typeID = read_length_and_key(fp)
         enum = read_length_and_key(fp)
@@ -693,7 +692,7 @@ class RawData(BaseElement):
     value: bytes = b"\x00\x00\x00\x00"
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         return cls(read_length_block(fp))  # type: ignore[call-arg]
 
@@ -809,7 +808,7 @@ class Name(BaseElement):
     value: str = ""
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         name = read_unicode_string(fp)
         classID = read_length_and_key(fp)
@@ -837,7 +836,7 @@ class DescriptorBlock(Descriptor):
     version: int = field(default=16, validator=in_((16,)))
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             version = read_fmt("I", fp)[0]
@@ -866,7 +865,7 @@ class DescriptorBlock2(Descriptor):
     data_version: int = field(default=16, validator=in_((16,)))
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         with parse_context(kwargs.pop("parse_limits", None)):
             version, data_version = read_fmt("2I", fp)

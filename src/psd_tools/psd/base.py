@@ -18,7 +18,7 @@ import numbers
 from collections import OrderedDict
 from collections.abc import Callable, Generator
 from enum import Enum
-from typing import IO, Any, TypeVar
+from typing import IO, Any, Self
 
 from attrs import define, field, fields, has, validate
 
@@ -38,8 +38,6 @@ from psd_tools.psd.parse_limits import (
 )
 
 logger = logging.getLogger(__name__)
-
-T = TypeVar("T", bound="BaseElement")
 
 
 class BaseElement:
@@ -70,13 +68,13 @@ class BaseElement:
         Validate the attribute.
     """
 
-    def __new__(cls: type[T], *args: Any, **kwargs: Any) -> T:
+    def __new__(cls, *args: Any, **kwargs: Any) -> Self:
         """Create the element and count it against the object budget."""
         consume_objects(1)
         return super().__new__(cls)
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         raise NotImplementedError()
 
@@ -86,12 +84,12 @@ class BaseElement:
 
     @classmethod
     def frombytes(
-        cls: type[T],
+        cls,
         data: bytes,
         *args: Any,
         parse_limits: ParseLimits | None = None,
         **kwargs: Any,
-    ) -> T:
+    ) -> Self:
         """Parse bytes using shared structural limits; None selects the defaults."""
         with parse_context(parse_limits):
             consume_bytes(len(data))
@@ -163,7 +161,7 @@ class EmptyElement(BaseElement):
     """Empty element that does not have a value."""
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], *args: Any, **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], *args: Any, **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         return cls()
 
@@ -353,7 +351,7 @@ class NumericElement(ValueElement):
         return self.value.is_integer()
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         return cls(read_fmt("d", fp)[0])  # type: ignore[call-arg]
 
@@ -433,7 +431,7 @@ class IntegerElement(NumericElement):
         return True
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         return cls(read_fmt("I", fp)[0])  # type: ignore[call-arg]
 
@@ -454,7 +452,7 @@ class ShortIntegerElement(IntegerElement):
     """
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         try:
             return cls(read_fmt("H2x", fp)[0])  # type: ignore[call-arg]
@@ -476,7 +474,7 @@ class ByteElement(IntegerElement):
     """
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         try:
             return cls(read_fmt("B3x", fp)[0])  # type: ignore[call-arg]
@@ -500,7 +498,7 @@ class BooleanElement(IntegerElement):
     value: bool = field(default=False, converter=bool)
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         try:
             return cls(read_fmt("?3x", fp)[0])  # type: ignore[call-arg]
@@ -526,7 +524,7 @@ class StringElement(ValueElement):
     value: str = ""
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], padding: int = 1, **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], padding: int = 1, **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         return cls(read_unicode_string(fp, padding=padding))  # type: ignore[call-arg]
 
@@ -726,7 +724,7 @@ class DictElement(BaseElement):
         return key
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], *args: Any, **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], *args: Any, **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         raise NotImplementedError
 

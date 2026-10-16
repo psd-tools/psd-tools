@@ -2,7 +2,7 @@
 
 import io
 import logging
-from typing import IO, Any, TypeVar
+from typing import IO, Any, Self
 
 from attrs import define, field
 
@@ -21,11 +21,6 @@ from psd_tools.psd.bin_utils import (
 
 logger = logging.getLogger(__name__)
 
-T_FilterEffects = TypeVar("T_FilterEffects", bound="FilterEffects")
-T_FilterEffect = TypeVar("T_FilterEffect", bound="FilterEffect")
-T_FilterEffectChannel = TypeVar("T_FilterEffectChannel", bound="FilterEffectChannel")
-T_FilterEffectExtra = TypeVar("T_FilterEffectExtra", bound="FilterEffectExtra")
-
 
 @define(repr=False)
 class FilterEffects(ListElement):
@@ -38,9 +33,7 @@ class FilterEffects(ListElement):
     version: int = 1
 
     @classmethod
-    def read(
-        cls: type[T_FilterEffects], fp: IO[bytes], **kwargs: Any
-    ) -> T_FilterEffects:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         version = read_fmt("I", fp)[0]
         if version not in (1, 2, 3):
@@ -87,7 +80,7 @@ class FilterEffect(BaseElement):
     extra: object | None = None
 
     @classmethod
-    def read(cls: type[T_FilterEffect], fp: IO[bytes], **kwargs: Any) -> T_FilterEffect:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         uuid = read_pascal_string(fp, encoding="ascii", padding=1)
         version = read_fmt("I", fp)[0]
@@ -157,9 +150,7 @@ class FilterEffectChannel(BaseElement):
     data: bytes = b""
 
     @classmethod
-    def read(
-        cls: type[T_FilterEffectChannel], fp: IO[bytes], **kwargs: Any
-    ) -> T_FilterEffectChannel:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         is_written = read_fmt("I", fp)[0]
         if is_written == 0:
@@ -206,9 +197,7 @@ class FilterEffectExtra(BaseElement):
     data: bytes = b""
 
     @classmethod
-    def read(
-        cls: type[T_FilterEffectExtra], fp: IO[bytes], **kwargs: Any
-    ) -> T_FilterEffectExtra:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         is_written = read_fmt("B", fp)[0]
         if not is_written:

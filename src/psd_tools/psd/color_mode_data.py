@@ -2,7 +2,7 @@
 
 import array
 import logging
-from typing import IO, Any, TypeVar
+from typing import IO, Any, Self
 
 from attrs import define
 
@@ -11,7 +11,6 @@ from psd_tools.psd.bin_utils import read_length_block, write_bytes, write_length
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar("T", bound="ColorModeData")
 
 # The ``hdrt`` (HDR toning) block Photoshop writes into every 32-bit document;
 # it rejects a 32-bit file whose color mode data lacks one (#869).
@@ -34,7 +33,7 @@ class ColorModeData(ValueElement):
     value: bytes = b""
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         value = read_length_block(fp)
         logger.debug("reading color mode data, len=%d" % (len(value)))

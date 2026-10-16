@@ -64,7 +64,7 @@ API which provides easier access to this data.
 
 import io
 import logging
-from typing import IO, Any, TypeVar
+from typing import IO, Any, Self, TypeVar
 
 from attrs import astuple, define, field
 
@@ -100,19 +100,6 @@ logger = logging.getLogger(__name__)
 T_LayerAndMaskInformation = TypeVar(
     "T_LayerAndMaskInformation", bound="LayerAndMaskInformation"
 )
-T_LayerInfo = TypeVar("T_LayerInfo", bound="LayerInfo")
-T_ChannelInfo = TypeVar("T_ChannelInfo", bound="ChannelInfo")
-T_LayerFlags = TypeVar("T_LayerFlags", bound="LayerFlags")
-T_LayerBlendingRanges = TypeVar("T_LayerBlendingRanges", bound="LayerBlendingRanges")
-T_LayerRecords = TypeVar("T_LayerRecords", bound="LayerRecords")
-T_LayerRecord = TypeVar("T_LayerRecord", bound="LayerRecord")
-T_MaskFlags = TypeVar("T_MaskFlags", bound="MaskFlags")
-T_MaskData = TypeVar("T_MaskData", bound="MaskData")
-T_MaskParameters = TypeVar("T_MaskParameters", bound="MaskParameters")
-T_ChannelImageData = TypeVar("T_ChannelImageData", bound="ChannelImageData")
-T_ChannelDataList = TypeVar("T_ChannelDataList", bound="ChannelDataList")
-T_ChannelData = TypeVar("T_ChannelData", bound="ChannelData")
-T_GlobalLayerMaskInfo = TypeVar("T_GlobalLayerMaskInfo", bound="GlobalLayerMaskInfo")
 
 
 @define(repr=False)
@@ -139,12 +126,12 @@ class LayerAndMaskInformation(BaseElement):
 
     @classmethod
     def read(
-        cls: type[T_LayerAndMaskInformation],
+        cls,
         fp: IO[bytes],
         encoding: str = "macroman",
         version: int = 1,
         **kwargs: Any,
-    ) -> T_LayerAndMaskInformation:
+    ) -> Self:
         """Read the structure from a file-like object."""
         start_pos = fp.tell()
         length = read_fmt(("I", "Q")[version - 1], fp)[0]
@@ -160,12 +147,12 @@ class LayerAndMaskInformation(BaseElement):
 
     @classmethod
     def _read_body(
-        cls: type[T_LayerAndMaskInformation],
+        cls,
         fp: IO[bytes],
         end_pos: int,
         encoding: str,
         version: int,
-    ) -> T_LayerAndMaskInformation:
+    ) -> Self:
         layer_info = LayerInfo.read(fp, encoding, version)
 
         global_layer_mask_info = None
@@ -241,12 +228,12 @@ class LayerInfo(BaseElement):
 
     @classmethod
     def read(
-        cls: type[T_LayerInfo],
+        cls,
         fp: IO[bytes],
         encoding: str = "macroman",
         version: int = 1,
         **kwargs: Any,
-    ) -> T_LayerInfo:
+    ) -> Self:
         """Read the structure from a file-like object."""
         length = read_fmt(("I", "Q")[version - 1], fp)[0]
         logger.debug("reading layer info, len=%d" % length)
@@ -258,9 +245,7 @@ class LayerInfo(BaseElement):
         return self  # type: ignore[return-value]
 
     @classmethod
-    def _read_body(
-        cls: type[T_LayerInfo], fp: IO[bytes], encoding: str, version: int
-    ) -> T_LayerInfo:
+    def _read_body(cls, fp: IO[bytes], encoding: str, version: int) -> Self:
         start_pos = fp.tell()
         layer_count = read_fmt("h", fp)[0]
         layer_records = LayerRecords.read(fp, layer_count, encoding, version)
@@ -324,12 +309,12 @@ class LayerInfoBlock(LayerInfo):
 
     @classmethod
     def read(
-        cls: type[T_LayerInfo],
+        cls,
         fp: IO[bytes],
         encoding: str = "macroman",
         version: int = 1,
         **kwargs: Any,
-    ) -> T_LayerInfo:
+    ) -> Self:
         """Read the structure from a file-like object."""
         # Lr16/Lr32 may nest inside a layer record; bound the depth.
         with parse_context(kwargs.pop("parse_limits", None)), parse_container():
@@ -372,9 +357,7 @@ class ChannelInfo(BaseElement):
     length: int = 0
 
     @classmethod
-    def read(
-        cls: type[T_ChannelInfo], fp: IO[bytes], version: int = 1, **kwargs: Any
-    ) -> T_ChannelInfo:
+    def read(cls, fp: IO[bytes], version: int = 1, **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         values = read_fmt(("hI", "hQ")[version - 1], fp)
         return cls(id=values[0], length=values[1])
@@ -406,7 +389,7 @@ class LayerFlags(BaseElement):
     undocumented_3: bool = field(default=False, repr=False)
 
     @classmethod
-    def read(cls: type[T_LayerFlags], fp: IO[bytes], **kwargs: Any) -> T_LayerFlags:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         flags = read_fmt("B", fp)[0]
         return cls(
@@ -464,9 +447,7 @@ class LayerBlendingRanges(BaseElement):
     )
 
     @classmethod
-    def read(
-        cls: type[T_LayerBlendingRanges], fp: IO[bytes], **kwargs: Any
-    ) -> T_LayerBlendingRanges:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         data = read_length_block(fp)
         if len(data) == 0:
@@ -476,9 +457,7 @@ class LayerBlendingRanges(BaseElement):
             return cls._read_body(f)
 
     @classmethod
-    def _read_body(
-        cls: type[T_LayerBlendingRanges], fp: IO[bytes]
-    ) -> T_LayerBlendingRanges:
+    def _read_body(cls, fp: IO[bytes]) -> Self:
         def read_channel_range(f: IO[bytes]) -> list[tuple[int, int]]:
             values = read_fmt("4H", f)
             return [values[0:2], values[2:4]]  # type: ignore[return-value]
@@ -510,13 +489,13 @@ class LayerRecords(ListElement):
 
     @classmethod
     def read(  # type: ignore[override]
-        cls: type[T_LayerRecords],
+        cls,
         fp: IO[bytes],
         layer_count: int,
         encoding: str = "macroman",
         version: int = 1,
         **kwargs: Any,
-    ) -> T_LayerRecords:  # type: ignore[override]
+    ) -> Self:  # type: ignore[override]
         """Read the structure from a file-like object."""
         items = []
         for _ in range(abs(layer_count)):
@@ -608,12 +587,12 @@ class LayerRecord(BaseElement):
 
     @classmethod
     def read(
-        cls: type[T_LayerRecord],
+        cls,
         fp: IO[bytes],
         encoding: str = "macroman",
         version: int = 1,
         **kwargs: Any,
-    ) -> T_LayerRecord:
+    ) -> Self:
         """Read the structure from a file-like object."""
         start_pos = fp.tell()
         top, left, bottom, right, num_channels = read_fmt("4iH", fp)
@@ -805,7 +784,7 @@ class MaskFlags(BaseElement):
     undocumented_3: bool = field(default=False, repr=False)
 
     @classmethod
-    def read(cls: type[T_MaskFlags], fp: IO[bytes], **kwargs: Any) -> T_MaskFlags:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         flags = read_fmt("B", fp)[0]
         return cls(
@@ -917,11 +896,11 @@ class MaskData(BaseElement):
 
     @classmethod
     def read(  # type: ignore[return]
-        cls: type[T_MaskData],
+        cls,
         fp: IO[bytes],
         has_real_mask: bool | None = None,
         **kwargs: Any,
-    ) -> T_MaskData:
+    ) -> Self:
         """
         Read the mask data block.
 
@@ -942,11 +921,11 @@ class MaskData(BaseElement):
 
     @classmethod
     def _read_body(
-        cls: type[T_MaskData],
+        cls,
         fp: IO[bytes],
         length: int,
         has_real_mask: bool | None = None,
-    ) -> T_MaskData:
+    ) -> Self:
         top, left, bottom, right, background_color = read_fmt("4iB", fp)
         flags = MaskFlags.read(fp)
 
@@ -1072,9 +1051,7 @@ class MaskParameters(BaseElement):
     vector_mask_feather: float | None = None
 
     @classmethod
-    def read(
-        cls: type[T_MaskParameters], fp: IO[bytes], **kwargs: Any
-    ) -> T_MaskParameters:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         parameters: int | None = None
         user_mask_density = None
@@ -1141,11 +1118,11 @@ class ChannelImageData(ListElement):
 
     @classmethod
     def read(
-        cls: type[T_ChannelImageData],
+        cls,
         fp: IO[bytes],
         layer_records: "LayerRecords | None" = None,
         **kwargs: Any,
-    ) -> T_ChannelImageData:
+    ) -> Self:
         """Read the structure from a file-like object."""
         start_pos = fp.tell()
         items = []
@@ -1177,11 +1154,11 @@ class ChannelDataList(ListElement):
 
     @classmethod
     def read(  # type: ignore[override]
-        cls: type[T_ChannelDataList],
+        cls,
         fp: IO[bytes],
         channel_info: list["ChannelInfo"],
         **kwargs: Any,
-    ) -> T_ChannelDataList:
+    ) -> Self:
         """Read the structure from a file-like object."""
         items = []
         for c in channel_info:
@@ -1236,9 +1213,7 @@ class ChannelData(BaseElement):
     data: bytes = b""
 
     @classmethod
-    def read(
-        cls: type[T_ChannelData], fp: IO[bytes], length: int = 0, **kwargs: Any
-    ) -> T_ChannelData:
+    def read(cls, fp: IO[bytes], length: int = 0, **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         compression = Compression(read_fmt("H", fp)[0])
         # length is c.length - 2 (the 2-byte compression header is excluded).
@@ -1340,9 +1315,7 @@ class GlobalLayerMaskInfo(BaseElement):
     )
 
     @classmethod
-    def read(
-        cls: type[T_GlobalLayerMaskInfo], fp: IO[bytes], **kwargs: Any
-    ) -> T_GlobalLayerMaskInfo:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         pos = fp.tell()
         data = read_length_block(fp)  # fmt?
@@ -1361,9 +1334,7 @@ class GlobalLayerMaskInfo(BaseElement):
             return cls._read_body(f)
 
     @classmethod
-    def _read_body(
-        cls: type[T_GlobalLayerMaskInfo], fp: IO[bytes]
-    ) -> T_GlobalLayerMaskInfo:
+    def _read_body(cls, fp: IO[bytes]) -> Self:
         overlay_color = list(read_fmt("5H", fp))
         opacity, kind = read_fmt("HB", fp)
         return cls(overlay_color, opacity, kind)

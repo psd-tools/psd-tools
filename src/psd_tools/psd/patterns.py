@@ -2,7 +2,7 @@
 
 import io
 import logging
-from typing import IO, Any, Self, TypeVar
+from typing import IO, Any, Self
 
 from attrs import define, field
 
@@ -27,9 +27,6 @@ from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
 
-T_Patterns = TypeVar("T_Patterns", bound="Patterns")
-T_Pattern = TypeVar("T_Pattern", bound="Pattern")
-
 
 class Patterns(ListElement):
     """
@@ -39,7 +36,7 @@ class Patterns(ListElement):
     """
 
     @classmethod
-    def read(cls: type[T_Patterns], fp: IO[bytes], **kwargs: Any) -> T_Patterns:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         items = []
         while is_readable(fp, 4):
@@ -98,7 +95,7 @@ class Pattern(BaseElement):
     data: "VirtualMemoryArrayList" = field(default=None)
 
     @classmethod
-    def read(cls: type[T_Pattern], fp: IO[bytes], **kwargs: Any) -> T_Pattern:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         version = read_fmt("I", fp)[0]
         if version != 1:

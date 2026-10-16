@@ -1,7 +1,7 @@
 """File header structure."""
 
 import logging
-from typing import IO, Any, TypeVar
+from typing import IO, Any, Self
 
 from attrs import astuple, define, field
 
@@ -11,8 +11,6 @@ from psd_tools.psd.bin_utils import read_fmt, write_fmt
 from psd_tools.validators import in_, range_
 
 logger = logging.getLogger(__name__)
-
-T = TypeVar("T", bound="FileHeader")
 
 
 @define(repr=True)
@@ -77,7 +75,7 @@ class FileHeader(BaseElement):
             raise ValueError("This is not a PSD or PSB file")
 
     @classmethod
-    def read(cls: type[T], fp: IO[bytes], **kwargs: Any) -> T:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         return cls(*read_fmt(cls._FORMAT, fp))
 

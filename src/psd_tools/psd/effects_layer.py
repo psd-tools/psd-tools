@@ -6,7 +6,7 @@ are stored in tagged blocks.
 """
 
 import logging
-from typing import IO, Any, TypeVar
+from typing import IO, Any, Self
 
 from attrs import astuple, define, field
 
@@ -24,14 +24,6 @@ from psd_tools.validators import in_
 
 logger = logging.getLogger(__name__)
 
-T_CommonStateInfo = TypeVar("T_CommonStateInfo", bound="CommonStateInfo")
-T_ShadowInfo = TypeVar("T_ShadowInfo", bound="ShadowInfo")
-T_OuterGlowInfo = TypeVar("T_OuterGlowInfo", bound="OuterGlowInfo")
-T_InnerGlowInfo = TypeVar("T_InnerGlowInfo", bound="InnerGlowInfo")
-T_BevelInfo = TypeVar("T_BevelInfo", bound="BevelInfo")
-T_SolidFillInfo = TypeVar("T_SolidFillInfo", bound="SolidFillInfo")
-T_EffectsLayer = TypeVar("T_EffectsLayer", bound="EffectsLayer")
-
 
 @define(repr=False)
 class CommonStateInfo(BaseElement):
@@ -46,9 +38,7 @@ class CommonStateInfo(BaseElement):
     visible: int = 1
 
     @classmethod
-    def read(
-        cls: type[T_CommonStateInfo], fp: IO[bytes], **kwargs: Any
-    ) -> T_CommonStateInfo:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         return cls(*read_fmt("IB2x", fp))
 
@@ -90,7 +80,7 @@ class ShadowInfo(BaseElement):
     native_color: Color = field(factory=Color)
 
     @classmethod
-    def read(cls: type[T_ShadowInfo], fp: IO[bytes], **kwargs: Any) -> T_ShadowInfo:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         # TODO: Check 4-byte = 2-byte int + 2-byte fraction?
         version, blur, intensity, angle, distance = read_fmt("IIIiI", fp)
@@ -200,9 +190,7 @@ class OuterGlowInfo(BaseElement, _GlowInfo):
     native_color: object = None
 
     @classmethod
-    def read(
-        cls: type[T_OuterGlowInfo], fp: IO[bytes], **kwargs: Any
-    ) -> T_OuterGlowInfo:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         version, blur, intensity, color, blend_mode, enabled, opacity = cls._read_body(
             fp
@@ -258,9 +246,7 @@ class InnerGlowInfo(BaseElement, _GlowInfo):
     native_color: object | None = None
 
     @classmethod
-    def read(
-        cls: type[T_InnerGlowInfo], fp: IO[bytes], **kwargs: Any
-    ) -> T_InnerGlowInfo:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         version, blur, intensity, color, blend_mode, enabled, opacity = cls._read_body(
             fp
@@ -335,7 +321,7 @@ class BevelInfo(BaseElement):
     real_shadow_color: object = None
 
     @classmethod
-    def read(cls: type[T_BevelInfo], fp: IO[bytes], **kwargs: Any) -> T_BevelInfo:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         # TODO: Check 4-byte = 2-byte int + 2-byte fraction?
         version, angle, depth, blur = read_fmt("Ii2I", fp)
@@ -424,9 +410,7 @@ class SolidFillInfo(BaseElement):
     native_color: Color = field(factory=Color)
 
     @classmethod
-    def read(
-        cls: type[T_SolidFillInfo], fp: IO[bytes], **kwargs: Any
-    ) -> T_SolidFillInfo:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         version = read_fmt("I", fp)[0]
         signature, blend_mode = read_fmt("4s4s", fp)
@@ -476,7 +460,7 @@ class EffectsLayer(DictElement):
     }
 
     @classmethod
-    def read(cls: type[T_EffectsLayer], fp: IO[bytes], **kwargs: Any) -> T_EffectsLayer:
+    def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
         version, count = read_fmt("2H", fp)
         items = []
