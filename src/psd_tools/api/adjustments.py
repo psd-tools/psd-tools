@@ -496,7 +496,7 @@ class GradientMap(AdjustmentLayer):
 
     @property
     def length(self) -> int | None:
-        """Length of the gradient, or `None` if not set."""
+        """Byte count of the parameter block, or `None` if not set."""
         return None if self._data is None else self._data.length
 
     @property
