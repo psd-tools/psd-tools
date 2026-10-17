@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.15' and sys_platform != 'win32'",
@@ -12,45 +12,38 @@ resolution-markers = [
 
 [[package]]
 name = "aggdraw"
-version = "1.3.19"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.15' and sys_platform != 'win32'",
-    "python_full_version >= '3.12' and python_full_version < '3.15' and sys_platform != 'win32'",
-    "python_full_version < '3.12' and sys_platform != 'win32'",
-]
-sdist = { url = "https://files.pythonhosted.org/packages/03/f1/031b1205f1f580c41566a509166f7097cbff13adffd0c1080b0b3e0ea4ae/aggdraw-1.3.19.tar.gz", hash = "sha256:e78a23b29fb66a079832bae5604f082bfa4ff9d5d469c77506a67253d7fee7db", size = 260414, upload-time = "2024-09-11T16:59:53.445Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/9a/0c/8676332fa31871bcd20d37cdeb75d6590c91a0ca5ec875f76dd255a8ca80/aggdraw-1.3.19-cp311-cp311-macosx_14_0_arm64.whl", hash = "sha256:a9b6be919955e9ace24a22ca1172786902254db22f6789a0bb8ce08bfb86603f", size = 479540, upload-time = "2024-09-11T16:59:24.224Z" },
-    { url = "https://files.pythonhosted.org/packages/d1/7c/2a7367b5f3cb6d4c0df8d40c77ae4d4e88de657f5e451f5c46448bc4f355/aggdraw-1.3.19-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:2c350f9403749e2fa33525bf9116a154ea5c7fddbb9fe045448b7700b62d882d", size = 975802, upload-time = "2024-09-11T16:59:25.658Z" },
-    { url = "https://files.pythonhosted.org/packages/e0/d4/67f8f43db650ae54768ebbd5fa8a6327a985e59761e399fea92f0902bc9f/aggdraw-1.3.19-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b5c47a5a4c9d1e0902b90b8b0032db55c8dc041dfc5005ff02749d8e9c0aa622", size = 997435, upload-time = "2024-09-11T16:59:27.535Z" },
-    { url = "https://files.pythonhosted.org/packages/46/93/aeab2f4832c10975eacf051296d6f674951e597a92ff64d7d397159b9ef5/aggdraw-1.3.19-cp312-cp312-macosx_14_0_arm64.whl", hash = "sha256:e68afe82d0bbd111b2d6d7f41ac8cf13a010cd65ad095117c2e9fd8252710a73", size = 479651, upload-time = "2024-09-11T16:59:31.408Z" },
-    { url = "https://files.pythonhosted.org/packages/1d/99/2e7bbcca4be5e00656555041245f293cda360c2524d5ddf40f3a9bbfdf7b/aggdraw-1.3.19-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:4f3ff2595490b3760658a28afdca5111ed787bd1fccdab5c81d0ea57e0fe5a8c", size = 975835, upload-time = "2024-09-11T16:59:33.54Z" },
-    { url = "https://files.pythonhosted.org/packages/20/81/b845347ef6d399dafa7ac3e8dfe5993d71d2c73d52a1c21a429bb7e459ea/aggdraw-1.3.19-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:56bbcc8d4f64e60ed815419837b9d2ba579169d92c4fe19e4caa3679aaedb6aa", size = 1000009, upload-time = "2024-09-11T16:59:35.31Z" },
-    { url = "https://files.pythonhosted.org/packages/e9/75/eb67b18d131cf08b68db7bd2cb971e58280a3a6c216f662f92751e11bd77/aggdraw-1.3.19-cp313-cp313-macosx_14_0_arm64.whl", hash = "sha256:f7cb8141620ec4cb3be55601115126d9a1b084ef5bdea0bb510007efa42e8cfe", size = 479637, upload-time = "2024-09-11T16:59:39.617Z" },
-    { url = "https://files.pythonhosted.org/packages/76/ed/dd15ed34166139f0fc1ae8956b6aa4657b38e209e6bd35f1ee4617690c15/aggdraw-1.3.19-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:aecacc4f6d13b8343ac07624576bab4dadd4528f0c47f54b2fae0656fc913670", size = 975787, upload-time = "2024-09-11T16:59:41.145Z" },
-    { url = "https://files.pythonhosted.org/packages/83/46/c5b9094701787d11e40c7bfced2c081fb59e9afc740722bb0d71f5e0335d/aggdraw-1.3.19-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:981210dbcbb649d80763a8ae32b845ff517103718c6bb0a95bae5b9d5d1c8cd2", size = 999932, upload-time = "2024-09-11T16:59:42.576Z" },
-]
-
-[[package]]
-name = "aggdraw"
 version = "1.4.1"
 source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.15' and sys_platform == 'win32'",
-    "python_full_version >= '3.12' and python_full_version < '3.15' and sys_platform == 'win32'",
-    "python_full_version < '3.12' and sys_platform == 'win32'",
-]
 sdist = { url = "https://files.pythonhosted.org/packages/05/bf/4876fb82a906e9303392235e9fe382130b649c0ee4faa7fdb25596c26dff/aggdraw-1.4.1.tar.gz", hash = "sha256:e21d6b77afeeffa259b898d652295757fd35f15a9e11a24823c0d7ca63385c83", size = 263051, upload-time = "2025-12-03T16:33:17.818Z" }
 wheels = [
+    { url = "https://files.pythonhosted.org/packages/ce/c7/f8dfee49f44e31bf6f94ca4b48e61a3ca74d32bdbe64ac82d69513edb6d7/aggdraw-1.4.1-cp311-cp311-macosx_14_0_arm64.whl", hash = "sha256:fd0d3403f3e1a3100fb2b767abe26c605fe73642e20a1da4dd54c5069df74f6f", size = 485227, upload-time = "2025-12-03T16:32:40.337Z" },
+    { url = "https://files.pythonhosted.org/packages/9c/0d/27efb21e736153c1d8f1195152d5d983b5550d3ec64ea9a1463cc11c8226/aggdraw-1.4.1-cp311-cp311-macosx_14_0_x86_64.whl", hash = "sha256:00eb0f446687682afdc981fa6a2fcaaf37f07d91cca92ba5f76e27f84e5a7740", size = 520344, upload-time = "2025-12-03T16:32:42.061Z" },
+    { url = "https://files.pythonhosted.org/packages/0c/e0/ec3e35151ff7e2369a8e2ff0b01dc21c7ffc36d3385181fffcd60fdc48b3/aggdraw-1.4.1-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:08ec360b248de593753c49ce25a355e488cf6c0fd18d6f3a08a420842b94d5d6", size = 1012815, upload-time = "2025-12-03T16:32:43.456Z" },
+    { url = "https://files.pythonhosted.org/packages/4a/69/f8e430e56eebf59c955c23905cd7d32bfe8ea4ae2d37ba702bfa08c4b72f/aggdraw-1.4.1-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:c4bc82787a7d94a56eeb7006a5198ff73e01c06f979584da5c59af5eb82855b2", size = 1027127, upload-time = "2025-12-03T16:32:44.777Z" },
     { url = "https://files.pythonhosted.org/packages/7c/b1/6c4aabf386c89a7cf497d043efaa8d381e5b1e4a07fdf4b79f321b65d738/aggdraw-1.4.1-cp311-cp311-win_amd64.whl", hash = "sha256:0f08e49b256d1dd81b19b2dcf3b1ddb4e811491a1f8f6eb8bf70d5c684094e19", size = 47198, upload-time = "2025-12-03T16:32:45.913Z" },
     { url = "https://files.pythonhosted.org/packages/bc/da/7dd4284403ecc2f345f4cc25c9296182b660ad21d653f76700465429c803/aggdraw-1.4.1-cp311-cp311-win_arm64.whl", hash = "sha256:a0fd3732374aa93a74d213a155e2eb7a7abb895e6fc047ed36cb2e05c7ef7415", size = 38152, upload-time = "2025-12-03T16:32:47.164Z" },
+    { url = "https://files.pythonhosted.org/packages/a4/9d/4f73105194f79cbd60e972eebcd7891cfa2b59ad61697bae62f025c2e016/aggdraw-1.4.1-cp312-cp312-macosx_14_0_arm64.whl", hash = "sha256:ca9ddba3ac158bfddb60958a1901f0cc001dc54ce0ab456bb37a2ff8840fc3b8", size = 485351, upload-time = "2025-12-03T16:32:48.474Z" },
+    { url = "https://files.pythonhosted.org/packages/d5/90/948386313d4b30d54baa17e1b0e6d09180cdaf2881422d8f80ab651b27c5/aggdraw-1.4.1-cp312-cp312-macosx_14_0_x86_64.whl", hash = "sha256:95952ff55f4ebec1f3ad56956e26765b87f94cf8cad22995bd35e8d3ef04f4a2", size = 520583, upload-time = "2025-12-03T16:32:50.083Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/5d/d307eac839b7ed3ca75c1afb14076bff2b74b1ba4a5fe51733095e5b05b3/aggdraw-1.4.1-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:78f28751c4c85e90224182fc92d144b1378e21447415ffb29fa0567736459bcf", size = 1014932, upload-time = "2025-12-03T16:32:51.639Z" },
+    { url = "https://files.pythonhosted.org/packages/c4/35/061711e2958aa4e773145ec592b3f445bb0d2d9b3b5c22673813b9230fc9/aggdraw-1.4.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:8d7cf582e9bfee6bc6ddd35c4b59431de42d16a8c6d1d8c1a9bfebe81563a0c1", size = 1029490, upload-time = "2025-12-03T16:32:53.534Z" },
     { url = "https://files.pythonhosted.org/packages/44/1b/4169f561f88ee7c514673172f1c5625af62face5469bbd230a5d6453d068/aggdraw-1.4.1-cp312-cp312-win_amd64.whl", hash = "sha256:1d2be7c3acfc47866041886c849a1812ffe6bb95d9fc853eae1034ada86d8f32", size = 47358, upload-time = "2025-12-03T16:32:54.888Z" },
     { url = "https://files.pythonhosted.org/packages/70/65/dca9e522892931ce2d24d753ae0442b6a6f39450448475525df90120ae0a/aggdraw-1.4.1-cp312-cp312-win_arm64.whl", hash = "sha256:f666ffbf8c2352f0c4d4f25f4da33f41e55fc694f2263e5f891fd4cda5723b65", size = 38248, upload-time = "2025-12-03T16:32:56.121Z" },
+    { url = "https://files.pythonhosted.org/packages/10/a4/07cf81144acc427005f689c6a14defc5419119d1b635538a2188b5031e11/aggdraw-1.4.1-cp313-cp313-macosx_14_0_arm64.whl", hash = "sha256:be8f16417b134d2a231efd487e1ecd2362d33dc3a91cbc427117c36d5bc83717", size = 485330, upload-time = "2025-12-03T16:32:57.359Z" },
+    { url = "https://files.pythonhosted.org/packages/3f/72/7b6e843528d99d670cca4fb93b8b531d1b9b087cad007bbe4a7e080bb33b/aggdraw-1.4.1-cp313-cp313-macosx_14_0_x86_64.whl", hash = "sha256:77aa364320db385d757595f206ba726201268d774941f77c97bd5a2c1911c0af", size = 520563, upload-time = "2025-12-03T16:32:58.614Z" },
+    { url = "https://files.pythonhosted.org/packages/e3/b7/affc8295ca18b98027e59eec943296bc45d4c242b9c6d6e9ffb35a2d2654/aggdraw-1.4.1-cp313-cp313-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:9b5e2cba305dd738f948eb75f668ac5db80d291e2054ffe326ec947850eb85e5", size = 1014991, upload-time = "2025-12-03T16:32:59.772Z" },
+    { url = "https://files.pythonhosted.org/packages/ed/aa/04bb2b6ac8e82c04b29205f0df12bedd1d4e1a55986c9f0ce10b6c0bf662/aggdraw-1.4.1-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:150f8a359ff16ba3d930ee95b0563cd06f03a5ff46650d2d0ca678ce1ce586cc", size = 1029477, upload-time = "2025-12-03T16:33:01.165Z" },
     { url = "https://files.pythonhosted.org/packages/4e/3d/192425568971d7b79ccbb28fa8613d5787878d8f002d29d497e54e6198b0/aggdraw-1.4.1-cp313-cp313-win_amd64.whl", hash = "sha256:a746d521c21855348446036797c0174b5947621b1a76ff849f4fbcfec37973f9", size = 47343, upload-time = "2025-12-03T16:33:02.215Z" },
     { url = "https://files.pythonhosted.org/packages/66/39/2682d92963201f00f196fdff9530d51614fe9b5991e4b61ac649722ca1f3/aggdraw-1.4.1-cp313-cp313-win_arm64.whl", hash = "sha256:eba61c51f16ee097793b1e67dc3b83090e4582f063706b7f2d6afbf6ee854be3", size = 38235, upload-time = "2025-12-03T16:33:03.114Z" },
+    { url = "https://files.pythonhosted.org/packages/e1/e4/17b3832e683e3bc957834df68e1d80ec1adfcf223ebd277e13034e7f123d/aggdraw-1.4.1-cp314-cp314-macosx_14_0_arm64.whl", hash = "sha256:fed7bbd047efa63a246c513c59f068d351f62a07461d37cc2305e9502f359ec5", size = 485325, upload-time = "2025-12-03T16:33:04.103Z" },
+    { url = "https://files.pythonhosted.org/packages/b8/33/c2ac205aa8123227e86afec0956940f8b4f8739fd64052d48661c030299f/aggdraw-1.4.1-cp314-cp314-macosx_14_0_x86_64.whl", hash = "sha256:e47e6a5340127cfe70f441f6821c24e248b6911460d149a891e9569fe139833e", size = 520576, upload-time = "2025-12-03T16:33:05.425Z" },
+    { url = "https://files.pythonhosted.org/packages/8d/e4/0d50e126a7e0fea3ef8eafe82f3addd255bb9e2955c43d8e2c6183e8a443/aggdraw-1.4.1-cp314-cp314-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:898027887607842532ff6635c3c253212665270e95b8616326246f0505db6422", size = 1014621, upload-time = "2025-12-03T16:33:06.73Z" },
+    { url = "https://files.pythonhosted.org/packages/ed/8d/2ebea795b868f25f5d3f27895866d596a25fb8e9f742b10058c23d238f84/aggdraw-1.4.1-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:e1cb31c40145adbb34d0830bfcd15ab668426538dac4e11b18b803289fa1033f", size = 1029268, upload-time = "2025-12-03T16:33:08.422Z" },
     { url = "https://files.pythonhosted.org/packages/72/72/69f86def3a3d5e754937c226997fc131d6c2ac5a967682447f3e920fce33/aggdraw-1.4.1-cp314-cp314-win_amd64.whl", hash = "sha256:7c5f4314144abb1ebbb7af1e70fad4742e07303ee4cefde90a06d3313baba81e", size = 48959, upload-time = "2025-12-03T16:33:09.417Z" },
     { url = "https://files.pythonhosted.org/packages/b6/b0/16d44c1778b09e22efca7cdaa77296221690799e4b0a45185a66c8d01537/aggdraw-1.4.1-cp314-cp314-win_arm64.whl", hash = "sha256:2d3b3a83c11521f0c118c35e82b3eafc6eba274cba23580b8e889d913de0d3b4", size = 39937, upload-time = "2025-12-03T16:33:10.21Z" },
+    { url = "https://files.pythonhosted.org/packages/be/4e/57ab208c13f7d605ff4c9f57f83b17358544ad05d564e64af2efb6afb1b7/aggdraw-1.4.1-cp314-cp314t-macosx_14_0_arm64.whl", hash = "sha256:61f6fc11200c7a3fed0907fef4f6f8bcae900605a4fa320aa5bcd3b40eb3a619", size = 485755, upload-time = "2025-12-03T16:33:11.177Z" },
+    { url = "https://files.pythonhosted.org/packages/7a/15/9f99ed2ee67c15dc43a9f3c0c3ae15e51641b642a3edfca17c14016626e8/aggdraw-1.4.1-cp314-cp314t-macosx_14_0_x86_64.whl", hash = "sha256:96a411be593ad7cada3bcd0ec6f7c8e3c522a7df4d40121a17cfadf2c379a1f3", size = 521136, upload-time = "2025-12-03T16:33:12.325Z" },
+    { url = "https://files.pythonhosted.org/packages/b7/91/dda5f1e7535ff988fb0e8e21d83f26befa30524b23b4bffbff2af38e4b42/aggdraw-1.4.1-cp314-cp314t-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:bc19beac0b84260aa2ca807b861881a2382af9319127da59d6ac6ad6c07a102c", size = 1022773, upload-time = "2025-12-03T16:33:13.636Z" },
+    { url = "https://files.pythonhosted.org/packages/84/fc/e960aedba069949a022675311e086acf6316a7c820fb9ba03524fcb1bfc1/aggdraw-1.4.1-cp314-cp314t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:27ad13f7c88a01ba50954e0a036de7211f2f79822bffd9d078d8d5603a956083", size = 1036828, upload-time = "2025-12-03T16:33:14.882Z" },
     { url = "https://files.pythonhosted.org/packages/94/07/a5737fbceae13c127d6dd352592c1d1b3d88e3bda818efba23f2d9a1a0d2/aggdraw-1.4.1-cp314-cp314t-win_amd64.whl", hash = "sha256:3fa04a12b355e1697719369289d6e87f7b8eddeadf0bc27e3a0561162daf45eb", size = 49772, upload-time = "2025-12-03T16:33:15.936Z" },
     { url = "https://files.pythonhosted.org/packages/7e/c3/92f79733ec52f2d64a7ba88c14c5c21ad30347b335e06b4b7004414ed06d/aggdraw-1.4.1-cp314-cp314t-win_arm64.whl", hash = "sha256:8016cf9d04b18060ec40da6040a467fd5001e2c6b7496b18503db96d0c8e9d4a", size = 40327, upload-time = "2025-12-03T16:33:16.847Z" },
 ]
@@ -1362,16 +1355,14 @@ dependencies = [
 
 [package.optional-dependencies]
 composite = [
-    { name = "aggdraw", version = "1.3.19", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
-    { name = "aggdraw", version = "1.4.1", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+    { name = "aggdraw" },
     { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "scipy", version = "1.18.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
 
 [package.dev-dependencies]
 dev = [
-    { name = "aggdraw", version = "1.3.19", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
-    { name = "aggdraw", version = "1.4.1", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+    { name = "aggdraw" },
     { name = "ipykernel" },
     { name = "mypy" },
     { name = "pre-commit" },
