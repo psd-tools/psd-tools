@@ -8,6 +8,7 @@ from typing import Any, cast
 import numpy as np
 import pytest
 import scipy.ndimage  # type: ignore[import-untyped]
+import scipy.spatial  # type: ignore[import-untyped]
 from PIL import Image
 
 from psd_tools.api.mask import Mask
@@ -1167,70 +1168,179 @@ def _antialiased_disc(size: int, radius: float) -> np.ndarray:
     return np.clip(radius - distance + 0.5, 0, 1).astype(np.float32)
 
 
-def _erosion_calls(monkeypatch: pytest.MonkeyPatch) -> list[int]:
-    """A running count of ``grey_erosion`` calls, patched in for the test.
+def _full_search(
+    alpha: np.ndarray, partial: np.ndarray, near: np.ndarray, radius: float
+) -> np.ndarray:
+    """``_nearest_boundary`` the long way: every offset within ``radius``.
 
-    ``_nearest_boundary`` imports ``grey_erosion`` fresh from
-    ``scipy.ndimage`` on every call rather than holding a module-level
-    reference, so it has to be patched where it is looked up from, not on
-    :py:mod:`psd_tools.composite.effects`.
+    The float32 lengths are rounded before the cutoff, and a seed's cost is
+    rounded again when ``near`` is added, which is the arithmetic the k-d tree
+    search has to reproduce rather than approximate.
     """
-    calls = [0]
-    real_grey_erosion = scipy.ndimage.grey_erosion
+    height, width = alpha.shape
+    field = np.where(partial, near, np.where(alpha >= 1, -np.inf, np.inf)).astype(
+        np.float32
+    )
+    rows, cols = np.nonzero(~partial)
+    reach = int(min(math.ceil(radius), max(height, width)))
+    outward = np.full(rows.shape, np.inf, dtype=np.float32)
+    inward = np.full(rows.shape, -np.inf, dtype=np.float32)
+    for dy in range(-reach, reach + 1):
+        for dx in range(-reach, reach + 1):
+            length = np.float32(math.hypot(dy, dx))
+            if length > radius:
+                continue
+            r, c = rows + dy, cols + dx
+            valid = (r >= 0) & (r < height) & (c >= 0) & (c < width)
+            hit = np.zeros(rows.shape, dtype=bool)
+            hit[valid] = partial[r[valid], c[valid]]
+            stated = np.zeros(rows.shape, dtype=np.float32)
+            stated[hit] = near[r[hit], c[hit]]
+            outward = np.where(hit, np.minimum(outward, stated + length), outward)
+            inward = np.where(hit, np.maximum(inward, stated - length), inward)
+    # Only pixels whose nearest seed is in reach are answered for.
+    within = scipy.ndimage.distance_transform_edt(~partial) <= radius
+    solid = alpha[rows, cols] >= 1
+    stated = np.where(solid, inward, outward)
+    keep = within[rows, cols]
+    field[rows[keep], cols[keep]] = stated[keep]
+    return field
 
-    def spy(*args: Any, **kwargs: Any) -> np.ndarray:
-        calls[0] += 1
-        return cast(np.ndarray, real_grey_erosion(*args, **kwargs))
 
-    monkeypatch.setattr(scipy.ndimage, "grey_erosion", spy)
-    return calls
+def _soft_masks() -> list[tuple[str, np.ndarray]]:
+    rng = np.random.default_rng(897)
+    masks: list[tuple[str, np.ndarray]] = []
+    for index in range(24):
+        height, width = (int(v) for v in rng.integers(1, 22, 2))
+        noise, level, step = rng.random((3, height, width))
+        kind = index % 6
+        if kind == 0:
+            alpha = noise
+        elif kind == 1:
+            alpha = np.where(noise < 0.15, level, step < 0.5)
+        elif kind == 2:
+            alpha = np.where(noise < 0.04, level, 0.0)
+        elif kind == 3:
+            alpha = np.where(noise < 0.04, level, 1.0)
+        elif kind == 4:
+            extreme = np.array([1e-9, 1 - 1e-7, 0.5, 0.25, 0.75])
+            alpha = np.where(noise < 0.3, extreme[(level * 5).astype(int)], step < 0.5)
+        else:
+            parity = np.add.outer(np.arange(height), np.arange(width)) % 2
+            alpha = np.where(parity == 0, level, 0.0)
+        masks.append((f"{kind}-{index}", alpha.astype(np.float32)))
+    single = np.zeros((9, 11), dtype=np.float32)
+    single[4, 5] = 0.3
+    masks.append(("single", single))
+    masks.append(("flat", np.full((7, 7), 0.5, dtype=np.float32)))
+    return [(name, a) for name, a in masks if ((a > 0) & (a < 1)).any()]
 
 
-def test_a_filled_disc_takes_the_dense_erosion_path(
+@pytest.mark.parametrize(
+    "radius", [0.5, 1.0, math.sqrt(2), 2.0, math.sqrt(5), 5.0, 5.5, 9.3]
+)
+def test_the_nearest_boundary_matches_a_search_of_every_offset(radius: float) -> None:
+    """Reach edges, hypot-exact radii and masks of every density agree bitwise.
+
+    A radius sitting on a hypot (``sqrt(2)``, ``5.0``) is where a float32
+    length and its float64 query disagree about whether a seed is in reach,
+    and a radius under 1 reaches no seed at all.
+    """
+    for name, alpha in _soft_masks():
+        partial = (alpha > 0) & (alpha < 1)
+        near = (0.5 - alpha).astype(np.float32)
+        expected = _full_search(alpha, partial, near, radius)
+        found = effects._nearest_boundary(alpha, partial, near, radius)
+        assert np.array_equal(found, expected), (name, radius)
+
+
+_REAL_TREE = scipy.spatial.cKDTree
+
+
+class _CountingTree:
+    """``cKDTree`` that keeps what each query returned, patched in by a test."""
+
+    returned: list[int] = []
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        self._tree = _REAL_TREE(*args, **kwargs)
+
+    def query_ball_point(self, *args: Any, **kwargs: Any) -> Any:
+        found = self._tree.query_ball_point(*args, **kwargs)
+        self.returned.append(sum(len(hits) for hits in found))
+        return found
+
+
+def test_the_search_is_bounded_by_the_seeds_in_reach(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A disc whose boundary band fills most of its own bounding box erodes.
+    """A wide stroke on a small shape evaluates a seed annulus, not the reach (#897).
 
-    This shape -- an antialiased disc, filling most of the canvas it sits
-    on -- is #895's own reproducer: the per-offset loop that regressed there
-    scales with the stroke's reach, and nothing in the rest of the corpus
-    forces the density gate one way or the other, so a future change could
-    silently route it back through that loop without failing anything here.
+    The candidates per pixel are the seeds in an annulus one pixel wide, not
+    the ``(2 * reach + 1) ** 2`` offsets around it, and a batch never holds
+    more than :py:data:`effects._BATCH_CANDIDATES` of them.
     """
-    calls = _erosion_calls(monkeypatch)
-    _signed_distance(_antialiased_disc(120, 45.0), 20.0)
-    assert calls[0] > 0
+    monkeypatch.setattr(_CountingTree, "returned", [])
+    monkeypatch.setattr(scipy.spatial, "cKDTree", _CountingTree)
+    monkeypatch.setattr(effects, "_BATCH_CANDIDATES", 5000)
+    reach = 100.0
+    disc = _antialiased_disc(300, 100.0)
+    partial = (disc > 0) & (disc < 1)
+    near = (0.5 - disc).astype(np.float32)
+
+    field = effects._nearest_boundary(disc, partial, near, reach)
+
+    returned = _CountingTree.returned
+    assert len(returned) > 1, "the tree was never queried in batches"
+    assert max(returned) <= 5000
+    # Each pixel's annulus is at most 12 * (reach + 2) lattice points.
+    answered = np.count_nonzero(np.isfinite(field) & ~partial)
+    assert answered > 0
+    assert sum(returned) <= answered * 12 * (reach + 2)
 
 
-def test_a_large_rings_thin_band_takes_the_sparse_loop(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("batch", [1, 7, 4096])
+def test_a_batch_boundary_does_not_change_the_field(
+    monkeypatch: pytest.MonkeyPatch, batch: int
 ) -> None:
-    """A disc many times wider than the stroke's reach loops instead.
+    disc = _antialiased_disc(40, 15.0)
+    partial = (disc > 0) & (disc < 1)
+    near = (0.5 - disc).astype(np.float32)
+    whole = effects._nearest_boundary(disc, partial, near, 9.0)
+    monkeypatch.setattr(effects, "_BATCH_CANDIDATES", batch)
+    assert np.array_equal(effects._nearest_boundary(disc, partial, near, 9.0), whole)
 
-    Its own bounding box is close to its full extent, while the band an
-    erosion would need to cover -- the pixels within reach of its edge -- is
-    a sliver of that box, so erosion there costs more than it saves.
+
+def test_a_large_canvas_is_still_cut_into_bounded_batches() -> None:
+    """Pixels far from any seed do not swallow the batches of those after them.
+
+    A running sum in float32 stops growing once it passes the size of its
+    increments times 2**24, and every pixel after that would fall in one batch.
+    Millions of pixels at the widest reach, then many near a seed, is how a
+    large canvas gets there.
     """
-    calls = _erosion_calls(monkeypatch)
-    _signed_distance(_antialiased_disc(400, 150.0), 6.0)
-    assert calls[0] == 0
+    far, near = 4_000_000, 1_000_000
+    queried = np.r_[np.full(far, 251.0), np.full(near, 1.0)]
+
+    bounds = effects._batch_bounds(queried)
+
+    assert bounds[0] == 0 and bounds[-1] == queried.size
+    estimate = np.add.reduceat(12.0 * (queried + 2.0), bounds[:-1])
+    # A batch holds the cap plus the pixel that crossed it.
+    assert estimate.max() <= effects._BATCH_CANDIDATES + 12.0 * (251.0 + 2.0)
+    assert len(bounds) - 1 > far * 12 * 253 // effects._BATCH_CANDIDATES
 
 
-def test_the_dense_and_sparse_paths_agree(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Forcing the same mask through both branches gives the same field.
-
-    :py:data:`effects._DENSE_EROSION_DENSITY` is the only thing that chooses
-    between the erosion and the loop, so pinning it to either extreme runs
-    #895's own disc through both -- the reference each branch is checked
-    against is the other one, not a value pinned in this test to drift out
-    of step with either.
-    """
-    disc = _antialiased_disc(120, 45.0)
-    monkeypatch.setattr(effects, "_DENSE_EROSION_DENSITY", 0.0)
-    dense = _signed_distance(disc, 20.0)
-    monkeypatch.setattr(effects, "_DENSE_EROSION_DENSITY", 1.1)
-    sparse = _signed_distance(disc, 20.0)
-    assert np.array_equal(dense, sparse)
+def test_a_feathered_mask_is_searched_exactly() -> None:
+    """Every pixel of the layer a seed, with the widest spread of weights."""
+    rng = np.random.default_rng(1)
+    alpha = np.zeros((40, 40), dtype=np.float32)
+    alpha[10:30, 10:30] = rng.random((20, 20), dtype=np.float32)
+    partial = (alpha > 0) & (alpha < 1)
+    near = (0.5 - alpha).astype(np.float32)
+    expected = _full_search(alpha, partial, near, 30.0)
+    found = effects._nearest_boundary(alpha, partial, near, 30.0)
+    assert np.array_equal(found, expected)
 
 
 def test_every_stroke_position_draws() -> None:

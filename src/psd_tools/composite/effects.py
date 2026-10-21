@@ -59,6 +59,7 @@ automatically applied when rendering layers that have effects enabled.
 
 import logging
 import math
+from itertools import chain, pairwise
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -99,19 +100,16 @@ _UNRECOGNISED = _BANDS[Enum.OutsetFrame]
 _MAX_STROKE_SIZE = 250.0
 
 # What a stroke canvas costs per pixel at its peak: the signed-distance
-# transients (an int64 offset grid pair, float64 planes) dwarf the float32
-# canvas and colour planes, so a budget is checked against this, not 4 bytes.
-_STROKE_BYTES = 64
+# transients (the transform's float64 planes and the seed index) dwarf the
+# float32 canvas and colour planes, so a budget is checked against this, not
+# 4 bytes. It is the peak RSS of the widest stroke on a thick ring and on a
+# fully feathered mask, with headroom: tracemalloc misses the transform's own
+# buffers.
+_STROKE_BYTES = 128
 
-# What each offset of the distance search's grid costs at its peak.
-_GRID_BYTES = 48
-
-# Below this fraction of active pixels within the region a bounding-box crop
-# would cover, :py:func:`_nearest_boundary` skips the erosion and falls back
-# to its per-offset loop (#895): a thin outline on a much bigger canvas has
-# active pixels too sparse within that box for the erosion to pay for itself,
-# while a filled shape's boundary band fills enough of it that it does.
-_DENSE_EROSION_DENSITY = 0.15
+# Candidate seeds :py:func:`_nearest_boundary` holds at once, which bounds the
+# memory of its queries whatever the reach (#897).
+_BATCH_CANDIDATES = 1 << 18
 
 
 def _enum(desc: Descriptor, key: bytes) -> bytes:
@@ -183,17 +181,11 @@ def stroke_bbox(
         if _enum(desc, Key.PaintType) == Enum.GradientFill:
             per_pixel = max(per_pixel, paint.GRADIENT_FILL_BYTES)
         width, height = grown[2] - grown[0], grown[3] - grown[1]
-        # The distance search's offset grid follows the stroke's size, not the
-        # box: an inset one reserves a pixel however wide it is.
-        radius = min(
-            max(abs(limits[0]), abs(limits[1])) * size + 1.0, max(width, height)
-        )
-        grid = (2 * math.ceil(radius) + 1) ** 2 * _GRID_BYTES
         check_pixel_size(
             width,
             height,
             max_alloc_bytes=max_alloc_bytes,
-            estimated_bytes=max(width * height * per_pixel, grid),
+            estimated_bytes=width * height * per_pixel,
             warn=False,
         )
     return grown
@@ -220,62 +212,18 @@ def _grow(mask: np.ndarray) -> np.ndarray:
     return grown
 
 
-def _prune_offsets(
-    rows: np.ndarray,
-    cols: np.ndarray,
-    span: int,
-    offsets: np.ndarray,
-    lengths: np.ndarray,
-    partial_pad: np.ndarray,
-    near_pad: np.ndarray,
-    outward: bool,
-) -> np.ndarray:
-    """``min``/``max`` of ``near[p] +/- |x - p|`` over offsets, pruning early.
+def _batch_bounds(queried: np.ndarray) -> np.ndarray:
+    """Indices that cut pixels with these query radii into bounded batches.
 
-    ``near`` never leaves ``[-0.5, 0.5]``, so once a pixel's running best is
-    at least as good as ``length - 0.5`` (``outward``) or ``0.5 - length``
-    (inward), no offset from here on -- ``offsets`` sorted by ascending
-    ``length`` -- can improve it: the best any of them could still state is
-    exactly that bound. A pixel this true of drops out of the working set,
-    so offsets past it never revisit it. This is exact, not a bound in place
-    of one: what it prunes could not have changed the answer.
-
-    Most pixels resolve within a few offsets of their own unweighted nearest
-    partial pixel, so the working set thins fast on a smooth boundary --
-    which is the common case, a circle or a diagonal edge on a canvas much
-    bigger than the stroke. It still runs every offset within ``span`` for a
-    pixel that never resolves, so this does not change the loop's worst case.
+    An annulus one pixel wide holds at most ``4 * (2r + 3) + pi * (2r + 1)``
+    lattice points, under ``12 * (r + 2)``; a batch holds pixels until those
+    sum past :py:data:`_BATCH_CANDIDATES`. The running sum is float64: in
+    float32 it stops growing once it is large, and every later pixel would
+    land in one batch.
     """
-    prows, pcols = rows + span, cols + span
-    result = np.empty(rows.shape, dtype=np.float32)
-    order = np.arange(rows.size)
-    best = np.full(rows.shape, np.inf if outward else -np.inf, dtype=np.float32)
-
-    for (down, across), length in zip(offsets, lengths, strict=False):
-        if order.size == 0:
-            break
-        row, col = prows + down, pcols + across
-        states = partial_pad[row, col]
-        stated = near_pad[row, col]
-        if outward:
-            best = np.minimum(best, np.where(states, stated + length, np.inf))
-            resolved = best <= (length - 0.5)
-        else:
-            best = np.maximum(best, np.where(states, stated - length, -np.inf))
-            resolved = best >= (0.5 - length)
-        if resolved.any():
-            result[order[resolved]] = best[resolved]
-            keep = ~resolved
-            prows, pcols, best, order = (
-                prows[keep],
-                pcols[keep],
-                best[keep],
-                order[keep],
-            )
-
-    if order.size:
-        result[order] = best
-    return result
+    ends = np.cumsum(12.0 * (queried + 2.0))
+    steps = np.arange(0.0, ends[-1] + _BATCH_CANDIDATES, _BATCH_CANDIDATES)
+    return np.unique(np.append(np.searchsorted(ends, steps), queried.size))
 
 
 def _nearest_boundary(
@@ -291,138 +239,72 @@ def _nearest_boundary(
     word for it leaves the answer to whichever of two equidistant pixels a
     distance transform happens to return, which is not a choice the mask
     makes; Photoshop's render of such a mask is mirror-exact, and this is the
-    value it renders.
+    value it renders. The dual, the nearest boundary from *inside*, is the
+    same minimum over ``|x - p| - near[p]``, negated.
 
-    That minimum is a grey erosion of ``near`` by a cone -- ``scipy``'s
-    ``grey_erosion`` with a disc footprint and ``-length`` as the structuring
-    function, which computes it without a Python-level pass per offset. The
-    dual, the nearest boundary from *inside*, is the same erosion of
-    ``-near``, negated.
+    A seed farther than ``d0 + spread`` from a pixel, ``d0`` being the
+    distance to its nearest seed and ``spread`` the range of ``near``, costs
+    more than that nearest seed does, so only the seeds in that annulus are
+    evaluated, found with a k-d tree. Cost and memory follow the seeds in it
+    rather than ``radius`` squared, and the batches below bound the lists a
+    query returns.
 
-    An erosion runs the disc footprint over every pixel of whatever it is
-    given, so it only pays for itself where ``active`` -- the pixels an
-    answer is wanted for -- is a healthy share of the region a crop bounding
-    the partial pixels would cover: a filled shape's boundary, where the band
-    the footprint runs over is close to that box already. Where the boundary
-    is a thin outline on a much bigger canvas -- a circle, an ellipse, a
-    diagonal edge -- that box is close to the shape's own bounding box while
-    ``active`` is a sliver of it, and running the erosion there would cost
-    more than it saves.
-
-    Below :py:data:`_DENSE_EROSION_DENSITY`, :py:func:`_prune_offsets` runs
-    the same minimum as a loop instead, one offset at a time in ascending
-    length, dropping each pixel out as soon as no offset still to come could
-    improve its answer -- exactly, per the bound in its own docstring. A
-    smooth boundary resolves most pixels within a handful of offsets of their
-    own nearest partial pixel, which is the common shape of this branch's
-    input, but a pixel that never resolves still costs every offset within
-    ``radius``: pruning cuts the constant this branch runs at, not the shape
-    of its worst case, which stays the one the erosion branch exists to
-    avoid.
-
-    Both branches read and write through the same crop the density above is
-    measured on, padded arrays included, rather than the whole of ``alpha``:
-    everything either one needs already sits inside it, so this is memory
-    tied to the shape's own extent even when the canvas around it is much
-    bigger.
+    The result is the float32 arithmetic of a full search over every offset
+    within ``radius``: the lengths are rounded before the cutoff, which is why
+    the query is widened by a margin and the cutoff is applied again to what
+    it returns.
     """
     from scipy.ndimage import (  # type: ignore[import-untyped]  # noqa: PLC0415
         distance_transform_edt,
-        grey_erosion,
     )
+    from scipy.spatial import cKDTree  # type: ignore[import-untyped]  # noqa: PLC0415
 
-    # Beyond the reach of any boundary, and so of any band: infinitely far
-    # out from a clear pixel and infinitely far in from an opaque one.
     field = np.where(partial, near, np.where(alpha >= 1, -np.inf, np.inf)).astype(
         np.float32
     )
-    active = (distance_transform_edt(~partial) <= radius) & ~partial
+    distance = distance_transform_edt(~partial)
+    active = (distance <= radius) & ~partial
     if not active.any():
         return field
 
-    height, width = alpha.shape
-    # An offset past the canvas's longest side reaches no pixel.
-    span = math.ceil(min(radius, max(height, width) - 1))
-    rows_p, cols_p = np.nonzero(partial)
-    r0, r1 = max(rows_p.min() - span, 0), min(rows_p.max() + span + 1, height)
-    c0, c1 = max(cols_p.min() - span, 0), min(cols_p.max() + span + 1, width)
-    crop = (slice(r0, r1), slice(c0, c1))
-    density = active.sum() / ((r1 - r0) * (c1 - c0))
+    width = alpha.shape[1]
+    pixels = np.flatnonzero(active)
+    del active
+    spread = float(near[partial].max()) - float(near[partial].min())
+    # Lengths are float32 and compared with ``radius`` as such, so a seed can
+    # pass at a true length a rounding above it.
+    cutoff = max(radius, float(np.float32(radius)))
+    margin = max(1e-3, 8.0 * float(np.spacing(np.float32(cutoff + 1.0))))
+    queried = np.minimum(distance.ravel()[pixels] + spread, cutoff) + margin
+    del distance
+    bounds = _batch_bounds(queried)
 
-    if density >= _DENSE_EROSION_DENSITY:
-        sub_partial, sub_near, sub_alpha, sub_active = (
-            partial[crop],
-            near[crop],
-            alpha[crop],
-            active[crop],
-        )
-        grid = np.mgrid[-span : span + 1, -span : span + 1]
-        length = np.hypot(*grid).astype(np.float32)
-        kwargs = {
-            "footprint": length <= radius,
-            "structure": -length,
-            "mode": "constant",
-        }
-        outward = grey_erosion(
-            np.where(sub_partial, sub_near, np.inf).astype(np.float32),
-            cval=np.inf,
-            **kwargs,
-        )
-        inward = -grey_erosion(
-            np.where(sub_partial, -sub_near, np.inf).astype(np.float32),
-            cval=np.inf,
-            **kwargs,
-        )
-        stated = np.where(sub_alpha >= 1, inward, outward)
-        field[crop] = np.where(sub_active, stated, field[crop])
-        return field
+    seed_pixels = np.flatnonzero(partial)
+    seeds = np.empty((seed_pixels.size, 2), dtype=np.float64)
+    seeds[:, 0], seeds[:, 1] = np.divmod(seed_pixels, width)
+    del seed_pixels
+    weights = near[partial]
+    tree = cKDTree(seeds, balanced_tree=False, compact_nodes=False, copy_data=False)
 
-    offsets = np.mgrid[-span : span + 1, -span : span + 1].reshape(2, -1).T
-    lengths = np.hypot(offsets[:, 0], offsets[:, 1]).astype(np.float32)
-    within = lengths <= radius
-    offsets, lengths = offsets[within], lengths[within]
-    ascending = np.argsort(lengths, kind="stable")
-    offsets, lengths = offsets[ascending], lengths[ascending]
-
-    # partial's own pixels sit inside `crop` by construction (it is padded out
-    # to `span` around their bounding box), and so does every active pixel --
-    # nothing an offset lookup needs is outside it. Padding that crop, rather
-    # than the whole canvas, is what keeps this branch's own memory use tied
-    # to the shape's extent instead of the much bigger canvas around it.
-    sub_partial, sub_near, sub_alpha, sub_active = (
-        partial[crop],
-        near[crop],
-        alpha[crop],
-        active[crop],
-    )
-    flat = np.flatnonzero(sub_active)
-    rows, cols = np.unravel_index(flat, sub_active.shape)
-    partial_pad = np.pad(sub_partial, span, constant_values=False)
-    near_pad = np.pad(sub_near, span, constant_values=0.0)
-    inside = (sub_alpha >= 1).ravel()[flat]
-
-    outward = _prune_offsets(
-        rows[~inside],
-        cols[~inside],
-        span,
-        offsets,
-        lengths,
-        partial_pad,
-        near_pad,
-        outward=True,
-    )
-    inward = _prune_offsets(
-        rows[inside],
-        cols[inside],
-        span,
-        offsets,
-        lengths,
-        partial_pad,
-        near_pad,
-        outward=False,
-    )
-    field[r0 + rows[~inside], c0 + cols[~inside]] = outward
-    field[r0 + rows[inside], c0 + cols[inside]] = inward
+    for lo, hi in pairwise(bounds):
+        rows, cols = np.divmod(pixels[lo:hi], width)
+        inside = alpha[rows, cols] >= 1
+        points = np.column_stack([rows, cols]).astype(np.float64)
+        found = tree.query_ball_point(points, queried[lo:hi])
+        counts = np.fromiter(map(len, found), np.intp, count=hi - lo)
+        flat = np.fromiter(chain.from_iterable(found), np.intp, count=counts.sum())
+        del found
+        owner = np.repeat(np.arange(hi - lo), counts)
+        length = np.hypot(*(seeds[flat] - points[owner]).T).astype(np.float32)
+        weight = weights[flat]
+        # The inward minimum runs over ``length - near`` and is negated below.
+        stated = np.where(inside[owner], length - weight, weight + length)
+        stated = np.where(length <= radius, stated, np.inf)
+        best = np.full(hi - lo, np.inf, dtype=np.float32)
+        found_any = counts > 0
+        starts = (np.cumsum(counts) - counts)[found_any]
+        best[found_any] = np.minimum.reduceat(stated, starts)
+        field[rows, cols] = np.where(inside, -best, best)
     return field
 
 

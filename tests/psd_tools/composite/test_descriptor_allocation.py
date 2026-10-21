@@ -343,21 +343,6 @@ def test_an_inset_stroke_size_does_not_grow_the_distance_search_past_the_canvas(
     assert peak < 10_000_000
 
 
-def test_a_budget_covers_the_distance_search_grid() -> None:
-    """An inset stroke's box is small, so its grid is what the budget meets."""
-    _, layer, desc = _stroke_desc(effects._MAX_STROKE_SIZE)
-    desc[Key.Style] = Enumerated(typeID=b"FStl", enum=Enum.InsetFrame)
-    grown = effects.stroke_bbox(layer.bbox, desc)
-    side = max(grown[2] - grown[0], grown[3] - grown[1])
-    grid = (2 * side + 1) ** 2 * effects._GRID_BYTES
-    box = (grown[2] - grown[0]) * (grown[3] - grown[1]) * effects._STROKE_BYTES
-    assert grid > box
-
-    assert effects.stroke_bbox(layer.bbox, desc, grid) == grown
-    with pytest.raises(ValueError, match="over the configured budget"):
-        effects.stroke_bbox(layer.bbox, desc, grid - 1)
-
-
 def test_a_forged_pattern_record_is_rejected_by_the_fill() -> None:
     """The fill hands its budget to the decode, which sizes from the record."""
     psd, desc, _ = _pattern()
