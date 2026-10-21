@@ -212,6 +212,20 @@ def _grow(mask: np.ndarray) -> np.ndarray:
     return grown
 
 
+def _batch_bounds(queried: np.ndarray) -> np.ndarray:
+    """Indices that cut pixels with these query radii into bounded batches.
+
+    An annulus one pixel wide holds at most ``4 * (2r + 3) + pi * (2r + 1)``
+    lattice points, under ``12 * (r + 2)``; a batch holds pixels until those
+    sum past :py:data:`_BATCH_CANDIDATES`. The running sum is float64: in
+    float32 it stops growing once it is large, and every later pixel would
+    land in one batch.
+    """
+    ends = np.cumsum(12.0 * (queried + 2.0))
+    steps = np.arange(0.0, ends[-1] + _BATCH_CANDIDATES, _BATCH_CANDIDATES)
+    return np.unique(np.append(np.searchsorted(ends, steps), queried.size))
+
+
 def _nearest_boundary(
     alpha: np.ndarray, partial: np.ndarray, near: np.ndarray, radius: float
 ) -> np.ndarray:
@@ -263,12 +277,7 @@ def _nearest_boundary(
     margin = max(1e-3, 8.0 * float(np.spacing(np.float32(cutoff + 1.0))))
     queried = np.minimum(distance.ravel()[pixels] + spread, cutoff) + margin
     del distance
-    # An annulus one pixel wide holds at most 4 * (2r + 3) + pi * (2r + 1)
-    # lattice points, under 12 * (r + 2).
-    ends = np.cumsum(12.0 * (queried + 2.0), dtype=np.float32)
-    steps = np.arange(0.0, ends[-1] + _BATCH_CANDIDATES, _BATCH_CANDIDATES)
-    bounds = np.unique(np.append(np.searchsorted(ends, steps), pixels.size))
-    del ends
+    bounds = _batch_bounds(queried)
 
     seed_pixels = np.flatnonzero(partial)
     seeds = np.empty((seed_pixels.size, 2), dtype=np.float64)

@@ -1311,6 +1311,26 @@ def test_a_batch_boundary_does_not_change_the_field(
     assert np.array_equal(effects._nearest_boundary(disc, partial, near, 9.0), whole)
 
 
+def test_a_large_canvas_is_still_cut_into_bounded_batches() -> None:
+    """Pixels far from any seed do not swallow the batches of those after them.
+
+    A running sum in float32 stops growing once it passes the size of its
+    increments times 2**24, and every pixel after that would fall in one batch.
+    Millions of pixels at the widest reach, then many near a seed, is how a
+    large canvas gets there.
+    """
+    far, near = 4_000_000, 1_000_000
+    queried = np.r_[np.full(far, 251.0), np.full(near, 1.0)]
+
+    bounds = effects._batch_bounds(queried)
+
+    assert bounds[0] == 0 and bounds[-1] == queried.size
+    estimate = np.add.reduceat(12.0 * (queried + 2.0), bounds[:-1])
+    # A batch holds the cap plus the pixel that crossed it.
+    assert estimate.max() <= effects._BATCH_CANDIDATES + 12.0 * (251.0 + 2.0)
+    assert len(bounds) - 1 > far * 12 * 253 // effects._BATCH_CANDIDATES
+
+
 def test_a_feathered_mask_is_searched_exactly() -> None:
     """Every pixel of the layer a seed, with the widest spread of weights."""
     rng = np.random.default_rng(1)
