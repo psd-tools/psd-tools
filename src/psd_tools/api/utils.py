@@ -424,7 +424,7 @@ def _validate_color_input(
 
 
 def _normalize_scalar(
-    value: int | float,
+    value: float,
     max_val: int,
     index: int | None = None,
 ) -> float:
@@ -454,7 +454,7 @@ def _normalize_scalar(
 
 
 def _denormalize_scalar(
-    value: int | float,
+    value: float,
     max_val: int,
     index: int | None = None,
 ) -> int:

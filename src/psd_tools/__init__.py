@@ -36,10 +36,10 @@ from psd_tools.psd.parse_limits import ParseLimitError, ParseLimits
 from psd_tools.version import __version__
 
 __all__ = [
-    "PSDImage",
     "PSDDecompressionWarning",
+    "PSDImage",
     "PSDLargeImageWarning",
-    "ParseLimits",
     "ParseLimitError",
+    "ParseLimits",
     "__version__",
 ]
