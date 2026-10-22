@@ -10,7 +10,7 @@ stylized.
 import logging
 import math
 from itertools import pairwise
-from typing import Literal
+from typing import ClassVar, Literal
 
 from psd_tools.api._descriptor import get_blend_mode, get_descriptor, get_scalar
 from psd_tools.constants import BlendMode, StrokeAlignment
@@ -219,19 +219,19 @@ class Stroke:
     Check `_data` attribute to get the raw data.
     """
 
-    STROKE_STYLE_LINE_CAP_TYPES = {
+    STROKE_STYLE_LINE_CAP_TYPES: ClassVar[dict[bytes, str]] = {
         b"strokeStyleButtCap": "butt",
         b"strokeStyleRoundCap": "round",
         b"strokeStyleSquareCap": "square",
     }
 
-    STROKE_STYLE_LINE_JOIN_TYPES = {
+    STROKE_STYLE_LINE_JOIN_TYPES: ClassVar[dict[bytes, str]] = {
         b"strokeStyleMiterJoin": "miter",
         b"strokeStyleRoundJoin": "round",
         b"strokeStyleBevelJoin": "bevel",
     }
 
-    STROKE_STYLE_LINE_ALIGNMENTS = {
+    STROKE_STYLE_LINE_ALIGNMENTS: ClassVar[dict[bytes, StrokeAlignment]] = {
         b"strokeStyleAlignInside": StrokeAlignment.INNER,
         b"strokeStyleAlignOutside": StrokeAlignment.OUTER,
         b"strokeStyleAlignCenter": StrokeAlignment.CENTER,

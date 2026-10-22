@@ -9,7 +9,7 @@ These tests pin the primitives directly, so a change to the compositing maths
 fails with a specific, hand-checkable number. See #715.
 """
 
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 import numpy as np
 import pytest
@@ -413,7 +413,7 @@ def test_a_source_wider_than_the_canvas_is_rejected() -> None:
 class _ClipStub:
     """The only attribute ``_apply_clip_layers`` reads off its layer."""
 
-    clip_layers: list = []
+    clip_layers: ClassVar[list] = []
 
 
 def test_clip_layers_sub_compositor_uses_the_document_width() -> None:
