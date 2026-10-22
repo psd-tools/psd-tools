@@ -6,7 +6,7 @@ are stored in tagged blocks.
 """
 
 import logging
-from typing import IO, Any, Self
+from typing import IO, Any, ClassVar, Self
 
 from attrs import astuple, define, field
 
@@ -449,7 +449,7 @@ class EffectsLayer(DictElement):
 
     version: int = 0
 
-    EFFECT_TYPES = {
+    EFFECT_TYPES: ClassVar[dict[EffectOSType, type[BaseElement]]] = {
         EffectOSType.COMMON_STATE: CommonStateInfo,
         EffectOSType.DROP_SHADOW: ShadowInfo,
         EffectOSType.INNER_SHADOW: ShadowInfo,

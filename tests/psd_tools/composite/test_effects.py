@@ -3,7 +3,7 @@ import math
 import warnings
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 import numpy as np
 import pytest
@@ -1260,7 +1260,7 @@ _REAL_TREE = scipy.spatial.cKDTree
 class _CountingTree:
     """``cKDTree`` that keeps what each query returned, patched in by a test."""
 
-    returned: list[int] = []
+    returned: ClassVar[list[int]] = []
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._tree = _REAL_TREE(*args, **kwargs)

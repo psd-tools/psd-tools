@@ -372,7 +372,7 @@ def test_list() -> None:
 class Dummy(bytes, Enum):
     A = b"x"
     B = b"y"
-    C = b"x"
+    C = b"x"  # noqa: PIE796
 
 
 def test_dict() -> None:

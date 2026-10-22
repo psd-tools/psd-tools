@@ -9,7 +9,7 @@ Tagged block data structure.
 
 import io
 import logging
-from typing import IO, Any, Self
+from typing import IO, Any, ClassVar, Self
 
 from attrs import converters, define, field, validators
 
@@ -240,7 +240,7 @@ class TaggedBlock(BaseElement):
     """
 
     _SIGNATURES = (b"8BIM", b"8B64")
-    _BIG_KEYS = {
+    _BIG_KEYS: ClassVar[set[Tag]] = {
         Tag.USER_MASK,
         Tag.LAYER_16,
         Tag.LAYER_32,
@@ -267,7 +267,7 @@ class TaggedBlock(BaseElement):
 
     # The layer tree cannot be built without these, so a parse failure raises
     # instead of falling back to raw bytes.
-    _STRUCTURAL = {
+    _STRUCTURAL: ClassVar[set[Tag]] = {
         Tag.LAYER_16,
         Tag.LAYER_32,
         Tag.SECTION_DIVIDER_SETTING,
@@ -548,7 +548,14 @@ class MetadataSettings(ListElement):
 class MetadataSetting(BaseElement):
     """MetadataSetting structure."""
 
-    _KNOWN_KEYS = {b"cust", b"cmls", b"extn", b"mlst", b"tmln", b"sgrp"}
+    _KNOWN_KEYS: ClassVar[set[bytes]] = {
+        b"cust",
+        b"cmls",
+        b"extn",
+        b"mlst",
+        b"tmln",
+        b"sgrp",
+    }
     _KNOWN_SIGNATURES = (b"8BIM", b"8ELE")
     signature: bytes = field(
         default=b"8BIM", repr=False, validator=in_(_KNOWN_SIGNATURES)
