@@ -379,8 +379,8 @@ def test_dict() -> None:
     value = DictElement()
     value[Dummy.A] = "foo"
     assert value.get(Dummy.A) == value.get(b"x")
-    assert list(value.keys())[0] == Dummy.A
-    assert list(value.keys())[0] == b"x"
+    assert next(iter(value.keys())) == Dummy.A
+    assert next(iter(value.keys())) == b"x"
     assert Dummy.A in value
     assert b"x" in value
     assert value[Dummy.A] == "foo"

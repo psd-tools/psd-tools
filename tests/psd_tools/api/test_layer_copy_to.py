@@ -93,7 +93,7 @@ def test_copy_of_a_group_copies_descendants() -> None:
 
 
 def test_copy_converts_the_copy_only() -> None:
-    source, layer = _source()
+    _, layer = _source()
     before = layer.numpy()
     channels = [info.id for info in layer._record.channel_info]
     dest = PSDImage.new("CMYK", (16, 16), depth=16)

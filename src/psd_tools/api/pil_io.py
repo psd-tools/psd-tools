@@ -754,6 +754,6 @@ def _remove_white_background(image: Image.Image, color_mode: ColorMode) -> Image
             )
             for x in bands[:-1]
         ]
-        return Image.merge(bands=color + [a], mode=image.mode)
+        return Image.merge(bands=[*color, a], mode=image.mode)
 
     return image

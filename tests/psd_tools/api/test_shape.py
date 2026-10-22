@@ -160,7 +160,7 @@ def test_bbox_interior_extremum():
     k0 = ClosedKnotLinked(preceding=(0.3, 0.2), anchor=(0.3, 0.2), leaving=(0.1, 0.2))
     k1 = ClosedKnotLinked(preceding=(0.7, 0.8), anchor=(0.7, 0.8), leaving=(0.7, 0.8))
     vm = _make_vm(ClosedPath(items=[k0, k1]))
-    left, top, right, bottom = vm.bbox
+    _left, top, _right, bottom = vm.bbox
     # The curve dips above the topmost anchor (smaller y = higher on canvas).
     assert top < 0.3
     assert bottom == pytest.approx(0.7)
@@ -186,7 +186,7 @@ def test_bbox_repeated_root():
     k0 = ClosedKnotLinked(preceding=(0.1, 0.2), anchor=(0.1, 0.2), leaving=(0.6, 0.2))
     k1 = ClosedKnotLinked(preceding=(0.1, 0.8), anchor=(0.6, 0.8), leaving=(0.6, 0.8))
     vm = _make_vm(ClosedPath(items=[k0, k1]))
-    left, top, right, bottom = vm.bbox
+    _left, top, _right, bottom = vm.bbox
     # Interior extremum at t=0.5: B(0.5)=0.35 (within anchor range, no extension)
     assert top == pytest.approx(0.1)
     assert bottom == pytest.approx(0.6)

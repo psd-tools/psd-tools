@@ -1261,7 +1261,7 @@ def _pattern_overlay_layer(psd: PSDImage) -> Any:
     return next(
         sub
         for top in psd
-        for sub in [top] + list(getattr(top, "_layers", None) or [])
+        for sub in [top, *list(getattr(top, "_layers", None) or [])]
         if list(sub.effects.find("patternoverlay"))
     )
 
@@ -1432,7 +1432,7 @@ def test_a_partly_covered_stroke_pixel_blends_with_the_fill() -> None:
     alignment; x = 5 is the band's outer column, outside the path.
     """
     psd = PSDImage.open(full_name("descriptors/stroke-color-descriptors-rgb.psd"))
-    layer = [x for x in psd.descendants() if x.name == "Rectangle 1"][0]
+    layer = next(x for x in psd.descendants() if x.name == "Rectangle 1")
     assert layer.stroke is not None
     assert layer.stroke.line_width == 1.0
     assert layer.stroke.line_alignment == "center", "not what #854 is about"
@@ -1469,7 +1469,7 @@ def test_a_partly_opaque_stroke_fades_into_the_fill() -> None:
 
     def render(opacity: float | None) -> np.ndarray:
         psd = PSDImage.open(full_name("layers/shape-layer.psd"))
-        layer = [x for x in psd.descendants() if x.name == "Polygon 1"][0]
+        layer = next(x for x in psd.descendants() if x.name == "Polygon 1")
         assert layer.stroke is not None
         stored = cast(UnitFloat, layer.stroke._data["strokeStyleOpacity"])
         assert float(stored) == 100.0, "the fixture's own value, forged below"
@@ -1482,7 +1482,7 @@ def test_a_partly_opaque_stroke_fades_into_the_fill() -> None:
 
     row, column = 27, 19
     psd = PSDImage.open(full_name("layers/shape-layer.psd"))
-    layer = [x for x in psd.descendants() if x.name == "Polygon 1"][0]
+    layer = next(x for x in psd.descendants() if x.name == "Polygon 1")
     assert vector.draw_stroke(layer)[row, column, 0] == 1.0, "covered whole"
 
     assert render(None)[row, column] == pytest.approx([1.0, 0.0, 1.0], abs=1e-6)
@@ -2046,7 +2046,7 @@ def test_an_outer_effect_adds_its_coverage_beside_the_layer() -> None:
 
     compositor._apply_outer_effects([band], source.alpha)
     compositor._composite_source(source, BlendMode.NORMAL)
-    color, shape, alpha = compositor.finish()
+    color, _, alpha = compositor.finish()
     assert np.allclose(alpha, 1.0)
     assert np.allclose(color, 0.5)
 
@@ -2056,7 +2056,7 @@ def test_an_outer_effect_adds_its_coverage_beside_the_layer() -> None:
     opaque = _partial_source(compositor, coverage=1.0, fill=1.0)
     compositor._apply_outer_effects([band], opaque.alpha)
     compositor._composite_source(opaque, BlendMode.NORMAL)
-    color, shape, alpha = compositor.finish()
+    color, _shape, alpha = compositor.finish()
     assert np.allclose(alpha, 1.0)
     assert np.allclose(color, 0.0)
 

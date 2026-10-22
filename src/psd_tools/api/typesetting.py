@@ -747,7 +747,7 @@ class TypeSetting:
         )
 
         paragraphs: list[Paragraph] = []
-        pairs = list(pairwise([0] + stops))
+        pairs = list(pairwise([0, *stops]))
 
         for idx, group in groupby(pairs, key=lambda pair: para_index(pair[0])):
             group_list = list(group)

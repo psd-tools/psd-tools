@@ -3267,10 +3267,10 @@ class ShapeLayer(Layer):
                     )
                 bbox = self.vector_mask.bbox
                 self._bbox = (
-                    int(round(bbox[0] * self._psd.width)),
-                    int(round(bbox[1] * self._psd.height)),
-                    int(round(bbox[2] * self._psd.width)),
-                    int(round(bbox[3] * self._psd.height)),
+                    round(bbox[0] * self._psd.width),
+                    round(bbox[1] * self._psd.height),
+                    round(bbox[2] * self._psd.width),
+                    round(bbox[3] * self._psd.height),
                 )
             else:
                 self._bbox = (0, 0, 0, 0)

@@ -506,7 +506,7 @@ def test_a_palette_image_carrying_transparency_info_is_not_indexed_for_alpha() -
     psd = PSDImage.new("RGB", (16, 16))
     layer = psd.create_pixel_layer(palettized, name="L")
 
-    assert [info.id for info in layer._record.channel_info][0] == (
+    assert next(info.id for info in layer._record.channel_info) == (
         ChannelID.TRANSPARENCY_MASK
     )
     array = layer.numpy()
