@@ -14,7 +14,7 @@ A clear and concise description of what the bug is.
 Steps to reproduce the behavior:
 
 ```python
-psd = PSDImage.open('filename.psd')
+psd = PSDImage.open("filename.psd")
 ```
 
 **Expected behavior**

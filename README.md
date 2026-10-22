@@ -64,13 +64,13 @@ set to an empty value.
 ```python
 from psd_tools import PSDImage
 
-psd = PSDImage.open('example.psd')
-psd.composite().save('example.png')
+psd = PSDImage.open("example.psd")
+psd.composite().save("example.png")
 
 for layer in psd:
     print(layer)
     layer_image = layer.composite()
-    layer_image.save('%s.png' % layer.name)
+    layer_image.save("%s.png" % layer.name)
 ```
 
 Check out the [documentation](https://psd-tools.readthedocs.io/) for features and details.
