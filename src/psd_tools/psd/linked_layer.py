@@ -1,6 +1,5 @@
 """Linked layer structure."""
 
-import io
 import logging
 from typing import IO, Any, Self
 
@@ -9,10 +8,11 @@ from attrs import define, field
 from psd_tools.constants import LinkedLayerType
 from psd_tools.psd.base import BaseElement, ListElement
 from psd_tools.psd.bin_utils import (
+    bounded_reader,
     is_readable,
     read_exact,
     read_fmt,
-    read_length_block,
+    read_padding,
     read_pascal_string,
     read_unicode_string,
     write_bytes,
@@ -33,12 +33,27 @@ class LinkedLayers(ListElement):
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
-        """Read the structure from a file-like object."""
+        """Read the structure from a file-like object.
+
+        Each item is parsed from a bounded substream over *fp* instead of a
+        copy of its bytes, so a payload that dominates the file is
+        materialized once, by :py:meth:`LinkedLayer.read` itself (#899).
+        """
         items = []
         while is_readable(fp, 8):
-            data = read_length_block(fp, fmt="Q", padding=4)
-            with io.BytesIO(data) as f:
-                items.append(LinkedLayer.read(f))
+            length = read_fmt("Q", fp)[0]
+            start = fp.tell()
+            if not is_readable(fp, length):
+                raise OSError("Invalid data section size: %d" % length)
+            with bounded_reader(fp, length) as body:
+                item = LinkedLayer.read(body)
+                if body.tell() - start != length:
+                    raise ValueError(
+                        "Linked layer item consumed %d of %d bytes"
+                        % (body.tell() - start, length)
+                    )
+            read_padding(fp, length, 4)
+            items.append(item)
         return cls(items)  # type: ignore[arg-type]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
