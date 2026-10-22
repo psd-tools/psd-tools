@@ -104,7 +104,7 @@ class _DescriptorMixin(DictElement):
                 value = kls.read(fp)  # type: ignore[union-attr]
                 items.append((key, value))
 
-            return dict(name=name, classID=classID, items=items)
+            return {"name": name, "classID": classID, "items": items}
 
     def _write_body(self, fp: IO[bytes]) -> int:
         written = write_unicode_string(fp, self.name, padding=1)

@@ -195,34 +195,34 @@ def test_mask_flags_rw(fixture: bytes) -> None:
 @pytest.mark.parametrize(
     ["args"],
     [
-        (dict(),),
+        ({},),
         (
-            dict(
-                flags=MaskFlags(parameters_applied=True),
-                parameters=MaskParameters(255, 1.0, None, None),
-            ),
+            {
+                "flags": MaskFlags(parameters_applied=True),
+                "parameters": MaskParameters(255, 1.0, None, None),
+            },
         ),
         (
-            dict(
-                real_flags=MaskFlags(True, True, True, True, True),
-                real_background_color=255,
-                real_top=0,
-                real_left=0,
-                real_bottom=100,
-                real_right=100,
-            ),
+            {
+                "real_flags": MaskFlags(True, True, True, True, True),
+                "real_background_color": 255,
+                "real_top": 0,
+                "real_left": 0,
+                "real_bottom": 100,
+                "real_right": 100,
+            },
         ),
         (
-            dict(
-                flags=MaskFlags(parameters_applied=True),
-                parameters=MaskParameters(None, 1.0, None, 1.0),
-                real_flags=MaskFlags(True, True, True, True, True),
-                real_background_color=255,
-                real_top=0,
-                real_left=0,
-                real_bottom=100,
-                real_right=100,
-            ),
+            {
+                "flags": MaskFlags(parameters_applied=True),
+                "parameters": MaskParameters(None, 1.0, None, 1.0),
+                "real_flags": MaskFlags(True, True, True, True, True),
+                "real_background_color": 255,
+                "real_top": 0,
+                "real_left": 0,
+                "real_bottom": 100,
+                "real_right": 100,
+            },
         ),
     ],
 )
@@ -278,9 +278,8 @@ def test_mask_data_truncated_parameters(caplog: pytest.LogCaptureFixture) -> Non
     still misread a block like this one. That must degrade to a warning rather
     than raise (#573).
     """
-    with caplog.at_level(logging.WARNING):
-        with io.BytesIO(MASK_DATA_573) as f:
-            mask_data = MaskData.read(f)
+    with caplog.at_level(logging.WARNING), io.BytesIO(MASK_DATA_573) as f:
+        mask_data = MaskData.read(f)
     assert mask_data is not None
     assert mask_data.flags.parameters_applied
     assert "Truncated MaskParameters" in caplog.text
@@ -479,9 +478,8 @@ def test_mask_parameters() -> None:
 
 def test_mask_parameters_truncated_flag_byte(caplog: pytest.LogCaptureFixture) -> None:
     """The truncation guard must also cover the parameter flag byte itself."""
-    with caplog.at_level(logging.WARNING):
-        with io.BytesIO(b"") as f:
-            parameters = MaskParameters.read(f)
+    with caplog.at_level(logging.WARNING), io.BytesIO(b"") as f:
+        parameters = MaskParameters.read(f)
     assert parameters == MaskParameters()
     assert "Truncated MaskParameters" in caplog.text
 

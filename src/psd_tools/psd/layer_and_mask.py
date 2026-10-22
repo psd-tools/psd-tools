@@ -223,8 +223,11 @@ class LayerInfo(BaseElement):
     """
 
     layer_count: int = 0
-    layer_records: "LayerRecords" = field(factory=lambda: LayerRecords())
-    channel_image_data: "ChannelImageData" = field(factory=lambda: ChannelImageData())
+    # The classes are defined below, so the lookup is deferred.
+    layer_records: "LayerRecords" = field(factory=lambda: LayerRecords())  # noqa: PLW0108
+    channel_image_data: "ChannelImageData" = field(
+        factory=lambda: ChannelImageData()  # noqa: PLW0108
+    )
 
     @classmethod
     def read(
@@ -238,10 +241,7 @@ class LayerInfo(BaseElement):
         length = read_fmt(("I", "Q")[version - 1], fp)[0]
         logger.debug("reading layer info, len=%d" % length)
         with bounded_reader(fp, length) as body:
-            if length == 0:
-                self = cls()
-            else:
-                self = cls._read_body(body, encoding, version)
+            self = cls() if length == 0 else cls._read_body(body, encoding, version)
         return self  # type: ignore[return-value]
 
     @classmethod
@@ -472,7 +472,7 @@ class LayerBlendingRanges(BaseElement):
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         """Write the structure to a file-like object and return the bytes written."""
-        return write_length_block(fp, lambda f: self._write_body(f))
+        return write_length_block(fp, self._write_body)
 
     def _write_body(self, fp: IO[bytes]) -> int:
         written = 0
@@ -979,7 +979,7 @@ class MaskData(BaseElement):
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         """Write the structure to a file-like object and return the bytes written."""
-        return write_length_block(fp, lambda f: self._write_body(f))
+        return write_length_block(fp, self._write_body)
 
     def _write_body(self, fp: IO[bytes]) -> int:
         written = write_fmt(
@@ -1343,7 +1343,7 @@ class GlobalLayerMaskInfo(BaseElement):
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         """Write the structure to a file-like object and return the bytes written."""
-        return write_length_block(fp, lambda f: self._write_body(f))
+        return write_length_block(fp, self._write_body)
 
     def _write_body(self, fp: IO[bytes]) -> int:
         written = 0

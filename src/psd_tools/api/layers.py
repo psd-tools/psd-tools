@@ -818,9 +818,7 @@ class Layer(LayerProtocol):
 
         :return: `bool`
         """
-        if self.origination:
-            return True
-        return False
+        return bool(self.origination)
 
     @property
     def origination(self) -> list[Origination]:
@@ -2087,12 +2085,11 @@ class GroupMixin(GroupMixinProtocol, Protocol):
                 raise TypeError(f"Expected Layer instance, got {type(layer).__name__}")
             if layer is self:
                 raise ValueError(f"Cannot add the group {self} to itself")
-            if isinstance(layer, GroupMixin):
-                if self in list(layer.descendants()):
-                    raise ValueError(
-                        "This operation would create a reference loop "
-                        f"within the group between {self} and {layer}"
-                    )
+            if isinstance(layer, GroupMixin) and self in list(layer.descendants()):
+                raise ValueError(
+                    "This operation would create a reference loop "
+                    f"within the group between {self} and {layer}"
+                )
 
     def _reencode_moved(
         self, layers: Iterable[Layer]

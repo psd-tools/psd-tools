@@ -1341,10 +1341,8 @@ class Compositor:
         ) and utils.intersect(self._viewport, _stroke_reach(layer)) == (0, 0, 0, 0):
             logger.debug("Out of viewport %s", layer)
             return False
-        if not clip_compositing and layer.clipping:
-            # Composited by the layer it clips to, through _apply_clip_layers().
-            return False
-        return True
+        # A clipping layer is composited by its base, through _apply_clip_layers().
+        return clip_compositing or not layer.clipping
 
     def _resolve_source(self, layer: Layer) -> _Source:
         """Resolve a layer into the operands the blend equations take.

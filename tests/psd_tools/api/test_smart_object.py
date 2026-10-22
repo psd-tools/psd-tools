@@ -286,9 +286,8 @@ class TestExternalReadConfinement:
         workdir.mkdir()
         monkeypatch.chdir(workdir)
         so = _make_external_smart_object(str(secret), "missing.png")
-        with pytest.raises(FileNotFoundError):
-            with so.open() as f:
-                f.read()
+        with pytest.raises(FileNotFoundError), so.open() as f:
+            f.read()
 
     def test_open_default_honours_fullpath_inside_cwd(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

@@ -37,10 +37,7 @@ class Color(BaseElement):
             id = ColorSpaceID(id)
         except ValueError:
             logger.debug("Custom color space found: %d" % (id))
-        if id == ColorSpaceID.LAB:
-            values = read_fmt("4h", fp)
-        else:
-            values = read_fmt("4H", fp)
+        values = read_fmt("4h", fp) if id == ColorSpaceID.LAB else read_fmt("4H", fp)
         return cls(id, list(values))
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:

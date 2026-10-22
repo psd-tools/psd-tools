@@ -1,5 +1,6 @@
 """Regression coverage for descriptor retention and recursive parsing."""
 
+import contextlib
 import io
 import os
 import pickle
@@ -142,13 +143,11 @@ def test_shared_depth_nested_bytes_and_latched_error() -> None:
     with pytest.raises(ParseLimitError, match="max_nesting_depth"):
         with parse_context(ParseLimits(max_nesting_depth=2)):
             with parse_container():
-                try:
+                with contextlib.suppress(ParseLimitError):
                     EngineDict.frombytes(
                         b"<< /x << >> >>",
                         parse_limits=ParseLimits(max_nesting_depth=None),
                     )
-                except ParseLimitError:
-                    pass
 
 
 def test_depth_unwinds_after_non_limit_failure() -> None:
