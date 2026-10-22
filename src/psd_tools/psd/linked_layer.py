@@ -101,10 +101,7 @@ class LinkedLayer(BaseElement):
         uuid = read_pascal_string(fp, "macroman", padding=1)
         filename = read_unicode_string(fp)
         filetype, creator, datasize, open_file = read_fmt("4s4sQB", fp)
-        if open_file:
-            open_file = DescriptorBlock.read(fp, padding=1)
-        else:
-            open_file = None
+        open_file = DescriptorBlock.read(fp, padding=1) if open_file else None
 
         linked_file = None
         timestamp = None

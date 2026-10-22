@@ -127,7 +127,7 @@ def encode(data: bytes) -> bytes:
                 # +6  A  B  C  D  D  E  F -5  G +3  H  I  J  J  K
                 elif (
                     ((j + 2 == length) or (MAX_LEN - (j - i) <= 2))
-                    and not (j + 1 == length)
+                    and j + 1 != length
                     and (data[j] == data[j + 1])
                 ):
                     break

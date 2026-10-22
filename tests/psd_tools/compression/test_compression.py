@@ -349,7 +349,7 @@ def test_decompress_rle_failure_emits_psd_warning() -> None:
 )
 def test_decompress_invalid_dimensions_raises(bad_kwarg: dict) -> None:
     """Out-of-spec dimensions must raise ValueError immediately."""
-    params: dict = dict(width=4, height=4, depth=8, version=1)
+    params: dict = {"width": 4, "height": 4, "depth": 8, "version": 1}
     params.update(bad_kwarg)
     with pytest.raises(ValueError):
         decompress(b"\x00" * 16, Compression.RAW, **params)

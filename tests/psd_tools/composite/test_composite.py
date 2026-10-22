@@ -1700,7 +1700,7 @@ def test_an_unmeasurable_stroke_falls_back_to_the_layer_box(
     """
     psd = PSDImage.open(full_name("effects/outside-stroke.psd"))
     layer = psd[0]
-    broken = [effect for effect in layer.effects.find("stroke")]
+    broken = list(layer.effects.find("stroke"))
     assert broken, "the fixture carries the stroke this test breaks"
     for effect in broken:
         effect.descriptor[Key.SizeKey] = "wide"

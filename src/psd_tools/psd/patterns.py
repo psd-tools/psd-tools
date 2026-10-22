@@ -165,7 +165,7 @@ class VirtualMemoryArrayList(BaseElement):
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "I", self.version)
-        return written + write_length_block(fp, lambda f: self._write_body(f))
+        return written + write_length_block(fp, self._write_body)
 
     def _write_body(self, fp: IO[bytes]) -> int:
         written = write_fmt(fp, "4I", *self.rectangle)
@@ -226,7 +226,7 @@ class VirtualMemoryArray(BaseElement):
             written += write_fmt(fp, "I", 0)
             return written
 
-        return written + write_length_block(fp, lambda f: self._write_body(f))
+        return written + write_length_block(fp, self._write_body)
 
     def _write_body(self, fp: IO[bytes]) -> int:
         assert self.depth is not None

@@ -49,7 +49,7 @@ def test_string(fixture: str) -> None:
     assert value == fixture
     assert repr(value) == repr(fixture)
     assert hash(value) == hash(fixture)
-    assert (value % tuple()) == fixture
+    assert (value % ()) == fixture
 
 
 @pytest.mark.parametrize(
@@ -136,7 +136,7 @@ def test_numbers_abc_members_present(abc: type[Any], kls: type[Any]) -> None:
     metaclass, so ``__or__``, ``__eq__`` and friends would be satisfied by
     ``type``/``object`` however broken the element was.
     """
-    defined = {name for k in kls.__mro__ if k is not object for name in vars(k).keys()}
+    defined = {name for k in kls.__mro__ if k is not object for name in vars(k)}
     missing = sorted(name for name in _abc_members(abc) if name not in defined)
     assert missing == []
 

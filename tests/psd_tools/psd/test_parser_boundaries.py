@@ -96,9 +96,8 @@ def test_bounded_reader_positions_and_nested_sections() -> None:
     with bounded_reader(stream, 4) as body:
         assert body.read(100) == b"ABCD"
         assert body.seek(-2, os.SEEK_END) == 8
-        with pytest.raises(OSError):
-            with bounded_reader(body, 3):
-                pytest.fail("Child exceeded parent")
+        with pytest.raises(OSError), bounded_reader(body, 3):
+            pytest.fail("Child exceeded parent")
         assert body.tell() == 8
         with bounded_reader(body, 1) as child:
             assert child.read(-1) == b"C"
@@ -112,10 +111,9 @@ def test_bounded_reader_positions_and_nested_sections() -> None:
 
 def test_bounded_reader_skips_remainder_only_on_success() -> None:
     stream = io.BytesIO(b"abcd")
-    with pytest.raises(OSError):
-        with bounded_reader(stream, 3) as body:
-            body.read(1)
-            read_exact(body, 3)
+    with pytest.raises(OSError), bounded_reader(stream, 3) as body:
+        body.read(1)
+        read_exact(body, 3)
     assert stream.tell() == 1
     with bounded_reader(stream, 2):
         pass

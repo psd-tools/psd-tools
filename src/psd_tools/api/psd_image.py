@@ -990,7 +990,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             ):
                 layer = layers.SmartObjectLayer(current_group, record, channels)
             else:
-                for key in adjustments.TYPES.keys():
+                for key in adjustments.TYPES:
                     if key in blocks:
                         layer = adjustments.TYPES[key](current_group, record, channels)
                         break

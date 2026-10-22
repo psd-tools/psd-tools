@@ -113,13 +113,13 @@ html_sidebars = {
 }
 
 # Github link
-html_context = dict(
-    display_github=True,
-    github_user="psd-tools",
-    github_repo="psd-tools",
-    github_version="main",
-    conf_py_path="/docs/",
-)
+html_context = {
+    "display_github": True,
+    "github_user": "psd-tools",
+    "github_repo": "psd-tools",
+    "github_version": "main",
+    "conf_py_path": "/docs/",
+}
 
 # -- Options for HTMLHelp output ------------------------------------------
 

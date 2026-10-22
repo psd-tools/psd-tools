@@ -367,9 +367,8 @@ def be_array_to_bytes(arr: array.array) -> bytes:
 
 def trimmed_repr(data: Any, trim_length: int = 16) -> str:
     """Return a repr with long bytes truncated."""
-    if isinstance(data, bytes):
-        if len(data) > trim_length:
-            return repr(data[:trim_length] + b" ... =" + str(len(data)).encode("ascii"))
+    if isinstance(data, bytes) and len(data) > trim_length:
+        return repr(data[:trim_length] + b" ... =" + str(len(data)).encode("ascii"))
     return repr(data)
 
 
