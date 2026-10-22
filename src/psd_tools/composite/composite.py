@@ -189,10 +189,10 @@ def _path_bbox(layer: Layer) -> tuple[int, int, int, int]:
     width, height = layer._psd.width, layer._psd.height
     try:
         return (
-            int(round(left * width)),
-            int(round(top * height)),
-            int(round(right * width)),
-            int(round(bottom * height)),
+            round(left * width),
+            round(top * height),
+            round(right * width),
+            round(bottom * height),
         )
     except (OverflowError, ValueError):
         return layer.bbox

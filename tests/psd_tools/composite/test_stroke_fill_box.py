@@ -18,7 +18,7 @@ ANCHOR = (10, 20, 70, 50)
 
 def _stroke_content(name: str) -> tuple[PSDImage, Descriptor]:
     psd = PSDImage.open(full_name("stroke.psd"))
-    layer = [x for x in psd if x.name == name][0]
+    layer = next(x for x in psd if x.name == name)
     assert layer.stroke is not None
     return psd, layer.stroke._data[b"strokeStyleContent"]
 
@@ -85,9 +85,9 @@ def test_a_pattern_drawn_before_its_anchor_wraps_the_tiling() -> None:
 
 def _forged(width: float) -> PSDImage:
     """``Plain`` of ``stroke-composite.psd`` stroked with a gradient of the given width."""
-    donor, desc = _stroke_content("Shape 1")
+    _donor, desc = _stroke_content("Shape 1")
     psd = PSDImage.open(full_name("effects/stroke-composite.psd"))
-    layer = [x for x in psd.descendants() if x.name == "Plain"][0]
+    layer = next(x for x in psd.descendants() if x.name == "Plain")
     for other in psd.descendants():
         if other is not layer and not other.is_group():
             other.visible = False
@@ -107,9 +107,9 @@ def test_a_gradient_stroke_is_laid_out_on_the_path_whatever_its_width() -> None:
         for width in (10.4, 20.6)
     }
     psd = _forged(10.4)
-    layer = [x for x in psd.descendants() if x.name == "Plain"][0]
+    layer = next(x for x in psd.descendants() if x.name == "Plain")
     assert layer.bbox != _path_bbox(layer)
-    left, top, right, bottom = layer.bbox
+    left, top, _right, bottom = layer.bbox
     row = (top + bottom) // 2
     # The columns both widths stroke are painted the same: the ramp does not
     # stretch with the stroke.

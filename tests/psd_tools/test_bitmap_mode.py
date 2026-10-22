@@ -87,7 +87,7 @@ def test_numpy_returns_photoshops_pixels(filename: str) -> None:
     """
     array = _open(filename).numpy()
     expected = _expected(filename)
-    assert array.shape == expected.shape + (1,)
+    assert array.shape == (*expected.shape, 1)
     assert np.array_equal(array[:, :, 0], expected)
 
 

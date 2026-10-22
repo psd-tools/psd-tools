@@ -95,7 +95,7 @@ def test_copy_carries_only_the_patterns_a_layer_uses() -> None:
 
 
 def test_a_pattern_the_destination_already_holds_is_not_duplicated() -> None:
-    source, layer = _pattern_source()
+    _source, layer = _pattern_source()
     dest = PSDImage.open(full_name("layers/pattern-fill.psd"))
     before = list(_patterns(dest))
 
@@ -211,7 +211,7 @@ def test_a_move_carries_the_smart_object_data() -> None:
 
 
 def test_a_clashing_smart_object_id_is_remapped() -> None:
-    source, layer = _smart_source()
+    _source, layer = _smart_source()
     dest, other = _smart_source()
     forged = _linked(dest)[0]
     forged.filename = "forged.png"
@@ -229,7 +229,7 @@ def test_a_clashing_smart_object_id_is_remapped() -> None:
 
 
 def test_a_smart_object_the_destination_holds_is_not_duplicated() -> None:
-    source, layer = _smart_source()
+    _source, layer = _smart_source()
     dest, _ = _smart_source()
 
     layer.copy_to(dest)
@@ -266,7 +266,7 @@ def test_a_malformed_target_block_is_kept() -> None:
 
 
 def test_the_patterns_block_is_created_when_the_destination_has_none() -> None:
-    source, layer = _pattern_source()
+    _source, layer = _pattern_source()
     dest = PSDImage.open(full_name("2layers.psd"))
     assert not _patterns(dest)
 
@@ -279,7 +279,7 @@ def test_the_patterns_block_is_created_when_the_destination_has_none() -> None:
 def test_a_clash_beside_a_malformed_target_block_does_not_bind_the_clashing_id() -> (
     None
 ):
-    source, layer = _pattern_source()
+    _source, layer = _pattern_source()
     dest = PSDImage.open(full_name("layers/pattern-fill.psd"))
     assert dest.tagged_blocks is not None
     unrelated = _patterns(dest)[0]

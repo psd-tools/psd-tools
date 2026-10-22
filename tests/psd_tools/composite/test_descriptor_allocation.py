@@ -226,7 +226,7 @@ def test_a_stroke_over_budget_is_dropped_from_the_reach_and_the_render(
 
 def _vector_stroke() -> tuple[PSDImage, Layer, Descriptor]:
     psd = PSDImage.open(full_name("effects/stroke-composite.psd"))
-    layer = [x for x in psd.descendants() if x.name == "Plain"][0]
+    layer = next(x for x in psd.descendants() if x.name == "Plain")
     assert layer.stroke is not None and layer.has_vector_mask()
     return psd, layer, layer.stroke._data
 

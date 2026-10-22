@@ -2114,7 +2114,7 @@ def test_move_to_detached() -> None:
 
 
 def test_group_creates_layers_in_place() -> None:
-    psd, group = _group_doc()
+    _psd, group = _group_doc()
     before = len(group)
     layer = group.create_pixel_layer(Image.new("RGB", (4, 4)), name="In", opacity=7)
     assert layer.parent is group and group[-1] is layer and len(group) == before + 1
@@ -2148,7 +2148,7 @@ def test_detached_group_creates_layers() -> None:
 
 
 def test_parent_creators_type_check() -> None:
-    psd, group = _group_doc()
+    _psd, group = _group_doc()
     parent = group[0].parent
     assert parent is not None
     assert parent.create_group(name="Via parent").parent is group

@@ -420,7 +420,7 @@ class Annotation(BaseElement):
         author = read_pascal_string(fp, "macroman", padding=2)
         name = read_pascal_string(fp, "macroman", padding=2)
         mod_date = read_pascal_string(fp, "macroman", padding=2)
-        length, marker = read_fmt("I4s", fp)
+        _length, marker = read_fmt("I4s", fp)
         data = read_length_block(fp)
         return cls(
             kind,
