@@ -93,10 +93,10 @@ exclude = ["*.md"]
 [tool.ruff.lint]
 # Ruff 0.16 greatly expanded the default rule set (59 -> 413 rules). Pin the
 # previous defaults so dependency bumps stay behaviour-neutral, and adopt the
-# new rules deliberately, a family at a time -- D (#772), I and UP are adopted, with PIE790, SIM300, RUF100, PYI019, B905 and RUF007;
+# new rules deliberately, a family at a time -- D (#772), I and UP are adopted, with PIE790, SIM300, RUF100, PYI019, B905, RUF007, PYI032, PYI041, RUF022, B007 and B018;
 # the rest are still being evaluated in #692.
 select = ["E4", "E7", "E9", "F"]
-extend-select = ["PLC0415", "T10", "D", "I", "UP", "PIE790", "SIM300", "RUF100", "PYI019", "B905", "RUF007"]
+extend-select = ["PLC0415", "T10", "D", "I", "UP", "PIE790", "SIM300", "RUF100", "PYI019", "B905", "RUF007", "PYI032", "PYI041", "RUF022", "B007", "B018"]
 # Held back deliberately, on noise grounds rather than principle; each is
 # tracked in #786.
 ignore = [
@@ -107,14 +107,17 @@ ignore = [
     "UP031",
     # `StrEnum` would change `str()` of the public `StrokeAlignment`.
     "UP042",
+    # `×` and `–` are ordinary typography, and the `˛ˇ` in `engine_data` is a UTF-16 BOM shown as Mac Roman.
+    "RUF002",
+    "RUF003",
 ]
 
 [tool.ruff.lint.per-file-ignores]
 # D401 (imperative mood) is enforced on the public API and the low level. These
 # trees describe a value rather than an action ("The layer's own coverage ...").
 "src/psd_tools/composite/**" = ["D401"]
-# Test names say what is tested.
-"tests/**" = ["D1", "D401"]
+# Test names say what is tested. Bare attribute access asserts that a property does not raise.
+"tests/**" = ["D1", "D401", "B018"]
 "tools/**" = ["D401"]
 
 [tool.ruff.lint.pydocstyle]

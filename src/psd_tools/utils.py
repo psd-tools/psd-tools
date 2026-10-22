@@ -51,12 +51,12 @@ warnings.warn(
 )
 
 __all__ = [
-    # Binary utilities
     "be_array_from_bytes",
     "be_array_to_bytes",
     "decode_fixed_point_32bit",
     "fix_byteorder",
     "is_readable",
+    "new_registry",
     "pack",
     "pad",
     "read_be_array",
@@ -76,6 +76,4 @@ __all__ = [
     "write_pascal_string",
     "write_position",
     "write_unicode_string",
-    # Registry
-    "new_registry",
 ]

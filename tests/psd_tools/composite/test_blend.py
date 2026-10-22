@@ -796,7 +796,7 @@ def test_the_table_operands_round_trip_to_photoshops_bytes() -> None:
     makes a mis-snapped backdrop a failure rather than a silent shift, so it is
     measured here instead of argued.
     """
-    for backdrop, source, expected in PHOTOSHOP_CMYK_SEPARABLE:
+    for _backdrop, source, expected in PHOTOSHOP_CMYK_SEPARABLE:
         stored = list((1.0 - _cmyk_canvas_8bit(source).reshape(4)) * 100.0)
         # Photoshop's sampler reports ink to two decimals, so 9.803921... comes
         # back as 9.8. One 8-bit step is 100/255 == 0.392 of a percent, so this

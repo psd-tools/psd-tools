@@ -27,9 +27,9 @@ from .layer_and_mask import (
 
 __all__ = [
     "PSD",
+    "ChannelImageData",
+    "GlobalLayerMaskInfo",
     "LayerInfo",
     "LayerRecords",
-    "ChannelImageData",
     "TaggedBlocks",
-    "GlobalLayerMaskInfo",
 ]

@@ -191,10 +191,10 @@ class ValueElement(BaseElement):
     def __le__(self, other: Any) -> bool:
         return self.value <= other
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: object) -> bool:
         return self.value == other
 
-    def __ne__(self, other: Any) -> bool:
+    def __ne__(self, other: object) -> bool:
         return self.value != other
 
     def __gt__(self, other: Any) -> bool:
