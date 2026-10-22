@@ -29,7 +29,7 @@ repos:
         name: ruff (format)
         entry: uv run ruff format
         language: system
-        types: [python]
+        types_or: [python, markdown]
       - id: mypy
         name: mypy
         entry: uv run mypy
