@@ -34,9 +34,8 @@ def mutate(data: bytes, rng: random.Random) -> tuple[bytes, str]:
         return bytes(buf[:cut]), f"truncate at {cut}"
     changed = []
     span = len(buf) if kind == "flip" else min(len(buf), HEAD_BYTES)
-    for _ in range(rng.randint(1, 8)):
-        value = rng.randrange(256)
-        offset = rng.randrange(span)
+    for offset in rng.sample(range(span), min(span, rng.randint(1, 8))):
+        value = (buf[offset] + rng.randrange(1, 256)) % 256
         buf[offset] = value
         changed.append(f"{offset}={value}")
     return bytes(buf), f"{kind} " + ",".join(changed)
