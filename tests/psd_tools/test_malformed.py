@@ -49,7 +49,7 @@ def read_everything(data: bytes) -> None:
         )
     except (ValueError, OSError):
         return
-    calls: list[Callable[[], object]] = [psd.numpy, psd.thumbnail]
+    calls: list[Callable[[], object]] = [psd.numpy, psd.topil, psd.thumbnail]
     if HAS_COMPOSITE:
         calls.append(lambda: psd.composite(force=True))
     for call in calls:
