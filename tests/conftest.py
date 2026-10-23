@@ -28,3 +28,12 @@ skip_without_composite = pytest.mark.skipif(
     not HAS_COMPOSITE,
     reason="Requires composite dependencies: pip install 'psd-tools[composite]'",
 )
+
+
+def pytest_addoption(parser: Any) -> None:
+    parser.addoption(
+        "--mutants",
+        type=int,
+        default=0,
+        help="byte-mutated variants per fixture for tests/psd_tools/test_malformed.py",
+    )
