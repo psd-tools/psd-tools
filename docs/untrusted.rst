@@ -150,8 +150,9 @@ A damaged part is handled by what depends on it:
 - Ancillary data is degraded: a damaged tagged block stays as raw bytes, and a
   property backed by a damaged descriptor returns its default or ``None``.
   A lossy result is stated in the docstring.
-- A parsing limit, a decompression limit and the allocation budget are never
-  degraded; they raise whatever the damaged part is.
+- A parsing limit and a decompression limit are never degraded; they raise
+  whatever the damaged part is. The allocation budget raises too, except that a
+  layer effect over it is skipped, as described above.
 
 Recommendations
 ---------------
