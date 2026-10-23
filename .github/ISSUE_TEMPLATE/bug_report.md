@@ -21,7 +21,9 @@ psd = PSDImage.open("filename.psd")
 A clear and concise description of what you expected to happen.
 
 **File and screenshots**
-If applicable, add a PSD file and screenshots to help explain your problem.
+If applicable, add a minimal PSD file and screenshots to help explain your problem.
+Issues are public: do not attach a file with private or copyrighted content, and report
+a suspected vulnerability through the Security tab instead.
 
 **Environment**
  - Python [3.7]

@@ -4,9 +4,33 @@ Contributing
 Development happens at github: `bug tracker <https://github.com/psd-tools/psd-tools/issues>`__.
 Feel free to submit `bug reports <https://github.com/psd-tools/psd-tools/issues/new>`_
 or pull requests. Attaching an erroneous PSD file makes the debugging process
-faster. Such PSD file might be added to the test suite.
+faster. Such PSD file might be added to the test suite. See `Files in reports
+and pull requests`_ first.
 
-The license is MIT.
+The license is MIT. To report a security vulnerability, follow the
+`security policy <https://github.com/psd-tools/psd-tools/security/policy>`__
+instead of opening an issue.
+
+Files in reports and pull requests
+----------------------------------
+
+Treat every PSD from outside the project as untrusted, including one attached
+to a report or a pull request.
+
+- **Reports.** Attach a minimal or forged file, not a real document. A real
+  document can carry private or copyrighted content in layer names, embedded
+  smart objects, thumbnails, XMP and file paths, and an attachment on a public
+  issue is public.
+- **Fixtures.** A file added under ``tests/psd_files/`` must be one you have the
+  right to license under the MIT license. Prefer a file authored or forged for
+  the test. A file crafted with Photoshop or a third-party tool is accepted too.
+  State in the pull request how each new file was created, including the tool
+  and its version. Keep the file as small as the test allows.
+- **Hostile files.** A file that declares far more data than it holds, to
+  exercise a limit, should be forged inside the test instead of committed as a
+  binary, so that it cannot exhaust the memory of a contributor or of CI.
+- **Opening files.** Parse files from outside the project with the limits in
+  :doc:`untrusted`.
 
 Package design
 --------------
