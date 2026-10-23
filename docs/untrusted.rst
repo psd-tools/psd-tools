@@ -122,6 +122,38 @@ These apply whatever the budget:
 - A canvas grown from a descriptor value, such as a stroke width or a pattern
   scale, may not grow far out of proportion to what it grows from.
 
+Error handling
+--------------
+
+Malformed data in a file raises only :py:class:`ValueError`, including
+:py:class:`~psd_tools.ParseLimitError` and
+:py:class:`~psd_tools.compression.DecompressionLimitError`, or
+:py:class:`OSError`. This holds for every call that reads a document, such as
+:py:meth:`~psd_tools.api.psd_image.PSDImage.open`, ``numpy()``, ``topil()``,
+``composite()`` and ``thumbnail()``. Any other exception type from these calls
+is a bug, so this is enough to guard them::
+
+    try:
+        psd = PSDImage.open(path, parse_limits=limits)
+        image = psd.composite()
+    except (ValueError, OSError):
+        ...  # reject the file
+
+``TypeError``, ``IndexError`` and ``KeyError`` are for wrong arguments from the
+caller, never for file data.
+
+A damaged part is handled by what depends on it:
+
+- Data that other parts need to be interpreted is rejected: the header, layer
+  records, ``Lr16`` and ``Lr32`` blocks, section dividers, channel sizes and the
+  color table of an indexed document.
+- Ancillary data is degraded: a damaged tagged block stays as raw bytes, and a
+  property backed by a damaged descriptor returns its default or ``None``.
+  A lossy result is stated in the docstring.
+- A parsing limit and a decompression limit are never degraded; they raise
+  whatever the damaged part is. The allocation budget raises too, except that a
+  layer effect over it is skipped, as described above.
+
 Recommendations
 ---------------
 

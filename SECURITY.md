@@ -26,12 +26,15 @@ Reportable:
   [Handling untrusted files](docs/untrusted.rst).
 - Reading or writing files outside the intended directory, for example through smart objects.
 - Unintended code execution, filesystem access, or network access.
-- Crashes on malformed input with an exception other than `ValueError` or `OSError`. Whether
-  one is handled as a vulnerability or an ordinary bug is decided per report.
+- An exception other than `ValueError` or `OSError` from a call that reads a document, such as
+  `PSDImage.open()`, `composite()` or `numpy()`, on malformed input. See
+  [Error handling](docs/untrusted.rst).
 
 Not a vulnerability by itself:
 
 - A deliberate `ValueError` or `OSError` rejecting a malformed or over-limit file.
+- Any other exception from a property of a document that already opened. It is an ordinary
+  bug; report it as a public issue.
 - Resource use that [Handling untrusted files](docs/untrusted.rst) says is not bounded.
 - Behavior that requires the caller to disable a limit or pass `trust_full_path=True`.
 - Mutating low-level structures under the high-level API, which is out of contract.
