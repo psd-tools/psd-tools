@@ -11,10 +11,12 @@ Example::
 """
 
 import logging
+from typing import Any
 
 from psd_tools.api._descriptor import get_descriptor, get_enum, get_scalar
 from psd_tools.api.layers import AdjustmentLayer, FillLayer
 from psd_tools.constants import GradientType, Tag
+from psd_tools.psd.adjustments import BrightnessContrast as BrightnessContrastData
 from psd_tools.psd.adjustments import Curves as CurvesData
 from psd_tools.psd.adjustments import CurvesExtraMarker, LevelRecord
 from psd_tools.psd.adjustments import Levels as LevelsData
@@ -74,10 +76,30 @@ class GradientFill(FillLayer):
 
 
 @register(Tag.CONTENT_GENERATOR_EXTRA_DATA)
+@register(Tag.BRIGHTNESS_AND_CONTRAST)
 class BrightnessContrast(AdjustmentLayer):
-    """Brightness and contrast adjustment."""
+    """
+    Brightness and contrast adjustment.
 
-    # Tag.BRIGHTNESS_AND_CONTRAST is obsolete.
+    A layer saved with *Use Legacy* stores its values in the obsolete
+    ``brit`` block alone; the properties read them from there and report
+    :py:attr:`use_legacy` as `True`.
+    """
+
+    def __init__(self, *args: Any):
+        super().__init__(*args)
+        # The outer @register leaves _KEY at CgEd, so _data is that descriptor
+        # when present. A CgEd layer also carries a zeroed brit block, so brit
+        # is read only when there is no CgEd.
+        legacy = self.tagged_blocks.get_data(Tag.BRIGHTNESS_AND_CONTRAST)
+        if self._data is None and isinstance(legacy, BrightnessContrastData):
+            self._data = {
+                b"Brgh": legacy.brightness,
+                b"Cntr": legacy.contrast,
+                b"means": legacy.mean,
+                b"Lab ": bool(legacy.lab_only),
+                b"useLegacy": True,
+            }
 
     @property
     def brightness(self) -> int:
