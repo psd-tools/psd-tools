@@ -50,6 +50,25 @@ def test_brightness_contrast(psd: PSDImage) -> None:
     assert layer.automatic is False
 
 
+@pytest.mark.parametrize(
+    "colormode, brightness, contrast",
+    [("rgb", 20, 57), ("cmyk", 44, 19), ("grayscale", -23, -26)],
+)
+def test_legacy_brightness_contrast(
+    colormode: str, brightness: int, contrast: int
+) -> None:
+    psd = PSDImage.open(
+        full_name(f"adjustments/brightnesscontrast_legacy_{colormode}.psd")
+    )
+    layer = psd[1]
+    assert isinstance(layer, adjustments.BrightnessContrast)
+    assert layer.brightness == brightness
+    assert layer.contrast == contrast
+    assert layer.mean == 127
+    assert layer.lab is False
+    assert layer.use_legacy is True
+
+
 def test_levels(psd: PSDImage) -> None:
     layer = psd[5]
     assert isinstance(layer, adjustments.Levels)

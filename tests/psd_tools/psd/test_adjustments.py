@@ -5,6 +5,7 @@ import struct
 import pytest
 
 from psd_tools.psd.adjustments import (
+    BrightnessContrast,
     Curves,
     CurvesExtraItem,
     CurvesExtraMarker,
@@ -143,3 +144,12 @@ def test_hue_saturation_keeps_trailing_bytes() -> None:
     block = hue_saturation_block(HUE_SATURATION_TRAILER)
     assert len(block) == 136
     assert HueSaturation.frombytes(block).unknown == HUE_SATURATION_TRAILER
+
+
+def test_brightness_contrast_reads_signed_values() -> None:
+    # The brit block of psd_files/adjustments/brightnesscontrast_legacy_grayscale.psd:
+    # brightness -23, contrast -26, mean 127.
+    block = b"\xff\xe9\xff\xe6\x00\x7f\x00\x00"
+    data = BrightnessContrast.frombytes(block)
+    assert (data.brightness, data.contrast, data.mean) == (-23, -26, 127)
+    check_read_write(BrightnessContrast, block)

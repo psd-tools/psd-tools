@@ -67,11 +67,11 @@ class BrightnessContrast(BaseElement):
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
         """Read the structure from a file-like object."""
-        return cls(*read_fmt("3HBx", fp))
+        return cls(*read_fmt("2hHBx", fp))
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         """Write the structure to a file-like object and return the bytes written."""
-        return write_fmt(fp, "3HBx", *astuple(self))
+        return write_fmt(fp, "2hHBx", *astuple(self))
 
 
 @register(Tag.COLOR_BALANCE)

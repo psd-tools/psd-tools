@@ -1,6 +1,14 @@
 Changelog
 =========
 
+1.26.1 (unreleased)
+-------------------
+
+- [fix] A Brightness/Contrast layer saved with *Use Legacy* reads as
+  ``BrightnessContrast`` instead of an empty ``PixelLayer``, and composites with
+  Photoshop's legacy formula instead of being skipped. The low-level ``brit``
+  block reads its brightness and contrast as signed values (#1039)
+
 1.26.0 (2026-10-21)
 -------------------
 
