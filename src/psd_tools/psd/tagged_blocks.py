@@ -34,9 +34,11 @@ from psd_tools.psd.base import (
 from psd_tools.psd.bin_utils import (
     bounded_reader,
     is_readable,
+    pad,
     read_exact,
     read_fmt,
     read_length_block,
+    read_padding,
     read_pascal_string,
     trimmed_repr,
     write_bytes,
@@ -51,7 +53,7 @@ from psd_tools.psd.effects_layer import EffectsLayer
 from psd_tools.psd.engine_data import EngineData, EngineData2
 from psd_tools.psd.filter_effects import FilterEffects
 from psd_tools.psd.linked_layer import LinkedLayers
-from psd_tools.psd.parse_limits import ParseLimitError
+from psd_tools.psd.parse_limits import ParseLimitError, consume_bytes, parse_context
 from psd_tools.psd.patterns import Patterns
 from psd_tools.psd.vector import VectorMaskSetting, VectorStrokeContentSetting
 from psd_tools.registry import new_registry
@@ -274,6 +276,18 @@ class TaggedBlock(BaseElement):
         Tag.NESTED_SECTION_DIVIDER_SETTING,
     }
 
+    # Keys whose payload can dominate the file: an embedded smart object is
+    # read from a bounded substream instead of a materialized copy of the
+    # whole block (#899). The set is deliberately not _BIG_KEYS, which
+    # selects the length-field width and covers descriptor-backed tags this
+    # has no business streaming.
+    _STREAMED_KEYS: ClassVar[set[Tag]] = {
+        Tag.LINKED_LAYER1,
+        Tag.LINKED_LAYER2,
+        Tag.LINKED_LAYER3,
+        Tag.LINKED_LAYER_EXTERNAL,
+    }
+
     signature: bytes = field(default=b"8BIM", repr=False, validator=in_(_SIGNATURES))
     key: bytes = b""
     data: bytes = field(default=b"", repr=True)
@@ -301,25 +315,75 @@ class TaggedBlock(BaseElement):
             logger.warning(message)
 
         fmt = cls._length_format(key, version)
-        raw_data = read_length_block(fp, fmt=fmt, padding=padding)
         kls = TYPES.get(key)
-        if kls:
-            try:
-                data = kls.frombytes(raw_data, version=version)
-            except ParseLimitError:
-                raise
-            except (OSError, ValueError) as e:
-                if key in cls._STRUCTURAL:
-                    raise
-                # Fallback to raw data.
-                message = f"Failed to read tagged block {key!r}: {e}"
-                logger.error(message)
-                data = raw_data
+        if kls is not None and key in cls._STREAMED_KEYS:
+            data = cls._read_streamed(fp, key, kls, fmt, version, padding)
         else:
-            message = f"Unknown tagged block: {key!r}, {trimmed_repr(raw_data)}"
-            logger.debug(message)
-            data = raw_data
+            raw_data = read_length_block(fp, fmt=fmt, padding=padding)
+            if kls:
+                try:
+                    data = kls.frombytes(raw_data, version=version)
+                except ParseLimitError:
+                    raise
+                except (OSError, ValueError) as e:
+                    if key in cls._STRUCTURAL:
+                        raise
+                    # Fallback to raw data.
+                    message = f"Failed to read tagged block {key!r}: {e}"
+                    logger.error(message)
+                    data = raw_data
+            else:
+                message = f"Unknown tagged block: {key!r}, {trimmed_repr(raw_data)}"
+                logger.debug(message)
+                data = raw_data
         return cls(signature, key, data)
+
+    @classmethod
+    def _read_streamed(
+        cls,
+        fp: IO[bytes],
+        key: Any,
+        kls: type[BaseElement],
+        fmt: str,
+        version: int,
+        padding: int,
+    ) -> Any:
+        """Read a streamed key's payload without materializing it first.
+
+        The handler parses from a bounded substream over the live stream, so
+        the only full-size copy alive is the one it retains (#899). A parse
+        that fails, or that does not consume the window exactly, falls back
+        to the raw bytes like any other block; a truncated payload raises
+        before anything is read.
+        """
+        marker = fp.tell()
+        length = read_fmt(fmt, fp)[0]
+        payload = fp.tell()
+        if not is_readable(fp, length):
+            raise OSError("Invalid data section size: %d" % length)
+        try:
+            with parse_context():
+                consume_bytes(length)
+                with bounded_reader(fp, length) as body:
+                    data = kls.read(body, version=version)
+                    consumed = body.tell() - payload
+                if consumed != length:
+                    raise ValueError("consumed %d of %d bytes" % (consumed, length))
+        except ParseLimitError:
+            # Leave the stream where the whole-block read would have.
+            fp.seek(payload + length)
+            if is_readable(fp, pad(length, padding) - length):
+                read_padding(fp, length, padding)
+            raise
+        except (OSError, ValueError) as e:
+            if key in cls._STRUCTURAL:
+                raise
+            message = f"Failed to read tagged block {key!r}: {e}"
+            logger.error(message)
+            fp.seek(marker)
+            return read_length_block(fp, fmt=fmt, padding=padding)
+        read_padding(fp, length, padding)
+        return data
 
     def write(
         self, fp: IO[bytes], version: int = 1, padding: int = 1, **kwargs: Any

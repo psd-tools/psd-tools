@@ -1,5 +1,9 @@
+import io
 import logging
+import os
+import struct
 import sys
+import tracemalloc
 from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -9,7 +13,8 @@ import pytest
 from psd_tools.api.layers import SmartObjectLayer
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.api.smart_object import SmartObject
-from psd_tools.constants import LinkedLayerType
+from psd_tools.constants import LinkedLayerType, Tag
+from psd_tools.psd.linked_layer import LinkedLayer, LinkedLayers
 
 from ..utils import full_name
 
@@ -625,3 +630,53 @@ class TestFiletypeBlank:
         r = repr(so)
         assert "type='png'" in r
         assert "detected='png'" in r
+
+
+def _document_with_embedded_payload(payload: bytes) -> bytes:
+    """A minimal v1 document whose lnk2 block is dominated by *payload*.
+
+    The layer section is empty and the document-level tagged blocks hold one
+    embedded smart object, mirroring how Photoshop files place them.
+    """
+    entry = LinkedLayer(kind=LinkedLayerType.DATA, version=4, data=payload)
+    body = LinkedLayers([entry]).tobytes()  # type: ignore[list-item]
+    block = b"8BIM" + Tag.LINKED_LAYER2.value + struct.pack(">I", len(body)) + body
+    header = b"8BPS" + struct.pack(">H", 1) + b"\0" * 6
+    header += struct.pack(">HIIHH", 3, 4, 4, 8, 3)
+    section = struct.pack(">I", 0) + block
+    layers = struct.pack(">I", len(section)) + section
+    image = struct.pack(">H", 0) + b"\x80" * 48
+    return header + struct.pack(">I", 0) * 2 + layers + image
+
+
+def test_open_of_a_dominant_embedded_payload_holds_one_copy(tmp_path: Path) -> None:
+    """Opening a document dominated by one embedded payload.
+
+    The payload must not be materialized more than once (#899).
+    """
+    payload = os.urandom(6 * 1024 * 1024)
+    document = _document_with_embedded_payload(payload)
+    path = tmp_path / "forged.psd"
+    path.write_bytes(document)
+
+    tracemalloc.start()
+    try:
+        with open(path, "rb") as f:
+            psd = PSDImage.open(f)
+        peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+
+    # The retained copy plus slack: a second full-size buffer fails this.
+    ceiling = len(payload) + max(2 * 1024 * 1024, len(payload) // 8)
+    assert peak <= ceiling
+
+    blocks = psd.tagged_blocks
+    assert blocks is not None
+    entries = blocks.get_data(Tag.LINKED_LAYER2)
+    assert entries is not None
+    assert [entry.data for entry in entries] == [payload]
+
+    buffer = io.BytesIO()
+    psd.save(buffer)
+    assert buffer.getvalue() == document

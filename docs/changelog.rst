@@ -1,6 +1,18 @@
 Changelog
 =========
 
+1.27.0 (unreleased)
+-------------------
+
+- [fix] Opening a PSD whose size is dominated by embedded smart-object
+  payloads (``lnk2``/``lnkE``/``lnk3``/``lnkD``) no longer peaks at about
+  three times the file size in memory: the linked-layer blocks are parsed
+  from a bounded substream instead of a materialized copy of the whole
+  block, so the only full-size buffer is the one that is kept. A linked-layer
+  block whose parser leaves part of its window unread, or whose trailing
+  bytes are too few to frame another item, now falls back to the block's raw
+  bytes instead of reading as a silently partial list (#899)
+
 1.26.0 (2026-10-21)
 -------------------
 

@@ -9,6 +9,7 @@ from psd_tools.constants import LinkedLayerType, Tag
 from psd_tools.psd import PSD
 from psd_tools.psd.descriptor import DescriptorBlock
 from psd_tools.psd.linked_layer import LinkedLayer, LinkedLayers
+from psd_tools.psd.tagged_blocks import TaggedBlock
 
 from ..utils import check_read_write, check_write_read, full_name
 
@@ -161,3 +162,107 @@ def test_linked_layer_v8_survives_save() -> None:
     buffer.seek(0)
     after = entries(PSD.read(buffer))
     assert [e.tobytes() for e in after] == [e.tobytes() for e in before]
+
+
+def _lnk2_block(body: bytes, version: int) -> bytes:
+    fmt = ("I", "Q")[version - 1]
+    return b"8BIM" + Tag.LINKED_LAYER2.value + struct.pack(">" + fmt, len(body)) + body
+
+
+_SIBLING = b"8BIM" + b"zzzz" + struct.pack(">I", 4) + b"data"
+
+
+def test_linked_layers_reads_every_item_from_the_framed_block() -> None:
+    """Each item is parsed from a bounded substream.
+
+    The list consumes its block exactly, so the next structure starts where
+    the framing says (#899).
+    """
+    items = LinkedLayers(
+        [
+            LinkedLayer(),  # type: ignore[list-item]
+            LinkedLayer(  # type: ignore[list-item]
+                kind=LinkedLayerType.DATA, data=b"\x01\x02\x03\x04"
+            ),
+            LinkedLayer(kind=LinkedLayerType.ALIAS),  # type: ignore[list-item]
+        ]
+    )
+    body = items.tobytes()
+    stream = io.BytesIO(body)
+    assert LinkedLayers.read(stream) == items
+    assert stream.tell() == len(body)
+
+
+@pytest.mark.parametrize("version", [1, 2])
+@pytest.mark.parametrize("padding", [1, 4])
+def test_streamed_block_reads_past_its_sibling(version: int, padding: int) -> None:
+    """The streamed read leaves the parent stream at the block's end.
+
+    A following block still parses, padding included (#899).
+    """
+    items = LinkedLayers(
+        [LinkedLayer(kind=LinkedLayerType.DATA, data=b"\x01\x02")]  # type: ignore[list-item]
+    )
+    stream = io.BytesIO(_lnk2_block(items.tobytes(), version) + _SIBLING)
+    first = TaggedBlock.read(stream, version=version, padding=padding)
+    assert isinstance(first.data, LinkedLayers)
+    assert first.data == items
+    second = TaggedBlock.read(stream, version=version, padding=padding)
+    assert second.key == b"zzzz"
+    assert second.data == b"data"
+
+
+def test_streamed_block_rejects_a_truncated_payload() -> None:
+    """A declared length the file cannot hold raises before anything is read."""
+    body = LinkedLayers(
+        [LinkedLayer(kind=LinkedLayerType.DATA, data=b"abcd")]  # type: ignore[list-item]
+    ).tobytes()
+    block = _lnk2_block(body, 1)[:-8]
+    with pytest.raises(OSError):
+        TaggedBlock.read(io.BytesIO(block), version=1)
+
+
+def test_streamed_block_rejects_a_forged_length() -> None:
+    """A forged length is rejected by the bound check, not by an allocation."""
+    stream = io.BytesIO(b"8BIM" + Tag.LINKED_LAYER2.value + struct.pack(">Q", 1 << 30))
+    with pytest.raises(OSError):
+        TaggedBlock.read(stream, version=2)
+
+
+def test_linked_layers_rejects_an_item_that_under_consumes() -> None:
+    """A byte inside the item's window the parser did not read is leftover.
+
+    It is unexplained, not padding, so the item read fails (#899).
+    """
+    item = LinkedLayer(kind=LinkedLayerType.DATA, data=b"abcd").tobytes()
+    stream = io.BytesIO(struct.pack(">Q", len(item) + 1) + item + b"\x00")
+    with pytest.raises(ValueError, match="consumed"):
+        LinkedLayers.read(stream)
+
+
+def test_streamed_block_falls_back_to_raw_bytes_and_keeps_alignment() -> None:
+    """An unreadable item falls back to the block's raw bytes.
+
+    That is what any other tagged block does, and the stream stays aligned
+    for what follows (#899).
+    """
+    body = struct.pack(">Q", 4) + b"\xff\xff\xff\xff"
+    block = _lnk2_block(body, 1)
+    stream = io.BytesIO(block + _SIBLING)
+    parsed = TaggedBlock.read(stream, version=1)
+    assert parsed.data == body
+    assert TaggedBlock.read(stream, version=1).data == b"data"
+    assert stream.tell() == len(block + _SIBLING)
+
+
+def test_streamed_block_rejects_a_short_trailing_tail() -> None:
+    """A tail too short to frame another item is unexplained leftover.
+
+    The block reads as raw bytes instead of a silently partial list (#899).
+    """
+    items = LinkedLayers(
+        [LinkedLayer(kind=LinkedLayerType.DATA, data=b"abcd")]  # type: ignore[list-item]
+    )
+    body = items.tobytes() + b"\x00\x00"
+    parsed = TaggedBlock.read(io.BytesIO(_lnk2_block(body, 1)), version=1)
+    assert parsed.data == body
