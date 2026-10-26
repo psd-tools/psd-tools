@@ -44,6 +44,7 @@ _CONTRAST_CONTROL_X = np.array([0.0, 63.0, 191.0, 255.0], dtype=np.float32) / _2
 _CONTRAST_INNER_DELTA = np.float32(25.0 / 255.0)
 
 # Level the legacy brightness and contrast line pivots on (0–255 scale).
+# Only mean 127 with lab False is verified; neither property is read here.
 _LEGACY_PIVOT = np.float32(127.0) / _255
 
 # Brightness polynomial coefficients (reverse-engineered from Photoshop).

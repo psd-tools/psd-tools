@@ -78,13 +78,7 @@ class GradientFill(FillLayer):
 @register(Tag.CONTENT_GENERATOR_EXTRA_DATA)
 @register(Tag.BRIGHTNESS_AND_CONTRAST)
 class BrightnessContrast(AdjustmentLayer):
-    """
-    Brightness and contrast adjustment.
-
-    A layer saved with *Use Legacy* stores its values in the obsolete
-    ``brit`` block alone; the properties read them from there and report
-    :py:attr:`use_legacy` as `True`.
-    """
+    """Brightness and contrast adjustment."""
 
     def __init__(self, *args: Any):
         super().__init__(*args)
