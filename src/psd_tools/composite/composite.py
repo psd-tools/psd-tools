@@ -301,16 +301,22 @@ class _PassCache:
     group_shapes: _GroupShapes = field(default_factory=dict)
 
 
-def _paint_bbox(layer: Layer, memo: _ContentBBoxes) -> tuple[int, int, int, int]:
+def _paint_bbox(
+    layer: Layer,
+    memo: _ContentBBoxes,
+    layer_filter: Callable[[Layer], bool] | None = None,
+) -> tuple[int, int, int, int]:
     """Every box ``layer`` and everything inside it can put paint on."""
     bbox = _stroke_reach(layer)
     if isinstance(layer, GroupMixin):
-        bbox = utils.union_bbox(bbox, _content_bbox(layer, memo))
+        bbox = utils.union_bbox(bbox, _content_bbox(layer, memo, layer_filter))
     return bbox
 
 
 def _content_bbox(
-    group: Layer, memo: _ContentBBoxes | None = None
+    group: Layer,
+    memo: _ContentBBoxes | None = None,
+    layer_filter: Callable[[Layer], bool] | None = None,
 ) -> tuple[int, int, int, int]:
     """The box an isolated group has to composite its contents on.
 
@@ -332,12 +338,11 @@ def _content_bbox(
     :py:meth:`Compositor._apply_clip_layers` keeps its color and discards its
     coverage, and that layer is a non-clipping child already counted.
 
-    Visibility is read the way ``Group.bbox`` reads it and not the way
-    ``layer_filter`` does, so a child the filter excludes is measured here. It
-    was already inside the old box for the same reason -- ``extract_bbox()``
-    does not consult the filter either -- and all this adds on top is that
-    child's own stroke margin, so the two stay consistent rather than one
-    being narrowed alone.
+    The active layer filter can include hidden descendants that ``Group.bbox``
+    leaves out. Measure their paint too, otherwise an isolated group's canvas
+    clips them before they reach the requested viewport. Keep the ordinary
+    bbox as a lower bound; a filter excluding visible children need not shrink
+    the canvas. The memo belongs to one pass with one filter.
     """
     bbox = group.bbox
     if isinstance(group, Artboard):
@@ -346,10 +351,11 @@ def _content_bbox(
         memo = {}
     elif id(group) in memo:
         return memo[id(group)]
+    accepts = layer_filter or Layer.is_visible
     for child in cast(GroupMixin, group):
-        if not child.is_visible() or child.clipping:
+        if not accepts(child) or child.clipping:
             continue
-        bbox = utils.union_bbox(bbox, _paint_bbox(child, memo))
+        bbox = utils.union_bbox(bbox, _paint_bbox(child, memo, layer_filter))
     memo[id(group)] = bbox
     return bbox
 
@@ -1746,7 +1752,8 @@ class Compositor:
             self._viewport
             if is_passthrough
             else utils.intersect(
-                self._viewport, _content_bbox(layer, self._cache.content_bboxes)
+                self._viewport,
+                _content_bbox(layer, self._cache.content_bboxes, self._layer_filter),
             )
         )
         if knockout:
@@ -2333,7 +2340,8 @@ class Compositor:
         inner = viewport
         if layer.blend_mode != BlendMode.PASS_THROUGH:
             inner = utils.intersect(
-                viewport, _content_bbox(layer, self._cache.content_bboxes)
+                viewport,
+                _content_bbox(layer, self._cache.content_bboxes, self._layer_filter),
             )
         height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
         if inner == (0, 0, 0, 0):

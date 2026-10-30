@@ -15,3 +15,8 @@ PSDImage
     :inherited-members:
 
 For detailed layer types documentation, see :doc:`psd_tools.api.layers`.
+
+Batch layer export
+------------------
+
+.. autofunction:: psd_tools.api.export.export_layers
