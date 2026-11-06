@@ -4,6 +4,11 @@ Changelog
 1.26.1 (unreleased)
 -------------------
 
+- [api] Add ``export_layers()`` and the ``psd-tools export-layers`` command to
+  export layers as PNGs with group directories and a JSON manifest. Supports
+  hidden layers, group previews, raw pixels, full-canvas images and dry runs
+- [fix] Compositing an isolated group with a ``layer_filter`` that includes
+  hidden descendants no longer clips those descendants to the visible bounds
 - [fix] A Brightness/Contrast layer saved with *Use Legacy* reads as
   ``BrightnessContrast`` instead of an empty ``PixelLayer``, and composites with
   Photoshop's legacy formula instead of being skipped. The low-level ``brit``

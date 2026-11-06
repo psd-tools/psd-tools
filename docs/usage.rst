@@ -7,6 +7,7 @@ Command line
 The package provides command line tools to handle a PSD document::
 
     psd-tools export <input_file> <output_file> [options]
+    psd-tools export-layers <input_file> <output_dir> [options]
     psd-tools show <input_file> [options]
     psd-tools debug <input_file> [options]
     psd-tools -h | --help
@@ -17,6 +18,86 @@ Example::
     psd-tools show example.psd  # Show the file content
     psd-tools export example.psd example.png  # Export as PNG
     psd-tools export example.psd[0] example-0.png  # Export layer as PNG
+
+Batch layer export
+~~~~~~~~~~~~~~~~~~
+
+Export a document's layers to individual PNGs with a JSON manifest::
+
+    psd-tools export-layers example.psd assets
+    psd-tools export-layers example.psb assets-preview --dry-run
+    psd-tools export-layers example.psd assets-all --include-hidden --include-groups
+    psd-tools export-layers example.psd assets-canvas --full-canvas
+    psd-tools export-layers example.psd assets-raw --raw
+
+The output directory must not already exist, and its parent must exist. Existing
+files, directories, and symlinks are refused. The exporter walks the layer tree
+from background to foreground and retains group nesting as directories. Names
+have an index prefix, such as ``0001-Assets/0000-Button.png``, so duplicate names
+do not collide. Characters unsuitable for filenames are replaced, and long
+names are shortened. The original names and index paths remain in the manifest.
+
+By default, only effectively visible non-group layers are exported. A child of
+a hidden group is hidden even when its own visibility flag is set.
+``--include-hidden`` includes these layers and renders hidden children in group
+previews without changing visibility flags in the source. ``--include-groups``
+adds a PNG for each group or artboard alongside its descendants' images.
+Adjustment layers cannot be exported independently because they require a
+backdrop; their effects can appear in group previews. Hidden layers, omitted
+groups, adjustment layers, and empty bounds are listed as skipped, with a reason.
+
+Normal export uses ``layer.composite()``: masks and associated clipping layers
+are included, with the same rendering limitations as the existing single-layer
+export. The PNG is cropped to the layer or group's bounds, which can extend
+outside the document. Artboard previews use the artboard's own bounds.
+``--full-canvas`` uses the document rectangle instead, keeping all PNGs at the
+same size and aligning their contents at their original document coordinates.
+This clips off-canvas content. Effects extending beyond the selected viewport
+may be cropped, as with an explicit viewport passed to ``composite()``.
+
+``--raw`` calls ``layer.topil()`` to export stored pixels without masks, layer
+opacity, or effects. It cannot be combined with ``--include-groups`` or
+``--full-canvas``. This mode needs no optional compositor dependencies. Both
+modes inherit the existing PIL conversion's precision and alpha limitations;
+for example, raw CMYK cannot retain alpha. Any image still in CMYK after ICC
+handling is converted to RGB using Pillow so it can be saved as PNG.
+
+``--dry-run`` prints the JSON plan to stdout without rendering images or creating
+directories. It still opens the document and reads layer metadata. Planned
+filenames and skip reasons are the same as for a real export, but image sizes
+and render failures are known only after rendering.
+
+``manifest.json`` contains ``schema_version: 1``, document size/color mode/depth,
+the selected options, status counts, and an entry for every layer. Each entry
+records its integer index path, layer ID, original name, kind, visibility flags,
+document-coordinate ``bbox`` and render ``viewport``, relative PNG ``filename``,
+``status``, optional ``reason``, and resulting ``image_size``. Group bounds include
+hidden descendants when requested. Filenames use forward slashes on every
+platform. Treat only entries with status ``exported`` as successfully written
+images; a planned filename may also be retained on a skipped or failed entry.
+
+Expected per-layer render/encoding errors are recorded and the batch continues.
+A truncated PNG is removed if encoding fails. Successfully written images are
+retained, including when a later layer or the manifest fails. The command exits
+0 on success (including skipped layers), 1 on open/output/render failure, and
+2 for invalid arguments. A failed export is not transactional; choose a new
+output directory for a retry. Unsupported rendering that the compositor handles
+with a warning remains a warning rather than becoming an export failure.
+
+The same workflow is available in Python::
+
+    from psd_tools import PSDImage
+    from psd_tools.api.export import export_layers
+
+    psd = PSDImage.open('example.psd')
+    plan = export_layers(psd, 'assets', dry_run=True)
+    report = export_layers(psd, 'assets', include_groups=True)
+    print(report['counts'])
+
+The API returns the manifest as a dictionary. Directory creation and manifest
+write failures raise ``OSError``; per-layer ``ValueError``, ``OSError``, and
+``ImportError`` failures are recorded as ``error`` entries. Other exceptions
+propagate. See :py:func:`~psd_tools.api.export.export_layers` for options.
 
 Working with PSD document
 -------------------------

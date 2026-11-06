@@ -2,6 +2,7 @@ import dataclasses
 import io
 import logging
 import sys
+from collections.abc import Callable
 from typing import Any, cast
 
 import numpy as np
@@ -2381,9 +2382,11 @@ def test_group_contents_are_measured_once_per_composite(
     calls = []
     real = module._paint_bbox
 
-    def counting(layer: Layer, memo: Any) -> tuple[int, int, int, int]:
+    def counting(
+        layer: Layer, memo: Any, layer_filter: Callable[[Layer], bool] | None = None
+    ) -> tuple[int, int, int, int]:
         calls.append(layer)
-        return cast(tuple[int, int, int, int], real(layer, memo))
+        return cast(tuple[int, int, int, int], real(layer, memo, layer_filter))
 
     monkeypatch.setattr(module, "_paint_bbox", counting)
 

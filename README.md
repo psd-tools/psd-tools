@@ -13,6 +13,7 @@ as described in [specification](https://www.adobe.com/devnet-apps/photoshop/file
 
 - Read and write of the low-level PSD/PSB file structure
 - Raw layer image export in NumPy and PIL format
+- Batch PNG layer export with group directories and a JSON manifest
 
 ### Limited support
 
@@ -74,6 +75,16 @@ for layer in psd:
 ```
 
 Check out the [documentation](https://psd-tools.readthedocs.io/) for features and details.
+
+Export layers from the command line into a new directory:
+
+```bash
+psd-tools export-layers example.psd assets --dry-run  # Inspect the plan as JSON
+psd-tools export-layers example.psd assets           # Export PNGs and manifest.json
+```
+
+Add `--include-groups` for group previews, `--include-hidden` for hidden layers,
+`--full-canvas` for aligned document-sized PNGs, or `--raw` for stored pixels.
 
 ## Contributing
 
